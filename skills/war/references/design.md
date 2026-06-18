@@ -76,3 +76,9 @@ This document is the spec of record. The runnable surface is [`../SKILL.md`](../
 
 ## 12. Deferred (post-v1)
 Batch-then-bisect merge queue · live-SendMessage audit debate · multiple concurrent phases · multi-repo · per-task GitHub PRs as the review surface · learned coven-flagging.
+
+## 13. v0.2.0 amendments
+- **Issue timing:** file **all phase epics up front** at the approval gate (full scope before any teammate launches), but break each phase into **task sub-issues just-in-time** at that phase's start — so later phases absorb earlier phases' learnings and plan drift, while still honoring "write all issues before launching any teammates" at the epic level.
+- **New role — `war-scribe`** (sonnet): after a phase *lands*, a single write-mode pass captures **durable learnings** into the **learnings target** (the agent-memory dir `~/.claude/projects/<proj>/memory/` with `MEMORY.md` if present, else committed `docs/learnings/phase-N.md`). It is fed the phase's audit log + escalations. Auditors stay **read-only**; the scribe is the only reviewer-side writer, and its writes are confined to `learningsTarget` by reusing the worktree-scope hook (its `WAR_WORKTREE` = the target). Cadence: **once per phase** (not per task). Captures signal only — gotchas, plan↔code mismatches, deviations+why, patterns — never routine "implemented X" notes.
+- **Roles table** now includes Scribe (→ Gas Town's `bd remember`).
+- **Flow** gains a **Wrap-up** stage after Land; the Workflow returns `scribeResult` alongside `{ landed, escalated, minorsFiled, landResult }`.

@@ -1,20 +1,22 @@
 export const meta = {
   name: 'war-phase',
-  description: 'WAR per-phase execution: Work, Audit, Refine, Land one phase of an implementation plan.',
+  description: 'WAR per-phase execution: Work, Audit, Refine, Land, then Wrap-up learnings for one phase.',
   phases: [
     { title: 'Work' },
     { title: 'Audit' },
     { title: 'Refine' },
     { title: 'Land' },
+    { title: 'Wrap-up' },
   ],
 }
 
 // ---------------------------------------------------------------------------
 // args (passed by the Lead — see ../references/schemas.md):
 //   { phase: { id, title, integrationBranch, workingBranch },
-//     plan:  { file, gate },     // gate = a shell command, run BY agents (this script has no shell/fs)
+//     plan:  { file, gate },          // gate = a shell command, run BY agents (this script has no shell/fs)
 //     tasks: [ { id, issue, title, branch, worktree, deps:[id],
 //                lenses:["correctness","cascading-impact","plan-faithfulness"], coven:bool, planSlice } ],
+//     learningsTarget,                // the scribe's only writable path (memory dir or docs/learnings/)
 //     roundLimit: 3 }
 // The Lead may inject APPROVED extra stages by editing a copy of this file; never free-author the core loop.
 // ---------------------------------------------------------------------------
@@ -39,9 +41,14 @@ const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties:
   branch: { type: 'string' }, integration_sha: { type: 'string' }, working_sha: { type: 'string' },
   conflict_files: { type: 'array' }, gate_output: { type: 'string' } } }
 
-const { phase: ph, plan, tasks, roundLimit = 3 } = args
+const SCRIBE_RESULT = { type: 'object', required: ['phase', 'target', 'learnings'], properties: {
+  phase: {}, target: { type: 'string' }, files_written: { type: 'array' },
+  learnings: { type: 'array', items: { type: 'object', properties: { title: { type: 'string' }, why: { type: 'string' } } } },
+  memory_index_updated: { type: 'boolean' } } }
+
+const { phase: ph, plan, tasks, learningsTarget, roundLimit = 3 } = args
 const done = new Set()
-const landed = [], escalated = [], minorsFiled = []
+const landed = [], escalated = [], minorsFiled = [], auditLog = []
 
 const blockingOf = seats => seats.flatMap(s => s.findings || []).filter(f => f.severity === 'Critical' || f.severity === 'Major')
 const minorsOf   = seats => seats.flatMap(s => s.findings || []).filter(f => f.severity === 'Minor' || f.severity === 'Nit')
@@ -125,6 +132,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // ---- REFINE — serial merge of approved tasks (THE merge queue) ----
   for (const r of results.filter(Boolean)) {
     minorsFiled.push(...minorsOf(r.seats || []).map(f => ({ task: r.task.id, ...f })))
+    auditLog.push({ task: r.task.id, verdict: r.verdict, findings: (r.seats || []).flatMap(s => s.findings || []), blocked: r.blocked })
     done.add(r.task.id)
     if (r.verdict === 'approve') {
       const mr = await agent(
@@ -151,4 +159,17 @@ if (landed.length && !hardEscalation) {
   log(`Holding the land for phase ${ph.id}: ${escalated.length} escalation(s) need the Lead's decision.`)
 }
 
-return { phase: ph.id, landed, escalated, minorsFiled, landResult }
+// ---- WRAP-UP — capture durable learnings (war-scribe, write-scoped to learningsTarget) ----
+let scribeResult = null
+if (landResult && landResult.status === 'landed' && learningsTarget) {
+  scribeResult = await agent(
+    `Wrap up learnings for WAR phase ${ph.id} "${ph.title}" (landed on ${ph.workingBranch}).\n`
+    + `Your only writable path (also set as WAR_WORKTREE): ${learningsTarget}.\n`
+    + `Landed tasks: ${landed.join(', ') || 'none'}.\n`
+    + `Audit log (verdicts + findings): ${JSON.stringify(auditLog)}\n`
+    + `Escalations: ${JSON.stringify(escalated)}\n`
+    + `Capture only DURABLE, reusable learnings (gotchas, plan/code mismatches, deviations + why, patterns). Skip routine notes.`,
+    { agentType: 'war-scribe', phase: 'Wrap-up', label: `wrap-up:phase-${ph.id}`, model: 'sonnet', schema: SCRIBE_RESULT })
+}
+
+return { phase: ph.id, landed, escalated, minorsFiled, landResult, scribeResult }

@@ -57,3 +57,12 @@ Every agent returns **only** its JSON object (no prose). The Workflow passes the
 - Labels: `phase:<N>`, `status:todo|working|audited|merged|escalated|blocked`, `audit:1|coven`.
 - **Minor/Nit** findings → new follow-up issues labeled `war-followup`, linked to the phase epic.
 - Phase reports + escalations → **comments on the phase epic issue** (durable, human-visible).
+
+## ScribeResult — `war-scribe` (once per phase, after land)
+```jsonc
+{ phase, target: "<learnings target path>",
+  files_written: ["path"],
+  learnings: [ { title, why } ],
+  memory_index_updated: true }   // true if MEMORY.md (or docs/learnings index) was updated
+```
+The scribe writes ONLY under `learningsTarget` (enforced by the worktree-scope hook with `WAR_WORKTREE=<learningsTarget>`); it never touches source, branches, PRs, or issues.

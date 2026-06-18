@@ -41,7 +41,7 @@ See [`skills/war/references/design.md`](skills/war/references/design.md) for the
 
 ## Status
 
-v0.1.0 — early. Built for, and first exercised on, multi-phase local-MVP implementation plans.
+v0.2.0 — early. Adds the `war-scribe` per-phase learnings wrap-up and all-epics-up-front issue timing.
 
 ## License
 
