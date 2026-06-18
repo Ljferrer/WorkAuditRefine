@@ -10,6 +10,7 @@ WAR re-implements Steve Yegge's [Gas Town](https://github.com/gastownhall/gastow
 | Nun (Refinery audit gate) | `war-auditor` | read-only `Agent` (opus), Read/Grep/Glob only |
 | Refinery | `war-merge` + the Workflow's serial merge loop | `Agent` (sonnet) + Workflow control flow |
 | Witness | (dissolved) | Workflow control flow + lifecycle hooks |
+| bd remember | war-scribe | write-scoped `Agent` (sonnet); records per-phase learnings |
 
 ## Nun audit gate → `war-auditor`
 - **Seats:** `panel = 1` default; `coven = 3` for high-blast-radius tasks. **[TUNE]**
