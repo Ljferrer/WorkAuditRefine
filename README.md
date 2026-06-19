@@ -49,7 +49,7 @@ Changes apply to the current session — or run `/reload-plugins` to force a rel
 
 Or invoke it in natural language — e.g. *"Implement issues #20, #22, ... as a war-style workflow"*.
 
-**Prerequisites:** a clean git working tree, a GitHub remote, and authenticated `gh` — WAR files issues and opens a PR on your behalf, and refuses to start on a dirty tree. No experimental flags or `settings.json` changes are required — `/war` runs on the stock `Workflow` and `Agent` tools, not the experimental agent-teams feature.
+**Prerequisites:** a clean git working tree, a GitHub remote, and authenticated `gh` — WAR files issues and opens a PR on your behalf, and refuses to start on a dirty tree. No experimental flags or `settings.json` changes are required — `/war` runs on the stock `Workflow` and `Agent` tools, not the experimental agent-teams feature ([why WAR uses Workflows instead](skills/war/references/design.md#why-a-workflow-not-the-agent-teams-feature)).
 
 **Arguments:**
 

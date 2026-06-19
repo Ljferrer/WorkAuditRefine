@@ -13,6 +13,13 @@ This document is the spec of record. The runnable surface is [`../SKILL.md`](../
 - **Auditors** = read-only `Agent`s (opus); independent by default, with **one rebuttal round** on a split (realized inside the Workflow by re-spawning each seat with its peers' findings — a portable stand-in for live peer messaging).
 - **Witness dissolved** into the Workflow + hooks + Lead.
 
+### Why a Workflow, not the Agent Teams feature
+WAR's coordination is **knowable in advance** — a phase loop, dependency waves, a serial merge queue, a severity gate — so it belongs in a deterministic script, not emergent agent negotiation. The `Workflow` tool delivers exactly that, plus what WAR leans on: reproducible structure, three-layer resume (issues + ledger + Workflow journal, §6), schema-validated audit verdicts, lean **ephemeral** agents (spawn → one job → return → die, no idle inbox-pollers), and **no experimental flag** — it runs on the stock `Workflow` + `Agent` tools.
+
+The experimental **Agent Teams** feature (gated by `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`) buys three things WAR doesn't need: direct teammate-to-teammate `SendMessage`, mid-run human steering of a single long-lived agent, and dynamic task-claiming off a shared list. WAR realizes auditor disagreement as a **Workflow rebuttal round** (re-spawn each seat with its peers' findings, §2) instead of live messaging; the only capability genuinely given up is *live* SendMessage debate, parked in §12.
+
+A Workflow also can't *be* a team's Lead — it's a script with no inbox, and its `agent()` children aren't addressable teammates; it coordinates ephemeral subagents by call-and-return, full stop. The two are distinct substrates, and the human Lead session is the only place they'd mix. Rule of thumb: **scripted, reproducible coordination → Workflow; emergent or interactive coordination → Teams.** WAR is firmly the former.
+
 ## 3. The resolved decision tree
 | # | Decision | Resolution |
 |---|---|---|
