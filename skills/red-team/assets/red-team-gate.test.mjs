@@ -65,3 +65,37 @@ test('summarize counts techniques and statuses', () => {
   assert.equal(s.fail, 1)
   assert.equal(s.warn, 1)
 })
+
+import { normalizeTitle, isOnTarget } from './red-team-gate.mjs'
+
+const FP = { absPath: '/repo/docs/plans/p.md', titleLine: '# My Plan', tokens: ['## A', '## B'] }
+const anchor = (over = {}) => ({ resolved_path: '/repo/docs/plans/p.md', plan_title: '# My Plan', ...over })
+
+test('normalizeTitle strips leading #, collapses whitespace, lowercases', () => {
+  assert.equal(normalizeTitle('#  My   Plan '), normalizeTitle('my plan'))
+  assert.equal(normalizeTitle('## My Plan'), 'my plan')
+})
+
+test('isOnTarget true when title matches and path is absolute under repo', () => {
+  assert.equal(isOnTarget({ read_anchor: anchor() }, FP, '/repo'), true)
+})
+
+test('isOnTarget false when the attested title is a different plan (the drift signal)', () => {
+  assert.equal(isOnTarget({ read_anchor: anchor({ plan_title: '# OmniEMR Section B' }) }, FP, '/repo'), false)
+})
+
+test('isOnTarget false when resolved_path is outside repo', () => {
+  assert.equal(isOnTarget({ read_anchor: anchor({ resolved_path: '/other/docs/plans/p.md' }) }, FP, '/repo'), false)
+})
+
+test('isOnTarget false when resolved_path is not absolute', () => {
+  assert.equal(isOnTarget({ read_anchor: anchor({ resolved_path: 'docs/plans/p.md' }) }, FP, '/repo'), false)
+})
+
+test('isOnTarget false when read_anchor is missing (required attestation absent)', () => {
+  assert.equal(isOnTarget({ findings: [] }, FP, '/repo'), false)
+})
+
+test('isOnTarget true (back-compat) when no fingerprint is supplied', () => {
+  assert.equal(isOnTarget({ findings: [] }, null, null), true)
+})

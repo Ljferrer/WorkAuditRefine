@@ -1,3 +1,4 @@
+import { isAbsolute } from 'node:path'
 // Pure verdict/classification logic for /red-team. No deps. The Red Team Lead pipes the
 // verification Workflow's aggregated `probeResults` through this to classify blockers and
 // compute the verdict that drives the grill loop. (The Workflow sandbox only COLLECTS
@@ -8,6 +9,34 @@ export const BLOCKER_SEVERITIES = ['Critical', 'Major']
 export function allFindings(results) {
   return (results || []).flatMap(r =>
     r && Array.isArray(r.findings) ? r.findings.map(f => ({ probe: r.probe, ...f })) : [])
+}
+
+// --- Layer 3: anchor attestation --------------------------------------------
+// Normalize a plan's title line for tolerant comparison: drop a leading '# ',
+// collapse internal whitespace, lowercase.
+export function normalizeTitle(s) {
+  return String(s || '').replace(/^#+\s*/, '').replace(/\s+/g, ' ').trim().toLowerCase()
+}
+
+// True iff `p` is exactly `repo` or sits under `repo/`.
+function isUnder(p, repo) {
+  const base = String(repo).replace(/\/+$/, '')
+  return p === base || p.startsWith(base + '/')
+}
+
+// A probe result is ON-TARGET iff it attests reading the RIGHT plan:
+//  - read_anchor.plan_title matches the fingerprint's titleLine (normalized), AND
+//  - read_anchor.resolved_path is absolute and under `repo`.
+// A missing/non-object read_anchor ⇒ off-target (it cannot prove what it read).
+// Back-compat: with no fingerprint, anchors are not enforced (returns true).
+export function isOnTarget(result, fingerprint, repo) {
+  if (!fingerprint) return true
+  const a = result && result.read_anchor
+  if (!a || typeof a !== 'object') return false
+  const titleOk = normalizeTitle(a.plan_title) === normalizeTitle(fingerprint.titleLine)
+  const p = a.resolved_path
+  const pathOk = typeof p === 'string' && isAbsolute(p) && (!repo || isUnder(p, repo))
+  return titleOk && pathOk
 }
 
 export function dedupe(findings) {
