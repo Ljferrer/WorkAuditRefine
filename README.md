@@ -110,6 +110,22 @@ The trilogy: **`/war-room`** configures a run → **`/red-team`** hardens the pl
 
 See [`skills/war/references/design.md`](skills/war/references/design.md) for the full architecture.
 
+## Workflows, not Agent Teams
+
+WAR runs on the generally-available `Workflow` + `Agent` tools — **not** Claude Code's experimental [Agent Teams](https://code.claude.com/docs/en/agent-teams) feature — because its coordination (phase loop, dependency waves, serial merge queue, severity gate) is knowable up front, so it belongs in a deterministic script rather than emergent agent negotiation.
+
+| | **Workflow of subagents** (what WAR uses) | **Agent Teams** |
+|---|---|---|
+| Control flow lives in | your orchestration script (deterministic) | the agents' judgment (emergent) |
+| Agents are | ephemeral: prompt in → result out | long-lived, named, addressable peers |
+| Inter-agent comms | none — funnels through the orchestrator | direct `SendMessage` between teammates |
+| Human steering mid-run | no (runs to completion) | yes (converse with a running teammate) |
+| Task graph | fixed when you write the script | grows dynamically (shared task list) |
+| Determinism / resume | high (same script+args → same shape; journal-resumable) | low (model-driven coordination) |
+| Gating | GA, no flag | `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` |
+
+Rule of thumb: **scripted, reproducible coordination → Workflow; emergent or interactive coordination → Teams.** Full rationale: [design.md §2](skills/war/references/design.md#why-a-workflow-not-the-agent-teams-feature).
+
 ## Status
 
 v0.4.0 — early. Adds `/red-team`, an adversarial plan-verification skill: it derives a spine + bespoke probes, proves a plan's claims by running them in throwaway sandboxes, and grills you on blockers + patches the plan in place until CLEARED. Completes the war-room → red-team → war trilogy.
