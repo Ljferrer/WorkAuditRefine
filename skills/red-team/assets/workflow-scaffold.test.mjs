@@ -37,6 +37,20 @@ test("scaffold structure OK — BESPOKE PROBES injection point present", () => {
   assert.ok(src.includes('BESPOKE PROBES'), 'Missing BESPOKE PROBES injection point')
 })
 
-test("scaffold structure OK — adversarial-confirm stage present", () => {
-  assert.ok(src.includes('adversarial-confirm'), 'Missing adversarial-confirm stage')
+test("scaffold structure OK — adversarial-confirm declared as named constant", () => {
+  assert.ok(
+    src.includes("ADVERSARIAL_CONFIRM = 'adversarial-confirm'"),
+    "Missing named constant: ADVERSARIAL_CONFIRM = 'adversarial-confirm'"
+  )
+})
+
+test("scaffold structure OK — adversarial-confirm survives comment stripping", () => {
+  // Strip line comments (// to end of line) and block comments (/* ... */)
+  const stripped = src
+    .replace(/\/\/[^\n]*/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+  assert.ok(
+    stripped.includes('adversarial-confirm'),
+    "adversarial-confirm not present in non-comment source — must appear in executable code"
+  )
 })
