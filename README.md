@@ -93,6 +93,12 @@ It interviews you (starting from a **balanced / thorough / economy** preset, the
 
 Before you hand a plan to `/war`, attack it. `/red-team <plan-file>` reads the plan, runs a universal spine of adversarial checks plus probes tailored to the plan, and **proves** the plan's claims by running its tests/edits/commands in throwaway sandboxes — never touching your repo. It then grills you on every blocker and patches the plan in place until it is **CLEARED**, leaving a report under `docs/red-team/`.
 
+You can also convert a design spec into a plan and red team it in a single step:
+
+```
+/red-team convert docs/specs/design.md into a proper implementation plan and write it out to docs/plans/
+```
+
 Or invoke it in natural language — e.g. *"Red team my plan at docs/..."*.
 
 The trilogy: **`/war-room`** configures a run → **`/red-team`** hardens the plan → **`/war`** executes it. Design notes: [`docs/specs/2026-06-18-red-team-design.md`](docs/specs/2026-06-18-red-team-design.md).
