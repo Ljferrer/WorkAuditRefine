@@ -17,7 +17,9 @@ export const meta = {
 //     tasks: [ { id, issue, title, branch, worktree, deps:[id],
 //                lenses:["correctness","cascading-impact","plan-faithfulness"], coven:bool, planSlice } ],
 //     learningsTarget,                // the servitor's only writable path (memory dir or docs/learnings/)
-//     roundLimit: 3 }
+//     agents: { worker|auditor|refiner|servitor: { model, effort } },  // from .claude/war/config.json (resolved by the Lead); defaults below
+//     audit:  { covenSize, covenPolicy, autoEscalate },                // covenPolicy seeds task.coven Lead-side; covenSize/autoEscalate used here
+//     run:    { roundLimit, afk } }                                    // afk is Lead-side; roundLimit used here
 // The Lead may inject APPROVED extra stages by editing a copy of this file; never free-author the core loop.
 // ---------------------------------------------------------------------------
 
@@ -46,7 +48,16 @@ const SERVITOR_RESULT = { type: 'object', required: ['phase', 'target', 'learnin
   learnings: { type: 'array', items: { type: 'object', properties: { title: { type: 'string' }, why: { type: 'string' } } } },
   memory_index_updated: { type: 'boolean' } } }
 
-const { phase: ph, plan, tasks, learningsTarget, roundLimit = 3 } = args
+const { phase: ph, plan, tasks, learningsTarget, agents = {}, audit = {}, run = {} } = args
+const roundLimit = run.roundLimit ?? args.roundLimit ?? 3
+// Per-role spawn opts: model always; effort only when non-default (omit = inherit session).
+// Mirror of war-config.mjs spawnOpts/covenSeats — the Workflow sandbox can't import. Keep in sync.
+const ROLE_MODEL = { worker: 'sonnet', auditor: 'opus', refiner: 'sonnet', servitor: 'sonnet' }
+const spawn = role => {
+  const a = agents[role] || {}
+  const model = a.model || ROLE_MODEL[role]
+  return a.effort && a.effort !== 'default' ? { model, effort: a.effort } : { model }
+}
 const done = new Set()
 const landed = [], escalated = [], minorsFiled = [], auditLog = []
 
@@ -69,12 +80,15 @@ function auditPrompt(task, lens, depth, peers) {
 }
 
 async function auditRound(task, peers) {
-  const lenses = task.coven ? task.lenses : [task.lenses[0]]
+  const baseLenses = task.lenses && task.lenses.length ? task.lenses : ['correctness', 'cascading-impact', 'plan-faithfulness']
+  const lenses = !task.coven
+    ? [baseLenses[0]]
+    : Array.from({ length: audit.covenSize || baseLenses.length }, (_, i) => baseLenses[i % baseLenses.length])
   const depth = task.coven ? 'deep' : 'neighbors'
   return (await parallel(lenses.map(lens => () =>
     agent(auditPrompt(task, lens, depth, peers), {
       agentType: 'war-auditor', phase: 'Audit',
-      label: `audit:${task.id}:${lens}${peers ? ':rebut' : ''}`, model: 'opus', schema: AUDIT_VERDICT })
+      label: `audit:${task.id}:${lens}${peers ? ':rebut' : ''}`, schema: AUDIT_VERDICT, ...spawn('auditor') })
   ))).filter(Boolean)
 }
 
@@ -92,7 +106,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       + `Create a git worktree at ${task.worktree} on branch ${task.branch} cut from the tip of ${ph.integrationBranch}; `
       + `export WAR_WORKTREE=${task.worktree}; cd there; work only inside it.\n`
       + `Sub-issue #${task.issue} — ${task.title}\nPlan slice: ${task.planSlice}\nPlan file: ${plan.file}\nGate: ${plan.gate}`,
-      { agentType: 'war-worker', phase: 'Work', label: `work:${task.id}`, model: 'sonnet', schema: WORKER_RESULT })
+      { agentType: 'war-worker', phase: 'Work', label: `work:${task.id}`, schema: WORKER_RESULT, ...spawn('worker') })
 
     if (!impl || impl.status === 'blocked') {
       return { task, verdict: 'escalate', seats: [], blocked: (impl && impl.blocked_reason) || 'worker returned no result' }
@@ -111,7 +125,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         if (isSplit(seats)) { verdict = 'escalate'; break }      // still deadlocked → human tiebreak
       }
 
-      if (!task.coven && seats.length === 1 &&                   // auto-escalate 1→coven
+      if (audit.autoEscalate !== false && !task.coven && seats.length === 1 &&   // auto-escalate 1→coven (config can disable)
           (seats[0].confidence === 'low' || (seats[0].findings || []).some(f => f.severity === 'Critical'))) {
         task.coven = true
         log(`Task ${task.id}: escalating to a coven (Critical or low confidence on the lone seat).`)
@@ -122,7 +136,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         `FIX_NEEDED for WAR task ${task.id}. Work in the existing worktree ${task.worktree} (branch ${task.branch}); export WAR_WORKTREE=${task.worktree}.\n`
         + `Resolve ALL of these blocking findings, keep the gate green, commit and push:\n`
         + b.map((f, i) => `${i + 1}. [${f.severity}] ${f.title} (${f.file}${f.line ? ':' + f.line : ''}) — ${f.rationale}${f.suggested_fix ? ` → ${f.suggested_fix}` : ''}`).join('\n'),
-        { agentType: 'war-worker', phase: 'Audit', label: `fix:${task.id}:r${round + 1}`, model: 'sonnet', schema: WORKER_RESULT })
+        { agentType: 'war-worker', phase: 'Audit', label: `fix:${task.id}:r${round + 1}`, schema: WORKER_RESULT, ...spawn('worker') })
       round++
     }
     if (verdict === null) verdict = 'audit-blocked'
@@ -138,7 +152,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       const mr = await agent(
         `Merge WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
         + `Rebase onto the integration tip first; run the gate (${plan.gate}); on gate failure return gate_failed; on conflict return conflict; never force.`,
-        { agentType: 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}`, model: 'sonnet', schema: MERGE_RESULT })
+        { agentType: 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}`, schema: MERGE_RESULT, ...spawn('refiner') })
       if (mr && mr.status === 'merged') landed.push(r.task.id)
       else escalated.push({ task: r.task.id, reason: mr ? mr.status : 'merge_failed', detail: mr })
     } else {
@@ -154,7 +168,7 @@ if (landed.length && !hardEscalation) {
   landResult = await agent(
     `Land WAR phase ${ph.id}: merge ${ph.integrationBranch} into ${ph.workingBranch} with --no-ff (one phase commit). mode=land-phase.\n`
     + `Run the gate (${plan.gate}); push ${ph.workingBranch}.`,
-    { agentType: 'war-refiner', phase: 'Land', label: `land:phase-${ph.id}`, model: 'sonnet', schema: MERGE_RESULT })
+    { agentType: 'war-refiner', phase: 'Land', label: `land:phase-${ph.id}`, schema: MERGE_RESULT, ...spawn('refiner') })
 } else if (hardEscalation) {
   log(`Holding the land for phase ${ph.id}: ${escalated.length} escalation(s) need the Lead's decision.`)
 }
@@ -169,7 +183,7 @@ if (landResult && landResult.status === 'landed' && learningsTarget) {
     + `Audit log (verdicts + findings): ${JSON.stringify(auditLog)}\n`
     + `Escalations: ${JSON.stringify(escalated)}\n`
     + `Capture only DURABLE, reusable learnings (gotchas, plan/code mismatches, deviations + why, patterns). Skip routine notes.`,
-    { agentType: 'war-servitor', phase: 'Wrap-up', label: `wrap-up:phase-${ph.id}`, model: 'sonnet', schema: SERVITOR_RESULT })
+    { agentType: 'war-servitor', phase: 'Wrap-up', label: `wrap-up:phase-${ph.id}`, schema: SERVITOR_RESULT, ...spawn('servitor') })
 }
 
 return { phase: ph.id, landed, escalated, minorsFiled, landResult, servitorResult }
