@@ -39,7 +39,7 @@ Then: `/war docs/implement/implementation_plan_A.md`
 | Auditor | Nun (Refinery audit gate) | `war-auditor` — read-only `Agent` (opus), Read/Grep/Glob only |
 | Refinery (merge queue) | Refinery | `war-refiner` `Agent` + the serial Workflow merge loop |
 | Servitor | `bd remember` | `war-servitor` — write-scoped `Agent` (sonnet); records per-phase learnings to memory |
-| Witness | Witness | *no standalone agent* — its live coordination is absorbed by the Workflow's control flow + hooks |
+| -- | Witness | *no standalone agent* — its live coordination is absorbed by the Workflow's control flow + hooks |
 
 See [`skills/war/references/design.md`](skills/war/references/design.md) for the full architecture.
 
