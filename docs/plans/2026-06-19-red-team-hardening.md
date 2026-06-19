@@ -357,7 +357,7 @@ with:
 - [ ] **Step 6: Run the full gate test file + a CLI smoke test**
 
 Run: `node --test skills/red-team/assets/red-team-gate.test.mjs`
-Expected: PASS — 30 tests, 0 fail (17 from Task 1 + 13 new).
+Expected: PASS — 29 tests, 0 fail (17 from Task 1 + 12 new).
 
 CLI smoke (an off-target probe must force `INCOMPLETE`, not `CLEARED`):
 
