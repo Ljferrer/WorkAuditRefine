@@ -66,3 +66,22 @@ Every agent returns **only** its JSON object (no prose). The Workflow passes the
   memory_index_updated: true }   // true if MEMORY.md (or docs/learnings index) was updated
 ```
 The servitor writes ONLY under `learningsTarget` (enforced by the worktree-scope hook with `WAR_WORKTREE=<learningsTarget>`); it never touches source, branches, PRs, or issues.
+
+## Run config — `.claude/war/config.json` (optional)
+Produced by `/war-room`, consumed by `/war`'s Setup. The schema, defaults, presets, and validation are owned by [`../assets/war-config.mjs`](../assets/war-config.mjs) (`--fill-defaults` to resolve a file, `--preset <name>` to emit a preset, `--stdin` to validate piped JSON). Absent this file, `/war` uses built-in defaults (pre-v0.3.0 behavior).
+```jsonc
+{ version: 1, profile: "balanced" | "thorough" | "economy" | "<custom>",
+  agents: {                                  // model ∈ opus|sonnet|haiku|fable; effort ∈ default|low|medium|high|xhigh|max ("default" = inherit session)
+    worker:   { model, effort },             // worker config also drives fix-workers
+    auditor:  { model, effort },
+    refiner:  { model, effort },
+    servitor: { model, effort } },
+  audit: {
+    covenSize,                               // integer >= 1 — seats when a coven convenes
+    lenses: ["correctness","cascading-impact","plan-faithfulness"],
+    covenPolicy: "auto" | "all" | "solo",    // seeds per-task coven flags at the decompose gate
+    autoEscalate: true },                    // 1->coven on a Critical/low-confidence lone seat; set false (with covenPolicy:"solo") to pin one auditor
+  run: { roundLimit, afk },                  // roundLimit >= 1; afk = default for /war --afk
+  overrides: { gate, workingBranch, landingBranch, learningsTarget } }  // null = let /war auto-detect
+```
+These reach the per-phase Workflow as `args.agents`, `args.audit`, `args.run` (the Lead threads them in after resolving the file); `overrides` are applied by the Lead during Setup. See [`../assets/workflow-template.js`](../assets/workflow-template.js).

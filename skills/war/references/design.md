@@ -1,6 +1,6 @@
 # WAR — Design
 
-**Status:** v0.2.2. A portable, Claude-native re-implementation of Gas Town's worker/auditor/refinery/witness model, built only on Claude Code primitives (`Agent`, the `Workflow` tool, git worktrees, GitHub issues) — no Go binary, no Dolt, no beads.
+**Status:** v0.3.0. A portable, Claude-native re-implementation of Gas Town's worker/auditor/refinery/witness model, built only on Claude Code primitives (`Agent`, the `Workflow` tool, git worktrees, GitHub issues) — no Go binary, no Dolt, no beads.
 
 This document is the spec of record. The runnable surface is [`../SKILL.md`](../SKILL.md); the agents are in `agents/`; the per-phase engine is [`../assets/workflow-template.js`](../assets/workflow-template.js).
 
@@ -33,6 +33,7 @@ This document is the spec of record. The runnable surface is [`../SKILL.md`](../
 | 15 | Workflow gen | Fixed parameterized template + per-phase patches reviewed at the gate |
 | 16 | Coven lenses | Fixed core trio (correctness/cascading-impact/plan-faithfulness) + context swap |
 | 17 | Patch gate | Reviewed at the DAG-approval gate |
+| 18 | Run config | `/war-room` interviews → `.claude/war/config.json`; `/war` auto-discovers + validates (`war-config.mjs`); per-role model/effort, coven policy/size, roundLimit, afk; **global per-role**, seeds the gate (doesn't replace it) |
 
 ## 4. Per-phase flow
 1. **Cut** `integration/phase-N` off the working branch.
@@ -82,3 +83,9 @@ Batch-then-bisect merge queue · live-SendMessage audit debate · multiple concu
 - **New role — `war-servitor`** (sonnet): after a phase *lands*, a single write-mode pass captures **durable learnings** into the **learnings target** (the agent-memory dir `~/.claude/projects/<proj>/memory/` with `MEMORY.md` if present, else committed `docs/learnings/phase-N.md`). It is fed the phase's audit log + escalations. Auditors stay **read-only**; the servitor is the only reviewer-side writer, and its writes are confined to `learningsTarget` by reusing the worktree-scope hook (its `WAR_WORKTREE` = the target). Cadence: **once per phase** (not per task). Captures signal only — gotchas, plan↔code mismatches, deviations+why, patterns — never routine "implemented X" notes.
 - **Roles table** now includes Servitor (→ Gas Town's `bd remember`).
 - **Flow** gains a **Wrap-up** stage after Land; the Workflow returns `servitorResult` alongside `{ landed, escalated, minorsFiled, landResult }`.
+
+## 14. v0.3.0 amendments
+- **New skill — `/war-room`** (conversation-only): interviews the user from a preset (balanced/thorough/economy) plus targeted overrides, and writes a run config to `.claude/war/config.json`. It never decomposes a plan or launches `/war`.
+- **Config surface.** `skills/war/assets/war-config.mjs` owns the schema, defaults, presets, and validation (a single tested source of truth, used by both skills). The `/war` Lead loads and validates the config in Setup, applies non-null `overrides`, and threads `agents` / `audit` / `run` into the per-phase Workflow `args`. `workflow-template.js` reads those instead of hardcoded model literals.
+- **Configurable knobs:** per-role `model` (opus/sonnet/haiku/fable) and `effort` (default…max, where `max` = "ultrathink"); `covenPolicy` (auto/all/solo) seeding per-task covens; `covenSize`; `autoEscalate` (set `false` with `covenPolicy: "solo"` to pin exactly one auditor); `roundLimit`; `afk`.
+- **Backward compatible.** No config file → byte-for-byte the pre-v0.3.0 behavior (`effort: "default"` passes no effort opt; built-in model defaults unchanged).
