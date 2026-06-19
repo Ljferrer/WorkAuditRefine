@@ -1,8 +1,15 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
 import {
   DEFAULTS, fillDefaults, presetConfig, validate, spawnOpts, covenSeats,
 } from './war-config.mjs'
+
+// Helper: read workflow-template.js as text relative to this test file.
+const __dir = dirname(fileURLToPath(import.meta.url))
+const templateText = readFileSync(join(__dir, 'workflow-template.js'), 'utf8')
 
 test('DEFAULTS validate', () => {
   assert.equal(validate(DEFAULTS).valid, true)
@@ -112,4 +119,38 @@ test('covenSeats falls back to the default trio length when audit has no covenSi
 
 test('covenSeats uses default lenses when the task has none', () => {
   assert.deepEqual(covenSeats({}, { coven: false }), ['correctness'])
+})
+
+// ---------------------------------------------------------------------------
+// Drift-guard tests: assert that workflow-template.js mirrors agree with DEFAULTS
+// ---------------------------------------------------------------------------
+
+test('drift-guard: ROLE_MODEL in workflow-template.js matches DEFAULTS agent models (#10 Nit)', () => {
+  // Extract the ROLE_MODEL literal from the template text.
+  // It looks like: const ROLE_MODEL = { worker: 'sonnet', auditor: 'opus', ... }
+  const match = templateText.match(/const\s+ROLE_MODEL\s*=\s*\{([^}]+)\}/)
+  assert.ok(match, 'ROLE_MODEL not found in workflow-template.js')
+  // Normalize single-quoted keys/values to double-quoted so JSON.parse can handle it.
+  const body = match[1]
+    .replace(/'/g, '"')                         // single → double quotes
+    .replace(/(\w+)\s*:/g, '"$1":')             // bare keys → quoted keys
+  const parsed = JSON.parse(`{${body}}`)
+  assert.deepEqual(parsed, {
+    worker:   DEFAULTS.agents.worker.model,
+    auditor:  DEFAULTS.agents.auditor.model,
+    refiner:  DEFAULTS.agents.refiner.model,
+    servitor: DEFAULTS.agents.servitor.model,
+  })
+})
+
+test('drift-guard: inline fallback lenses in workflow-template.js matches DEFAULTS.audit.lenses (#6 Nit 1)', () => {
+  // The template has:
+  //   const baseLenses = task.lenses && task.lenses.length ? task.lenses : ['correctness', 'cascading-impact', 'plan-faithfulness']
+  // Extract the fallback array literal after the ternary's false-branch colon.
+  const match = templateText.match(/task\.lenses\s*:\s*(\[[^\]]+\])/)
+  assert.ok(match, 'inline fallback lenses array not found in workflow-template.js')
+  // Normalize single-quoted strings to double-quoted for JSON.parse.
+  const normalized = match[1].replace(/'/g, '"')
+  const parsed = JSON.parse(normalized)
+  assert.deepEqual(parsed, DEFAULTS.audit.lenses)
 })
