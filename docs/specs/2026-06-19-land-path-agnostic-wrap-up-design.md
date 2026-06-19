@@ -94,5 +94,5 @@ The guard against double-capture is simple: the Lead runs the post-land servitor
 - **Approach A (chosen).** Lead-driven post-land Wrap-up. Mirrors the already-intended Lead-owned manual land, keeps the template simple, and captures learnings when the decision + fix are freshest in the Lead's hands.
 
 ## 7. Open decisions
-1. **Version label.** Recommend **v0.4.1** (a fix; behavior gap + additive return fields, backward compatible). Confirm vs. v0.5.0.
+1. **Version label — DECIDED: v0.4.1** (a fix; behavior gap + additive return fields, backward compatible).
 2. **`landDecision` granularity.** Three values (`landed` / `held:escalation` / `held:nothing-merged`) proposed; confirm whether a finer reason (e.g. distinguishing `gate_failed` from `conflict` in the no-merge case) is worth the extra branch, given `escalated[].reason` already carries it.
