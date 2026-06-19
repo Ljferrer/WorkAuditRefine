@@ -105,9 +105,11 @@ from `/war`: war-room only writes; `/war` auto-discovers and consumes the file.
 | refiner | sonnet / `default` | sonnet / `default` | sonnet / `default` |
 | servitor | sonnet / `default` | sonnet / `default` | sonnet / `default` |
 | covenPolicy | `auto` | `all` | `solo` |
-| covenSize | 3 | 3 | 1 |
+| covenSize | 3 | 3 | 3 |
 | autoEscalate | `true` | `true` | `true` |
 | roundLimit | 3 | 3 | 2 |
+
+Economy gets its single auditor from `covenPolicy: "solo"`, not from `covenSize`; `covenSize` only sizes a coven if one is actually convened (e.g. by auto-escalation), so it stays at the default 3. (A `covenSize: 1` would make auto-escalation convene an incoherent "coven of one" — to pin a strictly single auditor, set `covenPolicy: "solo"` + `autoEscalate: false` instead.)
 
 ## `/war-room` skill behavior
 
