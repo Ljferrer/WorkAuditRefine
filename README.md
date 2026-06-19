@@ -100,7 +100,7 @@ See [`skills/war/references/design.md`](skills/war/references/design.md) for the
 
 ## Status
 
-v0.3.0 — early. Adds `/war-room`, a config interview that sets per-role model + reasoning effort (incl. worker `ultrathink`), coven policy, round limit, and the afk default — written to `.claude/war/config.json` and auto-consumed by `/war`.
+v0.3.1 — early. Fixes the shipped `workflow-template.js` so it runs out-of-the-box in a plugin install (auto-namespaced agent seats, object-or-JSON-string `args`, auditors handed the task worktree path) and adds drift-guard tests for the template's inline mirrors. v0.3.0 added `/war-room`, a config interview that sets per-role model + reasoning effort (incl. worker `ultrathink`), coven policy, round limit, and the afk default — written to `.claude/war/config.json` and auto-consumed by `/war`.
 
 ## License
 
