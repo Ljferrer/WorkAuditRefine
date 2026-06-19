@@ -28,6 +28,19 @@ Run autonomously inside a phase; gated by you between phases (`--afk` to loosen)
 /plugin install work-audit-refine@work-audit-refine
 ```
 
+### Updating
+
+When a new version ships, pull it into your install:
+
+```
+/plugin marketplace update work-audit-refine        # git-pull the marketplace
+/plugin update work-audit-refine@work-audit-refine  # bump your install to the new version
+```
+
+Changes apply to the current session — or run `/reload-plugins` to force a reload without restarting.
+
+> **Authors — bump the version or the update is a silent no-op.** Claude Code caches plugins by the `version` string in [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json), so pushing new commits without bumping it leaves every consumer on the cached copy. While iterating locally, skip the round-trip: launch with `claude --plugin-dir /path/to/WorkAuditRefine` and run `/reload-plugins` after each edit — local paths resolve to version `unknown`, so every reload picks up your latest files.
+
 ## Usage
 
 ```
