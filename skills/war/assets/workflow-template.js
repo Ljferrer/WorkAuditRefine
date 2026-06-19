@@ -16,7 +16,7 @@ export const meta = {
 //     plan:  { file, gate },          // gate = a shell command, run BY agents (this script has no shell/fs)
 //     tasks: [ { id, issue, title, branch, worktree, deps:[id],
 //                lenses:["correctness","cascading-impact","plan-faithfulness"], coven:bool, planSlice } ],
-//     learningsTarget,                // the scribe's only writable path (memory dir or docs/learnings/)
+//     learningsTarget,                // the servitor's only writable path (memory dir or docs/learnings/)
 //     roundLimit: 3 }
 // The Lead may inject APPROVED extra stages by editing a copy of this file; never free-author the core loop.
 // ---------------------------------------------------------------------------
@@ -41,7 +41,7 @@ const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties:
   branch: { type: 'string' }, integration_sha: { type: 'string' }, working_sha: { type: 'string' },
   conflict_files: { type: 'array' }, gate_output: { type: 'string' } } }
 
-const SCRIBE_RESULT = { type: 'object', required: ['phase', 'target', 'learnings'], properties: {
+const SERVITOR_RESULT = { type: 'object', required: ['phase', 'target', 'learnings'], properties: {
   phase: {}, target: { type: 'string' }, files_written: { type: 'array' },
   learnings: { type: 'array', items: { type: 'object', properties: { title: { type: 'string' }, why: { type: 'string' } } } },
   memory_index_updated: { type: 'boolean' } } }
@@ -138,7 +138,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       const mr = await agent(
         `Merge WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
         + `Rebase onto the integration tip first; run the gate (${plan.gate}); on gate failure return gate_failed; on conflict return conflict; never force.`,
-        { agentType: 'war-merge', phase: 'Refine', label: `merge:${r.task.id}`, model: 'sonnet', schema: MERGE_RESULT })
+        { agentType: 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}`, model: 'sonnet', schema: MERGE_RESULT })
       if (mr && mr.status === 'merged') landed.push(r.task.id)
       else escalated.push({ task: r.task.id, reason: mr ? mr.status : 'merge_failed', detail: mr })
     } else {
@@ -154,22 +154,22 @@ if (landed.length && !hardEscalation) {
   landResult = await agent(
     `Land WAR phase ${ph.id}: merge ${ph.integrationBranch} into ${ph.workingBranch} with --no-ff (one phase commit). mode=land-phase.\n`
     + `Run the gate (${plan.gate}); push ${ph.workingBranch}.`,
-    { agentType: 'war-merge', phase: 'Land', label: `land:phase-${ph.id}`, model: 'sonnet', schema: MERGE_RESULT })
+    { agentType: 'war-refiner', phase: 'Land', label: `land:phase-${ph.id}`, model: 'sonnet', schema: MERGE_RESULT })
 } else if (hardEscalation) {
   log(`Holding the land for phase ${ph.id}: ${escalated.length} escalation(s) need the Lead's decision.`)
 }
 
-// ---- WRAP-UP — capture durable learnings (war-scribe, write-scoped to learningsTarget) ----
-let scribeResult = null
+// ---- WRAP-UP — capture durable learnings (war-servitor, write-scoped to learningsTarget) ----
+let servitorResult = null
 if (landResult && landResult.status === 'landed' && learningsTarget) {
-  scribeResult = await agent(
+  servitorResult = await agent(
     `Wrap up learnings for WAR phase ${ph.id} "${ph.title}" (landed on ${ph.workingBranch}).\n`
     + `Your only writable path (also set as WAR_WORKTREE): ${learningsTarget}.\n`
     + `Landed tasks: ${landed.join(', ') || 'none'}.\n`
     + `Audit log (verdicts + findings): ${JSON.stringify(auditLog)}\n`
     + `Escalations: ${JSON.stringify(escalated)}\n`
     + `Capture only DURABLE, reusable learnings (gotchas, plan/code mismatches, deviations + why, patterns). Skip routine notes.`,
-    { agentType: 'war-scribe', phase: 'Wrap-up', label: `wrap-up:phase-${ph.id}`, model: 'sonnet', schema: SCRIBE_RESULT })
+    { agentType: 'war-servitor', phase: 'Wrap-up', label: `wrap-up:phase-${ph.id}`, model: 'sonnet', schema: SERVITOR_RESULT })
 }
 
-return { phase: ph.id, landed, escalated, minorsFiled, landResult, scribeResult }
+return { phase: ph.id, landed, escalated, minorsFiled, landResult, servitorResult }

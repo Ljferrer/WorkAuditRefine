@@ -8,9 +8,9 @@ WAR re-implements Steve Yegge's [Gas Town](https://github.com/gastownhall/gastow
 | Mayor | Lead | the main Claude Code session (your chat) |
 | Polecat | `war-worker` | `Agent` (sonnet) in a git worktree |
 | Nun (Refinery audit gate) | `war-auditor` | read-only `Agent` (opus), Read/Grep/Glob only |
-| Refinery | `war-merge` + the Workflow's serial merge loop | `Agent` (sonnet) + Workflow control flow |
+| Refinery | `war-refiner` + the Workflow's serial merge loop | `Agent` (sonnet) + Workflow control flow |
 | Witness | (dissolved) | Workflow control flow + lifecycle hooks |
-| bd remember | war-scribe | write-scoped `Agent` (sonnet); records per-phase learnings |
+| bd remember | war-servitor | write-scoped `Agent` (sonnet); records per-phase learnings |
 
 ## Nun audit gate → `war-auditor`
 - **Seats:** `panel = 1` default; `coven = 3` for high-blast-radius tasks. **[TUNE]**
@@ -24,12 +24,12 @@ WAR re-implements Steve Yegge's [Gas Town](https://github.com/gastownhall/gastow
 - **Severity:** findings tagged Critical/Major/Minor/Nit; **Critical/Major block**, Minor/Nit → follow-up issues. (Gas Town's gate was binary; WAR keeps the binary block but tags severity for triage.) **[HARD]**
 - **Wall-clock (optional):** a soft deadline notifies the Lead; it never force-merges or auto-fails. **[HARD principle]**
 
-## Refinery → `war-merge` + Workflow
-- **Serial merge queue:** one merge at a time (the Workflow calls `war-merge` sequentially). No batch-then-bisect in v1. **[TUNE — bisect is a future option]**
+## Refinery → `war-refiner` + Workflow
+- **Serial merge queue:** one merge at a time (the Workflow calls `war-refiner` sequentially). No batch-then-bisect in v1. **[TUNE — bisect is a future option]**
 - **Step order:** audit happens **before** merge-eligibility (off the merge critical path); then rebase task onto integration tip → run gate → merge. **[HARD]**
 - **Gate pipeline:** the repo's lint+test command (e.g. `uv sync && ruff check && pytest`). Any command failing = fail → `FIX_NEEDED`. **[HARD it runs; TUNE contents]**
 - **Kick-back:** a failed gate/audit routes a batched `FIX_NEEDED` to a fresh fix-worker **on the same (preserved) worktree** — which is why workers' worktrees persist until their task lands. **[HARD]**
-- `war-merge` owns **all** pushes; never `--force`/`reset --hard` on shared branches. **[HARD]**
+- `war-refiner` owns **all** pushes; never `--force`/`reset --hard` on shared branches. **[HARD]**
 
 ## Integration branches → WAR phase model
 - One **`integration/phase-N`** branch per phase, cut off the working branch. Task worktrees branch off the integration tip; later waves branch off the updated tip (so they see prior waves' merged work). **[HARD]**

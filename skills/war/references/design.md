@@ -1,11 +1,11 @@
 # WAR — Design
 
-**Status:** v0.2.1. A portable, Claude-native re-implementation of Gas Town's worker/auditor/refinery/witness model, built only on Claude Code primitives (`Agent`, the `Workflow` tool, git worktrees, GitHub issues) — no Go binary, no Dolt, no beads.
+**Status:** v0.2.2. A portable, Claude-native re-implementation of Gas Town's worker/auditor/refinery/witness model, built only on Claude Code primitives (`Agent`, the `Workflow` tool, git worktrees, GitHub issues) — no Go binary, no Dolt, no beads.
 
 This document is the spec of record. The runnable surface is [`../SKILL.md`](../SKILL.md); the agents are in `agents/`; the per-phase engine is [`../assets/workflow-template.js`](../assets/workflow-template.js).
 
 ## 1. Topology
-`Human ↔ Lead (main session = Mayor) ↔ Workflow → { war-worker, war-auditor, war-merge }`. The Lead orchestrates, gates, and talks to the human; it **never edits code**. There is no separate orchestrator agent and no standalone Witness agent — those functions live in the Workflow's control flow and lifecycle hooks.
+`Human ↔ Lead (main session = Mayor) ↔ Workflow → { war-worker, war-auditor, war-refiner }`. The Lead orchestrates, gates, and talks to the human; it **never edits code**. There is no separate orchestrator agent and no standalone Witness agent — those functions live in the Workflow's control flow and lifecycle hooks.
 
 ## 2. Substrate — hybrid
 - **Workflow spine, one run per phase.** Holds the phase loop and *is* the serial merge queue (one merge at a time, by construction). The script has no shell/fs access — every git/test action is performed by a spawned agent.
@@ -39,8 +39,8 @@ This document is the spec of record. The runnable surface is [`../SKILL.md`](../
 2. **Work (waves):** topologically sort the phase's tasks into dependency waves (usually one). Per wave, fan out one `war-worker` per task into a named mutable worktree branched off the integration tip; the worker implements, writes/extends the plan's mapped tests, runs the gate green, commits, pushes.
 3. **Audit (per task):** independent read-only seats review the pinned `audit_sha`. 1 seat (`neighbors` depth) by default; a coven of 3 (`deep`, diverse lenses) for flagged tasks; auto-escalate 1→3 on a Critical or low confidence. Gate over verdicts: any open Critical/Major blocks; any `escalate` halts; all `approve` on one SHA = merge-eligible. A split triggers one rebuttal round → approve / agreed-block / still-split-escalate.
 4. **Fix loop:** a block routes a batched `FIX_NEEDED` to a fresh fix-worker on the *same* worktree; re-audit against the new SHA; ≤ `round_limit=3` then `audit-blocked`.
-5. **Refine (serial):** `war-merge` rebases each approved task onto the integration tip, re-runs the gate, merges — one at a time. This sequencing *is* the merge queue.
-6. **Land:** `war-merge` merges `integration/phase-N` → working `--no-ff` (one phase commit), pushes working. Held if a hard escalation is open.
+5. **Refine (serial):** `war-refiner` rebases each approved task onto the integration tip, re-runs the gate, merges — one at a time. This sequencing *is* the merge queue.
+6. **Land:** `war-refiner` merges `integration/phase-N` → working `--no-ff` (one phase commit), pushes working. Held if a hard escalation is open.
 7. **Checkpoint:** Lead posts the phase report (also mirrored as a comment on the phase epic issue) and waits for your go (or notifies + proceeds under `--afk`).
 
 ## 5. Escalate (halt) vs resolve in-band
@@ -59,10 +59,10 @@ This document is the spec of record. The runnable surface is [`../SKILL.md`](../
 - Integration branch removed after the phase lands; worktrees of escalated/blocked tasks are kept for inspection.
 
 ## 8. Cost & models
-`war-worker`/fix/`war-merge` = sonnet; `war-auditor` = opus; Lead = session model. Concurrency = the Workflow default (`min(16, cores−2)`). Target < 3× single-agent cost.
+`war-worker`/fix/`war-refiner` = sonnet; `war-auditor` = opus; Lead = session model. Concurrency = the Workflow default (`min(16, cores−2)`). Target < 3× single-agent cost.
 
 ## 9. Harness notes (ECC / OmniEMR first run)
-- **GateGuard** present-and-retry: workers/merge-agents present the requested facts then retry the identical Bash/Write op.
+- **GateGuard** present-and-retry: workers/refiners present the requested facts then retry the identical Bash/Write op.
 - **No `temperature`** on current Opus/Fable — any SDK call a worker writes must omit it.
 - We may run *inside* a Claude worktree already; nested worktrees off the working branch use absolute paths and avoid `.claude/worktrees/` collisions.
 
@@ -79,6 +79,6 @@ Batch-then-bisect merge queue · live-SendMessage audit debate · multiple concu
 
 ## 13. v0.2.0 amendments
 - **Issue timing:** file **all phase epics up front** at the approval gate (full scope before any teammate launches), but break each phase into **task sub-issues just-in-time** at that phase's start — so later phases absorb earlier phases' learnings and plan drift, while still honoring "write all issues before launching any teammates" at the epic level.
-- **New role — `war-scribe`** (sonnet): after a phase *lands*, a single write-mode pass captures **durable learnings** into the **learnings target** (the agent-memory dir `~/.claude/projects/<proj>/memory/` with `MEMORY.md` if present, else committed `docs/learnings/phase-N.md`). It is fed the phase's audit log + escalations. Auditors stay **read-only**; the scribe is the only reviewer-side writer, and its writes are confined to `learningsTarget` by reusing the worktree-scope hook (its `WAR_WORKTREE` = the target). Cadence: **once per phase** (not per task). Captures signal only — gotchas, plan↔code mismatches, deviations+why, patterns — never routine "implemented X" notes.
-- **Roles table** now includes Scribe (→ Gas Town's `bd remember`).
-- **Flow** gains a **Wrap-up** stage after Land; the Workflow returns `scribeResult` alongside `{ landed, escalated, minorsFiled, landResult }`.
+- **New role — `war-servitor`** (sonnet): after a phase *lands*, a single write-mode pass captures **durable learnings** into the **learnings target** (the agent-memory dir `~/.claude/projects/<proj>/memory/` with `MEMORY.md` if present, else committed `docs/learnings/phase-N.md`). It is fed the phase's audit log + escalations. Auditors stay **read-only**; the servitor is the only reviewer-side writer, and its writes are confined to `learningsTarget` by reusing the worktree-scope hook (its `WAR_WORKTREE` = the target). Cadence: **once per phase** (not per task). Captures signal only — gotchas, plan↔code mismatches, deviations+why, patterns — never routine "implemented X" notes.
+- **Roles table** now includes Servitor (→ Gas Town's `bd remember`).
+- **Flow** gains a **Wrap-up** stage after Land; the Workflow returns `servitorResult` alongside `{ landed, escalated, minorsFiled, landResult }`.

@@ -1,6 +1,6 @@
 ---
 name: war
-description: Execute a detailed multi-phase implementation plan with a team of agents — Work, Audit, Refine, then capture learnings. Breaks plan phases into GitHub issues, then per phase spins up fresh worker agents in isolated git worktrees, independent read-only auditors (severity-gated, unanimous), a serial refine/merge queue, and a write-scoped scribe that wraps phase learnings into memory; lands each phase on a working branch and opens one PR to a landing branch at the end. Use when the user runs `/war <plan>`, wants to autonomously implement a multi-phase plan or spec, or mentions WAR, gastown-style orchestration, or a worker/auditor/refinery/witness team.
+description: Execute a detailed multi-phase implementation plan with a team of agents — Work, Audit, Refine, then capture learnings. Breaks plan phases into GitHub issues, then per phase spins up fresh worker agents in isolated git worktrees, independent read-only auditors (severity-gated, unanimous), a serial refine/merge queue, and a write-scoped servitor that wraps phase learnings into memory; lands each phase on a working branch and opens one PR to a landing branch at the end. Use when the user runs `/war <plan>`, wants to autonomously implement a multi-phase plan or spec, or mentions WAR, gastown-style orchestration, or a worker/auditor/refinery/witness team.
 ---
 
 # WAR — Work · Audit · Refine
@@ -18,7 +18,7 @@ Example: `/war docs/implement/implementation_plan_A.md --working dev/planA --lan
 ## Setup (once)
 1. Confirm a clean git repo with a GitHub remote and `gh` auth. Ask for the **working** and **landing** branches if not given (default working = current branch; landing = the repo's default branch).
 2. Detect the **gate command**: `pyproject.toml` → `uv sync && ruff check && pytest`; `package.json` → its lint/test scripts; else **ask once** and record it. Never run a phase without a gate.
-3. Determine the **learnings target** for the scribe: the agent-memory dir if present (`~/.claude/projects/<proj>/memory/` with `MEMORY.md`), else `docs/learnings/`. Record it.
+3. Determine the **learnings target** for the servitor: the agent-memory dir if present (`~/.claude/projects/<proj>/memory/` with `MEMORY.md`), else `docs/learnings/`. Record it.
 4. Create the run ledger `.claude/teams/<run-id>/ledger.json` (+ a rendered `ledger.md`). It is the resumable source of truth; on resume, read it + open issues and continue.
 
 ## Decompose + approve — GATE (before any teammate launches)
@@ -32,10 +32,10 @@ Run **one Workflow per phase** from [assets/workflow-template.js](assets/workflo
 - cuts `integration/phase-N` off the working branch;
 - **Works** — fresh `war-worker` agents (one per task) in per-task worktrees off the integration tip, wave by wave (barrier between dependency waves);
 - **Audits** — independent read-only `war-auditor` seats review the pinned SHA. **Critical/Major block**; Minor/Nit → follow-up issues; approval **unanimous on one SHA** (re-confirm when HEAD moves). A split → **one rebuttal round** → resolve or escalate. Coven uses the trio (correctness / cascading-impact / plan-faithfulness), swapping one for a domain lens (healthcare-safety, security) on flagged code;
-- **Refines** — `war-merge` rebases each approved task onto the integration tip, re-runs the gate, and merges **serially** (the queue). A gate/audit failure routes a batched `FIX_NEEDED` to a fresh fix-worker on the same worktree (≤ `round_limit=3`, then escalate `audit-blocked`);
-- **Lands** — `war-merge` merges `integration/phase-N` → working `--no-ff` (one phase commit) and pushes working;
-- **Wraps up** — once the phase lands, `war-scribe` (write-scoped to `learningsTarget`) records durable learnings to memory;
-- returns `{ landed, escalated, minorsFiled, landResult, scribeResult }`.
+- **Refines** — `war-refiner` rebases each approved task onto the integration tip, re-runs the gate, and merges **serially** (the queue). A gate/audit failure routes a batched `FIX_NEEDED` to a fresh fix-worker on the same worktree (≤ `round_limit=3`, then escalate `audit-blocked`);
+- **Lands** — `war-refiner` merges `integration/phase-N` → working `--no-ff` (one phase commit) and pushes working;
+- **Wraps up** — once the phase lands, `war-servitor` (write-scoped to `learningsTarget`) records durable learnings to memory;
+- returns `{ landed, escalated, minorsFiled, landResult, servitorResult }`.
 
 Then update issues + ledger, and **mirror the phase report + escalations as a comment on the phase epic issue**.
 
@@ -47,6 +47,6 @@ When all phases land, open **one PR** working → landing, body summarizing phas
 
 ## Invariants (never violate)
 - The Lead never edits code — only decomposes, gates, surfaces escalations, talks to the human. Keep your own context lean: push detail into the ledger + issues, not your chat history.
-- `war-auditor` is read-only (Read/Grep/Glob only); `war-scribe` is the only reviewer-side role that writes, and only to `learningsTarget` (enforced by the worktree-scope hook via `WAR_WORKTREE`); workers stay inside their worktree; `war-merge` owns **all** merges, one at a time, never `--force`/`reset --hard` on shared branches.
+- `war-auditor` is read-only (Read/Grep/Glob only); `war-servitor` is the only reviewer-side role that writes, and only to `learningsTarget` (enforced by the worktree-scope hook via `WAR_WORKTREE`); workers stay inside their worktree; `war-refiner` owns **all** merges, one at a time, never `--force`/`reset --hard` on shared branches.
 - Never merge a task with an open Critical/Major finding, without a passing gate, or before unanimous audit. Never merge un-audited. Never let a worker satisfy the gate by deleting/skipping tests.
-- Models: `war-worker`/fix/`war-merge`/`war-scribe` = sonnet; `war-auditor` = opus. Target < 3× single-agent cost.
+- Models: `war-worker`/fix/`war-refiner`/`war-servitor` = sonnet; `war-auditor` = opus. Target < 3× single-agent cost.

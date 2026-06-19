@@ -26,7 +26,7 @@ Every agent returns **only** its JSON object (no prose). The Workflow passes the
   escalate_reason?: "present iff verdict==escalate — the plan is wrong/underspecified" }
 ```
 
-## MergeResult — `war-merge`
+## MergeResult — `war-refiner`
 ```jsonc
 { mode: "merge-task" | "land-phase",
   status: "merged" | "landed" | "gate_failed" | "conflict" | "error",
@@ -58,11 +58,11 @@ Every agent returns **only** its JSON object (no prose). The Workflow passes the
 - **Minor/Nit** findings → new follow-up issues labeled `war-followup`, linked to the phase epic.
 - Phase reports + escalations → **comments on the phase epic issue** (durable, human-visible).
 
-## ScribeResult — `war-scribe` (once per phase, after land)
+## ServitorResult — `war-servitor` (once per phase, after land)
 ```jsonc
 { phase, target: "<learnings target path>",
   files_written: ["path"],
   learnings: [ { title, why } ],
   memory_index_updated: true }   // true if MEMORY.md (or docs/learnings index) was updated
 ```
-The scribe writes ONLY under `learningsTarget` (enforced by the worktree-scope hook with `WAR_WORKTREE=<learningsTarget>`); it never touches source, branches, PRs, or issues.
+The servitor writes ONLY under `learningsTarget` (enforced by the worktree-scope hook with `WAR_WORKTREE=<learningsTarget>`); it never touches source, branches, PRs, or issues.
