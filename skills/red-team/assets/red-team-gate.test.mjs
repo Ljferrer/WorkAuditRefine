@@ -99,3 +99,78 @@ test('isOnTarget false when read_anchor is missing (required attestation absent)
 test('isOnTarget true (back-compat) when no fingerprint is supplied', () => {
   assert.equal(isOnTarget({ findings: [] }, null, null), true)
 })
+
+import { classifyCoverage, isIncomplete } from './red-team-gate.mjs'
+
+const onResult = (probe, findings = []) =>
+  ({ probe, technique: 'analyzed', status: 'pass', read_anchor: anchor(), findings })
+const offResult = (probe) =>
+  ({ probe, technique: 'analyzed', status: 'pass', read_anchor: anchor({ plan_title: '# Wrong Plan' }), findings: [F('Major')] })
+const droppedMarker = (probe) => ({ probe, dropped: true })
+
+test('classifyCoverage splits on-target / off-target / dropped', () => {
+  const c = classifyCoverage(
+    [onResult('a'), offResult('b'), droppedMarker('c')], 3, FP, '/repo')
+  assert.deepEqual(c.onTarget.map(r => r.probe), ['a'])
+  assert.deepEqual(c.offTarget, ['b'])
+  assert.deepEqual(c.dropped, ['c'])
+  assert.equal(c.ran, 2)
+  assert.equal(c.expected, 3)
+})
+
+test('isIncomplete true when a probe is off-target', () => {
+  assert.equal(isIncomplete(classifyCoverage([onResult('a'), offResult('b')], 2, FP, '/repo')), true)
+})
+
+test('isIncomplete true when a probe was dropped', () => {
+  assert.equal(isIncomplete(classifyCoverage([onResult('a'), droppedMarker('b')], 2, FP, '/repo')), true)
+})
+
+test('isIncomplete true when fewer probes ran than expected', () => {
+  assert.equal(isIncomplete(classifyCoverage([onResult('a')], 3, FP, '/repo')), true)
+})
+
+test('isIncomplete false on full on-target coverage', () => {
+  assert.equal(isIncomplete(classifyCoverage([onResult('a'), onResult('b')], 2, FP, '/repo')), false)
+})
+
+// --- verdict with coverage (the F1/F2/F3 regressions) ---
+test('verdict INCOMPLETE when an off-target probe is present, never CLEARED (F1/F3)', () => {
+  const cov = classifyCoverage([onResult('a'), offResult('b')], 2, FP, '/repo')
+  assert.equal(verdict(allFindings(cov.onTarget), cov), 'INCOMPLETE')
+})
+
+test('verdict INCOMPLETE when a probe was dropped, never CLEARED (F2)', () => {
+  const cov = classifyCoverage([onResult('a'), droppedMarker('b')], 2, FP, '/repo')
+  assert.equal(verdict(allFindings(cov.onTarget), cov), 'INCOMPLETE')
+})
+
+test('off-target findings are discarded — they never reach classify/verdict', () => {
+  const cov = classifyCoverage([onResult('a'), offResult('b')], 2, FP, '/repo')
+  // offResult carried a Major; because it is off-target it must not appear in on-target findings.
+  assert.equal(allFindings(cov.onTarget).length, 0)
+})
+
+test('verdict CLEARED on full on-target coverage with no findings (preserves today)', () => {
+  const cov = classifyCoverage([onResult('a'), onResult('b')], 2, FP, '/repo')
+  assert.equal(verdict(allFindings(cov.onTarget), cov), 'CLEARED')
+})
+
+test('verdict BLOCKED on full coverage with an on-target Major', () => {
+  const cov = classifyCoverage([onResult('a', [F('Major')]), onResult('b')], 2, FP, '/repo')
+  assert.equal(verdict(allFindings(cov.onTarget), cov), 'BLOCKED')
+})
+
+test('verdict back-compat: no coverage arg behaves as today', () => {
+  assert.equal(verdict([F('Major')]), 'BLOCKED')
+  assert.equal(verdict([]), 'CLEARED')
+})
+
+test('summarize with coverage reports expected / onTarget / offTarget / dropped', () => {
+  const cov = classifyCoverage([onResult('a'), offResult('b'), droppedMarker('c')], 3, FP, '/repo')
+  const s = summarize(cov.onTarget, cov)
+  assert.equal(s.expected, 3)
+  assert.equal(s.onTarget, 1)
+  assert.deepEqual(s.offTarget, ['b'])
+  assert.deepEqual(s.dropped, ['c'])
+})
