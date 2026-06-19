@@ -76,7 +76,7 @@ See [`skills/war/references/design.md`](skills/war/references/design.md) for the
 
 ## Status
 
-v0.2.2 — early. Adds the `war-servitor` per-phase learnings wrap-up and all-epics-up-front issue timing.
+v0.2.3 — early. Fixes plugin manifest validation (explicit `agents` file list; removed redundant `hooks` reference so the standard `hooks/hooks.json` auto-loads without duplication).
 
 ## License
 
