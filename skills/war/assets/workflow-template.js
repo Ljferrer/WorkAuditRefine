@@ -12,14 +12,17 @@ export const meta = {
 
 // ---------------------------------------------------------------------------
 // args (passed by the Lead — see ../references/schemas.md):
+//   args may arrive as an object OR a JSON string (auto-parsed at the top of this file).
 //   { phase: { id, title, integrationBranch, workingBranch },
 //     plan:  { file, gate },          // gate = a shell command, run BY agents (this script has no shell/fs)
 //     tasks: [ { id, issue, title, branch, worktree, deps:[id],
 //                lenses:["correctness","cascading-impact","plan-faithfulness"], coven:bool, planSlice } ],
 //     learningsTarget,                // the servitor's only writable path (memory dir or docs/learnings/)
+//     agentPrefix,                    // optional namespace prefix for agent types (default: 'work-audit-refine:')
 //     agents: { worker|auditor|refiner|servitor: { model, effort } },  // from .claude/war/config.json (resolved by the Lead); defaults below
 //     audit:  { covenSize, covenPolicy, autoEscalate },                // covenPolicy seeds task.coven Lead-side; covenSize/autoEscalate used here
 //     run:    { roundLimit, afk } }                                    // afk is Lead-side; roundLimit used here
+// auditors receive the absolute worktree path and compare candidate files there against baseline at the main repo checkout.
 // The Lead may inject APPROVED extra stages by editing a copy of this file; never free-author the core loop.
 // ---------------------------------------------------------------------------
 
@@ -48,8 +51,10 @@ const SERVITOR_RESULT = { type: 'object', required: ['phase', 'target', 'learnin
   learnings: { type: 'array', items: { type: 'object', properties: { title: { type: 'string' }, why: { type: 'string' } } } },
   memory_index_updated: { type: 'boolean' } } }
 
-const { phase: ph, plan, tasks, learningsTarget, agents = {}, audit = {}, run = {} } = args
-const roundLimit = run.roundLimit ?? args.roundLimit ?? 3
+const A = typeof args === 'string' ? JSON.parse(args) : (args || {})
+const { phase: ph, plan, tasks, learningsTarget, agents = {}, audit = {}, run = {} } = A
+const NS = A.agentPrefix ?? 'work-audit-refine:'
+const roundLimit = run.roundLimit ?? 3
 // Per-role spawn opts: model always; effort only when non-default (omit = inherit session).
 // Mirror of war-config.mjs spawnOpts/covenSeats — the Workflow sandbox can't import. Keep in sync.
 const ROLE_MODEL = { worker: 'sonnet', auditor: 'opus', refiner: 'sonnet', servitor: 'sonnet' }
@@ -71,6 +76,9 @@ function auditPrompt(task, lens, depth, peers) {
   let p = `Audit WAR task ${task.id} through the "${lens}" lens at depth ${depth}.\n`
     + `Review the diff of ${task.branch} vs ${ph.integrationBranch} (the single target). Sub-issue #${task.issue}.\n`
     + `Plan slice: ${task.planSlice}. Plan file: ${plan.file}.\n`
+    + `CANDIDATE files are in the task worktree at: ${task.worktree}/\n`
+    + `BASELINE files are in the main repo checkout (your current working directory / the integration base).\n`
+    + `Read candidate files under ${task.worktree}/ and compare them against the corresponding baseline copies at the main repo checkout to determine what changed.\n`
     + `Verify the mapped acceptance-criteria tests EXIST and PASS (catch "green by deletion").`
   if (peers && peers.length) {
     p += `\n\nREBUTTAL ROUND — your panel split. Re-judge in light of your peers below, then re-emit your final verdict:\n`
@@ -87,7 +95,7 @@ async function auditRound(task, peers) {
   const depth = task.coven ? 'deep' : 'neighbors'
   return (await parallel(lenses.map(lens => () =>
     agent(auditPrompt(task, lens, depth, peers), {
-      agentType: 'war-auditor', phase: 'Audit',
+      agentType: NS + 'war-auditor', phase: 'Audit',
       label: `audit:${task.id}:${lens}${peers ? ':rebut' : ''}`, schema: AUDIT_VERDICT, ...spawn('auditor') })
   ))).filter(Boolean)
 }
@@ -106,7 +114,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       + `Create a git worktree at ${task.worktree} on branch ${task.branch} cut from the tip of ${ph.integrationBranch}; `
       + `export WAR_WORKTREE=${task.worktree}; cd there; work only inside it.\n`
       + `Sub-issue #${task.issue} — ${task.title}\nPlan slice: ${task.planSlice}\nPlan file: ${plan.file}\nGate: ${plan.gate}`,
-      { agentType: 'war-worker', phase: 'Work', label: `work:${task.id}`, schema: WORKER_RESULT, ...spawn('worker') })
+      { agentType: NS + 'war-worker', phase: 'Work', label: `work:${task.id}`, schema: WORKER_RESULT, ...spawn('worker') })
 
     if (!impl || impl.status === 'blocked') {
       return { task, verdict: 'escalate', seats: [], blocked: (impl && impl.blocked_reason) || 'worker returned no result' }
@@ -136,7 +144,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         `FIX_NEEDED for WAR task ${task.id}. Work in the existing worktree ${task.worktree} (branch ${task.branch}); export WAR_WORKTREE=${task.worktree}.\n`
         + `Resolve ALL of these blocking findings, keep the gate green, commit and push:\n`
         + b.map((f, i) => `${i + 1}. [${f.severity}] ${f.title} (${f.file}${f.line ? ':' + f.line : ''}) — ${f.rationale}${f.suggested_fix ? ` → ${f.suggested_fix}` : ''}`).join('\n'),
-        { agentType: 'war-worker', phase: 'Audit', label: `fix:${task.id}:r${round + 1}`, schema: WORKER_RESULT, ...spawn('worker') })
+        { agentType: NS + 'war-worker', phase: 'Audit', label: `fix:${task.id}:r${round + 1}`, schema: WORKER_RESULT, ...spawn('worker') })
       round++
     }
     if (verdict === null) verdict = 'audit-blocked'
@@ -152,7 +160,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       const mr = await agent(
         `Merge WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
         + `Rebase onto the integration tip first; run the gate (${plan.gate}); on gate failure return gate_failed; on conflict return conflict; never force.`,
-        { agentType: 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}`, schema: MERGE_RESULT, ...spawn('refiner') })
+        { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}`, schema: MERGE_RESULT, ...spawn('refiner') })
       if (mr && mr.status === 'merged') landed.push(r.task.id)
       else escalated.push({ task: r.task.id, reason: mr ? mr.status : 'merge_failed', detail: mr })
     } else {
@@ -168,7 +176,7 @@ if (landed.length && !hardEscalation) {
   landResult = await agent(
     `Land WAR phase ${ph.id}: merge ${ph.integrationBranch} into ${ph.workingBranch} with --no-ff (one phase commit). mode=land-phase.\n`
     + `Run the gate (${plan.gate}); push ${ph.workingBranch}.`,
-    { agentType: 'war-refiner', phase: 'Land', label: `land:phase-${ph.id}`, schema: MERGE_RESULT, ...spawn('refiner') })
+    { agentType: NS + 'war-refiner', phase: 'Land', label: `land:phase-${ph.id}`, schema: MERGE_RESULT, ...spawn('refiner') })
 } else if (hardEscalation) {
   log(`Holding the land for phase ${ph.id}: ${escalated.length} escalation(s) need the Lead's decision.`)
 }
@@ -183,7 +191,7 @@ if (landResult && landResult.status === 'landed' && learningsTarget) {
     + `Audit log (verdicts + findings): ${JSON.stringify(auditLog)}\n`
     + `Escalations: ${JSON.stringify(escalated)}\n`
     + `Capture only DURABLE, reusable learnings (gotchas, plan/code mismatches, deviations + why, patterns). Skip routine notes.`,
-    { agentType: 'war-servitor', phase: 'Wrap-up', label: `wrap-up:phase-${ph.id}`, schema: SERVITOR_RESULT, ...spawn('servitor') })
+    { agentType: NS + 'war-servitor', phase: 'Wrap-up', label: `wrap-up:phase-${ph.id}`, schema: SERVITOR_RESULT, ...spawn('servitor') })
 }
 
 return { phase: ph.id, landed, escalated, minorsFiled, landResult, servitorResult }

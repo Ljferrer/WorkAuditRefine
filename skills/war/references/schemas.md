@@ -85,3 +85,10 @@ Produced by `/war-room`, consumed by `/war`'s Setup. The schema, defaults, prese
   overrides: { gate, workingBranch, landingBranch, learningsTarget } }  // null = let /war auto-detect
 ```
 These reach the per-phase Workflow as `args.agents`, `args.audit`, `args.run` (the Lead threads them in after resolving the file); `overrides` are applied by the Lead during Setup. See [`../assets/workflow-template.js`](../assets/workflow-template.js).
+
+## Workflow per-phase args contract
+`args` may be passed as a **plain object or a JSON string**; the template auto-parses a string so the Lead need not manually inline structured data.
+
+Optional `agentPrefix` (default `"work-audit-refine:"`) — the template auto-namespaces every `agentType` seat under this prefix via `const NS = args.agentPrefix ?? 'work-audit-refine:'`. Pass a different string to override; the Lead no longer needs manual namespacing workarounds.
+
+Auditors receive the **absolute `task.worktree` path** so they can `Read` candidate files directly in the task's isolated checkout rather than the main repo tree.
