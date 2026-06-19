@@ -57,6 +57,7 @@ Changes apply to the current session — or run `/reload-plugins` to force a rel
 | `--working <branch>` | no | current branch | Branch each phase lands on, one `--no-ff` commit per phase. |
 | `--landing <branch>` | no | repo's default branch | Branch the final PR targets. |
 | `--afk` | no | off | Don't stop at phase boundaries — post a report + push notification and keep going. Hard escalations still halt. |
+| `--config <path>` | no | `.claude/war/config.json` if present | Use a specific run config (per-role model/effort, coven policy, …) produced by `/war-room`. |
 
 **Example:**
 
@@ -74,6 +75,16 @@ Changes apply to the current session — or run `/reload-plugins` to force a rel
 
 **Resuming:** every run writes a ledger at `.claude/teams/<run-id>/ledger.json` (the resumable source of truth). If a run is interrupted, re-invoke `/war` with the same plan to continue from the ledger + open issues.
 
+## Configure a run (`/war-room`)
+
+By default WAR runs sonnet workers and opus auditors at the session's effort and decides coven size at the approval gate. To change that — pick models per role, put a worker on **ultrathink**, fix the coven policy — run the companion skill first:
+
+```
+/war-room
+```
+
+It interviews you (starting from a **balanced / thorough / economy** preset, then only the overrides you ask for), validates your choices, and writes `.claude/war/config.json`. `/war` auto-discovers that file on its next run (or pass `--config <path>`). **No config file → today's defaults, unchanged.** Design notes: [`docs/specs/2026-06-18-war-room-design.md`](docs/specs/2026-06-18-war-room-design.md).
+
 ## Roles → Gas Town lineage
 
 | WAR | Gas Town | Built on |
@@ -89,7 +100,7 @@ See [`skills/war/references/design.md`](skills/war/references/design.md) for the
 
 ## Status
 
-v0.2.3 — early. Fixes plugin manifest validation (explicit `agents` file list; removed redundant `hooks` reference so the standard `hooks/hooks.json` auto-loads without duplication).
+v0.3.0 — early. Adds `/war-room`, a config interview that sets per-role model + reasoning effort (incl. worker `ultrathink`), coven policy, round limit, and the afk default — written to `.claude/war/config.json` and auto-consumed by `/war`.
 
 ## License
 
