@@ -8,6 +8,11 @@
   "repository": "https://github.com/Ljferrer/WorkAuditRefine",
   "keywords": ["claude-code","agent-teams","workflows","orchestration","code-review","merge-queue","multi-agent","gastown"],
   "skills": ["./skills/war"],
-  "agents": ["./agents/"],
+  "agents": [
+    "./agents/war-auditor.md",
+    "./agents/war-refiner.md",
+    "./agents/war-servitor.md",
+    "./agents/war-worker.md"
+  ],
   "hooks": "./hooks/hooks.json"
 }
