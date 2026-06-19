@@ -1,6 +1,6 @@
 # WAR — Design
 
-**Status:** v0.3.0. A portable, Claude-native re-implementation of Gas Town's worker/auditor/refinery/witness model, built only on Claude Code primitives (`Agent`, the `Workflow` tool, git worktrees, GitHub issues) — no Go binary, no Dolt, no beads.
+**Status:** v0.4.0. A portable, Claude-native re-implementation of Gas Town's worker/auditor/refinery/witness model, built only on Claude Code primitives (`Agent`, the `Workflow` tool, git worktrees, GitHub issues) — no Go binary, no Dolt, no beads.
 
 This document is the spec of record. The runnable surface is [`../SKILL.md`](../SKILL.md); the agents are in `agents/`; the per-phase engine is [`../assets/workflow-template.js`](../assets/workflow-template.js).
 
@@ -96,3 +96,10 @@ Batch-then-bisect merge queue · live-SendMessage audit debate · multiple concu
 - **Config surface.** `skills/war/assets/war-config.mjs` owns the schema, defaults, presets, and validation (a single tested source of truth, used by both skills). The `/war` Lead loads and validates the config in Setup, applies non-null `overrides`, and threads `agents` / `audit` / `run` into the per-phase Workflow `args`. `workflow-template.js` reads those instead of hardcoded model literals.
 - **Configurable knobs:** per-role `model` (opus/sonnet/haiku/fable) and `effort` (default…max, where `max` = "ultrathink"); `covenPolicy` (auto/all/solo) seeding per-task covens; `covenSize`; `autoEscalate` (set `false` with `covenPolicy: "solo"` to pin exactly one auditor); `roundLimit`; `afk`.
 - **Backward compatible.** No config file → byte-for-byte the pre-v0.3.0 behavior (`effort: "default"` passes no effort opt; built-in model defaults unchanged).
+
+## 15. v0.4.0 amendments
+- **New sibling skill — `/red-team`** (completes the trilogy): `/war-room` configures a run → **`/red-team` hardens the plan** → `/war` executes it. It runs *before* `/war`, attacking the input plan so WAR fans out over claims that have been **proven, not assumed**. Conversation-driven + Workflow-backed; **not** part of `/war`'s per-phase engine, which is unchanged.
+- **Spine + bespoke probes.** Derives a universal spine of adversarial lenses (claims-vs-reality, executable-proof, coverage-vs-source, consistency-placeholders, dependency-feasibility) plus plan-tailored probes, and **proves** each claim by running the plan's tests/edits/commands in **throwaway sandboxes** (temp dirs / git worktrees) — never touching the target repo. Analysis lenses use the read-only `Explore` agent; execution probes run isolated.
+- **Prove-don't-assert (`adversarial-confirm`).** A blocking finding is **downgraded to a warning unless an independent confirm agent reproduces it** — the Nun gate's fail-closed-on-evidence discipline applied to plan verification, surfaced as the named `adversarial-confirm` Workflow stage.
+- **Outcome:** grills the user on every blocker, patches the plan **in place** until **CLEARED**, and leaves a report under `docs/red-team/`.
+- **Surface.** `skills/red-team/` — `assets/red-team-gate.mjs` (verdict + severity-classify logic, tested), `assets/workflow-scaffold.js` (copy-per-plan Workflow: spine + probes + adversarial-confirm), `references/lenses.md`, `SKILL.md` runbook. Design notes: [`red-team-design.md`](../../../docs/specs/2026-06-18-red-team-design.md). v0.4.0 is purely additive (new front-end skill + version bump).
