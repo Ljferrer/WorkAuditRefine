@@ -19,6 +19,8 @@ Given a plan like `docs/implement/implementation_plan_A.md`, `/war` will:
 
 Run autonomously inside a phase; gated by you between phases (`--afk` to loosen).
 
+> **Best practice — author the input plan with [`/grill-me`](https://github.com/mattpocock/skills/tree/main).** WAR is only as good as the plan it executes. Matt Pocock's `/grill-me` skill interviews you relentlessly down every branch of the design tree, resolving each decision one at a time, until the plan is unambiguous and cleanly phase-decomposable — exactly the shape WAR needs to fan out workers and auditors.
+
 ## Install
 
 ```
