@@ -28,7 +28,38 @@ Run autonomously inside a phase; gated by you between phases (`--afk` to loosen)
 /plugin install work-audit-refine@work-audit-refine
 ```
 
-Then: `/war docs/implement/implementation_plan_A.md`
+## Usage
+
+```
+/war <plan-file> [--working <branch>] [--landing <branch>] [--afk]
+```
+
+**Prerequisites:** a clean git working tree, a GitHub remote, and authenticated `gh` — WAR files issues and opens a PR on your behalf, and refuses to start on a dirty tree.
+
+**Arguments:**
+
+| Argument | Required | Default | What it does |
+|---|---|---|---|
+| `<plan-file>` | yes | — | Path to the multi-phase plan to execute, e.g. `docs/implement/implementation_plan_A.md`. |
+| `--working <branch>` | no | current branch | Branch each phase lands on, one `--no-ff` commit per phase. |
+| `--landing <branch>` | no | repo's default branch | Branch the final PR targets. |
+| `--afk` | no | off | Don't stop at phase boundaries — post a report + push notification and keep going. Hard escalations still halt. |
+
+**Example:**
+
+```
+/war docs/implement/implementation_plan_A.md --working dev/planA --landing master
+```
+
+**What happens when you run it:**
+
+1. **Setup** — WAR confirms the repo/`gh` state, detects your **gate command** (`uv sync && ruff check && pytest`, your `package.json` lint/test scripts, or it asks once), and picks a **learnings target** for the servitor. No phase ever runs without a gate.
+2. **Decompose + approve** — it reads the plan, proposes a phase → task DAG as a GitHub-issues preview, and **waits for your approval.** Nothing spawns until you say go; all phase epics are filed up front, task sub-issues just-in-time per phase.
+3. **Per phase** — workers implement each task in isolated worktrees → read-only auditors review the pinned SHA (Critical/Major findings block; approval is unanimous) → a serial refinery rebases, re-runs the gate, and merges → a write-scoped servitor records durable learnings.
+4. **Checkpoint** — the phase lands on `--working` as one `--no-ff` commit and is pushed; WAR posts a phase report and **checks in with you** before the next phase (skipped under `--afk`; hard escalations halt regardless).
+5. **Finish** — after the last phase, it opens **one PR** from `--working` → `--landing` and reports the URL.
+
+**Resuming:** every run writes a ledger at `.claude/teams/<run-id>/ledger.json` (the resumable source of truth). If a run is interrupted, re-invoke `/war` with the same plan to continue from the ledger + open issues.
 
 ## Roles → Gas Town lineage
 
