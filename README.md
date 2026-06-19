@@ -47,7 +47,7 @@ Changes apply to the current session — or run `/reload-plugins` to force a rel
 /war <plan-file> [--working <branch>] [--landing <branch>] [--afk]
 ```
 
-Or invoke it in natural language — e.g. *"Implement issues #20, #22, ... as a war-style workflow"*.
+Or invoke it in natural language — e.g. *"Go to war on issues #20 & #22!"*.
 
 **Prerequisites:** a clean git working tree, a GitHub remote, and authenticated `gh` — WAR files issues and opens a PR on your behalf, and refuses to start on a dirty tree. No experimental flags or `settings.json` changes are required — `/war` runs on the stock `Workflow` and `Agent` tools, not the experimental agent-teams feature ([why WAR uses Workflows instead](skills/war/references/design.md#why-a-workflow-not-the-agent-teams-feature)).
 
@@ -85,7 +85,7 @@ By default WAR runs sonnet workers and opus auditors at the session's effort and
 /war-room
 ```
 
-Or invoke it in natural language — e.g. *"Let's configure the war strategy"*.
+Or invoke it in natural language — e.g. *"To the war room!"*.
 
 It interviews you (starting from a **balanced / thorough / economy** preset, then only the overrides you ask for), validates your choices, and writes `.claude/war/config.json`. `/war` auto-discovers that file on its next run (or pass `--config <path>`). **No config file → today's defaults, unchanged.** Design notes: [`docs/specs/2026-06-18-war-room-design.md`](docs/specs/2026-06-18-war-room-design.md).
 
@@ -93,7 +93,7 @@ It interviews you (starting from a **balanced / thorough / economy** preset, the
 
 Before you hand a plan to `/war`, attack it. `/red-team <plan-file>` reads the plan, runs a universal spine of adversarial checks plus probes tailored to the plan, and **proves** the plan's claims by running its tests/edits/commands in throwaway sandboxes — never touching your repo. It then grills you on every blocker and patches the plan in place until it is **CLEARED**, leaving a report under `docs/red-team/`.
 
-Or invoke it in natural language — e.g. *"Red Team my plan at docs/..."*.
+Or invoke it in natural language — e.g. *"Red team my plan at docs/..."*.
 
 The trilogy: **`/war-room`** configures a run → **`/red-team`** hardens the plan → **`/war`** executes it. Design notes: [`docs/specs/2026-06-18-red-team-design.md`](docs/specs/2026-06-18-red-team-design.md).
 
