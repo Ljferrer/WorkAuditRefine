@@ -27,6 +27,9 @@ const FINDINGS = { type: 'object', required: ['probe', 'kind', 'technique', 'sta
 const CONFIRM = { type: 'object', required: ['reproduced'], properties: {
   reproduced: { type: 'boolean' }, note: { type: 'string' } } }
 
+// Confirm-stage identifier surfaced as an executable token so tests and tooling can anchor to it.
+const ADVERSARIAL_CONFIRM = 'adversarial-confirm'
+
 const { planFile, repo, sourceSpec = 'none', probes = [] } = args
 
 const SPINE = [
@@ -63,12 +66,12 @@ const results = await pipeline(
       `Independently try to REFUTE this red-team finding — reproduce it or disprove it. `
       + `Work ONLY in a throwaway sandbox; never touch ${repo}.\nProbe: ${p.name}\nPlan: ${planFile}\n`
       + `Findings: ${JSON.stringify(res.findings)}`,
-      { label: `confirm:${p.name}`, phase: 'Confirm',
+      { label: `${ADVERSARIAL_CONFIRM}:${p.name}`, phase: 'Confirm',
         agentType: p.technique === 'analyzed' ? 'Explore' : undefined, schema: CONFIRM })
     if (c && c.reproduced === false) {
       return { ...res, status: 'warn',
         findings: (res.findings || []).map(f => ({ ...f, severity: 'Minor',
-          reality: `${f.reality || ''} [unreproduced — downgraded by adversarial-confirm: ${c.note || ''}]` })) }
+          reality: `${f.reality || ''} [unreproduced — downgraded by ${ADVERSARIAL_CONFIRM}: ${c.note || ''}]` })) }
     }
     return res
   })
