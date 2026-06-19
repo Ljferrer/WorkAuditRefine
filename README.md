@@ -85,6 +85,12 @@ By default WAR runs sonnet workers and opus auditors at the session's effort and
 
 It interviews you (starting from a **balanced / thorough / economy** preset, then only the overrides you ask for), validates your choices, and writes `.claude/war/config.json`. `/war` auto-discovers that file on its next run (or pass `--config <path>`). **No config file → today's defaults, unchanged.** Design notes: [`docs/specs/2026-06-18-war-room-design.md`](docs/specs/2026-06-18-war-room-design.md).
 
+## Harden a plan (`/red-team`)
+
+Before you hand a plan to `/war`, attack it. `/red-team <plan-file>` reads the plan, runs a universal spine of adversarial checks plus probes tailored to the plan, and **proves** the plan's claims by running its tests/edits/commands in throwaway sandboxes — never touching your repo. It then grills you on every blocker and patches the plan in place until it is **CLEARED**, leaving a report under `docs/red-team/`.
+
+The trilogy: **`/war-room`** configures a run → **`/red-team`** hardens the plan → **`/war`** executes it. Design notes: [`docs/specs/2026-06-18-red-team-design.md`](docs/specs/2026-06-18-red-team-design.md).
+
 ## Roles → Gas Town lineage
 
 | WAR | Gas Town | Built on |
@@ -100,7 +106,7 @@ See [`skills/war/references/design.md`](skills/war/references/design.md) for the
 
 ## Status
 
-v0.3.1 — early. Fixes the shipped `workflow-template.js` so it runs out-of-the-box in a plugin install (auto-namespaced agent seats, object-or-JSON-string `args`, auditors handed the task worktree path) and adds drift-guard tests for the template's inline mirrors. v0.3.0 added `/war-room`, a config interview that sets per-role model + reasoning effort (incl. worker `ultrathink`), coven policy, round limit, and the afk default — written to `.claude/war/config.json` and auto-consumed by `/war`.
+v0.4.0 — early. Adds `/red-team`, an adversarial plan-verification skill: it derives a spine + bespoke probes, proves a plan's claims by running them in throwaway sandboxes, and grills you on blockers + patches the plan in place until CLEARED. Completes the war-room → red-team → war trilogy.
 
 ## License
 
