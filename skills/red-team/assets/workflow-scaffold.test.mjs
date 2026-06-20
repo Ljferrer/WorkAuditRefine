@@ -142,3 +142,40 @@ test('executed probes are told to work in a COPY of repo; analyzed probes are re
   assert.match(byLabel['probe:executable-proof'], /\bcd\b/, 'executed probe cds into the copy')
   assert.match(byLabel['probe:claims-vs-reality'], /Restrict every Read/, 'analyzed probe is read-restricted to repo')
 })
+
+test('FINDINGS schema requires read_anchor (Layer 3 attestation is mandatory)', async () => {
+  const a = baseArgs()
+  const { prompts } = await runScaffold(a, passResult(a))
+  const probe = prompts.find(p => p.opts.phase === 'Probe')
+  const required = probe.opts.schema.required
+  assert.ok(required.includes('read_anchor'), 'read_anchor is a required FINDINGS field')
+  assert.ok(probe.opts.schema.properties.read_anchor.required.includes('resolved_path'))
+  assert.ok(probe.opts.schema.properties.read_anchor.required.includes('plan_title'))
+})
+
+test('a dropped probe is retried once, then emitted as a { probe, dropped:true } marker', async () => {
+  const a = baseArgs()
+  let calls = 0
+  // claims-vs-reality dies on BOTH the initial run and the retry; everything else passes.
+  const { out, logs } = await runScaffold(a, (_, opts) => {
+    if (opts.phase === 'Probe' && opts.label === 'probe:claims-vs-reality') { calls++; return null }
+    return { probe: opts.label, technique: 'analyzed', status: 'pass', read_anchor: anchorOf(a), findings: [] }
+  })
+  assert.equal(calls, 2, 'the dead probe was attempted twice (initial + one retry)')
+  const marker = out.probeResults.find(r => r && r.dropped === true)
+  assert.ok(marker, 'a dropped marker is emitted, not a silent omission')
+  assert.equal(marker.probe, 'claims-vs-reality')
+  assert.equal(out.probeResults.length, out.expected, 'every probe slot yields a result or a marker')
+  assert.ok(logs.some(l => /retry/i.test(l)), 'the retry is logged')
+})
+
+test('a probe that dies once then succeeds on retry yields a real result (no marker)', async () => {
+  const a = baseArgs()
+  let first = true
+  const { out } = await runScaffold(a, (_, opts) => {
+    if (opts.phase === 'Probe' && opts.label === 'probe:dependency-feasibility' && first) { first = false; return null }
+    return { probe: opts.label, technique: 'analyzed', status: 'pass', read_anchor: anchorOf(a), findings: [] }
+  })
+  assert.ok(!out.probeResults.some(r => r && r.dropped === true), 'retry succeeded — no dropped marker')
+  assert.equal(out.probeResults.length, out.expected)
+})
