@@ -92,3 +92,18 @@ These reach the per-phase Workflow as `args.agents`, `args.audit`, `args.run` (t
 Optional `agentPrefix` (default `"work-audit-refine:"`) — the template auto-namespaces every `agentType` seat under this prefix via `const NS = args.agentPrefix ?? 'work-audit-refine:'`. Pass a different string to override; the Lead no longer needs manual namespacing workarounds.
 
 Auditors receive the **absolute `task.worktree` path** so they can `Read` candidate files directly in the task's isolated checkout rather than the main repo tree.
+
+## Workflow per-phase return
+
+The per-phase Workflow returns:
+```jsonc
+{ phase,                              // phase id
+  landed: ["task_id"],                // tasks merged onto the integration branch
+  escalated: [ { task, reason, ... } ],
+  minorsFiled: [ { task, ...finding } ],
+  landResult,                         // MergeResult of the in-flow land, or null if held
+  servitorResult,                     // ServitorResult, or null if the Workflow did not land/wrap up
+  auditLog: [ { task, verdict, findings, blocked } ],   // fed to a Lead-driven wrap-up on the held path
+  landDecision: "landed" | "held:escalation" | "held:nothing-merged" }
+```
+When `landDecision` is a `held:*` value the land was **not** performed in-flow; the Lead lands manually and then runs `war-servitor` (see SKILL.md). `held:nothing-merged` means no task merged cleanly and no hard escalation was raised (e.g. a lone `gate_failed`) — surfaced explicitly rather than silently skipped.
