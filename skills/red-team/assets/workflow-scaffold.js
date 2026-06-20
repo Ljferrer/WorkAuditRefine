@@ -30,7 +30,15 @@ const CONFIRM = { type: 'object', required: ['reproduced'], properties: {
 // Confirm-stage identifier surfaced as an executable token so tests and tooling can anchor to it.
 const ADVERSARIAL_CONFIRM = 'adversarial-confirm'
 
-const { planFile, repo, sourceSpec = 'none', probes = [] } = args
+const { planFile, repo, sourceSpec = 'none', probes = [], fingerprint } = args
+
+// Layer 1 — the fingerprint is the deterministic ground truth the gate validates every probe
+// against. The Workflow sandbox has NO filesystem access, so the Lead computes it (Bash) from the
+// absolute planFile and passes it in. Fail loud if it is missing — an unanchored run cannot detect
+// wrong-target drift (see SKILL.md "Pre-flight").
+if (!fingerprint || !fingerprint.titleLine) {
+  throw new Error('red-team scaffold: args.fingerprint { absPath, titleLine, tokens } is required (Lead pre-flight) — refusing to run unanchored.')
+}
 
 const SPINE = [
   { name: 'claims-vs-reality', kind: 'spine', technique: 'analyzed',
@@ -76,4 +84,4 @@ const results = await pipeline(
     return res
   })
 
-return { plan: planFile, probeResults: results.filter(Boolean) }
+return { plan: planFile, repo, fingerprint, expected: allProbes.length, probeResults: results.filter(Boolean) }

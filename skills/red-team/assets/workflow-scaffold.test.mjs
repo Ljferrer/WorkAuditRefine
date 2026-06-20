@@ -54,3 +54,59 @@ test("scaffold structure OK — adversarial-confirm survives comment stripping",
     "adversarial-confirm not present in non-comment source — must appear in executable code"
   )
 })
+
+// --- Behavioral harness: run the scaffold exactly as the Workflow runtime does --------------
+const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
+
+function compileScaffold() {
+  const body = src.replace(/^export const meta/m, 'const meta')
+  return new AsyncFunction('agent', 'parallel', 'pipeline', 'log', 'phase', 'args', 'budget', body)
+}
+
+// Faithful pipeline: each item flows through every stage independently; a throwing stage drops
+// it to null (mirrors the Workflow tool's documented pipeline() semantics).
+async function fakePipeline(items, ...stages) {
+  return Promise.all(items.map(async (item, i) => {
+    let v = item
+    for (const stage of stages) {
+      try { v = await stage(v, item, i) } catch { return null }
+    }
+    return v
+  }))
+}
+
+// Run the scaffold with a mock `agent`. agentImpl(prompt, opts) returns the probe/confirm result
+// (or null to simulate a dead probe). Captures every prompt + opts and every log line.
+async function runScaffold(args, agentImpl) {
+  const prompts = [], logs = []
+  const fn = compileScaffold()
+  const agent = async (prompt, opts = {}) => { prompts.push({ prompt, opts }); return agentImpl(prompt, opts) }
+  const log = (m) => logs.push(m)
+  const out = await fn(agent, () => {}, fakePipeline, log, () => {}, args, {})
+  return { out, prompts, logs }
+}
+
+const FP = { absPath: '/abs/PLAN.md', titleLine: '# Land-path-agnostic Wrap-up', tokens: ['## A'] }
+const anchorOf = (a) => ({ resolved_path: a.planFile, plan_title: a.fingerprint.titleLine })
+const baseArgs = (over = {}) =>
+  ({ planFile: '/abs/PLAN.md', repo: '/abs/REPO', sourceSpec: '/abs/SPEC.md', fingerprint: FP, probes: [], ...over })
+// Default mock: every probe passes, attesting it read the right plan.
+const passResult = (a) => (_, opts) =>
+  ({ probe: opts.label, kind: 'spine', technique: 'analyzed', status: 'pass', read_anchor: anchorOf(a), findings: [] })
+
+test('scaffold return threads the fingerprint + expected + repo to the gate', async () => {
+  const a = baseArgs()
+  const { out } = await runScaffold(a, passResult(a))
+  assert.deepEqual(out.fingerprint, FP, 'fingerprint is threaded through unchanged')
+  assert.equal(out.repo, '/abs/REPO', 'repo is returned for the gate under-repo check')
+  assert.equal(out.expected, 5, 'expected = number of probes that ran (5 spine, sourceSpec set)')
+  assert.equal(out.plan, '/abs/PLAN.md')
+})
+
+test('scaffold aborts when no fingerprint is supplied (Lead pre-flight is mandatory)', async () => {
+  await assert.rejects(
+    runScaffold(baseArgs({ fingerprint: undefined }), () => ({ status: 'pass', findings: [] })),
+    /fingerprint/i,
+    'a missing fingerprint must fail loud, not run unanchored probes'
+  )
+})
