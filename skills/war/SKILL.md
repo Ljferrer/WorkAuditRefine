@@ -36,12 +36,13 @@ Run **one Workflow per phase** from [assets/workflow-template.js](assets/workflo
 - **Refines** — `war-refiner` rebases each approved task onto the integration tip, re-runs the gate, and merges **serially** (the queue). A gate/audit failure routes a batched `FIX_NEEDED` to a fresh fix-worker on the same worktree (≤ `round_limit=3`, then escalate `audit-blocked`);
 - **Lands** — `war-refiner` merges `integration/phase-N` → working `--no-ff` (one phase commit) and pushes working;
 - **Wraps up** — once the phase lands, `war-servitor` (write-scoped to `learningsTarget`) records durable learnings to memory;
-- returns `{ landed, escalated, minorsFiled, landResult, servitorResult }`.
+- returns `{ landed, escalated, minorsFiled, landResult, servitorResult, auditLog, landDecision }` — `landDecision` ∈ `landed` | `held:escalation` | `held:nothing-merged`; `servitorResult` is null unless the Workflow landed the phase itself.
 
 Then update issues + ledger, and **mirror the phase report + escalations as a comment on the phase epic issue**.
 
 ## Checkpoint (between phases)
 Post a phase report — *landed (task→issue#, SHA) · minor issues filed · learnings captured · escalations needing your decision (with options) · deferred/blocked · gate result + working pushed@SHA · next phase?* — and **wait for the user's go**. Under `--afk`: post + `PushNotification`, then proceed. **Hard escalations (audit-blocked, unresolvable conflict, plan-contradiction) always halt regardless of mode.** Promote any ADR-worthy deviation to a real `docs/adr/` entry.
+- **Capture learnings on every landed phase (exactly once).** The Workflow only wraps up when it lands the phase itself (`landDecision === 'landed'`, `servitorResult` populated). When it returns a `held:*` decision and you land the phase manually (the escalation path), then **after your manual land's gate is green** spawn `war-servitor` yourself — write-scoped via `WAR_WORKTREE=<learningsTarget>` — fed the returned `auditLog`, `escalated`, and the resolution (what the user decided and how the fix went). Run it only if `servitorResult` is absent (never double-capture).
 
 ## Finish
 When all phases land, open **one PR** working → landing, body summarizing phases landed, learnings, escalations resolved, and follow-up issues filed. Report the PR URL.
@@ -51,3 +52,4 @@ When all phases land, open **one PR** working → landing, body summarizing phas
 - `war-auditor` is read-only (Read/Grep/Glob only); `war-servitor` is the only reviewer-side role that writes, and only to `learningsTarget` (enforced by the worktree-scope hook via `WAR_WORKTREE`); workers stay inside their worktree; `war-refiner` owns **all** merges, one at a time, never `--force`/`reset --hard` on shared branches.
 - Never merge a task with an open Critical/Major finding, without a passing gate, or before unanimous audit. Never merge un-audited. Never let a worker satisfy the gate by deleting/skipping tests.
 - Models/effort come from the resolved run config (`/war-room`); **defaults** are `war-worker`/fix/`war-refiner`/`war-servitor` = sonnet and `war-auditor` = opus, all at session effort. `audit.autoEscalate` (default on) still widens a lone seat to a coven on a Critical/low-confidence finding. Target < 3× single-agent cost.
+- **Every landed phase captures learnings exactly once**, by whichever path landed it: the in-flow Wrap-up when the Workflow lands (`landDecision === 'landed'`), else a Lead-driven `war-servitor` pass after a manual land. Skip if `servitorResult` is already set.
