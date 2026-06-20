@@ -134,7 +134,7 @@ Rule of thumb: **scripted, reproducible coordination → Workflow; emergent or i
 
 ## Status
 
-v0.4.0 — early. Adds `/red-team`, an adversarial plan-verification skill: it derives a spine + bespoke probes, proves a plan's claims by running them in throwaway sandboxes, and grills you on blockers + patches the plan in place until CLEARED. Completes the war-room → red-team → war trilogy.
+v0.4.2 — early. Hardens `/red-team` against verifying the **wrong** plan or silently passing on partial coverage: a Lead-computed plan **fingerprint** + a required per-probe **`read_anchor`** attestation lets the gate discard off-target probes, and a fail-closed **`INCOMPLETE`** verdict (no silent `filter(Boolean)`, dropped probes retried once then surfaced) means a mis-targeted or dropped run can never read as `CLEARED`. (Includes the v0.4.1 land-path-agnostic wrap-up.) Completes the war-room → red-team → war trilogy.
 
 ## License
 
