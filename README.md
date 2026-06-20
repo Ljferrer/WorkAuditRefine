@@ -134,7 +134,7 @@ Rule of thumb: **scripted, reproducible coordination → Workflow; emergent or i
 
 ## Status
 
-v0.4.0 — early. Adds `/red-team`, an adversarial plan-verification skill: it derives a spine + bespoke probes, proves a plan's claims by running them in throwaway sandboxes, and grills you on blockers + patches the plan in place until CLEARED. Completes the war-room → red-team → war trilogy.
+v0.4.1 — early. Fix: the `war-servitor` Wrap-up now captures learnings for **every** phase that lands, including the escalation/manual-land path (the in-flow Wrap-up only ran when the Workflow landed the phase itself); the per-phase land decision is now observable (`landDecision`) instead of silently skipped. Adds `/red-team` (v0.4.0) and completes the war-room → red-team → war trilogy.
 
 ## License
 
