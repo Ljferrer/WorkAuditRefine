@@ -40,6 +40,24 @@ if (!fingerprint || !fingerprint.titleLine) {
   throw new Error('red-team scaffold: args.fingerprint { absPath, titleLine, tokens } is required (Lead pre-flight) — refusing to run unanchored.')
 }
 
+// Layer 2 — SCOPE-LOCK preamble. /red-team is routinely launched from project X's session to
+// verify project Y's plan; a probe agent's ambient cwd + CLAUDE.md + memory otherwise OVERPOWER
+// the explicit args and it red-teams the WRONG artifact. Prepended to EVERY probe (spine AND
+// bespoke) and EVERY confirm. It also asks the agent to attest, in read_anchor, the plan it
+// actually read — the gate validates that against the fingerprint (Layer 3). Prevention here;
+// detection in the gate.
+const scopeLock = (technique) => [
+  'SCOPE-LOCK — READ THIS FIRST. IT OVERRIDES ANY AMBIENT PROJECT CONTEXT.',
+  `You may be running inside an UNRELATED project's working directory. IGNORE the session cwd, its CLAUDE.md, and its memory.`,
+  `The ONLY subject of this red-team is the plan file at ${planFile} (titled "${fingerprint.titleLine}")${sourceSpec !== 'none' ? `, its source spec ${sourceSpec},` : ','} and the repository rooted at ${repo}.`,
+  `Do not read, reference, or reason about any file outside ${repo} (other than the plan/spec named above).`,
+  technique === 'executed'
+    ? `To inspect or run anything, first copy the repo into a throwaway sandbox (e.g. \`cp -R ${repo} <tmp>\` or \`git -C ${repo} worktree add <tmp>\`) and \`cd\` into that copy — run there only, never from the session cwd, and NEVER mutate ${repo}.`
+    : `Restrict every Read / Grep / Glob to paths under ${repo} (plus the plan/spec named above); open nothing else on the machine.`,
+  `If the plan you open is NOT titled "${fingerprint.titleLine}", or you find yourself reading another project's files, STOP — you are on the WRONG plan. Re-open ${planFile} and confine yourself to ${repo}.`,
+  `In your FINDINGS result you MUST set read_anchor.resolved_path to the ABSOLUTE path of the plan file you actually read and read_anchor.plan_title to its first "# " heading line. This is checked against the expected plan; a mismatch discards your findings.`,
+].join('\n')
+
 const SPINE = [
   { name: 'claims-vs-reality', kind: 'spine', technique: 'analyzed',
     prompt: `Read the plan ${planFile}. For every CONCRETE claim it makes about ${repo} (a file/symbol exists, a function signature, a cited line number, a "before" snippet), check it against the LIVE repo. Report each false claim with the plan's version vs the file's actual content. Read-only.` },
@@ -64,14 +82,15 @@ log(`Red-teaming ${planFile}: ${allProbes.length} probe(s)`)
 const results = await pipeline(
   allProbes,
   p => agent(
-    `${p.prompt}\n\nReturn ONLY the FINDINGS object (probe="${p.name}", kind="${p.kind}", technique="${p.technique}"). Prove any failure with reproduced evidence; never assert. Set needsDecision:true on any finding that is an ambiguity with more than one non-equivalent resolution — a hole only the user can settle.`,
+    `${scopeLock(p.technique)}\n\n${p.prompt}\n\nReturn ONLY the FINDINGS object (probe="${p.name}", kind="${p.kind}", technique="${p.technique}"). Prove any failure with reproduced evidence; never assert. Set needsDecision:true on any finding that is an ambiguity with more than one non-equivalent resolution — a hole only the user can settle.`,
     { label: `probe:${p.name}`, phase: 'Probe',
       agentType: p.technique === 'analyzed' ? 'Explore' : undefined, schema: FINDINGS }),
   async (res, p) => {                                   // adversarial-confirm: refute any reproducible blocker
     const blocking = res && (res.findings || []).some(f => f.severity === 'Critical' || f.severity === 'Major')
     if (!res || (res.status !== 'fail' && !blocking)) return res
     const c = await agent(
-      `Independently try to REFUTE this red-team finding — reproduce it or disprove it. `
+      `${scopeLock(p.technique)}\n\n`
+      + `Independently try to REFUTE this red-team finding — reproduce it or disprove it. `
       + `Work ONLY in a throwaway sandbox; never touch ${repo}.\nProbe: ${p.name}\nPlan: ${planFile}\n`
       + `Findings: ${JSON.stringify(res.findings)}`,
       { label: `${ADVERSARIAL_CONFIRM}:${p.name}`, phase: 'Confirm',
