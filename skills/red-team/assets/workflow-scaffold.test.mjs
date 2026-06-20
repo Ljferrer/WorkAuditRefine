@@ -110,3 +110,35 @@ test('scaffold aborts when no fingerprint is supplied (Lead pre-flight is mandat
     'a missing fingerprint must fail loud, not run unanchored probes'
   )
 })
+
+test('scaffold structure OK — scopeLock is a declared, invoked constant (survives comment stripping)', () => {
+  const stripped = src.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
+  assert.ok(/scopeLock\s*=/.test(stripped), 'scopeLock must be a declared constant, not only a comment')
+  assert.ok(/scopeLock\(/.test(stripped), 'scopeLock must be invoked in executable code')
+})
+
+test('every probe prompt is scope-locked to the absolute planFile + repo + fingerprint title', async () => {
+  const a = baseArgs({ probes: [
+    { name: 'b1', kind: 'bespoke', technique: 'executed', prompt: 'do b1' },
+    { name: 'b2', kind: 'bespoke', technique: 'analyzed', prompt: 'do b2' },
+  ] })
+  const { prompts } = await runScaffold(a, passResult(a))
+  const probePrompts = prompts.filter(p => p.opts.phase === 'Probe')
+  assert.equal(probePrompts.length, 7, '5 spine (sourceSpec set keeps coverage-vs-source) + 2 bespoke')
+  for (const { prompt } of probePrompts) {
+    assert.match(prompt, /SCOPE-LOCK/, 'every probe prompt carries the SCOPE-LOCK preamble')
+    assert.ok(prompt.includes('/abs/PLAN.md'), 'scope-lock names the absolute planFile')
+    assert.ok(prompt.includes('/abs/REPO'), 'scope-lock names the absolute repo')
+    assert.ok(prompt.includes('Land-path-agnostic Wrap-up'), 'scope-lock names the expected plan title')
+    assert.match(prompt, /IGNORE the session cwd/, 'scope-lock disowns the ambient cwd')
+  }
+})
+
+test('executed probes are told to work in a COPY of repo; analyzed probes are read-restricted', async () => {
+  const a = baseArgs()
+  const { prompts } = await runScaffold(a, passResult(a))
+  const byLabel = Object.fromEntries(prompts.map(p => [p.opts.label, p.prompt]))
+  assert.match(byLabel['probe:executable-proof'], /cp -R|worktree add/, 'executed probe copies the repo')
+  assert.match(byLabel['probe:executable-proof'], /\bcd\b/, 'executed probe cds into the copy')
+  assert.match(byLabel['probe:claims-vs-reality'], /Restrict every Read/, 'analyzed probe is read-restricted to repo')
+})
