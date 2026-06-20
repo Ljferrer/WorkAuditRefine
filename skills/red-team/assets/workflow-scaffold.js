@@ -16,9 +16,12 @@ export const meta = {
 // warn unless an independent confirm agent reproduces it. Prove, don't assert.
 // ---------------------------------------------------------------------------
 
-const FINDINGS = { type: 'object', required: ['probe', 'kind', 'technique', 'status', 'findings'], properties: {
+const FINDINGS = { type: 'object', required: ['probe', 'kind', 'technique', 'status', 'findings', 'read_anchor'], properties: {
   probe: { type: 'string' }, kind: { enum: ['spine', 'bespoke'] }, technique: { enum: ['executed', 'analyzed'] },
   sandbox: { type: 'string' }, status: { enum: ['pass', 'fail', 'warn'] },
+  // Layer 3 attestation: what the probe ACTUALLY read. The gate validates it against the fingerprint.
+  read_anchor: { type: 'object', required: ['resolved_path', 'plan_title'], properties: {
+    resolved_path: { type: 'string' }, plan_title: { type: 'string' } } },
   findings: { type: 'array', items: { type: 'object', properties: {
     severity: { enum: ['Critical', 'Major', 'Minor'] }, needsDecision: { type: 'boolean' },
     claim: { type: 'string' }, reality: { type: 'string' }, evidence: { type: 'string' },
@@ -30,7 +33,33 @@ const CONFIRM = { type: 'object', required: ['reproduced'], properties: {
 // Confirm-stage identifier surfaced as an executable token so tests and tooling can anchor to it.
 const ADVERSARIAL_CONFIRM = 'adversarial-confirm'
 
-const { planFile, repo, sourceSpec = 'none', probes = [] } = args
+const { planFile, repo, sourceSpec = 'none', probes = [], fingerprint } = args
+
+// Layer 1 — the fingerprint is the deterministic ground truth the gate validates every probe
+// against. The Workflow sandbox has NO filesystem access, so the Lead computes it (Bash) from the
+// absolute planFile and passes it in. Fail loud if it is missing — an unanchored run cannot detect
+// wrong-target drift (see SKILL.md "Pre-flight").
+if (!fingerprint || !fingerprint.titleLine) {
+  throw new Error('red-team scaffold: args.fingerprint { absPath, titleLine, tokens } is required (Lead pre-flight) — refusing to run unanchored.')
+}
+
+// Layer 2 — SCOPE-LOCK preamble. /red-team is routinely launched from project X's session to
+// verify project Y's plan; a probe agent's ambient cwd + CLAUDE.md + memory otherwise OVERPOWER
+// the explicit args and it red-teams the WRONG artifact. Prepended to EVERY probe (spine AND
+// bespoke) and EVERY confirm. It also asks the agent to attest, in read_anchor, the plan it
+// actually read — the gate validates that against the fingerprint (Layer 3). Prevention here;
+// detection in the gate.
+const scopeLock = (technique) => [
+  'SCOPE-LOCK — READ THIS FIRST. IT OVERRIDES ANY AMBIENT PROJECT CONTEXT.',
+  `You may be running inside an UNRELATED project's working directory. IGNORE the session cwd, its CLAUDE.md, and its memory.`,
+  `The ONLY subject of this red-team is the plan file at ${planFile} (titled "${fingerprint.titleLine}")${sourceSpec !== 'none' ? `, its source spec ${sourceSpec},` : ','} and the repository rooted at ${repo}.`,
+  `Do not read, reference, or reason about any file outside ${repo} (other than the plan/spec named above).`,
+  technique === 'executed'
+    ? `To inspect or run anything, first copy the repo into a throwaway sandbox (e.g. \`cp -R ${repo} <tmp>\` or \`git -C ${repo} worktree add <tmp>\`) and \`cd\` into that copy — run there only, never from the session cwd, and NEVER mutate ${repo}.`
+    : `Restrict every Read / Grep / Glob to paths under ${repo} (plus the plan/spec named above); open nothing else on the machine.`,
+  `If the plan you open is NOT titled "${fingerprint.titleLine}", or you find yourself reading another project's files, STOP — you are on the WRONG plan. Re-open ${planFile} and confine yourself to ${repo}.`,
+  `In your FINDINGS result you MUST set read_anchor.resolved_path to the ABSOLUTE path of the plan file you actually read and read_anchor.plan_title to its first "# " heading line. This is checked against the expected plan; a mismatch discards your findings.`,
+].join('\n')
 
 const SPINE = [
   { name: 'claims-vs-reality', kind: 'spine', technique: 'analyzed',
@@ -53,27 +82,46 @@ const allProbes = [...spine, ...probes]
 
 log(`Red-teaming ${planFile}: ${allProbes.length} probe(s)`)
 
-const results = await pipeline(
-  allProbes,
-  p => agent(
-    `${p.prompt}\n\nReturn ONLY the FINDINGS object (probe="${p.name}", kind="${p.kind}", technique="${p.technique}"). Prove any failure with reproduced evidence; never assert. Set needsDecision:true on any finding that is an ambiguity with more than one non-equivalent resolution — a hole only the user can settle.`,
-    { label: `probe:${p.name}`, phase: 'Probe',
-      agentType: p.technique === 'analyzed' ? 'Explore' : undefined, schema: FINDINGS }),
-  async (res, p) => {                                   // adversarial-confirm: refute any reproducible blocker
-    const blocking = res && (res.findings || []).some(f => f.severity === 'Critical' || f.severity === 'Major')
-    if (!res || (res.status !== 'fail' && !blocking)) return res
-    const c = await agent(
-      `Independently try to REFUTE this red-team finding — reproduce it or disprove it. `
-      + `Work ONLY in a throwaway sandbox; never touch ${repo}.\nProbe: ${p.name}\nPlan: ${planFile}\n`
-      + `Findings: ${JSON.stringify(res.findings)}`,
-      { label: `${ADVERSARIAL_CONFIRM}:${p.name}`, phase: 'Confirm',
-        agentType: p.technique === 'analyzed' ? 'Explore' : undefined, schema: CONFIRM })
-    if (c && c.reproduced === false) {
-      return { ...res, status: 'warn',
-        findings: (res.findings || []).map(f => ({ ...f, severity: 'Minor',
-          reality: `${f.reality || ''} [unreproduced — downgraded by ${ADVERSARIAL_CONFIRM}: ${c.note || ''}]` })) }
-    }
-    return res
-  })
+// Probe (stage 1) + adversarial-confirm (stage 2) as named stages so a dropped probe can be retried.
+const runProbe = (p) => agent(
+  `${scopeLock(p.technique)}\n\n${p.prompt}\n\nReturn ONLY the FINDINGS object (probe="${p.name}", kind="${p.kind}", technique="${p.technique}"). Prove any failure with reproduced evidence; never assert. Set needsDecision:true on any finding that is an ambiguity with more than one non-equivalent resolution — a hole only the user can settle.`,
+  { label: `probe:${p.name}`, phase: 'Probe',
+    agentType: p.technique === 'analyzed' ? 'Explore' : undefined, schema: FINDINGS })
 
-return { plan: planFile, probeResults: results.filter(Boolean) }
+const confirmStage = async (res, p) => {               // adversarial-confirm: refute any reproducible blocker
+  const blocking = res && (res.findings || []).some(f => f.severity === 'Critical' || f.severity === 'Major')
+  if (!res || (res.status !== 'fail' && !blocking)) return res
+  const c = await agent(
+    `${scopeLock(p.technique)}\n\n`
+    + `Independently try to REFUTE this red-team finding — reproduce it or disprove it. `
+    + `Work ONLY in a throwaway sandbox; never touch ${repo}.\nProbe: ${p.name}\nPlan: ${planFile}\n`
+    + `Findings: ${JSON.stringify(res.findings)}`,
+    { label: `${ADVERSARIAL_CONFIRM}:${p.name}`, phase: 'Confirm',
+      agentType: p.technique === 'analyzed' ? 'Explore' : undefined, schema: CONFIRM })
+  if (c && c.reproduced === false) {
+    return { ...res, status: 'warn',
+      findings: (res.findings || []).map(f => ({ ...f, severity: 'Minor',
+        reality: `${f.reality || ''} [unreproduced — downgraded by ${ADVERSARIAL_CONFIRM}: ${c.note || ''}]` })) }
+  }
+  return res
+}
+
+const results = await pipeline(allProbes, runProbe, confirmStage)
+
+// Layer 4 — never silently drop a dead probe. A null = the agent died after the harness's own
+// retries (or was skipped). Retry it ONCE; if it still dies, emit a { probe, dropped:true } marker
+// so the gate counts the coverage gap and refuses to return CLEARED on a thinner run.
+const probeResults = []
+for (let i = 0; i < allProbes.length; i++) {
+  let r = results[i]
+  if (!r) {
+    log(`Probe ${allProbes[i].name} returned no result — retrying once.`)
+    const retried = await pipeline([allProbes[i]], runProbe, confirmStage)
+    r = retried[0]
+  }
+  probeResults.push(r || { probe: allProbes[i].name, dropped: true })
+}
+const dropped = probeResults.filter(r => r && r.dropped).map(r => r.probe)
+if (dropped.length) log(`⚠ coverage gap: ${dropped.length}/${allProbes.length} probe(s) dropped after retry — ${dropped.join(', ')}. The gate will return INCOMPLETE.`)
+
+return { plan: planFile, repo, fingerprint, expected: allProbes.length, probeResults }
