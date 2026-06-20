@@ -23,8 +23,15 @@ Add one probe per matching feature (edit the scaffold's array or pass `args.prob
 
 For a plan with **no runnable artifacts** (a design doc/PRD), drop the executed probes; coverage, consistency, feasibility, and ambiguity (`needsDecision`) carry the verification.
 
+## Scope-lock, attestation & coverage (foreign-cwd defense)
+`/red-team` is routinely launched from project X's session to verify project Y's plan (`--repo` ≠ cwd). A probe agent's ambient cwd + CLAUDE.md + memory **overpower** explicit path args, so prevention alone is insufficient (drift survived absolute paths in the 2026-06-19 incident). The hardening is defense-in-depth:
+- **Scope-lock preamble** — the scaffold prepends a hard preamble to **every** probe (spine *and* bespoke) and confirm: ignore the session cwd, the only subject is the fingerprinted plan + `repo`, executed probes work in a throwaway *copy* of `repo`, analyzed probes restrict reads to `repo`, and STOP if the opened plan's title differs. **Bespoke probe authors:** you get this for free, but still write your gist to name the absolute `repo`/`planFile`.
+- **Anchor attestation** — every probe must report `read_anchor` (what it read); the gate discards off-target results. This is the layer that catches drift even when the preamble fails.
+- **`INCOMPLETE` verdict** — the gate returns `CLEARED | CLEARED-WITH-NOTES | BLOCKED | INCOMPLETE`. `INCOMPLETE` whenever a probe was off-target, dropped, or never ran; the gate **never** returns `CLEARED` on incomplete coverage. The Lead re-runs the off-target/dropped probes before any other verdict can settle.
+- *(Optional, deferred)* a deterministic execution harness for `executed` probes — see the follow-up plan; it removes agent judgment from mechanical pass/fail.
+
 ## Schemas
-`FINDINGS` (per probe) and `CONFIRM` (per adversarial-confirm) are defined in the scaffold. Shape of a finding:
+`FINDINGS` (per probe) and `CONFIRM` (per adversarial-confirm) are defined in the scaffold. `FINDINGS` has a **required** `read_anchor: { resolved_path, plan_title }` — what the probe ACTUALLY read; the gate validates it against the run's **fingerprint** (`{ absPath, titleLine, tokens }`, computed by the Lead from the absolute `planFile` and passed in `args.fingerprint`). A probe whose `read_anchor` does not match the fingerprint is **off-target**: its findings are discarded and it counts as a coverage failure. Shape of a finding:
 ```jsonc
 { severity: "Critical" | "Major" | "Minor",
   needsDecision: false,          // true = a hole to grill the user on
@@ -40,7 +47,7 @@ For a plan with **no runnable artifacts** (a design doc/PRD), drop the executed 
 - **Major** — real defect or coverage gap → wrong/incomplete results. Blocks.
 - **Minor** — cosmetic/robustness. Auto-note; auto-fix when unambiguous.
 - **`needsDecision`** — an underspecified hole (an ambiguity with >1 non-equivalent resolution) → grill the user, at any severity. Probe agents set `needsDecision:true` on any such finding.
-- **Verdict:** `CLEARED` (no blockers/holes/minors) · `CLEARED-WITH-NOTES` (minors only) · `BLOCKED` (open blocker/hole).
+- **Verdict:** `CLEARED` (no blockers/holes/minors) · `CLEARED-WITH-NOTES` (minors only) · `BLOCKED` (open blocker/hole) · `INCOMPLETE` (coverage gap — an off-target, dropped, or never-ran probe; re-run before any other verdict).
 
 ## Report template → `docs/red-team/YYYY-MM-DD-<plan-slug>.md`
 ```markdown
