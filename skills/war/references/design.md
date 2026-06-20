@@ -1,6 +1,6 @@
 # WAR — Design
 
-**Status:** v0.4.0. A portable, Claude-native re-implementation of Gas Town's worker/auditor/refinery/witness model, built only on Claude Code primitives (`Agent`, the `Workflow` tool, git worktrees, GitHub issues) — no Go binary, no Dolt, no beads.
+**Status:** v0.4.1. A portable, Claude-native re-implementation of Gas Town's worker/auditor/refinery/witness model, built only on Claude Code primitives (`Agent`, the `Workflow` tool, git worktrees, GitHub issues) — no Go binary, no Dolt, no beads.
 
 This document is the spec of record. The runnable surface is [`../SKILL.md`](../SKILL.md); the agents are in `agents/`; the per-phase engine is [`../assets/workflow-template.js`](../assets/workflow-template.js).
 
@@ -103,3 +103,8 @@ Batch-then-bisect merge queue · live-SendMessage audit debate · multiple concu
 - **Prove-don't-assert (`adversarial-confirm`).** A blocking finding is **downgraded to a warning unless an independent confirm agent reproduces it** — the Nun gate's fail-closed-on-evidence discipline applied to plan verification, surfaced as the named `adversarial-confirm` Workflow stage.
 - **Outcome:** grills the user on every blocker, patches the plan **in place** until **CLEARED**, and leaves a report under `docs/red-team/`.
 - **Surface.** `skills/red-team/` — `assets/red-team-gate.mjs` (verdict + severity-classify logic, tested), `assets/workflow-scaffold.js` (copy-per-plan Workflow: spine + probes + adversarial-confirm), `references/lenses.md`, `SKILL.md` runbook. Design notes: [`red-team-design.md`](../../../docs/specs/2026-06-18-red-team-design.md). v0.4.0 is purely additive (new front-end skill + version bump).
+
+## 16. v0.4.1 amendments
+- **Land-path-agnostic Wrap-up.** The servitor's Wrap-up is now an obligation satisfied **once per landed phase regardless of who lands it**, not a stage welded to the in-flow land. The template surfaces `landDecision` (`landed` | `held:escalation` | `held:nothing-merged`) and the `auditLog` in its return; on a `held:*` decision the Lead lands manually (the human-owned boundary, unchanged) and then runs `war-servitor` itself with the returned `auditLog` + escalations + resolution. Guard: run only when `servitorResult` is absent (no double-capture).
+- **No silent land.** The previously-unlogged `landed.length === 0 && !hardEscalation` case is now `held:nothing-merged` with an explicit log; the land decision is observable in every run. The hard-escalation hold set (`escalate`/`audit-blocked`/`conflict`) is unchanged — `gate_failed`/`error` still do not, by themselves, block a land that has other merged tasks.
+- **decideLand** is the canonical, unit-tested decision (`assets/land-decision.mjs`), mirrored inline in `assets/workflow-template.js` (the Workflow sandbox can't import) — keep in sync, same pattern as `ROLE_MODEL`.

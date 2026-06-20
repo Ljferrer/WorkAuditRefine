@@ -170,15 +170,22 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
 }
 
 // ---- LAND — only when no hard escalation is open; else hold for the Lead ----
+// landDecision mirrors land-decision.mjs (decideLand) — the Workflow sandbox can't import. Keep in sync.
 let landResult = null
-const hardEscalation = escalated.some(e => ['escalate', 'audit-blocked', 'conflict'].includes(e.reason))
-if (landed.length && !hardEscalation) {
+const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict']
+const hardEscalation = escalated.some(e => HARD_ESCALATION_REASONS.includes(e && e.reason))
+const landDecision = (landed.length && !hardEscalation) ? 'landed'
+  : hardEscalation ? 'held:escalation'
+  : 'held:nothing-merged'
+if (landDecision === 'landed') {
   landResult = await agent(
     `Land WAR phase ${ph.id}: merge ${ph.integrationBranch} into ${ph.workingBranch} with --no-ff (one phase commit). mode=land-phase.\n`
     + `Run the gate (${plan.gate}); push ${ph.workingBranch}.`,
     { agentType: NS + 'war-refiner', phase: 'Land', label: `land:phase-${ph.id}`, schema: MERGE_RESULT, ...spawn('refiner') })
-} else if (hardEscalation) {
+} else if (landDecision === 'held:escalation') {
   log(`Holding the land for phase ${ph.id}: ${escalated.length} escalation(s) need the Lead's decision.`)
+} else {
+  log(`Holding the land for phase ${ph.id}: no task merged cleanly (see escalations) — the Lead must resolve and land.`)
 }
 
 // ---- WRAP-UP — capture durable learnings (war-servitor, write-scoped to learningsTarget) ----
@@ -194,4 +201,4 @@ if (landResult && landResult.status === 'landed' && learningsTarget) {
     { agentType: NS + 'war-servitor', phase: 'Wrap-up', label: `wrap-up:phase-${ph.id}`, schema: SERVITOR_RESULT, ...spawn('servitor') })
 }
 
-return { phase: ph.id, landed, escalated, minorsFiled, landResult, servitorResult }
+return { phase: ph.id, landed, escalated, minorsFiled, landResult, servitorResult, auditLog, landDecision }
