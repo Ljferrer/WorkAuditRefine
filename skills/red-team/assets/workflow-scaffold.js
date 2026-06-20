@@ -16,9 +16,12 @@ export const meta = {
 // warn unless an independent confirm agent reproduces it. Prove, don't assert.
 // ---------------------------------------------------------------------------
 
-const FINDINGS = { type: 'object', required: ['probe', 'kind', 'technique', 'status', 'findings'], properties: {
+const FINDINGS = { type: 'object', required: ['probe', 'kind', 'technique', 'status', 'findings', 'read_anchor'], properties: {
   probe: { type: 'string' }, kind: { enum: ['spine', 'bespoke'] }, technique: { enum: ['executed', 'analyzed'] },
   sandbox: { type: 'string' }, status: { enum: ['pass', 'fail', 'warn'] },
+  // Layer 3 attestation: what the probe ACTUALLY read. The gate validates it against the fingerprint.
+  read_anchor: { type: 'object', required: ['resolved_path', 'plan_title'], properties: {
+    resolved_path: { type: 'string' }, plan_title: { type: 'string' } } },
   findings: { type: 'array', items: { type: 'object', properties: {
     severity: { enum: ['Critical', 'Major', 'Minor'] }, needsDecision: { type: 'boolean' },
     claim: { type: 'string' }, reality: { type: 'string' }, evidence: { type: 'string' },
@@ -79,28 +82,46 @@ const allProbes = [...spine, ...probes]
 
 log(`Red-teaming ${planFile}: ${allProbes.length} probe(s)`)
 
-const results = await pipeline(
-  allProbes,
-  p => agent(
-    `${scopeLock(p.technique)}\n\n${p.prompt}\n\nReturn ONLY the FINDINGS object (probe="${p.name}", kind="${p.kind}", technique="${p.technique}"). Prove any failure with reproduced evidence; never assert. Set needsDecision:true on any finding that is an ambiguity with more than one non-equivalent resolution — a hole only the user can settle.`,
-    { label: `probe:${p.name}`, phase: 'Probe',
-      agentType: p.technique === 'analyzed' ? 'Explore' : undefined, schema: FINDINGS }),
-  async (res, p) => {                                   // adversarial-confirm: refute any reproducible blocker
-    const blocking = res && (res.findings || []).some(f => f.severity === 'Critical' || f.severity === 'Major')
-    if (!res || (res.status !== 'fail' && !blocking)) return res
-    const c = await agent(
-      `${scopeLock(p.technique)}\n\n`
-      + `Independently try to REFUTE this red-team finding — reproduce it or disprove it. `
-      + `Work ONLY in a throwaway sandbox; never touch ${repo}.\nProbe: ${p.name}\nPlan: ${planFile}\n`
-      + `Findings: ${JSON.stringify(res.findings)}`,
-      { label: `${ADVERSARIAL_CONFIRM}:${p.name}`, phase: 'Confirm',
-        agentType: p.technique === 'analyzed' ? 'Explore' : undefined, schema: CONFIRM })
-    if (c && c.reproduced === false) {
-      return { ...res, status: 'warn',
-        findings: (res.findings || []).map(f => ({ ...f, severity: 'Minor',
-          reality: `${f.reality || ''} [unreproduced — downgraded by ${ADVERSARIAL_CONFIRM}: ${c.note || ''}]` })) }
-    }
-    return res
-  })
+// Probe (stage 1) + adversarial-confirm (stage 2) as named stages so a dropped probe can be retried.
+const runProbe = (p) => agent(
+  `${scopeLock(p.technique)}\n\n${p.prompt}\n\nReturn ONLY the FINDINGS object (probe="${p.name}", kind="${p.kind}", technique="${p.technique}"). Prove any failure with reproduced evidence; never assert. Set needsDecision:true on any finding that is an ambiguity with more than one non-equivalent resolution — a hole only the user can settle.`,
+  { label: `probe:${p.name}`, phase: 'Probe',
+    agentType: p.technique === 'analyzed' ? 'Explore' : undefined, schema: FINDINGS })
 
-return { plan: planFile, repo, fingerprint, expected: allProbes.length, probeResults: results.filter(Boolean) }
+const confirmStage = async (res, p) => {               // adversarial-confirm: refute any reproducible blocker
+  const blocking = res && (res.findings || []).some(f => f.severity === 'Critical' || f.severity === 'Major')
+  if (!res || (res.status !== 'fail' && !blocking)) return res
+  const c = await agent(
+    `${scopeLock(p.technique)}\n\n`
+    + `Independently try to REFUTE this red-team finding — reproduce it or disprove it. `
+    + `Work ONLY in a throwaway sandbox; never touch ${repo}.\nProbe: ${p.name}\nPlan: ${planFile}\n`
+    + `Findings: ${JSON.stringify(res.findings)}`,
+    { label: `${ADVERSARIAL_CONFIRM}:${p.name}`, phase: 'Confirm',
+      agentType: p.technique === 'analyzed' ? 'Explore' : undefined, schema: CONFIRM })
+  if (c && c.reproduced === false) {
+    return { ...res, status: 'warn',
+      findings: (res.findings || []).map(f => ({ ...f, severity: 'Minor',
+        reality: `${f.reality || ''} [unreproduced — downgraded by ${ADVERSARIAL_CONFIRM}: ${c.note || ''}]` })) }
+  }
+  return res
+}
+
+const results = await pipeline(allProbes, runProbe, confirmStage)
+
+// Layer 4 — never silently drop a dead probe. A null = the agent died after the harness's own
+// retries (or was skipped). Retry it ONCE; if it still dies, emit a { probe, dropped:true } marker
+// so the gate counts the coverage gap and refuses to return CLEARED on a thinner run.
+const probeResults = []
+for (let i = 0; i < allProbes.length; i++) {
+  let r = results[i]
+  if (!r) {
+    log(`Probe ${allProbes[i].name} returned no result — retrying once.`)
+    const retried = await pipeline([allProbes[i]], runProbe, confirmStage)
+    r = retried[0]
+  }
+  probeResults.push(r || { probe: allProbes[i].name, dropped: true })
+}
+const dropped = probeResults.filter(r => r && r.dropped).map(r => r.probe)
+if (dropped.length) log(`⚠ coverage gap: ${dropped.length}/${allProbes.length} probe(s) dropped after retry — ${dropped.join(', ')}. The gate will return INCOMPLETE.`)
+
+return { plan: planFile, repo, fingerprint, expected: allProbes.length, probeResults }
