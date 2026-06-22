@@ -54,3 +54,128 @@ test("scaffold structure OK — adversarial-confirm survives comment stripping",
     "adversarial-confirm not present in non-comment source — must appear in executable code"
   )
 })
+
+// --- Behavioral harness: run the scaffold exactly as the Workflow runtime does --------------
+const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
+
+function compileScaffold() {
+  const body = src.replace(/^export const meta/m, 'const meta')
+  return new AsyncFunction('agent', 'parallel', 'pipeline', 'log', 'phase', 'args', 'budget', body)
+}
+
+// Faithful pipeline: each item flows through every stage independently; a throwing stage drops
+// it to null (mirrors the Workflow tool's documented pipeline() semantics).
+async function fakePipeline(items, ...stages) {
+  return Promise.all(items.map(async (item, i) => {
+    let v = item
+    for (const stage of stages) {
+      try { v = await stage(v, item, i) } catch { return null }
+    }
+    return v
+  }))
+}
+
+// Run the scaffold with a mock `agent`. agentImpl(prompt, opts) returns the probe/confirm result
+// (or null to simulate a dead probe). Captures every prompt + opts and every log line.
+async function runScaffold(args, agentImpl) {
+  const prompts = [], logs = []
+  const fn = compileScaffold()
+  const agent = async (prompt, opts = {}) => { prompts.push({ prompt, opts }); return agentImpl(prompt, opts) }
+  const log = (m) => logs.push(m)
+  const out = await fn(agent, () => {}, fakePipeline, log, () => {}, args, {})
+  return { out, prompts, logs }
+}
+
+const FP = { absPath: '/abs/PLAN.md', titleLine: '# Land-path-agnostic Wrap-up', tokens: ['## A'] }
+const anchorOf = (a) => ({ resolved_path: a.planFile, plan_title: a.fingerprint.titleLine })
+const baseArgs = (over = {}) =>
+  ({ planFile: '/abs/PLAN.md', repo: '/abs/REPO', sourceSpec: '/abs/SPEC.md', fingerprint: FP, probes: [], ...over })
+// Default mock: every probe passes, attesting it read the right plan.
+const passResult = (a) => (_, opts) =>
+  ({ probe: opts.label, kind: 'spine', technique: 'analyzed', status: 'pass', read_anchor: anchorOf(a), findings: [] })
+
+test('scaffold return threads the fingerprint + expected + repo to the gate', async () => {
+  const a = baseArgs()
+  const { out } = await runScaffold(a, passResult(a))
+  assert.deepEqual(out.fingerprint, FP, 'fingerprint is threaded through unchanged')
+  assert.equal(out.repo, '/abs/REPO', 'repo is returned for the gate under-repo check')
+  assert.equal(out.expected, 5, 'expected = number of probes that ran (5 spine, sourceSpec set)')
+  assert.equal(out.plan, '/abs/PLAN.md')
+})
+
+test('scaffold aborts when no fingerprint is supplied (Lead pre-flight is mandatory)', async () => {
+  await assert.rejects(
+    runScaffold(baseArgs({ fingerprint: undefined }), () => ({ status: 'pass', findings: [] })),
+    /fingerprint/i,
+    'a missing fingerprint must fail loud, not run unanchored probes'
+  )
+})
+
+test('scaffold structure OK — scopeLock is a declared, invoked constant (survives comment stripping)', () => {
+  const stripped = src.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
+  assert.ok(/scopeLock\s*=/.test(stripped), 'scopeLock must be a declared constant, not only a comment')
+  assert.ok(/scopeLock\(/.test(stripped), 'scopeLock must be invoked in executable code')
+})
+
+test('every probe prompt is scope-locked to the absolute planFile + repo + fingerprint title', async () => {
+  const a = baseArgs({ probes: [
+    { name: 'b1', kind: 'bespoke', technique: 'executed', prompt: 'do b1' },
+    { name: 'b2', kind: 'bespoke', technique: 'analyzed', prompt: 'do b2' },
+  ] })
+  const { prompts } = await runScaffold(a, passResult(a))
+  const probePrompts = prompts.filter(p => p.opts.phase === 'Probe')
+  assert.equal(probePrompts.length, 7, '5 spine (sourceSpec set keeps coverage-vs-source) + 2 bespoke')
+  for (const { prompt } of probePrompts) {
+    assert.match(prompt, /SCOPE-LOCK/, 'every probe prompt carries the SCOPE-LOCK preamble')
+    assert.ok(prompt.includes('/abs/PLAN.md'), 'scope-lock names the absolute planFile')
+    assert.ok(prompt.includes('/abs/REPO'), 'scope-lock names the absolute repo')
+    assert.ok(prompt.includes('Land-path-agnostic Wrap-up'), 'scope-lock names the expected plan title')
+    assert.match(prompt, /IGNORE the session cwd/, 'scope-lock disowns the ambient cwd')
+  }
+})
+
+test('executed probes are told to work in a COPY of repo; analyzed probes are read-restricted', async () => {
+  const a = baseArgs()
+  const { prompts } = await runScaffold(a, passResult(a))
+  const byLabel = Object.fromEntries(prompts.map(p => [p.opts.label, p.prompt]))
+  assert.match(byLabel['probe:executable-proof'], /cp -R|worktree add/, 'executed probe copies the repo')
+  assert.match(byLabel['probe:executable-proof'], /\bcd\b/, 'executed probe cds into the copy')
+  assert.match(byLabel['probe:claims-vs-reality'], /Restrict every Read/, 'analyzed probe is read-restricted to repo')
+})
+
+test('FINDINGS schema requires read_anchor (Layer 3 attestation is mandatory)', async () => {
+  const a = baseArgs()
+  const { prompts } = await runScaffold(a, passResult(a))
+  const probe = prompts.find(p => p.opts.phase === 'Probe')
+  const required = probe.opts.schema.required
+  assert.ok(required.includes('read_anchor'), 'read_anchor is a required FINDINGS field')
+  assert.ok(probe.opts.schema.properties.read_anchor.required.includes('resolved_path'))
+  assert.ok(probe.opts.schema.properties.read_anchor.required.includes('plan_title'))
+})
+
+test('a dropped probe is retried once, then emitted as a { probe, dropped:true } marker', async () => {
+  const a = baseArgs()
+  let calls = 0
+  // claims-vs-reality dies on BOTH the initial run and the retry; everything else passes.
+  const { out, logs } = await runScaffold(a, (_, opts) => {
+    if (opts.phase === 'Probe' && opts.label === 'probe:claims-vs-reality') { calls++; return null }
+    return { probe: opts.label, technique: 'analyzed', status: 'pass', read_anchor: anchorOf(a), findings: [] }
+  })
+  assert.equal(calls, 2, 'the dead probe was attempted twice (initial + one retry)')
+  const marker = out.probeResults.find(r => r && r.dropped === true)
+  assert.ok(marker, 'a dropped marker is emitted, not a silent omission')
+  assert.equal(marker.probe, 'claims-vs-reality')
+  assert.equal(out.probeResults.length, out.expected, 'every probe slot yields a result or a marker')
+  assert.ok(logs.some(l => /retry/i.test(l)), 'the retry is logged')
+})
+
+test('a probe that dies once then succeeds on retry yields a real result (no marker)', async () => {
+  const a = baseArgs()
+  let first = true
+  const { out } = await runScaffold(a, (_, opts) => {
+    if (opts.phase === 'Probe' && opts.label === 'probe:dependency-feasibility' && first) { first = false; return null }
+    return { probe: opts.label, technique: 'analyzed', status: 'pass', read_anchor: anchorOf(a), findings: [] }
+  })
+  assert.ok(!out.probeResults.some(r => r && r.dropped === true), 'retry succeeded — no dropped marker')
+  assert.equal(out.probeResults.length, out.expected)
+})
