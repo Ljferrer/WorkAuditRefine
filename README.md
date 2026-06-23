@@ -132,7 +132,7 @@ WAR runs on the generally-available `Workflow` + `Agent` tools — **not** Claud
 
 Rule of thumb: **scripted, reproducible coordination → Workflow; emergent or interactive coordination → Teams.** Full rationale: [design.md §2](skills/war/references/design.md#why-a-workflow-not-the-agent-teams-feature).
 
-### Releasing
+## Releasing
 
 A version bump **must** update ALL three version-of-truth files together — Claude Code dispatches plugin updates by the `marketplace.json` version string, so a stale `marketplace.json` makes a release a silent no-op (release-drift / mirrored-value pattern):
 
