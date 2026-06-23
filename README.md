@@ -132,6 +132,16 @@ WAR runs on the generally-available `Workflow` + `Agent` tools — **not** Claud
 
 Rule of thumb: **scripted, reproducible coordination → Workflow; emergent or interactive coordination → Teams.** Full rationale: [design.md §2](skills/war/references/design.md#why-a-workflow-not-the-agent-teams-feature).
 
+### Releasing
+
+A version bump **must** update ALL three version-of-truth files together — Claude Code dispatches plugin updates by the `marketplace.json` version string, so a stale `marketplace.json` makes a release a silent no-op (release-drift / mirrored-value pattern):
+
+| File | Field(s) to bump |
+|---|---|
+| `.claude-plugin/plugin.json` | `version` |
+| `.claude-plugin/marketplace.json` | `metadata.version` **and** `plugins[0].version` |
+| `README.md` | the `## Status` line/paragraph |
+
 ## Status
 
 v0.4.2 — early. Hardens `/red-team` against verifying the **wrong** plan or silently passing on partial coverage: a Lead-computed plan **fingerprint** + a required per-probe **`read_anchor`** attestation lets the gate discard off-target probes, and a fail-closed **`INCOMPLETE`** verdict (no silent `filter(Boolean)`, dropped probes retried once then surfaced) means a mis-targeted or dropped run can never read as `CLEARED`. (Includes the v0.4.1 land-path-agnostic wrap-up.) Completes the war-room → red-team → war trilogy.
