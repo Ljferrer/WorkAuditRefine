@@ -40,7 +40,7 @@ const { planFile, repo, sourceSpec = 'none', probes = [], fingerprint } = args
 // absolute planFile and passes it in. Fail loud if it is missing — an unanchored run cannot detect
 // wrong-target drift (see SKILL.md "Pre-flight").
 if (!fingerprint || !fingerprint.titleLine) {
-  throw new Error('red-team scaffold: args.fingerprint { absPath, titleLine, tokens } is required (Lead pre-flight) — refusing to run unanchored.')
+  throw new Error('red-team scaffold: args.fingerprint.titleLine is required (Lead pre-flight) — absPath and tokens are recommended but titleLine is strictly required — refusing to run unanchored.')
 }
 
 // Layer 2 — SCOPE-LOCK preamble. /red-team is routinely launched from project X's session to
