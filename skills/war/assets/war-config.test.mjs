@@ -6,6 +6,7 @@ import { dirname, join } from 'node:path'
 import {
   DEFAULTS, fillDefaults, presetConfig, validate, spawnOpts, covenSeats,
 } from './war-config.mjs'
+import { HARD_ESCALATION_REASONS } from './land-decision.mjs'
 
 // Helper: read workflow-template.js as text relative to this test file.
 const __dir = dirname(fileURLToPath(import.meta.url))
@@ -153,4 +154,17 @@ test('drift-guard: inline fallback lenses in workflow-template.js matches DEFAUL
   const normalized = match[1].replace(/'/g, '"')
   const parsed = JSON.parse(normalized)
   assert.deepEqual(parsed, DEFAULTS.audit.lenses)
+})
+
+test('drift-guard: inline HARD_ESCALATION_REASONS in workflow-template.js matches canonical export in land-decision.mjs (#36)', () => {
+  // workflow-template.js cannot import ES modules so it duplicates the constant inline.
+  // This test pins that inline literal to the canonical export in land-decision.mjs.
+  // The template has (around line 175):
+  //   const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict']
+  const match = templateText.match(/const\s+HARD_ESCALATION_REASONS\s*=\s*(\[[^\]]+\])/)
+  assert.ok(match, 'HARD_ESCALATION_REASONS not found in workflow-template.js')
+  // Normalize single-quoted strings to double-quoted for JSON.parse.
+  const normalized = match[1].replace(/'/g, '"')
+  const parsed = JSON.parse(normalized)
+  assert.deepEqual(parsed, HARD_ESCALATION_REASONS)
 })
