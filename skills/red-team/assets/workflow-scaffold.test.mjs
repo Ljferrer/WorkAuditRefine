@@ -99,7 +99,7 @@ test('scaffold return threads the fingerprint + expected + repo to the gate', as
   const { out } = await runScaffold(a, passResult(a))
   assert.deepEqual(out.fingerprint, FP, 'fingerprint is threaded through unchanged')
   assert.equal(out.repo, '/abs/REPO', 'repo is returned for the gate under-repo check')
-  assert.equal(out.expected, 5, 'expected = number of probes that ran (5 spine, sourceSpec set)')
+  assert.equal(out.expected, 5, 'total probe slots attempted (5 spine, sourceSpec set)')
   assert.equal(out.plan, '/abs/PLAN.md')
 })
 
