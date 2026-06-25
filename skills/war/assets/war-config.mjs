@@ -116,6 +116,27 @@ export function spawnOpts(config, role) {
   return effort === 'default' ? { model } : { model, effort }
 }
 
+// Resolve the provisioning intent for war-room Setup: decide whether the setup-scout
+// must run, without doing any scouting here (the scout is an agent; this is pure config).
+// Returns { provision: string[], source: string, scout: boolean }:
+//   • explicit non-empty run.provision → returned VERBATIM, run.provisionSource carried
+//     through unchanged, scout:false (explicit operator intent is honored, never re-scouted);
+//   • empty list + provisionAuto true   → { provision: [], source: 'none', scout: true }
+//     (signals Setup to run the scout, present its proposal, and pin the confirmed list);
+//   • empty list + provisionAuto false  → { provision: [], source: 'none', scout: false }
+//     (auto off → no scout, no steps).
+// Operates on a filled config; reads only config.run.
+export function resolveProvision(config) {
+  const run = (config && config.run) || {}
+  const provision = Array.isArray(run.provision) ? run.provision : []
+  if (provision.length > 0) {
+    // Explicit intent: verbatim list, source unchanged, no scout.
+    return { provision, source: run.provisionSource || 'explicit', scout: false }
+  }
+  // Empty list: scout only when provisionAuto is on.
+  return { provision: [], source: 'none', scout: run.provisionAuto === true }
+}
+
 // Lenses for a task's audit round: one seat unless task.coven, then covenSize seats
 // rotating through the task's lenses. MIRRORED inline in workflow-template.js. Keep in sync.
 export function covenSeats(config, task) {

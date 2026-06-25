@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import {
   DEFAULTS, PROVISION_SOURCES, fillDefaults, presetConfig, validate, spawnOpts, covenSeats,
+  resolveProvision,
 } from './war-config.mjs'
 import { HARD_ESCALATION_REASONS } from './land-decision.mjs'
 
@@ -136,6 +137,46 @@ test('non-boolean provisionAuto rejected', () => {
   const r = validate({ run: { provisionAuto: 'yes' } })
   assert.equal(r.valid, false)
   assert.match(r.errors.join('\n'), /run\.provisionAuto/)
+})
+
+// --- resolveProvision (Part B) -----------------------------------------------
+// resolveProvision decides whether war-room Setup must run the setup-scout:
+//   • explicit non-empty run.provision → returned VERBATIM, source unchanged, no scout
+//   • empty list + provisionAuto:true   → scout path flagged (scout:true)
+//   • empty list + provisionAuto:false  → [] + source 'none', no scout
+
+test('resolveProvision: non-empty list returned verbatim with source unchanged and no scout', () => {
+  const list = ['pnpm install --frozen-lockfile', 'git submodule update --init --recursive']
+  const c = fillDefaults({ run: { provision: list, provisionSource: 'explicit' } })
+  const r = resolveProvision(c)
+  assert.deepEqual(r.provision, list)        // verbatim, same order
+  assert.equal(r.source, 'explicit')         // source carried through unchanged
+  assert.equal(r.scout, false)               // explicit intent → no scout
+})
+
+test('resolveProvision: non-empty list short-circuits the scout even when provisionAuto is true', () => {
+  const list = ['make setup']
+  const c = fillDefaults({ run: { provision: list, provisionSource: 'onboarding', provisionAuto: true } })
+  const r = resolveProvision(c)
+  assert.deepEqual(r.provision, list)
+  assert.equal(r.source, 'onboarding')       // explicit intent honored verbatim, source preserved
+  assert.equal(r.scout, false)               // provisionAuto does NOT override an explicit list
+})
+
+test('resolveProvision: empty list + provisionAuto true flags the scout path', () => {
+  const c = fillDefaults({ run: { provision: [], provisionAuto: true } })
+  const r = resolveProvision(c)
+  assert.deepEqual(r.provision, [])
+  assert.equal(r.source, 'none')
+  assert.equal(r.scout, true)                // empty + auto → must scout
+})
+
+test('resolveProvision: empty list + provisionAuto false yields [] + source none + no scout', () => {
+  const c = fillDefaults({ run: { provision: [], provisionAuto: false } })
+  const r = resolveProvision(c)
+  assert.deepEqual(r.provision, [])
+  assert.equal(r.source, 'none')
+  assert.equal(r.scout, false)               // auto off → never scout
 })
 
 test('unknown role rejected', () => {
