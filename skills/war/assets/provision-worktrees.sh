@@ -11,6 +11,9 @@
 #   ensure-integration <slug> <N> <base> [--owned-file PATH] [--owned REF]...  (Task 2)
 #   ensure-exclude                                                             (Task 2)
 #   ensure-worktree <path> <branch> <integration-tip>                          (Task 3)
+#   teardown-task [--keep] --run-dir <ledger-dir> <path> <branch>              (Task 4)
+#   teardown-phase --run-dir <ledger-dir> <slug> <N>                           (Task 4)
+#   prune                                                                      (Task 4)
 #
 # Design notes:
 # - Branches are plan-namespaced: integration/<slug>/phase-<N> (ADR 0003). Refs
@@ -33,6 +36,17 @@
 #   recreate only when the registry is stale (dir gone) — recreation re-checks-out
 #   the existing branch, so its commits, which live in the ref, are never lost;
 #   and FAIL LOUD (never delete) on an unregistered dir that already holds files.
+# - teardown is STRICTLY RUN-SCOPED (D9): the refiner supplies the current run's
+#   ledger dir (<repo-root>/.claude/teams/<run-id>) via --run-dir, and teardown
+#   only ever removes a worktree whose path is INSIDE that dir. A sibling worktree
+#   of a DIFFERENT run-id (which may be paused on an escalation) is never touched;
+#   teardown-task on an out-of-run path FAILS LOUD. teardown-task on a landed task
+#   removes the worktree + deletes the merged branch; --keep (escalation/block)
+#   leaves both intact for inspection. teardown-phase removes the phase's
+#   integration branch + this run's remaining phase worktrees. prune clears only
+#   THIS repo's stale registry (git worktree prune is per-repo), so a worktree
+#   registered to a different repo/run is never pruned. Cross-run cleanup is
+#   manual / out-of-scope.
 #
 # Constraint: macOS bash 3.2.57 — no globstar, no associative arrays, no ${,,}.
 set -euo pipefail
@@ -270,16 +284,192 @@ cmd_ensure_worktree() {
   printf '%s\n' "$path"
 }
 
+# --- run-scoping ------------------------------------------------------------
+# All teardown is strictly run-scoped (D9): the refiner passes the current run's
+# ledger dir (<repo-root>/.claude/teams/<run-id>) via --run-dir, and a worktree
+# path is only ever removed if it sits INSIDE that dir. A sibling worktree
+# belonging to a DIFFERENT run-id (which may be paused on an escalation) is thus
+# never touched. We compare on physical (symlink-resolved) paths so /var vs
+# /private/var on macOS compares equal.
+
+# path_under <child> <ancestor> -> 0 if physical <child> is <ancestor> itself or
+# lives beneath it. Pure string compare on resolved paths; no globbing surprises.
+path_under() {
+  c="$(phys "$1")"; a="$(phys "$2")"
+  a="${a%/}"
+  [ "$c" = "$a" ] && return 0
+  case "$c" in
+    "$a"/*) return 0 ;;
+    *)      return 1 ;;
+  esac
+}
+
+# require_in_run <path> <run-dir> : die unless <path> is inside <run-dir>.
+require_in_run() {
+  [ -n "$2" ] || die "teardown is run-scoped: --run-dir <ledger-dir> is required (refusing to act without a run scope)."
+  [ -d "$2" ] || die "teardown --run-dir '$2' does not exist or is not a directory; refusing to act outside a known run scope."
+  if ! path_under "$1" "$2"; then
+    die "refusing to tear down '$1': it is OUTSIDE the current run-dir '$2' (a different run-id may own it, possibly paused on an escalation). Cross-run cleanup is manual (D9)." 5
+  fi
+}
+
+# remove_worktree <abs-path> : remove a registered worktree of THIS repo if it is
+# one, then prune any stale registry entry, then clear an empty leftover dir.
+# Never deletes a non-empty unmanaged dir. Branch refs are never touched here.
+remove_worktree() {
+  wt="$1"
+  if worktree_registered "$wt"; then
+    # --force so a worktree with a dirty/owned checkout is still detached from the
+    # registry; this removes the working dir but NEVER the branch ref or commits.
+    git worktree remove --force "$wt" >/dev/null 2>&1 || true
+  fi
+  # Clear any dangling registry entry left if the dir was already gone.
+  git worktree prune >/dev/null 2>&1 || true
+  # If a now-empty dir lingers (e.g. remove left the leaf), drop it; leave any
+  # non-empty unmanaged dir in place.
+  if [ -d "$wt" ] && dir_is_empty "$wt"; then
+    rmdir "$wt" 2>/dev/null || true
+  fi
+}
+
+# delete_branch <ref> : delete a local branch ref if it exists. Uses -D because
+# teardown is called on a branch already merged into integration (task land) or
+# on the integration branch itself after the phase merged up; the refiner only
+# tears down once the work is captured. Skips a branch that is currently checked
+# out by a still-registered worktree (caller removes the worktree first).
+delete_branch() {
+  ref="$1"
+  branch_exists "$ref" || return 0
+  git branch -D "$ref" >/dev/null 2>&1 \
+    || warn "could not delete branch '$ref' (still checked out?); leaving it in place."
+}
+
+# --- subcommand: teardown-task ---------------------------------------------
+# teardown-task [--keep] --run-dir <ledger-dir> <path> <branch>
+#
+# Normal task land: remove the worktree at <path> and delete the (merged)
+# <branch>. With --keep (escalation/block), leave BOTH intact for inspection.
+# Strictly run-scoped: <path> must live inside --run-dir or we fail loud.
+cmd_teardown_task() {
+  keep=0; run_dir=""
+  args=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --keep)        keep=1; shift ;;
+      --run-dir)
+        [ $# -ge 2 ] || die "--run-dir requires a path"
+        run_dir="$2"; shift 2 ;;
+      --) shift; break ;;
+      -*) die "teardown-task: unknown flag '$1'" ;;
+      *)  break ;;
+    esac
+  done
+  [ $# -ge 2 ] || die "usage: teardown-task [--keep] --run-dir <ledger-dir> <path> <branch>"
+  path="$1"; branch="$2"
+  [ -n "$path" ]   || die "teardown-task: empty <path>"
+  [ -n "$branch" ] || die "teardown-task: empty <branch>"
+
+  git_dir >/dev/null   # must be inside a working tree
+
+  # Run-scope gate FIRST — refuse out-of-run paths before touching anything.
+  require_in_run "$path" "$run_dir"
+
+  if [ "$keep" -eq 1 ]; then
+    # Keep-on-escalation: touch nothing. Report and succeed.
+    warn "keep-on-escalation: leaving worktree '$path' and branch '$branch' intact for inspection."
+    return 0
+  fi
+
+  remove_worktree "$path"
+  delete_branch "$branch"
+}
+
+# --- subcommand: teardown-phase --------------------------------------------
+# teardown-phase --run-dir <ledger-dir> <slug> <N>
+#
+# Phase land: remove the integration branch integration/<slug>/phase-<N> and any
+# remaining phase worktrees. Strictly run-scoped: only worktrees whose path is
+# inside --run-dir are removed; a sibling worktree of a different run-id is never
+# touched (even though the integration ref is global, we still only reap our own
+# worktrees). We identify "phase worktrees" as registered worktrees of this repo
+# that live under --run-dir AND are checked out on a war/<slug>/p<N>-* branch.
+cmd_teardown_phase() {
+  run_dir=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --run-dir)
+        [ $# -ge 2 ] || die "--run-dir requires a path"
+        run_dir="$2"; shift 2 ;;
+      --) shift; break ;;
+      -*) die "teardown-phase: unknown flag '$1'" ;;
+      *)  break ;;
+    esac
+  done
+  [ $# -ge 2 ] || die "usage: teardown-phase --run-dir <ledger-dir> <slug> <N>"
+  slug="$1"; num="$2"
+  [ -n "$slug" ] || die "teardown-phase: empty <slug>"
+  case "$num" in
+    ''|*[!0-9]*) die "teardown-phase: <N> must be a positive integer, got '$num'" ;;
+  esac
+  [ -n "$run_dir" ] || die "teardown-phase is run-scoped: --run-dir <ledger-dir> is required."
+  [ -d "$run_dir" ] || die "teardown-phase --run-dir '$run_dir' does not exist or is not a directory."
+
+  git_dir >/dev/null
+
+  rd_phys="$(phys "$run_dir")"; rd_phys="${rd_phys%/}"
+
+  # Collect this run's phase worktrees: registered worktree paths that (a) live
+  # under run-dir and (b) are on a war/<slug>/p<N>-* branch. We read the porcelain
+  # once, pairing each `worktree <path>` with its following `branch <ref>`.
+  wt_prefix="refs/heads/war/$slug/p$num-"
+  phase_paths="$(
+    git worktree list --porcelain 2>/dev/null | awk -v want="$rd_phys/" -v pref="$wt_prefix" '
+      /^worktree / { wt = substr($0, 10); br = "" }
+      /^branch /   {
+        br = substr($0, 8)
+        if (index(wt, want) == 1 && index(br, pref) == 1) { print wt }
+      }
+    '
+  )"
+
+  # Remove each phase worktree (already proven in-run by the awk filter).
+  printf '%s\n' "$phase_paths" | while IFS= read -r wt; do
+    [ -n "$wt" ] || continue
+    remove_worktree "$wt"
+  done
+
+  # Finally drop the integration branch for this phase.
+  delete_branch "integration/$slug/phase-$num"
+}
+
+# --- subcommand: prune ------------------------------------------------------
+# prune
+#
+# Provision-start hygiene: clear THIS repo's stale worktree-registry entries
+# (dirs removed out-of-band). `git worktree prune` operates only on the current
+# repo's registry, so a worktree registered to a DIFFERENT repo (a different run)
+# is never touched — its live dir survives untouched. Branch refs are never
+# affected by prune.
+cmd_prune() {
+  [ $# -eq 0 ] || die "usage: prune  (takes no arguments)"
+  git_dir >/dev/null
+  git worktree prune >/dev/null 2>&1 \
+    || die "git worktree prune failed in this repository."
+}
+
 # --- dispatch ---------------------------------------------------------------
 main() {
   [ $# -ge 1 ] || die "usage: $PROG <subcommand> [args...]
-subcommands: ensure-integration, ensure-exclude, ensure-worktree"
+subcommands: ensure-integration, ensure-exclude, ensure-worktree, teardown-task, teardown-phase, prune"
   sub="$1"; shift
   case "$sub" in
     ensure-integration) cmd_ensure_integration "$@" ;;
     ensure-exclude)     cmd_ensure_exclude "$@" ;;
     ensure-worktree)    cmd_ensure_worktree "$@" ;;
-    *) die "unknown subcommand '$sub' (have: ensure-integration, ensure-exclude, ensure-worktree)" ;;
+    teardown-task)      cmd_teardown_task "$@" ;;
+    teardown-phase)     cmd_teardown_phase "$@" ;;
+    prune)              cmd_prune "$@" ;;
+    *) die "unknown subcommand '$sub' (have: ensure-integration, ensure-exclude, ensure-worktree, teardown-task, teardown-phase, prune)" ;;
   esac
 }
 

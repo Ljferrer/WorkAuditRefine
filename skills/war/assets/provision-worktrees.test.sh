@@ -290,6 +290,168 @@ expect "fail-loud: the unmanaged dir is NOT deleted" \
 expect "fail-loud: the unmanaged dir's contents are preserved" \
   "precious unmanaged data" "$(cat "$WT5/PRECIOUS" 2>/dev/null)"
 
+# ===========================================================================
+# Task 4: teardown-task / teardown-phase / prune  (all strictly RUN-SCOPED).
+#
+# Run-scoping (D6/D9): task worktrees live under the run's ledger dir,
+# <repo-root>/.claude/teams/<run-id>/worktrees/<task-id>. The run tells the
+# script its ledger dir via --run-dir PATH (mirrors the --owned-file seam of
+# Task 2). teardown-task / teardown-phase REFUSE to remove anything whose
+# worktree path is not inside that run-dir, so a sibling worktree belonging to a
+# DIFFERENT run-id (possibly paused on an escalation) is never touched. `prune`
+# only clears THIS repo's stale registry — a worktree registered to a different
+# repo (a different run) lives in a different .git and is never pruned.
+#
+# Helpers:
+#   branch_exists_in <repo> <ref> -> "yes"/"no"
+# run-dir layout used by these cases mirrors production:
+#   <repo>/.claude/teams/<run-id>/worktrees/<task-id>
+# ---------------------------------------------------------------------------
+branch_exists_in() {
+  if git -C "$1" show-ref --verify --quiet "refs/heads/$2"; then echo yes; else echo no; fi
+}
+
+# mk_run_dir <repo> <run-id> -> echoes <repo>/.claude/teams/<run-id> (created).
+mk_run_dir() {
+  rd="$1/.claude/teams/$2"
+  mkdir -p "$rd/worktrees"
+  echo "$rd"
+}
+
+# ---------------------------------------------------------------------------
+# Case (T4.1) teardown-task <path> <branch> removes the worktree AND deletes the
+# (merged) branch -> both gone from `git worktree list` and `git branch`.
+# The branch is merged into the integration tip (no un-merged work), the normal
+# task-land case.
+# ---------------------------------------------------------------------------
+RT1="$(new_repo)"
+git -C "$RT1" branch integration/myplan/phase-2 HEAD
+TIPT1="$(git -C "$RT1" rev-parse integration/myplan/phase-2)"
+RD1="$(mk_run_dir "$RT1" run-aaa)"
+WTT1="$RD1/worktrees/task1"
+run_in "$RT1" ensure-worktree "$WTT1" war/myplan/p2-t1 "$TIPT1" >/dev/null 2>&1
+expect "T4.1 setup: worktree present before teardown" \
+  "war/myplan/p2-t1" "$(wt_on_branch "$RT1" "$WTT1")"
+expect "T4.1 setup: branch exists before teardown" \
+  "yes" "$(branch_exists_in "$RT1" war/myplan/p2-t1)"
+code="$(run_in "$RT1" teardown-task --run-dir "$RD1" "$WTT1" war/myplan/p2-t1)"
+expect "teardown-task exits 0" 0 "$code"
+expect "teardown-task: worktree gone from git worktree list" \
+  "" "$(wt_on_branch "$RT1" "$WTT1")"
+expect "teardown-task: worktree dir removed" \
+  "no" "$([ -d "$WTT1" ] && echo yes || echo no)"
+expect "teardown-task: merged branch deleted from git branch" \
+  "no" "$(branch_exists_in "$RT1" war/myplan/p2-t1)"
+
+# ---------------------------------------------------------------------------
+# Case (T4.2) teardown-phase <slug> <N> removes the integration branch AND any
+# remaining phase worktrees -> all gone.
+# ---------------------------------------------------------------------------
+RT2="$(new_repo)"
+git -C "$RT2" branch integration/myplan/phase-2 HEAD
+TIPT2="$(git -C "$RT2" rev-parse integration/myplan/phase-2)"
+RD2="$(mk_run_dir "$RT2" run-bbb)"
+WTA="$RD2/worktrees/taskA"
+WTB="$RD2/worktrees/taskB"
+run_in "$RT2" ensure-worktree "$WTA" war/myplan/p2-tA "$TIPT2" >/dev/null 2>&1
+run_in "$RT2" ensure-worktree "$WTB" war/myplan/p2-tB "$TIPT2" >/dev/null 2>&1
+expect "T4.2 setup: integration branch exists before teardown" \
+  "yes" "$(branch_exists_in "$RT2" integration/myplan/phase-2)"
+expect "T4.2 setup: phase worktree A present before teardown" \
+  "war/myplan/p2-tA" "$(wt_on_branch "$RT2" "$WTA")"
+code="$(run_in "$RT2" teardown-phase --run-dir "$RD2" myplan 2)"
+expect "teardown-phase exits 0" 0 "$code"
+expect "teardown-phase: integration branch gone" \
+  "no" "$(branch_exists_in "$RT2" integration/myplan/phase-2)"
+expect "teardown-phase: remaining phase worktree A gone from list" \
+  "" "$(wt_on_branch "$RT2" "$WTA")"
+expect "teardown-phase: remaining phase worktree B gone from list" \
+  "" "$(wt_on_branch "$RT2" "$WTB")"
+expect "teardown-phase: phase worktree A dir removed" \
+  "no" "$([ -d "$WTA" ] && echo yes || echo no)"
+
+# ---------------------------------------------------------------------------
+# Case (T4.3) KEEP-ON-ESCALATION: teardown-task --keep <path> <branch> leaves
+# the worktree AND the branch completely intact (for inspection). Nothing is
+# removed or deleted.
+# ---------------------------------------------------------------------------
+RT3="$(new_repo)"
+git -C "$RT3" branch integration/myplan/phase-2 HEAD
+TIPT3="$(git -C "$RT3" rev-parse integration/myplan/phase-2)"
+RD3="$(mk_run_dir "$RT3" run-ccc)"
+WTT3="$RD3/worktrees/task1"
+run_in "$RT3" ensure-worktree "$WTT3" war/myplan/p2-t1 "$TIPT3" >/dev/null 2>&1
+printf 'inspect-me\n' > "$WTT3/SENTINEL"
+code="$(run_in "$RT3" teardown-task --keep --run-dir "$RD3" "$WTT3" war/myplan/p2-t1)"
+expect "teardown-task --keep exits 0" 0 "$code"
+expect "keep-on-escalation: worktree still present on its branch" \
+  "war/myplan/p2-t1" "$(wt_on_branch "$RT3" "$WTT3")"
+expect "keep-on-escalation: worktree dir intact" \
+  "yes" "$([ -d "$WTT3" ] && echo yes || echo no)"
+expect "keep-on-escalation: worktree contents intact" \
+  "inspect-me" "$(cat "$WTT3/SENTINEL" 2>/dev/null)"
+expect "keep-on-escalation: branch NOT deleted" \
+  "yes" "$(branch_exists_in "$RT3" war/myplan/p2-t1)"
+
+# ---------------------------------------------------------------------------
+# Case (T4.4a) prune runs `git worktree prune` scoped to THIS repo's stale
+# registry; a sibling worktree under a DIFFERENT run-id (a separate repo, a
+# separate run) is NEVER touched -> assert the unrelated run dir survives.
+# ---------------------------------------------------------------------------
+RT4="$(new_repo)"
+RD4="$(mk_run_dir "$RT4" run-ddd)"
+WTT4="$RD4/worktrees/task1"
+run_in "$RT4" ensure-worktree "$WTT4" war/myplan/p2-t1 "$(git -C "$RT4" rev-parse HEAD)" >/dev/null 2>&1
+# Make THIS repo's registry stale: delete the worktree dir behind git's back.
+rm -rf "$WTT4"
+# An UNRELATED run: a different repo, its own run-id dir, its own live worktree.
+OTHER_REPO="$(new_repo)"
+OTHER_RD="$(mk_run_dir "$OTHER_REPO" run-zzz)"
+OTHER_WT="$OTHER_RD/worktrees/task1"
+run_in "$OTHER_REPO" ensure-worktree "$OTHER_WT" war/other/p1-t1 "$(git -C "$OTHER_REPO" rev-parse HEAD)" >/dev/null 2>&1
+expect "T4.4a setup: unrelated run worktree exists before prune" \
+  "yes" "$([ -d "$OTHER_WT" ] && echo yes || echo no)"
+code="$(run_in "$RT4" prune)"
+expect "prune exits 0" 0 "$code"
+expect "prune: this repo's stale registry entry is cleared" \
+  "" "$(wt_on_branch "$RT4" "$WTT4")"
+# The crux: prune in RT4 must NOT touch the unrelated run under a different repo.
+expect "prune: unrelated run dir under a DIFFERENT run-id survives" \
+  "yes" "$([ -d "$OTHER_WT" ] && echo yes || echo no)"
+expect "prune: unrelated run worktree still registered to its own repo" \
+  "war/other/p1-t1" "$(wt_on_branch "$OTHER_REPO" "$OTHER_WT")"
+
+# ---------------------------------------------------------------------------
+# Case (T4.4b) teardown REFUSES to operate on a path OUTSIDE the current run-id
+# dir. A sibling worktree that belongs to a different run-id (it may be paused on
+# an escalation) must be left completely intact, and teardown-task must fail loud.
+# ---------------------------------------------------------------------------
+RT5="$(new_repo)"
+git -C "$RT5" branch integration/myplan/phase-2 HEAD
+TIPT5="$(git -C "$RT5" rev-parse integration/myplan/phase-2)"
+RD5_MINE="$(mk_run_dir "$RT5" run-mine)"      # the current run
+RD5_OTHER="$(mk_run_dir "$RT5" run-other)"    # a DIFFERENT run-id, same repo
+WT_OTHER="$RD5_OTHER/worktrees/task1"
+run_in "$RT5" ensure-worktree "$WT_OTHER" war/other/p2-t1 "$TIPT5" >/dev/null 2>&1
+# Ask the CURRENT run (run-mine) to tear down the OTHER run's worktree path.
+code="$(run_in "$RT5" teardown-task --run-dir "$RD5_MINE" "$WT_OTHER" war/other/p2-t1)"
+expect "teardown-task refuses a path outside the run-dir (exit non-zero)" \
+  "nonzero" "$([ "$code" -ne 0 ] && echo nonzero || echo zero)"
+msg="$(run_in_msg "$RT5" teardown-task --run-dir "$RD5_MINE" "$WT_OTHER" war/other/p2-t1)"
+expect "out-of-run refusal mentions run scope" \
+  "match" "$(printf '%s' "$msg" | grep -qiE 'run-?dir|run.?scope|outside|run-id' && echo match || echo nomatch)"
+expect "out-of-run refusal: the other run's worktree is left intact" \
+  "war/other/p2-t1" "$(wt_on_branch "$RT5" "$WT_OTHER")"
+expect "out-of-run refusal: the other run's branch is NOT deleted" \
+  "yes" "$(branch_exists_in "$RT5" war/other/p2-t1)"
+# teardown-phase must be just as run-scoped: it must never reach into the other
+# run's worktree even while removing the integration branch is in principle global.
+# Here run-mine has no phase-2 worktrees of its own, and the other run's worktree
+# is out-of-scope, so teardown-phase must leave WT_OTHER untouched.
+code="$(run_in "$RT5" teardown-phase --run-dir "$RD5_MINE" myplan 2)"
+expect "teardown-phase (run-mine) does not touch the other run's worktree" \
+  "war/other/p2-t1" "$(wt_on_branch "$RT5" "$WT_OTHER")"
+
 # ---------------------------------------------------------------------------
 printf '\n%d/%d cases passed\n' "$((n - fails))" "$n"
 [ "$fails" -eq 0 ] || { printf '%d FAILED\n' "$fails"; exit 1; }
