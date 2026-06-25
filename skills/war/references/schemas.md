@@ -65,7 +65,7 @@ Every agent returns **only** its JSON object (no prose). The Workflow passes the
   learnings: [ { title, why } ],
   memory_index_updated: true }   // true if MEMORY.md (or docs/learnings index) was updated
 ```
-The servitor writes ONLY under `learningsTarget` (enforced by the worktree-scope hook with `WAR_WORKTREE=<learningsTarget>`); it never touches source, branches, PRs, or issues.
+The servitor writes ONLY under `learningsTarget` (the worktree-scope hook keys on its `agent_type` and confines it to the learnings path-pattern `*/.claude/projects/*/memory/*` or `*/docs/learnings/*`, [ADR 0002](../../../docs/adr/0002-scope-by-agent-type.md)); it never touches source, branches, PRs, or issues.
 
 ## Run config — `.claude/war/config.json` (optional)
 Produced by `/war-room`, consumed by `/war`'s Setup. The schema, defaults, presets, and validation are owned by [`../assets/war-config.mjs`](../assets/war-config.mjs) (`--fill-defaults` to resolve a file, `--preset <name>` to emit a preset, `--stdin` to validate piped JSON). Absent this file, `/war` uses built-in defaults (pre-v0.3.0 behavior).
@@ -92,6 +92,28 @@ These reach the per-phase Workflow as `args.agents`, `args.audit`, `args.run` (t
 Optional `agentPrefix` (default `"work-audit-refine:"`) — the template auto-namespaces every `agentType` seat under this prefix via `const NS = args.agentPrefix ?? 'work-audit-refine:'`. Pass a different string to override; the Lead no longer needs manual namespacing workarounds.
 
 Auditors receive the **absolute `task.worktree` path** so they can `Read` candidate files directly in the task's isolated checkout rather than the main repo tree.
+
+### Provisioning args (refiner-owned worktree lifecycle)
+The refiner's **Provision** barrier ([ADR 0001](../../../docs/adr/0001-explicitly-managed-worktrees.md)) and the per-task branch/worktree derivation read these fields off `args`:
+
+| field | meaning |
+|---|---|
+| `planSlug` | plan-slug for the **plan-namespaced** branch names ([ADR 0003](../../../docs/adr/0003-plan-namespaced-branches.md)). The template derives each task's branch as `war/<planSlug>/p<phase>-<task>`. |
+| `runId` | run id segment in the worktree **path** (`<worktreeRoot>/<runId>/<task>`); keeps concurrent runs' directories collision-free even when branch names share a slug. |
+| `worktreeRoot` | absolute dir that holds the per-run worktrees (e.g. `<repo>/.claude/worktrees`). |
+| `mainCheckout` | absolute path of the parent checkout — the cwd the barrier runs `ensure-exclude` from (probe E2: the `.claude/` exclude must be written in the **main** checkout, not a task worktree). |
+| `ownedFile` | path to the run's owned-refs ledger, threaded to `ensure-integration --owned-file`; a `integration/<slug>/phase-N` that exists but is **not** in this ledger is a foreign collision → the script exits non-zero (fail-loud), distinguishing a resume from a cross-plan clash. |
+
+`runDir` (= `.claude/teams/<runId>`) is the run-scope for `provision-worktrees.sh` teardown.
+
+> **Footgun — `undefined` in prompts.** Branch/worktree are derived as
+> `t.branch || (planSlug ? "war/<planSlug>/p<phase>-<task>" : t.branch)` and
+> `t.worktree || ((worktreeRoot && runId) ? "<worktreeRoot>/<runId>/<task>" : t.worktree)`.
+> If the Lead supplies **neither** a per-task `branch`/`worktree` on the task object **nor** the
+> `planSlug` / `worktreeRoot` + `runId` args, the fallback is `undefined` and JS interpolation bakes
+> the literal string `"undefined"` into the worker/auditor/refiner prompts (an unprovisionable branch
+> name and a bogus path). Always thread `planSlug`, `runId`, and `worktreeRoot` (or set explicit
+> `task.branch`/`task.worktree`).
 
 ## Workflow per-phase return
 

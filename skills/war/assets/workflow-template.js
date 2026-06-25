@@ -2,6 +2,7 @@ export const meta = {
   name: 'war-phase',
   description: 'WAR per-phase execution: Work, Audit, Refine, Land, then Wrap-up learnings for one phase.',
   phases: [
+    { title: 'Provision' },
     { title: 'Work' },
     { title: 'Audit' },
     { title: 'Refine' },
@@ -55,6 +56,23 @@ const A = typeof args === 'string' ? JSON.parse(args) : (args || {})
 const { phase: ph, plan, tasks, learningsTarget, agents = {}, audit = {}, run = {} } = A
 const NS = A.agentPrefix ?? 'work-audit-refine:'
 const roundLimit = run.roundLimit ?? 3
+
+// --- Worktree topology (refiner-owned; ADR 0001/0003) ----------------------
+// Branches are plan-namespaced and worktree PATHS carry the run-id (see the plan's "run-id vs
+// plan-slug" note + provision-worktrees.sh teardown regex `war/<slug>/p<N>-*`). We DERIVE each
+// task's branch/worktree from `planSlug` + `runId` here so the refiner's Provision barrier and the
+// worker/auditor prompts agree on one set of paths. A task that already carries an explicit
+// branch/worktree (older Lead, or a hand-patched DAG) keeps it — the derivation only fills gaps.
+const planSlug = A.planSlug
+const runId = A.runId
+const worktreeRoot = A.worktreeRoot              // absolute dir that holds per-run worktrees
+const mainCheckout = A.mainCheckout              // absolute path of the parent checkout (cwd for ensure-exclude)
+const ownedFile = A.ownedFile                    // run ledger of owned refs (--owned-file); foreign→exit 3 guard
+// (A.runDir = .claude/teams/<run-id> is the run-scope for provision-worktrees teardown; that wiring
+//  lands with the teardown call, not this Provision barrier — left on `A` for the future seam.)
+const taskBranch = t => t.branch || (planSlug ? `war/${planSlug}/p${ph.id}-${t.id}` : t.branch)
+const taskWorktree = t => t.worktree || ((worktreeRoot && runId) ? `${worktreeRoot}/${runId}/${t.id}` : t.worktree)
+for (const t of (tasks || [])) { t.branch = taskBranch(t); t.worktree = taskWorktree(t) }
 // Per-role spawn opts: model always; effort only when non-default (omit = inherit session).
 // Mirror of war-config.mjs spawnOpts/covenSeats — the Workflow sandbox can't import. Keep in sync.
 const ROLE_MODEL = { worker: 'sonnet', auditor: 'opus', refiner: 'sonnet', servitor: 'sonnet' }
@@ -102,6 +120,37 @@ async function auditRound(task, peers) {
 
 log(`Phase ${ph.id} "${ph.title}": ${tasks.length} task(s) → ${ph.integrationBranch}`)
 
+// ---- PROVISION — refiner-owned worktree barrier (D3, ADR 0001) ----
+// The refiner provisions the whole phase's git topology via provision-worktrees.sh BEFORE any
+// worker fans out, so workers never touch shared git state (E1 proved a worker can't even scope
+// itself). Runs the script's idempotent "ensure" subcommands; a resume is a no-op. Carry-forward
+// from Phase 2's coven:
+//   (A) ensure-exclude MUST run FROM THE MAIN CHECKOUT — it resolves its target repo from cwd, and
+//       the intent is to exclude `.claude/` in the PARENT checkout so nested worktrees don't show
+//       as untracked there (probe E2). It is NOT run inside a task worktree.
+//   (B) ensure-integration is passed --owned-file <run-ledger> so a resume recognizes this run's own
+//       integration branch as owned (a foreign, unrecorded branch → exit 3 / fail loud).
+// SEAM WITH PART B (do NOT build here): this barrier is exactly where the repo-derived per-task
+// `run.provision` list will later run (after each worktree exists, before the worker drives the
+// gate). Keep the per-task loop below as the insertion point — Part B threads a provision step per
+// task here; it is an ADDITION, not a rewrite. We do NOT wire run.provision / the env-blocked
+// verdict / the setup-scout in this plan.
+if (tasks.length) {
+  const SCRIPT = '${CLAUDE_PLUGIN_ROOT}/skills/war/assets/provision-worktrees.sh'
+  const owned = ownedFile ? ` --owned-file ${ownedFile}` : ''
+  const ensures = tasks.map(t =>
+    `   provision-worktrees.sh ensure-worktree ${t.worktree} ${t.branch} <integration-tip>`).join('\n')
+  await agent(
+    `Provision the worktree topology for WAR phase ${ph.id} "${ph.title}" by running ${SCRIPT}. `
+    + `Do NOT free-author git; only run these subcommands, fail loud on any non-zero exit (a foreign integration branch exits 3), and report a MergeResult.\n`
+    + `1. FROM THE MAIN CHECKOUT (${mainCheckout || 'the main repo checkout — your current working directory'}, NOT a task worktree): `
+    + `provision-worktrees.sh ensure-exclude — this excludes \`.claude/\` in the parent checkout so the nested task worktrees do not surface as untracked there (probe E2).\n`
+    + `2. provision-worktrees.sh ensure-integration ${planSlug || '<plan-slug>'} ${ph.id} ${ph.workingBranch}${owned} — reuse the plan-namespaced integration branch ${ph.integrationBranch} if it is already ours (the --owned-file ledger), else cut it at ${ph.workingBranch}.\n`
+    + `3. Capture the resulting integration tip (\`git rev-parse ${ph.integrationBranch}\`), then for EACH task run ensure-worktree at the integration tip (idempotent; reuse if present, conservative heal if the dir went missing):\n${ensures}\n`
+    + `Each ensure-worktree creates the worktree on its plan-namespaced branch off the integration tip and drops a .war-task marker. After this barrier every task worktree exists and the workers can run.`,
+    { agentType: NS + 'war-refiner', phase: 'Provision', label: `provision:phase-${ph.id}`, schema: MERGE_RESULT, ...spawn('refiner') })
+}
+
 let guard = 0
 while (done.size < tasks.length && guard++ < tasks.length + 2) {
   const wave = nextWave()
@@ -110,9 +159,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // ---- WORK + AUDIT each task in the wave concurrently ----
   const results = await parallel(wave.map(task => async () => {
     const impl = await agent(
-      `Set up the worktree and implement WAR task ${task.id}.\n`
-      + `Create a git worktree at ${task.worktree} on branch ${task.branch} cut from the tip of ${ph.integrationBranch}; `
-      + `export WAR_WORKTREE=${task.worktree}; cd there; work only inside it.\n`
+      `Implement WAR task ${task.id} in the ALREADY-PROVISIONED worktree at ${task.worktree} (branch ${task.branch}, cut from ${ph.integrationBranch}).\n`
+      + `The refiner's Provision barrier already created this worktree and its .war-task marker — do NOT create it yourself and do NOT set any worktree env var. cd into ${task.worktree} and work only inside it; commit and push ${task.branch}.\n`
       + `Sub-issue #${task.issue} — ${task.title}\nPlan slice: ${task.planSlice}\nPlan file: ${plan.file}\nGate: ${plan.gate}`,
       { agentType: NS + 'war-worker', phase: 'Work', label: `work:${task.id}`, schema: WORKER_RESULT, ...spawn('worker') })
 
@@ -141,7 +189,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
 
       const b = blockingOf(seats)                                // batched FIX_NEEDED → fresh fix-worker
       await agent(
-        `FIX_NEEDED for WAR task ${task.id}. Work in the existing worktree ${task.worktree} (branch ${task.branch}); export WAR_WORKTREE=${task.worktree}.\n`
+        `FIX_NEEDED for WAR task ${task.id}. Work in the ALREADY-PROVISIONED worktree at ${task.worktree} (branch ${task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
         + `Resolve ALL of these blocking findings, keep the gate green, commit and push:\n`
         + b.map((f, i) => `${i + 1}. [${f.severity}] ${f.title} (${f.file}${f.line ? ':' + f.line : ''}) — ${f.rationale}${f.suggested_fix ? ` → ${f.suggested_fix}` : ''}`).join('\n'),
         { agentType: NS + 'war-worker', phase: 'Audit', label: `fix:${task.id}:r${round + 1}`, schema: WORKER_RESULT, ...spawn('worker') })
@@ -193,7 +241,7 @@ let servitorResult = null
 if (landResult && landResult.status === 'landed' && learningsTarget) {
   servitorResult = await agent(
     `Wrap up learnings for WAR phase ${ph.id} "${ph.title}" (landed on ${ph.workingBranch}).\n`
-    + `Your only writable path (also set as WAR_WORKTREE): ${learningsTarget}.\n`
+    + `Your only writable path (the worktree-scope hook confines you to it by agent_type): ${learningsTarget}.\n`
     + `Landed tasks: ${landed.join(', ') || 'none'}.\n`
     + `Audit log (verdicts + findings): ${JSON.stringify(auditLog)}\n`
     + `Escalations: ${JSON.stringify(escalated)}\n`
