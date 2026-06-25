@@ -274,9 +274,8 @@ distinct failure modes stay distinct: a **git-topology** failure → fail-loud h
   `WAR_WORKTREE`.
 - **Phase 6 — Release & verify**: version bump per README's file list (v0.5.0); all tests green.
 
-> The container plan ([docs/plans/2026-06-25-worktree-provisioning.md](../plans/2026-06-25-worktree-provisioning.md))
-> currently details Phases 1–3 + 5 (Part A). Part B (Phase 4) is specified here but not yet broken into
-> tasks — a follow-up planning pass.
+> **Part A** (Phases 1–3 + 5, the container) → [docs/plans/2026-06-25-worktree-provisioning-part-A.md](../plans/2026-06-25-worktree-provisioning-part-A.md), ships **v0.5.0**.
+> **Part B** (the contents / repo-derived bootstrap) → [docs/plans/2026-06-25-worktree-provisioning-part-B.md](../plans/2026-06-25-worktree-provisioning-part-B.md), ships **v0.5.1**. The Open decisions below were resolved in the 2026-06-25 grilling; the committed-manifest follow-up (D4) is tracked in [issue #51](https://github.com/Ljferrer/WorkAuditRefine/issues/51).
 
 ## Validation criteria
 
