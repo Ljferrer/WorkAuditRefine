@@ -52,10 +52,26 @@ const SERVITOR_RESULT = { type: 'object', required: ['phase', 'target', 'learnin
   learnings: { type: 'array', items: { type: 'object', properties: { title: { type: 'string' }, why: { type: 'string' } } } },
   memory_index_updated: { type: 'boolean' } } }
 
+// Per-task provision-run result (Part B). The refiner runs the pinned run.provision list inside the
+// task worktree: ok:true when every step exits 0; otherwise the env-blocked task-outcome shape from
+// ../references/schemas.md ({ taskId, failedCommand, exitCode, stderrTail, provisionSource }) for the
+// FIRST failing step. NOT a WorkerResult — no worker ran. The barrier skips the worker on ok:false.
+const ENV_OUTCOME = { type: 'object', required: ['ok'], properties: {
+  ok: { type: 'boolean' },
+  taskId: { type: 'string' }, failedCommand: { type: 'string' }, exitCode: { type: 'number' },
+  stderrTail: { type: 'string' }, provisionSource: { type: 'string' } } }
+
 const A = typeof args === 'string' ? JSON.parse(args) : (args || {})
 const { phase: ph, plan, tasks, learningsTarget, agents = {}, audit = {}, run = {} } = A
 const NS = A.agentPrefix ?? 'work-audit-refine:'
 const roundLimit = run.roundLimit ?? 3
+// Repo-derived provisioning (Part B). The Lead resolves run.provision from war-config.mjs
+// (resolveProvision: explicit list verbatim, else scouted) and threads it here. This is a MIRROR of
+// war-config.mjs's run.provision/run.provisionSource reads — that module is the tested source of
+// truth; keep these field names in sync. The barrier runs these commands, in order, inside each task
+// worktree before the worker; a failure short-circuits to an env-blocked task outcome (no worker).
+const provisionList = Array.isArray(run.provision) ? run.provision : []
+const provisionSource = run.provisionSource || 'none'
 
 // --- Worktree topology (refiner-owned; ADR 0001/0003) ----------------------
 // Branches are plan-namespaced and worktree PATHS carry the run-id (see the plan's "run-id vs
@@ -83,6 +99,42 @@ const spawn = role => {
 }
 const done = new Set()
 const landed = [], escalated = [], minorsFiled = [], auditLog = []
+
+// --- Repo-derived provisioning (Part B) ------------------------------------
+// provisionStep runs the pinned run.provision list, IN ORDER, inside one task worktree — a refiner
+// seat in the Provision phase (the refiner owns provisioning; ADR 0001). It returns ok:true on full
+// success or the env-blocked outcome ({ taskId, failedCommand, exitCode, stderrTail, provisionSource
+// } — schemas.md) for the FIRST failing step. The caller skips the worker (and keeps the worktree)
+// on ok:false. With an empty list provisioning is a no-op: ok:true with no agent dispatched.
+async function provisionStep(task) {
+  if (!provisionList.length) return { ok: true }
+  const out = await agent(
+    `PROVISION the worktree for WAR task ${task.id} before its worker runs. cd into ${task.worktree} `
+    + `(the refiner's Provision barrier already created it) and run these provisioning commands IN ORDER, `
+    + `inside that worktree:\n`
+    + provisionList.map((c, i) => `  ${i + 1}. ${c}`).join('\n') + `\n`
+    + `These steps make the worktree gate-ready (derived from the repo's own setup; source: ${provisionSource}). `
+    + `Run them verbatim; do NOT free-author other commands. If EVERY step exits 0, return { ok: true }. `
+    + `If a step exits NON-ZERO, STOP at that first failure and return the env-blocked outcome — `
+    + `{ ok: false, taskId: "${task.id}", failedCommand: "<the command>", exitCode: <code>, stderrTail: "<tail of its stderr>", provisionSource: "${provisionSource}" } — `
+    + `do NOT continue and do NOT remove the worktree (it is kept for inspection). This is environment setup, not the artifact under test: a failure is an env-block, never a code defect.`,
+    { agentType: NS + 'war-refiner', phase: 'Provision', label: `provision-run:${task.id}`, schema: ENV_OUTCOME, ...spawn('refiner') })
+  // A missing/typeless result is treated as a hard env-block (worker stays unspawned, fail loud).
+  if (!out || out.ok !== true) {
+    return { ok: false, taskId: task.id,
+      failedCommand: (out && out.failedCommand) || provisionList[0],
+      exitCode: (out && typeof out.exitCode === 'number') ? out.exitCode : 1,
+      stderrTail: (out && out.stderrTail) || 'provision-run returned no result',
+      provisionSource }
+  }
+  return { ok: true }
+}
+// Prompt fragment threaded into the worker AND fix-worker: both run in the SAME worktree, so both
+// must be told the pinned provision list (idempotent — re-running it is safe; D-Validation).
+const provisionClause = provisionList.length
+  ? `\nThis worktree was provisioned with (source: ${provisionSource}); re-run them if the env looks unset before you drive the gate:\n`
+    + provisionList.map((c, i) => `  ${i + 1}. ${c}`).join('\n')
+  : ''
 
 const blockingOf = seats => seats.flatMap(s => s.findings || []).filter(f => f.severity === 'Critical' || f.severity === 'Major')
 const minorsOf   = seats => seats.flatMap(s => s.findings || []).filter(f => f.severity === 'Minor' || f.severity === 'Nit')
@@ -130,11 +182,12 @@ log(`Phase ${ph.id} "${ph.title}": ${tasks.length} task(s) → ${ph.integrationB
 //       as untracked there (probe E2). It is NOT run inside a task worktree.
 //   (B) ensure-integration is passed --owned-file <run-ledger> so a resume recognizes this run's own
 //       integration branch as owned (a foreign, unrecorded branch → exit 3 / fail loud).
-// SEAM WITH PART B (do NOT build here): this barrier is exactly where the repo-derived per-task
-// `run.provision` list will later run (after each worktree exists, before the worker drives the
-// gate). Keep the per-task loop below as the insertion point — Part B threads a provision step per
-// task here; it is an ADDITION, not a rewrite. We do NOT wire run.provision / the env-blocked
-// verdict / the setup-scout in this plan.
+// PART B (now wired): the git-topology barrier above creates every task worktree up front. The
+// repo-derived per-task `run.provision` list then runs INSIDE the work wave below, after the
+// worktree exists and BEFORE that task's worker is spawned (provisionStep). A failing step short-
+// circuits to an `env-blocked` task outcome — the worker is NOT spawned and the worktree is KEPT for
+// inspection (schemas.md / SKILL.md). This is an ADDITION layered on the Part-A barrier, not a
+// rewrite. (The setup-scout that DERIVES the list is war-room Setup's job, not the barrier's.)
 if (tasks.length) {
   const SCRIPT = '${CLAUDE_PLUGIN_ROOT}/skills/war/assets/provision-worktrees.sh'
   const owned = ownedFile ? ` --owned-file ${ownedFile}` : ''
@@ -158,10 +211,19 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
 
   // ---- WORK + AUDIT each task in the wave concurrently ----
   const results = await parallel(wave.map(task => async () => {
+    // PROVISION (Part B): run the pinned run.provision list inside this task's worktree FIRST. A
+    // failing step → env-blocked: the worker is NOT spawned and the worktree is KEPT (schemas.md).
+    const env = await provisionStep(task)
+    if (!env.ok) {
+      return { task, verdict: 'env-blocked', seats: [], envOutcome: {
+        taskId: env.taskId, failedCommand: env.failedCommand, exitCode: env.exitCode,
+        stderrTail: env.stderrTail, provisionSource: env.provisionSource } }
+    }
+
     const impl = await agent(
       `Implement WAR task ${task.id} in the ALREADY-PROVISIONED worktree at ${task.worktree} (branch ${task.branch}, cut from ${ph.integrationBranch}).\n`
       + `The refiner's Provision barrier already created this worktree and its .war-task marker — do NOT create it yourself and do NOT set any worktree env var. cd into ${task.worktree} and work only inside it; commit and push ${task.branch}.\n`
-      + `Sub-issue #${task.issue} — ${task.title}\nPlan slice: ${task.planSlice}\nPlan file: ${plan.file}\nGate: ${plan.gate}`,
+      + `Sub-issue #${task.issue} — ${task.title}\nPlan slice: ${task.planSlice}\nPlan file: ${plan.file}\nGate: ${plan.gate}${provisionClause}`,
       { agentType: NS + 'war-worker', phase: 'Work', label: `work:${task.id}`, schema: WORKER_RESULT, ...spawn('worker') })
 
     if (!impl || impl.status === 'blocked') {
@@ -191,7 +253,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       await agent(
         `FIX_NEEDED for WAR task ${task.id}. Work in the ALREADY-PROVISIONED worktree at ${task.worktree} (branch ${task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
         + `Resolve ALL of these blocking findings, keep the gate green, commit and push:\n`
-        + b.map((f, i) => `${i + 1}. [${f.severity}] ${f.title} (${f.file}${f.line ? ':' + f.line : ''}) — ${f.rationale}${f.suggested_fix ? ` → ${f.suggested_fix}` : ''}`).join('\n'),
+        + b.map((f, i) => `${i + 1}. [${f.severity}] ${f.title} (${f.file}${f.line ? ':' + f.line : ''}) — ${f.rationale}${f.suggested_fix ? ` → ${f.suggested_fix}` : ''}`).join('\n') + provisionClause,
         { agentType: NS + 'war-worker', phase: 'Audit', label: `fix:${task.id}:r${round + 1}`, schema: WORKER_RESULT, ...spawn('worker') })
       round++
     }
@@ -211,6 +273,12 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}`, schema: MERGE_RESULT, ...spawn('refiner') })
       if (mr && mr.status === 'merged') landed.push(r.task.id)
       else escalated.push({ task: r.task.id, reason: mr ? mr.status : 'merge_failed', detail: mr })
+    } else if (r.verdict === 'env-blocked') {
+      // Provision failure (Part B): the worker never ran and the worktree is kept. Surface the
+      // env-blocked outcome for the Lead (0 FIX rounds; siblings proceed — SKILL.md). It is a SOFT
+      // escalation: NOT in HARD_ESCALATION_REASONS, so the phase still lands whatever else passed.
+      log(`Task ${r.task.id}: env-blocked — provision step "${r.envOutcome.failedCommand}" exited ${r.envOutcome.exitCode}. Worktree kept; worker not spawned.`)
+      escalated.push({ task: r.task.id, reason: 'env-blocked', outcome: r.envOutcome })
     } else {
       escalated.push({ task: r.task.id, reason: r.verdict, blocked: r.blocked })
     }
