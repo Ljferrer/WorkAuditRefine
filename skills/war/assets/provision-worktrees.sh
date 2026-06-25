@@ -7,9 +7,10 @@
 # run-scoped teardown, and .git/info/exclude upkeep. The Workflow template stays
 # thin and calls these subcommands from the refiner's Provision barrier.
 #
-# Subcommands (this file, Task 2):
-#   ensure-integration <slug> <N> <base> [--owned-file PATH] [--owned REF]...
-#   ensure-exclude
+# Subcommands (this file):
+#   ensure-integration <slug> <N> <base> [--owned-file PATH] [--owned REF]...  (Task 2)
+#   ensure-exclude                                                             (Task 2)
+#   ensure-worktree <path> <branch> <integration-tip>                          (Task 3)
 #
 # Design notes:
 # - Branches are plan-namespaced: integration/<slug>/phase-<N> (ADR 0003). Refs
@@ -26,6 +27,12 @@
 #   .claude/teams/<run-id>/; the seam stays exercisable without a live harness.
 # - .git/info/exclude carries a `.claude/` line so a nested worktree under
 #   .claude/ does not show as untracked in the parent `git status` (probe E2).
+# - ensure-worktree is idempotent "ensure" with CONSERVATIVE heal (D4/D7): create
+#   fresh on the integration tip with a .war-task marker; reuse a present worktree
+#   untouched (never reset a branch that may carry un-merged commits); prune +
+#   recreate only when the registry is stale (dir gone) — recreation re-checks-out
+#   the existing branch, so its commits, which live in the ref, are never lost;
+#   and FAIL LOUD (never delete) on an unregistered dir that already holds files.
 #
 # Constraint: macOS bash 3.2.57 — no globstar, no associative arrays, no ${,,}.
 set -euo pipefail
@@ -43,6 +50,51 @@ git_dir() { git rev-parse --git-dir 2>/dev/null || die "not inside a git reposit
 # branch_exists <ref> -> 0 if the local branch ref exists.
 branch_exists() {
   git show-ref --verify --quiet "refs/heads/$1"
+}
+
+# phys <path> -> echo the physical (symlink-resolved) absolute path. If <path>
+# does not exist yet, resolve its existing parent and re-attach the leaf, so a
+# not-yet-created worktree path still normalizes the way `git worktree list`
+# reports it (macOS /var -> /private/var).
+phys() {
+  if [ -d "$1" ]; then
+    ( cd "$1" && pwd -P )
+  else
+    p="${1%/}"; base="$(basename "$p")"; parent="$(dirname "$p")"
+    if [ -d "$parent" ]; then
+      printf '%s/%s\n' "$( cd "$parent" && pwd -P )" "$base"
+    else
+      printf '%s\n' "$1"
+    fi
+  fi
+}
+
+# worktree_registered <abs-path> -> 0 if <abs-path> is a registered worktree of
+# this repo (present in `git worktree list`, dir-on-disk or stale alike). Matches
+# on the physical path so symlinked temp dirs compare equal.
+worktree_registered() {
+  want="$(phys "$1")"
+  git worktree list --porcelain 2>/dev/null | awk -v want="$want" '
+    /^worktree / { if (substr($0, 10) == want) { found = 1 } }
+    END { exit (found ? 0 : 1) }
+  '
+}
+
+# branch_ahead_of <branch> <tip> -> 0 if <branch> has commits NOT reachable from
+# <tip> (i.e. carries un-merged work). Used to reason about conservative heal.
+# NOTE: even when true, recreating a worktree never loses those commits — they
+# live in the branch ref, which `git worktree prune`/`remove` never touches.
+branch_ahead_of() {
+  branch_exists "$1" || return 1
+  c="$(git rev-list --count "$2..$1" 2>/dev/null || echo 0)"
+  [ "${c:-0}" -gt 0 ]
+}
+
+# write_marker <worktree-path> : drop the .war-task marker at the worktree root.
+# Idempotent; records minimal provenance for humans/auditors reading it.
+write_marker() {
+  printf 'WAR task worktree — provisioned by provision-worktrees.sh (do not delete).\nbranch=%s\n' \
+    "${2:-}" > "$1/.war-task"
 }
 
 # --- ownership --------------------------------------------------------------
@@ -151,15 +203,83 @@ cmd_ensure_exclude() {
   printf '%s\n' '.claude/' >> "$excl"
 }
 
+# dir_is_empty <path> -> 0 if <path> is a directory with no entries (dotfiles
+# included). A missing path is NOT "empty" here (callers test -d separately).
+dir_is_empty() {
+  [ -d "$1" ] || return 1
+  [ -z "$(ls -A "$1" 2>/dev/null)" ]
+}
+
+# --- subcommand: ensure-worktree -------------------------------------------
+# ensure-worktree <path> <branch> <integration-tip>
+#
+# Idempotent "ensure" with conservative heal (D4/D7):
+#   * Already a registered worktree, dir present  -> REUSE untouched (only make
+#     sure the .war-task marker is there). Never reset <branch>; an un-merged
+#     commit on it survives.
+#   * Registered but the dir is gone (stale registry) -> prune + recreate on the
+#     existing <branch>. Its commits live in the ref, so nothing is lost.
+#   * Not registered, no dir            -> create fresh on the integration tip.
+#   * Not registered, empty dir         -> create fresh into it.
+#   * Not registered, NON-EMPTY dir     -> FAIL LOUD; never delete it.
+cmd_ensure_worktree() {
+  [ $# -ge 3 ] || die "usage: ensure-worktree <path> <branch> <integration-tip>"
+  path="$1"; branch="$2"; tip="$3"
+  [ -n "$path" ]   || die "ensure-worktree: empty <path>"
+  [ -n "$branch" ] || die "ensure-worktree: empty <branch>"
+  [ -n "$tip" ]    || die "ensure-worktree: empty <integration-tip>"
+
+  # Must be inside a working tree (git dir resolves) before we mutate anything.
+  git_dir >/dev/null
+
+  if worktree_registered "$path"; then
+    if [ -d "$path" ]; then
+      # REUSE: present and registered. Touch nothing but the marker (idempotent).
+      # Crucially we do NOT move/reset <branch>, so un-merged commits survive.
+      write_marker "$path" "$branch"
+      printf '%s\n' "$path"
+      return 0
+    fi
+    # STALE registry: the dir was removed out-of-band. Recreating re-checks-out
+    # the existing branch; `git worktree prune` clears the dangling entry and
+    # never deletes the branch or its commits, so this stays conservative.
+    git worktree prune >/dev/null 2>&1 || true
+  else
+    # Not registered. An existing non-empty dir is unmanaged data -> fail loud.
+    if [ -e "$path" ]; then
+      if ! dir_is_empty "$path"; then
+        die "refusing to provision worktree at '$path': a non-empty, unregistered directory already exists there (not a git worktree of this repo). Move or remove it by hand — provision-worktrees will not delete unmanaged data (D7)." 4
+      fi
+      # Empty dir: git worktree add wants to create the leaf itself, so clear the
+      # empty placeholder (no data at risk — we just verified it is empty).
+      rmdir "$path" 2>/dev/null || true
+    fi
+  fi
+
+  # Create (or re-create after prune). If the branch already exists, check it out
+  # as-is (preserves its commits); otherwise cut it at the integration tip.
+  if branch_exists "$branch"; then
+    git worktree add "$path" "$branch" >/dev/null 2>&1 \
+      || die "failed to add worktree at '$path' on existing branch '$branch' (is the branch checked out elsewhere?)"
+  else
+    git worktree add -b "$branch" "$path" "$tip" >/dev/null 2>&1 \
+      || die "failed to add worktree at '$path' on new branch '$branch' at '$tip'"
+  fi
+
+  write_marker "$path" "$branch"
+  printf '%s\n' "$path"
+}
+
 # --- dispatch ---------------------------------------------------------------
 main() {
   [ $# -ge 1 ] || die "usage: $PROG <subcommand> [args...]
-subcommands: ensure-integration, ensure-exclude"
+subcommands: ensure-integration, ensure-exclude, ensure-worktree"
   sub="$1"; shift
   case "$sub" in
     ensure-integration) cmd_ensure_integration "$@" ;;
     ensure-exclude)     cmd_ensure_exclude "$@" ;;
-    *) die "unknown subcommand '$sub' (have: ensure-integration, ensure-exclude)" ;;
+    ensure-worktree)    cmd_ensure_worktree "$@" ;;
+    *) die "unknown subcommand '$sub' (have: ensure-integration, ensure-exclude, ensure-worktree)" ;;
   esac
 }
 
