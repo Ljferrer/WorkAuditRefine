@@ -30,6 +30,10 @@ async function runPhase(args, agentImpl) {
 const seatOf = (opts) => (opts.agentType || '').split(':').pop()
 const defaultImpl = (prompt, opts) => {
   const seat = seatOf(opts)
+  // Part B: the per-task provision-run is a refiner seat in phase 'Provision' — default it to success
+  // ({ ok:true }) so happy-path tests reach the worker. (Tested BEFORE the topology-barrier refiner
+  // branch below, which also matches seat 'war-refiner'.)
+  if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
   if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'deadbeef' }
   if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
   if (seat === 'war-refiner') {
@@ -191,18 +195,106 @@ test('plan-slug + run-id are threaded into branch/path construction (assertion 4
   assert.ok(merge.prompt.includes('war/wtprov-a/p3-t1'), 'merge prompt uses the derived branch')
 })
 
-test('Provision barrier shape stays OPEN for Part B — no run.provision / env-blocked / setup-scout wired in executable code', () => {
-  // Seam guard: this plan builds the barrier only. Part B (per-task provision list, env-blocked
-  // verdict, setup-scout) must NOT be WIRED yet — keep it an addition, not a rewrite. We strip
-  // comments first (mirrors the red-team scaffold survival checks) so the seam may be DOCUMENTED in
-  // prose while staying absent from executable code.
+test('Part B seam is now FILLED — run.provision is consumed and env-blocked is wired (was the Part-A seam guard)', () => {
+  // Part A left this barrier OPEN with a seam guard asserting run.provision / env-blocked were NOT
+  // yet wired. Part B FILLS that seam (this is the planned inversion, not a deleted guard): the
+  // refiner barrier now reads the pinned run.provision list and emits env-blocked on a failed step.
+  // We strip comments first so the assertion reads executable code only (mirrors the red-team
+  // scaffold survival checks) — prose mentions don't count.
   const code = src.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
-  // Part B threads a per-task list at args.run.provision; guard that exact access (dot or bracket),
-  // NOT the word "provision" generally (the barrier's own `phase:'Provision'` / `provision:phase-…`
-  // label are legitimate Part-A wiring).
-  assert.ok(!/run\.provision|run\[['"]provision['"]\]|provision:\s*\[/.test(code), 'the run.provision list is not consumed in Part A')
-  assert.ok(!/env-blocked|env_blocked/.test(code), 'the env-blocked verdict is not wired in Part A')
-  assert.ok(!/setup-scout|setupScout/.test(code), 'the setup-scout is not wired in Part A')
+  assert.ok(/run\.provision|run\[['"]provision['"]\]/.test(code), 'the run.provision list is now consumed in executable code')
+  assert.ok(/env-blocked|env_blocked/.test(code), 'the env-blocked outcome is now wired in executable code')
+  // The setup-scout is still NOT wired here — that lives in war-room Setup (Task 7), not the barrier.
+  assert.ok(!/setup-scout|setupScout/.test(code), 'the setup-scout is still not wired in the barrier (it lives in war-room Setup)')
+})
+
+// --- Part B: per-task run.provision execution in the refiner barrier ------------------------
+// A pinned run.provision list runs, IN ORDER, inside each task worktree AFTER the worktree exists
+// and BEFORE the worker is spawned. On the first failing step the barrier emits an `env-blocked`
+// task outcome ({ taskId, failedCommand, exitCode, stderrTail, provisionSource } — schemas.md) and
+// the worker is NOT spawned and the worktree is KEPT. On success the worker runs as normal. The
+// per-task provision step is a refiner seat in phase 'Provision' labelled provision-run:<taskId>.
+const isProvisionRun = (c) => c.opts.phase === 'Provision' && /^provision-run:/.test(c.opts.label || '')
+const PROVISION_LIST = ['pnpm install --frozen-lockfile', 'git submodule update --init --recursive']
+const withProvision = (over = {}) =>
+  PROVISION_ARGS({ run: { provision: PROVISION_LIST, provisionSource: 'ci' }, ...over })
+
+test('run.provision runs (per task) BEFORE that task\'s worker is spawned (Part B)', async () => {
+  const { calls } = await runPhase(withProvision(), defaultImpl)
+  const provRunIdx = idx(calls, isProvisionRun)
+  const workIdx = idx(calls, isWorker)
+  assert.notEqual(provRunIdx, -1, 'a per-task provision-run step is dispatched')
+  assert.notEqual(workIdx, -1, 'a worker is dispatched')
+  assert.ok(provRunIdx < workIdx, 'the provision-run step precedes the first worker')
+  const pr = calls[provRunIdx]
+  assert.equal(seatOf(pr.opts), 'war-refiner', 'the provision-run step is a refiner seat (refiner owns provisioning)')
+  // The pinned commands are threaded into the prompt, in order, to be run inside the worktree.
+  for (const cmd of PROVISION_LIST) assert.ok(pr.prompt.includes(cmd), `provision-run prompt carries the command: ${cmd}`)
+  assert.ok(pr.prompt.indexOf(PROVISION_LIST[0]) < pr.prompt.indexOf(PROVISION_LIST[1]), 'commands are threaded in order')
+  assert.ok(pr.prompt.includes('/abs/repo/.claude/worktrees/run-2026/t1'), 'provision-run runs inside the task worktree')
+})
+
+test('a failing provision step → env-blocked outcome, worker NOT spawned, worktree KEPT (Part B)', async () => {
+  // The provision-run agent reports the env-blocked shape for t1; t2 has no deps relationship that
+  // would suppress it independently — assert ONLY t1 is env-blocked and ONLY t1's worker is skipped.
+  const impl = (prompt, opts) => {
+    if (isProvisionRun({ opts }) && (opts.label || '').includes('t1')) {
+      return { ok: false, taskId: 't1', failedCommand: 'pnpm install --frozen-lockfile',
+               exitCode: 1, stderrTail: 'ERR_PNPM_NO_LOCKFILE', provisionSource: 'ci' }
+    }
+    return defaultImpl(prompt, opts)
+  }
+  const { out, calls } = await runPhase(withProvision(), impl)
+  // (a) the worker for t1 is NOT spawned.
+  const t1Worker = calls.find((c) => isWorker(c) && c.prompt.includes('task t1'))
+  assert.ok(!t1Worker, 'the worker for the env-blocked task t1 is NOT spawned')
+  // (b) an env-blocked outcome is surfaced (escalated like any other) with the exact schema shape.
+  const eb = (out.escalated || []).find((e) => e && e.reason === 'env-blocked')
+  assert.ok(eb, 'an env-blocked escalation is surfaced for the Lead')
+  assert.equal(eb.task, 't1', 'the env-blocked outcome names the failed task')
+  const o = eb.outcome || eb.detail || eb
+  assert.equal(o.taskId, 't1', 'env-blocked outcome carries taskId')
+  assert.equal(o.failedCommand, 'pnpm install --frozen-lockfile', 'env-blocked outcome carries failedCommand')
+  assert.equal(o.exitCode, 1, 'env-blocked outcome carries exitCode')
+  assert.equal(o.stderrTail, 'ERR_PNPM_NO_LOCKFILE', 'env-blocked outcome carries stderrTail')
+  assert.equal(o.provisionSource, 'ci', 'env-blocked outcome carries provisionSource')
+  // (c) the worktree is KEPT — no teardown/cleanup/remove agent is dispatched for t1.
+  const cleanup = calls.find((c) => /remove-worktree|worktree remove|teardown|clean ?up/i.test(c.prompt))
+  assert.ok(!cleanup, 'the env-blocked worktree is KEPT (no cleanup/teardown is dispatched)')
+  // env-blocked is a SOFT escalation: siblings proceed and the phase still lands what passed.
+  assert.notEqual(out.landDecision, 'held:escalation', 'env-blocked does not hold the land (siblings proceed)')
+})
+
+test('a successful provision step → the worker IS spawned (Part B)', async () => {
+  // defaultImpl returns the success shape ({ ok:true }) for the provision-run agent.
+  const { calls } = await runPhase(withProvision(), (p, o) =>
+    isProvisionRun({ opts: o }) ? { ok: true } : defaultImpl(p, o))
+  const t1Worker = calls.find((c) => isWorker(c) && c.prompt.includes('task t1'))
+  assert.ok(t1Worker, 'a successful provision-run lets the worker spawn')
+})
+
+test('the resolved run.provision list also reaches the fix-worker setup (Part B)', async () => {
+  // Force one blocking audit round so a fix-worker is dispatched; its setup must re-run the same
+  // pinned provision list (the fix-worker works in the same worktree and needs the same env).
+  let auditRounds = 0
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (isProvisionRun({ opts })) return { ok: true }
+    if (seat === 'war-auditor') {
+      auditRounds++
+      return auditRounds <= 1
+        ? { seat: opts.label, lens: 'correctness', verdict: 'request_changes', confidence: 'high',
+            findings: [{ severity: 'Major', title: 'fix me', file: 'a.js', rationale: 'because' }] }
+        : { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    }
+    return defaultImpl(prompt, opts)
+  }
+  const { calls } = await runPhase(withProvision({ tasks: [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', lenses: ['correctness'] },
+  ] }), impl)
+  const fix = calls.find(isFixWorker)
+  assert.ok(fix, 'a fix-worker was dispatched on the blocking finding')
+  for (const cmd of PROVISION_LIST) assert.ok(fix.prompt.includes(cmd), `fix-worker setup carries the provision command: ${cmd}`)
 })
 
 test('template body still compiles as an async function (syntax check)', () => {
