@@ -5,10 +5,16 @@
 // The Workflow sandbox cannot import this module, so workflow-template.js mirrors
 // spawnOpts/covenSeats inline — THIS module is the tested source of truth; keep them in sync.
 
+import { validateProvision } from '../../_shared/provision.mjs'
+
 export const MODELS = ['opus', 'sonnet', 'haiku', 'fable']
 export const EFFORTS = ['default', 'low', 'medium', 'high', 'xhigh', 'max']
 export const COVEN_POLICIES = ['auto', 'all', 'solo']
 export const ROLES = ['worker', 'auditor', 'refiner', 'servitor']
+// How a run's provision list was derived. 'explicit' = pinned by the user;
+// 'manifest'/'ci'/'onboarding'/'structural' = scouted (descending authority);
+// 'none' = no steps / not yet scouted. See provisioning Part-B plan.
+export const PROVISION_SOURCES = ['explicit', 'manifest', 'ci', 'onboarding', 'structural', 'none']
 
 export const DEFAULTS = {
   version: 1,
@@ -25,7 +31,7 @@ export const DEFAULTS = {
     covenPolicy: 'auto',
     autoEscalate: true,
   },
-  run: { roundLimit: 3, afk: false },
+  run: { roundLimit: 3, afk: false, provision: [], provisionSource: 'none', provisionAuto: true },
   overrides: { gate: null, workingBranch: null, landingBranch: null, learningsTarget: null },
 }
 
@@ -89,6 +95,10 @@ export function validate(input) {
 
   if (!Number.isInteger(c.run.roundLimit) || c.run.roundLimit < 1) errors.push(`run.roundLimit must be an integer >= 1 (got ${JSON.stringify(c.run.roundLimit)})`)
   if (typeof c.run.afk !== 'boolean') errors.push('run.afk must be a boolean')
+  // run.provision is validated by the shared primitive (array of non-empty strings; [] is valid).
+  for (const e of validateProvision(c.run.provision).errors) errors.push(`run.${e}`)
+  if (!PROVISION_SOURCES.includes(c.run.provisionSource)) errors.push(`run.provisionSource must be one of ${PROVISION_SOURCES.join('|')} (got ${JSON.stringify(c.run.provisionSource)})`)
+  if (typeof c.run.provisionAuto !== 'boolean') errors.push('run.provisionAuto must be a boolean')
 
   for (const k of Object.keys(c.overrides)) {
     const v = c.overrides[k]
