@@ -179,3 +179,94 @@ test('a probe that dies once then succeeds on retry yields a real result (no mar
   assert.ok(!out.probeResults.some(r => r && r.dropped === true), 'retry succeeded — no dropped marker')
   assert.equal(out.probeResults.length, out.expected)
 })
+
+// --- Task 5 (#76): executed-probe provisioning via a Lead-supplied `provision` list -----------
+// The scaffold itself runs no shell — the EXECUTED probe agent does, inside its throwaway sandbox.
+// Threading `provision` therefore means injecting the pinned commands into the executed-probe
+// SCOPE-LOCK with a hard directive: run them BEFORE the baseline, and a FAILING step is `warn`
+// + an env-gap note, NEVER a red/fail verdict. Analyzed probes (read-only) never provision.
+const PROVISION = ['git submodule update --init --recursive', 'pnpm install --frozen-lockfile']
+
+// Grab the prompt of a representative executed / analyzed spine probe for a given args set.
+async function promptsByLabel(over = {}) {
+  const a = baseArgs(over)
+  const { prompts } = await runScaffold(a, passResult(a))
+  return Object.fromEntries(prompts.map(p => [p.opts.label, p.prompt]))
+}
+
+test('provision: an executed-probe scope-lock runs the provision list BEFORE the baseline', async () => {
+  const byLabel = await promptsByLabel({ provision: PROVISION })
+  const executed = byLabel['probe:executable-proof']
+  // Every pinned command is injected verbatim into the executed-probe prompt.
+  for (const cmd of PROVISION) {
+    assert.ok(executed.includes(cmd), `executed-probe prompt must inject provision command: ${cmd}`)
+  }
+  // It must be ordered as a pre-step: provisioning is named as happening BEFORE the baseline / before running anything.
+  assert.match(executed, /before .*baseline|before .*run|first.*provision|provision.*first/i,
+    'executed-probe prompt must instruct provisioning BEFORE the baseline')
+  // The provision block must sit ahead of the probe's own task text in the assembled prompt.
+  const provisionIdx = executed.indexOf(PROVISION[0])
+  const taskIdx = executed.indexOf('Extract every runnable artifact') // executable-proof's prompt gist
+  assert.ok(provisionIdx !== -1 && taskIdx !== -1 && provisionIdx < taskIdx,
+    'the provision step must appear ahead of the probe baseline task in the prompt')
+})
+
+test('provision: a failing provision step is directed to warn (NEVER red/fail)', async () => {
+  const byLabel = await promptsByLabel({ provision: PROVISION })
+  const executed = byLabel['probe:executable-proof']
+  // Isolate the provision directive block so the assertion can't be satisfied by unrelated
+  // pre-existing text (e.g. "NEVER mutate") elsewhere in the scope-lock.
+  const provLine = executed.split('\n').find(l => /provision/i.test(l) && /warn/i.test(l))
+  assert.ok(provLine, 'there must be a provision directive line that mentions warn')
+  assert.match(provLine, /status\s+to\s+["']?warn|status[:=]\s*["']?warn|→\s*["']?warn|yields?\s+["']?warn/i,
+    'a failed provision step must be directed to status:"warn"')
+  assert.match(executed, /env[- ]?gap|environment gap/i, 'a failed provision step must carry an env-gap note')
+  // The failure→warn directive must explicitly forbid a red/fail verdict (in the provision context).
+  assert.ok(/never\s+(a\s+)?(red|fail)|not\s+(a\s+)?(red|fail)|never\s+red|not\s+red/i.test(executed),
+    'a failed provision step must be told NOT to produce a red/fail verdict')
+})
+
+test('provision: analyzed (read-only) probes are NOT given provision commands', async () => {
+  const byLabel = await promptsByLabel({ provision: PROVISION })
+  const analyzed = byLabel['probe:claims-vs-reality']
+  for (const cmd of PROVISION) {
+    assert.ok(!analyzed.includes(cmd),
+      `analyzed read-only probe must NOT receive provision command: ${cmd}`)
+  }
+})
+
+test('provision: a warn result for an executed probe is NOT escalated to a blocker', async () => {
+  // End-to-end: even when an executed probe self-reports status:"warn" with an env-gap finding,
+  // the scaffold/confirm path must leave it a warn (no Critical/Major), so no red/blocked verdict.
+  const a = baseArgs({ provision: PROVISION })
+  // The real agent returns probe=<name> (no `probe:` prefix); mirror that contract.
+  const nameOf = (label) => label.replace(/^probe:/, '')
+  const { out } = await runScaffold(a, (_, opts) => {
+    const base = { probe: nameOf(opts.label), technique: opts.label === 'probe:executable-proof' ? 'executed' : 'analyzed',
+      read_anchor: anchorOf(a), status: 'pass', findings: [] }
+    if (opts.phase === 'Probe' && opts.label === 'probe:executable-proof') {
+      return { ...base, status: 'warn',
+        findings: [{ severity: 'Minor', claim: 'provision', reality: 'env-gap: pnpm install failed', evidence: 'exit 1' }] }
+    }
+    return base
+  })
+  const ep = out.probeResults.find(r => r && r.probe === 'executable-proof')
+  assert.ok(ep, 'the executable-proof probe yields a result')
+  assert.equal(ep.status, 'warn', 'an env-gap provision failure stays warn')
+  assert.ok(!(ep.findings || []).some(f => f.severity === 'Critical' || f.severity === 'Major'),
+    'a provision env-gap must never carry a blocking (Critical/Major) severity')
+})
+
+test('provision BACK-COMPAT: no provision list ⇒ scope-lock + prompts are byte-for-byte today’s', async () => {
+  // The executed-probe and analyzed-probe prompts with NO provision list must be IDENTICAL to the
+  // prompts produced when the key is entirely absent — i.e. provisioning adds zero bytes when unused.
+  const absent = await promptsByLabel({})                 // baseArgs has no `provision`
+  const emptyList = await promptsByLabel({ provision: [] })
+  for (const label of Object.keys(absent)) {
+    assert.equal(emptyList[label], absent[label],
+      `back-compat: an empty provision list must not change probe '${label}' by a single byte`)
+  }
+  // And the executed-probe prompt must contain NONE of the provision scaffolding tokens.
+  assert.ok(!/env[- ]?gap/i.test(absent['probe:executable-proof']),
+    'back-compat: with no provision list the executed-probe prompt carries no env-gap provisioning text')
+})
