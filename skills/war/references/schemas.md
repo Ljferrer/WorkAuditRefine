@@ -67,6 +67,19 @@ Every agent returns **only** its JSON object (no prose). The Workflow passes the
 ```
 The servitor writes ONLY under `learningsTarget` (enforced by the worktree-scope hook with `WAR_WORKTREE=<learningsTarget>`); it never touches source, branches, PRs, or issues.
 
+## ScoutResult — `war-setup-scout` (once, before provisioning)
+The read-only, Explore-class setup-scout (`agents/war-setup-scout.md`) reads the **target repo's own** setup signals and derives an ordered provisioning command list. It returns **only**:
+```jsonc
+{ provision: ["<shell cmd>", ...],   // ordered; submodule-init before install; [] is valid
+  source: "explicit" | "ci" | "onboarding" | "structural",  // the highest-authority tier that yielded signal
+  rationale: "which signals were read and why this list, in this order" }
+```
+- **Authority (descending):** `explicit` (a non-empty `run.provision` honored verbatim, no scouting) → `ci` (`.github/workflows/*.yml`) → `onboarding` (`.devcontainer`, a `Makefile`/`Justfile` `setup` target, `package.json scripts.{setup,bootstrap,prepare}`, CONTRIBUTING/README setup sections) → `structural` (the tiny floor). The scout stops at the first tier that produces a list.
+- **No ecosystem table:** every command is traceable to a signal actually read in the repo, or to the deterministic structural floor — `structuralFallback` in [`../../_shared/provision.mjs`](../../_shared/provision.mjs) (submodule-init + a single known-lockfile install only). The scout never synthesizes an install from a guessed language/framework.
+- **Guarded downstream:** `provision` must pass `validateProvision` (array of non-empty trimmed strings) before it is pinned, and the operator reviews `{ provision, source, rationale }` during war-room Setup. There is no automated test for the scout; its golden-check is the checked-in fixture + [`../../_shared/fixtures/provision/EXPECTED.md`](../../_shared/fixtures/provision/EXPECTED.md) (deterministic coverage of the floor lives in `provision.test.mjs`).
+
+This result is the *derivation* output; pinning it into `run.provision` (and the every-time execution that follows) is governed by the §Run config below.
+
 ## Run config — `.claude/war/config.json` (optional)
 Produced by `/war-room`, consumed by `/war`'s Setup. The schema, defaults, presets, and validation are owned by [`../assets/war-config.mjs`](../assets/war-config.mjs) (`--fill-defaults` to resolve a file, `--preset <name>` to emit a preset, `--stdin` to validate piped JSON). Absent this file, `/war` uses built-in defaults (pre-v0.3.0 behavior).
 ```jsonc
