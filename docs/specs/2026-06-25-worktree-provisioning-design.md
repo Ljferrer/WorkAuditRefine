@@ -180,9 +180,10 @@ deterministic module" value downstream.
   scouted once provisions identically for both skills. *Git note:* linked worktrees share the
   superproject's `$GIT_COMMON_DIR`, so once the main checkout has fetched a submodule the worktree's
   `submodule update --init` is **offline and instant**; network/auth only for the first cold fetch.
-- **B.3.4 Provisioning failure is its own outcome (not a red gate).** WAR worker → a distinct
-  **`env-blocked`** verdict (Lead halts the task, no FIX rounds burned); red-team probe → `status:"warn"`
-  with an env-gap note. Never scored as a red baseline.
+- **B.3.4 Provisioning failure is its own outcome (not a red gate).** WAR → a distinct **`env-blocked`**
+  task outcome, emitted by the refiner Provision barrier (the worker is **never spawned**); the Lead halts
+  the task, no FIX rounds burned. Red-team probe → `status:"warn"` with an env-gap note. Never scored as a
+  red baseline.
 - **B.3.5** `/war-room` Setup runs the scout, shows the proposed `provision` + source + rationale, and
   writes the confirmed list into `config.json`.
 - **B.3.6** Optional deeper layer — a **committed repo manifest** both skills read (level 1 made
@@ -196,7 +197,9 @@ deterministic module" value downstream.
   table.
 - **`provision.mjs`** (new, thin + tested): `validateProvision(list)` + a minimal
   `structuralFallback(repo)` (ecosystem-agnostic floor only).
-- **WAR worker result schema**: add `env-blocked`.
+- **WAR task-outcome union**: add `env-blocked` (a refiner **Provision-barrier** outcome emitted when a
+  pinned `run.provision` command fails *before any worker is spawned* — **not** a `WorkerResult` field).
+  See `skills/war/references/schemas.md` §Task outcome union.
 - **WAR workflow args**: thread the resolved `provision` list into worker + fix-worker setup, run after
   worktree creation, before install/gate.
 - **red-team scaffold**: executed-probe scope-lock runs the passed-in list; failure → `warn`.
