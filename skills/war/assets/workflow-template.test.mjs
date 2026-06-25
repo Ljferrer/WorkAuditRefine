@@ -66,6 +66,7 @@ const isProvision = (c) => c.opts.phase === 'Provision'
 const isWorker = (c) => seatOf(c.opts) === 'war-worker' && c.opts.phase === 'Work'
 const isFixWorker = (c) => seatOf(c.opts) === 'war-worker' && c.opts.phase === 'Audit'
 const isAuditor = (c) => seatOf(c.opts) === 'war-auditor'
+const isServitor = (c) => seatOf(c.opts) === 'war-servitor'
 
 test("meta declares a 'Provision' phase ahead of 'Work'", () => {
   // The exported meta lists the stages the Workflow runs; the new barrier must be declared.
@@ -164,6 +165,18 @@ test('the auditor prompt still receives the absolute task.worktree path (asserti
   const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
   const a = calls.find(isAuditor).prompt
   assert.ok(a.includes('/abs/repo/.claude/worktrees/run-2026/t1'), 'auditor prompt carries the absolute worktree path')
+})
+
+test('the servitor (Wrap-up) prompt no longer names WAR_WORKTREE (Task 6 clean-surface)', async () => {
+  // The retired env var must not appear in the servitor prompt: the worktree-scope hook confines the
+  // servitor by agent_type, not by an env-var the prompt sets (ADR 0002). The happy-path harness lands
+  // + wraps up, so a servitor seat is dispatched and its prompt is inspectable. It must still hand the
+  // servitor its absolute learnings target, just without the stale (also set as WAR_WORKTREE) clause.
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const wrap = calls.find(isServitor)
+  assert.ok(wrap, 'a servitor (Wrap-up) seat was dispatched on the happy path')
+  assert.ok(!/WAR_WORKTREE/.test(wrap.prompt), 'servitor prompt does NOT contain WAR_WORKTREE')
+  assert.ok(wrap.prompt.includes('/abs/learnings'), 'servitor prompt still carries the absolute learnings target')
 })
 
 test('plan-slug + run-id are threaded into branch/path construction (assertion 4)', async () => {
