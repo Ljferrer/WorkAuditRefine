@@ -2,8 +2,8 @@
 # WAR worktree-scope guard (PreToolUse: Write|Edit|NotebookEdit).
 #
 # Enforced by `agent_type` from the hook payload (see ADR 0002), not by an env
-# var: a worker's `export WAR_WORKTREE=...` does not survive into its own next
-# Bash call (probe E1), so the old WAR_WORKTREE guard was a proven NO-OP. This
+# var: a worker's `export` of a per-worktree path does not survive into its own
+# next Bash call (probe E1), so the old env-var guard was a proven NO-OP. This
 # guard reads `agent_type` (set per-subagent in the PreToolUse payload) and:
 #   - war-auditor  : hard-deny every write (auditors are read-only).
 #   - war-worker   : allow only when some ancestor dir holds a `.war-task`
