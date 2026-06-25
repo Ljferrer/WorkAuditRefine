@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import {
-  DEFAULTS, fillDefaults, presetConfig, validate, spawnOpts, covenSeats,
+  DEFAULTS, PROVISION_SOURCES, fillDefaults, presetConfig, validate, spawnOpts, covenSeats,
 } from './war-config.mjs'
 import { HARD_ESCALATION_REASONS } from './land-decision.mjs'
 
@@ -85,6 +85,57 @@ test('non-boolean autoEscalate rejected', () => {
 
 test('roundLimit below 1 rejected', () => {
   assert.equal(validate({ run: { roundLimit: 0 } }).valid, false)
+})
+
+// --- run.provision / provisionSource / provisionAuto (Part B) ----------------
+
+test('provision defaults: empty list, source none, auto true', () => {
+  const c = fillDefaults({})
+  assert.deepEqual(c.run.provision, [])
+  assert.equal(c.run.provisionSource, 'none')
+  assert.equal(c.run.provisionAuto, true)
+  assert.equal(validate({}).valid, true)
+})
+
+test('provision of non-empty strings accepted', () => {
+  const r = validate({ run: { provision: ['pnpm install --frozen-lockfile', 'git submodule update --init'] } })
+  assert.equal(r.valid, true, r.errors.join('\n'))
+})
+
+test('non-array provision rejected with a clear error', () => {
+  const r = validate({ run: { provision: 'pnpm install' } })
+  assert.equal(r.valid, false)
+  assert.match(r.errors.join('\n'), /provision must be an array/)
+})
+
+test('empty-string provision entry rejected with a clear error', () => {
+  const r = validate({ run: { provision: ['ok', '   '] } })
+  assert.equal(r.valid, false)
+  assert.match(r.errors.join('\n'), /provision\[1\].*non-empty/)
+})
+
+test('PROVISION_SOURCES enum has the expected members', () => {
+  assert.deepEqual(
+    PROVISION_SOURCES,
+    ['explicit', 'manifest', 'ci', 'onboarding', 'structural', 'none'])
+})
+
+test('each provisionSource enum member is accepted', () => {
+  for (const source of PROVISION_SOURCES) {
+    assert.equal(validate({ run: { provisionSource: source } }).valid, true, `source ${source} should be valid`)
+  }
+})
+
+test('bad provisionSource rejected', () => {
+  const r = validate({ run: { provisionSource: 'magic' } })
+  assert.equal(r.valid, false)
+  assert.match(r.errors.join('\n'), /run\.provisionSource/)
+})
+
+test('non-boolean provisionAuto rejected', () => {
+  const r = validate({ run: { provisionAuto: 'yes' } })
+  assert.equal(r.valid, false)
+  assert.match(r.errors.join('\n'), /run\.provisionAuto/)
 })
 
 test('unknown role rejected', () => {
