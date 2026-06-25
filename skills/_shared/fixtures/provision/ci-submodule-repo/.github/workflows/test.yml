@@ -1,0 +1,29 @@
+# Fixture CI workflow for the setup-scout golden-check.
+# Declares this repo's own setup: checkout WITH submodules, install deps, run tests.
+# The scout reads these signals (it carries no ecosystem table of its own).
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run tests
+        run: pnpm test
