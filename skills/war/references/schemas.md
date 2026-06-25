@@ -13,6 +13,22 @@ Every agent returns **only** its JSON object (no prose). The Workflow passes the
   blocked_reason?: "present iff status==blocked — the ambiguity/contradiction" }
 ```
 
+## Task outcome union — terminal per-task results
+A task reaches the refiner with exactly one terminal **outcome**. Two are produced by the worker itself (a `WorkerResult` with `status: "implemented"` or `"blocked"`, above). A third — **`env-blocked`** — is **not** a worker result: it is emitted by the refiner's **Provision barrier** when a pinned `run.provision` command fails, **before any worker is spawned**. The worktree never became gate-ready, so there is nothing for a worker to do.
+
+```jsonc
+{ taskId,
+  failedCommand,        // the provision command that exited non-zero
+  exitCode,             // its exit code
+  stderrTail,           // tail of its stderr (for the escalation)
+  provisionSource }     // where the list came from: explicit|manifest|ci|onboarding|structural|none
+```
+- **The worker is NOT spawned.** The barrier runs each `run.provision` command in order after creating the worktree and before launching the worker; the first failure short-circuits to `env-blocked` and the worker launch is skipped entirely. This is distinct from a failed gate (broken code) — here the *environment* never came up.
+- **No `WorkerResult` is produced for an `env-blocked` task** — there is no `branch`/`head_sha`/`tests`, because nothing was implemented. Do **not** add `env-blocked` to the `WorkerResult` schema above; it is its own task-outcome shape. (This corrects earlier "worker result schema" wording in the design spec, B.3.4/B.4 — `env-blocked` is a task outcome, not a worker result.)
+- **Lead handling** (halt the task, escalate, **0 FIX rounds**, **keep** the worktree for inspection, siblings proceed) is specified in [SKILL.md](../SKILL.md). The red-team analogue of a provision failure is a probe `status: "warn"` (never a red verdict), not `env-blocked`.
+
+> The *behavioral* assertion that the barrier emits this exact shape and does not spawn the worker is exercised in the refiner Provision-barrier test (`skills/war/assets/workflow-template.test.mjs`), not here — this section is the data contract.
+
 ## AuditVerdict — `war-auditor` (one per seat per round)
 ```jsonc
 { seat: "seat-1",
