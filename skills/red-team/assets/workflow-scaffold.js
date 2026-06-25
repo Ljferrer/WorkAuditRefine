@@ -33,7 +33,7 @@ const CONFIRM = { type: 'object', required: ['reproduced'], properties: {
 // Confirm-stage identifier surfaced as an executable token so tests and tooling can anchor to it.
 const ADVERSARIAL_CONFIRM = 'adversarial-confirm'
 
-const { planFile, repo, sourceSpec = 'none', probes = [], fingerprint } = args
+const { planFile, repo, sourceSpec = 'none', probes = [], fingerprint, provision = [] } = args
 
 // Layer 1 — the fingerprint is the deterministic ground truth the gate validates every probe
 // against. The Workflow sandbox has NO filesystem access, so the Lead computes it (Bash) from the
@@ -43,6 +43,22 @@ if (!fingerprint || !fingerprint.titleLine) {
   throw new Error('red-team scaffold: args.fingerprint.titleLine is required (Lead pre-flight) — absPath and tokens are recommended but titleLine is strictly required — refusing to run unanchored.')
 }
 
+// Provisioning directive (Task #76). The Lead may pass a pinned `provision` command list (derived
+// from the target repo's own declared setup — see provision.mjs / the setup-scout). An EXECUTED
+// probe must run those commands in its throwaway sandbox BEFORE the baseline, so the gate-relevant
+// work runs against a provisioned tree. Provisioning is environment setup, not the artifact under
+// test: a FAILING provision step is an env-gap → status:"warn" + a note, and must NEVER become a
+// red/fail verdict (that would mis-score a broken environment as a broken plan). Empty list ⇒ no
+// directive at all (byte-for-byte back-compat). Analyzed/read-only probes never provision.
+const provisionDirective = (technique) =>
+  technique === 'executed' && provision.length
+    ? '\n' + [
+        'PROVISION FIRST — before the baseline. Inside that sandbox copy, and BEFORE you run any of the plan’s artifacts (the baseline), run these provisioning commands IN ORDER:',
+        ...provision.map(c => `  - ${c}`),
+        'These bring the sandbox to a gate-ready state (submodules, dependency install, etc.); they are environment setup, NOT the subject under test.',
+        'If a provision step FAILS, set status to "warn", add a finding noting the env-gap (the failed command + its output), and do NOT run the baseline. A provision failure is an environment gap — it is NEVER a red/fail verdict and must not be reported as a Critical/Major plan defect.',
+      ].join('\n')
+    : ''
 // Layer 2 — SCOPE-LOCK preamble. /red-team is routinely launched from project X's session to
 // verify project Y's plan; a probe agent's ambient cwd + CLAUDE.md + memory otherwise OVERPOWER
 // the explicit args and it red-teams the WRONG artifact. Prepended to EVERY probe (spine AND
@@ -55,7 +71,7 @@ const scopeLock = (technique) => [
   `The ONLY subject of this red-team is the plan file at ${planFile} (titled "${fingerprint.titleLine}")${sourceSpec !== 'none' ? `, its source spec ${sourceSpec},` : ','} and the repository rooted at ${repo}.`,
   `Do not read, reference, or reason about any file outside ${repo} (other than the plan/spec named above).`,
   technique === 'executed'
-    ? `To inspect or run anything, first copy the repo into a throwaway sandbox (e.g. \`cp -R ${repo} <tmp>\` or \`git -C ${repo} worktree add <tmp>\`) and \`cd\` into that copy — run there only, never from the session cwd, and NEVER mutate ${repo}.`
+    ? `To inspect or run anything, first copy the repo into a throwaway sandbox (e.g. \`cp -R ${repo} <tmp>\` or \`git -C ${repo} worktree add <tmp>\`) and \`cd\` into that copy — run there only, never from the session cwd, and NEVER mutate ${repo}.${provisionDirective(technique)}`
     : `Restrict every Read / Grep / Glob to paths under ${repo} (plus the plan/spec named above); open nothing else on the machine.`,
   `If the plan you open is NOT titled "${fingerprint.titleLine}", or you find yourself reading another project's files, STOP — you are on the WRONG plan. Re-open ${planFile} and confine yourself to ${repo}.`,
   `In your FINDINGS result you MUST set read_anchor.resolved_path to the ABSOLUTE path of the plan file you actually read and read_anchor.plan_title to its first "# " heading line. This is checked against the expected plan; a mismatch discards your findings.`,
@@ -124,4 +140,4 @@ for (let i = 0; i < allProbes.length; i++) {
 const dropped = probeResults.filter(r => r && r.dropped).map(r => r.probe)
 if (dropped.length) log(`⚠ coverage gap: ${dropped.length}/${allProbes.length} probe(s) dropped after retry — ${dropped.join(', ')}. The gate will return INCOMPLETE.`)
 
-return { plan: planFile, repo, fingerprint, expected: allProbes.length, probeResults }
+return { plan: planFile, repo, fingerprint, provision, expected: allProbes.length, probeResults }
