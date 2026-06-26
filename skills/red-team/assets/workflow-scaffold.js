@@ -33,7 +33,10 @@ const CONFIRM = { type: 'object', required: ['reproduced'], properties: {
 // Confirm-stage identifier surfaced as an executable token so tests and tooling can anchor to it.
 const ADVERSARIAL_CONFIRM = 'adversarial-confirm'
 
-const { planFile, repo, sourceSpec = 'none', probes = [], fingerprint, provision = [] } = args
+let A
+try { A = typeof args === 'string' ? JSON.parse(args) : (args ?? {}) }
+catch { A = {} }
+const { planFile, repo, sourceSpec = 'none', probes = [], fingerprint, provision = [] } = A
 
 // Layer 1 — the fingerprint is the deterministic ground truth the gate validates every probe
 // against. The Workflow sandbox has NO filesystem access, so the Lead computes it (Bash) from the

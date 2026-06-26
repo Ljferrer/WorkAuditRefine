@@ -257,7 +257,25 @@ test('provision: a warn result for an executed probe is NOT escalated to a block
     'a provision env-gap must never carry a blocking (Critical/Major) severity')
 })
 
-test('provision BACK-COMPAT: no provision list ⇒ scope-lock + prompts are byte-for-byte today’s', async () => {
+// --- Task 1.1 (#49): parse-if-string normalization of args -----------------------------------
+test('args as JSON string: run does not reject, fingerprint/repo/expected thread correctly', async () => {
+  const a = baseArgs()
+  const { out } = await runScaffold(JSON.stringify(a), passResult(a))
+  assert.deepEqual(out.fingerprint, FP, 'fingerprint threads through when args is a JSON string')
+  assert.equal(out.repo, '/abs/REPO', 'repo threads through when args is a JSON string')
+  assert.equal(out.expected, 5, 'expected probe count is correct when args is a JSON string')
+  assert.equal(out.plan, '/abs/PLAN.md')
+})
+
+test('malformed JSON string for args: still rejects with /fingerprint/i (guard intact)', async () => {
+  await assert.rejects(
+    runScaffold('{not valid json', () => ({ status: 'pass', findings: [] })),
+    /fingerprint/i,
+    'malformed JSON args must still fail with the fingerprint guard message, not a raw SyntaxError'
+  )
+})
+
+test(`provision BACK-COMPAT: no provision list => scope-lock + prompts are byte-for-byte today's`, async () => {
   // The executed-probe and analyzed-probe prompts with NO provision list must be IDENTICAL to the
   // prompts produced when the key is entirely absent — i.e. provisioning adds zero bytes when unused.
   const absent = await promptsByLabel({})                 // baseArgs has no `provision`
