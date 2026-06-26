@@ -235,8 +235,11 @@ test('run.provision runs (per task) BEFORE that task\'s worker is spawned (Part 
 })
 
 test('a failing provision step → env-blocked outcome, worker NOT spawned, worktree KEPT (Part B)', async () => {
-  // The provision-run agent reports the env-blocked shape for t1; t2 has no deps relationship that
-  // would suppress it independently — assert ONLY t1 is env-blocked and ONLY t1's worker is skipped.
+  // The provision-run agent reports the env-blocked shape for t1.
+  // NOTE (Task 3 F02 update): PROVISION_ARGS includes t2 with deps:['t1']. Because t1 is env-blocked
+  // (not succeeded), t2 is now flagged dep-failed (hard escalation) — the land IS held. env-blocked
+  // itself is a soft escalation, but a downstream dep-failed (from Task 3's succeeded-gate) makes
+  // the land held. Siblings with NO dep on t1 would still proceed; only true dependents are blocked.
   const impl = (prompt, opts) => {
     if (isProvisionRun({ opts }) && (opts.label || '').includes('t1')) {
       return { ok: false, taskId: 't1', failedCommand: 'pnpm install --frozen-lockfile',
@@ -261,8 +264,10 @@ test('a failing provision step → env-blocked outcome, worker NOT spawned, work
   // (c) the worktree is KEPT — no teardown/cleanup/remove agent is dispatched for t1.
   const cleanup = calls.find((c) => /remove-worktree|worktree remove|teardown|clean ?up/i.test(c.prompt))
   assert.ok(!cleanup, 'the env-blocked worktree is KEPT (no cleanup/teardown is dispatched)')
-  // env-blocked is a SOFT escalation: siblings proceed and the phase still lands what passed.
-  assert.notEqual(out.landDecision, 'held:escalation', 'env-blocked does not hold the land (siblings proceed)')
+  // (Task 3 F02): t2 has deps:['t1']; t1 env-blocked → t2 is dep-failed (hard escalation) → land held.
+  // env-blocked alone is soft; the dep-failed consequence is hard. Tasks independent of t1 would land.
+  const t2DepFailed = (out.escalated || []).find((e) => e && e.task === 't2' && e.reason === 'dep-failed')
+  assert.ok(t2DepFailed, 'dep-failed escalation for t2 (its dep t1 env-blocked, not succeeded) (Task 3 F02)')
 })
 
 test('a successful provision step → the worker IS spawned (Part B)', async () => {
@@ -585,4 +590,158 @@ test('Task 2 — auditRound return shape is { seats, expected } (not a bare arra
   // and similarly for the rebuttal call.
   assert.match(src, /\{\s*seats\s*,\s*expected\s*\}\s*=\s*await\s+auditRound/,
     'auditRound return value is destructured as { seats, expected }')
+})
+
+// ---------------------------------------------------------------------------
+// Task 3 (Phase 3 — F02): Scheduler succeeded-gate
+// A failed predecessor must block its true dependents; only a merged task succeeds.
+// ---------------------------------------------------------------------------
+
+// 3-task DAG: t2 depends on t1, t3 is independent.
+// This is the canonical harness for Task 3 behavioral tests.
+const DAG_ARGS = (over = {}) => ({
+  phase: { id: 3, title: 'P3', integrationBranch: 'integration/aschi/phase-3', workingBranch: 'dev/aschi' },
+  plan: { file: 'docs/plans/aschi.md', gate: 'make gate' },
+  planSlug: 'aschi',
+  runId: 'run-dag',
+  worktreeRoot: '/abs/repo/.claude/worktrees',
+  mainCheckout: '/abs/repo',
+  tasks: [
+    { id: 't1', issue: 201, title: 'Task one', planSlice: 'slice 1', lenses: ['correctness'] },
+    { id: 't2', issue: 202, title: 'Task two', planSlice: 'slice 2', lenses: ['correctness'], deps: ['t1'] },
+    { id: 't3', issue: 203, title: 'Task three', planSlice: 'slice 3', lenses: ['correctness'] },
+  ],
+  learningsTarget: null,
+  ...over,
+})
+
+// Base impl for DAG tests: provision always ok, t1 defaults to escalate (worker returns blocked),
+// t2/t3 default to implemented+approve+merged. The caller can override specific pieces.
+const dagBaseImpl = (prompt, opts) => {
+  const seat = seatOf(opts)
+  if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+  if (seat === 'war-worker') {
+    // Force t1 to escalate (worker returns blocked)
+    if (/task t1\b/i.test(prompt) || (opts.label || '').includes(':t1')) {
+      return { task_id: 't1', status: 'blocked', blocked_reason: 'forced escalation for test' }
+    }
+    return { task_id: 'tx', status: 'implemented', head_sha: 'deadbeef' }
+  }
+  if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+  if (seat === 'war-refiner') {
+    return opts.phase === 'Land'
+      ? { mode: 'land-phase', status: 'landed' }
+      : { mode: 'merge-task', status: 'merged' }
+  }
+  if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+  return {}
+}
+
+test('Task 3 — failed predecessor blocks dependent: t1 escalates → t2 never spawns a worker, t3 still runs', async () => {
+  const { out, calls } = await runPhase(DAG_ARGS(), dagBaseImpl)
+  // t2 must never have a worker spawned (it depends on t1 which escalated)
+  const t2Worker = calls.find(c => isWorker(c) && /task t2\b/i.test(c.prompt))
+  assert.ok(!t2Worker, 't2 worker is NOT spawned when t1 escalated')
+  // t3 is independent — it must still run
+  const t3Worker = calls.find(c => isWorker(c) && /task t3\b/i.test(c.prompt))
+  assert.ok(t3Worker, 't3 (independent) worker IS spawned despite t1 failing')
+  // t2 must be in escalated with reason dep-failed naming t1
+  const t2Esc = (out.escalated || []).find(e => e && e.task === 't2')
+  assert.ok(t2Esc, 't2 appears in escalated[]')
+  assert.equal(t2Esc.reason, 'dep-failed', 't2 escalation reason is dep-failed')
+  assert.ok((t2Esc.failedDeps || []).includes('t1'), 't2 dep-failed names t1 as the failed dep')
+})
+
+test('Task 3 — dep-failed task appears in escalated with correct shape', async () => {
+  const { out } = await runPhase(DAG_ARGS(), dagBaseImpl)
+  const t2Esc = (out.escalated || []).find(e => e && e.task === 't2' && e.reason === 'dep-failed')
+  assert.ok(t2Esc, 't2 is in escalated with reason dep-failed')
+  assert.ok(Array.isArray(t2Esc.failedDeps), 't2 dep-failed carries failedDeps array')
+  assert.ok(t2Esc.failedDeps.includes('t1'), 'failedDeps includes t1')
+})
+
+test('Task 3 — phase land is held when a dep-failed escalation exists', async () => {
+  const { out } = await runPhase(DAG_ARGS(), dagBaseImpl)
+  // dep-failed is a HARD_ESCALATION_REASON, so the land must be held
+  assert.equal(out.landDecision, 'held:escalation',
+    'phase land is held:escalation when dep-failed is present')
+})
+
+test('Task 3 — env-blocked predecessor blocks true dependent (env-blocked is not success)', async () => {
+  // t1 returns env-blocked (provision failure); t2 should be dep-failed, not spawn a worker.
+  // A provision list is required to trigger the provision-run agent path (empty list is a no-op ok:true).
+  const dagWithProvision = {
+    ...DAG_ARGS(),
+    run: { provision: ['npm install'], provisionSource: 'ci' },
+  }
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) {
+      // t1 provision fails; t2/t3 provision succeeds
+      if ((opts.label || '').includes('t1')) {
+        return { ok: false, taskId: 't1', failedCommand: 'npm install', exitCode: 1, stderrTail: 'err', provisionSource: 'ci' }
+      }
+      return { ok: true }
+    }
+    if (seat === 'war-worker') return { task_id: 'tx', status: 'implemented', head_sha: 'deadbeef' }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-refiner') {
+      return opts.phase === 'Land' ? { mode: 'land-phase', status: 'landed' } : { mode: 'merge-task', status: 'merged' }
+    }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { out, calls } = await runPhase(dagWithProvision, impl)
+  // t2 must NOT spawn a worker (its dep t1 env-blocked, not succeeded)
+  const t2Worker = calls.find(c => isWorker(c) && /task t2\b/i.test(c.prompt))
+  assert.ok(!t2Worker, 't2 worker is NOT spawned when t1 is env-blocked (env-blocked is not success)')
+  // t2 must be dep-failed
+  const t2Esc = (out.escalated || []).find(e => e && e.task === 't2' && e.reason === 'dep-failed')
+  assert.ok(t2Esc, 't2 is dep-failed when its dep env-blocked (env-blocked is not a success)')
+})
+
+test('Task 3 — success unblocks: t1 merged → t2 runs normally', async () => {
+  // t1 succeeds (merged); t2 depends on t1 and should then run
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker') return { task_id: 'tx', status: 'implemented', head_sha: 'deadbeef' }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-refiner') {
+      return opts.phase === 'Land' ? { mode: 'land-phase', status: 'landed' } : { mode: 'merge-task', status: 'merged' }
+    }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { out, calls } = await runPhase(DAG_ARGS(), impl)
+  // t2 should spawn a worker (t1 merged = succeeded)
+  const t2Worker = calls.find(c => isWorker(c) && /task t2\b/i.test(c.prompt))
+  assert.ok(t2Worker, 't2 worker IS spawned after t1 merges (succeeded)')
+  // t1 and t2 should both land
+  assert.ok(out.landed.includes('t1'), 't1 is in landed[]')
+  assert.ok(out.landed.includes('t2'), 't2 is in landed[]')
+  // No dep-failed escalations
+  const depFailed = (out.escalated || []).find(e => e && e.reason === 'dep-failed')
+  assert.ok(!depFailed, 'no dep-failed escalations when all deps succeed')
+})
+
+test('Task 3 — termination: done.size reaches tasks.length with no spin (dep-failed adds to done without worker)', async () => {
+  // Even with t1 failing (t2 dep-failed), done must eventually cover all 3 tasks so the loop exits
+  const { out } = await runPhase(DAG_ARGS(), dagBaseImpl)
+  // All 3 tasks must appear in either landed or escalated (done tracks them all)
+  const allDone = new Set([...(out.landed || []), ...(out.escalated || []).map(e => e && e.task)])
+  assert.ok(allDone.has('t1'), 't1 is accounted for (escalated as escalate)')
+  assert.ok(allDone.has('t2'), 't2 is accounted for (dep-failed, added to done without worker)')
+  assert.ok(allDone.has('t3'), 't3 is accounted for (landed or escalated)')
+})
+
+test('Task 3 — succeeded set exists in template source and gates nextWave', () => {
+  // Structural: verify the template declares `succeeded` and uses it in nextWave
+  const code = src.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
+  assert.ok(/const\s+succeeded\s*=\s*new\s+Set\s*\(\s*\)/.test(code),
+    'template declares `const succeeded = new Set()`')
+  assert.ok(/succeeded\.add/.test(code),
+    'template calls succeeded.add(...)')
+  assert.ok(/succeeded\.has/.test(code),
+    'template uses succeeded.has(...) — the gate for nextWave/dep-block')
 })

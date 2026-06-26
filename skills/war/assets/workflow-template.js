@@ -98,6 +98,7 @@ const spawn = role => {
   return a.effort && a.effort !== 'default' ? { model, effort: a.effort } : { model }
 }
 const done = new Set()
+const succeeded = new Set()
 const landed = [], escalated = [], minorsFiled = [], auditLog = []
 
 // --- Repo-derived provisioning (Part B) ------------------------------------
@@ -140,7 +141,7 @@ const blockingOf = seats => seats.flatMap(s => s.findings || []).filter(f => f.s
 const minorsOf   = seats => seats.flatMap(s => s.findings || []).filter(f => f.severity === 'Minor' || f.severity === 'Nit')
 const allApprove = (seats, expected) => seats.length === expected && seats.every(s => s.verdict === 'approve')
 const isSplit    = seats => seats.some(s => s.verdict === 'approve') && seats.some(s => s.verdict === 'request_changes')
-const nextWave   = () => tasks.filter(t => !done.has(t.id) && (t.deps || []).every(d => done.has(d)))
+const nextWave   = () => tasks.filter(t => !done.has(t.id) && (t.deps || []).every(d => succeeded.has(d)))
 
 function auditPrompt(task, lens, depth, peers) {
   let p = `Audit WAR task ${task.id} through the "${lens}" lens at depth ${depth}.\n`
@@ -218,6 +219,19 @@ if (tasks.length) {
 
 let guard = 0
 while (done.size < tasks.length && guard++ < tasks.length + 2) {
+  // ---- DEP-BLOCK PRE-CHECK — placement is load-bearing (plan §Phase 3, Step 3) ----
+  // Runs BEFORE nextWave() and BEFORE the break guard. Reads done/succeeded (not wave).
+  // Adds dep-blocked tasks to done so nextWave() correctly excludes them; the break guard
+  // only fires when nothing genuinely remains. done.size grows → loop terminates.
+  for (const t of tasks) {
+    const deps = t.deps || []
+    if (!done.has(t.id) && deps.length && deps.every(d => done.has(d)) && !deps.every(d => succeeded.has(d))) {
+      const failedDeps = deps.filter(d => !succeeded.has(d))
+      escalated.push({ task: t.id, reason: 'dep-failed', failedDeps })
+      auditLog.push({ task: t.id, verdict: 'dep-failed', failedDeps, findings: [] })
+      done.add(t.id)
+    }
+  }
   const wave = nextWave()
   if (!wave.length) { log(`No runnable tasks remain — the rest are blocked behind escalations.`); break }
 
@@ -291,7 +305,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + `  (b) MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), then git merge ${r.task.branch} (fast-forward merge of the now-rebased task branch into the integration branch). Push.\n`
         + `Run the gate (${plan.gate}) after the rebase in the task worktree; on gate failure return gate_failed; on conflict return conflict; never force.`,
         { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}`, schema: MERGE_RESULT, ...spawn('refiner') })
-      if (mr && mr.status === 'merged') landed.push(r.task.id)
+      if (mr && mr.status === 'merged') { landed.push(r.task.id); succeeded.add(r.task.id) }
       else escalated.push({ task: r.task.id, reason: mr ? mr.status : 'merge_failed', detail: mr })
     } else if (r.verdict === 'env-blocked') {
       // Provision failure (Part B): the worker never ran and the worktree is kept. Surface the
