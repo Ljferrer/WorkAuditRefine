@@ -21,6 +21,22 @@ Run autonomously inside a phase; gated by you between phases (`--afk` to loosen)
 
 > **Best practice — author the input plan with [`/grill-me`](https://github.com/mattpocock/skills/tree/main).** WAR is only as good as the plan it executes. Matt Pocock's `/grill-me` skill interviews you relentlessly down every branch of the design tree, resolving each decision one at a time, until the plan is unambiguous and cleanly phase-decomposable — exactly the shape WAR needs to fan out workers and auditors.
 
+## Note from Author
+
+I ran this command overnight (2026/06/25-26):
+
+```
+/loop for each plan in:
+1. docs/plans/2026-06-25-audit-scheduler-integrity.md
+2. docs/plans/2026-06-25-verification-layer-integrity.md
+3. docs/plans/2026-06-25-provisioning-lifecycle.md
+4. docs/plans/2026-06-25-servitor-confinement-memory.md
+5. docs/plans/2026-06-25-audit-fidelity.md
+run `/red-team <plan>` first, then `/war <plan> --working dev --landing master --afk`
+```
+
+... and woke up to 5 ready-to-merge PRs. This command orchestrated 272 subagents across 28 phases and consumed 14.1M tokens, while the main context window only grew to 90% capacity (@1.0M) without any compactions. No CRITICAL/MAJOR problems were escalated to me while I slept, but 8 follow-up issues were filed for the MINOR bugs that arrose during implementation. If your plans are fleshed out enough, they can be implemented overnight like this.
+
 ## Install
 
 Add the marketplace:
