@@ -140,8 +140,9 @@ All three edit the same file; serialize to avoid rebase conflicts (memory:
 ### Task 3 — Post-loop unrunnable-deps sweep (#115)
 
 **Files:** modify `skills/war/assets/workflow-template.js` (after the `while`-close `:369`, before the LAND
-`hardEscalation` `:376`; and the `HARD_ESCALATION_REASONS` declaration `:375` + its comment); test
-`skills/war/assets/workflow-template.test.mjs`.
+`hardEscalation` `:376`; and the `HARD_ESCALATION_REASONS` declaration `:375` + its comment); tests
+`skills/war/assets/workflow-template.test.mjs` AND `skills/war/assets/war-config.test.mjs` (two drift-guards pin the
+inline array to the 6-member canonical export — relaxed below, red-team-required). `land-decision.mjs` stays out of scope.
 
 - [ ] **Step 1 — Write failing tests (behavioral).**
   - Drive a phase whose task `t2` has `deps:['ghost']` (`ghost` not in `tasks[]`) and `t1` runs+merges normally.
@@ -166,7 +167,16 @@ All three edit the same file; serialize to avoid rebase conflicts (memory:
     }
     ```
   - Add `'unrunnable-deps'` to `HARD_ESCALATION_REASONS` (`:375`); update its inline comment to note this entry is a
-    **scheduler-local** addition not present in `land-decision.mjs`'s export (preserves the mirror invariant, D2).
+    **scheduler-local** addition not present in `land-decision.mjs`'s export.
+  - **RELAX THE TWO DRIFT-GUARDS (red-team 2026-06-26 — REQUIRED, else the gate goes red).** `war-config.test.mjs`
+    hard-pins the inline `HARD_ESCALATION_REASONS` to the **6-member canonical** `land-decision.mjs` export via a
+    `deepStrictEqual` (~:343) and an `=== 6` "exactly 6 members" length assertion (~:833). Adding the 7th member
+    breaks BOTH. Relax them to **superset semantics**: assert every canonical member is present in the inline array
+    AND the only extra is exactly `'unrunnable-deps'` — i.e. `inline.length === canonical.length + 1` and
+    `inline.filter(r => !canonical.includes(r))` deepEquals `['unrunnable-deps']`. **Leave `land-decision.mjs`
+    unchanged** (`unrunnable-deps` is scheduler-local; `decideLand` never emits it) — the inline still mirrors
+    canonical for every shared reason, so the D2 mirror invariant is preserved, just expressed as "canonical ⊆ inline,
+    with one named scheduler-local extra."
 - [ ] **Step 4 — Run gate → pass.**
 - [ ] **Step 5 — Commit** — `fix(war): post-loop sweep surfaces unrunnable phantom-dep tasks as hard escalations (#115)`
 - **Closes:** #115.
