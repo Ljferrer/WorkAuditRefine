@@ -1210,3 +1210,135 @@ test('F05 — war-servitor.md: admission checklist includes INDEX HYGIENE (D4)',
   assert.ok(servitorMd.includes('[[') || /slug.*cross.?link|cross.?link.*slug/i.test(servitorMd),
     'war-servitor.md must mention [[slug]] cross-links (D4)')
 })
+
+// ---------------------------------------------------------------------------
+// Task 1 (Phase 1 — F03): Auditor computes its own integration-branch diff
+// The auditPrompt must direct the auditor to run git diff A...B (three-dot)
+// and must NOT name the "main repo checkout" / "baseline copies" as the diff source.
+// war-auditor.md must list Bash in its frontmatter tools.
+// ---------------------------------------------------------------------------
+
+test('F03 — auditPrompt: contains three-dot git diff instruction (git diff integrationBranch...task.branch)', async () => {
+  // The emitted audit prompt must instruct the auditor to run
+  // git diff <integrationBranch>...<task.branch> (three-dot = merge-base..head).
+  // Filter to regular audit calls only (not gate-audit execution-evidence seats).
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const auditCalls = calls.filter(c => isAuditor(c) && !c.prompt.includes('execution-evidence'))
+  assert.ok(auditCalls.length > 0, 'at least one regular auditor call was made')
+  for (const c of auditCalls) {
+    // Must contain the three-dot pattern with the actual branch values from PROVISION_ARGS
+    const p = c.prompt
+    assert.ok(
+      /git\s+diff\b[^`\n]*\.\.\.[^`\n]*/.test(p),
+      `audit prompt must contain "git diff ...A...B..." (three-dot); got: "${p.slice(0, 300)}"`
+    )
+    // The integrationBranch and task.branch must appear in the diff instruction
+    assert.ok(
+      p.includes('integration/wtprov-a/phase-3'),
+      `audit prompt must reference the integrationBranch in the diff command; got: "${p.slice(0, 300)}"`
+    )
+    assert.ok(
+      /war\/wtprov-a\/p3-t[12]/.test(p),
+      `audit prompt must reference the task.branch in the diff command; got: "${p.slice(0, 300)}"`
+    )
+  }
+})
+
+test('F03 — auditPrompt: does NOT contain "main repo checkout" prose (baseline is computed, not provided)', async () => {
+  // The emitted audit prompt must no longer name the "main repo checkout" or "baseline copies"
+  // as the diff source. The auditor computes the diff itself via git.
+  // Filter to regular audit calls only (not gate-audit execution-evidence seats).
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const auditCalls = calls.filter(c => isAuditor(c) && !c.prompt.includes('execution-evidence'))
+  assert.ok(auditCalls.length > 0, 'at least one regular auditor call was made')
+  for (const c of auditCalls) {
+    const p = c.prompt
+    assert.ok(
+      !/main repo checkout/.test(p),
+      `audit prompt must NOT contain "main repo checkout"; got: "${p.slice(0, 300)}"`
+    )
+    assert.ok(
+      !/baseline copies/.test(p),
+      `audit prompt must NOT contain "baseline copies"; got: "${p.slice(0, 300)}"`
+    )
+    assert.ok(
+      !/compare.*against.*baseline|baseline.*compare/i.test(p),
+      `audit prompt must NOT instruct comparing against baseline copies; got: "${p.slice(0, 300)}"`
+    )
+  }
+})
+
+test('F03 — auditPrompt: steers auditor to allowlist-safe git forms (mentions avoid for %-format and @{} reflog)', async () => {
+  // The prompt must steer the auditor away from disallowed git forms.
+  // It must warn about %-format strings and @{} reflog (Task-2 guard denies those chars).
+  // The prompt may mention them as things to avoid (negative examples), but must not
+  // positively recommend them without an avoidance qualifier.
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  // Filter to regular audit calls only (not gate-audit execution-evidence seats)
+  const auditCalls = calls.filter(c => isAuditor(c) && !c.prompt.includes('execution-evidence'))
+  assert.ok(auditCalls.length > 0, 'at least one regular auditor call was made')
+  for (const c of auditCalls) {
+    const p = c.prompt
+    // The prompt must mention avoidance of % or @{} (either as "Avoid" or "denied")
+    assert.ok(
+      /avoid|denied|not.*use|do not use/i.test(p),
+      `audit prompt must warn the auditor about disallowed git forms (avoid/denied); got: "${p.slice(0, 400)}"`
+    )
+    // Must NOT positively recommend @{} reflog (without avoidance context)
+    // Check: @{ only appears in context of avoidance (the word "avoid" or "denied" nearby)
+    const atBraceIdx = p.indexOf('@{')
+    if (atBraceIdx !== -1) {
+      const ctx = p.slice(Math.max(0, atBraceIdx - 80), atBraceIdx + 20)
+      assert.ok(
+        /avoid|denied|not.*use/i.test(ctx),
+        `@{} in audit prompt must only appear in avoidance context; got context: "${ctx}"`
+      )
+    }
+  }
+})
+
+test('F03 — auditPrompt: instructs re-running diff each round (fix-worker may have pushed)', async () => {
+  // The prompt must tell the auditor to re-run the diff each round (since a fix-worker may push).
+  // Filter to regular audit calls only (not gate-audit execution-evidence seats).
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const auditCalls = calls.filter(c => isAuditor(c) && !c.prompt.includes('execution-evidence'))
+  assert.ok(auditCalls.length > 0, 'at least one regular auditor call was made')
+  const p = auditCalls[0].prompt
+  assert.ok(
+    /re.?run|each round|fix.?worker.{0,60}push|push.{0,60}fix.?worker/i.test(p),
+    `audit prompt must instruct re-running the diff each round (fix-worker may have pushed); got: "${p.slice(0, 400)}"`
+  )
+})
+
+test('F03 — war-auditor.md: frontmatter tools list includes Bash', () => {
+  // The auditor gains a Bash capability (limited to read-only git by the Task-2 guard).
+  // Its frontmatter must list Bash alongside Read, Grep, Glob.
+  assert.match(auditorMd, /^tools:.*\bBash\b/m,
+    'war-auditor.md frontmatter must include Bash in the tools list')
+})
+
+test('F03 — war-auditor.md: inputs describe computing the diff (not "path provided")', () => {
+  // The old wording said "path provided". The new wording must say the auditor computes it.
+  assert.ok(
+    !/path provided/i.test(auditorMd),
+    'war-auditor.md must NOT say "path provided" for the diff input'
+  )
+  assert.match(auditorMd, /compute|run.*git diff|git diff.*run/i,
+    'war-auditor.md must instruct the auditor to compute the diff via git')
+})
+
+test('F03 — war-auditor.md: states only read-only git is allowed (a guard denies anything else)', () => {
+  // Must mention that a guard denies non-read-only git operations.
+  assert.match(auditorMd, /guard|read.?only/i,
+    'war-auditor.md must mention the read-only guard')
+})
+
+test('F03 — schemas.md: AuditVerdict.tests_verified clarifies existence/integrity not execution (F03 + F04 combined)', () => {
+  // Already covered by the F04 Task-4 test above; this test adds F03's requirement:
+  // schemas.md must NOT reference any DiffResult artifact (the auditor self-serves; no artifact).
+  const schemasMd = readFileSync(join(here, '../references/schemas.md'), 'utf8')
+  assert.ok(
+    !/DiffResult/.test(schemasMd),
+    'schemas.md must NOT contain "DiffResult" (the auditor self-serves the diff; no artifact schema needed)'
+  )
+})

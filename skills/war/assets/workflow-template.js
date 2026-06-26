@@ -151,11 +151,11 @@ const nextWave   = () => tasks.filter(t => !done.has(t.id) && (t.deps || []).eve
 
 function auditPrompt(task, lens, depth, peers, workerTests) {
   let p = `Audit WAR task ${task.id} through the "${lens}" lens at depth ${depth}.\n`
-    + `Review the diff of ${task.branch} vs ${ph.integrationBranch} (the single target). Sub-issue #${task.issue}.\n`
-    + `Plan slice: ${task.planSlice}. Plan file: ${plan.file}.\n`
-    + `CANDIDATE files are in the task worktree at: ${task.worktree}/\n`
-    + `BASELINE files are in the main repo checkout (your current working directory / the integration base).\n`
-    + `Read candidate files under ${task.worktree}/ and compare them against the corresponding baseline copies at the main repo checkout to determine what changed.\n`
+    + `Sub-issue #${task.issue}. Plan slice: ${task.planSlice}. Plan file: ${plan.file}.\n`
+    + `Run \`git diff ${ph.integrationBranch}...${task.branch}\` (three-dot = merge-base..head = exactly what this task added) for the authoritative change set; re-run it each round (a fix-worker may have pushed). `
+    + `Use allowlist-safe git forms: --name-status, --stat, --format=oneline, A...B, HEAD^. `
+    + `Avoid %-format strings (e.g. --pretty=format:%H) and @{} reflog syntax — those are denied by the read-only guard.\n`
+    + `Then read candidate files under ${task.worktree}/ for neighbor/deep context.\n`
     + `Verify the mapped acceptance-criteria tests EXIST and are not weakened or skipped (anti-cheat: catch "green by deletion" and test-integrity erosion). You cannot execute the gate — the refiner runs the gate. Your job is to confirm tests exist in the diff and are uncompromised.`
   if (workerTests) {
     p += `\n\nWorker-reported tests summary (cross-check claim vs diff): ${JSON.stringify(workerTests)}`
