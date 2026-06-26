@@ -11,6 +11,7 @@
 #   ensure-integration <slug> <N> <base> [--owned-file PATH] [--owned REF]...  (Task 2)
 #   ensure-exclude                                                             (Task 2)
 #   ensure-worktree <path> <branch> <integration-tip>                          (Task 3)
+#   ensure-refinery-worktree <path> <integration-branch>                       (Task 1/clandiso)
 #   teardown-task [--keep] --run-dir <ledger-dir> <path> <branch>              (Task 4)
 #   teardown-phase --run-dir <ledger-dir> <slug> <N>                           (Task 4)
 #   prune                                                                      (Task 4)
@@ -442,6 +443,79 @@ cmd_teardown_phase() {
   delete_branch "integration/$slug/phase-$num"
 }
 
+# --- subcommand: ensure-refinery-worktree -----------------------------------
+# ensure-refinery-worktree <path> <integration-branch>
+#
+# Ensure+re-attach for the Refinery's run-scoped worktree (_refinery). This is
+# distinct from ensure-worktree's pure no-op reuse: when the worktree is present
+# but HEAD is detached or on a different branch, and the tree is CLEAN (no
+# tracked-file modifications), we re-attach via `git -C <path> switch`. A dirty
+# tree (tracked-file modifications) always FAIL LOUD — never reset, never destroy
+# work. Untracked files (e.g. the .war-task marker) do not count as dirty.
+#
+# Behaviors:
+#   (a) Not registered / empty dir  -> git worktree add <path> <integration-branch>
+#                                       + .war-task marker.
+#   (b) Registered + present + HEAD on integration branch  -> reuse (marker only).
+#   (c) Registered + present + HEAD detached/different + CLEAN  -> switch to
+#                                       integration branch (re-attach) + marker.
+#   (d) Registered + present + HEAD detached/different + DIRTY  -> FAIL LOUD.
+#   (e) Stale registry (dir gone)   -> prune + recreate on integration branch.
+#   (f) Non-empty unregistered dir  -> FAIL LOUD (D7).
+cmd_ensure_refinery_worktree() {
+  [ $# -ge 2 ] || die "usage: ensure-refinery-worktree <path> <integration-branch>"
+  wt_path="$1"; int_branch="$2"
+  [ -n "$wt_path" ]    || die "ensure-refinery-worktree: empty <path>"
+  [ -n "$int_branch" ] || die "ensure-refinery-worktree: empty <integration-branch>"
+
+  git_dir >/dev/null
+
+  if worktree_registered "$wt_path"; then
+    if [ -d "$wt_path" ]; then
+      # Worktree is present and registered. Check what HEAD is on.
+      cur_branch="$(git -C "$wt_path" symbolic-ref --short HEAD 2>/dev/null || true)"
+      if [ "$cur_branch" = "$int_branch" ]; then
+        # (b) Already on the integration branch -> reuse untouched.
+        write_marker "$wt_path" "$int_branch"
+        printf '%s\n' "$wt_path"
+        return 0
+      fi
+      # HEAD is detached or on a different branch. Check for tracked-file
+      # modifications only (-uno); untracked files (e.g. .war-task) are safe.
+      if [ -n "$(git -C "$wt_path" status --porcelain -uno 2>/dev/null)" ]; then
+        # (d) DIRTY tree -> FAIL LOUD. Never reset, never destroy work.
+        die "ensure-refinery-worktree: worktree at '$wt_path' is not on the integration branch '$int_branch' and has uncommitted tracked-file changes — refusing to switch (would destroy work). Clean or stash changes first." 6
+      fi
+      # (c) CLEAN tree, detached or on a different branch -> re-attach.
+      git -C "$wt_path" switch "$int_branch" >/dev/null 2>&1 \
+        || die "ensure-refinery-worktree: failed to switch '$wt_path' to integration branch '$int_branch'"
+      write_marker "$wt_path" "$int_branch"
+      printf '%s\n' "$wt_path"
+      return 0
+    fi
+    # (e) Stale registry: the dir was removed out-of-band. Prune then recreate.
+    git worktree prune >/dev/null 2>&1 || true
+  else
+    # Not registered. An existing non-empty dir is unmanaged data -> fail loud.
+    if [ -e "$wt_path" ]; then
+      if ! dir_is_empty "$wt_path"; then
+        # (f) Non-empty unregistered dir -> FAIL LOUD.
+        die "refusing to provision refinery worktree at '$wt_path': a non-empty, unregistered directory already exists there. Move or remove it by hand (D7)." 4
+      fi
+      # Empty dir: git worktree add creates the leaf; clear the empty placeholder.
+      rmdir "$wt_path" 2>/dev/null || true
+    fi
+  fi
+
+  # (a) or (e): Create (or recreate after prune) the refinery worktree, checking
+  # out the integration branch directly (no new branch created).
+  git worktree add "$wt_path" "$int_branch" >/dev/null 2>&1 \
+    || die "ensure-refinery-worktree: failed to add worktree at '$wt_path' on branch '$int_branch'"
+
+  write_marker "$wt_path" "$int_branch"
+  printf '%s\n' "$wt_path"
+}
+
 # --- subcommand: prune ------------------------------------------------------
 # prune
 #
@@ -460,16 +534,17 @@ cmd_prune() {
 # --- dispatch ---------------------------------------------------------------
 main() {
   [ $# -ge 1 ] || die "usage: $PROG <subcommand> [args...]
-subcommands: ensure-integration, ensure-exclude, ensure-worktree, teardown-task, teardown-phase, prune"
+subcommands: ensure-integration, ensure-exclude, ensure-worktree, ensure-refinery-worktree, teardown-task, teardown-phase, prune"
   sub="$1"; shift
   case "$sub" in
-    ensure-integration) cmd_ensure_integration "$@" ;;
-    ensure-exclude)     cmd_ensure_exclude "$@" ;;
-    ensure-worktree)    cmd_ensure_worktree "$@" ;;
-    teardown-task)      cmd_teardown_task "$@" ;;
-    teardown-phase)     cmd_teardown_phase "$@" ;;
-    prune)              cmd_prune "$@" ;;
-    *) die "unknown subcommand '$sub' (have: ensure-integration, ensure-exclude, ensure-worktree, teardown-task, teardown-phase, prune)" ;;
+    ensure-integration)       cmd_ensure_integration "$@" ;;
+    ensure-exclude)           cmd_ensure_exclude "$@" ;;
+    ensure-worktree)          cmd_ensure_worktree "$@" ;;
+    ensure-refinery-worktree) cmd_ensure_refinery_worktree "$@" ;;
+    teardown-task)            cmd_teardown_task "$@" ;;
+    teardown-phase)           cmd_teardown_phase "$@" ;;
+    prune)                    cmd_prune "$@" ;;
+    *) die "unknown subcommand '$sub' (have: ensure-integration, ensure-exclude, ensure-worktree, ensure-refinery-worktree, teardown-task, teardown-phase, prune)" ;;
   esac
 }
 

@@ -452,6 +452,153 @@ code="$(run_in "$RT5" teardown-phase --run-dir "$RD5_MINE" myplan 2)"
 expect "teardown-phase (run-mine) does not touch the other run's worktree" \
   "war/other/p2-t1" "$(wt_on_branch "$RT5" "$WT_OTHER")"
 
+# ===========================================================================
+# Task 1 (clandiso): ensure-refinery-worktree <path> <integration-branch>
+#
+# Behavior (ensure + re-attach, distinct from ensure-worktree's pure no-op reuse):
+#   (a) Not registered / empty dir -> `git worktree add <path> <integration-branch>` + .war-task
+#   (b) Registered + present + HEAD on the integration branch -> reuse untouched (marker only)
+#   (c) Registered + present + HEAD detached or on a different branch AND tree CLEAN ->
+#         `git -C <path> switch <integration-branch>` (re-attach), then reuse
+#   (d) Registered + present + HEAD detached/different + tree DIRTY -> FAIL LOUD (never reset)
+#   (e) Stale registry (dir gone) -> prune + recreate on the integration branch
+#   (f) Non-empty unregistered dir -> fail loud (D7 discipline)
+#
+# Helper: wt_head_branch <repo> <path> -> "(detached)" if HEAD is detached,
+# branch short-name if on a branch, or "" if not a registered worktree at all.
+wt_head_branch() {
+  repo="$1"; want="$(phys_path "$2")"
+  git -C "$repo" worktree list --porcelain 2>/dev/null | awk -v want="$want" '
+    /^worktree / { cur = substr($0, 10); branch = ""; is_detached = 0 }
+    /^branch /   { if (cur == want) branch = substr($0, 8) }
+    /^detached$/ { if (cur == want) is_detached = 1 }
+    /^$/ {
+      if (cur == want) {
+        if (is_detached) print "(detached)"
+        else if (branch != "") print branch
+      }
+      cur = ""; branch = ""; is_detached = 0
+    }
+  ' | sed 's@^refs/heads/@@'
+}
+
+# ---------------------------------------------------------------------------
+# Case (T1.1) Fresh create: ensure-refinery-worktree creates the worktree on
+# the integration branch; .war-task marker is dropped; git worktree list shows
+# the worktree on the integration branch.
+# ---------------------------------------------------------------------------
+RR1="$(new_repo)"
+git -C "$RR1" branch integration/myplan/phase-1 HEAD
+TIPRI1="$(git -C "$RR1" rev-parse integration/myplan/phase-1)"
+WTR1="$(new_wt_path)"
+code="$(run_in "$RR1" ensure-refinery-worktree "$WTR1" integration/myplan/phase-1)"
+expect "ensure-refinery-worktree exits 0 on fresh create" 0 "$code"
+expect "refinery worktree dir exists after create" \
+  "yes" "$([ -d "$WTR1" ] && echo yes || echo no)"
+expect "refinery .war-task marker dropped" \
+  "yes" "$([ -f "$WTR1/.war-task" ] && echo yes || echo no)"
+expect "refinery worktree listed on integration branch" \
+  "integration/myplan/phase-1" "$(wt_on_branch "$RR1" "$WTR1")"
+expect "refinery worktree HEAD at integration tip" \
+  "$TIPRI1" "$(git -C "$WTR1" rev-parse HEAD 2>/dev/null)"
+
+# ---------------------------------------------------------------------------
+# Case (T1.2) Reuse when already on the integration branch: a second call is a
+# no-op — worktree is already registered and HEAD is on the integration branch.
+# A sentinel file in the worktree survives (nothing is reset or recreated).
+# ---------------------------------------------------------------------------
+printf 'sentinel-r2\n' > "$WTR1/SENTINEL"
+code="$(run_in "$RR1" ensure-refinery-worktree "$WTR1" integration/myplan/phase-1)"
+expect "ensure-refinery-worktree reuse-on-integration exits 0" 0 "$code"
+expect "reuse-on-integration: sentinel file survives (no recreation)" \
+  "sentinel-r2" "$(cat "$WTR1/SENTINEL" 2>/dev/null)"
+expect "reuse-on-integration: still on integration branch" \
+  "integration/myplan/phase-1" "$(wt_on_branch "$RR1" "$WTR1")"
+
+# ---------------------------------------------------------------------------
+# Case (T1.3) Re-attach when detached and clean: simulate a crash-mid-land
+# state by detaching HEAD inside the refinery worktree. The tree is CLEAN
+# (no tracked-file modifications). ensure-refinery-worktree must switch back
+# to the integration branch (re-attach).
+# ---------------------------------------------------------------------------
+RR3="$(new_repo)"
+git -C "$RR3" branch integration/myplan/phase-1 HEAD
+WTR3="$(new_wt_path)"
+run_in "$RR3" ensure-refinery-worktree "$WTR3" integration/myplan/phase-1 >/dev/null 2>&1
+# Detach HEAD inside the refinery worktree (clean tree).
+git -C "$WTR3" checkout --detach HEAD >/dev/null 2>&1
+# Confirm it is detached.
+expect "T1.3 setup: refinery worktree is now detached" \
+  "(detached)" "$(wt_head_branch "$RR3" "$WTR3")"
+code="$(run_in "$RR3" ensure-refinery-worktree "$WTR3" integration/myplan/phase-1)"
+expect "ensure-refinery-worktree re-attaches from detached+clean (exits 0)" 0 "$code"
+expect "re-attach: worktree is now on integration branch" \
+  "integration/myplan/phase-1" "$(wt_on_branch "$RR3" "$WTR3")"
+
+# ---------------------------------------------------------------------------
+# Case (T1.4) Detached AND dirty -> FAIL LOUD, never reset.
+# Detach the worktree and modify a TRACKED file. The dirty check uses -uno so
+# only tracked-file modifications trigger the guard (untracked files like
+# .war-task are safe). ensure-refinery-worktree must exit non-zero and leave
+# the worktree and its dirty modification untouched.
+# ---------------------------------------------------------------------------
+RR4="$(new_repo)"
+git -C "$RR4" branch integration/myplan/phase-1 HEAD
+WTR4="$(new_wt_path)"
+run_in "$RR4" ensure-refinery-worktree "$WTR4" integration/myplan/phase-1 >/dev/null 2>&1
+# Detach HEAD and modify a TRACKED file (seed.txt was committed in setup_repo).
+git -C "$WTR4" checkout --detach HEAD >/dev/null 2>&1
+printf 'dirty-change\n' >> "$WTR4/seed.txt"
+# Confirm dirty (tracked-file modification).
+expect "T1.4 setup: refinery worktree is detached" \
+  "(detached)" "$(wt_head_branch "$RR4" "$WTR4")"
+expect "T1.4 setup: worktree is dirty (tracked-file modification)" \
+  "dirty" "$([ -n "$(git -C "$WTR4" status --porcelain -uno 2>/dev/null)" ] && echo dirty || echo clean)"
+code="$(run_in "$RR4" ensure-refinery-worktree "$WTR4" integration/myplan/phase-1)"
+expect "ensure-refinery-worktree detached+dirty fails loud (exits non-zero)" \
+  "nonzero" "$([ "$code" -ne 0 ] && echo nonzero || echo zero)"
+expect "detached+dirty: worktree tree still dirty (modification not lost)" \
+  "dirty" "$([ -n "$(git -C "$WTR4" status --porcelain -uno 2>/dev/null)" ] && echo dirty || echo clean)"
+expect "detached+dirty: worktree dir intact" \
+  "yes" "$([ -d "$WTR4" ] && echo yes || echo no)"
+
+# ---------------------------------------------------------------------------
+# Case (T1.5) Stale registry (dir gone) -> prune + recreate on the integration
+# branch. The new worktree is on the integration branch with a .war-task marker.
+# ---------------------------------------------------------------------------
+RR5="$(new_repo)"
+git -C "$RR5" branch integration/myplan/phase-1 HEAD
+TIPRI5="$(git -C "$RR5" rev-parse integration/myplan/phase-1)"
+WTR5="$(new_wt_path)"
+run_in "$RR5" ensure-refinery-worktree "$WTR5" integration/myplan/phase-1 >/dev/null 2>&1
+# Delete the worktree dir behind git's back -> stale registry entry.
+rm -rf "$WTR5"
+expect "T1.5 setup: dir is gone but registry stale" \
+  "stale" "$([ ! -d "$WTR5" ] && [ -n "$(wt_on_branch "$RR5" "$WTR5")" ] && echo stale || echo notstale)"
+code="$(run_in "$RR5" ensure-refinery-worktree "$WTR5" integration/myplan/phase-1)"
+expect "ensure-refinery-worktree stale-registry exits 0 after recreate" 0 "$code"
+expect "stale-registry: worktree dir recreated" \
+  "yes" "$([ -d "$WTR5" ] && echo yes || echo no)"
+expect "stale-registry: .war-task marker present" \
+  "yes" "$([ -f "$WTR5/.war-task" ] && echo yes || echo no)"
+expect "stale-registry: worktree on integration branch" \
+  "integration/myplan/phase-1" "$(wt_on_branch "$RR5" "$WTR5")"
+
+# ---------------------------------------------------------------------------
+# Case (T1.6) Non-empty unregistered dir -> fail loud (D7 discipline).
+# An existing dir with content that is NOT a registered worktree must be refused.
+# ---------------------------------------------------------------------------
+RR6="$(new_repo)"
+git -C "$RR6" branch integration/myplan/phase-1 HEAD
+WTR6="$(new_wt_path)"
+mkdir -p "$WTR6"
+printf 'precious refinery data\n' > "$WTR6/PRECIOUS"
+code="$(run_in "$RR6" ensure-refinery-worktree "$WTR6" integration/myplan/phase-1)"
+expect "ensure-refinery-worktree non-empty unregistered dir fails loud (exits non-zero)" \
+  "nonzero" "$([ "$code" -ne 0 ] && echo nonzero || echo zero)"
+expect "non-empty unregistered dir: precious file NOT deleted" \
+  "yes" "$([ -f "$WTR6/PRECIOUS" ] && echo yes || echo no)"
+
 # ---------------------------------------------------------------------------
 printf '\n%d/%d cases passed\n' "$((n - fails))" "$n"
 [ "$fails" -eq 0 ] || { printf '%d FAILED\n' "$fails"; exit 1; }
