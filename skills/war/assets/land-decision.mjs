@@ -3,7 +3,7 @@
 //
 // Reasons that HOLD the land for the Lead (a hard escalation). gate_failed/error are
 // deliberately NOT here: they leave nothing merged, surfaced as 'held:nothing-merged'.
-export const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale']
+export const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed']
 
 // landed:    array of task ids merged onto the integration branch this phase
 // escalated: array of { reason, ... } for tasks that did not merge

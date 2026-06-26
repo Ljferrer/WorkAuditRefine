@@ -34,3 +34,7 @@ test('defaults to nothing-merged with no args', () => {
 test('holds on land_stale (CAS-exhaustion is a hard escalation, distinct from content conflict)', () => {
   assert.equal(decideLand({ escalated: [{ reason: 'land_stale' }] }), 'held:escalation')
 })
+test('dep-failed is a hard escalation reason (F02 foundation)', () => {
+  assert.equal(decideLand({ landed: ['t1'], escalated: [{ reason: 'dep-failed' }] }), 'held:escalation')
+  assert.ok(HARD_ESCALATION_REASONS.includes('dep-failed'))
+})
