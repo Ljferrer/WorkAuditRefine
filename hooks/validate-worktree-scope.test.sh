@@ -139,6 +139,83 @@ expect "war-worker relative path denies (no infinite loop)" \
   2 "$(rel_guard '{"agent_type":"war-worker","tool_input":{"file_path":"relative/sub/file.txt"}}')"
 
 # ---------------------------------------------------------------------------
+# Structural assertion: war-servitor.md frontmatter tools allowlist (F01 D1)
+#
+# The servitor must have a `tools:` line in its YAML frontmatter that explicitly
+# lists exactly Read, Grep, Glob, Write, Edit — and must NOT grant Bash.
+# This pins the capability-allowlist contract so the harness can enforce it.
+# ---------------------------------------------------------------------------
+SERVITOR_MD="$HERE/../agents/war-servitor.md"
+
+# Extract the YAML frontmatter (between the first two --- delimiters).
+# Use awk for portability (no perl, no python) — works on macOS bash 3.2.57.
+frontmatter="$(awk '/^---/{if(++c==2) exit} c==1{print}' "$SERVITOR_MD")"
+
+# Check: tools: line exists in frontmatter
+tools_line="$(printf '%s\n' "$frontmatter" | grep '^tools:')"
+n=$((n + 1))
+if [ -n "$tools_line" ]; then
+  printf 'ok %d - war-servitor.md frontmatter contains tools: line\n' "$n"
+else
+  printf 'FAIL %d - war-servitor.md frontmatter missing tools: line\n' "$n"
+  fails=$((fails + 1))
+fi
+
+# Check: tools line contains Read
+n=$((n + 1))
+if printf '%s\n' "$tools_line" | grep -q 'Read'; then
+  printf 'ok %d - war-servitor.md tools: grants Read\n' "$n"
+else
+  printf 'FAIL %d - war-servitor.md tools: does not grant Read\n' "$n"
+  fails=$((fails + 1))
+fi
+
+# Check: tools line contains Grep
+n=$((n + 1))
+if printf '%s\n' "$tools_line" | grep -q 'Grep'; then
+  printf 'ok %d - war-servitor.md tools: grants Grep\n' "$n"
+else
+  printf 'FAIL %d - war-servitor.md tools: does not grant Grep\n' "$n"
+  fails=$((fails + 1))
+fi
+
+# Check: tools line contains Glob
+n=$((n + 1))
+if printf '%s\n' "$tools_line" | grep -q 'Glob'; then
+  printf 'ok %d - war-servitor.md tools: grants Glob\n' "$n"
+else
+  printf 'FAIL %d - war-servitor.md tools: does not grant Glob\n' "$n"
+  fails=$((fails + 1))
+fi
+
+# Check: tools line contains Write
+n=$((n + 1))
+if printf '%s\n' "$tools_line" | grep -q 'Write'; then
+  printf 'ok %d - war-servitor.md tools: grants Write\n' "$n"
+else
+  printf 'FAIL %d - war-servitor.md tools: does not grant Write\n' "$n"
+  fails=$((fails + 1))
+fi
+
+# Check: tools line contains Edit
+n=$((n + 1))
+if printf '%s\n' "$tools_line" | grep -q 'Edit'; then
+  printf 'ok %d - war-servitor.md tools: grants Edit\n' "$n"
+else
+  printf 'FAIL %d - war-servitor.md tools: does not grant Edit\n' "$n"
+  fails=$((fails + 1))
+fi
+
+# Check: tools line does NOT contain Bash (the key confinement property)
+n=$((n + 1))
+if printf '%s\n' "$tools_line" | grep -qv 'Bash'; then
+  printf 'ok %d - war-servitor.md tools: does NOT grant Bash (confinement real)\n' "$n"
+else
+  printf 'FAIL %d - war-servitor.md tools: grants Bash — confinement is broken\n' "$n"
+  fails=$((fails + 1))
+fi
+
+# ---------------------------------------------------------------------------
 printf '\n%d/%d cases passed\n' "$((n - fails))" "$n"
 [ "$fails" -eq 0 ] || { printf '%d FAILED\n' "$fails"; exit 1; }
 echo "validate-worktree-scope.test.sh: PASS"
