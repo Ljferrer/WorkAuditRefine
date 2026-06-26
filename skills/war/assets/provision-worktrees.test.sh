@@ -452,6 +452,542 @@ code="$(run_in "$RT5" teardown-phase --run-dir "$RD5_MINE" myplan 2)"
 expect "teardown-phase (run-mine) does not touch the other run's worktree" \
   "war/other/p2-t1" "$(wt_on_branch "$RT5" "$WT_OTHER")"
 
+# ===========================================================================
+# Task 1 (clandiso): ensure-refinery-worktree <path> <integration-branch>
+#
+# Behavior (ensure + re-attach, distinct from ensure-worktree's pure no-op reuse):
+#   (a) Not registered / empty dir -> `git worktree add <path> <integration-branch>` + .war-task
+#   (b) Registered + present + HEAD on the integration branch -> reuse untouched (marker only)
+#   (c) Registered + present + HEAD detached or on a different branch AND tree CLEAN ->
+#         `git -C <path> switch <integration-branch>` (re-attach), then reuse
+#   (d) Registered + present + HEAD detached/different + tree DIRTY -> FAIL LOUD (never reset)
+#   (e) Stale registry (dir gone) -> prune + recreate on the integration branch
+#   (f) Non-empty unregistered dir -> fail loud (D7 discipline)
+#
+# Helper: wt_head_branch <repo> <path> -> "(detached)" if HEAD is detached,
+# branch short-name if on a branch, or "" if not a registered worktree at all.
+wt_head_branch() {
+  repo="$1"; want="$(phys_path "$2")"
+  git -C "$repo" worktree list --porcelain 2>/dev/null | awk -v want="$want" '
+    /^worktree / { cur = substr($0, 10); branch = ""; is_detached = 0 }
+    /^branch /   { if (cur == want) branch = substr($0, 8) }
+    /^detached$/ { if (cur == want) is_detached = 1 }
+    /^$/ {
+      if (cur == want) {
+        if (is_detached) print "(detached)"
+        else if (branch != "") print branch
+      }
+      cur = ""; branch = ""; is_detached = 0
+    }
+  ' | sed 's@^refs/heads/@@'
+}
+
+# ---------------------------------------------------------------------------
+# Case (T1.1) Fresh create: ensure-refinery-worktree creates the worktree on
+# the integration branch; .war-task marker is dropped; git worktree list shows
+# the worktree on the integration branch.
+# ---------------------------------------------------------------------------
+RR1="$(new_repo)"
+git -C "$RR1" branch integration/myplan/phase-1 HEAD
+TIPRI1="$(git -C "$RR1" rev-parse integration/myplan/phase-1)"
+WTR1="$(new_wt_path)"
+code="$(run_in "$RR1" ensure-refinery-worktree "$WTR1" integration/myplan/phase-1)"
+expect "ensure-refinery-worktree exits 0 on fresh create" 0 "$code"
+expect "refinery worktree dir exists after create" \
+  "yes" "$([ -d "$WTR1" ] && echo yes || echo no)"
+expect "refinery .war-task marker dropped" \
+  "yes" "$([ -f "$WTR1/.war-task" ] && echo yes || echo no)"
+expect "refinery worktree listed on integration branch" \
+  "integration/myplan/phase-1" "$(wt_on_branch "$RR1" "$WTR1")"
+expect "refinery worktree HEAD at integration tip" \
+  "$TIPRI1" "$(git -C "$WTR1" rev-parse HEAD 2>/dev/null)"
+
+# ---------------------------------------------------------------------------
+# Case (T1.2) Reuse when already on the integration branch: a second call is a
+# no-op — worktree is already registered and HEAD is on the integration branch.
+# A sentinel file in the worktree survives (nothing is reset or recreated).
+# ---------------------------------------------------------------------------
+printf 'sentinel-r2\n' > "$WTR1/SENTINEL"
+code="$(run_in "$RR1" ensure-refinery-worktree "$WTR1" integration/myplan/phase-1)"
+expect "ensure-refinery-worktree reuse-on-integration exits 0" 0 "$code"
+expect "reuse-on-integration: sentinel file survives (no recreation)" \
+  "sentinel-r2" "$(cat "$WTR1/SENTINEL" 2>/dev/null)"
+expect "reuse-on-integration: still on integration branch" \
+  "integration/myplan/phase-1" "$(wt_on_branch "$RR1" "$WTR1")"
+
+# ---------------------------------------------------------------------------
+# Case (T1.3) Re-attach when detached and clean: simulate a crash-mid-land
+# state by detaching HEAD inside the refinery worktree. The tree is CLEAN
+# (no tracked-file modifications). ensure-refinery-worktree must switch back
+# to the integration branch (re-attach).
+# ---------------------------------------------------------------------------
+RR3="$(new_repo)"
+git -C "$RR3" branch integration/myplan/phase-1 HEAD
+WTR3="$(new_wt_path)"
+run_in "$RR3" ensure-refinery-worktree "$WTR3" integration/myplan/phase-1 >/dev/null 2>&1
+# Detach HEAD inside the refinery worktree (clean tree).
+git -C "$WTR3" checkout --detach HEAD >/dev/null 2>&1
+# Confirm it is detached.
+expect "T1.3 setup: refinery worktree is now detached" \
+  "(detached)" "$(wt_head_branch "$RR3" "$WTR3")"
+code="$(run_in "$RR3" ensure-refinery-worktree "$WTR3" integration/myplan/phase-1)"
+expect "ensure-refinery-worktree re-attaches from detached+clean (exits 0)" 0 "$code"
+expect "re-attach: worktree is now on integration branch" \
+  "integration/myplan/phase-1" "$(wt_on_branch "$RR3" "$WTR3")"
+
+# ---------------------------------------------------------------------------
+# Case (T1.4) Detached AND dirty -> FAIL LOUD, never reset.
+# Detach the worktree and modify a TRACKED file. The dirty check uses -uno so
+# only tracked-file modifications trigger the guard (untracked files like
+# .war-task are safe). ensure-refinery-worktree must exit non-zero and leave
+# the worktree and its dirty modification untouched.
+# ---------------------------------------------------------------------------
+RR4="$(new_repo)"
+git -C "$RR4" branch integration/myplan/phase-1 HEAD
+WTR4="$(new_wt_path)"
+run_in "$RR4" ensure-refinery-worktree "$WTR4" integration/myplan/phase-1 >/dev/null 2>&1
+# Detach HEAD and modify a TRACKED file (seed.txt was committed in setup_repo).
+git -C "$WTR4" checkout --detach HEAD >/dev/null 2>&1
+printf 'dirty-change\n' >> "$WTR4/seed.txt"
+# Confirm dirty (tracked-file modification).
+expect "T1.4 setup: refinery worktree is detached" \
+  "(detached)" "$(wt_head_branch "$RR4" "$WTR4")"
+expect "T1.4 setup: worktree is dirty (tracked-file modification)" \
+  "dirty" "$([ -n "$(git -C "$WTR4" status --porcelain -uno 2>/dev/null)" ] && echo dirty || echo clean)"
+code="$(run_in "$RR4" ensure-refinery-worktree "$WTR4" integration/myplan/phase-1)"
+expect "ensure-refinery-worktree detached+dirty fails loud (exits non-zero)" \
+  "nonzero" "$([ "$code" -ne 0 ] && echo nonzero || echo zero)"
+expect "detached+dirty: worktree tree still dirty (modification not lost)" \
+  "dirty" "$([ -n "$(git -C "$WTR4" status --porcelain -uno 2>/dev/null)" ] && echo dirty || echo clean)"
+expect "detached+dirty: worktree dir intact" \
+  "yes" "$([ -d "$WTR4" ] && echo yes || echo no)"
+
+# ---------------------------------------------------------------------------
+# Case (T1.5) Stale registry (dir gone) -> prune + recreate on the integration
+# branch. The new worktree is on the integration branch with a .war-task marker.
+# ---------------------------------------------------------------------------
+RR5="$(new_repo)"
+git -C "$RR5" branch integration/myplan/phase-1 HEAD
+TIPRI5="$(git -C "$RR5" rev-parse integration/myplan/phase-1)"
+WTR5="$(new_wt_path)"
+run_in "$RR5" ensure-refinery-worktree "$WTR5" integration/myplan/phase-1 >/dev/null 2>&1
+# Delete the worktree dir behind git's back -> stale registry entry.
+rm -rf "$WTR5"
+expect "T1.5 setup: dir is gone but registry stale" \
+  "stale" "$([ ! -d "$WTR5" ] && [ -n "$(wt_on_branch "$RR5" "$WTR5")" ] && echo stale || echo notstale)"
+code="$(run_in "$RR5" ensure-refinery-worktree "$WTR5" integration/myplan/phase-1)"
+expect "ensure-refinery-worktree stale-registry exits 0 after recreate" 0 "$code"
+expect "stale-registry: worktree dir recreated" \
+  "yes" "$([ -d "$WTR5" ] && echo yes || echo no)"
+expect "stale-registry: .war-task marker present" \
+  "yes" "$([ -f "$WTR5/.war-task" ] && echo yes || echo no)"
+expect "stale-registry: worktree on integration branch" \
+  "integration/myplan/phase-1" "$(wt_on_branch "$RR5" "$WTR5")"
+
+# ---------------------------------------------------------------------------
+# Case (T1.6) Non-empty unregistered dir -> fail loud (D7 discipline).
+# An existing dir with content that is NOT a registered worktree must be refused.
+# ---------------------------------------------------------------------------
+RR6="$(new_repo)"
+git -C "$RR6" branch integration/myplan/phase-1 HEAD
+WTR6="$(new_wt_path)"
+mkdir -p "$WTR6"
+printf 'precious refinery data\n' > "$WTR6/PRECIOUS"
+code="$(run_in "$RR6" ensure-refinery-worktree "$WTR6" integration/myplan/phase-1)"
+expect "ensure-refinery-worktree non-empty unregistered dir fails loud (exits non-zero)" \
+  "nonzero" "$([ "$code" -ne 0 ] && echo nonzero || echo zero)"
+expect "non-empty unregistered dir: precious file NOT deleted" \
+  "yes" "$([ -f "$WTR6/PRECIOUS" ] && echo yes || echo no)"
+
+# ===========================================================================
+# Task 2 (clandiso): land-advance <working-ref> <new-sha>
+#
+# Push-first cross-run CAS. The caller has already produced <new-sha> (the
+# --no-ff merge of integration into a detached refinery worktree at
+# origin/<working>). Steps:
+#   1. git push origin HEAD:refs/heads/<working>  — named source, no --force;
+#      HEAD in the detached _refinery IS <new-sha>.
+#   2. Classify on the [rejected] token (always emitted on non-ff rejection):
+#        [rejected] present -> exit RELAND code (2)
+#        clean exit 0      -> success (continue to step 3)
+#        other non-zero    -> exit ESCALATE code (3)
+#   3. ONLY on push success: git update-ref refs/heads/<working> <new-sha> <pre-push-local-tip>
+#
+# Exit codes:
+#   0  -> push accepted; local follower advanced
+#   2  -> push rejected ([rejected] token seen); local ref UNCHANGED
+#   3  -> unrelated push error (not a non-ff rejection); escalate
+#
+# Test harness uses a bare origin + two clones to simulate cross-run races
+# deterministically (same method as spec §12):
+#   setup_origin_pair <slug> -> creates origin.git + clone1 + clone2;
+#     echoes "clone1_path clone2_path origin_path" space-separated.
+# ---------------------------------------------------------------------------
+
+# setup_origin_pair -> bare origin + two working clones; both clones track origin.
+# Echoes "clone1 clone2 origin" space-separated.
+setup_origin_pair() {
+  ORIG="$(mktemp -d 2>/dev/null || mktemp -d -t warorg)"
+  REPOS="$REPOS $ORIG"
+  git init --bare -q "$ORIG/origin.git"
+  # Clone 1 (the "refinery" that will call land-advance).
+  C1="$(mktemp -d 2>/dev/null || mktemp -d -t warc1)"
+  REPOS="$REPOS $C1"
+  git clone -q "$ORIG/origin.git" "$C1/clone1" 2>/dev/null
+  git -C "$C1/clone1" config user.email war@test.local
+  git -C "$C1/clone1" config user.name "WAR Test"
+  git -C "$C1/clone1" config commit.gpgsign false
+  # Clone 2 (the "out-of-band advancer").
+  C2="$(mktemp -d 2>/dev/null || mktemp -d -t warc2)"
+  REPOS="$REPOS $C2"
+  git clone -q "$ORIG/origin.git" "$C2/clone2" 2>/dev/null
+  git -C "$C2/clone2" config user.email war@test.local
+  git -C "$C2/clone2" config user.name "WAR Test"
+  git -C "$C2/clone2" config commit.gpgsign false
+  echo "$C1/clone1 $C2/clone2 $ORIG/origin.git"
+}
+
+# run_in_detached <repo-path> <new-sha> <args...> -> run the script from within
+# a detached HEAD at <new-sha> (simulating the refinery's detached state after
+# `--no-ff` merge). Echoes exit code.
+run_in_detached() {
+  repo="$1"; sha="$2"; shift 2
+  ( cd "$repo" && git checkout --detach "$sha" >/dev/null 2>&1 && bash "$SCRIPT" "$@" ) >/dev/null 2>&1
+  echo $?
+}
+
+# ---------------------------------------------------------------------------
+# Seed helper: create an initial commit in clone1, push it to origin as the
+# <working> branch, then set up clone2 so it is checked out on <working> and
+# can make ff-valid OOB advances. Returns the initial SHA on stdout.
+# ---------------------------------------------------------------------------
+seed_working_branch() {
+  c1="$1"; c2="$2"; working="$3"
+  # Create a seed commit in clone1.
+  printf 'init-land\n' > "$c1/seed-land.txt"
+  git -C "$c1" add -A
+  git -C "$c1" commit -qm "seed land branch"
+  SEED_SHA="$(git -C "$c1" rev-parse HEAD)"
+  # Push to origin as the working branch.
+  git -C "$c1" push -q origin "HEAD:refs/heads/$working"
+  # Create local tracking branch in clone1 at SEED_SHA (the local follower).
+  git -C "$c1" branch "$working" "$SEED_SHA"
+  # Set up clone2: fetch, then CHECK OUT the working branch so that OOB commits
+  # land on it (making clone2 a valid ff-ancestor for the out-of-band advance).
+  git -C "$c2" fetch -q origin
+  git -C "$c2" checkout -q -b "$working" "origin/$working" 2>/dev/null \
+    || git -C "$c2" checkout -q "$working" 2>/dev/null \
+    || true
+  echo "$SEED_SHA"
+}
+
+# ---------------------------------------------------------------------------
+# Case (T2.1) Origin advanced out-of-band -> push REJECTED, exit=RELAND (2),
+# AND the local working ref in clone1 is byte-identical to before the call.
+# ---------------------------------------------------------------------------
+PAIR1="$(setup_origin_pair)"
+C1_1="$(printf '%s' "$PAIR1" | cut -d' ' -f1)"
+C2_1="$(printf '%s' "$PAIR1" | cut -d' ' -f2)"
+ORIG1="$(printf '%s' "$PAIR1" | cut -d' ' -f3)"
+
+SEED1="$(seed_working_branch "$C1_1" "$C2_1" "working/myplan")"
+
+# Advance origin/<working> out-of-band via clone2 (simulating a concurrent run
+# winning the CAS before clone1 calls land-advance).
+printf 'concurrent-win\n' > "$C2_1/extra.txt"
+git -C "$C2_1" add -A
+git -C "$C2_1" commit -qm "concurrent run advances origin"
+OOB_SHA="$(git -C "$C2_1" rev-parse HEAD)"
+git -C "$C2_1" push -q origin "HEAD:refs/heads/working/myplan"
+
+# Now clone1 produces its own new-sha (a --no-ff merge, simulated here as a
+# separate commit at origin's SEED_SHA parent — not a descendant of OOB_SHA,
+# making the push a genuine non-ff rejection).
+printf 'clone1-merge\n' > "$C1_1/merge.txt"
+git -C "$C1_1" add -A
+git -C "$C1_1" commit -qm "clone1 merge sha"
+NEW_SHA1="$(git -C "$C1_1" rev-parse HEAD)"
+
+# Record the local working ref SHA before calling land-advance.
+LOCAL_BEFORE1="$(git -C "$C1_1" rev-parse "refs/heads/working/myplan" 2>/dev/null)"
+
+# Run land-advance from clone1 in a detached HEAD at NEW_SHA1.
+code="$(run_in_detached "$C1_1" "$NEW_SHA1" land-advance working/myplan "$NEW_SHA1")"
+
+# The [rejected] token causes exit RELAND=2.
+expect "T2.1: origin out-of-band -> push rejected, exit RELAND code" \
+  "2" "$code"
+# Local working ref must be UNCHANGED (byte-identical to before).
+LOCAL_AFTER1="$(git -C "$C1_1" rev-parse "refs/heads/working/myplan" 2>/dev/null)"
+expect "T2.1: local working ref is byte-identical to before (rejected push leaves local unchanged)" \
+  "$LOCAL_BEFORE1" "$LOCAL_AFTER1"
+
+# ---------------------------------------------------------------------------
+# Case (T2.2) Origin at expected tip -> push accepted, local follower advanced
+# to <new-sha>.
+# ---------------------------------------------------------------------------
+PAIR2="$(setup_origin_pair)"
+C1_2="$(printf '%s' "$PAIR2" | cut -d' ' -f1)"
+C2_2="$(printf '%s' "$PAIR2" | cut -d' ' -f2)"
+ORIG2="$(printf '%s' "$PAIR2" | cut -d' ' -f3)"
+
+SEED2="$(seed_working_branch "$C1_2" "$C2_2" "working/myplan2")"
+
+# clone1 produces its new-sha (a ff-pushable descendant of SEED2).
+printf 'clone1-merge2\n' > "$C1_2/merge2.txt"
+git -C "$C1_2" add -A
+git -C "$C1_2" commit -qm "clone1 merge sha for T2.2"
+NEW_SHA2="$(git -C "$C1_2" rev-parse HEAD)"
+
+# Origin is still at SEED2 (no out-of-band advance) — push should be accepted.
+code="$(run_in_detached "$C1_2" "$NEW_SHA2" land-advance working/myplan2 "$NEW_SHA2")"
+
+expect "T2.2: origin at expected tip -> push accepted, exit 0" \
+  "0" "$code"
+# Local follower must now point at NEW_SHA2.
+LOCAL_AFTER2="$(git -C "$C1_2" rev-parse "refs/heads/working/myplan2" 2>/dev/null)"
+expect "T2.2: local follower advanced to <new-sha>" \
+  "$NEW_SHA2" "$LOCAL_AFTER2"
+# Origin must also be at NEW_SHA2.
+ORIGIN_AFTER2="$(git -C "$C1_2" ls-remote origin "refs/heads/working/myplan2" 2>/dev/null | cut -f1)"
+expect "T2.2: origin/<working> advanced to <new-sha>" \
+  "$NEW_SHA2" "$ORIGIN_AFTER2"
+
+# ---------------------------------------------------------------------------
+# Case (T2.3) Unrelated push error (not a non-ff rejection) -> exit ESCALATE
+# code, not RELAND. Simulate by pointing the remote at a non-existent path so
+# git push errors without ever printing [rejected].
+# ---------------------------------------------------------------------------
+PAIR3="$(setup_origin_pair)"
+C1_3="$(printf '%s' "$PAIR3" | cut -d' ' -f1)"
+C2_3="$(printf '%s' "$PAIR3" | cut -d' ' -f2)"
+ORIG3="$(printf '%s' "$PAIR3" | cut -d' ' -f3)"
+
+SEED3="$(seed_working_branch "$C1_3" "$C2_3" "working/myplan3")"
+
+# Break the remote URL so the push fails for a non-CAS reason.
+git -C "$C1_3" remote set-url origin "/nonexistent/path/that/cannot/be/a/repo.git"
+
+printf 'clone1-merge3\n' > "$C1_3/merge3.txt"
+git -C "$C1_3" add -A
+git -C "$C1_3" commit -qm "clone1 merge sha for T2.3"
+NEW_SHA3="$(git -C "$C1_3" rev-parse HEAD)"
+
+code="$(run_in_detached "$C1_3" "$NEW_SHA3" land-advance working/myplan3 "$NEW_SHA3")"
+
+expect "T2.3: unrelated push error -> exit ESCALATE code (3), not RELAND (2)" \
+  "3" "$code"
+
+# ===========================================================================
+# Task 3 (clandiso): teardown-phase --worktree-root <root> — reap _refinery
+# by path + verified integration delete.
+#
+# New flag: teardown-phase --run-dir <ledger-dir> --worktree-root <wt-root>
+#           <slug> <N>
+#
+# The _refinery lives at <worktreeRoot>/<runId>/_refinery, where <runId> is
+# derived from the basename of --run-dir. The reap is path-based (branch-
+# agnostic: works whether _refinery is on the integration branch or detached)
+# and guarded by its own path_under check scoped to <worktreeRoot>/<runId>.
+#
+# The integration branch delete now FAILS LOUD on error (propagates non-zero)
+# instead of swallowing the error via `|| warn` (which returns 0 today).
+#
+# --keep preserves _refinery for inspection.
+#
+# Helper: run_id_from_dir <dir> -> echoes the basename (the run-id component).
+run_id_from_dir() { basename "$1"; }
+
+# mk_wt_root <parent> <run-id> -> echo <parent>/<run-id> (parent created).
+# The _refinery will be placed at <parent>/<run-id>/_refinery by the test.
+mk_wt_root() {
+  wtr="$1"
+  mkdir -p "$wtr"
+  echo "$wtr"
+}
+
+# ---------------------------------------------------------------------------
+# Case (T3a) teardown-phase reaps an ON-INTEGRATION _refinery (worktree is
+# present, registered, and HEAD is on the integration branch). After teardown,
+# the _refinery dir and its registry entry must be gone, and the integration
+# branch itself must be deleted.
+# ---------------------------------------------------------------------------
+RTP_A="$(new_repo)"
+git -C "$RTP_A" branch integration/myplan/phase-3 HEAD
+TIPTA="$(git -C "$RTP_A" rev-parse integration/myplan/phase-3)"
+
+# Layout: run-dir is <repo>/.claude/teams/<runId>
+#         worktree-root is <repo>/.claude/worktrees
+RD_TA="$(mk_run_dir "$RTP_A" run-ta1)"
+RUN_ID_TA="run-ta1"
+WT_ROOT_TA="$RTP_A/.claude/worktrees"
+mkdir -p "$WT_ROOT_TA/$RUN_ID_TA"
+REFINERY_TA="$WT_ROOT_TA/$RUN_ID_TA/_refinery"
+
+# Provision the _refinery worktree on the integration branch (on-integration case).
+run_in "$RTP_A" ensure-refinery-worktree "$REFINERY_TA" "integration/myplan/phase-3" >/dev/null 2>&1
+expect "T3a setup: _refinery is registered and present on integration branch" \
+  "integration/myplan/phase-3" "$(wt_head_branch "$RTP_A" "$REFINERY_TA")"
+expect "T3a setup: integration branch exists" \
+  "yes" "$(branch_exists_in "$RTP_A" integration/myplan/phase-3)"
+
+code="$(run_in "$RTP_A" teardown-phase \
+  --run-dir "$RD_TA" \
+  --worktree-root "$WT_ROOT_TA" \
+  myplan 3)"
+expect "T3a: teardown-phase exits 0 (on-integration _refinery reaped)" \
+  "0" "$code"
+expect "T3a: _refinery dir gone after teardown" \
+  "no" "$([ -d "$REFINERY_TA" ] && echo yes || echo no)"
+expect "T3a: _refinery registry entry gone after teardown" \
+  "" "$(wt_head_branch "$RTP_A" "$REFINERY_TA")"
+expect "T3a: integration branch deleted after teardown" \
+  "no" "$(branch_exists_in "$RTP_A" integration/myplan/phase-3)"
+
+# ---------------------------------------------------------------------------
+# Case (T3b) teardown-phase reaps a DETACHED _refinery (HEAD is detached —
+# the post-land state after a successful merge). Path-based reap must work
+# whether _refinery is on-integration or detached.
+# ---------------------------------------------------------------------------
+RTP_B="$(new_repo)"
+git -C "$RTP_B" branch integration/myplan/phase-4 HEAD
+TIPTB="$(git -C "$RTP_B" rev-parse integration/myplan/phase-4)"
+
+RD_TB="$(mk_run_dir "$RTP_B" run-tb1)"
+RUN_ID_TB="run-tb1"
+WT_ROOT_TB="$RTP_B/.claude/worktrees"
+mkdir -p "$WT_ROOT_TB/$RUN_ID_TB"
+REFINERY_TB="$WT_ROOT_TB/$RUN_ID_TB/_refinery"
+
+# Provision the _refinery worktree on the integration branch, then detach HEAD.
+run_in "$RTP_B" ensure-refinery-worktree "$REFINERY_TB" "integration/myplan/phase-4" >/dev/null 2>&1
+# Detach HEAD in the refinery (simulating the post-merge detached state).
+git -C "$REFINERY_TB" checkout --detach HEAD >/dev/null 2>&1
+expect "T3b setup: _refinery is in detached HEAD state" \
+  "(detached)" "$(wt_head_branch "$RTP_B" "$REFINERY_TB")"
+expect "T3b setup: integration branch exists" \
+  "yes" "$(branch_exists_in "$RTP_B" integration/myplan/phase-4)"
+
+code="$(run_in "$RTP_B" teardown-phase \
+  --run-dir "$RD_TB" \
+  --worktree-root "$WT_ROOT_TB" \
+  myplan 4)"
+expect "T3b: teardown-phase exits 0 (detached _refinery reaped)" \
+  "0" "$code"
+expect "T3b: detached _refinery dir gone after teardown" \
+  "no" "$([ -d "$REFINERY_TB" ] && echo yes || echo no)"
+expect "T3b: detached _refinery registry entry gone after teardown" \
+  "" "$(wt_head_branch "$RTP_B" "$REFINERY_TB")"
+expect "T3b: integration branch deleted after teardown (detached case)" \
+  "no" "$(branch_exists_in "$RTP_B" integration/myplan/phase-4)"
+
+# ---------------------------------------------------------------------------
+# Case (T3c) Integration branch delete FAILS LOUD if the _refinery is still
+# checked out on it (i.e. when no --worktree-root is supplied and the old
+# behavior would silently swallow the error). Specifically: if _refinery is
+# NOT reaped first (by omitting --worktree-root so _refinery remains checked
+# out on the integration branch), the delete_branch call must now propagate a
+# real non-zero exit. We test this by calling teardown-phase WITHOUT
+# --worktree-root while the _refinery is on the integration branch — git will
+# refuse to delete the branch, and teardown-phase must exit non-zero.
+# ---------------------------------------------------------------------------
+RTP_C="$(new_repo)"
+git -C "$RTP_C" branch integration/myplan/phase-5 HEAD
+TIPTC="$(git -C "$RTP_C" rev-parse integration/myplan/phase-5)"
+
+RD_TC="$(mk_run_dir "$RTP_C" run-tc1)"
+WT_ROOT_TC="$RTP_C/.claude/worktrees"
+mkdir -p "$WT_ROOT_TC/run-tc1"
+REFINERY_TC="$WT_ROOT_TC/run-tc1/_refinery"
+
+# Provision _refinery on the integration branch; do NOT reap it before calling
+# teardown-phase (simulate the missing --worktree-root scenario).
+run_in "$RTP_C" ensure-refinery-worktree "$REFINERY_TC" "integration/myplan/phase-5" >/dev/null 2>&1
+expect "T3c setup: _refinery is on integration branch (not yet reaped)" \
+  "integration/myplan/phase-5" "$(wt_head_branch "$RTP_C" "$REFINERY_TC")"
+
+# Call teardown-phase WITHOUT --worktree-root: _refinery stays, git refuses to
+# delete the branch that is checked out — teardown-phase must exit non-zero.
+code="$(run_in "$RTP_C" teardown-phase --run-dir "$RD_TC" myplan 5)"
+expect "T3c: teardown-phase exits non-zero when integration branch cannot be deleted (checked out in _refinery)" \
+  "nonzero" "$([ "$code" -ne 0 ] && echo nonzero || echo zero)"
+# Integration branch must still exist (not partially deleted).
+expect "T3c: integration branch still present after failed teardown" \
+  "yes" "$(branch_exists_in "$RTP_C" integration/myplan/phase-5)"
+
+# ---------------------------------------------------------------------------
+# Case (T3d) An out-of-run _refinery path is refused. If the _refinery path
+# supplied via --worktree-root would compute a refinery path OUTSIDE
+# <worktreeRoot>/<runId> (e.g. a worktree-root whose run-id component differs),
+# teardown-phase must fail loud instead of removing foreign data.
+# We test this by supplying a --worktree-root that puts the _refinery under a
+# DIFFERENT run-id than the one derived from --run-dir.
+# ---------------------------------------------------------------------------
+RTP_D="$(new_repo)"
+git -C "$RTP_D" branch integration/myplan/phase-6 HEAD
+
+RD_TD="$(mk_run_dir "$RTP_D" run-td1)"
+# A worktree-root that corresponds to a DIFFERENT run-id than run-td1.
+WT_ROOT_TD_OTHER="$RTP_D/.claude/worktrees-FOREIGN"
+mkdir -p "$WT_ROOT_TD_OTHER/run-FOREIGN"
+REFINERY_TD_FOREIGN="$WT_ROOT_TD_OTHER/run-FOREIGN/_refinery"
+run_in "$RTP_D" ensure-refinery-worktree "$REFINERY_TD_FOREIGN" "integration/myplan/phase-6" >/dev/null 2>&1
+expect "T3d setup: foreign _refinery registered" \
+  "integration/myplan/phase-6" "$(wt_head_branch "$RTP_D" "$REFINERY_TD_FOREIGN")"
+
+# Supplying the foreign worktree-root: the computed _refinery path would be
+# <WT_ROOT_TD_OTHER>/run-td1/_refinery which is NOT where the actual foreign
+# _refinery lives. The guard must refuse or simply not match the out-of-run path.
+# What we test: passing a --worktree-root that points to a DIFFERENT run-id's
+# dir; teardown-phase should not remove the foreign refinery that isn't at the
+# expected path. The foreign one must remain untouched.
+code="$(run_in "$RTP_D" teardown-phase \
+  --run-dir "$RD_TD" \
+  --worktree-root "$WT_ROOT_TD_OTHER" \
+  myplan 6)"
+# Whether it exits 0 or non-zero depends on whether the integration branch
+# delete succeeds (it will if the foreign refinery is NOT under integration
+# branch — but actually it IS, which means git WILL refuse to delete the
+# integration branch that's checked out in REFINERY_TD_FOREIGN). So:
+# teardown-phase cannot delete the branch, exits non-zero.
+expect "T3d: teardown-phase exits non-zero (foreign _refinery path not under run-scope; branch still checked out)" \
+  "nonzero" "$([ "$code" -ne 0 ] && echo nonzero || echo zero)"
+# The foreign _refinery must remain untouched (not deleted).
+expect "T3d: out-of-run _refinery dir remains intact" \
+  "yes" "$([ -d "$REFINERY_TD_FOREIGN" ] && echo yes || echo no)"
+expect "T3d: out-of-run _refinery still registered to its repo" \
+  "integration/myplan/phase-6" "$(wt_head_branch "$RTP_D" "$REFINERY_TD_FOREIGN")"
+
+# ---------------------------------------------------------------------------
+# Case (T3e) --keep preserves _refinery. When teardown-phase is called with
+# --keep, neither the _refinery nor the integration branch is removed.
+# ---------------------------------------------------------------------------
+RTP_E="$(new_repo)"
+git -C "$RTP_E" branch integration/myplan/phase-7 HEAD
+
+RD_TE="$(mk_run_dir "$RTP_E" run-te1)"
+WT_ROOT_TE="$RTP_E/.claude/worktrees"
+mkdir -p "$WT_ROOT_TE/run-te1"
+REFINERY_TE="$WT_ROOT_TE/run-te1/_refinery"
+
+run_in "$RTP_E" ensure-refinery-worktree "$REFINERY_TE" "integration/myplan/phase-7" >/dev/null 2>&1
+expect "T3e setup: _refinery present on integration branch" \
+  "integration/myplan/phase-7" "$(wt_head_branch "$RTP_E" "$REFINERY_TE")"
+
+code="$(run_in "$RTP_E" teardown-phase \
+  --keep \
+  --run-dir "$RD_TE" \
+  --worktree-root "$WT_ROOT_TE" \
+  myplan 7)"
+expect "T3e: teardown-phase --keep exits 0" \
+  "0" "$code"
+expect "T3e: --keep preserves _refinery dir" \
+  "yes" "$([ -d "$REFINERY_TE" ] && echo yes || echo no)"
+expect "T3e: --keep preserves _refinery registry entry" \
+  "integration/myplan/phase-7" "$(wt_head_branch "$RTP_E" "$REFINERY_TE")"
+expect "T3e: --keep preserves the integration branch" \
+  "yes" "$(branch_exists_in "$RTP_E" integration/myplan/phase-7)"
+
 # ---------------------------------------------------------------------------
 printf '\n%d/%d cases passed\n' "$((n - fails))" "$n"
 [ "$fails" -eq 0 ] || { printf '%d FAILED\n' "$fails"; exit 1; }

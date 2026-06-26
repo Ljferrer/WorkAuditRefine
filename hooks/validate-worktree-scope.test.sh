@@ -106,13 +106,34 @@ expect "no file_path -> allowed" \
 # TERMINATE. The ancestor walk uses `dirname`, which converges to "." for a
 # relative path and `dirname .` == "." — without a progress guard the loop
 # spins forever and hangs the PreToolUse hook. We bound the call so a
-# regression surfaces as a timeout (124/142) instead of hanging this suite.
+# regression surfaces as a timeout instead of hanging this suite.
+#
+# Implementation: use `timeout` when available (Linux/brew coreutils); fall
+# back to a background-watchdog approach that works on macOS bash 3.2.57 where
+# `perl -e 'alarm N; exec @ARGV'` does not propagate the child's exit code.
+# rel_guard <payload>: runs the hook from a clean temp dir (no .war-task
+# ancestor) to prevent the CWD's own .war-task from satisfying the walk.
+# Uses `timeout` when available; falls back to a background-watchdog pattern
+# that works on macOS bash 3.2.57 (perl alarm+exec does not propagate exit codes
+# reliably on macOS).
 rel_guard() {
+  _rg_clean="$(mktemp -d 2>/dev/null || mktemp -d -t rg_clean)"
   if command -v timeout >/dev/null 2>&1; then
-    printf '%s' "$1" | timeout 10 bash "$HOOK" >/dev/null 2>&1; echo $?
-  else
-    printf '%s' "$1" | perl -e 'alarm 10; exec @ARGV' bash "$HOOK" >/dev/null 2>&1; echo $?
+    _rg_rc=0
+    ( cd "$_rg_clean" && printf '%s' "$1" | timeout 10 bash "$HOOK" >/dev/null 2>&1 ) || _rg_rc=$?
+    rm -rf "$_rg_clean"
+    echo "$_rg_rc"
+    return
   fi
+  # MacOS fallback: run hook in background from a clean dir; kill if too slow.
+  ( cd "$_rg_clean" && printf '%s' "$1" | bash "$HOOK" >/dev/null 2>&1 ) &
+  _rg_pid=$!
+  ( sleep 10 2>/dev/null && kill "$_rg_pid" 2>/dev/null ) &
+  _rg_wdog=$!
+  wait "$_rg_pid" 2>/dev/null; _rg_rc=$?
+  kill "$_rg_wdog" 2>/dev/null; wait "$_rg_wdog" 2>/dev/null || true
+  rm -rf "$_rg_clean"
+  echo "$_rg_rc"
 }
 expect "war-worker relative path denies (no infinite loop)" \
   2 "$(rel_guard '{"agent_type":"war-worker","tool_input":{"file_path":"relative/sub/file.txt"}}')"
