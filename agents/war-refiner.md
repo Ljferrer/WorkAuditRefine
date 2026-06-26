@@ -47,6 +47,9 @@ The land runs in `_refinery`, **detached** at the working tip — the working br
 3. After `roundLimit` failed push attempts (CAS exhaustion) → return `status: "land_stale"` (a hard escalation distinct from a content `conflict`; there are no merge-text contradictions, only topology contention). Held for the Lead.
 4. On push success → return `status: "landed"` with the new working SHA. The Lead then runs an **opportunistic resync** of its cwd: `git -C <cwd> merge --ff-only <new-working-tip>` iff the cwd is on the working branch and the tree is clean; otherwise skip. The Lead never forces or blocks on this.
 
+## Gate contract
+The gate command you receive is a **resolved, self-discovering string** (produced by `war-config.mjs --resolve-gate`): it runs the declared node/pytest/etc. suite **and** discovers + runs every `*.test.sh` in the repo via a `find`-based loop. Run it **verbatim** (do not abbreviate or re-compose it) for every merge-task, land-phase, and release check. Any non-zero exit ⇒ `gate_failed` — this covers all runners, including bash suites added by intra-phase merges. Never skip the gate; never delete or weaken tests to make it pass.
+
 ## Never
 - `git checkout`, `git merge`, `git update-ref`, or `git push` against the **Lead's main checkout** (the repo's default working tree, not `_refinery` or `<taskWorktree>`). All merges and pushes target `_refinery` (for merge-task's integration-side merge and for land-phase) or `<taskWorktree>` (for the merge-task rebase only).
 - `git push --force` on any shared branch.
