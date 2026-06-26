@@ -110,8 +110,11 @@ Produced by `/war-room`, consumed by `/war`'s Setup. The schema, defaults, prese
   audit: {
     covenSize,                               // integer >= 1 — seats when a coven convenes
     lenses: ["correctness","cascading-impact","plan-faithfulness"],
-    covenPolicy: "auto" | "all" | "solo",    // seeds per-task coven flags at the decompose gate
+    covenPolicy: "all" | "auto" | "solo",    // seeds per-task coven flags at the decompose gate; default: "all" (full 3-lens panel at deep on every task — F06)
     autoEscalate: true },                    // 1->coven on a Critical/low-confidence lone seat; set false (with covenPolicy:"solo") to pin one auditor
+// COST NOTE (F06): the default covenPolicy:"all" spawns 3 deep auditor seats per task on the happy path
+// (correctness + cascading-impact + plan-faithfulness, unanimous, at deep depth). Budget accordingly.
+// Use covenPolicy:"solo" (economy preset) for cost-sensitive runs — one seat at neighbors depth.
   run: { roundLimit, afk },                  // roundLimit >= 1; afk = default for /war --afk
   overrides: { gate, workingBranch, landingBranch, learningsTarget } }  // null = let /war auto-detect
 // overrides.gate is the *declared base* command (string|null); the *resolved* gate run by agents

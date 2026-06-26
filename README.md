@@ -11,7 +11,7 @@ Given a plan like `docs/implement/implementation_plan_A.md`, `/war` will:
 1. **Decompose** the plan into a phase → task DAG and propose it to you as GitHub issues — all phase **epics up front**, task **sub-issues just-in-time** per phase. *You approve before anything spawns.*
 2. For each phase, run a **Workflow** that:
    - **Works** — fresh worker agents implement each task in isolated git worktrees, writing the plan's mapped tests.
-   - **Audits** — independent, read-only auditor seats review each task (severity-tagged findings; Critical/Major block; unanimous on one SHA; a coven of 3 with diverse lenses for high-blast-radius tasks).
+   - **Audits** — independent, read-only auditor seats review each task (severity-tagged findings; Critical/Major block; unanimous on one SHA). By default, every task receives a full multi-lens panel: three independent, unanimous auditor seats (`correctness`, `cascading-impact`, `plan-faithfulness`) at `deep` depth.
    - **Refines** — a serial merge queue rebases, re-runs the gate (`tests/lint`), and lands approved tasks on a per-phase integration branch.
    - **Records** — after the phase lands, a write-scoped servitor captures durable learnings into memory.
 3. **Lands** each phase onto your working branch as one `--no-ff` commit, pushes, and **checks in with you**.
