@@ -8,7 +8,7 @@ export const BLOCKER_SEVERITIES = ['Critical', 'Major']
 
 export function allFindings(results) {
   return (results || []).flatMap(r =>
-    r && Array.isArray(r.findings) ? r.findings.map(f => ({ probe: r.probe, ...f })) : [])
+    r && Array.isArray(r.findings) ? r.findings.map(f => ({ probe: r.probe, probeStatus: r.status, ...f })) : [])
 }
 
 // --- Layer 3: anchor attestation --------------------------------------------
@@ -78,7 +78,7 @@ export function dedupe(findings) {
 export function classify(findings) {
   const fs = dedupe(findings)
   return {
-    blockers:      fs.filter(f => BLOCKER_SEVERITIES.includes(f.severity)),
+    blockers:      fs.filter(f => BLOCKER_SEVERITIES.includes(f.severity) && f.probeStatus !== 'pass'),
     needsDecision: fs.filter(f => f.needsDecision === true),
     minors:        fs.filter(f => f.severity === 'Minor' && f.needsDecision !== true),
   }
