@@ -158,6 +158,14 @@ Or invoke it in natural language — e.g. *"To the war room!"*.
 
 It interviews you (starting from a **balanced / thorough / economy** preset, then only the overrides you ask for), validates your choices, and writes `.claude/war/config.json`. `/war` auto-discovers that file on its next run (or pass `--config <path>`). **No config file → today's defaults, unchanged.** Design notes: [`docs/specs/2026-06-18-war-room-design.md`](docs/specs/2026-06-18-war-room-design.md).
 
+**For best results** I recommend using:
+
+```
+/war-room thorough preset + servitor Opus (default effort)
+```
+
+> NOTE: This configuration absolutely pumps tokens.
+
 ## Harden a plan (`/red-team`)
 
 Before you hand a plan to `/war`, attack it. `/red-team <plan-file>` reads the plan, runs a universal spine of adversarial checks plus probes tailored to the plan, and **proves** the plan's claims by running its tests/edits/commands in throwaway sandboxes — never touching your repo. It then grills you on every blocker and patches the plan in place until it is **CLEARED**, leaving a report under `docs/red-team/`.
