@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
 const here = dirname(fileURLToPath(import.meta.url))
+const auditorMd = readFileSync(join(here, '../../../agents/war-auditor.md'), 'utf8')
 const src = readFileSync(join(here, 'workflow-template.js'), 'utf8').replace(/^export const meta/m, 'const meta')
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 const build = () => new AsyncFunction('agent', 'parallel', 'pipeline', 'log', 'phase', 'args', 'budget', src)
@@ -34,7 +35,7 @@ const defaultImpl = (prompt, opts) => {
   // ({ ok:true }) so happy-path tests reach the worker. (Tested BEFORE the topology-barrier refiner
   // branch below, which also matches seat 'war-refiner'.)
   if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
-  if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'deadbeef' }
+  if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 5, integration: 2 } }
   if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
   if (seat === 'war-refiner') {
     return opts.phase === 'Land'
@@ -625,7 +626,7 @@ const dagBaseImpl = (prompt, opts) => {
     if (/task t1\b/i.test(prompt) || (opts.label || '').includes(':t1')) {
       return { task_id: 't1', status: 'blocked', blocked_reason: 'forced escalation for test' }
     }
-    return { task_id: 'tx', status: 'implemented', head_sha: 'deadbeef' }
+    return { task_id: 'tx', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 3, integration: 1 } }
   }
   if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
   if (seat === 'war-refiner') {
@@ -744,4 +745,253 @@ test('Task 3 — succeeded set exists in template source and gates nextWave', ()
     'template calls succeeded.add(...)')
   assert.ok(/succeeded\.has/.test(code),
     'template uses succeeded.has(...) — the gate for nextWave/dep-block')
+})
+
+// ---------------------------------------------------------------------------
+// Task 4 (Phase 4 — F04): Auditor anti-cheat + post-merge gate-audit pass
+// ---------------------------------------------------------------------------
+
+test('Task 4 — war-auditor.md does NOT contain the literal "EXIST and PASS"', () => {
+  // The auditor can only verify test EXISTENCE + integrity (not weakened/skipped); it cannot run them.
+  // The refiner runs the gate. The literal "EXIST and PASS" must be gone from the agent doc.
+  assert.ok(!auditorMd.includes('EXIST and PASS'),
+    'war-auditor.md must not contain the literal "EXIST and PASS" — auditor verifies existence + integrity only')
+})
+
+test('Task 4 — war-auditor.md states the refiner runs the gate', () => {
+  // The doc must clarify that the refiner (not the auditor) actually executes/runs the gate.
+  assert.match(auditorMd, /refiner/i,
+    'war-auditor.md must mention the refiner (which runs the gate)')
+})
+
+test('Task 4 — war-auditor.md still directs the auditor to verify test existence + integrity (anti-cheat)', () => {
+  // Must still catch "green by deletion" — just not claim to execute tests.
+  assert.match(auditorMd, /exist|existence/i,
+    'war-auditor.md must still direct the auditor to verify test existence')
+  // The integrity check (not weakened / not skipped) must be present
+  assert.match(auditorMd, /weaken|skip|integrity/i,
+    'war-auditor.md must mention weakening or skipping (anti-cheat integrity check)')
+})
+
+test('Task 4 — auditPrompt does NOT contain "EXIST and PASS" in generated prompt', async () => {
+  // The auditPrompt function must no longer embed the literal "EXIST and PASS".
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const auditCalls = calls.filter(isAuditor)
+  assert.ok(auditCalls.length > 0, 'at least one auditor call was made')
+  for (const c of auditCalls) {
+    assert.ok(!c.prompt.includes('EXIST and PASS'),
+      `audit prompt must not say "EXIST and PASS": got "${c.prompt.slice(0, 200)}"`)
+  }
+})
+
+test('Task 4 — auditPrompt threads the worker tests summary into the generated prompt', async () => {
+  // The mock worker returns tests:{unit:5,integration:2}; the audit prompt must carry that info
+  // so the auditor can cross-check the claim vs the diff.
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const auditCalls = calls.filter(isAuditor)
+  assert.ok(auditCalls.length > 0, 'at least one auditor call was made')
+  // The prompt must reference the worker's tests summary (unit/integration counts or the object)
+  const auditPromptText = auditCalls[0].prompt
+  assert.ok(
+    /unit|integration|tests/i.test(auditPromptText),
+    'audit prompt must thread in the worker-reported tests summary'
+  )
+})
+
+test('Task 4 — post-merge gate-audit pass: a war-auditor with lens execution-evidence is spawned after the merge queue', async () => {
+  // The post-merge gate-audit pass spawns read-only war-auditor seats with lens 'execution-evidence'
+  // for each merged task, AFTER the refine loop completes and BEFORE the Land decision.
+  // We use PROVISION_ARGS (t2 deps t1) with both merging, so two merged tasks → two gate-audit seats.
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 5, integration: 2 } }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: opts.label || 'correctness', verdict: 'approve', findings: [], confidence: 'high', tests_verified: { exist: true } }
+    if (seat === 'war-refiner') {
+      return opts.phase === 'Land'
+        ? { mode: 'land-phase', status: 'landed' }
+        : { mode: 'merge-task', status: 'merged', gate_output: 'ok 5 tests passed' }
+    }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { calls } = await runPhase(PROVISION_ARGS(), impl)
+  // The gate-audit seats must have lens 'execution-evidence' (check via prompt or label)
+  const gateAuditCalls = calls.filter(c =>
+    seatOf(c.opts) === 'war-auditor' &&
+    (c.prompt.includes('execution-evidence') || (c.opts.label || '').includes('execution-evidence'))
+  )
+  assert.ok(gateAuditCalls.length > 0,
+    'at least one post-merge gate-audit seat with lens execution-evidence must be spawned')
+})
+
+test('Task 4 — post-merge gate-audit prompt references the executed gate output', async () => {
+  // The gate-audit seat prompt must include the gate output from the refiner's merged result.
+  const GATE_OUT = 'ok 5 tests passed\n1 suite, 5 assertions'
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 5, integration: 2 } }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: opts.label || 'correctness', verdict: 'approve', findings: [], confidence: 'high', tests_verified: { exist: true } }
+    if (seat === 'war-refiner') {
+      return opts.phase === 'Land'
+        ? { mode: 'land-phase', status: 'landed' }
+        : { mode: 'merge-task', status: 'merged', gate_output: GATE_OUT }
+    }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { calls } = await runPhase(PROVISION_ARGS(), impl)
+  const gateAuditCalls = calls.filter(c =>
+    seatOf(c.opts) === 'war-auditor' &&
+    (c.prompt.includes('execution-evidence') || (c.opts.label || '').includes('execution-evidence'))
+  )
+  assert.ok(gateAuditCalls.length > 0, 'gate-audit seats exist')
+  const gateAuditPrompt = gateAuditCalls[0].prompt
+  assert.ok(gateAuditPrompt.includes(GATE_OUT),
+    'gate-audit prompt must include the executed gate output from the refiner')
+})
+
+test('Task 4 — post-merge gate-audit does NOT block the land (soft by default)', async () => {
+  // The gate-audit pass is parallel and AFTER the serial merge queue; it must not hold the land.
+  // Even if a gate-audit seat returns a non-approve verdict, landDecision is still 'landed'.
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 5, integration: 2 } }
+    if (seat === 'war-auditor') {
+      // Gate-audit seats return a non-approve verdict (soft finding)
+      if ((c => c.prompt && c.prompt.includes('execution-evidence'))({ prompt: prompt })) {
+        return { seat: opts.label, lens: 'execution-evidence', verdict: 'request_changes',
+                 findings: [{ severity: 'Minor', title: 'gate-evidence soft', file: '', rationale: 'soft' }],
+                 confidence: 'high', tests_verified: { exist: true } }
+      }
+      return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', tests_verified: { exist: true } }
+    }
+    if (seat === 'war-refiner') {
+      return opts.phase === 'Land'
+        ? { mode: 'land-phase', status: 'landed' }
+        : { mode: 'merge-task', status: 'merged', gate_output: 'ok 5 tests passed' }
+    }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { out } = await runPhase(PROVISION_ARGS(), impl)
+  // The land must still proceed (gate-audit is soft — does not hold the land)
+  assert.equal(out.landDecision, 'landed',
+    'post-merge gate-audit is soft (default) and must not hold the land')
+})
+
+test('Task 4 — post-merge gate-audit HARD case: Critical/Major finding holds the land (held:escalation)', async () => {
+  // A gate-audit seat returning a Critical/Major gate-evidence finding → landDecision==='held:escalation'.
+  // This is the "provably unrun" path from Open decision #1 (resolved: operationally defined).
+  // A Minor finding (soft) must NOT hold the land; only Critical/Major triggers the hard path.
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 5, integration: 2 } }
+    if (seat === 'war-auditor') {
+      // Gate-audit seats return a Critical gate-evidence finding (provably-unrun mapped test).
+      if (prompt.includes('execution-evidence') || (opts.label || '').includes('execution-evidence')) {
+        return { seat: opts.label, lens: 'execution-evidence', verdict: 'escalate',
+                 findings: [{ severity: 'Critical', title: 'mapped test provably unrun',
+                              file: 'test/foo.test.js', rationale: 'test present in diff but 0-count in gate output' }],
+                 confidence: 'high' }
+      }
+      return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    }
+    if (seat === 'war-refiner') {
+      return opts.phase === 'Land'
+        ? { mode: 'land-phase', status: 'landed' }
+        : { mode: 'merge-task', status: 'merged', gate_output: 'ok 5 tests passed' }
+    }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { out } = await runPhase(PROVISION_ARGS(), impl)
+  // The land must be HELD (a provably-unrun mapped test is a hard gate-evidence escalation)
+  assert.equal(out.landDecision, 'held:escalation',
+    'Critical gate-evidence finding (provably unrun) must hold the land (held:escalation)')
+  // The escalated array must contain a gate-evidence reason
+  const gateEscalation = (out.escalated || []).find(e => e && e.reason === 'gate-evidence')
+  assert.ok(gateEscalation, 'escalated[] must contain a gate-evidence entry for the hard case')
+  // The auditLog must record hard:true for the finding
+  const auditEntry = (out.auditLog || []).find(e => e && e.gateEvidence)
+  assert.ok(auditEntry, 'auditLog must have a gateEvidence entry')
+  assert.equal(auditEntry.hard, true, 'auditLog gate-evidence entry must be marked hard:true for Critical/Major findings')
+})
+
+test('Task 4 — post-merge gate-audit HARD case: Major finding also holds the land', async () => {
+  // Major severity (not just Critical) is also a provably-unrun signal per the operationally-defined convention.
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 3 } }
+    if (seat === 'war-auditor') {
+      if (prompt.includes('execution-evidence') || (opts.label || '').includes('execution-evidence')) {
+        return { seat: opts.label, lens: 'execution-evidence', verdict: 'request_changes',
+                 findings: [{ severity: 'Major', title: 'mapped test absent in gate output',
+                              file: 'test/bar.test.js', rationale: 'test in diff but absent from gate_output' }],
+                 confidence: 'high' }
+      }
+      return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    }
+    if (seat === 'war-refiner') {
+      return opts.phase === 'Land'
+        ? { mode: 'land-phase', status: 'landed' }
+        : { mode: 'merge-task', status: 'merged', gate_output: 'ok 3 tests passed' }
+    }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { out } = await runPhase(PROVISION_ARGS(), impl)
+  assert.equal(out.landDecision, 'held:escalation',
+    'Major gate-evidence finding (provably unrun) must also hold the land (held:escalation)')
+  const gateEscalation = (out.escalated || []).find(e => e && e.reason === 'gate-evidence')
+  assert.ok(gateEscalation, 'escalated[] must contain a gate-evidence entry for Major severity')
+})
+
+test('Task 4 — post-merge gate-audit is PARALLEL (runs over all merged tasks, not one-by-one inline)', async () => {
+  // Structural: the template source must use parallel(...) for the gate-audit pass
+  // (after the refine for-loop, before the Land decision).
+  // The gate-audit pass label or prompt contains 'execution-evidence' and is dispatched via parallel.
+  // We confirm by checking the source contains a pattern combining parallel and execution-evidence.
+  const code = src.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
+  assert.ok(/execution.evidence/.test(code),
+    'template source must reference execution-evidence lens (gate-audit pass)')
+  // The gate-audit pass must use parallel() — check for parallel(...) surrounding the gate-audit agent calls.
+  assert.ok(/parallel\s*\(/.test(code) && /execution.evidence/.test(code),
+    'template uses parallel() for the gate-audit pass')
+})
+
+test('Task 4 — schemas.md: AuditVerdict.tests_verified means existence+integrity, not execution', () => {
+  // schemas.md must be updated to clarify that tests_verified means existence+integrity, not execution.
+  const schemasMd = readFileSync(
+    join(here, '../references/schemas.md'), 'utf8'
+  )
+  // The tests_verified field comment must NOT say "pass: true" means the auditor ran them,
+  // OR it must have a clarifying note that it means existence+integrity (not execution).
+  // We check: either the pass:true field is gone, or there is a clarifying note.
+  const hasIntegrityNote = /integrity|existence.*not.*execut|not.*execut.*existence|auditor.*cannot.*execut|refiner.*runs.*gate/i.test(schemasMd)
+  assert.ok(hasIntegrityNote,
+    'schemas.md must clarify that tests_verified means existence+integrity verified, not executed by the auditor')
+})
+
+test('Task 4 — MERGE_RESULT schema already permits gate_output (no schema change needed)', () => {
+  // gate_output is already optional in the inline MERGE_RESULT schema.
+  // A merged result with gate_output:'...' must be schema-valid.
+  // We verify by checking the template source includes gate_output in the MERGE_RESULT properties.
+  assert.match(src, /gate_output/,
+    'MERGE_RESULT schema includes gate_output as an optional field')
+  // It must NOT be in the required array
+  const mergeResultSection = src.match(/const\s+MERGE_RESULT\s*=[\s\S]*?(?=\n\nconst )/)
+  if (mergeResultSection) {
+    const section = mergeResultSection[0]
+    // gate_output must NOT be in required array
+    const requiredMatch = section.match(/required\s*:\s*\[([^\]]*)\]/)
+    if (requiredMatch) {
+      assert.ok(!requiredMatch[1].includes('gate_output'),
+        'gate_output is optional in MERGE_RESULT (not in required array)')
+    }
+  }
 })

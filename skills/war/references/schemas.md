@@ -37,7 +37,7 @@ A task reaches the refiner with exactly one terminal **outcome**. Two are produc
   verdict: "approve" | "request_changes" | "escalate",
   findings: [ { severity: "Critical"|"Major"|"Minor"|"Nit",
                 title, file, line?, rationale, suggested_fix?, plan_ref? } ],
-  tests_verified: { exist: true, pass: true },   // anti-cheat
+  tests_verified: { exist: true },                // anti-cheat: existence + integrity verified (not executed — the refiner runs the gate)
   confidence: "high" | "medium" | "low",          // low → widen to coven
   escalate_reason?: "present iff verdict==escalate — the plan is wrong/underspecified" }
 ```
