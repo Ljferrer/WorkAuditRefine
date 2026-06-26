@@ -461,3 +461,128 @@ test('Task 5 — opportunistic resync: after landed, Lead runs ff-only clean-gua
   assert.ok(srcHasResync || postHasResync,
     'template describes the ff-only clean-guard resync after a landed result')
 })
+
+// ---------------------------------------------------------------------------
+// Task 2 (Phase 2 — F11): Coven quorum integrity — retry dropped seats, never approve a shrunk panel
+// ---------------------------------------------------------------------------
+
+// Per-label call-sequence harness helper.
+// Build an agentImpl that dispatches call-sequence overrides keyed by label, falling back to a base impl.
+// seqMap: { '<label>': [result0, result1, ...] } — each call to that label pops the first entry.
+// The call-sequence entries can be null (simulating a dropped seat) or a verdict object.
+function buildSeqImpl(seqMap, fallback) {
+  const queues = {}
+  for (const [label, seq] of Object.entries(seqMap)) {
+    queues[label] = [...seq]
+  }
+  return (prompt, opts) => {
+    const label = opts.label || ''
+    if (Object.prototype.hasOwnProperty.call(queues, label) && queues[label].length > 0) {
+      return queues[label].shift()
+    }
+    return fallback(prompt, opts)
+  }
+}
+
+// Single-task args for audit tests (no deps, single lens via lenses:[...]).
+const AUDIT_ARGS = (over = {}) => ({
+  ...PROVISION_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', lenses: ['correctness', 'cascading-impact', 'plan-faithfulness'] },
+  ] }),
+  ...over,
+})
+
+// coven=true so all 3 lenses are used; covenSize: 3 to pin panel size.
+const COVEN_ARGS = (over = {}) => AUDIT_ARGS({
+  ...over,
+  tasks: [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1',
+      lenses: ['correctness', 'cascading-impact', 'plan-faithfulness'], coven: true },
+  ],
+  audit: { covenSize: 3, autoEscalate: false },
+})
+
+test('Task 2 — transient drop recovers: 3-lens coven, one lens returns null first call then approves on retry → full panel', async () => {
+  // The per-label call-sequence harness drives 'audit:t1:cascading-impact' to return null on call 1,
+  // then return an approve verdict on call 2 (retry). The round should still see 3 approved seats.
+  const approveVerdictFor = (label) => ({ seat: label, lens: 'cascading-impact', verdict: 'approve', findings: [], confidence: 'high' })
+  const impl = buildSeqImpl(
+    { 'audit:t1:cascading-impact': [null, approveVerdictFor('audit:t1:cascading-impact')] },
+    (prompt, opts) => {
+      const seat = seatOf(opts)
+      if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+      if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'deadbeef' }
+      if (seat === 'war-auditor') return { seat: opts.label, lens: opts.label.split(':')[2] || 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+      if (seat === 'war-refiner') return opts.phase === 'Land' ? { mode: 'land-phase', status: 'landed' } : { mode: 'merge-task', status: 'merged' }
+      if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+      return {}
+    }
+  )
+  const { out } = await runPhase(COVEN_ARGS(), impl)
+  // The task must land (not be audit-blocked) since the drop was transient.
+  assert.ok(out.landed.includes('t1'), 'transient drop recovers — t1 should land (not audit-blocked)')
+  // No audit-blocked escalation.
+  const blocked = (out.escalated || []).find(e => e && e.task === 't1' && e.reason === 'audit-blocked')
+  assert.ok(!blocked, 'transient drop does not yield audit-blocked escalation')
+})
+
+test('Task 2 — persistent drop → audit-blocked: a lens that returns null on ALL attempts (initial + 2 retries)', async () => {
+  // 'audit:t1:cascading-impact' returns null every time (never recovers even after retries).
+  const impl = buildSeqImpl(
+    { 'audit:t1:cascading-impact': [null, null, null] },
+    (prompt, opts) => {
+      const seat = seatOf(opts)
+      if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+      if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'deadbeef' }
+      if (seat === 'war-auditor') return { seat: opts.label, lens: opts.label.split(':')[2] || 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+      if (seat === 'war-refiner') return opts.phase === 'Land' ? { mode: 'land-phase', status: 'landed' } : { mode: 'merge-task', status: 'merged' }
+      if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+      return {}
+    }
+  )
+  const { out } = await runPhase(COVEN_ARGS(), impl)
+  // The task must be audit-blocked (persistent drop → quorum shrunk → never approve).
+  assert.ok(!out.landed.includes('t1'), 'persistent drop → t1 does not land')
+  const blocked = (out.escalated || []).find(e => e && e.task === 't1' && e.reason === 'audit-blocked')
+  assert.ok(blocked, 'persistent drop → audit-blocked escalation for t1')
+})
+
+test('Task 2 — allApprove requires the full panel: even all-approve seats are rejected if count < expected', () => {
+  // This test directly verifies the allApprove(seats, expected) signature in the template source.
+  // The current (pre-fix) allApprove is seats => seats.length > 0 && every(approve).
+  // The new allApprove must be (seats, expected) => seats.length === expected && every(approve).
+  // We verify this by checking the template source for the new signature pattern.
+  assert.match(src, /allApprove\s*=\s*\(\s*seats\s*,\s*expected\s*\)/,
+    'allApprove has a two-argument signature (seats, expected)')
+  assert.match(src, /seats\.length\s*===\s*expected/,
+    'allApprove checks seats.length === expected (not just > 0)')
+})
+
+test('Task 2 — auditLog records requested and returned on a persistent drop', async () => {
+  // A 3-seat coven where one seat never returns → shortfall logged as { requested:3, returned:2 }.
+  const impl = buildSeqImpl(
+    { 'audit:t1:cascading-impact': [null, null, null] },
+    (prompt, opts) => {
+      const seat = seatOf(opts)
+      if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+      if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'deadbeef' }
+      if (seat === 'war-auditor') return { seat: opts.label, lens: opts.label.split(':')[2] || 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+      if (seat === 'war-refiner') return opts.phase === 'Land' ? { mode: 'land-phase', status: 'landed' } : { mode: 'merge-task', status: 'merged' }
+      if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+      return {}
+    }
+  )
+  const { out } = await runPhase(COVEN_ARGS(), impl)
+  const entry = (out.auditLog || []).find(e => e && e.task === 't1')
+  assert.ok(entry, 'an auditLog entry exists for t1')
+  assert.equal(entry.requested, 3, 'auditLog.requested = 3 (full expected panel)')
+  assert.equal(entry.returned, 2, 'auditLog.returned = 2 (one seat persistently dropped)')
+})
+
+test('Task 2 — auditRound return shape is { seats, expected } (not a bare array)', () => {
+  // Verify the template source unpacks auditRound at both call sites using destructuring.
+  // The plan mandates: ;({ seats, expected } = await auditRound(task, null)) at round-loop call site,
+  // and similarly for the rebuttal call.
+  assert.match(src, /\{\s*seats\s*,\s*expected\s*\}\s*=\s*await\s+auditRound/,
+    'auditRound return value is destructured as { seats, expected }')
+})
