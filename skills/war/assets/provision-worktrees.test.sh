@@ -330,11 +330,13 @@ TIPT1="$(git -C "$RT1" rev-parse integration/myplan/phase-2)"
 RD1="$(mk_run_dir "$RT1" run-aaa)"
 WTT1="$RD1/worktrees/task1"
 run_in "$RT1" ensure-worktree "$WTT1" war/myplan/p2-t1 "$TIPT1" >/dev/null 2>&1
+OWN_T41="$RD1/owned.txt"
+printf 'war/myplan/p2-t1\n' > "$OWN_T41"
 expect "T4.1 setup: worktree present before teardown" \
   "war/myplan/p2-t1" "$(wt_on_branch "$RT1" "$WTT1")"
 expect "T4.1 setup: branch exists before teardown" \
   "yes" "$(branch_exists_in "$RT1" war/myplan/p2-t1)"
-code="$(run_in "$RT1" teardown-task --run-dir "$RD1" "$WTT1" war/myplan/p2-t1)"
+code="$(run_in "$RT1" teardown-task --owned-file "$OWN_T41" --run-dir "$RD1" "$WTT1" war/myplan/p2-t1)"
 expect "teardown-task exits 0" 0 "$code"
 expect "teardown-task: worktree gone from git worktree list" \
   "" "$(wt_on_branch "$RT1" "$WTT1")"
@@ -355,11 +357,13 @@ WTA="$RD2/worktrees/taskA"
 WTB="$RD2/worktrees/taskB"
 run_in "$RT2" ensure-worktree "$WTA" war/myplan/p2-tA "$TIPT2" >/dev/null 2>&1
 run_in "$RT2" ensure-worktree "$WTB" war/myplan/p2-tB "$TIPT2" >/dev/null 2>&1
+OWN_T42="$RD2/owned.txt"
+printf 'integration/myplan/phase-2\n' > "$OWN_T42"
 expect "T4.2 setup: integration branch exists before teardown" \
   "yes" "$(branch_exists_in "$RT2" integration/myplan/phase-2)"
 expect "T4.2 setup: phase worktree A present before teardown" \
   "war/myplan/p2-tA" "$(wt_on_branch "$RT2" "$WTA")"
-code="$(run_in "$RT2" teardown-phase --run-dir "$RD2" myplan 2)"
+code="$(run_in "$RT2" teardown-phase --owned-file "$OWN_T42" --run-dir "$RD2" myplan 2)"
 expect "teardown-phase exits 0" 0 "$code"
 expect "teardown-phase: integration branch gone" \
   "no" "$(branch_exists_in "$RT2" integration/myplan/phase-2)"
@@ -909,6 +913,8 @@ RUN_ID_TA="run-ta1"
 WT_ROOT_TA="$RTP_A/.claude/worktrees"
 mkdir -p "$WT_ROOT_TA/$RUN_ID_TA"
 REFINERY_TA="$WT_ROOT_TA/$RUN_ID_TA/_refinery"
+OWN_TA="$RD_TA/owned.txt"
+printf 'integration/myplan/phase-3\n' > "$OWN_TA"
 
 # Provision the _refinery worktree on the integration branch (on-integration case).
 run_in "$RTP_A" ensure-refinery-worktree "$REFINERY_TA" "integration/myplan/phase-3" >/dev/null 2>&1
@@ -918,6 +924,7 @@ expect "T3a setup: integration branch exists" \
   "yes" "$(branch_exists_in "$RTP_A" integration/myplan/phase-3)"
 
 code="$(run_in "$RTP_A" teardown-phase \
+  --owned-file "$OWN_TA" \
   --run-dir "$RD_TA" \
   --worktree-root "$WT_ROOT_TA" \
   myplan 3)"
@@ -944,6 +951,8 @@ RUN_ID_TB="run-tb1"
 WT_ROOT_TB="$RTP_B/.claude/worktrees"
 mkdir -p "$WT_ROOT_TB/$RUN_ID_TB"
 REFINERY_TB="$WT_ROOT_TB/$RUN_ID_TB/_refinery"
+OWN_TB="$RD_TB/owned.txt"
+printf 'integration/myplan/phase-4\n' > "$OWN_TB"
 
 # Provision the _refinery worktree on the integration branch, then detach HEAD.
 run_in "$RTP_B" ensure-refinery-worktree "$REFINERY_TB" "integration/myplan/phase-4" >/dev/null 2>&1
@@ -955,6 +964,7 @@ expect "T3b setup: integration branch exists" \
   "yes" "$(branch_exists_in "$RTP_B" integration/myplan/phase-4)"
 
 code="$(run_in "$RTP_B" teardown-phase \
+  --owned-file "$OWN_TB" \
   --run-dir "$RD_TB" \
   --worktree-root "$WT_ROOT_TB" \
   myplan 4)"
@@ -1097,6 +1107,151 @@ else
   printf 'FAIL %d - F08: branch_ahead_of still present in skills/ source files:\n%s\n' "$n" "$FOUND_AHEAD"
   fails=$((fails + 1))
 fi
+
+# ===========================================================================
+# F09: teardown/resume verify the --owned-file ledger (fail-closed)
+#
+# Ownership is checked at CREATE today; F09 adds symmetric checks at TEARDOWN
+# and on the resume path (ensure-integration on an existing namespace branch
+# without a ledger).
+#
+# Cases:
+#   (F09.1) teardown-task refuses a FOREIGN branch (not in ledger) → exit 3,
+#           worktree and branch untouched.
+#   (F09.2) teardown-phase refuses a FOREIGN integration branch (not owned) →
+#           exit 3, integration branch preserved.
+#   (F09.3) teardown-task with an OWNED branch still works (worktree removed,
+#           branch deleted).
+#   (F09.4) teardown-task with NO --owned-file while namespace branch exists →
+#           exit 3 with a recovery hint.
+#   (F09.5) teardown-phase with NO --owned-file while integration branch exists →
+#           exit 3 with a recovery hint.
+#   (F09.6) ensure-integration (resume/create-side) on a ledger-less namespace
+#           branch already emits a recovery hint (foreign-branch failure).
+#           Pins the hint message (D2 resolution).
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Case (F09.1) teardown-task --owned-file <ledger> refuses a FOREIGN branch.
+# The branch is NOT in the ledger → exit 3; worktree and branch must remain.
+# ---------------------------------------------------------------------------
+RF1="$(new_repo)"
+git -C "$RF1" branch integration/myplan/phase-10 HEAD
+TIPF1="$(git -C "$RF1" rev-parse integration/myplan/phase-10)"
+RDF1="$(mk_run_dir "$RF1" run-f09-1)"
+WTF1="$RDF1/worktrees/task-f09-1"
+# Provision the worktree (branch war/myplan/p10-t1 gets created by ensure-worktree).
+run_in "$RF1" ensure-worktree "$WTF1" war/myplan/p10-t1 "$TIPF1" >/dev/null 2>&1
+expect "F09.1 setup: task branch exists" \
+  "yes" "$(branch_exists_in "$RF1" war/myplan/p10-t1)"
+expect "F09.1 setup: worktree present" \
+  "war/myplan/p10-t1" "$(wt_on_branch "$RF1" "$WTF1")"
+# Create an owned-file that does NOT include the task branch (foreign scenario).
+OWNF1="$RDF1/owned.txt"; : > "$OWNF1"   # empty ledger — branch not recorded
+code="$(run_in "$RF1" teardown-task --owned-file "$OWNF1" --run-dir "$RDF1" "$WTF1" war/myplan/p10-t1)"
+expect "F09.1: teardown-task foreign branch → exit 3" \
+  "3" "$code"
+expect "F09.1: foreign-branch refusal — worktree still registered" \
+  "war/myplan/p10-t1" "$(wt_on_branch "$RF1" "$WTF1")"
+expect "F09.1: foreign-branch refusal — branch NOT deleted" \
+  "yes" "$(branch_exists_in "$RF1" war/myplan/p10-t1)"
+
+# ---------------------------------------------------------------------------
+# Case (F09.2) teardown-phase refuses a FOREIGN integration branch.
+# The integration branch is NOT in the ledger → exit 3, branch preserved.
+# ---------------------------------------------------------------------------
+RF2="$(new_repo)"
+git -C "$RF2" branch integration/myplan/phase-11 HEAD
+TIPF2="$(git -C "$RF2" rev-parse integration/myplan/phase-11)"
+RDF2="$(mk_run_dir "$RF2" run-f09-2)"
+OWNF2="$RDF2/owned.txt"; : > "$OWNF2"   # empty ledger — integration branch not recorded
+code="$(run_in "$RF2" teardown-phase --owned-file "$OWNF2" --run-dir "$RDF2" myplan 11)"
+expect "F09.2: teardown-phase foreign integration branch → exit 3" \
+  "3" "$code"
+expect "F09.2: foreign integration branch still present after refusal" \
+  "yes" "$(branch_exists_in "$RF2" integration/myplan/phase-11)"
+
+# ---------------------------------------------------------------------------
+# Case (F09.3) teardown-task with an OWNED branch → normal teardown works.
+# The branch IS in the ledger → worktree removed, branch deleted.
+# ---------------------------------------------------------------------------
+RF3="$(new_repo)"
+git -C "$RF3" branch integration/myplan/phase-12 HEAD
+TIPF3="$(git -C "$RF3" rev-parse integration/myplan/phase-12)"
+RDF3="$(mk_run_dir "$RF3" run-f09-3)"
+WTF3="$RDF3/worktrees/task-f09-3"
+run_in "$RF3" ensure-worktree "$WTF3" war/myplan/p12-t1 "$TIPF3" >/dev/null 2>&1
+# Owned-file records the task branch.
+OWNF3="$RDF3/owned.txt"
+printf 'war/myplan/p12-t1\n' > "$OWNF3"
+expect "F09.3 setup: worktree present before teardown" \
+  "war/myplan/p12-t1" "$(wt_on_branch "$RF3" "$WTF3")"
+code="$(run_in "$RF3" teardown-task --owned-file "$OWNF3" --run-dir "$RDF3" "$WTF3" war/myplan/p12-t1)"
+expect "F09.3: owned teardown exits 0" \
+  "0" "$code"
+expect "F09.3: owned teardown — worktree removed from registry" \
+  "" "$(wt_on_branch "$RF3" "$WTF3")"
+expect "F09.3: owned teardown — branch deleted" \
+  "no" "$(branch_exists_in "$RF3" war/myplan/p12-t1)"
+
+# ---------------------------------------------------------------------------
+# Case (F09.4) teardown-task with NO --owned-file while the namespace branch
+# exists → exit 3 with a recovery hint. Fail-closed: no ledger = refuse.
+# ---------------------------------------------------------------------------
+RF4="$(new_repo)"
+git -C "$RF4" branch integration/myplan/phase-13 HEAD
+TIPF4="$(git -C "$RF4" rev-parse integration/myplan/phase-13)"
+RDF4="$(mk_run_dir "$RF4" run-f09-4)"
+WTF4="$RDF4/worktrees/task-f09-4"
+run_in "$RF4" ensure-worktree "$WTF4" war/myplan/p13-t1 "$TIPF4" >/dev/null 2>&1
+# Call teardown-task WITHOUT --owned-file (ledger-less).
+code="$(run_in "$RF4" teardown-task --run-dir "$RDF4" "$WTF4" war/myplan/p13-t1)"
+expect "F09.4: teardown-task ledger-less → exit 3" \
+  "3" "$code"
+msg="$(run_in_msg "$RF4" teardown-task --run-dir "$RDF4" "$WTF4" war/myplan/p13-t1)"
+expect "F09.4: ledger-less refusal message contains recovery hint" \
+  "match" "$(printf '%s' "$msg" | grep -qi 'owned-file\|record\|ledger' && echo match || echo nomatch)"
+expect "F09.4: ledger-less refusal — worktree still present" \
+  "war/myplan/p13-t1" "$(wt_on_branch "$RF4" "$WTF4")"
+expect "F09.4: ledger-less refusal — branch NOT deleted" \
+  "yes" "$(branch_exists_in "$RF4" war/myplan/p13-t1)"
+
+# ---------------------------------------------------------------------------
+# Case (F09.5) teardown-phase with NO --owned-file while integration branch
+# exists → exit 3 with a recovery hint. Fail-closed.
+# ---------------------------------------------------------------------------
+RF5="$(new_repo)"
+git -C "$RF5" branch integration/myplan/phase-14 HEAD
+RDF5="$(mk_run_dir "$RF5" run-f09-5)"
+# Call teardown-phase WITHOUT --owned-file (ledger-less).
+code="$(run_in "$RF5" teardown-phase --run-dir "$RDF5" myplan 14)"
+expect "F09.5: teardown-phase ledger-less → exit 3" \
+  "3" "$code"
+msg="$(run_in_msg "$RF5" teardown-phase --run-dir "$RDF5" myplan 14)"
+expect "F09.5: ledger-less phase refusal message contains recovery hint" \
+  "match" "$(printf '%s' "$msg" | grep -qi 'owned-file\|record\|ledger' && echo match || echo nomatch)"
+expect "F09.5: ledger-less phase refusal — integration branch still present" \
+  "yes" "$(branch_exists_in "$RF5" integration/myplan/phase-14)"
+
+# ---------------------------------------------------------------------------
+# Case (F09.6) ensure-integration on a ledger-less existing namespace branch
+# already fails with 'foreign' + includes a recovery hint. Pins the D2 resolution.
+# The plan requires pinning the recovery-hint message text.
+# ---------------------------------------------------------------------------
+RF6="$(new_repo)"
+TF6="$(git -C "$RF6" rev-parse HEAD)"
+# Create the integration branch out-of-band (simulates a resume without a ledger).
+git -C "$RF6" branch integration/myplan/phase-15 "$TF6"
+# Try to resume with an EMPTY ledger — branch exists but is not owned.
+OWNF6="$RF6/owned.txt"; : > "$OWNF6"
+code="$(run_in "$RF6" ensure-integration myplan 15 "$TF6" --owned-file "$OWNF6")"
+expect "F09.6: ensure-integration ledger-less resume → exit non-zero (foreign-branch)" \
+  "nonzero" "$([ "$code" -ne 0 ] && echo nonzero || echo zero)"
+msg6="$(run_in_msg "$RF6" ensure-integration myplan 15 "$TF6" --owned-file "$OWNF6")"
+expect "F09.6: ledger-less resume failure message mentions 'foreign'" \
+  "match" "$(printf '%s' "$msg6" | grep -qi 'foreign' && echo match || echo nomatch)"
+expect "F09.6: ledger-less resume recovery hint mentions record-as-owned or delete" \
+  "match" "$(printf '%s' "$msg6" | grep -qi 'record\|delete\|owned' && echo match || echo nomatch)"
 
 # ---------------------------------------------------------------------------
 printf '\n%d/%d cases passed\n' "$((n - fails))" "$n"

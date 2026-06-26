@@ -344,26 +344,31 @@ delete_branch() {
 }
 
 # --- subcommand: teardown-task ---------------------------------------------
-# teardown-task [--keep] --run-dir <ledger-dir> <path> <branch>
+# teardown-task [--keep] [--owned-file PATH] --run-dir <ledger-dir> <path> <branch>
 #
 # Normal task land: remove the worktree at <path> and delete the (merged)
 # <branch>. With --keep (escalation/block), leave BOTH intact for inspection.
 # Strictly run-scoped: <path> must live inside --run-dir or we fail loud.
+# Ownership-gated (F09): if --owned-file is supplied and the branch is NOT
+# recorded in the ledger, refuse (exit 3). If --owned-file is absent (ledger-
+# less) while the branch exists, also refuse (exit 3, fail-closed).
 cmd_teardown_task() {
-  keep=0; run_dir=""
-  args=""
+  keep=0; run_dir=""; owned_file=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --keep)        keep=1; shift ;;
       --run-dir)
         [ $# -ge 2 ] || die "--run-dir requires a path"
         run_dir="$2"; shift 2 ;;
+      --owned-file)
+        [ $# -ge 2 ] || die "--owned-file requires a path"
+        owned_file="$2"; shift 2 ;;
       --) shift; break ;;
       -*) die "teardown-task: unknown flag '$1'" ;;
       *)  break ;;
     esac
   done
-  [ $# -ge 2 ] || die "usage: teardown-task [--keep] --run-dir <ledger-dir> <path> <branch>"
+  [ $# -ge 2 ] || die "usage: teardown-task [--keep] [--owned-file PATH] --run-dir <ledger-dir> <path> <branch>"
   path="$1"; branch="$2"
   [ -n "$path" ]   || die "teardown-task: empty <path>"
   [ -n "$branch" ] || die "teardown-task: empty <branch>"
@@ -379,13 +384,25 @@ cmd_teardown_task() {
     return 0
   fi
 
+  # Ownership gate (F09): verify the branch is ours before any deletion.
+  # Fail-closed: no --owned-file (ledger-less) while the branch exists → exit 3.
+  if branch_exists "$branch"; then
+    if [ -z "$owned_file" ]; then
+      die "teardown-task: no --owned-file ledger supplied but branch '$branch' exists — refusing to tear down without ownership proof. Supply --owned-file, or record the branch as owned (record-as-owned), or delete it manually." 3
+    fi
+    load_owned_file "$owned_file"
+    if ! owned_has "$branch"; then
+      die "teardown-task: branch '$branch' is not recorded in the owned-file ledger '$owned_file' — refusing to tear down a foreign or unrecorded ref (F09). Record it as owned or delete it manually." 3
+    fi
+  fi
+
   remove_worktree "$path"
   delete_branch "$branch"
 }
 
 # --- subcommand: teardown-phase --------------------------------------------
-# teardown-phase [--keep] --run-dir <ledger-dir> [--worktree-root <wt-root>]
-#                <slug> <N>
+# teardown-phase [--keep] [--owned-file PATH] --run-dir <ledger-dir>
+#                [--worktree-root <wt-root>] <slug> <N>
 #
 # Phase land: reap the _refinery (if --worktree-root supplied), remove any
 # remaining phase worktrees, then delete the integration branch
@@ -396,6 +413,11 @@ cmd_teardown_task() {
 # _refinery). A sibling worktree of a different run-id is never touched.
 # We identify "phase worktrees" as registered worktrees of this repo that live
 # under --run-dir AND are checked out on a war/<slug>/p<N>-* branch.
+#
+# --owned-file PATH: the run's owned-ref ledger. The integration branch
+#   integration/<slug>/phase-<N> must be recorded in this ledger before
+#   teardown proceeds. Fail-closed: absent/empty ledger while the branch
+#   exists → exit 3 with a recovery hint (F09).
 #
 # --worktree-root <wt-root>: the root under which _refinery lives, i.e.
 #   <wt-root>/<runId>/_refinery where <runId> = basename(--run-dir). The reap
@@ -414,6 +436,7 @@ cmd_teardown_task() {
 cmd_teardown_phase() {
   run_dir=""
   worktree_root=""
+  owned_file=""
   keep=0
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -424,12 +447,15 @@ cmd_teardown_phase() {
       --worktree-root)
         [ $# -ge 2 ] || die "--worktree-root requires a path"
         worktree_root="$2"; shift 2 ;;
+      --owned-file)
+        [ $# -ge 2 ] || die "--owned-file requires a path"
+        owned_file="$2"; shift 2 ;;
       --) shift; break ;;
       -*) die "teardown-phase: unknown flag '$1'" ;;
       *)  break ;;
     esac
   done
-  [ $# -ge 2 ] || die "usage: teardown-phase [--keep] --run-dir <ledger-dir> [--worktree-root <wt-root>] <slug> <N>"
+  [ $# -ge 2 ] || die "usage: teardown-phase [--keep] [--owned-file PATH] --run-dir <ledger-dir> [--worktree-root <wt-root>] <slug> <N>"
   slug="$1"; num="$2"
   [ -n "$slug" ] || die "teardown-phase: empty <slug>"
   case "$num" in
@@ -444,6 +470,20 @@ cmd_teardown_phase() {
   if [ "$keep" -eq 1 ]; then
     warn "keep-on-escalation: leaving _refinery and integration branch 'integration/$slug/phase-$num' intact for inspection."
     return 0
+  fi
+
+  # Ownership gate (F09): verify the integration branch is ours before any
+  # deletion. Fail-closed: no --owned-file (ledger-less) while the branch
+  # exists → exit 3.
+  int_branch_check="integration/$slug/phase-$num"
+  if branch_exists "$int_branch_check"; then
+    if [ -z "$owned_file" ]; then
+      die "teardown-phase: no --owned-file ledger supplied but integration branch '$int_branch_check' exists — refusing to tear down without ownership proof. Supply --owned-file, or record the branch as owned, or delete it manually." 3
+    fi
+    load_owned_file "$owned_file"
+    if ! owned_has "$int_branch_check"; then
+      die "teardown-phase: integration branch '$int_branch_check' is not recorded in the owned-file ledger '$owned_file' — refusing to tear down a foreign or unrecorded integration branch (F09). Record it as owned or delete it manually." 3
+    fi
   fi
 
   rd_phys="$(phys "$run_dir")"; rd_phys="${rd_phys%/}"
