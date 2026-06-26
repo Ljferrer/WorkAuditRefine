@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import {
   DEFAULTS, PROVISION_SOURCES, fillDefaults, presetConfig, validate, spawnOpts, covenSeats,
-  resolveProvision,
+  resolveProvision, resolveGate,
 } from './war-config.mjs'
 import { HARD_ESCALATION_REASONS } from './land-decision.mjs'
 
@@ -246,6 +246,62 @@ test('drift-guard: inline fallback lenses in workflow-template.js matches DEFAUL
   const normalized = match[1].replace(/'/g, '"')
   const parsed = JSON.parse(normalized)
   assert.deepEqual(parsed, DEFAULTS.audit.lenses)
+})
+
+// ---------------------------------------------------------------------------
+// resolveGate (F12): self-discovering multi-runner gate
+// ---------------------------------------------------------------------------
+
+test('resolveGate: with a declared gate — starts with declared gate', () => {
+  const result = resolveGate('node --test x')
+  assert.ok(result.startsWith('node --test x'), `expected result to start with declared gate, got: ${result}`)
+})
+
+test('resolveGate: with a declared gate — &&-chains declared-then-discovery', () => {
+  const result = resolveGate('node --test x')
+  // The declared gate must come before the find-based discovery via &&
+  const andIdx = result.indexOf('&&')
+  assert.ok(andIdx > 0, `expected && to appear after declared gate, got: ${result}`)
+  assert.ok(result.slice(0, andIdx).includes('node --test x'), `declared gate must precede &&, got: ${result}`)
+})
+
+test('resolveGate: with a declared gate — contains find for *.test.sh with node_modules prune', () => {
+  const result = resolveGate('node --test x')
+  assert.ok(result.includes('*.test.sh'), `expected *.test.sh in result, got: ${result}`)
+  assert.ok(result.includes('node_modules'), `expected node_modules prune in result, got: ${result}`)
+})
+
+test('resolveGate: with a declared gate — contains find for *.test.sh with .git prune', () => {
+  const result = resolveGate('node --test x')
+  assert.ok(result.includes('.git'), `expected .git prune in result, got: ${result}`)
+})
+
+test('resolveGate: with a declared gate — runs each suite as bash "$f" with || exit 1', () => {
+  const result = resolveGate('node --test x')
+  assert.ok(result.includes('bash "$f"'), `expected bash "$f" in result, got: ${result}`)
+  assert.ok(result.includes('|| exit 1'), `expected || exit 1 in result, got: ${result}`)
+})
+
+test('resolveGate: empty string — yields discovery clause alone (no leading &&)', () => {
+  const result = resolveGate('')
+  assert.ok(!result.startsWith('&&'), `result must not start with &&, got: ${result}`)
+  // Must still discover bash suites
+  assert.ok(result.includes('*.test.sh'), `expected *.test.sh in result, got: ${result}`)
+  assert.ok(result.includes('bash "$f"'), `expected bash "$f" in result, got: ${result}`)
+})
+
+test('resolveGate: null — yields discovery clause alone (no leading &&)', () => {
+  const result = resolveGate(null)
+  assert.ok(!result.startsWith('&&'), `result must not start with &&, got: ${result}`)
+  // Must still discover bash suites
+  assert.ok(result.includes('*.test.sh'), `expected *.test.sh in result, got: ${result}`)
+  assert.ok(result.includes('bash "$f"'), `expected bash "$f" in result, got: ${result}`)
+})
+
+test('resolveGate: includes printf banner for each suite', () => {
+  const result = resolveGate('node --test x')
+  assert.ok(result.includes('printf'), `expected printf banner in result, got: ${result}`)
+  assert.ok(result.includes('gate(bash)'), `expected gate(bash) label in result, got: ${result}`)
 })
 
 test('drift-guard: inline HARD_ESCALATION_REASONS in workflow-template.js matches canonical export in land-decision.mjs (#36)', () => {
