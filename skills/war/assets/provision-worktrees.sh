@@ -14,7 +14,7 @@
 #   land-advance <working-ref> <new-sha>                                       (Task 2/clandiso)
 #   ensure-refinery-worktree <path> <integration-branch>                       (Task 1/clandiso)
 #   teardown-task [--keep] --run-dir <ledger-dir> <path> <branch>              (Task 4)
-#   teardown-phase --run-dir <ledger-dir> <slug> <N>                           (Task 4)
+#   teardown-phase [--keep] --run-dir <ledger-dir> [--worktree-root <r>] <s> <N>  (Task 4 + clandiso/T3)
 #   prune                                                                      (Task 4)
 #
 # Design notes:
@@ -387,27 +387,52 @@ cmd_teardown_task() {
 }
 
 # --- subcommand: teardown-phase --------------------------------------------
-# teardown-phase --run-dir <ledger-dir> <slug> <N>
+# teardown-phase [--keep] --run-dir <ledger-dir> [--worktree-root <wt-root>]
+#                <slug> <N>
 #
-# Phase land: remove the integration branch integration/<slug>/phase-<N> and any
-# remaining phase worktrees. Strictly run-scoped: only worktrees whose path is
-# inside --run-dir are removed; a sibling worktree of a different run-id is never
-# touched (even though the integration ref is global, we still only reap our own
-# worktrees). We identify "phase worktrees" as registered worktrees of this repo
-# that live under --run-dir AND are checked out on a war/<slug>/p<N>-* branch.
+# Phase land: reap the _refinery (if --worktree-root supplied), remove any
+# remaining phase worktrees, then delete the integration branch
+# integration/<slug>/phase-<N>.
+#
+# Strictly run-scoped: only worktrees whose path is inside --run-dir are
+# removed (for phase worktrees) or inside <worktreeRoot>/<runId> (for
+# _refinery). A sibling worktree of a different run-id is never touched.
+# We identify "phase worktrees" as registered worktrees of this repo that live
+# under --run-dir AND are checked out on a war/<slug>/p<N>-* branch.
+#
+# --worktree-root <wt-root>: the root under which _refinery lives, i.e.
+#   <wt-root>/<runId>/_refinery where <runId> = basename(--run-dir). The reap
+#   is path-based (branch-agnostic), so it handles both on-integration and
+#   detached states. Guarded by its own path_under check scoped to
+#   <wt-root>/<runId> (NOT --run-dir, which is a sibling ledger dir).
+#   If absent, no _refinery reap is attempted.
+#
+# --keep: held/escalated phase — preserve _refinery and the integration branch
+#   for inspection. Neither is removed. Exits 0.
+#
+# Integration branch delete: now FAIL LOUD on error (propagates non-zero exit)
+#   instead of the former `|| warn` swallow (which returned 0 even on failure).
+#   This makes a checked-out _refinery block the delete detectably (the caller
+#   must supply --worktree-root to reap it first).
 cmd_teardown_phase() {
   run_dir=""
+  worktree_root=""
+  keep=0
   while [ $# -gt 0 ]; do
     case "$1" in
+      --keep)          keep=1; shift ;;
       --run-dir)
         [ $# -ge 2 ] || die "--run-dir requires a path"
         run_dir="$2"; shift 2 ;;
+      --worktree-root)
+        [ $# -ge 2 ] || die "--worktree-root requires a path"
+        worktree_root="$2"; shift 2 ;;
       --) shift; break ;;
       -*) die "teardown-phase: unknown flag '$1'" ;;
       *)  break ;;
     esac
   done
-  [ $# -ge 2 ] || die "usage: teardown-phase --run-dir <ledger-dir> <slug> <N>"
+  [ $# -ge 2 ] || die "usage: teardown-phase [--keep] --run-dir <ledger-dir> [--worktree-root <wt-root>] <slug> <N>"
   slug="$1"; num="$2"
   [ -n "$slug" ] || die "teardown-phase: empty <slug>"
   case "$num" in
@@ -418,11 +443,42 @@ cmd_teardown_phase() {
 
   git_dir >/dev/null
 
+  # --keep: preserve everything for inspection; exit cleanly.
+  if [ "$keep" -eq 1 ]; then
+    warn "keep-on-escalation: leaving _refinery and integration branch 'integration/$slug/phase-$num' intact for inspection."
+    return 0
+  fi
+
   rd_phys="$(phys "$run_dir")"; rd_phys="${rd_phys%/}"
 
-  # Collect this run's phase worktrees: registered worktree paths that (a) live
-  # under run-dir and (b) are on a war/<slug>/p<N>-* branch. We read the porcelain
-  # once, pairing each `worktree <path>` with its following `branch <ref>`.
+  # --- Reap _refinery by path (before the integration branch delete) --------
+  # _refinery lives at <worktreeRoot>/<runId>/_refinery where <runId> is the
+  # basename of --run-dir. The reap is path-based (branch-agnostic): works
+  # whether _refinery is on the integration branch OR detached. Guarded by its
+  # own path_under check scoped to <worktreeRoot>/<runId>, NOT --run-dir.
+  if [ -n "$worktree_root" ]; then
+    run_id="$(basename "$run_dir")"
+    run_wt_scope="$(phys "$worktree_root")/$run_id"
+    refinery_path="$run_wt_scope/_refinery"
+    # Scope guard: the computed refinery path must be under <wt-root>/<runId>.
+    # If path_under fails (should be impossible with the formula above, but
+    # defensive), refuse rather than silently skipping.
+    if ! path_under "$refinery_path" "$run_wt_scope"; then
+      die "teardown-phase: computed _refinery path '$refinery_path' is outside the run-scope '$run_wt_scope' — refusing to reap." 5
+    fi
+    # Reap by path regardless of what branch _refinery is on (or whether it is
+    # detached). `remove_worktree` is branch-agnostic.
+    if worktree_registered "$refinery_path"; then
+      remove_worktree "$refinery_path"
+    fi
+    # Even if not registered, prune any stale entry at that path.
+    git worktree prune >/dev/null 2>&1 || true
+  fi
+
+  # --- Collect and remove this run's phase task worktrees -------------------
+  # Registered worktree paths that (a) live under run-dir and (b) are on a
+  # war/<slug>/p<N>-* branch. We read the porcelain once, pairing each
+  # `worktree <path>` with its following `branch <ref>`.
   wt_prefix="refs/heads/war/$slug/p$num-"
   phase_paths="$(
     git worktree list --porcelain 2>/dev/null | awk -v want="$rd_phys/" -v pref="$wt_prefix" '
@@ -440,8 +496,15 @@ cmd_teardown_phase() {
     remove_worktree "$wt"
   done
 
-  # Finally drop the integration branch for this phase.
-  delete_branch "integration/$slug/phase-$num"
+  # --- Delete the integration branch (FAIL LOUD on error) -------------------
+  # Previously this was `delete_branch ...` which internally did `|| warn`
+  # (returning 0 even when the branch could not be deleted, e.g. still checked
+  # out in an un-reaped _refinery). Now we propagate the real exit code.
+  int_branch="integration/$slug/phase-$num"
+  if branch_exists "$int_branch"; then
+    git branch -D "$int_branch" >/dev/null 2>&1 \
+      || die "teardown-phase: could not delete branch '$int_branch' (still checked out? ensure _refinery is reaped first via --worktree-root)." 1
+  fi
 }
 
 # --- subcommand: land-advance -----------------------------------------------
