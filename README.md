@@ -152,7 +152,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.6.3** — provisioning lifecycle hardening: removed dead `branch_ahead_of` helper (F08); teardown and resume now verify the `--owned-file` ownership ledger, fail-closed on foreign refs (F09); teardown merged-guard uses `git branch -d` (safe) with `--force` escape hatch (#69); `<integration-tip>` placeholder resolved to a captured shell variable in Provision prompt and to `${ph.integrationBranch}` in the refine-loop rebase instruction (F10); template now throws on undefined `branch`/`worktree` derivation instead of interpolating literal `"undefined"` (#71). Builds on v0.6.2 verification-layer integrity.
+**0.6.4** — servitor confinement now real: capability allowlist (`Read, Grep, Glob, Write, Edit`) drops Bash from the servitor, making confinement airtight (F01 D1); worktree-scope hook rejects `..` traversal on both servitor and worker write paths (#58); advisory PreToolUse:Bash warn-hook for worker out-of-worktree writes, non-blocking and best-effort (F01 D4); confinement claims reworded to attribute to the allowlist, not the hook alone (F01 D2/D3); servitor memory-admission checklist — dedup-before-write, correction priority, verify-cue, index hygiene (F05). Builds on v0.6.3 provisioning lifecycle hardening.
 
 ## License
 

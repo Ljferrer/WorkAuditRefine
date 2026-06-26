@@ -1116,3 +1116,97 @@ test('#71 — task with only planSlug+runId+worktreeRoot (no explicit) does NOT 
     'template must NOT throw when derivation args are present (planSlug+runId+worktreeRoot)'
   )
 })
+
+// ---------------------------------------------------------------------------
+// Task 5 (Phase 3 — F05): servitor memory-admission checklist
+// The Wrap-up prompt and war-servitor.md must instruct four disciplines:
+//   D1 — DEDUP BEFORE WRITE: Glob memory dir + read MEMORY.md + read candidates → update existing covering file
+//   D2 — CORRECTION PRIORITY: contradicting fact supersedes stale file; user corrections outrank agent assertions
+//   D3 — VERIFY-CUE: a fact naming a file/flag/line is phrased with "verify still present before acting"
+//   D4 — INDEX HYGIENE: update MEMORY.md row in place; [[slug]] cross-links
+// ---------------------------------------------------------------------------
+
+const servitorMd = readFileSync(join(here, '../../../agents/war-servitor.md'), 'utf8')
+
+test('F05 — Wrap-up prompt: instructs DEDUP BEFORE WRITE (Glob memory dir + read candidates)', async () => {
+  // The Wrap-up servitor prompt must tell the servitor to scan/glob the memory dir and read
+  // existing candidates BEFORE writing, to avoid duplicate entries.
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const wrap = calls.find(isServitor)
+  assert.ok(wrap, 'a servitor (Wrap-up) seat was dispatched on the happy path')
+  const p = wrap.prompt
+  // Must instruct Glob/scan of the memory dir (D1)
+  assert.match(p, /glob|scan/i,
+    'Wrap-up prompt must instruct Glob/scan of the memory dir (D1 dedup before write)')
+  // Must mention updating an existing covering file (not just creating new)
+  assert.match(p, /update.*exist|exist.*covering|covering.*file/i,
+    'Wrap-up prompt must instruct updating an existing covering file rather than duplicating (D1)')
+})
+
+test('F05 — Wrap-up prompt: instructs CORRECTION PRIORITY (contradicting fact supersedes stale; user outranks)', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const wrap = calls.find(isServitor)
+  assert.ok(wrap, 'a servitor (Wrap-up) seat was dispatched on the happy path')
+  const p = wrap.prompt
+  // Must state that a contradicting fact supersedes the stale file (D2)
+  assert.match(p, /supersede|contradict|overrides?|replac/i,
+    'Wrap-up prompt must instruct that a contradicting fact supersedes the stale entry (D2 correction priority)')
+  // Must state that user corrections outrank agent assertions (D2)
+  assert.match(p, /user.{0,40}outrank|user.{0,40}correction|correction.{0,40}outrank/i,
+    'Wrap-up prompt must state that user corrections outrank agent assertions (D2)')
+})
+
+test('F05 — Wrap-up prompt: instructs VERIFY-CUE (file/flag/line facts must be stamped with verify cue)', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const wrap = calls.find(isServitor)
+  assert.ok(wrap, 'a servitor (Wrap-up) seat was dispatched on the happy path')
+  const p = wrap.prompt
+  // Must instruct that facts naming a file/flag/line include a "verify still present before acting" cue (D3)
+  assert.match(p, /verify.{0,40}still.{0,40}present|verify.{0,40}before.{0,40}act/i,
+    'Wrap-up prompt must instruct "verify still present before acting" cue for file/flag/line facts (D3)')
+})
+
+test('F05 — Wrap-up prompt: instructs INDEX HYGIENE (update MEMORY.md row in place; [[slug]] cross-links)', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const wrap = calls.find(isServitor)
+  assert.ok(wrap, 'a servitor (Wrap-up) seat was dispatched on the happy path')
+  const p = wrap.prompt
+  // Must instruct updating MEMORY.md row in place (D4) — not appending duplicates
+  assert.match(p, /MEMORY\.md.{0,60}in[- ]place|in[- ]place.{0,60}MEMORY\.md|update.{0,60}MEMORY\.md/i,
+    'Wrap-up prompt must instruct updating the MEMORY.md row in place (D4 index hygiene)')
+  // Must mention [[slug]] cross-links (D4)
+  assert.ok(p.includes('[[') || /slug.*cross.?link|cross.?link.*slug/i.test(p),
+    'Wrap-up prompt must mention [[slug]] cross-links (D4)')
+})
+
+test('F05 — war-servitor.md: has a "Memory admission" checklist section (inlined, no separate file)', () => {
+  // The checklist must be in war-servitor.md itself (not in a separate servitor-memory.md).
+  assert.match(servitorMd, /memory admission/i,
+    'war-servitor.md must contain a "Memory admission" section/heading')
+})
+
+test('F05 — war-servitor.md: admission checklist includes DEDUP BEFORE WRITE (D1)', () => {
+  assert.match(servitorMd, /glob|scan/i,
+    'war-servitor.md admission checklist must instruct Glob/scan of memory dir (D1)')
+  assert.match(servitorMd, /update.*exist|exist.*covering|covering.*file/i,
+    'war-servitor.md must instruct updating an existing covering file (D1)')
+})
+
+test('F05 — war-servitor.md: admission checklist includes CORRECTION PRIORITY (D2)', () => {
+  assert.match(servitorMd, /supersede|contradict|overrides?|replac/i,
+    'war-servitor.md must instruct that a contradicting fact supersedes the stale entry (D2)')
+  assert.match(servitorMd, /user.{0,40}outrank|user.{0,40}correction|correction.{0,40}outrank/i,
+    'war-servitor.md must state that user corrections outrank agent assertions (D2)')
+})
+
+test('F05 — war-servitor.md: admission checklist includes VERIFY-CUE (D3)', () => {
+  assert.match(servitorMd, /verify.{0,40}still.{0,40}present|verify.{0,40}before.{0,40}act/i,
+    'war-servitor.md must include "verify still present before acting" cue for file/flag/line facts (D3)')
+})
+
+test('F05 — war-servitor.md: admission checklist includes INDEX HYGIENE (D4)', () => {
+  assert.match(servitorMd, /MEMORY\.md.{0,60}in[- ]place|in[- ]place.{0,60}MEMORY\.md|update.{0,60}MEMORY\.md/i,
+    'war-servitor.md must instruct updating the MEMORY.md row in place (D4)')
+  assert.ok(servitorMd.includes('[[') || /slug.*cross.?link|cross.?link.*slug/i.test(servitorMd),
+    'war-servitor.md must mention [[slug]] cross-links (D4)')
+})

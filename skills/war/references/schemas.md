@@ -82,7 +82,7 @@ A task reaches the refiner with exactly one terminal **outcome**. Two are produc
   learnings: [ { title, why } ],
   memory_index_updated: true }   // true if MEMORY.md (or docs/learnings index) was updated
 ```
-The servitor writes ONLY under `learningsTarget` (the worktree-scope hook keys on its `agent_type` and confines it to the learnings path-pattern `*/.claude/projects/*/memory/*` or `*/docs/learnings/*`, [ADR 0002](../../../docs/adr/0002-scope-by-agent-type.md)); it never touches source, branches, PRs, or issues.
+The servitor writes ONLY under `learningsTarget` (confinement is the capability allowlist — no Bash, only Read/Grep/Glob/Write/Edit — so its sole write path is Write/Edit; the PreToolUse scope hook then gates those by `agent_type` to the learnings path-pattern `*/.claude/projects/*/memory/*` or `*/docs/learnings/*`, [ADR 0002](../../../docs/adr/0002-scope-by-agent-type.md)); it never touches source, branches, PRs, or issues.
 
 ## ScoutResult — `war-setup-scout` (once, before provisioning)
 The read-only, Explore-class setup-scout (`agents/war-setup-scout.md`) reads the **target repo's own** setup signals and derives an ordered provisioning command list. It returns **only**:

@@ -139,6 +139,120 @@ expect "war-worker relative path denies (no infinite loop)" \
   2 "$(rel_guard '{"agent_type":"war-worker","tool_input":{"file_path":"relative/sub/file.txt"}}')"
 
 # ---------------------------------------------------------------------------
+# Structural assertion: war-servitor.md frontmatter tools allowlist (F01 D1)
+#
+# The servitor must have a `tools:` line in its YAML frontmatter that explicitly
+# lists exactly Read, Grep, Glob, Write, Edit — and must NOT grant Bash.
+# This pins the capability-allowlist contract so the harness can enforce it.
+# ---------------------------------------------------------------------------
+SERVITOR_MD="$HERE/../agents/war-servitor.md"
+
+# Extract the YAML frontmatter (between the first two --- delimiters).
+# Use awk for portability (no perl, no python) — works on macOS bash 3.2.57.
+frontmatter="$(awk '/^---/{if(++c==2) exit} c==1{print}' "$SERVITOR_MD")"
+
+# Check: tools: line exists in frontmatter
+tools_line="$(printf '%s\n' "$frontmatter" | grep '^tools:')"
+n=$((n + 1))
+if [ -n "$tools_line" ]; then
+  printf 'ok %d - war-servitor.md frontmatter contains tools: line\n' "$n"
+else
+  printf 'FAIL %d - war-servitor.md frontmatter missing tools: line\n' "$n"
+  fails=$((fails + 1))
+fi
+
+# Check: tools line contains Read
+n=$((n + 1))
+if printf '%s\n' "$tools_line" | grep -q 'Read'; then
+  printf 'ok %d - war-servitor.md tools: grants Read\n' "$n"
+else
+  printf 'FAIL %d - war-servitor.md tools: does not grant Read\n' "$n"
+  fails=$((fails + 1))
+fi
+
+# Check: tools line contains Grep
+n=$((n + 1))
+if printf '%s\n' "$tools_line" | grep -q 'Grep'; then
+  printf 'ok %d - war-servitor.md tools: grants Grep\n' "$n"
+else
+  printf 'FAIL %d - war-servitor.md tools: does not grant Grep\n' "$n"
+  fails=$((fails + 1))
+fi
+
+# Check: tools line contains Glob
+n=$((n + 1))
+if printf '%s\n' "$tools_line" | grep -q 'Glob'; then
+  printf 'ok %d - war-servitor.md tools: grants Glob\n' "$n"
+else
+  printf 'FAIL %d - war-servitor.md tools: does not grant Glob\n' "$n"
+  fails=$((fails + 1))
+fi
+
+# Check: tools line contains Write
+n=$((n + 1))
+if printf '%s\n' "$tools_line" | grep -q 'Write'; then
+  printf 'ok %d - war-servitor.md tools: grants Write\n' "$n"
+else
+  printf 'FAIL %d - war-servitor.md tools: does not grant Write\n' "$n"
+  fails=$((fails + 1))
+fi
+
+# Check: tools line contains Edit
+n=$((n + 1))
+if printf '%s\n' "$tools_line" | grep -q 'Edit'; then
+  printf 'ok %d - war-servitor.md tools: grants Edit\n' "$n"
+else
+  printf 'FAIL %d - war-servitor.md tools: does not grant Edit\n' "$n"
+  fails=$((fails + 1))
+fi
+
+# Check: tools line does NOT contain Bash (the key confinement property)
+n=$((n + 1))
+if printf '%s\n' "$tools_line" | grep -qv 'Bash'; then
+  printf 'ok %d - war-servitor.md tools: does NOT grant Bash (confinement real)\n' "$n"
+else
+  printf 'FAIL %d - war-servitor.md tools: grants Bash — confinement is broken\n' "$n"
+  fails=$((fails + 1))
+fi
+
+# ---------------------------------------------------------------------------
+# Task 2 (#58): .. path traversal denial tests.
+#
+# The hook must reject any path containing a `..` segment — even if the
+# literal glob or .war-task ancestor walk would otherwise allow it. This
+# closes the traversal hole in both the war-servitor and war-worker branches.
+# ---------------------------------------------------------------------------
+
+# Servitor: a learnings-looking path that contains .. -> deny (exit 2).
+# e.g. /x/docs/learnings/../../etc/foo matches */docs/learnings/* but escapes.
+SERV_DOTDOT="$WT/x/docs/learnings/../../etc/foo"
+expect "war-servitor path with .. denied (traversal)" \
+  2 "$(run "$(mk '"war-servitor"' "$SERV_DOTDOT")")"
+
+# Servitor: a memory-looking path that contains .. -> deny (exit 2).
+SERV_MEM_DOTDOT="$WT/repo/.claude/projects/p/memory/../../etc/shadow"
+expect "war-servitor memory path with .. denied (traversal)" \
+  2 "$(run "$(mk '"war-servitor"' "$SERV_MEM_DOTDOT")")"
+
+# Worker: a path that contains .. whose literal dirname chain hits .war-task
+# ancestor (the .war-task dir is in the path literally, but .. escapes it).
+WORKER_DOTDOT="$WT/wt/task-1/sub/../../../plain/file.txt"
+expect "war-worker path with .. denied (traversal)" \
+  2 "$(run "$(mk '"war-worker"' "$WORKER_DOTDOT")")"
+
+# Regression: clean (no-..) servitor memory path still allowed.
+expect "war-servitor clean memory path still allowed (regression)" \
+  0 "$(run "$(mk '"war-servitor"' "$SERV_MEM")")"
+
+# Regression: clean (no-..) servitor learnings path still allowed.
+expect "war-servitor clean learnings path still allowed (regression)" \
+  0 "$(run "$(mk '"war-servitor"' "$SERV_LEARN")")"
+
+# Regression: clean (no-..) worker inside-worktree path still allowed.
+expect "war-worker clean inside-worktree path still allowed (regression)" \
+  0 "$(run "$(mk '"war-worker"' "$INSIDE_WT")")"
+
+# ---------------------------------------------------------------------------
 printf '\n%d/%d cases passed\n' "$((n - fails))" "$n"
 [ "$fails" -eq 0 ] || { printf '%d FAILED\n' "$fails"; exit 1; }
 echo "validate-worktree-scope.test.sh: PASS"
