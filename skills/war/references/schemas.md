@@ -114,6 +114,12 @@ Produced by `/war-room`, consumed by `/war`'s Setup. The schema, defaults, prese
     autoEscalate: true },                    // 1->coven on a Critical/low-confidence lone seat; set false (with covenPolicy:"solo") to pin one auditor
   run: { roundLimit, afk },                  // roundLimit >= 1; afk = default for /war --afk
   overrides: { gate, workingBranch, landingBranch, learningsTarget } }  // null = let /war auto-detect
+// overrides.gate is the *declared base* command (string|null); the *resolved* gate run by agents
+// is a self-discovering string produced by war-config.mjs resolveGate(declaredGate): it appends
+// a find-based bash-suite discovery loop so every *.test.sh is found and run on each invocation.
+// resolveGate STILL appends discovery even when overrides.gate is non-null — you cannot accidentally
+// skip bash suites by pinning a gate override (F12 open decision #2).  "No string[]" — self-discovery
+// supersedes a static list; re-detection is automatic on every gate invocation.
 ```
 These reach the per-phase Workflow as `args.agents`, `args.audit`, `args.run` (the Lead threads them in after resolving the file); `overrides` are applied by the Lead during Setup. See [`../assets/workflow-template.js`](../assets/workflow-template.js).
 

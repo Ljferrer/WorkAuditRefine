@@ -146,6 +146,21 @@ export function covenSeats(config, task) {
   return Array.from({ length: size }, (_, i) => lenses[i % lenses.length])
 }
 
+// Self-discovering multi-runner gate (F12).
+// Given the declared base command (e.g. `node --test 'skills/**/*.test.mjs'`), returns
+// a portable shell string that runs the declared gate AND discovers + runs every *.test.sh
+// found in the repo tree (excluding node_modules and .git). The bash suites are sorted and
+// executed in order; any non-zero exit aborts immediately (|| exit 1).
+// Empty/null/falsy declaredGate → the discovery clause ALONE (no leading &&).
+export function resolveGate(declaredGate) {
+  const discovery = [
+    `for f in $(find . -type f -name '*.test.sh' -not -path '*/node_modules/*' -not -path '*/.git/*' | sort);`,
+    `do printf '\\n== gate(bash): %s ==\\n' "$f" && bash "$f" || exit 1; done`,
+  ].join(' ')
+  if (!declaredGate) return discovery
+  return `${declaredGate} && ${discovery}`
+}
+
 // --- CLI ---------------------------------------------------------------------
 // node war-config.mjs --preset <name>            -> print a filled preset config (stdout)
 // node war-config.mjs <path>   [--fill-defaults] -> validate a file; print filled config or "valid"
@@ -159,6 +174,12 @@ async function main(argv) {
   if (has('--help') || args.length === 0) {
     process.stdout.write('usage: war-config.mjs (--preset <name> | <path> | --stdin) [--fill-defaults]\n')
     process.exit(args.length === 0 ? 1 : 0)
+  }
+
+  if (has('--resolve-gate')) {
+    const cmd = valOf('--resolve-gate') ?? ''
+    process.stdout.write(resolveGate(cmd) + '\n')
+    process.exit(0)
   }
 
   if (has('--preset')) {
