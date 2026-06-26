@@ -5,7 +5,15 @@ policy. Today the servitor's "physically confines your writes" is false on the B
 bypasses the `Write|Edit|NotebookEdit` scope hook), and it writes persistent memory with no dedup/correction/verify
 discipline.
 
-**Scope (v0.6.0 — agent tool-surface change):**
+**Scope (v0.6.4 — agent tool-surface change):**
+
+> **Baseline-drift note (2026-06-25 red-team):** drafted at v0.5.1; STACKS on plans 1-3 (v0.6.1-v0.6.3), so the
+> release is **v0.6.4** (per-plan +0.0.1; the original "v0.6.0 minor" framing predates the stack). Other drift:
+> the Wrap-up servitor prompt in `workflow-template.js` is at **~420-426** (not the cited 310-317; the F05 spec's
+> `:310-317` cite is likewise stale → back-port). T4's reword must cover MORE than war-servitor.md: the red-team
+> found servitor-confinement-attributed-to-the-hook claims ALSO in `skills/war/SKILL.md` (×2), `references/schemas.md`,
+> `references/design.md`, and `workflow-template.js:421` (the Wrap-up prompt) — make T4 grep-driven over the whole
+> live surface, not a fixed file list.
 - **F01** (HIGH) — servitor confinement becomes real via a `tools:` allowlist (drop Bash); worker keeps Bash but
   gets honest docs **and** a best-effort Bash-write **warn-hook** (operator chose to build it, F01 D4); reword the
   "physically confined" claims to attribute confinement to the allowlist, not the hook.
@@ -37,11 +45,13 @@ MEMORY.md, glob the memory dir, write files) — **no git, no Bash** — so drop
 **`Read, Grep, Glob, Write, Edit`** (Grep added vs the spec's list — read-only, no confinement risk, materially aids
 F05 dedup "find the covering file").
 
-**Gate (for `/war`):** the full multi-runner command (F12 lesson) — note the **new** `warn-bash-write-scope.test.sh`:
+**Gate (for `/war`):** the full multi-runner command (F12 lesson). Quote the node glob (unquoted under-covers on
+bash 3.2 — and `workflow-template.test.mjs` sits at depth 2) and **self-discover** the bash suites so the **new**
+`warn-bash-write-scope.test.sh` (added by T3) is picked up automatically once it exists (the explicit enumeration
+below would fail the gate *before* T3 creates that file):
 ```
-node --test skills/**/*.test.mjs && bash hooks/validate-worktree-scope.test.sh \
-  && bash hooks/warn-bash-write-scope.test.sh && bash hooks/clean-surface-war-worktree.test.sh \
-  && bash skills/war/assets/provision-worktrees.test.sh
+node --test 'skills/**/*.test.mjs' && for f in $(find . -type f -name '*.test.sh' \
+  -not -path '*/node_modules/*' -not -path '*/.git/*' | sort); do bash "$f" || exit 1; done
 ```
 
 **Source of truth:** [F01](../specs/2026-06-25-F01-bash-scope-gap-design.md),
@@ -54,7 +64,7 @@ roadmap [here](2026-06-25-audit-remediation-roadmap.md). Memory: `scope-hook-bli
 - **Phase 1 — confinement (F01 core + #58):** T1 servitor allowlist → T2 hook `..`-rejection → T3 worker warn-hook.
 - **Phase 2 — doc honesty (F01 D2/D3):** T4 — reword the "physically confined" claims + clean-surface grep.
 - **Phase 3 — memory admission (F05):** T5 — admission checklist + wrap-up prompt + structural tests.
-- **Phase 4 — release:** T6 — v0.6.0; close #58.
+- **Phase 4 — release:** T6 — v0.6.4; close #58.
 
 > war-servitor.md is edited by T1 (allowlist), T4 (reword), T5 (checklist) — all serial (same file).
 
@@ -118,15 +128,22 @@ now confined by capability) + a structural assertion.
 
 ### Task 4: Reword the confinement claims; clean-surface grep
 
-**Files:** Modify `agents/war-servitor.md` (description + body), `agents/war-worker.md` (residual prose),
-`docs/adr/0002-scope-by-agent-type.md`, `README.md` (if it repeats the claim), `hooks/validate-worktree-scope.sh`
-(comment); Test `hooks/clean-surface-war-worktree.test.sh` (extend) or a new grep.
+**Files:** Modify (GREP-DRIVEN — the clean-surface grep is the source of truth, NOT a fixed list): `agents/war-servitor.md`
+(description + body), `agents/war-worker.md` (residual prose), `docs/adr/0002-scope-by-agent-type.md`, `README.md`
+(if it repeats the claim), `hooks/validate-worktree-scope.sh` (comment), **AND the additional servitor-confinement
+sites the red-team found: `skills/war/SKILL.md` (×2 — manual-land spawn + invariants), `skills/war/references/schemas.md`,
+`skills/war/references/design.md`, and `skills/war/assets/workflow-template.js:421` (the Wrap-up prompt's "the
+worktree-scope hook confines you" line)**; Test `hooks/clean-surface-war-worktree.test.sh` (extend) or a new grep.
+**Note:** workflow-template.js:421 is also touched by T5 (Wrap-up admission checklist) — serial, same file.
 
-- [ ] **Step 1: Write failing test** — a clean-surface grep asserting **no** live-surface claim that the *hook*
-  "physically confines" writes remains (the servitor's confinement is now attributed to the **allowlist**; the
-  worker's is **best-effort + reviewed**, not physical). Exclude `*.test.*` (load-bearing exclusion, per the
-  WAR_WORKTREE clean-surface pattern).
-- [ ] **Step 2: Run gate → fail** (`war-servitor.md:3,11` still say "physically confines … the worktree-scope hook").
+- [ ] **Step 1: Write failing test** — a clean-surface grep (exclude `*.test.*`, load-bearing) asserting **no**
+  live-surface site claims the *hook ALONE* confines the **servitor** (esp. the overstated "physically confines"):
+  post-F01 the servitor's confinement is the **capability allowlist** (it holds no Bash, so its only write path is
+  Write/Edit, which the hook then gates) — every site must attribute it to the allowlist (with the hook gating the
+  residual Write/Edit), not to the hook alone. Grep the WHOLE live surface (skills/ agents/ hooks/ README docs/adr),
+  so the SKILL.md/schemas.md/design.md/workflow-template.js sites are caught too — reword **every** flagged site.
+- [ ] **Step 2: Run gate → fail** (war-servitor.md:3,11 say "physically confines … the worktree-scope hook", and
+  SKILL.md/schemas.md/design.md/workflow-template.js:421 attribute the servitor's confinement to the hook alone).
 - [ ] **Step 3: Implement** — D3 reword: servitor description + body attribute confinement to the **tools allowlist**;
   worker prose states the accepted sibling-/parent-write residual (mitigated by absolute-path prompts + auditor review
   + the advisory warn-hook); ADR 0002 + README match; update the hook's "Bash slipped through … always allowed"
@@ -141,7 +158,9 @@ now confined by capability) + a structural assertion.
 ### Task 5: Servitor memory-admission checklist
 
 **Files:** Modify `agents/war-servitor.md` (admission checklist), `skills/war/assets/workflow-template.js` (Wrap-up
-prompt, `:310-317`); Test `skills/war/assets/workflow-template.test.mjs` (wrap-up prompt) + a doc structural test.
+prompt, **~`:420-426`** — drifted from the cited `:310-317`; the F05 spec's `:310-317` cite at its line 10 is likewise
+stale → back-port; find by construct: the `war-servitor` agent() call in the WRAP-UP section); Test
+`skills/war/assets/workflow-template.test.mjs` (wrap-up prompt) + a doc structural test.
 
 - [ ] **Step 1: Write failing tests** (structural — F05 is prompt-layer)
   - The Wrap-up prompt **and** `war-servitor.md` instruct: **dedup before write** (Glob memory dir + read MEMORY.md +
@@ -160,13 +179,17 @@ prompt, `:310-317`); Test `skills/war/assets/workflow-template.test.mjs` (wrap-u
 
 ## Phase 4 — Release & verify
 
-### Task 6: Version bump v0.6.0 + full multi-runner gate green
+### Task 6: Version bump v0.6.4 + full multi-runner gate green
 
 **Files:** the README-documented bump list.
 
-- [ ] **Step 1:** Bump to **v0.6.0** (minor — agent tool-surface change) across the bump list.
-- [ ] **Step 2:** Run the **full** gate (all runners, incl. the new `warn-bash-write-scope.test.sh`) → green.
-- [ ] **Step 3: Commit** — `git commit -am "chore(release): v0.6.0 — servitor confinement (allowlist), worker Bash advisory, memory admission, '..' hardening"`
+- [ ] **Step 1:** Bump to **v0.6.4** (patch over the stacked v0.6.3) across the COMPLETE bump list:
+  `.claude-plugin/plugin.json` `version`, `.claude-plugin/marketplace.json` `metadata.version` AND `plugins[0].version`
+  (do NOT omit — stale = silent-no-op release), README `## Status` (REPLACE-in-place; "Builds on v0.6.3" lineage ok).
+  README has no version *badge* — bump only the slots that exist.
+- [ ] **Step 2:** Run the **full** self-discovering gate (quoted node glob + ALL `*.test.sh` incl. the new
+  `warn-bash-write-scope.test.sh`) → green.
+- [ ] **Step 3: Commit** — `git commit -am "chore(release): v0.6.4 — servitor confinement (allowlist), worker Bash advisory, memory admission, '..' hardening"`
 - [ ] **Step 4:** Close issue #58 (residual landed) with a pointer to this plan's commits.
 
 ---
@@ -183,14 +206,16 @@ prompt, `:310-317`); Test `skills/war/assets/workflow-template.test.mjs` (wrap-u
   not by scanning the live (out-of-repo) MEMORY.md.
 - war-servitor.md serial edits across T1/T4/T5 — by design (same-file tasks serialize).
 
-## Open decisions (for `/red-team`)
+## Open decisions — RESOLVED by `/red-team` (2026-06-25, `--afk` autonomous adjudication)
 
-1. **Warn-hook surfacing mechanism** — PreToolUse `allow`-decision JSON with a `systemMessage`, vs plain stderr+exit 0.
-   Confirm which the harness actually surfaces to the worker/transcript (impl detail; both are non-blocking).
-2. **Warn-hook false-positive budget** — the conservative detector will miss opaque writes (`python -c`) and may flag
-   benign `git -C` into a sibling worktree. Accept best-effort, or tune the pattern set? (Recommend: accept; it's
-   advisory.)
-3. **#58 full anchoring** — add memory-root anchoring (thread a root env into the hook) now, or keep `..`-rejection
-   only for v0.6.0? (Recommend: `..`-only now; anchoring is a later hardening pass.)
-4. **F05 dedup lint for `docs/learnings/`** repos — add a duplicate-slug grep when learnings live in-repo? (Recommend:
-   defer; structural prompt tests suffice.)
+1. **Warn-hook surfacing → stderr + exit 0** (proven feasible by the red-team prototype). Optionally also emit a
+   PreToolUse `allow`-decision `systemMessage`; both are non-blocking. Keep it simple: stderr + always exit 0.
+2. **Warn-hook false-positive budget → accept best-effort** (it's advisory; the auditor is the real backstop). Do
+   avoid the obvious false-positives the prototype hit (a quoted `>` / `[ "$x" = ">" ]` comparison, `node --test`),
+   but opaque writes (`python -c open(...)`) are accepted misses.
+3. **#58 full anchoring → `..`-rejection only now** (defer memory-root anchoring to a later hardening pass; needs a
+   root env threaded into the hook).
+4. **F05 dedup lint for `docs/learnings/` → defer** (structural prompt tests suffice).
+5. **Cross-plan (NEW): hooks.json PreToolUse:Bash is shared with plan 5 (audit-fidelity).** The red-team found plan 5
+   also adds a `PreToolUse:Bash` hook. This plan's T3 adds the FIRST `PreToolUse:Bash` entry; plan 5 (stacked on this)
+   must **append** to that array, not overwrite it. Flagged for plan 5's red-team.

@@ -23,7 +23,7 @@ merge-task is **inherently split across two worktrees** — the task branch stay
 1. `git -C <taskWorktree> fetch`. Rebase the task branch onto the current integration tip: `git -C <taskWorktree> rebase <integration-tip>`. On conflict → return `status: "conflict"` with the conflicting files. Do NOT force-resolve blindly.
 2. Run the gate command (in `<taskWorktree>`).
 3. If the gate fails → return `status: "gate_failed"` with the failing output (the script routes a FIX_NEEDED back to a fresh fix-worker that works in the task worktree exactly as today — unchanged).
-4. In `_refinery` (on the integration branch): `git -C <_refinery> merge <task-branch>` (no force), `git -C <_refinery> push`, and return `status: "merged"` with the new integration SHA.
+4. In `_refinery` (on the integration branch): `git -C <_refinery> merge <task-branch>` (no force), `git -C <_refinery> push`, and return `status: "merged"` with the new integration SHA. **Populate `gate_output`** with the full stdout+stderr of the gate run from step 2 — the post-merge gate-audit pass uses this as execution evidence to verify the mapped tests actually ran.
 
 The merge's working-tree writes land only in `_refinery`. The task worktree is left clean so fix-in-place still works.
 
@@ -46,6 +46,9 @@ The land runs in `_refinery`, **detached** at the working tip — the working br
    - On any other push error → return `status: "error"` (escalate).
 3. After `roundLimit` failed push attempts (CAS exhaustion) → return `status: "land_stale"` (a hard escalation distinct from a content `conflict`; there are no merge-text contradictions, only topology contention). Held for the Lead.
 4. On push success → return `status: "landed"` with the new working SHA. The Lead then runs an **opportunistic resync** of its cwd: `git -C <cwd> merge --ff-only <new-working-tip>` iff the cwd is on the working branch and the tree is clean; otherwise skip. The Lead never forces or blocks on this.
+
+## Gate contract
+The gate command you receive is a **resolved, self-discovering string** (produced by `war-config.mjs --resolve-gate`): it runs the declared node/pytest/etc. suite **and** discovers + runs every `*.test.sh` in the repo via a `find`-based loop. Run it **verbatim** (do not abbreviate or re-compose it) for every merge-task, land-phase, and release check. Any non-zero exit ⇒ `gate_failed` — this covers all runners, including bash suites added by intra-phase merges. Never skip the gate; never delete or weaken tests to make it pass.
 
 ## Never
 - `git checkout`, `git merge`, `git update-ref`, or `git push` against the **Lead's main checkout** (the repo's default working tree, not `_refinery` or `<taskWorktree>`). All merges and pushes target `_refinery` (for merge-task's integration-side merge and for land-phase) or `<taskWorktree>` (for the merge-task rebase only).

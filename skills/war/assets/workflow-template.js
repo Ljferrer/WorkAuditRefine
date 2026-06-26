@@ -88,7 +88,12 @@ const ownedFile = A.ownedFile                    // run ledger of owned refs (--
 //  lands with the teardown call, not this Provision barrier — left on `A` for the future seam.)
 const taskBranch = t => t.branch || (planSlug ? `war/${planSlug}/p${ph.id}-${t.id}` : t.branch)
 const taskWorktree = t => t.worktree || ((worktreeRoot && runId) ? `${worktreeRoot}/${runId}/${t.id}` : t.worktree)
-for (const t of (tasks || [])) { t.branch = taskBranch(t); t.worktree = taskWorktree(t) }
+for (const t of (tasks || [])) {
+  t.branch = taskBranch(t); t.worktree = taskWorktree(t)
+  if (!t.branch || !t.worktree) {
+    throw new Error(`task ${t.id}: cannot derive branch/worktree — supply planSlug+runId+worktreeRoot or explicit branch/worktree`)
+  }
+}
 // Per-role spawn opts: model always; effort only when non-default (omit = inherit session).
 // Mirror of war-config.mjs spawnOpts/covenSeats — the Workflow sandbox can't import. Keep in sync.
 const ROLE_MODEL = { worker: 'sonnet', auditor: 'opus', refiner: 'sonnet', servitor: 'sonnet' }
@@ -98,7 +103,9 @@ const spawn = role => {
   return a.effort && a.effort !== 'default' ? { model, effort: a.effort } : { model }
 }
 const done = new Set()
+const succeeded = new Set()
 const landed = [], escalated = [], minorsFiled = [], auditLog = []
+const mergedTasksForGateAudit = []   // collect {taskId, gateOutput, acceptanceCriteria} for post-merge gate-audit pass (F04 R3)
 
 // --- Repo-derived provisioning (Part B) ------------------------------------
 // provisionStep runs the pinned run.provision list, IN ORDER, inside one task worktree — a refiner
@@ -138,18 +145,21 @@ const provisionClause = provisionList.length
 
 const blockingOf = seats => seats.flatMap(s => s.findings || []).filter(f => f.severity === 'Critical' || f.severity === 'Major')
 const minorsOf   = seats => seats.flatMap(s => s.findings || []).filter(f => f.severity === 'Minor' || f.severity === 'Nit')
-const allApprove = seats => seats.length > 0 && seats.every(s => s.verdict === 'approve')
+const allApprove = (seats, expected) => seats.length === expected && seats.every(s => s.verdict === 'approve')
 const isSplit    = seats => seats.some(s => s.verdict === 'approve') && seats.some(s => s.verdict === 'request_changes')
-const nextWave   = () => tasks.filter(t => !done.has(t.id) && (t.deps || []).every(d => done.has(d)))
+const nextWave   = () => tasks.filter(t => !done.has(t.id) && (t.deps || []).every(d => succeeded.has(d)))
 
-function auditPrompt(task, lens, depth, peers) {
+function auditPrompt(task, lens, depth, peers, workerTests) {
   let p = `Audit WAR task ${task.id} through the "${lens}" lens at depth ${depth}.\n`
-    + `Review the diff of ${task.branch} vs ${ph.integrationBranch} (the single target). Sub-issue #${task.issue}.\n`
-    + `Plan slice: ${task.planSlice}. Plan file: ${plan.file}.\n`
-    + `CANDIDATE files are in the task worktree at: ${task.worktree}/\n`
-    + `BASELINE files are in the main repo checkout (your current working directory / the integration base).\n`
-    + `Read candidate files under ${task.worktree}/ and compare them against the corresponding baseline copies at the main repo checkout to determine what changed.\n`
-    + `Verify the mapped acceptance-criteria tests EXIST and PASS (catch "green by deletion").`
+    + `Sub-issue #${task.issue}. Plan slice: ${task.planSlice}. Plan file: ${plan.file}.\n`
+    + `Run \`git diff ${ph.integrationBranch}...${task.branch}\` (three-dot = merge-base..head = exactly what this task added) for the authoritative change set; re-run it each round (a fix-worker may have pushed). `
+    + `Use allowlist-safe git forms: --name-status, --stat, --format=oneline, A...B, HEAD^. `
+    + `Avoid %-format strings (e.g. --pretty=format:%H) and @{} reflog syntax — those are denied by the read-only guard.\n`
+    + `Then read candidate files under ${task.worktree}/ for neighbor/deep context.\n`
+    + `Verify the mapped acceptance-criteria tests EXIST and are not weakened or skipped (anti-cheat: catch "green by deletion" and test-integrity erosion). You cannot execute the gate — the refiner runs the gate. Your job is to confirm tests exist in the diff and are uncompromised.`
+  if (workerTests) {
+    p += `\n\nWorker-reported tests summary (cross-check claim vs diff): ${JSON.stringify(workerTests)}`
+  }
   if (peers && peers.length) {
     p += `\n\nREBUTTAL ROUND — your panel split. Re-judge in light of your peers below, then re-emit your final verdict:\n`
       + peers.map(s => `- ${s.seat} (${s.lens}) → ${s.verdict}: ${(s.findings || []).map(f => `[${f.severity}] ${f.title}`).join('; ') || 'no findings'}`).join('\n')
@@ -157,17 +167,28 @@ function auditPrompt(task, lens, depth, peers) {
   return p
 }
 
-async function auditRound(task, peers) {
+async function auditRound(task, peers, workerTests) {
   const baseLenses = task.lenses && task.lenses.length ? task.lenses : ['correctness', 'cascading-impact', 'plan-faithfulness']
   const lenses = !task.coven
     ? [baseLenses[0]]
     : Array.from({ length: audit.covenSize || baseLenses.length }, (_, i) => baseLenses[i % baseLenses.length])
   const depth = task.coven ? 'deep' : 'neighbors'
-  return (await parallel(lenses.map(lens => () =>
-    agent(auditPrompt(task, lens, depth, peers), {
-      agentType: NS + 'war-auditor', phase: 'Audit',
-      label: `audit:${task.id}:${lens}${peers ? ':rebut' : ''}`, schema: AUDIT_VERDICT, ...spawn('auditor') })
-  ))).filter(Boolean)
+  const expected = lenses.length
+  const runLens = lens => agent(auditPrompt(task, lens, depth, peers, workerTests), {
+    agentType: NS + 'war-auditor', phase: 'Audit',
+    label: `audit:${task.id}:${lens}${peers ? ':rebut' : ''}`, schema: AUDIT_VERDICT, ...spawn('auditor') })
+  // Initial parallel run
+  let results = await parallel(lenses.map(lens => () => runLens(lens)))
+  // Re-run only the dropped (null) lenses, up to 2 retry passes
+  for (let retry = 0; retry < 2; retry++) {
+    const dropped = lenses.filter((_, i) => results[i] == null)
+    if (!dropped.length) break
+    const retried = await parallel(dropped.map(lens => () => runLens(lens)))
+    let ri = 0
+    results = results.map(r => r != null ? r : retried[ri++])
+  }
+  const seats = results.filter(Boolean)
+  return { seats, expected }
 }
 
 log(`Phase ${ph.id} "${ph.title}": ${tasks.length} task(s) → ${ph.integrationBranch}`)
@@ -192,14 +213,14 @@ if (tasks.length) {
   const SCRIPT = '${CLAUDE_PLUGIN_ROOT}/skills/war/assets/provision-worktrees.sh'
   const owned = ownedFile ? ` --owned-file ${ownedFile}` : ''
   const ensures = tasks.map(t =>
-    `   provision-worktrees.sh ensure-worktree ${t.worktree} ${t.branch} <integration-tip>`).join('\n')
+    `   provision-worktrees.sh ensure-worktree ${t.worktree} ${t.branch} "$TIP"`).join('\n')
   await agent(
     `Provision the worktree topology for WAR phase ${ph.id} "${ph.title}" by running ${SCRIPT}. `
     + `Do NOT free-author git; only run these subcommands, fail loud on any non-zero exit (a foreign integration branch exits 3), and report a MergeResult.\n`
     + `1. FROM THE MAIN CHECKOUT (${mainCheckout || 'the main repo checkout — your current working directory'}, NOT a task worktree): `
     + `provision-worktrees.sh ensure-exclude — this excludes \`.claude/\` in the parent checkout so the nested task worktrees do not surface as untracked there (probe E2).\n`
     + `2. provision-worktrees.sh ensure-integration ${planSlug || '<plan-slug>'} ${ph.id} ${ph.workingBranch}${owned} — reuse the plan-namespaced integration branch ${ph.integrationBranch} if it is already ours (the --owned-file ledger), else cut it at ${ph.workingBranch}.\n`
-    + `3. Capture the resulting integration tip (\`git rev-parse ${ph.integrationBranch}\`), then for EACH task run ensure-worktree at the integration tip (idempotent; reuse if present, conservative heal if the dir went missing):\n${ensures}\n`
+    + `3. Capture the resulting integration tip (TIP="$(git rev-parse ${ph.integrationBranch})"), then for EACH task run ensure-worktree at the integration tip captured in step 3 (idempotent; reuse if present, conservative heal if the dir went missing):\n${ensures}\n`
     + `Each ensure-worktree creates the worktree on its plan-namespaced branch off the integration tip and drops a .war-task marker. After this barrier every task worktree exists and the workers can run.\n`
     + `4. provision-worktrees.sh ensure-refinery-worktree ${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/_refinery ${ph.integrationBranch} — create (or re-attach) the Refinery's dedicated worktree on the integration branch. The Refinery performs every merge in this run-scoped worktree, never the Lead's main checkout.`,
     { agentType: NS + 'war-refiner', phase: 'Provision', label: `provision:phase-${ph.id}`, schema: MERGE_RESULT, ...spawn('refiner') })
@@ -207,6 +228,19 @@ if (tasks.length) {
 
 let guard = 0
 while (done.size < tasks.length && guard++ < tasks.length + 2) {
+  // ---- DEP-BLOCK PRE-CHECK — placement is load-bearing (plan §Phase 3, Step 3) ----
+  // Runs BEFORE nextWave() and BEFORE the break guard. Reads done/succeeded (not wave).
+  // Adds dep-blocked tasks to done so nextWave() correctly excludes them; the break guard
+  // only fires when nothing genuinely remains. done.size grows → loop terminates.
+  for (const t of tasks) {
+    const deps = t.deps || []
+    if (!done.has(t.id) && deps.length && deps.every(d => done.has(d)) && !deps.every(d => succeeded.has(d))) {
+      const failedDeps = deps.filter(d => !succeeded.has(d))
+      escalated.push({ task: t.id, reason: 'dep-failed', failedDeps })
+      auditLog.push({ task: t.id, verdict: 'dep-failed', failedDeps, findings: [] })
+      done.add(t.id)
+    }
+  }
   const wave = nextWave()
   if (!wave.length) { log(`No runnable tasks remain — the rest are blocked behind escalations.`); break }
 
@@ -231,16 +265,19 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       return { task, verdict: 'escalate', seats: [], blocked: (impl && impl.blocked_reason) || 'worker returned no result' }
     }
 
-    let round = 0, verdict = null, seats = []
+    let round = 0, verdict = null, seats = [], expected = 0
+    const workerTests = impl && impl.tests ? impl.tests : null
     while (round < roundLimit) {
-      seats = await auditRound(task, null)                       // independent — no cross-talk
+      ;({ seats, expected } = await auditRound(task, null, workerTests))      // independent — no cross-talk
+      if (seats.length < expected) { verdict = 'audit-blocked'; break }   // persistent shortfall after retries
       if (seats.some(s => s.verdict === 'escalate')) { verdict = 'escalate'; break }
-      if (allApprove(seats)) { verdict = 'approve'; break }
+      if (allApprove(seats, expected)) { verdict = 'approve'; break }
 
       if (isSplit(seats) && seats.length > 1) {                  // one rebuttal round on a split
-        seats = await auditRound(task, seats)
+        ;({ seats, expected } = await auditRound(task, seats, workerTests))
+        if (seats.length < expected) { verdict = 'audit-blocked'; break } // persistent shortfall after retries
         if (seats.some(s => s.verdict === 'escalate')) { verdict = 'escalate'; break }
-        if (allApprove(seats)) { verdict = 'approve'; break }
+        if (allApprove(seats, expected)) { verdict = 'approve'; break }
         if (isSplit(seats)) { verdict = 'escalate'; break }      // still deadlocked → human tiebreak
       }
 
@@ -259,26 +296,30 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       round++
     }
     if (verdict === null) verdict = 'audit-blocked'
-    return { task, verdict, seats }
+    return { task, verdict, seats, expected }
   }))
 
   // ---- REFINE — serial merge of approved tasks (THE merge queue) ----
   for (const r of results.filter(Boolean)) {
     minorsFiled.push(...minorsOf(r.seats || []).map(f => ({ task: r.task.id, ...f })))
-    auditLog.push({ task: r.task.id, verdict: r.verdict, findings: (r.seats || []).flatMap(s => s.findings || []), blocked: r.blocked })
+    auditLog.push({ task: r.task.id, verdict: r.verdict, findings: (r.seats || []).flatMap(s => s.findings || []), blocked: r.blocked, requested: r.expected, returned: (r.seats || []).length })
     done.add(r.task.id)
     if (r.verdict === 'approve') {
       const refineryPath = `${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/_refinery`
       const mr = await agent(
         `Merge WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
         + `IMPORTANT — merge-task is split across two worktrees (spec §5.2, red-team-verified):\n`
-        + `  (a) REBASE in the TASK worktree: git -C ${r.task.worktree} rebase <integration-tip>. `
+        + `  (a) REBASE in the TASK worktree: git -C ${r.task.worktree} rebase ${ph.integrationBranch}. `
         + `CRITICAL: cannot rebase in ${refineryPath} — the task branch is checked out in ${r.task.worktree} and git rebase is refused on a branch checked out in another worktree. `
         + `rebase --onto does NOT dodge this constraint — it is equally refused.\n`
         + `  (b) MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), then git merge ${r.task.branch} (fast-forward merge of the now-rebased task branch into the integration branch). Push.\n`
-        + `Run the gate (${plan.gate}) after the rebase in the task worktree; on gate failure return gate_failed; on conflict return conflict; never force.`,
+        + `Run the gate (${plan.gate}) after the rebase in the task worktree; on gate failure return gate_failed; on conflict return conflict; never force. `
+        + `On success, populate gate_output in the returned MergeResult with the executed gate output (stdout+stderr) so the post-merge gate-audit pass can review it as execution evidence.`,
         { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}`, schema: MERGE_RESULT, ...spawn('refiner') })
-      if (mr && mr.status === 'merged') landed.push(r.task.id)
+      if (mr && mr.status === 'merged') {
+        landed.push(r.task.id); succeeded.add(r.task.id)
+        mergedTasksForGateAudit.push({ taskId: r.task.id, gateOutput: mr.gate_output, acceptanceCriteria: r.task.planSlice })
+      }
       else escalated.push({ task: r.task.id, reason: mr ? mr.status : 'merge_failed', detail: mr })
     } else if (r.verdict === 'env-blocked') {
       // Provision failure (Part B): the worker never ran and the worktree is kept. Surface the
@@ -292,11 +333,46 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   }
 }
 
+// ---- POST-MERGE GATE-AUDIT PASS (F04 R3) — parallel, AFTER serial merge queue, BEFORE Land decision ----
+// A read-only war-auditor (lens: execution-evidence) reviews the executed gate output from each merged
+// task to close the "auditor can't verify PASS" gap with real execution evidence (not just integrity-by-reading).
+// Default outcome: SOFT note (does not hold the land). Hard only if a mapped test is provably unrun
+// (present in diff but absent / 0-count in gate_output) — Open decision #1 (resolved: operationally defined).
+if (mergedTasksForGateAudit.length > 0) {
+  await parallel(mergedTasksForGateAudit.map(({ taskId, gateOutput, acceptanceCriteria }) => async () => {
+    const gateAuditVerdict = await agent(
+      `POST-MERGE GATE-AUDIT for WAR task ${taskId} (lens: execution-evidence). `
+      + `You are a READ-ONLY auditor reviewing execution evidence — you cannot run commands.\n`
+      + `Review the executed gate output below and the task's mapped acceptance criteria to confirm the mapped tests actually ran and passed.\n`
+      + `Acceptance criteria / plan slice: ${acceptanceCriteria || '(see plan file)'}\n`
+      + `Executed gate output:\n${gateOutput || '(no gate output recorded)'}\n\n`
+      + `If a mapped acceptance-criterion test is present in the pre-merge diff but absent or shows a 0 count in the gate output above, record a HARD gate-evidence finding. `
+      + `Otherwise record a SOFT note (informational, does not hold the land). `
+      + `Default: SOFT. Hard only when provably unrun.`,
+      { agentType: NS + 'war-auditor', phase: 'Audit',
+        label: `gate-audit:${taskId}:execution-evidence`, schema: AUDIT_VERDICT, ...spawn('auditor') })
+    // gate-evidence findings are SOFT (do not hold the land) UNLESS a mapped test is provably unrun (hard).
+    // Hard case: the auditor records a Critical or Major finding on the execution-evidence lens, indicating
+    // a mapped acceptance-criteria test present in the pre-merge diff is absent/0-count in the gate output.
+    // Per Open decision #1 (resolved: operationally defined) — severity Critical/Major signals provably-unrun.
+    if (gateAuditVerdict) {
+      const findings = gateAuditVerdict.findings || []
+      const isHardGateEvidence = findings.some(f => f.severity === 'Critical' || f.severity === 'Major')
+      // Distinguish hard vs soft in the auditLog so the Lead can adjudicate even if already held.
+      auditLog.push({ task: taskId, verdict: `gate-audit:${gateAuditVerdict.verdict}`, findings, gateEvidence: true, hard: isHardGateEvidence })
+      if (isHardGateEvidence) {
+        // HARD: a provably-unrun mapped test → push gate-evidence to escalated so the land is held.
+        escalated.push({ task: taskId, reason: 'gate-evidence', detail: gateAuditVerdict })
+      }
+    }
+  }))
+}
+
 // ---- LAND — only when no hard escalation is open; else hold for the Lead ----
 // landDecision mirrors land-decision.mjs (decideLand) — the Workflow sandbox can't import. Keep in sync.
 // HARD_ESCALATION_REASONS mirrors land-decision.mjs export — the Workflow sandbox can't import. Keep in sync.
 let landResult = null
-const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale']
+const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence']
 const hardEscalation = escalated.some(e => HARD_ESCALATION_REASONS.includes(e && e.reason))
 let landDecision = (landed.length && !hardEscalation) ? 'landed'
   : hardEscalation ? 'held:escalation'
@@ -342,11 +418,17 @@ let servitorResult = null
 if (landResult && landResult.status === 'landed' && learningsTarget) {
   servitorResult = await agent(
     `Wrap up learnings for WAR phase ${ph.id} "${ph.title}" (landed on ${ph.workingBranch}).\n`
-    + `Your only writable path (the worktree-scope hook confines you to it by agent_type): ${learningsTarget}.\n`
+    + `Your only writable path (your capability allowlist holds no Bash — Write/Edit only — and the PreToolUse scope hook gates those by agent_type to the learnings target): ${learningsTarget}.\n`
     + `Landed tasks: ${landed.join(', ') || 'none'}.\n`
     + `Audit log (verdicts + findings): ${JSON.stringify(auditLog)}\n`
     + `Escalations: ${JSON.stringify(escalated)}\n`
-    + `Capture only DURABLE, reusable learnings (gotchas, plan/code mismatches, deviations + why, patterns). Skip routine notes.`,
+    + `Capture only DURABLE, reusable learnings (gotchas, plan/code mismatches, deviations + why, patterns). Skip routine notes.\n`
+    + `\n`
+    + `Memory admission checklist — follow ALL four disciplines before every write:\n`
+    + `D1 DEDUP BEFORE WRITE: Glob the memory dir and read MEMORY.md. Read related candidate files. If an existing covering file exists, update that file in place — do not duplicate. Create a new file only when no existing file covers the fact.\n`
+    + `D2 CORRECTION PRIORITY: A fact that contradicts an existing memory supersedes it — update or replace the stale file and note the supersession. User corrections outrank agent assertions.\n`
+    + `D3 VERIFY-CUE: Any fact naming a file, function, flag, or line must include the cue "verify still present before acting" — do not write snapshot facts that will rot.\n`
+    + `D4 INDEX HYGIENE: Update the MEMORY.md row in place (find and replace the existing row — do not append a duplicate row). Cross-link related facts with [[slug]] references.`,
     { agentType: NS + 'war-servitor', phase: 'Wrap-up', label: `wrap-up:phase-${ph.id}`, schema: SERVITOR_RESULT, ...spawn('servitor') })
 }
 

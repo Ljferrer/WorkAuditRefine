@@ -5,8 +5,16 @@ not silently skip a whole class; (F07) the template's inline **logic** mirrors m
 just its constants. Foundation plan: every later remediation plan relies on a gate that actually covers their tests
 and a drift guard that catches mirror divergence.
 
-**Scope:** F12 (multi-runner gate) + F07 (mirror-logic drift guard). Both are **v0.5.3 test/hardening** — additive
+**Scope:** F12 (multi-runner gate) + F07 (mirror-logic drift guard). Both are **v0.6.2 test/hardening** — additive
 tests + a pure resolver + doc/contract updates; **no behavioral change to the orchestration loop.**
+
+> **Baseline-drift note (2026-06-25 red-team):** this plan was drafted at v0.5.1; it now STACKS on the
+> audit-scheduler-integrity plan (v0.6.1), so the release is **v0.6.2** (not the drafted v0.5.3) and the live
+> `workflow-template.js` mirror line numbers have MOVED: the inline spawn-opts mirror is ~95-99 (not 94-98),
+> covenSeats ~166-169 (not 158-166), and the `decideLand` ternary + inline `HARD_ESCALATION_REASONS` are at
+> **367-374** (not 291-295) — and the array now has 6 members (`…land_stale, dep-failed, gate-evidence`). The
+> drift tests regex-extract by construct (not by line), so they adapt; the line cites below are advisory. The F07
+> spec's own `292-295` cite is likewise stale (back-port the 367-374 fix into the spec).
 
 **Operator decisions (2026-06-25 — these resolve the specs' open decisions):**
 - **F07 → tests-only (D1 + D3).** Add behavioral drift tests + the meta-guard; **keep the mirrors**. The D2
@@ -26,10 +34,13 @@ F07 adds tests only. Both land in `war-config.test.mjs` → **serialize as tasks
 regex-extract the inline construct, `deepEqual` against the imported canonical) and `new AsyncFunction`/`new Function`
 compilation.
 
-**Gate (for `/war`):** the full multi-runner command (this plan's own dogfood of F12):
+**Gate (for `/war`):** the full multi-runner command (this plan's own dogfood of F12). The node glob MUST be
+**quoted** (unquoted `**` under macOS bash 3.2 silently under-covers) and the bash suites are **self-discovered**
+(the repo has **FOUR** `*.test.sh` suites — `validate-worktree-scope`, `clean-surface-war-worktree`,
+`provision-worktrees`, **and `refinery-surface`** — so hardcoding three would itself reproduce the F12 bug):
 ```
-node --test skills/**/*.test.mjs && bash hooks/validate-worktree-scope.test.sh \
-  && bash hooks/clean-surface-war-worktree.test.sh && bash skills/war/assets/provision-worktrees.test.sh
+node --test 'skills/**/*.test.mjs' && for f in $(find . -type f -name '*.test.sh' \
+  -not -path '*/node_modules/*' -not -path '*/.git/*' | sort); do bash "$f" || exit 1; done
 ```
 
 **Source of truth:** [F07 spec](../specs/2026-06-25-F07-mirror-logic-drift-guard-design.md),
@@ -53,7 +64,7 @@ node --test skills/**/*.test.mjs && bash hooks/validate-worktree-scope.test.sh \
 - **Phase 1 — F12 gate resolver:** Task 1 (`resolveGate` + CLI + unit tests) → Task 2 (coverage meta-test + doc
   contracts). Independent of F07 except the shared test file.
 - **Phase 2 — F07 drift guards:** Task 3 — behavioral drift tests + meta-guard. Depends on Task 2 (same file).
-- **Phase 3 — Release:** Task 4 — v0.5.3 + full gate. Depends on all.
+- **Phase 3 — Release:** Task 4 — v0.6.2 + full gate. Depends on all.
 
 ---
 
@@ -84,7 +95,14 @@ node --test skills/**/*.test.mjs && bash hooks/validate-worktree-scope.test.sh \
 - [ ] **Step 1: Write failing tests**
   - **Coverage meta-test (D5):** independently walk the repo for executable `*.test.sh`, and assert **each** is
     matched by `resolveGate`'s discovery pattern (i.e. none sits under a pruned path / none is excluded) — so a new
-    bash suite cannot be silently orphaned. (Mirror of the `WAR_WORKTREE` clean-surface gate's spirit.)
+    bash suite cannot be silently orphaned. (Mirror of the `WAR_WORKTREE` clean-surface gate's spirit.) **There are
+    currently FOUR** such suites — `hooks/validate-worktree-scope.test.sh`, `hooks/clean-surface-war-worktree.test.sh`,
+    `skills/war/assets/provision-worktrees.test.sh`, **and `skills/war/assets/refinery-surface.test.sh`** — the test
+    must assert all four are discovered (a count-or-set assertion, not a hardcoded 3).
+  - **Node-test breadth assertion (resolves Open decision #1):** ALSO assert every `*.test.{mjs,js}` under the repo
+    (excluding pruned paths) is reachable by the declared `node --test 'skills/**/*.test.mjs'` glob — i.e. flag any
+    `*.test.mjs`/`*.test.js` that sits outside `skills/` or that the quoted glob would miss. Cheap; closes D1 fully
+    so neither a bash suite nor a node test can be silently orphaned.
   - **Doc-contract assertions:** `grep` `war-refiner.md` for "resolved gate" / "all runners"; `grep` `SKILL.md`
     for the `--resolve-gate` step; `grep` `schemas.md` for the gate-string semantics note.
 - [ ] **Step 2: Run gate → fail.**
@@ -109,19 +127,36 @@ node --test skills/**/*.test.mjs && bash hooks/validate-worktree-scope.test.sh \
 (mirrors kept by decision).
 
 - [ ] **Step 1: Write the tests** (these are the deliverable; prove they CATCH drift in Step 4)
-  - **spawnOpts drift (D1):** regex-extract the inline spawn-opts mirror (`workflow-template.js:94-98`) from
-    `templateText`, rebuild it via `new Function('agents','ROLE_MODEL', 'return (' + extracted + ')')`, and assert
-    its output equals the imported `spawnOpts(config, role)` across an input table: each role × {default effort,
-    non-default effort, missing model}. (`ROLE_MODEL` is already constant-drift-guarded.)
-  - **covenSeats drift (D1):** extract the inline lens/seats logic (~158-166) and assert it equals
-    `covenSeats(config, task)` across: `coven:false`; `coven:true` with custom `task.lenses`; `covenSize` > and <
-    `lenses.length` (rotation/wrap).
+  > Line numbers below are post-plan-1 (verified at the stacked base) and **advisory** — extract by **construct**
+  > (regex/marker), not by line, since later merges shift them.
+  - **spawnOpts drift (D1):** regex-extract the inline spawn-opts mirror (`workflow-template.js` ~95-99, under the
+    line-93 `Mirror of war-config.mjs spawnOpts/covenSeats … Keep in sync` marker) from `templateText`, rebuild it
+    via `new Function('agents','ROLE_MODEL', 'return (' + extracted + ')')` — **inject `ROLE_MODEL` and `agents`**
+    (the locals the inline closes over) — and assert its output equals the imported `spawnOpts(config, role)` across
+    an input table: each role × {default effort, **undefined/falsy effort**, non-default effort, missing model}. The
+    inline writes the condition as `a.effort && a.effort !== 'default'` while the canonical uses `effort === 'default'`
+    — logically equivalent, so the **undefined-effort** row is the one that proves equivalence; include it.
+    (`ROLE_MODEL` is already constant-drift-guarded.)
+  - **covenSeats drift (D1):** extract the inline lens/seats logic (~166-169, under the **same** line-93 marker —
+    one marker covers BOTH spawnOpts and covenSeats) and assert it equals `covenSeats(config, task)` across:
+    `coven:false`; `coven:true` with custom `task.lenses`; `covenSize` > and < `lenses.length` (rotation/wrap). The
+    inline **hardcodes** the fallback `['correctness','cascading-impact','plan-faithfulness']` whereas the canonical
+    reads `DEFAULTS.audit.lenses` — **inject `DEFAULTS`** when rebuilding so both resolve the same default set (this
+    equivalence is already guarded by the existing test at `war-config.test.mjs` ~239-249).
   - **decideLand drift (D1):** extract inline `HARD_ESCALATION_REASONS` + `hardEscalation` + the `landDecision`
-    ternary (`291-295`); assert the verdict equals `decideLand({landed, escalated})` across: empty/non-empty
-    `landed` × `escalated` with/without a hard reason. Reconcile signatures by computing `hardEscalation` from the
-    same `escalated` the canonical receives.
-  - **Meta-guard (D3):** scan `templateText` for every `Keep in sync` / `Mirror of` marker; assert each maps to a
-    registered drift test (a literal registry in the test). A new mirror marker without a test ⇒ this fails.
+    ternary (**~367-374**, under the line-367/368 `landDecision mirrors land-decision.mjs` + `HARD_ESCALATION_REASONS
+    mirrors …` markers); assert the verdict equals `decideLand({landed, escalated})` across: empty/non-empty
+    `landed` × `escalated` with/without a hard reason. The live array now has **6 members**
+    (`escalate, audit-blocked, conflict, land_stale, dep-failed, gate-evidence`). Reconcile signatures by computing
+    `hardEscalation` from the same `escalated` the canonical receives.
+  - **Meta-guard (D3):** scan `templateText` for every `Keep in sync` / `Mirror of` / `MIRROR of` marker and assert
+    each is **accounted for** by a literal registry — but markers are **NOT 1:1 with drift tests**, so the registry
+    must **classify** each marker: (a) **logic-mirror** → maps to ≥1 registered behavioral drift test (the line-93
+    marker maps to TWO — spawnOpts AND covenSeats; lines 367/368 map to the decideLand test); (b) **data-mirror** →
+    explicitly allowlisted, no behavioral test required (the **line-69 `run.provision`/`provisionSource` MIRROR** is
+    data-flow, with no canonical *function* to drift-test — it must be in the allowlist, NOT treated as a missing
+    logic test). A new marker that is neither registered-as-logic nor allowlisted-as-data ⇒ this fails. (There are
+    currently **four** markers: lines 69, 93, 367, 368.)
 - [ ] **Step 2: Run gate → pass** (mirrors are currently in sync, so the new tests are green).
 - [ ] **Step 3: Prove the guards bite** — temporarily mutate `spawnOpts`/`covenSeats`/`decideLand` canonical (or the
   inline copy) in a scratch edit and confirm the matching drift test **fails**; revert. Add a `Keep in sync` marker
@@ -133,15 +168,18 @@ node --test skills/**/*.test.mjs && bash hooks/validate-worktree-scope.test.sh \
 
 ## Phase 3 — Release & verify
 
-### Task 4: Version bump v0.5.3 + full multi-runner gate green
+### Task 4: Version bump v0.6.2 + full multi-runner gate green
 
 **Files:** the README-documented bump list.
 
-- [ ] **Step 1:** Bump to **v0.5.3** across the bump list (`.claude-plugin/plugin.json` `version`, README badge/status,
-  any `vX.Y.Z` strings).
+- [ ] **Step 1:** Bump to **v0.6.2** (patch over the live v0.6.1 from the stacked audit-scheduler-integrity plan)
+  across the COMPLETE bump list: `.claude-plugin/plugin.json` `version`, **`.claude-plugin/marketplace.json`
+  `metadata.version` AND `plugins[0].version`** (do NOT omit — stale marketplace.json = silent-no-op release),
+  README badge + `## Status` (REPLACE-in-place single-release slot — overwrite the prior paragraph), any `vX.Y.Z` strings.
 - [ ] **Step 2:** Run the **full** gate (all runners) → green. With F12 landed, also sanity-check
-  `war-config.mjs --resolve-gate "node --test skills/**/*.test.mjs"` discovers all three `*.test.sh` suites.
-- [ ] **Step 3: Commit** — `git commit -am "chore(release): v0.5.3 — verification-layer integrity (multi-runner gate, mirror drift guards)"`
+  `node skills/war/assets/war-config.mjs --resolve-gate "node --test 'skills/**/*.test.mjs'"` discovers all **four**
+  `*.test.sh` suites (incl. `refinery-surface.test.sh`).
+- [ ] **Step 3: Commit** — `git commit -am "chore(release): v0.6.2 — verification-layer integrity (multi-runner gate, mirror drift guards)"`
 
 ---
 
@@ -159,13 +197,15 @@ node --test skills/**/*.test.mjs && bash hooks/validate-worktree-scope.test.sh \
 - **`find $(...)` word-splitting** assumes test paths have no spaces (true today; matches the existing bash suites).
   Noted as an accepted limitation.
 
-## Open decisions (for `/red-team`)
+## Open decisions — RESOLVED by `/red-team` (2026-06-25, `--afk` autonomous adjudication)
 
-1. **Node-test breadth:** the declared `node --test skills/**/*.test.mjs` glob could itself under-cover (`*.test.mjs`
-   outside `skills/`, or `*.test.js`). Should the coverage meta-test **also** assert every `*.test.{mjs,js}` is
-   reachable by the declared node glob, or is bash-suite coverage sufficient for v0.5.3? (Recommend: add the node
-   breadth assertion too — cheap, closes D1 fully.)
-2. **`overrides.gate` + discovery:** when a user pins `overrides.gate`, should `resolveGate` still append bash-suite
-   discovery (safer — can't accidentally skip suites) or treat the override as fully authoritative? (Recommend:
-   still append; document it.)
-3. **Release granularity** confirmed per-plan (v0.5.3); confirm vs batching.
+1. **Node-test breadth → YES, add it.** The coverage meta-test ALSO asserts every `*.test.{mjs,js}` (excluding
+   pruned paths) is reachable by the declared `node --test 'skills/**/*.test.mjs'` glob (folded into Task 2 Step 1).
+   Cheap; closes D1 fully — neither a bash suite nor a node test can be silently orphaned.
+2. **`overrides.gate` + discovery → still append.** When a user pins `overrides.gate`, `resolveGate` STILL appends
+   the bash-suite discovery clause (can't accidentally skip suites); documented in schemas.md/SKILL.md (Task 2).
+3. **Release granularity → v0.6.2, standalone** (patch over the stacked v0.6.1; not batched — matches the per-plan
+   0.6.x series).
+4. **resolveGate ↔ Part B (F12 spec open-decision #2) → composes cleanly.** `resolveGate` wraps ONLY the test gate
+   (declared node glob + self-discovered bash suites); worktree **provisioning** is a separate refiner-owned barrier
+   (`run.provision`), not part of the gate string — so there is no interaction to reconcile.
