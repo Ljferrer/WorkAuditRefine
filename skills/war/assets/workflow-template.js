@@ -422,7 +422,13 @@ if (landResult && landResult.status === 'landed' && learningsTarget) {
     + `Landed tasks: ${landed.join(', ') || 'none'}.\n`
     + `Audit log (verdicts + findings): ${JSON.stringify(auditLog)}\n`
     + `Escalations: ${JSON.stringify(escalated)}\n`
-    + `Capture only DURABLE, reusable learnings (gotchas, plan/code mismatches, deviations + why, patterns). Skip routine notes.`,
+    + `Capture only DURABLE, reusable learnings (gotchas, plan/code mismatches, deviations + why, patterns). Skip routine notes.\n`
+    + `\n`
+    + `Memory admission checklist — follow ALL four disciplines before every write:\n`
+    + `D1 DEDUP BEFORE WRITE: Glob the memory dir and read MEMORY.md. Read related candidate files. If an existing covering file exists, update that file in place — do not duplicate. Create a new file only when no existing file covers the fact.\n`
+    + `D2 CORRECTION PRIORITY: A fact that contradicts an existing memory supersedes it — update or replace the stale file and note the supersession. User corrections outrank agent assertions.\n`
+    + `D3 VERIFY-CUE: Any fact naming a file, function, flag, or line must include the cue "verify still present before acting" — do not write snapshot facts that will rot.\n`
+    + `D4 INDEX HYGIENE: Update the MEMORY.md row in place (find and replace the existing row — do not append a duplicate row). Cross-link related facts with [[slug]] references.`,
     { agentType: NS + 'war-servitor', phase: 'Wrap-up', label: `wrap-up:phase-${ph.id}`, schema: SERVITOR_RESULT, ...spawn('servitor') })
 }
 
