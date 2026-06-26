@@ -16,7 +16,7 @@ plans. Grouping decided 2026-06-25 (operator): **4 themed plans** after Plan 1; 
 | # | Plan | Findings | Sev | Ver (propose) | Status |
 |---|------|----------|-----|------|--------|
 | 1 | [Audit & scheduler integrity](2026-06-25-audit-scheduler-integrity.md) | F11, F02, F04 | HIGH | v0.5.2 | **drafted + verified** |
-| 2 | Verification-layer integrity | F07, F12 | MED/HIGH | v0.5.3 | to draft |
+| 2 | [Verification-layer integrity](2026-06-25-verification-layer-integrity.md) | F07, F12 | MED/HIGH | v0.5.3 | **drafted** |
 | 3 | Provisioning lifecycle | F08, F09, F10 | LOW/NIT | v0.5.4 | to draft |
 | 4 | Servitor confinement & memory | F01, F05 | HIGH/MED | v0.6.0 | to draft |
 | 5 | Audit fidelity | F03, F06 | HIGH/MED | v0.7.0 | to draft |
