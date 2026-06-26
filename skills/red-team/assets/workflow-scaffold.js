@@ -22,7 +22,9 @@ const FINDINGS = { type: 'object', required: ['probe', 'kind', 'technique', 'sta
   // Layer 3 attestation: what the probe ACTUALLY read. The gate validates it against the fingerprint.
   read_anchor: { type: 'object', required: ['resolved_path', 'plan_title'], properties: {
     resolved_path: { type: 'string' }, plan_title: { type: 'string' } } },
-  findings: { type: 'array', items: { type: 'object', properties: {
+  findings: { type: 'array',
+    description: 'A DEFECT (false claim, gap, or needsDecision ambiguity) — NOT a confirmation. Omit claims that check out; a clean probe returns findings:[] with status:"pass".',
+    items: { type: 'object', properties: {
     severity: { enum: ['Critical', 'Major', 'Minor'] }, needsDecision: { type: 'boolean' },
     claim: { type: 'string' }, reality: { type: 'string' }, evidence: { type: 'string' },
     fix: { type: 'string' }, planRef: { type: 'string' } } } } } }
@@ -103,7 +105,7 @@ log(`Red-teaming ${planFile}: ${allProbes.length} probe(s)`)
 
 // Probe (stage 1) + adversarial-confirm (stage 2) as named stages so a dropped probe can be retried.
 const runProbe = (p) => agent(
-  `${scopeLock(p.technique)}\n\n${p.prompt}\n\nReturn ONLY the FINDINGS object (probe="${p.name}", kind="${p.kind}", technique="${p.technique}"). Prove any failure with reproduced evidence; never assert. Set needsDecision:true on any finding that is an ambiguity with more than one non-equivalent resolution — a hole only the user can settle.`,
+  `${scopeLock(p.technique)}\n\n${p.prompt}\n\nReturn ONLY the FINDINGS object (probe="${p.name}", kind="${p.kind}", technique="${p.technique}"). Prove any failure with reproduced evidence; never assert. Set needsDecision:true on any finding that is an ambiguity with more than one non-equivalent resolution — a hole only the user can settle. Only record a finding for an actual problem — a false claim, a gap, or an ambiguity (needsDecision). If a claim checks out, do NOT record it. A fully-clean probe returns status:"pass" with findings:[].`,
   { label: `probe:${p.name}`, phase: 'Probe',
     agentType: p.technique === 'analyzed' ? 'Explore' : undefined, schema: FINDINGS })
 
