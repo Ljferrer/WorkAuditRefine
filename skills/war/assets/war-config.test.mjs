@@ -4,7 +4,8 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import {
-  DEFAULTS, fillDefaults, presetConfig, validate, spawnOpts, covenSeats,
+  DEFAULTS, PROVISION_SOURCES, fillDefaults, presetConfig, validate, spawnOpts, covenSeats,
+  resolveProvision,
 } from './war-config.mjs'
 import { HARD_ESCALATION_REASONS } from './land-decision.mjs'
 
@@ -85,6 +86,97 @@ test('non-boolean autoEscalate rejected', () => {
 
 test('roundLimit below 1 rejected', () => {
   assert.equal(validate({ run: { roundLimit: 0 } }).valid, false)
+})
+
+// --- run.provision / provisionSource / provisionAuto (Part B) ----------------
+
+test('provision defaults: empty list, source none, auto true', () => {
+  const c = fillDefaults({})
+  assert.deepEqual(c.run.provision, [])
+  assert.equal(c.run.provisionSource, 'none')
+  assert.equal(c.run.provisionAuto, true)
+  assert.equal(validate({}).valid, true)
+})
+
+test('provision of non-empty strings accepted', () => {
+  const r = validate({ run: { provision: ['pnpm install --frozen-lockfile', 'git submodule update --init'] } })
+  assert.equal(r.valid, true, r.errors.join('\n'))
+})
+
+test('non-array provision rejected with a clear error', () => {
+  const r = validate({ run: { provision: 'pnpm install' } })
+  assert.equal(r.valid, false)
+  assert.match(r.errors.join('\n'), /provision must be an array/)
+})
+
+test('empty-string provision entry rejected with a clear error', () => {
+  const r = validate({ run: { provision: ['ok', '   '] } })
+  assert.equal(r.valid, false)
+  assert.match(r.errors.join('\n'), /provision\[1\].*non-empty/)
+})
+
+test('PROVISION_SOURCES enum has the expected members', () => {
+  assert.deepEqual(
+    PROVISION_SOURCES,
+    ['explicit', 'manifest', 'ci', 'onboarding', 'structural', 'none'])
+})
+
+test('each provisionSource enum member is accepted', () => {
+  for (const source of PROVISION_SOURCES) {
+    assert.equal(validate({ run: { provisionSource: source } }).valid, true, `source ${source} should be valid`)
+  }
+})
+
+test('bad provisionSource rejected', () => {
+  const r = validate({ run: { provisionSource: 'magic' } })
+  assert.equal(r.valid, false)
+  assert.match(r.errors.join('\n'), /run\.provisionSource/)
+})
+
+test('non-boolean provisionAuto rejected', () => {
+  const r = validate({ run: { provisionAuto: 'yes' } })
+  assert.equal(r.valid, false)
+  assert.match(r.errors.join('\n'), /run\.provisionAuto/)
+})
+
+// --- resolveProvision (Part B) -----------------------------------------------
+// resolveProvision decides whether war-room Setup must run the setup-scout:
+//   • explicit non-empty run.provision → returned VERBATIM, source unchanged, no scout
+//   • empty list + provisionAuto:true   → scout path flagged (scout:true)
+//   • empty list + provisionAuto:false  → [] + source 'none', no scout
+
+test('resolveProvision: non-empty list returned verbatim with source unchanged and no scout', () => {
+  const list = ['pnpm install --frozen-lockfile', 'git submodule update --init --recursive']
+  const c = fillDefaults({ run: { provision: list, provisionSource: 'explicit' } })
+  const r = resolveProvision(c)
+  assert.deepEqual(r.provision, list)        // verbatim, same order
+  assert.equal(r.source, 'explicit')         // source carried through unchanged
+  assert.equal(r.scout, false)               // explicit intent → no scout
+})
+
+test('resolveProvision: non-empty list short-circuits the scout even when provisionAuto is true', () => {
+  const list = ['make setup']
+  const c = fillDefaults({ run: { provision: list, provisionSource: 'onboarding', provisionAuto: true } })
+  const r = resolveProvision(c)
+  assert.deepEqual(r.provision, list)
+  assert.equal(r.source, 'onboarding')       // explicit intent honored verbatim, source preserved
+  assert.equal(r.scout, false)               // provisionAuto does NOT override an explicit list
+})
+
+test('resolveProvision: empty list + provisionAuto true flags the scout path', () => {
+  const c = fillDefaults({ run: { provision: [], provisionAuto: true } })
+  const r = resolveProvision(c)
+  assert.deepEqual(r.provision, [])
+  assert.equal(r.source, 'none')
+  assert.equal(r.scout, true)                // empty + auto → must scout
+})
+
+test('resolveProvision: empty list + provisionAuto false yields [] + source none + no scout', () => {
+  const c = fillDefaults({ run: { provision: [], provisionAuto: false } })
+  const r = resolveProvision(c)
+  assert.deepEqual(r.provision, [])
+  assert.equal(r.source, 'none')
+  assert.equal(r.scout, false)               // auto off → never scout
 })
 
 test('unknown role rejected', () => {

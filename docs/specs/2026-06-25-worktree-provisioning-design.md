@@ -180,9 +180,10 @@ deterministic module" value downstream.
   scouted once provisions identically for both skills. *Git note:* linked worktrees share the
   superproject's `$GIT_COMMON_DIR`, so once the main checkout has fetched a submodule the worktree's
   `submodule update --init` is **offline and instant**; network/auth only for the first cold fetch.
-- **B.3.4 Provisioning failure is its own outcome (not a red gate).** WAR worker → a distinct
-  **`env-blocked`** verdict (Lead halts the task, no FIX rounds burned); red-team probe → `status:"warn"`
-  with an env-gap note. Never scored as a red baseline.
+- **B.3.4 Provisioning failure is its own outcome (not a red gate).** WAR → a distinct **`env-blocked`**
+  task outcome, emitted by the refiner Provision barrier (the worker is **never spawned**); the Lead halts
+  the task, no FIX rounds burned. Red-team probe → `status:"warn"` with an env-gap note. Never scored as a
+  red baseline.
 - **B.3.5** `/war-room` Setup runs the scout, shows the proposed `provision` + source + rationale, and
   writes the confirmed list into `config.json`.
 - **B.3.6** Optional deeper layer — a **committed repo manifest** both skills read (level 1 made
@@ -196,7 +197,9 @@ deterministic module" value downstream.
   table.
 - **`provision.mjs`** (new, thin + tested): `validateProvision(list)` + a minimal
   `structuralFallback(repo)` (ecosystem-agnostic floor only).
-- **WAR worker result schema**: add `env-blocked`.
+- **WAR task-outcome union**: add `env-blocked` (a refiner **Provision-barrier** outcome emitted when a
+  pinned `run.provision` command fails *before any worker is spawned* — **not** a `WorkerResult` field).
+  See `skills/war/references/schemas.md` §Task outcome union.
 - **WAR workflow args**: thread the resolved `provision` list into worker + fix-worker setup, run after
   worktree creation, before install/gate.
 - **red-team scaffold**: executed-probe scope-lock runs the passed-in list; failure → `warn`.
@@ -274,9 +277,8 @@ distinct failure modes stay distinct: a **git-topology** failure → fail-loud h
   `WAR_WORKTREE`.
 - **Phase 6 — Release & verify**: version bump per README's file list (v0.5.0); all tests green.
 
-> The container plan ([docs/plans/2026-06-25-worktree-provisioning.md](../plans/2026-06-25-worktree-provisioning.md))
-> currently details Phases 1–3 + 5 (Part A). Part B (Phase 4) is specified here but not yet broken into
-> tasks — a follow-up planning pass.
+> **Part A** (Phases 1–3 + 5, the container) → [docs/plans/2026-06-25-worktree-provisioning-part-A.md](../plans/2026-06-25-worktree-provisioning-part-A.md), ships **v0.5.0**.
+> **Part B** (the contents / repo-derived bootstrap) → [docs/plans/2026-06-25-worktree-provisioning-part-B.md](../plans/2026-06-25-worktree-provisioning-part-B.md), ships **v0.5.1**. The Open decisions below were resolved in the 2026-06-25 grilling; the committed-manifest follow-up (D4) is tracked in [issue #51](https://github.com/Ljferrer/WorkAuditRefine/issues/51).
 
 ## Validation criteria
 

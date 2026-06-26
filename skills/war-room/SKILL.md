@@ -20,8 +20,13 @@ You produce a **run config** for `/war` and nothing else: you write `.claude/war
    - `run.roundLimit` (integer ≥ 1); `run.afk` (bool).
    - `overrides.gate` / `workingBranch` / `landingBranch` / `learningsTarget` — `null` lets `/war` auto-detect; a string pins it.
    When the user touches coven settings, remind them: **`covenPolicy: "solo"` alone does not guarantee one auditor** — a Critical or low-confidence finding still escalates 1→coven. To pin a single auditor, also set `audit.autoEscalate: false`.
-3. **Show the assembled config** as pretty JSON and ask for explicit confirmation.
-4. **Validate, then write.** Validate through the module and only write on success (write to a temp file first so a failure never truncates an existing config):
+3. **Resolve provisioning** (`run.provision` — the commands that make a fresh worker worktree gate-ready). Ask the module what to do rather than deciding yourself — pass the assembled-so-far config to `resolveProvision` (exported by `war-config.mjs`); it returns `{ provision, source, scout }`:
+   - **`scout: false` with a non-empty `provision`** — the operator pinned an explicit list (or it was carried from an existing config). Honor it **verbatim**; do **not** run the scout. Leave `run.provision` and `run.provisionSource` exactly as they are.
+   - **`scout: false` with an empty `provision`** — `provisionAuto` is off. Leave `run.provision: []` / `run.provisionSource: "none"`; no scout, no steps.
+   - **`scout: true`** — `provisionAuto` is on and no explicit list exists. Run the read-only setup-scout (`agents/war-setup-scout.md`) against the target repo via `Agent`. Present its **proposed `provision` list + `source` + `rationale`** to the operator and ask them to confirm or edit. Write the **CONFIRMED** list into `run.provision` and the scout's `source` into `run.provisionSource`. If the operator declines all steps, write `run.provision: []` / `run.provisionSource: "none"`.
+   - **`--refresh-provision`** — when invoked with this flag, first **clear** any existing `run.provision` (set it to `[]` and `run.provisionSource: "none"`) so `resolveProvision` reports `scout: true`, then re-scout as above. This is the only way to re-derive a list that is already pinned (a non-empty list otherwise short-circuits the scout).
+4. **Show the assembled config** as pretty JSON and ask for explicit confirmation.
+5. **Validate, then write.** Validate through the module and only write on success (write to a temp file first so a failure never truncates an existing config):
    ```bash
    mkdir -p .claude/war
    printf '%s' '<assembled-json>' \
@@ -31,8 +36,9 @@ You produce a **run config** for `/war` and nothing else: you write `.claude/war
      || { echo "validation failed — config NOT written"; rm -f .claude/war/config.json.tmp; }
    ```
    If it failed, show the validator's errors, fix them with the user, and retry. Never write an invalid or unvalidated file. (`--fill-defaults` writes the complete resolved config, so the file is self-describing.)
-5. **Stop.** Tell the user: *"Config written to `.claude/war/config.json` (profile: <profile>). Run `/war <plan>` to use it, or `/war <plan> --config <path>` to point at a different file."* Do not launch `/war`.
+6. **Stop.** Tell the user: *"Config written to `.claude/war/config.json` (profile: <profile>). Run `/war <plan>` to use it, or `/war <plan> --config <path>` to point at a different file."* Do not launch `/war`.
 
 ## Notes
-- Conversation-only: no `Agent`, no `Workflow`, no git writes beyond the single config file.
+- Conversation-only: no `Workflow`, no git writes beyond the single config file. The **only** `Agent` you may spawn is the read-only setup-scout (step 3), and only when `resolveProvision` reports `scout: true` (or `--refresh-provision` was passed); it is `Read/Grep/Glob`-only and changes nothing.
+- **`--refresh-provision`** clears a pinned `run.provision` and re-runs the setup-scout. Without it, a non-empty `run.provision` short-circuits scouting and is honored verbatim (explicit operator intent).
 - If a `[Fact-Forcing Gate]` (GateGuard) blocks the write, present the facts it lists, then retry the identical command.

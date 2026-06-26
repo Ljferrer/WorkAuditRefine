@@ -13,6 +13,22 @@ Every agent returns **only** its JSON object (no prose). The Workflow passes the
   blocked_reason?: "present iff status==blocked — the ambiguity/contradiction" }
 ```
 
+## Task outcome union — terminal per-task results
+A task reaches the refiner with exactly one terminal **outcome**. Two are produced by the worker itself (a `WorkerResult` with `status: "implemented"` or `"blocked"`, above). A third — **`env-blocked`** — is **not** a worker result: it is emitted by the refiner's **Provision barrier** when a pinned `run.provision` command fails, **before any worker is spawned**. The worktree never became gate-ready, so there is nothing for a worker to do.
+
+```jsonc
+{ taskId,
+  failedCommand,        // the provision command that exited non-zero
+  exitCode,             // its exit code
+  stderrTail,           // tail of its stderr (for the escalation)
+  provisionSource }     // where the list came from: explicit|manifest|ci|onboarding|structural|none
+```
+- **The worker is NOT spawned.** The barrier runs each `run.provision` command in order after creating the worktree and before launching the worker; the first failure short-circuits to `env-blocked` and the worker launch is skipped entirely. This is distinct from a failed gate (broken code) — here the *environment* never came up.
+- **No `WorkerResult` is produced for an `env-blocked` task** — there is no `branch`/`head_sha`/`tests`, because nothing was implemented. Do **not** add `env-blocked` to the `WorkerResult` schema above; it is its own task-outcome shape. (This corrects earlier "worker result schema" wording in the design spec, B.3.4/B.4 — `env-blocked` is a task outcome, not a worker result.)
+- **Lead handling** (halt the task, escalate, **0 FIX rounds**, **keep** the worktree for inspection, siblings proceed) is specified in [SKILL.md](../SKILL.md). The red-team analogue of a provision failure is a probe `status: "warn"` (never a red verdict), not `env-blocked`.
+
+> The *behavioral* assertion that the barrier emits this exact shape and does not spawn the worker is exercised in the refiner Provision-barrier test (`skills/war/assets/workflow-template.test.mjs`), not here — this section is the data contract.
+
 ## AuditVerdict — `war-auditor` (one per seat per round)
 ```jsonc
 { seat: "seat-1",
@@ -66,6 +82,20 @@ Every agent returns **only** its JSON object (no prose). The Workflow passes the
   memory_index_updated: true }   // true if MEMORY.md (or docs/learnings index) was updated
 ```
 The servitor writes ONLY under `learningsTarget` (the worktree-scope hook keys on its `agent_type` and confines it to the learnings path-pattern `*/.claude/projects/*/memory/*` or `*/docs/learnings/*`, [ADR 0002](../../../docs/adr/0002-scope-by-agent-type.md)); it never touches source, branches, PRs, or issues.
+
+## ScoutResult — `war-setup-scout` (once, before provisioning)
+The read-only, Explore-class setup-scout (`agents/war-setup-scout.md`) reads the **target repo's own** setup signals and derives an ordered provisioning command list. It returns **only**:
+```jsonc
+{ provision: ["<shell cmd>", ...],   // ordered; submodule-init before install; [] is valid
+  source: "explicit" | "ci" | "onboarding" | "structural",  // the highest-authority tier that yielded signal
+  rationale: "which signals were read and why this list, in this order" }
+```
+- **Authority (descending):** `explicit` (a non-empty `run.provision` honored verbatim, no scouting) → `ci` (`.github/workflows/*.yml`) → `onboarding` (`.devcontainer`, a `Makefile`/`Justfile` `setup` target, `package.json scripts.{setup,bootstrap,prepare}`, CONTRIBUTING/README setup sections) → `structural` (the tiny floor). The scout stops at the first tier that produces a list.
+- **Scout subset vs. config enum.** The scout **emits** only `{ explicit, ci, onboarding, structural }` — the four tiers it can read. The full `run.provisionSource` config enum is wider: `explicit | manifest | ci | onboarding | structural | none` ([`../assets/war-config.mjs`](../assets/war-config.mjs) `PROVISION_SOURCES`). The two extra values are not scout outputs: `none` is the unscouted/empty default, and `manifest` (a first-class committed repo manifest, authority above `ci`) is **deferred to [issue #51](https://github.com/Ljferrer/WorkAuditRefine/issues/51)** — reserved in the enum but not yet emitted by any scout tier.
+- **No ecosystem table:** every command is traceable to a signal actually read in the repo, or to the deterministic structural floor — `structuralFallback` in [`../../_shared/provision.mjs`](../../_shared/provision.mjs) (submodule-init + a single known-lockfile install only). The scout never synthesizes an install from a guessed language/framework.
+- **Guarded downstream:** `provision` must pass `validateProvision` (array of non-empty trimmed strings) before it is pinned, and the operator reviews `{ provision, source, rationale }` during war-room Setup. There is no automated test for the scout; its golden-check is the checked-in fixture + [`../../_shared/fixtures/provision/EXPECTED.md`](../../_shared/fixtures/provision/EXPECTED.md) (deterministic coverage of the floor lives in `provision.test.mjs`).
+
+This result is the *derivation* output; pinning it into `run.provision` (and the every-time execution that follows) is governed by the §Run config below.
 
 ## Run config — `.claude/war/config.json` (optional)
 Produced by `/war-room`, consumed by `/war`'s Setup. The schema, defaults, presets, and validation are owned by [`../assets/war-config.mjs`](../assets/war-config.mjs) (`--fill-defaults` to resolve a file, `--preset <name>` to emit a preset, `--stdin` to validate piped JSON). Absent this file, `/war` uses built-in defaults (pre-v0.3.0 behavior).

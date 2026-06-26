@@ -31,7 +31,25 @@ implements that task. One per task, persisting until the task lands.
 _Avoid_: checkout, sandbox, workspace.
 
 **Integration branch**:
-The per-phase branch (`integration/phase-N`) cut off the working branch, from which all of that
-phase's task worktrees are created and into which approved tasks are merged. Removed after the
-phase lands.
+The per-phase branch (`integration/<plan-slug>/phase-N`, plan-namespaced so concurrent runs don't
+collide) cut off the working branch, from which all of that phase's task worktrees are created and
+into which approved tasks are merged. Removed after the phase lands.
 _Avoid_: feature branch, phase branch, staging branch.
+
+### Repo-derived provisioning (Part B)
+
+**Provision list** (`run.provision`):
+The ordered, pinned shell commands that take a bare worktree from checkout to **gate-ready**, derived
+from the target repo's *own* declared setup. Run verbatim, in order, before the gate.
+_Avoid_: setup script, bootstrap steps, install commands.
+
+**Setup-scout**:
+The read-only agent that derives the provision list from the target repo's signals, in descending
+authority (explicit → CI → dev-onboarding → structural floor). Holds no ecosystem knowledge itself.
+_Avoid_: detector, provisioner, bootstrapper.
+
+**`env-blocked`**:
+The task outcome when a provision step fails: the worktree is not gate-ready, the worker is **never
+spawned**, and the Lead escalates with **zero FIX rounds**. Distinct from a failed gate (which means
+the code is broken, not the environment).
+_Avoid_: build-failed, setup-error, broken.
