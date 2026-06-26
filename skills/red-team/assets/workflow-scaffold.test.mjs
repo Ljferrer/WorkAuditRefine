@@ -275,6 +275,32 @@ test('malformed JSON string for args: still rejects with /fingerprint/i (guard i
   )
 })
 
+// --- Task 3.1 (#50 probe side): FINDINGS-means-defect contract ---------------------------------
+test("scaffold structure OK — runProbe prompt instructs 'do NOT record' a claim that checks out", async () => {
+  const a = baseArgs()
+  const { prompts } = await runScaffold(a, passResult(a))
+  const probe = prompts.find(p => p.opts.phase === 'Probe')
+  assert.ok(probe.prompt.includes('do NOT record'),
+    "runProbe prompt must tell the agent NOT to record claims that check out")
+})
+
+test("scaffold structure OK — runProbe prompt says a clean probe returns status:'pass' with findings:[]", async () => {
+  const a = baseArgs()
+  const { prompts } = await runScaffold(a, passResult(a))
+  const probe = prompts.find(p => p.opts.phase === 'Probe')
+  assert.ok(probe.prompt.includes('findings:[]'),
+    "runProbe prompt must say a clean probe returns findings:[]")
+})
+
+test("FINDINGS schema: findings array description includes 'defect'", async () => {
+  const a = baseArgs()
+  const { prompts } = await runScaffold(a, passResult(a))
+  const probe = prompts.find(p => p.opts.phase === 'Probe')
+  const desc = probe.opts.schema.properties.findings.description
+  assert.ok(desc && desc.toLowerCase().includes('defect'),
+    "FINDINGS.properties.findings.description must include the word 'defect'")
+})
+
 test(`provision BACK-COMPAT: no provision list => scope-lock + prompts are byte-for-byte today's`, async () => {
   // The executed-probe and analyzed-probe prompts with NO provision list must be IDENTICAL to the
   // prompts produced when the key is entirely absent — i.e. provisioning adds zero bytes when unused.
