@@ -44,11 +44,13 @@ For a plan with **no runnable artifacts** (a design doc/PRD), drop the executed 
 ```
 
 ## Severity & gate (enforced by [`../assets/red-team-gate.mjs`](../assets/red-team-gate.mjs))
-- **Critical** — provably false in a way that breaks execution (test fails, edit won't apply, file/symbol absent). Blocks.
-- **Major** — real defect or coverage gap → wrong/incomplete results. Blocks.
-- **Minor** — cosmetic/robustness. Auto-note; auto-fix when unambiguous.
-- **`needsDecision`** — an underspecified hole (an ambiguity with >1 non-equivalent resolution) → grill the user, at any severity. Probe agents set `needsDecision:true` on any such finding.
+- **Critical** — provably false in a way that breaks execution (test fails, edit won't apply, file/symbol absent). Blocks **only when the parent probe's `status` is not `"pass"`** (i.e. `warn`, `fail`, or absent). A Critical from a `status:"pass"` probe is a confirmation artifact, not a defect — it does not block.
+- **Major** — real defect or coverage gap → wrong/incomplete results. Same status-aware rule: blocks only when probe `status !== "pass"`.
+- **Minor** — cosmetic/robustness. Auto-note; auto-fix when unambiguous. Not affected by probe status.
+- **`needsDecision`** — an underspecified hole (an ambiguity with >1 non-equivalent resolution) → grill the user, at any severity. **Always blocks, regardless of probe `status`.** Probe agents set `needsDecision:true` on any such finding.
 - **Verdict:** `CLEARED` (no blockers/holes/minors) · `CLEARED-WITH-NOTES` (minors only) · `BLOCKED` (open blocker/hole) · `INCOMPLETE` (coverage gap — an off-target, dropped, or never-ran probe; re-run before any other verdict).
+
+> **Two-contract summary.** (1) *Probe side* — a finding is a DEFECT only; claims that check out are NOT recorded; a clean probe returns `status:"pass"` with `findings:[]`. (2) *Gate side* — `probeStatus !== "pass"` (warn/fail/absent) still blocks for Critical/Major; `needsDecision` always blocks; only literal `"pass"` demotes a Critical/Major to non-blocker.
 
 ## Report template → `docs/red-team/YYYY-MM-DD-<plan-slug>.md`
 ```markdown

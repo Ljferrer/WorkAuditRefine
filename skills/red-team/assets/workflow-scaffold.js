@@ -8,9 +8,18 @@ export const meta = {
 // COPY this file to a scratch path, add the BESPOKE PROBES for the plan under test
 // (edit the array below, or pass them via args.probes), then run with
 //   Workflow({ scriptPath: <copy>, args })
-// args (the Red Team Lead passes):
+// args (the Red Team Lead passes) — may be a plain object OR a JSON string (the
+// scaffold normalizes both via parse-if-string so either form works):
 //   { planFile, repo, sourceSpec,
 //     probes: [ { name, kind:"bespoke", technique:"executed"|"analyzed", prompt } ] }
+// CONTRACTS:
+//   Probe side — a FINDINGS finding is a DEFECT (false claim, gap, or needsDecision
+//   ambiguity), NOT a confirmation. A claim that checks out is NOT recorded. A
+//   fully-clean probe returns status:"pass" with findings:[].
+//   Gate side — a Critical/Major finding is a blocker only when its parent probe's
+//   status is NOT "pass" (probeStatus !== "pass"). A pass probe's Critical/Major is
+//   discarded as a non-defect. needsDecision:true always blocks regardless of probe
+//   status. warn/fail/absent probe status still blocks (only literal "pass" demotes).
 // SAFETY: execution probes work ONLY in throwaway temp dirs / git worktrees and NEVER
 // mutate `repo`. Analysis probes are read-only (Explore agent). A fail is downgraded to
 // warn unless an independent confirm agent reproduces it. Prove, don't assert.
