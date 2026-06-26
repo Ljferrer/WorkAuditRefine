@@ -96,16 +96,6 @@ worktree_registered() {
   '
 }
 
-# branch_ahead_of <branch> <tip> -> 0 if <branch> has commits NOT reachable from
-# <tip> (i.e. carries un-merged work). Used to reason about conservative heal.
-# NOTE: even when true, recreating a worktree never loses those commits — they
-# live in the branch ref, which `git worktree prune`/`remove` never touches.
-branch_ahead_of() {
-  branch_exists "$1" || return 1
-  c="$(git rev-list --count "$2..$1" 2>/dev/null || echo 0)"
-  [ "${c:-0}" -gt 0 ]
-}
-
 # write_marker <worktree-path> : drop the .war-task marker at the worktree root.
 # Idempotent; records minimal provenance for humans/auditors reading it.
 write_marker() {
@@ -229,15 +219,22 @@ dir_is_empty() {
 # --- subcommand: ensure-worktree -------------------------------------------
 # ensure-worktree <path> <branch> <integration-tip>
 #
-# Idempotent "ensure" with conservative heal (D4/D7):
+# Idempotent "ensure" with conservative heal (D4/D7). The real guard is
+# NEVER-RESET-ON-REUSE: we never destroy a worktree whose branch carries
+# un-merged commits. Safety does NOT rely on a "branch is ahead?" pre-check —
+# it is enforced structurally by never resetting or recreating a registered,
+# present worktree. The heal cases are:
 #   * Already a registered worktree, dir present  -> REUSE untouched (only make
-#     sure the .war-task marker is there). Never reset <branch>; an un-merged
-#     commit on it survives.
-#   * Registered but the dir is gone (stale registry) -> prune + recreate on the
-#     existing <branch>. Its commits live in the ref, so nothing is lost.
+#     sure the .war-task marker is there). Never reset <branch>; un-merged
+#     commits survive because we never touch them.
+#   * Registered but the dir is gone (stale registry) -> prune + recreate on
+#     the existing <branch>. Commits live in the ref (never deleted by prune/
+#     remove), so nothing is lost. Only safe because the dir is gone — there is
+#     nothing to destroy.
 #   * Not registered, no dir            -> create fresh on the integration tip.
-#   * Not registered, empty dir         -> create fresh into it.
-#   * Not registered, NON-EMPTY dir     -> FAIL LOUD; never delete it.
+#   * Not registered, empty dir         -> rmdir + create fresh (no data at risk).
+#   * Not registered, NON-EMPTY dir     -> FAIL LOUD; never delete unmanaged data
+#     (D7).
 cmd_ensure_worktree() {
   [ $# -ge 3 ] || die "usage: ensure-worktree <path> <branch> <integration-tip>"
   path="$1"; branch="$2"; tip="$3"

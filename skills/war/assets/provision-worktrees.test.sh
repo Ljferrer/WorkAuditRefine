@@ -1074,6 +1074,30 @@ expect "T3e: --keep preserves _refinery registry entry" \
 expect "T3e: --keep preserves the integration branch" \
   "yes" "$(branch_exists_in "$RTP_E" integration/myplan/phase-7)"
 
+# ===========================================================================
+# F08: structural absence guard — branch_ahead_of must not exist in skills/
+#
+# Verifies that the dead `branch_ahead_of` helper has been removed from all
+# shell source files under skills/ (excluding test files). This is a clean-
+# surface gate: the function was dead code that misrepresented the real
+# conservative-heal guard (never-reset-on-reuse, D7).
+# ---------------------------------------------------------------------------
+SCRIPT_DIR="$(dirname "$0")"
+SKILLS_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+# Search for branch_ahead_of in skills/ source files (exclude test files so
+# this assertion itself does not false-positive on the grep term appearing
+# in a comment inside a test file).
+n=$((n + 1))
+FOUND_AHEAD="$(grep -rn branch_ahead_of "$SKILLS_ROOT" \
+  --include='*.sh' --exclude='*.test.sh' \
+  --include='*.bash' 2>/dev/null || true)"
+if [ -z "$FOUND_AHEAD" ]; then
+  printf 'ok %d - F08: branch_ahead_of is absent from skills/ source files (grep returns nothing)\n' "$n"
+else
+  printf 'FAIL %d - F08: branch_ahead_of still present in skills/ source files:\n%s\n' "$n" "$FOUND_AHEAD"
+  fails=$((fails + 1))
+fi
+
 # ---------------------------------------------------------------------------
 printf '\n%d/%d cases passed\n' "$((n - fails))" "$n"
 [ "$fails" -eq 0 ] || { printf '%d FAILED\n' "$fails"; exit 1; }
