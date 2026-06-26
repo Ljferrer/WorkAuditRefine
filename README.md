@@ -152,7 +152,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.6.0** — concurrent-run land isolation: the Refinery performs every merge in a run-scoped worktree (`_refinery`), never the Lead's main checkout, so two WAR runs in one repo on different branches cannot overwrite each other; same-branch lands serialize via a push-first compare-and-swap + bounded reland (`land_stale` on exhaustion). Builds on v0.5.x worktree provisioning.
+**0.6.1** — audit/scheduler integrity: coven quorum integrity (retry dropped seats x2, never approve a shrunk panel — F11); scheduler succeeded-gate (dependents only fan out after predecessor merges, not just completes; `dep-failed` hard-escalation — F02); auditor anti-cheat + post-merge gate-audit pass (refiner returns executed gate output; parallel read-only gate-evidence review after merge queue — F04). Builds on v0.6.0 concurrent-run land isolation.
 
 ## License
 
