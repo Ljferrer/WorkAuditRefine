@@ -262,4 +262,5 @@ test('drift-guard: inline HARD_ESCALATION_REASONS in workflow-template.js matche
   const normalized = match[1].replace(/'/g, '"')
   const parsed = JSON.parse(normalized)
   assert.deepEqual(parsed, HARD_ESCALATION_REASONS)
+  assert.ok(HARD_ESCALATION_REASONS.includes('dep-failed'), 'dep-failed must be in HARD_ESCALATION_REASONS (F02 foundation)')
 })

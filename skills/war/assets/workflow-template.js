@@ -98,6 +98,7 @@ const spawn = role => {
   return a.effort && a.effort !== 'default' ? { model, effort: a.effort } : { model }
 }
 const done = new Set()
+const succeeded = new Set()
 const landed = [], escalated = [], minorsFiled = [], auditLog = []
 
 // --- Repo-derived provisioning (Part B) ------------------------------------
@@ -138,9 +139,9 @@ const provisionClause = provisionList.length
 
 const blockingOf = seats => seats.flatMap(s => s.findings || []).filter(f => f.severity === 'Critical' || f.severity === 'Major')
 const minorsOf   = seats => seats.flatMap(s => s.findings || []).filter(f => f.severity === 'Minor' || f.severity === 'Nit')
-const allApprove = seats => seats.length > 0 && seats.every(s => s.verdict === 'approve')
+const allApprove = (seats, expected) => seats.length === expected && seats.every(s => s.verdict === 'approve')
 const isSplit    = seats => seats.some(s => s.verdict === 'approve') && seats.some(s => s.verdict === 'request_changes')
-const nextWave   = () => tasks.filter(t => !done.has(t.id) && (t.deps || []).every(d => done.has(d)))
+const nextWave   = () => tasks.filter(t => !done.has(t.id) && (t.deps || []).every(d => succeeded.has(d)))
 
 function auditPrompt(task, lens, depth, peers) {
   let p = `Audit WAR task ${task.id} through the "${lens}" lens at depth ${depth}.\n`
@@ -163,11 +164,22 @@ async function auditRound(task, peers) {
     ? [baseLenses[0]]
     : Array.from({ length: audit.covenSize || baseLenses.length }, (_, i) => baseLenses[i % baseLenses.length])
   const depth = task.coven ? 'deep' : 'neighbors'
-  return (await parallel(lenses.map(lens => () =>
-    agent(auditPrompt(task, lens, depth, peers), {
-      agentType: NS + 'war-auditor', phase: 'Audit',
-      label: `audit:${task.id}:${lens}${peers ? ':rebut' : ''}`, schema: AUDIT_VERDICT, ...spawn('auditor') })
-  ))).filter(Boolean)
+  const expected = lenses.length
+  const runLens = lens => agent(auditPrompt(task, lens, depth, peers), {
+    agentType: NS + 'war-auditor', phase: 'Audit',
+    label: `audit:${task.id}:${lens}${peers ? ':rebut' : ''}`, schema: AUDIT_VERDICT, ...spawn('auditor') })
+  // Initial parallel run
+  let results = await parallel(lenses.map(lens => () => runLens(lens)))
+  // Re-run only the dropped (null) lenses, up to 2 retry passes
+  for (let retry = 0; retry < 2; retry++) {
+    const dropped = lenses.filter((_, i) => results[i] == null)
+    if (!dropped.length) break
+    const retried = await parallel(dropped.map(lens => () => runLens(lens)))
+    let ri = 0
+    results = results.map(r => r != null ? r : retried[ri++])
+  }
+  const seats = results.filter(Boolean)
+  return { seats, expected }
 }
 
 log(`Phase ${ph.id} "${ph.title}": ${tasks.length} task(s) → ${ph.integrationBranch}`)
@@ -207,6 +219,19 @@ if (tasks.length) {
 
 let guard = 0
 while (done.size < tasks.length && guard++ < tasks.length + 2) {
+  // ---- DEP-BLOCK PRE-CHECK — placement is load-bearing (plan §Phase 3, Step 3) ----
+  // Runs BEFORE nextWave() and BEFORE the break guard. Reads done/succeeded (not wave).
+  // Adds dep-blocked tasks to done so nextWave() correctly excludes them; the break guard
+  // only fires when nothing genuinely remains. done.size grows → loop terminates.
+  for (const t of tasks) {
+    const deps = t.deps || []
+    if (!done.has(t.id) && deps.length && deps.every(d => done.has(d)) && !deps.every(d => succeeded.has(d))) {
+      const failedDeps = deps.filter(d => !succeeded.has(d))
+      escalated.push({ task: t.id, reason: 'dep-failed', failedDeps })
+      auditLog.push({ task: t.id, verdict: 'dep-failed', failedDeps, findings: [] })
+      done.add(t.id)
+    }
+  }
   const wave = nextWave()
   if (!wave.length) { log(`No runnable tasks remain — the rest are blocked behind escalations.`); break }
 
@@ -231,16 +256,18 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       return { task, verdict: 'escalate', seats: [], blocked: (impl && impl.blocked_reason) || 'worker returned no result' }
     }
 
-    let round = 0, verdict = null, seats = []
+    let round = 0, verdict = null, seats = [], expected = 0
     while (round < roundLimit) {
-      seats = await auditRound(task, null)                       // independent — no cross-talk
+      ;({ seats, expected } = await auditRound(task, null))      // independent — no cross-talk
+      if (seats.length < expected) { verdict = 'audit-blocked'; break }   // persistent shortfall after retries
       if (seats.some(s => s.verdict === 'escalate')) { verdict = 'escalate'; break }
-      if (allApprove(seats)) { verdict = 'approve'; break }
+      if (allApprove(seats, expected)) { verdict = 'approve'; break }
 
       if (isSplit(seats) && seats.length > 1) {                  // one rebuttal round on a split
-        seats = await auditRound(task, seats)
+        ;({ seats, expected } = await auditRound(task, seats))
+        if (seats.length < expected) { verdict = 'audit-blocked'; break } // persistent shortfall after retries
         if (seats.some(s => s.verdict === 'escalate')) { verdict = 'escalate'; break }
-        if (allApprove(seats)) { verdict = 'approve'; break }
+        if (allApprove(seats, expected)) { verdict = 'approve'; break }
         if (isSplit(seats)) { verdict = 'escalate'; break }      // still deadlocked → human tiebreak
       }
 
@@ -259,13 +286,13 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       round++
     }
     if (verdict === null) verdict = 'audit-blocked'
-    return { task, verdict, seats }
+    return { task, verdict, seats, expected }
   }))
 
   // ---- REFINE — serial merge of approved tasks (THE merge queue) ----
   for (const r of results.filter(Boolean)) {
     minorsFiled.push(...minorsOf(r.seats || []).map(f => ({ task: r.task.id, ...f })))
-    auditLog.push({ task: r.task.id, verdict: r.verdict, findings: (r.seats || []).flatMap(s => s.findings || []), blocked: r.blocked })
+    auditLog.push({ task: r.task.id, verdict: r.verdict, findings: (r.seats || []).flatMap(s => s.findings || []), blocked: r.blocked, requested: r.expected, returned: (r.seats || []).length })
     done.add(r.task.id)
     if (r.verdict === 'approve') {
       const refineryPath = `${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/_refinery`
@@ -278,7 +305,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + `  (b) MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), then git merge ${r.task.branch} (fast-forward merge of the now-rebased task branch into the integration branch). Push.\n`
         + `Run the gate (${plan.gate}) after the rebase in the task worktree; on gate failure return gate_failed; on conflict return conflict; never force.`,
         { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}`, schema: MERGE_RESULT, ...spawn('refiner') })
-      if (mr && mr.status === 'merged') landed.push(r.task.id)
+      if (mr && mr.status === 'merged') { landed.push(r.task.id); succeeded.add(r.task.id) }
       else escalated.push({ task: r.task.id, reason: mr ? mr.status : 'merge_failed', detail: mr })
     } else if (r.verdict === 'env-blocked') {
       // Provision failure (Part B): the worker never ran and the worktree is kept. Surface the
@@ -296,7 +323,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
 // landDecision mirrors land-decision.mjs (decideLand) — the Workflow sandbox can't import. Keep in sync.
 // HARD_ESCALATION_REASONS mirrors land-decision.mjs export — the Workflow sandbox can't import. Keep in sync.
 let landResult = null
-const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale']
+const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed']
 const hardEscalation = escalated.some(e => HARD_ESCALATION_REASONS.includes(e && e.reason))
 let landDecision = (landed.length && !hardEscalation) ? 'landed'
   : hardEscalation ? 'held:escalation'
