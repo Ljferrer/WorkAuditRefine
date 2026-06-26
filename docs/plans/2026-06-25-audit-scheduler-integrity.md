@@ -25,9 +25,12 @@ every constant/logic change is **paired with a drift guard** in `war-config.test
 **Tech Stack:** plain ESM + the Workflow-sandbox template (compiled as an `AsyncFunction` with mocked Workflow
 globals — the repo's existing pattern in `workflow-template.test.mjs`). Tests are `node --test`.
 
-**Gate (for `/war`):** run **all** runners (this is finding F12 in miniature — a single `node --test` under-covers):
+**Gate (for `/war`):** run **all** runners (this is finding F12 in miniature — a single `node --test` under-covers).
+**The `**` glob MUST be quoted** so Node's native recursion expands it portably — an unquoted `skills/**/*.test.mjs`
+is shell-dependent (macOS `/bin/bash` 3.2 has globstar OFF and silently under-covers; verified that the quoted
+form finds all 138 tests regardless of shell):
 ```
-node --test skills/**/*.test.mjs && bash hooks/validate-worktree-scope.test.sh \
+node --test 'skills/**/*.test.mjs' && bash hooks/validate-worktree-scope.test.sh \
   && bash hooks/clean-surface-war-worktree.test.sh && bash skills/war/assets/provision-worktrees.test.sh
 ```
 
@@ -41,7 +44,12 @@ Memory: `dropped-coven-seat-silently-shrinks-quorum`, `done-add-on-soft-failure-
 > **Provenance:** this plan was adversarially verified against the v0.5.1 code (3-lens: code-fidelity,
 > DAG-soundness, test-feasibility) and patched for the confirmed precision gaps — exact insertion points,
 > the `auditRound` return-shape refactor, the parallel post-merge audit pass, and the test-harness extensions
-> each task needs. Line numbers below are at tip f7191fb; a worker should re-confirm by construct.
+> each task needs. Line numbers below were captured at tip f7191fb; a worker should re-confirm by construct.
+> **Baseline-drift note (2026-06-25 red-team):** the live tip is now AHEAD of f7191fb — the repo is at **v0.6.0**
+> and `HARD_ESCALATION_REASONS` already contains a 4th member **`land_stale`** (added downstream of f7191fb in the
+> concurrent-run land-isolation work). The cited line numbers still land within ~0–4 lines of every construct, so
+> they remain usable, but: (a) Task 1 appends `dep-failed` to the **existing 4-item** array (→ 5 items, incl.
+> `land_stale`), NOT a 3-item one; (b) the release is **v0.6.1**, not v0.5.2 (see Task 5 / Open decision 3).
 
 **Resolved decisions (operator, 2026-06-25 — these OVERRIDE the specs' tentative choices):**
 - **R1 (structure).** A **serial DAG** of small tasks. All three findings edit `workflow-template.js` and
@@ -54,6 +62,11 @@ Memory: `dropped-coven-seat-silently-shrinks-quorum`, `done-add-on-soft-failure-
   returns the **executed gate output on success**, and a read-only auditor reviews it as execution evidence —
   closing the "auditor can't verify PASS" gap with real execution, not just integrity-by-reading. It runs as a
   **parallel pass AFTER the serial merge queue** (so it never blocks merges).
+- **R4 (F02 dep-retry policy — resolves the F02 spec's open decision).** A `dep-failed` task does **not**
+  auto-retry within the held phase. The phase holds on the hard escalation; once the Lead resolves the
+  predecessor's escalation and re-runs the phase, the formerly-blocked task is re-evaluated normally via
+  `nextWave()` against the now-`succeeded` predecessor. (No in-phase auto-retry loop — surface-for-the-Lead, per
+  the F02 spec recommendation. Back-port this resolution into the F02 spec.)
 
 ## Build order (for `/war`)
 
@@ -84,12 +97,17 @@ Task 1's not-yet-emitted reason as dead code. Signature change alert: **Task 2 c
 - [ ] **Step 1: Write the failing tests** (TDD — these reference the desired post-change state and fail until Step 3)
   - `land-decision.test.mjs`: `decideLand({ landed:['t1'], escalated:[{reason:'dep-failed'}] }) === 'held:escalation'`;
     `assert.ok(HARD_ESCALATION_REASONS.includes('dep-failed'))`.
-  - `war-config.test.mjs`: extend the existing `HARD_ESCALATION_REASONS` regex-extraction drift test (currently
-    ~line 251–262) so the inline literal in `workflow-template.js` `deepEqual`s the canonical export, now
-    `['escalate','audit-blocked','conflict','dep-failed']`.
+  - `war-config.test.mjs`: the existing `HARD_ESCALATION_REASONS` drift test (currently ~line 251–265) is
+    **value-agnostic** — it `deepEqual`s the inline literal in `workflow-template.js` against the canonical export,
+    not against a hardcoded array — so appending `dep-failed` to **both** files keeps it green with no test edit
+    required. The post-change array is `['escalate','audit-blocked','conflict','land_stale','dep-failed']`
+    (the live base already contains `land_stale`; **append `dep-failed` to the end**, do not replace). Add an
+    assertion `assert.ok(HARD_ESCALATION_REASONS.includes('dep-failed'))` to pin the new member explicitly.
 - [ ] **Step 2: Run the gate → fail** (`dep-failed` absent from both copies; drift test mismatches).
-- [ ] **Step 3: Implement** — append `'dep-failed'` to `HARD_ESCALATION_REASONS` in `land-decision.mjs` **and** to
-  the inline mirror in `workflow-template.js` **in the same task** (so the drift guard passes).
+- [ ] **Step 3: Implement** — append `'dep-failed'` to the **end** of `HARD_ESCALATION_REASONS` in
+  `land-decision.mjs` **and** to the inline mirror in `workflow-template.js` **in the same task** (so the drift
+  guard passes). The live base is `['escalate','audit-blocked','conflict','land_stale']` → result
+  `['escalate','audit-blocked','conflict','land_stale','dep-failed']` in **both** copies (identical order).
 - [ ] **Step 4: Run the gate → pass.**
 - [ ] **Step 5: Commit** — `git commit -am "feat(war): add dep-failed hard-escalation reason + drift guard (F02 foundation)"`
 
@@ -154,8 +172,11 @@ selection, the refine loop, termination); Test `skills/war/assets/workflow-templ
     Keep `done.add(r.task.id)` for ran tasks (accounting); **only `succeeded` gates dependents**.
   - **`nextWave`:** `tasks.filter(t => !done.has(t.id) && (t.deps||[]).every(d => succeeded.has(d)))`.
   - **Dep-block detection — placement is load-bearing.** At the **top of each `while` iteration, BEFORE the
-    `nextWave()` call and BEFORE the `if (!wave.length) break` guard** (~line 209–210), find tasks that are
-    terminal-but-failed-deps: `!done.has(t.id) && deps.length && deps.every(d => done.has(d)) && !deps.every(d => succeeded.has(d))`.
+    `nextWave()` call and BEFORE the `if (!wave.length) break` guard** (~line 209–210). This placement is correct
+    *because the check reads `done`/`succeeded`, not `wave`* — it adds dep-blocked tasks to `done` so the
+    subsequent `nextWave()` correctly excludes them and the break guard only fires when nothing genuinely remains.
+    For each task, bind `const deps = t.deps || []` first, then flag terminal-but-failed-deps:
+    `!done.has(t.id) && deps.length && deps.every(d => done.has(d)) && !deps.every(d => succeeded.has(d))`.
     For each, push `{ task: t.id, reason: 'dep-failed', failedDeps: deps.filter(d => !succeeded.has(d)) }` to
     `escalated`, add an `auditLog` entry, and `done.add(t.id)` — **without spawning a worker** (these bypass the
     `results` fork). This guarantees `done.size` keeps growing so the loop terminates, and the `if(!wave.length)
@@ -216,14 +237,17 @@ gate-audit pass after the refine loop), `skills/war/references/schemas.md`; Test
 
 ### Task 5: Version bump + full multi-runner gate green
 
-**Files:** the canonical version-bump file list (see README "Releasing") — propose **v0.5.2** (patch; confirm vs
-batching with other audit-remediation plans).
+**Files:** the canonical version-bump file list (see README "Releasing"). Target **v0.6.1** — a patch over the
+current released **v0.6.0** (v0.5.2 as originally drafted is a *regression* below the live version; this bundle is
+the first of the audit-remediation patch series → 0.6.1, with subsequent plans taking 0.6.2, 0.6.3, … in run order).
 
-- [ ] **Step 1:** Bump the version across the README-documented bump list (`.claude-plugin/plugin.json` `version`,
-  README badge/status, any `vX.Y.Z` strings).
-- [ ] **Step 2:** Run the **full** gate (all runners — the F12 lesson): `node --test skills/**/*.test.mjs` **and**
-  all three `*.test.sh` suites → all green.
-- [ ] **Step 3: Commit** — `git commit -am "chore(release): v0.5.2 — audit/scheduler integrity (coven quorum, succeeded-gate, post-merge gate-audit)"`
+- [ ] **Step 1:** Bump the version to **v0.6.1** across the **complete** README-documented bump list:
+  `.claude-plugin/plugin.json` `version`, **`.claude-plugin/marketplace.json` `metadata.version` AND
+  `plugins[0].version`** (README's "Releasing" section flags a stale marketplace.json as a silent-no-op release —
+  do NOT omit it), README badge/`## Status`, and any `vX.Y.Z` strings.
+- [ ] **Step 2:** Run the **full** gate (all runners — the F12 lesson), with the glob **quoted**:
+  `node --test 'skills/**/*.test.mjs'` **and** all three `*.test.sh` suites → all green.
+- [ ] **Step 3: Commit** — `git commit -am "chore(release): v0.6.1 — audit/scheduler integrity (coven quorum, succeeded-gate, post-merge gate-audit)"`
 
 ---
 
@@ -242,13 +266,19 @@ batching with other audit-remediation plans).
 - **Mirror discipline:** every change to `HARD_ESCALATION_REASONS` / `allApprove` / decision logic keeps the
   `workflow-template.js` inline copies in sync; Task 1 extends the drift guard. If F07's broader logic-drift guard
   lands first, fold into it.
-- **Versioning:** v0.5.2 proposed; the Lead may batch with other audit-remediation plans.
+- **Versioning:** **v0.6.1** (patch over the live v0.6.0; the original v0.5.2 was a pre-0.6.0 regression — see the
+  baseline-drift note and Task 5). Shipped standalone, not batched (Open decision 3).
 - **Gate coverage:** this plan's gate already runs the bash suites (anticipating F12); F12's resolver/meta-test is a
   separate plan.
 
-## Open decisions (for `/red-team`)
+## Open decisions — RESOLVED by `/red-team` (2026-06-25, `--afk` autonomous adjudication)
 
-1. **`gate-evidence` outcome** (Task 4): hard escalation vs soft note when the post-merge gate-audit can't confirm a
-   mapped test ran (recommend soft unless a mapped test is provably unrun).
-2. **F11 retry budget** = 2 (R2) — confirm 2 vs 1/3.
-3. **Release granularity:** ship v0.5.2 for this bundle vs batch with F01/F03/F05–F10/F12.
+1. **`gate-evidence` outcome** (Task 4): **soft note by default** (records an audit finding, does **not** hold the
+   land) — **hard** only when a mapped test is **provably unrun**, defined operationally as: *a mapped
+   acceptance-criterion test is present in the pre-merge diff but absent / shows a 0 count in the executed gate
+   output the refiner returned*. Mere "could not confirm" (e.g. gate output not parseable for that criterion) stays
+   soft. No new hard-escalation reason is wired unless this hard path triggers.
+2. **F11 retry budget = 2** — **confirmed** (matches R2; 1 is too brittle for a transient drop, 3 adds latency
+   without evidence of benefit).
+3. **Release granularity:** **v0.6.1**, shipped as its own patch for this bundle (NOT batched). Subsequent
+   audit-remediation plans take 0.6.2, 0.6.3, … in run order (each `/war` run lands and releases independently).

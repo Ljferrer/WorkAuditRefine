@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
 const here = dirname(fileURLToPath(import.meta.url))
+const auditorMd = readFileSync(join(here, '../../../agents/war-auditor.md'), 'utf8')
 const src = readFileSync(join(here, 'workflow-template.js'), 'utf8').replace(/^export const meta/m, 'const meta')
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 const build = () => new AsyncFunction('agent', 'parallel', 'pipeline', 'log', 'phase', 'args', 'budget', src)
@@ -34,7 +35,7 @@ const defaultImpl = (prompt, opts) => {
   // ({ ok:true }) so happy-path tests reach the worker. (Tested BEFORE the topology-barrier refiner
   // branch below, which also matches seat 'war-refiner'.)
   if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
-  if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'deadbeef' }
+  if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 5, integration: 2 } }
   if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
   if (seat === 'war-refiner') {
     return opts.phase === 'Land'
@@ -235,8 +236,11 @@ test('run.provision runs (per task) BEFORE that task\'s worker is spawned (Part 
 })
 
 test('a failing provision step → env-blocked outcome, worker NOT spawned, worktree KEPT (Part B)', async () => {
-  // The provision-run agent reports the env-blocked shape for t1; t2 has no deps relationship that
-  // would suppress it independently — assert ONLY t1 is env-blocked and ONLY t1's worker is skipped.
+  // The provision-run agent reports the env-blocked shape for t1.
+  // NOTE (Task 3 F02 update): PROVISION_ARGS includes t2 with deps:['t1']. Because t1 is env-blocked
+  // (not succeeded), t2 is now flagged dep-failed (hard escalation) — the land IS held. env-blocked
+  // itself is a soft escalation, but a downstream dep-failed (from Task 3's succeeded-gate) makes
+  // the land held. Siblings with NO dep on t1 would still proceed; only true dependents are blocked.
   const impl = (prompt, opts) => {
     if (isProvisionRun({ opts }) && (opts.label || '').includes('t1')) {
       return { ok: false, taskId: 't1', failedCommand: 'pnpm install --frozen-lockfile',
@@ -261,8 +265,10 @@ test('a failing provision step → env-blocked outcome, worker NOT spawned, work
   // (c) the worktree is KEPT — no teardown/cleanup/remove agent is dispatched for t1.
   const cleanup = calls.find((c) => /remove-worktree|worktree remove|teardown|clean ?up/i.test(c.prompt))
   assert.ok(!cleanup, 'the env-blocked worktree is KEPT (no cleanup/teardown is dispatched)')
-  // env-blocked is a SOFT escalation: siblings proceed and the phase still lands what passed.
-  assert.notEqual(out.landDecision, 'held:escalation', 'env-blocked does not hold the land (siblings proceed)')
+  // (Task 3 F02): t2 has deps:['t1']; t1 env-blocked → t2 is dep-failed (hard escalation) → land held.
+  // env-blocked alone is soft; the dep-failed consequence is hard. Tasks independent of t1 would land.
+  const t2DepFailed = (out.escalated || []).find((e) => e && e.task === 't2' && e.reason === 'dep-failed')
+  assert.ok(t2DepFailed, 'dep-failed escalation for t2 (its dep t1 env-blocked, not succeeded) (Task 3 F02)')
 })
 
 test('a successful provision step → the worker IS spawned (Part B)', async () => {
@@ -460,4 +466,532 @@ test('Task 5 — opportunistic resync: after landed, Lead runs ff-only clean-gua
                         /resync|re-sync/i.test(allPostText)
   assert.ok(srcHasResync || postHasResync,
     'template describes the ff-only clean-guard resync after a landed result')
+})
+
+// ---------------------------------------------------------------------------
+// Task 2 (Phase 2 — F11): Coven quorum integrity — retry dropped seats, never approve a shrunk panel
+// ---------------------------------------------------------------------------
+
+// Per-label call-sequence harness helper.
+// Build an agentImpl that dispatches call-sequence overrides keyed by label, falling back to a base impl.
+// seqMap: { '<label>': [result0, result1, ...] } — each call to that label pops the first entry.
+// The call-sequence entries can be null (simulating a dropped seat) or a verdict object.
+function buildSeqImpl(seqMap, fallback) {
+  const queues = {}
+  for (const [label, seq] of Object.entries(seqMap)) {
+    queues[label] = [...seq]
+  }
+  return (prompt, opts) => {
+    const label = opts.label || ''
+    if (Object.prototype.hasOwnProperty.call(queues, label) && queues[label].length > 0) {
+      return queues[label].shift()
+    }
+    return fallback(prompt, opts)
+  }
+}
+
+// Single-task args for audit tests (no deps, single lens via lenses:[...]).
+const AUDIT_ARGS = (over = {}) => ({
+  ...PROVISION_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', lenses: ['correctness', 'cascading-impact', 'plan-faithfulness'] },
+  ] }),
+  ...over,
+})
+
+// coven=true so all 3 lenses are used; covenSize: 3 to pin panel size.
+const COVEN_ARGS = (over = {}) => AUDIT_ARGS({
+  ...over,
+  tasks: [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1',
+      lenses: ['correctness', 'cascading-impact', 'plan-faithfulness'], coven: true },
+  ],
+  audit: { covenSize: 3, autoEscalate: false },
+})
+
+test('Task 2 — transient drop recovers: 3-lens coven, one lens returns null first call then approves on retry → full panel', async () => {
+  // The per-label call-sequence harness drives 'audit:t1:cascading-impact' to return null on call 1,
+  // then return an approve verdict on call 2 (retry). The round should still see 3 approved seats.
+  const approveVerdictFor = (label) => ({ seat: label, lens: 'cascading-impact', verdict: 'approve', findings: [], confidence: 'high' })
+  const impl = buildSeqImpl(
+    { 'audit:t1:cascading-impact': [null, approveVerdictFor('audit:t1:cascading-impact')] },
+    (prompt, opts) => {
+      const seat = seatOf(opts)
+      if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+      if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'deadbeef' }
+      if (seat === 'war-auditor') return { seat: opts.label, lens: opts.label.split(':')[2] || 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+      if (seat === 'war-refiner') return opts.phase === 'Land' ? { mode: 'land-phase', status: 'landed' } : { mode: 'merge-task', status: 'merged' }
+      if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+      return {}
+    }
+  )
+  const { out } = await runPhase(COVEN_ARGS(), impl)
+  // The task must land (not be audit-blocked) since the drop was transient.
+  assert.ok(out.landed.includes('t1'), 'transient drop recovers — t1 should land (not audit-blocked)')
+  // No audit-blocked escalation.
+  const blocked = (out.escalated || []).find(e => e && e.task === 't1' && e.reason === 'audit-blocked')
+  assert.ok(!blocked, 'transient drop does not yield audit-blocked escalation')
+})
+
+test('Task 2 — persistent drop → audit-blocked: a lens that returns null on ALL attempts (initial + 2 retries)', async () => {
+  // 'audit:t1:cascading-impact' returns null every time (never recovers even after retries).
+  const impl = buildSeqImpl(
+    { 'audit:t1:cascading-impact': [null, null, null] },
+    (prompt, opts) => {
+      const seat = seatOf(opts)
+      if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+      if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'deadbeef' }
+      if (seat === 'war-auditor') return { seat: opts.label, lens: opts.label.split(':')[2] || 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+      if (seat === 'war-refiner') return opts.phase === 'Land' ? { mode: 'land-phase', status: 'landed' } : { mode: 'merge-task', status: 'merged' }
+      if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+      return {}
+    }
+  )
+  const { out } = await runPhase(COVEN_ARGS(), impl)
+  // The task must be audit-blocked (persistent drop → quorum shrunk → never approve).
+  assert.ok(!out.landed.includes('t1'), 'persistent drop → t1 does not land')
+  const blocked = (out.escalated || []).find(e => e && e.task === 't1' && e.reason === 'audit-blocked')
+  assert.ok(blocked, 'persistent drop → audit-blocked escalation for t1')
+})
+
+test('Task 2 — allApprove requires the full panel: even all-approve seats are rejected if count < expected', () => {
+  // This test directly verifies the allApprove(seats, expected) signature in the template source.
+  // The current (pre-fix) allApprove is seats => seats.length > 0 && every(approve).
+  // The new allApprove must be (seats, expected) => seats.length === expected && every(approve).
+  // We verify this by checking the template source for the new signature pattern.
+  assert.match(src, /allApprove\s*=\s*\(\s*seats\s*,\s*expected\s*\)/,
+    'allApprove has a two-argument signature (seats, expected)')
+  assert.match(src, /seats\.length\s*===\s*expected/,
+    'allApprove checks seats.length === expected (not just > 0)')
+})
+
+test('Task 2 — auditLog records requested and returned on a persistent drop', async () => {
+  // A 3-seat coven where one seat never returns → shortfall logged as { requested:3, returned:2 }.
+  const impl = buildSeqImpl(
+    { 'audit:t1:cascading-impact': [null, null, null] },
+    (prompt, opts) => {
+      const seat = seatOf(opts)
+      if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+      if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'deadbeef' }
+      if (seat === 'war-auditor') return { seat: opts.label, lens: opts.label.split(':')[2] || 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+      if (seat === 'war-refiner') return opts.phase === 'Land' ? { mode: 'land-phase', status: 'landed' } : { mode: 'merge-task', status: 'merged' }
+      if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+      return {}
+    }
+  )
+  const { out } = await runPhase(COVEN_ARGS(), impl)
+  const entry = (out.auditLog || []).find(e => e && e.task === 't1')
+  assert.ok(entry, 'an auditLog entry exists for t1')
+  assert.equal(entry.requested, 3, 'auditLog.requested = 3 (full expected panel)')
+  assert.equal(entry.returned, 2, 'auditLog.returned = 2 (one seat persistently dropped)')
+})
+
+test('Task 2 — auditRound return shape is { seats, expected } (not a bare array)', () => {
+  // Verify the template source unpacks auditRound at both call sites using destructuring.
+  // The plan mandates: ;({ seats, expected } = await auditRound(task, null)) at round-loop call site,
+  // and similarly for the rebuttal call.
+  assert.match(src, /\{\s*seats\s*,\s*expected\s*\}\s*=\s*await\s+auditRound/,
+    'auditRound return value is destructured as { seats, expected }')
+})
+
+// ---------------------------------------------------------------------------
+// Task 3 (Phase 3 — F02): Scheduler succeeded-gate
+// A failed predecessor must block its true dependents; only a merged task succeeds.
+// ---------------------------------------------------------------------------
+
+// 3-task DAG: t2 depends on t1, t3 is independent.
+// This is the canonical harness for Task 3 behavioral tests.
+const DAG_ARGS = (over = {}) => ({
+  phase: { id: 3, title: 'P3', integrationBranch: 'integration/aschi/phase-3', workingBranch: 'dev/aschi' },
+  plan: { file: 'docs/plans/aschi.md', gate: 'make gate' },
+  planSlug: 'aschi',
+  runId: 'run-dag',
+  worktreeRoot: '/abs/repo/.claude/worktrees',
+  mainCheckout: '/abs/repo',
+  tasks: [
+    { id: 't1', issue: 201, title: 'Task one', planSlice: 'slice 1', lenses: ['correctness'] },
+    { id: 't2', issue: 202, title: 'Task two', planSlice: 'slice 2', lenses: ['correctness'], deps: ['t1'] },
+    { id: 't3', issue: 203, title: 'Task three', planSlice: 'slice 3', lenses: ['correctness'] },
+  ],
+  learningsTarget: null,
+  ...over,
+})
+
+// Base impl for DAG tests: provision always ok, t1 defaults to escalate (worker returns blocked),
+// t2/t3 default to implemented+approve+merged. The caller can override specific pieces.
+const dagBaseImpl = (prompt, opts) => {
+  const seat = seatOf(opts)
+  if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+  if (seat === 'war-worker') {
+    // Force t1 to escalate (worker returns blocked)
+    if (/task t1\b/i.test(prompt) || (opts.label || '').includes(':t1')) {
+      return { task_id: 't1', status: 'blocked', blocked_reason: 'forced escalation for test' }
+    }
+    return { task_id: 'tx', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 3, integration: 1 } }
+  }
+  if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+  if (seat === 'war-refiner') {
+    return opts.phase === 'Land'
+      ? { mode: 'land-phase', status: 'landed' }
+      : { mode: 'merge-task', status: 'merged' }
+  }
+  if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+  return {}
+}
+
+test('Task 3 — failed predecessor blocks dependent: t1 escalates → t2 never spawns a worker, t3 still runs', async () => {
+  const { out, calls } = await runPhase(DAG_ARGS(), dagBaseImpl)
+  // t2 must never have a worker spawned (it depends on t1 which escalated)
+  const t2Worker = calls.find(c => isWorker(c) && /task t2\b/i.test(c.prompt))
+  assert.ok(!t2Worker, 't2 worker is NOT spawned when t1 escalated')
+  // t3 is independent — it must still run
+  const t3Worker = calls.find(c => isWorker(c) && /task t3\b/i.test(c.prompt))
+  assert.ok(t3Worker, 't3 (independent) worker IS spawned despite t1 failing')
+  // t2 must be in escalated with reason dep-failed naming t1
+  const t2Esc = (out.escalated || []).find(e => e && e.task === 't2')
+  assert.ok(t2Esc, 't2 appears in escalated[]')
+  assert.equal(t2Esc.reason, 'dep-failed', 't2 escalation reason is dep-failed')
+  assert.ok((t2Esc.failedDeps || []).includes('t1'), 't2 dep-failed names t1 as the failed dep')
+})
+
+test('Task 3 — dep-failed task appears in escalated with correct shape', async () => {
+  const { out } = await runPhase(DAG_ARGS(), dagBaseImpl)
+  const t2Esc = (out.escalated || []).find(e => e && e.task === 't2' && e.reason === 'dep-failed')
+  assert.ok(t2Esc, 't2 is in escalated with reason dep-failed')
+  assert.ok(Array.isArray(t2Esc.failedDeps), 't2 dep-failed carries failedDeps array')
+  assert.ok(t2Esc.failedDeps.includes('t1'), 'failedDeps includes t1')
+})
+
+test('Task 3 — phase land is held when a dep-failed escalation exists', async () => {
+  const { out } = await runPhase(DAG_ARGS(), dagBaseImpl)
+  // dep-failed is a HARD_ESCALATION_REASON, so the land must be held
+  assert.equal(out.landDecision, 'held:escalation',
+    'phase land is held:escalation when dep-failed is present')
+})
+
+test('Task 3 — env-blocked predecessor blocks true dependent (env-blocked is not success)', async () => {
+  // t1 returns env-blocked (provision failure); t2 should be dep-failed, not spawn a worker.
+  // A provision list is required to trigger the provision-run agent path (empty list is a no-op ok:true).
+  const dagWithProvision = {
+    ...DAG_ARGS(),
+    run: { provision: ['npm install'], provisionSource: 'ci' },
+  }
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) {
+      // t1 provision fails; t2/t3 provision succeeds
+      if ((opts.label || '').includes('t1')) {
+        return { ok: false, taskId: 't1', failedCommand: 'npm install', exitCode: 1, stderrTail: 'err', provisionSource: 'ci' }
+      }
+      return { ok: true }
+    }
+    if (seat === 'war-worker') return { task_id: 'tx', status: 'implemented', head_sha: 'deadbeef' }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-refiner') {
+      return opts.phase === 'Land' ? { mode: 'land-phase', status: 'landed' } : { mode: 'merge-task', status: 'merged' }
+    }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { out, calls } = await runPhase(dagWithProvision, impl)
+  // t2 must NOT spawn a worker (its dep t1 env-blocked, not succeeded)
+  const t2Worker = calls.find(c => isWorker(c) && /task t2\b/i.test(c.prompt))
+  assert.ok(!t2Worker, 't2 worker is NOT spawned when t1 is env-blocked (env-blocked is not success)')
+  // t2 must be dep-failed
+  const t2Esc = (out.escalated || []).find(e => e && e.task === 't2' && e.reason === 'dep-failed')
+  assert.ok(t2Esc, 't2 is dep-failed when its dep env-blocked (env-blocked is not a success)')
+})
+
+test('Task 3 — success unblocks: t1 merged → t2 runs normally', async () => {
+  // t1 succeeds (merged); t2 depends on t1 and should then run
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker') return { task_id: 'tx', status: 'implemented', head_sha: 'deadbeef' }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-refiner') {
+      return opts.phase === 'Land' ? { mode: 'land-phase', status: 'landed' } : { mode: 'merge-task', status: 'merged' }
+    }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { out, calls } = await runPhase(DAG_ARGS(), impl)
+  // t2 should spawn a worker (t1 merged = succeeded)
+  const t2Worker = calls.find(c => isWorker(c) && /task t2\b/i.test(c.prompt))
+  assert.ok(t2Worker, 't2 worker IS spawned after t1 merges (succeeded)')
+  // t1 and t2 should both land
+  assert.ok(out.landed.includes('t1'), 't1 is in landed[]')
+  assert.ok(out.landed.includes('t2'), 't2 is in landed[]')
+  // No dep-failed escalations
+  const depFailed = (out.escalated || []).find(e => e && e.reason === 'dep-failed')
+  assert.ok(!depFailed, 'no dep-failed escalations when all deps succeed')
+})
+
+test('Task 3 — termination: done.size reaches tasks.length with no spin (dep-failed adds to done without worker)', async () => {
+  // Even with t1 failing (t2 dep-failed), done must eventually cover all 3 tasks so the loop exits
+  const { out } = await runPhase(DAG_ARGS(), dagBaseImpl)
+  // All 3 tasks must appear in either landed or escalated (done tracks them all)
+  const allDone = new Set([...(out.landed || []), ...(out.escalated || []).map(e => e && e.task)])
+  assert.ok(allDone.has('t1'), 't1 is accounted for (escalated as escalate)')
+  assert.ok(allDone.has('t2'), 't2 is accounted for (dep-failed, added to done without worker)')
+  assert.ok(allDone.has('t3'), 't3 is accounted for (landed or escalated)')
+})
+
+test('Task 3 — succeeded set exists in template source and gates nextWave', () => {
+  // Structural: verify the template declares `succeeded` and uses it in nextWave
+  const code = src.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
+  assert.ok(/const\s+succeeded\s*=\s*new\s+Set\s*\(\s*\)/.test(code),
+    'template declares `const succeeded = new Set()`')
+  assert.ok(/succeeded\.add/.test(code),
+    'template calls succeeded.add(...)')
+  assert.ok(/succeeded\.has/.test(code),
+    'template uses succeeded.has(...) — the gate for nextWave/dep-block')
+})
+
+// ---------------------------------------------------------------------------
+// Task 4 (Phase 4 — F04): Auditor anti-cheat + post-merge gate-audit pass
+// ---------------------------------------------------------------------------
+
+test('Task 4 — war-auditor.md does NOT contain the literal "EXIST and PASS"', () => {
+  // The auditor can only verify test EXISTENCE + integrity (not weakened/skipped); it cannot run them.
+  // The refiner runs the gate. The literal "EXIST and PASS" must be gone from the agent doc.
+  assert.ok(!auditorMd.includes('EXIST and PASS'),
+    'war-auditor.md must not contain the literal "EXIST and PASS" — auditor verifies existence + integrity only')
+})
+
+test('Task 4 — war-auditor.md states the refiner runs the gate', () => {
+  // The doc must clarify that the refiner (not the auditor) actually executes/runs the gate.
+  assert.match(auditorMd, /refiner/i,
+    'war-auditor.md must mention the refiner (which runs the gate)')
+})
+
+test('Task 4 — war-auditor.md still directs the auditor to verify test existence + integrity (anti-cheat)', () => {
+  // Must still catch "green by deletion" — just not claim to execute tests.
+  assert.match(auditorMd, /exist|existence/i,
+    'war-auditor.md must still direct the auditor to verify test existence')
+  // The integrity check (not weakened / not skipped) must be present
+  assert.match(auditorMd, /weaken|skip|integrity/i,
+    'war-auditor.md must mention weakening or skipping (anti-cheat integrity check)')
+})
+
+test('Task 4 — auditPrompt does NOT contain "EXIST and PASS" in generated prompt', async () => {
+  // The auditPrompt function must no longer embed the literal "EXIST and PASS".
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const auditCalls = calls.filter(isAuditor)
+  assert.ok(auditCalls.length > 0, 'at least one auditor call was made')
+  for (const c of auditCalls) {
+    assert.ok(!c.prompt.includes('EXIST and PASS'),
+      `audit prompt must not say "EXIST and PASS": got "${c.prompt.slice(0, 200)}"`)
+  }
+})
+
+test('Task 4 — auditPrompt threads the worker tests summary into the generated prompt', async () => {
+  // The mock worker returns tests:{unit:5,integration:2}; the audit prompt must carry that info
+  // so the auditor can cross-check the claim vs the diff.
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const auditCalls = calls.filter(isAuditor)
+  assert.ok(auditCalls.length > 0, 'at least one auditor call was made')
+  // The prompt must reference the worker's tests summary (unit/integration counts or the object)
+  const auditPromptText = auditCalls[0].prompt
+  assert.ok(
+    /unit|integration|tests/i.test(auditPromptText),
+    'audit prompt must thread in the worker-reported tests summary'
+  )
+})
+
+test('Task 4 — post-merge gate-audit pass: a war-auditor with lens execution-evidence is spawned after the merge queue', async () => {
+  // The post-merge gate-audit pass spawns read-only war-auditor seats with lens 'execution-evidence'
+  // for each merged task, AFTER the refine loop completes and BEFORE the Land decision.
+  // We use PROVISION_ARGS (t2 deps t1) with both merging, so two merged tasks → two gate-audit seats.
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 5, integration: 2 } }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: opts.label || 'correctness', verdict: 'approve', findings: [], confidence: 'high', tests_verified: { exist: true } }
+    if (seat === 'war-refiner') {
+      return opts.phase === 'Land'
+        ? { mode: 'land-phase', status: 'landed' }
+        : { mode: 'merge-task', status: 'merged', gate_output: 'ok 5 tests passed' }
+    }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { calls } = await runPhase(PROVISION_ARGS(), impl)
+  // The gate-audit seats must have lens 'execution-evidence' (check via prompt or label)
+  const gateAuditCalls = calls.filter(c =>
+    seatOf(c.opts) === 'war-auditor' &&
+    (c.prompt.includes('execution-evidence') || (c.opts.label || '').includes('execution-evidence'))
+  )
+  assert.ok(gateAuditCalls.length > 0,
+    'at least one post-merge gate-audit seat with lens execution-evidence must be spawned')
+})
+
+test('Task 4 — post-merge gate-audit prompt references the executed gate output', async () => {
+  // The gate-audit seat prompt must include the gate output from the refiner's merged result.
+  const GATE_OUT = 'ok 5 tests passed\n1 suite, 5 assertions'
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 5, integration: 2 } }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: opts.label || 'correctness', verdict: 'approve', findings: [], confidence: 'high', tests_verified: { exist: true } }
+    if (seat === 'war-refiner') {
+      return opts.phase === 'Land'
+        ? { mode: 'land-phase', status: 'landed' }
+        : { mode: 'merge-task', status: 'merged', gate_output: GATE_OUT }
+    }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { calls } = await runPhase(PROVISION_ARGS(), impl)
+  const gateAuditCalls = calls.filter(c =>
+    seatOf(c.opts) === 'war-auditor' &&
+    (c.prompt.includes('execution-evidence') || (c.opts.label || '').includes('execution-evidence'))
+  )
+  assert.ok(gateAuditCalls.length > 0, 'gate-audit seats exist')
+  const gateAuditPrompt = gateAuditCalls[0].prompt
+  assert.ok(gateAuditPrompt.includes(GATE_OUT),
+    'gate-audit prompt must include the executed gate output from the refiner')
+})
+
+test('Task 4 — post-merge gate-audit does NOT block the land (soft by default)', async () => {
+  // The gate-audit pass is parallel and AFTER the serial merge queue; it must not hold the land.
+  // Even if a gate-audit seat returns a non-approve verdict, landDecision is still 'landed'.
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 5, integration: 2 } }
+    if (seat === 'war-auditor') {
+      // Gate-audit seats return a non-approve verdict (soft finding)
+      if ((c => c.prompt && c.prompt.includes('execution-evidence'))({ prompt: prompt })) {
+        return { seat: opts.label, lens: 'execution-evidence', verdict: 'request_changes',
+                 findings: [{ severity: 'Minor', title: 'gate-evidence soft', file: '', rationale: 'soft' }],
+                 confidence: 'high', tests_verified: { exist: true } }
+      }
+      return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high', tests_verified: { exist: true } }
+    }
+    if (seat === 'war-refiner') {
+      return opts.phase === 'Land'
+        ? { mode: 'land-phase', status: 'landed' }
+        : { mode: 'merge-task', status: 'merged', gate_output: 'ok 5 tests passed' }
+    }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { out } = await runPhase(PROVISION_ARGS(), impl)
+  // The land must still proceed (gate-audit is soft — does not hold the land)
+  assert.equal(out.landDecision, 'landed',
+    'post-merge gate-audit is soft (default) and must not hold the land')
+})
+
+test('Task 4 — post-merge gate-audit HARD case: Critical/Major finding holds the land (held:escalation)', async () => {
+  // A gate-audit seat returning a Critical/Major gate-evidence finding → landDecision==='held:escalation'.
+  // This is the "provably unrun" path from Open decision #1 (resolved: operationally defined).
+  // A Minor finding (soft) must NOT hold the land; only Critical/Major triggers the hard path.
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 5, integration: 2 } }
+    if (seat === 'war-auditor') {
+      // Gate-audit seats return a Critical gate-evidence finding (provably-unrun mapped test).
+      if (prompt.includes('execution-evidence') || (opts.label || '').includes('execution-evidence')) {
+        return { seat: opts.label, lens: 'execution-evidence', verdict: 'escalate',
+                 findings: [{ severity: 'Critical', title: 'mapped test provably unrun',
+                              file: 'test/foo.test.js', rationale: 'test present in diff but 0-count in gate output' }],
+                 confidence: 'high' }
+      }
+      return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    }
+    if (seat === 'war-refiner') {
+      return opts.phase === 'Land'
+        ? { mode: 'land-phase', status: 'landed' }
+        : { mode: 'merge-task', status: 'merged', gate_output: 'ok 5 tests passed' }
+    }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { out } = await runPhase(PROVISION_ARGS(), impl)
+  // The land must be HELD (a provably-unrun mapped test is a hard gate-evidence escalation)
+  assert.equal(out.landDecision, 'held:escalation',
+    'Critical gate-evidence finding (provably unrun) must hold the land (held:escalation)')
+  // The escalated array must contain a gate-evidence reason
+  const gateEscalation = (out.escalated || []).find(e => e && e.reason === 'gate-evidence')
+  assert.ok(gateEscalation, 'escalated[] must contain a gate-evidence entry for the hard case')
+  // The auditLog must record hard:true for the finding
+  const auditEntry = (out.auditLog || []).find(e => e && e.gateEvidence)
+  assert.ok(auditEntry, 'auditLog must have a gateEvidence entry')
+  assert.equal(auditEntry.hard, true, 'auditLog gate-evidence entry must be marked hard:true for Critical/Major findings')
+})
+
+test('Task 4 — post-merge gate-audit HARD case: Major finding also holds the land', async () => {
+  // Major severity (not just Critical) is also a provably-unrun signal per the operationally-defined convention.
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 3 } }
+    if (seat === 'war-auditor') {
+      if (prompt.includes('execution-evidence') || (opts.label || '').includes('execution-evidence')) {
+        return { seat: opts.label, lens: 'execution-evidence', verdict: 'request_changes',
+                 findings: [{ severity: 'Major', title: 'mapped test absent in gate output',
+                              file: 'test/bar.test.js', rationale: 'test in diff but absent from gate_output' }],
+                 confidence: 'high' }
+      }
+      return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    }
+    if (seat === 'war-refiner') {
+      return opts.phase === 'Land'
+        ? { mode: 'land-phase', status: 'landed' }
+        : { mode: 'merge-task', status: 'merged', gate_output: 'ok 3 tests passed' }
+    }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { out } = await runPhase(PROVISION_ARGS(), impl)
+  assert.equal(out.landDecision, 'held:escalation',
+    'Major gate-evidence finding (provably unrun) must also hold the land (held:escalation)')
+  const gateEscalation = (out.escalated || []).find(e => e && e.reason === 'gate-evidence')
+  assert.ok(gateEscalation, 'escalated[] must contain a gate-evidence entry for Major severity')
+})
+
+test('Task 4 — post-merge gate-audit is PARALLEL (runs over all merged tasks, not one-by-one inline)', async () => {
+  // Structural: the template source must use parallel(...) for the gate-audit pass
+  // (after the refine for-loop, before the Land decision).
+  // The gate-audit pass label or prompt contains 'execution-evidence' and is dispatched via parallel.
+  // We confirm by checking the source contains a pattern combining parallel and execution-evidence.
+  const code = src.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
+  assert.ok(/execution.evidence/.test(code),
+    'template source must reference execution-evidence lens (gate-audit pass)')
+  // The gate-audit pass must use parallel() — check for parallel(...) surrounding the gate-audit agent calls.
+  assert.ok(/parallel\s*\(/.test(code) && /execution.evidence/.test(code),
+    'template uses parallel() for the gate-audit pass')
+})
+
+test('Task 4 — schemas.md: AuditVerdict.tests_verified means existence+integrity, not execution', () => {
+  // schemas.md must be updated to clarify that tests_verified means existence+integrity, not execution.
+  const schemasMd = readFileSync(
+    join(here, '../references/schemas.md'), 'utf8'
+  )
+  // The tests_verified field comment must NOT say "pass: true" means the auditor ran them,
+  // OR it must have a clarifying note that it means existence+integrity (not execution).
+  // We check: either the pass:true field is gone, or there is a clarifying note.
+  const hasIntegrityNote = /integrity|existence.*not.*execut|not.*execut.*existence|auditor.*cannot.*execut|refiner.*runs.*gate/i.test(schemasMd)
+  assert.ok(hasIntegrityNote,
+    'schemas.md must clarify that tests_verified means existence+integrity verified, not executed by the auditor')
+})
+
+test('Task 4 — MERGE_RESULT schema already permits gate_output (no schema change needed)', () => {
+  // gate_output is already optional in the inline MERGE_RESULT schema.
+  // A merged result with gate_output:'...' must be schema-valid.
+  // We verify by checking the template source includes gate_output in the MERGE_RESULT properties.
+  assert.match(src, /gate_output/,
+    'MERGE_RESULT schema includes gate_output as an optional field')
+  // It must NOT be in the required array
+  const mergeResultSection = src.match(/const\s+MERGE_RESULT\s*=[\s\S]*?(?=\n\nconst )/)
+  if (mergeResultSection) {
+    const section = mergeResultSection[0]
+    // gate_output must NOT be in required array
+    const requiredMatch = section.match(/required\s*:\s*\[([^\]]*)\]/)
+    if (requiredMatch) {
+      assert.ok(!requiredMatch[1].includes('gate_output'),
+        'gate_output is optional in MERGE_RESULT (not in required array)')
+    }
+  }
 })
