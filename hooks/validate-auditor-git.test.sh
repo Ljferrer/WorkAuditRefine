@@ -271,6 +271,21 @@ expect_deny "E6: git -p log → denied (global leading -p)" \
 expect_deny "E7: git --pager=cat log → denied (global --pager=)" \
   "$(auditor_cmd "git --pager=cat log")"
 
+# E8: git diff --output=FILE (subcommand-position --output=, write primitive)
+# Open Decision #1: this is the NAMED bypass — subcommand-local --output bypasses
+# the global-flag block above (lines 94-110) because $rest starts with "diff".
+# The post-subcommand scan must catch it.
+expect_deny "E8: git diff --output=/tmp/x → denied (subcommand-position --output=)" \
+  "$(auditor_cmd "git diff --output=/tmp/x")"
+
+# E9: git log --output=FILE (same bypass on a different allowed subcommand)
+expect_deny "E9: git log --output=/tmp/x → denied (subcommand-position --output=)" \
+  "$(auditor_cmd "git log --output=/tmp/x")"
+
+# E10: git diff --output FILE (space-separated form — no equals sign)
+expect_deny "E10: git diff --output /tmp/x → denied (subcommand-position --output space-form)" \
+  "$(auditor_cmd "git diff --output /tmp/x")"
+
 # ---------------------------------------------------------------------------
 # CASE GROUP F: NON-AUDITOR agent types → exit 0 (pass-through)
 # Non-auditor agents are NOT subject to this guard.

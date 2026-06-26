@@ -131,5 +131,33 @@ case "$rest" in
     deny "git subcommand '$first_word' is not in the read-only allowlist (diff/log/show/merge-base/rev-parse/status/ls-files/cat-file/blame)" ;;
 esac
 
+# ---------------------------------------------------------------------------
+# Post-subcommand scan: deny --output / --output= / -o / --output-directory
+# anywhere in $rest (after the subcommand).
+#
+# Rationale: git supports --output=<file> and --output-directory=<dir> as
+# subcommand-local flags on diff/log/format-patch etc. that WRITE files.
+# The global-flag block above (lines 94-110) only catches these flags when
+# they appear BEFORE the subcommand (i.e. in leading position).  If they
+# appear AFTER the subcommand (e.g. "git diff --output=/tmp/x"), $rest starts
+# with "diff" and the global block never fires — ALLOW.  This post-subcommand
+# scan closes that gap.
+#
+# We match against the full $rest string (not just a leading prefix) using
+# space-padded case patterns so we don't accidentally match option values
+# that contain these strings as substrings.
+#
+# Patterns matched (space-padded against " $rest "):
+#   *' --output'*   : --output=<file> or --output <file> (space-separate form)
+#   *' --output-directory'*  : subsumed by '--output' prefix match above
+#   *' -o '*        : short form with argument: -o <file>
+#   *' -o'          : -o at end of command (pathological but blocked anyway)
+# ---------------------------------------------------------------------------
+padded=" $rest "
+case "$padded" in
+  *' --output'*|*' -o '*|*' -o')
+    deny "output-to-file flag is not permitted (--output / -o writes a file)" ;;
+esac
+
 # Subcommand is in the allowlist. Allow.
 exit 0
