@@ -168,7 +168,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.6.6** — red-team verdict integrity: `/red-team` now reaches a CLEARED verdict on a genuinely clean plan. Two compounding bugs fixed: (1) the verification Workflow scaffold normalizes `args` before destructuring — stringified JSON args no longer throw before any probe runs (#49); (2) the gate counts a Critical/Major finding as a blocker only when the parent probe's `status` is not `'pass'` (#50 gate side), and the probe instruction now defines a finding as a defect only — a clean probe returns `status:'pass'` with `findings:[]` (#50 probe side). A live run that previously produced ~40 false-positive blockers now reaches CLEARED. Builds on v0.6.5 audit fidelity hardening.
+**0.6.7** — scheduler & land bookkeeping correctness: three silent-wrong holes in the per-phase loop closed. (1) `landDecision` is now demoted to `held:land-failed` when the land STEP itself returns `error` or `gate_failed` — previously it stayed `landed`, triggering a spurious wrap-up (#99). (2) `auditLog.requested` is now `0` (not `undefined`) for env-blocked and worker-blocked early-returns (#113). (3) A post-loop sweep detects tasks whose deps reference an id absent from the phase task list and escalates them as `unrunnable-deps` (hard escalation) instead of silently skipping them and landing APPROVED with a never-run task (#115). Builds on v0.6.6 red-team verdict integrity.
 
 ## License
 
