@@ -152,7 +152,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.6.1** — audit/scheduler integrity: coven quorum integrity (retry dropped seats x2, never approve a shrunk panel — F11); scheduler succeeded-gate (dependents only fan out after predecessor merges, not just completes; `dep-failed` hard-escalation — F02); auditor anti-cheat + post-merge gate-audit pass (refiner returns executed gate output; parallel read-only gate-evidence review after merge queue — F04). Builds on v0.6.0 concurrent-run land isolation.
+**0.6.2** — verification-layer integrity: self-discovering multi-runner gate (F12 — `resolveGate()` appends bash-suite discovery to any declared gate, so new `*.test.sh` suites are never silently orphaned); behavioral drift guards for inline mirrors of `spawnOpts`, `covenSeats`, and `decideLand` (F07 — any mirror/source divergence now fails the gate). Builds on v0.6.1 audit/scheduler integrity.
 
 ## License
 
