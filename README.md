@@ -158,7 +158,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.5.1** — worktree provisioning Part B: repo-derived bootstrap. A read-only setup-scout derives an ordered `run.provision` command list from the *target repo's own* signals (explicit → CI → dev-onboarding → structural fallback), which the refiner runs verbatim before the gate so every fresh worker worktree and red-team probe sandbox lands gate-ready — work-audit-refine carrying zero ecosystem-specific knowledge. A provisioning failure is surfaced distinctly from broken code (`env-blocked` for WAR — worker not spawned, worktree kept, no FIX rounds; `warn` for red-team — never a red verdict). Builds on Part A's deterministic refiner-owned worktree lifecycle + agent_type scope guard (v0.5.0).
+**0.6.0** — concurrent-run land isolation: the Refinery performs every merge in a run-scoped worktree (`_refinery`), never the Lead's main checkout, so two WAR runs in one repo on different branches cannot overwrite each other; same-branch lands serialize via a push-first compare-and-swap + bounded reland (`land_stale` on exhaustion). Builds on v0.5.x worktree provisioning.
 
 ## License
 
