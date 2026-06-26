@@ -32,6 +32,19 @@ atype="$(get '.agent_type')"
 path="$(get '.tool_input.file_path // .tool_input.path // .tool_input.notebook_path')"
 deny() { echo "WAR: $1" >&2; exit 2; }
 
+# Reject any path that contains a '..' segment before per-agent checks.
+# A path like /x/docs/learnings/../../etc/foo matches the servitor's bare glob
+# yet escapes the intended directory. The worker's .war-task ancestor walk is
+# equally bypassable. Rejecting '..' early closes the traversal hole in BOTH
+# branches. (Full memory-root anchoring is deferred — see plan notes / #58.)
+# Portable case-pattern: '/../*' covers a .. segment in the middle; '/..'
+# covers a trailing .. segment. Works on macOS bash 3.2.57.
+case "$path" in
+  */../*|*/..)
+    deny "path '$path' contains a '..' traversal segment; use an absolute canonical path instead."
+    ;;
+esac
+
 case "$atype" in
   *war-auditor*)
     [ -n "$path" ] && deny "auditors are read-only; refusing write to '$path'."
