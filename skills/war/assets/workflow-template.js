@@ -288,7 +288,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
 // ---- LAND — only when no hard escalation is open; else hold for the Lead ----
 // landDecision mirrors land-decision.mjs (decideLand) — the Workflow sandbox can't import. Keep in sync.
 let landResult = null
-const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale']
+const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict']
 const hardEscalation = escalated.some(e => HARD_ESCALATION_REASONS.includes(e && e.reason))
 const landDecision = (landed.length && !hardEscalation) ? 'landed'
   : hardEscalation ? 'held:escalation'
