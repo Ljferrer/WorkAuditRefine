@@ -168,7 +168,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.6.5** — audit fidelity: auditor pins baseline to the integration branch via three-dot `git diff` (F03 — self-served, no refiner artifact); fail-closed read-only-git Bash guard confines the auditor's Bash capability to an explicit allowlist of read subcommands, denying writes/chaining/metacharacters; default audit is now the full 3-lens panel (`correctness`, `cascading-impact`, `plan-faithfulness`) at `deep` depth for every task on the balanced/thorough presets — the "independent, unanimous, multi-lens panel" claim in the README is now accurate (F06); `economy` preset remains solo-seat at `neighbors` for cost-sensitive runs. Builds on v0.6.4 servitor confinement hardening.
+**0.6.6** — red-team verdict integrity: `/red-team` now reaches a CLEARED verdict on a genuinely clean plan. Two compounding bugs fixed: (1) the verification Workflow scaffold normalizes `args` before destructuring — stringified JSON args no longer throw before any probe runs (#49); (2) the gate counts a Critical/Major finding as a blocker only when the parent probe's `status` is not `'pass'` (#50 gate side), and the probe instruction now defines a finding as a defect only — a clean probe returns `status:'pass'` with `findings:[]` (#50 probe side). A live run that previously produced ~40 false-positive blockers now reaches CLEARED. Builds on v0.6.5 audit fidelity hardening.
 
 ## License
 
