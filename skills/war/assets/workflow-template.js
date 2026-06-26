@@ -418,7 +418,7 @@ let servitorResult = null
 if (landResult && landResult.status === 'landed' && learningsTarget) {
   servitorResult = await agent(
     `Wrap up learnings for WAR phase ${ph.id} "${ph.title}" (landed on ${ph.workingBranch}).\n`
-    + `Your only writable path (the worktree-scope hook confines you to it by agent_type): ${learningsTarget}.\n`
+    + `Your only writable path (your capability allowlist holds no Bash — Write/Edit only — and the PreToolUse scope hook gates those by agent_type to the learnings target): ${learningsTarget}.\n`
     + `Landed tasks: ${landed.join(', ') || 'none'}.\n`
     + `Audit log (verdicts + findings): ${JSON.stringify(auditLog)}\n`
     + `Escalations: ${JSON.stringify(escalated)}\n`
