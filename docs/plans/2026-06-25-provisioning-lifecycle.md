@@ -4,7 +4,13 @@
 ownership-safe, and stop the template emitting an ambiguous integration-tip placeholder. Self-contained: mostly
 `provision-worktrees.sh` (shell) + a small `workflow-template.js` change; independent of the audit core.
 
-**Scope (v0.5.4 — hygiene/correctness):**
+**Scope (v0.6.3 — hygiene/correctness):**
+
+> **Baseline-drift note (2026-06-25 red-team):** drafted at v0.5.1; this plan STACKS on plans 1+2 (v0.6.1, v0.6.2),
+> so the release is **v0.6.3** (not the drafted v0.5.4). `provision-worktrees.sh` is untouched by plans 1/2 (its
+> anchors hold), but `workflow-template.js` DRIFTED: `<integration-tip>` is at **line 211** (not 195) AND there is a
+> **SECOND** occurrence at **line 307** (the refine-loop rebase instruction) — both must be resolved (see Task 4).
+> `branch_ahead_of` is at ~103-107 (not 97-107). Extract by construct, not line.
 - **F08** — delete the dead `branch_ahead_of` helper + correct the heal comment.
 - **F09** — teardown & resume verify the `--owned-file` ledger (ownership checked at create only today).
 - **F10** — resolve the `<integration-tip>` placeholder before emitting it.
@@ -27,10 +33,12 @@ with the `.test.mjs` harness. Two file clusters ⇒ two phases, each serialized 
 
 **Tech stack:** POSIX `sh` + the existing `provision-worktrees.test.sh` harness; ESM + `workflow-template.test.mjs`.
 
-**Gate (for `/war`):** the full multi-runner command (F12 lesson):
+**Gate (for `/war`):** the full multi-runner command (F12 lesson). Quote the node glob (unquoted under-covers on
+bash 3.2) and **self-discover** the bash suites — the repo now has **FOUR** `*.test.sh` (incl. `refinery-surface`,
+added since this plan was drafted; F12's resolveGate landed in plan 2 and dogfoods exactly this):
 ```
-node --test skills/**/*.test.mjs && bash hooks/validate-worktree-scope.test.sh \
-  && bash hooks/clean-surface-war-worktree.test.sh && bash skills/war/assets/provision-worktrees.test.sh
+node --test 'skills/**/*.test.mjs' && for f in $(find . -type f -name '*.test.sh' \
+  -not -path '*/node_modules/*' -not -path '*/.git/*' | sort); do bash "$f" || exit 1; done
 ```
 
 **Source of truth:** [F08](../specs/2026-06-25-F08-dead-branch-ahead-of-design.md),
@@ -56,7 +64,7 @@ node --test skills/**/*.test.mjs && bash hooks/validate-worktree-scope.test.sh \
 - **Phase 1 — `provision-worktrees.sh` hardening:** T1 (F08 delete) → T2 (F09 ownership) → T3 (#69 merged-guard +
   nits). Serial: same file.
 - **Phase 2 — `workflow-template.js` hardening:** T4 (F10 tip) → T5 (#71 throw). Serial: same file.
-- **Phase 3 — Release:** T6 — v0.5.4.
+- **Phase 3 — Release:** T6 — v0.6.3.
 
 ---
 
@@ -70,7 +78,7 @@ fix the heal comment in `docs/specs/2026-06-25-worktree-provisioning-design.md` 
 - [ ] **Step 1: Write/adjust test** — add a structural assertion that `grep -n branch_ahead_of` over `skills/`
   returns nothing (clean-surface style); confirm no existing test references it.
 - [ ] **Step 2: Run gate → fail** (helper still present).
-- [ ] **Step 3: Implement** — delete `branch_ahead_of()` (`provision-worktrees.sh:97-107`); reword nearby
+- [ ] **Step 3: Implement** — delete `branch_ahead_of()` (`provision-worktrees.sh:103-107`, comment ~99-102); reword nearby
   conservative-heal comments to state the real guard: *never destroy a worktree whose branch carries un-merged
   commits; prune+recreate only empty/unregistered no-commit dirs; an unregistered non-empty dir → fail loud (D7)*.
 - [ ] **Step 4: Run gate → pass.**
@@ -115,7 +123,9 @@ fix the heal comment in `docs/specs/2026-06-25-worktree-provisioning-design.md` 
 - [ ] **Step 2: Run gate → fail.**
 - [ ] **Step 3: Implement**
   - `delete_branch`: try `git branch -d` (safe); on "not fully merged" failure, escalate to `git branch -D` **only**
-    when a `force` flag (threaded from `teardown-* --force`) is set; else `warn` and leave it.
+    when a `force` flag (threaded from `teardown-* --force`) is set; else `warn` and leave it. **Wiring:** add a
+    `--force` flag to `cmd_teardown_task`/`cmd_teardown_phase` arg-parsing (today they parse only `--keep`) and thread
+    it into `delete_branch` — without this, the `force` path is unreachable.
   - `cmd_ensure_exclude`: reject unknown args with `die` (consistent with `ensure-integration`).
   - `cmd_ensure_integration` branch create (`:193`): capture git stderr and include it in the `die` message.
   - Add the empty-dir-recreate acceptance test (no source change beyond the above).
@@ -131,15 +141,25 @@ fix the heal comment in `docs/specs/2026-06-25-worktree-provisioning-design.md` 
 **Files:** Modify `skills/war/assets/workflow-template.js` (Provision prompt, step 3 + per-task `ensure-worktree`
 lines); Test `skills/war/assets/workflow-template.test.mjs`.
 
+> **Two occurrences (red-team).** `workflow-template.js` has TWO bare `<integration-tip>` placeholders, not one:
+> **(1)** line ~211 in the Provision prompt's per-task `ensure-worktree` line, and **(2)** line ~307 in the
+> **refine-loop rebase** instruction (`git -C ${r.task.worktree} rebase <integration-tip>`). A Provision-prompt-only
+> fix + test would leave (2) and give a FALSE sense of security. F10 must resolve **both** and the guard must be
+> **global** (the whole emitted template), not Provision-prompt-scoped. (The F10 spec's own `:195/:202` cites are
+> stale → back-port `:211`.)
 - [ ] **Step 1: Write failing tests**
-  - The Provision prompt contains **no bare `<integration-tip>`** (nor any bare `<...>` token adjacent to a resolved
-    absolute path) — a regex guard over the emitted prompt.
+  - **Global guard:** the **entire emitted template text** contains **no bare `<integration-tip>`** (nor any bare
+    `<...>` token adjacent to a resolved absolute path) — a regex guard over the full emitted prompt(s), covering
+    BOTH the Provision prompt and the refine-loop rebase instruction.
   - Step 3 sets a captured tip variable (`git rev-parse <integrationBranch>` → `TIP`), and each per-task
     `ensure-worktree` line references `"$TIP"` (assert the emitted text).
-- [ ] **Step 2: Run gate → fail** (`<integration-tip>` literal at `:195`).
-- [ ] **Step 3: Implement** — in the provision prompt, step 3 emits `TIP="$(git rev-parse ${ph.integrationBranch})"`;
-  change the per-task line (`:195`) from `… ${t.branch} <integration-tip>` to `… ${t.branch} "$TIP"`; keep the
-  human-readable "the integration tip captured in step 3" framing.
+  - The refine-loop rebase instruction references a concrete ref (`${ph.integrationBranch}`), not a bare placeholder.
+- [ ] **Step 2: Run gate → fail** (`<integration-tip>` literals at `:211` Provision AND `:307` refine-rebase).
+- [ ] **Step 3: Implement** — (a) in the provision prompt, step 3 emits `TIP="$(git rev-parse ${ph.integrationBranch})"`;
+  change the per-task line (`:211`) from `… ${t.branch} <integration-tip>` to `… ${t.branch} "$TIP"` (keep the
+  "the integration tip captured in step 3" framing). (b) In the refine-loop rebase instruction (`:307`), replace the
+  bare `rebase <integration-tip>` with `rebase ${ph.integrationBranch}` (a concrete ref the refiner resolves) — the
+  rebase happens outside the Provision barrier so there is no captured `$TIP` in scope there.
 - [ ] **Step 4: Run gate → pass.**
 - [ ] **Step 5: Commit** — `git commit -am "fix(war): resolve integration tip into a captured var, drop bare placeholder + guard test (F10)"`
 
@@ -162,13 +182,17 @@ lines); Test `skills/war/assets/workflow-template.test.mjs`.
 
 ## Phase 3 — Release & verify
 
-### Task 6: Version bump v0.5.4 + full multi-runner gate green
+### Task 6: Version bump v0.6.3 + full multi-runner gate green
 
 **Files:** the README-documented bump list.
 
-- [ ] **Step 1:** Bump to **v0.5.4** across the bump list.
-- [ ] **Step 2:** Run the **full** gate (all runners) → green.
-- [ ] **Step 3: Commit** — `git commit -am "chore(release): v0.5.4 — provisioning lifecycle (dead-code, teardown ownership+merged-guard, tip resolution)"`
+- [ ] **Step 1:** Bump to **v0.6.3** (patch over the stacked v0.6.2) across the COMPLETE bump list:
+  `.claude-plugin/plugin.json` `version`, `.claude-plugin/marketplace.json` `metadata.version` AND `plugins[0].version`
+  (do NOT omit — stale = silent-no-op release), README badge/`## Status` (REPLACE-in-place single-release slot —
+  overwrite the prior paragraph; a "Builds on v0.6.2" lineage phrase is fine). NB: the README has no version *badge*;
+  bump only the slots that exist.
+- [ ] **Step 2:** Run the **full** gate (all runners, quoted + self-discovered — all FOUR `*.test.sh`) → green.
+- [ ] **Step 3: Commit** — `git commit -am "chore(release): v0.6.3 — provisioning lifecycle (dead-code, teardown ownership+merged-guard, tip resolution)"`
 - [ ] **Step 4:** Close issues #69 and #71 (residuals landed) with a pointer to this plan's commits.
 
 ---
@@ -185,13 +209,12 @@ lines); Test `skills/war/assets/workflow-template.test.mjs`.
 - **All changes are guarded by `provision-worktrees.test.sh` / `workflow-template.test.mjs`** — the same suites F12
   ensures the gate runs.
 
-## Open decisions (for `/red-team`)
+## Open decisions — RESOLVED by `/red-team` (2026-06-25, `--afk` autonomous adjudication)
 
-1. **Merged-guard correctness vs HEAD.** `git branch -d` checks merged-into-HEAD; at teardown the refiner's HEAD may
-   not be the integration target, so a legitimately-merged branch could be *refused* (left as cruft, never data
-   loss). Accept the safe-fail, or pass the integration target and check `git merge-base --is-ancestor <branch>
-   <target>` before `-D`? (Recommend: accept safe-fail for v0.5.4; revisit when teardown is wired and the target is
-   in hand.)
-2. **Resume auto-adopt** (F09 open #1): keep fail-closed (explicit record/delete) vs auto-adopt namespace refs into
-   the ledger. (Recommend: fail-closed — already the behavior.)
-3. **Release granularity** confirmed per-plan (v0.5.4).
+1. **Merged-guard correctness vs HEAD → accept the safe-fail.** `git branch -d` checks merged-into-HEAD; at teardown
+   the refiner's HEAD may not be the integration target, so a legitimately-merged branch could be *refused* (left as
+   cruft, never data loss). Accept the safe-fail for v0.6.3; revisit the `git merge-base --is-ancestor` refinement
+   when teardown is actually wired into the refiner and the integration target is in hand.
+2. **Resume auto-adopt (F09 open #1) → keep fail-closed** (explicit record/delete; already the behavior). No
+   auto-adopt of namespace refs into the ledger.
+3. **Release granularity → v0.6.3, standalone** (patch over the stacked v0.6.2; not batched).
