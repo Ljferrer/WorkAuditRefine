@@ -778,6 +778,216 @@ code="$(run_in_detached "$C1_3" "$NEW_SHA3" land-advance working/myplan3 "$NEW_S
 expect "T2.3: unrelated push error -> exit ESCALATE code (3), not RELAND (2)" \
   "3" "$code"
 
+# ===========================================================================
+# Task 3 (clandiso): teardown-phase --worktree-root <root> — reap _refinery
+# by path + verified integration delete.
+#
+# New flag: teardown-phase --run-dir <ledger-dir> --worktree-root <wt-root>
+#           <slug> <N>
+#
+# The _refinery lives at <worktreeRoot>/<runId>/_refinery, where <runId> is
+# derived from the basename of --run-dir. The reap is path-based (branch-
+# agnostic: works whether _refinery is on the integration branch or detached)
+# and guarded by its own path_under check scoped to <worktreeRoot>/<runId>.
+#
+# The integration branch delete now FAILS LOUD on error (propagates non-zero)
+# instead of swallowing the error via `|| warn` (which returns 0 today).
+#
+# --keep preserves _refinery for inspection.
+#
+# Helper: run_id_from_dir <dir> -> echoes the basename (the run-id component).
+run_id_from_dir() { basename "$1"; }
+
+# mk_wt_root <parent> <run-id> -> echo <parent>/<run-id> (parent created).
+# The _refinery will be placed at <parent>/<run-id>/_refinery by the test.
+mk_wt_root() {
+  wtr="$1"
+  mkdir -p "$wtr"
+  echo "$wtr"
+}
+
+# ---------------------------------------------------------------------------
+# Case (T3a) teardown-phase reaps an ON-INTEGRATION _refinery (worktree is
+# present, registered, and HEAD is on the integration branch). After teardown,
+# the _refinery dir and its registry entry must be gone, and the integration
+# branch itself must be deleted.
+# ---------------------------------------------------------------------------
+RTP_A="$(new_repo)"
+git -C "$RTP_A" branch integration/myplan/phase-3 HEAD
+TIPTA="$(git -C "$RTP_A" rev-parse integration/myplan/phase-3)"
+
+# Layout: run-dir is <repo>/.claude/teams/<runId>
+#         worktree-root is <repo>/.claude/worktrees
+RD_TA="$(mk_run_dir "$RTP_A" run-ta1)"
+RUN_ID_TA="run-ta1"
+WT_ROOT_TA="$RTP_A/.claude/worktrees"
+mkdir -p "$WT_ROOT_TA/$RUN_ID_TA"
+REFINERY_TA="$WT_ROOT_TA/$RUN_ID_TA/_refinery"
+
+# Provision the _refinery worktree on the integration branch (on-integration case).
+run_in "$RTP_A" ensure-refinery-worktree "$REFINERY_TA" "integration/myplan/phase-3" >/dev/null 2>&1
+expect "T3a setup: _refinery is registered and present on integration branch" \
+  "integration/myplan/phase-3" "$(wt_head_branch "$RTP_A" "$REFINERY_TA")"
+expect "T3a setup: integration branch exists" \
+  "yes" "$(branch_exists_in "$RTP_A" integration/myplan/phase-3)"
+
+code="$(run_in "$RTP_A" teardown-phase \
+  --run-dir "$RD_TA" \
+  --worktree-root "$WT_ROOT_TA" \
+  myplan 3)"
+expect "T3a: teardown-phase exits 0 (on-integration _refinery reaped)" \
+  "0" "$code"
+expect "T3a: _refinery dir gone after teardown" \
+  "no" "$([ -d "$REFINERY_TA" ] && echo yes || echo no)"
+expect "T3a: _refinery registry entry gone after teardown" \
+  "" "$(wt_head_branch "$RTP_A" "$REFINERY_TA")"
+expect "T3a: integration branch deleted after teardown" \
+  "no" "$(branch_exists_in "$RTP_A" integration/myplan/phase-3)"
+
+# ---------------------------------------------------------------------------
+# Case (T3b) teardown-phase reaps a DETACHED _refinery (HEAD is detached —
+# the post-land state after a successful merge). Path-based reap must work
+# whether _refinery is on-integration or detached.
+# ---------------------------------------------------------------------------
+RTP_B="$(new_repo)"
+git -C "$RTP_B" branch integration/myplan/phase-4 HEAD
+TIPTB="$(git -C "$RTP_B" rev-parse integration/myplan/phase-4)"
+
+RD_TB="$(mk_run_dir "$RTP_B" run-tb1)"
+RUN_ID_TB="run-tb1"
+WT_ROOT_TB="$RTP_B/.claude/worktrees"
+mkdir -p "$WT_ROOT_TB/$RUN_ID_TB"
+REFINERY_TB="$WT_ROOT_TB/$RUN_ID_TB/_refinery"
+
+# Provision the _refinery worktree on the integration branch, then detach HEAD.
+run_in "$RTP_B" ensure-refinery-worktree "$REFINERY_TB" "integration/myplan/phase-4" >/dev/null 2>&1
+# Detach HEAD in the refinery (simulating the post-merge detached state).
+git -C "$REFINERY_TB" checkout --detach HEAD >/dev/null 2>&1
+expect "T3b setup: _refinery is in detached HEAD state" \
+  "(detached)" "$(wt_head_branch "$RTP_B" "$REFINERY_TB")"
+expect "T3b setup: integration branch exists" \
+  "yes" "$(branch_exists_in "$RTP_B" integration/myplan/phase-4)"
+
+code="$(run_in "$RTP_B" teardown-phase \
+  --run-dir "$RD_TB" \
+  --worktree-root "$WT_ROOT_TB" \
+  myplan 4)"
+expect "T3b: teardown-phase exits 0 (detached _refinery reaped)" \
+  "0" "$code"
+expect "T3b: detached _refinery dir gone after teardown" \
+  "no" "$([ -d "$REFINERY_TB" ] && echo yes || echo no)"
+expect "T3b: detached _refinery registry entry gone after teardown" \
+  "" "$(wt_head_branch "$RTP_B" "$REFINERY_TB")"
+expect "T3b: integration branch deleted after teardown (detached case)" \
+  "no" "$(branch_exists_in "$RTP_B" integration/myplan/phase-4)"
+
+# ---------------------------------------------------------------------------
+# Case (T3c) Integration branch delete FAILS LOUD if the _refinery is still
+# checked out on it (i.e. when no --worktree-root is supplied and the old
+# behavior would silently swallow the error). Specifically: if _refinery is
+# NOT reaped first (by omitting --worktree-root so _refinery remains checked
+# out on the integration branch), the delete_branch call must now propagate a
+# real non-zero exit. We test this by calling teardown-phase WITHOUT
+# --worktree-root while the _refinery is on the integration branch — git will
+# refuse to delete the branch, and teardown-phase must exit non-zero.
+# ---------------------------------------------------------------------------
+RTP_C="$(new_repo)"
+git -C "$RTP_C" branch integration/myplan/phase-5 HEAD
+TIPTC="$(git -C "$RTP_C" rev-parse integration/myplan/phase-5)"
+
+RD_TC="$(mk_run_dir "$RTP_C" run-tc1)"
+WT_ROOT_TC="$RTP_C/.claude/worktrees"
+mkdir -p "$WT_ROOT_TC/run-tc1"
+REFINERY_TC="$WT_ROOT_TC/run-tc1/_refinery"
+
+# Provision _refinery on the integration branch; do NOT reap it before calling
+# teardown-phase (simulate the missing --worktree-root scenario).
+run_in "$RTP_C" ensure-refinery-worktree "$REFINERY_TC" "integration/myplan/phase-5" >/dev/null 2>&1
+expect "T3c setup: _refinery is on integration branch (not yet reaped)" \
+  "integration/myplan/phase-5" "$(wt_head_branch "$RTP_C" "$REFINERY_TC")"
+
+# Call teardown-phase WITHOUT --worktree-root: _refinery stays, git refuses to
+# delete the branch that is checked out — teardown-phase must exit non-zero.
+code="$(run_in "$RTP_C" teardown-phase --run-dir "$RD_TC" myplan 5)"
+expect "T3c: teardown-phase exits non-zero when integration branch cannot be deleted (checked out in _refinery)" \
+  "nonzero" "$([ "$code" -ne 0 ] && echo nonzero || echo zero)"
+# Integration branch must still exist (not partially deleted).
+expect "T3c: integration branch still present after failed teardown" \
+  "yes" "$(branch_exists_in "$RTP_C" integration/myplan/phase-5)"
+
+# ---------------------------------------------------------------------------
+# Case (T3d) An out-of-run _refinery path is refused. If the _refinery path
+# supplied via --worktree-root would compute a refinery path OUTSIDE
+# <worktreeRoot>/<runId> (e.g. a worktree-root whose run-id component differs),
+# teardown-phase must fail loud instead of removing foreign data.
+# We test this by supplying a --worktree-root that puts the _refinery under a
+# DIFFERENT run-id than the one derived from --run-dir.
+# ---------------------------------------------------------------------------
+RTP_D="$(new_repo)"
+git -C "$RTP_D" branch integration/myplan/phase-6 HEAD
+
+RD_TD="$(mk_run_dir "$RTP_D" run-td1)"
+# A worktree-root that corresponds to a DIFFERENT run-id than run-td1.
+WT_ROOT_TD_OTHER="$RTP_D/.claude/worktrees-FOREIGN"
+mkdir -p "$WT_ROOT_TD_OTHER/run-FOREIGN"
+REFINERY_TD_FOREIGN="$WT_ROOT_TD_OTHER/run-FOREIGN/_refinery"
+run_in "$RTP_D" ensure-refinery-worktree "$REFINERY_TD_FOREIGN" "integration/myplan/phase-6" >/dev/null 2>&1
+expect "T3d setup: foreign _refinery registered" \
+  "integration/myplan/phase-6" "$(wt_head_branch "$RTP_D" "$REFINERY_TD_FOREIGN")"
+
+# Supplying the foreign worktree-root: the computed _refinery path would be
+# <WT_ROOT_TD_OTHER>/run-td1/_refinery which is NOT where the actual foreign
+# _refinery lives. The guard must refuse or simply not match the out-of-run path.
+# What we test: passing a --worktree-root that points to a DIFFERENT run-id's
+# dir; teardown-phase should not remove the foreign refinery that isn't at the
+# expected path. The foreign one must remain untouched.
+code="$(run_in "$RTP_D" teardown-phase \
+  --run-dir "$RD_TD" \
+  --worktree-root "$WT_ROOT_TD_OTHER" \
+  myplan 6)"
+# Whether it exits 0 or non-zero depends on whether the integration branch
+# delete succeeds (it will if the foreign refinery is NOT under integration
+# branch — but actually it IS, which means git WILL refuse to delete the
+# integration branch that's checked out in REFINERY_TD_FOREIGN). So:
+# teardown-phase cannot delete the branch, exits non-zero.
+expect "T3d: teardown-phase exits non-zero (foreign _refinery path not under run-scope; branch still checked out)" \
+  "nonzero" "$([ "$code" -ne 0 ] && echo nonzero || echo zero)"
+# The foreign _refinery must remain untouched (not deleted).
+expect "T3d: out-of-run _refinery dir remains intact" \
+  "yes" "$([ -d "$REFINERY_TD_FOREIGN" ] && echo yes || echo no)"
+expect "T3d: out-of-run _refinery still registered to its repo" \
+  "integration/myplan/phase-6" "$(wt_head_branch "$RTP_D" "$REFINERY_TD_FOREIGN")"
+
+# ---------------------------------------------------------------------------
+# Case (T3e) --keep preserves _refinery. When teardown-phase is called with
+# --keep, neither the _refinery nor the integration branch is removed.
+# ---------------------------------------------------------------------------
+RTP_E="$(new_repo)"
+git -C "$RTP_E" branch integration/myplan/phase-7 HEAD
+
+RD_TE="$(mk_run_dir "$RTP_E" run-te1)"
+WT_ROOT_TE="$RTP_E/.claude/worktrees"
+mkdir -p "$WT_ROOT_TE/run-te1"
+REFINERY_TE="$WT_ROOT_TE/run-te1/_refinery"
+
+run_in "$RTP_E" ensure-refinery-worktree "$REFINERY_TE" "integration/myplan/phase-7" >/dev/null 2>&1
+expect "T3e setup: _refinery present on integration branch" \
+  "integration/myplan/phase-7" "$(wt_head_branch "$RTP_E" "$REFINERY_TE")"
+
+code="$(run_in "$RTP_E" teardown-phase \
+  --keep \
+  --run-dir "$RD_TE" \
+  --worktree-root "$WT_ROOT_TE" \
+  myplan 7)"
+expect "T3e: teardown-phase --keep exits 0" \
+  "0" "$code"
+expect "T3e: --keep preserves _refinery dir" \
+  "yes" "$([ -d "$REFINERY_TE" ] && echo yes || echo no)"
+expect "T3e: --keep preserves _refinery registry entry" \
+  "integration/myplan/phase-7" "$(wt_head_branch "$RTP_E" "$REFINERY_TE")"
+expect "T3e: --keep preserves the integration branch" \
+  "yes" "$(branch_exists_in "$RTP_E" integration/myplan/phase-7)"
+
 # ---------------------------------------------------------------------------
 printf '\n%d/%d cases passed\n' "$((n - fails))" "$n"
 [ "$fails" -eq 0 ] || { printf '%d FAILED\n' "$fails"; exit 1; }
