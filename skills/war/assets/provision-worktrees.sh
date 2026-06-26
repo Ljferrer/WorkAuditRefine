@@ -11,8 +11,10 @@
 #   ensure-integration <slug> <N> <base> [--owned-file PATH] [--owned REF]...  (Task 2)
 #   ensure-exclude                                                             (Task 2)
 #   ensure-worktree <path> <branch> <integration-tip>                          (Task 3)
+#   land-advance <working-ref> <new-sha>                                       (Task 2/clandiso)
+#   ensure-refinery-worktree <path> <integration-branch>                       (Task 1/clandiso)
 #   teardown-task [--keep] --run-dir <ledger-dir> <path> <branch>              (Task 4)
-#   teardown-phase --run-dir <ledger-dir> <slug> <N>                           (Task 4)
+#   teardown-phase [--keep] --run-dir <ledger-dir> [--worktree-root <r>] <s> <N>  (Task 4 + clandiso/T3)
 #   prune                                                                      (Task 4)
 #
 # Design notes:
@@ -385,27 +387,52 @@ cmd_teardown_task() {
 }
 
 # --- subcommand: teardown-phase --------------------------------------------
-# teardown-phase --run-dir <ledger-dir> <slug> <N>
+# teardown-phase [--keep] --run-dir <ledger-dir> [--worktree-root <wt-root>]
+#                <slug> <N>
 #
-# Phase land: remove the integration branch integration/<slug>/phase-<N> and any
-# remaining phase worktrees. Strictly run-scoped: only worktrees whose path is
-# inside --run-dir are removed; a sibling worktree of a different run-id is never
-# touched (even though the integration ref is global, we still only reap our own
-# worktrees). We identify "phase worktrees" as registered worktrees of this repo
-# that live under --run-dir AND are checked out on a war/<slug>/p<N>-* branch.
+# Phase land: reap the _refinery (if --worktree-root supplied), remove any
+# remaining phase worktrees, then delete the integration branch
+# integration/<slug>/phase-<N>.
+#
+# Strictly run-scoped: only worktrees whose path is inside --run-dir are
+# removed (for phase worktrees) or inside <worktreeRoot>/<runId> (for
+# _refinery). A sibling worktree of a different run-id is never touched.
+# We identify "phase worktrees" as registered worktrees of this repo that live
+# under --run-dir AND are checked out on a war/<slug>/p<N>-* branch.
+#
+# --worktree-root <wt-root>: the root under which _refinery lives, i.e.
+#   <wt-root>/<runId>/_refinery where <runId> = basename(--run-dir). The reap
+#   is path-based (branch-agnostic), so it handles both on-integration and
+#   detached states. Guarded by its own path_under check scoped to
+#   <wt-root>/<runId> (NOT --run-dir, which is a sibling ledger dir).
+#   If absent, no _refinery reap is attempted.
+#
+# --keep: held/escalated phase — preserve _refinery and the integration branch
+#   for inspection. Neither is removed. Exits 0.
+#
+# Integration branch delete: now FAIL LOUD on error (propagates non-zero exit)
+#   instead of the former `|| warn` swallow (which returned 0 even on failure).
+#   This makes a checked-out _refinery block the delete detectably (the caller
+#   must supply --worktree-root to reap it first).
 cmd_teardown_phase() {
   run_dir=""
+  worktree_root=""
+  keep=0
   while [ $# -gt 0 ]; do
     case "$1" in
+      --keep)          keep=1; shift ;;
       --run-dir)
         [ $# -ge 2 ] || die "--run-dir requires a path"
         run_dir="$2"; shift 2 ;;
+      --worktree-root)
+        [ $# -ge 2 ] || die "--worktree-root requires a path"
+        worktree_root="$2"; shift 2 ;;
       --) shift; break ;;
       -*) die "teardown-phase: unknown flag '$1'" ;;
       *)  break ;;
     esac
   done
-  [ $# -ge 2 ] || die "usage: teardown-phase --run-dir <ledger-dir> <slug> <N>"
+  [ $# -ge 2 ] || die "usage: teardown-phase [--keep] --run-dir <ledger-dir> [--worktree-root <wt-root>] <slug> <N>"
   slug="$1"; num="$2"
   [ -n "$slug" ] || die "teardown-phase: empty <slug>"
   case "$num" in
@@ -416,11 +443,42 @@ cmd_teardown_phase() {
 
   git_dir >/dev/null
 
+  # --keep: preserve everything for inspection; exit cleanly.
+  if [ "$keep" -eq 1 ]; then
+    warn "keep-on-escalation: leaving _refinery and integration branch 'integration/$slug/phase-$num' intact for inspection."
+    return 0
+  fi
+
   rd_phys="$(phys "$run_dir")"; rd_phys="${rd_phys%/}"
 
-  # Collect this run's phase worktrees: registered worktree paths that (a) live
-  # under run-dir and (b) are on a war/<slug>/p<N>-* branch. We read the porcelain
-  # once, pairing each `worktree <path>` with its following `branch <ref>`.
+  # --- Reap _refinery by path (before the integration branch delete) --------
+  # _refinery lives at <worktreeRoot>/<runId>/_refinery where <runId> is the
+  # basename of --run-dir. The reap is path-based (branch-agnostic): works
+  # whether _refinery is on the integration branch OR detached. Guarded by its
+  # own path_under check scoped to <worktreeRoot>/<runId>, NOT --run-dir.
+  if [ -n "$worktree_root" ]; then
+    run_id="$(basename "$run_dir")"
+    run_wt_scope="$(phys "$worktree_root")/$run_id"
+    refinery_path="$run_wt_scope/_refinery"
+    # Scope guard: the computed refinery path must be under <wt-root>/<runId>.
+    # If path_under fails (should be impossible with the formula above, but
+    # defensive), refuse rather than silently skipping.
+    if ! path_under "$refinery_path" "$run_wt_scope"; then
+      die "teardown-phase: computed _refinery path '$refinery_path' is outside the run-scope '$run_wt_scope' — refusing to reap." 5
+    fi
+    # Reap by path regardless of what branch _refinery is on (or whether it is
+    # detached). `remove_worktree` is branch-agnostic.
+    if worktree_registered "$refinery_path"; then
+      remove_worktree "$refinery_path"
+    fi
+    # Even if not registered, prune any stale entry at that path.
+    git worktree prune >/dev/null 2>&1 || true
+  fi
+
+  # --- Collect and remove this run's phase task worktrees -------------------
+  # Registered worktree paths that (a) live under run-dir and (b) are on a
+  # war/<slug>/p<N>-* branch. We read the porcelain once, pairing each
+  # `worktree <path>` with its following `branch <ref>`.
   wt_prefix="refs/heads/war/$slug/p$num-"
   phase_paths="$(
     git worktree list --porcelain 2>/dev/null | awk -v want="$rd_phys/" -v pref="$wt_prefix" '
@@ -438,8 +496,171 @@ cmd_teardown_phase() {
     remove_worktree "$wt"
   done
 
-  # Finally drop the integration branch for this phase.
-  delete_branch "integration/$slug/phase-$num"
+  # --- Delete the integration branch (FAIL LOUD on error) -------------------
+  # Previously this was `delete_branch ...` which internally did `|| warn`
+  # (returning 0 even when the branch could not be deleted, e.g. still checked
+  # out in an un-reaped _refinery). Now we propagate the real exit code.
+  int_branch="integration/$slug/phase-$num"
+  if branch_exists "$int_branch"; then
+    git branch -D "$int_branch" >/dev/null 2>&1 \
+      || die "teardown-phase: could not delete branch '$int_branch' (still checked out? ensure _refinery is reaped first via --worktree-root)." 1
+  fi
+}
+
+# --- subcommand: land-advance -----------------------------------------------
+# land-advance <working-ref> <new-sha>
+#
+# Push-first cross-run CAS for the land phase. The caller (refiner in a
+# detached _refinery worktree) has already produced <new-sha> — the --no-ff
+# merge commit — and HEAD is currently detached at <new-sha>.
+#
+# 1. PUSH: git push origin HEAD:refs/heads/<working>
+#    - Named source (HEAD, which IS <new-sha>) — NOT a bare SHA refspec.
+#      A bare-SHA push can spuriously report "src refspec does not match any";
+#      pushing a ref name is reliable (red-team-verified).
+#    - NO --force. The non-ff rejection is the atomic CAS against shared truth.
+#
+# 2. CLASSIFY the push result by the [rejected] token:
+#    - Exit 0  → success (clean push); proceed to step 3.
+#    - [rejected] present in output → RELAND (exit 2); another run won the CAS;
+#      the caller re-fetches origin/<working>, re-merges, and retries.
+#      Do NOT key on the literal "non-fast-forward" — red-team proved it is NOT
+#      reliably emitted for this push form. [rejected] is the canonical token.
+#    - Other non-zero (e.g. network failure, bad URL) → ESCALATE (exit 3).
+#      Never infer success from absence of [rejected] alone — require exit 0.
+#
+# 3. ONLY on push success (exit 0): advance the local follower ref:
+#    git update-ref refs/heads/<working> <new-sha> <pre-push-local-tip>
+#    A rejected push leaves the local refs/heads/<working> UNCHANGED — nothing
+#    to rewind.
+#
+# Exit codes:
+#   0  → push accepted; local follower ref advanced to <new-sha>.
+#   2  → push rejected ([rejected] token seen); local ref unchanged; reland.
+#   3  → unrelated push error; escalate.
+#
+# Constraint: macOS bash 3.2.57 — no process substitution with stderr routing
+# that drops one stream; use a temp file to capture combined output.
+cmd_land_advance() {
+  [ $# -ge 2 ] || die "usage: land-advance <working-ref> <new-sha>"
+  working="$1"; new_sha="$2"
+  [ -n "$working" ]  || die "land-advance: empty <working-ref>"
+  [ -n "$new_sha" ]  || die "land-advance: empty <new-sha>"
+
+  git_dir >/dev/null
+
+  # Capture the local tip of refs/heads/<working> before pushing.
+  # This is the CAS expected-value for the update-ref.
+  pre_push_local=""
+  if git show-ref --verify --quiet "refs/heads/$working" 2>/dev/null; then
+    pre_push_local="$(git rev-parse "refs/heads/$working")"
+  fi
+
+  # Push HEAD (which IS <new-sha> in the detached refinery) to the named branch
+  # on origin. Capture combined stdout+stderr for [rejected] detection.
+  push_out="$(mktemp 2>/dev/null || mktemp -t warpush)"
+  push_rc=0
+  git push origin "HEAD:refs/heads/$working" >"$push_out" 2>&1 || push_rc=$?
+  push_output="$(cat "$push_out")"
+  rm -f "$push_out"
+
+  if [ "$push_rc" -eq 0 ]; then
+    # Success: advance the local follower ref with a CAS update-ref.
+    # If there was no pre-push local tip, create the ref unconditionally.
+    if [ -n "$pre_push_local" ]; then
+      git update-ref "refs/heads/$working" "$new_sha" "$pre_push_local" \
+        || die "land-advance: update-ref failed after successful push (this is unexpected; the push succeeded but the local CAS failed — manual intervention required)."
+    else
+      git update-ref "refs/heads/$working" "$new_sha" \
+        || die "land-advance: update-ref (create) failed after successful push."
+    fi
+    return 0
+  fi
+
+  # Non-zero exit from push. Classify by the [rejected] token.
+  # git always emits "! [rejected] ..." on a non-ff rejection.
+  if printf '%s' "$push_output" | grep -q '\[rejected\]'; then
+    # Reland: the loser re-fetches origin/<working>, re-merges, re-gates, retries.
+    # Local ref is unchanged — nothing to rewind.
+    exit 2
+  fi
+
+  # Any other non-zero (network failure, bad URL, permission error, etc.)
+  # → escalate. The Lead must intervene.
+  exit 3
+}
+
+# --- subcommand: ensure-refinery-worktree -----------------------------------
+# ensure-refinery-worktree <path> <integration-branch>
+#
+# Ensure+re-attach for the Refinery's run-scoped worktree (_refinery). This is
+# distinct from ensure-worktree's pure no-op reuse: when the worktree is present
+# but HEAD is detached or on a different branch, and the tree is CLEAN (no
+# tracked-file modifications), we re-attach via `git -C <path> switch`. A dirty
+# tree (tracked-file modifications) always FAIL LOUD — never reset, never destroy
+# work. Untracked files (e.g. the .war-task marker) do not count as dirty.
+#
+# Behaviors:
+#   (a) Not registered / empty dir  -> git worktree add <path> <integration-branch>
+#                                       + .war-task marker.
+#   (b) Registered + present + HEAD on integration branch  -> reuse (marker only).
+#   (c) Registered + present + HEAD detached/different + CLEAN  -> switch to
+#                                       integration branch (re-attach) + marker.
+#   (d) Registered + present + HEAD detached/different + DIRTY  -> FAIL LOUD.
+#   (e) Stale registry (dir gone)   -> prune + recreate on integration branch.
+#   (f) Non-empty unregistered dir  -> FAIL LOUD (D7).
+cmd_ensure_refinery_worktree() {
+  [ $# -ge 2 ] || die "usage: ensure-refinery-worktree <path> <integration-branch>"
+  wt_path="$1"; int_branch="$2"
+  [ -n "$wt_path" ]    || die "ensure-refinery-worktree: empty <path>"
+  [ -n "$int_branch" ] || die "ensure-refinery-worktree: empty <integration-branch>"
+
+  git_dir >/dev/null
+
+  if worktree_registered "$wt_path"; then
+    if [ -d "$wt_path" ]; then
+      # Worktree is present and registered. Check what HEAD is on.
+      cur_branch="$(git -C "$wt_path" symbolic-ref --short HEAD 2>/dev/null || true)"
+      if [ "$cur_branch" = "$int_branch" ]; then
+        # (b) Already on the integration branch -> reuse untouched.
+        write_marker "$wt_path" "$int_branch"
+        printf '%s\n' "$wt_path"
+        return 0
+      fi
+      # HEAD is detached or on a different branch. Check for tracked-file
+      # modifications only (-uno); untracked files (e.g. .war-task) are safe.
+      if [ -n "$(git -C "$wt_path" status --porcelain -uno 2>/dev/null)" ]; then
+        # (d) DIRTY tree -> FAIL LOUD. Never reset, never destroy work.
+        die "ensure-refinery-worktree: worktree at '$wt_path' is not on the integration branch '$int_branch' and has uncommitted tracked-file changes — refusing to switch (would destroy work). Clean or stash changes first." 6
+      fi
+      # (c) CLEAN tree, detached or on a different branch -> re-attach.
+      git -C "$wt_path" switch "$int_branch" >/dev/null 2>&1 \
+        || die "ensure-refinery-worktree: failed to switch '$wt_path' to integration branch '$int_branch'"
+      write_marker "$wt_path" "$int_branch"
+      printf '%s\n' "$wt_path"
+      return 0
+    fi
+    # (e) Stale registry: the dir was removed out-of-band. Prune then recreate.
+    git worktree prune >/dev/null 2>&1 || true
+  else
+    # Not registered. An existing non-empty dir is unmanaged data -> fail loud.
+    if [ -e "$wt_path" ]; then
+      if ! dir_is_empty "$wt_path"; then
+        # (f) Non-empty unregistered dir -> FAIL LOUD.
+        die "refusing to provision refinery worktree at '$wt_path': a non-empty, unregistered directory already exists there. Move or remove it by hand (D7)." 4
+      fi
+      # Empty dir: git worktree add creates the leaf; clear the empty placeholder.
+      rmdir "$wt_path" 2>/dev/null || true
+    fi
+  fi
+
+  # (a) or (e): Create (or recreate after prune) the refinery worktree, checking
+  # out the integration branch directly (no new branch created).
+  git worktree add "$wt_path" "$int_branch" >/dev/null 2>&1 \
+    || die "ensure-refinery-worktree: failed to add worktree at '$wt_path' on branch '$int_branch'"
+
+  write_marker "$wt_path" "$int_branch"
+  printf '%s\n' "$wt_path"
 }
 
 # --- subcommand: prune ------------------------------------------------------
@@ -460,16 +681,18 @@ cmd_prune() {
 # --- dispatch ---------------------------------------------------------------
 main() {
   [ $# -ge 1 ] || die "usage: $PROG <subcommand> [args...]
-subcommands: ensure-integration, ensure-exclude, ensure-worktree, teardown-task, teardown-phase, prune"
+subcommands: ensure-integration, ensure-exclude, ensure-worktree, land-advance, ensure-refinery-worktree, teardown-task, teardown-phase, prune"
   sub="$1"; shift
   case "$sub" in
-    ensure-integration) cmd_ensure_integration "$@" ;;
-    ensure-exclude)     cmd_ensure_exclude "$@" ;;
-    ensure-worktree)    cmd_ensure_worktree "$@" ;;
-    teardown-task)      cmd_teardown_task "$@" ;;
-    teardown-phase)     cmd_teardown_phase "$@" ;;
-    prune)              cmd_prune "$@" ;;
-    *) die "unknown subcommand '$sub' (have: ensure-integration, ensure-exclude, ensure-worktree, teardown-task, teardown-phase, prune)" ;;
+    ensure-integration)       cmd_ensure_integration "$@" ;;
+    ensure-exclude)           cmd_ensure_exclude "$@" ;;
+    ensure-worktree)          cmd_ensure_worktree "$@" ;;
+    land-advance)             cmd_land_advance "$@" ;;
+    ensure-refinery-worktree) cmd_ensure_refinery_worktree "$@" ;;
+    teardown-task)            cmd_teardown_task "$@" ;;
+    teardown-phase)           cmd_teardown_phase "$@" ;;
+    prune)                    cmd_prune "$@" ;;
+    *) die "unknown subcommand '$sub' (have: ensure-integration, ensure-exclude, ensure-worktree, land-advance, ensure-refinery-worktree, teardown-task, teardown-phase, prune)" ;;
   esac
 }
 

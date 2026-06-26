@@ -251,8 +251,11 @@ test('drift-guard: inline fallback lenses in workflow-template.js matches DEFAUL
 test('drift-guard: inline HARD_ESCALATION_REASONS in workflow-template.js matches canonical export in land-decision.mjs (#36)', () => {
   // workflow-template.js cannot import ES modules so it duplicates the constant inline.
   // This test pins that inline literal to the canonical export in land-decision.mjs.
-  // The template has (around line 175):
-  //   const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict']
+  // Task 5 wired land_stale into the template inline AND updated this assertion to the full
+  // 4-item canonical (was pinned to 3 items while Task 4/5 were split across worktrees).
+  //
+  // The template has (around line 299):
+  //   const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale']
   const match = templateText.match(/const\s+HARD_ESCALATION_REASONS\s*=\s*(\[[^\]]+\])/)
   assert.ok(match, 'HARD_ESCALATION_REASONS not found in workflow-template.js')
   // Normalize single-quoted strings to double-quoted for JSON.parse.
