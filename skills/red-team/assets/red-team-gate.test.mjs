@@ -156,8 +156,11 @@ test('verdict CLEARED on full on-target coverage with no findings (preserves tod
   assert.equal(verdict(allFindings(cov.onTarget), cov), 'CLEARED')
 })
 
-test('verdict BLOCKED on full coverage with an on-target Major', () => {
-  const cov = classifyCoverage([onResult('a', [F('Major')]), onResult('b')], 2, FP, '/repo')
+test('verdict BLOCKED on full coverage with an on-target Major (non-pass probe)', () => {
+  // onResult hardcodes status:'pass' — a pass-probe Major is now CLEARED (the new filter).
+  // Use a raw fail-status probe to carry the Major so the test asserts BLOCKED for a genuine defect.
+  const failProbe = { probe: 'a', technique: 'analyzed', status: 'fail', read_anchor: anchor(), findings: [F('Major')] }
+  const cov = classifyCoverage([failProbe, onResult('b')], 2, FP, '/repo')
   assert.equal(verdict(allFindings(cov.onTarget), cov), 'BLOCKED')
 })
 
@@ -173,4 +176,34 @@ test('summarize with coverage reports expected / onTarget / offTarget / dropped'
   assert.equal(s.onTarget, 1)
   assert.deepEqual(s.offTarget, ['b'])
   assert.deepEqual(s.dropped, ['c'])
+})
+
+// --- T2.1: probeStatus threading + status-aware classify ---
+
+test('allFindings threads probeStatus from parent probe', () => {
+  const results = [{ probe: 'x', status: 'pass', findings: [F('Critical')] }]
+  assert.equal(allFindings(results)[0].probeStatus, 'pass')
+})
+
+test('Critical from a pass probe → NOT a blocker (CLEARED)', () => {
+  const findings = allFindings([{ probe: 'x', status: 'pass', findings: [F('Critical')] }])
+  assert.equal(classify(findings).blockers.length, 0)
+  assert.equal(verdict(findings), 'CLEARED')
+})
+
+test('Critical from a fail probe → IS a blocker (BLOCKED)', () => {
+  const findings = allFindings([{ probe: 'x', status: 'fail', findings: [F('Critical')] }])
+  assert.equal(classify(findings).blockers.length, 1)
+  assert.equal(verdict(findings), 'BLOCKED')
+})
+
+test('needsDecision from a pass probe → still BLOCKED', () => {
+  const findings = allFindings([{ probe: 'x', status: 'pass', findings: [F('Minor', { needsDecision: true })] }])
+  assert.equal(classify(findings).needsDecision.length, 1)
+  assert.equal(verdict(findings), 'BLOCKED')
+})
+
+test('bare Major (no probeStatus) → back-compat still BLOCKED', () => {
+  // F() creates a finding with no probeStatus; undefined !== 'pass' so it must block.
+  assert.equal(verdict([F('Major')]), 'BLOCKED')
 })
