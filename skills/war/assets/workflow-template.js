@@ -296,7 +296,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
 // landDecision mirrors land-decision.mjs (decideLand) — the Workflow sandbox can't import. Keep in sync.
 // HARD_ESCALATION_REASONS mirrors land-decision.mjs export — the Workflow sandbox can't import. Keep in sync.
 let landResult = null
-const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale']
+const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed']
 const hardEscalation = escalated.some(e => HARD_ESCALATION_REASONS.includes(e && e.reason))
 let landDecision = (landed.length && !hardEscalation) ? 'landed'
   : hardEscalation ? 'held:escalation'
