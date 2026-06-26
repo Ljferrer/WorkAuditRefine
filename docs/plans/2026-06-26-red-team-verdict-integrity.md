@@ -123,7 +123,17 @@ avoids cross-task conflicts on the shared scaffold).
     `classify(...).needsDecision.length === 1`, `verdict === 'BLOCKED'`.
   - **Back-compat:** preserve `verdict([F('Major')]) === 'BLOCKED'` and the existing `classify` bucket-count test —
     bare findings with no `probeStatus` still block.
-- [ ] **Step 2 — Run gate → fail** (severity-only filter blocks the passing-probe Critical today).
+  - **Update the ONE existing test the new filter inverts (red-team, 2026-06-26):** `red-team-gate.test.mjs`'s
+    `'verdict BLOCKED on full coverage with an on-target Major'` (~:159-162) builds its Major via the `onResult`
+    helper (~:105-106), which **hardcodes `status:'pass'`** — so the new filter correctly DEMOTES that Major
+    (→ `CLEARED`), breaking the assertion and turning the whole gate red. Update this test so the on-target Major
+    rides a **non-pass** probe (construct a `status:'fail'` probe carrying the Major, e.g. via a raw probe-result
+    rather than the `pass`-hardcoded `onResult`) so it still asserts `BLOCKED` for a genuine on-target defect —
+    preserving the test's intent under the status-aware contract. This is the **only** existing test the filter
+    inverts (verified in a sandbox: the other `onResult` coverage tests carry no blocker-severity findings).
+- [ ] **Step 2 — Run gate → fail** (severity-only filter blocks the passing-probe Critical today; AND, after the
+  filter lands but before the test above is updated, the `on-target Major` assertion flips to red — both must be green
+  by Step 4).
 - [ ] **Step 3 — Implement.**
   - `allFindings`: thread the probe status — `r.findings.map(f => ({ probe: r.probe, probeStatus: r.status, ...f }))`
     (the `...f` spread stays last so a finding's keys never override `probe`/`probeStatus`).
