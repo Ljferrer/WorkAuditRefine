@@ -995,3 +995,55 @@ test('Task 4 — MERGE_RESULT schema already permits gate_output (no schema chan
     }
   }
 })
+
+// ---------------------------------------------------------------------------
+// Task 4 (F10): integration-tip placeholder resolution — global guard
+// Both the Provision-prompt per-task ensure-worktree line AND the refine-loop
+// rebase instruction must resolve to concrete refs; no bare <integration-tip>
+// must appear anywhere in the emitted template text.
+// ---------------------------------------------------------------------------
+
+test('F10 — global guard: no bare <integration-tip> appears anywhere in the emitted template (both occurrences)', async () => {
+  // This test covers BOTH locations:
+  //   (1) Provision-prompt per-task ensure-worktree line (~line 211)
+  //   (2) refine-loop rebase instruction (~line 307)
+  // The entire set of emitted prompts (all agent calls) must be free of the literal <integration-tip>.
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const allPromptText = calls.map(c => c.prompt).join('\n')
+  assert.ok(!allPromptText.includes('<integration-tip>'),
+    'no bare <integration-tip> must appear in any emitted prompt (covers both Provision and refine-loop)')
+})
+
+test('F10 — Provision prompt step 3: emits TIP capture command and per-task ensure-worktree uses "$TIP"', async () => {
+  // Step 3 of the Provision prompt must:
+  //   (a) emit a TIP capture: TIP="$(git rev-parse <integrationBranch>)"
+  //   (b) each per-task ensure-worktree line references "$TIP" (not <integration-tip>)
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const prov = calls.find(isProvision)
+  assert.ok(prov, 'a Provision barrier is dispatched')
+  const p = prov.prompt
+  // Step 3 must instruct capturing TIP via git rev-parse of the integrationBranch
+  assert.match(p, /TIP\s*=\s*["`'$\(].*git\s+rev-parse/,
+    'Provision step 3 emits TIP="$(git rev-parse <integrationBranch>)" capture')
+  // The per-task ensure-worktree lines must reference "$TIP", not a bare placeholder
+  assert.ok(p.includes('"$TIP"'),
+    'per-task ensure-worktree lines reference "$TIP" (not a bare <integration-tip>)')
+  // Still must NOT contain the bare placeholder
+  assert.ok(!p.includes('<integration-tip>'),
+    'Provision prompt must NOT contain bare <integration-tip>')
+})
+
+test('F10 — refine-loop rebase instruction: uses concrete integrationBranch ref, not <integration-tip>', async () => {
+  // The merge-task (Refine) prompt's rebase instruction must reference ph.integrationBranch
+  // directly (a concrete ref like integration/wtprov-a/phase-3), not the bare <integration-tip>.
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const merge = calls.find(isMergeTask)
+  assert.ok(merge, 'a merge-task (Refine) refiner seat is dispatched')
+  const p = merge.prompt
+  // Must NOT contain the bare placeholder
+  assert.ok(!p.includes('<integration-tip>'),
+    'merge-task (Refine) prompt must NOT contain bare <integration-tip> — use ph.integrationBranch')
+  // Must contain the concrete integration branch ref (from PROVISION_ARGS)
+  assert.ok(p.includes('integration/wtprov-a/phase-3'),
+    'merge-task (Refine) rebase instruction must reference the concrete integrationBranch ref')
+})
