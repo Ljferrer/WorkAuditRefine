@@ -398,6 +398,9 @@ if (landDecision === 'landed') {
   if (landResult && HARD_ESCALATION_REASONS.includes(landResult.status)) {
     escalated.push({ task: `phase-${ph.id}-land`, reason: landResult.status, detail: landResult })
     landDecision = 'held:escalation'
+  } else if (landResult && (landResult.status === 'error' || landResult.status === 'gate_failed')) {
+    escalated.push({ task: `phase-${ph.id}-land`, reason: landResult.status, detail: landResult })
+    landDecision = 'held:land-failed'
   } else if (landResult && landResult.status === 'landed') {
     // ---- OPPORTUNISTIC RESYNC (§5.4): ff-only, on-branch, clean-guard ----
     // After a landed result, the Lead attempts to advance its own cwd to the new working tip.

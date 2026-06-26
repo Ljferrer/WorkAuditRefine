@@ -36,7 +36,7 @@ Run **one Workflow per phase** from [assets/workflow-template.js](assets/workflo
 - **Refines** — `war-refiner` rebases each approved task onto the integration tip, re-runs the gate, and merges **serially** (the queue). A gate/audit failure routes a batched `FIX_NEEDED` to a fresh fix-worker on the same worktree (≤ `round_limit=3`, then escalate `audit-blocked`);
 - **Lands** — `war-refiner` merges `integration/phase-N` → working `--no-ff` (one phase commit) and pushes working;
 - **Wraps up** — once the phase lands, `war-servitor` (write-scoped to `learningsTarget`) records durable learnings to memory;
-- returns `{ landed, escalated, minorsFiled, landResult, servitorResult, auditLog, landDecision }` — `landDecision` ∈ `landed` | `held:escalation` | `held:nothing-merged`; `servitorResult` is null unless the Workflow landed the phase itself.
+- returns `{ landed, escalated, minorsFiled, landResult, servitorResult, auditLog, landDecision }` — `landDecision` ∈ `landed` | `held:escalation` | `held:nothing-merged` | `held:land-failed`; `servitorResult` is null unless the Workflow landed the phase itself.
 
 Then update issues + ledger, and **mirror the phase report + escalations as a comment on the phase epic issue**.
 

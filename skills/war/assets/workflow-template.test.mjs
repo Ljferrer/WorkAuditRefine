@@ -444,6 +444,51 @@ test('Task 5 — land_stale holds the land (hard escalation)', async () => {
     'land_stale is a hard escalation → land is held')
 })
 
+test('Task 5 — land step gate_failed → landDecision held:land-failed + escalated reason gate_failed (#99)', async () => {
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'abc' }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'merged' }
+    if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'gate_failed' }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { out } = await runPhase(PROVISION_ARGS(), impl)
+  assert.equal(out.landDecision, 'held:land-failed',
+    'gate_failed land step → landDecision held:land-failed')
+  const landEsc = out.escalated.find(e => e.task && e.task.includes('-land'))
+  assert.ok(landEsc, 'escalated entry exists for the land step')
+  assert.equal(landEsc.reason, 'gate_failed', 'escalated reason is gate_failed')
+})
+
+test('Task 5 — land step error → landDecision held:land-failed + escalated reason error (#99)', async () => {
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'abc' }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'merged' }
+    if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'error' }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { out } = await runPhase(PROVISION_ARGS(), impl)
+  assert.equal(out.landDecision, 'held:land-failed',
+    'error land step → landDecision held:land-failed')
+  const landEsc = out.escalated.find(e => e.task && e.task.includes('-land'))
+  assert.ok(landEsc, 'escalated entry exists for the land step')
+  assert.equal(landEsc.reason, 'error', 'escalated reason is error')
+})
+
+test('Task 5 — source-text: else-if for error/gate_failed demote to held:land-failed is present (#99)', () => {
+  assert.match(src, /else if \(landResult && \(landResult\.status === 'error' \|\| landResult\.status === 'gate_failed'\)\)/,
+    'source contains the else-if branch for error/gate_failed → held:land-failed')
+  assert.match(src, /landDecision = 'held:land-failed'/,
+    "source sets landDecision to 'held:land-failed'")
+})
+
 test('Task 5 — opportunistic resync: after landed, Lead runs ff-only clean-guard resync (prompt check)', async () => {
   // The wrap-up or a final step must reference the ff-only resync against the Lead cwd.
   // We verify the template source describes the resync logic (it is in the land flow or as a comment
