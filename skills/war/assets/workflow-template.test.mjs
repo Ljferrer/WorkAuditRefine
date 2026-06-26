@@ -320,3 +320,144 @@ test('empty phase returns the augmented shape and the NAMED no-merge hold', asyn
   assert.equal(out.servitorResult, null)
   assert.deepEqual(out.landed, [])
 })
+
+// ---------------------------------------------------------------------------
+// Task 5: _refinery worktree wiring — barrier, merge-task, land, resync
+// ---------------------------------------------------------------------------
+
+// Helper: find the provision-topology (non provision-run) refiner seat.
+const isProvisionTopology = (c) =>
+  c.opts.phase === 'Provision' && seatOf(c.opts) === 'war-refiner' &&
+  !/^provision-run:/.test(c.opts.label || '')
+const isMergeTask = (c) =>
+  seatOf(c.opts) === 'war-refiner' && c.opts.phase === 'Refine'
+const isLand = (c) =>
+  seatOf(c.opts) === 'war-refiner' && c.opts.phase === 'Land'
+
+test('Task 5 — Provision barrier mentions ensure-refinery-worktree', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const prov = calls.find(isProvisionTopology)
+  assert.ok(prov, 'a topology-level Provision barrier is dispatched')
+  assert.match(prov.prompt, /ensure-refinery-worktree/,
+    'the barrier instructs ensure-refinery-worktree')
+  // Must reference the _refinery path under worktreeRoot/runId
+  assert.ok(prov.prompt.includes('/abs/repo/.claude/worktrees/run-2026') &&
+            prov.prompt.includes('_refinery'),
+    'the barrier names the _refinery path under worktreeRoot/runId')
+  // Must mention the integration branch as the second argument
+  assert.ok(prov.prompt.includes('integration/wtprov-a/phase-3'),
+    'the barrier passes the integrationBranch to ensure-refinery-worktree')
+})
+
+test('Task 5 — merge-task prompt: rebase runs git -C in the TASK worktree, merge runs in _refinery', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const merge = calls.find(isMergeTask)
+  assert.ok(merge, 'a merge-task (Refine) refiner seat is dispatched')
+  const p = merge.prompt
+  // Must mention git -C <taskWorktree> rebase (rebase in the task worktree, not _refinery)
+  assert.match(p, /git\s+-C\b.*rebase/,
+    'merge-task prompt mentions git -C <worktree> rebase (rebase in the task worktree)')
+  // The task worktree path must appear near the rebase instruction
+  assert.ok(p.includes('/abs/repo/.claude/worktrees/run-2026/t1'),
+    'task worktree path is referenced in the merge-task prompt')
+  // Must instruct merging in _refinery
+  assert.match(p, /_refinery/,
+    'merge-task prompt mentions _refinery for the merge step')
+  // Must state that rebase cannot run in _refinery
+  assert.match(p, /cannot.{0,50}rebase.{0,80}_refinery|_refinery.{0,80}cannot.{0,50}rebase/i,
+    'merge-task prompt states rebase cannot run in _refinery')
+  // Must state rebase --onto does not dodge it
+  assert.match(p, /rebase\s+--onto.{0,60}(not|does not|doesn.t|cannot)/i,
+    'merge-task prompt states rebase --onto does not dodge the constraint')
+  // Must instruct git merge <task.branch> (merge from the task branch into integration in _refinery)
+  assert.match(p, /git\s+merge\b.*war\/wtprov-a\/p3-t1/,
+    'merge-task prompt mentions git merge of the task branch in _refinery')
+})
+
+test('Task 5 — land prompt: detached at origin/<working>, land-advance, reland loop, land_stale on exhaustion', async () => {
+  // Need to trigger land — use defaultImpl which returns {status:'landed'} so land fires.
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const land = calls.find(isLand)
+  assert.ok(land, 'a land-phase (Land) refiner seat is dispatched')
+  const p = land.prompt
+  // Detached checkout at origin/<workingBranch>
+  assert.match(p, /detach|detached/i,
+    'land prompt mentions detached checkout')
+  assert.ok(p.includes('origin/') && p.includes('dev/wtprov-a'),
+    'land prompt references origin/<workingBranch>')
+  assert.ok(p.includes('_refinery'),
+    'land prompt operates in _refinery')
+  // push-first CAS via land-advance
+  assert.match(p, /land-advance/,
+    'land prompt mentions land-advance for the push-first CAS')
+  // reland loop bounded by roundLimit
+  assert.match(p, /reland/i,
+    'land prompt mentions reland')
+  assert.ok(p.includes('roundLimit') || /round.{0,10}limit/i.test(p),
+    'land prompt references roundLimit for the bounded reland loop')
+  // land_stale on exhaustion
+  assert.match(p, /land_stale/,
+    'land prompt returns land_stale on exhaustion of reland attempts')
+})
+
+test('Task 5 — MERGE_RESULT inline enum includes land_stale', () => {
+  // The template mirrors MERGE_RESULT status enum inline (the Workflow sandbox can't import).
+  // Extract the MERGE_RESULT status enum values from the template source.
+  const match = src.match(/MERGE_RESULT[\s\S]*?status\s*:\s*\{\s*enum\s*:\s*(\[[^\]]+\])/)
+  assert.ok(match, 'MERGE_RESULT with a status enum found in workflow-template.js')
+  const normalized = match[1].replace(/'/g, '"')
+  const parsed = JSON.parse(normalized)
+  assert.ok(parsed.includes('land_stale'),
+    'MERGE_RESULT status enum includes land_stale')
+})
+
+test('Task 5 — HARD_ESCALATION_REASONS inline includes land_stale', () => {
+  // The inline mirror in the template must now match the canonical export (4 items after Task 5).
+  const match = src.match(/const\s+HARD_ESCALATION_REASONS\s*=\s*(\[[^\]]+\])/)
+  assert.ok(match, 'HARD_ESCALATION_REASONS found in workflow-template.js')
+  const normalized = match[1].replace(/'/g, '"')
+  const parsed = JSON.parse(normalized)
+  assert.ok(parsed.includes('land_stale'),
+    'inline HARD_ESCALATION_REASONS includes land_stale')
+})
+
+test('Task 5 — land_stale holds the land (hard escalation)', async () => {
+  // A phase where a task lands but another has reason:'land_stale' → held:escalation.
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'abc' }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'merged' }
+    if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'land_stale' }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { out } = await runPhase(PROVISION_ARGS(), impl)
+  assert.equal(out.landDecision, 'held:escalation',
+    'land_stale is a hard escalation → land is held')
+})
+
+test('Task 5 — opportunistic resync: after landed, Lead runs ff-only clean-guard resync (prompt check)', async () => {
+  // The wrap-up or a final step must reference the ff-only resync against the Lead cwd.
+  // We verify the template source describes the resync logic (it is in the land flow or as a comment
+  // describing what the Lead does next — not a separate agent seat, but wired as inline instructions
+  // or a post-land log/prompt).
+  // The key tokens from §5.4: ff-only (or fast-forward), on-branch, clean (or clean-guard), advance.
+  const { calls, logs } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  // Either a log message or an agent prompt after the land seat must reference the resync.
+  const landIdx = calls.findIndex(isLand)
+  const postLandCalls = calls.slice(landIdx + 1)
+  const allPostText = [
+    ...postLandCalls.map(c => c.prompt),
+    ...logs,
+  ].join('\n')
+  // The template source itself must also contain the resync wording (as inline instruction text).
+  const srcHasResync = /ff.only|fast.forward/i.test(src) &&
+                       /resync|re-sync/i.test(src) &&
+                       /clean/i.test(src)
+  const postHasResync = /ff.only|fast.forward/i.test(allPostText) ||
+                        /resync|re-sync/i.test(allPostText)
+  assert.ok(srcHasResync || postHasResync,
+    'template describes the ff-only clean-guard resync after a landed result')
+})
