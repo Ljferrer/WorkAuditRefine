@@ -138,7 +138,7 @@ const provisionClause = provisionList.length
 
 const blockingOf = seats => seats.flatMap(s => s.findings || []).filter(f => f.severity === 'Critical' || f.severity === 'Major')
 const minorsOf   = seats => seats.flatMap(s => s.findings || []).filter(f => f.severity === 'Minor' || f.severity === 'Nit')
-const allApprove = seats => seats.length > 0 && seats.every(s => s.verdict === 'approve')
+const allApprove = (seats, expected) => seats.length === expected && seats.every(s => s.verdict === 'approve')
 const isSplit    = seats => seats.some(s => s.verdict === 'approve') && seats.some(s => s.verdict === 'request_changes')
 const nextWave   = () => tasks.filter(t => !done.has(t.id) && (t.deps || []).every(d => done.has(d)))
 
@@ -163,11 +163,22 @@ async function auditRound(task, peers) {
     ? [baseLenses[0]]
     : Array.from({ length: audit.covenSize || baseLenses.length }, (_, i) => baseLenses[i % baseLenses.length])
   const depth = task.coven ? 'deep' : 'neighbors'
-  return (await parallel(lenses.map(lens => () =>
-    agent(auditPrompt(task, lens, depth, peers), {
-      agentType: NS + 'war-auditor', phase: 'Audit',
-      label: `audit:${task.id}:${lens}${peers ? ':rebut' : ''}`, schema: AUDIT_VERDICT, ...spawn('auditor') })
-  ))).filter(Boolean)
+  const expected = lenses.length
+  const runLens = lens => agent(auditPrompt(task, lens, depth, peers), {
+    agentType: NS + 'war-auditor', phase: 'Audit',
+    label: `audit:${task.id}:${lens}${peers ? ':rebut' : ''}`, schema: AUDIT_VERDICT, ...spawn('auditor') })
+  // Initial parallel run
+  let results = await parallel(lenses.map(lens => () => runLens(lens)))
+  // Re-run only the dropped (null) lenses, up to 2 retry passes
+  for (let retry = 0; retry < 2; retry++) {
+    const dropped = lenses.filter((_, i) => results[i] == null)
+    if (!dropped.length) break
+    const retried = await parallel(dropped.map(lens => () => runLens(lens)))
+    let ri = 0
+    results = results.map(r => r != null ? r : retried[ri++])
+  }
+  const seats = results.filter(Boolean)
+  return { seats, expected }
 }
 
 log(`Phase ${ph.id} "${ph.title}": ${tasks.length} task(s) → ${ph.integrationBranch}`)
@@ -231,16 +242,18 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       return { task, verdict: 'escalate', seats: [], blocked: (impl && impl.blocked_reason) || 'worker returned no result' }
     }
 
-    let round = 0, verdict = null, seats = []
+    let round = 0, verdict = null, seats = [], expected = 0
     while (round < roundLimit) {
-      seats = await auditRound(task, null)                       // independent — no cross-talk
+      ;({ seats, expected } = await auditRound(task, null))      // independent — no cross-talk
+      if (seats.length < expected) { verdict = 'audit-blocked'; break }   // persistent shortfall after retries
       if (seats.some(s => s.verdict === 'escalate')) { verdict = 'escalate'; break }
-      if (allApprove(seats)) { verdict = 'approve'; break }
+      if (allApprove(seats, expected)) { verdict = 'approve'; break }
 
       if (isSplit(seats) && seats.length > 1) {                  // one rebuttal round on a split
-        seats = await auditRound(task, seats)
+        ;({ seats, expected } = await auditRound(task, seats))
+        if (seats.length < expected) { verdict = 'audit-blocked'; break } // persistent shortfall after retries
         if (seats.some(s => s.verdict === 'escalate')) { verdict = 'escalate'; break }
-        if (allApprove(seats)) { verdict = 'approve'; break }
+        if (allApprove(seats, expected)) { verdict = 'approve'; break }
         if (isSplit(seats)) { verdict = 'escalate'; break }      // still deadlocked → human tiebreak
       }
 
@@ -259,13 +272,13 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       round++
     }
     if (verdict === null) verdict = 'audit-blocked'
-    return { task, verdict, seats }
+    return { task, verdict, seats, expected }
   }))
 
   // ---- REFINE — serial merge of approved tasks (THE merge queue) ----
   for (const r of results.filter(Boolean)) {
     minorsFiled.push(...minorsOf(r.seats || []).map(f => ({ task: r.task.id, ...f })))
-    auditLog.push({ task: r.task.id, verdict: r.verdict, findings: (r.seats || []).flatMap(s => s.findings || []), blocked: r.blocked })
+    auditLog.push({ task: r.task.id, verdict: r.verdict, findings: (r.seats || []).flatMap(s => s.findings || []), blocked: r.blocked, requested: r.expected, returned: (r.seats || []).length })
     done.add(r.task.id)
     if (r.verdict === 'approve') {
       const refineryPath = `${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/_refinery`
@@ -296,7 +309,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
 // landDecision mirrors land-decision.mjs (decideLand) — the Workflow sandbox can't import. Keep in sync.
 // HARD_ESCALATION_REASONS mirrors land-decision.mjs export — the Workflow sandbox can't import. Keep in sync.
 let landResult = null
-const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale']
+const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed']
 const hardEscalation = escalated.some(e => HARD_ESCALATION_REASONS.includes(e && e.reason))
 let landDecision = (landed.length && !hardEscalation) ? 'landed'
   : hardEscalation ? 'held:escalation'
