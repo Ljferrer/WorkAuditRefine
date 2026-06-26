@@ -216,6 +216,43 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Task 2 (#58): .. path traversal denial tests.
+#
+# The hook must reject any path containing a `..` segment — even if the
+# literal glob or .war-task ancestor walk would otherwise allow it. This
+# closes the traversal hole in both the war-servitor and war-worker branches.
+# ---------------------------------------------------------------------------
+
+# Servitor: a learnings-looking path that contains .. -> deny (exit 2).
+# e.g. /x/docs/learnings/../../etc/foo matches */docs/learnings/* but escapes.
+SERV_DOTDOT="$WT/x/docs/learnings/../../etc/foo"
+expect "war-servitor path with .. denied (traversal)" \
+  2 "$(run "$(mk '"war-servitor"' "$SERV_DOTDOT")")"
+
+# Servitor: a memory-looking path that contains .. -> deny (exit 2).
+SERV_MEM_DOTDOT="$WT/repo/.claude/projects/p/memory/../../etc/shadow"
+expect "war-servitor memory path with .. denied (traversal)" \
+  2 "$(run "$(mk '"war-servitor"' "$SERV_MEM_DOTDOT")")"
+
+# Worker: a path that contains .. whose literal dirname chain hits .war-task
+# ancestor (the .war-task dir is in the path literally, but .. escapes it).
+WORKER_DOTDOT="$WT/wt/task-1/sub/../../../plain/file.txt"
+expect "war-worker path with .. denied (traversal)" \
+  2 "$(run "$(mk '"war-worker"' "$WORKER_DOTDOT")")"
+
+# Regression: clean (no-..) servitor memory path still allowed.
+expect "war-servitor clean memory path still allowed (regression)" \
+  0 "$(run "$(mk '"war-servitor"' "$SERV_MEM")")"
+
+# Regression: clean (no-..) servitor learnings path still allowed.
+expect "war-servitor clean learnings path still allowed (regression)" \
+  0 "$(run "$(mk '"war-servitor"' "$SERV_LEARN")")"
+
+# Regression: clean (no-..) worker inside-worktree path still allowed.
+expect "war-worker clean inside-worktree path still allowed (regression)" \
+  0 "$(run "$(mk '"war-worker"' "$INSIDE_WT")")"
+
+# ---------------------------------------------------------------------------
 printf '\n%d/%d cases passed\n' "$((n - fails))" "$n"
 [ "$fails" -eq 0 ] || { printf '%d FAILED\n' "$fails"; exit 1; }
 echo "validate-worktree-scope.test.sh: PASS"
