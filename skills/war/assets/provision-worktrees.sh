@@ -182,8 +182,13 @@ cmd_ensure_integration() {
   fi
 
   # Absent -> create from the supplied base, then record ownership.
-  git branch "$branch" "$base" >/dev/null 2>&1 \
-    || die "failed to create branch '$branch' at base '$base'"
+  # Capture stderr so a bad base ref surfaces git's own diagnostic in the die message.
+  # Redirect stderr to stdout in the subshell, discard stdout (the 2>&1 >/dev/null
+  # order: redirect stderr→fd1 first, then fd1→/dev/null doesn't affect stderr).
+  _tmp_err="$(mktemp 2>/dev/null || mktemp -t warbranch)"
+  git branch "$branch" "$base" >/dev/null 2>"$_tmp_err" \
+    || { _git_branch_err="$(cat "$_tmp_err")"; rm -f "$_tmp_err"; die "failed to create branch '$branch' at base '$base': $_git_branch_err"; }
+  rm -f "$_tmp_err"
   record_owned_file "$owned_file" "$branch"
   printf '%s\n' "$branch"
 }
@@ -193,6 +198,7 @@ cmd_ensure_integration() {
 # nested worktree under .claude/ does not surface as untracked in the parent
 # repo's `git status` (probe E2).
 cmd_ensure_exclude() {
+  [ $# -eq 0 ] || die "ensure-exclude: unknown argument '$1' (usage: ensure-exclude  takes no arguments)"
   gd="$(git_dir)"
   info_dir="$gd/info"
   excl="$info_dir/exclude"
@@ -331,16 +337,30 @@ remove_worktree() {
   fi
 }
 
-# delete_branch <ref> : delete a local branch ref if it exists. Uses -D because
-# teardown is called on a branch already merged into integration (task land) or
-# on the integration branch itself after the phase merged up; the refiner only
-# tears down once the work is captured. Skips a branch that is currently checked
-# out by a still-registered worktree (caller removes the worktree first).
+# delete_branch <ref> [force=0|1] : delete a local branch ref if it exists.
+# Tries `git branch -d` (safe, refuses un-merged work) first. If the branch
+# is not fully merged and force=1, escalates to `git branch -D`. If force=0
+# (default), warn and leave the branch in place — never loses un-merged commits.
+# Skips a branch that is currently checked out (caller removes the worktree first).
 delete_branch() {
-  ref="$1"
+  ref="$1"; force="${2:-0}"
   branch_exists "$ref" || return 0
-  git branch -D "$ref" >/dev/null 2>&1 \
-    || warn "could not delete branch '$ref' (still checked out?); leaving it in place."
+  # Try safe delete first.
+  _del_err="$(git branch -d "$ref" 2>&1 >/dev/null)" && return 0
+  # Branch not deleted. If the error is "not fully merged" and force is set,
+  # escalate to -D (force-delete, knowingly discards un-merged work on caller's
+  # behalf). Otherwise warn and leave it — no data loss.
+  if printf '%s' "$_del_err" | grep -qi 'not fully merged\|is not fully merged'; then
+    if [ "${force:-0}" -eq 1 ]; then
+      git branch -D "$ref" >/dev/null 2>&1 \
+        || warn "could not force-delete branch '$ref' (still checked out?); leaving it in place."
+    else
+      warn "branch '$ref' is not fully merged; leaving it in place (pass --force to delete anyway)."
+    fi
+  else
+    # Other error (e.g. still checked out).
+    warn "could not delete branch '$ref' (still checked out?); leaving it in place."
+  fi
 }
 
 # --- subcommand: teardown-task ---------------------------------------------
@@ -353,10 +373,11 @@ delete_branch() {
 # recorded in the ledger, refuse (exit 3). If --owned-file is absent (ledger-
 # less) while the branch exists, also refuse (exit 3, fail-closed).
 cmd_teardown_task() {
-  keep=0; run_dir=""; owned_file=""
+  keep=0; force=0; run_dir=""; owned_file=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --keep)        keep=1; shift ;;
+      --force)       force=1; shift ;;
       --run-dir)
         [ $# -ge 2 ] || die "--run-dir requires a path"
         run_dir="$2"; shift 2 ;;
@@ -368,7 +389,7 @@ cmd_teardown_task() {
       *)  break ;;
     esac
   done
-  [ $# -ge 2 ] || die "usage: teardown-task [--keep] [--owned-file PATH] --run-dir <ledger-dir> <path> <branch>"
+  [ $# -ge 2 ] || die "usage: teardown-task [--keep] [--force] [--owned-file PATH] --run-dir <ledger-dir> <path> <branch>"
   path="$1"; branch="$2"
   [ -n "$path" ]   || die "teardown-task: empty <path>"
   [ -n "$branch" ] || die "teardown-task: empty <branch>"
@@ -397,7 +418,7 @@ cmd_teardown_task() {
   fi
 
   remove_worktree "$path"
-  delete_branch "$branch"
+  delete_branch "$branch" "$force"
 }
 
 # --- subcommand: teardown-phase --------------------------------------------
@@ -438,9 +459,11 @@ cmd_teardown_phase() {
   worktree_root=""
   owned_file=""
   keep=0
+  force=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --keep)          keep=1; shift ;;
+      --force)         force=1; shift ;;
       --run-dir)
         [ $# -ge 2 ] || die "--run-dir requires a path"
         run_dir="$2"; shift 2 ;;
@@ -455,7 +478,7 @@ cmd_teardown_phase() {
       *)  break ;;
     esac
   done
-  [ $# -ge 2 ] || die "usage: teardown-phase [--keep] [--owned-file PATH] --run-dir <ledger-dir> [--worktree-root <wt-root>] <slug> <N>"
+  [ $# -ge 2 ] || die "usage: teardown-phase [--keep] [--force] [--owned-file PATH] --run-dir <ledger-dir> [--worktree-root <wt-root>] <slug> <N>"
   slug="$1"; num="$2"
   [ -n "$slug" ] || die "teardown-phase: empty <slug>"
   case "$num" in
