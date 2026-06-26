@@ -45,9 +45,10 @@ A task reaches the refiner with exactly one terminal **outcome**. Two are produc
 ## MergeResult — `war-refiner`
 ```jsonc
 { mode: "merge-task" | "land-phase",
-  status: "merged" | "landed" | "gate_failed" | "conflict" | "error",
+  status: "merged" | "landed" | "gate_failed" | "conflict" | "land_stale" | "error",
   branch, integration_sha?, working_sha?, conflict_files?, gate_output? }
 ```
+- **`land_stale`** — a same-branch land exhausted the bounded reland loop (`roundLimit` CAS-contention relands with no push success); the phase is held for the Lead. Distinct from a content `conflict`: there are no merge-text contradictions, only topology contention (another run pushed the working branch while this one was merging). The Lead re-runs the land manually after the contending run clears.
 
 ## Gate rule (applied over AuditVerdicts)
 - any open **Critical/Major** (any seat) → **blocks** → batched `FIX_NEEDED`
