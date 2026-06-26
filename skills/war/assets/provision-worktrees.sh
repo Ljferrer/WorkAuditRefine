@@ -11,6 +11,7 @@
 #   ensure-integration <slug> <N> <base> [--owned-file PATH] [--owned REF]...  (Task 2)
 #   ensure-exclude                                                             (Task 2)
 #   ensure-worktree <path> <branch> <integration-tip>                          (Task 3)
+#   land-advance <working-ref> <new-sha>                                       (Task 2/clandiso)
 #   ensure-refinery-worktree <path> <integration-branch>                       (Task 1/clandiso)
 #   teardown-task [--keep] --run-dir <ledger-dir> <path> <branch>              (Task 4)
 #   teardown-phase --run-dir <ledger-dir> <slug> <N>                           (Task 4)
@@ -443,6 +444,89 @@ cmd_teardown_phase() {
   delete_branch "integration/$slug/phase-$num"
 }
 
+# --- subcommand: land-advance -----------------------------------------------
+# land-advance <working-ref> <new-sha>
+#
+# Push-first cross-run CAS for the land phase. The caller (refiner in a
+# detached _refinery worktree) has already produced <new-sha> — the --no-ff
+# merge commit — and HEAD is currently detached at <new-sha>.
+#
+# 1. PUSH: git push origin HEAD:refs/heads/<working>
+#    - Named source (HEAD, which IS <new-sha>) — NOT a bare SHA refspec.
+#      A bare-SHA push can spuriously report "src refspec does not match any";
+#      pushing a ref name is reliable (red-team-verified).
+#    - NO --force. The non-ff rejection is the atomic CAS against shared truth.
+#
+# 2. CLASSIFY the push result by the [rejected] token:
+#    - Exit 0  → success (clean push); proceed to step 3.
+#    - [rejected] present in output → RELAND (exit 2); another run won the CAS;
+#      the caller re-fetches origin/<working>, re-merges, and retries.
+#      Do NOT key on the literal "non-fast-forward" — red-team proved it is NOT
+#      reliably emitted for this push form. [rejected] is the canonical token.
+#    - Other non-zero (e.g. network failure, bad URL) → ESCALATE (exit 3).
+#      Never infer success from absence of [rejected] alone — require exit 0.
+#
+# 3. ONLY on push success (exit 0): advance the local follower ref:
+#    git update-ref refs/heads/<working> <new-sha> <pre-push-local-tip>
+#    A rejected push leaves the local refs/heads/<working> UNCHANGED — nothing
+#    to rewind.
+#
+# Exit codes:
+#   0  → push accepted; local follower ref advanced to <new-sha>.
+#   2  → push rejected ([rejected] token seen); local ref unchanged; reland.
+#   3  → unrelated push error; escalate.
+#
+# Constraint: macOS bash 3.2.57 — no process substitution with stderr routing
+# that drops one stream; use a temp file to capture combined output.
+cmd_land_advance() {
+  [ $# -ge 2 ] || die "usage: land-advance <working-ref> <new-sha>"
+  working="$1"; new_sha="$2"
+  [ -n "$working" ]  || die "land-advance: empty <working-ref>"
+  [ -n "$new_sha" ]  || die "land-advance: empty <new-sha>"
+
+  git_dir >/dev/null
+
+  # Capture the local tip of refs/heads/<working> before pushing.
+  # This is the CAS expected-value for the update-ref.
+  pre_push_local=""
+  if git show-ref --verify --quiet "refs/heads/$working" 2>/dev/null; then
+    pre_push_local="$(git rev-parse "refs/heads/$working")"
+  fi
+
+  # Push HEAD (which IS <new-sha> in the detached refinery) to the named branch
+  # on origin. Capture combined stdout+stderr for [rejected] detection.
+  push_out="$(mktemp 2>/dev/null || mktemp -t warpush)"
+  push_rc=0
+  git push origin "HEAD:refs/heads/$working" >"$push_out" 2>&1 || push_rc=$?
+  push_output="$(cat "$push_out")"
+  rm -f "$push_out"
+
+  if [ "$push_rc" -eq 0 ]; then
+    # Success: advance the local follower ref with a CAS update-ref.
+    # If there was no pre-push local tip, create the ref unconditionally.
+    if [ -n "$pre_push_local" ]; then
+      git update-ref "refs/heads/$working" "$new_sha" "$pre_push_local" \
+        || die "land-advance: update-ref failed after successful push (this is unexpected; the push succeeded but the local CAS failed — manual intervention required)."
+    else
+      git update-ref "refs/heads/$working" "$new_sha" \
+        || die "land-advance: update-ref (create) failed after successful push."
+    fi
+    return 0
+  fi
+
+  # Non-zero exit from push. Classify by the [rejected] token.
+  # git always emits "! [rejected] ..." on a non-ff rejection.
+  if printf '%s' "$push_output" | grep -q '\[rejected\]'; then
+    # Reland: the loser re-fetches origin/<working>, re-merges, re-gates, retries.
+    # Local ref is unchanged — nothing to rewind.
+    exit 2
+  fi
+
+  # Any other non-zero (network failure, bad URL, permission error, etc.)
+  # → escalate. The Lead must intervene.
+  exit 3
+}
+
 # --- subcommand: ensure-refinery-worktree -----------------------------------
 # ensure-refinery-worktree <path> <integration-branch>
 #
@@ -534,17 +618,18 @@ cmd_prune() {
 # --- dispatch ---------------------------------------------------------------
 main() {
   [ $# -ge 1 ] || die "usage: $PROG <subcommand> [args...]
-subcommands: ensure-integration, ensure-exclude, ensure-worktree, ensure-refinery-worktree, teardown-task, teardown-phase, prune"
+subcommands: ensure-integration, ensure-exclude, ensure-worktree, land-advance, ensure-refinery-worktree, teardown-task, teardown-phase, prune"
   sub="$1"; shift
   case "$sub" in
     ensure-integration)       cmd_ensure_integration "$@" ;;
     ensure-exclude)           cmd_ensure_exclude "$@" ;;
     ensure-worktree)          cmd_ensure_worktree "$@" ;;
+    land-advance)             cmd_land_advance "$@" ;;
     ensure-refinery-worktree) cmd_ensure_refinery_worktree "$@" ;;
     teardown-task)            cmd_teardown_task "$@" ;;
     teardown-phase)           cmd_teardown_phase "$@" ;;
     prune)                    cmd_prune "$@" ;;
-    *) die "unknown subcommand '$sub' (have: ensure-integration, ensure-exclude, ensure-worktree, ensure-refinery-worktree, teardown-task, teardown-phase, prune)" ;;
+    *) die "unknown subcommand '$sub' (have: ensure-integration, ensure-exclude, ensure-worktree, land-advance, ensure-refinery-worktree, teardown-task, teardown-phase, prune)" ;;
   esac
 }
 

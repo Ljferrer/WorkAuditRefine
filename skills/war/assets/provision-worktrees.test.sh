@@ -599,6 +599,185 @@ expect "ensure-refinery-worktree non-empty unregistered dir fails loud (exits no
 expect "non-empty unregistered dir: precious file NOT deleted" \
   "yes" "$([ -f "$WTR6/PRECIOUS" ] && echo yes || echo no)"
 
+# ===========================================================================
+# Task 2 (clandiso): land-advance <working-ref> <new-sha>
+#
+# Push-first cross-run CAS. The caller has already produced <new-sha> (the
+# --no-ff merge of integration into a detached refinery worktree at
+# origin/<working>). Steps:
+#   1. git push origin HEAD:refs/heads/<working>  — named source, no --force;
+#      HEAD in the detached _refinery IS <new-sha>.
+#   2. Classify on the [rejected] token (always emitted on non-ff rejection):
+#        [rejected] present -> exit RELAND code (2)
+#        clean exit 0      -> success (continue to step 3)
+#        other non-zero    -> exit ESCALATE code (3)
+#   3. ONLY on push success: git update-ref refs/heads/<working> <new-sha> <pre-push-local-tip>
+#
+# Exit codes:
+#   0  -> push accepted; local follower advanced
+#   2  -> push rejected ([rejected] token seen); local ref UNCHANGED
+#   3  -> unrelated push error (not a non-ff rejection); escalate
+#
+# Test harness uses a bare origin + two clones to simulate cross-run races
+# deterministically (same method as spec §12):
+#   setup_origin_pair <slug> -> creates origin.git + clone1 + clone2;
+#     echoes "clone1_path clone2_path origin_path" space-separated.
+# ---------------------------------------------------------------------------
+
+# setup_origin_pair -> bare origin + two working clones; both clones track origin.
+# Echoes "clone1 clone2 origin" space-separated.
+setup_origin_pair() {
+  ORIG="$(mktemp -d 2>/dev/null || mktemp -d -t warorg)"
+  REPOS="$REPOS $ORIG"
+  git init --bare -q "$ORIG/origin.git"
+  # Clone 1 (the "refinery" that will call land-advance).
+  C1="$(mktemp -d 2>/dev/null || mktemp -d -t warc1)"
+  REPOS="$REPOS $C1"
+  git clone -q "$ORIG/origin.git" "$C1/clone1" 2>/dev/null
+  git -C "$C1/clone1" config user.email war@test.local
+  git -C "$C1/clone1" config user.name "WAR Test"
+  git -C "$C1/clone1" config commit.gpgsign false
+  # Clone 2 (the "out-of-band advancer").
+  C2="$(mktemp -d 2>/dev/null || mktemp -d -t warc2)"
+  REPOS="$REPOS $C2"
+  git clone -q "$ORIG/origin.git" "$C2/clone2" 2>/dev/null
+  git -C "$C2/clone2" config user.email war@test.local
+  git -C "$C2/clone2" config user.name "WAR Test"
+  git -C "$C2/clone2" config commit.gpgsign false
+  echo "$C1/clone1 $C2/clone2 $ORIG/origin.git"
+}
+
+# run_in_detached <repo-path> <new-sha> <args...> -> run the script from within
+# a detached HEAD at <new-sha> (simulating the refinery's detached state after
+# `--no-ff` merge). Echoes exit code.
+run_in_detached() {
+  repo="$1"; sha="$2"; shift 2
+  ( cd "$repo" && git checkout --detach "$sha" >/dev/null 2>&1 && bash "$SCRIPT" "$@" ) >/dev/null 2>&1
+  echo $?
+}
+
+# ---------------------------------------------------------------------------
+# Seed helper: create an initial commit in clone1, push it to origin as the
+# <working> branch, then set up clone2 so it is checked out on <working> and
+# can make ff-valid OOB advances. Returns the initial SHA on stdout.
+# ---------------------------------------------------------------------------
+seed_working_branch() {
+  c1="$1"; c2="$2"; working="$3"
+  # Create a seed commit in clone1.
+  printf 'init-land\n' > "$c1/seed-land.txt"
+  git -C "$c1" add -A
+  git -C "$c1" commit -qm "seed land branch"
+  SEED_SHA="$(git -C "$c1" rev-parse HEAD)"
+  # Push to origin as the working branch.
+  git -C "$c1" push -q origin "HEAD:refs/heads/$working"
+  # Create local tracking branch in clone1 at SEED_SHA (the local follower).
+  git -C "$c1" branch "$working" "$SEED_SHA"
+  # Set up clone2: fetch, then CHECK OUT the working branch so that OOB commits
+  # land on it (making clone2 a valid ff-ancestor for the out-of-band advance).
+  git -C "$c2" fetch -q origin
+  git -C "$c2" checkout -q -b "$working" "origin/$working" 2>/dev/null \
+    || git -C "$c2" checkout -q "$working" 2>/dev/null \
+    || true
+  echo "$SEED_SHA"
+}
+
+# ---------------------------------------------------------------------------
+# Case (T2.1) Origin advanced out-of-band -> push REJECTED, exit=RELAND (2),
+# AND the local working ref in clone1 is byte-identical to before the call.
+# ---------------------------------------------------------------------------
+PAIR1="$(setup_origin_pair)"
+C1_1="$(printf '%s' "$PAIR1" | cut -d' ' -f1)"
+C2_1="$(printf '%s' "$PAIR1" | cut -d' ' -f2)"
+ORIG1="$(printf '%s' "$PAIR1" | cut -d' ' -f3)"
+
+SEED1="$(seed_working_branch "$C1_1" "$C2_1" "working/myplan")"
+
+# Advance origin/<working> out-of-band via clone2 (simulating a concurrent run
+# winning the CAS before clone1 calls land-advance).
+printf 'concurrent-win\n' > "$C2_1/extra.txt"
+git -C "$C2_1" add -A
+git -C "$C2_1" commit -qm "concurrent run advances origin"
+OOB_SHA="$(git -C "$C2_1" rev-parse HEAD)"
+git -C "$C2_1" push -q origin "HEAD:refs/heads/working/myplan"
+
+# Now clone1 produces its own new-sha (a --no-ff merge, simulated here as a
+# separate commit at origin's SEED_SHA parent — not a descendant of OOB_SHA,
+# making the push a genuine non-ff rejection).
+printf 'clone1-merge\n' > "$C1_1/merge.txt"
+git -C "$C1_1" add -A
+git -C "$C1_1" commit -qm "clone1 merge sha"
+NEW_SHA1="$(git -C "$C1_1" rev-parse HEAD)"
+
+# Record the local working ref SHA before calling land-advance.
+LOCAL_BEFORE1="$(git -C "$C1_1" rev-parse "refs/heads/working/myplan" 2>/dev/null)"
+
+# Run land-advance from clone1 in a detached HEAD at NEW_SHA1.
+code="$(run_in_detached "$C1_1" "$NEW_SHA1" land-advance working/myplan "$NEW_SHA1")"
+
+# The [rejected] token causes exit RELAND=2.
+expect "T2.1: origin out-of-band -> push rejected, exit RELAND code" \
+  "2" "$code"
+# Local working ref must be UNCHANGED (byte-identical to before).
+LOCAL_AFTER1="$(git -C "$C1_1" rev-parse "refs/heads/working/myplan" 2>/dev/null)"
+expect "T2.1: local working ref is byte-identical to before (rejected push leaves local unchanged)" \
+  "$LOCAL_BEFORE1" "$LOCAL_AFTER1"
+
+# ---------------------------------------------------------------------------
+# Case (T2.2) Origin at expected tip -> push accepted, local follower advanced
+# to <new-sha>.
+# ---------------------------------------------------------------------------
+PAIR2="$(setup_origin_pair)"
+C1_2="$(printf '%s' "$PAIR2" | cut -d' ' -f1)"
+C2_2="$(printf '%s' "$PAIR2" | cut -d' ' -f2)"
+ORIG2="$(printf '%s' "$PAIR2" | cut -d' ' -f3)"
+
+SEED2="$(seed_working_branch "$C1_2" "$C2_2" "working/myplan2")"
+
+# clone1 produces its new-sha (a ff-pushable descendant of SEED2).
+printf 'clone1-merge2\n' > "$C1_2/merge2.txt"
+git -C "$C1_2" add -A
+git -C "$C1_2" commit -qm "clone1 merge sha for T2.2"
+NEW_SHA2="$(git -C "$C1_2" rev-parse HEAD)"
+
+# Origin is still at SEED2 (no out-of-band advance) — push should be accepted.
+code="$(run_in_detached "$C1_2" "$NEW_SHA2" land-advance working/myplan2 "$NEW_SHA2")"
+
+expect "T2.2: origin at expected tip -> push accepted, exit 0" \
+  "0" "$code"
+# Local follower must now point at NEW_SHA2.
+LOCAL_AFTER2="$(git -C "$C1_2" rev-parse "refs/heads/working/myplan2" 2>/dev/null)"
+expect "T2.2: local follower advanced to <new-sha>" \
+  "$NEW_SHA2" "$LOCAL_AFTER2"
+# Origin must also be at NEW_SHA2.
+ORIGIN_AFTER2="$(git -C "$C1_2" ls-remote origin "refs/heads/working/myplan2" 2>/dev/null | cut -f1)"
+expect "T2.2: origin/<working> advanced to <new-sha>" \
+  "$NEW_SHA2" "$ORIGIN_AFTER2"
+
+# ---------------------------------------------------------------------------
+# Case (T2.3) Unrelated push error (not a non-ff rejection) -> exit ESCALATE
+# code, not RELAND. Simulate by pointing the remote at a non-existent path so
+# git push errors without ever printing [rejected].
+# ---------------------------------------------------------------------------
+PAIR3="$(setup_origin_pair)"
+C1_3="$(printf '%s' "$PAIR3" | cut -d' ' -f1)"
+C2_3="$(printf '%s' "$PAIR3" | cut -d' ' -f2)"
+ORIG3="$(printf '%s' "$PAIR3" | cut -d' ' -f3)"
+
+SEED3="$(seed_working_branch "$C1_3" "$C2_3" "working/myplan3")"
+
+# Break the remote URL so the push fails for a non-CAS reason.
+git -C "$C1_3" remote set-url origin "/nonexistent/path/that/cannot/be/a/repo.git"
+
+printf 'clone1-merge3\n' > "$C1_3/merge3.txt"
+git -C "$C1_3" add -A
+git -C "$C1_3" commit -qm "clone1 merge sha for T2.3"
+NEW_SHA3="$(git -C "$C1_3" rev-parse HEAD)"
+
+code="$(run_in_detached "$C1_3" "$NEW_SHA3" land-advance working/myplan3 "$NEW_SHA3")"
+
+expect "T2.3: unrelated push error -> exit ESCALATE code (3), not RELAND (2)" \
+  "3" "$code"
+
 # ---------------------------------------------------------------------------
 printf '\n%d/%d cases passed\n' "$((n - fails))" "$n"
 [ "$fails" -eq 0 ] || { printf '%d FAILED\n' "$fails"; exit 1; }
