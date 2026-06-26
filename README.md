@@ -6,9 +6,9 @@ It's a portable, dependency-free re-imagining of [Steve Yegge's Gas Town](https:
 
 ## What it does
 
-Given a plan like `docs/implement/implementation_plan_A.md`, `/war` will:
+Given a plan like [docs/plans/2026-06-18-war-room.md](https://github.com/Ljferrer/WorkAuditRefine/blob/master/docs/plans/2026-06-18-war-room.md), `/war` will:
 
-1. **Decompose** the plan into a phase → task DAG and propose it to you as GitHub issues — all phase **epics up front**, task **sub-issues just-in-time** per phase. *You approve before anything spawns.*
+1. **Decompose** the plan into one or more phase(s) → task DAG and propose it to you as GitHub issues — all phase **epics up front**, task **sub-issues just-in-time** per phase. *You approve before anything spawns.*
 2. For each phase, run a **Workflow** that:
    - **Works** — fresh worker agents implement each task in isolated git worktrees, writing the plan's mapped tests.
    - **Audits** — independent, read-only auditor seats review each task (severity-tagged findings; Critical/Major block; unanimous on one SHA). By default, every task receives a full multi-lens panel: three independent, unanimous auditor seats (`correctness`, `cascading-impact`, `plan-faithfulness`) at `deep` depth.
@@ -18,8 +18,6 @@ Given a plan like `docs/implement/implementation_plan_A.md`, `/war` will:
 4. Opens **one PR** from the working branch to the landing branch at the end.
 
 Run autonomously inside a phase; gated by you between phases (`--afk` to loosen).
-
-> **Best practice — author the input plan with [`/grill-me`](https://github.com/mattpocock/skills/tree/main).** WAR is only as good as the plan it executes. Matt Pocock's `/grill-me` skill interviews you relentlessly down every branch of the design tree, resolving each decision one at a time, until the plan is unambiguous and cleanly phase-decomposable — exactly the shape WAR needs to fan out workers and auditors.
 
 ## Note from Author
 
@@ -32,10 +30,57 @@ I ran this command overnight (2026/06/25-26):
 3. docs/plans/2026-06-25-provisioning-lifecycle.md
 4. docs/plans/2026-06-25-servitor-confinement-memory.md
 5. docs/plans/2026-06-25-audit-fidelity.md
-run `/red-team <plan>` first, then `/war <plan> --working dev --landing master --afk`
+run `/red-team <plan>` first, then `/war <plan> --working dev/<plan-slug> --landing master --afk`
 ```
 
-... and woke up to 5 ready-to-merge PRs. This command orchestrated 272 subagents across 28 phases and consumed 14.1M tokens, while the main context window only grew to 90% capacity (@1.0M) without any compactions. No CRITICAL/MAJOR problems were escalated to me while I slept, but 8 follow-up issues were filed for the MINOR bugs that arrose during implementation. If your plans are fleshed out enough, they can be implemented overnight like this.
+... and woke up to 5 ready-to-merge PRs for this repo. This command orchestrated **272 subagents** across **28 phases** and consumed **14.1M tokens**, while the main context window stayed under 90% capacity (@1.0M) **without any compactions**. No CRITICAL/MAJOR problems were escalated to me while I slept, but 8 follow-up issues were filed for the MINOR/NIT bugs that arrose during implementation. If your plans are fleshed out enough, they can be implemented overnight like this.
+
+> **Best practice — author the input plan with [`/grill-me`](https://github.com/mattpocock/skills/tree/main).** `/war` is only as good as the plan it executes. Matt Pocock's `/grill-me` & `/grill-with-docs` skills interview you relentlessly down every branch of the design tree, resolving each decision one at a time, until the plan is unambiguous and cleanly phase-decomposable — exactly the shape WAR needs to fan out workers and auditors.
+
+### Pro Tip
+
+Run this sequence of commands:
+
+```
+Spin up a workflow of agents to inspect all of the remaining open issues in this repo,
+group them, and synthesize a series of design specs that will address all of them
+(write each one to `docs/specs/`)
+```
+
+This next command converts the design specs to implementation plans and reduces the number of grilled questions from ~50+ → ~3-5 (the agent's defaults are quite good usually -- run `/grill-with-docs` one at a time if you want full control over the decision making process):
+
+```
+/loop for each design spec you just made:
+/grill-with-docs to turn them into implementation plans (write each one to `docs/plans/`).
+Spin up a parallel agent to grill yourself first. I will mostly defer to your decisions on these,
+but raise any architectural decisions to me
+```
+
+Then:
+
+```
+/loop for each plan you just made:
+run `/red-team <plan>` first,
+then `/war <plan> --working dev/<plan-slug> --landing master --afk`
+```
+
+That loop may take ~12+ hours, depending on how many issues it covers. When it's done, wrap up with:
+
+```
+Clean up any stray branches and issues that should have been closed
+```
+
+The thorough auditing mechanism of `/war` + CI/CD makes this something you can safely run nightly on your repo as a cron job or a scheduled task.
+
+### Recommended Auxiliary Plugins
+
+These plugins improve the quality of code generated by the above agentic workflow:
+
+1. **Required** [Grill Me](https://github.com/mattpocock/skills/tree/main#quickstart-30-second-setup)
+2. [Everything Claude Code](https://github.com/affaan-m/ecc#step-1-install-the-plugin-recommended)
+3. [Superpowers](https://github.com/obra/superpowers#installation)
+4. [Andrej Karpathy Skills](https://github.com/multica-ai/andrej-karpathy-skills#install)
+5. [Ponytail](https://github.com/DietrichGebert/ponytail#install)
 
 ## Install
 
@@ -79,7 +124,7 @@ Or invoke it in natural language — e.g. *"Go to war on issues #20 & #22"*.
 
 | Argument | Required | Default | What it does |
 |---|---|---|---|
-| `<plan-file>` | yes | — | Path to the multi-phase plan to execute, e.g. `docs/implement/implementation_plan_A.md`. |
+| `<plan-file>` | yes | — | Path to the multi-phase plan to execute, e.g. `docs/plans/implementation_plan_A.md`. |
 | `--working <branch>` | no | current branch | Branch each phase lands on, one `--no-ff` commit per phase. |
 | `--landing <branch>` | no | repo's default branch | Branch the final PR targets. |
 | `--afk` | no | off | Don't stop at phase boundaries — post a report + push notification and keep going. Hard escalations still halt. |
@@ -88,7 +133,7 @@ Or invoke it in natural language — e.g. *"Go to war on issues #20 & #22"*.
 **Example:**
 
 ```
-/war docs/implement/implementation_plan_A.md --working dev/planA --landing master
+/war docs/plans/implementation_plan_A.md --working dev/planA --landing master
 ```
 
 **What happens when you run it:**
