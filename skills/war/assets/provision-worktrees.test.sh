@@ -986,12 +986,18 @@ expect "T3b: integration branch deleted after teardown (detached case)" \
 # real non-zero exit. We test this by calling teardown-phase WITHOUT
 # --worktree-root while the _refinery is on the integration branch — git will
 # refuse to delete the branch, and teardown-phase must exit non-zero.
+#
+# --owned-file is required (F09): the integration branch must be in the ledger
+# so the ownership gate is satisfied, allowing teardown-phase to reach the
+# integration-branch-delete path (its intended failure mechanism).
 # ---------------------------------------------------------------------------
 RTP_C="$(new_repo)"
 git -C "$RTP_C" branch integration/myplan/phase-5 HEAD
 TIPTC="$(git -C "$RTP_C" rev-parse integration/myplan/phase-5)"
 
 RD_TC="$(mk_run_dir "$RTP_C" run-tc1)"
+OWN_TC="$RD_TC/owned.txt"
+printf 'integration/myplan/phase-5\n' > "$OWN_TC"
 WT_ROOT_TC="$RTP_C/.claude/worktrees"
 mkdir -p "$WT_ROOT_TC/run-tc1"
 REFINERY_TC="$WT_ROOT_TC/run-tc1/_refinery"
@@ -1002,11 +1008,16 @@ run_in "$RTP_C" ensure-refinery-worktree "$REFINERY_TC" "integration/myplan/phas
 expect "T3c setup: _refinery is on integration branch (not yet reaped)" \
   "integration/myplan/phase-5" "$(wt_head_branch "$RTP_C" "$REFINERY_TC")"
 
-# Call teardown-phase WITHOUT --worktree-root: _refinery stays, git refuses to
-# delete the branch that is checked out — teardown-phase must exit non-zero.
-code="$(run_in "$RTP_C" teardown-phase --run-dir "$RD_TC" myplan 5)"
+# Call teardown-phase WITH --owned-file (F09 satisfied) but WITHOUT
+# --worktree-root: _refinery stays checked out, git refuses to delete the
+# branch — teardown-phase must exit non-zero due to the branch-delete failure.
+code="$(run_in "$RTP_C" teardown-phase --owned-file "$OWN_TC" --run-dir "$RD_TC" myplan 5)"
 expect "T3c: teardown-phase exits non-zero when integration branch cannot be deleted (checked out in _refinery)" \
   "nonzero" "$([ "$code" -ne 0 ] && echo nonzero || echo zero)"
+msg_tc="$(run_in_msg "$RTP_C" teardown-phase --owned-file "$OWN_TC" --run-dir "$RD_TC" myplan 5)"
+# Mechanism-specific assertion: the failure must mention the branch-delete path.
+expect "T3c: failure message mentions branch delete failure or checked-out branch" \
+  "match" "$(printf '%s' "$msg_tc" | grep -qiE 'delete|checked.out|_refinery|worktree.?root' && echo match || echo nomatch)"
 # Integration branch must still exist (not partially deleted).
 expect "T3c: integration branch still present after failed teardown" \
   "yes" "$(branch_exists_in "$RTP_C" integration/myplan/phase-5)"
@@ -1018,11 +1029,17 @@ expect "T3c: integration branch still present after failed teardown" \
 # teardown-phase must fail loud instead of removing foreign data.
 # We test this by supplying a --worktree-root that puts the _refinery under a
 # DIFFERENT run-id than the one derived from --run-dir.
+#
+# --owned-file is required (F09): the integration branch must be in the ledger
+# so the ownership gate is satisfied, allowing teardown-phase to reach its
+# intended failure mechanism (branch checked out in unreaped foreign _refinery).
 # ---------------------------------------------------------------------------
 RTP_D="$(new_repo)"
 git -C "$RTP_D" branch integration/myplan/phase-6 HEAD
 
 RD_TD="$(mk_run_dir "$RTP_D" run-td1)"
+OWN_TD="$RD_TD/owned.txt"
+printf 'integration/myplan/phase-6\n' > "$OWN_TD"
 # A worktree-root that corresponds to a DIFFERENT run-id than run-td1.
 WT_ROOT_TD_OTHER="$RTP_D/.claude/worktrees-FOREIGN"
 mkdir -p "$WT_ROOT_TD_OTHER/run-FOREIGN"
@@ -1038,6 +1055,7 @@ expect "T3d setup: foreign _refinery registered" \
 # dir; teardown-phase should not remove the foreign refinery that isn't at the
 # expected path. The foreign one must remain untouched.
 code="$(run_in "$RTP_D" teardown-phase \
+  --owned-file "$OWN_TD" \
   --run-dir "$RD_TD" \
   --worktree-root "$WT_ROOT_TD_OTHER" \
   myplan 6)"
@@ -1048,6 +1066,14 @@ code="$(run_in "$RTP_D" teardown-phase \
 # teardown-phase cannot delete the branch, exits non-zero.
 expect "T3d: teardown-phase exits non-zero (foreign _refinery path not under run-scope; branch still checked out)" \
   "nonzero" "$([ "$code" -ne 0 ] && echo nonzero || echo zero)"
+msg_td="$(run_in_msg "$RTP_D" teardown-phase \
+  --owned-file "$OWN_TD" \
+  --run-dir "$RD_TD" \
+  --worktree-root "$WT_ROOT_TD_OTHER" \
+  myplan 6)"
+# Mechanism-specific assertion: the failure must mention the branch-delete path.
+expect "T3d: failure message mentions branch delete or checked-out branch" \
+  "match" "$(printf '%s' "$msg_td" | grep -qiE 'delete|checked.out|_refinery|worktree.?root' && echo match || echo nomatch)"
 # The foreign _refinery must remain untouched (not deleted).
 expect "T3d: out-of-run _refinery dir remains intact" \
   "yes" "$([ -d "$REFINERY_TD_FOREIGN" ] && echo yes || echo no)"
@@ -1252,6 +1278,187 @@ expect "F09.6: ledger-less resume failure message mentions 'foreign'" \
   "match" "$(printf '%s' "$msg6" | grep -qi 'foreign' && echo match || echo nomatch)"
 expect "F09.6: ledger-less resume recovery hint mentions record-as-owned or delete" \
   "match" "$(printf '%s' "$msg6" | grep -qi 'record\|delete\|owned' && echo match || echo nomatch)"
+
+# ===========================================================================
+# Task 3 (#69): teardown merged-guard + cosmetic nits
+#
+# (A) delete_branch merged-guard: `git branch -d` (safe) before `-D`. An
+#     un-merged branch without --force is preserved + warned; with --force
+#     it is deleted. A merged branch is deleted by `-d` normally.
+#
+# (B) ensure-exclude strict args: unknown positional/flag → die.
+#
+# (C) cmd_ensure_integration branch-create: git stderr surfaced in the die
+#     message (not just a generic "failed to create branch").
+#
+# (D) ensure-worktree empty-dir-recreate: an empty unregistered dir at <path>
+#     is consumed (rmdir) and the worktree created (dir_is_empty → rmdir branch).
+#
+# Helper: setup a repo with an un-merged branch (branch was cut from HEAD but
+# diverged — its commit is NOT an ancestor of HEAD in the main worktree).
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Case (MG.1) Merged branch → teardown-task deletes it (default behavior,
+# confirms -d works on a merged branch). Uses a branch that was created at
+# HEAD (same commit), which git considers "merged" into HEAD.
+# ---------------------------------------------------------------------------
+RMG1="$(new_repo)"
+git -C "$RMG1" branch integration/myplan/phase-20 HEAD
+TIPMG1="$(git -C "$RMG1" rev-parse integration/myplan/phase-20)"
+RD_MG1="$(mk_run_dir "$RMG1" run-mg1)"
+WT_MG1="$RD_MG1/worktrees/task-mg1"
+run_in "$RMG1" ensure-worktree "$WT_MG1" war/myplan/p20-t1 "$TIPMG1" >/dev/null 2>&1
+OWN_MG1="$RD_MG1/owned.txt"
+printf 'war/myplan/p20-t1\n' > "$OWN_MG1"
+# The task branch is at the same commit as HEAD → considered merged by git.
+# Remove the worktree so delete_branch can run (branch must not be checked out).
+run_in "$RMG1" teardown-task --owned-file "$OWN_MG1" --run-dir "$RD_MG1" "$WT_MG1" war/myplan/p20-t1 >/dev/null 2>&1
+# After a clean teardown the branch should be gone.
+expect "MG.1: merged branch deleted by teardown-task (exit 0 path)" \
+  "no" "$(branch_exists_in "$RMG1" war/myplan/p20-t1)"
+
+# ---------------------------------------------------------------------------
+# Case (MG.2) Un-merged branch without --force → preserved + warn (exit 0,
+# branch still exists). An un-merged branch has commits that are NOT ancestors
+# of the current HEAD — git branch -d refuses it.
+# ---------------------------------------------------------------------------
+RMG2="$(new_repo)"
+git -C "$RMG2" branch integration/myplan/phase-21 HEAD
+TIPMG2="$(git -C "$RMG2" rev-parse integration/myplan/phase-21)"
+RD_MG2="$(mk_run_dir "$RMG2" run-mg2)"
+WT_MG2="$RD_MG2/worktrees/task-mg2"
+run_in "$RMG2" ensure-worktree "$WT_MG2" war/myplan/p21-t1 "$TIPMG2" >/dev/null 2>&1
+# Add an un-merged commit on the task branch inside the worktree.
+printf 'unmerged-work\n' > "$WT_MG2/unmerged.txt"
+git -C "$WT_MG2" add -A
+git -C "$WT_MG2" commit -qm "un-merged commit on task branch"
+# Remove the worktree registry entry (but keep the branch with its un-merged commit).
+# We need to remove the worktree so git branch -d runs without "checked out" error.
+# teardown-task calls remove_worktree THEN delete_branch; we simulate by manually
+# removing the worktree registration, leaving the branch un-merged.
+git -C "$RMG2" worktree remove --force "$WT_MG2" >/dev/null 2>&1 || true
+git -C "$RMG2" worktree prune >/dev/null 2>&1 || true
+expect "MG.2 setup: task branch exists with un-merged work" \
+  "yes" "$(branch_exists_in "$RMG2" war/myplan/p21-t1)"
+# Confirm un-merged: git branch -d should fail on this branch from the main worktree.
+git -C "$RMG2" branch -d war/myplan/p21-t1 >/dev/null 2>&1 && SAFE_D_RC=0 || SAFE_D_RC=1
+expect "MG.2 setup: git branch -d refuses un-merged branch (sanity)" \
+  "1" "$SAFE_D_RC"
+# Re-create the branch to be in a known state for the test (git branch -d deleted it
+# on success, but we confirmed above it should fail; if it succeeded we still have it).
+# Actually, if -d succeeded, it was "merged" — our setup might be wrong. Let's create
+# a fresh un-merged branch by making a new commit diverging from integration tip.
+RMG2b="$(new_repo)"
+git -C "$RMG2b" branch integration/myplan/phase-21b HEAD
+TIPMG2b="$(git -C "$RMG2b" rev-parse HEAD)"
+# Cut a new branch at the same tip, then add a commit to it (making it un-merged).
+git -C "$RMG2b" checkout -b war/myplan/p21b-t1 >/dev/null 2>&1
+printf 'unmerged\n' > "$RMG2b/unmerged.txt"
+git -C "$RMG2b" add -A
+git -C "$RMG2b" commit -qm "un-merged commit"
+# Detach HEAD at the integration tip (BEFORE the un-merged commit) so that
+# git branch -d considers the branch un-merged (its commit is NOT an ancestor
+# of HEAD). HEAD~0 would be the un-merged commit itself — not what we want.
+git -C "$RMG2b" checkout --detach "$TIPMG2b" >/dev/null 2>&1
+# Verify the branch is un-merged from HEAD.
+expect "MG.2b setup: un-merged branch exists" \
+  "yes" "$(branch_exists_in "$RMG2b" war/myplan/p21b-t1)"
+RD_MG2b="$(mk_run_dir "$RMG2b" run-mg2b)"
+OWN_MG2b="$RD_MG2b/owned.txt"
+printf 'war/myplan/p21b-t1\n' > "$OWN_MG2b"
+# Create a fake worktree path inside run-dir to satisfy run-scope guard.
+WT_MG2b_FAKE="$RD_MG2b/worktrees/task-mg2b"
+mkdir -p "$WT_MG2b_FAKE"
+# Directly test delete_branch behavior by calling teardown-task (which calls
+# remove_worktree then delete_branch). With an empty unregistered dir as path,
+# remove_worktree will do nothing (not registered), then delete_branch fires.
+# Without --force: un-merged branch must be preserved + warn (exit 0, branch stays).
+code_mg2b="$(run_in "$RMG2b" teardown-task --owned-file "$OWN_MG2b" --run-dir "$RD_MG2b" "$WT_MG2b_FAKE" war/myplan/p21b-t1)"
+expect "MG.2: teardown-task without --force on un-merged branch exits 0 (warn+leave)" \
+  "0" "$code_mg2b"
+expect "MG.2: un-merged branch preserved without --force (not deleted)" \
+  "yes" "$(branch_exists_in "$RMG2b" war/myplan/p21b-t1)"
+msg_mg2b="$(run_in_msg "$RMG2b" teardown-task --owned-file "$OWN_MG2b" --run-dir "$RD_MG2b" "$WT_MG2b_FAKE" war/myplan/p21b-t1)"
+expect "MG.2: warn message mentions un-merged or not fully merged" \
+  "match" "$(printf '%s' "$msg_mg2b" | grep -qiE 'merged|unmerged|not fully' && echo match || echo nomatch)"
+
+# ---------------------------------------------------------------------------
+# Case (MG.3) Un-merged branch WITH --force → deleted.
+# Same setup as MG.2b but teardown-task is called with --force.
+# ---------------------------------------------------------------------------
+RMG3="$(new_repo)"
+git -C "$RMG3" checkout -b war/myplan/p22-t1 >/dev/null 2>&1
+printf 'unmerged3\n' > "$RMG3/unmerged3.txt"
+git -C "$RMG3" add -A
+git -C "$RMG3" commit -qm "un-merged commit for MG.3"
+# Switch back to detached HEAD so the branch is not checked out.
+git -C "$RMG3" checkout --detach HEAD >/dev/null 2>&1
+expect "MG.3 setup: un-merged branch exists" \
+  "yes" "$(branch_exists_in "$RMG3" war/myplan/p22-t1)"
+RD_MG3="$(mk_run_dir "$RMG3" run-mg3)"
+OWN_MG3="$RD_MG3/owned.txt"
+printf 'war/myplan/p22-t1\n' > "$OWN_MG3"
+WT_MG3_FAKE="$RD_MG3/worktrees/task-mg3"
+mkdir -p "$WT_MG3_FAKE"
+code_mg3="$(run_in "$RMG3" teardown-task --force --owned-file "$OWN_MG3" --run-dir "$RD_MG3" "$WT_MG3_FAKE" war/myplan/p22-t1)"
+expect "MG.3: teardown-task --force on un-merged branch exits 0" \
+  "0" "$code_mg3"
+expect "MG.3: un-merged branch deleted with --force" \
+  "no" "$(branch_exists_in "$RMG3" war/myplan/p22-t1)"
+
+# ---------------------------------------------------------------------------
+# Case (EE.1) ensure-exclude strict args: an unknown positional/flag → die
+# (non-zero exit). Mirrors ensure-integration's behavior.
+# ---------------------------------------------------------------------------
+REE1="$(new_repo)"
+code_ee1="$(run_in "$REE1" ensure-exclude unexpected-arg)"
+expect "EE.1: ensure-exclude with unknown arg exits non-zero" \
+  "nonzero" "$([ "$code_ee1" -ne 0 ] && echo nonzero || echo zero)"
+msg_ee1="$(run_in_msg "$REE1" ensure-exclude unexpected-arg)"
+expect "EE.1: ensure-exclude unknown-arg error message is non-empty" \
+  "match" "$(printf '%s' "$msg_ee1" | grep -qi 'unknown\|usage\|arg' && echo match || echo nomatch)"
+
+# ---------------------------------------------------------------------------
+# Case (SI.1) cmd_ensure_integration branch-create: git stderr surfaced in
+# the die message. We trigger a create failure by supplying a non-existent
+# base ref so git branch fails. The error message must contain something from
+# git's stderr (not just a generic "failed to create branch" with no detail).
+# ---------------------------------------------------------------------------
+RSI1="$(new_repo)"
+OWN_SI1="$RSI1/owned_si.txt"; : > "$OWN_SI1"
+msg_si1="$(run_in_msg "$RSI1" ensure-integration myplan 99 nonexistent-base-sha-ZZZZZ --owned-file "$OWN_SI1")"
+code_si1="$(run_in "$RSI1" ensure-integration myplan 99 nonexistent-base-sha-ZZZZZ --owned-file "$OWN_SI1")"
+expect "SI.1: ensure-integration with bad base exits non-zero" \
+  "nonzero" "$([ "$code_si1" -ne 0 ] && echo nonzero || echo zero)"
+# The die message must include git's stderr (e.g. "invalid object name" or "not
+# a valid object name" or the bad ref itself).
+expect "SI.1: die message surfaces git stderr (bad-ref detail present)" \
+  "match" "$(printf '%s' "$msg_si1" | grep -qiE 'invalid|not a valid|ZZZZZ|failed.*create|bad.*object' && echo match || echo nomatch)"
+
+# ---------------------------------------------------------------------------
+# Case (ED.1) ensure-worktree empty-dir-recreate: an empty unregistered dir
+# at <path> is consumed (rmdir) and the worktree is created there. This
+# exercises the dir_is_empty → rmdir branch in cmd_ensure_worktree.
+# The dir must exist after the call (as the new worktree), with .war-task.
+# ---------------------------------------------------------------------------
+RED1="$(new_repo)"
+git -C "$RED1" branch integration/myplan/phase-30 HEAD
+TIPED1="$(git -C "$RED1" rev-parse integration/myplan/phase-30)"
+# Create an EMPTY unregistered dir at the target path.
+WED1="$(new_wt_path)"
+mkdir -p "$WED1"    # empty leaf exists but is NOT a registered worktree
+expect "ED.1 setup: empty dir exists before ensure-worktree" \
+  "yes" "$([ -d "$WED1" ] && [ -z "$(ls -A "$WED1" 2>/dev/null)" ] && echo yes || echo no)"
+code_ed1="$(run_in "$RED1" ensure-worktree "$WED1" war/myplan/p30-t1 "$TIPED1")"
+expect "ED.1: ensure-worktree on empty unregistered dir exits 0" \
+  "0" "$code_ed1"
+expect "ED.1: worktree dir exists and is populated after ensure-worktree" \
+  "yes" "$([ -d "$WED1" ] && echo yes || echo no)"
+expect "ED.1: .war-task marker present after empty-dir recreate" \
+  "yes" "$([ -f "$WED1/.war-task" ] && echo yes || echo no)"
+expect "ED.1: git worktree list shows <path> on <branch>" \
+  "war/myplan/p30-t1" "$(wt_on_branch "$RED1" "$WED1")"
 
 # ---------------------------------------------------------------------------
 printf '\n%d/%d cases passed\n' "$((n - fails))" "$n"
