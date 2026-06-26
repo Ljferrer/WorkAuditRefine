@@ -31,3 +31,6 @@ test('tolerates null/garbage escalation entries', () => {
 test('defaults to nothing-merged with no args', () => {
   assert.equal(decideLand(), 'held:nothing-merged')
 })
+test('holds on land_stale (CAS-exhaustion is a hard escalation, distinct from content conflict)', () => {
+  assert.equal(decideLand({ escalated: [{ reason: 'land_stale' }] }), 'held:escalation')
+})
