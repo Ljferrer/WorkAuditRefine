@@ -1434,3 +1434,51 @@ test('#113 — worker-blocked early-return: auditLog entry has requested===0 (no
   assert.ok(entry, 'an auditLog entry exists for t1 (worker-blocked)')
   assert.strictEqual(entry.requested, 0, 'auditLog.requested is 0 (not undefined) for worker-blocked early-return (#113)')
 })
+
+// ---------------------------------------------------------------------------
+// Task 3b (#115) — post-loop unrunnable-deps sweep
+// ---------------------------------------------------------------------------
+
+test('#115 — post-loop sweep: task with ghost dep is escalated as unrunnable-deps and land held', async () => {
+  // t1 runs and merges; t2 has deps:['ghost'] where 'ghost' is not in tasks[].
+  // Post-loop sweep must catch t2 and push unrunnable-deps escalation → landDecision held:escalation.
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc1234', tests: { unit: 1 } }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-refiner') {
+      return opts.phase === 'Land'
+        ? { mode: 'land-phase', status: 'landed' }
+        : { mode: 'merge-task', status: 'merged' }
+    }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { out } = await runPhase(PROVISION_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', lenses: ['correctness'] },
+    { id: 't2', issue: 102, title: 'Task two', planSlice: 'slice 2', lenses: ['correctness'], deps: ['ghost'] },
+  ] }), impl)
+
+  // escalated must contain the unrunnable-deps entry for t2
+  const esc = (out.escalated || []).find(e => e.task === 't2' && e.reason === 'unrunnable-deps')
+  assert.ok(esc, 'escalated must contain {task:"t2", reason:"unrunnable-deps"}')
+  assert.deepEqual(esc.missingDeps, ['ghost'], 'missingDeps must list the ghost dep')
+
+  // auditLog must have t2 entry with verdict unrunnable-deps and requested===0
+  const entry = (out.auditLog || []).find(e => e && e.task === 't2' && e.verdict === 'unrunnable-deps')
+  assert.ok(entry, 'auditLog must have t2 entry with verdict:unrunnable-deps')
+  assert.strictEqual(entry.requested, 0, 'auditLog.requested is 0 for unrunnable-deps')
+
+  // land is held due to hard escalation
+  assert.strictEqual(out.landDecision, 'held:escalation', 'landDecision must be held:escalation when unrunnable-deps present')
+})
+
+test('#115 — post-loop sweep back-compat: valid-deps phase produces no spurious unrunnable-deps', async () => {
+  // Normal two-task phase where t2 depends on t1 (which exists). No ghost deps → no unrunnable-deps entries.
+  const { out } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const spurious = (out.escalated || []).filter(e => e.reason === 'unrunnable-deps')
+  assert.deepEqual(spurious, [], 'no unrunnable-deps escalations in a valid-deps phase')
+  const spuriousLog = (out.auditLog || []).filter(e => e && e.verdict === 'unrunnable-deps')
+  assert.deepEqual(spuriousLog, [], 'no unrunnable-deps auditLog entries in a valid-deps phase')
+})

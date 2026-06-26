@@ -368,11 +368,23 @@ if (mergedTasksForGateAudit.length > 0) {
   }))
 }
 
+// ---- POST-LOOP SWEEP: any task still not in done[] has unresolvable deps (ghost dep) ----
+// scheduler-local addition — 'unrunnable-deps' is NOT in land-decision.mjs (intentional divergence).
+for (const t of tasks) {
+  if (!done.has(t.id)) {
+    const deps = t.deps || []
+    const missing = deps.filter(d => !tasks.some(x => x.id === d))
+    escalated.push({ task: t.id, reason: 'unrunnable-deps', missingDeps: missing, deps })
+    auditLog.push({ task: t.id, verdict: 'unrunnable-deps', missingDeps: missing, findings: [], requested: 0, returned: 0 })
+    done.add(t.id)
+  }
+}
+
 // ---- LAND — only when no hard escalation is open; else hold for the Lead ----
 // landDecision mirrors land-decision.mjs (decideLand) — the Workflow sandbox can't import. Keep in sync.
 // HARD_ESCALATION_REASONS mirrors land-decision.mjs export — the Workflow sandbox can't import. Keep in sync.
 let landResult = null
-const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence']
+const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps']
 const hardEscalation = escalated.some(e => HARD_ESCALATION_REASONS.includes(e && e.reason))
 let landDecision = (landed.length && !hardEscalation) ? 'landed'
   : hardEscalation ? 'held:escalation'
