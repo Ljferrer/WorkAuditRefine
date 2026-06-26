@@ -250,7 +250,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     // failing step → env-blocked: the worker is NOT spawned and the worktree is KEPT (schemas.md).
     const env = await provisionStep(task)
     if (!env.ok) {
-      return { task, verdict: 'env-blocked', seats: [], envOutcome: {
+      return { task, verdict: 'env-blocked', seats: [], expected: 0, envOutcome: {
         taskId: env.taskId, failedCommand: env.failedCommand, exitCode: env.exitCode,
         stderrTail: env.stderrTail, provisionSource: env.provisionSource } }
     }
@@ -262,7 +262,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       { agentType: NS + 'war-worker', phase: 'Work', label: `work:${task.id}`, schema: WORKER_RESULT, ...spawn('worker') })
 
     if (!impl || impl.status === 'blocked') {
-      return { task, verdict: 'escalate', seats: [], blocked: (impl && impl.blocked_reason) || 'worker returned no result' }
+      return { task, verdict: 'escalate', seats: [], expected: 0, blocked: (impl && impl.blocked_reason) || 'worker returned no result' }
     }
 
     let round = 0, verdict = null, seats = [], expected = 0

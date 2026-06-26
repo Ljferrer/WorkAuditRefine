@@ -1342,3 +1342,50 @@ test('F03 — schemas.md: AuditVerdict.tests_verified clarifies existence/integr
     'schemas.md must NOT contain "DiffResult" (the auditor self-serves the diff; no artifact schema needed)'
   )
 })
+
+// ---------------------------------------------------------------------------
+// Task 1 (Phase 1 — #113): expected:0 on env-blocked and worker-blocked early-returns
+// Both early-return paths in the work-wave parallel map must carry expected:0 so the
+// auditLog entry (which unconditionally reads r.expected) records 0 instead of undefined.
+// ---------------------------------------------------------------------------
+
+test('#113 — env-blocked early-return: auditLog entry has requested===0 (not undefined)', async () => {
+  // Drive a task where the per-task provision step fails (env-blocked). The early-return object
+  // must carry expected:0 so auditLog.push({ requested: r.expected }) records 0, not undefined.
+  const dagWithProvision = {
+    ...PROVISION_ARGS({ tasks: [
+      { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', lenses: ['correctness'] },
+    ] }),
+    run: { provision: ['npm install'], provisionSource: 'ci' },
+  }
+  const impl = (prompt, opts) => {
+    if (isProvisionRun({ opts })) {
+      return { ok: false, taskId: 't1', failedCommand: 'npm install', exitCode: 1,
+               stderrTail: 'ERR', provisionSource: 'ci' }
+    }
+    return defaultImpl(prompt, opts)
+  }
+  const { out } = await runPhase(dagWithProvision, impl)
+  const entry = (out.auditLog || []).find(e => e && e.task === 't1')
+  assert.ok(entry, 'an auditLog entry exists for t1 (env-blocked)')
+  assert.strictEqual(entry.requested, 0, 'auditLog.requested is 0 (not undefined) for env-blocked early-return (#113)')
+})
+
+test('#113 — worker-blocked early-return: auditLog entry has requested===0 (not undefined)', async () => {
+  // Drive a task where the worker returns status:'blocked'. The early-return object must carry
+  // expected:0 so auditLog.push({ requested: r.expected }) records 0, not undefined.
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker') {
+      return { task_id: 't1', status: 'blocked', blocked_reason: 'forced block for test' }
+    }
+    return defaultImpl(prompt, opts)
+  }
+  const { out } = await runPhase(PROVISION_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', lenses: ['correctness'] },
+  ] }), impl)
+  const entry = (out.auditLog || []).find(e => e && e.task === 't1')
+  assert.ok(entry, 'an auditLog entry exists for t1 (worker-blocked)')
+  assert.strictEqual(entry.requested, 0, 'auditLog.requested is 0 (not undefined) for worker-blocked early-return (#113)')
+})
