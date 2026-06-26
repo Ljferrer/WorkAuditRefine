@@ -346,10 +346,19 @@ if (mergedTasksForGateAudit.length > 0) {
       + `Default: SOFT. Hard only when provably unrun.`,
       { agentType: NS + 'war-auditor', phase: 'Audit',
         label: `gate-audit:${taskId}:execution-evidence`, schema: AUDIT_VERDICT, ...spawn('auditor') })
-    // gate-evidence findings are SOFT (do not hold the land) unless a mapped test is provably unrun (hard).
-    // Record as an audit log entry for the Lead; do NOT push to escalated (soft = no land block).
+    // gate-evidence findings are SOFT (do not hold the land) UNLESS a mapped test is provably unrun (hard).
+    // Hard case: the auditor records a Critical or Major finding on the execution-evidence lens, indicating
+    // a mapped acceptance-criteria test present in the pre-merge diff is absent/0-count in the gate output.
+    // Per Open decision #1 (resolved: operationally defined) — severity Critical/Major signals provably-unrun.
     if (gateAuditVerdict) {
-      auditLog.push({ task: taskId, verdict: `gate-audit:${gateAuditVerdict.verdict}`, findings: gateAuditVerdict.findings || [], gateEvidence: true })
+      const findings = gateAuditVerdict.findings || []
+      const isHardGateEvidence = findings.some(f => f.severity === 'Critical' || f.severity === 'Major')
+      // Distinguish hard vs soft in the auditLog so the Lead can adjudicate even if already held.
+      auditLog.push({ task: taskId, verdict: `gate-audit:${gateAuditVerdict.verdict}`, findings, gateEvidence: true, hard: isHardGateEvidence })
+      if (isHardGateEvidence) {
+        // HARD: a provably-unrun mapped test → push gate-evidence to escalated so the land is held.
+        escalated.push({ task: taskId, reason: 'gate-evidence', detail: gateAuditVerdict })
+      }
     }
   }))
 }
@@ -358,7 +367,7 @@ if (mergedTasksForGateAudit.length > 0) {
 // landDecision mirrors land-decision.mjs (decideLand) — the Workflow sandbox can't import. Keep in sync.
 // HARD_ESCALATION_REASONS mirrors land-decision.mjs export — the Workflow sandbox can't import. Keep in sync.
 let landResult = null
-const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed']
+const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence']
 const hardEscalation = escalated.some(e => HARD_ESCALATION_REASONS.includes(e && e.reason))
 let landDecision = (landed.length && !hardEscalation) ? 'landed'
   : hardEscalation ? 'held:escalation'

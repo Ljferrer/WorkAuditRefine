@@ -882,6 +882,75 @@ test('Task 4 — post-merge gate-audit does NOT block the land (soft by default)
     'post-merge gate-audit is soft (default) and must not hold the land')
 })
 
+test('Task 4 — post-merge gate-audit HARD case: Critical/Major finding holds the land (held:escalation)', async () => {
+  // A gate-audit seat returning a Critical/Major gate-evidence finding → landDecision==='held:escalation'.
+  // This is the "provably unrun" path from Open decision #1 (resolved: operationally defined).
+  // A Minor finding (soft) must NOT hold the land; only Critical/Major triggers the hard path.
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 5, integration: 2 } }
+    if (seat === 'war-auditor') {
+      // Gate-audit seats return a Critical gate-evidence finding (provably-unrun mapped test).
+      if (prompt.includes('execution-evidence') || (opts.label || '').includes('execution-evidence')) {
+        return { seat: opts.label, lens: 'execution-evidence', verdict: 'escalate',
+                 findings: [{ severity: 'Critical', title: 'mapped test provably unrun',
+                              file: 'test/foo.test.js', rationale: 'test present in diff but 0-count in gate output' }],
+                 confidence: 'high' }
+      }
+      return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    }
+    if (seat === 'war-refiner') {
+      return opts.phase === 'Land'
+        ? { mode: 'land-phase', status: 'landed' }
+        : { mode: 'merge-task', status: 'merged', gate_output: 'ok 5 tests passed' }
+    }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { out } = await runPhase(PROVISION_ARGS(), impl)
+  // The land must be HELD (a provably-unrun mapped test is a hard gate-evidence escalation)
+  assert.equal(out.landDecision, 'held:escalation',
+    'Critical gate-evidence finding (provably unrun) must hold the land (held:escalation)')
+  // The escalated array must contain a gate-evidence reason
+  const gateEscalation = (out.escalated || []).find(e => e && e.reason === 'gate-evidence')
+  assert.ok(gateEscalation, 'escalated[] must contain a gate-evidence entry for the hard case')
+  // The auditLog must record hard:true for the finding
+  const auditEntry = (out.auditLog || []).find(e => e && e.gateEvidence)
+  assert.ok(auditEntry, 'auditLog must have a gateEvidence entry')
+  assert.equal(auditEntry.hard, true, 'auditLog gate-evidence entry must be marked hard:true for Critical/Major findings')
+})
+
+test('Task 4 — post-merge gate-audit HARD case: Major finding also holds the land', async () => {
+  // Major severity (not just Critical) is also a provably-unrun signal per the operationally-defined convention.
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 3 } }
+    if (seat === 'war-auditor') {
+      if (prompt.includes('execution-evidence') || (opts.label || '').includes('execution-evidence')) {
+        return { seat: opts.label, lens: 'execution-evidence', verdict: 'request_changes',
+                 findings: [{ severity: 'Major', title: 'mapped test absent in gate output',
+                              file: 'test/bar.test.js', rationale: 'test in diff but absent from gate_output' }],
+                 confidence: 'high' }
+      }
+      return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    }
+    if (seat === 'war-refiner') {
+      return opts.phase === 'Land'
+        ? { mode: 'land-phase', status: 'landed' }
+        : { mode: 'merge-task', status: 'merged', gate_output: 'ok 3 tests passed' }
+    }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { out } = await runPhase(PROVISION_ARGS(), impl)
+  assert.equal(out.landDecision, 'held:escalation',
+    'Major gate-evidence finding (provably unrun) must also hold the land (held:escalation)')
+  const gateEscalation = (out.escalated || []).find(e => e && e.reason === 'gate-evidence')
+  assert.ok(gateEscalation, 'escalated[] must contain a gate-evidence entry for Major severity')
+})
+
 test('Task 4 — post-merge gate-audit is PARALLEL (runs over all merged tasks, not one-by-one inline)', async () => {
   // Structural: the template source must use parallel(...) for the gate-audit pass
   // (after the refine for-loop, before the Land decision).
