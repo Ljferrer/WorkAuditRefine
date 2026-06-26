@@ -19,7 +19,7 @@ plans. Grouping decided 2026-06-25 (operator): **4 themed plans** after Plan 1; 
 | 2 | [Verification-layer integrity](2026-06-25-verification-layer-integrity.md) | F07, F12 | MED/HIGH | v0.5.3 | **drafted** |
 | 3 | [Provisioning lifecycle](2026-06-25-provisioning-lifecycle.md) | F08, F09, F10 +#69/#71 | LOW/NIT | v0.5.4 | **drafted** |
 | 4 | [Servitor confinement & memory](2026-06-25-servitor-confinement-memory.md) | F01, F05 +#58 | HIGH/MED | v0.6.0 | **drafted** |
-| 5 | Audit fidelity | F03, F06 | HIGH/MED | v0.7.0 | to draft |
+| 5 | [Audit fidelity](2026-06-25-audit-fidelity.md) | F03, F06 | HIGH/MED | v0.7.0 | **drafted** |
 
 ### Plan 2 — Verification-layer integrity {F07, F12} · v0.5.3 · *foundation, land first*
 - **F07** (mirror-logic drift guard): guard mirrored *logic* not just constants — `spawnOpts`, `covenSeats`,
