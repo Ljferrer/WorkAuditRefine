@@ -7,7 +7,7 @@ import {
   DEFAULTS, PROVISION_SOURCES, fillDefaults, presetConfig, validate, spawnOpts, covenSeats,
   resolveProvision, resolveGate,
 } from './war-config.mjs'
-import { HARD_ESCALATION_REASONS } from './land-decision.mjs'
+import { HARD_ESCALATION_REASONS, decideLand } from './land-decision.mjs'
 
 // Helper: read workflow-template.js as text relative to this test file.
 const __dir = dirname(fileURLToPath(import.meta.url))
@@ -457,5 +457,423 @@ test('doc-contract: schemas.md describes overrides.gate as the declared base (no
   assert.ok(
     mentionsGateBase,
     'schemas.md must clarify that overrides.gate is the declared base and the resolved gate is self-discovering (F12 open decision #2)'
+  )
+})
+
+// ---------------------------------------------------------------------------
+// Task 3 — F07: Behavioral drift guards for inline mirrors in workflow-template.js
+// ---------------------------------------------------------------------------
+// Strategy: extract inline logic by CONSTRUCT (regex/marker) not by line number,
+// then rebuild via new Function / new AsyncFunction and compare to the canonical export.
+
+// ---------------------------------------------------------------------------
+// spawnOpts drift guard (D1): line-93 marker covers spawnOpts + covenSeats
+// ---------------------------------------------------------------------------
+
+test('drift-guard(F07): inline spawnOpts mirror equals canonical spawnOpts — default effort (omit effort)', () => {
+  // Extract the inline spawn arrow function body under the line-93 Keep-in-sync marker.
+  // Template: const spawn = role => { const a = agents[role] || {}; ... }
+  // We rebuild it as a standalone function(agents, ROLE_MODEL, role) and call it.
+  const match = templateText.match(/const\s+spawn\s*=\s*role\s*=>\s*\{([\s\S]*?)\n\}/)
+  assert.ok(match, 'inline spawn arrow function not found in workflow-template.js')
+  // Reconstruct as a plain function injecting the two closed-over locals the inline uses.
+  // The inline body references `agents` and `ROLE_MODEL` — we inject them as parameters.
+  const inlineSpawn = new Function('agents', 'ROLE_MODEL', 'role',
+    match[1])
+  // Test rows: each role with default effort — inline omits effort (== canonical)
+  const ROLE_MODEL_CANONICAL = {
+    worker: DEFAULTS.agents.worker.model,
+    auditor: DEFAULTS.agents.auditor.model,
+    refiner: DEFAULTS.agents.refiner.model,
+    servitor: DEFAULTS.agents.servitor.model,
+  }
+  for (const role of ['worker', 'auditor', 'refiner', 'servitor']) {
+    const config = { agents: { [role]: { model: DEFAULTS.agents[role].model, effort: 'default' } } }
+    const canonical = spawnOpts(config, role)
+    const inline = inlineSpawn(config.agents, ROLE_MODEL_CANONICAL, role)
+    assert.deepEqual(inline, canonical,
+      `inline spawnOpts(${role}, default effort) diverges from canonical: inline=${JSON.stringify(inline)} canonical=${JSON.stringify(canonical)}`)
+  }
+})
+
+test('drift-guard(F07): inline spawnOpts mirror equals canonical spawnOpts — UNDEFINED/falsy effort (key equivalence proof)', () => {
+  // This is the critical row: inline uses `a.effort && a.effort !== 'default'`
+  // while canonical uses `effort === 'default'`. With undefined effort:
+  //   inline: undefined && ... = false → omit effort (correct)
+  //   canonical: undefined === 'default' = false → omit effort (correct)
+  // Both agree, but a drift in condition would surface here before other rows.
+  const match = templateText.match(/const\s+spawn\s*=\s*role\s*=>\s*\{([\s\S]*?)\n\}/)
+  assert.ok(match, 'inline spawn arrow function not found in workflow-template.js')
+  const inlineSpawn = new Function('agents', 'ROLE_MODEL', 'role', match[1])
+  const ROLE_MODEL_CANONICAL = {
+    worker: DEFAULTS.agents.worker.model,
+    auditor: DEFAULTS.agents.auditor.model,
+    refiner: DEFAULTS.agents.refiner.model,
+    servitor: DEFAULTS.agents.servitor.model,
+  }
+  for (const role of ['worker', 'auditor', 'refiner', 'servitor']) {
+    // effort is UNDEFINED — the canonical falls through to 'default', omitting effort from result
+    const config = { agents: { [role]: { model: DEFAULTS.agents[role].model } } }
+    const canonical = spawnOpts(config, role)
+    const inline = inlineSpawn(config.agents, ROLE_MODEL_CANONICAL, role)
+    assert.deepEqual(inline, canonical,
+      `inline spawnOpts(${role}, undefined effort) diverges from canonical: inline=${JSON.stringify(inline)} canonical=${JSON.stringify(canonical)}`)
+    // Sanity: both should omit effort (not include it)
+    assert.ok(!Object.prototype.hasOwnProperty.call(canonical, 'effort'),
+      `canonical spawnOpts(${role}, undefined effort) should omit effort key`)
+    assert.ok(!Object.prototype.hasOwnProperty.call(inline, 'effort'),
+      `inline spawnOpts(${role}, undefined effort) should omit effort key`)
+  }
+})
+
+test('drift-guard(F07): inline spawnOpts mirror equals canonical spawnOpts — non-default effort (include effort)', () => {
+  const match = templateText.match(/const\s+spawn\s*=\s*role\s*=>\s*\{([\s\S]*?)\n\}/)
+  assert.ok(match, 'inline spawn arrow function not found in workflow-template.js')
+  const inlineSpawn = new Function('agents', 'ROLE_MODEL', 'role', match[1])
+  const ROLE_MODEL_CANONICAL = {
+    worker: DEFAULTS.agents.worker.model,
+    auditor: DEFAULTS.agents.auditor.model,
+    refiner: DEFAULTS.agents.refiner.model,
+    servitor: DEFAULTS.agents.servitor.model,
+  }
+  // Non-default effort values
+  const effortCases = [['worker', 'max'], ['auditor', 'high'], ['refiner', 'low'], ['servitor', 'medium']]
+  for (const [role, effort] of effortCases) {
+    const config = { agents: { [role]: { model: DEFAULTS.agents[role].model, effort } } }
+    const canonical = spawnOpts(config, role)
+    const inline = inlineSpawn(config.agents, ROLE_MODEL_CANONICAL, role)
+    assert.deepEqual(inline, canonical,
+      `inline spawnOpts(${role}, effort=${effort}) diverges from canonical: inline=${JSON.stringify(inline)} canonical=${JSON.stringify(canonical)}`)
+    // Sanity: both should include effort
+    assert.equal(canonical.effort, effort, `canonical should include effort=${effort}`)
+    assert.equal(inline.effort, effort, `inline should include effort=${effort}`)
+  }
+})
+
+test('drift-guard(F07): inline spawnOpts mirror equals canonical spawnOpts — missing model (fallback to ROLE_MODEL)', () => {
+  // When agents[role].model is absent, both canonical and inline fall back to ROLE_MODEL defaults.
+  const match = templateText.match(/const\s+spawn\s*=\s*role\s*=>\s*\{([\s\S]*?)\n\}/)
+  assert.ok(match, 'inline spawn arrow function not found in workflow-template.js')
+  const inlineSpawn = new Function('agents', 'ROLE_MODEL', 'role', match[1])
+  const ROLE_MODEL_CANONICAL = {
+    worker: DEFAULTS.agents.worker.model,
+    auditor: DEFAULTS.agents.auditor.model,
+    refiner: DEFAULTS.agents.refiner.model,
+    servitor: DEFAULTS.agents.servitor.model,
+  }
+  for (const role of ['worker', 'auditor', 'refiner', 'servitor']) {
+    // agents[role] exists but has no model key — should fall back
+    const config = { agents: { [role]: { effort: 'default' } } }
+    const canonical = spawnOpts(config, role)
+    const inline = inlineSpawn(config.agents, ROLE_MODEL_CANONICAL, role)
+    assert.deepEqual(inline, canonical,
+      `inline spawnOpts(${role}, missing model) diverges from canonical`)
+    // Both should produce the role's default model
+    assert.equal(canonical.model, ROLE_MODEL_CANONICAL[role],
+      `canonical falls back to ROLE_MODEL for ${role}`)
+    assert.equal(inline.model, ROLE_MODEL_CANONICAL[role],
+      `inline falls back to ROLE_MODEL for ${role}`)
+  }
+})
+
+// ---------------------------------------------------------------------------
+// covenSeats drift guard (D1): same line-93 marker covers BOTH spawnOpts and covenSeats
+// ---------------------------------------------------------------------------
+
+test('drift-guard(F07): inline covenSeats mirror equals canonical covenSeats — coven:false (single seat)', () => {
+  // Extract the covenSeats inline from auditRound's body: the baseLenses + lenses computation.
+  // Template (~line 166-169):
+  //   const baseLenses = task.lenses && task.lenses.length ? task.lenses : ['correctness', ...]
+  //   const lenses = !task.coven ? [baseLenses[0]] : Array.from({ length: audit.covenSize || baseLenses.length }, ...)
+  // We extract this two-line block and rebuild it as Function(task, audit, DEFAULTS) returning lenses.
+  const match = templateText.match(
+    /(const baseLenses\s*=\s*task\.lenses[\s\S]*?const lenses\s*=\s*!task\.coven[\s\S]*?baseLenses\[i\s*%\s*baseLenses\.length\]\s*\))/
+  )
+  assert.ok(match, 'inline covenSeats baseLenses+lenses block not found in workflow-template.js')
+  const inlineCovenSeats = new Function('task', 'audit', 'DEFAULTS',
+    match[1] + '\nreturn lenses')
+
+  // coven:false — should always return a single-element array with the first lens
+  const task1 = { coven: false, lenses: DEFAULTS.audit.lenses }
+  const canonical1 = covenSeats(DEFAULTS, task1)
+  const inline1 = inlineCovenSeats(task1, DEFAULTS.audit, DEFAULTS)
+  assert.deepEqual(inline1, canonical1,
+    `inline covenSeats(coven:false) diverges: inline=${JSON.stringify(inline1)} canonical=${JSON.stringify(canonical1)}`)
+})
+
+test('drift-guard(F07): inline covenSeats mirror equals canonical covenSeats — coven:true with custom lenses', () => {
+  const match = templateText.match(
+    /(const baseLenses\s*=\s*task\.lenses[\s\S]*?const lenses\s*=\s*!task\.coven[\s\S]*?baseLenses\[i\s*%\s*baseLenses\.length\]\s*\))/
+  )
+  assert.ok(match, 'inline covenSeats block not found in workflow-template.js')
+  const inlineCovenSeats = new Function('task', 'audit', 'DEFAULTS',
+    match[1] + '\nreturn lenses')
+
+  // coven:true with custom lenses (3 lenses, covenSize:3)
+  const config = { audit: { covenSize: 3 } }
+  const task2 = { coven: true, lenses: ['correctness', 'cascading-impact', 'plan-faithfulness'] }
+  const canonical2 = covenSeats(fillDefaults(config), task2)
+  const inline2 = inlineCovenSeats(task2, { covenSize: 3 }, DEFAULTS)
+  assert.deepEqual(inline2, canonical2,
+    `inline covenSeats(coven:true, custom lenses, covenSize=3) diverges: inline=${JSON.stringify(inline2)} canonical=${JSON.stringify(canonical2)}`)
+})
+
+test('drift-guard(F07): inline covenSeats mirror equals canonical covenSeats — covenSize > lenses.length (rotation wrap)', () => {
+  const match = templateText.match(
+    /(const baseLenses\s*=\s*task\.lenses[\s\S]*?const lenses\s*=\s*!task\.coven[\s\S]*?baseLenses\[i\s*%\s*baseLenses\.length\]\s*\))/
+  )
+  assert.ok(match, 'inline covenSeats block not found in workflow-template.js')
+  const inlineCovenSeats = new Function('task', 'audit', 'DEFAULTS',
+    match[1] + '\nreturn lenses')
+
+  // covenSize(5) > lenses.length(3) → rotation wrap: lenses repeat
+  const config5 = { audit: { covenSize: 5 } }
+  const task3 = { coven: true, lenses: ['correctness', 'cascading-impact', 'plan-faithfulness'] }
+  const canonical3 = covenSeats(fillDefaults(config5), task3)
+  const inline3 = inlineCovenSeats(task3, { covenSize: 5 }, DEFAULTS)
+  assert.deepEqual(inline3, canonical3,
+    `inline covenSeats(covenSize>lenses) diverges: inline=${JSON.stringify(inline3)} canonical=${JSON.stringify(canonical3)}`)
+  assert.equal(inline3.length, 5, 'should produce 5 seats when covenSize=5')
+})
+
+test('drift-guard(F07): inline covenSeats mirror equals canonical covenSeats — covenSize < lenses.length (truncation)', () => {
+  const match = templateText.match(
+    /(const baseLenses\s*=\s*task\.lenses[\s\S]*?const lenses\s*=\s*!task\.coven[\s\S]*?baseLenses\[i\s*%\s*baseLenses\.length\]\s*\))/
+  )
+  assert.ok(match, 'inline covenSeats block not found in workflow-template.js')
+  const inlineCovenSeats = new Function('task', 'audit', 'DEFAULTS',
+    match[1] + '\nreturn lenses')
+
+  // covenSize(2) < lenses.length(3) → only 2 seats
+  const config2 = { audit: { covenSize: 2 } }
+  const task4 = { coven: true, lenses: ['correctness', 'cascading-impact', 'plan-faithfulness'] }
+  const canonical4 = covenSeats(fillDefaults(config2), task4)
+  const inline4 = inlineCovenSeats(task4, { covenSize: 2 }, DEFAULTS)
+  assert.deepEqual(inline4, canonical4,
+    `inline covenSeats(covenSize<lenses) diverges: inline=${JSON.stringify(inline4)} canonical=${JSON.stringify(canonical4)}`)
+  assert.equal(inline4.length, 2, 'should produce 2 seats when covenSize=2')
+})
+
+test('drift-guard(F07): inline covenSeats uses DEFAULTS.audit.lenses as fallback (DEFAULTS injection equivalence)', () => {
+  // The inline hardcodes ['correctness','cascading-impact','plan-faithfulness'] while canonical reads
+  // DEFAULTS.audit.lenses. Injecting DEFAULTS when rebuilding means they resolve to the same set.
+  // This test checks a task with NO lenses (forces the fallback path).
+  const match = templateText.match(
+    /(const baseLenses\s*=\s*task\.lenses[\s\S]*?const lenses\s*=\s*!task\.coven[\s\S]*?baseLenses\[i\s*%\s*baseLenses\.length\]\s*\))/
+  )
+  assert.ok(match, 'inline covenSeats block not found in workflow-template.js')
+  const inlineCovenSeats = new Function('task', 'audit', 'DEFAULTS',
+    match[1] + '\nreturn lenses')
+
+  // No lenses on task → fallback
+  const taskNoLenses = { coven: false }
+  const canonicalFallback = covenSeats({}, taskNoLenses)
+  const inlineFallback = inlineCovenSeats(taskNoLenses, DEFAULTS.audit, DEFAULTS)
+  assert.deepEqual(inlineFallback, canonicalFallback,
+    `inline covenSeats(no task lenses, fallback) diverges: inline=${JSON.stringify(inlineFallback)} canonical=${JSON.stringify(canonicalFallback)}`)
+})
+
+// ---------------------------------------------------------------------------
+// decideLand drift guard (D1): lines 367/368 markers
+// ---------------------------------------------------------------------------
+
+// Helper: extract the inline hardEscalation + landDecision ternary from workflow-template.js
+// and rebuild it as an executable function via new Function — mirroring the spawnOpts/covenSeats
+// extract-and-execute pattern so that template-side ternary drift (not just array drift) bites.
+function buildInlineDecideLand() {
+  // Extract HARD_ESCALATION_REASONS array from the template (line ~370).
+  const herMatch = templateText.match(/const\s+HARD_ESCALATION_REASONS\s*=\s*(\[[^\]]+\])/)
+  assert.ok(herMatch, 'HARD_ESCALATION_REASONS not found in workflow-template.js')
+  const inlineReasons = JSON.parse(herMatch[1].replace(/'/g, '"'))
+
+  // Extract the inline hardEscalation expression + the 3-branch landDecision ternary (lines ~371-374).
+  // The regex captures from 'const hardEscalation = escalated.some' through 'held:nothing-merged'.
+  const ternaryMatch = templateText.match(
+    /(const hardEscalation\s*=\s*escalated\.some[\s\S]*?'held:nothing-merged')/
+  )
+  assert.ok(ternaryMatch, 'inline hardEscalation + landDecision ternary not found in workflow-template.js')
+
+  // Rebuild via new Function — the extracted code references landed, escalated, HARD_ESCALATION_REASONS.
+  // Injecting the extracted array as HARD_ESCALATION_REASONS keeps the extraction faithful.
+  const fnBody = ternaryMatch[1] + '\nreturn landDecision'
+  const fn = new Function('landed', 'escalated', 'HARD_ESCALATION_REASONS', fnBody)
+  return ({ landed = [], escalated = [] } = {}) => fn(landed, escalated, inlineReasons)
+}
+
+test('drift-guard(F07): inline HARD_ESCALATION_REASONS + decideLand logic equals canonical decideLand — empty landed × empty escalated', () => {
+  // Extract inline HARD_ESCALATION_REASONS, hardEscalation + landDecision ternary from ~line 370-374.
+  // These three lines are under the 367/368 "landDecision mirrors" markers.
+  // Uses new Function to execute the LIVE template code so ternary-level drift is detected (not just array drift).
+  const inlineDecideLand = buildInlineDecideLand()
+
+  // empty landed × empty escalated → 'held:nothing-merged'
+  const args1 = { landed: [], escalated: [] }
+  assert.equal(inlineDecideLand(args1), decideLand(args1),
+    'inline decideLand(empty,empty) diverges from canonical')
+})
+
+test('drift-guard(F07): inline decideLand — non-empty landed × empty escalated → landed', () => {
+  const inlineDecideLand = buildInlineDecideLand()
+
+  const args2 = { landed: ['t1', 't2'], escalated: [] }
+  assert.equal(inlineDecideLand(args2), decideLand(args2), 'inline decideLand(landed,empty) diverges')
+  assert.equal(inlineDecideLand(args2), 'landed', 'expected "landed"')
+})
+
+test('drift-guard(F07): inline decideLand — non-empty landed × escalated with a HARD reason → held:escalation', () => {
+  const inlineDecideLand = buildInlineDecideLand()
+
+  // All 6 hard reasons must individually hold the land
+  for (const reason of HARD_ESCALATION_REASONS) {
+    const args = { landed: ['t1'], escalated: [{ task: 't2', reason }] }
+    assert.equal(inlineDecideLand(args), decideLand(args),
+      `inline decideLand diverges for hard reason "${reason}"`)
+    assert.equal(inlineDecideLand(args), 'held:escalation',
+      `hard reason "${reason}" must yield held:escalation`)
+  }
+})
+
+test('drift-guard(F07): inline decideLand — empty landed × escalated with SOFT reason → held:nothing-merged', () => {
+  const inlineDecideLand = buildInlineDecideLand()
+
+  // A SOFT reason (env-blocked is not in HARD_ESCALATION_REASONS) + no landed → held:nothing-merged
+  const args = { landed: [], escalated: [{ task: 't1', reason: 'env-blocked' }] }
+  assert.equal(inlineDecideLand(args), decideLand(args),
+    'inline decideLand diverges for soft reason "env-blocked"')
+  assert.equal(inlineDecideLand(args), 'held:nothing-merged',
+    'soft reason with no landed → held:nothing-merged')
+})
+
+test('drift-guard(F07): inline HARD_ESCALATION_REASONS has exactly 6 members matching canonical', () => {
+  // The live array has 6 members: escalate, audit-blocked, conflict, land_stale, dep-failed, gate-evidence
+  const herMatch = templateText.match(/const\s+HARD_ESCALATION_REASONS\s*=\s*(\[[^\]]+\])/)
+  assert.ok(herMatch, 'HARD_ESCALATION_REASONS not found in workflow-template.js')
+  const inlineReasons = JSON.parse(herMatch[1].replace(/'/g, '"'))
+  assert.equal(inlineReasons.length, 6, `Expected 6 HARD_ESCALATION_REASONS, got ${inlineReasons.length}: ${JSON.stringify(inlineReasons)}`)
+  assert.deepEqual(inlineReasons, HARD_ESCALATION_REASONS,
+    'inline HARD_ESCALATION_REASONS must exactly match the canonical export from land-decision.mjs')
+})
+
+// ---------------------------------------------------------------------------
+// Classifying meta-guard (D3): every Keep-in-sync/Mirror-of marker is accounted for
+// ---------------------------------------------------------------------------
+// Markers are NOT 1:1 with drift tests:
+//   line-93  → logic-mirror covering spawnOpts AND covenSeats (1 marker, 2 registered drift tests)
+//   line-367 → logic-mirror covering landDecision (decideLand)
+//   line-368 → logic-mirror covering HARD_ESCALATION_REASONS (same decideLand block)
+//   line-69  → data-mirror (run.provision/provisionSource field names) — allowlisted, no behavioral test
+// A marker not in either registry → test fails.
+
+test('meta-guard(F07): all Keep-in-sync/Mirror-of markers in workflow-template.js are classified (logic-mirror registry + data-mirror allowlist)', () => {
+  // Scan for every Keep-in-sync / Mirror-of / MIRROR-of marker in the template.
+  // Strategy: collect every comment line containing these keywords.
+  // NOTE: use a NON-global /i regex in the filter predicate — a /gi regex is stateful
+  // (.test() advances lastIndex), causing consecutive matching lines to be silently dropped.
+  const markerFilterPattern = /Keep in sync|Mirror of|MIRROR of/i
+  const lines = templateText.split('\n')
+  const markerLines = lines
+    .map((line, idx) => ({ line: line.trim(), lineNum: idx + 1 }))
+    .filter(({ line }) => markerFilterPattern.test(line))
+
+  // Registry of LOGIC mirrors → each must have ≥1 registered drift test (keyed by a stable identifier).
+  // The identifier is a substring of the marker text (robust to line-number shifts).
+  const LOGIC_MIRROR_REGISTRY = new Map([
+    // line-93 marker: "Mirror of war-config.mjs spawnOpts/covenSeats … Keep in sync"
+    // → covered by spawnOpts drift tests + covenSeats drift tests
+    ['spawnOpts/covenSeats', ['drift-guard(F07): inline spawnOpts', 'drift-guard(F07): inline covenSeats']],
+    // line-367 marker: "landDecision mirrors land-decision.mjs (decideLand) … Keep in sync"
+    // → covered by decideLand drift tests
+    ['landDecision mirrors', ['drift-guard(F07): inline HARD_ESCALATION_REASONS + decideLand', 'drift-guard(F07): inline decideLand']],
+    // line-368 marker: "HARD_ESCALATION_REASONS mirrors land-decision.mjs export … Keep in sync"
+    // → covered by the same decideLand drift tests
+    ['HARD_ESCALATION_REASONS mirrors', ['drift-guard(F07): inline HARD_ESCALATION_REASONS + decideLand', 'drift-guard(F07): inline decideLand']],
+  ])
+
+  // DATA mirrors → allowlisted (field names, no canonical function to behavioral-test).
+  const DATA_MIRROR_ALLOWLIST = [
+    // line-69 marker: "This is a MIRROR of war-config.mjs's run.provision/run.provisionSource reads"
+    'run.provision/run.provisionSource',
+    // Synonyms / partial matches for the same marker
+    'provisionSource reads',
+    'MIRROR of',
+  ]
+
+  const unaccounted = []
+  for (const { line, lineNum } of markerLines) {
+    // Check if this marker line is covered by a logic-mirror registry entry.
+    let isLogicMirror = false
+    for (const [key] of LOGIC_MIRROR_REGISTRY) {
+      if (line.includes(key)) { isLogicMirror = true; break }
+    }
+    if (isLogicMirror) continue
+
+    // Check if this marker line is in the data-mirror allowlist.
+    let isDataMirror = false
+    for (const allowed of DATA_MIRROR_ALLOWLIST) {
+      if (line.includes(allowed)) { isDataMirror = true; break }
+    }
+    if (isDataMirror) continue
+
+    // Neither: unaccounted marker
+    unaccounted.push({ lineNum, line })
+  }
+
+  assert.deepEqual(
+    unaccounted,
+    [],
+    `Unaccounted Keep-in-sync/Mirror-of markers found in workflow-template.js.\n` +
+    `Each must be either (a) registered in LOGIC_MIRROR_REGISTRY with ≥1 behavioral drift test, ` +
+    `or (b) allowlisted in DATA_MIRROR_ALLOWLIST (data-flow fields, no canonical function).\n` +
+    `Unaccounted markers:\n` +
+    unaccounted.map(m => `  line ${m.lineNum}: ${m.line}`).join('\n')
+  )
+
+  // Second half of the meta-guard: verify that every drift test NAME registered in
+  // LOGIC_MIRROR_REGISTRY's VALUES actually EXISTS in this test file.
+  //
+  // Without this, the registry values are decorative — deleting a drift test while
+  // leaving the template marker + registry entry intact would keep the first assertion
+  // green (marker is classified) while the behavioral coverage is silently gone.
+  //
+  // Strategy: read this test file's own source and check each registered name string
+  // appears as a literal `test('<name>` or `test("<name>` substring.
+  const thisFileText = readFileSync(fileURLToPath(import.meta.url), 'utf8')
+
+  const missingDriftTests = []
+  for (const [key, testNames] of LOGIC_MIRROR_REGISTRY) {
+    for (const testName of testNames) {
+      // A test definition looks like: test('drift-guard(F07): inline spawnOpts...')
+      // We check for test('<testName> (starts-with match, robust to varying suffixes).
+      const singleQuote = `test('${testName}`
+      const doubleQuote = `test("${testName}`
+      if (!thisFileText.includes(singleQuote) && !thisFileText.includes(doubleQuote)) {
+        missingDriftTests.push({ key, testName })
+      }
+    }
+  }
+
+  assert.deepEqual(
+    missingDriftTests,
+    [],
+    `LOGIC_MIRROR_REGISTRY references drift-test names that do not exist in this test file.\n` +
+    `A registered test name must appear as a literal test('<name>...) definition.\n` +
+    `Deleting a drift test without removing it from LOGIC_MIRROR_REGISTRY is not allowed.\n` +
+    `Missing drift tests:\n` +
+    missingDriftTests.map(m => `  registry key "${m.key}" → test name "${m.testName}"`).join('\n')
+  )
+})
+
+test('meta-guard(F07): sanity — currently exactly 4 Keep-in-sync/Mirror-of markers exist (lines 69, 93, 367, 368)', () => {
+  // This test guards against silent marker addition (a new mirror that skips the registry).
+  // If you add a new mirror, update BOTH the registry/allowlist above AND bump this count.
+  const markerPattern = /Keep in sync|Mirror of|MIRROR of/gi
+  const markerLines = templateText.split('\n')
+    .filter(line => markerPattern.test(line))
+  // Reset for the count
+  markerPattern.lastIndex = 0
+  const count = templateText.split('\n').filter(line => /Keep in sync|Mirror of|MIRROR of/i.test(line)).length
+  assert.equal(count, 4,
+    `Expected exactly 4 Keep-in-sync/Mirror-of marker lines in workflow-template.js, found ${count}.\n` +
+    `If you added a new mirror, register it in the LOGIC_MIRROR_REGISTRY or DATA_MIRROR_ALLOWLIST and bump this count.`
   )
 })
