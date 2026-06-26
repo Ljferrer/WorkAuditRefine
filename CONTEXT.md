@@ -53,3 +53,14 @@ The task outcome when a provision step fails: the worktree is not gate-ready, th
 spawned**, and the Lead escalates with **zero FIX rounds**. Distinct from a failed gate (which means
 the code is broken, not the environment).
 _Avoid_: build-failed, setup-error, broken.
+
+### Concurrent-run isolation
+
+**Refinery worktree**:
+The one run-scoped git worktree the Refinery performs a phase's merges in. On the integration branch
+for the integration-side of merge-task; detached at the working tip for the land. (The task-branch
+rebase of merge-task runs in the *task* worktree, not here.) Provisioned in the Provision barrier
+(`<worktreeRoot>/<runId>/_refinery`), reaped by path at phase teardown. It is the Refinery's
+*container*; it exists so the Refinery never mutates the Lead's main checkout, which a second
+concurrent run could share. Isolation is prompt-enforced, not hook-enforced.
+_Avoid_: refiner checkout, merge sandbox.
