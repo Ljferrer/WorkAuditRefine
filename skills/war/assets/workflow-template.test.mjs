@@ -444,6 +444,51 @@ test('Task 5 — land_stale holds the land (hard escalation)', async () => {
     'land_stale is a hard escalation → land is held')
 })
 
+test('Task 5 — land step gate_failed → landDecision held:land-failed + escalated reason gate_failed (#99)', async () => {
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'abc' }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'merged' }
+    if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'gate_failed' }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { out } = await runPhase(PROVISION_ARGS(), impl)
+  assert.equal(out.landDecision, 'held:land-failed',
+    'gate_failed land step → landDecision held:land-failed')
+  const landEsc = out.escalated.find(e => e.task && e.task.includes('-land'))
+  assert.ok(landEsc, 'escalated entry exists for the land step')
+  assert.equal(landEsc.reason, 'gate_failed', 'escalated reason is gate_failed')
+})
+
+test('Task 5 — land step error → landDecision held:land-failed + escalated reason error (#99)', async () => {
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'abc' }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'merged' }
+    if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'error' }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { out } = await runPhase(PROVISION_ARGS(), impl)
+  assert.equal(out.landDecision, 'held:land-failed',
+    'error land step → landDecision held:land-failed')
+  const landEsc = out.escalated.find(e => e.task && e.task.includes('-land'))
+  assert.ok(landEsc, 'escalated entry exists for the land step')
+  assert.equal(landEsc.reason, 'error', 'escalated reason is error')
+})
+
+test('Task 5 — source-text: else-if for error/gate_failed demote to held:land-failed is present (#99)', () => {
+  assert.match(src, /else if \(landResult && \(landResult\.status === 'error' \|\| landResult\.status === 'gate_failed'\)\)/,
+    'source contains the else-if branch for error/gate_failed → held:land-failed')
+  assert.match(src, /landDecision = 'held:land-failed'/,
+    "source sets landDecision to 'held:land-failed'")
+})
+
 test('Task 5 — opportunistic resync: after landed, Lead runs ff-only clean-guard resync (prompt check)', async () => {
   // The wrap-up or a final step must reference the ff-only resync against the Lead cwd.
   // We verify the template source describes the resync logic (it is in the land flow or as a comment
@@ -1341,4 +1386,99 @@ test('F03 — schemas.md: AuditVerdict.tests_verified clarifies existence/integr
     !/DiffResult/.test(schemasMd),
     'schemas.md must NOT contain "DiffResult" (the auditor self-serves the diff; no artifact schema needed)'
   )
+})
+
+// ---------------------------------------------------------------------------
+// Task 1 (Phase 1 — #113): expected:0 on env-blocked and worker-blocked early-returns
+// Both early-return paths in the work-wave parallel map must carry expected:0 so the
+// auditLog entry (which unconditionally reads r.expected) records 0 instead of undefined.
+// ---------------------------------------------------------------------------
+
+test('#113 — env-blocked early-return: auditLog entry has requested===0 (not undefined)', async () => {
+  // Drive a task where the per-task provision step fails (env-blocked). The early-return object
+  // must carry expected:0 so auditLog.push({ requested: r.expected }) records 0, not undefined.
+  const dagWithProvision = {
+    ...PROVISION_ARGS({ tasks: [
+      { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', lenses: ['correctness'] },
+    ] }),
+    run: { provision: ['npm install'], provisionSource: 'ci' },
+  }
+  const impl = (prompt, opts) => {
+    if (isProvisionRun({ opts })) {
+      return { ok: false, taskId: 't1', failedCommand: 'npm install', exitCode: 1,
+               stderrTail: 'ERR', provisionSource: 'ci' }
+    }
+    return defaultImpl(prompt, opts)
+  }
+  const { out } = await runPhase(dagWithProvision, impl)
+  const entry = (out.auditLog || []).find(e => e && e.task === 't1')
+  assert.ok(entry, 'an auditLog entry exists for t1 (env-blocked)')
+  assert.strictEqual(entry.requested, 0, 'auditLog.requested is 0 (not undefined) for env-blocked early-return (#113)')
+})
+
+test('#113 — worker-blocked early-return: auditLog entry has requested===0 (not undefined)', async () => {
+  // Drive a task where the worker returns status:'blocked'. The early-return object must carry
+  // expected:0 so auditLog.push({ requested: r.expected }) records 0, not undefined.
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker') {
+      return { task_id: 't1', status: 'blocked', blocked_reason: 'forced block for test' }
+    }
+    return defaultImpl(prompt, opts)
+  }
+  const { out } = await runPhase(PROVISION_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', lenses: ['correctness'] },
+  ] }), impl)
+  const entry = (out.auditLog || []).find(e => e && e.task === 't1')
+  assert.ok(entry, 'an auditLog entry exists for t1 (worker-blocked)')
+  assert.strictEqual(entry.requested, 0, 'auditLog.requested is 0 (not undefined) for worker-blocked early-return (#113)')
+})
+
+// ---------------------------------------------------------------------------
+// Task 3b (#115) — post-loop unrunnable-deps sweep
+// ---------------------------------------------------------------------------
+
+test('#115 — post-loop sweep: task with ghost dep is escalated as unrunnable-deps and land held', async () => {
+  // t1 runs and merges; t2 has deps:['ghost'] where 'ghost' is not in tasks[].
+  // Post-loop sweep must catch t2 and push unrunnable-deps escalation → landDecision held:escalation.
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc1234', tests: { unit: 1 } }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-refiner') {
+      return opts.phase === 'Land'
+        ? { mode: 'land-phase', status: 'landed' }
+        : { mode: 'merge-task', status: 'merged' }
+    }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { out } = await runPhase(PROVISION_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', lenses: ['correctness'] },
+    { id: 't2', issue: 102, title: 'Task two', planSlice: 'slice 2', lenses: ['correctness'], deps: ['ghost'] },
+  ] }), impl)
+
+  // escalated must contain the unrunnable-deps entry for t2
+  const esc = (out.escalated || []).find(e => e.task === 't2' && e.reason === 'unrunnable-deps')
+  assert.ok(esc, 'escalated must contain {task:"t2", reason:"unrunnable-deps"}')
+  assert.deepEqual(esc.missingDeps, ['ghost'], 'missingDeps must list the ghost dep')
+
+  // auditLog must have t2 entry with verdict unrunnable-deps and requested===0
+  const entry = (out.auditLog || []).find(e => e && e.task === 't2' && e.verdict === 'unrunnable-deps')
+  assert.ok(entry, 'auditLog must have t2 entry with verdict:unrunnable-deps')
+  assert.strictEqual(entry.requested, 0, 'auditLog.requested is 0 for unrunnable-deps')
+
+  // land is held due to hard escalation
+  assert.strictEqual(out.landDecision, 'held:escalation', 'landDecision must be held:escalation when unrunnable-deps present')
+})
+
+test('#115 — post-loop sweep back-compat: valid-deps phase produces no spurious unrunnable-deps', async () => {
+  // Normal two-task phase where t2 depends on t1 (which exists). No ghost deps → no unrunnable-deps entries.
+  const { out } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const spurious = (out.escalated || []).filter(e => e.reason === 'unrunnable-deps')
+  assert.deepEqual(spurious, [], 'no unrunnable-deps escalations in a valid-deps phase')
+  const spuriousLog = (out.auditLog || []).filter(e => e && e.verdict === 'unrunnable-deps')
+  assert.deepEqual(spuriousLog, [], 'no unrunnable-deps auditLog entries in a valid-deps phase')
 })

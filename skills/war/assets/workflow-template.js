@@ -250,7 +250,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     // failing step → env-blocked: the worker is NOT spawned and the worktree is KEPT (schemas.md).
     const env = await provisionStep(task)
     if (!env.ok) {
-      return { task, verdict: 'env-blocked', seats: [], envOutcome: {
+      return { task, verdict: 'env-blocked', seats: [], expected: 0, envOutcome: {
         taskId: env.taskId, failedCommand: env.failedCommand, exitCode: env.exitCode,
         stderrTail: env.stderrTail, provisionSource: env.provisionSource } }
     }
@@ -262,7 +262,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       { agentType: NS + 'war-worker', phase: 'Work', label: `work:${task.id}`, schema: WORKER_RESULT, ...spawn('worker') })
 
     if (!impl || impl.status === 'blocked') {
-      return { task, verdict: 'escalate', seats: [], blocked: (impl && impl.blocked_reason) || 'worker returned no result' }
+      return { task, verdict: 'escalate', seats: [], expected: 0, blocked: (impl && impl.blocked_reason) || 'worker returned no result' }
     }
 
     let round = 0, verdict = null, seats = [], expected = 0
@@ -368,11 +368,23 @@ if (mergedTasksForGateAudit.length > 0) {
   }))
 }
 
+// ---- POST-LOOP SWEEP: any task still not in done[] has unresolvable deps (ghost dep) ----
+// scheduler-local addition — 'unrunnable-deps' is NOT in land-decision.mjs (intentional divergence).
+for (const t of tasks) {
+  if (!done.has(t.id)) {
+    const deps = t.deps || []
+    const missing = deps.filter(d => !tasks.some(x => x.id === d))
+    escalated.push({ task: t.id, reason: 'unrunnable-deps', missingDeps: missing, deps })
+    auditLog.push({ task: t.id, verdict: 'unrunnable-deps', missingDeps: missing, findings: [], requested: 0, returned: 0 })
+    done.add(t.id)
+  }
+}
+
 // ---- LAND — only when no hard escalation is open; else hold for the Lead ----
 // landDecision mirrors land-decision.mjs (decideLand) — the Workflow sandbox can't import. Keep in sync.
 // HARD_ESCALATION_REASONS mirrors land-decision.mjs export — the Workflow sandbox can't import. Keep in sync.
 let landResult = null
-const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence']
+const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps']
 const hardEscalation = escalated.some(e => HARD_ESCALATION_REASONS.includes(e && e.reason))
 let landDecision = (landed.length && !hardEscalation) ? 'landed'
   : hardEscalation ? 'held:escalation'
@@ -398,6 +410,9 @@ if (landDecision === 'landed') {
   if (landResult && HARD_ESCALATION_REASONS.includes(landResult.status)) {
     escalated.push({ task: `phase-${ph.id}-land`, reason: landResult.status, detail: landResult })
     landDecision = 'held:escalation'
+  } else if (landResult && (landResult.status === 'error' || landResult.status === 'gate_failed')) {
+    escalated.push({ task: `phase-${ph.id}-land`, reason: landResult.status, detail: landResult })
+    landDecision = 'held:land-failed'
   } else if (landResult && landResult.status === 'landed') {
     // ---- OPPORTUNISTIC RESYNC (§5.4): ff-only, on-branch, clean-guard ----
     // After a landed result, the Lead attempts to advance its own cwd to the new working tip.
