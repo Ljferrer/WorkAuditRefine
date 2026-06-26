@@ -158,7 +158,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.5.0** — worktree provisioning Part A: deterministic refiner-owned worktree lifecycle + agent_type scope guard. Part B (gate-ready provisioning) is a pending follow-up.
+**0.5.1** — worktree provisioning Part B: repo-derived bootstrap. A read-only setup-scout derives an ordered `run.provision` command list from the *target repo's own* signals (explicit → CI → dev-onboarding → structural fallback), which the refiner runs verbatim before the gate so every fresh worker worktree and red-team probe sandbox lands gate-ready — work-audit-refine carrying zero ecosystem-specific knowledge. A provisioning failure is surfaced distinctly from broken code (`env-blocked` for WAR — worker not spawned, worktree kept, no FIX rounds; `warn` for red-team — never a red verdict). Builds on Part A's deterministic refiner-owned worktree lifecycle + agent_type scope guard (v0.5.0).
 
 ## License
 
