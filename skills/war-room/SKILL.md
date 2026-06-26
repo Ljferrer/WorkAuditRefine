@@ -9,9 +9,9 @@ You produce a **run config** for `/war` and nothing else: you write `.claude/war
 
 ## Flow
 1. **Pick a starting point.** If `.claude/war/config.json` already exists, show it and offer to start from it. Otherwise present the three presets and ask which to start from:
-   - **balanced** — today's defaults (sonnet workers / opus auditors, `covenPolicy: auto`, session effort).
+   - **balanced** — default profile: sonnet workers / opus auditors at session effort, full 3-lens panel at `deep` on every task (`covenPolicy: all` — `correctness`, `cascading-impact`, `plan-faithfulness`, unanimous).
    - **thorough** — opus workers on `max` effort (ultrathink), opus auditors on `high`, a coven on every task.
-   - **economy** — sonnet workers/auditors at session effort, a single auditor per task (`solo`), `roundLimit: 2`.
+   - **economy** — sonnet workers/auditors at session effort, a single auditor per task (`covenPolicy: solo`), `roundLimit: 2`. Use for cost-sensitive runs.
    Render the concrete JSON so the user sees exactly what they start from: `node ${CLAUDE_PLUGIN_ROOT}/skills/war/assets/war-config.mjs --preset <name>`.
 2. **Offer overrides.** Ask "anything to change?" and grill **only** the dimensions the user names, one at a time. Allowed values (reject anything else — the validator will too):
    - `agents.<role>.model` ∈ `opus | sonnet | haiku | fable`. Roles: `worker` (also drives fix-workers), `auditor`, `refiner`, `servitor`.

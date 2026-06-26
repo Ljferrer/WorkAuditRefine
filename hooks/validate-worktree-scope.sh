@@ -19,8 +19,10 @@
 #                    any non-WAR agent) : fail-open / unrestricted, so no
 #                    existing non-WAR flow is newly constrained (back-compat).
 #
-# A write with no file_path (e.g. a Bash tool that slipped through the matcher,
-# or a tool_input without a path) is always allowed.
+# A write with no file_path (e.g. a tool_input without a path) is always
+# allowed. Note: the servitor no longer holds Bash (capability allowlist:
+# Read, Grep, Glob, Write, Edit only — F01 D1), so Bash can only slip through
+# this hook for the worker or refiner, not the servitor.
 #
 # Constraints: must run on macOS bash 3.2.57 — no globstar, no associative
 # arrays, no ${,,}. Reads the payload via jq (already a hook dependency).
@@ -31,6 +33,19 @@ get() { printf '%s' "$input" | jq -r "$1 // empty" 2>/dev/null || true; }
 atype="$(get '.agent_type')"
 path="$(get '.tool_input.file_path // .tool_input.path // .tool_input.notebook_path')"
 deny() { echo "WAR: $1" >&2; exit 2; }
+
+# Reject any path that contains a '..' segment before per-agent checks.
+# A path like /x/docs/learnings/../../etc/foo matches the servitor's bare glob
+# yet escapes the intended directory. The worker's .war-task ancestor walk is
+# equally bypassable. Rejecting '..' early closes the traversal hole in BOTH
+# branches. (Full memory-root anchoring is deferred — see plan notes / #58.)
+# Portable case-pattern: '/../*' covers a .. segment in the middle; '/..'
+# covers a trailing .. segment. Works on macOS bash 3.2.57.
+case "$path" in
+  */../*|*/..)
+    deny "path '$path' contains a '..' traversal segment; use an absolute canonical path instead."
+    ;;
+esac
 
 case "$atype" in
   *war-auditor*)

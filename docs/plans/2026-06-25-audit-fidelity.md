@@ -3,9 +3,18 @@
 **Goal:** make the audit see the *right change set* and apply the *advertised breadth*. Today the auditor is
 pointed at the wrong baseline (the main checkout, which lags/diverges in parallel runs → false findings), and the
 default config merges the happy path on a **single lens** despite the README's "independent, unanimous, multi-lens
-panel." This is the final remediation plan (v0.7.0).
+panel." This is the final remediation plan (v0.6.5 — last of the stacked series).
 
-**Scope (v0.7.0 — audit behavior change):**
+**Scope (v0.6.5 — audit behavior change):**
+
+> **Baseline-drift + ratification note (2026-06-25 red-team):** drafted at "v0.7.0"; this is the LAST of the stacked
+> remediation plans (on v0.6.4), so the release is **v0.6.5** (per-plan +0.0.1). Other notes:
+> (a) `auditPrompt`'s main-checkout/BASELINE lines are at **~154-158** (not the cited :150-151) — drifted post plans
+> 1-4; extract by construct. (b) **F03 → narrow-git-Bash auditor (NOT spec D2's refiner DiffResult artifact)** and
+> **F06 → full panel at `deep` always (NOT spec F06-D3's neighbors-default)** are RATIFIED operator overrides — the
+> red-team confirms both as documented, intentional deviations (back-port the reversals into the F03/F06 specs); no
+> `DiffResult` schema; three-dot diff. (c) The auditor read-only-git guard was PROVEN buildable (47-case prototype on
+> bash 3.2.57) — see Task 2's hardened guidance.
 - **F03** (HIGH) — pin the auditor's baseline to the **integration branch** (merge-base, three-dot), and let the
   **auditor compute the diff itself** via a narrow read-only git capability.
 - **F06** (MED) — default audit = the **full 3-lens panel** (`correctness` + `cascading-impact` +
@@ -37,11 +46,12 @@ uses F12's multi-runner resolution. Also composes with **Plan 1's F04** (auditor
 **Tech stack:** agent markdown; ESM `workflow-template.js` + `war-config.mjs` with `node --test`; POSIX `sh` hook on
 macOS bash 3.2.57 (payload via `jq`) + `hooks/*.test.sh`.
 
-**Gate (for `/war`):** full multi-runner (F12 lesson) — note the **new** `validate-auditor-git.test.sh`:
+**Gate (for `/war`):** full multi-runner (F12 lesson). Quote the node glob (unquoted under-covers on bash 3.2) and
+**self-discover** the bash suites so the **new** `validate-auditor-git.test.sh` (added by T2) is picked up
+automatically once it exists (the explicit enumeration would fail the gate before T2 creates it):
 ```
-node --test skills/**/*.test.mjs && bash hooks/validate-worktree-scope.test.sh \
-  && bash hooks/validate-auditor-git.test.sh && bash hooks/clean-surface-war-worktree.test.sh \
-  && bash skills/war/assets/provision-worktrees.test.sh
+node --test 'skills/**/*.test.mjs' && for f in $(find . -type f -name '*.test.sh' \
+  -not -path '*/node_modules/*' -not -path '*/.git/*' | sort); do bash "$f" || exit 1; done
 ```
 
 **Source of truth:** [F03](../specs/2026-06-25-F03-auditor-diff-artifact-design.md),
@@ -54,7 +64,7 @@ Memory: `audit-baseline-must-pin-integration-branch-not-main-checkout`, `auditor
   baseline) → T2 (fail-closed auditor read-only-git Bash guard).
 - **Phase 2 — F06 full panel default:** T3 — flip `covenPolicy`, presets, drift guard, docs. Depends on T1 (shared
   `workflow-template.js`) + Plan 2's drift guard.
-- **Phase 3 — Release:** T4 — v0.7.0.
+- **Phase 3 — Release:** T4 — v0.6.5.
 
 ---
 
@@ -70,11 +80,16 @@ Memory: `audit-baseline-must-pin-integration-branch-not-main-checkout`, `auditor
     merge-base..head = what the task added) as the authoritative change set.
   - The prompt **no longer** contains the "main repo checkout" / "compare against the baseline copies" prose (D4).
   - `war-auditor.md` frontmatter lists `Bash`; its inputs say the auditor **computes** the diff (not "path provided").
-- [ ] **Step 2: Run gate → fail** (`auditPrompt:150-151` still names the main checkout as baseline).
+- [ ] **Step 2: Run gate → fail** (the auditPrompt main-checkout BASELINE lines — at **~154-158**, drifted from the
+  cited :150-151; find by construct — still name the main checkout as baseline).
 - [ ] **Step 3: Implement**
   - `auditPrompt`: replace the BASELINE/main-checkout lines with: "Run `git diff ${ph.integrationBranch}...${task.branch}`
     (three-dot — exactly what this task added since it branched) for the authoritative change set; re-run it each round
     (a fix-worker may have pushed). Then read candidate files under `${task.worktree}/` for neighbor/`deep` context."
+    `ph.integrationBranch` and `task.branch` are both in template closure scope (no new auditPrompt parameter needed).
+    **Steer the auditor to ALLOWLIST-SAFE git forms** (Task 2's fail-closed guard permits only chars `[A-Za-z0-9 ./_=:,@^-]`):
+    prefer `--name-status`, `--stat`, `--format=oneline`, `A...B`, `HEAD^`; AVOID `%`-format strings (`--pretty=format:%H`)
+    and `@{}` reflog syntax (those would be denied by the guard).
   - `war-auditor.md`: frontmatter `tools: Read, Grep, Glob, Bash`; reword the diff input from "path provided" to
     "compute it yourself with read-only git (`git diff <integrationBranch>...<task.branch>`); you may run **only**
     read-only git — a guard denies anything else."
@@ -99,7 +114,20 @@ Memory: `audit-baseline-must-pin-integration-branch-not-main-checkout`, `auditor
 - [ ] **Step 3: Implement** — `PreToolUse: Bash`; if `agent_type` ~ `*war-auditor*`: **allow iff** the command is a
   single `git <read-subcommand> …` from the allowlist with **no** shell metacharacters (fail-closed — deny on any
   doubt); else `deny` (exit 2). Other agent types → exit 0. macOS bash 3.2.57 constraints; payload via `jq`.
-  Register in `hooks.json`.
+  **Register in `hooks.json` by APPENDING a SECOND `{matcher:"Bash"}` block (guard first), NOT overwriting plan 4's
+  existing `warn-bash-write-scope.sh` Bash entry — the red-team verified two Bash matchers coexist (valid JSON; both
+  fire; an auditor `git push` → guard exit 2 = DENIED; `git diff` → both exit 0 = allowed).**
+  **Hardened implementation guidance (from the red-team's 47-case bash-3.2 prototype — adopt this shape):**
+  - Use a **fail-closed CHARACTER ALLOWLIST**, not a metachar denylist: permit only `[A-Za-z0-9 ./_=:,@^-]` and deny
+    on the first char outside it (e.g. `LC_ALL=C tr -d '<allowlist>'` residue check). A bracket-class `case` pattern
+    mixing backtick + quotes throws `unexpected EOF` on bash 3.2 (the script crashes, exiting non-zero).
+  - Do **NOT** rely on command substitution to materialize a bare newline for matching — bash 3.2 strips trailing
+    newlines from `$(...)`, yielding an empty pattern that matches EVERY command (denies all legit cases).
+  - **"Pager option" = GLOBAL pager controls only** (leading `-p`, `--paginate`, `--no-pager`, `--pager=`) — do NOT
+    blanket-deny `-p`: the subcommand-local `-p` (`git cat-file -p`, `git show -p`, `git log -p`) is read-only and must
+    be ALLOWED. Also deny global `-c` and `--output`/`-o`.
+  - **Test-design (critical):** in the `.test.sh`, assert deny by a SPECIFIC deny message/marker on stderr, NOT merely
+    `exit != 0` — a syntax-errored/crashed hook also exits non-zero and would false-PASS a deny case.
 - [ ] **Step 4: Run gate → pass.**
 - [ ] **Step 5: Commit** — `git commit -am "feat(war): fail-closed read-only-git Bash guard for the auditor (F03 confinement)"`
 
@@ -123,9 +151,14 @@ Memory: `audit-baseline-must-pin-integration-branch-not-main-checkout`, `auditor
     `covenSeats(config{covenPolicy:'all'}, task)`.
 - [ ] **Step 2: Run gate → fail** (`DEFAULTS.audit.covenPolicy === 'auto'`).
 - [ ] **Step 3: Implement**
-  - `war-config.mjs`: `DEFAULTS.audit.covenPolicy: 'auto' → 'all'`; confirm `economy` keeps its explicit
-    `audit.covenPolicy: 'solo'`. **No depth-logic change** — `task.coven ? 'deep' : 'neighbors'` already yields `deep`
-    for every (now-coven) task.
+  - `war-config.mjs`: `DEFAULTS.audit.covenPolicy: 'auto' → 'all'` (line ~31; update the war-config.test.mjs default
+    assertion ~line 47 from `'auto'` to `'all'`); confirm `economy` keeps its explicit `audit.covenPolicy: 'solo'`
+    (deepMerge override — unaffected by the DEFAULT flip). **No depth-logic change** — `task.coven ? 'deep' : 'neighbors'`
+    already yields `deep` for every (now-coven) task. **Mechanism (red-team-confirmed):** `covenSeats` does NOT branch
+    on `covenPolicy`; it operates on the pre-seeded `task.coven` boolean. The flip takes effect because the **Lead**
+    seeds `task.coven=true` from `covenPolicy:'all'` (existing SKILL.md seeding) — so no `covenSeats`/template logic
+    change is needed; the F07 drift guard just gains assertion rows for the `covenPolicy:'all'` case (existing
+    extract-and-deepEqual architecture covers it).
   - `README.md`: the "independent, unanimous, multi-lens panel" claim is now accurate (state it plainly).
   - `war-room` SKILL + design doc: default copy ("balanced = full 3-lens panel at deep; economy = solo").
   - `schemas.md`: document the new `covenPolicy` default + a **cost note** (balanced now spawns 3 deep auditor seats
@@ -137,13 +170,17 @@ Memory: `audit-baseline-must-pin-integration-branch-not-main-checkout`, `auditor
 
 ## Phase 3 — Release & verify
 
-### Task 4: Version bump v0.7.0 + full multi-runner gate green
+### Task 4: Version bump v0.6.5 + full multi-runner gate green
 
 **Files:** the README-documented bump list.
 
-- [ ] **Step 1:** Bump to **v0.7.0** (minor — audit behavior change) across the bump list.
-- [ ] **Step 2:** Run the **full** gate (all runners, incl. the new `validate-auditor-git.test.sh`) → green.
-- [ ] **Step 3: Commit** — `git commit -am "chore(release): v0.7.0 — audit fidelity (integration-branch diff, full 3-lens panel)"`
+- [ ] **Step 1:** Bump to **v0.6.5** (patch over the stacked v0.6.4) across the COMPLETE bump list:
+  `.claude-plugin/plugin.json` `version`, `.claude-plugin/marketplace.json` `metadata.version` AND `plugins[0].version`
+  (do NOT omit — stale = silent-no-op release), README `## Status` (REPLACE-in-place; "Builds on v0.6.4" lineage ok).
+  README has no version *badge* — bump only the slots that exist.
+- [ ] **Step 2:** Run the **full** self-discovering gate (quoted node glob + ALL `*.test.sh` incl. the new
+  `validate-auditor-git.test.sh` — should be 7 suites now) → green.
+- [ ] **Step 3: Commit** — `git commit -am "chore(release): v0.6.5 — audit fidelity (integration-branch diff, full 3-lens panel)"`
 
 ---
 
@@ -161,11 +198,13 @@ Memory: `audit-baseline-must-pin-integration-branch-not-main-checkout`, `auditor
 - **Three-dot diff** (`A...B` = merge-base..B) per F03 open-decision #1.
 - **Ordering:** depends on Plan 2's F07 drift guard (extended here) and composes with Plan 1's F04 auditPrompt reword.
 
-## Open decisions (for `/red-team`)
+## Open decisions — RESOLVED by `/red-team` (2026-06-25, `--afk` autonomous adjudication)
 
-1. **Auditor Bash-guard robustness** — the read-only-git allowlist must reject every chaining/redirect/substitution
-   path (`;`, `|`, `&`, `>`, backtick, `$()`). Confirm the guard is fail-closed against creative bypasses (e.g.
-   `git diff --output=…`, `git -c core.pager=… log`, aliases). (Recommend: deny any `git -c`/`--output`/`-o`/pager
-   option too.)
-2. **`deep`-always cost** — confirm acceptable for `balanced`, or add a budget guardrail / louder `economy` nudge.
-3. **Release granularity** confirmed per-plan (v0.7.0).
+1. **Auditor Bash-guard robustness → fail-closed CHARACTER ALLOWLIST.** The guard permits ONLY `[A-Za-z0-9 ./_=:,@^-]`
+   and denies on the first char outside it — structurally rejecting every chaining/redirect/substitution path
+   (`; | & > < ` `$()` backtick newline). It also denies global `-c`, `--output`/`-o`, and global pager controls
+   (leading `-p`, `--paginate`, `--no-pager`, `--pager=`) — but NOT the subcommand-local `-p` (cat-file/show/log
+   patch view, read-only). Proven against the bypass set by the red-team's 47-case bash-3.2 prototype (all pass).
+2. **`deep`-always cost → accept for `balanced`.** Maximum rigor on the happy path is the intent; `economy` (solo,
+   neighbors) is the documented cost-sensitive escape. schemas.md carries the cost note. No extra guardrail.
+3. **Release granularity → v0.6.5, standalone** (patch over the stacked v0.6.4; the final plan in the series).

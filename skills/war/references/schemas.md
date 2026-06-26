@@ -37,7 +37,7 @@ A task reaches the refiner with exactly one terminal **outcome**. Two are produc
   verdict: "approve" | "request_changes" | "escalate",
   findings: [ { severity: "Critical"|"Major"|"Minor"|"Nit",
                 title, file, line?, rationale, suggested_fix?, plan_ref? } ],
-  tests_verified: { exist: true, pass: true },   // anti-cheat
+  tests_verified: { exist: true },                // anti-cheat: existence + integrity verified (not executed — the refiner runs the gate)
   confidence: "high" | "medium" | "low",          // low → widen to coven
   escalate_reason?: "present iff verdict==escalate — the plan is wrong/underspecified" }
 ```
@@ -82,7 +82,7 @@ A task reaches the refiner with exactly one terminal **outcome**. Two are produc
   learnings: [ { title, why } ],
   memory_index_updated: true }   // true if MEMORY.md (or docs/learnings index) was updated
 ```
-The servitor writes ONLY under `learningsTarget` (the worktree-scope hook keys on its `agent_type` and confines it to the learnings path-pattern `*/.claude/projects/*/memory/*` or `*/docs/learnings/*`, [ADR 0002](../../../docs/adr/0002-scope-by-agent-type.md)); it never touches source, branches, PRs, or issues.
+The servitor writes ONLY under `learningsTarget` (confinement is the capability allowlist — no Bash, only Read/Grep/Glob/Write/Edit — so its sole write path is Write/Edit; the PreToolUse scope hook then gates those by `agent_type` to the learnings path-pattern `*/.claude/projects/*/memory/*` or `*/docs/learnings/*`, [ADR 0002](../../../docs/adr/0002-scope-by-agent-type.md)); it never touches source, branches, PRs, or issues.
 
 ## ScoutResult — `war-setup-scout` (once, before provisioning)
 The read-only, Explore-class setup-scout (`agents/war-setup-scout.md`) reads the **target repo's own** setup signals and derives an ordered provisioning command list. It returns **only**:
@@ -110,10 +110,19 @@ Produced by `/war-room`, consumed by `/war`'s Setup. The schema, defaults, prese
   audit: {
     covenSize,                               // integer >= 1 — seats when a coven convenes
     lenses: ["correctness","cascading-impact","plan-faithfulness"],
-    covenPolicy: "auto" | "all" | "solo",    // seeds per-task coven flags at the decompose gate
+    covenPolicy: "all" | "auto" | "solo",    // seeds per-task coven flags at the decompose gate; default: "all" (full 3-lens panel at deep on every task — F06)
     autoEscalate: true },                    // 1->coven on a Critical/low-confidence lone seat; set false (with covenPolicy:"solo") to pin one auditor
+// COST NOTE (F06): the default covenPolicy:"all" spawns 3 deep auditor seats per task on the happy path
+// (correctness + cascading-impact + plan-faithfulness, unanimous, at deep depth). Budget accordingly.
+// Use covenPolicy:"solo" (economy preset) for cost-sensitive runs — one seat at neighbors depth.
   run: { roundLimit, afk },                  // roundLimit >= 1; afk = default for /war --afk
   overrides: { gate, workingBranch, landingBranch, learningsTarget } }  // null = let /war auto-detect
+// overrides.gate is the *declared base* command (string|null); the *resolved* gate run by agents
+// is a self-discovering string produced by war-config.mjs resolveGate(declaredGate): it appends
+// a find-based bash-suite discovery loop so every *.test.sh is found and run on each invocation.
+// resolveGate STILL appends discovery even when overrides.gate is non-null — you cannot accidentally
+// skip bash suites by pinning a gate override (F12 open decision #2).  "No string[]" — self-discovery
+// supersedes a static list; re-detection is automatic on every gate invocation.
 ```
 These reach the per-phase Workflow as `args.agents`, `args.audit`, `args.run` (the Lead threads them in after resolving the file); `overrides` are applied by the Lead during Setup. See [`../assets/workflow-template.js`](../assets/workflow-template.js).
 
