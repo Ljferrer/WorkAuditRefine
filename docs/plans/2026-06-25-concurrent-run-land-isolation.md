@@ -82,12 +82,17 @@ Steps:
 
 `land-advance <working-ref> <new-sha>` (the caller has already produced `<new-sha>` = the `--no-ff`
 merge of integration into a detached worktree at `origin/<working>`):
-1. `git push origin <new-sha>:refs/heads/<working>` — **no `--force`**. The non-ff rejection IS the
-   atomic compare-and-swap against shared truth.
-2. **Classify** the push result: success → continue; output contains `non-fast-forward`/`[rejected]`
-   → exit with a distinct **reland** code (the loser re-merges onto the new `origin/<working>`); any
-   other failure → exit with a distinct **escalate** code (never infer success from absence of
-   `[rejected]`).
+1. `git push origin HEAD:refs/heads/<working>` — **no `--force`**, pushing a **named source**
+   (`HEAD`, which in the detached `_refinery` *is* `<new-sha>`), **not** a bare `<sha>:refs/…`
+   refspec. The non-ff rejection IS the atomic compare-and-swap against shared truth.
+   *(Red-team-verified: the bare-SHA form can intermittently report `src refspec … does not match
+   any` instead of the clean rejection — push a ref name, not a SHA.)*
+2. **Classify** the push result by the **`[rejected]`** token, which git **always** emits on a non-ff
+   rejection (`! [rejected] … (fetch first)`): present → exit with a distinct **reland** code (the
+   loser re-merges onto the new `origin/<working>`); clean success → continue; any other non-zero →
+   distinct **escalate** code. **Do not key on the literal `non-fast-forward`** — red-team proved it
+   is *not* emitted for this push form; `[rejected]` is the reliable token. Never infer success from
+   the absence of `[rejected]` — require a clean exit 0.
 3. **Only on push success**, advance the local follower:
    `git update-ref refs/heads/<working> <new-sha> <pre-push-local-tip>`.
 
@@ -114,7 +119,10 @@ Steps:
 The existing `teardown-phase` `awk` filter matches only `refs/heads/war/<slug>/p<N>-*`; it **cannot
 see** `_refinery` (on `integration/<slug>/phase-N`, or **detached** after the land → no `branch`
 porcelain line). Add, **before** the integration `delete_branch`:
-- Reap `<worktreeRoot>/<runId>/_refinery` **by path**, run-scoped via its **own** `path_under` check.
+- Reap `<worktreeRoot>/<runId>/_refinery` **by path** — `git worktree remove --force <path>` then
+  `git worktree prune` (branch-agnostic; red-team-verified to reap both the on-integration *and* the
+  detached worktree, neither of which a branch porcelain line can select) — run-scoped via its
+  **own** `path_under` check.
   **Root note (§9):** `_refinery` lives under `worktreeRoot`, which is `.claude/worktrees` — a
   *sibling* of `--run-dir` (`.claude/teams/<runId>`), so the reap is scoped to
   `<worktreeRoot>/<runId>`, **not** blindly to `--run-dir`. Take the worktree-root as an explicit
