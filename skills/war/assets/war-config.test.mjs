@@ -827,6 +827,40 @@ test('meta-guard(F07): all Keep-in-sync/Mirror-of markers in workflow-template.j
     `Unaccounted markers:\n` +
     unaccounted.map(m => `  line ${m.lineNum}: ${m.line}`).join('\n')
   )
+
+  // Second half of the meta-guard: verify that every drift test NAME registered in
+  // LOGIC_MIRROR_REGISTRY's VALUES actually EXISTS in this test file.
+  //
+  // Without this, the registry values are decorative — deleting a drift test while
+  // leaving the template marker + registry entry intact would keep the first assertion
+  // green (marker is classified) while the behavioral coverage is silently gone.
+  //
+  // Strategy: read this test file's own source and check each registered name string
+  // appears as a literal `test('<name>` or `test("<name>` substring.
+  const thisFileText = readFileSync(fileURLToPath(import.meta.url), 'utf8')
+
+  const missingDriftTests = []
+  for (const [key, testNames] of LOGIC_MIRROR_REGISTRY) {
+    for (const testName of testNames) {
+      // A test definition looks like: test('drift-guard(F07): inline spawnOpts...')
+      // We check for test('<testName> (starts-with match, robust to varying suffixes).
+      const singleQuote = `test('${testName}`
+      const doubleQuote = `test("${testName}`
+      if (!thisFileText.includes(singleQuote) && !thisFileText.includes(doubleQuote)) {
+        missingDriftTests.push({ key, testName })
+      }
+    }
+  }
+
+  assert.deepEqual(
+    missingDriftTests,
+    [],
+    `LOGIC_MIRROR_REGISTRY references drift-test names that do not exist in this test file.\n` +
+    `A registered test name must appear as a literal test('<name>...) definition.\n` +
+    `Deleting a drift test without removing it from LOGIC_MIRROR_REGISTRY is not allowed.\n` +
+    `Missing drift tests:\n` +
+    missingDriftTests.map(m => `  registry key "${m.key}" → test name "${m.testName}"`).join('\n')
+  )
 })
 
 test('meta-guard(F07): sanity — currently exactly 4 Keep-in-sync/Mirror-of markers exist (lines 69, 93, 367, 368)', () => {
