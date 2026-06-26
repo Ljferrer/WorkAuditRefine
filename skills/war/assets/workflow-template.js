@@ -88,7 +88,12 @@ const ownedFile = A.ownedFile                    // run ledger of owned refs (--
 //  lands with the teardown call, not this Provision barrier — left on `A` for the future seam.)
 const taskBranch = t => t.branch || (planSlug ? `war/${planSlug}/p${ph.id}-${t.id}` : t.branch)
 const taskWorktree = t => t.worktree || ((worktreeRoot && runId) ? `${worktreeRoot}/${runId}/${t.id}` : t.worktree)
-for (const t of (tasks || [])) { t.branch = taskBranch(t); t.worktree = taskWorktree(t) }
+for (const t of (tasks || [])) {
+  t.branch = taskBranch(t); t.worktree = taskWorktree(t)
+  if (!t.branch || !t.worktree) {
+    throw new Error(`task ${t.id}: cannot derive branch/worktree — supply planSlug+runId+worktreeRoot or explicit branch/worktree`)
+  }
+}
 // Per-role spawn opts: model always; effort only when non-default (omit = inherit session).
 // Mirror of war-config.mjs spawnOpts/covenSeats — the Workflow sandbox can't import. Keep in sync.
 const ROLE_MODEL = { worker: 'sonnet', auditor: 'opus', refiner: 'sonnet', servitor: 'sonnet' }
@@ -208,14 +213,14 @@ if (tasks.length) {
   const SCRIPT = '${CLAUDE_PLUGIN_ROOT}/skills/war/assets/provision-worktrees.sh'
   const owned = ownedFile ? ` --owned-file ${ownedFile}` : ''
   const ensures = tasks.map(t =>
-    `   provision-worktrees.sh ensure-worktree ${t.worktree} ${t.branch} <integration-tip>`).join('\n')
+    `   provision-worktrees.sh ensure-worktree ${t.worktree} ${t.branch} "$TIP"`).join('\n')
   await agent(
     `Provision the worktree topology for WAR phase ${ph.id} "${ph.title}" by running ${SCRIPT}. `
     + `Do NOT free-author git; only run these subcommands, fail loud on any non-zero exit (a foreign integration branch exits 3), and report a MergeResult.\n`
     + `1. FROM THE MAIN CHECKOUT (${mainCheckout || 'the main repo checkout — your current working directory'}, NOT a task worktree): `
     + `provision-worktrees.sh ensure-exclude — this excludes \`.claude/\` in the parent checkout so the nested task worktrees do not surface as untracked there (probe E2).\n`
     + `2. provision-worktrees.sh ensure-integration ${planSlug || '<plan-slug>'} ${ph.id} ${ph.workingBranch}${owned} — reuse the plan-namespaced integration branch ${ph.integrationBranch} if it is already ours (the --owned-file ledger), else cut it at ${ph.workingBranch}.\n`
-    + `3. Capture the resulting integration tip (\`git rev-parse ${ph.integrationBranch}\`), then for EACH task run ensure-worktree at the integration tip (idempotent; reuse if present, conservative heal if the dir went missing):\n${ensures}\n`
+    + `3. Capture the resulting integration tip (TIP="$(git rev-parse ${ph.integrationBranch})"), then for EACH task run ensure-worktree at the integration tip captured in step 3 (idempotent; reuse if present, conservative heal if the dir went missing):\n${ensures}\n`
     + `Each ensure-worktree creates the worktree on its plan-namespaced branch off the integration tip and drops a .war-task marker. After this barrier every task worktree exists and the workers can run.\n`
     + `4. provision-worktrees.sh ensure-refinery-worktree ${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/_refinery ${ph.integrationBranch} — create (or re-attach) the Refinery's dedicated worktree on the integration branch. The Refinery performs every merge in this run-scoped worktree, never the Lead's main checkout.`,
     { agentType: NS + 'war-refiner', phase: 'Provision', label: `provision:phase-${ph.id}`, schema: MERGE_RESULT, ...spawn('refiner') })
@@ -304,7 +309,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       const mr = await agent(
         `Merge WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
         + `IMPORTANT — merge-task is split across two worktrees (spec §5.2, red-team-verified):\n`
-        + `  (a) REBASE in the TASK worktree: git -C ${r.task.worktree} rebase <integration-tip>. `
+        + `  (a) REBASE in the TASK worktree: git -C ${r.task.worktree} rebase ${ph.integrationBranch}. `
         + `CRITICAL: cannot rebase in ${refineryPath} — the task branch is checked out in ${r.task.worktree} and git rebase is refused on a branch checked out in another worktree. `
         + `rebase --onto does NOT dodge this constraint — it is equally refused.\n`
         + `  (b) MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), then git merge ${r.task.branch} (fast-forward merge of the now-rebased task branch into the integration branch). Push.\n`

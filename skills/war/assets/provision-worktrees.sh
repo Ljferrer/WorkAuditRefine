@@ -96,16 +96,6 @@ worktree_registered() {
   '
 }
 
-# branch_ahead_of <branch> <tip> -> 0 if <branch> has commits NOT reachable from
-# <tip> (i.e. carries un-merged work). Used to reason about conservative heal.
-# NOTE: even when true, recreating a worktree never loses those commits — they
-# live in the branch ref, which `git worktree prune`/`remove` never touches.
-branch_ahead_of() {
-  branch_exists "$1" || return 1
-  c="$(git rev-list --count "$2..$1" 2>/dev/null || echo 0)"
-  [ "${c:-0}" -gt 0 ]
-}
-
 # write_marker <worktree-path> : drop the .war-task marker at the worktree root.
 # Idempotent; records minimal provenance for humans/auditors reading it.
 write_marker() {
@@ -192,8 +182,13 @@ cmd_ensure_integration() {
   fi
 
   # Absent -> create from the supplied base, then record ownership.
-  git branch "$branch" "$base" >/dev/null 2>&1 \
-    || die "failed to create branch '$branch' at base '$base'"
+  # Capture stderr so a bad base ref surfaces git's own diagnostic in the die message.
+  # Redirect stderr to stdout in the subshell, discard stdout (the 2>&1 >/dev/null
+  # order: redirect stderr→fd1 first, then fd1→/dev/null doesn't affect stderr).
+  _tmp_err="$(mktemp 2>/dev/null || mktemp -t warbranch)"
+  git branch "$branch" "$base" >/dev/null 2>"$_tmp_err" \
+    || { _git_branch_err="$(cat "$_tmp_err")"; rm -f "$_tmp_err"; die "failed to create branch '$branch' at base '$base': $_git_branch_err"; }
+  rm -f "$_tmp_err"
   record_owned_file "$owned_file" "$branch"
   printf '%s\n' "$branch"
 }
@@ -203,6 +198,7 @@ cmd_ensure_integration() {
 # nested worktree under .claude/ does not surface as untracked in the parent
 # repo's `git status` (probe E2).
 cmd_ensure_exclude() {
+  [ $# -eq 0 ] || die "ensure-exclude: unknown argument '$1' (usage: ensure-exclude  takes no arguments)"
   gd="$(git_dir)"
   info_dir="$gd/info"
   excl="$info_dir/exclude"
@@ -229,15 +225,22 @@ dir_is_empty() {
 # --- subcommand: ensure-worktree -------------------------------------------
 # ensure-worktree <path> <branch> <integration-tip>
 #
-# Idempotent "ensure" with conservative heal (D4/D7):
+# Idempotent "ensure" with conservative heal (D4/D7). The real guard is
+# NEVER-RESET-ON-REUSE: we never destroy a worktree whose branch carries
+# un-merged commits. Safety does NOT rely on a "branch is ahead?" pre-check —
+# it is enforced structurally by never resetting or recreating a registered,
+# present worktree. The heal cases are:
 #   * Already a registered worktree, dir present  -> REUSE untouched (only make
-#     sure the .war-task marker is there). Never reset <branch>; an un-merged
-#     commit on it survives.
-#   * Registered but the dir is gone (stale registry) -> prune + recreate on the
-#     existing <branch>. Its commits live in the ref, so nothing is lost.
+#     sure the .war-task marker is there). Never reset <branch>; un-merged
+#     commits survive because we never touch them.
+#   * Registered but the dir is gone (stale registry) -> prune + recreate on
+#     the existing <branch>. Commits live in the ref (never deleted by prune/
+#     remove), so nothing is lost. Only safe because the dir is gone — there is
+#     nothing to destroy.
 #   * Not registered, no dir            -> create fresh on the integration tip.
-#   * Not registered, empty dir         -> create fresh into it.
-#   * Not registered, NON-EMPTY dir     -> FAIL LOUD; never delete it.
+#   * Not registered, empty dir         -> rmdir + create fresh (no data at risk).
+#   * Not registered, NON-EMPTY dir     -> FAIL LOUD; never delete unmanaged data
+#     (D7).
 cmd_ensure_worktree() {
   [ $# -ge 3 ] || die "usage: ensure-worktree <path> <branch> <integration-tip>"
   path="$1"; branch="$2"; tip="$3"
@@ -334,39 +337,59 @@ remove_worktree() {
   fi
 }
 
-# delete_branch <ref> : delete a local branch ref if it exists. Uses -D because
-# teardown is called on a branch already merged into integration (task land) or
-# on the integration branch itself after the phase merged up; the refiner only
-# tears down once the work is captured. Skips a branch that is currently checked
-# out by a still-registered worktree (caller removes the worktree first).
+# delete_branch <ref> [force=0|1] : delete a local branch ref if it exists.
+# Tries `git branch -d` (safe, refuses un-merged work) first. If the branch
+# is not fully merged and force=1, escalates to `git branch -D`. If force=0
+# (default), warn and leave the branch in place — never loses un-merged commits.
+# Skips a branch that is currently checked out (caller removes the worktree first).
 delete_branch() {
-  ref="$1"
+  ref="$1"; force="${2:-0}"
   branch_exists "$ref" || return 0
-  git branch -D "$ref" >/dev/null 2>&1 \
-    || warn "could not delete branch '$ref' (still checked out?); leaving it in place."
+  # Try safe delete first.
+  _del_err="$(git branch -d "$ref" 2>&1 >/dev/null)" && return 0
+  # Branch not deleted. If the error is "not fully merged" and force is set,
+  # escalate to -D (force-delete, knowingly discards un-merged work on caller's
+  # behalf). Otherwise warn and leave it — no data loss.
+  if printf '%s' "$_del_err" | grep -qi 'not fully merged\|is not fully merged'; then
+    if [ "${force:-0}" -eq 1 ]; then
+      git branch -D "$ref" >/dev/null 2>&1 \
+        || warn "could not force-delete branch '$ref' (still checked out?); leaving it in place."
+    else
+      warn "branch '$ref' is not fully merged; leaving it in place (pass --force to delete anyway)."
+    fi
+  else
+    # Other error (e.g. still checked out).
+    warn "could not delete branch '$ref' (still checked out?); leaving it in place."
+  fi
 }
 
 # --- subcommand: teardown-task ---------------------------------------------
-# teardown-task [--keep] --run-dir <ledger-dir> <path> <branch>
+# teardown-task [--keep] [--owned-file PATH] --run-dir <ledger-dir> <path> <branch>
 #
 # Normal task land: remove the worktree at <path> and delete the (merged)
 # <branch>. With --keep (escalation/block), leave BOTH intact for inspection.
 # Strictly run-scoped: <path> must live inside --run-dir or we fail loud.
+# Ownership-gated (F09): if --owned-file is supplied and the branch is NOT
+# recorded in the ledger, refuse (exit 3). If --owned-file is absent (ledger-
+# less) while the branch exists, also refuse (exit 3, fail-closed).
 cmd_teardown_task() {
-  keep=0; run_dir=""
-  args=""
+  keep=0; force=0; run_dir=""; owned_file=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --keep)        keep=1; shift ;;
+      --force)       force=1; shift ;;
       --run-dir)
         [ $# -ge 2 ] || die "--run-dir requires a path"
         run_dir="$2"; shift 2 ;;
+      --owned-file)
+        [ $# -ge 2 ] || die "--owned-file requires a path"
+        owned_file="$2"; shift 2 ;;
       --) shift; break ;;
       -*) die "teardown-task: unknown flag '$1'" ;;
       *)  break ;;
     esac
   done
-  [ $# -ge 2 ] || die "usage: teardown-task [--keep] --run-dir <ledger-dir> <path> <branch>"
+  [ $# -ge 2 ] || die "usage: teardown-task [--keep] [--force] [--owned-file PATH] --run-dir <ledger-dir> <path> <branch>"
   path="$1"; branch="$2"
   [ -n "$path" ]   || die "teardown-task: empty <path>"
   [ -n "$branch" ] || die "teardown-task: empty <branch>"
@@ -382,13 +405,25 @@ cmd_teardown_task() {
     return 0
   fi
 
+  # Ownership gate (F09): verify the branch is ours before any deletion.
+  # Fail-closed: no --owned-file (ledger-less) while the branch exists → exit 3.
+  if branch_exists "$branch"; then
+    if [ -z "$owned_file" ]; then
+      die "teardown-task: no --owned-file ledger supplied but branch '$branch' exists — refusing to tear down without ownership proof. Supply --owned-file, or record the branch as owned (record-as-owned), or delete it manually." 3
+    fi
+    load_owned_file "$owned_file"
+    if ! owned_has "$branch"; then
+      die "teardown-task: branch '$branch' is not recorded in the owned-file ledger '$owned_file' — refusing to tear down a foreign or unrecorded ref (F09). Record it as owned or delete it manually." 3
+    fi
+  fi
+
   remove_worktree "$path"
-  delete_branch "$branch"
+  delete_branch "$branch" "$force"
 }
 
 # --- subcommand: teardown-phase --------------------------------------------
-# teardown-phase [--keep] --run-dir <ledger-dir> [--worktree-root <wt-root>]
-#                <slug> <N>
+# teardown-phase [--keep] [--owned-file PATH] --run-dir <ledger-dir>
+#                [--worktree-root <wt-root>] <slug> <N>
 #
 # Phase land: reap the _refinery (if --worktree-root supplied), remove any
 # remaining phase worktrees, then delete the integration branch
@@ -399,6 +434,11 @@ cmd_teardown_task() {
 # _refinery). A sibling worktree of a different run-id is never touched.
 # We identify "phase worktrees" as registered worktrees of this repo that live
 # under --run-dir AND are checked out on a war/<slug>/p<N>-* branch.
+#
+# --owned-file PATH: the run's owned-ref ledger. The integration branch
+#   integration/<slug>/phase-<N> must be recorded in this ledger before
+#   teardown proceeds. Fail-closed: absent/empty ledger while the branch
+#   exists → exit 3 with a recovery hint (F09).
 #
 # --worktree-root <wt-root>: the root under which _refinery lives, i.e.
 #   <wt-root>/<runId>/_refinery where <runId> = basename(--run-dir). The reap
@@ -417,22 +457,28 @@ cmd_teardown_task() {
 cmd_teardown_phase() {
   run_dir=""
   worktree_root=""
+  owned_file=""
   keep=0
+  force=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --keep)          keep=1; shift ;;
+      --force)         force=1; shift ;;
       --run-dir)
         [ $# -ge 2 ] || die "--run-dir requires a path"
         run_dir="$2"; shift 2 ;;
       --worktree-root)
         [ $# -ge 2 ] || die "--worktree-root requires a path"
         worktree_root="$2"; shift 2 ;;
+      --owned-file)
+        [ $# -ge 2 ] || die "--owned-file requires a path"
+        owned_file="$2"; shift 2 ;;
       --) shift; break ;;
       -*) die "teardown-phase: unknown flag '$1'" ;;
       *)  break ;;
     esac
   done
-  [ $# -ge 2 ] || die "usage: teardown-phase [--keep] --run-dir <ledger-dir> [--worktree-root <wt-root>] <slug> <N>"
+  [ $# -ge 2 ] || die "usage: teardown-phase [--keep] [--force] [--owned-file PATH] --run-dir <ledger-dir> [--worktree-root <wt-root>] <slug> <N>"
   slug="$1"; num="$2"
   [ -n "$slug" ] || die "teardown-phase: empty <slug>"
   case "$num" in
@@ -447,6 +493,20 @@ cmd_teardown_phase() {
   if [ "$keep" -eq 1 ]; then
     warn "keep-on-escalation: leaving _refinery and integration branch 'integration/$slug/phase-$num' intact for inspection."
     return 0
+  fi
+
+  # Ownership gate (F09): verify the integration branch is ours before any
+  # deletion. Fail-closed: no --owned-file (ledger-less) while the branch
+  # exists → exit 3.
+  int_branch_check="integration/$slug/phase-$num"
+  if branch_exists "$int_branch_check"; then
+    if [ -z "$owned_file" ]; then
+      die "teardown-phase: no --owned-file ledger supplied but integration branch '$int_branch_check' exists — refusing to tear down without ownership proof. Supply --owned-file, or record the branch as owned, or delete it manually." 3
+    fi
+    load_owned_file "$owned_file"
+    if ! owned_has "$int_branch_check"; then
+      die "teardown-phase: integration branch '$int_branch_check' is not recorded in the owned-file ledger '$owned_file' — refusing to tear down a foreign or unrecorded integration branch (F09). Record it as owned or delete it manually." 3
+    fi
   fi
 
   rd_phys="$(phys "$run_dir")"; rd_phys="${rd_phys%/}"

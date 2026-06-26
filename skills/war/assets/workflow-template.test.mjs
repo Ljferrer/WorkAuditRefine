@@ -995,3 +995,124 @@ test('Task 4 — MERGE_RESULT schema already permits gate_output (no schema chan
     }
   }
 })
+
+// ---------------------------------------------------------------------------
+// Task 4 (F10): integration-tip placeholder resolution — global guard
+// Both the Provision-prompt per-task ensure-worktree line AND the refine-loop
+// rebase instruction must resolve to concrete refs; no bare <integration-tip>
+// must appear anywhere in the emitted template text.
+// ---------------------------------------------------------------------------
+
+test('F10 — global guard: no bare <integration-tip> appears anywhere in the emitted template (both occurrences)', async () => {
+  // This test covers BOTH locations:
+  //   (1) Provision-prompt per-task ensure-worktree line (~line 211)
+  //   (2) refine-loop rebase instruction (~line 307)
+  // The entire set of emitted prompts (all agent calls) must be free of the literal <integration-tip>.
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const allPromptText = calls.map(c => c.prompt).join('\n')
+  assert.ok(!allPromptText.includes('<integration-tip>'),
+    'no bare <integration-tip> must appear in any emitted prompt (covers both Provision and refine-loop)')
+})
+
+test('F10 — Provision prompt step 3: emits TIP capture command and per-task ensure-worktree uses "$TIP"', async () => {
+  // Step 3 of the Provision prompt must:
+  //   (a) emit a TIP capture: TIP="$(git rev-parse <integrationBranch>)"
+  //   (b) each per-task ensure-worktree line references "$TIP" (not <integration-tip>)
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const prov = calls.find(isProvision)
+  assert.ok(prov, 'a Provision barrier is dispatched')
+  const p = prov.prompt
+  // Step 3 must instruct capturing TIP via git rev-parse of the integrationBranch
+  assert.match(p, /TIP\s*=\s*["`'$\(].*git\s+rev-parse/,
+    'Provision step 3 emits TIP="$(git rev-parse <integrationBranch>)" capture')
+  // The per-task ensure-worktree lines must reference "$TIP", not a bare placeholder
+  assert.ok(p.includes('"$TIP"'),
+    'per-task ensure-worktree lines reference "$TIP" (not a bare <integration-tip>)')
+  // Still must NOT contain the bare placeholder
+  assert.ok(!p.includes('<integration-tip>'),
+    'Provision prompt must NOT contain bare <integration-tip>')
+})
+
+test('F10 — refine-loop rebase instruction: uses concrete integrationBranch ref, not <integration-tip>', async () => {
+  // The merge-task (Refine) prompt's rebase instruction must reference ph.integrationBranch
+  // directly (a concrete ref like integration/wtprov-a/phase-3), not the bare <integration-tip>.
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const merge = calls.find(isMergeTask)
+  assert.ok(merge, 'a merge-task (Refine) refiner seat is dispatched')
+  const p = merge.prompt
+  // Must NOT contain the bare placeholder
+  assert.ok(!p.includes('<integration-tip>'),
+    'merge-task (Refine) prompt must NOT contain bare <integration-tip> — use ph.integrationBranch')
+  // Must contain the concrete integration branch ref (from PROVISION_ARGS)
+  assert.ok(p.includes('integration/wtprov-a/phase-3'),
+    'merge-task (Refine) rebase instruction must reference the concrete integrationBranch ref')
+})
+
+// ---------------------------------------------------------------------------
+// Task 5 (#71): throw on undefined branch/worktree derivation
+// A task with neither explicit branch/worktree nor the derivation args
+// (planSlug/runId/worktreeRoot) must cause the template to THROW with a clear
+// message naming the task, instead of silently interpolating "undefined".
+// ---------------------------------------------------------------------------
+
+test('#71 — task missing branch/worktree AND derivation args throws with a clear message', async () => {
+  // Build args where planSlug/runId/worktreeRoot are ALL absent and the task has neither
+  // explicit branch nor explicit worktree. The template must throw before any agent runs.
+  const badArgs = {
+    phase: { id: 1, title: 'P1', integrationBranch: 'integration/x/phase-1', workingBranch: 'dev/x' },
+    plan: { file: 'docs/plans/x.md', gate: 'true' },
+    // No planSlug, no runId, no worktreeRoot — derivation is impossible
+    tasks: [
+      { id: 'tX', issue: 99, title: 'Missing derivation args', planSlice: 'slice X', lenses: ['correctness'] },
+      // No explicit branch, no explicit worktree
+    ],
+    learningsTarget: null,
+  }
+  const fn = build()
+  const agentNeverCalled = async () => { throw new Error('agent must not be called when derivation fails') }
+  await assert.rejects(
+    () => fn(agentNeverCalled, fakeParallel, async () => [], () => {}, () => {}, badArgs, { total: null }),
+    (err) => {
+      // Must be an Error (not just a rejection)
+      assert.ok(err instanceof Error, 'thrown value is an Error')
+      // Must name the task id in the message
+      assert.ok(err.message.includes('tX'), `error message must name the task id "tX"; got: "${err.message}"`)
+      // Must mention branch/worktree derivation
+      assert.match(err.message, /branch|worktree/i,
+        `error message must mention branch or worktree; got: "${err.message}"`)
+      // Must mention how to fix (supply planSlug/runId/worktreeRoot or explicit branch/worktree)
+      assert.match(err.message, /planSlug|explicit branch|explicit worktree|supply/i,
+        `error message must hint at the fix; got: "${err.message}"`)
+      return true
+    },
+    'template must throw when a task has neither explicit branch/worktree nor derivation args'
+  )
+})
+
+test('#71 — task with explicit branch AND worktree does NOT throw (carry-forward)', async () => {
+  // A task that already has explicit branch + worktree must work fine even without derivation args.
+  const explicitArgs = {
+    phase: { id: 1, title: 'P1', integrationBranch: 'integration/x/phase-1', workingBranch: 'dev/x' },
+    plan: { file: 'docs/plans/x.md', gate: 'true' },
+    // No planSlug, no runId, no worktreeRoot — but the task has explicit paths
+    tasks: [
+      { id: 'tY', issue: 100, title: 'Explicit paths', planSlice: 'slice Y', lenses: ['correctness'],
+        branch: 'war/x/p1-tY', worktree: '/abs/repo/.claude/worktrees/run-abc/tY' },
+    ],
+    learningsTarget: null,
+  }
+  // Must not throw — explicit branch/worktree satisfies the assertion.
+  await assert.doesNotReject(
+    () => runPhase(explicitArgs, defaultImpl),
+    'template must NOT throw when the task has explicit branch and worktree'
+  )
+})
+
+test('#71 — task with only planSlug+runId+worktreeRoot (no explicit) does NOT throw (derivation succeeds)', async () => {
+  // PROVISION_ARGS already supplies planSlug/runId/worktreeRoot; tasks have no explicit branch/worktree.
+  // The derivation fills them in → no throw.
+  await assert.doesNotReject(
+    () => runPhase(PROVISION_ARGS(), defaultImpl),
+    'template must NOT throw when derivation args are present (planSlug+runId+worktreeRoot)'
+  )
+})

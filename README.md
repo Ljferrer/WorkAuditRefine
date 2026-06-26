@@ -152,7 +152,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.6.2** — verification-layer integrity: self-discovering multi-runner gate (F12 — `resolveGate()` appends bash-suite discovery to any declared gate, so new `*.test.sh` suites are never silently orphaned); behavioral drift guards for inline mirrors of `spawnOpts`, `covenSeats`, and `decideLand` (F07 — any mirror/source divergence now fails the gate). Builds on v0.6.1 audit/scheduler integrity.
+**0.6.3** — provisioning lifecycle hardening: removed dead `branch_ahead_of` helper (F08); teardown and resume now verify the `--owned-file` ownership ledger, fail-closed on foreign refs (F09); teardown merged-guard uses `git branch -d` (safe) with `--force` escape hatch (#69); `<integration-tip>` placeholder resolved to a captured shell variable in Provision prompt and to `${ph.integrationBranch}` in the refine-loop rebase instruction (F10); template now throws on undefined `branch`/`worktree` derivation instead of interpolating literal `"undefined"` (#71). Builds on v0.6.2 verification-layer integrity.
 
 ## License
 
