@@ -23,7 +23,7 @@ merge-task is **inherently split across two worktrees** — the task branch stay
 1. `git -C <taskWorktree> fetch`. Rebase the task branch onto the current integration tip: `git -C <taskWorktree> rebase <integration-tip>`. On conflict → return `status: "conflict"` with the conflicting files. Do NOT force-resolve blindly.
 2. Run the gate command (in `<taskWorktree>`).
 3. If the gate fails → return `status: "gate_failed"` with the failing output (the script routes a FIX_NEEDED back to a fresh fix-worker that works in the task worktree exactly as today — unchanged).
-4. In `_refinery` (on the integration branch): `git -C <_refinery> merge <task-branch>` (no force), `git -C <_refinery> push`, and return `status: "merged"` with the new integration SHA.
+4. In `_refinery` (on the integration branch): `git -C <_refinery> merge <task-branch>` (no force), `git -C <_refinery> push`, and return `status: "merged"` with the new integration SHA. **Populate `gate_output`** with the full stdout+stderr of the gate run from step 2 — the post-merge gate-audit pass uses this as execution evidence to verify the mapped tests actually ran.
 
 The merge's working-tree writes land only in `_refinery`. The task worktree is left clean so fix-in-place still works.
 

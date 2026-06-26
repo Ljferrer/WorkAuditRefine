@@ -100,6 +100,7 @@ const spawn = role => {
 const done = new Set()
 const succeeded = new Set()
 const landed = [], escalated = [], minorsFiled = [], auditLog = []
+const mergedTasksForGateAudit = []   // collect {taskId, gateOutput, acceptanceCriteria} for post-merge gate-audit pass (F04 R3)
 
 // --- Repo-derived provisioning (Part B) ------------------------------------
 // provisionStep runs the pinned run.provision list, IN ORDER, inside one task worktree — a refiner
@@ -143,14 +144,17 @@ const allApprove = (seats, expected) => seats.length === expected && seats.every
 const isSplit    = seats => seats.some(s => s.verdict === 'approve') && seats.some(s => s.verdict === 'request_changes')
 const nextWave   = () => tasks.filter(t => !done.has(t.id) && (t.deps || []).every(d => succeeded.has(d)))
 
-function auditPrompt(task, lens, depth, peers) {
+function auditPrompt(task, lens, depth, peers, workerTests) {
   let p = `Audit WAR task ${task.id} through the "${lens}" lens at depth ${depth}.\n`
     + `Review the diff of ${task.branch} vs ${ph.integrationBranch} (the single target). Sub-issue #${task.issue}.\n`
     + `Plan slice: ${task.planSlice}. Plan file: ${plan.file}.\n`
     + `CANDIDATE files are in the task worktree at: ${task.worktree}/\n`
     + `BASELINE files are in the main repo checkout (your current working directory / the integration base).\n`
     + `Read candidate files under ${task.worktree}/ and compare them against the corresponding baseline copies at the main repo checkout to determine what changed.\n`
-    + `Verify the mapped acceptance-criteria tests EXIST and PASS (catch "green by deletion").`
+    + `Verify the mapped acceptance-criteria tests EXIST and are not weakened or skipped (anti-cheat: catch "green by deletion" and test-integrity erosion). You cannot execute the gate — the refiner runs the gate. Your job is to confirm tests exist in the diff and are uncompromised.`
+  if (workerTests) {
+    p += `\n\nWorker-reported tests summary (cross-check claim vs diff): ${JSON.stringify(workerTests)}`
+  }
   if (peers && peers.length) {
     p += `\n\nREBUTTAL ROUND — your panel split. Re-judge in light of your peers below, then re-emit your final verdict:\n`
       + peers.map(s => `- ${s.seat} (${s.lens}) → ${s.verdict}: ${(s.findings || []).map(f => `[${f.severity}] ${f.title}`).join('; ') || 'no findings'}`).join('\n')
@@ -158,14 +162,14 @@ function auditPrompt(task, lens, depth, peers) {
   return p
 }
 
-async function auditRound(task, peers) {
+async function auditRound(task, peers, workerTests) {
   const baseLenses = task.lenses && task.lenses.length ? task.lenses : ['correctness', 'cascading-impact', 'plan-faithfulness']
   const lenses = !task.coven
     ? [baseLenses[0]]
     : Array.from({ length: audit.covenSize || baseLenses.length }, (_, i) => baseLenses[i % baseLenses.length])
   const depth = task.coven ? 'deep' : 'neighbors'
   const expected = lenses.length
-  const runLens = lens => agent(auditPrompt(task, lens, depth, peers), {
+  const runLens = lens => agent(auditPrompt(task, lens, depth, peers, workerTests), {
     agentType: NS + 'war-auditor', phase: 'Audit',
     label: `audit:${task.id}:${lens}${peers ? ':rebut' : ''}`, schema: AUDIT_VERDICT, ...spawn('auditor') })
   // Initial parallel run
@@ -257,14 +261,15 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     }
 
     let round = 0, verdict = null, seats = [], expected = 0
+    const workerTests = impl && impl.tests ? impl.tests : null
     while (round < roundLimit) {
-      ;({ seats, expected } = await auditRound(task, null))      // independent — no cross-talk
+      ;({ seats, expected } = await auditRound(task, null, workerTests))      // independent — no cross-talk
       if (seats.length < expected) { verdict = 'audit-blocked'; break }   // persistent shortfall after retries
       if (seats.some(s => s.verdict === 'escalate')) { verdict = 'escalate'; break }
       if (allApprove(seats, expected)) { verdict = 'approve'; break }
 
       if (isSplit(seats) && seats.length > 1) {                  // one rebuttal round on a split
-        ;({ seats, expected } = await auditRound(task, seats))
+        ;({ seats, expected } = await auditRound(task, seats, workerTests))
         if (seats.length < expected) { verdict = 'audit-blocked'; break } // persistent shortfall after retries
         if (seats.some(s => s.verdict === 'escalate')) { verdict = 'escalate'; break }
         if (allApprove(seats, expected)) { verdict = 'approve'; break }
@@ -303,9 +308,13 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + `CRITICAL: cannot rebase in ${refineryPath} — the task branch is checked out in ${r.task.worktree} and git rebase is refused on a branch checked out in another worktree. `
         + `rebase --onto does NOT dodge this constraint — it is equally refused.\n`
         + `  (b) MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), then git merge ${r.task.branch} (fast-forward merge of the now-rebased task branch into the integration branch). Push.\n`
-        + `Run the gate (${plan.gate}) after the rebase in the task worktree; on gate failure return gate_failed; on conflict return conflict; never force.`,
+        + `Run the gate (${plan.gate}) after the rebase in the task worktree; on gate failure return gate_failed; on conflict return conflict; never force. `
+        + `On success, populate gate_output in the returned MergeResult with the executed gate output (stdout+stderr) so the post-merge gate-audit pass can review it as execution evidence.`,
         { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}`, schema: MERGE_RESULT, ...spawn('refiner') })
-      if (mr && mr.status === 'merged') { landed.push(r.task.id); succeeded.add(r.task.id) }
+      if (mr && mr.status === 'merged') {
+        landed.push(r.task.id); succeeded.add(r.task.id)
+        mergedTasksForGateAudit.push({ taskId: r.task.id, gateOutput: mr.gate_output, acceptanceCriteria: r.task.planSlice })
+      }
       else escalated.push({ task: r.task.id, reason: mr ? mr.status : 'merge_failed', detail: mr })
     } else if (r.verdict === 'env-blocked') {
       // Provision failure (Part B): the worker never ran and the worktree is kept. Surface the
@@ -317,6 +326,32 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       escalated.push({ task: r.task.id, reason: r.verdict, blocked: r.blocked })
     }
   }
+}
+
+// ---- POST-MERGE GATE-AUDIT PASS (F04 R3) — parallel, AFTER serial merge queue, BEFORE Land decision ----
+// A read-only war-auditor (lens: execution-evidence) reviews the executed gate output from each merged
+// task to close the "auditor can't verify PASS" gap with real execution evidence (not just integrity-by-reading).
+// Default outcome: SOFT note (does not hold the land). Hard only if a mapped test is provably unrun
+// (present in diff but absent / 0-count in gate_output) — Open decision #1 (resolved: operationally defined).
+if (mergedTasksForGateAudit.length > 0) {
+  await parallel(mergedTasksForGateAudit.map(({ taskId, gateOutput, acceptanceCriteria }) => async () => {
+    const gateAuditVerdict = await agent(
+      `POST-MERGE GATE-AUDIT for WAR task ${taskId} (lens: execution-evidence). `
+      + `You are a READ-ONLY auditor reviewing execution evidence — you cannot run commands.\n`
+      + `Review the executed gate output below and the task's mapped acceptance criteria to confirm the mapped tests actually ran and passed.\n`
+      + `Acceptance criteria / plan slice: ${acceptanceCriteria || '(see plan file)'}\n`
+      + `Executed gate output:\n${gateOutput || '(no gate output recorded)'}\n\n`
+      + `If a mapped acceptance-criterion test is present in the pre-merge diff but absent or shows a 0 count in the gate output above, record a HARD gate-evidence finding. `
+      + `Otherwise record a SOFT note (informational, does not hold the land). `
+      + `Default: SOFT. Hard only when provably unrun.`,
+      { agentType: NS + 'war-auditor', phase: 'Audit',
+        label: `gate-audit:${taskId}:execution-evidence`, schema: AUDIT_VERDICT, ...spawn('auditor') })
+    // gate-evidence findings are SOFT (do not hold the land) unless a mapped test is provably unrun (hard).
+    // Record as an audit log entry for the Lead; do NOT push to escalated (soft = no land block).
+    if (gateAuditVerdict) {
+      auditLog.push({ task: taskId, verdict: `gate-audit:${gateAuditVerdict.verdict}`, findings: gateAuditVerdict.findings || [], gateEvidence: true })
+    }
+  }))
 }
 
 // ---- LAND — only when no hard escalation is open; else hold for the Lead ----
