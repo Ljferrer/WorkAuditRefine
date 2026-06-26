@@ -11,7 +11,7 @@ Given a plan like `docs/implement/implementation_plan_A.md`, `/war` will:
 1. **Decompose** the plan into a phase → task DAG and propose it to you as GitHub issues — all phase **epics up front**, task **sub-issues just-in-time** per phase. *You approve before anything spawns.*
 2. For each phase, run a **Workflow** that:
    - **Works** — fresh worker agents implement each task in isolated git worktrees, writing the plan's mapped tests.
-   - **Audits** — independent, read-only auditor seats review each task (severity-tagged findings; Critical/Major block; unanimous on one SHA; a coven of 3 with diverse lenses for high-blast-radius tasks).
+   - **Audits** — independent, read-only auditor seats review each task (severity-tagged findings; Critical/Major block; unanimous on one SHA). By default, every task receives a full multi-lens panel: three independent, unanimous auditor seats (`correctness`, `cascading-impact`, `plan-faithfulness`) at `deep` depth.
    - **Refines** — a serial merge queue rebases, re-runs the gate (`tests/lint`), and lands approved tasks on a per-phase integration branch.
    - **Records** — after the phase lands, a write-scoped servitor captures durable learnings into memory.
 3. **Lands** each phase onto your working branch as one `--no-ff` commit, pushes, and **checks in with you**.
@@ -152,7 +152,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.6.4** — servitor confinement now real: capability allowlist (`Read, Grep, Glob, Write, Edit`) drops Bash from the servitor, making confinement airtight (F01 D1); worktree-scope hook rejects `..` traversal on both servitor and worker write paths (#58); advisory PreToolUse:Bash warn-hook for worker out-of-worktree writes, non-blocking and best-effort (F01 D4); confinement claims reworded to attribute to the allowlist, not the hook alone (F01 D2/D3); servitor memory-admission checklist — dedup-before-write, correction priority, verify-cue, index hygiene (F05). Builds on v0.6.3 provisioning lifecycle hardening.
+**0.6.5** — audit fidelity: auditor pins baseline to the integration branch via three-dot `git diff` (F03 — self-served, no refiner artifact); fail-closed read-only-git Bash guard confines the auditor's Bash capability to an explicit allowlist of read subcommands, denying writes/chaining/metacharacters; default audit is now the full 3-lens panel (`correctness`, `cascading-impact`, `plan-faithfulness`) at `deep` depth for every task on the balanced/thorough presets — the "independent, unanimous, multi-lens panel" claim in the README is now accurate (F06); `economy` preset remains solo-seat at `neighbors` for cost-sensitive runs. Builds on v0.6.4 servitor confinement hardening.
 
 ## License
 

@@ -104,7 +104,7 @@ from `/war`: war-room only writes; `/war` auto-discovers and consumes the file.
 | auditor | opus / `default` | opus / `high` | sonnet / `default` |
 | refiner | sonnet / `default` | sonnet / `default` | sonnet / `default` |
 | servitor | sonnet / `default` | sonnet / `default` | sonnet / `default` |
-| covenPolicy | `auto` | `all` | `solo` |
+| covenPolicy | `all` | `all` | `solo` |
 | covenSize | 3 | 3 | 3 |
 | autoEscalate | `true` | `true` | `true` |
 | roundLimit | 3 | 3 | 2 |

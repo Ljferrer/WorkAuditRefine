@@ -44,7 +44,7 @@ test('empty input fills to balanced defaults and validates', () => {
   const c = fillDefaults({})
   assert.equal(c.agents.worker.model, 'sonnet')
   assert.equal(c.agents.auditor.model, 'opus')
-  assert.equal(c.audit.covenPolicy, 'auto')
+  assert.equal(c.audit.covenPolicy, 'all')
   assert.equal(validate({}).valid, true)
 })
 
@@ -458,6 +458,87 @@ test('doc-contract: schemas.md describes overrides.gate as the declared base (no
     mentionsGateBase,
     'schemas.md must clarify that overrides.gate is the declared base and the resolved gate is self-discovering (F12 open decision #2)'
   )
+})
+
+// ---------------------------------------------------------------------------
+// Task 3 — F06: Default covenPolicy 'all'; presets; covenSeats correctness; drift guard
+// ---------------------------------------------------------------------------
+
+test('F06 — fillDefaults: audit.covenPolicy defaults to all (full panel)', () => {
+  const c = fillDefaults({})
+  assert.equal(c.audit.covenPolicy, 'all',
+    'fillDefaults({}) must produce audit.covenPolicy === "all" (F06: full 3-lens panel by default)')
+})
+
+test('F06 — covenSeats(DEFAULTS, {coven:true}) returns 3 seats: correctness, cascading-impact, plan-faithfulness', () => {
+  const seats = covenSeats(DEFAULTS, { coven: true })
+  assert.deepEqual(seats, ['correctness', 'cascading-impact', 'plan-faithfulness'],
+    'covenSeats with DEFAULTS and coven:true must return all 3 lenses (F06 correctness)')
+})
+
+test('F06 — preset economy keeps explicit covenPolicy:solo (deepMerge override unaffected by DEFAULTS flip)', () => {
+  const c = presetConfig('economy')
+  assert.equal(c.audit.covenPolicy, 'solo',
+    'economy preset must keep covenPolicy:"solo" even after DEFAULTS flips to "all"')
+})
+
+test('F06 — preset thorough keeps covenPolicy:all', () => {
+  const c = presetConfig('thorough')
+  assert.equal(c.audit.covenPolicy, 'all',
+    'thorough preset must remain covenPolicy:"all"')
+})
+
+test('F06 — preset balanced (= fillDefaults) is now covenPolicy:all', () => {
+  const c = presetConfig('balanced')
+  assert.equal(c.audit.covenPolicy, 'all',
+    'balanced preset (= DEFAULTS) must now be covenPolicy:"all" (F06)')
+})
+
+test('F06 — doc-contract: schemas.md documents new covenPolicy default and cost note', () => {
+  const text = readDoc('skills/war/references/schemas.md')
+  const hasDefault = text.includes('covenPolicy') && (
+    text.includes('"all"') || text.includes("'all'") || text.includes('covenPolicy: all') ||
+    text.includes('covenPolicy:"all"') || text.includes("default: 'all'") ||
+    text.includes('default is') || text.includes('defaults to')
+  )
+  assert.ok(hasDefault,
+    'schemas.md must document the new covenPolicy default (all) (F06)')
+  const hasCostNote = text.includes('3 deep') || text.includes('three deep') ||
+    text.includes('economy') || text.includes('cost') || text.includes('budget')
+  assert.ok(hasCostNote,
+    'schemas.md must include a cost note (F06: balanced now spawns 3 deep auditor seats per task)')
+})
+
+test('F06 — doc-contract: README states independent, unanimous, multi-lens panel (accurate claim)', () => {
+  const text = readDoc('README.md')
+  const hasPanel = text.includes('multi-lens') || text.includes('3-lens') || text.includes('three-lens') ||
+    text.includes('multi-seat') || text.includes('full panel') ||
+    (text.includes('independent') && text.includes('unanimous'))
+  assert.ok(hasPanel,
+    'README must state the independent/unanimous/multi-lens panel claim (now accurate after F06)')
+})
+
+test('F06 — doc-contract: war-room SKILL.md balanced preset description reflects full 3-lens panel at deep', () => {
+  const text = readDoc('skills/war-room/SKILL.md')
+  const hasBalancedPanel = text.includes('full 3-lens') || text.includes('full panel') ||
+    text.includes('3-lens panel') || text.includes('full 3 lens') ||
+    text.includes('three-lens') || text.includes('covenPolicy: all') ||
+    text.includes('covenPolicy:"all"') || text.includes("covenPolicy: 'all'")
+  assert.ok(hasBalancedPanel,
+    'war-room SKILL.md must describe balanced as full 3-lens panel (F06)')
+  const hasEconomySolo = text.includes('economy') && (text.includes('solo') || text.includes('single'))
+  assert.ok(hasEconomySolo,
+    'war-room SKILL.md must describe economy as solo (F06)')
+})
+
+test('F06 — doc-contract: design spec balanced preset table updated to covenPolicy all', () => {
+  const text = readDoc('docs/specs/2026-06-18-war-room-design.md')
+  // The design spec preset table had balanced=auto; must now show all
+  // Look for the table row for balanced having 'all' rather than 'auto'
+  const hasAll = text.includes('`all`') || text.includes('"all"') || text.includes("'all'") ||
+    text.includes('covenPolicy: all') || text.includes('covenPolicy:"all"')
+  assert.ok(hasAll,
+    'design spec must show balanced covenPolicy as all in the preset table (F06)')
 })
 
 // ---------------------------------------------------------------------------

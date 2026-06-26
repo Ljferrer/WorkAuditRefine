@@ -28,7 +28,7 @@ export const DEFAULTS = {
   audit: {
     covenSize: 3,
     lenses: ['correctness', 'cascading-impact', 'plan-faithfulness'],
-    covenPolicy: 'auto',
+    covenPolicy: 'all',
     autoEscalate: true,
   },
   run: { roundLimit: 3, afk: false, provision: [], provisionSource: 'none', provisionAuto: true },
