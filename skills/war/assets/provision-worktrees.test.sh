@@ -778,6 +778,92 @@ code="$(run_in_detached "$C1_3" "$NEW_SHA3" land-advance working/myplan3 "$NEW_S
 expect "T2.3: unrelated push error -> exit ESCALATE code (3), not RELAND (2)" \
   "3" "$code"
 
+# ---------------------------------------------------------------------------
+# Case (T2.4) DIFFERENT-BRANCH concurrency: two land-advance calls on DIFFERENT
+# working branches both succeed with zero cross-bleed. Two clones each push to
+# their own distinct branch on the same bare origin; each push should be accepted
+# (exit 0), the local follower for each clone must advance to its own new-sha,
+# and crucially neither push disturbs the other branch on origin.
+#
+# Layout: one bare origin; clone1 works on branch-A, clone2 works on branch-B.
+# Both produce a new-sha (a ff-descendant of the branch's seed) and call
+# land-advance. Neither is a non-ff rejection because they are on different refs.
+# After both succeed: origin/branch-A == new_sha_A, origin/branch-B == new_sha_B,
+# and the local follower in each clone points at its own new-sha only.
+# ---------------------------------------------------------------------------
+
+# Setup: one bare origin + two independent clones on DIFFERENT branches.
+ORIG4="$(mktemp -d 2>/dev/null || mktemp -d -t warorg4)"
+REPOS="$REPOS $ORIG4"
+git init --bare -q "$ORIG4/origin.git"
+
+C_A="$(mktemp -d 2>/dev/null || mktemp -d -t warc_a)"
+REPOS="$REPOS $C_A"
+git clone -q "$ORIG4/origin.git" "$C_A/clone_a" 2>/dev/null
+git -C "$C_A/clone_a" config user.email war@test.local
+git -C "$C_A/clone_a" config user.name "WAR Test"
+git -C "$C_A/clone_a" config commit.gpgsign false
+
+C_B="$(mktemp -d 2>/dev/null || mktemp -d -t warc_b)"
+REPOS="$REPOS $C_B"
+git clone -q "$ORIG4/origin.git" "$C_B/clone_b" 2>/dev/null
+git -C "$C_B/clone_b" config user.email war@test.local
+git -C "$C_B/clone_b" config user.name "WAR Test"
+git -C "$C_B/clone_b" config commit.gpgsign false
+
+# Seed branch-A in clone_a and push to origin.
+printf 'seed-a\n' > "$C_A/clone_a/seed-a.txt"
+git -C "$C_A/clone_a" add -A
+git -C "$C_A/clone_a" commit -qm "seed branch-A"
+SEED_A="$(git -C "$C_A/clone_a" rev-parse HEAD)"
+git -C "$C_A/clone_a" push -q origin "HEAD:refs/heads/working/branch-a"
+git -C "$C_A/clone_a" branch "working/branch-a" "$SEED_A"
+
+# Seed branch-B in clone_b and push to origin.
+printf 'seed-b\n' > "$C_B/clone_b/seed-b.txt"
+git -C "$C_B/clone_b" add -A
+git -C "$C_B/clone_b" commit -qm "seed branch-B"
+SEED_B="$(git -C "$C_B/clone_b" rev-parse HEAD)"
+git -C "$C_B/clone_b" push -q origin "HEAD:refs/heads/working/branch-b"
+git -C "$C_B/clone_b" branch "working/branch-b" "$SEED_B"
+
+# Each clone produces its own new-sha (ff-descendants of their respective seeds).
+printf 'merge-a\n' > "$C_A/clone_a/merge-a.txt"
+git -C "$C_A/clone_a" add -A
+git -C "$C_A/clone_a" commit -qm "clone_a merge sha (branch-A)"
+NEW_SHA_A="$(git -C "$C_A/clone_a" rev-parse HEAD)"
+
+printf 'merge-b\n' > "$C_B/clone_b/merge-b.txt"
+git -C "$C_B/clone_b" add -A
+git -C "$C_B/clone_b" commit -qm "clone_b merge sha (branch-B)"
+NEW_SHA_B="$(git -C "$C_B/clone_b" rev-parse HEAD)"
+
+# Clone_a calls land-advance for branch-A (detached at NEW_SHA_A).
+code_a="$(run_in_detached "$C_A/clone_a" "$NEW_SHA_A" land-advance working/branch-a "$NEW_SHA_A")"
+
+# Clone_b calls land-advance for branch-B (detached at NEW_SHA_B).
+code_b="$(run_in_detached "$C_B/clone_b" "$NEW_SHA_B" land-advance working/branch-b "$NEW_SHA_B")"
+
+expect "T2.4: different-branch clone_a land-advance succeeds (exit 0)" \
+  "0" "$code_a"
+expect "T2.4: different-branch clone_b land-advance succeeds (exit 0)" \
+  "0" "$code_b"
+
+# Each local follower must have advanced to its own new-sha.
+expect "T2.4: clone_a local follower points at new_sha_A" \
+  "$NEW_SHA_A" "$(git -C "$C_A/clone_a" rev-parse "refs/heads/working/branch-a" 2>/dev/null)"
+expect "T2.4: clone_b local follower points at new_sha_B" \
+  "$NEW_SHA_B" "$(git -C "$C_B/clone_b" rev-parse "refs/heads/working/branch-b" 2>/dev/null)"
+
+# Zero cross-bleed: origin must have both branches at their expected shas,
+# and each branch is independent of the other.
+ORIG_A_SHA="$(git -C "$C_A/clone_a" ls-remote origin "refs/heads/working/branch-a" 2>/dev/null | cut -f1)"
+ORIG_B_SHA="$(git -C "$C_B/clone_b" ls-remote origin "refs/heads/working/branch-b" 2>/dev/null | cut -f1)"
+expect "T2.4: origin/branch-a == new_sha_A (no cross-bleed)" \
+  "$NEW_SHA_A" "$ORIG_A_SHA"
+expect "T2.4: origin/branch-b == new_sha_B (no cross-bleed)" \
+  "$NEW_SHA_B" "$ORIG_B_SHA"
+
 # ===========================================================================
 # Task 3 (clandiso): teardown-phase --worktree-root <root> — reap _refinery
 # by path + verified integration delete.
