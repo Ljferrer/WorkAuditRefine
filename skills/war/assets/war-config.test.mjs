@@ -677,22 +677,34 @@ test('drift-guard(F07): inline covenSeats uses DEFAULTS.audit.lenses as fallback
 // decideLand drift guard (D1): lines 367/368 markers
 // ---------------------------------------------------------------------------
 
-test('drift-guard(F07): inline HARD_ESCALATION_REASONS + decideLand logic equals canonical decideLand — empty landed × empty escalated', () => {
-  // Extract inline HARD_ESCALATION_REASONS, hardEscalation + landDecision ternary from ~line 370-374.
-  // These three lines are under the 367/368 "landDecision mirrors" markers.
+// Helper: extract the inline hardEscalation + landDecision ternary from workflow-template.js
+// and rebuild it as an executable function via new Function — mirroring the spawnOpts/covenSeats
+// extract-and-execute pattern so that template-side ternary drift (not just array drift) bites.
+function buildInlineDecideLand() {
+  // Extract HARD_ESCALATION_REASONS array from the template (line ~370).
   const herMatch = templateText.match(/const\s+HARD_ESCALATION_REASONS\s*=\s*(\[[^\]]+\])/)
   assert.ok(herMatch, 'HARD_ESCALATION_REASONS not found in workflow-template.js')
   const inlineReasons = JSON.parse(herMatch[1].replace(/'/g, '"'))
 
-  // Rebuild the decideLand logic from the inline ternary:
-  //   hardEscalation = escalated.some(e => HARD_ESCALATION_REASONS.includes(e && e.reason))
-  //   landDecision = (landed.length && !hardEscalation) ? 'landed' : hardEscalation ? 'held:escalation' : 'held:nothing-merged'
-  function inlineDecideLand({ landed = [], escalated = [] } = {}) {
-    const hard = escalated.some(e => inlineReasons.includes(e && e.reason))
-    return (landed.length && !hard) ? 'landed'
-      : hard ? 'held:escalation'
-      : 'held:nothing-merged'
-  }
+  // Extract the inline hardEscalation expression + the 3-branch landDecision ternary (lines ~371-374).
+  // The regex captures from 'const hardEscalation = escalated.some' through 'held:nothing-merged'.
+  const ternaryMatch = templateText.match(
+    /(const hardEscalation\s*=\s*escalated\.some[\s\S]*?'held:nothing-merged')/
+  )
+  assert.ok(ternaryMatch, 'inline hardEscalation + landDecision ternary not found in workflow-template.js')
+
+  // Rebuild via new Function — the extracted code references landed, escalated, HARD_ESCALATION_REASONS.
+  // Injecting the extracted array as HARD_ESCALATION_REASONS keeps the extraction faithful.
+  const fnBody = ternaryMatch[1] + '\nreturn landDecision'
+  const fn = new Function('landed', 'escalated', 'HARD_ESCALATION_REASONS', fnBody)
+  return ({ landed = [], escalated = [] } = {}) => fn(landed, escalated, inlineReasons)
+}
+
+test('drift-guard(F07): inline HARD_ESCALATION_REASONS + decideLand logic equals canonical decideLand — empty landed × empty escalated', () => {
+  // Extract inline HARD_ESCALATION_REASONS, hardEscalation + landDecision ternary from ~line 370-374.
+  // These three lines are under the 367/368 "landDecision mirrors" markers.
+  // Uses new Function to execute the LIVE template code so ternary-level drift is detected (not just array drift).
+  const inlineDecideLand = buildInlineDecideLand()
 
   // empty landed × empty escalated → 'held:nothing-merged'
   const args1 = { landed: [], escalated: [] }
@@ -701,15 +713,7 @@ test('drift-guard(F07): inline HARD_ESCALATION_REASONS + decideLand logic equals
 })
 
 test('drift-guard(F07): inline decideLand — non-empty landed × empty escalated → landed', () => {
-  const herMatch = templateText.match(/const\s+HARD_ESCALATION_REASONS\s*=\s*(\[[^\]]+\])/)
-  assert.ok(herMatch, 'HARD_ESCALATION_REASONS not found in workflow-template.js')
-  const inlineReasons = JSON.parse(herMatch[1].replace(/'/g, '"'))
-  function inlineDecideLand({ landed = [], escalated = [] } = {}) {
-    const hard = escalated.some(e => inlineReasons.includes(e && e.reason))
-    return (landed.length && !hard) ? 'landed'
-      : hard ? 'held:escalation'
-      : 'held:nothing-merged'
-  }
+  const inlineDecideLand = buildInlineDecideLand()
 
   const args2 = { landed: ['t1', 't2'], escalated: [] }
   assert.equal(inlineDecideLand(args2), decideLand(args2), 'inline decideLand(landed,empty) diverges')
@@ -717,15 +721,7 @@ test('drift-guard(F07): inline decideLand — non-empty landed × empty escalate
 })
 
 test('drift-guard(F07): inline decideLand — non-empty landed × escalated with a HARD reason → held:escalation', () => {
-  const herMatch = templateText.match(/const\s+HARD_ESCALATION_REASONS\s*=\s*(\[[^\]]+\])/)
-  assert.ok(herMatch, 'HARD_ESCALATION_REASONS not found in workflow-template.js')
-  const inlineReasons = JSON.parse(herMatch[1].replace(/'/g, '"'))
-  function inlineDecideLand({ landed = [], escalated = [] } = {}) {
-    const hard = escalated.some(e => inlineReasons.includes(e && e.reason))
-    return (landed.length && !hard) ? 'landed'
-      : hard ? 'held:escalation'
-      : 'held:nothing-merged'
-  }
+  const inlineDecideLand = buildInlineDecideLand()
 
   // All 6 hard reasons must individually hold the land
   for (const reason of HARD_ESCALATION_REASONS) {
@@ -738,15 +734,7 @@ test('drift-guard(F07): inline decideLand — non-empty landed × escalated with
 })
 
 test('drift-guard(F07): inline decideLand — empty landed × escalated with SOFT reason → held:nothing-merged', () => {
-  const herMatch = templateText.match(/const\s+HARD_ESCALATION_REASONS\s*=\s*(\[[^\]]+\])/)
-  assert.ok(herMatch, 'HARD_ESCALATION_REASONS not found in workflow-template.js')
-  const inlineReasons = JSON.parse(herMatch[1].replace(/'/g, '"'))
-  function inlineDecideLand({ landed = [], escalated = [] } = {}) {
-    const hard = escalated.some(e => inlineReasons.includes(e && e.reason))
-    return (landed.length && !hard) ? 'landed'
-      : hard ? 'held:escalation'
-      : 'held:nothing-merged'
-  }
+  const inlineDecideLand = buildInlineDecideLand()
 
   // A SOFT reason (env-blocked is not in HARD_ESCALATION_REASONS) + no landed → held:nothing-merged
   const args = { landed: [], escalated: [{ task: 't1', reason: 'env-blocked' }] }
@@ -779,14 +767,13 @@ test('drift-guard(F07): inline HARD_ESCALATION_REASONS has exactly 6 members mat
 test('meta-guard(F07): all Keep-in-sync/Mirror-of markers in workflow-template.js are classified (logic-mirror registry + data-mirror allowlist)', () => {
   // Scan for every Keep-in-sync / Mirror-of / MIRROR-of marker in the template.
   // Strategy: collect every comment line containing these keywords.
-  const markerPattern = /Keep in sync|Mirror of|MIRROR of/gi
+  // NOTE: use a NON-global /i regex in the filter predicate — a /gi regex is stateful
+  // (.test() advances lastIndex), causing consecutive matching lines to be silently dropped.
+  const markerFilterPattern = /Keep in sync|Mirror of|MIRROR of/i
   const lines = templateText.split('\n')
   const markerLines = lines
     .map((line, idx) => ({ line: line.trim(), lineNum: idx + 1 }))
-    .filter(({ line }) => markerPattern.test(line))
-
-  // Reset regex lastIndex (global flag)
-  markerPattern.lastIndex = 0
+    .filter(({ line }) => markerFilterPattern.test(line))
 
   // Registry of LOGIC mirrors → each must have ≥1 registered drift test (keyed by a stable identifier).
   // The identifier is a substring of the marker text (robust to line-number shifts).
