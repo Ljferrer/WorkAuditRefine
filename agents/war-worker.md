@@ -25,5 +25,8 @@ If the task cannot be implemented as specced — an ambiguity with more than one
 ## Return
 Return ONLY the `WorkerResult` JSON (see the skill's `references/schemas.md`): `{ task_id, branch, worktree, head_sha, status, tests, acceptance_criteria_covered, files_changed, notes, blocked_reason? }`.
 
+## Servitor confinement
+The WAR servitor runs after each phase lands with a restricted capability allowlist (Read, Grep, Glob, Write, Edit — no Bash). This allowlist is the **primary confinement**: without Bash the servitor cannot touch branches, issues, or arbitrary paths. The `agent_type` PreToolUse hook and the `..`-traversal guard are **defense-in-depth** layered on top — they catch any residual Write/Edit attempt that escapes the allowlist check (e.g. a path that pattern-matches the learnings target but contains a `..` traversal). See [ADR 0002](../docs/adr/0002-scope-by-agent-type.md).
+
 ## Harness note
 If a `[Fact-Forcing Gate]` (GateGuard) blocks a command or edit, present the facts it asks for, then retry the identical operation — it passes on retry.

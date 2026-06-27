@@ -41,6 +41,11 @@ deny() { echo "WAR: $1" >&2; exit 2; }
 # branches. (Full memory-root anchoring is deferred — see plan notes / #58.)
 # Portable case-pattern: '/../*' covers a .. segment in the middle; '/..'
 # covers a trailing .. segment. Works on macOS bash 3.2.57.
+#
+# INTENTIONALLY pre-`case "$atype"`: this guard applies to ALL agent types,
+# including war-refiner and the main session (no agent_type). Ratified ADR 0002
+# D5 (dotdot-guard-applies-to-all-agent-types). The per-agent case below is
+# therefore never reached with a ..-bearing path, regardless of role.
 case "$path" in
   */../*|*/..)
     deny "path '$path' contains a '..' traversal segment; use an absolute canonical path instead."

@@ -29,6 +29,11 @@ structural guard instead and explicitly drop exact confinement.
   always present for subagents) and confines writes by role: WAR workers → the WAR worktrees root;
   the servitor → the learnings target; auditors → no writes; refiner / main session → unrestricted.
   Enforced, with zero worker cooperation, zero registry, and no races.
+  **Confinement layering:** the capability allowlist (no Bash for the servitor; read-only tools for
+  the auditor) is the **primary confinement**. The `agent_type` hook and the `..`-traversal guard
+  (which fires pre-`case`, covering ALL agent types) are **defense-in-depth** — they gate the
+  residual Write/Edit paths that survive the allowlist check
+  (`adr-policy-table-entry-vs-mechanism-attribution`, D4).
 
 ## Consequences
 
