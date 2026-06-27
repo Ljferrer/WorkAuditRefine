@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { validateProvision, structuralFallback } from './provision.mjs'
+import { validateProvision, structuralFallback, readManifest } from './provision.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const FIXTURES = join(HERE, 'fixtures', 'provision')
@@ -157,4 +157,129 @@ test('structuralFallback: an unknown lockfile is NOT matched (anti-goal: no ecos
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
+})
+
+// ----------------------------------------------------------------------------
+// readManifest — T1.1
+// ----------------------------------------------------------------------------
+
+test('readManifest: absent file -> {found:false}', () => {
+  const dir = makeRepo({})
+  try {
+    const r = readManifest(dir)
+    assert.deepEqual(r, { found: false })
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('readManifest: valid manifest with two steps and rationale -> found:true, ok:true', () => {
+  const dir = makeRepo({
+    '.war-provision.json': JSON.stringify({
+      provision: ['git submodule update --init --recursive', 'pnpm install --frozen-lockfile'],
+      rationale: 'bootstrap the repo',
+    }),
+  })
+  try {
+    const r = readManifest(dir)
+    assert.equal(r.found, true)
+    assert.equal(r.ok, true)
+    assert.deepEqual(r.provision, ['git submodule update --init --recursive', 'pnpm install --frozen-lockfile'])
+    assert.equal(r.rationale, 'bootstrap the repo')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('readManifest: empty provision list -> found:true, ok:true', () => {
+  const dir = makeRepo({
+    '.war-provision.json': JSON.stringify({ provision: [] }),
+  })
+  try {
+    const r = readManifest(dir)
+    assert.equal(r.found, true)
+    assert.equal(r.ok, true)
+    assert.deepEqual(r.provision, [])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('readManifest: malformed JSON -> found:true, ok:false, errors non-empty', () => {
+  const dir = makeRepo({
+    '.war-provision.json': '{not valid json',
+  })
+  try {
+    const r = readManifest(dir)
+    assert.equal(r.found, true)
+    assert.equal(r.ok, false)
+    assert.ok(r.errors.length >= 1)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('readManifest: bad entry ["ok","  "] -> ok:false, error matches /provision[1].*non-empty/', () => {
+  const dir = makeRepo({
+    '.war-provision.json': JSON.stringify({ provision: ['ok', '  '] }),
+  })
+  try {
+    const r = readManifest(dir)
+    assert.equal(r.found, true)
+    assert.equal(r.ok, false)
+    const hasMatch = r.errors.some(e => /provision\[1\].*non-empty/i.test(e))
+    assert.ok(hasMatch, `expected error matching /provision[1].*non-empty/ in: ${JSON.stringify(r.errors)}`)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('readManifest: unknown top-level key -> ok:false, error names the key', () => {
+  const dir = makeRepo({
+    '.war-provision.json': JSON.stringify({ provision: [], bogus: 1 }),
+  })
+  try {
+    const r = readManifest(dir)
+    assert.equal(r.found, true)
+    assert.equal(r.ok, false)
+    const hasMatch = r.errors.some(e => e.includes('bogus'))
+    assert.ok(hasMatch, `expected error naming 'bogus' in: ${JSON.stringify(r.errors)}`)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+// RED-TEAM-ADDED (CRITICAL): non-object JSON must not crash — null/[]/string/number
+// are valid JSON but are not objects; without a guard, Object.keys(parsed) throws.
+for (const [label, raw] of [['null', 'null'], ['array', '[]'], ['string', '"x"'], ['number', '42']]) {
+  test(`readManifest: non-object JSON (${label}) -> found:true, ok:false with object-guard error (no crash)`, () => {
+    const dir = makeRepo({ '.war-provision.json': raw })
+    try {
+      const r = readManifest(dir)
+      assert.equal(r.found, true)
+      assert.equal(r.ok, false)
+      assert.ok(r.errors.length >= 1)
+      const hasMatch = r.errors.some(e => /object/i.test(e))
+      assert.ok(hasMatch, `expected 'object' in error for ${label}: ${JSON.stringify(r.errors)}`)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+}
+
+// ----------------------------------------------------------------------------
+// readManifest — T1.2 golden fixture (manifest-repo)
+// ----------------------------------------------------------------------------
+
+test('readManifest: manifest-repo fixture -> found:true, ok:true, provision verbatim from manifest (not CI)', () => {
+  const r = readManifest(join(FIXTURES, 'manifest-repo'))
+  assert.equal(r.found, true)
+  assert.equal(r.ok, true)
+  // Assert on unique manifest command — NOT the CI-only command (pnpm install --frozen-lockfile)
+  // This proves the reader returns the committed manifest VERBATIM, not the competing CI workflow.
+  assert.ok(
+    r.provision.includes('./scripts/bootstrap.sh'),
+    `expected unique manifest command './scripts/bootstrap.sh' in provision: ${JSON.stringify(r.provision)}`,
+  )
+  assert.deepEqual(r.provision, ['./scripts/bootstrap.sh', 'cargo build --locked'])
 })
