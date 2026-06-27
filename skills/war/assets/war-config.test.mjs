@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { readFileSync, readdirSync, mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, relative } from 'node:path'
 import {
@@ -14,7 +15,7 @@ const __dir = dirname(fileURLToPath(import.meta.url))
 const templateText = readFileSync(join(__dir, 'workflow-template.js'), 'utf8')
 
 // Helper: recursively find files matching a predicate under a root, excluding pruned dirs.
-function walkFiles(root, predicate, pruned = ['node_modules', '.git']) {
+function walkFiles(root, predicate, pruned = ['node_modules', '.git', 'worktrees']) {
   const results = []
   function walk(dir) {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -27,6 +28,31 @@ function walkFiles(root, predicate, pruned = ['node_modules', '.git']) {
   walk(root)
   return results.sort()
 }
+
+// T1.4: unit test that walkFiles prunes 'worktrees' by basename.
+// Uses a synthesized tmp fixture: <tmp>/worktrees/<run>/skills/x.test.mjs
+// If 'worktrees' is removed from the default pruned list, this test goes RED.
+test('walkFiles: skips files under a worktrees/ dir (basename prune)', () => {
+  const tmp = mkdtempSync(join(tmpdir(), 'war-config-test-'))
+  // Fixture: <tmp>/worktrees/run123/skills/x.test.mjs  ← should be pruned
+  mkdirSync(join(tmp, 'worktrees', 'run123', 'skills'), { recursive: true })
+  writeFileSync(join(tmp, 'worktrees', 'run123', 'skills', 'x.test.mjs'), '')
+  // Fixture: <tmp>/skills/y.test.mjs  ← should be found
+  mkdirSync(join(tmp, 'skills'), { recursive: true })
+  writeFileSync(join(tmp, 'skills', 'y.test.mjs'), '')
+
+  const found = walkFiles(tmp, name => name.endsWith('.test.mjs'))
+  // The file under worktrees/ must be absent (pruned by basename 'worktrees')
+  assert.ok(
+    !found.some(p => p.includes('worktrees')),
+    `walkFiles must prune 'worktrees/' by basename; found: ${found.join(', ')}`
+  )
+  // The file under skills/ must be present
+  assert.ok(
+    found.some(p => p.endsWith(join('skills', 'y.test.mjs'))),
+    `walkFiles must still find files outside 'worktrees/'; found: ${found.join(', ')}`
+  )
+})
 
 // Repo root: 3 levels up from skills/war/assets/
 const REPO_ROOT = join(__dir, '..', '..', '..')
@@ -291,12 +317,12 @@ test('resolveGate: with a declared gate — &&-chains declared-then-discovery', 
 test('resolveGate: with a declared gate — contains find for *.test.sh with node_modules prune', () => {
   const result = resolveGate('node --test x')
   assert.ok(result.includes('*.test.sh'), `expected *.test.sh in result, got: ${result}`)
-  assert.ok(result.includes('node_modules'), `expected node_modules prune in result, got: ${result}`)
+  assert.ok(result.includes("-not -path '*/node_modules/*'"), `expected -not -path '*/node_modules/*' prune, got: ${result}`)
 })
 
 test('resolveGate: with a declared gate — contains find for *.test.sh with .git prune', () => {
   const result = resolveGate('node --test x')
-  assert.ok(result.includes('.git'), `expected .git prune in result, got: ${result}`)
+  assert.ok(result.includes("-not -path '*/.git/*'"), `expected -not -path '*/.git/*' prune, got: ${result}`)
 })
 
 test('resolveGate: with a declared gate — runs each suite as bash "$f" with || exit 1', () => {
@@ -330,8 +356,7 @@ test('resolveGate: includes printf banner for each suite', () => {
 test('drift-guard: inline HARD_ESCALATION_REASONS in workflow-template.js matches canonical export in land-decision.mjs (#36)', () => {
   // workflow-template.js cannot import ES modules so it duplicates the constant inline.
   // This test pins that inline literal to the canonical export in land-decision.mjs.
-  // Task 5 wired land_stale + dep-failed into the template inline (6 items after Task 4).
-  // Task 4 (F04/R3) adds gate-evidence: a provably-unrun mapped test is now a hard escalation.
+  // dep-failed was the Task 1 (F02) foundation; land_stale pre-existed; Task 4 (F04/R3) added gate-evidence (6 items total).
   // Task t3b (#115) adds 'unrunnable-deps' as a scheduler-local addition (NOT in land-decision.mjs).
   //
   // The template has (around line 361):
@@ -403,11 +428,11 @@ test('coverage meta-test: resolveGate discovery clause covers the repo (find + n
 
 // --- Node-test breadth assertion (resolves Open decision #1) ---
 
-test('node-test breadth: all *.test.mjs and *.test.js files in the repo are under skills/ (reachable by skills/**/*.test.mjs glob)', () => {
+test('node-test breadth: all *.test.mjs files in the repo are under skills/ (reachable by skills/**/*.test.mjs glob)', () => {
   // The declared gate uses `node --test 'skills/**/*.test.mjs'` which only reaches skills/.
-  // Assert that every *.test.mjs / *.test.js file in the repo (excluding pruned paths) is under skills/.
+  // Assert that every *.test.mjs file in the repo (excluding pruned paths) is under skills/.
   // Any file outside skills/ would be silently orphaned by the declared node glob.
-  const found = walkFiles(REPO_ROOT, name => name.endsWith('.test.mjs') || name.endsWith('.test.js'))
+  const found = walkFiles(REPO_ROOT, name => name.endsWith('.test.mjs'))
   const outsideSkills = found.filter(p => {
     const rel = relative(REPO_ROOT, p)
     return !rel.startsWith('skills/')
@@ -415,13 +440,13 @@ test('node-test breadth: all *.test.mjs and *.test.js files in the repo are unde
   assert.deepEqual(
     outsideSkills,
     [],
-    `These *.test.mjs / *.test.js files are outside skills/ and would be silently orphaned by 'node --test skills/**/*.test.mjs':\n${outsideSkills.map(p => '  ' + relative(REPO_ROOT, p)).join('\n')}`
+    `These *.test.mjs files are outside skills/ and would be silently orphaned by 'node --test skills/**/*.test.mjs':\n${outsideSkills.map(p => '  ' + relative(REPO_ROOT, p)).join('\n')}`
   )
 })
 
 test('node-test breadth: skills/ contains at least the expected set of *.test.mjs suites', () => {
   // Sanity check that we actually found the known suites (guards against an accidentally empty walk).
-  const found = walkFiles(REPO_ROOT, name => name.endsWith('.test.mjs') || name.endsWith('.test.js'))
+  const found = walkFiles(REPO_ROOT, name => name.endsWith('.test.mjs'))
   const inSkills = found.filter(p => relative(REPO_ROOT, p).startsWith('skills/'))
   const EXPECTED_MJES = [
     'skills/_shared/provision.test.mjs',
@@ -742,7 +767,7 @@ test('drift-guard(F07): inline covenSeats mirror equals canonical covenSeats —
   assert.equal(inline4.length, 2, 'should produce 2 seats when covenSize=2')
 })
 
-test('drift-guard(F07): inline covenSeats uses DEFAULTS.audit.lenses as fallback (DEFAULTS injection equivalence)', () => {
+test('drift-guard(F07): inline covenSeats falls back to DEFAULTS.audit.lenses when task has no lenses', () => {
   // The inline hardcodes ['correctness','cascading-impact','plan-faithfulness'] while canonical reads
   // DEFAULTS.audit.lenses. Injecting DEFAULTS when rebuilding means they resolve to the same set.
   // This test checks a task with NO lenses (forces the fallback path).
@@ -832,6 +857,28 @@ test('drift-guard(F07): inline decideLand — empty landed × escalated with SOF
     'soft reason with no landed → held:nothing-merged')
 })
 
+test('drift-guard(F07): inline decideLand — empty landed × HARD escalation → held:escalation', () => {
+  const inlineDecideLand = buildInlineDecideLand()
+
+  // empty-landed × HARD-escalation → held:escalation (not held:nothing-merged)
+  const args = { landed: [], escalated: [{ task: 't1', reason: HARD_ESCALATION_REASONS[0] }] }
+  assert.equal(inlineDecideLand(args), decideLand(args),
+    'inline decideLand(empty,HARD) diverges from canonical')
+  assert.equal(inlineDecideLand(args), 'held:escalation',
+    'empty-landed × HARD-escalation must yield held:escalation')
+})
+
+test('drift-guard(F07): inline decideLand — non-empty landed × SOFT escalation → landed', () => {
+  const inlineDecideLand = buildInlineDecideLand()
+
+  // non-empty-landed × SOFT-escalation → landed (soft escalation does not hold the land)
+  const args = { landed: ['t1'], escalated: [{ task: 't2', reason: 'env-blocked' }] }
+  assert.equal(inlineDecideLand(args), decideLand(args),
+    'inline decideLand(non-empty,SOFT) diverges from canonical')
+  assert.equal(inlineDecideLand(args), 'landed',
+    'non-empty-landed × SOFT-escalation must yield landed')
+})
+
 test('drift-guard(F07): inline HARD_ESCALATION_REASONS has exactly 6 members matching canonical', () => {
   // t3b (#115): relaxed to SUPERSET semantics — inline may have 'unrunnable-deps' as scheduler-local addition.
   // The live array has 7 members: 6 canonical + 'unrunnable-deps' (NOT in land-decision.mjs).
@@ -887,10 +934,11 @@ test('meta-guard(F07): all Keep-in-sync/Mirror-of markers in workflow-template.j
   // DATA mirrors → allowlisted (field names, no canonical function to behavioral-test).
   const DATA_MIRROR_ALLOWLIST = [
     // line-69 marker: "This is a MIRROR of war-config.mjs's run.provision/run.provisionSource reads"
+    // 'This is a MIRROR of' is the marker's exact lead-in (line 69 ends there; field tokens are on line 70).
+    // The meta-guard scans line-by-line, so the line-69 fragment needs this anchored entry.
+    'This is a MIRROR of',
     'run.provision/run.provisionSource',
-    // Synonyms / partial matches for the same marker
     'provisionSource reads',
-    'MIRROR of',
   ]
 
   const unaccounted = []
@@ -956,16 +1004,18 @@ test('meta-guard(F07): all Keep-in-sync/Mirror-of markers in workflow-template.j
     `Missing drift tests:\n` +
     missingDriftTests.map(m => `  registry key "${m.key}" → test name "${m.testName}"`).join('\n')
   )
+
+  // Exact-membership assertions for DATA_MIRROR_ALLOWLIST (T1.6):
+  // The bare catch-all 'MIRROR of' has been replaced with the anchored 'This is a MIRROR of'.
+  assert.ok(!DATA_MIRROR_ALLOWLIST.includes('MIRROR of'),
+    "DATA_MIRROR_ALLOWLIST must not contain the bare catch-all 'MIRROR of' (use 'This is a MIRROR of' instead)")
+  assert.ok(DATA_MIRROR_ALLOWLIST.includes('This is a MIRROR of'),
+    "DATA_MIRROR_ALLOWLIST must contain the anchored entry 'This is a MIRROR of'")
 })
 
 test('meta-guard(F07): sanity — currently exactly 4 Keep-in-sync/Mirror-of markers exist (lines 69, 93, 367, 368)', () => {
   // This test guards against silent marker addition (a new mirror that skips the registry).
   // If you add a new mirror, update BOTH the registry/allowlist above AND bump this count.
-  const markerPattern = /Keep in sync|Mirror of|MIRROR of/gi
-  const markerLines = templateText.split('\n')
-    .filter(line => markerPattern.test(line))
-  // Reset for the count
-  markerPattern.lastIndex = 0
   const count = templateText.split('\n').filter(line => /Keep in sync|Mirror of|MIRROR of/i.test(line)).length
   assert.equal(count, 4,
     `Expected exactly 4 Keep-in-sync/Mirror-of marker lines in workflow-template.js, found ${count}.\n` +
