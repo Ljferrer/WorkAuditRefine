@@ -221,7 +221,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.6.5** — audit fidelity: auditor pins baseline to the integration branch via three-dot `git diff` (F03 — self-served, no refiner artifact); fail-closed read-only-git Bash guard confines the auditor's Bash capability to an explicit allowlist of read subcommands, denying writes/chaining/metacharacters; default audit is now the full 3-lens panel (`correctness`, `cascading-impact`, `plan-faithfulness`) at `deep` depth for every task on the balanced/thorough presets — the "independent, unanimous, multi-lens panel" claim in the README is now accurate (F06); `economy` preset remains solo-seat at `neighbors` for cost-sensitive runs. Builds on v0.6.4 servitor confinement hardening.
+**0.7.0** — committed `.war-provision.json` provisioning manifest as scout authority tier 1 (above CI, below explicit `run.provision`): scout reads and honors it via `readManifest()`; red-team Lead threads the manifest list into executed probes; contract documented in `schemas.md` (closes #51). Builds on v0.6.9.
 
 ## License
 

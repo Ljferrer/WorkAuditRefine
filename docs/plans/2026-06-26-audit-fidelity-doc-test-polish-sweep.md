@@ -81,20 +81,32 @@ comment/import changes are gate-covered). Anchors per spec §1 (#125, #127, #117
 - **T1.3 — Narrow node-breadth walk to `.test.mjs` (#125 L399-413).** Drop `|| name.endsWith('.test.js')` (L403,
   L417) so the breadth test claims exactly what `skills/**/*.test.mjs` guarantees. **Rejected:** adding a `.test.js`
   coverage assertion (would over-claim breadth the gate doesn't run). Green; still finds the 4 `.test.mjs` suites.
-- **T1.4 — Add `.claude/worktrees` to the prune list (#127 L17).** `pruned = ['node_modules', '.git', '.claude/worktrees']`;
-  unit assertion that `walkFiles` skips a synthesized `.claude/worktrees/...` path (prevents nested-worktree
-  double-count false-fails from a main checkout).
+- **T1.4 — Add the `worktrees` basename to the prune list (#127 L17).** `pruned = ['node_modules', '.git', 'worktrees']`
+  — **NOT** `'.claude/worktrees'` (red-team 2026-06-26): `walkFiles` prunes by **basename** (`pruned.includes(entry.name)`),
+  and a slash-bearing `'.claude/worktrees'` never equals any basename → a **no-op** that ships the vacuous assertion this
+  sweep exists to retire. The dir's basename is `worktrees`, so prune on that. Unit assertion that `walkFiles` skips a
+  synthesized `…/worktrees/<run>/skills/x.test.mjs` path (prevents nested-worktree double-count false-fails from a main
+  checkout); confirm it goes **RED** if the prune entry is dropped. (`worktrees` also prunes any other dir literally
+  named `worktrees`; acceptable — no source dir under `skills/` is named that.)
 - **T1.5 — Add two decideLand cells (#127).** Red→green via the existing `buildInlineDecideLand()` harness
   (L764-826): **empty-landed × HARD → `held:escalation`** and **non-empty-landed × SOFT → `landed`** — assert both
   `inlineDecideLand(args) === decideLand(args)` and the literal verdict (exercises `land-decision.mjs:15-16`).
-- **T1.6 — Tighten `DATA_MIRROR_ALLOWLIST` (#127 L879).** Remove the bare `'MIRROR of'` catch-all; keep the
-  field-specific entries (the `workflow-template.js:69` marker is still classified by them). Add an
-  anchor/count assertion that no bare `'MIRROR of'` remains (`allowlist-catch-all-token-defeats-meta-guard`);
-  meta-guard L848-910 stays green.
+- **T1.6 — Anchor the `DATA_MIRROR_ALLOWLIST` `'MIRROR of'` entry (#127 L879).** Replace the bare `'MIRROR of'`
+  catch-all with the **marker-anchored** `'This is a MIRROR of'` (the exact lead-in of the `workflow-template.js`
+  marker); keep the field-specific entries. **Do NOT simply delete the entry** (red-team 2026-06-26): the marker text is
+  split across two physical lines — line 69 ends `…This is a MIRROR of`, the field tokens (`run.provision/run.provisionSource`,
+  `provisionSource reads`) live on line 70 — and the meta-guard scans line-by-line (`templateText.split('\n')`,
+  `line.includes(allowed)`), so the line-69 fragment is classified **only** by a `MIRROR of`-bearing entry; deleting it
+  reds the guard. The anchored `'This is a MIRROR of'` is specific marker content, **not** a bare catch-all that silently
+  absorbs arbitrary `MIRROR of` mentions (`allowlist-catch-all-token-defeats-meta-guard`). Add an **exact-membership**
+  assertion that the bare catch-all is gone (`!DATA_MIRROR_ALLOWLIST.includes('MIRROR of')`) and the anchored entry is
+  present (`DATA_MIRROR_ALLOWLIST.includes('This is a MIRROR of')`); meta-guard L848-910 stays green.
 - **T1.7 — Rename L738 title + delete dead `/gi` (#127).** Rename to
   `drift-guard(F07): inline covenSeats falls back to DEFAULTS.audit.lenses when task has no lenses` (preserve the
-  `'drift-guard(F07): inline covenSeats'` prefix the registry at L912-944 checks); delete the dead `markerPattern`
-  `/gi` block (L950-953), keeping the `/i` count at L955.
+  `'drift-guard(F07): inline covenSeats'` prefix the `LOGIC_MIRROR_REGISTRY` registration loop checks — **locate by the
+  `LOGIC_MIRROR_REGISTRY` symbol** (Map def + its `for` registration loop, ~L875–947 in the live file), not the stale
+  literal `L912-944` which has drifted, `plan-line-number-refs-stale-use-construct-locator`); delete the dead
+  `markerPattern` `/gi` block (L950-953), keeping the `/i` count at L955.
 
 ---
 
@@ -188,6 +200,22 @@ no runtime semantics).
   footgun with no caller.
 - **Issue-text corrections (D6)** drive the tasks (decideLand cells, `mk()` payload, vacuous L796) — act on verified
   live state, not the issue prose.
+- **Red-team 2026-06-26 — two executable blockers patched (gate would have gone RED/vacuous):**
+  - **T1.4 prune is basename-keyed**: `walkFiles` prunes by `entry.name`, so `'.claude/worktrees'` (slash) is a no-op →
+    use the basename `'worktrees'`. The assertion must go RED if the entry is dropped (no vacuous pass).
+  - **T1.6 keeps a `MIRROR of`-bearing entry**: the `workflow-template.js` marker splits across two physical lines, so
+    deleting the bare token reds the line-by-line meta-guard. Anchor it to `'This is a MIRROR of'` (marker-specific, not
+    a catch-all) and assert exact-membership that the bare `'MIRROR of'` is gone.
+- **Red-team non-blocking notes:** (a) **T2.3 T2a `tr -d '\n'` is a no-op on BSD/macOS `tr`** (BSD interprets the
+  single-quoted `\n` escape as a newline byte, so `'\n'` and `$'\n'` are identical there); the edit is correct for
+  **GNU `tr` (Linux CI) portability** only — kept, rationale clarified. (b) **LOGIC_MIRROR_REGISTRY line refs drifted**
+  (plan/spec cite L912-944/L864; live is the `LOGIC_MIRROR_REGISTRY` Map ~L875-885 + registration loop ~L938-947) —
+  locate by symbol, not literal line (`plan-line-number-refs-stale-use-construct-locator`).
+- **Version v0.6.9 ratified (red-team adjudication):** the roadmap (`2026-06-26-open-issue-remediation-roadmap.md`)
+  assigns plan 4 → v0.6.9 on plan 3's v0.6.8; the spec's v0.6.6 is the **superseded standalone baseline** (sandbox read
+  v0.6.7 only because plan 3's v0.6.8 release had not yet landed). Plan/roadmap is authoritative over the spec literal
+  (`redteam-adjudication-is-authoritative-version-source`, `stacked-per-branch-releases-make-main-lag-cumulative`). The
+  `## Phase 3` "next free patch if the stack order shifts" hedge covers a re-ordering.
 
 ## Open decisions — RESOLVED (grill-with-docs, 2026-06-26)
 1. **hooks.json reorder → INCLUDE** (OQ2).

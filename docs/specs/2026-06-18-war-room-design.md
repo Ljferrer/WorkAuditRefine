@@ -60,7 +60,7 @@ from `/war`: war-room only writes; `/war` auto-discovers and consumes the file.
   "audit": {
     "covenSize": 3,
     "lenses": ["correctness", "cascading-impact", "plan-faithfulness"],
-    "covenPolicy": "auto",
+    "covenPolicy": "all",
     "autoEscalate": true
   },
   "run": { "roundLimit": 3, "afk": false },
@@ -81,9 +81,8 @@ from `/war`: war-room only writes; `/war` auto-discovers and consumes the file.
 - **`audit.lenses`** — drawn from `{correctness, cascading-impact, plan-faithfulness}`
   plus optional domain lenses (`healthcare-safety`, `security`).
 - **`audit.covenPolicy`** ∈ `auto | all | solo`:
-  - `auto` — the Lead's high-blast-radius judgment seeds covens per task (**today's
-    behavior**).
-  - `all` — every task is seeded with a coven.
+  - `all` — every task is seeded with a coven (**the default**).
+  - `auto` — the Lead's high-blast-radius judgment seeds covens per task.
   - `solo` — every task is seeded with a single auditor seat.
 - **`audit.autoEscalate`** — boolean, default `true`. The runtime 1→coven escalation
   when a lone seat returns a Critical finding or `confidence: low`.

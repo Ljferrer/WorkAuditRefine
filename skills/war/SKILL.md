@@ -24,7 +24,7 @@ Example: `/war docs/implement/implementation_plan_A.md --working dev/planA --lan
 
 ## Decompose + approve — GATE (before any teammate launches)
 1. Read the plan. Extract **phases** (prefer an explicit build-order/phase section, e.g. a "Build order"; else top-level sections) and propose the phase→task DAG.
-2. Seed each task's coven from `audit.covenPolicy`: `all` → every task a coven (`covenSize` seats); `solo` → every task a single seat; `auto` (default) → flag high-blast-radius tasks for a **coven**, leaf/low-risk get 1. You can still edit any task's coven at this gate. (`autoEscalate` still widens a lone seat to a coven at runtime on a Critical/low-confidence finding unless it is `false`.)
+2. Seed each task's coven from `audit.covenPolicy`: `all` (default) → every task a coven (`covenSize` seats); `solo` → every task a single seat; `auto` → flag high-blast-radius tasks for a **coven**, leaf/low-risk get 1. You can still edit any task's coven at this gate. (`autoEscalate` still widens a lone seat to a coven at runtime on a Critical/low-confidence finding unless it is `false`.)
 3. Present the DAG to the user as an issues preview **and any per-phase Workflow patches** you intend to inject. **Wait for approval/edits.**
 4. On approval, file **all phase epics up front** (labels `phase:N`, `status:todo`) so the full scope exists before any teammate launches. Break each phase into **task sub-issues just-in-time** at that phase's start (so later phases absorb learnings/drift). Record everything in the ledger.
 
@@ -36,7 +36,7 @@ Run **one Workflow per phase** from [assets/workflow-template.js](assets/workflo
 - **Refines** — `war-refiner` rebases each approved task onto the integration tip, re-runs the gate, and merges **serially** (the queue). A gate/audit failure routes a batched `FIX_NEEDED` to a fresh fix-worker on the same worktree (≤ `round_limit=3`, then escalate `audit-blocked`);
 - **Lands** — `war-refiner` merges `integration/phase-N` → working `--no-ff` (one phase commit) and pushes working;
 - **Wraps up** — once the phase lands, `war-servitor` (write-scoped to `learningsTarget`) records durable learnings to memory;
-- returns `{ landed, escalated, minorsFiled, landResult, servitorResult, auditLog, landDecision }` — `landDecision` ∈ `landed` | `held:escalation` | `held:nothing-merged`; `servitorResult` is null unless the Workflow landed the phase itself.
+- returns `{ landed, escalated, minorsFiled, landResult, servitorResult, auditLog, landDecision }` — `landDecision` ∈ `landed` | `held:escalation` | `held:nothing-merged` | `held:land-failed`; `servitorResult` is null unless the Workflow landed the phase itself.
 
 Then update issues + ledger, and **mirror the phase report + escalations as a comment on the phase epic issue**.
 

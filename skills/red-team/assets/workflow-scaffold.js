@@ -8,9 +8,18 @@ export const meta = {
 // COPY this file to a scratch path, add the BESPOKE PROBES for the plan under test
 // (edit the array below, or pass them via args.probes), then run with
 //   Workflow({ scriptPath: <copy>, args })
-// args (the Red Team Lead passes):
+// args (the Red Team Lead passes) — may be a plain object OR a JSON string (the
+// scaffold normalizes both via parse-if-string so either form works):
 //   { planFile, repo, sourceSpec,
 //     probes: [ { name, kind:"bespoke", technique:"executed"|"analyzed", prompt } ] }
+// CONTRACTS:
+//   Probe side — a FINDINGS finding is a DEFECT (false claim, gap, or needsDecision
+//   ambiguity), NOT a confirmation. A claim that checks out is NOT recorded. A
+//   fully-clean probe returns status:"pass" with findings:[].
+//   Gate side — a Critical/Major finding is a blocker only when its parent probe's
+//   status is NOT "pass" (probeStatus !== "pass"). A pass probe's Critical/Major is
+//   discarded as a non-defect. needsDecision:true always blocks regardless of probe
+//   status. warn/fail/absent probe status still blocks (only literal "pass" demotes).
 // SAFETY: execution probes work ONLY in throwaway temp dirs / git worktrees and NEVER
 // mutate `repo`. Analysis probes are read-only (Explore agent). A fail is downgraded to
 // warn unless an independent confirm agent reproduces it. Prove, don't assert.
@@ -22,7 +31,9 @@ const FINDINGS = { type: 'object', required: ['probe', 'kind', 'technique', 'sta
   // Layer 3 attestation: what the probe ACTUALLY read. The gate validates it against the fingerprint.
   read_anchor: { type: 'object', required: ['resolved_path', 'plan_title'], properties: {
     resolved_path: { type: 'string' }, plan_title: { type: 'string' } } },
-  findings: { type: 'array', items: { type: 'object', properties: {
+  findings: { type: 'array',
+    description: 'A DEFECT (false claim, gap, or needsDecision ambiguity) — NOT a confirmation. Omit claims that check out; a clean probe returns findings:[] with status:"pass".',
+    items: { type: 'object', properties: {
     severity: { enum: ['Critical', 'Major', 'Minor'] }, needsDecision: { type: 'boolean' },
     claim: { type: 'string' }, reality: { type: 'string' }, evidence: { type: 'string' },
     fix: { type: 'string' }, planRef: { type: 'string' } } } } } }
@@ -33,7 +44,10 @@ const CONFIRM = { type: 'object', required: ['reproduced'], properties: {
 // Confirm-stage identifier surfaced as an executable token so tests and tooling can anchor to it.
 const ADVERSARIAL_CONFIRM = 'adversarial-confirm'
 
-const { planFile, repo, sourceSpec = 'none', probes = [], fingerprint, provision = [] } = args
+let A
+try { A = typeof args === 'string' ? JSON.parse(args) : (args ?? {}) }
+catch { A = {} }
+const { planFile, repo, sourceSpec = 'none', probes = [], fingerprint, provision = [] } = A
 
 // Layer 1 — the fingerprint is the deterministic ground truth the gate validates every probe
 // against. The Workflow sandbox has NO filesystem access, so the Lead computes it (Bash) from the
@@ -50,6 +64,16 @@ if (!fingerprint || !fingerprint.titleLine) {
 // test: a FAILING provision step is an env-gap → status:"warn" + a note, and must NEVER become a
 // red/fail verdict (that would mis-score a broken environment as a broken plan). Empty list ⇒ no
 // directive at all (byte-for-byte back-compat). Analyzed/read-only probes never provision.
+//
+// PROVENANCE of args.provision — three valid sources (in descending authority):
+//   1. Operator pin: the user passes an explicit list when invoking /red-team.
+//   2. Committed manifest: the red-team Lead reads `<repo>/.war-provision.json` via the shared
+//      readManifest() (skills/_shared/provision.mjs) and threads `result.provision` here — mirrors
+//      exactly how /war pins run.provision upstream of the Workflow. A manifest-only repo therefore
+//      provisions identically in both skills. (Task #51 / T3.1)
+//   3. Structural fallback / setup-scout derivation (see structuralFallback in provision.mjs).
+// The scaffold itself is UNCHANGED — it runs whatever list it is given; provision:[] is byte-for-
+// byte back-compat. Only the Lead's pre-flight assembly step is different per source.
 const provisionDirective = (technique) =>
   technique === 'executed' && provision.length
     ? '\n' + [
@@ -100,7 +124,7 @@ log(`Red-teaming ${planFile}: ${allProbes.length} probe(s)`)
 
 // Probe (stage 1) + adversarial-confirm (stage 2) as named stages so a dropped probe can be retried.
 const runProbe = (p) => agent(
-  `${scopeLock(p.technique)}\n\n${p.prompt}\n\nReturn ONLY the FINDINGS object (probe="${p.name}", kind="${p.kind}", technique="${p.technique}"). Prove any failure with reproduced evidence; never assert. Set needsDecision:true on any finding that is an ambiguity with more than one non-equivalent resolution — a hole only the user can settle.`,
+  `${scopeLock(p.technique)}\n\n${p.prompt}\n\nReturn ONLY the FINDINGS object (probe="${p.name}", kind="${p.kind}", technique="${p.technique}"). Prove any failure with reproduced evidence; never assert. Set needsDecision:true on any finding that is an ambiguity with more than one non-equivalent resolution — a hole only the user can settle. Only record a finding for an actual problem — a false claim, a gap, or an ambiguity (needsDecision). If a claim checks out, do NOT record it. A fully-clean probe returns status:"pass" with findings:[].`,
   { label: `probe:${p.name}`, phase: 'Probe',
     agentType: p.technique === 'analyzed' ? 'Explore' : undefined, schema: FINDINGS })
 
