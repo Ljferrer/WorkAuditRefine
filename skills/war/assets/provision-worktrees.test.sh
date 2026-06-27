@@ -1081,6 +1081,31 @@ expect "T3d: out-of-run _refinery still registered to its repo" \
   "integration/myplan/phase-6" "$(wt_head_branch "$RTP_D" "$REFINERY_TD_FOREIGN")"
 
 # ---------------------------------------------------------------------------
+# T3c/T3d verify note: both cases above call teardown-phase and trigger the
+# fail-loud integration-branch-delete path (git refuses to delete the branch
+# while it is still checked out in an unreaped _refinery). The path is already
+# exercised by T3c and T3d — no additional test is needed here.
+# (verify-task-no-op-is-correct-when-already-covered)
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Case (T3f) teardown-phase --force is an UNKNOWN FLAG (#136 drop).
+# --force was parsed but never wired; it is now fully removed. Passing it
+# must hit the -* catch-all arm and exit non-zero with "unknown flag".
+# ---------------------------------------------------------------------------
+RTP_F="$(new_repo)"
+git -C "$RTP_F" branch integration/myplan/phase-8 HEAD
+RD_TF="$(mk_run_dir "$RTP_F" run-tf1)"
+OWN_TF="$RD_TF/owned.txt"
+printf 'integration/myplan/phase-8\n' > "$OWN_TF"
+code_tf="$(run_in "$RTP_F" teardown-phase --force --owned-file "$OWN_TF" --run-dir "$RD_TF" myplan 8)"
+msg_tf="$(run_in_msg "$RTP_F" teardown-phase --force --owned-file "$OWN_TF" --run-dir "$RD_TF" myplan 8)"
+expect "T3f: teardown-phase --force exits non-zero (unknown flag)" \
+  "nonzero" "$([ "$code_tf" -ne 0 ] && echo nonzero || echo zero)"
+expect "T3f: failure message mentions 'unknown flag'" \
+  "match" "$(printf '%s' "$msg_tf" | grep -qi 'unknown' && echo match || echo nomatch)"
+
+# ---------------------------------------------------------------------------
 # Case (T3e) --keep preserves _refinery. When teardown-phase is called with
 # --keep, neither the _refinery nor the integration branch is removed.
 # ---------------------------------------------------------------------------
@@ -1434,7 +1459,7 @@ expect "SI.1: ensure-integration with bad base exits non-zero" \
 # The die message must include git's stderr (e.g. "invalid object name" or "not
 # a valid object name" or the bad ref itself).
 expect "SI.1: die message surfaces git stderr (bad-ref detail present)" \
-  "match" "$(printf '%s' "$msg_si1" | grep -qiE 'invalid|not a valid|ZZZZZ|failed.*create|bad.*object' && echo match || echo nomatch)"
+  "match" "$(printf '%s' "$msg_si1" | grep -qiE 'not a valid object|invalid object|fatal' && echo match || echo nomatch)"
 
 # ---------------------------------------------------------------------------
 # Case (ED.1) ensure-worktree empty-dir-recreate: an empty unregistered dir

@@ -71,7 +71,7 @@ deny() {
 # Instead, newline is implicitly denied because it is NOT in the allowlist.
 # ---------------------------------------------------------------------------
 residue="$(printf '%s' "$cmd" | LC_ALL=C tr -d 'A-Za-z0-9 ./_=:,@^-')"
-[ -n "$residue" ] && deny "command contains forbidden character(s): $(printf '%s' "$residue" | LC_ALL=C tr -d '\n' | head -c 20)"
+[ -n "$residue" ] && deny "command contains forbidden character(s): $(printf '%s' "$residue" | LC_ALL=C tr -d $'\n' | head -c 20)"
 
 # ---------------------------------------------------------------------------
 # At this point, the command contains only [A-Za-z0-9 ./_=:,@^-].

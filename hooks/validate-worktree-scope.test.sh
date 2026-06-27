@@ -17,10 +17,11 @@ n=0
 # run <payload-json> -> echoes the hook's exit code
 run() { printf '%s' "$1" | bash "$HOOK" >/dev/null 2>&1; echo $?; }
 
-# mk <agent_type-json> <file_path-string> -> a PreToolUse payload.
-# $1 is already JSON (a quoted string like '"war-worker"', or 'null' to omit a
-# meaningful agent_type). $2 is a raw path placed inside tool_input.file_path.
-mk() { printf '{"agent_type":%s,"tool_input":{"file_path":"%s"}}' "$1" "$2"; }
+# mk <agent_type-string> <file_path-string> -> a PreToolUse payload.
+# $1 is a raw agent_type string (e.g. war-worker); $2 is a raw file path.
+# Uses jq -nc --arg to avoid printf double-quote escaping making tests vacuous
+# (printf-json-escaping-vacuous-test-case).
+mk() { jq -nc --arg at "$1" --arg fp "$2" '{"agent_type":$at,"tool_input":{"file_path":$fp}}'; }
 
 # expect <description> <expected-code> <actual-code>
 expect() {
@@ -60,40 +61,40 @@ SERV_RANDOM="$WT/repo/src/whatever.md"
 
 # 1: war-worker writing inside a dir whose ancestor has .war-task -> 0
 expect "war-worker inside .war-task ancestor allowed" \
-  0 "$(run "$(mk '"war-worker"' "$INSIDE_WT")")"
+  0 "$(run "$(mk 'war-worker' "$INSIDE_WT")")"
 
 # 2: war-worker with no .war-task ancestor -> 2 (deny)
 expect "war-worker outside any worktree denied" \
-  2 "$(run "$(mk '"war-worker"' "$OUTSIDE_WT")")"
+  2 "$(run "$(mk 'war-worker' "$OUTSIDE_WT")")"
 
 # 3: war-auditor anywhere -> 2 (hard-deny, read-only)
 expect "war-auditor write denied (read-only)" \
-  2 "$(run "$(mk '"war-auditor"' "$INSIDE_WT")")"
+  2 "$(run "$(mk 'war-auditor' "$INSIDE_WT")")"
 
 # 4a: war-servitor under .../.claude/projects/<p>/memory/x.md -> 0
 expect "war-servitor memory path allowed" \
-  0 "$(run "$(mk '"war-servitor"' "$SERV_MEM")")"
+  0 "$(run "$(mk 'war-servitor' "$SERV_MEM")")"
 
 # 4b: war-servitor under a random path -> 2 (deny)
 expect "war-servitor random path denied" \
-  2 "$(run "$(mk '"war-servitor"' "$SERV_RANDOM")")"
+  2 "$(run "$(mk 'war-servitor' "$SERV_RANDOM")")"
 
 # 5: war-servitor under .../docs/learnings/phase-1.md -> 0
 expect "war-servitor learnings path allowed" \
-  0 "$(run "$(mk '"war-servitor"' "$SERV_LEARN")")"
+  0 "$(run "$(mk 'war-servitor' "$SERV_LEARN")")"
 
 # 6: war-refiner anywhere -> 0 (unrestricted)
 expect "war-refiner unrestricted" \
-  0 "$(run "$(mk '"war-refiner"' "$OUTSIDE_WT")")"
+  0 "$(run "$(mk 'war-refiner' "$OUTSIDE_WT")")"
 
 # 7: no agent_type (main session) -> 0 (fail-open)
 # Payload carries no agent_type key at all.
 expect "main session (no agent_type) fail-open" \
-  0 "$(run "$(printf '{"tool_input":{"file_path":"%s"}}' "$OUTSIDE_WT")")"
+  0 "$(run "$(jq -nc --arg fp "$OUTSIDE_WT" '{"tool_input":{"file_path":$fp}}')")"
 
 # 8: unknown agent_type 'some-other-agent' -> 0 (fail-open / back-compat)
 expect "unknown agent_type fail-open" \
-  0 "$(run "$(mk '"some-other-agent"' "$OUTSIDE_WT")")"
+  0 "$(run "$(mk 'some-other-agent' "$OUTSIDE_WT")")"
 
 # 9: no file_path (e.g. a Bash tool) -> 0
 # A war-worker with an empty tool_input: even the strictest role must not deny
@@ -227,12 +228,18 @@ else
   fails=$((fails + 1))
 fi
 
-# Check: tools line does NOT contain Bash (the key confinement property)
+# Check: the tools section of the frontmatter does NOT grant Bash — covers both
+# inline `tools: [Bash, ...]` AND block-style `- Bash` on a separate line.
+# (frontmatter-tools-negation-check-single-line-only: grep on tools_line alone
+# misses YAML block-style entries; extract the tools block and scan it.)
+# Strategy: take the tools: line plus any immediately following "- " list lines
+# (block-style YAML list continuation), then check that block for Bash.
+tools_block="$(printf '%s\n' "$frontmatter" | awk '/^tools:/{found=1; print; next} found && /^- /{print; next} found{exit}')"
 n=$((n + 1))
-if printf '%s\n' "$tools_line" | grep -qv 'Bash'; then
-  printf 'ok %d - war-servitor.md tools: does NOT grant Bash (confinement real)\n' "$n"
+if ! printf '%s\n' "$tools_block" | grep -q 'Bash'; then
+  printf 'ok %d - war-servitor.md tools block does NOT grant Bash (inline+block-style scan)\n' "$n"
 else
-  printf 'FAIL %d - war-servitor.md tools: grants Bash — confinement is broken\n' "$n"
+  printf 'FAIL %d - war-servitor.md tools block grants Bash — confinement is broken\n' "$n"
   fails=$((fails + 1))
 fi
 
@@ -248,30 +255,64 @@ fi
 # e.g. /x/docs/learnings/../../etc/foo matches */docs/learnings/* but escapes.
 SERV_DOTDOT="$WT/x/docs/learnings/../../etc/foo"
 expect "war-servitor path with .. denied (traversal)" \
-  2 "$(run "$(mk '"war-servitor"' "$SERV_DOTDOT")")"
+  2 "$(run "$(mk 'war-servitor' "$SERV_DOTDOT")")"
 
 # Servitor: a memory-looking path that contains .. -> deny (exit 2).
 SERV_MEM_DOTDOT="$WT/repo/.claude/projects/p/memory/../../etc/shadow"
 expect "war-servitor memory path with .. denied (traversal)" \
-  2 "$(run "$(mk '"war-servitor"' "$SERV_MEM_DOTDOT")")"
+  2 "$(run "$(mk 'war-servitor' "$SERV_MEM_DOTDOT")")"
 
 # Worker: a path that contains .. whose literal dirname chain hits .war-task
 # ancestor (the .war-task dir is in the path literally, but .. escapes it).
 WORKER_DOTDOT="$WT/wt/task-1/sub/../../../plain/file.txt"
 expect "war-worker path with .. denied (traversal)" \
-  2 "$(run "$(mk '"war-worker"' "$WORKER_DOTDOT")")"
+  2 "$(run "$(mk 'war-worker' "$WORKER_DOTDOT")")"
 
 # Regression: clean (no-..) servitor memory path still allowed.
 expect "war-servitor clean memory path still allowed (regression)" \
-  0 "$(run "$(mk '"war-servitor"' "$SERV_MEM")")"
+  0 "$(run "$(mk 'war-servitor' "$SERV_MEM")")"
 
 # Regression: clean (no-..) servitor learnings path still allowed.
 expect "war-servitor clean learnings path still allowed (regression)" \
-  0 "$(run "$(mk '"war-servitor"' "$SERV_LEARN")")"
+  0 "$(run "$(mk 'war-servitor' "$SERV_LEARN")")"
 
 # Regression: clean (no-..) worker inside-worktree path still allowed.
 expect "war-worker clean inside-worktree path still allowed (regression)" \
-  0 "$(run "$(mk '"war-worker"' "$INSIDE_WT")")"
+  0 "$(run "$(mk 'war-worker' "$INSIDE_WT")")"
+
+# ---------------------------------------------------------------------------
+# T2 back-compat: the .. guard fires BEFORE the per-agent case, so it applies
+# to ALL agent types — including war-refiner and the main session (no agent_type).
+# Ratified ADR 0002 D5: dotdot-guard-applies-to-all-agent-types.
+# ---------------------------------------------------------------------------
+
+# Refiner: a .. path -> denied (exit 2); the .. guard is pre-case, not limited
+# to war-worker or war-servitor.
+REFINER_DOTDOT="$WT/docs/learnings/../../etc/shadow"
+expect "war-refiner path with .. denied (pre-case, all agents)" \
+  2 "$(run "$(mk 'war-refiner' "$REFINER_DOTDOT")")"
+
+# Main session (no agent_type): a .. path -> denied (exit 2).
+expect "main session (no agent_type) path with .. denied (pre-case, all agents)" \
+  2 "$(run "$(jq -nc --arg fp "$REFINER_DOTDOT" '{"tool_input":{"file_path":$fp}}')")"
+
+# Regression: refiner with a clean (no-..) path remains unrestricted (fail-open).
+expect "war-refiner clean path still allowed (fail-open preserved)" \
+  0 "$(run "$(mk 'war-refiner' "$OUTSIDE_WT")")"
+
+# Regression: main session with a clean (no-..) path remains fail-open.
+expect "main session (no agent_type) clean path still allowed (fail-open preserved)" \
+  0 "$(run "$(jq -nc --arg fp "$OUTSIDE_WT" '{"tool_input":{"file_path":$fp}}')")"
+
+# Grep assertion: no dead 'warned' variable remains in the hook
+# (printf-json-escaping-vacuous-test-case cleanup, D6 verified-correction).
+n=$((n + 1))
+if ! grep -q '\bwarned\b' "$HOOK"; then
+  printf 'ok %d - no dead warned variable in hook\n' "$n"
+else
+  printf 'FAIL %d - dead warned variable found in hook\n' "$n"
+  fails=$((fails + 1))
+fi
 
 # ---------------------------------------------------------------------------
 printf '\n%d/%d cases passed\n' "$((n - fails))" "$n"
