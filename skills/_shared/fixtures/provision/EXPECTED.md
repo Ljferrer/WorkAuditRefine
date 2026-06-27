@@ -57,3 +57,36 @@ below explicit operator intent and above onboarding / structural fallback).
 3. Confirm the emitted object equals the **Expected scout result** above (list contents + order,
    `source: "ci"`, a rationale that cites CI + the submodule signal).
 4. Confirm `validateProvision(result.provision).ok === true` (array of non-empty trimmed strings).
+
+---
+
+## Golden — manifest-repo
+
+This is the documented golden-check for `readManifest()` applied to the [`manifest-repo/`](./manifest-repo) fixture.
+
+### Fixture signals
+
+`manifest-repo/` contains **both** a committed manifest **and** a competing CI workflow:
+
+- `.war-provision.json` — `{"provision":["./scripts/bootstrap.sh","cargo build --locked"],"rationale":"committed manifest golden"}`
+- `.github/workflows/test.yml` — uses `pnpm install --frozen-lockfile` (a **different** install command, intentionally)
+
+### Expected readManifest result
+
+```json
+{
+  "found": true,
+  "ok": true,
+  "provision": ["./scripts/bootstrap.sh", "cargo build --locked"],
+  "rationale": "committed manifest golden"
+}
+```
+
+### Why manifest beats CI here
+
+Authority resolves to **manifest** (tier 1) over **CI** (tier 2). `readManifest` returns the committed
+`.war-provision.json` list verbatim — it never consults `.github/workflows/`. The scout would then emit
+`source: "manifest"` and skip CI derivation entirely when `found && ok`.
+
+The unique command `./scripts/bootstrap.sh` (absent from the CI workflow) is the assertion anchor in
+`provision.test.mjs` — it confirms the reader returns the manifest list, not the CI install.
