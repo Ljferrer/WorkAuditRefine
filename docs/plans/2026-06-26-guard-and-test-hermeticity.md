@@ -119,9 +119,11 @@ No live-surface change.
 (a new PRESENCE assertion).
 
 - [ ] **Step 1 — Write failing test.** Add a PRESENCE assertion to `refinery-surface.test.sh`: the merge-task gate
-  step in `agents/war-refiner.md` instructs running the gate with a `.war-task`-free `TMPDIR` (assert on a unique
-  token, e.g. `TMPDIR=` together with a "`.war-task`-free" phrase in the step-2 region). Fails today (no such
-  instruction).
+  step in `agents/war-refiner.md` instructs running the gate with a `.war-task`-free `TMPDIR`. **Assert with `grep -F`
+  on a robust literal token** (red-team 2026-06-26): use `grep -qF 'TMPDIR=' <war-refiner.md>` (present after the
+  reword, absent on the original = valid RED). Do **NOT** assert the contiguous substring `war-task-free` — the reword
+  writes `` `.war-task`-free `` with a backtick, so that substring is absent → false-RED; and do **NOT** BRE-grep
+  `TMPDIR=$(cd /` — the `$(` is a regex anchor under BRE → no match (use `grep -F`). Fails today (no TMPDIR directive).
 - [ ] **Step 2 — Run gate → fail.**
 - [ ] **Step 3 — Implement (live-behavior hardening).** Reword `war-refiner.md` step 2 (`:24`) to: *"Run the gate
   command in `<taskWorktree>` with `TMPDIR` set to a freshly-created, `.war-task`-free directory (created outside any
@@ -184,6 +186,12 @@ No live-surface change.
 - **#95(b) does not relocate the gate** — the merge-task gate must stay in `<taskWorktree>` for fix-in-place; only
   the scratch space (`TMPDIR`) is hardened. After Task 1, the scope-hook meta-test is hermetic regardless, so (b) is
   forward-looking defense-in-depth for the class.
+- **#95 premise is environment-specific (red-team 2026-06-26).** The red-team could NOT reproduce case 11 failing on
+  this macOS/BSD host (for the relative payload `dirname` converges to `.` and the progress guard stops the walk at
+  `.`). The original flake was observed in a real run (clandiso-0625), so it CAN occur — Task 1's hermetic fix is a
+  valid robustness/determinism improvement regardless, and the meta-suite stays green with it applied. Also: **BSD
+  `mktemp -d` ignores `TMPDIR`**, so #95(b)'s pin is a **no-op on macOS** and only load-bearing on GNU-coreutils CI
+  hosts — kept as Linux-CI defense-in-depth (Task 1 is the real fix). Both non-blocking.
 
 ## Open decisions — RESOLVED (grill-with-docs, 2026-06-26)
 1. **#95 fix (b) → INCLUDED** as Task 3, `deps:[Task 1, Task 2]` (operator decision: (a) audited before (b) starts;
