@@ -168,7 +168,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.6.9** — audit-fidelity doc-drift & test-polish sweep: tightened weak test assertions to structural forms, dropped dead code/unused imports, closed coverage cells, reconciled doc-drift (auditor baseline F03, covenPolicy default F06). Issues #117 #125 #127 #136 #151 #160. Builds on v0.6.8.
+**0.7.0** — committed `.war-provision.json` provisioning manifest as scout authority tier 1 (above CI, below explicit `run.provision`): scout reads and honors it via `readManifest()`; red-team Lead threads the manifest list into executed probes; contract documented in `schemas.md` (closes #51). Builds on v0.6.9.
 
 ## License
 
