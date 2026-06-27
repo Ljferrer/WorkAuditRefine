@@ -182,9 +182,9 @@ cmd_ensure_integration() {
   fi
 
   # Absent -> create from the supplied base, then record ownership.
-  # Capture stderr so a bad base ref surfaces git's own diagnostic in the die message.
-  # Redirect stderr to stdout in the subshell, discard stdout (the 2>&1 >/dev/null
-  # order: redirect stderr→fd1 first, then fd1→/dev/null doesn't affect stderr).
+  # Capture stderr via a temp file so a bad base ref surfaces git's own diagnostic
+  # in the die message: git stderr → $tmp, stdout → /dev/null; on failure, read
+  # $tmp into the die string, then delete the temp file.
   _tmp_err="$(mktemp 2>/dev/null || mktemp -t warbranch)"
   git branch "$branch" "$base" >/dev/null 2>"$_tmp_err" \
     || { _git_branch_err="$(cat "$_tmp_err")"; rm -f "$_tmp_err"; die "failed to create branch '$branch' at base '$base': $_git_branch_err"; }
@@ -459,11 +459,9 @@ cmd_teardown_phase() {
   worktree_root=""
   owned_file=""
   keep=0
-  force=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --keep)          keep=1; shift ;;
-      --force)         force=1; shift ;;
       --run-dir)
         [ $# -ge 2 ] || die "--run-dir requires a path"
         run_dir="$2"; shift 2 ;;
@@ -478,7 +476,7 @@ cmd_teardown_phase() {
       *)  break ;;
     esac
   done
-  [ $# -ge 2 ] || die "usage: teardown-phase [--keep] [--force] [--owned-file PATH] --run-dir <ledger-dir> [--worktree-root <wt-root>] <slug> <N>"
+  [ $# -ge 2 ] || die "usage: teardown-phase [--keep] [--owned-file PATH] --run-dir <ledger-dir> [--worktree-root <wt-root>] <slug> <N>"
   slug="$1"; num="$2"
   [ -n "$slug" ] || die "teardown-phase: empty <slug>"
   case "$num" in
