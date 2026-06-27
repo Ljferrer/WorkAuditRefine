@@ -832,15 +832,19 @@ test('Task 4 — auditPrompt does NOT contain "EXIST and PASS" in generated prom
 test('Task 4 — auditPrompt threads the worker tests summary into the generated prompt', async () => {
   // The mock worker returns tests:{unit:5,integration:2}; the audit prompt must carry that info
   // so the auditor can cross-check the claim vs the diff.
+  // STRUCTURAL assertion: key on the actual threaded values (unit=5, integration=2), not on words
+  // that appear in the base boilerplate regardless of whether the summary was injected
+  // (memory: weak-test-assertion-passes-without-feature-being-exercised).
+  // JSON.stringify({unit:5,integration:2}) → {"unit":5,"integration":2}
   const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
   const auditCalls = calls.filter(isAuditor)
   assert.ok(auditCalls.length > 0, 'at least one auditor call was made')
-  // The prompt must reference the worker's tests summary (unit/integration counts or the object)
   const auditPromptText = auditCalls[0].prompt
-  assert.ok(
-    /unit|integration|tests/i.test(auditPromptText),
-    'audit prompt must thread in the worker-reported tests summary'
-  )
+  // Both values must be present in the serialized summary that was threaded into the prompt.
+  assert.match(auditPromptText, /"?unit"?\s*[:=]\s*5/,
+    'audit prompt must carry the threaded unit:5 value from the worker tests summary')
+  assert.match(auditPromptText, /"?integration"?\s*[:=]\s*2/,
+    'audit prompt must carry the threaded integration:2 value from the worker tests summary')
 })
 
 test('Task 4 — post-merge gate-audit pass: a war-auditor with lens execution-evidence is spawned after the merge queue', async () => {
