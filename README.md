@@ -168,7 +168,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.6.7** — scheduler & land bookkeeping correctness: three silent-wrong holes in the per-phase loop closed. (1) `landDecision` is now demoted to `held:land-failed` when the land STEP itself returns `error` or `gate_failed` — previously it stayed `landed`, triggering a spurious wrap-up (#99). (2) `auditLog.requested` is now `0` (not `undefined`) for env-blocked and worker-blocked early-returns (#113). (3) A post-loop sweep detects tasks whose deps reference an id absent from the phase task list and escalates them as `unrunnable-deps` (hard escalation) instead of silently skipping them and landing APPROVED with a never-run task (#115). Builds on v0.6.6 red-team verdict integrity.
+**0.6.8** — guard fidelity & test hermeticity: three meta-test fidelity gaps closed. (1) `validate-worktree-scope.test.sh` case 11 is now hermetic — clean dir is rooted under the suite's own `.war-task`-free fixture so the relative-path DENY holds regardless of where the suite is invoked (#95a). (2) `refinery-surface.test.sh` ABSENCE CHECK 2 now guards the `git switch origin/<working>` verb in addition to `checkout origin/` — a dropped `--detach` on either verb is caught (#102). (3) `war-refiner.md` merge-task gate step now instructs running the gate with a `.war-task`-free `TMPDIR` (defense-in-depth so meta-test scratch dirs isolate from the worktree marker, #95b). Builds on v0.6.7 scheduler & land bookkeeping correctness.
 
 ## License
 
