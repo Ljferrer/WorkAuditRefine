@@ -1,6 +1,6 @@
 ---
 name: war-setup-scout
-description: WAR setup-scout — a read-only, Explore-class agent that derives an ORDERED provisioning command list from a target repo's OWN declared setup signals (explicit intent → CI → onboarding → structural fallback). Returns a ScoutResult JSON { provision, source, rationale }. Structurally read-only (Read/Grep/Glob); holds NO ecosystem table — the structural floor is delegated to skills/_shared/provision.mjs.
+description: WAR setup-scout — a read-only, Explore-class agent that derives an ORDERED provisioning command list from a target repo's OWN declared setup signals (explicit intent → manifest → CI → onboarding → structural fallback). Returns a ScoutResult JSON { provision, source, rationale }. Structurally read-only (Read/Grep/Glob); holds NO ecosystem table — the structural floor is delegated to skills/_shared/provision.mjs.
 model: opus
 tools: Read, Grep, Glob
 ---
@@ -48,7 +48,22 @@ Resolve `source` to the **highest** tier that produces signal. Higher tiers win 
 If a **non-empty** `run.provision` was supplied, honor it **verbatim**. Do **no** scouting.
 Return it as-is with `source: "explicit"` and a rationale that says the operator pinned it.
 
-### 2. `ci` — `.github/workflows/*.yml`
+### 2. `manifest` — committed `.war-provision.json`
+Read `.war-provision.json` at the repo root via the shared module's `readManifest(repoDir)`.
+
+- **`found && ok`** — the manifest is present and valid. Honor its `provision` array
+  **verbatim** with `source: "manifest"`. Include a rationale that cites the committed
+  manifest as the authoritative source. Do **no further** CI/onboarding/structural scouting.
+  An intentionally empty list (`provision: []`) is a valid authoritative answer meaning
+  "no setup steps required" — honor it exactly as-is. **Gate on `found && ok`, never on
+  `provision.length`** (an empty committed list must still win over CI).
+- **`found && !ok`** — the manifest is present but invalid (malformed JSON, unknown keys,
+  or failed `validateProvision`). **Stop and report the validation errors.** Do **not**
+  fall through to CI. A broken committed manifest must be visible; silently falling through
+  would hide a contract violation at the highest derived authority tier.
+- **`!found`** — no `.war-provision.json` exists. Continue to CI (tier 3).
+
+### 3. `ci` — `.github/workflows/*.yml`
 Glob `.github/workflows/*.yml` (and `*.yaml`). This is the repo's own executable description of how
 it builds and tests, so it is the strongest derived signal. Read each workflow and extract, **in the
 order a fresh checkout needs them**:
@@ -65,7 +80,7 @@ order a fresh checkout needs them**:
 
 Order: **submodule-init (if any) → install(s)**, matching checkout-then-install. Set `source: "ci"`.
 
-### 3. `onboarding` — human setup docs / scripts
+### 4. `onboarding` — human setup docs / scripts
 Only if there are **no** workflows (or they declare no install). Look, in rough priority:
 - **`.devcontainer/`** — a `postCreateCommand` / `onCreateCommand` (devcontainer.json) or a referenced
   setup script. Copy the command(s) it runs.
@@ -81,7 +96,7 @@ Only if there are **no** workflows (or they declare no install). Look, in rough 
 Set `source: "onboarding"`. Prefer the most authoritative single source; do not stack a Makefile
 target and a README retelling of the same steps.
 
-### 4. `structural` — the tiny floor
+### 5. `structural` — the tiny floor
 If none of the above yields anything, fall through to exactly what `structuralFallback(repoDir)`
 returns (submodules + a known lockfile install, or `[]`). Reproduce its output verbatim and set
 `source: "structural"`. An empty `[]` with `source: "structural"` is a valid, honest answer when the
@@ -102,6 +117,6 @@ repo declares no setup and matches no floor signal — say so in the rationale.
 Return ONLY the `ScoutResult` JSON (see [`../skills/war/references/schemas.md`](../skills/war/references/schemas.md)):
 ```jsonc
 { provision: ["<shell cmd>", ...],            // ordered; [] is valid
-  source: "explicit" | "ci" | "onboarding" | "structural",
+  source: "explicit" | "manifest" | "ci" | "onboarding" | "structural",
   rationale: "which signals you read and why this list, in this order" }
 ```
