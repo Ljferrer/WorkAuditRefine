@@ -90,10 +90,20 @@ Tasks 2.1 / 3.1 / 4.1 are parallel-eligible after T1.1 (distinct files); T1.2 al
   - bad entry (`['ok','  ']`) → `ok:false`, error matches `/provision\[1\].*non-empty/` (mirror `validateProvision`
     tests + `war-config.test.mjs:135-139`).
   - unknown top-level key (`{provision:[],bogus:1}`) → `ok:false`, error **names** `bogus`.
+  - **non-object JSON** — `null`, `[]`, `"x"`, `42` (each valid JSON but not an object) → `found:true, ok:false`
+    with a clear "must be a JSON object" error (red-team 2026-06-26: `JSON.parse('null')` succeeds so the catch does
+    NOT fire — without an explicit guard the unknown-key check `Object.keys(parsed)` throws an uncaught TypeError;
+    `json-parse-catch-misses-valid-scalar`).
 - [ ] **Step 2 — Run gate → fail** (no reader exists).
 - [ ] **Step 3 — Implement `readManifest(repoDir)`:** read `<repoDir>/.war-provision.json`; absent → `{found:false}`;
-  present → `JSON.parse` (catch → `ok:false`) + `validateProvision(parsed.provision)` + strict unknown-key check
-  (only `provision`, `rationale` allowed), returning `{found:true, ok:true, provision, rationale}` or
+  present → `JSON.parse` (catch → `ok:false`). **Then, BEFORE any key inspection, guard non-object JSON**
+  (red-team 2026-06-26, `json-parse-catch-misses-valid-scalar`):
+  `if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {found:true, ok:false, errors:['manifest must be a JSON object {provision, rationale?}']}`
+  — `JSON.parse('null')`/`'[]'`/`'"x"'`/`'42'` all parse without throwing, so without this guard `Object.keys(parsed)`
+  crashes. Then run the strict unknown-key check (only `provision`, `rationale` allowed) **and**
+  `validateProvision(parsed.provision)` — run the unknown-key check **independently of** (not short-circuited by)
+  validateProvision, so a manifest carrying its own `source` key is **always** rejected ("`source` assigned, not
+  declared" — proven robust in red-team). Return `{found:true, ok:true, provision, rationale}` or
   `{found:true, ok:false, errors:[…]}`. Reuse `validateProvision`; add the `readFileSync` import.
   `structuralFallback` is **unchanged** (still the tier-4 floor; reader is additive).
 - [ ] **Step 4 — Run gate → pass.**
@@ -106,8 +116,13 @@ Tasks 2.1 / 3.1 / 4.1 are parallel-eligible after T1.1 (distinct files); T1.2 al
 `skills/_shared/fixtures/provision/EXPECTED.md`; test `skills/_shared/provision.test.mjs`. **deps:** Task 1.1.
 
 - [ ] **Step 1 — Write failing test.** `readManifest(FIXTURES/'manifest-repo')` → `found:true, ok:true`, `provision`
-  deepEquals the manifest's list (NOT the competing CI install). Assert on the **unique** manifest command string
-  (avoid the weak-assertion trap, `weak-test-assertion-passes-without-feature-being-exercised`).
+  deepEquals the manifest's list. Assert on the **unique** manifest command string (avoid the weak-assertion trap,
+  `weak-test-assertion-passes-without-feature-being-exercised`). **Precision (red-team 2026-06-26):** `readManifest`
+  reads ONLY `.war-provision.json` and never consults `.github/workflows/`, so at the READER level this proves
+  "returns the committed manifest list **verbatim**" — it is NOT itself the manifest-beats-CI proof. The competing CI
+  workflow in the fixture is the input to the **scout-level** golden (Task 2.1), where the scout PREFERS the `manifest`
+  tier over `ci`; keep the CI file for that golden. (Reader test ⇒ verbatim-return; precedence assertion lives at the
+  scout.)
 - [ ] **Step 2 — Run gate → fail.**
 - [ ] **Step 3 — Implement.** Add the fixture files; append a `## Golden — manifest-repo` section to `EXPECTED.md`
   documenting that authority resolves to `manifest` over the present CI workflow.
@@ -216,6 +231,24 @@ Tasks 2.1 / 3.1 / 4.1 are parallel-eligible after T1.1 (distinct files); T1.2 al
   strictness, assigned-not-declared `source`, manifest-beats-CI) is stressed in `/red-team` before any code.
 - **`source` assigned, not self-declared** — a repo cannot claim a higher authority tier via the manifest.
 - **Purely additive:** no `.war-provision.json` → behaves exactly as today (scout → CI; red-team → `provision:[]`).
+- **Red-team 2026-06-26 — design RATIFIED (CLEARED-WITH-NOTES). executable-proof built `readManifest` from the plan
+  and all 6 cases passed; contract-stress confirmed the three contract pillars hold** (validateProvision-reuse error
+  shape, `source`-key rejection = assigned-not-declared, fail-loud expressible at the scout call-site). **One real
+  design hole patched:** Task 1.1 Step 3 now guards **non-object JSON** before the unknown-key check (`JSON.parse('null')`
+  etc. parse without throwing → `Object.keys` would crash; `json-parse-catch-misses-valid-scalar`), with a matching
+  Step-1 test case. **Precision patched:** Task 1.2's reader test proves "returns the manifest list verbatim", not
+  "manifest beats CI" — the reader never reads CI; precedence is the **scout** golden (Task 2.1).
+- **Version v0.7.0 ratified (red-team adjudication):** the roadmap assigns plan 5 → **v0.7.0** (minor, net-new
+  capability) on plan 4's v0.6.9; the spec's v0.6.6 is the superseded standalone baseline (sandbox read v0.6.8 because
+  plan-4's v0.6.9 release was still landing). Plan/roadmap authoritative over the spec literal
+  (`redteam-adjudication-is-authoritative-version-source`); the "next free minor if the stack order shifts" hedge covers
+  a re-ordering.
+- **Phase-0 gate criterion (red-team note):** "gate to Phase 1" = red-team verdict **CLEARED or CLEARED-WITH-NOTES**
+  (NOT `BLOCKED`/`INCOMPLETE`). This report is CLEARED-WITH-NOTES → Phase 1 is unlocked. **Phase-4 ordering:** T4.2
+  (release) lands **after** T4.1 (schemas doc); T4.1 is parallel-eligible with T2.1/T3.1 after T1.1 (all distinct
+  files), but the release is last. The `manifest`-tier "stop, do not fall through on `found&&!ok`" is an **agent
+  prompt directive** in the scout, not code-enforced (`red-team-env-gap-warn-is-agent-directive-not-code-enforced`) —
+  acceptable for a doc-scan-gated LLM tier.
 
 ## Open decisions — RESOLVED (grill-with-docs, 2026-06-26)
 1. **Location/name → `.war-provision.json` at repo root** (operator-confirmed).
