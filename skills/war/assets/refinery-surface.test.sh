@@ -6,20 +6,19 @@
 # ABSENCE assertions (the forbidden pattern):
 #   The live surface (agents/ + skills/war/assets/workflow-template.js, excluding
 #   *.test.* files) must NOT contain a direct instruction for the Refinery to
-#   "checkout <working>" by name (non-detached) in a land context, or to "push"
-#   from the main checkout ("push from the Lead's main checkout" as a positive
-#   command). The concrete token: `--detach` must accompany any `checkout` of a
-#   working branch in a land context — bare `checkout <workingBranch>` (without
-#   --detach) would signal "Refinery operating in main checkout." We scan for the
-#   absence of the positive-instruction form "git checkout origin/" without
-#   --detach in the refinery agent or workflow land prompt. The more conservative
-#   and unambiguous forbidden token is: any instruction containing the phrase
-#   "merge or push from the" (which, if it appeared as a command rather than a
-#   prohibition, would indicate a main-checkout merge instruction). More precisely:
-#   the token "Never merge or push from the Lead's main checkout" must appear ONLY
-#   as a prohibition — and no token of the form "from the Lead's main checkout"
-#   should appear as a positive instruction. We enforce this via the absence of
-#   the substring "from the Lead" that is NOT prefixed by "Never" or "never".
+#   re-base onto the working branch (non-detached) in a land context via either
+#   the 'checkout' or 'switch' verb. The correct form is `--detach` for both
+#   verbs (spec §5.3). Bare `checkout origin/<branch>` or `switch origin/<branch>`
+#   (without --detach) would signal "Refinery operating in main checkout."
+#   We scan the live surface for both forbidden forms and fail loud if found.
+#   The more conservative and unambiguous forbidden token is: any instruction
+#   containing the phrase "merge or push from the" (which, if it appeared as a
+#   command rather than a prohibition, would indicate a main-checkout merge
+#   instruction). More precisely: the token "Never merge or push from the Lead's
+#   main checkout" must appear ONLY as a prohibition — and no token of the form
+#   "from the Lead's main checkout" should appear as a positive instruction. We
+#   enforce this via the absence of the substring "from the Lead" that is NOT
+#   prefixed by "Never" or "never".
 #
 # PRESENCE assertions (the required routing):
 #   1. `_refinery` must appear in agents/war-refiner.md (the merge container).
@@ -178,6 +177,35 @@ if [ -z "$no_detach_checkout_hits" ]; then
 else
   fail "BARE CHECKOUT DETECTED — 'checkout origin/' without --detach found on the live surface. The Refinery must use detached HEAD for land (git refuses a named checkout of a branch checked out in the Lead's main checkout):"
   printf '%s\n' "$no_detach_checkout_hits" >&2
+fi
+
+# ---------------------------------------------------------------------------
+# ABSENCE CHECK 3: the live surface must NOT instruct the Refinery to
+# `git switch <working-branch>` (by name, non-detached) in a land context.
+# The correct form is `switch --detach` (spec §5.3). The forbidden token:
+# "switch origin/" WITHOUT "--detach" on the same line (in the live surface).
+# We require that any "switch origin/" line also contains "--detach".
+# Mirrors ABSENCE CHECK 2 exactly, for the switch verb.
+# ---------------------------------------------------------------------------
+no_detach_switch_hits=""
+for f in $LIVE_SURFACE_FILES; do
+  case "$f" in *.test.*) continue ;; esac
+  if [ -f "$f" ]; then
+    # Lines that contain "switch origin/" but NOT "--detach" (or "detach")
+    hits="$(grep -n 'switch origin/' "$f" 2>/dev/null | grep -v '\-\-detach' | grep -v 'detach' || true)"
+    if [ -n "$hits" ]; then
+      no_detach_switch_hits="$no_detach_switch_hits
+$f:$hits"
+    fi
+  fi
+done
+no_detach_switch_hits="${no_detach_switch_hits#?}"  # strip leading newline
+
+if [ -z "$no_detach_switch_hits" ]; then
+  pass "absence check — no bare 'switch origin/' (non-detached) found on the live surface (detached-land constraint holds)"
+else
+  fail "BARE SWITCH DETECTED — 'switch origin/' without --detach found on the live surface. The Refinery must use detached HEAD for land (git refuses a named switch to a branch checked out in the Lead's main checkout):"
+  printf '%s\n' "$no_detach_switch_hits" >&2
 fi
 
 # ---------------------------------------------------------------------------

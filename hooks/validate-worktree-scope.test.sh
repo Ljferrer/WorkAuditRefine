@@ -111,17 +111,39 @@ expect "no file_path -> allowed" \
 # Implementation: use `timeout` when available (Linux/brew coreutils); fall
 # back to a background-watchdog approach that works on macOS bash 3.2.57 where
 # `perl -e 'alarm N; exec @ARGV'` does not propagate the child's exit code.
-# rel_guard <payload>: runs the hook from a clean temp dir (no .war-task
-# ancestor) to prevent the CWD's own .war-task from satisfying the walk.
+# rel_guard <payload>: runs the hook from a verified-.war-task-free dir so the
+# relative payload resolves under a clean ancestor chain regardless of where the
+# suite itself is invoked (including from inside a .war-task worktree on CI).
+#
+# Clean dir: a subdirectory of $WT/plain (the suite's own .war-task-free fixture
+# created above at :47), NOT an ambient mktemp -d, which may land under a
+# .war-task ancestor when TMPDIR points inside a worktree root on Linux/CI.
+#
+# Precondition: walk the chosen dir's ancestors; if any holds .war-task, emit a
+# SPECIFIC marker and abort loud — a non-isolatable environment must never
+# silently mis-assert.
+#
 # Uses `timeout` when available; falls back to a background-watchdog pattern
 # that works on macOS bash 3.2.57 (perl alarm+exec does not propagate exit codes
 # reliably on macOS).
 rel_guard() {
-  _rg_clean="$(mktemp -d 2>/dev/null || mktemp -d -t rg_clean)"
+  # Root under the suite's controlled .war-task-free fixture, not ambient mktemp.
+  _rg_clean="$WT/plain/rg_cwd"
+  mkdir -p "$_rg_clean"
+
+  # Precondition: verify no ancestor of _rg_clean carries .war-task.
+  _rg_check="$_rg_clean"
+  while [ "$_rg_check" != "/" ] && [ -n "$_rg_check" ]; do
+    if [ -e "$_rg_check/.war-task" ]; then
+      printf 'REL_GUARD_PRECONDITION_FAILED: %s has .war-task — clean dir is not isolatable\n' "$_rg_check" >&2
+      return 1
+    fi
+    _rg_check="$(dirname "$_rg_check")"
+  done
+
   if command -v timeout >/dev/null 2>&1; then
     _rg_rc=0
     ( cd "$_rg_clean" && printf '%s' "$1" | timeout 10 bash "$HOOK" >/dev/null 2>&1 ) || _rg_rc=$?
-    rm -rf "$_rg_clean"
     echo "$_rg_rc"
     return
   fi
@@ -132,7 +154,6 @@ rel_guard() {
   _rg_wdog=$!
   wait "$_rg_pid" 2>/dev/null; _rg_rc=$?
   kill "$_rg_wdog" 2>/dev/null; wait "$_rg_wdog" 2>/dev/null || true
-  rm -rf "$_rg_clean"
   echo "$_rg_rc"
 }
 expect "war-worker relative path denies (no infinite loop)" \
