@@ -168,7 +168,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.6.8** — guard fidelity & test hermeticity: three meta-test fidelity gaps closed. (1) `validate-worktree-scope.test.sh` case 11 is now hermetic — clean dir is rooted under the suite's own `.war-task`-free fixture so the relative-path DENY holds regardless of where the suite is invoked (#95a). (2) `refinery-surface.test.sh` ABSENCE CHECK 2 now guards the `git switch origin/<working>` verb in addition to `checkout origin/` — a dropped `--detach` on either verb is caught (#102). (3) `war-refiner.md` merge-task gate step now instructs running the gate with a `.war-task`-free `TMPDIR` (defense-in-depth so meta-test scratch dirs isolate from the worktree marker, #95b). Builds on v0.6.7 scheduler & land bookkeeping correctness.
+**0.6.9** — audit-fidelity doc-drift & test-polish sweep: tightened weak test assertions to structural forms, dropped dead code/unused imports, closed coverage cells, reconciled doc-drift (auditor baseline F03, covenPolicy default F06). Issues #117 #125 #127 #136 #151 #160. Builds on v0.6.8.
 
 ## License
 
