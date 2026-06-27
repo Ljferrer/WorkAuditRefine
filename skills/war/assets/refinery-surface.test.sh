@@ -180,6 +180,23 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# PRESENCE CHECK 4: war-refiner.md must instruct running the merge-task gate
+# with TMPDIR set to a .war-task-free directory (defense-in-depth, #95b).
+# Assert with grep -F on the literal token 'TMPDIR=' (present after the reword,
+# absent on the original = valid RED). Do NOT assert 'war-task-free' contiguous
+# substring — the directive writes `.war-task`-free with a backtick that splits it.
+# ---------------------------------------------------------------------------
+if [ ! -f "$REFINER_FILE" ]; then
+  fail "PRESENCE CHECK 4 — $REFINER_FILE not found"
+else
+  if grep -qF 'TMPDIR=' "$REFINER_FILE"; then
+    pass "PRESENCE CHECK 4 — merge-task gate step in $REFINER_FILE instructs running with TMPDIR= (war-task-free scratch dir, defense-in-depth #95b)"
+  else
+    fail "PRESENCE CHECK 4 — $REFINER_FILE does NOT instruct running the gate with TMPDIR= — add the .war-task-free TMPDIR directive to the merge-task step 2 (#95b)"
+  fi
+fi
+
+# ---------------------------------------------------------------------------
 # ABSENCE CHECK 3: the live surface must NOT instruct the Refinery to
 # `git switch <working-branch>` (by name, non-detached) in a land context.
 # The correct form is `switch --detach` (spec §5.3). The forbidden token:
