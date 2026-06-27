@@ -88,15 +88,40 @@ The servitor writes ONLY under `learningsTarget` (confinement is the capability 
 The read-only, Explore-class setup-scout (`agents/war-setup-scout.md`) reads the **target repo's own** setup signals and derives an ordered provisioning command list. It returns **only**:
 ```jsonc
 { provision: ["<shell cmd>", ...],   // ordered; submodule-init before install; [] is valid
-  source: "explicit" | "ci" | "onboarding" | "structural",  // the highest-authority tier that yielded signal
+  source: "explicit" | "manifest" | "ci" | "onboarding" | "structural",  // the highest-authority tier that yielded signal
   rationale: "which signals were read and why this list, in this order" }
 ```
-- **Authority (descending):** `explicit` (a non-empty `run.provision` honored verbatim, no scouting) → `ci` (`.github/workflows/*.yml`) → `onboarding` (`.devcontainer`, a `Makefile`/`Justfile` `setup` target, `package.json scripts.{setup,bootstrap,prepare}`, CONTRIBUTING/README setup sections) → `structural` (the tiny floor). The scout stops at the first tier that produces a list.
-- **Scout subset vs. config enum.** The scout **emits** only `{ explicit, ci, onboarding, structural }` — the four tiers it can read. The full `run.provisionSource` config enum is wider: `explicit | manifest | ci | onboarding | structural | none` ([`../assets/war-config.mjs`](../assets/war-config.mjs) `PROVISION_SOURCES`). The two extra values are not scout outputs: `none` is the unscouted/empty default, and `manifest` (a first-class committed repo manifest, authority above `ci`) is **deferred to [issue #51](https://github.com/Ljferrer/WorkAuditRefine/issues/51)** — reserved in the enum but not yet emitted by any scout tier.
+- **Authority (descending):** `explicit` (a non-empty `run.provision` honored verbatim, no scouting) → `manifest` (a committed `.war-provision.json`, tier 1 — above CI, below explicit) → `ci` (`.github/workflows/*.yml`) → `onboarding` (`.devcontainer`, a `Makefile`/`Justfile` `setup` target, `package.json scripts.{setup,bootstrap,prepare}`, CONTRIBUTING/README setup sections) → `structural` (the tiny floor). The scout stops at the first tier that produces a list.
+- **Scout subset vs. config enum.** The scout **emits** `{ explicit, manifest, ci, onboarding, structural }`. The full `run.provisionSource` config enum is wider: `explicit | manifest | ci | onboarding | structural | none` ([`../assets/war-config.mjs`](../assets/war-config.mjs) `PROVISION_SOURCES`). `none` is the unscouted/empty default and is never emitted by the scout.
 - **No ecosystem table:** every command is traceable to a signal actually read in the repo, or to the deterministic structural floor — `structuralFallback` in [`../../_shared/provision.mjs`](../../_shared/provision.mjs) (submodule-init + a single known-lockfile install only). The scout never synthesizes an install from a guessed language/framework.
 - **Guarded downstream:** `provision` must pass `validateProvision` (array of non-empty trimmed strings) before it is pinned, and the operator reviews `{ provision, source, rationale }` during war-room Setup. There is no automated test for the scout; its golden-check is the checked-in fixture + [`../../_shared/fixtures/provision/EXPECTED.md`](../../_shared/fixtures/provision/EXPECTED.md) (deterministic coverage of the floor lives in `provision.test.mjs`).
 
 This result is the *derivation* output; pinning it into `run.provision` (and the every-time execution that follows) is governed by the §Run config below.
+
+### Provisioning manifest (.war-provision.json)
+
+A committed JSON file at the repo root that declares an ordered provisioning list. The scout reads it as **authority tier 1 — above CI, below explicit operator `run.provision`** (closes [#51](https://github.com/Ljferrer/WorkAuditRefine/issues/51)).
+
+**JSON schema:**
+```jsonc
+{ "provision": string[],   // required; ordered; [] is valid ("no steps")
+  "rationale"?: string }   // optional human note
+```
+- `"provision"` is required and must be a `string[]` passing `validateProvision` (non-empty trimmed strings).
+- `"rationale"` is optional.
+- No other top-level keys are permitted (source assigned-not-declared rule — see below).
+
+**source assigned-not-declared:** The manifest carries **no `source` field**. The reader stamps `source: "manifest"` after a successful read. A manifest that includes its own `source` key is **rejected** (unknown-key error) — a repo cannot claim a higher authority tier by self-declaration.
+
+**fail-loud-on-broken contract:** A present-but-broken manifest **stops with errors** — it does not silently fall through to CI. The reader (`readManifest` in `skills/_shared/provision.mjs`) returns `{ found: true, ok: false, errors: [...] }` for any of:
+- Unknown top-level keys (including a self-declared `source`)
+- Malformed / non-JSON content
+- Non-object JSON (e.g. `null`, `[]`, `"x"`, `42`) — `JSON.parse` succeeds on these, so an explicit object guard is required before key inspection
+- A `provision` entry that fails `validateProvision` (blank / whitespace-only string)
+
+On a successful read: `{ found: true, ok: true, provision: [...], rationale?: "..." }`. Absent file: `{ found: false }`.
+
+**Absence is safe:** no `.war-provision.json` → the scout continues to CI exactly as before. This is purely additive.
 
 ## Run config — `.claude/war/config.json` (optional)
 Produced by `/war-room`, consumed by `/war`'s Setup. The schema, defaults, presets, and validation are owned by [`../assets/war-config.mjs`](../assets/war-config.mjs) (`--fill-defaults` to resolve a file, `--preset <name>` to emit a preset, `--stdin` to validate piped JSON). Absent this file, `/war` uses built-in defaults (pre-v0.3.0 behavior).

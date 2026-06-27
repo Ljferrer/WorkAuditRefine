@@ -64,6 +64,16 @@ if (!fingerprint || !fingerprint.titleLine) {
 // test: a FAILING provision step is an env-gap → status:"warn" + a note, and must NEVER become a
 // red/fail verdict (that would mis-score a broken environment as a broken plan). Empty list ⇒ no
 // directive at all (byte-for-byte back-compat). Analyzed/read-only probes never provision.
+//
+// PROVENANCE of args.provision — three valid sources (in descending authority):
+//   1. Operator pin: the user passes an explicit list when invoking /red-team.
+//   2. Committed manifest: the red-team Lead reads `<repo>/.war-provision.json` via the shared
+//      readManifest() (skills/_shared/provision.mjs) and threads `result.provision` here — mirrors
+//      exactly how /war pins run.provision upstream of the Workflow. A manifest-only repo therefore
+//      provisions identically in both skills. (Task #51 / T3.1)
+//   3. Structural fallback / setup-scout derivation (see structuralFallback in provision.mjs).
+// The scaffold itself is UNCHANGED — it runs whatever list it is given; provision:[] is byte-for-
+// byte back-compat. Only the Lead's pre-flight assembly step is different per source.
 const provisionDirective = (technique) =>
   technique === 'executed' && provision.length
     ? '\n' + [
