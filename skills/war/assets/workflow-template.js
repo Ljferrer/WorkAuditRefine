@@ -23,7 +23,7 @@ export const meta = {
 //     agents: { worker|auditor|refiner|servitor: { model, effort } },  // from .claude/war/config.json (resolved by the Lead); defaults below
 //     audit:  { covenSize, covenPolicy, autoEscalate },                // covenPolicy seeds task.coven Lead-side; covenSize/autoEscalate used here
 //     run:    { roundLimit, afk } }                                    // afk is Lead-side; roundLimit used here
-// auditors receive the absolute worktree path and compare candidate files there against baseline at the main repo checkout.
+// auditors receive the absolute worktree path and self-serve the change set via read-only git (git diff <integrationBranch>...<task.branch>, three-dot); no main-checkout baseline.
 // The Lead may inject APPROVED extra stages by editing a copy of this file; never free-author the core loop.
 // ---------------------------------------------------------------------------
 
