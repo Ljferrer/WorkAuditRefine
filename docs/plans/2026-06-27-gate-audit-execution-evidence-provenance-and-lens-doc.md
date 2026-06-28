@@ -202,6 +202,10 @@ template literal). T2 depends on T1's threaded `gateHeadSha`; T3 depends on T1+T
     integration_sha: 'sha-abc123unique' }`; capture the gate-audit prompt (filter `calls` by `isAuditor` && prompt-or-label
     `.includes('execution-evidence')`); assert the prompt `.includes('sha-abc123unique')`. Assert on the unique sha, NOT
     pre-existing content.
+    - **Destructure-trap coverage (F9):** Test 1 **transitively proves the destructure pulled `gateHeadSha`** — the prompt
+      interpolates the destructured variable, so if the `parallel(...map({ … gateHeadSha }))` destructure omits
+      `gateHeadSha` the token never reaches the prompt and Test 1 goes RED. The "captured but silently DROPPED at the
+      destructure" trap (DP7) is therefore covered by Test 1; **no separate destructure test is needed.**
   - *Test 2 — defusing directive present (RED→GREEN).* Assert the same prompt `.includes('corresponds to the current
     integration tip')` (a unique substring of the new directive, **verified absent at HEAD**).
   - *Test 3 — sentinel on absent sha (regression, replaces spec test #3).* Stub a merged result with **no**
@@ -257,9 +261,11 @@ template literal). T2 depends on T1's threaded `gateHeadSha`; T3 depends on T1+T
     ask for the sha: append `Also populate integration_sha with the rebased integration tip the gate ran against, so the
     gate-audit pass can confirm the gate ran at the integration tip.` (D3 — dispatched-prompt surface only; the
     standing `war-refiner.md` already covers it.)
-  - **(d)** `schemas.md` — add one line under `## MergeResult — war-refiner`: `integration_sha` is the **gate-HEAD
-    provenance** the post-merge gate-audit pass reads to confirm the gate ran at the integration tip (no new field;
-    `integration_sha?` already exists).
+  - **(d)** `schemas.md` — this is a **PROSE ANNOTATION to the existing `integration_sha?` field** (which already exists,
+    undocumented), **not a new field**. Add this exact line under `## MergeResult — war-refiner`:
+    > `integration_sha` — the post-rebase integration tip the gate ran at; the post-merge gate-audit pass reads it as
+    > gate-HEAD provenance to confirm the executed `gate_output` corresponds to the integration tip (it does not add a
+    > field; `integration_sha?` already exists).
 - [ ] **Step 4 — Run gate → pass.** Tests 1-4 now green; Test 5 + the existing `Task 4 — post-merge gate-audit` suite
   (`:850-1001`: lens-spawn, GATE_OUT inclusion, SOFT-default `landed`, HARD Critical/Major `held:escalation`, PARALLEL
   structural) all stay green (DP6 — additive injection, presence-only assertions). Whole node suite (260 baseline)
@@ -286,7 +292,8 @@ template literal). T2 depends on T1's threaded `gateHeadSha`; T3 depends on T1+T
     from the args, **verified absent from the gate-audit prompt at HEAD** — the loop-scoped `refineryPath` never reaches
     this pass today).
   - *Test 2 — HEAD-confirm instruction present (RED→GREEN).* Assert the prompt `.includes('rev-parse HEAD')` AND a unique
-    substring tying it to the sha gate, e.g. `.includes('equals the gate-HEAD sha')` (verified absent at HEAD).
+    substring of the mechanical bracket comparison tying it to the sha gate, e.g. `.includes('[ "$(git -C')` (the exact
+    `[ "$(git -C ${refineryPath} rev-parse HEAD)" = "${gateHeadSha}" ]` test from step 3(b)), verified absent at HEAD.
   - *Test 3 — "cannot run commands" is GONE (RED→GREEN).* Assert the gate-audit prompt does **NOT** include the literal
     `'you cannot run commands'` (present at HEAD `:345`; this test goes RED until the rewrite removes it).
   - *Test 4 — read-the-test-at-the-tip instruction present (RED→GREEN).* Assert a unique substring instructing the seat to
@@ -313,19 +320,26 @@ template literal). T2 depends on T1's threaded `gateHeadSha`; T3 depends on T1+T
     ```
     You are a READ-ONLY auditor with read-only git. The phase integration branch is checked out at
     ${refineryPath} (the _refinery worktree) and the gate ran at gate-HEAD sha ${gateHeadSha}.
-    First confirm your evidence is pinned to the integration tip: run
-    git -C ${refineryPath} rev-parse HEAD and check it equals the gate-HEAD sha ${gateHeadSha}.
-    If confirmed, then confirm the mapped acceptance-criteria test is PRESENT in the files at that tip
+    First confirm your evidence is pinned to the integration tip by running EXACTLY this bracket test:
+        [ "$(git -C ${refineryPath} rev-parse HEAD)" = "${gateHeadSha}" ]
+    Exit 0 ⇒ pin CONFIRMED (your worktree is at the integration tip). Non-zero exit — including git
+    unavailable or rev-parse failing — ⇒ you CANNOT confirm the pin.
+    If CONFIRMED, then confirm the mapped acceptance-criteria test is PRESENT in the files at that tip
     (read-only git / Read in ${refineryPath}), not merely inferred from the gate output text; record a
     HARD gate-evidence finding ONLY when the mapped test is genuinely absent AT THE CONFIRMED INTEGRATION TIP.
-    If you CANNOT confirm rev-parse HEAD equals the gate-HEAD sha, record a SOFT note, never a HARD finding
-    (the stale-tip defusing rule). Return your reviewed audit_sha so the Lead can compare it to the gate-HEAD sha.
+    If you CANNOT confirm (the bracket test is non-zero or the command cannot run), record a SOFT note,
+    never a HARD finding (the stale-tip defusing rule). The SOFT note MUST state: the observed HEAD sha
+    (or "rev-parse failed"), the expected gate-HEAD sha ${gateHeadSha}, and the reason — "gate-audit
+    worktree not at the integration tip — execution evidence unreliable, downgraded to SOFT, not a land-halt".
+    Return your reviewed audit_sha so the Lead can compare it to the gate-HEAD sha.
     ```
-    This makes the Task 1 "cannot confirm" SOFT-downgrade **mechanical** (HEAD == gateHeadSha is a `rev-parse` check, not
-    a guess) and closes the recurring `audit-worktree-pre-impl-tip-stale-verdict` false-negative at the source: a "test
-    unrun" finding can only be HARD when the test is genuinely absent at the confirmed tip. The seat already has read-only
-    git Bash (`war-auditor.md:5`,`:14`) — no tool/allowlist change. `audit_sha` reuses the existing `AUDIT_VERDICT` field
-    (already threaded into the auditLog by Task 1 step (b′)).
+    This makes the Task 1 "cannot confirm" SOFT-downgrade **mechanical**: "confirm" is the exact bracket test
+    `[ "$(git -C ${refineryPath} rev-parse HEAD)" = "${gateHeadSha}" ]` (exit 0 ⇒ confirmed), and "cannot confirm" is
+    operationally **that bracket test exiting non-zero OR the command being unable to run** — not a guess. It closes the
+    recurring `audit-worktree-pre-impl-tip-stale-verdict` false-negative at the source: a "test unrun" finding can only be
+    HARD when the test is genuinely absent at the confirmed tip. The seat already has read-only git Bash
+    (`war-auditor.md:5`,`:14`) — no tool/allowlist change. `audit_sha` reuses the existing `AUDIT_VERDICT` field (already
+    threaded into the auditLog by Task 1 step (b′)).
 - [ ] **Step 4 — Run gate → pass.** Tests 1-4 now green; Tests 5-6 + the full `Task 4 — post-merge gate-audit` suite
   (`:850-1001`) stay green (the escalation wiring at `:360`/`:363-365` and the `auditLog`/`escalated` shapes are
   untouched — only the prompt text and a new local `refineryPath` const change). Whole node suite stays green.
@@ -408,7 +422,7 @@ faithful `parallel`); reuse `PROVISION_ARGS()` / `seatOf` / `isAuditor` and the 
 | T1 sha → auditLog | sha rides into the auditLog (reviewer MAJOR) | `auditLog.find(e=>e.gateEvidence).gateHeadSha === 'sha-abc123unique'`; `.auditSha === 'auditsha-xyz789'` | "Task 4 — gate-audit HARD case" (`:934`) |
 | T1 hardness | Critical finding WITH matching sha still holds | `landDecision === 'held:escalation'`; `escalated[]` has `reason:'gate-evidence'` | same |
 | T2 pinned path | `_refinery` integration-tip path interpolated | prompt `.includes('/abs/repo/.claude/worktrees/run-2026/_refinery')` (built from `PROVISION_ARGS`, ABSENT at HEAD) | "Task 4 — gate-audit prompt references the executed gate output" (`:877`) |
-| T2 HEAD-confirm | `rev-parse HEAD == gateHeadSha` instruction present | prompt `.includes('rev-parse HEAD')` && `.includes('equals the gate-HEAD sha')` | same |
+| T2 HEAD-confirm | mechanical `rev-parse HEAD == gateHeadSha` bracket test present | prompt `.includes('rev-parse HEAD')` && `.includes('[ "$(git -C')` (the exact bracket comparison) | same |
 | T2 no-cannot-run | "you cannot run commands" removed | prompt does **NOT** include `'you cannot run commands'` (present at HEAD) | same |
 | T2 read-at-tip | seat reads the mapped test at the tip | prompt `.includes('present in the files at that tip')` | same |
 | T2 hardness / soft | escalation wiring unchanged by the rewrite | HARD: `held:escalation`; SOFT: `landed` | "Task 4 — HARD case" (`:934`) + "soft by default" (`:904`) |
@@ -459,6 +473,11 @@ rationale. Do **not** write an ADR file.
   (`workflow-template.js:317`), **adjacent** to G2's gate-RUN TMPDIR edit (`:316`) in the SAME template literal — these
   are consecutive lines, **NOT disjoint** (DP9, correcting both specs). Serial landing **G1(0.7.1) → G2(0.7.2)** is
   mandatory; the later worker re-anchors by construct. Neither side may assume textual independence.
+- **Spec ↔ plan alignment (2026-06-27):** the companion SPEC
+  (`docs/specs/2026-06-27-gate-audit-execution-evidence-provenance-and-lens-doc.md`) has now been **aligned to this
+  ratified plan**: the worktree-pin is **promoted from deferred to in-scope** (new decision D6), the absent-sha fallback
+  is the literal sentinel `(integration_sha unrecorded)` (not `working_sha`), and the cross-spec "disjoint" wording is
+  corrected to "adjacent lines in one template literal". Spec and plan are now consistent.
 
 ## Coverage
 
