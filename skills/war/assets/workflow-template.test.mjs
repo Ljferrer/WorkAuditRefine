@@ -1488,6 +1488,137 @@ test('#115 — post-loop sweep back-compat: valid-deps phase produces no spuriou
 })
 
 // ---------------------------------------------------------------------------
+// Task 2 (#193): gate-audit seat pinned to _refinery integration tip + stale-tip SOFT-downgrade
+// PROVISION_ARGS supplies worktreeRoot:'/abs/repo/.claude/worktrees' + runId:'run-2026'
+// so the reconstructed _refinery path is '/abs/repo/.claude/worktrees/run-2026/_refinery'.
+// ---------------------------------------------------------------------------
+
+const gateAuditImpl = (prompt, opts) => {
+  const seat = seatOf(opts)
+  if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+  if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 5, integration: 2 } }
+  if (seat === 'war-auditor') return { seat: opts.label, lens: opts.label?.includes('execution-evidence') ? 'execution-evidence' : 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+  if (seat === 'war-refiner') {
+    return opts.phase === 'Land'
+      ? { mode: 'land-phase', status: 'landed' }
+      : { mode: 'merge-task', status: 'merged', gate_output: 'ok 5 tests passed', integration_sha: 'sha-abc123unique' }
+  }
+  if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+  return {}
+}
+
+const gateAuditCalls = (calls) => calls.filter(c =>
+  seatOf(c.opts) === 'war-auditor' &&
+  (c.prompt.includes('execution-evidence') || (c.opts.label || '').includes('execution-evidence'))
+)
+
+test('#193 T2-1 — pinned _refinery path interpolated into gate-audit prompt', async () => {
+  // PROVISION_ARGS supplies worktreeRoot:'/abs/repo/.claude/worktrees' + runId:'run-2026'
+  // The reconstructed path '/abs/repo/.claude/worktrees/run-2026/_refinery' must appear
+  // in the gate-audit prompt. It is ABSENT at HEAD (loop-scoped refineryPath never reaches this pass).
+  const { calls } = await runPhase(PROVISION_ARGS(), gateAuditImpl)
+  const gaPrompts = gateAuditCalls(calls)
+  assert.ok(gaPrompts.length > 0, 'gate-audit seats were dispatched')
+  const p = gaPrompts[0].prompt
+  assert.ok(p.includes('/abs/repo/.claude/worktrees/run-2026/_refinery'),
+    'gate-audit prompt must include the reconstructed _refinery path (worktreeRoot/runId/_refinery)')
+})
+
+test('#193 T2-2 — HEAD-confirm bracket test instruction present in gate-audit prompt', async () => {
+  // The prompt must instruct the seat to run the exact bracket comparison
+  // [ "$(git -C <refineryPath> rev-parse HEAD)" = "<gateHeadSha>" ]
+  // Both 'rev-parse HEAD' and '[ "$(git -C' must appear (verified absent at HEAD).
+  const { calls } = await runPhase(PROVISION_ARGS(), gateAuditImpl)
+  const gaPrompts = gateAuditCalls(calls)
+  assert.ok(gaPrompts.length > 0, 'gate-audit seats were dispatched')
+  const p = gaPrompts[0].prompt
+  assert.ok(p.includes('rev-parse HEAD'),
+    'gate-audit prompt must contain the rev-parse HEAD instruction')
+  assert.ok(p.includes('[ "$(git -C'),
+    'gate-audit prompt must contain the bracket comparison [ "$(git -C ...')
+})
+
+test('#193 T2-3 — "you cannot run commands" is removed from gate-audit prompt', async () => {
+  // The old wording 'you cannot run commands' must no longer appear in the gate-audit prompt
+  // after the rewrite to a pinned read-only auditor.
+  const { calls } = await runPhase(PROVISION_ARGS(), gateAuditImpl)
+  const gaPrompts = gateAuditCalls(calls)
+  assert.ok(gaPrompts.length > 0, 'gate-audit seats were dispatched')
+  const p = gaPrompts[0].prompt
+  assert.ok(!p.includes('you cannot run commands'),
+    'gate-audit prompt must NOT contain "you cannot run commands" after the T2 rewrite')
+})
+
+test('#193 T2-4 — read-at-tip instruction: seat reads mapped test in pinned worktree files', async () => {
+  // The prompt must instruct the seat to confirm the mapped acceptance-criteria test is
+  // PRESENT IN THE FILES at the confirmed tip (not merely inferred from gate output text).
+  const { calls } = await runPhase(PROVISION_ARGS(), gateAuditImpl)
+  const gaPrompts = gateAuditCalls(calls)
+  assert.ok(gaPrompts.length > 0, 'gate-audit seats were dispatched')
+  const p = gaPrompts[0].prompt
+  assert.ok(p.includes('present in the files at that tip'),
+    'gate-audit prompt must instruct reading the mapped test in the pinned worktree files at the confirmed tip')
+})
+
+test('#193 T2-5 — hardness preserved: Critical gate-evidence finding still holds the land after T2 rewrite', async () => {
+  // The prompt rewrite must not change the escalation wiring.
+  // A Critical gate-evidence finding must still yield held:escalation.
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 5 } }
+    if (seat === 'war-auditor') {
+      if (prompt.includes('execution-evidence') || (opts.label || '').includes('execution-evidence')) {
+        return { seat: opts.label, lens: 'execution-evidence', verdict: 'escalate',
+                 findings: [{ severity: 'Critical', title: 'mapped test provably unrun',
+                              file: 'test/foo.test.js', rationale: 'test absent at confirmed tip' }],
+                 confidence: 'high', audit_sha: 'auditsha-pinned' }
+      }
+      return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    }
+    if (seat === 'war-refiner') {
+      return opts.phase === 'Land'
+        ? { mode: 'land-phase', status: 'landed' }
+        : { mode: 'merge-task', status: 'merged', gate_output: 'ok 5 tests passed', integration_sha: 'sha-abc123unique' }
+    }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { out } = await runPhase(PROVISION_ARGS(), impl)
+  assert.equal(out.landDecision, 'held:escalation',
+    'Critical gate-evidence finding must still hold the land after T2 prompt rewrite')
+  const gateEsc = (out.escalated || []).find(e => e && e.reason === 'gate-evidence')
+  assert.ok(gateEsc, 'escalated[] must contain a gate-evidence entry')
+})
+
+test('#193 T2-6 — SOFT-default preserved: Minor gate-evidence finding does not hold the land after T2 rewrite', async () => {
+  // A Minor gate-audit finding must still yield landDecision==='landed' after the rewrite.
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 5 } }
+    if (seat === 'war-auditor') {
+      if (prompt.includes('execution-evidence') || (opts.label || '').includes('execution-evidence')) {
+        return { seat: opts.label, lens: 'execution-evidence', verdict: 'request_changes',
+                 findings: [{ severity: 'Minor', title: 'soft gate note', file: '', rationale: 'soft' }],
+                 confidence: 'high' }
+      }
+      return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    }
+    if (seat === 'war-refiner') {
+      return opts.phase === 'Land'
+        ? { mode: 'land-phase', status: 'landed' }
+        : { mode: 'merge-task', status: 'merged', gate_output: 'ok 5 tests passed', integration_sha: 'sha-abc123unique' }
+    }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { out } = await runPhase(PROVISION_ARGS(), impl)
+  assert.equal(out.landDecision, 'landed',
+    'Minor gate-evidence finding (soft) must NOT hold the land after T2 prompt rewrite')
+})
+
+// ---------------------------------------------------------------------------
 // Task 1 (Phase 1 — #193): gate-HEAD sha (integration_sha) provenance
 // Thread integration_sha from MergeResult through the post-merge gate-audit
 // capture into the prompt and auditLog so the seat/Lead can confirm the gate
