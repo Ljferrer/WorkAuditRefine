@@ -105,7 +105,7 @@ const spawn = role => {
 const done = new Set()
 const succeeded = new Set()
 const landed = [], escalated = [], minorsFiled = [], auditLog = []
-const mergedTasksForGateAudit = []   // collect {taskId, gateOutput, acceptanceCriteria} for post-merge gate-audit pass (F04 R3)
+const mergedTasksForGateAudit = []   // collect {taskId, gateOutput, acceptanceCriteria, gateHeadSha} for post-merge gate-audit pass (F04 R3)
 
 // --- Repo-derived provisioning (Part B) ------------------------------------
 // provisionStep runs the pinned run.provision list, IN ORDER, inside one task worktree — a refiner
@@ -314,11 +314,13 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + `rebase --onto does NOT dodge this constraint — it is equally refused.\n`
         + `  (b) MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), then git merge ${r.task.branch} (fast-forward merge of the now-rebased task branch into the integration branch). Push.\n`
         + `Run the gate (${plan.gate}) after the rebase in the task worktree; on gate failure return gate_failed; on conflict return conflict; never force. `
-        + `On success, populate gate_output in the returned MergeResult with the executed gate output (stdout+stderr) so the post-merge gate-audit pass can review it as execution evidence.`,
+        + `On success, populate gate_output in the returned MergeResult with the executed gate output (stdout+stderr) so the post-merge gate-audit pass can review it as execution evidence. `
+        + `Also populate integration_sha with the rebased integration tip the gate ran against, so the gate-audit pass can confirm the gate ran at the integration tip.`,
         { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}`, schema: MERGE_RESULT, ...spawn('refiner') })
       if (mr && mr.status === 'merged') {
         landed.push(r.task.id); succeeded.add(r.task.id)
-        mergedTasksForGateAudit.push({ taskId: r.task.id, gateOutput: mr.gate_output, acceptanceCriteria: r.task.planSlice })
+        mergedTasksForGateAudit.push({ taskId: r.task.id, gateOutput: mr.gate_output, acceptanceCriteria: r.task.planSlice,
+          gateHeadSha: mr.integration_sha ?? '(integration_sha unrecorded)' }) // ponytail: sentinel, not mr.working_sha — working_sha is land-only (war-refiner.md), dead on a merge result
       }
       else escalated.push({ task: r.task.id, reason: mr ? mr.status : 'merge_failed', detail: mr })
     } else if (r.verdict === 'env-blocked') {
@@ -339,10 +341,16 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
 // Default outcome: SOFT note (does not hold the land). Hard only if a mapped test is provably unrun
 // (present in diff but absent / 0-count in gate_output) — Open decision #1 (resolved: operationally defined).
 if (mergedTasksForGateAudit.length > 0) {
-  await parallel(mergedTasksForGateAudit.map(({ taskId, gateOutput, acceptanceCriteria }) => async () => {
+  await parallel(mergedTasksForGateAudit.map(({ taskId, gateOutput, acceptanceCriteria, gateHeadSha }) => async () => {
     const gateAuditVerdict = await agent(
       `POST-MERGE GATE-AUDIT for WAR task ${taskId} (lens: execution-evidence). `
       + `You are a READ-ONLY auditor reviewing execution evidence — you cannot run commands.\n`
+      + `Gate-HEAD sha (the rebased integration tip the gate ran at): ${gateHeadSha}.\n`
+      + `If you cannot confirm the executed gate output corresponds to the current integration tip `
+      + `(gate-HEAD sha above vs the phase integration tip), record a SOFT note, never a HARD finding — `
+      + `a stale gate output (gate-HEAD sha != integration tip) cannot be a provably-unrun land-halt. `
+      + `This SOFT-downgrade applies ONLY to the cannot-confirm case; a mapped test provably unrun AT the `
+      + `confirmed gate-HEAD sha stays HARD.\n`
       + `Review the executed gate output below and the task's mapped acceptance criteria to confirm the mapped tests actually ran and passed.\n`
       + `Acceptance criteria / plan slice: ${acceptanceCriteria || '(see plan file)'}\n`
       + `Executed gate output:\n${gateOutput || '(no gate output recorded)'}\n\n`
@@ -359,7 +367,7 @@ if (mergedTasksForGateAudit.length > 0) {
       const findings = gateAuditVerdict.findings || []
       const isHardGateEvidence = findings.some(f => f.severity === 'Critical' || f.severity === 'Major')
       // Distinguish hard vs soft in the auditLog so the Lead can adjudicate even if already held.
-      auditLog.push({ task: taskId, verdict: `gate-audit:${gateAuditVerdict.verdict}`, findings, gateEvidence: true, hard: isHardGateEvidence })
+      auditLog.push({ task: taskId, verdict: `gate-audit:${gateAuditVerdict.verdict}`, findings, gateEvidence: true, hard: isHardGateEvidence, gateHeadSha, auditSha: gateAuditVerdict.audit_sha })
       if (isHardGateEvidence) {
         // HARD: a provably-unrun mapped test → push gate-evidence to escalated so the land is held.
         escalated.push({ task: taskId, reason: 'gate-evidence', detail: gateAuditVerdict })

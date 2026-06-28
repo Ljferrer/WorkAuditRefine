@@ -1486,3 +1486,134 @@ test('#115 — post-loop sweep back-compat: valid-deps phase produces no spuriou
   const spuriousLog = (out.auditLog || []).filter(e => e && e.verdict === 'unrunnable-deps')
   assert.deepEqual(spuriousLog, [], 'no unrunnable-deps auditLog entries in a valid-deps phase')
 })
+
+// ---------------------------------------------------------------------------
+// Task 1 (Phase 1 — #193): gate-HEAD sha (integration_sha) provenance
+// Thread integration_sha from MergeResult through the post-merge gate-audit
+// capture into the prompt and auditLog so the seat/Lead can confirm the gate
+// ran at the integration tip.
+// ---------------------------------------------------------------------------
+
+const makeGateAuditImpl = (mergeOver = {}) => (prompt, opts) => {
+  const seat = seatOf(opts)
+  if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+  if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 5, integration: 2 } }
+  if (seat === 'war-auditor') return { seat: opts.label, lens: opts.label || 'correctness', verdict: 'approve', findings: [], confidence: 'high', tests_verified: { exist: true } }
+  if (seat === 'war-refiner') {
+    return opts.phase === 'Land'
+      ? { mode: 'land-phase', status: 'landed' }
+      : { mode: 'merge-task', status: 'merged', gate_output: 'ok 5 tests passed', ...mergeOver }
+  }
+  if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+  return {}
+}
+
+test('#193 T1-1 — sha threading: gate-HEAD sha (integration_sha) reaches the gate-audit prompt', async () => {
+  // Stub integration_sha with a unique synthetic value; assert the gate-audit prompt carries it.
+  // This transitively proves the destructure pulled gateHeadSha (DP7 / plan §F9).
+  const impl = makeGateAuditImpl({ integration_sha: 'sha-abc123unique' })
+  const { calls } = await runPhase(PROVISION_ARGS(), impl)
+  const gateAuditCalls = calls.filter(c =>
+    seatOf(c.opts) === 'war-auditor' &&
+    (c.prompt.includes('execution-evidence') || (c.opts.label || '').includes('execution-evidence'))
+  )
+  assert.ok(gateAuditCalls.length > 0, 'at least one gate-audit seat is spawned')
+  const prompt = gateAuditCalls[0].prompt
+  assert.ok(prompt.includes('sha-abc123unique'),
+    `gate-audit prompt must include the integration_sha 'sha-abc123unique'; got: "${prompt.slice(0, 400)}"`)
+})
+
+test('#193 T1-2 — defusing directive: SOFT-on-cannot-confirm directive present in gate-audit prompt', async () => {
+  // The prompt must include the unique substring 'corresponds to the current integration tip'
+  // (verified absent at HEAD before implementing — this test goes RED first).
+  const impl = makeGateAuditImpl({ integration_sha: 'sha-abc123unique' })
+  const { calls } = await runPhase(PROVISION_ARGS(), impl)
+  const gateAuditCalls = calls.filter(c =>
+    seatOf(c.opts) === 'war-auditor' &&
+    (c.prompt.includes('execution-evidence') || (c.opts.label || '').includes('execution-evidence'))
+  )
+  assert.ok(gateAuditCalls.length > 0, 'at least one gate-audit seat is spawned')
+  const prompt = gateAuditCalls[0].prompt
+  assert.ok(prompt.includes('corresponds to the current integration tip'),
+    `gate-audit prompt must include the SOFT-on-cannot-confirm directive; got: "${prompt.slice(0, 600)}"`)
+})
+
+test('#193 T1-3 — sentinel on absent sha: absent integration_sha interpolates sentinel, never "undefined"', async () => {
+  // When the merged MergeResult has no integration_sha, the gate-audit prompt must include
+  // the sentinel string '(integration_sha unrecorded)' — never the literal string 'undefined'.
+  const impl = makeGateAuditImpl({}) // no integration_sha
+  const { calls } = await runPhase(PROVISION_ARGS(), impl)
+  const gateAuditCalls = calls.filter(c =>
+    seatOf(c.opts) === 'war-auditor' &&
+    (c.prompt.includes('execution-evidence') || (c.opts.label || '').includes('execution-evidence'))
+  )
+  assert.ok(gateAuditCalls.length > 0, 'at least one gate-audit seat is spawned')
+  const prompt = gateAuditCalls[0].prompt
+  assert.ok(prompt.includes('(integration_sha unrecorded)'),
+    `absent integration_sha must yield sentinel '(integration_sha unrecorded)'; got: "${prompt.slice(0, 400)}"`)
+  assert.ok(!prompt.includes('undefined'),
+    `prompt must NEVER contain the literal string 'undefined'; got: "${prompt.slice(0, 400)}"`)
+})
+
+test('#193 T1-4 — sha rides into the auditLog (gateHeadSha + auditSha)', async () => {
+  // Drive the HARD case (Critical finding) with integration_sha stubbed; assert the auditLog
+  // gate-evidence entry carries gateHeadSha === 'sha-abc123unique' and auditSha === 'auditsha-xyz789'.
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 5, integration: 2 } }
+    if (seat === 'war-auditor') {
+      if (prompt.includes('execution-evidence') || (opts.label || '').includes('execution-evidence')) {
+        return { seat: opts.label, lens: 'execution-evidence', verdict: 'escalate',
+                 findings: [{ severity: 'Critical', title: 'mapped test provably unrun',
+                              file: 'test/foo.test.js', rationale: 'absent in gate output' }],
+                 confidence: 'high', audit_sha: 'auditsha-xyz789' }
+      }
+      return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    }
+    if (seat === 'war-refiner') {
+      return opts.phase === 'Land'
+        ? { mode: 'land-phase', status: 'landed' }
+        : { mode: 'merge-task', status: 'merged', gate_output: 'ok 5 tests passed', integration_sha: 'sha-abc123unique' }
+    }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { out } = await runPhase(PROVISION_ARGS(), impl)
+  const auditEntry = (out.auditLog || []).find(e => e && e.gateEvidence)
+  assert.ok(auditEntry, 'auditLog must have a gateEvidence entry')
+  assert.equal(auditEntry.gateHeadSha, 'sha-abc123unique',
+    'auditLog gate-evidence entry must carry gateHeadSha from the merged MergeResult')
+  assert.equal(auditEntry.auditSha, 'auditsha-xyz789',
+    'auditLog gate-evidence entry must carry auditSha from the gate-audit seat verdict')
+})
+
+test('#193 T1-5 — hardness preserved: Critical finding WITH integration_sha still holds the land', async () => {
+  // Regression: adding gateHeadSha must not change the hard-path escalation wiring.
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 5, integration: 2 } }
+    if (seat === 'war-auditor') {
+      if (prompt.includes('execution-evidence') || (opts.label || '').includes('execution-evidence')) {
+        return { seat: opts.label, lens: 'execution-evidence', verdict: 'escalate',
+                 findings: [{ severity: 'Critical', title: 'mapped test provably unrun',
+                              file: 'test/foo.test.js', rationale: 'absent in gate output' }],
+                 confidence: 'high', audit_sha: 'auditsha-xyz789' }
+      }
+      return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    }
+    if (seat === 'war-refiner') {
+      return opts.phase === 'Land'
+        ? { mode: 'land-phase', status: 'landed' }
+        : { mode: 'merge-task', status: 'merged', gate_output: 'ok 5 tests passed', integration_sha: 'sha-abc123unique' }
+    }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { out } = await runPhase(PROVISION_ARGS(), impl)
+  assert.equal(out.landDecision, 'held:escalation',
+    'Critical gate-evidence finding must hold the land (held:escalation) — hardness must not regress')
+  const gateEsc = (out.escalated || []).find(e => e && e.reason === 'gate-evidence')
+  assert.ok(gateEsc, 'escalated[] must contain a gate-evidence entry')
+})
