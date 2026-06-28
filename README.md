@@ -221,7 +221,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.7.0** — committed `.war-provision.json` provisioning manifest as scout authority tier 1 (above CI, below explicit `run.provision`): scout reads and honors it via `readManifest()`; red-team Lead threads the manifest list into executed probes; contract documented in `schemas.md` (closes #51). Builds on v0.6.9.
+**0.7.1** — gate-HEAD sha provenance threaded via `integration_sha` into the gate-audit prompt and `auditLog`; gate-audit seat pinned to the `_refinery` integration tip with a mechanical `rev-parse HEAD == gateHeadSha` confirm; stale-tip SOFT-downgrade rule (cannot-confirm → SOFT, never a land-halt); `execution-evidence` lens documented in `war-auditor.md` (closes #193, #117). Builds on v0.7.0.
 
 ## License
 
