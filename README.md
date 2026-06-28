@@ -221,7 +221,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.7.0** — committed `.war-provision.json` provisioning manifest as scout authority tier 1 (above CI, below explicit `run.provision`): scout reads and honors it via `readManifest()`; red-team Lead threads the manifest list into executed probes; contract documented in `schemas.md` (closes #51). Builds on v0.6.9.
+**0.7.2** — `.war-task`-free `TMPDIR` pin mirrored into both dispatched gate-run prompts (merge-task and land-phase) in `workflow-template.js`; PRESENCE CHECK 4 extended to assert the pin against `WORKFLOW_FILE` with `count >= 2` (closes #184). Builds on v0.7.1.
 
 ## License
 
