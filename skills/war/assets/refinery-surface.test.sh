@@ -196,6 +196,16 @@ else
   fi
 fi
 
+if [ ! -f "$WORKFLOW_FILE" ]; then
+  fail "PRESENCE CHECK 4 — $WORKFLOW_FILE not found"
+else
+  if [ "$(grep -cF 'TMPDIR=' "$WORKFLOW_FILE")" -ge 2 ]; then
+    pass "PRESENCE CHECK 4 — both dispatched gate-run prompts in $WORKFLOW_FILE pin a .war-task-free TMPDIR= (merge-task + land-phase parity with war-refiner.md:24, #184)"
+  else
+    fail "PRESENCE CHECK 4 — $WORKFLOW_FILE has fewer than 2 'TMPDIR=' hits — mirror the .war-task-free TMPDIR pin into BOTH the merge-task and land-phase dispatched gate-run prompts (#184)"
+  fi
+fi
+
 # ---------------------------------------------------------------------------
 # ABSENCE CHECK 3: the live surface must NOT instruct the Refinery to
 # `git switch <working-branch>` (by name, non-detached) in a land context.
