@@ -48,6 +48,7 @@ A task reaches the refiner with exactly one terminal **outcome**. Two are produc
   status: "merged" | "landed" | "gate_failed" | "conflict" | "land_stale" | "error",
   branch, integration_sha?, working_sha?, conflict_files?, gate_output? }
 ```
+- **`integration_sha`** — the post-rebase integration tip the gate ran at; the post-merge gate-audit pass reads it as gate-HEAD provenance to confirm the executed `gate_output` corresponds to the integration tip (it does not add a field; `integration_sha?` already exists).
 - **`land_stale`** — a same-branch land exhausted the bounded reland loop (`roundLimit` CAS-contention relands with no push success); the phase is held for the Lead. Distinct from a content `conflict`: there are no merge-text contradictions, only topology contention (another run pushed the working branch while this one was merging). The Lead re-runs the land manually after the contending run clears.
 
 ## Gate rule (applied over AuditVerdicts)
