@@ -1,0 +1,115 @@
+{
+  "$schema": "https://aka.ms/codetour-schema",
+  "title": "WAR — Whole-System Architecture",
+  "description": "An architect's walk through WorkAuditRefine: how /war turns a multi-phase plan into a team of agents (Work · Audit · Refine · Record), and the seams — ownership boundaries, git topology, and confinement — that let it run unattended without corrupting shared state. Leans on the ADRs for the *why* behind each decision.",
+  "steps": [
+    {
+      "file": "README.md",
+      "line": 7,
+      "title": "1 · What WAR is",
+      "description": "**Situation:** WAR is a Claude-native re-imagining of Gas Town's worker/auditor/refinery/witness model — no Go binary, no Dolt, no beads — built only on `Agent`, the `Workflow` tool, git worktrees, and GitHub issues.\n\n**Mechanism:** Given a plan, `/war` decomposes it into a phase→task DAG, then per phase runs a Workflow that **Works → Audits → Refines → Records**, lands the phase on your working branch, and checks in with you at the boundary.\n\n**Implication for an architect:** the whole system is an orchestration of *stateless agents over shared git state*. Every hard problem below is really one question — who is allowed to mutate what. The 'Note from Author' (272 subagents, 28 phases, 14.1M tokens, no compactions) is the design target: the Lead's context must stay lean while the work fans out."
+    },
+    {
+      "file": "CONTEXT.md",
+      "line": 22,
+      "title": "2 · The core seam: container vs contents",
+      "description": "**Situation:** This glossary is the ubiquitous language — read it before the code. The load-bearing distinction is **container vs contents**.\n\n**Mechanism:** The *container* (the branch + the worktree directory) is owned by the **refiner**; the *contents* (files and commits inside a worktree) are owned by the **worker**. A worker never runs `git worktree add/remove` or touches a shared branch; the refiner never edits task code.\n\n**Implication:** every role boundary, hook, and ADR in this tour is an enforcement of this one ownership split. Keep it in mind — when you see a guard deny something, it is defending this line. **Gotcha:** 'provisioning' here is a precise term (the owned lifecycle of git topology), not generic 'setup' — the glossary's `_Avoid_` notes exist because the wrong word invites the wrong design."
+    },
+    {
+      "directory": "agents",
+      "title": "3 · The cast: five role agents",
+      "description": "**Situation:** WAR has exactly five agent roles, each a Markdown file with a YAML capability allowlist in its frontmatter. The frontmatter `tools:` line *is* the primary security boundary.\n\n**Mechanism:** `war-worker` (writes code in one worktree), `war-auditor` (read-only reviewer), `war-refiner` (owns all merges/pushes/worktrees), `war-servitor` (write-scoped learnings capture), and `war-setup-scout` (read-only, derives the provision list).\n\n**Implication:** confinement is *capabilities first, hooks second*. The auditor has no Write; the servitor has no Bash. A role literally cannot perform an action its allowlist omits — the PreToolUse hooks only gate the residual paths that survive the allowlist. We'll see both layers."
+    },
+    {
+      "file": "skills/war/SKILL.md",
+      "line": 51,
+      "title": "4 · The Lead and the invariants",
+      "description": "**Situation:** The human-driving half is the **Lead** (the Mayor): it decomposes, gates at phase boundaries, surfaces escalations, and talks to you — and *never edits code itself*.\n\n**Mechanism:** These Invariants are the system's safety contract. Note the strongest ones: the auditor is read-only; the servitor is the *only* reviewer-side role that writes, and only to `learningsTarget`; the refiner owns **all** merges, one at a time, never `--force`/`reset --hard` on shared branches; never merge un-audited, without a green gate, or before unanimous approval.\n\n**Implication:** an architect should read this block as the spec the rest of the code must not violate. Everything downstream is mechanism in service of these invariants."
+    },
+    {
+      "file": "skills/war/assets/workflow-template.js",
+      "line": 4,
+      "title": "5 · The engine: one Workflow, six stages",
+      "description": "**Situation:** This file is the heart of WAR — a single `Workflow` script run once per phase. The Lead does **not** free-author orchestration; it injects only approved stages into a copy of this template.\n\n**Mechanism:** The `phases` array names the deterministic spine: **Provision → Work → Audit → Refine → Land → Wrap-up**. The script is plain JS in a sandbox with *no shell and no filesystem* (note the comment block below) — every git/test action is delegated to a spawned `agent()` whose result comes back as validated JSON (the `*_RESULT` schemas at the top).\n\n**Implication:** the Workflow is a pure *coordinator*. It holds the control flow (waves, retries, the merge queue) but performs no side effects itself. **Gotcha:** because it can't import, several constants are hand-mirrored from `.mjs` modules — flagged repeatedly as 'keep in sync' (we end on one such mirror)."
+    },
+    {
+      "file": "skills/war/assets/workflow-template.js",
+      "line": 196,
+      "title": "6 · Provision barrier — topology before fan-out",
+      "description": "**Situation:** Before any worker spawns, a single **refiner** seat provisions the entire phase's git topology via `provision-worktrees.sh`.\n\n**Mechanism:** It cuts the plan-namespaced integration branch, `git worktree add`s every task worktree off the integration tip (dropping a `.war-task` marker in each), and creates the run-scoped `_refinery` worktree. A runtime probe (E1) proved a worker *cannot even scope itself*, so provisioning is a refiner-owned barrier, not worker self-service.\n\n**Implication:** this is container-ownership (step 2) made concrete and is the reason the confinement hook can work — the `.war-task` marker the hook keys on is planted here. **Gotcha:** `ensure-exclude` must run *from the main checkout* (it resolves its repo from cwd); `ensure-integration` takes `--owned-file` so a resume reuses its own branch but a *foreign* unrecorded branch fails loud (exit 3)."
+    },
+    {
+      "file": "skills/war/assets/workflow-template.js",
+      "line": 248,
+      "title": "7 · Work + Audit, wave by wave",
+      "description": "**Situation:** Tasks run in dependency waves (`nextWave()` gates on `succeeded`, with a barrier between waves). Within a wave, every task's Work-then-Audit pipeline runs concurrently.\n\n**Mechanism:** Per task: optional `provisionStep` (repo-derived setup; a failure short-circuits to `env-blocked` and the worker is *never spawned*), then the `war-worker` implements and pushes, then `auditRound` runs the lens panel. A blocking verdict batches a `FIX_NEEDED` to a *fresh* fix-worker in the *same* worktree, up to `roundLimit` (3).\n\n**Implication:** workers are disposable and stateless — fix-in-place reuse (not a new worktree per attempt) is exactly why ADR 0001 rejects the harness's auto-worktree. **Gotcha:** `env-blocked` is a broken *environment*, not broken *code* — it burns **0** fix rounds, keeps the worktree for inspection, and lets siblings proceed."
+    },
+    {
+      "file": "skills/war/assets/workflow-template.js",
+      "line": 146,
+      "title": "8 · The gate predicates",
+      "description": "**Situation:** These five one-liners encode WAR's entire audit-gating policy. Tiny surface, large consequence.\n\n**Mechanism:** `blockingOf` = Critical/Major findings (these block); `minorsOf` = Minor/Nit (these become follow-up issues, never block); `allApprove` requires **every** expected seat to approve (unanimous on one SHA); `isSplit` detects approve-vs-request_changes disagreement → one rebuttal round; `nextWave` is the DAG scheduler.\n\n**Implication:** severity, not seat-count, is the lever — and unanimity means a single dissenting seat holds the task. The rebuttal-then-escalate loop (lines 270–298) is the deadlock breaker: split → one peer-aware re-judge → still split → human tiebreak. **Gotcha:** `auto-escalate` (≈284) widens a *lone* seat into a full coven on a Critical or low-confidence finding, unless config disables it."
+    },
+    {
+      "file": "agents/war-auditor.md",
+      "line": 18,
+      "title": "9 · The auditor: read-only, anti-cheat, three lenses",
+      "description": "**Situation:** An auditor seat is strictly read-only — files via Read/Grep/Glob, the diff via read-only git only — and judges *one* task through *one* lens.\n\n**Mechanism:** The default coven is three independent unanimous seats: **correctness**, **cascading-impact** (at `deep`, follow every caller of changed symbols), and **plan-faithfulness** (match the task's plan *slice*, not the whole plan). One can swap for a domain lens (security, healthcare-safety) on flagged code. Every seat also runs anti-cheat: confirm the mapped tests **exist and are not weakened/skipped** ('green by deletion').\n\n**Implication:** the auditor cannot *execute* the gate — only the refiner runs it. So this role verifies *test integrity by reading*, and a separate post-merge 'execution-evidence' pass (workflow ≈338) closes the 'did the gate actually run?' gap. That split is a deliberate consequence of read-only confinement."
+    },
+    {
+      "file": "skills/war/assets/workflow-template.js",
+      "line": 302,
+      "title": "10 · Refine — the serial merge queue",
+      "description": "**Situation:** After a wave's audits resolve, approved tasks merge **serially** — this loop *is* the merge queue.\n\n**Mechanism:** For each approved task, one `war-refiner` seat rebases the task branch onto the current integration tip, re-runs the gate, and merges. Minors are filed, the audit log is appended, and `done`/`succeeded` are updated to release the next wave. A non-`merged` status (gate_failed/conflict/error) routes to `escalated` instead of landing.\n\n**Implication:** serial-by-design is the price of a single git-topology owner — concurrent merges into one integration branch would race. **Gotcha:** the merged-task record uses `integration_sha` (not `working_sha`, which is land-only) — a `ponytail:` comment marks the sentinel; the post-merge gate-audit pass needs the sha the gate actually ran against."
+    },
+    {
+      "file": "agents/war-refiner.md",
+      "line": 21,
+      "title": "11 · Why merge-task is split across two worktrees",
+      "description": "**Situation:** A single merge-task is *inherently* split across two worktrees — a constraint that surprises every new reader.\n\n**Mechanism:** The task branch stays checked out in its live task worktree (so fix-in-place still works), and `git rebase` refuses to run against a branch checked out in *another* worktree. So the **rebase runs in the task worktree**, then the **merge runs in `_refinery`**. `git rebase --onto` does *not* dodge this (equally refused); a no-checkout `update-ref` replay desyncs the task worktree.\n\n**Implication:** this is a hard git fact, sandbox-verified (ADR 0004), not a stylistic choice — an architect proposing to 'simplify' the two-worktree dance will rediscover the same wall. **Gotcha:** the gate runs with `TMPDIR` pinned to a fresh, `.war-task`-free dir so a meta-test's scratch space can't trip the worker scope hook."
+    },
+    {
+      "file": "skills/war/assets/workflow-template.js",
+      "line": 415,
+      "title": "12 · Land — push-first compare-and-swap",
+      "description": "**Situation:** When a phase has merged work and no hard escalation is open, the refiner lands `integration/phase-N` → the working branch as one `--no-ff` commit.\n\n**Mechanism:** It runs *detached* in `_refinery` at `origin/<working>`, merges, gates, then `land-advance` does a **no-force** push. The remote's non-fast-forward rejection **is** the atomic compare-and-swap against shared truth: on rejection it re-fetches, re-merges, re-gates, retries up to `roundLimit`; exhaustion returns `land_stale` (a topology failure, distinct from a content `conflict`).\n\n**Implication:** correctness under concurrency comes from the *remote* ref being the only shared truth — a local CAS would be insufficient because a second run never moves your local ref. The land decision (≈405–413) holds for the Lead on any hard escalation; otherwise it lands and triggers Wrap-up."
+    },
+    {
+      "file": "docs/adr/0004-refinery-merges-in-a-worktree.md",
+      "line": 26,
+      "title": "13 · ADR 0004 — why _refinery, not the main checkout",
+      "description": "**Situation:** Before v0.6.0 the Refinery merged in the Lead's main checkout. Two concurrent WAR runs then shared one working tree and one HEAD.\n\n**Mechanism:** ADR-0003 namespaces *branch refs* per plan (safe), but two runs still landed into the same main-checkout working tree — a second `git checkout` over a live `merge` destroys the first run's merge state with no error. The fix: every refiner merge moves into a **run-scoped `_refinery` worktree**, and the land becomes push-first CAS (step 12).\n\n**Implication:** this completes the isolation ADR-0001/0003 started — refs safe *and* working-tree safe — so different-branch runs need **zero serialization**. **Gotcha (read the Enforcement caveat, line 68):** `_refinery` confinement is **prompt-enforced, not hook-enforced** — the scope hook fail-opens for the refiner; the clean-surface grep gate is the only backstop."
+    },
+    {
+      "file": "hooks/validate-worktree-scope.sh",
+      "line": 55,
+      "title": "14 · The confinement hook — scope writes by agent_type",
+      "description": "**Situation:** This PreToolUse hook (on Write/Edit/NotebookEdit) is the defense-in-depth layer beneath the capability allowlists.\n\n**Mechanism:** It branches on `agent_type` from the payload: **auditor** → deny every write; **worker** → allow only if some ancestor dir holds a `.war-task` marker (planted at provisioning); **servitor** → allow only learnings-target paths; **refiner / main session / non-WAR** → fail-open. A `..`-traversal guard fires *before* the `case` (line ≈49) so it covers **all** roles, closing the path-escape hole in every branch.\n\n**Implication:** note the honesty — worker confinement is to *a* worktree, not *its own* (sibling-write residual accepted; ADR 0002). And it only covers Write/Edit — the Bash write-path is gated by a separate `warn-bash-write-scope.sh`, while `validate-auditor-git.sh` fail-closed-allowlists the auditor's git to nine read-only subcommands. Confinement here is layered, not absolute."
+    },
+    {
+      "file": "docs/adr/0002-scope-by-agent-type.md",
+      "line": 28,
+      "title": "15 · ADR 0002 — why agent_type, not an env var",
+      "description": "**Situation:** The obvious design — a per-worktree `WAR_WORKTREE` env var the hook reads — was implemented first and proven a **NO-OP**.\n\n**Mechanism:** A worker's prose `export WAR_WORKTREE=…` dies with that Bash shell and never reaches the later Write-hook process (probe `persist_check=UNSET`); the only env a hook inherits is session-global, a single value that can't differ across parallel workers. An `agent_id` registry was also rejected — a worker can't read its own `agent_id`, and the spawner learns it only *after* the agent returns (too late). So the hook keys on `agent_type`, which the spawner always sets.\n\n**Implication:** an architect should read this as the canonical 'why the coarse guard, not the exact one' — exact per-worktree confinement was proven *unattainable in this harness*, and the design explicitly drops it rather than fake it. The capability allowlist remains the primary confinement; this hook is defense-in-depth."
+    },
+    {
+      "file": "skills/war/assets/workflow-template.js",
+      "line": 453,
+      "title": "16 · Wrap-up — the write-scoped servitor",
+      "description": "**Situation:** Once (and *only* once) a phase actually lands, a `war-servitor` records durable learnings to memory.\n\n**Mechanism:** The servitor's allowlist holds **no Bash** (Read/Grep/Glob/Write/Edit only), so its sole write path is Write/Edit — which the scope hook then gates to `learningsTarget`. Its prompt embeds a four-point memory-admission checklist (D1 dedup, D2 correction-priority, D3 verify-cue, D4 index-hygiene) so it updates files in place instead of duplicating, and never writes facts that rot silently.\n\n**Implication:** this is how a 28-phase overnight run accumulates institutional memory without the Lead's context growing — learnings live in files, not chat history. **Gotcha:** capture happens exactly once *per landed phase*. If the Workflow held the land and the Lead lands manually, the Lead must spawn the servitor itself (guarded by `servitorResult` being absent — never double-capture)."
+    },
+    {
+      "file": "skills/war/assets/land-decision.mjs",
+      "selection": {
+        "start": { "line": 2, "character": 0 },
+        "end": { "line": 8, "character": 110 }
+      },
+      "title": "17 · Gotcha: mirrored constants, one intentional divergence",
+      "description": "**Situation:** Because the Workflow sandbox can't `import`, policy constants are *hand-mirrored* between this `.mjs` module (the tested source of truth) and `workflow-template.js`.\n\n**Mechanism:** `HARD_ESCALATION_REASONS` here lists **6** reasons. But `workflow-template.js:409` lists **7** — it appends `'unrunnable-deps'`, a scheduler-local ghost-dep outcome that has no meaning in the pure land decision. The divergence is *deliberate and commented* (workflow ≈394: 'intentional divergence'), not drift.\n\n**Implication:** this is the architectural tax of the no-import sandbox — every such mirror is a latent drift risk that the repo manages with drift-guard tests and explicit comments. When you change a shared constant, you must touch *both* sites and decide whether the divergence is intentional. An architect auditing this system should grep for 'keep in sync' / 'MIRROR' and confirm each mirror has a guarding test."
+    },
+    {
+      "title": "18 · Where you can go from here",
+      "description": "You can now trace a plan end-to-end: **Lead decomposes** (`SKILL.md`) → **Workflow runs the six-stage phase loop** (`workflow-template.js`) → **roles do the work** under **capability + hook confinement** (`agents/`, `hooks/`) → **git topology stays safe** under concurrency (`ADR 0001/0003/0004`).\n\nNatural next reads for an architect:\n- `skills/war/references/design.md` — the full architecture narrative behind this tour.\n- `skills/war/references/schemas.md` — the data contracts (Worker/Audit/Merge/Servitor results) the Workflow validates.\n- `skills/_shared/provision.mjs` + `provision-worktrees.sh` — the scripted worktree lifecycle the Provision barrier drives.\n- `skills/red-team/` — the adversarial verifier that proves a plan in throwaway sandboxes *before* `/war` executes it.\n\nThe through-line to keep: **WAR is a coordinator of stateless agents over shared git state, and every seam in it answers one question — who is allowed to mutate what.**"
+    }
+  ]
+}
