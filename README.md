@@ -221,7 +221,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.7.2** — `.war-task`-free `TMPDIR` pin mirrored into both dispatched gate-run prompts (merge-task and land-phase) in `workflow-template.js`; PRESENCE CHECK 4 extended to assert the pin against `WORKFLOW_FILE` with `count >= 2` (closes #184). Builds on v0.7.1.
+**0.7.3** — Dead-phase halt: in-script `try/catch` returns `held:workflow-error` on phase execution failure; Lead-side `fail-closed` classification gates re-entry; bounded auto-resume prevents runaway retries. A dead phase never advances the DAG. Builds on v0.7.2.
 
 ## License
 
