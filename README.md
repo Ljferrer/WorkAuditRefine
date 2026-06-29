@@ -221,7 +221,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.7.1** — gate-HEAD sha provenance threaded via `integration_sha` into the gate-audit prompt and `auditLog`; gate-audit seat pinned to the `_refinery` integration tip with a mechanical `rev-parse HEAD == gateHeadSha` confirm; stale-tip SOFT-downgrade rule (cannot-confirm → SOFT, never a land-halt); `execution-evidence` lens documented in `war-auditor.md` (closes #193, #117). Builds on v0.7.0.
+**0.7.2** — `.war-task`-free `TMPDIR` pin mirrored into both dispatched gate-run prompts (merge-task and land-phase) in `workflow-template.js`; PRESENCE CHECK 4 extended to assert the pin against `WORKFLOW_FILE` with `count >= 2` (closes #184). Builds on v0.7.1.
 
 ## License
 
