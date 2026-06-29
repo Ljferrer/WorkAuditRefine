@@ -1104,9 +1104,10 @@ test('F10 — refine-loop rebase instruction: uses concrete integrationBranch re
 // message naming the task, instead of silently interpolating "undefined".
 // ---------------------------------------------------------------------------
 
-test('#71 — task missing branch/worktree AND derivation args throws with a clear message', async () => {
-  // Build args where planSlug/runId/worktreeRoot are ALL absent and the task has neither
-  // explicit branch nor explicit worktree. The template must throw before any agent runs.
+test('#71 — task missing branch/worktree AND derivation args RETURNS held:workflow-error envelope (not a rejection)', async () => {
+  // After the top-level try/catch the derivation throw is caught and returned as the
+  // held:workflow-error envelope — the call no longer propagates the rejection.
+  // (Was: assert.rejects — rewritten per plan step 1 Test 3 / fail-closed-gate pattern.)
   const badArgs = {
     phase: { id: 1, title: 'P1', integrationBranch: 'integration/x/phase-1', workingBranch: 'dev/x' },
     plan: { file: 'docs/plans/x.md', gate: 'true' },
@@ -1119,23 +1120,16 @@ test('#71 — task missing branch/worktree AND derivation args throws with a cle
   }
   const fn = build()
   const agentNeverCalled = async () => { throw new Error('agent must not be called when derivation fails') }
-  await assert.rejects(
-    () => fn(agentNeverCalled, fakeParallel, async () => [], () => {}, () => {}, badArgs, { total: null }),
-    (err) => {
-      // Must be an Error (not just a rejection)
-      assert.ok(err instanceof Error, 'thrown value is an Error')
-      // Must name the task id in the message
-      assert.ok(err.message.includes('tX'), `error message must name the task id "tX"; got: "${err.message}"`)
-      // Must mention branch/worktree derivation
-      assert.match(err.message, /branch|worktree/i,
-        `error message must mention branch or worktree; got: "${err.message}"`)
-      // Must mention how to fix (supply planSlug/runId/worktreeRoot or explicit branch/worktree)
-      assert.match(err.message, /planSlug|explicit branch|explicit worktree|supply/i,
-        `error message must hint at the fix; got: "${err.message}"`)
-      return true
-    },
-    'template must throw when a task has neither explicit branch/worktree nor derivation args'
-  )
+  const out = await fn(agentNeverCalled, fakeParallel, async () => [], () => {}, () => {}, badArgs, { total: null })
+  // Must RETURN the held:workflow-error envelope — not throw / reject
+  assert.equal(out.landDecision, 'held:workflow-error',
+    `landDecision must be 'held:workflow-error'; got: ${JSON.stringify(out.landDecision)}`)
+  assert.ok(out.workflowError && typeof out.workflowError === 'object', 'workflowError must be an object')
+  assert.ok(out.workflowError.message && out.workflowError.message.length > 0,
+    `workflowError.message must be non-empty; got: ${JSON.stringify(out.workflowError && out.workflowError.message)}`)
+  // The error message must name the task id — preserved from original intent
+  assert.ok(out.workflowError.message.includes('tX'),
+    `workflowError.message must name the task id "tX"; got: "${out.workflowError.message}"`)
 })
 
 test('#71 — task with explicit branch AND worktree does NOT throw (carry-forward)', async () => {
@@ -1747,4 +1741,57 @@ test('#193 T1-5 — hardness preserved: Critical finding WITH integration_sha st
     'Critical gate-evidence finding must hold the land (held:escalation) — hardness must not regress')
   const gateEsc = (out.escalated || []).find(e => e && e.reason === 'gate-evidence')
   assert.ok(gateEsc, 'escalated[] must contain a gate-evidence entry')
+})
+
+// ---------------------------------------------------------------------------
+// M1 — Dead-phase halt: top-level try/catch returns held:workflow-error
+// ---------------------------------------------------------------------------
+
+test('M1 criterion #1 — in-script derivation throw is caught and RETURNS held:workflow-error (not a rejection)', async () => {
+  // Drive with args that force the derivation throw: no planSlug, no runId, no worktreeRoot,
+  // and the task has neither explicit branch nor explicit worktree.
+  const badArgs = {
+    phase: { id: 9, title: 'DeadPhase', integrationBranch: 'integration/dead/phase-9', workingBranch: 'dev/dead' },
+    plan: { file: 'docs/plans/dead.md', gate: 'true' },
+    tasks: [{ id: 'tDead', issue: 0, title: 'Underivable', planSlice: 'none', lenses: ['correctness'] }],
+    learningsTarget: null,
+  }
+  const fn = build()
+  const agentShouldNotRun = async () => { throw new Error('agent must not be called on derivation failure') }
+  // Must RETURN — not reject
+  const out = await fn(agentShouldNotRun, fakeParallel, async () => [], () => {}, () => {}, badArgs, { total: null })
+  assert.equal(out.landDecision, 'held:workflow-error',
+    `landDecision must be 'held:workflow-error'; got: ${JSON.stringify(out.landDecision)}`)
+  assert.ok(out.workflowError && typeof out.workflowError === 'object', 'workflowError must be an object')
+  assert.ok(typeof out.workflowError.message === 'string' && out.workflowError.message.length > 0,
+    `workflowError.message must be a non-empty string; got: ${JSON.stringify(out.workflowError && out.workflowError.message)}`)
+  // stack is present (may be undefined in minified builds, but the template always sets it)
+  assert.ok('stack' in out.workflowError, 'workflowError must have a stack property')
+})
+
+test('M1 criterion #6 — catch after a mid-phase throw skips teardown (structural: no teardown agent call recorded)', async () => {
+  // NON-vacuous: inject the throw via a mock agent that succeeds for the topology barrier and
+  // for the first worker, then throws on the auditor. This is a point past which teardown would
+  // otherwise run, making the "no teardown" assertion non-vacuous (plan DP2 vacuity trap).
+  let workerRan = false
+  const throwAfterWorkerImpl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-refiner' && opts.phase === 'Provision') return { mode: 'merge-task', status: 'merged' }
+    if (seat === 'war-worker') { workerRan = true; return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} } }
+    if (seat === 'war-auditor') throw new Error('injected-auditor-throw-after-worker')
+    // refiner merge path — should not be reached since auditor throws first
+    if (seat === 'war-refiner') return { mode: 'merge-task', status: 'merged' }
+    return {}
+  }
+  const { out, calls } = await runPhase(PROVISION_ARGS(), throwAfterWorkerImpl)
+  assert.ok(workerRan, 'worker must have run before the injected throw (non-vacuous setup)')
+  assert.equal(out.landDecision, 'held:workflow-error',
+    `landDecision must be 'held:workflow-error'; got: ${JSON.stringify(out.landDecision)}`)
+  assert.ok(out.workflowError && out.workflowError.message.includes('injected-auditor-throw-after-worker'),
+    `workflowError.message must surface the injected error; got: ${JSON.stringify(out.workflowError && out.workflowError.message)}`)
+  // Structural teardown check: teardown is not an observable agent() call in this template
+  // (red-team confirmed — only inline cleanup). Use the suite's structural idiom.
+  const cleanup = calls.find(c => /remove-worktree|worktree remove|teardown|clean ?up/i.test(c.prompt))
+  assert.ok(!cleanup, `no teardown/cleanup agent call must be recorded on the catch path; found: ${cleanup && JSON.stringify(cleanup.prompt)}`)
 })

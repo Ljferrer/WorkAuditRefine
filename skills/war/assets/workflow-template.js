@@ -88,12 +88,6 @@ const ownedFile = A.ownedFile                    // run ledger of owned refs (--
 //  lands with the teardown call, not this Provision barrier — left on `A` for the future seam.)
 const taskBranch = t => t.branch || (planSlug ? `war/${planSlug}/p${ph.id}-${t.id}` : t.branch)
 const taskWorktree = t => t.worktree || ((worktreeRoot && runId) ? `${worktreeRoot}/${runId}/${t.id}` : t.worktree)
-for (const t of (tasks || [])) {
-  t.branch = taskBranch(t); t.worktree = taskWorktree(t)
-  if (!t.branch || !t.worktree) {
-    throw new Error(`task ${t.id}: cannot derive branch/worktree — supply planSlug+runId+worktreeRoot or explicit branch/worktree`)
-  }
-}
 // Per-role spawn opts: model always; effort only when non-default (omit = inherit session).
 // Mirror of war-config.mjs spawnOpts/covenSeats — the Workflow sandbox can't import. Keep in sync.
 const ROLE_MODEL = { worker: 'sonnet', auditor: 'opus', refiner: 'sonnet', servitor: 'sonnet' }
@@ -104,8 +98,19 @@ const spawn = role => {
 }
 const done = new Set()
 const succeeded = new Set()
+// Hoisted above try{} so the catch block can reference them even when the derivation throw fires
+// before any wave runs (temporal dead zone guard — red-team T1-confirmed).
 const landed = [], escalated = [], minorsFiled = [], auditLog = []
 const mergedTasksForGateAudit = []   // collect {taskId, gateOutput, acceptanceCriteria, gateHeadSha} for post-merge gate-audit pass (F04 R3)
+
+try {
+
+for (const t of (tasks || [])) {
+  t.branch = taskBranch(t); t.worktree = taskWorktree(t)
+  if (!t.branch || !t.worktree) {
+    throw new Error(`task ${t.id}: cannot derive branch/worktree — supply planSlug+runId+worktreeRoot or explicit branch/worktree`)
+  }
+}
 
 // --- Repo-derived provisioning (Part B) ------------------------------------
 // provisionStep runs the pinned run.provision list, IN ORDER, inside one task worktree — a refiner
@@ -472,3 +477,11 @@ if (landResult && landResult.status === 'landed' && learningsTarget) {
 }
 
 return { phase: ph.id, landed, escalated, minorsFiled, landResult, servitorResult, auditLog, landDecision }
+} catch (err) {
+  // A dead phase that self-reports. landed/escalated are whatever accumulated before the throw;
+  // teardown is NOT run (git state kept for resume/inspection).
+  return { phase: ph.id, landed, escalated, minorsFiled, landResult: null,
+           servitorResult: null, auditLog,
+           landDecision: 'held:workflow-error',
+           workflowError: { message: String(err && err.message || err), stack: err && err.stack } }
+}
