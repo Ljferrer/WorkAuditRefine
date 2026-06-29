@@ -64,3 +64,29 @@ rebase of merge-task runs in the *task* worktree, not here.) Provisioned in the 
 *container*; it exists so the Refinery never mutates the Lead's main checkout, which a second
 concurrent run could share. Isolation is prompt-enforced, not hook-enforced.
 _Avoid_: refiner checkout, merge sandbox.
+
+### Phase outcomes
+
+**Dead phase**:
+A phase whose Workflow did not return a usable land decision — it failed to complete (timed out,
+sandbox died, never returned), self-reported a caught exception, or returned an unrecognized result.
+Categorically distinct from a phase that completed and *held* its land (`held:escalation` /
+`held:nothing-merged` / `held:land-failed`). A dead phase **never advances the DAG** and its git
+state is preserved for resume or inspection.
+_Avoid_: failed phase, crashed phase, errored phase (each names only one of the three failure surfaces).
+
+**`held:phase-incomplete`** (retryable dead phase):
+The outcome when a phase Workflow did not run to completion. The cause is the *environment* (timeout,
+sandbox death), so a bounded resume of the same run may finish it.
+_Avoid_: timeout (one cause only), retry (the mechanism, not the outcome).
+
+**`held:workflow-error`** (terminal dead phase):
+The outcome when a phase Workflow completed-with-error (a broken / `null` return) or self-reported a
+caught exception. The cause is the *artifact* (a script bug or bad input), so a resume cannot fix it;
+the Lead halts for the human regardless of mode.
+_Avoid_: crash, exception (each names one surface only).
+
+**Retry budget**:
+The single bound on every bounded-retry loop in WAR — fix-worker rounds, the land reland-CAS, and
+phase-resume all share `run.roundLimit` (default 3). One knob, one mental model.
+_Avoid_: separate per-loop limits, max-attempts.
