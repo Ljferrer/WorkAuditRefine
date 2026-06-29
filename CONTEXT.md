@@ -54,6 +54,14 @@ spawned**, and the Lead escalates with **zero FIX rounds**. Distinct from a fail
 the code is broken, not the environment).
 _Avoid_: build-failed, setup-error, broken.
 
+**Worker block**:
+A worker — initial *or* fix — returning `status:'blocked'` (or dying / returning null), which
+**escalates the task immediately** carrying the worker's `blocked_reason`, decided uniformly by the
+`blockedReason` predicate at every worker-dispatch site.
+_Avoid_: conflating it with `env-blocked` (a provision failure — the worker was never spawned) or
+`audit-blocked` (the audit/fix loop exhausted `roundLimit` without unanimous approve). All three hold
+the land, but a *worker block* is the worker itself reporting it cannot proceed, with a reason.
+
 ### Concurrent-run isolation
 
 **Refinery worktree**:
