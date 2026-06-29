@@ -42,3 +42,7 @@ test('gate-evidence is a hard escalation reason (F04 R3: provably-unrun mapped t
   assert.equal(decideLand({ landed: ['t1'], escalated: [{ reason: 'gate-evidence' }] }), 'held:escalation')
   assert.ok(HARD_ESCALATION_REASONS.includes('gate-evidence'))
 })
+test('unrunnable-deps is a hard escalation reason (L1: mirrors unified — a ghost-dep task holds the land)', () => {
+  assert.equal(decideLand({ landed: ['t1'], escalated: [{ reason: 'unrunnable-deps' }] }), 'held:escalation')
+  assert.ok(HARD_ESCALATION_REASONS.includes('unrunnable-deps'))
+})

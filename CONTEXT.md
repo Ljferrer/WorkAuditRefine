@@ -54,6 +54,14 @@ spawned**, and the Lead escalates with **zero FIX rounds**. Distinct from a fail
 the code is broken, not the environment).
 _Avoid_: build-failed, setup-error, broken.
 
+**Worker block**:
+A worker — initial *or* fix — returning `status:'blocked'` (or dying / returning null), which
+**escalates the task immediately** carrying the worker's `blocked_reason`, decided uniformly by the
+`blockedReason` predicate at every worker-dispatch site.
+_Avoid_: conflating it with `env-blocked` (a provision failure — the worker was never spawned) or
+`audit-blocked` (the audit/fix loop exhausted `roundLimit` without unanimous approve). All three hold
+the land, but a *worker block* is the worker itself reporting it cannot proceed, with a reason.
+
 ### Concurrent-run isolation
 
 **Refinery worktree**:
@@ -64,3 +72,79 @@ rebase of merge-task runs in the *task* worktree, not here.) Provisioned in the 
 *container*; it exists so the Refinery never mutates the Lead's main checkout, which a second
 concurrent run could share. Isolation is prompt-enforced, not hook-enforced.
 _Avoid_: refiner checkout, merge sandbox.
+
+### Phase outcomes
+
+**Dead phase**:
+A phase whose Workflow did not return a usable land decision — it failed to complete (timed out,
+sandbox died, never returned), self-reported a caught exception, or returned an unrecognized result.
+Categorically distinct from a phase that completed and *held* its land (`held:escalation` /
+`held:nothing-merged` / `held:land-failed`). A dead phase **never advances the DAG** and its git
+state is preserved for resume or inspection.
+_Avoid_: failed phase, crashed phase, errored phase (each names only one of the three failure surfaces).
+
+**`held:phase-incomplete`** (retryable dead phase):
+The outcome when a phase Workflow did not run to completion. The cause is the *environment* (timeout,
+sandbox death), so a bounded resume of the same run may finish it.
+_Avoid_: timeout (one cause only), retry (the mechanism, not the outcome).
+
+**`held:workflow-error`** (terminal dead phase):
+The outcome when a phase Workflow completed-with-error (a broken / `null` return) or self-reported a
+caught exception. The cause is the *artifact* (a script bug or bad input), so a resume cannot fix it;
+the Lead halts for the human regardless of mode.
+_Avoid_: crash, exception (each names one surface only).
+
+**Retry budget**:
+The single bound on every bounded-retry loop in WAR — fix-worker rounds, the land reland-CAS, and
+phase-resume all share `run.roundLimit` (default 3). One knob, one mental model.
+_Avoid_: separate per-loop limits, max-attempts.
+
+### Test discipline
+
+**Test floor**:
+The deterministic guarantee that a task which *requires* a test changed at least one test file in
+its diff, enforced by a tested shell assertion at merge-task. The coarse *floor* (a test exists) is
+distinct from the auditor's semantic *ceiling* (it is the right test, exercises the slice, is not
+weakened or skipped).
+_Avoid_: test coverage, test gate (the gate runs the suite; the floor inspects the diff).
+
+**`requiresTest`** (task field):
+Whether a task must change a test file to be mergeable. Defaults `true`; the Lead sets it `false` at
+decompose for tasks that legitimately add no test (docs, config, a VERIFY-no-op whose scenario the
+base already covers).
+_Avoid_: hasTests, testExempt (state the requirement positively, default-on).
+
+**`no-test`** (merge outcome):
+The refiner's merge-task result when a `requiresTest` task's diff contains no test file. It is not a
+failing gate — it routes a bounded fix-worker + full re-audit, and escalates only on budget exhaustion.
+_Avoid_: gate-failed (the suite is green; the *diff* lacks a test).
+
+### Memory
+
+**Memory provenance**:
+The trust tier of a durable learning — `agent-unverified` < `code-verified` < `user-confirmed` —
+recording how the fact was established. The ladder is also the recall-weight order and the
+correction-precedence order: a higher tier supersedes a lower.
+_Avoid_: source, confidence (overloaded); accuracy (provenance records *how established*, not *how correct*).
+
+**Verify-on-write**:
+The servitor's discipline of Read/Grep-confirming a named file/flag/symbol exists before recording a
+fact about it: found → `code-verified`; absent → `agent-unverified` with an absence-note. Distinct
+from running the gate (which the servitor cannot do).
+_Avoid_: fact-checking, validation (it confirms *existence*, not *truth*).
+
+### State & resume
+
+**Resume precedence**:
+The ordering **git branch state > GitHub issue labels > `ledger.json`** that decides which layer wins
+when the three resume records disagree. Git wins because the refiner's push-first CAS makes the shared
+branches monotonic, so a recorded merge is real iff its SHA is reachable; the ledger is the richest
+record but the weakest authority (local, uncommitted, written by no code).
+_Avoid_: treating the "three-layer source of truth" as three co-equal authorities — only git is
+authoritative; labels and the ledger are durable/advisory records that can lag.
+
+**Resume reconciliation (pre-flight)**:
+The read-only cross-check a resuming Lead runs before continuing — verifies each ledger-recorded
+`merge_sha` is reachable on its branch, repairs the ledger + labels *toward git*, and **halts on an
+unexplained (foreign) commit** rather than absorbing it.
+_Avoid_: editing git to match a stale record; auto-trusting a commit no ledger task claims.

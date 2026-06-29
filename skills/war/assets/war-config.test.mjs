@@ -357,7 +357,8 @@ test('drift-guard: inline HARD_ESCALATION_REASONS in workflow-template.js matche
   // workflow-template.js cannot import ES modules so it duplicates the constant inline.
   // This test pins that inline literal to the canonical export in land-decision.mjs.
   // dep-failed was the Task 1 (F02) foundation; land_stale pre-existed; Task 4 (F04/R3) added gate-evidence (6 items total).
-  // Task t3b (#115) adds 'unrunnable-deps' as a scheduler-local addition (NOT in land-decision.mjs).
+  // L1 (unify): 'unrunnable-deps' is now in land-decision.mjs too — the inline literal and the
+  // canonical export are IDENTICAL (exact equality, no scheduler-local divergence).
   //
   // The template has (around line 361):
   //   const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps']
@@ -366,13 +367,10 @@ test('drift-guard: inline HARD_ESCALATION_REASONS in workflow-template.js matche
   // Normalize single-quoted strings to double-quoted for JSON.parse.
   const normalized = match[1].replace(/'/g, '"')
   const parsed = JSON.parse(normalized)
-  // SUPERSET semantics: every canonical member must be present, and the only extra is 'unrunnable-deps'
-  for (const r of HARD_ESCALATION_REASONS) {
-    assert.ok(parsed.includes(r), `canonical reason '${r}' missing from inline HARD_ESCALATION_REASONS`)
-  }
-  const extras = parsed.filter(r => !HARD_ESCALATION_REASONS.includes(r))
-  assert.deepEqual(extras, ['unrunnable-deps'], 'inline HARD_ESCALATION_REASONS must have exactly one extra: unrunnable-deps')
-  assert.equal(parsed.length, HARD_ESCALATION_REASONS.length + 1, 'inline must be exactly canonical.length + 1')
+  // EXACT EQUALITY: the inline literal must equal the canonical export, member-for-member (order-insensitive).
+  assert.deepEqual([...parsed].sort(), [...HARD_ESCALATION_REASONS].sort(),
+    'inline HARD_ESCALATION_REASONS must equal the canonical export exactly (no divergence)')
+  assert.ok(HARD_ESCALATION_REASONS.includes('unrunnable-deps'), 'unrunnable-deps must be in canonical HARD_ESCALATION_REASONS (L1 unify)')
   assert.ok(HARD_ESCALATION_REASONS.includes('dep-failed'), 'dep-failed must be in HARD_ESCALATION_REASONS (F02 foundation)')
 })
 
@@ -879,21 +877,14 @@ test('drift-guard(F07): inline decideLand — non-empty landed × SOFT escalatio
     'non-empty-landed × SOFT-escalation must yield landed')
 })
 
-test('drift-guard(F07): inline HARD_ESCALATION_REASONS has exactly 6 members matching canonical', () => {
-  // t3b (#115): relaxed to SUPERSET semantics — inline may have 'unrunnable-deps' as scheduler-local addition.
-  // The live array has 7 members: 6 canonical + 'unrunnable-deps' (NOT in land-decision.mjs).
+test('drift-guard(F07): inline HARD_ESCALATION_REASONS equals the canonical export exactly (L1 unify)', () => {
+  // L1 (unify): 'unrunnable-deps' is now in land-decision.mjs too — inline and canonical are IDENTICAL
+  // (7 members each, no scheduler-local divergence). Exact equality, order-insensitive.
   const herMatch = templateText.match(/const\s+HARD_ESCALATION_REASONS\s*=\s*(\[[^\]]+\])/)
   assert.ok(herMatch, 'HARD_ESCALATION_REASONS not found in workflow-template.js')
   const inlineReasons = JSON.parse(herMatch[1].replace(/'/g, '"'))
-  // SUPERSET: every canonical member present in inline
-  for (const r of HARD_ESCALATION_REASONS) {
-    assert.ok(inlineReasons.includes(r), `canonical reason '${r}' missing from inline HARD_ESCALATION_REASONS`)
-  }
-  // Only extra allowed is 'unrunnable-deps'
-  assert.equal(inlineReasons.length, HARD_ESCALATION_REASONS.length + 1,
-    `Expected inline.length === canonical.length + 1, got ${inlineReasons.length}`)
-  assert.deepEqual(inlineReasons.filter(r => !HARD_ESCALATION_REASONS.includes(r)), ['unrunnable-deps'],
-    'the only extra reason in inline HARD_ESCALATION_REASONS must be unrunnable-deps')
+  assert.deepEqual([...inlineReasons].sort(), [...HARD_ESCALATION_REASONS].sort(),
+    'inline HARD_ESCALATION_REASONS must equal the canonical export exactly (no divergence)')
 })
 
 // ---------------------------------------------------------------------------
