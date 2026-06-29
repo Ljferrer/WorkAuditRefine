@@ -391,7 +391,9 @@ if (mergedTasksForGateAudit.length > 0) {
 }
 
 // ---- POST-LOOP SWEEP: any task still not in done[] has unresolvable deps (ghost dep) ----
-// scheduler-local addition — 'unrunnable-deps' is NOT in land-decision.mjs (intentional divergence).
+// 'unrunnable-deps' is produced only here (the scheduler's post-loop ghost-dep sweep) but is a hard
+// hold, so it is ALSO in land-decision.mjs's canonical HARD_ESCALATION_REASONS — the two mirrors are
+// identical (L1: the former intentional divergence is removed).
 for (const t of tasks) {
   if (!done.has(t.id)) {
     const deps = t.deps || []
