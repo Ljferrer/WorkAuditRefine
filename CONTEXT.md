@@ -90,3 +90,23 @@ _Avoid_: crash, exception (each names one surface only).
 The single bound on every bounded-retry loop in WAR — fix-worker rounds, the land reland-CAS, and
 phase-resume all share `run.roundLimit` (default 3). One knob, one mental model.
 _Avoid_: separate per-loop limits, max-attempts.
+
+### Test discipline
+
+**Test floor**:
+The deterministic guarantee that a task which *requires* a test changed at least one test file in
+its diff, enforced by a tested shell assertion at merge-task. The coarse *floor* (a test exists) is
+distinct from the auditor's semantic *ceiling* (it is the right test, exercises the slice, is not
+weakened or skipped).
+_Avoid_: test coverage, test gate (the gate runs the suite; the floor inspects the diff).
+
+**`requiresTest`** (task field):
+Whether a task must change a test file to be mergeable. Defaults `true`; the Lead sets it `false` at
+decompose for tasks that legitimately add no test (docs, config, a VERIFY-no-op whose scenario the
+base already covers).
+_Avoid_: hasTests, testExempt (state the requirement positively, default-on).
+
+**`no-test`** (merge outcome):
+The refiner's merge-task result when a `requiresTest` task's diff contains no test file. It is not a
+failing gate — it routes a bounded fix-worker + full re-audit, and escalates only on budget exhaustion.
+_Avoid_: gate-failed (the suite is green; the *diff* lacks a test).
