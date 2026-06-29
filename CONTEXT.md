@@ -124,3 +124,19 @@ The servitor's discipline of Read/Grep-confirming a named file/flag/symbol exist
 fact about it: found → `code-verified`; absent → `agent-unverified` with an absence-note. Distinct
 from running the gate (which the servitor cannot do).
 _Avoid_: fact-checking, validation (it confirms *existence*, not *truth*).
+
+### State & resume
+
+**Resume precedence**:
+The ordering **git branch state > GitHub issue labels > `ledger.json`** that decides which layer wins
+when the three resume records disagree. Git wins because the refiner's push-first CAS makes the shared
+branches monotonic, so a recorded merge is real iff its SHA is reachable; the ledger is the richest
+record but the weakest authority (local, uncommitted, written by no code).
+_Avoid_: treating the "three-layer source of truth" as three co-equal authorities — only git is
+authoritative; labels and the ledger are durable/advisory records that can lag.
+
+**Resume reconciliation (pre-flight)**:
+The read-only cross-check a resuming Lead runs before continuing — verifies each ledger-recorded
+`merge_sha` is reachable on its branch, repairs the ledger + labels *toward git*, and **halts on an
+unexplained (foreign) commit** rather than absorbing it.
+_Avoid_: editing git to match a stale record; auto-trusting a commit no ledger task claims.
