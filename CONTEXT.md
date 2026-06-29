@@ -110,3 +110,17 @@ _Avoid_: hasTests, testExempt (state the requirement positively, default-on).
 The refiner's merge-task result when a `requiresTest` task's diff contains no test file. It is not a
 failing gate — it routes a bounded fix-worker + full re-audit, and escalates only on budget exhaustion.
 _Avoid_: gate-failed (the suite is green; the *diff* lacks a test).
+
+### Memory
+
+**Memory provenance**:
+The trust tier of a durable learning — `agent-unverified` < `code-verified` < `user-confirmed` —
+recording how the fact was established. The ladder is also the recall-weight order and the
+correction-precedence order: a higher tier supersedes a lower.
+_Avoid_: source, confidence (overloaded); accuracy (provenance records *how established*, not *how correct*).
+
+**Verify-on-write**:
+The servitor's discipline of Read/Grep-confirming a named file/flag/symbol exists before recording a
+fact about it: found → `code-verified`; absent → `agent-unverified` with an absence-note. Distinct
+from running the gate (which the servitor cannot do).
+_Avoid_: fact-checking, validation (it confirms *existence*, not *truth*).
