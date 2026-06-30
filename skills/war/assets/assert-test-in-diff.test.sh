@@ -283,14 +283,20 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Case 4: .. traversal in base arg -> LOAD-BEARING non-zero
+# Case 4: .. traversal in base arg -> LOAD-BEARING: guard fires BEFORE diff,
+# and stderr must contain the guard's distinctive rejection message.
 #
 # The branch has a REAL skills/x.test.mjs that WOULD match if the diff ran.
-# With the .. guard: script dies non-zero BEFORE the diff (the guard fires).
-# Without the guard: git diff would use "../<sha>" as a ref and either error
-# or produce an ambiguous result — but the guard is the explicit safety net.
-# This makes the test LOAD-BEARING: removing the guard would change behavior
-# from "die on .." to "attempt the diff with a potentially unsafe ref".
+# With the .. guard:    dies with "refusing to use potentially unsafe ref"
+#                       on stderr BEFORE any git operation.
+# Without the guard:    git diff reaches line 94, fails on "../<sha>" as an
+#                       unknown ref, and dies with "git diff failed" on stderr.
+#
+# Assertion: stderr contains the guard's unique token
+# ("refusing to use potentially unsafe ref") so that deleting the guard
+# flips the assertion — the without-guard path emits a DIFFERENT message.
+# A bare `rc -ne 0` is NOT sufficient (both paths exit non-zero); we must
+# distinguish the two by the guard's own diagnostic text.
 # memory: relative-path-test-needs-clean-cwd — cd to unrelated mktemp dir.
 # ---------------------------------------------------------------------------
 R4="$(setup_repo)"
@@ -307,13 +313,21 @@ git -C "$R4" checkout -q - 2>/dev/null
 cwd4="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
 TMPFILES="$TMPFILES $cwd4"
 rc4=0
+# Capture stderr so we can assert the guard's unique message.
 # Pass base as "../<sha>" — the .. guard must fire before any git operation.
-( cd "$cwd4" && bash "$SCRIPT" "../$BASE4" "$TASK4" --repo "$R4" ) >/dev/null 2>&1 || rc4=$?
+stderr4="$( cd "$cwd4" && bash "$SCRIPT" "../$BASE4" "$TASK4" --repo "$R4" 2>&1 >/dev/null )" || rc4=$?
 
-if [ "$rc4" -ne 0 ]; then
-  pass "case 4: .. traversal in base arg with real test branch -> non-zero (guard fires, no false-allow)"
+# Two-part assertion (BOTH must hold):
+# (a) non-zero exit — guard or diff error; necessary but not sufficient alone
+# (b) guard message present in stderr — load-bearing uniqueness check:
+#     with guard:    "refusing to use potentially unsafe ref" emitted before diff
+#     without guard: "git diff failed for ..." emitted instead — assertion fails
+if [ "$rc4" -ne 0 ] && printf '%s' "$stderr4" | grep -qF "refusing to use potentially unsafe ref"; then
+  pass "case 4: .. traversal in base arg -> guard fires (non-zero + guard message in stderr)"
+elif [ "$rc4" -eq 0 ]; then
+  fail "case 4: .. traversal in base arg -> expected non-zero, got exit 0 (guard missing or bypassed)"
 else
-  fail "case 4: .. traversal in base arg with real test branch -> expected non-zero, got exit 0 (guard missing or bypassed)"
+  fail "case 4: .. traversal in base arg -> got non-zero ($rc4) but guard message absent in stderr (guard bypassed; stderr: $stderr4)"
 fi
 
 # ---------------------------------------------------------------------------
