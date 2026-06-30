@@ -117,8 +117,9 @@ trusted), and **cross-link the reconciliation pre-flight**.
 
 ## Test plan
 
-**No automated tests** (DP2, spec §8.6) — the diff touches only `*.md` (SKILL/design/schemas) + the four release
-slots; no `.mjs/.js`, no new asset. **Gate** = the full self-discovering multi-runner, which must stay **green**
+**No automated tests** (DP2, spec §8.6) — the diff touches only `*.md` (SKILL/design/schemas/README) + the four
+release slots (`plugin.json`, `marketplace.json` ×2, `README.md ## Status`); no `.mjs/.js`, no new asset. **Gate** =
+the full self-discovering multi-runner, which must stay **green**
 (proving the doc edits broke nothing):
 ```
 node --test 'skills/**/*.test.mjs' && for f in $(find . -type f -name '*.test.sh' \
@@ -127,7 +128,9 @@ node --test 'skills/**/*.test.mjs' && for f in $(find . -type f -name '*.test.sh
 
 **Validation criteria (spec §8), all prose-verified by review:** #1 precedence written down (T1+T2) · #2 pre-flight
 as a Lead checklist (T1) · #3 class C halts, no auto-repair of an unexplained commit (T1) · #4 repair is one-way
-toward git (T1) · #5 journal boundary stated (T2) · #6 no code changed — diff is `*.md` only (all tasks).
+toward git (T1) · #5 journal boundary stated (T2) · #6 no code changed — diff is docs (`*.md`) + the four release
+slots only, no `.mjs/.js` / no new asset (all tasks; **gate-verified** — the node + `*.test.sh` suite stays green,
+closed at T4's release-gate step and at every task's Step 3).
 
 ## Recommended ADRs
 
@@ -150,6 +153,11 @@ ADR.
   Resume checklist; the `## ledger.json` block), so they are additive — but L2 lands **fourth**, so its workers
   re-anchor on the post-M1/M2/M3 tip by named construct, expecting line shifts (memory
   `plan-line-number-refs-stale-use-construct-locator`). L2 touches no `workflow-template.js`.
+- **Spec §5 row 4 (CONTEXT.md) is a stale design-phase artifact — L2 does NOT edit CONTEXT.md.** The two glossary
+  terms (**Resume precedence** / **Resume reconciliation (pre-flight)**) are **already landed** in `CONTEXT.md`
+  (verified at `CONTEXT.md:138-150`, derived from the accepted ADR-0008). The plan header (line 16) deliberately
+  excludes CONTEXT.md from scope; the spec's §5 row 4 should be struck separately (a spec-hygiene cleanup, not L2's
+  job). Verified by red-team; no plan change implied beyond this note.
 - **No GitHub issue filed** — plan-docs only; finding id is the audit's **L2**.
 
 ## Coverage
