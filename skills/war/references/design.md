@@ -68,6 +68,8 @@ A Workflow also can't *be* a team's Lead — it's a script with no inbox, and it
 
 Before resuming, the Lead runs the **Resume reconciliation pre-flight** (see `SKILL.md` Resume section): a read-only cross-check that repairs the lagging layers toward git and halts on any unexplained commit (class C). Repair is one-way — records are rewritten toward git; no step mutates git to match a record.
 
+**Submodule remote as co-source-of-truth** ([ADR-0010](../../../docs/adr/0010-submodule-landing-authority.md)). The same monotonicity argument holds for the submodule remote: the submodule's own push-first CAS never force-pushes its branch, so the gitlink SHA recorded in the ledger is authoritative *iff* it is reachable on the submodule remote. The reconciliation pre-flight extends to verify this: a ledger-recorded gitlink SHA that is *not* reachable on the submodule remote is treated as class A (the pin never landed — re-queue the bump task). The ledger gains submodule PR/SHA fields; these are advisory, authoritative-when-reachable — the same rule as `merge_sha` ([`schemas.md`](schemas.md)).
+
 Durable product artifacts: phase reports/escalations → epic-issue comments; ADR-worthy deviations → `docs/adr/`.
 
 ## 7. Branch & worktree model
