@@ -23,7 +23,12 @@ merge-task is **inherently split across two worktrees** — the task branch stay
 1. `git -C <taskWorktree> fetch`. Rebase the task branch onto the current integration tip: `git -C <taskWorktree> rebase <integration-tip>`. On conflict → return `status: "conflict"` with the conflicting files. Do NOT force-resolve blindly.
 2. Run the gate command in `<taskWorktree>` with `TMPDIR` set to a freshly-created, `.war-task`-free directory (created outside any worktree — e.g. `TMPDIR=$(cd / && mktemp -d)`), so any meta-test that materialises scratch dirs isolates from the worktree's `.war-task` marker. The gate's cwd stays `<taskWorktree>` so it tests the rebased task-branch code and a `gate_failed` still routes a fix-worker in place. (The scope-hook meta-test is hermetic to this via Task 1 (#95a) — the worktree-scope case 11 fix — which eliminates the false-fail regardless of where scratch dirs land.)
 3. If the gate fails → return `status: "gate_failed"` with the failing output (the script routes a FIX_NEEDED back to a fresh fix-worker that works in the task worktree exactly as today — unchanged).
-4. In `_refinery` (on the integration branch): `git -C <_refinery> merge <task-branch>` (no force), `git -C <_refinery> push`, and return `status: "merged"` with the new integration SHA. **Populate `gate_output`** with the full stdout+stderr of the gate run from step 2 — the post-merge gate-audit pass uses this as execution evidence to verify the mapped tests actually ran.
+4. **Test-floor check** (if `requiresTest` is `true` for this task): run `assert-test-in-diff.sh <integrationBranch> <taskBranch>` in `<taskWorktree>`. Branch on the exit code:
+   - **exit 0** — at least one test file is in the task's diff; continue to merge.
+   - **exit 1** — no test found in the diff; return `status: "no-test"`. Do **NOT** merge. The Workflow routes a bounded fix-worker + full re-audit sub-loop (see `workflow-template.js` REFINE section). Do not conflate this with exit 2.
+   - **exit 2** — a git/ref error (bad ref, network failure, fatal git error); return `status: "error"` (or `"gate_failed"`), **not** `"no-test"`. A transient bad-ref must never be misclassified as no-test and spin a pointless fix-worker — this exit-1-vs-2 distinction is the correctness boundary.
+   - If `requiresTest` is `false` — skip this step entirely and proceed to merge.
+5. In `_refinery` (on the integration branch): `git -C <_refinery> merge <task-branch>` (no force), `git -C <_refinery> push`, and return `status: "merged"` with the new integration SHA. **Populate `gate_output`** with the full stdout+stderr of the gate run from step 2 — the post-merge gate-audit pass uses this as execution evidence to verify the mapped tests actually ran.
 
 The merge's working-tree writes land only in `_refinery`. The task worktree is left clean so fix-in-place still works.
 
@@ -57,4 +62,4 @@ The gate command you receive is a **resolved, self-discovering string** (produce
 - Skip the gate. If you cannot proceed safely, return a status describing why.
 
 ## Return
-Return ONLY the `MergeResult` JSON (see `references/schemas.md`): `{ mode, status, branch, integration_sha?, working_sha?, conflict_files?, gate_output? }`.
+Return ONLY the `MergeResult` JSON (see `references/schemas.md`): `{ mode, status, branch, integration_sha?, working_sha?, conflict_files?, gate_output? }`. For merge-task, `status` ∈ `"merged"` | `"gate_failed"` | `"conflict"` | `"no-test"` | `"error"`.

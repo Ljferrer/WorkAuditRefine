@@ -10,7 +10,8 @@ the panel can) and escalates only on `roundLimit` exhaustion.
 
 **Source spec:** [`docs/specs/2026-06-29-worker-test-floor-design.md`](../specs/2026-06-29-worker-test-floor-design.md).
 **ADR:** [`0006-deterministic-test-floor.md`](../adr/0006-deterministic-test-floor.md) (**already written +
-accepted**). **CONTEXT.md** terms (Test floor / `requiresTest` / `no-test`) are **already landed** — not in scope.
+accepted**). **CONTEXT.md** terms (Test floor / `requiresTest` / `no-test`) are **already landed** (verified present in CONTEXT.md
+§ glossary — the spec §4 "add on ratification" row is stale, not a missing surface) — not in scope.
 
 **Floor vs ceiling** is the organizing idea: the script is the deterministic *floor* (a test file exists in the
 diff); the auditor panel is the semantic *ceiling* (right test, exercises the slice, not weakened/skipped). M2 adds
@@ -57,21 +58,28 @@ One-task-per-phase for the shared-file work (memory
 - new `skills/war/assets/assert-test-in-diff.sh` — `assert-test-in-diff.sh <integration-base> <task-branch>
   [--pattern <glob-set>]` (spec §3.1): compute `git diff --name-only <base>...<branch>` (three-dot = exactly what
   the task added); exit **0** if ≥1 changed path matches the test pattern, **non-zero** (with matched/empty summary
-  on stdout) otherwise. **Default pattern** = the repo's gate notion of a test — the union of `*.test.mjs`,
-  `*.test.js`, `*.test.sh`, pytest `test_*.py` / `*_test.py` — overridable via `run.testPattern`. macOS bash
-  3.2.57-compatible (like the other guards).
+  on stdout) otherwise. **Default pattern** = EXACTLY the resolved gate's test-discovery set (**operator decision
+  2026-06-29** — supersedes the spec §3.1 broad union, which red-team proved over-counts): `skills/**/*.test.mjs`
+  (the node `--test` glob, **path-scoped to `skills/`**) **and** `**/*.test.sh` (the repo-wide bash-suite `find`). The
+  floor **mirrors the gate** so it can never be satisfied by a test the gate ignores (no over-count); the gate's
+  discovery is `war-config.mjs` `resolveGate` (the declared `node --test 'skills/**/*.test.mjs'` base + the appended
+  `*.test.sh` find). Overridable via `run.testPattern` for repos whose gate runs other types (`.test.js`/pytest).
+  macOS bash 3.2.57-compatible (like the other guards).
 - new `skills/war/assets/assert-test-in-diff.test.sh` — discovered by the gate's `*.test.sh` find.
 
 **`requiresTest`: true** — the `.test.sh` is the script's mapped test (and satisfies the floor for this very task).
 
 - [ ] **Step 1 — Write `assert-test-in-diff.test.sh` (failing first).** Cases (spec §8.6): test present in diff →
   exit 0; diff with no test → non-zero + empty-summary on stdout; **exempt path never invoked** (covered at the
-  refiner layer, but assert the script itself is a pure present/absent check); pattern variants (each glob in the
-  union matches); `..`/empty-diff safety (no traversal, empty diff → non-zero, not a crash). **Pattern-alignment
-  case:** assert the default union covers the globs the resolved gate actually runs (memory
-  `node-breadth-assertion-test-js-overclaims` — floor pattern must not under/over-count vs the gate; spec §6
-  floor/gate-drift risk). Use a temp git repo fixture (memory `relative-path-test-needs-clean-cwd` — `cd $(mktemp -d)`
-  before running, so a relative-path case can't false-allow from a dirty cwd).
+  refiner layer, but assert the script itself is a pure present/absent check); `..`/empty-diff safety (no traversal,
+  empty diff → non-zero, not a crash). **Pattern-alignment case (an EQUALITY, per the narrowed default):** assert the
+  default pattern is **exactly** the gate's discovery set — `skills/x/foo.test.mjs` → match, `**/bar.test.sh` → match;
+  and the **over-count guards**: a root `foo.test.mjs` (outside `skills/`), a `foo.test.js`, a `test_foo.py` → **NO
+  match** (the gate would not run them, so the floor must not either). This closes the over-count hole (memory
+  `node-breadth-assertion-test-js-overclaims` — the floor mirrors the gate, neither under- nor over-count; that fix
+  narrowed the node walk to the gate's glob and this floor follows suit). Use a temp git repo fixture (memory
+  `relative-path-test-needs-clean-cwd` — `cd $(mktemp -d)` before running, so a relative-path case can't false-allow
+  from a dirty cwd).
 - [ ] **Step 2 — Run `bash assert-test-in-diff.test.sh` → fail** (script absent).
 - [ ] **Step 3 — Implement the script** (minimal, bash 3.2). Three-dot diff; glob-match loop; non-zero + summary on
   miss. `// ponytail:`-style comment naming the default-pattern/gate-alignment ceiling and the `run.testPattern`
@@ -92,9 +100,14 @@ One-task-per-phase for the shared-file work (memory
   fix-worker adds the mapped test in the same worktree, `task.fixRounds++`, **re-run the FULL audit panel** for this
   task, on approve re-attempt the serial merge, else escalate its verdict; on budget exhaustion → escalate
   `{ reason:'no-test' }`); (c) **carry the audit-loop `round` onto the task object as `task.fixRounds`** so the serial
-  refine sub-loop continues the **shared** budget (a fresh counter would double the allowance); (d) the **inline
-  `HARD_ESCALATION_REASONS` mirror** gains `no-test`; (e) thread `requiresTest` into the merge-task dispatch so the
-  refiner knows whether to run the script.
+  refine sub-loop continues the **shared** budget (a fresh counter would double the allowance). **The audit phase's
+  `round` is currently a LOCAL variable that is NOT returned** (the audit closure returns `{ task, verdict, seats,
+  expected }`); add `round` to that return object and set `r.task.fixRounds = r.round ?? 0` in the REFINE section
+  before the no-test sub-loop — without this the carry has **no source value** (red-team-confirmed). Also **expose
+  `task.fixRounds` on each task's `auditLog` entry** (`auditLog.push({ …, fixRounds })`) so the shared-budget carry is
+  test-observable (the harness `out`/`auditLog` is the only test-visible surface; an internal counter is invisible);
+  (d) the **inline `HARD_ESCALATION_REASONS` mirror** gains `no-test`; (e) thread `requiresTest` into the merge-task
+  dispatch so the refiner knows whether to run the script.
 - modify `skills/war/assets/land-decision.mjs` — the **canonical `HARD_ESCALATION_REASONS`** gains `no-test`.
 - modify `skills/war/assets/war-config.test.mjs` — the **drift-guard** (deepEqual of the two mirrors) updated to the
   new member set (memory `plan-array-literal-lags-canonical-export` — the canonical export is ground truth; the
@@ -112,7 +125,10 @@ One-task-per-phase for the shared-file work (memory
     `weak-test-assertion-passes-without-feature-being-exercised`).
   - *Test 2 — shared budget (§8.5).* Audit-phase fixes + no-test fixes together ≤ `roundLimit`; exhaustion →
     escalate `{ reason:'no-test' }`, phase holds (`landDecision` reflects the hard escalation). Prove `task.fixRounds`
-    carries from the audit loop (a task that used its budget in audit has none left for no-test).
+    carries from the audit loop (a task that used its budget in audit has none left for no-test) — **observe the carry
+    via the `auditLog[].fixRounds` field exposed in Files (c)** (it is not otherwise visible in the harness `out`).
+  - *Test 2b — `requiresTest:false` bypass.* A `requiresTest:false` task routes straight to merge — the refiner
+    **never returns `no-test`** and the sub-loop never fires (assert no fix-worker / re-audit re-spawn for that task).
   - *Test 3 — drift-guard.* Extend the `war-config.test.mjs` assertion so the two `HARD_ESCALATION_REASONS` mirrors
     are equal **including `no-test`** (memory `relaxed-assertion-test-title-must-update-together` — if the assertion
     semantics change, rename the test title in the same commit).
@@ -181,7 +197,7 @@ node --test 'skills/**/*.test.mjs' && for f in $(find . -type f -name '*.test.sh
 
 | Task | Test | Key assertion | Notes |
 |---|---|---|---|
-| T1 | `assert-test-in-diff.test.sh` | present→exit 0; absent→non-zero+summary; pattern variants; `..`/empty-diff safe; default union covers the gate's globs | new `*.test.sh`; temp-repo fixture, clean cwd |
+| T1 | `assert-test-in-diff.test.sh` | present→exit 0; absent→non-zero+summary; `..`/empty-diff safe; default pattern **equals** the gate's globs (`skills/**/*.test.mjs` + `**/*.test.sh`), and over-count cases (`.test.js`, root `.test.mjs`, pytest) do **NOT** match | new `*.test.sh`; temp-repo fixture, clean cwd |
 | T2 #1 | no-test → fix + full re-audit | refiner `no-test` → fix-worker + panel re-spawn → re-merge; vacuous test → escalate, no merge | unique tokens |
 | T2 #2 | shared budget | audit + no-test fixes ≤ `roundLimit`; exhaustion → `{reason:'no-test'}` hold; `task.fixRounds` carries | proves carry, not fresh counter |
 | T2 #3 | drift-guard | both `HARD_ESCALATION_REASONS` mirrors equal **incl. `no-test`** | rename test title with the semantics change |
