@@ -221,7 +221,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.7.5** — Memory provenance: every servitor-written fact carries a `metadata.provenance` tier (`agent-unverified` < `code-verified` < `user-confirmed`); a structural `validate-servitor-provenance.sh` PreToolUse gate denies tag-less fact writes (the tag must be *present*, never necessarily *honest*); the servitor verifies referents on write (Read/Grep → `code-verified`, else an absence-note) and corrects by tier precedence (a higher tier supersedes a lower). Builds on v0.7.4.
+**0.7.6** — Resume precedence: git is the stated source of truth across the resume layers (git branch state > GitHub issue labels > `ledger.json`) because the push-first CAS never force-pushes a shared branch, so git can only *lag*, never be *wrong*. A Lead-run reconciliation pre-flight repairs the lagging layers *toward* git (A: ledger ahead → trust git; B: git ahead → mark merged) and **halts** on an unexplained commit (C). The `ledger.json` is a lagging view; `merge_sha` is advisory, authoritative only when reachable. Docs-only. Builds on v0.7.5.
 
 ## License
 
