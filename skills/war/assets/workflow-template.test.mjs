@@ -2376,7 +2376,75 @@ test('T4 #297 Test 3 — blocked gitlink-bump worker escalates early via blocked
   assert.equal(fixCalls.length, 0,
     'a blocked bump worker must dispatch 0 fix-workers (early escalate, same path as initial-worker block)')
 
+  // (b2) the bump worker prompt carries bump-specific context (new dispatch site, not generic worker)
+  // Load-bearing: the 'GITLINK-BUMP' token only appears when the gitlink-bump dispatch branch runs.
+  // Deleting the taskType==='gitlink-bump' branch causes the prompt to be the generic worker form, losing the token.
+  const bumpWorkerCall = calls.find(c => isWorker(c) && /tbump/.test(c.opts.label || ''))
+  assert.ok(bumpWorkerCall, 'a worker call is dispatched for the bump task (tbump)')
+  assert.ok(bumpWorkerCall.prompt.includes('GITLINK-BUMP'),
+    'the gitlink-bump worker prompt must include the "GITLINK-BUMP" dispatch-site token (not the generic worker form)')
+
   // (c) land held
   assert.equal(out.landDecision, 'held:escalation',
     'landDecision must be held:escalation when the bump worker blocks (escalate is a HARD reason)')
+})
+
+test('T4 #297 Test 4 — targetRepo/targetBase threaded into merge-task, land, worker, and Provision prompts for a submodule task', async () => {
+  // The engine must carry targetRepo + targetBase from the submodule task into:
+  //   (a) the merge-task prompt (so the refiner runs rebase/gate inside the submodule repo)
+  //   (b) the land prompt (so the refiner knows the submodule target for 2A/2B)
+  //   (c) the worker prompt (so the submodule-task worker is told its target repo)
+  //   (d) the Provision prompt (so the refiner initializes the submodule checkout)
+  //
+  // Load-bearing: the unique token '/abs/submodule-checkout' only appears in these prompts when
+  // the production code reads task.targetRepo. Deleting the threading causes each assertion to fail.
+  const TARGET_REPO = '/abs/submodule-checkout'
+  const TARGET_BASE = 'main'
+
+  const capturedPrompts = {}
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    const label = opts.label || ''
+    // Capture prompts keyed by label
+    capturedPrompts[label] = prompt
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(label)) return { ok: true }
+    if (seat === 'war-worker') return { task_id: 'tsub', status: 'implemented', head_sha: 'abc123', tests: { unit: 1 } }
+    if (seat === 'war-auditor') return { seat: label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'merged', integration_sha: 'int-sha-001' }
+    if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
+    if (seat === 'war-servitor') return { phase: 5, target: 'tsub', learnings: [] }
+    return {}
+  }
+
+  // Single submodule task (no gitlink-bump dep) so we reach land
+  const args = SUBMOD_PHASE_ARGS({ tasks: [SUBMOD_PHASE_ARGS().tasks[0]] })
+  const { calls } = await runPhase(args, impl)
+
+  // (a) merge-task prompt carries targetRepo and targetBase
+  const mergeCall = calls.find(c => isMergeTask(c) && /tsub/.test(c.opts.label || ''))
+  assert.ok(mergeCall, 'a merge-task is dispatched for the submodule task (tsub)')
+  assert.ok(mergeCall.prompt.includes(TARGET_REPO),
+    `merge-task prompt must include targetRepo "${TARGET_REPO}" so the refiner runs merge cwd-scoped to the submodule`)
+  assert.ok(mergeCall.prompt.includes(TARGET_BASE),
+    `merge-task prompt must include targetBase "${TARGET_BASE}" for the submodule integration base`)
+
+  // (b) land prompt carries targetRepo and targetBase
+  const landCall = calls.find(isLand)
+  assert.ok(landCall, 'a land dispatch is made (phase lands with the submodule task merged)')
+  assert.ok(landCall.prompt.includes(TARGET_REPO),
+    `land prompt must include targetRepo "${TARGET_REPO}" so the refiner knows the 2A/2B submodule target`)
+  assert.ok(landCall.prompt.includes(TARGET_BASE),
+    `land prompt must include targetBase "${TARGET_BASE}" for the 2A/2B submodule land`)
+
+  // (c) worker prompt carries targetRepo
+  const workerCall = calls.find(c => isWorker(c) && /tsub/.test(c.opts.label || ''))
+  assert.ok(workerCall, 'a worker is dispatched for the submodule task (tsub)')
+  assert.ok(workerCall.prompt.includes(TARGET_REPO),
+    `worker prompt must include targetRepo "${TARGET_REPO}" so the submodule-task worker is told its target repo`)
+
+  // (d) Provision (topology) prompt carries targetRepo
+  const provCall = calls.find(c => isProvisionTopology(c))
+  assert.ok(provCall, 'a topology Provision barrier is dispatched')
+  assert.ok(provCall.prompt.includes(TARGET_REPO),
+    `Provision prompt must include targetRepo "${TARGET_REPO}" so the refiner initializes the submodule checkout`)
 })
