@@ -1,6 +1,7 @@
 # Land-advance reports `landed` from a process exit code, not from origin truth
 
-**Status:** proposed — targets **v0.7.8** (behavioral-bug fix). **Severity: HIGH.**
+**Status:** proposed — targets **v0.8.1** (behavioral-bug fix; builds on **v0.8.0** master tip after the two
+submodule-support increments). **Severity: HIGH.**
 **Source:** issue #251. Memory: `land-advance-push-first-cas-rejected-token`, `war-phantom-land-reports-success-without-advancing-integration`, `land-decision-not-demoted-on-land-step-failure`, `land-local-follower-ref-can-lag-sync-before-next-phase`.
 
 This is the lone behavioral BUG in the audit batch. It lands **first** (landOrder 1) so every later spec rebases onto the corrected land path.
@@ -32,7 +33,7 @@ The existing test masks it: [provision-worktrees.test.sh: `run_in_detached()`](.
 | [skills/war/assets/provision-worktrees.sh](../../skills/war/assets/provision-worktrees.sh) | In `cmd_land_advance`, after `push_rc -eq 0`, before the `update-ref` branch: `ls-remote origin refs/heads/$working`; if it != `$new_sha`, `exit 3` (escalate) without advancing local. Update the header comment to document the readback as the success gate. |
 | [skills/war/assets/workflow-template.js](../../skills/war/assets/workflow-template.js) | Step 3 of the land prompt: prefix the bare `provision-worktrees.sh land-advance …` with `cd ${refineryLandPath} && …` so it runs in the refinery worktree like steps 1-2. |
 | [skills/war/assets/provision-worktrees.test.sh](../../skills/war/assets/provision-worktrees.test.sh) | New case: land-advance from a non-pre-detached cwd whose `HEAD` is already on origin → assert no false `landed` (exit 3 / local ref unchanged past origin). |
-| `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json` (×2), `README.md` `## Status` | Version bump to v0.7.8 (4 canonical slots). |
+| `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json` (×2), `README.md` `## Status` | Version bump to v0.8.1 (4 canonical slots; from master tip v0.8.0). |
 
 ## Alternatives considered
 
@@ -56,10 +57,20 @@ The existing test masks it: [provision-worktrees.test.sh: `run_in_detached()`](.
 
 - **Non-goal:** the opportunistic resync (§5.4, the `landResult.status === 'landed'` branch in workflow-template.js) is untouched — it is already ff-only/clean-guarded and reads origin as truth. This spec only fixes the step-3 advance that feeds it.
 - **Risk (acceptable):** the readback adds one `ls-remote` round-trip per land. Negligible vs. a phantom partial-land; this is the operator's stated trade (`cost-not-a-concern-max-20x`).
-- **Latent sibling:** the reland loop still re-fetches and retries on exit 2; exit 3 from the readback routes to escalate/`held` via the existing `HARD_ESCALATION_REASONS` path — no new status enum is introduced (avoids `shared-status-enum-widening-silently-widens-land-path`).
+- **Latent sibling:** the reland loop still re-fetches and retries on exit 2; exit 3 from the readback maps to
+  `status:'error'`, which the land block routes via its `else if (landResult && (landResult.status === 'error' || landResult.status === 'gate_failed'))`
+  branch to `landDecision: 'held:land-failed'` — **not** through `HARD_ESCALATION_REASONS` (`'error'` is deliberately
+  excluded from that const). This plan introduces **no** new status enum member (avoids
+  `shared-status-enum-widening-silently-widens-land-path`).
+  - *v0.8.0 re-ground:* the MERGE_RESULT `status` enum widened at v0.8.0 to add `submodule-blocked` (merge-task,
+    hard-escalate, 0 fix rounds) and `submodule-pr` (land-phase). `submodule-pr` is mapped **directly** to
+    `landDecision: 'held:submodule-pr'` (DP2 — the same direct-return pattern as `held:workflow-error`, evaluated
+    *before* the `error||gate_failed` branch and deliberately NOT routed through `HARD_ESCALATION_REASONS`). Those are
+    the submodule increments' additions; `cmd_land_advance`'s `exit 3` never emits a submodule status, so this fix is
+    orthogonal to them and the `error||gate_failed` → `held:land-failed` route is unchanged.
 
 ## Version serialization
 
-Bumps the four canonical slots — `plugin.json`, `marketplace.json` (×2), and the `README.md` `## Status` line — from v0.7.7 to **v0.7.8**. No badge. Lands serially as **landOrder 1**; later specs in this batch rebase onto this corrected land path and continue the version stack.
+Bumps the four canonical slots — `plugin.json`, `marketplace.json` (×2), and the `README.md` `## Status` line — from the master-tip v0.8.0 to **v0.8.1** (`Builds on v0.8.0`). No badge. Lands serially as **landOrder 1**; later specs in this batch rebase onto this corrected land path and continue the version stack (v0.8.2…v0.8.6).
 
-**Gate:** `node --test "skills/**/*.test.mjs"` plus the 12 `*.test.sh` runners (including `provision-worktrees.test.sh`).
+**Gate:** `node --test "skills/**/*.test.mjs"` plus the 13 `*.test.sh` runners (self-discovered by the `find` runner; includes `provision-worktrees.test.sh` and the v0.8.0 `assert-no-submodule-mutation.test.sh` floor).

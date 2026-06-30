@@ -1,19 +1,19 @@
 # workflow-template.test.mjs fidelity sweep — brittle extract regex, stale F05 labels, mispredicting comment, auditor-seat rationale Implementation Plan (issues #266 #267 #250 #221)
 
-**Goal:** one cohesive test-hygiene pass over a single file — [`skills/war/assets/workflow-template.test.mjs`](../../skills/war/assets/workflow-template.test.mjs) — that closes four same-kind nits: a brittle extract-and-eval regex (#266), five-but-actually-six stale F05 D2/D3 labels after a rename (#250), a verify-and-confirm of a pre-applied comment/dead-local fix (#267), and a one-line deliberate-choice comment at the auditor-seat throw (#221). **Zero production change** — `workflow-template.js` and `war-servitor.md` already carry the canonical labels and the correct `blockedReason` body. Lands **last** in its stack (behavioral-before-cosmetic, landOrder 6). All edits are test-prose / robustness.
+**Goal:** one cohesive test-hygiene pass over a single file — [`skills/war/assets/workflow-template.test.mjs`](../../skills/war/assets/workflow-template.test.mjs) — that closes four same-kind nits: a brittle extract-and-eval regex (#266), five-but-actually-six stale F05 D2/D3 labels after a rename (#250), a mispredicting comment + dead-local fix (#267, both halves un-fixed at HEAD — re-grounded from the earlier "pre-applied" claim), and a one-line deliberate-choice comment at the auditor-seat throw (#221). **Zero production change** — `workflow-template.js` and `war-servitor.md` already carry the canonical labels and the correct `blockedReason` body. Lands **last** in its stack (behavioral-before-cosmetic, landOrder 6). All edits are test-prose / robustness.
 
 **Source spec:** [`docs/specs/2026-06-30-workflow-template-test-fidelity-sweep-design.md`](../specs/2026-06-30-workflow-template-test-fidelity-sweep-design.md).
-**Roadmap:** [`docs/plans/2026-06-30-open-issue-remediation-roadmap.md`](2026-06-30-open-issue-remediation-roadmap.md) — the **authoritative version source** (this slug = landOrder 6 = v0.7.13).
+**Roadmap:** [`docs/plans/2026-06-30-open-issue-remediation-roadmap.md`](2026-06-30-open-issue-remediation-roadmap.md) — the **authoritative version source** (this slug = landOrder 6 = v0.8.6, re-baselined off master v0.8.0).
 Memory hooks: [[regex-extract-live-code-lazy-quantifier-fragility]] (#266), [[relaxed-assertion-test-title-must-update-together]] + [[source-comment-lags-emitted-prompt-after-rewrite]] (#250), [[weak-test-assertion-passes-without-feature-being-exercised]] Variant 3 (#267), [[plan-line-number-refs-stale-use-construct-locator]] (all anchors by construct), [[version-slots-no-cross-slot-consistency-test]] (#release).
 
-All anchors below were opened and confirmed at session HEAD `88c64cc` (v0.7.7). The affected suite is green.
+Anchors below are re-grounded against current master HEAD (`89e5968`, v0.8.0) after the two submodule-support increments (v0.7.8 guard + v0.8.0 first-class) landed and added +316 lines of submodule tests to this same file. The affected suite is green. **NOTE (re-grounding):** the pre-update fork point was `88c64cc` (v0.7.7); construct line numbers below moved only where the +316 churn pushed them down — re-anchor by named construct per [[plan-line-number-refs-stale-use-construct-locator]].
 
 ## Coordination
 
-- **Target version:** **v0.7.13** (roadmap landOrder 6, severity LOW). Bumps `0.7.12 → 0.7.13`.
-- **Integration base:** the **landed tip of Spec 5 (v0.7.12, `test-floor-script-glob-and-doc-hardening`)**, which itself sits on the **post-#268 tip**. This sweep is authored on a tree that **already contains Spec 2's (#268) Site-3 test** in this same file — **do NOT re-touch that region** (it is a sibling's landed work; nothing in this plan edits it).
-- **Four-slot serial land (replace-in-place, no badge):** `.claude-plugin/plugin.json` `version`; `.claude-plugin/marketplace.json` `metadata.version` **and** `plugins[0].version`; `README.md` `## Status` (line ~222). All four read `0.7.13` after the release task; no other slot left at a prior version. There is no cross-slot consistency test — verify all four by hand ([[version-slots-no-cross-slot-consistency-test]]).
-- **Standalone fallback:** if this is run **off current master (v0.7.7)** instead of the stack, **re-baseline the release to the next free patch** (v0.7.8 off the live tip) and **drop the prior-tip pin** — the version literal is NOT authoritative; the operator directive + the actual landed baseline is ([[stacked-per-branch-releases-make-main-lag-cumulative]]). The four test-prose edits (#266/#267/#250/#221) are baseline-independent and unaffected by the fallback.
+- **Target version:** **v0.8.6** (roadmap landOrder 6, severity LOW). Bumps `0.8.5 → 0.8.6`. (Re-baselined: master advanced to v0.8.0 via the two submodule increments; the six-spec stack now lands v0.8.1…v0.8.6 in the same serial order — this slug is last at v0.8.6.)
+- **Integration base:** the **landed tip of Spec 5 (v0.8.5, `test-floor-script-glob-and-doc-hardening`)**, which itself sits on the **post-#268 tip**. This sweep is authored on a tree that **already contains Spec 2's (#268) Site-3 test** in this same file — **do NOT re-touch that region** (it is a sibling's landed work; nothing in this plan edits it).
+- **Four-slot serial land (replace-in-place, no badge):** `.claude-plugin/plugin.json` `version`; `.claude-plugin/marketplace.json` `metadata.version` **and** `plugins[0].version`; `README.md` `## Status` (line ~236). All four read `0.8.6` after the release task; no other slot left at a prior version. (At master HEAD all four read `0.8.0`.) There is no cross-slot consistency test — verify all four by hand ([[version-slots-no-cross-slot-consistency-test]]).
+- **Standalone fallback:** if this is run **off current master (v0.8.0)** instead of the stack, **re-baseline the release to the next free patch** (v0.8.1 off the live tip) and **drop the prior-tip pin** — the version literal is NOT authoritative; the operator directive + the actual landed baseline is ([[stacked-per-branch-releases-make-main-lag-cumulative]]). The four test-prose edits (#266/#267/#250/#221) are baseline-independent and unaffected by the fallback.
 - **Commit boundaries:** one task per issue (independent audits), one commit per task. The release is its own `chore(release):` commit. Five task-branches + a release, not one squashed commit — so the WAR refiner audits each nit separately.
 - **One-task-per-phase:** every task touches the **same file** (`workflow-template.test.mjs`), so they are **strictly serial**, each landing on the prior's landed tip ([[war-phase-up-front-provisioning-conflicts-same-file-serial-tasks]]). Never parallel.
 
@@ -21,7 +21,7 @@ All anchors below were opened and confirmed at session HEAD `88c64cc` (v0.7.7). 
 
 - **#266 — anchor the lazy quantifier to the terminal token.** Change the extract regex terminator `null\)` → `:\s*null\)` so an interior `null)` (a future `|| null)` / `?? null)` branch) cannot truncate the capture. The existing 4-case totality test (`L3 T1 — blockedReason predicate is total`) **stays green** — that *is* the proof the colon-anchored capture still grabs the full arrow. No new test; the existing test is load-bearing.
 - **#250 — rename ALL stale F05 sites: it is SIX, not five.** Live `grep -cE 'CORRECTION PRIORITY|VERIFY-CUE'` returns **6** (the spec's "five sites" counts the 2-line comment block as one). Edit all six occurrences: 2 comment lines (`~L1168-1169`) + 4 test titles (`~L1190/1203/1239/1246`). Swap `CORRECTION PRIORITY → TIER PRECEDENCE` and `VERIFY-CUE → VERIFY-ON-WRITE`. **Also reframe the L1168-1169 comment prose** to the tier-precedence framing so the comment doesn't itself become fresh source-comment-lags drift (production already frames D2 as tier-precedence in `workflow-template.js` / `war-servitor.md`). **Leave every `assert.match` semantic-token pattern byte-unchanged.** Post-condition: `grep -nE 'CORRECTION PRIORITY|VERIFY-CUE'` returns nothing.
-- **#267 — verify-and-confirm (already self-corrected at HEAD).** The unused `t1Log` local is **already absent** (`grep -c 't1Log'` returns **0** at HEAD) — verify. The bind-deletion-failure-mode comment is **already reworded correctly** at L2038-2039 ("re-audit and approve+land … blocked:'X' is absent") — its misprediction text was **not** found at session HEAD, so **reword ONLY if a clean checkout reintroduces the misprediction**. Confirm load-bearing: deleting the `'fix:t1:r1'` seqMap entry must fail the three token-`'X'` assertions.
+- **#267 — APPLY both halves (NOT pre-applied; the original "already self-corrected" claim was wrong).** RE-GROUNDING CORRECTION: at current HEAD `89e5968` (and at the original fork `88c64cc`) BOTH halves are still un-fixed — the unused `t1Log` local IS present (`grep -c 't1Log'` returns **1**, at the line `const t1Log = (out.auditLog || []).find(e => e && e.task === 't1' && typeof e.fixRounds === 'number')`, inside `L3 T2 Test 1`), and the bind-deletion comment STILL mispredicts ("…makes the loop reach **audit-blocked** … and the blocked:'X' field is absent"). The +316 submodule churn did not touch this region; this was never self-corrected. So this task is a real two-edit fix, not verify-and-confirm: **(1) delete the dead `t1Log` local; (2) reword the comment** to the true outcome — deleting the fix-worker binding makes the loop re-audit and **approve+land** (the auditor returns `approve` once `fixDispatchCount > 0`), so the early-escalate path is skipped and `blocked:'X'` is absent. Confirm load-bearing: deleting the `'fix:t1:r1'` seqMap entry must fail the three token-`'X'` assertions (`t1Esc.blocked==='X'`, `logEntry.blocked==='X'`, and `t1Esc.reason==='escalate'`).
 - **#221 — add the one-line deliberate-choice comment (operator-deferred = our call).** At the `war-auditor` throw (`~L1783`, `if (seat === 'war-auditor') throw new Error('injected-auditor-throw-after-worker')`) add a one-line comment: *auditor seat = first `agent()` past the worker, before any merge; `workerRan === true` guarantees the catch is reached mid-flow.* **Do NOT close with zero edit** — an empty diff risks the refiner flagging "nothing to commit" ([[report-nothing-to-commit-never-implement-unprompted]]). One concrete auditable artifact.
 - **Zero production change** — `workflow-template.js` and `war-servitor.md` are untouched. The whole sweep is test-prose / robustness.
 
@@ -43,22 +43,22 @@ All anchors below were opened and confirmed at session HEAD `88c64cc` (v0.7.7). 
 
 ---
 
-## Phase 2 — #267 verify pre-applied comment + dead-local deletion
+## Phase 2 — #267 reword mispredicting comment + delete dead local
 
-### Task 2 — Confirm the bind-deletion comment + `t1Log` removal are present and load-bearing (#267)
+### Task 2 — Reword the bind-deletion comment + drop the dead `t1Log` local (#267)
 
-**File:** `skills/war/assets/workflow-template.test.mjs` — the `L3 T2 Test 1 — blocked fix-worker escalates on round r` test. Both halves are **already self-corrected at session HEAD** (verified): the comment at `~L2038-2039` already reads "re-audit and approve+land … blocked:'X' is absent", and `grep -c 't1Log'` returns **0**. This is **verify-and-confirm**, not re-author. Variant 3 of [[weak-test-assertion-passes-without-feature-being-exercised]].
+**File:** `skills/war/assets/workflow-template.test.mjs` — the `L3 T2 Test 1 — blocked fix-worker escalates on round r` test (anchor by the test-title string, not a line number). **RE-GROUNDING CORRECTION:** both halves are STILL un-fixed at HEAD `89e5968` (and were un-fixed at the original fork `88c64cc` — the prior "already self-corrected" claim was never true; the +316 submodule churn did not touch this region). The "Load-bearing assertion" comment (block beginning `// Load-bearing assertion: deleting the fix-worker binding makes the loop reach audit-blocked`) STILL mispredicts; and `grep -c 't1Log'` returns **1** (the dead local survives at the line `const t1Log = (out.auditLog || []).find(e => e && e.task === 't1' && typeof e.fixRounds === 'number')`). This is a real **two-edit fix**, not verify-and-confirm. Variant 3 of [[weak-test-assertion-passes-without-feature-being-exercised]].
 
-**`requiresTest`: false** — verify-and-confirm of an existing load-bearing test; no behavioral change.
+**`requiresTest`: false** — a comment reword + dead-local deletion; no behavioral change (the three token-`'X'` assertions are unchanged and remain load-bearing).
 
-- [ ] **Step 1 — Verify the dead-local is gone (grep post-condition).** `grep -c 't1Log' skills/war/assets/workflow-template.test.mjs` → **0**. If a clean checkout reintroduced it, delete the exact line `const t1Log = (out.auditLog || []).find(e => e && e.task === 't1' && typeof e.fixRounds === 'number')`.
-- [ ] **Step 2 — Verify the comment is correctly worded (grep post-condition).** Confirm the `~L2038-2039` "Load-bearing assertion" comment states the bind-deletion outcome is **re-audit + approve+land** with **blocked:'X' absent** (NOT audit-blocked). The misprediction text ("reach audit-blocked") was **not** found at session HEAD — **reword ONLY if** a clean checkout reintroduced the misprediction: `grep -n 'audit-blocked' skills/war/assets/workflow-template.test.mjs` around the L3 T2 region should find nothing describing the bind-deletion outcome.
-- [ ] **Step 3 — Confirm load-bearing (sanity, not a committed edit).** Temporarily delete the `'fix:t1:r1'` seqMap entry (`{ 'fix:t1:r1': [{ task_id: 't1', status: 'blocked', blocked_reason: 'X' }] }`) and confirm the three token-`'X'` assertions (`t1Esc.reason==='escalate'`, the `blocked:'X'` task-result check, the auditLog `blocked:'X'` check) **fail** — proving the test exercises the feature. **Revert** the deletion.
+- [ ] **Step 1 — Delete the dead local.** Remove the exact line `const t1Log = (out.auditLog || []).find(e => e && e.task === 't1' && typeof e.fixRounds === 'number')` (anchor by the construct `const t1Log`, the only match in the file). Post-condition: `grep -c 't1Log' skills/war/assets/workflow-template.test.mjs` → **0**.
+- [ ] **Step 2 — Reword the mispredicting comment.** The "Load-bearing assertion" comment block (the two `//` lines beginning `Load-bearing assertion: deleting the fix-worker binding makes the loop reach audit-blocked`) must be reworded to the TRUE outcome: deleting the fix-worker binding makes the loop re-audit and **approve+land** (the auditor returns `approve` once `fixDispatchCount > 0`), so the early-escalate is skipped and `blocked:'X'` is absent — assert on the unique token `'X'`. Post-condition: `grep -n 'reach audit-blocked' skills/war/assets/workflow-template.test.mjs` finds nothing in this comment.
+- [ ] **Step 3 — Confirm load-bearing (sanity, not a committed edit).** Temporarily delete the `'fix:t1:r1'` seqMap entry (`{ 'fix:t1:r1': [{ task_id: 't1', status: 'blocked', blocked_reason: 'X' }] }`) and confirm the three token-`'X'` assertions (`t1Esc.reason==='escalate'`, `t1Esc.blocked==='X'`, the auditLog `logEntry.blocked==='X'` check) **fail** — proving the test exercises the feature. **Revert** the deletion.
 - [ ] **Step 4 — Full gate → green.** Run `node --test --test-name-pattern='L3 T2 Test 1' …` → passes; then the full gate → green.
-- [ ] **Step 5 — Commit** — `test(war): confirm L3 T2 Test1 bind-deletion comment + drop dead t1Log local (#267)`. *(If both halves were already present and no edit was needed, this task still produces a deliberate one-line touch — e.g. tighten the comment wording — rather than an empty diff; [[report-nothing-to-commit-never-implement-unprompted]] applies. In practice the grep posture above will hold and the commit carries the confirmation note in its body.)*
-- **Closes #267.** Dead local gone, comment names the real outcome, test confirmed load-bearing.
+- [ ] **Step 5 — Commit** — `test(war): reword L3 T2 Test1 bind-deletion comment + drop dead t1Log local (#267)`.
+- **Closes #267.** Dead local gone, comment names the real outcome (approve+land, not audit-blocked), test confirmed load-bearing.
 
-> **ponytail:** #267 is verify-dominant — the fix already lives at HEAD. Don't re-author what is already correct; the smallest honest artifact is a confirmation pass, with a re-apply branch only if a clean checkout drops the worktree state.
+> **ponytail:** #267 is now a genuine two-edit fix (both halves un-applied at HEAD — the original "verify-and-confirm" framing was based on a stale claim). Delete the dead local, reword the one comment, re-run green. Nothing more.
 
 ---
 
@@ -101,7 +101,7 @@ The `assert.match` patterns key on **semantic tokens** (`supersede|contradict|ov
 
 ---
 
-## Phase 5 — Release v0.7.13
+## Phase 5 — Release v0.8.6
 
 ### Task 5 — Bump the four canonical version slots + full self-discovering gate green
 
@@ -109,9 +109,9 @@ The `assert.match` patterns key on **semantic tokens** (`supersede|contradict|ov
 
 **`requiresTest`: false** — version serialization; no executable surface.
 
-- [ ] **Step 1 — Bump all four slots `0.7.12 → 0.7.13`.** Verify each by hand — there is no cross-slot consistency test, so a partial bump is gate-silent ([[version-slots-no-cross-slot-consistency-test]]). Update the README `## Status` "Builds on vX" clause to the new prior version (`v0.7.12`). Status copy: *workflow-template.test.mjs fidelity sweep — terminal-token-anchored extract regex, realigned F05 D2/D3 labels, auditor-seat rationale.* **Standalone fallback:** if running off v0.7.7 (not the stack), bump to the **next free patch off the live tip** (v0.7.8) by construct, not the literal 0.7.13 — [[stacked-per-branch-releases-make-main-lag-cumulative]].
+- [ ] **Step 1 — Bump all four slots `0.8.5 → 0.8.6`.** Verify each by hand — there is no cross-slot consistency test, so a partial bump is gate-silent ([[version-slots-no-cross-slot-consistency-test]]). Update the README `## Status` "Builds on vX" clause to the new prior version (`v0.8.5`). Status copy: *workflow-template.test.mjs fidelity sweep — terminal-token-anchored extract regex, realigned F05 D2/D3 labels, reworded bind-deletion comment, auditor-seat rationale.* **Standalone fallback:** if running off master v0.8.0 (not the stack), bump to the **next free patch off the live tip** (v0.8.1) by construct, not the literal 0.8.6 — [[stacked-per-branch-releases-make-main-lag-cumulative]].
 - [ ] **Step 2 — Full self-discovering gate → green.**
-- [ ] **Step 3 — Commit** — `chore(release): v0.7.13 — workflow-template test fidelity sweep (#266/#267/#250/#221)`. Land last (behavioral-before-cosmetic, landOrder 6).
+- [ ] **Step 3 — Commit** — `chore(release): v0.8.6 — workflow-template test fidelity sweep (#266/#267/#250/#221)`. Land last (behavioral-before-cosmetic, landOrder 6).
 
 ---
 
@@ -125,22 +125,22 @@ node --test 'skills/**/*.test.mjs' && for f in $(find . -type f -name '*.test.sh
 ```
 
 - `node --test 'skills/**/*.test.mjs'` — **6** `.test.mjs` suites (quote the glob; bash 3.2 under-covers it unquoted — [[node-breadth-assertion-test-js-overclaims]]).
-- The `for`-loop self-discovers every `*.test.sh` runner — **12 at HEAD** (6 under `hooks/`, 6 under `skills/`). Self-discovered via the gate's own `find`, never a hardcoded count ([[task-prompt-suite-count-stale-after-stacking]]).
+- The `for`-loop self-discovers every `*.test.sh` runner — **13 at master HEAD** (6 under `hooks/`, 7 under `skills/`; the v0.8.0 submodule increment added `skills/war/assets/assert-no-submodule-mutation.test.sh`). Self-discovered via the gate's own `find`, never a hardcoded count ([[task-prompt-suite-count-stale-after-stacking]]) — the literal here is descriptive, not load-bearing.
 
 ## Coverage
 
 | Issue | Task | Kind | Closure |
 |---|---|---|---|
 | #266 | Task 1 (Phase 1) | regex robustness | terminal-token anchor `null\)` → `:\s*null\)`; existing `L3 T1` totality test is the load-bearing proof |
-| #267 | Task 2 (Phase 2) | verify-and-confirm | `t1Log` already absent (grep 0) + comment already reworded at HEAD; re-apply only on clean-checkout drift; load-bearing sanity confirmed |
+| #267 | Task 2 (Phase 2) | comment reword + dead-local delete | both halves un-fixed at HEAD (grep `t1Log`=1; comment still says "reach audit-blocked"); delete dead local + reword comment to approve+land; load-bearing sanity confirmed |
 | #250 | Task 3 (Phase 3) | label drift | all **6** F05 sites renamed (2 comment + 4 titles) + comment prose reframed; `assert.match` patterns byte-unchanged; grep post-condition empty |
 | #221 | Task 4 (Phase 4) | deliberate-choice comment | one-line rationale at the `war-auditor` throw; no zero-edit close |
-| *(release)* | Task 5 (Phase 5) | version bump | four slots `0.7.12 → 0.7.13` (standalone fallback: next free patch off v0.7.7) |
+| *(release)* | Task 5 (Phase 5) | version bump | four slots `0.8.5 → 0.8.6` (standalone fallback: next free patch off master v0.8.0) |
 
 ## Deliberate simplifications (ponytail)
 
 - **#266 adds no new test.** The existing `L3 T1` evals the captured arrow with `new Function`; a truncated capture fails it loudly. A bespoke regression test would duplicate that coverage. *Add a dedicated test only if* the extract site is ever refactored away from `new Function`.
-- **#267 is a verify pass.** The fix lives at HEAD; re-authoring is wrong. The re-apply branch fires only if a clean checkout drops the uncommitted state.
+- **#267 is a two-line fix.** RE-GROUNDED: the fix does NOT live at HEAD (the prior "verify pass" framing rested on a stale claim — both halves are un-applied at `89e5968`). Delete the dead `t1Log` local + reword the one mispredicting comment. No new test (the three token-`'X'` assertions stay load-bearing and unchanged).
 - **#221 is a comment, not a code move.** Moving the throw to a post-merge seat is strictly more code for zero added coverage (rejected by the spec for a Nit).
 - **No production change, no ADR, no GitHub issue created by this plan** — pure test-file hygiene; the issue ids (#266/#267/#250/#221) are the audit findings.
 - **#250 reframes the comment prose, not just the label tokens** — the one place this plan does *more* than a token swap, deliberately, to avoid leaving the comment as fresh source-comment-lags drift. Marked as a choice, not scope creep.

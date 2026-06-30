@@ -1,13 +1,13 @@
 # Test-floor `assert-test-in-diff.sh`: multi-glob `--pattern` fix + `--repo` doc/signature reconciliation
 
-**Status:** proposed — targets **v0.7.12** (latent-correctness + doc-fidelity). **Severity: LOW.**
+**Status:** proposed — targets **v0.8.5** (latent-correctness + doc-fidelity). **Severity: LOW.**
 **Source:** issues #231 (`--pattern` collapses a multi-glob set into one never-matching literal), #232 (`--repo` test-only flag absent from plan/spec usage signatures). Memory: [[floor-script-discovery-set-must-mirror-gate-exclusions]], [[floor-script-exit-codes-1-vs-2-route-differently]], [[weak-test-assertion-passes-without-feature-being-exercised]], [[task-prompt-suite-count-stale-after-stacking]].
 
 Two pure nits, both in the single M2 floor script. One is a real (but dormant) capability bug in a code path no production caller exercises; the other is documentation lagging the landed interface. Smallest correct change for each — no behavior change on the wired default path.
 
 ## Problem
 
-Both defects live in [`skills/war/assets/assert-test-in-diff.sh`](../../skills/war/assets/assert-test-in-diff.sh). Live repo is v0.7.7; both confirmed at HEAD.
+Both defects live in [`skills/war/assets/assert-test-in-diff.sh`](../../skills/war/assets/assert-test-in-diff.sh). Live repo is v0.8.0; the file is unchanged by the submodule increments, so both defects are still confirmed at HEAD.
 
 ### #231 — `--pattern` override never matches a multi-glob set
 
@@ -69,11 +69,11 @@ No code-behavior change on the default (production) path. No mirrored-constant /
 
 ## Version serialization
 
-Targets **v0.7.12**, landOrder 5 in the audit stack (below the substantive workflow-template specs; above the cosmetic sweep — #231 is a real capability bug, but dormant). Bump the four canonical slots in the same commit, replace-in-place: [`plugin.json`](../../.claude-plugin/plugin.json) `version`, both `version` fields in [`marketplace.json`](../../.claude-plugin/marketplace.json), and the README [`## Status`](../../README.md) block (replace-slot, not append). Lands serially on the prior plan's landed tip.
+Targets **v0.8.5**, landOrder 5 in the audit stack (below the substantive workflow-template specs; above the cosmetic sweep — #231 is a real capability bug, but dormant). Bump the four canonical slots in the same commit, replace-in-place: [`plugin.json`](../../.claude-plugin/plugin.json) `version`, both `version` fields in [`marketplace.json`](../../.claude-plugin/marketplace.json), and the README [`## Status`](../../README.md) block (replace-slot, not append). Lands serially on the prior plan's landed tip (Spec 4, v0.8.4).
 
 ## Gate
 
-`node --test "skills/**/*.test.mjs"` plus the 6 `skills/**/*.test.sh` runners (incl. the modified `assert-test-in-diff.test.sh`) and the other workflow `*.test.sh` runners — 12 `*.test.sh` runners total across the gate. The new `--pattern` case is discovered by the gate's `*.test.sh` find, so it runs in CI without extra wiring.
+`node --test "skills/**/*.test.mjs"` plus the 7 `skills/**/*.test.sh` runners (incl. the modified `assert-test-in-diff.test.sh`) and the `hooks/` `*.test.sh` runners — 13 `*.test.sh` runners total across the gate (6 `hooks/` + 7 `skills/`; the 7th skills runner is the v0.8.0 sibling floor script `assert-no-submodule-mutation.test.sh`, untouched here but counted by the find). The new `--pattern` case is discovered by the gate's `*.test.sh` find, so it runs in CI without extra wiring.
 
 ## Open risks / non-goals
 

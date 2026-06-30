@@ -21,20 +21,21 @@ provably-unrun mapped test can land as HARD.
 
 ## Coordination
 
-- **Target version:** **v0.7.11**. **landOrder 4** (severity **MED**). **Closes:** issue **#222**.
-- **Integration base:** the **landed tip of Spec 3 (v0.7.10)** — the prior plan in the serial stack
+- **Target version:** **v0.8.4**. **landOrder 4** (severity **MED**). **Closes:** issue **#222**.
+- **Integration base:** the **landed tip of Spec 3 (v0.8.3)** — the prior plan in the serial stack
   (`docs/specs/2026-06-30-servitor-provenance-gate-robustness-design.md`). This is an **isolated lane**: the roadmap's
   shared-file table marks `hooks/validate-auditor-git.sh` as **"4 only" 🟢**, and the gate-audit pin region in
-  `skills/war/assets/workflow-template.js` (~L451-452) is disjoint from Spec 1's land block (~L515-518) and Spec 2's
-  no-test loop (~L329-422). No intra-stack file contention.
+  `skills/war/assets/workflow-template.js` (the `mergedTasksForGateAudit` post-merge gate-audit prompt — `EXACTLY this
+  bracket test` / `[ "$(git -C` lines, ~L503-504 at HEAD) is disjoint from Spec 1's land block (the `if (landDecision
+  === 'landed')` reland procedure, ~L562+) and Spec 2's no-test loop (~L380-470). No intra-stack file contention.
 - **Four-slot serial land (replace-in-place, no badge):** the release bumps the four canonical version slots in one
   commit — `.claude-plugin/plugin.json` `version`; `.claude-plugin/marketplace.json` `metadata.version` **and**
   `plugins[0].version` (two slots); `README.md` `## Status` line (REPLACE-in-place, **not** append; update the
   `Builds on vX` clause too). There is **no cross-slot consistency test** — verify all four by hand at the release
   commit (memory `version-slots-no-cross-slot-consistency-test`).
-- **Standalone fallback:** if this is run off current `master` (live HEAD is **v0.7.7**) instead of on the Spec-1→3
+- **Standalone fallback:** if this is run off current `master` (live HEAD is **v0.8.0**) instead of on the Spec-1→3
   stack, **re-baseline the release to the next free patch off the live tip** and drop the prior-tip pin — do NOT
-  hardcode 0.7.11 over an empty stack (memory `stacked-per-branch-releases-make-main-lag-cumulative`). The version
+  hardcode 0.8.4 over an empty stack (memory `stacked-per-branch-releases-make-main-lag-cumulative`). The version
   literal is never authoritative; the operator directive + the actual landed baseline are.
 
 ## Build order (for `/war`)
@@ -44,7 +45,7 @@ provably-unrun mapped test can land as HARD.
 - **Phase 2 — prompt reword** (`skills/war/assets/workflow-template.js`, one task, `requiresTest: false`). Disjoint
   file; no dep on Phase 1's behavior, but ordered after it so the prompt that exercises the new guard ships on a tip
   where the guard already allows it.
-- **Phase 3 — release v0.7.11** (four version slots).
+- **Phase 3 — release v0.8.4** (four version slots).
 
 Phase 1 touches only `hooks/`; Phase 2 is the only `workflow-template.js` touch — no intra-plan contention
 (memory `war-phase-up-front-provisioning-conflicts-same-file-serial-tasks`).
@@ -116,8 +117,9 @@ GROUP H appends after GROUP G (the file ends with the summary block after G5).
 no control-flow change, no new behavior. **deps:** Task 1 (the guard must allow the reworded command before the prompt
 that emits it ships).
 
-**Anchor (confirmed at HEAD, ~L451-452, WILL drift — locate by construct):** inside the `mergedTasksForGateAudit`
-gate-audit `agent(...)` prompt, the two concatenated lines
+**Anchor (confirmed at HEAD, ~L503-504, WILL drift — locate by construct):** inside the `mergedTasksForGateAudit`
+gate-audit `agent(...)` prompt (the `if (mergedTasksForGateAudit.length > 0)` block's `parallel(...)` map), the two
+concatenated lines
 `First confirm your evidence is pinned to the integration tip by running EXACTLY this bracket test:\n` +
 `    [ "$(git -C ${refineryPath} rev-parse HEAD)" = "${gateHeadSha}" ]\n`. Find them by the substring
 `EXACTLY this bracket test` and the `[ "$(git -C` line — **not** a line number
@@ -126,20 +128,20 @@ gate-audit `agent(...)` prompt, the two concatenated lines
 - [ ] **Step 1 — (no behavioral test — dispatched prose.)** No `.test.mjs` asserts on this string today. The
   load-bearing post-condition is a substring check (Step 3): the emitted prompt must no longer contain `[ "$(git -C`
   and must contain the bare `git -C ${refineryPath} rev-parse HEAD`.
-- [ ] **Step 2 — Implement the reword.** Replace the two bracket-test lines (L451-452) with a bare print-and-compare
-  the guard permits (spec Mechanics):
+- [ ] **Step 2 — Implement the reword.** Replace the two bracket-test lines (the `EXACTLY this bracket test` +
+  `[ "$(git -C` lines, ~L503-504 at HEAD) with a bare print-and-compare the guard permits (spec Mechanics):
   ```js
   + `First confirm your evidence is pinned to the integration tip. Run (read-only git, permitted):\n`
   + `    git -C ${refineryPath} rev-parse HEAD\n`
   + `and compare the printed sha against the gate-HEAD sha ${gateHeadSha}. Equal ⇒ pin CONFIRMED. `
   + `Different, or the command cannot run (git unavailable / rev-parse fails) ⇒ you CANNOT confirm the pin.\n`
   ```
-  Leave the downstream **CONFIRMED / cannot-confirm SOFT-downgrade branches (L453-461) semantically unchanged** — only
-  the confirmation *mechanism* changes from a guard-denied bracket test to a guard-permitted print-and-compare. The
-  stale-tip SOFT-downgrade *policy* (when a cannot-confirm becomes SOFT) and the required SOFT-note contents stay
-  exactly as-is (spec Non-goal). Adjust the L453-454 wording that says "Exit 0 ⇒ pin CONFIRMED … Non-zero exit" only as
-  needed so it reads against "compare the printed sha" rather than a bracket exit code — keep the CONFIRMED /
-  CANNOT-confirm outcomes identical.
+  Leave the downstream **CONFIRMED / cannot-confirm SOFT-downgrade branches (the `Exit 0 ⇒ pin CONFIRMED …` through the
+  SOFT-note-contents lines, ~L505-513 at HEAD) semantically unchanged** — only the confirmation *mechanism* changes from
+  a guard-denied bracket test to a guard-permitted print-and-compare. The stale-tip SOFT-downgrade *policy* (when a
+  cannot-confirm becomes SOFT) and the required SOFT-note contents stay exactly as-is (spec Non-goal). Adjust the
+  `Exit 0 ⇒ pin CONFIRMED … Non-zero exit` wording (~L505-506 at HEAD) only as needed so it reads against "compare the
+  printed sha" rather than a bracket exit code — keep the CONFIRMED / CANNOT-confirm outcomes identical.
 - [ ] **Step 3 — Run the full self-discovering gate → green.** No test asserts on the prompt, but the whole node suite
   must stay green since it parses `workflow-template.js`. **Manual post-condition:**
   `grep -F '[ "$(git -C' skills/war/assets/workflow-template.js` returns **nothing** in the gate-audit prompt, and
@@ -151,26 +153,26 @@ gate-audit `agent(...)` prompt, the two concatenated lines
 
 ---
 
-## Phase 3 — Release v0.7.11
+## Phase 3 — Release v0.8.4
 
-### Task 3 — Version bump v0.7.11 + full self-discovering gate green
+### Task 3 — Version bump v0.8.4 + full self-discovering gate green
 
 **Files:** `.claude-plugin/plugin.json` (`version`); `.claude-plugin/marketplace.json` (`metadata.version` **and**
 `plugins[0].version`); `README.md` `## Status` (REPLACE-in-place; update the `Builds on vX` clause). **No badge.**
 **`requiresTest`: false.**
 
-- [ ] **Step 1 — Bump all four slots to `0.7.11`** (memory `release-bump-slots-canonical-no-badge`,
+- [ ] **Step 1 — Bump all four slots to `0.8.4`** (memory `release-bump-slots-canonical-no-badge`,
   `release-status-is-replace-slot-not-empty-field`, `version-slots-no-cross-slot-consistency-test` — verify all four +
-  the `Builds on` clause by hand). The prior landed tip (Spec 3) sets the four slots to `0.7.10` and the `## Status`
-  `Builds on` clause to `v0.7.9` — bump those to `0.7.11` / `Builds on v0.7.10`. **Standalone fallback:** if run off
-  live `master` (slots read `0.7.7`), take the **next free patch off the live tip** (e.g. `0.7.8`) and set
-  `Builds on` to the live prior — do NOT hardcode `0.7.11` over an empty stack
+  the `Builds on` clause by hand). The prior landed tip (Spec 3) sets the four slots to `0.8.3` and the `## Status`
+  `Builds on` clause to `v0.8.2` — bump those to `0.8.4` / `Builds on v0.8.3`. **Standalone fallback:** if run off
+  live `master` (slots read `0.8.0`), take the **next free patch off the live tip** (e.g. `0.8.1`) and set
+  `Builds on` to the live prior — do NOT hardcode `0.8.4` over an empty stack
   (memory `stacked-per-branch-releases-make-main-lag-cumulative`). Status copy: auditor git-guard now permits the
   read-only `git -C <path>` global flag, and the gate-audit pin uses a bare print-and-compare instead of the
   guard-denied bracket test — a genuinely provably-unrun mapped test can land HARD instead of being force-downgraded
   to SOFT.
 - [ ] **Step 2 — Run the full self-discovering gate → green.**
-- [ ] **Step 3 — Commit** — `chore(release): v0.7.11 — auditor git-guard read-only -C + reworded gate-audit pin (#222)`
+- [ ] **Step 3 — Commit** — `chore(release): v0.8.4 — auditor git-guard read-only -C + reworded gate-audit pin (#222)`
 
 ---
 
@@ -185,15 +187,16 @@ node --test 'skills/**/*.test.mjs' && for f in $(find . -type f -name '*.test.sh
   -not -path '*/node_modules/*' -not -path '*/.git/*' | sort); do bash "$f" || exit 1; done
 ```
 
-**Quote the `.mjs` glob** — bash 3.2 under-covers it unquoted. **6 `.test.mjs`** + **12 `.test.sh`** runners at HEAD
-(6 `hooks/` + 6 `skills/`), including the modified `hooks/validate-auditor-git.test.sh`. **Never assert a literal `12`**
-in any test — the gate self-discovers via `find` (memory `floor-script-discovery-set-must-mirror-gate-exclusions`); a
-runner added by Specs 1–3 ahead of this in the stack is auto-found.
+**Quote the `.mjs` glob** — bash 3.2 under-covers it unquoted. **6 `.test.mjs`** + **13 `.test.sh`** runners at HEAD
+(6 `hooks/` + 7 `skills/` — the v0.8.0 submodule increment added `skills/war/assets/assert-no-submodule-mutation.test.sh`),
+including the modified `hooks/validate-auditor-git.test.sh`. **Never assert a literal count** in any test — the gate
+self-discovers via `find` (memory `floor-script-discovery-set-must-mirror-gate-exclusions`); a runner added by Specs 1–3
+ahead of this in the stack is auto-found.
 
 | Task | Test | Key assertion | Notes |
 |---|---|---|---|
 | T1 | `validate-auditor-git.test.sh` GROUP H | H1/H2 allow (`git -C … rev-parse HEAD` / `show HEAD:file.txt` → exit 0); **H3 deny** (`git -C … commit` → exit 2 + `WAR:`, verb allowlist NOT widened); H4 deny (bare `-C`); **H5 deny** (bracket/`$()` form, C5 parity); C5 stays | Existing `expect_allow`/`expect_deny` helpers (exit-2 + `WAR:` already asserted). **Red first:** H1/H2 must deny pre-peel. No `git -C -C` deny case (it allows). |
-| T2 | (no test — dispatched prose) | full gate green; **manual:** no `[ "$(git -C` substring; bare `git -C … rev-parse HEAD` present | SOFT-downgrade branches (L453-461) semantically unchanged |
+| T2 | (no test — dispatched prose) | full gate green; **manual:** no `[ "$(git -C` substring; bare `git -C … rev-parse HEAD` present | SOFT-downgrade branches (`Exit 0 ⇒ pin CONFIRMED …` → SOFT-note lines, ~L505-513 at HEAD) semantically unchanged |
 | T3 | (no test — release) | full gate green at the release commit; four slots + `Builds on` hand-verified | no cross-slot test |
 
 ## Coverage
@@ -210,7 +213,7 @@ runner added by Specs 1–3 ahead of this in the stack is auto-found.
 - **No char-allowlist change.** The bracket/`$()` form stays denied (H5 + C5 prove it) — `-C` is the correct and
   sufficient half of the issue's suggestion; permitting `$()[]"` reopens the C5 injection vector (spec Alternatives).
 - **No SOFT-downgrade policy change.** Only the pin-confirmation *mechanism* changes; the stale-tip defusing rule and
-  SOFT-note contents (L453-461) are unchanged (spec Non-goal).
+  SOFT-note contents (the `Exit 0 ⇒ pin CONFIRMED …` → SOFT-note lines, ~L505-513 at HEAD) are unchanged (spec Non-goal).
 - **The `auditor-cannot-execute-the-tests-it-must-verify-pass` structural gap is out of scope** — this fixes only the
   pin-confirmation read path, not the auditor's inability to run the tests it verifies (spec Non-goal).
 - **No GitHub issue filed by this plan** — #222 is the existing issue; the release commit closes it.

@@ -18,20 +18,22 @@ Relevant memory: [[floor-script-discovery-set-must-mirror-gate-exclusions]], [[f
 
 ## Coordination
 
-- **Target version:** **v0.7.12** · **landOrder 5** · **severity LOW.**
+- **Target version:** **v0.8.5** · **landOrder 5** · **severity LOW.**
 - **Closes:** issues **#231** (latent `--pattern` multi-glob bug) and **#232** (test-only `--repo` flag absent from doc signatures).
-- **Integration base (stacked roadmap — operator-confirmed):** war this plan on the **landed tip of Spec 4 (v0.7.11)**,
+- **Integration base (stacked roadmap — operator-confirmed):** war this plan on the **landed tip of Spec 4 (v0.8.4)**,
   the auditor-git-guard plan — NOT plain `master`/`dev` (memory `audit-baseline-must-pin-integration-branch-not-main-checkout`).
-  Read that landed tip's **actual** version-slot values before the release task; do not assume the prior slot reads `0.7.11`
+  Read that landed tip's **actual** version-slot values before the release task; do not assume the prior slot reads `0.8.4`
   (it is whatever Spec 4 left — verify by hand). **This run lands serially on the prior spec's tip.**
 - **Four canonical version slots — REPLACE-in-place, land serially:** `.claude-plugin/plugin.json` `version`;
   `.claude-plugin/marketplace.json` `metadata.version` **AND** `plugins[0].version`; `README.md` `## Status` paragraph.
   No badge. No cross-slot consistency test exists (memory `version-slots-no-cross-slot-consistency-test`) — verify all
   four by hand at the release commit.
 - **Isolated lane.** Per the roadmap shared-file table, `skills/war/assets/assert-test-in-diff.sh` is Spec 5's sole lane —
-  no other spec in the stack touches it. The only cross-spec contention is the four version slots (handled by the ordered
-  versions). No drift-guard / mirrored-constant cascade; no version-slot consumer logic is touched.
-- **Standalone fallback.** If run off current `master` (**v0.7.7**) instead of the stack, re-baseline the release to the
+  no other spec in the stack touches it. (Note: as of v0.8.0 master there are now TWO floor scripts —
+  `assert-test-in-diff.sh` and the newly-landed sibling `assert-no-submodule-mutation.sh`; this spec touches only the
+  former. See ## Gate for the implication on the runner count.) The only cross-spec contention is the four version slots
+  (handled by the ordered versions). No drift-guard / mirrored-constant cascade; no version-slot consumer logic is touched.
+- **Standalone fallback.** If run off current `master` (**v0.8.0**) instead of the stack, re-baseline the release to the
   **next free patch** off the live tip (next number by construct, memory `stacked-per-branch-releases-make-main-lag-cumulative`)
   and drop the prior-tip pin. The two code/doc tasks are unaffected; only the release task's number changes.
 
@@ -137,24 +139,25 @@ Relevant memory: [[floor-script-discovery-set-must-mirror-gate-exclusions]], [[f
 
 ---
 
-## Phase 2 — Release v0.7.12
+## Phase 2 — Release v0.8.5
 
-### Task 3 — Version bump v0.7.12 + full gate green
+### Task 3 — Version bump v0.8.5 + full gate green
 
 **Files:** `.claude-plugin/plugin.json` (`version`); `.claude-plugin/marketplace.json` (`metadata.version` **AND**
 `plugins[0].version`); `README.md` `## Status` (REPLACE-in-place; no badge).
 
-- [ ] **Step 1 — Bump all FOUR canonical slots → `0.7.12`, replace-in-place, verifying each by hand** (memory
+- [ ] **Step 1 — Bump all FOUR canonical slots → `0.8.5`, replace-in-place, verifying each by hand** (memory
   `release-bump-slots-canonical-no-badge`, `version-slots-no-cross-slot-consistency-test` — no gate catches a partial
   bump; the second `marketplace.json` field `plugins[0].version` is distinct from `metadata.version`). Read the prior
-  landed tip's **actual** slot value first and bump from there to `0.7.12` (do not assume the prior reads `0.7.11`).
-  Replace the `README.md` `## Status` paragraph (currently `**0.7.7** — … Builds on v0.7.6.`) with the v0.7.12 copy and
-  update the **"Builds on vX"** clause to the prior landed version. **Standalone fallback:** if run off `master`
-  (v0.7.7), use the next free patch off the live tip instead of `0.7.12` and set "Builds on" accordingly.
+  landed tip's **actual** slot value first and bump from there to `0.8.5` (do not assume the prior reads `0.8.4`).
+  Replace the `README.md` `## Status` paragraph (at HEAD `**0.8.0** — … Builds on v0.7.8.`; the prior spec in this
+  stack will have advanced it to the v0.8.4 copy by land time) with the v0.8.5 copy and update the **"Builds on vX"**
+  clause to the prior landed version. **Standalone fallback:** if run off `master` (v0.8.0), use the next free patch off
+  the live tip instead of `0.8.5` and set "Builds on" accordingly.
   Status copy (gist): test-floor `--pattern` now iterates a space-separated glob set (multi-glob override); `--repo`
   documented test-only and reconciled across the plan/spec usage signatures.
 - [ ] **Step 2 — Run the full self-discovering gate → GREEN.**
-- [ ] **Step 3 — Commit.** `chore(release): v0.7.12 — test-floor --pattern multi-glob fix + --repo signature reconciliation (#231, #232)`
+- [ ] **Step 3 — Commit.** `chore(release): v0.8.5 — test-floor --pattern multi-glob fix + --repo signature reconciliation (#231, #232)`
 
 ---
 
@@ -167,10 +170,12 @@ node --test 'skills/**/*.test.mjs' && for f in $(find . -type f -name '*.test.sh
   -not -path '*/node_modules/*' -not -path '*/.git/*' | sort); do bash "$f" || exit 1; done
 ```
 
-- **6** `skills/**/*.test.mjs` files + **12** `*.test.sh` runners at HEAD (6 `hooks/` + 6 `skills/`), incl. the modified
-  `assert-test-in-diff.test.sh`. The new Case 6 is discovered by the gate's `*.test.sh` `find` — runs in CI with no extra
-  wiring. Self-discovered via `skills/war/assets/war-config.mjs --resolve-gate`; never assert a literal runner count
-  (memory `task-prompt-suite-count-stale-after-stacking`).
+- **6** `skills/**/*.test.mjs` files + **13** `*.test.sh` runners at HEAD (6 `hooks/` + 7 `skills/`), incl. the modified
+  `assert-test-in-diff.test.sh`. (The 13th `*.test.sh` is the v0.8.0 sibling floor script's
+  `skills/war/assets/assert-no-submodule-mutation.test.sh` — not touched here, but it raised the runner count from 12.)
+  The new Case 6 is discovered by the gate's `*.test.sh` `find` — runs in CI with no extra wiring. Self-discovered via
+  `skills/war/assets/war-config.mjs --resolve-gate`; never assert a literal runner count
+  (memory `task-prompt-suite-count-stale-after-stacking`, `floor-script-discovery-set-must-mirror-gate-exclusions`).
 - Run the **full** gate (not `--test-name-pattern` subsets) before each commit.
 
 ## Coverage

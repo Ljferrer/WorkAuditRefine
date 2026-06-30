@@ -1,8 +1,8 @@
 # Auditor git-guard blocks its own pin test: teach the guard read-only `git -C <path>`, reword the prompt off the bracket form
 
-**Status:** proposed — targets **v0.7.11** (tooling-guard). **Severity: MEDIUM.**
+**Status:** proposed — targets **v0.8.4** (tooling-guard). **Severity: MEDIUM.**
 **Source:** issue #222. Memory: `gate-audit-pin-bracket-test-blocked-by-git-guard`, `audit-worktree-pre-impl-tip-stale-verdict`, `auditor-cannot-execute-the-tests-it-must-verify-pass`.
-Group: standalone (Group 3). Stacks after Groups 1/2 — the guard file `validate-auditor-git.sh` and the gate-audit pin region (`workflow-template.js` ~L451-452) are disjoint from the land block (~L518) and the no-test loop (~L329-422). Live repo is v0.7.7; landOrder 4.
+Group: standalone (Group 3). Stacks after Groups 1/2 — the guard file `validate-auditor-git.sh` and the gate-audit pin region (`workflow-template.js`, the `mergedTasksForGateAudit` post-merge gate-audit prompt — `EXACTLY this bracket test` / `[ "$(git -C` lines, ~L503-504 at HEAD) are disjoint from the land block (the `if (landDecision === 'landed')` reland procedure, ~L562+) and the no-test loop (~L380-470). Live repo is v0.8.0 (two submodule increments landed since this spec was written); landOrder 4.
 
 ## Problem
 
@@ -17,7 +17,7 @@ But the auditor runs under [`validate-auditor-git.sh`](../../hooks/validate-audi
 1. **Char allowlist.** The [residue check](../../hooks/validate-auditor-git.sh) (`tr -d 'A-Za-z0-9 ./_=:,@^-'` → `[ -n "$residue" ] && deny`) permits none of `$ ( ) [ ] "`. The `$(...)`, the brackets, and the quotes all trip the residue deny — the *same* path test [`C5: git log $(evil) → denied (subst)`](../../hooks/validate-auditor-git.test.sh) exercises as the command-substitution injection defense this guard exists to enforce.
 2. **`-C` is orphaned.** Even a hypothetically char-clean `git -C <path> rev-parse HEAD` would still fail: the [global-flag deny block](../../hooks/validate-auditor-git.sh) (`-c`, `--output`, `--paginate`, `--no-pager`, `--pager=`, leading `-p`) has **no `-C` arm**, and the [subcommand extractor](../../hooks/validate-auditor-git.sh) (`diff|log|show|merge-base|rev-parse|status|ls-files|cat-file|blame`) has none either — so `rest` beginning `-C ...` falls to the `*)` default, which mis-reports `-C` as the subcommand and denies. No test asserts `-C` behavior either way.
 
-Net effect: the in-seat pin test **always exits non-zero**, which the prompt's [stale-tip SOFT-downgrade fallback](../../skills/war/assets/workflow-template.js) (L458-461) reads as "cannot confirm the pin" → every gate-audit downgrades a would-be HARD execution-evidence finding to a SOFT note. The guard is working as designed; the prompt asks for a shape the guard is built to forbid. The recurring SOFT Nit is the symptom (memory: `gate-audit-pin-bracket-test-blocked-by-git-guard`); the stale-tip false-negative class it exists to defuse is `audit-worktree-pre-impl-tip-stale-verdict`; the structural reason the auditor can't just run the gate itself is `auditor-cannot-execute-the-tests-it-must-verify-pass`.
+Net effect: the in-seat pin test **always exits non-zero**, which the prompt's [stale-tip SOFT-downgrade fallback](../../skills/war/assets/workflow-template.js) (the `If you CANNOT confirm (the bracket test is non-zero …)` SOFT-note branch, ~L510-513 at HEAD) reads as "cannot confirm the pin" → every gate-audit downgrades a would-be HARD execution-evidence finding to a SOFT note. The guard is working as designed; the prompt asks for a shape the guard is built to forbid. The recurring SOFT Nit is the symptom (memory: `gate-audit-pin-bracket-test-blocked-by-git-guard`); the stale-tip false-negative class it exists to defuse is `audit-worktree-pre-impl-tip-stale-verdict`; the structural reason the auditor can't just run the gate itself is `auditor-cannot-execute-the-tests-it-must-verify-pass`.
 
 ## Decisions
 
@@ -49,7 +49,7 @@ esac
 
 The single-path assumption holds because the char allowlist already forbids spaces inside a path token via the residue check (a space-containing path can't reach here). Only one `-C` is peeled — a second `-C` would re-route to `*)` default deny in the subcommand extractor, which is correct (the pin test uses exactly one).
 
-**Prompt ([`workflow-template.js`](../../skills/war/assets/workflow-template.js), ~L451-452).** Replace the "run EXACTLY this bracket test" + bracket line with a bare compare the guard allows, e.g.:
+**Prompt ([`workflow-template.js`](../../skills/war/assets/workflow-template.js), the `mergedTasksForGateAudit` post-merge gate-audit `agent(...)` prompt — `EXACTLY this bracket test` / `[ "$(git -C` lines, ~L503-504 at HEAD; locate by construct, not line number).** Replace the "run EXACTLY this bracket test" + bracket line with a bare compare the guard allows, e.g.:
 
 ```
 First confirm your evidence is pinned to the integration tip. Run (read-only git, permitted):
@@ -58,7 +58,7 @@ and compare the printed sha against the gate-HEAD sha ${gateHeadSha}.
 Equal ⇒ pin CONFIRMED. Different, or the command cannot run (git unavailable / rev-parse fails) ⇒ you CANNOT confirm the pin.
 ```
 
-The downstream CONFIRMED / cannot-confirm branches (L453-461), including the SOFT-downgrade rule and the required SOFT-note contents, are unchanged — only the confirmation *mechanism* changes from a guard-denied bracket test to a guard-permitted print-and-compare.
+The downstream CONFIRMED / cannot-confirm branches (the `Exit 0 ⇒ pin CONFIRMED …` through the SOFT-note-contents lines, ~L505-513 at HEAD), including the SOFT-downgrade rule and the required SOFT-note contents, are unchanged — only the confirmation *mechanism* changes from a guard-denied bracket test to a guard-permitted print-and-compare.
 
 ## Affected files
 
@@ -66,8 +66,8 @@ The downstream CONFIRMED / cannot-confirm branches (L453-461), including the SOF
 |------|--------|
 | [`hooks/validate-auditor-git.sh`](../../hooks/validate-auditor-git.sh) | Add a `-C <path>` peel (Decision 1/2) before subcommand extraction; re-enter the existing allowlist. |
 | [`hooks/validate-auditor-git.test.sh`](../../hooks/validate-auditor-git.test.sh) | Add allow-tests for `git -C <path> rev-parse HEAD` and `git -C <path> show ...`; a deny-test for `git -C <path> commit ...` (proves `-C` does not widen the verb allowlist); a deny-test for `git -C` with no path. C5 stays — it proves the bracket/`$()` form is still denied. |
-| [`skills/war/assets/workflow-template.js`](../../skills/war/assets/workflow-template.js) | Reword the gate-audit pin prompt (~L451-452) from the bracket test to the bare `git -C … rev-parse HEAD` print-and-compare (Decision 3). |
-| `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json` (×2), `README.md` `## Status` | Version bump to **0.7.11** (see version-serialization rule below). |
+| [`skills/war/assets/workflow-template.js`](../../skills/war/assets/workflow-template.js) | Reword the gate-audit pin prompt (the `mergedTasksForGateAudit` prompt's `EXACTLY this bracket test` / `[ "$(git -C` lines, ~L503-504 at HEAD) from the bracket test to the bare `git -C … rev-parse HEAD` print-and-compare (Decision 3). |
+| `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json` (×2), `README.md` `## Status` | Version bump to **0.8.4** (see version-serialization rule below). |
 
 ## Alternatives considered
 
@@ -82,7 +82,7 @@ The downstream CONFIRMED / cannot-confirm branches (L453-461), including the SOF
 2. **(#222 — `-C` does not widen the verb allowlist)** A new deny-case asserts `git -C /abs/path commit -m x` exits 2 with a `WAR:` deny marker (write subcommand after `-C` is still denied), and `git -C` (no path) exits 2 with `WAR:`.
 3. **(#222 — injection still denied)** The existing C5 case (`git log $(evil) → denied (subst)`) and a parity case asserting the old bracket form `[ "$(git -C <path> rev-parse HEAD)" = "<sha>" ]` still exit 2 with `WAR:` — proving the reword does not relax injection defense.
 4. **(#222 — prompt reworded)** `skills/war/assets/workflow-template.js` no longer contains the substring `[ "$(git -C` in the gate-audit prompt; it emits `git -C ${refineryPath} rev-parse HEAD` as a bare command, and the CONFIRMED / cannot-confirm SOFT-downgrade branches remain present and unchanged in semantics.
-5. **(gate)** Full suite green at the release commit: `node --test "skills/**/*.test.mjs"` plus all 12 `*.test.sh` runners (including `validate-auditor-git.test.sh`). Run ALL runners post-merge — a cross-branch merge can add runners the bare `node --test` glob misses (memory: `gate-under-covers-after-cross-branch-merge-new-runner`).
+5. **(gate)** Full suite green at the release commit: `node --test "skills/**/*.test.mjs"` plus all `*.test.sh` runners self-discovered by the gate's `find` (13 at HEAD, including `validate-auditor-git.test.sh`). Run ALL runners post-merge — a cross-branch merge can add runners the bare `node --test` glob misses (memory: `gate-under-covers-after-cross-branch-merge-new-runner`).
 
 ## Open risks / non-goals
 
@@ -96,4 +96,4 @@ The downstream CONFIRMED / cannot-confirm branches (L453-461), including the SOF
 |-------|-----------|------------|
 | #222  | 1, 2, 3, 4 | 1, 2, 3, 4 |
 
-**Version-serialization rule:** v0.7.11 replaces the four canonical version slots in one bump — `plugin.json` `version`, `marketplace.json` `metadata.version` **and** `plugins[0].version` (two slots), and the `README.md` `## Status` line (replace-in-place, not append). Lands serially on the prior group's landed tip (landOrder 4); no badge.
+**Version-serialization rule:** v0.8.4 replaces the four canonical version slots in one bump — `plugin.json` `version`, `marketplace.json` `metadata.version` **and** `plugins[0].version` (two slots), and the `README.md` `## Status` line (replace-in-place, not append). Lands serially on the prior group's landed tip (landOrder 4); no badge.

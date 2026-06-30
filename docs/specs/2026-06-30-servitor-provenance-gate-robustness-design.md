@@ -1,9 +1,9 @@
 # Servitor provenance gate: indent-agnostic extractor, accurate `|| true` comment, plan-prose reconciliation
 
-**Status:** proposed — targets **v0.7.10** (latent-correctness + comment-accuracy + doc-fidelity). **Severity: LOW.**
+**Status:** proposed — targets **v0.8.3** (latent-correctness + comment-accuracy + doc-fidelity). **Severity: LOW.**
 **Source:** issues [#247](../../hooks/validate-servitor-provenance.sh), [#248](../../hooks/validate-servitor-provenance.sh), [#249](../../docs/plans/2026-06-29-memory-provenance.md). Memory slugs: `yaml-extraction-indent-coupling-in-shell-gate`, `awk-sed-exit-zero-on-no-match-comment-trap`, `plan-prose-top-level-vs-nested-key-impl-mismatch`, `verify-task-no-op-is-correct-when-already-covered`, `frontmatter-tools-negation-check-single-line-only`.
 
-All three are nits. They batch here because all three live in or around [`hooks/validate-servitor-provenance.sh`](../../hooks/validate-servitor-provenance.sh) and its companion plan, same fail-closed-YAML-extraction root-cause family. One cohesive memory-provenance shell-gate sweep, three tasks in one file. Live repo is v0.7.7; this lands serially at landOrder 3 (v0.7.8 and v0.7.9 land first).
+All three are nits. They batch here because all three live in or around [`hooks/validate-servitor-provenance.sh`](../../hooks/validate-servitor-provenance.sh) and its companion plan, same fail-closed-YAML-extraction root-cause family. One cohesive memory-provenance shell-gate sweep, three tasks in one file. Live repo is v0.8.0 (after the two submodule-support increments); this lands serially at landOrder 3 (v0.8.1 and v0.8.2 land first).
 
 ## Problem
 
@@ -30,7 +30,7 @@ The provenance gate is a `PreToolUse` hook that denies a servitor `Write` to a m
 | [`hooks/validate-servitor-provenance.sh`](../../hooks/validate-servitor-provenance.sh) | #247: change the step-(3) awk pattern `/^  provenance:/` → `/^[[:space:]]+provenance:/` (one token). #248: reword the two comment blocks above the extractor to describe the real awk/sed-exit-0 deny path; keep `|| true`. |
 | [`hooks/validate-servitor-provenance.test.sh`](../../hooks/validate-servitor-provenance.test.sh) | #247: add one ACCEPT case feeding a 4-space- (or tab-) indented `provenance:` tier, asserting exit 0. Makes the relaxation load-bearing — a future re-tightening to `/^  provenance:/` fails this test. |
 | [`docs/plans/2026-06-29-memory-provenance.md`](../../docs/plans/2026-06-29-memory-provenance.md) | #249: no edit. Verify-only (re-grep for residual top-level wording), then close #249. |
-| `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json` (×2), `README.md` ## Status | Version bump to v0.7.10 (the four canonical slots — see below). |
+| `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json` (×2), `README.md` ## Status | Version bump to v0.8.3 (the four canonical slots — see below). |
 
 ## Alternatives considered
 
@@ -47,11 +47,11 @@ The provenance gate is a `PreToolUse` hook that denies a servitor `Write` to a m
 
 ## Gate
 
-Run the full project gate at the release commit: `node --test "skills/**/*.test.mjs"` plus all 12 `*.test.sh` runners (the 11 discovered at HEAD — six `hooks/*.test.sh`, five `skills/**/*.test.sh` — plus any added in the serial stack ahead of this land). The only behavioral surface here is `validate-servitor-provenance.test.sh`; it must stay green with the new 4-space ACCEPT case.
+Run the full project gate at the release commit: `node --test "skills/**/*.test.mjs"` plus all `*.test.sh` runners discovered by `find` (13 at HEAD — six `hooks/*.test.sh`, seven `skills/**/*.test.sh`, the seventh being the submodule-support increment's `skills/war/assets/assert-no-submodule-mutation.test.sh` — plus any added in the serial stack ahead of this land). The `find`-based discovery is authoritative; never trust a literal count. The only behavioral surface here is `validate-servitor-provenance.test.sh`; it must stay green with the new 4-space ACCEPT case.
 
 ## Version serialization
 
-A release bump replaces the four canonical version slots in lockstep (no badge): [`.claude-plugin/plugin.json`](../../.claude-plugin/plugin.json) `version`, [`.claude-plugin/marketplace.json`](../../.claude-plugin/marketplace.json) `metadata.version` **and** `plugins[0].version`, and the [`README.md`](../../README.md) `## Status` line (replace-in-place, not append). Lands serially at landOrder 3 on the landed tip of the prior plan (v0.7.8 → v0.7.9 → **v0.7.10**); confirm all four slots by hand at the release commit, since no cross-slot consistency test exists.
+A release bump replaces the four canonical version slots in lockstep (no badge): [`.claude-plugin/plugin.json`](../../.claude-plugin/plugin.json) `version`, [`.claude-plugin/marketplace.json`](../../.claude-plugin/marketplace.json) `metadata.version` **and** `plugins[0].version`, and the [`README.md`](../../README.md) `## Status` line (replace-in-place, not append). Lands serially at landOrder 3 on the landed tip of the prior plan, stacking on top of v0.8.0 (v0.8.1 → v0.8.2 → **v0.8.3**); confirm all four slots by hand at the release commit, since no cross-slot consistency test exists.
 
 ## Open risks / non-goals
 

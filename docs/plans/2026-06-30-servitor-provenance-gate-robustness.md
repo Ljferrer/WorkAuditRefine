@@ -15,9 +15,9 @@ Smallest correct change per nit, no speculative scope.
 
 ## Coordination
 
-- **Target version:** **v0.7.10** (LOW severity — latent-correctness + comment-accuracy + doc-fidelity).
-- **landOrder:** 3 (third in the audit-remediation stack: v0.7.8 → v0.7.9 → **v0.7.10**).
-- **Integration base:** the **landed tip of Spec 2 (v0.7.9)**, per the roadmap. War this plan on that tip, not on master.
+- **Target version:** **v0.8.3** (LOW severity — latent-correctness + comment-accuracy + doc-fidelity).
+- **landOrder:** 3 (third in the audit-remediation stack on top of v0.8.0: v0.8.1 → v0.8.2 → **v0.8.3**).
+- **Integration base:** the **landed tip of Spec 2 (v0.8.2)**, per the roadmap. War this plan on that tip, not on master.
 - **Isolated file lane:** the only behavioral surface is `hooks/validate-servitor-provenance.sh` (+ its `.test.sh`).
   Per the roadmap surface map this file is touched by **Spec 3 only** — no cross-spec contention. The *single* coupling
   to the rest of the stack is the four shared version slots, which is why this lands serially (below).
@@ -28,8 +28,8 @@ Smallest correct change per nit, no speculative scope.
   spec can hold a given number, so the stack **MUST land serially** (memory `stacked-per-branch-releases-make-main-lag-cumulative`).
   No cross-slot consistency test exists — verify all four slots + the `Builds on` clause **by hand** at the release
   commit (memory `version-slots-no-cross-slot-consistency-test`).
-- **Standalone fallback:** if this plan is run off **current master (v0.7.7)** instead of the stack, re-baseline the
-  release to the **next free patch by construct** (e.g. v0.7.8) and drop the prior-tip pin. The roadmap is the
+- **Standalone fallback:** if this plan is run off **current master (v0.8.0)** instead of the stack, re-baseline the
+  release to the **next free patch by construct** (e.g. v0.8.1) and drop the prior-tip pin. The roadmap is the
   authoritative version source; resolve the real next number at land time, never hardcode a leap over an empty stack.
 
 ## Operator decisions — RESOLVED (bake exactly)
@@ -51,8 +51,9 @@ Smallest correct change per nit, no speculative scope.
 - **#249 — VERIFY-AND-CLOSE, already remediated by `ea5e132`.** No re-implementation. Re-grep the plan for any residual
   top-level-asserting wording; the remaining mentions are disclaimers/test-case context (verified). Close with a note.
 - **Stale runner gloss fix:** the spec's gate line says "12 = 6 hooks + 5 skills"; the real HEAD count is
-  **12 `.test.sh` = 6 hooks/ + 6 skills/** (the sixth skill runner is `skills/red-team/manifest-provenance.test.sh`).
-  This plan states the correct breakdown.
+  **13 `.test.sh` = 6 hooks/ + 7 skills/** (the seventh skill runner is the submodule-support increment's
+  `skills/war/assets/assert-no-submodule-mutation.test.sh`; the sixth was `skills/red-team/manifest-provenance.test.sh`).
+  This plan states the correct breakdown. The `find`-based discovery in ## Gate is authoritative — never trust the literal count.
 
 ---
 
@@ -105,7 +106,7 @@ parallel WAR tasks never rebase-conflict on the same file (memory
   "grep" in a way that re-asserts a live grep dependency — the reworded ponytail line may reference "unlike grep" as the
   *contrast* that explains why `|| true` is belt-and-suspenders here, since the pipeline is awk|sed. No production code
   line changes; the `.test.sh` stays byte-green.
-- [ ] **Step 5 — Run the full gate → green** (the `node --test` glob + all 12 `.test.sh`; see ## Gate). Only
+- [ ] **Step 5 — Run the full gate → green** (the `node --test` glob + all 13 `.test.sh`; see ## Gate). Only
   `validate-servitor-provenance.test.sh` changed behavior; everything else stays green.
 - [ ] **Step 6 — Commit** — `fix(war): provenance extractor accepts any leading-whitespace indent + correct the || true comment to the awk/sed-exit-0 deny mechanism (#247, #248)`
 - **Closes:** #247 (indent-agnostic extractor + load-bearing 2/4-space/tab ACCEPT fixtures), #248 (comment names the
@@ -139,27 +140,28 @@ Already fixed by commit `ea5e132` (nested provenance extract). This is a **verif
 
 ---
 
-## Phase 3 — Release v0.7.10
+## Phase 3 — Release v0.8.3
 
-### Task 3 — Version bump v0.7.10 + full gate green
+### Task 3 — Version bump v0.8.3 + full gate green
 
-Bump only after the v0.7.8 + v0.7.9 stack has landed and this plan is based on the v0.7.9 tip. **Standalone fallback:**
-if run off master, resolve the next free patch by construct (not a hardcoded 0.7.10) and adjust the `Builds on` clause
+Bump only after the v0.8.1 + v0.8.2 stack has landed and this plan is based on the v0.8.2 tip. **Standalone fallback:**
+if run off master, resolve the next free patch by construct (not a hardcoded 0.8.3) and adjust the `Builds on` clause
 to the real prior version.
 
 **Files:** [`.claude-plugin/plugin.json`](../../.claude-plugin/plugin.json) `version` (line 4);
 [`.claude-plugin/marketplace.json`](../../.claude-plugin/marketplace.json) `metadata.version` (line 7) **and**
-`plugins[0].version` (line 14); [`README.md`](../../README.md) `## Status` (REPLACE-in-place, line 224) — **including
+`plugins[0].version` (line 14); [`README.md`](../../README.md) `## Status` (REPLACE-in-place; the `**0.8.0**` line under
+the `## Status` heading — currently ~line 238, anchor by the `## Status` heading not the raw line number) — **including
 its `Builds on vX` clause**.
 
-- [ ] **Step 1 — Bump all four slots `0.7.9` → `0.7.10`** (REPLACE-in-place, no badge). In the README `## Status`
-  paragraph, replace the leading version literal **and** update the trailing `Builds on v0.7.6` clause to `Builds on
-  v0.7.9` (the prior landed tip in the stack). Status copy: servitor provenance gate robustness — indent-agnostic
+- [ ] **Step 1 — Bump all four slots `0.8.2` → `0.8.3`** (REPLACE-in-place, no badge). In the README `## Status`
+  paragraph, replace the leading version literal **and** update the trailing `Builds on vX` clause to `Builds on
+  v0.8.2` (the prior landed tip in the stack). Status copy: servitor provenance gate robustness — indent-agnostic
   extractor (accepts any leading whitespace: 2-space / 4-space / tab) + corrected `|| true` deny-mechanism comment.
   (memory `release-bump-slots-canonical-no-badge`, `release-status-is-replace-slot-not-empty-field`.)
 - [ ] **Step 2 — Verify all four slots + the `Builds on` clause by hand** — no cross-slot consistency test exists
   (memory `version-slots-no-cross-slot-consistency-test`). Run the full gate → green.
-- [ ] **Step 3 — Commit** — `chore(release): v0.7.10 — servitor provenance gate robustness (indent-agnostic extractor + corrected || true comment)`
+- [ ] **Step 3 — Commit** — `chore(release): v0.8.3 — servitor provenance gate robustness (indent-agnostic extractor + corrected || true comment)`
 
 ---
 
@@ -176,10 +178,12 @@ node --test 'skills/**/*.test.mjs' && for f in $(find . -type f -name '*.test.sh
 - **6 `.test.mjs`** — `skills/_shared/provision.test.mjs`, `skills/red-team/assets/red-team-gate.test.mjs`,
   `skills/red-team/assets/workflow-scaffold.test.mjs`, `skills/war/assets/land-decision.test.mjs`,
   `skills/war/assets/war-config.test.mjs`, `skills/war/assets/workflow-template.test.mjs`.
-- **12 `.test.sh` = 6 hooks/ + 6 skills/** (the spec's "6 + 5" gloss is stale — corrected here):
+- **13 `.test.sh` = 6 hooks/ + 7 skills/** (the spec's "6 + 5" gloss is stale; the submodule-support increments
+  added a seventh skills/ runner — corrected here):
   - hooks/ (6): `clean-surface-hook-only-confinement`, `clean-surface-war-worktree`, `validate-auditor-git`,
     `validate-servitor-provenance`, `validate-worktree-scope`, `warn-bash-write-scope`.
-  - skills/ (6): `red-team/manifest-provenance`, `war/assets/assert-test-in-diff`, `war/assets/provision-worktrees`,
+  - skills/ (7): `red-team/manifest-provenance`, `war/assets/assert-no-submodule-mutation`,
+    `war/assets/assert-test-in-diff`, `war/assets/provision-worktrees`,
     `war/assets/refinery-surface`, `war/assets/scout-manifest-surface`, `war/references/schemas-manifest`.
 
 The only behavioral surface is `validate-servitor-provenance.test.sh`; it must stay green with the new 4-space + tab
@@ -196,7 +200,7 @@ as blocking (memory `audit-worktree-pre-impl-tip-stale-verdict`).
 |-------|------|----------|
 | #247 | Phase 1 / Task 1 | full — widen BOTH awk tokens (`/^[[:space:]]+provenance:/` + `/^[^[:space:]]/{exit}`) + load-bearing 2-space/4-space/tab ACCEPT fixtures + DENY floor |
 | #248 | Phase 1 / Task 1 | full — reword `|| true` comment to the awk/sed-exit-0 → `*)` deny mechanism; keep `|| true` as defense-in-depth (no code-line change) |
-| #249 | Phase 2 / Task 2 | verify-and-close — re-grep `2026-06-29-memory-provenance.md` (3 disclaimer hits expected), close as resolved-by-`ea5e132`; no re-implementation |
+| #249 | Phase 2 / Task 2 | verify-and-close — re-grep `2026-06-29-memory-provenance.md` (4 disclaimer/context hits expected — lines 75, 90, 101, 220), close as resolved-by-`ea5e132`; no re-implementation |
 
 ## Deliberate simplifications (`ponytail:`)
 
