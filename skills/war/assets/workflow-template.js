@@ -43,9 +43,10 @@ const AUDIT_VERDICT = { type: 'object', required: ['seat', 'lens', 'verdict', 'f
 
 const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties: {
   mode: { enum: ['merge-task', 'land-phase'] },
-  status: { enum: ['merged', 'landed', 'gate_failed', 'conflict', 'error', 'land_stale', 'no-test', 'submodule-blocked'] },
+  status: { enum: ['merged', 'landed', 'gate_failed', 'conflict', 'error', 'land_stale', 'no-test', 'submodule-blocked', 'submodule-pr'] },
   branch: { type: 'string' }, integration_sha: { type: 'string' }, working_sha: { type: 'string' },
-  conflict_files: { type: 'array' }, gate_output: { type: 'string' } } }
+  conflict_files: { type: 'array' }, gate_output: { type: 'string' },
+  pr_number: { type: 'number' }, pr_remote: { type: 'string' } } }
 
 const SERVITOR_RESULT = { type: 'object', required: ['phase', 'target', 'learnings'], properties: {
   phase: {}, target: { type: 'string' }, files_written: { type: 'array' },
@@ -98,6 +99,7 @@ const spawn = role => {
 }
 const done = new Set()
 const succeeded = new Set()
+const landedShas = new Map() // taskId → integration_sha from the merge result (feeds gitlink-bump worker dispatch)
 // Hoisted above try{} so the catch block can reference them even when the derivation throw fires
 // before any wave runs (temporal dead zone guard — red-team T1-confirmed).
 const landed = [], escalated = [], minorsFiled = [], auditLog = []
@@ -223,6 +225,19 @@ if (tasks.length) {
   const owned = ownedFile ? ` --owned-file ${ownedFile}` : ''
   const ensures = tasks.map(t =>
     `   provision-worktrees.sh ensure-worktree ${t.worktree} ${t.branch} "$TIP"`).join('\n')
+  // Submodule tasks: thread the target repo + base into the Provision prompt so the refiner knows
+  // to initialize the submodule checkout (git submodule update --init) before running ensure-integration
+  // against the submodule's base (not the superproject working branch). DP3: no script change.
+  const submodTasks = tasks.filter(t => t.taskType === 'submodule')
+  const submodNote = submodTasks.length
+    ? `\nSUBMODULE TASKS in this phase: ${submodTasks.map(t =>
+        `task ${t.id} targets repo "${t.targetRepo || '<targetRepo>'}" at base "${t.targetBase || '<targetBase>'}"`
+      ).join(', ')}. `
+      + `Before running ensure-integration for these tasks, ensure the submodule checkout is initialized: `
+      + `\`git submodule update --init --recursive\` in the superproject, so the submodule worktree at `
+      + `"${submodTasks[0] && submodTasks[0].targetRepo || '<targetRepo>'}" exists. `
+      + `Run ensure-integration and ensure-worktree cwd-scoped to each submodule task's targetRepo path (not the superproject).`
+    : ''
   await agent(
     `Provision the worktree topology for WAR phase ${ph.id} "${ph.title}" by running ${SCRIPT}. `
     + `Do NOT free-author git; only run these subcommands, fail loud on any non-zero exit (a foreign integration branch exits 3), and report a MergeResult.\n`
@@ -231,7 +246,8 @@ if (tasks.length) {
     + `2. provision-worktrees.sh ensure-integration ${planSlug || '<plan-slug>'} ${ph.id} ${ph.workingBranch}${owned} — reuse the plan-namespaced integration branch ${ph.integrationBranch} if it is already ours (the --owned-file ledger), else cut it at ${ph.workingBranch}.\n`
     + `3. Capture the resulting integration tip (TIP="$(git rev-parse ${ph.integrationBranch})"), then for EACH task run ensure-worktree at the integration tip captured in step 3 (idempotent; reuse if present, conservative heal if the dir went missing):\n${ensures}\n`
     + `Each ensure-worktree creates the worktree on its plan-namespaced branch off the integration tip and drops a .war-task marker. After this barrier every task worktree exists and the workers can run.\n`
-    + `4. provision-worktrees.sh ensure-refinery-worktree ${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/_refinery ${ph.integrationBranch} — create (or re-attach) the Refinery's dedicated worktree on the integration branch. The Refinery performs every merge in this run-scoped worktree, never the Lead's main checkout.`,
+    + `4. provision-worktrees.sh ensure-refinery-worktree ${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/_refinery ${ph.integrationBranch} — create (or re-attach) the Refinery's dedicated worktree on the integration branch. The Refinery performs every merge in this run-scoped worktree, never the Lead's main checkout.`
+    + submodNote,
     { agentType: NS + 'war-refiner', phase: 'Provision', label: `provision:phase-${ph.id}`, schema: MERGE_RESULT, ...spawn('refiner') })
 }
 
@@ -264,10 +280,27 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         stderrTail: env.stderrTail, provisionSource: env.provisionSource } }
     }
 
+    // Submodule and gitlink-bump tasks get extra dispatch context (new dispatch sites, T4 plan §(f)).
+    // ponytail: inline branch — avoids a helper for two taskType variants
+    let workerExtraCtx = ''
+    if (task.taskType === 'submodule') {
+      workerExtraCtx = `\nTARGET REPO: ${task.targetRepo || '<targetRepo>'} — this is a submodule task. `
+        + `Your worktree is rooted inside the submodule checkout at ${task.targetRepo || '<targetRepo>'}; `
+        + `the submodule base is "${task.targetBase || '<targetBase>'}". `
+        + `Implement, write mapped tests in the submodule repo, gate green, commit, push ${task.branch}.`
+    } else if (task.taskType === 'gitlink-bump') {
+      // Find the dep submodule task to thread its landed SHA and submodule path
+      const depSubmodTask = tasks.find(t => (task.deps || []).includes(t.id) && t.taskType === 'submodule')
+      const depSha = depSubmodTask ? (landedShas.get(depSubmodTask.id) || '<dep-submodule-landed-sha>') : '<dep-submodule-landed-sha>'
+      const submodPath = depSubmodTask ? (depSubmodTask.targetRepo || '<submodule-path>') : '<submodule-path>'
+      workerExtraCtx = `\nGITLINK-BUMP task: pin the superproject gitlink to the dep submodule task's landed SHA. `
+        + `Dep submodule task landed SHA: ${depSha}. Submodule path: ${submodPath}. `
+        + `Run: git -C ${mainCheckout || '<superproject>'} add ${submodPath} — stage the submodule at the dep SHA, then commit the bump.`
+    }
     const impl = await agent(
       `Implement WAR task ${task.id} in the ALREADY-PROVISIONED worktree at ${task.worktree} (branch ${task.branch}, cut from ${ph.integrationBranch}).\n`
       + `The refiner's Provision barrier already created this worktree and its .war-task marker — do NOT create it yourself and do NOT set any worktree env var. cd into ${task.worktree} and work only inside it; commit and push ${task.branch}.\n`
-      + `Sub-issue #${task.issue} — ${task.title}\nPlan slice: ${task.planSlice}\nPlan file: ${plan.file}\nGate: ${plan.gate}${provisionClause}`,
+      + `Sub-issue #${task.issue} — ${task.title}\nPlan slice: ${task.planSlice}\nPlan file: ${plan.file}\nGate: ${plan.gate}${provisionClause}${workerExtraCtx}`,
       { agentType: NS + 'war-worker', phase: 'Work', label: `work:${task.id}`, schema: WORKER_RESULT, ...spawn('worker') })
 
     const why = blockedReason(impl); if (why) return { task, verdict: 'escalate', seats: [], expected: 0, blocked: why }
@@ -318,6 +351,14 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     if (r.verdict === 'approve') {
       const refineryPath = `${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/_refinery`
       const requiresTest = r.task.requiresTest !== false  // default true; false only when explicitly set
+      // For a submodule task: thread targetRepo (the submodule checkout) + targetBase so the refiner
+      // runs the rebase/merge/gate cwd-scoped to the submodule repo (DP3 — no script change needed).
+      const isSubmodTask = r.task.taskType === 'submodule'
+      const submodMergeNote = isSubmodTask && r.task.targetRepo
+        ? `\nSUBMODULE TASK: this merge-task operates INSIDE the submodule repo, not the superproject. `
+          + `Submodule checkout (targetRepo): ${r.task.targetRepo}. Submodule base: ${r.task.targetBase || '<targetBase>'}. `
+          + `Run rebase and gate cwd-scoped to ${r.task.targetRepo}; the _refinery merge fast-forwards the submodule integration branch.`
+        : ''
       const mr = await agent(
         `Merge WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
         + `IMPORTANT — merge-task is split across two worktrees (spec §5.2, red-team-verified):\n`
@@ -328,10 +369,11 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + `Run the gate (${plan.gate}) after the rebase in the task worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)), so any meta-test that materialises scratch dirs isolates from the worktree's .war-task marker; the gate's cwd stays the task worktree. On gate failure return gate_failed; on conflict return conflict; never force. `
         + `On success, populate gate_output in the returned MergeResult with the executed gate output (stdout+stderr) so the post-merge gate-audit pass can review it as execution evidence. `
         + `Also populate integration_sha with the rebased integration tip the gate ran against, so the gate-audit pass can confirm the gate ran at the integration tip.`
-        + ` Before the _refinery merge step (b), run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${r.task.branch} (REGARDLESS of requiresTest — a submodule touch is refused whether or not the task needs a test). Exit 1 → return { mode: 'merge-task', status: 'submodule-blocked' } — do NOT merge. Exit 2 → return { mode: 'merge-task', status: 'error' }.`
+        + ` Before the _refinery merge step (b), run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${r.task.branch}${r.task.taskType === 'gitlink-bump' && r.task.declared ? ' --declared' : ''} (REGARDLESS of requiresTest — a submodule touch is refused whether or not the task needs a test; the relax-flag is only threaded for a declared gitlink-bump task). Exit 1 → return { mode: 'merge-task', status: 'submodule-blocked' } — do NOT merge. Exit 2 → return { mode: 'merge-task', status: 'error' }.`
         + (requiresTest
           ? ` Also before step (b), run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch} to verify the task diff contains at least one test file. If the script exits non-zero, return { mode: 'merge-task', status: 'no-test' } — do NOT proceed with the merge.`
-          : ` requiresTest:false — skip the assert-test-in-diff.sh check and proceed directly to the rebase+merge.`),
+          : ` requiresTest:false — skip the assert-test-in-diff.sh check and proceed directly to the rebase+merge.`)
+        + submodMergeNote,
         { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}`, schema: MERGE_RESULT, ...spawn('refiner') })
 
       // submodule-blocked: immediate hard escalate, 0 fix rounds (refuse-all, like env-blocked).
@@ -421,6 +463,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
 
       if (mr && mr.status === 'merged') {
         landed.push(r.task.id); succeeded.add(r.task.id)
+        if (mr.integration_sha) landedShas.set(r.task.id, mr.integration_sha) // feed gitlink-bump worker dispatch
         mergedTasksForGateAudit.push({ taskId: r.task.id, gateOutput: mr.gate_output, acceptanceCriteria: r.task.planSlice,
           gateHeadSha: mr.integration_sha ?? '(integration_sha unrecorded)' }) // ponytail: sentinel, not mr.working_sha — working_sha is land-only (war-refiner.md), dead on a merge result
       }
@@ -517,6 +560,15 @@ let landDecision = (landed.length && !hardEscalation) ? 'landed'
   : 'held:nothing-merged'
 const refineryLandPath = `${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/_refinery`
 if (landDecision === 'landed') {
+  // For a submodule phase: thread targetRepo + targetBase so the refiner knows to perform a
+  // submodule-aware land (2A CAS inside the submodule repo, or 2B PR-and-hold on the submodule remote).
+  const submodLandTask = tasks.find(t => t.taskType === 'submodule')
+  const submodLandNote = submodLandTask && submodLandTask.targetRepo
+    ? `\nSUBMODULE PHASE: this phase includes a submodule task. Target repo: ${submodLandTask.targetRepo}. `
+      + `Submodule base: ${submodLandTask.targetBase || '<targetBase>'}. `
+      + `For the submodule land: attempt 2A — push-first CAS land-advance INSIDE ${submodLandTask.targetRepo} against ${submodLandTask.targetBase || '<targetBase>'}. `
+      + `If the submodule is not WAR-owned or 2A is unavailable, open a PR on the submodule remote and return { mode: "land-phase", status: "submodule-pr", pr_number: <n>, pr_remote: "<remote>" } (2B PR-and-hold).`
+    : ''
   landResult = await agent(
     `Land WAR phase ${ph.id}: merge ${ph.integrationBranch} into ${ph.workingBranch} with --no-ff (one phase commit). mode=land-phase.\n`
     + `Perform the land entirely inside the _refinery worktree at ${refineryLandPath} (spec §5.3, push-first CAS):\n`
@@ -530,8 +582,17 @@ if (landDecision === 'landed') {
     + `Repeat up to roundLimit (${roundLimit}) times total. If the reland loop exhausts roundLimit attempts, return { mode: 'land-phase', status: 'land_stale' } — `
     + `this is a topology exhaustion (CAS failure), NOT a content conflict.\n`
     + `     - On escalate exit code from land-advance (any non-rejection push error): return { mode: 'land-phase', status: 'error' }.\n`
-    + `Never use --force push. Never merge or push from the Lead's main checkout.`,
+    + `Never use --force push. Never merge or push from the Lead's main checkout.`
+    + submodLandNote,
     { agentType: NS + 'war-refiner', phase: 'Land', label: `land:phase-${ph.id}`, schema: MERGE_RESULT, ...spawn('refiner') })
+  // 2B submodule PR-and-hold: the refiner opened a PR on the submodule remote and returned
+  // status:'submodule-pr'. Return held:submodule-pr DIRECTLY — like held:workflow-error, this
+  // bypasses decideLand/HARD_ESCALATION_REASONS. The PR ref is captured for the Lead's gh-resume.
+  // ponytail: direct return pattern mirrors held:workflow-error (DP2 — no HARD_ESCALATION_REASONS cascade)
+  if (landResult && landResult.status === 'submodule-pr') {
+    escalated.push({ task: `phase-${ph.id}-land`, reason: 'submodule-pr', pr_number: landResult.pr_number, pr_remote: landResult.pr_remote, detail: landResult })
+    landDecision = 'held:submodule-pr'
+  } else
   // If the land agent returns land_stale (CAS-exhaustion), treat it as a hard escalation.
   if (landResult && HARD_ESCALATION_REASONS.includes(landResult.status)) {
     escalated.push({ task: `phase-${ph.id}-land`, reason: landResult.status, detail: landResult })
