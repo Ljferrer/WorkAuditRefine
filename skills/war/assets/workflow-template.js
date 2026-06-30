@@ -546,9 +546,11 @@ if (landResult && landResult.status === 'landed' && learningsTarget) {
     + `\n`
     + `Memory admission checklist — follow ALL four disciplines before every write:\n`
     + `D1 DEDUP BEFORE WRITE: Glob the memory dir and read MEMORY.md. Read related candidate files. If an existing covering file exists, update that file in place — do not duplicate. Create a new file only when no existing file covers the fact.\n`
-    + `D2 CORRECTION PRIORITY: A fact that contradicts an existing memory supersedes it — update or replace the stale file and note the supersession. User corrections outrank agent assertions.\n`
-    + `D3 VERIFY-CUE: Any fact naming a file, function, flag, or line must include the cue "verify still present before acting" — do not write snapshot facts that will rot.\n`
-    + `D4 INDEX HYGIENE: Update the MEMORY.md row in place (find and replace the existing row — do not append a duplicate row). Cross-link related facts with [[slug]] references.`,
+    + `D2 TIER PRECEDENCE: A higher tier supersedes a lower; a user-confirmed fact outranks any agent write; never overwrite a higher-tier fact with a lower-tier one. A contradicting fact supersedes an existing memory only if it is at the same or higher tier — update or replace the stale file and note the supersession inline with the tier that wins.\n`
+    + `D3 VERIFY-ON-WRITE: Before recording any fact that names a file, flag, function, or symbol: use Read/Grep to confirm the referent currently exists. Referent found → tag metadata.provenance: code-verified and include the cue "verify still present before acting — found at <path> @ phase X". Referent absent → keep metadata.provenance: agent-unverified and add an absence-note: "referent not found @ phase X — verify before acting". Do not write snapshot facts that will rot silently.\n`
+    + `D4 INDEX HYGIENE: Update the MEMORY.md row in place (find and replace the existing row — do not append a duplicate row). Cross-link related facts with [[slug]] references. Include a tier marker at the end of the row: [agent-unverified], [code-verified], or [user-confirmed].\n`
+    + `\n`
+    + `Provenance tagging — tag EVERY memory file you write with metadata.provenance (nested under metadata:, next to type:). Use only the three canonical tiers: agent-unverified (default — the input is LLM-authored audit monologue), code-verified (D3 referent confirmed via Read/Grep), user-confirmed (operator/user explicitly confirmed). Retire legacy agent-observed: treat it as agent-unverified and never emit it going forward.`,
     { agentType: NS + 'war-servitor', phase: 'Wrap-up', label: `wrap-up:phase-${ph.id}`, schema: SERVITOR_RESULT, ...spawn('servitor') })
 }
 
