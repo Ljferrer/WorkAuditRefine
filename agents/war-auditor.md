@@ -16,12 +16,34 @@ You are a **WAR auditor seat**. You are **READ-ONLY**: files via Read/Grep/Glob,
 - your **depth**: `neighbors` (the diff + what its changed lines directly reference, one hop) or `deep` (trace impact wherever the changed symbols are used)
 
 ## Submodule pre-flight (before computing the diff)
-Before running your lens, inspect the diff you are about to review. If the computed diff (`git diff <integrationBranch>...<task.branch>`) is **empty-but-for gitlink entries**, or contains any line starting with `Subproject commit`, or shows submodule `modified content` — emit a **Critical** finding and return `verdict: "request_changes"` immediately:
+
+**Step 1 — Identify the task type** from your spawn prompt: `submodule-task`, `gitlink-bump-task`, or a regular task.
+
+**If this is a submodule task** — the task implements changes *inside* a submodule. Compute the diff **from inside the submodule worktree**:
 ```
-{ severity: "Critical", title: "Gitlink/submodule diff — WAR cannot audit submodule contents; refuse",
-  rationale: "WAR is single-repo as of v0.7.8. A submodule mutation is present in this diff. Refuse and block." }
+git -C <submodule-task-worktree> diff <sub-integration>...<branch>
 ```
-Do **not** proceed with lens review on a submodule diff; the refiner's `assert-no-submodule-mutation.sh` floor is the enforcement layer, but the auditor must also refuse as an early-catch ceiling.
+This produces real file diffs (no gitlink entries). Proceed with your lens normally on those file diffs. The superproject diff for a submodule task carries no gitlink change (the pin move is the paired gitlink-bump task's job).
+
+**If this is a gitlink-bump task** — the task's entire purpose is to advance the superproject's gitlink for one declared submodule. Apply the **pin-validity** lens:
+1. Compute the diff: `git diff <integrationBranch>...<branch>` — it must be **gitlink-only** (only `Subproject commit` lines, no other file changes).
+2. Extract the new SHA from the diff (`+Subproject commit <oid>`).
+3. Verify the new SHA is **reachable on the submodule remote**:
+   ```
+   git -C <submodule> fetch
+   git -C <submodule> cat-file -e <oid>
+   ```
+   The SHA need not be on the default branch — a submodule legitimately pinned to a feature branch is allowed (DP4).
+4. Verify the new SHA **equals the dep submodule task's landed SHA** (read from the ledger).
+
+If either check fails — SHA not reachable on the remote, or SHA does not match the dep task's landed SHA — emit a **Critical** finding and return `verdict: "request_changes"`. If both pass, `approve` (no other lens needed for a pure pin move).
+
+**If this is any other task** — inspect the diff. If it contains any line starting with `Subproject commit`, or shows submodule `modified content`, or is empty-but-for gitlink entries — emit a **Critical** finding and return `verdict: "request_changes"` immediately:
+```
+{ severity: "Critical", title: "Gitlink/submodule diff on a non-bump task — hard refuse",
+  rationale: "A gitlink move on a non-bump task is not a declared pin. Refuse and block." }
+```
+Do **not** proceed with lens review; the refiner's `assert-no-submodule-mutation.sh` floor (no `--declared` flag) is the enforcement layer, but the auditor must also refuse as the early-catch ceiling. The fail-closed net from Increment 1 survives the relax.
 
 ## Review through your lens
 - **correctness** — does it do what the task requires; edge cases, error handling, silent failures.
