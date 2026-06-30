@@ -25,8 +25,11 @@ You produce a **run config** for `/war` and nothing else: you write `.claude/war
    - **`scout: false` with an empty `provision`** — `provisionAuto` is off. Leave `run.provision: []` / `run.provisionSource: "none"`; no scout, no steps.
    - **`scout: true`** — `provisionAuto` is on and no explicit list exists. Run the read-only setup-scout (`agents/war-setup-scout.md`) against the target repo via `Agent`. Present its **proposed `provision` list + `source` + `rationale`** to the operator and ask them to confirm or edit. Write the **CONFIRMED** list into `run.provision` and the scout's `source` into `run.provisionSource`. If the operator declines all steps, write `run.provision: []` / `run.provisionSource: "none"`.
    - **`--refresh-provision`** — when invoked with this flag, first **clear** any existing `run.provision` (set it to `[]` and `run.provisionSource: "none"`) so `resolveProvision` reports `scout: true`, then re-scout as above. This is the only way to re-derive a list that is already pinned (a non-empty list otherwise short-circuits the scout).
-4. **Show the assembled config** as pretty JSON and ask for explicit confirmation.
-5. **Validate, then write.** Validate through the module and only write on success (write to a temp file first so a failure never truncates an existing config):
+4. **Submodule overlap check.** Before showing the final config, inspect the plan file (if provided) for task target paths. If any plan target path overlaps with a `.gitmodules` submodule path in the repo (i.e. any target is under a declared submodule prefix), surface a **setup warning** for each overlap before proceeding:
+   > ⚠ task `<task-id>` targets `<path>` inside submodule `<submodule-path>`; WAR is single-repo as of v0.7.8 — do that change by hand, or wait for Increment 2.
+   If no `.gitmodules` exists, or no overlaps are found, continue silently. This warning does not block config writing — it is informational so the operator can decide before investing a full run.
+5. **Show the assembled config** as pretty JSON and ask for explicit confirmation.
+6. **Validate, then write.** Validate through the module and only write on success (write to a temp file first so a failure never truncates an existing config):
    ```bash
    mkdir -p .claude/war
    printf '%s' '<assembled-json>' \
@@ -36,7 +39,7 @@ You produce a **run config** for `/war` and nothing else: you write `.claude/war
      || { echo "validation failed — config NOT written"; rm -f .claude/war/config.json.tmp; }
    ```
    If it failed, show the validator's errors, fix them with the user, and retry. Never write an invalid or unvalidated file. (`--fill-defaults` writes the complete resolved config, so the file is self-describing.)
-6. **Stop.** Tell the user: *"Config written to `.claude/war/config.json` (profile: <profile>). Run `/war <plan>` to use it, or `/war <plan> --config <path>` to point at a different file."* Do not launch `/war`.
+7. **Stop.** Tell the user: *"Config written to `.claude/war/config.json` (profile: <profile>). Run `/war <plan>` to use it, or `/war <plan> --config <path>` to point at a different file."* Do not launch `/war`.
 
 ## Notes
 - Conversation-only: no `Workflow`, no git writes beyond the single config file. The **only** `Agent` you may spawn is the read-only setup-scout (step 3), and only when `resolveProvision` reports `scout: true` (or `--refresh-provision` was passed); it is `Read/Grep/Glob`-only and changes nothing.

@@ -45,11 +45,12 @@ A task reaches the refiner with exactly one terminal **outcome**. Two are produc
 ## MergeResult — `war-refiner`
 ```jsonc
 { mode: "merge-task" | "land-phase",
-  status: "merged" | "landed" | "gate_failed" | "conflict" | "no-test" | "land_stale" | "error",
+  status: "merged" | "landed" | "gate_failed" | "conflict" | "no-test" | "submodule-blocked" | "land_stale" | "error",
   branch, integration_sha?, working_sha?, conflict_files?, gate_output? }
 ```
 - **`integration_sha`** — the post-rebase integration tip the gate ran at; the post-merge gate-audit pass reads it as gate-HEAD provenance to confirm the executed `gate_output` corresponds to the integration tip (it does not add a field; `integration_sha?` already exists).
 - **`no-test`** — (merge-task only) `assert-test-in-diff.sh` found no test file in the task's diff and the task has `requiresTest:true`. The refiner did **not** merge. The Workflow routes a bounded fix-worker + full re-audit sub-loop. Distinct from `gate_failed` (gate ran and failed) and from `error` (git/ref problem — exit 2 from the script, not exit 1). A transient git error (exit 2) must never collapse to `no-test`.
+- **`submodule-blocked`** — (merge-task only) `assert-no-submodule-mutation.sh` detected a gitlink change or a path-under-submodule change in the task's diff. The refiner did **not** merge. The Workflow routes an **immediate hard escalate** with 0 fix rounds (`reason: "escalate"`, detail names the submodule). Distinct from `no-test` (different script, unconditional — does not gate on `requiresTest`) and from `error` (exit 1 from the script, not exit 2). A transient git error (exit 2) must never collapse to `submodule-blocked`.
 - **`land_stale`** — a same-branch land exhausted the bounded reland loop (`roundLimit` CAS-contention relands with no push success); the phase is held for the Lead. Distinct from a content `conflict`: there are no merge-text contradictions, only topology contention (another run pushed the working branch while this one was merging). The Lead re-runs the land manually after the contending run clears.
 
 ## Gate rule (applied over AuditVerdicts)
