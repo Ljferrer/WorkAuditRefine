@@ -2316,8 +2316,10 @@ test('T4 #297 Test 2 — declared gitlink-bump merge-task passes --declared to a
   const { calls: callsA } = await runPhase(bumpArgs, impl)
   const mergeCallA = callsA.find(c => isMergeTask(c) && /tbump/.test(c.opts.label || ''))
   assert.ok(mergeCallA, 'a merge-task is dispatched for the bump task')
-  assert.ok(mergeCallA.prompt.includes('--declared'),
-    'declared gitlink-bump merge-task prompt must include "--declared" for assert-no-submodule-mutation.sh')
+  // Load-bearing order check: script CLI is `<base> <branch> [--declared]` — flag must follow BOTH positionals.
+  // A bare substring check passes even when --declared precedes the refs (broken ordering).
+  assert.match(mergeCallA.prompt, /assert-no-submodule-mutation\.sh\s+\S+\s+\S+\s+--declared/,
+    'declared gitlink-bump merge-task prompt must pass --declared AFTER both positional refs to assert-no-submodule-mutation.sh')
 
   // Case B: regular (non-declared, non-bump) task — must NOT carry --declared
   const regularArgs = SUBMOD_PHASE_ARGS({
