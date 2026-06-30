@@ -221,7 +221,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.7.4** — Deterministic worker test-floor: the refiner runs `assert-test-in-diff.sh` at merge-task to assert the worker's diff actually added a mapped test (read from the real git diff, not the worker's self-report); a missing test routes a bounded `no-test` fix-worker followed by a full panel re-audit; on round exhaustion `no-test` joins `HARD_ESCALATION_REASONS` (both the canonical list and the inline mirror, kept equal by the drift-guard). Builds on v0.7.3.
+**0.7.5** — Memory provenance: every servitor-written fact carries a `metadata.provenance` tier (`agent-unverified` < `code-verified` < `user-confirmed`); a structural `validate-servitor-provenance.sh` PreToolUse gate denies tag-less fact writes (the tag must be *present*, never necessarily *honest*); the servitor verifies referents on write (Read/Grep → `code-verified`, else an absence-note) and corrects by tier precedence (a higher tier supersedes a lower). Builds on v0.7.4.
 
 ## License
 
