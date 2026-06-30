@@ -1886,6 +1886,9 @@ test('M2 Test 1b — vacuous added test (re-audit returns blocking finding) does
   // The 'no-test:exhausted' auditLog verdict must NOT appear — budget was not exhausted
   const exhaustedLog = (out.auditLog || []).find(e => e && e.task === 't1' && e.verdict === 'no-test:exhausted')
   assert.ok(!exhaustedLog, "auditLog must NOT contain verdict 'no-test:exhausted' when re-audit failed before budget exhaustion (double-escalation guard)")
+  // Vacuous path must complete cleanly — not crash into held:workflow-error
+  assert.equal(out.landDecision, 'held:escalation', 'vacuous re-audit must hold cleanly as held:escalation (escalate is a HARD reason), not held:workflow-error')
+  assert.ok(!out.workflowError, 'vacuous path must not throw a workflow error')
 })
 
 test('M2 Test 2 — shared budget: audit fixes + no-test fixes together <= roundLimit; exhaustion escalates {reason:"no-test"}', async () => {

@@ -384,6 +384,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           continue
         }
 
+        // Vacuous re-audit path: escalation already pushed above (lines 358-359), noTestMr===null
+        if (reAuditFailed) continue
+
         // Use the successful re-merge result for the landed path below
         if (noTestMr.status === 'merged') {
           landed.push(r.task.id); succeeded.add(r.task.id)
