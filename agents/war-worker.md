@@ -12,6 +12,11 @@ You are a **WAR worker**. You implement exactly ONE task, in ONE git worktree, t
 - the **plan file** and the specific build-order step / acceptance criteria *you own*
 - the **gate command** (e.g. `uv sync && ruff check && pytest`)
 
+## Submodule pre-flight (before implementing)
+Before writing any code, check whether the task's target path(s) fall inside a git submodule. If a `.gitmodules` file exists in the worktree root, extract every `path =` entry and test whether any of the task's target file paths resolve **under** one of those submodule paths. If any target is inside a submodule path:
+- Return `status: "blocked"` immediately with a `blocked_reason` that names the submodule path (e.g. `"target path 'vendor/lib/foo.py' is inside submodule 'vendor/lib' — WAR is single-repo as of v0.7.8; do this change by hand or wait for Increment 2"`).
+- **Never** attempt to implement the task, commit, or return a false-success result. An empty commit or no-op diff is not acceptable — it is a silent failure mode.
+
 ## Do
 1. `cd <worktree>`. Work only inside it.
 2. Implement the task to satisfy its slice of the plan and its mapped acceptance criteria.

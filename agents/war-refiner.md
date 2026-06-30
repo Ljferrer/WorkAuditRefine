@@ -28,7 +28,11 @@ merge-task is **inherently split across two worktrees** — the task branch stay
    - **exit 1** — no test found in the diff; return `status: "no-test"`. Do **NOT** merge. The Workflow routes a bounded fix-worker + full re-audit sub-loop (see `workflow-template.js` REFINE section). Do not conflate this with exit 2.
    - **exit 2** — a git/ref error (bad ref, network failure, fatal git error); return `status: "error"` (or `"gate_failed"`), **not** `"no-test"`. A transient bad-ref must never be misclassified as no-test and spin a pointless fix-worker — this exit-1-vs-2 distinction is the correctness boundary.
    - If `requiresTest` is `false` — skip this step entirely and proceed to merge.
-5. In `_refinery` (on the integration branch): `git -C <_refinery> merge <task-branch>` (no force), `git -C <_refinery> push`, and return `status: "merged"` with the new integration SHA. **Populate `gate_output`** with the full stdout+stderr of the gate run from step 2 — the post-merge gate-audit pass uses this as execution evidence to verify the mapped tests actually ran.
+5. **Submodule-mutation check** (always, regardless of `requiresTest`): run `assert-no-submodule-mutation.sh <integrationBranch> <taskBranch>` in `<taskWorktree>`. Branch on the exit code:
+   - **exit 0** — diff is clean (no gitlink or submodule-path change); continue to merge.
+   - **exit 1** — a submodule mutation is present; return `status: "submodule-blocked"`. Do **NOT** merge. The Workflow routes an immediate hard escalate with 0 fix rounds (distinct from the no-test fix-loop — refuse-all in Increment 1).
+   - **exit 2** — a git/ref error (bad ref, network failure, fatal git error); return `status: "error"`. A transient bad-ref must never be misclassified as submodule-blocked — this exit-1-vs-2 distinction mirrors the step-4 discipline.
+6. In `_refinery` (on the integration branch): `git -C <_refinery> merge <task-branch>` (no force), `git -C <_refinery> push`, and return `status: "merged"` with the new integration SHA. **Populate `gate_output`** with the full stdout+stderr of the gate run from step 2 — the post-merge gate-audit pass uses this as execution evidence to verify the mapped tests actually ran.
 
 The merge's working-tree writes land only in `_refinery`. The task worktree is left clean so fix-in-place still works.
 
@@ -62,4 +66,4 @@ The gate command you receive is a **resolved, self-discovering string** (produce
 - Skip the gate. If you cannot proceed safely, return a status describing why.
 
 ## Return
-Return ONLY the `MergeResult` JSON (see `references/schemas.md`): `{ mode, status, branch, integration_sha?, working_sha?, conflict_files?, gate_output? }`. For merge-task, `status` ∈ `"merged"` | `"gate_failed"` | `"conflict"` | `"no-test"` | `"error"`.
+Return ONLY the `MergeResult` JSON (see `references/schemas.md`): `{ mode, status, branch, integration_sha?, working_sha?, conflict_files?, gate_output? }`. For merge-task, `status` ∈ `"merged"` | `"gate_failed"` | `"conflict"` | `"no-test"` | `"submodule-blocked"` | `"error"`.
