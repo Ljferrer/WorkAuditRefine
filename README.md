@@ -221,7 +221,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.7.6** — Resume precedence: git is the stated source of truth across the resume layers (git branch state > GitHub issue labels > `ledger.json`) because the push-first CAS never force-pushes a shared branch, so git can only *lag*, never be *wrong*. A Lead-run reconciliation pre-flight repairs the lagging layers *toward* git (A: ledger ahead → trust git; B: git ahead → mark merged) and **halts** on an unexplained commit (C). The `ledger.json` is a lagging view; `merge_sha` is advisory, authoritative only when reachable. Docs-only. Builds on v0.7.5.
+**0.7.7** — Fix-worker result bound: a blocked worker now escalates immediately with its own `blocked_reason` instead of being silently re-audited for up to `roundLimit` rounds and reaching a generic `audit-blocked`. A shared `blockedReason` predicate is applied at every worker-dispatch site (the initial worker, the audit-fix-loop fixer, and the no-test fixer), so a new site cannot re-introduce the fire-and-forget bug; `escalate` is already a hard reason, so a blocked worker yields the existing `held:escalation` with no land-decision cascade. Builds on v0.7.6.
 
 ## License
 
