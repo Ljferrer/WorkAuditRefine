@@ -8,7 +8,7 @@
 // unrunnable-deps: a task whose deps can never be satisfied (a ghost dep), produced by the Workflow's
 // post-loop sweep; a hard hold. Present in BOTH mirrors — the inline copy and this canonical export are
 // identical (L1: the former scheduler-local divergence is removed).
-export const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps']
+export const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps', 'no-test']
 
 // landed:    array of task ids merged onto the integration branch this phase
 // escalated: array of { reason, ... } for tasks that did not merge

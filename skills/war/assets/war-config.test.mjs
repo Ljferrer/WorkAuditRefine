@@ -359,9 +359,10 @@ test('drift-guard: inline HARD_ESCALATION_REASONS in workflow-template.js matche
   // dep-failed was the Task 1 (F02) foundation; land_stale pre-existed; Task 4 (F04/R3) added gate-evidence (6 items total).
   // L1 (unify): 'unrunnable-deps' is now in land-decision.mjs too — the inline literal and the
   // canonical export are IDENTICAL (exact equality, no scheduler-local divergence).
+  // M2: 'no-test' added to both mirrors (8 members total).
   //
   // The template has (around line 361):
-  //   const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps']
+  //   const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps', 'no-test']
   const match = templateText.match(/const\s+HARD_ESCALATION_REASONS\s*=\s*(\[[^\]]+\])/)
   assert.ok(match, 'HARD_ESCALATION_REASONS not found in workflow-template.js')
   // Normalize single-quoted strings to double-quoted for JSON.parse.
@@ -372,6 +373,7 @@ test('drift-guard: inline HARD_ESCALATION_REASONS in workflow-template.js matche
     'inline HARD_ESCALATION_REASONS must equal the canonical export exactly (no divergence)')
   assert.ok(HARD_ESCALATION_REASONS.includes('unrunnable-deps'), 'unrunnable-deps must be in canonical HARD_ESCALATION_REASONS (L1 unify)')
   assert.ok(HARD_ESCALATION_REASONS.includes('dep-failed'), 'dep-failed must be in HARD_ESCALATION_REASONS (F02 foundation)')
+  assert.ok(HARD_ESCALATION_REASONS.includes('no-test'), 'no-test must be in canonical HARD_ESCALATION_REASONS (M2)')
 })
 
 // ---------------------------------------------------------------------------

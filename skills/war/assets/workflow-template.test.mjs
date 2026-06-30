@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { HARD_ESCALATION_REASONS } from './land-decision.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const auditorMd = readFileSync(join(here, '../../../agents/war-auditor.md'), 'utf8')
@@ -1794,4 +1795,191 @@ test('M1 criterion #6 — catch after a mid-phase throw skips teardown (structur
   // (red-team confirmed — only inline cleanup). Use the suite's structural idiom.
   const cleanup = calls.find(c => /remove-worktree|worktree remove|teardown|clean ?up/i.test(c.prompt))
   assert.ok(!cleanup, `no teardown/cleanup agent call must be recorded on the catch path; found: ${cleanup && JSON.stringify(cleanup.prompt)}`)
+})
+
+// ---------------------------------------------------------------------------
+// M2 — no-test REFINE sub-loop + HARD_ESCALATION_REASONS += no-test
+// ---------------------------------------------------------------------------
+
+// Single-task args for no-test tests (requiresTest:true by default)
+const NO_TEST_ARGS = (over = {}) => PROVISION_ARGS({
+  tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', lenses: ['correctness'], requiresTest: true }],
+  ...over,
+})
+
+// Helper: isAddTestWorker — fix-worker dispatched by the no-test sub-loop
+const isAddTestWorker = (c) => seatOf(c.opts) === 'war-worker' && /add-test:/.test(c.opts.label || '')
+
+test('M2 Test 1 — no-test catch: fix-worker dispatched then full audit panel re-spawns then re-merge attempted', async () => {
+  // Drive: merge-task returns no-test on first call, then merged on second call (after fix + re-audit).
+  // Re-audit returns approve. Assert fix-worker dispatched, auditor seats re-spawned, re-merge attempted.
+  let mergeCallCount = 0
+  let auditCallCount = 0
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker' && opts.phase === 'Work') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
+    if (seat === 'war-auditor') { auditCallCount++; return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' } }
+    if (seat === 'war-refiner' && opts.phase === 'Refine') {
+      mergeCallCount++
+      // First merge attempt returns no-test; second (re-merge after fix) returns merged
+      return mergeCallCount === 1
+        ? { mode: 'merge-task', status: 'no-test' }
+        : { mode: 'merge-task', status: 'merged' }
+    }
+    if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const auditCountBeforeFix = 0  // will count after
+  const { out, calls } = await runPhase(NO_TEST_ARGS(), impl)
+
+  // A fix-worker (add-test) must be dispatched — unique token 'add-test:' in label
+  const addTestCall = calls.find(isAddTestWorker)
+  assert.ok(addTestCall, 'add-test fix-worker must be dispatched on no-test result')
+  assert.match(addTestCall.prompt, /ADD_TEST|assert-test-in-diff|no test/i,
+    'add-test fix-worker prompt must reference the no-test issue (unique token)')
+
+  // Audit panel must re-spawn after the fix (>1 auditor call = initial audit + re-audit)
+  const auditCalls = calls.filter(c => isAuditor(c) && !c.prompt.includes('execution-evidence'))
+  assert.ok(auditCalls.length >= 2,
+    `audit panel must re-spawn after the fix-worker (expected >=2 auditor calls, got ${auditCalls.length})`)
+
+  // A second merge attempt must occur
+  assert.ok(mergeCallCount >= 2, `re-merge must be attempted after re-audit (mergeCallCount=${mergeCallCount})`)
+
+  // Task must land (re-audit approved + re-merge succeeded)
+  assert.ok(out.landed.includes('t1'), 't1 must land after no-test fix + re-audit + re-merge')
+})
+
+test('M2 Test 1b — vacuous added test (re-audit returns blocking finding) does NOT merge — escalates', async () => {
+  // Drive: merge-task returns no-test; fix-worker dispatched; re-audit returns request_changes
+  // (vacuous test — auditor finds the test does not exercise the slice).
+  // Assert: task escalates, does not land.
+  let mergeCallCount = 0
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker' && opts.phase === 'Work') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
+    if (seat === 'war-auditor') {
+      // Initial audit: approve. Re-audit (after add-test fix): request_changes with a unique finding.
+      const isReAudit = mergeCallCount >= 1
+      return isReAudit
+        ? { seat: opts.label, lens: 'correctness', verdict: 'request_changes', confidence: 'high',
+            findings: [{ severity: 'Major', title: 'vacuous-test-does-not-exercise-slice', file: 'x.test.mjs', rationale: 'test is vacuous' }] }
+        : { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    }
+    if (seat === 'war-refiner' && opts.phase === 'Refine') {
+      mergeCallCount++
+      return { mode: 'merge-task', status: 'no-test' }  // always no-test
+    }
+    if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { out } = await runPhase(NO_TEST_ARGS(), impl)
+
+  // Task must NOT land
+  assert.ok(!out.landed.includes('t1'), 't1 must NOT land when re-audit finds the test vacuous')
+  // Must be in escalated (re-audit failed or budget exhausted)
+  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  assert.ok(esc, 't1 must appear in escalated after vacuous re-audit')
+})
+
+test('M2 Test 2 — shared budget: audit fixes + no-test fixes together <= roundLimit; exhaustion escalates {reason:"no-test"}', async () => {
+  // Drive with roundLimit:2. t1 audit uses 1 fix round (audit-fix at round 0). Then no-test
+  // sub-loop has 1 round left (fixRounds=1 at entry). After one no-test fix, fixRounds=2 >= roundLimit →
+  // next no-test still → budget exhausted → escalate {reason:'no-test'}.
+  // Observe carry via auditLog[].fixRounds.
+  const SHARED_BUDGET_ARGS = NO_TEST_ARGS({ run: { roundLimit: 2 } })
+  let auditRound2 = 0
+  let mergeCount = 0
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker' && opts.phase === 'Work') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
+    if (seat === 'war-worker' && opts.phase === 'Audit') return { task_id: 't1', status: 'implemented', head_sha: 'abc2', tests: {} }
+    if (seat === 'war-auditor') {
+      auditRound2++
+      // First audit call: request_changes (causes 1 fix round in audit loop)
+      // Subsequent (re-audit after fix, and re-audit in no-test sub-loop): approve
+      return auditRound2 === 1
+        ? { seat: opts.label, lens: 'correctness', verdict: 'request_changes', confidence: 'high',
+            findings: [{ severity: 'Major', title: 'audit-fix-finding', file: 'a.js', rationale: 'fix needed' }] }
+        : { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    }
+    if (seat === 'war-refiner' && opts.phase === 'Refine') {
+      mergeCount++
+      // All merge attempts return no-test → exhaust budget
+      return { mode: 'merge-task', status: 'no-test' }
+    }
+    if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { out } = await runPhase(SHARED_BUDGET_ARGS, impl)
+
+  // Must NOT land — budget exhausted
+  assert.ok(!out.landed.includes('t1'), 't1 must not land when budget exhausted')
+
+  // escalated must contain a no-test reason (hard escalation on budget exhaustion)
+  const noTestEsc = (out.escalated || []).find(e => e && e.task === 't1' && e.reason === 'no-test')
+  assert.ok(noTestEsc, 'escalated must contain {task:"t1", reason:"no-test"} on budget exhaustion')
+
+  // landDecision must be held (no-test is a HARD_ESCALATION_REASON)
+  assert.equal(out.landDecision, 'held:escalation', 'landDecision must be held:escalation when no-test budget exhausted')
+
+  // Observe fixRounds carry via auditLog[].fixRounds — the initial audit entry must show fixRounds >= 1
+  // (it used at least 1 fix round in the audit loop)
+  const auditEntry = (out.auditLog || []).find(e => e && e.task === 't1' && typeof e.fixRounds === 'number')
+  assert.ok(auditEntry, 'auditLog must have a t1 entry with fixRounds field')
+  assert.ok(auditEntry.fixRounds >= 1,
+    `auditLog fixRounds must carry the audit-loop count (>=1); got ${auditEntry.fixRounds}`)
+})
+
+test('M2 Test 2b — requiresTest:false task routes straight to merge; no fix-worker / re-audit re-spawn', async () => {
+  // A task with requiresTest:false must never return no-test from the merge-task — the refiner
+  // skips the assert-test-in-diff.sh check. The sub-loop never fires.
+  const EXEMPT_ARGS = PROVISION_ARGS({
+    tasks: [{ id: 't1', issue: 101, title: 'Docs task', planSlice: 'slice 1', lenses: ['correctness'], requiresTest: false }],
+  })
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker' && opts.phase === 'Work') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'merged' }
+    if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { out, calls } = await runPhase(EXEMPT_ARGS, impl)
+
+  // No add-test fix-worker dispatched
+  const addTestCall = calls.find(isAddTestWorker)
+  assert.ok(!addTestCall, 'requiresTest:false must not trigger an add-test fix-worker')
+
+  // Merge prompt must mention requiresTest:false / skip the check
+  const mergeCall = calls.find(isMergeTask)
+  assert.ok(mergeCall, 'a merge-task is dispatched')
+  assert.match(mergeCall.prompt, /requiresTest:false|skip.*assert-test|assert-test.*skip/i,
+    'merge-task prompt must state requiresTest:false and skip the assert-test-in-diff.sh check')
+
+  // Task lands normally
+  assert.ok(out.landed.includes('t1'), 'requiresTest:false task lands without no-test sub-loop')
+})
+
+test('M2 Test 3 — drift-guard: both HARD_ESCALATION_REASONS mirrors equal including no-test', () => {
+  // The inline HARD_ESCALATION_REASONS in workflow-template.js and the canonical export in
+  // land-decision.mjs (imported at module level) must both include 'no-test' and be equal.
+  const match = src.match(/const\s+HARD_ESCALATION_REASONS\s*=\s*(\[[^\]]+\])/)
+  assert.ok(match, 'HARD_ESCALATION_REASONS not found in workflow-template.js')
+  const inline = JSON.parse(match[1].replace(/'/g, '"'))
+
+  // Both must include no-test (unique M2 token)
+  assert.ok(inline.includes('no-test'), "inline HARD_ESCALATION_REASONS must include 'no-test' (M2)")
+  assert.ok(HARD_ESCALATION_REASONS.includes('no-test'), "canonical HARD_ESCALATION_REASONS must include 'no-test' (M2)")
+  // Both must be equal (order-insensitive)
+  assert.deepEqual([...inline].sort(), [...HARD_ESCALATION_REASONS].sort(),
+    'inline and canonical HARD_ESCALATION_REASONS must be equal including no-test (M2 drift-guard)')
 })
