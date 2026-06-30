@@ -185,8 +185,11 @@ node --test 'skills/**/*.test.mjs' && for f in $(find . -type f -name '*.test.sh
 | T3 | (no test — prose) | full gate green | criteria verified by review |
 
 **Validation criteria (spec §12, Increment 1):** #1 auditor refuses a gitlink-only diff (T3 prose) · #2 worker blocks
-a submodule-path target (T3 prose) · #3 refiner refuses an unresolvable/any submodule mutation (T1 + T2) · #4 no-op
-on a submodule-free repo (T1 no-`.gitmodules` case + gate green) · #5 war-room overlap warning (T3 prose).
+a submodule-path target (T3 prose) · #3 refiner refuses **ANY** gitlink/submodule mutation (T1 + T2) — a strict
+**superset** of the spec's "unreachable-pin" case (§4.1), so no dangling pin can slip through; reachability-
+*discrimination* (allowing a declared, reachable bump) is **Increment 2's pin-validity lens** (Plan 2 DP4), not this
+coarse guard · #4 no-op on a submodule-free repo (T1 no-`.gitmodules` case + gate green) · #5 war-room overlap
+warning (T3 prose).
 
 **Regression guard:** the existing `workflow-template.test.mjs` + `war-config.test.mjs` + every `*.test.sh` stay
 green — T2 is additive (status enum + a refuse branch), `HARD_ESCALATION_REASONS`/`land-decision.mjs` untouched,
@@ -202,6 +205,11 @@ refuse-all) is **already written + accepted**. This plan implements its first mo
 - **Increment 2 (first-class support)** — the relax to refuse-undeclared, submodule-as-repo phases, 2A/2B landing,
   `held:submodule-pr`, gh-resume — is the **next stacked plan** (`2026-06-30-submodule-support-increment-2-first-class.md`,
   v0.7.9 on this tip).
+- **Reachability-discrimination is Increment 2, not here.** Increment 1 refuses **any** gitlink/submodule mutation — a
+  strict **superset** of spec §4.1's "refuse an *unreachable* pin" refiner bullet, so no dangling pin can slip through
+  (all are refused; no `git ls-remote`/`cat-file -e` check is run, and none is needed). Allowing a *declared, reachable*
+  gitlink bump — the actual reachability check — is **Increment 2's pin-validity lens** (Plan 2 DP4). The spec's literal
+  "unreachable" wording for Increment 1 is reconciled to this superset; tidy the spec prose in Increment 2's docs phase.
 - **The landDecision prose-enum drift-guard** — tracked as a separate finding ([#271](https://github.com/Ljferrer/WorkAuditRefine/issues/271)); not this plan.
 - **`HARD_ESCALATION_REASONS` / `land-decision.mjs` unchanged** (DP3) — the refuse reuses `escalate`; no
   mirrored-constant cascade.
