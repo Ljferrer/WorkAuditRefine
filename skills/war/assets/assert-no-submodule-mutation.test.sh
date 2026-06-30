@@ -14,6 +14,9 @@
 #   4. bad ref -> exit 2 (NOT 1; the 1-vs-2 correctness boundary)
 #   5. empty diff (base == branch) -> exit 0
 #   6. repo with no .gitmodules + normal diff -> exit 0 (no-op case)
+#   7. --declared + gitlink-only move -> exit 0 (legitimate gitlink-bump path)
+#   8. --declared + non-gitlink content under a .gitmodules path -> exit 1 (still refused)
+#   9. no flag + gitlink move -> exit 1 (Increment-1 behavior intact — regression guard)
 set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -238,6 +241,122 @@ if [ "$rc6" -eq 0 ]; then
   pass "case 6: no .gitmodules + normal diff -> exit 0 (no-op)"
 else
   fail "case 6: no .gitmodules + normal diff -> expected exit 0 (no-op), got $rc6"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 7: --declared + gitlink-only move -> exit 0 (legitimate gitlink-bump path)
+#
+# Increment 2: when the guard is invoked with --declared, a pure gitlink move
+# (mode 160000, no non-gitlink submodule-path content change) must be ALLOWED
+# (exit 0) because it is the declared gitlink-bump task's legitimate path.
+# The pin-validity check is a separate auditor lens; here we only refuse
+# undeclared mutations.
+# ---------------------------------------------------------------------------
+SUB7="$(setup_submodule_repo)"
+R7="$(setup_repo)"
+BASE7_PRESUB="$(git -C "$R7" rev-parse HEAD)"
+git -C "$R7" -c protocol.file.allow=always submodule add -q "$SUB7" sub 2>/dev/null
+git -C "$R7" commit -qm "add submodule"
+BASE7="$(git -C "$R7" rev-parse HEAD)"
+
+git -C "$R7" checkout -qb task/declared-gitlink-bump 2>/dev/null
+# Advance the submodule pointer (add a commit to the submodule remote, then bump).
+printf 'v2\n' > "$SUB7/v2.txt"
+git -C "$SUB7" add v2.txt
+git -C "$SUB7" commit -qm "v2"
+git -C "$R7" -c protocol.file.allow=always submodule update --remote -q sub 2>/dev/null
+git -C "$R7" add sub
+git -C "$R7" commit -qm "bump submodule gitlink (declared)"
+TASK7="$(git -C "$R7" rev-parse HEAD)"
+git -C "$R7" checkout -q - 2>/dev/null
+
+cwd7="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
+TMPFILES="$TMPFILES $cwd7"
+rc7=0
+( cd "$cwd7" && bash "$SCRIPT" "$BASE7" "$TASK7" --repo "$R7" --declared ) >/dev/null 2>&1 || rc7=$?
+
+if [ "$rc7" -eq 0 ]; then
+  pass "case 7: --declared + gitlink-only move -> exit 0 (legitimate gitlink-bump path)"
+else
+  fail "case 7: --declared + gitlink-only move -> expected exit 0, got $rc7"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 8: --declared + non-gitlink content under a .gitmodules path -> exit 1
+#
+# Even with --declared, a content change (regular file) under a submodule path
+# is still refused (exit 1). The --declared allowance is ONLY for pure gitlink
+# mode 160000 moves. A non-gitlink content touch signals a submodule task whose
+# diff should have been run inside the submodule repo — it must never reach
+# this guard with a superproject non-gitlink change.
+# ---------------------------------------------------------------------------
+SUB8="$(setup_submodule_repo)"
+R8="$(setup_repo)"
+git -C "$R8" -c protocol.file.allow=always submodule add -q "$SUB8" sub 2>/dev/null
+git -C "$R8" commit -qm "add submodule"
+BASE8="$(git -C "$R8" rev-parse HEAD)"
+
+git -C "$R8" checkout -qb task/declared-content-under-subpath 2>/dev/null
+git -C "$R8" submodule deinit -q sub 2>/dev/null || true
+rm -rf "$R8/.git/modules/sub" 2>/dev/null || true
+git -C "$R8" rm -qrf sub 2>/dev/null || true
+mkdir -p "$R8/sub"
+printf 'changed\n' > "$R8/sub/extra.txt"
+git -C "$R8" add sub/extra.txt
+git -C "$R8" commit -qm "non-gitlink content under sub/ (declared but still refused)"
+TASK8="$(git -C "$R8" rev-parse HEAD)"
+git -C "$R8" checkout -q - 2>/dev/null
+
+cwd8="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
+TMPFILES="$TMPFILES $cwd8"
+rc8=0
+( cd "$cwd8" && bash "$SCRIPT" "$BASE8" "$TASK8" --repo "$R8" --declared ) >/dev/null 2>&1 || rc8=$?
+
+if [ "$rc8" -eq 1 ]; then
+  pass "case 8: --declared + non-gitlink content under .gitmodules path -> exit 1 (still refused)"
+else
+  fail "case 8: --declared + non-gitlink content under .gitmodules path -> expected exit 1, got $rc8"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 9: no flag + gitlink move -> exit 1 (Increment-1 behavior intact)
+#
+# Regression guard: the no-flag (default) path refuses ANY gitlink move,
+# exactly as in Increment 1. This is a LOAD-BEARING regression guard —
+# it proves the --declared flag is the discriminator, not a change to the
+# default path (memory: weak-test-assertion-passes-without-feature-being-exercised).
+# The unique failure-mode token is "submodule mutation detected" on stderr
+# with exit 1, not exit 0.
+# ---------------------------------------------------------------------------
+SUB9="$(setup_submodule_repo)"
+R9="$(setup_repo)"
+git -C "$R9" -c protocol.file.allow=always submodule add -q "$SUB9" sub 2>/dev/null
+git -C "$R9" commit -qm "add submodule"
+BASE9="$(git -C "$R9" rev-parse HEAD)"
+
+git -C "$R9" checkout -qb task/noflag-gitlink-bump 2>/dev/null
+printf 'v2\n' > "$SUB9/v2.txt"
+git -C "$SUB9" add v2.txt
+git -C "$SUB9" commit -qm "v2"
+git -C "$R9" -c protocol.file.allow=always submodule update --remote -q sub 2>/dev/null
+git -C "$R9" add sub
+git -C "$R9" commit -qm "bump gitlink (no --declared flag)"
+TASK9="$(git -C "$R9" rev-parse HEAD)"
+git -C "$R9" checkout -q - 2>/dev/null
+
+cwd9="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
+TMPFILES="$TMPFILES $cwd9"
+rc9=0
+stderr9="$(mktemp 2>/dev/null || mktemp -t wartest)"
+TMPFILES="$TMPFILES $stderr9"
+( cd "$cwd9" && bash "$SCRIPT" "$BASE9" "$TASK9" --repo "$R9" ) >"$stderr9" 2>&1 || rc9=$?
+
+# Assert exit 1 AND the unique token in stderr — proves the no-flag path is the
+# Increment-1 refuse-ALL path, not silently passing (memory: weak-test-assertion).
+if [ "$rc9" -eq 1 ] && grep -q "submodule mutation detected" "$stderr9" 2>/dev/null; then
+  pass "case 9: no flag + gitlink move -> exit 1 with 'submodule mutation detected' (Increment-1 regression guard)"
+else
+  fail "case 9: no flag + gitlink move -> expected exit 1 + 'submodule mutation detected', got rc=$rc9"
 fi
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,7 @@
+[submodule "libs/alpha"]
+	path = libs/alpha
+	url = https://example.com/alpha.git
+
+[submodule "libs/beta"]
+	path = libs/beta
+	url = https://example.com/beta.git
