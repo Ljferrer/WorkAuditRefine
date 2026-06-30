@@ -152,6 +152,10 @@ const blockingOf = seats => seats.flatMap(s => s.findings || []).filter(f => f.s
 const minorsOf   = seats => seats.flatMap(s => s.findings || []).filter(f => f.severity === 'Minor' || f.severity === 'Nit')
 const allApprove = (seats, expected) => seats.length === expected && seats.every(s => s.verdict === 'approve')
 const isSplit    = seats => seats.some(s => s.verdict === 'approve') && seats.some(s => s.verdict === 'request_changes')
+// → reason string if the worker did not deliver (null/dead or self-reported blocked), else null
+// ponytail: applied at the worker-dispatch sites in T2 (not dead code — defined-but-not-yet-emitted-plan-slice-pattern)
+const blockedReason = r => !r ? 'worker returned no result'
+  : (r.status === 'blocked' ? (r.blocked_reason || 'worker returned no result') : null)
 const nextWave   = () => tasks.filter(t => !done.has(t.id) && (t.deps || []).every(d => succeeded.has(d)))
 
 function auditPrompt(task, lens, depth, peers, workerTests) {
@@ -270,7 +274,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       return { task, verdict: 'escalate', seats: [], expected: 0, blocked: (impl && impl.blocked_reason) || 'worker returned no result' }
     }
 
-    let round = 0, verdict = null, seats = [], expected = 0
+    let round = 0, verdict = null, seats = [], expected = 0, blocked = null
     const workerTests = impl && impl.tests ? impl.tests : null
     while (round < roundLimit) {
       ;({ seats, expected } = await auditRound(task, null, workerTests))      // independent — no cross-talk
@@ -301,7 +305,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       round++
     }
     if (verdict === null) verdict = 'audit-blocked'
-    return { task, verdict, seats, expected, round }
+    return { task, verdict, seats, expected, round, blocked }
   }))
 
   // ---- REFINE — serial merge of approved tasks (THE merge queue) ----
