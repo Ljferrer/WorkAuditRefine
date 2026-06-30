@@ -1974,6 +1974,34 @@ test('M2 Test 2b — requiresTest:false task routes straight to merge; no fix-wo
   assert.ok(out.landed.includes('t1'), 'requiresTest:false task lands without no-test sub-loop')
 })
 
+// ---------------------------------------------------------------------------
+// L3 T1 — blockedReason predicate unit test (extract-and-eval totality proof)
+// The predicate is a named const inside the template source. We extract it via
+// regex, eval it, and assert the four cases from the spec §7.3.
+// ---------------------------------------------------------------------------
+
+test('L3 T1 — blockedReason predicate is total: extract-and-eval all four cases', () => {
+  // Extract the arrow definition from the template source. The predicate is an
+  // internal const — not a module export — so we use extract-and-eval (the same
+  // technique as the AsyncFunction harness) to exercise the real predicate code.
+  const match = src.match(/const blockedReason\s*=\s*(r\s*=>[\s\S]+?null\))/)
+  assert.ok(match, 'src must contain a "const blockedReason = r => …" arrow definition')
+  // eslint-disable-next-line no-new-func
+  const blockedReason = new Function(`return (${match[1]})`)()
+  // Case 1: null/dead worker → 'worker returned no result'
+  assert.equal(blockedReason(null), 'worker returned no result',
+    'blockedReason(null) must return "worker returned no result"')
+  // Case 2: blocked with reason
+  assert.equal(blockedReason({ status: 'blocked', blocked_reason: 'x' }), 'x',
+    'blockedReason({status:"blocked", blocked_reason:"x"}) must return "x"')
+  // Case 3: blocked without reason → fallback message
+  assert.equal(blockedReason({ status: 'blocked' }), 'worker returned no result',
+    'blockedReason({status:"blocked"}) must return "worker returned no result"')
+  // Case 4: non-blocked status → null (no problem)
+  assert.equal(blockedReason({ status: 'implemented' }), null,
+    'blockedReason({status:"implemented"}) must return null')
+})
+
 test('M2 Test 3 — drift-guard: both HARD_ESCALATION_REASONS mirrors equal including no-test', () => {
   // The inline HARD_ESCALATION_REASONS in workflow-template.js and the canonical export in
   // land-decision.mjs (imported at module level) must both include 'no-test' and be equal.
