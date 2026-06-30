@@ -70,8 +70,16 @@ touches `workflow-template.js` (+ its test), which M1/M2/M3 also edit earlier, s
 
 - [ ] **Step 1 — Write the failing unit test.** `blockedReason(null) === 'worker returned no result'`;
   `blockedReason({status:'blocked', blocked_reason:'x'}) === 'x'`; `blockedReason({status:'blocked'}) === 'worker
-  returned no result'`; `blockedReason({status:'implemented'}) === null`. Export or expose the predicate to the test
-  as the harness allows (the `new AsyncFunction` sandbox — assert via a thin wrapper if it isn't directly importable).
+  returned no result'`; `blockedReason({status:'implemented'}) === null`. **Test-exposure mechanism (concrete):** the
+  predicate is an internal `const` inside the script the harness compiles via `new AsyncFunction(...src)` — it is NOT
+  a module export, and the existing convention (source-pattern `assert.match` on `allApprove`/`isSplit`) only proves a
+  predicate is *present*, not that it is *total*. To assert **behavior/totality**, **extract-and-eval**: the test
+  already reads the `workflow-template.js` source string (the same `src` it feeds to `new AsyncFunction`); regex-extract
+  the `const blockedReason = r => …` arrow definition from that source, `eval`/`new Function` it into a callable, and run
+  the four cases against it (executes the real predicate, no production-side export needed). This is the "thin wrapper"
+  — feasible because the test file already operates on the source string; it does NOT require refactoring `allApprove`
+  or adding a production export. (A source-`assert.match` presence check MAY accompany it but does NOT satisfy "predicate
+  is total" on its own — execution does.)
 - [ ] **Step 2 — Run gate → fail** (predicate absent).
 - [ ] **Step 3 — Implement (additive).** Add the predicate, `let blocked = null`, and `blocked` in the loop return.
   Re-anchor by **named construct** (`allApprove`/`isSplit`; the loop's `let round = 0, …`; the loop `return { task,

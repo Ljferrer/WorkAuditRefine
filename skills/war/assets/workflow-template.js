@@ -152,6 +152,10 @@ const blockingOf = seats => seats.flatMap(s => s.findings || []).filter(f => f.s
 const minorsOf   = seats => seats.flatMap(s => s.findings || []).filter(f => f.severity === 'Minor' || f.severity === 'Nit')
 const allApprove = (seats, expected) => seats.length === expected && seats.every(s => s.verdict === 'approve')
 const isSplit    = seats => seats.some(s => s.verdict === 'approve') && seats.some(s => s.verdict === 'request_changes')
+// → reason string if the worker did not deliver (null/dead or self-reported blocked), else null
+// ponytail: applied at the worker-dispatch sites in T2 (not dead code — defined-but-not-yet-emitted-plan-slice-pattern)
+const blockedReason = r => !r ? 'worker returned no result'
+  : (r.status === 'blocked' ? (r.blocked_reason || 'worker returned no result') : null)
 const nextWave   = () => tasks.filter(t => !done.has(t.id) && (t.deps || []).every(d => succeeded.has(d)))
 
 function auditPrompt(task, lens, depth, peers, workerTests) {
@@ -266,11 +270,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       + `Sub-issue #${task.issue} — ${task.title}\nPlan slice: ${task.planSlice}\nPlan file: ${plan.file}\nGate: ${plan.gate}${provisionClause}`,
       { agentType: NS + 'war-worker', phase: 'Work', label: `work:${task.id}`, schema: WORKER_RESULT, ...spawn('worker') })
 
-    if (!impl || impl.status === 'blocked') {
-      return { task, verdict: 'escalate', seats: [], expected: 0, blocked: (impl && impl.blocked_reason) || 'worker returned no result' }
-    }
+    const why = blockedReason(impl); if (why) return { task, verdict: 'escalate', seats: [], expected: 0, blocked: why }
 
-    let round = 0, verdict = null, seats = [], expected = 0
+    let round = 0, verdict = null, seats = [], expected = 0, blocked = null
     const workerTests = impl && impl.tests ? impl.tests : null
     while (round < roundLimit) {
       ;({ seats, expected } = await auditRound(task, null, workerTests))      // independent — no cross-talk
@@ -293,15 +295,16 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       }
 
       const b = blockingOf(seats)                                // batched FIX_NEEDED → fresh fix-worker
-      await agent(
+      const fix = await agent(
         `FIX_NEEDED for WAR task ${task.id}. Work in the ALREADY-PROVISIONED worktree at ${task.worktree} (branch ${task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
         + `Resolve ALL of these blocking findings, keep the gate green, commit and push:\n`
         + b.map((f, i) => `${i + 1}. [${f.severity}] ${f.title} (${f.file}${f.line ? ':' + f.line : ''}) — ${f.rationale}${f.suggested_fix ? ` → ${f.suggested_fix}` : ''}`).join('\n') + provisionClause,
         { agentType: NS + 'war-worker', phase: 'Audit', label: `fix:${task.id}:r${round + 1}`, schema: WORKER_RESULT, ...spawn('worker') })
+      const fixWhy = blockedReason(fix); if (fixWhy) { verdict = 'escalate'; blocked = fixWhy; break }
       round++
     }
     if (verdict === null) verdict = 'audit-blocked'
-    return { task, verdict, seats, expected, round }
+    return { task, verdict, seats, expected, round, blocked }
   }))
 
   // ---- REFINE — serial merge of approved tasks (THE merge queue) ----
@@ -338,12 +341,21 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         let reAuditFailed = false
         while (noTestMr && noTestMr.status === 'no-test' && r.task.fixRounds < roundLimit) {
           // Dispatch fix-worker to add the mapped test in the SAME worktree
-          await agent(
+          const addFix = await agent(
             `ADD_TEST for WAR task ${r.task.id}. The refiner's merge-task check (assert-test-in-diff.sh) found no test file in the diff. `
             + `Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
             + `Add a mapped test for this task (the test must exercise the slice described in: ${r.task.planSlice}), keep the gate green, commit and push.`
             + provisionClause,
             { agentType: NS + 'war-worker', phase: 'Audit', label: `add-test:${r.task.id}:r${r.task.fixRounds + 1}`, schema: WORKER_RESULT, ...spawn('worker') })
+          const addFixWhy = blockedReason(addFix)
+          if (addFixWhy) {
+            // Blocked add-test worker — escalate with reason and break the no-test sub-loop
+            escalated.push({ task: r.task.id, reason: 'escalate', blocked: addFixWhy })
+            auditLog.push({ task: r.task.id, verdict: 'no-test:add-test-blocked', findings: [], blocked: addFixWhy, fixRounds: r.task.fixRounds })
+            noTestMr = null
+            reAuditFailed = true
+            break
+          }
           r.task.fixRounds++
 
           // RE-RUN the full audit panel for this task (not a re-wave — localized sub-loop)
