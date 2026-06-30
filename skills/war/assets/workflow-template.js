@@ -335,6 +335,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // ponytail: requiresTest:false tasks never enter this branch (mr.status !== 'no-test')
       if (mr && mr.status === 'no-test') {
         let noTestMr = mr
+        let reAuditFailed = false
         while (noTestMr && noTestMr.status === 'no-test' && r.task.fixRounds < roundLimit) {
           // Dispatch fix-worker to add the mapped test in the SAME worktree
           await agent(
@@ -357,6 +358,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             escalated.push({ task: r.task.id, reason: 'escalate', blocked: 'no-test: re-audit did not approve after adding test' })
             auditLog.push({ task: r.task.id, verdict: 'no-test:re-audit-failed', findings: (reSeats || []).flatMap(s => s.findings || []), fixRounds: r.task.fixRounds })
             noTestMr = null
+            reAuditFailed = true
             break
           }
 
@@ -375,7 +377,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:no-test-retry:r${r.task.fixRounds}`, schema: MERGE_RESULT, ...spawn('refiner') })
         }
 
-        if (!noTestMr || noTestMr.status === 'no-test') {
+        if (!reAuditFailed && (!noTestMr || noTestMr.status === 'no-test')) {
           // Budget exhausted — hard escalation with reason:'no-test'
           escalated.push({ task: r.task.id, reason: 'no-test', fixRounds: r.task.fixRounds })
           auditLog.push({ task: r.task.id, verdict: 'no-test:exhausted', fixRounds: r.task.fixRounds, findings: [] })

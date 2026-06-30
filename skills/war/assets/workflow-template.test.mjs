@@ -1814,12 +1814,11 @@ test('M2 Test 1 — no-test catch: fix-worker dispatched then full audit panel r
   // Drive: merge-task returns no-test on first call, then merged on second call (after fix + re-audit).
   // Re-audit returns approve. Assert fix-worker dispatched, auditor seats re-spawned, re-merge attempted.
   let mergeCallCount = 0
-  let auditCallCount = 0
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
     if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
     if (seat === 'war-worker' && opts.phase === 'Work') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
-    if (seat === 'war-auditor') { auditCallCount++; return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' } }
+    if (seat === 'war-auditor') { return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' } }
     if (seat === 'war-refiner' && opts.phase === 'Refine') {
       mergeCallCount++
       // First merge attempt returns no-test; second (re-merge after fix) returns merged
@@ -1831,7 +1830,6 @@ test('M2 Test 1 — no-test catch: fix-worker dispatched then full audit panel r
     if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
     return {}
   }
-  const auditCountBeforeFix = 0  // will count after
   const { out, calls } = await runPhase(NO_TEST_ARGS(), impl)
 
   // A fix-worker (add-test) must be dispatched — unique token 'add-test:' in label
@@ -1881,9 +1879,13 @@ test('M2 Test 1b — vacuous added test (re-audit returns blocking finding) does
 
   // Task must NOT land
   assert.ok(!out.landed.includes('t1'), 't1 must NOT land when re-audit finds the test vacuous')
-  // Must be in escalated (re-audit failed or budget exhausted)
-  const esc = (out.escalated || []).find(e => e && e.task === 't1')
-  assert.ok(esc, 't1 must appear in escalated after vacuous re-audit')
+  // Must be escalated with reason 'escalate' — EXACTLY ONE entry for t1 (double-escalation check)
+  const t1Escalations = (out.escalated || []).filter(e => e && e.task === 't1')
+  assert.equal(t1Escalations.length, 1, 'must have EXACTLY ONE escalated entry for t1 (no double-escalation)')
+  assert.equal(t1Escalations[0].reason, 'escalate', "escalated entry must have reason==='escalate' (not 'no-test')")
+  // The 'no-test:exhausted' auditLog verdict must NOT appear — budget was not exhausted
+  const exhaustedLog = (out.auditLog || []).find(e => e && e.task === 't1' && e.verdict === 'no-test:exhausted')
+  assert.ok(!exhaustedLog, "auditLog must NOT contain verdict 'no-test:exhausted' when re-audit failed before budget exhaustion (double-escalation guard)")
 })
 
 test('M2 Test 2 — shared budget: audit fixes + no-test fixes together <= roundLimit; exhaustion escalates {reason:"no-test"}', async () => {
