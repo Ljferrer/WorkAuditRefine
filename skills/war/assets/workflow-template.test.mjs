@@ -2134,3 +2134,72 @@ test('L3 T2 Test 2 — blocked initial-worker behavior preserved: escalate with 
   assert.equal(escB.reason, 'escalate', 'escalation reason must be "escalate" for null worker')
   assert.equal(escB.blocked, 'worker returned no result', 'null worker escalation must carry the default reason')
 })
+
+// ---------------------------------------------------------------------------
+// Submodule-support Increment 1 — T2 (sub-issue #280)
+// Tests for submodule-blocked routing in the REFINE section.
+// buildSeqImpl harness: fresh instance per test, label→results queue, .shift() per call.
+// ---------------------------------------------------------------------------
+
+test('T2 #280 Test 1 — merge-task submodule-blocked → immediate escalate with 0 fix-worker dispatches', async () => {
+  // A merge-task returning status:'submodule-blocked' must:
+  //   (a) cause an escalated entry with reason:'escalate' carrying the submodule detail token
+  //   (b) dispatch ZERO fix-workers (it is NOT the no-test loop — refuse-all, like env-blocked)
+  //   (c) hold the land (escalate ∈ HARD_ESCALATION_REASONS)
+  //
+  // Load-bearing: the unique token 'touches a submodule' can only appear in the escalated detail
+  // when the submodule-blocked branch is taken. If that branch is deleted the test fails because
+  // the escalated entry either vanishes or carries a different reason/detail.
+  const impl = buildSeqImpl(
+    { 'merge:t1': [{ mode: 'merge-task', status: 'submodule-blocked' }] },
+    (prompt, opts) => {
+      const seat = seatOf(opts)
+      if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+      if (seat === 'war-worker' && opts.phase === 'Work') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
+      if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+      if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
+      if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+      return {}
+    }
+  )
+  const { out, calls } = await runPhase(L3_ARGS(), impl)
+
+  // (a) escalated entry with reason:'escalate' carrying the submodule detail
+  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  assert.ok(esc, 'escalated must have an entry for t1')
+  assert.equal(esc.reason, 'escalate', 'submodule-blocked routes to reason:"escalate" (reuses existing member, no cascade)')
+  assert.ok(typeof esc.detail === 'string' && esc.detail.includes('touches a submodule'),
+    'escalated detail must carry unique token "touches a submodule"')
+
+  // (b) ZERO fix-worker dispatches (not the no-test loop)
+  const fixCalls = calls.filter(c => seatOf(c.opts) === 'war-worker' && c.opts.phase === 'Audit')
+  assert.equal(fixCalls.length, 0,
+    'submodule-blocked must dispatch 0 fix-workers (refuse-all, not the no-test loop)')
+
+  // (c) land held
+  assert.equal(out.landDecision, 'held:escalation',
+    'landDecision must be held:escalation (escalate is a HARD_ESCALATION_REASON)')
+})
+
+test('T2 #280 Test 2 — submodule-blocked escalation rides existing "escalate" member; land-decision.mjs + drift-guard untouched', () => {
+  // Assert the escalation reuses the existing 'escalate' HARD_ESCALATION_REASON (DP3).
+  // No new member was added — HARD_ESCALATION_REASONS is unchanged, no land-decision.mjs cascade.
+
+  // Verify HARD_ESCALATION_REASONS still contains 'escalate' (the existing member being reused)
+  const herMatch = src.match(/const\s+HARD_ESCALATION_REASONS\s*=\s*(\[[^\]]+\])/)
+  assert.ok(herMatch, 'HARD_ESCALATION_REASONS found in workflow-template.js')
+  const herParsed = JSON.parse(herMatch[1].replace(/'/g, '"'))
+  assert.ok(herParsed.includes('escalate'),
+    'HARD_ESCALATION_REASONS contains "escalate" (the existing member reused by submodule-blocked)')
+
+  // Verify 'submodule-blocked' is NOT a member of HARD_ESCALATION_REASONS (it routes via 'escalate')
+  assert.ok(!herParsed.includes('submodule-blocked'),
+    '"submodule-blocked" must NOT appear in HARD_ESCALATION_REASONS (routes via existing "escalate", no cascade)')
+
+  // Verify 'submodule-blocked' IS in the MERGE_RESULT status enum
+  const mrMatch = src.match(/MERGE_RESULT[\s\S]*?status\s*:\s*\{\s*enum\s*:\s*(\[[^\]]+\])/)
+  assert.ok(mrMatch, 'MERGE_RESULT with status enum found in workflow-template.js')
+  const mrParsed = JSON.parse(mrMatch[1].replace(/'/g, '"'))
+  assert.ok(mrParsed.includes('submodule-blocked'),
+    'MERGE_RESULT status enum includes "submodule-blocked"')
+})
