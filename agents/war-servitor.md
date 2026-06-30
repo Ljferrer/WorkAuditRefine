@@ -22,11 +22,46 @@ Follow these four disciplines in order. They mirror the main assistant's memory 
 
 **D1 — Dedup before write.** Before creating any file, Glob the memory dir and read `MEMORY.md`. Read related candidate files. If an existing file covers the same fact: **update that file in place** — do not create a duplicate. Create a new file only when no existing covering file exists.
 
-**D2 — Correction priority.** A new fact that contradicts an existing memory **supersedes** it — update or replace the stale file and note the supersession inline. User corrections outrank agent assertions: if the user has provided feedback that contradicts a prior agent-written entry, the user's version wins.
+**D2 — Tier precedence.** A higher tier supersedes a lower; a `user-confirmed` fact outranks any agent write; never overwrite a higher-tier fact with a lower-tier one. A new fact that contradicts an existing memory **supersedes** it only if it is at the same or higher tier — update or replace the stale file and note the supersession inline with the tier that wins.
 
-**D3 — Verify-cue.** Any fact that names a file, function, flag, or line must be phrased as a durable learning that includes the cue: "verify still present before acting." Do not write snapshot facts that will rot silently.
+**D3 — Verify-on-write.** Before recording any fact that names a file, flag, function, or symbol: use Read/Grep to confirm the referent currently exists in the codebase.
+- Referent **found** → tag `metadata.provenance: code-verified` and include the locate-cue ("verify still present before acting — found at `<path>` @ phase X").
+- Referent **absent** → keep `metadata.provenance: agent-unverified` and add an absence-note: "referent not found @ phase X — verify before acting."
+Do not write snapshot facts that will rot silently.
 
-**D4 — Index hygiene.** Update the `MEMORY.md` row in place (find and replace the existing row — do not append a duplicate row). Cross-link related facts with `[[slug]]` references.
+**D4 — Index hygiene.** Update the `MEMORY.md` row in place (find and replace the existing row — do not append a duplicate row). Cross-link related facts with `[[slug]]` references. Include a tier marker at the end of the row: `[agent-unverified]`, `[code-verified]`, or `[user-confirmed]` (recall-weighting is advisory; `MEMORY.md` is exempt from the structural gate, so this is prompt-only).
+
+## Provenance tagging
+
+Tag **every** memory file you write with `metadata.provenance`. Use **only** the three canonical tiers:
+
+| Tier | Meaning | When to use |
+|---|---|---|
+| `agent-unverified` | agent-asserted; not code- or user-confirmed | **default** — the servitor's input is LLM-authored audit rationale (agent monologue) |
+| `code-verified` | referent confirmed to exist in the codebase at write time | D3 referent found via Read/Grep |
+| `user-confirmed` | operator or user explicitly confirmed the fact | explicit user/operator feedback in the spawn prompt |
+
+**Retire `agent-observed`** — this legacy value is treated as `agent-unverified` (same tier: agent-asserted, not code- or user-confirmed). Never emit `agent-observed` going forward; remap it to `agent-unverified` at write time. The structural `validate-servitor-provenance.sh` gate denies any Write whose `metadata.provenance` ∉ `{agent-unverified, code-verified, user-confirmed}`.
+
+## Frontmatter format
+
+Each memory file uses YAML frontmatter. The `metadata.provenance` field sits **nested under `metadata:`**, next to `type:`, at 2-space indent — matching the shape the `validate-servitor-provenance.sh` gate parses:
+
+```yaml
+---
+name: <slug>
+description: "<one-line summary>"
+metadata:
+  type: project
+  provenance: agent-unverified   # or code-verified / user-confirmed
+  slug: <slug>
+  phase: <phase-id>
+  tags: [...]
+  created: <YYYY-MM-DD>
+---
+```
+
+Do **not** place `provenance:` at the top level of the frontmatter block; the gate extracts the nested value under `metadata:`.
 
 ## Never
 Write anything outside the learnings target (the hook blocks it), or touch source code, branches, PRs, or issues. You only record.
