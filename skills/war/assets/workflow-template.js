@@ -43,9 +43,10 @@ const AUDIT_VERDICT = { type: 'object', required: ['seat', 'lens', 'verdict', 'f
 
 const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties: {
   mode: { enum: ['merge-task', 'land-phase'] },
-  status: { enum: ['merged', 'landed', 'gate_failed', 'conflict', 'error', 'land_stale', 'no-test', 'submodule-blocked'] },
+  status: { enum: ['merged', 'landed', 'gate_failed', 'conflict', 'error', 'land_stale', 'no-test', 'submodule-blocked', 'submodule-pr'] },
   branch: { type: 'string' }, integration_sha: { type: 'string' }, working_sha: { type: 'string' },
-  conflict_files: { type: 'array' }, gate_output: { type: 'string' } } }
+  conflict_files: { type: 'array' }, gate_output: { type: 'string' },
+  pr_number: { type: 'number' }, pr_remote: { type: 'string' } } }
 
 const SERVITOR_RESULT = { type: 'object', required: ['phase', 'target', 'learnings'], properties: {
   phase: {}, target: { type: 'string' }, files_written: { type: 'array' },
@@ -328,7 +329,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + `Run the gate (${plan.gate}) after the rebase in the task worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)), so any meta-test that materialises scratch dirs isolates from the worktree's .war-task marker; the gate's cwd stays the task worktree. On gate failure return gate_failed; on conflict return conflict; never force. `
         + `On success, populate gate_output in the returned MergeResult with the executed gate output (stdout+stderr) so the post-merge gate-audit pass can review it as execution evidence. `
         + `Also populate integration_sha with the rebased integration tip the gate ran against, so the gate-audit pass can confirm the gate ran at the integration tip.`
-        + ` Before the _refinery merge step (b), run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${r.task.branch} (REGARDLESS of requiresTest — a submodule touch is refused whether or not the task needs a test). Exit 1 → return { mode: 'merge-task', status: 'submodule-blocked' } — do NOT merge. Exit 2 → return { mode: 'merge-task', status: 'error' }.`
+        + ` Before the _refinery merge step (b), run assert-no-submodule-mutation.sh${r.task.taskType === 'gitlink-bump' && r.task.declared ? ' --declared' : ''} ${ph.integrationBranch} ${r.task.branch} (REGARDLESS of requiresTest — a submodule touch is refused whether or not the task needs a test; the relax-flag is only threaded for a declared gitlink-bump task). Exit 1 → return { mode: 'merge-task', status: 'submodule-blocked' } — do NOT merge. Exit 2 → return { mode: 'merge-task', status: 'error' }.`
         + (requiresTest
           ? ` Also before step (b), run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch} to verify the task diff contains at least one test file. If the script exits non-zero, return { mode: 'merge-task', status: 'no-test' } — do NOT proceed with the merge.`
           : ` requiresTest:false — skip the assert-test-in-diff.sh check and proceed directly to the rebase+merge.`),
@@ -532,6 +533,14 @@ if (landDecision === 'landed') {
     + `     - On escalate exit code from land-advance (any non-rejection push error): return { mode: 'land-phase', status: 'error' }.\n`
     + `Never use --force push. Never merge or push from the Lead's main checkout.`,
     { agentType: NS + 'war-refiner', phase: 'Land', label: `land:phase-${ph.id}`, schema: MERGE_RESULT, ...spawn('refiner') })
+  // 2B submodule PR-and-hold: the refiner opened a PR on the submodule remote and returned
+  // status:'submodule-pr'. Return held:submodule-pr DIRECTLY — like held:workflow-error, this
+  // bypasses decideLand/HARD_ESCALATION_REASONS. The PR ref is captured for the Lead's gh-resume.
+  // ponytail: direct return pattern mirrors held:workflow-error (DP2 — no HARD_ESCALATION_REASONS cascade)
+  if (landResult && landResult.status === 'submodule-pr') {
+    escalated.push({ task: `phase-${ph.id}-land`, reason: 'submodule-pr', pr_number: landResult.pr_number, pr_remote: landResult.pr_remote, detail: landResult })
+    landDecision = 'held:submodule-pr'
+  } else
   // If the land agent returns land_stale (CAS-exhaustion), treat it as a hard escalation.
   if (landResult && HARD_ESCALATION_REASONS.includes(landResult.status)) {
     escalated.push({ task: `phase-${ph.id}-land`, reason: landResult.status, detail: landResult })

@@ -2203,3 +2203,180 @@ test('T2 #280 Test 2 — submodule-blocked escalation rides existing "escalate" 
   assert.ok(mrParsed.includes('submodule-blocked'),
     'MERGE_RESULT status enum includes "submodule-blocked"')
 })
+
+// ---------------------------------------------------------------------------
+// T4 #297 — Submodule support Increment 2: engine extensions
+// buildSeqImpl harness: fresh instance per test (memory buildseqimpl-harness-for-multi-call-lens-tests).
+// ---------------------------------------------------------------------------
+
+// Args for a phase that has a submodule task and a gitlink-bump task.
+// The submodule task has taskType:'submodule' and targetRepo (the submodule checkout path).
+// The bump task has taskType:'gitlink-bump' and is declared (declared:true).
+const SUBMOD_PHASE_ARGS = (over = {}) => ({
+  phase: { id: 5, title: 'SubmodPhase', integrationBranch: 'integration/submod-test/phase-5', workingBranch: 'dev/submod-test' },
+  plan: { file: 'docs/plans/submod-test.md', gate: 'node --test' },
+  planSlug: 'submod-test',
+  runId: 'run-submod-2026',
+  worktreeRoot: '/abs/repo/.claude/worktrees',
+  mainCheckout: '/abs/repo',
+  tasks: [
+    { id: 'tsub', issue: 301, title: 'Submodule task', planSlice: 'submod slice',
+      lenses: ['correctness'], taskType: 'submodule',
+      targetRepo: '/abs/submodule-checkout', targetBase: 'main' },
+    { id: 'tbump', issue: 302, title: 'Gitlink bump task', planSlice: 'bump slice',
+      lenses: ['correctness'], taskType: 'gitlink-bump', declared: true, deps: ['tsub'] },
+  ],
+  learningsTarget: null,
+  ...over,
+})
+
+test('T4 #297 Test 1 — 2B submodule land → held:submodule-pr, PR ref captured, returned DIRECTLY (not via decideLand)', async () => {
+  // A submodule phase where the land agent returns status:'submodule-pr' (2B: branch pushed, PR opened).
+  // The engine must:
+  //   (a) map it to landDecision:'held:submodule-pr' (unique token — distinct from held:escalation)
+  //   (b) capture the PR ref (pr_number, pr_remote) in the ledger (escalated or landResult)
+  //   (c) return DIRECTLY — NOT routed through decideLand/HARD_ESCALATION_REASONS
+  //       (proof: 'submodule-pr' must NOT appear in HARD_ESCALATION_REASONS; the held:submodule-pr
+  //        is set directly like held:workflow-error, bypassing the decideLand branch)
+  //
+  // Load-bearing: deleting the 2B direct-return branch causes landDecision to remain 'landed' or
+  // 'held:escalation' (not 'held:submodule-pr'), failing the unique-token assertion.
+  const PR_NUMBER = 42
+  const PR_REMOTE = 'git@github.com:org/submodule.git'
+  const impl = buildSeqImpl(
+    // The land agent for the submodule phase returns submodule-pr (2B)
+    { [`land:phase-5`]: [{ mode: 'land-phase', status: 'submodule-pr', pr_number: PR_NUMBER, pr_remote: PR_REMOTE }] },
+    (prompt, opts) => {
+      const seat = seatOf(opts)
+      if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+      if (seat === 'war-worker') return { task_id: opts.label?.split(':')[1] || 't', status: 'implemented', head_sha: 'abc', tests: { unit: 1 } }
+      if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+      if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'merged' }
+      if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'submodule-pr', pr_number: PR_NUMBER, pr_remote: PR_REMOTE }
+      if (seat === 'war-servitor') return { phase: 5, target: 't', learnings: [] }
+      return {}
+    }
+  )
+  const ARGS = SUBMOD_PHASE_ARGS()
+  // Run with a single submodule task only (no bump dep) to keep the land path simple
+  const args = { ...ARGS, tasks: [ARGS.tasks[0]] }
+  const { out } = await runPhase(args, impl)
+
+  // (a) landDecision must be 'held:submodule-pr' — unique token
+  assert.equal(out.landDecision, 'held:submodule-pr',
+    'a submodule-pr land result must yield landDecision:"held:submodule-pr"')
+
+  // (b) PR ref must be captured somewhere in the output (escalated or landResult)
+  const hasRef = (out.escalated || []).some(e => e && (e.pr_number === PR_NUMBER || (e.detail && e.detail.pr_number === PR_NUMBER)))
+    || (out.landResult && out.landResult.pr_number === PR_NUMBER)
+  assert.ok(hasRef,
+    'PR ref (pr_number=42) must be captured in escalated[] or landResult so the Lead can resume')
+
+  // (c) 'submodule-pr' must NOT appear in HARD_ESCALATION_REASONS (direct return, no cascade)
+  const herMatch = src.match(/const\s+HARD_ESCALATION_REASONS\s*=\s*(\[[^\]]+\])/)
+  assert.ok(herMatch, 'HARD_ESCALATION_REASONS found in workflow-template.js')
+  const herParsed = JSON.parse(herMatch[1].replace(/'/g, '"'))
+  assert.ok(!herParsed.includes('submodule-pr'),
+    '"submodule-pr" must NOT appear in HARD_ESCALATION_REASONS (held:submodule-pr is set directly, not via decideLand)')
+
+  // (c) 'submodule-pr' must be in the MERGE_RESULT status enum (new status value)
+  const mrMatch2 = src.match(/MERGE_RESULT[\s\S]*?status\s*:\s*\{\s*enum\s*:\s*(\[[^\]]+\])/)
+  assert.ok(mrMatch2, 'MERGE_RESULT with status enum found')
+  const mrParsed2 = JSON.parse(mrMatch2[1].replace(/'/g, '"'))
+  assert.ok(mrParsed2.includes('submodule-pr'),
+    'MERGE_RESULT status enum must include "submodule-pr" (the 2B refiner result)')
+})
+
+test('T4 #297 Test 2 — declared gitlink-bump merge-task passes --declared to assert-no-submodule-mutation.sh', async () => {
+  // A task with taskType:'gitlink-bump' and declared:true must have '--declared' threaded into its
+  // merge-task prompt so that assert-no-submodule-mutation.sh allows the legitimate pin move.
+  // A non-declared task must NOT receive --declared (the guard remains strict).
+  //
+  // Load-bearing: deleting the --declared thread causes the merge-task prompt to lack the flag,
+  // and the unique token '--declared' assertion fails. A non-declared task with '--declared' would
+  // equally fail (false-positive assertion).
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker') return { task_id: opts.label?.split(':')[1] || 't', status: 'implemented', head_sha: 'abc', tests: { unit: 1 } }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'merged' }
+    if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
+    if (seat === 'war-servitor') return { phase: 5, target: 't', learnings: [] }
+    return {}
+  }
+
+  // Case A: declared bump task — must carry --declared
+  const bumpArgs = SUBMOD_PHASE_ARGS({
+    tasks: [
+      { id: 'tbump', issue: 302, title: 'Gitlink bump task', planSlice: 'bump slice',
+        lenses: ['correctness'], taskType: 'gitlink-bump', declared: true },
+    ],
+  })
+  const { calls: callsA } = await runPhase(bumpArgs, impl)
+  const mergeCallA = callsA.find(c => isMergeTask(c) && /tbump/.test(c.opts.label || ''))
+  assert.ok(mergeCallA, 'a merge-task is dispatched for the bump task')
+  assert.ok(mergeCallA.prompt.includes('--declared'),
+    'declared gitlink-bump merge-task prompt must include "--declared" for assert-no-submodule-mutation.sh')
+
+  // Case B: regular (non-declared, non-bump) task — must NOT carry --declared
+  const regularArgs = SUBMOD_PHASE_ARGS({
+    tasks: [
+      { id: 'treg', issue: 303, title: 'Regular task', planSlice: 'reg slice', lenses: ['correctness'] },
+    ],
+  })
+  const { calls: callsB } = await runPhase(regularArgs, impl)
+  const mergeCallB = callsB.find(c => isMergeTask(c) && /treg/.test(c.opts.label || ''))
+  assert.ok(mergeCallB, 'a merge-task is dispatched for the regular task')
+  assert.ok(!mergeCallB.prompt.includes('--declared'),
+    'a non-declared regular task merge-task must NOT include "--declared"')
+})
+
+test('T4 #297 Test 3 — blocked gitlink-bump worker escalates early via blockedReason', async () => {
+  // A gitlink-bump worker returning {status:'blocked', blocked_reason:'bump-blocked-reason'} must:
+  //   (a) be escalated early with reason:'escalate' and blocked:'bump-blocked-reason' (the unique token)
+  //   (b) dispatch ZERO fix-workers (the bump worker is a new dispatch site, same early-escalate path)
+  //   (c) hold the land (escalate ∈ HARD_ESCALATION_REASONS)
+  //
+  // Load-bearing: the unique token 'bump-blocked-reason' only appears in escalated.blocked when the
+  // blockedReason predicate is applied to the bump worker result. Deleting the blockedReason call
+  // causes the loop to continue into audits, losing the early-escalate path and the unique token.
+  const impl = buildSeqImpl(
+    // The bump worker returns blocked with the unique token
+    { 'work:tbump': [{ task_id: 'tbump', status: 'blocked', blocked_reason: 'bump-blocked-reason' }] },
+    (prompt, opts) => {
+      const seat = seatOf(opts)
+      if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+      if (seat === 'war-worker') return { task_id: opts.label?.split(':')[1] || 't', status: 'implemented', head_sha: 'abc', tests: { unit: 1 } }
+      if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+      if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'merged' }
+      if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
+      if (seat === 'war-servitor') return { phase: 5, target: 't', learnings: [] }
+      return {}
+    }
+  )
+  // Use only the bump task (no submodule dep to simplify) — bump task only
+  const bumpOnlyArgs = SUBMOD_PHASE_ARGS({
+    tasks: [
+      { id: 'tbump', issue: 302, title: 'Gitlink bump task', planSlice: 'bump slice',
+        lenses: ['correctness'], taskType: 'gitlink-bump', declared: true },
+    ],
+  })
+  const { out, calls } = await runPhase(bumpOnlyArgs, impl)
+
+  // (a) escalated with unique reason token
+  const esc = (out.escalated || []).find(e => e && e.task === 'tbump')
+  assert.ok(esc, 'escalated must have an entry for the blocked bump worker (tbump)')
+  assert.equal(esc.reason, 'escalate', 'blocked bump worker routes to reason:"escalate" (blockedReason predicate)')
+  assert.equal(esc.blocked, 'bump-blocked-reason',
+    'escalated entry must carry blocked:"bump-blocked-reason" (unique token from the blocked bump worker)')
+
+  // (b) ZERO fix-workers dispatched after the early escalate
+  const fixCalls = calls.filter(c => seatOf(c.opts) === 'war-worker' && c.opts.phase === 'Audit')
+  assert.equal(fixCalls.length, 0,
+    'a blocked bump worker must dispatch 0 fix-workers (early escalate, same path as initial-worker block)')
+
+  // (c) land held
+  assert.equal(out.landDecision, 'held:escalation',
+    'landDecision must be held:escalation when the bump worker blocks (escalate is a HARD reason)')
+})
