@@ -45,12 +45,14 @@ A task reaches the refiner with exactly one terminal **outcome**. Two are produc
 ## MergeResult — `war-refiner`
 ```jsonc
 { mode: "merge-task" | "land-phase",
-  status: "merged" | "landed" | "gate_failed" | "conflict" | "no-test" | "submodule-blocked" | "land_stale" | "error",
-  branch, integration_sha?, working_sha?, conflict_files?, gate_output? }
+  status: "merged" | "landed" | "gate_failed" | "conflict" | "no-test" | "submodule-blocked" | "submodule-pr" | "land_stale" | "error",
+  branch, integration_sha?, working_sha?, conflict_files?, gate_output?,
+  pr_number?, pr_remote? }
 ```
 - **`integration_sha`** — the post-rebase integration tip the gate ran at; the post-merge gate-audit pass reads it as gate-HEAD provenance to confirm the executed `gate_output` corresponds to the integration tip (it does not add a field; `integration_sha?` already exists).
 - **`no-test`** — (merge-task only) `assert-test-in-diff.sh` found no test file in the task's diff and the task has `requiresTest:true`. The refiner did **not** merge. The Workflow routes a bounded fix-worker + full re-audit sub-loop. Distinct from `gate_failed` (gate ran and failed) and from `error` (git/ref problem — exit 2 from the script, not exit 1). A transient git error (exit 2) must never collapse to `no-test`.
 - **`submodule-blocked`** — (merge-task only) `assert-no-submodule-mutation.sh` detected a gitlink change or a path-under-submodule change in the task's diff. The refiner did **not** merge. The Workflow routes an **immediate hard escalate** with 0 fix rounds (`reason: "escalate"`, detail names the submodule). Distinct from `no-test` (different script, unconditional — does not gate on `requiresTest`) and from `error` (exit 1 from the script, not exit 2). A transient git error (exit 2) must never collapse to `submodule-blocked`.
+- **`submodule-pr`** — (land-phase only) the submodule is not WAR-owned; the refiner pushed the submodule integration branch and opened a PR on the submodule remote (2B PR-and-hold). Carries `pr_number` (the opened PR number) and `pr_remote` (the submodule remote — e.g. `owner/repo`). The Workflow maps this **directly** to `landDecision: "held:submodule-pr"` (same direct-return pattern as `held:workflow-error` — **not** routed through `HARD_ESCALATION_REASONS`; DP2). The run is held until a human merges the PR and re-triggers `/war`.
 - **`land_stale`** — a same-branch land exhausted the bounded reland loop (`roundLimit` CAS-contention relands with no push success); the phase is held for the Lead. Distinct from a content `conflict`: there are no merge-text contradictions, only topology contention (another run pushed the working branch while this one was merging). The Lead re-runs the land manually after the contending run clears.
 
 ## Gate rule (applied over AuditVerdicts)
@@ -67,12 +69,19 @@ A task reaches the refiner with exactly one terminal **outcome**. Two are produc
     tasks: [ { id, issue, title, branch, worktree, deps: ["id"],
       lenses: ["correctness","cascading-impact","plan-faithfulness"], coven: false, plan_slice,
       requiresTest: true,           // bool; default true — set false for docs/config/VERIFY-no-op tasks; gates the refiner's test-floor check
+      targetRepo?: "path/to/submodule",  // present only on submodule tasks + their paired gitlink-bump tasks; the submodule checkout path (relative to the superproject); absent on superproject tasks
       status: "todo"|"working"|"audited"|"merged"|"escalated"|"blocked",
       audit_sha?, verdict?, merge_sha? } ],
-    report?, escalations: [], minors_filed: ["issue#"] } ],
+    report?, escalations: [], minors_filed: ["issue#"],
+    pr_number?,            // (submodule 2B phases) PR number opened on the submodule remote
+    pr_remote?,            // (submodule 2B phases) submodule remote (e.g. "owner/repo") the PR was opened against
+    submodule_merge_sha?   // (submodule phases) SHA of the submodule commit that was merged (written on resume after mergeCommit.oid is confirmed)
+  } ],
   pr_url? }
 ```
 - **`merge_sha` is advisory** — authoritative only when reachable on the branch (the reconciliation pre-flight's invariant; git is monotonic, so a recorded `merge_sha` is real iff its commit is reachable). The ledger is a lagging view; git branch state is the authority ([ADR-0008](../../../docs/adr/0008-git-is-the-resume-source-of-truth.md)).
+- **`pr_number` / `pr_remote` are advisory** — recorded when the Workflow enters `held:submodule-pr`; read by the Resume procedure to confirm the PR state via `gh pr view`. Absent on superproject phases and on submodule 2A (WAR-owned) phases that land without a PR.
+- **`submodule_merge_sha` is advisory, authoritative-when-reachable** — same rule as `merge_sha`: the gitlink pin is authoritative only when reachable on the submodule remote (`git -C <submodule-checkout> fetch && git cat-file -e <submodule_merge_sha>`). A SHA not reachable on the submodule remote → treat as class A (ledger-ahead for the pin; clear the pin, surface to the user before re-landing). Written on resume from `mergeCommit.oid` (2B) or from the CAS push result (2A).
 
 ## GitHub conventions
 - **Epic issue per phase**; **sub-issue per task** (GitHub sub-issues).
@@ -196,7 +205,7 @@ The per-phase Workflow returns:
   landResult,                         // MergeResult of the in-flow land, or null if held
   servitorResult,                     // ServitorResult, or null if the Workflow did not land/wrap up
   auditLog: [ { task, verdict, findings, blocked } ],   // fed to a Lead-driven wrap-up on the held path
-  landDecision: "landed" | "held:escalation" | "held:nothing-merged" | "held:land-failed" | "held:phase-incomplete" | "held:workflow-error" }
+  landDecision: "landed" | "held:escalation" | "held:nothing-merged" | "held:land-failed" | "held:phase-incomplete" | "held:workflow-error" | "held:submodule-pr" }
 ```
 When `landDecision` is a `held:*` value the land was **not** performed in-flow; the Lead lands manually and then runs `war-servitor` (see SKILL.md). The full `landDecision` enum:
 - **`landed`** — the phase merged and pushed cleanly in-flow.
@@ -205,3 +214,4 @@ When `landDecision` is a `held:*` value the land was **not** performed in-flow; 
 - **`held:land-failed`** — the in-flow land step itself failed (non-stale failure; distinct from `land_stale`); the Lead re-runs the land manually.
 - **`held:phase-incomplete`** — the Workflow returned a non-`completed` notification (timeout, kill, infra death); the phase did not finish. Retryable via `resumeFromRunId` up to `run.roundLimit` total attempts; never advances the DAG; git state preserved (no teardown).
 - **`held:workflow-error`** — the Workflow completed but returned a missing/unparseable result or a `landDecision` not in the known set, **or** the in-script top-level `try/catch` caught an uncaught exception inside the phase body (returned directly by the catch with a `workflowError` field). Terminal — HARD-halts regardless of `--afk`; never retried; git state preserved.
+- **`held:submodule-pr`** — the submodule phase's land chose 2B (PR-and-hold): the refiner pushed the submodule integration branch and opened a PR on the submodule remote. **Set directly** by the Workflow (same pattern as `held:workflow-error` — **not** via `HARD_ESCALATION_REASONS`; DP2). The PR number and remote are captured in the ledger (`pr_number`, `pr_remote`). The run is held until a human merges the PR; resume reads `gh pr view <n> --json state,mergeCommit -R <submodule_remote>`, takes `mergeCommit.oid` as `submodule_merge_sha`, writes it to the ledger, and clears the hold. Only arises in non-AFK 2B (an un-owned submodule under `--afk` is refused at launch — DP5).
