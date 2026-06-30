@@ -221,7 +221,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.7.7** — Fix-worker result bound: a blocked worker now escalates immediately with its own `blocked_reason` instead of being silently re-audited for up to `roundLimit` rounds and reaching a generic `audit-blocked`. A shared `blockedReason` predicate is applied at every worker-dispatch site (the initial worker, the audit-fix-loop fixer, and the no-test fixer), so a new site cannot re-introduce the fire-and-forget bug; `escalate` is already a hard reason, so a blocked worker yields the existing `held:escalation` with no land-decision cascade. Builds on v0.7.6.
+**0.7.8** — Fail-closed submodule guard: auditor, worker, refiner, and war-room agents all refuse to process repos that contain git submodules; a dedicated floor test (`assert-no-submodule-mutation.sh`) verifies the guard at every gate run. WAR is honestly single-repo. Builds on v0.7.7.
 
 ## License
 
