@@ -20,7 +20,7 @@ Example: `/war docs/implement/implementation_plan_A.md --working dev/planA --lan
 2. Confirm a clean git repo with a GitHub remote and `gh` auth. Ask for the **working** and **landing** branches if not given (default working = current branch; landing = the repo's default branch). A non-null `overrides.workingBranch` / `overrides.landingBranch` wins over asking.
 3. Detect the **declared gate**: `pyproject.toml` → `uv sync && ruff check && pytest`; `package.json` → its lint/test scripts; else **ask once** and record it. A non-null `overrides.gate` (the *declared base*) wins. Then **resolve it**: run `node ${CLAUDE_PLUGIN_ROOT}/skills/war/assets/war-config.mjs --resolve-gate "<declared>"` and thread the **result** as the gate — this self-discovering command appends a bash-suite discovery loop so every `*.test.sh` in the repo is found and run on each invocation (re-detection is automatic; no manual re-detect step needed after an intra-phase merge adds a new suite). Never run a phase without the resolved gate.
 4. Determine the **learnings target** for the servitor: a non-null `overrides.learningsTarget` wins; else the agent-memory dir if present (`~/.claude/projects/<proj>/memory/` with `MEMORY.md`), else `docs/learnings/`. Record it.
-5. Create the run ledger `.claude/teams/<run-id>/ledger.json` (+ a rendered `ledger.md`). It is the resumable source of truth; on resume, read it + open issues and continue.
+5. Create the run ledger `.claude/teams/<run-id>/ledger.json` (+ a rendered `ledger.md`). The ledger is the richest per-task record (SHAs, verdicts, worktree map), but **not the authoritative** resume source. On resume, the precedence is: **git branch state > GitHub issue labels > `ledger.json`**. Git wins because the refiner's push-first CAS never `--force`es a shared branch, so the integration/working branches are monotonic — a recorded merge is real iff its SHA is reachable on the branch; labels beat the ledger because they are remote-durable and human-visible (they survive a local wipe); the ledger is a **lagging view**. On resume, run the **reconciliation pre-flight** (see Resume procedure below) before reading the ledger or open issues and continuing.
 
 ## Decompose + approve — GATE (before any teammate launches)
 1. Read the plan. Extract **phases** (prefer an explicit build-order/phase section, e.g. a "Build order"; else top-level sections) and propose the phase→task DAG.
@@ -40,6 +40,20 @@ Run **one Workflow per phase** from [assets/workflow-template.js](assets/workflo
 - returns `{ landed, escalated, minorsFiled, landResult, servitorResult, auditLog, landDecision }` — `landDecision` ∈ `landed` | `held:escalation` | `held:nothing-merged` | `held:land-failed` | `held:phase-incomplete` | `held:workflow-error`; `servitorResult` is null unless the Workflow landed the phase itself.
 
 Then update issues + ledger, and **mirror the phase report + escalations as a comment on the phase epic issue**.
+
+## Resume (on restart after a crash or interruption)
+
+Before reading the ledger or open issues and continuing, run the **reconciliation pre-flight** — a read-only cross-check that repairs lagging records *toward git* and halts on any unexplained commit. Precedence: git branch state > GitHub issue labels > `ledger.json` (the journal is off-ladder — see [references/design.md](references/design.md) §6). Check the current/most-recent phase's integration branch (and the working branch for landed phases):
+
+| Class | Condition | Disposition |
+|---|---|---|
+| **A — ledger ahead** | Ledger marks a task `merged` (has `merge_sha`) but `git merge-base --is-ancestor <merge_sha> <integration_branch>` fails (SHA not reachable on branch). | The merge never landed. **Trust git:** revert the task's ledger status (`merged`→`audited`) + label, re-enter it into the refine queue. **Report.** |
+| **B — git ahead** | A commit reachable on the branch maps to a ledger task (by recorded branch/SHA) the ledger does **not** mark `merged`. | Crash hit *after* the push. **Trust git:** mark the task `merged` with that SHA, flip the label. **Report.** |
+| **C — unexplained** | A commit reachable on the branch maps to **no** ledger task. | Foreign/concurrent push (the create-only `--owned-file` guard's concern, resurfacing at resume). **HALT** and surface to the Lead for a decision. **Do not auto-repair** — trusting git is only sound for commits this run authored. |
+
+**Landed-phase check (working branch):** each phase lands as one `--no-ff` commit; the pre-flight also verifies that commit is present on the working branch **iff** the ledger marks the phase `landed` (same A/B/C logic at phase granularity).
+
+**Invariant: repair flows one-way toward git. Never mutate git to match a record.** A/B repairs are silent state corrections toward git (with a short reconciliation report); class C is the only class that blocks. After the pre-flight, read the reconciled ledger + open issues and continue the run normally.
 
 ## Checkpoint (between phases)
 Post a phase report — *landed (task→issue#, SHA) · minor issues filed · learnings captured · escalations needing your decision (with options) · deferred/blocked · gate result + working pushed@SHA · next phase?* — and **wait for the user's go**. Under `--afk`: post + `PushNotification`, then proceed. **Hard escalations (audit-blocked, unresolvable conflict, plan-contradiction) always halt regardless of mode.** Promote any ADR-worthy deviation to a real `docs/adr/` entry.

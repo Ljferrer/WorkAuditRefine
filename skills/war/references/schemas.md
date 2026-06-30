@@ -71,6 +71,7 @@ A task reaches the refiner with exactly one terminal **outcome**. Two are produc
     report?, escalations: [], minors_filed: ["issue#"] } ],
   pr_url? }
 ```
+- **`merge_sha` is advisory** — authoritative only when reachable on the branch (the reconciliation pre-flight's invariant; git is monotonic, so a recorded `merge_sha` is real iff its commit is reachable). The ledger is a lagging view; git branch state is the authority ([ADR-0008](../../../docs/adr/0008-git-is-the-resume-source-of-truth.md)).
 
 ## GitHub conventions
 - **Epic issue per phase**; **sub-issue per task** (GitHub sub-issues).
