@@ -22,6 +22,27 @@ const LOCKFILE_INSTALL = Object.freeze({
 const SUBMODULE_INIT = 'git submodule update --init --recursive'
 
 /**
+ * Parse .gitmodules and return the array of submodule path values.
+ * Returns [] if repoDir/.gitmodules is absent or repoDir is empty/missing.
+ * Never throws on a missing dir (matches structuralFallback style).
+ * // ponytail: feeds the war-room/decompose overlap check and the relax guard (T2/T3).
+ *
+ * @param {string} repoDir
+ * @returns {string[]}
+ */
+export function submodulePaths(repoDir) {
+  if (typeof repoDir !== 'string' || repoDir === '') return []
+  const p = join(repoDir, '.gitmodules')
+  if (!existsSync(p)) return []
+  const paths = []
+  for (const line of readFileSync(p, 'utf8').split('\n')) {
+    const m = line.match(/^\s*path\s*=\s*(.+)$/)
+    if (m) paths.push(m[1].trim())
+  }
+  return paths
+}
+
+/**
  * Validate a pinned provision list.
  * Accepts an array of non-empty (once trimmed) strings — an empty array is valid
  * (the default: no steps). Rejects non-arrays, and any entry that is not a

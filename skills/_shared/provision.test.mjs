@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { validateProvision, structuralFallback, readManifest } from './provision.mjs'
+import { validateProvision, structuralFallback, readManifest, submodulePaths } from './provision.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const FIXTURES = join(HERE, 'fixtures', 'provision')
@@ -282,4 +282,42 @@ test('readManifest: manifest-repo fixture -> found:true, ok:true, provision verb
     `expected unique manifest command './scripts/bootstrap.sh' in provision: ${JSON.stringify(r.provision)}`,
   )
   assert.deepEqual(r.provision, ['./scripts/bootstrap.sh', 'cargo build --locked'])
+})
+
+// ----------------------------------------------------------------------------
+// submodulePaths — T1 (Increment 2)
+// ----------------------------------------------------------------------------
+
+test('submodulePaths: two-submodule fixture -> both paths in order', () => {
+  const paths = submodulePaths(join(FIXTURES, 'two-submodule-repo'))
+  assert.deepEqual(paths, ['libs/alpha', 'libs/beta'])
+})
+
+test('submodulePaths: no .gitmodules -> []', () => {
+  const dir = makeRepo({ 'README.md': '# hi\n' })
+  try {
+    assert.deepEqual(submodulePaths(dir), [])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('submodulePaths: non-existent repoDir -> [] (never throws)', () => {
+  const dir = join(tmpdir(), 'submod-paths-no-exist-' + Date.now())
+  assert.deepEqual(submodulePaths(dir), [])
+})
+
+test('submodulePaths: malformed .gitmodules (no path lines) -> [] (defined, no throw)', () => {
+  const dir = makeRepo({ '.gitmodules': '[submodule "x"]\n\turl = https://example.com/x.git\n' })
+  try {
+    const result = submodulePaths(dir)
+    assert.ok(Array.isArray(result), 'result must be an array')
+    assert.deepEqual(result, [])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('submodulePaths: empty string repoDir -> []', () => {
+  assert.deepEqual(submodulePaths(''), [])
 })

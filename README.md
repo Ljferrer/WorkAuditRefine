@@ -235,7 +235,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.7.8** — Fail-closed submodule guard: auditor, worker, refiner, and war-room agents all refuse to process repos that contain git submodules; a dedicated floor test (`assert-no-submodule-mutation.sh`) verifies the guard at every gate run. WAR is honestly single-repo. Builds on v0.7.7.
+**0.8.0** — First-class submodule support: repo-per-phase and submodule-as-repo topologies both supported. Default is 2B (PR-and-hold — WAR opens a PR to the submodule's default branch and suspends with `held:submodule-pr` until the operator merges and resumes); 2A (WAR-owned fast-path) is opt-in for repos where WAR controls the submodule. Undeclared submodules are still refused; declared submodules route through the appropriate path (`held:submodule-pr` + `gh-resume`). Builds on v0.7.8.
 
 ## License
 

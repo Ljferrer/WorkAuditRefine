@@ -41,6 +41,9 @@ requires a spec change to the module, not a decision by you.
 - the **target repo directory** to scout (read everything relative to it)
 - optionally the operator's **explicit `run.provision`** (if it was already set)
 
+## Submodule phase — scout the submodule dir, not the superproject (Increment 2)
+When the Workflow invokes you for a **submodule phase**, the **target repo directory** you receive is the **initialized submodule checkout** (e.g. `<worktreeRoot>/<runId>/<submodule-path>`), **not** the superproject root. Treat it exactly like any other repo: run the full algorithm (§1–§5) against that directory. The submodule's own `.war-provision.json`, `.github/workflows/`, and structural floor signals are **independent of the superproject's** — the two repos produce separate `ScoutResult` objects with no coupling. Do not look above the directory you were given; do not merge or compare results with the superproject's provision list.
+
 ## Algorithm — descending authority (stop at the first tier that yields a list)
 Resolve `source` to the **highest** tier that produces signal. Higher tiers win outright.
 
