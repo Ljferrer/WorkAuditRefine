@@ -2016,3 +2016,121 @@ test('M2 Test 3 — drift-guard: both HARD_ESCALATION_REASONS mirrors equal incl
   assert.deepEqual([...inline].sort(), [...HARD_ESCALATION_REASONS].sort(),
     'inline and canonical HARD_ESCALATION_REASONS must be equal including no-test (M2 drift-guard)')
 })
+
+// ---------------------------------------------------------------------------
+// L3 T2 — blocked fix escalates early + initial-worker behavior preserved
+// buildSeqImpl harness: fresh instance per test, label→results queue, .shift() per call.
+// ---------------------------------------------------------------------------
+
+// Single-task args for L3 tests (one lens, high roundLimit so early-break is observable)
+const L3_ARGS = (over = {}) => PROVISION_ARGS({
+  run: { roundLimit: 5 },
+  tasks: [{ id: 't1', issue: 101, title: 'L3 task', planSlice: 'slice 1', lenses: ['correctness'] }],
+  ...over,
+})
+
+test('L3 T2 Test 1 — blocked fix-worker escalates on round r, not after roundLimit rounds', async () => {
+  // Plan §7.1,2: a fix-worker returning {status:'blocked', blocked_reason:'X'} on round r < roundLimit
+  // must yield verdict:'escalate', blocked:'X' in the task result, AND the auditLog entry carries
+  // blocked:'X'. The loop must run EXACTLY r+1 fix dispatches (the initial audit + 1 fix = 2 total
+  // work-seat dispatches when r=0), NOT roundLimit dispatches.
+  //
+  // Load-bearing assertion: deleting the fix-worker binding makes the loop reach audit-blocked
+  // (no early escalate) and the blocked:'X' field is absent — assert on the unique token 'X'.
+  let fixDispatchCount = 0
+  const impl = buildSeqImpl(
+    // The fix-worker (label fix:t1:r1) returns blocked with the unique token 'X'
+    { 'fix:t1:r1': [{ task_id: 't1', status: 'blocked', blocked_reason: 'X' }] },
+    (prompt, opts) => {
+      const seat = seatOf(opts)
+      if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+      if (seat === 'war-worker' && opts.phase === 'Work') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
+      if (seat === 'war-worker' && opts.phase === 'Audit') {
+        fixDispatchCount++
+        // If we reach a second fix dispatch the test is wrong (shouldn't happen if implementation is correct)
+        return { task_id: 't1', status: 'implemented', head_sha: 'abc2', tests: {} }
+      }
+      if (seat === 'war-auditor') {
+        // First audit: request_changes with a Major finding to trigger the fix-worker
+        if (fixDispatchCount === 0) {
+          return { seat: opts.label, lens: 'correctness', verdict: 'request_changes', confidence: 'high',
+            findings: [{ severity: 'Major', title: 'needs-fix', file: 'a.js', rationale: 'fix needed' }] }
+        }
+        return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+      }
+      if (seat === 'war-refiner') {
+        return opts.phase === 'Land' ? { mode: 'land-phase', status: 'landed' } : { mode: 'merge-task', status: 'merged' }
+      }
+      if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+      return {}
+    }
+  )
+  const { out, calls } = await runPhase(L3_ARGS(), impl)
+
+  // 1. verdict must be 'escalate' (not 'audit-blocked' from exhaustion)
+  const t1Log = (out.auditLog || []).find(e => e && e.task === 't1' && typeof e.fixRounds === 'number')
+  // Check via auditLog and escalated
+  const t1Esc = (out.escalated || []).find(e => e && e.task === 't1')
+  assert.ok(t1Esc, 'escalated must have an entry for t1')
+  assert.equal(t1Esc.reason, 'escalate', 'escalation reason must be "escalate" (not "audit-blocked")')
+  assert.equal(t1Esc.blocked, 'X', 'escalated entry must carry blocked:"X" (the unique token from the fix-worker)')
+
+  // 2. auditLog entry carries blocked:'X'
+  const logEntry = (out.auditLog || []).find(e => e && e.task === 't1')
+  assert.ok(logEntry, 'auditLog must have a t1 entry')
+  assert.equal(logEntry.blocked, 'X', 'auditLog entry must carry blocked:"X" (reason flows from fix-worker)')
+
+  // 3. The loop ran exactly 1 fix dispatch (r=0, r+1=1 fix dispatch), NOT roundLimit (5) dispatches
+  const fixCalls = calls.filter(c => seatOf(c.opts) === 'war-worker' && c.opts.phase === 'Audit')
+  assert.equal(fixCalls.length, 1,
+    `loop must run EXACTLY 1 fix dispatch on blocked (not ${fixCalls.length}); if 5 the binding is missing`)
+
+  // 4. landDecision must be held:escalation (escalate ∈ HARD_ESCALATION_REASONS)
+  assert.equal(out.landDecision, 'held:escalation',
+    'landDecision must be held:escalation when fix-worker blocks (escalate is a HARD reason)')
+})
+
+test('L3 T2 Test 2 — blocked initial-worker behavior preserved: escalate with expected:0, seats:[], reason', async () => {
+  // Plan §7.4: the initial-worker guard rewrite (using blockedReason) must be behavior-preserving.
+  // A blocked/dead initial worker must still yield verdict:'escalate', expected:0, seats:[], and the reason.
+  // We test both: null result and status:'blocked' with a reason.
+
+  // Case A: worker returns {status:'blocked', blocked_reason:'initial-block-reason'}
+  const implBlocked = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker' && opts.phase === 'Work') {
+      return { task_id: 't1', status: 'blocked', blocked_reason: 'initial-block-reason' }
+    }
+    if (seat === 'war-refiner') {
+      return opts.phase === 'Land' ? { mode: 'land-phase', status: 'landed' } : { mode: 'merge-task', status: 'merged' }
+    }
+    return {}
+  }
+  const { out: outA } = await runPhase(L3_ARGS(), implBlocked)
+  const escA = (outA.escalated || []).find(e => e && e.task === 't1')
+  assert.ok(escA, 'blocked initial worker must surface an escalated entry')
+  assert.equal(escA.reason, 'escalate', 'escalation reason must be "escalate"')
+  assert.equal(escA.blocked, 'initial-block-reason', 'escalated entry must carry blocked:"initial-block-reason"')
+  // auditLog entry must carry expected:0 (not undefined) and seats:[] / returned:0
+  const logA = (outA.auditLog || []).find(e => e && e.task === 't1')
+  assert.ok(logA, 'auditLog must have a t1 entry')
+  assert.strictEqual(logA.requested, 0, 'auditLog.requested must be 0 (not undefined) for blocked initial worker')
+  assert.strictEqual(logA.returned, 0, 'auditLog.returned must be 0 for blocked initial worker (no audit seats)')
+
+  // Case B: worker returns null (dead worker)
+  const implNull = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker' && opts.phase === 'Work') return null
+    if (seat === 'war-refiner') {
+      return opts.phase === 'Land' ? { mode: 'land-phase', status: 'landed' } : { mode: 'merge-task', status: 'merged' }
+    }
+    return {}
+  }
+  const { out: outB } = await runPhase(L3_ARGS(), implNull)
+  const escB = (outB.escalated || []).find(e => e && e.task === 't1')
+  assert.ok(escB, 'null initial worker must surface an escalated entry')
+  assert.equal(escB.reason, 'escalate', 'escalation reason must be "escalate" for null worker')
+  assert.equal(escB.blocked, 'worker returned no result', 'null worker escalation must carry the default reason')
+})
