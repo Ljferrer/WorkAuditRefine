@@ -16,8 +16,11 @@ _Avoid_: setup, bootstrapping, worktree management.
 
 **Git-topology owner**:
 The single role responsible for every mutation of *shared* git state — branches and worktree
-directories. In WAR this is the refiner (the Refinery).
-_Avoid_: provisioner (no separate role exists), branch manager.
+directories — **in whatever repo the phase targets**. In WAR this is the refiner (the Refinery); for a
+**submodule phase** the same role owns the submodule repo's shared state too (its integration branch, and
+the land — a CAS push for a WAR-owned submodule, or a branch-push + PR under PR-and-hold).
+_Avoid_: provisioner (no separate role exists), branch manager; assuming the owner only ever touches the
+superproject.
 
 **Container** / **Contents**:
 The boundary between what the git-topology owner controls and what a worker controls. The
@@ -61,6 +64,110 @@ A worker — initial *or* fix — returning `status:'blocked'` (or dying / retur
 _Avoid_: conflating it with `env-blocked` (a provision failure — the worker was never spawned) or
 `audit-blocked` (the audit/fix loop exhausted `roundLimit` without unanimous approve). All three hold
 the land, but a *worker block* is the worker itself reporting it cannot proceed, with a reason.
+
+### Cross-repo tasks (submodules)
+
+**Target repo** (task field):
+The repo a task's diff lands in — the **superproject** (default) or a named **submodule**. A task
+targets **exactly one** repo. A change that both edits a submodule *and* bumps the superproject's pin
+to it is therefore **two** tasks, not one (an edit in the submodule + a bump in the superproject).
+_Avoid_: "the repo" (which one?), conflating a task's *worktree* with its target repo.
+
+**Repo-per-phase** (cross-repo structure):
+A phase targets **exactly one** repo, so cross-repo work is a **phase→phase** edge in the existing phase
+DAG, never a mix inside one phase. A submodule change is its **own phase** that lands into the submodule
+repo (its integration branch, task worktrees, and land all in that repo); the dependent **superproject**
+phase runs after and reads the landed/merged SHA from the **ledger** to drive its gitlink-bump task. The
+serialization is intrinsic — a superproject task cannot consume new submodule code before the pin is
+bumped, which cannot happen before the submodule SHA exists — so the phase boundary costs no ordering
+that was not already required.
+_Avoid_: a mixed-repo phase; a mid-phase cross-repo barrier; threading the SHA outside the ledger.
+
+**Submodule task**:
+A task whose target repo is a submodule — its worker implements, its auditor reviews, and its land all
+operate in the **nested** repo, against that repo's own branches, not the superproject's.
+_Avoid_: submodule step, nested task.
+
+**Submodule-as-repo** (topology stance):
+For the duration of its phase a submodule is driven as a **standalone repo** — its own integration branch,
+its own task worktrees, its own provision list and gate, all in the nested repo; the auditor reviews
+**inside** it (a real file diff, no gitlink in view). The superproject's pin is irrelevant until the later
+gitlink-bump task. This is *why* the auditor-blindness failure cannot occur on a submodule task: there is
+no superproject gitlink in the diff to be blind to.
+_Avoid_: editing the in-place gitlink working tree; treating the submodule as a sub-area of the
+superproject's worktree.
+
+**Gitlink-bump task**:
+A superproject task whose entire diff is advancing a submodule **gitlink** (the pin the superproject
+records for a submodule path) to a SHA produced by a submodule task it **depends on**. Mechanical, but
+a first-class task so the cross-repo SHA dependency is an explicit graph edge, not hidden in a body.
+_Avoid_: "the bump" as a refiner step; pin task.
+
+**Pin-validity** (auditor lens for gitlink diffs):
+The lens that judges a submodule-**gitlink** change. A gitlink-only diff is **valid** only on a declared
+**gitlink-bump task**, and only if the new SHA is (1) **reachable on the submodule remote** — pushed, so
+a fresh clone/CI can resolve it (a *local-only* commit fails) — and (2) the SHA the depended-on submodule
+task produced. The remote ref it is reachable from need **not** be the default branch: a submodule
+legitimately pinned to a feature branch is allowed, so the bar is *reachable on the remote*, not
+*merged-to-mainline*. A gitlink move on **any other** task — one no bump task declared — is a hard
+**refuse**; the same lens thereby guards against accidental or invisible submodule edits.
+_Avoid_: requiring the pin to track the default branch; approving a pin to a local-only SHA.
+
+**PR-and-hold landing** (default submodule-landing authority):
+WAR pushes the submodule task's *branch* and opens a **PR in the submodule repo**, then **holds** the
+phase (`held:submodule-pr`) until an external actor merges it; on resume WAR reads the *actual merged
+SHA* and runs the dependent gitlink-bump task. The default because it respects the submodule repo's own
+review/CI and is squash/rebase-merge-correct (only the merge author knows the SHA a pin may reference).
+_Avoid_: auto-merging the submodule PR; bumping the gitlink to the pre-merge branch tip.
+
+**WAR-owned submodule** (opt-in landing authority):
+A submodule the operator **declares** WAR may land on directly — WAR runs the submodule's own
+integration→working CAS land (mirroring the superproject), authoring the merge commit itself, so it
+knows the landed SHA immediately and the run completes straight through with no hold. For submodules
+this superproject solely controls; never the default.
+_Avoid_: assuming WAR owns every submodule; landing on a shared library's mainline by default.
+
+**AFK landing confirmation**:
+Because `--afk` removes the human who would merge a `held:submodule-pr`, an AFK run cannot clear that
+hold. So at **launch** WAR must confirm every touched submodule is a **WAR-owned submodule** (2A);
+an un-owned submodule under `--afk` is **refused up front**, never started and left to stall on a hold
+nobody can clear.
+_Avoid_: entering an AFK run that will deadlock on a submodule PR.
+
+**Submodule reachability precondition** (red-team check):
+A submodule WAR will land into must be **reachable by `gh`** from the run's account. A submodule on a
+non-GitHub host — or one needing a different account — is **out of scope**: WAR does not land it, and
+`/red-team` must **flag the unreachable submodule up front** rather than letting a run discover it at
+resume. Reachability is a launch-time precondition, not a runtime surprise.
+_Avoid_: starting a submodule phase whose remote `gh` cannot resolve; deferring the check to resume.
+
+**Submodule base branch**:
+The branch a submodule phase's integration branch is cut from and (under PR-and-hold) the PR targets.
+Resolved by **explicit signal only**: a run-config override → the `.gitmodules` `branch` field → otherwise
+**raised to the human** at launch. The remote default branch may be *offered* as a suggestion but is
+**never silently adopted**. Ambiguity is escalated, not guessed — consistent with WAR's worker/auditor
+"stop and escalate instead of guessing" rule.
+_Avoid_: silently assuming `main`/`master`/the remote default; inferring the base mid-run.
+
+**`held:submodule-pr`** (cross-repo hold):
+The phase outcome when a submodule task has produced a reviewed PR in the submodule repo that has not
+yet merged. Distinct from a dead phase (the Workflow completed) and from a content `conflict`; it is a
+deliberate pause on an out-of-band merge, cleared by a **human-triggered** resume that auto-detects the
+merge via `gh pr view <n> --json state,mergeCommit` against the submodule remote — taking
+**`mergeCommit.oid`** (squash/rebase-correct) as the phase's landed SHA, with an operator-supplied SHA as
+fallback. There is **no** background poller; the resume trigger is the human re-running `/war` after they
+merge. The merged SHA must still be reachable on the submodule remote (the branch the PR targeted — not
+assumed to be the default branch).
+_Avoid_: treating it as a failure; resuming before the submodule PR actually merged; building a watcher.
+
+**Undeclared submodule touch** (the fail-closed guard):
+Any submodule mutation **not** routed through a declared submodule task (content) or gitlink-bump task
+(pin) — an in-place gitlink edit, an accidental pin move, or a worker whose target falls under a
+`.gitmodules` path without the `target repo` tag. It is **refused** wherever caught (worker block, auditor
+hard-refuse, refiner push-refuse). The guard runs in two modes: **refuse-all** (increment 1, before
+first-class support) and **refuse-undeclared / route-declared** (increment 2); the net survives the relax —
+anything off the explicit first-class path is still refused.
+_Avoid_: treating a gitlink-only diff as reviewable; letting an untagged submodule-path edit through.
 
 ### Concurrent-run isolation
 
