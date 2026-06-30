@@ -14,7 +14,7 @@ This document is the spec of record. The runnable surface is [`../SKILL.md`](../
 - **Witness dissolved** into the Workflow + hooks + Lead.
 
 ### Why a Workflow, not the Agent Teams feature
-WAR's coordination is **knowable in advance** — a phase loop, dependency waves, a serial merge queue, a severity gate — so it belongs in a deterministic script, not emergent agent negotiation. The `Workflow` tool delivers exactly that, plus what WAR leans on: reproducible structure, three-layer resume (issues + ledger + Workflow journal, §6), schema-validated audit verdicts, lean **ephemeral** agents (spawn → one job → return → die, no idle inbox-pollers), and **no experimental flag** — it runs on the stock `Workflow` + `Agent` tools.
+WAR's coordination is **knowable in advance** — a phase loop, dependency waves, a serial merge queue, a severity gate — so it belongs in a deterministic script, not emergent agent negotiation. The `Workflow` tool delivers exactly that, plus what WAR leans on: reproducible structure, resume with one authority + two advisory records (§6), schema-validated audit verdicts, lean **ephemeral** agents (spawn → one job → return → die, no idle inbox-pollers), and **no experimental flag** — it runs on the stock `Workflow` + `Agent` tools.
 
 The experimental **Agent Teams** feature (gated by `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`) buys three things WAR doesn't need: direct teammate-to-teammate `SendMessage`, mid-run human steering of a single long-lived agent, and dynamic task-claiming off a shared list. WAR realizes auditor disagreement as a **Workflow rebuttal round** (re-spawn each seat with its peers' findings, §2) instead of live messaging; the only capability genuinely given up is *live* SendMessage debate, parked in §12.
 
@@ -32,7 +32,7 @@ A Workflow also can't *be* a team's Lead — it's a script with no inbox, and it
 | 7 | Audit verdict | Severity-tagged; Critical/Major block, Minor→follow-up, `escalate`→halt; **unanimous on one SHA** |
 | 8 | Auditor count | 1 default; coven of 3 for high blast radius; auto-escalate 1→3 on Critical/low-confidence |
 | 9 | Witness | Dissolved into Workflow + hooks + Lead |
-| 10 | State/resume | 3-layer: GitHub issues + JSON ledger(+md) + Workflow resume journal |
+| 10 | State/resume | One authority (git) + two advisory records (GitHub issues + JSON ledger(+md)); Workflow resume journal is off-ladder |
 | 11 | Stage graph | Wave-by-wave with barriers; serial merges = the queue; explicit named worktrees |
 | 12 | Audit independence | Independent parallel + one rebuttal round on splits → approve / FIX_NEEDED / escalate |
 | 13 | Worker bar | Acceptance-criteria-driven, tests included, anti-cheat test-existence check |
@@ -55,11 +55,20 @@ A Workflow also can't *be* a team's Lead — it's a script with no inbox, and it
 - **Escalate** — the plan is wrong/underspecified: plan contradicts the code or itself; a named interface/file the plan assumes is absent or different; an ambiguity with >1 non-equivalent resolution; an ADR-worthy deviation; `audit-blocked` (round_limit); an unresolvable rebase conflict.
 - **In-band** (handled silently by workers/auditors): bugs, style, missing tests, local refactors, neighbor-impact fixes.
 
-## 6. State & resume (three-layer)
-- **GitHub issues** — human-visible task truth (labels in [`schemas.md`](schemas.md)).
-- **`ledger.json`** (`.claude/teams/<run-id>/`, uncommitted) — DAG, worktree/branch map, SHAs, verdicts, escalations; a fresh Lead resumes from ledger + open issues. A rendered `ledger.md` is the eyeball view.
-- **Workflow `resumeFromRunId`** — mid-phase resume.
-- Durable product artifacts: phase reports/escalations → epic-issue comments; ADR-worthy deviations → `docs/adr/`.
+## 6. State & resume
+
+**One authority, two durable advisory records** ([ADR-0008](../../../docs/adr/0008-git-is-the-resume-source-of-truth.md)).
+
+**Precedence: git branch state > GitHub issue labels > `ledger.json`.**
+
+- **Git branch state** — the de-facto authority. The refiner's push-first CAS never `--force`es a shared branch, so the integration/working branches are monotonic: a recorded merge is real *iff* its SHA is reachable on the branch. Git can only *lag* (a crash before push), never be *wrong*.
+- **GitHub issues** — human-visible task truth (labels in [`schemas.md`](schemas.md)). Remote-durable and human-visible; survive a local wipe. Advisory: repaired toward git on resume.
+- **`ledger.json`** (`.claude/teams/<run-id>/`, uncommitted) — DAG, worktree/branch map, SHAs, verdicts, escalations. The richest record but the weakest authority — local, uncommitted, written by no code, a **lagging view**. A rendered `ledger.md` is the eyeball view. Advisory: repaired toward git on resume.
+- **Workflow `resumeFromRunId`** — **off-ladder**: an intra-phase replay cache, not a landed-state record. A resumed phase re-runs the gate and the push-first CAS, so a stale cached "merged" is caught at re-land and never trusted. No reconciliation is defined for it.
+
+Before resuming, the Lead runs the **Resume reconciliation pre-flight** (see `SKILL.md` Resume section): a read-only cross-check that repairs the lagging layers toward git and halts on any unexplained commit (class C). Repair is one-way — records are rewritten toward git; no step mutates git to match a record.
+
+Durable product artifacts: phase reports/escalations → epic-issue comments; ADR-worthy deviations → `docs/adr/`.
 
 ## 7. Branch & worktree model
 - One mutable worktree per task (worker + its fix-workers share it; it persists until the task lands so kick-backs can fix in place). Cleaned up after the task merges.
