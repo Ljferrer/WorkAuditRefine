@@ -180,6 +180,20 @@ Or invoke it in natural language — e.g. *"Red team my plan at docs/..."*.
 
 The trilogy: **`/war-room`** configures a run → **`/red-team`** hardens the plan → **`/war`** executes it. Design notes: [`docs/specs/2026-06-18-red-team-design.md`](docs/specs/2026-06-18-red-team-design.md).
 
+## Tidy the memory (`/lessons-learned`)
+
+Every `/war` phase leaves durable learnings in your project's Claude memory store (the servitor's job). Over many runs that store accumulates fixed-bug warnings, drifted line-number references, and bloated per-release logs. `/lessons-learned` does a **full housekeeping pass** over it:
+
+```
+/lessons-learned
+```
+
+It fans out agents to **verify every memory against the live repo**, classifies each as still-relevant vs. stale (`current` / `anchor-drift` / `resolved` / `superseded` / `dated-done` / `stale`), then **compresses, re-anchors, retires, and merges** the topic files and rewrites the `MEMORY.md` index — telling you how full the index is against its budget and **reporting at every phase**.
+
+It is **fault-tolerant to interruption** (a closed laptop mid-run). The live memory store is never mutated in place: the pass **backs up** to a tarball, does all work in a `.staging` copy, **verifies** index↔file integrity and link health, and only then performs a single **atomic swap** — with a `recover` path if it dies between steps. The deterministic backup / stage / verify / swap / recover logic lives in [`skills/lessons-learned/assets/safe-swap.sh`](skills/lessons-learned/assets/safe-swap.sh).
+
+Or invoke it in natural language — e.g. *"Do a lessons-learned pass on this repo's memory."*
+
 ## Roles → Gas Town lineage
 
 | WAR | Gas Town | Built on |
