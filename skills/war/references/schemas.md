@@ -45,10 +45,11 @@ A task reaches the refiner with exactly one terminal **outcome**. Two are produc
 ## MergeResult — `war-refiner`
 ```jsonc
 { mode: "merge-task" | "land-phase",
-  status: "merged" | "landed" | "gate_failed" | "conflict" | "land_stale" | "error",
+  status: "merged" | "landed" | "gate_failed" | "conflict" | "no-test" | "land_stale" | "error",
   branch, integration_sha?, working_sha?, conflict_files?, gate_output? }
 ```
 - **`integration_sha`** — the post-rebase integration tip the gate ran at; the post-merge gate-audit pass reads it as gate-HEAD provenance to confirm the executed `gate_output` corresponds to the integration tip (it does not add a field; `integration_sha?` already exists).
+- **`no-test`** — (merge-task only) `assert-test-in-diff.sh` found no test file in the task's diff and the task has `requiresTest:true`. The refiner did **not** merge. The Workflow routes a bounded fix-worker + full re-audit sub-loop. Distinct from `gate_failed` (gate ran and failed) and from `error` (git/ref problem — exit 2 from the script, not exit 1). A transient git error (exit 2) must never collapse to `no-test`.
 - **`land_stale`** — a same-branch land exhausted the bounded reland loop (`roundLimit` CAS-contention relands with no push success); the phase is held for the Lead. Distinct from a content `conflict`: there are no merge-text contradictions, only topology contention (another run pushed the working branch while this one was merging). The Lead re-runs the land manually after the contending run clears.
 
 ## Gate rule (applied over AuditVerdicts)
@@ -64,6 +65,7 @@ A task reaches the refiner with exactly one terminal **outcome**. Two are produc
     status: "todo"|"running"|"landed"|"blocked",
     tasks: [ { id, issue, title, branch, worktree, deps: ["id"],
       lenses: ["correctness","cascading-impact","plan-faithfulness"], coven: false, plan_slice,
+      requiresTest: true,           // bool; default true — set false for docs/config/VERIFY-no-op tasks; gates the refiner's test-floor check
       status: "todo"|"working"|"audited"|"merged"|"escalated"|"blocked",
       audit_sha?, verdict?, merge_sha? } ],
     report?, escalations: [], minors_filed: ["issue#"] } ],
