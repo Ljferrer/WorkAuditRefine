@@ -15,7 +15,10 @@
 #      c. root foo.test.mjs (outside skills/) -> NO MATCH
 #      d. foo.test.js           -> NO MATCH
 #      e. test_foo.py           -> NO MATCH
-#   4. .. traversal path -> non-zero (no crash)
+#      f. node_modules/x/foo.test.sh -> NO MATCH (over-count guard)
+#      g. skills/a/b/c/d/e/f/deep.test.mjs (depth 6) -> MATCH (depth-agnostic)
+#   4. .. traversal path -> non-zero (LOAD-BEARING: real test file on branch,
+#      guard fires before diff so it would false-allow without the guard)
 #   5. empty diff -> non-zero (not a crash)
 set -u
 
@@ -48,41 +51,6 @@ setup_repo() {
   git -C "$T" add seed.txt
   git -C "$T" commit -qm "seed"
   printf '%s\n' "$T"
-}
-
-# add_file_on_branch <repo> <branch> <relpath> [content]
-# Create a new branch from HEAD, add a file, commit, echo the branch name.
-add_file_on_branch() {
-  repo="$1"; branch="$2"; relpath="$3"; content="${4:-content}"
-  git -C "$repo" checkout -qb "$branch" 2>/dev/null
-  # Create parent directories if needed
-  parent="$(dirname "$repo/$relpath")"
-  mkdir -p "$parent"
-  printf '%s\n' "$content" > "$repo/$relpath"
-  git -C "$repo" add "$relpath"
-  git -C "$repo" commit -qm "add $relpath"
-  git -C "$repo" checkout -q - 2>/dev/null
-  printf '%s\n' "$branch"
-}
-
-# run_script <repo> [args...] -> exit code; all output discarded
-run_script() {
-  repo="$1"; shift
-  cwd="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
-  TMPFILES="$TMPFILES $cwd"
-  # memory: relative-path-test-needs-clean-cwd — cd to unrelated mktemp dir
-  # so no relative-path false-allow from a dirty cwd.
-  rc=0
-  ( cd "$cwd" && bash "$SCRIPT" "$@" ) >/dev/null 2>&1 || rc=$?
-  printf '%s\n' "$rc"
-}
-
-# run_script_stdout <repo> [args...] -> stdout only (for summary assertions)
-run_script_stdout() {
-  repo="$1"; shift
-  cwd="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
-  TMPFILES="$TMPFILES $cwd"
-  ( cd "$cwd" && bash "$SCRIPT" "$@" ) 2>/dev/null || true
 }
 
 # ---------------------------------------------------------------------------
@@ -265,21 +233,101 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Case 4: .. traversal in path argument -> non-zero (no crash, no traversal)
+# Case 3f: over-count guard — node_modules/x/foo.test.sh -> NO MATCH
+# The gate's find excludes node_modules/; the floor must mirror that.
+# ---------------------------------------------------------------------------
+R3f="$(setup_repo)"
+BASE3f="$(git -C "$R3f" rev-parse HEAD)"
+git -C "$R3f" checkout -qb task/nodemod-sh 2>/dev/null
+mkdir -p "$R3f/node_modules/x"
+printf 'test\n' > "$R3f/node_modules/x/foo.test.sh"
+git -C "$R3f" add node_modules/x/foo.test.sh
+git -C "$R3f" commit -qm "add node_modules test.sh (gate excludes it)"
+TASK3f="$(git -C "$R3f" rev-parse HEAD)"
+git -C "$R3f" checkout -q - 2>/dev/null
+
+cwd3f="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
+TMPFILES="$TMPFILES $cwd3f"
+rc3f=0
+( cd "$cwd3f" && bash "$SCRIPT" "$BASE3f" "$TASK3f" --repo "$R3f" ) >/dev/null 2>&1 || rc3f=$?
+
+if [ "$rc3f" -ne 0 ]; then
+  pass "case 3f: node_modules/x/foo.test.sh -> NO match (exit non-zero, mirrors gate -not -path '*/node_modules/*')"
+else
+  fail "case 3f: node_modules/x/foo.test.sh -> expected NO match (non-zero), got exit 0 (over-count)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 3g: depth-agnostic — skills/a/b/c/d/e/f/deep.test.mjs (depth 6) -> MATCH
+# The old enumeration capped at depth 5; the depth-agnostic check must match.
+# ---------------------------------------------------------------------------
+R3g="$(setup_repo)"
+BASE3g="$(git -C "$R3g" rev-parse HEAD)"
+git -C "$R3g" checkout -qb task/deep-mjs 2>/dev/null
+mkdir -p "$R3g/skills/a/b/c/d/e/f"
+printf 'test\n' > "$R3g/skills/a/b/c/d/e/f/deep.test.mjs"
+git -C "$R3g" add skills/a/b/c/d/e/f/deep.test.mjs
+git -C "$R3g" commit -qm "add depth-6 skills test.mjs"
+TASK3g="$(git -C "$R3g" rev-parse HEAD)"
+git -C "$R3g" checkout -q - 2>/dev/null
+
+cwd3g="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
+TMPFILES="$TMPFILES $cwd3g"
+rc3g=0
+( cd "$cwd3g" && bash "$SCRIPT" "$BASE3g" "$TASK3g" --repo "$R3g" ) >/dev/null 2>&1 || rc3g=$?
+
+if [ "$rc3g" -eq 0 ]; then
+  pass "case 3g: skills/a/b/c/d/e/f/deep.test.mjs (depth 6) -> match (exit 0, depth-agnostic)"
+else
+  fail "case 3g: skills/a/b/c/d/e/f/deep.test.mjs (depth 6) -> expected match (exit 0), got $rc3g (depth cap bug)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 4: .. traversal in base arg -> LOAD-BEARING: guard fires BEFORE diff,
+# and stderr must contain the guard's distinctive rejection message.
+#
+# The branch has a REAL skills/x.test.mjs that WOULD match if the diff ran.
+# With the .. guard:    dies with "refusing to use potentially unsafe ref"
+#                       on stderr BEFORE any git operation.
+# Without the guard:    git diff reaches line 94, fails on "../<sha>" as an
+#                       unknown ref, and dies with "git diff failed" on stderr.
+#
+# Assertion: stderr contains the guard's unique token
+# ("refusing to use potentially unsafe ref") so that deleting the guard
+# flips the assertion — the without-guard path emits a DIFFERENT message.
+# A bare `rc -ne 0` is NOT sufficient (both paths exit non-zero); we must
+# distinguish the two by the guard's own diagnostic text.
+# memory: relative-path-test-needs-clean-cwd — cd to unrelated mktemp dir.
 # ---------------------------------------------------------------------------
 R4="$(setup_repo)"
 BASE4="$(git -C "$R4" rev-parse HEAD)"
-TASK4="$BASE4"  # same commit, so diff is empty — that's fine, safety is the point
+# Create a branch with a REAL matching test file so the diff is non-empty.
+git -C "$R4" checkout -qb task/dotdot-real-test 2>/dev/null
+mkdir -p "$R4/skills"
+printf 'test\n' > "$R4/skills/x.test.mjs"
+git -C "$R4" add skills/x.test.mjs
+git -C "$R4" commit -qm "add real test file"
+TASK4="$(git -C "$R4" rev-parse HEAD)"
+git -C "$R4" checkout -q - 2>/dev/null
 
 cwd4="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
 TMPFILES="$TMPFILES $cwd4"
 rc4=0
-( cd "$cwd4" && bash "$SCRIPT" "../$BASE4" "$TASK4" --repo "$R4" ) >/dev/null 2>&1 || rc4=$?
+# Capture stderr so we can assert the guard's unique message.
+# Pass base as "../<sha>" — the .. guard must fire before any git operation.
+stderr4="$( cd "$cwd4" && bash "$SCRIPT" "../$BASE4" "$TASK4" --repo "$R4" 2>&1 >/dev/null )" || rc4=$?
 
-if [ "$rc4" -ne 0 ]; then
-  pass "case 4: .. traversal in base arg -> non-zero (no crash)"
+# Two-part assertion (BOTH must hold):
+# (a) non-zero exit — guard or diff error; necessary but not sufficient alone
+# (b) guard message present in stderr — load-bearing uniqueness check:
+#     with guard:    "refusing to use potentially unsafe ref" emitted before diff
+#     without guard: "git diff failed for ..." emitted instead — assertion fails
+if [ "$rc4" -ne 0 ] && printf '%s' "$stderr4" | grep -qF "refusing to use potentially unsafe ref"; then
+  pass "case 4: .. traversal in base arg -> guard fires (non-zero + guard message in stderr)"
+elif [ "$rc4" -eq 0 ]; then
+  fail "case 4: .. traversal in base arg -> expected non-zero, got exit 0 (guard missing or bypassed)"
 else
-  fail "case 4: .. traversal in base arg -> expected non-zero, got exit 0"
+  fail "case 4: .. traversal in base arg -> got non-zero ($rc4) but guard message absent in stderr (guard bypassed; stderr: $stderr4)"
 fi
 
 # ---------------------------------------------------------------------------

@@ -43,7 +43,7 @@ const AUDIT_VERDICT = { type: 'object', required: ['seat', 'lens', 'verdict', 'f
 
 const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties: {
   mode: { enum: ['merge-task', 'land-phase'] },
-  status: { enum: ['merged', 'landed', 'gate_failed', 'conflict', 'error', 'land_stale'] },
+  status: { enum: ['merged', 'landed', 'gate_failed', 'conflict', 'error', 'land_stale', 'no-test'] },
   branch: { type: 'string' }, integration_sha: { type: 'string' }, working_sha: { type: 'string' },
   conflict_files: { type: 'array' }, gate_output: { type: 'string' } } }
 
@@ -301,16 +301,20 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       round++
     }
     if (verdict === null) verdict = 'audit-blocked'
-    return { task, verdict, seats, expected }
+    return { task, verdict, seats, expected, round }
   }))
 
   // ---- REFINE — serial merge of approved tasks (THE merge queue) ----
   for (const r of results.filter(Boolean)) {
+    // Carry the audit-loop round counter onto the task object so the no-test sub-loop
+    // continues the SHARED budget (not a fresh counter — that would double the allowance).
+    r.task.fixRounds = r.round ?? 0
     minorsFiled.push(...minorsOf(r.seats || []).map(f => ({ task: r.task.id, ...f })))
-    auditLog.push({ task: r.task.id, verdict: r.verdict, findings: (r.seats || []).flatMap(s => s.findings || []), blocked: r.blocked, requested: r.expected, returned: (r.seats || []).length })
+    auditLog.push({ task: r.task.id, verdict: r.verdict, findings: (r.seats || []).flatMap(s => s.findings || []), blocked: r.blocked, requested: r.expected, returned: (r.seats || []).length, fixRounds: r.task.fixRounds })
     done.add(r.task.id)
     if (r.verdict === 'approve') {
       const refineryPath = `${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/_refinery`
+      const requiresTest = r.task.requiresTest !== false  // default true; false only when explicitly set
       const mr = await agent(
         `Merge WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
         + `IMPORTANT — merge-task is split across two worktrees (spec §5.2, red-team-verified):\n`
@@ -320,8 +324,80 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + `  (b) MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), then git merge ${r.task.branch} (fast-forward merge of the now-rebased task branch into the integration branch). Push.\n`
         + `Run the gate (${plan.gate}) after the rebase in the task worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)), so any meta-test that materialises scratch dirs isolates from the worktree's .war-task marker; the gate's cwd stays the task worktree. On gate failure return gate_failed; on conflict return conflict; never force. `
         + `On success, populate gate_output in the returned MergeResult with the executed gate output (stdout+stderr) so the post-merge gate-audit pass can review it as execution evidence. `
-        + `Also populate integration_sha with the rebased integration tip the gate ran against, so the gate-audit pass can confirm the gate ran at the integration tip.`,
+        + `Also populate integration_sha with the rebased integration tip the gate ran against, so the gate-audit pass can confirm the gate ran at the integration tip.`
+        + (requiresTest
+          ? ` Before the _refinery merge step (b), run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch} to verify the task diff contains at least one test file. If the script exits non-zero, return { mode: 'merge-task', status: 'no-test' } — do NOT proceed with the merge.`
+          : ` requiresTest:false — skip the assert-test-in-diff.sh check and proceed directly to the rebase+merge.`),
         { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}`, schema: MERGE_RESULT, ...spawn('refiner') })
+
+      // no-test sub-loop: bounded fix-worker + full re-audit on a no-test merge result.
+      // Localized to the serial refine queue — NOT folded back into the parallel work wave.
+      // ponytail: requiresTest:false tasks never enter this branch (mr.status !== 'no-test')
+      if (mr && mr.status === 'no-test') {
+        let noTestMr = mr
+        let reAuditFailed = false
+        while (noTestMr && noTestMr.status === 'no-test' && r.task.fixRounds < roundLimit) {
+          // Dispatch fix-worker to add the mapped test in the SAME worktree
+          await agent(
+            `ADD_TEST for WAR task ${r.task.id}. The refiner's merge-task check (assert-test-in-diff.sh) found no test file in the diff. `
+            + `Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
+            + `Add a mapped test for this task (the test must exercise the slice described in: ${r.task.planSlice}), keep the gate green, commit and push.`
+            + provisionClause,
+            { agentType: NS + 'war-worker', phase: 'Audit', label: `add-test:${r.task.id}:r${r.task.fixRounds + 1}`, schema: WORKER_RESULT, ...spawn('worker') })
+          r.task.fixRounds++
+
+          // RE-RUN the full audit panel for this task (not a re-wave — localized sub-loop)
+          let reSeats, reExpected
+          ;({ seats: reSeats, expected: reExpected } = await auditRound(r.task, null, null))
+          const reVerdict = reSeats.length < reExpected ? 'audit-blocked'
+            : reSeats.some(s => s.verdict === 'escalate') ? 'escalate'
+            : allApprove(reSeats, reExpected) ? 'approve' : 'request_changes'
+
+          if (reVerdict !== 'approve') {
+            // Vacuous or failing test — escalate, do not merge
+            escalated.push({ task: r.task.id, reason: 'escalate', blocked: 'no-test: re-audit did not approve after adding test' })
+            auditLog.push({ task: r.task.id, verdict: 'no-test:re-audit-failed', findings: (reSeats || []).flatMap(s => s.findings || []), fixRounds: r.task.fixRounds })
+            noTestMr = null
+            reAuditFailed = true
+            break
+          }
+
+          // Re-attempt the serial merge
+          noTestMr = await agent(
+            `Merge WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
+            + `IMPORTANT — merge-task is split across two worktrees (spec §5.2, red-team-verified):\n`
+            + `  (a) REBASE in the TASK worktree: git -C ${r.task.worktree} rebase ${ph.integrationBranch}. `
+            + `CRITICAL: cannot rebase in ${refineryPath} — the task branch is checked out in ${r.task.worktree} and git rebase is refused on a branch checked out in another worktree. `
+            + `rebase --onto does NOT dodge this constraint — it is equally refused.\n`
+            + `  (b) MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), then git merge ${r.task.branch} (fast-forward merge of the now-rebased task branch into the integration branch). Push.\n`
+            + `Run the gate (${plan.gate}) after the rebase in the task worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)), so any meta-test that materialises scratch dirs isolates from the worktree's .war-task marker; the gate's cwd stays the task worktree. On gate failure return gate_failed; on conflict return conflict; never force. `
+            + `On success, populate gate_output in the returned MergeResult with the executed gate output (stdout+stderr) so the post-merge gate-audit pass can review it as execution evidence. `
+            + `Also populate integration_sha with the rebased integration tip the gate ran against, so the gate-audit pass can confirm the gate ran at the integration tip. `
+            + `Before the _refinery merge step (b), run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch} to verify the task diff now contains at least one test file. If the script exits non-zero, return { mode: 'merge-task', status: 'no-test' }.`,
+            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:no-test-retry:r${r.task.fixRounds}`, schema: MERGE_RESULT, ...spawn('refiner') })
+        }
+
+        if (!reAuditFailed && (!noTestMr || noTestMr.status === 'no-test')) {
+          // Budget exhausted — hard escalation with reason:'no-test'
+          escalated.push({ task: r.task.id, reason: 'no-test', fixRounds: r.task.fixRounds })
+          auditLog.push({ task: r.task.id, verdict: 'no-test:exhausted', fixRounds: r.task.fixRounds, findings: [] })
+          continue
+        }
+
+        // Vacuous re-audit path: escalation already pushed above (lines 358-359), noTestMr===null
+        if (reAuditFailed) continue
+
+        // Use the successful re-merge result for the landed path below
+        if (noTestMr.status === 'merged') {
+          landed.push(r.task.id); succeeded.add(r.task.id)
+          mergedTasksForGateAudit.push({ taskId: r.task.id, gateOutput: noTestMr.gate_output, acceptanceCriteria: r.task.planSlice,
+            gateHeadSha: noTestMr.integration_sha ?? '(integration_sha unrecorded)' })
+        } else {
+          escalated.push({ task: r.task.id, reason: noTestMr.status ?? 'merge_failed', detail: noTestMr })
+        }
+        continue
+      }
+
       if (mr && mr.status === 'merged') {
         landed.push(r.task.id); succeeded.add(r.task.id)
         mergedTasksForGateAudit.push({ taskId: r.task.id, gateOutput: mr.gate_output, acceptanceCriteria: r.task.planSlice,
@@ -413,7 +489,7 @@ for (const t of tasks) {
 // landDecision mirrors land-decision.mjs (decideLand) — the Workflow sandbox can't import. Keep in sync.
 // HARD_ESCALATION_REASONS mirrors land-decision.mjs export — the Workflow sandbox can't import. Keep in sync.
 let landResult = null
-const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps']
+const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps', 'no-test']
 const hardEscalation = escalated.some(e => HARD_ESCALATION_REASONS.includes(e && e.reason))
 let landDecision = (landed.length && !hardEscalation) ? 'landed'
   : hardEscalation ? 'held:escalation'

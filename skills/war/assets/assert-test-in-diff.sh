@@ -6,14 +6,22 @@
 #
 # Compute `git diff --name-only <base>...<branch>` (three-dot symmetric diff —
 # exactly what the task branch added relative to the integration base).
-# Exit 0 iff >=1 changed path matches the test pattern; non-zero (with an
-# empty stdout summary) otherwise.
+#
+# Exit codes (load-bearing contract):
+#   0 — at least one changed path matches the test pattern (test found in diff)
+#   1 — no matching test in the diff (the "no-test" route; not an error)
+#   2 — git/ref error (HARD error; NOT a "no-test" signal; caller must not treat
+#       as "no test found" — it means the diff could not be computed)
 #
 # DEFAULT PATTERN = EXACTLY the resolved gate's discovery set (operator decision
 # 2026-06-29 — supersedes the spec §3.1 broad union, which red-team proved
 # over-counts):
-#   - skills/**/*.test.mjs   (the node --test glob, PATH-SCOPED to skills/)
-#   - **/*.test.sh           (the repo-wide bash-suite find, *.test.sh anywhere)
+#   - skills/**/*.test.mjs   (the node --test glob, PATH-SCOPED to skills/,
+#                             DEPTH-AGNOSTIC — mirrors the unbounded glob)
+#   - **/*.test.sh           (the repo-wide bash-suite find, *.test.sh anywhere,
+#                             EXCLUDING node_modules/ and .git/ — mirrors
+#                             `find . -name '*.test.sh' -not -path '*/node_modules/*'
+#                              -not -path '*/.git/*'`)
 #
 # ponytail: default == gate-discovery set so the floor can never be satisfied
 # by a test the gate ignores. Override via --pattern for repos that use other
@@ -98,15 +106,23 @@ changed_files="$($git_cmd diff --name-only "$base...$branch" 2>/dev/null)" || \
 # match_default <path> -> exit 0 if the path matches the gate's default patterns.
 match_default() {
   p="$1"
-  # Pattern 1: skills/**/*.test.mjs (node --test glob, scoped to skills/)
-  # Require: starts with "skills/" AND ends with ".test.mjs"
+  # Pattern 1: skills/**/*.test.mjs (node --test glob, scoped to skills/).
+  # Depth-agnostic: check prefix then suffix independently, no enumeration cap.
+  # ponytail: two nested case arms instead of depth-1..5 enumeration; mirrors the
+  # gate's unbounded `skills/**/*.test.mjs` glob exactly.
   case "$p" in
-    skills/*.test.mjs|skills/*/*.test.mjs|skills/*/*/*.test.mjs|skills/*/*/*/*.test.mjs|skills/*/*/*/*/*.test.mjs)
-      return 0 ;;
+    skills/*)
+      case "$p" in
+        *.test.mjs) return 0 ;;
+      esac ;;
   esac
-  # Pattern 2: **/*.test.sh (bash-suite find, any depth, repo-wide)
+  # Pattern 2: **/*.test.sh (bash-suite find, repo-wide).
+  # Exclude node_modules/ and .git/ to mirror:
+  #   find . -name '*.test.sh' -not -path '*/node_modules/*' -not -path '*/.git/*'
   case "$p" in
-    *.test.sh) return 0 ;;
+    node_modules/*|*/node_modules/*) return 1 ;;
+    .git/*|*/.git/*)                 return 1 ;;
+    *.test.sh)                       return 0 ;;
   esac
   return 1
 }
