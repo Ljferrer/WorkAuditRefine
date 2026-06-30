@@ -212,6 +212,12 @@ ahead of this in the stack is auto-found.
   space-free-path assumption holds. Documented inline as a `ponytail:` ceiling.
 - **No char-allowlist change.** The bracket/`$()` form stays denied (H5 + C5 prove it) — `-C` is the correct and
   sufficient half of the issue's suggestion; permitting `$()[]"` reopens the C5 injection vector (spec Alternatives).
+- **Does NOT admit `git fetch` — tracked separately by [#310](https://github.com/Ljferrer/WorkAuditRefine/issues/310).**
+  Surfaced while re-grounding onto v0.8.0: the new submodule **pin-validity lens** (`agents/war-auditor.md:33`) has the
+  read-only auditor run `git -C <submodule> fetch`, which this guard's verb allowlist excludes → default-deny. This `-C`
+  peel **fixes the sibling `cat-file -e <oid>` call** (read verb, already allowlisted) but must **not** widen the verb
+  allowlist to admit `fetch` (it writes to `.git` / hits the network — not read-only). The `fetch` reconciliation is its
+  own decision; see #310. A worker on this plan must keep GROUP H to read verbs only.
 - **No SOFT-downgrade policy change.** Only the pin-confirmation *mechanism* changes; the stale-tip defusing rule and
   SOFT-note contents (the `Exit 0 ⇒ pin CONFIRMED …` → SOFT-note lines, ~L505-513 at HEAD) are unchanged (spec Non-goal).
 - **The `auditor-cannot-execute-the-tests-it-must-verify-pass` structural gap is out of scope** — this fixes only the
