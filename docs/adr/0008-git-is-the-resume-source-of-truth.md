@@ -32,3 +32,4 @@ WAR advertises a "three-layer resumable source of truth" — GitHub issue labels
 - Design spec: [`docs/specs/2026-06-29-resume-precedence-reconciliation-design.md`](../specs/2026-06-29-resume-precedence-reconciliation-design.md) — precedence ladder, the A/B/C pre-flight, surface changes, validation criteria.
 - Audit finding **L2** (2026-06-29 agent-architecture audit) — the originating defect.
 - [ADR-0003](0003-plan-namespaced-branches.md) / the `--owned-file` ownership ledger — the create-time foreign-ref guard whose resume-time gap Class C closes.
+- [ADR-0010](0010-submodule-landing-authority.md) — extends this model to make the submodule remote a co-source-of-truth: git is monotonic there too, so a gitlink SHA is authoritative iff reachable on the submodule remote, and the reconciliation pre-flight extends to verify it.
