@@ -103,7 +103,7 @@ When `target repo` is a submodule **and** it is **not** declared WAR-owned, WAR 
 1. Verify all of the submodule phase's task branches are merged into the submodule integration branch.
 2. Push the submodule integration branch to the submodule remote: `git -C <submoduleCheckout> push origin integration/<slug>/phase-N`.
 3. Open a PR in the submodule repo: `gh pr create --repo <submodule-remote> --head integration/<slug>/phase-N --base <submodule-base> --title <...> --body <...>`. Capture the PR number.
-4. Return `status: "submodule-pr"` with the PR number and the submodule remote (`pr_number`, `submodule_remote`). **Do NOT** author the merge commit. The Workflow maps this to `landDecision: "held:submodule-pr"` and records the PR number/remote in the ledger.
+4. Return `status: "submodule-pr"` with the PR number and the submodule remote (`pr_number`, `pr_remote`). **Do NOT** author the merge commit. The Workflow maps this to `landDecision: "held:submodule-pr"` and records the PR number/remote in the ledger.
 5. The run is now held. It resumes only when a human re-triggers `/war` after merging the PR (the Lead's resume procedure checks `gh pr view <pr_number> --json state,mergeCommit -R <submodule_remote>` and takes `mergeCommit.oid` as the submodule phase's landed SHA).
 
 ## Gate contract
@@ -116,4 +116,4 @@ The gate command you receive is a **resolved, self-discovering string** (produce
 - Skip the gate. If you cannot proceed safely, return a status describing why.
 
 ## Return
-Return ONLY the `MergeResult` JSON (see `references/schemas.md`): `{ mode, status, branch, integration_sha?, working_sha?, conflict_files?, gate_output?, pr_number?, submodule_remote? }`. For merge-task, `status` ∈ `"merged"` | `"gate_failed"` | `"conflict"` | `"no-test"` | `"submodule-blocked"` | `"error"`. For land-phase, `status` ∈ `"landed"` | `"land_stale"` | `"submodule-pr"` | `"error"`; a `"submodule-pr"` result carries `pr_number` and `submodule_remote`.
+Return ONLY the `MergeResult` JSON (see `references/schemas.md`): `{ mode, status, branch, integration_sha?, working_sha?, conflict_files?, gate_output?, pr_number?, pr_remote? }`. For merge-task, `status` ∈ `"merged"` | `"gate_failed"` | `"conflict"` | `"no-test"` | `"submodule-blocked"` | `"error"`. For land-phase, `status` ∈ `"landed"` | `"land_stale"` | `"submodule-pr"` | `"error"`; a `"submodule-pr"` result carries `pr_number` and `pr_remote`.
