@@ -63,7 +63,12 @@ land **after** M1 and re-anchor by named construct (memory `plan-line-number-ref
 **Files:**
 - modify `skills/war/assets/workflow-template.js` — wrap the phase body, from the **task-branch/worktree derivation**
   (the construct around `:91`, so even the underivable-branch `throw` at `:94` is caught) through the **final phase
-  `return`** (`:472`), in a single top-level `try/catch`. On catch, return directly (spec §4.1):
+  `return`** (the construct currently near `:474`), in a single top-level `try/catch`. **First HOIST the accumulator
+  declarations `const landed = [], escalated = [], minorsFiled = [], auditLog = []` (currently near `:107-108`,
+  *inside* the wrapped body) to ABOVE the `try {`.** The §4.1 catch references all four; on the early `:94` throw they
+  would otherwise be in the **temporal dead zone**, so the catch itself throws `ReferenceError: landed is not defined`
+  and returns **no** envelope (red-team T1-confirmed — Test 1 fails RED→RED without the hoist). `landResult`/
+  `servitorResult` are literal `null` in the catch, so they need no hoist. On catch, return directly (spec §4.1):
   ```js
   } catch (err) {
     // A dead phase that self-reports. landed/escalated are whatever accumulated before the throw;
@@ -75,7 +80,14 @@ land **after** M1 and re-anchor by named construct (memory `plan-line-number-ref
   }
   ```
 - test `skills/war/assets/workflow-template.test.mjs` — new tests on the existing `runPhase`/`buildSeqImpl`/
-  `new AsyncFunction` sandbox harness.
+  `new AsyncFunction` sandbox harness, **plus a REWRITE of existing test #71** (`task missing branch/worktree AND
+  derivation args throws with a clear message`, currently near `:1107`). #71 presently uses `assert.rejects` to
+  require the `:94` derivation throw to **propagate**; after this change that throw is **caught and returned** as a
+  `held:workflow-error` envelope, so #71 must instead assert the call **returns**
+  `{ landDecision:'held:workflow-error', workflowError }` with a non-empty `workflowError.message` (NOT
+  `assert.rejects`). #71 is the exact inverse of new Test 1 — they cannot both pass; this is the
+  `fail-closed-gate-silently-redirects-existing-failure-tests` pattern, so keep #71's assertion **specific** (assert
+  the envelope shape, not merely "did not throw").
 
 **`requiresTest`: true.**
 
@@ -86,21 +98,34 @@ land **after** M1 and re-anchor by named construct (memory `plan-line-number-ref
     — **not** an unhandled rejection. Assert `landDecision === 'held:workflow-error'` (unique token).
   - *Test 2 — catch skips teardown / preserves state (criterion #6, RED→GREEN; NON-vacuous).* Inject a throw via a
     **mock agent that throws after at least one merge** (see DP2 vacuity trap). Assert (a) the return is
-    `held:workflow-error`, and (b) **no teardown agent call** is recorded on the catch path. If teardown is not an
-    observable agent call in the harness, assert structurally that the catch block performs no teardown and state
-    that form in the test name.
+    `held:workflow-error`, and (b) **no teardown agent call** is recorded on the catch path. Teardown is **not** an
+    observable `agent()` call in this template (red-team confirmed: only inline cleanup), so #6 uses the suite's
+    existing structural idiom — `const cleanup = calls.find(c => /remove-worktree|worktree remove|teardown|clean ?up/i.test(c.prompt)); assert.ok(!cleanup)`
+    — state that structural form in the test name.
+  - *Test 3 — rewrite existing #71 (RED→GREEN; same `:94` throw, inverted assertion).* #71 (near `:1107`) currently
+    `assert.rejects`-es the derivation throw; rewrite it to assert the call **returns** the `held:workflow-error`
+    envelope (it now shares Test 1's expectation). Without this rewrite the suite is **not** purely additive — #71
+    fails `Missing expected rejection` (red-team-confirmed: `tests 272 / pass 271 / fail 1`).
 - [ ] **Step 2 — Run gate → fail.** Today the derivation throw is an **uncaught rejection** (no enclosing
   `try/catch`), so Test 1 fails (no returned envelope). Test 2 fails (no catch path exists to skip teardown).
-- [ ] **Step 3 — Implement (minimal).** Add the single top-level `try` after the derivation construct and the `catch`
-  before the function close, returning the §4.1 envelope. **No teardown in the catch.** Re-anchor the wrap boundaries
-  by **named construct** (the derivation block start and the final `return`), not literal line numbers.
+- [ ] **Step 3 — Implement (minimal).** **First hoist** the accumulator declarations
+  (`const landed = [], escalated = [], minorsFiled = [], auditLog = []`) above the `try {` (see Files — the catch
+  references them; unhoisted they sit in the temporal dead zone on the `:94` throw). Then add the single top-level
+  `try` after the derivation construct and the `catch` before the function close, returning the §4.1 envelope.
+  **No teardown in the catch.** Re-anchor the wrap boundaries by **named construct** (the derivation block start and
+  the final `return`), not literal line numbers.
   - **`HARD_ESCALATION_REASONS` is UNCHANGED** (spec §4.1 note). `held:workflow-error` is set **directly** by the
-    catch, **bypassing `decideLand()`** — it must **not** be added to `HARD_ESCALATION_REASONS` (that set governs the
-    normal-completion hold computation; wiring `workflow-error` in would make `decideLand` return `held:escalation`
-    and clobber the direct set). `land-decision.mjs` and its drift-guards in `war-config.test.mjs` are untouched — no
-    mirrored-constant cascade.
-- [ ] **Step 4 — Run gate → pass.** Tests 1-2 green; the whole `node --test 'skills/**/*.test.mjs'` suite + every
-  `*.test.sh` runner stay green (the `try/catch` is additive; the happy-path `return` at `:472` is unchanged).
+    catch's `return`, which exits the whole Workflow function and **bypasses the normal-completion hold computation**
+    (the `decideLand` logic mirrored **inline** near `:413-415`; the exported `decideLand()` in `land-decision.mjs` is
+    not itself called by the template — red-team confirmed). It must **not** be added to `HARD_ESCALATION_REASONS` —
+    that set governs the normal-path hold computation, and adding `workflow-error` there would **conflate the
+    exceptional direct-return path with the normal-path escalation machinery** (a separation-of-concerns /
+    maintainability hazard, not a present clobber). `land-decision.mjs` and its drift-guards in `war-config.test.mjs`
+    are untouched — no mirrored-constant cascade.
+- [ ] **Step 4 — Run gate → pass.** Tests 1-3 green; the whole `node --test 'skills/**/*.test.mjs'` suite + every
+  `*.test.sh` runner stay green. The wrap is **almost** additive — the happy-path `return` (near `:474`) is unchanged
+  and the `*.test.sh` runners are untouched — **except** existing #71, whose expectation flips from `assert.rejects`
+  to the `held:workflow-error` envelope (Step 1 Test 3); without that rewrite the `.mjs` suite goes `272/271/1`.
 - [ ] **Step 5 — Commit** — `fix(war): top-level try/catch in the phase Workflow returns held:workflow-error on a dead phase (M1)`
 - **Closes:** the in-script half of M1 (surfaces #1 in-script throw + #3 shape-invalid self-report). The Lead-side
   half (surfaces #2 infra death + #3 garbage return) is T2.
@@ -168,7 +193,8 @@ node --test 'skills/**/*.test.mjs' && for f in $(find . -type f -name '*.test.sh
 | Task | Test | Key assertion | Notes |
 |---|---|---|---|
 | T1 #1 | in-script throw is caught | forced `:94` throw → returns `{ landDecision:'held:workflow-error', workflowError }`, not a rejection | unique token `held:workflow-error` |
-| T1 #6 | catch skips teardown | throw injected **after a merge** → no teardown agent call recorded on the catch path | NON-vacuous (DP2 trap); structural fallback if teardown not observable |
+| T1 #6 | catch skips teardown | throw injected **after a merge** → no teardown agent call recorded on the catch path | NON-vacuous (DP2 trap); teardown not an observable `agent()` call → use the suite's structural `cleanup = calls.find(/teardown…/)` idiom |
+| T1 #71 | rewrite existing reject-test | same forced `:94` throw now **returns** the `held:workflow-error` envelope (was `assert.rejects`) | inverse of #1; **not** additive — without it the `.mjs` suite is `272/271/1` |
 | T2 | (no test — prose) | full gate green | criteria #2-5,7 prose-verified by review |
 
 **Prose-verified (no automated test, DP2):** #2 fail-closed on non-`completed` → `held:phase-incomplete`; #3
@@ -176,8 +202,9 @@ fail-closed on garbage `landDecision` → `held:workflow-error`; #4 bounded auto
 recovered resume does not notify; #5 terminal halts regardless of `--afk`; #7 recovery only ever uses
 `resumeFromRunId`, resume-unavailable degrades to terminal halt.
 
-**Regression guard:** the existing `workflow-template.test.mjs` suite + every `*.test.sh` runner stay green — T1 is
-an additive wrap (happy-path `return` unchanged), T2 touches no executable surface.
+**Regression guard:** every `*.test.sh` runner stays green (untouched) and the happy-path `return` is unchanged; the
+**one** `.mjs` regression is existing #71, which T1 rewrites from `assert.rejects` to the `held:workflow-error`
+envelope (so the wrap is additive *except* for #71 — `272/271/1` if it is missed). T2 touches no executable surface.
 
 ## Recommended ADRs
 

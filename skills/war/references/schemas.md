@@ -192,6 +192,12 @@ The per-phase Workflow returns:
   landResult,                         // MergeResult of the in-flow land, or null if held
   servitorResult,                     // ServitorResult, or null if the Workflow did not land/wrap up
   auditLog: [ { task, verdict, findings, blocked } ],   // fed to a Lead-driven wrap-up on the held path
-  landDecision: "landed" | "held:escalation" | "held:nothing-merged" }
+  landDecision: "landed" | "held:escalation" | "held:nothing-merged" | "held:land-failed" | "held:phase-incomplete" | "held:workflow-error" }
 ```
-When `landDecision` is a `held:*` value the land was **not** performed in-flow; the Lead lands manually and then runs `war-servitor` (see SKILL.md). `held:nothing-merged` means no task merged cleanly and no hard escalation was raised (e.g. a lone `gate_failed`) — surfaced explicitly rather than silently skipped.
+When `landDecision` is a `held:*` value the land was **not** performed in-flow; the Lead lands manually and then runs `war-servitor` (see SKILL.md). The full `landDecision` enum:
+- **`landed`** — the phase merged and pushed cleanly in-flow.
+- **`held:escalation`** — a hard escalation (Critical/Major, unresolvable conflict, plan contradiction) halted the in-flow land; the Lead resolves and lands manually.
+- **`held:nothing-merged`** — no task merged cleanly and no hard escalation was raised (e.g. a lone `gate_failed`); surfaced explicitly rather than silently skipped.
+- **`held:land-failed`** — the in-flow land step itself failed (non-stale failure; distinct from `land_stale`); the Lead re-runs the land manually.
+- **`held:phase-incomplete`** — the Workflow returned a non-`completed` notification (timeout, kill, infra death); the phase did not finish. Retryable via `resumeFromRunId` up to `run.roundLimit` total attempts; never advances the DAG; git state preserved (no teardown).
+- **`held:workflow-error`** — the Workflow completed but returned a missing/unparseable result or a `landDecision` not in the known set, **or** the in-script top-level `try/catch` caught an uncaught exception inside the phase body (returned directly by the catch with a `workflowError` field). Terminal — HARD-halts regardless of `--afk`; never retried; git state preserved.
