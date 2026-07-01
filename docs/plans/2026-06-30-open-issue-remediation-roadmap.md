@@ -22,7 +22,7 @@ The specs live in [`../specs/`](../specs/):
 | 3 | [Servitor provenance gate robustness](../specs/2026-06-30-servitor-provenance-gate-robustness-design.md) | #247, #248, #249 | LOW | **v0.8.3** | #247/#248 live; **#249 already-remediated → verify-and-close** |
 | 4 | [Auditor git-guard read-only `-C`](../specs/2026-06-30-auditor-git-guard-readonly-c-flag-design.md) | #222 | MED | **v0.8.4** | live — recurring SOFT-downgrade |
 | 5 | [Test-floor `--pattern`/`--repo` hardening](../specs/2026-06-30-test-floor-script-glob-and-doc-hardening-design.md) | #231, #232 | LOW | **v0.8.5** | both live (#231 real bug, #232 doc) |
-| 6 | [workflow-template.test.mjs fidelity sweep](../specs/2026-06-30-workflow-template-test-fidelity-sweep-design.md) | #266, #267, #250, #221 | LOW/NIT | **v0.8.6** | #250/#266 live; **#267 LIVE** (both edits present at HEAD — prior "`t1Log` already gone" claim was **wrong**); **#221 vacuously closeable** |
+| 6 | [workflow-template.test.mjs fidelity sweep](../specs/2026-06-30-workflow-template-test-fidelity-sweep-design.md) | #266, #267, #250, #221, #317, #326 | LOW/NIT | **v0.8.6** | #250/#266 live; **#267 LIVE** (both edits present at HEAD — prior "`t1Log` already gone" claim was **wrong**); **#221 vacuously closeable**; **#317/#326 folded in** (2026-07-01 — same-file test-robustness nits) |
 | 7 | [`--ace` nit-autofix **(feature)**](../specs/2026-06-30-ace-nit-autofix-design.md) | — *(feature; not a remediation issue)* | N/A | **v0.8.7** | net-new — stacks on v0.8.6, lands last |
 
 > **Authoritative version source.** Each spec internally proposes its assigned `v0.8.1`–`v0.8.7` (the bump it would
@@ -42,8 +42,8 @@ The specs live in [`../specs/`](../specs/):
 2. **Behavioral correctness before cosmetic drift.** The lone BUG (#251) lands first so every later spec rebases onto
    the corrected land path; the substantive routing/tooling fixes (specs 2, 4, 5#231) precede the pure test-prose sweep
    (spec 6).
-3. **One cohesive sweep beats scattering nits.** The four `workflow-template.test.mjs` cosmetics (#266/#267/#250/#221)
-   land as a single pass (spec 6) instead of four nits sprinkled across the stack.
+3. **One cohesive sweep beats scattering nits.** The six `workflow-template.test.mjs` cosmetics (#266/#267/#250/#221/#317/#326)
+   land as a single pass (spec 6) instead of six nits sprinkled across the stack.
 4. **Stale issues are verify-and-close, never re-implemented.** #249 was already remediated; its task re-greps and
    closes-with-note rather than re-write (memory: `verify-task-no-op-is-correct-when-already-covered`). *(#267 was
    originally grouped here too, but the v0.8.0 re-grounding proved it is **not** stale — both edits are still live; see
@@ -115,7 +115,7 @@ Both edits are in the single floor script `assert-test-in-diff.sh`.
   `[--repo <git-dir>]` to the design-doc signatures **and** annotate it test-only in the script header. Do **not**
   delete it (load-bearing for `.test.sh` fixture isolation).
 
-### Spec 6 — workflow-template.test.mjs fidelity sweep {#266, #267, #250, #221} · v0.8.6 · *cosmetic; land last*
+### Spec 6 — workflow-template.test.mjs fidelity sweep {#266, #267, #250, #221, #317, #326} · v0.8.6 · *cosmetic; land last*
 One pass over `workflow-template.test.mjs`, zero production change.
 - **#266:** anchor the brittle `blockedReason` extract-and-eval lazy quantifier to the unique terminal token
   (`null\)` → `:\s*null\)`) so a future interior `null)` can't truncate the capture.
@@ -130,6 +130,11 @@ One pass over `workflow-template.test.mjs`, zero production change.
   ("re-audit and approve+land") effect. The three token-`X` assertions stay load-bearing, so `requiresTest:false` still holds.
 - **#221 (vacuously closeable):** the M1 criterion-6 mock throws on the auditor seat, not literally "after a merge" —
   at-HEAD names are already accurate, so this is a one-line deliberate-choice comment **or** close as superseded-by-HEAD.
+- **#317 (folded in 2026-07-01):** drop the dead first alternate `cd \$\{refineryLandPath\} && …` in the Task-5 land-prompt
+  positive assertion — `refineryLandPath` is interpolated into the rendered prompt, so the `${refineryLandPath}` literal
+  never matches (interpolated-literal trap, class #311); keep the load-bearing `_refinery` alternate.
+- **#326 (folded in 2026-07-01):** anchor the Prompt A/B regex slices on unique leading phrasing (`to verify the task diff
+  contains` vs `now contains`) so isolation no longer depends on `.match()` returning the first occurrence.
 - Authored on a tip already containing spec 2's #268 test — must **not** re-touch that region.
 
 ### Spec 7 — `--ace` opt-in nit-autofix {feature} · v0.8.7 · *net-new; land last*
@@ -188,6 +193,8 @@ the six specs are file-independent.
 | #250 | 6 | full (5 stale F05 sites renamed) |
 | #267 | 6 | full (two live edits: delete dead `t1Log` local + reword the audit-blocked-misprediction comment) |
 | #221 | 6 | full (comment tweak **or** close superseded-by-HEAD) |
+| #317 | 6 | full (drop dead `${refineryLandPath}` alternate; keep `_refinery` alternate) |
+| #326 | 6 | full (anchor Prompt A/B slices on unique phrasing, not `.match()` source order) |
 
 No issue is recommend-close-without-spec: the critic re-verified every cited defect is still live at HEAD, or is a
 genuine already-remediated nit handled as verify-and-close. No spec re-fixes already-shipped work.
