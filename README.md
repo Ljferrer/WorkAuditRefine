@@ -235,7 +235,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.8.8** — `landDecision` known-set drift-guard: the set of terminal land decisions is now bound to a single canonical `KNOWN_LAND_DECISIONS` export (beside `HARD_ESCALATION_REASONS`) with a behavioral-and-doc-parity guard. The Workflow-emitted `landDecision` literals and `decideLand`'s outputs are asserted **⊆** the export, and all four documentation surfaces are asserted **==** the 7-member canonical set — freezing the silent `held:X` → `held:workflow-error` drift (`held:phase-incomplete` is pinned as canonical-but-not-emitted). Load-bearing is proven by temp-break-and-revert on the export, the Workflow block, and each doc surface. No behavioral change to the land path. Builds on v0.8.7.
+**0.8.9** — `/red-team` verifies **preconditions**, not deliverables: analyzed probes now check that a plan's anchors, insertion-points, and signatures actually exist and that its edits compose, while treating the plan's proposed-but-not-yet-applied edits as **expected-absent** — never a false "missing" finding — with the real findings (missing/renamed anchor, false claim about existing code, wrong signature, drifted line number, internal contradiction, non-composing edit) explicitly preserved via a shared analyzed-probe preamble and reinforced `lenses.md` guidance. The gate also surfaces severity-less findings as `needsDecision` on non-pass probes (verdict BLOCKED) instead of silently dropping them, demoting them on pass probes so #50 stays intact. Builds on v0.8.8.
 
 ## License
 
