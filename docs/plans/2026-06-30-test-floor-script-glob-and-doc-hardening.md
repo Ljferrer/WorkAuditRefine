@@ -33,9 +33,11 @@ Relevant memory: [[floor-script-discovery-set-must-mirror-gate-exclusions]], [[f
   `assert-test-in-diff.sh` and the newly-landed sibling `assert-no-submodule-mutation.sh`; this spec touches only the
   former. See ## Gate for the implication on the runner count.) The only cross-spec contention is the four version slots
   (handled by the ordered versions). No drift-guard / mirrored-constant cascade; no version-slot consumer logic is touched.
-- **Standalone fallback.** If run off current `master` (**v0.8.0**) instead of the stack, re-baseline the release to the
-  **next free patch** off the live tip (next number by construct, memory `stacked-per-branch-releases-make-main-lag-cumulative`)
-  and drop the prior-tip pin. The two code/doc tasks are unaffected; only the release task's number changes.
+- **Baseline (re-grounded 2026-07-01).** master / this stacked base is now **v0.8.4** (Specs 1–4 landed; README `## Status`
+  reads `**0.8.4** — … Builds on v0.8.3.`, all four slots `0.8.4`). Target **v0.8.5**, "Builds on v0.8.4". **Standalone
+  fallback:** if somehow run off a different tip, re-baseline the release to the **next free patch** off that live tip
+  (next number by construct, memory `stacked-per-branch-releases-make-main-lag-cumulative`) and set "Builds on" to that
+  tip's actual version. The two code/doc tasks are unaffected; only the release task's number changes.
 
 ## Operator decisions — RESOLVED (baked in, authoritative)
 
@@ -68,15 +70,18 @@ Relevant memory: [[floor-script-discovery-set-must-mirror-gate-exclusions]], [[f
 - modify `skills/war/assets/assert-test-in-diff.sh` — replace the **single-arm custom-pattern `case`** (the
   `case "$f" in $custom_pattern) found=1; break ;; esac` arm inside the `if [ -n "$custom_pattern" ]` branch of the
   `while IFS= read -r f` loop — anchor by that construct, not a line number) with a `for pat in $custom_pattern` loop
-  using **`break 2`**; update the `# ponytail: one-glob custom path; …` comment immediately above it.
+  using **`break 2`**; and update **both** single-glob comments this fix makes stale (Step 4): the
+  `# ponytail: one-glob custom path; add multi-pattern support when needed.` comment immediately above the arm, **and**
+  the block comment `# A custom --pattern string is matched via a single case glob (caller controls).` (~L103).
 - modify `skills/war/assets/assert-test-in-diff.test.sh` — add **Case 6** following the existing `setup_repo` /
-  cwd-`mktemp` idiom (cases 1–5), and add a `6.` entry to the header case-list comment block (currently cases 1–5,
-  lines 9–22) so it stays self-consistent (matches the file's existing convention).
+  cwd-`mktemp` idiom (the file's **5 top-level cases 1–5**, with case 3 sub-lettered **3a–3g**), and add a `6.` entry to
+  the header case-list comment block (lines 9–22 — it lists the 5 top-level cases with 3a–3g under case 3) so it stays
+  self-consistent (matches the file's existing convention).
 
 **`requiresTest`: true** — the new Case 6 is #231's mapped, load-bearing test; covers spec Validation #1.
 
-- [ ] **Step 1 — Write Case 6 (failing first).** In `assert-test-in-diff.test.sh`, add Case 6 mirroring the cases 1–5
-  `setup_repo` + per-case cwd-`mktemp` idiom (`( cd "$cwdN" && bash "$SCRIPT" "$BASEn" "$TASKn" --pattern '*.test.js *.spec.js' --repo "$Rn" )`):
+- [ ] **Step 1 — Write Case 6 (failing first).** In `assert-test-in-diff.test.sh`, add Case 6 mirroring the existing
+  top-level cases 1–5 (case 3 is sub-lettered 3a–3g) `setup_repo` + per-case cwd-`mktemp` idiom (`( cd "$cwdN" && bash "$SCRIPT" "$BASEn" "$TASKn" --pattern '*.test.js *.spec.js' --repo "$Rn" )`):
   - **6a** — a branch that adds `pkg/foo.test.js`, invoked with `--pattern '*.test.js *.spec.js'` → assert **exit 0**.
   - **6b** — a branch that adds only `pkg/foo.txt`, same flags → assert **non-zero**.
   Use `.test.js` deliberately — the **default** pattern rejects it (existing Case 3d proves `foo.test.js` → NO-MATCH), so
@@ -97,9 +102,12 @@ Relevant memory: [[floor-script-discovery-set-must-mirror-gate-exclusions]], [[f
   `break 2` exits both the inner `for` and the outer file-read `while` (matching the existing single-pattern `break`
   semantics). Relies on bash IFS word-splitting of the unquoted `$custom_pattern` — intended (the set is space-separated
   by contract) and bash 3.2.57-safe (no globstar / associative arrays).
-- [ ] **Step 4 — Update the stale `ponytail:` comment.** Replace `# ponytail: one-glob custom path; add multi-pattern
-  support when needed.` with `# ponytail: space-separated glob set; each token matched independently.` so the comment
-  describes the new loop, not the retired single-glob ceiling (memory `source-comment-lags-emitted-prompt-after-rewrite`).
+- [ ] **Step 4 — Update BOTH stale single-glob comments** (memory `source-comment-lags-emitted-prompt-after-rewrite`;
+  neither is asserted by any test, so the gate stays green): **(i)** replace `# ponytail: one-glob custom path; add
+  multi-pattern support when needed.` with `# ponytail: space-separated glob set; each token matched independently.`;
+  **(ii)** replace the block comment `# A custom --pattern string is matched via a single case glob (caller controls).`
+  (~L103) with `# A custom --pattern string is matched by iterating its space-separated glob tokens (caller controls).`
+  — both otherwise lag the new loop, not the retired single-glob ceiling.
 - [ ] **Step 5 — Run the full self-discovering gate → GREEN** (see ## Gate). Case 6 now passes; cases 1–5 and all other
   runners stay green.
 - [ ] **Step 6 — Commit.** `fix(war): assert-test-in-diff.sh --pattern iterates the glob set instead of one literal (#231)`
@@ -150,10 +158,10 @@ Relevant memory: [[floor-script-discovery-set-must-mirror-gate-exclusions]], [[f
   `release-bump-slots-canonical-no-badge`, `version-slots-no-cross-slot-consistency-test` — no gate catches a partial
   bump; the second `marketplace.json` field `plugins[0].version` is distinct from `metadata.version`). Read the prior
   landed tip's **actual** slot value first and bump from there to `0.8.5` (do not assume the prior reads `0.8.4`).
-  Replace the `README.md` `## Status` paragraph (at HEAD `**0.8.0** — … Builds on v0.7.8.`; the prior spec in this
-  stack will have advanced it to the v0.8.4 copy by land time) with the v0.8.5 copy and update the **"Builds on vX"**
-  clause to the prior landed version. **Standalone fallback:** if run off `master` (v0.8.0), use the next free patch off
-  the live tip instead of `0.8.5` and set "Builds on" accordingly.
+  Replace the `README.md` `## Status` paragraph (**this stacked base reads `**0.8.4** — … Builds on v0.8.3.`** — Specs
+  1–4 have landed; verify the actual slot value before editing) with the v0.8.5 copy and update the **"Builds on vX"**
+  clause to `v0.8.4`. **Standalone fallback:** if somehow run off a different tip, use the next free patch off that live
+  tip instead of `0.8.5` and set "Builds on" to its actual version accordingly.
   Status copy (gist): test-floor `--pattern` now iterates a space-separated glob set (multi-glob override); `--repo`
   documented test-only and reconciled across the plan/spec usage signatures.
 - [ ] **Step 2 — Run the full self-discovering gate → GREEN.**
