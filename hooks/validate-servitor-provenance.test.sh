@@ -61,6 +61,18 @@ content_with_tier() {
   printf '%s\n' "---" "title: some fact" "metadata:" "  type: learning" "  provenance: $1" "---" "" "# Body"
 }
 
+# Same, but the metadata children are indented 4 spaces (indent-agnostic extractor).
+content_with_tier_4space() {
+  printf '%s\n' "---" "title: some fact" "metadata:" "    type: learning" "    provenance: $1" "---" "" "# Body"
+}
+
+# Same, but the metadata children are tab-indented. Build the tab via printf '\t'
+# (NOT a literal tab an editor may silently convert to spaces).
+content_with_tier_tab() {
+  local tab; tab="$(printf '\t')"
+  printf '%s\n' "---" "title: some fact" "metadata:" "${tab}type: learning" "${tab}provenance: $1" "---" "" "# Body"
+}
+
 # Content with NO metadata block at all (tag-less write)
 content_no_metadata() {
   printf '%s\n' "---" "title: some fact" "---" "" "# Body"
@@ -98,6 +110,14 @@ expect "code-verified tier -> allow" \
 
 expect "user-confirmed tier -> allow" \
   0 "$(run "$(mk_write 'war-servitor' "$FACT_PATH" "$(content_with_tier 'user-confirmed')")")"
+
+# Indent-agnostic extractor (#247): 4-space and tab-indented metadata children
+# must ACCEPT identically to the 2-space case.
+expect "4-space metadata.provenance -> allow" \
+  0 "$(run "$(mk_write 'war-servitor' "$FACT_PATH" "$(content_with_tier_4space 'code-verified')")")"
+
+expect "tab-indented metadata.provenance -> allow" \
+  0 "$(run "$(mk_write 'war-servitor' "$FACT_PATH" "$(content_with_tier_tab 'code-verified')")")"
 
 # ---------------------------------------------------------------------------
 # Case 3: bad tier (not in the valid set) -> DENY exit 2

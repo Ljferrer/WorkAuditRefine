@@ -54,12 +54,14 @@ esac
 #     provenance: <tier>
 # NOT a top-level ^provenance: line (frontmatter-tools-negation-check-single-line-only).
 #
-# Guard the extraction pipeline with || true so grep's no-match exit (1) does
-# NOT abort under set -euo pipefail — a tag-less write must reach the deny arm
-# and exit 2, not abort at exit 1 (non-blocking).
-# ponytail: || true is load-bearing (exit-2-must-block): without it, set -euo
-# pipefail aborts the hook at grep exit 1, which is non-blocking — the gate
-# fails OPEN on the exact case it exists for (floor-script-exit-codes-1-vs-2-route-differently).
+# Guard the extraction pipeline with || true. The pipeline is awk then awk/sed —
+# no grep. awk/sed exit 0 on a no-match (unlike grep, which exits 1), so on a
+# tag-less write $provenance ends up EMPTY and the write is denied by the
+# empty-string `*)` arm of the tier `case` below (exit 2). get() already carries
+# its own || true. The || true here is cheap belt-and-suspenders: it keeps the
+# stage from aborting under set -euo pipefail should a future grep stage (which
+# WOULD exit 1 on no-match) be added — so denial stays a case-arm decision, never
+# an abort-at-exit-1 that fails OPEN (floor-script-exit-codes-1-vs-2-route-differently).
 content="$(get '.tool_input.content')"
 
 # Extract frontmatter block (between first two --- delimiters).
@@ -68,7 +70,7 @@ frontmatter="$(printf '%s\n' "$content" | awk '/^---/{if(++c==2) exit} c==1{prin
 # Find the metadata: block, then extract the indented provenance: value.
 # Two-step: locate `metadata:` line, then take the next `  provenance:` line.
 provenance="$(printf '%s\n' "$frontmatter" \
-  | awk '/^metadata:/{found=1; next} found && /^  provenance:/{print; exit} found && /^[^ ]/{exit}' \
+  | awk '/^metadata:/{found=1; next} found && /^[[:space:]]+provenance:/{print; exit} found && /^[^[:space:]]/{exit}' \
   | sed 's/.*provenance:[[:space:]]*//' \
   || true)"
 
