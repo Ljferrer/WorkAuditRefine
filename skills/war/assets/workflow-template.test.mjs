@@ -398,7 +398,9 @@ test('Task 5 — land prompt: detached at origin/<working>, land-advance, reland
   assert.match(p, /land-advance/,
     'land prompt mentions land-advance for the push-first CAS')
   // Decision 2: step 3 runs land-advance inside _refinery (cwd-pin), matching steps 1-2.
-  assert.match(p, /cd \$\{refineryLandPath\} && provision-worktrees\.sh land-advance|cd .*_refinery.* && provision-worktrees\.sh land-advance/,
+  // Only the `_refinery` alternate is real: `${refineryLandPath}` is interpolated into the rendered prompt
+  // (its value ends in `/_refinery`), so the literal `${refineryLandPath}` never appears in `p` (interpolated-literal trap, class #311).
+  assert.match(p, /cd .*_refinery.* && provision-worktrees\.sh land-advance/,
     'land prompt step 3 pins land-advance to the _refinery worktree (cd ${refineryLandPath} && …)')
   // No BARE backtick-led `provision-worktrees.sh land-advance` remains. Key on the RENDERED text: pre-pin the
   // step-3 line reads ``run `provision-worktrees.sh land-advance <branch> …``` (backtick immediately before the
