@@ -11,6 +11,15 @@
 // no-test: a requiresTest task whose diff never grew a mapped test after the bounded add-test/re-audit sub-loop exhausted budget (M2).
 export const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps', 'no-test']
 
+// The canonical landDecision known-set — the SINGLE source of truth for every phase-land outcome.
+// SUPERSET of two smaller sets it must contain: decideLand's 3 in-flow outputs
+// ('landed' | 'held:escalation' | 'held:nothing-merged') and the Workflow's 6 emitted values (the
+// prior 3 plus 'held:submodule-pr', 'held:land-failed', and the catch block's 'held:workflow-error').
+// 'held:phase-incomplete' is canonical-but-NOT-emitted by the Workflow — the Lead classifies it when a
+// phase notification is non-'completed' (§4.2). The drift-guard in land-decision.test.mjs pins this array
+// behaviorally (Workflow-emitted + decideLand ⊆ this) and across all 4 doc surfaces (SKILL.md ×2, schemas.md ×2 == this).
+export const KNOWN_LAND_DECISIONS = ['landed', 'held:escalation', 'held:nothing-merged', 'held:land-failed', 'held:phase-incomplete', 'held:workflow-error', 'held:submodule-pr']
+
 // landed:    array of task ids merged onto the integration branch this phase
 // escalated: array of { reason, ... } for tasks that did not merge
 // → 'landed' | 'held:escalation' | 'held:nothing-merged'
