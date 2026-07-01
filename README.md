@@ -235,7 +235,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.8.7** — `--ace`: opt-in pre-merge auto-fix of auditor-flagged mechanical nits. When enabled, an approved task with zero blockers and ≥1 auditor-flagged `autoFixable` nit gets a single pre-merge ace-fix attempt, panel-re-audited at the new sha; on regression the ace commit is forward-reverted (never `reset --hard`) so the originally-approved work still lands — ace can never turn a mergeable task into a hold or an escalate. Aced nits are recorded via the ace commit message and an `aced` provenance list in the phase report; only un-aced residual nits still file as `war-followup`. Fail-closed: the auditor owns the mechanical / non-load-bearing / no-`ponytail:`-line refusals, the orchestrator adds a deterministic release-slot filename backstop, and off (`run.ace` default `false`) the flow is byte-identical to today. Builds on v0.8.6.
+**0.8.8** — `landDecision` known-set drift-guard: the set of terminal land decisions is now bound to a single canonical `KNOWN_LAND_DECISIONS` export (beside `HARD_ESCALATION_REASONS`) with a behavioral-and-doc-parity guard. The Workflow-emitted `landDecision` literals and `decideLand`'s outputs are asserted **⊆** the export, and all four documentation surfaces are asserted **==** the 7-member canonical set — freezing the silent `held:X` → `held:workflow-error` drift (`held:phase-incomplete` is pinned as canonical-but-not-emitted). Load-bearing is proven by temp-break-and-revert on the export, the Workflow block, and each doc surface. No behavioral change to the land path. Builds on v0.8.7.
 
 ## License
 
