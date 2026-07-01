@@ -1,4 +1,4 @@
-# Open-Issue Remediation Roadmap — 16 issues → 6 design specs
+# Open-Issue Remediation Roadmap — 16 issues → 6 design specs (+ spec 7: the `--ace` feature)
 
 Index for the design specs that close the **16 currently-open issues** in `Ljferrer/WorkAuditRefine`. Grouping
 decided 2026-06-30 by an inspect → cluster → write → verify → completeness-critic agent run (31 agents). Each open
@@ -23,14 +23,17 @@ The specs live in [`../specs/`](../specs/):
 | 4 | [Auditor git-guard read-only `-C`](../specs/2026-06-30-auditor-git-guard-readonly-c-flag-design.md) | #222 | MED | **v0.8.4** | live — recurring SOFT-downgrade |
 | 5 | [Test-floor `--pattern`/`--repo` hardening](../specs/2026-06-30-test-floor-script-glob-and-doc-hardening-design.md) | #231, #232 | LOW | **v0.8.5** | both live (#231 real bug, #232 doc) |
 | 6 | [workflow-template.test.mjs fidelity sweep](../specs/2026-06-30-workflow-template-test-fidelity-sweep-design.md) | #266, #267, #250, #221 | LOW/NIT | **v0.8.6** | #250/#266 live; **#267 LIVE** (both edits present at HEAD — prior "`t1Log` already gone" claim was **wrong**); **#221 vacuously closeable** |
+| 7 | [`--ace` nit-autofix **(feature)**](../specs/2026-06-30-ace-nit-autofix-design.md) | — *(feature; not a remediation issue)* | N/A | **v0.8.7** | net-new — stacks on v0.8.6, lands last |
 
-> **Authoritative version source.** Each spec internally proposes its assigned `v0.8.1`–`v0.8.6` (the bump it would
-> take landing on the prior spec's tip; spec 1 builds on master `v0.8.0`). All six **REPLACE-in-place** the same four canonical version slots
+> **Authoritative version source.** Each spec internally proposes its assigned `v0.8.1`–`v0.8.7` (the bump it would
+> take landing on the prior spec's tip; spec 1 builds on master `v0.8.0`, spec 7 on the v0.8.6 tip). All seven **REPLACE-in-place** the same four canonical version slots
 > (`.claude-plugin/plugin.json` `version`; `.claude-plugin/marketplace.json` `metadata.version` AND `plugins[0].version`;
 > `README.md` `## Status`), so only one spec can hold a given number — they **MUST land serially**, each Release task
 > taking the next number and stacking its `## Status` paragraph on the prior. Do **not** run them as concurrent WAR
 > branches: they would rebase-conflict on the four shared slots. (memory: `release-bump-slots-canonical-no-badge`,
-> `stacked-per-branch-releases-make-main-lag-cumulative` — main lags 6 patches after the full stack.)
+> `stacked-per-branch-releases-make-main-lag-cumulative` — main lags **7** patches after the full stack: 6 remediation + the `--ace` feature.)
+>
+> **Spec 7 is a feature, not a remediation.** Specs 1–6 close the 16 open issues; spec 7 (`--ace`) is a net-new capability that rides the *same* serial version stack (lands on the v0.8.6 tip as v0.8.7). It is optional relative to the remediation set — the stack is complete at v0.8.6 without it — but if built, it lands **last** so its `workflow-template.js`/`.test.mjs` touches are authored on the fully-remediated tip.
 
 ## Grouping principles
 
@@ -129,11 +132,16 @@ One pass over `workflow-template.test.mjs`, zero production change.
   at-HEAD names are already accurate, so this is a one-line deliberate-choice comment **or** close as superseded-by-HEAD.
 - Authored on a tip already containing spec 2's #268 test — must **not** re-touch that region.
 
+### Spec 7 — `--ace` opt-in nit-autofix {feature} · v0.8.7 · *net-new; land last*
+- **Feature (not a remediation issue):** an opt-in `--ace` flag (config `run.ace`, default off) that, when on, fixes **auditor-flagged** Minor/Nit findings in-worktree **before merge** instead of filing them as `war-followup` issues — a single-attempt, **fail-closed** clone of the blocking fix-worker loop, **re-audited by the full panel** at the new sha. Fixes only findings the auditor marks `autoFixable:true`; **refuses** (files) release-slot nits, `ponytail:`/deliberate-mirror nits, prose-only suggestions, coven-splits, and budget-exhausted tasks; **never blocks a land** (discard-and-merge-original on regression); **preserves provenance** (files + auto-closes with the auditor rationale). Adds **no** new `MERGE_RESULT` status / `HARD_ESCALATION_REASONS` member / `land-decision.mjs` change (`shared-status-enum-widening-silently-widens-land-path`).
+- **Files:** `war-config.mjs` (+`.test.mjs`), `workflow-template.js` (+`.test.mjs`), `references/schemas.md` (finding gains `autoFixable?`), `agents/war-auditor.md`, `skills/war/SKILL.md`, `skills/war-room/SKILL.md`. The `workflow-template.js`/`.test.mjs` touches are disjoint from specs 1/2/6 regions but version-serialized after v0.8.6.
+- **Ratify with `/red-team` before `/war`** — it changes the pre-merge control flow (a new sub-loop between approve and merge), the highest-leverage kind of change in this repo.
+
 ## Dependency spine (strict landing order)
 
 ```
-Spec 1 ──► Spec 2 ──► Spec 6           (Specs 3, 4, 5 file-independent; ordered only by version)
- BUG       no-test     test-sweep
+Spec 1 ──► Spec 2 ──► Spec 6 ──► Spec 7   (Specs 3, 4, 5 file-independent; ordered only by version)
+ BUG       no-test     test-sweep  --ace
 ```
 
 - **1 → 2:** both write `workflow-template.js`. Spec 1 fixes the land-phase prompt (`if (landDecision === 'landed')`
@@ -141,6 +149,7 @@ Spec 1 ──► Spec 2 ──► Spec 6           (Specs 3, 4, 5 file-independe
   now preceded by the v0.8.0 `submodule-pr` direct-return) is **adjacent** — land 1 first and pin spec 2's base to its tip.
 - **2 → 6:** both write `workflow-template.test.mjs`. Spec 2 (#268) **adds** a Site-3 test; spec 6 polishes comments/
   titles. Disjoint sub-regions, but land 2 first so 6's sweep is authored on a tip that already contains the new test.
+- **6 → 7:** both write `workflow-template.js` + `workflow-template.test.mjs`. Spec 7 (`--ace`) adds the pre-merge nit-fix sub-loop (in the `verdict==='approve'` refine branch) + its tests; land it last so the sub-loop is authored on the fully-remediated tip. Disjoint regions from spec 6's cosmetic test-sweep, but version-serialized after it (v0.8.7 on the v0.8.6 tip).
 - **3, 4, 5** are file-independent of everything except the four version slots; their position is fixed only by the
   version-serialization rule (severity order: 4 MED before 5 LOW; 3 after 2 by subsystem locality).
 
