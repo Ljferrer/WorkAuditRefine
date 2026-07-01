@@ -397,6 +397,16 @@ test('Task 5 — land prompt: detached at origin/<working>, land-advance, reland
   // push-first CAS via land-advance
   assert.match(p, /land-advance/,
     'land prompt mentions land-advance for the push-first CAS')
+  // Decision 2: step 3 runs land-advance inside _refinery (cwd-pin), matching steps 1-2.
+  assert.match(p, /cd \$\{refineryLandPath\} && provision-worktrees\.sh land-advance|cd .*_refinery.* && provision-worktrees\.sh land-advance/,
+    'land prompt step 3 pins land-advance to the _refinery worktree (cd ${refineryLandPath} && …)')
+  // No BARE backtick-led `provision-worktrees.sh land-advance` remains. Key on the RENDERED text: pre-pin the
+  // step-3 line reads ``run `provision-worktrees.sh land-advance <branch> …``` (backtick immediately before the
+  // command); the pin turns it into ``run `cd <…>/_refinery && provision-worktrees.sh land-advance …``` (backtick now
+  // precedes `cd`, the command is preceded by `&& `). Do NOT key on `${ph.workingBranch}` — it is already interpolated
+  // in `p`, so a regex containing that literal never matches and the assertion is vacuous.
+  assert.ok(!/`provision-worktrees\.sh land-advance /.test(p),
+    'no bare backtick-led provision-worktrees.sh land-advance remains (step 3 must be cwd-pinned: cd ${refineryLandPath} && …)')
   // reland loop bounded by roundLimit
   assert.match(p, /reland/i,
     'land prompt mentions reland')
