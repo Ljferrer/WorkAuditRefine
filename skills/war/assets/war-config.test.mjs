@@ -188,6 +188,21 @@ test('non-boolean provisionAuto rejected', () => {
   assert.match(r.errors.join('\n'), /run\.provisionAuto/)
 })
 
+// --- run.ace (--ace opt-in pre-merge nit auto-fix; default false) -------------
+
+test('ace defaults to false (and presets inherit false via deepMerge)', () => {
+  assert.equal(DEFAULTS.run.ace, false)
+  for (const preset of ['balanced', 'thorough', 'economy']) {
+    assert.equal(presetConfig(preset).run.ace, false, `${preset} preset must inherit run.ace === false`)
+  }
+})
+
+test('non-boolean ace rejected', () => {
+  const r = validate({ run: { ace: 'yes' } })
+  assert.equal(r.valid, false)
+  assert.match(r.errors.join('\n'), /run\.ace must be a boolean/)
+})
+
 // --- resolveProvision (Part B) -----------------------------------------------
 // resolveProvision decides whether war-room Setup must run the setup-scout:
 //   • explicit non-empty run.provision → returned VERBATIM, source unchanged, no scout
