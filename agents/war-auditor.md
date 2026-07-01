@@ -28,15 +28,10 @@ This produces real file diffs (no gitlink entries). Proceed with your lens norma
 **If this is a gitlink-bump task** — the task's entire purpose is to advance the superproject's gitlink for one declared submodule. Apply the **pin-validity** lens:
 1. Compute the diff: `git diff <integrationBranch>...<branch>` — it must be **gitlink-only** (only `Subproject commit` lines, no other file changes).
 2. Extract the new SHA from the diff (`+Subproject commit <oid>`).
-3. Verify the new SHA is **reachable on the submodule remote**:
-   ```
-   git -C <submodule> fetch
-   git -C <submodule> cat-file -e <oid>
-   ```
-   The SHA need not be on the default branch — a submodule legitimately pinned to a feature branch is allowed (DP4).
-4. Verify the new SHA **equals the dep submodule task's landed SHA** (read from the ledger).
+3. **Authoritative check — the new SHA equals the dep submodule task's landed SHA** (read from the ledger, `ledger.json`). This is the in-seat check you own. A mismatch → **Critical / `request_changes`**. The SHA need not be on the default branch — a submodule legitimately pinned to a feature branch is allowed (DP4).
+4. **Remote-reachability is already established upstream — do NOT re-verify it here.** The SHA was pushed by the dep submodule task's land, and the Lead's pre-flight reconciliation (`SKILL.md`, submodule co-source-of-truth) confirms the ledger SHA against the remote before the bump task is dispatched. So the ledger match in Step 3 already implies reachability. Do **not** `git fetch` here — the read-only auditor guard denies `fetch` by design (network write-adjacent, outside the read allowlist), and the object need not be fetched into this read-only checkout. Optionally, as a **best-effort, non-blocking** sanity confirmation, you *may* run `git -C <submodule> cat-file -e <oid>` (a permitted read verb) if the object already exists locally; its **absence is not a finding** — never false-block a legitimate pin on a local object miss.
 
-If either check fails — SHA not reachable on the remote, or SHA does not match the dep task's landed SHA — emit a **Critical** finding and return `verdict: "request_changes"`. If both pass, `approve` (no other lens needed for a pure pin move).
+If the ledger check fails — the new SHA does not match the dep task's landed SHA — emit a **Critical** finding and return `verdict: "request_changes"`. Otherwise `approve` (no other lens needed for a pure pin move).
 
 **If this is any other task** — inspect the diff. If it contains any line starting with `Subproject commit`, or shows submodule `modified content`, or is empty-but-for gitlink entries — emit a **Critical** finding and return `verdict: "request_changes"` immediately:
 ```

@@ -356,6 +356,23 @@ expect_allow "H1: git -C /abs/path/_refinery rev-parse HEAD → allowed" \
 expect_allow "H2: git -C /abs/path show HEAD:file.txt → allowed" \
   "$(auditor_cmd "git -C /abs/path show HEAD:file.txt")"
 
+# H2b: git -C <path> cat-file -e <oid> → allow. The no-fetch pin-validity lens
+# (#310) relies on this read verb through the -C peel for its optional,
+# non-blocking existence confirmation. There was NO -C cat-file allow-case
+# before; without it the reworded lens would name a command whose runnability
+# is unproven. cat-file is in the read-only subcommand allowlist, so the peeled
+# `cat-file -e <oid>` re-enters and is allowed.
+expect_allow "H2b: git -C /abs/sub cat-file -e <oid> → allowed (pin-validity optional confirm)" \
+  "$(auditor_cmd "git -C /abs/sub cat-file -e abc123")"
+
+# H3a: git -C <path> fetch → deny. Pins that `fetch` STAYS denied even through
+# the spec-4 -C peel (#310): dropping fetch from the lens is "remove the call,"
+# NOT "allow the verb." fetch is a network read outside the read-only allowlist,
+# so after the -C peel the subcommand extractor's `*)` default-deny fires.
+# Load-bearing regression pin — Step 3 proves it by temp-allowing fetch → RED.
+expect_deny "H3a: git -C /abs/sub fetch → denied (-C does not admit fetch; #310)" \
+  "$(auditor_cmd "git -C /abs/sub fetch")"
+
 # H3: git -C <path> commit → deny (verb allowlist NOT widened by -C)
 expect_deny "H3: git -C /abs/path commit -m x → denied (-C does not widen the verb allowlist)" \
   "$(auditor_cmd "git -C /abs/path commit -m x")"

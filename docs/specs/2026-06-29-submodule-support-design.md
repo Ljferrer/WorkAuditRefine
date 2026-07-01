@@ -154,8 +154,10 @@ submodule worktree, so the worktree-scope hook works unchanged.
 ### 5.4 Auditor — pin-validity lens
 - On a **submodule task**: a normal lensed review *inside* the submodule worktree
   (`git -C <submodule-task-worktree> diff <sub-integration>...<branch>`) — real file diffs.
-- On a **gitlink-bump task** (`pin-validity` lens): **validate** the gitlink-only diff — new SHA reachable on the
-  submodule remote (`git -C <submodule> fetch && git cat-file -e <oid>`) **and** equal to the dep's landed SHA.
+- On a **gitlink-bump task** (`pin-validity` lens): **validate** the gitlink-only diff — new SHA **equals the dep's
+  landed SHA** (ledger match, authoritative). Remote-reachability is **established upstream** (the dep-task land +
+  the Lead pre-flight reconciliation), not re-verified by an auditor `git fetch` (the read-only guard denies it); an
+  optional read-only `git -C <submodule> cat-file -e <oid>` is a non-blocking confirmation (its absence is not a finding).
 - On **any other** task: a gitlink move / submodule "modified content" → **hard refuse** (the fail-closed net).
 
 ### 5.5 Refiner — landing authority (Q2)
