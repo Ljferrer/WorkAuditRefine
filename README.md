@@ -235,7 +235,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.8.1** — Land-advance gates the local follower advance on an origin `ls-remote` readback instead of the push exit code: a no-op push from the wrong cwd (HEAD already at origin's old tip) exits 0 without moving origin, so `cmd_land_advance` now advances the local ref only when `ls-remote origin` confirms origin holds the new sha, else escalates. Step 3 of the land prompt is pinned to the `_refinery` worktree, matching steps 1–2. Builds on v0.8.0.
+**0.8.2** — No-test sub-loop hygiene: the add-test retry prompt now routes exit-1 (no test found) and exit-2 (git-ref error) distinctly instead of collapsing both to a bare non-zero (#237); a land-side comment documents the shared status-enum boundary reused on the land path (#236); the `reAuditFailed` guard-comment is reworded to explain the null-deref shield rather than claim it is handled elsewhere (#235); the auditor's `gate_output` contract gains a completeness clause forbidding curated excerpts at all three sites (#269); and Site-3's blocked-add-test path gains load-bearing coverage (#268). Builds on v0.8.1.
 
 ## License
 
