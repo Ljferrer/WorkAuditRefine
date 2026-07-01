@@ -613,7 +613,9 @@ for (const t of tasks) {
 }
 
 // ---- LAND — only when no hard escalation is open; else hold for the Lead ----
-// landDecision mirrors land-decision.mjs (decideLand) — the Workflow sandbox can't import. Keep in sync.
+// landDecision mirrors land-decision.mjs — the Workflow sandbox can't import. Keep in sync. The Workflow
+// emits a SUPERSET of decideLand's 3 outputs (6 emitted: those 3 + held:submodule-pr, held:land-failed,
+// and the catch block's held:workflow-error); all 6 ⊆ the KNOWN_LAND_DECISIONS export.
 // HARD_ESCALATION_REASONS mirrors land-decision.mjs export — the Workflow sandbox can't import. Keep in sync.
 let landResult = null
 const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps', 'no-test']
