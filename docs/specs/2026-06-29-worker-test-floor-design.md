@@ -28,7 +28,7 @@ The resolution to constraint 1 is WAR's own idiom: a **tested shell guard** (lik
 
 ### 3.1 The assertion script
 
-`assets/assert-test-in-diff.sh <integration-base> <task-branch> [--pattern <glob-set>]`:
+`assets/assert-test-in-diff.sh <integration-base> <task-branch> [--repo <git-dir>] [--pattern <glob-set>]`:
 - Computes the task's change set: `git diff --name-only <integration-base>...<task-branch>` (three-dot = exactly what the task added).
 - Exits **0** if ≥1 changed path matches the test pattern; exits **non-zero** (with the matched/empty summary on stdout) otherwise.
 - The refiner **skips** invocation entirely when the task is `requiresTest:false` (exempt) — the script itself is only ever run for tasks that require a test.

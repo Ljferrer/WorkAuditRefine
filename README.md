@@ -235,7 +235,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.8.4** — auditor git-guard now permits the read-only `git -C <path>` global flag, and the gate-audit pin uses a bare print-and-compare instead of the guard-denied bracket test — a genuinely provably-unrun mapped test can land HARD instead of being force-downgraded to SOFT. Builds on v0.8.3.
+**0.8.5** — the test-floor `assert-test-in-diff.sh` `--pattern` override now iterates a space-separated glob set under a `set -f` noglob guard, so `--pattern '*.test.js *.spec.js'` matches each token independently instead of being treated as one literal-with-space pattern; and the test-only `--repo` flag is documented test-only in the script header and reconciled across the plan/spec usage signatures. Builds on v0.8.4.
 
 ## License
 

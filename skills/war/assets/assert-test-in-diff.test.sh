@@ -20,6 +20,12 @@
 #   4. .. traversal path -> non-zero (LOAD-BEARING: real test file on branch,
 #      guard fires before diff so it would false-allow without the guard)
 #   5. empty diff -> non-zero (not a crash)
+#   6. --pattern multi-glob override (space-separated glob set):
+#      a. adds pkg/foo.test.js, --pattern '*.test.js *.spec.js', clean cwd -> exit 0
+#      b. adds pkg/foo.txt,      same flags,                     clean cwd -> non-zero
+#      c. SAME as 6a but cwd seeded with app.test.js -> exit 0 (LOAD-BEARING:
+#         guards the noglob regression — bare `for pat in $custom_pattern`
+#         glob-expands *.test.js against the cwd without `set -f`)
 set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -346,6 +352,88 @@ if [ "$rc5" -ne 0 ]; then
   pass "case 5: empty diff -> non-zero (not a crash)"
 else
   fail "case 5: empty diff -> expected non-zero (no test added), got exit 0"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 6: --pattern multi-glob override — the advertised <glob-set> is a
+# space-separated set, each token matched independently. .test.js is used
+# deliberately: the DEFAULT pattern rejects it (Case 3d), so only a working
+# override can make 6a/6c pass — keeps these load-bearing, not vacuously
+# matched by the default arm.
+# ---------------------------------------------------------------------------
+
+# Case 6a: adds pkg/foo.test.js, --pattern '*.test.js *.spec.js', clean cwd -> exit 0
+R6a="$(setup_repo)"
+BASE6a="$(git -C "$R6a" rev-parse HEAD)"
+git -C "$R6a" checkout -qb task/multi-glob-hit 2>/dev/null
+mkdir -p "$R6a/pkg"
+printf 'test\n' > "$R6a/pkg/foo.test.js"
+git -C "$R6a" add pkg/foo.test.js
+git -C "$R6a" commit -qm "add pkg/foo.test.js"
+TASK6a="$(git -C "$R6a" rev-parse HEAD)"
+git -C "$R6a" checkout -q - 2>/dev/null
+
+cwd6a="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
+TMPFILES="$TMPFILES $cwd6a"
+rc6a=0
+( cd "$cwd6a" && bash "$SCRIPT" "$BASE6a" "$TASK6a" --pattern '*.test.js *.spec.js' --repo "$R6a" ) >/dev/null 2>&1 || rc6a=$?
+
+if [ "$rc6a" -eq 0 ]; then
+  pass "case 6a: --pattern '*.test.js *.spec.js' matches pkg/foo.test.js -> exit 0"
+else
+  fail "case 6a: --pattern '*.test.js *.spec.js' matches pkg/foo.test.js -> expected exit 0, got $rc6a (single-arm treats the set as one literal-with-space pattern)"
+fi
+
+# Case 6b: adds pkg/foo.txt, same flags, clean cwd -> non-zero (negative control)
+R6b="$(setup_repo)"
+BASE6b="$(git -C "$R6b" rev-parse HEAD)"
+git -C "$R6b" checkout -qb task/multi-glob-miss 2>/dev/null
+mkdir -p "$R6b/pkg"
+printf 'src\n' > "$R6b/pkg/foo.txt"
+git -C "$R6b" add pkg/foo.txt
+git -C "$R6b" commit -qm "add pkg/foo.txt (no glob match)"
+TASK6b="$(git -C "$R6b" rev-parse HEAD)"
+git -C "$R6b" checkout -q - 2>/dev/null
+
+cwd6b="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
+TMPFILES="$TMPFILES $cwd6b"
+rc6b=0
+( cd "$cwd6b" && bash "$SCRIPT" "$BASE6b" "$TASK6b" --pattern '*.test.js *.spec.js' --repo "$R6b" ) >/dev/null 2>&1 || rc6b=$?
+
+if [ "$rc6b" -ne 0 ]; then
+  pass "case 6b: --pattern '*.test.js *.spec.js' does NOT match pkg/foo.txt -> non-zero"
+else
+  fail "case 6b: --pattern '*.test.js *.spec.js' vs pkg/foo.txt -> expected non-zero, got exit 0"
+fi
+
+# Case 6c: SAME as 6a but cwd SEEDED with a real file matching a token ->
+# exit 0. LOAD-BEARING glob-expansion guard: without `set -f`, the unquoted
+# `for pat in $custom_pattern` pathname-expands `*.test.js` against this cwd
+# (-> app.test.js), corrupting the token so pkg/foo.test.js no longer matches
+# -> exit 1 != 0. 6a/6b run in EMPTY cwds and are structurally blind to this.
+# memory: weak-test-assertion-passes-without-feature-being-exercised.
+R6c="$(setup_repo)"
+BASE6c="$(git -C "$R6c" rev-parse HEAD)"
+git -C "$R6c" checkout -qb task/multi-glob-seeded 2>/dev/null
+mkdir -p "$R6c/pkg"
+printf 'test\n' > "$R6c/pkg/foo.test.js"
+git -C "$R6c" add pkg/foo.test.js
+git -C "$R6c" commit -qm "add pkg/foo.test.js (seeded-cwd variant)"
+TASK6c="$(git -C "$R6c" rev-parse HEAD)"
+git -C "$R6c" checkout -q - 2>/dev/null
+
+cwd6c="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
+TMPFILES="$TMPFILES $cwd6c"
+# Seed the cwd with a real file matching a pattern token; a naive
+# glob-expanding loop would rewrite `*.test.js` -> `app.test.js` here.
+touch "$cwd6c/app.test.js"
+rc6c=0
+( cd "$cwd6c" && bash "$SCRIPT" "$BASE6c" "$TASK6c" --pattern '*.test.js *.spec.js' --repo "$R6c" ) >/dev/null 2>&1 || rc6c=$?
+
+if [ "$rc6c" -eq 0 ]; then
+  pass "case 6c: seeded cwd (app.test.js) + --pattern '*.test.js *.spec.js' matches pkg/foo.test.js -> exit 0 (noglob guard holds)"
+else
+  fail "case 6c: seeded cwd + --pattern '*.test.js *.spec.js' -> expected exit 0, got $rc6c (glob-expansion corrupted the token; set -f missing)"
 fi
 
 # ---------------------------------------------------------------------------
