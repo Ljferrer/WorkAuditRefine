@@ -235,7 +235,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.8.10** — the auditor's submodule pin-validity lens no longer runs the guard-denied `git -C <sub> fetch`: it validates that the new gitlink SHA **equals the dep task's landed SHA** (ledger match — authoritative), with remote-reachability **delegated upstream** (the dep-task land + the Lead pre-flight reconciliation) rather than re-verified in-seat, and a read-only `git -C <sub> cat-file -e <oid>` kept only as an optional non-blocking confirmation whose absence is never a finding. The read-only git guard is **unchanged**; a deny-test pins that `fetch` — both bare `git fetch` and the `-C`-prefixed `git -C <sub> fetch` — stays denied (#310). Builds on v0.8.9.
+**0.8.11** — submodule + servitor hygiene sweep — comment/prose fidelity, step-isolated submodule-guard tests, inert landedShas threading dropped. Builds on v0.8.10.
 
 ## License
 
