@@ -13,7 +13,7 @@ Add one probe per matching feature (edit the scaffold's array or pass `args.prob
 
 | Plan feature | Probe `name` | `technique` | Prompt gist |
 |---|---|---|---|
-| before/after edit snippet | `snippet-fidelity` | analyzed | "Confirm each 'before' snippet appears VERBATIM in the live file; report drift + the actual text." |
+| before/after edit snippet | `snippet-fidelity` | analyzed | "Confirm each **anchor/'before'** snippet (the text an edit attaches to) appears VERBATIM in the live file; report drift + the actual text. The plan's proposed **after**-state is its deliverable — EXPECTED absent, **never** report it." |
 | code block + test block | `tests-run` | executed | "Extract the module + test to a temp dir, run the test runner, report the pass/fail counts." |
 | shell command + expected output | `command-diff` | executed | "Run the command in a sandbox; diff actual vs the stated Expected." |
 | cited line numbers | `anchor-check` | analyzed | "Confirm each cited line number points where the plan says." |
@@ -42,6 +42,10 @@ For a plan with **no runnable artifacts** (a design doc/PRD), drop the executed 
   fix: "suggested resolution",
   planRef: "Task/Step/line" }
 ```
+
+**Precondition vs deliverable (analyzed probes — shared `preconditionRule` in the scaffold).** A plan *proposes* changes; it has not run. Analyzed probes verify only that the plan's **preconditions** hold against the live repo (the anchor/insertion-point text each edit attaches to exists verbatim, assumed-existing files/symbols/signatures are present, the edits would apply and compose). The plan's proposed new code, new tests, comment edits, and version bumps are its **deliverable** — expected absent, so their finding-shape splits two ways:
+- **precondition-missing → a real finding** (a missing/renamed anchor, a false claim about *existing* code, a wrong signature, a drifted line number, an internal contradiction, edits that would not compose).
+- **after-state-not-yet-present → NEVER a finding** ("the proposed line/version/test isn't in the repo yet" — that is the expected pre-execution baseline, not a defect).
 
 ## Severity & gate (enforced by [`../assets/red-team-gate.mjs`](../assets/red-team-gate.mjs))
 - **Critical** — provably false in a way that breaks execution (test fails, edit won't apply, file/symbol absent). Blocks **only when the parent probe's `status` is not `"pass"`** (i.e. `warn`, `fail`, or absent). A Critical from a `status:"pass"` probe is a confirmation artifact, not a defect — it does not block.

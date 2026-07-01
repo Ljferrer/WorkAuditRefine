@@ -101,6 +101,30 @@ const scopeLock = (technique) => [
   `In your FINDINGS result you MUST set read_anchor.resolved_path to the ABSOLUTE path of the plan file you actually read and read_anchor.plan_title to its first "# " heading line. This is checked against the expected plan; a mismatch discards your findings.`,
 ].join('\n')
 
+// PRECONDITION-vs-DELIVERABLE preamble (#311). A plan PROPOSES changes; it hasn't run. Analyzed
+// probes were filing the plan's own proposed output (new code/tests/comment edits/version bumps) as
+// "missing" defects — backwards from the skill's purpose (verify the plan CAN be applied, not that it
+// already was). This NARROW rule scopes analyzed probes to PRECONDITIONS while explicitly PRESERVING
+// real findings (missing anchor, false claim about existing code, wrong signature, drifted line,
+// contradiction) — the retained-findings clause is the non-blunting guard (asserted in the test). It
+// is prepended alongside scopeLock to ANALYZED probes only (guarded at the composition site);
+// `executed` probes run artifacts in a sandbox rather than presence-checking, so they never see it.
+const preconditionRule = [
+  'PRECONDITION vs DELIVERABLE — a plan PROPOSES changes; it has not run.',
+  'Verify only that its PRECONDITIONS hold against the live repo:',
+  '  • the anchor / insertion-point text each edit attaches to EXISTS (verbatim);',
+  '  • assumed-existing files, symbols, and signatures are present;',
+  '  • the described edits would apply and compose.',
+  "The plan's PROPOSED new code, new tests, comment edits, and version bumps are its",
+  'DELIVERABLE — they are EXPECTED to be absent from the current repo. NEVER report',
+  'their absence as a finding. Only a missing or changed ANCHOR / PRECONDITION —',
+  'something an edit needs in order to land — is a defect.',
+  // Retained-findings carve-out — the non-blunting guard. The phrase 'false claim about EXISTING
+  // code' is asserted verbatim (single line) by workflow-scaffold.test.mjs (#311 1b): blunting this
+  // rule to a bare "ignore proposed changes" would strip it and turn the RED/GREEN test RED again.
+  'A false claim about EXISTING code, a wrong signature, a drifted line number, or an internal contradiction remains a real finding.',
+].join('\n')
+
 const SPINE = [
   { name: 'claims-vs-reality', kind: 'spine', technique: 'analyzed',
     prompt: `Read the plan ${planFile}. For every CONCRETE claim it makes about ${repo} (a file/symbol exists, a function signature, a cited line number, a "before" snippet), check it against the LIVE repo. Report each false claim with the plan's version vs the file's actual content. Read-only.` },
@@ -123,8 +147,10 @@ const allProbes = [...spine, ...probes]
 log(`Red-teaming ${planFile}: ${allProbes.length} probe(s)`)
 
 // Probe (stage 1) + adversarial-confirm (stage 2) as named stages so a dropped probe can be retried.
+// preconditionRule rides alongside scopeLock but ONLY for analyzed probes (#311) — executed probes
+// run the plan's artifacts in a sandbox, so a presence-check carve-out is inert/misleading for them.
 const runProbe = (p) => agent(
-  `${scopeLock(p.technique)}\n\n${p.prompt}\n\nReturn ONLY the FINDINGS object (probe="${p.name}", kind="${p.kind}", technique="${p.technique}"). Prove any failure with reproduced evidence; never assert. Set needsDecision:true on any finding that is an ambiguity with more than one non-equivalent resolution — a hole only the user can settle. Only record a finding for an actual problem — a false claim, a gap, or an ambiguity (needsDecision). If a claim checks out, do NOT record it. A fully-clean probe returns status:"pass" with findings:[].`,
+  `${scopeLock(p.technique)}${p.technique === 'analyzed' ? `\n\n${preconditionRule}` : ''}\n\n${p.prompt}\n\nReturn ONLY the FINDINGS object (probe="${p.name}", kind="${p.kind}", technique="${p.technique}"). Prove any failure with reproduced evidence; never assert. Set needsDecision:true on any finding that is an ambiguity with more than one non-equivalent resolution — a hole only the user can settle. Only record a finding for an actual problem — a false claim, a gap, or an ambiguity (needsDecision). If a claim checks out, do NOT record it. A fully-clean probe returns status:"pass" with findings:[].`,
   { label: `probe:${p.name}`, phase: 'Probe',
     agentType: p.technique === 'analyzed' ? 'Explore' : undefined, schema: FINDINGS })
 
