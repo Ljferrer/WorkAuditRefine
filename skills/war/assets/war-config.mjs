@@ -31,7 +31,7 @@ export const DEFAULTS = {
     covenPolicy: 'all',
     autoEscalate: true,
   },
-  run: { roundLimit: 3, afk: false, provision: [], provisionSource: 'none', provisionAuto: true },
+  run: { roundLimit: 3, afk: false, ace: false, provision: [], provisionSource: 'none', provisionAuto: true },
   overrides: { gate: null, workingBranch: null, landingBranch: null, learningsTarget: null },
 }
 
@@ -95,6 +95,7 @@ export function validate(input) {
 
   if (!Number.isInteger(c.run.roundLimit) || c.run.roundLimit < 1) errors.push(`run.roundLimit must be an integer >= 1 (got ${JSON.stringify(c.run.roundLimit)})`)
   if (typeof c.run.afk !== 'boolean') errors.push('run.afk must be a boolean')
+  if (typeof c.run.ace !== 'boolean') errors.push('run.ace must be a boolean')
   // run.provision is validated by the shared primitive (array of non-empty strings; [] is valid).
   for (const e of validateProvision(c.run.provision).errors) errors.push(`run.${e}`)
   if (!PROVISION_SOURCES.includes(c.run.provisionSource)) errors.push(`run.provisionSource must be one of ${PROVISION_SOURCES.join('|')} (got ${JSON.stringify(c.run.provisionSource)})`)
