@@ -1529,18 +1529,22 @@ test('#193 T2-1 — pinned _refinery path interpolated into gate-audit prompt', 
     'gate-audit prompt must include the reconstructed _refinery path (worktreeRoot/runId/_refinery)')
 })
 
-test('#193 T2-2 — HEAD-confirm bracket test instruction present in gate-audit prompt', async () => {
-  // The prompt must instruct the seat to run the exact bracket comparison
-  // [ "$(git -C <refineryPath> rev-parse HEAD)" = "<gateHeadSha>" ]
-  // Both 'rev-parse HEAD' and '[ "$(git -C' must appear (verified absent at HEAD).
+test('#193 T2-2 — HEAD-confirm bare rev-parse pin instruction present in gate-audit prompt', async () => {
+  // The prompt must instruct the seat to run the bare, guard-permitted print-and-compare
+  //     git -C <refineryPath> rev-parse HEAD
+  // then compare the printed sha (NOT the guard-denied bracket form [ "$(git -C ... ]).
+  // p is the EMITTED prompt, so ${refineryPath} is already interpolated — assert the same
+  // interpolated fixture path #193 T2-1 asserts (/abs/repo/.claude/worktrees/run-2026/_refinery).
   const { calls } = await runPhase(PROVISION_ARGS(), gateAuditImpl)
   const gaPrompts = gateAuditCalls(calls)
   assert.ok(gaPrompts.length > 0, 'gate-audit seats were dispatched')
   const p = gaPrompts[0].prompt
   assert.ok(p.includes('rev-parse HEAD'),
     'gate-audit prompt must contain the rev-parse HEAD instruction')
-  assert.ok(p.includes('[ "$(git -C'),
-    'gate-audit prompt must contain the bracket comparison [ "$(git -C ...')
+  assert.ok(p.includes('git -C /abs/repo/.claude/worktrees/run-2026/_refinery rev-parse HEAD'),
+    'gate-audit prompt must contain the bare git -C <refineryPath> rev-parse HEAD command')
+  assert.ok(!p.includes('[ "$(git -C'),
+    'gate-audit prompt must NOT contain the guard-denied bracket comparison [ "$(git -C ...')
 })
 
 test('#193 T2-3 — "you cannot run commands" is removed from gate-audit prompt', async () => {
