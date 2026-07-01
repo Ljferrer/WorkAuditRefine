@@ -1998,7 +1998,9 @@ test('L3 T1 — blockedReason predicate is total: extract-and-eval all four case
   // Extract the arrow definition from the template source. The predicate is an
   // internal const — not a module export — so we use extract-and-eval (the same
   // technique as the AsyncFunction harness) to exercise the real predicate code.
-  const match = src.match(/const blockedReason\s*=\s*(r\s*=>[\s\S]+?null\))/)
+  // The colon anchors the terminal `: null)` branch so an interior `null)` (a
+  // future `|| null)` / `?? null)`) cannot truncate the lazy capture.
+  const match = src.match(/const blockedReason\s*=\s*(r\s*=>[\s\S]+?:\s*null\))/)
   assert.ok(match, 'src must contain a "const blockedReason = r => …" arrow definition')
   // eslint-disable-next-line no-new-func
   const blockedReason = new Function(`return (${match[1]})`)()
