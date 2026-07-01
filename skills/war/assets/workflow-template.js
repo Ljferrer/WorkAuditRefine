@@ -500,14 +500,14 @@ if (mergedTasksForGateAudit.length > 0) {
       + `a stale gate output (gate-HEAD sha != integration tip) cannot be a provably-unrun land-halt. `
       + `This SOFT-downgrade applies ONLY to the cannot-confirm case; a mapped test provably unrun AT the `
       + `confirmed gate-HEAD sha stays HARD.\n`
-      + `First confirm your evidence is pinned to the integration tip by running EXACTLY this bracket test:\n`
-      + `    [ "$(git -C ${refineryPath} rev-parse HEAD)" = "${gateHeadSha}" ]\n`
-      + `Exit 0 ⇒ pin CONFIRMED (your worktree is at the integration tip). Non-zero exit — including git `
-      + `unavailable or rev-parse failing — ⇒ you CANNOT confirm the pin.\n`
+      + `First confirm your evidence is pinned to the integration tip. Run (read-only git, permitted):\n`
+      + `    git -C ${refineryPath} rev-parse HEAD\n`
+      + `and compare the printed sha against the gate-HEAD sha ${gateHeadSha}. Equal ⇒ pin CONFIRMED. `
+      + `Different, or the command cannot run (git unavailable / rev-parse fails) ⇒ you CANNOT confirm the pin.\n`
       + `If CONFIRMED, then confirm the mapped acceptance-criteria test is present in the files at that tip `
       + `(read-only git / Read in ${refineryPath}), not merely inferred from the gate output text; record a `
       + `HARD gate-evidence finding ONLY when the mapped test is genuinely absent AT THE CONFIRMED INTEGRATION TIP.\n`
-      + `If you CANNOT confirm (the bracket test is non-zero or the command cannot run), record a SOFT note, `
+      + `If you CANNOT confirm (the printed sha differs from the gate-HEAD sha or the command cannot run), record a SOFT note, `
       + `never a HARD finding (the stale-tip defusing rule). The SOFT note MUST state: the observed HEAD sha `
       + `(or "rev-parse failed"), the expected gate-HEAD sha ${gateHeadSha}, and the reason — "gate-audit `
       + `worktree not at the integration tip — execution evidence unreliable, downgraded to SOFT, not a land-halt".\n`

@@ -235,7 +235,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.8.3** — servitor provenance gate robustness — indent-agnostic extractor (accepts any leading whitespace: 2-space / 4-space / tab) + corrected `|| true` deny-mechanism comment. Builds on v0.8.2.
+**0.8.4** — auditor git-guard now permits the read-only `git -C <path>` global flag, and the gate-audit pin uses a bare print-and-compare instead of the guard-denied bracket test — a genuinely provably-unrun mapped test can land HARD instead of being force-downgraded to SOFT. Builds on v0.8.3.
 
 ## License
 

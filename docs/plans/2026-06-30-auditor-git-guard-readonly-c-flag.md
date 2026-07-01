@@ -42,9 +42,10 @@ provably-unrun mapped test can land as HARD.
 
 - **Phase 1 — guard + test** (`hooks/validate-auditor-git.sh` + `.test.sh`, one task, `requiresTest: true`). The code
   and its test **land together** — the new GROUP H asserts the peel, so they are one commit.
-- **Phase 2 — prompt reword** (`skills/war/assets/workflow-template.js`, one task, `requiresTest: false`). Disjoint
-  file; no dep on Phase 1's behavior, but ordered after it so the prompt that exercises the new guard ships on a tip
-  where the guard already allows it.
+- **Phase 2 — prompt reword + co-located test update** (`skills/war/assets/workflow-template.js` **and its
+  `.test.mjs`**, one task, `requiresTest: true` — it updates the behavioral test `#193 T2-2`, which hard-asserts the
+  `[ "$(git -C` bracket substring the reword deletes). Disjoint file; no dep on Phase 1's behavior, but ordered after
+  it so the prompt that exercises the new guard ships on a tip where the guard already allows it.
 - **Phase 3 — release v0.8.4** (four version slots).
 
 Phase 1 touches only `hooks/`; Phase 2 is the only `workflow-template.js` touch — no intra-plan contention
@@ -74,8 +75,15 @@ GROUP H appends after GROUP G (the file ends with the summary block after G5).
   - **H2 (allow):** `expect_allow "H2: git -C /abs/path show HEAD:file.txt → allowed"` — `git -C /abs/path show HEAD:file.txt` exits **0** (proves `-C` works for the other read verb the auditor uses).
   - **H3 (deny — verb allowlist NOT widened):** `expect_deny "H3: git -C /abs/path commit -m x → denied (-C does not widen the verb allowlist)"` — `git -C /abs/path commit -m x` exits **2 + `WAR:`**. **Load-bearing** — proves a write subcommand after `-C` still hits the read-only allowlist's `*)` default deny.
   - **H4 (deny — bare `-C`):** `expect_deny "H4: git -C → denied (global -C with no path/subcommand)"` — `git -C` exits **2 + `WAR:`**.
-  - **H5 (deny — bracket/`$()` injection parity):** `expect_deny "H5: [ \"\$(git -C <path> rev-parse HEAD)\" = \"<sha>\" ] → denied (C5 subst parity)"` — the literal old bracket form `[ "$(git -C /abs/path rev-parse HEAD)" = "abc123" ]` exits **2 + `WAR:`** (the char allowlist still forbids `[ ] $ ( ) "`). This proves the reword in Phase 2 does **not** relax injection defense.
-  - **Do NOT** add a `git -C -C rev-parse` deny case: the spec's "second `-C` → `*)` default deny" rationale is **wrong** (verified — after peeling the first `-C <path>`, `rest` = `rev-parse HEAD` → ALLOW, harmlessly). Do not assert it denies; omit it.
+  - **H5 (deny — bracket/`$()` injection parity):** the literal old bracket form `[ "$(git -C /abs/path rev-parse HEAD)" = "abc123" ]` exits **2 + `WAR:`** (the char allowlist still forbids `[ ] $ ( ) "`). This proves the Phase-2 reword does **not** relax injection defense. **Build the payload with `jq -nc --arg`, NOT `auditor_cmd`** — the bracket form contains double-quotes and `auditor_cmd`'s `printf '{…"command":"%s"…}'` would emit **invalid JSON** (unescaped inner `"`); the guard's `jq` read of `.agent_type` then returns empty → the non-auditor `*) exit 0` pass-through fires → the deny is **vacuous** (rc 0, test silently passes-as-deny-fails; memory `printf-json-escaping-vacuous-test-case`). Construct it explicitly:
+    ```sh
+    expect_deny "H5: [ \"\$(git -C <path> rev-parse HEAD)\" = \"<sha>\" ] → denied (C5 subst parity)" \
+      "$(jq -nc --arg c '[ "$(git -C /abs/path rev-parse HEAD)" = "abc123" ]' \
+         '{agent_type:"war-auditor",tool_input:{command:$c}}')"
+    ```
+    (H1–H4/H6 have no embedded `"`, so `auditor_cmd` is fine for them; only H5 needs `jq`. `jq` is already a guard dependency.)
+  - **H6 (allow — double `-C` peels harmlessly):** `expect_allow "H6: git -C -C rev-parse HEAD → allowed (first -C peeled; rest = rev-parse HEAD)"` — exits **0** after the peel. **Load-bearing red-first** like H1/H2 (pre-peel `rest` begins `-C ` → the subcommand extractor's `*)` default deny → exit 2, so `expect_allow` FAILs). Asserts the accepted double-`-C` behavior so a future change to the token-drop pattern can't silently regress it (closes the red-team `needsDecision` on the untested edge case).
+  - **Do NOT** add a `git -C -C rev-parse` *deny* case. For the **no-path** input `git -C -C rev-parse` the peel drops the leading `-C ` then the `<path>`-token slot (`${rest#* }`) consumes the second `-C`, leaving `rest = rev-parse HEAD` → ALLOW (H6). The spec's "second `-C` → `*)` default deny" concern is correct only for the **different** input `git -C <path> -C rev-parse` (a path token *between* the flags → peel leaves `-C rev-parse` → default deny). Both are safe; the pin test uses exactly one `-C`.
   - **Keep C5 unchanged** (`git log $(evil) → denied (subst)`) — it is the canonical injection-defense case the peel must not weaken.
 - [ ] **Step 2 — Run `bash hooks/validate-auditor-git.test.sh` → RED.** H1/H2 currently **deny** (`rest` begins `-C …`
   → hits the subcommand extractor's `*)` default deny → exit 2), so the `expect_allow` cases FAIL. H3/H4/H5 already
@@ -99,8 +107,9 @@ GROUP H appends after GROUP G (the file ends with the summary block after G5).
       deny "global -C with no path/subcommand" ;;
   esac
   ```
-  Note the `// ponytail:` comment **corrects the spec's bogus `git -C -C` rationale** (memory
-  `source-comment-lags-emitted-prompt-after-rewrite` — keep the comment true to behavior).
+  Note the `// ponytail:` comment documents the **no-path** `git -C -C rev-parse HEAD` → ALLOW behavior; the spec's
+  "second `-C` → default deny" concern applies only to the *path-between-flags* input `git -C <path> -C rev-parse`
+  (both are safe). Keep the comment true to behavior (memory `source-comment-lags-emitted-prompt-after-rewrite`).
 - [ ] **Step 4 — Run the full self-discovering gate → green.** H1/H2 now allow; H3/H4/H5 + C5 still deny; A–G
   unchanged.
 - [ ] **Step 5 — Commit** — `feat(war): teach auditor git-guard the read-only -C <path> global flag (#222)`
@@ -113,9 +122,12 @@ GROUP H appends after GROUP G (the file ends with the summary block after G5).
 
 ### Task 2 — `workflow-template.js` gate-audit pin → bare `git -C … rev-parse HEAD` print-and-compare
 
-**Files:** `skills/war/assets/workflow-template.js`. **`requiresTest`: false** — dispatched prose in a template string;
-no control-flow change, no new behavior. **deps:** Task 1 (the guard must allow the reworded command before the prompt
-that emits it ships).
+**Files:** `skills/war/assets/workflow-template.js` **and `skills/war/assets/workflow-template.test.mjs`**.
+**`requiresTest`: true** — the reword deletes the exact `[ "$(git -C` substring that behavioral test `#193 T2-2`
+(`workflow-template.test.mjs` ~L1532-1544) hard-asserts is present, so that test MUST be updated in the same task or
+the node suite goes RED (red-team CONFIRMED Critical: reword-only → node `pass 294 / fail 1`; reword + assertion update
+→ `pass 295 / fail 0`). **deps:** Task 1 (the guard must allow the reworded command before the prompt that emits it
+ships).
 
 **Anchor (confirmed at HEAD, ~L503-504, WILL drift — locate by construct):** inside the `mergedTasksForGateAudit`
 gate-audit `agent(...)` prompt (the `if (mergedTasksForGateAudit.length > 0)` block's `parallel(...)` map), the two
@@ -125,9 +137,19 @@ concatenated lines
 `EXACTLY this bracket test` and the `[ "$(git -C` line — **not** a line number
 (memory `plan-line-number-refs-stale-use-construct-locator`).
 
-- [ ] **Step 1 — (no behavioral test — dispatched prose.)** No `.test.mjs` asserts on this string today. The
-  load-bearing post-condition is a substring check (Step 3): the emitted prompt must no longer contain `[ "$(git -C`
-  and must contain the bare `git -C ${refineryPath} rev-parse HEAD`.
+- [ ] **Step 1 — Update the co-located behavioral test FIRST (RED).** A `.test.mjs` DOES assert on this string:
+  `skills/war/assets/workflow-template.test.mjs` test **`#193 T2-2 — HEAD-confirm bracket test instruction present in
+  gate-audit prompt`** (~L1532-1544) hard-asserts `assert.ok(p.includes('[ "$(git -C'), …)` — the exact substring the
+  Step-2 reword deletes. Replace **that bracket assertion** (line ~1542-1543 only; keep the `p.includes('rev-parse
+  HEAD')` assertion at ~L1540) with two: **(i)** the emitted prompt contains the bare command with the **INTERPOLATED**
+  refinery path — `assert.ok(p.includes('git -C /abs/repo/.claude/worktrees/run-2026/_refinery rev-parse HEAD'), …)`.
+  **Critical:** `p` is the *emitted* prompt, so `${refineryPath}` is already interpolated — assert the **same
+  interpolated fixture path that sibling test `#193 T2-1` asserts at ~L1528** (`/abs/repo/.claude/worktrees/run-2026/_refinery`),
+  **NOT** the literal `${refineryPath}` token (that appears only in the *source file*, matched by the Step-3 grep — never
+  in `p`). **(ii)** `assert.ok(!p.includes('[ "$(git -C'), …)`. Rename the test off "bracket test" (e.g.
+  `#193 T2-2 — HEAD-confirm bare rev-parse pin instruction present in gate-audit prompt`). Run `node --test
+  'skills/war/assets/workflow-template.test.mjs'` → **RED** (pre-reword the prompt still emits the bracket form, so
+  assertion (i) fails and (ii) fails). The `p.includes('rev-parse HEAD')` assertion (~L1540) stays green throughout.
 - [ ] **Step 2 — Implement the reword.** Replace the two bracket-test lines (the `EXACTLY this bracket test` +
   `[ "$(git -C` lines, ~L503-504 at HEAD) with a bare print-and-compare the guard permits (spec Mechanics):
   ```js
@@ -142,8 +164,8 @@ concatenated lines
   cannot-confirm becomes SOFT) and the required SOFT-note contents stay exactly as-is (spec Non-goal). Adjust the
   `Exit 0 ⇒ pin CONFIRMED … Non-zero exit` wording (~L505-506 at HEAD) only as needed so it reads against "compare the
   printed sha" rather than a bracket exit code — keep the CONFIRMED / CANNOT-confirm outcomes identical.
-- [ ] **Step 3 — Run the full self-discovering gate → green.** No test asserts on the prompt, but the whole node suite
-  must stay green since it parses `workflow-template.js`. **Manual post-condition:**
+- [ ] **Step 3 — Run the full self-discovering gate → green.** With `#193 T2-2` updated in Step 1, the whole node
+  suite must be green (it both parses `workflow-template.js` and now asserts the bare form). **Manual post-condition:**
   `grep -F '[ "$(git -C' skills/war/assets/workflow-template.js` returns **nothing** in the gate-audit prompt, and
   `grep -F 'git -C ${refineryPath} rev-parse HEAD' skills/war/assets/workflow-template.js` hits the new bare command
   (spec Validation #4).
@@ -195,21 +217,21 @@ ahead of this in the stack is auto-found.
 
 | Task | Test | Key assertion | Notes |
 |---|---|---|---|
-| T1 | `validate-auditor-git.test.sh` GROUP H | H1/H2 allow (`git -C … rev-parse HEAD` / `show HEAD:file.txt` → exit 0); **H3 deny** (`git -C … commit` → exit 2 + `WAR:`, verb allowlist NOT widened); H4 deny (bare `-C`); **H5 deny** (bracket/`$()` form, C5 parity); C5 stays | Existing `expect_allow`/`expect_deny` helpers (exit-2 + `WAR:` already asserted). **Red first:** H1/H2 must deny pre-peel. No `git -C -C` deny case (it allows). |
-| T2 | (no test — dispatched prose) | full gate green; **manual:** no `[ "$(git -C` substring; bare `git -C … rev-parse HEAD` present | SOFT-downgrade branches (`Exit 0 ⇒ pin CONFIRMED …` → SOFT-note lines, ~L505-513 at HEAD) semantically unchanged |
+| T1 | `validate-auditor-git.test.sh` GROUP H | H1/H2 allow (`git -C … rev-parse HEAD` / `show HEAD:file.txt` → exit 0); **H3 deny** (`git -C … commit` → exit 2 + `WAR:`, verb allowlist NOT widened); H4 deny (bare `-C`); **H5 deny** (bracket/`$()` form, C5 parity); **H6 allow** (`git -C -C rev-parse HEAD` → exit 0, double-`-C` peels harmlessly); C5 stays | Existing `expect_allow`/`expect_deny` helpers (exit-2 + `WAR:` already asserted). **Red first:** H1/H2/H6 must deny pre-peel. No `git -C -C` *deny* case (H6 asserts it ALLOWs). |
+| T2 | `workflow-template.test.mjs` `#193 T2-2` (updated) | `#193 T2-2` now asserts the bare `git -C … rev-parse HEAD` form (not `[ "$(git -C`); full gate green; **manual:** no `[ "$(git -C` substring; bare `git -C … rev-parse HEAD` present | SOFT-downgrade branches (`Exit 0 ⇒ pin CONFIRMED …` → SOFT-note lines, ~L505-513 at HEAD) semantically unchanged |
 | T3 | (no test — release) | full gate green at the release commit; four slots + `Builds on` hand-verified | no cross-slot test |
 
 ## Coverage
 
 | Issue | Tasks | Validation |
 |-------|-------|------------|
-| **#222** | T1 (guard + GROUP H test), T2 (prompt reword), T3 (release) | spec V#1 (H1/H2 allow), V#2 (H3/H4 deny — no verb widening), V#3 (C5 + H5 deny — injection still closed), V#4 (prompt reworded, no `[ "$(git -C`) |
+| **#222** | T1 (guard + GROUP H test incl H6), T2 (prompt reword + `#193 T2-2` test update), T3 (release) | spec V#1 (H1/H2 allow), V#2 (H3/H4 deny — no verb widening), V#3 (C5 + H5 deny — injection still closed), V#4 (prompt reworded, no `[ "$(git -C`, `#193 T2-2` asserts bare form) |
 
 ## Deliberate simplifications / non-goals
 
-- **One `-C` peel only.** `git -C -C rev-parse HEAD` peels the first `-C` and allows the harmless read; the pin test
-  uses exactly one `-C`. The char allowlist guarantees no space-containing path reaches the peel, so the single
-  space-free-path assumption holds. Documented inline as a `ponytail:` ceiling.
+- **One `-C` peel only.** `git -C -C rev-parse HEAD` peels the first `-C` and allows the harmless read (asserted by
+  **H6**); the pin test uses exactly one `-C`. The char allowlist guarantees no space-containing path reaches the peel,
+  so the single space-free-path assumption holds. Documented inline as a `ponytail:` ceiling.
 - **No char-allowlist change.** The bracket/`$()` form stays denied (H5 + C5 prove it) — `-C` is the correct and
   sufficient half of the issue's suggestion; permitting `$()[]"` reopens the C5 injection vector (spec Alternatives).
 - **Does NOT admit `git fetch` — tracked separately by [#310](https://github.com/Ljferrer/WorkAuditRefine/issues/310).**
