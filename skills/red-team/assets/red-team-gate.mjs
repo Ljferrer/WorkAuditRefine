@@ -5,6 +5,9 @@ import { isAbsolute } from 'node:path'
 // findings; classification + verdict live here, run by the Lead via Bash.)
 
 export const BLOCKER_SEVERITIES = ['Critical', 'Major']
+// The severities the gate understands. A finding whose `severity` is absent or outside
+// this set is MALFORMED — it must not silently fall through every bucket (#311).
+const KNOWN_SEVERITIES = [...BLOCKER_SEVERITIES, 'Minor']
 
 export function allFindings(results) {
   return (results || []).flatMap(r =>
@@ -67,7 +70,12 @@ export function isIncomplete(coverage) {
 export function dedupe(findings) {
   const seen = new Set(), out = []
   for (const f of findings) {
-    const key = `${f.planRef || ''}|${f.severity}|${f.claim || ''}`
+    // Primary key is planRef|severity|claim. When severity AND claim are both absent
+    // (a malformed finding), that key collapses distinct findings to one — fall back to
+    // file|line|summary so two severity-less findings don't vanish into a single slot (#311).
+    const key = (f.severity == null && f.claim == null)
+      ? `${f.file || ''}|${f.line || ''}|${f.summary || ''}`
+      : `${f.planRef || ''}|${f.severity}|${f.claim || ''}`
     if (seen.has(key)) continue
     seen.add(key)
     out.push(f)
@@ -76,7 +84,13 @@ export function dedupe(findings) {
 }
 
 export function classify(findings) {
-  const fs = dedupe(findings)
+  const fs = dedupe(findings).map(f => {
+    // A finding with no/invalid severity is malformed. On a non-pass probe it is a genuine
+    // (mis-shaped) defect → force needsDecision so it can't fall through every bucket. On a
+    // pass probe demote it to Minor (informational), never a blocker — preserves #50.
+    if (KNOWN_SEVERITIES.includes(f.severity)) return f
+    return f.probeStatus !== 'pass' ? { ...f, needsDecision: true } : { ...f, severity: 'Minor' }
+  })
   return {
     blockers:      fs.filter(f => BLOCKER_SEVERITIES.includes(f.severity) && f.probeStatus !== 'pass'),
     needsDecision: fs.filter(f => f.needsDecision === true),
