@@ -2042,13 +2042,18 @@ test('#237 — both merge-task dispatch prompts split exit-1 (no-test) from exit
   // (git/ref error, never no-test). A bare `exits non-zero` collapse mis-routes a transient exit-2
   // bad-ref into no-test. Slice each prompt's assert-test-in-diff clause out of src and assert
   // per-prompt so the sibling prompt / adjacent submodule clause cannot satisfy an assertion.
+  // Anchor each slice on its unique leading phrase, NOT `.match()` source order:
+  // Prompt A renders `to verify the task diff contains`, Prompt B `to verify the task diff now
+  // contains` — so `to verify the task diff contains` is disjoint from B (B inserts `now`) and
+  // `now contains` is disjoint from A. Isolation no longer depends on A preceding B in src
+  // ([[regex-slice-disambiguation-relies-on-match-order-not-anchoring]], #326).
   const prompts = {
-    // Prompt A: requiresTest-branch merge prompt (the `contains at least one` phrasing).
+    // Prompt A: requiresTest-branch merge prompt (unique phrase `to verify the task diff contains`).
     'A (requiresTest branch)':
-      src.match(/run assert-test-in-diff\.sh[^`]*contains at least one[^`]*/),
-    // Prompt B: no-test-retry merge prompt (the `now contains at least one` phrasing).
+      src.match(/run assert-test-in-diff\.sh[^`]*to verify the task diff contains[^`]*/),
+    // Prompt B: no-test-retry merge prompt (unique phrase `now contains`).
     'B (no-test retry)':
-      src.match(/run assert-test-in-diff\.sh[^`]*now contains at least one[^`]*/),
+      src.match(/run assert-test-in-diff\.sh[^`]*now contains[^`]*/),
   }
   for (const [name, m] of Object.entries(prompts)) {
     assert.ok(m, `merge-task prompt ${name}: assert-test-in-diff clause not found in src`)
