@@ -325,14 +325,19 @@ test('#311: every analyzed probe prompt carries the PRECONDITION vs DELIVERABLE 
 })
 
 test('#311: the EXECUTED spine probe (executable-proof) does NOT gain the precondition rule', async () => {
-  const a = baseArgs()
+  const a = baseArgs({ probes: [
+    { name: 'bespoke-executed', kind: 'bespoke', technique: 'executed', prompt: 'do bespoke executed' },
+  ] })
   const { prompts } = await runScaffold(a, passResult(a))
-  const byLabel = Object.fromEntries(prompts.map(p => [p.opts.label, p.prompt]))
-  assert.ok(!/PRECONDITION vs DELIVERABLE/.test(byLabel['probe:executable-proof']),
-    'the executed probe runs artifacts in a sandbox, not presence-checks — the precondition rule must NOT reach it')
+  const byLabel = Object.fromEntries(prompts.filter(p => p.opts.phase === 'Probe').map(p => [p.opts.label, p.prompt]))
+  for (const label of ['probe:executable-proof', 'probe:bespoke-executed']) {
+    assert.ok(byLabel[label], label + ' must be present')
+    assert.ok(!/PRECONDITION vs DELIVERABLE/.test(byLabel[label]),
+      label + ': executed probes must not gain the precondition rule (technique-scoped, not name-scoped)')
+  }
 })
 
-test(`provision BACK-COMPAT: no provision list => scope-lock + prompts are byte-for-byte today's`, async () => {
+test(`provision BACK-COMPAT: an empty provision list must not change prompts vs an absent one`, async () => {
   // The executed-probe and analyzed-probe prompts with NO provision list must be IDENTICAL to the
   // prompts produced when the key is entirely absent — i.e. provisioning adds zero bytes when unused.
   const absent = await promptsByLabel({})                 // baseArgs has no `provision`
