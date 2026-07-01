@@ -50,7 +50,7 @@ merge-task is **inherently split across two worktrees** — the task branch stay
    - **exit 0** — diff is clean (or a declared gitlink-bump allowed by `--declared`); continue to merge.
    - **exit 1** — a submodule mutation is present and refused; return `status: "submodule-blocked"`. Do **NOT** merge. The Workflow routes an immediate hard escalate with 0 fix rounds.
    - **exit 2** — a git/ref error (bad ref, network failure, fatal git error); return `status: "error"`. A transient bad-ref must never be misclassified as submodule-blocked — this exit-1-vs-2 distinction mirrors the step-4 discipline.
-6. In `_refinery` (on the integration branch): `git -C <_refinery> merge <task-branch>` (no force), `git -C <_refinery> push`, and return `status: "merged"` with the new integration SHA. **Populate `gate_output`** with the full stdout+stderr of the gate run from step 2 — the post-merge gate-audit pass uses this as execution evidence to verify the mapped tests actually ran.
+6. In `_refinery` (on the integration branch): `git -C <_refinery> merge <task-branch>` (no force), `git -C <_refinery> push`, and return `status: "merged"` with the new integration SHA. **Populate `gate_output`** with the full stdout+stderr of the gate run from step 2 — the post-merge gate-audit pass uses this as execution evidence to verify the mapped tests actually ran. Do **NOT** curate or excerpt — each `*.test.sh` runner emits a single aggregate PASS line, so a partial paste reads as an under-run; include the complete `*.test.sh` runner list or state the total runner count.
 
 The merge's working-tree writes land only in `_refinery`. The task worktree is left clean so fix-in-place still works.
 

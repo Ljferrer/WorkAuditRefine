@@ -367,11 +367,11 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + `rebase --onto does NOT dodge this constraint — it is equally refused.\n`
         + `  (b) MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), then git merge ${r.task.branch} (fast-forward merge of the now-rebased task branch into the integration branch). Push.\n`
         + `Run the gate (${plan.gate}) after the rebase in the task worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)), so any meta-test that materialises scratch dirs isolates from the worktree's .war-task marker; the gate's cwd stays the task worktree. On gate failure return gate_failed; on conflict return conflict; never force. `
-        + `On success, populate gate_output in the returned MergeResult with the executed gate output (stdout+stderr) so the post-merge gate-audit pass can review it as execution evidence. `
+        + `On success, populate gate_output in the returned MergeResult with the executed gate output (stdout+stderr) so the post-merge gate-audit pass can review it as execution evidence. Do NOT curate or excerpt — each *.test.sh runner emits a single aggregate PASS line, so a partial paste reads as an under-run; include the complete *.test.sh runner list or state the total runner count. `
         + `Also populate integration_sha with the rebased integration tip the gate ran against, so the gate-audit pass can confirm the gate ran at the integration tip.`
         + ` Before the _refinery merge step (b), run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${r.task.branch}${r.task.taskType === 'gitlink-bump' && r.task.declared ? ' --declared' : ''} (REGARDLESS of requiresTest — a submodule touch is refused whether or not the task needs a test; the relax-flag is only threaded for a declared gitlink-bump task). Exit 1 → return { mode: 'merge-task', status: 'submodule-blocked' } — do NOT merge. Exit 2 → return { mode: 'merge-task', status: 'error' }.`
         + (requiresTest
-          ? ` Also before step (b), run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch} to verify the task diff contains at least one test file. If the script exits non-zero, return { mode: 'merge-task', status: 'no-test' } — do NOT proceed with the merge.`
+          ? ` Also before step (b), run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch} to verify the task diff contains at least one test file. Branch on the exit code: exit 1 (no test in the diff) → return { mode: 'merge-task', status: 'no-test' } — do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'no-test' — a transient bad-ref must not spin a pointless add-test loop.`
           : ` requiresTest:false — skip the assert-test-in-diff.sh check and proceed directly to the rebase+merge.`)
         + submodMergeNote,
         { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}`, schema: MERGE_RESULT, ...spawn('refiner') })
@@ -434,9 +434,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             + `rebase --onto does NOT dodge this constraint — it is equally refused.\n`
             + `  (b) MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), then git merge ${r.task.branch} (fast-forward merge of the now-rebased task branch into the integration branch). Push.\n`
             + `Run the gate (${plan.gate}) after the rebase in the task worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)), so any meta-test that materialises scratch dirs isolates from the worktree's .war-task marker; the gate's cwd stays the task worktree. On gate failure return gate_failed; on conflict return conflict; never force. `
-            + `On success, populate gate_output in the returned MergeResult with the executed gate output (stdout+stderr) so the post-merge gate-audit pass can review it as execution evidence. `
+            + `On success, populate gate_output in the returned MergeResult with the executed gate output (stdout+stderr) so the post-merge gate-audit pass can review it as execution evidence. Do NOT curate or excerpt — each *.test.sh runner emits a single aggregate PASS line, so a partial paste reads as an under-run; include the complete *.test.sh runner list or state the total runner count. `
             + `Also populate integration_sha with the rebased integration tip the gate ran against, so the gate-audit pass can confirm the gate ran at the integration tip. `
-            + `Before the _refinery merge step (b), run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch} to verify the task diff now contains at least one test file. If the script exits non-zero, return { mode: 'merge-task', status: 'no-test' }.`,
+            + `Before the _refinery merge step (b), run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch} to verify the task diff now contains at least one test file. Branch on the exit code: exit 1 (no test in the diff) → return { mode: 'merge-task', status: 'no-test' }, do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'no-test' — a transient bad-ref must not spin a pointless add-test loop.`,
             { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:no-test-retry:r${r.task.fixRounds}`, schema: MERGE_RESULT, ...spawn('refiner') })
         }
 
@@ -447,7 +447,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           continue
         }
 
-        // Vacuous re-audit path: escalation already pushed above (lines 358-359), noTestMr===null
+        // Null-deref guard: both reAuditFailed=true sites set noTestMr=null; skip before the unconditional noTestMr.status deref below.
         if (reAuditFailed) continue
 
         // Use the successful re-merge result for the landed path below
@@ -594,6 +594,11 @@ if (landDecision === 'landed') {
     landDecision = 'held:submodule-pr'
   } else
   // If the land agent returns land_stale (CAS-exhaustion), treat it as a hard escalation.
+  // #236: 'no-test' is structurally UNREACHABLE here — no land-phase prompt emits it (land statuses
+  // are only landed/land_stale/gate_failed/error/submodule-pr, and submodule-pr is short-circuited by
+  // its own direct-return guard above this check). The array is REUSED from the merge-task escalation
+  // path where 'no-test' IS load-bearing, so it is kept intact, not narrowed (the drift-guard in
+  // war-config.test.mjs pins the inline array to the canonical export incl. 'no-test').
   if (landResult && HARD_ESCALATION_REASONS.includes(landResult.status)) {
     escalated.push({ task: `phase-${ph.id}-land`, reason: landResult.status, detail: landResult })
     landDecision = 'held:escalation'
