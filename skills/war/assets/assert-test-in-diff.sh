@@ -3,6 +3,7 @@
 #
 # Usage: assert-test-in-diff.sh <integration-base> <task-branch> \
 #          [--repo <git-dir>] [--pattern <glob-set>]
+# (--repo is test-only: points git at a fixture repo; production invokes from the task-worktree cwd)
 #
 # Compute `git diff --name-only <base>...<branch>` (three-dot symmetric diff —
 # exactly what the task branch added relative to the integration base).

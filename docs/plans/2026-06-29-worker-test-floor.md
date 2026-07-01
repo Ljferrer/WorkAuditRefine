@@ -56,7 +56,7 @@ One-task-per-phase for the shared-file work (memory
 
 **Files:**
 - new `skills/war/assets/assert-test-in-diff.sh` — `assert-test-in-diff.sh <integration-base> <task-branch>
-  [--pattern <glob-set>]` (spec §3.1): compute `git diff --name-only <base>...<branch>` (three-dot = exactly what
+  [--repo <git-dir>] [--pattern <glob-set>]` (spec §3.1): compute `git diff --name-only <base>...<branch>` (three-dot = exactly what
   the task added); exit **0** if ≥1 changed path matches the test pattern, **non-zero** (with matched/empty summary
   on stdout) otherwise. **Default pattern** = EXACTLY the resolved gate's test-discovery set (**operator decision
   2026-06-29** — supersedes the spec §3.1 broad union, which red-team proved over-counts): `skills/**/*.test.mjs`
