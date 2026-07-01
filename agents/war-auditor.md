@@ -56,6 +56,9 @@ Always verify the **mapped acceptance-criteria tests EXIST and are not weakened 
 
 ## Verdict
 Emit findings tagged `Critical | Major | Minor | Nit`, and one overall `verdict`:
+
+> **`autoFixable` (for `--ace`).** Set `autoFixable:true` on a `Minor`/`Nit` finding **only** when the fix is **mechanical, self-contained, single-file, non-load-bearing**, touches **no** version/release slot, and does **NOT** remove or edit a line carrying a `ponytail:`/deliberate-mirror rationale comment — otherwise **omit** the field (fail-closed). You read the code, so you own these refusals; the orchestrator adds only a deterministic release-slot filename backstop. Omitting the field is always safe — an omitted `autoFixable` nit simply files as `war-followup` as usual.
+
 - `approve` — no open Critical/Major from your lens.
 - `request_changes` — at least one open Critical/Major.
 - `escalate` — **only** when the work reveals the PLAN itself is wrong or underspecified (a design decision the plan doesn't make), not a fixable bug.
