@@ -205,14 +205,16 @@ merge-task `Populate gate_output` point). **`requiresTest`: false** — prompt-o
   `Populate gate_output` construct, never the number).
 
 - [ ] **Step 1 — (no behavioral test — prompt-only.)** Pick one exact grep-assertable token for the new clause (e.g.
-  `do NOT curate`) so V4 can confirm it in all three sites.
+  `curate or excerpt`) so V4 can confirm it in all three sites. Use a **case-insensitive** grep (`-i`) — the clause is
+  capitalized at a sentence start (`Do NOT curate…`) but may be lowercased mid-sentence when adapted to a site's prose,
+  so a case-sensitive match on `do NOT curate` would false-negative.
 - [ ] **Step 2 — Append the completeness clause to all three sentences.** Append, e.g.: *"Do NOT curate or excerpt —
   each `*.test.sh` runner emits a single aggregate PASS line, so a partial paste reads as an under-run; include the
   complete `*.test.sh` runner list or state the total runner count."* **Use "total runner count", never a literal
   number** (the gate self-discovers — 13 runners at HEAD; memory `task-prompt-suite-count-stale-after-stacking`). Same
   clause, adapted to each surface's prose form.
-- [ ] **Step 3 — Run the full gate → green; manual:** `grep -rn 'do NOT curate' skills/war/assets/workflow-template.js agents/war-refiner.md`
-  finds the clause at all three sites.
+- [ ] **Step 3 — Run the full gate → green; manual:** `grep -rin 'curate or excerpt' skills/war/assets/workflow-template.js agents/war-refiner.md`
+  (case-insensitive) finds the clause at all three sites.
 - [ ] **Step 4 — Commit** — `docs(war): forbid curating gate_output excerpts; require full runner list or total count (#269)`
 - **Closes #269.**
 
@@ -250,10 +252,12 @@ if (addFixWhy) {
   `{ mode: 'merge-task', status: 'no-test' }` (to enter the sub-loop), the worker returns implemented, the auditor
   approves; the seqMap supplies the blocked add-test worker on the `add-test:t1:r1` label.
 
-- [ ] **Step 1 — Write the test (RED first).** Add `#268 — blocked add-test worker escalates via Site 3 (no-test:add-test-blocked)`.
+- [ ] **Step 1 — Write the test (regression guard — RED is proven via transient Site-3 deletion, NOT against unwritten code).**
+  Add `#268 — blocked add-test worker escalates via Site 3 (no-test:add-test-blocked)`.
   Drive merge-task → `no-test`, then the **blocked** add-test worker on label `add-test:t1:r1` returning
-  `{status:'blocked', blocked_reason:'Y'}`. Run it (against current code it PASSES — this is the regression guard, not a
-  TDD-against-unwritten-code case). **Verify it is load-bearing:** transiently delete/comment the Site-3 `escalated.push`
+  `{status:'blocked', blocked_reason:'Y'}`. Run it (against current code it PASSES — Site 3 already exists, so this is a
+  retrofit regression guard, not a TDD-against-unwritten-code case; the RED signal comes from the deletion check below).
+  **Verify it is load-bearing:** transiently delete/comment the Site-3 `escalated.push`
   + `auditLog.push` (the `if (addFixWhy)` body), re-run, confirm the test **FAILS** (RED on the unique token), then
   restore. This proves the assertions exercise Site 3 (memory `retrofit-site-existing-tests-as-regression-guard`).
 - [ ] **Step 2 — Assertions.** Assert: exactly one `escalated` entry for `t1` with `{reason:'escalate', blocked:'Y'}`;
@@ -274,10 +278,12 @@ if (addFixWhy) {
 :7 **and** `plugins[0].version` :14); `README.md` `## Status` (HEAD ~:236, REPLACE-in-place, "Builds on v0.8.1").
 **No badge.**
 
-- [ ] **Step 1 — Bump all four slots `0.8.1` → `0.8.2`** (or next-free-patch by construct per the standalone fallback —
-  v0.8.1 if Spec 1 has not landed; the four canonical slots all read `0.8.0` at HEAD). Update the README `## Status`
-  "Builds on vX" clause to the new prior version (currently "Builds on v0.7.8" at HEAD; it becomes "Builds on v0.8.1"
-  once Spec 1 lands). Verify all four slots + the Builds-on line **by hand** — no cross-slot consistency test (memory
+- [ ] **Step 1 — Bump all four slots `0.8.1` → `0.8.2`.** At this stack's integration base (Spec 1's landed tip, which
+  this run is stacked on) the four canonical slots read `0.8.1` and the README `## Status` reads "Builds on v0.8.0". Bump
+  the four slots to `0.8.2` and set the README "Builds on vX" clause to **"Builds on v0.8.1"**. *(Standalone fallback: if
+  run off raw master v0.8.0 — where the slots read `0.8.0` and the README reads "Builds on v0.7.8" — re-baseline to the
+  next-free-patch by construct, i.e. v0.8.1, and set "Builds on v0.8.0".)* Verify all four slots + the Builds-on line
+  **by hand** — no cross-slot consistency test (memory
   `version-slots-no-cross-slot-consistency-test`, `release-bump-slots-canonical-no-badge`,
   `release-status-is-replace-slot-not-empty-field`). Status copy: no-test sub-loop hygiene — exit-1-vs-2 routing fix +
   land-side enum comment + reAuditFailed guard-comment + gate_output completeness clause + Site-3 blocked-add-test
@@ -311,7 +317,7 @@ runner, the `find` loop picks it up automatically; run the WHOLE gate post-merge
 | #237 | new grep-guard in `workflow-template.test.mjs` | both merge prompts: `exit 2`+`error` AND `exit 1`+`no-test` present; **no** `exits non-zero` collapse | load-bearing negative assertion — matching bare `no-test` passes against old+new |
 | #236 | (no test — comment) | full gate green; drift-guard `war-config.test.mjs:356` + M2 budget test still green | array intact; comment-only |
 | #235 | (no test — comment) | full gate green; all no-test sub-loop tests still pass | drop stale line refs |
-| #269 | (no test — prompt) | `grep 'do NOT curate'` finds the clause at all 3 sites | "total runner count", no literal count (13 runners at HEAD) |
+| #269 | (no test — prompt) | `grep -in 'curate or excerpt'` (case-insensitive) finds the clause at all 3 sites | "total runner count", no literal count (13 runners at HEAD) |
 | #268 | new `buildSeqImpl` test in `workflow-template.test.mjs` | one `escalated{escalate,blocked:'Y'}`, one `auditLog{no-test:add-test-blocked,blocked:'Y'}`, no `no-test:exhausted`, `landDecision==='held:escalation'` | label `add-test:t1:r1`, field `blocked_reason`; load-bearing on token + Site-3-deletion check |
 
 ## Coverage map
