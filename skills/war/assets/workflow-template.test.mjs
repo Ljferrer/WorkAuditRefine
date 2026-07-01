@@ -2560,3 +2560,191 @@ test('T4 #297 Test 4 — targetRepo/targetBase threaded into merge-task, land, w
   assert.ok(provCall.prompt.includes(TARGET_REPO),
     `Provision prompt must include targetRepo "${TARGET_REPO}" so the refiner initializes the submodule checkout`)
 })
+
+// ---------------------------------------------------------------------------
+// Task 3 (Phase 2 — ace-nit-autofix): the pre-merge --ace sub-loop
+// STRICT TDD, CONTROL-FLOW-CRITICAL. One buildSeqImpl-driven case per criterion.
+// The ace sub-loop sits at the TOP of the `if (r.verdict === 'approve')` branch, BEFORE the merge
+// dispatch: a single ace-fix worker commits a nit fix, a fresh auditRound re-audits at the new sha,
+// and on regression the merge dispatch forward-reverts (never escalates). `aced` is a return
+// ATTRIBUTE — NO new MERGE_RESULT.status / HARD_ESCALATION_REASONS member (D6).
+// ---------------------------------------------------------------------------
+
+const isAce = (c) => seatOf(c.opts) === 'war-worker' && /^ace:/.test(c.opts.label || '')
+// A single-task phase (no deps) so the ace sub-loop path is the only thing under test.
+const ACE_ARGS = (over = {}) => PROVISION_ARGS({
+  tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', lenses: ['correctness'] }],
+  run: { ace: true },
+  ...over,
+})
+// A Minor/Nit finding shape the auditor emits. autoFixable + file drive aceEligible.
+const nit = (over = {}) => ({ severity: 'Nit', title: 'tidy import', file: 'skills/war/assets/x.js',
+  rationale: 'unused import', autoFixable: true, ...over })
+// Auditor verdict carrying the given findings (default: one auto-fixable nit).
+const approveWith = (label, findings) => ({ seat: label, lens: 'correctness', verdict: 'approve', findings, confidence: 'high' })
+// Base impl for ace tests: provision ok, worker implemented, refiner merged/landed, servitor a result.
+// The AUDITOR is intentionally NOT defaulted here — each test drives it via buildSeqImpl per label so
+// the first (work-wave) round and the second (ace re-audit) round can differ.
+const aceBase = (findingsFirstRound = [nit()]) => (prompt, opts) => {
+  const seat = seatOf(opts)
+  if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+  if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 1 } }
+  if (seat === 'war-auditor') return approveWith(opts.label, findingsFirstRound)
+  if (seat === 'war-refiner') return opts.phase === 'Land' ? { mode: 'land-phase', status: 'landed' } : { mode: 'merge-task', status: 'merged' }
+  if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+  return {}
+}
+
+test('Task 3 — default-off byte-identical: run.ace unset ⇒ no ace dispatch, nit files to minorsFiled, aced empty', async () => {
+  // run.ace omitted → the ace sub-loop is skipped entirely; the nit files exactly as today.
+  const { out, calls } = await runPhase(ACE_ARGS({ run: {} }), aceBase([nit()]))
+  assert.ok(!calls.some(isAce), 'no ace worker is dispatched when run.ace is unset')
+  const filed = (out.minorsFiled || []).find(m => m && m.task === 't1' && m.title === 'tidy import')
+  assert.ok(filed, 'the nit is filed to minorsFiled exactly as today (default-off)')
+  assert.ok(!out.aced || out.aced.length === 0, 'aced is empty/absent when run.ace is off')
+  assert.ok(out.landed.includes('t1'), 't1 still lands on the default-off path')
+})
+
+test('Task 3 — eligibility gate: run.ace on ⇒ an autoFixable nit dispatches an ace worker; a non-flagged nit is filed, never dispatched', async () => {
+  // Two nits: one autoFixable (aced), one without the flag (filed). buildSeqImpl drives the auditor
+  // to approve+2-nits on round 1, then approve-clean on the ace re-audit round.
+  const flagged = nit({ title: 'aced nit', file: 'skills/war/assets/x.js' })
+  const unflagged = nit({ title: 'plain nit', file: 'skills/war/assets/y.js', autoFixable: false })
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [flagged, unflagged]),
+                               approveWith('audit:t1:correctness', [])] },
+    aceBase([flagged, unflagged]))
+  const { out, calls } = await runPhase(ACE_ARGS(), impl)
+  const ace = calls.find(isAce)
+  assert.ok(ace, 'an ace worker is dispatched for the autoFixable nit')
+  assert.ok(ace.prompt.includes('aced nit'), 'the ace worker prompt lists the autoFixable finding')
+  assert.ok(!ace.prompt.includes('plain nit'), 'the non-autoFixable nit is NOT handed to the ace worker')
+  // the unflagged nit still files as a residual; the aced one does not.
+  const filedPlain = (out.minorsFiled || []).find(m => m && m.title === 'plain nit')
+  assert.ok(filedPlain, 'the non-autoFixable nit is filed to minorsFiled')
+  assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'aced nit'), 'the aced nit is NOT in minorsFiled')
+})
+
+test('Task 3 — re-audit at the new sha: after a successful ace-fix a fresh auditRound runs, then the merge dispatch follows it', async () => {
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [nit()]),
+                               approveWith('audit:t1:correctness', [])] },
+    aceBase([nit()]))
+  const { calls } = await runPhase(ACE_ARGS(), impl)
+  const aceIdx = calls.findIndex(isAce)
+  assert.ok(aceIdx !== -1, 'an ace worker ran')
+  // A re-audit (auditor seat) happens AFTER the ace worker and BEFORE the merge dispatch.
+  const postAceAudit = calls.findIndex((c, i) => i > aceIdx && isAuditor(c))
+  const mergeIdx = calls.findIndex(isMergeTask)
+  assert.ok(postAceAudit !== -1, 'a fresh audit round runs after the ace-fix')
+  assert.ok(postAceAudit < mergeIdx, 'the merge dispatch follows the re-audit (runs on the post-fix tip)')
+  // Exactly one ace worker per task (single attempt).
+  assert.equal(calls.filter(isAce).length, 1, 'exactly one ace worker dispatched (single attempt)')
+})
+
+test('Task 3 — never blocks a land via forward-revert: a regressing ace re-audit ⇒ merge prompt carries git revert, task lands, NOT escalated', async () => {
+  // Re-audit round 2 returns a NEW Major (regression). The task must still land its approved work:
+  // the merge dispatch prepends `git revert --no-edit <aceSha>` and the task appears in landed[],
+  // in neither escalated[] nor with any hard reason.
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [nit()]),
+                               { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'request_changes',
+                                 confidence: 'high', findings: [{ severity: 'Major', title: 'ace broke it', file: 'x.js', rationale: 'regressed' }] }] },
+    aceBase([nit()]))
+  const { out, calls } = await runPhase(ACE_ARGS(), impl)
+  const merge = calls.find(isMergeTask)
+  assert.ok(merge, 'a merge-task dispatch still happens (the approved work still lands)')
+  assert.match(merge.prompt, /git\s+-C\b[^\n]*revert\s+--no-edit\s+deadbeef/,
+    'the merge prompt prepends `git -C <worktree> revert --no-edit <aceSha>` on regression')
+  assert.ok(out.landed.includes('t1'), 'the task still lands its originally-approved work')
+  assert.ok(!(out.escalated || []).some(e => e && e.task === 't1'), 't1 is NOT in escalated (never blocks a land)')
+  assert.notEqual(out.landDecision, 'held:escalation', 'the ace regression does NOT hold the land')
+})
+
+test('Task 3 — release-slot refusal: a nit whose file ends in plugin.json / marketplace.json / README.md is filed, never aced (aceEligible string backstop)', async () => {
+  for (const file of ['.claude-plugin/plugin.json', '.claude-plugin/marketplace.json', 'README.md']) {
+    const slotNit = nit({ title: 'slot nit', file })
+    const impl = buildSeqImpl(
+      { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [slotNit]),
+                                 approveWith('audit:t1:correctness', [])] },
+      aceBase([slotNit]))
+    const { out, calls } = await runPhase(ACE_ARGS(), impl)
+    assert.ok(!calls.some(isAce), `no ace worker for a release-slot nit (${file}) even with autoFixable:true`)
+    assert.ok((out.minorsFiled || []).some(m => m && m.title === 'slot nit'), `the release-slot nit (${file}) is filed to minorsFiled`)
+    assert.ok(!out.aced || !out.aced.some(a => a && a.finding && a.finding.title === 'slot nit'), `the release-slot nit (${file}) is NOT aced`)
+  }
+})
+
+test('Task 3 — ponytail / no-flag refusal: a nit without autoFixable:true (auditor own refusal) is filed, not aced', async () => {
+  const plain = nit({ title: 'no flag', autoFixable: false })
+  const { out, calls } = await runPhase(ACE_ARGS(), aceBase([plain]))
+  assert.ok(!calls.some(isAce), 'no ace worker dispatched for a nit without autoFixable:true')
+  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'no flag'), 'the no-flag nit is filed to minorsFiled')
+})
+
+test('Task 3 — budget single-attempt: ace dispatches at most once per task; a second attempt is not made (shares fixRounds)', async () => {
+  // Even if the ace re-audit surfaces another autoFixable nit, ace runs ONCE — no re-ace loop.
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [nit({ title: 'first' })]),
+                               approveWith('audit:t1:correctness', [nit({ title: 'second' })])] },
+    aceBase([nit({ title: 'first' })]))
+  const { calls } = await runPhase(ACE_ARGS(), impl)
+  assert.equal(calls.filter(isAce).length, 1, 'ace is dispatched at most once per task (single attempt, no re-ace)')
+})
+
+test('Task 3 — budget: ace does NOT dispatch when fixRounds has already reached roundLimit', async () => {
+  // Force the audit loop to consume all fix rounds first (blocking Major each round until roundLimit),
+  // then the worker still ends approve with a leftover nit — ace must NOT fire (fixRounds === roundLimit).
+  // roundLimit defaults to 3. Auditor: request_changes(Major) rounds 1-3, then the loop exits without
+  // an approve, so verdict is not 'approve' and ace never enters — instead assert on the roundLimit guard
+  // directly via a task whose approve arrives only after budget is spent.
+  // Simpler: cap roundLimit at 1 and burn it with one fix round, then approve carrying a nit.
+  let auditCall = 0
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-auditor') {
+      auditCall++
+      // round 1: blocking Major (consumes fixRounds via a fix-worker). round 2+: approve with a nit.
+      return auditCall <= 1
+        ? { seat: opts.label, lens: 'correctness', verdict: 'request_changes', confidence: 'high',
+            findings: [{ severity: 'Major', title: 'blk', file: 'x.js', rationale: 'r' }] }
+        : approveWith(opts.label, [nit()])
+    }
+    return aceBase([nit()])(prompt, opts)
+  }
+  const { calls } = await runPhase(ACE_ARGS({ run: { ace: true, roundLimit: 1 } }), impl)
+  // One fix round burned fixRounds to 1 === roundLimit → the ace guard (fixRounds < roundLimit) is false.
+  assert.ok(!calls.some(isAce), 'ace does NOT dispatch once fixRounds has reached roundLimit (budget exhausted)')
+})
+
+test('Task 3 — provenance aced list: an aced nit appears on return.aced with { task, finding, sha }, and is NOT in minorsFiled', async () => {
+  const acedNit = nit({ title: 'aced me', file: 'skills/war/assets/z.js' })
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [acedNit]),
+                               approveWith('audit:t1:correctness', [])] },
+    aceBase([acedNit]))
+  const { out } = await runPhase(ACE_ARGS(), impl)
+  assert.ok(Array.isArray(out.aced), 'the return carries an aced array')
+  const entry = out.aced.find(a => a && a.finding && a.finding.title === 'aced me')
+  assert.ok(entry, 'the aced nit appears on the aced list')
+  assert.equal(entry.task, 't1', 'aced entry carries the task id')
+  assert.equal(entry.sha, 'deadbeef', 'aced entry carries the ace commit sha (head_sha)')
+  assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'aced me'), 'the aced nit is NOT in minorsFiled')
+})
+
+test('Task 3 — no-enum-leak: no new MERGE_RESULT.status member and no new HARD_ESCALATION_REASONS member (aced is an attribute only)', () => {
+  // MERGE_RESULT.status enum must be exactly the pre-ace set (no 'aced'/'ace-reverted' member).
+  const mMatch = src.match(/MERGE_RESULT[\s\S]*?status\s*:\s*\{\s*enum\s*:\s*(\[[^\]]+\])/)
+  assert.ok(mMatch, 'MERGE_RESULT status enum found')
+  const statuses = JSON.parse(mMatch[1].replace(/'/g, '"'))
+  assert.deepEqual(statuses.sort(),
+    ['conflict', 'error', 'gate_failed', 'land_stale', 'landed', 'merged', 'no-test', 'submodule-blocked', 'submodule-pr'].sort(),
+    'MERGE_RESULT.status enum is unchanged — no ace member leaked in')
+  // HARD_ESCALATION_REASONS inline literal must be exactly the canonical 8 (no ace member).
+  const hMatch = src.match(/const\s+HARD_ESCALATION_REASONS\s*=\s*(\[[^\]]+\])/)
+  assert.ok(hMatch, 'HARD_ESCALATION_REASONS found')
+  const hard = JSON.parse(hMatch[1].replace(/'/g, '"'))
+  assert.deepEqual(hard.sort(),
+    ['audit-blocked', 'conflict', 'dep-failed', 'escalate', 'gate-evidence', 'land_stale', 'no-test', 'unrunnable-deps'].sort(),
+    'HARD_ESCALATION_REASONS is unchanged — aced is a return attribute, not an escalation reason')
+})

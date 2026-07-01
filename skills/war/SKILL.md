@@ -11,8 +11,9 @@ Full architecture: [references/design.md](references/design.md). Data contracts:
 
 ## Quick start
 ```
-/war <plan-file> [--working <branch>] [--landing <branch>] [--afk] [--config <path>]
+/war <plan-file> [--working <branch>] [--landing <branch>] [--afk] [--ace] [--config <path>]
 ```
+`--ace` sets `run.ace = true` for this run (Lead-side, one-off override, same shape as `--working`/`--landing` — no code parser; `/war` is skill-driven). See the ace behavior in **Per phase → Audits/Refines** below.
 Example: `/war docs/implement/implementation_plan_A.md --working dev/planA --landing master`
 
 ## Setup (once)
@@ -42,6 +43,7 @@ Run **one Workflow per phase** from [assets/workflow-template.js](assets/workflo
 - **Works** — fresh `war-worker` agents (one per task) in per-task worktrees off the integration tip, wave by wave (barrier between dependency waves);
 - **Audits** — independent read-only `war-auditor` seats review the pinned SHA. **Critical/Major block**; Minor/Nit → follow-up issues; approval **unanimous on one SHA** (re-confirm when HEAD moves). A split → **one rebuttal round** → resolve or escalate. Coven uses the trio (correctness / cascading-impact / plan-faithfulness), swapping one for a domain lens (healthcare-safety, security) on flagged code;
 - **Refines** — `war-refiner` rebases each approved task onto the integration tip, re-runs the gate, and merges **serially** (the queue). A gate/audit failure routes a batched `FIX_NEEDED` to a fresh fix-worker on the same worktree (≤ `round_limit=3`, then escalate `audit-blocked`);
+  - **`--ace` (opt-in, off by default).** With `run.ace`, an **approved** task with **zero blockers** and **≥ 1** auditor-flagged `autoFixable` nit gets a **single** pre-merge ace-fix (one commit in the task worktree, on the shared `fixRounds` budget) + a panel **re-audit at the new SHA**. If the re-audit re-approves, the polished tip merges; on any regression the ace commit is **forward-reverted** (`git revert`, never `reset --hard`) and the **originally-approved work still lands** — ace **never** turns a mergeable task into a hold or escalate. **Durable-record rule (D3):** aced nits are recorded via the ace **commit message** (citing each finding's title + rationale) and the `aced` list in the phase report — **not** as GitHub issues; only **un-aced RESIDUAL** nits still file as `war-followup`.
 - **Lands** — `war-refiner` merges `integration/phase-N` → working `--no-ff` (one phase commit) and pushes working;
 - **Wraps up** — once the phase lands, `war-servitor` (write-scoped to `learningsTarget`) records durable learnings to memory;
 - returns `{ landed, escalated, minorsFiled, landResult, servitorResult, auditLog, landDecision }` — `landDecision` ∈ `landed` | `held:escalation` | `held:nothing-merged` | `held:land-failed` | `held:phase-incomplete` | `held:workflow-error` | `held:submodule-pr`; `servitorResult` is null unless the Workflow landed the phase itself.

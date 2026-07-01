@@ -36,7 +36,8 @@ A task reaches the refiner with exactly one terminal **outcome**. Two are produc
   audit_sha: "<sha reviewed — verdict is pinned to it>",
   verdict: "approve" | "request_changes" | "escalate",
   findings: [ { severity: "Critical"|"Major"|"Minor"|"Nit",
-                title, file, line?, rationale, suggested_fix?, plan_ref? } ],
+                title, file, line?, rationale, suggested_fix?, plan_ref?,
+                autoFixable? } ],   // optional bool; set true only on a mechanical Minor/Nit the auditor authorizes for --ace pre-merge fixing (war-auditor.md); omit = fail-closed
   tests_verified: { exist: true },                // anti-cheat: existence + integrity verified (not executed — the refiner runs the gate)
   confidence: "high" | "medium" | "low",          // low → widen to coven
   escalate_reason?: "present iff verdict==escalate — the plan is wrong/underspecified" }
@@ -86,7 +87,7 @@ A task reaches the refiner with exactly one terminal **outcome**. Two are produc
 ## GitHub conventions
 - **Epic issue per phase**; **sub-issue per task** (GitHub sub-issues).
 - Labels: `phase:<N>`, `status:todo|working|audited|merged|escalated|blocked`, `audit:1|coven`.
-- **Minor/Nit** findings → new follow-up issues labeled `war-followup`, linked to the phase epic.
+- **Minor/Nit** findings → new follow-up issues labeled `war-followup`, linked to the phase epic. Under `--ace` (`run.ace`), an auditor-flagged auto-fixable nit (`autoFixable:true`) is instead fixed in the task worktree pre-merge and recorded on the Workflow's `aced` list (commit-cited, not a GitHub issue); only **un-aced residual** nits file as `war-followup`.
 - Phase reports + escalations → **comments on the phase epic issue** (durable, human-visible).
 
 ## ServitorResult — `war-servitor` (once per phase, after land)
@@ -201,7 +202,8 @@ The per-phase Workflow returns:
 { phase,                              // phase id
   landed: ["task_id"],                // tasks merged onto the integration branch
   escalated: [ { task, reason, ... } ],
-  minorsFiled: [ { task, ...finding } ],
+  minorsFiled: [ { task, ...finding } ],   // un-aced RESIDUAL Minor/Nit findings filed as war-followup
+  aced: [ { task, finding, sha } ],   // --ace: auditor-flagged nits auto-fixed pre-merge (commit-cited; empty unless run.ace). NOT filed as war-followup
   landResult,                         // MergeResult of the in-flow land, or null if held
   servitorResult,                     // ServitorResult, or null if the Workflow did not land/wrap up
   auditLog: [ { task, verdict, findings, blocked } ],   // fed to a Lead-driven wrap-up on the held path

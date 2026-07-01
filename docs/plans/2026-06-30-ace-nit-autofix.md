@@ -28,9 +28,10 @@ correct change per decision, no speculative scope.
 - **landOrder:** stacks on the **v0.8.6 tip** (spec 6 in the roadmap). War this plan on that tip.
 - **Integration base:** the **latest `origin/master`** per the serial-stack convention (`war-branch-base-off-latest-master-not-prior-tip`
   — the operator merges each PR as a merge-commit, so base each WAR branch off the newest master, not the prior working tip).
-- **Standalone fallback:** if run off a tip earlier than v0.8.6 (e.g. this worktree currently reads **v0.8.2** in all four
-  slots), the roadmap is authoritative — resolve the **next free patch by construct** at land time and drop the v0.8.6-tip
-  pin. Never hardcode a leap over an empty stack (`stacked-per-branch-releases-make-main-lag-cumulative`).
+- **Standalone fallback:** if run off a tip earlier than v0.8.6, the roadmap is authoritative — resolve the **next free
+  patch by construct** at land time and drop the v0.8.6-tip pin. (Re-grounded 2026-07-01: this stacked tip now reads
+  **v0.8.6** in all four slots — specs 1–6 landed — so T5 bumps `0.8.6 → 0.8.7`, "Builds on v0.8.6".) Never hardcode a
+  leap over an empty stack (`stacked-per-branch-releases-make-main-lag-cumulative`).
 - **Four-slot serial-land note:** a release bump **REPLACE-in-place**s the four canonical slots in lockstep (no badge):
   [`.claude-plugin/plugin.json`](../../.claude-plugin/plugin.json) `version`;
   [`.claude-plugin/marketplace.json`](../../.claude-plugin/marketplace.json) `metadata.version` **and**
@@ -94,8 +95,10 @@ add `ace` there too.
 
 **`requiresTest`: true** — `war-config.test.mjs` is the config's mapped test; the default + reject cases make the field load-bearing.
 
-- [ ] **Step 1 — RED: add two cases to `war-config.test.mjs`.** Modeled on the existing `run.afk` default/reject
-  assertions: (a) `assert.equal(DEFAULTS.run.ace, false)` (and/or that `presetConfig('balanced'|'thorough'|'economy').run.ace === false`
+- [ ] **Step 1 — RED: add two cases to `war-config.test.mjs`.** Model the reject case on the existing **`non-boolean
+  provisionAuto rejected`** case (war-config.test.mjs has **no** `run.afk` test to copy — grep `afk` returns nothing — so
+  mirror the `provisionAuto` reject shape and the source-side `run.afk` validator at war-config.mjs `~L97`): (a)
+  `assert.equal(DEFAULTS.run.ace, false)` (and/or that `presetConfig('balanced'|'thorough'|'economy').run.ace === false`
   — all inherit `false` via `deepMerge`); (b) a `validate` reject case: a config with `run.ace` set to a non-boolean
   (e.g. `'yes'` or `1`) yields an error containing `run.ace must be a boolean`.
 - [ ] **Step 2 — Run `node --test skills/war/assets/war-config.test.mjs` → RED.** The default case fails (`ace`
@@ -188,9 +191,12 @@ serial refine loop churns.
     const ace = await agent(/* FIX_NEEDED-shape, header "advisory polish", list=aceable, EXACTLY ONE commit citing each finding title+rationale */,
       { agentType: NS + 'war-worker', phase: 'Audit', label: `ace:${r.task.id}:r${r.task.fixRounds + 1}`, schema: WORKER_RESULT, ...spawn('worker') })
     const aceWhy = blockedReason(ace)
-    if (!aceWhy) {
+    // WORKER_RESULT's commit field is `head_sha` (NOT `sha` — grep confirms no `.sha` on any worker result).
+    // Guard on a truthy head_sha: a falsy sha would make r.aceReverted falsy (revert clause never fires) AND
+    // would emit a `git revert --no-edit ` with no arg (fails → escalate). Both defeat the never-blocks-a-land invariant.
+    if (!aceWhy && typeof ace.head_sha === 'string' && ace.head_sha) {
       r.task.fixRounds++
-      aceSha = ace.sha /* the single ace commit */
+      aceSha = ace.head_sha /* the single ace commit */
       const { seats: reSeats, expected: reExpected } = await auditRound(r.task, null, null)   // re-pin + re-audit (D1)
       if (allApprove(reSeats, reExpected) && blockingOf(reSeats).length === 0) {
         r.seats = reSeats                          // merge proceeds on the polished tip; aced recorded below
@@ -198,13 +204,23 @@ serial refine loop churns.
         r.aceReverted = aceSha                     // D2: merge dispatch prepends `git revert --no-edit <aceSha>`; never escalate
         aceSha = null
       }
-    } // aceWhy: log, fall through to normal merge-and-file (never hold)
+    } // aceWhy or falsy head_sha: log, fall through to normal merge-and-file on the un-aced approved tip (never hold)
   }
   ```
 - [ ] **Step 5 — GREEN: forward-revert discard clause on the merge dispatch.** In the merge dispatch prompt (construct
   ~L362-377), **prepend one clause** when `r.aceReverted` is set: "in the TASK worktree `git -C <worktree> revert
   --no-edit <aceSha>` (forward-only, classifier-safe) BEFORE the rebase step, so the merge runs on the
   reverted-to-approved tip." Do **not** add a `reset --hard`. Never route to `escalated`.
+  **Why this cannot introduce a new escalate (closes the never-blocks-a-land invariant):** `aceSha` is the **single ace
+  commit**, which is the **task-branch tip** at the moment of revert (the ace worker made exactly one commit and nothing
+  is added between it and this merge dispatch). `git revert --no-edit <tip>` is the clean inverse diff of HEAD — it has
+  nothing to conflict against, so it **cannot fail with a conflict**; the worktree returns to a tree functionally
+  identical to the originally-approved tip. Therefore the subsequent rebase+gate+merge behaves **exactly as it would have
+  without `--ace`**: a task that would have merged clean still merges clean; the *only* outcomes ace can produce are the
+  same outcomes the un-aced approved work would have produced. Ace never turns a **mergeable** task into a hold/escalate.
+  (The truthy-`head_sha` guard in Step 4 ensures the revert clause is emitted only with a real sha; a blocked/`head_sha`-less
+  ace result falls through to the plain merge on the un-aced tip — also no escalate.) Belt-and-suspenders: the revert
+  clause is prepended **only** `when r.aceReverted` is a non-empty string — never unconditionally.
 - [ ] **Step 6 — GREEN: `minorsFiled` recompute + `aced` list.** At the `minorsFiled.push(...minorsOf(r.seats)…)` site
   (~L348) — or right after the ace sub-loop resolves — for an aced task push only **un-aced residual** nits to
   `minorsFiled` and push `{ task, finding, sha: aceSha }` per aced finding to a new `aced` array (declare `const aced =
