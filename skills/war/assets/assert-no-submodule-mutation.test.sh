@@ -17,6 +17,17 @@
 #   7. --declared + gitlink-only move -> exit 0 (legitimate gitlink-bump path)
 #   8. --declared + non-gitlink content under a .gitmodules path -> exit 1 (still refused)
 #   9. no flag + gitlink move -> exit 1 (Increment-1 behavior intact — regression guard)
+#  10. step-3 isolation: .gitmodules-path content touch, NO gitlink move -> exit 1 (step 3 only)
+#  11. step-2 isolation: pure gitlink mode-160000 move, path NOT in .gitmodules -> exit 1 (step 2 only)
+#  12. --declared + pure content under a .gitmodules path, NO incidental gitlink deletion -> exit 1
+#
+# Cases 1/2/8 conflate the guard's two refuse arms (both the mode-160000 step-2 arm
+# and the .gitmodules-path step-3 arm fire on the same fixture). Cases 10/11/12 each
+# isolate ONE arm so a regression in that arm alone is caught (proven by temp-break:
+# disabling that arm flips the case to allow; disabling the other keeps it refused).
+# The guard reads the WORKING-TREE .gitmodules, so the step-3/12 fixtures leave the
+# working tree ON the task branch (do NOT `checkout -`) — that is where .gitmodules
+# carries the added "data" path entry the step-3 arm cross-checks against.
 set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -254,7 +265,6 @@ fi
 # ---------------------------------------------------------------------------
 SUB7="$(setup_submodule_repo)"
 R7="$(setup_repo)"
-BASE7_PRESUB="$(git -C "$R7" rev-parse HEAD)"
 git -C "$R7" -c protocol.file.allow=always submodule add -q "$SUB7" sub 2>/dev/null
 git -C "$R7" commit -qm "add submodule"
 BASE7="$(git -C "$R7" rev-parse HEAD)"
@@ -357,6 +367,143 @@ if [ "$rc9" -eq 1 ] && grep -q "submodule mutation detected" "$stderr9" 2>/dev/n
   pass "case 9: no flag + gitlink move -> exit 1 with 'submodule mutation detected' (Increment-1 regression guard)"
 else
   fail "case 9: no flag + gitlink move -> expected exit 1 + 'submodule mutation detected', got rc=$rc9"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 10: STEP-3 ISOLATION — .gitmodules-path content touch, NO gitlink move -> exit 1
+#
+# Isolates the step-3 (.gitmodules-path) arm. Unlike cases 1/2/8 (where a mode
+# 160000 gitlink also appears in the diff and the step-2 arm fires too), here the
+# raw diff carries NO mode 160000: the existing "sub" gitlink is untouched, and a
+# NEW .gitmodules entry ("data") plus a plain tracked file under data/ is added.
+# The guard reads the working-tree .gitmodules, so we DELIBERATELY leave the repo
+# on the task branch (no `checkout -`): the working tree then carries the "data"
+# path the step-3 arm cross-checks. Only step 3 can refuse this -> exit 1.
+# (Temp-break proof, plan Step 3: disabling step 3 flips this to allow; disabling
+# step 2 leaves it refused — so it exercises step 3 alone.)
+# ---------------------------------------------------------------------------
+SUB10="$(setup_submodule_repo)"
+R10="$(setup_repo)"
+git -C "$R10" -c protocol.file.allow=always submodule add -q "$SUB10" sub 2>/dev/null
+git -C "$R10" commit -qm "add submodule"
+BASE10="$(git -C "$R10" rev-parse HEAD)"
+
+git -C "$R10" checkout -qb task/step3-isolation 2>/dev/null
+# Declare a SECOND submodule path "data" in .gitmodules (no real gitlink for it)
+# and add a plain content file under data/. The "sub" gitlink is NOT moved.
+git -C "$R10" config -f .gitmodules submodule.data.path data
+git -C "$R10" config -f .gitmodules submodule.data.url ./nowhere
+mkdir -p "$R10/data"
+printf 'content\n' > "$R10/data/file.txt"
+git -C "$R10" add .gitmodules data/file.txt
+git -C "$R10" commit -qm "content under data/ submodule path, no gitlink move"
+TASK10="$(git -C "$R10" rev-parse HEAD)"
+# NOTE: no `checkout -` — leave the working tree on the task branch so the
+# guard reads a .gitmodules that carries the "data" path (working-tree read).
+
+cwd10="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
+TMPFILES="$TMPFILES $cwd10"
+rc10=0
+stderr10="$(mktemp 2>/dev/null || mktemp -t wartest)"
+TMPFILES="$TMPFILES $stderr10"
+( cd "$cwd10" && bash "$SCRIPT" "$BASE10" "$TASK10" --repo "$R10" ) >"$stderr10" 2>&1 || rc10=$?
+
+# Assert exit 1 AND the step-3-specific token (not the step-2 gitlink token) —
+# proves the .gitmodules-path arm refused, with no mode-160000 gitlink in the diff.
+if [ "$rc10" -eq 1 ] && grep -q "path under .gitmodules submodule path" "$stderr10" 2>/dev/null; then
+  pass "case 10: step-3 isolation (content under .gitmodules path, no gitlink move) -> exit 1 (step 3 only)"
+else
+  fail "case 10: step-3 isolation -> expected exit 1 + 'path under .gitmodules submodule path', got rc=$rc10"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 11: STEP-2 ISOLATION — pure gitlink mode-160000 move, path NOT in .gitmodules -> exit 1
+#
+# Isolates the step-2 (mode 160000) arm. The submodule gitlink is bumped (mode
+# 160000 in the raw diff), and .gitmodules is REMOVED in the same commit so the
+# changed gitlink path "sub" matches NO configured submodule path — the step-3
+# arm therefore has nothing to cross-check. Only step 2 can refuse this -> exit 1.
+# We leave the working tree on the task branch (no `checkout -`) so the guard
+# reads a .gitmodules-less tree, keeping step 3 inert.
+# (Temp-break proof, plan Step 3: disabling step 2 flips this to allow; disabling
+# step 3 leaves it refused — so it exercises step 2 alone.)
+# ---------------------------------------------------------------------------
+SUB11="$(setup_submodule_repo)"
+R11="$(setup_repo)"
+git -C "$R11" -c protocol.file.allow=always submodule add -q "$SUB11" sub 2>/dev/null
+git -C "$R11" commit -qm "add submodule"
+BASE11="$(git -C "$R11" rev-parse HEAD)"
+
+git -C "$R11" checkout -qb task/step2-isolation 2>/dev/null
+# Advance the submodule pointer (mode 160000 change in the diff).
+printf 'v2\n' > "$SUB11/v2.txt"
+git -C "$SUB11" add v2.txt
+git -C "$SUB11" commit -qm "v2"
+git -C "$R11" -c protocol.file.allow=always submodule update --remote -q sub 2>/dev/null
+git -C "$R11" add sub
+# Drop .gitmodules so the changed path "sub" no longer matches any submodule path.
+git -C "$R11" rm -q --cached .gitmodules 2>/dev/null || true
+rm -f "$R11/.gitmodules"
+git -C "$R11" commit -qm "bump gitlink; drop .gitmodules entry (path unmatched by step 3)"
+TASK11="$(git -C "$R11" rev-parse HEAD)"
+# NOTE: no `checkout -` — working tree stays .gitmodules-less so step 3 stays inert.
+
+cwd11="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
+TMPFILES="$TMPFILES $cwd11"
+rc11=0
+stderr11="$(mktemp 2>/dev/null || mktemp -t wartest)"
+TMPFILES="$TMPFILES $stderr11"
+( cd "$cwd11" && bash "$SCRIPT" "$BASE11" "$TASK11" --repo "$R11" ) >"$stderr11" 2>&1 || rc11=$?
+
+# Assert exit 1 AND the step-2-specific token (the mode-160000 gitlink message),
+# proving the gitlink arm refused independent of any .gitmodules-path match.
+if [ "$rc11" -eq 1 ] && grep -q "gitlink mode 160000 in diff" "$stderr11" 2>/dev/null; then
+  pass "case 11: step-2 isolation (gitlink mode 160000, path not in .gitmodules) -> exit 1 (step 2 only)"
+else
+  fail "case 11: step-2 isolation -> expected exit 1 + 'gitlink mode 160000 in diff', got rc=$rc11"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 12: --declared + pure content under a .gitmodules path, NO incidental
+#          gitlink deletion -> exit 1 (still refused via step 3)
+#
+# Case-8 analogue WITHOUT the incidental gitlink move. Case 8 deinits + `git rm`s
+# the submodule, which drops the gitlink (mode 160000 in the diff) and so also
+# trips the step-2 arm. Here the diff is PURE content: a new .gitmodules "data"
+# path + a plain file under data/, and NO gitlink is deleted or moved (raw diff
+# has no mode 160000). Invoked WITH --declared, the guard must STILL refuse — the
+# --declared allowance is only for pure gitlink moves, never non-gitlink content
+# under a submodule path. This exercises the step-3 refuse under --declared.
+# ---------------------------------------------------------------------------
+SUB12="$(setup_submodule_repo)"
+R12="$(setup_repo)"
+git -C "$R12" -c protocol.file.allow=always submodule add -q "$SUB12" sub 2>/dev/null
+git -C "$R12" commit -qm "add submodule"
+BASE12="$(git -C "$R12" rev-parse HEAD)"
+
+git -C "$R12" checkout -qb task/declared-pure-content 2>/dev/null
+git -C "$R12" config -f .gitmodules submodule.data.path data
+git -C "$R12" config -f .gitmodules submodule.data.url ./nowhere
+mkdir -p "$R12/data"
+printf 'content\n' > "$R12/data/file.txt"
+git -C "$R12" add .gitmodules data/file.txt
+git -C "$R12" commit -qm "pure content under data/ (no gitlink move), declared"
+TASK12="$(git -C "$R12" rev-parse HEAD)"
+# NOTE: no `checkout -` — working-tree .gitmodules must carry the "data" path.
+
+cwd12="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
+TMPFILES="$TMPFILES $cwd12"
+rc12=0
+stderr12="$(mktemp 2>/dev/null || mktemp -t wartest)"
+TMPFILES="$TMPFILES $stderr12"
+( cd "$cwd12" && bash "$SCRIPT" "$BASE12" "$TASK12" --repo "$R12" --declared ) >"$stderr12" 2>&1 || rc12=$?
+
+# Assert exit 1 AND the step-3 token: --declared did not rescue pure content under
+# a submodule path, and no mode-160000 gitlink deletion was involved.
+if [ "$rc12" -eq 1 ] && grep -q "path under .gitmodules submodule path" "$stderr12" 2>/dev/null; then
+  pass "case 12: --declared + pure content under .gitmodules path (no gitlink deletion) -> exit 1 (still refused)"
+else
+  fail "case 12: --declared + pure content under .gitmodules path -> expected exit 1 + 'path under .gitmodules submodule path', got rc=$rc12"
 fi
 
 # ---------------------------------------------------------------------------
