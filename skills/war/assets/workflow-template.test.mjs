@@ -1651,9 +1651,10 @@ const makeGateAuditImpl = (mergeOver = {}) => (prompt, opts) => {
 }
 
 test('#193 T1-1 — sha threading: gate-HEAD sha (integration_sha) reaches the gate-audit prompt', async () => {
-  // Stub integration_sha with a unique synthetic value; assert the gate-audit prompt carries it.
+  // Stub integration_sha with a unique valid-hex value (pinOrSentinel passes hex through);
+  // assert the gate-audit prompt carries it.
   // This transitively proves the destructure pulled gateHeadSha (DP7 / plan §F9).
-  const impl = makeGateAuditImpl({ integration_sha: 'sha-abc123unique' })
+  const impl = makeGateAuditImpl({ integration_sha: 'c0ffee1234' })
   const { calls } = await runPhase(PROVISION_ARGS(), impl)
   const gateAuditCalls = calls.filter(c =>
     seatOf(c.opts) === 'war-auditor' &&
@@ -1661,8 +1662,8 @@ test('#193 T1-1 — sha threading: gate-HEAD sha (integration_sha) reaches the g
   )
   assert.ok(gateAuditCalls.length > 0, 'at least one gate-audit seat is spawned')
   const prompt = gateAuditCalls[0].prompt
-  assert.ok(prompt.includes('sha-abc123unique'),
-    `gate-audit prompt must include the integration_sha 'sha-abc123unique'; got: "${prompt.slice(0, 400)}"`)
+  assert.ok(prompt.includes('c0ffee1234'),
+    `gate-audit prompt must include the integration_sha 'c0ffee1234'; got: "${prompt.slice(0, 400)}"`)
 })
 
 test('#193 T1-2 — defusing directive: SOFT-on-cannot-confirm directive present in gate-audit prompt', async () => {
@@ -1682,7 +1683,7 @@ test('#193 T1-2 — defusing directive: SOFT-on-cannot-confirm directive present
 
 test('#193 T1-3 — sentinel on absent sha: absent integration_sha interpolates sentinel, never "undefined"', async () => {
   // When the merged MergeResult has no integration_sha, the gate-audit prompt must include
-  // the sentinel string '(integration_sha unrecorded)' — never the literal string 'undefined'.
+  // the sentinel string '(integration_sha unrecorded/malformed)' — never the literal string 'undefined'.
   const impl = makeGateAuditImpl({}) // no integration_sha
   const { calls } = await runPhase(PROVISION_ARGS(), impl)
   const gateAuditCalls = calls.filter(c =>
@@ -1691,15 +1692,15 @@ test('#193 T1-3 — sentinel on absent sha: absent integration_sha interpolates 
   )
   assert.ok(gateAuditCalls.length > 0, 'at least one gate-audit seat is spawned')
   const prompt = gateAuditCalls[0].prompt
-  assert.ok(prompt.includes('(integration_sha unrecorded)'),
-    `absent integration_sha must yield sentinel '(integration_sha unrecorded)'; got: "${prompt.slice(0, 400)}"`)
+  assert.ok(prompt.includes('(integration_sha unrecorded/malformed)'),
+    `absent integration_sha must yield sentinel '(integration_sha unrecorded/malformed)'; got: "${prompt.slice(0, 400)}"`)
   assert.ok(!prompt.includes('undefined'),
     `prompt must NEVER contain the literal string 'undefined'; got: "${prompt.slice(0, 400)}"`)
 })
 
 test('#193 T1-4 — sha rides into the auditLog (gateHeadSha + auditSha)', async () => {
   // Drive the HARD case (Critical finding) with integration_sha stubbed; assert the auditLog
-  // gate-evidence entry carries gateHeadSha === 'sha-abc123unique' and auditSha === 'auditsha-xyz789'.
+  // gate-evidence entry carries gateHeadSha === 'c0ffee1234' and auditSha === 'auditsha-xyz789'.
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
     if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
@@ -1716,7 +1717,7 @@ test('#193 T1-4 — sha rides into the auditLog (gateHeadSha + auditSha)', async
     if (seat === 'war-refiner') {
       return opts.phase === 'Land'
         ? { mode: 'land-phase', status: 'landed' }
-        : { mode: 'merge-task', status: 'merged', gate_output: 'ok 5 tests passed', integration_sha: 'sha-abc123unique' }
+        : { mode: 'merge-task', status: 'merged', gate_output: 'ok 5 tests passed', integration_sha: 'c0ffee1234' }
     }
     if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
     return {}
@@ -1724,7 +1725,7 @@ test('#193 T1-4 — sha rides into the auditLog (gateHeadSha + auditSha)', async
   const { out } = await runPhase(PROVISION_ARGS(), impl)
   const auditEntry = (out.auditLog || []).find(e => e && e.gateEvidence)
   assert.ok(auditEntry, 'auditLog must have a gateEvidence entry')
-  assert.equal(auditEntry.gateHeadSha, 'sha-abc123unique',
+  assert.equal(auditEntry.gateHeadSha, 'c0ffee1234',
     'auditLog gate-evidence entry must carry gateHeadSha from the merged MergeResult')
   assert.equal(auditEntry.auditSha, 'auditsha-xyz789',
     'auditLog gate-evidence entry must carry auditSha from the gate-audit seat verdict')
@@ -1758,6 +1759,37 @@ test('#193 T1-5 — hardness preserved: Critical finding WITH integration_sha st
     'Critical gate-evidence finding must hold the land (held:escalation) — hardness must not regress')
   const gateEsc = (out.escalated || []).find(e => e && e.reason === 'gate-evidence')
   assert.ok(gateEsc, 'escalated[] must contain a gate-evidence entry')
+})
+
+test('#393 D1 — pinOrSentinel: extract-and-eval unit cases (hex passes, non-hex collapses to sentinel)', () => {
+  // Extract the pinOrSentinel arrow from the template source (same extract-and-eval
+  // technique as L3 T1). The sentinel literal anchors the terminal branch.
+  const match = src.match(/const pinOrSentinel\s*=\s*(s\s*=>[\s\S]+?'\(integration_sha unrecorded\/malformed\)')/)
+  assert.ok(match, "src must contain a 'const pinOrSentinel = s => …' arrow definition")
+  // eslint-disable-next-line no-new-func
+  const pinOrSentinel = new Function(`return (${match[1]})`)()
+  const SENTINEL = '(integration_sha unrecorded/malformed)'
+  assert.equal(pinOrSentinel('deadbeef'), 'deadbeef', 'valid short hex passes through')
+  assert.equal(pinOrSentinel(undefined), SENTINEL, 'absent sha collapses to sentinel')
+  assert.equal(pinOrSentinel(''), SENTINEL, 'empty string collapses to sentinel')
+  assert.equal(pinOrSentinel('8478834b3c9e0e8b3c9e0e8b…'), SENTINEL,
+    "the issue's ellipsis-tailed repeating value is non-hex → sentinel")
+  // Documents the D1/D2 split: a valid-SHAPE fake deliberately passes D1 (the regex cannot
+  // distinguish a fake 40-hex from a real one); the cat-file -t pin-check (D2) rejects it.
+  assert.equal(pinOrSentinel('8478834b3c9e0e8b3c9e0e8b'), '8478834b3c9e0e8b3c9e0e8b',
+    'pure-hex 24-char value passes through — D2 (cat-file), not D1, catches well-shaped fakes')
+})
+
+test('#393 D2 — cat-file -t pin existence check present in gate-audit prompt', async () => {
+  // Mirror #193 T2-2: the emitted gate-audit prompt must instruct the seat to run
+  //     git -C <refineryPath> cat-file -t <gateHeadSha>
+  // BEFORE the rev-parse comparison. Value-independent: assert the interpolated command form.
+  const { calls } = await runPhase(PROVISION_ARGS(), gateAuditImpl)
+  const gaPrompts = gateAuditCalls(calls)
+  assert.ok(gaPrompts.length > 0, 'gate-audit seats were dispatched')
+  const p = gaPrompts[0].prompt
+  assert.ok(p.includes('git -C /abs/repo/.claude/worktrees/run-2026/_refinery cat-file -t'),
+    'gate-audit prompt must contain the git -C <refineryPath> cat-file -t pin existence check')
 })
 
 // ---------------------------------------------------------------------------

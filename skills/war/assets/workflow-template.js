@@ -349,6 +349,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   }))
 
   // ---- REFINE — serial merge of approved tasks (THE merge queue) ----
+  // ponytail: guard the agent-emitted pin at the copy site, not via a schema `pattern` —
+  //           the model must still be able to emit the '(integration_sha …)' sentinel legitimately.
+  const pinOrSentinel = s =>
+    (typeof s === 'string' && /^[0-9a-f]{7,40}$/.test(s)) ? s : '(integration_sha unrecorded/malformed)'
   for (const r of results.filter(Boolean)) {
     // Carry the audit-loop round counter onto the task object so the no-test sub-loop
     // continues the SHARED budget (not a fresh counter — that would double the allowance).
@@ -517,7 +521,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         if (noTestMr.status === 'merged') {
           landed.push(r.task.id); succeeded.add(r.task.id)
           mergedTasksForGateAudit.push({ taskId: r.task.id, gateOutput: noTestMr.gate_output, acceptanceCriteria: r.task.planSlice,
-            gateHeadSha: noTestMr.integration_sha ?? '(integration_sha unrecorded)' })
+            gateHeadSha: pinOrSentinel(noTestMr.integration_sha) })
         } else {
           escalated.push({ task: r.task.id, reason: noTestMr.status ?? 'merge_failed', detail: noTestMr })
         }
@@ -527,7 +531,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       if (mr && mr.status === 'merged') {
         landed.push(r.task.id); succeeded.add(r.task.id)
         mergedTasksForGateAudit.push({ taskId: r.task.id, gateOutput: mr.gate_output, acceptanceCriteria: r.task.planSlice,
-          gateHeadSha: mr.integration_sha ?? '(integration_sha unrecorded)' }) // ponytail: sentinel, not mr.working_sha — working_sha is land-only (war-refiner.md), dead on a merge result
+          gateHeadSha: pinOrSentinel(mr.integration_sha) }) // ponytail: sentinel, not mr.working_sha — working_sha is land-only (war-refiner.md), dead on a merge result
       }
       else escalated.push({ task: r.task.id, reason: mr ? mr.status : 'merge_failed', detail: mr })
     } else if (r.verdict === 'env-blocked') {
@@ -562,7 +566,12 @@ if (mergedTasksForGateAudit.length > 0) {
       + `a stale gate output (gate-HEAD sha != integration tip) cannot be a provably-unrun land-halt. `
       + `This SOFT-downgrade applies ONLY to the cannot-confirm case; a mapped test provably unrun AT the `
       + `confirmed gate-HEAD sha stays HARD.\n`
-      + `First confirm your evidence is pinned to the integration tip. Run (read-only git, permitted):\n`
+      + `First, validate the gate-HEAD pin is a real object. Run (read-only git, permitted):\n`
+      + `    git -C ${refineryPath} cat-file -t ${gateHeadSha}\n`
+      + `If that command fails (non-zero exit, or the guard refuses it because the pin is the '(integration_sha …)' sentinel), `
+      + `the pin is malformed/synthetic: record the SOFT cannot-confirm note (same required fields below) and skip the `
+      + `rev-parse comparison — never a HARD finding.\n`
+      + `Then confirm your evidence is pinned to the integration tip. Run (read-only git, permitted):\n`
       + `    git -C ${refineryPath} rev-parse HEAD\n`
       + `and compare the printed sha against the gate-HEAD sha ${gateHeadSha}. Equal ⇒ pin CONFIRMED. `
       + `Different, or the command cannot run (git unavailable / rev-parse fails) ⇒ you CANNOT confirm the pin.\n`
