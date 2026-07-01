@@ -2079,8 +2079,9 @@ test('L3 T2 Test 1 — blocked fix-worker escalates on round r, not after roundL
   // blocked:'X'. The loop must run EXACTLY r+1 fix dispatches (the initial audit + 1 fix = 2 total
   // work-seat dispatches when r=0), NOT roundLimit dispatches.
   //
-  // Load-bearing assertion: deleting the fix-worker binding makes the loop reach audit-blocked
-  // (no early escalate) and the blocked:'X' field is absent — assert on the unique token 'X'.
+  // Load-bearing assertion: deleting the 'fix:t1:r1' binding makes the loop re-audit and approve+land
+  // (the auditor returns 'approve' once fixDispatchCount>0), so the early-escalate is skipped and the
+  // blocked:'X' field is absent — assert on the unique token 'X'.
   let fixDispatchCount = 0
   const impl = buildSeqImpl(
     // The fix-worker (label fix:t1:r1) returns blocked with the unique token 'X'
@@ -2112,7 +2113,6 @@ test('L3 T2 Test 1 — blocked fix-worker escalates on round r, not after roundL
   const { out, calls } = await runPhase(L3_ARGS(), impl)
 
   // 1. verdict must be 'escalate' (not 'audit-blocked' from exhaustion)
-  const t1Log = (out.auditLog || []).find(e => e && e.task === 't1' && typeof e.fixRounds === 'number')
   // Check via auditLog and escalated
   const t1Esc = (out.escalated || []).find(e => e && e.task === 't1')
   assert.ok(t1Esc, 'escalated must have an entry for t1')
