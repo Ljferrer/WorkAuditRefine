@@ -235,7 +235,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.8.9** — `/red-team` verifies **preconditions**, not deliverables: analyzed probes now check that a plan's anchors, insertion-points, and signatures actually exist and that its edits compose, while treating the plan's proposed-but-not-yet-applied edits as **expected-absent** — never a false "missing" finding — with the real findings (missing/renamed anchor, false claim about existing code, wrong signature, drifted line number, internal contradiction, non-composing edit) explicitly preserved via a shared analyzed-probe preamble and reinforced `lenses.md` guidance. The gate also surfaces severity-less findings as `needsDecision` on non-pass probes (verdict BLOCKED) instead of silently dropping them, demoting them on pass probes so #50 stays intact. Builds on v0.8.8.
+**0.8.10** — the auditor's submodule pin-validity lens no longer runs the guard-denied `git -C <sub> fetch`: it validates that the new gitlink SHA **equals the dep task's landed SHA** (ledger match — authoritative), with remote-reachability **delegated upstream** (the dep-task land + the Lead pre-flight reconciliation) rather than re-verified in-seat, and a read-only `git -C <sub> cat-file -e <oid>` kept only as an optional non-blocking confirmation whose absence is never a finding. The read-only git guard is **unchanged**; a deny-test pins that `fetch` — both bare `git fetch` and the `-C`-prefixed `git -C <sub> fetch` — stays denied (#310). Builds on v0.8.9.
 
 ## License
 
