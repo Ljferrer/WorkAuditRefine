@@ -100,7 +100,7 @@ changed_files="$($git_cmd diff --name-only "$base...$branch" 2>/dev/null)" || \
 # explicit prefix/suffix matching:
 #   Pattern 1: skills/**/*.test.mjs — file starts with "skills/" and ends with ".test.mjs"
 #   Pattern 2: **/*.test.sh        — file ends with ".test.sh" (repo-wide)
-# A custom --pattern string is matched via a single case glob (caller controls).
+# A custom --pattern string is matched by iterating its space-separated glob tokens (caller controls).
 # ---------------------------------------------------------------------------
 
 # match_default <path> -> exit 0 if the path matches the gate's default patterns.
@@ -132,11 +132,19 @@ if [ -n "$changed_files" ]; then
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     if [ -n "$custom_pattern" ]; then
-      # Custom pattern: single case glob supplied by caller.
-      # ponytail: one-glob custom path; add multi-pattern support when needed.
-      case "$f" in
-        $custom_pattern) found=1; break ;;
-      esac
+      # Custom pattern: space-separated glob set supplied by caller; match each
+      # token independently. `set -f` (noglob) keeps IFS word-splitting while
+      # suppressing pathname expansion — without it the unquoted
+      # `for pat in $custom_pattern` would glob-expand a token like `*.test.js`
+      # against the cwd. Plain `break` (not `break 2`) exits only the `for` so
+      # `set +f` always runs; `[ "$found" = 1 ] && break` ends the file-read while.
+      # ponytail: space-separated glob set; each token matched independently.
+      set -f
+      for pat in $custom_pattern; do
+        case "$f" in $pat) found=1; break ;; esac
+      done
+      set +f
+      [ "$found" = 1 ] && break
     else
       if match_default "$f"; then
         found=1
