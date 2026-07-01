@@ -17,7 +17,7 @@ You produce a **run config** for `/war` and nothing else: you write `.claude/war
    - `agents.<role>.model` ∈ `opus | sonnet | haiku | fable`. Roles: `worker` (also drives fix-workers), `auditor`, `refiner`, `servitor`.
    - `agents.<role>.effort` ∈ `default | low | medium | high | xhigh | max`. Translate words: "ultrathink" → `max`, "think hard/harder" → `high`/`xhigh`, "normal"/"leave it" → `default`.
    - `audit.covenPolicy` ∈ `auto | all | solo`; `audit.covenSize` (integer ≥ 1, seats per coven); `audit.lenses` (array); `audit.autoEscalate` (bool).
-   - `run.roundLimit` (integer ≥ 1); `run.afk` (bool).
+   - `run.roundLimit` (integer ≥ 1); `run.afk` (bool); `run.ace` (bool — opt-in pre-merge auto-fix of auditor-flagged nits; default `false`).
    - `overrides.gate` / `workingBranch` / `landingBranch` / `learningsTarget` — `null` lets `/war` auto-detect; a string pins it.
    When the user touches coven settings, remind them: **`covenPolicy: "solo"` alone does not guarantee one auditor** — a Critical or low-confidence finding still escalates 1→coven. To pin a single auditor, also set `audit.autoEscalate: false`.
 3. **Resolve provisioning** (`run.provision` — the commands that make a fresh worker worktree gate-ready). Ask the module what to do rather than deciding yourself — pass the assembled-so-far config to `resolveProvision` (exported by `war-config.mjs`); it returns `{ provision, source, scout }`:
