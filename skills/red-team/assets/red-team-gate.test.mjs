@@ -207,3 +207,32 @@ test('bare Major (no probeStatus) → back-compat still BLOCKED', () => {
   // F() creates a finding with no probeStatus; undefined !== 'pass' so it must block.
   assert.equal(verdict([F('Major')]), 'BLOCKED')
 })
+
+// --- T2 (#311, gate-side): severity-less findings routed to needsDecision, not dropped ---
+
+test('severity-less finding on a fail probe → needsDecision + BLOCKED (not silently dropped)', () => {
+  const findings = allFindings([
+    { probe: 'x', status: 'fail', findings: [{ file: 'a.js', line: 1, summary: 'no severity here' }] },
+  ])
+  assert.equal(classify(findings).needsDecision.length, 1)
+  assert.equal(verdict(findings), 'BLOCKED')
+})
+
+test('severity-less finding on a pass probe → NOT a blocker, does not force BLOCKED (preserves #50)', () => {
+  const findings = allFindings([
+    { probe: 'x', status: 'pass', findings: [{ file: 'a.js', line: 1, summary: 'no severity here' }] },
+  ])
+  assert.equal(classify(findings).blockers.length, 0)
+  assert.equal(classify(findings).needsDecision.length, 0)
+  assert.notEqual(verdict(findings), 'BLOCKED')
+})
+
+test('two DISTINCT severity-less findings on a fail probe → TWO needsDecision entries (not deduped to one)', () => {
+  const findings = allFindings([
+    { probe: 'x', status: 'fail', findings: [
+      { file: 'a.js', line: 1, summary: 'first malformed' },
+      { file: 'b.js', line: 2, summary: 'second malformed' },
+    ] },
+  ])
+  assert.equal(classify(findings).needsDecision.length, 2)
+})
