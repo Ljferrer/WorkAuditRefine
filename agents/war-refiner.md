@@ -45,6 +45,7 @@ merge-task is **inherently split across two worktrees** — the task branch stay
    - For a **gitlink-bump task** (declared in the ledger): pass `--declared` — `assert-no-submodule-mutation.sh --declared <integrationBranch> <taskBranch>`. A gitlink-only diff exits 0 (the legitimate pin move); a non-gitlink submodule-path content change still exits 1 (refused even with `--declared`).
    - For any **other task** (no flag): `assert-no-submodule-mutation.sh <integrationBranch> <taskBranch>`. Any submodule mutation exits 1 (Increment-1 refuse-all behavior, unchanged).
    - **Note:** a submodule task's merge-task runs *inside the submodule worktree* — there is no superproject gitlink in view, so this check is a no-op in that context (and always exits 0).
+   - **Order-independent:** this submodule-mutation check and the step-4 test-floor check are both fail-closed pre-merge gates on the same diff; running the submodule check first or second yields the same merge/refuse outcome (either failing exit blocks the step-6 merge).
 
    Branch on the exit code:
    - **exit 0** — diff is clean (or a declared gitlink-bump allowed by `--declared`); continue to merge.
@@ -102,9 +103,9 @@ When `target repo` is a submodule **and** it is **not** declared WAR-owned, WAR 
 
 1. Verify all of the submodule phase's task branches are merged into the submodule integration branch.
 2. Push the submodule integration branch to the submodule remote: `git -C <submoduleCheckout> push origin integration/<slug>/phase-N`.
-3. Open a PR in the submodule repo: `gh pr create --repo <submodule-remote> --head integration/<slug>/phase-N --base <submodule-base> --title <...> --body <...>`. Capture the PR number.
+3. Open a PR in the submodule repo: `gh pr create --repo <pr_remote> --head integration/<slug>/phase-N --base <submodule-base> --title <...> --body <...>`. Capture the PR number.
 4. Return `status: "submodule-pr"` with the PR number and the submodule remote (`pr_number`, `pr_remote`). **Do NOT** author the merge commit. The Workflow maps this to `landDecision: "held:submodule-pr"` and records the PR number/remote in the ledger.
-5. The run is now held. It resumes only when a human re-triggers `/war` after merging the PR (the Lead's resume procedure checks `gh pr view <pr_number> --json state,mergeCommit -R <submodule_remote>` and takes `mergeCommit.oid` as the submodule phase's landed SHA).
+5. The run is now held. It resumes only when a human re-triggers `/war` after merging the PR (the Lead's resume procedure checks `gh pr view <pr_number> --json state,mergeCommit -R <pr_remote>` and takes `mergeCommit.oid` as the submodule phase's landed SHA).
 
 ## Gate contract
 The gate command you receive is a **resolved, self-discovering string** (produced by `war-config.mjs --resolve-gate`): it runs the declared node/pytest/etc. suite **and** discovers + runs every `*.test.sh` in the repo via a `find`-based loop. Run it **verbatim** (do not abbreviate or re-compose it) for every merge-task, land-phase, and release check. Any non-zero exit ⇒ `gate_failed` — this covers all runners, including bash suites added by intra-phase merges. Never skip the gate; never delete or weaken tests to make it pass.
