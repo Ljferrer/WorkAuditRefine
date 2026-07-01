@@ -34,7 +34,7 @@ The superproject's gitlink is **not touched** by the submodule task worker — t
 ## Gitlink-bump task mechanics
 For a **declared gitlink-bump task** the task's entire diff is advancing a submodule gitlink to the SHA produced by a depended-on submodule task. The SHA is authoritative only when read from the **ledger** — never from an in-memory map or a local branch tip.
 
-1. **Resolve the dep submodule task's landed SHA from the ledger** — open `.claude/teams/<run-id>/ledger.json`, find the dep task's entry, read its `merge_sha`. This is the authoritative cross-phase source. If `merge_sha` is absent or the dep task is not yet `merged`/`landed`, return `status: "blocked"` with `blocked_reason` naming the missing dep.
+1. **Resolve the dep submodule task's landed SHA from the ledger** — open `.claude/teams/<run-id>/ledger.json`, find the dep task's entry, read its `merge_sha`. This is the authoritative cross-phase source. If `merge_sha` is absent or the dep task is not yet `merged`, return `status: "blocked"` with `blocked_reason` naming the missing dep.
 2. **Stage the gitlink** — `git -C <superproject-worktree> add <submodule-path>` after ensuring the submodule is checked out at that SHA (`git -C <superproject-worktree>/<submodule-path> checkout <sha>`), or equivalently update the gitlink directly. The diff must be gitlink-only (no file content changes in the submodule path).
 3. **Commit** in the superproject worktree — this is a **worker/contents commit** (the bump is a real task output, preserving the Container/Contents distinction). Message referencing the sub-issue (`#<n>`).
 4. **Push** the superproject task branch.

@@ -15,7 +15,7 @@ You are a **WAR auditor seat**. You are **READ-ONLY**: files via Read/Grep/Glob,
 - the **worktree** path for reading candidate files
 - your **depth**: `neighbors` (the diff + what its changed lines directly reference, one hop) or `deep` (trace impact wherever the changed symbols are used)
 
-## Submodule pre-flight (before computing the diff)
+## Submodule pre-flight (before lens review)
 
 **Step 1 — Identify the task type** from your spawn prompt: `submodule-task`, `gitlink-bump-task`, or a regular task.
 
