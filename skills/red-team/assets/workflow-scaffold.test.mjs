@@ -301,6 +301,37 @@ test("FINDINGS schema: findings array description includes 'defect'", async () =
     "FINDINGS.properties.findings.description must include the word 'defect'")
 })
 
+// --- #311 (probe-side): precondition-vs-deliverable rule reaches every ANALYZED probe ----------
+// A shared preconditionRule layer (mirrors scopeLock) is prepended to analyzed-technique probes so
+// spine claims-vs-reality/consistency-placeholders/coverage-vs-source AND any bespoke analyzed probe
+// inherit it. The 1b assertion (the retained-findings carve-out) is the LOAD-BEARING non-blunting
+// guard: blunting the rule to a bare "ignore proposed changes" strips this phrase and goes RED.
+const ANALYZED_PROBES_311 = ['claims-vs-reality', 'consistency-placeholders', 'coverage-vs-source']
+
+test('#311: every analyzed probe prompt carries the PRECONDITION vs DELIVERABLE rule + retained-findings carve-out', async () => {
+  const a = baseArgs({ probes: [
+    { name: 'bespoke-analyzed', kind: 'bespoke', technique: 'analyzed', prompt: 'do bespoke analyzed' },
+  ] })
+  const { prompts } = await runScaffold(a, passResult(a))
+  const byLabel = Object.fromEntries(prompts.filter(p => p.opts.phase === 'Probe').map(p => [p.opts.label, p.prompt]))
+  for (const name of [...ANALYZED_PROBES_311, 'bespoke-analyzed']) {
+    const prompt = byLabel[`probe:${name}`]
+    assert.ok(prompt, `analyzed probe ${name} must be present`)
+    // 1a — stable rule token
+    assert.match(prompt, /PRECONDITION vs DELIVERABLE/, `analyzed probe '${name}' must carry the precondition rule token`)
+    // 1b — LOAD-BEARING non-blunting assertion: the retained-findings carve-out phrase.
+    assert.match(prompt, /false claim about EXISTING code/, `analyzed probe '${name}' must retain the 'false claim about EXISTING code' carve-out (non-blunting guard)`)
+  }
+})
+
+test('#311: the EXECUTED spine probe (executable-proof) does NOT gain the precondition rule', async () => {
+  const a = baseArgs()
+  const { prompts } = await runScaffold(a, passResult(a))
+  const byLabel = Object.fromEntries(prompts.map(p => [p.opts.label, p.prompt]))
+  assert.ok(!/PRECONDITION vs DELIVERABLE/.test(byLabel['probe:executable-proof']),
+    'the executed probe runs artifacts in a sandbox, not presence-checks — the precondition rule must NOT reach it')
+})
+
 test(`provision BACK-COMPAT: no provision list => scope-lock + prompts are byte-for-byte today's`, async () => {
   // The executed-probe and analyzed-probe prompts with NO provision list must be IDENTICAL to the
   // prompts produced when the key is entirely absent — i.e. provisioning adds zero bytes when unused.
