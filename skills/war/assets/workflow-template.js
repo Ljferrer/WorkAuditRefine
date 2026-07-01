@@ -447,7 +447,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           continue
         }
 
-        // Vacuous re-audit path: escalation already pushed above (lines 358-359), noTestMr===null
+        // Null-deref guard: both reAuditFailed=true sites set noTestMr=null; skip before the unconditional noTestMr.status deref below.
         if (reAuditFailed) continue
 
         // Use the successful re-merge result for the landed path below
