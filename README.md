@@ -235,7 +235,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.8.2** — No-test sub-loop hygiene: the add-test retry prompt now routes exit-1 (no test found) and exit-2 (git-ref error) distinctly instead of collapsing both to a bare non-zero (#237); a land-side comment documents the shared status-enum boundary reused on the land path (#236); the `reAuditFailed` guard-comment is reworded to explain the null-deref shield rather than claim it is handled elsewhere (#235); the auditor's `gate_output` contract gains a completeness clause forbidding curated excerpts at all three sites (#269); and Site-3's blocked-add-test path gains load-bearing coverage (#268). Builds on v0.8.1.
+**0.8.3** — servitor provenance gate robustness — indent-agnostic extractor (accepts any leading whitespace: 2-space / 4-space / tab) + corrected `|| true` deny-mechanism comment. Builds on v0.8.2.
 
 ## License
 
