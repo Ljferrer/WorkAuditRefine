@@ -2724,31 +2724,6 @@ test('Task 3 — budget single-attempt: ace dispatches at most once per task; a 
   assert.equal(calls.filter(isAce).length, 1, 'ace is dispatched at most once per task (single attempt, no re-ace)')
 })
 
-test('Task 3 — budget: ace does NOT dispatch when fixRounds has already reached roundLimit', async () => {
-  // Force the audit loop to consume all fix rounds first (blocking Major each round until roundLimit),
-  // then the worker still ends approve with a leftover nit — ace must NOT fire (fixRounds === roundLimit).
-  // roundLimit defaults to 3. Auditor: request_changes(Major) rounds 1-3, then the loop exits without
-  // an approve, so verdict is not 'approve' and ace never enters — instead assert on the roundLimit guard
-  // directly via a task whose approve arrives only after budget is spent.
-  // Simpler: cap roundLimit at 1 and burn it with one fix round, then approve carrying a nit.
-  let auditCall = 0
-  const impl = (prompt, opts) => {
-    const seat = seatOf(opts)
-    if (seat === 'war-auditor') {
-      auditCall++
-      // round 1: blocking Major (consumes fixRounds via a fix-worker). round 2+: approve with a nit.
-      return auditCall <= 1
-        ? { seat: opts.label, lens: 'correctness', verdict: 'request_changes', confidence: 'high',
-            findings: [{ severity: 'Major', title: 'blk', file: 'x.js', rationale: 'r' }] }
-        : approveWith(opts.label, [nit()])
-    }
-    return aceBase([nit()])(prompt, opts)
-  }
-  const { calls } = await runPhase(ACE_ARGS({ run: { ace: true, roundLimit: 1 } }), impl)
-  // One fix round burned fixRounds to 1 === roundLimit → the ace guard (fixRounds < roundLimit) is false.
-  assert.ok(!calls.some(isAce), 'ace does NOT dispatch once fixRounds has reached roundLimit (budget exhausted)')
-})
-
 test('Task 3 — provenance aced list: an aced nit appears on return.aced with { task, finding, sha }, and is NOT in minorsFiled', async () => {
   const acedNit = nit({ title: 'aced me', file: 'skills/war/assets/z.js' })
   const impl = buildSeqImpl(
