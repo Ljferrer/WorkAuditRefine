@@ -39,6 +39,27 @@ collide) cut off the working branch, from which all of that phase's task worktre
 into which approved tasks are merged. Removed after the phase lands.
 _Avoid_: feature branch, phase branch, staging branch.
 
+**Frozen phase base**:
+The single integration tip, captured **once** at a phase's Provision barrier, that **every** task
+worktree in that phase is cut from — including tasks in later dependency waves. The wave loop never
+re-cuts a worktree onto a sibling's merge; only the refiner rebases (at merge time, in the task
+worktree). So within a phase, `deps`/waves order **when** a worker runs, never **what base it sees** —
+all workers build on the same frozen base and cannot observe each other's in-flight code.
+_Avoid_: assuming a later wave sees an earlier wave's merged code; "advancing tip" for the worker base
+(only the *refiner's* merge sees the advancing tip).
+
+**Code-boundary decomposition**:
+The authoring rule for carving a plan into phases/tasks, forced by the **Frozen phase base** + serial
+rebase-merge. Parallelize tasks whose **file sets are disjoint** and each **green on its own** off the
+frozen base; push any **shared-file** work or **code-consumption dependency** across a **phase edge** (a
+later phase cut from the prior phase's landed tip). Two same-file tasks in one phase rebase-**conflict**
+at the serial merge (a hard escalation, no fix round) — intermittently, since disjoint *regions* of one
+file may land by luck; a code-consuming task in the same phase can't see the symbol it needs. One task
+targets exactly one repo, and a release/version bump (shared release-slot files) is its own trailing
+phase. Sibling of **Repo-per-phase** (its cross-repo special case).
+_Avoid_: "one task per phase" (over-serializes — the rule is disjoint-and-independent, not solo); using
+intra-phase `deps` for code visibility or to dodge a same-file collision (neither works).
+
 ### Repo-derived provisioning (Part B)
 
 **Provision list** (`run.provision`):
@@ -255,3 +276,25 @@ The read-only cross-check a resuming Lead runs before continuing — verifies ea
 `merge_sha` is reachable on its branch, repairs the ledger + labels *toward git*, and **halts on an
 unexplained (foreign) commit** rather than absorbing it.
 _Avoid_: editing git to match a stale record; auto-trusting a commit no ledger task claims.
+
+### Campaigns (multi-plan orchestration)
+
+**Roadmap**:
+The ordered **index of plans** (a meta-plan, not a plan). Its load-bearing parts are the **dependency
+spine** (strict landing order) and the **shared-file contention table** — **Code-boundary decomposition**
+applied one level up: plans touching a shared file (or the four release-slot files) **serialize** in
+roadmap order; file-independent plans are free-ordered (usually by version/severity). Authored via the
+`/war-strategy` template; consumed by the **Hopper**. A committed file, so it doubles as the campaign's
+progress ledger and its live-append surface.
+_Avoid_: a generic product roadmap; treating it as a plan `/war` can execute directly (it indexes plans).
+
+**Hopper**:
+The autonomous loop that executes a **Roadmap** — one chat running `/red-team <plan>` then
+`/war <plan> … --afk --ace` over each plan in roadmap order, driven by the `/war-campaign` skill. Default
+AFK model is **stack-and-plow**: plan N's working branch bases off plan N-1's landed tip and its PR
+targets plan N-1's branch (stacked PRs, merged bottom-up; deleting each merged branch cascades the next
+onto master). `--wait-for-merge` switches to **base-off-master** (wait for PR N-1 to merge, base plan N
+off fresh `origin/master`). Live-appendable: a second chat authors + merges new plans and the hopper
+picks them up on its next rebase.
+_Avoid_: pointing every stacked PR at master (cumulative diffs → shared-doc conflicts — the stacked PR
+target is plan N-1's branch); assuming Mode A works overnight (it needs a human merging each PR).
