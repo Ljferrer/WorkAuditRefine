@@ -398,7 +398,9 @@ test('Task 5 — land prompt: detached at origin/<working>, land-advance, reland
   assert.match(p, /land-advance/,
     'land prompt mentions land-advance for the push-first CAS')
   // Decision 2: step 3 runs land-advance inside _refinery (cwd-pin), matching steps 1-2.
-  assert.match(p, /cd \$\{refineryLandPath\} && provision-worktrees\.sh land-advance|cd .*_refinery.* && provision-worktrees\.sh land-advance/,
+  // Only the `_refinery` alternate is real: `${refineryLandPath}` is interpolated into the rendered prompt
+  // (its value ends in `/_refinery`), so the literal `${refineryLandPath}` never appears in `p` (interpolated-literal trap, class #311).
+  assert.match(p, /cd .*_refinery.* && provision-worktrees\.sh land-advance/,
     'land prompt step 3 pins land-advance to the _refinery worktree (cd ${refineryLandPath} && …)')
   // No BARE backtick-led `provision-worktrees.sh land-advance` remains. Key on the RENDERED text: pre-pin the
   // step-3 line reads ``run `provision-worktrees.sh land-advance <branch> …``` (backtick immediately before the
@@ -1175,8 +1177,8 @@ test('#71 — task with only planSlug+runId+worktreeRoot (no explicit) does NOT 
 // Task 5 (Phase 3 — F05): servitor memory-admission checklist
 // The Wrap-up prompt and war-servitor.md must instruct four disciplines:
 //   D1 — DEDUP BEFORE WRITE: Glob memory dir + read MEMORY.md + read candidates → update existing covering file
-//   D2 — CORRECTION PRIORITY: contradicting fact supersedes stale file; user corrections outrank agent assertions
-//   D3 — VERIFY-CUE: a fact naming a file/flag/line is phrased with "verify still present before acting"
+//   D2 — TIER PRECEDENCE: a higher tier supersedes a lower; a user-confirmed fact outranks any agent write
+//   D3 — VERIFY-ON-WRITE: verify the referent is still present before acting (facts naming a file/flag/line)
 //   D4 — INDEX HYGIENE: update MEMORY.md row in place; [[slug]] cross-links
 // ---------------------------------------------------------------------------
 
@@ -1197,7 +1199,7 @@ test('F05 — Wrap-up prompt: instructs DEDUP BEFORE WRITE (Glob memory dir + re
     'Wrap-up prompt must instruct updating an existing covering file rather than duplicating (D1)')
 })
 
-test('F05 — Wrap-up prompt: instructs CORRECTION PRIORITY (contradicting fact supersedes stale; user outranks)', async () => {
+test('F05 — Wrap-up prompt: instructs TIER PRECEDENCE (contradicting fact supersedes stale; user outranks)', async () => {
   const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
   const wrap = calls.find(isServitor)
   assert.ok(wrap, 'a servitor (Wrap-up) seat was dispatched on the happy path')
@@ -1210,7 +1212,7 @@ test('F05 — Wrap-up prompt: instructs CORRECTION PRIORITY (contradicting fact 
     'Wrap-up prompt must state that user corrections outrank agent assertions (D2)')
 })
 
-test('F05 — Wrap-up prompt: instructs VERIFY-CUE (file/flag/line facts must be stamped with verify cue)', async () => {
+test('F05 — Wrap-up prompt: instructs VERIFY-ON-WRITE (file/flag/line facts must be stamped with verify cue)', async () => {
   const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
   const wrap = calls.find(isServitor)
   assert.ok(wrap, 'a servitor (Wrap-up) seat was dispatched on the happy path')
@@ -1246,14 +1248,14 @@ test('F05 — war-servitor.md: admission checklist includes DEDUP BEFORE WRITE (
     'war-servitor.md must instruct updating an existing covering file (D1)')
 })
 
-test('F05 — war-servitor.md: admission checklist includes CORRECTION PRIORITY (D2)', () => {
+test('F05 — war-servitor.md: admission checklist includes TIER PRECEDENCE (D2)', () => {
   assert.match(servitorMd, /supersede|contradict|overrides?|replac/i,
     'war-servitor.md must instruct that a contradicting fact supersedes the stale entry (D2)')
   assert.match(servitorMd, /user.{0,40}outrank|user.{0,40}correction|correction.{0,40}outrank/i,
     'war-servitor.md must state that user corrections outrank agent assertions (D2)')
 })
 
-test('F05 — war-servitor.md: admission checklist includes VERIFY-CUE (D3)', () => {
+test('F05 — war-servitor.md: admission checklist includes VERIFY-ON-WRITE (D3)', () => {
   assert.match(servitorMd, /verify.{0,40}still.{0,40}present|verify.{0,40}before.{0,40}act/i,
     'war-servitor.md must include "verify still present before acting" cue for file/flag/line facts (D3)')
 })
@@ -1794,6 +1796,7 @@ test('M1 criterion #6 — catch after a mid-phase throw skips teardown (structur
     if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { mode: 'merge-task', status: 'merged' }
     if (seat === 'war-worker') { workerRan = true; return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} } }
+    // auditor seat = first agent() past the worker, before any merge; workerRan===true guarantees the catch is reached mid-flow — the non-vacuous injection point (supersedes historical 'after a merge' prose).
     if (seat === 'war-auditor') throw new Error('injected-auditor-throw-after-worker')
     // refiner merge path — should not be reached since auditor throws first
     if (seat === 'war-refiner') return { mode: 'merge-task', status: 'merged' }
@@ -1998,7 +2001,9 @@ test('L3 T1 — blockedReason predicate is total: extract-and-eval all four case
   // Extract the arrow definition from the template source. The predicate is an
   // internal const — not a module export — so we use extract-and-eval (the same
   // technique as the AsyncFunction harness) to exercise the real predicate code.
-  const match = src.match(/const blockedReason\s*=\s*(r\s*=>[\s\S]+?null\))/)
+  // The colon anchors the terminal `: null)` branch so an interior `null)` (a
+  // future `|| null)` / `?? null)`) cannot truncate the lazy capture.
+  const match = src.match(/const blockedReason\s*=\s*(r\s*=>[\s\S]+?:\s*null\))/)
   assert.ok(match, 'src must contain a "const blockedReason = r => …" arrow definition')
   // eslint-disable-next-line no-new-func
   const blockedReason = new Function(`return (${match[1]})`)()
@@ -2037,13 +2042,18 @@ test('#237 — both merge-task dispatch prompts split exit-1 (no-test) from exit
   // (git/ref error, never no-test). A bare `exits non-zero` collapse mis-routes a transient exit-2
   // bad-ref into no-test. Slice each prompt's assert-test-in-diff clause out of src and assert
   // per-prompt so the sibling prompt / adjacent submodule clause cannot satisfy an assertion.
+  // Anchor each slice on its unique leading phrase, NOT `.match()` source order:
+  // Prompt A renders `to verify the task diff contains`, Prompt B `to verify the task diff now
+  // contains` — so `to verify the task diff contains` is disjoint from B (B inserts `now`) and
+  // `now contains` is disjoint from A. Isolation no longer depends on A preceding B in src
+  // ([[regex-slice-disambiguation-relies-on-match-order-not-anchoring]], #326).
   const prompts = {
-    // Prompt A: requiresTest-branch merge prompt (the `contains at least one` phrasing).
+    // Prompt A: requiresTest-branch merge prompt (unique phrase `to verify the task diff contains`).
     'A (requiresTest branch)':
-      src.match(/run assert-test-in-diff\.sh[^`]*contains at least one[^`]*/),
-    // Prompt B: no-test-retry merge prompt (the `now contains at least one` phrasing).
+      src.match(/run assert-test-in-diff\.sh[^`]*to verify the task diff contains[^`]*/),
+    // Prompt B: no-test-retry merge prompt (unique phrase `now contains`).
     'B (no-test retry)':
-      src.match(/run assert-test-in-diff\.sh[^`]*now contains at least one[^`]*/),
+      src.match(/run assert-test-in-diff\.sh[^`]*now contains[^`]*/),
   }
   for (const [name, m] of Object.entries(prompts)) {
     assert.ok(m, `merge-task prompt ${name}: assert-test-in-diff clause not found in src`)
@@ -2077,8 +2087,9 @@ test('L3 T2 Test 1 — blocked fix-worker escalates on round r, not after roundL
   // blocked:'X'. The loop must run EXACTLY r+1 fix dispatches (the initial audit + 1 fix = 2 total
   // work-seat dispatches when r=0), NOT roundLimit dispatches.
   //
-  // Load-bearing assertion: deleting the fix-worker binding makes the loop reach audit-blocked
-  // (no early escalate) and the blocked:'X' field is absent — assert on the unique token 'X'.
+  // Load-bearing assertion: deleting the 'fix:t1:r1' binding makes the loop re-audit and approve+land
+  // (the auditor returns 'approve' once fixDispatchCount>0), so the early-escalate is skipped and the
+  // blocked:'X' field is absent — assert on the unique token 'X'.
   let fixDispatchCount = 0
   const impl = buildSeqImpl(
     // The fix-worker (label fix:t1:r1) returns blocked with the unique token 'X'
@@ -2110,7 +2121,6 @@ test('L3 T2 Test 1 — blocked fix-worker escalates on round r, not after roundL
   const { out, calls } = await runPhase(L3_ARGS(), impl)
 
   // 1. verdict must be 'escalate' (not 'audit-blocked' from exhaustion)
-  const t1Log = (out.auditLog || []).find(e => e && e.task === 't1' && typeof e.fixRounds === 'number')
   // Check via auditLog and escalated
   const t1Esc = (out.escalated || []).find(e => e && e.task === 't1')
   assert.ok(t1Esc, 'escalated must have an entry for t1')
