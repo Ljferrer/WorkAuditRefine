@@ -64,23 +64,33 @@ load-bearing.
 
 - [ ] **Step 1 — Write the T2.5 regression case (failing first).** Append to
   `skills/war/assets/provision-worktrees.test.sh` after the T2.4 block. Seed via the existing helpers
-  (`setup_origin_pair` + `seed_working_branch "$c1" "$c2" "working/myplan5"`) so **origin already holds the working
-  branch at the SEED tip**. Produce a `NEW_SHA5` in clone1 (a separate commit, as T2.2 does). Then call the script
-  **directly from a cwd whose `HEAD` is the OLD tip (the SEED, NOT `NEW_SHA5`)** — i.e. NOT through `run_in_detached`:
+  (capturing the seed sha as T2.2 captures `SEED2`): `SEED5="$(seed_working_branch "$C1_5" "$C2_5" "working/myplan5")"`
+  (after the matching `setup_origin_pair`) so **origin already holds the working branch at the SEED tip**. Produce a
+  `NEW_SHA5` in clone1 (a separate commit, as T2.2 does) — that commit lands on clone1's **default** branch and advances
+  clone1's ambient `HEAD` to `NEW_SHA5` (the working-branch ref `refs/heads/working/myplan5` stays at `SEED5`). **Return
+  clone1's `HEAD` to the OLD seed tip** so the push is a genuine no-op, then call the script directly from that cwd (NOT
+  through `run_in_detached`):
   ```sh
-  # clone1 HEAD is the OLD working tip (SEED) here — a no-op push exits 0 against origin.
+  # The NEW_SHA5 commit above moved clone1's HEAD off the seed; detach back to SEED5 so HEAD == origin's
+  # old tip and `git push HEAD:…` is a genuine no-op (exit 0, no [rejected]).
+  git -C "$C1_5" checkout -q "$SEED5"
+  LOCAL_BEFORE5="$(git -C "$C1_5" rev-parse refs/heads/working/myplan5)"   # == SEED5
   code="$( ( cd "$C1_5" && bash "$SCRIPT" land-advance working/myplan5 "$NEW_SHA5" ); echo $? )"
   ```
-  Record `LOCAL_BEFORE5="$(git -C "$C1_5" rev-parse refs/heads/working/myplan5)"` before the call. Assert **both**:
+  Assert **both**:
   - `expect "T2.5: no-op push from wrong cwd (HEAD≠new_sha, origin already at HEAD) → readback mismatch → exit 3" "3" "$code"`
   - `LOCAL_AFTER5="$(git -C "$C1_5" rev-parse refs/heads/working/myplan5)"; expect "T2.5: local working ref did NOT advance to new_sha (origin readback gated the advance)" "$LOCAL_BEFORE5" "$LOCAL_AFTER5"`
 
-  (The seed leaves clone1's checkout on the SEED commit, so its ambient `HEAD` is the OLD tip — the push is a genuine
-  no-op that exits 0 without `[rejected]`. Do **not** detach to `NEW_SHA5`; that is exactly the masked path.)
-- [ ] **Step 2 — Run `bash skills/war/assets/provision-worktrees.test.sh` → RED.** Pre-fix the push exits 0, local
-  advances to `NEW_SHA5`, the call returns 0: T2.5 fails on both the `3` exit assertion and the `unchanged-local`
-  assertion. (If T2.5 passes here, it is vacuous — most likely `run_in_detached` crept in; fix the case before
-  proceeding.)
+  (Producing `NEW_SHA5` "as T2.2 does" commits on clone1's default branch and advances its ambient `HEAD` to
+  `NEW_SHA5`; **without** the explicit `checkout -q "$SEED5"` above, `git push HEAD:refs/heads/working/myplan5` would be
+  a **real ff push** that moves origin to `NEW_SHA5`, the readback would see `origin == new_sha`, and the case would
+  exit 0 — masking the bug even with the fix present. The `checkout` back to `SEED5` is what makes `HEAD` the OLD tip
+  and the push a genuine no-op. Do **not** detach to `NEW_SHA5`; that is the masked path `run_in_detached` already covers.)
+- [ ] **Step 2 — Run `bash skills/war/assets/provision-worktrees.test.sh` → RED.** Pre-fix the no-op push exits 0 and
+  the local-follower `update-ref` advances `refs/heads/working/myplan5` to `NEW_SHA5`, the call returns 0: T2.5 fails on
+  both the `3` exit assertion and the `unchanged-local` assertion. (If T2.5 passes here, it is vacuous — most likely
+  `run_in_detached` crept in, or the `git -C "$C1_5" checkout -q "$SEED5"` line is missing so `HEAD` is still
+  `NEW_SHA5` and the push is a real ff push that moves origin; fix the case before proceeding.)
 - [ ] **Step 3 — Implement the readback (green).** Inside `if [ "$push_rc" -eq 0 ]; then`, **before** the
   `if [ -n "$pre_push_local" ]; then` update-ref block, insert:
   ```sh
@@ -153,16 +163,23 @@ template string (bare `land-advance` with no `cd`/`git -C`) and passes after the
   // Decision 2: step 3 runs land-advance inside _refinery (cwd-pin), matching steps 1-2.
   assert.match(p, /cd \$\{refineryLandPath\} && provision-worktrees\.sh land-advance|cd .*_refinery.* && provision-worktrees\.sh land-advance/,
     'land prompt step 3 pins land-advance to the _refinery worktree (cd ${refineryLandPath} && …)')
-  // No BARE `provision-worktrees.sh land-advance` (not preceded by `cd …` / `git -C …`) remains in the land block.
-  assert.ok(!/(?<!&& )(?<!git -C [^\n]{0,80})provision-worktrees\.sh land-advance \$\{ph\.workingBranch\}/.test(p),
-    'no bare provision-worktrees.sh land-advance ${ph.workingBranch} remains (must be cwd-pinned)')
+  // No BARE backtick-led `provision-worktrees.sh land-advance` remains. Key on the RENDERED text: pre-pin the
+  // step-3 line reads ``run `provision-worktrees.sh land-advance <branch> …``` (backtick immediately before the
+  // command); the pin turns it into ``run `cd <…>/_refinery && provision-worktrees.sh land-advance …``` (backtick now
+  // precedes `cd`, the command is preceded by `&& `). Do NOT key on `${ph.workingBranch}` — it is already interpolated
+  // in `p`, so a regex containing that literal never matches and the assertion is vacuous.
+  assert.ok(!/`provision-worktrees\.sh land-advance /.test(p),
+    'no bare backtick-led provision-worktrees.sh land-advance remains (step 3 must be cwd-pinned: cd ${refineryLandPath} && …)')
   ```
-  (If the lookbehind regex is awkward under the Node version, the equivalent is: assert the substring
-  `cd ${refineryLandPath} && provision-worktrees.sh land-advance ${ph.workingBranch}` is present AND the substring
-  ``` `provision-worktrees.sh land-advance ${ph.workingBranch} ``` is preceded by `cd ` everywhere it appears as an
-  invocation. The non-negotiable: the assertion must FAIL on the current bare string and PASS only after the `cd` prefix.)
-  **v0.8.0 churn — assertion precision:** both assertions key on `${ph.workingBranch}`, which the new submodule 2A note
-  does **not** carry (it uses `land-advance INSIDE ${submodLandTask.targetRepo}`), so the 2A line cannot spuriously
+  (The negative assertion keys on the **rendered** command text, not the un-interpolated `${ph.workingBranch}` literal:
+  in `p` the branch is already interpolated (e.g. `dev/myplan`), so a regex containing `\$\{ph\.workingBranch\}` never
+  matches and `!regex.test(p)` is vacuously true for both the bare and pinned strings. The non-negotiable: the negative
+  assertion must FAIL on the current bare string and PASS only after the `cd` prefix — the backtick anchor does exactly
+  that, since the pin moves the backtick from before `provision-worktrees.sh` to before `cd`.)
+  **v0.8.0 churn — assertion precision:** both assertions key on the `provision-worktrees.sh land-advance` command token
+  (the positive on `cd …_refinery… && provision-worktrees.sh land-advance`, the negative on a backtick-led
+  `provision-worktrees.sh land-advance`), which the new submodule 2A note does **not** carry (it uses `land-advance
+  INSIDE ${submodLandTask.targetRepo}` with no `provision-worktrees.sh ` prefix), so the 2A line cannot spuriously
   satisfy or trip either assertion. Do **not** loosen the regex to a bare `/land-advance/` — that would now match the
   2A note and mask a still-bare superproject step-3 call. To exercise the assertion, the test must render the land block
   in the **non-submodule** path (a phase with no `taskType:'submodule'` task) so `submodLandNote` is empty and only the

@@ -868,6 +868,51 @@ expect "T2.4: origin/branch-a == new_sha_A (no cross-bleed)" \
 expect "T2.4: origin/branch-b == new_sha_B (no cross-bleed)" \
   "$NEW_SHA_B" "$ORIG_B_SHA"
 
+# ---------------------------------------------------------------------------
+# Case (T2.5) NO-OP PUSH FROM THE WRONG CWD -> origin readback mismatch -> exit
+# 3, local ref UNCHANGED. This is the #251 bug: from a cwd whose HEAD == origin's
+# OLD tip, `git push HEAD:refs/heads/<working>` is a genuine no-op — it exits 0
+# and prints no [rejected] — yet origin never moved to <new-sha>. Pre-fix the
+# step-3 update-ref advanced the LOCAL follower past origin while reporting
+# success. The origin readback (`ls-remote origin == new_sha`) must catch this
+# and exit 3 with the local ref left untouched.
+#
+# CRUCIAL: this case does NOT use run_in_detached — that helper detaches HEAD to
+# <new-sha>, making HEAD == new_sha so the push is a REAL ff push that moves
+# origin (readback would see origin == new_sha and pass, masking the bug). We
+# instead check clone1's HEAD BACK to the SEED tip so HEAD == origin's old tip
+# and the push is a true no-op (weak-test-assertion-passes-without-feature).
+# ---------------------------------------------------------------------------
+PAIR5="$(setup_origin_pair)"
+C1_5="$(printf '%s' "$PAIR5" | cut -d' ' -f1)"
+C2_5="$(printf '%s' "$PAIR5" | cut -d' ' -f2)"
+ORIG5="$(printf '%s' "$PAIR5" | cut -d' ' -f3)"
+
+SEED5="$(seed_working_branch "$C1_5" "$C2_5" "working/myplan5")"
+
+# clone1 produces its own new-sha (a separate commit, as T2.2 does). This commit
+# lands on clone1's DEFAULT branch and advances clone1's ambient HEAD to NEW_SHA5;
+# the working-branch ref refs/heads/working/myplan5 stays at SEED5.
+printf 'clone1-merge5\n' > "$C1_5/merge5.txt"
+git -C "$C1_5" add -A
+git -C "$C1_5" commit -qm "clone1 merge sha for T2.5"
+NEW_SHA5="$(git -C "$C1_5" rev-parse HEAD)"
+
+# The NEW_SHA5 commit above moved clone1's HEAD off the seed; detach back to SEED5
+# so HEAD == origin's old tip and `git push HEAD:…` is a genuine no-op (exit 0,
+# no [rejected]). Do NOT detach to NEW_SHA5 (that is the masked path
+# run_in_detached already covers in T2.2).
+git -C "$C1_5" checkout -q "$SEED5"
+LOCAL_BEFORE5="$(git -C "$C1_5" rev-parse refs/heads/working/myplan5)"   # == SEED5
+# Call the script DIRECTLY from clone1's cwd (HEAD == SEED5), NOT via run_in_detached.
+code="$( ( cd "$C1_5" && bash "$SCRIPT" land-advance working/myplan5 "$NEW_SHA5" ); echo $? )"
+
+expect "T2.5: no-op push from wrong cwd (HEAD≠new_sha, origin already at HEAD) → readback mismatch → exit 3" \
+  "3" "$code"
+LOCAL_AFTER5="$(git -C "$C1_5" rev-parse refs/heads/working/myplan5)"
+expect "T2.5: local working ref did NOT advance to new_sha (origin readback gated the advance)" \
+  "$LOCAL_BEFORE5" "$LOCAL_AFTER5"
+
 # ===========================================================================
 # Task 3 (clandiso): teardown-phase --worktree-root <root> — reap _refinery
 # by path + verified integration delete.
