@@ -2027,6 +2027,34 @@ test('M2 Test 3 — drift-guard: both HARD_ESCALATION_REASONS mirrors equal incl
     'inline and canonical HARD_ESCALATION_REASONS must be equal including no-test (M2 drift-guard)')
 })
 
+test('#237 — both merge-task dispatch prompts split exit-1 (no-test) from exit-2 (error), no non-zero collapse', () => {
+  // Both merge-task dispatch prompt strings contain an `assert-test-in-diff.sh ... <clause>` sentence.
+  // The clause must mirror war-refiner.md step 4: exit 1 → no-test (do NOT merge), exit 2 → error
+  // (git/ref error, never no-test). A bare `exits non-zero` collapse mis-routes a transient exit-2
+  // bad-ref into no-test. Slice each prompt's assert-test-in-diff clause out of src and assert
+  // per-prompt so the sibling prompt / adjacent submodule clause cannot satisfy an assertion.
+  const prompts = {
+    // Prompt A: requiresTest-branch merge prompt (the `contains at least one` phrasing).
+    'A (requiresTest branch)':
+      src.match(/run assert-test-in-diff\.sh[^`]*contains at least one[^`]*/),
+    // Prompt B: no-test-retry merge prompt (the `now contains at least one` phrasing).
+    'B (no-test retry)':
+      src.match(/run assert-test-in-diff\.sh[^`]*now contains at least one[^`]*/),
+  }
+  for (const [name, m] of Object.entries(prompts)) {
+    assert.ok(m, `merge-task prompt ${name}: assert-test-in-diff clause not found in src`)
+    const clause = m[0]
+    assert.ok(clause.includes('exit 1'), `prompt ${name}: must name 'exit 1' (no-test path)`)
+    assert.ok(clause.includes('no-test'), `prompt ${name}: exit-1 path must return 'no-test'`)
+    assert.ok(clause.includes('exit 2'), `prompt ${name}: must name 'exit 2' (git/ref error path)`)
+    assert.ok(clause.includes('error'), `prompt ${name}: exit-2 path must return 'error'`)
+    // Load-bearing negative: the collapse phrasing must be gone (a bare `no-test` match would pass
+    // against both old and new text — the negative is what proves exit-2 no longer routes to no-test).
+    assert.ok(!clause.includes('exits non-zero'),
+      `prompt ${name}: must NOT collapse exit codes with 'exits non-zero'`)
+  }
+})
+
 // ---------------------------------------------------------------------------
 // L3 T2 — blocked fix escalates early + initial-worker behavior preserved
 // buildSeqImpl harness: fresh instance per test, label→results queue, .shift() per call.
