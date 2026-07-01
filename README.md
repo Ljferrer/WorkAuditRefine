@@ -235,7 +235,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.8.0** — First-class submodule support: repo-per-phase and submodule-as-repo topologies both supported. Default is 2B (PR-and-hold — WAR opens a PR to the submodule's default branch and suspends with `held:submodule-pr` until the operator merges and resumes); 2A (WAR-owned fast-path) is opt-in for repos where WAR controls the submodule. Undeclared submodules are still refused; declared submodules route through the appropriate path (`held:submodule-pr` + `gh-resume`). Builds on v0.7.8.
+**0.8.1** — Land-advance gates the local follower advance on an origin `ls-remote` readback instead of the push exit code: a no-op push from the wrong cwd (HEAD already at origin's old tip) exits 0 without moving origin, so `cmd_land_advance` now advances the local ref only when `ls-remote origin` confirms origin holds the new sha, else escalates. Step 3 of the land prompt is pinned to the `_refinery` worktree, matching steps 1–2. Builds on v0.8.0.
 
 ## License
 
