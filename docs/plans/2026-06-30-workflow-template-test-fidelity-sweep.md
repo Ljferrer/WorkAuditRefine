@@ -1,10 +1,10 @@
-# workflow-template.test.mjs fidelity sweep — brittle extract regex, stale F05 labels, mispredicting comment, auditor-seat rationale Implementation Plan (issues #266 #267 #250 #221)
+# workflow-template.test.mjs fidelity sweep — brittle extract regex, stale F05 labels, mispredicting comment, auditor-seat rationale, dead land-prompt alternate, match-order slice Implementation Plan (issues #266 #267 #250 #221 #317 #326)
 
-**Goal:** one cohesive test-hygiene pass over a single file — [`skills/war/assets/workflow-template.test.mjs`](../../skills/war/assets/workflow-template.test.mjs) — that closes four same-kind nits: a brittle extract-and-eval regex (#266), five-but-actually-six stale F05 D2/D3 labels after a rename (#250), a mispredicting comment + dead-local fix (#267, both halves un-fixed at HEAD — re-grounded from the earlier "pre-applied" claim), and a one-line deliberate-choice comment at the auditor-seat throw (#221). **Zero production change** — `workflow-template.js` and `war-servitor.md` already carry the canonical labels and the correct `blockedReason` body. Lands **last** in its stack (behavioral-before-cosmetic, landOrder 6). All edits are test-prose / robustness.
+**Goal:** one cohesive test-hygiene pass over a single file — [`skills/war/assets/workflow-template.test.mjs`](../../skills/war/assets/workflow-template.test.mjs) — that closes six same-kind nits: a brittle extract-and-eval regex (#266), five-but-actually-six stale F05 D2/D3 labels after a rename (#250), a mispredicting comment + dead-local fix (#267, both halves un-fixed at HEAD — re-grounded from the earlier "pre-applied" claim), a one-line deliberate-choice comment at the auditor-seat throw (#221), a dead first regex alternate in the Task-5 land-prompt positive assertion (#317, the interpolated-literal trap — kin to #311), and a match-order-dependent Prompt A/B regex slice (#326). **Zero production change** — `workflow-template.js` and `war-servitor.md` already carry the canonical labels and the correct `blockedReason` body. Lands **last** in its stack (behavioral-before-cosmetic, landOrder 6). All edits are test-prose / robustness.
 
 **Source spec:** [`docs/specs/2026-06-30-workflow-template-test-fidelity-sweep-design.md`](../specs/2026-06-30-workflow-template-test-fidelity-sweep-design.md).
 **Roadmap:** [`docs/plans/2026-06-30-open-issue-remediation-roadmap.md`](2026-06-30-open-issue-remediation-roadmap.md) — the **authoritative version source** (this slug = landOrder 6 = v0.8.6, re-baselined off master v0.8.0).
-Memory hooks: [[regex-extract-live-code-lazy-quantifier-fragility]] (#266), [[relaxed-assertion-test-title-must-update-together]] + [[source-comment-lags-emitted-prompt-after-rewrite]] (#250), [[weak-test-assertion-passes-without-feature-being-exercised]] Variant 3 (#267), [[plan-line-number-refs-stale-use-construct-locator]] (all anchors by construct), [[version-slots-no-cross-slot-consistency-test]] (#release).
+Memory hooks: [[regex-extract-live-code-lazy-quantifier-fragility]] (#266), [[relaxed-assertion-test-title-must-update-together]] + [[source-comment-lags-emitted-prompt-after-rewrite]] (#250), [[weak-test-assertion-passes-without-feature-being-exercised]] Variant 3 (#267), [[regex-slice-disambiguation-relies-on-match-order-not-anchoring]] (#326), [[plan-line-number-refs-stale-use-construct-locator]] (all anchors by construct), [[version-slots-no-cross-slot-consistency-test]] (#release). #317 is the interpolated-literal-trap class (a `${var}` literal that never appears in the rendered prompt) — same family as #311.
 
 Anchors below are re-grounded against current master HEAD (`89e5968`, v0.8.0) after the two submodule-support increments (v0.7.8 guard + v0.8.0 first-class) landed and added +316 lines of submodule tests to this same file. The affected suite is green. **NOTE (re-grounding):** the pre-update fork point was `88c64cc` (v0.7.7); construct line numbers below moved only where the +316 churn pushed them down — re-anchor by named construct per [[plan-line-number-refs-stale-use-construct-locator]].
 
@@ -13,8 +13,8 @@ Anchors below are re-grounded against current master HEAD (`89e5968`, v0.8.0) af
 - **Target version:** **v0.8.6** (roadmap landOrder 6, severity LOW). Bumps `0.8.5 → 0.8.6`. (Re-baselined: master advanced to v0.8.0 via the two submodule increments; the six-spec stack now lands v0.8.1…v0.8.6 in the same serial order — this slug is last at v0.8.6.)
 - **Integration base:** the **landed tip of Spec 5 (v0.8.5, `test-floor-script-glob-and-doc-hardening`)**, which itself sits on the **post-#268 tip**. This sweep is authored on a tree that **already contains Spec 2's (#268) Site-3 test** in this same file — **do NOT re-touch that region** (it is a sibling's landed work; nothing in this plan edits it).
 - **Four-slot serial land (replace-in-place, no badge):** `.claude-plugin/plugin.json` `version`; `.claude-plugin/marketplace.json` `metadata.version` **and** `plugins[0].version`; `README.md` `## Status` (line ~236). All four read `0.8.6` after the release task; no other slot left at a prior version. (At master HEAD all four read `0.8.0`.) There is no cross-slot consistency test — verify all four by hand ([[version-slots-no-cross-slot-consistency-test]]).
-- **Standalone fallback:** if this is run **off current master (v0.8.0)** instead of the stack, **re-baseline the release to the next free patch** (v0.8.1 off the live tip) and **drop the prior-tip pin** — the version literal is NOT authoritative; the operator directive + the actual landed baseline is ([[stacked-per-branch-releases-make-main-lag-cumulative]]). The four test-prose edits (#266/#267/#250/#221) are baseline-independent and unaffected by the fallback.
-- **Commit boundaries:** one task per issue (independent audits), one commit per task. The release is its own `chore(release):` commit. Five task-branches + a release, not one squashed commit — so the WAR refiner audits each nit separately.
+- **Standalone fallback:** if this is run **off current master (v0.8.0)** instead of the stack, **re-baseline the release to the next free patch** (v0.8.1 off the live tip) and **drop the prior-tip pin** — the version literal is NOT authoritative; the operator directive + the actual landed baseline is ([[stacked-per-branch-releases-make-main-lag-cumulative]]). The six test-prose edits (#266/#267/#250/#221/#317/#326) are baseline-independent and unaffected by the fallback.
+- **Commit boundaries:** one task per issue (independent audits), one commit per task. The release is its own `chore(release):` commit. Seven task-branches + a release, not one squashed commit — so the WAR refiner audits each nit separately.
 - **One-task-per-phase:** every task touches the **same file** (`workflow-template.test.mjs`), so they are **strictly serial**, each landing on the prior's landed tip ([[war-phase-up-front-provisioning-conflicts-same-file-serial-tasks]]). Never parallel.
 
 ## Operator decisions — RESOLVED (bake in exactly)
@@ -23,6 +23,8 @@ Anchors below are re-grounded against current master HEAD (`89e5968`, v0.8.0) af
 - **#250 — rename ALL stale F05 sites: it is SIX, not five.** Live `grep -cE 'CORRECTION PRIORITY|VERIFY-CUE'` returns **6** (the spec's "five sites" counts the 2-line comment block as one). Edit all six occurrences: 2 comment lines (`~L1168-1169`) + 4 test titles (`~L1190/1203/1239/1246`). Swap `CORRECTION PRIORITY → TIER PRECEDENCE` and `VERIFY-CUE → VERIFY-ON-WRITE`. **Also reframe the L1168-1169 comment prose** to the tier-precedence framing so the comment doesn't itself become fresh source-comment-lags drift (production already frames D2 as tier-precedence in `workflow-template.js` / `war-servitor.md`). **Leave every `assert.match` semantic-token pattern byte-unchanged.** Post-condition: `grep -nE 'CORRECTION PRIORITY|VERIFY-CUE'` returns nothing.
 - **#267 — APPLY both halves (NOT pre-applied; the original "already self-corrected" claim was wrong).** RE-GROUNDING CORRECTION: at current HEAD `89e5968` (and at the original fork `88c64cc`) BOTH halves are still un-fixed — the unused `t1Log` local IS present (`grep -c 't1Log'` returns **1**, at the line `const t1Log = (out.auditLog || []).find(e => e && e.task === 't1' && typeof e.fixRounds === 'number')`, inside `L3 T2 Test 1`), and the bind-deletion comment STILL mispredicts ("…makes the loop reach **audit-blocked** … and the blocked:'X' field is absent"). The +316 submodule churn did not touch this region; this was never self-corrected. So this task is a real two-edit fix, not verify-and-confirm: **(1) delete the dead `t1Log` local; (2) reword the comment** to the true outcome — deleting the fix-worker binding makes the loop re-audit and **approve+land** (the auditor returns `approve` once `fixDispatchCount > 0`), so the early-escalate path is skipped and `blocked:'X'` is absent. Confirm load-bearing: deleting the `'fix:t1:r1'` seqMap entry must fail the three token-`'X'` assertions (`t1Esc.blocked==='X'`, `logEntry.blocked==='X'`, and `t1Esc.reason==='escalate'`).
 - **#221 — add the one-line deliberate-choice comment (operator-deferred = our call).** At the `war-auditor` throw (`~L1783`, `if (seat === 'war-auditor') throw new Error('injected-auditor-throw-after-worker')`) add a one-line comment: *auditor seat = first `agent()` past the worker, before any merge; `workerRan === true` guarantees the catch is reached mid-flow.* **Do NOT close with zero edit** — an empty diff risks the refiner flagging "nothing to commit" ([[report-nothing-to-commit-never-implement-unprompted]]). One concrete auditable artifact.
+- **#317 — delete the dead first alternate in the Task-5 land-prompt positive assertion.** The positive assertion (`~L401`, anchor by the construct `provision-worktrees\.sh land-advance`) is a two-alternate `assert.match`: alternate 1 `cd \$\{refineryLandPath\} && provision-worktrees\.sh land-advance` is **dead** — `refineryLandPath` is already interpolated into the rendered prompt (its value ends in `/_refinery`), so the literal `${refineryLandPath}` never appears in `p`; alternate 2 `cd .*_refinery.* && provision-worktrees\.sh land-advance` is load-bearing (RED pre-pin / GREEN post-pin verified). **Drop alternate 1, keep only alternate 2.** This is the interpolated-literal trap the sibling negative-assertion comment already warns about (class #311). Confirm the test still passes and the surviving alternate is genuinely load-bearing (RED if it too were removed).
+- **#326 — anchor the Prompt A/B regex slices on unique leading phrasing, not `.match()` source order.** Prompt A's regex `run assert-test-in-diff\.sh[^\`]*contains at least one[^\`]*` also substring-matches Prompt B's `now contains at least one`; isolation holds *only* because `.match()` returns the first occurrence (A precedes B in source) and backticks bound each clause — fragile if the prompts are reordered or an in-clause backtick appears. **Anchor each regex on its unique leading phrasing** (`to verify the task diff contains` for A vs `now contains` for B) so isolation no longer depends on source order. Both Prompt-A and Prompt-B assertions must stay green. ([[regex-slice-disambiguation-relies-on-match-order-not-anchoring]].)
 - **Zero production change** — `workflow-template.js` and `war-servitor.md` are untouched. The whole sweep is test-prose / robustness.
 
 ---
@@ -101,9 +103,43 @@ The `assert.match` patterns key on **semantic tokens** (`supersede|contradict|ov
 
 ---
 
-## Phase 5 — Release v0.8.6
+## Phase 5 — #317 dead first alternate in the Task-5 land-prompt positive assertion
 
-### Task 5 — Bump the four canonical version slots + full self-discovering gate green
+### Task 5 — Drop the dead `${refineryLandPath}` alternate; keep the load-bearing `_refinery` alternate (#317)
+
+**File:** `skills/war/assets/workflow-template.test.mjs` — the Task-5 land-prompt **positive** assertion (`~L401`, anchor by the construct `provision-worktrees\.sh land-advance`; it is the only two-alternate `assert.match` on that land command). Alternate 1 `cd \$\{refineryLandPath\} && provision-worktrees\.sh land-advance` can never match `p`: `refineryLandPath` is interpolated into the rendered prompt (value ends in `/_refinery`), so the literal `${refineryLandPath}` never appears — the interpolated-literal trap the sibling negative-assertion comment already warns about (class #311). Alternate 2 `cd .*_refinery.* && provision-worktrees\.sh land-advance` carries the assertion (RED pre-pin / GREEN post-pin verified).
+
+**`requiresTest`: false** — deleting a dead regex alternate; the surviving alternate is unchanged and stays load-bearing.
+
+- [ ] **Step 1 — Establish the baseline.** Run `node --test --test-name-pattern='land-advance' skills/war/assets/workflow-template.test.mjs` (or the enclosing test name) → **green** at HEAD. Confirm the two-alternate site: `grep -n 'provision-worktrees.sh land-advance' skills/war/assets/workflow-template.test.mjs` → the positive assertion (two alternates) and the negative-assertion comment.
+- [ ] **Step 2 — Drop the dead alternate.** Remove alternate 1 (`cd \$\{refineryLandPath\} && provision-worktrees\.sh land-advance` plus its `|` separator), leaving the positive assertion matching only `cd .*_refinery.* && provision-worktrees\.sh land-advance`. Add a one-line comment that the interpolated `${refineryLandPath}` literal never appears in the rendered prompt (interpolated-literal trap, class #311), so only the `_refinery` alternate is real.
+- [ ] **Step 3 — Confirm load-bearing (sanity, not committed).** Temporarily break the surviving alternate (e.g. change `land-advance` → `land-XXX`) and confirm the positive assertion **fails** RED; **revert**. Post-condition: `grep -c 'refineryLandPath' skills/war/assets/workflow-template.test.mjs` no longer counts the dead alternate (only any legitimate interpolation site remains).
+- [ ] **Step 4 — GREEN + full gate.** Re-run the enclosing test → passes; then the **full** self-discovering gate → green.
+- [ ] **Step 5 — Commit** — `test(war): drop dead ${refineryLandPath} alternate in land-advance positive assertion; keep _refinery alternate (#317)`
+- **Closes #317.** Dead interpolated-literal alternate removed; the `_refinery` alternate is the sole (still load-bearing) matcher.
+
+---
+
+## Phase 6 — #326 Prompt A/B regex slice relies on `.match()` source order
+
+### Task 6 — Anchor the Prompt A/B regex slices on unique leading phrasing, not first-occurrence order (#326)
+
+**File:** `skills/war/assets/workflow-template.test.mjs` — the `#237` no-test-routing Prompt A / Prompt B assertions (anchor by the construct `run assert-test-in-diff\.sh`). Prompt A's regex `run assert-test-in-diff\.sh[^\`]*contains at least one[^\`]*` also substring-matches Prompt B's `now contains at least one`; isolation holds only because `.match()` returns the first occurrence (A precedes B in source) and backtick delimiters bound each clause — it would silently drift if the prompts are reordered in source or an in-clause backtick appears. [[regex-slice-disambiguation-relies-on-match-order-not-anchoring]].
+
+**`requiresTest`: false** — re-anchoring existing assertions to disjoint phrasing; no behavioral change, both assertions stay green.
+
+- [ ] **Step 1 — Establish the baseline + the shared substring.** Run the enclosing `#237` test → **green** at HEAD. Confirm Prompt A and Prompt B each have a unique leading phrase: A = `to verify the task diff contains`, B = `now contains` (verify against the emitted prompt strings in `workflow-template.js` before baking the tokens).
+- [ ] **Step 2 — Re-anchor each slice on its unique phrase.** Change Prompt A's regex to key on `to verify the task diff contains` (its unique leading phrasing) and Prompt B's on `now contains`, so neither depends on `.match()` returning the first occurrence. (Equivalent acceptable form: assert the two matches occupy distinct, non-overlapping index ranges — but the unique-phrase anchor is the smaller, clearer change.)
+- [ ] **Step 3 — Confirm disjoint (sanity, not committed).** Temporarily reorder Prompt A/B in the local `src` fixture (or swap their order in the assertion) and confirm each assertion still matches its own clause (order-independence); **revert**.
+- [ ] **Step 4 — GREEN + full gate.** Re-run the `#237` test → passes; then the **full** self-discovering gate → green.
+- [ ] **Step 5 — Commit** — `test(war): anchor Prompt A/B regex slices on unique phrasing, not .match() source order (#326)`
+- **Closes #326.** Slice isolation no longer depends on source order; reordering the prompts can no longer silently break disambiguation.
+
+---
+
+## Phase 7 — Release v0.8.6
+
+### Task 7 — Bump the four canonical version slots + full self-discovering gate green
 
 **Files:** `.claude-plugin/plugin.json` (`version`); `.claude-plugin/marketplace.json` (`metadata.version` **and** `plugins[0].version`); `README.md` `## Status` (REPLACE-in-place, no badge — [[release-bump-slots-canonical-no-badge]], [[release-status-is-replace-slot-not-empty-field]]).
 
@@ -111,7 +147,7 @@ The `assert.match` patterns key on **semantic tokens** (`supersede|contradict|ov
 
 - [ ] **Step 1 — Bump all four slots `0.8.5 → 0.8.6`.** Verify each by hand — there is no cross-slot consistency test, so a partial bump is gate-silent ([[version-slots-no-cross-slot-consistency-test]]). Update the README `## Status` "Builds on vX" clause to the new prior version (`v0.8.5`). Status copy: *workflow-template.test.mjs fidelity sweep — terminal-token-anchored extract regex, realigned F05 D2/D3 labels, reworded bind-deletion comment, auditor-seat rationale.* **Standalone fallback:** if running off master v0.8.0 (not the stack), bump to the **next free patch off the live tip** (v0.8.1) by construct, not the literal 0.8.6 — [[stacked-per-branch-releases-make-main-lag-cumulative]].
 - [ ] **Step 2 — Full self-discovering gate → green.**
-- [ ] **Step 3 — Commit** — `chore(release): v0.8.6 — workflow-template test fidelity sweep (#266/#267/#250/#221)`. Land last (behavioral-before-cosmetic, landOrder 6).
+- [ ] **Step 3 — Commit** — `chore(release): v0.8.6 — workflow-template test fidelity sweep (#266/#267/#250/#221/#317/#326)`. Land last (behavioral-before-cosmetic, landOrder 6).
 
 ---
 
@@ -135,7 +171,9 @@ node --test 'skills/**/*.test.mjs' && for f in $(find . -type f -name '*.test.sh
 | #267 | Task 2 (Phase 2) | comment reword + dead-local delete | both halves un-fixed at HEAD (grep `t1Log`=1; comment still says "reach audit-blocked"); delete dead local + reword comment to approve+land; load-bearing sanity confirmed |
 | #250 | Task 3 (Phase 3) | label drift | all **6** F05 sites renamed (2 comment + 4 titles) + comment prose reframed; `assert.match` patterns byte-unchanged; grep post-condition empty |
 | #221 | Task 4 (Phase 4) | deliberate-choice comment | one-line rationale at the `war-auditor` throw; no zero-edit close |
-| *(release)* | Task 5 (Phase 5) | version bump | four slots `0.8.5 → 0.8.6` (standalone fallback: next free patch off master v0.8.0) |
+| #317 | Task 5 (Phase 5) | dead-alternate delete | drop the dead `${refineryLandPath}` interpolated-literal alternate (class #311); keep the load-bearing `_refinery` alternate |
+| #326 | Task 6 (Phase 6) | regex re-anchor | anchor Prompt A/B slices on unique leading phrasing (`to verify the task diff contains` / `now contains`), not `.match()` source order |
+| *(release)* | Task 7 (Phase 7) | version bump | four slots `0.8.5 → 0.8.6` (standalone fallback: next free patch off master v0.8.0) |
 
 ## Deliberate simplifications (ponytail)
 
