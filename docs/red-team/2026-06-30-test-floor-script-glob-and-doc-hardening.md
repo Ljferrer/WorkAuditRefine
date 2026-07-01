@@ -32,6 +32,19 @@ Both **executed** probes passed on the first run — the plan's core changes lan
 
 None blocking. Lowest-risk plan in the stack: `assert-test-in-diff.sh` is an isolated lane, `--pattern` is inert on the production path (no caller passes it), and the fix is a bash-3.2-safe token-iteration loop with a load-bearing red-first test. `--repo` retained (load-bearing) and reconciled across the three signatures.
 
+## Post-clearance addendum (2026-07-01) — a Major the executed probe was blind to
+
+The WAR audit coven (Phase 1, task t1) escalated a **Major** the red-team missed: the plan's prescribed
+`for pat in $custom_pattern` (no `set -f`) reintroduces **pathname (glob) expansion** — the old
+`case "$f" in $custom_pattern)` never globbed (case-pattern position), so moving `$custom_pattern` into a `for … in`
+word-list position is a new latent regression. The `tdd-231` probe was structurally blind to it: it ran Case 6a/6b in an
+**empty** mktemp cwd, where the unquoted tokens have nothing to glob-expand against, so the defect stays green in the
+happy env (exactly the `weak-test-assertion-passes-without-feature-being-exercised` blind-spot). **Lesson for the probe
+catalog:** a glob/word-splitting fix must be exercised from a cwd **seeded** with a file matching a pattern token, not a
+clean one. The Lead adjudicated the escalation by amending the plan: `set -f`/`set +f` noglob guard (plain `break` +
+`[ "$found" = 1 ] && break`, since `break 2` would skip the restore) + a load-bearing **Case 6c** (seeded cwd). Phase 1
+was re-run on the amended plan.
+
 ## Coverage summary
 
 `{ probes: 8, executed: 3, analyzed: 5, expected: 8, onTarget: 8, offTarget: [], dropped: [] }` — coverage whole. Executed proofs green on first run; analyzed prose findings patched (one refuted). No `INCOMPLETE` condition.
