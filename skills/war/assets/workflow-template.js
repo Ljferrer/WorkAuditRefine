@@ -103,6 +103,9 @@ const landedShas = new Map() // taskId → integration_sha from the merge result
 // Hoisted above try{} so the catch block can reference them even when the derivation throw fires
 // before any wave runs (temporal dead zone guard — red-team T1-confirmed).
 const landed = [], escalated = [], minorsFiled = [], auditLog = []
+// --ace provenance (D3): aced findings recorded as { task, finding, sha } — a return ATTRIBUTE, not a
+// status/escalation (D6). Un-aced RESIDUAL nits still file to minorsFiled as war-followup exactly as today.
+const aced = []
 const mergedTasksForGateAudit = []   // collect {taskId, gateOutput, acceptanceCriteria, gateHeadSha} for post-merge gate-audit pass (F04 R3)
 
 try {
@@ -152,6 +155,11 @@ const provisionClause = provisionList.length
 
 const blockingOf = seats => seats.flatMap(s => s.findings || []).filter(f => f.severity === 'Critical' || f.severity === 'Major')
 const minorsOf   = seats => seats.flatMap(s => s.findings || []).filter(f => f.severity === 'Minor' || f.severity === 'Nit')
+// --ace release-slot STRING backstop only (D4). The sandbox can't read files, so the ORCHESTRATOR's
+// one enforceable refusal is the release-slot filename check; the AUDITOR (which reads code) owns the
+// mechanical / non-load-bearing / no-ponytail-line refusals via finding.autoFixable. README.md is
+// refused wholesale (conservative). Requires a file — a fileless finding is never ace-eligible.
+const aceEligible = f => f.file && !/(?:plugin\.json|marketplace\.json|README\.md)$/.test(f.file)
 const allApprove = (seats, expected) => seats.length === expected && seats.every(s => s.verdict === 'approve')
 const isSplit    = seats => seats.some(s => s.verdict === 'approve') && seats.some(s => s.verdict === 'request_changes')
 // → reason string if the worker did not deliver (null/dead or self-reported blocked), else null
@@ -349,6 +357,49 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     auditLog.push({ task: r.task.id, verdict: r.verdict, findings: (r.seats || []).flatMap(s => s.findings || []), blocked: r.blocked, requested: r.expected, returned: (r.seats || []).length, fixRounds: r.task.fixRounds })
     done.add(r.task.id)
     if (r.verdict === 'approve') {
+      // --ace: opt-in, fail-closed pre-merge polish of auditor-flagged nits. Single attempt (D1/D2/D5).
+      // Sits at the TOP of the approve branch, BEFORE the merge dispatch: the ace worker commits one fix,
+      // a fresh auditRound re-audits at the new sha; if re-approved the merge runs on the polished tip,
+      // else the merge dispatch forward-reverts the ace commit (D2 — NEVER escalate; the approved work still lands).
+      const aceable = run.ace ? minorsOf(r.seats || []).filter(f => f.autoFixable === true && aceEligible(f)) : []
+      let aceSha = null
+      if (run.ace && blockingOf(r.seats).length === 0 && aceable.length && r.task.fixRounds < roundLimit) {
+        const ace = await agent(
+          `ADVISORY POLISH (--ace) for WAR task ${r.task.id}. Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
+          + `This task is ALREADY APPROVED. These are auditor-flagged auto-fixable Minor/Nit findings — apply the smallest mechanical fix for EACH, keep the gate green, and make EXACTLY ONE commit whose message cites each finding's title + rationale:\n`
+          + aceable.map((f, i) => `${i + 1}. [${f.severity}] ${f.title} (${f.file}${f.line ? ':' + f.line : ''}) — ${f.rationale}${f.suggested_fix ? ` → ${f.suggested_fix}` : ''}`).join('\n') + '\n'
+          + `Make ONE commit only (the panel re-audits it at the new sha; on regression it is forward-reverted). Do NOT touch version/release slots. Commit and push ${r.task.branch}.`
+          + provisionClause,
+          { agentType: NS + 'war-worker', phase: 'Audit', label: `ace:${r.task.id}:r${r.task.fixRounds + 1}`, schema: WORKER_RESULT, ...spawn('worker') })
+        const aceWhy = blockedReason(ace)
+        // WORKER_RESULT's commit field is `head_sha` (NOT `sha` — no worker result carries `.sha`).
+        // Guard on a TRUTHY head_sha: a falsy sha would make r.aceReverted falsy (revert clause never
+        // fires) AND emit a `git revert --no-edit ` with no arg (fails → escalate). Both defeat the
+        // never-blocks-a-land invariant. A blocked/head_sha-less ace falls through to the plain merge.
+        if (!aceWhy && typeof ace.head_sha === 'string' && ace.head_sha) {
+          r.task.fixRounds++
+          aceSha = ace.head_sha /* the single ace commit */
+          const { seats: reSeats, expected: reExpected } = await auditRound(r.task, null, null)   // re-pin + re-audit at the new sha (D1)
+          if (allApprove(reSeats, reExpected) && blockingOf(reSeats).length === 0) {
+            r.seats = reSeats                          // merge proceeds on the polished tip; aced recorded below
+            r.acedFindings = aceable                   // the findings this ace commit resolved (for the aced list / minorsFiled recompute)
+            r.aceSha = aceSha
+          } else {
+            r.aceReverted = aceSha                     // D2: merge dispatch prepends `git revert --no-edit <aceSha>`; never escalate
+            aceSha = null
+          }
+        } // aceWhy or falsy head_sha: log, fall through to the normal merge-and-file on the un-aced approved tip (never hold)
+      }
+      // D3 minorsFiled recompute + aced list: for an aced task, the findings this ace commit resolved move
+      // from minorsFiled (already pushed eagerly at the top of the loop) to `aced`. Only un-aced RESIDUAL
+      // nits stay in minorsFiled. Keyed on title+file (findings carry no id). A no-op when nothing was aced.
+      if (r.acedFindings && r.acedFindings.length && r.aceSha) {
+        for (const f of r.acedFindings) {
+          aced.push({ task: r.task.id, finding: f, sha: r.aceSha })
+          const i = minorsFiled.findIndex(m => m && m.task === r.task.id && m.title === f.title && m.file === f.file)
+          if (i !== -1) minorsFiled.splice(i, 1)
+        }
+      }
       const refineryPath = `${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/_refinery`
       const requiresTest = r.task.requiresTest !== false  // default true; false only when explicitly set
       // For a submodule task: thread targetRepo (the submodule checkout) + targetBase so the refiner
@@ -359,8 +410,20 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           + `Submodule checkout (targetRepo): ${r.task.targetRepo}. Submodule base: ${r.task.targetBase || '<targetBase>'}. `
           + `Run rebase and gate cwd-scoped to ${r.task.targetRepo}; the _refinery merge fast-forwards the submodule integration branch.`
         : ''
+      // D2 forward-revert: on an ace re-audit regression the merge dispatch PREPENDS one clause — in the
+      // TASK worktree, `git -C <worktree> revert --no-edit <aceSha>` BEFORE the rebase. Emitted ONLY when
+      // r.aceReverted is a non-empty string (belt-and-suspenders, never unconditional). This CANNOT introduce
+      // a new escalate: aceSha is the single ace commit = the task-branch TIP at revert time, so its revert is
+      // the clean inverse of HEAD and cannot conflict; the tree returns to the originally-approved state and the
+      // rebase+gate+merge behaves exactly as it would have un-aced. Ace never turns a mergeable task into a hold.
+      const aceRevertClause = (typeof r.aceReverted === 'string' && r.aceReverted)
+        ? `FORWARD-REVERT (--ace regression): the ace polish commit regressed on re-audit. In the TASK worktree, run `
+          + `\`git -C ${r.task.worktree} revert --no-edit ${r.aceReverted}\` (forward-only, classifier-safe — it is the clean inverse of the task-branch tip, cannot conflict) `
+          + `BEFORE the rebase step (a), so the merge runs on the reverted-to-approved tip. Do NOT reset --hard. The originally-approved work still lands.\n`
+        : ''
       const mr = await agent(
         `Merge WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
+        + aceRevertClause
         + `IMPORTANT — merge-task is split across two worktrees (spec §5.2, red-team-verified):\n`
         + `  (a) REBASE in the TASK worktree: git -C ${r.task.worktree} rebase ${ph.integrationBranch}. `
         + `CRITICAL: cannot rebase in ${refineryPath} — the task branch is checked out in ${r.task.worktree} and git rebase is refused on a branch checked out in another worktree. `
@@ -641,11 +704,11 @@ if (landResult && landResult.status === 'landed' && learningsTarget) {
     { agentType: NS + 'war-servitor', phase: 'Wrap-up', label: `wrap-up:phase-${ph.id}`, schema: SERVITOR_RESULT, ...spawn('servitor') })
 }
 
-return { phase: ph.id, landed, escalated, minorsFiled, landResult, servitorResult, auditLog, landDecision }
+return { phase: ph.id, landed, escalated, minorsFiled, aced, landResult, servitorResult, auditLog, landDecision }
 } catch (err) {
   // A dead phase that self-reports. landed/escalated are whatever accumulated before the throw;
   // teardown is NOT run (git state kept for resume/inspection).
-  return { phase: ph.id, landed, escalated, minorsFiled, landResult: null,
+  return { phase: ph.id, landed, escalated, minorsFiled, aced, landResult: null,
            servitorResult: null, auditLog,
            landDecision: 'held:workflow-error',
            workflowError: { message: String(err && err.message || err), stack: err && err.stack } }
