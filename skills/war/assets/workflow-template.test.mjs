@@ -1794,6 +1794,7 @@ test('M1 criterion #6 — catch after a mid-phase throw skips teardown (structur
     if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { mode: 'merge-task', status: 'merged' }
     if (seat === 'war-worker') { workerRan = true; return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} } }
+    // auditor seat = first agent() past the worker, before any merge; workerRan===true guarantees the catch is reached mid-flow — the non-vacuous injection point (supersedes historical 'after a merge' prose).
     if (seat === 'war-auditor') throw new Error('injected-auditor-throw-after-worker')
     // refiner merge path — should not be reached since auditor throws first
     if (seat === 'war-refiner') return { mode: 'merge-task', status: 'merged' }
