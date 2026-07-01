@@ -50,10 +50,10 @@ Smallest correct change per nit, no speculative scope.
   stages. No code-line change.
 - **#249 — VERIFY-AND-CLOSE, already remediated by `ea5e132`.** No re-implementation. Re-grep the plan for any residual
   top-level-asserting wording; the remaining mentions are disclaimers/test-case context (verified). Close with a note.
-- **Stale runner gloss fix:** the spec's gate line says "12 = 6 hooks + 5 skills"; the real HEAD count is
+- **Runner count (authoritative):** the real HEAD count is
   **13 `.test.sh` = 6 hooks/ + 7 skills/** (the seventh skill runner is the submodule-support increment's
   `skills/war/assets/assert-no-submodule-mutation.test.sh`; the sixth was `skills/red-team/manifest-provenance.test.sh`).
-  This plan states the correct breakdown. The `find`-based discovery in ## Gate is authoritative — never trust the literal count.
+  This plan states the correct breakdown. The `find`-based discovery in ## Gate is authoritative — never trust a literal count. (The source spec already states this same 13 = 6 + 7 count; no correction of the spec is implied.)
 
 ---
 
@@ -178,8 +178,8 @@ node --test 'skills/**/*.test.mjs' && for f in $(find . -type f -name '*.test.sh
 - **6 `.test.mjs`** — `skills/_shared/provision.test.mjs`, `skills/red-team/assets/red-team-gate.test.mjs`,
   `skills/red-team/assets/workflow-scaffold.test.mjs`, `skills/war/assets/land-decision.test.mjs`,
   `skills/war/assets/war-config.test.mjs`, `skills/war/assets/workflow-template.test.mjs`.
-- **13 `.test.sh` = 6 hooks/ + 7 skills/** (the spec's "6 + 5" gloss is stale; the submodule-support increments
-  added a seventh skills/ runner — corrected here):
+- **13 `.test.sh` = 6 hooks/ + 7 skills/** (the submodule-support increments
+  added the seventh skills/ runner):
   - hooks/ (6): `clean-surface-hook-only-confinement`, `clean-surface-war-worktree`, `validate-auditor-git`,
     `validate-servitor-provenance`, `validate-worktree-scope`, `warn-bash-write-scope`.
   - skills/ (7): `red-team/manifest-provenance`, `war/assets/assert-no-submodule-mutation`,
