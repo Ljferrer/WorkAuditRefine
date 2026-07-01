@@ -235,7 +235,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.8.5** — the test-floor `assert-test-in-diff.sh` `--pattern` override now iterates a space-separated glob set under a `set -f` noglob guard, so `--pattern '*.test.js *.spec.js'` matches each token independently instead of being treated as one literal-with-space pattern; and the test-only `--repo` flag is documented test-only in the script header and reconciled across the plan/spec usage signatures. Builds on v0.8.4.
+**0.8.6** — a `workflow-template.test.mjs` fidelity sweep: the `blockedReason` extract regex now anchors its lazy capture on the terminal `: null)` token so a future interior `null)` branch can't truncate it; the six stale F05 D2/D3 labels are realigned to TIER PRECEDENCE / VERIFY-ON-WRITE (with the comment prose reframed to match); the `L3 T2 Test1` bind-deletion comment is reworded to the true approve+land outcome and its dead `t1Log` local dropped; the auditor-seat throw carries a rationale documenting it as the non-vacuous mid-phase injection point; the dead `${refineryLandPath}` alternate in the land-advance positive assertion is removed (keeping the load-bearing `_refinery` alternate); and the Prompt A/B regex slices are re-anchored on unique leading phrasing rather than `.match()` source order. Builds on v0.8.5.
 
 ## License
 
