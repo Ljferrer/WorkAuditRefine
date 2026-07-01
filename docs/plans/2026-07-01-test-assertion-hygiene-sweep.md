@@ -16,6 +16,7 @@
 ## Coordination
 
 - **Target version:** **v0.8.13** (spec 13 in the roadmap; spec 12 gate-audit takes v0.8.12, severity LOW). Bumps `0.8.12 → 0.8.13`.
+  **Version authority (red-team adjudicated 2026-07-01):** the source spec's own "targets v0.8.12" literal is **stale pre-stacking prose** — written before the roadmap's behavioral-first ordering assigned v0.8.12 to spec 12 (roadmap row "spec 13 … v0.8.13"; the roadmap is this plan's declared authoritative version source). Empirically decisive: spec 12 **landed v0.8.12 on 2026-07-01** (PR #401; the live tip's `plugin.json` already reads `0.8.12`), so the spec's literal is unusable and the plan's own next-free-patch fallback independently resolves to `0.8.13`. Priority: roadmap + landed baseline > spec version literal ([[redteam-adjudication-is-authoritative-version-source]]).
 - **Integration base:** the **landed tip of spec 12 (gate-audit, v0.8.12)**, which sits on master `72d07c7`. Spec 13 in the roadmap stack.
 - **One parallel phase (NOT one-task-per-phase).** The three tasks touch **disjoint files** (`workflow-template.test.mjs` / `land-decision.test.mjs` / `workflow-scaffold.test.mjs`), so they run as **one phase, three parallel tasks** — WAR provisions an isolated worktree per task, workers run concurrently, each is audited independently, and the refiner serializes the (non-conflicting) merges. The one-task-per-phase / strictly-serial rule applies only when tasks share a file ([[war-phase-up-front-provisioning-conflicts-same-file-serial-tasks]]) — it does **not** apply here.
 - **Four-slot serial land (replace-in-place, no badge):** [`.claude-plugin/plugin.json`](../../.claude-plugin/plugin.json) `version`; [`.claude-plugin/marketplace.json`](../../.claude-plugin/marketplace.json) `metadata.version` **and** `plugins[0].version`; [`README.md`](../../README.md) `## Status`. All four read `0.8.13` after the release task; verify each by hand — there is no cross-slot consistency test, a partial bump is gate-silent ([[version-slots-no-cross-slot-consistency-test]]).
@@ -57,7 +58,7 @@ Three tasks, run in parallel (disjoint files). Each: establish the load-bearing 
 - [ ] **Step 1 — Baseline.** Run the enclosing suite → green (`node --test skills/war/assets/land-decision.test.mjs`). Confirm the union today: the `direct` regex `(?:={1,3}|:)` matches `=`, `==`, `===`, `:`; green only because both compared literals are also emitted and `uniqSort` dedupes.
 - [ ] **Step 2 — Tighten + fix the comment.** Change the `direct` regex (`:81`) to `/landDecision\s*(?:=(?![=])|:)\s*(['"])(landed|held:[a-z-]+)\1/g` (negative-lookahead drops `==`/`===`, keeps single `=` and `:`). Reword the comment (`:72`) `(= / == / === / :)` → `(= or :)`.
 - [ ] **Step 3 — Prove the latent trap is closed (sanity, reverted — not committed).** Temporarily add `else if (landDecision === 'held:phase-incomplete')` inside the landDecision block of `workflow-template.js`; confirm `workflowEmitted()` does **not** pick it up (the `behavioral ⊆` expected-6 and the `:151` gap assertion stay green — pre-tighten this comparison would have false-RED'd both). **Revert** the production edit.
-- [ ] **Step 4 — GREEN + grep post-condition.** `grep -n "={1,3}" skills/war/assets/land-decision.test.mjs` → **nothing**; `grep -n "=(?![=])" skills/war/assets/land-decision.test.mjs` → the tightened regex. Run the **full** gate → green.
+- [ ] **Step 4 — GREEN + grep post-condition.** `grep -n "={1,3}" skills/war/assets/land-decision.test.mjs` → **nothing**; `grep -Fn '=(?![=])' skills/war/assets/land-decision.test.mjs` → the tightened regex (**must be `-F`** — as a BRE, `[=]` is a bracket expression matching bare `=`, so the un-`F`'d grep exits 1 against the literal three-char `[=]` text even when the edit is correct; red-team reproduced this on BSD grep and ugrep). Run the **full** gate → green.
 - [ ] **Step 5 — Commit** — `test(war): tighten landDecision extractor regex to assignment-only (=(?![=])|:) + fix operator comment (#373)`
 - **Closes #373.** Comparison sites no longer masquerade as emitted; the false-RED trap is foreclosed.
 
@@ -112,6 +113,19 @@ node --test 'skills/**/*.test.mjs' && for f in $(find . -type f -name '*.test.sh
 - `node --test 'skills/**/*.test.mjs'` — quote the glob (bash 3.2 under-covers it unquoted — [[node-breadth-assertion-test-js-overclaims]]).
 - The `for`-loop self-discovers every `*.test.sh` runner via the gate's own `find` — never a hardcoded count ([[task-prompt-suite-count-stale-after-stacking]]).
 - **Run the full gate after the parallel merges converge** on the integration tip — a title/regex edit in one file must not have shifted a sibling runner or doc ([[gate-under-covers-after-cross-branch-merge-new-runner]]).
+
+## Validation criteria (spec → plan mapping)
+
+Every numbered validation gate in the source spec's *Validation criteria* section maps to a concrete plan step (red-team completeness patch, 2026-07-01):
+
+| Spec gate | What it verifies | Plan step that discharges it |
+|---|---|---|
+| 1 | ace-budget test deleted; both single-attempt asserts remain; suite green | Task 1 Step 3 (grep → **0**, siblings present, full gate) |
+| 2 | extractor regex tightened; old `={1,3}` class absent | Task 2 Step 4 (`={1,3}` grep → nothing; `grep -Fn '=(?![=])'` → the tightened regex) |
+| 3 | operator comment reworded to `(= or :)` | Task 2 Step 2 (edit) + Step 4 full-gate green (comment sits beside the regex; both land in one commit) |
+| 4 | stale BACK-COMPAT title gone | Task 3 Step 4 (`byte-for-byte today` grep → **0**) |
+| 5 | bespoke-executed probe added, 1c guard pinned technique-scoped | Task 3 Step 2b (add) + Step 3 (guard-rewrite → RED → revert proves load-bearing) + Step 4 (`bespoke-executed` grep ≥ 1) |
+| 6 | full self-discovering gate green on the release commit | Task 4 Step 2 |
 
 ## Coverage
 
