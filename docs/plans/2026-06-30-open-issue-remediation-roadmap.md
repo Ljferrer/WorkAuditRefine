@@ -1,4 +1,4 @@
-# Open-Issue Remediation Roadmap — 16 issues → 6 design specs (+ spec 7: the `--ace` feature)
+# Open-Issue Remediation Roadmap — 16 issues → 6 design specs (+ spec 7: the `--ace` feature) (+ specs 8–11: 2026-07-01 behavioral batch + hygiene sweep)
 
 Index for the design specs that close the **16 currently-open issues** in `Ljferrer/WorkAuditRefine`. Grouping
 decided 2026-06-30 by an inspect → cluster → write → verify → completeness-critic agent run (31 agents). Each open
@@ -24,14 +24,20 @@ The specs live in [`../specs/`](../specs/):
 | 5 | [Test-floor `--pattern`/`--repo` hardening](../specs/2026-06-30-test-floor-script-glob-and-doc-hardening-design.md) | #231, #232 | LOW | **v0.8.5** | both live (#231 real bug, #232 doc) |
 | 6 | [workflow-template.test.mjs fidelity sweep](../specs/2026-06-30-workflow-template-test-fidelity-sweep-design.md) | #266, #267, #250, #221, #317, #326 | LOW/NIT | **v0.8.6** | #250/#266 live; **#267 LIVE** (both edits present at HEAD — prior "`t1Log` already gone" claim was **wrong**); **#221 vacuously closeable**; **#317/#326 folded in** (2026-07-01 — same-file test-robustness nits) |
 | 7 | [`--ace` nit-autofix **(feature)**](../specs/2026-06-30-ace-nit-autofix-design.md) | — *(feature; not a remediation issue)* | N/A | **v0.8.7** | net-new — stacks on v0.8.6, lands last |
+| 8 | [landDecision known-set drift-guard](../specs/2026-07-01-landdecision-drift-guard-design.md) | #271 | MED | **v0.8.8** | live — behavioral+doc-parity guard; the silent `held:X`→`held:workflow-error` trap |
+| 9 | [`/red-team` verifies preconditions, not deliverables](../specs/2026-07-01-red-team-precondition-not-deliverable-design.md) | #311 | MED | **v0.8.9** | live — recurring false "proposed change missing" findings + severity-less silent-drop backstop |
+| 10 | [Auditor pin-validity drops denied `fetch`](../specs/2026-07-01-auditor-pin-validity-no-fetch-design.md) | #310 | MED | **v0.8.10** | live — no guard change; ledger-match authoritative, reachability delegated upstream |
+| 11 | [Submodule + servitor hygiene sweep](../specs/2026-07-01-submodule-servitor-hygiene-sweep-design.md) | #333, #279, #282, #294, #296, #300, #303, #307 | LOW | **v0.8.11** | live — prose/comment + test-isolation + one dead-code drop; lands last |
 
-> **Authoritative version source.** Each spec internally proposes its assigned `v0.8.1`–`v0.8.7` (the bump it would
-> take landing on the prior spec's tip; spec 1 builds on master `v0.8.0`, spec 7 on the v0.8.6 tip). All seven **REPLACE-in-place** the same four canonical version slots
+> **Second batch (2026-07-01).** Specs 8–11 close issues uncovered while reviewing the open queue after the first batch: 8–10 are three MEDIUM behavioral fixes (#271/#311/#310); 11 is a LOW hygiene sweep of the servitor-provenance + submodule-support residue (#333/#279/#282/#294/#296/#300/#303/#307 — not purely cosmetic: it includes test-isolation cases and one dead-code removal). They ride the **same serial version stack** (v0.8.8–v0.8.11 on the v0.8.7 tip). Grilled one-at-a-time via `/grill-with-docs`; each resolved real design forks (see per-spec sections).
+
+> **Authoritative version source.** Each spec internally proposes its assigned `v0.8.1`–`v0.8.11` (the bump it would
+> take landing on the prior spec's tip; spec 1 builds on master `v0.8.0`, spec 7 on the v0.8.6 tip, specs 8–11 stack on the v0.8.7 tip in order). All eleven **REPLACE-in-place** the same four canonical version slots
 > (`.claude-plugin/plugin.json` `version`; `.claude-plugin/marketplace.json` `metadata.version` AND `plugins[0].version`;
 > `README.md` `## Status`), so only one spec can hold a given number — they **MUST land serially**, each Release task
 > taking the next number and stacking its `## Status` paragraph on the prior. Do **not** run them as concurrent WAR
 > branches: they would rebase-conflict on the four shared slots. (memory: `release-bump-slots-canonical-no-badge`,
-> `stacked-per-branch-releases-make-main-lag-cumulative` — main lags **7** patches after the full stack: 6 remediation + the `--ace` feature.)
+> `stacked-per-branch-releases-make-main-lag-cumulative` — main lags **11** patches after the full stack: 6 remediation + the `--ace` feature + 3 behavioral + 1 hygiene sweep. The version literals are **not** authoritative; resolve each to the next free patch off the actual landed baseline at land time.)
 >
 > **Spec 7 is a feature, not a remediation.** Specs 1–6 close the 16 open issues; spec 7 (`--ace`) is a net-new capability that rides the *same* serial version stack (lands on the v0.8.6 tip as v0.8.7). It is optional relative to the remediation set — the stack is complete at v0.8.6 without it — but if built, it lands **last** so its `workflow-template.js`/`.test.mjs` touches are authored on the fully-remediated tip.
 
@@ -142,11 +148,32 @@ One pass over `workflow-template.test.mjs`, zero production change.
 - **Files:** `war-config.mjs` (+`.test.mjs`), `workflow-template.js` (+`.test.mjs`), `references/schemas.md` (finding gains `autoFixable?`), `agents/war-auditor.md`, `skills/war/SKILL.md`, `skills/war-room/SKILL.md`. The `workflow-template.js`/`.test.mjs` touches are disjoint from specs 1/2/6 regions but version-serialized after v0.8.6.
 - **Ratify with `/red-team` before `/war`** — it changes the pre-merge control flow (a new sub-loop between approve and merge), the highest-leverage kind of change in this repo.
 
+### Spec 8 — landDecision known-set drift-guard {#271} · v0.8.8 · *behavioral robustness*
+- **Problem:** the 7-member `landDecision` known-set is unguarded prose in **4** surfaces (2 in `SKILL.md`, 2 in `schemas.md` — the issue undercounted at 3). A value in one surface but missing from the §4.2 classifier is silently rewritten to `held:workflow-error` (terminal HARD-halt) — the sharpest trap in the land area.
+- **Decision (grilled):** **behavioral + doc-parity** guard, not doc-grep only. Canonical `KNOWN_LAND_DECISIONS` export in `land-decision.mjs`; assert the Workflow-emitted literals (`workflow-template.js`) + `decideLand`'s outputs **⊆** it, and **all 4** doc surfaces **==** it; pin count at 7; `held:phase-incomplete` is canonical-but-Lead-only (documented). Guard lives in the existing `land-decision.test.mjs`; fix the imprecise "mirrors decideLand" comment (Workflow emits a superset).
+- **Files:** `land-decision.mjs` (+`land-decision.test.mjs`), `workflow-template.js` (1-line comment), version slots. No `SKILL.md`/`schemas.md` prose change (they agree at HEAD; the guard freezes it).
+
+### Spec 9 — `/red-team` verifies preconditions, not deliverables {#311} · v0.8.9 · *behavioral correctness*
+- **Problem:** analyzed probes report a plan's **proposed** (not-yet-applied) changes as "missing" defects — backwards from red-team's purpose (verify *preconditions*, not already-applied-ness). Secondary: the gate silently drops severity-less findings, masking real signal too.
+- **Decision (grilled):** probe-side **+** gate backstop. Add a narrow precondition-vs-deliverable rule to a **shared analyzed-probe preamble** (covers spine + bespoke, not just the 2 named probes), reinforced in `lenses.md`; framed so it can't blunt real findings (missing anchors / false claims about existing code / line drift / contradictions still stand). Severity-less findings → **needsDecision** on non-pass probes, demoted on pass (preserves #50).
+- **Files:** `workflow-scaffold.js` (+`.test.mjs`), `lenses.md`, `red-team-gate.mjs` (+`.test.mjs`), version slots.
+
+### Spec 10 — auditor pin-validity drops the denied `fetch` {#310} · v0.8.10 · *auditor-guard reconciliation*
+- **Problem:** the submodule pin-validity lens tells the read-only auditor to `git -C <sub> fetch`, which `validate-auditor-git.sh` denies by design (`fetch` is network + writes `.git`). Sibling of landed spec 4, but a separate decision (#222 added the `-C` peel; `fetch` was deliberately left out).
+- **Decision (grilled):** **drop the fetch — zero guard change.** Exploration found remote-reachability is already established upstream (dep-task land + refiner fetch + Lead pre-flight reconciliation). Ledger SHA-match (dep task's landed SHA) is the authoritative in-seat check; read-only `cat-file -e` is a **non-blocking** sanity confirmation (avoids false-block when the object isn't in the read-only checkout). Deny-test pins that `fetch` stays denied (incl. the `-C` form, post-spec-4 peel).
+- **Files:** `agents/war-auditor.md`, `hooks/validate-auditor-git.test.sh`, version slots. `validate-auditor-git.sh` unchanged.
+
+### Spec 11 — submodule + servitor hygiene sweep {#333, #279, #282, #294, #296, #300, #303, #307} · v0.8.11 · *hygiene; land last*
+- **Problem:** eight follow-ups from the servitor-provenance + submodule-support landings — **not uniformly cosmetic**: lagging comments (#333, #294 a/b/e), misleading doc prose (#282-1 exit-code parenthetical, #296 direction, #303 placeholder/enum, #307-1 phase-vs-task), test-isolation gaps (#279 1/2, #294-d), and one inert dead-code path (#300 `landedShas`).
+- **Decision (grilled):** **full hygiene sweep**; **drop** the inert in-memory `landedShas` threading (engine code, gated by a verify-inert step) rather than soften its comment; decompose **by conflict-boundary** (T1 `assert-no-submodule-mutation.{sh,test.sh}`, T2 `schemas.md`, T3 grouped prose across 6 disjoint files, T4 drop `landedShas`) since #279+#294 share the assert file and #282+#307 share `schemas.md`; verify-and-close the resolved/deferred items (#279-3 → Increment 2, #307-2, #300-nit, #294-f).
+- **Files:** `assert-no-submodule-mutation.{sh,test.sh}`, `schemas.md`, `war-auditor/refiner/worker.md`, `SKILL.md`, `validate-servitor-provenance.sh` (comment), `provision.mjs` (comment), `workflow-template.js` (drop `landedShas`), version slots. **Cross-spec same-file:** T3 touches `war-auditor.md` (disjoint from spec 10's lens) and T2 touches `schemas.md` (disjoint from spec 7's `autoFixable?`) — resolved by landing last.
+- T4 is engine code — worth `/red-team` before `/war` despite the LOW label.
+
 ## Dependency spine (strict landing order)
 
 ```
-Spec 1 ──► Spec 2 ──► Spec 6 ──► Spec 7   (Specs 3, 4, 5 file-independent; ordered only by version)
- BUG       no-test     test-sweep  --ace
+Spec 1 ──► Spec 2 ──► Spec 6 ──► Spec 7 ──► [8, 9, 10] ──► Spec 11   (Specs 3, 4, 5, 8, 9, 10 file-independent; ordered only by version)
+ BUG       no-test     test-sweep  --ace     behavioral    hygiene (last)
 ```
 
 - **1 → 2:** both write `workflow-template.js`. Spec 1 fixes the land-phase prompt (`if (landDecision === 'landed')`
@@ -157,23 +184,28 @@ Spec 1 ──► Spec 2 ──► Spec 6 ──► Spec 7   (Specs 3, 4, 5 file-
 - **6 → 7:** both write `workflow-template.js` + `workflow-template.test.mjs`. Spec 7 (`--ace`) adds the pre-merge nit-fix sub-loop (in the `verdict==='approve'` refine branch) + its tests; land it last so the sub-loop is authored on the fully-remediated tip. Disjoint regions from spec 6's cosmetic test-sweep, but version-serialized after it (v0.8.7 on the v0.8.6 tip).
 - **3, 4, 5** are file-independent of everything except the four version slots; their position is fixed only by the
   version-serialization rule (severity order: 4 MED before 5 LOW; 3 after 2 by subsystem locality).
+- **8, 9, 10** are each an isolated lane (spec 8 → `land-decision.mjs`; spec 9 → red-team `skills/red-team/*`; spec 10 → `war-auditor.md` + `validate-auditor-git.test.sh`), file-independent of specs 1–7 and of each other except the four version slots. Position fixed only by version-serialization, stacking after spec 7. Spec 8's 1-line comment touch in `workflow-template.js` is disjoint from specs 1/2/4/6/7 regions and rebase-trivial.
+- **11** lands **last** (hygiene after behavioral). It touches `war-auditor.md` (disjoint from spec 10's pin-validity lens) and `schemas.md` (disjoint from spec 7's `autoFixable?`) and `workflow-template.js` (drops `landedShas` — disjoint from specs 1/2/4/6/7/8 regions); serial landing after 10 resolves all same-file contention. Re-anchor by construct at implementation time.
 
 ## Shared-file contention
 
 | File | Specs that edit it | Conflict risk |
 |---|---|---|
-| four version slots (`plugin.json`, `marketplace.json` ×2, `README ## Status`) | **1–6** | 🔴 REPLACE-in-place — MUST serialize (handled by ordered versions) |
+| four version slots (`plugin.json`, `marketplace.json` ×2, `README ## Status`) | **1–11** | 🔴 REPLACE-in-place — MUST serialize (handled by ordered versions) |
 | `skills/war/assets/workflow-template.js` | 1 (land block ~L562), 2 (no-test loop ~L370-470 + land-side check ~L597), 4 (gate-audit pin prompt ~L503) | 🟠 three **disjoint** regions; only the 1↔2 land-block/land-side adjacency needs the base-pin |
 | `skills/war/assets/workflow-template.test.mjs` | 2 (#268 add test), 6 (comment/title/regex) | 🟠 additive vs cosmetic; land 2 before 6 |
 | `agents/war-refiner.md` | **2 only** | 🟢 single owner |
 | `hooks/validate-servitor-provenance.sh` | **3 only** | 🟢 isolated lane |
 | `hooks/validate-auditor-git.sh` | **4 only** | 🟢 isolated lane |
 | `skills/war/assets/assert-test-in-diff.sh` | **5 only** | 🟢 isolated lane |
+| `skills/war/assets/land-decision.mjs` (+`.test.mjs`) | **8 only** | 🟢 isolated lane |
+| `skills/red-team/*` (`workflow-scaffold.js`/`.test.mjs`, `lenses.md`, `red-team-gate.mjs`/`.test.mjs`) | **9 only** | 🟢 isolated lane |
+| `agents/war-auditor.md` + `hooks/validate-auditor-git.test.sh` | **10 only** | 🟢 isolated lane |
 
-Apart from the version slots (ordered) and the disjoint `workflow-template.js`/`.test.mjs` touches (resolved by 1→2→6),
-the six specs are file-independent.
+Apart from the version slots (ordered) and the disjoint `workflow-template.js`/`.test.mjs` touches (resolved by 1→2→6→7),
+the ten specs are file-independent (spec 8's 1-line `workflow-template.js` comment is disjoint from all other regions).
 
-## Coverage proof (all 16 open issues addressed)
+## Coverage proof (all 16 first-batch issues + 11 second-batch issues addressed)
 
 | Issue | Spec | Coverage |
 |---|---|---|
@@ -195,6 +227,17 @@ the six specs are file-independent.
 | #221 | 6 | full (comment tweak **or** close superseded-by-HEAD) |
 | #317 | 6 | full (drop dead `${refineryLandPath}` alternate; keep `_refinery` alternate) |
 | #326 | 6 | full (anchor Prompt A/B slices on unique phrasing, not `.match()` source order) |
+| #271 | 8 | full (canonical `KNOWN_LAND_DECISIONS` export + behavioral ⊆ checks + 4-surface doc-parity) |
+| #311 | 9 | full (shared precondition-vs-deliverable preamble + gate severity-less backstop) |
+| #310 | 10 | full (drop auditor `fetch`; ledger-match authoritative + deny-test pins `fetch` stays denied; no guard change) |
+| #333 | 11 | full (reword awk comment to any-indent) |
+| #279 | 11 | items 1/2 full (test-isolation cases); item 3 **verify-and-close** (Increment-2 deferral) |
+| #282 | 11 | full (exit-code parenthetical + auditor/refiner prose) |
+| #294 | 11 | items a-e full (comment hygiene + isolation case); item f verify (report/plan artifact) |
+| #296 | 11 | full (§Resume named, direction dropped) |
+| #300 | 11 | full (drop inert `landedShas` threading, verify-inert); nit verify (report artifact) |
+| #303 | 11 | full (`<pr_remote>` placeholder align + drop task-level `/landed`) |
+| #307 | 11 | item 1 full (phase=tasks-sharing-targetRepo note); item 2 **verify-and-close** (resolved at integration) |
 
 No issue is recommend-close-without-spec: the critic re-verified every cited defect is still live at HEAD, or is a
 genuine already-remediated nit handled as verify-and-close. No spec re-fixes already-shipped work.
