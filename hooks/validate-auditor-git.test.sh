@@ -340,6 +340,49 @@ expect_deny "G5: git fetch → denied (not in read allowlist)" \
   "$(auditor_cmd "git fetch")"
 
 # ---------------------------------------------------------------------------
+# CASE GROUP H: read-only global -C <path>
+# The guard peels a leading `-C <path>` and re-enters the read-only subcommand
+# allowlist unchanged, so the gate-audit pin `git -C <path> rev-parse HEAD`
+# becomes runnable — WITHOUT widening the verb allowlist (a write verb after
+# -C still denies) and WITHOUT relaxing the char allowlist (the bracket/$()
+# form stays denied). Read verbs only; `git fetch` stays out of scope (#310).
+# ---------------------------------------------------------------------------
+
+# H1: git -C <path> rev-parse HEAD → allow (the pin command)
+expect_allow "H1: git -C /abs/path/_refinery rev-parse HEAD → allowed" \
+  "$(auditor_cmd "git -C /abs/path/_refinery rev-parse HEAD")"
+
+# H2: git -C <path> show HEAD:file.txt → allow (the other read verb the auditor uses)
+expect_allow "H2: git -C /abs/path show HEAD:file.txt → allowed" \
+  "$(auditor_cmd "git -C /abs/path show HEAD:file.txt")"
+
+# H3: git -C <path> commit → deny (verb allowlist NOT widened by -C)
+expect_deny "H3: git -C /abs/path commit -m x → denied (-C does not widen the verb allowlist)" \
+  "$(auditor_cmd "git -C /abs/path commit -m x")"
+
+# H4: bare git -C (no path/subcommand) → deny
+expect_deny "H4: git -C → denied (global -C with no path/subcommand)" \
+  "$(auditor_cmd "git -C")"
+
+# H5: literal bracket/$() form → deny (char allowlist still forbids [ ] $ ( ) ").
+# Proves the Phase-2 reword does NOT relax injection defense (C5 parity).
+# CRITICAL: build with `jq -nc --arg`, NOT auditor_cmd — the bracket form
+# contains double-quotes; auditor_cmd's printf '{..."command":"%s"...}' would
+# emit INVALID JSON, the guard's jq read of .agent_type returns empty, the
+# non-auditor `*) exit 0` pass-through fires, and the deny is VACUOUS
+# (memory printf-json-escaping-vacuous-test-case).
+expect_deny "H5: [ \"\$(git -C <path> rev-parse HEAD)\" = \"<sha>\" ] → denied (C5 subst parity)" \
+  "$(jq -nc --arg c '[ "$(git -C /abs/path rev-parse HEAD)" = "abc123" ]' \
+     '{agent_type:"war-auditor",tool_input:{command:$c}}')"
+
+# H6: git -C -C rev-parse HEAD → allow (double -C peels harmlessly: first `-C `
+# dropped, second `-C` consumed as the <path> token → rest = `rev-parse HEAD`).
+# Load-bearing red-first like H1/H2: pre-peel `rest` begins `-C ` → subcommand
+# extractor's `*)` default deny → exit 2, so expect_allow FAILs.
+expect_allow "H6: git -C -C rev-parse HEAD → allowed (first -C peeled; rest = rev-parse HEAD)" \
+  "$(auditor_cmd "git -C -C rev-parse HEAD")"
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 printf '\n%d/%d cases passed\n' "$((n - fails))" "$n"
