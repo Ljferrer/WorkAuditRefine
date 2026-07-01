@@ -99,7 +99,6 @@ const spawn = role => {
 }
 const done = new Set()
 const succeeded = new Set()
-const landedShas = new Map() // taskId → integration_sha from the merge result (feeds gitlink-bump worker dispatch)
 // Hoisted above try{} so the catch block can reference them even when the derivation throw fires
 // before any wave runs (temporal dead zone guard — red-team T1-confirmed).
 const landed = [], escalated = [], minorsFiled = [], auditLog = []
@@ -297,9 +296,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + `the submodule base is "${task.targetBase || '<targetBase>'}". `
         + `Implement, write mapped tests in the submodule repo, gate green, commit, push ${task.branch}.`
     } else if (task.taskType === 'gitlink-bump') {
-      // Find the dep submodule task to thread its landed SHA and submodule path
+      // Find the dep submodule task for the submodule path. The dep's landed SHA is a CROSS-PHASE
+      // value the worker resolves from the ledger (war-worker.md T7) — emit the placeholder here.
       const depSubmodTask = tasks.find(t => (task.deps || []).includes(t.id) && t.taskType === 'submodule')
-      const depSha = depSubmodTask ? (landedShas.get(depSubmodTask.id) || '<dep-submodule-landed-sha>') : '<dep-submodule-landed-sha>'
+      const depSha = '<dep-submodule-landed-sha>'
       const submodPath = depSubmodTask ? (depSubmodTask.targetRepo || '<submodule-path>') : '<submodule-path>'
       workerExtraCtx = `\nGITLINK-BUMP task: pin the superproject gitlink to the dep submodule task's landed SHA. `
         + `Dep submodule task landed SHA: ${depSha}. Submodule path: ${submodPath}. `
@@ -526,7 +526,6 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
 
       if (mr && mr.status === 'merged') {
         landed.push(r.task.id); succeeded.add(r.task.id)
-        if (mr.integration_sha) landedShas.set(r.task.id, mr.integration_sha) // feed gitlink-bump worker dispatch
         mergedTasksForGateAudit.push({ taskId: r.task.id, gateOutput: mr.gate_output, acceptanceCriteria: r.task.planSlice,
           gateHeadSha: mr.integration_sha ?? '(integration_sha unrecorded)' }) // ponytail: sentinel, not mr.working_sha — working_sha is land-only (war-refiner.md), dead on a merge result
       }

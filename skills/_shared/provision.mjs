@@ -36,6 +36,7 @@ export function submodulePaths(repoDir) {
   if (!existsSync(p)) return []
   const paths = []
   for (const line of readFileSync(p, 'utf8').split('\n')) {
+    // Greedy-to-EOL capture is intentional: a .gitmodules `path =` value runs to end of line (paths may contain spaces).
     const m = line.match(/^\s*path\s*=\s*(.+)$/)
     if (m) paths.push(m[1].trim())
   }

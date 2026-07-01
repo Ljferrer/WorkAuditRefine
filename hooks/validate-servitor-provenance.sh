@@ -68,7 +68,7 @@ content="$(get '.tool_input.content')"
 frontmatter="$(printf '%s\n' "$content" | awk '/^---/{if(++c==2) exit} c==1{print}' || true)"
 
 # Find the metadata: block, then extract the indented provenance: value.
-# Two-step: locate `metadata:` line, then take the next `  provenance:` line.
+# Two-step: locate `metadata:` line, then take the next indented `provenance:` line (any leading whitespace).
 provenance="$(printf '%s\n' "$frontmatter" \
   | awk '/^metadata:/{found=1; next} found && /^[[:space:]]+provenance:/{print; exit} found && /^[^[:space:]]/{exit}' \
   | sed 's/.*provenance:[[:space:]]*//' \
