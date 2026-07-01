@@ -1,4 +1,4 @@
-# Open-Issue Remediation Roadmap — 16 issues → 6 design specs (+ spec 7: the `--ace` feature) (+ specs 8–11: 2026-07-01 behavioral batch + hygiene sweep)
+# Open-Issue Remediation Roadmap — 16 issues → 6 design specs (+ spec 7: the `--ace` feature) (+ specs 8–11: 2026-07-01 behavioral batch + hygiene sweep) (+ specs 12–14: 2026-07-01 open-queue nit sweep)
 
 Index for the design specs that close the **16 currently-open issues** in `Ljferrer/WorkAuditRefine`. Grouping
 decided 2026-06-30 by an inspect → cluster → write → verify → completeness-critic agent run (31 agents). Each open
@@ -28,16 +28,21 @@ The specs live in [`../specs/`](../specs/):
 | 9 | [`/red-team` verifies preconditions, not deliverables](../specs/2026-07-01-red-team-precondition-not-deliverable-design.md) | #311 | MED | **v0.8.9** | live — recurring false "proposed change missing" findings + severity-less silent-drop backstop |
 | 10 | [Auditor pin-validity drops denied `fetch`](../specs/2026-07-01-auditor-pin-validity-no-fetch-design.md) | #310 | MED | **v0.8.10** | live — no guard change; ledger-match authoritative, reachability delegated upstream |
 | 11 | [Submodule + servitor hygiene sweep](../specs/2026-07-01-submodule-servitor-hygiene-sweep-design.md) | #333, #279, #282, #294, #296, #300, #303, #307 | LOW | **v0.8.11** | live — prose/comment + test-isolation + one dead-code drop; lands last |
+| 12 | [gate-audit integration_sha validation](../specs/2026-07-01-gate-audit-integration-sha-validation-design.md) | #393 | LOW | **v0.8.12** | live — the batch's only behavioral fix (`pinOrSentinel` format-guard + `cat-file` pin-check); lands FIRST |
+| 13 | [test-assertion hygiene sweep](../specs/2026-07-01-test-assertion-hygiene-sweep-design.md) | #367, #373, #380 | LOW | **v0.8.13** | live — delete vacuous ace-budget test, tighten landDecision extractor regex, pin red-team 1c guard technique-scoped |
+| 14 | [spec/doc prose-drift reconciliation](../specs/2026-07-01-spec-and-doc-prose-drift-reconciliation-design.md) | #368, #385, #392 | LOW | **v0.8.14** | live — SKILL.md `+aced`, submodule-support §5.6 reattribution; **#392 close-as-clean** (non-defect); lands last |
 
 > **Second batch (2026-07-01).** Specs 8–11 close issues uncovered while reviewing the open queue after the first batch: 8–10 are three MEDIUM behavioral fixes (#271/#311/#310); 11 is a LOW hygiene sweep of the servitor-provenance + submodule-support residue (#333/#279/#282/#294/#296/#300/#303/#307 — not purely cosmetic: it includes test-isolation cases and one dead-code removal). They ride the **same serial version stack** (v0.8.8–v0.8.11 on the v0.8.7 tip). Grilled one-at-a-time via `/grill-with-docs`; each resolved real design forks (see per-spec sections).
 
-> **Authoritative version source.** Each spec internally proposes its assigned `v0.8.1`–`v0.8.11` (the bump it would
-> take landing on the prior spec's tip; spec 1 builds on master `v0.8.0`, spec 7 on the v0.8.6 tip, specs 8–11 stack on the v0.8.7 tip in order). All eleven **REPLACE-in-place** the same four canonical version slots
+> **Third batch (2026-07-01, open-queue sweep).** Specs 12–14 close the seven war-followup / gate-audit nits found while inspecting the open queue (#367/#368/#373/#380/#385/#392/#393 → 3 design specs). Ordered **behavioral-first** (principle #2): **spec 12** (gate-audit #393 — the batch's only control-flow fix) lands **first** at v0.8.12; **spec 13** (test-hygiene #367/#373/#380) at v0.8.13; **spec 14** (doc/prose #368/#385) **last** at v0.8.14 (most cosmetic). They ride the same serial version stack on the v0.8.11 (spec 11) tip. **File contention within the batch:** only the four version slots (serialized by the ordered versions) plus `workflow-template.test.mjs` — spec 12 **adds** a unit test, spec 13 **deletes** the vacuous ace-budget test (disjoint regions; land 12 before 13). **#392 is close-as-clean** — a confirmed non-defect (quoted "8 cases" prose absent at HEAD; case-11 rationale already documented), closed on GitHub with grep evidence, **no task**. Grilled one-at-a-time via `/grill-with-docs`.
+
+> **Authoritative version source.** Each spec internally proposes its assigned `v0.8.1`–`v0.8.14` (the bump it would
+> take landing on the prior spec's tip; spec 1 builds on master `v0.8.0`, spec 7 on the v0.8.6 tip, specs 8–11 stack on the v0.8.7 tip, and specs 12–14 on the v0.8.11 tip, in order). All fourteen **REPLACE-in-place** the same four canonical version slots
 > (`.claude-plugin/plugin.json` `version`; `.claude-plugin/marketplace.json` `metadata.version` AND `plugins[0].version`;
 > `README.md` `## Status`), so only one spec can hold a given number — they **MUST land serially**, each Release task
 > taking the next number and stacking its `## Status` paragraph on the prior. Do **not** run them as concurrent WAR
 > branches: they would rebase-conflict on the four shared slots. (memory: `release-bump-slots-canonical-no-badge`,
-> `stacked-per-branch-releases-make-main-lag-cumulative` — main lags **11** patches after the full stack: 6 remediation + the `--ace` feature + 3 behavioral + 1 hygiene sweep. The version literals are **not** authoritative; resolve each to the next free patch off the actual landed baseline at land time.)
+> `stacked-per-branch-releases-make-main-lag-cumulative` — main lags **14** patches after the full stack: 6 remediation + the `--ace` feature + 3 behavioral + 1 hygiene sweep + 3 open-queue nits. The version literals are **not** authoritative; resolve each to the next free patch off the actual landed baseline at land time.)
 >
 > **Spec 7 is a feature, not a remediation.** Specs 1–6 close the 16 open issues; spec 7 (`--ace`) is a net-new capability that rides the *same* serial version stack (lands on the v0.8.6 tip as v0.8.7). It is optional relative to the remediation set — the stack is complete at v0.8.6 without it — but if built, it lands **last** so its `workflow-template.js`/`.test.mjs` touches are authored on the fully-remediated tip.
 
@@ -191,7 +196,7 @@ Spec 1 ──► Spec 2 ──► Spec 6 ──► Spec 7 ──► [8, 9, 10] �
 
 | File | Specs that edit it | Conflict risk |
 |---|---|---|
-| four version slots (`plugin.json`, `marketplace.json` ×2, `README ## Status`) | **1–11** | 🔴 REPLACE-in-place — MUST serialize (handled by ordered versions) |
+| four version slots (`plugin.json`, `marketplace.json` ×2, `README ## Status`) | **1–14** | 🔴 REPLACE-in-place — MUST serialize (handled by ordered versions) |
 | `skills/war/assets/workflow-template.js` | 1 (land block ~L562), 2 (no-test loop ~L370-470 + land-side check ~L597), 4 (gate-audit pin prompt ~L503) | 🟠 three **disjoint** regions; only the 1↔2 land-block/land-side adjacency needs the base-pin |
 | `skills/war/assets/workflow-template.test.mjs` | 2 (#268 add test), 6 (comment/title/regex) | 🟠 additive vs cosmetic; land 2 before 6 |
 | `agents/war-refiner.md` | **2 only** | 🟢 single owner |
