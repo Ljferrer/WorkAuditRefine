@@ -97,7 +97,6 @@ raw_diff="$($git_cmd diff --raw "$base...$branch" 2>/dev/null)" || \
 #   :<old-mode> <new-mode> <old-sha> <new-sha> <R|C><score>\t<old-path>\t<new-path>
 #
 # A gitlink entry has mode 160000 in the old or new mode field (field 1 or 2).
-# macOS bash 3.2: use read with IFS to split fields; no arrays available.
 # ponytail: awk one-liner; bash 3.2-safe, no external deps beyond awk.
 # ---------------------------------------------------------------------------
 found_gitlink=0
@@ -113,6 +112,9 @@ if [ -n "$raw_diff" ]; then
       old = substr($1, 2)   # strip leading ":"
       new = $2
       if (old == "160000" || new == "160000") {
+        # split>=2 is equivalent to the old unconditional found=1: git diff --raw
+        # always emits a TAB before the path, so a matched gitlink line always
+        # splits into >=2 fields. The guard just also hands us parts[2] (the path).
         n = split($0, parts, "\t")
         if (n >= 2) print parts[2]
       }
