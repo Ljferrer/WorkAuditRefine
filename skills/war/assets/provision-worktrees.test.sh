@@ -1144,7 +1144,9 @@ expect "T3e: --keep preserves the integration branch" \
 # conservative-heal guard (never-reset-on-reuse, D7).
 # ---------------------------------------------------------------------------
 SCRIPT_DIR="$(dirname "$0")"
-SKILLS_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+# assets -> war -> skills : two levels up. NOT three (that lands on the repo
+# root and drags in stale branch_ahead_of copies under .claude/worktrees/**).
+SKILLS_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 # Search for branch_ahead_of in skills/ source files (exclude test files so
 # this assertion itself does not false-positive on the grep term appearing
 # in a comment inside a test file).
