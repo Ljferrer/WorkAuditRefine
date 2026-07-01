@@ -161,7 +161,7 @@ It interviews you (starting from a **balanced / thorough / economy** preset, the
 **For best results** I recommend using:
 
 ```
-/war-room thorough preset + servitor Opus (default effort)
+/war-room thorough preset
 ```
 
 > NOTE: This configuration absolutely pumps tokens.
