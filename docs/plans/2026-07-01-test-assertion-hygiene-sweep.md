@@ -5,26 +5,27 @@
 - **#373** — the landDecision drift-guard `direct` extractor regex unions `===` comparisons with assignments, arming a latent false-RED ([`land-decision.test.mjs`](../../skills/war/assets/land-decision.test.mjs)).
 - **#380** — a red-team scaffold test with a stale BACK-COMPAT title + a 1c guard pinned by probe **name** not **technique**, so a name-scoped regression would slip ([`workflow-scaffold.test.mjs`](../../skills/red-team/assets/workflow-scaffold.test.mjs)).
 
-**Zero production change.** The guards these tests name (the ace branch in `workflow-template.js`, the `landDecision` block, `workflow-scaffold.js:153`) are already correct and stay untouched (except transient, reverted sanity edits). Ships **v0.8.12** (hygiene).
+**Zero production change.** The guards these tests name (the ace branch in `workflow-template.js`, the `landDecision` block, `workflow-scaffold.js:153`) are already correct and stay untouched (except transient, reverted sanity edits). Ships **v0.8.13** (hygiene; spec 13 in the roadmap stack).
 
-**Source spec:** [`docs/specs/2026-07-01-test-assertion-hygiene-sweep-design.md`](../specs/2026-07-01-test-assertion-hygiene-sweep-design.md) (in PR #395). **Standalone** — not part of a stack; no roadmap.
+**Source spec:** [`docs/specs/2026-07-01-test-assertion-hygiene-sweep-design.md`](../specs/2026-07-01-test-assertion-hygiene-sweep-design.md) (in PR #395).
+**Roadmap (authoritative version source):** [`docs/plans/2026-06-30-open-issue-remediation-roadmap.md`](2026-06-30-open-issue-remediation-roadmap.md) — this slug = **spec 13 = v0.8.13**, landing on the spec-12 (gate-audit) tip (behavioral-first order, 2026-07-01).
 **Memory hooks:** [[weak-test-assertion-passes-without-feature-being-exercised]] (#367), [[drift-guard-extraction-regex-unions-comparisons-with-assignments]] (#373), [[relaxed-assertion-test-title-must-update-together]] + [[verbatim-mirror-directive-context-mismatch-at-destination]] (#380), [[plan-line-number-refs-stale-use-construct-locator]] (all anchors by construct), [[war-phase-up-front-provisioning-conflicts-same-file-serial-tasks]] (disjoint files ⇒ parallel), [[version-slots-no-cross-slot-consistency-test]] (release).
 
 **Anchors** are re-grounded against master HEAD **`72d07c7` (v0.8.11)** and independently verified: #367 test title `Task 3 — budget: ace does NOT dispatch when fixRounds has already reached roundLimit` (~`:2695`; single-attempt covered at ~`:2642`/`:2692`); #373 `const direct` regex (`:81`), operator comment (`:72`), `behavioral ⊆` expected-6 (`:88`), `held:phase-incomplete` gap-assert (`:151`); #380 `provision BACK-COMPAT` title (`:335`), production guard `p.technique === 'analyzed'` (`workflow-scaffold.js:153`). **Re-anchor by named construct, never a line number** — churn moves them.
 
 ## Coordination
 
-- **Target version:** **v0.8.12** (next free patch off master v0.8.11, severity LOW). Bumps `0.8.11 → 0.8.12`.
-- **Integration base:** current **master tip `72d07c7`**. Standalone — not stacked on another branch.
+- **Target version:** **v0.8.13** (spec 13 in the roadmap; spec 12 gate-audit takes v0.8.12, severity LOW). Bumps `0.8.12 → 0.8.13`.
+- **Integration base:** the **landed tip of spec 12 (gate-audit, v0.8.12)**, which sits on master `72d07c7`. Spec 13 in the roadmap stack.
 - **One parallel phase (NOT one-task-per-phase).** The three tasks touch **disjoint files** (`workflow-template.test.mjs` / `land-decision.test.mjs` / `workflow-scaffold.test.mjs`), so they run as **one phase, three parallel tasks** — WAR provisions an isolated worktree per task, workers run concurrently, each is audited independently, and the refiner serializes the (non-conflicting) merges. The one-task-per-phase / strictly-serial rule applies only when tasks share a file ([[war-phase-up-front-provisioning-conflicts-same-file-serial-tasks]]) — it does **not** apply here.
-- **Four-slot serial land (replace-in-place, no badge):** [`.claude-plugin/plugin.json`](../../.claude-plugin/plugin.json) `version`; [`.claude-plugin/marketplace.json`](../../.claude-plugin/marketplace.json) `metadata.version` **and** `plugins[0].version`; [`README.md`](../../README.md) `## Status`. All four read `0.8.12` after the release task; verify each by hand — there is no cross-slot consistency test, a partial bump is gate-silent ([[version-slots-no-cross-slot-consistency-test]]).
-- **Standalone fallback:** the version literal is **not** authoritative — resolve to the next free patch off the actual landed baseline at land time ([[stacked-release-plan-version-literal-lags-operator-target]], [[war-branch-base-off-latest-master-not-prior-tip]]). The three test-edits are baseline-independent.
-- **Cross-spec caveat (out of scope):** spec #3 (`gate-audit-integration-sha-validation`, #393) also edits `workflow-template.test.mjs` — the file Task 1 (#367) deletes from. This plan is standalone; if #393 is implemented later off master, coordinate the land order (or expect one merge on that file). Nothing here touches #393's surface.
+- **Four-slot serial land (replace-in-place, no badge):** [`.claude-plugin/plugin.json`](../../.claude-plugin/plugin.json) `version`; [`.claude-plugin/marketplace.json`](../../.claude-plugin/marketplace.json) `metadata.version` **and** `plugins[0].version`; [`README.md`](../../README.md) `## Status`. All four read `0.8.13` after the release task; verify each by hand — there is no cross-slot consistency test, a partial bump is gate-silent ([[version-slots-no-cross-slot-consistency-test]]).
+- **Version fallback:** the version literal is **not** authoritative — resolve to the next free patch off the actual landed baseline at land time ([[stacked-release-plan-version-literal-lags-operator-target]], [[war-branch-base-off-latest-master-not-prior-tip]]). The three test-edits are baseline-independent.
+- **Cross-spec contention (resolved by order):** spec 12 (gate-audit, #393) also edits `workflow-template.test.mjs` — it **adds** a unit test while Task 1 (#367) here **deletes** the vacuous ace-budget test. Spec 12 lands **first** (v0.8.12), so #367's deletion is authored on a tip already carrying #393's added test (disjoint regions; clean rebase).
 - **Commit boundaries:** one task per issue (independent audits), one commit per task; the release is its own `chore(release):` commit. Four task-branches, not one squashed commit.
 
 ## Operator decisions — RESOLVED (bake in exactly)
 
-- **Grilling resolutions (2026-07-01):** **(a)** standalone → v0.8.12; **(b)** one parallel phase + a release phase; **(c)** #380 **includes** the bespoke-executed probe (spec D5, upgraded from the issue's "optional"); **(d)** `requiresTest` — **#380 `true`** (the one task that *adds* a test: the refiner's `assert-test-in-diff.sh` floor becomes a live precondition that refuses to merge unless the probe actually landed in the test file), **#367 / #373 `false`** (a deletion / a regex tighten — no *new* test to enforce; the floor would pass trivially on their `*.test.mjs` diff and is a no-op there). The floor is the **only** behavior `requiresTest` changes — the post-merge gate-audit runs for every merged task regardless and stays SOFT for all three.
+- **Grilling resolutions (2026-07-01):** **(a)** stacked as **spec 13 → v0.8.13** under the roadmap (re-versioned from the original standalone v0.8.12 after the behavioral-first ordering decision); **(b)** one parallel phase + a release phase; **(c)** #380 **includes** the bespoke-executed probe (spec D5, upgraded from the issue's "optional"); **(d)** `requiresTest` — **#380 `true`** (the one task that *adds* a test: the refiner's `assert-test-in-diff.sh` floor becomes a live precondition that refuses to merge unless the probe actually landed in the test file), **#367 / #373 `false`** (a deletion / a regex tighten — no *new* test to enforce; the floor would pass trivially on their `*.test.mjs` diff and is a no-op there). The floor is the **only** behavior `requiresTest` changes — the post-merge gate-audit runs for every merged task regardless and stays SOFT for all three.
 - **#367 — DELETE the vacuous test (spec D1).** Remove the whole `test('Task 3 — budget: ace does NOT dispatch when fixRounds has already reached roundLimit', …)` block. It adds no coverage — single-attempt is genuinely proven by the two `calls.filter(isAce).length === 1` assertions at the adjacent "single attempt" tests (~`:2642`, ~`:2692`) — and the guard it *names* is defensively-dead on the approve path (a freshly-approved task reaches the ace branch only while `round < roundLimit`). **Do NOT touch production** (`workflow-template.js`): no comment on the dead guard — that would break zero-production-change and the disjoint-file parallelism.
 - **#373 — tighten the regex + fix the comment (spec D2/D3).** In [`land-decision.test.mjs`](../../skills/war/assets/land-decision.test.mjs), change the `direct` extractor (`:81`) `(?:={1,3}|:)` → `(?:=(?![=])|:)` so `==`/`===` comparison sites are no longer captured as "emitted"; and reword the operator comment (`:72`) `(= / == / === / :)` → `(= or :)`. Forecloses the latent false-RED where a future `landDecision === 'held:phase-incomplete'` comparison in the block would spuriously enter the emitted set.
 - **#380 — reword the title + add the bespoke-executed probe (spec D4/D5).** In [`workflow-scaffold.test.mjs`](../../skills/red-team/assets/workflow-scaffold.test.mjs): reword the stale BACK-COMPAT title (`:335`) from `…prompts are byte-for-byte today's` to `an empty provision list must not change prompts vs an absent one` (the body already asserts empty ⟺ absent equality); and add a bespoke `{ technique: 'executed' }` probe, looping the 1c precondition-absence assertion over **both** `probe:executable-proof` and the new probe so the guard is pinned **technique-scoped, not name-scoped** (production guard is `p.technique === 'analyzed'` at `workflow-scaffold.js:153`).
@@ -85,7 +86,7 @@ Three tasks, run in parallel (disjoint files). Each: establish the load-bearing 
 
 ---
 
-## Phase 2 — Release v0.8.12
+## Phase 2 — Release v0.8.13
 
 ### Task 4 — Bump the four canonical version slots + full self-discovering gate green
 
@@ -93,9 +94,9 @@ Three tasks, run in parallel (disjoint files). Each: establish the load-bearing 
 
 **`requiresTest`: false** — version serialization; no executable surface.
 
-- [ ] **Step 1 — Bump all four slots `0.8.11 → 0.8.12`.** Verify each by hand — no cross-slot consistency test, so a partial bump is gate-silent ([[version-slots-no-cross-slot-consistency-test]]). Update the README `## Status` "Builds on" clause to `v0.8.11`. Status copy: *test-assertion hygiene sweep — deleted a vacuous ace-budget test, tightened the landDecision drift-guard extractor to assignment-only, pinned the red-team 1c guard technique-scoped.* **Standalone fallback:** if landing off a tip other than master v0.8.11, bump to the next free patch off the live tip by construct, not the literal `0.8.12`.
+- [ ] **Step 1 — Bump all four slots `0.8.12 → 0.8.13`.** Verify each by hand — no cross-slot consistency test, so a partial bump is gate-silent ([[version-slots-no-cross-slot-consistency-test]]). Update the README `## Status` "Builds on" clause to `v0.8.12`. Status copy: *test-assertion hygiene sweep — deleted a vacuous ace-budget test, tightened the landDecision drift-guard extractor to assignment-only, pinned the red-team 1c guard technique-scoped.* **Fallback:** if landing off a tip other than the spec-12 (v0.8.12) tip, bump to the next free patch off the live tip by construct, not the literal `0.8.13` ([[stacked-release-plan-version-literal-lags-operator-target]]).
 - [ ] **Step 2 — Full self-discovering gate → green.**
-- [ ] **Step 3 — Commit** — `chore(release): v0.8.12 — test-assertion hygiene sweep (#367/#373/#380)`. Lands last (behavioral-before-cosmetic).
+- [ ] **Step 3 — Commit** — `chore(release): v0.8.13 — test-assertion hygiene sweep (#367/#373/#380)`. Lands after spec 12 (gate-audit).
 
 ---
 
@@ -119,7 +120,7 @@ node --test 'skills/**/*.test.mjs' && for f in $(find . -type f -name '*.test.sh
 | #367 | Task 1 | 1 (parallel) | false | delete vacuous test | remove the `Task 3 — budget: ace…` block; single-attempt stays covered by the two `calls.filter(isAce).length===1` asserts |
 | #373 | Task 2 | 1 (parallel) | false | regex tighten + comment | `(?:={1,3}\|:)` → `(?:=(?![=])\|:)`; comment `(= or :)`; latent false-RED closed (proven via reverted `held:phase-incomplete` sanity) |
 | #380 | Task 3 | 1 (parallel) | **true** | title reword + regression-pin | title → empty⟺absent; bespoke executed probe loops the 1c absence over both labels; guard-rewrite→RED→revert proves load-bearing |
-| *(release)* | Task 4 | 2 | false | version bump | four slots `0.8.11 → 0.8.12` (standalone fallback: next free patch off the live tip) |
+| *(release)* | Task 4 | 2 | false | version bump | four slots `0.8.12 → 0.8.13` (roadmap spec 13; fallback: next free patch off the live tip) |
 
 ## Deliberate simplifications (ponytail)
 
@@ -127,4 +128,4 @@ node --test 'skills/**/*.test.mjs' && for f in $(find . -type f -name '*.test.sh
 - **No production touch anywhere.** #367 does **not** annotate the defensively-dead guard in `workflow-template.js`; #373/#380 sanity edits to production are transient and reverted. This keeps the three tasks disjoint-file and parallel-safe, and the diffs test-only.
 - **#380 is `requiresTest:true`, the other two `false`.** The floor is a live precondition only where a test is *added*; on a deletion/tighten it can't fail, so enforcing it there would be ceremony. This is the one place the plan distinguishes the flag per task, deliberately.
 - **No ADR, no new GitHub issues authored by this plan** — pure test-file hygiene; #367/#373/#380 are the audit findings, closed by their tasks.
-- **Standalone, not stacked.** No roadmap doc; the #393/`workflow-template.test.mjs` overlap is noted as a land-order caveat, not coordinated here.
+- **Stacked as spec 13 behind the roadmap.** The #393/`workflow-template.test.mjs` overlap is resolved by land order: gate-audit (spec 12) lands first and adds its unit test; this plan then deletes a different test on that file.
