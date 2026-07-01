@@ -587,7 +587,8 @@ cmd_teardown_phase() {
 #    - Other non-zero (e.g. network failure, bad URL) → ESCALATE (exit 3).
 #      Never infer success from absence of [rejected] alone — require exit 0.
 #
-# 3. ONLY on push success (exit 0): advance the local follower ref:
+# 3. ONLY on push success AND ls-remote origin == new_sha: advance the local follower ref:
+#    On readback mismatch (origin not at <new-sha>) → exit 3 (escalate); local ref unchanged.
 #    git update-ref refs/heads/<working> <new-sha> <pre-push-local-tip>
 #    A rejected push leaves the local refs/heads/<working> UNCHANGED — nothing
 #    to rewind.
@@ -623,6 +624,11 @@ cmd_land_advance() {
   rm -f "$push_out"
 
   if [ "$push_rc" -eq 0 ]; then
+    # Origin readback: the push exited 0, but a no-op push from the wrong cwd
+    # (HEAD == origin's old tip) also exits 0 without moving origin. Advance the
+    # local follower ONLY if origin actually holds <new-sha>; else escalate.
+    actual="$(git ls-remote origin "refs/heads/$working" | cut -f1)"
+    [ "$actual" = "$new_sha" ] || exit 3
     # Success: advance the local follower ref with a CAS update-ref.
     # If there was no pre-push local tip, create the ref unconditionally.
     if [ -n "$pre_push_local" ]; then
