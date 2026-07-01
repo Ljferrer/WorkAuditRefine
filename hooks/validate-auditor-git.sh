@@ -110,6 +110,23 @@ case "$rest" in
 esac
 
 # ---------------------------------------------------------------------------
+# Read-only global -C <path>: relocate cwd, then validate the subcommand normally.
+# -C only changes which repo git runs in; it does NOT add a write verb. The peeled
+# $rest re-enters the read-only subcommand allowlist below, so a write subcommand
+# after -C still denies (see H3). Single path assumed: the char allowlist already
+# forbids spaces inside a path token, so a space-containing path cannot reach here.
+# ponytail: one -C peeled. `git -C -C rev-parse HEAD` peels the first -C then leaves
+# `rev-parse HEAD` → ALLOW (harmless read in ambient cwd) — NOT a default-deny.
+case "$rest" in
+  -C\ *)
+    rest="${rest#-C }"     # drop "-C "
+    rest="${rest#* }"      # drop the <path> token
+    ;;
+  -C)
+    deny "global -C with no path/subcommand" ;;
+esac
+
+# ---------------------------------------------------------------------------
 # Extract the subcommand (first word of $rest).
 # ---------------------------------------------------------------------------
 subcmd=""
