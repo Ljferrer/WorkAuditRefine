@@ -329,8 +329,9 @@ test('#311: the EXECUTED spine probe (executable-proof) does NOT gain the precon
     { name: 'bespoke-executed', kind: 'bespoke', technique: 'executed', prompt: 'do bespoke executed' },
   ] })
   const { prompts } = await runScaffold(a, passResult(a))
-  const byLabel = Object.fromEntries(prompts.map(p => [p.opts.label, p.prompt]))
+  const byLabel = Object.fromEntries(prompts.filter(p => p.opts.phase === 'Probe').map(p => [p.opts.label, p.prompt]))
   for (const label of ['probe:executable-proof', 'probe:bespoke-executed']) {
+    assert.ok(byLabel[label], label + ' must be present')
     assert.ok(!/PRECONDITION vs DELIVERABLE/.test(byLabel[label]),
       label + ': executed probes must not gain the precondition rule (technique-scoped, not name-scoped)')
   }
