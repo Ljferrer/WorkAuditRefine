@@ -2128,6 +2128,64 @@ test('L3 T2 Test 1 — blocked fix-worker escalates on round r, not after roundL
     'landDecision must be held:escalation when fix-worker blocks (escalate is a HARD reason)')
 })
 
+test('#268 — blocked add-test worker escalates via Site 3 (no-test:add-test-blocked)', async () => {
+  // Plan §'Phase 5 — #268': RETROFIT regression guard for Site 3 (the `if (addFixWhy) { … }` body in
+  // the no-test sub-loop). Drive: merge-task refiner returns { status:'no-test' } (enter the sub-loop) →
+  // initial audit approved → the BLOCKED add-test worker on label 'add-test:t1:r1' returns
+  // { status:'blocked', blocked_reason:'Y' }. blockedReason(addFix) === 'Y' is truthy, so Site 3 fires:
+  // one escalated {reason:'escalate', blocked:'Y'}, one auditLog {verdict:'no-test:add-test-blocked',
+  // blocked:'Y'}, no 'no-test:exhausted' (we break before the budget-exhausted arm), t1 does not land,
+  // landDecision === 'held:escalation' (escalate ∈ HARD_ESCALATION_REASONS).
+  //
+  // Field name MUST be blocked_reason (the blockedReason predicate reads r.blocked_reason at production
+  // ~:159). A wrong key ('blocked') makes blockedReason falsy, the Site-3 branch never fires, and the
+  // test passes by exercising the WRONG path (memory weak-test-assertion-passes-without-feature-being-exercised).
+  //
+  // Load-bearing on the unique token 'no-test:add-test-blocked' (zero occurrences in this file before
+  // #268). Proven by transient deletion of the Site-3 escalated.push + auditLog.push (the `if (addFixWhy)`
+  // body): the two token/blocked assertions go RED (memory retrofit-site-existing-tests-as-regression-guard).
+  const impl = buildSeqImpl(
+    {
+      // First merge-task returns no-test → enter the no-test sub-loop.
+      'merge:t1': [{ mode: 'merge-task', status: 'no-test' }],
+      // The add-test worker (label add-test:t1:r1 for t1 on the first round) is BLOCKED with token 'Y'.
+      'add-test:t1:r1': [{ task_id: 't1', status: 'blocked', blocked_reason: 'Y' }],
+    },
+    (prompt, opts) => {
+      const seat = seatOf(opts)
+      if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+      if (seat === 'war-worker' && opts.phase === 'Work') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
+      if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+      if (seat === 'war-refiner') return opts.phase === 'Land' ? { mode: 'land-phase', status: 'landed' } : { mode: 'merge-task', status: 'merged' }
+      if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+      return {}
+    }
+  )
+  const { out } = await runPhase(L3_ARGS(), impl)
+
+  // 1. Exactly one escalated entry for t1 with {reason:'escalate', blocked:'Y'}.
+  const t1Esc = (out.escalated || []).filter(e => e && e.task === 't1')
+  assert.equal(t1Esc.length, 1, 'exactly one escalated entry for t1')
+  assert.equal(t1Esc[0].reason, 'escalate', 'escalated reason must be "escalate"')
+  assert.equal(t1Esc[0].blocked, 'Y', 'escalated entry must carry blocked:"Y" (the unique token from the blocked add-test worker)')
+
+  // 2. Exactly one auditLog entry with {verdict:'no-test:add-test-blocked', blocked:'Y'} — the load-bearing token.
+  const t1AddBlocked = (out.auditLog || []).filter(e => e && e.task === 't1' && e.verdict === 'no-test:add-test-blocked')
+  assert.equal(t1AddBlocked.length, 1, 'exactly one auditLog entry with verdict "no-test:add-test-blocked" (Site 3)')
+  assert.equal(t1AddBlocked[0].blocked, 'Y', 'the Site-3 auditLog entry must carry blocked:"Y"')
+
+  // 3. NO 'no-test:exhausted' verdict — we break at Site 3 before the budget-exhausted arm.
+  const exhausted = (out.auditLog || []).filter(e => e && e.verdict === 'no-test:exhausted')
+  assert.equal(exhausted.length, 0, 'no "no-test:exhausted" verdict (Site 3 breaks before the budget-exhausted arm)')
+
+  // 4. t1 does NOT land.
+  assert.ok(!(out.landed || []).includes('t1'), 't1 must not land after a blocked add-test worker')
+
+  // 5. landDecision === 'held:escalation' (escalate ∈ HARD_ESCALATION_REASONS).
+  assert.equal(out.landDecision, 'held:escalation',
+    'landDecision must be held:escalation when the add-test worker blocks (escalate is a HARD reason)')
+})
+
 test('L3 T2 Test 2 — blocked initial-worker behavior preserved: escalate with expected:0, seats:[], reason', async () => {
   // Plan §7.4: the initial-worker guard rewrite (using blockedReason) must be behavior-preserving.
   // A blocked/dead initial worker must still yield verdict:'escalate', expected:0, seats:[], and the reason.
