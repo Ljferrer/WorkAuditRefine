@@ -1175,8 +1175,8 @@ test('#71 — task with only planSlug+runId+worktreeRoot (no explicit) does NOT 
 // Task 5 (Phase 3 — F05): servitor memory-admission checklist
 // The Wrap-up prompt and war-servitor.md must instruct four disciplines:
 //   D1 — DEDUP BEFORE WRITE: Glob memory dir + read MEMORY.md + read candidates → update existing covering file
-//   D2 — CORRECTION PRIORITY: contradicting fact supersedes stale file; user corrections outrank agent assertions
-//   D3 — VERIFY-CUE: a fact naming a file/flag/line is phrased with "verify still present before acting"
+//   D2 — TIER PRECEDENCE: a higher tier supersedes a lower; a user-confirmed fact outranks any agent write
+//   D3 — VERIFY-ON-WRITE: verify the referent is still present before acting (facts naming a file/flag/line)
 //   D4 — INDEX HYGIENE: update MEMORY.md row in place; [[slug]] cross-links
 // ---------------------------------------------------------------------------
 
@@ -1197,7 +1197,7 @@ test('F05 — Wrap-up prompt: instructs DEDUP BEFORE WRITE (Glob memory dir + re
     'Wrap-up prompt must instruct updating an existing covering file rather than duplicating (D1)')
 })
 
-test('F05 — Wrap-up prompt: instructs CORRECTION PRIORITY (contradicting fact supersedes stale; user outranks)', async () => {
+test('F05 — Wrap-up prompt: instructs TIER PRECEDENCE (contradicting fact supersedes stale; user outranks)', async () => {
   const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
   const wrap = calls.find(isServitor)
   assert.ok(wrap, 'a servitor (Wrap-up) seat was dispatched on the happy path')
@@ -1210,7 +1210,7 @@ test('F05 — Wrap-up prompt: instructs CORRECTION PRIORITY (contradicting fact 
     'Wrap-up prompt must state that user corrections outrank agent assertions (D2)')
 })
 
-test('F05 — Wrap-up prompt: instructs VERIFY-CUE (file/flag/line facts must be stamped with verify cue)', async () => {
+test('F05 — Wrap-up prompt: instructs VERIFY-ON-WRITE (file/flag/line facts must be stamped with verify cue)', async () => {
   const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
   const wrap = calls.find(isServitor)
   assert.ok(wrap, 'a servitor (Wrap-up) seat was dispatched on the happy path')
@@ -1246,14 +1246,14 @@ test('F05 — war-servitor.md: admission checklist includes DEDUP BEFORE WRITE (
     'war-servitor.md must instruct updating an existing covering file (D1)')
 })
 
-test('F05 — war-servitor.md: admission checklist includes CORRECTION PRIORITY (D2)', () => {
+test('F05 — war-servitor.md: admission checklist includes TIER PRECEDENCE (D2)', () => {
   assert.match(servitorMd, /supersede|contradict|overrides?|replac/i,
     'war-servitor.md must instruct that a contradicting fact supersedes the stale entry (D2)')
   assert.match(servitorMd, /user.{0,40}outrank|user.{0,40}correction|correction.{0,40}outrank/i,
     'war-servitor.md must state that user corrections outrank agent assertions (D2)')
 })
 
-test('F05 — war-servitor.md: admission checklist includes VERIFY-CUE (D3)', () => {
+test('F05 — war-servitor.md: admission checklist includes VERIFY-ON-WRITE (D3)', () => {
   assert.match(servitorMd, /verify.{0,40}still.{0,40}present|verify.{0,40}before.{0,40}act/i,
     'war-servitor.md must include "verify still present before acting" cue for file/flag/line facts (D3)')
 })
