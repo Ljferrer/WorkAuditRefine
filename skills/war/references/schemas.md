@@ -202,7 +202,8 @@ The per-phase Workflow returns:
 { phase,                              // phase id
   landed: ["task_id"],                // tasks merged onto the integration branch
   escalated: [ { task, reason, ... } ],
-  minorsFiled: [ { task, ...finding } ],
+  minorsFiled: [ { task, ...finding } ],   // un-aced RESIDUAL Minor/Nit findings filed as war-followup
+  aced: [ { task, finding, sha } ],   // --ace: auditor-flagged nits auto-fixed pre-merge (commit-cited; empty unless run.ace). NOT filed as war-followup
   landResult,                         // MergeResult of the in-flow land, or null if held
   servitorResult,                     // ServitorResult, or null if the Workflow did not land/wrap up
   auditLog: [ { task, verdict, findings, blocked } ],   // fed to a Lead-driven wrap-up on the held path
