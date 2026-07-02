@@ -60,8 +60,8 @@ const PROVISION_ARGS = (over = {}) => ({
   ownedFile: '/abs/repo/.claude/teams/run-2026/owned-refs',
   mainCheckout: '/abs/repo',
   tasks: [
-    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', lenses: ['correctness'] },
-    { id: 't2', issue: 102, title: 'Task two', planSlice: 'slice 2', lenses: ['correctness'], deps: ['t1'] },
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] },
+    { id: 't2', issue: 102, title: 'Task two', planSlice: 'slice 2', roster: [{ lens: 'correctness' }], deps: ['t1'] },
   ],
   learningsTarget: '/abs/learnings',
   ...over,
@@ -156,7 +156,7 @@ test('the fix-worker (FIX_NEEDED) prompt also drops self-create + WAR_WORKTREE, 
     return defaultImpl(prompt, opts)
   }
   const { calls } = await runPhase(PROVISION_ARGS({ tasks: [
-    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', lenses: ['correctness'] },
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] },
   ] }), impl)
   const fix = calls.find(isFixWorker)
   assert.ok(fix, 'a fix-worker was dispatched on the blocking finding')
@@ -297,7 +297,7 @@ test('the resolved run.provision list also reaches the fix-worker setup (Part B)
     return defaultImpl(prompt, opts)
   }
   const { calls } = await runPhase(withProvision({ tasks: [
-    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', lenses: ['correctness'] },
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] },
   ] }), impl)
   const fix = calls.find(isFixWorker)
   assert.ok(fix, 'a fix-worker was dispatched on the blocking finding')
@@ -548,25 +548,26 @@ function buildSeqImpl(seqMap, fallback) {
   }
 }
 
-// Single-task args for audit tests (no deps, single lens via lenses:[...]).
+// Single-task args for audit tests (no deps, three-seat roster pins the panel size).
 const AUDIT_ARGS = (over = {}) => ({
   ...PROVISION_ARGS({ tasks: [
-    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', lenses: ['correctness', 'cascading-impact', 'plan-faithfulness'] },
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1',
+      roster: [{ lens: 'correctness' }, { lens: 'cascading-impact' }, { lens: 'plan-faithfulness' }] },
   ] }),
   ...over,
 })
 
-// coven=true so all 3 lenses are used; covenSize: 3 to pin panel size.
+// A 3-seat roster so all 3 lenses convene; autoEscalate off (a multi-seat roster never widens anyway).
 const COVEN_ARGS = (over = {}) => AUDIT_ARGS({
   ...over,
   tasks: [
     { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1',
-      lenses: ['correctness', 'cascading-impact', 'plan-faithfulness'], coven: true },
+      roster: [{ lens: 'correctness' }, { lens: 'cascading-impact' }, { lens: 'plan-faithfulness' }] },
   ],
-  audit: { covenSize: 3, autoEscalate: false },
+  audit: { autoEscalate: false },
 })
 
-test('Task 2 — transient drop recovers: 3-lens coven, one lens returns null first call then approves on retry → full panel', async () => {
+test('Task 2 — transient drop recovers: 3-seat roster, one seat returns null first call then approves on retry → full panel', async () => {
   // The per-label call-sequence harness drives 'audit:t1:cascading-impact' to return null on call 1,
   // then return an approve verdict on call 2 (retry). The round should still see 3 approved seats.
   const approveVerdictFor = (label) => ({ seat: label, lens: 'cascading-impact', verdict: 'approve', findings: [], confidence: 'high' })
@@ -623,7 +624,7 @@ test('Task 2 — allApprove requires the full panel: even all-approve seats are 
 })
 
 test('Task 2 — auditLog records requested and returned on a persistent drop', async () => {
-  // A 3-seat coven where one seat never returns → shortfall logged as { requested:3, returned:2 }.
+  // A 3-seat roster where one seat never returns → shortfall logged as { requested:3, returned:2 }.
   const impl = buildSeqImpl(
     { 'audit:t1:cascading-impact': [null, null, null] },
     (prompt, opts) => {
@@ -666,9 +667,9 @@ const DAG_ARGS = (over = {}) => ({
   worktreeRoot: '/abs/repo/.claude/worktrees',
   mainCheckout: '/abs/repo',
   tasks: [
-    { id: 't1', issue: 201, title: 'Task one', planSlice: 'slice 1', lenses: ['correctness'] },
-    { id: 't2', issue: 202, title: 'Task two', planSlice: 'slice 2', lenses: ['correctness'], deps: ['t1'] },
-    { id: 't3', issue: 203, title: 'Task three', planSlice: 'slice 3', lenses: ['correctness'] },
+    { id: 't1', issue: 201, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] },
+    { id: 't2', issue: 202, title: 'Task two', planSlice: 'slice 2', roster: [{ lens: 'correctness' }], deps: ['t1'] },
+    { id: 't3', issue: 203, title: 'Task three', planSlice: 'slice 3', roster: [{ lens: 'correctness' }] },
   ],
   learningsTarget: null,
   ...over,
@@ -1126,7 +1127,7 @@ test('#71 — task missing branch/worktree AND derivation args RETURNS held:work
     plan: { file: 'docs/plans/x.md', gate: 'true' },
     // No planSlug, no runId, no worktreeRoot — derivation is impossible
     tasks: [
-      { id: 'tX', issue: 99, title: 'Missing derivation args', planSlice: 'slice X', lenses: ['correctness'] },
+      { id: 'tX', issue: 99, title: 'Missing derivation args', planSlice: 'slice X', roster: [{ lens: 'correctness' }] },
       // No explicit branch, no explicit worktree
     ],
     learningsTarget: null,
@@ -1152,7 +1153,7 @@ test('#71 — task with explicit branch AND worktree does NOT throw (carry-forwa
     plan: { file: 'docs/plans/x.md', gate: 'true' },
     // No planSlug, no runId, no worktreeRoot — but the task has explicit paths
     tasks: [
-      { id: 'tY', issue: 100, title: 'Explicit paths', planSlice: 'slice Y', lenses: ['correctness'],
+      { id: 'tY', issue: 100, title: 'Explicit paths', planSlice: 'slice Y', roster: [{ lens: 'correctness' }],
         branch: 'war/x/p1-tY', worktree: '/abs/repo/.claude/worktrees/run-abc/tY' },
     ],
     learningsTarget: null,
@@ -1410,7 +1411,7 @@ test('#113 — env-blocked early-return: auditLog entry has requested===0 (not u
   // must carry expected:0 so auditLog.push({ requested: r.expected }) records 0, not undefined.
   const dagWithProvision = {
     ...PROVISION_ARGS({ tasks: [
-      { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', lenses: ['correctness'] },
+      { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] },
     ] }),
     run: { provision: ['npm install'], provisionSource: 'ci' },
   }
@@ -1439,7 +1440,7 @@ test('#113 — worker-blocked early-return: auditLog entry has requested===0 (no
     return defaultImpl(prompt, opts)
   }
   const { out } = await runPhase(PROVISION_ARGS({ tasks: [
-    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', lenses: ['correctness'] },
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] },
   ] }), impl)
   const entry = (out.auditLog || []).find(e => e && e.task === 't1')
   assert.ok(entry, 'an auditLog entry exists for t1 (worker-blocked)')
@@ -1467,8 +1468,8 @@ test('#115 — post-loop sweep: task with ghost dep is escalated as unrunnable-d
     return {}
   }
   const { out } = await runPhase(PROVISION_ARGS({ tasks: [
-    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', lenses: ['correctness'] },
-    { id: 't2', issue: 102, title: 'Task two', planSlice: 'slice 2', lenses: ['correctness'], deps: ['ghost'] },
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] },
+    { id: 't2', issue: 102, title: 'Task two', planSlice: 'slice 2', roster: [{ lens: 'correctness' }], deps: ['ghost'] },
   ] }), impl)
 
   // escalated must contain the unrunnable-deps entry for t2
@@ -1802,7 +1803,7 @@ test('M1 criterion #1 — in-script derivation throw is caught and RETURNS held:
   const badArgs = {
     phase: { id: 9, title: 'DeadPhase', integrationBranch: 'integration/dead/phase-9', workingBranch: 'dev/dead' },
     plan: { file: 'docs/plans/dead.md', gate: 'true' },
-    tasks: [{ id: 'tDead', issue: 0, title: 'Underivable', planSlice: 'none', lenses: ['correctness'] }],
+    tasks: [{ id: 'tDead', issue: 0, title: 'Underivable', planSlice: 'none', roster: [{ lens: 'correctness' }] }],
     learningsTarget: null,
   }
   const fn = build()
@@ -1852,7 +1853,7 @@ test('M1 criterion #6 — catch after a mid-phase throw skips teardown (structur
 
 // Single-task args for no-test tests (requiresTest:true by default)
 const NO_TEST_ARGS = (over = {}) => PROVISION_ARGS({
-  tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', lenses: ['correctness'], requiresTest: true }],
+  tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], requiresTest: true }],
   ...over,
 })
 
@@ -1995,7 +1996,7 @@ test('M2 Test 2b — requiresTest:false task routes straight to merge; no fix-wo
   // A task with requiresTest:false must never return no-test from the merge-task — the refiner
   // skips the assert-test-in-diff.sh check. The sub-loop never fires.
   const EXEMPT_ARGS = PROVISION_ARGS({
-    tasks: [{ id: 't1', issue: 101, title: 'Docs task', planSlice: 'slice 1', lenses: ['correctness'], requiresTest: false }],
+    tasks: [{ id: 't1', issue: 101, title: 'Docs task', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], requiresTest: false }],
   })
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
@@ -2109,7 +2110,7 @@ test('#237 — both merge-task dispatch prompts split exit-1 (no-test) from exit
 // Single-task args for L3 tests (one lens, high roundLimit so early-break is observable)
 const L3_ARGS = (over = {}) => PROVISION_ARGS({
   run: { roundLimit: 5 },
-  tasks: [{ id: 't1', issue: 101, title: 'L3 task', planSlice: 'slice 1', lenses: ['correctness'] }],
+  tasks: [{ id: 't1', issue: 101, title: 'L3 task', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] }],
   ...over,
 })
 
@@ -2363,10 +2364,10 @@ const SUBMOD_PHASE_ARGS = (over = {}) => ({
   mainCheckout: '/abs/repo',
   tasks: [
     { id: 'tsub', issue: 301, title: 'Submodule task', planSlice: 'submod slice',
-      lenses: ['correctness'], taskType: 'submodule',
+      roster: [{ lens: 'correctness' }], taskType: 'submodule',
       targetRepo: '/abs/submodule-checkout', targetBase: 'main' },
     { id: 'tbump', issue: 302, title: 'Gitlink bump task', planSlice: 'bump slice',
-      lenses: ['correctness'], taskType: 'gitlink-bump', declared: true, deps: ['tsub'] },
+      roster: [{ lens: 'correctness' }], taskType: 'gitlink-bump', declared: true, deps: ['tsub'] },
   ],
   learningsTarget: null,
   ...over,
@@ -2452,7 +2453,7 @@ test('T4 #297 Test 2 — declared gitlink-bump merge-task passes --declared to a
   const bumpArgs = SUBMOD_PHASE_ARGS({
     tasks: [
       { id: 'tbump', issue: 302, title: 'Gitlink bump task', planSlice: 'bump slice',
-        lenses: ['correctness'], taskType: 'gitlink-bump', declared: true },
+        roster: [{ lens: 'correctness' }], taskType: 'gitlink-bump', declared: true },
     ],
   })
   const { calls: callsA } = await runPhase(bumpArgs, impl)
@@ -2466,7 +2467,7 @@ test('T4 #297 Test 2 — declared gitlink-bump merge-task passes --declared to a
   // Case B: regular (non-declared, non-bump) task — must NOT carry --declared
   const regularArgs = SUBMOD_PHASE_ARGS({
     tasks: [
-      { id: 'treg', issue: 303, title: 'Regular task', planSlice: 'reg slice', lenses: ['correctness'] },
+      { id: 'treg', issue: 303, title: 'Regular task', planSlice: 'reg slice', roster: [{ lens: 'correctness' }] },
     ],
   })
   const { calls: callsB } = await runPhase(regularArgs, impl)
@@ -2503,7 +2504,7 @@ test('T4 #297 Test 3 — blocked gitlink-bump worker escalates early via blocked
   const bumpOnlyArgs = SUBMOD_PHASE_ARGS({
     tasks: [
       { id: 'tbump', issue: 302, title: 'Gitlink bump task', planSlice: 'bump slice',
-        lenses: ['correctness'], taskType: 'gitlink-bump', declared: true },
+        roster: [{ lens: 'correctness' }], taskType: 'gitlink-bump', declared: true },
     ],
   })
   const { out, calls } = await runPhase(bumpOnlyArgs, impl)
@@ -2605,7 +2606,7 @@ test('T4 #297 Test 4 — targetRepo/targetBase threaded into merge-task, land, w
 const isAce = (c) => seatOf(c.opts) === 'war-worker' && /^ace:/.test(c.opts.label || '')
 // A single-task phase (no deps) so the ace sub-loop path is the only thing under test.
 const ACE_ARGS = (over = {}) => PROVISION_ARGS({
-  tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', lenses: ['correctness'] }],
+  tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] }],
   run: { ace: true },
   ...over,
 })
@@ -2754,4 +2755,205 @@ test('Task 3 — no-enum-leak: no new MERGE_RESULT.status member and no new HARD
   assert.deepEqual(hard.sort(),
     ['audit-blocked', 'conflict', 'dep-failed', 'escalate', 'gate-evidence', 'land_stale', 'no-test', 'unrunnable-deps'].sort(),
     'HARD_ESCALATION_REASONS is unchanged — aced is a return attribute, not an escalation reason')
+})
+
+// ---------------------------------------------------------------------------
+// Variable audit roster (#434): per-task roster dispatch, per-seat depth,
+// lone-seat union auto-escalation (D5), phase-start assertion (D8), and the
+// gate-audit auto-skip on requiresTest:false (D7).
+// ---------------------------------------------------------------------------
+
+const ROSTER_TRIO = [
+  { lens: 'correctness', depth: 'deep' },
+  { lens: 'cascading-impact', depth: 'deep' },
+  { lens: 'plan-faithfulness', depth: 'deep' },
+]
+const isRegularAudit = (c) => isAuditor(c) && !(c.opts.label || '').startsWith('gate-audit:')
+
+test('roster — per-seat depth threading: each seat auditPrompt carries its OWN depth token', async () => {
+  const args = PROVISION_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1',
+      roster: [{ lens: 'correctness', depth: 'deep' }, { lens: 'plan-faithfulness', depth: 'neighbors' }] },
+  ] })
+  const { calls } = await runPhase(args, defaultImpl)
+  const corr = calls.find(c => (c.opts.label || '') === 'audit:t1:correctness')
+  const pf = calls.find(c => (c.opts.label || '') === 'audit:t1:plan-faithfulness')
+  // Presence guards FIRST — a missing seat must fail here, not pass a vacuous lookup below.
+  assert.ok(corr, 'a correctness seat was dispatched (presence guard)')
+  assert.ok(pf, 'a plan-faithfulness seat was dispatched (presence guard)')
+  assert.ok(corr.prompt.includes('"correctness" lens at depth deep'),
+    'the correctness seat prompt carries ITS OWN depth (deep)')
+  assert.ok(pf.prompt.includes('"plan-faithfulness" lens at depth neighbors'),
+    'the plan-faithfulness seat prompt carries ITS OWN depth (neighbors)')
+})
+
+test('roster — omitted depth normalizes to deep (D2) in the emitted auditPrompt', async () => {
+  const args = PROVISION_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] },
+  ] })
+  const { calls } = await runPhase(args, defaultImpl)
+  const corr = calls.find(c => (c.opts.label || '') === 'audit:t1:correctness')
+  assert.ok(corr, 'a correctness seat was dispatched (presence guard)')
+  assert.ok(corr.prompt.includes('at depth deep'), 'omitted depth must normalize to deep')
+  assert.ok(!corr.prompt.includes('at depth undefined'), 'no undefined depth leaks into the audit prompt')
+})
+
+test('roster — seat count equals roster length: a 1-seat roster spawns exactly 1 audit agent', async () => {
+  const args = PROVISION_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] },
+  ] })
+  const { calls } = await runPhase(args, defaultImpl)
+  const audits = calls.filter(isRegularAudit)
+  assert.equal(audits.length, 1, 'exactly one audit seat for a 1-seat roster')
+  assert.equal(audits[0].opts.label, 'audit:t1:correctness')
+})
+
+test('roster — seat count equals roster length: a 5-seat roster spawns 5 distinct-labelled audit agents', async () => {
+  const FIVE = ['correctness', 'cascading-impact', 'plan-faithfulness', 'security', 'performance']
+  const args = PROVISION_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1',
+      roster: FIVE.map(l => ({ lens: l, depth: 'deep' })) },
+  ] })
+  const { calls } = await runPhase(args, defaultImpl)
+  const audits = calls.filter(isRegularAudit)
+  assert.equal(audits.length, 5, 'exactly five audit seats for a 5-seat roster')
+  const labels = audits.map(c => c.opts.label)
+  assert.equal(new Set(labels).size, 5, 'the five audit:<task>:<lens> labels are DISTINCT (no modulo duplicates)')
+  for (const l of FIVE) assert.ok(labels.includes(`audit:t1:${l}`), `label audit:t1:${l} present`)
+})
+
+test('roster — auto-escalate union: a solo Critical re-audit convenes the union roster (original lens once, defaults appended, ≤5)', async () => {
+  const args = PROVISION_ARGS({
+    tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1',
+      roster: [{ lens: 'security', depth: 'deep' }] }],
+    audit: { roster: ROSTER_TRIO, rosterPolicy: 'all', autoEscalate: true },
+  })
+  const impl = buildSeqImpl(
+    { 'audit:t1:security': [
+        { seat: 'audit:t1:security', lens: 'security', verdict: 'request_changes', confidence: 'high',
+          findings: [{ severity: 'Critical', title: 'lone-seat critical', file: 'a.js', rationale: 'bad' }] },
+        { seat: 'audit:t1:security', lens: 'security', verdict: 'approve', findings: [], confidence: 'high' },
+      ] },
+    defaultImpl)
+  const { out, calls, logs } = await runPhase(args, impl)
+  const labels = calls.filter(isRegularAudit).map(c => c.opts.label)
+  assert.equal(labels.filter(l => l === 'audit:t1:security').length, 2,
+    'the original security lens convenes once per round (kept once in the union, never duplicated)')
+  for (const l of ['correctness', 'cascading-impact', 'plan-faithfulness']) {
+    assert.equal(labels.filter(x => x === `audit:t1:${l}`).length, 1, `default lens ${l} appended exactly once (union)`)
+  }
+  assert.equal(new Set(labels).size, 4, '4 distinct seats total (1 + 3 defaults, ≤5)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('union widening')),
+    'the widening is narrated (union widening log line)')
+  assert.ok(out.landed.includes('t1'), 'the widened panel approved and the task landed')
+})
+
+test('roster — autoEscalate:false: a solo Critical does NOT widen the roster', async () => {
+  const args = PROVISION_ARGS({
+    tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1',
+      roster: [{ lens: 'security', depth: 'deep' }] }],
+    audit: { roster: ROSTER_TRIO, rosterPolicy: 'all', autoEscalate: false },
+  })
+  const impl = buildSeqImpl(
+    { 'audit:t1:security': [
+        { seat: 'audit:t1:security', lens: 'security', verdict: 'request_changes', confidence: 'high',
+          findings: [{ severity: 'Critical', title: 'lone-seat critical', file: 'a.js', rationale: 'bad' }] },
+        { seat: 'audit:t1:security', lens: 'security', verdict: 'approve', findings: [], confidence: 'high' },
+      ] },
+    defaultImpl)
+  const { calls } = await runPhase(args, impl)
+  const labels = calls.filter(isRegularAudit).map(c => c.opts.label)
+  assert.ok(labels.includes('audit:t1:security'), 'the solo seat convened (presence guard)')
+  assert.ok(labels.every(l => l === 'audit:t1:security'),
+    'no default lenses convene when autoEscalate is false (no widening)')
+})
+
+test('roster — lone-seat guard: a 2-seat roster at low confidence does NOT widen', async () => {
+  const args = PROVISION_ARGS({
+    tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1',
+      roster: [{ lens: 'correctness', depth: 'deep' }, { lens: 'security', depth: 'neighbors' }] }],
+    audit: { roster: ROSTER_TRIO, rosterPolicy: 'all', autoEscalate: true },
+  })
+  const lowMajor = (label, lens) => ({ seat: label, lens, verdict: 'request_changes', confidence: 'low',
+    findings: [{ severity: 'Major', title: 'low-confidence major', file: 'a.js', rationale: 'unsure' }] })
+  const approve = (label, lens) => ({ seat: label, lens, verdict: 'approve', findings: [], confidence: 'high' })
+  const impl = buildSeqImpl(
+    {
+      'audit:t1:correctness': [lowMajor('audit:t1:correctness', 'correctness'), approve('audit:t1:correctness', 'correctness')],
+      'audit:t1:security': [lowMajor('audit:t1:security', 'security'), approve('audit:t1:security', 'security')],
+    },
+    defaultImpl)
+  const { calls } = await runPhase(args, impl)
+  const labels = calls.filter(isRegularAudit).map(c => c.opts.label)
+  assert.ok(labels.includes('audit:t1:correctness') && labels.includes('audit:t1:security'),
+    'both roster seats convened (presence guard)')
+  assert.ok(!labels.includes('audit:t1:cascading-impact') && !labels.includes('audit:t1:plan-faithfulness'),
+    'an approved multi-seat roster is never second-guessed (no union widening on a 2-seat roster)')
+})
+
+test('roster — phase-start assertion: duplicate lenses → held:workflow-error, never a clamped audit', async () => {
+  const args = PROVISION_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1',
+      roster: [{ lens: 'correctness' }, { lens: 'correctness' }] },
+  ] })
+  const fn = build()
+  const agentNeverCalled = async () => { throw new Error('agent must not be called when the roster assertion fails') }
+  const out = await fn(agentNeverCalled, fakeParallel, async () => [], () => {}, () => {}, args, { total: null })
+  assert.equal(out.landDecision, 'held:workflow-error',
+    'a duplicate-lens roster must yield held:workflow-error (loud, not clamped)')
+  assert.ok(out.workflowError && out.workflowError.message.includes('t1'), 'the error names the task')
+  assert.match(out.workflowError.message, /duplicat/i, 'the error names the duplicate-lens violation')
+})
+
+test('roster — phase-start assertion: 6 entries → held:workflow-error (no truncation)', async () => {
+  const args = PROVISION_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1',
+      roster: ['a', 'b', 'c', 'd', 'e', 'f'].map(l => ({ lens: l })) },
+  ] })
+  const fn = build()
+  const agentNeverCalled = async () => { throw new Error('agent must not be called when the roster assertion fails') }
+  const out = await fn(agentNeverCalled, fakeParallel, async () => [], () => {}, () => {}, args, { total: null })
+  assert.equal(out.landDecision, 'held:workflow-error',
+    'a 6-seat roster must yield held:workflow-error (no truncation)')
+  assert.match(out.workflowError.message, /1-5/, 'the error names the 1-5 seat bound')
+})
+
+test('roster — phase-start assertion: a task with NO roster → held:workflow-error (no runtime default)', async () => {
+  const args = PROVISION_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1' },
+  ] })
+  const fn = build()
+  const agentNeverCalled = async () => { throw new Error('agent must not be called when the roster assertion fails') }
+  const out = await fn(agentNeverCalled, fakeParallel, async () => [], () => {}, () => {}, args, { total: null })
+  assert.equal(out.landDecision, 'held:workflow-error',
+    'an absent roster must yield held:workflow-error — no silent runtime default roster')
+  assert.ok(out.workflowError.message.includes('t1'), 'the error names the task')
+})
+
+test('D7 — gate-audit auto-skip: a merged requiresTest:false task spawns NO gate-audit seat and the skip is logged', async () => {
+  const args = PROVISION_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 'Docs task', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], requiresTest: false },
+    { id: 't2', issue: 102, title: 'Code task', planSlice: 'slice 2', roster: [{ lens: 'correctness' }], requiresTest: true },
+  ] })
+  const { out, calls, logs } = await runPhase(args, gateAuditImpl)
+  const ga = calls.filter(c => (c.opts.label || '').startsWith('gate-audit:'))
+  assert.ok(ga.some(c => c.opts.label === 'gate-audit:t2:execution-evidence'),
+    'the sibling requiresTest:true task IS gate-audited (presence guard)')
+  assert.ok(!ga.some(c => (c.opts.label || '').startsWith('gate-audit:t1')),
+    'no gate-audit seat spawns for the requiresTest:false task (HARD path vacuous by contract)')
+  const skipLine = logs.find(l => typeof l === 'string' && l.includes('gate-audit: skipping t1'))
+  assert.ok(skipLine, 'the narrator log carries the gate-audit skip line (never silent)')
+  assert.ok(skipLine.includes('requiresTest:false'), 'the skip line names the requiresTest:false contract')
+  assert.ok(out.landed.includes('t1') && out.landed.includes('t2'), 'both tasks still land')
+})
+
+test('D7 — gate-audit fail-closed: requiresTest ABSENT → the task IS gate-audited', async () => {
+  const args = PROVISION_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] },
+  ] })
+  const { calls, logs } = await runPhase(args, gateAuditImpl)
+  assert.ok(calls.some(c => c.opts.label === 'gate-audit:t1:execution-evidence'),
+    'an absent requiresTest field stays fail-closed (gate-audited)')
+  assert.ok(!logs.some(l => typeof l === 'string' && l.includes('gate-audit: skipping')),
+    'no skip line is logged when requiresTest is absent')
 })

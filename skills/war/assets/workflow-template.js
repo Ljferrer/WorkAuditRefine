@@ -17,11 +17,11 @@ export const meta = {
 //   { phase: { id, title, integrationBranch, workingBranch },
 //     plan:  { file, gate },          // gate = a shell command, run BY agents (this script has no shell/fs)
 //     tasks: [ { id, issue, title, branch, worktree, deps:[id],
-//                lenses:["correctness","cascading-impact","plan-faithfulness"], coven:bool, planSlice } ],
+//                roster:[{ lens, depth? }], planSlice } ],       // roster: 1–5 distinct-lens audit seats; depth omitted → 'deep'
 //     learningsTarget,                // the servitor's only writable path (memory dir or docs/learnings/)
 //     agentPrefix,                    // optional namespace prefix for agent types (default: 'work-audit-refine:')
 //     agents: { worker|auditor|refiner|servitor: { model, effort } },  // from .claude/war/config.json (resolved by the Lead); defaults below
-//     audit:  { covenSize, covenPolicy, autoEscalate },                // covenPolicy seeds task.coven Lead-side; covenSize/autoEscalate used here
+//     audit:  { roster, rosterPolicy, autoEscalate },                  // rosterPolicy seeds task.roster Lead-side; audit.roster is the union-widening default roster; autoEscalate used here
 //     run:    { roundLimit, afk } }                                    // afk is Lead-side; roundLimit used here
 // auditors receive the absolute worktree path and self-serve the change set via read-only git (git diff <integrationBranch>...<task.branch>, three-dot); no main-checkout baseline.
 // The Lead may inject APPROVED extra stages by editing a copy of this file; never free-author the core loop.
@@ -90,13 +90,44 @@ const ownedFile = A.ownedFile                    // run ledger of owned refs (--
 const taskBranch = t => t.branch || (planSlug ? `war/${planSlug}/p${ph.id}-${t.id}` : t.branch)
 const taskWorktree = t => t.worktree || ((worktreeRoot && runId) ? `${worktreeRoot}/${runId}/${t.id}` : t.worktree)
 // Per-role spawn opts: model always; effort only when non-default (omit = inherit session).
-// Mirror of war-config.mjs spawnOpts/covenSeats — the Workflow sandbox can't import. Keep in sync.
+// Mirror of war-config.mjs spawnOpts/validateRoster/widenRoster — the Workflow sandbox can't import. Keep in sync.
 const ROLE_MODEL = { worker: 'sonnet', auditor: 'opus', refiner: 'sonnet', servitor: 'sonnet' }
 const spawn = role => {
   const a = agents[role] || {}
   const model = a.model || ROLE_MODEL[role]
   return a.effort && a.effort !== 'default' ? { model, effort: a.effort } : { model }
 }
+// Roster validation (D8): 1–5 seats, non-empty string lens, depth absent or neighbors|deep, lenses distinct.
+const validateRoster = roster => {
+  const errors = []
+  if (!Array.isArray(roster) || roster.length < 1 || roster.length > 5) {
+    errors.push(`roster must be an array of 1-5 seats (got ${JSON.stringify(roster)})`)
+    return { valid: false, errors }
+  }
+  const seen = []
+  roster.forEach((seat, i) => {
+    if (seat === null || typeof seat !== 'object' || Array.isArray(seat)) { errors.push(`roster[${i}] must be an object { lens, depth? }`); return }
+    if (typeof seat.lens !== 'string' || !seat.lens) errors.push(`roster[${i}].lens must be a non-empty string`)
+    else if (seen.includes(seat.lens)) errors.push(`roster[${i}].lens "${seat.lens}" duplicates an earlier seat (lenses must be distinct)`)
+    else seen.push(seat.lens)
+    if (seat.depth !== undefined && seat.depth !== 'neighbors' && seat.depth !== 'deep') errors.push(`roster[${i}].depth must be "neighbors" or "deep" when present (got ${JSON.stringify(seat.depth)})`)
+  })
+  return { valid: errors.length === 0, errors }
+}
+// Lone-seat auto-escalation union (D5): keep the existing seats, append default entries whose
+// lenses are absent (at their configured depths), cap 5 — union, never replacement.
+const widenRoster = (roster, defaultRoster) => {
+  const out = [...roster]
+  for (const seat of defaultRoster || []) {
+    if (out.length >= 5) break
+    if (!out.some(s => s.lens === seat.lens)) out.push(seat)
+  }
+  return out
+}
+// audit.roster (args) is the union-widening default roster (D5). A default seat with an omitted
+// depth normalizes to 'deep' (D2) — the same rule the per-task phase-start normalization applies.
+const defaultRoster = (Array.isArray(audit.roster) ? audit.roster : []).map(s =>
+  (s && typeof s === 'object' && !Array.isArray(s) && s.depth === undefined) ? { ...s, depth: 'deep' } : s)
 const done = new Set()
 const succeeded = new Set()
 // Hoisted above try{} so the catch block can reference them even when the derivation throw fires
@@ -114,6 +145,15 @@ for (const t of (tasks || [])) {
   if (!t.branch || !t.worktree) {
     throw new Error(`task ${t.id}: cannot derive branch/worktree — supply planSlug+runId+worktreeRoot or explicit branch/worktree`)
   }
+  // Phase-start roster assertion (D8): normalize omitted depth → 'deep' (D2), then validate LOUD.
+  // No runtime default roster, no truncation — a broken roster throws into the catch below →
+  // held:workflow-error (a silent fallback would mask a Lead-side seeding bug as a narrower audit).
+  if (Array.isArray(t.roster)) {
+    t.roster = t.roster.map(s =>
+      (s && typeof s === 'object' && !Array.isArray(s) && s.depth === undefined) ? { ...s, depth: 'deep' } : s)
+  }
+  const rv = validateRoster(t.roster)
+  if (!rv.valid) throw new Error(`task ${t.id}: invalid roster — ${rv.errors.join('; ')}`)
 }
 
 // --- Repo-derived provisioning (Part B) ------------------------------------
@@ -186,22 +226,20 @@ function auditPrompt(task, lens, depth, peers, workerTests) {
 }
 
 async function auditRound(task, peers, workerTests) {
-  const baseLenses = task.lenses && task.lenses.length ? task.lenses : ['correctness', 'cascading-impact', 'plan-faithfulness']
-  const lenses = !task.coven
-    ? [baseLenses[0]]
-    : Array.from({ length: audit.covenSize || baseLenses.length }, (_, i) => baseLenses[i % baseLenses.length])
-  const depth = task.coven ? 'deep' : 'neighbors'
-  const expected = lenses.length
-  const runLens = lens => agent(auditPrompt(task, lens, depth, peers, workerTests), {
+  // Seats come straight from task.roster (validated at phase start: 1–5 distinct lenses, per-seat
+  // depth already normalized). Labels audit:<task>:<lens> are distinct because lenses are distinct.
+  const roster = task.roster
+  const expected = roster.length
+  const runSeat = seat => agent(auditPrompt(task, seat.lens, seat.depth, peers, workerTests), {
     agentType: NS + 'war-auditor', phase: 'Audit',
-    label: `audit:${task.id}:${lens}${peers ? ':rebut' : ''}`, schema: AUDIT_VERDICT, ...spawn('auditor') })
+    label: `audit:${task.id}:${seat.lens}${peers ? ':rebut' : ''}`, schema: AUDIT_VERDICT, ...spawn('auditor') })
   // Initial parallel run
-  let results = await parallel(lenses.map(lens => () => runLens(lens)))
-  // Re-run only the dropped (null) lenses, up to 2 retry passes
+  let results = await parallel(roster.map(seat => () => runSeat(seat)))
+  // Re-run only the dropped (null) seats — re-keyed on roster entries (lens+depth) — up to 2 retry passes
   for (let retry = 0; retry < 2; retry++) {
-    const dropped = lenses.filter((_, i) => results[i] == null)
+    const dropped = roster.filter((_, i) => results[i] == null)
     if (!dropped.length) break
-    const retried = await parallel(dropped.map(lens => () => runLens(lens)))
+    const retried = await parallel(dropped.map(seat => () => runSeat(seat)))
     let ri = 0
     results = results.map(r => r != null ? r : retried[ri++])
   }
@@ -329,10 +367,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         if (isSplit(seats)) { verdict = 'escalate'; break }      // still deadlocked → human tiebreak
       }
 
-      if (audit.autoEscalate !== false && !task.coven && seats.length === 1 &&   // auto-escalate 1→coven (config can disable)
+      if (audit.autoEscalate !== false && task.roster.length === 1 &&   // lone-seat union widening (D5; config can disable)
           (seats[0].confidence === 'low' || (seats[0].findings || []).some(f => f.severity === 'Critical'))) {
-        task.coven = true
-        log(`Task ${task.id}: escalating to a coven (Critical or low confidence on the lone seat).`)
+        task.roster = widenRoster(task.roster, defaultRoster)
+        log(`Task ${task.id}: lone-seat union widening (Critical or low confidence) — roster is now [${task.roster.map(s => s.lens).join(', ')}].`)
       }
 
       const b = blockingOf(seats)                                // batched FIX_NEEDED → fresh fix-worker
@@ -520,8 +558,15 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // Use the successful re-merge result for the landed path below
         if (noTestMr.status === 'merged') {
           landed.push(r.task.id); succeeded.add(r.task.id)
-          mergedTasksForGateAudit.push({ taskId: r.task.id, gateOutput: noTestMr.gate_output, acceptanceCriteria: r.task.planSlice,
-            gateHeadSha: pinOrSentinel(noTestMr.integration_sha) })
+          // D7 guard, belt-and-suspenders: a requiresTest:false task cannot reach this sub-loop by
+          // prompt contract (its merge prompt skips assert-test-in-diff.sh, so 'no-test' is never
+          // returned) — the guard mirrors the merge-success site for prompt-contract reachability.
+          if (!requiresTest) {
+            log(`gate-audit: skipping ${r.task.id} (requiresTest:false — no mapped tests, HARD path vacuous)`)
+          } else {
+            mergedTasksForGateAudit.push({ taskId: r.task.id, gateOutput: noTestMr.gate_output, acceptanceCriteria: r.task.planSlice,
+              gateHeadSha: pinOrSentinel(noTestMr.integration_sha) })
+          }
         } else {
           escalated.push({ task: r.task.id, reason: noTestMr.status ?? 'merge_failed', detail: noTestMr })
         }
@@ -530,8 +575,15 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
 
       if (mr && mr.status === 'merged') {
         landed.push(r.task.id); succeeded.add(r.task.id)
-        mergedTasksForGateAudit.push({ taskId: r.task.id, gateOutput: mr.gate_output, acceptanceCriteria: r.task.planSlice,
-          gateHeadSha: pinOrSentinel(mr.integration_sha) }) // ponytail: sentinel, not mr.working_sha — working_sha is land-only (war-refiner.md), dead on a merge result
+        // D7: explicit requiresTest === false ⇒ the gate-audit HARD path (mapped test provably
+        // unrun) is vacuous by contract — skip the pass and LOG the skip (never silent). An absent
+        // field stays fail-closed (gate-audited).
+        if (!requiresTest) {
+          log(`gate-audit: skipping ${r.task.id} (requiresTest:false — no mapped tests, HARD path vacuous)`)
+        } else {
+          mergedTasksForGateAudit.push({ taskId: r.task.id, gateOutput: mr.gate_output, acceptanceCriteria: r.task.planSlice,
+            gateHeadSha: pinOrSentinel(mr.integration_sha) }) // ponytail: sentinel, not mr.working_sha — working_sha is land-only (war-refiner.md), dead on a merge result
+        }
       }
       else escalated.push({ task: r.task.id, reason: mr ? mr.status : 'merge_failed', detail: mr })
     } else if (r.verdict === 'env-blocked') {

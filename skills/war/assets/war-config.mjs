@@ -3,13 +3,13 @@
 //   • /war-room  (producer): `--preset <name>`, and `--stdin --fill-defaults` to validate+resolve before writing
 //   • /war Lead  (consumer): `<path> --fill-defaults` to resolve a file, then thread into Workflow args
 // The Workflow sandbox cannot import this module, so workflow-template.js mirrors
-// spawnOpts/covenSeats inline — THIS module is the tested source of truth; keep them in sync.
+// spawnOpts/validateRoster/widenRoster inline — THIS module is the tested source of truth; keep them in sync.
 
 import { validateProvision } from '../../_shared/provision.mjs'
 
 export const MODELS = ['opus', 'sonnet', 'haiku', 'fable']
 export const EFFORTS = ['default', 'low', 'medium', 'high', 'xhigh', 'max']
-export const COVEN_POLICIES = ['auto', 'all', 'solo']
+export const ROSTER_POLICIES = ['auto', 'all', 'solo']
 export const ROLES = ['worker', 'auditor', 'refiner', 'servitor']
 // How a run's provision list was derived. 'explicit' = pinned by the user;
 // 'manifest'/'ci'/'onboarding'/'structural' = scouted (descending authority);
@@ -26,9 +26,12 @@ export const DEFAULTS = {
     servitor: { model: 'sonnet', effort: 'default' },
   },
   audit: {
-    covenSize: 3,
-    lenses: ['correctness', 'cascading-impact', 'plan-faithfulness'],
-    covenPolicy: 'all',
+    roster: [
+      { lens: 'correctness', depth: 'deep' },
+      { lens: 'cascading-impact', depth: 'deep' },
+      { lens: 'plan-faithfulness', depth: 'deep' },
+    ],
+    rosterPolicy: 'all',
     autoEscalate: true,
   },
   run: { roundLimit: 3, afk: false, ace: false, provision: [], provisionSource: 'none', provisionAuto: true },
@@ -41,12 +44,12 @@ export const PRESETS = {
   thorough: {
     profile: 'thorough',
     agents: { worker: { model: 'opus', effort: 'max' }, auditor: { model: 'opus', effort: 'high' } },
-    audit: { covenPolicy: 'all' },
+    audit: { rosterPolicy: 'all' },
   },
   economy: {
     profile: 'economy',
     agents: { worker: { model: 'sonnet', effort: 'default' }, auditor: { model: 'sonnet', effort: 'default' } },
-    audit: { covenPolicy: 'solo' },
+    audit: { rosterPolicy: 'solo' },
     run: { roundLimit: 2 },
   },
 }
@@ -88,9 +91,13 @@ export function validate(input) {
   }
 
   const au = c.audit
-  if (!Number.isInteger(au.covenSize) || au.covenSize < 1) errors.push(`audit.covenSize must be an integer >= 1 (got ${JSON.stringify(au.covenSize)})`)
-  if (!Array.isArray(au.lenses) || au.lenses.length < 1 || !au.lenses.every(l => typeof l === 'string' && l)) errors.push('audit.lenses must be a non-empty array of strings')
-  if (!COVEN_POLICIES.includes(au.covenPolicy)) errors.push(`audit.covenPolicy must be one of ${COVEN_POLICIES.join('|')} (got ${JSON.stringify(au.covenPolicy)})`)
+  // D3 courtesy errors: legacy keys survive fillDefaults (deepMerge keeps unknown keys), so detect
+  // them on c.audit directly. Crisp validation errors ARE the migration — no shims, no ignored keys.
+  if (Object.prototype.hasOwnProperty.call(au, 'covenSize')) errors.push('audit.covenSize was removed (seat count = roster length) — run /war-room to regenerate the config')
+  if (Object.prototype.hasOwnProperty.call(au, 'lenses')) errors.push('audit.lenses was removed (lenses live on audit.roster seats) — run /war-room to regenerate the config')
+  if (Object.prototype.hasOwnProperty.call(au, 'covenPolicy')) errors.push('audit.covenPolicy was renamed to audit.rosterPolicy — run /war-room to regenerate the config')
+  for (const e of validateRoster(au.roster).errors) errors.push(`audit.${e}`)
+  if (!ROSTER_POLICIES.includes(au.rosterPolicy)) errors.push(`audit.rosterPolicy must be one of ${ROSTER_POLICIES.join('|')} (got ${JSON.stringify(au.rosterPolicy)})`)
   if (typeof au.autoEscalate !== 'boolean') errors.push('audit.autoEscalate must be a boolean')
 
   if (!Number.isInteger(c.run.roundLimit) || c.run.roundLimit < 1) errors.push(`run.roundLimit must be an integer >= 1 (got ${JSON.stringify(c.run.roundLimit)})`)
@@ -138,13 +145,36 @@ export function resolveProvision(config) {
   return { provision: [], source: 'none', scout: run.provisionAuto === true }
 }
 
-// Lenses for a task's audit round: one seat unless task.coven, then covenSize seats
-// rotating through the task's lenses. MIRRORED inline in workflow-template.js. Keep in sync.
-export function covenSeats(config, task) {
-  const lenses = task.lenses && task.lenses.length ? task.lenses : DEFAULTS.audit.lenses
-  if (!task.coven) return [lenses[0]]
-  const size = (config.audit && config.audit.covenSize) || lenses.length
-  return Array.from({ length: size }, (_, i) => lenses[i % lenses.length])
+// Roster validation (D8): a roster is an array of 1–5 seats; each seat an object with a
+// non-empty string lens; depth absent or one of neighbors|deep; lenses distinct.
+// Returns { valid, errors: [string] }. MIRRORED inline in workflow-template.js. Keep in sync.
+export function validateRoster(roster) {
+  const errors = []
+  if (!Array.isArray(roster) || roster.length < 1 || roster.length > 5) {
+    errors.push(`roster must be an array of 1-5 seats (got ${JSON.stringify(roster)})`)
+    return { valid: false, errors }
+  }
+  const seen = []
+  roster.forEach((seat, i) => {
+    if (seat === null || typeof seat !== 'object' || Array.isArray(seat)) { errors.push(`roster[${i}] must be an object { lens, depth? }`); return }
+    if (typeof seat.lens !== 'string' || !seat.lens) errors.push(`roster[${i}].lens must be a non-empty string`)
+    else if (seen.includes(seat.lens)) errors.push(`roster[${i}].lens "${seat.lens}" duplicates an earlier seat (lenses must be distinct)`)
+    else seen.push(seat.lens)
+    if (seat.depth !== undefined && seat.depth !== 'neighbors' && seat.depth !== 'deep') errors.push(`roster[${i}].depth must be "neighbors" or "deep" when present (got ${JSON.stringify(seat.depth)})`)
+  })
+  return { valid: errors.length === 0, errors }
+}
+
+// Lone-seat auto-escalation union (D5): keep the existing seats, append default entries whose
+// lenses are absent (at their configured depths), cap 5 — union, never replacement, so the Lead's
+// chosen lens is never discarded. MIRRORED inline in workflow-template.js. Keep in sync.
+export function widenRoster(roster, defaultRoster) {
+  const out = [...roster]
+  for (const seat of defaultRoster || []) {
+    if (out.length >= 5) break
+    if (!out.some(s => s.lens === seat.lens)) out.push(seat)
+  }
+  return out
 }
 
 // Self-discovering multi-runner gate (F12).
