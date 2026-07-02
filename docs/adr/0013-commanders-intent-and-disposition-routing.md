@@ -1,6 +1,6 @@
 # Commander's intent and disposition routing — licensed judgment over plan literalism; issues become affirmative acts
 
-**Status:** proposed (design ratified in the 2026-07-02 clean-handoff review; implementation pending — see the spec)
+**Status:** accepted (2026-07-02 — design ratified in the clean-handoff review; implemented in `skills/war/assets/workflow-template.js` + the worker/auditor standing files by the clean-handoff plan's Phase 1; amended per the two-homes ruling, Decision 2)
 
 WAR's agents had exactly one yardstick: the plan's literal text. The auditor's plan-faithfulness lens judged
 work against the slice ("the plan did not authorize"), severity was the only routing signal (every Minor/Nit
@@ -25,7 +25,11 @@ findings route once judgment is licensed. Full mechanics:
    The authoring skill (`/war-strategy`'s interview beat) may draft from operator answers and may propose a
    full block — it must echo it back and obtain explicit confirmation (provenance `user-confirmed`) before
    the plan is complete. It never silently invents intent; a `--afk` run with no intent section degrades to
-   today's literal behavior rather than running on Lead-invented purpose.
+   today's literal behavior rather than running on Lead-invented purpose. *(Amended — the two-homes ruling,
+   2026-07-02: the interview beat lives in BOTH `/war-strategy` homes. On a bare invoke it ships as a
+   handoff **directive** the downstream authoring skill executes — draft only from operator answers, echo
+   the block back, obtain explicit confirmation; in with-artifact convert mode `/war-strategy` authors the
+   war-shaped plan itself and runs the intent echo-back **inline**.)*
 3. **The plan slice is the floor; the intent is the ceiling.** Threaded as `args.intent` into worker,
    auditor, ace/sweep, gate-audit, and servitor prompts. For auditors: work beyond the literal slice that
    serves the intent is APPROVE (judged on its own correctness), never a plan-faithfulness violation; only

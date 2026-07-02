@@ -21,7 +21,7 @@ WAR re-implements Steve Yegge's [Gas Town](https://github.com/gastownhall/gastow
 - **Perspective diversity (roster):** each seat gets a distinct lens (duplicates fail validation) — correctness / cascading-impact / plan-faithfulness, swapping or adding a domain lens (healthcare-safety, security) on flagged code. **[HARD for multi-seat value]**
 - **Plan faithfulness:** check the change against the plan **slice** the task owns (one plan file → many tasks; never 1:1). Degrade to code-only if no slice is discoverable. **[HARD]**
 - **round_limit = 3:** after 3 dissenting rounds, escalate `audit-blocked` + halt. Only a genuine `request_changes` advances the counter — infra faults don't. **[TUNE value, HARD mechanism]**
-- **Severity:** findings tagged Critical/Major/Minor/Nit; **Critical/Major block**, Minor/Nit → follow-up issues. (Gas Town's gate was binary; WAR keeps the binary block but tags severity for triage.) **[HARD]**
+- **Severity + disposition:** findings tagged Critical/Major/Minor/Nit; **Critical/Major block**; every Minor/Nit routes by auditor-owned **disposition** — `absorb` (fixed in-phase: per-task ace or the phase-close sweep), `follow-up` (files an issue, with why-not-absorbable), or `note` (phase report + servitor feed, never an issue); omitted → Minor becomes follow-up, Nit becomes note, `absorb` never defaulted (ADR 0013). (Gas Town's gate was binary; WAR keeps the binary block, tags severity for triage, and routes the non-blocking tail by disposition.) **[HARD]**
 - **Wall-clock (optional):** a soft deadline notifies the Lead; it never force-merges or auto-fails. **[HARD principle]**
 
 ## Refinery → `war-refiner` + Workflow

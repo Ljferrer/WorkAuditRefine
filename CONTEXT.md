@@ -281,6 +281,56 @@ It **auto-skips** a `requiresTest:false` task (no mapped tests ⇒ its HARD path
 is logged, never silent, and there is no operator off-switch.
 _Avoid_: audit-gate, "the additional audit"; treating it as a second full audit; a Lead-flippable toggle.
 
+### Clean handoff (intent + disposition)
+
+**Commander's Intent**:
+The plan's `## Commander's Intent` section — **Purpose** (why), **Method** (how the operator envisions
+winning; the latitude bounds), **End state** (numbered, individually *checkable* conditions).
+Staff-drafted, commander-confirmed: an authoring skill may draft it from operator answers, but the
+operator's explicit confirmation is the gate. The Lead extracts it **verbatim** into `args.intent`;
+a missing section → `intent = null` and the run degrades to literal plan behavior — never Lead-invented.
+_Avoid_: mission statement, goals (neither carries the checkable End state); Lead-synthesized intent.
+
+**Intent ceiling / plan floor**:
+The latitude rule a threaded intent licenses: the plan slice is the **floor** (must be satisfied), the
+Commander's Intent is the **ceiling** (bounds judgment beyond the slice). Intent-consistent work beyond
+the literal slice is APPROVE, judged on its own correctness — never a plan-faithfulness violation; only
+deviations that contradict the intent or the slice block. No intent ⇒ judge against the slice alone.
+_Avoid_: plan literalism as a virtue; latitude as unbounded scope.
+
+**Disposition** (`absorb` | `follow-up` | `note`):
+The auditor-owned routing of a Minor/Nit finding, orthogonal to severity: fix it this phase (`absorb` —
+the per-task ace, or the phase-close sweep when `phaseClose:true`/release-slot-adjacent), file it as an
+affirmative issue (`follow-up` — must state why it is not absorbable), or record it without filing
+(`note` — phase report + servitor feed). Omitted → Minor becomes follow-up, Nit becomes note; `absorb`
+is never a default. A failed or ineligible route **demotes one step toward durability**, logged — never
+dropped silently.
+_Avoid_: autoFixable (deprecated legacy alias for absorb); severity as the routing signal.
+
+**Phase-close coherence sweep**:
+The fail-open polish pass at a would-land phase's **integrated tip**: one worker in a `_polish` worktree
+fixes ONLY the queued `phaseClose` absorb findings, a full default-roster panel re-audits the polish SHA,
+and the refiner merges it at the serial queue's tail — or **discards** it (branch + worktree left in
+place; queue demotes to follow-up) and the pre-polish tip lands exactly as it would have. It may only
+improve the tip; a discarded sweep recomputes nothing.
+_Avoid_: cleanup phase; ad-hoc seam hunting; treating a discard as a failure that holds the land.
+
+**Dep-wave visibility**:
+The mechanism by which a task's declared `deps` grant **code visibility**, not just ordering: the
+worker's first action is `git rebase <integrationBranch>` in its own worktree (a pure fast-forward on
+first dispatch), so its base includes the merged dep content. Same-repo deps only — `gitlink-bump`
+tasks are excluded (their dep merged into the submodule repo). Doctrine: dependency ⇒ **wave** edge;
+phase edges remain for what must be *landed* first.
+_Avoid_: repin/reset scripts (never-reset-on-reuse stands); dependency ⇒ phase edge as the default.
+
+**Clean handoff**:
+The end-state a phase owes the next: a tip whose quality debt is **zero or enumerated and intentional**
+— every finding absorbed (commit-cited), filed (issue + why-not-absorbable), or noted (report) — plus a
+machine-readable `handoff` block (`{ tipSha, polish, absorbed, followUps, notes, endState,
+intentPresent }`) emitted on `landed` and `held:escalation` for the next phase's decompose.
+_Avoid_: follow-up issues as the default disposal; a handoff block on `held:workflow-error` (infra
+death has no trustworthy return to render).
+
 ### Test discipline
 
 **Test floor**:
