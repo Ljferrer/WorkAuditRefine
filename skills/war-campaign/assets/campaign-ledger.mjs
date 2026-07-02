@@ -301,17 +301,15 @@ function main() {
       break
     }
     case 'record': {
-      console.log(JSON.stringify(
-        record(campaignDir, {
-          plan: args.plan,
-          status: args.status,
-          branch: args.branch,
-          pr: args.pr ? Number(args.pr) : undefined,
-          sha: args.sha,
-        }),
-        null,
-        2,
-      ))
+      // Build the update CONDITIONALLY — record() stamps every own key, and
+      // JSON.stringify drops undefined, so an unconditional key would silently
+      // DELETE an existing value when its flag is omitted (#422 items 4+6).
+      const update = { plan: args.plan }
+      for (const key of ['status', 'branch', 'sha', 'stopPoint']) {
+        if (Object.prototype.hasOwnProperty.call(args, key)) update[key] = args[key]
+      }
+      if (Object.prototype.hasOwnProperty.call(args, 'pr')) update.pr = Number(args.pr)
+      console.log(JSON.stringify(record(campaignDir, update), null, 2))
       break
     }
     default:
