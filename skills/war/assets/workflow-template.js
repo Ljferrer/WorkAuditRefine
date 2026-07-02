@@ -14,11 +14,15 @@ export const meta = {
 // ---------------------------------------------------------------------------
 // args (passed by the Lead — see ../references/schemas.md):
 //   args may arrive as an object OR a JSON string (auto-parsed at the top of this file).
-//   { phase: { id, title, integrationBranch, workingBranch },
+//   { phase: { id, title, integrationBranch, workingBranch, epicIssue?, endState?: [condition] },
+//              // endState: the Commander's-Intent End-state conditions THIS phase claims (Lead-mapped);
+//              // checked by the gate-audit pass — later-phase conditions are out-of-scope there, never a hold
 //     plan:  { file, gate },          // gate = a shell command, run BY agents (this script has no shell/fs)
 //     tasks: [ { id, issue, title, branch, worktree, deps:[id],
 //                roster:[{ lens, depth? }], planSlice } ],       // roster: 1–5 distinct-lens audit seats; depth omitted → 'deep'
 //     learningsTarget,                // the servitor's only writable path (memory dir or docs/learnings/)
+//     intent,                         // Commander's Intent, extracted VERBATIM by the Lead from the plan's
+//                                     // `## Commander's Intent` section (string|null; null/absent ⇒ literal behavior, ADR 0013)
 //     agentPrefix,                    // optional namespace prefix for agent types (default: 'work-audit-refine:')
 //     agents: { worker|auditor|refiner|servitor: { model, effort } },  // from .claude/war/config.json (resolved by the Lead); defaults below
 //     audit:  { roster, rosterPolicy, autoEscalate },                  // rosterPolicy seeds task.roster Lead-side; audit.roster is the union-widening default roster; autoEscalate used here
@@ -36,9 +40,15 @@ const WORKER_RESULT = { type: 'object', required: ['task_id', 'status'], propert
 const AUDIT_VERDICT = { type: 'object', required: ['seat', 'lens', 'verdict', 'findings', 'confidence'], properties: {
   seat: { type: 'string' }, lens: { type: 'string' }, audit_sha: { type: 'string' },
   verdict: { enum: ['approve', 'request_changes', 'escalate'] },
-  findings: { type: 'array', items: { type: 'object', properties: {
+  findings: { type: 'array', items: { type: 'object', required: ['severity'], properties: {
     severity: { enum: ['Critical', 'Major', 'Minor', 'Nit'] }, title: { type: 'string' }, file: { type: 'string' },
-    line: { type: 'number' }, rationale: { type: 'string' }, suggested_fix: { type: 'string' }, plan_ref: { type: 'string' } } } },
+    line: { type: 'number' }, rationale: { type: 'string' }, suggested_fix: { type: 'string' }, plan_ref: { type: 'string' },
+    // Disposition routing (ADR 0013): auditor-owned, orthogonal to severity. Omitted → severity default
+    // (Minor → follow-up, Nit → note; 'absorb' is never defaulted). phaseClose:true routes an absorb to
+    // the phase-close queue. autoFixable is DEPRECATED — legacy alias for disposition:'absorb', honored
+    // one release, removed next release.
+    disposition: { enum: ['absorb', 'follow-up', 'note'] }, phaseClose: { type: 'boolean' },
+    autoFixable: { type: 'boolean' } } } },
   tests_verified: { type: 'object' }, confidence: { enum: ['high', 'medium', 'low'] }, escalate_reason: { type: 'string' } } }
 
 const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties: {
@@ -66,6 +76,18 @@ const A = typeof args === 'string' ? JSON.parse(args) : (args || {})
 const { phase: ph, plan, tasks, learningsTarget, agents = {}, audit = {}, run = {} } = A
 const NS = A.agentPrefix ?? 'work-audit-refine:'
 const roundLimit = run.roundLimit ?? 3
+// Commander's Intent (ADR 0013): extracted VERBATIM by the Lead from the plan's `## Commander's
+// Intent` section and threaded as args.intent (string|null). null/absent ⇒ intentClause is '' and
+// every prompt below is byte-identical to an intent-less run (criterion 10) — literal behavior.
+const intent = (typeof A.intent === 'string' && A.intent) ? A.intent : null
+const intentClause = intent
+  ? `\nCOMMANDER'S INTENT (the operator's purpose — your ceiling; the plan slice is your floor):\n${intent}\n`
+  : ''
+// Phase-scoped End-state claims (ADR 0013): the intent's numbered End-state conditions THIS phase
+// claims (Lead-mapped). Verified by the gate-audit pass; a later-phase condition is out-of-scope
+// there, never a hold.
+const endStateClaims = Array.isArray(ph && ph.endState)
+  ? ph.endState.filter(c => typeof c === 'string' && c) : []
 // Repo-derived provisioning (Part B). The Lead resolves run.provision from war-config.mjs
 // (resolveProvision: explicit list verbatim, else scouted) and threads it here. This is a MIRROR of
 // war-config.mjs's run.provision/run.provisionSource reads — that module is the tested source of
@@ -133,9 +155,17 @@ const succeeded = new Set()
 // Hoisted above try{} so the catch block can reference them even when the derivation throw fires
 // before any wave runs (temporal dead zone guard — red-team T1-confirmed).
 const landed = [], escalated = [], minorsFiled = [], auditLog = []
+// Disposition routing (ADR 0013): minorsFiled receives ONLY disposition:'follow-up' findings;
+// notes receives disposition:'note' findings (phase report + servitor feed — memory candidates,
+// never issues).
+const notes = []
 // --ace provenance (D3): aced findings recorded as { task, finding, sha } — a return ATTRIBUTE, not a
-// status/escalation (D6). Un-aced RESIDUAL nits still file to minorsFiled as war-followup exactly as today.
+// status/escalation (D6). Under disposition routing (ADR 0013) `aced` also records the phase-close
+// sweep's absorbed findings at the polish sha.
 const aced = []
+// Phase-close queue (ADR 0012): absorb findings the per-task ace cannot reach (phaseClose:true or a
+// release-slot filename) — drained by the phase-close coherence sweep at the integrated tip.
+const phaseCloseQueue = []
 const mergedTasksForGateAudit = []   // collect {taskId, gateOutput, acceptanceCriteria, gateHeadSha} for post-merge gate-audit pass (F04 R3)
 
 try {
@@ -194,11 +224,28 @@ const provisionClause = provisionList.length
 
 const blockingOf = seats => seats.flatMap(s => s.findings || []).filter(f => f.severity === 'Critical' || f.severity === 'Major')
 const minorsOf   = seats => seats.flatMap(s => s.findings || []).filter(f => f.severity === 'Minor' || f.severity === 'Nit')
+// Disposition classification (ADR 0013): auditor-owned routing, orthogonal to severity. Defaults
+// when omitted: Minor → 'follow-up', Nit → 'note'; 'absorb' is NEVER defaulted. Legacy
+// autoFixable:true reads as 'absorb' for one release (deprecated — removed next release).
+const dispositionOf = f =>
+  (f.disposition === 'absorb' || f.disposition === 'follow-up' || f.disposition === 'note') ? f.disposition
+  : f.autoFixable === true ? 'absorb'
+  : f.severity === 'Minor' ? 'follow-up' : 'note'
+// Terminal-disposition demotion ladder (ADR 0013): demote one step toward durability, never drop
+// silently — EVERY demotion is log()ged. Arms: failed absorb → follow-up; non-approve-branch
+// findings → follow-up (filed with the escalation); held-phase phaseCloseQueue → follow-up;
+// fileless absorb → severity default.
+const demote = (f, to, why) => {
+  log(`Disposition demotion: [${f.severity}] "${f.title}" (task ${f.task}) → ${to} — ${why}.`)
+  ;(to === 'note' ? notes : minorsFiled).push(f)
+}
 // --ace release-slot STRING backstop only (D4). The sandbox can't read files, so the ORCHESTRATOR's
 // one enforceable refusal is the release-slot filename check; the AUDITOR (which reads code) owns the
-// mechanical / non-load-bearing / no-ponytail-line refusals via finding.autoFixable. README.md is
-// refused wholesale (conservative). Requires a file — a fileless finding is never ace-eligible.
-const aceEligible = f => f.file && !/(?:plugin\.json|marketplace\.json|README\.md)$/.test(f.file)
+// mechanical / non-load-bearing / no-ponytail-line refusals via finding.disposition. Narrowed to the
+// two pure version-slot JSONs (ADR 0013): README/shared-file absorb findings are no longer refused —
+// they route to phaseCloseQueue. Requires a file — a fileless finding is never ace-eligible (it takes
+// the severity-default demotion instead).
+const aceEligible = f => f.file && !/(?:plugin\.json|marketplace\.json)$/.test(f.file)
 const allApprove = (seats, expected) => seats.length === expected && seats.every(s => s.verdict === 'approve')
 const isSplit    = seats => seats.some(s => s.verdict === 'approve') && seats.some(s => s.verdict === 'request_changes')
 // → reason string if the worker did not deliver (null/dead or self-reported blocked), else null
@@ -206,6 +253,27 @@ const isSplit    = seats => seats.some(s => s.verdict === 'approve') && seats.so
 const blockedReason = r => !r ? 'worker returned no result'
   : (r.status === 'blocked' ? (r.blocked_reason || 'worker returned no result') : null)
 const nextWave   = () => tasks.filter(t => !done.has(t.id) && (t.deps || []).every(d => succeeded.has(d)))
+
+// Force-with-lease carve-out (ADR 0012). ONE canonical sentence, mirrored VERBATIM in
+// agents/war-worker.md (standing surface) — the two surfaces are independent and both load-bearing;
+// the both-surfaces unit test byte-compares this string. Keep them identical in the same commit.
+const FORCE_WITH_LEASE_RULE = 'You may `git push --force-with-lease` ONLY your own task branch, and ONLY after a dispatch-rebase diverged it from its pushed remote — never any other ref, never for any other reason.'
+// Dep-wave visibility (ADR 0012): a deps-bearing SAME-REPO task sees its merged dep content by
+// rebasing onto the integration branch FIRST. Scoped by taskType — 'gitlink-bump' is EXCLUDED (its
+// dep merged into the SUBMODULE repo's integration branch; this clause would assert a merge that
+// happened in a different repo). Dep-less tasks are untouched: the frozen phase base stays HARD for
+// same-wave parallel tasks.
+const depClause = task => ((task.deps || []).length > 0 && task.taskType !== 'gitlink-bump')
+  ? `DEPS ALREADY MERGED: this task declares deps [${(task.deps || []).join(', ')}] whose content is already merged into ${ph.integrationBranch}. `
+    + `FIRST ACTION — before reading or writing anything else — run \`git -C ${task.worktree} rebase ${ph.integrationBranch}\` so your base includes the merged dep content (a first-dispatch task branch has zero commits of its own, so this rebase is a pure fast-forward). `
+    + `If the rebase CONFLICTS (possible only on a resume with existing commits): abort it and return status:"blocked" with the conflict files in blocked_reason — NEVER resolve the conflict yourself. `
+    + FORCE_WITH_LEASE_RULE + `\n`
+  : ''
+// Worker-facing intent block (ADR 0013): the generic intent clause plus the worker's licensed-
+// judgment sentence. Empty when intent is absent (byte-compatible prompts, criterion 10).
+const workerIntentClause = intent
+  ? intentClause + `Use the intent to resolve ambiguity in your slice; intent-consistent deviation is in-band — note it in your result.\n`
+  : ''
 
 function auditPrompt(task, lens, depth, peers, workerTests) {
   let p = `Audit WAR task ${task.id} through the "${lens}" lens at depth ${depth}.\n`
@@ -215,6 +283,11 @@ function auditPrompt(task, lens, depth, peers, workerTests) {
     + `Avoid %-format strings (e.g. --pretty=format:%H) and @{} reflog syntax — those are denied by the read-only guard.\n`
     + `Then read candidate files under ${task.worktree}/ for neighbor/deep context.\n`
     + `Verify the mapped acceptance-criteria tests EXIST and are not weakened or skipped (anti-cheat: catch "green by deletion" and test-integrity erosion). You cannot execute the gate — the refiner runs the gate. Your job is to confirm tests exist in the diff and are uncompromised.`
+    // Latitude + disposition rules (ADR 0013) — mirrored VERBATIM in agents/war-auditor.md (standing
+    // surface, same commit); the both-surfaces unit test asserts the shared sentences on both.
+    + `\nLATITUDE RULE: the plan slice is the floor, the Commander's Intent is the ceiling — intent-consistent work beyond the literal slice is APPROVE (judge it on its own correctness), never a plan-faithfulness violation; only deviations that contradict the intent or the slice block. No intent threaded means judge against the plan slice alone, as before.`
+    + `\nDISPOSITION RULE: every Minor/Nit finding carries a disposition — absorb (mechanical, intent-consistent, safe to fix this phase; set phaseClose:true when the fix needs the integrated tip or touches a shared/slot-adjacent file), follow-up (substantive work beyond this phase — MUST state why it is not absorbable), or note (informational; phase report + servitor feed, never an issue). Omitted disposition defaults: Minor becomes follow-up, Nit becomes note; absorb is never a default.`
+    + intentClause
   if (workerTests) {
     p += `\n\nWorker-reported tests summary (cross-check claim vs diff): ${JSON.stringify(workerTests)}`
   }
@@ -344,9 +417,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + `Run: git -C ${mainCheckout || '<superproject>'} add ${submodPath} — stage the submodule at the dep SHA, then commit the bump.`
     }
     const impl = await agent(
-      `Implement WAR task ${task.id} in the ALREADY-PROVISIONED worktree at ${task.worktree} (branch ${task.branch}, cut from ${ph.integrationBranch}).\n`
+      depClause(task)
+      + `Implement WAR task ${task.id} in the ALREADY-PROVISIONED worktree at ${task.worktree} (branch ${task.branch}, cut from ${ph.integrationBranch}).\n`
       + `The refiner's Provision barrier already created this worktree and its .war-task marker — do NOT create it yourself and do NOT set any worktree env var. cd into ${task.worktree} and work only inside it; commit and push ${task.branch}.\n`
-      + `Sub-issue #${task.issue} — ${task.title}\nPlan slice: ${task.planSlice}\nPlan file: ${plan.file}\nGate: ${plan.gate}${provisionClause}${workerExtraCtx}`,
+      + `Sub-issue #${task.issue} — ${task.title}\nPlan slice: ${task.planSlice}\nPlan file: ${plan.file}\nGate: ${plan.gate}${workerIntentClause}${provisionClause}${workerExtraCtx}`,
       { agentType: NS + 'war-worker', phase: 'Work', label: `work:${task.id}`, schema: WORKER_RESULT, ...spawn('worker') })
 
     const why = blockedReason(impl); if (why) return { task, verdict: 'escalate', seats: [], expected: 0, blocked: why }
@@ -395,23 +469,38 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     // Carry the audit-loop round counter onto the task object so the no-test sub-loop
     // continues the SHARED budget (not a fresh counter — that would double the allowance).
     r.task.fixRounds = r.round ?? 0
-    minorsFiled.push(...minorsOf(r.seats || []).map(f => ({ task: r.task.id, ...f })))
+    // Classify-at-collection (ADR 0013): each Minor/Nit routes ONCE, by disposition — replacing the
+    // old eager minorsFiled push + aced-splice. Routed per verdict branch below.
+    const taskMinors = minorsOf(r.seats || []).map(f => ({ task: r.task.id, ...f }))
     auditLog.push({ task: r.task.id, verdict: r.verdict, findings: (r.seats || []).flatMap(s => s.findings || []), blocked: r.blocked, requested: r.expected, returned: (r.seats || []).length, fixRounds: r.task.fixRounds })
     done.add(r.task.id)
     if (r.verdict === 'approve') {
-      // --ace: opt-in, fail-closed pre-merge polish of auditor-flagged nits. Single attempt (D1/D2/D5).
+      // Disposition routing (ADR 0013). absorb splits further: fileless → severity default
+      // (demotion); --ace off → follow-up (demotion — absorb execution rides run.ace, per-task ace
+      // AND phase-close sweep alike); eligible → per-task ace exactly as today; phaseClose:true or
+      // a release-slot filename → phaseCloseQueue (the sweep's feed).
+      const aceable = []
+      for (const f of taskMinors) {
+        const d = dispositionOf(f)
+        if (d === 'follow-up') minorsFiled.push(f)
+        else if (d === 'note') notes.push(f)
+        else if (!f.file) demote(f, f.severity === 'Minor' ? 'follow-up' : 'note', 'fileless absorb takes the severity default (never ace-eligible)')
+        else if (!run.ace) demote(f, 'follow-up', 'absorb requires --ace (off this run)')
+        else if (!f.phaseClose && aceEligible(f)) aceable.push(f)
+        else phaseCloseQueue.push(f)
+      }
+      // --ace: opt-in, fail-closed pre-merge polish of absorb-disposition findings. Single attempt (D1/D2/D5).
       // Sits at the TOP of the approve branch, BEFORE the merge dispatch: the ace worker commits one fix,
       // a fresh auditRound re-audits at the new sha; if re-approved the merge runs on the polished tip,
       // else the merge dispatch forward-reverts the ace commit (D2 — NEVER escalate; the approved work still lands).
-      const aceable = run.ace ? minorsOf(r.seats || []).filter(f => f.autoFixable === true && aceEligible(f)) : []
       let aceSha = null
-      if (run.ace && blockingOf(r.seats).length === 0 && aceable.length && r.task.fixRounds < roundLimit) {
+      if (blockingOf(r.seats).length === 0 && aceable.length && r.task.fixRounds < roundLimit) {
         const ace = await agent(
           `ADVISORY POLISH (--ace) for WAR task ${r.task.id}. Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
-          + `This task is ALREADY APPROVED. These are auditor-flagged auto-fixable Minor/Nit findings — apply the smallest mechanical fix for EACH, keep the gate green, and make EXACTLY ONE commit whose message cites each finding's title + rationale:\n`
+          + `This task is ALREADY APPROVED. These are auditor-flagged absorb-disposition Minor/Nit findings — apply the smallest mechanical fix for EACH, keep the gate green, and make EXACTLY ONE commit whose message cites each finding's title + rationale:\n`
           + aceable.map((f, i) => `${i + 1}. [${f.severity}] ${f.title} (${f.file}${f.line ? ':' + f.line : ''}) — ${f.rationale}${f.suggested_fix ? ` → ${f.suggested_fix}` : ''}`).join('\n') + '\n'
           + `Make ONE commit only (the panel re-audits it at the new sha; on regression it is forward-reverted). Do NOT touch version/release slots. Commit and push ${r.task.branch}.`
-          + provisionClause,
+          + intentClause + provisionClause,
           { agentType: NS + 'war-worker', phase: 'Audit', label: `ace:${r.task.id}:r${r.task.fixRounds + 1}`, schema: WORKER_RESULT, ...spawn('worker') })
         const aceWhy = blockedReason(ace)
         // WORKER_RESULT's commit field is `head_sha` (NOT `sha` — no worker result carries `.sha`).
@@ -423,24 +512,34 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           aceSha = ace.head_sha /* the single ace commit */
           const { seats: reSeats, expected: reExpected } = await auditRound(r.task, null, null)   // re-pin + re-audit at the new sha (D1)
           if (allApprove(reSeats, reExpected) && blockingOf(reSeats).length === 0) {
-            r.seats = reSeats                          // merge proceeds on the polished tip; aced recorded below
-            r.acedFindings = aceable                   // the findings this ace commit resolved (for the aced list / minorsFiled recompute)
+            r.seats = reSeats                          // merge proceeds on the polished tip
             r.aceSha = aceSha
+            // aced provenance (D3): the findings this ace commit resolved. No splice needed —
+            // classify-at-collection never eagerly filed them.
+            for (const f of aceable) aced.push({ task: f.task, finding: f, sha: aceSha })
+            // Route the re-audit round's OWN Minor/Nits too (never drop silently): the single ace
+            // attempt is spent, so a fresh absorb here takes the failed-absorb demotion.
+            for (const f of minorsOf(reSeats).map(x => ({ task: r.task.id, ...x }))) {
+              const d = dispositionOf(f)
+              if (d === 'follow-up') minorsFiled.push(f)
+              else if (d === 'note') notes.push(f)
+              else demote(f, 'follow-up', 'failed absorb — the single ace attempt is already spent (re-audit round finding)')
+            }
           } else {
             r.aceReverted = aceSha                     // D2: merge dispatch prepends `git revert --no-edit <aceSha>`; never escalate
             aceSha = null
+            // Demotion arm: failed absorb (re-audit regression → forward-revert) → follow-up.
+            for (const f of aceable) demote(f, 'follow-up', 'failed absorb — ace re-audit regressed; the ace commit is forward-reverted')
           }
-        } // aceWhy or falsy head_sha: log, fall through to the normal merge-and-file on the un-aced approved tip (never hold)
-      }
-      // D3 minorsFiled recompute + aced list: for an aced task, the findings this ace commit resolved move
-      // from minorsFiled (already pushed eagerly at the top of the loop) to `aced`. Only un-aced RESIDUAL
-      // nits stay in minorsFiled. Keyed on title+file (findings carry no id). A no-op when nothing was aced.
-      if (r.acedFindings && r.acedFindings.length && r.aceSha) {
-        for (const f of r.acedFindings) {
-          aced.push({ task: r.task.id, finding: f, sha: r.aceSha })
-          const i = minorsFiled.findIndex(m => m && m.task === r.task.id && m.title === f.title && m.file === f.file)
-          if (i !== -1) minorsFiled.splice(i, 1)
+        } else {
+          // aceWhy or falsy head_sha: fall through to the normal merge on the un-aced approved tip
+          // (never hold). Demotion arm: failed absorb (ace blocked / no usable head_sha) → follow-up.
+          for (const f of aceable) demote(f, 'follow-up', `failed absorb — ${aceWhy || 'ace worker returned no usable head_sha'}`)
         }
+      } else if (aceable.length) {
+        // Demotion arm: failed absorb — ace unavailable (open blocking findings or exhausted fix
+        // budget) → follow-up. Never dropped silently.
+        for (const f of aceable) demote(f, 'follow-up', 'failed absorb — ace unavailable (open blocking findings or exhausted fix budget)')
       }
       const refineryPath = `${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/_refinery`
       const requiresTest = r.task.requiresTest !== false  // default true; false only when explicitly set
@@ -586,14 +685,22 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         }
       }
       else escalated.push({ task: r.task.id, reason: mr ? mr.status : 'merge_failed', detail: mr })
-    } else if (r.verdict === 'env-blocked') {
-      // Provision failure (Part B): the worker never ran and the worktree is kept. Surface the
-      // env-blocked outcome for the Lead (0 FIX rounds; siblings proceed — SKILL.md). It is a SOFT
-      // escalation: NOT in HARD_ESCALATION_REASONS, so the phase still lands whatever else passed.
-      log(`Task ${r.task.id}: env-blocked — provision step "${r.envOutcome.failedCommand}" exited ${r.envOutcome.exitCode}. Worktree kept; worker not spawned.`)
-      escalated.push({ task: r.task.id, reason: 'env-blocked', outcome: r.envOutcome })
     } else {
-      escalated.push({ task: r.task.id, reason: r.verdict, blocked: r.blocked })
+      // Demotion arm (ADR 0013): findings on a task that never reaches the approve branch demote to
+      // follow-up and are filed WITH the escalation — the old eager-push behavior, now stated.
+      for (const f of taskMinors) {
+        if (dispositionOf(f) === 'follow-up') minorsFiled.push(f)
+        else demote(f, 'follow-up', `task never reached the approve branch (verdict: ${r.verdict}) — filed with the escalation`)
+      }
+      if (r.verdict === 'env-blocked') {
+        // Provision failure (Part B): the worker never ran and the worktree is kept. Surface the
+        // env-blocked outcome for the Lead (0 FIX rounds; siblings proceed — SKILL.md). It is a SOFT
+        // escalation: NOT in HARD_ESCALATION_REASONS, so the phase still lands whatever else passed.
+        log(`Task ${r.task.id}: env-blocked — provision step "${r.envOutcome.failedCommand}" exited ${r.envOutcome.exitCode}. Worktree kept; worker not spawned.`)
+        escalated.push({ task: r.task.id, reason: 'env-blocked', outcome: r.envOutcome })
+      } else {
+        escalated.push({ task: r.task.id, reason: r.verdict, blocked: r.blocked })
+      }
     }
   }
 }
@@ -603,6 +710,16 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
 // task to close the "auditor can't verify PASS" gap with real execution evidence (not just integrity-by-reading).
 // Default outcome: SOFT note (does not hold the land). Hard only if a mapped test is provably unrun
 // (present in diff but absent / 0-count in gate_output) — Open decision #1 (resolved: operationally defined).
+// End-state check (ADR 0013, phase-scoped): rides this pass when it runs. Empty when the phase
+// claims no conditions — the gate-audit prompt stays byte-identical to today (criterion 10).
+const endStateBlock = endStateClaims.length
+  ? `\nEND-STATE CHECK (phase-scoped): this phase claims the Commander's-Intent End-state condition(s) below. Three cases, mirroring the provably-unrun/SOFT split: `
+    + `(1) a condition provably UNMET by the landed content at the CONFIRMED integration tip is HARD — record a Critical/Major finding (gate-evidence lane, holds the land); `
+    + `(2) a condition you cannot verify, or a tip you cannot confirm, is a SOFT note (Minor/Nit), never a hold; `
+    + `(3) a condition owned by a LATER phase is out-of-scope — record a Nit finding whose title contains "out-of-scope", NEVER a hold. `
+    + `Set plan_ref on EVERY End-state finding to the condition text VERBATIM (the handoff block keys endState statuses on it).\n`
+    + endStateClaims.map((c, i) => `  ${i + 1}. ${c}`).join('\n') + '\n'
+  : ''
 if (mergedTasksForGateAudit.length > 0) {
   const refineryPath = `${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/_refinery`
   // ponytail: reuse the _refinery worktree — already checked out on ph.integrationBranch at the integration tip
@@ -637,8 +754,9 @@ if (mergedTasksForGateAudit.length > 0) {
       + `Return your reviewed audit_sha so the Lead can compare it to the gate-HEAD sha.\n`
       + `Review the executed gate output below and the task's mapped acceptance criteria to confirm the mapped tests actually ran and passed.\n`
       + `Acceptance criteria / plan slice: ${acceptanceCriteria || '(see plan file)'}\n`
-      + `Executed gate output:\n${gateOutput || '(no gate output recorded)'}\n\n`
-      + `Default: SOFT. Hard only when provably unrun.`,
+      + `Executed gate output:\n${gateOutput || '(no gate output recorded)'}\n`
+      + endStateBlock + intentClause
+      + `\nDefault: SOFT. Hard only when provably unrun.`,
       { agentType: NS + 'war-auditor', phase: 'Audit',
         label: `gate-audit:${taskId}:execution-evidence`, schema: AUDIT_VERDICT, ...spawn('auditor') })
     // gate-evidence findings are SOFT (do not hold the land) UNLESS a mapped test is provably unrun (hard).
@@ -656,6 +774,27 @@ if (mergedTasksForGateAudit.length > 0) {
       }
     }
   }))
+} else if (endStateClaims.length > 0) {
+  // Roster-D7 preserved (Open decision 2): nothing to gate-audit per task, but this phase CLAIMS
+  // End-state conditions — spawn ONE End-state-only seat at the confirmed tip, so a docs-only
+  // phase cannot skip its own claimed conditions. The per-task pass's cost saving stands.
+  log(`gate-audit: mergedTasksForGateAudit is empty but this phase claims ${endStateClaims.length} End-state condition(s) — spawning ONE End-state-only seat at the confirmed tip (D7 cost saving preserved for the per-task pass).`)
+  const refineryPath = `${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/_refinery`
+  const esVerdict = await agent(
+    `END-STATE-ONLY GATE-AUDIT for WAR phase ${ph.id} (lens: execution-evidence). `
+    + `You are a READ-ONLY auditor with read-only git. The phase integration branch is checked out at `
+    + `${refineryPath} (the _refinery worktree).\n`
+    + `Confirm the tip first: run \`git -C ${refineryPath} rev-parse HEAD\` (read-only git, permitted) and report it as your audit_sha. `
+    + `If the command cannot run, every condition below is unverifiable — SOFT notes only, never a hold.\n`
+    + endStateBlock + intentClause,
+    { agentType: NS + 'war-auditor', phase: 'Audit',
+      label: `gate-audit:phase-${ph.id}:end-state`, schema: AUDIT_VERDICT, ...spawn('auditor') })
+  if (esVerdict) {
+    const findings = esVerdict.findings || []
+    const isHard = findings.some(f => f.severity === 'Critical' || f.severity === 'Major')
+    auditLog.push({ task: `phase-${ph.id}-end-state`, verdict: `gate-audit:${esVerdict.verdict}`, findings, gateEvidence: true, hard: isHard, auditSha: esVerdict.audit_sha })
+    if (isHard) escalated.push({ task: `phase-${ph.id}-end-state`, reason: 'gate-evidence', detail: esVerdict })
+  }
 }
 
 // ---- POST-LOOP SWEEP: any task still not in done[] has unresolvable deps (ghost dep) ----
@@ -684,6 +823,87 @@ let landDecision = (landed.length && !hardEscalation) ? 'landed'
   : hardEscalation ? 'held:escalation'
   : 'held:nothing-merged'
 const refineryLandPath = `${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/_refinery`
+
+// ---- PHASE-CLOSE COHERENCE SWEEP (ADR 0012) — after the land decision is computed, before the ----
+// ---- land dispatch. Fail-open: the sweep may only improve the tip — a re-approved polish merges ----
+// at the serial queue's tail and the single land below proceeds on the polished tip; anything else
+// DISCARDS and the pre-polish tip lands exactly as it would have (a discarded sweep recomputes
+// NOTHING). Gated on a would-land phase with a non-empty phaseCloseQueue. NO owned-refs
+// registration (Open decision 4) — bookkeeping is a Lead-side ledger entry + the handoff block.
+let polishStatus = 'skipped'
+if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
+  // Demotion arm (ADR 0013): a held phase never dispatches the sweep — drain the queue.
+  log(`phase-close sweep: the phase is ${landDecision} — the sweep never dispatches; draining ${phaseCloseQueue.length} queued finding(s) to follow-up.`)
+  for (const f of phaseCloseQueue.splice(0)) demote(f, 'follow-up', 'held phase — the phase-close sweep never dispatched')
+} else if (phaseCloseQueue.length > 0) {
+  const rvSweep = validateRoster(defaultRoster)
+  if (!rvSweep.valid) {
+    // Fail-open, never a hold: without a valid config default audit.roster the mandatory full-panel
+    // re-audit cannot convene (the Lead may NOT downgrade it — Open decision 1). Skip + drain.
+    log(`phase-close sweep: the config default audit.roster is unusable (${rvSweep.errors.join('; ')}) — sweep skipped; draining the queue to follow-up.`)
+    for (const f of phaseCloseQueue.splice(0)) demote(f, 'follow-up', 'sweep skipped — no valid default audit.roster for the mandatory full-panel re-audit')
+  } else {
+    const polishBranch = `war/${planSlug || '<plan-slug>'}/p${ph.id}-polish`
+    const polishWorktree = `${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/_polish`
+    // Pseudo-task (Open decision 1): sweep roster = the config default audit.roster, normalized like
+    // any task roster; issue = the phase epic; planSlice = the sweep charter.
+    const polishTask = { id: `p${ph.id}-polish`, issue: ph.epicIssue || `<phase-${ph.id}-epic>`,
+      title: `phase-close coherence sweep (phase ${ph.id})`, branch: polishBranch, worktree: polishWorktree,
+      roster: defaultRoster,
+      planSlice: `drain the phase-close queue (${phaseCloseQueue.length} finding(s)) + cross-task coherence at the integrated tip of ${ph.integrationBranch}` }
+    // 1. Provision _polish at the POST-MERGE integrated tip via the existing ensure-worktree.
+    await agent(
+      `Provision the phase-close POLISH worktree for WAR phase ${ph.id} by running provision-worktrees.sh. Do NOT free-author git; run exactly:\n`
+      + `  provision-worktrees.sh ensure-worktree ${polishWorktree} ${polishBranch} "$(git -C ${refineryLandPath} rev-parse ${ph.integrationBranch})"\n`
+      + `— the polish worktree is cut at the POST-MERGE integrated tip (idempotent; reuse if present). Report a MergeResult.`,
+      { agentType: NS + 'war-refiner', phase: 'Refine', label: `polish-worktree:phase-${ph.id}`, schema: MERGE_RESULT, ...spawn('refiner') })
+    // 2. ONE war-worker dispatch: the queued findings VERBATIM + the intent + the merged tasks' plan slices.
+    const mergedSlices = tasks.filter(t => succeeded.has(t.id)).map(t => `- ${t.id}: ${t.planSlice}`).join('\n')
+    const sweep = await agent(
+      `PHASE-CLOSE COHERENCE SWEEP for WAR phase ${ph.id} "${ph.title}". Work in the ALREADY-PROVISIONED polish worktree at ${polishWorktree} (branch ${polishBranch}, cut at the post-merge integrated tip of ${ph.integrationBranch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
+      + intentClause
+      + `Fix ONLY the queued findings below — NO ad-hoc seam hunting (the bounded, enumerated scope is what makes discard-on-reject a sufficient guard), NEVER touch version/release-slot literals, make EXACTLY ONE commit whose message cites each finding's title, keep the gate (${plan.gate}) green, and push ${polishBranch}.\n`
+      + `Queued findings (verbatim):\n`
+      + phaseCloseQueue.map((f, i) => `${i + 1}. [${f.severity}] ${f.title} (task ${f.task}${f.file ? `, ${f.file}` : ''}${f.line ? ':' + f.line : ''}) — ${f.rationale || ''}${f.suggested_fix ? ` → ${f.suggested_fix}` : ''}`).join('\n') + `\n`
+      + `Merged tasks' plan slices (context for cross-task coherence at the integrated tip):\n${mergedSlices || '(none)'}`
+      + provisionClause,
+      { agentType: NS + 'war-worker', phase: 'Work', label: `polish:phase-${ph.id}`, schema: WORKER_RESULT, ...spawn('worker') })
+    // 3. Full auditRound panel re-audit at the polish SHA — same unanimity rules as any task.
+    const sweepWhy = blockedReason(sweep)
+    let sweepApproved = false
+    if (!sweepWhy) {
+      const { seats: pSeats, expected: pExpected } = await auditRound(polishTask, null, sweep && sweep.tests ? sweep.tests : null)
+      sweepApproved = allApprove(pSeats, pExpected) && blockingOf(pSeats).length === 0
+      auditLog.push({ task: polishTask.id, verdict: sweepApproved ? 'approve' : 'polish-rejected', findings: pSeats.flatMap(s => s.findings || []), requested: pExpected, returned: pSeats.length })
+    }
+    // 4. Re-approved → the refiner merges the polish branch at the serial merge queue's tail; the
+    //    single land below then proceeds on the polished tip. Anything else → DISCARD (fail-open).
+    let pmr = null
+    if (sweepApproved) {
+      pmr = await agent(
+        `Merge WAR polish branch ${polishBranch} into ${ph.integrationBranch} at the serial merge queue's tail. mode=merge-task.\n`
+        + `  (a) REBASE in the POLISH worktree: git -C ${polishWorktree} rebase ${ph.integrationBranch} (the branch was cut at the integrated tip, so this is normally a no-op).\n`
+        + `  (b) MERGE in _refinery: cd ${refineryLandPath} (on ${ph.integrationBranch}), then git merge ${polishBranch} (fast-forward merge). Push.\n`
+        + `Run the gate (${plan.gate}) after the rebase in the polish worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)). The polish commit is a coherence sweep, not a mapped-test task — skip assert-test-in-diff.sh. On gate failure return gate_failed; on conflict return conflict; never force.`,
+        { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:p${ph.id}-polish`, schema: MERGE_RESULT, ...spawn('refiner') })
+    }
+    if (sweepApproved && pmr && pmr.status === 'merged') {
+      polishStatus = 'merged'
+      const polishSha = (typeof sweep.head_sha === 'string' && sweep.head_sha) ? sweep.head_sha : '(polish sha unrecorded)'
+      log(`phase-close sweep MERGED at ${polishSha} — the land proceeds on the polished tip; ${phaseCloseQueue.length} queued finding(s) absorbed.`)
+      for (const f of phaseCloseQueue.splice(0)) aced.push({ task: f.task, finding: f, sha: polishSha })
+    } else {
+      // DISCARD: the polish branch + _polish worktree are LEFT IN PLACE (never-lose-unmerged-commits;
+      // reaping is a human act). The queue demotes to follow-up; the pre-polish tip lands exactly as
+      // it would have — a discarded sweep recomputes NOTHING (no re-gate, no land-decision change).
+      polishStatus = 'discarded'
+      log(`phase-close sweep DISCARDED (${sweepWhy || (sweepApproved ? `polish merge returned ${pmr && pmr.status || 'no result'}` : 'the panel did not re-approve')}) — polish branch ${polishBranch} and worktree ${polishWorktree} left in place; queue demotes to follow-up.`)
+      auditLog.push({ task: polishTask.id, verdict: 'polish-discarded', branch: polishBranch, findings: [], blocked: sweepWhy || null })
+      for (const f of phaseCloseQueue.splice(0)) demote(f, 'follow-up', 'phase-close sweep discarded — the polish branch never merged; the pre-polish tip lands')
+    }
+  }
+}
+
 if (landDecision === 'landed') {
   // For a submodule phase: thread targetRepo + targetBase so the refiner knows to perform a
   // submodule-aware land (2A CAS inside the submodule repo, or 2B PR-and-hold on the submodule remote).
@@ -754,6 +974,8 @@ if (landResult && landResult.status === 'landed' && learningsTarget) {
     + `Landed tasks: ${landed.join(', ') || 'none'}.\n`
     + `Audit log (verdicts + findings): ${JSON.stringify(auditLog)}\n`
     + `Escalations: ${JSON.stringify(escalated)}\n`
+    + `Noted findings (disposition 'note' — MEMORY CANDIDATES, not issues; weigh each against the admission checklist below): ${JSON.stringify(notes)}\n`
+    + intentClause
     + `Capture only DURABLE, reusable learnings (gotchas, plan/code mismatches, deviations + why, patterns). Skip routine notes.\n`
     + `\n`
     + `Memory admission checklist — follow ALL four disciplines before every write:\n`
@@ -766,11 +988,50 @@ if (landResult && landResult.status === 'landed' && learningsTarget) {
     { agentType: NS + 'war-servitor', phase: 'Wrap-up', label: `wrap-up:phase-${ph.id}`, schema: SERVITOR_RESULT, ...spawn('servitor') })
 }
 
-return { phase: ph.id, landed, escalated, minorsFiled, aced, landResult, servitorResult, auditLog, landDecision }
+// ---- HANDOFF BLOCK (ADR 0013) — the machine-readable debt map the next phase's decompose reads.
+// Emitted on 'landed' AND 'held:escalation' (degraded — an escalated phase still hands off; the next
+// decompose needs the debt map most exactly then). OMITTED on 'held:workflow-error' (infra death —
+// the ledger + issues are the record; there is no trustworthy return to render) and on the other
+// holds (nothing landed to hand off).
+let handoff = null
+if (landDecision === 'landed' || landDecision === 'held:escalation') {
+  // tipSha: the landed working sha; degraded → the last confirmed merge tip; else null.
+  const lastPinned = [...mergedTasksForGateAudit].reverse().find(m => /^[0-9a-f]{7,40}$/.test(m.gateHeadSha || ''))
+  const tipSha = (landResult && landResult.status === 'landed' && typeof landResult.working_sha === 'string' && landResult.working_sha)
+    ? landResult.working_sha
+    : (lastPinned ? lastPinned.gateHeadSha : null)
+  // absorbed: aced provenance grouped by commit sha → [{ sha, findings: [title] }].
+  const bySha = {}
+  for (const a of aced) (bySha[a.sha] = bySha[a.sha] || []).push(a.finding && a.finding.title)
+  // endState: statuses keyed on the gate-audit seats' plan_ref (VERBATIM condition text). No
+  // gate-audit ran ⇒ nothing verified ⇒ every claim is 'deferred', never a silent 'met'.
+  const gateFindings = auditLog.filter(e => e && e.gateEvidence).flatMap(e => e.findings || [])
+  const gateAuditRan = auditLog.some(e => e && e.gateEvidence)
+  handoff = {
+    tipSha,
+    polish: polishStatus,
+    absorbed: Object.entries(bySha).map(([sha, findings]) => ({ sha, findings })),
+    followUps: minorsFiled.map(m => ({ issue: m.issue ?? null, reason: [m.title, m.rationale].filter(Boolean).join(' — ') || '(untitled finding)' })),
+    notes: notes.map(n => ({ task: n.task, title: n.title })),
+    endState: endStateClaims.map(condition => {
+      if (!gateAuditRan) return { condition, status: 'deferred' }
+      const rel = gateFindings.filter(f => f && f.plan_ref === condition)
+      const status = rel.some(f => f.severity === 'Critical' || f.severity === 'Major') ? 'unmet'
+        : rel.some(f => /out-of-scope/i.test(`${f.title || ''} ${f.rationale || ''}`)) ? 'out-of-scope'
+        : rel.length ? 'deferred'
+        : 'met'
+      return { condition, status }
+    }),
+    intentPresent: intent !== null,
+  }
+}
+
+return { phase: ph.id, landed, escalated, minorsFiled, aced, notes, landResult, servitorResult, auditLog, landDecision, ...(handoff ? { handoff } : {}) }
 } catch (err) {
   // A dead phase that self-reports. landed/escalated are whatever accumulated before the throw;
-  // teardown is NOT run (git state kept for resume/inspection).
-  return { phase: ph.id, landed, escalated, minorsFiled, aced, landResult: null,
+  // teardown is NOT run (git state kept for resume/inspection). NO handoff block here (ADR 0013):
+  // infra death has no trustworthy return to render — the ledger + issues are the record.
+  return { phase: ph.id, landed, escalated, minorsFiled, aced, notes, landResult: null,
            servitorResult: null, auditLog,
            landDecision: 'held:workflow-error',
            workflowError: { message: String(err && err.message || err), stack: err && err.stack } }

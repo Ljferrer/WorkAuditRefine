@@ -2628,19 +2628,23 @@ const aceBase = (findingsFirstRound = [nit()]) => (prompt, opts) => {
   return {}
 }
 
-test('Task 3 — default-off byte-identical: run.ace unset ⇒ no ace dispatch, nit files to minorsFiled, aced empty', async () => {
-  // run.ace omitted → the ace sub-loop is skipped entirely; the nit files exactly as today.
-  const { out, calls } = await runPhase(ACE_ARGS({ run: {} }), aceBase([nit()]))
+test('Task 3 — default-off: run.ace unset ⇒ no ace dispatch, an absorb nit demotes to follow-up (minorsFiled), aced empty', async () => {
+  // run.ace omitted → absorb execution is unavailable (per-task ace AND sweep alike); the legacy
+  // autoFixable nit reads as absorb and takes the logged demotion to follow-up (ADR 0013 ladder).
+  const { out, calls, logs } = await runPhase(ACE_ARGS({ run: {} }), aceBase([nit()]))
   assert.ok(!calls.some(isAce), 'no ace worker is dispatched when run.ace is unset')
   const filed = (out.minorsFiled || []).find(m => m && m.task === 't1' && m.title === 'tidy import')
-  assert.ok(filed, 'the nit is filed to minorsFiled exactly as today (default-off)')
+  assert.ok(filed, 'the absorb nit demotes to follow-up (minorsFiled) when --ace is off')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('Disposition demotion') && l.includes('tidy import')),
+    'the --ace-off demotion is log()ged (never silent)')
   assert.ok(!out.aced || out.aced.length === 0, 'aced is empty/absent when run.ace is off')
   assert.ok(out.landed.includes('t1'), 't1 still lands on the default-off path')
 })
 
-test('Task 3 — eligibility gate: run.ace on ⇒ an autoFixable nit dispatches an ace worker; a non-flagged nit is filed, never dispatched', async () => {
-  // Two nits: one autoFixable (aced), one without the flag (filed). buildSeqImpl drives the auditor
-  // to approve+2-nits on round 1, then approve-clean on the ace re-audit round.
+test('Task 3 — eligibility gate: run.ace on ⇒ a legacy-autoFixable (absorb) nit dispatches an ace worker; an unflagged Nit routes to notes (severity default), never dispatched', async () => {
+  // Two nits: one autoFixable (legacy absorb — aced), one without the flag (disposition omitted ⇒
+  // Nit default 'note' under ADR 0013 routing). buildSeqImpl drives the auditor to approve+2-nits
+  // on round 1, then approve-clean on the ace re-audit round.
   const flagged = nit({ title: 'aced nit', file: 'skills/war/assets/x.js' })
   const unflagged = nit({ title: 'plain nit', file: 'skills/war/assets/y.js', autoFixable: false })
   const impl = buildSeqImpl(
@@ -2652,9 +2656,10 @@ test('Task 3 — eligibility gate: run.ace on ⇒ an autoFixable nit dispatches 
   assert.ok(ace, 'an ace worker is dispatched for the autoFixable nit')
   assert.ok(ace.prompt.includes('aced nit'), 'the ace worker prompt lists the autoFixable finding')
   assert.ok(!ace.prompt.includes('plain nit'), 'the non-autoFixable nit is NOT handed to the ace worker')
-  // the unflagged nit still files as a residual; the aced one does not.
-  const filedPlain = (out.minorsFiled || []).find(m => m && m.title === 'plain nit')
-  assert.ok(filedPlain, 'the non-autoFixable nit is filed to minorsFiled')
+  // the unflagged Nit routes to notes (severity default); the aced one is in neither list.
+  const notedPlain = (out.notes || []).find(n => n && n.title === 'plain nit')
+  assert.ok(notedPlain, 'the unflagged Nit routes to notes (omitted disposition ⇒ Nit → note)')
+  assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'plain nit'), 'the unflagged Nit is NOT in minorsFiled (nothing defaults into an issue)')
   assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'aced nit'), 'the aced nit is NOT in minorsFiled')
 })
 
@@ -2694,25 +2699,47 @@ test('Task 3 — never blocks a land via forward-revert: a regressing ace re-aud
   assert.notEqual(out.landDecision, 'held:escalation', 'the ace regression does NOT hold the land')
 })
 
-test('Task 3 — release-slot refusal: a nit whose file ends in plugin.json / marketplace.json / README.md is filed, never aced (aceEligible string backstop)', async () => {
-  for (const file of ['.claude-plugin/plugin.json', '.claude-plugin/marketplace.json', 'README.md']) {
+test('Task 3 — release-slot refusal narrowed (criterion 1/2): plugin.json / marketplace.json absorb nits are never aced per-task — they route to the phase-close queue', async () => {
+  // The two pure version-slot JSONs keep the hard string refusal; the refused absorb no longer
+  // falls through to minorsFiled — it feeds the phase-close sweep (criterion 2). Without a config
+  // default audit.roster the sweep skips fail-open and drains the queue to follow-up, so the
+  // finding surfaces in minorsFiled ONLY via the logged demotion.
+  for (const file of ['.claude-plugin/plugin.json', '.claude-plugin/marketplace.json']) {
     const slotNit = nit({ title: 'slot nit', file })
     const impl = buildSeqImpl(
       { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [slotNit]),
                                  approveWith('audit:t1:correctness', [])] },
       aceBase([slotNit]))
-    const { out, calls } = await runPhase(ACE_ARGS(), impl)
+    const { out, calls, logs } = await runPhase(ACE_ARGS(), impl)
     assert.ok(!calls.some(isAce), `no ace worker for a release-slot nit (${file}) even with autoFixable:true`)
-    assert.ok((out.minorsFiled || []).some(m => m && m.title === 'slot nit'), `the release-slot nit (${file}) is filed to minorsFiled`)
     assert.ok(!out.aced || !out.aced.some(a => a && a.finding && a.finding.title === 'slot nit'), `the release-slot nit (${file}) is NOT aced`)
+    assert.ok(logs.some(l => typeof l === 'string' && l.includes('sweep skipped')),
+      `the slot nit (${file}) reached the phase-close queue (sweep skipped without a default roster — fail-open drain)`)
+    assert.ok((out.minorsFiled || []).some(m => m && m.title === 'slot nit'),
+      `the drained slot nit (${file}) demotes to follow-up (never dropped silently)`)
   }
 })
 
-test('Task 3 — ponytail / no-flag refusal: a nit without autoFixable:true (auditor own refusal) is filed, not aced', async () => {
+test('Task 3 — README.md absorb nit is NO LONGER refused (criterion 1): it aces per-task under run.ace', async () => {
+  const readmeNit = nit({ title: 'readme nit', file: 'README.md' })
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [readmeNit]),
+                               approveWith('audit:t1:correctness', [])] },
+    aceBase([readmeNit]))
+  const { out, calls } = await runPhase(ACE_ARGS(), impl)
+  const ace = calls.find(isAce)
+  assert.ok(ace, 'an ace worker IS dispatched for a README.md absorb nit (routed, not refused)')
+  assert.ok(ace.prompt.includes('readme nit'), 'the ace prompt lists the README finding')
+  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'readme nit'), 'the README nit is aced')
+  assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'readme nit'), 'the README nit is NOT filed')
+})
+
+test('Task 3 — ponytail / no-flag refusal: a Nit without autoFixable/disposition (auditor own refusal) routes to notes, not aced', async () => {
   const plain = nit({ title: 'no flag', autoFixable: false })
   const { out, calls } = await runPhase(ACE_ARGS(), aceBase([plain]))
   assert.ok(!calls.some(isAce), 'no ace worker dispatched for a nit without autoFixable:true')
-  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'no flag'), 'the no-flag nit is filed to minorsFiled')
+  assert.ok((out.notes || []).some(n => n && n.title === 'no flag'), 'the no-flag Nit routes to notes (severity default)')
+  assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'no flag'), 'the no-flag Nit does NOT default into an issue')
 })
 
 test('Task 3 — budget single-attempt: ace dispatches at most once per task; a second attempt is not made (shares fixRounds)', async () => {
@@ -2956,4 +2983,455 @@ test('D7 — gate-audit fail-closed: requiresTest ABSENT → the task IS gate-au
     'an absent requiresTest field stays fail-closed (gate-audited)')
   assert.ok(!logs.some(l => typeof l === 'string' && l.includes('gate-audit: skipping')),
     'no skip line is logged when requiresTest is absent')
+})
+
+// ---------------------------------------------------------------------------
+// Clean handoff (#441, ADR 0012/0013): disposition routing, phase-close sweep,
+// dep-wave visibility, intent threading, end-state check, handoff block.
+// ---------------------------------------------------------------------------
+
+const workerMd = readFileSync(join(here, '../../../agents/war-worker.md'), 'utf8')
+// A bare finding with NO autoFixable and NO disposition (severity default applies).
+const bare = (over = {}) => ({ severity: 'Nit', title: 'bare', file: 'skills/war/assets/b.js', rationale: 'r', ...over })
+
+// --- Disposition routing (criteria 1/2/3) ---
+
+test('disposition defaults (criterion 3): omitted+Minor → minorsFiled, omitted+Nit → notes, absorb never defaulted', async () => {
+  const minor = bare({ severity: 'Minor', title: 'minor default' })
+  const nitF = bare({ severity: 'Nit', title: 'nit default' })
+  const { out, calls } = await runPhase(ACE_ARGS(), aceBase([minor, nitF]))
+  // run.ace is ON in ACE_ARGS — yet neither dispositionless finding aces (absorb is never a default).
+  assert.ok(!calls.some(isAce), 'no ace dispatch for dispositionless findings even under run.ace (absorb never defaulted)')
+  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'minor default'), 'omitted+Minor → minorsFiled (follow-up default)')
+  assert.ok(!(out.notes || []).some(n => n && n.title === 'minor default'), 'the Minor is not in notes')
+  assert.ok((out.notes || []).some(n => n && n.title === 'nit default'), 'omitted+Nit → notes (note default)')
+  assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'nit default'), 'the Nit does not default into an issue')
+})
+
+test('explicit dispositions route and override the severity default', async () => {
+  const fu = bare({ severity: 'Nit', title: 'explicit follow-up', disposition: 'follow-up', rationale: 'needs new tests — beyond phase scope' })
+  const nt = bare({ severity: 'Minor', title: 'explicit note', disposition: 'note' })
+  const { out } = await runPhase(ACE_ARGS(), aceBase([fu, nt]))
+  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'explicit follow-up'), 'a Nit with disposition follow-up files (overrides its note default)')
+  assert.ok((out.notes || []).some(n => n && n.title === 'explicit note'), 'a Minor with disposition note is noted (overrides its follow-up default)')
+  assert.ok(!(out.notes || []).some(n => n && n.title === 'explicit follow-up'), 'no double-routing (follow-up not in notes)')
+  assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'explicit note'), 'no double-routing (note not in minorsFiled)')
+})
+
+test('disposition:absorb (successor of legacy autoFixable) dispatches the ace worker under run.ace', async () => {
+  const ab = bare({ title: 'absorb me', disposition: 'absorb' })
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [ab]),
+                               approveWith('audit:t1:correctness', [])] },
+    aceBase([ab]))
+  const { out, calls } = await runPhase(ACE_ARGS(), impl)
+  assert.ok(calls.some(isAce), 'disposition:absorb dispatches the ace worker (no autoFixable needed)')
+  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'absorb me'), 'the absorb finding is aced')
+})
+
+test('AUDIT_VERDICT tightening: finding items require severity; disposition/phaseClose/autoFixable declared (autoFixable deprecated)', () => {
+  const m = src.match(/findings:\s*\{\s*type:\s*'array',\s*items:\s*\{\s*type:\s*'object',\s*required:\s*\[([^\]]*)\]/)
+  assert.ok(m, 'finding items carry a required array')
+  assert.match(m[1], /'severity'/, "finding items required includes 'severity'")
+  const dm = src.match(/disposition:\s*\{\s*enum:\s*(\[[^\]]*\])/)
+  assert.ok(dm, 'disposition enum is declared on finding items')
+  assert.deepEqual(JSON.parse(dm[1].replace(/'/g, '"')).sort(), ['absorb', 'follow-up', 'note'], 'disposition enum is absorb|follow-up|note')
+  assert.match(src, /phaseClose:\s*\{\s*type:\s*'boolean'\s*\}/, 'phaseClose declared boolean')
+  assert.match(src, /autoFixable:\s*\{\s*type:\s*'boolean'\s*\}/, 'autoFixable declared boolean')
+  assert.match(src, /autoFixable is DEPRECATED/, 'the deprecation is documented at the schema literal')
+})
+
+test('aceEligible (criterion 1): regex is exactly the two version-slot JSONs and the f.file truthiness guard is KEPT', () => {
+  assert.ok(src.includes('const aceEligible = f => f.file && !/(?:plugin\\.json|marketplace\\.json)$/.test(f.file)'),
+    'aceEligible keeps the f.file guard and narrows the regex to plugin.json|marketplace.json')
+  assert.ok(!src.includes('|README\\.md)$/'), 'README.md is no longer in the refusal regex')
+})
+
+// --- Terminal-disposition demotion ladder ---
+
+test('demotion ladder: a fileless absorb takes the severity default (logged, never dropped)', async () => {
+  const fMinor = { severity: 'Minor', title: 'fileless minor', rationale: 'r', disposition: 'absorb' }
+  const fNit = { severity: 'Nit', title: 'fileless nit', rationale: 'r', disposition: 'absorb' }
+  const { out, calls, logs } = await runPhase(ACE_ARGS(), aceBase([fMinor, fNit]))
+  assert.ok(!calls.some(isAce), 'a fileless finding is never ace-eligible')
+  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'fileless minor'), 'fileless absorb Minor → follow-up (severity default)')
+  assert.ok((out.notes || []).some(n => n && n.title === 'fileless nit'), 'fileless absorb Nit → note (severity default)')
+  assert.ok(logs.filter(l => typeof l === 'string' && l.includes('fileless absorb')).length >= 2, 'both demotions are log()ged')
+})
+
+test('demotion ladder: a blocked ace worker demotes the aceable findings to follow-up (logged); the task still lands', async () => {
+  const ab = nit({ title: 'wanted absorb' })
+  const impl = buildSeqImpl(
+    { 'ace:t1:r1': [{ task_id: 't1', status: 'blocked', blocked_reason: 'boom' }] },
+    aceBase([ab]))
+  const { out, logs } = await runPhase(ACE_ARGS(), impl)
+  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'wanted absorb'), 'failed absorb → follow-up')
+  assert.ok(!(out.aced || []).some(a => a && a.finding && a.finding.title === 'wanted absorb'), 'the blocked-ace finding is NOT aced')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('failed absorb')), 'the demotion is log()ged')
+  assert.ok(out.landed.includes('t1'), 'the approved work still lands (ace never blocks a land)')
+})
+
+test('demotion ladder: an ace re-audit regression demotes the aceable findings to follow-up (forward-revert arm, logged)', async () => {
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [nit({ title: 'regressed absorb' })]),
+                               { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'request_changes',
+                                 confidence: 'high', findings: [{ severity: 'Major', title: 'ace broke it', file: 'x.js', rationale: 'regressed' }] }] },
+    aceBase([nit({ title: 'regressed absorb' })]))
+  const { out, logs } = await runPhase(ACE_ARGS(), impl)
+  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'regressed absorb'), 'the regressed absorb demotes to follow-up')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('forward-reverted')), 'the demotion log names the forward-revert')
+})
+
+test('demotion ladder: findings on a never-approved task demote to follow-up and file with the escalation (logged)', async () => {
+  const impl = (prompt, opts) => {
+    if (seatOf(opts) === 'war-auditor') {
+      return { seat: opts.label, lens: 'correctness', verdict: 'escalate', escalate_reason: 'plan wrong', confidence: 'high',
+        findings: [{ severity: 'Nit', title: 'nit on escalated task', rationale: 'r' }] }
+    }
+    return aceBase([])(prompt, opts)
+  }
+  const { out, logs } = await runPhase(ACE_ARGS(), impl)
+  assert.ok((out.escalated || []).some(e => e && e.task === 't1'), 't1 escalated (presence guard)')
+  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'nit on escalated task'),
+    'the Nit (note default) demotes to follow-up on the non-approve path — filed with the escalation')
+  assert.ok(!(out.notes || []).some(n => n && n.title === 'nit on escalated task'), 'it does NOT land in notes')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('never reached the approve branch')), 'the demotion is log()ged')
+})
+
+// --- Dep-wave visibility (criterion 4) + force-with-lease carve-out ---
+
+test('dep-wave visibility (criterion 4): rebase-first clause is PREPENDED iff deps non-empty (same-repo)', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)   // t1 dep-less, t2 deps:['t1']
+  const w1 = calls.find(c => isWorker(c) && (c.opts.label || '') === 'work:t1')
+  const w2 = calls.find(c => isWorker(c) && (c.opts.label || '') === 'work:t2')
+  assert.ok(w1 && w2, 'both workers dispatched (presence guard)')
+  assert.ok(!w1.prompt.includes('DEPS ALREADY MERGED'), 'a dep-less task carries NO rebase-first clause (frozen phase base stands)')
+  assert.ok(w2.prompt.startsWith('DEPS ALREADY MERGED'), 'the deps-bearing task PREPENDS the clause')
+  assert.ok(w2.prompt.includes('git -C /abs/repo/.claude/worktrees/run-2026/t2 rebase integration/wtprov-a/phase-3'),
+    'the clause names the concrete rebase-first command')
+  assert.match(w2.prompt, /status:"blocked"/, 'conflict → status:blocked')
+  assert.match(w2.prompt, /NEVER resolve/, 'the worker never resolves the conflict')
+})
+
+test('dep-wave visibility: a gitlink-bump task with deps gets NO rebase-first clause (cross-repo dep — taskType scoping)', async () => {
+  const args = PROVISION_ARGS({ tasks: [
+    { id: 'tsub', issue: 301, title: 'Sub task', planSlice: 's1', roster: [{ lens: 'correctness' }],
+      taskType: 'submodule', targetRepo: 'vendor/lib', targetBase: 'main' },
+    { id: 'tbump', issue: 302, title: 'Bump task', planSlice: 's2', roster: [{ lens: 'correctness' }],
+      taskType: 'gitlink-bump', deps: ['tsub'] },
+  ] })
+  const { calls } = await runPhase(args, defaultImpl)
+  const wb = calls.find(c => isWorker(c) && (c.opts.label || '') === 'work:tbump')
+  assert.ok(wb, 'the gitlink-bump worker dispatched (presence guard)')
+  assert.ok(!wb.prompt.includes('DEPS ALREADY MERGED'),
+    'a gitlink-bump task is EXCLUDED — its dep merged into the submodule repo, not this integration branch')
+})
+
+test('force-with-lease carve-out: IDENTICAL wording in agents/war-worker.md and the dispatched dep clause', async () => {
+  const RULE = 'You may `git push --force-with-lease` ONLY your own task branch, and ONLY after a dispatch-rebase diverged it from its pushed remote — never any other ref, never for any other reason.'
+  assert.ok(workerMd.includes(RULE), 'war-worker.md carries the canonical carve-out sentence (standing surface)')
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const w2 = calls.find(c => isWorker(c) && (c.opts.label || '') === 'work:t2')
+  assert.ok(w2, 'the deps-bearing worker dispatched (presence guard)')
+  assert.ok(w2.prompt.includes(RULE), 'the dispatched dep clause carries the SAME sentence byte-for-byte')
+})
+
+// --- Auditor surfaces (criterion 8): latitude + disposition rules on BOTH surfaces ---
+
+test('latitude + disposition rules (criterion 8): war-auditor.md AND auditPrompt carry the same rule sentences', async () => {
+  const LATITUDE = "the plan slice is the floor, the Commander's Intent is the ceiling — intent-consistent work beyond the literal slice is APPROVE (judge it on its own correctness), never a plan-faithfulness violation; only deviations that contradict the intent or the slice block. No intent threaded means judge against the plan slice alone, as before."
+  const DISPO = 'every Minor/Nit finding carries a disposition — absorb (mechanical, intent-consistent, safe to fix this phase; set phaseClose:true when the fix needs the integrated tip or touches a shared/slot-adjacent file), follow-up (substantive work beyond this phase — MUST state why it is not absorbable), or note (informational; phase report + servitor feed, never an issue). Omitted disposition defaults: Minor becomes follow-up, Nit becomes note; absorb is never a default.'
+  assert.ok(auditorMd.includes(LATITUDE), 'war-auditor.md carries the latitude rule (standing surface)')
+  assert.ok(auditorMd.includes(DISPO), 'war-auditor.md carries the disposition rule (standing surface)')
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const a = calls.find(isAuditor)
+  assert.ok(a, 'an auditor was dispatched (presence guard)')
+  assert.ok(a.prompt.includes(LATITUDE), 'auditPrompt carries the latitude rule (dispatched surface)')
+  assert.ok(a.prompt.includes(DISPO), 'auditPrompt carries the disposition rule (dispatched surface)')
+})
+
+// --- Intent threading (criterion 10) ---
+
+test('intent absent (criterion 10): no intent block anywhere; intent:null and intent-absent runs are byte-identical', async () => {
+  const { calls: absent } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const { calls: nulled } = await runPhase(PROVISION_ARGS({ intent: null }), defaultImpl)
+  assert.equal(absent.length, nulled.length, 'same dispatch count')
+  for (let i = 0; i < absent.length; i++) {
+    assert.equal(absent[i].prompt, nulled[i].prompt, `prompt #${i} is byte-identical between intent-absent and intent:null`)
+  }
+  for (const c of absent) {
+    assert.ok(!c.prompt.includes("COMMANDER'S INTENT"), 'no intent block leaks when intent is absent')
+  }
+})
+
+test('intent present: threaded into worker, auditor, ace, gate-audit and servitor prompts; handoff.intentPresent true', async () => {
+  const INTENT = 'Purpose: ship the wibble.\nEnd state: 1. wibble shipped.'
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [nit({ title: 'intent nit' })]),
+                               approveWith('audit:t1:correctness', [])] },
+    aceBase([nit({ title: 'intent nit' })]))
+  const { out, calls } = await runPhase(ACE_ARGS({ intent: INTENT }), impl)
+  const worker = calls.find(c => (c.opts.label || '') === 'work:t1')
+  assert.ok(worker, 'worker dispatched (presence guard)')
+  assert.ok(worker.prompt.includes("COMMANDER'S INTENT") && worker.prompt.includes('ship the wibble'), 'worker prompt carries the intent block')
+  assert.ok(worker.prompt.includes('intent-consistent deviation is in-band — note it in your result'), 'worker prompt carries the licensed-judgment sentence')
+  const auditor = calls.find(c => (c.opts.label || '') === 'audit:t1:correctness')
+  assert.ok(auditor && auditor.prompt.includes('ship the wibble'), 'auditPrompt carries the intent')
+  const ace = calls.find(isAce)
+  assert.ok(ace && ace.prompt.includes('ship the wibble'), 'the ace dispatch carries the intent')
+  const ga = calls.filter(c => (c.opts.label || '').startsWith('gate-audit:'))
+  assert.ok(ga.length > 0 && ga.every(c => c.prompt.includes('ship the wibble')), 'the gate-audit pass carries the intent')
+  const servitor = calls.find(isServitor)
+  assert.ok(servitor && servitor.prompt.includes('ship the wibble'), 'the servitor wrap-up carries the intent')
+  assert.ok(out.handoff && out.handoff.intentPresent === true, 'handoff.intentPresent is true')
+})
+
+test('servitor wrap-up gains the notes array — memory candidates, not issues', async () => {
+  const noteF = bare({ title: 'memory candidate' })   // Nit, no disposition → note
+  const { calls } = await runPhase(ACE_ARGS(), aceBase([noteF]))
+  const s = calls.find(isServitor)
+  assert.ok(s, 'servitor dispatched (presence guard)')
+  assert.ok(s.prompt.includes('memory candidate'), 'the noted finding reaches the servitor prompt')
+  assert.match(s.prompt, /MEMORY CANDIDATES, not issues/, 'notes are framed as memory candidates, not issues')
+})
+
+// --- Phase-close coherence sweep (criteria 2 + 5, ADR 0012) ---
+
+// Sweep harness: run.ace on (absorb execution rides it) + a config default audit.roster (the
+// sweep's mandatory full panel — Open decision 1). Single task t1 keeps the flow observable.
+const SWEEP_ARGS = (over = {}) => ACE_ARGS({ audit: { roster: [{ lens: 'correctness' }] }, ...over })
+// Base impl: the t1 work-round audit emits `queued`; gate-audit and the polish panel approve clean.
+const sweepBase = (queued) => (prompt, opts) => {
+  const seat = seatOf(opts)
+  if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+  if (seat === 'war-worker') return { task_id: 't1', status: 'implemented',
+    head_sha: (opts.label || '').startsWith('polish:') ? 'polishsha' : 'deadbeef', tests: { unit: 1 } }
+  if (seat === 'war-auditor') {
+    const label = opts.label || ''
+    const f = label.includes(':t1:') && !label.startsWith('gate-audit:') ? queued : []
+    return { seat: label, lens: 'correctness', verdict: 'approve', findings: f, confidence: 'high' }
+  }
+  if (seat === 'war-refiner') return opts.phase === 'Land'
+    ? { mode: 'land-phase', status: 'landed', working_sha: 'abcdef99' }
+    : { mode: 'merge-task', status: 'merged', integration_sha: 'beefcafe12' }
+  if (seat === 'war-servitor') return { phase: 3, target: 't', learnings: [] }
+  return {}
+}
+const queuedAbsorb = () => nit({ title: 'dangling link', file: 'docs/x.md', disposition: 'absorb', phaseClose: true })
+
+test('phase-close sweep (criteria 2+5): phaseClose absorb → queue → sweep on a would-land phase; re-approved polish merges at the queue tail before the land', async () => {
+  const { out, calls } = await runPhase(SWEEP_ARGS(), sweepBase([queuedAbsorb()]))
+  // 1. provisioning via the existing ensure-worktree at the integrated tip
+  const prov = calls.find(c => (c.opts.label || '') === 'polish-worktree:phase-3')
+  assert.ok(prov, 'the polish worktree is provisioned (presence guard)')
+  assert.ok(prov.prompt.includes('ensure-worktree /abs/repo/.claude/worktrees/run-2026/_polish war/wtprov-a/p3-polish'),
+    'existing ensure-worktree subcommand, _polish path, war/<slug>/p<N>-polish branch')
+  // 2. ONE worker dispatch: queued findings verbatim + the sweep charter constraints
+  const pw = calls.find(c => (c.opts.label || '') === 'polish:phase-3')
+  assert.ok(pw, 'ONE sweep worker is dispatched')
+  assert.ok(pw.prompt.includes('dangling link'), 'the queued finding is handed over verbatim')
+  assert.match(pw.prompt, /NEVER touch version\/release-slot literals/, 'version-slot literals are off-limits')
+  assert.match(pw.prompt, /EXACTLY ONE commit/, 'one commit only')
+  assert.match(pw.prompt, /NO ad-hoc seam hunting/, 'queue-only discovery model')
+  assert.ok(pw.prompt.includes('slice 1'), "the merged tasks' plan slices ride along")
+  // 3. full default-roster panel re-audit at the polish sha
+  assert.ok(calls.some(c => (c.opts.label || '') === 'audit:p3-polish:correctness'),
+    'the config-default roster panel re-audits the polish')
+  // 4. merge at the serial queue tail, BEFORE the single land dispatch
+  const mergeIdx = calls.findIndex(c => (c.opts.label || '') === 'merge:p3-polish')
+  const landIdx = calls.findIndex(isLand)
+  assert.ok(mergeIdx !== -1, 'the refiner merges the re-approved polish')
+  assert.ok(landIdx !== -1 && mergeIdx < landIdx, 'the polish merge precedes the single land (land proceeds on the polished tip)')
+  // bookkeeping: absorbed at the polish sha; nothing defaults into an issue
+  assert.equal(out.handoff.polish, 'merged')
+  assert.ok(out.handoff.absorbed.some(a => a && a.sha === 'polishsha' && (a.findings || []).includes('dangling link')),
+    'the queued finding is absorbed at the polish sha')
+  assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'dangling link'), 'the absorbed finding is not filed')
+  assert.ok(out.landed.includes('t1'), 't1 landed')
+})
+
+test('phase-close sweep discard (criterion 5): a rejected polish is DISCARDED — never merged, land proceeds on the pre-polish tip, queue demotes to follow-up', async () => {
+  const impl = buildSeqImpl(
+    { 'audit:p3-polish:correctness': [{ seat: 'p', lens: 'correctness', verdict: 'request_changes', confidence: 'high',
+        findings: [{ severity: 'Major', title: 'sweep broke it', file: 'docs/x.md', rationale: 'r' }] }] },
+    sweepBase([queuedAbsorb()]))
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS(), impl)
+  assert.ok(calls.some(c => (c.opts.label || '') === 'polish:phase-3'), 'the sweep worker ran (presence guard)')
+  assert.ok(!calls.some(c => (c.opts.label || '') === 'merge:p3-polish'), 'a rejected polish is NEVER merged')
+  assert.ok(calls.some(isLand), 'the land still dispatches — a discarded sweep never blocks the land')
+  assert.equal(out.landDecision, 'landed', 'the phase lands on the pre-polish tip')
+  assert.equal(out.handoff.polish, 'discarded', 'the handoff records the discard')
+  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'dangling link'), 'the queued finding demotes to follow-up (stays routed)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('DISCARDED')), 'the discard is log()ged (branch + worktree left in place)')
+  const discardEntry = (out.auditLog || []).find(e => e && e.verdict === 'polish-discarded')
+  assert.ok(discardEntry && discardEntry.branch === 'war/wtprov-a/p3-polish', 'the polish branch name is recorded (reaping is a human act)')
+})
+
+test('phase-close sweep: a held phase never dispatches the sweep — queue drains to follow-up; handoff degrades with polish:skipped', async () => {
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'conflict' }
+    return sweepBase([queuedAbsorb()])(prompt, opts)
+  }
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS(), impl)
+  assert.equal(out.landDecision, 'held:escalation', 'the merge conflict holds the phase (presence guard)')
+  assert.ok(!calls.some(c => (c.opts.label || '').startsWith('polish')), 'no polish dispatches on a held phase')
+  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'dangling link'), 'the queue drains to follow-up (never dropped)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('draining')), 'the held-phase drain is log()ged')
+  assert.ok(out.handoff, 'handoff still emitted on held:escalation (degraded)')
+  assert.equal(out.handoff.polish, 'skipped')
+})
+
+test('phase-close sweep: an empty queue skips the sweep entirely — polish:skipped, zero polish dispatches', async () => {
+  const { out, calls } = await runPhase(SWEEP_ARGS(), sweepBase([]))
+  assert.ok(!calls.some(c => (c.opts.label || '').startsWith('polish')), 'no polish dispatches with an empty queue')
+  assert.equal(out.handoff.polish, 'skipped')
+})
+
+test('phase-close sweep: the sweep dispatch carries the intent when present', async () => {
+  const { calls } = await runPhase(SWEEP_ARGS({ intent: 'Purpose: wibble.' }), sweepBase([queuedAbsorb()]))
+  const pw = calls.find(c => (c.opts.label || '') === 'polish:phase-3')
+  assert.ok(pw, 'sweep worker dispatched (presence guard)')
+  assert.ok(pw.prompt.includes('Purpose: wibble.'), 'the sweep prompt carries the intent')
+})
+
+// --- End-state check (criterion 11) ---
+
+const ES_CONDS = ['condition A: the wibble exists at the tip', 'condition B: later-phase thing']
+const ES_ARGS = (over = {}) => PROVISION_ARGS({
+  phase: { id: 3, title: 'P3', integrationBranch: 'integration/wtprov-a/phase-3', workingBranch: 'dev/wtprov-a', endState: ES_CONDS },
+  tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] }],
+  ...over,
+})
+// Gate-audit seats return `findings`; everything else rides gateAuditImpl.
+const esImpl = (findings) => (prompt, opts) => {
+  if ((opts.label || '').startsWith('gate-audit:')) {
+    const hard = findings.some(f => f.severity === 'Critical' || f.severity === 'Major')
+    return { seat: opts.label, lens: 'execution-evidence', verdict: hard ? 'request_changes' : 'approve', confidence: 'high', findings }
+  }
+  return gateAuditImpl(prompt, opts)
+}
+
+test('end-state check rides the gate-audit prompt (criterion 11): three cases + verbatim plan_ref keying', async () => {
+  const { calls } = await runPhase(ES_ARGS(), gateAuditImpl)
+  const ga = gateAuditCalls(calls)
+  assert.ok(ga.length > 0, 'gate-audit dispatched (presence guard)')
+  const p = ga[0].prompt
+  assert.match(p, /END-STATE CHECK \(phase-scoped\)/, 'the end-state block rides the gate-audit prompt')
+  assert.ok(p.includes('condition A: the wibble exists at the tip'), 'the claimed conditions are enumerated')
+  assert.match(p, /provably UNMET[\s\S]*CONFIRMED integration tip[\s\S]*Critical\/Major/, 'case 1: provably-unmet at the confirmed tip → HARD')
+  assert.match(p, /cannot verify[\s\S]*SOFT note/, 'case 2: unverifiable/tip-unconfirmable → SOFT')
+  assert.match(p, /LATER phase[\s\S]*out-of-scope[\s\S]*NEVER a hold/, 'case 3: later-phase condition → out-of-scope, never a hold')
+  assert.match(p, /plan_ref[\s\S]*VERBATIM/, 'findings key on the condition text via plan_ref')
+})
+
+test('end-state check: NO claims ⇒ the gate-audit prompt carries no end-state block (byte-compatible)', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), gateAuditImpl)
+  const ga = gateAuditCalls(calls)
+  assert.ok(ga.length > 0, 'gate-audit dispatched (presence guard)')
+  for (const c of ga) assert.ok(!c.prompt.includes('END-STATE CHECK'), 'no end-state block without claims')
+})
+
+test('end-state HARD case (criterion 11): a provably-unmet condition (Critical, plan_ref-keyed) holds the land; handoff marks it unmet', async () => {
+  const impl = esImpl([{ severity: 'Critical', title: 'condition provably unmet at tip', plan_ref: ES_CONDS[0], rationale: 'grep found nothing' }])
+  const { out } = await runPhase(ES_ARGS(), impl)
+  assert.equal(out.landDecision, 'held:escalation', 'provably-unmet is HARD — the land is held')
+  assert.ok((out.escalated || []).some(e => e && e.reason === 'gate-evidence'), 'the hold rides the gate-evidence lane')
+  assert.ok(out.handoff, 'handoff emitted on held:escalation (degraded)')
+  const a = out.handoff.endState.find(e => e.condition === ES_CONDS[0])
+  assert.equal(a && a.status, 'unmet', 'the unmet condition is marked unmet in the handoff')
+})
+
+test('end-state SOFT case (criterion 11): an unverifiable condition (Minor note) never holds the land; handoff marks it deferred', async () => {
+  const impl = esImpl([{ severity: 'Minor', title: 'cannot confirm tip', plan_ref: ES_CONDS[0], rationale: 'rev-parse failed' }])
+  const { out } = await runPhase(ES_ARGS(), impl)
+  assert.equal(out.landDecision, 'landed', 'a SOFT end-state note does not hold the land')
+  const a = out.handoff.endState.find(e => e.condition === ES_CONDS[0])
+  assert.equal(a && a.status, 'deferred', 'the unverifiable condition is deferred')
+  const b = out.handoff.endState.find(e => e.condition === ES_CONDS[1])
+  assert.equal(b && b.status, 'met', 'a claimed condition the seats raised nothing against is met')
+})
+
+test('end-state out-of-scope case (criterion 11): a later-phase condition is marked out-of-scope, never a hold', async () => {
+  const impl = esImpl([{ severity: 'Nit', title: 'out-of-scope — owned by a later phase', plan_ref: ES_CONDS[1], rationale: 'phase 4 claims it' }])
+  const { out } = await runPhase(ES_ARGS(), impl)
+  assert.equal(out.landDecision, 'landed', 'out-of-scope never holds')
+  const b = out.handoff.endState.find(e => e.condition === ES_CONDS[1])
+  assert.equal(b && b.status, 'out-of-scope')
+})
+
+test('end-state-only seat (criterion 11 / D7): empty mergedTasksForGateAudit ∧ ≥1 claimed condition → ONE seat, logged', async () => {
+  const args = ES_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 'Docs task', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], requiresTest: false },
+  ] })
+  const { out, calls, logs } = await runPhase(args, gateAuditImpl)
+  const seats = calls.filter(c => (c.opts.label || '') === 'gate-audit:phase-3:end-state')
+  assert.equal(seats.length, 1, 'exactly ONE End-state-only seat spawns')
+  assert.match(seats[0].prompt, /END-STATE-ONLY GATE-AUDIT/, 'the seat is end-state-only')
+  assert.ok(seats[0].prompt.includes(ES_CONDS[0]), 'the claimed conditions ride the seat prompt')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('End-state-only seat')), 'the spawn is log()ged')
+  assert.ok(out.landed.includes('t1'), 'the docs-only phase still lands')
+})
+
+test('end-state-only seat: NOT spawned when the phase claims no conditions (D7 skip stays intact)', async () => {
+  const args = PROVISION_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 'Docs task', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], requiresTest: false },
+  ] })
+  const { calls } = await runPhase(args, gateAuditImpl)
+  assert.ok(!calls.some(c => (c.opts.label || '').includes(':end-state')), 'no End-state-only seat without claims')
+})
+
+// --- Handoff block (criterion 6) ---
+
+test('handoff block (criterion 6): a landed phase emits { tipSha, polish, absorbed, followUps, notes, endState, intentPresent }', async () => {
+  const minorF = { severity: 'Minor', title: 'needs new tests', rationale: 'thin wiring', file: 'x.js' }
+  const nitF = { severity: 'Nit', title: 'honest comment', rationale: 'covers invariant', file: 'y.js' }
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'deadbeef' }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve',
+      findings: (opts.label || '').startsWith('gate-audit:') ? [] : [minorF, nitF], confidence: 'high' }
+    if (seat === 'war-refiner') return opts.phase === 'Land'
+      ? { mode: 'land-phase', status: 'landed', working_sha: 'abc1234def' }
+      : { mode: 'merge-task', status: 'merged', integration_sha: 'beefcafe12' }
+    if (seat === 'war-servitor') return { phase: 3, target: 't', learnings: [] }
+    return {}
+  }
+  const args = PROVISION_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'T', planSlice: 's', roster: [{ lens: 'correctness' }] }] })
+  const { out } = await runPhase(args, impl)
+  assert.equal(out.landDecision, 'landed')
+  const h = out.handoff
+  assert.ok(h, 'handoff present on landed')
+  assert.equal(h.tipSha, 'abc1234def', 'tipSha is the landed working sha')
+  assert.equal(h.polish, 'skipped', 'no queue → polish skipped')
+  assert.deepEqual(h.absorbed, [], 'nothing absorbed')
+  assert.deepEqual(h.followUps, [{ issue: null, reason: 'needs new tests — thin wiring' }],
+    'followUps carry { issue, reason } — issue is null until the Lead files it')
+  assert.deepEqual(h.notes, [{ task: 't1', title: 'honest comment' }], 'notes carry { task, title }')
+  assert.deepEqual(h.endState, [], 'no claims → empty endState')
+  assert.equal(h.intentPresent, false, 'intentPresent false without args.intent')
+  assert.ok(Array.isArray(out.notes) && out.notes.length === 1, 'the notes array also rides the return top-level')
+})
+
+test('handoff OMITTED on held:workflow-error (infra death — no trustworthy return to render)', async () => {
+  const args = PROVISION_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'T', planSlice: 's' }] })   // no roster → phase-start throw
+  const fn = build()
+  const out = await fn(async () => ({}), fakeParallel, async () => [], () => {}, () => {}, args, { total: null })
+  assert.equal(out.landDecision, 'held:workflow-error', 'the roster assertion threw (presence guard)')
+  assert.ok(!('handoff' in out), 'no handoff key on held:workflow-error')
+})
+
+test('handoff absorbed grouping: per-task ace absorbs group by commit sha as [{ sha, findings: [title] }]', async () => {
+  const a1 = nit({ title: 'ace one', file: 'skills/war/assets/x.js' })
+  const a2 = nit({ title: 'ace two', file: 'skills/war/assets/y.js' })
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [a1, a2]),
+                               approveWith('audit:t1:correctness', [])] },
+    aceBase([a1, a2]))
+  const { out } = await runPhase(ACE_ARGS(), impl)
+  assert.ok(out.handoff, 'handoff present (landed)')
+  const grp = out.handoff.absorbed.find(g => g && g.sha === 'deadbeef')
+  assert.ok(grp, 'one absorbed group at the ace commit sha')
+  assert.deepEqual([...grp.findings].sort(), ['ace one', 'ace two'], 'both findings cite the same sha')
 })
