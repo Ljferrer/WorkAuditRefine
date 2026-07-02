@@ -281,7 +281,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.9.0** — WAR companion skills — `/war-help` orientation card, `/war-strategy` authoring primer (templates + code-boundary rule), `/war-campaign` hopper (ledger+inbox feed, stack-and-plow, halt-and-hold).
+**0.9.1** — #422 nit sweep — campaign-ledger CLI at core-API parity (`--stopPoint`, conditional update), runnable lifecycle example, war-help deep links.
 
 ## License
 

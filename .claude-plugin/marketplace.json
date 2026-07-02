@@ -4,14 +4,14 @@
   "owner": { "name": "Ljferrer", "url": "https://github.com/Ljferrer" },
   "metadata": {
     "description": "WAR — Work·Audit·Refine: Claude-native multi-agent execution of a multi-phase implementation plan.",
-    "version": "0.9.0"
+    "version": "0.9.1"
   },
   "plugins": [
     {
       "name": "work-audit-refine",
       "source": "./",
       "description": "Execute a multi-phase implementation plan with fresh worker agents, independent read-only auditors, and a serial refine/merge queue — phase by phase, gated by you, opening one PR at the end.",
-      "version": "0.9.0",
+      "version": "0.9.1",
       "author": { "name": "Ljferrer" },
       "keywords": ["agent-teams","workflows","orchestration","code-review","merge-queue","multi-agent","gastown"],
       "category": "workflow"
