@@ -35,7 +35,7 @@ run `/red-team <plan>` first, then `/war <plan> --working dev/<plan-slug> --land
 
 ... and woke up to 5 ready-to-merge PRs for this repo. This command orchestrated **272 subagents** across **28 phases** and consumed **14.1M tokens**, while the main context window stayed under 90% capacity (@1.0M) **without any compactions**. No CRITICAL/MAJOR problems were escalated to me while I slept, but 8 follow-up issues were filed for the MINOR/NIT bugs that arrose during implementation. If your plans are fleshed out enough, they can be implemented overnight like this.
 
-> **Best practice — author the input plan with [`/grill-me`](https://github.com/mattpocock/skills/tree/main).** `/war` is only as good as the plan it executes. Matt Pocock's `/grill-me` & `/grill-with-docs` skills interview you relentlessly down every branch of the design tree, resolving each decision one at a time, until the plan is unambiguous and cleanly phase-decomposable — exactly the shape WAR needs to fan out workers and auditors.
+> **Grill Me — author the input plan with [`/grill-me`](https://github.com/mattpocock/skills/tree/main).** `/war` is only as good as the plan it executes. Matt Pocock's `/grill-me` & `/grill-with-docs` skills interview you relentlessly down every branch of the design tree, resolving each decision one at a time, until the plan is unambiguous and cleanly phase-decomposable — exactly the shape WAR needs to fan out workers and auditors. `/war-strategy`'s dependency check links here when Grill Me isn't installed.
 
 ### Pro Tip
 
@@ -178,7 +178,7 @@ You can also convert a design spec into a plan and red team it in a single step:
 
 Or invoke it in natural language — e.g. *"Red team my plan at docs/..."*.
 
-The trilogy: **`/war-room`** configures a run → **`/red-team`** hardens the plan → **`/war`** executes it. Design notes: [`docs/specs/2026-06-18-red-team-design.md`](docs/specs/2026-06-18-red-team-design.md).
+The full pipeline: **`/war-strategy`** authors a plan → **`/war-room`** configures a run → **`/red-team`** hardens the plan → **`/war`** executes it → **`/war-campaign`** runs many of them back-to-back; **`/war-help`** orients you at any point. Design notes: [`docs/specs/2026-06-18-red-team-design.md`](docs/specs/2026-06-18-red-team-design.md).
 
 ## Tidy the memory (`/lessons-learned`)
 
@@ -193,6 +193,52 @@ It fans out agents to **verify every memory against the live repo**, classifies 
 It is **fault-tolerant to interruption** (a closed laptop mid-run). The live memory store is never mutated in place: the pass **backs up** to a tarball, does all work in a `.staging` copy, **verifies** index↔file integrity and link health, and only then performs a single **atomic swap** — with a `recover` path if it dies between steps. The deterministic backup / stage / verify / swap / recover logic lives in [`skills/lessons-learned/assets/safe-swap.sh`](skills/lessons-learned/assets/safe-swap.sh).
 
 Or invoke it in natural language — e.g. *"Do a lessons-learned pass on this repo's memory."*
+
+## Get oriented (`/war-help`)
+
+New to WAR, or just want a refresher? Run the orientation card:
+
+```
+/war-help
+```
+
+It prints a one-screen map — what WAR is, the command set, the five roles, how a run flows, and the
+prerequisites — then offers deep-dive links and a handoff to `/war-strategy`. Design notes:
+[`docs/specs/2026-07-01-war-companion-skills-design.md`](docs/specs/2026-07-01-war-companion-skills-design.md#5-war-help--the-orientation-card).
+
+## Author a plan (`/war-strategy`)
+
+Before you write a plan by hand, load the authoring primer:
+
+```
+/war-strategy
+```
+
+It hands you the WAR-shaped spec/plan/roadmap templates plus the code-boundary decomposition rule in one
+sentence — file-disjoint tasks in a phase, a dependency crossing a phase edge, one task per repo, release as
+its own trailing phase — then routes you to your installed grilling skill to actually interview you (see the
+**Grill Me** pro-tip above, which its dependency check links to when that skill isn't installed). Design
+notes: [`docs/specs/2026-07-01-war-companion-skills-design.md`](docs/specs/2026-07-01-war-companion-skills-design.md#6-war-strategy--the-authoring-primer).
+
+## Run a campaign (`/war-campaign`)
+
+Once you have several plans, run them back-to-back, unattended, in one chat:
+
+```
+/war-campaign <plan…|roadmap-path> [--wait-for-merge]   # start
+/war-campaign                                           # resume the latest unfinished campaign
+/war-campaign add <plan-path>                           # from any chat — drop a plan into the queue
+```
+
+Each plan is hardened (`/red-team`) and executed (`/war … --afk`) in turn, stacking each plan's branch on the
+prior plan's tip and its PR on the prior plan's branch — so later plans see earlier plans' code without a
+human merging overnight (the **stack-and-plow** model, [ADR 0011](docs/adr/0011-campaign-stack-and-plow-branch-model.md)). `--wait-for-merge` switches to the linear alternative: wait for each PR to merge before
+basing the next plan off fresh `master`.
+
+**`/war-campaign` never auto-invokes** — you must run it explicitly. A plan that can't be hardened or hard-halts
+**halts the whole campaign** (halt-and-hold) rather than letting later plans build on incomplete work; every
+plan below the failure has already landed as its own stacked PR, merged **bottom-up**. Design notes:
+[`docs/specs/2026-07-01-war-companion-skills-design.md`](docs/specs/2026-07-01-war-companion-skills-design.md#7-war-campaign--the-hopper).
 
 ## Roles → Gas Town lineage
 
