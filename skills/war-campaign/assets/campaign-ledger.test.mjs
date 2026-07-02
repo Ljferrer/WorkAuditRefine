@@ -380,15 +380,16 @@ test('intersectFootprints returns the overlapping paths between two footprints',
 })
 
 // ---- temp-break proof (Step 3): disabling the contention intersect flips refusal RED --
+//
+// The actual load-bearing guard against a disabled intersectFootprints lives in the
+// 'contention: two mutually-overlapping simultaneous inbox entries...' test above
+// (line ~143), which asserts result.overlaps[0].paths against a real sweep() call —
+// stubbing intersectFootprints to always return [] flips that assertion RED. This test
+// only proves intersectFootprints itself is correct in isolation.
 
-test('temp-break proof: with the contention intersect disabled, the refusal case cannot fire (documents the check is load-bearing)', () => {
-  // This test exercises the real intersectFootprints directly (not a mock), proving overlap IS detected —
-  // demonstrating that if intersectFootprints were stubbed to always return [], no case above could ever
-  // observe an overlap. See plan Task 3 / Step 3.
+test('intersectFootprints detects an overlap between two identical single-file footprints', () => {
   const overlap = intersectFootprints(['src/b.js'], ['src/b.js'])
   assert.deepEqual(overlap, ['src/b.js'])
-  const disabledOverlap = (() => [])() // stand-in for a disabled intersect
-  assert.notDeepEqual(disabledOverlap, overlap)
 })
 
 // ---- SKILL.md safety string-assertions -----------------------------------
