@@ -6,6 +6,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
+import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 import {
@@ -285,6 +286,46 @@ test('record never leaves a partial ledger after a simulated interrupt', () => {
   record(campaignDir, { plan: path.resolve(planA), status: 'landed', branch: 'b', pr: 1, sha: 's' })
   assert.equal(fs.existsSync(tmpPath), false)
   assert.doesNotThrow(() => JSON.parse(fs.readFileSync(path.join(campaignDir, 'ledger.json'), 'utf8')))
+})
+
+// ---- CLI record parity (#422 items 4+6) ----------------------------------
+// These drive the CLI dispatch case, NOT the exported record() (already correct).
+
+const CLI = path.join(__dirname, 'campaign-ledger.mjs')
+
+function cli(...args) {
+  return execFileSync(process.execPath, [CLI, ...args], { encoding: 'utf8' })
+}
+
+test('CLI record --stopPoint round-trips into the persisted entry', () => {
+  const dir = tmpDir()
+  const planA = writePlan(dir, 'a.md', PLAN_A)
+  const campaignDir = path.join(dir, 'campaign')
+  init(campaignDir, { plans: [planA], mode: 'stack' })
+
+  cli('record', '--campaign', campaignDir, '--plan', planA,
+    '--status', 'held-cli-93af', '--stopPoint', 'sp-red-team-halt-93af')
+
+  const entry = readLedger(campaignDir).plans[0]
+  assert.equal(entry.stopPoint, 'sp-red-team-halt-93af')
+  assert.equal(entry.status, 'held-cli-93af')
+})
+
+test('CLI record with omitted --pr leaves the existing pr value UNCHANGED (no undefined-stamp deletion)', () => {
+  const dir = tmpDir()
+  const planA = writePlan(dir, 'a.md', PLAN_A)
+  const campaignDir = path.join(dir, 'campaign')
+  init(campaignDir, { plans: [planA], mode: 'stack' })
+
+  cli('record', '--campaign', campaignDir, '--plan', planA,
+    '--pr', '4177', '--branch', 'dev/keep-pr-branch-c2e6')
+  // second update omits --pr and --branch entirely — both must survive
+  cli('record', '--campaign', campaignDir, '--plan', planA, '--status', 'landed-cli-7b21')
+
+  const entry = readLedger(campaignDir).plans[0]
+  assert.equal(entry.pr, 4177)
+  assert.equal(entry.branch, 'dev/keep-pr-branch-c2e6')
+  assert.equal(entry.status, 'landed-cli-7b21')
 })
 
 // ---- Files: extraction (block-based, anchored) --------------------------
