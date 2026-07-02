@@ -69,7 +69,7 @@ const known = new Set(KNOWN_LAND_DECISIONS)
 // Step 3a — the Workflow's emitted landDecision literals, sliced to the landDecision block so comment
 // tokens ('held:submodule-pr'/'held:workflow-error' in prose) and prompt-string tokens ('status: landed')
 // OUTSIDE the block cannot pollute. Two-part extraction, both anchored to `landDecision`:
-//   (1) same-line `landDecision <op> 'lit'` (= / == / === / :) — catches the 4 direct assignments + catch,
+//   (1) same-line `landDecision <op> 'lit'` (= or :) — catches the 4 direct assignments + catch,
 //   (2) the ternary assignment statement `let landDecision = …` up to the stable following `const refineryLandPath`
 //       (bounded lookahead, NOT an open capture) — catches the 3 ternary branches.
 function workflowEmitted() {
@@ -78,7 +78,7 @@ function workflowEmitted() {
   const blkEnd = wf.indexOf("landDecision: 'held:workflow-error'")
   assert.ok(blkStart >= 0 && blkEnd > blkStart, 'landDecision block anchors must resolve in workflow-template.js')
   const block = wf.slice(blkStart, blkEnd + 200)
-  const direct = [...block.matchAll(/landDecision\s*(?:={1,3}|:)\s*(['"])(landed|held:[a-z-]+)\1/g)].map((m) => m[2])
+  const direct = [...block.matchAll(/landDecision\s*(?:=(?![=])|:)\s*(['"])(landed|held:[a-z-]+)\1/g)].map((m) => m[2])
   const tern = block.match(/let landDecision =[\s\S]*?(?=\n\s*const )/)
   assert.ok(tern, 'the `let landDecision = …` ternary statement must be locatable')
   const ternLits = [...tern[0].matchAll(/(['"])(landed|held:[a-z-]+)\1/g)].map((m) => m[2])
