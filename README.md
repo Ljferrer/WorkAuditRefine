@@ -230,7 +230,7 @@ Once you have several plans, run them back-to-back, unattended, in one chat:
 /war-campaign add <plan-path>                           # from any chat — drop a plan into the queue
 ```
 
-Each plan is hardened (`/red-team`) and executed (`/war … --afk`) in turn, stacking each plan's branch on the
+Each plan is hardened (`/red-team`) and executed (`/war … --afk --ace`) in turn, stacking each plan's branch on the
 prior plan's tip and its PR on the prior plan's branch — so later plans see earlier plans' code without a
 human merging overnight (the **stack-and-plow** model, [ADR 0011](docs/adr/0011-campaign-stack-and-plow-branch-model.md)). `--wait-for-merge` switches to the linear alternative: wait for each PR to merge before
 basing the next plan off fresh `master`.
@@ -281,7 +281,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.9.0** — WAR companion skills — `/war-help` orientation card, `/war-strategy` authoring primer (templates + code-boundary rule), `/war-campaign` hopper (ledger+inbox feed, stack-and-plow, halt-and-hold).
+**0.9.1** — #422 nit sweep — campaign-ledger CLI at core-API parity (`--stopPoint`, conditional update), runnable lifecycle example, war-help deep links.
 
 ## License
 
