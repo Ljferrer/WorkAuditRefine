@@ -281,7 +281,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.8.14** — spec/doc prose-drift reconciliation — SKILL.md return bullet now lists `aced`; submodule-support §5.6 reattributes reachability to the Lead reconciliation + refiner. Builds on v0.8.13.
+**0.9.0** — WAR companion skills — `/war-help` orientation card, `/war-strategy` authoring primer (templates + code-boundary rule), `/war-campaign` hopper (ledger+inbox feed, stack-and-plow, halt-and-hold).
 
 ## License
 
