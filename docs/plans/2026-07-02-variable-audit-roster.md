@@ -216,7 +216,10 @@ No behavioral tests (prose; the full gate is the regression guard). Per file
   gitlink-bump pre-flight, never roster-selectable); depth line notes per-seat. `## Review through your
   lens` (currently 5 bullets, ~:43) becomes the D6 catalog: the trio unchanged + `security`, `performance`,
   `simplicity`, `usability` (not rendered-GUI UX), `test-fidelity` (deeper than, not replacing, the
-  every-seat anti-cheat duty) — one-line focus each; no restructure, no new top-level heading.
+  every-seat anti-cheat duty) — one-line focus each; no restructure, no new top-level heading. The two
+  non-trio bullets present today are **subsumed, not lost** (red-team clarification): `domain` → the
+  Inputs open-namespace note (domain lenses stay mintable, D6); `execution-evidence` → the reserved-pair
+  note — their removal from the catalog bullets is deliberate replacement, not an omission.
 - [ ] **`README.md`** — Audits bullet (three-seat-panel → roster); `--config` table row (`coven policy` →
   `roster policy`); *Configure a run (`/war-room`)* section intro → roster phrasing. Anchor by construct.
 - [ ] **`.tours/architect-war-system.tour`** — **FULL refresh (operator-ratified over the spec's narrower

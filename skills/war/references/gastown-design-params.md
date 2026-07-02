@@ -13,12 +13,12 @@ WAR re-implements Steve Yegge's [Gas Town](https://github.com/gastownhall/gastow
 | bd remember | war-servitor | write-scoped `Agent` (sonnet); records per-phase learnings |
 
 ## Nun audit gate → `war-auditor`
-- **Seats:** `panel = 1` default; `coven = 3` for high-blast-radius tasks. **[TUNE]**
+- **Seats:** a per-task **roster** of 1–5 distinct-lens seats; default: the trio at `deep`; a solo `neighbors` seat for low-risk tasks. Seat count *is* the roster's length. **[TUNE]**
 - **Unanimity, fail-closed:** all live seats must `approve` against the current SHA; any `request_changes`/missing/hung seat = no merge. A missing verdict never auto-passes and never auto-rejects. **[HARD]**
 - **Convergent unanimity (SHA-pinned):** approval is provisional and pinned to `audit_sha`; when HEAD moves, every seat (incl. prior approvers) re-confirms against the new SHA. **[HARD]**
 - **Read-only — structural:** in WAR this is tool-level — auditors have only Read/Grep/Glob (no Write/Edit/Bash), so they physically cannot modify, commit, or push. (Gas Town used a detached checkout + push-unset; WAR's tool restriction is the simpler portable equivalent and avoids the headless-permission-hang trap.) **[HARD]**
-- **Tiered depth:** `neighbors` (diff + one hop of what changed lines reference) default; `deep` (trace impact wherever changed symbols are used) for coven. **[TUNE default]**
-- **Perspective diversity (coven):** each seat gets a distinct lens — correctness / cascading-impact / plan-faithfulness, swapping one for a domain lens (healthcare-safety, security) on flagged code. **[HARD for coven value]**
+- **Tiered depth:** `neighbors` (diff + one hop of what changed lines reference) or `deep` (trace impact wherever changed symbols are used) — carried **per seat** on each roster entry (omitted → `deep`). **[TUNE default]**
+- **Perspective diversity (roster):** each seat gets a distinct lens (duplicates fail validation) — correctness / cascading-impact / plan-faithfulness, swapping or adding a domain lens (healthcare-safety, security) on flagged code. **[HARD for multi-seat value]**
 - **Plan faithfulness:** check the change against the plan **slice** the task owns (one plan file → many tasks; never 1:1). Degrade to code-only if no slice is discoverable. **[HARD]**
 - **round_limit = 3:** after 3 dissenting rounds, escalate `audit-blocked` + halt. Only a genuine `request_changes` advances the counter — infra faults don't. **[TUNE value, HARD mechanism]**
 - **Severity:** findings tagged Critical/Major/Minor/Nit; **Critical/Major block**, Minor/Nit → follow-up issues. (Gas Town's gate was binary; WAR keeps the binary block but tags severity for triage.) **[HARD]**

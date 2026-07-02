@@ -5,8 +5,8 @@ import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, relative } from 'node:path'
 import {
-  DEFAULTS, PROVISION_SOURCES, fillDefaults, presetConfig, validate, spawnOpts, covenSeats,
-  resolveProvision, resolveGate,
+  DEFAULTS, PROVISION_SOURCES, ROSTER_POLICIES, fillDefaults, presetConfig, validate, spawnOpts,
+  validateRoster, widenRoster, resolveProvision, resolveGate,
 } from './war-config.mjs'
 import { HARD_ESCALATION_REASONS, decideLand } from './land-decision.mjs'
 
@@ -70,7 +70,7 @@ test('empty input fills to balanced defaults and validates', () => {
   const c = fillDefaults({})
   assert.equal(c.agents.worker.model, 'sonnet')
   assert.equal(c.agents.auditor.model, 'opus')
-  assert.equal(c.audit.covenPolicy, 'all')
+  assert.equal(c.audit.rosterPolicy, 'all')
   assert.equal(validate({}).valid, true)
 })
 
@@ -93,14 +93,13 @@ test('thorough preset', () => {
   assert.equal(c.agents.worker.model, 'opus')
   assert.equal(c.agents.worker.effort, 'max')
   assert.equal(c.agents.auditor.effort, 'high')
-  assert.equal(c.audit.covenPolicy, 'all')
+  assert.equal(c.audit.rosterPolicy, 'all')
   assert.equal(validate(c).valid, true)
 })
 
 test('economy preset', () => {
   const c = presetConfig('economy')
-  assert.equal(c.audit.covenSize, 3)   // economy keeps the default covenSize; 'solo' is what yields the single auditor
-  assert.equal(c.audit.covenPolicy, 'solo')
+  assert.equal(c.audit.rosterPolicy, 'solo')
   assert.equal(c.run.roundLimit, 2)
   assert.equal(validate(c).valid, true)
 })
@@ -121,12 +120,47 @@ test('bad effort rejected', () => {
   assert.match(r.errors.join('\n'), /agents\.auditor\.effort/)
 })
 
-test('covenSize below 1 rejected', () => {
-  assert.equal(validate({ audit: { covenSize: 0 } }).valid, false)
+// --- audit roster validation + D3 legacy-key courtesy errors ------------------
+
+test('legacy audit.covenSize rejected with a courtesy error naming the key and /war-room', () => {
+  const r = validate({ audit: { covenSize: 3 } })
+  assert.equal(r.valid, false)
+  const msg = r.errors.join('\n')
+  assert.match(msg, /audit\.covenSize/)
+  assert.match(msg, /\/war-room/)
 })
 
-test('bad covenPolicy rejected', () => {
-  assert.equal(validate({ audit: { covenPolicy: 'never' } }).valid, false)
+test('legacy audit.lenses rejected with a courtesy error naming the key and /war-room', () => {
+  const r = validate({ audit: { lenses: ['correctness'] } })
+  assert.equal(r.valid, false)
+  const msg = r.errors.join('\n')
+  assert.match(msg, /audit\.lenses/)
+  assert.match(msg, /\/war-room/)
+})
+
+test('legacy audit.covenPolicy rejected with a courtesy error naming the key and /war-room', () => {
+  const r = validate({ audit: { covenPolicy: 'all' } })
+  assert.equal(r.valid, false)
+  const msg = r.errors.join('\n')
+  assert.match(msg, /audit\.covenPolicy/)
+  assert.match(msg, /rosterPolicy/)
+  assert.match(msg, /\/war-room/)
+})
+
+test('bad rosterPolicy rejected', () => {
+  assert.equal(validate({ audit: { rosterPolicy: 'never' } }).valid, false)
+})
+
+test('each ROSTER_POLICIES member is accepted', () => {
+  for (const p of ROSTER_POLICIES) {
+    assert.equal(validate({ audit: { rosterPolicy: p } }).valid, true, `rosterPolicy ${p} should be valid`)
+  }
+})
+
+test('invalid roster rejected through validate() with an audit.-prefixed error', () => {
+  const r = validate({ audit: { roster: [] } })
+  assert.equal(r.valid, false)
+  assert.match(r.errors.join('\n'), /audit\.roster/)
 })
 
 test('non-boolean autoEscalate rejected', () => {
@@ -255,27 +289,66 @@ test('spawnOpts includes non-default effort', () => {
   assert.deepEqual(spawnOpts(presetConfig('thorough'), 'worker'), { model: 'opus', effort: 'max' })
 })
 
-test('covenSeats single seat when not coven', () => {
-  assert.deepEqual(
-    covenSeats(DEFAULTS, { coven: false, lenses: DEFAULTS.audit.lenses }),
-    ['correctness'])
+// --- validateRoster (D8) / widenRoster (D5) unit tests -------------------------
+
+test('validateRoster: accepts 1–5 distinct-lens entries, depth present or absent', () => {
+  assert.deepEqual(validateRoster([{ lens: 'correctness' }]), { valid: true, errors: [] })
+  const five = [
+    { lens: 'correctness', depth: 'deep' }, { lens: 'security', depth: 'neighbors' },
+    { lens: 'performance' }, { lens: 'simplicity' }, { lens: 'usability', depth: 'deep' },
+  ]
+  assert.deepEqual(validateRoster(five), { valid: true, errors: [] })
 })
 
-test('covenSeats covenSize seats rotating lenses', () => {
-  const c = fillDefaults({ audit: { covenSize: 3 } })
-  assert.deepEqual(
-    covenSeats(c, { coven: true, lenses: ['correctness', 'cascading-impact', 'plan-faithfulness'] }),
-    ['correctness', 'cascading-impact', 'plan-faithfulness'])
+test('validateRoster: DEFAULTS.audit.roster is valid (trio at deep)', () => {
+  assert.deepEqual(validateRoster(DEFAULTS.audit.roster), { valid: true, errors: [] })
 })
 
-test('covenSeats falls back to the default trio length when audit has no covenSize', () => {
-  assert.deepEqual(
-    covenSeats({}, { coven: true, lenses: ['correctness', 'cascading-impact', 'plan-faithfulness'] }),
-    ['correctness', 'cascading-impact', 'plan-faithfulness'])
+test('validateRoster: rejects an empty roster and a 6-entry roster (1–5 bound)', () => {
+  assert.equal(validateRoster([]).valid, false)
+  const six = ['a', 'b', 'c', 'd', 'e', 'f'].map(l => ({ lens: l }))
+  assert.equal(validateRoster(six).valid, false)
 })
 
-test('covenSeats uses default lenses when the task has none', () => {
-  assert.deepEqual(covenSeats({}, { coven: false }), ['correctness'])
+test('validateRoster: rejects duplicate lenses (distinct-lens rule)', () => {
+  const r = validateRoster([{ lens: 'correctness' }, { lens: 'correctness' }])
+  assert.equal(r.valid, false)
+  assert.match(r.errors.join('\n'), /duplicat/i)
+})
+
+test('validateRoster: rejects empty and non-string lens', () => {
+  assert.equal(validateRoster([{ lens: '' }]).valid, false)
+  assert.equal(validateRoster([{ lens: 42 }]).valid, false)
+})
+
+test("validateRoster: rejects depth 'shallow' (enum is neighbors|deep)", () => {
+  assert.equal(validateRoster([{ lens: 'correctness', depth: 'shallow' }]).valid, false)
+})
+
+test('validateRoster: rejects non-object entries', () => {
+  assert.equal(validateRoster(['correctness']).valid, false)
+  assert.equal(validateRoster([null]).valid, false)
+})
+
+test('widenRoster: solo security seat + default trio → 4 seats, security first, appended seats carry default depths', () => {
+  const out = widenRoster([{ lens: 'security', depth: 'deep' }], DEFAULTS.audit.roster)
+  assert.deepEqual(out.map(s => s.lens), ['security', 'correctness', 'cascading-impact', 'plan-faithfulness'])
+  assert.equal(out[0].depth, 'deep')
+  assert.ok(out.slice(1).every(s => s.depth === 'deep'), 'appended default seats keep their configured depths')
+})
+
+test('widenRoster: union dedupes — solo correctness@neighbors + trio → 3 seats, kept seat keeps its depth', () => {
+  const out = widenRoster([{ lens: 'correctness', depth: 'neighbors' }], DEFAULTS.audit.roster)
+  assert.deepEqual(out.map(s => s.lens), ['correctness', 'cascading-impact', 'plan-faithfulness'])
+  assert.equal(out[0].depth, 'neighbors', 'the kept seat keeps its own depth (union, not replacement)')
+})
+
+test('widenRoster: caps at 5 — 1 seat + a 5-lens default → 5 seats, never 6', () => {
+  const FIVE = ['correctness', 'cascading-impact', 'plan-faithfulness', 'security', 'performance']
+    .map(l => ({ lens: l, depth: 'deep' }))
+  const out = widenRoster([{ lens: 'usability', depth: 'neighbors' }], FIVE)
+  assert.equal(out.length, 5)
+  assert.equal(out[0].lens, 'usability')
 })
 
 // ---------------------------------------------------------------------------
@@ -298,18 +371,6 @@ test('drift-guard: ROLE_MODEL in workflow-template.js matches DEFAULTS agent mod
     refiner:  DEFAULTS.agents.refiner.model,
     servitor: DEFAULTS.agents.servitor.model,
   })
-})
-
-test('drift-guard: inline fallback lenses in workflow-template.js matches DEFAULTS.audit.lenses (#6 Nit 1)', () => {
-  // The template has:
-  //   const baseLenses = task.lenses && task.lenses.length ? task.lenses : ['correctness', 'cascading-impact', 'plan-faithfulness']
-  // Extract the fallback array literal after the ternary's false-branch colon.
-  const match = templateText.match(/task\.lenses\s*:\s*(\[[^\]]+\])/)
-  assert.ok(match, 'inline fallback lenses array not found in workflow-template.js')
-  // Normalize single-quoted strings to double-quoted for JSON.parse.
-  const normalized = match[1].replace(/'/g, '"')
-  const parsed = JSON.parse(normalized)
-  assert.deepEqual(parsed, DEFAULTS.audit.lenses)
 })
 
 // ---------------------------------------------------------------------------
@@ -508,74 +569,31 @@ test('doc-contract: schemas.md describes overrides.gate as the declared base (no
 })
 
 // ---------------------------------------------------------------------------
-// Task 3 — F06: Default covenPolicy 'all'; presets; covenSeats correctness; drift guard
+// Task 3 — F06: Default rosterPolicy 'all'; presets; historical-spec doc contract
 // ---------------------------------------------------------------------------
 
-test('F06 — fillDefaults: audit.covenPolicy defaults to all (full panel)', () => {
+test('F06 — fillDefaults: audit.rosterPolicy defaults to all (full roster)', () => {
   const c = fillDefaults({})
-  assert.equal(c.audit.covenPolicy, 'all',
-    'fillDefaults({}) must produce audit.covenPolicy === "all" (F06: full 3-lens panel by default)')
+  assert.equal(c.audit.rosterPolicy, 'all',
+    'fillDefaults({}) must produce audit.rosterPolicy === "all" (F06: full default roster per task)')
 })
 
-test('F06 — covenSeats(DEFAULTS, {coven:true}) returns 3 seats: correctness, cascading-impact, plan-faithfulness', () => {
-  const seats = covenSeats(DEFAULTS, { coven: true })
-  assert.deepEqual(seats, ['correctness', 'cascading-impact', 'plan-faithfulness'],
-    'covenSeats with DEFAULTS and coven:true must return all 3 lenses (F06 correctness)')
-})
-
-test('F06 — preset economy keeps explicit covenPolicy:solo (deepMerge override unaffected by DEFAULTS flip)', () => {
+test('F06 — preset economy keeps explicit rosterPolicy:solo (deepMerge override unaffected by DEFAULTS flip)', () => {
   const c = presetConfig('economy')
-  assert.equal(c.audit.covenPolicy, 'solo',
-    'economy preset must keep covenPolicy:"solo" even after DEFAULTS flips to "all"')
+  assert.equal(c.audit.rosterPolicy, 'solo',
+    'economy preset must keep rosterPolicy:"solo" even though DEFAULTS is "all"')
 })
 
-test('F06 — preset thorough keeps covenPolicy:all', () => {
+test('F06 — preset thorough keeps rosterPolicy:all', () => {
   const c = presetConfig('thorough')
-  assert.equal(c.audit.covenPolicy, 'all',
-    'thorough preset must remain covenPolicy:"all"')
+  assert.equal(c.audit.rosterPolicy, 'all',
+    'thorough preset must remain rosterPolicy:"all"')
 })
 
-test('F06 — preset balanced (= fillDefaults) is now covenPolicy:all', () => {
+test('F06 — preset balanced (= fillDefaults) is rosterPolicy:all', () => {
   const c = presetConfig('balanced')
-  assert.equal(c.audit.covenPolicy, 'all',
-    'balanced preset (= DEFAULTS) must now be covenPolicy:"all" (F06)')
-})
-
-test('F06 — doc-contract: schemas.md documents new covenPolicy default and cost note', () => {
-  const text = readDoc('skills/war/references/schemas.md')
-  const hasDefault = text.includes('covenPolicy') && (
-    text.includes('"all"') || text.includes("'all'") || text.includes('covenPolicy: all') ||
-    text.includes('covenPolicy:"all"') || text.includes("default: 'all'") ||
-    text.includes('default is') || text.includes('defaults to')
-  )
-  assert.ok(hasDefault,
-    'schemas.md must document the new covenPolicy default (all) (F06)')
-  const hasCostNote = text.includes('3 deep') || text.includes('three deep') ||
-    text.includes('economy') || text.includes('cost') || text.includes('budget')
-  assert.ok(hasCostNote,
-    'schemas.md must include a cost note (F06: balanced now spawns 3 deep auditor seats per task)')
-})
-
-test('F06 — doc-contract: README states independent, unanimous, multi-lens panel (accurate claim)', () => {
-  const text = readDoc('README.md')
-  const hasPanel = text.includes('multi-lens') || text.includes('3-lens') || text.includes('three-lens') ||
-    text.includes('multi-seat') || text.includes('full panel') ||
-    (text.includes('independent') && text.includes('unanimous'))
-  assert.ok(hasPanel,
-    'README must state the independent/unanimous/multi-lens panel claim (now accurate after F06)')
-})
-
-test('F06 — doc-contract: war-room SKILL.md balanced preset description reflects full 3-lens panel at deep', () => {
-  const text = readDoc('skills/war-room/SKILL.md')
-  const hasBalancedPanel = text.includes('full 3-lens') || text.includes('full panel') ||
-    text.includes('3-lens panel') || text.includes('full 3 lens') ||
-    text.includes('three-lens') || text.includes('covenPolicy: all') ||
-    text.includes('covenPolicy:"all"') || text.includes("covenPolicy: 'all'")
-  assert.ok(hasBalancedPanel,
-    'war-room SKILL.md must describe balanced as full 3-lens panel (F06)')
-  const hasEconomySolo = text.includes('economy') && (text.includes('solo') || text.includes('single'))
-  assert.ok(hasEconomySolo,
-    'war-room SKILL.md must describe economy as solo (F06)')
+  assert.equal(c.audit.rosterPolicy, 'all',
+    'balanced preset (= DEFAULTS) must be rosterPolicy:"all" (F06)')
 })
 
 test('F06 — doc-contract: design spec balanced preset table updated to covenPolicy all', () => {
@@ -595,11 +613,12 @@ test('F06 — doc-contract: design spec balanced preset table updated to covenPo
 // then rebuild via new Function / new AsyncFunction and compare to the canonical export.
 
 // ---------------------------------------------------------------------------
-// spawnOpts drift guard (D1): line-93 marker covers spawnOpts + covenSeats
+// spawnOpts drift guard (D1): the combined spawnOpts/validateRoster/widenRoster
+// marker covers all three mirrors
 // ---------------------------------------------------------------------------
 
 test('drift-guard(F07): inline spawnOpts mirror equals canonical spawnOpts — default effort (omit effort)', () => {
-  // Extract the inline spawn arrow function body under the line-93 Keep-in-sync marker.
+  // Extract the inline spawn arrow function body under the combined Keep-in-sync marker.
   // Template: const spawn = role => { const a = agents[role] || {}; ... }
   // We rebuild it as a standalone function(agents, ROLE_MODEL, role) and call it.
   const match = templateText.match(/const\s+spawn\s*=\s*role\s*=>\s*\{([\s\S]*?)\n\}/)
@@ -705,116 +724,72 @@ test('drift-guard(F07): inline spawnOpts mirror equals canonical spawnOpts — m
 })
 
 // ---------------------------------------------------------------------------
-// covenSeats drift guard (D1): same line-93 marker covers BOTH spawnOpts and covenSeats
+// validateRoster/widenRoster drift guards (D9): the same combined
+// spawnOpts/validateRoster/widenRoster marker covers all three mirrors
 // ---------------------------------------------------------------------------
 
-test('drift-guard(F07): inline covenSeats mirror equals canonical covenSeats — coven:false (single seat)', () => {
-  // Extract the covenSeats inline from auditRound's body: the baseLenses + lenses computation.
-  // Template (~line 166-169):
-  //   const baseLenses = task.lenses && task.lenses.length ? task.lenses : ['correctness', ...]
-  //   const lenses = !task.coven ? [baseLenses[0]] : Array.from({ length: audit.covenSize || baseLenses.length }, ...)
-  // We extract this two-line block and rebuild it as Function(task, audit, DEFAULTS) returning lenses.
-  const match = templateText.match(
-    /(const baseLenses\s*=\s*task\.lenses[\s\S]*?const lenses\s*=\s*!task\.coven[\s\S]*?baseLenses\[i\s*%\s*baseLenses\.length\]\s*\))/
-  )
-  assert.ok(match, 'inline covenSeats baseLenses+lenses block not found in workflow-template.js')
-  const inlineCovenSeats = new Function('task', 'audit', 'DEFAULTS',
-    match[1] + '\nreturn lenses')
+const VR_EXTRACT = /const validateRoster\s*=\s*roster\s*=>\s*\{([\s\S]*?)\n\}/
+const WR_EXTRACT = /const widenRoster\s*=\s*\(roster,\s*defaultRoster\)\s*=>\s*\{([\s\S]*?)\n\}/
 
-  // coven:false — should always return a single-element array with the first lens
-  const task1 = { coven: false, lenses: DEFAULTS.audit.lenses }
-  const canonical1 = covenSeats(DEFAULTS, task1)
-  const inline1 = inlineCovenSeats(task1, DEFAULTS.audit, DEFAULTS)
-  assert.deepEqual(inline1, canonical1,
-    `inline covenSeats(coven:false) diverges: inline=${JSON.stringify(inline1)} canonical=${JSON.stringify(canonical1)}`)
+test('drift-guard(F07): inline validateRoster mirror equals canonical validateRoster across accept/reject cases', () => {
+  const match = templateText.match(VR_EXTRACT)
+  assert.ok(match, 'inline validateRoster arrow not found in workflow-template.js')
+  const inline = new Function('roster', match[1])
+  const cases = [
+    [{ lens: 'correctness' }],
+    [{ lens: 'correctness', depth: 'deep' }, { lens: 'security', depth: 'neighbors' }],
+    DEFAULTS.audit.roster,
+    [],
+    undefined,
+    'not-an-array',
+    ['a', 'b', 'c', 'd', 'e', 'f'].map(l => ({ lens: l })),
+    [{ lens: 'x' }, { lens: 'x' }],
+    [{ lens: '' }],
+    [{ lens: 42 }],
+    [{ lens: 'ok', depth: 'shallow' }],
+    ['just-a-string'],
+    [null],
+  ]
+  for (const c of cases) {
+    assert.deepEqual(inline(c), validateRoster(c),
+      `inline validateRoster diverges from canonical for case ${JSON.stringify(c)}`)
+  }
 })
 
-test('drift-guard(F07): inline covenSeats mirror equals canonical covenSeats — coven:true with custom lenses', () => {
-  const match = templateText.match(
-    /(const baseLenses\s*=\s*task\.lenses[\s\S]*?const lenses\s*=\s*!task\.coven[\s\S]*?baseLenses\[i\s*%\s*baseLenses\.length\]\s*\))/
-  )
-  assert.ok(match, 'inline covenSeats block not found in workflow-template.js')
-  const inlineCovenSeats = new Function('task', 'audit', 'DEFAULTS',
-    match[1] + '\nreturn lenses')
-
-  // coven:true with custom lenses (3 lenses, covenSize:3)
-  const config = { audit: { covenSize: 3 } }
-  const task2 = { coven: true, lenses: ['correctness', 'cascading-impact', 'plan-faithfulness'] }
-  const canonical2 = covenSeats(fillDefaults(config), task2)
-  const inline2 = inlineCovenSeats(task2, { covenSize: 3 }, DEFAULTS)
-  assert.deepEqual(inline2, canonical2,
-    `inline covenSeats(coven:true, custom lenses, covenSize=3) diverges: inline=${JSON.stringify(inline2)} canonical=${JSON.stringify(canonical2)}`)
-})
-
-test('drift-guard(F07): inline covenSeats mirror equals canonical covenSeats — covenSize > lenses.length (rotation wrap)', () => {
-  const match = templateText.match(
-    /(const baseLenses\s*=\s*task\.lenses[\s\S]*?const lenses\s*=\s*!task\.coven[\s\S]*?baseLenses\[i\s*%\s*baseLenses\.length\]\s*\))/
-  )
-  assert.ok(match, 'inline covenSeats block not found in workflow-template.js')
-  const inlineCovenSeats = new Function('task', 'audit', 'DEFAULTS',
-    match[1] + '\nreturn lenses')
-
-  // covenSize(5) > lenses.length(3) → rotation wrap: lenses repeat
-  const config5 = { audit: { covenSize: 5 } }
-  const task3 = { coven: true, lenses: ['correctness', 'cascading-impact', 'plan-faithfulness'] }
-  const canonical3 = covenSeats(fillDefaults(config5), task3)
-  const inline3 = inlineCovenSeats(task3, { covenSize: 5 }, DEFAULTS)
-  assert.deepEqual(inline3, canonical3,
-    `inline covenSeats(covenSize>lenses) diverges: inline=${JSON.stringify(inline3)} canonical=${JSON.stringify(canonical3)}`)
-  assert.equal(inline3.length, 5, 'should produce 5 seats when covenSize=5')
-})
-
-test('drift-guard(F07): inline covenSeats mirror equals canonical covenSeats — covenSize < lenses.length (truncation)', () => {
-  const match = templateText.match(
-    /(const baseLenses\s*=\s*task\.lenses[\s\S]*?const lenses\s*=\s*!task\.coven[\s\S]*?baseLenses\[i\s*%\s*baseLenses\.length\]\s*\))/
-  )
-  assert.ok(match, 'inline covenSeats block not found in workflow-template.js')
-  const inlineCovenSeats = new Function('task', 'audit', 'DEFAULTS',
-    match[1] + '\nreturn lenses')
-
-  // covenSize(2) < lenses.length(3) → only 2 seats
-  const config2 = { audit: { covenSize: 2 } }
-  const task4 = { coven: true, lenses: ['correctness', 'cascading-impact', 'plan-faithfulness'] }
-  const canonical4 = covenSeats(fillDefaults(config2), task4)
-  const inline4 = inlineCovenSeats(task4, { covenSize: 2 }, DEFAULTS)
-  assert.deepEqual(inline4, canonical4,
-    `inline covenSeats(covenSize<lenses) diverges: inline=${JSON.stringify(inline4)} canonical=${JSON.stringify(canonical4)}`)
-  assert.equal(inline4.length, 2, 'should produce 2 seats when covenSize=2')
-})
-
-test('drift-guard(F07): inline covenSeats falls back to DEFAULTS.audit.lenses when task has no lenses', () => {
-  // The inline hardcodes ['correctness','cascading-impact','plan-faithfulness'] while canonical reads
-  // DEFAULTS.audit.lenses. Injecting DEFAULTS when rebuilding means they resolve to the same set.
-  // This test checks a task with NO lenses (forces the fallback path).
-  const match = templateText.match(
-    /(const baseLenses\s*=\s*task\.lenses[\s\S]*?const lenses\s*=\s*!task\.coven[\s\S]*?baseLenses\[i\s*%\s*baseLenses\.length\]\s*\))/
-  )
-  assert.ok(match, 'inline covenSeats block not found in workflow-template.js')
-  const inlineCovenSeats = new Function('task', 'audit', 'DEFAULTS',
-    match[1] + '\nreturn lenses')
-
-  // No lenses on task → fallback
-  const taskNoLenses = { coven: false }
-  const canonicalFallback = covenSeats({}, taskNoLenses)
-  const inlineFallback = inlineCovenSeats(taskNoLenses, DEFAULTS.audit, DEFAULTS)
-  assert.deepEqual(inlineFallback, canonicalFallback,
-    `inline covenSeats(no task lenses, fallback) diverges: inline=${JSON.stringify(inlineFallback)} canonical=${JSON.stringify(canonicalFallback)}`)
+test('drift-guard(F07): inline widenRoster mirror equals canonical widenRoster across union/dedupe/cap cases', () => {
+  const match = templateText.match(WR_EXTRACT)
+  assert.ok(match, 'inline widenRoster arrow not found in workflow-template.js')
+  const inline = new Function('roster', 'defaultRoster', match[1])
+  const FIVE = ['correctness', 'cascading-impact', 'plan-faithfulness', 'security', 'performance']
+    .map(l => ({ lens: l, depth: 'deep' }))
+  const cases = [
+    [[{ lens: 'security', depth: 'deep' }], DEFAULTS.audit.roster],
+    [[{ lens: 'correctness', depth: 'neighbors' }], DEFAULTS.audit.roster],
+    [[{ lens: 'usability', depth: 'neighbors' }], FIVE],
+    [DEFAULTS.audit.roster, DEFAULTS.audit.roster],
+    [[{ lens: 'a' }], []],
+    [[{ lens: 'a' }], undefined],
+  ]
+  for (const [roster, def] of cases) {
+    assert.deepEqual(inline(roster, def), widenRoster(roster, def),
+      `inline widenRoster diverges from canonical for case ${JSON.stringify([roster, def])}`)
+  }
 })
 
 // ---------------------------------------------------------------------------
-// decideLand drift guard (D1): lines 367/368 markers
+// decideLand drift guard (D1): the landDecision + HARD_ESCALATION_REASONS markers
 // ---------------------------------------------------------------------------
 
 // Helper: extract the inline hardEscalation + landDecision ternary from workflow-template.js
-// and rebuild it as an executable function via new Function — mirroring the spawnOpts/covenSeats
+// and rebuild it as an executable function via new Function — mirroring the spawnOpts/validateRoster
 // extract-and-execute pattern so that template-side ternary drift (not just array drift) bites.
 function buildInlineDecideLand() {
-  // Extract HARD_ESCALATION_REASONS array from the template (line ~370).
+  // Extract the HARD_ESCALATION_REASONS array literal from the template.
   const herMatch = templateText.match(/const\s+HARD_ESCALATION_REASONS\s*=\s*(\[[^\]]+\])/)
   assert.ok(herMatch, 'HARD_ESCALATION_REASONS not found in workflow-template.js')
   const inlineReasons = JSON.parse(herMatch[1].replace(/'/g, '"'))
 
-  // Extract the inline hardEscalation expression + the 3-branch landDecision ternary (lines ~371-374).
+  // Extract the inline hardEscalation expression + the 3-branch landDecision ternary.
   // The regex captures from 'const hardEscalation = escalated.some' through 'held:nothing-merged'.
   const ternaryMatch = templateText.match(
     /(const hardEscalation\s*=\s*escalated\.some[\s\S]*?'held:nothing-merged')/
@@ -829,8 +804,8 @@ function buildInlineDecideLand() {
 }
 
 test('drift-guard(F07): inline HARD_ESCALATION_REASONS + decideLand logic equals canonical decideLand — empty landed × empty escalated', () => {
-  // Extract inline HARD_ESCALATION_REASONS, hardEscalation + landDecision ternary from ~line 370-374.
-  // These three lines are under the 367/368 "landDecision mirrors" markers.
+  // Extract the inline HARD_ESCALATION_REASONS, hardEscalation + landDecision ternary — the block
+  // under the "landDecision mirrors" / "HARD_ESCALATION_REASONS mirrors" Keep-in-sync markers.
   // Uses new Function to execute the LIVE template code so ternary-level drift is detected (not just array drift).
   const inlineDecideLand = buildInlineDecideLand()
 
@@ -907,11 +882,11 @@ test('drift-guard(F07): inline HARD_ESCALATION_REASONS equals the canonical expo
 // ---------------------------------------------------------------------------
 // Classifying meta-guard (D3): every Keep-in-sync/Mirror-of marker is accounted for
 // ---------------------------------------------------------------------------
-// Markers are NOT 1:1 with drift tests:
-//   line-93  → logic-mirror covering spawnOpts AND covenSeats (1 marker, 2 registered drift tests)
-//   line-367 → logic-mirror covering landDecision (decideLand)
-//   line-368 → logic-mirror covering HARD_ESCALATION_REASONS (same decideLand block)
-//   line-69  → data-mirror (run.provision/provisionSource field names) — allowlisted, no behavioral test
+// Markers are NOT 1:1 with drift tests (anchored by construct, not line number):
+//   the combined spawnOpts/validateRoster/widenRoster marker → logic-mirror (1 marker, 3 drift-test families)
+//   the landDecision marker → logic-mirror covering landDecision (decideLand)
+//   the HARD_ESCALATION_REASONS marker → logic-mirror (same decideLand block)
+//   the run.provision data-mirror marker → data-mirror (field names) — allowlisted, no behavioral test
 // A marker not in either registry → test fails.
 
 test('meta-guard(F07): all Keep-in-sync/Mirror-of markers in workflow-template.js are classified (logic-mirror registry + data-mirror allowlist)', () => {
@@ -928,22 +903,23 @@ test('meta-guard(F07): all Keep-in-sync/Mirror-of markers in workflow-template.j
   // Registry of LOGIC mirrors → each must have ≥1 registered drift test (keyed by a stable identifier).
   // The identifier is a substring of the marker text (robust to line-number shifts).
   const LOGIC_MIRROR_REGISTRY = new Map([
-    // line-93 marker: "Mirror of war-config.mjs spawnOpts/covenSeats … Keep in sync"
-    // → covered by spawnOpts drift tests + covenSeats drift tests
-    ['spawnOpts/covenSeats', ['drift-guard(F07): inline spawnOpts', 'drift-guard(F07): inline covenSeats']],
-    // line-367 marker: "landDecision mirrors land-decision.mjs (decideLand) … Keep in sync"
+    // Combined marker: "Mirror of war-config.mjs spawnOpts/validateRoster/widenRoster … Keep in sync"
+    // → covered by the spawnOpts drift tests + the validateRoster/widenRoster drift tests
+    ['spawnOpts/validateRoster/widenRoster', ['drift-guard(F07): inline spawnOpts', 'drift-guard(F07): inline validateRoster', 'drift-guard(F07): inline widenRoster']],
+    // Marker: "landDecision mirrors land-decision.mjs (decideLand) … Keep in sync"
     // → covered by decideLand drift tests
     ['landDecision mirrors', ['drift-guard(F07): inline HARD_ESCALATION_REASONS + decideLand', 'drift-guard(F07): inline decideLand']],
-    // line-368 marker: "HARD_ESCALATION_REASONS mirrors land-decision.mjs export … Keep in sync"
+    // Marker: "HARD_ESCALATION_REASONS mirrors land-decision.mjs export … Keep in sync"
     // → covered by the same decideLand drift tests
     ['HARD_ESCALATION_REASONS mirrors', ['drift-guard(F07): inline HARD_ESCALATION_REASONS + decideLand', 'drift-guard(F07): inline decideLand']],
   ])
 
   // DATA mirrors → allowlisted (field names, no canonical function to behavioral-test).
   const DATA_MIRROR_ALLOWLIST = [
-    // line-69 marker: "This is a MIRROR of war-config.mjs's run.provision/run.provisionSource reads"
-    // 'This is a MIRROR of' is the marker's exact lead-in (line 69 ends there; field tokens are on line 70).
-    // The meta-guard scans line-by-line, so the line-69 fragment needs this anchored entry.
+    // Marker: "This is a MIRROR of war-config.mjs's run.provision/run.provisionSource reads".
+    // 'This is a MIRROR of' is the marker's exact lead-in (the marker line ends there; the field
+    // tokens sit on the following line). The meta-guard scans line-by-line, so the lead-in
+    // fragment needs this anchored entry.
     'This is a MIRROR of',
     'run.provision/run.provisionSource',
     'provisionSource reads',
@@ -1021,9 +997,10 @@ test('meta-guard(F07): all Keep-in-sync/Mirror-of markers in workflow-template.j
     "DATA_MIRROR_ALLOWLIST must contain the anchored entry 'This is a MIRROR of'")
 })
 
-test('meta-guard(F07): sanity — currently exactly 4 Keep-in-sync/Mirror-of markers exist (lines 69, 93, 367, 368)', () => {
+test('meta-guard(F07): sanity — exactly 4 Keep-in-sync/Mirror-of markers exist (run.provision data mirror; spawnOpts/validateRoster/widenRoster; landDecision; HARD_ESCALATION_REASONS)', () => {
   // This test guards against silent marker addition (a new mirror that skips the registry).
-  // If you add a new mirror, update BOTH the registry/allowlist above AND bump this count.
+  // Anchored by construct, not line number. If you add a new mirror, update BOTH the
+  // registry/allowlist above AND bump this count.
   const count = templateText.split('\n').filter(line => /Keep in sync|Mirror of|MIRROR of/i.test(line)).length
   assert.equal(count, 4,
     `Expected exactly 4 Keep-in-sync/Mirror-of marker lines in workflow-template.js, found ${count}.\n` +

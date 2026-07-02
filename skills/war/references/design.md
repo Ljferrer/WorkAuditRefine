@@ -30,7 +30,7 @@ A Workflow also can't *be* a team's Lead — it's a script with no inbox, and it
 | 5 | Branch model | Per-phase `integration/phase-N`; task worktrees off it; `--no-ff` land→working; one PR working→landing |
 | 6 | Autonomy | Auto within a phase, **gate at phase boundaries**, hard escalations always halt; `--afk` flips the gate |
 | 7 | Audit verdict | Severity-tagged; Critical/Major block, Minor→follow-up, `escalate`→halt; **unanimous on one SHA** |
-| 8 | Auditor count | 1 default; coven of 3 for high blast radius; auto-escalate 1→3 on Critical/low-confidence |
+| 8 | Auditor count | Per-task **roster** of 1–5 distinct-lens seats (per-seat depth); default trio at `deep`; a lone seat union-widens with the default roster's lenses on Critical/low-confidence |
 | 9 | Witness | Dissolved into Workflow + hooks + Lead |
 | 10 | State/resume | One authority (git) + two advisory records (GitHub issues + JSON ledger(+md)); Workflow resume journal is off-ladder |
 | 11 | Stage graph | Wave-by-wave with barriers; serial merges = the queue; explicit named worktrees |
@@ -38,14 +38,14 @@ A Workflow also can't *be* a team's Lead — it's a script with no inbox, and it
 | 13 | Worker bar | Acceptance-criteria-driven, tests included, anti-cheat test-existence check |
 | 14 | Ledger format | JSON authoritative + derived markdown |
 | 15 | Workflow gen | Fixed parameterized template + per-phase patches reviewed at the gate |
-| 16 | Coven lenses | Fixed core trio (correctness/cascading-impact/plan-faithfulness) + context swap |
+| 16 | Lens catalog | Open namespace: trio (correctness/cascading-impact/plan-faithfulness) + security/performance/simplicity/usability/test-fidelity + mintable domain lenses; `execution-evidence`/`pin-validity` reserved for built-in passes, never roster-selectable |
 | 17 | Patch gate | Reviewed at the DAG-approval gate |
-| 18 | Run config | `/war-room` interviews → `.claude/war/config.json`; `/war` auto-discovers + validates (`war-config.mjs`); per-role model/effort, coven policy/size, roundLimit, afk; **global per-role**, seeds the gate (doesn't replace it) |
+| 18 | Run config | `/war-room` interviews → `.claude/war/config.json`; `/war` auto-discovers + validates (`war-config.mjs`); per-role model/effort, audit roster + roster policy, roundLimit, afk; **global per-role**, seeds the gate (doesn't replace it) |
 
 ## 4. Per-phase flow
 1. **Cut** `integration/phase-N` off the working branch.
 2. **Work (waves):** topologically sort the phase's tasks into dependency waves (usually one). Per wave, fan out one `war-worker` per task into a named mutable worktree branched off the integration tip; the worker implements, writes/extends the plan's mapped tests, runs the gate green, commits, pushes.
-3. **Audit (per task):** independent read-only seats review the pinned `audit_sha`. 1 seat (`neighbors` depth) by default; a coven of 3 (`deep`, diverse lenses) for flagged tasks; auto-escalate 1→3 on a Critical or low confidence. Gate over verdicts: any open Critical/Major blocks; any `escalate` halts; all `approve` on one SHA = merge-eligible. A split triggers one rebuttal round → approve / agreed-block / still-split-escalate.
+3. **Audit (per task):** independent read-only seats review the pinned `audit_sha` — one seat per entry in the task's **roster** (1–5 distinct lenses, per-seat depth; default: the trio at `deep`). A lone seat hitting a Critical or low confidence union-widens with the default roster's lenses (`autoEscalate`). Gate over verdicts: any open Critical/Major blocks; any `escalate` halts; all `approve` on one SHA = merge-eligible. A split triggers one rebuttal round → approve / agreed-block / still-split-escalate.
 4. **Fix loop:** a block routes a batched `FIX_NEEDED` to a fresh fix-worker on the *same* worktree; re-audit against the new SHA; ≤ `round_limit=3` then `audit-blocked`.
 5. **Refine (serial):** `war-refiner` rebases each approved task onto the integration tip, re-runs the gate, merges — one at a time. This sequencing *is* the merge queue.
 6. **Land:** `war-refiner` merges `integration/phase-N` → working `--no-ff` (one phase commit), pushes working. Held if a hard escalation is open.
@@ -86,7 +86,7 @@ Durable product artifacts: phase reports/escalations → epic-issue comments; AD
 - We may run *inside* a Claude worktree already; nested worktrees off the working branch use absolute paths and avoid `.claude/worktrees/` collisions.
 
 ## 10. What WAR keeps / drops / changes vs Gas Town
-- **Keeps:** the four roles, the Nun gate's fail-closed convergent unanimity + severity + coven + plan-faithfulness, integration-branch waves + `--no-ff` land, GUPP propulsion, the read-only-by-construction auditor.
+- **Keeps:** the four roles, the Nun gate's fail-closed convergent unanimity + severity + the multi-lens roster + plan-faithfulness, integration-branch waves + `--no-ff` land, GUPP propulsion, the read-only-by-construction auditor.
 - **Drops:** the Go orchestrator, Dolt/beads, `gt mail`/nudge, the standalone Witness/Deacon daemons, tmux session management.
 - **Changes:** durable state → GitHub issues + a JSON ledger; propulsion → Workflow control flow (no polling); auditor read-only → tool restriction (Read/Grep/Glob) instead of detached-checkout-push-unset; the merge queue → a serial Workflow loop instead of batch-then-bisect.
 
@@ -94,7 +94,7 @@ Durable product artifacts: phase reports/escalations → epic-issue comments; AD
 - Lead never edits code (only orchestrates/gates). · Auditors cannot write/commit/push. · A task can't merge with an open Critical/Major, without a green gate, or before unanimous audit on one SHA. · "Green by deletion" is caught and escalated. · A killed Lead resumes from ledger + issues. · Each phase lands as one `--no-ff` commit; the run ends in exactly one PR. · `/cost` < 3× a single-agent baseline.
 
 ## 12. Deferred (post-v1)
-Batch-then-bisect merge queue · live-SendMessage audit debate · multiple concurrent phases · multi-repo · per-task GitHub PRs as the review surface · learned coven-flagging.
+Batch-then-bisect merge queue · live-SendMessage audit debate · multiple concurrent phases · multi-repo · per-task GitHub PRs as the review surface · learned roster seeding (flagging high-blast-radius tasks from history).
 
 ## 13. v0.2.0 amendments
 - **Issue timing:** file **all phase epics up front** at the approval gate (full scope before any teammate launches), but break each phase into **task sub-issues just-in-time** at that phase's start — so later phases absorb earlier phases' learnings and plan drift, while still honoring "write all issues before launching any teammates" at the epic level.
@@ -105,7 +105,7 @@ Batch-then-bisect merge queue · live-SendMessage audit debate · multiple concu
 ## 14. v0.3.0 amendments
 - **New skill — `/war-room`** (conversation-only): interviews the user from a preset (balanced/thorough/economy) plus targeted overrides, and writes a run config to `.claude/war/config.json`. It never decomposes a plan or launches `/war`.
 - **Config surface.** `skills/war/assets/war-config.mjs` owns the schema, defaults, presets, and validation (a single tested source of truth, used by both skills). The `/war` Lead loads and validates the config in Setup, applies non-null `overrides`, and threads `agents` / `audit` / `run` into the per-phase Workflow `args`. `workflow-template.js` reads those instead of hardcoded model literals.
-- **Configurable knobs:** per-role `model` (opus/sonnet/haiku/fable) and `effort` (default…max, where `max` = "ultrathink"); `covenPolicy` (auto/all/solo) seeding per-task covens; `covenSize`; `autoEscalate` (set `false` with `covenPolicy: "solo"` to pin exactly one auditor); `roundLimit`; `afk`.
+- **Configurable knobs:** per-role `model` (opus/sonnet/haiku/fable) and `effort` (default…max, where `max` = "ultrathink"); `roster` (1–5 distinct-lens seats, per-seat depth) with `rosterPolicy` (auto/all/solo) seeding per-task rosters; `autoEscalate` (set `false` with `rosterPolicy: "solo"` to pin exactly one auditor); `roundLimit`; `afk`.
 - **Backward compatible.** No config file → byte-for-byte the pre-v0.3.0 behavior (`effort: "default"` passes no effort opt; built-in model defaults unchanged).
 
 ## 15. v0.4.0 amendments
