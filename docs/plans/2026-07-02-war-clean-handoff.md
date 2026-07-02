@@ -183,7 +183,8 @@ Full ruling in Open decisions 8; bake exactly:
   recommendation first); structural fixes applied with confirmation; given a SPEC, author the war-shaped
   plan into `docs/plans/` itself, running the intent echo-back inline.
 - [ ] **Pipeline doctrine:** war-strategy converts; **/red-team VALIDATES plans and never converts** —
-  rewrite both `/red-team convert` mentions (frontmatter description ~:3, §4 Handoff ~:101). Replace both
+  rewrite both `/red-team convert` mentions **in this file** (war-strategy SKILL.md's own frontmatter
+  description ~:3 and §4 Handoff ~:101 — no red-team files are touched; T3 owns `skills/red-team/**`). Replace both
   "no grilling loop" absolutes (~:8, ~:102) with the honest boundary: never authors a spec from scratch;
   deep from-scratch interviewing stays with grill-with-docs. Frontmatter description gains the
   bring-your-draft/convert trigger.
@@ -205,7 +206,7 @@ Full ruling in Open decisions 8; bake exactly:
 ### Task 3 — red-team `intent-vs-plan` spine lens
 
 **Files:** `skills/red-team/assets/workflow-scaffold.js`, `skills/red-team/assets/workflow-scaffold.test.mjs`,
-`skills/red-team/references/lenses.md`.
+`skills/red-team/references/lenses.md`, `skills/red-team/SKILL.md` (one-word count fix — red-team addition).
 **requiresTest:** true · **roster:** default (config `audit.roster`) · **deps:** none ·
 **target repo:** superproject.
 
@@ -216,9 +217,14 @@ Full ruling in Open decisions 8; bake exactly:
   a **Minor** note recommending the intent interview — never Major (criterion 9).
 - [ ] **Test:** add the new name to the `SPINE_NAMES` presence assertions in `workflow-scaffold.test.mjs`
   (non-exhaustive today — adding the entry alone would pass vacuously; the name assertion is the guard) +
-  a Minor-not-Major prompt-text assertion, temp-break proven.
+  a Minor-not-Major prompt-text assertion, temp-break proven. **Same commit — bump the three
+  count-coupled assertions (red-team executed-proof: they go RED otherwise):** `out.expected` 5→6
+  (~:102), `probePrompts.length` 7→8 with its "5 spine … + 2 bespoke" comment (~:127), and the
+  "All 5 spine" comment (~:21).
 - [ ] **lenses.md:** 6th bullet under `## Spine lenses (always run)` in the house bold-name em-dash shape;
-  update the count word "five" and keep the scaffold pointer accurate.
+  update the count word "five" and keep the scaffold pointer accurate. **Also (red-team addition):** the
+  "five **spine** lenses always run" count word in `skills/red-team/SKILL.md` (~:25) — one word, this
+  task owns it ([[dont-leave-work-on-the-table]]).
 - [ ] Full gate green. Commit — `feat(red-team): intent-vs-plan spine lens`.
 
 ---
@@ -228,6 +234,7 @@ Full ruling in Open decisions 8; bake exactly:
 ### Task 4 — WAR prose, schemas, design notes, glossary, ADRs
 
 **Files:** `skills/war/SKILL.md`, `skills/war/references/schemas.md`, `skills/war/references/design.md`,
+`skills/war/references/gastown-design-params.md` (red-team addition — see grep-verify bullet),
 `CONTEXT.md`, `docs/adr/0012-intra-phase-visibility-and-phase-close-sweep.md`,
 `docs/adr/0013-commanders-intent-and-disposition-routing.md`.
 **requiresTest:** false · **roster:** `[{lens: correctness, depth: neighbors}]` · **deps:** none (phase
@@ -252,6 +259,9 @@ edge from Phase 1 is the dependency) · **target repo:** superproject.
 - [ ] **ADRs 0012 + 0013:** status `proposed` → `accepted`; 0013 amended per the two-homes ruling (the
   intent interview beat lives in BOTH war-strategy homes: the bare-invoke handoff directive and the
   convert-mode inline echo-back).
+- [ ] **gastown-design-params.md (red-team addition):** the Nun-gate row's "Minor/Nit → follow-up
+  issues" phrasing (~:24) → the disposition taxonomy (absorb / follow-up / note) — without this the
+  grep-verify below is unsatisfiable inside the task's file list.
 - [ ] Grep-verify: zero surviving "Minor/Nit → follow-up issues" phrasing anywhere in `skills/war/**`
   ([[default-flip-must-audit-all-doc-surfaces]]). Full gate green. Commit —
   `docs(war): disposition + handoff + sweep mirrors; CONTEXT terms; ADRs 0012/0013 accepted`.
