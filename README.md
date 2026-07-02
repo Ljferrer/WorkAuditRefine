@@ -281,7 +281,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.9.1** — #422 nit sweep — campaign-ledger CLI at core-API parity (`--stopPoint`, conditional update), runnable lifecycle example, war-help deep links.
+**0.10.0** — Variable audit roster — per-task 1–5 distinct-lens seats with per-seat depth, lone-seat union auto-escalation, gate-audit auto-skip on `requiresTest:false`; legacy coven config keys fail validation (regenerate via `/war-room`).
 
 ## License
 
