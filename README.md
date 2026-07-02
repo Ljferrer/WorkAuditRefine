@@ -235,7 +235,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.8.13** — test-assertion hygiene sweep — deleted a vacuous ace-budget test, tightened the landDecision drift-guard extractor to assignment-only, pinned the red-team 1c guard technique-scoped. Builds on v0.8.12.
+**0.8.14** — spec/doc prose-drift reconciliation — SKILL.md return bullet now lists `aced`; submodule-support §5.6 reattributes reachability to the Lead reconciliation + refiner. Builds on v0.8.13.
 
 ## License
 

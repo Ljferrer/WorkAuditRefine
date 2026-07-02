@@ -170,7 +170,10 @@ submodule worktree, so the worktree-scope hook works unchanged.
 Hold halts like any other `held:*` (and always under `--afk`, consistent with M1). On a human-triggered resume:
 `gh pr view <n> --json state,mergeCommit` → `MERGED` → write `mergeCommit.oid` to the ledger as the submodule
 phase's landed SHA, clear the hold, the dependent superproject phase's bump task reads it. The pin-validity lens
-(§5.4) independently re-checks reachability — defense in depth against a wrong/forged fallback SHA.
+(§5.4) only enforces the ledger SHA-match — it does not re-check reachability (fetch is denied; reachability is
+established upstream). Defense in depth against a wrong/forged fallback SHA comes instead from the Lead's
+resume-time reconciliation (§6/L2 — re-verifies the SHA is reachable on the submodule remote) and the refiner's
+refusal to push an unreachable gitlink pin (§4.1 Refiner bullet; validation criterion 3 in §12).
 
 ## 6. Integration with the in-flight M1→L3 stack — the four pinned points
 
