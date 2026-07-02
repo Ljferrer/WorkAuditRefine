@@ -230,7 +230,7 @@ Once you have several plans, run them back-to-back, unattended, in one chat:
 /war-campaign add <plan-path>                           # from any chat — drop a plan into the queue
 ```
 
-Each plan is hardened (`/red-team`) and executed (`/war … --afk`) in turn, stacking each plan's branch on the
+Each plan is hardened (`/red-team`) and executed (`/war … --afk --ace`) in turn, stacking each plan's branch on the
 prior plan's tip and its PR on the prior plan's branch — so later plans see earlier plans' code without a
 human merging overnight (the **stack-and-plow** model, [ADR 0011](docs/adr/0011-campaign-stack-and-plow-branch-model.md)). `--wait-for-merge` switches to the linear alternative: wait for each PR to merge before
 basing the next plan off fresh `master`.
