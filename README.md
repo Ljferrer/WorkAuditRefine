@@ -235,7 +235,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.8.11** — submodule + servitor hygiene sweep — comment/prose fidelity, step-isolated submodule-guard tests, inert landedShas threading dropped. Builds on v0.8.10.
+**0.8.12** — gate-audit integration_sha validation — a `pinOrSentinel` format-guard collapses a malformed/synthetic gate-HEAD pin to the cannot-confirm sentinel at both copy sites, and the gate-audit auditor now `cat-file -t`s the pin before comparing it, so a bad pin is recognised as malformed (SOFT) rather than burning an audit round. Builds on v0.8.11.
 
 ## License
 
