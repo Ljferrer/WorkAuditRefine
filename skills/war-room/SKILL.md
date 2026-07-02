@@ -1,6 +1,6 @@
 ---
 name: war-room
-description: Interview the user to produce a WAR run configuration at .claude/war/config.json — per-role model and reasoning effort (e.g. a worker on ultrathink), coven policy + size, round limit, and the afk default. Presents presets (balanced/thorough/economy) then grills only the overrides the user wants. Writes the config and stops; /war auto-discovers and consumes it. Use when the user runs /war-room, wants to configure a WAR run, choose which models or how much effort WAR's agents use, or set how many auditors WAR convenes.
+description: Interview the user to produce a WAR run configuration at .claude/war/config.json — per-role model and reasoning effort (e.g. a worker on ultrathink), the audit roster (1–5 distinct-lens seats, per-seat depth) + roster policy, round limit, and the afk default. Presents presets (balanced/thorough/economy) then grills only the overrides the user wants. Writes the config and stops; /war auto-discovers and consumes it. Use when the user runs /war-room, wants to configure a WAR run, choose which models or how much effort WAR's agents use, or shape the audit roster WAR convenes.
 ---
 
 # /war-room — configure a WAR run
@@ -9,17 +9,17 @@ You produce a **run config** for `/war` and nothing else: you write `.claude/war
 
 ## Flow
 1. **Pick a starting point.** If `.claude/war/config.json` already exists, show it and offer to start from it. Otherwise present the three presets and ask which to start from:
-   - **balanced** — default profile: sonnet workers / opus auditors at session effort, full 3-lens panel at `deep` on every task (`covenPolicy: all` — `correctness`, `cascading-impact`, `plan-faithfulness`, unanimous).
-   - **thorough** — opus workers on `max` effort (ultrathink), opus auditors on `high`, a coven on every task.
-   - **economy** — sonnet workers/auditors at session effort, a single auditor per task (`covenPolicy: solo`), `roundLimit: 2`. Use for cost-sensitive runs.
+   - **balanced** — default profile: sonnet workers / opus auditors at session effort, the default roster — trio at `deep` — on every task (`rosterPolicy: all` — `correctness`, `cascading-impact`, `plan-faithfulness`, unanimous).
+   - **thorough** — opus workers on `max` effort (ultrathink), opus auditors on `high`, the full roster on every task (`rosterPolicy: all`).
+   - **economy** — sonnet workers/auditors at session effort, a single auditor per task (`rosterPolicy: solo`), `roundLimit: 2`. Use for cost-sensitive runs.
    Render the concrete JSON so the user sees exactly what they start from: `node ${CLAUDE_PLUGIN_ROOT}/skills/war/assets/war-config.mjs --preset <name>`.
 2. **Offer overrides.** Ask "anything to change?" and grill **only** the dimensions the user names, one at a time. Allowed values (reject anything else — the validator will too):
    - `agents.<role>.model` ∈ `opus | sonnet | haiku | fable`. Roles: `worker` (also drives fix-workers), `auditor`, `refiner`, `servitor`.
    - `agents.<role>.effort` ∈ `default | low | medium | high | xhigh | max`. Translate words: "ultrathink" → `max`, "think hard/harder" → `high`/`xhigh`, "normal"/"leave it" → `default`.
-   - `audit.covenPolicy` ∈ `auto | all | solo`; `audit.covenSize` (integer ≥ 1, seats per coven); `audit.lenses` (array); `audit.autoEscalate` (bool).
+   - `audit.roster` — an array of 1–5 seat objects `{ lens, depth? }` (lenses distinct; `depth` ∈ `neighbors | deep`, omitted → `deep`). Present it as a **seat list** — one lens + depth per seat. `audit.rosterPolicy` ∈ `auto | all | solo`; `audit.autoEscalate` (bool). Legacy `covenSize`/`lenses`/`covenPolicy` keys fail validation (removed/renamed) — never write them.
    - `run.roundLimit` (integer ≥ 1); `run.afk` (bool); `run.ace` (bool — opt-in pre-merge auto-fix of auditor-flagged nits; default `false`).
    - `overrides.gate` / `workingBranch` / `landingBranch` / `learningsTarget` — `null` lets `/war` auto-detect; a string pins it.
-   When the user touches coven settings, remind them: **`covenPolicy: "solo"` alone does not guarantee one auditor** — a Critical or low-confidence finding still escalates 1→coven. To pin a single auditor, also set `audit.autoEscalate: false`.
+   When the user touches roster settings, remind them: **`rosterPolicy: "solo"` alone does not pin one auditor** — a Critical or low-confidence finding on a lone seat still union-widens the roster with the default roster's lenses. To pin a single auditor, also set `audit.autoEscalate: false`.
 3. **Resolve provisioning** (`run.provision` — the commands that make a fresh worker worktree gate-ready). Ask the module what to do rather than deciding yourself — pass the assembled-so-far config to `resolveProvision` (exported by `war-config.mjs`); it returns `{ provision, source, scout }`:
    - **`scout: false` with a non-empty `provision`** — the operator pinned an explicit list (or it was carried from an existing config). Honor it **verbatim**; do **not** run the scout. Leave `run.provision` and `run.provisionSource` exactly as they are.
    - **`scout: false` with an empty `provision`** — `provisionAuto` is off. Leave `run.provision: []` / `run.provisionSource: "none"`; no scout, no steps.
