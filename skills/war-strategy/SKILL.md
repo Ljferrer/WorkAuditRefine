@@ -1,11 +1,18 @@
 ---
 name: war-strategy
-description: Loads the WAR-shaped spec/plan/roadmap templates and the code-boundary decomposition rule into the chat, then hands off to the installed authoring skills (grill-with-docs, domain-modeling, or /red-team convert). Use when the user is about to write a spec, plan, or roadmap for WAR, or asks how a war-shaped plan should be structured.
+description: Two modes. Bare invoke loads the WAR-shaped spec/plan/roadmap templates and the code-boundary decomposition rule into the chat, then hands off to the installed authoring skills (grill-with-docs, domain-modeling). Invoked with an existing draft (spec, plan, roadmap, design doc) it reviews the artifact for war-shape gaps and converts it — war-strategy converts; /red-team validates and never converts. Use when the user is about to write a spec, plan, or roadmap for WAR, asks how a war-shaped plan should be structured, or brings an existing draft to review or convert to WAR shape.
 ---
 
-# /war-strategy — the authoring primer
+# /war-strategy — the authoring primer & converter
 
-You print the templates and the rule below, then **hand off** — you do not run your own grilling loop.
+Two modes, keyed on whether the invocation brings an artifact:
+
+- **Bare invoke** — primer + handoff: print the templates and the rule below, then route authoring (§4).
+- **With-artifact invoke** (the user brings a draft spec/plan/roadmap/design doc) — **review & convert**:
+  run the war-shape gap review and conversion yourself (§4).
+
+Honest boundary: this skill **never authors a spec from scratch** — deep from-scratch interviewing stays
+with `grill-with-docs`.
 
 ## 1. Dependency check
 
@@ -47,13 +54,17 @@ pro-tip — one link covers `grill-with-docs`, `grilling`, and `domain-modeling`
 
 ```
 # <Title>
+## Commander's Intent              ← operator-authored; intent ceiling, plan floor
+  - Purpose: <why — the operator's goal in one breath>
+  - Method: <how — the approach and its judgment guardrails>
+  - End state: <numbered list — each condition individually checkable>
 ## Build order (for /war)          ← the phase list, in DAG order
 ## Phase 1 — <name>
 ### Task 1: <name>
   - Files: <exact paths this task touches>
   - Plan slice: <what to implement>
   - requiresTest: true|false
-  - deps: [<task ids>]             ← intra-phase ordering only (see the rule)
+  - deps: [<task ids>]             ← wave edge: the worker rebases onto the merged dep (see the rule)
   - target repo: <superproject|submodule-path>
 ### Task 2: <name>  …
 ## Phase 2 — <name>  …
@@ -83,23 +94,48 @@ pro-tip — one link covers `grill-with-docs`, `grilling`, and `domain-modeling`
 
 1. **Parallel ⇒ file-disjoint.** Tasks in one phase must touch **disjoint file sets** — two tasks editing the
    same file rebase-conflict at the serial merge. One file / cohesive unit → one task.
-2. **Dependency ⇒ phase edge.** A worktree is frozen at the phase-start tip, so a task **cannot see a sibling's
-   new code.** If B imports/extends/calls A's new symbols, B goes in a **later phase** depending on A's. Every
-   task must reach a green gate **independently**, off the start tip.
+2. **Dependency ⇒ wave edge.** If B imports/extends/calls A's new symbols, declare `deps: [A]` — B dispatches
+   in a later **wave** of the **same phase**, and its worker's first action is a rebase onto the integration
+   tip, so A's merged code is visible. Phase edges remain for what must be **landed** first — cross-repo
+   (submodule content before its gitlink bump) and release. Every task still reaches a green gate
+   **independently**, off its own dispatch base.
 3. **One task = one repo.** A submodule content change + its superproject gitlink-bump are **two tasks in two
    phases** (`repo-per-phase`).
 4. **Release = its own trailing phase.** The version bump touches shared slot files and must land last.
 
 Heuristics: grep each task's file set — any overlap → merge the tasks or split across phases; *"add X"* +
-*"call X from Y"* = **two phases**; a cross-cutting rename touching N files = **one task**, not N. Intra-phase
-`deps`/waves order *when* a worker runs, **not** what base it sees — don't use them for code visibility or to
-dodge a same-file collision. The same rule scales up: phases within a plan, and plans within a roadmap (the
-shared-file-contention table is this rule applied across plans).
+*"call X from Y"* = **one phase, two waves** (declare `deps`); a cross-cutting rename touching N files =
+**one task**, not N. Intra-phase `deps`/waves order *when* a worker runs **and** what base it sees — the
+dep-wave worker rebases onto the integration tip and sees the merged dep's code; never use them to dodge a
+same-file collision (same file → same task, waved or not). The same rule scales up: phases within a plan,
+and plans within a roadmap (the shared-file-contention table is this rule applied across plans).
 
-## 4. Handoff
+## 4. Handoff & convert
 
-Route the user to `/grill-with-docs` + `/domain-modeling` (or `/red-team convert` to turn an existing design
-doc into a plan) to actually author the spec/plan/roadmap. This skill runs **no grilling loop of its own**.
+**Pipeline doctrine:** war-strategy **converts**; `/red-team` **validates** plans and never converts — route
+conversion here, ratification there. This skill never authors a spec from scratch — deep from-scratch
+interviewing stays with `grill-with-docs`.
+
+### Bare invoke — handoff
+
+Route the user to `/grill-with-docs` + `/domain-modeling` to author the spec/plan/roadmap from scratch, and
+ship this **HANDOFF DIRECTIVE** with the route — the authoring skill executes it:
+
+> **Intent interview:** draft the plan's `## Commander's Intent` block **only from the operator's answers**
+> (Purpose / Method / numbered checkable End state — never invented), echo the drafted block back, and get an
+> **explicit confirm** before moving on.
+
+### With-artifact invoke — review & convert
+
+1. **Gap review** against the templates + the rule (§2, §3): missing sections, same-file collisions,
+   phase-edge violations, one-task-one-repo violations, release placement, and — at roadmap scale — plan
+   count and landing order.
+2. **Gap-driven interview:** one question at a time, **recommendation first** ("I recommend X because Y —
+   accept?").
+3. **Structural fixes** applied with the operator's confirmation.
+4. **Given a SPEC:** author the war-shaped plan into `docs/plans/` yourself, running the intent echo-back
+   **inline** (draft `## Commander's Intent` from the operator's answers, echo it back, explicit confirm)
+   instead of shipping the directive.
 
 ## 5. Closing offer
 
