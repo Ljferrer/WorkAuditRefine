@@ -283,18 +283,37 @@ _Avoid_: editing git to match a stale record; auto-trusting a commit no ledger t
 The ordered **index of plans** (a meta-plan, not a plan). Its load-bearing parts are the **dependency
 spine** (strict landing order) and the **shared-file contention table** — **Code-boundary decomposition**
 applied one level up: plans touching a shared file (or the four release-slot files) **serialize** in
-roadmap order; file-independent plans are free-ordered (usually by version/severity). Authored via the
-`/war-strategy` template; consumed by the **Hopper**. A committed file, so it doubles as the campaign's
-progress ledger and its live-append surface.
-_Avoid_: a generic product roadmap; treating it as a plan `/war` can execute directly (it indexes plans).
+queue order; file-independent plans are free-ordered (usually by version/severity). Authored via the
+`/war-strategy` template. An **authoring input and on-demand snapshot** of a campaign: `/war-campaign`
+ingests it to seed the **Campaign ledger**, and can render the ledger back out as a committable roadmap
+(machine switches, review). It is **not** the live feed — the running queue never lives in git, so two
+writers can never merge-conflict on it.
+_Avoid_: a generic product roadmap; treating it as a plan `/war` can execute directly (it indexes
+plans); treating the committed file as live campaign state (that's the **Campaign ledger**).
+
+**Campaign ledger**:
+The uncommitted per-run state of a campaign at `.claude/campaigns/<id>/ledger.json` — the plan queue
+plus per-plan outcome (status, branch, PR#, landed SHA, stop point). **Single-writer** (the campaign
+Lead), written atomically (temp file + rename), owned by `campaign-ledger.mjs`. The resume source: a
+re-invoked campaign re-reads ledger + **Inbox** and continues; on resume the Lead reconciles the ledger
+*toward git* (`git ls-remote`, `gh pr view`) before trusting it.
+_Avoid_: committing it (that's the **Roadmap** snapshot's job); editing it by hand mid-run.
+
+**Inbox**:
+The multi-writer add path of a campaign: `.claude/campaigns/<id>/inbox/`, one file per added plan
+(maildir-style — atomic by construction, no locks). Any chat, human, or cron drops a plan reference in;
+the **Hopper** sweeps the inbox at every plan boundary, runs the shared-file contention check against
+the remaining queue, and inserts in dependency-safe order.
+_Avoid_: writing the queue directly from a second chat (single-writer ledger); using git as the add
+transport (the conflict surface the inbox exists to remove).
 
 **Hopper**:
-The autonomous loop that executes a **Roadmap** — one chat running `/red-team <plan>` then
-`/war <plan> … --afk --ace` over each plan in roadmap order, driven by the `/war-campaign` skill. Default
-AFK model is **stack-and-plow**: plan N's working branch bases off plan N-1's landed tip and its PR
-targets plan N-1's branch (stacked PRs, merged bottom-up; deleting each merged branch cascades the next
-onto master). `--wait-for-merge` switches to **base-off-master** (wait for PR N-1 to merge, base plan N
-off fresh `origin/master`). Live-appendable: a second chat authors + merges new plans and the hopper
-picks them up on its next rebase.
+The autonomous loop that executes a campaign — one chat running `/red-team <plan>` then
+`/war <plan> … --afk --ace` over each plan in **Campaign-ledger** queue order, driven by the
+`/war-campaign` skill. Default AFK model is **stack-and-plow**: plan N's working branch bases off plan
+N-1's landed tip and its PR targets plan N-1's branch (stacked PRs, merged bottom-up; deleting each
+merged branch cascades the next onto master). `--wait-for-merge` switches to **base-off-master** (wait
+for PR N-1 to merge, base plan N off fresh `origin/master`). Live-appendable via the **Inbox**, swept at
+each plan boundary.
 _Avoid_: pointing every stacked PR at master (cumulative diffs → shared-doc conflicts — the stacked PR
 target is plan N-1's branch); assuming Mode A works overnight (it needs a human merging each PR).

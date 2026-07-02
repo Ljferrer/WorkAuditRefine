@@ -6,6 +6,14 @@ session; they share a domain vocabulary (below) and a single organizing boundary
 vs. operational**). This spec is the design of record; the runnable surface will be `skills/war-help/`,
 `skills/war-strategy/`, `skills/war-campaign/`.
 
+> **Rev 1 (2026-07-01, plan grill).** The campaign **feed model flipped**: the live queue is the uncommitted
+> **campaign ledger** + a multi-writer **inbox/** drop-dir (swept each plan boundary); the **roadmap** is
+> demoted to authoring input + on-demand committable snapshot — it is never the live channel, so two writers
+> can never merge-conflict on it. `skills/war-campaign/` gains `assets/campaign-ledger.mjs` (ledger CRUD +
+> mechanical shared-file contention check) + its `.test.mjs`. Affected sections rewritten in place: §2, §3
+> rows 9/11/13, §6.2 (roadmap template note), §7, §10, §12. CONTEXT.md updated same session (Roadmap, Hopper
+> revised; **Campaign ledger**, **Inbox** added).
+
 ## 1. Context — the three gaps
 
 WAR today ships four skills (`/war`, `/war-room`, `/red-team`, `/lessons-learned`) and rich reference docs
@@ -36,7 +44,8 @@ Each gap is a *different kind* of help, which is why this is three skills, not o
   It must never auto-trigger and must fail safe (halt-and-hold).
 - **The scale-free rule.** [Code-boundary decomposition](#8-new-domain-terms-contextmd--landed-this-session)
   governs task→task, phase→phase, *and* plan→plan. `/war-strategy` teaches it once; `/war-campaign` enforces
-  its top scale (the roadmap).
+  its top scale **mechanically** — the `campaign-ledger.mjs` shared-file contention check runs at every
+  enqueue (`init`/`sweep`) and refuses to order overlapping plans non-serially (Rev 1).
 
 ## 3. Resolved design tree
 
@@ -50,11 +59,11 @@ Each gap is a *different kind* of help, which is why this is three skills, not o
 | 6 | Closing offer target | Real README **Pro-Tip** pattern (workflow → inspect issues → synthesize specs); **not** the non-existent `/improve-codebase-architecture` |
 | 7 | `/war-campaign` exists? | Yes — a third **operational** skill (the hopper), distinct from help/strategy |
 | 8 | Campaign branch model | **Stack-and-plow, stacked PR targets** (default); `--wait-for-merge` = base-off-master (Mode A). [ADR 0011](../adr/0011-campaign-stack-and-plow-branch-model.md) |
-| 9 | Campaign survival | **Resumable re-entry** — roadmap = authored index; runtime progress in an **uncommitted campaign ledger**; `strategic-compact` behavior **bundled**, not ECC-dependent |
+| 9 | Campaign survival | **Resumable re-entry** — runtime progress in an **uncommitted campaign ledger** owned by `assets/campaign-ledger.mjs` (single-writer, atomic temp+rename); `strategic-compact` behavior **bundled**, not ECC-dependent |
 | 10 | Campaign failure | **Halt-and-hold** on any plan that can't CLEAR (`/red-team`) or doesn't fully land (`/war`); defer `--keep-going` (YAGNI) |
-| 11 | Campaign feed | **Re-read the roadmap every plan boundary** (`git fetch` + read); git is the transport; reconcile shared-doc drift via `merge --theirs` only when needed |
+| 11 | Campaign feed | **Sweep `inbox/` every plan boundary** (Rev 1) — one file per added plan, maildir-style multi-writer-safe, no locks, no git conflicts; roadmap = authoring input + on-demand committable snapshot, never the live channel |
 | 12 | Auto-invocation | help/strategy **allowed**; campaign **`disable-model-invocation: true`** |
-| 13 | Deliverable | One design spec (this file) + ADR 0011; execution = one plan (3 skill phases + release phase) |
+| 13 | Deliverable | One design spec (this file) + ADR 0011; execution = one plan (Rev 1 — Phase 1: four parallel file-disjoint tasks = 3 skills + README; Phase 2: release **v0.9.0**) |
 
 ## 4. The three skills at a glance
 
@@ -140,7 +149,8 @@ install (one link covers `grill-with-docs`, `grilling`, and `domain-modeling` �
 ## Open decisions                 (resolved by /red-team)
 ```
 
-**Roadmap template** (what `/war-campaign` executes — a meta-plan indexing plans):
+**Roadmap template** (what `/war-campaign` **ingests and exports** — a meta-plan indexing plans; the live
+queue is the campaign ledger, Rev 1):
 
 ```
 # <Title> — <N> plans
@@ -179,57 +189,76 @@ synthesize war-shaped specs into `docs/specs/` — optionally seeded by `ponytai
 
 ## 7. `/war-campaign` — the hopper
 
-Executes a roadmap of plans unattended. Invocation:
+Executes a queue of plans unattended. Invocation:
 
 ```
-/war-campaign <plan…|roadmap-path> [--wait-for-merge]
+/war-campaign <plan…|roadmap-path> [--wait-for-merge]   # start — seed the ledger from plans or a roadmap
+/war-campaign                                           # resume the latest unfinished campaign
+/war-campaign add <plan-path>                           # from any chat — drop the plan into inbox/
 ```
 
-Takes either an explicit plan list (creates/updates the roadmap) or an existing roadmap path. Passes
-`--afk --ace` to `/war` by default.
+Starting seeds the **campaign ledger** (`campaign-ledger.mjs init`) from an explicit plan list or a roadmap
+file; the contention check orders the queue or refuses (§7.2). Passes `--afk --ace` to `/war` by default.
 
-### 7.1 Lifecycle (per plan, in roadmap order)
+### 7.1 Lifecycle (per plan, in queue order)
 
-1. **Sync + select.** `git fetch origin`, re-read the roadmap, pick the next un-done plan (progress from the
-   campaign ledger).
+1. **Sweep + select.** Sweep `inbox/` — contention-check each dropped plan against the remaining queue,
+   insert in dependency-safe order — then `next` from the ledger.
 2. **Provision the branch (stack-and-plow — [ADR 0011](../adr/0011-campaign-stack-and-plow-branch-model.md)).**
    Plan 1: `dev/<slug-1>` off fresh `origin/master`. Plan N: `dev/<slug-N>` off `dev/<slug-(N-1)>`'s tip.
    `--wait-for-merge` → wait for PR N-1 to merge, base off fresh `origin/master`.
 3. **Harden.** `/red-team <plan>` (self-adjudicates under AFK; halt-and-hold if unresolvable).
 4. **Execute.** `/war <plan> --working dev/<slug-N> --landing dev/<slug-(N-1)> --afk --ace`
    (plan 1 lands to `master`).
-5. **Record.** Write outcome (branch / PR# / landed SHA / status) to the campaign ledger; check the plan off.
-6. **Context hygiene.** Bundled **checkpoint-and-compact** at the boundary (flush ledger → built-in `/compact`).
+5. **Record.** `record` the outcome (branch / PR# / landed SHA / status) into the campaign ledger — atomic
+   temp+rename, so a laptop-close mid-write never corrupts the queue.
+6. **Context hygiene.** Bundled **checkpoint-and-compact** at the boundary (ledger already durable → built-in
+   `/compact`).
 7. **Loop.** Next plan.
 
 ### 7.2 State & resume (feature #5, done by architecture)
 
-- **Roadmap** = clean authored index (the plan list + order + contention). Not churned with runtime status.
-- **Campaign ledger** = uncommitted per-run state (`.claude/campaigns/<id>/`, mirroring `/war`'s
-  `.claude/teams/<run>/`): per-plan status, branch, PR#, SHA, stop point.
-- **Resume** re-reads roadmap + ledger and continues — the real guarantee. `strategic-compact` behavior is
-  **bundled** (no ECC dependency); if the window still fills mid-plan, `/clear` + re-invoke resumes.
+- **Campaign ledger** = uncommitted per-run state at `.claude/campaigns/<id>/ledger.json` (mirroring `/war`'s
+  `.claude/teams/<run>/`): the plan queue + per-plan status, branch, PR#, SHA, stop point. **Single-writer**
+  (the campaign Lead); every write atomic. Owned by `assets/campaign-ledger.mjs` — subcommands
+  `init / add / sweep / next / record`, plus the **mechanical contention check**: parse each plan's `Files:`
+  lines (§6.2 plan template), intersect footprints, refuse to order overlapping plans non-serially; a plan
+  whose footprint can't be parsed requires an explicit queue position.
+- **Inbox** = `.claude/campaigns/<id>/inbox/` — the **multi-writer add path**: one file per added plan,
+  maildir-style (atomic by construction, no locks). `add` writes here; only the Lead's `sweep` moves entries
+  into the queue.
+- **Roadmap** = authoring input + on-demand snapshot (Rev 1). `init` ingests one; *"I'm switching machines"*
+  → the Lead renders the ledger out as a committable roadmap, and the new machine `init`s from it.
+  Render/ingest beyond `init` is agent prose, not helper code.
+- **Resume** re-reads ledger + inbox and continues — the real guarantee. On resume the Lead **reconciles the
+  ledger toward git** (`git ls-remote`, `gh pr view`) before trusting it — the ADR 0008 discipline.
+  `strategic-compact` behavior is **bundled** (no ECC dependency); if the window still fills mid-plan,
+  `/clear` + re-invoke resumes.
 
 ### 7.3 Failure & feed
 
 - **Halt-and-hold** when a plan can't CLEAR `/red-team` (truly unresolvable in AFK) or `/war` hard-halts
   (audit-blocked, conflict, dead phase, `land_stale`, `held:submodule-pr`). Checkpoint → record stop point →
   `PushNotification` → stop. Everything below the failed plan already landed as stacked PRs.
-- **Live feed** — re-read the roadmap each boundary; a second chat appends rows + merges to master and the
-  campaign picks them up. Reconcile shared-doc drift via `merge --theirs`-on-docs only when a fetch shows
-  master advanced under the stack base (memory `stacked-pr-shared-doc-conflict-fix-merge-theirs`).
+- **Live feed** — any chat (or the human, or a cron) drops one file into `inbox/`; the campaign sweeps at
+  each plan boundary. No git transport for the queue → the shared-doc merge-conflict class (memory
+  `stacked-pr-shared-doc-conflict-fix-merge-theirs`) is gone **by construction**, not by ritual.
 
 ## 8. New domain terms (CONTEXT.md) — landed this session
 
-Four terms were added to `CONTEXT.md` during this grill:
+Four terms were added to `CONTEXT.md` during the design grill; Rev 1 revised two and added two more:
 
 - **Frozen phase base** — the single integration tip every task worktree in a phase is cut from; `deps`/waves
   order *when* a worker runs, never *what base it sees*.
 - **Code-boundary decomposition** — the authoring rule of §6.3, forced by the frozen base + serial merge.
-- **Roadmap** — the ordered index of plans (dependency spine + shared-file contention); code-boundary
-  decomposition across plans.
-- **Hopper** — the autonomous loop executing a roadmap via `/war-campaign` (stack-and-plow default;
-  `--wait-for-merge` = base-off-master; live-appendable).
+- **Roadmap** (Rev 1) — the ordered index of plans (dependency spine + shared-file contention); authoring
+  input + on-demand committable snapshot of a campaign — never the live feed.
+- **Campaign ledger** (Rev 1, new) — the uncommitted single-writer queue + per-plan outcome at
+  `.claude/campaigns/<id>/ledger.json`, atomic writes, owned by `campaign-ledger.mjs`.
+- **Inbox** (Rev 1, new) — the multi-writer add path (`inbox/`, one file per plan, maildir-style), swept at
+  every plan boundary.
+- **Hopper** (Rev 1) — the autonomous loop executing a campaign in ledger queue order via `/war-campaign`
+  (stack-and-plow default; `--wait-for-merge` = base-off-master; live-appendable via the inbox).
 
 ## 9. Recommended ADRs
 
@@ -244,9 +273,11 @@ Four terms were added to `CONTEXT.md` during this grill:
   window under a hard ceiling. Mitigation baked in: **resume is the guarantee, compaction is best-effort.**
 - **GitHub PR retarget-on-delete** is the mechanism the bottom-up merge relies on. Verify it in `/red-team`
   (it's standard behavior, but the campaign's final report should still spell out the exact merge order).
-- **Roadmap creation from a bare plan list** must apply the contention analysis (§6.2) — otherwise it emits a
-  spine that lets same-file plans run non-serially. The create path should refuse to leave two shared-file
-  plans unordered.
+- **Every queue entry point must apply the contention analysis (§6.2)** — `init` and `sweep` both run the
+  `campaign-ledger.mjs` footprint check; otherwise the queue lets same-file plans run non-serially. The check
+  **refuses** to leave two shared-file plans unordered. `Files:`-line parsing is best-effort (anchored
+  line-based, not lazy-regex): a plan not written from the §6.2 template may yield an empty footprint — the
+  refusal path (explicit position required) covers exactly that case.
 - **Do not restate canonical content** in the cards — CI-free drift risk. If a card must mention a fact that
   lives in README/`design.md`, link it.
 
@@ -267,7 +298,16 @@ Four terms were added to `CONTEXT.md` during this grill:
 - `/war-strategy` prints all three templates + the code-boundary rule; runs the dependency check and warns
   with a working install link when `grill-with-docs`/`domain-modeling` are absent.
 - `/war-campaign` is `disable-model-invocation: true`; never auto-triggers.
-- A campaign over a 2-plan roadmap in AFK produces `dev/<slug-1>` (PR → master) and `dev/<slug-2>` based on
+- `campaign-ledger.test.mjs` proves: atomic `record` (temp+rename, no partial ledger on kill),
+  `init` from both a roadmap and a bare plan list, `add`→`sweep` inbox insertion, contention **refusal** on
+  overlapping `Files:` footprints, unparseable-footprint → explicit-position-required, and the two safety
+  string-assertions on SKILL.md (frontmatter carries `disable-model-invocation: true`; no external
+  `ecc:`/`strategic-compact` invocation).
+- Dropping a plan file into `inbox/` mid-run is picked up at the next plan boundary, contention-checked, and
+  never edits any committed file.
+- `/war-strategy`'s structure test asserts the three template fences + the code-boundary-rule heading exist
+  in SKILL.md.
+- A campaign over a 2-plan queue in AFK produces `dev/<slug-1>` (PR → master) and `dev/<slug-2>` based on
   `dev/<slug-1>` (PR → `dev/<slug-1>`); the final report states the bottom-up merge order.
 - Killing a campaign mid-run and re-invoking it resumes from the campaign ledger without re-running landed
   plans.
