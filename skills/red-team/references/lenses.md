@@ -1,12 +1,13 @@
 # Red Team — lenses, probes, schemas, report
 
 ## Spine lenses (always run)
-The five universal lenses live in [`../assets/workflow-scaffold.js`](../assets/workflow-scaffold.js) (`SPINE`):
+The six universal lenses live in [`../assets/workflow-scaffold.js`](../assets/workflow-scaffold.js) (`SPINE`):
 - **claims-vs-reality** — every concrete claim (file/symbol/signature/line/"before" snippet) checked against the live repo.
 - **executable-proof** — every test/command/edit the plan ships is run in a sandbox; assert it matches the stated "Expected".
 - **coverage-vs-source** — every requirement in the source spec/issue maps to a plan step; unmapped = Major gap.
 - **consistency-placeholders** — TBD/TODO/vague steps, name/signature drift, contradictions.
 - **dependency-feasibility** — assumed interfaces/deps/tools exist; ordering is sound.
+- **intent-vs-plan** — each `## Commander's Intent` End-state condition individually checkable (else Major) and mapped to ≥1 claiming phase (else Major); collectively sufficient for the Purpose (else Major `needsDecision`); a missing intent section passes with a Minor note recommending the intent interview — never Major.
 
 ## Bespoke probe catalog (derive from the plan's features)
 Add one probe per matching feature (edit the scaffold's array or pass `args.probes`):
@@ -62,7 +63,7 @@ For a plan with **no runnable artifacts** (a design doc/PRD), drop the executed 
 **Verdict:** CLEARED | CLEARED-WITH-NOTES | BLOCKED — <one line>
 
 ## Attack surface
-Spine: <5 lenses>. Bespoke: <probes run>. Executed in sandbox: <which>.
+Spine: <6 lenses>. Bespoke: <probes run>. Executed in sandbox: <which>.
 
 ## Executed proof
 - <what ran> → <result, e.g. "tests 20/20 green on Node v26"; "10/10 edits apply">

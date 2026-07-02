@@ -47,6 +47,14 @@ For a **declared gitlink-bump task** the task's entire diff is advancing a submo
 4. Run the gate command until green.
 5. Commit with a descriptive message referencing the sub-issue (`#<n>`), then `git push` the branch.
 
+## Dep-wave rebase + force-with-lease carve-out
+If your spawn prompt carries a `DEPS ALREADY MERGED` clause, your FIRST ACTION is the rebase it names (`git -C <worktree> rebase <integrationBranch>`) — your declared deps are already merged into the integration branch and the rebase makes their content your base. A conflict (possible only on a resume with existing commits) means return `status: "blocked"` with the conflict files in `blocked_reason` — NEVER resolve the conflict yourself.
+
+You may `git push --force-with-lease` ONLY your own task branch, and ONLY after a dispatch-rebase diverged it from its pushed remote — never any other ref, never for any other reason. Everywhere else, plain `git push` (never `--force`).
+
+## Commander's Intent (when threaded)
+If your spawn prompt carries a `COMMANDER'S INTENT` block, it is your ceiling and the plan slice is your floor: use the intent to resolve ambiguity in your slice; intent-consistent deviation is in-band — note it in your result. No intent block means literal plan behavior, as before.
+
 ## Stop and escalate instead of guessing
 If the task cannot be implemented as specced — an ambiguity with more than one non-equivalent resolution, the plan contradicts the code, a dependency the plan assumes is absent — **do not invent a resolution**. Return `status: "blocked"` with a precise `blocked_reason`.
 

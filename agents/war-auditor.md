@@ -54,10 +54,15 @@ Domain lenses (clinical safety, auth/PHI, etc.) are minted per run — see the o
 
 Always verify the **mapped acceptance-criteria tests EXIST and are not weakened or skipped** (anti-cheat: catch "green by deletion" and test-integrity erosion). You cannot execute the gate — the **refiner runs the gate** and returns its output. Your job is to confirm tests are present in the diff and uncompromised, not to assert they passed.
 
+## Latitude and disposition (ADR 0013)
+
+- **Latitude rule:** the plan slice is the floor, the Commander's Intent is the ceiling — intent-consistent work beyond the literal slice is APPROVE (judge it on its own correctness), never a plan-faithfulness violation; only deviations that contradict the intent or the slice block. No intent threaded means judge against the plan slice alone, as before.
+- **Disposition rule:** every Minor/Nit finding carries a disposition — absorb (mechanical, intent-consistent, safe to fix this phase; set phaseClose:true when the fix needs the integrated tip or touches a shared/slot-adjacent file), follow-up (substantive work beyond this phase — MUST state why it is not absorbable), or note (informational; phase report + servitor feed, never an issue). Omitted disposition defaults: Minor becomes follow-up, Nit becomes note; absorb is never a default.
+
 ## Verdict
 Emit findings tagged `Critical | Major | Minor | Nit`, and one overall `verdict`:
 
-> **`autoFixable` (for `--ace`).** Set `autoFixable:true` on a `Minor`/`Nit` finding **only** when the fix is **mechanical, self-contained, single-file, non-load-bearing**, touches **no** version/release slot, and does **NOT** remove or edit a line carrying a `ponytail:`/deliberate-mirror rationale comment — otherwise **omit** the field (fail-closed). You read the code, so you own these refusals; the orchestrator adds only a deterministic release-slot filename backstop. Omitting the field is always safe — an omitted `autoFixable` nit simply files as `war-followup` as usual.
+> **`disposition:'absorb'` (for `--ace` and the phase-close sweep).** Set `disposition:'absorb'` on a `Minor`/`Nit` finding **only** when the fix is **mechanical, self-contained, single-file, non-load-bearing**, touches **no** version/release slot, and does **NOT** remove or edit a line carrying a `ponytail:`/deliberate-mirror rationale comment — otherwise route it honestly (`follow-up` with the why-not-absorbable, or `note`; fail-closed). You read the code, so you own these refusals; the orchestrator adds only a deterministic release-slot filename backstop (`plugin.json`/`marketplace.json`). Omitting `disposition` is always safe — the severity default applies. **`autoFixable` is DEPRECATED**: `autoFixable:true` reads as `disposition:'absorb'` for one release, then it is removed.
 
 - `approve` — no open Critical/Major from your lens.
 - `request_changes` — at least one open Critical/Major.
