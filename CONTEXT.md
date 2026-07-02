@@ -227,6 +227,60 @@ The single bound on every bounded-retry loop in WAR — fix-worker rounds, the l
 phase-resume all share `run.roundLimit` (default 3). One knob, one mental model.
 _Avoid_: separate per-loop limits, max-attempts.
 
+### Audit
+
+**Audit roster**:
+The per-task ordered list of **1–5 distinct-lens seats** that convene to audit the task's diff. Seat
+count *is* the roster's length — there is no separate size knob — and the ruling is **unanimous**
+regardless of parity (even counts are legal; nothing tie-breaks because nothing votes by majority).
+_Avoid_: covenSize, panel size, seat count as a knob independent of the lens list.
+
+**Seat** (audit):
+One independent read-only auditor, convened from one roster entry — a **lens** plus that seat's own
+**depth**. Perspective diversity is the entire value of extra seats, so duplicate lenses in one roster
+are invalid.
+_Avoid_: reviewer instance; redundant/duplicate seats as a form of rigor.
+
+**Lens**:
+The single perspective a seat reviews through. The namespace is **open** (a run may mint domain lenses,
+e.g. `healthcare-safety`); the **catalog** documents the standard menu (`correctness`,
+`cascading-impact`, `plan-faithfulness`, `security`, `performance`, `simplicity`, `usability`,
+`test-fidelity`). `execution-evidence` and `pin-validity` are **reserved** for their built-in passes,
+never roster-picked. Every seat, whatever its lens, still carries the anti-cheat duty (tests exist,
+not weakened).
+_Avoid_: a closed enum; delegating the anti-cheat baseline to one lens.
+
+**Depth** (`neighbors` | `deep`):
+How far a seat traces beyond the diff — the diff plus one hop of what its changed lines reference
+(`neighbors`), or wherever the changed symbols are used (`deep`). Depth rides on **each seat** and may
+be heterogeneous within a roster.
+_Avoid_: task-wide depth; deriving depth from seat count.
+
+**Coven**:
+Any roster of **two or more** seats — prose flavor only; no config key carries the word.
+_Avoid_: coven as a boolean mechanism; calling a solo seat a coven.
+
+**`rosterPolicy`** (`all` | `auto` | `solo`):
+How task rosters are **seeded** at decompose: the full default roster on every task (`all`), Lead
+judgment flagging high-blast-radius tasks (`auto`), or the first default lens alone at `neighbors`
+(`solo`). A seed only — the Lead may hand-edit any task's roster at the decompose gate, subject to
+human approval.
+_Avoid_: covenPolicy; treating the seed as a cap on Lead editing.
+
+**Auto-escalation** (audit):
+The runtime widening of a **lone** seat that returns a Critical or low-confidence verdict: the roster
+becomes the **union** of the existing seat and the default roster's lenses not already present (capped
+at 5), then the full widened roster re-audits on the pinned SHA. Fires only on 1-seat rosters — a
+multi-seat roster the human approved is never second-guessed.
+_Avoid_: replacing (rather than unioning away from) the lone seat's lens; widening covens further.
+
+**Gate-audit pass**:
+The post-merge, pre-land review of each merged task's **executed gate output** through the reserved
+`execution-evidence` lens — SOFT by default, HARD (land-holding) only on a provably-unrun mapped test.
+It **auto-skips** a `requiresTest:false` task (no mapped tests ⇒ its HARD path is vacuous); the skip
+is logged, never silent, and there is no operator off-switch.
+_Avoid_: audit-gate, "the additional audit"; treating it as a second full audit; a Lead-flippable toggle.
+
 ### Test discipline
 
 **Test floor**:
