@@ -94,10 +94,14 @@ harness for plugin skills.
 - [ ] **Step 1 — SKILL.md.** Frontmatter (`name: war-strategy`; description: loads the WAR-shaped
   spec/plan/roadmap templates + the code-boundary decomposition rule, then hands off to the installed
   authoring skills; auto-invoke when the user is about to write a spec/plan/roadmap for WAR). Body, in order:
-  - **Dependency check (spec §6.1):** run the `find ~/.claude/skills ~/.claude/plugins .claude/skills
-    -maxdepth 4 -type d \( -name grill-with-docs -o -name domain-modeling \)` probe; empty → print the
-    warning (why the interview matters) + link to the README **Grill Me** pro-tip install (one link covers
-    `grill-with-docs`, `grilling`, `domain-modeling`).
+  - **Dependency check (spec §6.1 — probe corrected by red-team; this supersedes the spec's verbatim
+    command):** run `find -L ~/.claude/skills ~/.claude/plugins .claude/skills -maxdepth 6 -type d
+    \( -name grill-with-docs -o -name domain-modeling \) 2>/dev/null` — `-L` because installed skills are
+    routinely **symlinks** (`-type d` alone misses them), `-maxdepth 6` because plugin-cache skills live at
+    `plugins/cache/<mkt>/<plugin>/<ver>/skills/<name>` (depth 6), `2>/dev/null` because missing roots (most
+    repos have no `.claude/skills`) error noisily and force exit 1. Judge emptiness on **stdout only — never
+    the exit code**. Empty stdout → print the warning (why the interview matters) + link to the README
+    **Grill Me** pro-tip install (one link covers `grill-with-docs`, `grilling`, `domain-modeling`).
   - **The three templates (spec §6.2), inline:** spec template (10 numbered sections), plan template
     (build order / phases / tasks with Files·slice·requiresTest·deps·target-repo / notes / open decisions),
     roadmap template (index table + dependency spine + shared-file contention) with the Rev 1 note — the
@@ -111,8 +115,8 @@ harness for plugin skills.
     **no grilling loop of its own**.
   - **Closing offer (spec §6.4):** the real README Pro-Tip pattern (workflow → inspect open issues → cluster
     → synthesize war-shaped specs into `docs/specs/`), optionally seeded by `ponytail-audit`/`ecc:repo-scan`
-    as *optional* seeds — never a hard dependency, and **not** `/improve-codebase-architecture` (does not
-    exist).
+    as *optional* seeds — never a hard dependency, and **not** `/improve-codebase-architecture` (not part of
+    the recommended install set and not portable across machines).
 - [ ] **Step 2 — Structure test.** `war-strategy-structure.test.sh` (~15 lines, bash 3.2-safe, no mktemp):
   anchored greps assert SKILL.md contains the three template fences (spec-template heading, plan-template
   heading, roadmap-template heading) and the code-boundary-rule heading. Run → **GREEN**.
@@ -133,8 +137,15 @@ harness for plugin skills.
   - `init` from a bare plan list and from a roadmap file → same ledger shape:
     `{ campaign, created, mode: "stack"|"wait-for-merge", plans: [{ slug, plan, status, branch, pr, sha,
     stopPoint, files }] }`, statuses start `queued`.
-  - **Contention:** two plans whose parsed `Files:` footprints overlap → `init`/`sweep` **refuses** to leave
-    them unordered (serializes or errors with the overlapping paths named); disjoint plans pass freely.
+  - **Contention (semantics settled by red-team — overlap is the NORM, not the exception: every
+    release-bearing plan in this repo touches `plugin.json`/`marketplace.json`/`README.md`):** an explicitly
+    **given order satisfies the check** — the `init` plan-list position and `sweep`'s append order ARE
+    orderings. Refusal (error naming the overlapping paths) fires only when no order is derivable: `sweep`
+    with multiple simultaneous inbox entries that mutually overlap serializes them deterministically (inbox
+    filename order) and reports the chosen order with the overlapping paths named. Named test fixtures:
+    (a) two plans overlapping on exactly the release slots → `init` with an explicit list order passes and
+    preserves order; (b) disjoint plans pass freely; (c) two mutually-overlapping inbox entries in one
+    `sweep` → deterministic serialization, overlap named in the output.
   - **Unparseable footprint** (a plan with no `Files:` lines) → refused unless an explicit position is given.
   - `add <plan>` writes **one new file** under `inbox/` (maildir-style; no ledger touch).
   - `sweep` moves inbox entries into the queue in dependency-safe order and deletes the inbox files.
@@ -147,9 +158,20 @@ harness for plugin skills.
     bundled-routine mention, never an external invocation (spec §12).
 - [ ] **Step 2 — Implement `campaign-ledger.mjs` (GREEN).** Node stdlib only (`node:fs`, `node:path`) — no
   new dependency. Subcommands `init / add / sweep / next / record`. `Files:` extraction is **anchored,
-  line-based** (tolerates `**Files:**` bold + markdown links; no lazy quantifiers —
-  [[regex-extract-live-code-lazy-quantifier-fragility]]). Atomic write = write temp file in the same dir +
-  `rename`. Refusal messages name the overlapping paths.
+  block-based** (red-team-proven on real fixtures; strictly single-line parsing truncates wrapped lists and
+  is a bug): anchor `/^\s*(-\s+)?\*{0,2}Files?:\*{0,2}/` (the `s?` also matches the house singular
+  `**File:**` form — silent-miss is the unsafe direction for a contention check; tolerates `**Files:**`
+  bold, the spec §6.2 template's indented `- Files:` list form, and markdown links; no lazy quantifiers —
+  [[regex-extract-live-code-lazy-quantifier-fragility]]), then **consume continuation lines until a blank
+  line or a new construct** (heading, `**`, `- [ ]`). Token policy: strip parenthetical/em-dash annotation
+  clauses from the joined block BEFORE comma-splitting — but **keep** a parenthetical whose content is
+  exactly one backticked path-shaped token (the ``(`path`)`` bare-path form carries a real file); accept a
+  backticked token only if **path-shaped**
+  (contains `/` or a file extension; no spaces, no `<>` placeholders, not starting with `#`). Test fixtures
+  from real plans: a wrapped `Files:` list (this plan's own T3 entry — assert the continuation file
+  `campaign-ledger.test.mjs` is captured) and an annotated line (this plan's T5 entry — assert the footprint
+  is exactly the 3 files, no `version`/`## Status` junk tokens). Atomic write = write temp file in the same
+  dir + `rename`. Refusal messages name the overlapping paths.
 - [ ] **Step 3 — Temp-break proof.** Disable the contention intersect (return empty overlap) → the refusal
   case flips **RED**; restore → GREEN.
 - [ ] **Step 4 — SKILL.md.** Frontmatter: `name: war-campaign`, **`disable-model-invocation: true`** (the
