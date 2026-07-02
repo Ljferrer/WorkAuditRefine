@@ -39,7 +39,7 @@ A task reaches the refiner with exactly one terminal **outcome**. Two are produc
                 title, file, line?, rationale, suggested_fix?, plan_ref?,
                 autoFixable? } ],   // optional bool; set true only on a mechanical Minor/Nit the auditor authorizes for --ace pre-merge fixing (war-auditor.md); omit = fail-closed
   tests_verified: { exist: true },                // anti-cheat: existence + integrity verified (not executed — the refiner runs the gate)
-  confidence: "high" | "medium" | "low",          // low → widen to coven
+  confidence: "high" | "medium" | "low",          // low → lone seat union-widens
   escalate_reason?: "present iff verdict==escalate — the plan is wrong/underspecified" }
 ```
 
@@ -68,7 +68,8 @@ A task reaches the refiner with exactly one terminal **outcome**. Two are produc
   phases: [ { id, title, epic_issue, integration_branch,
     status: "todo"|"running"|"landed"|"blocked",
     tasks: [ { id, issue, title, branch, worktree, deps: ["id"],
-      lenses: ["correctness","cascading-impact","plan-faithfulness"], coven: false, plan_slice,
+      roster: [ { lens: "correctness", depth: "deep" } ],   // 1–5 distinct-lens audit seats; per-seat depth ("neighbors"|"deep", omitted → "deep")
+      plan_slice,
       requiresTest: true,           // bool; default true — set false for docs/config/VERIFY-no-op tasks; gates the refiner's test-floor check
       targetRepo?: "path/to/submodule",  // present only on submodule tasks + their paired gitlink-bump tasks; the submodule checkout path (relative to the superproject); absent on superproject tasks. A submodule PHASE = the set of tasks sharing a `targetRepo`; the per-task `targetRepo?` tag is canonical, the phase repo is derived.
       status: "todo"|"working"|"audited"|"merged"|"escalated"|"blocked",
@@ -86,7 +87,7 @@ A task reaches the refiner with exactly one terminal **outcome**. Two are produc
 
 ## GitHub conventions
 - **Epic issue per phase**; **sub-issue per task** (GitHub sub-issues).
-- Labels: `phase:<N>`, `status:todo|working|audited|merged|escalated|blocked`, `audit:1|coven`.
+- Labels: `phase:<N>`, `status:todo|working|audited|merged|escalated|blocked`, `audit:<seatCount>`.
 - **Minor/Nit** findings → new follow-up issues labeled `war-followup`, linked to the phase epic. Under `--ace` (`run.ace`), an auditor-flagged auto-fixable nit (`autoFixable:true`) is instead fixed in the task worktree pre-merge and recorded on the Workflow's `aced` list (commit-cited, not a GitHub issue); only **un-aced residual** nits file as `war-followup`.
 - Phase reports + escalations → **comments on the phase epic issue** (durable, human-visible).
 
@@ -148,13 +149,16 @@ Produced by `/war-room`, consumed by `/war`'s Setup. The schema, defaults, prese
     refiner:  { model, effort },
     servitor: { model, effort } },
   audit: {
-    covenSize,                               // integer >= 1 — seats when a coven convenes
-    lenses: ["correctness","cascading-impact","plan-faithfulness"],
-    covenPolicy: "all" | "auto" | "solo",    // seeds per-task coven flags at the decompose gate; default: "all" (full 3-lens panel at deep on every task — F06)
-    autoEscalate: true },                    // 1->coven on a Critical/low-confidence lone seat; set false (with covenPolicy:"solo") to pin one auditor
-// COST NOTE (F06): the default covenPolicy:"all" spawns 3 deep auditor seats per task on the happy path
+    roster: [ { lens: "correctness", depth: "deep" },        // 1–5 seats; lenses distinct; depth "neighbors"|"deep", omitted → "deep"
+              { lens: "cascading-impact", depth: "deep" },   // this default roster is also the union-widening source for autoEscalate
+              { lens: "plan-faithfulness", depth: "deep" } ],
+    rosterPolicy: "all" | "auto" | "solo",   // seeds per-task rosters at the decompose gate; default: "all" (the full config roster on every task — F06)
+    autoEscalate: true },                    // union-widens a Critical/low-confidence LONE seat with the default roster's lenses; set false (with rosterPolicy:"solo") to pin one auditor
+// COST NOTE (F06): the default roster spawns 3 deep auditor seats per task on the happy path
 // (correctness + cascading-impact + plan-faithfulness, unanimous, at deep depth). Budget accordingly.
-// Use covenPolicy:"solo" (economy preset) for cost-sensitive runs — one seat at neighbors depth.
+// Use rosterPolicy:"solo" (economy preset) for cost-sensitive runs — one seat at neighbors depth.
+// Legacy keys covenSize/lenses/covenPolicy FAIL validation with a courtesy error naming the key —
+// run /war-room to regenerate the config (D3: no shims, no accepted-but-ignored keys).
   run: { roundLimit, afk },                  // roundLimit >= 1; afk = default for /war --afk
   overrides: { gate, workingBranch, landingBranch, learningsTarget } }  // null = let /war auto-detect
 // overrides.gate is the *declared base* command (string|null); the *resolved* gate run by agents
