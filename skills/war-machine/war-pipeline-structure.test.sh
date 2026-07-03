@@ -96,7 +96,7 @@ printf '\n# Criterion 4 — all five heading surfaces name BOTH intent headings\
 # Commander's Intent heading — both present proves the "either heading" contract on that surface.
 for f in "$WAR_SKILL" "$LENSES" "$SCHEMAS" "$DESIGN"; do
   has "$f" "AI-Commander's Intent"
-  has "$f" "Commander's Intent"
+  has "$f" "## Commander's Intent"
 done
 # workflow-scaffold.js: BOTH branches of the intent-vs-plan probe must name both headings. The
 # positive branch fires on "either", the negative fires only on "NEITHER" — assert both tokens.
