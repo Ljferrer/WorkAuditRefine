@@ -51,33 +51,15 @@ It hardens each plan (`/red-team`), executes it (`/war … --afk`), stacks each 
 Run this sequence of commands:
 
 ```
-Spin up a workflow of agents to inspect all of the remaining open issues in this repo,
-group them, and synthesize a series of design specs that will address all of them
-(write each one to `docs/specs/`)
+/war-survey-corps                                   # open issues → grouped design specs + survey manifest
+/war-machine                                        # specs → implementation plans + roadmap (interviews you lightly)
+/war-campaign docs/roadmaps/<date>-<slug>-roadmap.md
+/war-aftermath                                      # evidence-gated cleanup of branches, worktrees, issues
 ```
 
-This next command converts the design specs to implementation plans and reduces the number of grilled questions from ~50+ → ~3-5 (the agent's defaults are quite good usually -- run `/grill-with-docs` one at a time if you want full control over the decision making process):
+Every step has an autonomous mode — `/war-machine --afk`, `/war-campaign` (unattended by default: it passes `--afk --ace` to each `/war` itself; there are no operator `--afk`/`--ace` flags on its own invocation), `/war-aftermath --afk` — so the sequence remains cron-able end to end (a nightly cron job or scheduled task). The clean-tree prerequisite is owned by `/war-machine --afk`'s closing commit: `/war` refuses a dirty tree, so the autonomous path cannot leave specs/plans/roadmap uncommitted.
 
-```
-/loop for each design spec you just made:
-/grill-with-docs to turn them into implementation plans (write each one to `docs/plans/`).
-Spin up a parallel agent to grill yourself first. I will mostly defer to your decisions on these,
-but raise any architectural decisions to me
-```
-
-Then hand the whole set to the campaign runner:
-
-```
-/war-campaign docs/plans/<plan-1>.md docs/plans/<plan-2>.md ...
-```
-
-A campaign may take ~12+ hours, depending on how many issues it covers. When it's done, wrap up with:
-
-```
-Clean up any stray branches and issues that should have been closed
-```
-
-The thorough auditing mechanism of `/war` + CI/CD makes this something you can safely run nightly on your repo as a cron job or a scheduled task.
+> **⚠️ `/war-aftermath --afk --scorched-earth` is dangerously destructive.** The combo widens cleanup to all local branches and worktrees and force-deletes unmerged work with no human review. Only a non-negotiable protected core survives it.
 
 ### Recommended Auxiliary Plugins
 
