@@ -309,7 +309,9 @@ The plan's `## Commander's Intent` section — **Purpose** (why), **Method** (ho
 winning; the latitude bounds), **End state** (numbered, individually *checkable* conditions).
 Staff-drafted, commander-confirmed: an authoring skill may draft it from operator answers, but the
 operator's explicit confirmation is the gate. The Lead extracts it **verbatim** into `args.intent`;
-a missing section → `intent = null` and the run degrades to literal plan behavior — never Lead-invented.
+a missing section → `intent = null` and the run degrades to literal plan behavior — never Lead-invented,
+with one exception: the **AI-Commander's Intent** block `/war-machine --afk` authors, marked by its own
+heading (ADR 0014).
 _Avoid_: mission statement, goals (neither carries the checkable End state); Lead-synthesized intent.
 
 **Intent ceiling / plan floor**:
@@ -488,3 +490,30 @@ for PR N-1 to merge, base plan N off fresh `origin/master`). Live-appendable via
 each plan boundary.
 _Avoid_: pointing every stacked PR at master (cumulative diffs → shared-doc conflicts — the stacked PR
 target is plan N-1's branch); assuming Mode A works overnight (it needs a human merging each PR).
+
+### Pipeline (outer loop)
+
+**Survey manifest**:
+The uncommitted record a survey run leaves at `.claude/aot/YYYY-MM-DD-survey.json` under the **main
+checkout**: the specs it created, the issues each addresses, ordering hints, and a consumed stamp. The
+cross-session handoff from `/war-survey-corps` to `/war-machine`, and the first link in
+`/war-aftermath`'s swept-issue evidence chain. Retained after consumption; never committed.
+_Avoid_: survey ledger, spec index.
+
+**AI-Commander's Intent**:
+The provenance-marked intent heading (`## AI-Commander's Intent`) emitted only by `/war-machine --afk`:
+the **single sanctioned exception** to "the Lead never invents intent," checked against predecessor
+intent blocks before being committed to, and readable downstream exactly like operator intent. The
+heading *is* the provenance record.
+_Avoid_: synthetic intent (as a config value); treating it as operator-confirmed.
+
+**Scorched-earth sweep**:
+`/war-aftermath`'s opt-in widened mode: every local branch and worktree is a candidate and unmerged
+work is force-deleted after ⚠-flagging. Only the protected core is exempt.
+_Avoid_: deep clean, full cleanup (neither names the force-delete semantics).
+
+**Protected core**:
+The set no aftermath mode may touch: the current branch + worktree, the default branch, running
+sessions' worktrees, and anything referenced by an active run/campaign ledger. Correctness, not
+preference — deleting these breaks live state.
+_Avoid_: exclusion list, denylist (both sound configurable; the core is not).
