@@ -28,7 +28,7 @@ Passes `--afk --ace` to `/war` by default for every plan in the queue.
 2. **Provision the branch — stack-and-plow ([ADR 0011](../../docs/adr/0011-campaign-stack-and-plow-branch-model.md)).** Plan 1: `dev/<slug-1>` cut from fresh `origin/master`. Plan N: `dev/<slug-N>` cut from `dev/<slug-(N-1)>`'s tip. `--wait-for-merge` mode: wait for PR N-1 to merge, then cut from fresh `origin/master` instead.
 3. **Harden.** Run `/red-team <plan>`, self-adjudicating under AFK. Unresolvable → halt-and-hold (below).
 4. **Execute.** Run `/war <plan> --working dev/<slug-N> --landing dev/<slug-(N-1)> --afk --ace` (plan 1 lands to `master`).
-5. **Record.** `campaign-ledger.mjs record --status landed --branch <b> --pr <n> --sha <sha>` — atomic temp+rename, so a laptop-close mid-write never corrupts the queue.
+5. **Record.** `campaign-ledger.mjs record --campaign <dir> --plan <path> --status landed --branch <b> --pr <n> --sha <sha> --stopPoint <token>` — atomic temp+rename, so a laptop-close mid-write never corrupts the queue. Omitted flags leave the entry's existing values untouched (`--stopPoint` is set on halt-and-hold, not on a clean land).
 6. **Context hygiene.** Bundled checkpoint-and-compact at the plan boundary: the ledger is already durable, so this is a built-in `/compact` — best-effort, not the guarantee.
 7. **Loop** to the next queued plan.
 
