@@ -271,7 +271,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.11.1** — #444 end-state residuals — whitespace/case-tolerant `plan_ref` binding in the handoff endState resolver (near-match no longer resolves a silent `met`), criterion-10 pre-intent substring assertion, fence-robust structure-test ordering grep.
+**0.12.0** — WAR pipeline skills — the README Pro Tip's outer loop becomes three discoverable, cron-able slash commands (`/war-survey-corps`, `/war-machine`, `/war-aftermath`) bracketing `/war-campaign`, plus the `## AI-Commander's Intent` doctrine amendment (ADR 0014) that makes the middle step schedulable.
 
 ## License
 
