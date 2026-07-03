@@ -101,6 +101,44 @@ It automatically bumps your install to the new version. Changes apply to the nex
 
 ## Usage
 
+The command set, in the order you'll meet it: **`/war-help`** orients you → **`/war-room`** configures a run → **`/war`** executes a plan. Feeding it: **`/war-strategy`** structures the spec and the plan (and converts spec → plan) → **`/red-team`** hardens the plan. Scaling up: **`/war-survey-corps`** turns open issues into specs → **`/war-machine`** turns specs into plans + a roadmap → **`/war-campaign`** runs the plans back-to-back unattended → **`/war-aftermath`** cleans up the debris → **`/lessons-learned`** keeps the accumulated memory honest.
+
+### Get oriented (`/war-help`)
+
+New to WAR, or just want a refresher? Run the orientation card:
+
+```
+/war-help
+```
+
+It prints a one-screen map — what WAR is, the command set, the five roles, how a run flows, and the
+prerequisites — then offers deep-dive links and a handoff to `/war-strategy`. Design notes:
+[`docs/specs/2026-07-01-war-companion-skills-design.md`](docs/specs/2026-07-01-war-companion-skills-design.md#5-war-help--the-orientation-card).
+
+### Configure a run (`/war-room`)
+
+By default WAR runs opus workers on `max` effort and opus auditors on `xhigh`, and auto-seeds each task's audit roster (1–3 seats by blast radius) at the approval gate. To change that — pick models per role, put a worker on **ultrathink**, shape the roster (seats, lenses, per-seat depth) or its seeding policy — run the companion skill first:
+
+```
+/war-room
+```
+
+Or invoke it in natural language — e.g. *"To the war room!"*.
+
+It interviews you (starting from a **balanced / thorough / economy** preset, then only the overrides you ask for), validates your choices, and writes `.claude/war/config.json`. `/war` auto-discovers that file on its next run (or pass `--config <path>`). **No config file → today's defaults, unchanged.** Design notes: [`docs/specs/2026-06-18-war-room-design.md`](docs/specs/2026-06-18-war-room-design.md).
+
+**For best results** I recommend using:
+
+```
+/war-room thorough preset
+```
+
+> NOTE: This configuration absolutely pumps tokens.
+
+### Go to war (`/war`)
+
+The main command:
+
 ```
 /war <plan-file> [--working <branch>] [--landing <branch>] [--afk] [--ace] [--config <path>]
 ```
@@ -136,79 +174,17 @@ Or invoke it in natural language — e.g. *"Go to war on issues #20 & #22"*.
 
 **Resuming:** every run writes a ledger at `.claude/teams/<run-id>/ledger.json` — the richest resume record, reconciled toward git on resume (git branch state is the authority, [ADR 0008](docs/adr/0008-git-is-the-resume-source-of-truth.md)). If a run is interrupted, re-invoke `/war` with the same plan to continue from the ledger + open issues.
 
-## Configure a run (`/war-room`)
+### Author a plan (`/war-strategy`)
 
-By default WAR runs opus workers on `max` effort and opus auditors on `xhigh`, and auto-seeds each task's audit roster (1–3 seats by blast radius) at the approval gate. To change that — pick models per role, put a worker on **ultrathink**, shape the roster (seats, lenses, per-seat depth) or its seeding policy — run the companion skill first:
+**Spec ≠ plan — the *what* vs. the *how*.** A **design spec** (`docs/specs/`) is the ratified decision record for a change — problem, pivotal constraints, numbered decisions with alternatives considered, affected surfaces, test intent. It answers *what changes and why*, and carries no dispatch structure — `/war` cannot execute one. An **implementation plan** (`docs/plans/`) is the executable artifact `/war` consumes — phases and tasks with exact file sets, `requiresTest`, `deps`, and target repo. It answers *how*: who does what, in which order, against which files. Every plan opens with a **Commander's Intent** — **Purpose** (why), **Method** (how you envision winning), **End state** (numbered, individually *checkable* conditions) — drafted from your answers, confirmed by you explicitly, and threaded into every worker and auditor prompt: the plan slice is the floor, your intent is the ceiling. Full glossary: [`CONTEXT.md`](CONTEXT.md).
 
-```
-/war-room
-```
-
-Or invoke it in natural language — e.g. *"To the war room!"*.
-
-It interviews you (starting from a **balanced / thorough / economy** preset, then only the overrides you ask for), validates your choices, and writes `.claude/war/config.json`. `/war` auto-discovers that file on its next run (or pass `--config <path>`). **No config file → today's defaults, unchanged.** Design notes: [`docs/specs/2026-06-18-war-room-design.md`](docs/specs/2026-06-18-war-room-design.md).
-
-**For best results** I recommend using:
-
-```
-/war-room thorough preset
-```
-
-> NOTE: This configuration absolutely pumps tokens.
-
-## Harden a plan (`/red-team`)
-
-Before you hand a plan to `/war`, attack it. `/red-team <plan-file>` reads the plan, runs a universal spine of adversarial checks plus probes tailored to the plan, and **proves** the plan's claims by running its tests/edits/commands in throwaway sandboxes — never touching your repo. It then grills you on every blocker and patches the plan in place until it is **CLEARED**, leaving a report under `docs/red-team/`.
-
-`/red-team` **validates plans; it never converts a spec into one** (war-strategy **converts**, red-team **ratifies** — see [`CONTEXT.md`](CONTEXT.md)). Have a design spec instead of a plan? Bring it to [`/war-strategy`](#author-a-plan-war-strategy) first, then red team the resulting plan.
-
-Or invoke it in natural language — e.g. *"Red team my plan at docs/..."*.
-
-The full pipeline: **`/war-strategy`** authors a plan → **`/war-room`** configures a run → **`/red-team`** hardens the plan → **`/war`** executes it → **`/war-campaign`** runs many of them back-to-back; **`/war-help`** orients you at any point. Design notes: [`docs/specs/2026-06-18-red-team-design.md`](docs/specs/2026-06-18-red-team-design.md).
-
-## Tidy the memory (`/lessons-learned`)
-
-Every `/war` phase leaves durable learnings in your project's Claude memory store (the servitor's job). Over many runs that store accumulates fixed-bug warnings, drifted line-number references, and bloated per-release logs. `/lessons-learned` does a **full housekeeping pass** over it:
-
-```
-/lessons-learned
-```
-
-It fans out agents to **verify every memory against the live repo**, classifies each as still-relevant vs. stale (`current` / `anchor-drift` / `resolved` / `superseded` / `dated-done` / `stale`), then **compresses, re-anchors, retires, and merges** the topic files and rewrites the `MEMORY.md` index — telling you how full the index is against its budget and **reporting at every phase**.
-
-It is **fault-tolerant to interruption** (a closed laptop mid-run). The live memory store is never mutated in place: the pass **backs up** to a tarball, does all work in a `.staging` copy, **verifies** index↔file integrity and link health, and only then performs a single **atomic swap** — with a `recover` path if it dies between steps. The deterministic backup / stage / verify / swap / recover logic lives in [`skills/lessons-learned/assets/safe-swap.sh`](skills/lessons-learned/assets/safe-swap.sh).
-
-Or invoke it in natural language — e.g. *"Do a lessons-learned pass on this repo's memory."*
-
-## Get oriented (`/war-help`)
-
-New to WAR, or just want a refresher? Run the orientation card:
-
-```
-/war-help
-```
-
-It prints a one-screen map — what WAR is, the command set, the five roles, how a run flows, and the
-prerequisites — then offers deep-dive links and a handoff to `/war-strategy`. Design notes:
-[`docs/specs/2026-07-01-war-companion-skills-design.md`](docs/specs/2026-07-01-war-companion-skills-design.md#5-war-help--the-orientation-card).
-
-## Author a plan (`/war-strategy`)
-
-Before you write a plan by hand, load the authoring primer:
+**Structure a spec or plan.** Bare invoke loads the authoring primer — the WAR-shaped spec/plan/roadmap templates plus the code-boundary decomposition rule in one sentence: file-disjoint tasks in a phase, a dependency crossing a phase edge, one task per repo, release as its own trailing phase — then routes you to your installed grilling skill to actually interview you (see the **Grill Me** pro-tip above, which its dependency check links to when that skill isn't installed):
 
 ```
 /war-strategy
 ```
 
-It hands you the WAR-shaped spec/plan/roadmap templates plus the code-boundary decomposition rule in one
-sentence — file-disjoint tasks in a phase, a dependency crossing a phase edge, one task per repo, release as
-its own trailing phase — then routes you to your installed grilling skill to actually interview you (see the
-**Grill Me** pro-tip above, which its dependency check links to when that skill isn't installed).
-
-It also **converts**: bring it an existing draft — a design spec, rough plan, roadmap, or design doc — and it
-reviews the artifact for war-shape gaps, interviews you gap-by-gap, and applies the structural fixes. Given a
-spec, it authors the war-shaped implementation plan into `docs/plans/` itself (drafting the plan's
-**Commander's Intent** from your answers and echoing it back for explicit confirmation):
+**Convert a spec into a plan.** Bring it an existing draft — a design spec, rough plan, roadmap, or design doc — and it reviews the artifact for war-shape gaps, interviews you gap-by-gap, and applies the structural fixes. Given a spec, it authors the war-shaped implementation plan into `docs/plans/` itself (drafting the plan's Commander's Intent from your answers and echoing it back for explicit confirmation):
 
 ```
 /war-strategy docs/specs/design.md
@@ -218,7 +194,35 @@ spec, it authors the war-shaped implementation plan into `docs/plans/` itself (d
 [`CONTEXT.md`](CONTEXT.md)). Design notes:
 [`docs/specs/2026-07-01-war-companion-skills-design.md`](docs/specs/2026-07-01-war-companion-skills-design.md#6-war-strategy--the-authoring-primer).
 
-## Run a campaign (`/war-campaign`)
+### Harden a plan (`/red-team`)
+
+Before you hand a plan to `/war`, attack it. `/red-team <plan-file>` reads the plan, runs a universal spine of adversarial checks plus probes tailored to the plan, and **proves** the plan's claims by running its tests/edits/commands in throwaway sandboxes — never touching your repo. It then grills you on every blocker and patches the plan in place until it is **CLEARED**, leaving a report under `docs/red-team/`.
+
+`/red-team` **validates plans; it never converts a spec into one** (war-strategy **converts**, red-team **ratifies** — see [`CONTEXT.md`](CONTEXT.md)). Have a design spec instead of a plan? Bring it to [`/war-strategy`](#author-a-plan-war-strategy) first, then red team the resulting plan.
+
+Or invoke it in natural language — e.g. *"Red team my plan at docs/..."*. Design notes: [`docs/specs/2026-06-18-red-team-design.md`](docs/specs/2026-06-18-red-team-design.md).
+
+### Turn issues into specs (`/war-survey-corps`)
+
+Your backlog is raw material. `/war-survey-corps` sweeps the repo's open GitHub issues (run-bookkeeping labels dropped, `war-followup` debt first-class), fans out a reader agent per issue, clusters the summaries into coherent groups, and synthesizes **one war-shaped design spec per group** into `docs/specs/` — then verifies every swept issue is claimed or explicitly deferred. It commits nothing; it hands off to `/war-machine` via an uncommitted survey manifest.
+
+```
+/war-survey-corps [--erwin]
+```
+
+`--erwin` pauses after clustering so you approve the proposed groups before synthesis. Bare invoke is fully autonomous end to end, so the step stays cron-able.
+
+### Turn specs into plans (`/war-machine`)
+
+The middle step of the pipeline: `/war-machine` consumes the freshest survey manifest (or the spec paths you pass), runs a drafter + adversarial-grill agent pair per spec strictly serially, writes the implementation plans to `docs/plans/` and a campaign roadmap to `docs/roadmaps/`, and prints the `/war-campaign` handoff — it **never launches the campaign and never red-teams**. It relies on `/war-strategy`'s templates and conversion doctrine rather than forking them.
+
+```
+/war-machine [spec-paths…] [--afk]
+```
+
+Interactive by default (it interviews you lightly, including the Commander's Intent echo-back per plan); `--afk` makes it cron-able — it authors a provenance-marked **AI-Commander's Intent** block instead ([ADR 0014](docs/adr/0014-ai-commanders-intent.md)) and its closing commit leaves the tree clean for `/war`.
+
+### Run a campaign (`/war-campaign`)
 
 Once you have several plans, run them back-to-back, unattended, in one chat:
 
@@ -237,6 +241,30 @@ basing the next plan off fresh `master`.
 **halts the whole campaign** (halt-and-hold) rather than letting later plans build on incomplete work; every
 plan below the failure has already landed as its own stacked PR, merged **bottom-up**. Design notes:
 [`docs/specs/2026-07-01-war-companion-skills-design.md`](docs/specs/2026-07-01-war-companion-skills-design.md#7-war-campaign--the-hopper).
+
+### Clean up (`/war-aftermath`)
+
+WAR campaigns leave debris — stray integration and task branches, orphaned run worktrees, done-but-open bookkeeping issues, survey-swept issues whose PRs merged. `/war-aftermath` deletes or closes **only what a checkable evidence chain proves is safe**, with git as the source of truth at every gate (ancestry and reachability checked against `git ls-remote` truth, never a ledger claim alone). Anything without a complete chain — including any unmerged branch — is **reported, never touched**, and anything an active run or campaign ledger references is out of scope.
+
+```
+/war-aftermath [--afk] [--scorched-earth]
+```
+
+Bare invoke = categorized dry-run report → one confirm → execute the safe list. `--afk` skips the confirm and executes only the provably-safe class. It never auto-triggers — a deleting verb must never fire because a sentence pattern-matched. **`--afk --scorched-earth` is dangerously destructive** (see the Pro Tip warning above): it widens to every local branch and worktree and force-deletes unmerged work with no human review; only a non-negotiable protected core survives.
+
+### Tidy the memory (`/lessons-learned`)
+
+Every `/war` phase leaves durable learnings in your project's Claude memory store (the servitor's job). Over many runs that store accumulates fixed-bug warnings, drifted line-number references, and bloated per-release logs. `/lessons-learned` does a **full housekeeping pass** over it:
+
+```
+/lessons-learned
+```
+
+It fans out agents to **verify every memory against the live repo**, classifies each as still-relevant vs. stale (`current` / `anchor-drift` / `resolved` / `superseded` / `dated-done` / `stale`), then **compresses, re-anchors, retires, and merges** the topic files and rewrites the `MEMORY.md` index — telling you how full the index is against its budget and **reporting at every phase**.
+
+It is **fault-tolerant to interruption** (a closed laptop mid-run). The live memory store is never mutated in place: the pass **backs up** to a tarball, does all work in a `.staging` copy, **verifies** index↔file integrity and link health, and only then performs a single **atomic swap** — with a `recover` path if it dies between steps. The deterministic backup / stage / verify / swap / recover logic lives in [`skills/lessons-learned/assets/safe-swap.sh`](skills/lessons-learned/assets/safe-swap.sh).
+
+Or invoke it in natural language — e.g. *"Do a lessons-learned pass on this repo's memory."*
 
 ## Roles → Gas Town lineage
 
