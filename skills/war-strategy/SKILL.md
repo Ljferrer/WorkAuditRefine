@@ -139,7 +139,6 @@ ship this **HANDOFF DIRECTIVE** with the route — the authoring skill executes 
 
 ## 5. Closing offer
 
-Optionally point at the real README Pro-Tip pattern: spin up a workflow to inspect open issues, cluster them,
-and synthesize war-shaped specs into `docs/specs/` — optionally seeded by `ponytail-audit` or `ecc:repo-scan`
-as *optional* seeds, never a hard dependency (**not** `/improve-codebase-architecture` — it isn't part of the
-recommended install set and isn't portable across machines).
+Optionally point at `/war-survey-corps` — the pipeline's survey step: it inspects open issues, clusters
+them, and synthesizes war-shaped specs into `docs/specs/`, optionally seeded by `ponytail-audit` or
+`ecc:repo-scan` as *optional* seeds, never a hard dependency.
