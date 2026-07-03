@@ -271,7 +271,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.12.0** — WAR pipeline skills — the README Pro Tip's outer loop becomes three discoverable, cron-able slash commands (`/war-survey-corps`, `/war-machine`, `/war-aftermath`) bracketing `/war-campaign`, plus the `## AI-Commander's Intent` doctrine amendment (ADR 0014) that makes the middle step schedulable.
+**0.13.0** — Catalog-composed `auto` rosters + auditor-nominated widening — `auto` now means the Lead composes 1–5 audit seats from the lens catalog (with per-seat depth and a one-line rationale), and a triggered lone seat widens by auditor nomination (`resolveWidenSource` + `RESERVED_LENSES`), falling back to the trio union when no valid nomination is present.
 
 ## License
 
