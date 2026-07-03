@@ -1,6 +1,6 @@
 # Commander's intent and disposition routing — licensed judgment over plan literalism; issues become affirmative acts
 
-**Status:** accepted (2026-07-02 — design ratified in the clean-handoff review; implemented in `skills/war/assets/workflow-template.js` + the worker/auditor standing files by the clean-handoff plan's Phase 1; amended per the two-homes ruling, Decision 2)
+**Status:** accepted (2026-07-02 — design ratified in the clean-handoff review; implemented in `skills/war/assets/workflow-template.js` + the worker/auditor standing files by the clean-handoff plan's Phase 1; amended per the two-homes ruling, Decision 2; amended by [ADR-0014 — AI-Commander's Intent](0014-ai-commanders-intent.md) — Decision 2's never-invents rule gains its single sanctioned exception, the `## AI-Commander's Intent` block `/war-machine --afk` authors)
 
 WAR's agents had exactly one yardstick: the plan's literal text. The auditor's plan-faithfulness lens judged
 work against the slice ("the plan did not authorize"), severity was the only routing signal (every Minor/Nit
