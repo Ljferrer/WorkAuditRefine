@@ -157,10 +157,10 @@ Produced by `/war-room`, consumed by `/war`'s Setup. The schema, defaults, prese
     roster: [ { lens: "correctness", depth: "deep" },        // 1–5 seats; lenses distinct; depth "neighbors"|"deep", omitted → "deep"
               { lens: "cascading-impact", depth: "deep" },   // this default roster is also the union-widening source for autoEscalate
               { lens: "plan-faithfulness", depth: "deep" } ],
-    rosterPolicy: "all" | "auto" | "solo",   // seeds per-task rosters at the decompose gate; default: "all" (the full config roster on every task — F06)
+    rosterPolicy: "all" | "auto" | "solo",   // seeds per-task rosters at the decompose gate; default: "auto" (full roster on high-blast-radius tasks, one `neighbors` seat on leaf tasks)
     autoEscalate: true },                    // union-widens a Critical/low-confidence LONE seat with the default roster's lenses; set false (with rosterPolicy:"solo") to pin one auditor
-// COST NOTE (F06): the default roster spawns 3 deep auditor seats per task on the happy path
-// (correctness + cascading-impact + plan-faithfulness, unanimous, at deep depth). Budget accordingly.
+// COST NOTE: rosterPolicy "all" spawns every roster seat on every task (3 deep seats with the
+// default trio, unanimous); the default "auto" scales 1–roster-length seats by blast radius.
 // Use rosterPolicy:"solo" (economy preset) for cost-sensitive runs — one seat at neighbors depth.
 // Legacy keys covenSize/lenses/covenPolicy FAIL validation with a courtesy error naming the key —
 // run /war-room to regenerate the config (D3: no shims, no accepted-but-ignored keys).

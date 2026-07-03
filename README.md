@@ -135,7 +135,7 @@ Or invoke it in natural language — e.g. *"Go to war on issues #20 & #22"*.
 | `--working <branch>` | no | current branch | Branch each phase lands on, one `--no-ff` commit per phase. |
 | `--landing <branch>` | no | repo's default branch | Branch the final PR targets. |
 | `--afk` | no | off | Don't stop at phase boundaries — post a report + push notification and keep going. Hard escalations still halt. |
-| `--ace` | no | off | Fix auditor-flagged Minor/Nit findings on the spot: an approved task's `absorb`-routed findings get one pre-merge ace commit + a full panel re-audit at the new SHA, instead of being filed as `war-followup` issues. Never blocks a land — on any regression the ace commit is reverted and the originally-approved work lands anyway. (`/war-campaign` passes `--afk --ace` by default.) |
+| `--ace` | no | on via config `run.ace` (economy preset: off) | Fix auditor-flagged Minor/Nit findings on the spot: an approved task's `absorb`-routed findings get one pre-merge ace commit + a full panel re-audit at the new SHA, instead of being filed as `war-followup` issues. Never blocks a land — on any regression the ace commit is reverted and the originally-approved work lands anyway. (`/war-campaign` passes `--afk --ace` by default.) |
 | `--config <path>` | no | `.claude/war/config.json` if present | Use a specific run config (per-role model/effort, roster policy, …) produced by `/war-room`. |
 
 **Example:**
@@ -156,7 +156,7 @@ Or invoke it in natural language — e.g. *"Go to war on issues #20 & #22"*.
 
 ## Configure a run (`/war-room`)
 
-By default WAR runs sonnet workers and opus auditors at the session's effort and seeds each task's audit roster at the approval gate. To change that — pick models per role, put a worker on **ultrathink**, shape the roster (seats, lenses, per-seat depth) or its seeding policy — run the companion skill first:
+By default WAR runs opus workers on `max` effort and opus auditors on `xhigh`, and auto-seeds each task's audit roster (1–3 seats by blast radius) at the approval gate. To change that — pick models per role, put a worker on **ultrathink**, shape the roster (seats, lenses, per-seat depth) or its seeding policy — run the companion skill first:
 
 ```
 /war-room

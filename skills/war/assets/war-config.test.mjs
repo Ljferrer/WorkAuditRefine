@@ -68,9 +68,12 @@ test('DEFAULTS validate', () => {
 
 test('empty input fills to balanced defaults and validates', () => {
   const c = fillDefaults({})
-  assert.equal(c.agents.worker.model, 'sonnet')
+  assert.equal(c.agents.worker.model, 'opus')
+  assert.equal(c.agents.worker.effort, 'max')
   assert.equal(c.agents.auditor.model, 'opus')
-  assert.equal(c.audit.rosterPolicy, 'all')
+  assert.equal(c.agents.auditor.effort, 'xhigh')
+  assert.equal(c.agents.servitor.effort, 'high')
+  assert.equal(c.audit.rosterPolicy, 'auto')
   assert.equal(validate({}).valid, true)
 })
 
@@ -81,26 +84,38 @@ test('deepMerge via fillDefaults does not mutate DEFAULTS', () => {
 })
 
 test('partial override merges over defaults', () => {
-  const c = fillDefaults({ agents: { worker: { model: 'opus', effort: 'max' } } })
-  assert.equal(c.agents.worker.model, 'opus')
-  assert.equal(c.agents.worker.effort, 'max')
+  const c = fillDefaults({ agents: { worker: { model: 'haiku', effort: 'low' } } })
+  assert.equal(c.agents.worker.model, 'haiku')
+  assert.equal(c.agents.worker.effort, 'low')
   assert.equal(c.agents.auditor.model, 'opus')   // untouched default
   assert.equal(c.agents.refiner.model, 'sonnet') // untouched default
 })
 
 test('thorough preset', () => {
   const c = presetConfig('thorough')
-  assert.equal(c.agents.worker.model, 'opus')
+  assert.equal(c.agents.worker.model, 'fable')
   assert.equal(c.agents.worker.effort, 'max')
-  assert.equal(c.agents.auditor.effort, 'high')
-  assert.equal(c.audit.rosterPolicy, 'all')
+  assert.equal(c.agents.auditor.model, 'opus')
+  assert.equal(c.agents.auditor.effort, 'max')
+  assert.equal(c.agents.servitor.model, 'opus')
+  assert.equal(c.agents.servitor.effort, 'default')
+  assert.equal(c.audit.rosterPolicy, 'auto')       // inherited: Lead seeds 1-5 seats per task
+  assert.equal(c.audit.roster.length, 5)
+  assert.deepEqual(c.audit.roster.map(s => s.lens),
+    ['correctness', 'cascading-impact', 'plan-faithfulness', 'security', 'test-fidelity'])
   assert.equal(validate(c).valid, true)
 })
 
-test('economy preset', () => {
+test('economy preset (pinned to its historical effective config)', () => {
   const c = presetConfig('economy')
+  assert.equal(c.agents.worker.model, 'sonnet')
+  assert.equal(c.agents.worker.effort, 'default')
+  assert.equal(c.agents.auditor.model, 'sonnet')
+  assert.equal(c.agents.servitor.model, 'sonnet')
+  assert.equal(c.agents.servitor.effort, 'default') // pinned — DEFAULTS moved to high
   assert.equal(c.audit.rosterPolicy, 'solo')
   assert.equal(c.run.roundLimit, 2)
+  assert.equal(c.run.ace, false)                    // pinned — DEFAULTS moved to true
   assert.equal(validate(c).valid, true)
 })
 
@@ -224,11 +239,12 @@ test('non-boolean provisionAuto rejected', () => {
 
 // --- run.ace (--ace opt-in pre-merge nit auto-fix; default false) -------------
 
-test('ace defaults to false (and presets inherit false via deepMerge)', () => {
-  assert.equal(DEFAULTS.run.ace, false)
-  for (const preset of ['balanced', 'thorough', 'economy']) {
-    assert.equal(presetConfig(preset).run.ace, false, `${preset} preset must inherit run.ace === false`)
+test('ace defaults to true; economy pins false', () => {
+  assert.equal(DEFAULTS.run.ace, true)
+  for (const preset of ['balanced', 'thorough']) {
+    assert.equal(presetConfig(preset).run.ace, true, `${preset} preset must inherit run.ace === true`)
   }
+  assert.equal(presetConfig('economy').run.ace, false, 'economy preset must pin run.ace === false')
 })
 
 test('non-boolean ace rejected', () => {
@@ -282,11 +298,12 @@ test('unknown role rejected', () => {
 })
 
 test('spawnOpts omits effort when default', () => {
-  assert.deepEqual(spawnOpts(DEFAULTS, 'worker'), { model: 'sonnet' })
+  assert.deepEqual(spawnOpts(DEFAULTS, 'refiner'), { model: 'sonnet' })
 })
 
 test('spawnOpts includes non-default effort', () => {
-  assert.deepEqual(spawnOpts(presetConfig('thorough'), 'worker'), { model: 'opus', effort: 'max' })
+  assert.deepEqual(spawnOpts(DEFAULTS, 'worker'), { model: 'opus', effort: 'max' })
+  assert.deepEqual(spawnOpts(presetConfig('thorough'), 'worker'), { model: 'fable', effort: 'max' })
 })
 
 // --- validateRoster (D8) / widenRoster (D5) unit tests -------------------------
@@ -572,28 +589,29 @@ test('doc-contract: schemas.md describes overrides.gate as the declared base (no
 // Task 3 — F06: Default rosterPolicy 'all'; presets; historical-spec doc contract
 // ---------------------------------------------------------------------------
 
-test('F06 — fillDefaults: audit.rosterPolicy defaults to all (full roster)', () => {
+// 2026-07-03 operator default flip: rosterPolicy default is now 'auto' (supersedes F06's 'all').
+test('fillDefaults: audit.rosterPolicy defaults to auto (Lead seeds 1-N seats per task)', () => {
   const c = fillDefaults({})
-  assert.equal(c.audit.rosterPolicy, 'all',
-    'fillDefaults({}) must produce audit.rosterPolicy === "all" (F06: full default roster per task)')
+  assert.equal(c.audit.rosterPolicy, 'auto',
+    'fillDefaults({}) must produce audit.rosterPolicy === "auto" (Lead seeds per-task rosters by blast radius)')
 })
 
-test('F06 — preset economy keeps explicit rosterPolicy:solo (deepMerge override unaffected by DEFAULTS flip)', () => {
+test('preset economy keeps explicit rosterPolicy:solo (deepMerge override unaffected by DEFAULTS flip)', () => {
   const c = presetConfig('economy')
   assert.equal(c.audit.rosterPolicy, 'solo',
-    'economy preset must keep rosterPolicy:"solo" even though DEFAULTS is "all"')
+    'economy preset must keep rosterPolicy:"solo" regardless of the DEFAULTS value')
 })
 
-test('F06 — preset thorough keeps rosterPolicy:all', () => {
+test('preset thorough inherits rosterPolicy:auto', () => {
   const c = presetConfig('thorough')
-  assert.equal(c.audit.rosterPolicy, 'all',
-    'thorough preset must remain rosterPolicy:"all"')
+  assert.equal(c.audit.rosterPolicy, 'auto',
+    'thorough preset must inherit rosterPolicy:"auto" (1-5 seats seeded per task)')
 })
 
-test('F06 — preset balanced (= fillDefaults) is rosterPolicy:all', () => {
+test('preset balanced (= fillDefaults) is rosterPolicy:auto', () => {
   const c = presetConfig('balanced')
-  assert.equal(c.audit.rosterPolicy, 'all',
-    'balanced preset (= DEFAULTS) must be rosterPolicy:"all" (F06)')
+  assert.equal(c.audit.rosterPolicy, 'auto',
+    'balanced preset (= DEFAULTS) must be rosterPolicy:"auto"')
 })
 
 test('F06 — doc-contract: design spec balanced preset table updated to covenPolicy all', () => {
