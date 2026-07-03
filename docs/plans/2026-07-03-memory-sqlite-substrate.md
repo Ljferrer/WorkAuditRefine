@@ -215,12 +215,12 @@ versioning (spec §4.3). Plan slice (TDD; every verb gets unit tests + a temp-br
 4. **README is touched by T5 and T8** — cross-phase same-file, intentional (phase edge, no collision).
 5. **T7's workflow YAML cannot be exercised by the gate** — CI proves itself on this plan's own PR.
 
-## Open decisions (resolved by /red-team)
+## Open decisions — RESOLVED by /red-team (2026-07-03, run `wf_cc60e078-76b`)
 
-1. **Stacking:** base off PR #470's branch (`claude/serene-keller-b4891d`, stack-and-plow, PR targets
-   it) vs. fresh `origin/master` if #470 merges first. Default: stack.
-2. **Version literal:** +0.1.0 recommended; operator confirms the actual number at land time against
-   the land-time base ([[stacked-release-plan-version-literal-lags-operator-target]]).
-3. **`safe-swap.test.sh` placement/idiom:** new sibling test file following the `hooks/*.test.sh`
-   idiom is assumed; red-team confirms no house convention is violated by a test under
-   `skills/lessons-learned/assets/`.
+1. **Stacking → fresh `origin/master`.** PR #470 merged 2026-07-03; the spec/ADR 0014/CONTEXT terms are
+   on master. This branch was cut off fresh master (`a9c0241`), not #470's branch.
+2. **Version literal → +0.1.0.** Land-time base 0.13.0 (plan 3 shipped) → target **0.14.0**; operator is
+   the version authority at land ([[stacked-release-plan-version-literal-lags-operator-target]]).
+3. **`safe-swap.test.sh` placement → OK.** The `testsh-gate-discovery` probe confirmed the gate's
+   `find … -name '*.test.sh'` sweep has no `-maxdepth`/path exclusion; a new test under
+   `skills/lessons-learned/assets/` is discovered and run — no house convention violated.
