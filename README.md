@@ -160,11 +160,7 @@ It interviews you (starting from a **balanced / thorough / economy** preset, the
 
 Before you hand a plan to `/war`, attack it. `/red-team <plan-file>` reads the plan, runs a universal spine of adversarial checks plus probes tailored to the plan, and **proves** the plan's claims by running its tests/edits/commands in throwaway sandboxes — never touching your repo. It then grills you on every blocker and patches the plan in place until it is **CLEARED**, leaving a report under `docs/red-team/`.
 
-You can also convert a design spec into a plan and red team it in a single step:
-
-```
-/red-team convert docs/specs/design.md into a proper implementation plan and write it out to docs/plans/
-```
+`/red-team` **validates plans; it never converts a spec into one** (war-strategy **converts**, red-team **ratifies** — see [`CONTEXT.md`](CONTEXT.md)). Have a design spec instead of a plan? Bring it to [`/war-strategy`](#author-a-plan-war-strategy) first, then red team the resulting plan.
 
 Or invoke it in natural language — e.g. *"Red team my plan at docs/..."*.
 
@@ -207,8 +203,20 @@ Before you write a plan by hand, load the authoring primer:
 It hands you the WAR-shaped spec/plan/roadmap templates plus the code-boundary decomposition rule in one
 sentence — file-disjoint tasks in a phase, a dependency crossing a phase edge, one task per repo, release as
 its own trailing phase — then routes you to your installed grilling skill to actually interview you (see the
-**Grill Me** pro-tip above, which its dependency check links to when that skill isn't installed). Design
-notes: [`docs/specs/2026-07-01-war-companion-skills-design.md`](docs/specs/2026-07-01-war-companion-skills-design.md#6-war-strategy--the-authoring-primer).
+**Grill Me** pro-tip above, which its dependency check links to when that skill isn't installed).
+
+It also **converts**: bring it an existing draft — a design spec, rough plan, roadmap, or design doc — and it
+reviews the artifact for war-shape gaps, interviews you gap-by-gap, and applies the structural fixes. Given a
+spec, it authors the war-shaped implementation plan into `docs/plans/` itself (drafting the plan's
+**Commander's Intent** from your answers and echoing it back for explicit confirmation):
+
+```
+/war-strategy docs/specs/design.md
+```
+
+**Pipeline doctrine:** war-strategy **converts**; `/red-team` **validates** plans and never converts (see
+[`CONTEXT.md`](CONTEXT.md)). Design notes:
+[`docs/specs/2026-07-01-war-companion-skills-design.md`](docs/specs/2026-07-01-war-companion-skills-design.md#6-war-strategy--the-authoring-primer).
 
 ## Run a campaign (`/war-campaign`)
 
