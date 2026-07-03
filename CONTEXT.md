@@ -386,6 +386,52 @@ fact about it: found → `code-verified`; absent → `agent-unverified` with an 
 from running the gate (which the servitor cannot do).
 _Avoid_: fact-checking, validation (it confirms *existence*, not *truth*).
 
+**Memory root**:
+One of the two directories a lesson can canonically live in: the **repo root** (committable — travels
+with clones, merges across users, reviewed like code) or the **local root** (private to one
+machine/user, never committed). A lesson belongs to exactly one root, routed by its `metadata.type`
+and the redaction lint.
+_Avoid_: "the memory dir" (which one?); treating the roots as mirrors (they hold different lessons).
+
+**Hot set** / **Cold set**:
+The temperature split of a memory root, encoded by *location*: hot lessons sit in the root itself and
+each gets one row in the index projection; cold lessons sit in `archive/` — no projection row, still
+indexed and retrievable by query, forever. Archiving is a file move plus a dated body note; it is
+never a deletion.
+_Avoid_: deleted/retired-as-removed (cold lessons remain queryable); a status field (the path *is* the
+state).
+
+**Index projection**:
+The generated, size-capped rendering of both roots' hot sets into the **local** `MEMORY.md` (the
+session auto-load file) — one row per hot lesson, capped by *selection* (archive candidates), never by
+dropping knowledge. Generated-only: no process or person edits it in place; writers write lesson files
+and the projection is re-rendered atomically. The repo root carries no projection — a committed
+generated file is a merge-conflict surface.
+_Avoid_: "the index" as a hand-maintained file; compaction (the projection is regenerated, not
+trimmed); a committed copy.
+
+**Derived memory index**:
+The SQLite/FTS5 index built **in memory, per invocation**, from both roots' lesson files (hot + cold).
+It never exists on disk — nothing to commit, back up, corrupt, or heal. The canonical store is always
+the text.
+_Avoid_: memory database as a source of truth or as a file; index staleness (it is rebuilt on every
+use).
+
+**Redaction lint**:
+The deterministic, fail-closed content check a lesson must pass to sit in the repo root: a flagged
+lesson (home paths, emails, account handles, credential-shaped strings) is demoted to the local root
+and reported — never committed, never dropped. First of three publication gates (lint → PR review →
+repo CI).
+_Avoid_: treating it as truth- or quality-checking (it checks *publishability*).
+
+**Memory prefetch**:
+The Lead-side retrieval step at phase launch: one query per prospective seat (task text plus the
+seat's role/lens), each result capped and injected into that agent's spawn prompt. Per-seat queries
+mean different auditor lenses receive different lessons. Fails open — a phase without memory runs
+lesson-less, logged.
+_Avoid_: agents querying at spawn time (only workers may, mid-task, as an extra); a shared identical
+memory block for all seats.
+
 ### State & resume
 
 **Resume precedence**:
