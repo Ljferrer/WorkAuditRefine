@@ -290,6 +290,36 @@ expect "fail-loud: the unmanaged dir is NOT deleted" \
 expect "fail-loud: the unmanaged dir's contents are preserved" \
   "precious unmanaged data" "$(cat "$WT5/PRECIOUS" 2>/dev/null)"
 
+# ---------------------------------------------------------------------------
+# Case (T3.6) BRANCH-MISMATCH REUSE: a registered worktree exists at <path> on
+# branch A, then ensure-worktree is called for the SAME path with a DIFFERENT
+# branch B (a phase-1 path reused for a phase-2 task without teardown-task first,
+# B never created — observed live in followup444-r1). It must FAIL LOUD (never
+# reset a checkout that may carry un-merged commits) and MUST NOT rewrite the
+# .war-task marker to claim branch B the checkout is not on.
+# ---------------------------------------------------------------------------
+RW6="$(new_repo)"
+git -C "$RW6" branch integration/myplan/phase-2 HEAD
+TIPW6="$(git -C "$RW6" rev-parse integration/myplan/phase-2)"
+WT6="$(new_wt_path)"
+run_in "$RW6" ensure-worktree "$WT6" war/myplan/p1-task1 "$TIPW6" >/dev/null 2>&1
+expect "T3.6 setup: worktree present on branch A (p1-task1)" \
+  "war/myplan/p1-task1" "$(wt_on_branch "$RW6" "$WT6")"
+# Ask for the same path on a DIFFERENT branch B (p2-task1) that does not exist.
+code="$(run_in "$RW6" ensure-worktree "$WT6" war/myplan/p2-task1 "$TIPW6")"
+expect "branch-mismatch reuse fails loud (exit non-zero)" \
+  "nonzero" "$([ "$code" -ne 0 ] && echo nonzero || echo zero)"
+msg="$(run_in_msg "$RW6" ensure-worktree "$WT6" war/myplan/p2-task1 "$TIPW6")"
+expect "branch-mismatch refusal names the requested branch" \
+  "match" "$(printf '%s' "$msg" | grep -q 'p2-task1' && echo match || echo nomatch)"
+expect "branch-mismatch: checkout still on branch A (never reset)" \
+  "war/myplan/p1-task1" "$(wt_on_branch "$RW6" "$WT6")"
+# The crux: the marker must NEVER claim branch B the checkout is not on.
+expect "branch-mismatch: .war-task marker does NOT claim branch B" \
+  "no" "$(grep -qx 'branch=war/myplan/p2-task1' "$WT6/.war-task" 2>/dev/null && echo yes || echo no)"
+expect "branch-mismatch: .war-task marker still names branch A" \
+  "yes" "$(grep -qx 'branch=war/myplan/p1-task1' "$WT6/.war-task" 2>/dev/null && echo yes || echo no)"
+
 # ===========================================================================
 # Task 4: teardown-task / teardown-phase / prune  (all strictly RUN-SCOPED).
 #
