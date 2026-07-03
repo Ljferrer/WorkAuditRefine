@@ -115,7 +115,7 @@ const taskBranch = t => t.branch || (planSlug ? `war/${planSlug}/p${ph.id}-${t.i
 const taskWorktree = t => t.worktree || ((worktreeRoot && runId) ? `${worktreeRoot}/${runId}/${t.id}` : t.worktree)
 // Per-role spawn opts: model always; effort only when non-default (omit = inherit session).
 // Mirror of war-config.mjs spawnOpts/validateRoster/widenRoster — the Workflow sandbox can't import. Keep in sync.
-const ROLE_MODEL = { worker: 'sonnet', auditor: 'opus', refiner: 'sonnet', servitor: 'sonnet' }
+const ROLE_MODEL = { worker: 'opus', auditor: 'opus', refiner: 'sonnet', servitor: 'sonnet' }
 const spawn = role => {
   const a = agents[role] || {}
   const model = a.model || ROLE_MODEL[role]
