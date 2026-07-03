@@ -101,7 +101,7 @@ It automatically bumps your install to the new version. Changes apply to the nex
 
 ## Usage
 
-The command set, in the order you'll meet it: **`/war-help`** orients you → **`/war-room`** configures a run → **`/war`** executes a plan. Feeding it: **`/war-strategy`** structures the spec and the plan (and converts spec → plan) → **`/red-team`** hardens the plan. Scaling up: **`/war-survey-corps`** turns open issues into specs → **`/war-machine`** turns specs into plans + a roadmap → **`/war-campaign`** runs the plans back-to-back unattended → **`/war-aftermath`** cleans up the debris → **`/lessons-learned`** keeps the accumulated memory honest.
+The command set, in the order you'll run it: **`/war-help`** orients you → **`/war-room`** configures a run → **`/war-strategy`** structures the spec and the plan (and converts spec → plan) → **`/red-team`** hardens the plan → **`/war`** executes it. Scaling up: **`/war-survey-corps`** turns open issues into specs → **`/war-machine`** turns specs into plans + a roadmap → **`/war-campaign`** runs the plans back-to-back unattended → **`/war-aftermath`** cleans up the debris → **`/lessons-learned`** keeps the accumulated memory honest.
 
 ### Get oriented (`/war-help`)
 
@@ -134,6 +134,34 @@ It interviews you (starting from a **balanced / thorough / economy** preset, the
 ```
 
 > NOTE: This configuration absolutely pumps tokens.
+
+### Author a plan (`/war-strategy`)
+
+**Spec ≠ plan — the *what* vs. the *how*.** A **design spec** (`docs/specs/`) is the ratified decision record for a change — problem, pivotal constraints, numbered decisions with alternatives considered, affected surfaces, test intent. It answers *what changes and why*, and carries no dispatch structure — `/war` cannot execute one. An **implementation plan** (`docs/plans/`) is the executable artifact `/war` consumes — phases and tasks with exact file sets, `requiresTest`, `deps`, and target repo. It answers *how*: who does what, in which order, against which files. Every plan opens with a **Commander's Intent** — **Purpose** (why), **Method** (how you envision winning), **End state** (numbered, individually *checkable* conditions) — drafted from your answers, confirmed by you explicitly, and threaded into every worker and auditor prompt: the plan slice is the floor, your intent is the ceiling. Full glossary: [`CONTEXT.md`](CONTEXT.md).
+
+**Structure a spec or plan.** Bare invoke loads the authoring primer — the WAR-shaped spec/plan/roadmap templates plus the code-boundary decomposition rule in one sentence: file-disjoint tasks in a phase, a dependency crossing a phase edge, one task per repo, release as its own trailing phase — then routes you to your installed grilling skill to actually interview you (see the **Grill Me** pro-tip above, which its dependency check links to when that skill isn't installed):
+
+```
+/war-strategy
+```
+
+**Convert a spec into a plan.** Bring it an existing draft — a design spec, rough plan, roadmap, or design doc — and it reviews the artifact for war-shape gaps, interviews you gap-by-gap, and applies the structural fixes. Given a spec, it authors the war-shaped implementation plan into `docs/plans/` itself (drafting the plan's Commander's Intent from your answers and echoing it back for explicit confirmation):
+
+```
+/war-strategy docs/specs/design.md
+```
+
+**Pipeline doctrine:** war-strategy **converts**; `/red-team` **validates** plans and never converts (see
+[`CONTEXT.md`](CONTEXT.md)). Design notes:
+[`docs/specs/2026-07-01-war-companion-skills-design.md`](docs/specs/2026-07-01-war-companion-skills-design.md#6-war-strategy--the-authoring-primer).
+
+### Harden a plan (`/red-team`)
+
+Before you hand a plan to `/war`, attack it. `/red-team <plan-file>` reads the plan, runs a universal spine of adversarial checks plus probes tailored to the plan, and **proves** the plan's claims by running its tests/edits/commands in throwaway sandboxes — never touching your repo. It then grills you on every blocker and patches the plan in place until it is **CLEARED**, leaving a report under `docs/red-team/`.
+
+`/red-team` **validates plans; it never converts a spec into one** (war-strategy **converts**, red-team **ratifies** — see [`CONTEXT.md`](CONTEXT.md)). Have a design spec instead of a plan? Bring it to [`/war-strategy`](#author-a-plan-war-strategy) first, then red team the resulting plan.
+
+Or invoke it in natural language — e.g. *"Red team my plan at docs/..."*. Design notes: [`docs/specs/2026-06-18-red-team-design.md`](docs/specs/2026-06-18-red-team-design.md).
 
 ### Go to war (`/war`)
 
@@ -173,34 +201,6 @@ Or invoke it in natural language — e.g. *"Go to war on issues #20 & #22"*.
 5. **Finish** — after the last phase, it opens **one PR** from `--working` → `--landing` and reports the URL.
 
 **Resuming:** every run writes a ledger at `.claude/teams/<run-id>/ledger.json` — the richest resume record, reconciled toward git on resume (git branch state is the authority, [ADR 0008](docs/adr/0008-git-is-the-resume-source-of-truth.md)). If a run is interrupted, re-invoke `/war` with the same plan to continue from the ledger + open issues.
-
-### Author a plan (`/war-strategy`)
-
-**Spec ≠ plan — the *what* vs. the *how*.** A **design spec** (`docs/specs/`) is the ratified decision record for a change — problem, pivotal constraints, numbered decisions with alternatives considered, affected surfaces, test intent. It answers *what changes and why*, and carries no dispatch structure — `/war` cannot execute one. An **implementation plan** (`docs/plans/`) is the executable artifact `/war` consumes — phases and tasks with exact file sets, `requiresTest`, `deps`, and target repo. It answers *how*: who does what, in which order, against which files. Every plan opens with a **Commander's Intent** — **Purpose** (why), **Method** (how you envision winning), **End state** (numbered, individually *checkable* conditions) — drafted from your answers, confirmed by you explicitly, and threaded into every worker and auditor prompt: the plan slice is the floor, your intent is the ceiling. Full glossary: [`CONTEXT.md`](CONTEXT.md).
-
-**Structure a spec or plan.** Bare invoke loads the authoring primer — the WAR-shaped spec/plan/roadmap templates plus the code-boundary decomposition rule in one sentence: file-disjoint tasks in a phase, a dependency crossing a phase edge, one task per repo, release as its own trailing phase — then routes you to your installed grilling skill to actually interview you (see the **Grill Me** pro-tip above, which its dependency check links to when that skill isn't installed):
-
-```
-/war-strategy
-```
-
-**Convert a spec into a plan.** Bring it an existing draft — a design spec, rough plan, roadmap, or design doc — and it reviews the artifact for war-shape gaps, interviews you gap-by-gap, and applies the structural fixes. Given a spec, it authors the war-shaped implementation plan into `docs/plans/` itself (drafting the plan's Commander's Intent from your answers and echoing it back for explicit confirmation):
-
-```
-/war-strategy docs/specs/design.md
-```
-
-**Pipeline doctrine:** war-strategy **converts**; `/red-team` **validates** plans and never converts (see
-[`CONTEXT.md`](CONTEXT.md)). Design notes:
-[`docs/specs/2026-07-01-war-companion-skills-design.md`](docs/specs/2026-07-01-war-companion-skills-design.md#6-war-strategy--the-authoring-primer).
-
-### Harden a plan (`/red-team`)
-
-Before you hand a plan to `/war`, attack it. `/red-team <plan-file>` reads the plan, runs a universal spine of adversarial checks plus probes tailored to the plan, and **proves** the plan's claims by running its tests/edits/commands in throwaway sandboxes — never touching your repo. It then grills you on every blocker and patches the plan in place until it is **CLEARED**, leaving a report under `docs/red-team/`.
-
-`/red-team` **validates plans; it never converts a spec into one** (war-strategy **converts**, red-team **ratifies** — see [`CONTEXT.md`](CONTEXT.md)). Have a design spec instead of a plan? Bring it to [`/war-strategy`](#author-a-plan-war-strategy) first, then red team the resulting plan.
-
-Or invoke it in natural language — e.g. *"Red team my plan at docs/..."*. Design notes: [`docs/specs/2026-06-18-red-team-design.md`](docs/specs/2026-06-18-red-team-design.md).
 
 ### Turn issues into specs (`/war-survey-corps`)
 
