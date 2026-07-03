@@ -2,7 +2,7 @@
 
 **Source spec:** [`docs/specs/2026-07-03-memory-sqlite-substrate-design.md`](../specs/2026-07-03-memory-sqlite-substrate-design.md)
 (operator-ratified + adversarially verified 2026-07-03, 42 findings absorbed — spec §11; companion ADR
-[`0014`](../adr/0014-files-canonical-memory-with-derived-index.md)). The spec, ADR, and CONTEXT.md terms
+[`0015`](../adr/0015-files-canonical-memory-with-derived-index.md)). The spec, ADR, and CONTEXT.md terms
 ride [PR #470](https://github.com/Ljferrer/WorkAuditRefine/pull/470) — see *Open decisions* for the
 stacking choice. Code references below are anchored by **construct name**; any `:N` hints WILL drift —
 re-locate by construct ([[plan-line-number-refs-stale-use-construct-locator]]).

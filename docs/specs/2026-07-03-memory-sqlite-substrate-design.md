@@ -2,7 +2,7 @@
 
 **Status:** grilled and operator-ratified 2026-07-03; adversarially verified against the codebase the
 same day (7-seat verification workflow, 58 checks, 42 findings absorbed into this revision — see §11).
-Companion ADR: [`0014`](../adr/0014-files-canonical-memory-with-derived-index.md). The executable plan
+Companion ADR: [`0015`](../adr/0015-files-canonical-memory-with-derived-index.md). The executable plan
 is authored separately via `/war-strategy`.
 
 ## Commander's Intent
@@ -341,7 +341,7 @@ repo root (gate 2's first use).
 | `skills/lessons-learned/assets/safe-swap.sh` | archive-aware wikilink rule + root-aware index-row check (§4.8); budget check unchanged |
 | `skills/lessons-learned/references/migration.md` | **NEW** — the adoption playbook (§4.8) |
 | `CONTEXT.md` | new Memory terms (§6) |
-| `docs/adr/0014-…` | **NEW** — companion ADR |
+| `docs/adr/0015-…` | **NEW** — companion ADR |
 | README / war-help | memory feature + Node ≥ 24 note for it |
 | `.github/workflows/memory-audit.yml` | **NEW, WAR repo only** — gate 3 (not plugin code; the repo's first Actions workflow) |
 | Version slots ×4 | operator-owned bump at land time ([[release-bump-slots-canonical-no-badge]]) |
@@ -360,7 +360,7 @@ in-memory index there is no reindex verb to name.
 
 ## 7. Recommended ADRs
 
-One: [`0014-files-canonical-memory-with-derived-index.md`](../adr/0014-files-canonical-memory-with-derived-index.md)
+One: [`0015-files-canonical-memory-with-derived-index.md`](../adr/0015-files-canonical-memory-with-derived-index.md)
 — files-canonical vs. SQLite-canonical inversion, text-only committing, temperature-is-location.
 All three sub-decisions are hard to reverse, surprising without context, and the product of real
 trade-offs; nothing else here clears that bar.
@@ -391,7 +391,7 @@ trade-offs; nothing else here clears that bar.
 Vectors/embeddings (declared trigger + cache path in §8); a persistent index/DB file (deferred until a
 measured rebuild cost demands it); committed generated projections in the repo root (a browsable
 GitHub index can be added later *with* a union-merge driver or regenerate-on-merge rule — not before);
-gzip archives or any committed binary (ADR 0014); a JSON output mode for `query` (add when a parsing
+gzip archives or any committed binary (ADR 0015); a JSON output mode for `query` (add when a parsing
 caller exists); configurable lint patterns (the array lives in the script); any server/daemon
 (Zep/mem0/Letta class); GraphRAG/knowledge graphs; a codebase embedding index (agentic grep stays
 correct for code); retrieval-stat-driven salience in v1 (log first, wire later); cross-repo global
