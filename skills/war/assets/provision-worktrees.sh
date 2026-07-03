@@ -253,8 +253,23 @@ cmd_ensure_worktree() {
 
   if worktree_registered "$path"; then
     if [ -d "$path" ]; then
-      # REUSE: present and registered. Touch nothing but the marker (idempotent).
-      # Crucially we do NOT move/reset <branch>, so un-merged commits survive.
+      # REUSE: present and registered. Before adopting it, verify the checkout is
+      # actually on <branch>. A path reused across phases without teardown-task
+      # first can still be on a PRIOR branch (observed live: a p1 task worktree
+      # left on war/<slug>/p1-task1 while a p2 task requested war/<slug>/p2-task1,
+      # p2 never created). Writing the marker with <branch> then would claim a
+      # branch the checkout is not on, and the worker would be dispatched against a
+      # (possibly nonexistent) ref. Conservative heal — never reset a checkout that
+      # may carry un-merged commits -> FAIL LOUD on mismatch (mirrors
+      # ensure-refinery-worktree case (d)).
+      # ponytail: fail-loud is the minimal safe fix; a clean-tree switch-to-<branch>
+      # re-attach (like ensure-refinery-worktree cases c/d) could auto-heal instead.
+      cur_branch="$(git -C "$path" symbolic-ref --short HEAD 2>/dev/null || true)"
+      if [ "$cur_branch" != "$branch" ]; then
+        die "ensure-worktree: worktree at '$path' is registered but checked out on '${cur_branch:-(detached)}', not the requested branch '$branch' — refusing to reuse it (the checkout may carry un-merged commits, and writing the marker would claim a branch the tree is not on). Run teardown-task for the prior branch first, or remove the worktree by hand." 6
+      fi
+      # Touch nothing but the marker (idempotent). Crucially we do NOT move/reset
+      # <branch>, so un-merged commits survive.
       write_marker "$path" "$branch"
       printf '%s\n' "$path"
       return 0
