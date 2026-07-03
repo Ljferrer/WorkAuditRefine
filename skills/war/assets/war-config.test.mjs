@@ -276,6 +276,18 @@ test('memory block: a fully-specified valid block passes', () => {
   assert.equal(r.valid, true, r.errors.join('\n'))
 })
 
+// The 'memory must be an object' branch (validate line 137). Both inputs reach it:
+//   {memory:null} — deepMerge replaces the default object with null (isObj(null)===false)
+//   {memory:[]}   — isObj rejects arrays
+test('memory non-object rejected (null / array reach the object-type branch)', () => {
+  const rNull = validate({ memory: null })
+  assert.equal(rNull.valid, false)
+  assert.match(rNull.errors.join('\n'), /memory must be an object/)
+  const rArr = validate({ memory: [] })
+  assert.equal(rArr.valid, false)
+  assert.match(rArr.errors.join('\n'), /memory must be an object/)
+})
+
 test('memory.retrieval non-boolean rejected', () => {
   const r = validate({ memory: { retrieval: 'yes' } })
   assert.equal(r.valid, false)
