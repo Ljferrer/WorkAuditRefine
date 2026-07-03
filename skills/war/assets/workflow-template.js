@@ -26,7 +26,7 @@ export const meta = {
 //                                     // heading; string|null; null/absent ⇒ literal behavior, ADR 0013)
 //     agentPrefix,                    // optional namespace prefix for agent types (default: 'work-audit-refine:')
 //     agents: { worker|auditor|refiner|servitor: { model, effort } },  // from .claude/war/config.json (resolved by the Lead); defaults below
-//     audit:  { roster, rosterPolicy, autoEscalate },                  // rosterPolicy seeds task.roster Lead-side; audit.roster is the union-widening default roster; autoEscalate used here
+//     audit:  { roster, rosterPolicy, autoEscalate },                  // rosterPolicy 'auto' = Lead composes each task.roster from the catalog (Lead-side); audit.roster is the widening FALLBACK roster (auditor-nominated-or-default, D4); autoEscalate used here
 //     run:    { roundLimit, afk } }                                    // afk is Lead-side; roundLimit used here
 // auditors receive the absolute worktree path and self-serve the change set via read-only git (git diff <integrationBranch>...<task.branch>, three-dot); no main-checkout baseline.
 // The Lead may inject APPROVED extra stages by editing a copy of this file; never free-author the core loop.
@@ -50,7 +50,10 @@ const AUDIT_VERDICT = { type: 'object', required: ['seat', 'lens', 'verdict', 'f
     // one release, removed next release.
     disposition: { enum: ['absorb', 'follow-up', 'note'] }, phaseClose: { type: 'boolean' },
     autoFixable: { type: 'boolean' } } } },
-  tests_verified: { type: 'object' }, confidence: { enum: ['high', 'medium', 'low'] }, escalate_reason: { type: 'string' } } }
+  tests_verified: { type: 'object' }, confidence: { enum: ['high', 'medium', 'low'] }, escalate_reason: { type: 'string' },
+  // widen (D4): optional catalog lenses a lone seat nominates for auto-escalate widening; honored only
+  // on the lone-seat trigger (resolveWidenSource validates whole-field), ignored elsewhere. Not required.
+  widen: { type: 'array', items: { type: 'string' } } } }
 
 const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties: {
   mode: { enum: ['merge-task', 'land-phase'] },
@@ -114,7 +117,7 @@ const ownedFile = A.ownedFile                    // run ledger of owned refs (--
 const taskBranch = t => t.branch || (planSlug ? `war/${planSlug}/p${ph.id}-${t.id}` : t.branch)
 const taskWorktree = t => t.worktree || ((worktreeRoot && runId) ? `${worktreeRoot}/${runId}/${t.id}` : t.worktree)
 // Per-role spawn opts: model always; effort only when non-default (omit = inherit session).
-// Mirror of war-config.mjs spawnOpts/validateRoster/widenRoster — the Workflow sandbox can't import. Keep in sync.
+// Mirror of war-config.mjs spawnOpts/validateRoster/widenRoster/resolveWidenSource — the Workflow sandbox can't import. Keep in sync.
 const ROLE_MODEL = { worker: 'opus', auditor: 'opus', refiner: 'sonnet', servitor: 'sonnet' }
 const spawn = role => {
   const a = agents[role] || {}
@@ -147,6 +150,18 @@ const widenRoster = (roster, defaultRoster) => {
     if (!out.some(s => s.lens === seat.lens)) out.push(seat)
   }
   return out
+}
+// Lone-seat widening SOURCE (D4): a valid auditor nomination is a non-empty array of distinct,
+// non-empty strings, none reserved (strict whole-field). Valid → nominated lenses @ deep,
+// source 'nominated'; else → defaultRoster verbatim, source 'default'. Feeds widenRoster.
+const RESERVED_LENSES = ['execution-evidence', 'pin-validity']
+const resolveWidenSource = (nominated, defaultRoster) => {
+  const valid = Array.isArray(nominated) && nominated.length > 0 &&
+    nominated.every(l => typeof l === 'string' && l.length > 0 && !RESERVED_LENSES.includes(l)) &&
+    new Set(nominated).size === nominated.length
+  return valid
+    ? { source: 'nominated', seats: nominated.map(lens => ({ lens, depth: 'deep' })) }
+    : { source: 'default', seats: defaultRoster }
 }
 // audit.roster (args) is the union-widening default roster (D5). A default seat with an omitted
 // depth normalizes to 'deep' (D2) — the same rule the per-task phase-start normalization applies.
@@ -443,10 +458,14 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         if (isSplit(seats)) { verdict = 'escalate'; break }      // still deadlocked → human tiebreak
       }
 
-      if (audit.autoEscalate !== false && task.roster.length === 1 &&   // lone-seat union widening (D5; config can disable)
+      if (audit.autoEscalate !== false && task.roster.length === 1 &&   // lone-seat widening (D4/D5; config can disable)
           (seats[0].confidence === 'low' || (seats[0].findings || []).some(f => f.severity === 'Critical'))) {
-        task.roster = widenRoster(task.roster, defaultRoster)
-        log(`Task ${task.id}: lone-seat union widening (Critical or low confidence) — roster is now [${task.roster.map(s => s.lens).join(', ')}].`)
+        // Widening source (D4): the lone seat may nominate catalog lenses via `widen`; a valid
+        // nomination widens toward those seats @ deep, else the trio-union default roster. Never silent.
+        const widen = resolveWidenSource(seats[0].widen, defaultRoster)
+        task.roster = widenRoster(task.roster, widen.seats)
+        const src = widen.source === 'nominated' ? 'nominated' : 'default fallback'
+        log(`Task ${task.id}: lone-seat widening (Critical or low confidence; source: ${src}) — roster is now [${task.roster.map(s => s.lens).join(', ')}].`)
       }
 
       const b = blockingOf(seats)                                // batched FIX_NEEDED → fresh fix-worker
