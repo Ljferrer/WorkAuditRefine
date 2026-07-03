@@ -282,18 +282,23 @@ Any roster of **two or more** seats — prose flavor only; no config key carries
 _Avoid_: coven as a boolean mechanism; calling a solo seat a coven.
 
 **`rosterPolicy`** (`all` | `auto` | `solo`):
-How task rosters are **seeded** at decompose: the full default roster on every task (`all`), Lead
-judgment flagging high-blast-radius tasks (`auto`), or the first default lens alone at `neighbors`
-(`solo`). A seed only — the Lead may hand-edit any task's roster at the decompose gate, subject to
-human approval.
-_Avoid_: covenPolicy; treating the seed as a cap on Lead editing.
+How task rosters are **seeded** at decompose: the full default roster on every task (`all`); the Lead
+**composes each task's roster from the lens catalog** — 1–5 seats, each with an explicit depth and a
+one-line rationale, scaled to the task's blast radius (`auto`, the default); or the first default lens
+alone at `neighbors` (`solo`). A seed only — the Lead may hand-edit any task's roster at the decompose
+gate, subject to human approval.
+_Avoid_: covenPolicy; treating the seed as a cap on Lead editing; the old binary full-roster-vs-one-seat
+reading of `auto`.
 
 **Auto-escalation** (audit):
 The runtime widening of a **lone** seat that returns a Critical or low-confidence verdict: the roster
-becomes the **union** of the existing seat and the default roster's lenses not already present (capped
-at 5), then the full widened roster re-audits on the pinned SHA. Fires only on 1-seat rosters — a
+becomes the **union** of the existing seat and a **widening source** (capped at 5), then the full widened
+roster re-audits on the pinned SHA. The source is the seat's own **`widen` nomination** when it supplies
+a valid one (a non-empty list of distinct, non-reserved lens names → those lenses at `deep`), else the
+**default roster's lenses** (the byte-identical trio-union fallback). Fires only on 1-seat rosters — a
 multi-seat roster the human approved is never second-guessed.
-_Avoid_: replacing (rather than unioning away from) the lone seat's lens; widening covens further.
+_Avoid_: replacing (rather than unioning away from) the lone seat's lens; widening covens further;
+treating the trio union as the only source (nomination comes first).
 
 **Gate-audit pass**:
 The post-merge, pre-land review of each merged task's **executed gate output** through the reserved
