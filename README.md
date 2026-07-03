@@ -281,7 +281,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.10.0** — Variable audit roster — per-task 1–5 distinct-lens seats with per-seat depth, lone-seat union auto-escalation, gate-audit auto-skip on `requiresTest:false`; legacy coven config keys fail validation (regenerate via `/war-room`).
+**0.11.0** — Clean handoff — Commander's Intent threading, disposition routing (absorb/follow-up/note), dep-wave visibility, phase-close coherence sweep, machine-readable handoff block (ADR 0012/0013).
 
 ## License
 
