@@ -20,10 +20,10 @@ export const DEFAULTS = {
   version: 1,
   profile: 'balanced',
   agents: {
-    worker:   { model: 'sonnet', effort: 'default' },
-    auditor:  { model: 'opus',   effort: 'default' },
+    worker:   { model: 'opus',   effort: 'max' },
+    auditor:  { model: 'opus',   effort: 'xhigh' },
     refiner:  { model: 'sonnet', effort: 'default' },
-    servitor: { model: 'sonnet', effort: 'default' },
+    servitor: { model: 'sonnet', effort: 'high' },
   },
   audit: {
     roster: [
@@ -31,10 +31,10 @@ export const DEFAULTS = {
       { lens: 'cascading-impact', depth: 'deep' },
       { lens: 'plan-faithfulness', depth: 'deep' },
     ],
-    rosterPolicy: 'all',
+    rosterPolicy: 'auto',
     autoEscalate: true,
   },
-  run: { roundLimit: 3, afk: false, ace: false, provision: [], provisionSource: 'none', provisionAuto: true },
+  run: { roundLimit: 3, afk: false, ace: true, provision: [], provisionSource: 'none', provisionAuto: true },
   overrides: { gate: null, workingBranch: null, landingBranch: null, learningsTarget: null },
 }
 
@@ -43,14 +43,32 @@ export const PRESETS = {
   balanced: { profile: 'balanced' },
   thorough: {
     profile: 'thorough',
-    agents: { worker: { model: 'opus', effort: 'max' }, auditor: { model: 'opus', effort: 'high' } },
-    audit: { rosterPolicy: 'all' },
+    agents: {
+      worker:   { model: 'fable', effort: 'max' },
+      auditor:  { model: 'opus',  effort: 'max' },
+      servitor: { model: 'opus',  effort: 'default' },
+    },
+    // 5-lens pool: under rosterPolicy 'auto' the Lead seeds 1–5 seats per task from it.
+    audit: {
+      roster: [
+        { lens: 'correctness', depth: 'deep' },
+        { lens: 'cascading-impact', depth: 'deep' },
+        { lens: 'plan-faithfulness', depth: 'deep' },
+        { lens: 'security', depth: 'deep' },
+        { lens: 'test-fidelity', depth: 'deep' },
+      ],
+    },
   },
   economy: {
     profile: 'economy',
-    agents: { worker: { model: 'sonnet', effort: 'default' }, auditor: { model: 'sonnet', effort: 'default' } },
+    // Pins every knob that drifted from DEFAULTS so economy's effective config stays what it always was.
+    agents: {
+      worker:   { model: 'sonnet', effort: 'default' },
+      auditor:  { model: 'sonnet', effort: 'default' },
+      servitor: { model: 'sonnet', effort: 'default' },
+    },
     audit: { rosterPolicy: 'solo' },
-    run: { roundLimit: 2 },
+    run: { roundLimit: 2, ace: false },
   },
 }
 
