@@ -37,11 +37,15 @@ A task reaches the refiner with exactly one terminal **outcome**. Two are produc
   verdict: "approve" | "request_changes" | "escalate",
   findings: [ { severity: "Critical"|"Major"|"Minor"|"Nit",
                 title, file, line?, rationale, suggested_fix?, plan_ref?,
-                autoFixable? } ],   // optional bool; set true only on a mechanical Minor/Nit the auditor authorizes for --ace pre-merge fixing (war-auditor.md); omit = fail-closed
+                disposition?,       // "absorb"|"follow-up"|"note" — auditor-owned routing, orthogonal to severity (ADR 0013); omitted → Minor becomes follow-up, Nit becomes note; absorb is NEVER defaulted
+                phaseClose?,        // bool; on an absorb finding — the fix needs the integrated tip or a shared/slot-adjacent file → routes to the phase-close queue (ADR 0012)
+                autoFixable? } ],   // DEPRECATED — legacy alias: autoFixable:true reads as disposition:'absorb' for one release, then it is removed
   tests_verified: { exist: true },                // anti-cheat: existence + integrity verified (not executed — the refiner runs the gate)
   confidence: "high" | "medium" | "low",          // low → lone seat union-widens
   escalate_reason?: "present iff verdict==escalate — the plan is wrong/underspecified" }
 ```
+- **`severity` becomes schema-required** on finding items (`required: ['severity']` in the executable literal — previously finding items had **no** required array; this release introduces the requirement, ADR 0013 resolution 3). Schema-layer retry corrects a sloppy seat; persistent failure falls into the existing dropped-seat → audit-blocked lane.
+- **`plan_ref` doubles as the End-state key** on gate-audit findings: an End-state finding carries the claimed condition text **verbatim** in `plan_ref` so the handoff block can key `endState` statuses on it.
 
 ## MergeResult — `war-refiner`
 ```jsonc
@@ -75,6 +79,7 @@ A task reaches the refiner with exactly one terminal **outcome**. Two are produc
       status: "todo"|"working"|"audited"|"merged"|"escalated"|"blocked",
       audit_sha?, verdict?, merge_sha? } ],
     report?, escalations: [], minors_filed: ["issue#"],
+    handoff?,              // (phase-level) the Workflow-returned handoff block, written by the Lead from the return — present for phases that returned it (landed / held:escalation only)
     pr_number?,            // (submodule 2B phases) PR number opened on the submodule remote
     pr_remote?,            // (submodule 2B phases) submodule remote (e.g. "owner/repo") the PR was opened against
     submodule_merge_sha?   // (submodule phases) SHA of the submodule commit that was merged (written on resume after mergeCommit.oid is confirmed)
@@ -88,7 +93,7 @@ A task reaches the refiner with exactly one terminal **outcome**. Two are produc
 ## GitHub conventions
 - **Epic issue per phase**; **sub-issue per task** (GitHub sub-issues).
 - Labels: `phase:<N>`, `status:todo|working|audited|merged|escalated|blocked`, `audit:<seatCount>`.
-- **Minor/Nit** findings → new follow-up issues labeled `war-followup`, linked to the phase epic. Under `--ace` (`run.ace`), an auditor-flagged auto-fixable nit (`autoFixable:true`) is instead fixed in the task worktree pre-merge and recorded on the Workflow's `aced` list (commit-cited, not a GitHub issue); only **un-aced residual** nits file as `war-followup`.
+- **Minor/Nit** findings route by **disposition** (ADR 0013): `follow-up` → a new issue labeled `war-followup`, linked to the phase epic (an affirmative act — the auditor stated why it is not absorbable); `note` → phase report + servitor feed, never an issue; `absorb` → fixed in-phase under `--ace` (`run.ace`) by the per-task ace, or by the phase-close sweep when `phaseClose:true` / release-slot-adjacent, and recorded on the Workflow's `aced` list (commit-cited, not a GitHub issue). A failed or ineligible absorb **demotes one step** (logged) — so only `follow-up`-routed findings (including demotions) file as `war-followup`, and nothing drops silently. Legacy `autoFixable:true` reads as `disposition:'absorb'` for one release (deprecated).
 - Phase reports + escalations → **comments on the phase epic issue** (durable, human-visible).
 
 ## ServitorResult — `war-servitor` (once per phase, after land)
@@ -175,6 +180,8 @@ These reach the per-phase Workflow as `args.agents`, `args.audit`, `args.run` (t
 
 Optional `agentPrefix` (default `"work-audit-refine:"`) — the template auto-namespaces every `agentType` seat under this prefix via `const NS = args.agentPrefix ?? 'work-audit-refine:'`. Pass a different string to override; the Lead no longer needs manual namespacing workarounds.
 
+Optional `intent` (string|null, ADR 0013) — the plan's `## Commander's Intent` section, extracted **verbatim** by the Lead (never Lead-invented; missing section → `null`). When present it is threaded into the worker, auditor, ace/sweep, gate-audit, and servitor prompts as the ceiling over the plan-slice floor. `null`/absent ⇒ every prompt is **byte-identical** to an intent-less run — literal behavior. Companion field `phase.endState` (string[]) carries the intent's End-state conditions **this phase claims** (Lead-mapped); the gate-audit pass checks them at the confirmed tip (later-phase conditions are out-of-scope there, never a hold).
+
 Auditors receive the **absolute `task.worktree` path** so they can `Read` candidate files directly in the task's isolated checkout rather than the main repo tree.
 
 ### Provisioning args (refiner-owned worktree lifecycle)
@@ -206,13 +213,23 @@ The per-phase Workflow returns:
 { phase,                              // phase id
   landed: ["task_id"],                // tasks merged onto the integration branch
   escalated: [ { task, reason, ... } ],
-  minorsFiled: [ { task, ...finding } ],   // un-aced RESIDUAL Minor/Nit findings filed as war-followup
-  aced: [ { task, finding, sha } ],   // --ace: auditor-flagged nits auto-fixed pre-merge (commit-cited; empty unless run.ace). NOT filed as war-followup
+  minorsFiled: [ { task, ...finding } ],   // disposition:'follow-up' findings (incl. every logged demotion) filed as war-followup
+  notes: [ { task, ...finding } ],    // disposition:'note' findings — phase report + servitor feed (memory candidates), never issues
+  aced: [ { task, finding, sha } ],   // absorbed findings, commit-cited (per-task ace AND the phase-close sweep's queue at the polish sha; empty unless run.ace). NOT filed as war-followup
   landResult,                         // MergeResult of the in-flow land, or null if held
   servitorResult,                     // ServitorResult, or null if the Workflow did not land/wrap up
   auditLog: [ { task, verdict, findings, blocked } ],   // fed to a Lead-driven wrap-up on the held path
-  landDecision: "landed" | "held:escalation" | "held:nothing-merged" | "held:land-failed" | "held:phase-incomplete" | "held:workflow-error" | "held:submodule-pr" }
+  landDecision: "landed" | "held:escalation" | "held:nothing-merged" | "held:land-failed" | "held:phase-incomplete" | "held:workflow-error" | "held:submodule-pr",
+  handoff?: {                         // ADR 0013 — the machine-readable debt map the next phase's decompose reads
+    tipSha,                           // landed working sha; degraded (held:escalation) → last confirmed merge tip, else null
+    polish: "merged" | "discarded" | "skipped",   // phase-close sweep outcome (skipped = never dispatched)
+    absorbed: [ { sha, findings: ["title"] } ],   // aced provenance grouped by commit sha
+    followUps: [ { issue, reason } ], // issue# (null until the Lead files it) + title — why-not-absorbable
+    notes: [ { task, title } ],
+    endState: [ { condition, status: "met" | "unmet" | "deferred" | "out-of-scope" } ],   // keyed on gate-audit plan_ref (verbatim condition text); no gate-audit ran ⇒ all 'deferred', never a silent 'met'
+    intentPresent } }
 ```
+`handoff` is emitted on `landed` **and** `held:escalation` (degraded: `polish:'skipped'`, End-state statuses as known — an escalated phase still hands off; the next decompose needs the debt map most exactly then). It is **omitted** on `held:workflow-error` (infra death — the ledger + issues are the record; there is no trustworthy return to render) and on the other holds (nothing landed to hand off). The Lead writes it to the ledger's phase-level `handoff` field.
 When `landDecision` is a `held:*` value the land was **not** performed in-flow; the Lead lands manually and then runs `war-servitor` (see SKILL.md). The full `landDecision` enum:
 - **`landed`** — the phase merged and pushed cleanly in-flow.
 - **`held:escalation`** — a hard escalation (Critical/Major, unresolvable conflict, plan contradiction) halted the in-flow land; the Lead resolves and lands manually.

@@ -1,6 +1,6 @@
 # Intra-phase visibility — deps grant a fast-forwarded base at dispatch; referential seams close in a phase-close sweep
 
-**Status:** proposed (design ratified in the 2026-07-02 clean-handoff review; implementation pending — see the spec)
+**Status:** accepted (2026-07-02 — design ratified in the clean-handoff review; implemented in `skills/war/assets/workflow-template.js` + the worker/auditor standing files by the clean-handoff plan's Phase 1)
 
 WAR cuts every task worktree at ONE captured integration tip in the refiner's Provision barrier and never
 re-pins it — merged sibling content is invisible until the next phase. That was read as a consequence of the
@@ -26,8 +26,10 @@ frozen base or the resume guarantees. Full mechanics:
    code-boundary rule: **dependency ⇒ wave edge** ("add X" + "call X from Y" = one phase, two waves);
    phase edges remain for what must be *landed* first (cross-repo gitlink bumps, release phases).
 2. **Seams undeclared at plan time close in a phase-close coherence sweep — declared at audit time by the
-   flagging auditor.** Between the post-merge gate-audit pass and the Land decision — only when the phase
-   would otherwise land and the `phaseCloseQueue` is non-empty — the refiner cuts a `_polish` worktree at
+   flagging auditor.** After the land decision is computed and before the land dispatch (as landed —
+   the spec's "between the gate-audit pass and the Land block" seam sits where `landDecision` does not
+   exist yet) — only when the phase would land (`landDecision === 'landed'`) and the `phaseCloseQueue`
+   is non-empty — the refiner cuts a `_polish` worktree at
    the *integrated* tip (existing `ensure-worktree`, new tip argument) and one war-worker fixes ONLY the
    queued findings. A referential seam (an anchor/heading/symbol one merged task defines and another
    references, dangling at the integrated tip) reaches the queue **exclusively** as an auditor-flagged
@@ -64,9 +66,11 @@ frozen base or the resume guarantees. Full mechanics:
 - **The sweep adds at most one worker + one panel round per phase**, and only when something is queued; a
   rejected polish costs a wasted worker, never a bad land, never a hold.
 - **Resume semantics preserved by explicit accounting**: the sweep is recorded in the run ledger as a
-  task-grade entry (`p<N>-polish`, merge SHA) and its plan-namespaced branch (`war/<slug>/p<N>-polish`)
-  registered in the run's owned-refs ledger at `ensure-worktree` time — so reconciliation classes A/B/C map
-  the polish commit to a known entry instead of class-C-halting on a foreign commit.
+  Lead-written task-grade entry (`p<N>-polish`, merge SHA) with the polish SHA/status also in the handoff
+  block — so reconciliation classes A/B/C map the polish commit to a known entry instead of
+  class-C-halting on a foreign commit. There is **no** owned-refs registration for the polish branch
+  (as landed — the spec's §4.5.5 "registered exactly like a task branch" described machinery that does
+  not exist: no task branch is ever registered; only `ensure-integration` records ownership).
 - **Same-wave parallel tasks still require file-disjointness** — nothing here relaxes that; only the
   *between-wave* and *phase-close* seams changed.
 
