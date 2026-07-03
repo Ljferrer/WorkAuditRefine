@@ -11,7 +11,7 @@ Given a plan like [docs/plans/2026-06-18-war-room.md](https://github.com/Ljferre
 1. **Decompose** the plan into one or more phase(s) → task DAG and propose it to you as GitHub issues — all phase **epics up front**, task **sub-issues just-in-time** per phase. *You approve before anything spawns.*
 2. For each phase, run a **Workflow** that:
    - **Works** — fresh worker agents implement each task in isolated git worktrees, writing the plan's mapped tests.
-   - **Audits** — independent, read-only auditor seats review each task (severity-tagged findings; Critical/Major block; unanimous on one SHA). By default, every task receives a full multi-lens panel: three independent, unanimous auditor seats (`correctness`, `cascading-impact`, `plan-faithfulness`) at `deep` depth.
+   - **Audits** — independent, read-only auditor seats review each task (severity-tagged findings; Critical/Major block; unanimous on one SHA). Each task convenes its own **roster** of 1–5 distinct-lens seats, each at its own depth; the default roster is the trio (`correctness`, `cascading-impact`, `plan-faithfulness`) at `deep`.
    - **Refines** — a serial merge queue rebases, re-runs the gate (`tests/lint`), and lands approved tasks on a per-phase integration branch.
    - **Records** — after the phase lands, a write-scoped servitor captures durable learnings into memory.
 3. **Lands** each phase onto your working branch as one `--no-ff` commit, pushes, and **checks in with you**.
@@ -128,7 +128,7 @@ Or invoke it in natural language — e.g. *"Go to war on issues #20 & #22"*.
 | `--working <branch>` | no | current branch | Branch each phase lands on, one `--no-ff` commit per phase. |
 | `--landing <branch>` | no | repo's default branch | Branch the final PR targets. |
 | `--afk` | no | off | Don't stop at phase boundaries — post a report + push notification and keep going. Hard escalations still halt. |
-| `--config <path>` | no | `.claude/war/config.json` if present | Use a specific run config (per-role model/effort, coven policy, …) produced by `/war-room`. |
+| `--config <path>` | no | `.claude/war/config.json` if present | Use a specific run config (per-role model/effort, roster policy, …) produced by `/war-room`. |
 
 **Example:**
 
@@ -148,7 +148,7 @@ Or invoke it in natural language — e.g. *"Go to war on issues #20 & #22"*.
 
 ## Configure a run (`/war-room`)
 
-By default WAR runs sonnet workers and opus auditors at the session's effort and decides coven size at the approval gate. To change that — pick models per role, put a worker on **ultrathink**, fix the coven policy — run the companion skill first:
+By default WAR runs sonnet workers and opus auditors at the session's effort and seeds each task's audit roster at the approval gate. To change that — pick models per role, put a worker on **ultrathink**, shape the roster (seats, lenses, per-seat depth) or its seeding policy — run the companion skill first:
 
 ```
 /war-room
@@ -281,7 +281,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.9.1** — #422 nit sweep — campaign-ledger CLI at core-API parity (`--stopPoint`, conditional update), runnable lifecycle example, war-help deep links.
+**0.10.0** — Variable audit roster — per-task 1–5 distinct-lens seats with per-seat depth, lone-seat union auto-escalation, gate-audit auto-skip on `requiresTest:false`; legacy coven config keys fail validation (regenerate via `/war-room`).
 
 ## License
 

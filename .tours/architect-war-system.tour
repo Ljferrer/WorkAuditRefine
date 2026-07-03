@@ -34,31 +34,31 @@
     },
     {
       "file": "skills/war/assets/workflow-template.js",
-      "line": 196,
+      "line": 252,
       "title": "6 · Provision barrier — topology before fan-out",
       "description": "**Situation:** Before any worker spawns, a single **refiner** seat provisions the entire phase's git topology via `provision-worktrees.sh`.\n\n**Mechanism:** It cuts the plan-namespaced integration branch, `git worktree add`s every task worktree off the integration tip (dropping a `.war-task` marker in each), and creates the run-scoped `_refinery` worktree. A runtime probe (E1) proved a worker *cannot even scope itself*, so provisioning is a refiner-owned barrier, not worker self-service.\n\n**Implication:** this is container-ownership (step 2) made concrete and is the reason the confinement hook can work — the `.war-task` marker the hook keys on is planted here. **Gotcha:** `ensure-exclude` must run *from the main checkout* (it resolves its repo from cwd); `ensure-integration` takes `--owned-file` so a resume reuses its own branch but a *foreign* unrecorded branch fails loud (exit 3)."
     },
     {
       "file": "skills/war/assets/workflow-template.js",
-      "line": 248,
+      "line": 317,
       "title": "7 · Work + Audit, wave by wave",
-      "description": "**Situation:** Tasks run in dependency waves (`nextWave()` gates on `succeeded`, with a barrier between waves). Within a wave, every task's Work-then-Audit pipeline runs concurrently.\n\n**Mechanism:** Per task: optional `provisionStep` (repo-derived setup; a failure short-circuits to `env-blocked` and the worker is *never spawned*), then the `war-worker` implements and pushes, then `auditRound` runs the lens panel. A blocking verdict batches a `FIX_NEEDED` to a *fresh* fix-worker in the *same* worktree, up to `roundLimit` (3).\n\n**Implication:** workers are disposable and stateless — fix-in-place reuse (not a new worktree per attempt) is exactly why ADR 0001 rejects the harness's auto-worktree. **Gotcha:** `env-blocked` is a broken *environment*, not broken *code* — it burns **0** fix rounds, keeps the worktree for inspection, and lets siblings proceed."
+      "description": "**Situation:** Tasks run in dependency waves (`nextWave()` gates on `succeeded`, with a barrier between waves). Within a wave, every task's Work-then-Audit pipeline runs concurrently.\n\n**Mechanism:** Per task: optional `provisionStep` (repo-derived setup; a failure short-circuits to `env-blocked` and the worker is *never spawned*), then the `war-worker` implements and pushes, then `auditRound` convenes the task's **roster** — one read-only seat per roster entry, each with its own lens and depth. A blocking verdict batches a `FIX_NEEDED` to a *fresh* fix-worker in the *same* worktree, up to `roundLimit` (3).\n\n**Implication:** workers are disposable and stateless — fix-in-place reuse (not a new worktree per attempt) is exactly why ADR 0001 rejects the harness's auto-worktree. **Gotcha:** `env-blocked` is a broken *environment*, not broken *code* — it burns **0** fix rounds, keeps the worktree for inspection, and lets siblings proceed."
     },
     {
       "file": "skills/war/assets/workflow-template.js",
-      "line": 146,
+      "line": 195,
       "title": "8 · The gate predicates",
-      "description": "**Situation:** These five one-liners encode WAR's entire audit-gating policy. Tiny surface, large consequence.\n\n**Mechanism:** `blockingOf` = Critical/Major findings (these block); `minorsOf` = Minor/Nit (these become follow-up issues, never block); `allApprove` requires **every** expected seat to approve (unanimous on one SHA); `isSplit` detects approve-vs-request_changes disagreement → one rebuttal round; `nextWave` is the DAG scheduler.\n\n**Implication:** severity, not seat-count, is the lever — and unanimity means a single dissenting seat holds the task. The rebuttal-then-escalate loop (lines 270–298) is the deadlock breaker: split → one peer-aware re-judge → still split → human tiebreak. **Gotcha:** `auto-escalate` (≈284) widens a *lone* seat into a full coven on a Critical or low-confidence finding, unless config disables it."
+      "description": "**Situation:** These five one-liners encode WAR's entire audit-gating policy. Tiny surface, large consequence.\n\n**Mechanism:** `blockingOf` = Critical/Major findings (these block); `minorsOf` = Minor/Nit (these become follow-up issues, never block); `allApprove` requires **every** expected seat — the task's full roster — to approve (unanimous on one SHA; even seat counts are legal, nothing votes by majority); `isSplit` detects approve-vs-request_changes disagreement → one rebuttal round; `nextWave` is the DAG scheduler.\n\n**Implication:** severity, not seat-count, is the lever — and unanimity means a single dissenting seat holds the task. The rebuttal-then-escalate loop (≈356–380) is the deadlock breaker: split → one peer-aware re-judge → still split → human tiebreak. **Gotcha:** `autoEscalate` (≈370) **union-widens** a *lone* seat's roster with the default roster's lenses (never duplicates, capped at 5) on a Critical or low-confidence finding, unless config disables it — a multi-seat roster the human approved is never second-guessed."
     },
     {
       "file": "agents/war-auditor.md",
-      "line": 18,
-      "title": "9 · The auditor: read-only, anti-cheat, three lenses",
-      "description": "**Situation:** An auditor seat is strictly read-only — files via Read/Grep/Glob, the diff via read-only git only — and judges *one* task through *one* lens.\n\n**Mechanism:** The default coven is three independent unanimous seats: **correctness**, **cascading-impact** (at `deep`, follow every caller of changed symbols), and **plan-faithfulness** (match the task's plan *slice*, not the whole plan). One can swap for a domain lens (security, healthcare-safety) on flagged code. Every seat also runs anti-cheat: confirm the mapped tests **exist and are not weakened/skipped** ('green by deletion').\n\n**Implication:** the auditor cannot *execute* the gate — only the refiner runs it. So this role verifies *test integrity by reading*, and a separate post-merge 'execution-evidence' pass (workflow ≈338) closes the 'did the gate actually run?' gap. That split is a deliberate consequence of read-only confinement."
+      "line": 43,
+      "title": "9 · The auditor: read-only, anti-cheat, one lens per seat",
+      "description": "**Situation:** An auditor seat is strictly read-only — files via Read/Grep/Glob, the diff via read-only git only — and judges *one* task through *one* lens, at that seat's own depth.\n\n**Mechanism:** The default roster is three independent unanimous seats at `deep`: **correctness**, **cascading-impact** (follow every caller of changed symbols), and **plan-faithfulness** (match the task's plan *slice*, not the whole plan). A task's roster (1–5 distinct-lens seats) can swap in or add catalog lenses (security, performance, simplicity, usability, test-fidelity) or a minted domain lens (healthcare-safety) on flagged code. Every seat also runs anti-cheat: confirm the mapped tests **exist and are not weakened/skipped** ('green by deletion').\n\n**Implication:** the auditor cannot *execute* the gate — only the refiner runs it. So this role verifies *test integrity by reading*, and a separate post-merge 'execution-evidence' pass (workflow ≈601, a reserved lens, never roster-selectable) closes the 'did the gate actually run?' gap. That split is a deliberate consequence of read-only confinement."
     },
     {
       "file": "skills/war/assets/workflow-template.js",
-      "line": 302,
+      "line": 389,
       "title": "10 · Refine — the serial merge queue",
       "description": "**Situation:** After a wave's audits resolve, approved tasks merge **serially** — this loop *is* the merge queue.\n\n**Mechanism:** For each approved task, one `war-refiner` seat rebases the task branch onto the current integration tip, re-runs the gate, and merges. Minors are filed, the audit log is appended, and `done`/`succeeded` are updated to release the next wave. A non-`merged` status (gate_failed/conflict/error) routes to `escalated` instead of landing.\n\n**Implication:** serial-by-design is the price of a single git-topology owner — concurrent merges into one integration branch would race. **Gotcha:** the merged-task record uses `integration_sha` (not `working_sha`, which is land-only) — a `ponytail:` comment marks the sentinel; the post-merge gate-audit pass needs the sha the gate actually ran against."
     },
@@ -70,9 +70,9 @@
     },
     {
       "file": "skills/war/assets/workflow-template.js",
-      "line": 415,
+      "line": 675,
       "title": "12 · Land — push-first compare-and-swap",
-      "description": "**Situation:** When a phase has merged work and no hard escalation is open, the refiner lands `integration/phase-N` → the working branch as one `--no-ff` commit.\n\n**Mechanism:** It runs *detached* in `_refinery` at `origin/<working>`, merges, gates, then `land-advance` does a **no-force** push. The remote's non-fast-forward rejection **is** the atomic compare-and-swap against shared truth: on rejection it re-fetches, re-merges, re-gates, retries up to `roundLimit`; exhaustion returns `land_stale` (a topology failure, distinct from a content `conflict`).\n\n**Implication:** correctness under concurrency comes from the *remote* ref being the only shared truth — a local CAS would be insufficient because a second run never moves your local ref. The land decision (≈405–413) holds for the Lead on any hard escalation; otherwise it lands and triggers Wrap-up."
+      "description": "**Situation:** When a phase has merged work and no hard escalation is open, the refiner lands `integration/phase-N` → the working branch as one `--no-ff` commit.\n\n**Mechanism:** It runs *detached* in `_refinery` at `origin/<working>`, merges, gates, then `land-advance` does a **no-force** push. The remote's non-fast-forward rejection **is** the atomic compare-and-swap against shared truth: on rejection it re-fetches, re-merges, re-gates, retries up to `roundLimit`; exhaustion returns `land_stale` (a topology failure, distinct from a content `conflict`).\n\n**Implication:** correctness under concurrency comes from the *remote* ref being the only shared truth — a local CAS would be insufficient because a second run never moves your local ref. The land decision (≈680–684) holds for the Lead on any hard escalation; otherwise it lands and triggers Wrap-up."
     },
     {
       "file": "docs/adr/0004-refinery-merges-in-a-worktree.md",
@@ -94,18 +94,18 @@
     },
     {
       "file": "skills/war/assets/workflow-template.js",
-      "line": 453,
+      "line": 748,
       "title": "16 · Wrap-up — the write-scoped servitor",
       "description": "**Situation:** Once (and *only* once) a phase actually lands, a `war-servitor` records durable learnings to memory.\n\n**Mechanism:** The servitor's allowlist holds **no Bash** (Read/Grep/Glob/Write/Edit only), so its sole write path is Write/Edit — which the scope hook then gates to `learningsTarget`. Its prompt embeds a four-point memory-admission checklist (D1 dedup, D2 correction-priority, D3 verify-cue, D4 index-hygiene) so it updates files in place instead of duplicating, and never writes facts that rot silently.\n\n**Implication:** this is how a 28-phase overnight run accumulates institutional memory without the Lead's context growing — learnings live in files, not chat history. **Gotcha:** capture happens exactly once *per landed phase*. If the Workflow held the land and the Lead lands manually, the Lead must spawn the servitor itself (guarded by `servitorResult` being absent — never double-capture)."
     },
     {
       "file": "skills/war/assets/land-decision.mjs",
       "selection": {
-        "start": { "line": 2, "character": 0 },
-        "end": { "line": 8, "character": 110 }
+        "start": { "line": 8, "character": 0 },
+        "end": { "line": 12, "character": 152 }
       },
-      "title": "17 · Gotcha: mirrored constants, one intentional divergence",
-      "description": "**Situation:** Because the Workflow sandbox can't `import`, policy constants are *hand-mirrored* between this `.mjs` module (the tested source of truth) and `workflow-template.js`.\n\n**Mechanism:** `HARD_ESCALATION_REASONS` here lists **6** reasons. But `workflow-template.js:409` lists **7** — it appends `'unrunnable-deps'`, a scheduler-local ghost-dep outcome that has no meaning in the pure land decision. The divergence is *deliberate and commented* (workflow ≈394: 'intentional divergence'), not drift.\n\n**Implication:** this is the architectural tax of the no-import sandbox — every such mirror is a latent drift risk that the repo manages with drift-guard tests and explicit comments. When you change a shared constant, you must touch *both* sites and decide whether the divergence is intentional. An architect auditing this system should grep for 'keep in sync' / 'MIRROR' and confirm each mirror has a guarding test."
+      "title": "17 · Gotcha: mirrored constants — two sites, kept identical",
+      "description": "**Situation:** Because the Workflow sandbox can't `import`, policy constants and helpers are *hand-mirrored* between tested `.mjs` modules (the source of truth) and `workflow-template.js`.\n\n**Mechanism:** `HARD_ESCALATION_REASONS` here lists **8** reasons — and the inline mirror in `workflow-template.js` (≈681) lists the **same 8**. The two are deliberately identical: an earlier scheduler-local divergence (`'unrunnable-deps'` once lived only in the template) was removed, and the comments at both sites say so. The same discipline covers the `validateRoster`/`widenRoster`/`spawnOpts` mirrors from `war-config.mjs` (template ≈93, one combined 'keep in sync' marker).\n\n**Implication:** this is the architectural tax of the no-import sandbox — every mirror is a latent drift risk, managed with extract-and-compare drift-guard tests (`war-config.test.mjs`, `land-decision.test.mjs`) and explicit markers. When you change a shared constant, touch *both* sites in the same commit and let the guards confirm they match. An architect auditing this system should grep for 'keep in sync' / 'Mirror' and confirm each mirror has a guarding test."
     },
     {
       "title": "18 · Where you can go from here",
