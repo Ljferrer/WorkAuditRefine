@@ -3162,6 +3162,12 @@ test('intent absent (criterion 10): no intent block anywhere; intent:null and in
   for (const c of absent) {
     assert.ok(!c.prompt.includes("COMMANDER'S INTENT"), 'no intent block leaks when intent is absent')
   }
+  // F2 (#452): absence must equal the real pre-intent bytes, not a vacuous empty prompt — the
+  // worker prompt still carries a known stable substring that exists independently of intent.
+  const worker = absent.find(isWorker)
+  assert.ok(worker, 'worker dispatched (presence guard)')
+  assert.ok(worker.prompt.includes('ALREADY-PROVISIONED worktree'),
+    'the intent-absent worker prompt carries the stable pre-intent substring')
 })
 
 test('intent present: threaded into worker, auditor, ace, gate-audit and servitor prompts; handoff.intentPresent true', async () => {
@@ -3358,6 +3364,23 @@ test('end-state out-of-scope case (criterion 11): a later-phase condition is mar
   assert.equal(out.landDecision, 'landed', 'out-of-scope never holds')
   const b = out.handoff.endState.find(e => e.condition === ES_CONDS[1])
   assert.equal(b && b.status, 'out-of-scope')
+})
+
+test('end-state plan_ref binding (F1 #452): whitespace/case-drifted plan_ref still binds → unmet; a non-matching plan_ref does NOT bind', async () => {
+  // Drift all three ways at once: leading/trailing whitespace, internal whitespace, letter-case.
+  const drifted = `  ${ES_CONDS[0].toUpperCase().replace(/ /g, '  ')} `
+  const impl = esImpl([{ severity: 'Critical', title: 'condition provably unmet at tip', plan_ref: drifted, rationale: 'grep found nothing' }])
+  const { out } = await runPhase(ES_ARGS(), impl)
+  assert.ok(out.handoff, 'handoff emitted (presence guard)')
+  const a = out.handoff.endState.find(e => e.condition === ES_CONDS[0])
+  assert.equal(a && a.status, 'unmet', 'a whitespace/case-drifted plan_ref binds its condition — never a silent met')
+  // Anti-vacuous guard: a genuinely different plan_ref must NOT bind — the normalizer catches
+  // near-misses only, not everything.
+  const impl2 = esImpl([{ severity: 'Critical', title: 'unrelated finding', plan_ref: 'condition Z: something else entirely', rationale: 'nope' }])
+  const { out: out2 } = await runPhase(ES_ARGS(), impl2)
+  assert.ok(out2.handoff, 'handoff emitted (presence guard)')
+  const a2 = out2.handoff.endState.find(e => e.condition === ES_CONDS[0])
+  assert.equal(a2 && a2.status, 'met', 'a genuinely non-matching plan_ref does not bind — the condition stays met')
 })
 
 test('end-state-only seat (criterion 11 / D7): empty mergedTasksForGateAudit ∧ ≥1 claimed condition → ONE seat, logged', async () => {
