@@ -219,7 +219,9 @@ WAR campaigns leave debris — stray integration and task branches, orphaned run
 /war-aftermath [--afk] [--scorched-earth]
 ```
 
-Bare invoke = categorized dry-run report → one confirm → execute the safe list. `--afk` skips the confirm and executes only the provably-safe class. It never auto-triggers — a deleting verb must never fire because a sentence pattern-matched. **`--afk --scorched-earth` is dangerously destructive** (see the [Pro Tip](#pro-tip) warning): it widens to every local branch and worktree and force-deletes unmerged work with no human review; only a non-negotiable protected core survives.
+Bare invoke = categorized dry-run report → one confirm → execute the safe list. `--afk` skips the confirm and executes only the provably-safe class. It never auto-triggers — a deleting verb must never fire because a sentence pattern-matched. `--scorched-earth` widens the candidates to every local branch and worktree (interactively still report → one confirm).
+
+> **⚠️ `/war-aftermath --afk --scorched-earth` is dangerously destructive.** The combo widens cleanup to all local branches and worktrees and force-deletes unmerged work with no human review. Only a non-negotiable protected core survives it.
 
 ### Tidy the memory (`/lessons-learned`)
 
@@ -256,15 +258,13 @@ It hardens each plan (`/red-team`), executes it (`/war … --afk`), stacks each 
 Run this sequence of commands:
 
 ```
-/war-survey-corps                                   # open issues → grouped design specs + survey manifest
-/war-machine                                        # specs → implementation plans + roadmap (interviews you lightly)
+/war-survey-corps  # open issues → grouped design specs + survey manifest
+/war-machine       # specs → implementation plans + roadmap (interviews you lightly)
 /war-campaign docs/roadmaps/<date>-<slug>-roadmap.md
-/war-aftermath                                      # evidence-gated cleanup of branches, worktrees, issues
+/war-aftermath     # evidence-gated cleanup of branches, worktrees, issues
 ```
 
 Every step has an autonomous mode — `/war-machine --afk`, `/war-campaign` (unattended by default: it passes `--afk --ace` to each `/war` itself; there are no operator `--afk`/`--ace` flags on its own invocation), `/war-aftermath --afk` — so the sequence remains cron-able end to end (a nightly cron job or scheduled task). The clean-tree prerequisite is owned by `/war-machine --afk`'s closing commit: `/war` refuses a dirty tree, so the autonomous path cannot leave specs/plans/roadmap uncommitted.
-
-> **⚠️ `/war-aftermath --afk --scorched-earth` is dangerously destructive.** The combo widens cleanup to all local branches and worktrees and force-deletes unmerged work with no human review. Only a non-negotiable protected core survives it.
 
 ## Roles → Gas Town lineage
 
