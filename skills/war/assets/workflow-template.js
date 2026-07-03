@@ -22,7 +22,8 @@ export const meta = {
 //                roster:[{ lens, depth? }], planSlice } ],       // roster: 1–5 distinct-lens audit seats; depth omitted → 'deep'
 //     learningsTarget,                // the servitor's only writable path (memory dir or docs/learnings/)
 //     intent,                         // Commander's Intent, extracted VERBATIM by the Lead from the plan's
-//                                     // `## Commander's Intent` section (string|null; null/absent ⇒ literal behavior, ADR 0013)
+//                                     // `## Commander's Intent` OR `## AI-Commander's Intent` section (either
+//                                     // heading; string|null; null/absent ⇒ literal behavior, ADR 0013)
 //     agentPrefix,                    // optional namespace prefix for agent types (default: 'work-audit-refine:')
 //     agents: { worker|auditor|refiner|servitor: { model, effort } },  // from .claude/war/config.json (resolved by the Lead); defaults below
 //     audit:  { roster, rosterPolicy, autoEscalate },                  // rosterPolicy seeds task.roster Lead-side; audit.roster is the union-widening default roster; autoEscalate used here
@@ -77,8 +78,9 @@ const { phase: ph, plan, tasks, learningsTarget, agents = {}, audit = {}, run = 
 const NS = A.agentPrefix ?? 'work-audit-refine:'
 const roundLimit = run.roundLimit ?? 3
 // Commander's Intent (ADR 0013): extracted VERBATIM by the Lead from the plan's `## Commander's
-// Intent` section and threaded as args.intent (string|null). null/absent ⇒ intentClause is '' and
-// every prompt below is byte-identical to an intent-less run (criterion 10) — literal behavior.
+// Intent` or `## AI-Commander's Intent` section (either heading) and threaded as args.intent
+// (string|null). null/absent ⇒ intentClause is '' and every prompt below is byte-identical to an
+// intent-less run (criterion 10) — literal behavior.
 const intent = (typeof A.intent === 'string' && A.intent) ? A.intent : null
 const intentClause = intent
   ? `\nCOMMANDER'S INTENT (the operator's purpose — your ceiling; the plan slice is your floor):\n${intent}\n`
