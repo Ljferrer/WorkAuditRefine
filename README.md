@@ -289,7 +289,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.11.0** — Clean handoff — Commander's Intent threading, disposition routing (absorb/follow-up/note), dep-wave visibility, phase-close coherence sweep, machine-readable handoff block (ADR 0012/0013).
+**0.11.1** — #444 end-state residuals — whitespace/case-tolerant `plan_ref` binding in the handoff endState resolver (near-match no longer resolves a silent `met`), criterion-10 pre-intent substring assertion, fence-robust structure-test ordering grep.
 
 ## License
 

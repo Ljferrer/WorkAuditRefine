@@ -45,9 +45,11 @@ check_f '  - Purpose: <why'
 check_f '  - Method: <how'
 check_f '  - End state: <numbered list'
 
-# Commander's Intent sits BEFORE ## Build order inside the plan template
-ci="$(grep -nF "## Commander's Intent" "$SKILL" | head -n 1 | cut -d: -f1)"
-bo="$(grep -nF '## Build order (for /war)' "$SKILL" | head -n 1 | cut -d: -f1)"
+# Commander's Intent sits BEFORE ## Build order inside the plan template.
+# Locators anchor to the verbatim arrow-bearing template lines (unique to the plan-template
+# fence) so a stray earlier bare heading of the same text can't misbind them.
+ci="$(grep -nF "## Commander's Intent              ← operator-authored; intent ceiling, plan floor" "$SKILL" | head -n 1 | cut -d: -f1)"
+bo="$(grep -nF '## Build order (for /war)          ← the phase list, in DAG order' "$SKILL" | head -n 1 | cut -d: -f1)"
 if [ -n "$ci" ] && [ -n "$bo" ] && [ "$ci" -lt "$bo" ]; then
   printf "ok - Commander's Intent precedes ## Build order\n"
 else

@@ -25,7 +25,7 @@ executable plan. Scope resolved with the operator: fix **F1** (the one genuine l
        **plan-template** occurrences, robust to a stray earlier heading of the same text.
     4. F4 is left untouched (already pinned by the `check_f` verbatim guard) and recorded here as
        accepted-no-change; no code references it.
-    5. Full `node --test` + every `*.test.sh` green; version bumped +0.0.1 across `plugin.json` +
+    5. Full `node --test` + every `*.test.sh` green; version bumped +0.0.1 across `.claude-plugin/plugin.json` +
        `.claude-plugin/marketplace.json` (×2 slots) + README `## Status`.
 
 ## Build order (for /war)
@@ -94,13 +94,13 @@ Two tasks, disjoint file sets, dispatched in one wave. Each reaches a green gate
 
 ### Task 1: patch bump +0.0.1
   - **Files:**
-    - `plugin.json`
+    - `.claude-plugin/plugin.json`
     - `.claude-plugin/marketplace.json` (two `"version"` slots)
     - `README.md` (the `## Status` replace-in-place line)
   - **Plan slice:** read the current version literal on the integration tip and increment the **patch
     by +0.0.1** (do **not** hardcode a target — at authoring time the tip reads `0.11.0`, so the bump
     is `→ 0.11.1`, but the authority is the tip at land time, not this literal). Update every version
-    slot: `plugin.json`, both `.claude-plugin/marketplace.json` slots, and replace the `## Status`
+    slot: `.claude-plugin/plugin.json`, both `.claude-plugin/marketplace.json` slots, and replace the `## Status`
     line in `README.md` (it is a replace-in-place slot — one-line summary of this change, not an
     append). No badge slot exists.
   - **requiresTest:** false (version-slot edit; no behavior)
