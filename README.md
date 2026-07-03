@@ -1,8 +1,19 @@
 # WorkAuditRefine
 
-**WAR — Work · Audit · Refine.** A Claude-native [Workflows](https://code.claude.com/docs/en/workflows)-based multi-agent orchestration skill that executes a detailed, multi-phase implementation plan end-to-end — and stops to check in with you at every phase boundary.
+**WAR — Work · Audit · Refine.** A Claude-native [Workflows](https://code.claude.com/docs/en/workflows)-based multi-agent orchestration skill that executes a detailed, multi-phase implementation plan end-to-end — and stops to check in with you at every phase boundary. Fresh workers implement, independent auditor panels review, a serial refinery gates every merge: the code that lands is **production-grade**, even when it lands while you sleep.
 
 It's a portable, dependency-free re-imagining of [Steve Yegge's Gas Town](https://github.com/gastownhall/gastown), built on Claude Code's own primitives — `Agent`, the `Workflow` tool, git worktrees, and GitHub issues — with **no Go binary, no Dolt, no beads**. WAR keeps Gas Town's worker / auditor / refinery roles, **absorbs the witness's live coordination into the Workflow itself**, and adds a **servitor** that records each phase's learnings.
+
+## Why WAR
+
+Multi-agent parallelism is table stakes now. WAR's bet is different: **verification discipline you can reproduce.**
+
+- **Audits are the product.** Every task's diff faces a roster of 1–5 independent, **read-only** auditor seats — each reviewing through a distinct lens (`correctness`, `cascading-impact`, `plan-faithfulness`, `security`, …), each judging the same pinned SHA. Findings are severity-tagged, Critical/Major block, and approval is **unanimous**; then a serial refinery rebases, re-runs your gate, and merges. Nothing lands on the say-so of the agent that wrote it. Paired with your CI/CD, this is what makes agent-written code **production-grade** instead of merely plausible.
+- **Plans in, intent honored.** WAR executes plans, not vibes. The pipeline grills the ambiguity out *before* anything spawns — `/war-strategy` + Grill Me interview a spec into a plan, `/red-team` adversarially **proves** the plan's claims in throwaway sandboxes — and the plan's **Commander's Intent** (purpose, method, checkable end state) rides into every worker and auditor prompt: the plan slice is the floor, your intent is the ceiling.
+- **Deterministic where it counts.** The coordination — phase loop, dependency waves, serial merge queue, severity gate — is knowable up front, so it lives in a deterministic, resumable Workflow script rather than emergent agent negotiation ([why](skills/war/references/design.md#why-a-workflow-not-the-agent-teams-feature)). Same plan, same shape; git is the resume authority ([ADR 0008](docs/adr/0008-git-is-the-resume-source-of-truth.md)).
+- **Runs compound.** After each phase, a write-scoped servitor records durable learnings under a provenance ladder (`agent-unverified` < `code-verified` < `user-confirmed`), verifying each referent against the codebase before writing; `/lessons-learned` keeps the store honest against the live repo over time. Your fiftieth run knows what your fifth one learned.
+- **Nothing but the plugin.** Stock, generally-available Claude Code primitives — `Workflow`, `Agent`, git worktrees, `gh`. No server, no daemon, no framework, no experimental flags. Every Claude Code release makes WAR stronger, not obsolete.
+- **Built for overnight.** Queue plans with `/war-campaign` in the evening; the audit gate + your CI hold the line unattended; wake up to stacked, ready-to-review PRs.
 
 ## What it does
 
@@ -21,19 +32,17 @@ Run autonomously inside a phase; gated by you between phases (`--afk` to loosen)
 
 ## Note from Author
 
-I ran this command overnight (2026/06/25-26):
+This is the workflow WAR exists for: **queue plans in the evening, sleep, review PRs over coffee.**
+
+The first overnight run (2026/06/25-26) was a hand-written `/loop` over five plans. It orchestrated **272 subagents** across **28 phases**, consumed **14.1M tokens**, and I woke up to **5 ready-to-merge PRs** for this repo — the main context window stayed under 90% capacity (@1.0M) **without any compactions**. No CRITICAL/MAJOR problems were escalated to me while I slept; 8 follow-up issues were filed for the MINOR/NIT bugs that arose during implementation.
+
+That hand-written loop is now one command:
 
 ```
-/loop for each plan in:
-1. docs/plans/2026-06-25-audit-scheduler-integrity.md
-2. docs/plans/2026-06-25-verification-layer-integrity.md
-3. docs/plans/2026-06-25-provisioning-lifecycle.md
-4. docs/plans/2026-06-25-servitor-confinement-memory.md
-5. docs/plans/2026-06-25-audit-fidelity.md
-run `/red-team <plan>` first, then `/war <plan> --working dev/<plan-slug> --landing master --afk`
+/war-campaign docs/plans/<plan-1>.md docs/plans/<plan-2>.md ...
 ```
 
-... and woke up to 5 ready-to-merge PRs for this repo. This command orchestrated **272 subagents** across **28 phases** and consumed **14.1M tokens**, while the main context window stayed under 90% capacity (@1.0M) **without any compactions**. No CRITICAL/MAJOR problems were escalated to me while I slept, but 8 follow-up issues were filed for the MINOR/NIT bugs that arrose during implementation. If your plans are fleshed out enough, they can be implemented overnight like this.
+It hardens each plan (`/red-team`), executes it (`/war … --afk`), stacks each plan's PR on the previous plan's branch, and halts the whole line rather than let later plans build on a failure. If your plans are fleshed out enough, they get implemented overnight — and the multi-lens audit gate + your CI/CD are why you can trust what landed while nobody was watching. For the AI Vampires who don't sleep because they're coding all night: you don't have to anymore. It codes while you sleep; you just review.
 
 > **Grill Me — author the input plan with [`/grill-me`](https://github.com/mattpocock/skills/tree/main).** `/war` is only as good as the plan it executes. Matt Pocock's `/grill-me` & `/grill-with-docs` skills interview you relentlessly down every branch of the design tree, resolving each decision one at a time, until the plan is unambiguous and cleanly phase-decomposable — exactly the shape WAR needs to fan out workers and auditors. `/war-strategy`'s dependency check links here when Grill Me isn't installed.
 
@@ -56,15 +65,13 @@ Spin up a parallel agent to grill yourself first. I will mostly defer to your de
 but raise any architectural decisions to me
 ```
 
-Then:
+Then hand the whole set to the campaign runner:
 
 ```
-/loop for each plan you just made:
-run `/red-team <plan>` first,
-then `/war <plan> --working dev/<plan-slug> --landing master --afk`
+/war-campaign docs/plans/<plan-1>.md docs/plans/<plan-2>.md ...
 ```
 
-That loop may take ~12+ hours, depending on how many issues it covers. When it's done, wrap up with:
+A campaign may take ~12+ hours, depending on how many issues it covers. When it's done, wrap up with:
 
 ```
 Clean up any stray branches and issues that should have been closed
@@ -144,7 +151,7 @@ Or invoke it in natural language — e.g. *"Go to war on issues #20 & #22"*.
 4. **Checkpoint** — the phase lands on `--working` as one `--no-ff` commit and is pushed; WAR posts a phase report and **checks in with you** before the next phase (skipped under `--afk`; hard escalations halt regardless).
 5. **Finish** — after the last phase, it opens **one PR** from `--working` → `--landing` and reports the URL.
 
-**Resuming:** every run writes a ledger at `.claude/teams/<run-id>/ledger.json` (the resumable source of truth). If a run is interrupted, re-invoke `/war` with the same plan to continue from the ledger + open issues.
+**Resuming:** every run writes a ledger at `.claude/teams/<run-id>/ledger.json` — the richest resume record, reconciled toward git on resume (git branch state is the authority, [ADR 0008](docs/adr/0008-git-is-the-resume-source-of-truth.md)). If a run is interrupted, re-invoke `/war` with the same plan to continue from the ledger + open issues.
 
 ## Configure a run (`/war-room`)
 
@@ -246,7 +253,7 @@ plan below the failure has already landed as its own stacked PR, merged **bottom
 |---|---|---|
 | Lead (your chat) | Mayor | the main Claude Code session |
 | Worker | Polecat | `war-worker` — `Agent` (sonnet) in a git worktree |
-| Auditor | Nun (Refinery audit gate) | `war-auditor` — read-only `Agent` (opus), Read/Grep/Glob only |
+| Auditor | Nun (Refinery audit gate) | `war-auditor` — read-only `Agent` (opus); file tools plus a fail-closed guard restricting Bash to read-only git |
 | Refinery (merge queue) | Refinery | `war-refiner` — `Agent` + the serial Workflow merge loop |
 | Servitor | `bd remember` | `war-servitor` — write-scoped `Agent` (sonnet); records per-phase learnings to memory |
 | -- | Witness | *no standalone agent* — its live coordination is absorbed by the Workflow's control flow + hooks |
