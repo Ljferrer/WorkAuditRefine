@@ -7,7 +7,7 @@ The six universal lenses live in [`../assets/workflow-scaffold.js`](../assets/wo
 - **coverage-vs-source** — every requirement in the source spec/issue maps to a plan step; unmapped = Major gap.
 - **consistency-placeholders** — TBD/TODO/vague steps, name/signature drift, contradictions.
 - **dependency-feasibility** — assumed interfaces/deps/tools exist; ordering is sound.
-- **intent-vs-plan** — each `## Commander's Intent` End-state condition individually checkable (else Major) and mapped to ≥1 claiming phase (else Major); collectively sufficient for the Purpose (else Major `needsDecision`); a missing intent section passes with a Minor note recommending the intent interview — never Major.
+- **intent-vs-plan** — fires on either intent heading (`## Commander's Intent` or `## AI-Commander's Intent`): each End-state condition individually checkable (else Major) and mapped to ≥1 claiming phase (else Major); collectively sufficient for the Purpose (else Major `needsDecision`). An `## AI-Commander's Intent` block is intent-present and judged identically, plus one Minor note recommending the human upgrade path (`/war-strategy <plan>`); a plan with **neither** heading passes with a Minor note recommending the intent interview — never Major.
 
 ## Bespoke probe catalog (derive from the plan's features)
 Add one probe per matching feature (edit the scaffold's array or pass `args.probes`):

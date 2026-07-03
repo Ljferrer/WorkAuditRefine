@@ -351,6 +351,26 @@ test("intent-vs-plan: missing Commander's Intent → pass + Minor note, never Ma
   assert.match(prompt, /intent interview/, 'the Minor note recommends the intent interview')
 })
 
+// --- Task 5 (#462): intent-vs-plan recognizes BOTH intent headings in BOTH branches (spec §4.4, criterion 4) ---
+test('intent-vs-plan: both branches name both intent headings (criterion 4)', async () => {
+  const a = baseArgs()
+  const { prompts } = await runScaffold(a, passResult(a))
+  const byLabel = Object.fromEntries(prompts.filter(p => p.opts.phase === 'Probe').map(p => [p.opts.label, p.prompt]))
+  const prompt = byLabel['probe:intent-vs-plan']
+  assert.ok(prompt, 'intent-vs-plan spine probe must run')          // presence guard — asserts below are vacuous without it
+  // positive branch fires on EITHER heading — must name both
+  assert.match(prompt, /either a "## Commander's Intent" or an "## AI-Commander's Intent" section/,
+    'positive branch fires on either heading, naming both')
+  // negative branch fires only when NEITHER heading is present — must name both
+  assert.match(prompt, /NEITHER a "## Commander's Intent" nor an "## AI-Commander's Intent" section/,
+    'negative branch fires only when neither heading is present, naming both')
+  // an AI-Commander's Intent block is intent-present, judged identically, + upgrade-path Minor note
+  assert.match(prompt, /judged identically/,
+    'an AI-Commander\'s Intent block is judged identically to operator intent')
+  assert.match(prompt, /\/war-strategy /,
+    'the Minor note recommends the /war-strategy human upgrade path')
+})
+
 test(`provision BACK-COMPAT: an empty provision list must not change prompts vs an absent one`, async () => {
   // The executed-probe and analyzed-probe prompts with NO provision list must be IDENTICAL to the
   // prompts produced when the key is entirely absent — i.e. provisioning adds zero bytes when unused.
