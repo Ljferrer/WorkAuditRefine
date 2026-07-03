@@ -1007,6 +1007,9 @@ if (landDecision === 'landed' || landDecision === 'held:escalation') {
   // gate-audit ran ⇒ nothing verified ⇒ every claim is 'deferred', never a silent 'met'.
   const gateFindings = auditLog.filter(e => e && e.gateEvidence).flatMap(e => e.findings || [])
   const gateAuditRan = auditLog.some(e => e && e.gateEvidence)
+  // Binding is whitespace/case-insensitive (#452): seats are told VERBATIM, but a plan_ref that
+  // drifts only in whitespace/case must still bind its condition — never a silent 'met'.
+  const normRef = s => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase()
   handoff = {
     tipSha,
     polish: polishStatus,
@@ -1015,7 +1018,7 @@ if (landDecision === 'landed' || landDecision === 'held:escalation') {
     notes: notes.map(n => ({ task: n.task, title: n.title })),
     endState: endStateClaims.map(condition => {
       if (!gateAuditRan) return { condition, status: 'deferred' }
-      const rel = gateFindings.filter(f => f && f.plan_ref === condition)
+      const rel = gateFindings.filter(f => f && normRef(f.plan_ref) === normRef(condition))
       const status = rel.some(f => f.severity === 'Critical' || f.severity === 'Major') ? 'unmet'
         : rel.some(f => /out-of-scope/i.test(`${f.title || ''} ${f.rationale || ''}`)) ? 'out-of-scope'
         : rel.length ? 'deferred'
