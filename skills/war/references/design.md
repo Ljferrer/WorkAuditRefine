@@ -74,7 +74,7 @@ Durable product artifacts: phase reports/escalations → epic-issue comments; AD
 
 ## 7. Branch & worktree model
 - One mutable worktree per task (worker + its fix-workers share it; it persists until the task lands so kick-backs can fix in place). Cleaned up after the task merges.
-- Auditors read the diff/repo through Read/Grep/Glob (no checkout to mutate); read-only is guaranteed by the tool restriction, not a hook.
+- Auditors read files through Read/Grep/Glob and compute the diff through read-only git Bash (no checkout to mutate); read-only is guaranteed by the tool restriction plus a fail-closed PreToolUse guard (`hooks/validate-auditor-git.sh`) that denies any Bash beyond allowlisted read-only git subcommands.
 - Integration branch removed after the phase lands; worktrees of escalated/blocked tasks are kept for inspection.
 
 ## 8. Cost & models
@@ -88,7 +88,7 @@ Durable product artifacts: phase reports/escalations → epic-issue comments; AD
 ## 10. What WAR keeps / drops / changes vs Gas Town
 - **Keeps:** the four roles, the Nun gate's fail-closed convergent unanimity + severity + the multi-lens roster + plan-faithfulness, integration-branch waves + `--no-ff` land, GUPP propulsion, the read-only-by-construction auditor.
 - **Drops:** the Go orchestrator, Dolt/beads, `gt mail`/nudge, the standalone Witness/Deacon daemons, tmux session management.
-- **Changes:** durable state → GitHub issues + a JSON ledger; propulsion → Workflow control flow (no polling); auditor read-only → tool restriction (Read/Grep/Glob) instead of detached-checkout-push-unset; the merge queue → a serial Workflow loop instead of batch-then-bisect.
+- **Changes:** durable state → GitHub issues + a JSON ledger; propulsion → Workflow control flow (no polling); auditor read-only → tool restriction (Read/Grep/Glob + a fail-closed guard restricting Bash to read-only git) instead of detached-checkout-push-unset; the merge queue → a serial Workflow loop instead of batch-then-bisect.
 
 ## 11. Validation criteria
 - Lead never edits code (only orchestrates/gates). · Auditors cannot write/commit/push. · A task can't merge with an open Critical/Major, without a green gate, or before unanimous audit on one SHA. · "Green by deletion" is caught and escalated. · A killed Lead resumes from ledger + issues. · Each phase lands as one `--no-ff` commit; the run ends in exactly one PR. · `/cost` < 3× a single-agent baseline.
