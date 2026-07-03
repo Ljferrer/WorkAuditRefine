@@ -254,7 +254,7 @@ plan below the failure has already landed as its own stacked PR, merged **bottom
 |---|---|---|
 | Lead (your chat) | Mayor | the main Claude Code session |
 | Worker | Polecat | `war-worker` — `Agent` (sonnet) in a git worktree |
-| Auditor | Nun (Refinery audit gate) | `war-auditor` — read-only `Agent` (opus); file tools plus a fail-closed guard restricting Bash to read-only git |
+| Auditor | *none* — the "Nun" (a Refinery audit gate) was the author's own idea that never made it into Gas Town; WAR builds it first-class | `war-auditor` — read-only `Agent` (opus); file tools plus a fail-closed guard restricting Bash to read-only git |
 | Refinery (merge queue) | Refinery | `war-refiner` — `Agent` + the serial Workflow merge loop |
 | Servitor | `bd remember` | `war-servitor` — write-scoped `Agent` (sonnet); records per-phase learnings to memory |
 | -- | Witness | *no standalone agent* — its live coordination is absorbed by the Workflow's control flow + hooks |
