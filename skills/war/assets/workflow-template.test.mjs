@@ -1223,17 +1223,21 @@ test('F05 — Wrap-up prompt: instructs VERIFY-ON-WRITE (file/flag/line facts mu
     'Wrap-up prompt must instruct "verify still present before acting" cue for file/flag/line facts (D3)')
 })
 
-test('F05 — Wrap-up prompt: instructs INDEX HYGIENE (update MEMORY.md row in place; [[slug]] cross-links)', async () => {
+test('F05/criterion 11 — Wrap-up prompt: D4 INDEX HYGIENE is DELETED (no "update the MEMORY.md row" directive)', async () => {
+  // Inverted (memory-sqlite-substrate T4): index maintenance is no longer the servitor's job — the
+  // Lead runs `render-index` post-servitor (Gate 2). The D4 row-in-place directive must be GONE.
+  // MEMORY.md may still be named for read-only dedup, and [[slug]] cross-links survive under D1 — the
+  // thing that must be absent is the "update/maintain the MEMORY.md ROW" index-hygiene instruction.
   const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
   const wrap = calls.find(isServitor)
   assert.ok(wrap, 'a servitor (Wrap-up) seat was dispatched on the happy path')
   const p = wrap.prompt
-  // Must instruct updating MEMORY.md row in place (D4) — not appending duplicates
-  assert.match(p, /MEMORY\.md.{0,60}in[- ]place|in[- ]place.{0,60}MEMORY\.md|update.{0,60}MEMORY\.md/i,
-    'Wrap-up prompt must instruct updating the MEMORY.md row in place (D4 index hygiene)')
-  // Must mention [[slug]] cross-links (D4)
-  assert.ok(p.includes('[[') || /slug.*cross.?link|cross.?link.*slug/i.test(p),
-    'Wrap-up prompt must mention [[slug]] cross-links (D4)')
+  assert.doesNotMatch(p, /D4/,
+    'Wrap-up prompt must not carry a D4 discipline (index hygiene deleted)')
+  assert.doesNotMatch(p, /MEMORY\.md row|row in[- ]place|update the MEMORY\.md/i,
+    'Wrap-up prompt must not instruct updating the MEMORY.md row in place (D4 index hygiene deleted)')
+  assert.doesNotMatch(p, /four disciplines/i,
+    'Wrap-up prompt must say three disciplines, not four (D4 gone)')
 })
 
 test('F05 — war-servitor.md: has a "Memory admission" checklist section (inlined, no separate file)', () => {
@@ -1261,11 +1265,20 @@ test('F05 — war-servitor.md: admission checklist includes VERIFY-ON-WRITE (D3)
     'war-servitor.md must include "verify still present before acting" cue for file/flag/line facts (D3)')
 })
 
-test('F05 — war-servitor.md: admission checklist includes INDEX HYGIENE (D4)', () => {
-  assert.match(servitorMd, /MEMORY\.md.{0,60}in[- ]place|in[- ]place.{0,60}MEMORY\.md|update.{0,60}MEMORY\.md/i,
-    'war-servitor.md must instruct updating the MEMORY.md row in place (D4)')
-  assert.ok(servitorMd.includes('[[') || /slug.*cross.?link|cross.?link.*slug/i.test(servitorMd),
-    'war-servitor.md must mention [[slug]] cross-links (D4)')
+test('F05/criterion 11 — war-servitor.md: D4 INDEX HYGIENE is DELETED (index is a generated projection)', () => {
+  // Inverted (memory-sqlite-substrate T4): the servitor no longer maintains MEMORY.md — it is a
+  // generated projection the Lead re-renders (spec §4.6). The D4 discipline and the row-in-place
+  // directive must be GONE from both surfaces. [[slug]] cross-links survive (folded into D1), so the
+  // absence assertion targets the "MEMORY.md ROW" index-hygiene directive specifically.
+  assert.doesNotMatch(servitorMd, /^\s*\*\*D4/m,
+    'war-servitor.md must not carry a D4 discipline heading (index hygiene deleted)')
+  assert.doesNotMatch(servitorMd, /MEMORY\.md row|row in[- ]place|update the MEMORY\.md row/i,
+    'war-servitor.md must not instruct updating the MEMORY.md row in place (D4 deleted)')
+  assert.doesNotMatch(servitorMd, /four disciplines/i,
+    'war-servitor.md must say three disciplines, not four (D4 gone)')
+  // The append-pointer instruction in the Inputs section must also be gone (Task 4).
+  assert.doesNotMatch(servitorMd, /append a one-line pointer to `?MEMORY\.md/i,
+    'war-servitor.md Inputs section must not tell the servitor to append a pointer to MEMORY.md')
 })
 
 // ---------------------------------------------------------------------------
@@ -3300,6 +3313,143 @@ test('servitor wrap-up gains the notes array — memory candidates, not issues',
   assert.ok(s, 'servitor dispatched (presence guard)')
   assert.ok(s.prompt.includes('memory candidate'), 'the noted finding reaches the servitor prompt')
   assert.match(s.prompt, /MEMORY CANDIDATES, not issues/, 'notes are framed as memory candidates, not issues')
+})
+
+// --- args.memory prior-lessons threading (memory-sqlite-substrate T4, spec §4.5, criterion 10) ---
+// The Lead prefetches per-seat lesson blocks and threads them as args.memory
+// ({ byTask: {<id>: {worker, seats:{<lens>:block}}}, servitor }). The template concatenates a
+// memoryClause at FIVE sites (worker, auditor, fix-worker, add-test, servitor) — following the
+// intentClause pattern — and at NONE of ace/gate-audit/polish/refiner. Distinctive sentinels per
+// site let each assertion target exactly the intended prompt.
+const WORKER_MEM = 'PRIOR-LESSONS-WORKER-t1 [wm1] (code-verified): implementer pitfall block'
+const AUDIT_MEM  = 'PRIOR-LESSONS-AUDITOR-t1-correctness [am1] (agent-unverified): lens lesson block'
+const SERV_MEM   = 'PRIOR-LESSONS-SERVITOR [sm1] (code-verified): memory dedup capture block'
+const MEMORY_MAP = { byTask: { t1: { worker: WORKER_MEM, seats: { correctness: AUDIT_MEM } } }, servitor: SERV_MEM }
+
+test('memory: worker, auditor and servitor prompts carry their prefetched lesson block (5-site coverage 1/2)', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS({ memory: MEMORY_MAP, tasks: [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] },
+  ] }), defaultImpl)
+  const worker = calls.find(c => (c.opts.label || '') === 'work:t1')
+  assert.ok(worker && worker.prompt.includes(WORKER_MEM), 'worker prompt carries its worker memory block')
+  const auditor = calls.find(c => (c.opts.label || '') === 'audit:t1:correctness')
+  assert.ok(auditor && auditor.prompt.includes(AUDIT_MEM), 'auditor prompt carries its per-lens memory block')
+  const servitor = calls.find(isServitor)
+  assert.ok(servitor && servitor.prompt.includes(SERV_MEM), 'servitor wrap-up carries the phase servitor memory block')
+})
+
+test('memory: fix-worker (FIX_NEEDED) prompt carries the worker lesson block — NEW injection point (5-site 2/2a)', async () => {
+  // Block-then-approve the sole seat so a FIX_NEEDED fix-worker is dispatched.
+  let auditN = 0
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 1 } }
+    if (seat === 'war-auditor') return ++auditN <= 1
+      ? { seat: opts.label, lens: 'correctness', verdict: 'request_changes', confidence: 'high',
+          findings: [{ severity: 'Major', title: 'fix me', file: 'a.js', rationale: 'because' }] }
+      : { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    return defaultImpl(prompt, opts)
+  }
+  const { calls } = await runPhase(PROVISION_ARGS({ memory: MEMORY_MAP, tasks: [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] },
+  ] }), impl)
+  const fix = calls.find(isFixWorker)
+  assert.ok(fix, 'a fix-worker was dispatched on the blocking finding')
+  assert.ok(fix.prompt.includes(WORKER_MEM), 'FIX_NEEDED fix-worker prompt carries the worker memory block (new injection point)')
+})
+
+test('memory: add-test worker prompt carries the worker lesson block — NEW injection point (5-site 2/2b)', async () => {
+  // no-test merge result → add-test fix-worker; then approve+merge+land. Mirror the M2 no-test harness:
+  // requiresTest:true task, refiner merge gated on phase 'Refine'.
+  let mergeN = 0
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker' && opts.phase === 'Work') return { task_id: 't1', status: 'implemented', head_sha: 'deadbeef', tests: {} }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-refiner' && opts.phase === 'Refine') return ++mergeN === 1
+      ? { mode: 'merge-task', status: 'no-test' }
+      : { mode: 'merge-task', status: 'merged' }
+    if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
+    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 1 } }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { calls } = await runPhase(PROVISION_ARGS({ memory: MEMORY_MAP, tasks: [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], requiresTest: true },
+  ] }), impl)
+  const addTest = calls.find(isAddTestWorker)
+  assert.ok(addTest, 'an add-test worker was dispatched on the no-test result')
+  assert.ok(addTest.prompt.includes(WORKER_MEM), 'add-test worker prompt carries the worker memory block (new injection point)')
+})
+
+test('memory: ace / gate-audit / refiner get NO memoryClause (criterion 10 temp-break)', async () => {
+  // The ace harness lands + wraps and also spawns gate-audit + refiner merge/land seats. NONE of the
+  // three prospective memory sentinels may leak into those prompts.
+  const { calls } = await runPhase(ACE_ARGS({ memory: MEMORY_MAP }),
+    aceBase([nit({ title: 'absorb me' })]))
+  const ace = calls.find(isAce)
+  assert.ok(ace, 'an ace worker was dispatched (presence guard)')
+  const leak = s => s.includes(WORKER_MEM) || s.includes(AUDIT_MEM) || s.includes(SERV_MEM)
+  assert.ok(!leak(ace.prompt), 'ace prompt carries NO memory block')
+  const ga = calls.filter(c => (c.opts.label || '').startsWith('gate-audit:'))
+  assert.ok(ga.length > 0, 'a gate-audit pass ran (presence guard)')
+  assert.ok(ga.every(c => !leak(c.prompt)), 'no gate-audit prompt carries a memory block')
+  const refiners = calls.filter(c => seatOf(c.opts) === 'war-refiner')
+  assert.ok(refiners.every(c => !leak(c.prompt)), 'no refiner (provision/merge/land) prompt carries a memory block')
+})
+
+test('memory: polish sweep worker gets NO memoryClause (criterion 10 temp-break)', async () => {
+  // Drive a phase-close queue so the sweep worker fires; assert no memory sentinel leaks into it.
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [{ severity: 'Minor', title: 'shared', file: 'README.md', rationale: 'r', disposition: 'absorb', phaseClose: true }]),
+                               approveWith('audit:t1:correctness', [])] },
+    sweepBase([]))
+  const { calls } = await runPhase(SWEEP_ARGS({ memory: MEMORY_MAP, run: { ace: true } }), impl)
+  const sweep = calls.find(c => /^polish:/.test(c.opts.label || '') && seatOf(c.opts) === 'war-worker')
+  assert.ok(sweep, 'a polish sweep worker was dispatched (presence guard)')
+  assert.ok(!(sweep.prompt.includes(WORKER_MEM) || sweep.prompt.includes(AUDIT_MEM) || sweep.prompt.includes(SERV_MEM)),
+    'polish sweep prompt carries NO memory block')
+})
+
+test('memory: empty/absent map ⇒ prompts byte-identical to a memory-less run (criterion 10)', async () => {
+  const { calls: absent } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const { calls: emptyMap } = await runPhase(PROVISION_ARGS({ memory: { byTask: {}, servitor: '' } }), defaultImpl)
+  assert.equal(absent.length, emptyMap.length, 'same dispatch count')
+  for (let i = 0; i < absent.length; i++) {
+    assert.equal(absent[i].prompt, emptyMap[i].prompt, `prompt #${i} byte-identical between memory-absent and empty-map`)
+  }
+  // And the always-present worker self-query line does not by itself introduce a memory block.
+  const w = absent.find(isWorker)
+  assert.ok(w && !w.prompt.includes('PRIOR-LESSONS'), 'memory-absent worker prompt carries no lesson block')
+})
+
+test('memory: worker self-query line present in dispatched prompt AND mirrored in war-worker.md (both surfaces)', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const w = calls.find(isWorker)
+  assert.ok(w, 'worker dispatched (presence guard)')
+  // The canonical self-query sentence — same core clause in both surfaces.
+  const CORE = "skills/_shared/war-memory.mjs query '<terms>'"
+  assert.ok(w.prompt.includes(CORE), 'dispatched worker prompt carries the may-run-CLI self-query line')
+  const workerMd = readFileSync(join(here, '../../../agents/war-worker.md'), 'utf8')
+  assert.ok(workerMd.includes(CORE), 'agents/war-worker.md mirrors the self-query line (standing surface)')
+  // The self-query line is NOT gated by intent/memory — it is byte-stable regardless of args.memory.
+})
+
+test('criterion 11 — ServitorResult schema no longer carries memory_index_updated', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const servitor = calls.find(isServitor)
+  assert.ok(servitor && servitor.opts.schema, 'servitor spawn carries a schema')
+  const props = servitor.opts.schema.properties || {}
+  assert.ok(!('memory_index_updated' in props),
+    'SERVITOR_RESULT.properties must not carry memory_index_updated (index maintenance moved to render-index)')
+  // The surviving shape still requires phase/target/learnings.
+  assert.deepEqual(servitor.opts.schema.required, ['phase', 'target', 'learnings'],
+    'ServitorResult still requires phase/target/learnings')
+  // Source-text guard: the field name is gone from the template entirely.
+  assert.ok(!/memory_index_updated\s*:/.test(src),
+    'workflow-template.js no longer defines a memory_index_updated schema property')
 })
 
 // --- Phase-close coherence sweep (criteria 2 + 5, ADR 0012) ---
