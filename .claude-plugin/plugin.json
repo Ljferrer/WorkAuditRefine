@@ -7,7 +7,7 @@
   "homepage": "https://github.com/Ljferrer/WorkAuditRefine",
   "repository": "https://github.com/Ljferrer/WorkAuditRefine",
   "keywords": ["claude-code","agent-teams","workflows","orchestration","code-review","merge-queue","multi-agent","gastown"],
-  "skills": ["./skills/war", "./skills/war-room", "./skills/red-team", "./skills/lessons-learned", "./skills/war-help", "./skills/war-strategy", "./skills/war-campaign"],
+  "skills": ["./skills/war", "./skills/war-room", "./skills/red-team", "./skills/lessons-learned", "./skills/war-help", "./skills/war-strategy", "./skills/war-campaign", "./skills/war-survey-corps", "./skills/war-machine", "./skills/war-aftermath"],
   "agents": [
     "./agents/war-auditor.md",
     "./agents/war-refiner.md",
