@@ -5,8 +5,8 @@ import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, relative } from 'node:path'
 import {
-  DEFAULTS, PROVISION_SOURCES, ROSTER_POLICIES, fillDefaults, presetConfig, validate, spawnOpts,
-  validateRoster, widenRoster, resolveProvision, resolveGate,
+  DEFAULTS, PROVISION_SOURCES, ROSTER_POLICIES, RESERVED_LENSES, fillDefaults, presetConfig, validate, spawnOpts,
+  validateRoster, widenRoster, resolveWidenSource, resolveProvision, resolveGate,
 } from './war-config.mjs'
 import { HARD_ESCALATION_REASONS, decideLand } from './land-decision.mjs'
 
@@ -366,6 +366,77 @@ test('widenRoster: caps at 5 — 1 seat + a 5-lens default → 5 seats, never 6'
   const out = widenRoster([{ lens: 'usability', depth: 'neighbors' }], FIVE)
   assert.equal(out.length, 5)
   assert.equal(out[0].lens, 'usability')
+})
+
+// ---------------------------------------------------------------------------
+// resolveWidenSource (D4): auditor-nominated lone-seat widening source
+// ---------------------------------------------------------------------------
+
+const DEF = DEFAULTS.audit.roster
+
+test('resolveWidenSource: valid nomination → per-seat deep, source "nominated"', () => {
+  const r = resolveWidenSource(['security', 'performance'], DEF)
+  assert.equal(r.source, 'nominated')
+  assert.deepEqual(r.seats, [{ lens: 'security', depth: 'deep' }, { lens: 'performance', depth: 'deep' }])
+})
+
+test('resolveWidenSource: single-lens valid nomination → one deep seat, "nominated"', () => {
+  const r = resolveWidenSource(['usability'], DEF)
+  assert.equal(r.source, 'nominated')
+  assert.deepEqual(r.seats, [{ lens: 'usability', depth: 'deep' }])
+})
+
+test('resolveWidenSource: RESERVED_LENSES entry rejects the WHOLE nomination → default fallback (no per-entry salvage)', () => {
+  for (const reserved of RESERVED_LENSES) {
+    const r = resolveWidenSource(['security', reserved], DEF)
+    assert.equal(r.source, 'default', `nomination containing reserved lens "${reserved}" must fall back whole-field`)
+    assert.strictEqual(r.seats, DEF, 'fallback returns defaultRoster verbatim (same reference)')
+  }
+})
+
+test('resolveWidenSource: duplicate lenses → default fallback', () => {
+  const r = resolveWidenSource(['security', 'security'], DEF)
+  assert.equal(r.source, 'default')
+  assert.strictEqual(r.seats, DEF)
+})
+
+test('resolveWidenSource: empty-string entry → default fallback', () => {
+  const r = resolveWidenSource(['security', ''], DEF)
+  assert.equal(r.source, 'default')
+  assert.strictEqual(r.seats, DEF)
+})
+
+test('resolveWidenSource: non-string entry → default fallback', () => {
+  const r = resolveWidenSource(['security', 42], DEF)
+  assert.equal(r.source, 'default')
+  assert.strictEqual(r.seats, DEF)
+})
+
+test('resolveWidenSource: empty array [] → default fallback', () => {
+  const r = resolveWidenSource([], DEF)
+  assert.equal(r.source, 'default')
+  assert.strictEqual(r.seats, DEF)
+})
+
+test('resolveWidenSource: undefined (absent widen) → default fallback', () => {
+  const r = resolveWidenSource(undefined, DEF)
+  assert.equal(r.source, 'default')
+  assert.strictEqual(r.seats, DEF)
+})
+
+test('resolveWidenSource: non-array (string) → default fallback', () => {
+  const r = resolveWidenSource('security', DEF)
+  assert.equal(r.source, 'default')
+  assert.strictEqual(r.seats, DEF)
+})
+
+test('resolveWidenSource: own-lens nomination is legal — widenRoster dedupes it (lone seat kept once)', () => {
+  // A lone `correctness` seat nominating `correctness` + `security`: resolveWidenSource accepts it
+  // (distinct, non-reserved), and feeding the result through widenRoster dedupes the seat's own lens.
+  const { seats } = resolveWidenSource(['correctness', 'security'], DEF)
+  const widened = widenRoster([{ lens: 'correctness', depth: 'neighbors' }], seats)
+  assert.deepEqual(widened.map(s => s.lens), ['correctness', 'security'])
+  assert.equal(widened[0].depth, 'neighbors', 'the lone seat keeps its own depth (union, not replacement)')
 })
 
 // ---------------------------------------------------------------------------
@@ -794,6 +865,47 @@ test('drift-guard(F07): inline widenRoster mirror equals canonical widenRoster a
   }
 })
 
+// resolveWidenSource (D4) lives under the same combined spawnOpts/validateRoster/widenRoster/resolveWidenSource
+// marker. Its inline arrow references the inline RESERVED_LENSES array, so extract BOTH and inject the
+// array into the new Function (mirroring the decideLand extract-and-inject pattern) — this way a drift in
+// EITHER the inline RESERVED_LENSES literal or the inline validation logic bites.
+const RWS_EXTRACT = /const resolveWidenSource\s*=\s*\(nominated,\s*defaultRoster\)\s*=>\s*\{([\s\S]*?)\n\}/
+const RL_INLINE_EXTRACT = /const\s+RESERVED_LENSES\s*=\s*(\[[^\]]*\])/
+
+test('drift-guard(F07): inline resolveWidenSource mirror equals canonical resolveWidenSource across nominated/fallback cases', () => {
+  const rwsMatch = templateText.match(RWS_EXTRACT)
+  assert.ok(rwsMatch, 'inline resolveWidenSource arrow not found in workflow-template.js')
+  const rlMatch = templateText.match(RL_INLINE_EXTRACT)
+  assert.ok(rlMatch, 'inline RESERVED_LENSES literal not found in workflow-template.js')
+  const inlineReserved = JSON.parse(rlMatch[1].replace(/'/g, '"'))
+  // The extracted body references RESERVED_LENSES; inject it as a parameter so the closure resolves.
+  const inline = new Function('nominated', 'defaultRoster', 'RESERVED_LENSES', rwsMatch[1])
+  const call = (nominated, def) => inline(nominated, def, inlineReserved)
+
+  const DEF = DEFAULTS.audit.roster
+  const cases = [
+    [['security', 'performance'], DEF],       // valid multi
+    [['usability'], DEF],                      // valid single
+    [['execution-evidence'], DEF],             // reserved → fallback
+    [['security', 'pin-validity'], DEF],       // reserved among valid → whole-field fallback
+    [['security', 'security'], DEF],           // duplicate → fallback
+    [['security', ''], DEF],                   // empty string → fallback
+    [['security', 42], DEF],                   // non-string → fallback
+    [[], DEF],                                 // empty array → fallback
+    [undefined, DEF],                          // absent → fallback
+    ['security', DEF],                         // non-array → fallback
+    [['correctness', 'security'], DEF],        // own-lens legal → nominated
+  ]
+  for (const [nominated, def] of cases) {
+    assert.deepEqual(call(nominated, def), resolveWidenSource(nominated, def),
+      `inline resolveWidenSource diverges from canonical for case ${JSON.stringify([nominated, def])}`)
+  }
+
+  // The inline RESERVED_LENSES literal must itself equal the canonical export (guards a stale inline copy).
+  assert.deepEqual(inlineReserved, RESERVED_LENSES,
+    'inline RESERVED_LENSES literal in workflow-template.js diverges from canonical RESERVED_LENSES export')
+})
+
 // ---------------------------------------------------------------------------
 // decideLand drift guard (D1): the landDecision + HARD_ESCALATION_REASONS markers
 // ---------------------------------------------------------------------------
@@ -921,9 +1033,9 @@ test('meta-guard(F07): all Keep-in-sync/Mirror-of markers in workflow-template.j
   // Registry of LOGIC mirrors → each must have ≥1 registered drift test (keyed by a stable identifier).
   // The identifier is a substring of the marker text (robust to line-number shifts).
   const LOGIC_MIRROR_REGISTRY = new Map([
-    // Combined marker: "Mirror of war-config.mjs spawnOpts/validateRoster/widenRoster … Keep in sync"
-    // → covered by the spawnOpts drift tests + the validateRoster/widenRoster drift tests
-    ['spawnOpts/validateRoster/widenRoster', ['drift-guard(F07): inline spawnOpts', 'drift-guard(F07): inline validateRoster', 'drift-guard(F07): inline widenRoster']],
+    // Combined marker: "Mirror of war-config.mjs spawnOpts/validateRoster/widenRoster/resolveWidenSource … Keep in sync"
+    // → covered by the spawnOpts + validateRoster + widenRoster + resolveWidenSource drift tests
+    ['spawnOpts/validateRoster/widenRoster', ['drift-guard(F07): inline spawnOpts', 'drift-guard(F07): inline validateRoster', 'drift-guard(F07): inline widenRoster', 'drift-guard(F07): inline resolveWidenSource']],
     // Marker: "landDecision mirrors land-decision.mjs (decideLand) … Keep in sync"
     // → covered by decideLand drift tests
     ['landDecision mirrors', ['drift-guard(F07): inline HARD_ESCALATION_REASONS + decideLand', 'drift-guard(F07): inline decideLand']],

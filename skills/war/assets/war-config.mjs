@@ -3,13 +3,16 @@
 //   • /war-room  (producer): `--preset <name>`, and `--stdin --fill-defaults` to validate+resolve before writing
 //   • /war Lead  (consumer): `<path> --fill-defaults` to resolve a file, then thread into Workflow args
 // The Workflow sandbox cannot import this module, so workflow-template.js mirrors
-// spawnOpts/validateRoster/widenRoster inline — THIS module is the tested source of truth; keep them in sync.
+// spawnOpts/validateRoster/widenRoster/resolveWidenSource inline — THIS module is the tested source of truth; keep them in sync.
 
 import { validateProvision } from '../../_shared/provision.mjs'
 
 export const MODELS = ['opus', 'sonnet', 'haiku', 'fable']
 export const EFFORTS = ['default', 'low', 'medium', 'high', 'xhigh', 'max']
 export const ROSTER_POLICIES = ['auto', 'all', 'solo']
+// Lenses reserved for built-in passes — never roster-selectable, never a valid widen nomination (D4).
+// (execution-evidence = post-merge gate-audit pass; pin-validity = gitlink-bump pre-flight.)
+export const RESERVED_LENSES = ['execution-evidence', 'pin-validity']
 export const ROLES = ['worker', 'auditor', 'refiner', 'servitor']
 // How a run's provision list was derived. 'explicit' = pinned by the user;
 // 'manifest'/'ci'/'onboarding'/'structural' = scouted (descending authority);
@@ -193,6 +196,22 @@ export function widenRoster(roster, defaultRoster) {
     if (!out.some(s => s.lens === seat.lens)) out.push(seat)
   }
   return out
+}
+
+// Lone-seat widening SOURCE (D4): pick the seats a triggered lone seat widens toward. A valid auditor
+// nomination is a non-empty array of DISTINCT, non-empty strings, NONE reserved — strict whole-field
+// (any bad entry rejects the whole nomination, no per-entry salvage). Valid → seats from the nominated
+// lenses @ deep, source 'nominated'; anything else → defaultRoster verbatim, source 'default' (the
+// byte-identical trio-union fallback). The returned seats feed widenRoster (which keeps the lone seat,
+// dedupes, caps 5), so a nomination naming the seat's own lens is legal. MIRRORED inline in
+// workflow-template.js. Keep in sync.
+export function resolveWidenSource(nominated, defaultRoster) {
+  const valid = Array.isArray(nominated) && nominated.length > 0 &&
+    nominated.every(l => typeof l === 'string' && l.length > 0 && !RESERVED_LENSES.includes(l)) &&
+    new Set(nominated).size === nominated.length
+  return valid
+    ? { source: 'nominated', seats: nominated.map(lens => ({ lens, depth: 'deep' })) }
+    : { source: 'default', seats: defaultRoster }
 }
 
 // Self-discovering multi-runner gate (F12).

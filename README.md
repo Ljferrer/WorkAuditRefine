@@ -138,7 +138,7 @@ Or invoke it in natural language — e.g. *"Go to war on issues #20 & #22"*.
 
 ## Configure a run (`/war-room`)
 
-By default WAR runs opus workers on `max` effort and opus auditors on `xhigh`, and auto-seeds each task's audit roster (1–3 seats by blast radius) at the approval gate. To change that — pick models per role, put a worker on **ultrathink**, shape the roster (seats, lenses, per-seat depth) or its seeding policy — run the companion skill first:
+By default WAR runs opus workers on `max` effort and opus auditors on `xhigh`, and under `rosterPolicy: auto` the Lead composes each task's audit roster from the lens catalog — 1–5 seats, each at its own depth with a one-line rationale — at the approval gate (a triggered lone seat later widens toward the auditor's own nomination, or the default roster if it names none). To change that — pick models per role, put a worker on **ultrathink**, shape the roster (seats, lenses, per-seat depth) or its seeding policy — run the companion skill first:
 
 ```
 /war-room
@@ -271,7 +271,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.12.0** — WAR pipeline skills — the README Pro Tip's outer loop becomes three discoverable, cron-able slash commands (`/war-survey-corps`, `/war-machine`, `/war-aftermath`) bracketing `/war-campaign`, plus the `## AI-Commander's Intent` doctrine amendment (ADR 0014) that makes the middle step schedulable.
+**0.13.0** — Catalog-composed `auto` rosters + auditor-nominated widening — `auto` now means the Lead composes 1–5 audit seats from the lens catalog (with per-seat depth and a one-line rationale), and a triggered lone seat widens by auditor nomination (`resolveWidenSource` + `RESERVED_LENSES`), falling back to the trio union when no valid nomination is present.
 
 ## License
 

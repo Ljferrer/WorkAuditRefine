@@ -70,5 +70,12 @@ Emit findings tagged `Critical | Major | Minor | Nit`, and one overall `verdict`
 
 Set `confidence` honestly (`low` on a lone seat union-widens the roster). You review independently — do not assume other seats agree.
 
+## Widening nomination (`widen`, D4)
+When your verdict carries a **Critical** finding or `confidence: 'low'` **and you are a lone seat**, you MAY set the optional `widen` field to name the catalog lenses your finding calls for — e.g. `widen: ["security", "cascading-impact"]` ("this touches a trust boundary; convene those"). The orchestrator then re-audits with the nominated lenses (each at `deep`, joined to your seat, deduped, capped at 5):
+- **A valid nomination** is a **non-empty array of distinct, non-empty lens names, none reserved** (`execution-evidence`/`pin-validity` are never nominable — they are built-in passes). Validity is strict **whole-field**: one bad entry rejects the whole nomination (no partial salvage).
+- **Absent or invalid → the default roster's lenses** (the trio-union fallback) — so omitting `widen` is always safe.
+- **Honored only on a lone seat.** On a multi-seat roster `widen` is ignored (a roster the human approved is not second-guessed), so you need not set it there.
+- Naming your own seat's lens is legal — the union dedupes it.
+
 ## Return
-Return ONLY the `AuditVerdict` JSON (see `references/schemas.md`): `{ seat, lens, audit_sha, verdict, findings[], tests_verified, confidence, escalate_reason? }`.
+Return ONLY the `AuditVerdict` JSON (see `references/schemas.md`): `{ seat, lens, audit_sha, verdict, findings[], tests_verified, confidence, widen?, escalate_reason? }`.

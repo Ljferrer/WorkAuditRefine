@@ -41,10 +41,12 @@ A task reaches the refiner with exactly one terminal **outcome**. Two are produc
                 phaseClose?,        // bool; on an absorb finding — the fix needs the integrated tip or a shared/slot-adjacent file → routes to the phase-close queue (ADR 0012)
                 autoFixable? } ],   // DEPRECATED — legacy alias: autoFixable:true reads as disposition:'absorb' for one release, then it is removed
   tests_verified: { exist: true },                // anti-cheat: existence + integrity verified (not executed — the refiner runs the gate)
-  confidence: "high" | "medium" | "low",          // low → lone seat union-widens
+  confidence: "high" | "medium" | "low",          // low → lone seat widens (D4)
+  widen?: ["lens-name"],                           // optional lens-name array — the lenses a triggered LONE seat nominates to widen toward; honored only on a lone seat; a valid nomination is non-empty, distinct, and never a RESERVED lens
   escalate_reason?: "present iff verdict==escalate — the plan is wrong/underspecified" }
 ```
 - **`severity` becomes schema-required** on finding items (`required: ['severity']` in the executable literal — previously finding items had **no** required array; this release introduces the requirement, ADR 0013 resolution 3). Schema-layer retry corrects a sloppy seat; persistent failure falls into the existing dropped-seat → audit-blocked lane.
+- **`widen` is optional and only meaningful on a lone seat** (D4). When a 1-seat roster returns a Critical or low-confidence verdict, `resolveWidenSource` ([`../assets/war-config.mjs`](../assets/war-config.mjs)) reads `widen`: a **valid** nomination — a non-empty array of distinct, non-empty lens names, **none reserved** (`execution-evidence`/`pin-validity`) — widens toward those lenses at `deep`; absent/invalid → the default roster's lenses (the byte-identical trio-union fallback). Validity is strict whole-field (any bad entry rejects the whole nomination). It is **never reserved-selectable** and never honored on a multi-seat roster (a roster the human approved is not second-guessed).
 - **`plan_ref` doubles as the End-state key** on gate-audit findings: an End-state finding carries the claimed condition text **verbatim** in `plan_ref` so the handoff block can key `endState` statuses on it.
 
 ## MergeResult — `war-refiner`
@@ -155,12 +157,12 @@ Produced by `/war-room`, consumed by `/war`'s Setup. The schema, defaults, prese
     servitor: { model, effort } },
   audit: {
     roster: [ { lens: "correctness", depth: "deep" },        // 1–5 seats; lenses distinct; depth "neighbors"|"deep", omitted → "deep"
-              { lens: "cascading-impact", depth: "deep" },   // this default roster is also the union-widening source for autoEscalate
+              { lens: "cascading-impact", depth: "deep" },   // this default roster is also the union-widening FALLBACK for autoEscalate (used when a lone seat's widen nomination is absent/invalid)
               { lens: "plan-faithfulness", depth: "deep" } ],
-    rosterPolicy: "all" | "auto" | "solo",   // seeds per-task rosters at the decompose gate; default: "auto" (full roster on high-blast-radius tasks, one `neighbors` seat on leaf tasks)
-    autoEscalate: true },                    // union-widens a Critical/low-confidence LONE seat with the default roster's lenses; set false (with rosterPolicy:"solo") to pin one auditor
+    rosterPolicy: "all" | "auto" | "solo",   // seeds per-task rosters at the decompose gate; default: "auto" (Lead composes 1–5 catalog seats per task, each at its own depth, with a one-line rationale)
+    autoEscalate: true },                    // widens a Critical/low-confidence LONE seat — toward its own valid `widen` nomination (those lenses @ deep), else the default roster's lenses; set false (with rosterPolicy:"solo") to pin one auditor
 // COST NOTE: rosterPolicy "all" spawns every roster seat on every task (3 deep seats with the
-// default trio, unanimous); the default "auto" scales 1–roster-length seats by blast radius.
+// default trio, unanimous); the default "auto" convenes the 1–5 seats the Lead composed per task.
 // Use rosterPolicy:"solo" (economy preset) for cost-sensitive runs — one seat at neighbors depth.
 // Legacy keys covenSize/lenses/covenPolicy FAIL validation with a courtesy error naming the key —
 // run /war-room to regenerate the config (D3: no shims, no accepted-but-ignored keys).

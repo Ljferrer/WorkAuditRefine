@@ -2786,8 +2786,8 @@ test('Task 3 — no-enum-leak: no new MERGE_RESULT.status member and no new HARD
 
 // ---------------------------------------------------------------------------
 // Variable audit roster (#434): per-task roster dispatch, per-seat depth,
-// lone-seat union auto-escalation (D5), phase-start assertion (D8), and the
-// gate-audit auto-skip on requiresTest:false (D7).
+// lone-seat auto-escalation widening (D4 auditor-nominated-or-default; D5 union), phase-start
+// assertion (D8), and the gate-audit auto-skip on requiresTest:false (D7).
 // ---------------------------------------------------------------------------
 
 const ROSTER_TRIO = [
@@ -2849,7 +2849,7 @@ test('roster — seat count equals roster length: a 5-seat roster spawns 5 disti
   for (const l of FIVE) assert.ok(labels.includes(`audit:t1:${l}`), `label audit:t1:${l} present`)
 })
 
-test('roster — auto-escalate union: a solo Critical re-audit convenes the union roster (original lens once, defaults appended, ≤5)', async () => {
+test('roster — auto-escalate default fallback: a solo Critical with NO widen nomination convenes the trio-union roster (original lens once, defaults appended, ≤5)', async () => {
   const args = PROVISION_ARGS({
     tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1',
       roster: [{ lens: 'security', depth: 'deep' }] }],
@@ -2857,6 +2857,7 @@ test('roster — auto-escalate union: a solo Critical re-audit convenes the unio
   })
   const impl = buildSeqImpl(
     { 'audit:t1:security': [
+        // No `widen` field on the verdict → resolveWidenSource falls back to defaultRoster (trio union).
         { seat: 'audit:t1:security', lens: 'security', verdict: 'request_changes', confidence: 'high',
           findings: [{ severity: 'Critical', title: 'lone-seat critical', file: 'a.js', rationale: 'bad' }] },
         { seat: 'audit:t1:security', lens: 'security', verdict: 'approve', findings: [], confidence: 'high' },
@@ -2870,8 +2871,8 @@ test('roster — auto-escalate union: a solo Critical re-audit convenes the unio
     assert.equal(labels.filter(x => x === `audit:t1:${l}`).length, 1, `default lens ${l} appended exactly once (union)`)
   }
   assert.equal(new Set(labels).size, 4, '4 distinct seats total (1 + 3 defaults, ≤5)')
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('union widening')),
-    'the widening is narrated (union widening log line)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('lone-seat widening') && l.includes('source: default fallback')),
+    'the widening is narrated and names the fallback source (default fallback)')
   assert.ok(out.landed.includes('t1'), 'the widened panel approved and the task landed')
 })
 
@@ -2916,6 +2917,106 @@ test('roster — lone-seat guard: a 2-seat roster at low confidence does NOT wid
     'both roster seats convened (presence guard)')
   assert.ok(!labels.includes('audit:t1:cascading-impact') && !labels.includes('audit:t1:plan-faithfulness'),
     'an approved multi-seat roster is never second-guessed (no union widening on a 2-seat roster)')
+})
+
+test('roster — auto-escalate nominated widening: a lone seat naming valid catalog lenses re-audits with THOSE seats @ deep + itself, log names "nominated"', async () => {
+  const args = PROVISION_ARGS({
+    tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1',
+      roster: [{ lens: 'security', depth: 'deep' }] }],
+    audit: { roster: ROSTER_TRIO, rosterPolicy: 'all', autoEscalate: true },
+  })
+  const impl = buildSeqImpl(
+    { 'audit:t1:security': [
+        // The lone seat NOMINATES catalog lenses via `widen`; resolveWidenSource accepts (distinct,
+        // non-reserved) and widens toward performance+usability @ deep — NOT the trio default roster.
+        { seat: 'audit:t1:security', lens: 'security', verdict: 'request_changes', confidence: 'low',
+          widen: ['performance', 'usability'],
+          findings: [{ severity: 'Critical', title: 'smells like a perf+ux issue', file: 'a.js', rationale: 'bad' }] },
+        { seat: 'audit:t1:security', lens: 'security', verdict: 'approve', findings: [], confidence: 'high' },
+      ] },
+    defaultImpl)  // performance/usability seats auto-approve via defaultImpl
+  const { out, calls, logs } = await runPhase(args, impl)
+  const labels = calls.filter(isRegularAudit).map(c => c.opts.label)
+  // The nominated lenses convene; the trio defaults (correctness/cascading-impact/plan-faithfulness) do NOT.
+  assert.equal(labels.filter(l => l === 'audit:t1:performance').length, 1, 'nominated performance lens convenes exactly once')
+  assert.equal(labels.filter(l => l === 'audit:t1:usability').length, 1, 'nominated usability lens convenes exactly once')
+  assert.equal(labels.filter(l => l === 'audit:t1:security').length, 2, 'the lone security seat is kept (once per round)')
+  assert.ok(!labels.includes('audit:t1:cascading-impact') && !labels.includes('audit:t1:plan-faithfulness'),
+    'the trio default roster does NOT convene under a valid nomination (nominated source, not fallback)')
+  assert.equal(new Set(labels).size, 3, '3 distinct seats: security + performance + usability (nominated + kept)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('lone-seat widening') && l.includes('source: nominated')),
+    'the widening is narrated and names the nominated source')
+  assert.ok(!logs.some(l => typeof l === 'string' && l.includes('source: default fallback')),
+    'a valid nomination is NEVER logged as the default fallback')
+  assert.ok(out.landed.includes('t1'), 'the widened panel approved and the task landed')
+})
+
+test('roster — auto-escalate strict fallback: a lone seat whose widen contains a RESERVED lens takes the trio-union path, log names "default fallback"', async () => {
+  const args = PROVISION_ARGS({
+    tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1',
+      roster: [{ lens: 'security', depth: 'deep' }] }],
+    audit: { roster: ROSTER_TRIO, rosterPolicy: 'all', autoEscalate: true },
+  })
+  const impl = buildSeqImpl(
+    { 'audit:t1:security': [
+        // One reserved lens ('pin-validity') among an otherwise-valid nomination → strict WHOLE-FIELD
+        // reject → resolveWidenSource falls back to the trio default roster (no per-entry salvage).
+        { seat: 'audit:t1:security', lens: 'security', verdict: 'request_changes', confidence: 'high',
+          widen: ['performance', 'pin-validity'],
+          findings: [{ severity: 'Critical', title: 'lone-seat critical', file: 'a.js', rationale: 'bad' }] },
+        { seat: 'audit:t1:security', lens: 'security', verdict: 'approve', findings: [], confidence: 'high' },
+      ] },
+    defaultImpl)
+  const { out, calls, logs } = await runPhase(args, impl)
+  const labels = calls.filter(isRegularAudit).map(c => c.opts.label)
+  // Fallback → the TRIO convenes, the (otherwise-valid) 'performance' nomination is discarded whole-field.
+  for (const l of ['correctness', 'cascading-impact', 'plan-faithfulness']) {
+    assert.equal(labels.filter(x => x === `audit:t1:${l}`).length, 1, `trio default lens ${l} convenes (fallback)`)
+  }
+  assert.ok(!labels.includes('audit:t1:performance'),
+    'the whole nomination is rejected — the valid "performance" entry is NOT salvaged when a reserved lens is present')
+  assert.equal(new Set(labels).size, 4, '4 distinct seats: security + trio (fallback union), performance discarded')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('lone-seat widening') && l.includes('source: default fallback')),
+    'a reserved-lens nomination is narrated as the default fallback')
+  assert.ok(out.landed.includes('t1'), 'the fallback panel approved and the task landed')
+})
+
+test('roster — non-lone seat ignores widen: a 2-seat roster whose first seat emits widen does NOT widen', async () => {
+  const args = PROVISION_ARGS({
+    tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1',
+      roster: [{ lens: 'correctness', depth: 'deep' }, { lens: 'security', depth: 'neighbors' }] }],
+    audit: { roster: ROSTER_TRIO, rosterPolicy: 'all', autoEscalate: true },
+  })
+  // Both seats low-confidence with widen nominations — but a MULTI-seat roster is never second-guessed,
+  // so `widen` is honored ONLY on the lone-seat trigger and ignored here (harmless).
+  const lowWithWiden = (label, lens) => ({ seat: label, lens, verdict: 'request_changes', confidence: 'low',
+    widen: ['performance', 'usability'],
+    findings: [{ severity: 'Critical', title: 'crit', file: 'a.js', rationale: 'bad' }] })
+  const approve = (label, lens) => ({ seat: label, lens, verdict: 'approve', findings: [], confidence: 'high' })
+  const impl = buildSeqImpl(
+    {
+      'audit:t1:correctness': [lowWithWiden('audit:t1:correctness', 'correctness'), approve('audit:t1:correctness', 'correctness')],
+      'audit:t1:security': [lowWithWiden('audit:t1:security', 'security'), approve('audit:t1:security', 'security')],
+    },
+    defaultImpl)
+  const { calls, logs } = await runPhase(args, impl)
+  const labels = calls.filter(isRegularAudit).map(c => c.opts.label)
+  assert.ok(labels.includes('audit:t1:correctness') && labels.includes('audit:t1:security'),
+    'both roster seats convened (presence guard)')
+  assert.ok(!labels.includes('audit:t1:performance') && !labels.includes('audit:t1:usability'),
+    'a nominated widen on a NON-lone roster is ignored — no widening happens')
+  assert.ok(!logs.some(l => typeof l === 'string' && l.includes('lone-seat widening')),
+    'no lone-seat widening is narrated for a multi-seat roster')
+})
+
+test('roster — widen is optional in AUDIT_VERDICT: it is NOT a required field', () => {
+  // Prove `widen` is declared as a property but is NOT in AUDIT_VERDICT.required.
+  const reqMatch = src.match(/const AUDIT_VERDICT = \{ type: 'object', required: (\[[^\]]*\])/)
+  assert.ok(reqMatch, "AUDIT_VERDICT required[] not found")
+  const required = JSON.parse(reqMatch[1].replace(/'/g, '"'))
+  assert.ok(!required.includes('widen'), 'widen must NOT be in AUDIT_VERDICT.required (optional field)')
+  assert.ok(/widen: \{ type: 'array', items: \{ type: 'string' \} \}/.test(src),
+    'widen must be declared as an optional { type: array, items: string } property')
 })
 
 test('roster — phase-start assertion: duplicate lenses → held:workflow-error, never a clamped audit', async () => {

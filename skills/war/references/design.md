@@ -30,7 +30,7 @@ A Workflow also can't *be* a team's Lead — it's a script with no inbox, and it
 | 5 | Branch model | Per-phase `integration/phase-N`; task worktrees off it; `--no-ff` land→working; one PR working→landing |
 | 6 | Autonomy | Auto within a phase, **gate at phase boundaries**, hard escalations always halt; `--afk` flips the gate |
 | 7 | Audit verdict | Severity-tagged; Critical/Major block, Minor/Nit route by auditor-owned **disposition** (absorb/follow-up/note — ADR 0013), `escalate`→halt; **unanimous on one SHA** |
-| 8 | Auditor count | Per-task **roster** of 1–5 distinct-lens seats (per-seat depth); default trio at `deep`; a lone seat union-widens with the default roster's lenses on Critical/low-confidence |
+| 8 | Auditor count | Per-task **roster** of 1–5 distinct-lens seats (per-seat depth); default trio at `deep`; a lone seat on Critical/low-confidence union-widens toward its own `widen` nomination (valid → those lenses at `deep`), else the default roster's lenses |
 | 9 | Witness | Dissolved into Workflow + hooks + Lead |
 | 10 | State/resume | One authority (git) + two advisory records (GitHub issues + JSON ledger(+md)); Workflow resume journal is off-ladder |
 | 11 | Stage graph | Wave-by-wave with barriers; serial merges = the queue; explicit named worktrees |
@@ -45,7 +45,7 @@ A Workflow also can't *be* a team's Lead — it's a script with no inbox, and it
 ## 4. Per-phase flow
 1. **Cut** `integration/phase-N` off the working branch.
 2. **Work (waves):** topologically sort the phase's tasks into dependency waves (usually one). Per wave, fan out one `war-worker` per task into a named mutable worktree branched off the integration tip; the worker implements, writes/extends the plan's mapped tests, runs the gate green, commits, pushes. **Frozen-base scope note (ADR 0012):** the frozen phase base is HARD **for same-wave parallel tasks only** — a same-repo task with declared `deps` rebases its worktree onto the integration branch as its worker's first action (dep-wave visibility; a first-dispatch rebase is a pure fast-forward, a resume-with-commits conflict returns `blocked`). `gitlink-bump` tasks are excluded (their dep merged in the submodule repo).
-3. **Audit (per task):** independent read-only seats review the pinned `audit_sha` — one seat per entry in the task's **roster** (1–5 distinct lenses, per-seat depth; default: the trio at `deep`). A lone seat hitting a Critical or low confidence union-widens with the default roster's lenses (`autoEscalate`). Gate over verdicts: any open Critical/Major blocks; any `escalate` halts; all `approve` on one SHA = merge-eligible. A split triggers one rebuttal round → approve / agreed-block / still-split-escalate.
+3. **Audit (per task):** independent read-only seats review the pinned `audit_sha` — one seat per entry in the task's **roster** (1–5 distinct lenses, per-seat depth; default: the trio at `deep`). A lone seat hitting a Critical or low confidence union-widens (`autoEscalate`) — toward its own `widen` nomination when valid (those lenses at `deep`), else the default roster's lenses (the byte-identical trio-union fallback). Gate over verdicts: any open Critical/Major blocks; any `escalate` halts; all `approve` on one SHA = merge-eligible. A split triggers one rebuttal round → approve / agreed-block / still-split-escalate.
 4. **Fix loop:** a block routes a batched `FIX_NEEDED` to a fresh fix-worker on the *same* worktree; re-audit against the new SHA; ≤ `round_limit=3` then `audit-blocked`.
 5. **Refine (serial):** `war-refiner` rebases each approved task onto the integration tip, re-runs the gate, merges — one at a time. This sequencing *is* the merge queue.
 6. **Land:** `war-refiner` merges `integration/phase-N` → working `--no-ff` (one phase commit), pushes working. Held if a hard escalation is open.
@@ -78,7 +78,7 @@ Durable product artifacts: phase reports/escalations → epic-issue comments; AD
 - Integration branch removed after the phase lands; worktrees of escalated/blocked tasks are kept for inspection.
 
 ## 8. Cost & models
-`war-worker`/fix/`war-refiner` = sonnet; `war-auditor` = opus; Lead = session model. Concurrency = the Workflow default (`min(16, cores−2)`). Target < 3× single-agent cost.
+`war-worker`/fix/`war-refiner` = sonnet; `war-auditor` = opus; Lead = session model. Concurrency = the Workflow default (`min(16, cores−2)`). The **< 3× single-agent cost** target holds for the cheaper tiers (economy/balanced); the quality-first `thorough` preset (opus/`max` workers, opus/`max` auditors, a 5-lens `auto` pool) deliberately trades cost for depth and is expected to exceed it.
 
 ## 9. Harness notes (ECC / OmniEMR first run)
 - **GateGuard** present-and-retry: workers/refiners present the requested facts then retry the identical Bash/Write op.
