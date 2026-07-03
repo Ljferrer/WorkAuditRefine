@@ -1281,6 +1281,18 @@ test('F05/criterion 11 — war-servitor.md: D4 INDEX HYGIENE is DELETED (index i
     'war-servitor.md Inputs section must not tell the servitor to append a pointer to MEMORY.md')
 })
 
+test('F05/keywords placement — war-servitor.md frontmatter example nests keywords under metadata (T1 CLI reads metadata.keywords only)', () => {
+  // Cross-task contract (spec §4.2): the CLI's frontmatter parser (skills/_shared/war-memory.mjs
+  // lessonRecord) reads keywords ONLY from frontmatter.metadata.keywords and feeds it into the FTS5
+  // keywords column at BM25 weight 8.0. A top-level `keywords:` lands in frontmatter.keywords, is
+  // never read, and the highest-weighted retrieval signal is silently dropped. The frontmatter
+  // EXAMPLE the servitor copies must therefore nest keywords under metadata:, not at the top level.
+  assert.doesNotMatch(servitorMd, /^keywords:/m,
+    'war-servitor.md frontmatter example must NOT place keywords: at the top level (unindexed by the CLI)')
+  assert.match(servitorMd, /^  keywords:/m,
+    'war-servitor.md frontmatter example must nest keywords: under metadata: at 2-space indent (metadata.keywords)')
+})
+
 // ---------------------------------------------------------------------------
 // Task 1 (Phase 1 — F03): Auditor computes its own integration-branch diff
 // The auditPrompt must direct the auditor to run git diff A...B (three-dot)

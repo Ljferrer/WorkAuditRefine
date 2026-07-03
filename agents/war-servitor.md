@@ -49,9 +49,9 @@ Each memory file uses YAML frontmatter. The `metadata.provenance` field sits **n
 ---
 name: <slug>
 description: "<one-line summary>"
-keywords: [<3-8 retrieval aliases>]
 metadata:
   type: project
+  keywords: [<3-8 retrieval aliases>]
   provenance: agent-unverified   # or code-verified / user-confirmed
   slug: <slug>
   phase: <phase-id>
@@ -60,7 +60,7 @@ metadata:
 ---
 ```
 
-Do **not** place `provenance:` at the top level of the frontmatter block; the gate extracts the nested value under `metadata:`.
+Do **not** place `provenance:` or `keywords:` at the top level of the frontmatter block; both live **nested under `metadata:`** — the `validate-servitor-provenance.sh` gate extracts provenance from the `metadata:` scope, and the CLI's FTS index reads `keywords` from `metadata.keywords` (a top-level `keywords:` is parsed into `frontmatter.keywords` and never indexed, silently dropping the highest-weighted retrieval signal).
 
 **`keywords:` duty.** Give every file a `keywords:` list of **3–8** retrieval aliases — the terms and synonyms a future agent would search when it hits this situation (the CLI's FTS5 index weights `keywords` far above the body, so this is what makes the lesson *findable* at prefetch time). Pick words a stranger would type, not just words already in the description. When you update an existing file in place, top up its `keywords` if the new fact adds a searchable angle.
 
