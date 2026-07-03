@@ -18,13 +18,14 @@ test('scaffold syntax OK — compiles as async function body with Workflow globa
   new AsyncFunction('agent', 'parallel', 'pipeline', 'log', 'phase', 'args', 'budget', body)
 })
 
-// Step 3: All 5 spine lens names present + BESPOKE PROBES injection point + adversarial-confirm stage.
+// Step 3: All 6 spine lens names present + BESPOKE PROBES injection point + adversarial-confirm stage.
 const SPINE_NAMES = [
   'claims-vs-reality',
   'executable-proof',
   'coverage-vs-source',
   'consistency-placeholders',
   'dependency-feasibility',
+  'intent-vs-plan',
 ]
 
 for (const name of SPINE_NAMES) {
@@ -99,7 +100,7 @@ test('scaffold return threads the fingerprint + expected + repo to the gate', as
   const { out } = await runScaffold(a, passResult(a))
   assert.deepEqual(out.fingerprint, FP, 'fingerprint is threaded through unchanged')
   assert.equal(out.repo, '/abs/REPO', 'repo is returned for the gate under-repo check')
-  assert.equal(out.expected, 5, 'total probe slots attempted (5 spine, sourceSpec set)')
+  assert.equal(out.expected, 6, 'total probe slots attempted (6 spine, sourceSpec set)')
   assert.equal(out.plan, '/abs/PLAN.md')
 })
 
@@ -124,7 +125,7 @@ test('every probe prompt is scope-locked to the absolute planFile + repo + finge
   ] })
   const { prompts } = await runScaffold(a, passResult(a))
   const probePrompts = prompts.filter(p => p.opts.phase === 'Probe')
-  assert.equal(probePrompts.length, 7, '5 spine (sourceSpec set keeps coverage-vs-source) + 2 bespoke')
+  assert.equal(probePrompts.length, 8, '6 spine (sourceSpec set keeps coverage-vs-source) + 2 bespoke')
   for (const { prompt } of probePrompts) {
     assert.match(prompt, /SCOPE-LOCK/, 'every probe prompt carries the SCOPE-LOCK preamble')
     assert.ok(prompt.includes('/abs/PLAN.md'), 'scope-lock names the absolute planFile')
@@ -263,7 +264,7 @@ test('args as JSON string: run does not reject, fingerprint/repo/expected thread
   const { out } = await runScaffold(JSON.stringify(a), passResult(a))
   assert.deepEqual(out.fingerprint, FP, 'fingerprint threads through when args is a JSON string')
   assert.equal(out.repo, '/abs/REPO', 'repo threads through when args is a JSON string')
-  assert.equal(out.expected, 5, 'expected probe count is correct when args is a JSON string')
+  assert.equal(out.expected, 6, 'expected probe count is correct when args is a JSON string')
   assert.equal(out.plan, '/abs/PLAN.md')
 })
 
@@ -335,6 +336,19 @@ test('#311: the EXECUTED spine probe (executable-proof) does NOT gain the precon
     assert.ok(!/PRECONDITION vs DELIVERABLE/.test(byLabel[label]),
       label + ': executed probes must not gain the precondition rule (technique-scoped, not name-scoped)')
   }
+})
+
+// --- Task 3 (#443): intent-vs-plan spine lens — missing intent section is Minor, never Major ---
+test("intent-vs-plan: missing Commander's Intent → pass + Minor note, never Major (criterion 9)", async () => {
+  const a = baseArgs()
+  const { prompts } = await runScaffold(a, passResult(a))
+  const byLabel = Object.fromEntries(prompts.filter(p => p.opts.phase === 'Probe').map(p => [p.opts.label, p.prompt]))
+  const prompt = byLabel['probe:intent-vs-plan']
+  assert.ok(prompt, 'intent-vs-plan spine probe must run')          // presence guard — negative asserts below are vacuous without it
+  assert.match(prompt, /Commander's Intent/, 'lens prompt names the ## Commander\'s Intent section')
+  assert.match(prompt, /Minor, never a Major/, 'a missing intent section is directed to Minor, never Major')
+  assert.match(prompt, /status:"pass"/, 'a missing intent section still returns status:"pass"')
+  assert.match(prompt, /intent interview/, 'the Minor note recommends the intent interview')
 })
 
 test(`provision BACK-COMPAT: an empty provision list must not change prompts vs an absent one`, async () => {
