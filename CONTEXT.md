@@ -6,6 +6,27 @@ only — no implementation detail.
 
 ## Language
 
+### Authoring pipeline (spec → plan)
+
+**Design spec** (`docs/specs/`):
+The ratified **decision record** for a change — problem, pivotal constraints, numbered decisions with
+alternatives considered, affected surfaces, test intent. Answers *what changes and why*; carries no
+dispatch structure (no phases, waves, or file-disjointness guarantees). Authored by interview
+(`grill-with-docs`); `/war` cannot execute one.
+_Avoid_: handing a spec to `/red-team` (it validates **plans** and never converts); treating a spec's
+affected-files list as dispatch-ready tasks.
+
+**Implementation plan** (`docs/plans/`):
+The **executable artifact** `/war` consumes — Commander's Intent (intent ceiling, plan floor) plus
+phases and tasks with exact file sets, `requiresTest`, `deps`, and target repo, carved by the
+code-boundary decomposition rule. Produced from a spec by `/war-strategy` (gap review + intent
+echo-back); hardened by `/red-team`. Answers *who does what, in which order, against which files*.
+_Avoid_: authoring one without a ratified spec behind it; using `/war-strategy` to validate
+(war-strategy **converts**, red-team **ratifies**).
+
+The pipeline: `grill-with-docs` authors the spec → `/war-strategy` converts it to a plan →
+`/red-team` validates the plan → `/war` executes it.
+
 ### Worktree provisioning
 
 **Provisioning**:
