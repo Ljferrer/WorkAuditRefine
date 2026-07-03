@@ -120,7 +120,7 @@ It automatically bumps your install to the new version. Changes apply to the nex
 ## Usage
 
 ```
-/war <plan-file> [--working <branch>] [--landing <branch>] [--afk]
+/war <plan-file> [--working <branch>] [--landing <branch>] [--afk] [--ace] [--config <path>]
 ```
 
 Or invoke it in natural language — e.g. *"Go to war on issues #20 & #22"*.
@@ -135,6 +135,7 @@ Or invoke it in natural language — e.g. *"Go to war on issues #20 & #22"*.
 | `--working <branch>` | no | current branch | Branch each phase lands on, one `--no-ff` commit per phase. |
 | `--landing <branch>` | no | repo's default branch | Branch the final PR targets. |
 | `--afk` | no | off | Don't stop at phase boundaries — post a report + push notification and keep going. Hard escalations still halt. |
+| `--ace` | no | off | Fix auditor-flagged Minor/Nit findings on the spot: an approved task's `absorb`-routed findings get one pre-merge ace commit + a full panel re-audit at the new SHA, instead of being filed as `war-followup` issues. Never blocks a land — on any regression the ace commit is reverted and the originally-approved work lands anyway. (`/war-campaign` passes `--afk --ace` by default.) |
 | `--config <path>` | no | `.claude/war/config.json` if present | Use a specific run config (per-role model/effort, roster policy, …) produced by `/war-room`. |
 
 **Example:**
