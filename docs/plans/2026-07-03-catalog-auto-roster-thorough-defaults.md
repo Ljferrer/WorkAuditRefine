@@ -6,9 +6,11 @@ executable decomposition.
 
 ## RE-SCOPE NOTE (operator-decided 2026-07-03, mid-campaign)
 The config defaults/preset flip (spec **D2/D3/D5**) **already landed on master via PR #472** (`328cfda`:
-`DEFAULTS.agents.worker`=opus/max, `auditor`=opus/xhigh, `audit.rosterPolicy`=`auto`; the defaults-docs
-across README / war-room SKILL.md / war SKILL.md / schemas.md updated to match). PR #472's tiering
-choices are **kept as-is** (this plan does NOT re-flip them, does NOT touch `DEFAULTS`/`PRESETS`). This
+`DEFAULTS.agents.worker`=opus/max, `auditor`=opus/xhigh, `audit.rosterPolicy`=`auto`; the **model-tiering**
+defaults prose across README / war-room SKILL.md / war SKILL.md / schemas.md updated to match — but #472 did
+**not** touch the `auto`-*semantics* prose, which still reads as the old binary/blast-radius `auto` +
+trio-only widening on every surface). PR #472's tiering choices are **kept as-is** (this plan does NOT
+re-flip them, does NOT touch `DEFAULTS`/`PRESETS`). This
 plan is re-scoped to only the parts #472 did **not** deliver:
 - **D4 — auditor-nominated lone-seat widening** (new code + tests): the genuinely-novel mechanism.
 - **D1 — `auto` = Lead-composed catalog selection** (docs-only; `rosterPolicy` is Lead-side): master's
@@ -74,7 +76,7 @@ extract and execute the template's mirror text).
   args-docstring `rosterPolicy` note (`auto` = Lead-composed from the catalog) + the widening note.
   `widenRoster`, `validateRoster`, `spawnOpts`, gate-audit pass, `MERGE_RESULT`,
   `HARD_ESCALATION_REASONS`, and all `DEFAULTS`-derived values: **untouched**.
-- **Tests (spec Test-plan items 4–10, mapped):** `war-config.test.mjs` — `resolveWidenSource` matrix
+- **Tests (spec Test-plan items 3–10, mapped):** `war-config.test.mjs` — `resolveWidenSource` matrix
   (reserved / duplicate / empty-string / non-string / `[]` / `undefined` / non-array → fallback; valid →
   per-seat `deep`; own-lens dedupe via `widenRoster`); F07 extract-and-compare drift-guard +
   `LOGIC_MIRROR_REGISTRY` + marker-count updated same commit. `workflow-template.test.mjs` — nominated
@@ -86,19 +88,29 @@ extract and execute the template's mirror text).
   `feat(war): auditor-nominated lone-seat widening (resolveWidenSource + RESERVED_LENSES)`.
 
 ### Task 2 — doc sweep: catalog-`auto` + nominated widening (surfaces #472 left)
-**Files:** `skills/war/SKILL.md`, `skills/war/references/schemas.md`, `skills/war/references/design.md`,
-`agents/war-auditor.md`, `.tours/architect-war-system.tour`, `CONTEXT.md`
+**Files:** `skills/war/SKILL.md`, `skills/war-room/SKILL.md`, `skills/war/references/schemas.md`,
+`skills/war/references/design.md`, `agents/war-auditor.md`, `README.md`,
+`.tours/architect-war-system.tour`, `CONTEXT.md`
 
 **`requiresTest`: false** · proposed roster: solo `{ lens: 'correctness', depth: 'neighbors' }` ·
 deps: [Task 1] · target repo: superproject.
 
 Re-verify every claim against the **merged Task 1 tip**, not this plan. **#472 already updated the
-defaults prose (README, war-room SKILL.md, war SKILL.md defaults line, schemas.md defaults comments) —
-do NOT re-assert or duplicate those; touch only the `auto`-semantics + widening surfaces.**
+*model-tiering* defaults prose (opus workers, thorough preset, `rosterPolicy: auto` default) across README,
+war-room SKILL.md, war SKILL.md, schemas.md — do NOT re-assert or duplicate that model-tiering wording. But
+#472 did NOT fix the `auto`-*semantics* or the widening prose: touch ONLY those `auto`-semantics + widening
+clauses, wherever they live — including in README and war-room SKILL.md.**
 - **war/SKILL.md:** decompose step 2 — replace the old binary `auto` description (full-roster-vs-one-seat)
   with `auto` = 1–5 catalog seats + explicit per-seat depth + one-line rationale (D1); the pure-docs solo
   proposal survives as a heuristic. The models/effort line (~:101) — re-word the `autoEscalate` widening
   clause to auditor-**nominated**-or-default (currently says trio-union only).
+- **war-room/SKILL.md:** the `rosterPolicy: auto` line(s) (~:12–13) — replace the old blast-radius
+  `1–3 / 1–5 seats` wording with `auto` = Lead-composed 1–5 catalog seats + per-seat depth + one-line
+  rationale (D1); the solo-pin/widening reminder (~:22) — re-word from trio-union-only to auditor-
+  **nominated**-or-default. Do **not** touch #472's model-tiering preset prose (opus workers / thorough-first).
+- **README.md:** the audit-roster sentence (~:141, `auto-seeds … 1–3 seats by blast radius`) — re-word to
+  catalog-composed `auto` + nominated-or-default widening. **Prose only**; do **not** touch `## Status`
+  (Task 3 owns it) or #472's worker-tiering sentence.
 - **schemas.md:** add the `AuditVerdict.widen` line (optional lens-name array; honored only on a lone
   seat; never reserved).
 - **design.md:** the widening rows/§; re-scope the "Target < 3× single-agent cost" sentence (spec-ratified
