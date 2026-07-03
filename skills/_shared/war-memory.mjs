@@ -54,9 +54,6 @@ export function tierRank(t) {
 
 // Routing (§4.6): project → repo iff commitLearnings; user/feedback → local; absent/unknown → local.
 export const REPO_TYPES = new Set(['project']);
-// Recognized types (§4.6/§4.8): a type the servitor writes deliberately. user/feedback route
-// local by design and are NOT "untyped" — only an absent or unrecognized type is untyped.
-export const RECOGNIZED_TYPES = new Set(['project', 'user', 'feedback']);
 export function routeRoot(type, commitLearnings, lintHit) {
   if (lintHit) return 'local'; // fail-closed: a lint-flagged lesson is demoted to local + reported
   if (REPO_TYPES.has(type) && commitLearnings) return 'repo';
@@ -415,7 +412,7 @@ export function migrationPlan(records, { commitLearnings = false } = {}) {
     if (r.temperature === 'cold') continue; // already archived
     const hits = lint([r.name, r.description, r.title, r.body, r.tags.join(' ')].join('\n'));
     const dest = routeRoot(r.type, commitLearnings, hits.length > 0);
-    if (!r.type || !RECOGNIZED_TYPES.has(r.type)) untyped.push(r.slug); // untyped = absent or unrecognized (user/feedback are recognized, route local by design)
+    if (!r.type || !REPO_TYPES.has(r.type)) untyped.push(r.slug);
     if (dest === 'repo') toRepo.push(r.slug);
     else toLocal.push({ slug: r.slug, demoted: hits.length > 0 });
     if (/\[RESOLVED\]/.test(r.body) || /\[RESOLVED\]/.test(r.description)) toArchive.push(r.slug);

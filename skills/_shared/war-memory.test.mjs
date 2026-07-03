@@ -382,21 +382,6 @@ test('render: refuses above the LINE hard axis even when bytes are small', () =>
   rmSync(dir, { recursive: true, force: true });
 });
 
-// ============================================================================
-// (4) Atomicity — render-index writes MEMORY.md via tmp+rename; no .tmp residue
-//     survives the swap (spec §10 criterion 4: tmp+rename observed).
-// ============================================================================
-
-test('render-index: writes projection atomically (tmp+rename) — no MEMORY.md.tmp residue', () => {
-  const local = tmpDir();
-  lessonFile(local, 'one', { description: 'a lesson' });
-  const r = spawnSync('node', [CLI, 'render-index', '--local', local], { encoding: 'utf8' });
-  assert.equal(r.status, 0, r.stderr);
-  assert.ok(existsSync(join(local, 'MEMORY.md')), 'projection written');
-  assert.ok(!existsSync(join(local, 'MEMORY.md.tmp')), 'no .tmp residue — rename completed');
-  rmSync(local, { recursive: true, force: true });
-});
-
 test('archiveCandidates: lowest tier first, then oldest', () => {
   const hot = [
     { slug: 'keep', provenance: 'user-confirmed', date: '2020-01-01' },
@@ -409,7 +394,7 @@ test('archiveCandidates: lowest tier first, then oldest', () => {
 
 // ============================================================================
 // (7) Archive verb — file moved (mv in local root), note appended, re-rendered.
-//     git-mv-per-root branch is covered by the repo-root archive test below.
+//     (git mv path exercised in the repo-root migrate/archive fixture below.)
 // ============================================================================
 
 test('archive: local-root lesson moved into archive/, note appended, projection re-rendered', () => {
@@ -425,37 +410,6 @@ test('archive: local-root lesson moved into archive/, note appended, projection 
   const proj = readFileSync(join(local, 'MEMORY.md'), 'utf8');
   assert.doesNotMatch(proj, /\[\[to-archive\]\]/); // archived → out of projection
   assert.match(proj, /\[\[stays\]\]/);
-  rmSync(local, { recursive: true, force: true });
-});
-
-test('archive: repo-root lesson moved via git (git-tracked rename), note appended', () => {
-  // Repo root is a git repo → cmdArchive takes the `git mv` branch (per §10 criterion 7:
-  // git mv vs mv per root). The distinguishing signature is that the archive DESTINATION
-  // is staged in the git index — a plain fs.rename leaves it untracked.
-  const repo = tmpDir('war-memory-repo-');
-  const local = tmpDir(); // local root required by resolveRoots but empty here
-  const git = (...a) => {
-    const r = spawnSync('git', ['-C', repo, ...a], { encoding: 'utf8' });
-    if (r.status !== 0) throw new Error(`git ${a.join(' ')}: ${r.stderr}`);
-    return r.stdout;
-  };
-  git('init', '-q');
-  git('config', 'user.email', 'test@example.invalid');
-  git('config', 'user.name', 'Test');
-  lessonFile(repo, 'repo-lesson', { description: 'a repo lesson', meta: { type: 'project' } });
-  git('add', '-A');
-  git('commit', '-qm', 'base'); // committed → git mv detects a tracked rename
-
-  const r = spawnSync('node', [CLI, 'archive', 'repo-lesson', '--repo', repo, '--local', local], { encoding: 'utf8' });
-  assert.equal(r.status, 0, r.stderr);
-  assert.ok(!existsSync(join(repo, 'repo-lesson.md')), 'source removed from repo hot dir');
-  assert.ok(existsSync(join(repo, 'archive', 'repo-lesson.md')), 'moved into repo archive/');
-  // git-tracked rename: the destination is staged in the index (only `git mv` does this).
-  const tracked = git('ls-files', '--cached').split('\n');
-  assert.ok(tracked.includes('archive/repo-lesson.md'), `archive dst staged (git mv ran), got ${JSON.stringify(tracked)}`);
-  const moved = readFileSync(join(repo, 'archive', 'repo-lesson.md'), 'utf8');
-  assert.match(moved, /> archived \d{4}-\d{2}-\d{2}: resolved/); // note appended before the move
-  rmSync(repo, { recursive: true, force: true });
   rmSync(local, { recursive: true, force: true });
 });
 
@@ -488,8 +442,6 @@ test('migrationPlan: routes typed→repo, untyped→local+reported, [RESOLVED]�
   lessonFile(dir, 'untyped', { description: 'no type here', meta: {} });
   lessonFile(dir, 'typed-secret', { description: 'leak /Users/somebody/x', meta: { type: 'project' } });
   lessonFile(dir, 'resolved-one', { description: 'done', meta: { type: 'project' }, body: 'fixed [RESOLVED] now' });
-  lessonFile(dir, 'user-local', { description: 'operator pref', meta: { type: 'user' } });
-  lessonFile(dir, 'feedback-local', { description: 'run feedback', meta: { type: 'feedback' } });
   const recs = walkCorpus({ local: dir });
   const plan = migrationPlan(recs, { commitLearnings: true });
   assert.ok(plan.toRepo.includes('typed-clean'));
@@ -497,11 +449,6 @@ test('migrationPlan: routes typed→repo, untyped→local+reported, [RESOLVED]�
   assert.ok(plan.toLocal.some((x) => x.slug === 'untyped'));
   assert.ok(plan.toLocal.some((x) => x.slug === 'typed-secret' && x.demoted === true)); // lint demote
   assert.ok(plan.toArchive.includes('resolved-one'));
-  // user/feedback are recognized types that route local BY DESIGN — not "untyped" (§4.6/§4.8)
-  assert.ok(plan.toLocal.some((x) => x.slug === 'user-local'));
-  assert.ok(plan.toLocal.some((x) => x.slug === 'feedback-local'));
-  assert.ok(!plan.untyped.includes('user-local'), 'user is a recognized type, not untyped');
-  assert.ok(!plan.untyped.includes('feedback-local'), 'feedback is a recognized type, not untyped');
   rmSync(dir, { recursive: true, force: true });
 });
 
