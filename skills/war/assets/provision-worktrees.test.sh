@@ -1563,6 +1563,36 @@ expect "ED.1: git worktree list shows <path> on <branch>" \
   "war/myplan/p30-t1" "$(wt_on_branch "$RED1" "$WED1")"
 
 # ---------------------------------------------------------------------------
+# Case (MX.1) MARKER EXCLUDED: a freshly-provisioned worktree must NOT surface
+# .war-task as an untracked/addable path — write_marker adds it to the shared
+# common-dir info/exclude. A worker staging with `git add -A` would otherwise
+# track the marker; the tracked blob then collides with _refinery's own
+# untracked marker and aborts the refiner merge as a spurious conflict.
+# Asserts: (1) the marker file exists, (2) `git status --porcelain` does NOT
+# list it, and (3) `git add -A` does not stage it (nothing in the index names it).
+# Covers both the task worktree (ensure-worktree) and the refinery worktree
+# (ensure-refinery-worktree), which share the same common-dir exclude.
+# ---------------------------------------------------------------------------
+RMX1="$(new_repo)"
+git -C "$RMX1" branch integration/myplan/phase-40 HEAD
+TIPMX1="$(git -C "$RMX1" rev-parse integration/myplan/phase-40)"
+WMX1="$(new_wt_path)"
+run_in "$RMX1" ensure-worktree "$WMX1" war/myplan/p40-t1 "$TIPMX1" >/dev/null 2>&1
+expect "MX.1: .war-task marker exists in the fresh worktree" \
+  "yes" "$([ -f "$WMX1/.war-task" ] && echo yes || echo no)"
+expect "MX.1: .war-task does NOT surface in git status (excluded)" \
+  "" "$(git -C "$WMX1" status --porcelain | grep '\.war-task' || true)"
+git -C "$WMX1" add -A >/dev/null 2>&1
+expect "MX.1: git add -A does NOT stage .war-task" \
+  "" "$(git -C "$WMX1" diff --cached --name-only | grep '\.war-task' || true)"
+
+# Same guarantee for the refinery worktree.
+WMXR="$(new_wt_path)"
+run_in "$RMX1" ensure-refinery-worktree "$WMXR" integration/myplan/phase-40 >/dev/null 2>&1
+expect "MX.1: refinery .war-task does NOT surface in git status (excluded)" \
+  "" "$(git -C "$WMXR" status --porcelain | grep '\.war-task' || true)"
+
+# ---------------------------------------------------------------------------
 printf '\n%d/%d cases passed\n' "$((n - fails))" "$n"
 [ "$fails" -eq 0 ] || { printf '%d FAILED\n' "$fails"; exit 1; }
 echo "provision-worktrees.test.sh: PASS"

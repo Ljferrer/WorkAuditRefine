@@ -96,11 +96,34 @@ worktree_registered() {
   '
 }
 
+# exclude_line <exclude-file> <pattern> : append <pattern> to <exclude-file>
+# exactly once (idempotent), creating the file and its dir as needed and keeping
+# a clean line boundary if the file lacked a trailing newline.
+exclude_line() {
+  excl="$1"; pat="$2"
+  mkdir -p "$(dirname "$excl")"
+  [ -f "$excl" ] || : > "$excl"
+  grep -Fxq -- "$pat" "$excl" && return 0
+  if [ -s "$excl" ] && [ -n "$(tail -c 1 "$excl" 2>/dev/null)" ]; then
+    printf '\n' >> "$excl"
+  fi
+  printf '%s\n' "$pat" >> "$excl"
+}
+
 # write_marker <worktree-path> : drop the .war-task marker at the worktree root.
-# Idempotent; records minimal provenance for humans/auditors reading it.
+# Idempotent; records minimal provenance for humans/auditors reading it. Also
+# adds `.war-task` to the shared common-dir info/exclude so the marker never
+# surfaces in ANY linked worktree's `git status`/`git add -A` — a worker staging
+# with `git add -A` would otherwise track it, and the tracked blob collides with
+# _refinery's own untracked marker, aborting the refiner merge as a spurious
+# conflict. The exclude lives in the common dir, so one write covers every
+# worktree (task, refinery, and the main checkout) at once.
 write_marker() {
   printf 'WAR task worktree — provisioned by provision-worktrees.sh (do not delete).\nbranch=%s\n' \
     "${2:-}" > "$1/.war-task"
+  common="$(git -C "$1" rev-parse --git-common-dir 2>/dev/null)" || return 0
+  case "$common" in /*) ;; *) common="$1/$common" ;; esac   # resolve relative
+  exclude_line "$common/info/exclude" '.war-task'
 }
 
 # --- ownership --------------------------------------------------------------
@@ -199,20 +222,7 @@ cmd_ensure_integration() {
 # repo's `git status` (probe E2).
 cmd_ensure_exclude() {
   [ $# -eq 0 ] || die "ensure-exclude: unknown argument '$1' (usage: ensure-exclude  takes no arguments)"
-  gd="$(git_dir)"
-  info_dir="$gd/info"
-  excl="$info_dir/exclude"
-  mkdir -p "$info_dir"
-  [ -f "$excl" ] || : > "$excl"
-  if grep -Fxq -- '.claude/' "$excl"; then
-    return 0
-  fi
-  # Ensure we start the new entry on its own line even if the file lacked a
-  # trailing newline.
-  if [ -s "$excl" ] && [ -n "$(tail -c 1 "$excl" 2>/dev/null)" ]; then
-    printf '\n' >> "$excl"
-  fi
-  printf '%s\n' '.claude/' >> "$excl"
+  exclude_line "$(git_dir)/info/exclude" '.claude/'
 }
 
 # dir_is_empty <path> -> 0 if <path> is a directory with no entries (dotfiles
