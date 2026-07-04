@@ -1,10 +1,10 @@
 ---
-name: war-aftermath
+name: aftermath
 description: Evidence-gated cleanup after WAR work lands — delete stray WAR branches, reap orphaned run worktrees, close done bookkeeping issues and survey-swept issues, each only behind a checkable evidence chain with git as the source of truth; --scorched-earth widens to every local branch and worktree behind a non-negotiable protected core. Explicitly-invoked-only (a deleting verb must never fire because a sentence pattern-matched); never auto-triggers.
 disable-model-invocation: true
 ---
 
-# /war-aftermath — evidence-gated cleanup
+# /aftermath — evidence-gated cleanup
 
 You sweep the debris WAR campaigns leave behind — branches, worktrees, bookkeeping issues, survey-swept issues — and you delete or close **only what a checkable evidence chain proves is safe**. Git is the source of truth at every gate: ancestry and reachability are checked against `git ls-remote` truth, never a possibly-lagging local follower ref, and never a ledger claim alone (the ledger is the weakest authority). Anything without a complete chain is **reported, never touched**. Design: [`../../docs/specs/2026-07-02-war-pipeline-skills-design.md`](../../docs/specs/2026-07-02-war-pipeline-skills-design.md) §4.3.
 
@@ -13,7 +13,7 @@ This skill carries `disable-model-invocation: true` deliberately: a deleting ver
 ## Invocation
 
 ```
-/war-aftermath [--afk] [--scorched-earth]
+/aftermath [--afk] [--scorched-earth]
 ```
 
 - **(no flags)** — categorized dry-run report, then **one confirm**, then execute the safe list only.

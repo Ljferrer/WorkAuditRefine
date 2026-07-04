@@ -501,8 +501,8 @@ target is plan N-1's branch); assuming Mode A works overnight (it needs a human 
 **Survey manifest**:
 The uncommitted record a survey run leaves at `.claude/aot/YYYY-MM-DD-survey.json` under the **main
 checkout**: the specs it created, the issues each addresses, ordering hints, and a consumed stamp. The
-cross-session handoff from `/war-survey-corps` to `/war-machine`, and the first link in
-`/war-aftermath`'s swept-issue evidence chain. Retained after consumption; never committed.
+cross-session handoff from `/survey-corps` to `/war-machine`, and the first link in
+`/aftermath`'s swept-issue evidence chain. Retained after consumption; never committed.
 _Avoid_: survey ledger, spec index.
 
 **AI-Commander's Intent**:
@@ -513,7 +513,7 @@ heading *is* the provenance record.
 _Avoid_: synthetic intent (as a config value); treating it as operator-confirmed.
 
 **Scorched-earth sweep**:
-`/war-aftermath`'s opt-in widened mode: every local branch and worktree is a candidate and unmerged
+`/aftermath`'s opt-in widened mode: every local branch and worktree is a candidate and unmerged
 work is force-deleted after ⚠-flagging. Only the protected core is exempt.
 _Avoid_: deep clean, full cleanup (neither names the force-delete semantics).
 
