@@ -82,7 +82,9 @@ cd "$STAGING" && grep -rl "\[\[<slug>\]\]" . | grep -v '^./MEMORY.md'
 - **0–1 inbound refs, no durable residue** → safe to retire.
 - **≥ 2 inbound refs** → it is a **concept hub**. A memory can be dead as a *bug warning* yet load-bearing as a *concept anchor* that siblings cite as "same family as …". **Do not delete it.** Downgrade to `keep-compress`: shrink it to a one-line `**RESOLVED (instance) — kept as concept anchor.**` stub and keep its index row.
 
-Produce the final action plan: the bucketed table (keep / fix-anchor / compress / retire / merge), with the retire list and any hub-downgrades named explicitly.
+**`retire` and `merge` archive, they do not delete.** A surviving hub-downgrade runs **first** (a `keep-compress` stub is never archived). For every candidate that survives the downgrade check, the action is `war-memory archive <slug>` — the lesson leaves the hot set but stays queryable in `archive/`. Knowledge is archived, never deleted (Commander's Intent: *knowledge is archived, never deleted*). A `merge` also folds the source's residue into the target first (Phase 4), then archives the source with a `merged into [[target]]` note.
+
+Produce the final action plan: the bucketed table (keep / fix-anchor / compress / retire / merge), with the archive list and any hub-downgrades named explicitly.
 
 - **Report:** the plan table and the hub-downgrade decisions, so the user sees what is about to be removed (the backup makes it reversible, but surface it anyway).
 
@@ -93,16 +95,29 @@ Author a `Workflow` over the `keep-compress` + `fix-anchor` + `merge` items (bat
 - **Preserve frontmatter exactly** (`name`, all `metadata.*` including `provenance`, `tags`, `relates`, `created`, `originSessionId`). Touch only the body — except a `fix-anchor` may correct a wrong `files:`/path in frontmatter.
 - **`fix-anchor`:** re-anchor a drifted reference by **named construct** ("the `isHardGateEvidence` declaration in workflow-template.js"), **never a fresh line number** — line numbers rot (this repo's own `plan-line-number-refs-stale-use-construct-locator` lesson). Replace a stale quoted snippet with its current form.
 - **`keep-compress`:** trim to (a) the durable rule stated tightly, (b) a one-line "fixed/landed in `<ref>`" note, (c) surviving `[[cross-links]]` and `**Why:**`/`**How to apply:**`. Cut dated per-release logs, long code snapshots, multi-phase bookkeeping.
-- **`merge`:** fold the source's durable residue into the target (one sentence + a `relates` cross-link), then the source file is **deleted in Phase 5** (the editor does not delete it).
+- **`merge`:** fold the source's durable residue into the target (one sentence + a `relates` cross-link), then append a `merged into [[target]]` note to the source body. The source is **archived in Phase 5** (the editor does not archive it) — its content stays queryable in `archive/`.
 - **Illustrative wikilinks pollute the graph.** Never write a real-looking `[[lowercase-slug]]` as an *example* in prose or an index summary cell — verify counts it as a link/row. Use plain words ("inbound links") or a non-ascii placeholder.
 
 - **Report:** files edited, what was trimmed/re-anchored, and the new line counts of the biggest compressions.
 
-### 5 — Deletes, merge-source removal, index rewrite (in STAGING)
+### 5 — Archive, merge-source removal, index render (in STAGING)
 
-- Delete the confirmed `retire` files and the `merge` sources from `$STAGING` (`rm`).
-- **Fix every dangling link** the deletes create: in the surviving files, drop the `relates:` frontmatter entries that point at a deleted slug, and unlink or repoint its body `[[…]]` mentions. A pointer to a *deleted* file is rot — worse than a forward-ref to an unwritten one (which the convention permits).
-- Rewrite `$STAGING/MEMORY.md`: remove retired rows, tighten any summary cell that now exceeds ~150 chars (its detail lives in the compressed topic file), add rows for any restored hub or previously-unindexed file. Keep the existing table format and `[[slug]]` convention.
+- **Archive** the confirmed `retire` files and the `merge` sources — point the CLI at the staging root so the live dir stays untouched:
+
+  ```bash
+  node "${CLAUDE_PLUGIN_ROOT}/skills/_shared/war-memory.mjs" archive --local "$STAGING" <slug>...
+  ```
+
+  This appends an archive note, `mv`s each into `$STAGING/archive/` (the local root is not a git repo, so a plain move — no `git mv`), and stays queryable. It does **not** delete. A `[[wikilink]]` into `archive/` is legal (safe-swap treats it as resolved, not dangling), so leave inbound links to an archived slug in place.
+- **Fix only the frontmatter `relates:` entries** that point at an archived slug if you want the graph tidy — body `[[…]]` mentions may stay, since the target now lives in `archive/` and still resolves. (Contrast a true delete, which would orphan them — this pipeline no longer deletes.)
+- **Render the projection** — the final, authoritative index rewrite is generated, not hand-typed (the projection is derived from the files; a hand-authored `MEMORY.md` summary is normalised away at the next render):
+
+  ```bash
+  node "${CLAUDE_PLUGIN_ROOT}/skills/_shared/war-memory.mjs" render-index --local "$STAGING"
+  ```
+
+  `archive` already re-renders after each move, so an explicit `render-index` here is the belt-and-suspenders final projection. It regenerates `$STAGING/MEMORY.md` atomically (`.tmp` + rename), drops archived rows, and keeps the table format and `[[slug]]` convention. If it refuses on budget (above the hard axis), archive more low-tier/old lessons and re-render.
+- The staged copy of `war-memory-queries.jsonl` (the query log, if the corpus has one) **rides along inertly** in `$STAGING` — it is harmless in the swap and never indexed. Leave it; exclude it from the backup tarball only if backup size ever matters.
 
 ### 6 — Verify STAGING (the gate)
 
@@ -110,7 +125,7 @@ Author a `Workflow` over the `keep-compress` + `fix-anchor` + `merge` items (bat
 bash "${CLAUDE_PLUGIN_ROOT}/skills/lessons-learned/assets/safe-swap.sh" verify "$STAGING"
 ```
 
-It checks: every index row maps to a file (**hard fail**), every file is indexed (warn), no dangling wikilinks (warn — investigate any that point at a just-deleted slug), and `MEMORY.md` within budget (**hard fail** if over). **If it does not print `VERIFY: PASS`, do NOT swap** — fix `$STAGING` and re-verify. The live store is still pristine, so there is no rush.
+It checks: every index row maps to a file (**hard fail**; rows carrying the trailing `[repo]` marker are skipped — their files live in the repo root, not the staged local dir), every file is indexed (warn), no dangling wikilinks (warn — a link resolving into `archive/` is **not** dangling, so archived-slug links are fine; investigate only links to a slug that exists in neither the hot set nor `archive/`), and `MEMORY.md` within budget (**hard fail** if over). **If it does not print `VERIFY: PASS`, do NOT swap** — fix `$STAGING` and re-verify. The live store is still pristine, so there is no rush.
 
 ### 7 — Atomic swap + final report
 
@@ -143,7 +158,8 @@ If the run surfaced a reusable housekeeping insight, write it as a new memory in
 - **Re-anchoring to a fresh line number.** It will rot again. Anchor by named construct.
 - **Treating "the bug is fixed" as "stale".** That is `resolved` (compress, keep the rule), not `stale` (retire).
 - **Illustrative `[[slug]]` in examples.** Pollutes the link graph and the verify report. Don't write example wikilinks that look real.
-- **Swapping on a `VERIFY: FAIL` or warnings you didn't read.** A dangling link to a slug you just deleted is rot, not a forward-ref. Resolve it before committing.
+- **Deleting instead of archiving a `retire`/`merge`.** `rm` destroys knowledge; `war-memory archive <slug>` keeps it queryable. This pipeline archives — it never `rm`s a lesson.
+- **Swapping on a `VERIFY: FAIL` or warnings you didn't read.** A link into `archive/` is legal (cold links resolve); the real rot is a link to a slug in neither the hot set nor `archive/`. Resolve those before committing.
 
 ## Note on write gates
 
