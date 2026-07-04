@@ -261,10 +261,10 @@ It hardens each plan (`/red-team`), executes it (`/war … --afk`), stacks each 
 Run this sequence of commands:
 
 ```
-/survey-corps  # open issues → grouped design specs + survey manifest
+/survey-corps      # open issues → grouped design specs + survey manifest
 /war-machine       # specs → implementation plans + roadmap (interviews you lightly)
 /war-campaign docs/roadmaps/<date>-<slug>-roadmap.md
-/aftermath     # evidence-gated cleanup of branches, worktrees, issues
+/aftermath         # evidence-gated cleanup of branches, worktrees, issues
 ```
 
 Every step has an autonomous mode — `/war-machine --afk`, `/war-campaign` (unattended by default: it passes `--afk --ace` to each `/war` itself; there are no operator `--afk`/`--ace` flags on its own invocation), `/aftermath --afk` — so the sequence remains cron-able end to end (a nightly cron job or scheduled task). The clean-tree prerequisite is owned by `/war-machine --afk`'s closing commit: `/war` refuses a dirty tree, so the autonomous path cannot leave specs/plans/roadmap uncommitted.
