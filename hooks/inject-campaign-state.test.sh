@@ -5,10 +5,10 @@
 #
 # HERMETIC: every fixture is built under a fresh `mktemp -d` dir which we `cd`
 # into first. We do NOT rely on TMPDIR redirection — BSD mktemp ignores it
-# ([[bsd-mktemp-ignores-tmpdir-gnu-only]]). The hook is invoked with
-# CLAUDE_PROJECT_DIR pointed at each fixture root (env unset → cwd fallback is
-# exercised implicitly by the same code path; we pin the root explicitly so the
-# test never reads the developer's real ~/.claude).
+# ([[bsd-mktemp-ignores-tmpdir-gnu-only]]). Most cases invoke the hook with
+# CLAUDE_PROJECT_DIR pinned at each fixture root (so the test never reads the
+# developer's real ~/.claude). Case 10 covers the OTHER root-resolution branch:
+# env unset, root taken from the stdin `cwd` fallback (lines 33-34 of the hook).
 #
 # Each case asserts BOTH stdout content AND exit code.
 # Exit 0 (this script) = all cases passed; non-zero = at least one failed.
@@ -169,6 +169,24 @@ if jq -e . "$HJSON" >/dev/null 2>&1; then ok "case9 hooks.json parses with jq"; 
 # The SessionStart group with the compact|clear|resume matcher must reference our script.
 REG="$(jq -r '.hooks.SessionStart[]? | select(.matcher == "compact|clear|resume") | .hooks[].command' "$HJSON" 2>/dev/null)"
 assert_contains "case9 SessionStart(compact|clear|resume) → inject-campaign-state.sh" "$REG" "inject-campaign-state.sh"
+
+# ---------------------------------------------------------------------------
+# Case 10: cwd fallback — CLAUDE_PROJECT_DIR UNSET, root taken from stdin .cwd.
+#          Exercises hook lines 33-34 (the ${CLAUDE_PROJECT_DIR:-} else branch).
+#          Active campaign + state file → payload produced with the sentinel.
+# ---------------------------------------------------------------------------
+R10="$WORK/c10"; CDIR10="$R10/.claude/campaigns/camp-cwd"
+mk_ledger "$CDIR10" "camp-cwd" '[{"slug":"only","status":"queued"}]'
+CWD_SENT="ZZ-CWD-BODY-4444"
+printf '%s\n' "$CWD_SENT body line" > "$CDIR10/CAMPAIGN-STATE.md"
+# Invoke with env UNSET so root must resolve from the stdin cwd fallback.
+OUT10="$(env -u CLAUDE_PROJECT_DIR bash -c '
+  jq -nc --arg cwd "$1" "{\"cwd\":\$cwd,\"hook_event_name\":\"SessionStart\"}" | bash "$2"
+' _ "$R10" "$HOOK" 2>/dev/null)"; RC10=$?
+assert_eq       "case10 cwd fallback → exit 0" 0 "$RC10"
+CTX10="$(printf '%s' "$OUT10" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)"
+assert_contains "case10 cwd fallback → payload has body sentinel" "$CTX10" "$CWD_SENT"
+assert_contains "case10 cwd fallback → payload has campaign id" "$CTX10" "camp-cwd"
 
 # ---------------------------------------------------------------------------
 printf '\n%d/%d cases passed\n' "$((n - fails))" "$n"
