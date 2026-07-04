@@ -60,7 +60,7 @@
   | `.claude-plugin/plugin.json` | 1 | 1 | `"./skills/war-survey-corps"` → `"./skills/survey-corps"`, `"./skills/war-aftermath"` → `"./skills/aftermath"` |
   | `README.md` | 5 | 7 | pipeline-order line (~73), `### Turn issues into specs (\`/survey-corps\`)` heading + section body (~174–179), `### Clean up (\`/aftermath\`)` heading + section body incl. the scorched-earth warning (~214–224), pipeline block + afk paragraph (~261–267) |
   | `CONTEXT.md` | 1 | 2 | survey-manifest term (~504–505) and scorched-earth term (~516) |
-  | `skills/war-help/SKILL.md` | 2 | 2 | description + table rows; anchor links become `#turn-issues-into-specs-survey-corps` and `#clean-up-aftermath` (heading rename moves the anchors — links must move with them) |
+  | `skills/war-help/SKILL.md` | 3 | 3 | description + table cell + URL anchor; anchor links become `#turn-issues-into-specs-survey-corps` and `#clean-up-aftermath` (heading rename moves the anchors — links must move with them) |
   | `skills/war-machine/SKILL.md` | 0 | 2 | `/war-aftermath` → `/aftermath` in the evidence-chain and retained-manifest notes |
   | `skills/war-strategy/SKILL.md` | 1 | 0 | §5 closing offer → `/survey-corps` |
   | `war-pipeline-structure.test.sh` | 1 | 3 | `SURVEY=…/skills/survey-corps/SKILL.md`, `AFTERMATH=…/skills/aftermath/SKILL.md`; comment headers naming `war-aftermath` follow ([[source-comment-lags-emitted-prompt-after-rewrite]]) |

@@ -16,9 +16,9 @@ set -u
 # Repo root = two levels up from skills/war-machine/ .
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 
-SURVEY="$ROOT/skills/war-survey-corps/SKILL.md"
+SURVEY="$ROOT/skills/survey-corps/SKILL.md"
 MACHINE="$ROOT/skills/war-machine/SKILL.md"
-AFTERMATH="$ROOT/skills/war-aftermath/SKILL.md"
+AFTERMATH="$ROOT/skills/aftermath/SKILL.md"
 WAR_SKILL="$ROOT/skills/war/SKILL.md"
 SCAFFOLD="$ROOT/skills/red-team/assets/workflow-scaffold.js"
 LENSES="$ROOT/skills/red-team/references/lenses.md"
@@ -26,6 +26,10 @@ SCHEMAS="$ROOT/skills/war/references/schemas.md"
 DESIGN="$ROOT/skills/war/references/design.md"
 TEMPLATE="$ROOT/skills/war/assets/workflow-template.js"
 README="$ROOT/README.md"
+PLUGIN="$ROOT/.claude-plugin/plugin.json"
+CONTEXT="$ROOT/CONTEXT.md"
+WAR_HELP="$ROOT/skills/war-help/SKILL.md"
+WAR_STRATEGY="$ROOT/skills/war-strategy/SKILL.md"
 
 fails=0
 
@@ -37,6 +41,19 @@ has() { # file  literal
   else
     printf 'not ok - %s MISSING :: %s\n' "$(basename "$1")" "$2"
     fails=$((fails + 1))
+  fi
+}
+
+# grep -F fixed-string ABSENCE in a file (inverse of has()). Used by the rename criterion to
+# prove old skill-name tokens are gone from an EXPLICITLY ENUMERATED file list — never a
+# repo-root recursive grep ([[absence-guard-search-root-must-anchor-to-subtree]]). This test
+# file is deliberately NOT in that list: its own assertion args legitimately name the old tokens.
+lacks() { # file  literal
+  if grep -qF -e "$2" -- "$1"; then
+    printf 'not ok - %s UNEXPECTEDLY has :: %s\n' "$(basename "$1")" "$2"
+    fails=$((fails + 1))
+  else
+    printf 'ok - %s lacks :: %s (correct)\n' "$(basename "$1")" "$2"
   fi
 }
 
@@ -78,13 +95,13 @@ fm_lacks_key() { # file  key
   fi
 }
 
-printf '\n# Criterion 2 — disable-model-invocation only on war-aftermath (frontmatter, both forms)\n'
+printf '\n# Criterion 2 — disable-model-invocation only on aftermath (frontmatter, both forms)\n'
 fm_has_key  "$AFTERMATH" 'disable-model-invocation'
 fm_lacks_key "$SURVEY"   'disable-model-invocation'
 fm_lacks_key "$MACHINE"  'disable-model-invocation'
 
 printf '\n# Criterion 3 — "dangerously destructive" tied to --afk + --scorched-earth in BOTH surfaces\n'
-# war-aftermath SKILL.md: the combo is named dangerously destructive AND both flags co-occur.
+# aftermath SKILL.md: the combo is named dangerously destructive AND both flags co-occur.
 has "$AFTERMATH" 'dangerously destructive'
 has "$AFTERMATH" '--afk --scorched-earth'
 # README: same combo + phrase (criterion 3's README half).
@@ -125,6 +142,26 @@ has "$MACHINE" 'skipped and reported'
 has "$MACHINE" '+ no fresh manifest + no explicit paths'
 has "$MACHINE" 'closing commit'
 has "$MACHINE" 'one commit of the pipeline artifacts'
+
+printf '\n# Rename — pipeline-edge skills are /survey-corps and /aftermath (paired presence + absence)\n'
+# Presence: the new names live where they must. Frontmatter name: on both renamed skills;
+# plugin.json skills array carries the new dir paths; README carries both command tokens;
+# war-help carries both renamed README anchors.
+has "$SURVEY"   'name: survey-corps'
+has "$AFTERMATH" 'name: aftermath'
+has "$PLUGIN"   './skills/survey-corps'
+has "$PLUGIN"   './skills/aftermath'
+has "$README"   '`/survey-corps`'
+has "$README"   '`/aftermath`'
+has "$WAR_HELP" 'turn-issues-into-specs-survey-corps'
+has "$WAR_HELP" 'clean-up-aftermath'
+# Absence: the OLD tokens are gone from an EXPLICITLY ENUMERATED live-surface list (never a
+# repo-root recursive grep — [[absence-guard-search-root-must-anchor-to-subtree]]). This test
+# file is intentionally excluded: its own assertion args above legitimately carry the old names.
+for f in "$README" "$CONTEXT" "$PLUGIN" "$SURVEY" "$AFTERMATH" "$WAR_HELP" "$MACHINE" "$WAR_STRATEGY"; do
+  lacks "$f" 'war-survey-corps'
+  lacks "$f" 'war-aftermath'
+done
 
 printf '\n== war-pipeline-structure: %s failure(s) ==\n' "$fails"
 exit $fails

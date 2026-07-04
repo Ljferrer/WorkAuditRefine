@@ -64,7 +64,7 @@ file footprints of the plans already authored (honest contention).
    decision is **skipped and reported**, never stalled on.
 4. **Write the plan** to `docs/plans/YYYY-MM-DD-<slug>.md` (**no `-plan` suffix** — matching the
    entire existing corpus), citing its source spec path near the top — the `docs/specs/…` line
-   `/red-team` step 1 greps for, and the third link in `/war-aftermath`'s swept-issue evidence
+   `/red-team` step 1 greps for, and the third link in `/aftermath`'s swept-issue evidence
    chain (issue → spec → plan → PR).
 
 ## 3. After the last spec
@@ -74,7 +74,7 @@ file footprints of the plans already authored (honest contention).
    actual plan `Files:` footprints; shared-file contention table from those same footprints.
 2. **Stamp the manifest consumed** — consumed-stamp semantics: replace `consumed: null` with
    `{ "by": "war-machine", "at": "<ISO 8601>", "plans": { "<spec path>": "<plan path>" } }`.
-   Consumed manifests are **retained, never deleted** — `/war-aftermath` reads the
+   Consumed manifests are **retained, never deleted** — `/aftermath` reads the
    issue↔spec↔plan chain to close swept issues later.
 3. **`--afk` closing commit:** close with **one commit of the pipeline artifacts** — the specs it
    consumed, its plans, the roadmap — onto the current branch (operator-ratified). `/war` refuses
