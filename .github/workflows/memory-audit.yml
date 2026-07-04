@@ -12,6 +12,10 @@ on:
       - 'skills/_shared/war-memory.mjs'
       - '.github/workflows/memory-audit.yml'
 
+# Read-only linter: never writes, comments, or pushes. Least-privilege.
+permissions:
+  contents: read
+
 jobs:
   redaction-lint:
     runs-on: ubuntu-latest
