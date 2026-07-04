@@ -208,7 +208,10 @@ basing the next plan off fresh `master`.
 
 **`/war-campaign` never auto-invokes** — you must run it explicitly. A plan that can't be hardened or hard-halts
 **halts the whole campaign** (halt-and-hold) rather than letting later plans build on incomplete work; every
-plan below the failure has already landed as its own stacked PR, merged **bottom-up**. Design notes:
+plan below the failure has already landed as its own stacked PR, merged **bottom-up**. To ride out overnight
+context compaction, the Lead keeps a write-ahead `CAMPAIGN-STATE.md` resume brief current before each long
+wait, and a campaign-gated `SessionStart(compact|clear|resume)` hook re-injects it into the fresh window so
+the campaign re-anchors where it left off. Design notes:
 [`docs/specs/2026-07-01-war-companion-skills-design.md`](docs/specs/2026-07-01-war-companion-skills-design.md#7-war-campaign--the-hopper).
 
 ### Clean up (`/aftermath`)
