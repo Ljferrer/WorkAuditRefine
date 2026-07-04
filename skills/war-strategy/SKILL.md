@@ -139,6 +139,6 @@ ship this **HANDOFF DIRECTIVE** with the route — the authoring skill executes 
 
 ## 5. Closing offer
 
-Optionally point at `/war-survey-corps` — the pipeline's survey step: it inspects open issues, clusters
+Optionally point at `/survey-corps` — the pipeline's survey step: it inspects open issues, clusters
 them, and synthesizes war-shaped specs into `docs/specs/`, optionally seeded by `ponytail-audit` or
 `ecc:repo-scan` as *optional* seeds, never a hard dependency.

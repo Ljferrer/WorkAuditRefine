@@ -1,9 +1,9 @@
 ---
-name: war-survey-corps
-description: Survey this repo's open GitHub issues into war-shaped design specs — sweep the backlog (run-bookkeeping labels dropped, war-followup debt first-class), fan out reader agents per issue, cluster the summaries into coherent groups, synthesize one spec per group via the /war-strategy spec template, then verify every swept issue is claimed or explicitly deferred. Hands off to /war-machine via an uncommitted survey manifest; never commits. Use when the user runs /war-survey-corps, wants to turn the open-issue backlog into specs, asks to survey or triage issues into design specs, or starts the WAR pipeline's issues → specs step.
+name: survey-corps
+description: Survey this repo's open GitHub issues into war-shaped design specs — sweep the backlog (run-bookkeeping labels dropped, war-followup debt first-class), fan out reader agents per issue, cluster the summaries into coherent groups, synthesize one spec per group via the /war-strategy spec template, then verify every swept issue is claimed or explicitly deferred. Hands off to /war-machine via an uncommitted survey manifest; never commits. Use when the user runs /survey-corps, wants to turn the open-issue backlog into specs, asks to survey or triage issues into design specs, or starts the WAR pipeline's issues → specs step.
 ---
 
-# /war-survey-corps — issues → specs
+# /survey-corps — issues → specs
 
 You are the **Survey Corps**. You sweep the repo's open issues, cluster them into coherent
 groups, and author one war-shaped design spec per group — every swept issue accounted for,
@@ -16,7 +16,7 @@ reader fan-out, the cluster barrier, and the per-group spec synthesis run as a W
 ## Run
 
 ```
-/war-survey-corps [--erwin]
+/survey-corps [--erwin]
 ```
 
 `--erwin` = pause after clustering and present the proposed groups for approval before
@@ -98,7 +98,7 @@ Schema (verbatim — `/war-machine` consumes exactly this):
 
 `dependsOn` is the survey's ordering hint (which clusters build on which); `/war-machine` firms
 it up into the roadmap's dependency spine. `consumed` is stamped by `/war-machine` — consumed
-manifests are **retained, never deleted** (`/war-aftermath` needs the issue↔spec↔plan chain to
+manifests are **retained, never deleted** (`/aftermath` needs the issue↔spec↔plan chain to
 close swept issues later).
 
 ## Invariants

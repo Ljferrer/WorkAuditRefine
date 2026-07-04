@@ -1,6 +1,6 @@
 ---
 name: war-help
-description: Print the WAR orientation card — what WAR is, the command set (/war-strategy → /war-room → /red-team → /war → /war-campaign, the /war-survey-corps → /war-machine → /war-campaign → /war-aftermath pipeline, plus /lessons-learned), the five roles, how a run flows, and prerequisites — with links into the full docs. Use when the user is new to WAR, seems confused about it, or asks "what is WAR" / "how do I run WAR" / "how does this work".
+description: Print the WAR orientation card — what WAR is, the command set (/war-strategy → /war-room → /red-team → /war → /war-campaign, the /survey-corps → /war-machine → /war-campaign → /aftermath pipeline, plus /lessons-learned), the five roles, how a run flows, and prerequisites — with links into the full docs. Use when the user is new to WAR, seems confused about it, or asks "what is WAR" / "how do I run WAR" / "how does this work".
 ---
 
 # /war-help — the orientation card
@@ -19,10 +19,10 @@ You print a short orientation card, then stop. You never decompose a plan, spawn
 | `/war-room` | configure a run ([`../../README.md`](../../README.md#configure-a-run-war-room)) |
 | `/red-team` | harden a plan before execution ([`../../README.md`](../../README.md#harden-a-plan-red-team)) |
 | `/war` | execute a plan ([`../../README.md`](../../README.md#go-to-war-war)) |
-| `/war-survey-corps` | sweep open issues into war-shaped specs ([`../../README.md`](../../README.md#turn-issues-into-specs-war-survey-corps)) |
+| `/survey-corps` | sweep open issues into war-shaped specs ([`../../README.md`](../../README.md#turn-issues-into-specs-survey-corps)) |
 | `/war-machine` | convert specs to plans + a roadmap, hand off to the campaign ([`../../README.md`](../../README.md#turn-specs-into-plans-war-machine)) |
 | `/war-campaign` | run a queue of plans unattended — **never auto-invokes** ([`../../README.md`](../../README.md#run-a-campaign-war-campaign)) |
-| `/war-aftermath` | evidence-gated post-campaign cleanup — **never auto-invokes** ([`../../README.md`](../../README.md#clean-up-war-aftermath)) |
+| `/aftermath` | evidence-gated post-campaign cleanup — **never auto-invokes** ([`../../README.md`](../../README.md#clean-up-aftermath)) |
 | `/lessons-learned` | tidy captured memory ([`../../README.md`](../../README.md#tidy-the-memory-lessons-learned)) |
 | `/war-help` | this card |
 
