@@ -102,9 +102,9 @@ A task reaches the refiner with exactly one terminal **outcome**. Two are produc
 ```jsonc
 { phase, target: "<learnings target path>",
   files_written: ["path"],
-  learnings: [ { title, why } ],
-  memory_index_updated: true }   // true if MEMORY.md (or docs/learnings index) was updated
+  learnings: [ { title, why } ] }
 ```
+`memory_index_updated` is **retired** (spec §4.6): the servitor no longer maintains `MEMORY.md` — the index is a generated projection the Lead regenerates with `war-memory render-index` after the servitor returns (Gate 2). The servitor writes lesson files only.
 The servitor writes ONLY under `learningsTarget` (confinement is the capability allowlist — no Bash, only Read/Grep/Glob/Write/Edit — so its sole write path is Write/Edit; the PreToolUse scope hook then gates those by `agent_type` to the learnings path-pattern `*/.claude/projects/*/memory/*` or `*/docs/learnings/*`, [ADR 0002](../../../docs/adr/0002-scope-by-agent-type.md)); it never touches source, branches, PRs, or issues.
 
 ## ScoutResult — `war-setup-scout` (once, before provisioning)
@@ -166,7 +166,12 @@ Produced by `/war-room`, consumed by `/war`'s Setup. The schema, defaults, prese
 // Use rosterPolicy:"solo" (economy preset) for cost-sensitive runs — one seat at neighbors depth.
 // Legacy keys covenSize/lenses/covenPolicy FAIL validation with a courtesy error naming the key —
 // run /war-room to regenerate the config (D3: no shims, no accepted-but-ignored keys).
-  run: { roundLimit, afk },                  // roundLimit >= 1; afk = default for /war --afk
+  run: { roundLimit, afk, ace, provision, provisionSource, provisionAuto },
+                                             // roundLimit >= 1; afk = default for /war --afk;
+                                             // ace = pre-merge auto-fix of absorb-disposition nits (default true; economy preset false);
+                                             // provision = ordered worktree-prep commands ([] = none); provisionSource ∈ explicit|manifest|ci|onboarding|structural|none;
+                                             // provisionAuto = let /war-room scout provisioning when no explicit list (default true)
+  memory: { retrieval, topK, commitLearnings },  // retrieval: Lead prefetches per-seat prior-lesson blocks (bool, default true); topK: max lessons/block (int >= 1, default 10); commitLearnings: write the repo-root docs/learnings projection (bool, default false — most repos keep learnings local-only)
   overrides: { gate, workingBranch, landingBranch, learningsTarget } }  // null = let /war auto-detect
 // overrides.gate is the *declared base* command (string|null); the *resolved* gate run by agents
 // is a self-discovering string produced by war-config.mjs resolveGate(declaredGate): it appends
@@ -183,6 +188,8 @@ These reach the per-phase Workflow as `args.agents`, `args.audit`, `args.run` (t
 Optional `agentPrefix` (default `"work-audit-refine:"`) — the template auto-namespaces every `agentType` seat under this prefix via `const NS = args.agentPrefix ?? 'work-audit-refine:'`. Pass a different string to override; the Lead no longer needs manual namespacing workarounds.
 
 Optional `intent` (string|null, ADR 0013) — the plan's `## Commander's Intent` or `## AI-Commander's Intent` section (either heading), extracted **verbatim** by the Lead (never Lead-invented — `/war-machine --afk` is the sole authoring surface allowed to author intent, ADR 0014; neither section present → `null`). When present it is threaded into the worker, auditor, ace/sweep, gate-audit, and servitor prompts as the ceiling over the plan-slice floor. `null`/absent ⇒ every prompt is **byte-identical** to an intent-less run — literal behavior. Companion field `phase.endState` (string[]) carries the intent's End-state conditions **this phase claims** (Lead-mapped); the gate-audit pass checks them at the confirmed tip (later-phase conditions are out-of-scope there, never a hold).
+
+Optional `memory` (spec §4.5) — the Lead's per-phase prior-lesson prefetch, shaped `{ byTask: { <task-id>: { worker, seats: { <lens>: block } } }, servitor }`, where each `block` is the `war-memory query` CLI's ready-to-inject text. Threaded like `intent`: the template concatenates a `memoryClause` at the worker, auditor, fix-worker, add-test, and servitor spawn sites (ace / gate-audit / polish-sweep get none). An empty/absent map ⇒ every prompt is **byte-identical** to a memory-less run. Retrieval fails open — a missing `memory` is never an error.
 
 Auditors receive the **absolute `task.worktree` path** so they can `Read` candidate files directly in the task's isolated checkout rather than the main repo tree.
 

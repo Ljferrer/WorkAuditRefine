@@ -30,7 +30,7 @@ You print a short orientation card, then stop. You never decompose a plan, spawn
 
 **4. How a run flows** — 5 beats: decompose+approve → work → audit → refine+land per phase → one PR. See [`../../README.md`](../../README.md#go-to-war-war).
 
-**5. Prerequisites** — a clean working tree, `gh` authenticated, and a gate command WAR can detect or you can supply. See [`../../README.md`](../../README.md#install).
+**5. Prerequisites** — a clean working tree, `gh` authenticated, and a gate command WAR can detect or you can supply. See [`../../README.md`](../../README.md#install). *(Optional: the compounding-**memory** features — per-phase prior-lesson prefetch + `commitLearnings` publication — use a zero-dep Node ≥ 24 CLI; on older Node they no-op and the run is unaffected. See [`../../README.md`](../../README.md#tidy-the-memory-lessons-learned).)*
 
 **6. Go deeper.**
 - "How does auditing work in detail?" → [`../war/references/design.md`](../war/references/design.md).
