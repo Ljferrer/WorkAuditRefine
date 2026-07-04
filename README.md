@@ -208,7 +208,10 @@ basing the next plan off fresh `master`.
 
 **`/war-campaign` never auto-invokes** — you must run it explicitly. A plan that can't be hardened or hard-halts
 **halts the whole campaign** (halt-and-hold) rather than letting later plans build on incomplete work; every
-plan below the failure has already landed as its own stacked PR, merged **bottom-up**. Design notes:
+plan below the failure has already landed as its own stacked PR, merged **bottom-up**. To ride out overnight
+context compaction, the Lead keeps a write-ahead `CAMPAIGN-STATE.md` resume brief current before each long
+wait, and a campaign-gated `SessionStart(compact|clear|resume)` hook re-injects it into the fresh window so
+the campaign re-anchors where it left off. Design notes:
 [`docs/specs/2026-07-01-war-companion-skills-design.md`](docs/specs/2026-07-01-war-companion-skills-design.md#7-war-campaign--the-hopper).
 
 ### Clean up (`/aftermath`)
@@ -307,7 +310,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.14.1** — Pipeline-edge skill renames — the survey-corps and aftermath skills drop their `war-` prefix, so the commands are now `/survey-corps` and `/aftermath` (pure rename, zero behavior change). Every live reference, both README anchors, and the pipeline structure test were updated; historical `docs/` is untouched.
+**0.14.2** — Campaign compaction survival — `CAMPAIGN-STATE.md` is codified as a write-ahead checkpoint (the Lead rewrites it before every long-wait dispatch and at each plan boundary), and a campaign-gated `SessionStart(compact|clear|resume)` hook re-injects it into a fresh window after compaction. Self-triggered compaction is rejected (see ADR 0016); the hook is silent in any session that isn't running a campaign.
 
 ## License
 

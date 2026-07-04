@@ -496,6 +496,27 @@ each plan boundary.
 _Avoid_: pointing every stacked PR at master (cumulative diffs → shared-doc conflicts — the stacked PR
 target is plan N-1's branch); assuming Mode A works overnight (it needs a human merging each PR).
 
+**Write-ahead checkpoint**:
+The discipline of updating the resume brief (**CAMPAIGN-STATE.md**) *before* dispatching the thing you'll
+wait on — each `/red-team` launch, each `/war` phase, each `--wait-for-merge` wait, and every plan boundary.
+Freshness never depends on when compaction fires: the brief already describes *now* before the Lead blocks.
+_Avoid_: writing the checkpoint *after* the wait (compaction can strike mid-wait); treating it as
+code-enforced (it is a Lead prompt directive — the code-enforced half is **Post-compact re-injection**).
+
+**CAMPAIGN-STATE.md**:
+The Lead's curated, uncommitted resume brief — a sibling of the ledger at `.claude/campaigns/<id>/`,
+plain markdown, single-writer — carrying queue status, in-flight run/task ids, the continuation sequence,
+and gotchas so a fresh context can resume from *now*.
+_Avoid_: treating it as the authority — it is a brief *toward* git truth, not the ledger (resume still
+reconciles toward git per the ADR 0008 discipline).
+
+**Post-compact re-injection**:
+The campaign-gated `SessionStart(compact|clear|resume)` hook that restores **CAMPAIGN-STATE.md** into a
+fresh window after compaction — the code-enforced half of survival (paired with the **Write-ahead
+checkpoint** prompt directive). Silent and harmless in any session not running a campaign.
+_Avoid_: `PreCompact` blocking or summary-shaping to steer compaction — rejected (no trigger, no sensor,
+blocking rides into the ceiling); see the ADR.
+
 ### Pipeline (outer loop)
 
 **Survey manifest**:
