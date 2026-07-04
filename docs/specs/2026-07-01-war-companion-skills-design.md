@@ -212,8 +212,11 @@ file; the contention check orders the queue or refuses (§7.2). Passes `--afk --
    (plan 1 lands to `master`).
 5. **Record.** `record` the outcome (branch / PR# / landed SHA / status) into the campaign ledger — atomic
    temp+rename, so a laptop-close mid-write never corrupts the queue.
-6. **Context hygiene.** Bundled **checkpoint-and-compact** at the boundary (ledger already durable → built-in
-   `/compact`).
+6. **Context hygiene.** The Lead keeps the resume brief current with a **write-ahead checkpoint**
+   (`CAMPAIGN-STATE.md` rewritten *before* every long wait and at each plan boundary); compaction itself
+   stays with the harness (user- or auto-triggered — the model can't fire it), and the
+   `SessionStart(compact|clear|resume)` hook re-injects the checkpoint into the fresh window
+   ([ADR 0016](../adr/0016-campaign-compaction-survival.md)).
 7. **Loop.** Next plan.
 
 ### 7.2 State & resume (feature #5, done by architecture)
@@ -230,10 +233,12 @@ file; the contention check orders the queue or refuses (§7.2). Passes `--afk --
 - **Roadmap** = authoring input + on-demand snapshot (Rev 1). `init` ingests one; *"I'm switching machines"*
   → the Lead renders the ledger out as a committable roadmap, and the new machine `init`s from it.
   Render/ingest beyond `init` is agent prose, not helper code.
-- **Resume** re-reads ledger + inbox and continues — the real guarantee. On resume the Lead **reconciles the
-  ledger toward git** (`git ls-remote`, `gh pr view`) before trusting it — the ADR 0008 discipline.
-  `strategic-compact` behavior is **bundled** (no ECC dependency); if the window still fills mid-plan,
-  `/clear` + re-invoke resumes.
+- **Resume** re-reads ledger + inbox + `CAMPAIGN-STATE.md` and continues — the real guarantee. On resume the
+  Lead **reconciles the ledger toward git** (`git ls-remote`, `gh pr view`) before trusting it — the ADR 0008
+  discipline. The Lead maintains `CAMPAIGN-STATE.md` (a sibling of the ledger, uncommitted) as a
+  **write-ahead checkpoint** — rewritten *before* each long wait so a fresh window can resume from *now*
+  regardless of when compaction fired ([ADR 0016](../adr/0016-campaign-compaction-survival.md)); if the
+  window fills mid-plan, `/clear` + re-invoke resumes.
 
 ### 7.3 Failure & feed
 
@@ -269,8 +274,12 @@ Four terms were added to `CONTEXT.md` during the design grill; Rev 1 revised two
 
 ## 10. Open risks / implementation notes
 
-- **Programmatic self-`/compact` may be limited.** The harness doesn't guarantee a skill can compact its own
-  window under a hard ceiling. Mitigation baked in: **resume is the guarantee, compaction is best-effort.**
+- **Programmatic self-`/compact` may be limited.** *(RESOLVED — [campaign compaction survival
+  spec](2026-07-03-campaign-compaction-survival.md), [ADR 0016](../adr/0016-campaign-compaction-survival.md).)*
+  The model can't trigger its own compaction and can't sense the context %, so self-compaction is rejected;
+  survival is instead a **write-ahead `CAMPAIGN-STATE.md` checkpoint** plus deterministic re-injection via a
+  campaign-gated `SessionStart(compact|clear|resume)` hook. Resume stays the guarantee; the hook re-anchors
+  the fresh window.
 - **GitHub PR retarget-on-delete** is the mechanism the bottom-up merge relies on. Verify it in `/red-team`
   (it's standard behavior, but the campaign's final report should still spell out the exact merge order).
 - **Every queue entry point must apply the contention analysis (§6.2)** — `init` and `sweep` both run the
