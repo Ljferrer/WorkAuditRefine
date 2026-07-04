@@ -24,6 +24,9 @@ export const meta = {
 //     intent,                         // Commander's Intent, extracted VERBATIM by the Lead from the plan's
 //                                     // `## Commander's Intent` OR `## AI-Commander's Intent` section (either
 //                                     // heading; string|null; null/absent ⇒ literal behavior, ADR 0013)
+//     memory: { byTask: {<id>: {worker, seats: {<lens>: block}}}, servitor },  // Lead-prefetched prior-lesson
+//                                     // blocks (spec §4.5), threaded like intent; concatenated at the worker/
+//                                     // auditor/fix-worker/add-test/servitor sites. Empty/absent ⇒ byte-identical.
 //     agentPrefix,                    // optional namespace prefix for agent types (default: 'work-audit-refine:')
 //     agents: { worker|auditor|refiner|servitor: { model, effort } },  // from .claude/war/config.json (resolved by the Lead); defaults below
 //     audit:  { roster, rosterPolicy, autoEscalate },                  // rosterPolicy 'auto' = Lead composes each task.roster from the catalog (Lead-side); audit.roster is the widening FALLBACK roster (auditor-nominated-or-default, D4); autoEscalate used here
@@ -62,10 +65,11 @@ const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties:
   conflict_files: { type: 'array' }, gate_output: { type: 'string' },
   pr_number: { type: 'number' }, pr_remote: { type: 'string' } } }
 
+// memory_index_updated retired (spec §4.6, D4 deleted): the servitor no longer maintains the index —
+// the Lead runs `render-index` post-servitor (Gate 2). The servitor only writes/updates lesson files.
 const SERVITOR_RESULT = { type: 'object', required: ['phase', 'target', 'learnings'], properties: {
   phase: {}, target: { type: 'string' }, files_written: { type: 'array' },
-  learnings: { type: 'array', items: { type: 'object', properties: { title: { type: 'string' }, why: { type: 'string' } } } },
-  memory_index_updated: { type: 'boolean' } } }
+  learnings: { type: 'array', items: { type: 'object', properties: { title: { type: 'string' }, why: { type: 'string' } } } } } }
 
 // Per-task provision-run result (Part B). The refiner runs the pinned run.provision list inside the
 // task worktree: ok:true when every step exits 0; otherwise the env-blocked task-outcome shape from
@@ -88,6 +92,20 @@ const intent = (typeof A.intent === 'string' && A.intent) ? A.intent : null
 const intentClause = intent
   ? `\nCOMMANDER'S INTENT (the operator's purpose — your ceiling; the plan slice is your floor):\n${intent}\n`
   : ''
+// Prior-lessons memory (spec §4.5): the Lead prefetches per-seat lesson blocks (one batched
+// `war-memory query --queries` invocation at phase launch) and threads a map here as args.memory —
+// `{ byTask: {<id>: {worker, seats: {<lens>: block}}}, servitor }`. The template FOLLOWS the
+// intentClause threading pattern: concatenate a memoryClause at the worker, auditor, fix-worker,
+// add-test and servitor spawn sites. ace / gate-audit / polish-sweep get NONE (their input is a
+// specific finding or an executed gate output, not a fresh implementation problem). Each `block` is
+// the CLI's ready-to-inject text; an empty/absent block ⇒ '' ⇒ the prompt is byte-identical to a
+// memory-less run (criterion 10). Retrieval fails open: a missing map is not an error.
+const memory = (A.memory && typeof A.memory === 'object') ? A.memory : {}
+const memoryByTask = (memory.byTask && typeof memory.byTask === 'object') ? memory.byTask : {}
+const memClause = block => (typeof block === 'string' && block) ? `\n${block}\n` : ''
+const workerMemClause = taskId => memClause((memoryByTask[taskId] || {}).worker)
+const auditorMemClause = (taskId, lens) => memClause(((memoryByTask[taskId] || {}).seats || {})[lens])
+const servitorMemClause = () => memClause(memory.servitor)
 // Phase-scoped End-state claims (ADR 0013): the intent's numbered End-state conditions THIS phase
 // claims (Lead-mapped). Verified by the gate-audit pass; a later-phase condition is out-of-scope
 // there, never a hold.
@@ -291,6 +309,11 @@ const depClause = task => ((task.deps || []).length > 0 && task.taskType !== 'gi
 const workerIntentClause = intent
   ? intentClause + `Use the intent to resolve ambiguity in your slice; intent-consistent deviation is in-band — note it in your result.\n`
   : ''
+// Worker self-query line (spec §4.5): workers alone gain a standing license to query the memory CLI
+// mid-task when they hit something unfamiliar (they have Bash; no other role gains anything). ONE
+// canonical sentence, mirrored in agents/war-worker.md (standing surface) — always present (not
+// intent/memory-gated), so it does NOT threaten the byte-identical-empty-map property.
+const WORKER_MEMORY_SELF_QUERY_LINE = `\nYou MAY run \`node <plugin>/skills/_shared/war-memory.mjs query '<terms>'\` mid-task when you hit something unfamiliar — its only side-effect is a query-log append in the local memory root, and it never writes a lesson.\n`
 
 function auditPrompt(task, lens, depth, peers, workerTests) {
   let p = `Audit WAR task ${task.id} through the "${lens}" lens at depth ${depth}.\n`
@@ -304,7 +327,7 @@ function auditPrompt(task, lens, depth, peers, workerTests) {
     // surface, same commit); the both-surfaces unit test asserts the shared sentences on both.
     + `\nLATITUDE RULE: the plan slice is the floor, the Commander's Intent is the ceiling — intent-consistent work beyond the literal slice is APPROVE (judge it on its own correctness), never a plan-faithfulness violation; only deviations that contradict the intent or the slice block. No intent threaded means judge against the plan slice alone, as before.`
     + `\nDISPOSITION RULE: every Minor/Nit finding carries a disposition — absorb (mechanical, intent-consistent, safe to fix this phase; set phaseClose:true when the fix needs the integrated tip or touches a shared/slot-adjacent file), follow-up (substantive work beyond this phase — MUST state why it is not absorbable), or note (informational; phase report + servitor feed, never an issue). Omitted disposition defaults: Minor becomes follow-up, Nit becomes note; absorb is never a default.`
-    + intentClause
+    + intentClause + auditorMemClause(task.id, lens)
   if (workerTests) {
     p += `\n\nWorker-reported tests summary (cross-check claim vs diff): ${JSON.stringify(workerTests)}`
   }
@@ -437,7 +460,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       depClause(task)
       + `Implement WAR task ${task.id} in the ALREADY-PROVISIONED worktree at ${task.worktree} (branch ${task.branch}, cut from ${ph.integrationBranch}).\n`
       + `The refiner's Provision barrier already created this worktree and its .war-task marker — do NOT create it yourself and do NOT set any worktree env var. cd into ${task.worktree} and work only inside it; commit and push ${task.branch}.\n`
-      + `Sub-issue #${task.issue} — ${task.title}\nPlan slice: ${task.planSlice}\nPlan file: ${plan.file}\nGate: ${plan.gate}${workerIntentClause}${provisionClause}${workerExtraCtx}`,
+      + `Sub-issue #${task.issue} — ${task.title}\nPlan slice: ${task.planSlice}\nPlan file: ${plan.file}\nGate: ${plan.gate}${workerIntentClause}`
+      + WORKER_MEMORY_SELF_QUERY_LINE + workerMemClause(task.id) + provisionClause + workerExtraCtx,
       { agentType: NS + 'war-worker', phase: 'Work', label: `work:${task.id}`, schema: WORKER_RESULT, ...spawn('worker') })
 
     const why = blockedReason(impl); if (why) return { task, verdict: 'escalate', seats: [], expected: 0, blocked: why }
@@ -472,7 +496,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       const fix = await agent(
         `FIX_NEEDED for WAR task ${task.id}. Work in the ALREADY-PROVISIONED worktree at ${task.worktree} (branch ${task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
         + `Resolve ALL of these blocking findings, keep the gate green, commit and push:\n`
-        + b.map((f, i) => `${i + 1}. [${f.severity}] ${f.title} (${f.file}${f.line ? ':' + f.line : ''}) — ${f.rationale}${f.suggested_fix ? ` → ${f.suggested_fix}` : ''}`).join('\n') + provisionClause,
+        + b.map((f, i) => `${i + 1}. [${f.severity}] ${f.title} (${f.file}${f.line ? ':' + f.line : ''}) — ${f.rationale}${f.suggested_fix ? ` → ${f.suggested_fix}` : ''}`).join('\n')
+        + workerMemClause(task.id) + provisionClause,
         { agentType: NS + 'war-worker', phase: 'Audit', label: `fix:${task.id}:r${round + 1}`, schema: WORKER_RESULT, ...spawn('worker') })
       const fixWhy = blockedReason(fix); if (fixWhy) { verdict = 'escalate'; blocked = fixWhy; break }
       round++
@@ -621,7 +646,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             `ADD_TEST for WAR task ${r.task.id}. The refiner's merge-task check (assert-test-in-diff.sh) found no test file in the diff. `
             + `Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
             + `Add a mapped test for this task (the test must exercise the slice described in: ${r.task.planSlice}), keep the gate green, commit and push.`
-            + provisionClause,
+            + workerMemClause(r.task.id) + provisionClause,
             { agentType: NS + 'war-worker', phase: 'Audit', label: `add-test:${r.task.id}:r${r.task.fixRounds + 1}`, schema: WORKER_RESULT, ...spawn('worker') })
           const addFixWhy = blockedReason(addFix)
           if (addFixWhy) {
@@ -996,14 +1021,13 @@ if (landResult && landResult.status === 'landed' && learningsTarget) {
     + `Audit log (verdicts + findings): ${JSON.stringify(auditLog)}\n`
     + `Escalations: ${JSON.stringify(escalated)}\n`
     + `Noted findings (disposition 'note' — MEMORY CANDIDATES, not issues; weigh each against the admission checklist below): ${JSON.stringify(notes)}\n`
-    + intentClause
+    + intentClause + servitorMemClause()
     + `Capture only DURABLE, reusable learnings (gotchas, plan/code mismatches, deviations + why, patterns). Skip routine notes.\n`
     + `\n`
-    + `Memory admission checklist — follow ALL four disciplines before every write:\n`
-    + `D1 DEDUP BEFORE WRITE: Glob the memory dir and read MEMORY.md. Read related candidate files. If an existing covering file exists, update that file in place — do not duplicate. Create a new file only when no existing file covers the fact.\n`
+    + `Memory admission checklist — follow ALL three disciplines before every write:\n`
+    + `D1 DEDUP BEFORE WRITE: Glob the memory dir and read MEMORY.md. Read related candidate files. If an existing covering file exists, update that file in place — do not duplicate. Create a new file only when no existing file covers the fact. Cross-link related facts with [[slug]] references.\n`
     + `D2 TIER PRECEDENCE: A higher tier supersedes a lower; a user-confirmed fact outranks any agent write; never overwrite a higher-tier fact with a lower-tier one. A contradicting fact supersedes an existing memory only if it is at the same or higher tier — update or replace the stale file and note the supersession inline with the tier that wins.\n`
     + `D3 VERIFY-ON-WRITE: Before recording any fact that names a file, flag, function, or symbol: use Read/Grep to confirm the referent currently exists. Referent found → tag metadata.provenance: code-verified and include the cue "verify still present before acting — found at <path> @ phase X". Referent absent → keep metadata.provenance: agent-unverified and add an absence-note: "referent not found @ phase X — verify before acting". Do not write snapshot facts that will rot silently.\n`
-    + `D4 INDEX HYGIENE: Update the MEMORY.md row in place (find and replace the existing row — do not append a duplicate row). Cross-link related facts with [[slug]] references. Include a tier marker at the end of the row: [agent-unverified], [code-verified], or [user-confirmed].\n`
     + `\n`
     + `Provenance tagging — tag EVERY memory file you write with metadata.provenance (nested under metadata:, next to type:). Use only the three canonical tiers: agent-unverified (default — the input is LLM-authored audit monologue), code-verified (D3 referent confirmed via Read/Grep), user-confirmed (operator/user explicitly confirmed). Retire legacy agent-observed: treat it as agent-unverified and never emit it going forward.`,
     { agentType: NS + 'war-servitor', phase: 'Wrap-up', label: `wrap-up:phase-${ph.id}`, schema: SERVITOR_RESULT, ...spawn('servitor') })

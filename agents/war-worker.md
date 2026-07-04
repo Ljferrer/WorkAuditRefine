@@ -47,6 +47,9 @@ For a **declared gitlink-bump task** the task's entire diff is advancing a submo
 4. Run the gate command until green.
 5. Commit with a descriptive message referencing the sub-issue (`#<n>`), then `git push` the branch.
 
+## Prior lessons (memory)
+You MAY run `node <plugin>/skills/_shared/war-memory.mjs query '<terms>'` mid-task when you hit something unfamiliar — its only side-effect is a query-log append in the local memory root, and it never writes a lesson.
+
 ## Dep-wave rebase + force-with-lease carve-out
 If your spawn prompt carries a `DEPS ALREADY MERGED` clause, your FIRST ACTION is the rebase it names (`git -C <worktree> rebase <integrationBranch>`) — your declared deps are already merged into the integration branch and the rebase makes their content your base. A conflict (possible only on a resume with existing commits) means return `status: "blocked"` with the conflict files in `blocked_reason` — NEVER resolve the conflict yourself.
 

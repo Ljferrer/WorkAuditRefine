@@ -253,6 +253,74 @@ test('non-boolean ace rejected', () => {
   assert.match(r.errors.join('\n'), /run\.ace must be a boolean/)
 })
 
+// --- memory block (compounding-memory retrieval + publication) ----------------
+// DEFAULTS.memory = { retrieval: true, topK: 10, commitLearnings: false }.
+// Doctrine: no accepted-but-ignored keys, so validate() rejects bad types AND unknown keys.
+
+test('memory defaults: retrieval true, topK 10, commitLearnings false', () => {
+  const c = fillDefaults({})
+  assert.deepEqual(c.memory, { retrieval: true, topK: 10, commitLearnings: false })
+})
+
+// criterion 12: a config WITHOUT a memory block fills defaults clean and validates.
+// Temp-break: remove DEFAULTS.memory and fillDefaults({}) yields undefined memory → validate fails here.
+test('old config without a memory block fills defaults clean and validates (criterion 12)', () => {
+  const legacy = { version: 1, agents: { worker: { model: 'opus', effort: 'max' } } } // no memory key
+  const c = fillDefaults(legacy)
+  assert.deepEqual(c.memory, { retrieval: true, topK: 10, commitLearnings: false })
+  assert.equal(validate(legacy).valid, true, validate(legacy).errors.join('\n'))
+})
+
+test('memory block: a fully-specified valid block passes', () => {
+  const r = validate({ memory: { retrieval: false, topK: 5, commitLearnings: true } })
+  assert.equal(r.valid, true, r.errors.join('\n'))
+})
+
+// The 'memory must be an object' branch (validate line 137). Both inputs reach it:
+//   {memory:null} — deepMerge replaces the default object with null (isObj(null)===false)
+//   {memory:[]}   — isObj rejects arrays
+test('memory non-object rejected (null / array reach the object-type branch)', () => {
+  const rNull = validate({ memory: null })
+  assert.equal(rNull.valid, false)
+  assert.match(rNull.errors.join('\n'), /memory must be an object/)
+  const rArr = validate({ memory: [] })
+  assert.equal(rArr.valid, false)
+  assert.match(rArr.errors.join('\n'), /memory must be an object/)
+})
+
+test('memory.retrieval non-boolean rejected', () => {
+  const r = validate({ memory: { retrieval: 'yes' } })
+  assert.equal(r.valid, false)
+  assert.match(r.errors.join('\n'), /memory\.retrieval must be a boolean/)
+})
+
+test('memory.commitLearnings non-boolean rejected', () => {
+  const r = validate({ memory: { commitLearnings: 1 } })
+  assert.equal(r.valid, false)
+  assert.match(r.errors.join('\n'), /memory\.commitLearnings must be a boolean/)
+})
+
+test('memory.topK non-integer rejected', () => {
+  const r = validate({ memory: { topK: 2.5 } })
+  assert.equal(r.valid, false)
+  assert.match(r.errors.join('\n'), /memory\.topK must be an integer >= 1/)
+})
+
+test('memory.topK below 1 rejected', () => {
+  const r = validate({ memory: { topK: 0 } })
+  assert.equal(r.valid, false)
+  assert.match(r.errors.join('\n'), /memory\.topK must be an integer >= 1/)
+})
+
+// Doctrine proof: an unknown memory key is a config error, never silently kept (no accepted-but-ignored keys).
+test('unknown memory key rejected (no accepted-but-ignored keys)', () => {
+  const r = validate({ memory: { topN: 3 } })
+  assert.equal(r.valid, false)
+  const msg = r.errors.join('\n')
+  assert.match(msg, /memory\.topN/)
+  assert.match(msg, /\/war-room/)
+})
+
 // --- resolveProvision (Part B) -----------------------------------------------
 // resolveProvision decides whether war-room Setup must run the setup-scout:
 //   • explicit non-empty run.provision → returned VERBATIM, source unchanged, no scout

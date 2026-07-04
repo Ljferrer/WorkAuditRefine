@@ -1,0 +1,29 @@
+# Gate 3 of the memory substrate (spec §4.6): the only automated check on a
+# hand-committed lesson that never went through the war-memory CLI. WAR repo
+# only — this is not plugin code. Directory-wide lint is simpler than
+# diff-scoped and strictly stronger. Enforced-by-CI, deliberately not
+# unit-validated (plan Task 7).
+name: memory-audit
+
+on:
+  pull_request:
+    paths:
+      - 'docs/learnings/**'
+      - 'skills/_shared/war-memory.mjs'
+      - '.github/workflows/memory-audit.yml'
+
+# Read-only linter: never writes, comments, or pushes. Least-privilege.
+permissions:
+  contents: read
+
+jobs:
+  redaction-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24' # node:sqlite / FTS5 floor
+      # Fails the job on any lint hit (CLI exits non-zero — fail-closed).
+      # Absent docs/learnings/ → "lint: clean", exit 0 (fail-open on absence).
+      - run: node skills/_shared/war-memory.mjs lint docs/learnings/

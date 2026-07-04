@@ -38,6 +38,10 @@ export const DEFAULTS = {
     autoEscalate: true,
   },
   run: { roundLimit: 3, afk: false, ace: true, provision: [], provisionSource: 'none', provisionAuto: true },
+  // Compounding-memory retrieval + publication (spec 2026-07-03). retrieval: Lead prefetches
+  // per-seat lesson blocks; topK: max lessons per block; commitLearnings: write the repo-root
+  // projection (default off — most repos keep learnings local-only).
+  memory: { retrieval: true, topK: 10, commitLearnings: false },
   overrides: { gate: null, workingBranch: null, landingBranch: null, learningsTarget: null },
 }
 
@@ -128,6 +132,18 @@ export function validate(input) {
   for (const e of validateProvision(c.run.provision).errors) errors.push(`run.${e}`)
   if (!PROVISION_SOURCES.includes(c.run.provisionSource)) errors.push(`run.provisionSource must be one of ${PROVISION_SOURCES.join('|')} (got ${JSON.stringify(c.run.provisionSource)})`)
   if (typeof c.run.provisionAuto !== 'boolean') errors.push('run.provisionAuto must be a boolean')
+
+  const mem = c.memory
+  if (!isObj(mem)) { errors.push('memory must be an object') }
+  else {
+    if (typeof mem.retrieval !== 'boolean') errors.push('memory.retrieval must be a boolean')
+    if (!Number.isInteger(mem.topK) || mem.topK < 1) errors.push(`memory.topK must be an integer >= 1 (got ${JSON.stringify(mem.topK)})`)
+    if (typeof mem.commitLearnings !== 'boolean') errors.push('memory.commitLearnings must be a boolean')
+    // No accepted-but-ignored keys: an unknown memory key is a config error, not silently kept.
+    for (const k of Object.keys(mem)) {
+      if (!['retrieval', 'topK', 'commitLearnings'].includes(k)) errors.push(`memory.${k} is not a known key (retrieval|topK|commitLearnings) — run /war-room to regenerate the config`)
+    }
+  }
 
   for (const k of Object.keys(c.overrides)) {
     const v = c.overrides[k]

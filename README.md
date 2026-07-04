@@ -11,7 +11,7 @@ Multi-agent parallelism is table stakes now. WAR's bet is different: **verificat
 - **Audits are the product.** Every task's diff faces a roster of 1–5 independent, **read-only** auditor seats — each reviewing through a distinct lens (`correctness`, `cascading-impact`, `plan-faithfulness`, `security`, …), each judging the same pinned SHA. Findings are severity-tagged, Critical/Major block, and approval is **unanimous**; then a serial refinery rebases, re-runs your gate, and merges. Nothing lands on the say-so of the agent that wrote it. Paired with your CI/CD, this is what makes agent-written code **production-grade** instead of merely plausible.
 - **Plans in, intent honored.** WAR executes plans, not vibes. The pipeline grills the ambiguity out *before* anything spawns — `/war-strategy` + Grill Me interview a spec into a plan, `/red-team` adversarially **proves** the plan's claims in throwaway sandboxes — and the plan's **Commander's Intent** (purpose, method, checkable end state) rides into every worker and auditor prompt: the plan slice is the floor, your intent is the ceiling.
 - **Deterministic where it counts.** The coordination — phase loop, dependency waves, serial merge queue, severity gate — is knowable up front, so it lives in a deterministic, resumable Workflow script rather than emergent agent negotiation ([why](skills/war/references/design.md#why-a-workflow-not-the-agent-teams-feature)). Same plan, same shape; git is the resume authority ([ADR 0008](docs/adr/0008-git-is-the-resume-source-of-truth.md)).
-- **Runs compound.** After each phase, a write-scoped servitor records durable learnings under a provenance ladder (`agent-unverified` < `code-verified` < `user-confirmed`), verifying each referent against the codebase before writing; `/lessons-learned` keeps the store honest against the live repo over time. Your fiftieth run knows what your fifth one learned.
+- **Runs compound.** After each phase, a write-scoped servitor records durable learnings under a provenance ladder (`agent-unverified` < `code-verified` < `user-confirmed`), verifying each referent against the codebase before writing. The loop closes the other way too: at each phase launch the Lead **prefetches the most relevant prior lessons** and pushes them into the worker and auditor prompts, so past pitfalls arrive as context before the mistake repeats. `/lessons-learned` keeps the store honest against the live repo over time. By default the store stays local to your machine; turn on `commitLearnings` (via `/war-room`) to commit distilled, lint-scrubbed lessons under `docs/learnings/` so they travel with the repo and compound across your team. Your fiftieth run knows what your fifth one learned. *(Retrieval and publication use a zero-dependency Node ≥ 24 CLI — `node:sqlite`'s in-memory FTS index; on older Node the memory features simply no-op and the run proceeds unaffected.)*
 - **Nothing but the plugin.** Stock, generally-available Claude Code primitives — `Workflow`, `Agent`, git worktrees, `gh`. No server, no daemon, no framework, no experimental flags. Every Claude Code release makes WAR stronger, not obsolete.
 - **Built for overnight.** Queue plans with `/war-campaign` in the evening; the audit gate + your CI hold the line unattended; wake up to stacked, ready-to-review PRs.
 
@@ -24,7 +24,7 @@ Given a plan like [docs/plans/2026-06-18-war-room.md](https://github.com/Ljferre
    - **Works** — fresh worker agents implement each task in isolated git worktrees, writing the plan's mapped tests.
    - **Audits** — independent, read-only auditor seats review each task (severity-tagged findings; Critical/Major block; unanimous on one SHA). Each task convenes its own **roster** of 1–5 distinct-lens seats, each at its own depth; the default roster is the trio (`correctness`, `cascading-impact`, `plan-faithfulness`) at `deep`.
    - **Refines** — a serial merge queue rebases, re-runs the gate (`tests/lint`), and lands approved tasks on a per-phase integration branch.
-   - **Records** — after the phase lands, a write-scoped servitor captures durable learnings into memory.
+   - **Records** — after the phase lands, a write-scoped servitor captures durable learnings into memory (and at each phase's launch the Lead prefetches the most relevant prior lessons into the worker/auditor prompts).
 3. **Lands** each phase onto your working branch as one `--no-ff` commit, pushes, and **checks in with you**.
 4. Opens **one PR** from the working branch to the landing branch at the end.
 
@@ -165,7 +165,7 @@ Or invoke it in natural language — e.g. *"Go to war on issues #20 & #22"*.
 
 1. **Setup** — WAR confirms the repo/`gh` state, detects your **gate command** (`uv sync && ruff check && pytest`, your `package.json` lint/test scripts, or it asks once), and picks a **learnings target** for the servitor. No phase ever runs without a gate.
 2. **Decompose + approve** — it reads the plan, proposes a phase → task DAG as a GitHub-issues preview, and **waits for your approval.** Nothing spawns until you say go; all phase epics are filed up front, task sub-issues just-in-time per phase.
-3. **Per phase** — workers implement each task in isolated worktrees → read-only auditors review the pinned SHA (Critical/Major findings block; approval is unanimous) → a serial refinery rebases, re-runs the gate, and merges → a write-scoped servitor records durable learnings.
+3. **Per phase** — the Lead prefetches relevant prior lessons into the seat prompts → workers implement each task in isolated worktrees → read-only auditors review the pinned SHA (Critical/Major findings block; approval is unanimous) → a serial refinery rebases, re-runs the gate, and merges → a write-scoped servitor records durable learnings.
 4. **Checkpoint** — the phase lands on `--working` as one `--no-ff` commit and is pushed; WAR posts a phase report and **checks in with you** before the next phase (skipped under `--afk`; hard escalations halt regardless).
 5. **Finish** — after the last phase, it opens **one PR** from `--working` → `--landing` and reports the URL.
 
@@ -231,7 +231,7 @@ Every `/war` phase leaves durable learnings in your project's Claude memory stor
 /lessons-learned
 ```
 
-It fans out agents to **verify every memory against the live repo**, classifies each as still-relevant vs. stale (`current` / `anchor-drift` / `resolved` / `superseded` / `dated-done` / `stale`), then **compresses, re-anchors, retires, and merges** the topic files and rewrites the `MEMORY.md` index — telling you how full the index is against its budget and **reporting at every phase**.
+It fans out agents to **verify every memory against the live repo**, classifies each as still-relevant vs. stale (`current` / `anchor-drift` / `resolved` / `superseded` / `dated-done` / `stale`), then **compresses, re-anchors, retires, and merges** the topic files and **regenerates** the `MEMORY.md` index (a derived projection — nobody hand-edits it) — telling you how full the index is against its budget and **reporting at every phase**.
 
 It is **fault-tolerant to interruption** (a closed laptop mid-run). The live memory store is never mutated in place: the pass **backs up** to a tarball, does all work in a `.staging` copy, **verifies** index↔file integrity and link health, and only then performs a single **atomic swap** — with a `recover` path if it dies between steps. The deterministic backup / stage / verify / swap / recover logic lives in [`skills/lessons-learned/assets/safe-swap.sh`](skills/lessons-learned/assets/safe-swap.sh).
 
@@ -307,7 +307,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.13.0** — Catalog-composed `auto` rosters + auditor-nominated widening — `auto` now means the Lead composes 1–5 audit seats from the lens catalog (with per-seat depth and a one-line rationale), and a triggered lone seat widens by auditor nomination (`resolveWidenSource` + `RESERVED_LENSES`), falling back to the trio union when no valid nomination is present.
+**0.14.0** — Compounding memory substrate — durable learnings are now files-canonical with an in-memory FTS5 index (no generated state committed to git), resolved across two roots (a private local store, plus the repo's `docs/learnings/` when `commitLearnings` is on), and the Lead prefetches the most relevant prior lessons into each agent's prompt. Retrieval fails open (a missing index never blocks a run); publication is lint-gated and fails closed on secret/PII patterns, enforced both in-process and by CI; knowledge is archived, never deleted.
 
 ## License
 

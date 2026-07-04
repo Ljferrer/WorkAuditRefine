@@ -26,6 +26,12 @@ abspath() { # portable realpath for an existing dir
   ( cd "$1" 2>/dev/null && pwd ) || die "no such directory: $1"
 }
 staging_of() { printf '%s.staging' "$1"; }
+# A slug resolves to a file if it lives in the staged local dir OR in archive/.
+# Archived lessons are cold, not deleted (spec §4.8): a [[link]] or row that
+# resolves into archive/<slug>.md is legal, not dangling / not a missing row.
+resolves_in() { # <dir> <slug> -> 0 if <dir>/<slug>.md or <dir>/archive/<slug>.md exists
+  [ -f "$1/$2.md" ] || [ -f "$1/archive/$2.md" ]
+}
 
 # --- integrity checks ---------------------------------------------------------
 # Prints a report; returns nonzero on any hard failure.
@@ -41,6 +47,14 @@ do_verify() {
   # in a summary cell, so an illustrative link in prose is not mistaken for a row.
   grep -E '^\|' "$mem" 2>/dev/null | grep '\[\[' \
     | sed -E 's/^[^[]*\[\[([a-z0-9-]+)\]\].*/\1/' | sort -u > /tmp/.ll_idx.$$ || true
+  # Local-only rows for the row<->file hard-fail: rows carrying the trailing
+  # `[repo]` marker (the T1 render-index contract, plan Note 1) name repo-root
+  # lessons whose files live in the repo root, NOT this staged local dir — the
+  # hard-fail must SKIP them, else no swap can complete once commitLearnings is
+  # on. We keep them in .ll_idx (they ARE indexed, for the unindexed-file WARN)
+  # but exclude them here by dropping any `|`-row containing the [repo] marker.
+  grep -E '^\|' "$mem" 2>/dev/null | grep '\[\[' | grep -v '\[repo\]' \
+    | sed -E 's/^[^[]*\[\[([a-z0-9-]+)\]\].*/\1/' | sort -u > /tmp/.ll_local_idx.$$ || true
   # All topic files (basenames without .md), excluding MEMORY.md.
   ( cd "$dir" && ls -1 *.md 2>/dev/null | grep -v '^MEMORY.md$' | sed 's/\.md$//' | sort -u ) > /tmp/.ll_files.$$ || true
   # All wikilink targets anywhere (for dangling detection).
@@ -48,12 +62,14 @@ do_verify() {
 
   echo "== integrity =="
 
-  # HARD FAIL: an index row pointing to a file that does not exist.
+  # HARD FAIL: a LOCAL index row pointing to a file that does not exist.
+  # Root-aware: [repo]-marked rows are excluded upstream (their files live in the
+  # repo root). Archive-aware: a row resolving into archive/<slug>.md is fine.
   rows_missing=""
   while IFS= read -r s; do
     [ -z "$s" ] && continue
-    [ -f "$dir/$s.md" ] || rows_missing="$rows_missing $s"
-  done < /tmp/.ll_idx.$$
+    resolves_in "$dir" "$s" || rows_missing="$rows_missing $s"
+  done < /tmp/.ll_local_idx.$$
   if [ -n "$rows_missing" ]; then
     echo "FAIL  index rows point to MISSING files:$rows_missing"; FAILED=1
   else
@@ -69,10 +85,12 @@ do_verify() {
   fi
 
   # WARNING: a [[link]] whose target file does not exist (dangling / forward-ref).
+  # Archive-aware: a link resolving into archive/<slug>.md is a cold link, legal
+  # and NOT dangling (spec §4.8).
   dangling=""
   while IFS= read -r s; do
     [ -z "$s" ] && continue
-    [ -f "$dir/$s.md" ] || dangling="$dangling $s"
+    resolves_in "$dir" "$s" || dangling="$dangling $s"
   done < /tmp/.ll_links.$$
   if [ -n "$dangling" ]; then
     echo "WARN  wikilinks with no target file (forward-ref OK; a link to a JUST-DELETED file is rot):$dangling"
@@ -89,7 +107,7 @@ do_verify() {
   if [ "$lines" -gt "$LINE_BUDGET" ]; then echo "FAIL  MEMORY.md over the ${LINE_BUDGET}-line budget"; FAILED=1; fi
   if [ "$bytes" -gt "$BYTE_BUDGET" ]; then echo "FAIL  MEMORY.md over the ${BYTE_BUDGET}-byte budget"; FAILED=1; fi
 
-  rm -f /tmp/.ll_idx.$$ /tmp/.ll_files.$$ /tmp/.ll_links.$$
+  rm -f /tmp/.ll_idx.$$ /tmp/.ll_local_idx.$$ /tmp/.ll_files.$$ /tmp/.ll_links.$$
   [ "$FAILED" -eq 0 ] && echo "VERIFY: PASS" || echo "VERIFY: FAIL"
   return "$FAILED"
 }
