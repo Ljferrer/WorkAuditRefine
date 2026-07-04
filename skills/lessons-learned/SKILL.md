@@ -73,7 +73,7 @@ Most memories are **transferable lessons** — a durable pattern almost never go
 
 ### 3 — Plan + the hub-link safety check (the step that prevents rot)
 
-Before deleting anything, **check inbound links** for every `retire` / `merge` candidate:
+Before archiving anything, **check inbound links** for every `retire` / `merge` candidate:
 
 ```bash
 cd "$STAGING" && grep -rl "\[\[<slug>\]\]" . | grep -v '^./MEMORY.md'
@@ -86,7 +86,7 @@ cd "$STAGING" && grep -rl "\[\[<slug>\]\]" . | grep -v '^./MEMORY.md'
 
 Produce the final action plan: the bucketed table (keep / fix-anchor / compress / retire / merge), with the archive list and any hub-downgrades named explicitly.
 
-- **Report:** the plan table and the hub-downgrade decisions, so the user sees what is about to be removed (the backup makes it reversible, but surface it anyway).
+- **Report:** the plan table and the hub-downgrade decisions, so the user sees what is about to be archived (the backup makes it reversible, but surface it anyway).
 
 ### 4 — Apply edits to STAGING (fan-out)
 
@@ -116,7 +116,7 @@ Author a `Workflow` over the `keep-compress` + `fix-anchor` + `merge` items (bat
   node "${CLAUDE_PLUGIN_ROOT}/skills/_shared/war-memory.mjs" render-index --local "$STAGING"
   ```
 
-  `archive` already re-renders after each move, so an explicit `render-index` here is the belt-and-suspenders final projection. It regenerates `$STAGING/MEMORY.md` atomically (`.tmp` + rename), drops archived rows, and keeps the table format and `[[slug]]` convention. If it refuses on budget (above the hard axis), archive more low-tier/old lessons and re-render.
+  `archive` already re-renders after archiving, so an explicit `render-index` here is the belt-and-suspenders final projection. It regenerates `$STAGING/MEMORY.md` atomically (`.tmp` + rename), drops archived rows, and keeps the table format and `[[slug]]` convention. If it refuses on budget (above the hard axis), archive more low-tier/old lessons and re-render.
 - The staged copy of `war-memory-queries.jsonl` (the query log, if the corpus has one) **rides along inertly** in `$STAGING` — it is harmless in the swap and never indexed. Leave it; exclude it from the backup tarball only if backup size ever matters.
 
 ### 6 — Verify STAGING (the gate)
