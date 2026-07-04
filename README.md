@@ -307,7 +307,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.13.0** — Catalog-composed `auto` rosters + auditor-nominated widening — `auto` now means the Lead composes 1–5 audit seats from the lens catalog (with per-seat depth and a one-line rationale), and a triggered lone seat widens by auditor nomination (`resolveWidenSource` + `RESERVED_LENSES`), falling back to the trio union when no valid nomination is present.
+**0.14.0** — Compounding memory substrate — durable learnings are now files-canonical with an in-memory FTS5 index (no generated state committed to git), resolved across two roots (a private local store, plus the repo's `docs/learnings/` when `commitLearnings` is on), and the Lead prefetches the most relevant prior lessons into each agent's prompt. Retrieval fails open (a missing index never blocks a run); publication is lint-gated and fails closed on secret/PII patterns, enforced both in-process and by CI; knowledge is archived, never deleted.
 
 ## License
 
