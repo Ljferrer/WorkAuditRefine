@@ -36,6 +36,9 @@ resolves_in() { # <dir> <slug> -> 0 if <dir>/<slug>.md or <dir>/archive/<slug>.m
 # --- integrity checks ---------------------------------------------------------
 # Prints a report; returns nonzero on any hard failure.
 do_verify() {
+  # local: commit calls do_verify then reuses $mem for the swap — a leaked
+  # mem="$dir/MEMORY.md" here redirected the mv targets into staging (bug).
+  local dir mem FAILED rows_missing unindexed dangling lines bytes lpct bpct s
   dir="$1"
   [ -d "$dir" ] || die "verify: no such dir: $dir"
   mem="$dir/MEMORY.md"

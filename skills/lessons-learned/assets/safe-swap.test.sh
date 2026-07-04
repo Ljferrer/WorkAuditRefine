@@ -184,6 +184,52 @@ else
   fail "temp-break2: unmodified script failed archived corpus, rc=$RC:"; printf '%s\n' "$OUT" >&2
 fi
 
+# =============================================================================
+# CASE 4 — commit path end-to-end (regression: do_verify leaked `mem` globally,
+#   clobbering commit's swap targets: staging's MEMORY.md got renamed to
+#   MEMORY.md.prev.<ts> INSIDE staging, then `mv <staging> <staging>/MEMORY.md`
+#   failed EINVAL — commit could never succeed).
+#   stage -> edit staging -> commit; assert exit 0, live dir has staged content
+#   with intact MEMORY.md, a <memdir>.prev.<ts> dir holds the old content, and
+#   no MEMORY.md.prev.* file exists inside the new live dir.
+# =============================================================================
+WRAP="$(mktemp -d 2>/dev/null || mktemp -d -t swapcommit)"; TMPFILES="$TMPFILES $WRAP"
+MEMD="$WRAP/memory"
+mkdir -p "$MEMD/archive"
+printf '# MEMORY\n\n| slug | phase | summary |\n|--|--|--|\n' > "$MEMD/MEMORY.md"
+add_row "$MEMD" "alpha"
+printf '# alpha\nold content.\n' > "$MEMD/alpha.md"
+
+OUT="$(bash "$SCRIPT" stage "$MEMD" 2>&1)"; RC=$?
+if [ "$RC" -ne 0 ]; then
+  fail "case4: stage failed, rc=$RC:"; printf '%s\n' "$OUT" >&2
+fi
+# Edit staging: change alpha's content (the staged content we expect to go live).
+printf '# alpha\nNEW staged content.\n' > "$MEMD.staging/alpha.md"
+
+OUT="$(bash "$SCRIPT" commit "$MEMD" 2>&1)"; RC=$?
+if [ "$RC" -eq 0 ]; then
+  pass "case4: commit exits 0"
+else
+  fail "case4: commit failed, rc=$RC:"; printf '%s\n' "$OUT" >&2
+fi
+if [ -f "$MEMD/MEMORY.md" ] && grep -q 'NEW staged content' "$MEMD/alpha.md" 2>/dev/null; then
+  pass "case4: live dir has staged content with intact MEMORY.md"
+else
+  fail "case4: live dir missing MEMORY.md or staged content after commit"
+fi
+PREVD="$(ls -1d "$MEMD".prev.* 2>/dev/null | head -1 || true)"
+if [ -n "$PREVD" ] && [ -d "$PREVD" ] && grep -q 'old content' "$PREVD/alpha.md" 2>/dev/null; then
+  pass "case4: <memdir>.prev.<ts> dir holds the old content"
+else
+  fail "case4: no .prev dir with the old content (got: ${PREVD:-none})"
+fi
+if ls "$MEMD"/MEMORY.md.prev.* >/dev/null 2>&1; then
+  fail "case4: stray MEMORY.md.prev.* inside live dir (mem leak regression)"
+else
+  pass "case4: no MEMORY.md.prev.* inside the new live dir"
+fi
+
 # --- summary ------------------------------------------------------------------
 echo ""
 echo "$PASS passed, $FAIL failed"
