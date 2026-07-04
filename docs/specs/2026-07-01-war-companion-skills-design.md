@@ -295,7 +295,8 @@ Four terms were added to `CONTEXT.md` during the design grill; Rev 1 revised two
 - `--keep-going` / independent-lane continuation past a failed plan (needs dependency-spine reasoning; YAGNI
   until a real run is bottlenecked).
 - A background poller for stacked-PR merges (the human merges bottom-up; no watcher).
-- ECC-`strategic-compact` detection/preference (bundle our own, stay flat).
+- ECC-`strategic-compact` detection/preference (self-compaction rejected — the harness owns compaction; we
+  re-inject `CAMPAIGN-STATE.md` after — see [ADR 0016](../adr/0016-campaign-compaction-survival.md); stay flat, no detection).
 - `/improve-codebase-architecture` (referenced in early discussion; does not exist — use the README Pro-Tip
   pattern). If ever built, it's a separate skill, out of scope here.
 - Building a new grilling engine in `/war-strategy` (it hands off to existing skills).
