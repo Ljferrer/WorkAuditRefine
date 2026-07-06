@@ -48,6 +48,9 @@
     3. `sweep` of a two-line drop → the ledger entry's `plan` is the path from line 1 (fails without the
        first-line parse).
     4. `sweep` of a legacy one-line drop → still consumed correctly (compat guard).
+    5. `sweep` of a drop whose line-1 path does **not** exist on disk → **throws** (the fail-loud backstop
+       for a skipped materialization; `assert.throws`, fails if `sweep` ever silently swallows a missing
+       plan). This is the explicit executable guard End-state #3 relies on.
 - requiresTest: true
 - deps: []
 - target repo: superproject
@@ -59,24 +62,42 @@
   - **SKILL.md — Invocation:** `add` line becomes `/war-campaign add <plan-path> [<ref>]` (ref defaults to
     `origin/master`; only consulted when the local path is missing).
   - **SKILL.md — add resolution protocol** (new bullets under Invocation):
-    1. Local path exists → drop as today. Local always wins; the fallback never fires over a present file.
-    2. Local path missing → `git fetch origin <branch>` then probe `git cat-file -e <ref>:<repo-relative-path>`.
+    0. **Path is anchored to the repo toplevel, never the add-chat cwd.** `add` may run from any directory,
+       so the Lead first resolves the argument to a repo-relative token `rel` (the argument made relative to
+       `git rev-parse --show-toplevel`) and uses `rel` for every git call below; the drop's line-1 absolute
+       is `toplevel/rel`. This closes the foreign-cwd hole — `path.resolve` against a stray cwd can never
+       store a path that fails to map onto the ref. `rel` is the single `<repo-relative-path>` token reused
+       by the materialize step (`git show <ref>:<rel>`).
+    1. Local path exists → drop as today (line-1 absolute `toplevel/rel`; byte-identical legacy shape).
+       Local always wins; the fallback never fires over a present file.
+    2. Local path missing → `git fetch origin <branch>` then probe `git cat-file -e <ref>:<rel>`.
        Present → drop with `--ref <ref>`. Absent → **fail loudly at add time**, naming both locations tried.
-  - **SKILL.md — lifecycle step 1 (Sweep + select)** gains a materialize pre-step, run *before* `sweep`:
-    read the inbox drops; for each whose path is missing locally and whose drop carries a `ref:` line,
-    `git fetch` then `git show <ref>:<path> > <path>` into the Lead checkout (untracked for now). Then scan
-    each materialized file for referenced repo paths — backticked path-shaped tokens and markdown link
-    targets that resolve inside the repo — and materialize any that are missing locally and present on the
-    ref, **transitively** (each newly materialized file gets the same scan; terminates because a file
-    materializes at most once). Report every materialized path loudly in the sweep report. The plan file and
-    its pulled references are **committed onto that plan's `dev/<slug>` branch at provision (step 2)** —
-    never onto the current tip mid-plan. Never merge or rebase master into the stack; identical-content
-    files merge clean when the stack lands, so ADR 0011 is untouched.
+  - **SKILL.md — a new "Materialize" lifecycle step between step 1 (Sweep + select) and step 2
+    (Provision).** Today the lifecycle jumps Sweep → Provision with no home for this contract; insert an
+    explicit step (SKILL.md lifecycle list, and mirrored into spec §7.1 as a numbered step in the same
+    slot) that runs *before* `sweep`: read the inbox drops; for each whose path is missing locally and
+    whose drop carries a `ref:` line, `git fetch` then `git show <ref>:<repo-relative-path> > <path>` into
+    the Lead checkout (untracked at this point). Then scan each materialized file for referenced repo paths
+    — backticked path-shaped tokens and markdown link targets that resolve inside the repo — and
+    materialize any that are missing locally and present on the ref, **transitively** (each newly
+    materialized file gets the same scan; terminates because a file materializes at most once). Report
+    every materialized path loudly in the sweep report. The **fail-loud backstop** stays: a drop whose path
+    is still missing at `sweep` time throws (Task 1 **test 5** asserts this explicitly), so a skipped
+    materialization can never pass silently — that is the executable owner End-state #3 needs, without
+    moving git I/O into the stdlib helper.
+  - **SKILL.md step 2 (Provision) + spec §7.1 step 2 — commit the materialized files (new edit target).**
+    Amend **both** step-2 prose blocks: immediately after `dev/<slug>` is created (off fresh `origin/master`
+    or the prior plan's tip) and **before** `/war` runs, `git add` the materialized plan file and its pulled
+    references and commit them onto `dev/<slug>`. This is the load-bearing handoff — `/war`'s worker
+    worktrees branch off `dev/<slug>` and only see the plan if it is committed there, never as an untracked
+    file in the Lead checkout. Never merge or rebase master into the stack; identical-content files merge
+    clean when the stack lands, so ADR 0011 is untouched.
   - **Spec §7** (`docs/specs/2026-07-01-war-companion-skills-design.md`): update the invocation block's
-    `add` line (§7, ~line 197), the §7.1 step-1 sweep prose (~line 205), the §7.2 inbox bullet (~line 230),
-    and resolved-design-tree row 11 (~line 64) to state the two-line drop format, add-time ref resolution,
-    and materialize-at-the-plan-boundary contract. Line numbers are authoring-time locators — re-locate by
-    construct, not line (memory `plan-line-number-refs-stale-use-construct-locator`).
+    `add` line (§7, ~line 197), the §7.1 step-1 sweep prose (~line 205), **insert the new §7.1 materialize
+    step and add the commit clause to §7.1 step 2 (Provision, ~line 207)**, the §7.2 inbox bullet
+    (~line 230), and resolved-design-tree row 11 (~line 64) to state the two-line drop format, add-time ref
+    resolution, and the materialize-then-commit-at-plan-boundary contract. Line numbers are authoring-time
+    locators — re-locate by construct, not line (memory `plan-line-number-refs-stale-use-construct-locator`).
 - requiresTest: false
 - deps: [1]
 - target repo: superproject
@@ -112,10 +133,26 @@
   out of scope and stays out.
 - The Phase 2 version literal is expected-value + self-discover, not authoritative.
 
-## Open decisions (resolved by /red-team)
+## Open decisions (resolved by /red-team 2026-07-06)
 
-- Reference-scan precision: proposed = backticked path-shaped tokens plus markdown link targets that resolve
-  inside the repo; `[[wikilinks]]` excluded (memory-store convention, not repo docs). Ratify or widen.
-- Whether `add` should additionally warn when the delivering commit on the ref touched files beyond the plan
-  (plan-file-only assumption violated). Proposed: out of scope (YAGNI) — transitive materialization covers
-  doc references; code prerequisites are a roadmap-ordering concern, not an add-time concern.
+- Reference-scan precision — **RATIFIED as proposed**: backticked path-shaped tokens plus markdown link
+  targets that resolve inside the repo; `[[wikilinks]]` excluded (memory-store convention, not repo docs).
+  Mirrors the existing `isPathShaped` heuristic in `campaign-ledger.mjs`, so no new precision surface.
+- Warn when the delivering commit touched files beyond the plan — **RATIFIED out of scope (YAGNI)**:
+  transitive materialization covers doc references; code prerequisites are a roadmap-ordering concern, not an
+  add-time concern.
+
+## Red-team resolutions applied (2026-07-06)
+
+- **Materialization had no lifecycle home / no executable owner (Major, was BLOCKED).** Task 2 now inserts an
+  explicit **Materialize** step into the SKILL.md lifecycle and mirrors it into spec §7.1 between Sweep and
+  Provision; End-state #3 gains an executable owner via the fail-loud backstop (Task 1 **test 5**: `sweep`
+  throws on a still-missing path).
+- **Commit-to-`dev/<slug>` handoff was promised but unscheduled.** Task 2's edit list now explicitly amends
+  **SKILL.md step 2 and spec §7.1 step 2 (Provision)** to `git add` + commit the materialized plan and pulled
+  references onto `dev/<slug>` after branch creation and before `/war` runs — so `/war`'s worker worktrees see
+  the plan. (Anchors verified present: SKILL.md lifecycle steps 1–2, spec §7.1 steps 1–2.)
+- **Path form (absolute drop vs repo-relative git token; foreign-cwd resolution).** The add-resolution
+  protocol now anchors resolution to `git rev-parse --show-toplevel` (never the add-chat cwd), defines a single
+  repo-relative token `rel` reused by `git cat-file -e <ref>:<rel>` and `git show <ref>:<rel>`, and keeps
+  line-1 absolute as `toplevel/rel` (Task 1 stays byte-identical). Re-verify probe: **pass**.
