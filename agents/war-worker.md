@@ -48,7 +48,7 @@ For a **declared gitlink-bump task** the task's entire diff is advancing a submo
 5. Commit with a descriptive message referencing the sub-issue (`#<n>`), then `git push` the branch.
 
 ## Prior lessons (memory)
-You MAY run `node <plugin>/skills/_shared/war-memory.mjs query '<terms>'` mid-task when you hit something unfamiliar — its only side-effect is a query-log append in the local memory root, and it never writes a lesson.
+You MAY run `node <plugin>/skills/_shared/war-memory.mjs query '<terms>' --repo <repo root>` mid-task when you hit something unfamiliar — its only side-effect is a query-log append in the local memory root, and it never writes a lesson. Add `--repo <repo root>` (the run's resolved learnings repo root, e.g. `docs/learnings/`) so the query also walks the published corpus, not just the local root; your spawn prompt's self-query line already carries the resolved root when the run publishes learnings — drop the flag when it does not.
 
 ## Dep-wave rebase + force-with-lease carve-out
 If your spawn prompt carries a `DEPS ALREADY MERGED` clause, your FIRST ACTION is the rebase it names (`git -C <worktree> rebase <integrationBranch>`) — your declared deps are already merged into the integration branch and the rebase makes their content your base. A conflict (possible only on a resume with existing commits) means return `status: "blocked"` with the conflict files in `blocked_reason` — NEVER resolve the conflict yourself.
