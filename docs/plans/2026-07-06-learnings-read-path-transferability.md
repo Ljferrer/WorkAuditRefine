@@ -23,38 +23,38 @@ Base: latest `master` (PR #512 merged; `docs/learnings/` does not exist yet in t
 
 ### Task 1: worker self-query line gains the repo root
 - Files: `skills/war/assets/workflow-template.js`, `skills/war/assets/workflow-template.test.mjs`, `agents/war-worker.md`
-- Plan slice: the emitted worker self-query line (`WORKER_MEMORY_SELF_QUERY_LINE`) currently shows `war-memory.mjs query '<terms>'`, which walks only the local root. Extend the emission so the example invocation includes `--repo <resolved repo root>` when the run's memory args carry a repo root (the template already receives `learningsTarget`); when no repo root is threaded, the line stays byte-identical to today (empty-memory ⇒ byte-identical prompts is an existing criterion — preserve it). Mirror the same `--repo` form in the standing `agents/war-worker.md` self-query sentence (standing-instruction and dispatched-prompt surfaces drift independently — update both in this task).
+- Plan slice: the emitted worker self-query line (`WORKER_MEMORY_SELF_QUERY_LINE`) currently shows `war-memory.mjs query '<terms>'`, which walks only the local root. Extend the emission so the example invocation includes `--repo <resolved repo root>` when the run's memory args carry a repo root (the template already receives `learningsTarget`); when no repo root is threaded, the line stays byte-identical to today (empty-memory ⇒ byte-identical prompts is an existing criterion — preserve it; this absent-root branch is a deliberate conditional, **not** a contradiction with Tasks 2–3 — the `--repo` form appears only when a repo root resolves). Mirror the same `--repo` form in the standing `agents/war-worker.md` self-query sentence (standing-instruction and dispatched-prompt surfaces drift independently — update both in this task).
 - Mapped tests: `workflow-template.test.mjs` — (a) worker prompt contains `--repo` + the resolved root when memory args include it; (b) prompt is byte-identical to the no-memory baseline when absent. Delete-the-feature check: dropping the interpolation must fail (a).
 - requiresTest: true
 - deps: []
 - target repo: superproject
 
 ### Task 2: Lead read paths in `skills/war/SKILL.md` — Setup seed, prefetch `--repo`, Gate 2 `--repo` + pointer duty
-- Files: `skills/war/SKILL.md`
+- Files: `skills/war/SKILL.md`, `skills/war/assets/war-config.test.mjs`
 - Plan slice, three clauses in the one file:
-  1. **Setup (step 4, after two-root resolution):** when the resolved repo root exists on disk and the local `MEMORY.md` is missing or lacks `[repo]`-marked rows, run `war-memory.mjs render-index --local <local> --repo <resolved repo root>` once (idempotent seed — a fresh cloner's first `/war` sees repo lessons before phase 1 dispatches). Skipped when memory was disabled at the Node probe.
+  1. **Setup (step 4, after two-root resolution) — the *Setup seed render*:** when the resolved repo root exists on disk and the local `MEMORY.md` is missing or lacks `[repo]`-marked rows, run `war-memory.mjs render-index --local <local> --repo <resolved repo root>` once (idempotent seed — a fresh cloner's first `/war` sees repo lessons before phase 1 dispatches). **Runs even when `memory.retrieval` is false** (ratified below — seeding is a render, not a retrieval; the projection also serves the cloner's non-WAR sessions); skipped only when the Node probe reports memory unavailable (Node < 24 / no `node:sqlite`).
   2. **Prefetch:** the batched `query --queries <file>` invocation gains `--repo <resolved repo root>` (only when the repo root resolved; retrieval keeps failing open).
-  3. **Gate 2:** the post-servitor `render-index` gains `--repo <resolved repo root>`; and when `commitLearnings` is on, the repo root has content, and the target repo's `CLAUDE.md` lacks the pointer line — append the one-line pointer (create `CLAUDE.md` if absent, never rewrite existing content) and include it in the same `docs(learnings): phase N` commit so it rides the reviewed phase PR.
+  3. **Gate 2:** the post-servitor `render-index` gains `--repo <resolved repo root>`; and when `commitLearnings` is on, the repo root has content, and the target repo's `CLAUDE.md` lacks the pointer line — append the **ratified pointer line** (see *Resolved by /red-team* below; create `CLAUDE.md` if absent, never rewrite existing content) and include it in the same `docs(learnings): phase N` commit so it rides the reviewed phase PR.
   All three clauses use the **resolved** repo root (which honors `overrides.learningsTarget`), never a hardcoded `docs/learnings`.
-- Mapped tests: extend the existing prose-gate suite that greps `skills/war/SKILL.md` (worker: self-discover which suite guards this file rather than assuming a name or count): assert `--repo` appears in the prefetch clause and the Gate 2 render clause, and the append-if-absent pointer duty exists. Each grep must fail if its clause is removed.
+- Mapped tests: extend the `doc-contract:` tests in `skills/war/assets/war-config.test.mjs` (they already `readDoc('skills/war/SKILL.md')`; `skills/war-machine/war-pipeline-structure.test.sh` also pins tokens in this file): assert `--repo` appears in the prefetch clause and the Gate 2 render clause, and the append-if-absent pointer duty exists. Each grep must fail if its clause is removed.
 - requiresTest: true
 - deps: []
 - target repo: superproject
 
 ### Task 3: `/lessons-learned` repo-awareness — Phase 0 bootstrap, repo-aware renders, playbook pointer
-- Files: `skills/lessons-learned/SKILL.md`, `skills/lessons-learned/references/migration.md`
+- Files: `skills/lessons-learned/SKILL.md`, `skills/lessons-learned/references/migration.md`, `skills/lessons-learned/lessons-learned-doc-contract.test.mjs` (new)
 - Plan slice:
-  1. **Phase 0 (inventory):** detect the repo root (`docs/learnings/` in the audited repo, or the configured override); report its file count alongside the local inventory. When it is non-empty and the local projection lacks `[repo]` rows, run the same idempotent seed render as WAR Setup and say so in the Phase 0 report.
-  2. **Repo-aware renders:** every `render-index` the skill runs (Phase 5 projection; the migrate/evict modes already pass it) gains `--repo <repo root>` when the repo root exists — otherwise a housekeeping pass on a repo-adopted store silently drops every `[repo]` row from the regenerated projection. Add this exact failure mode to **Common mistakes**. (`safe-swap.sh verify` is already `[repo]`-row-aware — no change there.)
-  3. **Playbook pointer:** migration.md Step 5 gains a sub-step — ensure the target repo's `CLAUDE.md` carries the one-line `docs/learnings/` pointer (append-if-absent, same reviewed PR). The Evict section gets one sentence: the pointer is left in place by default (harmless when the dir empties); removing it is a call to make in the eviction PR.
-- Mapped tests: prose-gate greps as in Task 2 (self-discover the guarding suite): `--repo` present in the Phase 5 render clause; the Common-mistakes bullet exists; Step 5 pointer sub-step exists.
+  1. **Phase 0 (inventory):** detect the repo root (`docs/learnings/` in the audited repo, or the configured override); report its file count alongside the local inventory. When it is non-empty and the local projection lacks `[repo]` rows, run the **Setup seed render** defined in Task 2 (identical flag set — `render-index --local <local> --repo <repo root>`; only the `<local>` path is environment-specific) and say so in the Phase 0 report.
+  2. **Repo-aware renders:** the **Phase 5** housekeeping `render-index` gains `--repo <repo root>` when the repo root exists — otherwise a housekeeping pass on a repo-adopted store silently drops every `[repo]` row from the regenerated projection. Add this exact failure mode to **Common mistakes**. The **migrate** mode's final render already passes `--repo` (migration.md Step 5) — no change. The **evict** re-render stays **local-only by design** (eviction abandons the repo root and must drop `[repo]` markers) — do **not** add `--repo` there. (`safe-swap.sh verify` is already `[repo]`-row-aware — no change.)
+  3. **Playbook pointer:** migration.md Step 5 gains a sub-step — ensure the target repo's `CLAUDE.md` carries the **ratified pointer line** (see *Resolved by /red-team* below; append-if-absent, same reviewed PR). The Evict section gets one sentence: the pointer is left in place by default (harmless when the dir empties); removing it is a call to make in the eviction PR.
+- Mapped tests: **create** a prose-gate test for `skills/lessons-learned/SKILL.md` — **none exists** today (`safe-swap.test.sh` guards the shell script, not the doc prose). Follow the `war-config.test.mjs` `doc-contract:` (`node --test`) pattern. Assert: `--repo` present in the Phase 5 render clause; the evict re-render clause is local-only (**no** `--repo`); the Common-mistakes bullet exists; migration.md Step 5 pointer sub-step exists. Each grep must fail if its clause is removed.
 - requiresTest: true
 - deps: []
 - target repo: superproject
 
 ### Task 4: WorkAuditRefine's own `CLAUDE.md`
 - Files: `CLAUDE.md` (new)
-- Plan slice: minimal, a few lines — durable engineering lessons live in `docs/learnings/` (one-fact-per-file markdown, provenance-tagged frontmatter); consult them before modifying the subsystems they name; ranked retrieval via `node skills/_shared/war-memory.mjs query '<terms>' --repo docs/learnings` (Node ≥ 24; plain Read/Grep works without it). Keep it short — this file loads into every session's context for every cloner. Do not restate README content.
+- Plan slice: minimal — emit the **ratified pointer line** (see *Resolved by /red-team* below) verbatim as the shared line, then append **one** repo-specific retrieval sentence valid only here: ranked retrieval via `node skills/_shared/war-memory.mjs query '<terms>' --repo docs/learnings` (Node ≥ 24; plain Read/Grep works without it). Keep it short — this file loads into every session's context for every cloner. Do not restate README content.
 - Mapped tests: none enforceable (new standalone doc; nothing imports it).
 - requiresTest: false
 - deps: []
@@ -78,7 +78,11 @@ Base: latest `master` (PR #512 merged; `docs/learnings/` does not exist yet in t
 - **Dated specs stay dated:** the 2026-07-03 memory-substrate spec/plan are historical records; this plan supersedes their silence on the read path. Optional follow-up (not a task): a short ADR "the resolved repo root rides every memory read" if `/red-team` thinks the decision needs a durable record.
 - Same-file discipline: all `skills/war/SKILL.md` edits live in Task 2; all `/lessons-learned` surfaces in Task 3; no two Phase-1 tasks share a file.
 
-## Open decisions (resolved by /red-team)
+## Resolved by /red-team (2026-07-06)
 
-1. Exact one-line wording of the CLAUDE.md pointer (Tasks 2/3/4 must emit the **same** line — pick it once during ratification).
-2. Should the Setup seed also run when `memory.retrieval` is false but the repo root exists? Recommendation: yes — the projection serves non-WAR sessions too; the seed is a render, not a retrieval.
+1. **CLAUDE.md pointer line — Tasks 2/3/4 emit this verbatim, byte-identical:**
+
+   > 📚 **Durable engineering lessons live in `docs/learnings/`** — one fact per Markdown file, provenance-tagged frontmatter. Before changing a subsystem, read the lessons that name it (plain Read/Grep, or ranked retrieval via the `work-audit-refine` plugin's `war-memory` query).
+
+   Path-agnostic on purpose: the line lands in **consumer** repos where `war-memory.mjs` is **not** at `skills/_shared/`. Task 4 (WorkAuditRefine's own `CLAUDE.md`) may append **one** repo-specific retrieval sentence with the real `node skills/_shared/war-memory.mjs …` path.
+2. **Setup seed when `memory.retrieval: false` but the repo root exists → YES.** Seeding is a render, not a retrieval; the projection serves the cloner's non-WAR sessions. Skipped only when the Node probe reports memory unavailable (Node < 24 / no `node:sqlite`). Wired into Task 2 clause 1.
