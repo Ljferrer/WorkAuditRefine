@@ -733,6 +733,52 @@ test('doc-contract: schemas.md describes overrides.gate as the declared base (no
   )
 })
 
+// --- Learnings read-path doc contracts (T2, #534) ---
+// Each grep is SCOPED to the clause it guards (by slicing the sentence that owns the token)
+// so removing that specific clause's --repo/pointer duty makes THIS test — not another — go red.
+
+test('doc-contract: SKILL.md prefetch clause passes --repo (read-path wiring, #534)', () => {
+  const text = readDoc('skills/war/SKILL.md')
+  // The prefetch invocation is the batched `query --queries <file>` line. Slice the sentence
+  // that owns it and assert --repo lives inside — so dropping --repo from the prefetch (only)
+  // fails here even though the Gate 2 render clause also carries --repo.
+  const marker = 'query --queries <file>'
+  const idx = text.indexOf(marker)
+  assert.ok(idx >= 0, 'SKILL.md must retain the batched `query --queries <file>` prefetch invocation')
+  // Bound the clause to the end of its Markdown paragraph (blank line).
+  const clauseEnd = text.indexOf('\n\n', idx)
+  const clause = text.slice(idx, clauseEnd === -1 ? undefined : clauseEnd)
+  assert.ok(
+    clause.includes('--repo'),
+    'SKILL.md prefetch clause (`query --queries`) must pass `--repo <resolved repo root>` so prefetch reads the repo root (#534)'
+  )
+})
+
+test('doc-contract: SKILL.md Gate 2 render-index passes --repo (read-path wiring, #534)', () => {
+  const text = readDoc('skills/war/SKILL.md')
+  // The Gate 2 render is the render-index that "regenerates the local MEMORY.md projection".
+  // Slice from `render-index` to its paragraph end and assert --repo is inside.
+  const marker = 'render-index --repo'
+  assert.ok(
+    text.includes(marker),
+    'SKILL.md Gate 2 publication must run `render-index --repo <resolved repo root>` so a repo-adopted store keeps its [repo] rows on re-render (#534)'
+  )
+})
+
+test('doc-contract: SKILL.md Gate 2 has the append-if-absent CLAUDE.md pointer duty (#534)', () => {
+  const text = readDoc('skills/war/SKILL.md')
+  // The pointer duty: append (if absent) the ratified pointer line to the target repo's CLAUDE.md,
+  // in the same docs(learnings) commit. Guard the duty prose AND the ratified line's unique phrase.
+  assert.ok(
+    text.includes('CLAUDE.md') && text.includes('append'),
+    'SKILL.md must state the append-if-absent CLAUDE.md pointer duty in the Gate 2 publication step (#534)'
+  )
+  assert.ok(
+    text.includes('Durable engineering lessons live in'),
+    'SKILL.md must carry the ratified CLAUDE.md pointer line verbatim (`Durable engineering lessons live in …`) (#534)'
+  )
+})
+
 // ---------------------------------------------------------------------------
 // Task 3 — F06: Default rosterPolicy 'all'; presets; historical-spec doc contract
 // ---------------------------------------------------------------------------
