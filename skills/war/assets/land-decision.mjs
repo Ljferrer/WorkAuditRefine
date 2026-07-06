@@ -9,7 +9,9 @@
 // post-loop sweep; a hard hold. Present in BOTH mirrors — the inline copy and this canonical export are
 // identical (L1: the former scheduler-local divergence is removed).
 // no-test: a requiresTest task whose diff never grew a mapped test after the bounded add-test/re-audit sub-loop exhausted budget (M2).
-export const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps', 'no-test']
+// unpackaged: a requiresPackaging task whose diff still trips assert-packaging-in-diff.sh (adds a file a Dockerfile's enumerated
+// COPYs miss) after the combined floor-retry sub-loop exhausted the shared budget. Mirrors no-test; must land in BOTH mirrors + the drift guard.
+export const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps', 'no-test', 'unpackaged']
 
 // The canonical landDecision known-set — the SINGLE source of truth for every phase-land outcome.
 // SUPERSET of two smaller sets it must contain: decideLand's 3 in-flow outputs

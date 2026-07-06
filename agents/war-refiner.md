@@ -41,17 +41,22 @@ merge-task is **inherently split across two worktrees** — the task branch stay
    - **exit 1** — no test found in the diff; return `status: "no-test"`. Do **NOT** merge. The Workflow routes a bounded fix-worker + full re-audit sub-loop (see `workflow-template.js` REFINE section). Do not conflate this with exit 2.
    - **exit 2** — a git/ref error (bad ref, network failure, fatal git error); return `status: "error"` (or `"gate_failed"`), **not** `"no-test"`. A transient bad-ref must never be misclassified as no-test and spin a pointless fix-worker — this exit-1-vs-2 distinction is the correctness boundary.
    - If `requiresTest` is `false` — skip this step entirely and proceed to merge.
-5. **Submodule-mutation check** (always, regardless of `requiresTest`): run `assert-no-submodule-mutation.sh` in `<taskWorktree>`. The flag depends on task type:
+5. **Packaging-floor check** (if `requiresPackaging` is `true` for this task): run `assert-packaging-in-diff.sh <integrationBranch> <taskBranch>` in `<taskWorktree>`. Branch on the exit code:
+   - **exit 0** — no Dockerfile misses a file the diff adds; continue to merge.
+   - **exit 1** — the diff adds a file a Dockerfile's enumerated COPYs miss; return `status: "unpackaged"`. Do **NOT** merge. The Workflow routes a bounded fix-worker + full re-audit sub-loop (shared with the test-floor retry — see `workflow-template.js` REFINE section). Do not conflate this with exit 2.
+   - **exit 2** — a git/ref error (bad ref, network failure, fatal git error); return `status: "error"`, **not** `"unpackaged"`. A transient bad-ref must never be misclassified as unpackaged and spin a pointless fix-worker — this exit-1-vs-2 distinction mirrors the step-4 discipline.
+   - If `requiresPackaging` is `false` — skip this step entirely and proceed to merge.
+6. **Submodule-mutation check** (always, regardless of `requiresTest`): run `assert-no-submodule-mutation.sh` in `<taskWorktree>`. The flag depends on task type:
    - For a **gitlink-bump task** (declared in the ledger): pass `--declared` — `assert-no-submodule-mutation.sh --declared <integrationBranch> <taskBranch>`. A gitlink-only diff exits 0 (the legitimate pin move); a non-gitlink submodule-path content change still exits 1 (refused even with `--declared`).
    - For any **other task** (no flag): `assert-no-submodule-mutation.sh <integrationBranch> <taskBranch>`. Any submodule mutation exits 1 (Increment-1 refuse-all behavior, unchanged).
    - **Note:** a submodule task's merge-task runs *inside the submodule worktree* — there is no superproject gitlink in view, so this check is a no-op in that context (and always exits 0).
-   - **Order-independent:** this submodule-mutation check and the step-4 test-floor check are both fail-closed pre-merge gates on the same diff; running the submodule check first or second yields the same merge/refuse outcome (either failing exit blocks the step-6 merge).
+   - **Order-independent:** this submodule-mutation check, the step-4 test-floor check, and the step-5 packaging-floor check are all three fail-closed pre-merge gates on the same diff; running them in any order yields the same merge/refuse outcome (any failing exit blocks the step-7 merge). The pinned placement — the two `assert-*-in-diff.sh` coverage floors (steps 4 and 5) adjacent, submodule-mutation next — is for readable grouping, not semantics.
 
    Branch on the exit code:
    - **exit 0** — diff is clean (or a declared gitlink-bump allowed by `--declared`); continue to merge.
    - **exit 1** — a submodule mutation is present and refused; return `status: "submodule-blocked"`. Do **NOT** merge. The Workflow routes an immediate hard escalate with 0 fix rounds.
    - **exit 2** — a git/ref error (bad ref, network failure, fatal git error); return `status: "error"`. A transient bad-ref must never be misclassified as submodule-blocked — this exit-1-vs-2 distinction mirrors the step-4 discipline.
-6. In `_refinery` (on the integration branch): `git -C <_refinery> merge <task-branch>` (no force), `git -C <_refinery> push`, and return `status: "merged"` with the new integration SHA. **Populate `gate_output`** with the full stdout+stderr of the gate run from step 2 — the post-merge gate-audit pass uses this as execution evidence to verify the mapped tests actually ran. Do **NOT** curate or excerpt — each `*.test.sh` runner emits a single aggregate PASS line, so a partial paste reads as an under-run; include the complete `*.test.sh` runner list or state the total runner count.
+7. In `_refinery` (on the integration branch): `git -C <_refinery> merge <task-branch>` (no force), `git -C <_refinery> push`, and return `status: "merged"` with the new integration SHA. **Populate `gate_output`** with the full stdout+stderr of the gate run from step 2 — the post-merge gate-audit pass uses this as execution evidence to verify the mapped tests actually ran. Do **NOT** curate or excerpt — each `*.test.sh` runner emits a single aggregate PASS line, so a partial paste reads as an under-run; include the complete `*.test.sh` runner list or state the total runner count.
 
 The merge's working-tree writes land only in `_refinery`. The task worktree is left clean so fix-in-place still works.
 
@@ -117,4 +122,4 @@ The gate command you receive is a **resolved, self-discovering string** (produce
 - Skip the gate. If you cannot proceed safely, return a status describing why.
 
 ## Return
-Return ONLY the `MergeResult` JSON (see `references/schemas.md`): `{ mode, status, branch, integration_sha?, working_sha?, conflict_files?, gate_output?, pr_number?, pr_remote? }`. For merge-task, `status` ∈ `"merged"` | `"gate_failed"` | `"conflict"` | `"no-test"` | `"submodule-blocked"` | `"error"`. For land-phase, `status` ∈ `"landed"` | `"land_stale"` | `"submodule-pr"` | `"error"`; a `"submodule-pr"` result carries `pr_number` and `pr_remote`.
+Return ONLY the `MergeResult` JSON (see `references/schemas.md`): `{ mode, status, branch, integration_sha?, working_sha?, conflict_files?, gate_output?, pr_number?, pr_remote? }`. For merge-task, `status` ∈ `"merged"` | `"gate_failed"` | `"conflict"` | `"no-test"` | `"unpackaged"` | `"submodule-blocked"` | `"error"`. For land-phase, `status` ∈ `"landed"` | `"land_stale"` | `"submodule-pr"` | `"error"`; a `"submodule-pr"` result carries `pr_number` and `pr_remote`.

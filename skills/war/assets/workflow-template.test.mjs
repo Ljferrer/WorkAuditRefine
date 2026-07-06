@@ -2793,20 +2793,22 @@ test('Task 3 — provenance aced list: an aced nit appears on return.aced with {
 })
 
 test('Task 3 — no-enum-leak: no new MERGE_RESULT.status member and no new HARD_ESCALATION_REASONS member (aced is an attribute only)', () => {
-  // MERGE_RESULT.status enum must be exactly the pre-ace set (no 'aced'/'ace-reverted' member).
+  // MERGE_RESULT.status enum must be exactly the expected set (no 'aced'/'ace-reverted' member).
+  // 'unpackaged' is the packaging-floor outcome added by the container-packaging plan (Task 2) —
+  // mirroring 'no-test', a legitimate merge outcome, NOT an ace leak.
   const mMatch = src.match(/MERGE_RESULT[\s\S]*?status\s*:\s*\{\s*enum\s*:\s*(\[[^\]]+\])/)
   assert.ok(mMatch, 'MERGE_RESULT status enum found')
   const statuses = JSON.parse(mMatch[1].replace(/'/g, '"'))
   assert.deepEqual(statuses.sort(),
-    ['conflict', 'error', 'gate_failed', 'land_stale', 'landed', 'merged', 'no-test', 'submodule-blocked', 'submodule-pr'].sort(),
-    'MERGE_RESULT.status enum is unchanged — no ace member leaked in')
-  // HARD_ESCALATION_REASONS inline literal must be exactly the canonical 8 (no ace member).
+    ['conflict', 'error', 'gate_failed', 'land_stale', 'landed', 'merged', 'no-test', 'unpackaged', 'submodule-blocked', 'submodule-pr'].sort(),
+    'MERGE_RESULT.status enum is the expected set — no ace member leaked in (unpackaged is the packaging-floor outcome)')
+  // HARD_ESCALATION_REASONS inline literal must be exactly the canonical 9 (no ace member).
   const hMatch = src.match(/const\s+HARD_ESCALATION_REASONS\s*=\s*(\[[^\]]+\])/)
   assert.ok(hMatch, 'HARD_ESCALATION_REASONS found')
   const hard = JSON.parse(hMatch[1].replace(/'/g, '"'))
   assert.deepEqual(hard.sort(),
-    ['audit-blocked', 'conflict', 'dep-failed', 'escalate', 'gate-evidence', 'land_stale', 'no-test', 'unrunnable-deps'].sort(),
-    'HARD_ESCALATION_REASONS is unchanged — aced is a return attribute, not an escalation reason')
+    ['audit-blocked', 'conflict', 'dep-failed', 'escalate', 'gate-evidence', 'land_stale', 'no-test', 'unpackaged', 'unrunnable-deps'].sort(),
+    'HARD_ESCALATION_REASONS is the expected set — aced is a return attribute, not an escalation reason (unpackaged is a packaging-floor hard reason)')
 })
 
 // ---------------------------------------------------------------------------
@@ -3720,4 +3722,276 @@ test('handoff absorbed grouping: per-task ace absorbs group by commit sha as [{ 
   const grp = out.handoff.absorbed.find(g => g && g.sha === 'deadbeef')
   assert.ok(grp, 'one absorbed group at the ace commit sha')
   assert.deepEqual([...grp.findings].sort(), ['ace one', 'ace two'], 'both findings cite the same sha')
+})
+
+// ---------------------------------------------------------------------------
+// Container-packaging Task 2 (#527): packaging floor wiring + unpackaged enum +
+// combined floor-retry sub-loop + polish skip + args.backstops pass-through.
+// Spec §10.2–3. Each new assertion fails without its feature (delete-it-mentally).
+// ---------------------------------------------------------------------------
+
+// Single-task args, requiresPackaging left default (true) so the floor engages.
+const PKG_ARGS = (over = {}) => PROVISION_ARGS({
+  tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] }],
+  ...over,
+})
+const isPackageItWorker = (c) => seatOf(c.opts) === 'war-worker' && /package-it:/.test(c.opts.label || '')
+
+test('pkg §4.2 — main merge prompt invokes assert-packaging-in-diff.sh with the unpackaged/exit-1, error/exit-2 contract', async () => {
+  // The default (requiresPackaging true) merge prompt must instruct the packaging floor exactly like
+  // the test floor: exit 1 → unpackaged (do NOT merge), exit 2 → error (never unpackaged).
+  const { calls } = await runPhase(PKG_ARGS(), defaultImpl)
+  const merge = calls.find(isMergeTask)
+  assert.ok(merge, 'a merge-task is dispatched')
+  const p = merge.prompt
+  assert.match(p, /assert-packaging-in-diff\.sh integration\/wtprov-a\/phase-3 war\/wtprov-a\/p3-t1/,
+    'merge prompt runs assert-packaging-in-diff.sh <integrationBranch> <taskBranch>')
+  // Slice the packaging clause out and assert the exit-code split (disjoint from the test-floor clause,
+  // which never names 'unpackaged').
+  const clause = p.match(/run assert-packaging-in-diff\.sh[^]*?package-it loop\./)
+  assert.ok(clause, 'the packaging-floor clause is present in the merge prompt')
+  assert.ok(clause[0].includes('exit 1') && clause[0].includes("status: 'unpackaged'"),
+    "exit 1 → status:'unpackaged' (do NOT merge)")
+  assert.ok(clause[0].includes('exit 2') && clause[0].includes("status: 'error'"),
+    "exit 2 → status:'error', never 'unpackaged'")
+})
+
+test('pkg §4.2 — unpackaged routes a bounded fix-worker + full re-audit + re-merge; task lands', async () => {
+  // Drive: merge-task returns unpackaged on call 1, merged on call 2 (after package-it fix + re-audit).
+  let mergeCallCount = 0
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker' && opts.phase === 'Work') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-refiner' && opts.phase === 'Refine') {
+      mergeCallCount++
+      return mergeCallCount === 1
+        ? { mode: 'merge-task', status: 'unpackaged' }
+        : { mode: 'merge-task', status: 'merged' }
+    }
+    if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { out, calls } = await runPhase(PKG_ARGS(), impl)
+  // A package-it fix-worker must be dispatched (unique label token 'package-it:').
+  const pkgFix = calls.find(isPackageItWorker)
+  assert.ok(pkgFix, 'a package-it fix-worker must be dispatched on an unpackaged result')
+  // The anti-cheat instruction must be in the fix prompt (delete-it-mentally: drop the branch → no such prompt).
+  assert.match(pkgFix.prompt, /add the COPY or dockerignore it — never delete the file/,
+    'the package-it fix prompt carries the anti-cheat instruction (add the COPY or dockerignore it — never delete the file)')
+  // Full re-audit must re-spawn (>=2 regular audit calls).
+  const auditCalls = calls.filter(c => isAuditor(c) && !c.prompt.includes('execution-evidence'))
+  assert.ok(auditCalls.length >= 2, `audit panel must re-spawn after the package-it fix (got ${auditCalls.length})`)
+  // A second merge must be attempted, and the task lands.
+  assert.ok(mergeCallCount >= 2, `re-merge must be attempted after re-audit (mergeCallCount=${mergeCallCount})`)
+  assert.ok(out.landed.includes('t1'), 't1 lands after unpackaged fix + re-audit + re-merge')
+})
+
+test('pkg §4.2 — unpackaged budget exhaustion → hard escalation {reason:"unpackaged"} → held:escalation', async () => {
+  // roundLimit:1: one package-it fix round, then the re-merge still returns unpackaged → exhausted.
+  let mergeCount = 0
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-refiner' && opts.phase === 'Refine') { mergeCount++; return { mode: 'merge-task', status: 'unpackaged' } }
+    if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { out } = await runPhase(PKG_ARGS({ run: { roundLimit: 1 } }), impl)
+  assert.ok(!out.landed.includes('t1'), 't1 must not land when the packaging budget is exhausted')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1' && e.reason === 'unpackaged')
+  assert.ok(esc, 'escalated must contain {task:"t1", reason:"unpackaged"} on budget exhaustion')
+  assert.equal(out.landDecision, 'held:escalation',
+    'unpackaged is a HARD_ESCALATION_REASON → held:escalation')
+  // The exhausted verdict is recorded (auditLog).
+  const exhaustedLog = (out.auditLog || []).find(e => e && e.task === 't1' && e.verdict === 'unpackaged:exhausted')
+  assert.ok(exhaustedLog, "auditLog records verdict 'unpackaged:exhausted'")
+})
+
+test('pkg §4.2 — requiresPackaging:false skips the floor with a LOGGED (never silent) skip; no package-it worker', async () => {
+  const EXEMPT = PROVISION_ARGS({
+    tasks: [{ id: 't1', issue: 101, title: 'Docs task', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], requiresPackaging: false }],
+  })
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker' && opts.phase === 'Work') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'merged' }
+    if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { out, calls, logs } = await runPhase(EXEMPT, impl)
+  // Merge prompt must state the skip.
+  const merge = calls.find(isMergeTask)
+  assert.match(merge.prompt, /requiresPackaging:false — skip the assert-packaging-in-diff\.sh check/,
+    'merge prompt states requiresPackaging:false and skips the packaging floor')
+  // The skip must be LOGGED (never silent) — this is the load-bearing assertion (delete the log line → RED).
+  assert.ok(logs.some(m => /packaging-floor: skipping t1 \(requiresPackaging:false/.test(m)),
+    'a requiresPackaging:false skip is logged (never silent)')
+  // No package-it fix-worker (the floor never ran).
+  assert.ok(!calls.find(isPackageItWorker), 'requiresPackaging:false → no package-it fix-worker')
+  assert.ok(out.landed.includes('t1'), 'the requiresPackaging:false task still lands')
+})
+
+test('pkg §4.2 — BOTH floors tripped: combined sub-loop gives each a bounded fix, no immediate hard escalate on the second', async () => {
+  // The core cross-floor property (spec §4.2): merge returns no-test → add-test fix + re-audit →
+  // re-merge returns unpackaged → package-it fix + re-audit → re-merge returns merged → lands.
+  // A no-test-only loop would hard-escalate verbatim on the unpackaged re-merge status (never fixing it).
+  // Load-bearing: BOTH an add-test AND a package-it worker must be dispatched, and the task lands.
+  let mergeCount = 0
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-refiner' && opts.phase === 'Refine') {
+      mergeCount++
+      if (mergeCount === 1) return { mode: 'merge-task', status: 'no-test' }      // first floor
+      if (mergeCount === 2) return { mode: 'merge-task', status: 'unpackaged' }   // second floor, on the retry merge
+      return { mode: 'merge-task', status: 'merged' }                             // both cleared
+    }
+    if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { out, calls } = await runPhase(PKG_ARGS(), impl)
+  // Both fix-workers were dispatched — one per floor (the combined loop routed each).
+  assert.ok(calls.find(isAddTestWorker), 'an add-test fix-worker was dispatched for the no-test floor')
+  assert.ok(calls.find(isPackageItWorker), 'a package-it fix-worker was dispatched for the unpackaged floor (NOT an immediate hard escalate)')
+  // The unpackaged re-merge status did NOT immediately hard-escalate: t1 lands, and there is no
+  // unpackaged/no-test escalation entry.
+  assert.ok(out.landed.includes('t1'), 't1 lands after bounded fixes for BOTH floors')
+  const floorEsc = (out.escalated || []).find(e => e && e.task === 't1' && (e.reason === 'unpackaged' || e.reason === 'no-test'))
+  assert.ok(!floorEsc, 'neither floor status hard-escalated — the combined loop fixed both')
+  assert.equal(mergeCount, 3, 'three merge attempts: initial + one retry per floor')
+})
+
+test('pkg §4.2 — both floors tripped but budget too small: the SECOND floor exhausts as a hard reason (not a crash)', async () => {
+  // roundLimit:1 — the no-test fix uses the one round; the re-merge returns unpackaged with the budget
+  // spent → the sub-loop exits with the still-tripping floor (unpackaged) as the hard escalation reason.
+  // Guards that the combined loop terminates cleanly on the second floor rather than looping forever.
+  let mergeCount = 0
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-refiner' && opts.phase === 'Refine') {
+      mergeCount++
+      return mergeCount === 1 ? { mode: 'merge-task', status: 'no-test' } : { mode: 'merge-task', status: 'unpackaged' }
+    }
+    if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { out } = await runPhase(PKG_ARGS({ run: { roundLimit: 1 } }), impl)
+  assert.ok(!out.landed.includes('t1'), 't1 must not land')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1' && e.reason === 'unpackaged')
+  assert.ok(esc, 'the still-tripping SECOND floor (unpackaged) is the hard escalation reason at exhaustion')
+  assert.equal(out.landDecision, 'held:escalation', 'held:escalation on exhaustion')
+  assert.ok(!out.workflowError, 'the combined loop terminates cleanly — no workflow error')
+})
+
+test('pkg §4.2 — retry-merge prompt re-instructs ALL floor invocations (test + packaging kept in sync with standing steps)', async () => {
+  // The floor-retry merge prompt must re-instruct BOTH assert-test-in-diff.sh AND
+  // assert-packaging-in-diff.sh (dispatched-vs-standing coverage-split lesson).
+  let mergeCount = 0
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-refiner' && opts.phase === 'Refine') { mergeCount++; return mergeCount === 1 ? { mode: 'merge-task', status: 'unpackaged' } : { mode: 'merge-task', status: 'merged' } }
+    if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { calls } = await runPhase(PKG_ARGS(), impl)
+  const retry = calls.find(c => /floor-retry/.test(c.opts.label || ''))
+  assert.ok(retry, 'a floor-retry merge is dispatched')
+  assert.match(retry.prompt, /assert-test-in-diff\.sh/, 'retry-merge re-instructs the test floor')
+  assert.match(retry.prompt, /assert-packaging-in-diff\.sh/, 'retry-merge re-instructs the packaging floor')
+})
+
+test('pkg §4.2 — drift-guard: both HARD_ESCALATION_REASONS mirrors include unpackaged and are equal', () => {
+  const match = src.match(/const\s+HARD_ESCALATION_REASONS\s*=\s*(\[[^\]]+\])/)
+  assert.ok(match, 'inline HARD_ESCALATION_REASONS found in workflow-template.js')
+  const inline = JSON.parse(match[1].replace(/'/g, '"'))
+  assert.ok(inline.includes('unpackaged'), "inline HARD_ESCALATION_REASONS must include 'unpackaged'")
+  assert.ok(HARD_ESCALATION_REASONS.includes('unpackaged'), "canonical HARD_ESCALATION_REASONS must include 'unpackaged'")
+  assert.deepEqual([...inline].sort(), [...HARD_ESCALATION_REASONS].sort(),
+    'inline and canonical HARD_ESCALATION_REASONS must be equal including unpackaged (drift-guard)')
+})
+
+test('pkg §4.2 — MERGE_RESULT inline enum includes unpackaged', () => {
+  const match = src.match(/MERGE_RESULT[\s\S]*?status\s*:\s*\{\s*enum\s*:\s*(\[[^\]]+\])/)
+  assert.ok(match, 'MERGE_RESULT status enum found')
+  const parsed = JSON.parse(match[1].replace(/'/g, '"'))
+  assert.ok(parsed.includes('unpackaged'), 'MERGE_RESULT status enum includes unpackaged')
+})
+
+test('pkg §4.2 — polish-merge prompt carries the explicit packaging-floor skip (next to the test-floor skip)', async () => {
+  // Force a phaseClose finding so the phase-close coherence sweep dispatches a polish merge; its
+  // prompt must explicitly skip BOTH assert-test-in-diff.sh and assert-packaging-in-diff.sh.
+  const pcNit = { severity: 'Nit', title: 'phase-close coherence', file: 'skills/war/assets/x.js', rationale: 'tip-level', disposition: 'absorb', phaseClose: true }
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [pcNit]), approveWith('audit:t1:correctness', [])] },
+    (prompt, opts) => {
+      const seat = seatOf(opts)
+      if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+      if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'deadbeef', tests: {} }
+      if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+      if (seat === 'war-refiner') return opts.phase === 'Land' ? { mode: 'land-phase', status: 'landed' } : { mode: 'merge-task', status: 'merged' }
+      if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+      return {}
+    })
+  const { calls } = await runPhase(ACE_ARGS({ audit: { roster: ROSTER_TRIO } }), impl)
+  const polishMerge = calls.find(c => /merge:.*polish/.test(c.opts.label || ''))
+  assert.ok(polishMerge, 'a polish merge is dispatched (phase-close sweep)')
+  assert.match(polishMerge.prompt, /skip assert-test-in-diff\.sh/, 'polish merge skips the test floor')
+  assert.match(polishMerge.prompt, /skip the packaging floor assert-packaging-in-diff\.sh|assert-packaging-in-diff\.sh/,
+    'polish merge explicitly skips the packaging floor (delete the clause → no packaging-floor mention in the polish prompt)')
+})
+
+test('pkg §4.4 — args.backstops passes through UNTOUCHED into handoff.backstops[] on a landed phase', async () => {
+  const BACKSTOPS = [
+    { check: 'docker build -f app/Dockerfile app', why: 'no daemon at setup', runner: 'CI', source: 'auto' },
+    { check: 'integration smoke', why: 'out of scope', runner: 'nightly', source: 'plan', aiDeclared: true },
+  ]
+  const { out } = await runPhase(PKG_ARGS({ backstops: BACKSTOPS }), defaultImpl)
+  assert.equal(out.landDecision, 'landed', 'phase lands')
+  assert.ok(out.handoff, 'handoff present on landed')
+  assert.deepEqual(out.handoff.backstops, BACKSTOPS,
+    'handoff.backstops[] is args.backstops passed through untouched (same entries, same order, aiDeclared preserved)')
+})
+
+test('pkg §4.4 — args.backstops also rides handoff on held:escalation (degraded phase still hands off the debt map)', async () => {
+  const BACKSTOPS = [{ check: 'docker build', why: 'daemon unavailable at setup', runner: 'CI', source: 'auto' }]
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'merged' }
+    if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'land_stale' }  // hard → held:escalation
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { out } = await runPhase(PKG_ARGS({ backstops: BACKSTOPS }), impl)
+  assert.equal(out.landDecision, 'held:escalation', 'land_stale holds → held:escalation')
+  assert.ok(out.handoff, 'handoff still emitted on held:escalation (degraded)')
+  assert.deepEqual(out.handoff.backstops, BACKSTOPS, 'handoff.backstops[] carried on held:escalation')
+})
+
+test('pkg §4.4 — a legacy plan with no args.backstops → handoff.backstops is null (surfaced-note default)', async () => {
+  const { out } = await runPhase(PKG_ARGS(), defaultImpl)  // no backstops threaded
+  assert.ok(out.handoff, 'handoff present')
+  assert.equal(out.handoff.backstops, null, 'absent args.backstops → handoff.backstops null (never undefined/[])')
 })
