@@ -116,6 +116,7 @@ test('economy preset (pinned to its historical effective config)', () => {
   assert.equal(c.audit.rosterPolicy, 'solo')
   assert.equal(c.run.roundLimit, 2)
   assert.equal(c.run.ace, false)                    // pinned — DEFAULTS moved to true
+  assert.equal(c.memory.commitLearnings, false)     // pinned — DEFAULTS moved to true
   assert.equal(validate(c).valid, true)
 })
 
@@ -254,12 +255,20 @@ test('non-boolean ace rejected', () => {
 })
 
 // --- memory block (compounding-memory retrieval + publication) ----------------
-// DEFAULTS.memory = { retrieval: true, topK: 10, commitLearnings: false }.
+// DEFAULTS.memory = { retrieval: true, topK: 10, commitLearnings: true }.
 // Doctrine: no accepted-but-ignored keys, so validate() rejects bad types AND unknown keys.
 
-test('memory defaults: retrieval true, topK 10, commitLearnings false', () => {
+test('memory defaults: retrieval true, topK 10, commitLearnings true', () => {
   const c = fillDefaults({})
-  assert.deepEqual(c.memory, { retrieval: true, topK: 10, commitLearnings: false })
+  assert.deepEqual(c.memory, { retrieval: true, topK: 10, commitLearnings: true })
+})
+
+test('commitLearnings defaults to true; economy pins false', () => {
+  assert.equal(DEFAULTS.memory.commitLearnings, true)
+  for (const preset of ['balanced', 'thorough']) {
+    assert.equal(presetConfig(preset).memory.commitLearnings, true, `${preset} preset must inherit memory.commitLearnings === true`)
+  }
+  assert.equal(presetConfig('economy').memory.commitLearnings, false, 'economy preset must pin memory.commitLearnings === false')
 })
 
 // criterion 12: a config WITHOUT a memory block fills defaults clean and validates.
@@ -267,7 +276,7 @@ test('memory defaults: retrieval true, topK 10, commitLearnings false', () => {
 test('old config without a memory block fills defaults clean and validates (criterion 12)', () => {
   const legacy = { version: 1, agents: { worker: { model: 'opus', effort: 'max' } } } // no memory key
   const c = fillDefaults(legacy)
-  assert.deepEqual(c.memory, { retrieval: true, topK: 10, commitLearnings: false })
+  assert.deepEqual(c.memory, { retrieval: true, topK: 10, commitLearnings: true })
   assert.equal(validate(legacy).valid, true, validate(legacy).errors.join('\n'))
 })
 

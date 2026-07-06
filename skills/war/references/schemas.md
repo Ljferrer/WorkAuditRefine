@@ -171,7 +171,7 @@ Produced by `/war-room`, consumed by `/war`'s Setup. The schema, defaults, prese
                                              // ace = pre-merge auto-fix of absorb-disposition nits (default true; economy preset false);
                                              // provision = ordered worktree-prep commands ([] = none); provisionSource ∈ explicit|manifest|ci|onboarding|structural|none;
                                              // provisionAuto = let /war-room scout provisioning when no explicit list (default true)
-  memory: { retrieval, topK, commitLearnings },  // retrieval: Lead prefetches per-seat prior-lesson blocks (bool, default true); topK: max lessons/block (int >= 1, default 10); commitLearnings: write the repo-root docs/learnings projection (bool, default false — most repos keep learnings local-only)
+  memory: { retrieval, topK, commitLearnings },  // retrieval: Lead prefetches per-seat prior-lesson blocks (bool, default true); topK: max lessons/block (int >= 1, default 10); commitLearnings: write the repo-root docs/learnings lessons (bool, default true — lint-scrubbed, PR-reviewed; the economy preset pins false)
   overrides: { gate, workingBranch, landingBranch, learningsTarget } }  // null = let /war auto-detect
 // overrides.gate is the *declared base* command (string|null); the *resolved* gate run by agents
 // is a self-discovering string produced by war-config.mjs resolveGate(declaredGate): it appends

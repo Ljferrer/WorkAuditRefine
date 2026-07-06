@@ -66,7 +66,7 @@ Do **not** place `provenance:` or `keywords:` at the top level of the frontmatte
 
 ## Routing — which root a lesson lives in (spec §4.6)
 
-`metadata.type` decides where a lesson is published, fail-safe (a lesson is never committed by default):
+`metadata.type` decides where a lesson is published, fail-safe (an untyped lesson is never committed — publication requires a deliberate `type: project`):
 
 - `type: project` → the **repo root** (`docs/learnings/`, travels through git) **iff** `memory.commitLearnings` is on for this run; otherwise the **local root**. Set `type: project` only for a lesson that is genuinely about *this codebase* and safe to share.
 - `type: user` or `type: feedback` → the **local root**, always (operator-personal; never committed).
