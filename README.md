@@ -310,7 +310,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.14.2** — Campaign compaction survival — `CAMPAIGN-STATE.md` is codified as a write-ahead checkpoint (the Lead rewrites it before every long-wait dispatch and at each plan boundary), and a campaign-gated `SessionStart(compact|clear|resume)` hook re-injects it into a fresh window after compaction. Self-triggered compaction is rejected (see ADR 0016); the hook is silent in any session that isn't running a campaign.
+**0.14.4** — Cross-branch campaign add — `/war-campaign add <plan> [<ref>]` now resolves a plan missing on the current branch from the given ref (default `origin/master`) at add time, records the provenance in the inbox drop, and the Lead materializes the plan plus any referenced missing files onto that plan's own `dev/<slug>` branch at the plan boundary — no merge or rebase of master ever enters the stack.
 
 ## License
 
