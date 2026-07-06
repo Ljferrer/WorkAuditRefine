@@ -56,7 +56,12 @@ file footprints of the plans already authored (honest contention).
    **`--afk`:** triad survivors are self-adjudicated into the deviations log. The plan carries
    **`## AI-Commander's Intent`** instead — the one sanctioned Lead-invented intent block
    (ADR 0014, amending [ADR 0013](../../docs/adr/0013-commanders-intent-and-disposition-routing.md)),
-   provenance-marked by the heading itself. **Predecessor-consistency check:** before committing
+   provenance-marked by the heading itself. The **same ADR 0014 provenance rule applies to
+   waivers:** when the drafter authors the plan's backstop section, it uses the AI-declared heading
+   variant **`## Deferred validations (backstops — AI-declared)`** — never the plain
+   operator-ratified `## Deferred validations (backstops)` — because an `--afk` plan has no operator
+   to ratify its deferrals; the marker survives extraction (`aiDeclared: true`) so an AI-declared
+   waiver is never surfaced as operator-ratified. **Predecessor-consistency check:** before committing
    to a synthetic intent, read the prior intent blocks — either heading, `## Commander's Intent`
    or `## AI-Commander's Intent` — across `docs/plans/*.md` and check the new block is in line
    with its predecessors (tone, scope, standing constraints); a divergence is **recorded in the
