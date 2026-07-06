@@ -40,8 +40,9 @@ export const DEFAULTS = {
   run: { roundLimit: 3, afk: false, ace: true, provision: [], provisionSource: 'none', provisionAuto: true },
   // Compounding-memory retrieval + publication (spec 2026-07-03). retrieval: Lead prefetches
   // per-seat lesson blocks; topK: max lessons per block; commitLearnings: write the repo-root
-  // projection (default off — most repos keep learnings local-only).
-  memory: { retrieval: true, topK: 10, commitLearnings: false },
+  // docs/learnings/ lessons (default ON — published lessons are lint-scrubbed and ride each
+  // phase PR, human-reviewed like code; the economy preset pins it off).
+  memory: { retrieval: true, topK: 10, commitLearnings: true },
   overrides: { gate: null, workingBranch: null, landingBranch: null, learningsTarget: null },
 }
 
@@ -76,6 +77,7 @@ export const PRESETS = {
     },
     audit: { rosterPolicy: 'solo' },
     run: { roundLimit: 2, ace: false },
+    memory: { commitLearnings: false },
   },
 }
 

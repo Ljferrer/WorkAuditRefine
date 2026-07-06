@@ -118,8 +118,9 @@ run by hand. A lesson's root is decided by **which directory the file physically
 relocates a lesson into the repo root for you (`migrate --apply` only archives `[RESOLVED]` lessons;
 `render-index` only ever writes the local `MEMORY.md` — no repo-root projection is ever written). So:
 
-1. Turn on committing for this repo (via `/war-room`, set `memory.commitLearnings: true`) — the operator
-   signal that `project`-typed lessons may travel.
+1. Confirm committing is on for this repo (`memory.commitLearnings` — default `true`; the economy preset
+   pins it `false`; check `.claude/war/config.json` or run `/war-room`) — the operator signal that
+   `project`-typed lessons may travel.
 2. **Move the confirmed `project`-typed files into the repo root** — the set the dry-run reported under
    `→ repo root`, minus anything you decided to keep local. `mkdir -p "$CLAUDE_MEMORY_REPO"` then move each
    file (a plain `mv` from the local root, or author it fresh under `docs/learnings/`).
