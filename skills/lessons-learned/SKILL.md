@@ -1,11 +1,28 @@
 ---
 name: lessons-learned
-description: Audit and tidy this project's Claude memory store (the MEMORY.md index plus its [[wikilinked]] topic files) — fan out agents to verify every memory against the live repo, classify stale vs durable, then compress / re-anchor / retire and rewrite the index, fault-tolerantly (backup → stage → verify → atomic swap). Always a full pass over the local repo's memory. Use when the user runs /lessons-learned, wants a memory housekeeping or "lessons learned" round, asks whether MEMORY.md is too large / stale / how full it is, or wants to prune, compress, or de-duplicate accumulated learnings.
+description: Audit and tidy this project's Claude memory store (the MEMORY.md index plus its [[wikilinked]] topic files) — fan out agents to verify every memory against the live repo, classify stale vs durable, then compress / re-anchor / retire and rewrite the index, fault-tolerantly (backup → stage → verify → atomic swap). Always a full pass over the local repo's memory. Use when the user runs /lessons-learned, wants a memory housekeeping or "lessons learned" round, asks whether MEMORY.md is too large / stale / how full it is, or wants to prune, compress, or de-duplicate accumulated learnings. Invoked as /lessons-learned migrate, it instead runs the one-time two-root adoption playbook — retype untyped lessons, archive [RESOLVED] ones, and split committable project lessons into docs/learnings/ via a reviewed PR. Invoked as /lessons-learned evict, it undoes that migration — repo-root lessons return to the local root via a reviewed deletion PR, asking whether to also set commitLearnings: false.
 ---
 
 # /lessons-learned — fault-tolerant memory housekeeping
 
 You run a **full pass** over this project's Claude memory store: verify every memory against the **live repo**, decide what is stale vs. still relevant, then **compress / re-anchor / retire / merge** the topic files and rewrite the `MEMORY.md` index. The pass is **fault-tolerant to interruption** (laptop closing mid-run) and **reports at every phase**.
+
+## `migrate` mode — one-time two-root adoption
+
+If the arguments contain the word **`migrate`** (`/lessons-learned migrate`), do **not** run the housekeeping phases below. Instead load [`references/migration.md`](references/migration.md) and execute that playbook: `migrate` dry-run → agent-assisted retype of the `untyped` bucket → `migrate --apply` (archives `[RESOLVED]` lessons) → keywords backfill → move the operator-confirmed `project`-typed set into `docs/learnings/` and open the reviewed learnings PR (gate 2 by hand, `lint` fail-closed). Three warnings the playbook expands on:
+
+- Migration edits the **live store directly** (it is not the staging flow below) — take the tarball backup the playbook names before `--apply`.
+- Requires Node ≥ 24 (`node:sqlite`); on older Node every verb no-ops with a message.
+- The `project`-typed set becomes **public on merge** — the operator confirms it explicitly; the redaction lint is the net, not the decision.
+
+## `evict` mode — undoing the migration
+
+If the arguments contain **`evict`** (`/lessons-learned evict [slug…]`), do **not** run the housekeeping phases. Load [`references/migration.md`](references/migration.md) and execute its **Evict** section: return repo-root lessons to the local root (temperature preserved — repo `archive/` lands in local `archive/`), re-render the projection, and open the reviewed deletion PR. Two rules that section expands on:
+
+- **Always ask the operator whether to also set `memory.commitLearnings: false`** in `.claude/war/config.json` (or via `/war-room`) — the default is `true`, so without the flip the next landed WAR phase repopulates `docs/learnings/` and the evict is temporary. Ask **before** moving any file; apply their answer; record a decline in the final report.
+- Check for slug collisions between the roots before moving; diff and reconcile by hand — never clobber.
+
+Any other argument text (or none) means a normal housekeeping pass.
 
 ## The cardinal invariant — never mutate the live store until it is verified
 
