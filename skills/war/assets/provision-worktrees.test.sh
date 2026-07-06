@@ -1593,6 +1593,24 @@ expect "MX.1: refinery .war-task does NOT surface in git status (excluded)" \
   "" "$(git -C "$WMXR" status --porcelain | grep '\.war-task' || true)"
 
 # ---------------------------------------------------------------------------
+# Case (OF.1) OWNED-FILE PARENT DIR MISSING: ensure-integration with
+# --owned-file pointing into a not-yet-existing directory must still record
+# ownership (record_owned_file mkdir -p's the parent). Regression: the append
+# used to die under set -e AFTER the branch was created but BEFORE ownership
+# was recorded, so an identical retry saw its own branch as foreign and
+# exited 3 (ADR 0003), halting the phase.
+# ---------------------------------------------------------------------------
+ROF1="$(new_repo)"
+TIPOF1="$(git -C "$ROF1" rev-parse HEAD)"
+OWNOF1="$ROF1/.claude/teams/run-of1/owned.txt"   # parent dirs do NOT exist yet
+code_of1="$(run_in "$ROF1" ensure-integration myplan 50 "$TIPOF1" --owned-file "$OWNOF1")"
+expect "OF.1: create with missing owned-file parent dir exits 0" 0 "$code_of1"
+expect "OF.1: ownership recorded in the ledger" \
+  "0" "$(grep -Fxq -- integration/myplan/phase-50 "$OWNOF1" 2>/dev/null; echo $?)"
+code_of1b="$(run_in "$ROF1" ensure-integration myplan 50 "$TIPOF1" --owned-file "$OWNOF1")"
+expect "OF.1: identical retry reuses the branch (exit 0, not 3)" 0 "$code_of1b"
+
+# ---------------------------------------------------------------------------
 printf '\n%d/%d cases passed\n' "$((n - fails))" "$n"
 [ "$fails" -eq 0 ] || { printf '%d FAILED\n' "$fails"; exit 1; }
 echo "provision-worktrees.test.sh: PASS"

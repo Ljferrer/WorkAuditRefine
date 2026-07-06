@@ -162,6 +162,10 @@ record_owned_file() {
   if [ -f "$ofile" ] && grep -Fxq -- "$ref" "$ofile"; then
     return 0
   fi
+  # The ledger dir may not exist yet on a fresh run; under set -e a failed
+  # append here would kill the script AFTER the branch was created but BEFORE
+  # ownership was recorded, making a retry see its own branch as foreign (exit 3).
+  mkdir -p "$(dirname "$ofile")"
   printf '%s\n' "$ref" >> "$ofile"
 }
 
