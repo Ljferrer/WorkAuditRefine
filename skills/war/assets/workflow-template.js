@@ -19,7 +19,8 @@ export const meta = {
 //              // checked by the gate-audit pass — later-phase conditions are out-of-scope there, never a hold
 //     plan:  { file, gate },          // gate = a shell command, run BY agents (this script has no shell/fs)
 //     tasks: [ { id, issue, title, branch, worktree, deps:[id],
-//                roster:[{ lens, depth? }], planSlice } ],       // roster: 1–5 distinct-lens audit seats; depth omitted → 'deep'
+//                roster:[{ lens, depth? }], planSlice, requiresTest?, requiresPackaging? } ],  // roster: 1–5 distinct-lens audit seats; depth omitted → 'deep'.
+//                                     // requiresTest/requiresPackaging default true; false (Lead-set) skips that pre-merge floor with a logged, never-silent skip.
 //     learningsTarget,                // the servitor's only writable path (memory dir or docs/learnings/)
 //     intent,                         // Commander's Intent, extracted VERBATIM by the Lead from the plan's
 //                                     // `## Commander's Intent` OR `## AI-Commander's Intent` section (either
@@ -30,7 +31,11 @@ export const meta = {
 //     agentPrefix,                    // optional namespace prefix for agent types (default: 'work-audit-refine:')
 //     agents: { worker|auditor|refiner|servitor: { model, effort } },  // from .claude/war/config.json (resolved by the Lead); defaults below
 //     audit:  { roster, rosterPolicy, autoEscalate },                  // rosterPolicy 'auto' = Lead composes each task.roster from the catalog (Lead-side); audit.roster is the widening FALLBACK roster (auditor-nominated-or-default, D4); autoEscalate used here
-//     run:    { roundLimit, afk } }                                    // afk is Lead-side; roundLimit used here
+//     run:    { roundLimit, afk },                                     // afk is Lead-side; roundLimit used here
+//     backstops }                     // array|null of { check, why, runner, source:'plan'|'auto', aiDeclared? } — every
+//                                     // validation this phase deferred (Lead is the single normalization point: plan-declared
+//                                     // + Setup auto-recorded merged here). Passed through UNTOUCHED into handoff.backstops[].
+//                                     // null = legacy plan with no backstop section. Empty/absent ⇒ handoff.backstops = null.
 // auditors receive the absolute worktree path and self-serve the change set via read-only git (git diff <integrationBranch>...<task.branch>, three-dot); no main-checkout baseline.
 // The Lead may inject APPROVED extra stages by editing a copy of this file; never free-author the core loop.
 // ---------------------------------------------------------------------------
@@ -60,7 +65,7 @@ const AUDIT_VERDICT = { type: 'object', required: ['seat', 'lens', 'verdict', 'f
 
 const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties: {
   mode: { enum: ['merge-task', 'land-phase'] },
-  status: { enum: ['merged', 'landed', 'gate_failed', 'conflict', 'error', 'land_stale', 'no-test', 'submodule-blocked', 'submodule-pr'] },
+  status: { enum: ['merged', 'landed', 'gate_failed', 'conflict', 'error', 'land_stale', 'no-test', 'unpackaged', 'submodule-blocked', 'submodule-pr'] },
   branch: { type: 'string' }, integration_sha: { type: 'string' }, working_sha: { type: 'string' },
   conflict_files: { type: 'array' }, gate_output: { type: 'string' },
   pr_number: { type: 'number' }, pr_remote: { type: 'string' } } }
@@ -89,6 +94,12 @@ const roundLimit = run.roundLimit ?? 3
 // (string|null). null/absent ⇒ intentClause is '' and every prompt below is byte-identical to an
 // intent-less run (criterion 10) — literal behavior.
 const intent = (typeof A.intent === 'string' && A.intent) ? A.intent : null
+// Backstops (spec §4.4): the Lead is the single normalization point — plan-declared entries + Setup
+// auto-recorded entries are merged Lead-side into args.backstops (array|null of
+// { check, why, runner, source: 'plan'|'auto', aiDeclared? }). The Workflow passes it through
+// UNTOUCHED into handoff.backstops[] (rendered as the "Unexecuted backstops" line at land). A legacy
+// plan with no backstop section → null (surfaced note). Never mutate; never re-normalize here.
+const backstops = Array.isArray(A.backstops) ? A.backstops : null
 const intentClause = intent
   ? `\nCOMMANDER'S INTENT (the operator's purpose — your ceiling; the plan slice is your floor):\n${intent}\n`
   : ''
@@ -589,6 +600,11 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       }
       const refineryPath = `${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/_refinery`
       const requiresTest = r.task.requiresTest !== false  // default true; false only when explicitly set
+      // requiresPackaging (spec §4.2): gates the assert-packaging-in-diff.sh floor, INDEPENDENT of
+      // requiresTest (like the submodule floor, decoupled from the test flag). Default true; false
+      // only when explicitly set. A false skip is LOGGED, never silent (the requiresTest:false idiom).
+      const requiresPackaging = r.task.requiresPackaging !== false
+      if (!requiresPackaging) log(`packaging-floor: skipping ${r.task.id} (requiresPackaging:false — assert-packaging-in-diff.sh not run for this task)`)
       // For a submodule task: thread targetRepo (the submodule checkout) + targetBase so the refiner
       // runs the rebase/merge/gate cwd-scoped to the submodule repo (DP3 — no script change needed).
       const isSubmodTask = r.task.taskType === 'submodule'
@@ -623,6 +639,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + (requiresTest
           ? ` Also before step (b), run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch} to verify the task diff contains at least one test file. Branch on the exit code: exit 1 (no test in the diff) → return { mode: 'merge-task', status: 'no-test' } — do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'no-test' — a transient bad-ref must not spin a pointless add-test loop.`
           : ` requiresTest:false — skip the assert-test-in-diff.sh check and proceed directly to the rebase+merge.`)
+        + (requiresPackaging
+          ? ` Also before step (b), run assert-packaging-in-diff.sh ${ph.integrationBranch} ${r.task.branch} to verify the task diff adds no file a Dockerfile's enumerated COPYs miss. Branch on the exit code: exit 1 (a flagged file → Dockerfile pair) → return { mode: 'merge-task', status: 'unpackaged' } — do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'unpackaged' — a transient bad-ref must not spin a pointless package-it loop.`
+          : ` requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`)
         + submodMergeNote,
         { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}`, schema: MERGE_RESULT, ...spawn('refiner') })
 
@@ -634,32 +653,47 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         continue
       }
 
-      // no-test sub-loop: bounded fix-worker + full re-audit on a no-test merge result.
-      // Localized to the serial refine queue — NOT folded back into the parallel work wave.
-      // ponytail: requiresTest:false tasks never enter this branch (mr.status !== 'no-test')
-      if (mr && mr.status === 'no-test') {
-        let noTestMr = mr
+      // Combined floor-retry sub-loop: bounded fix-worker + full re-audit on EITHER floor status
+      // (no-test OR unpackaged). NOT a blind copy of the old no-test-only loop — a retry merge here
+      // hard-escalated any unexpected status verbatim, so a task tripping BOTH floors (adds a source
+      // file with no test AND no COPY) would clear one and hard-escalate on the other, never getting
+      // its bounded fix (spec §4.2). One loop, both floors, shared budget, until both pass or exhaust.
+      // Every dispatched retry-merge re-instructs ALL floor invocations (test + packaging + submodule),
+      // keeping the dispatched prompts in sync with the standing war-refiner.md steps.
+      // ponytail: requiresTest:false / requiresPackaging:false tasks never enter (that floor's status is never returned)
+      const FLOOR_STATUSES = ['no-test', 'unpackaged']
+      if (mr && FLOOR_STATUSES.includes(mr.status)) {
+        let floorMr = mr
         let reAuditFailed = false
-        while (noTestMr && noTestMr.status === 'no-test' && r.task.fixRounds < roundLimit) {
-          // Dispatch fix-worker to add the mapped test in the SAME worktree
-          const addFix = await agent(
-            `ADD_TEST for WAR task ${r.task.id}. The refiner's merge-task check (assert-test-in-diff.sh) found no test file in the diff. `
-            + `Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
-            + `Add a mapped test for this task (the test must exercise the slice described in: ${r.task.planSlice}), keep the gate green, commit and push.`
-            + workerMemClause(r.task.id) + provisionClause,
-            { agentType: NS + 'war-worker', phase: 'Audit', label: `add-test:${r.task.id}:r${r.task.fixRounds + 1}`, schema: WORKER_RESULT, ...spawn('worker') })
-          const addFixWhy = blockedReason(addFix)
-          if (addFixWhy) {
-            // Blocked add-test worker — escalate with reason and break the no-test sub-loop
-            escalated.push({ task: r.task.id, reason: 'escalate', blocked: addFixWhy })
-            auditLog.push({ task: r.task.id, verdict: 'no-test:add-test-blocked', findings: [], blocked: addFixWhy, fixRounds: r.task.fixRounds })
-            noTestMr = null
+        while (floorMr && FLOOR_STATUSES.includes(floorMr.status) && r.task.fixRounds < roundLimit) {
+          // Dispatch a fix-worker keyed to the CURRENT tripped floor, in the SAME worktree.
+          const isNoTest = floorMr.status === 'no-test'
+          const fixPrompt = isNoTest
+            ? `ADD_TEST for WAR task ${r.task.id}. The refiner's merge-task check (assert-test-in-diff.sh) found no test file in the diff. `
+              + `Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
+              + `Add a mapped test for this task (the test must exercise the slice described in: ${r.task.planSlice}), keep the gate green, commit and push.`
+            : `PACKAGE_IT for WAR task ${r.task.id}. The refiner's merge-task check (assert-packaging-in-diff.sh) flagged an added/renamed file a Dockerfile's enumerated COPYs miss. `
+              + `Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
+              + `Resolve it for the slice described in: ${r.task.planSlice}. add the COPY or dockerignore it — never delete the file to satisfy the floor. Keep the gate green, commit and push.`
+          const floorFix = await agent(
+            fixPrompt + workerMemClause(r.task.id) + provisionClause,
+            { agentType: NS + 'war-worker', phase: 'Audit', label: `${isNoTest ? 'add-test' : 'package-it'}:${r.task.id}:r${r.task.fixRounds + 1}`, schema: WORKER_RESULT, ...spawn('worker') })
+          // Floor-specific verdict tokens: no-test keeps its historical strings (regression guard #268);
+          // unpackaged uses the parallel package-it form. status ('no-test'|'unpackaged') prefixes both.
+          const blockedVerdict = isNoTest ? 'no-test:add-test-blocked' : 'unpackaged:package-it-blocked'
+          const floorFixWhy = blockedReason(floorFix)
+          if (floorFixWhy) {
+            // Blocked fix-worker — escalate with reason and break the floor-retry sub-loop
+            escalated.push({ task: r.task.id, reason: 'escalate', blocked: floorFixWhy })
+            auditLog.push({ task: r.task.id, verdict: blockedVerdict, findings: [], blocked: floorFixWhy, fixRounds: r.task.fixRounds })
+            floorMr = null
             reAuditFailed = true
             break
           }
           r.task.fixRounds++
 
-          // RE-RUN the full audit panel for this task (not a re-wave — localized sub-loop)
+          // RE-RUN the full audit panel for this task (not a re-wave — localized sub-loop). The floor
+          // cannot judge whether dockerignoring the file (or the added test) was RIGHT; the panel can.
           let reSeats, reExpected
           ;({ seats: reSeats, expected: reExpected } = await auditRound(r.task, null, null))
           const reVerdict = reSeats.length < reExpected ? 'audit-blocked'
@@ -667,16 +701,16 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             : allApprove(reSeats, reExpected) ? 'approve' : 'request_changes'
 
           if (reVerdict !== 'approve') {
-            // Vacuous or failing test — escalate, do not merge
-            escalated.push({ task: r.task.id, reason: 'escalate', blocked: 'no-test: re-audit did not approve after adding test' })
-            auditLog.push({ task: r.task.id, verdict: 'no-test:re-audit-failed', findings: (reSeats || []).flatMap(s => s.findings || []), fixRounds: r.task.fixRounds })
-            noTestMr = null
+            // Vacuous or wrong fix — escalate, do not merge
+            escalated.push({ task: r.task.id, reason: 'escalate', blocked: `${floorMr.status}: re-audit did not approve after the floor fix` })
+            auditLog.push({ task: r.task.id, verdict: `${floorMr.status}:re-audit-failed`, findings: (reSeats || []).flatMap(s => s.findings || []), fixRounds: r.task.fixRounds })
+            floorMr = null
             reAuditFailed = true
             break
           }
 
-          // Re-attempt the serial merge
-          noTestMr = await agent(
+          // Re-attempt the serial merge — re-instructs ALL floor invocations (test + packaging + submodule).
+          floorMr = await agent(
             `Merge WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
             + `IMPORTANT — merge-task is split across two worktrees (spec §5.2, red-team-verified):\n`
             + `  (a) REBASE in the TASK worktree: git -C ${r.task.worktree} rebase ${ph.integrationBranch}. `
@@ -686,34 +720,39 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             + `Run the gate (${plan.gate}) after the rebase in the task worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)), so any meta-test that materialises scratch dirs isolates from the worktree's .war-task marker; the gate's cwd stays the task worktree. On gate failure return gate_failed; on conflict return conflict; never force. `
             + `On success, populate gate_output in the returned MergeResult with the executed gate output (stdout+stderr) so the post-merge gate-audit pass can review it as execution evidence. Do NOT curate or excerpt — each *.test.sh runner emits a single aggregate PASS line, so a partial paste reads as an under-run; include the complete *.test.sh runner list or state the total runner count. `
             + `Also populate integration_sha with the rebased integration tip the gate ran against, so the gate-audit pass can confirm the gate ran at the integration tip. `
-            + `Before the _refinery merge step (b), run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch} to verify the task diff now contains at least one test file. Branch on the exit code: exit 1 (no test in the diff) → return { mode: 'merge-task', status: 'no-test' }, do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'no-test' — a transient bad-ref must not spin a pointless add-test loop.`,
-            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:no-test-retry:r${r.task.fixRounds}`, schema: MERGE_RESULT, ...spawn('refiner') })
+            + (requiresTest
+              ? `Before the _refinery merge step (b), run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch} to verify the task diff now contains at least one test file. Branch on the exit code: exit 1 (no test in the diff) → return { mode: 'merge-task', status: 'no-test' }, do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'no-test' — a transient bad-ref must not spin a pointless add-test loop. `
+              : `requiresTest:false — skip the assert-test-in-diff.sh check. `)
+            + (requiresPackaging
+              ? `Also before step (b), run assert-packaging-in-diff.sh ${ph.integrationBranch} ${r.task.branch} to verify the task diff now adds no file a Dockerfile's enumerated COPYs miss. Branch on the exit code: exit 1 (a flagged file → Dockerfile pair) → return { mode: 'merge-task', status: 'unpackaged' }, do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'unpackaged' — a transient bad-ref must not spin a pointless package-it loop.`
+              : `requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`),
+            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:floor-retry:r${r.task.fixRounds}`, schema: MERGE_RESULT, ...spawn('refiner') })
         }
 
-        if (!reAuditFailed && (!noTestMr || noTestMr.status === 'no-test')) {
-          // Budget exhausted — hard escalation with reason:'no-test'
-          escalated.push({ task: r.task.id, reason: 'no-test', fixRounds: r.task.fixRounds })
-          auditLog.push({ task: r.task.id, verdict: 'no-test:exhausted', fixRounds: r.task.fixRounds, findings: [] })
+        if (!reAuditFailed && floorMr && FLOOR_STATUSES.includes(floorMr.status)) {
+          // Budget exhausted — hard escalation with reason = whichever floor is still tripping (both HARD).
+          escalated.push({ task: r.task.id, reason: floorMr.status, fixRounds: r.task.fixRounds })
+          auditLog.push({ task: r.task.id, verdict: `${floorMr.status}:exhausted`, fixRounds: r.task.fixRounds, findings: [] })
           continue
         }
 
-        // Null-deref guard: both reAuditFailed=true sites set noTestMr=null; skip before the unconditional noTestMr.status deref below.
+        // Null-deref guard: both reAuditFailed=true sites set floorMr=null; skip before the unconditional floorMr.status deref below.
         if (reAuditFailed) continue
 
         // Use the successful re-merge result for the landed path below
-        if (noTestMr.status === 'merged') {
+        if (floorMr.status === 'merged') {
           landed.push(r.task.id); succeeded.add(r.task.id)
-          // D7 guard, belt-and-suspenders: a requiresTest:false task cannot reach this sub-loop by
-          // prompt contract (its merge prompt skips assert-test-in-diff.sh, so 'no-test' is never
-          // returned) — the guard mirrors the merge-success site for prompt-contract reachability.
+          // D7 guard, belt-and-suspenders: a requiresTest:false task cannot reach this sub-loop via the
+          // test floor (its merge prompt skips assert-test-in-diff.sh, so 'no-test' is never returned)
+          // — the guard mirrors the merge-success site for prompt-contract reachability.
           if (!requiresTest) {
             log(`gate-audit: skipping ${r.task.id} (requiresTest:false — no mapped tests, HARD path vacuous)`)
           } else {
-            mergedTasksForGateAudit.push({ taskId: r.task.id, gateOutput: noTestMr.gate_output, acceptanceCriteria: r.task.planSlice,
-              gateHeadSha: pinOrSentinel(noTestMr.integration_sha) })
+            mergedTasksForGateAudit.push({ taskId: r.task.id, gateOutput: floorMr.gate_output, acceptanceCriteria: r.task.planSlice,
+              gateHeadSha: pinOrSentinel(floorMr.integration_sha) })
           }
         } else {
-          escalated.push({ task: r.task.id, reason: noTestMr.status ?? 'merge_failed', detail: noTestMr })
+          escalated.push({ task: r.task.id, reason: floorMr.status ?? 'merge_failed', detail: floorMr })
         }
         continue
       }
@@ -863,7 +902,7 @@ for (const t of tasks) {
 // and the catch block's held:workflow-error); all 6 ⊆ the KNOWN_LAND_DECISIONS export.
 // HARD_ESCALATION_REASONS mirrors land-decision.mjs export — the Workflow sandbox can't import. Keep in sync.
 let landResult = null
-const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps', 'no-test']
+const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps', 'no-test', 'unpackaged']
 const hardEscalation = escalated.some(e => HARD_ESCALATION_REASONS.includes(e && e.reason))
 let landDecision = (landed.length && !hardEscalation) ? 'landed'
   : hardEscalation ? 'held:escalation'
@@ -930,7 +969,7 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
         `Merge WAR polish branch ${polishBranch} into ${ph.integrationBranch} at the serial merge queue's tail. mode=merge-task.\n`
         + `  (a) REBASE in the POLISH worktree: git -C ${polishWorktree} rebase ${ph.integrationBranch} (the branch was cut at the integrated tip, so this is normally a no-op).\n`
         + `  (b) MERGE in _refinery: cd ${refineryLandPath} (on ${ph.integrationBranch}), then git merge ${polishBranch} (fast-forward merge). Push.\n`
-        + `Run the gate (${plan.gate}) after the rebase in the polish worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)). The polish commit is a coherence sweep, not a mapped-test task — skip assert-test-in-diff.sh. On gate failure return gate_failed; on conflict return conflict; never force.`,
+        + `Run the gate (${plan.gate}) after the rebase in the polish worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)). The polish commit is a coherence sweep, not a mapped-test task — skip assert-test-in-diff.sh AND skip the packaging floor assert-packaging-in-diff.sh (a coherence sweep has no task fields to consult). On gate failure return gate_failed; on conflict return conflict; never force.`,
         { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:p${ph.id}-polish`, schema: MERGE_RESULT, ...spawn('refiner') })
     }
     if (sweepApproved && pmr && pmr.status === 'merged') {
@@ -1070,6 +1109,9 @@ if (landDecision === 'landed' || landDecision === 'held:escalation') {
         : 'met'
       return { condition, status }
     }),
+    // backstops (spec §4.4): passed through UNTOUCHED from args.backstops (Lead is the single
+    // normalization point). array|null; null for a legacy plan with no backstop section.
+    backstops,
     intentPresent: intent !== null,
   }
 }
