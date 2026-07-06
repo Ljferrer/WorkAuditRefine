@@ -310,7 +310,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.14.3** — Learnings publish by default — `memory.commitLearnings` now defaults `true` (the economy preset pins `false`): distilled, lint-scrubbed `type: project` lessons are committed under `docs/learnings/` and ride each phase PR, human-reviewed like code. `/lessons-learned` gains two modes: `migrate` (the one-time two-root adoption playbook) and `evict` (its reviewed undo — repo lessons return to the local root, with an explicit ask whether to flip `commitLearnings` off).
+**0.14.4** — Container-packaging blind spot closed with three layers. A tested packaging floor (`assert-packaging-in-diff.sh`, a sibling of the test-in-diff floor) runs in the refiner's merge path and **refuses merging a diff that adds a file a Dockerfile's enumerated one-by-one `COPY`s miss** — whole-dir and `COPY . .` styles are self-maintaining and never flag, `.dockerignore`d and wildcard-/directory-covered files pass, and a tripped floor routes bounded fixes through the shared retry sub-loop (add the `COPY` or dockerignore it — never delete the file) rather than an immediate hard escalation. An **opt-in `docker build` gate** extends the declared gate when Dockerfiles exist and the daemon answers, degrading to a recorded backstop when it is unreachable so the environment never reads as broken code. And **backstops** — deferred validations — are now ratified, machine-readable plan artifacts (`## Deferred validations (backstops)`), surfaced at every land and in the final PR.
 
 ## License
 
