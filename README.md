@@ -310,7 +310,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.14.4** — Cross-branch campaign add — `/war-campaign add <plan> [<ref>]` now resolves a plan missing on the current branch from the given ref (default `origin/master`) at add time, records the provenance in the inbox drop, and the Lead materializes the plan plus any referenced missing files onto that plan's own `dev/<slug>` branch at the plan boundary — no merge or rebase of master ever enters the stack.
+**0.14.5** — Learnings read-path transferability — memory *read* paths now pass the resolved repo root via an explicit `--repo` flag (env exports don't survive the harness's per-call shells), so `render-index`, the phase-launch prefetch queries, and the worker self-query line all read back the repo-published store. WAR Setup and `/lessons-learned` Phase 0 each idempotently seed a fresh clone's local projection from `docs/learnings/` — conditional on that directory existing — and learnings publication ensures an append-if-absent `CLAUDE.md` pointer in the target repo so non-WAR sessions inherit the lessons ambiently. No write-path changes; publication stays behind the existing lint + PR-review gates.
 
 ## License
 
