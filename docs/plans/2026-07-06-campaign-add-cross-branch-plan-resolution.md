@@ -37,7 +37,10 @@
   - `addToInbox(campaignDir, planPath, opts)` gains `opts.ref`: when given, the drop file is two lines —
     line 1 the resolved plan path (unchanged), line 2 `ref: <git-ref>` (e.g. `ref: origin/master`). Without
     `ref`, the drop stays byte-identical to today's single-line shape.
-  - CLI `add` subcommand gains `--ref <git-ref>` passthrough to `addToInbox`.
+  - CLI `add` subcommand gains `--ref <git-ref>` passthrough to `addToInbox`. **Interface layers (not
+    conflicting forms):** the user-facing skill invocation is *positional* — `/war-campaign add <plan>
+    [<ref>]` — and the Lead translates that positional `[<ref>]` into the helper's `--ref <ref>` flag when
+    it shells out to `campaign-ledger.mjs add`. Same ref, two layers.
   - `sweep` parses the drop's **first line** as the plan path (today it `.trim()`s the whole file, which a
     two-line drop would break). No other sweep behavior changes; sweep stays git-free — materialization
     happens *before* sweep, in Lead prose (Task 2's protocol). A drop whose path is still missing at sweep
@@ -48,9 +51,13 @@
     3. `sweep` of a two-line drop → the ledger entry's `plan` is the path from line 1 (fails without the
        first-line parse).
     4. `sweep` of a legacy one-line drop → still consumed correctly (compat guard).
-    5. `sweep` of a drop whose line-1 path does **not** exist on disk → **throws** (the fail-loud backstop
-       for a skipped materialization; `assert.throws`, fails if `sweep` ever silently swallows a missing
-       plan). This is the explicit executable guard End-state #3 relies on.
+    5. `sweep` of a drop whose line-1 path does **not** exist on disk → **throws with an ENOENT /
+       no-such-file message**: `assert.throws(() => sweep(dir), /ENOENT|no such file/)`. The message match
+       is load-bearing — a bare `assert.throws` is **vacuous** here, because `assertOrderable` *also* throws
+       (`unparseable footprint`) on a missing plan, so a bare throws would still pass even if the ENOENT
+       fail-loud backstop were swallowed. Matching `/ENOENT/` goes RED when the backstop is deleted (the
+       fallback throw doesn't match), satisfying the weak-assertion discipline. This is the explicit
+       executable guard End-state #3 relies on.
 - requiresTest: true
 - deps: []
 - target repo: superproject
@@ -72,16 +79,17 @@
        Local always wins; the fallback never fires over a present file.
     2. Local path missing → `git fetch origin <branch>` then probe `git cat-file -e <ref>:<rel>`.
        Present → drop with `--ref <ref>`. Absent → **fail loudly at add time**, naming both locations tried.
-  - **SKILL.md — a new "Materialize" lifecycle step between step 1 (Sweep + select) and step 2
-    (Provision).** Today the lifecycle jumps Sweep → Provision with no home for this contract; insert an
-    explicit step (SKILL.md lifecycle list, and mirrored into spec §7.1 as a numbered step in the same
-    slot) that runs *before* `sweep`: read the inbox drops; for each whose path is missing locally and
+  - **SKILL.md — a new "Materialize" action at the head of lifecycle step 1 (Sweep + select), before the
+    `sweep` call.** Ordering is forced: `sweep` reads each drop's plan file (`extractFilesFromPlanFile`), so
+    materialization must run **before** `sweep` — the lifecycle is `[Materialize → sweep() → next]` within
+    step 1, then step 2 Provision. Prepend an explicit Materialize action to SKILL.md lifecycle step 1 (and
+    mirror it into spec §7.1 step 1) that runs *before* `sweep`: read the inbox drops; for each whose path is missing locally and
     whose drop carries a `ref:` line, `git fetch` then `git show <ref>:<repo-relative-path> > <path>` into
     the Lead checkout (untracked at this point). Then scan each materialized file for referenced repo paths
     — backticked path-shaped tokens and markdown link targets that resolve inside the repo — and
     materialize any that are missing locally and present on the ref, **transitively** (each newly
     materialized file gets the same scan; terminates because a file materializes at most once). Report
-    every materialized path loudly in the sweep report. The **fail-loud backstop** stays: a drop whose path
+    every materialized path loudly in the step-1 (Sweep + select) report. The **fail-loud backstop** stays: a drop whose path
     is still missing at `sweep` time throws (Task 1 **test 5** asserts this explicitly), so a skipped
     materialization can never pass silently — that is the executable owner End-state #3 needs, without
     moving git I/O into the stdlib helper.
@@ -93,8 +101,9 @@
     file in the Lead checkout. Never merge or rebase master into the stack; identical-content files merge
     clean when the stack lands, so ADR 0011 is untouched.
   - **Spec §7** (`docs/specs/2026-07-01-war-companion-skills-design.md`): update the invocation block's
-    `add` line (§7, ~line 197), the §7.1 step-1 sweep prose (~line 205), **insert the new §7.1 materialize
-    step and add the commit clause to §7.1 step 2 (Provision, ~line 207)**, the §7.2 inbox bullet
+    `add` line (§7, ~line 197), the §7.1 step-1 sweep prose (~line 205), **prepend the materialize action to
+    §7.1 step 1 (before the `sweep` read) and add the commit clause to §7.1 step 2 (Provision, ~line 207)**,
+    the §7.2 inbox bullet
     (~line 230), and resolved-design-tree row 11 (~line 64) to state the two-line drop format, add-time ref
     resolution, and the materialize-then-commit-at-plan-boundary contract. Line numbers are authoring-time
     locators — re-locate by construct, not line (memory `plan-line-number-refs-stale-use-construct-locator`).
@@ -144,10 +153,11 @@
 
 ## Red-team resolutions applied (2026-07-06)
 
-- **Materialization had no lifecycle home / no executable owner (Major, was BLOCKED).** Task 2 now inserts an
-  explicit **Materialize** step into the SKILL.md lifecycle and mirrors it into spec §7.1 between Sweep and
-  Provision; End-state #3 gains an executable owner via the fail-loud backstop (Task 1 **test 5**: `sweep`
-  throws on a still-missing path).
+- **Materialization had no lifecycle home / no executable owner (Major, was BLOCKED).** Task 2 now prepends an
+  explicit **Materialize** action to the head of SKILL.md lifecycle step 1 — *before* the `sweep` call, since
+  `sweep` reads each drop's file — and mirrors it into spec §7.1 step 1; End-state #3 gains an executable owner
+  via the fail-loud backstop (Task 1 **test 5**: `sweep` throws with an ENOENT/no-such-file message on a
+  still-missing path — message-matched so it can't be satisfied by the unrelated `unparseable footprint` throw).
 - **Commit-to-`dev/<slug>` handoff was promised but unscheduled.** Task 2's edit list now explicitly amends
   **SKILL.md step 2 and spec §7.1 step 2 (Provision)** to `git add` + commit the materialized plan and pulled
   references onto `dev/<slug>` after branch creation and before `/war` runs — so `/war`'s worker worktrees see

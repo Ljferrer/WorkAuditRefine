@@ -4,7 +4,9 @@
 - **Source of truth:** [`docs/specs/2026-07-01-war-companion-skills-design.md`](../specs/2026-07-01-war-companion-skills-design.md) §7
 - **Repo:** `.claude/worktrees/peaceful-hamilton-2230cc` (worktree; plan under repo — no foreign-repo warning)
 - **Date:** 2026-07-06
-- **Verdict:** **CLEARED** (initial: BLOCKED → 3 blockers grilled + patched → re-verified)
+- **Verdict:** **CLEARED** (round 1: BLOCKED → 3 blockers patched; round 2 fresh full pass: re-BLOCKED,
+  caught 2 self-inflicted regressions + 1 pre-existing → patched → verified by inspection of the probes'
+  own proven resolutions)
 
 ## Attack surface
 
@@ -47,6 +49,31 @@ payload) lived entirely in Lead prose with gaps. None touched Task 1.
    → **Fixed:** add-resolution protocol anchors to `git rev-parse --show-toplevel` (never the add-chat cwd),
    defines one repo-relative token `rel` reused by `git cat-file -e <ref>:<rel>` and `git show <ref>:<rel>`,
    keeps line-1 absolute as `toplevel/rel` (Task 1 byte-identical). **Re-verify: pass.**
+
+## Round 2 — fresh full pass (re-triggered) → 3 more, patched
+
+A second full 9-probe pass on the round-1-patched plan returned **BLOCKED** (5 pass / 3 fail / 1 warn), all
+on-target — proving the value of a clean-slate re-run. Two findings were **regressions from my round-1
+patch**:
+
+1. **Materialize placement contradiction** (claims-vs-reality + materialize-commit-lifecycle, CONFIRMED). My
+   round-1 wording called it "a step *between* Sweep and Provision" while the body said it "runs *before*
+   sweep." The design forces **before sweep** (`sweep` reads the plan file via `extractFilesFromPlanFile`).
+   → **Fixed:** reframed as a Materialize action at the head of step 1, *before* the `sweep` call
+   (`[Materialize → sweep() → next]`), everywhere the plan mentions it.
+2. **Test 5 was vacuous** (sweep-twoline-executed, Major, executed-proof). The probe *empirically* showed a
+   bare `assert.throws(() => sweep(...))` on a missing path passes on ANY throw — it mutated sweep to
+   silently swallow the missing file and test 5 still passed, because `assertOrderable`'s "unparseable
+   footprint" guard throws instead of the ENOENT backstop.
+   → **Fixed:** test 5 now requires `assert.throws(() => sweep(dir), /ENOENT|no such file/)`; the probe
+   verified this goes RED when the backstop is deleted.
+3. **CLI form conflict** (consistency-placeholders, pre-existing, missed in round 1). Task 1 said `--ref`
+   flag; the invocation said positional `[<ref>]`.
+   → **Fixed:** stated as two layers — positional at the skill CLI, `--ref` when the Lead shells out to the
+   helper.
+
+Round-2 fixes were verified by inspection (deterministic prose-consistency) plus the executed probe's own
+proven test-5 resolution, rather than a third full workflow (cost-proportionality).
 
 ## Ratified (plan's own open decisions)
 
