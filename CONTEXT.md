@@ -379,6 +379,41 @@ The refiner's merge-task result when a `requiresTest` task's diff contains no te
 failing gate — it routes a bounded fix-worker + full re-audit, and escalates only on budget exhaustion.
 _Avoid_: gate-failed (the suite is green; the *diff* lacks a test).
 
+**Packaging floor**:
+The deterministic guarantee that a file a task adds beside individually-COPY'd siblings of a
+Dockerfile is either packaged (a `COPY` line), excluded (`.dockerignore`), or exempted
+(`requiresPackaging: false`) before it can merge — enforced by a tested shell assertion at
+merge-task, the artifact-side sibling of the **Test floor**. Coarse and heuristic by design: the
+floor proves enumerated packaging kept up with the diff; the opt-in docker-build gate (when the
+operator accepts it at Setup) is the definitive artifact check. When unsure (unparseable
+`.dockerignore` pattern), it flags — never silently excuses.
+_Avoid_: docker gate (that is the executed build, a separate mechanism); treating a floor pass as
+proof the image builds.
+
+**`requiresPackaging`** (task field):
+Whether the packaging floor applies to a task's diff. Defaults `true`; the Lead sets it `false` at
+decompose for tasks whose added files legitimately never ship in an image. Independent of
+`requiresTest` — a task can require a test but not packaging, and vice versa.
+_Avoid_: packagingExempt (state the requirement positively, default-on).
+
+**`unpackaged`** (merge outcome):
+The refiner's merge-task result when the packaging floor flags an added file. Not a failing gate —
+it routes a bounded fix-worker (add the `COPY`, or `.dockerignore` it; never delete the file) plus
+a full re-audit, and escalates hard only on budget exhaustion.
+_Avoid_: gate-failed (the suite is green; the *image manifest* lags the diff).
+
+**Backstop** (deferred validation):
+An operator-ratified validation the run's gate will not execute pre-merge — declared in the plan's
+required `## Deferred validations (backstops)` section (check · why deferred · external runner;
+explicit `None` allowed), graded for legitimacy by `/red-team`, threaded as `args.backstops`, and
+surfaced as *unexecuted* in every phase report, the final PR, and the handoff block. A validation
+that is in neither the gate, a floor, nor this section may never be waived in prose — the Lead
+escalates instead. A gate that degrades at Setup (docker daemon unavailable) auto-records itself
+here.
+_Avoid_: out-of-scope note (unratified prose with no forcing function); treating a declared
+backstop as discharged — declared ≠ executed; conflating it with the ace's release-slot **string
+backstop** (ADR 0013 — an in-run deterministic check, nearly the opposite of a deferred one).
+
 ### Memory
 
 **Memory provenance**:

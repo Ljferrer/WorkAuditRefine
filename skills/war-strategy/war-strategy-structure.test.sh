@@ -45,6 +45,12 @@ check_f '  - Purpose: <why'
 check_f '  - Method: <how'
 check_f '  - End state: <numbered list'
 
+# Packaging: the per-task requiresPackaging field line AND the required backstop section.
+# Both are fence-blind verbatim lines (arrow annotation makes each unique to the template
+# fence). Delete either from the template and the matching check fails.
+check_f '  - requiresPackaging: true|false  ← default true'
+check_f '## Deferred validations (backstops)   ← required; ratify in /red-team; surfaced at every land'
+
 # Commander's Intent sits BEFORE ## Build order inside the plan template.
 # Locators anchor to the verbatim arrow-bearing template lines (unique to the plan-template
 # fence) so a stray earlier bare heading of the same text can't misbind them.

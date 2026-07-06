@@ -15,6 +15,7 @@ import {
   sweep,
   next,
   record,
+  aggregateBackstops,
   extractFiles,
   intersectFootprints,
 } from './campaign-ledger.mjs'
@@ -367,6 +368,92 @@ test('record never leaves a partial ledger after a simulated interrupt', () => {
   assert.doesNotThrow(() => JSON.parse(fs.readFileSync(path.join(campaignDir, 'ledger.json'), 'utf8')))
 })
 
+// ---- backstops aggregation (Task 9) --------------------------------------
+// Each plan's handoff backstops[] is recorded onto its ledger entry; the campaign
+// wrap-up aggregates them across plans, tolerating entries that predate the field.
+
+const BACKSTOP_A = { check: 'docker build', why: 'no Dockerfile in repo', runner: 'first container run', source: 'plan' }
+const BACKSTOP_B = { check: 'load test', why: 'no staging env', runner: 'pre-GA', source: 'auto' }
+const BACKSTOP_AI = { check: 'schema migration dry-run', why: 'no prod snapshot', runner: 'ops handoff', source: 'plan', aiDeclared: true }
+
+test('new plan entries default backstops to null (in-flight tolerance)', () => {
+  const dir = tmpDir()
+  const planA = writePlan(dir, 'a.md', PLAN_A)
+  const campaignDir = path.join(dir, 'campaign')
+  const ledger = init(campaignDir, { plans: [planA], mode: 'stack' })
+  assert.equal(ledger.plans[0].backstops, null)
+})
+
+test('record stamps a plan\'s backstops[] and it round-trips through the persisted ledger', () => {
+  const dir = tmpDir()
+  const planA = writePlan(dir, 'a.md', PLAN_A)
+  const campaignDir = path.join(dir, 'campaign')
+  init(campaignDir, { plans: [planA], mode: 'stack' })
+
+  record(campaignDir, { plan: path.resolve(planA), status: 'landed', backstops: [BACKSTOP_A] })
+
+  assert.deepEqual(readLedger(campaignDir).plans[0].backstops, [BACKSTOP_A])
+})
+
+test('record with omitted backstops leaves an already-recorded value UNCHANGED (no undefined-stamp deletion)', () => {
+  const dir = tmpDir()
+  const planA = writePlan(dir, 'a.md', PLAN_A)
+  const campaignDir = path.join(dir, 'campaign')
+  init(campaignDir, { plans: [planA], mode: 'stack' })
+
+  record(campaignDir, { plan: path.resolve(planA), backstops: [BACKSTOP_A] })
+  // a later update touches only status — backstops must survive
+  record(campaignDir, { plan: path.resolve(planA), status: 'landed' })
+
+  assert.deepEqual(readLedger(campaignDir).plans[0].backstops, [BACKSTOP_A])
+})
+
+test('aggregateBackstops flattens every plan\'s backstops across the campaign, tagged with origin slug', () => {
+  const dir = tmpDir()
+  const planA = writePlan(dir, 'a.md', PLAN_A)       // slug 'a'
+  const planC = writePlan(dir, 'c.md', PLAN_DISJOINT) // slug 'c'
+  const campaignDir = path.join(dir, 'campaign')
+  init(campaignDir, { plans: [planA, planC], mode: 'stack' })
+
+  record(campaignDir, { plan: path.resolve(planA), backstops: [BACKSTOP_A, BACKSTOP_AI] })
+  record(campaignDir, { plan: path.resolve(planC), backstops: [BACKSTOP_B] })
+
+  const agg = aggregateBackstops(campaignDir)
+  assert.deepEqual(agg, [
+    { ...BACKSTOP_A, plan: 'a' },
+    { ...BACKSTOP_AI, plan: 'a' },
+    { ...BACKSTOP_B, plan: 'c' },
+  ])
+  // AI-declared provenance survives aggregation so the wrap-up can mark it
+  assert.equal(agg.find((b) => b.check === BACKSTOP_AI.check).aiDeclared, true)
+})
+
+test('aggregateBackstops tolerates plans that predate the field (null / missing backstops contribute nothing)', () => {
+  const dir = tmpDir()
+  const planA = writePlan(dir, 'a.md', PLAN_A)
+  const planC = writePlan(dir, 'c.md', PLAN_DISJOINT)
+  const campaignDir = path.join(dir, 'campaign')
+  init(campaignDir, { plans: [planA, planC], mode: 'stack' })
+
+  // planA recorded with backstops; planC left at its default null (an in-flight/pre-field entry)
+  record(campaignDir, { plan: path.resolve(planA), backstops: [BACKSTOP_A] })
+
+  // also simulate a truly legacy entry with NO backstops key at all
+  const ledger = readLedger(campaignDir)
+  delete ledger.plans[1].backstops
+  fs.writeFileSync(path.join(campaignDir, 'ledger.json'), JSON.stringify(ledger, null, 2) + '\n')
+
+  assert.deepEqual(aggregateBackstops(campaignDir), [{ ...BACKSTOP_A, plan: 'a' }])
+})
+
+test('aggregateBackstops returns [] for a campaign where nothing was deferred', () => {
+  const dir = tmpDir()
+  const planA = writePlan(dir, 'a.md', PLAN_A)
+  const campaignDir = path.join(dir, 'campaign')
+  init(campaignDir, { plans: [planA], mode: 'stack' })
+  assert.deepEqual(aggregateBackstops(campaignDir), [])
+})
+
 // ---- CLI record parity (#422 items 4+6) ----------------------------------
 // These drive the CLI dispatch case, NOT the exported record() (already correct).
 
@@ -405,6 +492,18 @@ test('CLI record with omitted --pr leaves the existing pr value UNCHANGED (no un
   assert.equal(entry.pr, 4177)
   assert.equal(entry.branch, 'dev/keep-pr-branch-c2e6')
   assert.equal(entry.status, 'landed-cli-7b21')
+})
+
+test('CLI record --backstops parses a JSON array and persists it onto the entry', () => {
+  const dir = tmpDir()
+  const planA = writePlan(dir, 'a.md', PLAN_A)
+  const campaignDir = path.join(dir, 'campaign')
+  init(campaignDir, { plans: [planA], mode: 'stack' })
+
+  cli('record', '--campaign', campaignDir, '--plan', planA,
+    '--status', 'landed', '--backstops', JSON.stringify([BACKSTOP_A, BACKSTOP_AI]))
+
+  assert.deepEqual(readLedger(campaignDir).plans[0].backstops, [BACKSTOP_A, BACKSTOP_AI])
 })
 
 // ---- Files: extraction (block-based, anchored) --------------------------

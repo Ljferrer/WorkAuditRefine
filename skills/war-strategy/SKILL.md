@@ -64,13 +64,21 @@ pro-tip — one link covers `grill-with-docs`, `grilling`, and `domain-modeling`
   - Files: <exact paths this task touches>
   - Plan slice: <what to implement>
   - requiresTest: true|false
+  - requiresPackaging: true|false  ← default true; Lead may set false at decompose to skip the packaging floor
   - deps: [<task ids>]             ← wave edge: the worker rebases onto the merged dep (see the rule)
   - target repo: <superproject|submodule-path>
 ### Task 2: <name>  …
 ## Phase 2 — <name>  …
+## Deferred validations (backstops)   ← required; ratify in /red-team; surfaced at every land
+  - <check> · why deferred: <reason> · runner: <what executes it, when>   (or exactly: None)
 ## Notes / conscious deviations   (ratify in /red-team)
 ## Open decisions                 (resolved by /red-team)
 ```
+
+**Backstop heading:** the operator-ratified form is `## Deferred validations (backstops)`. A plan authored
+by `/war-machine --afk` has no operator to ratify, so its drafter uses the AI-declared variant
+`## Deferred validations (backstops — AI-declared)` (ADR 0014 provenance rule) — the marker survives
+extraction and every land-time surfacing renders it, never as operator-ratified.
 
 ### Roadmap template
 
