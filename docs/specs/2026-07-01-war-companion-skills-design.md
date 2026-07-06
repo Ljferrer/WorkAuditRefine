@@ -61,7 +61,7 @@ Each gap is a *different kind* of help, which is why this is three skills, not o
 | 8 | Campaign branch model | **Stack-and-plow, stacked PR targets** (default); `--wait-for-merge` = base-off-master (Mode A). [ADR 0011](../adr/0011-campaign-stack-and-plow-branch-model.md) |
 | 9 | Campaign survival | **Resumable re-entry** — runtime progress in an **uncommitted campaign ledger** owned by `assets/campaign-ledger.mjs` (single-writer, atomic temp+rename); `strategic-compact` behavior **bundled**, not ECC-dependent |
 | 10 | Campaign failure | **Halt-and-hold** on any plan that can't CLEAR (`/red-team`) or doesn't fully land (`/war`); defer `--keep-going` (YAGNI) |
-| 11 | Campaign feed | **Sweep `inbox/` every plan boundary** (Rev 1) — one file per added plan, maildir-style multi-writer-safe, no locks, no git conflicts; roadmap = authoring input + on-demand committable snapshot, never the live channel |
+| 11 | Campaign feed | **Sweep `inbox/` every plan boundary** (Rev 1) — one file per added plan, maildir-style multi-writer-safe, no locks, no git conflicts; roadmap = authoring input + on-demand committable snapshot, never the live channel. **Cross-branch add** (Rev): `add <plan> [<ref>]` resolves at add time (local path first, ref default `origin/master` only if missing), recording the ref as a two-line drop (line 1 path, line 2 `ref:`); at the plan boundary the Lead materializes the plan + transitively any referenced missing-local/present-on-ref files via `git show <ref>:<path>` and commits them onto `dev/<slug>` — no master merge/rebase enters the stack |
 | 12 | Auto-invocation | help/strategy **allowed**; campaign **`disable-model-invocation: true`** |
 | 13 | Deliverable | One design spec (this file) + ADR 0011; execution = one plan (Rev 1 — Phase 1: four parallel file-disjoint tasks = 3 skills + README; Phase 2: release **v0.9.0**) |
 
@@ -194,7 +194,7 @@ Executes a queue of plans unattended. Invocation:
 ```
 /war-campaign <plan…|roadmap-path> [--wait-for-merge]   # start — seed the ledger from plans or a roadmap
 /war-campaign                                           # resume the latest unfinished campaign
-/war-campaign add <plan-path>                           # from any chat — drop the plan into inbox/
+/war-campaign add <plan-path> [<ref>]                  # from any chat — drop the plan into inbox/ (ref defaults origin/master, consulted only when the local path is missing)
 ```
 
 Starting seeds the **campaign ledger** (`campaign-ledger.mjs init`) from an explicit plan list or a roadmap
@@ -202,11 +202,25 @@ file; the contention check orders the queue or refuses (§7.2). Passes `--afk --
 
 ### 7.1 Lifecycle (per plan, in queue order)
 
-1. **Sweep + select.** Sweep `inbox/` — contention-check each dropped plan against the remaining queue,
-   insert in dependency-safe order — then `next` from the ledger.
+1. **Materialize, then sweep + select.** Ordering is forced: `sweep` reads each drop's plan file, so
+   materialize runs first — `[Materialize → sweep() → next]`.
+   - **Materialize (before `sweep`).** For each inbox drop whose line-1 path is missing locally and whose
+     drop carries a `ref:` line, `git fetch` then `git show <ref>:<repo-relative-path> > <path>` into the Lead
+     checkout (untracked). Then scan each materialized file for referenced repo paths — backticked path-shaped
+     tokens and markdown link targets that resolve inside the repo (`[[wikilinks]]` excluded) — and
+     materialize any missing-locally / present-on-ref, **transitively** (each file materializes at most once,
+     so it terminates). Report every materialized path in the step-1 report. No master merge/rebase enters the
+     stack; identical-content files merge clean at land.
+   - **Sweep + select.** Sweep `inbox/` — contention-check each dropped plan against the remaining queue,
+     insert in dependency-safe order — then `next` from the ledger. Fail-loud backstop: a drop whose line-1
+     path is still missing at `sweep` time throws ENOENT, so a skipped materialization never passes silently.
 2. **Provision the branch (stack-and-plow — [ADR 0011](../adr/0011-campaign-stack-and-plow-branch-model.md)).**
    Plan 1: `dev/<slug-1>` off fresh `origin/master`. Plan N: `dev/<slug-N>` off `dev/<slug-(N-1)>`'s tip.
-   `--wait-for-merge` → wait for PR N-1 to merge, base off fresh `origin/master`.
+   `--wait-for-merge` → wait for PR N-1 to merge, base off fresh `origin/master`. After `dev/<slug>` is created
+   and **before** `/war` runs, `git add` + commit the files materialized in step 1 (the plan file and its
+   pulled references) onto `dev/<slug>` — `/war`'s worker worktrees branch off `dev/<slug>` and only see the
+   plan if it is committed there. No master merge/rebase; identical-content files merge clean at land, so
+   ADR 0011 is untouched.
 3. **Harden.** `/red-team <plan>` (self-adjudicates under AFK; halt-and-hold if unresolvable).
 4. **Execute.** `/war <plan> --working dev/<slug-N> --landing dev/<slug-(N-1)> --afk --ace`
    (plan 1 lands to `master`).
@@ -229,7 +243,11 @@ file; the contention check orders the queue or refuses (§7.2). Passes `--afk --
   whose footprint can't be parsed requires an explicit queue position.
 - **Inbox** = `.claude/campaigns/<id>/inbox/` — the **multi-writer add path**: one file per added plan,
   maildir-style (atomic by construction, no locks). `add` writes here; only the Lead's `sweep` moves entries
-  into the queue.
+  into the queue. A drop is one or two lines: line 1 the resolved plan path; an optional line 2 `ref: <git-ref>`
+  records the ref a cross-branch plan lives on (add-time resolution — `add <plan> [<ref>]` checks the local path
+  first, probing the ref only when it is missing). `sweep` parses line 1 as the plan path either way (legacy
+  one-line drops stay valid); the ref is consumed by the Lead's **materialize-then-commit-at-plan-boundary**
+  step (§7.1 step 1 materialize + step 2 commit onto `dev/<slug>`), never by the git-free helper.
 - **Roadmap** = authoring input + on-demand snapshot (Rev 1). `init` ingests one; *"I'm switching machines"*
   → the Lead renders the ledger out as a committable roadmap, and the new machine `init`s from it.
   Render/ingest beyond `init` is agent prose, not helper code.
