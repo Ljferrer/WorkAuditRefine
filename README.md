@@ -310,7 +310,7 @@ A version bump **must** update ALL three version-of-truth files together — Cla
 
 ## Status
 
-**0.14.2** — Campaign compaction survival — `CAMPAIGN-STATE.md` is codified as a write-ahead checkpoint (the Lead rewrites it before every long-wait dispatch and at each plan boundary), and a campaign-gated `SessionStart(compact|clear|resume)` hook re-injects it into a fresh window after compaction. Self-triggered compaction is rejected (see ADR 0016); the hook is silent in any session that isn't running a campaign.
+**0.14.3** — Learnings publish by default — `memory.commitLearnings` now defaults `true` (the economy preset pins `false`): distilled, lint-scrubbed `type: project` lessons are committed under `docs/learnings/` and ride each phase PR, human-reviewed like code. `/lessons-learned` gains two modes: `migrate` (the one-time two-root adoption playbook) and `evict` (its reviewed undo — repo lessons return to the local root, with an explicit ask whether to flip `commitLearnings` off).
 
 ## License
 
