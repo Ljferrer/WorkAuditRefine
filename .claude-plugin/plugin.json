@@ -1,7 +1,7 @@
 {
   "name": "work-audit-refine",
   "description": "WAR — Work·Audit·Refine. A Claude-native Agent-Teams + Workflows orchestration skill that executes a detailed multi-phase implementation plan: it breaks phases into GitHub issues, then per phase spins up fresh worker agents in isolated worktrees, independent read-only auditors (severity-gated, unanimous), and a serial refine/merge queue, landing each phase on a working branch and opening one PR to the landing branch at the end.",
-  "version": "0.14.4",
+  "version": "0.14.6",
   "author": { "name": "Ljferrer", "url": "https://github.com/Ljferrer" },
   "license": "MIT",
   "homepage": "https://github.com/Ljferrer/WorkAuditRefine",

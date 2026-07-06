@@ -42,12 +42,19 @@ Your project memory dir is the directory holding `MEMORY.md` named in your syste
 
 Create a todo per phase. Do them in order. Report after each.
 
-### 0 — Inventory & budget (read-only)
+### 0 — Inventory & budget (read-only except the one idempotent seed render below)
 
 - Count topic files, total disk, and `MEMORY.md` size (`wc -l -c`).
 - Budget (from `consolidate-memory`): `MEMORY.md` should stay **< 200 lines and ~25 KB**. Compute **% full** on both axes; the byte axis usually binds.
 - Gather the live-repo baseline the verifiers need: current version (`plugin.json`), top-level layout, recent merges (`git log --oneline --merges`), and where the code under audit actually lives.
-- **Report:** file count, disk, `MEMORY.md` lines/bytes + % full, and a one-line verdict on whether it is over/under budget.
+- **Detect the repo root** — `docs/learnings/` in the audited repo (or the configured `overrides.learningsTarget`); call it `$REPO_ROOT`. Count its topic files too and report that count alongside the local inventory. When `$REPO_ROOT` exists and is **non-empty** and the local `MEMORY.md` **lacks any `[repo]`-marked rows** (a fresh clone that never adopted the repo lessons), run the **Setup seed render** — the same idempotent seed WAR Setup runs (Task 2, identical flag set; only the `<local>` path is environment-specific) — so the projection reflects the repo lessons before you inventory staleness, and **say so in the Phase 0 report**. This seed is the **sole** live-dir write in Phase 0 and is safe to run before the Phase 1 backup: it only reprojects the index from existing files (never touches a topic file), and, like the Phase 5 render, it regenerates `MEMORY.md` atomically (`.tmp` + rename) and idempotently.
+
+  ```bash
+  node "${CLAUDE_PLUGIN_ROOT}/skills/_shared/war-memory.mjs" render-index --local "$MEM" --repo "$REPO_ROOT"
+  ```
+
+  (Skip the seed only when the Node probe reports memory unavailable — Node < 24 / no `node:sqlite`.)
+- **Report:** local file count, disk, `MEMORY.md` lines/bytes + % full, the `$REPO_ROOT` file count (and whether the seed render ran), and a one-line verdict on whether it is over/under budget.
 
 ### 1 — Backup & stage (the fault-tolerance step)
 
@@ -127,10 +134,10 @@ Author a `Workflow` over the `keep-compress` + `fix-anchor` + `merge` items (bat
 
   This appends an archive note, `mv`s each into `$STAGING/archive/` (the local root is not a git repo, so a plain move — no `git mv`), and stays queryable. It does **not** delete. A `[[wikilink]]` into `archive/` is legal (safe-swap treats it as resolved, not dangling), so leave inbound links to an archived slug in place.
 - **Fix only the frontmatter `relates:` entries** that point at an archived slug if you want the graph tidy — body `[[…]]` mentions may stay, since the target now lives in `archive/` and still resolves. (Contrast a true delete, which would orphan them — this pipeline no longer deletes.)
-- **Render the projection** — the final, authoritative index rewrite is generated, not hand-typed (the projection is derived from the files; a hand-authored `MEMORY.md` summary is normalised away at the next render):
+- **Render the projection** — the final, authoritative index rewrite is generated, not hand-typed (the projection is derived from the files; a hand-authored `MEMORY.md` summary is normalised away at the next render). **Pass `--repo <repo root>` when the repo root exists** (`docs/learnings/` in the audited repo, or the configured override) so the walk sees the repo-root lessons and re-marks their `[repo]` rows; omit it only when no repo root resolves:
 
   ```bash
-  node "${CLAUDE_PLUGIN_ROOT}/skills/_shared/war-memory.mjs" render-index --local "$STAGING"
+  node "${CLAUDE_PLUGIN_ROOT}/skills/_shared/war-memory.mjs" render-index --local "$STAGING" --repo "$REPO_ROOT"
   ```
 
   `archive` already re-renders after archiving, so an explicit `render-index` here is the belt-and-suspenders final projection. It regenerates `$STAGING/MEMORY.md` atomically (`.tmp` + rename), drops archived rows, and keeps the table format and `[[slug]]` convention. If it refuses on budget (above the hard axis), archive more low-tier/old lessons and re-render.
@@ -177,6 +184,7 @@ If the run surfaced a reusable housekeeping insight, write it as a new memory in
 - **Illustrative `[[slug]]` in examples.** Pollutes the link graph and the verify report. Don't write example wikilinks that look real.
 - **Deleting instead of archiving a `retire`/`merge`.** `rm` destroys knowledge; `war-memory archive <slug>` keeps it queryable. This pipeline archives — it never `rm`s a lesson.
 - **Swapping on a `VERIFY: FAIL` or warnings you didn't read.** A link into `archive/` is legal (cold links resolve); the real rot is a link to a slug in neither the hot set nor `archive/`. Resolve those before committing.
+- **Dropping `--repo` from the Phase 5 render on a repo-adopted store.** `render-index` re-derives the projection from the roots it is told to walk; if `$REPO_ROOT` exists but you render `--local` only, the walk never sees the repo lessons and the regenerated `MEMORY.md` **silently drops every `[repo]` row**. Always pass `--repo <repo root>` in Phase 5 when the repo root exists. (The **evict** re-render is the deliberate exception — it stays local-only *by design* so eviction drops the `[repo]` markers.)
 
 ## Note on write gates
 

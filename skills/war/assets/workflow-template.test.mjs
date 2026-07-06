@@ -3451,6 +3451,32 @@ test('memory: worker self-query line present in dispatched prompt AND mirrored i
   // The self-query line is NOT gated by intent/memory — it is byte-stable regardless of args.memory.
 })
 
+// learnings-read-path plan T1: the worker self-query example carries `--repo <resolved repo root>`
+// when the run threads a repo root (learningsTarget), so a worker's mid-task query walks the published
+// corpus and not just the local root. Absent a threaded root the line stays byte-identical to today.
+test('memory: worker self-query line carries --repo <resolved root> when a repo root is threaded (T1)', async () => {
+  const REPO_ROOT = '/abs/repo/docs/learnings'
+  const { calls } = await runPhase(PROVISION_ARGS({ learningsTarget: REPO_ROOT }), defaultImpl)
+  const w = calls.find(isWorker)
+  assert.ok(w, 'worker dispatched (presence guard)')
+  // (a) the resolved root appears via the --repo flag on the self-query invocation.
+  assert.ok(w.prompt.includes(`query '<terms>' --repo ${REPO_ROOT}`),
+    'dispatched worker self-query line interpolates --repo <resolved repo root>')
+  // Delete-the-feature: dropping the interpolation (fragment always '') makes the exact --repo
+  // substring vanish, so this assertion is what fails if the emission is reverted.
+})
+
+test('memory: worker self-query line is byte-identical to the pre-feature baseline when no repo root is threaded (T1)', async () => {
+  // (b) learningsTarget absent (null) ⇒ no --repo fragment, and the sentence equals the canonical form.
+  const { calls } = await runPhase(PROVISION_ARGS({ learningsTarget: null }), defaultImpl)
+  const w = calls.find(isWorker)
+  assert.ok(w, 'worker dispatched (presence guard)')
+  assert.ok(!w.prompt.includes('--repo'), 'no --repo fragment when no repo root is threaded')
+  const CANONICAL = "You MAY run `node <plugin>/skills/_shared/war-memory.mjs query '<terms>'` mid-task when you hit something unfamiliar — its only side-effect is a query-log append in the local memory root, and it never writes a lesson."
+  assert.ok(w.prompt.includes(CANONICAL),
+    'absent a repo root the self-query line is byte-identical to the pre-feature sentence')
+})
+
 test('criterion 11 — ServitorResult schema no longer carries memory_index_updated', async () => {
   const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
   const servitor = calls.find(isServitor)

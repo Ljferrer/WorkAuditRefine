@@ -191,13 +191,18 @@ export function init(campaignDir, opts = {}) {
   return ledger
 }
 
-// addToInbox(campaignDir, planPath, { filename }) — maildir-style, no ledger touch.
+// addToInbox(campaignDir, planPath, { filename, ref }) — maildir-style, no ledger touch.
+// With `ref`, the drop is TWO lines: line 1 the resolved plan path (unchanged),
+// line 2 `ref: <git-ref>` (cross-branch provenance — the plan lives on that ref,
+// materialized at the plan boundary). Without `ref`, byte-identical to the legacy
+// single-line drop. sweep() parses line 1 as the plan path either way.
 export function addToInbox(campaignDir, planPath, opts = {}) {
   const inboxDir = path.join(campaignDir, 'inbox')
   fs.mkdirSync(inboxDir, { recursive: true })
   const filename = opts.filename || `${Date.now()}-${process.pid}-${slugify(planPath)}.plan`
   const dest = path.join(inboxDir, filename)
-  fs.writeFileSync(dest, path.resolve(planPath) + '\n')
+  const body = path.resolve(planPath) + '\n' + (opts.ref ? `ref: ${opts.ref}\n` : '')
+  fs.writeFileSync(dest, body)
   return dest
 }
 
@@ -215,7 +220,13 @@ export function sweep(campaignDir) {
   const existingFiles = ledger.plans.flatMap((p) => p.files)
 
   const newEntries = inboxFiles.map((fname) => {
-    const planPath = fs.readFileSync(path.join(inboxDir, fname), 'utf8').trim()
+    // Drop line 1 is the plan path; an optional line 2 (`ref: <git-ref>`) is
+    // cross-branch provenance consumed by the Lead's materialize step BEFORE
+    // sweep, never here — sweep stays git-free. Parse line 1 only (a legacy
+    // one-line drop has just that line). A still-missing path throws ENOENT
+    // via extractFilesFromPlanFile below: the fail-loud backstop for a skipped
+    // materialization.
+    const planPath = fs.readFileSync(path.join(inboxDir, fname), 'utf8').split(/\r?\n/, 1)[0].trim()
     return { fname, plan: planPath, files: extractFilesFromPlanFile(planPath) }
   })
 
@@ -309,7 +320,10 @@ function main() {
       break
     }
     case 'add': {
-      console.log(addToInbox(campaignDir, args._[0]))
+      // Positional at the skill layer (`add <plan> [<ref>]`); the Lead
+      // translates the positional ref into --ref when shelling out here.
+      const addOpts = typeof args.ref === 'string' ? { ref: args.ref } : {}
+      console.log(addToInbox(campaignDir, args._[0], addOpts))
       break
     }
     case 'sweep': {

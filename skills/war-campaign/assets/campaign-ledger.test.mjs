@@ -219,6 +219,85 @@ test('sweep moves inbox entries into the queue dependency-safe and deletes inbox
   assert.equal(ledger.plans[0].plan, path.resolve(planC))
 })
 
+// ---- add --ref provenance + two-line drop parse (plan Task 1) -------------
+
+test('add with a ref writes a two-line drop: line 1 the resolved plan path, line 2 `ref: <ref>`', () => {
+  const dir = tmpDir()
+  const planA = writePlan(dir, 'a.md', PLAN_A)
+  const campaignDir = path.join(dir, 'campaign')
+  init(campaignDir, { plans: [], mode: 'stack' })
+
+  const dest = addToInbox(campaignDir, planA, { ref: 'origin/master' })
+  const lines = fs.readFileSync(dest, 'utf8').split('\n')
+  // trailing newline yields a final empty element; the payload is the first two lines
+  assert.equal(lines[0], path.resolve(planA))
+  assert.equal(lines[1], 'ref: origin/master')
+  assert.equal(lines.filter((l) => l.length).length, 2) // exactly two non-empty lines
+})
+
+test('add without a ref writes a byte-identical single-line legacy drop', () => {
+  const dir = tmpDir()
+  const planA = writePlan(dir, 'a.md', PLAN_A)
+  const campaignDir = path.join(dir, 'campaign')
+  init(campaignDir, { plans: [], mode: 'stack' })
+
+  const dest = addToInbox(campaignDir, planA)
+  // legacy shape is exactly the resolved path plus a single trailing newline
+  assert.equal(fs.readFileSync(dest, 'utf8'), path.resolve(planA) + '\n')
+})
+
+test('sweep of a two-line ref drop records the line-1 path as the ledger plan (needs first-line parse)', () => {
+  const dir = tmpDir()
+  const planA = writePlan(dir, 'a.md', PLAN_A)
+  const campaignDir = path.join(dir, 'campaign')
+  init(campaignDir, { plans: [], mode: 'stack' })
+
+  addToInbox(campaignDir, planA, { ref: 'origin/master' })
+  sweep(campaignDir)
+
+  const ledger = readLedger(campaignDir)
+  assert.equal(ledger.plans.length, 1)
+  // without first-line parse, planPath is the whole "<path>\nref: ..." blob and
+  // extractFilesFromPlanFile throws ENOENT — so reaching a correct plan entry proves it
+  assert.equal(ledger.plans[0].plan, path.resolve(planA))
+  assert.deepEqual(ledger.plans[0].files, ['src/a.js', 'src/b.js'])
+  assert.deepEqual(fs.readdirSync(path.join(campaignDir, 'inbox')), []) // consumed
+})
+
+test('sweep of a legacy one-line drop is still consumed correctly (compat guard)', () => {
+  const dir = tmpDir()
+  const planC = writePlan(dir, 'c.md', PLAN_DISJOINT)
+  const campaignDir = path.join(dir, 'campaign')
+  init(campaignDir, { plans: [], mode: 'stack' })
+
+  // write the legacy single-line drop shape by hand (no ref line at all)
+  const inboxDir = path.join(campaignDir, 'inbox')
+  fs.writeFileSync(path.join(inboxDir, '0001-legacy.plan'), path.resolve(planC) + '\n')
+
+  sweep(campaignDir)
+
+  const ledger = readLedger(campaignDir)
+  assert.equal(ledger.plans.length, 1)
+  assert.equal(ledger.plans[0].plan, path.resolve(planC))
+  assert.deepEqual(fs.readdirSync(inboxDir), []) // consumed
+})
+
+test('sweep of a drop whose line-1 path does not exist throws ENOENT (fail-loud backstop)', () => {
+  const dir = tmpDir()
+  const campaignDir = path.join(dir, 'campaign')
+  init(campaignDir, { plans: [], mode: 'stack' })
+
+  // a drop pointing at a plan that was never materialized (still missing at sweep)
+  const inboxDir = path.join(campaignDir, 'inbox')
+  const missing = path.join(dir, 'never-materialized.md')
+  fs.writeFileSync(path.join(inboxDir, '0001-missing.plan'), missing + '\nref: origin/master\n')
+
+  // MESSAGE-MATCHED on purpose: a bare assert.throws is vacuous because
+  // assertOrderable also throws 'unparseable footprint' — only /ENOENT/ goes RED
+  // when the fail-loud backstop is swallowed (plan Task 1 test 5).
+  assert.throws(() => sweep(campaignDir), /ENOENT|no such file/)
+})
+
 // ---- next / record ------------------------------------------------------
 
 test('next returns the first queued plan', () => {

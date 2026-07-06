@@ -518,7 +518,8 @@ function cmdRenderIndex(argv) {
   if (verdict === 'refuse') {
     process.stderr.write(
       `war-memory render-index: REFUSED — projection ${bytes}B / ${lines} lines exceeds a hard axis ` +
-        `(${HARD_BYTES}B / ${HARD_LINES} lines). Archive candidates (run \`archive --candidates\`): ` +
+        `(${HARD_BYTES}B / ${HARD_LINES} lines). Ranked archive candidates (\`archive --candidates\` ` +
+        `archives ALL of these; \`archive <slug>...\` archives just the ones you pick): ` +
         candidates.join(', ') + '\n'
     );
     process.exit(1);

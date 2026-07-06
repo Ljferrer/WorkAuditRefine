@@ -139,10 +139,17 @@ relocates a lesson into the repo root for you (`migrate --apply` only archives `
    cli render-index --local "$CLAUDE_MEMORY_LOCAL" --repo "$CLAUDE_MEMORY_REPO"
    ```
 
-5. Commit the repo root on a branch and open a PR: `git add docs/learnings && git commit -m
-   'docs(learnings): adopt two-root memory store'`. The CI gate (`.github/workflows/memory-audit.yml`)
-   re-runs `lint docs/learnings/` on the PR — the same fail-closed check, now automated. Every published
-   lesson is human-reviewed like code before it lands.
+5. **Ensure the target repo's `CLAUDE.md` carries the pointer line** (append-if-absent — create `CLAUDE.md`
+   if it does not exist, never rewrite or reorder existing operator content), so every plain Claude Code
+   session in a fresh clone inherits the lessons ambiently. It rides **this same reviewed PR**. The
+   **ratified pointer line** (byte-identical across every surface that emits it):
+
+   > 📚 **Durable engineering lessons live in `docs/learnings/`** — one fact per Markdown file, provenance-tagged frontmatter. Before changing a subsystem, read the lessons that name it (plain Read/Grep, or ranked retrieval via the `work-audit-refine` plugin's `war-memory` query).
+
+6. Commit the repo root **and the `CLAUDE.md` pointer** on a branch and open a PR: `git add docs/learnings
+   CLAUDE.md && git commit -m 'docs(learnings): adopt two-root memory store'`. The CI gate
+   (`.github/workflows/memory-audit.yml`) re-runs `lint docs/learnings/` on the PR — the same fail-closed
+   check, now automated. Every published lesson is human-reviewed like code before it lands.
 
 After this PR merges the repo root travels with the repo and compounds across the team. The local root
 keeps carrying everything untyped/personal, exactly as before.
@@ -174,7 +181,8 @@ just a file move. No lesson is ever deleted — eviction only relocates.
 4. **Move, preserving temperature.** `mv` repo hot → local hot, repo `archive/` → local `archive/`.
    (`git mv` cannot cross out of the repo; plain `mv` then `git add -A docs/learnings/` records the
    deletions.) Frontmatter travels untouched — `type: project` stays, so re-migrating later is just
-   Step 5 again.
+   Step 5 again. The **`CLAUDE.md` pointer is left in place by default** (harmless once the dir empties, and
+   it points at a path a future re-migration restores); removing it is a call to make in the eviction PR.
 5. **Re-render + verify.** `cli render-index --local "$CLAUDE_MEMORY_LOCAL"` — evicted rows lose their
    trailing `[repo]` marker automatically (root = physical location). The local index re-absorbs the
    rows; on a budget REFUSE, archive low-tier lessons by **explicit slug** (never `--candidates`) and

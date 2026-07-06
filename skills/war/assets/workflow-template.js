@@ -324,7 +324,12 @@ const workerIntentClause = intent
 // mid-task when they hit something unfamiliar (they have Bash; no other role gains anything). ONE
 // canonical sentence, mirrored in agents/war-worker.md (standing surface) — always present (not
 // intent/memory-gated), so it does NOT threaten the byte-identical-empty-map property.
-const WORKER_MEMORY_SELF_QUERY_LINE = `\nYou MAY run \`node <plugin>/skills/_shared/war-memory.mjs query '<terms>'\` mid-task when you hit something unfamiliar — its only side-effect is a query-log append in the local memory root, and it never writes a lesson.\n`
+// Read-path repo root (learnings-read-path plan T1): when the run threads a repo root (learningsTarget,
+// the Lead's resolved repo root when commitLearnings is on), the example invocation carries
+// `--repo <root>` so a worker's self-query walks the published corpus, not just the local root. Absent
+// a threaded root the fragment is '' ⇒ the line stays byte-identical to a memory-less run (criterion 10).
+const workerSelfQueryRepoFlag = (typeof learningsTarget === 'string' && learningsTarget) ? ` --repo ${learningsTarget}` : ''
+const WORKER_MEMORY_SELF_QUERY_LINE = `\nYou MAY run \`node <plugin>/skills/_shared/war-memory.mjs query '<terms>'${workerSelfQueryRepoFlag}\` mid-task when you hit something unfamiliar — its only side-effect is a query-log append in the local memory root, and it never writes a lesson.\n`
 
 function auditPrompt(task, lens, depth, peers, workerTests) {
   let p = `Audit WAR task ${task.id} through the "${lens}" lens at depth ${depth}.\n`
