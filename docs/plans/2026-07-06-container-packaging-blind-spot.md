@@ -87,7 +87,12 @@ four CONTEXT.md glossary entries are already committed (PR #519); this plan buil
     <integrationBranch> <taskBranch>` in the task worktree when `requiresPackaging`; exit 0
     continue, exit 1 → status `unpackaged` do-NOT-merge, exit 2 → status `error` — never
     misclassified); MergeResult status enum gains `unpackaged`; the step-5 note that today counts
-    "two fail-closed pre-merge gates" is reworded for three.
+    "two fail-closed pre-merge gates" is reworded for three. **Placement (pinned by /red-team):**
+    insert the packaging floor immediately after the step-4 test-floor check and before the step-5
+    submodule-mutation check — the two `assert-*-in-diff.sh` coverage floors stay adjacent — and
+    extend step 5's "order-independent … both fail-closed pre-merge gates" note to name all three.
+    Order is semantically free (any failing exit blocks the step-6 merge); the pin is for readable,
+    grouped floors.
   - requiresTest: false
   - deps: []
   - target repo: superproject
@@ -201,9 +206,13 @@ four CONTEXT.md glossary entries are already committed (PR #519); this plan buil
 - Mid-run docker-daemon death still reads `gate_failed` (spec §8 accepted residual; the `docker
   info` provision pin only classifies pre-spawn absence).
 
-## Open decisions                 (resolved by /red-team)
+## Open decisions                 (resolved by /red-team 2026-07-06)
 
-- Exact ordering of the packaging-floor step relative to `assert-no-submodule-mutation.sh` in the
-  refiner's merge-task steps (order-independent for merge/refuse semantics; red-team may pin one).
-- Whether `campaign-ledger.mjs` needs an explicit schema-version note for in-flight ledgers beyond
-  Task 9's absent-field tolerance.
+- **Packaging-floor step ordering** → **RESOLVED.** Pinned in Task 3: the floor runs immediately
+  after the step-4 test-floor check, before the step-5 submodule-mutation check; the step-5
+  order-independent note extends to all three. Order is semantically free — the pin only groups the
+  two `assert-*-in-diff.sh` coverage floors for readability.
+- **`campaign-ledger.mjs` schema-version note** → **RESOLVED: not needed.** Task 9's absent-field
+  tolerance is the established pattern for in-flight ledgers that predate a new field (tolerate
+  absence on read); an explicit schema-version marker would add surface for no behavioral gain. A
+  format-versioning scheme, if ever wanted, is a separate ledger concern out of this plan's scope.
