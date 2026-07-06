@@ -3472,7 +3472,7 @@ test('memory: worker self-query line is byte-identical to the pre-feature baseli
   const w = calls.find(isWorker)
   assert.ok(w, 'worker dispatched (presence guard)')
   assert.ok(!w.prompt.includes('--repo'), 'no --repo fragment when no repo root is threaded')
-  const CANONICAL = "You MAY run `node <plugin>/skills/_shared/war-memory.mjs query '<terms>'` mid-task when you hit something unfamiliar — its only side-effect is a query-log append in the local memory root, and it never writes a lesson."
+  const CANONICAL = "You MAY run `node <plugin>/skills/_shared/war-memory.mjs query '<terms>'` mid-task when you hit something unfamiliar — it never writes a lesson, and without a `--local` root it appends no query log (the CLI never guesses one from the cwd)."
   assert.ok(w.prompt.includes(CANONICAL),
     'absent a repo root the self-query line is byte-identical to the pre-feature sentence')
 })

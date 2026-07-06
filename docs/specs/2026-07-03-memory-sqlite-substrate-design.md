@@ -239,8 +239,9 @@ lesson-less`). **Retrieval fails open; publication fails closed** — enhancemen
 
 Workers additionally get one prompt line: they *may* run
 `node <plugin>/skills/_shared/war-memory.mjs query '<terms>'` mid-task when they hit something
-unfamiliar (workers have Bash; no other role gains anything). Its only side-effect write is the
-query-log append in the local root — an accepted Bash-blind residual per §2.2, and never a lesson.
+unfamiliar (workers have Bash; no other role gains anything). It never writes a lesson; the
+query-log append (an accepted Bash-blind residual per §2.2) happens only when a `--local` root is
+passed — the CLI never guesses one from the cwd, so an un-flagged self-query writes nothing.
 
 ### 4.6 Publication path — three gates, fail-closed
 

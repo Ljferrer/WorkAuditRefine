@@ -591,6 +591,38 @@ test('--queries: one process yields one labeled block per entry (Lead per-phase 
 });
 
 // ============================================================================
+// No-cwd-guess: an omitted --local (and no $CLAUDE_MEMORY_LOCAL) must never
+// invent <cwd>/memory — on 2026-07-06 a WAR run's un-flagged invocations created
+// a stray repo-root memory/ (header-only index + query log) and the prefetch
+// walked that empty root, so the phase ran lesson-less. Read verbs treat an
+// absent local root as empty; write verbs fail loud.
+// ============================================================================
+
+const NO_LOCAL_ENV = { ...process.env, CLAUDE_MEMORY_LOCAL: '' };
+
+test('query without --local: walks --repo only, exits 0, creates NO <cwd>/memory', () => {
+  const cwd = tmpDir();
+  const repo = tmpDir();
+  lessonFile(repo, 'repofact', { description: 'stray dir regression token', body: 'x' });
+  const r = spawnSync('node', [CLI, 'query', 'stray dir regression', '--repo', repo], {
+    encoding: 'utf8', cwd, env: NO_LOCAL_ENV,
+  });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /\[repofact\]/); // the repo corpus is still queried
+  assert.ok(!existsSync(join(cwd, 'memory')), 'no stray <cwd>/memory dir created');
+  for (const d of [cwd, repo]) rmSync(d, { recursive: true, force: true });
+});
+
+test('render-index without --local: fails loud instead of writing <cwd>/memory/MEMORY.md', () => {
+  const cwd = tmpDir();
+  const r = spawnSync('node', [CLI, 'render-index'], { encoding: 'utf8', cwd, env: NO_LOCAL_ENV });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /--local <dir> required/);
+  assert.ok(!existsSync(join(cwd, 'memory')), 'no stray <cwd>/memory dir created');
+  rmSync(cwd, { recursive: true, force: true });
+});
+
+// ============================================================================
 // (9) Node < 24 stub — every verb exits non-zero with the one-line message.
 //     We simulate an old runtime by making `node:sqlite` unimportable.
 // ============================================================================

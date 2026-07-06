@@ -755,14 +755,15 @@ test('doc-contract: SKILL.md prefetch clause passes --repo (read-path wiring, #5
   )
 })
 
-test('doc-contract: SKILL.md Gate 2 render-index passes --repo (read-path wiring, #534)', () => {
+test('doc-contract: SKILL.md Gate 2 render-index passes --local AND --repo (read-path wiring, #534)', () => {
   const text = readDoc('skills/war/SKILL.md')
   // The Gate 2 render is the render-index that "regenerates the local MEMORY.md projection".
-  // Slice from `render-index` to its paragraph end and assert --repo is inside.
-  const marker = 'render-index --repo'
+  // --local is required (the CLI fails loud rather than guess <cwd>/memory) and --repo keeps
+  // a repo-adopted store's [repo] rows on re-render (#534).
+  const marker = 'render-index --local <local root> --repo'
   assert.ok(
     text.includes(marker),
-    'SKILL.md Gate 2 publication must run `render-index --repo <resolved repo root>` so a repo-adopted store keeps its [repo] rows on re-render (#534)'
+    'SKILL.md Gate 2 publication must run `render-index --local <local root> --repo <resolved repo root>` — --local so the projection lands in the project store, --repo so [repo] rows survive re-render (#534)'
   )
 })
 

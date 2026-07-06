@@ -329,7 +329,7 @@ const workerIntentClause = intent
 // `--repo <root>` so a worker's self-query walks the published corpus, not just the local root. Absent
 // a threaded root the fragment is '' ⇒ the line stays byte-identical to a memory-less run (criterion 10).
 const workerSelfQueryRepoFlag = (typeof learningsTarget === 'string' && learningsTarget) ? ` --repo ${learningsTarget}` : ''
-const WORKER_MEMORY_SELF_QUERY_LINE = `\nYou MAY run \`node <plugin>/skills/_shared/war-memory.mjs query '<terms>'${workerSelfQueryRepoFlag}\` mid-task when you hit something unfamiliar — its only side-effect is a query-log append in the local memory root, and it never writes a lesson.\n`
+const WORKER_MEMORY_SELF_QUERY_LINE = `\nYou MAY run \`node <plugin>/skills/_shared/war-memory.mjs query '<terms>'${workerSelfQueryRepoFlag}\` mid-task when you hit something unfamiliar — it never writes a lesson, and without a \`--local\` root it appends no query log (the CLI never guesses one from the cwd).\n`
 
 function auditPrompt(task, lens, depth, peers, workerTests) {
   let p = `Audit WAR task ${task.id} through the "${lens}" lens at depth ${depth}.\n`

@@ -426,13 +426,24 @@ export function migrationPlan(records, { commitLearnings = false } = {}) {
 // ===========================================================================
 
 function resolveRoots(argv) {
-  // --local <dir> (required in practice; defaults to $CLAUDE_MEMORY_LOCAL or cwd/.memory for tests)
+  // --local <dir> (or $CLAUDE_MEMORY_LOCAL). NO cwd fallback: a guessed <cwd>/memory
+  // silently materializes a stray dir at whatever repo root the caller ran from, and
+  // queries walk that empty root instead of the project store. Read verbs treat an
+  // absent local root as an empty corpus; write verbs must requireLocal() and fail loud.
   // --repo <dir>  (optional; only used when commitLearnings)
-  const local = argv.local || process.env.CLAUDE_MEMORY_LOCAL || path.join(process.cwd(), 'memory');
+  const local = argv.local || process.env.CLAUDE_MEMORY_LOCAL || null;
   const repo = argv.repo || process.env.CLAUDE_MEMORY_REPO || null;
-  const roots = { local };
+  const roots = {};
+  if (local) roots.local = local;
   if (repo) roots.repo = repo;
   return roots;
+}
+
+function requireLocal(roots, verb) {
+  if (!roots.local) {
+    process.stderr.write(`war-memory ${verb}: --local <dir> required (or set CLAUDE_MEMORY_LOCAL)\n`);
+    process.exit(1);
+  }
 }
 
 function parseArgv(args) {
@@ -456,6 +467,7 @@ function parseArgv(args) {
 }
 
 function appendQueryLog(localRoot, entry) {
+  if (!localRoot) return; // no --local resolved → nothing to log (never guess a cwd root)
   try {
     fs.mkdirSync(localRoot, { recursive: true });
     fs.appendFileSync(path.join(localRoot, QUERY_LOG_FILE), JSON.stringify(entry) + '\n', 'utf8');
@@ -513,6 +525,7 @@ function cmdQueriesBatch(argv) {
 
 function cmdRenderIndex(argv) {
   const roots = resolveRoots(argv);
+  requireLocal(roots, 'render-index'); // the projection is written INTO the local root
   const records = walkCorpus(roots);
   const { text, bytes, lines, verdict, candidates } = buildProjection(records);
   if (verdict === 'refuse') {
@@ -568,6 +581,7 @@ function cmdLint(argv) {
 
 function cmdArchive(argv) {
   const roots = resolveRoots(argv);
+  requireLocal(roots, 'archive'); // moves files under the local root + re-renders into it
   const records = walkCorpus(roots);
   let slugs;
   if (argv.candidates) {
@@ -603,6 +617,7 @@ function cmdArchive(argv) {
 
 function cmdConsolidate(argv) {
   const roots = resolveRoots(argv);
+  requireLocal(roots, 'consolidate'); // ends in a re-render into the local root
   const records = walkCorpus(roots);
   const db = buildIndex(records);
   // changed-since-merge-base: caller passes --changed a,b,c; default = all hot (report-only anyway)
@@ -619,6 +634,7 @@ function cmdConsolidate(argv) {
 
 function cmdMigrate(argv) {
   const roots = resolveRoots(argv);
+  requireLocal(roots, 'migrate'); // routes/archives within the local root
   const commitLearnings = !!argv['commit-learnings'];
   const records = walkCorpus(roots);
   const plan = migrationPlan(records, { commitLearnings });
