@@ -153,3 +153,31 @@ keeps carrying everything untyped/personal, exactly as before.
   final projection step is `render-index` — see [`SKILL.md`](../SKILL.md).
 - A staged `war-memory-queries.jsonl` query log may appear in the local root; it is inert and never
   indexed.
+
+## Evict — undoing the migration
+
+`/lessons-learned evict` reverses Step 5: repo-root lessons return to the local root and the repo stops
+carrying learnings. Like the migration, it is a **reviewed git change** (it deletes repo content), not
+just a file move. No lesson is ever deleted — eviction only relocates.
+
+1. **Preflight.** Resolve both roots (same env/flags as the top of this playbook); require a clean git
+   tree and a non-empty repo root. Default scope is the **full** repo root, hot + `archive/`; a
+   selective evict names slugs as extra arguments (`/lessons-learned evict <slug>…`).
+2. **Ask about the flag — always, and first.** Ask the operator whether to also set
+   `memory.commitLearnings: false` (edit `.claude/war/config.json`, or via `/war-room`). The default is
+   `true` (economy pins `false`), so an evict **without** the flip is temporary: the next landed WAR
+   phase repopulates `docs/learnings/`. Apply their answer before moving any file; if they decline,
+   say so in the final report so the repopulation surprise is on record.
+3. **Collision check.** For each evictee, confirm the local root (hot **and** `archive/`) has no file
+   with the same slug. A hit means the lesson exists in both roots — diff and reconcile by hand (keep
+   one, fold residue into it) before evicting. Never clobber.
+4. **Move, preserving temperature.** `mv` repo hot → local hot, repo `archive/` → local `archive/`.
+   (`git mv` cannot cross out of the repo; plain `mv` then `git add -A docs/learnings/` records the
+   deletions.) Frontmatter travels untouched — `type: project` stays, so re-migrating later is just
+   Step 5 again.
+5. **Re-render + verify.** `cli render-index --local "$CLAUDE_MEMORY_LOCAL"` — evicted rows lose their
+   trailing `[repo]` marker automatically (root = physical location). The local index re-absorbs the
+   rows; on a budget REFUSE, archive low-tier lessons by **explicit slug** (never `--candidates`) and
+   re-render.
+6. **The eviction PR.** Commit the `docs/learnings/` deletions on a branch and open a PR — eviction is
+   human-reviewed like the migration was. CI's `memory-audit` gate fails open once the dir is absent.
