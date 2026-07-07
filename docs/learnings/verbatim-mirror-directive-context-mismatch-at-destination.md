@@ -81,4 +81,7 @@ two-layer coverage pattern this Nit lives inside);
 [[source-comment-lags-emitted-prompt-after-rewrite]] (analogous lag: template comments
 describing the old model after a rewrite);
 [[relaxed-assertion-test-title-must-update-together]] (scope-lock corollary: cross-file
-label drift when rename is in one file and test titles are in another).
+label drift when rename is in one file and test titles are in another);
+[[shared-string-constant-quote-literal-byte-anchor-fragility]] (sibling fragility: a
+byte-identity test anchored on literal punctuation rather than semantic content, from
+audit-calibration-and-graduation/t1).

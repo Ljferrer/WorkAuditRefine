@@ -15,8 +15,8 @@ Source spec: `docs/specs/2026-07-06-audit-calibration-and-graduation-design.md`
 - **End state:**
   1. Every built audit prompt (initial, rebuttal, post-fix re-audit) contains the CALIBRATION
      RULE and COST-CLAIM RULE sentences.
-  2. `agents/war-auditor.md` mirrors both rules; two new both-surfaces tests fail on drift of
-     either surface.
+  2. `agents/war-auditor.md` mirrors both rules; two new both-surfaces tests assert both surfaces
+     carry the rules — passing when they match, failing on drift of either surface.
   3. `skills/lessons-learned/SKILL.md` records recurrence trails (Phase 2), emits a Graduation
      candidates subsection (Phase 3), and surfaces it in the final report (Phase 7), flag-only.
   4. Full JS suite green (`node --test 'skills/**/*.test.mjs'`).
@@ -94,8 +94,10 @@ Source spec: `docs/specs/2026-07-06-audit-calibration-and-graduation-design.md`
 
 ## Notes / conscious deviations
 
-- The `CONTEXT.md` **Graduation candidate** term already landed with the spec (PR #560) — no
-  task here re-touches it.
+- The `CONTEXT.md` **Graduation candidate** term landed with the spec (PR #560, merged to master) and
+  is **staged onto this stacked base by the campaign Lead** (present in the execution tree — this branch
+  was cut from a plan-1 tip that predates #560) — no task here re-touches it; it merges clean when the
+  stack lands to master (identical content).
 - Gate-audit seats (`execution-evidence`, `end-state`) receive the new rules via the
   `agents/war-auditor.md` standing surface only; their inline-built prompts are deliberately
   unchanged (spec §4.1).
