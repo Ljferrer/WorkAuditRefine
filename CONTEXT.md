@@ -500,7 +500,6 @@ what, if anything, is filed or built.
 _Avoid_: auto-filed issue, auto-built hook (the flag never implements); treating every recurring lesson
 as a candidate (only machine-checkable ones qualify).
 
-
 ### State & resume
 
 **Resume precedence**:
