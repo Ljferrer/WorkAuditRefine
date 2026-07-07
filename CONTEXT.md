@@ -60,6 +60,23 @@ collide) cut off the working branch, from which all of that phase's task worktre
 into which approved tasks are merged. Removed after the phase lands.
 _Avoid_: feature branch, phase branch, staging branch.
 
+**launch-worktree collision**:
+The desired working branch is checked out in the worktree `/war` is launched from (or any sibling
+worktree), so the refinery cannot advance it — git refuses to advance a ref that is checked out
+somewhere, and the push-first land ([ADR 0004](docs/adr/0004-refinery-merges-in-a-worktree.md)) has
+no un-checked-out ref to fast-forward. Detected via `git worktree list --porcelain`. Left
+unresolved, it forces a `held:land-failed` every phase.
+_Avoid_: merge conflict (this is a checkout/topology collision, not a content collision); worktree
+directory collision (directories are run-scoped and already safe).
+
+**dedicated working branch**:
+A Setup-resolved working branch (`dev/<date>-<slug>`) auto-created when the desired branch is under
+a *launch-worktree collision*, guaranteeing the working ref is checked out nowhere so the refinery
+can advance it. Cut at the desired branch's tip, run-owned (reuse-if-ours on resume, ADR 0003), and
+bootstrapped on origin at Setup before Phase 1.
+_Avoid_: working branch (this is the *substitute* only created under collision — with no collision
+the desired branch stands unchanged).
+
 **Frozen phase base**:
 The single integration tip, captured **once** at a phase's Provision barrier, that **every** task
 worktree in that phase is cut from — including tasks in later dependency waves. The wave loop never

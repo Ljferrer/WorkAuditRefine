@@ -1611,6 +1611,86 @@ code_of1b="$(run_in "$ROF1" ensure-integration myplan 50 "$TIPOF1" --owned-file 
 expect "OF.1: identical retry reuses the branch (exit 0, not 3)" 0 "$code_of1b"
 
 # ---------------------------------------------------------------------------
+# resolve-working-branch / ensure-origin (checkout-guard)
+# ---------------------------------------------------------------------------
+# run_out <repo> <args...> -> echoes ONLY stdout of the script (stderr dropped),
+# so we can assert the resolved branch name the subcommand prints.
+run_out() {
+  d="$1"; shift
+  ( cd "$d" && bash "$SCRIPT" "$@" ) 2>/dev/null
+}
+
+# checked_out_anywhere <repo> <ref> -> "yes" if <ref> is the checked-out branch
+# of any worktree of <repo>, else "no".
+checked_out_anywhere() {
+  git -C "$1" worktree list --porcelain 2>/dev/null \
+    | grep -Fxq -- "branch refs/heads/$2" && echo yes || echo no
+}
+
+# --- Case (RWB.a) COLLISION: <desired> is checked out (in the main checkout),
+# so resolve-working-branch must return a fresh dev/<date>-<slug> created at the
+# desired tip, checked out NOWHERE, and != <desired>.
+RWB_A="$(new_repo)"
+DESIRED_A="$(git -C "$RWB_A" symbolic-ref --short HEAD)"   # the main checkout's branch
+TIP_A="$(git -C "$RWB_A" rev-parse HEAD)"
+OWN_A="$RWB_A/owned.txt"; : > "$OWN_A"
+RESOLVED_A="$(run_out "$RWB_A" resolve-working-branch "$DESIRED_A" myplan 2026-07-06 --owned-file "$OWN_A")"
+expect "RWB.a: collision resolves a branch != <desired>" \
+  "different" "$([ "$RESOLVED_A" != "$DESIRED_A" ] && echo different || echo same)"
+expect "RWB.a: resolved branch is dev/<date>-<slug>" \
+  "dev/2026-07-06-myplan" "$RESOLVED_A"
+expect "RWB.a: dedicated branch created at the desired tip" \
+  "$TIP_A" "$(git -C "$RWB_A" rev-parse dev/2026-07-06-myplan 2>/dev/null)"
+expect "RWB.a: dedicated branch is checked out NOWHERE" \
+  "no" "$(checked_out_anywhere "$RWB_A" dev/2026-07-06-myplan)"
+expect "RWB.a: ownership recorded in the ledger" \
+  "0" "$(grep -Fxq -- dev/2026-07-06-myplan "$OWN_A"; echo $?)"
+
+# --- Case (RWB.b) NO COLLISION: <desired> exists but is checked out NOWHERE, so
+# resolve-working-branch echoes it byte-identically and creates no new branch.
+RWB_B="$(new_repo)"
+# Detach the main checkout so 'landing' is not checked out anywhere.
+git -C "$RWB_B" branch landing HEAD
+git -C "$RWB_B" checkout -q --detach HEAD
+RESOLVED_B="$(run_out "$RWB_B" resolve-working-branch landing myplan 2026-07-06)"
+expect "RWB.b: no-collision echoes <desired> unchanged" \
+  "landing" "$RESOLVED_B"
+expect "RWB.b: no dedicated branch was created" \
+  "1" "$(git -C "$RWB_B" rev-parse --verify -q dev/2026-07-06-myplan >/dev/null 2>&1; echo $?)"
+
+# --- Case (RWB.c) ensure-origin against a local mock remote: the ref shows up on
+# origin after the push (git ls-remote), and a second call is an idempotent no-op.
+RWB_C_ORIG="$(mktemp -d 2>/dev/null || mktemp -d -t warorg)"; REPOS="$REPOS $RWB_C_ORIG"
+git init --bare -q "$RWB_C_ORIG/origin.git"
+RWB_C="$(new_repo)"
+git -C "$RWB_C" remote add origin "$RWB_C_ORIG/origin.git"
+git -C "$RWB_C" branch dev/2026-07-06-myplan HEAD
+code_rwbc="$(run_in "$RWB_C" ensure-origin dev/2026-07-06-myplan)"
+expect "RWB.c: ensure-origin exits 0" "0" "$code_rwbc"
+expect "RWB.c: ref present on origin after push" \
+  "1" "$(git -C "$RWB_C" ls-remote origin "refs/heads/dev/2026-07-06-myplan" | grep -c .)"
+code_rwbc2="$(run_in "$RWB_C" ensure-origin dev/2026-07-06-myplan)"
+expect "RWB.c: ensure-origin is idempotent (second call exits 0)" "0" "$code_rwbc2"
+
+# --- Case (RWB.d) RESUME-REUSE: a second resolve-working-branch call with the
+# same slug/date and the recorded owned-file reuses the run-owned dedicated
+# branch — never re-cuts, never errors — even after the desired tip advances.
+RWB_D="$(new_repo)"
+DESIRED_D="$(git -C "$RWB_D" symbolic-ref --short HEAD)"
+OWN_D="$RWB_D/owned.txt"; : > "$OWN_D"
+RESOLVED_D1="$(run_out "$RWB_D" resolve-working-branch "$DESIRED_D" myplan 2026-07-06 --owned-file "$OWN_D")"
+DEV_TIP_D1="$(git -C "$RWB_D" rev-parse dev/2026-07-06-myplan)"
+# Advance the desired branch so a re-cut would move the dedicated branch.
+printf 'more\n' > "$RWB_D/more.txt"; git -C "$RWB_D" add -A; git -C "$RWB_D" commit -qm "advance"
+code_rwbd="$(run_in "$RWB_D" resolve-working-branch "$DESIRED_D" myplan 2026-07-06 --owned-file "$OWN_D")"
+expect "RWB.d: resume call exits 0 (reuse, not error)" "0" "$code_rwbd"
+RESOLVED_D2="$(run_out "$RWB_D" resolve-working-branch "$DESIRED_D" myplan 2026-07-06 --owned-file "$OWN_D")"
+expect "RWB.d: resume returns the same dedicated branch" \
+  "$RESOLVED_D1" "$RESOLVED_D2"
+expect "RWB.d: dedicated branch did NOT move (never re-cut)" \
+  "$DEV_TIP_D1" "$(git -C "$RWB_D" rev-parse dev/2026-07-06-myplan)"
+
+# ---------------------------------------------------------------------------
 printf '\n%d/%d cases passed\n' "$((n - fails))" "$n"
 [ "$fails" -eq 0 ] || { printf '%d FAILED\n' "$fails"; exit 1; }
 echo "provision-worktrees.test.sh: PASS"
