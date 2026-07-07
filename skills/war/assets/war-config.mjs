@@ -251,6 +251,7 @@ export function resolveGate(declaredGate) {
 
 // --- CLI ---------------------------------------------------------------------
 // node war-config.mjs --preset <name>            -> print a filled preset config (stdout)
+// node war-config.mjs --resolve-gate <cmd>       -> print the self-discovering gate string
 // node war-config.mjs <path>   [--fill-defaults] -> validate a file; print filled config or "valid"
 // node war-config.mjs --stdin  [--fill-defaults] -> validate JSON from stdin; same output
 // exit 0 = valid; exit 1 = invalid (errors on stderr) or usage error

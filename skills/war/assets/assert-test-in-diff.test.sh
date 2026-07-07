@@ -16,6 +16,7 @@
 #      d. foo.test.js           -> NO MATCH
 #      e. test_foo.py           -> NO MATCH
 #      f. node_modules/x/foo.test.sh -> NO MATCH (over-count guard)
+#      f2. .claude/worktrees/x/foo.test.sh -> NO MATCH (over-count guard, mirrors gate -not -path '*/.claude/*')
 #      g. skills/a/b/c/d/e/f/deep.test.mjs (depth 6) -> MATCH (depth-agnostic)
 #   4. .. traversal path -> non-zero (LOAD-BEARING: real test file on branch,
 #      guard fires before diff so it would false-allow without the guard)
