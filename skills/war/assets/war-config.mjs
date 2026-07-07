@@ -235,12 +235,14 @@ export function resolveWidenSource(nominated, defaultRoster) {
 // Self-discovering multi-runner gate (F12).
 // Given the declared base command (e.g. `node --test 'skills/**/*.test.mjs'`), returns
 // a portable shell string that runs the declared gate AND discovers + runs every *.test.sh
-// found in the repo tree (excluding node_modules and .git). The bash suites are sorted and
-// executed in order; any non-zero exit aborts immediately (|| exit 1).
+// found in the repo tree (excluding node_modules, .git, and .claude). The bash suites are
+// sorted and executed in order; any non-zero exit aborts immediately (|| exit 1).
+// The .claude/ exclusion keeps a repo-root gate run from executing the ~100 stale duplicate
+// suites under .claude/worktrees/ (WAR's own task worktrees).
 // Empty/null/falsy declaredGate → the discovery clause ALONE (no leading &&).
 export function resolveGate(declaredGate) {
   const discovery = [
-    `for f in $(find . -type f -name '*.test.sh' -not -path '*/node_modules/*' -not -path '*/.git/*' | sort);`,
+    `for f in $(find . -type f -name '*.test.sh' -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/.claude/*' | sort);`,
     `do printf '\\n== gate(bash): %s ==\\n' "$f" && bash "$f" || exit 1; done`,
   ].join(' ')
   if (!declaredGate) return discovery
@@ -249,6 +251,7 @@ export function resolveGate(declaredGate) {
 
 // --- CLI ---------------------------------------------------------------------
 // node war-config.mjs --preset <name>            -> print a filled preset config (stdout)
+// node war-config.mjs --resolve-gate <cmd>       -> print the self-discovering gate string
 // node war-config.mjs <path>   [--fill-defaults] -> validate a file; print filled config or "valid"
 // node war-config.mjs --stdin  [--fill-defaults] -> validate JSON from stdin; same output
 // exit 0 = valid; exit 1 = invalid (errors on stderr) or usage error
@@ -258,7 +261,7 @@ async function main(argv) {
   const valOf = f => { const i = args.indexOf(f); return i >= 0 ? args[i + 1] : undefined }
 
   if (has('--help') || args.length === 0) {
-    process.stdout.write('usage: war-config.mjs (--preset <name> | <path> | --stdin) [--fill-defaults]\n')
+    process.stdout.write('usage: war-config.mjs (--preset <name> | <path> | --stdin | --resolve-gate <cmd>) [--fill-defaults]\n')
     process.exit(args.length === 0 ? 1 : 0)
   }
 

@@ -4,7 +4,7 @@
 (ratified; companion ADRs [`0012`](../adr/0012-intra-phase-visibility-and-phase-close-sweep.md),
 [`0013`](../adr/0013-commanders-intent-and-disposition-routing.md)). This plan lands **third** in the
 clean-audit series (after the #422 nit sweep and the variable-audit roster —
-[`../roadmaps/2026-07-02-clean-audit-series.md`](../roadmaps/2026-07-02-clean-audit-series.md)); it is
+[`../roadmaps/2026-07-02-clean-audit-series-roadmap.md`](../roadmaps/2026-07-02-clean-audit-series-roadmap.md)); it is
 **authored against POST-ROSTER constructs** (`task.roster` seats, per-seat depth, `ROSTER_POLICIES`,
 D7-guarded `mergedTasksForGateAudit.push` sites). Every code reference below is anchored by **construct
 name**; `~:N` line hints are from the pre-roster survey and WILL drift — re-locate by construct
