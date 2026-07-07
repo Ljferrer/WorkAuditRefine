@@ -3278,6 +3278,45 @@ test('latitude + disposition rules (criterion 8): war-auditor.md AND auditPrompt
   assert.ok(a.prompt.includes(DISPO), 'auditPrompt carries the disposition rule (dispatched surface)')
 })
 
+// The shared mid-sentence fragments are byte-identical across the two surfaces; only the heading
+// case differs (CALIBRATION RULE / Calibration rule). Anchor on the shared body so the test is
+// case-tolerant per the prompt-only-clause-grep lesson. Each assertion fails if EITHER surface
+// drops the sentence.
+const CALIBRATION_SHARED = 'judge on evidence only — never soften, downgrade, or drop a finding because peers disagreed or because a fix was attempted; downgrade only with a stated reason grounded in the current diff. The pull to soften peaks right after your own finding is challenged — that is the highest-risk moment.'
+const COST_CLAIM_SHARED = 'a finding justified by a cost — "too slow", "too expensive", "too complex" — must name a magnitude (ms, MB, LOC, call count, or complexity class). An unquantifiable cost claim caps the finding at Minor.'
+
+test('calibration + cost-claim rules (spec §4.1/§4.2): war-auditor.md AND initial-round auditPrompt carry the same rule sentences', async () => {
+  assert.ok(auditorMd.includes(CALIBRATION_SHARED), 'war-auditor.md carries the calibration rule (standing surface)')
+  assert.ok(auditorMd.includes(COST_CLAIM_SHARED), 'war-auditor.md carries the cost-claim rule (standing surface)')
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const a = calls.find(isAuditor)
+  assert.ok(a, 'an auditor was dispatched (presence guard)')
+  assert.ok(a.prompt.includes(CALIBRATION_SHARED), 'initial auditPrompt carries the calibration rule (dispatched surface)')
+  assert.ok(a.prompt.includes(COST_CLAIM_SHARED), 'initial auditPrompt carries the cost-claim rule (dispatched surface)')
+})
+
+test('calibration + cost-claim rules (spec §4.1/§4.2): the REBUTTAL-round auditPrompt also carries both rules (base-prompt coverage)', async () => {
+  // A split two-seat panel (one approve, one request_changes) forces a rebuttal-round re-dispatch of
+  // auditPrompt with peers; the rules live in the always-present base prompt, so the rebuttal seats
+  // must carry them too.
+  const impl = (prompt, opts) => {
+    if (seatOf(opts) === 'war-auditor') {
+      return (opts.label || '').includes('security')
+        ? { seat: opts.label, lens: 'security', verdict: 'request_changes', confidence: 'high',
+            findings: [{ severity: 'Major', title: 'split me', file: 'a.js', rationale: 'because' }] }
+        : { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    }
+    return defaultImpl(prompt, opts)
+  }
+  const { calls } = await runPhase(PROVISION_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }, { lens: 'security' }] },
+  ] }), impl)
+  const rebuttal = calls.filter(isAuditor).find(c => c.prompt.includes('REBUTTAL ROUND'))
+  assert.ok(rebuttal, 'a rebuttal-round auditPrompt was dispatched (presence guard)')
+  assert.ok(rebuttal.prompt.includes(CALIBRATION_SHARED), 'rebuttal-round auditPrompt carries the calibration rule')
+  assert.ok(rebuttal.prompt.includes(COST_CLAIM_SHARED), 'rebuttal-round auditPrompt carries the cost-claim rule')
+})
+
 // --- Intent threading (criterion 10) ---
 
 test('intent absent (criterion 10): no intent block anywhere; intent:null and intent-absent runs are byte-identical', async () => {
