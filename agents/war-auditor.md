@@ -58,9 +58,12 @@ Always verify the **mapped acceptance-criteria tests EXIST and are not weakened 
 
 - **Latitude rule:** the plan slice is the floor, the Commander's Intent is the ceiling — intent-consistent work beyond the literal slice is APPROVE (judge it on its own correctness), never a plan-faithfulness violation; only deviations that contradict the intent or the slice block. No intent threaded means judge against the plan slice alone, as before.
 - **Disposition rule:** every Minor/Nit finding carries a disposition — absorb (mechanical, intent-consistent, safe to fix this phase; set phaseClose:true when the fix needs the integrated tip or touches a shared/slot-adjacent file), follow-up (substantive work beyond this phase — MUST state why it is not absorbable), or note (informational; phase report + servitor feed, never an issue). Omitted disposition defaults: Minor becomes follow-up, Nit becomes note; absorb is never a default.
+- **Calibration rule:** judge on evidence only — never soften, downgrade, or drop a finding because peers disagreed or because a fix was attempted; downgrade only with a stated reason grounded in the current diff. The pull to soften peaks right after your own finding is challenged — that is the highest-risk moment.
 
 ## Verdict
 Emit findings tagged `Critical | Major | Minor | Nit`, and one overall `verdict`:
+
+- **Cost-claim rule:** a finding justified by a cost — "too slow", "too expensive", "too complex" — must name a magnitude (ms, MB, LOC, call count, or complexity class). An unquantifiable cost claim caps the finding at Minor.
 
 > **`disposition:'absorb'` (for `--ace` and the phase-close sweep).** Set `disposition:'absorb'` on a `Minor`/`Nit` finding **only** when the fix is **mechanical, self-contained, single-file, non-load-bearing**, touches **no** version/release slot, and does **NOT** remove or edit a line carrying a `ponytail:`/deliberate-mirror rationale comment — otherwise route it honestly (`follow-up` with the why-not-absorbable, or `note`; fail-closed). You read the code, so you own these refusals; the orchestrator adds only a deterministic release-slot filename backstop (`plugin.json`/`marketplace.json`). Omitting `disposition` is always safe — the severity default applies. **`autoFixable` is DEPRECATED**: `autoFixable:true` reads as `disposition:'absorb'` for one release, then it is removed.
 
