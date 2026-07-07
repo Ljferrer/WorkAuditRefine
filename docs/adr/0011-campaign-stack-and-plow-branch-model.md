@@ -1,6 +1,6 @@
 # Campaign stack-and-plow branch model — stacked PRs target the prior plan's branch, not master
 
-**Status:** proposed (design ratified in the war-companion-skills grill; implementation pending — see the spec)
+**Status:** accepted (2026-07-06) — stack-and-plow shipped in `/war-campaign` and is treated as operating doctrine by later ADRs (0016 references it as the campaign model)
 
 `/war-campaign` runs a **hopper**: one chat executing a [roadmap](../../CONTEXT.md) of plans back-to-back
 (`/red-team <plan>` → `/war <plan> … --afk --ace`) overnight, unattended. The unattended part is the whole
