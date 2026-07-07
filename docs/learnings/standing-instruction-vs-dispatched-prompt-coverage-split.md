@@ -24,8 +24,9 @@ metadata:
     - "[[bsd-mktemp-ignores-tmpdir-gnu-only]]"
     - "[[template-defers-runtime-values-to-agent-via-literal-placeholder]]"
     - "[[verbatim-mirror-directive-context-mismatch-at-destination]]"
+    - "[[gate-audit-inline-prompts-excluded-from-auditprompt-both-surfaces-coverage]]"
   created: 2026-06-26
-  updated: 2026-06-29
+  updated: 2026-07-06
   originSessionId: e734fab0-d931-4547-a090-ed30c93e12f8
 ---
 
@@ -40,3 +41,10 @@ Both tracked gaps are closed in the live repo: the TMPDIR pin is mirrored into t
 **How to apply:** when auditing or authoring a WAR directive, identify which layer carries it and mirror it into the other (or document the single-layer choice).
 
 Related: [[source-comment-lags-emitted-prompt-after-rewrite]], [[template-defers-runtime-values-to-agent-via-literal-placeholder]], [[bsd-mktemp-ignores-tmpdir-gnu-only]].
+
+**Recurrence (audit-calibration-and-graduation/t1):** a variant of this split within a single agent
+type — gate-audit seats (`execution-evidence`, `end-state` lenses) build prompts inline rather than
+through the shared `auditPrompt()` builder, so a new base-prompt rule (CALIBRATION RULE, COST-CLAIM
+RULE) reaches them only via the standing `agents/war-auditor.md` file, never the dispatched path.
+Accepted by design (gate-audit is SOFT evidence review, not severity-graded diff judgment) — see
+[[gate-audit-inline-prompts-excluded-from-auditprompt-both-surfaces-coverage]].
