@@ -13,7 +13,7 @@ Observed blast radius in that run: **every** phase land failed and required a ma
 
 ## 2. Pivotal constraints
 
-- The refiner lands by **push-first CAS and never `--force`es a shared branch** (ADR 0004); a ref checked out in any worktree cannot be advanced by the refinery merge.
+- The refiner lands by **push-first CAS and never `--force`es a shared branch** (ADR 0004 & 0012); a ref checked out in any worktree cannot be advanced by the refinery merge.
 - WAR must remain **`--afk`-autonomous** for the common case — the fix cannot introduce a mandatory human step on the normal path.
 - **`provision-worktrees.sh` is the single tested owner of git-topology mutation** (branch/worktree lifecycle), macOS bash 3.2-safe; new git-state logic belongs there, called from the Lead's Setup prose.
 - **Prompt-surface split** (CLAUDE.md): any change to refiner behavior must update both the standing instructions (`agents/war-refiner.md`) and the dispatched prompt (`workflow-template.js`).
@@ -65,7 +65,7 @@ The recover **must gate-green before pushing** and is scoped to the clean-supers
 
 ## 7. Recommended ADRs
 
-- **New ADR (next free number):** *"WAR resolves a dedicated working branch when the desired one is checked out in the launching worktree, and bootstraps it on origin at Setup."* Extends ADR 0003 (plan-namespaced branches) and ADR 0004 (push-first CAS land). Records the prevention-first + narrow-recover posture and why tolerating the collision in `land-advance` was rejected (a ref checked out elsewhere is un-advanceable by design, not a bug to work around).
+- **New ADR (next free number):** *"WAR resolves a dedicated working branch when the desired one is checked out in the launching worktree, and bootstraps it on origin at Setup."* Extends ADR 0003 (plan-namespaced branches) and ADR 0004 & 0012 (push-first CAS land). Records the prevention-first + narrow-recover posture and why tolerating the collision in `land-advance` was rejected (a ref checked out elsewhere is un-advanceable by design, not a bug to work around).
 
 ## 8. Open risks / implementation notes
 
