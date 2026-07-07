@@ -6,7 +6,7 @@ metadata:
   keywords: [hardcoded bump, stale semver, re-baseline, fallback clause, master moved, next free patch, version mismatch]
   provenance: agent-unverified
   slug: stacked-release-plan-version-literal-lags-operator-target
-  phase: provisioning-lifecycle/p3; recurred workflow-template-test-fidelity-sweep/phase-7-t7 (v0.8.6, 2026-07-01); recurred learnings-read-path/phase-2-T5 (v0.14.5, 2026-07-06)
+  phase: provisioning-lifecycle/p3; recurred workflow-template-test-fidelity-sweep/phase-7-t7 (v0.8.6, 2026-07-01); recurred learnings-read-path/phase-2-T5 (v0.14.5, 2026-07-06); recurred war-working-branch-checkout-guard/phase-2-t4 (v0.14.8, 2026-07-06)
   tags:
     - release
     - stacking
@@ -27,4 +27,4 @@ metadata:
 
 **Plan-authorship pattern:** when a release task sits at the end of a serial stack, state both (a) the expected baseline as of drafting and (b) an explicit standalone-fallback rule ("if run off another tip, re-baseline to the next free patch off the live tip"). Live example: `docs/plans/2026-06-30-workflow-template-test-fidelity-sweep.md` (Coordination section).
 
-Validated three times: provisioning-lifecycle/p3; workflow-template-test-fidelity-sweep/phase-7-t7 (v0.8.6); learnings-read-path/phase-2-T5 (v0.14.5), where the fallback clause proved load-bearing — master moved mid-flight and the worker correctly shipped the next free patch off the actual tip, gate-audit filing only an informational Nit.
+Validated four times: provisioning-lifecycle/p3; workflow-template-test-fidelity-sweep/phase-7-t7 (v0.8.6); learnings-read-path/phase-2-T5 (v0.14.5); war-working-branch-checkout-guard/phase-2-t4 (v0.14.8, 2026-07-06) — plan literally named the stacked-PR risk in prose ("master may already be at 0.14.7 from the doc-rot PR #557, so the next free patch depends on landing order") and the worker correctly resolved 0.14.7 → 0.14.8 at land time; gate-audit confirmed all four slots relationally correct and filed only an informational Nit ("End-state 5 MET"), never a hold.
