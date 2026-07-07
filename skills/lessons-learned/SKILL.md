@@ -93,7 +93,9 @@ Verdict meanings — separate **is the lesson still true?** from **do its anchor
 
 Most memories are **transferable lessons** — a durable pattern almost never goes `stale` just because one code site changed. "The fix landed" or "the line number moved" is `resolved` / `anchor-drift`, not `stale`.
 
-- **Report:** counts by verdict and by recommendation; call out anything `stale` or low-confidence.
+**Also record each lesson's recurrence trail.** As each investigator reads a memory, capture the re-trigger count from the `phase` field's free-text recurrence annotations (e.g. "+ 28 recurrences", "recurred …/T5") — read them as prose, no schema change. A lesson re-triggered ≥ 2 times is a **graduation candidate** input for Phase 3; note the slug and the count alongside the verdict.
+
+- **Report:** counts by verdict and by recommendation; call out anything `stale` or low-confidence, and the recurrence counts for any lesson with ≥ 2 re-triggers.
 
 ### 3 — Plan + the hub-link safety check (the step that prevents rot)
 
@@ -110,7 +112,9 @@ cd "$STAGING" && grep -rl "\[\[<slug>\]\]" . | grep -v '^./MEMORY.md'
 
 Produce the final action plan: the bucketed table (keep / fix-anchor / compress / retire / merge), with the archive list and any hub-downgrades named explicitly.
 
-- **Report:** the plan table and the hub-downgrade decisions, so the user sees what is about to be archived (the backup makes it reversible, but surface it anyway).
+**Graduation candidates.** From the Phase 2 recurrence trails, list any lesson with **≥ 2 recorded re-triggers whose content describes a machine-checkable invariant** — a greppable pattern, a diff property, an enum mirror, or a string presence. For each, record: the lesson slug, its recurrence count, and a one-line proposed enforcement shape (hook / floor / drift-guard test / lint). A lesson recurring ≥ 2 times but describing a judgment call (no mechanically checkable invariant) is **not** a candidate — leave it out. This subsection is **flag-only**: the housekeeping pass **never implements** the enforcement and **never auto-files** an issue — the operator decides whether anything is built or filed.
+
+- **Report:** the plan table and the hub-downgrade decisions, so the user sees what is about to be archived (the backup makes it reversible, but surface it anyway), plus the graduation-candidates list (or "none").
 
 ### 4 — Apply edits to STAGING (fan-out)
 
@@ -160,6 +164,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/lessons-learned/assets/safe-swap.sh" commit "
 `commit` re-verifies staging itself and refuses to swap on failure, then moves `$MEM → $MEM.prev.<UTC>` and `$STAGING → $MEM`. Capture `PREV=`.
 
 - **Report:** before/after `MEMORY.md` lines/bytes + % full, before/after file count and total disk, the buckets actioned (kept / compressed / re-anchored / retired / merged / hubs restored), and the backup + prev paths for reverting.
+- **Surface the Phase 3 graduation-candidates list verbatim** (slug · recurrence count · proposed enforcement shape), or state "none". Restate the flag-only constraint: nothing here was implemented or filed — the operator decides.
 
 ### 8 — Capture the meta-lesson (optional)
 
