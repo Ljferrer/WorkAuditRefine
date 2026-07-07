@@ -12,7 +12,7 @@ You run a **full pass** over this project's Claude memory store: verify every me
 If the arguments contain the word **`migrate`** (`/lessons-learned migrate`), do **not** run the housekeeping phases below. Instead load [`references/migration.md`](references/migration.md) and execute that playbook: `migrate` dry-run → agent-assisted retype of the `untyped` bucket → `migrate --apply` (archives `[RESOLVED]` lessons) → keywords backfill → move the operator-confirmed `project`-typed set into `docs/learnings/` and open the reviewed learnings PR (gate 2 by hand, `lint` fail-closed). Three warnings the playbook expands on:
 
 - Migration edits the **live store directly** (it is not the staging flow below) — take the tarball backup the playbook names before `--apply`.
-- Requires Node ≥ 24 (`node:sqlite`); on older Node every verb no-ops with a message.
+- Requires Node ≥ 24 (`node:sqlite`); on older Node every verb exits non-zero with a one-line message and does nothing (callers fail open; no partial migration).
 - The `project`-typed set becomes **public on merge** — the operator confirms it explicitly; the redaction lint is the net, not the decision.
 
 ## `evict` mode — undoing the migration
