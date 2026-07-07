@@ -1,6 +1,6 @@
 # WAR — Design
 
-**Status:** v0.4.1. A portable, Claude-native re-implementation of Gas Town's worker/auditor/refinery/witness model, built only on Claude Code primitives (`Agent`, the `Workflow` tool, git worktrees, GitHub issues) — no Go binary, no Dolt, no beads.
+**Status:** Active. A portable, Claude-native re-implementation of Gas Town's worker/auditor/refinery/witness model, built only on Claude Code primitives (`Agent`, the `Workflow` tool, git worktrees, GitHub issues) — no Go binary, no Dolt, no beads. The shipped version lives in [`.claude-plugin/plugin.json`](../../../.claude-plugin/plugin.json).
 
 This document is the spec of record. The runnable surface is [`../SKILL.md`](../SKILL.md); the agents are in `agents/`; the per-phase engine is [`../assets/workflow-template.js`](../assets/workflow-template.js).
 
@@ -9,8 +9,8 @@ This document is the spec of record. The runnable surface is [`../SKILL.md`](../
 
 ## 2. Substrate — hybrid
 - **Workflow spine, one run per phase.** Holds the phase loop and *is* the serial merge queue (one merge at a time, by construction). The script has no shell/fs access — every git/test action is performed by a spawned agent.
-- **Workers** = worktree-isolated `Agent`s (sonnet), one fresh per task.
-- **Auditors** = read-only `Agent`s (opus); independent by default, with **one rebuttal round** on a split (realized inside the Workflow by re-spawning each seat with its peers' findings — a portable stand-in for live peer messaging).
+- **Workers** = worktree-isolated `Agent`s (per-role model from `war-config.mjs` DEFAULTS; e.g. the current worker default is opus/`max`), one fresh per task.
+- **Auditors** = read-only `Agent`s (per-role model from `war-config.mjs` DEFAULTS); independent by default, with **one rebuttal round** on a split (realized inside the Workflow by re-spawning each seat with its peers' findings — a portable stand-in for live peer messaging).
 - **Witness dissolved** into the Workflow + hooks + Lead.
 
 ### Why a Workflow, not the Agent Teams feature
@@ -78,7 +78,7 @@ Durable product artifacts: phase reports/escalations → epic-issue comments; AD
 - Integration branch removed after the phase lands; worktrees of escalated/blocked tasks are kept for inspection.
 
 ## 8. Cost & models
-`war-worker`/fix/`war-refiner` = sonnet; `war-auditor` = opus; Lead = session model. Concurrency = the Workflow default (`min(16, cores−2)`). The **< 3× single-agent cost** target holds for the cheaper tiers (economy/balanced); the quality-first `thorough` preset (opus/`max` workers, opus/`max` auditors, a 5-lens `auto` pool) deliberately trades cost for depth and is expected to exceed it.
+Per-role models are the `war-config.mjs` DEFAULTS (the authority — `DEFAULTS.agents.<role>.model`), never restated here as literals that rot; e.g. the current defaults run `war-worker`/fix at opus/`max` and `war-refiner` at sonnet. `war-auditor` runs at the auditor default; Lead = session model. Concurrency = the Workflow default (`min(16, cores−2)`). The **< 3× single-agent cost** target holds for the cheaper tiers (economy/balanced); the quality-first `thorough` preset (opus/`max` workers, opus/`max` auditors, a 5-lens `auto` pool) deliberately trades cost for depth and is expected to exceed it.
 
 ## 9. Harness notes (ECC / OmniEMR first run)
 - **GateGuard** present-and-retry: workers/refiners present the requested facts then retry the identical Bash/Write op.
