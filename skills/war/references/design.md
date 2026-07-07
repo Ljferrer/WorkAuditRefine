@@ -78,7 +78,7 @@ Durable product artifacts: phase reports/escalations → epic-issue comments; AD
 - Integration branch removed after the phase lands; worktrees of escalated/blocked tasks are kept for inspection.
 
 ## 8. Cost & models
-Per-role models are the `war-config.mjs` DEFAULTS (the authority — `DEFAULTS.agents.<role>.model`), never restated here as literals that rot; e.g. the current defaults run `war-worker`/fix at opus/`max` and `war-refiner` at sonnet. `war-auditor` runs at the auditor default; Lead = session model. Concurrency = the Workflow default (`min(16, cores−2)`). The **< 3× single-agent cost** target holds for the cheaper tiers (economy/balanced); the quality-first `thorough` preset (opus/`max` workers, opus/`max` auditors, a 5-lens `auto` pool) deliberately trades cost for depth and is expected to exceed it.
+Per-role models are the `war-config.mjs` DEFAULTS (the authority — `DEFAULTS.agents.<role>.model`), never restated here as literals that rot; e.g. the current defaults run `war-worker`/fix at opus/`max` and `war-refiner` at sonnet. `war-auditor` runs at the auditor default; Lead = session model. Concurrency = the Workflow default (`min(16, cores−2)`). The **< 3× single-agent cost** target holds for the cheaper tiers (economy/balanced); the quality-first `thorough` preset (fable/`max` workers, opus/`max` auditors, a 5-lens `auto` pool) deliberately trades cost for depth and is expected to exceed it.
 
 ## 9. Harness notes (ECC / OmniEMR first run)
 - **GateGuard** present-and-retry: workers/refiners present the requested facts then retry the identical Bash/Write op.
