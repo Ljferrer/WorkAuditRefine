@@ -86,8 +86,6 @@ warn_if_outside() {
   fi
 }
 
-warned=0
-
 # ---------------------------------------------------------------------------
 # 1. Shell redirections: > PATH and >> PATH
 #    Extract the token after > or >> that looks like an absolute path.
@@ -104,7 +102,6 @@ redir_targets2="$(printf '%s' "$cmd" | sed 's/>>//g' | sed -n 's/.*>[[:space:]]*
 
 for _t in $redir_targets $redir_targets2; do
   warn_if_outside "$_t"
-  warned=1
 done
 
 # ---------------------------------------------------------------------------

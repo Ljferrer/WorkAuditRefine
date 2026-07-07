@@ -16,6 +16,7 @@
 #      d. foo.test.js           -> NO MATCH
 #      e. test_foo.py           -> NO MATCH
 #      f. node_modules/x/foo.test.sh -> NO MATCH (over-count guard)
+#      f2. .claude/worktrees/x/foo.test.sh -> NO MATCH (over-count guard, mirrors gate -not -path '*/.claude/*')
 #      g. skills/a/b/c/d/e/f/deep.test.mjs (depth 6) -> MATCH (depth-agnostic)
 #   4. .. traversal path -> non-zero (LOAD-BEARING: real test file on branch,
 #      guard fires before diff so it would false-allow without the guard)
@@ -261,6 +262,32 @@ if [ "$rc3f" -ne 0 ]; then
   pass "case 3f: node_modules/x/foo.test.sh -> NO match (exit non-zero, mirrors gate -not -path '*/node_modules/*')"
 else
   fail "case 3f: node_modules/x/foo.test.sh -> expected NO match (non-zero), got exit 0 (over-count)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 3f2: over-count guard — .claude/worktrees/x/foo.test.sh -> NO MATCH
+# The gate's find excludes .claude/ (~100 stale duplicate suites live under
+# .claude/worktrees/); the floor must mirror that -not -path '*/.claude/*'.
+# ---------------------------------------------------------------------------
+R3f2="$(setup_repo)"
+BASE3f2="$(git -C "$R3f2" rev-parse HEAD)"
+git -C "$R3f2" checkout -qb task/claude-sh 2>/dev/null
+mkdir -p "$R3f2/.claude/worktrees/x"
+printf 'test\n' > "$R3f2/.claude/worktrees/x/foo.test.sh"
+git -C "$R3f2" add .claude/worktrees/x/foo.test.sh
+git -C "$R3f2" commit -qm "add .claude test.sh (gate excludes it)"
+TASK3f2="$(git -C "$R3f2" rev-parse HEAD)"
+git -C "$R3f2" checkout -q - 2>/dev/null
+
+cwd3f2="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
+TMPFILES="$TMPFILES $cwd3f2"
+rc3f2=0
+( cd "$cwd3f2" && bash "$SCRIPT" "$BASE3f2" "$TASK3f2" --repo "$R3f2" ) >/dev/null 2>&1 || rc3f2=$?
+
+if [ "$rc3f2" -ne 0 ]; then
+  pass "case 3f2: .claude/worktrees/x/foo.test.sh -> NO match (exit non-zero, mirrors gate -not -path '*/.claude/*')"
+else
+  fail "case 3f2: .claude/worktrees/x/foo.test.sh -> expected NO match (non-zero), got exit 0 (over-count)"
 fi
 
 # ---------------------------------------------------------------------------

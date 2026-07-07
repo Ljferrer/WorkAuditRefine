@@ -20,9 +20,9 @@
 #   - skills/**/*.test.mjs   (the node --test glob, PATH-SCOPED to skills/,
 #                             DEPTH-AGNOSTIC — mirrors the unbounded glob)
 #   - **/*.test.sh           (the repo-wide bash-suite find, *.test.sh anywhere,
-#                             EXCLUDING node_modules/ and .git/ — mirrors
+#                             EXCLUDING node_modules/, .git/, and .claude/ — mirrors
 #                             `find . -name '*.test.sh' -not -path '*/node_modules/*'
-#                              -not -path '*/.git/*'`)
+#                              -not -path '*/.git/*' -not -path '*/.claude/*'`)
 #
 # ponytail: default == gate-discovery set so the floor can never be satisfied
 # by a test the gate ignores. Override via --pattern for repos that use other
@@ -118,11 +118,12 @@ match_default() {
       esac ;;
   esac
   # Pattern 2: **/*.test.sh (bash-suite find, repo-wide).
-  # Exclude node_modules/ and .git/ to mirror:
-  #   find . -name '*.test.sh' -not -path '*/node_modules/*' -not -path '*/.git/*'
+  # Exclude node_modules/, .git/, and .claude/ to mirror:
+  #   find . -name '*.test.sh' -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/.claude/*'
   case "$p" in
     node_modules/*|*/node_modules/*) return 1 ;;
     .git/*|*/.git/*)                 return 1 ;;
+    .claude/*|*/.claude/*)           return 1 ;;
     *.test.sh)                       return 0 ;;
   esac
   return 1

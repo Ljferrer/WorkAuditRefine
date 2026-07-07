@@ -2,7 +2,7 @@
 
 **Goal:** close [#422](https://github.com/Ljferrer/WorkAuditRefine/issues/422) (phase-1 residual Minor/Nit
 findings, companion skills). Two file-disjoint tasks + a trailing patch release. Plan 1 of the clean-audit
-series (see `docs/roadmaps/2026-07-02-clean-audit-series.md`) — lands FIRST, before roster and clean-handoff.
+series (see `docs/roadmaps/2026-07-02-clean-audit-series-roadmap.md`) — lands FIRST, before roster and clean-handoff.
 
 Memory hooks: [[cli-wrapper-lags-core-api-field-coverage]] (this plan IS that finding's fix),
 [[audit-log-finding-can-be-stale-by-land-time]] (items 5+7 verified already-fixed — re-Grep before touching),

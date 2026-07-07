@@ -10,7 +10,7 @@ phase edge, one trailing release task.
 (operator-ratified 2026-07-02, decisions D1–D10). This plan carries the spec's task slices and ten-point test
 plan, **plus survey-derived corrections that override the spec where they conflict** — each listed under
 Notes/conscious deviations. Second plan in the clean-audit series (nits → **roster** → clean-handoff); see
-[`docs/roadmaps/2026-07-02-clean-audit-series.md`](../roadmaps/2026-07-02-clean-audit-series.md).
+[`docs/roadmaps/2026-07-02-clean-audit-series-roadmap.md`](../roadmaps/2026-07-02-clean-audit-series-roadmap.md).
 
 Memory hooks: [[plan-line-number-refs-stale-use-construct-locator]] (every reference below anchors by
 construct; `~:N` is a courtesy hint only), [[relaxed-assertion-test-title-must-update-together]] (marker,

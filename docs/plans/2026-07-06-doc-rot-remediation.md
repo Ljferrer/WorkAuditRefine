@@ -127,8 +127,12 @@ hooks, the memory CLI, and companion skills); no standalone spec — converted t
 - Plan slice: `git mv` the roadmap to the `-roadmap.md` suffix (the convention the other three
   roadmaps follow), update the 3 inbound references (the only ones repo-wide, verified in
   authoring: a relative markdown link in war-clean-handoff, a backticked path in issue-422-nit-sweep,
-  a relative markdown link in variable-audit-roster). Post-change, a repo-wide grep for the old
-  basename must return zero hits outside git history.
+  a relative markdown link in variable-audit-roster). Post-change, verify **zero broken references**:
+  the 3 updated inbound links resolve to the renamed file and no markdown link or backticked path
+  repo-wide still points to the old `docs/roadmaps/2026-07-02-clean-audit-series.md`. Prose mentions
+  of the old basename that are *not* links — this plan (which describes the rename), the red-team
+  report, and git history — are expected and out of scope; do not edit them to force a raw-string
+  grep to zero (a rename's own absence guard trips on legitimate historical mentions).
 - requiresTest: false
 - deps: []
 - target repo: superproject

@@ -4,6 +4,7 @@ import { readFileSync, readdirSync, mkdtempSync, mkdirSync, writeFileSync } from
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, relative } from 'node:path'
+import { execFileSync } from 'node:child_process'
 import {
   DEFAULTS, PROVISION_SOURCES, ROSTER_POLICIES, RESERVED_LENSES, fillDefaults, presetConfig, validate, spawnOpts,
   validateRoster, widenRoster, resolveWidenSource, resolveProvision, resolveGate,
@@ -538,6 +539,24 @@ test('drift-guard: ROLE_MODEL in workflow-template.js matches DEFAULTS agent mod
   })
 })
 
+// Drift-guard: each agents/war-<role>.md frontmatter `model:` must equal the
+// corresponding DEFAULTS.agents.<role>.model, so an agent file's spawned model can
+// never silently disagree with the config authority (the doc-rot this fixes: worker
+// frontmatter said `sonnet` while DEFAULTS.agents.worker.model is `opus`).
+test('drift-guard: agents/war-<role>.md frontmatter model matches DEFAULTS.agents.<role>.model', () => {
+  for (const role of ['worker', 'auditor', 'refiner', 'servitor']) {
+    const text = readDoc(`agents/war-${role}.md`)
+    // Isolate the leading YAML frontmatter block (between the first two --- fences)
+    // so a stray `model:` in prose can't satisfy the match.
+    const fm = text.match(/^---\n([\s\S]*?)\n---/)
+    assert.ok(fm, `agents/war-${role}.md must open with a --- frontmatter block`)
+    const modelLine = fm[1].match(/^model:\s*(\S+)\s*$/m)
+    assert.ok(modelLine, `agents/war-${role}.md frontmatter must declare a model:`)
+    assert.equal(modelLine[1], DEFAULTS.agents[role].model,
+      `agents/war-${role}.md frontmatter model "${modelLine[1]}" must equal DEFAULTS.agents.${role}.model "${DEFAULTS.agents[role].model}"`)
+  }
+})
+
 // ---------------------------------------------------------------------------
 // resolveGate (F12): self-discovering multi-runner gate
 // ---------------------------------------------------------------------------
@@ -566,6 +585,14 @@ test('resolveGate: with a declared gate — contains find for *.test.sh with .gi
   assert.ok(result.includes("-not -path '*/.git/*'"), `expected -not -path '*/.git/*' prune, got: ${result}`)
 })
 
+test('resolveGate: with a declared gate — contains find for *.test.sh with .claude prune (skips ~100 stale worktree suites)', () => {
+  // The .claude/ exclusion keeps a repo-root gate run from executing the stale duplicate
+  // *.test.sh suites under .claude/worktrees/ (WAR's own task worktrees). Mirrored by
+  // assert-test-in-diff.sh's match_default arm (ADR 0006 floor/gate alignment).
+  const result = resolveGate('node --test x')
+  assert.ok(result.includes("-not -path '*/.claude/*'"), `expected -not -path '*/.claude/*' prune, got: ${result}`)
+})
+
 test('resolveGate: with a declared gate — runs each suite as bash "$f" with || exit 1', () => {
   const result = resolveGate('node --test x')
   assert.ok(result.includes('bash "$f"'), `expected bash "$f" in result, got: ${result}`)
@@ -592,6 +619,20 @@ test('resolveGate: includes printf banner for each suite', () => {
   const result = resolveGate('node --test x')
   assert.ok(result.includes('printf'), `expected printf banner in result, got: ${result}`)
   assert.ok(result.includes('gate(bash)'), `expected gate(bash) label in result, got: ${result}`)
+})
+
+// ---------------------------------------------------------------------------
+// CLI usage string — pinned to the implemented verb set
+// ---------------------------------------------------------------------------
+// The usage line must document every mode the CLI actually handles, including
+// --resolve-gate (the Lead calls `war-config.mjs --resolve-gate <base>` to get
+// the self-discovering gate string). Runs the live `--help` output so a usage
+// line that drifts from the implemented flag handlers goes red.
+test('CLI --help usage documents the implemented verb set (incl --resolve-gate)', () => {
+  const usage = execFileSync('node', [join(__dir, 'war-config.mjs'), '--help'], { encoding: 'utf8' })
+  for (const verb of ['--preset', '<path>', '--stdin', '--resolve-gate', '--fill-defaults']) {
+    assert.ok(usage.includes(verb), `usage line must document ${verb}; got: ${usage.trim()}`)
+  }
 })
 
 test('drift-guard: inline HARD_ESCALATION_REASONS in workflow-template.js matches canonical export in land-decision.mjs (#36)', () => {
