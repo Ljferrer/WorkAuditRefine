@@ -314,6 +314,17 @@ else
   fails=$((fails + 1))
 fi
 
+# Grep assertion: no dead 'warned' variable in the sibling advisory warn-hook
+# either — the dead-var class is closed across both hooks (#554 hooks hygiene).
+WARN_HOOK="$HERE/warn-bash-write-scope.sh"
+n=$((n + 1))
+if ! grep -q '\bwarned\b' "$WARN_HOOK"; then
+  printf 'ok %d - no dead warned variable in warn-bash-write-scope.sh\n' "$n"
+else
+  printf 'FAIL %d - dead warned variable found in warn-bash-write-scope.sh\n' "$n"
+  fails=$((fails + 1))
+fi
+
 # ---------------------------------------------------------------------------
 printf '\n%d/%d cases passed\n' "$((n - fails))" "$n"
 [ "$fails" -eq 0 ] || { printf '%d FAILED\n' "$fails"; exit 1; }
