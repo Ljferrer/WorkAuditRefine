@@ -13,6 +13,8 @@
 #   ensure-worktree <path> <branch> <integration-tip>                          (Task 3)
 #   land-advance <working-ref> <new-sha>                                       (Task 2/clandiso)
 #   ensure-refinery-worktree <path> <integration-branch>                       (Task 1/clandiso)
+#   resolve-working-branch <desired> <slug> <date> [--owned-file PATH] [--owned REF]...  (checkout-guard)
+#   ensure-origin <resolved>                                                    (checkout-guard)
 #   teardown-task [--keep] --run-dir <ledger-dir> <path> <branch>              (Task 4)
 #   teardown-phase [--keep] --run-dir <ledger-dir> [--worktree-root <r>] <s> <N>  (Task 4 + clandiso/T3)
 #   prune                                                                      (Task 4)
@@ -94,6 +96,16 @@ worktree_registered() {
     /^worktree / { if (substr($0, 10) == want) { found = 1 } }
     END { exit (found ? 0 : 1) }
   '
+}
+
+# branch_checked_out_anywhere <ref> -> 0 if <ref> is the checked-out branch of
+# ANY worktree of this repo (main checkout or any linked worktree), per
+# `git worktree list --porcelain` (each entry emits `branch refs/heads/<ref>`
+# when on a branch; detached entries emit no `branch` line). This is exactly the
+# "launch-worktree collision" condition: a ref checked out somewhere cannot be
+# advanced by a push, so WAR must resolve a dedicated working branch instead.
+branch_checked_out_anywhere() {
+  git worktree list --porcelain 2>/dev/null | grep -Fxq -- "branch refs/heads/$1"
 }
 
 # exclude_line <exclude-file> <pattern> : append <pattern> to <exclude-file>
@@ -756,6 +768,93 @@ cmd_ensure_refinery_worktree() {
   printf '%s\n' "$wt_path"
 }
 
+# --- subcommand: resolve-working-branch -------------------------------------
+# resolve-working-branch <desired> <slug> <date> [--owned-file PATH] [--owned REF]...
+#
+# Resolve the branch WAR will land onto. If <desired> is NOT checked out in any
+# worktree, echo it unchanged (byte-identical to today's default — zero behavior
+# change for the common case). If <desired> IS checked out somewhere (the
+# launch-worktree collision), a push to it would be rejected as un-advanceable,
+# so instead resolve a DEDICATED working branch dev/<date>-<slug> created at
+# <desired>'s tip, checked out nowhere, and echo that.
+#
+# Ownership seam (ADR 0003), same inputs as the other subcommands:
+#   - Absent dedicated branch -> create at <desired> tip, record as owned.
+#   - Present AND ours (resume) -> reuse as-is, never re-cut.
+#   - Present but NOT ours (foreign pre-existing name) -> FAIL LOUD (exit 3).
+# Never checks out the dedicated branch anywhere; `git branch` only creates the ref.
+cmd_resolve_working_branch() {
+  [ $# -ge 3 ] || die "usage: resolve-working-branch <desired> <slug> <date> [--owned-file PATH] [--owned REF]..."
+  desired="$1"; slug="$2"; date="$3"; shift 3
+
+  owned_file=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --owned-file)
+        [ $# -ge 2 ] || die "--owned-file requires a path"
+        owned_file="$2"; shift 2 ;;
+      --owned)
+        [ $# -ge 2 ] || die "--owned requires a ref"
+        owned_add "$2"; shift 2 ;;
+      *) die "resolve-working-branch: unknown argument '$1'" ;;
+    esac
+  done
+
+  [ -n "$desired" ] || die "resolve-working-branch: empty <desired>"
+  [ -n "$slug" ]    || die "resolve-working-branch: empty <slug>"
+  [ -n "$date" ]    || die "resolve-working-branch: empty <date>"
+
+  git_dir >/dev/null
+
+  # No collision -> the desired branch is landable as-is. Echo it unchanged.
+  if ! branch_checked_out_anywhere "$desired"; then
+    printf '%s\n' "$desired"
+    return 0
+  fi
+
+  # Collision: resolve a dedicated working branch, created at the desired tip.
+  load_owned_file "$owned_file"
+  resolved="dev/$date-$slug"
+
+  if branch_exists "$resolved"; then
+    if owned_has "$resolved"; then
+      # Legitimate resume: reuse as-is. NEVER re-cut or move it.
+      printf '%s\n' "$resolved"
+      return 0
+    fi
+    die "resolve-working-branch: dedicated branch '$resolved' already exists and is not owned by this run; refusing to reuse or overwrite it (see ADR 0003). Delete the stale ref or record it as owned." 3
+  fi
+
+  # Absent -> create at the desired branch's tip (checked out nowhere), then
+  # record ownership. Capture git stderr so a bad <desired> surfaces its diagnostic.
+  _tmp_err="$(mktemp 2>/dev/null || mktemp -t warwbranch)"
+  git branch "$resolved" "$desired" >/dev/null 2>"$_tmp_err" \
+    || { _git_branch_err="$(cat "$_tmp_err")"; rm -f "$_tmp_err"; die "resolve-working-branch: failed to create dedicated branch '$resolved' at '$desired' tip: $_git_branch_err"; }
+  rm -f "$_tmp_err"
+  record_owned_file "$owned_file" "$resolved"
+  printf '%s\n' "$resolved"
+}
+
+# --- subcommand: ensure-origin ----------------------------------------------
+# ensure-origin <resolved>
+#
+# Bootstrap the resolved working branch on origin so the land-phase push-first
+# CAS has a baseline to advance. `git push -u origin <resolved>` is idempotent:
+# a branch already on origin at the same tip is a no-op (git reports "Everything
+# up-to-date"), and it is NEVER a force — a diverged remote is rejected, matching
+# the never-force invariant (ADR 0004). This is the single tested owner of the
+# origin push; SKILL.md never issues a raw `git push`.
+cmd_ensure_origin() {
+  [ $# -ge 1 ] || die "usage: ensure-origin <resolved>"
+  resolved="$1"
+  [ -n "$resolved" ] || die "ensure-origin: empty <resolved>"
+
+  git_dir >/dev/null
+
+  git push -u origin "refs/heads/$resolved:refs/heads/$resolved" >/dev/null 2>&1 \
+    || die "ensure-origin: failed to push '$resolved' to origin (no origin remote, or the remote branch has diverged — refusing to force)."
+}
+
 # --- subcommand: prune ------------------------------------------------------
 # prune
 #
@@ -774,7 +873,7 @@ cmd_prune() {
 # --- dispatch ---------------------------------------------------------------
 main() {
   [ $# -ge 1 ] || die "usage: $PROG <subcommand> [args...]
-subcommands: ensure-integration, ensure-exclude, ensure-worktree, land-advance, ensure-refinery-worktree, teardown-task, teardown-phase, prune"
+subcommands: ensure-integration, ensure-exclude, ensure-worktree, land-advance, ensure-refinery-worktree, resolve-working-branch, ensure-origin, teardown-task, teardown-phase, prune"
   sub="$1"; shift
   case "$sub" in
     ensure-integration)       cmd_ensure_integration "$@" ;;
@@ -782,10 +881,12 @@ subcommands: ensure-integration, ensure-exclude, ensure-worktree, land-advance, 
     ensure-worktree)          cmd_ensure_worktree "$@" ;;
     land-advance)             cmd_land_advance "$@" ;;
     ensure-refinery-worktree) cmd_ensure_refinery_worktree "$@" ;;
+    resolve-working-branch)   cmd_resolve_working_branch "$@" ;;
+    ensure-origin)            cmd_ensure_origin "$@" ;;
     teardown-task)            cmd_teardown_task "$@" ;;
     teardown-phase)           cmd_teardown_phase "$@" ;;
     prune)                    cmd_prune "$@" ;;
-    *) die "unknown subcommand '$sub' (have: ensure-integration, ensure-exclude, ensure-worktree, land-advance, ensure-refinery-worktree, teardown-task, teardown-phase, prune)" ;;
+    *) die "unknown subcommand '$sub' (have: ensure-integration, ensure-exclude, ensure-worktree, land-advance, ensure-refinery-worktree, resolve-working-branch, ensure-origin, teardown-task, teardown-phase, prune)" ;;
   esac
 }
 
