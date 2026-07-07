@@ -491,6 +491,16 @@ lesson-less, logged.
 _Avoid_: agents querying at spawn time (only workers may, mid-task, as an extra); a shared identical
 memory block for all seats.
 
+**Graduation candidate**:
+A durable lesson whose recurrence trail shows **≥2 re-triggers** and whose content describes a
+**machine-checkable invariant** (a greppable pattern, a diff property, an enum mirror), flagged by the
+`/lessons-learned` housekeeping pass for promotion from prose to machine enforcement (hook, floor,
+drift-guard test, or lint) with a one-line proposed enforcement shape. Flag-only: the operator decides
+what, if anything, is filed or built.
+_Avoid_: auto-filed issue, auto-built hook (the flag never implements); treating every recurring lesson
+as a candidate (only machine-checkable ones qualify).
+
+
 ### State & resume
 
 **Resume precedence**:
