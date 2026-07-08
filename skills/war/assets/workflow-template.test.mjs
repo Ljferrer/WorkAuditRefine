@@ -4148,3 +4148,194 @@ test('pkg §4.4 — a legacy plan with no args.backstops → handoff.backstops i
   assert.ok(out.handoff, 'handoff present')
   assert.equal(out.handoff.backstops, null, 'absent args.backstops → handoff.backstops null (never undefined/[])')
 })
+
+// ---------------------------------------------------------------------------
+// Phase 3 Task 1 (#598) — gate_failure_class: schema + classification procedure + class routing
+// (both surfaces, same commit). Validation 5 (routing: three classes + absent fail-safe, each
+// assertion fails if the classification branch is deleted) + validation 6 (drift guard + gate-audit
+// debt line). The refiner is MOCKED, so the classification itself (base re-run/judgment) is exercised
+// upstream; these tests pin the WORKFLOW routing that reads the returned gate_failure_class.
+// ---------------------------------------------------------------------------
+const schemasMd = readFileSync(join(here, '../references/schemas.md'), 'utf8')
+const CLS_ARGS = (over = {}) => ({
+  phase: { id: 3, title: 'P3-cls', integrationBranch: 'integration/cls/phase-3', workingBranch: 'dev/cls' },
+  plan: { file: 'docs/plans/cls.md', gate: 'make gate' },
+  planSlug: 'cls', runId: 'run-cls', worktreeRoot: '/abs/repo/.claude/worktrees',
+  runDir: '/abs/repo/.claude/teams/run-cls', ownedFile: '/abs/repo/.claude/teams/run-cls/owned-refs',
+  mainCheckout: '/abs/repo',
+  tasks: [{ id: 't1', issue: 301, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] }],
+  learningsTarget: '/abs/learnings',
+  ...over,
+})
+// A refiner impl parameterized by what the initial merge / land returns; baseline-proceed re-dispatches
+// (labels ending :baseline-proceed) return merged/landed so the phase can proceed.
+const clsImpl = ({ mergeResult, landResult } = {}) => (prompt, opts) => {
+  const seat = seatOf(opts)
+  const label = opts.label || ''
+  if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(label)) return { ok: true }
+  if (seat === 'war-refiner' && opts.phase === 'Provision') return { mode: 'merge-task', status: 'merged' } // topology barrier
+  if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'abc', tests: {} }
+  if (seat === 'war-auditor') return { seat: label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+  if (seat === 'war-refiner' && opts.phase === 'Refine') {
+    if (/:baseline-proceed$/.test(label)) return { mode: 'merge-task', status: 'merged', integration_sha: 'beef1234beef' }
+    return mergeResult ? mergeResult(label) : { mode: 'merge-task', status: 'merged' }
+  }
+  if (seat === 'war-refiner' && opts.phase === 'Land') {
+    if (/:baseline-proceed$/.test(label)) return { mode: 'land-phase', status: 'landed', working_sha: 'cafe5678cafe' }
+    return landResult ? landResult(label) : { mode: 'land-phase', status: 'landed' }
+  }
+  if (seat === 'war-servitor') return { phase: 3, target: 't', learnings: [] }
+  return {}
+}
+
+test('#598 validation 5 — schema: the three gate_failure_class values appear in BOTH the inline MERGE_RESULT constant and references/schemas.md', () => {
+  const m = src.match(/gate_failure_class\s*:\s*\{\s*enum\s*:\s*(\[[^\]]+\])/)
+  assert.ok(m, 'MERGE_RESULT inline constant declares a gate_failure_class enum')
+  for (const v of ['introduced', 'baseline', 'environment']) {
+    assert.ok(m[1].includes(`'${v}'`), `inline MERGE_RESULT gate_failure_class enum includes '${v}'`)
+    assert.ok(schemasMd.includes(v), `references/schemas.md names the '${v}' class value`)
+  }
+  assert.match(schemasMd, /gate_failure_class/, 'references/schemas.md documents the gate_failure_class field')
+  // No new MergeResult status value / HARD_ESCALATION_REASONS member / KNOWN_LAND_DECISIONS member.
+  const landDecMjs = readFileSync(join(here, './land-decision.mjs'), 'utf8')
+  assert.ok(!/gate_failure_class|baseline|environment/.test(landDecMjs), 'land-decision.mjs is UNTOUCHED by the classification feature (ADR 0005)')
+})
+
+test("#598 validation 5 — merge 'environment' → soft escalate reason 'env-blocked', NO fix-worker; fails if the classification branch is deleted", async () => {
+  const impl = clsImpl({ mergeResult: () => ({ mode: 'merge-task', status: 'gate_failed', gate_failure_class: 'environment', gate_output: 'flaky timeout at task tip; base green; not reproduced' }) })
+  const { out, calls } = await runPhase(CLS_ARGS(), impl)
+  const env = out.escalated.find(e => e && e.task === 't1' && e.reason === 'env-blocked')
+  assert.ok(env, "gate_failed+'environment' soft-escalates reusing reason 'env-blocked' (delete the environment branch ⇒ reason is 'gate_failed' ⇒ this fails)")
+  assert.equal(env.detail && env.detail.gate_failure_class, 'environment', 'detail is the MergeResult (a gate-time env-block, not the provision ENV_OUTCOME shape)')
+  assert.ok(!calls.some(c => seatOf(c.opts) === 'war-worker' && c.opts.phase === 'Audit'), 'NO fix-worker prompt is built for a merge-time gate_failed (soft escalation, not a fix loop)')
+  assert.ok(!out.landed.includes('t1'), 'the environment-classified task did NOT merge')
+  assert.ok(!calls.some(c => /:baseline-proceed$/.test(c.opts.label || '')), 'environment never dispatches a baseline-proceed')
+})
+
+test("#598 validation 5+6 — merge 'baseline' → ONE baseline-proceed re-merge, merge proceeds, ONE deduped source:'auto' backstop; two same-id tasks ⇒ one entry + debt threaded (no 2nd base re-run)", async () => {
+  const IDS = ['pytest:test_legacy_a', 'ruff:E501:old.py']
+  const impl = clsImpl({ mergeResult: () => ({ mode: 'merge-task', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: IDS, gate_base_sha: 'base9999', gate_output: 'base RED with the same ids — pre-existing' }) })
+  const { out, calls } = await runPhase(CLS_ARGS({ tasks: [
+    { id: 't1', issue: 301, title: 'T1', planSlice: 's1', roster: [{ lens: 'correctness' }] },
+    { id: 't2', issue: 302, title: 'T2', planSlice: 's2', roster: [{ lens: 'correctness' }] },
+  ] }), impl)
+  const bp = calls.filter(c => /:baseline-proceed$/.test(c.opts.label || ''))
+  assert.equal(bp.length, 2, 'one baseline-proceed re-merge dispatched per baseline-classified task (delete the baseline branch ⇒ 0 ⇒ this fails)')
+  assert.ok(out.landed.includes('t1') && out.landed.includes('t2'), 'both baseline tasks merged (baseline-proceed proceeded over the recorded debt)')
+  assert.equal(out.landDecision, 'landed', 'the phase lands over the recorded baseline debt')
+  const auto = (out.handoff.backstops || []).filter(b => b && b.source === 'auto')
+  assert.equal(auto.length, 1, "exactly ONE deduped source:'auto' baseline backstop entry (two tasks, same ids ⇒ one entry)")
+  assert.match(auto[0].check, /baseline gate debt/, 'the auto entry check names it baseline gate debt')
+  assert.ok(auto[0].check.includes(IDS[0]) && auto[0].check.includes('base9999'), 'the check string carries the classified identifiers + base sha')
+  // Debt reuse: the SECOND task's initial merge prompt threads the KNOWN BASELINE GATE DEBT recorded
+  // from the first — so the refiner classifies baseline directly, no repeated base re-run.
+  const t1Init = calls.find(c => (c.opts.label || '') === 'merge:t1')
+  const t2Init = calls.find(c => (c.opts.label || '') === 'merge:t2')
+  assert.ok(t1Init && !/KNOWN BASELINE GATE DEBT/.test(t1Init.prompt), "t1's initial merge has no known debt yet (empty ⇒ no clause)")
+  assert.ok(t2Init && /KNOWN BASELINE GATE DEBT/.test(t2Init.prompt), "t2's initial merge threads the debt recorded from t1 (classify baseline directly — no 2nd base re-run)")
+})
+
+test('#598 validation 5 — merge absent class → byte-identical to today (soft escalation reason gate_failed, held:nothing-merged, no env-blocked, no baseline-proceed)', async () => {
+  const impl = clsImpl({ mergeResult: () => ({ mode: 'merge-task', status: 'gate_failed', gate_output: 'boom' }) })  // NO gate_failure_class
+  const { out, calls } = await runPhase(CLS_ARGS(), impl)
+  const esc = out.escalated.find(e => e && e.task === 't1' && e.reason === 'gate_failed')
+  assert.ok(esc, "absent class ⇒ today's soft escalation (reason gate_failed, detail = the MergeResult)")
+  assert.equal(out.landDecision, 'held:nothing-merged', 'a lone gate_failed with no class → held:nothing-merged (byte-identical to today)')
+  assert.ok(!out.escalated.some(e => e && e.reason === 'env-blocked'), 'absent class never routes env-blocked')
+  assert.ok(!calls.some(c => /:baseline-proceed$/.test(c.opts.label || '')), 'absent class never dispatches a baseline-proceed')
+})
+
+test("#598 validation 5 — land 'environment' → reason 'env-blocked', held:land-failed; fails if the classification branch is deleted", async () => {
+  const impl = clsImpl({ landResult: () => ({ mode: 'land-phase', status: 'gate_failed', gate_failure_class: 'environment', gate_output: 'flaky at land; base green; not reproduced' }) })
+  const { out } = await runPhase(CLS_ARGS(), impl)
+  assert.equal(out.landDecision, 'held:land-failed', 'environment land gate_failed → held:land-failed')
+  const esc = out.escalated.find(e => e && String(e.task).includes('-land') && e.reason === 'env-blocked')
+  assert.ok(esc, "land 'environment' ⇒ reason 'env-blocked' (delete the environment branch ⇒ reason 'gate_failed' ⇒ this fails)")
+})
+
+test("#598 validation 5 — land 'baseline' → ONE baseline-proceed re-land, phase lands, ONE source:'auto' backstop from the land site", async () => {
+  const IDS = ['pytest:test_pre_existing']
+  const impl = clsImpl({ landResult: () => ({ mode: 'land-phase', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: IDS, gate_base_sha: 'wbase77', gate_output: 'working tip RED, same ids' }) })
+  const { out, calls } = await runPhase(CLS_ARGS(), impl)
+  assert.ok(calls.some(c => /^land:phase-3:baseline-proceed$/.test(c.opts.label || '')), 'a baseline-proceed re-land is dispatched (delete the baseline branch ⇒ none ⇒ this fails)')
+  assert.equal(out.landDecision, 'landed', 'the phase lands over the recorded baseline debt at the land site')
+  const auto = (out.handoff.backstops || []).filter(b => b && b.source === 'auto')
+  assert.equal(auto.length, 1, "exactly one source:'auto' baseline backstop entry from the land site")
+  assert.ok(auto[0].check.includes(IDS[0]) && auto[0].check.includes('wbase77'), 'the land backstop check carries the ids + base sha')
+})
+
+test('#598 validation 6 — gate-audit debt line: a baseline-merged task threads its debt into the inline gate-audit prompt; a clean-merged task prompt carries NO debt line (empty ⇒ byte-identical)', async () => {
+  const IDS = ['pytest:test_pre_existing_x']
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    const label = opts.label || ''
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(label)) return { ok: true }
+    if (seat === 'war-refiner' && opts.phase === 'Provision') return { mode: 'merge-task', status: 'merged' }
+    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'abc', tests: {} }
+    if (seat === 'war-auditor') return { seat: label, lens: label.startsWith('gate-audit:') ? 'execution-evidence' : 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-refiner' && opts.phase === 'Refine') {
+      if (/^merge:t1:baseline-proceed$/.test(label)) return { mode: 'merge-task', status: 'merged', integration_sha: 'aaaa1111aaaa' }
+      if (/^merge:t1$/.test(label)) return { mode: 'merge-task', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: IDS, gate_base_sha: 'b1', gate_output: 'base red same ids' }
+      return { mode: 'merge-task', status: 'merged', integration_sha: 'bbbb2222bbbb' } // t2 clean
+    }
+    if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
+    if (seat === 'war-servitor') return { phase: 3, target: 't', learnings: [] }
+    return {}
+  }
+  const { calls } = await runPhase(CLS_ARGS({ tasks: [
+    { id: 't1', issue: 301, title: 'T1', planSlice: 's1', roster: [{ lens: 'correctness' }] },
+    { id: 't2', issue: 302, title: 'T2', planSlice: 's2', roster: [{ lens: 'correctness' }] },
+  ] }), impl)
+  const t1GA = calls.find(c => isAuditor(c) && /^gate-audit:t1:/.test(c.opts.label || ''))
+  const t2GA = calls.find(c => isAuditor(c) && /^gate-audit:t2:/.test(c.opts.label || ''))
+  assert.ok(t1GA, 'a gate-audit seat is spawned for the baseline-merged task t1')
+  assert.ok(/BASELINE GATE DEBT/.test(t1GA.prompt), "the baseline-merged task's gate-audit prompt carries the conditional debt line")
+  assert.ok(t1GA.prompt.includes(IDS[0]), 'the debt line names the classified identifiers (a matching failure is base debt, not a provably-unrun mapped test)')
+  assert.ok(t2GA, 'a gate-audit seat is spawned for the clean-merged task t2')
+  assert.ok(!/BASELINE GATE DEBT/.test(t2GA.prompt), 'a clean-merged task carries NO debt line (empty debt ⇒ byte-identical prompt)')
+})
+
+test('#598 validation 6 — drift-guard: war-refiner.md names the three class values, the base re-run step, and the reproducibility predicate (token-anchored, case-tolerant)', () => {
+  for (const v of ['introduced', 'baseline', 'environment']) assert.match(refinerMd, new RegExp(v, 'i'), `war-refiner.md names the '${v}' class value`)
+  assert.match(refinerMd, /gate_failure_class/i, 'war-refiner.md names the gate_failure_class field')
+  assert.match(refinerMd, /classification base/i, 'war-refiner.md names the classification base (the base re-run target)')
+  assert.match(refinerMd, /re-?run.{0,40}(failing )?gate/i, 'war-refiner.md describes re-running the failing gate at the base')
+  assert.match(refinerMd, /reproduc/i, 'war-refiner.md names the reproducibility predicate (the environment trigger)')
+  assert.match(refinerMd, /fresh (TMPDIR|environment)/i, 'war-refiner.md names the fresh-environment trigger')
+  assert.match(refinerMd, /integration base/i, 'war-refiner.md names the merge-task classification base (phase integration base)')
+  assert.match(refinerMd, /origin\/<working>/i, 'war-refiner.md names the land-phase classification base (detached origin/<working> tip)')
+  assert.match(refinerMd, /KNOWN BASELINE GATE DEBT|debt reuse/i, 'war-refiner.md names the baseline-debt reuse threading')
+})
+
+test('#598 — the initial merge + land prompts begin with the idempotent _refinery re-attach and carry the classification procedure (per-site base)', async () => {
+  const { calls } = await runPhase(CLS_ARGS(), clsImpl())
+  const merge = calls.find(c => (c.opts.label || '') === 'merge:t1')
+  const land = calls.find(isLand)
+  assert.ok(/re-attaching _refinery to the integration branch/i.test(merge.prompt), 'the initial merge prompt begins with the idempotent _refinery re-attach')
+  assert.ok(/checkout integration\/cls\/phase-3/.test(merge.prompt), 'the re-attach names the integration-branch checkout')
+  assert.ok(/re-attaching _refinery to the integration branch/i.test(land.prompt), 'the land prompt carries the idempotent _refinery re-attach')
+  for (const v of ['introduced', 'baseline', 'environment']) {
+    assert.ok(merge.prompt.includes(`'${v}'`), `the initial merge prompt names the '${v}' class`)
+    assert.ok(land.prompt.includes(`'${v}'`), `the land prompt names the '${v}' class`)
+  }
+  assert.match(merge.prompt, /the phase integration base/, 'the merge classification base is the phase integration base')
+  assert.match(land.prompt, /detached origin\/dev\/cls tip/, 'the land classification base is the detached origin/<working> tip')
+})
+
+test('#598 — the floor-retry re-merge prompt also carries the classification procedure + re-attach (mirrored into ALL merge sites)', async () => {
+  const { floorRetry } = mergePromptsOf((await runNoTestLoop()).calls)
+  assert.ok(floorRetry, 'a floor-retry re-merge is dispatched')
+  assert.ok(/re-attaching _refinery to the integration branch/i.test(floorRetry.prompt), 'the floor-retry re-merge begins with the idempotent _refinery re-attach')
+  assert.match(floorRetry.prompt, /GATE-FAILURE CLASSIFICATION/, 'the floor-retry re-merge carries the classification procedure')
+  for (const v of ['introduced', 'baseline', 'environment']) assert.ok(floorRetry.prompt.includes(`'${v}'`), `the floor-retry re-merge names the '${v}' class`)
+})
+
+test('#598 — the polish-sweep merge is CLASS-EXEMPT (no classification clause) but still re-attaches _refinery; the exemption is stated in a code comment', async () => {
+  const { calls } = await runPhase(SWEEP_ARGS(), sweepBase([queuedAbsorb()]))
+  const polishMerge = calls.find(c => (c.opts.label || '') === 'merge:p3-polish')
+  assert.ok(polishMerge, 'the polish merge is dispatched (phase-close sweep)')
+  assert.ok(/re-attaching _refinery to the integration branch/i.test(polishMerge.prompt), 'the polish merge still begins with the idempotent _refinery re-attach (hygiene)')
+  assert.ok(!/GATE-FAILURE CLASSIFICATION/.test(polishMerge.prompt), 'the polish merge is class-exempt — it carries NO gate-failure classification procedure (fail-open discard suffices)')
+  assert.match(polishMerge.prompt, /class-exempt/i, 'the polish merge prompt states it is class-exempt')
+  assert.match(src, /CLASS-EXEMPT by design/i, 'the code comment records the polish-sweep class-exemption (never a coverage gap)')
+})
