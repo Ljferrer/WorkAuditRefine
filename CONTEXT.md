@@ -35,6 +35,15 @@ creating each task's worktree on the correct base, scoping it, reusing it for fi
 it down (or preserving it on escalation).
 _Avoid_: setup, bootstrapping, worktree management.
 
+**provision mode**:
+The refiner's third dispatch mode, alongside `merge-task` and `land-phase`: the three provisioning
+dispatches it performs — the phase git-topology barrier (`provision:phase-<id>`), the per-task
+provision-run (`provision-run:<taskId>`), and the phase-close polish worktree
+(`polish-worktree:phase-<id>`). All three return the **env-outcome** shape
+(`{ ok, taskId?, failedCommand?, exitCode?, stderrTail?, provisionSource? }`), never a MergeResult, and
+a provision dispatch is never out-of-mode — the refiner does not decline it ([ADR 0001](docs/adr/0001-explicitly-managed-worktrees.md)).
+_Avoid_: rerouting provisioning to another agent; treating a provision dispatch as a MergeResult mode.
+
 **Git-topology owner**:
 The single role responsible for every mutation of *shared* git state — branches and worktree
 directories — **in whatever repo the phase targets**. In WAR this is the refiner (the Refinery); for a
@@ -125,6 +134,15 @@ The task outcome when a provision step fails: the worktree is not gate-ready, th
 spawned**, and the Lead escalates with **zero FIX rounds**. Distinct from a failed gate (which means
 the code is broken, not the environment).
 _Avoid_: build-failed, setup-error, broken.
+
+**execution evidence (provision)**:
+The fields an `ok:false` provision result must carry for the outcome to classify as `env-blocked`: a
+`failedCommand` that **matches a dispatched `run.provision` step** (exact trimmed array membership, never
+substring) **and** a **numeric non-zero `exitCode`**. Absent that evidence — a refusal, a missing result,
+a foreign/absent `failedCommand`, or an incoherent `exitCode: 0` — the outcome is `held:workflow-error`,
+never a fabricated environment excuse. The gate is the boundary between a genuine environment gap and a
+provision-dispatch contract failure.
+_Avoid_: accepting any `ok:false` as `env-blocked`; inventing a `failedCommand` the worker never ran.
 
 **Worker block**:
 A worker — initial *or* fix — returning `status:'blocked'` (or dying / returning null), which
@@ -408,7 +426,7 @@ dropped silently.
 _Avoid_: autoFixable (deprecated legacy alias for absorb); severity as the routing signal.
 
 **Phase-close coherence sweep**:
-The fail-open polish pass at a would-land phase's **integrated tip**: one worker in a `_polish` worktree
+The fail-open polish pass at a would-land phase's **integrated tip**: one worker in a `p<N>-polish` worktree
 fixes ONLY the queued `phaseClose` absorb findings, a full default-roster panel re-audits the polish SHA,
 and the refiner merges it at the serial queue's tail — or **discards** it (branch + worktree left in
 place; queue demotes to follow-up) and the pre-polish tip lands exactly as it would have. It may only
@@ -579,6 +597,19 @@ The read-only cross-check a resuming Lead runs before continuing — verifies ea
 `merge_sha` is reachable on its branch, repairs the ledger + labels *toward git*, and **halts on an
 unexplained (foreign) commit** rather than absorbing it.
 _Avoid_: editing git to match a stale record; auto-trusting a commit no ledger task claims.
+
+**recovery relaunch**:
+The sanctioned retry of an escalated/`env-blocked` task or a dead phase (`held:workflow-error`,
+retries-exhausted `held:phase-incomplete`): a **fresh Workflow run** (new `runId`) over the **same plan
+slug** and the **same numeric `phase.id`**, with **owned-file continuity** so `cmd_ensure_integration`
+reuses the run's owned integration branch instead of dying foreign. It composes git-first reuse
+([ADR 0008](docs/adr/0008-git-is-the-resume-source-of-truth.md)) — the existing task branches (with their
+kept commits) are checked out into the fresh run's phase-scoped worktrees and fixed forward — and is
+**never** `resumeFromRunId` (which replays the same run's off-ladder journal, the cached escalation).
+Single-task retry uses a one-task DAG; whole-phase relaunch uses the phase's unmerged tasks (verified
+against git). A Lead/operator playbook, never template-automated.
+_Avoid_: `resumeFromRunId` for an escalation; letter-suffixed phase ids ("4b"); rewriting the kept
+commits on a retried branch.
 
 ### Campaigns (multi-plan orchestration)
 

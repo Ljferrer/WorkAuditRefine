@@ -169,7 +169,10 @@ const ownedFile = A.ownedFile                    // run ledger of owned refs (--
 // (A.runDir = .claude/teams/<run-id> is the run-scope for provision-worktrees teardown; that wiring
 //  lands with the teardown call, not this Provision barrier — left on `A` for the future seam.)
 const taskBranch = t => t.branch || (planSlug ? `war/${planSlug}/p${ph.id}-${t.id}` : t.branch)
-const taskWorktree = t => t.worktree || ((worktreeRoot && runId) ? `${worktreeRoot}/${runId}/${t.id}` : t.worktree)
+// Worktree PATH is phase-scoped (D): `${worktreeRoot}/${runId}/p${ph.id}-${t.id}` mirrors taskBranch,
+// so the same taskId under two phase ids of one run never collides on a stale sibling worktree (#583).
+// `_refinery` and the polish worktree stay run-scoped/phase-scoped per their own literals below.
+const taskWorktree = t => t.worktree || ((worktreeRoot && runId) ? `${worktreeRoot}/${runId}/p${ph.id}-${t.id}` : t.worktree)
 // Per-role spawn opts: model always; effort only when non-default (omit = inherit session).
 // Mirror of war-config.mjs spawnOpts/validateRoster/widenRoster/resolveWidenSource — the Workflow sandbox can't import. Keep in sync.
 const ROLE_MODEL = { worker: 'opus', auditor: 'opus', refiner: 'sonnet', servitor: 'sonnet' }
@@ -250,6 +253,24 @@ const autoBaselineBackstops = []
 
 try {
 
+// Entry validation (H, widened per operator decision 4). If ANY task lacks an explicit
+// branch/worktree the derivation must consume the top-level trio + phase.id — so validate them ONCE
+// here, at the top of the try{} body (before the per-task derivation loop), so a missing input dies
+// at ENTRY with the exact absent keys named (→ held:workflow-error via the catch, git untouched),
+// rather than N per-task derivation throws (#586). Two DISTINCT classes: the missing-trio-keys list,
+// and a missing phase.id — the silent `pundefined-` branch/worktree derivation class the trio check
+// alone would leave open. Zero tasks ⇒ vacuously no throw. The per-task derivation throw below stays
+// as the belt-and-suspenders backstop.
+if ((tasks || []).some(t => !t.branch || !t.worktree)) {
+  const missingTrio = [['planSlug', planSlug], ['runId', runId], ['worktreeRoot', worktreeRoot]]
+    .filter(([, v]) => !v).map(([k]) => k)
+  const phaseIdMissing = ph == null || ph.id === undefined || ph.id === null || ph.id === ''
+  const problems = []
+  if (missingTrio.length) problems.push(`workflow-template: requires top-level { planSlug, runId, worktreeRoot } — missing: [${missingTrio.join(', ')}]`)
+  if (phaseIdMissing) problems.push(`phase.id is missing (derivation would produce 'pundefined-' branch/worktree names)`)
+  if (problems.length) throw new Error(`${problems.join('; ')} (or supply explicit branch/worktree per task)`)
+}
+
 for (const t of (tasks || [])) {
   t.branch = taskBranch(t); t.worktree = taskWorktree(t)
   if (!t.branch || !t.worktree) {
@@ -274,6 +295,7 @@ for (const t of (tasks || [])) {
 // on ok:false. With an empty list provisioning is a no-op: ok:true with no agent dispatched.
 async function provisionStep(task) {
   if (!provisionList.length) return { ok: true }
+  // provision mode (agents/war-refiner.md ## provision): per-task provision-run — env-outcome return.
   const out = await agent(
     `PROVISION the worktree for WAR task ${task.id} before its worker runs. cd into ${task.worktree} `
     + `(the refiner's Provision barrier already created it) and run these provisioning commands IN ORDER, `
@@ -283,17 +305,26 @@ async function provisionStep(task) {
     + `Run them verbatim; do NOT free-author other commands. If EVERY step exits 0, return { ok: true }. `
     + `If a step exits NON-ZERO, STOP at that first failure and return the env-blocked outcome — `
     + `{ ok: false, taskId: "${task.id}", failedCommand: "<the command>", exitCode: <code>, stderrTail: "<tail of its stderr>", provisionSource: "${provisionSource}" } — `
+    + `where failedCommand is the failing step VERBATIM (copy it exactly from the list above — the Workflow's evidence gate matches it against the dispatched list, and a paraphrased or invented command fails closed to held:workflow-error). `
     + `do NOT continue and do NOT remove the worktree (it is kept for inspection). This is environment setup, not the artifact under test: a failure is an env-block, never a code defect.`,
     { agentType: NS + 'war-refiner', phase: 'Provision', label: `provision-run:${task.id}`, schema: ENV_OUTCOME, ...spawn('refiner') })
-  // A missing/typeless result is treated as a hard env-block (worker stays unspawned, fail loud).
-  if (!out || out.ok !== true) {
-    return { ok: false, taskId: task.id,
-      failedCommand: (out && out.failedCommand) || provisionList[0],
-      exitCode: (out && typeof out.exitCode === 'number') ? out.exitCode : 1,
-      stderrTail: (out && out.stderrTail) || 'provision-run returned no result',
-      provisionSource }
+  if (out && out.ok === true) return { ok: true }
+  // Evidence gate (C, tightened): an env-blocked classification is honored ONLY with execution
+  // evidence — an ok:false whose failedCommand trim-matches one of the dispatched provisionList steps
+  // (exact array membership, never substring) AND whose exitCode is a NUMBER ≠ 0 (an ok:false with
+  // exit 0 is incoherent). Then return today's soft env-blocked shape from the REAL result fields
+  // (downstream byte-preserved: reason env-blocked, worker unspawned, worktree kept, siblings proceed).
+  // Anything else — missing result, refusal prose, foreign/absent failedCommand, non-numeric or zero
+  // exitCode — is NOT trustworthy execution evidence: throw so the catch routes it to
+  // held:workflow-error (no fabricated env-block). The old provisionList[0] / synthetic exitCode / the
+  // synthetic no-result stderrTail fabrication is DELETED (the gate throws instead of inventing fields).
+  const trimmed = out && typeof out.failedCommand === 'string' ? out.failedCommand.trim() : null
+  const matchesStep = trimmed != null && provisionList.some(c => c.trim() === trimmed)
+  if (out && out.ok === false && matchesStep && typeof out.exitCode === 'number' && out.exitCode !== 0) {
+    return { ok: false, taskId: task.id, failedCommand: out.failedCommand,
+      exitCode: out.exitCode, stderrTail: out.stderrTail, provisionSource }
   }
-  return { ok: true }
+  throw new Error(`task ${task.id}: the provision-run:${task.id} dispatch returned no execution evidence — an env-blocked classification requires a failedCommand matching a dispatched run.provision step and a numeric non-zero exitCode; got ${JSON.stringify(out)}`)
 }
 // Prompt fragment threaded into the worker AND fix-worker: both run in the SAME worktree, so both
 // must be told the pinned provision list (idempotent — re-running it is safe; D-Validation).
@@ -490,17 +521,24 @@ if (tasks.length) {
       + `"${submodTasks[0] && submodTasks[0].targetRepo || '<targetRepo>'}" exists. `
       + `Run ensure-integration and ensure-worktree cwd-scoped to each submodule task's targetRepo path (not the superproject).`
     : ''
-  await agent(
+  // provision mode (agents/war-refiner.md ## provision): git-topology barrier — env-outcome return.
+  const barrierOut = await agent(
     `Provision the worktree topology for WAR phase ${ph.id} "${ph.title}" by running ${SCRIPT}. `
-    + `Do NOT free-author git; only run these subcommands, fail loud on ANY non-zero exit — treat every non-zero exit as a halt, do NOT special-case a single code (a foreign integration branch exits 3; a diverged local/origin base halts with its own distinct non-zero exit) — and report a MergeResult.\n`
+    + `Do NOT free-author git; only run these subcommands, fail loud on ANY non-zero exit — treat every non-zero exit as a halt, do NOT special-case a single code (a foreign integration branch exits 3; a diverged local/origin base halts with its own distinct non-zero exit) — and return the env-outcome JSON: \`{ ok: true }\` only when every subcommand exited 0; on the FIRST non-zero exit return \`{ ok: false, failedCommand: "<the exact provision-worktrees.sh subcommand line>", exitCode: <code>, stderrTail: "<tail of its stderr — the script's die text>" }\`.\n`
     + `1. FROM THE MAIN CHECKOUT (${mainCheckout || 'the main repo checkout — your current working directory'}, NOT a task worktree): `
     + `provision-worktrees.sh ensure-exclude — this excludes \`.claude/\` in the parent checkout so the nested task worktrees do not surface as untracked there (probe E2).\n`
-    + `2. provision-worktrees.sh ensure-integration ${planSlug || '<plan-slug>'} ${ph.id} ${ph.workingBranch}${owned} — reuse the plan-namespaced integration branch ${ph.integrationBranch} if it is already ours (the --owned-file ledger); else DERIVE the cut base against origin (ADR 0008): the script fetches origin/${ph.workingBranch} and reconciles the local ${ph.workingBranch} — equal or ahead → cut from local; behind → cut from the ORIGIN tip plus a guarded follower fast-forward (skipped with a warning when ${ph.workingBranch} is checked out in a worktree); a fetch failure or missing origin → cut from local with a stderr warning (today's offline behavior). DIVERGED (neither SHA an ancestor of the other) is a HALT: the script dies non-zero carrying BOTH SHAs and the two repair directions, and creates no branch. On that die — or ANY non-zero exit — report it in the MergeResult and STOP: never pick a side, never retry with a different base. The phase never starts; I surface the die message like today's foreign-branch halt.\n`
+    + `2. provision-worktrees.sh ensure-integration ${planSlug || '<plan-slug>'} ${ph.id} ${ph.workingBranch}${owned} — reuse the plan-namespaced integration branch ${ph.integrationBranch} if it is already ours (the --owned-file ledger); else DERIVE the cut base against origin (ADR 0008): the script fetches origin/${ph.workingBranch} and reconciles the local ${ph.workingBranch} — equal or ahead → cut from local; behind → cut from the ORIGIN tip plus a guarded follower fast-forward (skipped with a warning when ${ph.workingBranch} is checked out in a worktree); a fetch failure or missing origin → cut from local with a stderr warning (today's offline behavior). DIVERGED (neither SHA an ancestor of the other) is a HALT: the script dies non-zero carrying BOTH SHAs and the two repair directions, and creates no branch. On that die — or ANY non-zero exit — return the \`{ ok: false, … }\` env-outcome carrying the die text in \`stderrTail\` and STOP: never pick a side, never retry with a different base. The phase never starts; I surface the die message like today's foreign-branch halt.\n`
     + `3. Capture the resulting integration tip (TIP="$(git rev-parse ${ph.integrationBranch})"), then for EACH task run ensure-worktree at the integration tip captured in step 3 (idempotent; reuse if present, conservative heal if the dir went missing):\n${ensures}\n`
     + `Each ensure-worktree creates the worktree on its plan-namespaced branch off the integration tip and drops a .war-task marker. After this barrier every task worktree exists and the workers can run.\n`
     + `4. provision-worktrees.sh ensure-refinery-worktree ${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/_refinery ${ph.integrationBranch} — create (or re-attach) the Refinery's dedicated worktree on the integration branch. The Refinery performs every merge in this run-scoped worktree, never the Lead's main checkout.`
     + submodNote,
-    { agentType: NS + 'war-refiner', phase: 'Provision', label: `provision:phase-${ph.id}`, schema: MERGE_RESULT, ...spawn('refiner') })
+    { agentType: NS + 'war-refiner', phase: 'Provision', label: `provision:phase-${ph.id}`, schema: ENV_OUTCOME, ...spawn('refiner') })
+  // No topology ⇒ nothing in the phase can run — a hard stop is correct here, evidence or not (B/C).
+  // !ok or a missing result throws with the stderrTail (which carries the script's die text — incl. a
+  // foreign-branch exit 3 or a diverged exit 7) → held:workflow-error via the catch.
+  if (!barrierOut || barrierOut.ok !== true) {
+    throw new Error(`phase ${ph.id}: the provision:phase-${ph.id} git-topology barrier did not return { ok: true } — the phase cannot start: ${(barrierOut && barrierOut.stderrTail) || 'no result / no env-outcome returned'}`)
+  }
 }
 
 let guard = 0
@@ -1072,19 +1110,29 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
     for (const f of phaseCloseQueue.splice(0)) demote(f, 'follow-up', 'sweep skipped — no valid default audit.roster for the mandatory full-panel re-audit')
   } else {
     const polishBranch = `war/${planSlug || '<plan-slug>'}/p${ph.id}-polish`
-    const polishWorktree = `${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/_polish`
+    // Phase-scoped polish worktree path (D): p<ph.id>-polish mirrors the taskWorktree shape (was the
+    // run-scoped `_polish`); the polish branch already carried the p<N>- shape.
+    const polishWorktree = `${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/p${ph.id}-polish`
     // Pseudo-task (Open decision 1): sweep roster = the config default audit.roster, normalized like
     // any task roster; issue = the phase epic; planSlice = the sweep charter.
     const polishTask = { id: `p${ph.id}-polish`, issue: ph.epicIssue || `<phase-${ph.id}-epic>`,
       title: `phase-close coherence sweep (phase ${ph.id})`, branch: polishBranch, worktree: polishWorktree,
       roster: defaultRoster,
       planSlice: `drain the phase-close queue (${phaseCloseQueue.length} finding(s)) + cross-task coherence at the integrated tip of ${ph.integrationBranch}` }
-    // 1. Provision _polish at the POST-MERGE integrated tip via the existing ensure-worktree.
-    await agent(
+    // 1. Provision the polish worktree at the POST-MERGE integrated tip via the existing ensure-worktree.
+    // provision mode (agents/war-refiner.md ## provision): phase-close polish worktree — env-outcome return.
+    const polishProv = await agent(
       `Provision the phase-close POLISH worktree for WAR phase ${ph.id} by running provision-worktrees.sh. Do NOT free-author git; run exactly:\n`
       + `  provision-worktrees.sh ensure-worktree ${polishWorktree} ${polishBranch} "$(git -C ${refineryLandPath} rev-parse ${ph.integrationBranch})"\n`
-      + `— the polish worktree is cut at the POST-MERGE integrated tip (idempotent; reuse if present). Report a MergeResult.`,
-      { agentType: NS + 'war-refiner', phase: 'Refine', label: `polish-worktree:phase-${ph.id}`, schema: MERGE_RESULT, ...spawn('refiner') })
+      + `— the polish worktree is cut at the POST-MERGE integrated tip (idempotent; reuse if present). Return the env-outcome JSON: \`{ ok: true }\` when the ensure-worktree subcommand exits 0; on a non-zero exit return \`{ ok: false, failedCommand: "<the exact subcommand line>", exitCode: <code>, stderrTail: "<tail of its stderr>" }\`.`,
+      { agentType: NS + 'war-refiner', phase: 'Refine', label: `polish-worktree:phase-${ph.id}`, schema: ENV_OUTCOME, ...spawn('refiner') })
+    if (!polishProv || polishProv.ok !== true) {
+      // Fail-open, never a hold (B/C): the polish worktree provisioning failed — skip the sweep
+      // worker/panel/merge entirely and drain the queue to follow-up, exactly mirroring the
+      // invalid-roster arm above. polishStatus stays 'skipped'; the pre-polish tip lands unchanged.
+      log(`phase-close sweep: the polish worktree provisioning returned no env-outcome ok (${(polishProv && polishProv.stderrTail) || 'no result'}) — sweep skipped; draining the queue to follow-up.`)
+      for (const f of phaseCloseQueue.splice(0)) demote(f, 'follow-up', 'sweep skipped — the polish worktree provisioning did not return { ok: true }')
+    } else {
     // 2. ONE war-worker dispatch: the queued findings VERBATIM + the intent + the merged tasks' plan slices.
     const mergedSlices = tasks.filter(t => succeeded.has(t.id)).map(t => `- ${t.id}: ${t.planSlice}`).join('\n')
     const sweep = await agent(
@@ -1133,6 +1181,7 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
       log(`phase-close sweep DISCARDED (${sweepWhy || (sweepApproved ? `polish merge returned ${pmr && pmr.status || 'no result'}` : 'the panel did not re-approve')}) — polish branch ${polishBranch} and worktree ${polishWorktree} left in place; queue demotes to follow-up.`)
       auditLog.push({ task: polishTask.id, verdict: 'polish-discarded', branch: polishBranch, findings: [], blocked: sweepWhy || null })
       for (const f of phaseCloseQueue.splice(0)) demote(f, 'follow-up', 'phase-close sweep discarded — the polish branch never merged; the pre-polish tip lands')
+    }
     }
   }
 }

@@ -13,16 +13,23 @@ Every agent returns **only** its JSON object (no prose). The Workflow passes the
   blocked_reason?: "present iff status==blocked — the ambiguity/contradiction" }
 ```
 
-## Task outcome union — terminal per-task results
-A task reaches the refiner with exactly one terminal **outcome**. Two are produced by the worker itself (a `WorkerResult` with `status: "implemented"` or `"blocked"`, above). A third — **`env-blocked`** — is **not** a worker result: it is emitted by the refiner's **Provision barrier** when a pinned `run.provision` command fails, **before any worker is spawned**. The worktree never became gate-ready, so there is nothing for a worker to do.
+## ENV_OUTCOME — the uniform return for all three `provision` dispatches
+Every `provision`-mode refiner dispatch — the **phase git-topology barrier** (`provision:phase-<id>`), the **per-task provision-run** (`provision-run:<taskId>`), and the **phase-close polish worktree** (`polish-worktree:phase-<id>`) — returns this same shape:
 
 ```jsonc
-{ taskId,
-  failedCommand,        // the provision command that exited non-zero
-  exitCode,             // its exit code
-  stderrTail,           // tail of its stderr (for the escalation)
-  provisionSource }     // where the list came from: explicit|manifest|ci|onboarding|structural|none
+{ ok,                   // true iff every dispatched subcommand exited 0
+  taskId?,              // (provision-run) the task whose worktree was being provisioned
+  failedCommand?,       // the subcommand/step that exited non-zero — VERBATIM (the evidence gate matches it)
+  exitCode?,            // its exit code (a NUMBER; a non-zero value is required for an env-block)
+  stderrTail?,          // tail of its stderr (the escalation / the script's die text)
+  provisionSource? }    // (provision-run) where the list came from: explicit|manifest|ci|onboarding|structural|none
 ```
+
+- **Evidence gate (per-task provision-run).** An `ok: false` becomes an **`env-blocked`** task outcome ONLY with **execution evidence**: a `failedCommand` that trim-matches one of the dispatched `run.provision` steps (exact array membership, never substring) **and** a numeric **non-zero** `exitCode`. An `ok: false` missing that evidence — a missing/typeless result, refusal prose, a foreign/absent `failedCommand`, a non-numeric or an incoherent `exitCode: 0` — is **not** trustworthy: it classifies **`held:workflow-error`**, never a fabricated `env-blocked`. (There is no `provisionList[0]` / synthetic-`exitCode:1` fallback — the template throws.)
+- **Barrier / polish routing.** A barrier `ok: false` (or missing result) → `held:workflow-error` carrying the `stderrTail` (no topology ⇒ nothing in the phase can run — a hard stop, evidence or not). A polish-worktree `ok: false` (or missing) → **fail-open**: the sweep is skipped, the phase-close queue drains to `follow-up`, the phase still lands (never a hold).
+
+## `env-blocked` — the task outcome the evidence gate produces
+A task reaches the refiner with exactly one terminal **outcome**. Two are produced by the worker itself (a `WorkerResult` with `status: "implemented"` or `"blocked"`, above). A third — **`env-blocked`** — is **not** a worker result: it is produced when the **per-task provision-run** returns an evidence-bearing `ok: false` (per the gate above), **before any worker is spawned**. The worktree never became gate-ready, so there is nothing for a worker to do. The escalation carries `{ taskId, failedCommand, exitCode, stderrTail, provisionSource }` from the real result fields.
 - **The worker is NOT spawned.** The barrier runs each `run.provision` command in order after creating the worktree and before launching the worker; the first failure short-circuits to `env-blocked` and the worker launch is skipped entirely. This is distinct from a failed gate (broken code) — here the *environment* never came up.
 - **No `WorkerResult` is produced for an `env-blocked` task** — there is no `branch`/`head_sha`/`tests`, because nothing was implemented. Do **not** add `env-blocked` to the `WorkerResult` schema above; it is its own task-outcome shape. (This corrects earlier "worker result schema" wording in the design spec, B.3.4/B.4 — `env-blocked` is a task outcome, not a worker result.)
 - **Lead handling** (halt the task, escalate, **0 FIX rounds**, **keep** the worktree for inspection, siblings proceed) is specified in [SKILL.md](../SKILL.md). The red-team analogue of a provision failure is a probe `status: "warn"` (never a red verdict), not `env-blocked`.
@@ -213,7 +220,7 @@ The refiner's **Provision** barrier ([ADR 0001](../../../docs/adr/0001-explicitl
 | field | meaning |
 |---|---|
 | `planSlug` | plan-slug for the **plan-namespaced** branch names ([ADR 0003](../../../docs/adr/0003-plan-namespaced-branches.md)). The template derives each task's branch as `war/<planSlug>/p<phase>-<task>`. |
-| `runId` | run id segment in the worktree **path** (`<worktreeRoot>/<runId>/<task>`); keeps concurrent runs' directories collision-free even when branch names share a slug. |
+| `runId` | run id segment in the worktree **path** (`<worktreeRoot>/<runId>/p<phase>-<task>` — phase-scoped, mirroring the branch shape); keeps concurrent runs' directories collision-free even when branch names share a slug, and a same-run cross-phase relaunch never collides on a stale sibling worktree. |
 | `worktreeRoot` | absolute dir that holds the per-run worktrees (e.g. `<repo>/.claude/worktrees`). |
 | `mainCheckout` | absolute path of the parent checkout — the cwd the barrier runs `ensure-exclude` from (probe E2: the `.claude/` exclude must be written in the **main** checkout, not a task worktree). |
 | `ownedFile` | path to the run's owned-refs ledger, threaded to `ensure-integration --owned-file`; a `integration/<slug>/phase-N` that exists but is **not** in this ledger is a foreign collision → the script exits non-zero (fail-loud), distinguishing a resume from a cross-plan clash. |
@@ -222,12 +229,17 @@ The refiner's **Provision** barrier ([ADR 0001](../../../docs/adr/0001-explicitl
 
 > **Footgun — `undefined` in prompts.** Branch/worktree are derived as
 > `t.branch || (planSlug ? "war/<planSlug>/p<phase>-<task>" : t.branch)` and
-> `t.worktree || ((worktreeRoot && runId) ? "<worktreeRoot>/<runId>/<task>" : t.worktree)`.
+> `t.worktree || ((worktreeRoot && runId) ? "<worktreeRoot>/<runId>/p<phase>-<task>" : t.worktree)`.
 > If the Lead supplies **neither** a per-task `branch`/`worktree` on the task object **nor** the
 > `planSlug` / `worktreeRoot` + `runId` args, the fallback is `undefined` and JS interpolation bakes
 > the literal string `"undefined"` into the worker/auditor/refiner prompts (an unprovisionable branch
 > name and a bogus path). Always thread `planSlug`, `runId`, and `worktreeRoot` (or set explicit
 > `task.branch`/`task.worktree`).
+> **Entry validation (H).** When any task lacks an explicit `branch`/`worktree`, the template
+> validates the derivation inputs **once at entry** (top of the `try{}` body, before the per-task
+> loop) and throws — routed to `held:workflow-error` — naming the exact absent keys. Two distinct
+> classes: the missing members of `{ planSlug, runId, worktreeRoot }`, and a missing `phase.id` (the
+> silent `pundefined-` derivation class). Zero tasks ⇒ no throw.
 
 ## Workflow per-phase return
 
