@@ -5,9 +5,9 @@ metadata:
   node_type: memory
   type: project
   provenance: agent-unverified
-  phase: dead-phase-halt/t1 + 28 recurrences (through learnings-read-path/phase-1 T1,T2,T3)
+  phase: dead-phase-halt/t1 + 29 recurrences (through test-floor-pattern-threading/p2t1)
   date: 2026-06-30
-  updated: 2026-07-06
+  updated: 2026-07-07
   keywords:
     - gate-audit pin mismatch
     - rev-parse HEAD differs from gateHeadSha
@@ -49,7 +49,12 @@ helper collapses malformed gateHeadSha values to a sentinel at both copy sites. 
 - An auditor rationale claiming "the landed fix is absent" may itself be on a stale seat — verify against the real
   landed tip first ([[land-local-follower-ref-can-lag-sync-before-next-phase]], [[audit-worktree-pre-impl-tip-stale-verdict]]).
 
-**Recurrences (28+, through learnings-read-path/phase-1 T1–T3, 2026-07-06):** a stale pin is
+**Recurrences (29+, through test-floor-pattern-threading/p2t1, 2026-07-07):** p2t1's gate-audit
+observed HEAD `1100c07` vs. pinned `gateHeadSha` `6a195a4` — a subsequent phase-2 task (#597)
+landed on top after p2t1's own merge (#596), the textbook benign-forward-advance shape. Confirmed
+via `merge-base --is-ancestor` plus a direct object-store read of the mapped tests at the merge
+commit; graded Minor/note, gate-audit verdict stayed `approve`, evidence downgraded SOFT, no
+land-halt. A stale pin is
 near-guaranteed once >= 2 tasks land in sequence on one integration branch — each task's gate
 necessarily runs before its siblings' follow-on commits land. Every observed mismatch resolved as
 benign forward advance via the ancestor check, with the mapped test content re-verified at the true

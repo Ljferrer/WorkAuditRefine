@@ -6,9 +6,9 @@ metadata:
   type: project
   provenance: code-verified
   slug: defined-but-not-yet-emitted-plan-slice-pattern
-  phase: audit-scheduler-integrity/p1 + ace-nit-autofix/phase1-t2+phase2-t3+phase3-t4 + campaign-xbranch-add/T1
+  phase: audit-scheduler-integrity/p1 + ace-nit-autofix/phase1-t2+phase2-t3+phase3-t4 + campaign-xbranch-add/T1 + test-floor-pattern-threading/p2t1
   date: 2026-07-01
-  updated: 2026-07-06
+  updated: 2026-07-07
   keywords:
     - defined-but-not-yet-emitted
     - plan slice ownership
@@ -30,6 +30,12 @@ metadata:
 **Rule:** a foundation task may legitimately add a constant/field/prose-ref before its emitter exists (serial slices sharing a mirrored constant or schema). The plan MUST carry a "defined-but-not-yet-emitted; produced in Task N" note naming the owning downstream task — without it, auditors misgrade the inert slice as dead code / an omission and return audit-blocked.
 
 Variants — every tracked instance closed on schedule at its named owner: code constant (`'dep-failed'` in `HARD_ESCALATION_REASONS`, emitter Task 3); prose forward-link to a sibling task's section; ledger field named before its schema rows (submodule-inc2 T10→T9, T3→T9); return-contract key (`aced`, later emitted by `workflow-template.js`); inverse — code lands ahead of the doc surface describing it (campaign-xbranch-add T1: the `[<ref>]` positional landed in `campaign-ledger.mjs` before `war-campaign/SKILL.md` documented it; since closed — the SKILL.md invocation line now reads `add <plan-path> [<ref>]` on master).
+
+Recurrence (test-floor-pattern-threading/p2t1, 2026-07-07): the merge-task worker consumed
+`plan.testPattern` correctly, but the Lead-side threading of `overrides.testPattern` ->
+`args.plan.testPattern` at Setup is plan prose (mirroring the ratified `overrides.gate` ->
+`plan.gate` precedent) that lives outside this task's four files. Rated Nit/note, not a defect —
+flagged for phase-coherence confirmation that the threading prose actually exists.
 
 **How to apply (auditing):** a dangling ref at a task tip is a defect ONLY if the plan lacks the cross-link. Confirm the plan names a sibling/downstream owner — for the inverse variant the plan's end-state list is the source of truth for which task owns the doc sweep — grade Nit/non-blocking, and confirm resolution at the integration tip post-merge.
 
