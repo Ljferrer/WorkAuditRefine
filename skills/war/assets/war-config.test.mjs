@@ -878,6 +878,121 @@ test('doc-contract: SKILL.md Gate 2 has the append-if-absent CLAUDE.md pointer d
 })
 
 // ---------------------------------------------------------------------------
+// Run-lifecycle robustness doc contracts (#582/#583/#586, End-state 6 — SKILL.md half)
+// Token-anchored + case-tolerant per `prompt-only-clause-grep-guard-must-tolerate-sentence-case`.
+// ---------------------------------------------------------------------------
+
+test('doc-contract: SKILL.md launch step names the derivation trio planSlug/runId/worktreeRoot (I/H)', () => {
+  const text = readDoc('skills/war/SKILL.md')
+  // The launch instruction is the "Run one Workflow per phase" step; assert the trio is named there.
+  const marker = 'Run **one Workflow per phase**'
+  const idx = text.indexOf(marker)
+  assert.ok(idx >= 0, 'SKILL.md must retain the "Run one Workflow per phase" launch step')
+  const clause = text.slice(idx, text.indexOf('\n\n', idx) === -1 ? undefined : text.indexOf('\n\n', idx))
+  for (const key of ['planSlug', 'runId', 'worktreeRoot']) {
+    assert.ok(
+      clause.includes(key),
+      `SKILL.md launch step must name required top-level arg \`${key}\` (I: launch-step documentation)`
+    )
+  }
+})
+
+// Helper: slice the `### Recovery relaunch` subsection body (heading → next top-level heading).
+function recoveryRelaunchSection() {
+  const text = readDoc('skills/war/SKILL.md')
+  const lc = text.toLowerCase()
+  const start = lc.indexOf('### recovery relaunch')
+  assert.ok(start >= 0, 'SKILL.md must carry a `### Recovery relaunch` subsection (G)')
+  // Bound at the next `## ` (top-level) heading after the subsection.
+  const rest = text.indexOf('\n## ', start)
+  return text.slice(start, rest === -1 ? undefined : rest)
+}
+
+test('doc-contract: SKILL.md recovery-relaunch names both entry points (single-task + whole-phase) (G)', () => {
+  const section = recoveryRelaunchSection().toLowerCase()
+  assert.ok(section.includes('single-task'), 'recovery-relaunch body must name the single-task retry entry point')
+  assert.ok(
+    section.includes('whole-phase'),
+    'recovery-relaunch body must name the whole-phase relaunch entry point'
+  )
+  // Whole-phase relaunch covers held:workflow-error and retries-exhausted held:phase-incomplete.
+  assert.ok(
+    section.includes('held:workflow-error'),
+    'recovery-relaunch whole-phase entry must name held:workflow-error'
+  )
+  assert.ok(
+    section.includes('held:phase-incomplete'),
+    'recovery-relaunch whole-phase entry must name held:phase-incomplete'
+  )
+})
+
+test('doc-contract: SKILL.md recovery-relaunch names owned-file continuity, never resumeFromRunId, keep-commits-as-WIP (G)', () => {
+  const section = recoveryRelaunchSection()
+  const lc = section.toLowerCase()
+  assert.ok(lc.includes('owned-file') || lc.includes('ownedfile'), 'recovery-relaunch must name owned-file continuity')
+  // resumeFromRunId is a code identifier — assert it appears (as the forbidden path) verbatim.
+  assert.ok(
+    section.includes('resumeFromRunId'),
+    'recovery-relaunch must name resumeFromRunId (the forbidden replay path)'
+  )
+  // Keep-commits-as-WIP directive: fix forward, never rewrite/reset/force the kept commits.
+  assert.ok(
+    lc.includes('kept') || lc.includes('keep them') || lc.includes('fix') && lc.includes('forward'),
+    'recovery-relaunch must direct keeping prior commits and fixing forward (no reset/force)'
+  )
+  assert.ok(
+    lc.includes('reset') || lc.includes('force') || lc.includes('rewritten'),
+    'recovery-relaunch must state prior commits are never rewritten (no reset/--force)'
+  )
+})
+
+test('doc-contract: SKILL.md held:workflow-error prose names the provision-refusal / no-evidence case (C)', () => {
+  const text = readDoc('skills/war/SKILL.md')
+  const lc = text.toLowerCase()
+  const idx = lc.indexOf('`held:workflow-error` — terminal')
+  assert.ok(idx >= 0, 'SKILL.md must retain the held:workflow-error terminal outcome bullet')
+  // Bound to the end of the bullet (next list-item at the same indent, or blank line).
+  const bulletEnd = text.indexOf('\n  - ', idx)
+  const clause = text.slice(idx, bulletEnd === -1 ? undefined : bulletEnd).toLowerCase()
+  assert.ok(
+    clause.includes('refus') || clause.includes('no execution evidence') || clause.includes('no-result'),
+    'held:workflow-error class examples must name the provision-refusal / no-execution-evidence case (C)'
+  )
+})
+
+test('doc-contract: SKILL.md env-blocked bullet carries the evidence-gate token (C)', () => {
+  const text = readDoc('skills/war/SKILL.md')
+  const lc = text.toLowerCase()
+  const idx = lc.indexOf('`env-blocked` task outcome')
+  assert.ok(idx >= 0, 'SKILL.md must retain the env-blocked task outcome bullet')
+  const bulletEnd = text.indexOf('\n- ', idx)
+  const clause = text.slice(idx, bulletEnd === -1 ? undefined : bulletEnd).toLowerCase()
+  assert.ok(
+    clause.includes('evidence-gate') || clause.includes('evidence gate') || clause.includes('execution evidence'),
+    'env-blocked bullet must note the outcome is evidence-gated (no execution evidence ⇒ held:workflow-error) (C)'
+  )
+})
+
+test('doc-contract: no stale `_polish` token in the swept doc surfaces (rename to p<N>-polish; ADR 0012 excluded)', () => {
+  // Enumerated file list — search is anchored to these files, never a repo-root scan
+  // (learnings `enumerated-file-list-absence-guard-for-rename-with-legitimate-history`,
+  //  `absence-guard-search-root-must-anchor-to-subtree`). docs/adr/0012-* keeps its historical
+  //  `_polish` mention and is deliberately NOT in this list.
+  const sweptSurfaces = [
+    'skills/war/SKILL.md',
+    'skills/war/references/design.md',
+    'CONTEXT.md',
+  ]
+  for (const relPath of sweptSurfaces) {
+    const text = readDoc(relPath)
+    assert.ok(
+      !text.includes('_polish'),
+      `${relPath} must not carry a stale \`_polish\` token — the polish worktree path is now \`p<N>-polish\` (D)`
+    )
+  }
+})
+
+// ---------------------------------------------------------------------------
 // Task 3 — F06: Default rosterPolicy 'all'; presets; historical-spec doc contract
 // ---------------------------------------------------------------------------
 
