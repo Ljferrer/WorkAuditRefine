@@ -174,13 +174,21 @@ Produced by `/war-room`, consumed by `/war`'s Setup. The schema, defaults, prese
                                              // provision = ordered worktree-prep commands ([] = none); provisionSource ∈ explicit|manifest|ci|onboarding|structural|none;
                                              // provisionAuto = let /war-room scout provisioning when no explicit list (default true)
   memory: { retrieval, topK, commitLearnings },  // retrieval: Lead prefetches per-seat prior-lesson blocks (bool, default true); topK: max lessons/block (int >= 1, default 10); commitLearnings: write the repo-root docs/learnings lessons (bool, default true — lint-scrubbed, PR-reviewed; the economy preset pins false)
-  overrides: { gate, workingBranch, landingBranch, learningsTarget } }  // null = let /war auto-detect
+  overrides: { gate, workingBranch, landingBranch, learningsTarget, testPattern } }  // null = let /war auto-detect
 // overrides.gate is the *declared base* command (string|null); the *resolved* gate run by agents
 // is a self-discovering string produced by war-config.mjs resolveGate(declaredGate): it appends
 // a find-based bash-suite discovery loop so every *.test.sh is found and run on each invocation.
 // resolveGate STILL appends discovery even when overrides.gate is non-null — you cannot accidentally
 // skip bash suites by pinning a gate override (F12 open decision #2).  "No string[]" — self-discovery
 // supersedes a static list; re-detection is automatic on every gate invocation.
+// overrides.testPattern is the *declared* test-floor glob set (string|null; default null) — it rides
+// config → args exactly like overrides.gate → plan.gate: the Lead threads the pinned value into the
+// per-phase Workflow as args.plan.testPattern (string|null; absent ⇒ null — the plan.gate precedent).
+// The Workflow appends it VERBATIM as the assert-test-in-diff.sh `--pattern '<value>'` argument at both
+// merge-task invocation sites; null ⇒ a bare invocation, byte-identical to today. A custom pattern does
+// NOT replace the floor's unconditional *.test.sh discovery arm — that arm is unioned in script-side
+// (assert-test-in-diff.sh, ADR 0019), so floor ⊆ gate survives any pinned pattern. The glob-safe charset
+// is enforced by war-config.mjs's validator (a quote/`;`/backtick/`$`/newline value is rejected, naming the key).
 ```
 These reach the per-phase Workflow as `args.agents`, `args.audit`, `args.run` (the Lead threads them in after resolving the file); `overrides` are applied by the Lead during Setup. See [`../assets/workflow-template.js`](../assets/workflow-template.js).
 

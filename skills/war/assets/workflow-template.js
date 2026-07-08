@@ -17,7 +17,11 @@ export const meta = {
 //   { phase: { id, title, integrationBranch, workingBranch, epicIssue?, endState?: [condition] },
 //              // endState: the Commander's-Intent End-state conditions THIS phase claims (Lead-mapped);
 //              // checked by the gate-audit pass — later-phase conditions are out-of-scope there, never a hold
-//     plan:  { file, gate },          // gate = a shell command, run BY agents (this script has no shell/fs)
+//     plan:  { file, gate, testPattern },  // gate = a shell command, run BY agents (this script has no
+//                                     // shell/fs). testPattern = the run's pinned overrides.testPattern
+//                                     // (string|null; absent ⇒ null — the plan.gate precedent), appended
+//                                     // VERBATIM as the assert-test-in-diff.sh `--pattern '<value>'` arg at
+//                                     // both merge-task sites; null ⇒ bare, byte-identical to today.
 //     tasks: [ { id, issue, title, branch, worktree, deps:[id],
 //                roster:[{ lens, depth? }], planSlice, requiresTest?, requiresPackaging? } ],  // roster: 1–5 distinct-lens audit seats; depth omitted → 'deep'.
 //                                     // requiresTest/requiresPackaging default true; false (Lead-set) skips that pre-merge floor with a logged, never-silent skip.
@@ -100,6 +104,15 @@ const intent = (typeof A.intent === 'string' && A.intent) ? A.intent : null
 // UNTOUCHED into handoff.backstops[] (rendered as the "Unexecuted backstops" line at land). A legacy
 // plan with no backstop section → null (surfaced note). Never mutate; never re-normalize here.
 const backstops = Array.isArray(A.backstops) ? A.backstops : null
+// Test-floor pattern (spec §6 / ADR 0019): the Lead threads the run's pinned overrides.testPattern into
+// args.plan.testPattern exactly like plan.gate (string|null; absent ⇒ null — the plan.gate precedent).
+// A non-empty string is appended VERBATIM as the assert-test-in-diff.sh `--pattern '<value>'` argument at
+// BOTH merge-task invocation sites (initial + floor-retry); null ⇒ testPatternArg is '' so both dispatched
+// prompts are byte-identical to a testPattern-less run (criterion 2). The floor's *.test.sh union is
+// script-side (Phase 1, assert-test-in-diff.sh) — never re-stated per prompt. The glob-safe charset is
+// validated in war-config.mjs, never here (the value is embedded single-quoted into an agent shell line).
+const testPattern = (plan && typeof plan.testPattern === 'string' && plan.testPattern) ? plan.testPattern : null
+const testPatternArg = testPattern ? ` --pattern '${testPattern}'` : ''
 const intentClause = intent
   ? `\nCOMMANDER'S INTENT (the operator's purpose — your ceiling; the plan slice is your floor):\n${intent}\n`
   : ''
@@ -417,10 +430,10 @@ if (tasks.length) {
     : ''
   await agent(
     `Provision the worktree topology for WAR phase ${ph.id} "${ph.title}" by running ${SCRIPT}. `
-    + `Do NOT free-author git; only run these subcommands, fail loud on any non-zero exit (a foreign integration branch exits 3), and report a MergeResult.\n`
+    + `Do NOT free-author git; only run these subcommands, fail loud on ANY non-zero exit — treat every non-zero exit as a halt, do NOT special-case a single code (a foreign integration branch exits 3; a diverged local/origin base halts with its own distinct non-zero exit) — and report a MergeResult.\n`
     + `1. FROM THE MAIN CHECKOUT (${mainCheckout || 'the main repo checkout — your current working directory'}, NOT a task worktree): `
     + `provision-worktrees.sh ensure-exclude — this excludes \`.claude/\` in the parent checkout so the nested task worktrees do not surface as untracked there (probe E2).\n`
-    + `2. provision-worktrees.sh ensure-integration ${planSlug || '<plan-slug>'} ${ph.id} ${ph.workingBranch}${owned} — reuse the plan-namespaced integration branch ${ph.integrationBranch} if it is already ours (the --owned-file ledger), else cut it at ${ph.workingBranch}.\n`
+    + `2. provision-worktrees.sh ensure-integration ${planSlug || '<plan-slug>'} ${ph.id} ${ph.workingBranch}${owned} — reuse the plan-namespaced integration branch ${ph.integrationBranch} if it is already ours (the --owned-file ledger); else DERIVE the cut base against origin (ADR 0008): the script fetches origin/${ph.workingBranch} and reconciles the local ${ph.workingBranch} — equal or ahead → cut from local; behind → cut from the ORIGIN tip plus a guarded follower fast-forward (skipped with a warning when ${ph.workingBranch} is checked out in a worktree); a fetch failure or missing origin → cut from local with a stderr warning (today's offline behavior). DIVERGED (neither SHA an ancestor of the other) is a HALT: the script dies non-zero carrying BOTH SHAs and the two repair directions, and creates no branch. On that die — or ANY non-zero exit — report it in the MergeResult and STOP: never pick a side, never retry with a different base. The phase never starts; I surface the die message like today's foreign-branch halt.\n`
     + `3. Capture the resulting integration tip (TIP="$(git rev-parse ${ph.integrationBranch})"), then for EACH task run ensure-worktree at the integration tip captured in step 3 (idempotent; reuse if present, conservative heal if the dir went missing):\n${ensures}\n`
     + `Each ensure-worktree creates the worktree on its plan-namespaced branch off the integration tip and drops a .war-task marker. After this barrier every task worktree exists and the workers can run.\n`
     + `4. provision-worktrees.sh ensure-refinery-worktree ${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/_refinery ${ph.integrationBranch} — create (or re-attach) the Refinery's dedicated worktree on the integration branch. The Refinery performs every merge in this run-scoped worktree, never the Lead's main checkout.`
@@ -645,7 +658,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + `Also populate integration_sha with the rebased integration tip the gate ran against, so the gate-audit pass can confirm the gate ran at the integration tip.`
         + ` Before the _refinery merge step (b), run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${r.task.branch}${r.task.taskType === 'gitlink-bump' && r.task.declared ? ' --declared' : ''} (REGARDLESS of requiresTest — a submodule touch is refused whether or not the task needs a test; the relax-flag is only threaded for a declared gitlink-bump task). Exit 1 → return { mode: 'merge-task', status: 'submodule-blocked' } — do NOT merge. Exit 2 → return { mode: 'merge-task', status: 'error' }.`
         + (requiresTest
-          ? ` Also before step (b), run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch} to verify the task diff contains at least one test file. Branch on the exit code: exit 1 (no test in the diff) → return { mode: 'merge-task', status: 'no-test' } — do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'no-test' — a transient bad-ref must not spin a pointless add-test loop.`
+          ? ` Also before step (b), run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${testPatternArg} to verify the task diff contains at least one test file. Branch on the exit code: exit 1 (no test in the diff) → return { mode: 'merge-task', status: 'no-test' } — do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'no-test' — a transient bad-ref must not spin a pointless add-test loop.`
           : ` requiresTest:false — skip the assert-test-in-diff.sh check and proceed directly to the rebase+merge.`)
         + (requiresPackaging
           ? ` Also before step (b), run assert-packaging-in-diff.sh ${ph.integrationBranch} ${r.task.branch} to verify the task diff adds no file a Dockerfile's enumerated COPYs miss. Branch on the exit code: exit 1 (a flagged file → Dockerfile pair) → return { mode: 'merge-task', status: 'unpackaged' } — do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'unpackaged' — a transient bad-ref must not spin a pointless package-it loop.`
@@ -729,7 +742,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             + `On success, populate gate_output in the returned MergeResult with the executed gate output (stdout+stderr) so the post-merge gate-audit pass can review it as execution evidence. Do NOT curate or excerpt — each *.test.sh runner emits a single aggregate PASS line, so a partial paste reads as an under-run; include the complete *.test.sh runner list or state the total runner count. `
             + `Also populate integration_sha with the rebased integration tip the gate ran against, so the gate-audit pass can confirm the gate ran at the integration tip. `
             + (requiresTest
-              ? `Before the _refinery merge step (b), run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch} to verify the task diff now contains at least one test file. Branch on the exit code: exit 1 (no test in the diff) → return { mode: 'merge-task', status: 'no-test' }, do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'no-test' — a transient bad-ref must not spin a pointless add-test loop. `
+              ? `Before the _refinery merge step (b), run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${testPatternArg} to verify the task diff now contains at least one test file. Branch on the exit code: exit 1 (no test in the diff) → return { mode: 'merge-task', status: 'no-test' }, do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'no-test' — a transient bad-ref must not spin a pointless add-test loop. `
               : `requiresTest:false — skip the assert-test-in-diff.sh check. `)
             + (requiresPackaging
               ? `Also before step (b), run assert-packaging-in-diff.sh ${ph.integrationBranch} ${r.task.branch} to verify the task diff now adds no file a Dockerfile's enumerated COPYs miss. Branch on the exit code: exit 1 (a flagged file → Dockerfile pair) → return { mode: 'merge-task', status: 'unpackaged' }, do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'unpackaged' — a transient bad-ref must not spin a pointless package-it loop.`
