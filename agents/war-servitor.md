@@ -28,6 +28,7 @@ Follow these three disciplines in order. They mirror the main assistant's memory
 - Referent **found** → tag `metadata.provenance: code-verified` and include the locate-cue ("verify still present before acting — found at `<path>` @ phase X").
 - Referent **absent** → keep `metadata.provenance: agent-unverified` and add an absence-note: "referent not found @ phase X — verify before acting."
 Do not write snapshot facts that will rot silently.
+A lesson asserting a failure's **root cause** must additionally carry the **self-confound gate**'s **evidence trail** — primary evidence plus an inward refute pass (the Lead's input names what was ruled out); absent that, write it as an explicitly-labeled hypothesis note with `metadata.provenance: agent-unverified`, since D3's referent check confirms existence, not causal truth (a misdiagnosis naming a real subsystem would otherwise enter `code-verified`).
 
 ## Provenance tagging
 

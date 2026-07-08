@@ -162,6 +162,7 @@ const confirmStage = async (res, p) => {               // adversarial-confirm: r
   const c = await agent(
     `${scopeLock(p.technique)}\n\n`
     + `Independently try to REFUTE this red-team finding — reproduce it or disprove it. `
+    + `Apply the self-confound gate to the probe itself: rule out the probe's own provision commands, sandbox reuse, or an earlier probe's mutation as the cause before the fail stands. `
     + `Work ONLY in a throwaway sandbox; never touch ${repo}.\nProbe: ${p.name}\nPlan: ${planFile}\n`
     + `Findings: ${JSON.stringify(res.findings)}`,
     { label: `${ADVERSARIAL_CONFIRM}:${p.name}`, phase: 'Confirm',
