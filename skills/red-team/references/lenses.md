@@ -81,5 +81,5 @@ Spine: <6 lenses>. Bespoke: <probes run>. Executed in sandbox: <which>.
 
 ## Safety
 - Never mutate the repo's source or run the plan against the real repo — sandboxes only, cleaned up.
-- A `fail` needs reproduced evidence; unreproduced findings are downgraded.
+- A `fail` needs reproduced evidence; unreproduced findings are downgraded. When you (the Lead) adjudicate a confirmed `fail` at Steps 4–5, apply the **self-confound gate** first — rule out the probe's own provision commands, sandbox reuse, or an earlier probe's mutation as the cause before the finding stands.
 - Never "execute" an irreversible/outward-facing plan step (push/deploy/send) — analyze it.

@@ -41,6 +41,16 @@ For **each** entry in the section (a literal `None` is a valid, complete declara
 
 Findings route the **normal plan-patch loop** (Steps 4–5): `needsDecision` blocks and is grilled one at a time until the entry is justified/narrowed or removed; the AI-declared Minor is auto-noted.
 
+## Diagnosis pre-flight (self-confound gate)
+
+Before you attribute any probe fail or unexpected result during Steps 3–5 — a red probe, a broken baseline, an odd sandbox or live-system state — to the plan, the repo, or a subsystem, run this **self-confound gate**: the refute discipline aimed inward.
+1. **Action-provenance first.** Enumerate your own and any concurrent actor's recent **mutating** actions against the observed state and explicitly rule each out — "Did I cause this?" is question #1 — before blaming the plan, the repo, or a subsystem.
+2. **Single-path validation.** Never validate or reproduce against the same shared mutable state through two paths back-to-back (manual **and** automated); pick one path and re-provision fresh state before switching.
+3. **Hypothesis promotion gated on primary evidence.** No durable artifact — a memory/lesson write, a `war-followup` issue, a fix plan or spec, a sub-agent fan-out (the closed D3 channel list) — may encode a root-cause diagnosis until the mechanism is shown from **primary evidence** (raw logs, a clean repro) **and** an inward refute pass has proven the cause is not your own action.
+4. **State the falsifier.** Before acting on a diagnosis, state the observation that would falsify it and go check; evidence merely consistent with the theory is not proof.
+
+Escape-valve: the gate blocks *promotion*, never diagnosis or escalation — when that evidence is unobtainable (ephemeral state, no logs), record the diagnosis as an explicitly-labeled **hypothesis** (report/ledger note) and/or escalate, then proceed. In-repo precedent: lesson `redteam-executed-probe-cwd-reset-hits-real-remote` is a recorded self-confound — a probe's own cwd reset hit the real remote.
+
 ## Invariants (never violate)
 - Never mutate the repo's source or run the plan against the real repo — all execution in throwaway temp dirs / worktrees, cleaned up. You write only the plan file (patches) and the report.
 - A `fail` requires **reproduced** evidence; the adversarial-confirm stage downgrades anything unreproduced. Prove, don't assert.
