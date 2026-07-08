@@ -113,12 +113,12 @@ A task reaches the refiner with exactly one terminal **outcome**. Two are produc
 
 ## ServitorResult — `war-servitor` (once per phase, after land)
 ```jsonc
-{ phase, target: "<learnings target path>",
-  files_written: ["path"],
+{ phase, target: "<absolute memoryLocalRoot>",
+  files_written: ["<absolute path under memoryLocalRoot>"],
   learnings: [ { title, why } ] }
 ```
 `memory_index_updated` is **retired** (spec §4.6): the servitor no longer maintains `MEMORY.md` — the index is a generated projection the Lead regenerates with `war-memory render-index` after the servitor returns (Gate 2). The servitor writes lesson files only.
-The servitor writes ONLY under `learningsTarget` (confinement is the capability allowlist — no Bash, only Read/Grep/Glob/Write/Edit — so its sole write path is Write/Edit; the PreToolUse scope hook then gates those by `agent_type` to the learnings path-pattern `*/.claude/projects/*/memory/*` or `*/docs/learnings/*`, [ADR 0002](../../../docs/adr/0002-scope-by-agent-type.md)); it never touches source, branches, PRs, or issues.
+The servitor writes ONLY under the threaded absolute local memory root `memoryLocalRoot` (repo-root publication is the Lead's Gate-2 promotion — the servitor never writes `docs/learnings/`). Confinement is the capability allowlist — no Bash, only Read/Grep/Glob/Write/Edit — so its sole write path is Write/Edit; the PreToolUse scope hook then gates those by `agent_type` to the single local memory path-pattern `*/.claude/projects/*/memory/*`, and the provenance guard denies mutation of any pre-existing untagged memory file ([ADR 0002](../../../docs/adr/0002-scope-by-agent-type.md), [ADR 0022](../../../docs/adr/0022-servitor-local-root-writes-gate-2-promotion.md)); it never touches source, branches, PRs, or issues. Every path in `files_written` is **absolute** and under `memoryLocalRoot` (the Lead's Gate-2 reconciliation is an absolute-prefix check).
 
 ## ScoutResult — `war-setup-scout` (once, before provisioning)
 The read-only, Explore-class setup-scout (`agents/war-setup-scout.md`) reads the **target repo's own** setup signals and derives an ordered provisioning command list. It returns **only**:
