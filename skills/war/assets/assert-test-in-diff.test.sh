@@ -27,6 +27,16 @@
 #      c. SAME as 6a but cwd seeded with app.test.js -> exit 0 (LOAD-BEARING:
 #         guards the noglob regression — bare `for pat in $custom_pattern`
 #         glob-expands *.test.js against the cwd without `set -f`)
+#   7. --pattern '*.test.ts' (target-repo TS convention), diff adds src/foo.test.ts:
+#      a. BARE -> non-zero (.test.ts not in default set); b. --pattern -> exit 0
+#         (single-star crosses '/'). Load-bearing pair: default refuses .test.ts.
+#   8. '**/'-token literal-slash trap, root-level foo.test.ts:
+#      a. --pattern '**/*.test.ts' -> non-zero (bash `case` '**' has no globstar;
+#         the literal '/' needs a slash the root file lacks — why Setup proposes
+#         single-star tokens); b. --pattern '*.test.ts' -> exit 0 (contrast).
+#   9. UNION / delete-the-union check: diff adds hooks/x.test.sh, --pattern
+#      '*.test.ts' -> exit 0 (custom token misses .test.sh; the unioned *.test.sh
+#      arm satisfies the floor — floor ⊆ gate for the gate's unconditional find).
 set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -461,6 +471,113 @@ if [ "$rc6c" -eq 0 ]; then
   pass "case 6c: seeded cwd (app.test.js) + --pattern '*.test.js *.spec.js' matches pkg/foo.test.js -> exit 0 (noglob guard holds)"
 else
   fail "case 6c: seeded cwd + --pattern '*.test.js *.spec.js' -> expected exit 0, got $rc6c (glob-expansion corrupted the token; set -f missing)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 7: custom --pattern '*.test.ts' — the target-repo TypeScript convention.
+# A diff adding only src/foo.test.ts (spec validation 3, single-star variant):
+#   7a. BARE (no --pattern) -> non-zero: .test.ts is NOT in the default gate
+#       discovery set (mirrors Case 3d's .test.js refusal); the floor refuses.
+#   7b. --pattern '*.test.ts' -> exit 0: single-star token; bash `case` `*`
+#       crosses '/', so it matches the nested src/foo.test.ts.
+# LOAD-BEARING pair: 7a proves the default refuses .test.ts, so 7b's pass is
+# attributable to the override, not a vacuous default match.
+# ---------------------------------------------------------------------------
+R7="$(setup_repo)"
+BASE7="$(git -C "$R7" rev-parse HEAD)"
+git -C "$R7" checkout -qb task/ts-test 2>/dev/null
+mkdir -p "$R7/src"
+printf 'test\n' > "$R7/src/foo.test.ts"
+git -C "$R7" add src/foo.test.ts
+git -C "$R7" commit -qm "add src/foo.test.ts"
+TASK7="$(git -C "$R7" rev-parse HEAD)"
+git -C "$R7" checkout -q - 2>/dev/null
+
+cwd7="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
+TMPFILES="$TMPFILES $cwd7"
+rc7a=0
+( cd "$cwd7" && bash "$SCRIPT" "$BASE7" "$TASK7" --repo "$R7" ) >/dev/null 2>&1 || rc7a=$?
+if [ "$rc7a" -ne 0 ]; then
+  pass "case 7a: src/foo.test.ts BARE (default pattern) -> non-zero (.test.ts not in default set)"
+else
+  fail "case 7a: src/foo.test.ts BARE -> expected non-zero, got exit 0 (default set over-counts .test.ts)"
+fi
+
+rc7b=0
+( cd "$cwd7" && bash "$SCRIPT" "$BASE7" "$TASK7" --pattern '*.test.ts' --repo "$R7" ) >/dev/null 2>&1 || rc7b=$?
+if [ "$rc7b" -eq 0 ]; then
+  pass "case 7b: src/foo.test.ts + --pattern '*.test.ts' -> exit 0 (single-star crosses /)"
+else
+  fail "case 7b: src/foo.test.ts + --pattern '*.test.ts' -> expected exit 0, got $rc7b (single-star token should match nested .test.ts)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 8: the '**/'-token literal-slash trap (documents why Setup proposes
+# SINGLE-star tokens, not the spec Decision A '**/*.test.ts' example).
+# A root-level foo.test.ts:
+#   8a. --pattern '**/*.test.ts' -> non-zero: in bash `case`, '**' is just two
+#       '*' (no globstar); the literal '/' between '**' and '*' REQUIRES a slash
+#       in the path, so a root-level file MISSES.
+#   8b. --pattern '*.test.ts' (single-star) -> exit 0: same file matches.
+# LOAD-BEARING pair: 8b proves the file WOULD match under a single-star token,
+# so 8a's miss is attributable specifically to the '**/' literal-slash trap,
+# not to an unrelated reason the file fails to match.
+# ---------------------------------------------------------------------------
+R8="$(setup_repo)"
+BASE8="$(git -C "$R8" rev-parse HEAD)"
+git -C "$R8" checkout -qb task/root-ts 2>/dev/null
+printf 'test\n' > "$R8/foo.test.ts"
+git -C "$R8" add foo.test.ts
+git -C "$R8" commit -qm "add root foo.test.ts"
+TASK8="$(git -C "$R8" rev-parse HEAD)"
+git -C "$R8" checkout -q - 2>/dev/null
+
+cwd8="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
+TMPFILES="$TMPFILES $cwd8"
+rc8a=0
+( cd "$cwd8" && bash "$SCRIPT" "$BASE8" "$TASK8" --pattern '**/*.test.ts' --repo "$R8" ) >/dev/null 2>&1 || rc8a=$?
+if [ "$rc8a" -ne 0 ]; then
+  pass "case 8a: root foo.test.ts + --pattern '**/*.test.ts' -> non-zero ('**/' literal-slash trap)"
+else
+  fail "case 8a: root foo.test.ts + --pattern '**/*.test.ts' -> expected non-zero, got exit 0 ('**/' unexpectedly matched a root file)"
+fi
+
+rc8b=0
+( cd "$cwd8" && bash "$SCRIPT" "$BASE8" "$TASK8" --pattern '*.test.ts' --repo "$R8" ) >/dev/null 2>&1 || rc8b=$?
+if [ "$rc8b" -eq 0 ]; then
+  pass "case 8b: root foo.test.ts + --pattern '*.test.ts' (single-star) -> exit 0 (contrast: the file DOES match single-star)"
+else
+  fail "case 8b: root foo.test.ts + --pattern '*.test.ts' -> expected exit 0, got $rc8b (single-star should match a root file)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 9: the UNION / delete-the-union check. A diff adding only hooks/x.test.sh
+# with --pattern '*.test.ts' -> exit 0.
+# The custom token '*.test.ts' does NOT match a .test.sh file; the ONLY way this
+# exits 0 is the unioned *.test.sh arm (match_sh_suite) mirroring the gate's
+# unconditional discovery. Delete the union and this flips to exit 1 -> the
+# assertion fails. This is the floor ⊆ gate guarantee: a .test.sh suite
+# satisfies the floor regardless of the custom pattern.
+# memory: weak-test-assertion-passes-without-feature-being-exercised.
+# ---------------------------------------------------------------------------
+R9="$(setup_repo)"
+BASE9="$(git -C "$R9" rev-parse HEAD)"
+git -C "$R9" checkout -qb task/union-sh 2>/dev/null
+mkdir -p "$R9/hooks"
+printf 'test\n' > "$R9/hooks/x.test.sh"
+git -C "$R9" add hooks/x.test.sh
+git -C "$R9" commit -qm "add hooks/x.test.sh"
+TASK9="$(git -C "$R9" rev-parse HEAD)"
+git -C "$R9" checkout -q - 2>/dev/null
+
+cwd9="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
+TMPFILES="$TMPFILES $cwd9"
+rc9=0
+( cd "$cwd9" && bash "$SCRIPT" "$BASE9" "$TASK9" --pattern '*.test.ts' --repo "$R9" ) >/dev/null 2>&1 || rc9=$?
+if [ "$rc9" -eq 0 ]; then
+  pass "case 9: hooks/x.test.sh + --pattern '*.test.ts' -> exit 0 (union: *.test.sh always satisfies the floor)"
+else
+  fail "case 9: hooks/x.test.sh + --pattern '*.test.ts' -> expected exit 0, got $rc9 (union deleted? floor went blind to the gate's *.test.sh discovery)"
 fi
 
 # ---------------------------------------------------------------------------
