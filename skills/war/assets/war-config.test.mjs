@@ -878,6 +878,130 @@ test('doc-contract: SKILL.md Gate 2 has the append-if-absent CLAUDE.md pointer d
 })
 
 // ---------------------------------------------------------------------------
+// Servitor learnings write path doc contracts (#584, End-state 6)
+// Token-anchored + case-tolerant (`prompt-only-clause-grep-guard-must-tolerate-sentence-case`);
+// the three existing Gate-2 locks above (render-index --local AND --repo, the pointer duty,
+// prefetch --repo) stay green unmodified.
+// ---------------------------------------------------------------------------
+
+// Slice Setup step 4 (the "two memory roots" item) from its anchor to the seed-render sub-bullet.
+function setupTwoRootsSection() {
+  const text = readDoc('skills/war/SKILL.md')
+  const start = text.indexOf('Resolve the **two memory roots**')
+  assert.ok(start >= 0, 'SKILL.md must retain the Setup "two memory roots" step')
+  const end = text.indexOf('Setup seed render', start)
+  return text.slice(start, end === -1 ? undefined : end)
+}
+
+// Slice the Gate-2 publication step from its anchor to the next top-level heading.
+function gate2Section() {
+  const text = readDoc('skills/war/SKILL.md')
+  const start = text.indexOf('**Post-servitor publication (Gate 2')
+  assert.ok(start >= 0, 'SKILL.md must retain the Gate 2 post-servitor publication step')
+  const end = text.indexOf('\n## ', start)
+  return text.slice(start, end === -1 ? undefined : end)
+}
+
+test('doc-contract: SKILL.md Setup step 4 threads memoryLocalRoot and names the memory-probe omission producer (#584)', () => {
+  const section = setupTwoRootsSection()
+  const lc = section.toLowerCase()
+  assert.ok(section.includes('memoryLocalRoot'), 'Setup step 4 must thread `memoryLocalRoot` (the servitor\'s only writable path)')
+  assert.ok(
+    lc.includes('memory probe') && (lc.includes('omit') || lc.includes('omission')),
+    'Setup step 4 must name the memory-probe failure as the producer that omits memoryLocalRoot (Wrap-up self-skips)'
+  )
+})
+
+test('doc-contract: SKILL.md drops the retired scope-hook-glob compatibility clause (Task 2 obsoletes it, #584)', () => {
+  const text = readDoc('skills/war/SKILL.md')
+  assert.ok(
+    !text.includes('must still match the servitor scope-hook'),
+    'SKILL.md must drop the retired "must still match the servitor scope-hook\'s glob" clause — the servitor has no repo-root write left'
+  )
+})
+
+test('doc-contract: SKILL.md Gate 2 carries the files_written reconciliation assertion (#584)', () => {
+  const section = gate2Section()
+  const lc = section.toLowerCase()
+  assert.ok(section.includes('files_written'), 'Gate 2 must name the servitorResult.files_written reconciliation')
+  assert.ok(
+    lc.includes('reconciliation') || lc.includes('prefix check'),
+    'Gate 2 files_written check must be an absolute-prefix reconciliation (fail loud on a stray path)'
+  )
+})
+
+test('doc-contract: SKILL.md Gate 2 names the p<N>-publication worktree and the crash-heal scan (#584)', () => {
+  const section = gate2Section()
+  assert.ok(
+    section.includes('p<N>-publication'),
+    'Gate 2 must name the phase-scoped `p<N>-publication` worktree'
+  )
+  assert.ok(
+    section.includes('ensure-publication-worktree') && section.includes('remove-publication-worktree'),
+    'Gate 2 must use the provision-worktrees.sh publication subcommand pair (never a prose git worktree add)'
+  )
+  // Heal-clause token: the entry scan for a leftover publication worktree.
+  assert.ok(
+    section.includes('p*-publication'),
+    'Gate 2 must carry the entry heal-scan clause (leftover `p*-publication` worktree ⇒ clean-remove / dirty-escalate)'
+  )
+})
+
+test('doc-contract: SKILL.md Gate 2 carries the retry-once CAS rule (#584)', () => {
+  const section = gate2Section().toLowerCase()
+  assert.ok(
+    section.includes('retry once') && section.includes('escalate'),
+    'Gate 2 push failure must fetch/replay, retry once, then escalate (never force)'
+  )
+})
+
+test('doc-contract: SKILL.md Gate 2 carries the copy-with-marker / marker-after-push rule (#584)', () => {
+  const section = gate2Section()
+  const lc = section.toLowerCase()
+  assert.ok(section.includes('metadata.promoted'), 'Gate 2 must name the `metadata.promoted:` marker shape')
+  assert.ok(
+    lc.includes('never delete'),
+    'Gate 2 marker rule must state the local original is never deleted (copy-with-marker, not a move)'
+  )
+  assert.ok(
+    lc.includes('after the successful push') || lc.includes('only after the push') || (lc.includes('after') && lc.includes('push')),
+    'Gate 2 must stamp the marker only after the successful push'
+  )
+})
+
+test('doc-contract: SKILL.md Gate 2 carries the overwrite-on-promote rule (#584)', () => {
+  const section = gate2Section().toLowerCase()
+  assert.ok(
+    section.includes('overwrite-on-promote') || (section.includes('overwrit') && section.includes('same-slug')),
+    'Gate 2 must state a same-slug repo file is overwritten on promote (the recurrence-update mechanism)'
+  )
+})
+
+test('doc-contract: swept surfaces no longer offer docs/learnings as a servitor-writable glob or aggregate file (#584)', () => {
+  // Enumerated file list — anchored to these files, never a repo-root scan
+  // (`absence-guard-search-root-must-anchor-to-subtree`,
+  //  `enumerated-file-list-absence-guard-for-rename-with-legitimate-history`).
+  // `docs/learnings/` itself is legitimate (the promotion destination) — anchor on the retired
+  // *phrasings*: the servitor-writable glob (`docs/learnings/*`) and the aggregate-file shape.
+  const sweptSurfaces = [
+    'skills/war/SKILL.md',
+    'skills/war/references/design.md',
+    'skills/war/references/schemas.md',
+  ]
+  for (const relPath of sweptSurfaces) {
+    const text = readDoc(relPath)
+    assert.ok(
+      !text.includes('docs/learnings/*'),
+      `${relPath} must not offer \`docs/learnings/*\` as a servitor-writable glob (servitor writes only the local root now)`
+    )
+    assert.ok(
+      !text.includes('docs/learnings/phase-') && !text.includes('phase-N.md'),
+      `${relPath} must not carry the retired \`docs/learnings/phase-<N>.md\` aggregate-file shape (one file per fact, local-root only)`
+    )
+  }
+})
+
+// ---------------------------------------------------------------------------
 // Run-lifecycle robustness doc contracts (#582/#583/#586, End-state 6 — SKILL.md half)
 // Token-anchored + case-tolerant per `prompt-only-clause-grep-guard-must-tolerate-sentence-case`.
 // ---------------------------------------------------------------------------

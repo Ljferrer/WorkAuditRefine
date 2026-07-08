@@ -267,6 +267,17 @@ rebase of merge-task runs in the *task* worktree, not here.) Provisioned in the 
 concurrent run could share. Isolation is prompt-enforced, not hook-enforced.
 _Avoid_: refiner checkout, merge sandbox.
 
+**Publication worktree**:
+The transient, **phase-scoped** working-branch checkout the Lead provisions at Gate 2 to publish a
+landed phase's promotable lessons (`<worktreeRoot>/<runId>/p<N>-publication`). Created and removed by
+`provision-worktrees.sh` (`ensure-publication-worktree` / `remove-publication-worktree`, never a prose
+`git worktree add`); it holds the `docs(learnings): phase N` commit + the CLAUDE.md pointer duty and is
+pushed via `ensure-origin`'s push-first CAS, then removed. It **never persists across phases**; a leftover
+from a crash is healed at Setup and Gate-2 entry (clean ⇒ removed, dirty ⇒ escalated). Contrast the
+run-scoped `_refinery` naming (Refinery worktree): `_refinery` is one-per-run, `p<N>-publication` is
+one-per-phase — the run-scoped-vs-phase-scoped naming convention of [ADR 0021](docs/adr/0021-run-lifecycle-provision-contract.md).
+_Avoid_: publish checkout, learnings worktree.
+
 ### Phase outcomes
 
 **Dead phase**:
@@ -521,6 +532,16 @@ recording how the fact was established. The ladder is also the recall-weight ord
 correction-precedence order: a higher tier supersedes a lower.
 _Avoid_: source, confidence (overloaded); accuracy (provenance records *how established*, not *how correct*).
 
+**WAR-editable memory file**:
+A memory file the servitor is allowed to mutate in place: one whose frontmatter carries a nested
+`metadata.provenance` value. A pre-existing file **without** it is user-authored — top-of-ladder
+([ADR 0007](docs/adr/0007-memory-provenance.md)), agent-immutable: the servitor may not Write, Edit, or
+NotebookEdit over it (the provenance-presence discriminator, enforced fail-closed by
+`validate-servitor-provenance.sh`); it writes a new `[[slug]]`-cross-linked file instead. A top-level
+`provenance:` line does **not** count — the value must be nested under `metadata:`.
+_Avoid_: "verified file" (presence of the *key*, not any tier value, is the discriminator); assuming an
+untagged file is agent-authored (untagged ≈ hand-authored).
+
 **Verify-on-write**:
 The servitor's discipline of Read/Grep-confirming a named file/flag/symbol exists before recording a
 fact about it: found → `code-verified`; absent → `agent-unverified` with an absence-note. Distinct
@@ -533,6 +554,17 @@ with clones, merges across users, reviewed like code) or the **local root** (pri
 machine/user, never committed). A lesson belongs to exactly one root, routed by its `metadata.type`
 and the redaction lint.
 _Avoid_: "the memory dir" (which one?); treating the roots as mirrors (they hold different lessons).
+
+**Promotion**:
+The Lead's Gate-2 act of publishing a `type: project` lesson from the local root into the repo root — a
+**copy-with-marker**, completed only **after the push succeeds**: the repo copy rides the phase PR (a
+same-slug repo file is **overwritten on recurrence**), and the local original gains a nested
+`metadata.promoted: <workingBranch>@phase-<N>` marker and is **never deleted** — it stays recall-visible
+(to `render-index`/prefetch/`/lessons-learned`) and is retired only by a future `/lessons-learned` pass
+once the merge is confirmed. A failed push or a redaction flag leaves the lesson unmarked in the local
+root — never dropped. The servitor never promotes; the Lead is the sole repo-root writer
+([ADR 0022](docs/adr/0022-servitor-local-root-writes-gate-2-promotion.md)).
+_Avoid_: "move" / "publish-and-delete" (the local original survives); treating it as a servitor write.
 
 **Hot set** / **Cold set**:
 The temperature split of a memory root, encoded by *location*: hot lessons sit in the root itself and

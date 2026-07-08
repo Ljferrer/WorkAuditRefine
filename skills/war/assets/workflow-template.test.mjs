@@ -67,6 +67,7 @@ const PROVISION_ARGS = (over = {}) => ({
     { id: 't2', issue: 102, title: 'Task two', planSlice: 'slice 2', roster: [{ lens: 'correctness' }], deps: ['t1'] },
   ],
   learningsTarget: '/abs/learnings',
+  memoryLocalRoot: '/abs/memory-local',
   ...over,
 })
 
@@ -176,16 +177,86 @@ test('the auditor prompt still receives the absolute task.worktree path (asserti
   assert.ok(a.includes('/abs/repo/.claude/worktrees/run-2026/p3-t1'), 'auditor prompt carries the absolute worktree path')
 })
 
-test('the servitor (Wrap-up) prompt no longer names WAR_WORKTREE (Task 6 clean-surface)', async () => {
+test('the servitor (Wrap-up) prompt no longer names WAR_WORKTREE and carries the absolute local memory root (clean-surface)', async () => {
   // The retired env var must not appear in the servitor prompt: the worktree-scope hook confines the
   // servitor by agent_type, not by an env-var the prompt sets (ADR 0002). The happy-path harness lands
-  // + wraps up, so a servitor seat is dispatched and its prompt is inspectable. It must still hand the
-  // servitor its absolute learnings target, just without the stale (also set as WAR_WORKTREE) clause.
+  // + wraps up, so a servitor seat is dispatched and its prompt is inspectable. It must hand the
+  // servitor its absolute LOCAL memory root (memoryLocalRoot — the sole writable path), not the
+  // learningsTarget (that is the read-path repo root, no longer a servitor write path).
   const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
   const wrap = calls.find(isServitor)
   assert.ok(wrap, 'a servitor (Wrap-up) seat was dispatched on the happy path')
   assert.ok(!/WAR_WORKTREE/.test(wrap.prompt), 'servitor prompt does NOT contain WAR_WORKTREE')
-  assert.ok(wrap.prompt.includes('/abs/learnings'), 'servitor prompt still carries the absolute learnings target')
+  assert.ok(wrap.prompt.includes('/abs/memory-local'), 'servitor prompt carries the absolute local memory root')
+})
+
+// ---------------------------------------------------------------------------
+// Task 1 (servitor-learnings-write-path): memoryLocalRoot threading + Wrap-up rewrite (End-state 1–2)
+// ---------------------------------------------------------------------------
+
+test('T1 — Wrap-up prompt: writable-path clause names memoryLocalRoot and does NOT name docs/learnings (scoped anchor)', async () => {
+  // The servitor's ONLY writable path is the absolute local memory root. The writable-path CLAUSE must
+  // name it and must NOT name docs/learnings — even though the prompt DELIBERATELY carries a "never write
+  // into any docs/learnings/" prohibition elsewhere, so a whole-prompt absence grep would be wrong.
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const wrap = calls.find(isServitor)
+  assert.ok(wrap, 'a servitor (Wrap-up) seat was dispatched on the happy path')
+  // Extract the writable-path clause (the line naming the sole writable path), never the whole prompt.
+  const clause = wrap.prompt.split('\n').find(l => /writable path/i.test(l))
+  assert.ok(clause, 'the Wrap-up prompt carries a writable-path clause')
+  assert.ok(clause.includes('/abs/memory-local'), 'the writable-path clause names the absolute local memory root')
+  assert.doesNotMatch(clause, /docs\/learnings/, 'the writable-path clause does NOT name docs/learnings (scoped anchor)')
+  // The prohibition (a separate line) IS present — proving the scoped anchor is necessary.
+  assert.match(wrap.prompt, /never write into any docs\/learnings/i,
+    'the prompt still carries the "never write into any docs/learnings/" prohibition (separate clause)')
+})
+
+test('T1 — Wrap-up prompt: carries the D1/D2 mutation-guard, recurrence-flow, and absolute files_written tokens', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const wrap = calls.find(isServitor)
+  assert.ok(wrap, 'a servitor (Wrap-up) seat was dispatched on the happy path')
+  const p = wrap.prompt
+  // Mutation guard (D1): a covering file without nested metadata.provenance is user-authored, never edited.
+  assert.match(p, /metadata\.provenance/, 'prompt names metadata.provenance (mutation-guard discriminator)')
+  assert.match(p, /user-authored/i, 'prompt marks an untagged covering file as user-authored')
+  assert.match(p, /never edit/i, 'prompt directs never to edit the user-authored file')
+  // Recurrence-on-a-repo-lesson flow: same slug + overwrite-on-promote.
+  assert.match(p, /same slug/i, 'prompt states the recurrence copy uses the same slug')
+  assert.match(p, /overwrite/i, 'prompt states the Gate-2 promotion overwrites the same-slug repo file (overwrite-on-promote)')
+  // Absolute files_written demand.
+  assert.match(p, /files_written[^.]{0,80}absolute/i, 'prompt demands absolute paths in files_written')
+})
+
+test('T1 — Wrap-up gate: memoryLocalRoot absent + landed → NO servitor dispatch + a logged skip line (delete-the-feature)', async () => {
+  // The gate is `landed && memoryLocalRoot`. With memoryLocalRoot null (memory disabled / legacy args)
+  // and a landed phase (learningsTarget still present), NO servitor seat fires and the skip is logged.
+  // Fails if the gate reverts to `landed && learningsTarget` (a servitor would then be dispatched).
+  const { calls, logs } = await runPhase(PROVISION_ARGS({ memoryLocalRoot: null }), defaultImpl)
+  const wrap = calls.find(isServitor)
+  assert.ok(!wrap, 'NO servitor seat is dispatched when memoryLocalRoot is absent')
+  const skip = logs.find(l => typeof l === 'string' && /Wrap-up skipped/i.test(l) && /memoryLocalRoot/i.test(l))
+  assert.ok(skip, 'a skip line naming the missing memoryLocalRoot is logged (never silent)')
+})
+
+test('T1 — both-surfaces drift guard: template source + war-servitor.md carry the mutation-guard, recurrence-flow, and absolute-path contracts', () => {
+  // Token-anchored, case-tolerant (never full-line bytes). Both the dispatched prompt (in src) and the
+  // standing card must carry the same disciplines; the standing card must have shed the retired routing.
+  for (const [name, surface] of [['template src', src], ['war-servitor.md', servitorMd]]) {
+    assert.match(surface, /metadata\.provenance/i, `${name}: names metadata.provenance (mutation-guard discriminator)`)
+    assert.match(surface, /user-authored/i, `${name}: marks an untagged pre-existing file user-authored`)
+    assert.match(surface, /never edit/i, `${name}: carries a never-edit directive for user-authored files`)
+    assert.match(surface, /same slug/i, `${name}: carries the recurrence-flow same-slug anchor`)
+    assert.match(surface, /overwrite/i, `${name}: carries the overwrite-on-promote anchor`)
+    assert.match(surface, /files_written[\s\S]{0,120}absolute|absolute[\s\S]{0,120}files_written/i,
+      `${name}: demands absolute files_written paths`)
+  }
+  // The standing card must have shed the retired either/or routing tokens.
+  assert.doesNotMatch(servitorMd, /phase-<N>\.md/i, 'war-servitor.md no longer names the phase-<N>.md aggregate file')
+  assert.doesNotMatch(servitorMd, /else:\s*append|else\b.{0,20}append to/i,
+    'war-servitor.md no longer carries an "else: append" routing arm')
+  // The template args header must no longer describe learningsTarget as "memory dir or docs/learnings".
+  assert.doesNotMatch(src, /memory dir or docs\/learnings/i,
+    'template args header no longer says "(memory dir or docs/learnings/)"')
 })
 
 test('plan-slug + run-id are threaded into branch/path construction (assertion 4)', async () => {

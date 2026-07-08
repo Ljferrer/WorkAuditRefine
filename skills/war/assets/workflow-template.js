@@ -25,7 +25,10 @@ export const meta = {
 //     tasks: [ { id, issue, title, branch, worktree, deps:[id],
 //                roster:[{ lens, depth? }], planSlice, requiresTest?, requiresPackaging? } ],  // roster: 1–5 distinct-lens audit seats; depth omitted → 'deep'.
 //                                     // requiresTest/requiresPackaging default true; false (Lead-set) skips that pre-merge floor with a logged, never-silent skip.
-//     learningsTarget,                // the servitor's only writable path (memory dir or docs/learnings/)
+//     learningsTarget,                // read-path resolved repo root — the worker self-query `--repo` flag AND
+//                                     // the Lead's Gate-2 promotion destination. NOT a servitor write path.
+//     memoryLocalRoot,                // absolute local memory root — the servitor's ONLY writable path;
+//                                     // OMITTED when Setup's memory probe reported memory disabled ⇒ Wrap-up skipped
 //     intent,                         // Commander's Intent, extracted VERBATIM by the Lead from the plan's
 //                                     // `## Commander's Intent` OR `## AI-Commander's Intent` section (either
 //                                     // heading; string|null; null/absent ⇒ literal behavior, ADR 0013)
@@ -106,6 +109,12 @@ const roundLimit = run.roundLimit ?? 3
 // (string|null). null/absent ⇒ intentClause is '' and every prompt below is byte-identical to an
 // intent-less run (criterion 10) — literal behavior.
 const intent = (typeof A.intent === 'string' && A.intent) ? A.intent : null
+// memoryLocalRoot (spec §4, decision B): the absolute local memory root — the servitor's ONLY writable
+// path (learningsTarget is retained above untouched as the read-path repo root feeding
+// workerSelfQueryRepoFlag + the Lead's Gate-2 promotion, NOT a servitor write path). Threaded like
+// intent/testPattern. null/absent ⇒ Setup's memory probe reported memory disabled ⇒ the Wrap-up
+// self-skips with a logged line (fail-open, never a dispatch at an unanchored target).
+const memoryLocalRoot = (typeof A.memoryLocalRoot === 'string' && A.memoryLocalRoot) ? A.memoryLocalRoot : null
 // Backstops (spec §4.4): the Lead is the single normalization point — plan-declared entries + Setup
 // auto-recorded entries are merged Lead-side into args.backstops (array|null of
 // { check, why, runner, source: 'plan'|'auto', aiDeclared? }). The Workflow passes these Lead-normalized
@@ -1284,12 +1293,17 @@ if (landDecision === 'landed') {
   log(`Holding the land for phase ${ph.id}: no task merged cleanly (see escalations) — the Lead must resolve and land.`)
 }
 
-// ---- WRAP-UP — capture durable learnings (war-servitor, write-scoped to learningsTarget) ----
+// ---- WRAP-UP — capture durable learnings (war-servitor, write-scoped to the local memory root) ----
+// Gate (spec §4, decision B): dispatch only when the phase landed AND memoryLocalRoot was threaded. An
+// absent memoryLocalRoot (Setup's memory probe reported memory disabled / a legacy args shape) self-skips
+// with a logged line — fail-open, never a crash, never a dispatch at an unanchored target. learningsTarget
+// is deliberately NOT in this condition anymore: it is the read-path repo root, not a servitor write path.
 let servitorResult = null
-if (landResult && landResult.status === 'landed' && learningsTarget) {
+if (landResult && landResult.status === 'landed' && memoryLocalRoot) {
   servitorResult = await agent(
     `Wrap up learnings for WAR phase ${ph.id} "${ph.title}" (landed on ${ph.workingBranch}).\n`
-    + `Your only writable path (your capability allowlist holds no Bash — Write/Edit only — and the PreToolUse scope hook gates those by agent_type to the learnings target): ${learningsTarget}.\n`
+    + `Your ONLY writable path (your capability allowlist holds no Bash — Write/Edit only — and the PreToolUse scope hook gates those by agent_type to the local memory root): ${memoryLocalRoot}.\n`
+    + `Every lesson file — regardless of metadata.type — is written under that local root. type: project marks a lesson PROMOTABLE (the Lead's Gate 2 promotes it into the repo root); NEVER write into any docs/learnings/ directory yourself — repo-root publication is the Lead's job, not yours.\n`
     + `Landed tasks: ${landed.join(', ') || 'none'}.\n`
     + `Audit log (verdicts + findings): ${JSON.stringify(auditLog)}\n`
     + `Escalations: ${JSON.stringify(escalated)}\n`
@@ -1298,12 +1312,16 @@ if (landResult && landResult.status === 'landed' && learningsTarget) {
     + `Capture only DURABLE, reusable learnings (gotchas, plan/code mismatches, deviations + why, patterns). Skip routine notes.\n`
     + `\n`
     + `Memory admission checklist — follow ALL three disciplines before every write:\n`
-    + `D1 DEDUP BEFORE WRITE: Glob the memory dir and read MEMORY.md. Read related candidate files. If an existing covering file exists, update that file in place — do not duplicate. Create a new file only when no existing file covers the fact. Cross-link related facts with [[slug]] references.\n`
-    + `D2 TIER PRECEDENCE: A higher tier supersedes a lower; a user-confirmed fact outranks any agent write; never overwrite a higher-tier fact with a lower-tier one. A contradicting fact supersedes an existing memory only if it is at the same or higher tier — update or replace the stale file and note the supersession inline with the tier that wins.\n`
+    + `D1 DEDUP BEFORE WRITE: Glob the memory dir and read MEMORY.md. Read related candidate files. If an existing covering file exists, update that file in place — do not duplicate — BUT only when it bears a nested metadata.provenance value; a covering file WITHOUT one is user-authored, never edit it — write a new file and [[slug]]-cross-link it. Create a new file only when no existing file covers the fact. RECURRENCE ON A REPO LESSON: when the covering lesson lives in the repo root (docs/learnings/), write the updated FULL COPY into your local root under the SAME slug with type: project (a prior promotion's metadata.promoted-stamped local copy, when present, is the canonical recurrence-edit target and is provenance-tagged so the mutation guard allows the edit); the Lead's Gate-2 promotion then OVERWRITES the same-slug repo file (overwrite-on-promote is the ratified update mechanism). Cross-link related facts with [[slug]] references.\n`
+    + `D2 TIER PRECEDENCE: A higher tier supersedes a lower; a user-confirmed fact outranks any agent write; never overwrite a higher-tier fact with a lower-tier one. A contradicting fact supersedes an existing memory only if it is at the same or higher tier — update or replace the stale file and note the supersession inline with the tier that wins. Only a provenance-tagged file is supersession-editable; to contradict an UNTAGGED (user-authored) file, write a NEW file carrying the supersession note inline and leave the old file untouched.\n`
     + `D3 VERIFY-ON-WRITE: Before recording any fact that names a file, flag, function, or symbol: use Read/Grep to confirm the referent currently exists. Referent found → tag metadata.provenance: code-verified and include the cue "verify still present before acting — found at <path> @ phase X". Referent absent → keep metadata.provenance: agent-unverified and add an absence-note: "referent not found @ phase X — verify before acting". Do not write snapshot facts that will rot silently.\n`
     + `\n`
-    + `Provenance tagging — tag EVERY memory file you write with metadata.provenance (nested under metadata:, next to type:). Use only the three canonical tiers: agent-unverified (default — the input is LLM-authored audit monologue), code-verified (D3 referent confirmed via Read/Grep), user-confirmed (operator/user explicitly confirmed). Retire legacy agent-observed: treat it as agent-unverified and never emit it going forward.`,
+    + `Provenance tagging — tag EVERY memory file you write with metadata.provenance (nested under metadata:, next to type:). Use only the three canonical tiers: agent-unverified (default — the input is LLM-authored audit monologue), code-verified (D3 referent confirmed via Read/Grep), user-confirmed (operator/user explicitly confirmed). Retire legacy agent-observed: treat it as agent-unverified and never emit it going forward.\n`
+    + `\n`
+    + `RETURN: every path in your ServitorResult files_written MUST be an ABSOLUTE path under ${memoryLocalRoot} (the Lead's Gate-2 reconciliation is an absolute-prefix check; a relative or out-of-root path fails the phase loud).`,
     { agentType: NS + 'war-servitor', phase: 'Wrap-up', label: `wrap-up:phase-${ph.id}`, schema: SERVITOR_RESULT, ...spawn('servitor') })
+} else if (landResult && landResult.status === 'landed' && !memoryLocalRoot) {
+  log(`Phase ${ph.id} landed but no memoryLocalRoot was threaded (memory disabled / legacy args) — Wrap-up skipped; no servitor dispatched.`)
 }
 
 // ---- HANDOFF BLOCK (ADR 0013) — the machine-readable debt map the next phase's decompose reads.

@@ -13,8 +13,16 @@
 #                    confinement was proven unattainable (E1). The sibling-write
 #                    residual is accepted, mitigated by absolute-path prompts +
 #                    auditor review.
-#   - war-servitor : allow only learnings targets (a project memory dir or
-#                    docs/learnings); deny anything else.
+#   - war-servitor : allow only the local project memory dir; deny anything
+#                    else. The repo-root (docs/learnings) allowance is
+#                    SUBTRACTED (#58 resolution): under the Gate-2 promotion
+#                    model the servitor has no legitimate repo-root write left —
+#                    the Lead copies+lints selected lessons into docs/learnings
+#                    from a transient publication worktree. The local glob stays
+#                    shape-based (not a per-run absolute path) because a hook
+#                    process cannot receive per-run values; the cross-project
+#                    residual is re-ratified, bounded by the provenance hook's
+#                    existing-target mutation guard.
 #   - everything else (war-refiner, the main session with no agent_type, and
 #                    any non-WAR agent) : fail-open / unrestricted, so no
 #                    existing non-WAR flow is newly constrained (back-compat).
@@ -38,7 +46,10 @@ deny() { echo "WAR: $1" >&2; exit 2; }
 # A path like /x/docs/learnings/../../etc/foo matches the servitor's bare glob
 # yet escapes the intended directory. The worker's .war-task ancestor walk is
 # equally bypassable. Rejecting '..' early closes the traversal hole in BOTH
-# branches. (Full memory-root anchoring is deferred — see plan notes / #58.)
+# branches. (#58 RESOLVED: the servitor's repo-root allowance is subtracted —
+# see the servitor bullet above; the local glob stays shape-based because a hook
+# cannot receive per-run values. Full per-run absolute anchoring remains out of
+# reach for that structural reason, not for lack of a decision.)
 # Portable case-pattern: '/../*' covers a .. segment in the middle; '/..'
 # covers a trailing .. segment. Works on macOS bash 3.2.57.
 #
@@ -76,8 +87,8 @@ case "$atype" in
   *war-servitor*)
     [ -z "$path" ] && exit 0
     case "$path" in
-      */.claude/projects/*/memory/*|*/docs/learnings/*) exit 0 ;;
-      *) deny "servitor write to '$path' is outside the learnings target (expected */.claude/projects/*/memory/* or */docs/learnings/*)." ;;
+      */.claude/projects/*/memory/*) exit 0 ;;
+      *) deny "servitor write to '$path' is outside the local memory root (expected */.claude/projects/*/memory/*)." ;;
     esac
     ;;
   *)

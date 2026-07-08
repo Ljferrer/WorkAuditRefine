@@ -79,9 +79,13 @@ expect "war-servitor memory path allowed" \
 expect "war-servitor random path denied" \
   2 "$(run "$(mk 'war-servitor' "$SERV_RANDOM")")"
 
-# 5: war-servitor under .../docs/learnings/phase-1.md -> 0
-expect "war-servitor learnings path allowed" \
-  0 "$(run "$(mk 'war-servitor' "$SERV_LEARN")")"
+# 5: war-servitor under .../docs/learnings/phase-1.md -> 2 (deny).
+# #58 resolution: the repo-root allowance is SUBTRACTED — the servitor writes
+# only the local memory root; docs/learnings is populated by the Lead Gate-2
+# promotion. Delete-the-feature: this fails (gets 0) if the */docs/learnings/*
+# alternative is reverted back into the hook's servitor allow-glob.
+expect "war-servitor learnings path denied (#58 repo-root subtracted)" \
+  2 "$(run "$(mk 'war-servitor' "$SERV_LEARN")")"
 
 # 6: war-refiner anywhere -> 0 (unrestricted)
 expect "war-refiner unrestricted" \
@@ -272,9 +276,11 @@ expect "war-worker path with .. denied (traversal)" \
 expect "war-servitor clean memory path still allowed (regression)" \
   0 "$(run "$(mk 'war-servitor' "$SERV_MEM")")"
 
-# Regression: clean (no-..) servitor learnings path still allowed.
-expect "war-servitor clean learnings path still allowed (regression)" \
-  0 "$(run "$(mk 'war-servitor' "$SERV_LEARN")")"
+# Regression: clean (no-..) servitor learnings path now DENIED (#58 subtraction);
+# the .. guard is not what blocks it — the servitor allow-glob no longer covers
+# docs/learnings at all.
+expect "war-servitor clean learnings path denied (#58 repo-root subtracted)" \
+  2 "$(run "$(mk 'war-servitor' "$SERV_LEARN")")"
 
 # Regression: clean (no-..) worker inside-worktree path still allowed.
 expect "war-worker clean inside-worktree path still allowed (regression)" \
