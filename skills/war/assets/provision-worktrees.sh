@@ -13,6 +13,8 @@
 #   ensure-worktree <path> <branch> <integration-tip>                          (Task 3)
 #   land-advance <working-ref> <new-sha>                                       (Task 2/clandiso)
 #   ensure-refinery-worktree <path> <integration-branch>                       (Task 1/clandiso)
+#   ensure-publication-worktree <path> <working-branch>                        (servitor-learnings-write-path)
+#   remove-publication-worktree <path>                                         (servitor-learnings-write-path)
 #   resolve-working-branch <desired> <slug> <date> [--owned-file PATH] [--owned REF]...  (checkout-guard)
 #   ensure-origin <resolved>                                                    (checkout-guard)
 #   teardown-task [--keep] --run-dir <ledger-dir> <path> <branch>              (Task 4)
@@ -824,6 +826,120 @@ cmd_ensure_refinery_worktree() {
   printf '%s\n' "$wt_path"
 }
 
+# --- subcommand: ensure-publication-worktree --------------------------------
+# ensure-publication-worktree <path> <working-branch>
+#
+# Ensure+re-attach for the Gate-2 learnings-publication worktree (p<N>-publication).
+# Structurally byte-for-byte mirrors cmd_ensure_refinery_worktree's six behaviors,
+# with the WORKING branch in place of the integration branch: the Lead checks out
+# the working branch here to commit `docs(learnings): phase N` before pushing via
+# ensure-origin's CAS. It checks the branch out AS-IS AT THE LOCAL TIP — the land
+# path's land-advance already advanced the local follower ref on every successful
+# land, so staleness is the CAS retry's job, never this subcommand's. A dirty tree
+# (tracked-file modifications) always FAILS LOUD — never reset, never destroy work.
+# Untracked files (e.g. the .war-task marker) do not count as dirty.
+#
+# Behaviors (mirror ensure-refinery-worktree):
+#   (a) Not registered / empty dir  -> git worktree add <path> <working-branch>
+#                                       + .war-task marker.
+#   (b) Registered + present + HEAD on the working branch  -> reuse (marker only).
+#   (c) Registered + present + HEAD detached/different + CLEAN  -> switch to the
+#                                       working branch (re-attach) + marker.
+#   (d) Registered + present + HEAD detached/different + DIRTY  -> FAIL LOUD.
+#   (e) Stale registry (dir gone)   -> prune + recreate on the working branch.
+#   (f) Non-empty unregistered dir  -> FAIL LOUD (D7).
+cmd_ensure_publication_worktree() {
+  [ $# -ge 2 ] || die "usage: ensure-publication-worktree <path> <working-branch>"
+  wt_path="$1"; work_branch="$2"
+  [ -n "$wt_path" ]     || die "ensure-publication-worktree: empty <path>"
+  [ -n "$work_branch" ] || die "ensure-publication-worktree: empty <working-branch>"
+
+  git_dir >/dev/null
+
+  if worktree_registered "$wt_path"; then
+    if [ -d "$wt_path" ]; then
+      # Worktree is present and registered. Check what HEAD is on.
+      cur_branch="$(git -C "$wt_path" symbolic-ref --short HEAD 2>/dev/null || true)"
+      if [ "$cur_branch" = "$work_branch" ]; then
+        # (b) Already on the working branch -> reuse untouched.
+        write_marker "$wt_path" "$work_branch"
+        printf '%s\n' "$wt_path"
+        return 0
+      fi
+      # HEAD is detached or on a different branch. Check for tracked-file
+      # modifications only (-uno); untracked files (e.g. .war-task) are safe.
+      if [ -n "$(git -C "$wt_path" status --porcelain -uno 2>/dev/null)" ]; then
+        # (d) DIRTY tree -> FAIL LOUD. Never reset, never destroy work.
+        die "ensure-publication-worktree: worktree at '$wt_path' is not on the working branch '$work_branch' and has uncommitted tracked-file changes — refusing to switch (would destroy work). Clean or stash changes first." 6
+      fi
+      # (c) CLEAN tree, detached or on a different branch -> re-attach.
+      git -C "$wt_path" switch "$work_branch" >/dev/null 2>&1 \
+        || die "ensure-publication-worktree: failed to switch '$wt_path' to working branch '$work_branch'"
+      write_marker "$wt_path" "$work_branch"
+      printf '%s\n' "$wt_path"
+      return 0
+    fi
+    # (e) Stale registry: the dir was removed out-of-band. Prune then recreate.
+    git worktree prune >/dev/null 2>&1 || true
+  else
+    # Not registered. An existing non-empty dir is unmanaged data -> fail loud.
+    if [ -e "$wt_path" ]; then
+      if ! dir_is_empty "$wt_path"; then
+        # (f) Non-empty unregistered dir -> FAIL LOUD.
+        die "refusing to provision publication worktree at '$wt_path': a non-empty, unregistered directory already exists there. Move or remove it by hand (D7)." 4
+      fi
+      # Empty dir: git worktree add creates the leaf; clear the empty placeholder.
+      rmdir "$wt_path" 2>/dev/null || true
+    fi
+  fi
+
+  # (a) or (e): Create (or recreate after prune) the publication worktree, checking
+  # out the working branch as-is at its local tip (no new branch created).
+  git worktree add "$wt_path" "$work_branch" >/dev/null 2>&1 \
+    || die "ensure-publication-worktree: failed to add worktree at '$wt_path' on branch '$work_branch'"
+
+  write_marker "$wt_path" "$work_branch"
+  printf '%s\n' "$wt_path"
+}
+
+# --- subcommand: remove-publication-worktree --------------------------------
+# remove-publication-worktree <path>
+#
+# Tear down the Gate-2 publication worktree after the docs commit is pushed (or
+# heal a crash leftover from Setup's pre-flight / Gate-2 entry scan). This is NOT
+# a reuse of teardown-task: teardown-task DELETES the branch, which is exactly
+# wrong here — the working branch must survive (a committed-but-unpushed docs
+# commit lives on its ref, and it is WAR's land target). So this subcommand NEVER
+# touches the branch ref.
+#
+#   * Registered + DIRTY (tracked-file modifications, -uno) -> die non-zero with a
+#     never-force message. Escalate for inspection — never force-remove work
+#     (teardown reap-order/fail-loud discipline). Untracked files (.war-task) are
+#     not "dirty".
+#   * Registered + CLEAN -> `git worktree remove` (NO --force) + registry prune.
+#   * Not registered -> nothing to remove; prune any stale registry entry. Idempotent.
+cmd_remove_publication_worktree() {
+  [ $# -ge 1 ] || die "usage: remove-publication-worktree <path>"
+  wt_path="$1"
+  [ -n "$wt_path" ] || die "remove-publication-worktree: empty <path>"
+
+  git_dir >/dev/null
+
+  if worktree_registered "$wt_path"; then
+    if [ -d "$wt_path" ] && [ -n "$(git -C "$wt_path" status --porcelain -uno 2>/dev/null)" ]; then
+      # DIRTY tree -> escalate. NEVER --force away uncommitted tracked work.
+      die "remove-publication-worktree: worktree at '$wt_path' has uncommitted tracked-file changes — refusing to remove it (never force; escalate for inspection instead). Commit or discard the changes by hand." 6
+    fi
+    # CLEAN -> plain remove (NO --force). The branch ref is NEVER touched, so a
+    # committed-but-unpushed docs commit on the working branch survives.
+    git worktree remove "$wt_path" >/dev/null 2>&1 \
+      || die "remove-publication-worktree: failed to remove clean worktree at '$wt_path'."
+  fi
+  # Clear any dangling registry entry (dir already gone / just removed). Never
+  # touches a branch ref.
+  git worktree prune >/dev/null 2>&1 || true
+}
+
 # --- subcommand: resolve-working-branch -------------------------------------
 # resolve-working-branch <desired> <slug> <date> [--owned-file PATH] [--owned REF]...
 #
@@ -929,20 +1045,22 @@ cmd_prune() {
 # --- dispatch ---------------------------------------------------------------
 main() {
   [ $# -ge 1 ] || die "usage: $PROG <subcommand> [args...]
-subcommands: ensure-integration, ensure-exclude, ensure-worktree, land-advance, ensure-refinery-worktree, resolve-working-branch, ensure-origin, teardown-task, teardown-phase, prune"
+subcommands: ensure-integration, ensure-exclude, ensure-worktree, land-advance, ensure-refinery-worktree, ensure-publication-worktree, remove-publication-worktree, resolve-working-branch, ensure-origin, teardown-task, teardown-phase, prune"
   sub="$1"; shift
   case "$sub" in
-    ensure-integration)       cmd_ensure_integration "$@" ;;
-    ensure-exclude)           cmd_ensure_exclude "$@" ;;
-    ensure-worktree)          cmd_ensure_worktree "$@" ;;
-    land-advance)             cmd_land_advance "$@" ;;
-    ensure-refinery-worktree) cmd_ensure_refinery_worktree "$@" ;;
-    resolve-working-branch)   cmd_resolve_working_branch "$@" ;;
-    ensure-origin)            cmd_ensure_origin "$@" ;;
-    teardown-task)            cmd_teardown_task "$@" ;;
-    teardown-phase)           cmd_teardown_phase "$@" ;;
-    prune)                    cmd_prune "$@" ;;
-    *) die "unknown subcommand '$sub' (have: ensure-integration, ensure-exclude, ensure-worktree, land-advance, ensure-refinery-worktree, resolve-working-branch, ensure-origin, teardown-task, teardown-phase, prune)" ;;
+    ensure-integration)          cmd_ensure_integration "$@" ;;
+    ensure-exclude)              cmd_ensure_exclude "$@" ;;
+    ensure-worktree)             cmd_ensure_worktree "$@" ;;
+    land-advance)                cmd_land_advance "$@" ;;
+    ensure-refinery-worktree)    cmd_ensure_refinery_worktree "$@" ;;
+    ensure-publication-worktree) cmd_ensure_publication_worktree "$@" ;;
+    remove-publication-worktree) cmd_remove_publication_worktree "$@" ;;
+    resolve-working-branch)      cmd_resolve_working_branch "$@" ;;
+    ensure-origin)               cmd_ensure_origin "$@" ;;
+    teardown-task)               cmd_teardown_task "$@" ;;
+    teardown-phase)              cmd_teardown_phase "$@" ;;
+    prune)                       cmd_prune "$@" ;;
+    *) die "unknown subcommand '$sub' (have: ensure-integration, ensure-exclude, ensure-worktree, land-advance, ensure-refinery-worktree, ensure-publication-worktree, remove-publication-worktree, resolve-working-branch, ensure-origin, teardown-task, teardown-phase, prune)" ;;
   esac
 }
 

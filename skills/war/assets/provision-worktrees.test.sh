@@ -1851,6 +1851,160 @@ expect "(f) behind+checked-out: warning names the skipped fast-forward" \
 expect "(f) behind+checked-out: checkout not phantom-dirtied (tracked files clean)" \
   "clean" "$([ -z "$(git -C "$Lf" status --porcelain -uno 2>/dev/null)" ] && echo clean || echo dirty)"
 
+# ===========================================================================
+# servitor-learnings-write-path Task 4: ensure-publication-worktree /
+# remove-publication-worktree  (End-state 5).
+#
+# ensure-publication-worktree <path> <working-branch> structurally mirrors
+# ensure-refinery-worktree's (a)-(f) with the WORKING branch in place of the
+# integration branch. remove-publication-worktree <path> is a NO-FORCE,
+# dirty-guarded removal that NEVER touches the branch ref (the working branch —
+# WAR's land target — must survive; a committed-but-unpushed docs commit lives
+# on it).
+#
+# Helper: branch_checked_out_somewhere <repo> <ref> -> "yes"/"no". Porcelain scan
+# for `branch refs/heads/<ref>` across all worktrees of <repo> (the same signal
+# the script's branch_checked_out_anywhere uses).
+branch_checked_out_somewhere() {
+  if git -C "$1" worktree list --porcelain 2>/dev/null | grep -Fxq -- "branch refs/heads/$2"; then
+    echo yes
+  else
+    echo no
+  fi
+}
+
+WORKB="dev/2026-07-08-myplan"
+
+# ---------------------------------------------------------------------------
+# Case (P.1) Create-at-tip: ensure-publication-worktree checks out the working
+# branch at its local tip; .war-task marker dropped; worktree HEAD symbolic-ref
+# == working branch; worktree tip == working-branch tip.
+# ---------------------------------------------------------------------------
+RP1="$(new_repo)"
+git -C "$RP1" branch "$WORKB" HEAD
+TIPP1="$(git -C "$RP1" rev-parse "$WORKB")"
+WTP1="$(new_wt_path)"
+code="$(run_in "$RP1" ensure-publication-worktree "$WTP1" "$WORKB")"
+expect "ensure-publication-worktree exits 0 on fresh create" 0 "$code"
+expect "publication worktree dir exists after create" \
+  "yes" "$([ -d "$WTP1" ] && echo yes || echo no)"
+expect "publication .war-task marker dropped" \
+  "yes" "$([ -f "$WTP1/.war-task" ] && echo yes || echo no)"
+expect "publication worktree HEAD symbolic-ref == working branch" \
+  "$WORKB" "$(git -C "$WTP1" symbolic-ref --short HEAD 2>/dev/null)"
+expect "publication worktree listed on the working branch" \
+  "$WORKB" "$(wt_on_branch "$RP1" "$WTP1")"
+expect "publication worktree tip == working-branch tip" \
+  "$TIPP1" "$(git -C "$WTP1" rev-parse HEAD 2>/dev/null)"
+
+# ---------------------------------------------------------------------------
+# Case (P.2) Idempotent reuse when already on the working branch: a sentinel
+# survives (no recreation).
+# ---------------------------------------------------------------------------
+printf 'sentinel-p2\n' > "$WTP1/SENTINEL"
+code="$(run_in "$RP1" ensure-publication-worktree "$WTP1" "$WORKB")"
+expect "ensure-publication-worktree reuse-on-branch exits 0" 0 "$code"
+expect "reuse-on-branch: sentinel survives (no recreation)" \
+  "sentinel-p2" "$(cat "$WTP1/SENTINEL" 2>/dev/null)"
+expect "reuse-on-branch: still on the working branch" \
+  "$WORKB" "$(wt_on_branch "$RP1" "$WTP1")"
+
+# ---------------------------------------------------------------------------
+# Case (P.3) Re-attach when detached and clean: detach HEAD (clean tree),
+# re-invoke -> switch back to the working branch.
+# ---------------------------------------------------------------------------
+git -C "$WTP1" checkout --detach HEAD >/dev/null 2>&1
+expect "P.3 setup: publication worktree is detached" \
+  "(detached)" "$(wt_head_branch "$RP1" "$WTP1")"
+code="$(run_in "$RP1" ensure-publication-worktree "$WTP1" "$WORKB")"
+expect "ensure-publication-worktree re-attaches from detached+clean (exits 0)" 0 "$code"
+expect "re-attach: worktree is now on the working branch" \
+  "$WORKB" "$(wt_on_branch "$RP1" "$WTP1")"
+
+# ---------------------------------------------------------------------------
+# Case (P.4) Detached AND dirty -> FAIL LOUD, never reset. Detach + modify a
+# TRACKED file (-uno dirty). Re-invoke must exit non-zero, leaving the dirty
+# modification untouched.
+# ---------------------------------------------------------------------------
+RP4="$(new_repo)"
+git -C "$RP4" branch "$WORKB" HEAD
+WTP4="$(new_wt_path)"
+run_in "$RP4" ensure-publication-worktree "$WTP4" "$WORKB" >/dev/null 2>&1
+git -C "$WTP4" checkout --detach HEAD >/dev/null 2>&1
+printf 'dirty-change\n' >> "$WTP4/seed.txt"
+expect "P.4 setup: publication worktree is detached" \
+  "(detached)" "$(wt_head_branch "$RP4" "$WTP4")"
+expect "P.4 setup: worktree is dirty (tracked-file modification)" \
+  "dirty" "$([ -n "$(git -C "$WTP4" status --porcelain -uno 2>/dev/null)" ] && echo dirty || echo clean)"
+code="$(run_in "$RP4" ensure-publication-worktree "$WTP4" "$WORKB")"
+expect "ensure-publication-worktree detached+dirty fails loud (exits non-zero)" \
+  "nonzero" "$([ "$code" -ne 0 ] && echo nonzero || echo zero)"
+expect "detached+dirty: worktree tree still dirty (modification not lost)" \
+  "dirty" "$([ -n "$(git -C "$WTP4" status --porcelain -uno 2>/dev/null)" ] && echo dirty || echo clean)"
+
+# ---------------------------------------------------------------------------
+# Case (P.5) Non-empty unregistered dir -> fail loud (D7).
+# ---------------------------------------------------------------------------
+RP5="$(new_repo)"
+git -C "$RP5" branch "$WORKB" HEAD
+WTP5="$(new_wt_path)"
+mkdir -p "$WTP5"
+printf 'precious publication data\n' > "$WTP5/PRECIOUS"
+code="$(run_in "$RP5" ensure-publication-worktree "$WTP5" "$WORKB")"
+expect "ensure-publication-worktree non-empty unregistered dir fails loud" \
+  "nonzero" "$([ "$code" -ne 0 ] && echo nonzero || echo zero)"
+expect "non-empty unregistered dir: precious file NOT deleted" \
+  "yes" "$([ -f "$WTP5/PRECIOUS" ] && echo yes || echo no)"
+
+# ---------------------------------------------------------------------------
+# Case (P.6) remove-publication-worktree on a CLEAN worktree: succeeds, the
+# worktree is gone from the list, the working branch is checked out NOWHERE, and
+# the branch ref is left intact (rev-parse still resolves — the land target must
+# survive).
+# ---------------------------------------------------------------------------
+RP6="$(new_repo)"
+git -C "$RP6" branch "$WORKB" HEAD
+BRSHA6="$(git -C "$RP6" rev-parse "$WORKB")"
+WTP6="$(new_wt_path)"
+run_in "$RP6" ensure-publication-worktree "$WTP6" "$WORKB" >/dev/null 2>&1
+expect "P.6 setup: working branch checked out in the publication worktree" \
+  "yes" "$(branch_checked_out_somewhere "$RP6" "$WORKB")"
+code="$(run_in "$RP6" remove-publication-worktree "$WTP6")"
+expect "remove-publication-worktree (clean) exits 0" 0 "$code"
+expect "remove clean: worktree gone from git worktree list" \
+  "" "$(wt_on_branch "$RP6" "$WTP6")"
+expect "remove clean: worktree dir removed" \
+  "no" "$([ -d "$WTP6" ] && echo yes || echo no)"
+expect "remove clean: working branch checked out NOWHERE" \
+  "no" "$(branch_checked_out_somewhere "$RP6" "$WORKB")"
+expect "remove clean: branch ref left INTACT (rev-parse still resolves)" \
+  "$BRSHA6" "$(git -C "$RP6" rev-parse "$WORKB" 2>/dev/null)"
+
+# ---------------------------------------------------------------------------
+# Case (P.7) remove-publication-worktree on a DIRTY worktree: dies non-zero with
+# a never-force message; the worktree and the branch ref are left intact.
+# ---------------------------------------------------------------------------
+RP7="$(new_repo)"
+git -C "$RP7" branch "$WORKB" HEAD
+BRSHA7="$(git -C "$RP7" rev-parse "$WORKB")"
+WTP7="$(new_wt_path)"
+run_in "$RP7" ensure-publication-worktree "$WTP7" "$WORKB" >/dev/null 2>&1
+printf 'uncommitted-work\n' >> "$WTP7/seed.txt"    # tracked-file modification
+expect "P.7 setup: worktree is dirty (tracked-file modification)" \
+  "dirty" "$([ -n "$(git -C "$WTP7" status --porcelain -uno 2>/dev/null)" ] && echo dirty || echo clean)"
+code="$(run_in "$RP7" remove-publication-worktree "$WTP7")"
+expect "remove-publication-worktree (dirty) exits non-zero" \
+  "nonzero" "$([ "$code" -ne 0 ] && echo nonzero || echo zero)"
+msg="$(run_in_msg "$RP7" remove-publication-worktree "$WTP7")"
+expect "remove dirty: refusal carries a never-force message" \
+  "match" "$(printf '%s' "$msg" | grep -qiE 'never force|refusing to remove' && echo match || echo nomatch)"
+expect "remove dirty: worktree dir intact" \
+  "yes" "$([ -d "$WTP7" ] && echo yes || echo no)"
+expect "remove dirty: worktree still on the working branch" \
+  "$WORKB" "$(wt_on_branch "$RP7" "$WTP7")"
+expect "remove dirty: branch ref left INTACT" \
+  "$BRSHA7" "$(git -C "$RP7" rev-parse "$WORKB" 2>/dev/null)"
+
 # ---------------------------------------------------------------------------
 printf '\n%d/%d cases passed\n' "$((n - fails))" "$n"
 [ "$fails" -eq 0 ] || { printf '%d FAILED\n' "$fails"; exit 1; }
