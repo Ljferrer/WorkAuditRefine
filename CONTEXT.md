@@ -98,6 +98,16 @@ phase. Sibling of **Repo-per-phase** (its cross-repo special case).
 _Avoid_: "one task per phase" (over-serializes — the rule is disjoint-and-independent, not solo); using
 intra-phase `deps` for code visibility or to dodge a same-file collision (neither works).
 
+**provision base divergence**:
+The local working-branch ref and `origin/<working>` are **neither equal nor ancestor-related** when
+`cmd_ensure_integration` cuts a phase's integration branch. A **fail-loud halt** — the script dies
+non-zero carrying both SHAs and the two repair directions, cuts no branch, and the phase never starts —
+never a silent pick of one side (ADR 0008: repair toward git). Equal / behind / ahead resolve
+automatically (cut at the origin tip when behind, with a guarded follower fast-forward); only true
+divergence halts.
+_Avoid_: silently picking local or origin; conflating it with a fetch failure / no-origin (which falls
+back to today's local cut with a warning).
+
 ### Repo-derived provisioning (Part B)
 
 **Provision list** (`run.provision`):
@@ -265,6 +275,25 @@ The single bound on every bounded-retry loop in WAR — fix-worker rounds, the l
 phase-resume all share `run.roundLimit` (default 3). One knob, one mental model.
 _Avoid_: separate per-loop limits, max-attempts.
 
+**gate-failure class** (`MergeResult.gate_failure_class`):
+The orthogonal label on a `gate_failed` — `introduced` | `baseline` | `environment` — that selects the
+recovery path: the bounded fix-worker loop, a proceed-with-backstop record, or a 0-round `env-blocked`
+escalation. Populated by the refiner's on-failure base re-run; absent ⇒ `introduced` (the fail-safe
+default). **Class routes; status stays `gate_failed`** — the status enum, `HARD_ESCALATION_REASONS`, and
+`KNOWN_LAND_DECISIONS` are untouched (ADR 0005 enum discipline; the finding-`disposition` precedent).
+_Avoid_: a new `MergeResult` status for the baseline/environment cases (status widening leaks into the
+land path); treating an absent class as anything but `introduced`.
+
+**baseline gate debt**:
+A gate failure the refiner proves **pre-existing** at the classification base (the phase integration
+base at merge-task; the detached `origin/<working>` tip at land) by re-running the failing gate there and
+matching the failing identifiers. It **never blocks** the diff that did not cause it — the merge/land
+proceeds — and is always recorded as a deduped `source: 'auto'` **Backstop** entry, surfaced at every
+land and in the final PR (ADR 0017: the un-run validation becomes a ratified-backstop record, never
+prose).
+_Avoid_: treating it as a passing gate (the gate is red — the debt just predates the diff); a silent
+proceed (the backstop entry is mandatory).
+
 ### Audit
 
 **Audit roster**:
@@ -384,6 +413,15 @@ its diff, enforced by a tested shell assertion at merge-task. The coarse *floor*
 distinct from the auditor's semantic *ceiling* (it is the right test, exercises the slice, is not
 weakened or skipped).
 _Avoid_: test coverage, test gate (the gate runs the suite; the floor inspects the diff).
+
+**test-floor pattern** (`overrides.testPattern`):
+The per-run glob set the **Test floor** matches a task's diff against, pinned at Setup *together with*
+the gate so floor ⊆ gate holds on any target repo. Threaded end-to-end like `plan.gate`, never parsed
+out of the gate command (the globs live in the target's test-runner config, not the command line). The
+gate's unconditional `*.test.sh` discovery is always unioned in; `null` (default) = the built-in
+WAR-repo gate-mirror defaults, byte-identical to today.
+_Avoid_: deriving it by parsing the gate command; pinning a pattern independent of the confirmed gate
+(floor ⊆ gate is one decision).
 
 **`requiresTest`** (task field):
 Whether a task must change a test file to be mergeable. Defaults `true`; the Lead sets it `false` at
