@@ -7,6 +7,7 @@ import { HARD_ESCALATION_REASONS } from './land-decision.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const auditorMd = readFileSync(join(here, '../../../agents/war-auditor.md'), 'utf8')
+const refinerMd = readFileSync(join(here, '../../../agents/war-refiner.md'), 'utf8')
 const src = readFileSync(join(here, 'workflow-template.js'), 'utf8').replace(/^export const meta/m, 'const meta')
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 const build = () => new AsyncFunction('agent', 'parallel', 'pipeline', 'log', 'phase', 'args', 'budget', src)
@@ -2125,6 +2126,93 @@ test('#237 — both merge-task dispatch prompts split exit-1 (no-test) from exit
     assert.ok(!clause.includes('exits non-zero'),
       `prompt ${name}: must NOT collapse exit codes with 'exits non-zero'`)
   }
+})
+
+// ---------------------------------------------------------------------------
+// Phase 2 Task 1 (#574/#596) — thread overrides.testPattern → assert-test-in-diff.sh --pattern
+// (both dispatched merge-task sites) + Provision-prompt base-derivation prose + war-refiner.md mirror.
+// Validation 2 (byte-identical when null) + the --pattern half of validation 6 (drift guard).
+// ---------------------------------------------------------------------------
+
+// Drive the no-test → add-test fix → re-audit(approve) → re-merge flow so BOTH the initial merge-task
+// prompt AND the floor-retry re-merge prompt are dispatched (first Refine call = no-test, second = merged).
+async function runNoTestLoop(over) {
+  let mergeCallCount = 0
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision' && /^provision-run:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker' && opts.phase === 'Work') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-refiner' && opts.phase === 'Refine') {
+      mergeCallCount++
+      return mergeCallCount === 1 ? { mode: 'merge-task', status: 'no-test' } : { mode: 'merge-task', status: 'merged' }
+    }
+    if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  return runPhase(NO_TEST_ARGS(over), impl)
+}
+// The two merge-task prompts are disambiguated by label: the initial merge is `merge:t1`, the floor-retry
+// re-merge is `merge:t1:floor-retry:r<n>` — the only Refine-phase 'floor-retry' seat in this flow.
+const mergePromptsOf = (calls) => {
+  const merges = calls.filter(isMergeTask)
+  return {
+    initial: merges.find(c => !/floor-retry/.test(c.opts.label || '')),
+    floorRetry: merges.find(c => /floor-retry/.test(c.opts.label || '')),
+  }
+}
+
+test('testPattern threading (validation 2): set ⇒ BOTH merge prompts carry the exact --pattern arg; set-minus-arg is byte-identical to the bare prompt', async () => {
+  const PAT = '*.test.ts *.test.tsx'
+  const ARG = ` --pattern '${PAT}'`
+  const PLAN_PAT = { file: 'docs/plans/wtprov-A.md', gate: 'make gate', testPattern: PAT }
+
+  const bare = mergePromptsOf((await runNoTestLoop()).calls)
+  const pat = mergePromptsOf((await runNoTestLoop({ plan: PLAN_PAT })).calls)
+
+  assert.ok(bare.initial && bare.floorRetry, 'both merge prompts (initial + floor-retry) dispatched in the bare no-test loop')
+  assert.ok(pat.initial && pat.floorRetry, 'both merge prompts (initial + floor-retry) dispatched with testPattern set')
+
+  // set ⇒ the exact --pattern '<value>' rides the assert-test-in-diff.sh invocation right after the task
+  // branch (anchored on ` to verify …` so the arg's INSERTION POINT is proven, no branch string coupling).
+  assert.ok(pat.initial.prompt.includes(`${ARG} to verify the task diff contains`),
+    'initial merge prompt: --pattern rides assert-test-in-diff.sh immediately after the task branch')
+  assert.ok(pat.floorRetry.prompt.includes(`${ARG} to verify the task diff now contains`),
+    'floor-retry re-merge prompt: --pattern rides assert-test-in-diff.sh immediately after the task branch')
+
+  // unset ⇒ NO --pattern anywhere in either prompt (bare).
+  assert.ok(!bare.initial.prompt.includes('--pattern'), 'null ⇒ initial merge prompt is bare (no --pattern)')
+  assert.ok(!bare.floorRetry.prompt.includes('--pattern'), 'null ⇒ floor-retry re-merge prompt is bare (no --pattern)')
+
+  // byte-identical: removing the single inserted arg restores the bare prompt EXACTLY (the *.test.sh
+  // union is script-side from Phase 1, never re-stated per prompt — so nothing else differs).
+  assert.equal(pat.initial.prompt.replace(ARG, ''), bare.initial.prompt,
+    'initial merge prompt: set minus the --pattern arg is byte-identical to bare')
+  assert.equal(pat.floorRetry.prompt.replace(ARG, ''), bare.floorRetry.prompt,
+    'floor-retry re-merge prompt: set minus the --pattern arg is byte-identical to bare')
+})
+
+test('testPattern drift-guard (validation 6, --pattern half): war-refiner.md step 4 carries the --pattern / overrides.testPattern tokens (token-anchored, case-tolerant)', () => {
+  // Token-anchored, NOT full-line bytes (shared-string-constant-quote-literal-byte-anchor-fragility) and
+  // case-tolerant (prompt-only-clause-grep-guard-must-tolerate-sentence-case). The standing clause names
+  // NO concrete runtime value by design — it cannot know it — so only these two tokens are load-bearing.
+  assert.match(refinerMd, /--pattern/i,
+    'war-refiner.md step 4 names the --pattern argument (standing mirror of the dispatched prompt)')
+  assert.match(refinerMd, /overrides\.testPattern/i,
+    "war-refiner.md step 4 attributes --pattern to the run's pinned overrides.testPattern")
+})
+
+test('Provision prompt (part c): step 2 describes the origin-derived base + divergence HALT, treating ANY non-zero exit as a halt (not exit-3-only)', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const p = calls.find(isProvision).prompt
+  assert.match(p, /ensure-integration/, 'step 2 runs ensure-integration')
+  assert.match(p, /fetch(es)? origin/i, 'step 2 describes fetching origin before cutting the base (ADR 0008 derivation)')
+  assert.match(p, /diverg/i, 'step 2 names the diverged local/origin base case')
+  // The divergence die is a distinct non-zero exit (p1t2 uses exit 7): the prompt must treat ANY non-zero
+  // exit as a halt, never special-case exit 3 (provision-divergence-die-exit-7-unenumerated).
+  assert.match(p, /any non-zero exit/i, 'the provision prompt treats ANY non-zero exit as a halt (does not special-case exit 3)')
+  assert.match(p, /never pick a side/i, 'divergence: report the die in the MergeResult, never pick a side, never retry with a different base')
 })
 
 // ---------------------------------------------------------------------------
