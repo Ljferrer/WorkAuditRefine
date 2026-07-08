@@ -43,7 +43,11 @@ export const DEFAULTS = {
   // docs/learnings/ lessons (default ON — published lessons are lint-scrubbed and ride each
   // phase PR, human-reviewed like code; the economy preset pins it off).
   memory: { retrieval: true, topK: 10, commitLearnings: true },
-  overrides: { gate: null, workingBranch: null, landingBranch: null, learningsTarget: null },
+  // overrides.testPattern: the run's pinned test-floor glob set (space-separated glob tokens) | null.
+  // null ⇒ today's hardcoded gate-mirror floor defaults, byte-identical. Floor ⊆ gate is ONE Setup
+  // decision (ADR 0006): testPattern is pinned TOGETHER with the gate, and the floor always unions the
+  // gate's unconditional *.test.sh discovery — so no custom pattern can make the floor exceed the gate.
+  overrides: { gate: null, workingBranch: null, landingBranch: null, learningsTarget: null, testPattern: null },
 }
 
 // Presets are partials, deep-merged over DEFAULTS by presetConfig().
@@ -147,9 +151,19 @@ export function validate(input) {
     }
   }
 
+  // Overrides: known keys only (a courtesy error on typos like `testPatern` — the memory.* precedent,
+  // so a mistyped key never silently runs the bare floor), each null or a string. testPattern carries an
+  // extra glob-safe charset check: its value is embedded single-quoted into an agent-executed shell line
+  // (assert-test-in-diff.sh --pattern), so any char outside [A-Za-z0-9_.*?/[] -] — notably a quote, ';',
+  // backtick, '$', or newline — could break out of the quoting, and an empty string is not a usable pattern.
+  const KNOWN_OVERRIDES = ['gate', 'workingBranch', 'landingBranch', 'learningsTarget', 'testPattern']
+  const GLOB_UNSAFE = /[^A-Za-z0-9_.*?\/ \[\]-]/
   for (const k of Object.keys(c.overrides)) {
     const v = c.overrides[k]
-    if (v !== null && typeof v !== 'string') errors.push(`overrides.${k} must be null or a string`)
+    if (!KNOWN_OVERRIDES.includes(k)) { errors.push(`overrides.${k} is not a known key (${KNOWN_OVERRIDES.join('|')}) — run /war-room to regenerate the config`); continue }
+    if (v !== null && typeof v !== 'string') { errors.push(`overrides.${k} must be null or a string`); continue }
+    if (k === 'testPattern' && typeof v === 'string' && (v === '' || GLOB_UNSAFE.test(v)))
+      errors.push(`overrides.testPattern must be a non-empty glob-safe string (only [A-Za-z0-9_.*?/[] -]; no quotes, ';', backticks, '$', or newlines) — it is embedded into an agent-executed shell command`)
   }
   return { valid: errors.length === 0, errors }
 }

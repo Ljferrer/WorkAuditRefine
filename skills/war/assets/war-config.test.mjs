@@ -331,6 +331,61 @@ test('unknown memory key rejected (no accepted-but-ignored keys)', () => {
   assert.match(msg, /\/war-room/)
 })
 
+// --- overrides.testPattern + overrides validation hardening (#574, ADR 0006) --
+// DEFAULTS.overrides.testPattern = null (today's hardcoded gate-mirror floor). A string is the
+// run's pinned test-floor glob set, embedded single-quoted into an agent-executed shell line
+// (assert-test-in-diff.sh --pattern) — so it must be a NON-EMPTY glob-safe string, and unknown
+// overrides.* keys get a courtesy error (the memory.* precedent — a typo never runs the bare floor).
+
+test('overrides.testPattern defaults to null (today\'s hardcoded floor, byte-identical)', () => {
+  assert.equal(DEFAULTS.overrides.testPattern, null)
+  assert.equal(fillDefaults({}).overrides.testPattern, null)
+  assert.equal(validate({}).valid, true)
+})
+
+test('overrides.testPattern accepts a glob string (single- and multi-token, glob charclass)', () => {
+  for (const p of ['*.test.ts', '*.test.ts *.test.tsx', '*.test.[jt]s', 'src/*.spec.js']) {
+    const r = validate({ overrides: { testPattern: p } })
+    assert.equal(r.valid, true, `testPattern ${JSON.stringify(p)} should validate; errors: ${r.errors.join('\n')}`)
+  }
+})
+
+test('overrides.testPattern non-string/non-null rejected with an error naming the key', () => {
+  for (const bad of [42, true, ['*.test.ts'], { glob: '*.test.ts' }]) {
+    const r = validate({ overrides: { testPattern: bad } })
+    assert.equal(r.valid, false, `testPattern ${JSON.stringify(bad)} must be rejected`)
+    assert.match(r.errors.join('\n'), /overrides\.testPattern/)
+  }
+})
+
+// Delete-the-check guard: strip the glob-safe charset test and every one of these strings
+// validates as a plain string — so each MUST be rejected with an error naming the key. Covers
+// the shell-metacharacters that break out of the single-quoting, plus empty and trailing-newline.
+test('overrides.testPattern rejects glob-unsafe / empty strings (shell-metachar break-out)', () => {
+  const unsafe = [
+    "foo'; rm -rf /",   // single quote — breaks the single-quoting
+    'a;b',              // command separator
+    'a`id`',            // backtick command substitution
+    '$FOO',             // parameter expansion
+    'a\nb',             // embedded newline
+    'abc\n',            // TRAILING newline (the /^…$/-before-\n anchor trap)
+    '',                 // empty is not a usable pattern (must be null instead)
+  ]
+  for (const p of unsafe) {
+    const r = validate({ overrides: { testPattern: p } })
+    assert.equal(r.valid, false, `unsafe testPattern ${JSON.stringify(p)} must be rejected`)
+    assert.match(r.errors.join('\n'), /overrides\.testPattern/)
+  }
+})
+
+test('unknown overrides key rejected with a courtesy error naming the key and /war-room', () => {
+  const r = validate({ overrides: { testPatern: '*.test.ts' } }) // typo: single 't'
+  assert.equal(r.valid, false)
+  const msg = r.errors.join('\n')
+  assert.match(msg, /overrides\.testPatern/)
+  assert.match(msg, /\/war-room/)
+})
+
 // --- resolveProvision (Part B) -----------------------------------------------
 // resolveProvision decides whether war-room Setup must run the setup-scout:
 //   • explicit non-empty run.provision → returned VERBATIM, source unchanged, no scout
