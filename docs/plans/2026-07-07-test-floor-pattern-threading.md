@@ -1,5 +1,19 @@
 # Test-floor pattern threading — operator-declared `overrides.testPattern`
 
+> **⚠️ SUPERSEDED — not executed (2026-07-08).** This plan's entire footprint shipped in the
+> **target-repo-agnostic-execution** campaign plan (PR #602, merged to master) and is ratified by
+> [ADR 0019 — target-derived execution values](../adr/0019-target-derived-execution-values.md),
+> which subsumes this work and names issue **#574** as closed. When re-added to the campaign hopper,
+> `/war-campaign` dedup found **nothing remaining** to implement — every proposed change is already on
+> master: `overrides.testPattern` (config default + glob-safe validation in `war-config.mjs`), the
+> three-site `--pattern` threading in `workflow-template.js`, the `agents/war-refiner.md` override, the
+> `skills/war/SKILL.md` proposal + zero-match handling (shipped as the `--afk` sanity floor: fall back to
+> `null` + a gate-audit `execution-evidence` HARD residual, rather than a hard-stop), the `war-room`
+> scout guidance, `schemas.md`, the `CONTEXT.md` "test-floor pattern" term, the `assert-test-in-diff.sh`
+> gate-union + comment pointer, and the `war-config.test.mjs` / `workflow-template.test.mjs` locks. The
+> proposed 0.14.9 → 0.15.0 bump is moot (master is at 0.14.11). Retained verbatim below as a historical
+> record of the original decomposition.
+
 Spec: [2026-07-07-test-floor-pattern-threading-design.md](../specs/2026-07-07-test-floor-pattern-threading-design.md)
 
 ## Commander's Intent
