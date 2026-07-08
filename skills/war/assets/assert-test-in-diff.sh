@@ -29,6 +29,15 @@
 # test types (.test.js, pytest, etc). The gate's resolveGate in war-config.mjs
 # is the authoritative source; this default mirrors it verbatim.
 #
+# --pattern IS LOAD-BEARING: the value is threaded per-run from the run's
+# overrides.testPattern config and passed through to this floor by the refiner.
+# A custom --pattern does NOT replace the floor wholesale — the gate's
+# UNCONDITIONAL *.test.sh discovery arm (resolveGate appends
+# `find . -name '*.test.sh' ...` to EVERY declared gate) is UNIONED into any
+# custom set (match_sh_suite), so a *.test.sh suite always satisfies the floor.
+# The union preserves floor ⊆ gate for the gate's unconditional discovery,
+# whatever pattern is pinned.
+#
 # macOS bash 3.2.57 compatible (no globstar, no associative arrays, no ${,,}).
 # Style mirrors validate-auditor-git.sh / provision-worktrees.sh.
 set -euo pipefail
@@ -101,8 +110,27 @@ changed_files="$($git_cmd diff --name-only "$base...$branch" 2>/dev/null)" || \
 # explicit prefix/suffix matching:
 #   Pattern 1: skills/**/*.test.mjs — file starts with "skills/" and ends with ".test.mjs"
 #   Pattern 2: **/*.test.sh        — file ends with ".test.sh" (repo-wide)
-# A custom --pattern string is matched by iterating its space-separated glob tokens (caller controls).
+# A custom --pattern string is matched by iterating its space-separated glob
+# tokens (caller controls), UNIONED with the gate's *.test.sh arm (match_sh_suite).
 # ---------------------------------------------------------------------------
+
+# match_sh_suite <path> -> exit 0 iff the path is a *.test.sh bash suite the
+# gate's UNCONDITIONAL discovery loop would run: repo-wide, excluding
+# node_modules/, .git/, and .claude/ to mirror:
+#   find . -name '*.test.sh' -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/.claude/*'
+# resolveGate appends this loop to EVERY declared gate, so this arm is unioned
+# into BOTH the default matcher (Pattern 2) and the custom --pattern branch —
+# a *.test.sh suite always satisfies the floor, preserving floor ⊆ gate.
+match_sh_suite() {
+  p="$1"
+  case "$p" in
+    node_modules/*|*/node_modules/*) return 1 ;;
+    .git/*|*/.git/*)                 return 1 ;;
+    .claude/*|*/.claude/*)           return 1 ;;
+    *.test.sh)                       return 0 ;;
+  esac
+  return 1
+}
 
 # match_default <path> -> exit 0 if the path matches the gate's default patterns.
 match_default() {
@@ -117,16 +145,9 @@ match_default() {
         *.test.mjs) return 0 ;;
       esac ;;
   esac
-  # Pattern 2: **/*.test.sh (bash-suite find, repo-wide).
-  # Exclude node_modules/, .git/, and .claude/ to mirror:
-  #   find . -name '*.test.sh' -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/.claude/*'
-  case "$p" in
-    node_modules/*|*/node_modules/*) return 1 ;;
-    .git/*|*/.git/*)                 return 1 ;;
-    .claude/*|*/.claude/*)           return 1 ;;
-    *.test.sh)                       return 0 ;;
-  esac
-  return 1
+  # Pattern 2: **/*.test.sh (bash-suite find, repo-wide) — extracted to
+  # match_sh_suite so the custom --pattern branch can union the same arm.
+  match_sh_suite "$p"
 }
 
 found=0
@@ -146,6 +167,15 @@ if [ -n "$changed_files" ]; then
         case "$f" in $pat) found=1; break ;; esac
       done
       set +f
+      # UNION the gate's unconditional *.test.sh discovery arm: resolveGate
+      # always appends the repo-wide `find . -name '*.test.sh' ...` loop, so a
+      # *.test.sh suite satisfies the floor whatever the custom pattern —
+      # floor ⊆ gate survives any --pattern. Only reached when no custom token
+      # matched; `set +f` already restored (match_sh_suite's case globs are
+      # literal, unaffected by noglob either way).
+      if [ "$found" != 1 ] && match_sh_suite "$f"; then
+        found=1
+      fi
       [ "$found" = 1 ] && break
     else
       if match_default "$f"; then

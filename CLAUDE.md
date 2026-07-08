@@ -8,7 +8,7 @@ In this repo the plugin ships at `skills/_shared/`, so that ranked query is `nod
 
 ## What this repo is
 
-WAR (Work · Audit · Refine) — a Claude Code **plugin**; this repo *is* the plugin (`.claude-plugin/plugin.json` + `skills/` + `agents/` + `hooks/`). It orchestrates multi-phase plan execution with worker / auditor / refinery / servitor agents over git worktrees and GitHub issues. There is no application build: developing here means editing skill prose (`skills/*/SKILL.md`), the per-phase Workflow engine (`skills/war/assets/workflow-template.js`), shell hooks/floors, the memory CLI, and their tests. `CONTEXT.md` is the glossary (ubiquitous language); `docs/adr/` (0001–0017) records the binding decisions.
+WAR (Work · Audit · Refine) — a Claude Code **plugin**; this repo *is* the plugin (`.claude-plugin/plugin.json` + `skills/` + `agents/` + `hooks/`). It orchestrates multi-phase plan execution with worker / auditor / refinery / servitor agents over git worktrees and GitHub issues. There is no application build: developing here means editing skill prose (`skills/*/SKILL.md`), the per-phase Workflow engine (`skills/war/assets/workflow-template.js`), shell hooks/floors, the memory CLI, and their tests. `CONTEXT.md` is the glossary (ubiquitous language); `docs/adr/` (0001–0019) records the binding decisions.
 
 ## Commands
 

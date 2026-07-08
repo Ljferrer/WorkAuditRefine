@@ -17,7 +17,11 @@ export const meta = {
 //   { phase: { id, title, integrationBranch, workingBranch, epicIssue?, endState?: [condition] },
 //              // endState: the Commander's-Intent End-state conditions THIS phase claims (Lead-mapped);
 //              // checked by the gate-audit pass — later-phase conditions are out-of-scope there, never a hold
-//     plan:  { file, gate },          // gate = a shell command, run BY agents (this script has no shell/fs)
+//     plan:  { file, gate, testPattern },  // gate = a shell command, run BY agents (this script has no
+//                                     // shell/fs). testPattern = the run's pinned overrides.testPattern
+//                                     // (string|null; absent ⇒ null — the plan.gate precedent), appended
+//                                     // VERBATIM as the assert-test-in-diff.sh `--pattern '<value>'` arg at
+//                                     // both merge-task sites; null ⇒ bare, byte-identical to today.
 //     tasks: [ { id, issue, title, branch, worktree, deps:[id],
 //                roster:[{ lens, depth? }], planSlice, requiresTest?, requiresPackaging? } ],  // roster: 1–5 distinct-lens audit seats; depth omitted → 'deep'.
 //                                     // requiresTest/requiresPackaging default true; false (Lead-set) skips that pre-merge floor with a logged, never-silent skip.
@@ -68,6 +72,14 @@ const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties:
   status: { enum: ['merged', 'landed', 'gate_failed', 'conflict', 'error', 'land_stale', 'no-test', 'unpackaged', 'submodule-blocked', 'submodule-pr'] },
   branch: { type: 'string' }, integration_sha: { type: 'string' }, working_sha: { type: 'string' },
   conflict_files: { type: 'array' }, gate_output: { type: 'string' },
+  // gate_failure_class (spec §6 / ADR 0019): the on-failure classification the refiner returns
+  // ALONGSIDE status:'gate_failed'. ABSENT ⇒ 'introduced' (the permanent fail-safe). Orthogonal to
+  // status — NO status enum value, HARD_ESCALATION_REASONS member, or KNOWN_LAND_DECISIONS member is
+  // added or changed (land-decision.mjs untouched, ADR 0005). gate_failing_ids/gate_base_sha carry the
+  // classified failing-identifier set + classification base sha on a 'baseline' result — the Workflow's
+  // baselineDebt key, the source:'auto' backstop check string, and the baseline-proceed prompt read them.
+  gate_failure_class: { enum: ['introduced', 'baseline', 'environment'] },
+  gate_failing_ids: { type: 'array' }, gate_base_sha: { type: 'string' },
   pr_number: { type: 'number' }, pr_remote: { type: 'string' } } }
 
 // memory_index_updated retired (spec §4.6, D4 deleted): the servitor no longer maintains the index —
@@ -96,10 +108,23 @@ const roundLimit = run.roundLimit ?? 3
 const intent = (typeof A.intent === 'string' && A.intent) ? A.intent : null
 // Backstops (spec §4.4): the Lead is the single normalization point — plan-declared entries + Setup
 // auto-recorded entries are merged Lead-side into args.backstops (array|null of
-// { check, why, runner, source: 'plan'|'auto', aiDeclared? }). The Workflow passes it through
-// UNTOUCHED into handoff.backstops[] (rendered as the "Unexecuted backstops" line at land). A legacy
-// plan with no backstop section → null (surfaced note). Never mutate; never re-normalize here.
+// { check, why, runner, source: 'plan'|'auto', aiDeclared? }). The Workflow passes these Lead-normalized
+// entries through UNTOUCHED into handoff.backstops[] (rendered as the "Unexecuted backstops" line at
+// land). A legacy plan with no backstop section → null (surfaced note). Never mutate; never re-normalize.
+// SOLE EXCEPTION (spec §6 / ADR 0019): the Workflow itself appends its OWN source:'auto'
+// baseline-gate-debt entries (autoBaselineBackstops below) — the only Workflow-authored backstop
+// entries; Lead-normalized entries stay untouched. handoff.backstops is the two concatenated
+// (mergedBackstops at land): null promotes to a one-entry array when a baseline debt is recorded.
 const backstops = Array.isArray(A.backstops) ? A.backstops : null
+// Test-floor pattern (spec §6 / ADR 0019): the Lead threads the run's pinned overrides.testPattern into
+// args.plan.testPattern exactly like plan.gate (string|null; absent ⇒ null — the plan.gate precedent).
+// A non-empty string is appended VERBATIM as the assert-test-in-diff.sh `--pattern '<value>'` argument at
+// BOTH merge-task invocation sites (initial + floor-retry); null ⇒ testPatternArg is '' so both dispatched
+// prompts are byte-identical to a testPattern-less run (criterion 2). The floor's *.test.sh union is
+// script-side (Phase 1, assert-test-in-diff.sh) — never re-stated per prompt. The glob-safe charset is
+// validated in war-config.mjs, never here (the value is embedded single-quoted into an agent shell line).
+const testPattern = (plan && typeof plan.testPattern === 'string' && plan.testPattern) ? plan.testPattern : null
+const testPatternArg = testPattern ? ` --pattern '${testPattern}'` : ''
 const intentClause = intent
   ? `\nCOMMANDER'S INTENT (the operator's purpose — your ceiling; the plan slice is your floor):\n${intent}\n`
   : ''
@@ -212,7 +237,16 @@ const aced = []
 // Phase-close queue (ADR 0012): absorb findings the per-task ace cannot reach (phaseClose:true or a
 // release-slot filename) — drained by the phase-close coherence sweep at the integrated tip.
 const phaseCloseQueue = []
-const mergedTasksForGateAudit = []   // collect {taskId, gateOutput, acceptanceCriteria, gateHeadSha} for post-merge gate-audit pass (F04 R3)
+const mergedTasksForGateAudit = []   // collect {taskId, gateOutput, acceptanceCriteria, gateHeadSha, baselineDebt?} for post-merge gate-audit pass (F04 R3)
+// Baseline gate debt (spec §6 / ADR 0019): the in-run record of pre-existing gate failures this phase
+// consciously proceeds over. `baselineDebt` is keyed on (failing-identifier set, base sha) — a later
+// failure whose identifiers are COVERED by a recorded entry classifies 'baseline' directly (no repeated
+// base re-run), and threading the list into every subsequent merge/land prompt lets the refiner
+// short-circuit. `autoBaselineBackstops` holds EXACTLY ONE source:'auto' backstop entry per unique key
+// (the SOLE Workflow-authored backstop entries), concatenated onto the Lead-normalized args.backstops at
+// land. recordBaselineDebt() dedups both in one step.
+const baselineDebt = []
+const autoBaselineBackstops = []
 
 try {
 
@@ -331,6 +365,47 @@ const workerIntentClause = intent
 const workerSelfQueryRepoFlag = (typeof learningsTarget === 'string' && learningsTarget) ? ` --repo ${learningsTarget}` : ''
 const WORKER_MEMORY_SELF_QUERY_LINE = `\nYou MAY run \`node <plugin>/skills/_shared/war-memory.mjs query '<terms>'${workerSelfQueryRepoFlag}\` mid-task when you hit something unfamiliar — it never writes a lesson, and without a \`--local\` root it appends no query log (the CLI never guesses one from the cwd).\n`
 
+// ---- Gate-failure classification (spec §6 / ADR 0019) ----------------------
+// classOf reads the refiner-reported gate_failure_class off a gate_failed MergeResult; an ABSENT or
+// unrecognized value ⇒ 'introduced' (the permanent fail-safe — reverting baseline-proceed is just
+// deleting the classification prose, and absent-class routing is byte-identical to today). Only
+// 'baseline' and 'environment' branch away from today's soft escalation.
+const classOf = mr => (mr && (mr.gate_failure_class === 'baseline' || mr.gate_failure_class === 'environment'))
+  ? mr.gate_failure_class : 'introduced'
+const debtIds = ids => (Array.isArray(ids) ? ids : (ids ? [ids] : [])).map(String)
+// recordBaselineDebt: dedup on (sorted failing-identifier set, base sha). On a NEW key it records the
+// debt AND appends EXACTLY ONE source:'auto' backstop entry; a known key is a no-op (no repeated base
+// re-run, no duplicate entry — two tasks with the same identifiers cost one entry + one base re-run).
+const recordBaselineDebt = (ids, baseSha) => {
+  const idset = debtIds(ids), base = String(baseSha || '')
+  const key = JSON.stringify([[...idset].sort(), base])
+  if (baselineDebt.some(d => d.key === key)) return
+  baselineDebt.push({ key, ids: idset, baseSha: base })
+  autoBaselineBackstops.push({
+    check: `baseline gate debt: ${idset.join(', ') || '(see gate_output)'} — pre-existing at ${base || '(base sha unrecorded)'}`,
+    why: "gate failure classified gate_failure_class:'baseline' — proven pre-existing at the classification base (not introduced by this phase); the phase proceeded over it (spec §6 / ADR 0019)",
+    runner: 'target repo CI / operator',
+    source: 'auto',
+  })
+}
+// baselineDebtClause: threaded into every subsequent merge/land dispatch so the refiner classifies a
+// COVERED failure 'baseline' directly, no repeated base re-run. Empty list ⇒ '' (byte-identical to a
+// debt-less run — a phase with no recorded debt dispatches unchanged prompts).
+const baselineDebtClause = () => baselineDebt.length
+  ? `\nKNOWN BASELINE GATE DEBT (pre-existing failures this phase already classified — if your gate failure's failing identifiers are COVERED by one of these, classify gate_failure_class:'baseline' DIRECTLY, report the covered identifiers in gate_failing_ids, and do NOT re-run the base):\n`
+    + baselineDebt.map((d, i) => `  ${i + 1}. [${d.ids.join(', ')}] — pre-existing at ${d.baseSha || '(base sha unrecorded)'}`).join('\n') + '\n'
+  : ''
+// reattachClause: every merge/land prompt's _refinery step BEGINS with this idempotent re-attach, so a
+// dispatch that died mid-classification (classification detaches _refinery to re-run the base) cannot
+// strand the serial queue detached (the re-attached-by-default _refinery, spec §6 / ADR 0019).
+const reattachClause = refineryP =>
+  `HYGIENE (idempotent): begin by re-attaching _refinery to the integration branch — \`git -C ${refineryP} checkout ${ph.integrationBranch}\` — so a prior dispatch that died mid-classification cannot leave _refinery detached.\n`
+// classificationClause: the gate-failure classification PROCEDURE, mirrored (per-site base) into the
+// initial merge-task prompt, the floor-retry re-merge prompt, THE LAND PROMPT, and agents/war-refiner.md
+// (both-surfaces rule, same commit). baseDesc names the per-site classification base.
+const classificationClause = (refineryP, baseDesc) =>
+  `\nGATE-FAILURE CLASSIFICATION (spec §6 / ADR 0019 — on gate failure, BEFORE returning gate_failed): re-run ONLY the failing gate at the classification base — ${baseDesc} — by detaching _refinery there (\`git -C ${refineryP} checkout --detach <that base>\`), re-running the failing gate, then RE-ATTACHING _refinery to ${ph.integrationBranch} before you return (\`git -C ${refineryP} checkout ${ph.integrationBranch}\`). Set gate_failure_class: (1) the base is RED with the SAME failing identifiers ⇒ 'baseline'; (2) the base is GREEN AND the failure does NOT reproduce on a second run at the task tip in a FRESH environment (fresh TMPDIR/shell) ⇒ 'environment' (reproducibility — NOT file-disjointness — is the trigger; a diff-disjoint but reproducing failure is a normal introduced regression and stays 'introduced'); (3) otherwise ⇒ 'introduced'. This is JUDGMENT, not parsing — carry the base-run evidence in gate_output UNCURATED. On a 'baseline' classification also report the classified failing identifiers in gate_failing_ids (array) and the classification base sha in gate_base_sha. ABSENT class ⇒ treated as 'introduced' (the permanent fail-safe).\n`
+
 function auditPrompt(task, lens, depth, peers, workerTests) {
   let p = `Audit WAR task ${task.id} through the "${lens}" lens at depth ${depth}.\n`
     + `Sub-issue #${task.issue}. Plan slice: ${task.planSlice}. Plan file: ${plan.file}.\n`
@@ -417,10 +492,10 @@ if (tasks.length) {
     : ''
   await agent(
     `Provision the worktree topology for WAR phase ${ph.id} "${ph.title}" by running ${SCRIPT}. `
-    + `Do NOT free-author git; only run these subcommands, fail loud on any non-zero exit (a foreign integration branch exits 3), and report a MergeResult.\n`
+    + `Do NOT free-author git; only run these subcommands, fail loud on ANY non-zero exit — treat every non-zero exit as a halt, do NOT special-case a single code (a foreign integration branch exits 3; a diverged local/origin base halts with its own distinct non-zero exit) — and report a MergeResult.\n`
     + `1. FROM THE MAIN CHECKOUT (${mainCheckout || 'the main repo checkout — your current working directory'}, NOT a task worktree): `
     + `provision-worktrees.sh ensure-exclude — this excludes \`.claude/\` in the parent checkout so the nested task worktrees do not surface as untracked there (probe E2).\n`
-    + `2. provision-worktrees.sh ensure-integration ${planSlug || '<plan-slug>'} ${ph.id} ${ph.workingBranch}${owned} — reuse the plan-namespaced integration branch ${ph.integrationBranch} if it is already ours (the --owned-file ledger), else cut it at ${ph.workingBranch}.\n`
+    + `2. provision-worktrees.sh ensure-integration ${planSlug || '<plan-slug>'} ${ph.id} ${ph.workingBranch}${owned} — reuse the plan-namespaced integration branch ${ph.integrationBranch} if it is already ours (the --owned-file ledger); else DERIVE the cut base against origin (ADR 0008): the script fetches origin/${ph.workingBranch} and reconciles the local ${ph.workingBranch} — equal or ahead → cut from local; behind → cut from the ORIGIN tip plus a guarded follower fast-forward (skipped with a warning when ${ph.workingBranch} is checked out in a worktree); a fetch failure or missing origin → cut from local with a stderr warning (today's offline behavior). DIVERGED (neither SHA an ancestor of the other) is a HALT: the script dies non-zero carrying BOTH SHAs and the two repair directions, and creates no branch. On that die — or ANY non-zero exit — report it in the MergeResult and STOP: never pick a side, never retry with a different base. The phase never starts; I surface the die message like today's foreign-branch halt.\n`
     + `3. Capture the resulting integration tip (TIP="$(git rev-parse ${ph.integrationBranch})"), then for EACH task run ensure-worktree at the integration tip captured in step 3 (idempotent; reuse if present, conservative heal if the dir went missing):\n${ensures}\n`
     + `Each ensure-worktree creates the worktree on its plan-namespaced branch off the integration tip and drops a .war-task marker. After this barrier every task worktree exists and the workers can run.\n`
     + `4. provision-worktrees.sh ensure-refinery-worktree ${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/_refinery ${ph.integrationBranch} — create (or re-attach) the Refinery's dedicated worktree on the integration branch. The Refinery performs every merge in this run-scoped worktree, never the Lead's main checkout.`
@@ -530,6 +605,21 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   //           the model must still be able to emit the '(integration_sha …)' sentinel legitimately.
   const pinOrSentinel = s =>
     (typeof s === 'string' && /^[0-9a-f]{7,40}$/.test(s)) ? s : '(integration_sha unrecorded/malformed)'
+  // landMerged: the shared merged-task landing step (initial merge, floor-retry re-merge, and the
+  // baseline-proceed re-merge all funnel through it). requiresTest:false ⇒ the gate-audit HARD path is
+  // vacuous — skip + LOG (never silent). taskDebt (spec §6 / ADR 0019): a baseline-merged task carries
+  // its classified failing identifiers so the gate-audit prompt won't read a pre-existing base failure
+  // as a provably-unrun mapped test; empty/absent ⇒ the field is omitted (byte-identical entry).
+  const landMerged = (task, mr, taskDebt) => {
+    landed.push(task.id); succeeded.add(task.id)
+    if (task.requiresTest === false) {
+      log(`gate-audit: skipping ${task.id} (requiresTest:false — no mapped tests, HARD path vacuous)`)
+    } else {
+      mergedTasksForGateAudit.push({ taskId: task.id, gateOutput: mr.gate_output, acceptanceCriteria: task.planSlice,
+        gateHeadSha: pinOrSentinel(mr.integration_sha),
+        ...(Array.isArray(taskDebt) && taskDebt.length ? { baselineDebt: taskDebt } : {}) })
+    }
+  }
   for (const r of results.filter(Boolean)) {
     // Carry the audit-loop round counter onto the task object so the no-test sub-loop
     // continues the SHARED budget (not a fresh counter — that would double the allowance).
@@ -635,17 +725,20 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       const mr = await agent(
         `Merge WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
         + aceRevertClause
+        + reattachClause(refineryPath)
         + `IMPORTANT — merge-task is split across two worktrees (spec §5.2, red-team-verified):\n`
         + `  (a) REBASE in the TASK worktree: git -C ${r.task.worktree} rebase ${ph.integrationBranch}. `
         + `CRITICAL: cannot rebase in ${refineryPath} — the task branch is checked out in ${r.task.worktree} and git rebase is refused on a branch checked out in another worktree. `
         + `rebase --onto does NOT dodge this constraint — it is equally refused.\n`
         + `  (b) MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), then git merge ${r.task.branch} (fast-forward merge of the now-rebased task branch into the integration branch). Push.\n`
         + `Run the gate (${plan.gate}) after the rebase in the task worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)), so any meta-test that materialises scratch dirs isolates from the worktree's .war-task marker; the gate's cwd stays the task worktree. On gate failure return gate_failed; on conflict return conflict; never force. `
+        + classificationClause(refineryPath, `the phase integration base — the cut point of ${ph.integrationBranch}, i.e. \`git -C ${refineryPath} merge-base ${ph.integrationBranch} ${ph.workingBranch}\``)
+        + baselineDebtClause()
         + `On success, populate gate_output in the returned MergeResult with the executed gate output (stdout+stderr) so the post-merge gate-audit pass can review it as execution evidence. Do NOT curate or excerpt — each *.test.sh runner emits a single aggregate PASS line, so a partial paste reads as an under-run; include the complete *.test.sh runner list or state the total runner count. `
         + `Also populate integration_sha with the rebased integration tip the gate ran against, so the gate-audit pass can confirm the gate ran at the integration tip.`
         + ` Before the _refinery merge step (b), run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${r.task.branch}${r.task.taskType === 'gitlink-bump' && r.task.declared ? ' --declared' : ''} (REGARDLESS of requiresTest — a submodule touch is refused whether or not the task needs a test; the relax-flag is only threaded for a declared gitlink-bump task). Exit 1 → return { mode: 'merge-task', status: 'submodule-blocked' } — do NOT merge. Exit 2 → return { mode: 'merge-task', status: 'error' }.`
         + (requiresTest
-          ? ` Also before step (b), run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch} to verify the task diff contains at least one test file. Branch on the exit code: exit 1 (no test in the diff) → return { mode: 'merge-task', status: 'no-test' } — do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'no-test' — a transient bad-ref must not spin a pointless add-test loop.`
+          ? ` Also before step (b), run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${testPatternArg} to verify the task diff contains at least one test file. Branch on the exit code: exit 1 (no test in the diff) → return { mode: 'merge-task', status: 'no-test' } — do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'no-test' — a transient bad-ref must not spin a pointless add-test loop.`
           : ` requiresTest:false — skip the assert-test-in-diff.sh check and proceed directly to the rebase+merge.`)
         + (requiresPackaging
           ? ` Also before step (b), run assert-packaging-in-diff.sh ${ph.integrationBranch} ${r.task.branch} to verify the task diff adds no file a Dockerfile's enumerated COPYs miss. Branch on the exit code: exit 1 (a flagged file → Dockerfile pair) → return { mode: 'merge-task', status: 'unpackaged' } — do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'unpackaged' — a transient bad-ref must not spin a pointless package-it loop.`
@@ -720,6 +813,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           // Re-attempt the serial merge — re-instructs ALL floor invocations (test + packaging + submodule).
           floorMr = await agent(
             `Merge WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
+            + reattachClause(refineryPath)
             + `IMPORTANT — merge-task is split across two worktrees (spec §5.2, red-team-verified):\n`
             + `  (a) REBASE in the TASK worktree: git -C ${r.task.worktree} rebase ${ph.integrationBranch}. `
             + `CRITICAL: cannot rebase in ${refineryPath} — the task branch is checked out in ${r.task.worktree} and git rebase is refused on a branch checked out in another worktree. `
@@ -728,8 +822,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             + `Run the gate (${plan.gate}) after the rebase in the task worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)), so any meta-test that materialises scratch dirs isolates from the worktree's .war-task marker; the gate's cwd stays the task worktree. On gate failure return gate_failed; on conflict return conflict; never force. `
             + `On success, populate gate_output in the returned MergeResult with the executed gate output (stdout+stderr) so the post-merge gate-audit pass can review it as execution evidence. Do NOT curate or excerpt — each *.test.sh runner emits a single aggregate PASS line, so a partial paste reads as an under-run; include the complete *.test.sh runner list or state the total runner count. `
             + `Also populate integration_sha with the rebased integration tip the gate ran against, so the gate-audit pass can confirm the gate ran at the integration tip. `
+            + classificationClause(refineryPath, `the phase integration base — the cut point of ${ph.integrationBranch}, i.e. \`git -C ${refineryPath} merge-base ${ph.integrationBranch} ${ph.workingBranch}\``)
+            + baselineDebtClause()
             + (requiresTest
-              ? `Before the _refinery merge step (b), run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch} to verify the task diff now contains at least one test file. Branch on the exit code: exit 1 (no test in the diff) → return { mode: 'merge-task', status: 'no-test' }, do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'no-test' — a transient bad-ref must not spin a pointless add-test loop. `
+              ? `Before the _refinery merge step (b), run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${testPatternArg} to verify the task diff now contains at least one test file. Branch on the exit code: exit 1 (no test in the diff) → return { mode: 'merge-task', status: 'no-test' }, do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'no-test' — a transient bad-ref must not spin a pointless add-test loop. `
               : `requiresTest:false — skip the assert-test-in-diff.sh check. `)
             + (requiresPackaging
               ? `Also before step (b), run assert-packaging-in-diff.sh ${ph.integrationBranch} ${r.task.branch} to verify the task diff now adds no file a Dockerfile's enumerated COPYs miss. Branch on the exit code: exit 1 (a flagged file → Dockerfile pair) → return { mode: 'merge-task', status: 'unpackaged' }, do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'unpackaged' — a transient bad-ref must not spin a pointless package-it loop.`
@@ -747,18 +843,11 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // Null-deref guard: both reAuditFailed=true sites set floorMr=null; skip before the unconditional floorMr.status deref below.
         if (reAuditFailed) continue
 
-        // Use the successful re-merge result for the landed path below
+        // Use the successful re-merge result for the landed path below (D7 guard rides landMerged: a
+        // requiresTest:false task cannot reach this sub-loop via the test floor, but the skip is logged
+        // there for prompt-contract reachability).
         if (floorMr.status === 'merged') {
-          landed.push(r.task.id); succeeded.add(r.task.id)
-          // D7 guard, belt-and-suspenders: a requiresTest:false task cannot reach this sub-loop via the
-          // test floor (its merge prompt skips assert-test-in-diff.sh, so 'no-test' is never returned)
-          // — the guard mirrors the merge-success site for prompt-contract reachability.
-          if (!requiresTest) {
-            log(`gate-audit: skipping ${r.task.id} (requiresTest:false — no mapped tests, HARD path vacuous)`)
-          } else {
-            mergedTasksForGateAudit.push({ taskId: r.task.id, gateOutput: floorMr.gate_output, acceptanceCriteria: r.task.planSlice,
-              gateHeadSha: pinOrSentinel(floorMr.integration_sha) })
-          }
+          landMerged(r.task, floorMr)
         } else {
           escalated.push({ task: r.task.id, reason: floorMr.status ?? 'merge_failed', detail: floorMr })
         }
@@ -766,15 +855,54 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       }
 
       if (mr && mr.status === 'merged') {
-        landed.push(r.task.id); succeeded.add(r.task.id)
-        // D7: explicit requiresTest === false ⇒ the gate-audit HARD path (mapped test provably
-        // unrun) is vacuous by contract — skip the pass and LOG the skip (never silent). An absent
-        // field stays fail-closed (gate-audited).
-        if (!requiresTest) {
-          log(`gate-audit: skipping ${r.task.id} (requiresTest:false — no mapped tests, HARD path vacuous)`)
+        // D7 skip + gate-audit push (incl. baseline debt when present) ride landMerged.
+        landMerged(r.task, mr)
+      }
+      else if (mr && mr.status === 'gate_failed') {
+        // ---- Gate-failure classification routing (spec §6 / ADR 0019) ----
+        // The refiner re-ran the failing gate at the phase integration base and returned
+        // gate_failure_class (classOf ⇒ 'introduced' when ABSENT — the permanent fail-safe). Routes
+        // recovery WITHOUT touching any status enum, HARD_ESCALATION_REASONS, or KNOWN_LAND_DECISIONS
+        // (land-decision.mjs untouched, ADR 0005). Merge-time gate_failed is a SOFT escalation — there
+        // is NO audit-stage fix-worker loop at this site (the stale war-refiner.md step-3 FIX_NEEDED
+        // sentence is corrected in the same commit).
+        const cls = classOf(mr)
+        if (cls === 'environment') {
+          // 'environment': soft escalate reusing reason 'env-blocked' (0 fix rounds, worktree kept,
+          // siblings proceed; detail = the MergeResult — a gate-time env-block, NOT the provision
+          // ENV_OUTCOME shape). No new reason string, no enum change.
+          escalated.push({ task: r.task.id, reason: 'env-blocked', detail: mr })
+        } else if (cls === 'baseline') {
+          // 'baseline': record the debt (deduped) + ONE source:'auto' backstop, then dispatch ONE
+          // baseline-proceed re-merge naming the classified ids. Route its result normally; a 2nd
+          // gate_failed routes by class with 'baseline' treated as 'introduced' (bounded — no 2nd re-dispatch).
+          recordBaselineDebt(mr.gate_failing_ids, mr.gate_base_sha)
+          const bp = await agent(
+            `BASELINE-PROCEED re-merge for WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
+            + reattachClause(refineryPath)
+            + `The prior merge-task gate failure was classified gate_failure_class:'baseline' — these failing identifiers are PRE-EXISTING at the phase integration base, NOT introduced by this task: ${(mr.gate_failing_ids || []).join(', ') || '(see gate_output)'}.\n`
+            + `  (a) REBASE in the TASK worktree: git -C ${r.task.worktree} rebase ${ph.integrationBranch}.\n`
+            + `  (b) Run the gate (${plan.gate}) with a fresh TMPDIR (TMPDIR=$(cd / && mktemp -d)); PROCEED over EXACTLY those pre-existing baseline failures and populate gate_output UNCURATED. A NEW failure whose identifiers are NOT in that pre-existing set is a real regression → return { mode: 'merge-task', status: 'gate_failed' } classifying the NEW failure, and do NOT merge.\n`
+            + `  (c) If the ONLY failures are the pre-existing baseline set, MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), git merge ${r.task.branch}, push, return { mode: 'merge-task', status: 'merged', integration_sha: <tip> }.`
+            + ` Before the merge, run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${r.task.branch}${r.task.taskType === 'gitlink-bump' && r.task.declared ? ' --declared' : ''} (exit 1 → submodule-blocked; exit 2 → error).`
+            + (requiresTest
+              ? ` Also run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${testPatternArg} (exit 1 → no-test; exit 2 → error).`
+              : ` requiresTest:false — skip the assert-test-in-diff.sh check.`)
+            + (requiresPackaging
+              ? ` Also run assert-packaging-in-diff.sh ${ph.integrationBranch} ${r.task.branch} (exit 1 → unpackaged; exit 2 → error).`
+              : ` requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`),
+            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:baseline-proceed`, schema: MERGE_RESULT, ...spawn('refiner') })
+          if (bp && bp.status === 'merged') landMerged(r.task, bp, (mr.gate_failing_ids || []))
+          else if (bp && bp.status === 'gate_failed' && classOf(bp) === 'environment') escalated.push({ task: r.task.id, reason: 'env-blocked', detail: bp })
+          else if (bp && bp.status === 'gate_failed') escalated.push({ task: r.task.id, reason: 'gate_failed', detail: bp })   // introduced OR baseline→introduced (bounded)
+          // A submodule mutation surfaced by the baseline-proceed floor is HARD (mirror the primary
+          // submodule-blocked path — a soft escalation must never let a submodule touch ride a land).
+          else if (bp && bp.status === 'submodule-blocked') escalated.push({ task: r.task.id, reason: 'escalate', detail: `${r.task.id} touches a submodule (surfaced on the baseline-proceed re-merge)` })
+          else escalated.push({ task: r.task.id, reason: bp ? bp.status : 'merge_failed', detail: bp })
         } else {
-          mergedTasksForGateAudit.push({ taskId: r.task.id, gateOutput: mr.gate_output, acceptanceCriteria: r.task.planSlice,
-            gateHeadSha: pinOrSentinel(mr.integration_sha) }) // ponytail: sentinel, not mr.working_sha — working_sha is land-only (war-refiner.md), dead on a merge result
+          // 'introduced' / absent ⇒ BYTE-IDENTICAL to today's soft escalation (reason gate_failed,
+          // detail = the MergeResult; soft — gate_failed is not in HARD_ESCALATION_REASONS).
+          escalated.push({ task: r.task.id, reason: mr.status, detail: mr })
         }
       }
       else escalated.push({ task: r.task.id, reason: mr ? mr.status : 'merge_failed', detail: mr })
@@ -817,7 +945,13 @@ if (mergedTasksForGateAudit.length > 0) {
   const refineryPath = `${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/_refinery`
   // ponytail: reuse the _refinery worktree — already checked out on ph.integrationBranch at the integration tip
   //           after the serial merge queue and before Land/teardown; loop-scoped :308 refineryPath is out of scope here
-  await parallel(mergedTasksForGateAudit.map(({ taskId, gateOutput, acceptanceCriteria, gateHeadSha }) => async () => {
+  await parallel(mergedTasksForGateAudit.map(({ taskId, gateOutput, acceptanceCriteria, gateHeadSha, baselineDebt: taskDebt }) => async () => {
+    // Baseline-debt line (spec §6 / ADR 0019): a baseline-merged task carries its classified failing
+    // identifiers so a pre-existing base failure in the gate output is NOT read as a provably-unrun
+    // mapped test (which would fake a HARD hold). Empty/absent debt ⇒ '' ⇒ byte-identical prompt.
+    const debtLine = (Array.isArray(taskDebt) && taskDebt.length)
+      ? `\nBASELINE GATE DEBT: this task was merged over PRE-EXISTING base failures classified gate_failure_class:'baseline' — the failing identifiers below are pre-existing at the classification base, NOT evidence a mapped test did not run. A gate-output failure matching one of these is base debt, never a provably-unrun mapped test: ${taskDebt.join(', ')}.\n`
+      : ''
     const gateAuditVerdict = await agent(
       `POST-MERGE GATE-AUDIT for WAR task ${taskId} (lens: execution-evidence). `
       + `You are a READ-ONLY auditor with read-only git. The phase integration branch is checked out at `
@@ -846,6 +980,7 @@ if (mergedTasksForGateAudit.length > 0) {
       + `worktree not at the integration tip — execution evidence unreliable, downgraded to SOFT, not a land-halt".\n`
       + `Return your reviewed audit_sha so the Lead can compare it to the gate-HEAD sha.\n`
       + `Review the executed gate output below and the task's mapped acceptance criteria to confirm the mapped tests actually ran and passed.\n`
+      + debtLine
       + `Acceptance criteria / plan slice: ${acceptanceCriteria || '(see plan file)'}\n`
       + `Executed gate output:\n${gateOutput || '(no gate output recorded)'}\n`
       + endStateBlock + intentClause
@@ -973,11 +1108,16 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
     //    single land below then proceeds on the polished tip. Anything else → DISCARD (fail-open).
     let pmr = null
     if (sweepApproved) {
+      // The polish-sweep merge is CLASS-EXEMPT by design (spec §6 / ADR 0019): a polish gate failure
+      // fail-open DISCARDS (the pre-polish tip lands unchanged — see the discard arm below), so no
+      // gate-failure classification is dispatched here. The idempotent _refinery re-attach IS still
+      // included (hygiene — heals a prior dispatch that died mid-classification detached).
       pmr = await agent(
         `Merge WAR polish branch ${polishBranch} into ${ph.integrationBranch} at the serial merge queue's tail. mode=merge-task.\n`
+        + reattachClause(refineryLandPath)
         + `  (a) REBASE in the POLISH worktree: git -C ${polishWorktree} rebase ${ph.integrationBranch} (the branch was cut at the integrated tip, so this is normally a no-op).\n`
         + `  (b) MERGE in _refinery: cd ${refineryLandPath} (on ${ph.integrationBranch}), then git merge ${polishBranch} (fast-forward merge). Push.\n`
-        + `Run the gate (${plan.gate}) after the rebase in the polish worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)). The polish commit is a coherence sweep, not a mapped-test task — skip assert-test-in-diff.sh AND skip the packaging floor assert-packaging-in-diff.sh (a coherence sweep has no task fields to consult). On gate failure return gate_failed; on conflict return conflict; never force.`,
+        + `Run the gate (${plan.gate}) after the rebase in the polish worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)). The polish commit is a coherence sweep, not a mapped-test task — skip assert-test-in-diff.sh AND skip the packaging floor assert-packaging-in-diff.sh (a coherence sweep has no task fields to consult). This sweep is class-exempt — on gate failure return gate_failed (no classification); the Workflow fail-open DISCARDS. On conflict return conflict; never force.`,
         { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:p${ph.id}-polish`, schema: MERGE_RESULT, ...spawn('refiner') })
     }
     if (sweepApproved && pmr && pmr.status === 'merged') {
@@ -1010,10 +1150,13 @@ if (landDecision === 'landed') {
   landResult = await agent(
     `Land WAR phase ${ph.id}: merge ${ph.integrationBranch} into ${ph.workingBranch} with --no-ff (one phase commit). mode=land-phase.\n`
     + `Perform the land entirely inside the _refinery worktree at ${refineryLandPath} (spec §5.3, push-first CAS):\n`
+    + reattachClause(refineryLandPath)
     + `  1. In ${refineryLandPath}: detach HEAD at origin/${ph.workingBranch} (`
     + `\`git -C ${refineryLandPath} fetch origin ${ph.workingBranch} && git -C ${refineryLandPath} checkout --detach origin/${ph.workingBranch}\`). `
     + `This is the detached land — never checkout the working branch by name in _refinery.\n`
     + `  2. Merge: \`git -C ${refineryLandPath} merge --no-ff ${ph.integrationBranch}\` (one phase commit). Run the gate (${plan.gate}) with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)), so any meta-test that materialises scratch dirs isolates from the worktree's .war-task marker; the gate's cwd stays the task worktree. On gate failure return gate_failed.\n`
+    + classificationClause(refineryLandPath, `the detached origin/${ph.workingBranch} tip the merge lands onto (\`git -C ${refineryLandPath} rev-parse origin/${ph.workingBranch}\`) — a stacked working branch carries prior plans' content the phase integration base lacks, so the land uses the working tip, NOT the integration base`)
+    + baselineDebtClause()
     + `  3. Push-first CAS: run \`cd ${refineryLandPath} && provision-worktrees.sh land-advance ${ph.workingBranch} <merge-sha>\` where <merge-sha> is HEAD in _refinery after the merge.\n`
     + `     - On clean push success (exit 0 from land-advance): the land succeeded. Return { mode: 'land-phase', status: 'landed', working_sha: '<merge-sha>' }.\n`
     + `     - On reland exit code (rejected push — origin/${ph.workingBranch} moved): re-fetch origin/${ph.workingBranch}, re-merge, re-run gate, retry land-advance. `
@@ -1040,6 +1183,40 @@ if (landDecision === 'landed') {
   if (landResult && HARD_ESCALATION_REASONS.includes(landResult.status)) {
     escalated.push({ task: `phase-${ph.id}-land`, reason: landResult.status, detail: landResult })
     landDecision = 'held:escalation'
+  } else if (landResult && landResult.status === 'gate_failed' && classOf(landResult) === 'environment') {
+    // 'environment' land gate failure (spec §6 / ADR 0019): the land failed environmentally, not by a
+    // code defect. Soft-escalate reusing reason 'env-blocked'; the Lead re-runs the land (an
+    // environmental failure passes on retry — held:land-failed). No enum change; detail = the MergeResult.
+    escalated.push({ task: `phase-${ph.id}-land`, reason: 'env-blocked', detail: landResult })
+    landDecision = 'held:land-failed'
+  } else if (landResult && landResult.status === 'gate_failed' && classOf(landResult) === 'baseline') {
+    // 'baseline' land gate failure: record the debt (deduped) + ONE source:'auto' backstop, then
+    // dispatch ONE baseline-proceed re-land naming the classified ids. Route its result normally (a 2nd
+    // gate_failed routes by class with 'baseline' treated as 'introduced' — bounded, no 2nd re-dispatch).
+    recordBaselineDebt(landResult.gate_failing_ids, landResult.gate_base_sha)
+    const reLand = await agent(
+      `BASELINE-PROCEED re-land for WAR phase ${ph.id}: merge ${ph.integrationBranch} into ${ph.workingBranch} with --no-ff. mode=land-phase.\n`
+      + reattachClause(refineryLandPath)
+      + `The prior land gate failure was classified gate_failure_class:'baseline' — these failing identifiers are PRE-EXISTING at the detached origin/${ph.workingBranch} tip, NOT introduced by this phase: ${(landResult.gate_failing_ids || []).join(', ') || '(see gate_output)'}.\n`
+      + `  1. Detach at origin/${ph.workingBranch}: \`git -C ${refineryLandPath} fetch origin ${ph.workingBranch} && git -C ${refineryLandPath} checkout --detach origin/${ph.workingBranch}\`.\n`
+      + `  2. Merge --no-ff ${ph.integrationBranch}; run the gate (${plan.gate}) with a fresh TMPDIR (TMPDIR=$(cd / && mktemp -d)); PROCEED over EXACTLY those pre-existing baseline failures and populate gate_output UNCURATED. A NEW failure whose identifiers are NOT in that set is a real regression → return { mode: 'land-phase', status: 'gate_failed' } classifying the NEW failure.\n`
+      + `  3. Push-first CAS: \`cd ${refineryLandPath} && provision-worktrees.sh land-advance ${ph.workingBranch} <merge-sha>\`. Reland up to roundLimit (${roundLimit}); land_stale on exhaustion; error on a non-rejection push error. On success return { mode: 'land-phase', status: 'landed', working_sha: '<merge-sha>' }. Never --force.`,
+      { agentType: NS + 'war-refiner', phase: 'Land', label: `land:phase-${ph.id}:baseline-proceed`, schema: MERGE_RESULT, ...spawn('refiner') })
+    if (reLand && reLand.status === 'landed') {
+      landResult = reLand
+      landDecision = 'landed'
+      log(`Phase ${ph.id} landed via baseline-proceed re-land (proceeded over recorded baseline gate debt; the deduped source:'auto' backstop rides handoff.backstops + the final PR). Opportunistic resync as on any landed phase.`)
+    } else if (reLand && HARD_ESCALATION_REASONS.includes(reLand.status)) {
+      escalated.push({ task: `phase-${ph.id}-land`, reason: reLand.status, detail: reLand })
+      landDecision = 'held:escalation'
+    } else if (reLand && reLand.status === 'gate_failed' && classOf(reLand) === 'environment') {
+      escalated.push({ task: `phase-${ph.id}-land`, reason: 'env-blocked', detail: reLand })
+      landDecision = 'held:land-failed'
+    } else {
+      // introduced OR baseline→introduced (bounded) OR error → held:land-failed (Lead re-runs).
+      escalated.push({ task: `phase-${ph.id}-land`, reason: reLand ? reLand.status : 'error', detail: reLand })
+      landDecision = 'held:land-failed'
+    }
   } else if (landResult && (landResult.status === 'error' || landResult.status === 'gate_failed')) {
     escalated.push({ task: `phase-${ph.id}-land`, reason: landResult.status, detail: landResult })
     landDecision = 'held:land-failed'
@@ -1117,9 +1294,13 @@ if (landDecision === 'landed' || landDecision === 'held:escalation') {
         : 'met'
       return { condition, status }
     }),
-    // backstops (spec §4.4): passed through UNTOUCHED from args.backstops (Lead is the single
-    // normalization point). array|null; null for a legacy plan with no backstop section.
-    backstops,
+    // backstops (spec §4.4 + §6): the Lead-normalized args.backstops entries pass through UNTOUCHED;
+    // the SOLE Workflow exception is the source:'auto' baseline-gate-debt entries this phase appended
+    // (ADR 0019). null promotes to a one-entry array when a baseline debt was recorded against a legacy
+    // no-backstop plan; with no auto entries, mergedBackstops IS the original args.backstops (untouched).
+    backstops: autoBaselineBackstops.length
+      ? [...(Array.isArray(backstops) ? backstops : []), ...autoBaselineBackstops]
+      : backstops,
     intentPresent: intent !== null,
   }
 }

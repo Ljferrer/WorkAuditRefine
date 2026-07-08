@@ -1690,6 +1690,167 @@ expect "RWB.d: resume returns the same dedicated branch" \
 expect "RWB.d: dedicated branch did NOT move (never re-cut)" \
   "$DEV_TIP_D1" "$(git -C "$RWB_D" rev-parse dev/2026-07-06-myplan)"
 
+# ===========================================================================
+# Task 2 (target-repo-agnostic): ensure-integration reconciles the local <base>
+# against origin/<base> before cutting, on the CREATE path only (ADR 0008).
+# Cases (a)-(f). All use a LOCAL fixture remote (file-path origin), are
+# bash-3.2-safe and cwd-independent (git -C + absolute paths + run_capture's cd
+# subshell). The base is a BRANCH NAME here (as in production, where it is the
+# resolved working branch), so refs/heads/<base> is a real follower ref.
+#
+# The owned resume/reuse path is unchanged (cases 1-2 above); the fetch only
+# happens when the integration branch is absent (the create path).
+FBASE="wbranch"
+
+# fixture_remote -> echoes "LOCAL ORIGIN": an origin repo whose single branch
+# $FBASE holds a seed commit c0, and a local clone with origin -> that repo.
+# The clone's HEAD is left ON $FBASE (case f needs it checked out; cases a-e
+# detach first). Both dirs are registered for cleanup.
+fixture_remote() {
+  fo="$(mktemp -d 2>/dev/null || mktemp -d -t warorig)"; REPOS="$REPOS $fo"
+  git -C "$fo" init -q
+  git -C "$fo" config user.email war@test.local
+  git -C "$fo" config user.name "WAR Test"
+  git -C "$fo" config commit.gpgsign false
+  git -C "$fo" checkout -q -b "$FBASE"
+  printf 'c0\n' > "$fo/base.txt"; git -C "$fo" add -A; git -C "$fo" commit -qm c0
+  fl="$(mktemp -d 2>/dev/null || mktemp -d -t warlocal)"; REPOS="$REPOS $fl"
+  git clone -q "$fo" "$fl"
+  git -C "$fl" config user.email war@test.local
+  git -C "$fl" config user.name "WAR Test"
+  git -C "$fl" config commit.gpgsign false
+  echo "$fl $fo"
+}
+
+# run_capture <repo> <args...> : run the script ONCE with cwd=<repo>, setting
+# globals CAP_OUT (combined stdout+stderr) and CAP_CODE (exit). One invocation
+# matters here: a second call would hit the resume/reuse path (branch now
+# exists + is owned), never re-running the create-path fetch we assert on.
+run_capture() {
+  d="$1"; shift
+  CAP_OUT="$( ( cd "$d" && bash "$SCRIPT" "$@" ) 2>&1 )"
+  CAP_CODE="$?"
+}
+
+# ---------------------------------------------------------------------------
+# Case (a): local BEHIND origin -> cut the integration branch at the ORIGIN tip,
+# then fast-forward the local follower ref (base checked out NOWHERE here).
+# ---------------------------------------------------------------------------
+FXa="$(fixture_remote)"; La="${FXa%% *}"; Oa="${FXa##* }"
+git -C "$La" checkout -q --detach                     # free $FBASE (checked out nowhere)
+LOCa="$(git -C "$La" rev-parse "$FBASE")"             # c0
+printf 'c1\n' > "$Oa/adv.txt"; git -C "$Oa" add -A; git -C "$Oa" commit -qm c1
+ORIa="$(git -C "$Oa" rev-parse "$FBASE")"             # c1 (origin ahead => local behind)
+OWNa="$La/owned.txt"; : > "$OWNa"
+expect "(a) behind: fixture sanity — local != origin" \
+  "different" "$([ "$LOCa" != "$ORIa" ] && echo different || echo same)"
+run_capture "$La" ensure-integration myplan 1 "$FBASE" --owned-file "$OWNa"
+expect "(a) behind: exits 0" "0" "$CAP_CODE"
+expect "(a) behind: integration cut at the ORIGIN tip" \
+  "$ORIa" "$(git -C "$La" rev-parse integration/myplan/phase-1 2>/dev/null)"
+expect "(a) behind: local follower fast-forwarded to the origin tip" \
+  "$ORIa" "$(git -C "$La" rev-parse "$FBASE" 2>/dev/null)"
+
+# ---------------------------------------------------------------------------
+# Case (b): local EQUAL to origin -> cut from local (== origin), nothing moves.
+# ---------------------------------------------------------------------------
+FXb="$(fixture_remote)"; Lb="${FXb%% *}"; Ob="${FXb##* }"
+git -C "$Lb" checkout -q --detach
+BASEb="$(git -C "$Lb" rev-parse "$FBASE")"            # == origin tip
+OWNb="$Lb/owned.txt"; : > "$OWNb"
+run_capture "$Lb" ensure-integration myplan 1 "$FBASE" --owned-file "$OWNb"
+expect "(b) equal: exits 0" "0" "$CAP_CODE"
+expect "(b) equal: integration at the shared tip" \
+  "$BASEb" "$(git -C "$Lb" rev-parse integration/myplan/phase-1 2>/dev/null)"
+expect "(b) equal: local base unchanged" \
+  "$BASEb" "$(git -C "$Lb" rev-parse "$FBASE" 2>/dev/null)"
+
+# ---------------------------------------------------------------------------
+# Case (c): local AHEAD of origin -> cut from local (origin is the stale side);
+# origin left untouched, follower NOT moved.
+# ---------------------------------------------------------------------------
+FXc="$(fixture_remote)"; Lc="${FXc%% *}"; Oc="${FXc##* }"
+printf 'c1\n' > "$Lc/adv.txt"; git -C "$Lc" add -A; git -C "$Lc" commit -qm c1
+LOCc="$(git -C "$Lc" rev-parse "$FBASE")"             # ahead of origin
+git -C "$Lc" checkout -q --detach
+ORIc="$(git -C "$Oc" rev-parse "$FBASE")"             # still c0
+OWNc="$Lc/owned.txt"; : > "$OWNc"
+run_capture "$Lc" ensure-integration myplan 1 "$FBASE" --owned-file "$OWNc"
+expect "(c) ahead: exits 0" "0" "$CAP_CODE"
+expect "(c) ahead: integration cut from the LOCAL (ahead) tip" \
+  "$LOCc" "$(git -C "$Lc" rev-parse integration/myplan/phase-1 2>/dev/null)"
+expect "(c) ahead: origin left untouched" \
+  "$ORIc" "$(git -C "$Oc" rev-parse "$FBASE" 2>/dev/null)"
+
+# ---------------------------------------------------------------------------
+# Case (d): DIVERGED (local and origin each have unique commits off c0) ->
+# die non-zero, NO branch created, message carries both SHAs + both repair
+# directions (reconcile / push). The script never picks a side (ADR 0008).
+# ---------------------------------------------------------------------------
+FXd="$(fixture_remote)"; Ld="${FXd%% *}"; Od="${FXd##* }"
+printf 'local\n' > "$Ld/local.txt"; git -C "$Ld" add -A; git -C "$Ld" commit -qm cy
+LOCd="$(git -C "$Ld" rev-parse "$FBASE")"
+git -C "$Ld" checkout -q --detach
+printf 'origin\n' > "$Od/origin.txt"; git -C "$Od" add -A; git -C "$Od" commit -qm cx
+ORId="$(git -C "$Od" rev-parse "$FBASE")"
+OWNd="$Ld/owned.txt"; : > "$OWNd"
+run_capture "$Ld" ensure-integration myplan 1 "$FBASE" --owned-file "$OWNd"
+expect "(d) diverged: exits non-zero" \
+  "nonzero" "$([ "$CAP_CODE" -ne 0 ] && echo nonzero || echo zero)"
+expect "(d) diverged: message carries the LOCAL sha" \
+  "match" "$(printf '%s' "$CAP_OUT" | grep -q "$LOCd" && echo match || echo nomatch)"
+expect "(d) diverged: message carries the ORIGIN sha" \
+  "match" "$(printf '%s' "$CAP_OUT" | grep -q "$ORId" && echo match || echo nomatch)"
+expect "(d) diverged: message names both repair directions (reconcile + push)" \
+  "match" "$(printf '%s' "$CAP_OUT" | grep -qi 'reconcile' && printf '%s' "$CAP_OUT" | grep -qi 'push' && echo match || echo nomatch)"
+expect "(d) diverged: NO integration branch created" \
+  "absent" "$(git -C "$Ld" rev-parse --verify -q integration/myplan/phase-1 >/dev/null 2>&1 && echo present || echo absent)"
+
+# ---------------------------------------------------------------------------
+# Case (e): fetch FAILURE via an origin URL pointing at a nonexistent path ->
+# local cut + stderr warning (offline fallback = today's behavior). NOTE: this
+# no-origin/fetch-fail arm is FIXTURE-ONLY in a real run — Setup's ensure-origin
+# requires a pushable origin, so a live WAR run always has a reachable remote.
+# ---------------------------------------------------------------------------
+Re="$(new_repo)"
+git -C "$Re" checkout -q -b "$FBASE"
+BASEe="$(git -C "$Re" rev-parse "$FBASE")"
+git -C "$Re" remote add origin "$Re/nonexistent-origin.git"   # bogus, unreachable
+OWNe="$Re/owned.txt"; : > "$OWNe"
+run_capture "$Re" ensure-integration myplan 1 "$FBASE" --owned-file "$OWNe"
+expect "(e) fetch-fail: exits 0 (offline fallback)" "0" "$CAP_CODE"
+expect "(e) fetch-fail: integration cut from the LOCAL base" \
+  "$BASEe" "$(git -C "$Re" rev-parse integration/myplan/phase-1 2>/dev/null)"
+expect "(e) fetch-fail: stderr warning names the fetch fallback" \
+  "match" "$(printf '%s' "$CAP_OUT" | grep -qi 'could not fetch' && echo match || echo nomatch)"
+
+# ---------------------------------------------------------------------------
+# Case (f): local BEHIND origin WITH $FBASE checked out in a worktree -> the cut
+# still uses the origin tip, but the follower fast-forward is SKIPPED (moving a
+# checked-out ref would phantom-dirty that worktree) with a warning; the
+# checkout is left untouched and clean.
+# ---------------------------------------------------------------------------
+FXf="$(fixture_remote)"; Lf="${FXf%% *}"; Of="${FXf##* }"
+# Do NOT detach: $FBASE stays checked out in Lf's main worktree.
+LOCf="$(git -C "$Lf" rev-parse "$FBASE")"             # c0
+printf 'c1\n' > "$Of/adv.txt"; git -C "$Of" add -A; git -C "$Of" commit -qm c1
+ORIf="$(git -C "$Of" rev-parse "$FBASE")"             # c1 (origin ahead => local behind)
+OWNf="$Lf/owned.txt"; : > "$OWNf"
+run_capture "$Lf" ensure-integration myplan 1 "$FBASE" --owned-file "$OWNf"
+expect "(f) behind+checked-out: exits 0" "0" "$CAP_CODE"
+expect "(f) behind+checked-out: integration still cut at the ORIGIN tip" \
+  "$ORIf" "$(git -C "$Lf" rev-parse integration/myplan/phase-1 2>/dev/null)"
+expect "(f) behind+checked-out: follower ff SKIPPED (local base not moved)" \
+  "$LOCf" "$(git -C "$Lf" rev-parse "$FBASE" 2>/dev/null)"
+expect "(f) behind+checked-out: warning names the skipped fast-forward" \
+  "match" "$(printf '%s' "$CAP_OUT" | grep -qi 'skipping the follower fast-forward' && echo match || echo nomatch)"
+# -uno: the phantom-dirty a checked-out ref move causes is a TRACKED-file
+# mismatch (worktree vs the moved HEAD). Untracked files (the test's own
+# owned.txt ledger) are not that signal, and -uno mirrors the script's own
+# dirty-check idiom (ensure-refinery-worktree).
+expect "(f) behind+checked-out: checkout not phantom-dirtied (tracked files clean)" \
+  "clean" "$([ -z "$(git -C "$Lf" status --porcelain -uno 2>/dev/null)" ] && echo clean || echo dirty)"
+
 # ---------------------------------------------------------------------------
 printf '\n%d/%d cases passed\n' "$((n - fails))" "$n"
 [ "$fails" -eq 0 ] || { printf '%d FAILED\n' "$fails"; exit 1; }

@@ -49,8 +49,22 @@ Once a task branch has merged, `git diff <integrationTip>...<taskBranch>` is **e
 nothing. Reconstruct the refine-time base from the integration branch's first-parent history (the
 commit before the task's merge) and repro against that.
 
+## Status: RESOLVED (test-floor-pattern-threading phase, p2t1 + p2t2)
+
+Per the phase's audit log (both tasks approved, gate-audit `approve` on p2t1): Task 1.1 landed the
+`--pattern` threading into all three prompt sites (`workflow-template.js` + `agents/war-refiner.md`,
+same commit), and Task 1.2 landed the operator-facing `overrides.testPattern` prose in
+`skills/war/SKILL.md`. **Absence note:** this servitor's own checkout (branch
+`claude/resume-war-campaign-945f35`) does not contain these changes — `testPattern`/`--pattern`
+threading was not found via Grep here at write time; the fix lives on
+`dev/2026-07-07-target-repo-agnostic-execution`. Re-verify the threading directly on that branch
+before treating this as closed. See [[floor-subset-gate-claim-overstates-arbitrary-custom-pattern]]
+for a doc-precision residual the same phase surfaced in the SKILL.md prose it landed.
+
 ## Related
 
 [[floor-script-discovery-set-must-mirror-gate-exclusions]] — same floor, the intra-repo
 mirror-the-gate rule; this lesson is its cross-repo dual: the mirror must be *declarable*, not
 only hardcoded.
+[[floor-subset-gate-claim-overstates-arbitrary-custom-pattern]] — the doc-precision nit surfaced
+while landing this fix's prose.
