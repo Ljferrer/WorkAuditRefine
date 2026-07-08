@@ -353,6 +353,32 @@ It **auto-skips** a `requiresTest:false` task (no mapped tests ⇒ its HARD path
 is logged, never silent, and there is no operator off-switch.
 _Avoid_: audit-gate, "the additional audit"; treating it as a second full audit; a Lead-flippable toggle.
 
+### Diagnosis discipline
+
+**self-confound gate**:
+The mandatory diagnosis pre-flight run before an observed failure — a red probe, a broken baseline, an
+unexpected sandbox or live-system state — may be attributed to a **systemic bug** (the plan, the code, a
+subsystem). Four parts: enumerate and rule out your own and any concurrent actor's recent **mutating**
+actions against the observed state ("did I cause this?" is question #1); validate **single-path** over
+shared mutable state (never manual **and** automated back-to-back — re-provision fresh state before
+switching paths); gate **hypothesis promotion** on primary evidence (raw logs, a clean repro) plus an
+inward refute pass; and state the observation that would falsify the diagnosis, then go check it. It
+**blocks promotion, never diagnosis or escalation** — when primary evidence is unobtainable, record a
+labeled hypothesis note and/or escalate, then proceed. Standing-instruction prose carried across WAR's
+failure-diagnosing surfaces (the red-team Lead and confirm stage, the WAR Lead, workers, the servitor
+write-side), **not code-enforced**.
+_Avoid_: "observer-effect check" as the code/test token (the greppable anchor is `self-confound`);
+treating the gate as a hook or floor (nothing mechanical enforces it — it is prose discipline).
+
+**hypothesis promotion**:
+Escalating a root-cause diagnosis into a **durable artifact**, along a **closed list of four channels**: a
+memory/lesson write, a `war-followup` issue, a fix plan or spec, a sub-agent fan-out. Gated by the
+**self-confound gate** — no channel may encode a root-cause claim without primary evidence plus a stated
+falsifier. A hypothesis that must survive compaction is a **labeled ledger/phase-report note, never a
+memory lesson**.
+_Avoid_: promoting a diagnosis merely *consistent* with the theory; treating "must survive compaction" as
+license to write a memory lesson (it is a labeled note instead).
+
 ### Clean handoff (intent + disposition)
 
 **Commander's Intent**:
