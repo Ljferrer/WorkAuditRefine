@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   provenance: agent-unverified
-  phase: dead-phase-halt/t1 + 29 recurrences (through target-repo-agnostic-execution/p3t1)
+  phase: dead-phase-halt/t1 + 30 recurrences (through diagnosis-preflight-self-confound-gate/p1t1)
   date: 2026-06-30
   updated: 2026-07-07
   keywords:
@@ -53,9 +53,12 @@ helper collapses malformed gateHeadSha values to a sentinel at both copy sites. 
   task's mapped/plan files appear in **neither** side of the diff, the gate output captured at `gateHeadSha`
   is still reliable for those files even though the seat's HEAD moved on; downgrade to SOFT and cite the diff
   as grounding rather than re-running the gate (target-repo-agnostic-execution/p3t1, 2026-07-07: diff touched
-  only 3 unrelated docs files, none of the task's 4 mapped files).
+  only 3 unrelated docs files, none of the task's 4 mapped files; diagnosis-preflight-self-confound-gate/p1t1,
+  2026-07-07: the sole intervening commit touched only `CLAUDE.md`, `CONTEXT.md`, and a new ADR file, none of
+  p1t1's mapped `skills/red-team/diagnosis-preflight.test.sh` — mapped test confirmed present and non-vacuous,
+  17 assertions, at both the pinned and current sha; graded Minor/note, not a land-halt).
 
-**Recurrences (29+, through target-repo-agnostic-execution/p3t1, 2026-07-07):** a stale pin is
+**Recurrences (30+, through diagnosis-preflight-self-confound-gate/p1t1, 2026-07-07):** a stale pin is
 near-guaranteed once >= 2 tasks land in sequence on one integration branch — each task's gate
 necessarily runs before its siblings' follow-on commits land. Every observed mismatch resolved as
 benign forward advance via the ancestor check, with the mapped test content re-verified at the true

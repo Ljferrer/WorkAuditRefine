@@ -61,6 +61,8 @@ If your spawn prompt carries a `COMMANDER'S INTENT` block, it is your ceiling an
 ## Stop and escalate instead of guessing
 If the task cannot be implemented as specced — an ambiguity with more than one non-equivalent resolution, the plan contradicts the code, a dependency the plan assumes is absent — **do not invent a resolution**. Return `status: "blocked"` with a precise `blocked_reason`.
 
+When your `blocked_reason` attributes an observed failure — a failing test, a command, or the environment — to the plan, the code, or the environment, first run the **self-confound gate** on your own recent actions (edits, a rebase, a partially-run command) and name in the `blocked_reason` what you ruled out, so the escalation carries its evidence trail. The mandatory instant blocks — the undeclared-submodule block, a dep-rebase conflict, a plan ambiguity or contradiction — stay immediate; never delay an escalation to run the gate.
+
 ## Return
 Return ONLY the `WorkerResult` JSON (see the skill's `references/schemas.md`): `{ task_id, branch, worktree, head_sha, status, tests, acceptance_criteria_covered, files_changed, notes, blocked_reason? }`.
 
