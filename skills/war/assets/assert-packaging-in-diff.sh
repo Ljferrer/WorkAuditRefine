@@ -47,6 +47,21 @@
 #
 # macOS bash 3.2.57 compatible (no globstar, no associative arrays, no ${,,}).
 # Style mirrors assert-test-in-diff.sh / provision-worktrees.sh.
+#
+# ---------------------------------------------------------------------------
+# Target-repo-agnostic audit (epic #579; #574 item 4, decision C): NO override
+# added. Unlike the test-floor pattern — which pins a repo/language-specific
+# `*.test.*` convention and so gained a per-run `overrides.testPattern` — this
+# floor is ALREADY target-agnostic and needs no per-run knob:
+#   - Discovery keys on Dockerfile *naming* only (`Dockerfile` / `Dockerfile.*`
+#     / `*.Dockerfile`; see is_dockerfile), a convention every Docker-packaging
+#     repo shares — never on this repo's paths, layout, or file conventions.
+#   - COPY-coverage analysis is path-derived from the TARGET's own discovered
+#     Dockerfiles (the COPY/ADD sources parsed from each at <branch>), never
+#     from a fixed source tree — so the floor adapts to whatever the target
+#     packages, in whatever repo it runs against.
+# Comment-only: this note records the audit; no executable surface changes.
+# ---------------------------------------------------------------------------
 set -euo pipefail
 
 PROG="assert-packaging-in-diff"
