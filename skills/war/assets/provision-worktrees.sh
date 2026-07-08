@@ -183,8 +183,13 @@ record_owned_file() {
 
 # --- subcommand: ensure-integration ----------------------------------------
 # ensure-integration <slug> <N> <base> [--owned-file PATH] [--owned REF]...
-# Reuse if the branch exists and is ours; create from <base> if absent; fail
-# loud if it exists but is not ours.
+# Reuse if the branch exists and is ours; fail loud if it exists but is not ours.
+# On CREATE (branch absent) reconcile the local <base> against origin/<base>
+# before cutting (ADR 0008 — git is the source of truth, and a fetch can reveal
+# the LOCAL base is stale/diverged vs the shared remote): equal/ahead -> cut from
+# local; behind -> cut from the ORIGIN tip + guarded follower fast-forward;
+# diverged -> die (no branch created); fetch fails / no origin -> stderr warning +
+# local cut (offline fallback). The owned resume/reuse path is never re-cut.
 cmd_ensure_integration() {
   [ $# -ge 3 ] || die "usage: ensure-integration <slug> <N> <base> [--owned-file PATH] [--owned REF]..."
   slug="$1"; num="$2"; base="$3"; shift 3
@@ -220,14 +225,65 @@ cmd_ensure_integration() {
     die "foreign branch '$branch' already exists and is not owned by this run; refusing to reuse or overwrite it (see ADR 0003). If this is a stale ref from a prior run, delete it or record it as owned." 3
   fi
 
-  # Absent -> create from the supplied base, then record ownership.
-  # Capture stderr via a temp file so a bad base ref surfaces git's own diagnostic
-  # in the die message: git stderr → $tmp, stdout → /dev/null; on failure, read
-  # $tmp into the die string, then delete the temp file.
+  # Absent -> create. Before cutting, reconcile the local <base> against
+  # origin/<base> (ADR 0008). Fetch stderr is captured via the _tmp_err idiom
+  # (NOT swallowed behind a static message like cmd_ensure_origin) so the offline
+  # fallback surfaces git's own diagnostic. Resolution:
+  #   fetch fails / no origin -> warn, cut from local base (offline = today).
+  #   local == origin         -> cut from local (unchanged).
+  #   local behind origin     -> cut from the ORIGIN tip; then fast-forward the
+  #                              local follower ref (guarded CAS), SKIPPED with a
+  #                              warning when <base> is checked out anywhere (moving
+  #                              a live ref phantom-dirties that checkout; the cut
+  #                              still used the origin tip, so correctness holds).
+  #   local ahead of origin   -> cut from local (origin is the stale side).
+  #   diverged (neither anc.)  -> die non-zero, NO branch created, both SHAs + the
+  #                              two ADR-0008 repair directions (operator picks).
+  cut_ref="$base"
+  do_follower_ff=0
+  origin_sha=""
+  local_sha=""
+  _tmp_err="$(mktemp 2>/dev/null || mktemp -t warfetch)"
+  if git fetch origin "$base" >/dev/null 2>"$_tmp_err"; then
+    rm -f "$_tmp_err"
+    origin_sha="$(git rev-parse FETCH_HEAD 2>/dev/null || true)"
+    local_sha="$(git rev-parse --verify --quiet "refs/heads/$base" 2>/dev/null || true)"
+    if [ -n "$origin_sha" ] && [ -n "$local_sha" ]; then
+      if [ "$local_sha" = "$origin_sha" ]; then
+        :   # equal: cut from local (== origin).
+      elif git merge-base --is-ancestor "$local_sha" "$origin_sha" 2>/dev/null; then
+        cut_ref="$origin_sha"   # behind: cut from the origin tip, ff the follower.
+        do_follower_ff=1
+      elif git merge-base --is-ancestor "$origin_sha" "$local_sha" 2>/dev/null; then
+        :   # ahead: cut from local (origin is the stale side).
+      else
+        die "ensure-integration: local '$base' ($local_sha) and origin/$base ($origin_sha) have DIVERGED — neither is an ancestor of the other, so no branch was created. Only the operator can adjudicate which side is real (ADR 0008 — git is the source of truth, but here two gits disagree). Inspect both: 'git log --oneline $origin_sha..$local_sha' (local-only commits) and 'git log --oneline $local_sha..$origin_sha' (origin-only commits). Then EITHER reconcile local onto origin (rebase/merge onto origin/$base) and relaunch, OR — if origin is the stale side — push local to advance origin/$base and relaunch. This script never picks a side." 7
+      fi
+    fi
+  else
+    _fetch_err="$(cat "$_tmp_err")"; rm -f "$_tmp_err"
+    warn "ensure-integration: could not fetch origin/$base (offline, or no origin remote); proceeding with the local base '$base'. git: $_fetch_err"
+  fi
+
+  # Cut the integration branch from the resolved ref. Capture stderr so a bad ref
+  # surfaces git's own diagnostic in the die message.
   _tmp_err="$(mktemp 2>/dev/null || mktemp -t warbranch)"
-  git branch "$branch" "$base" >/dev/null 2>"$_tmp_err" \
-    || { _git_branch_err="$(cat "$_tmp_err")"; rm -f "$_tmp_err"; die "failed to create branch '$branch' at base '$base': $_git_branch_err"; }
+  git branch "$branch" "$cut_ref" >/dev/null 2>"$_tmp_err" \
+    || { _git_branch_err="$(cat "$_tmp_err")"; rm -f "$_tmp_err"; die "failed to create branch '$branch' at base '$cut_ref': $_git_branch_err"; }
   rm -f "$_tmp_err"
+
+  # Behind case: fast-forward the local follower ref to the origin tip so it no
+  # longer lags. Guarded CAS (expected old value = local_sha). Skipped when <base>
+  # is checked out anywhere.
+  if [ "$do_follower_ff" -eq 1 ]; then
+    if branch_checked_out_anywhere "$base"; then
+      warn "ensure-integration: local '$base' is behind origin/$base but is checked out in a worktree; skipping the follower fast-forward (the integration branch was cut from the origin tip regardless)."
+    else
+      git update-ref "refs/heads/$base" "$origin_sha" "$local_sha" \
+        || warn "ensure-integration: could not fast-forward local '$base' to the origin tip (concurrent move?); the integration branch was still cut from the origin tip."
+    fi
+  fi
+
   record_owned_file "$owned_file" "$branch"
   printf '%s\n' "$branch"
 }
