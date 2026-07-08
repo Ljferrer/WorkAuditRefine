@@ -236,3 +236,110 @@ test('two DISTINCT severity-less findings on a fail probe → TWO needsDecision 
   ])
   assert.equal(classify(findings).needsDecision.length, 2)
 })
+
+// --- T2 (#587): unwrapEnvelope unit + main() CLI refusal + step-4 doc lock ---
+
+import { unwrapEnvelope } from './red-team-gate.mjs'
+import { spawnSync } from 'node:child_process'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const GATE = path.join(__dirname, 'red-team-gate.mjs')
+const repoRoot = path.resolve(__dirname, '../../..')
+
+function runGate(args, input) {
+  return spawnSync(process.execPath, [GATE, ...args], { input, encoding: 'utf8' })
+}
+
+// --- unwrapEnvelope (End-state 5: five cases) ---
+
+test('unwrapEnvelope returns .result for the harness task-output envelope shape', () => {
+  const payload = { probeResults: [{ probe: 'a' }], expected: 1 }
+  assert.deepEqual(unwrapEnvelope({ result: payload }), payload)
+})
+
+test('unwrapEnvelope returns a direct object (its own probeResults) unchanged', () => {
+  const direct = { probeResults: [{ probe: 'a' }] }
+  assert.equal(unwrapEnvelope(direct), direct)
+})
+
+test('unwrapEnvelope returns an array unchanged', () => {
+  const arr = [{ probe: 'a' }]
+  assert.equal(unwrapEnvelope(arr), arr)
+})
+
+test('unwrapEnvelope: a top-level probeResults wins over a nested .result', () => {
+  const both = { probeResults: [{ probe: 'top' }], result: { probeResults: [{ probe: 'nested' }] } }
+  assert.equal(unwrapEnvelope(both), both)
+})
+
+test('unwrapEnvelope does NOT unwrap when .result is not an object-with-probeResults (falls to floor)', () => {
+  const noProbes = { result: { fingerprint: {} } }
+  assert.equal(unwrapEnvelope(noProbes), noProbes)
+  const resultIsArray = { result: [{ probe: 'a' }] }
+  assert.equal(unwrapEnvelope(resultIsArray), resultIsArray)
+})
+
+// --- CLI: main() refusal + unwrap (the only layer where main()'s exit/stderr is observable) ---
+
+// One status:'fail' Critical probe whose read_anchor matches the fingerprint. Fidelity is
+// load-bearing: an invalid anchor or ran < expected would yield INCOMPLETE, not BLOCKED.
+const FP587 = { absPath: '/repo/docs/plans/p.md', titleLine: '# My Plan', tokens: ['## A'] }
+const failCritical = {
+  probe: 'x', kind: 'bespoke', technique: 'analyzed', status: 'fail',
+  read_anchor: { resolved_path: '/repo/docs/plans/p.md', plan_title: '# My Plan' },
+  findings: [{ severity: 'Critical', claim: 'boom', planRef: 'Task 1' }],
+}
+
+test('CLI: envelope wrapping the full scaffold return with a fail Critical → exit 0, BLOCKED, probe counted (#587 repro inverted)', () => {
+  const envelope = { result: {
+    plan: '/repo/docs/plans/p.md', repo: '/repo', fingerprint: FP587,
+    provision: [], expected: 1, probeResults: [failCritical],
+  } }
+  const r = runGate(['--stdin'], JSON.stringify(envelope))
+  assert.equal(r.status, 0, r.stderr)
+  const out = JSON.parse(r.stdout)
+  assert.equal(out.verdict, 'BLOCKED')
+  assert.ok(out.summary.probes >= 1, `expected probes >= 1, got ${out.summary.probes}`)
+})
+
+test('CLI: coverage-null envelope (no fingerprint/expected) with the same fail Critical → still BLOCKED', () => {
+  const r = runGate(['--stdin'], JSON.stringify({ result: { probeResults: [failCritical] } }))
+  assert.equal(r.status, 0, r.stderr)
+  assert.equal(JSON.parse(r.stdout).verdict, 'BLOCKED')
+})
+
+for (const [label, input] of [
+  ['empty object', {}],
+  ['empty-result envelope', { result: {} }],
+  ['empty array', []],
+]) {
+  test(`CLI: zero-probe input via --stdin (${label}) → non-zero exit, zero-probe stderr, no verdict on stdout`, () => {
+    const r = runGate(['--stdin'], JSON.stringify(input))
+    assert.notEqual(r.status, 0)
+    assert.match(r.stderr, /zero[- ]probe|0 probes?/i)
+    assert.ok(!r.stdout.includes('verdict'), `stdout must carry no verdict, got: ${r.stdout}`)
+  })
+}
+
+test('CLI: zero-probe input via the file argument (not --stdin) → same refusal (mode-independent)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'red-team-gate-'))
+  const file = path.join(dir, 'empty.json')
+  fs.writeFileSync(file, JSON.stringify({ result: {} }))
+  const r = runGate([file])
+  assert.notEqual(r.status, 0)
+  assert.match(r.stderr, /zero[- ]probe|0 probes?/i)
+  assert.ok(!r.stdout.includes('verdict'), `stdout must carry no verdict, got: ${r.stdout}`)
+})
+
+// --- Step-4 doc lock (read the SKILL.md from repoRoot, per campaign-ledger.test.mjs idiom) ---
+
+test('SKILL.md step 4 names both accepted input shapes, the .result unwrap, and the zero-probe refusal', () => {
+  const md = fs.readFileSync(path.join(repoRoot, 'skills/red-team/SKILL.md'), 'utf8')
+  assert.match(md, /task-output/i)
+  assert.match(md, /\.result/)
+  assert.match(md, /zero[- ]probe|0 probes?/i)
+})
