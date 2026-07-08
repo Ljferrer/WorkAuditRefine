@@ -279,19 +279,19 @@ Phase 1 (two parallel, file-disjoint tasks — one per issue, one wave) → Phas
   returns ≥ 1 probe result or `dropped` marker (≥ 4 spine probes after filtering) — a zero-probe
   input remains always-wrong-shape; the refusal's justification survives the correction intact.
 - **Merge adjacency, not dependency (spec §2):**
-  `docs/plans/2026-07-07-diagnosis-preflight-self-confound-gate.md` (merged to master,
-  **unexecuted**) inserts a new `## Diagnosis pre-flight` section into `skills/red-team/SKILL.md`
+  `docs/plans/2026-07-07-diagnosis-preflight-self-confound-gate.md` (merged **and executed** on
+  master, PR #608) inserts a new `## Diagnosis pre-flight` section into `skills/red-team/SKILL.md`
   between `## Backstop-legitimacy check` and `## Invariants (never violate)`, and appends one
   sentence to `workflow-scaffold.js`'s `confirmStage` string. This plan touches step 4 in
   `## Steps` and `red-team-gate.mjs` — files/constructs that plan never touches (verified: it
-  never edits `red-team-gate.mjs`). Disjoint constructs; whichever executes second rebases
+  never edits `red-team-gate.mjs`). Disjoint constructs; this plan executes second and rebases
   trivially. **No ordering edge.**
 - **Roadmap contention (for the campaign roadmap this plan rides in):** this plan is
   **version-serialized only** against its two survey siblings
   (`2026-07-08-war-run-lifecycle-robustness`, `2026-07-08-servitor-learnings-write-path`) — no
   content edge, queue position free. Contention rows the roadmap will carry: the three release-slot
   files × all three plans (strict serial at land, version resolved from the slots each time), and
-  `skills/red-team/SKILL.md` vs the **unexecuted** diagnosis-preflight campaign (adjacency only,
+  `skills/red-team/SKILL.md` vs the **already-executed** diagnosis-preflight campaign (adjacency only,
   no edge). This plan's subsystems (`skills/war-campaign/`, `skills/red-team/`) are otherwise
   disjoint from both siblings; it adds **no ADR** and **no CLAUDE.md/CONTEXT.md edit** (spec
   §6/§7: none needed — the fail-closed posture is already doctrine in spirit), so it does not

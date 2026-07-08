@@ -14,6 +14,23 @@ export function allFindings(results) {
     r && Array.isArray(r.findings) ? r.findings.map(f => ({ probe: r.probe, probeStatus: r.status, ...f })) : [])
 }
 
+// The Workflow harness persists a task's return value under a top-level `.result` key, so the gate
+// is often handed { result: { ...scaffoldReturn } } rather than the scaffold return itself. Unwrap
+// exactly ONE such level: return `parsed.result` iff `parsed` is a non-null non-array object
+// WITHOUT its own probeResults array whose `.result` is a non-null non-array object WITH a
+// probeResults array; otherwise return `parsed` unchanged. A direct top-level probeResults always
+// wins (unwrap only when the direct read would find nothing); a `.result` that is an array or lacks
+// probeResults does not unwrap — it falls through to main()'s zero-probe floor. Detection is
+// shape-keyed, not schema-keyed: if the harness renames `.result` or nests deeper this misses and
+// the floor catches it loudly — the two layers are deliberately independent.
+export function unwrapEnvelope(parsed) {
+  const isObj = v => v != null && typeof v === 'object' && !Array.isArray(v)
+  return (isObj(parsed) && !Array.isArray(parsed.probeResults)
+    && isObj(parsed.result) && Array.isArray(parsed.result.probeResults))
+    ? parsed.result
+    : parsed
+}
+
 // --- Layer 3: anchor attestation --------------------------------------------
 // Normalize a plan's title line for tolerant comparison: drop a leading '# ',
 // collapse internal whitespace, lowercase.
@@ -132,8 +149,11 @@ export function summarize(results, coverage = null) {
 }
 
 // --- CLI ---------------------------------------------------------------------
-// node red-team-gate.mjs <results.json>   -> classify + verdict (results = [...] or { probeResults:[...] })
+// node red-team-gate.mjs <results.json>   -> classify + verdict
 // node red-team-gate.mjs --stdin          -> same, reading JSON from stdin
+// Accepted input shapes: [...probeResults] | { probeResults: [...], ... } | a task-output envelope
+// { result: { probeResults: [...] } } (one .result level, auto-unwrapped; a top-level probeResults
+// wins). Zero probe results -> exit 1, no verdict (a verification that did not run may not pass).
 async function main(argv) {
   const args = argv.slice(2)
   let raw
@@ -154,7 +174,21 @@ async function main(argv) {
   let parsed
   try { parsed = JSON.parse(raw) }
   catch (e) { process.stderr.write(`invalid JSON: ${e.message}\n`); process.exit(1) }
+  parsed = unwrapEnvelope(parsed)
   const results = Array.isArray(parsed) ? parsed : (parsed.probeResults || [])
+  // Zero-probe refusal (#587): a legitimate red-team run always yields ≥1 probe result or dropped
+  // marker, so an empty probe set is a wrong-shaped input — refuse loudly, never emit a verdict on
+  // stdout (a verification that did not run may not report a pass). Unconditional and
+  // mode-independent (below both the --stdin and file reads); distinct from the invalid-JSON exit.
+  if (results.length === 0) {
+    process.stderr.write(
+      'red-team-gate: zero probe results — refusing to emit a verdict on an empty probe set '
+      + '(a verification that did not run may not report a pass). A common cause is piping the '
+      + 'Workflow task-output file, whose payload nests under a `.result` key — the gate already '
+      + 'unwraps one such level automatically, so a deeper nest, {}, { "result": {} }, [], the '
+      + 'wrong file, or a truncated object all land here as a zero-probe input.\n')
+    process.exit(1)
+  }
   const fingerprint = Array.isArray(parsed) ? null : (parsed.fingerprint || null)
   const repo = Array.isArray(parsed) ? null : (parsed.repo || null)
   const expected = Array.isArray(parsed) ? undefined : parsed.expected

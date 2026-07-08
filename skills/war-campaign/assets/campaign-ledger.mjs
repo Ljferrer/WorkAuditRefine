@@ -154,16 +154,64 @@ function makePlanEntry(planPath, files) {
   }
 }
 
-// Resolve a roadmap file's index into an ordered list of plan paths.
-// The roadmap is authoring input + on-demand snapshot (never the live feed —
-// spec Rev 1); this reads a simple numbered/bulleted index list of paths.
+// Resolve a roadmap file's plan index into an ordered list of resolved plan paths.
+// The roadmap is authoring input + on-demand snapshot (never the live feed — spec
+// Rev 1). Two accepted forms, read in a SINGLE pass so queue order is document line
+// order:
+//   1. A bare bulleted/numbered list line whose sole content is a `.md` path
+//      (`- plans/a.md` or `1. plans/a.md`) — the legacy contract, unchanged.
+//   2. A plan-index TABLE row (a line starting with `|`): contributes the target of
+//      its FIRST markdown link whose target ends `.md` (`[slug](../plans/<file>.md)`).
+//      This is the ratified roadmap template (war-strategy SKILL.md §2); every
+//      committed roadmap uses it. Header/separator rows carry no link and so
+//      contribute nothing — the link requirement is the structural filter.
+// Both forms resolve their target against the roadmap's own directory, so a
+// `../plans/<file>.md` target from a `docs/roadmaps/` roadmap lands in `docs/plans/`.
+//
+// FAIL-LOUD contract: a parse that yields 0 plans THROWS (naming the roadmap path
+// and both accepted forms). Returning [] would let init() write a valid-but-empty
+// ledger at exit 0 — the #585 silent failure.
+//
+// Documented ceilings (with triggers):
+//  (a) First-link-per-row: only the first `.md` link target in a row is taken. A
+//      future roadmap with a `.md` link in a column BEFORE the Plan column, or links
+//      (not backticks) in the contention table, would mis-ingest. The ratified
+//      template keeps the Plan column the only linked cell; backticked doc paths in
+//      the Files-owned / contention cells are never extracted (the link syntax is the
+//      whole precision mechanism — `isPathShaped` does not discriminate here).
+//  (b) Bulleted MARKDOWN-LINK lines (`- [slug](../plans/x.md)`) match NEITHER form
+//      (out of contract, operator-ratified); the 0-plan throw names the miss.
+//  (c) Legacy spec-index roadmaps are OUT OF CONTRACT: a Plan column linking
+//      `../specs/*.md` would seed a campaign of spec files. The contract is "the Plan
+//      column links plans"; deliberately NO path or `-design.md` suffix heuristic
+//      discriminates (target-repo-agnostic code carries no repo naming convention).
+//      Such over-ingestion surfaces via the existing backstops (assertOrderable's
+//      unparseable-footprint throw — a spec has no `Files:` block — or
+//      extractFilesFromPlanFile's ENOENT).
 function resolveRoadmapPlans(roadmapPath) {
   const text = fs.readFileSync(roadmapPath, 'utf8')
   const roadmapDir = path.dirname(roadmapPath)
   const plans = []
   for (const line of text.split(/\r?\n/)) {
-    const m = line.match(/^\s*(?:\d+[.)]|-)\s+(\S+\.md)\s*$/)
-    if (m) plans.push(path.resolve(roadmapDir, m[1]))
+    const bare = line.match(/^\s*(?:\d+[.)]|-)\s+(\S+\.md)\s*$/)
+    if (bare) {
+      plans.push(path.resolve(roadmapDir, bare[1]))
+      continue
+    }
+    // A table row (leading-`|`, whitespace-tolerant) contributes its first markdown
+    // link target ending `.md` immediately before the closing paren (target
+    // whitespace-free, so `<file>.md#anchor` and non-`.md` targets don't match).
+    if (/^\s*\|/.test(line)) {
+      const link = line.match(/\[[^\]]*\]\((\S+\.md)\)/)
+      if (link) plans.push(path.resolve(roadmapDir, link[1]))
+    }
+  }
+  if (plans.length === 0) {
+    throw new Error(
+      `0 plans parsed from ${roadmapPath} — expected a plan-index table ` +
+        `([slug](../plans/<file>.md) rows) or bare bulleted/numbered .md path lines; ` +
+        `bulleted markdown links (- [slug](file.md)) are not an accepted form`,
+    )
   }
   return plans
 }
