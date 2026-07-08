@@ -59,12 +59,53 @@ const PLAN_UNPARSEABLE = `# Plan D
 No files section at all, just prose about the change.
 `
 
+// Canonical plan-index TABLE roadmap (mirrors the ratified war-strategy §2 template
+// row shape): header + separator rows, two `[slug](../plans/<file>.md)` rows, and a
+// backticked `.md` decoy in a Files-owned cell. NO bare-list lines — so removing the
+// table extractor turns the ingestion test into the 0-plan throw (delete-the-feature).
 const ROADMAP = `# Roadmap — 2 plans
+
+| # | Plan | Files owned | Ver | Depends on |
+|---|------|-------------|-----|------------|
+| 1 | [plan-a](../plans/a.md) | \`src/a.js\`, \`notes/decoy.md\` | v0.1.0 | — |
+| 2 | [plan-b](../plans/b.md) | \`src/z.js\` | v0.1.1 | 1 |
+`
+
+// Legacy bare numbered-list form — retained as an explicit back-compat fixture.
+const ROADMAP_BARE_LIST = `# Roadmap — 2 plans
 
 ## Index
 
 1. plans/a.md
 2. plans/b.md
+`
+
+// One table row + one stray bare-list line — locks the one-pass / document-line-order
+// claim (table row precedes the bare line, so a resolves before b).
+const ROADMAP_MIXED = `# Roadmap — mixed forms
+
+| # | Plan | Files owned | Ver | Depends on |
+|---|------|-------------|-----|------------|
+| 1 | [plan-a](../plans/a.md) | \`src/a.js\` | v0.1.0 | — |
+
+A stray legacy index line left over from an earlier revision:
+
+- ../plans/b.md
+`
+
+// Bulleted markdown links only — matches NEITHER form (operator ratification 2), so
+// the parse yields 0 plans and throws.
+const ROADMAP_BULLETED_LINKS = `# Roadmap — bulleted links only
+
+- [plan-a](../plans/a.md)
+- [plan-b](../plans/b.md)
+`
+
+// No plan index at all — the 0-plan throw's canonical trigger.
+const ROADMAP_PROSE_ONLY = `# Just prose
+
+This roadmap has no plan index — only paragraphs describing intent.
+No table, no list.
 `
 
 // ---- init -------------------------------------------------------------
@@ -94,12 +135,23 @@ test('init from a bare plan list produces the canonical ledger shape', () => {
   assert.deepEqual(readLedger(campaignDir), ledger)
 })
 
-test('init from a roadmap file produces the same ledger shape', () => {
-  const dir = tmpDir()
-  fs.mkdirSync(path.join(dir, 'plans'))
+// Build the canonical-table roadmap fixture tree: roadmap under roadmaps/, plans
+// under plans/ (so the `../plans/` targets exercise real resolution), plus the
+// backticked decoy CREATED ON DISK — a table extractor that regressed into grabbing
+// backticked cell tokens would resolve it to a real file and return 3 plans, so the
+// exactly-2 assertions (not an ENOENT) are what catch a precision failure.
+function setupCanonicalRoadmap(dir) {
+  fs.mkdirSync(path.join(dir, 'plans'), { recursive: true })
+  fs.mkdirSync(path.join(dir, 'roadmaps', 'notes'), { recursive: true })
   writePlan(dir, 'plans/a.md', PLAN_A)
   writePlan(dir, 'plans/b.md', PLAN_DISJOINT)
-  const roadmapPath = writePlan(dir, 'roadmap.md', ROADMAP)
+  writePlan(dir, 'roadmaps/notes/decoy.md', '# decoy doc — must never be ingested\n')
+  return writePlan(dir, 'roadmaps/roadmap.md', ROADMAP)
+}
+
+test('init from a canonical plan-index table roadmap ingests the two linked plans, queued, in row order', () => {
+  const dir = tmpDir()
+  const roadmapPath = setupCanonicalRoadmap(dir)
   const campaignDir = path.join(dir, 'campaign')
 
   const ledger = init(campaignDir, { roadmap: roadmapPath, mode: 'wait-for-merge' })
@@ -109,6 +161,79 @@ test('init from a roadmap file produces the same ledger shape', () => {
   assert.equal(ledger.plans[0].status, 'queued')
   assert.equal(ledger.plans[0].plan, path.resolve(dir, 'plans/a.md'))
   assert.equal(ledger.plans[1].plan, path.resolve(dir, 'plans/b.md'))
+})
+
+test('table extraction ignores a backticked .md decoy in a Files-owned cell (exactly the 2 linked plans)', () => {
+  const dir = tmpDir()
+  const roadmapPath = setupCanonicalRoadmap(dir)
+  const campaignDir = path.join(dir, 'campaign')
+
+  const ledger = init(campaignDir, { roadmap: roadmapPath, mode: 'stack' })
+
+  assert.equal(ledger.plans.length, 2)
+  const decoyResolved = path.resolve(dir, 'roadmaps/notes/decoy.md')
+  assert.ok(!ledger.plans.some((p) => p.plan === decoyResolved), 'the backticked .md decoy must never be ingested')
+  assert.deepEqual(
+    ledger.plans.map((p) => p.plan),
+    [path.resolve(dir, 'plans/a.md'), path.resolve(dir, 'plans/b.md')],
+  )
+})
+
+test('init from a bare numbered-list roadmap still parses to the same ledger shape (back-compat)', () => {
+  const dir = tmpDir()
+  fs.mkdirSync(path.join(dir, 'plans'))
+  writePlan(dir, 'plans/a.md', PLAN_A)
+  writePlan(dir, 'plans/b.md', PLAN_DISJOINT)
+  const roadmapPath = writePlan(dir, 'roadmap.md', ROADMAP_BARE_LIST)
+  const campaignDir = path.join(dir, 'campaign')
+
+  const ledger = init(campaignDir, { roadmap: roadmapPath, mode: 'wait-for-merge' })
+
+  assert.equal(ledger.plans.length, 2)
+  assert.equal(ledger.plans[0].plan, path.resolve(dir, 'plans/a.md'))
+  assert.equal(ledger.plans[1].plan, path.resolve(dir, 'plans/b.md'))
+})
+
+test('mixed-form roadmap: a table row and a stray bare-list line both ingest, in document line order', () => {
+  const dir = tmpDir()
+  fs.mkdirSync(path.join(dir, 'plans'))
+  fs.mkdirSync(path.join(dir, 'roadmaps'))
+  writePlan(dir, 'plans/a.md', PLAN_A)
+  writePlan(dir, 'plans/b.md', PLAN_DISJOINT)
+  const roadmapPath = writePlan(dir, 'roadmaps/roadmap.md', ROADMAP_MIXED)
+  const campaignDir = path.join(dir, 'campaign')
+
+  const ledger = init(campaignDir, { roadmap: roadmapPath, mode: 'stack' })
+
+  assert.equal(ledger.plans.length, 2)
+  assert.equal(ledger.plans[0].plan, path.resolve(dir, 'plans/a.md')) // table row is first in the document
+  assert.equal(ledger.plans[1].plan, path.resolve(dir, 'plans/b.md')) // stray bare line is second
+})
+
+test('bulleted markdown-link roadmap matches neither form and throws the 0-plan error (ratification 2)', () => {
+  const dir = tmpDir()
+  const roadmapPath = writePlan(dir, 'roadmap.md', ROADMAP_BULLETED_LINKS)
+  const campaignDir = path.join(dir, 'campaign')
+
+  assert.throws(
+    () => init(campaignDir, { roadmap: roadmapPath, mode: 'stack' }),
+    (err) => /0 plans/.test(err.message) && err.message.includes(roadmapPath),
+  )
+  assert.equal(fs.existsSync(campaignDir), false)
+})
+
+test('init from a prose-only (0-plan) roadmap throws naming the path, and creates no ledger or campaign dir', () => {
+  const dir = tmpDir()
+  const roadmapPath = writePlan(dir, 'roadmap.md', ROADMAP_PROSE_ONLY)
+  const campaignDir = path.join(dir, 'campaign')
+
+  // MESSAGE-MATCHED on purpose: a bare assert.throws is vacuous — assertOrderable
+  // also throws — so match /0 plans/ AND the roadmap path to pin the 0-plan throw.
+  assert.throws(
+    () => init(campaignDir, { roadmap: roadmapPath, mode: 'stack' }),
+    (err) => /0 plans/.test(err.message) && err.message.includes(roadmapPath),
+  )
+  assert.equal(fs.existsSync(campaignDir), false)
 })
 
 test('mode must be stack or wait-for-merge', () => {
@@ -462,6 +587,17 @@ const CLI = path.join(__dirname, 'campaign-ledger.mjs')
 function cli(...args) {
   return execFileSync(process.execPath, [CLI, ...args], { encoding: 'utf8' })
 }
+
+test('CLI init --roadmap on a prose-only roadmap exits non-zero and creates no campaign dir (0-plan throw propagates)', () => {
+  const dir = tmpDir()
+  const roadmapPath = writePlan(dir, 'roadmap.md', ROADMAP_PROSE_ONLY)
+  const campaignDir = path.join(dir, 'campaign')
+
+  // execFileSync throws on a non-zero exit; the uncaught 0-plan throw inside
+  // main()'s init case is that non-zero exit (same idiom as the mode-validation throw).
+  assert.throws(() => cli('init', '--campaign', campaignDir, '--roadmap', roadmapPath))
+  assert.equal(fs.existsSync(campaignDir), false)
+})
 
 test('CLI record --stopPoint round-trips into the persisted entry', () => {
   const dir = tmpDir()
