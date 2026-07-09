@@ -4691,3 +4691,183 @@ test('Task 1.2 — a stale-then-resolved land (final status:landed) reaches the 
   assert.ok(!out.escalated.some(e => e && String(e.task).includes('-land')),
     'no land escalation is recorded for a resolved transient (no land_stale reaches HARD_ESCALATION_REASONS)')
 })
+
+// ---------------------------------------------------------------------------
+// audit-gate-verdict-fidelity Task 1.3 — pin-equality gate (D2) + verdict-hard (D8)
+// End-state criteria 3 (mismatch demotion) and 9 (finding-less escalate is HARD at both sites),
+// plus the auditPrompt AUDIT-PIN-line presence/fail-open assert and the auditRound (work-wave)
+// demotion enforcement. observedHead is absent in this phase (Task 2.1 stamps it), so the gate-audit
+// seat's pin-equality expectation falls back to gateHeadSha — the live path until Phase 2 lands.
+// ---------------------------------------------------------------------------
+
+const ONE_TASK = () => PROVISION_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'T1', planSlice: 's1', roster: [{ lens: 'correctness' }] }] })
+// A gate-audit seat that returns a HARD (escalate + Critical) verdict pinned to `auditSha`; the refiner
+// stamps a well-formed integration_sha '1111111111' so gateHeadSha is well-formed (pinMismatch can fire).
+const gateAuditPinImpl = (auditSha) => (prompt, opts) => {
+  const seat = seatOf(opts)
+  if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
+  if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 5 } }
+  if (seat === 'war-auditor') {
+    if (prompt.includes('execution-evidence') || (opts.label || '').includes('execution-evidence')) {
+      return { seat: opts.label, lens: 'execution-evidence', verdict: 'escalate',
+               findings: [{ severity: 'Critical', title: 'mapped test provably unrun', file: 'test/foo.test.js', rationale: 'absent at tip' }],
+               confidence: 'high', audit_sha: auditSha }
+    }
+    return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+  }
+  if (seat === 'war-refiner') {
+    return opts.phase === 'Land' ? { mode: 'land-phase', status: 'landed' }
+      : { mode: 'merge-task', status: 'merged', gate_output: 'ok 5 tests passed', integration_sha: '1111111111' }
+  }
+  if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+  return {}
+}
+
+test('T1.3 criterion 3 (D2) — gate-audit seat whose audit_sha ≠ the pin is demoted (pin-mismatch, findings excluded from the HARD path); a matching-sha control stays HARD', async () => {
+  // MISMATCH: audit_sha '2222222222' ≠ gateHeadSha '1111111111' (both well-formed, neither a prefix) ⇒
+  // the seat judged a different tree ⇒ its escalate+Critical is demoted, land is NOT held.
+  const { out: mm } = await runPhase(ONE_TASK(), gateAuditPinImpl('2222222222'))
+  assert.equal(mm.landDecision, 'landed',
+    'a pin-mismatched gate-audit seat cannot hold the land (findings demoted to SOFT)')
+  assert.ok(!(mm.escalated || []).some(e => e && e.reason === 'gate-evidence'),
+    'a pin-mismatched seat contributes NO gate-evidence escalation')
+  const mmEntry = (mm.auditLog || []).find(e => e && e.gateEvidence)
+  assert.ok(mmEntry, 'the gate-evidence auditLog entry (the SOFT absence-note) exists')
+  assert.equal(mmEntry.pinMismatch, true, 'the auditLog entry is tagged pin-mismatch')
+  assert.equal(mmEntry.hard, false, 'the pin-mismatched entry is SOFT (hard:false)')
+  assert.equal(mmEntry.auditSha, '2222222222', 'the note carries the seat sha it reviewed')
+  assert.equal(mmEntry.expectedPin, '1111111111', 'the note carries the expected pin (both SHAs recorded)')
+  assert.ok((mmEntry.findings || []).every(f => f.pinMismatch === true), 'every finding is tagged pin-mismatch')
+
+  // CONTROL: audit_sha '1111111111' == gateHeadSha ⇒ NOT a mismatch ⇒ the escalate+Critical stays HARD.
+  // Delete-and-trace: removing the `!mismatch &&` demotion guard would flip the MISMATCH run to
+  // held:escalation too, failing the `landed` assertion above — so the demotion is load-bearing.
+  const { out: ctl } = await runPhase(ONE_TASK(), gateAuditPinImpl('1111111111'))
+  assert.equal(ctl.landDecision, 'held:escalation',
+    'a matching-sha gate-audit seat keeps the HARD hold (provably-unrun / escalate)')
+  assert.ok((ctl.escalated || []).some(e => e && e.reason === 'gate-evidence'),
+    'the matching-sha control pushes gate-evidence to escalated')
+  const ctlEntry = (ctl.auditLog || []).find(e => e && e.gateEvidence)
+  assert.equal(ctlEntry.hard, true, 'the matching-sha entry is HARD (hard:true)')
+  assert.ok(!ctlEntry.pinMismatch, 'the matching-sha entry is NOT tagged pin-mismatch')
+})
+
+test('T1.3 (D2) — work-wave auditRound demotes a pin-mismatched seat: a blocking finding on the wrong tree neither blocks nor spawns a fix-worker; a matching-pin control DOES block', async () => {
+  // The worker commits at 'deadbeef' (the dispatched pin). A seat returning a Major on a DIFFERENT tree
+  // ('cafe1234') is demoted inside auditRound: verdict→approve, finding→non-blocking Nit; the task approves
+  // and lands with no fix-worker. The auditLog carries the SOFT pin-mismatch note.
+  const workWaveImpl = (auditSha) => (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 1 } }
+    if (seat === 'war-auditor') {
+      if (prompt.includes('execution-evidence') || (opts.label || '').includes('execution-evidence')) {
+        return { seat: opts.label, lens: 'execution-evidence', verdict: 'approve', findings: [], confidence: 'high' }
+      }
+      return { seat: opts.label, lens: 'correctness', verdict: 'request_changes', confidence: 'high',
+               findings: [{ severity: 'Major', title: 'wrong-tree blocker', file: 'a.js', rationale: 'reviewed a stale tree' }],
+               audit_sha: auditSha }
+    }
+    if (seat === 'war-refiner') return opts.phase === 'Land' ? { mode: 'land-phase', status: 'landed' } : { mode: 'merge-task', status: 'merged', gate_output: 'ok' }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { out: mm, calls: mmCalls } = await runPhase(ONE_TASK(), workWaveImpl('cafe1234'))
+  assert.equal(mm.landDecision, 'landed', 'a pin-mismatched work-wave blocker is demoted — the task approves and lands')
+  assert.ok(!mmCalls.some(isFixWorker), 'NO fix-worker is dispatched for a demoted (wrong-tree) blocking finding')
+  assert.ok((mm.auditLog || []).some(e => e && e.pinMismatch === true && e.task === 't1'),
+    'a SOFT pin-mismatch absence-note is pushed to auditLog for the work-wave seat')
+
+  // Delete-and-trace control: the SAME Major with a MATCHING audit_sha ('deadbeef') is NOT demoted, so it
+  // blocks and a fix-worker IS dispatched (proving the demotion — not some other path — suppressed it above).
+  const { calls: ctlCalls } = await runPhase(ONE_TASK(), workWaveImpl('deadbeef'))
+  assert.ok(ctlCalls.some(isFixWorker), 'a matching-pin blocking finding is NOT demoted — a fix-worker is dispatched')
+})
+
+test('T1.3 criterion 9 (D8) — a finding-less gate-audit escalate holds the land at the per-task site; an approve control does not; HARD_ESCALATION_REASONS byte-unchanged in both mirrors', async () => {
+  // Per-task gate-audit seat returns verdict:'escalate' with ZERO Critical/Major findings and no audit_sha
+  // (⇒ no pin-mismatch demotion). D8's verdict disjunct makes it HARD.
+  const esc = (verdict) => (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 5 } }
+    if (seat === 'war-auditor') {
+      if (prompt.includes('execution-evidence') || (opts.label || '').includes('execution-evidence')) {
+        return { seat: opts.label, lens: 'execution-evidence', verdict, findings: [], confidence: 'high' }
+      }
+      return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    }
+    if (seat === 'war-refiner') return opts.phase === 'Land' ? { mode: 'land-phase', status: 'landed' } : { mode: 'merge-task', status: 'merged', gate_output: 'ok 5 tests passed' }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { out: held } = await runPhase(ONE_TASK(), esc('escalate'))
+  assert.equal(held.landDecision, 'held:escalation',
+    'a finding-less gate-audit escalate holds the land (D8: verdict === escalate is HARD)')
+  assert.ok((held.escalated || []).some(e => e && e.reason === 'gate-evidence'),
+    'the finding-less escalate pushes gate-evidence to escalated')
+  const { out: ok } = await runPhase(ONE_TASK(), esc('approve'))
+  assert.equal(ok.landDecision, 'landed', 'a finding-less approve control does NOT hold the land')
+
+  // criterion 9: HARD_ESCALATION_REASONS byte-unchanged in BOTH mirrors (D8 reuses 'gate-evidence', no new member — ADR 0005).
+  const inline = src.match(/const\s+HARD_ESCALATION_REASONS\s*=\s*(\[[^\]]+\])/)
+  assert.ok(inline, 'inline HARD_ESCALATION_REASONS found in workflow-template.js')
+  assert.deepEqual(JSON.parse(inline[1].replace(/'/g, '"')), HARD_ESCALATION_REASONS,
+    'the inline mirror byte-equals the land-decision.mjs export — no member added, gate-evidence reused')
+  assert.ok(HARD_ESCALATION_REASONS.includes('gate-evidence'), 'gate-evidence is the reused HARD reason')
+})
+
+test('T1.3 criterion 9 (D8) — a finding-less escalate ALSO holds the land at the end-state-only site (empty merge set, phase claims a condition); approve control lands', async () => {
+  // requiresTest:false ⇒ the merged task is skipped for the per-task gate-audit ⇒ mergedTasksForGateAudit
+  // is empty ⇒ the End-state-only seat runs. It is EXEMPT from D2 (no observed tip) but gets D8's disjunct.
+  const endStateEsc = (verdict) => (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'deadbeef', tests: {} }
+    if (seat === 'war-auditor') {
+      // Only the End-state-only seat matches (its prompt names the execution-evidence lens).
+      if (prompt.includes('execution-evidence') || (opts.label || '').includes('end-state')) {
+        return { seat: opts.label, lens: 'execution-evidence', verdict, findings: [], confidence: 'high' }
+      }
+      return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    }
+    if (seat === 'war-refiner') return opts.phase === 'Land' ? { mode: 'land-phase', status: 'landed' } : { mode: 'merge-task', status: 'merged' }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const ES_ARGS = (verdict) => PROVISION_ARGS({
+    phase: { id: 3, title: 'P3', integrationBranch: 'integration/wtprov-a/phase-3', workingBranch: 'dev/wtprov-a', endState: ['condition A holds at the tip'] },
+    tasks: [{ id: 't1', issue: 101, title: 'T1', planSlice: 's1', roster: [{ lens: 'correctness' }], requiresTest: false }],
+  })
+  const { out: held, calls } = await runPhase(ES_ARGS('escalate'), endStateEsc('escalate'))
+  // Guard: the end-state-only seat actually ran (empty per-task merge set).
+  assert.ok(calls.some(c => (c.opts.label || '').includes('end-state')), 'the End-state-only seat was dispatched (empty per-task merge set)')
+  assert.equal(held.landDecision, 'held:escalation',
+    'a finding-less End-state-only escalate holds the land (D8 disjunct on the end-state seat)')
+  assert.ok((held.escalated || []).some(e => e && e.reason === 'gate-evidence' && String(e.task).includes('end-state')),
+    'the end-state gate-evidence escalation is recorded')
+  const { out: ok } = await runPhase(ES_ARGS('approve'), endStateEsc('approve'))
+  assert.equal(ok.landDecision, 'landed', 'a finding-less End-state approve control lands')
+})
+
+test('T1.3 (D2) — auditPrompt carries the AUDIT PIN line naming the worker head_sha; a malformed/absent pin threads no line (fail-open)', async () => {
+  const isWorkAudit = (c) => isAuditor(c) && !c.prompt.includes('execution-evidence')
+  // Well-formed pin ('deadbeef' from defaultImpl) ⇒ the AUDIT PIN line is present and names the sha.
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const wa = calls.find(isWorkAudit)
+  assert.ok(wa, 'a work-wave audit seat was dispatched')
+  assert.match(wa.prompt, /AUDIT PIN:/, 'the work-wave auditPrompt carries the AUDIT PIN line')
+  assert.ok(wa.prompt.includes('deadbeef'), 'the AUDIT PIN line names the worker head_sha (deadbeef)')
+  assert.match(wa.prompt, /return the sha you actually reviewed as `audit_sha`/,
+    'the AUDIT PIN line requires the seat to echo the reviewed sha as audit_sha')
+
+  // Fail-open: a malformed head_sha is not a well-formed SHA ⇒ NO pin threaded ⇒ NO AUDIT PIN line.
+  const badPin = (prompt, opts) => seatOf(opts) === 'war-worker'
+    ? { task_id: 't', status: 'implemented', head_sha: 'not-a-sha', tests: { unit: 1 } }
+    : defaultImpl(prompt, opts)
+  const { calls: c2 } = await runPhase(PROVISION_ARGS(), badPin)
+  const wa2 = c2.find(isWorkAudit)
+  assert.ok(wa2, 'a work-wave audit seat was dispatched (malformed-pin run)')
+  assert.ok(!wa2.prompt.includes('AUDIT PIN:'),
+    'a malformed head_sha threads no pin ⇒ no AUDIT PIN line (fail-open, byte-compatible)')
+})
