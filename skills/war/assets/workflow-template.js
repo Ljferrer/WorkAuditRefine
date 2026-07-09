@@ -398,6 +398,10 @@ const nextWave   = () => tasks.filter(t => !done.has(t.id) && (t.deps || []).eve
 // agents/war-worker.md (standing surface) — the two surfaces are independent and both load-bearing;
 // the both-surfaces unit test byte-compares this string. Keep them identical in the same commit.
 const FORCE_WITH_LEASE_RULE = 'You may `git push --force-with-lease` ONLY your own task branch, and ONLY after a dispatch-rebase diverged it from its pushed remote — never any other ref, never for any other reason.'
+// Comment-lag directive (D9, ADR 0025). ONE canonical sentence, mirrored in agents/war-worker.md
+// (standing surface); the auditor's cascading-impact lens carries the standing review duty. The
+// both-surfaces registry test anchors the shared tokens — keep the surfaces in sync in the same commit.
+const COMMENT_LAG_RULE = "Before you commit, grep your touched files for the OLD behavior's concrete terms — retired values, old approach names, stale counts — and update any lagging comment/JSDoc so no comment still describes the pre-change behavior."
 // Dep-wave visibility (ADR 0012): a deps-bearing SAME-REPO task sees its merged dep content by
 // rebasing onto the integration branch FIRST. Scoped by taskType — 'gitlink-bump' is EXCLUDED (its
 // dep merged into the SUBMODULE repo's integration branch; this clause would assert a merge that
@@ -506,6 +510,10 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin) {
     // RELEASE-BASELINE RULE (D3) — verbatim-mirrored in agents/war-auditor.md (same commit). The literal
     // ${integrationBranch}...${task.branch} is escaped so the emitted prose byte-matches the static mirror.
     + `\nRELEASE-BASELINE RULE: judge a release/version-bump diff against the three-dot \`\${integrationBranch}...\${task.branch}\` merge-base set (exactly what this task added), never against a main checkout; an N-step main-lag when N stacked plans have not yet landed on main is the expected stacked-release lag, not a scope error.`
+    // CASCADING-IMPACT DOC CASCADE (D8/D9/D12/D6, ADR 0025) — verbatim-parallel to the cascading-impact
+    // lens bullet in agents/war-auditor.md (same commit); the both-surfaces registry test anchors the
+    // shared tokens on BOTH surfaces. Reaches the inline gate-audit seat ONLY via the standing card.
+    + `\nCASCADING-IMPACT DOC CASCADE (when your lens is cascading-impact, ADR 0025): a diff that changes a mechanism's behavior or attribution cascades into the docs and mirrors that describe it — the drift a name-grep misses. Check: (1) ADR policy-table attribution — confirm the mechanism's ADR chosen-option / policy-table row was updated in the same diff (read the row; under-attribution is invisible to a grep); (2) mechanism-style narrative — a narrative doc must assert the invariant and name the guard that holds it, never a snapshot member-count or line-number reference that rots silently; (3) comment-lag — the touched files leave no lagging comment/JSDoc naming the OLD behavior's retired values, old approach names, or stale counts; (4) preset matrix — a new PRESETS entry or role is covered by the enumerated (preset, role, model, effort) matrix exported from war-config.mjs (consult it — an unwatched literal is a finding).`
     + intentClause + auditorMemClause(task.id, lens)
   // AUDIT PIN (D2): name the worker's committed tip and require the seat to echo the sha it ACTUALLY
   // reviewed as audit_sha. A well-formed audit_sha ≠ this pin means the seat judged a different tree —
@@ -671,7 +679,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       + `Implement WAR task ${task.id} in the ALREADY-PROVISIONED worktree at ${task.worktree} (branch ${task.branch}, cut from ${ph.integrationBranch}).\n`
       + `The refiner's Provision barrier already created this worktree and its .war-task marker — do NOT create it yourself and do NOT set any worktree env var. cd into ${task.worktree} and work only inside it; commit and push ${task.branch}.\n`
       + `Sub-issue #${task.issue} — ${task.title}\nPlan slice: ${task.planSlice}\nPlan file: ${plan.file}\nGate: ${plan.gate}${workerIntentClause}`
-      + WORKER_MEMORY_SELF_QUERY_LINE + workerMemClause(task.id) + provisionClause + workerExtraCtx,
+      + WORKER_MEMORY_SELF_QUERY_LINE + workerMemClause(task.id) + provisionClause + workerExtraCtx
+      + '\n' + COMMENT_LAG_RULE,
       { agentType: NS + 'war-worker', phase: 'Work', label: `work:${task.id}`, schema: WORKER_RESULT, ...spawn('worker') })
 
     const why = blockedReason(impl); if (why) return { task, verdict: 'escalate', seats: [], expected: 0, blocked: why }
