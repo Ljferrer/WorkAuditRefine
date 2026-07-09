@@ -824,10 +824,23 @@ NEW_SHA3="$(git -C "$C1_3" rev-parse HEAD)"
 # created/advanced).
 LOCAL_BEFORE3="$(git -C "$C1_3" rev-parse refs/heads/working/myplan3 2>/dev/null)"
 
-code="$(run_in_detached "$C1_3" "$NEW_SHA3" land-advance working/myplan3 "$NEW_SHA3")"
+# Capture BOTH the die message and the exit code (mirroring T2.6, since
+# run_in_detached swallows stderr). The die text is the ONLY thing that pins
+# THIS escalation to the rc-guard: with the guard mentally deleted (or pipefail
+# dropped), the failed ls-remote yields an EMPTY origin readback that falls
+# through to first-land, and the unreachable-origin push then fails with the
+# same observable exit 3 + unchanged follower. So the exit-code + follower
+# checks alone do not fail if the guard regresses
+# (weak-test-assertion-passes-without-feature-being-exercised); the die-text
+# assertion below does — 'could not read the origin tip' is emitted only by the
+# rc-guard path, never by the bare push-error exit 3.
+OUT3="$( ( cd "$C1_3" && git checkout --detach "$NEW_SHA3" >/dev/null 2>&1 && bash "$SCRIPT" land-advance working/myplan3 "$NEW_SHA3" ) 2>&1 )"
+code=$?
 
 expect "T2.3: origin unreachable -> ls-remote guard escalates (exit 3), not reland (2)" \
   "3" "$code"
+expect "T2.3: failed-readback die uniquely names the rc-guard path (not the bare push-error exit 3)" \
+  "1" "$(printf '%s' "$OUT3" | grep -c 'could not read the origin tip')"
 expect "T2.3: failed origin readback leaves the local follower unchanged (never read as first-land)" \
   "$LOCAL_BEFORE3" "$(git -C "$C1_3" rev-parse refs/heads/working/myplan3 2>/dev/null)"
 
