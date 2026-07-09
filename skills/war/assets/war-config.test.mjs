@@ -6,7 +6,8 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join, relative } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import {
-  DEFAULTS, PROVISION_SOURCES, ROSTER_POLICIES, RESERVED_LENSES, fillDefaults, presetConfig, validate, spawnOpts,
+  DEFAULTS, PRESETS, MODELS, EFFORTS, ROLES, PROVISION_SOURCES, ROSTER_POLICIES, RESERVED_LENSES,
+  fillDefaults, presetConfig, agentMatrix, validate, spawnOpts,
   validateRoster, widenRoster, resolveWidenSource, resolveProvision, resolveGate,
 } from './war-config.mjs'
 import { HARD_ESCALATION_REASONS, decideLand } from './land-decision.mjs'
@@ -123,6 +124,49 @@ test('economy preset (pinned to its historical effective config)', () => {
 
 test('unknown preset throws', () => {
   assert.throws(() => presetConfig('turbo'), /unknown preset/)
+})
+
+// --- agentMatrix (D6): enumerated (preset, role, model, effort) matrix + completeness -----------
+// The matrix is the single watched surface for the (preset, role) → (model, effort) facts (ADR 0025).
+// It reuses presetConfig()'s merge and iterates the live PRESETS/ROLES, so the completeness test proves
+// every (preset × role) cell is present with a valid model/effort — a regressed derivation that drops or
+// fabricates a cell, or a preset carrying an out-of-enum literal, goes red here.
+
+test('agentMatrix: one valid (model, effort) row per PRESETS key × role, total coverage (#656, D6)', () => {
+  const matrix = agentMatrix()
+  const presets = Object.keys(PRESETS)
+  // Total: exactly |PRESETS| × |ROLES| rows — no missing and no phantom cell.
+  assert.equal(matrix.length, presets.length * ROLES.length,
+    `agentMatrix must have one row per (preset × role) = ${presets.length}×${ROLES.length}; got ${matrix.length}`)
+  const seen = new Set()
+  for (const preset of presets) {
+    for (const role of ROLES) {
+      const rows = matrix.filter(r => r.preset === preset && r.role === role)
+      assert.equal(rows.length, 1,
+        `agentMatrix must carry exactly one row for (preset=${preset}, role=${role}); got ${rows.length}`)
+      const { model, effort } = rows[0]
+      assert.ok(MODELS.includes(model),
+        `agentMatrix (${preset}, ${role}).model ${JSON.stringify(model)} must be one of ${MODELS.join('|')}`)
+      assert.ok(EFFORTS.includes(effort),
+        `agentMatrix (${preset}, ${role}).effort ${JSON.stringify(effort)} must be one of ${EFFORTS.join('|')}`)
+      seen.add(`${preset}/${role}`)
+    }
+  }
+  // No phantom cell: every emitted row is a real (PRESETS key × ROLES) pair.
+  for (const r of matrix) {
+    assert.ok(seen.has(`${r.preset}/${r.role}`),
+      `agentMatrix emitted an unexpected row (preset=${r.preset}, role=${r.role}) outside PRESETS × ROLES`)
+  }
+})
+
+test('agentMatrix: each row equals the presetConfig() merge (reuses the canonical merge, never re-implements it) (#656, D6)', () => {
+  // Delete-and-trace: if agentMatrix ever hand-rolls the merge and drifts from presetConfig(), this
+  // equality bites. Today it delegates, so this pins the delegation against a future rewrite.
+  for (const { preset, role, model, effort } of agentMatrix()) {
+    const a = presetConfig(preset).agents[role]
+    assert.equal(model, a.model, `agentMatrix (${preset}, ${role}).model must equal presetConfig().agents.${role}.model`)
+    assert.equal(effort, a.effort, `agentMatrix (${preset}, ${role}).effort must equal presetConfig().agents.${role}.effort`)
+  }
 })
 
 test('bad model rejected', () => {
@@ -875,6 +919,41 @@ test('doc-contract: SKILL.md Gate 2 has the append-if-absent CLAUDE.md pointer d
     text.includes('Durable engineering lessons live in'),
     'SKILL.md must carry the ratified CLAUDE.md pointer line verbatim (`Durable engineering lessons live in …`) (#534)'
   )
+})
+
+// Pointer byte-identity (#656, D4): the ratified "Durable engineering lessons live" pointer line is
+// duplicated across three canonical surfaces (CLAUDE.md, the /war SKILL, the lessons-learned migration
+// reference). CLAUDE.md calls it "ratified and byte-identical across surfaces — never reword it", but the
+// #534 duty test above only asserts PRESENCE — a reworded copy on one surface still passes it
+// (`gate-can-assert-mirrored-clause-presence-without-asserting-byte-identity`). This binds all three to
+// each other byte-for-byte. Scope is these three surfaces ONLY — never a changelog/release-blurb, whose
+// quoting of old wording must not trip the guard (`release-blurb-describing-a-rename-trips-the-renames-
+// own-absence-guard`). The blockquote/indentation PREFIX legitimately differs per surface, so extraction
+// starts at the 📚 lead marker (the first byte of the ratified content). The #534 duty test is orthogonal
+// and stays.
+test('pointer byte-identity: the ratified pointer line is byte-identical across the three canonical surfaces (#656, D4)', () => {
+  const ANCHOR = 'Durable engineering lessons live'
+  const LEAD = '📚'
+  const SURFACES = ['CLAUDE.md', 'skills/war/SKILL.md', 'skills/lessons-learned/references/migration.md']
+  const extractPointer = relPath => {
+    const text = readDoc(relPath)
+    const anchorIdx = text.indexOf(ANCHOR)
+    assert.ok(anchorIdx >= 0, `${relPath} must carry the ratified pointer line (anchor "${ANCHOR}")`)
+    // Isolate the single line owning the anchor, then slice from the 📚 lead marker so each surface's
+    // legitimately-different blockquote/indentation prefix is excluded from the byte comparison.
+    const lineStart = text.lastIndexOf('\n', anchorIdx) + 1
+    const nlIdx = text.indexOf('\n', anchorIdx)
+    const line = text.slice(lineStart, nlIdx === -1 ? undefined : nlIdx)
+    const leadIdx = line.indexOf(LEAD)
+    assert.ok(leadIdx >= 0, `${relPath} pointer line must retain the ${LEAD} lead marker`)
+    return line.slice(leadIdx)
+  }
+  const [canonical, ...rest] = SURFACES.map(extractPointer)
+  rest.forEach((pointer, i) => {
+    assert.equal(pointer, canonical,
+      `${SURFACES[i + 1]} pointer line must be byte-identical to ${SURFACES[0]} — the ratified pointer ` +
+      `line is byte-identical across surfaces; reword it on all three canonical surfaces or none`)
+  })
 })
 
 // ---------------------------------------------------------------------------
