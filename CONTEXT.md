@@ -601,6 +601,40 @@ _Avoid_: out-of-scope note (unratified prose with no forcing function); treating
 backstop as discharged — declared ≠ executed; conflating it with the ace's release-slot **string
 backstop** (ADR 0013 — an in-run deterministic check, nearly the opposite of a deferred one).
 
+### Drift-guard discipline
+
+**Drift-guard**:
+A mechanical test that extracts a fact from a non-canonical surface and asserts equality (`deepEqual` /
+byte-`===`) against its canonical source. Distinguished from a **presence check**, which only asserts an
+anchor phrase exists and is explicitly *not* a drift-guard.
+_Avoid_: calling a presence-only or JSON-well-formedness check a drift-guard (neither extracts and
+compares — both pass identically whether the surfaces agree or have drifted).
+
+**Canonical source vs mirror site**:
+The single authoritative definition of a fact (a code export, a JSON field, a routing predicate) vs any
+hand-maintained copy of it (an inline sandbox mirror, a doc claim, a tour count).
+_Avoid_: treating a mirror site as authoritative — the guard reads the canonical source, never a second
+hand-typed copy.
+
+**Mirror registry**:
+The explicit, listed set of (canonical export → mirror site) pairs, each carrying a drift-guard. The
+ratified alternative to an automatic mirror-detector; adding a mirror means adding a registry row.
+_Avoid_: a generic AST/import-graph scanner auto-discovering every inline copy (the rejected
+research-project ceiling — `// ponytail:` the registry instead).
+
+**Both-surfaces directive registry**:
+The listed set of correctness-critical directives asserted present in BOTH an agent's standing `.md` and
+its dispatched prompt (incl. gate-audit inline seats).
+_Avoid_: asserting a directive on only one surface — a change to one never propagates to the other (the
+standing-vs-dispatched coverage split).
+
+**Mechanism-style narrative**:
+A doc convention: describe the invariant and the guard that holds it, never a snapshot count/divergence
+that rots (extends the existing "cite the section that DEFINES a mechanism" discipline to narrative/tour
+prose).
+_Avoid_: freezing a structural count ("differ by exactly one entry", "lists 8 reasons") or a line-number
+reference in narrative prose — it reads authoritative while silently going false.
+
 ### Memory
 
 **Memory provenance**:
