@@ -426,6 +426,39 @@ It **auto-skips** a `requiresTest:false` task (no mapped tests ⇒ its HARD path
 is logged, never silent, and there is no operator off-switch.
 _Avoid_: audit-gate, "the additional audit"; treating it as a second full audit; a Lead-flippable toggle.
 
+**Benign forward-advance**:
+A gate-HEAD-pin/HEAD mismatch where the observed HEAD *descends* the pinned gate SHA and no mapped file
+changed in the intervening diff; proven mechanically by `gate-pin-status.sh`, treated as pin-CONFIRMED
+(never a burned audit round, never a hold). Near-universal once ≥ 2 tasks land in sequence on one
+integration branch.
+_Avoid_: conflating it with a `STALE-MISMATCH` (a mapped file *did* change, or the pin is not an
+ancestor — the genuine cannot-confirm case); reading the pin/HEAD mismatch itself as a defect (the
+mismatch is the expected steady state, not a regression).
+
+**Integrated-tip gate re-run**:
+The single authoritative gate execution at a phase's final integration tip, dispatched when the phase
+carries intra-phase `deps` between same-repo tasks; per-branch (work-wave) gate results are advisory,
+this one is land-authoritative ([ADR 0024](docs/adr/0024-audit-gate-verdicts-integrated-tip-captured-evidence.md)).
+_Avoid_: treating a per-branch (frozen-base) gate as land-authoritative for a dep-crossing task; expecting
+the extra re-run on a phase with no intra-phase deps (there it is not dispatched — byte-identical to today).
+
+**Gate-evidence artifact**:
+The tee'd full gate stdout+stderr file under `_refinery/.war/gate-<taskId>.log`; the `execution-evidence`
+seat's source of per-mapped-test PASS evidence, replacing curated `gate_output` prose. Phase-ephemeral
+(last-write-wins across a task's up-to-four gate runs; destroyed by `_refinery` heal and phase teardown) —
+audit input, never a resume/adjudication record.
+_Avoid_: minting a HARD provably-unrun finding from a possibly-curated inline `gate_output` paste (the
+HARD determination is made only against the captured file); treating a missing artifact as a hold (missing
+⇒ SOFT cannot-confirm).
+
+**Pin-equality gate**:
+The Node-side check that a seat's returned `audit_sha` equals the SHA it was dispatched to judge; a
+well-formed mismatch tags that seat's findings `pin-mismatch` and excludes them from the HARD path
+(SOFT-only). Fail-open — an absent/malformed pin on either side keeps today's behavior.
+_Avoid_: conflating the `pin-mismatch` findings tag with the `agent-unverified` *memory-provenance* tier
+([ADR 0007](docs/adr/0007-memory-provenance.md)) — unrelated concepts; confusing it with `pin_status`
+(which classifies the `gateHeadSha`↔`observedHead` relationship — this checks seat-vs-dispatched-pin).
+
 ### Diagnosis discipline
 
 **self-confound gate**:

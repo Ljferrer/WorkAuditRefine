@@ -446,7 +446,21 @@ const reattachClause = refineryP =>
 const classificationClause = (refineryP, baseDesc) =>
   `\nGATE-FAILURE CLASSIFICATION (spec §6 / ADR 0019 — on gate failure, BEFORE returning gate_failed): re-run ONLY the failing gate at the classification base — ${baseDesc} — by detaching _refinery there (\`git -C ${refineryP} checkout --detach <that base>\`), re-running the failing gate, then RE-ATTACHING _refinery to ${ph.integrationBranch} before you return (\`git -C ${refineryP} checkout ${ph.integrationBranch}\`). Set gate_failure_class: (1) the base is RED with the SAME failing identifiers ⇒ 'baseline'; (2) the base is GREEN AND the failure does NOT reproduce on a second run at the task tip in a FRESH environment (fresh TMPDIR/shell) ⇒ 'environment' (reproducibility — NOT file-disjointness — is the trigger; a diff-disjoint but reproducing failure is a normal introduced regression and stays 'introduced'); (3) otherwise ⇒ 'introduced'. This is JUDGMENT, not parsing — carry the base-run evidence in gate_output UNCURATED. On a 'baseline' classification also report the classified failing identifiers in gate_failing_ids (array) and the classification base sha in gate_base_sha. ABSENT class ⇒ treated as 'introduced' (the permanent fail-safe).\n`
 
-function auditPrompt(task, lens, depth, peers, workerTests) {
+// SHA format guard (D2): a well-formed abbreviated-or-full git object name, shared by the pin-equality
+// gate below (pinMismatch). pinOrSentinel keeps its own identical-shape literal on purpose — its #393
+// extract-and-eval unit test evals that arrow in isolation, so it must not reference this helper.
+const isSha = s => typeof s === 'string' && /^[0-9a-f]{7,40}$/.test(s)
+// Pin-equality mismatch (D2): true ONLY when the seat's audit_sha AND its dispatched pin are BOTH
+// well-formed SHAs and neither is a prefix of the other (abbreviated-vs-full is NOT a mismatch — the
+// same commit named at two lengths must still compare equal). Absent/malformed on either side ⇒ false
+// (fail-open — no demotion, today's behavior). A mismatch means the seat judged a DIFFERENT tree.
+const pinMismatch = (auditSha, pin) => {
+  if (!isSha(auditSha) || !isSha(pin)) return false
+  const [lo, hi] = auditSha.length <= pin.length ? [auditSha, pin] : [pin, auditSha]
+  return !hi.startsWith(lo)
+}
+
+function auditPrompt(task, lens, depth, peers, workerTests, pin) {
   let p = `Audit WAR task ${task.id} through the "${lens}" lens at depth ${depth}.\n`
     + `Sub-issue #${task.issue}. Plan slice: ${task.planSlice}. Plan file: ${plan.file}.\n`
     + `Run \`git diff ${ph.integrationBranch}...${task.branch}\` (three-dot = merge-base..head = exactly what this task added) for the authoritative change set; re-run it each round (a fix-worker may have pushed). `
@@ -462,6 +476,14 @@ function auditPrompt(task, lens, depth, peers, workerTests) {
     + `\nCALIBRATION RULE: judge on evidence only — never soften, downgrade, or drop a finding because peers disagreed or because a fix was attempted; downgrade only with a stated reason grounded in the current diff. The pull to soften peaks right after your own finding is challenged — that is the highest-risk moment.`
     + `\nCOST-CLAIM RULE: a finding justified by a cost — "too slow", "too expensive", "too complex" — must name a magnitude (ms, MB, LOC, call count, or complexity class). An unquantifiable cost claim caps the finding at Minor.`
     + intentClause + auditorMemClause(task.id, lens)
+  // AUDIT PIN (D2): name the worker's committed tip and require the seat to echo the sha it ACTUALLY
+  // reviewed as audit_sha. A well-formed audit_sha ≠ this pin means the seat judged a different tree —
+  // its findings are demoted (pin-mismatch), never a block (enforced at the auditRound collection site
+  // below). Absent/malformed pin ⇒ NO line (fail-open; prompt stays byte-identical to a pin-less run).
+  // agents/war-auditor.md already lists audit_sha as a dispatched input, so no standing-surface edit rides.
+  if (isSha(pin)) {
+    p += `\nAUDIT PIN: the tree under audit is the worker's latest commit ${pin}. Judge the diff AT THAT sha and return the sha you actually reviewed as \`audit_sha\`; if your audit_sha differs from ${pin} your findings are treated as reviewing a different tree — demoted to SOFT, never a block.`
+  }
   if (workerTests) {
     p += `\n\nWorker-reported tests summary (cross-check claim vs diff): ${JSON.stringify(workerTests)}`
   }
@@ -472,12 +494,12 @@ function auditPrompt(task, lens, depth, peers, workerTests) {
   return p
 }
 
-async function auditRound(task, peers, workerTests) {
+async function auditRound(task, peers, workerTests, pin) {
   // Seats come straight from task.roster (validated at phase start: 1–5 distinct lenses, per-seat
   // depth already normalized). Labels audit:<task>:<lens> are distinct because lenses are distinct.
   const roster = task.roster
   const expected = roster.length
-  const runSeat = seat => agent(auditPrompt(task, seat.lens, seat.depth, peers, workerTests), {
+  const runSeat = seat => agent(auditPrompt(task, seat.lens, seat.depth, peers, workerTests, pin), {
     agentType: NS + 'war-auditor', phase: 'Audit',
     label: `audit:${task.id}:${seat.lens}${peers ? ':rebut' : ''}`, schema: AUDIT_VERDICT, ...spawn('auditor') })
   // Initial parallel run
@@ -491,6 +513,22 @@ async function auditRound(task, peers, workerTests) {
     results = results.map(r => r != null ? r : retried[ri++])
   }
   const seats = results.filter(Boolean)
+  // Pin-equality demotion (D2), the single collection-site enforcement feeding allApprove/blockingOf/the
+  // escalate check: a seat whose well-formed audit_sha differs from its well-formed dispatched pin reviewed
+  // a DIFFERENT tree than the worker's committed tip — its findings cannot be trusted for the HARD path.
+  // Tag pin-mismatch, drop each finding to a non-blocking Nit (SOFT; original severity preserved so nothing
+  // is silently lost), neutralize the verdict to a non-blocking 'approve' so it can neither escalate nor
+  // block a merge, and push a SOFT absence-note (task, seat, both SHAs) to auditLog. Fail-open: absent or
+  // malformed pin OR audit_sha ⇒ no demotion (today's behavior). Demotion is findings/verdict-only — a
+  // wrong-tree seat's convergent unanimity on one audit_sha stays doctrine, out of D2's slice (plan Notes).
+  for (const s of seats) {
+    if (!pinMismatch(s.audit_sha, pin)) continue
+    auditLog.push({ task: task.id, seat: s.seat, verdict: `pin-mismatch:${s.verdict}`, pinMismatch: true,
+      auditSha: s.audit_sha, expectedPin: pin, findings: [],
+      note: `pin-mismatch: seat reviewed ${s.audit_sha} but the dispatched pin is ${pin} — findings demoted to SOFT, not a land-halt` })
+    s.findings = (s.findings || []).map(f => ({ ...f, pinMismatch: true, originalSeverity: f.severity, severity: 'Nit' }))
+    s.verdict = 'approve'
+  }
   return { seats, expected }
 }
 
@@ -609,14 +647,15 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
 
     let round = 0, verdict = null, seats = [], expected = 0, blocked = null
     const workerTests = impl && impl.tests ? impl.tests : null
+    let pin = impl && impl.head_sha   // D2: the worker's committed tip — the pin each audit seat's audit_sha must match
     while (round < roundLimit) {
-      ;({ seats, expected } = await auditRound(task, null, workerTests))      // independent — no cross-talk
+      ;({ seats, expected } = await auditRound(task, null, workerTests, pin))      // independent — no cross-talk
       if (seats.length < expected) { verdict = 'audit-blocked'; break }   // persistent shortfall after retries
       if (seats.some(s => s.verdict === 'escalate')) { verdict = 'escalate'; break }
       if (allApprove(seats, expected)) { verdict = 'approve'; break }
 
       if (isSplit(seats) && seats.length > 1) {                  // one rebuttal round on a split
-        ;({ seats, expected } = await auditRound(task, seats, workerTests))
+        ;({ seats, expected } = await auditRound(task, seats, workerTests, pin))
         if (seats.length < expected) { verdict = 'audit-blocked'; break } // persistent shortfall after retries
         if (seats.some(s => s.verdict === 'escalate')) { verdict = 'escalate'; break }
         if (allApprove(seats, expected)) { verdict = 'approve'; break }
@@ -641,6 +680,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + workerMemClause(task.id) + provisionClause,
         { agentType: NS + 'war-worker', phase: 'Audit', label: `fix:${task.id}:r${round + 1}`, schema: WORKER_RESULT, ...spawn('worker') })
       const fixWhy = blockedReason(fix); if (fixWhy) { verdict = 'escalate'; blocked = fixWhy; break }
+      pin = fix && fix.head_sha   // D2: re-pin to the fix-worker's new tip for the next round's audit
       round++
     }
     if (verdict === null) verdict = 'audit-blocked'
@@ -712,7 +752,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         if (!aceWhy && typeof ace.head_sha === 'string' && ace.head_sha) {
           r.task.fixRounds++
           aceSha = ace.head_sha /* the single ace commit */
-          const { seats: reSeats, expected: reExpected } = await auditRound(r.task, null, null)   // re-pin + re-audit at the new sha (D1)
+          const { seats: reSeats, expected: reExpected } = await auditRound(r.task, null, null, aceSha)   // re-pin + re-audit at the new sha (D1/D2)
           if (allApprove(reSeats, reExpected) && blockingOf(reSeats).length === 0) {
             r.seats = reSeats                          // merge proceeds on the polished tip
             r.aceSha = aceSha
@@ -843,7 +883,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           // RE-RUN the full audit panel for this task (not a re-wave — localized sub-loop). The floor
           // cannot judge whether dockerignoring the file (or the added test) was RIGHT; the panel can.
           let reSeats, reExpected
-          ;({ seats: reSeats, expected: reExpected } = await auditRound(r.task, null, null))
+          ;({ seats: reSeats, expected: reExpected } = await auditRound(r.task, null, null, floorFix && floorFix.head_sha))
           const reVerdict = reSeats.length < reExpected ? 'audit-blocked'
             : reSeats.some(s => s.verdict === 'escalate') ? 'escalate'
             : allApprove(reSeats, reExpected) ? 'approve' : 'request_changes'
@@ -992,7 +1032,13 @@ if (mergedTasksForGateAudit.length > 0) {
   const refineryPath = `${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/_refinery`
   // ponytail: reuse the _refinery worktree — already checked out on ph.integrationBranch at the integration tip
   //           after the serial merge queue and before Land/teardown; loop-scoped :308 refineryPath is out of scope here
-  await parallel(mergedTasksForGateAudit.map(({ taskId, gateOutput, acceptanceCriteria, gateHeadSha, baselineDebt: taskDebt }) => async () => {
+  // observedHead: the _refinery tip the gate-audit seat actually judges, stamped per task by Task 2.1's
+  // post-merge evidence dispatch. It is the pin-equality expectation for the gate-audit seat (D2) — NOT
+  // gateHeadSha: under BENIGN-ADVANCE the observed tip legitimately differs from gateHeadSha, so checking
+  // seat-vs-gateHeadSha would demote exactly the benign case. Absent (evidence dispatch not yet landed —
+  // it lands in Phase 2) ⇒ fall back to gateHeadSha (fail-open). (defined-but-not-yet-emitted: Task 2.1
+  // populates observedHead on these entries; until then the fallback keeps today's behavior.)
+  await parallel(mergedTasksForGateAudit.map(({ taskId, gateOutput, acceptanceCriteria, gateHeadSha, observedHead, baselineDebt: taskDebt }) => async () => {
     // Baseline-debt line (spec §6 / ADR 0019): a baseline-merged task carries its classified failing
     // identifiers so a pre-existing base failure in the gate output is NOT read as a provably-unrun
     // mapped test (which would fake a HARD hold). Empty/absent debt ⇒ '' ⇒ byte-identical prompt.
@@ -1039,12 +1085,26 @@ if (mergedTasksForGateAudit.length > 0) {
     // a mapped acceptance-criteria test present in the pre-merge diff is absent/0-count in the gate output.
     // Per Open decision #1 (resolved: operationally defined) — severity Critical/Major signals provably-unrun.
     if (gateAuditVerdict) {
-      const findings = gateAuditVerdict.findings || []
-      const isHardGateEvidence = findings.some(f => f.severity === 'Critical' || f.severity === 'Major')
-      // Distinguish hard vs soft in the auditLog so the Lead can adjudicate even if already held.
-      auditLog.push({ task: taskId, verdict: `gate-audit:${gateAuditVerdict.verdict}`, findings, gateEvidence: true, hard: isHardGateEvidence, gateHeadSha, auditSha: gateAuditVerdict.audit_sha })
+      const rawFindings = gateAuditVerdict.findings || []
+      // D2 pin-equality: the gate-audit seat's expected tip is observedHead (the tree it judged, stamped by
+      // Task 2.1's evidence dispatch); fall back to gateHeadSha when absent (fail-open — the live path until
+      // Phase 2 lands observedHead). Under BENIGN-ADVANCE the tip legitimately differs from gateHeadSha, so
+      // equality is measured against observedHead, never gateHeadSha. A well-formed audit_sha differing from a
+      // well-formed pin means the seat judged a different tree — tag pin-mismatch, EXCLUDE from the HARD path.
+      const pin = observedHead || gateHeadSha
+      const mismatch = pinMismatch(gateAuditVerdict.audit_sha, pin)
+      const findings = mismatch ? rawFindings.map(f => ({ ...f, pinMismatch: true })) : rawFindings
+      // D8: severity OR verdict gates the hard path — a finding-less `verdict === 'escalate'` is HARD by
+      // design (defence-in-depth against a silent finding-less escalate landing); Minor/Nit stay SOFT-by-
+      // default. A pin-mismatched seat is NEVER hard (fail-open): !mismatch gates the whole disjunct.
+      const isHardGateEvidence = !mismatch &&
+        (gateAuditVerdict.verdict === 'escalate' || rawFindings.some(f => f.severity === 'Critical' || f.severity === 'Major'))
+      // Distinguish hard vs soft (and pin-mismatch) in the auditLog so the Lead can adjudicate even if held.
+      // A mismatch entry is the SOFT absence-note (task, seat, both SHAs: auditSha vs expectedPin).
+      auditLog.push({ task: taskId, verdict: `gate-audit:${gateAuditVerdict.verdict}`, findings, gateEvidence: true, hard: isHardGateEvidence,
+        ...(mismatch ? { pinMismatch: true, expectedPin: pin } : {}), gateHeadSha, auditSha: gateAuditVerdict.audit_sha })
       if (isHardGateEvidence) {
-        // HARD: a provably-unrun mapped test → push gate-evidence to escalated so the land is held.
+        // HARD: a provably-unrun mapped test OR a finding-less escalate → push gate-evidence to escalated so the land is held.
         escalated.push({ task: taskId, reason: 'gate-evidence', detail: gateAuditVerdict })
       }
     }
@@ -1066,7 +1126,11 @@ if (mergedTasksForGateAudit.length > 0) {
       label: `gate-audit:phase-${ph.id}:end-state`, schema: AUDIT_VERDICT, ...spawn('auditor') })
   if (esVerdict) {
     const findings = esVerdict.findings || []
-    const isHard = findings.some(f => f.severity === 'Critical' || f.severity === 'Major')
+    // D8: severity OR a finding-less `verdict === 'escalate'` gates the hard path (identical disjunct to the
+    // per-task gate-audit site); Minor/Nit stay SOFT-by-default. This end-state-only seat (nothing merged) is
+    // EXEMPT from the D2 pin-equality demotion — no evidence dispatch supplies its observed tip, so fail-open
+    // (no pin, no demotion). Its own prompt already SOFT-downgrades a tip it cannot confirm.
+    const isHard = esVerdict.verdict === 'escalate' || findings.some(f => f.severity === 'Critical' || f.severity === 'Major')
     auditLog.push({ task: `phase-${ph.id}-end-state`, verdict: `gate-audit:${esVerdict.verdict}`, findings, gateEvidence: true, hard: isHard, auditSha: esVerdict.audit_sha })
     if (isHard) escalated.push({ task: `phase-${ph.id}-end-state`, reason: 'gate-evidence', detail: esVerdict })
   }
@@ -1157,7 +1221,7 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
     const sweepWhy = blockedReason(sweep)
     let sweepApproved = false
     if (!sweepWhy) {
-      const { seats: pSeats, expected: pExpected } = await auditRound(polishTask, null, sweep && sweep.tests ? sweep.tests : null)
+      const { seats: pSeats, expected: pExpected } = await auditRound(polishTask, null, sweep && sweep.tests ? sweep.tests : null, sweep && sweep.head_sha)
       sweepApproved = allApprove(pSeats, pExpected) && blockingOf(pSeats).length === 0
       auditLog.push({ task: polishTask.id, verdict: sweepApproved ? 'approve' : 'polish-rejected', findings: pSeats.flatMap(s => s.findings || []), requested: pExpected, returned: pSeats.length })
     }
