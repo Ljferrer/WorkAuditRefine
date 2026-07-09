@@ -667,9 +667,34 @@ cmd_teardown_phase() {
 # --- subcommand: land-advance -----------------------------------------------
 # land-advance <working-ref> <new-sha>
 #
-# Push-first cross-run CAS for the land phase. The caller (refiner in a
+# Push-first cross-run CAS for the land phase, guarded by the LAND-TRUTH GUARD
+# (ADR 0023): a `landed` result is never self-reported — git ground truth (the
+# origin tip) must prove the working ref advanced. The caller (refiner in a
 # detached _refinery worktree) has already produced <new-sha> — the --no-ff
 # merge commit — and HEAD is currently detached at <new-sha>.
+#
+# The 2-arg contract (<working-ref> <new-sha>) is STABLE for every caller (both
+# workflow land prompts, SKILL.md's auto-recover / escalation-completion prose,
+# the submodule 2A path). The pre-push origin tip is a NEW CAPTURE INSIDE this
+# subcommand, not a new CLI arg — captured at the last moment before the push so
+# it cannot go stale in caller prose (smallest race window).
+#
+# 0. LAND-TRUTH GUARD (anchor = the pre-push ORIGIN tip, NOT the local follower
+#    refs/heads/<working>, which lags). Read `git ls-remote origin
+#    refs/heads/<working>` before the push and branch on it:
+#    - ls-remote FAILS (rc!=0)             → ESCALATE (exit 3). A git error never
+#      collapses into the first-land carve-out below (floor-script 0/1/2 discipline).
+#    - origin readback EMPTY (rc 0)        → FIRST LAND: skip the guard; the push
+#      creates the branch; the post-push readback still enforces origin==new_sha.
+#    - origin==new_sha AND follower==new_sha → PHANTOM LAND (exit 3, loud die): the
+#      --no-ff merge produced no commit (integration had nothing ahead of <working>);
+#      refuse to report a land that did not advance. (Fail-safe: also catches the
+#      rare cross-resume already-landed — harmless, see body.)
+#    - origin==new_sha, follower LAGS/ABSENT → ALREADY LANDED (exit 0): a prior
+#      interrupted land pushed <new-sha> before its follower CAS; skip the push and
+#      reconcile the follower toward git (ADR 0008). Makes an in-loop re-land
+#      idempotent instead of a false phantom.
+#    - origin!=new_sha                     → normal path (steps 1-3 below).
 #
 # 1. PUSH: git push origin HEAD:refs/heads/<working>
 #    - Named source (HEAD, which IS <new-sha>) — NOT a bare SHA refspec.
@@ -693,9 +718,11 @@ cmd_teardown_phase() {
 #    to rewind.
 #
 # Exit codes:
-#   0  → push accepted; local follower ref advanced to <new-sha>.
+#   0  → push accepted and local follower advanced to <new-sha>; OR already-landed
+#        (origin already at <new-sha>, follower reconciled, push skipped).
 #   2  → push rejected ([rejected] token seen); local ref unchanged; reland.
-#   3  → unrelated push error; escalate.
+#   3  → phantom land, failed origin readback, unrelated push error, or post-push
+#        readback mismatch; escalate. A git error never collapses into 0 or 2.
 #
 # Constraint: macOS bash 3.2.57 — no process substitution with stderr routing
 # that drops one stream; use a temp file to capture combined output.
@@ -708,11 +735,75 @@ cmd_land_advance() {
   git_dir >/dev/null
 
   # Capture the local tip of refs/heads/<working> before pushing.
-  # This is the CAS expected-value for the update-ref.
+  # This is the CAS expected-value for the update-ref AND the phantom-vs-already-
+  # landed tiebreak in the land-truth guard below.
   pre_push_local=""
   if git show-ref --verify --quiet "refs/heads/$working" 2>/dev/null; then
     pre_push_local="$(git rev-parse "refs/heads/$working")"
   fi
+
+  # --- Land-truth guard (D1, ADR 0023): anchor on git ground truth ----------
+  # Capture the PRE-PUSH ORIGIN TIP — a last-moment readback of
+  # refs/heads/<working> on origin (smallest race window before the push). This
+  # is the guard's anchor, NOT the local follower ref, which lags
+  # (land-local-follower-ref-can-lag-sync-before-next-phase). The follower is
+  # consulted below ONLY as the phantom-vs-already-landed tiebreak.
+  #
+  # A FAILED ls-remote (network/remote error, rc!=0) must NEVER collapse into the
+  # empty/first-land reading — a git error is never the first-land carve-out
+  # (mirrors the floor-script 0/1/2 discipline: exit 2 is a git error, never the
+  # named route). Capture the pipeline rc under `set -o pipefail` and escalate.
+  pre_push_origin=""
+  pre_push_origin_rc=0
+  pre_push_origin="$(git ls-remote origin "refs/heads/$working" | cut -f1)" || pre_push_origin_rc=$?
+  if [ "$pre_push_origin_rc" -ne 0 ]; then
+    die "land-advance: could not read the origin tip of '$working' (git ls-remote failed, rc=$pre_push_origin_rc — network/remote error); refusing to treat a failed readback as a first land. Escalate." 3
+  fi
+
+  if [ -z "$pre_push_origin" ]; then
+    # FIRST LAND (empty origin readback, rc 0): no <working> ref on origin yet.
+    # Skip the guard — a genuine first advance has no prior origin tip to compare.
+    # Fall through to the push (which creates the branch); the post-push readback
+    # still enforces `actual == new_sha`. This re-keys the first-land carve-out
+    # from the old empty-LOCAL-ref reading to an empty ORIGIN readback (the same
+    # signal D6's absent-origin detector reads).
+    :
+  elif [ "$pre_push_origin" = "$new_sha" ]; then
+    # Origin already holds <new-sha>. Disambiguate PHANTOM vs. ALREADY-LANDED by
+    # the local follower — the guard's anchor stays the origin tip; the follower's
+    # lag is precisely the already-landed signature.
+    if [ "$pre_push_local" = "$new_sha" ]; then
+      # PHANTOM LAND: origin is at <new-sha> AND the follower already sits at it,
+      # so this land did not advance origin — the --no-ff merge produced no new
+      # commit (integration had nothing ahead of <working>). Escalate (exit 3),
+      # never reland; all refs untouched.
+      #
+      # Fail-safe residual (red-team): this also catches the rare CROSS-RESUME
+      # already-landed case (a prior interrupted land pushed <new-sha>, then
+      # cmd_ensure_integration's behind-case ff'd the follower to it OUTSIDE this
+      # primitive). Escalating a benign already-landed is harmless — the work is on
+      # origin; the operator confirms via the escalation-completion path — and
+      # never masks a real phantom nor reports a land that did not advance.
+      die "land-advance: <new-sha> ($new_sha) equals the pre-push origin tip — the --no-ff merge produced no new commit; the integration branch had nothing ahead of '$working'; refusing to report a land that did not advance." 3
+    fi
+    # ALREADY LANDED: origin holds <new-sha> but the local follower LAGS or is
+    # ABSENT — an interrupted prior attempt pushed <new-sha> before the follower
+    # CAS ran (ADR 0008 reconciliation; the in-loop transient-recovery path of the
+    # reland loop, where ensure-integration has NOT yet ff'd the follower). Skip
+    # the push (it would no-op — origin is already there) and reconcile the follower
+    # TOWARD git. Repair the record toward git, never git toward the record: this
+    # is what makes an in-loop re-land idempotent instead of a false phantom.
+    if [ -n "$pre_push_local" ]; then
+      git update-ref "refs/heads/$working" "$new_sha" "$pre_push_local" \
+        || die "land-advance: update-ref failed reconciling the follower to an already-landed origin tip (concurrent local move?)."
+    else
+      git update-ref "refs/heads/$working" "$new_sha" \
+        || die "land-advance: update-ref (create) failed reconciling the follower to an already-landed origin tip."
+    fi
+    return 0
+  fi
+  # else: pre_push_origin is non-empty and != new_sha -> normal path below (push,
+  # [rejected] classification, post-push readback, follower CAS), byte-unchanged.
 
   # Push HEAD (which IS <new-sha> in the detached refinery) to the named branch
   # on origin. Capture combined stdout+stderr for [rejected] detection.
