@@ -757,8 +757,11 @@ expect "T2.1: local working ref is byte-identical to before (rejected push leave
   "$LOCAL_BEFORE1" "$LOCAL_AFTER1"
 
 # ---------------------------------------------------------------------------
-# Case (T2.2) Origin at expected tip -> push accepted, local follower advanced
-# to <new-sha>.
+# Case (T2.2 / plan case 2) GENUINE ADVANCE: origin at the expected (old) tip,
+# <new-sha> a fresh descendant -> the land-truth guard passes through
+# (pre_push_origin != new_sha), the push is accepted, and the local follower
+# advances to <new-sha>. Proves the phantom guard does NOT false-fire on a real
+# advance.
 # ---------------------------------------------------------------------------
 PAIR2="$(setup_origin_pair)"
 C1_2="$(printf '%s' "$PAIR2" | cut -d' ' -f1)"
@@ -788,9 +791,18 @@ expect "T2.2: origin/<working> advanced to <new-sha>" \
   "$NEW_SHA2" "$ORIGIN_AFTER2"
 
 # ---------------------------------------------------------------------------
-# Case (T2.3) Unrelated push error (not a non-ff rejection) -> exit ESCALATE
-# code, not RELAND. Simulate by pointing the remote at a non-existent path so
-# git push errors without ever printing [rejected].
+# Case (T2.3 / plan case 5) ORIGIN UNREACHABLE -> the land-truth guard's
+# pre-push `git ls-remote origin refs/heads/<working>` FAILS (rc!=0) and
+# escalates (exit 3) BEFORE the push is attempted. A git error must never
+# collapse into the empty/first-land carve-out (land-advance-push-first-cas-
+# rejected-token: a git error is never a success/first-land) nor into a reland
+# (exit 2). Simulate by pointing the remote at a non-existent path so ls-remote
+# cannot read the origin tip.
+#
+# (Pre-guard this case exercised the PUSH-error classification; with the
+# land-truth guard, an entirely-unreachable origin short-circuits at the
+# ls-remote readback — comment kept honest per
+# decoy-fixture-comment-must-match-actual-throw-order-not-just-outcome.)
 # ---------------------------------------------------------------------------
 PAIR3="$(setup_origin_pair)"
 C1_3="$(printf '%s' "$PAIR3" | cut -d' ' -f1)"
@@ -799,7 +811,7 @@ ORIG3="$(printf '%s' "$PAIR3" | cut -d' ' -f3)"
 
 SEED3="$(seed_working_branch "$C1_3" "$C2_3" "working/myplan3")"
 
-# Break the remote URL so the push fails for a non-CAS reason.
+# Break the remote URL so ls-remote (and any push) fails for a non-CAS reason.
 git -C "$C1_3" remote set-url origin "/nonexistent/path/that/cannot/be/a/repo.git"
 
 printf 'clone1-merge3\n' > "$C1_3/merge3.txt"
@@ -807,10 +819,17 @@ git -C "$C1_3" add -A
 git -C "$C1_3" commit -qm "clone1 merge sha for T2.3"
 NEW_SHA3="$(git -C "$C1_3" rev-parse HEAD)"
 
+# Record the local follower before the call — a failed origin readback must NOT
+# be read as a first land, so the follower is left byte-identical (never
+# created/advanced).
+LOCAL_BEFORE3="$(git -C "$C1_3" rev-parse refs/heads/working/myplan3 2>/dev/null)"
+
 code="$(run_in_detached "$C1_3" "$NEW_SHA3" land-advance working/myplan3 "$NEW_SHA3")"
 
-expect "T2.3: unrelated push error -> exit ESCALATE code (3), not RELAND (2)" \
+expect "T2.3: origin unreachable -> ls-remote guard escalates (exit 3), not reland (2)" \
   "3" "$code"
+expect "T2.3: failed origin readback leaves the local follower unchanged (never read as first-land)" \
+  "$LOCAL_BEFORE3" "$(git -C "$C1_3" rev-parse refs/heads/working/myplan3 2>/dev/null)"
 
 # ---------------------------------------------------------------------------
 # Case (T2.4) DIFFERENT-BRANCH concurrency: two land-advance calls on DIFFERENT
@@ -942,6 +961,137 @@ expect "T2.5: no-op push from wrong cwd (HEAD≠new_sha, origin already at HEAD)
 LOCAL_AFTER5="$(git -C "$C1_5" rev-parse refs/heads/working/myplan5)"
 expect "T2.5: local working ref did NOT advance to new_sha (origin readback gated the advance)" \
   "$LOCAL_BEFORE5" "$LOCAL_AFTER5"
+
+# ---------------------------------------------------------------------------
+# Case (T2.6 / plan case 1) PHANTOM LAND: the --no-ff merge produced no commit,
+# so <new-sha> == the pre-push origin tip AND the local follower already sits at
+# it. land-advance must refuse (exit 3, loud die), leaving refs/heads/<working>
+# AND origin byte-unchanged. This is the war-phantom-land-reports-success bug:
+# origin never advanced, so a `landed` report would silently drop the phase.
+#
+# Side payoff (origin anchoring, D6/D7): the checkout-collision auto-recover
+# merges in the LEAD worktree, where the merge advances the CHECKED-OUT
+# refs/heads/<working> to <merge-sha> BEFORE land-advance runs. A LOCAL-follower
+# anchor would false-phantom that legitimate advance; anchoring on the ORIGIN tip
+# is what lets D6/D7 route through this one primitive at all.
+# ---------------------------------------------------------------------------
+PAIR6="$(setup_origin_pair)"
+C1_6="$(printf '%s' "$PAIR6" | cut -d' ' -f1)"
+C2_6="$(printf '%s' "$PAIR6" | cut -d' ' -f2)"
+ORIG6="$(printf '%s' "$PAIR6" | cut -d' ' -f3)"
+
+SEED6="$(seed_working_branch "$C1_6" "$C2_6" "working/myplan6")"
+# origin at SEED6, follower refs/heads/working/myplan6 at SEED6. A no-commit
+# --no-ff merge leaves HEAD at SEED6, so <new-sha> == SEED6 == origin == follower.
+ORIGIN_BEFORE6="$(git -C "$C1_6" ls-remote origin refs/heads/working/myplan6 | cut -f1)"
+FOLLOWER_BEFORE6="$(git -C "$C1_6" rev-parse refs/heads/working/myplan6)"
+
+# Detach at SEED6 (HEAD == new_sha == origin tip == follower) and run; capture
+# both the die message and the exit code in one invocation (test uses set -u only,
+# so a non-zero substitution does not terminate the script).
+OUT6="$( ( cd "$C1_6" && git checkout --detach "$SEED6" >/dev/null 2>&1 && bash "$SCRIPT" land-advance working/myplan6 "$SEED6" ) 2>&1 )"
+CODE6=$?
+
+expect "T2.6: phantom land (new-sha == origin tip == follower) -> exit 3" \
+  "3" "$CODE6"
+expect "T2.6: phantom die names the pre-push origin tip" \
+  "1" "$(printf '%s' "$OUT6" | grep -c 'equals the pre-push origin tip')"
+expect "T2.6: phantom land leaves origin unchanged" \
+  "$ORIGIN_BEFORE6" "$(git -C "$C1_6" ls-remote origin refs/heads/working/myplan6 | cut -f1)"
+expect "T2.6: phantom land leaves the local follower unchanged" \
+  "$FOLLOWER_BEFORE6" "$(git -C "$C1_6" rev-parse refs/heads/working/myplan6)"
+
+# ---------------------------------------------------------------------------
+# Case (T2.7 / plan case 3) FIRST LAND: no refs/heads/<fresh-working> on origin
+# (empty ls-remote readback, rc 0) and none locally. The phantom guard is
+# SKIPPED (a genuine first advance has no prior origin tip), the push creates the
+# branch, and the post-push readback still enforces origin == new_sha. Exit 0.
+# Get this carve-out right or the first phase of every run false-fails (spec §8).
+# ---------------------------------------------------------------------------
+PAIR7="$(setup_origin_pair)"
+C1_7="$(printf '%s' "$PAIR7" | cut -d' ' -f1)"
+C2_7="$(printf '%s' "$PAIR7" | cut -d' ' -f2)"
+ORIG7="$(printf '%s' "$PAIR7" | cut -d' ' -f3)"
+
+# Do NOT seed working/myplan7 — it must exist neither on origin nor locally.
+# Make the first commit in the fresh (empty) clone1 as the new-sha.
+printf 'first-land\n' > "$C1_7/first.txt"
+git -C "$C1_7" add -A
+git -C "$C1_7" commit -qm "first land merge sha"
+NEW_SHA7="$(git -C "$C1_7" rev-parse HEAD)"
+
+code="$(run_in_detached "$C1_7" "$NEW_SHA7" land-advance working/myplan7 "$NEW_SHA7")"
+expect "T2.7: first land (empty origin readback) -> guard skipped, exit 0" \
+  "0" "$code"
+expect "T2.7: first land -> origin branch created at <new-sha>" \
+  "$NEW_SHA7" "$(git -C "$C1_7" ls-remote origin refs/heads/working/myplan7 | cut -f1)"
+expect "T2.7: first land -> local follower created at <new-sha>" \
+  "$NEW_SHA7" "$(git -C "$C1_7" rev-parse refs/heads/working/myplan7 2>/dev/null)"
+
+# ---------------------------------------------------------------------------
+# Case (T2.8 / plan case 4) ALREADY LANDED: origin holds <new-sha> but the local
+# follower LAGS one commit — an interrupted prior land pushed <new-sha> before
+# its follower CAS ran (ADR 0008; the in-loop transient-recovery path). The guard
+# skips the (no-op) push and reconciles the follower TOWARD git, exiting 0. This
+# is the load-bearing idempotent-reland branch — distinct from the phantom case
+# only by the follower's lag.
+# ---------------------------------------------------------------------------
+PAIR8="$(setup_origin_pair)"
+C1_8="$(printf '%s' "$PAIR8" | cut -d' ' -f1)"
+C2_8="$(printf '%s' "$PAIR8" | cut -d' ' -f2)"
+ORIG8="$(printf '%s' "$PAIR8" | cut -d' ' -f3)"
+
+SEED8="$(seed_working_branch "$C1_8" "$C2_8" "working/myplan8")"
+# Produce a descendant of SEED8 and push it to origin as <working> WITHOUT
+# advancing the local follower ref — simulating a prior land that pushed but died
+# before the follower CAS. The commit lands on clone1's default branch; the ref
+# refs/heads/working/myplan8 stays at SEED8 (lags one commit).
+printf 'already-landed\n' > "$C1_8/landed.txt"
+git -C "$C1_8" add -A
+git -C "$C1_8" commit -qm "already-landed merge sha"
+NEW_SHA8="$(git -C "$C1_8" rev-parse HEAD)"
+git -C "$C1_8" push -q origin "HEAD:refs/heads/working/myplan8"
+
+FOLLOWER_BEFORE8="$(git -C "$C1_8" rev-parse refs/heads/working/myplan8)"   # == SEED8 (lags)
+expect "T2.8: fixture sanity — follower lags origin before the call" \
+  "different" "$([ "$FOLLOWER_BEFORE8" != "$NEW_SHA8" ] && echo different || echo same)"
+
+code="$(run_in_detached "$C1_8" "$NEW_SHA8" land-advance working/myplan8 "$NEW_SHA8")"
+expect "T2.8: already-landed (origin at new-sha, follower lags) -> exit 0" \
+  "0" "$code"
+expect "T2.8: already-landed -> follower reconciled to <new-sha>" \
+  "$NEW_SHA8" "$(git -C "$C1_8" rev-parse refs/heads/working/myplan8 2>/dev/null)"
+expect "T2.8: already-landed -> origin unchanged at <new-sha> (push skipped)" \
+  "$NEW_SHA8" "$(git -C "$C1_8" ls-remote origin refs/heads/working/myplan8 | cut -f1)"
+
+# ---------------------------------------------------------------------------
+# Case (T2.8b) ALREADY LANDED, FOLLOWER ABSENT — the "or is absent" arm of the
+# already-landed branch (plan Task 1.1: follower "lags or is absent"). Origin
+# holds <new-sha> but there is NO local refs/heads/<working> at all; the guard
+# must CREATE the follower at <new-sha> and exit 0 (not phantom — an absent
+# follower is not == new_sha).
+# ---------------------------------------------------------------------------
+PAIR8B="$(setup_origin_pair)"
+C1_8B="$(printf '%s' "$PAIR8B" | cut -d' ' -f1)"
+C2_8B="$(printf '%s' "$PAIR8B" | cut -d' ' -f2)"
+ORIG8B="$(printf '%s' "$PAIR8B" | cut -d' ' -f3)"
+
+# Commit in the fresh clone and push it to origin as <working>, but do NOT create
+# a local refs/heads/working/myplan8b (follower absent — a plain push with an
+# explicit refspec creates no local branch).
+printf 'absent-follower\n' > "$C1_8B/af.txt"
+git -C "$C1_8B" add -A
+git -C "$C1_8B" commit -qm "absent-follower already-landed sha"
+NEW_SHA8B="$(git -C "$C1_8B" rev-parse HEAD)"
+git -C "$C1_8B" push -q origin "HEAD:refs/heads/working/myplan8b"
+expect "T2.8b: fixture sanity — local follower absent before the call" \
+  "1" "$(git -C "$C1_8B" rev-parse --verify -q refs/heads/working/myplan8b >/dev/null 2>&1; echo $?)"
+
+code="$(run_in_detached "$C1_8B" "$NEW_SHA8B" land-advance working/myplan8b "$NEW_SHA8B")"
+expect "T2.8b: already-landed, follower absent -> exit 0" \
+  "0" "$code"
+expect "T2.8b: already-landed, follower absent -> follower CREATED at <new-sha>" \
+  "$NEW_SHA8B" "$(git -C "$C1_8B" rev-parse refs/heads/working/myplan8b 2>/dev/null)"
 
 # ===========================================================================
 # Task 3 (clandiso): teardown-phase --worktree-root <root> — reap _refinery
