@@ -4083,7 +4083,8 @@ test('pkg §4.2 — BOTH floors tripped: combined sub-loop gives each a bounded 
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
     if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
     if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
-    if (seat === 'war-refiner' && opts.phase === 'Refine') {
+    // Count only merge attempts (label merge:…) — NOT the post-merge evidence:phase-<id> refiner dispatch.
+    if (seat === 'war-refiner' && opts.phase === 'Refine' && /^merge:/.test(opts.label || '')) {
       mergeCount++
       if (mergeCount === 1) return { mode: 'merge-task', status: 'no-test' }      // first floor
       if (mergeCount === 2) return { mode: 'merge-task', status: 'unpackaged' }   // second floor, on the retry merge
@@ -4870,4 +4871,225 @@ test('T1.3 (D2) — auditPrompt carries the AUDIT PIN line naming the worker hea
   assert.ok(wa2, 'a work-wave audit seat was dispatched (malformed-pin run)')
   assert.ok(!wa2.prompt.includes('AUDIT PIN:'),
     'a malformed head_sha threads no pin ⇒ no AUDIT PIN line (fail-open, byte-compatible)')
+})
+
+// ===========================================================================
+// Task 2.1 (#649) — evidence-pipeline wiring: post-merge evidence dispatch,
+// artifact capture (D5), integrated-tip re-run + authoritative seat (D4),
+// pin-status/guard token consumption (D1), release-baseline clause (D3),
+// and the standing auditor/refiner duty mirrors (D6/D7).
+// ===========================================================================
+
+// Faithful evidence-dispatch mock: returns an EVIDENCE_RESULT for the evidence:phase-<id> dispatch
+// (perTask tokens + integratedTipGate), CONFIRMED tips (observedHead == the merge integration_sha 'aaaa1111'
+// so the seats' audit_sha matches the pin — no demotion, happy-path land). Merge returns a per-task
+// gate_log_path so the artifact-path threading is observable.
+const evidenceImpl = (prompt, opts) => {
+  const seat = seatOf(opts), label = opts.label || ''
+  if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
+  if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 1 } }
+  if (seat === 'war-refiner' && /^evidence:/.test(label)) return {
+    perTask: [
+      { taskId: 't1', pin_status: 'CONFIRMED', pin_evidence: 'tip == gate-HEAD', observedHead: 'aaaa1111', guard_specificity: 'covered', guard_evidence: '' },
+      { taskId: 't2', pin_status: 'BENIGN-ADVANCE', pin_evidence: 'intervening: docs/readme.md', observedHead: 'aaaa1111', guard_specificity: 'covered', guard_evidence: '' },
+    ],
+    integratedTipGate: { gate_output: 'INTEGRATED TIP GATE: all suites passed', tip_sha: 'aaaa1111' },
+  }
+  if (seat === 'war-auditor') return { seat: label, lens: label.includes('execution-evidence') ? 'execution-evidence' : 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: 'aaaa1111' }
+  if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
+  if (seat === 'war-refiner') {
+    const m = /^merge:(t\d)/.exec(label)
+    return { mode: 'merge-task', status: 'merged', gate_output: 'ok', integration_sha: 'aaaa1111',
+      gate_log_path: m ? `/abs/repo/.claude/worktrees/run-2026/_refinery/.war/gate-${m[1]}.log` : undefined }
+  }
+  if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+  return {}
+}
+
+test('T2.1 criterion 2 (D1) — gate-audit seat CONSUMES the stamped PIN STATUS token; the mandatory hand-run cat-file→rev-parse recipe is GONE (spot-verify stays optional)', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), evidenceImpl)
+  const p = gateAuditCalls(calls)[0].prompt
+  // token consumption present
+  assert.ok(p.includes('PIN STATUS:'), 'the gate-audit prompt threads a PIN STATUS token')
+  assert.ok(p.includes('Consume the stamped token; do NOT reconstruct the proof'),
+    'the seat is told to consume the stamped token, not reconstruct the proof')
+  assert.ok(p.includes('CONFIRMED'), 'the CONFIRMED/BENIGN-ADVANCE ⇒ HARD-at-tip semantics are stated')
+  // the mandatory hand-run recipe framings are DELETED (delete-and-trace: restoring the recipe fails these)
+  assert.ok(!p.includes('First, validate the gate-HEAD pin is a real object'),
+    'the mandatory cat-file recipe framing is deleted')
+  assert.ok(!p.includes('Then confirm your evidence is pinned to the integration tip'),
+    'the mandatory rev-parse-compare recipe framing is deleted')
+  assert.ok(!p.includes('and compare the printed sha against the gate-HEAD sha'),
+    'the hand-run compare instruction is deleted')
+  // an OPTIONAL read-only spot-verify is permitted (the plan explicitly allows the verbs)
+  assert.ok(/MAY spot-verify with a SINGLE read-only/.test(p), 'a read-only spot-verify is permitted but optional')
+})
+
+test('T2.1 criterion 6 (D5) — the gate-audit seat carries the captured-artifact path + missing-artifact⇒SOFT rule; the merge tees to .war/gate-<taskId>.log and returns gate_log_path; the anti-excerpt prose is gone from ALL surfaces', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), evidenceImpl)
+  const ga = gateAuditCalls(calls)[0].prompt
+  assert.ok(ga.includes('GATE LOG ARTIFACT:'), 'the gate-audit prompt threads the captured gate-log artifact')
+  assert.ok(ga.includes('/_refinery/.war/gate-t1.log'), 'the threaded artifact path is the merge-returned gate_log_path')
+  assert.ok(/MISSING artifact[\s\S]*SOFT cannot-confirm/.test(ga), 'a missing artifact ⇒ SOFT cannot-confirm for the HARD path')
+  assert.ok(/authoritative execution evidence/i.test(ga), 'the captured artifact is the authoritative HARD-path evidence')
+  // the initial merge prompt tees to the artifact and returns gate_log_path
+  const mergeCall = calls.find(c => seatOf(c.opts) === 'war-refiner' && /^merge:t1$/.test(c.opts.label || ''))
+  assert.ok(mergeCall, 'a merge dispatch for t1 was made')
+  assert.ok(/tee the FULL step-2 gate stdout\+stderr to .*\.war\/gate-t1\.log/.test(mergeCall.prompt),
+    'the merge prompt tees the full gate output to the .war artifact')
+  assert.ok(mergeCall.prompt.includes('gate_log_path'), 'the merge prompt returns the artifact path in gate_log_path')
+  // MERGE_RESULT schema declares gate_log_path
+  assert.match(src, /gate_log_path:\s*\{\s*type:\s*'string'\s*\}/, 'MERGE_RESULT declares gate_log_path')
+  // the retired anti-excerpt prose is ABSENT from all population surfaces (both dispatched merge prompts + standing file)
+  assert.ok(!src.includes('Do NOT curate or excerpt'),
+    'the anti-excerpt prose is gone from ALL workflow-template.js dispatched prompts (replaced by the capture clause)')
+  assert.ok(!refinerMd.includes('curate or excerpt'), 'the anti-excerpt prose is gone from war-refiner.md step 7')
+  const captureUses = (src.match(/gateCaptureClause\(refineryPath, r\.task\.id\)/g) || []).length
+  assert.equal(captureUses, 2, 'the gate-capture clause replaces the anti-excerpt prose at BOTH dispatched merge sites (initial + floor-retry)')
+})
+
+test('T2.1 criterion 6 (D5) — fail-open: absent artifact + absent pin token ⇒ the SOFT cannot-confirm rule is still in the prompt and the phase still LANDS (never a hold)', async () => {
+  // Evidence dispatch returns a bare {} (no perTask), merge returns no gate_log_path ⇒ both tokens absent.
+  const failOpen = (prompt, opts) => {
+    const seat = seatOf(opts), label = opts.label || ''
+    if (seat === 'war-refiner' && /^evidence:/.test(label)) return {}
+    if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'merged', gate_output: 'ok', integration_sha: 'aaaa1111' } // no gate_log_path
+    return gateAuditImpl(prompt, opts)
+  }
+  const { out, calls } = await runPhase(PROVISION_ARGS(), failOpen)
+  const p = gateAuditCalls(calls)[0].prompt
+  assert.ok(p.includes('(no pin-status token — the evidence dispatch produced none)'),
+    'an absent pin token renders the fail-open placeholder, not "undefined"')
+  assert.ok(p.includes('(no gate-log artifact path recorded)'), 'an absent artifact renders the fail-open placeholder')
+  assert.ok(!p.includes('undefined'), 'the fail-open prompt never contains the literal "undefined"')
+  assert.ok(/MISSING artifact[\s\S]*SOFT cannot-confirm/.test(p), 'the missing-artifact⇒SOFT rule is present even when everything is absent')
+  assert.equal(out.landDecision, 'landed', 'fail-open: no tokens ⇒ no hold, the phase lands')
+})
+
+test('T2.1 criterion 4 (D3) — the release-baseline / stacked-lag clause is on BOTH surfaces (emitted auditPrompt + war-auditor.md), case-insensitive mid-sentence', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const wa = calls.find(c => isAuditor(c) && !c.prompt.includes('execution-evidence'))
+  assert.ok(wa, 'a work-wave audit seat was dispatched')
+  // emitted auditPrompt surface
+  assert.ok(/expected stacked-release lag, not a scope error/i.test(wa.prompt),
+    'the emitted auditPrompt carries the stacked-release-lag clause (mid-sentence, grep -i)')
+  assert.ok(wa.prompt.includes('${integrationBranch}...${task.branch}'),
+    'the emitted auditPrompt names the three-dot merge-base baseline literally')
+  // standing surface (byte-identical body)
+  assert.ok(/expected stacked-release lag, not a scope error/i.test(auditorMd),
+    'war-auditor.md carries the byte-identical stacked-release-lag clause')
+  assert.ok(auditorMd.includes('${integrationBranch}...${task.branch}'),
+    'war-auditor.md names the three-dot merge-base baseline literally')
+})
+
+test('T2.1 criterion 5 (D4) — an INTRA-PHASE-DEP phase: the evidence dispatch re-runs the integrated tip AND one authoritative execution-evidence seat consumes it', async () => {
+  // PROVISION_ARGS: t2 deps t1, both superproject ⇒ intra-dep.
+  const { calls } = await runPhase(PROVISION_ARGS(), evidenceImpl)
+  const ev = calls.find(c => seatOf(c.opts) === 'war-refiner' && /^evidence:phase-/.test(c.opts.label || ''))
+  assert.ok(ev, 'an evidence:phase-<id> refiner dispatch was made')
+  assert.ok(/INTRA-PHASE-DEP phase/.test(ev.prompt), 'the intra-dep phase instructs the integrated-tip gate re-run')
+  assert.ok(ev.prompt.includes('gate-phase-3.log'), 'the integrated-tip re-run tees to gate-phase-<id>.log')
+  const auth = calls.find(c => isAuditor(c) && /:integrated-tip$/.test(c.opts.label || ''))
+  assert.ok(auth, 'ONE authoritative integrated-tip execution-evidence seat was dispatched')
+  assert.ok(auth.prompt.includes('INTEGRATED TIP GATE: all suites passed'),
+    'the authoritative seat consumes the integrated-tip captured gate output')
+  assert.ok(/LAND-AUTHORITATIVE/.test(auth.prompt), 'the authoritative seat is told the integrated-tip run is land-authoritative')
+})
+
+test('T2.1 criterion 5 (D4) — a NO-intra-dep phase dispatches no integrated-tip re-run and no authoritative seat; its per-task gate-audit prompts are byte-identical to the intra-dep phase', async () => {
+  const noDepTasks = [
+    { id: 't1', issue: 101, title: 'T1', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] },
+    { id: 't2', issue: 102, title: 'T2', planSlice: 'slice 2', roster: [{ lens: 'correctness' }] },  // NO deps
+  ]
+  const { calls: noDep } = await runPhase(PROVISION_ARGS({ tasks: noDepTasks }), evidenceImpl)
+  const ev = noDep.find(c => seatOf(c.opts) === 'war-refiner' && /^evidence:phase-/.test(c.opts.label || ''))
+  assert.ok(ev, 'the evidence dispatch still runs (pin-status + guard-specificity per task)')
+  assert.ok(/No intra-phase same-repo dep edge/.test(ev.prompt), 'a no-dep phase instructs NO integrated-tip re-run')
+  assert.ok(!/INTRA-PHASE-DEP phase/.test(ev.prompt), 'the intra-dep re-run clause is absent on a no-dep phase')
+  assert.ok(!noDep.some(c => /:integrated-tip$/.test(c.opts.label || '')), 'NO authoritative integrated-tip seat on a no-dep phase')
+  // per-task gate-audit prompts byte-identical to the intra-dep phase (same tasks + same stamped tokens)
+  const depTasks = noDepTasks.map((t, i) => i === 1 ? { ...t, deps: ['t1'] } : t)
+  const { calls: dep } = await runPhase(PROVISION_ARGS({ tasks: depTasks }), evidenceImpl)
+  const perTaskGA = cs => cs.filter(c => isAuditor(c) && /^gate-audit:t\d:execution-evidence$/.test(c.opts.label || '')).map(c => c.prompt).sort()
+  assert.deepEqual(perTaskGA(noDep), perTaskGA(dep),
+    'per-task gate-audit prompts are byte-identical between no-dep and intra-dep phases (D4 only ADDS the authoritative seat)')
+})
+
+test('T2.1 (D1×D2) — the stamped observedHead drives pin-equality: a BENIGN-ADVANCE seat whose audit_sha == observedHead (≠ gateHeadSha) stays HARD; without the stamp it would demote (delete-and-trace)', async () => {
+  // gateHeadSha 'aaaa1111', observed tip 'bbbb2222' (BENIGN-ADVANCE). The seat returns audit_sha == the
+  // observed tip and a Critical finding. WITH the stamp, pin == observedHead == audit_sha ⇒ no demotion ⇒ HARD hold.
+  const stamped = (prompt, opts) => {
+    const seat = seatOf(opts), label = opts.label || ''
+    if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 1 } }
+    if (seat === 'war-refiner' && /^evidence:/.test(label)) return {
+      perTask: [{ taskId: 't1', pin_status: 'BENIGN-ADVANCE', observedHead: 'bbbb2222', guard_specificity: 'covered' },
+                { taskId: 't2', pin_status: 'BENIGN-ADVANCE', observedHead: 'bbbb2222', guard_specificity: 'covered' }] }
+    if (seat === 'war-auditor') {
+      if (label.includes('execution-evidence')) return { seat: label, lens: 'execution-evidence', verdict: 'escalate',
+        findings: [{ severity: 'Critical', title: 'mapped test provably unrun', file: 'x.test.js', rationale: 'absent' }], confidence: 'high', audit_sha: 'bbbb2222' }
+      return { seat: label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    }
+    if (seat === 'war-refiner') return opts.phase === 'Land' ? { mode: 'land-phase', status: 'landed' } : { mode: 'merge-task', status: 'merged', gate_output: 'ok', integration_sha: 'aaaa1111' }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { out: held } = await runPhase(PROVISION_ARGS(), stamped)
+  assert.equal(held.landDecision, 'held:escalation',
+    'audit_sha == the stamped observedHead ⇒ NOT a mismatch ⇒ the Critical stays HARD (BENIGN-ADVANCE is not demoted)')
+  // Delete-and-trace: WITHOUT the stamp (evidence returns no perTask), observedHead falls back to gateHeadSha
+  // 'aaaa1111'; audit_sha 'bbbb2222' != 'aaaa1111' ⇒ MISMATCH ⇒ demoted to SOFT ⇒ the phase LANDS.
+  const unstamped = (prompt, opts) => seatOf(opts) === 'war-refiner' && /^evidence:/.test(opts.label || '')
+    ? {} : stamped(prompt, opts)
+  const { out: lands } = await runPhase(PROVISION_ARGS(), unstamped)
+  assert.equal(lands.landDecision, 'landed',
+    'without the stamped observedHead the same seat mismatches gateHeadSha and demotes to SOFT — proving the stamp is load-bearing')
+})
+
+test('T2.1 both-surfaces — the refiner post-merge evidence-dispatch duty is in war-refiner.md AND the emitted evidence-dispatch prompt', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), evidenceImpl)
+  const ev = calls.find(c => seatOf(c.opts) === 'war-refiner' && /^evidence:phase-/.test(c.opts.label || ''))
+  assert.ok(ev, 'the evidence dispatch fired')
+  // dispatched surface
+  assert.ok(ev.prompt.includes('gate-pin-status.sh'), 'the evidence dispatch runs gate-pin-status.sh')
+  assert.ok(ev.prompt.includes('assert-guard-specificity-in-diff.sh'), 'the evidence dispatch runs assert-guard-specificity-in-diff.sh')
+  assert.ok(ev.prompt.includes('preMergeTip'), 'the evidence dispatch threads the fast-forward preMergeTip base')
+  assert.ok(ev.prompt.includes('--mapped'), 'the pin-status call passes the task-own --mapped set')
+  // standing surface
+  assert.ok(refinerMd.includes('Post-merge evidence dispatch'), 'war-refiner.md carries the post-merge evidence-dispatch section')
+  assert.ok(refinerMd.includes('gate-pin-status.sh') && refinerMd.includes('assert-guard-specificity-in-diff.sh'),
+    'war-refiner.md names both floor scripts')
+  assert.ok(/fast-forward/.test(refinerMd), 'war-refiner.md states the fast-forward pre-merge-base idiom')
+})
+
+test('T2.1 both-surfaces — the execution-evidence checklist + guard-specificity duty live in war-auditor.md (standing surface); the stale spawn-prompt-only sentence is updated', () => {
+  assert.ok(auditorMd.includes('gate-audit checklist'), 'war-auditor.md has the named execution-evidence gate-audit checklist')
+  assert.ok(/delete-and-trace/i.test(auditorMd), 'the checklist carries the mandatory delete-and-trace / temp-break-RED duty')
+  assert.ok(/Pair every positive assertion with a negative absence assert/i.test(auditorMd),
+    'the checklist carries the pair-positive-with-negative-absence duty')
+  assert.ok(auditorMd.includes('Consume the stamped `pin_status`'), 'the checklist directs consuming the stamped pin_status')
+  assert.ok(/missing artifact ⇒ SOFT/i.test(auditorMd), 'the checklist carries the missing-artifact ⇒ SOFT rule')
+  // test-fidelity lens duties (D6/D7 judgment side)
+  assert.ok(auditorMd.includes('Guard-assertion specificity'), 'the test-fidelity lens carries the guard-assertion-specificity duty')
+  assert.ok(auditorMd.includes('Guard-masking'), 'the test-fidelity lens carries the guard-masking flag')
+  // the stale reserved-lens sentence ("instructions arrive in those passes' spawn prompts") is updated
+  assert.ok(!auditorMd.includes("their instructions arrive in those passes' spawn prompts and in the Submodule pre-flight above"),
+    'the stale "arrive in spawn prompts" sentence was updated (the checklist now lives in the standing file)')
+})
+
+test('T2.1 (D1/D8) — the escalate reservation ("NEVER escalate" on a cannot-confirm) is on BOTH gate-audit prompt sites: per-task AND end-state-only', async () => {
+  // per-task site
+  const { calls } = await runPhase(PROVISION_ARGS(), evidenceImpl)
+  const perTask = gateAuditCalls(calls).find(c => /^gate-audit:t\d:execution-evidence$/.test(c.opts.label || ''))
+  assert.ok(perTask, 'a per-task gate-audit seat was dispatched')
+  assert.ok(/NEVER 'escalate'/.test(perTask.prompt), 'the per-task prompt reserves escalate away from the cannot-confirm case')
+  // end-state-only site (requiresTest:false ⇒ empty per-task merge set ⇒ end-state-only seat)
+  const esArgs = PROVISION_ARGS({
+    phase: { id: 3, title: 'P3', integrationBranch: 'integration/wtprov-a/phase-3', workingBranch: 'dev/wtprov-a', endState: ['condition A holds at the tip'] },
+    tasks: [{ id: 't1', issue: 101, title: 'T1', planSlice: 's1', roster: [{ lens: 'correctness' }], requiresTest: false }],
+  })
+  const { calls: esCalls } = await runPhase(esArgs, gateAuditImpl)
+  const es = esCalls.find(c => (c.opts.label || '').includes('end-state'))
+  assert.ok(es, 'the end-state-only seat was dispatched')
+  assert.ok(/NEVER 'escalate'/.test(es.prompt), 'the end-state-only prompt reserves escalate away from the cannot-confirm case')
 })
