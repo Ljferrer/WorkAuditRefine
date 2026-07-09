@@ -313,7 +313,7 @@ Rule of thumb: **scripted, reproducible coordination → Workflow; emergent or i
 
 ## Releasing
 
-A version bump **must** update ALL three version-of-truth files together — Claude Code dispatches plugin updates by the `marketplace.json` version string, so a stale `marketplace.json` makes a release a silent no-op (release-drift / mirrored-value pattern):
+A version bump **must** update all four version slots across three files together (`marketplace.json` carries two) — Claude Code dispatches plugin updates by the `marketplace.json` version string, so a stale `marketplace.json` makes a release a silent no-op (release-drift / mirrored-value pattern):
 
 | File | Field(s) to bump |
 |---|---|
