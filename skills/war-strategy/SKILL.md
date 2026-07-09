@@ -118,6 +118,25 @@ dep-wave worker rebases onto the integration tip and sees the merged dep's code;
 same-file collision (same file → same task, waved or not). The same rule scales up: phases within a plan,
 and plans within a roadmap (the shared-file-contention table is this rule applied across plans).
 
+### Drift-guard coverage — two authoring rules
+
+> **Mechanics (why):** a fact WAR duplicates across surfaces, or asserts in prose about a canonical code
+> construct, rots silently unless a mechanical guard binds it to its canonical source by **extraction +
+> equality** (the drift-guard discipline, ADR 0025). Carving work so the guard travels with the fact it
+> guards is a plan-authoring duty, same footing as file-disjointness above.
+
+5. **New mirror ⇒ its registry row, same task.** A task that lands a **new inline mirror** of a canonical
+   export (a constant or helper hand-copied into `workflow-template.js` because the Workflow sandbox can't
+   `import`) MUST also land its **mirror-registry row** in `workflow-template.test.mjs` in the **same task** —
+   one row asserting the inline copy equals its canonical source. An **unguarded mirror is a plan defect**,
+   never a follow-up: split the row into a later task and the mirror ships a phase naked. The registry grows
+   by row, never by scanner (`// ponytail:` — the AST scanner is the rejected ceiling).
+6. **Default-flip ⇒ enumerate every surface, assert OLD absent.** A task that flips a default or narrows a
+   scope MUST **enumerate every doc surface** carrying the old value in its `Files:`, and its gate MUST assert
+   the **OLD value absent** across all of them — asserting only the new value present is the recorded failure
+   ([[default-flip-must-audit-all-doc-surfaces]]): a stale surface the new-present check never reads sails
+   through green.
+
 ## 4. Handoff & convert
 
 **Pipeline doctrine:** war-strategy **converts**; `/red-team` **validates** plans and never converts — route
@@ -136,8 +155,9 @@ ship this **HANDOFF DIRECTIVE** with the route — the authoring skill executes 
 ### With-artifact invoke — review & convert
 
 1. **Gap review** against the templates + the rule (§2, §3): missing sections, same-file collisions,
-   phase-edge violations, one-task-one-repo violations, release placement, and — at roadmap scale — plan
-   count and landing order.
+   phase-edge violations, one-task-one-repo violations, release placement, **unguarded new mirrors and
+   default-flips lacking an OLD-absent gate** (the two drift-guard rules in §3), and — at roadmap scale —
+   plan count and landing order.
 2. **Gap-driven interview:** one question at a time, **recommendation first** ("I recommend X because Y —
    accept?").
 3. **Structural fixes** applied with the operator's confirmation.
