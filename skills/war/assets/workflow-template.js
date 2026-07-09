@@ -83,7 +83,27 @@ const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties:
   // baselineDebt key, the source:'auto' backstop check string, and the baseline-proceed prompt read them.
   gate_failure_class: { enum: ['introduced', 'baseline', 'environment'] },
   gate_failing_ids: { type: 'array' }, gate_base_sha: { type: 'string' },
+  // gate_log_path (D5): the ABSOLUTE path of the .war/gate-<taskId>.log artifact the merge-task tees
+  // the full step-2 gate stdout+stderr to. Optional (fail-open — absent ⇒ the gate-audit seat's HARD
+  // provably-unrun determination has no captured file ⇒ SOFT cannot-confirm, never a hold). The captured
+  // artifact — NOT the possibly-curated inline gate_output — is the authoritative HARD-path evidence.
+  gate_log_path: { type: 'string' },
   pr_number: { type: 'number' }, pr_remote: { type: 'string' } } }
+
+// EVIDENCE_RESULT (D1/D4/D6): the shape of the ONE consolidated post-merge refiner "evidence dispatch"
+// (label evidence:phase-<id>). perTask stamps the gate-pin-status.sh proof (pin_status + observedHead =
+// the _refinery tip the proof was computed against — the gate-audit seat's pin-equality expectation) and
+// the assert-guard-specificity-in-diff.sh advisory-evidence token per merged task. integratedTipGate is
+// populated ONLY on an intra-phase-dep phase (a re-run of plan.gate at the final integration tip — the
+// land-authoritative execution evidence feeding the D4 authoritative seat). ALL fields optional: a
+// failed/absent dispatch ⇒ no tokens ⇒ seats keep today's SOFT cannot-confirm path (fail-open, never a hold).
+const EVIDENCE_RESULT = { type: 'object', properties: {
+  perTask: { type: 'array', items: { type: 'object', properties: {
+    taskId: { type: 'string' },
+    pin_status: { enum: ['CONFIRMED', 'BENIGN-ADVANCE', 'STALE-MISMATCH', 'ERROR'] },
+    pin_evidence: { type: 'string' }, observedHead: { type: 'string' },
+    guard_specificity: { enum: ['covered', 'uncovered', 'ERROR'] }, guard_evidence: { type: 'string' } } } },
+  integratedTipGate: { type: 'object', properties: { gate_output: { type: 'string' }, tip_sha: { type: 'string' } } } } }
 
 // memory_index_updated retired (spec §4.6, D4 deleted): the servitor no longer maintains the index —
 // the Lead runs `render-index` post-servitor (Gate 2). The servitor only writes/updates lesson files.
@@ -446,6 +466,14 @@ const reattachClause = refineryP =>
 const classificationClause = (refineryP, baseDesc) =>
   `\nGATE-FAILURE CLASSIFICATION (spec §6 / ADR 0019 — on gate failure, BEFORE returning gate_failed): re-run ONLY the failing gate at the classification base — ${baseDesc} — by detaching _refinery there (\`git -C ${refineryP} checkout --detach <that base>\`), re-running the failing gate, then RE-ATTACHING _refinery to ${ph.integrationBranch} before you return (\`git -C ${refineryP} checkout ${ph.integrationBranch}\`). Set gate_failure_class: (1) the base is RED with the SAME failing identifiers ⇒ 'baseline'; (2) the base is GREEN AND the failure does NOT reproduce on a second run at the task tip in a FRESH environment (fresh TMPDIR/shell) ⇒ 'environment' (reproducibility — NOT file-disjointness — is the trigger; a diff-disjoint but reproducing failure is a normal introduced regression and stays 'introduced'); (3) otherwise ⇒ 'introduced'. This is JUDGMENT, not parsing — carry the base-run evidence in gate_output UNCURATED. On a 'baseline' classification also report the classified failing identifiers in gate_failing_ids (array) and the classification base sha in gate_base_sha. ABSENT class ⇒ treated as 'introduced' (the permanent fail-safe).\n`
 
+// gateCaptureClause (D5): the merge-task gate-output capture directive — mirrored into the initial
+// merge-task prompt AND the floor-retry re-merge prompt (both-surfaces rule; agents/war-refiner.md step 7
+// is the standing mirror, same commit). It STRUCTURALLY REPLACES the retired anti-excerpt prose: the
+// refiner tees the FULL step-2 gate stdout+stderr to an absolute artifact file and returns its path, so
+// the gate-audit seat's HARD provably-unrun determination reads the CAPTURED file, never a possibly-
+// curated inline paste. .war/ is git-excluded inside _refinery so the clean-surface posture holds.
+const gateCaptureClause = (refineryP, taskId) =>
+  `On success, populate gate_output in the returned MergeResult with the executed gate output (stdout+stderr) — the post-merge gate-audit pass reads it as NON-AUTHORITATIVE context only. Additionally, tee the FULL step-2 gate stdout+stderr to the artifact file ${refineryP}/.war/gate-${taskId}.log (an ABSOLUTE path — the subagent cwd is the main repo, not _refinery) and return that absolute path in gate_log_path; the gate-audit seat reads this captured file as the AUTHORITATIVE execution evidence, and a HARD provably-unrun finding is minted ONLY against the captured file. First ensure .war/ is git-excluded inside _refinery — append the line \`.war/\` (once) to the path printed by \`git -C ${refineryP} rev-parse --git-path info/exclude\` — so the artifact never dirties the merge/push clean surface. `
 // SHA format guard (D2): a well-formed abbreviated-or-full git object name, shared by the pin-equality
 // gate below (pinMismatch). pinOrSentinel keeps its own identical-shape literal on purpose — its #393
 // extract-and-eval unit test evals that arrow in isolation, so it must not reference this helper.
@@ -475,6 +503,9 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin) {
     + `\nDISPOSITION RULE: every Minor/Nit finding carries a disposition — absorb (mechanical, intent-consistent, safe to fix this phase; set phaseClose:true when the fix needs the integrated tip or touches a shared/slot-adjacent file), follow-up (substantive work beyond this phase — MUST state why it is not absorbable), or note (informational; phase report + servitor feed, never an issue). Omitted disposition defaults: Minor becomes follow-up, Nit becomes note; absorb is never a default.`
     + `\nCALIBRATION RULE: judge on evidence only — never soften, downgrade, or drop a finding because peers disagreed or because a fix was attempted; downgrade only with a stated reason grounded in the current diff. The pull to soften peaks right after your own finding is challenged — that is the highest-risk moment.`
     + `\nCOST-CLAIM RULE: a finding justified by a cost — "too slow", "too expensive", "too complex" — must name a magnitude (ms, MB, LOC, call count, or complexity class). An unquantifiable cost claim caps the finding at Minor.`
+    // RELEASE-BASELINE RULE (D3) — verbatim-mirrored in agents/war-auditor.md (same commit). The literal
+    // ${integrationBranch}...${task.branch} is escaped so the emitted prose byte-matches the static mirror.
+    + `\nRELEASE-BASELINE RULE: judge a release/version-bump diff against the three-dot \`\${integrationBranch}...\${task.branch}\` merge-base set (exactly what this task added), never against a main checkout; an N-step main-lag when N stacked plans have not yet landed on main is the expected stacked-release lag, not a scope error.`
     + intentClause + auditorMemClause(task.id, lens)
   // AUDIT PIN (D2): name the worker's committed tip and require the seat to echo the sha it ACTUALLY
   // reviewed as audit_sha. A well-formed audit_sha ≠ this pin means the seat judged a different tree —
@@ -703,7 +734,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       log(`gate-audit: skipping ${task.id} (requiresTest:false — no mapped tests, HARD path vacuous)`)
     } else {
       mergedTasksForGateAudit.push({ taskId: task.id, gateOutput: mr.gate_output, acceptanceCriteria: task.planSlice,
-        gateHeadSha: pinOrSentinel(mr.integration_sha),
+        gateHeadSha: pinOrSentinel(mr.integration_sha), gateLogPath: mr.gate_log_path,
         ...(Array.isArray(taskDebt) && taskDebt.length ? { baselineDebt: taskDebt } : {}) })
     }
   }
@@ -821,7 +852,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + `Run the gate (${plan.gate}) after the rebase in the task worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)), so any meta-test that materialises scratch dirs isolates from the worktree's .war-task marker; the gate's cwd stays the task worktree. On gate failure return gate_failed; on conflict return conflict; never force. `
         + classificationClause(refineryPath, `the phase integration base — the cut point of ${ph.integrationBranch}, i.e. \`git -C ${refineryPath} merge-base ${ph.integrationBranch} ${ph.workingBranch}\``)
         + baselineDebtClause()
-        + `On success, populate gate_output in the returned MergeResult with the executed gate output (stdout+stderr) so the post-merge gate-audit pass can review it as execution evidence. Do NOT curate or excerpt — each *.test.sh runner emits a single aggregate PASS line, so a partial paste reads as an under-run; include the complete *.test.sh runner list or state the total runner count. `
+        + gateCaptureClause(refineryPath, r.task.id)
         + `Also populate integration_sha with the rebased integration tip the gate ran against, so the gate-audit pass can confirm the gate ran at the integration tip.`
         + ` Before the _refinery merge step (b), run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${r.task.branch}${r.task.taskType === 'gitlink-bump' && r.task.declared ? ' --declared' : ''} (REGARDLESS of requiresTest — a submodule touch is refused whether or not the task needs a test; the relax-flag is only threaded for a declared gitlink-bump task). Exit 1 → return { mode: 'merge-task', status: 'submodule-blocked' } — do NOT merge. Exit 2 → return { mode: 'merge-task', status: 'error' }.`
         + (requiresTest
@@ -907,7 +938,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             + `rebase --onto does NOT dodge this constraint — it is equally refused.\n`
             + `  (b) MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), then git merge ${r.task.branch} (fast-forward merge of the now-rebased task branch into the integration branch). Push.\n`
             + `Run the gate (${plan.gate}) after the rebase in the task worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)), so any meta-test that materialises scratch dirs isolates from the worktree's .war-task marker; the gate's cwd stays the task worktree. On gate failure return gate_failed; on conflict return conflict; never force. `
-            + `On success, populate gate_output in the returned MergeResult with the executed gate output (stdout+stderr) so the post-merge gate-audit pass can review it as execution evidence. Do NOT curate or excerpt — each *.test.sh runner emits a single aggregate PASS line, so a partial paste reads as an under-run; include the complete *.test.sh runner list or state the total runner count. `
+            + gateCaptureClause(refineryPath, r.task.id)
             + `Also populate integration_sha with the rebased integration tip the gate ran against, so the gate-audit pass can confirm the gate ran at the integration tip. `
             + classificationClause(refineryPath, `the phase integration base — the cut point of ${ph.integrationBranch}, i.e. \`git -C ${refineryPath} merge-base ${ph.integrationBranch} ${ph.workingBranch}\``)
             + baselineDebtClause()
@@ -1032,50 +1063,93 @@ if (mergedTasksForGateAudit.length > 0) {
   const refineryPath = `${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/_refinery`
   // ponytail: reuse the _refinery worktree — already checked out on ph.integrationBranch at the integration tip
   //           after the serial merge queue and before Land/teardown; loop-scoped :308 refineryPath is out of scope here
-  // observedHead: the _refinery tip the gate-audit seat actually judges, stamped per task by Task 2.1's
-  // post-merge evidence dispatch. It is the pin-equality expectation for the gate-audit seat (D2) — NOT
-  // gateHeadSha: under BENIGN-ADVANCE the observed tip legitimately differs from gateHeadSha, so checking
-  // seat-vs-gateHeadSha would demote exactly the benign case. Absent (evidence dispatch not yet landed —
-  // it lands in Phase 2) ⇒ fall back to gateHeadSha (fail-open). (defined-but-not-yet-emitted: Task 2.1
-  // populates observedHead on these entries; until then the fallback keeps today's behavior.)
-  await parallel(mergedTasksForGateAudit.map(({ taskId, gateOutput, acceptanceCriteria, gateHeadSha, observedHead, baselineDebt: taskDebt }) => async () => {
+
+  // ---- D1/D4/D6 — ONE consolidated post-merge evidence dispatch (refiner, in _refinery) ----
+  // Stamps per merged task: the gate-pin-status.sh proof (pin_status + observedHead = the _refinery tip the
+  // proof ran against — the gate-audit seat's pin-equality expectation, D2) and the guard-specificity
+  // advisory token. On an INTRA-PHASE-DEP phase between SAME-REPO tasks it ALSO re-runs plan.gate once at
+  // the final integration tip (the land-authoritative execution evidence feeding the D4 authoritative seat).
+  // ALL fail-open: a failed/absent dispatch ⇒ no tokens ⇒ every seat keeps today's SOFT cannot-confirm path.
+  // sameRepo: a superproject task (incl. a gitlink-bump, whose diff lands in the superproject) is one repo;
+  // a submodule-content task is keyed by its targetRepo. A dep spanning repos (submodule content → gitlink
+  // bump) has integration tips in different repos, so it does NOT trigger the single-repo integrated re-run.
+  const repoOf = t => t.taskType === 'submodule' ? (t.targetRepo || '<submodule>') : '<superproject>'
+  const sameRepo = (a, b) => repoOf(a) === repoOf(b)
+  const intraDep = tasks.some(t => (t.deps || []).some(d => tasks.some(x => x.id === d && sameRepo(x, t))))
+  // Per-task pre-merge base for the task's own changed-file set + the guard floor. Per-task merges are
+  // FAST-FORWARD (linear single-parent chain, NO per-task merge commit), so the base is the PREVIOUS merged
+  // task's gateHeadSha in serial order (mergedTasksForGateAudit is pushed in merge order) — or, for the
+  // FIRST merged task, the phase integration base (a shell substitution the refiner resolves). NOT <merge>^1
+  // (void: no merge commit) and NOT the post-merge integration tip (an empty three-dot no-op).
+  const phaseBaseCmd = `$(git -C ${refineryPath} merge-base ${ph.integrationBranch} ${ph.workingBranch})`
+  const evItems = mergedTasksForGateAudit.map((m, i) => ({
+    taskId: m.taskId, gateHeadSha: m.gateHeadSha,
+    preMergeTip: i === 0 ? phaseBaseCmd : mergedTasksForGateAudit[i - 1].gateHeadSha }))
+  const evidence = await agent(
+    `EVIDENCE DISPATCH for WAR phase ${ph.id} (mode=merge-task post-merge evidence; you are the refiner). `
+    + `cwd = ${refineryPath} (the _refinery worktree, on ${ph.integrationBranch} at the FINAL integration tip after the serial merge queue). `
+    + `This is a READ-ONLY proof computation — do NOT merge, push, rebase, or edit. Run the two floor scripts (siblings of assert-test-in-diff.sh, invoked the same bare way) per merged task and return the tokens.\n`
+    + `observedHead — the _refinery tip you compute every proof against — is \`git -C ${refineryPath} rev-parse HEAD\`; return it per task.\n`
+    + `For EACH merged task below (taskId · gateHeadSha · preMergeTip):\n`
+    + evItems.map(e => `  - ${e.taskId} · gateHeadSha=${e.gateHeadSha} · preMergeTip=${e.preMergeTip}`).join('\n') + '\n'
+    + `  1. PIN STATUS — run: gate-pin-status.sh <gateHeadSha> $(git -C ${refineryPath} rev-parse HEAD) --mapped "$(git -C ${refineryPath} diff --name-only <preMergeTip> <gateHeadSha>)". `
+    + `The --mapped set is THIS task's OWN changed files (the <preMergeTip>..<gateHeadSha> range — exactly what the task brought in under fast-forward topology), NOT the global gate-discovery set. Record pin_status = CONFIRMED (exit 0, equal shas) | BENIGN-ADVANCE (exit 0, tip descends gateHeadSha and no mapped file changed in between) | STALE-MISMATCH (exit 1, a mapped file changed or not an ancestor) | ERROR (exit 2, git/ref error or the '(integration_sha …)' sentinel), plus pin_evidence (the script's printed intervening/offending file list or error text).\n`
+    + `  2. GUARD SPECIFICITY — run: assert-guard-specificity-in-diff.sh <preMergeTip> <gateHeadSha> (SAME pre-merge base). Record guard_specificity = covered (exit 0) | uncovered (exit 1 — capture the printed uncovered guard message + defining file as guard_evidence) | ERROR (exit 2).\n`
+    + (intraDep
+      ? `INTRA-PHASE-DEP phase (a same-repo dep edge exists): ALSO re-run the FULL gate (${plan.gate}) ONCE at the final integration tip in ${refineryPath} with a fresh TMPDIR (TMPDIR=$(cd / && mktemp -d)), tee its full stdout+stderr to ${refineryPath}/.war/gate-phase-${ph.id}.log, and return integratedTipGate = { gate_output: <the full captured output>, tip_sha: $(git -C ${refineryPath} rev-parse HEAD) } — the land-authoritative execution evidence. Ensure .war/ is git-excluded (append \`.war/\` once to the path printed by \`git -C ${refineryPath} rev-parse --git-path info/exclude\`).\n`
+      : `No intra-phase same-repo dep edge on this phase: do NOT re-run the gate; omit integratedTipGate.\n`)
+    + `Return { perTask: [{ taskId, pin_status, pin_evidence, observedHead, guard_specificity, guard_evidence }], integratedTipGate? }. On any failure, return what you have — a partial/empty result is FAIL-OPEN (seats fall back to today's SOFT cannot-confirm path); never block.`,
+    { agentType: NS + 'war-refiner', phase: 'Refine', label: `evidence:phase-${ph.id}`, schema: EVIDENCE_RESULT, ...spawn('refiner') })
+  // Merge the stamped tokens back onto the per-task entries (fail-open: a non-EVIDENCE_RESULT shape — e.g. a
+  // stray MergeResult — has no perTask, so nothing is stamped and the seats keep today's behavior).
+  if (evidence && Array.isArray(evidence.perTask)) {
+    const byId = new Map(evidence.perTask.map(p => [p && p.taskId, p]))
+    for (const m of mergedTasksForGateAudit) {
+      const p = byId.get(m.taskId)
+      if (!p) continue
+      m.observedHead = p.observedHead; m.pinStatus = p.pin_status; m.pinEvidence = p.pin_evidence
+      m.guardSpecificity = p.guard_specificity; m.guardEvidence = p.guard_evidence
+    }
+  }
+  // observedHead: the _refinery tip the gate-audit seat actually judges, stamped per task by the evidence
+  // dispatch above. It is the pin-equality expectation for the gate-audit seat (D2) — NOT gateHeadSha:
+  // under BENIGN-ADVANCE the observed tip legitimately differs from gateHeadSha, so checking
+  // seat-vs-gateHeadSha would demote exactly the benign case. Absent (evidence dispatch failed/produced no
+  // token) ⇒ fall back to gateHeadSha (fail-open — today's behavior).
+  await parallel(mergedTasksForGateAudit.map(({ taskId, gateOutput, acceptanceCriteria, gateHeadSha, observedHead, gateLogPath, pinStatus, pinEvidence, guardSpecificity, guardEvidence, baselineDebt: taskDebt }) => async () => {
     // Baseline-debt line (spec §6 / ADR 0019): a baseline-merged task carries its classified failing
     // identifiers so a pre-existing base failure in the gate output is NOT read as a provably-unrun
     // mapped test (which would fake a HARD hold). Empty/absent debt ⇒ '' ⇒ byte-identical prompt.
     const debtLine = (Array.isArray(taskDebt) && taskDebt.length)
       ? `\nBASELINE GATE DEBT: this task was merged over PRE-EXISTING base failures classified gate_failure_class:'baseline' — the failing identifiers below are pre-existing at the classification base, NOT evidence a mapped test did not run. A gate-output failure matching one of these is base debt, never a provably-unrun mapped test: ${taskDebt.join(', ')}.\n`
       : ''
+    // D1 seat token consumption: the pin proof is a STAMPED token (gate-pin-status.sh, from the evidence
+    // dispatch), not a hand-run recipe. guardLine surfaces the advisory guard-specificity evidence.
+    const pinStatusLine = pinStatus
+      ? `${pinStatus}${pinEvidence ? ` (cited evidence: ${pinEvidence})` : ''}`
+      : '(no pin-status token — the evidence dispatch produced none)'
+    const artifactLine = gateLogPath || '(no gate-log artifact path recorded)'
+    const guardLine = guardSpecificity
+      ? `\nGUARD SPECIFICITY (stamped by the same evidence dispatch): ${guardSpecificity}${guardEvidence ? ` — ${guardEvidence}` : ''}. An 'uncovered' token means a new die/stderr guard was added whose exact stderr message NO same-diff test asserts — emit a test-fidelity finding citing the guard message (severity/disposition are yours, ADR 0013). 'covered' / 'ERROR' / absent ⇒ no guard finding on this axis.\n`
+      : ''
     const gateAuditVerdict = await agent(
       `POST-MERGE GATE-AUDIT for WAR task ${taskId} (lens: execution-evidence). `
       + `You are a READ-ONLY auditor with read-only git. The phase integration branch is checked out at `
       + `${refineryPath} (the _refinery worktree) and the gate ran at gate-HEAD sha ${gateHeadSha}.\n`
       + `Gate-HEAD sha (the rebased integration tip the gate ran at): ${gateHeadSha}.\n`
-      + `If you cannot confirm the executed gate output corresponds to the current integration tip `
-      + `(gate-HEAD sha above vs the phase integration tip), record a SOFT note, never a HARD finding — `
-      + `a stale gate output (gate-HEAD sha != integration tip) cannot be a provably-unrun land-halt. `
-      + `This SOFT-downgrade applies ONLY to the cannot-confirm case; a mapped test provably unrun AT the `
-      + `confirmed gate-HEAD sha stays HARD.\n`
-      + `First, validate the gate-HEAD pin is a real object. Run (read-only git, permitted):\n`
-      + `    git -C ${refineryPath} cat-file -t ${gateHeadSha}\n`
-      + `If that command fails (non-zero exit, or the guard refuses it because the pin is the '(integration_sha …)' sentinel), `
-      + `the pin is malformed/synthetic: record the SOFT cannot-confirm note (same required fields below) and skip the `
-      + `rev-parse comparison — never a HARD finding.\n`
-      + `Then confirm your evidence is pinned to the integration tip. Run (read-only git, permitted):\n`
-      + `    git -C ${refineryPath} rev-parse HEAD\n`
-      + `and compare the printed sha against the gate-HEAD sha ${gateHeadSha}. Equal ⇒ pin CONFIRMED. `
-      + `Different, or the command cannot run (git unavailable / rev-parse fails) ⇒ you CANNOT confirm the pin.\n`
-      + `If CONFIRMED, then confirm the mapped acceptance-criteria test is present in the files at that tip `
+      + `PIN STATUS: ${pinStatusLine}. A stamped CONFIRMED or BENIGN-ADVANCE token IS the pin proof — the refiner's evidence dispatch already computed it (gate-pin-status.sh) against the observed _refinery tip ${observedHead || gateHeadSha}. Consume the stamped token; do NOT reconstruct the proof — you MAY spot-verify with a SINGLE read-only \`git -C ${refineryPath} cat-file -t <sha>\` or \`git -C ${refineryPath} rev-parse HEAD\` only if you doubt it.\n`
+      + `CONFIRMED (observed tip == gate-HEAD) or BENIGN-ADVANCE (observed tip descends gate-HEAD and NONE of this task's own files changed in the intervening range) ⇒ the tree you judge corresponds to the current integration tip; a mapped acceptance-criteria test provably unrun AT that confirmed tip stays HARD.\n`
+      + `STALE-MISMATCH / ERROR / an absent pin-status token ⇒ you CANNOT confirm the executed gate output corresponds to the current integration tip: record a SOFT note, never a HARD finding (the stale-tip defusing rule). The SOFT note MUST state: the observed HEAD sha (or "rev-parse failed"), the expected gate-HEAD sha ${gateHeadSha}, and the reason — "gate-audit worktree not at the integration tip — execution evidence unreliable, downgraded to SOFT, not a land-halt".\n`
+      + `In ANY cannot-confirm / STALE-MISMATCH / ERROR case KEEP verdict at 'approve' or 'request_changes' WITH the SOFT note — NEVER 'escalate' (escalate is reserved for a plan that is wrong or underspecified; a finding-less escalate is treated as a HARD hold, so it must never be used to signal a stale/unconfirmable tip).\n`
+      + `GATE LOG ARTIFACT: read the FULL captured gate log at ${artifactLine} (read-only Read) — this captured file, NOT the inline gate output below, is the AUTHORITATIVE execution evidence for a HARD provably-unrun determination. A MISSING artifact (no path, or the file cannot be read) ⇒ SOFT cannot-confirm for the HARD path (never a HARD finding); the inline gate output stays readable as NON-AUTHORITATIVE context.\n`
+      + guardLine
+      + `If the pin is CONFIRMED/BENIGN-ADVANCE, confirm the mapped acceptance-criteria test is present in the files at that tip `
       + `(read-only git / Read in ${refineryPath}), not merely inferred from the gate output text; record a `
-      + `HARD gate-evidence finding ONLY when the mapped test is genuinely absent AT THE CONFIRMED INTEGRATION TIP.\n`
-      + `If you CANNOT confirm (the printed sha differs from the gate-HEAD sha or the command cannot run), record a SOFT note, `
-      + `never a HARD finding (the stale-tip defusing rule). The SOFT note MUST state: the observed HEAD sha `
-      + `(or "rev-parse failed"), the expected gate-HEAD sha ${gateHeadSha}, and the reason — "gate-audit `
-      + `worktree not at the integration tip — execution evidence unreliable, downgraded to SOFT, not a land-halt".\n`
-      + `Return your reviewed audit_sha so the Lead can compare it to the gate-HEAD sha.\n`
-      + `Review the executed gate output below and the task's mapped acceptance criteria to confirm the mapped tests actually ran and passed.\n`
+      + `HARD gate-evidence finding ONLY when the mapped test is genuinely absent AT THE CONFIRMED INTEGRATION TIP and the captured artifact confirms it did not run.\n`
+      + `Return the sha you actually reviewed as audit_sha (it should equal the observed tip ${observedHead || gateHeadSha}); the Lead compares it to the dispatched pin — a differing well-formed sha demotes your findings to SOFT (you judged a different tree).\n`
       + debtLine
       + `Acceptance criteria / plan slice: ${acceptanceCriteria || '(see plan file)'}\n`
-      + `Executed gate output:\n${gateOutput || '(no gate output recorded)'}\n`
+      + `Executed gate output (NON-AUTHORITATIVE context — the captured artifact above is authoritative for the HARD path):\n${gateOutput || '(no gate output recorded)'}\n`
       + endStateBlock + intentClause
       + `\nDefault: SOFT. Hard only when provably unrun.`,
       { agentType: NS + 'war-auditor', phase: 'Audit',
@@ -1087,8 +1161,8 @@ if (mergedTasksForGateAudit.length > 0) {
     if (gateAuditVerdict) {
       const rawFindings = gateAuditVerdict.findings || []
       // D2 pin-equality: the gate-audit seat's expected tip is observedHead (the tree it judged, stamped by
-      // Task 2.1's evidence dispatch); fall back to gateHeadSha when absent (fail-open — the live path until
-      // Phase 2 lands observedHead). Under BENIGN-ADVANCE the tip legitimately differs from gateHeadSha, so
+      // the evidence dispatch above); fall back to gateHeadSha when absent (fail-open — the evidence dispatch
+      // failed/produced no token). Under BENIGN-ADVANCE the tip legitimately differs from gateHeadSha, so
       // equality is measured against observedHead, never gateHeadSha. A well-formed audit_sha differing from a
       // well-formed pin means the seat judged a different tree — tag pin-mismatch, EXCLUDE from the HARD path.
       const pin = observedHead || gateHeadSha
@@ -1109,6 +1183,42 @@ if (mergedTasksForGateAudit.length > 0) {
       }
     }
   }))
+  // ---- D4 — authoritative integrated-tip seat (intra-phase same-repo dep phase only) ----
+  // On an intra-dep phase the evidence dispatch re-ran the FULL gate at the final integration tip; that
+  // captured output is LAND-AUTHORITATIVE over the per-branch gates for the dep-crossing tasks (their
+  // branches were gated before their dep's content landed). Dispatch ONE extra execution-evidence seat that
+  // judges the union of the dep-crossing tasks' mapped criteria against it; findings route through the SAME
+  // gate-evidence lane (severity OR the D8 verdict disjunct, identical to the end-state seat). The per-task
+  // seats still ran (advisory for those tasks). FAIL-OPEN: no captured integrated-tip output ⇒ NO seat (the
+  // per-task SOFT path already covers it). No pin-equality here — the seat judges the CONFIRMED final tip.
+  const integratedTip = evidence && evidence.integratedTipGate
+  if (intraDep && integratedTip && integratedTip.gate_output) {
+    const depCrossingIds = new Set(tasks
+      .filter(t => (t.deps || []).some(d => tasks.some(x => x.id === d && sameRepo(x, t)))
+        || tasks.some(o => (o.deps || []).some(d => d === t.id && sameRepo(t, o))))
+      .map(t => t.id))
+    const authCriteria = mergedTasksForGateAudit
+      .filter(m => depCrossingIds.has(m.taskId))
+      .map(m => `- ${m.taskId}: ${m.acceptanceCriteria || '(see plan file)'}`).join('\n') || '(see plan file)'
+    const authVerdict = await agent(
+      `INTEGRATED-TIP GATE-AUDIT for WAR phase ${ph.id} (lens: execution-evidence — AUTHORITATIVE). `
+      + `You are a READ-ONLY auditor with read-only git. The phase integration branch is checked out at ${refineryPath} at the FINAL integration tip ${integratedTip.tip_sha || '(tip sha unrecorded)'}, and the FULL gate was re-run there after the serial merge queue — this integrated-tip run is LAND-AUTHORITATIVE over the per-branch gates for the intra-phase dep tasks (their branches were gated before their dep's content landed).\n`
+      + `Judge the union of the dep-crossing tasks' mapped acceptance criteria against this integrated-tip evidence. Record a HARD gate-evidence finding (Critical/Major) ONLY when a mapped test is provably unrun at this tip; a cannot-confirm is SOFT, never a hold; NEVER 'escalate' for a stale/unconfirmable tip (escalate is reserved for a wrong/underspecified plan).\n`
+      + `Return the sha you reviewed as audit_sha (it should equal ${integratedTip.tip_sha || 'the integration tip'}).\n`
+      + `Dep-crossing tasks' acceptance criteria:\n${authCriteria}\n`
+      + `Integrated-tip gate output (AUTHORITATIVE — the land-decisive execution evidence):\n${integratedTip.gate_output}\n`
+      + endStateBlock + intentClause
+      + `\nDefault: SOFT. Hard only when provably unrun.`,
+      { agentType: NS + 'war-auditor', phase: 'Audit',
+        label: `gate-audit:phase-${ph.id}:integrated-tip`, schema: AUDIT_VERDICT, ...spawn('auditor') })
+    if (authVerdict) {
+      const findings = authVerdict.findings || []
+      // Same gate-evidence lane as the end-state seat: severity OR the D8 verdict disjunct gates HARD.
+      const isHard = authVerdict.verdict === 'escalate' || findings.some(f => f.severity === 'Critical' || f.severity === 'Major')
+      auditLog.push({ task: `phase-${ph.id}-integrated-tip`, verdict: `gate-audit:${authVerdict.verdict}`, findings, gateEvidence: true, hard: isHard, authoritative: true, auditSha: authVerdict.audit_sha })
+      if (isHard) escalated.push({ task: `phase-${ph.id}-integrated-tip`, reason: 'gate-evidence', detail: authVerdict })
+    }
+  }
 } else if (endStateClaims.length > 0) {
   // Roster-D7 preserved (Open decision 2): nothing to gate-audit per task, but this phase CLAIMS
   // End-state conditions — spawn ONE End-state-only seat at the confirmed tip, so a docs-only
@@ -1121,6 +1231,7 @@ if (mergedTasksForGateAudit.length > 0) {
     + `${refineryPath} (the _refinery worktree).\n`
     + `Confirm the tip first: run \`git -C ${refineryPath} rev-parse HEAD\` (read-only git, permitted) and report it as your audit_sha. `
     + `If the command cannot run, every condition below is unverifiable — SOFT notes only, never a hold.\n`
+    + `In any cannot-confirm case KEEP verdict at 'approve' or 'request_changes' WITH the SOFT note — NEVER 'escalate' (a finding-less escalate is a HARD hold, reserved for a wrong/underspecified plan; it must never signal an unconfirmable tip).\n`
     + endStateBlock + intentClause,
     { agentType: NS + 'war-auditor', phase: 'Audit',
       label: `gate-audit:phase-${ph.id}:end-state`, schema: AUDIT_VERDICT, ...spawn('auditor') })

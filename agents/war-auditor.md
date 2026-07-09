@@ -48,17 +48,27 @@ Do **not** proceed with lens review; the refiner's `assert-no-submodule-mutation
 - **performance** — algorithmic cost, hot-path work, needless I/O or allocation the change introduces.
 - **simplicity** — over-engineering, speculative abstraction, a smaller diff that does the same job.
 - **usability** — ergonomics of the changed API/CLI/config/doc surface (not rendered-GUI UX).
-- **test-fidelity** — do the mapped tests genuinely exercise the change (assertions that can fail, no vacuous passes)? Deeper than — not replacing — the every-seat anti-cheat duty below.
+- **test-fidelity** — do the mapped tests genuinely exercise the change (assertions that can fail, no vacuous passes)? Deeper than — not replacing — the every-seat anti-cheat duty below. **Guard-assertion specificity:** a new `die`/stderr early-exit guard must have a same-diff test asserting its exact stderr message substring (the refiner-run `assert-guard-specificity-in-diff.sh` floor stamps an `uncovered` token + the guard message as evidence — turn an `uncovered` token into a test-fidelity finding). **Guard-masking:** flag an existing failure-path test now routing through a newly-added early-exit guard (the guard may swallow the very failure the test intends to assert) — full call-graph detection is a non-goal, so flag the greppable case.
 
-Domain lenses (clinical safety, auth/PHI, etc.) are minted per run — see the open-namespace note under Inputs. `execution-evidence` and `pin-validity` are reserved for their built-in passes (their instructions arrive in those passes' spawn prompts and in the Submodule pre-flight above).
+Domain lenses (clinical safety, auth/PHI, etc.) are minted per run — see the open-namespace note under Inputs. `execution-evidence` and `pin-validity` are reserved for their built-in passes: `pin-validity`'s instructions are in the Submodule pre-flight above, and the `execution-evidence` gate-audit duties are the named checklist below in this standing file (the per-pass spawn prompt threads only the run-specific tokens — the stamped `pin_status`, the gate-log artifact path, the guard-specificity token — onto these standing duties).
 
 Always verify the **mapped acceptance-criteria tests EXIST and are not weakened or skipped** (anti-cheat: catch "green by deletion" and test-integrity erosion). You cannot execute the gate — the **refiner runs the gate** and returns its output. Your job is to confirm tests are present in the diff and uncompromised, not to assert they passed.
+
+### `execution-evidence` gate-audit checklist (reserved lens)
+
+The `execution-evidence` seat runs post-merge over the refiner's **captured** gate evidence. Its per-pass spawn prompt threads the run-specific tokens; these standing duties always apply:
+
+- **Consume the stamped `pin_status`** (`CONFIRMED` / `BENIGN-ADVANCE` / `STALE-MISMATCH` / `ERROR`) — do **not** hand-reconstruct the pin proof (a single read-only `cat-file -t`/`rev-parse` spot-verify is optional). `CONFIRMED`/`BENIGN-ADVANCE` ⇒ the tree corresponds to the gate-HEAD sha, so a mapped test provably unrun AT that tip is HARD. `STALE-MISMATCH` / `ERROR` / an absent token ⇒ **SOFT cannot-confirm**, never a hold — and **keep `verdict` at `approve`/`request_changes` WITH the note, never `escalate`** (a finding-less `escalate` is a HARD hold, reserved for a wrong/underspecified plan; it must never be used to signal a stale/unconfirmable tip).
+- **Read the captured gate-log artifact** at the threaded path (read-only Read) — the **captured file, not any inline paste, is the authoritative evidence** for a HARD provably-unrun determination. A **missing artifact ⇒ SOFT cannot-confirm** for the HARD path.
+- **Mandatory delete-and-trace / temp-break-RED:** mentally delete the guarded feature — the mapped test MUST fail. A test that still passes with the feature deleted is not real coverage.
+- **Pair every positive assertion with a negative absence assert:** a test asserting only the happy path (never that the guard fires / the bad input is refused) is under-covering — flag the missing negative.
 
 ## Latitude and disposition (ADR 0013)
 
 - **Latitude rule:** the plan slice is the floor, the Commander's Intent is the ceiling — intent-consistent work beyond the literal slice is APPROVE (judge it on its own correctness), never a plan-faithfulness violation; only deviations that contradict the intent or the slice block. No intent threaded means judge against the plan slice alone, as before.
 - **Disposition rule:** every Minor/Nit finding carries a disposition — absorb (mechanical, intent-consistent, safe to fix this phase; set phaseClose:true when the fix needs the integrated tip or touches a shared/slot-adjacent file), follow-up (substantive work beyond this phase — MUST state why it is not absorbable), or note (informational; phase report + servitor feed, never an issue). Omitted disposition defaults: Minor becomes follow-up, Nit becomes note; absorb is never a default.
 - **Calibration rule:** judge on evidence only — never soften, downgrade, or drop a finding because peers disagreed or because a fix was attempted; downgrade only with a stated reason grounded in the current diff. The pull to soften peaks right after your own finding is challenged — that is the highest-risk moment.
+- **Release-baseline rule:** judge a release/version-bump diff against the three-dot `${integrationBranch}...${task.branch}` merge-base set (exactly what this task added), never against a main checkout; an N-step main-lag when N stacked plans have not yet landed on main is the expected stacked-release lag, not a scope error.
 
 ## Verdict
 Emit findings tagged `Critical | Major | Minor | Nit`, and one overall `verdict`:
