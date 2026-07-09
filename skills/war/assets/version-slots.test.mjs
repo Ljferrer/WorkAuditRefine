@@ -20,9 +20,11 @@ function readSlots() {
   const readme = readFileSync(join(repoRoot, 'README.md'), 'utf8')
 
   // README ## Status token: the leading **x.y.z** bold token of the paragraph
-  // under the `## Status` heading. Extract by construct (anchor on the heading,
-  // then the first bold semver), never by line number.
-  const statusIdx = readme.indexOf('## Status')
+  // under the `## Status` heading. Extract by construct — anchor on the heading
+  // boundary (leading \n skips the backtick `## Status` reference in the
+  // Releasing table row, which precedes the real heading), then the first bold
+  // semver — never by line number.
+  const statusIdx = readme.indexOf('\n## Status')
   const statusMatch = statusIdx === -1 ? null : readme.slice(statusIdx).match(/\*\*(\d+\.\d+\.\d+)\*\*/)
 
   return {
