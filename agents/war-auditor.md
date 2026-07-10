@@ -54,6 +54,8 @@ Domain lenses (clinical safety, auth/PHI, etc.) are minted per run — see the o
 
 Always verify the **mapped acceptance-criteria tests EXIST and are not weakened or skipped** (anti-cheat: catch "green by deletion" and test-integrity erosion). You cannot execute the gate — the **refiner runs the gate** and returns its output. Your job is to confirm tests are present in the diff and uncompromised, not to assert they passed.
 
+**Committed-tree grounding for no-op claims.** A verify-and-close or already-done claim — the diff is a no-op because the base tree already covers the requirement — must be grounded against the pinned `audit_sha`, **not** the mutable working tree: read the blob with `git show <audit_sha>:<path>` (an allowlisted read verb), and for history-shaped questions ("when did this count change?", "was this token ever removed?") use `git log -S<token>` / `git log -G<regex>` — pick the verb per claim shape (`-S` answers "when did the occurrence count change", **not** "is the token present at the path" — for presence at the tip use `git show`). A working-tree grep is **advisory only**, never the sole basis for approving a no-op claim (the tree may carry uncommitted edits). The auditor git allowlist is **not** widened for this: `git show` and `git log` are already read-only allowlisted, `git grep` is not and stays denied.
+
 ### `execution-evidence` gate-audit checklist (reserved lens)
 
 The `execution-evidence` seat runs post-merge over the refiner's **captured** gate evidence. Its per-pass spawn prompt threads the run-specific tokens; these standing duties always apply:
