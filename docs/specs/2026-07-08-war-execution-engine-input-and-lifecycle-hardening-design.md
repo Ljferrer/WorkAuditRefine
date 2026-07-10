@@ -146,7 +146,7 @@ surface and `provision-worktrees.sh`) — or explicitly rebase over it.
 |---|---|
 | **A. `overrides` non-object guard (friction 1)** | In `war-config.mjs` `validate()`, add `if (!isObj(c.overrides)) { errors.push('overrides must be an object') }` and wrap the existing known-key loop in the `else`, **mirroring the `memory` block three lines above**. `deepMerge` still preserves `overrides: null`, but `validate()` now returns a clean `{ valid: false, errors: ['overrides must be an object'] }` instead of throwing. Regression cases: `validate({overrides: null})` and `validate({overrides: 'x'})` return `valid: false` with that error and **do not throw**. Rejected: a `try/catch` in `main()` (masks the class instead of naming it; the sibling `memory` guard is the established idiom). |
 | **B. Scalar-safe args normalization (frictions 2)** | Add, at **both** parse sites, a mirrored guard after the parse: the normalized value must be a non-null object (`typeof x === 'object' && x !== null && !Array.isArray(x)`), else — in `workflow-template.js` (drives real dispatch) **throw** a named error (`workflow-template: args must be a JSON object, got <type>`) that routes to `held:workflow-error`; in `workflow-scaffold.js` (a throwaway probe) fall back to `{}` (its existing catch posture) so the downstream fingerprint check produces the clean "titleLine required" refusal. Rejected: a **single importable shared helper** — the sandbox cannot import (§2); the two sites are the only two, so a mirrored one-liner + a drift-guard test is the correct shape, not a new module. |
-| **C. Engine-level undefined-render guard (friction 3)** | Introduce one thin `dispatch(prompt, opts)` wrapper in `workflow-template.js` that **all** spawn sites route through (mechanical rename of the ~24 `await agent(...)` call sites to `await dispatch(...)`); the wrapper throws before spawning if the fully-interpolated `prompt` contains the literal token `undefined` (word-boundary match), with a message naming `opts.label` and hinting "a required interpolation input was missing." Generalizes the `#586` derivation-path fix to *every* interpolated field. The 3-case derivation test stays the per-gate pattern. Rejected: per-site asserts (the recurring-class problem the friction names); scanning `opts` inputs instead of the rendered prompt (misses fields interpolated from nested/derived values). False-positive risk (a legitimate prose "undefined") is accepted and mitigated (§8): engine-authored prompts reword to "unset"/"absent". |
+| **C. Engine-level undefined-render guard (friction 3)** | **REVISED 2026-07-10 (operator decision, Option B — zero false positives).** This plan's own first `/war` audit proved the originally-ratified whole-prompt `\bundefined\b` scan false-positives on legitimate content — WAR prompts routinely quote finding titles/test names/code containing the word "undefined", and `auditPrompt`'s `Sub-issue #${task.issue}` renders `#undefined` when `issue` is absent — a phase-killing DoS against normal operation (3 seats, 4 Major, fixRounds 0). Ratified replacement: a **tagged prompt template** — one `pt` tag function defined in `workflow-template.js` — that checks each interpolated **value** for identity `=== undefined` at prompt-build time (before any spawn) and throws naming the adjacent literal fragment (the last ~40 chars of the preceding string pinpoint the exact interpolation site). Every template literal that renders (part of) a dispatched prompt is tagged with `pt` — the ~20 spawn-site literals (awaited or not, incl. the non-awaited `runSeat` auditor-seat dispatch) and the prompt-builder helpers' internal literals (`auditPrompt` etc.). Optional interpolated fields carry explicit defaults (`?? '<unset>'`); the tag turns a forgotten default into a loud build-time throw. **Zero false positives by construction:** the check is value identity, never prompt text — a defined string containing the word "undefined" passes untouched. The `dispatch()` wrapper is **dropped** (nothing left for it to do; `dispatchKind` (H) rides plain spawn `opts`). Rejected: the whole-prompt regex (the disproven original — text scanning cannot distinguish quoted prose from a failed interpolation); interpolation-adjacent pattern-tightening (fewer, not zero, false positives — the operator required zero); per-site asserts (the recurring-class problem — the tag is one mechanism); scanning `opts` inputs (misses nested/derived interpolations — the tag sees exactly what renders). |
 | **D. Newline/space-safe campaign-ledger sort (friction 4)** | In `inject-campaign-state.sh`, replace `printf '%s' "$candidates" \| xargs ls -t` with: read `$candidates` into a bash **indexed array** via `while IFS= read -r f; do [ -n "$f" ] && arr+=("$f"); done`, then iterate `ls -t "${arr[@]}"`'s output through `while IFS= read -r ledger; do …; done < <(ls -t "${arr[@]}" 2>/dev/null)`. Closes the space word-split on **both** the `ls` input (array, not word-split args) and the loop (line-read, not `$(…)` split). Preserves fail-open silent-exit-0 and the newest-first mtime order. Bash-3.2-safe (indexed arrays + process substitution both work in 3.2). Rejected: `stat`-based manual mtime sort (BSD/GNU `stat` flag divergence — less portable, more code). |
 | **E. Central provision exit-code table + mechanical enforcement (friction 6)** | Add a **named-constant catalogue** at the top of `provision-worktrees.sh`: `readonly EX_FOREIGN=3 EX_DIRTY_UNREG=4 EX_OUT_OF_RUN=5 EX_WRONG_BRANCH=6 EX_DIVERGED=7` (1 = generic `die` default), with a comment block naming each code's meaning and its governing ADR. Every coded `die` references the constant (`die "…" "$EX_DIVERGED"`) instead of a bare literal. Enforcement: a `provision-worktrees.test.sh` case asserts (a) every `die "…" <n>` in the file uses a catalogued constant (no un-catalogued numeric literal), and (b) the surfacing contract — **any non-zero provision exit halts** — is documented and the Provision prompt keys on non-zero, not a specific code. Satisfies *both* of the friction's options at once. Rejected: a comment-only table (does not prevent a future un-catalogued `die` from drifting in). |
 | **F. Explicit target-repo arg for `ensure-exclude` (friction 7)** | `cmd_ensure_exclude` gains an **optional positional `<repo-dir>`**; when supplied it resolves the git dir via `git -C "<repo-dir>" rev-parse --git-dir` instead of cwd. Absent → current cwd behavior (back-compat for the existing no-arg tests). The Provision barrier prompt (and `agents/war-refiner.md`) is updated to pass `mainCheckout` explicitly, so the contract is **code-enforced** at the wired call site rather than prompt-pinned. Sibling cwd-resolving subcommands are noted but not rewritten (they already run from the refinery worktree by construction; ensure-exclude is the one whose target *must* be the main checkout, not the caller's worktree). Rejected: making the arg **required** (breaks the existing no-arg unit tests and the ledger-less callers for no safety gain when cwd already is the repo). |
@@ -167,7 +167,14 @@ else { … }`). `isObj` (module-top: `v !== null && typeof v === 'object' && !Ar
   guard; on failure `throw new Error('workflow-template: args must be a JSON object …')` inside the existing
   `try{}` → `held:workflow-error`. Wrap the bare `JSON.parse` in the same `try` so a malformed string is the
   same clean class (not a raw `SyntaxError` escaping the sandbox).
-- **C:** define `const dispatch = (prompt, opts) => { if (/\bundefined\b/.test(prompt)) throw new Error(\`dispatch \${opts.label || '(no label)'}: interpolated prompt contains literal "undefined" — a required input was missing\`); return agent(prompt, opts) }`; rename every `await agent(` spawn site to `await dispatch(`. (`agent` remains the Workflow-provided primitive `dispatch` closes over.)
+- **C (REVISED 2026-07-10, Option B):** define once, near the top:
+  `const pt = (strings, ...vals) => { for (let i = 0; i < vals.length; i++) { if (vals[i] === undefined) throw new Error('workflow-template prompt: undefined interpolation after "…' + strings[i].slice(-40) + '" — a required prompt input is missing') } return strings.reduce((out, s, i) => out + s + (i < vals.length ? vals[i] : ''), '') }`
+  — then tag every template literal that renders (part of) a dispatched prompt: the ~20 spawn-site literals
+  (awaited or not; the non-awaited `runSeat` auditor-seat dispatch included) **and** prompt-builder helpers'
+  internal literals (`auditPrompt` etc.). Give optional interpolated fields explicit defaults
+  (`?? '<unset>'`, e.g. `task.issue`). Spawn sites stay `await agent(` — no wrapper. Coverage floor: a
+  grep-based test asserts no spawn site passes a bare untagged inline template literal, plus the behavioral
+  delete-the-feature throw tests (§10.3).
 - **H:** the two Provision dispatches and the polish dispatch each gain `dispatchKind` in their `opts`
   (`provision-barrier` at the phase git-topology barrier, `provision-run` at `provisionStep`,
   `polish-worktree` at the phase-close sweep). Source comments at each site name the `dispatchKind` +
@@ -209,8 +216,8 @@ mock/`isProvisionRun` switch), `workflow-scaffold.test.mjs` (B scalar case), `pr
 
 - `skills/war/assets/war-config.mjs` — `overrides` non-object guard (A).
 - `skills/war/assets/war-config.test.mjs` — `overrides: null` / `'x'` regression cases (A).
-- `skills/war/assets/workflow-template.js` — args scalar guard (B); `dispatch` undefined-render wrapper +
-  call-site rename (C); `dispatchKind` on the three provision dispatches (H).
+- `skills/war/assets/workflow-template.js` — args scalar guard (B); `pt` tagged prompt template +
+  tagging of every prompt-rendering literal (C, revised 2026-07-10); `dispatchKind` on the three provision dispatches (H).
 - `skills/war/assets/workflow-template.test.mjs` — B/C/H cases; mock + `isProvision`/`isProvisionRun`
   switch to `dispatchKind`.
 - `skills/red-team/assets/workflow-scaffold.js` — args scalar guard (B).
@@ -232,9 +239,11 @@ mock/`isProvisionRun` switch), `workflow-scaffold.test.mjs` (B scalar case), `pr
   cwd, a relaunch's git state) that converts imperfect input into a *named* clean error, never a raw
   `TypeError` / crash. The `overrides` object guard, the args non-null-object guard, and the undefined-render
   guard are all ingest guards. _Avoid_: input sanitizer (implies mutation; these reject, not clean).
-- **Undefined-render guard** — the `dispatch()` wrapper's assertion that no interpolated agent prompt ships
-  the literal token `undefined`; a missing interpolation input throws (naming the dispatch label) instead of
-  silently sending garbage to a sub-agent. _Avoid_: prompt validator (too broad — this checks one signature).
+- **Undefined-render guard** — the `pt` tagged prompt template's identity check that no interpolated
+  **value** entering a dispatched prompt is `undefined`; a missing prompt input throws at build time (before
+  spawn, naming the adjacent literal fragment) instead of silently sending garbage to a sub-agent. Checks
+  value identity, never prompt text — quoted prose "undefined" can never trip it (revised 2026-07-10,
+  Option B). _Avoid_: prompt validator (too broad — this checks one signature).
 - **Provision exit-code catalogue** — the named-constant table in `provision-worktrees.sh` (`EX_FOREIGN=3`,
   `EX_DIVERGED=7`, …) that is the single source of the script's non-zero exit meanings; the surfacing contract
   is "any non-zero = halt." _Avoid_: error codes (undifferentiated from git's own).
@@ -265,11 +274,14 @@ mock/`isProvisionRun` switch), `workflow-scaffold.test.mjs` (B scalar case), `pr
 
 ## 8. Open risks / implementation notes
 
-- **Undefined-render guard false positives (C).** `/\bundefined\b/` matches a legitimate prose "undefined" in
-  an engine-authored prompt. Mitigation: WAR prompts are engine-authored and few; reword any legitimate
-  literal to "unset"/"absent". If a real collision surfaces, narrow the pattern to interpolation-adjacent
-  signatures (`/undefined`, `undefined-`, `:undefined`, `"undefined"`) rather than a bare word — but start
-  with the simplest guard and tighten only on evidence.
+- **Undefined-render guard false positives (C) — RESOLVED 2026-07-10.** The original whole-prompt
+  `/\bundefined\b/` design false-positived at this plan's own first `/war` audit (quoted prose "undefined"
+  in auditor-facing content; `Sub-issue #undefined` from an absent optional field) — the evidence this note
+  said to wait for. The operator ratified going past pattern-tightening to the zero-false-positive form:
+  the `pt` tag checks interpolated **value identity**, so prompt text can never trip it. The remaining
+  residual is **coverage**, not false positives: a future prompt-rendering template literal added without
+  the `pt` tag is unguarded — the grep floor catches bare spawn-site literals mechanically; helper-internal
+  literals rely on the convention + the audit lens (named backstop in the plan).
 - **Empty-orphan reclaim vs. a concurrent same-plan run (G).** Two concurrent runs of the *same* plan+phase
   is already undefined, and the two proofs (empty log + origin-absent) guarantee nothing is lost even in that
   case. The reclaim is opt-in on a Lead-sanctioned relaunch, so it never fires unattended. Accepted residual.
@@ -315,10 +327,12 @@ mock/`isProvisionRun` switch), `workflow-scaffold.test.mjs` (B scalar case), `pr
    object", **not** a raw `TypeError`, zero agents dispatched; in the scaffold → the clean
    "titleLine required" refusal. A drift-guard test asserts the non-null-object guard is present at **both**
    parse sites.
-3. **Undefined-render guard (`workflow-template.test.mjs`):** a dispatch whose interpolated prompt contains the
-   literal `undefined` throws before spawn, the error names the dispatch `label`, and no agent is dispatched;
-   the 3-case pattern (present field → no throw; missing field → throw; label named) holds; reverting the
-   guard lets the `undefined`-bearing prompt ship (delete-the-feature).
+3. **Undefined-render guard (`workflow-template.test.mjs`, revised 2026-07-10):** a `pt`-tagged prompt
+   template interpolating an `undefined` value throws at build time (before any spawn), the error names the
+   adjacent literal fragment, and no agent is dispatched; a **defined** value whose text contains the word
+   "undefined" does **not** throw (the zero-false-positive control); the 3-case pattern (present field →
+   renders; missing required field → throw; fragment named) holds; reverting the tag (or untagging a
+   spawn-site literal) lets the `undefined`-bearing prompt ship (delete-the-feature).
 4. **Campaign-ledger sort (`inject-campaign-state.test.sh`):** with a campaign directory path **containing a
    space**, the newest-active campaign is still selected and injected (today's `xargs` version fails this);
    with no active campaign the hook still exits 0 silently; newest-first order preserved for multiple active
