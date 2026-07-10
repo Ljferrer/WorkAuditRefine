@@ -4391,6 +4391,58 @@ test('#598 validation 6 — drift-guard: war-refiner.md names the three class va
   assert.match(refinerMd, /KNOWN BASELINE GATE DEBT|debt reuse/i, 'war-refiner.md names the baseline-debt reuse threading')
 })
 
+// t1.8 — hermetic-gate READER CONTRACT: a gate_failed bearing a recognized stderr precondition marker
+// (REL_GUARD_PRECONDITION_FAILED) classifies 'environment', never 'introduced', carried uncurated in
+// gate_output. Both-surfaces drift assert (token-anchored, case-tolerant): war-refiner.md AND the
+// dispatched merge/land prompts (the classificationClause) must both carry the rule (spec §9 / criterion 9).
+const markerEnvRe = /REL_GUARD_PRECONDITION_FAILED[\s\S]{0,320}environment|environment[\s\S]{0,320}REL_GUARD_PRECONDITION_FAILED/i
+test('t1.8 — precondition-marker reader contract lands on BOTH surfaces (war-refiner.md + dispatched merge/land prompts)', async () => {
+  // Surface 1 — the standing refiner card.
+  assert.match(refinerMd, /REL_GUARD_PRECONDITION_FAILED/, 'war-refiner.md names the live precondition-marker token')
+  assert.match(refinerMd, /precondition[- ]marker/i, 'war-refiner.md names the precondition-marker rule (case-tolerant mid-sentence)')
+  assert.match(refinerMd, /stderr/i, 'war-refiner.md says to consult stderr, not just TAP stdout')
+  assert.match(refinerMd, markerEnvRe, "war-refiner.md ties the marker to the 'environment' classification")
+  assert.match(refinerMd, /never.{0,40}introduced|introduced.{0,40}never/i, "war-refiner.md says the marker is NEVER 'introduced'")
+
+  // Surface 2 — the dispatched merge + land prompts (both carry classificationClause).
+  const { calls } = await runPhase(CLS_ARGS(), clsImpl())
+  const merge = calls.find(c => (c.opts.label || '') === 'merge:t1')
+  const land = calls.find(isLand)
+  for (const [name, p] of [['merge', merge.prompt], ['land', land.prompt]]) {
+    assert.match(p, /REL_GUARD_PRECONDITION_FAILED/, `the ${name} prompt names the precondition-marker token`)
+    assert.match(p, /precondition[- ]marker/i, `the ${name} prompt names the precondition-marker rule`)
+    assert.match(p, /stderr/i, `the ${name} prompt says to consult stderr`)
+    assert.match(p, markerEnvRe, `the ${name} prompt ties the marker to 'environment'`)
+  }
+})
+
+// t1.8 — PATH CONTRACT (spec §9 / criterion 10): the done-reporting step fails loud when a worker reports
+// an ABSOLUTE files_changed path OUTSIDE its injected worktree root. The throw is caught by the phase-level
+// guard and surfaced as held:workflow-error (a hard halt — the phase does NOT land). Fixture drives the real
+// phase, so deleting the assertReportedPathsInWorktree call at the worker-done site turns this GREEN→RED (not
+// a weak assertion). In-worktree absolute paths and relative paths pass.
+test('t1.8 — path contract: an out-of-worktree absolute files_changed path fails loud → held:workflow-error (fixture)', async () => {
+  const badImpl = (prompt, opts) => {
+    if (seatOf(opts) === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {},
+      files_changed: ['/abs/repo/skills/war/assets/workflow-template.js'] }  // absolute, OUTSIDE the task worktree
+    return clsImpl()(prompt, opts)
+  }
+  const { out } = await runPhase(CLS_ARGS(), badImpl)
+  assert.equal(out.landDecision, 'held:workflow-error', 'an out-of-worktree absolute path halts the phase (does not land)')
+  assert.match(out.workflowError.message, /path-contract violation/, 'the workflow-error carries the path-contract violation message')
+  assert.ok(!out.landed || !out.landed.includes('t1'), 'the offending task did NOT land')
+})
+
+test('t1.8 — path contract: in-worktree absolute + relative files_changed paths pass (positive control)', async () => {
+  const goodImpl = (prompt, opts) => {
+    if (seatOf(opts) === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {},
+      files_changed: ['/abs/repo/.claude/worktrees/run-cls/p3-t1/skills/x.js', 'agents/war-refiner.md'] }
+    return clsImpl()(prompt, opts)
+  }
+  const { out } = await runPhase(CLS_ARGS(), goodImpl)
+  assert.notEqual(out.landDecision, 'held:workflow-error', 'in-worktree absolute + relative paths satisfy the contract (no workflow-error)')
+})
+
 test('#598 — the initial merge + land prompts begin with the idempotent _refinery re-attach and carry the classification procedure (per-site base)', async () => {
   const { calls } = await runPhase(CLS_ARGS(), clsImpl())
   const merge = calls.find(c => (c.opts.label || '') === 'merge:t1')
