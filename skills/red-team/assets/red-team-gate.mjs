@@ -102,6 +102,15 @@ export function dedupe(findings) {
 
 export function classify(findings) {
   const fs = dedupe(findings).map(f => {
+    // Deliverable-absence (D3): a probe-set TYPED flag meaning the "absent" symbol/test/file is
+    // the plan's OWN expected deliverable (mapped by coverage-vs-source to a task) — not a false
+    // claim about EXISTING code. Such a finding is NEVER a blocker regardless of severity or probe
+    // status: demote to an informational Minor note. Keys on the typed flag ONLY — the gate does
+    // NO NLP on `reality` strings (spec constraint 2: the gate stays pure). This kills the recorded
+    // 16-false-findings BLOCKED misfire (claims-vs-reality grading not-yet-built impl-plan tasks
+    // Critical) at the gate layer. The retained-findings carve-out (a false claim about existing
+    // code) is untagged and so still lands in `blockers` below.
+    if (f.deliverableAbsence === true) return { ...f, severity: 'Minor' }
     // A finding with no/invalid severity is malformed. On a non-pass probe it is a genuine
     // (mis-shaped) defect → force needsDecision so it can't fall through every bucket. On a
     // pass probe demote it to Minor (informational), never a blocker — preserves #50.

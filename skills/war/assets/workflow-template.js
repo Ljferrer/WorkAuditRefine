@@ -157,6 +157,21 @@ const testPatternArg = testPattern ? ` --pattern '${testPattern}'` : ''
 const intentClause = intent
   ? `\nCOMMANDER'S INTENT (the operator's purpose — your ceiling; the plan slice is your floor):\n${intent}\n`
   : ''
+// Red-team adjudications (Task 1.5, ADR 0032): the Lead reads the red-team report's `## Adjudications`
+// block for this plan (docs/red-team/<plan-slug>.md) and threads its rows here as args.adjudications
+// (array|null of { adjudicated, supersedes } objects or preformatted strings) — a Lead-read arg, like
+// intent. FOLLOWS the intentClause threading pattern: empty/absent ⇒ adjudicationClause is '' ⇒ every
+// auditPrompt below is byte-identical to a no-adjudication run (back-compat, spec constraint 4).
+// Version precedence: task instruction > red-team adjudication > plan body literal. The clause sentence
+// body is mirrored VERBATIM in agents/war-auditor.md (the both-surfaces drift test asserts both).
+const adjudications = Array.isArray(A.adjudications)
+  ? A.adjudications.filter(r => r && (typeof r === 'string' || typeof r === 'object')) : []
+const adjRow = r => typeof r === 'string' ? r
+  : `${r.adjudicated ?? r.value ?? ''}${r.supersedes ? ` (supersedes plan literal: ${r.supersedes})` : ''}`
+const adjudicationClause = adjudications.length
+  ? `\nVERSION-PRECEDENCE RULE: the authoritative version is task instruction > red-team adjudication > plan body literal. Before scoring a version/release-slot mismatch as a defect, consult the adjudicated rows below; a value matching the adjudication is correct even when it differs from the plan body literal.\n`
+    + adjudications.map(r => `- ${adjRow(r)}`).join('\n') + '\n'
+  : ''
 // Prior-lessons memory (spec §4.5): the Lead prefetches per-seat lesson blocks (one batched
 // `war-memory query --queries` invocation at phase launch) and threads a map here as args.memory —
 // `{ byTask: {<id>: {worker, seats: {<lens>: block}}}, servitor }`. The template FOLLOWS the
@@ -537,7 +552,10 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin) {
     // commit); the both-surfaces registry test anchors the shared tokens on BOTH surfaces. The auditor git
     // allowlist is NOT widened — git show/git log are already read-only allowlisted, git grep stays denied.
     + `\nCOMMITTED-TREE GROUNDING (verify-and-close / already-done no-op claims): a claim that the diff is a no-op because the base tree already covers the requirement must be grounded against the pinned audit_sha, NOT the mutable working tree — read the blob with \`git show <audit_sha>:<path>\` (an allowlisted read verb), and for history-shaped questions ("when did this count change?", "was this token ever removed?") use \`git log -S<token>\` / \`git log -G<regex>\` — pick the verb per claim shape (-S answers "when did the occurrence count change", NOT "is the token present at the path" — for presence at the tip use git show). A working-tree grep is ADVISORY ONLY, never the sole basis for approving a no-op claim. The auditor git allowlist is NOT widened for this: git show and git log are already allowlisted, git grep is not and stays denied.`
-    + intentClause + auditorMemClause(task.id, lens)
+    // VERSION-PRECEDENCE RULE (Task 1.5, ADR 0032) — appended alongside intentClause; the sentence body is
+    // mirrored VERBATIM in agents/war-auditor.md (standing surface, same commit); the both-surfaces test
+    // anchors a mid-sentence phrase on both. Empty/absent adjudications ⇒ '' ⇒ byte-identical to today.
+    + intentClause + adjudicationClause + auditorMemClause(task.id, lens)
   // AUDIT PIN (D2): name the worker's committed tip and require the seat to echo the sha it ACTUALLY
   // reviewed as audit_sha. A well-formed audit_sha ≠ this pin means the seat judged a different tree —
   // its findings are demoted (pin-mismatch), never a block (enforced at the auditRound collection site
