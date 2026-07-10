@@ -635,6 +635,45 @@ prose).
 _Avoid_: freezing a structural count ("differ by exactly one entry", "lists 8 reasons") or a line-number
 reference in narrative prose — it reads authoritative while silently going false.
 
+### Guard coverage by equivalence class (ADR 0031)
+
+**Traversal equivalence class**:
+The full set of `..`-bearing path shapes a scope guard must reject: bare `..`, leading `../*`, embedded
+`*/../*`, and trailing `*/..`. A guard covering a proper subset has a latent sandbox-escape hole even
+when downstream branches incidentally deny the rest.
+_Avoid_: rejecting only the shape that bit us (`*/../*|*/..`) — the class, not the instance, is what the
+guard covers; the reject arm stays pre-`case` so it binds every agent type (ADR 0002 D5).
+
+**Verb equivalence class (absence guard)**:
+The set of git verbs that express one forbidden behavior (e.g. `checkout` and `switch` both re-attach a
+branch). A git-surface absence guard enumerates the class in a comment and scans every verb; scanning
+one verb is false coverage the moment the surface adopts an equivalent.
+_Avoid_: scanning one verb and trusting review to remember the rest — a new equivalent verb is added to
+both the enumerating comment and the scan.
+
+**Subtree-anchored search root**:
+A guard test's grep/find root resolved to the narrowest subtree from `$SCRIPT_DIR` (never the repo root),
+so it cannot scan stale `.claude/worktrees/**` checkouts. A repo-root scan that omits a `.claude/`
+exclusion is environment-dependent and a green worktree run does not prove it correct.
+_Avoid_: a bare repo-root `grep -r`/`find` without a `.claude` exclusion — enforced by the
+`hooks/guard-conventions.test.sh` search-root lint (a deliberate exception carries an inline
+`# guard-conventions: allow <reason>` tag).
+
+**Floor⊆gate parity**:
+The tested (not inspected) equality between the test floor's discovery predicates
+(`assert-test-in-diff.sh`) and the gate's (`resolveGate` in `war-config.mjs`). Any asymmetry over- or
+under-credits test presence.
+_Avoid_: hand-mirroring the exclusion set (`node_modules`, `.git`, `.claude`) and the name globs across
+the two mechanisms with no cross-check — the parity test asserts against `resolveGate`'s *output string*,
+so a semantics-preserving refactor cannot break it.
+
+**Precondition marker**:
+A specific loud stderr token (e.g. `REL_GUARD_PRECONDITION_FAILED`) a guard emits when its environment is
+non-isolatable. A `gate_failed` carrying one is classified `environment`, never `introduced` — the reader
+consults stderr markers, not just TAP stdout.
+_Avoid_: classifying a marker-bearing `gate_failed` as `introduced` (blaming the code for a
+non-isolatable environment); the marker is carried in `gate_output` uncurated.
+
 ### Live artifacts over stack-fragile literals (ADR 0030)
 
 **Construct locator**:

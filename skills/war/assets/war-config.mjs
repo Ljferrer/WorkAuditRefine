@@ -168,18 +168,32 @@ export function validate(input) {
   }
 
   // Overrides: known keys only (a courtesy error on typos like `testPatern` — the memory.* precedent,
-  // so a mistyped key never silently runs the bare floor), each null or a string. testPattern carries an
-  // extra glob-safe charset check: its value is embedded single-quoted into an agent-executed shell line
-  // (assert-test-in-diff.sh --pattern), so any char outside [A-Za-z0-9_.*?/[] -] — notably a quote, ';',
-  // backtick, '$', or newline — could break out of the quoting, and an empty string is not a usable pattern.
+  // so a mistyped key never silently runs the bare floor), each null or a string. testPattern carries two
+  // extra checks. (1) glob-safe charset: its value is embedded single-quoted into an agent-executed shell
+  // line (assert-test-in-diff.sh --pattern), so any char outside [A-Za-z0-9_.*?/[] -] — notably a quote,
+  // ';', backtick, '$', or newline — could break out of the quoting, and an empty string is not usable.
+  // (2) per space-separated token, a glob-SHAPE check against two forms that mis-match under the floor's
+  // `case`-fnmatch: a `**/` token (fnmatch `*` already crosses `/`, so `**/` is not recursive descent — the
+  // depth-agnostic form is a bare `*.ext` suffix; prefix conventions use the `pre_* */pre_*` root+nested
+  // pair, per the case-glob-star lesson) and a `*<word>*` substring shape whose word is unbounded by `.`/`/`
+  // (`*test_*` over-matches `latest_results.py`; anchor as `test_*.py` or `*/test_*.py`). Shape checks run
+  // only on the clean charset — they are correctness footguns, not injection.
   const KNOWN_OVERRIDES = ['gate', 'workingBranch', 'landingBranch', 'learningsTarget', 'testPattern', 'ghUser']
   const GLOB_UNSAFE = /[^A-Za-z0-9_.*?\/ \[\]-]/
   for (const k of Object.keys(c.overrides)) {
     const v = c.overrides[k]
     if (!KNOWN_OVERRIDES.includes(k)) { errors.push(`overrides.${k} is not a known key (${KNOWN_OVERRIDES.join('|')}) — run /war-room to regenerate the config`); continue }
     if (v !== null && typeof v !== 'string') { errors.push(`overrides.${k} must be null or a string`); continue }
-    if (k === 'testPattern' && typeof v === 'string' && (v === '' || GLOB_UNSAFE.test(v)))
-      errors.push(`overrides.testPattern must be a non-empty glob-safe string (only [A-Za-z0-9_.*?/[] -]; no quotes, ';', backticks, '$', or newlines) — it is embedded into an agent-executed shell command`)
+    if (k === 'testPattern' && typeof v === 'string') {
+      if (v === '' || GLOB_UNSAFE.test(v))
+        errors.push(`overrides.testPattern must be a non-empty glob-safe string (only [A-Za-z0-9_.*?/[] -]; no quotes, ';', backticks, '$', or newlines) — it is embedded into an agent-executed shell command`)
+      else for (const tok of v.split(/\s+/).filter(Boolean)) {
+        if (tok.includes('**/'))
+          errors.push(`overrides.testPattern token '${tok}' contains '**/', which mis-globs under the floor's case-fnmatch ('*' already crosses '/') — use a bare '*.ext' suffix for depth-agnostic match, or the 'pre_* */pre_*' root+nested pair for a prefix convention`)
+        else if (/\*[A-Za-z0-9_]+\*/.test(tok))
+          errors.push(`overrides.testPattern token '${tok}' is a '*word*' substring shape that over-matches (e.g. '*test_*' also matches 'latest_results.py') — bound the word with '.'/'/' (e.g. 'test_*.py' or '*/test_*.py')`)
+      }
+    }
   }
   return { valid: errors.length === 0, errors }
 }

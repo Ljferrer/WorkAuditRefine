@@ -37,6 +37,15 @@
 #   9. UNION / delete-the-union check: diff adds hooks/x.test.sh, --pattern
 #      '*.test.ts' -> exit 0 (custom token misses .test.sh; the unioned *.test.sh
 #      arm satisfies the floor — floor ⊆ gate for the gate's unconditional find).
+#  10. FLOOR ⊆ GATE PARITY (Task 1.6): the floor's *.test.sh discovery set must
+#      equal the gate's, read from resolveGate's OUTPUT string (not its source),
+#      so a semantics-preserving resolveGate refactor cannot break it.
+#      a. resolveGate output exclusion set == {.claude,.git,node_modules}
+#      b. floor match_sh_suite exclusion set == resolveGate output set (the parity)
+#      c. *.test.sh name glob present in both gate output and floor
+#      d. floor node glob literal == skills/**/*.test.mjs
+#      e. DELETE-THE-FEATURE: floor with the .claude arm removed != gate set,
+#         proving 10b is load-bearing (mutating either side turns it RED).
 set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -578,6 +587,85 @@ if [ "$rc9" -eq 0 ]; then
   pass "case 9: hooks/x.test.sh + --pattern '*.test.ts' -> exit 0 (union: *.test.sh always satisfies the floor)"
 else
   fail "case 9: hooks/x.test.sh + --pattern '*.test.ts' -> expected exit 0, got $rc9 (union deleted? floor went blind to the gate's *.test.sh discovery)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 10: FLOOR ⊆ GATE PARITY (Task 1.6). The floor's *.test.sh discovery set
+# is asserted equal to the gate's, extracted from resolveGate's emitted OUTPUT
+# string (not its source text) — a benign resolveGate refactor that preserves
+# semantics cannot break this; only a real discovery-set drift does. Mutating
+# either side (floor arm removed, or resolveGate exclusion changed) turns it RED.
+# spec §8; the recorded shell↔mjs drift-guard idiom applied to floor⊆gate.
+# ---------------------------------------------------------------------------
+WARCONFIG="$HERE/war-config.mjs"
+
+# gate_excl: exclusion tokens from resolveGate's emitted
+# `find ... -not -path '*/X/*'` discovery clause (OUTPUT, not source).
+gate_excl() {
+  node "$WARCONFIG" --resolve-gate "node --test 'skills/**/*.test.mjs'" \
+    | grep -oE "\-not -path '\*/[^/]*/\*'" \
+    | sed -E "s#-not -path '\*/(.*)/\*'#\1#" \
+    | sort
+}
+# floor_excl <script>: exclusion tokens from match_sh_suite's `return 1 ;;`
+# case arms (the `.claude/*|*/.claude/*)` etc. shapes). Scoped to `return 1 ;;`
+# so the header comment's identical `-not -path` prose is NOT counted — the
+# assertion tests the executable arms, not the doc that describes them.
+floor_excl() {
+  grep 'return 1 ;;' "$1" \
+    | sed -E 's#^[[:space:]]*([^/|]*)/\*.*#\1#' \
+    | sort
+}
+
+EXPECT_EXCL="$(printf '.claude\n.git\nnode_modules\n')"
+G_EXCL="$(gate_excl)"
+F_EXCL="$(floor_excl "$SCRIPT")"
+
+# 10a: resolveGate output exclusion set == canonical {.claude,.git,node_modules}
+if [ "$G_EXCL" = "$EXPECT_EXCL" ]; then
+  pass "case 10a: resolveGate output exclusion set == {.claude,.git,node_modules}"
+else
+  fail "case 10a: resolveGate output exclusion set drifted -> got [$(printf '%s' "$G_EXCL" | tr '\n' ' ')]"
+fi
+
+# 10b: floor match_sh_suite exclusion set == gate output set (THE parity claim).
+# Reads resolveGate output, not source -> refactor-robust; drift on either side RED.
+if [ "$F_EXCL" = "$G_EXCL" ]; then
+  pass "case 10b: floor match_sh_suite exclusion set == resolveGate output set (floor ⊆ gate)"
+else
+  fail "case 10b: floor⊆gate PARITY BROKEN -> floor [$(printf '%s' "$F_EXCL" | tr '\n' ' ')] != gate [$(printf '%s' "$G_EXCL" | tr '\n' ' ')]"
+fi
+
+# 10c: the *.test.sh name glob is present in BOTH gate output and floor source.
+g_name=0
+node "$WARCONFIG" --resolve-gate "node --test 'skills/**/*.test.mjs'" | grep -qE "\-name '\*.test.sh'" && g_name=1
+f_name=0
+grep -qF '*.test.sh)' "$SCRIPT" && f_name=1
+if [ "$g_name" -eq 1 ] && [ "$f_name" -eq 1 ]; then
+  pass "case 10c: *.test.sh name glob present in both gate output and floor"
+else
+  fail "case 10c: *.test.sh name glob missing (gate=$g_name floor=$f_name)"
+fi
+
+# 10d: floor node glob literal == skills/**/*.test.mjs (the declared-gate mirror).
+if grep -qF 'pattern_mjs="skills/**/*.test.mjs"' "$SCRIPT"; then
+  pass "case 10d: floor node glob literal == skills/**/*.test.mjs"
+else
+  fail "case 10d: floor node glob literal drifted from skills/**/*.test.mjs"
+fi
+
+# 10e: DELETE-THE-FEATURE — remove the .claude arm from a floor copy; its
+# extracted set must NO LONGER equal the gate set, proving 10b actually
+# distinguishes a discovery-set drift (not a vacuous always-true compare).
+# memory: weak-test-assertion-passes-without-feature-being-exercised.
+MUT="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
+TMPFILES="$TMPFILES $MUT"
+grep -v '\.claude/\*)' "$SCRIPT" > "$MUT/floor.sh"
+M_EXCL="$(floor_excl "$MUT/floor.sh")"
+if [ "$M_EXCL" != "$G_EXCL" ]; then
+  pass "case 10e: floor with .claude arm removed != gate set (parity check is load-bearing)"
+else
+  fail "case 10e: mutated floor (.claude dropped) still == gate set -> parity check is vacuous"
 fi
 
 # ---------------------------------------------------------------------------

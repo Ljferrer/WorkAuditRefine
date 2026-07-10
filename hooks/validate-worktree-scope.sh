@@ -50,15 +50,22 @@ deny() { echo "WAR: $1" >&2; exit 2; }
 # see the servitor bullet above; the local glob stays shape-based because a hook
 # cannot receive per-run values. Full per-run absolute anchoring remains out of
 # reach for that structural reason, not for lack of a decision.)
-# Portable case-pattern: '/../*' covers a .. segment in the middle; '/..'
-# covers a trailing .. segment. Works on macOS bash 3.2.57.
+# Portable case-pattern covering the FULL '..' traversal equivalence class
+# (four shapes, works on macOS bash 3.2.57):
+#   '..'      bare (the whole path is a single .. segment)
+#   '../*'    leading  (a .. segment at the very start, no preceding '/')
+#   '*/../*'  middle   (a .. segment between two path components)
+#   '*/..'    trailing (a .. segment at the very end)
+# The leading and bare shapes were previously missed (dotdot-pattern-misses-
+# leading-relative-traversal): '../etc/foo' and a bare '..' both escaped the
+# old '*/../*|*/..' pair because neither has a '/' before the '..'.
 #
 # INTENTIONALLY pre-`case "$atype"`: this guard applies to ALL agent types,
 # including war-refiner and the main session (no agent_type). Ratified ADR 0002
 # D5 (dotdot-guard-applies-to-all-agent-types). The per-agent case below is
 # therefore never reached with a ..-bearing path, regardless of role.
 case "$path" in
-  */../*|*/..)
+  ..|../*|*/../*|*/..)
     deny "path '$path' contains a '..' traversal segment; use an absolute canonical path instead."
     ;;
 esac

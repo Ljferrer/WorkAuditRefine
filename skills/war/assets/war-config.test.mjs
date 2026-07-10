@@ -441,6 +441,33 @@ test('overrides.testPattern rejects glob-unsafe / empty strings (shell-metachar 
   }
 })
 
+// Glob-SHAPE guard (end state 6): beyond the charset break-out check, two token shapes mis-match under
+// the floor's `case`-fnmatch and must be rejected — a `**/` token (fnmatch `*` already crosses `/`) and a
+// `*<word>*` substring shape whose word is unbounded by `.`/`/` (over-matches, e.g. `*test_*` catches
+// `latest_results.py`). These are glob-clean strings (pass the charset guard), so a shape check is the
+// only thing that rejects them.
+test('overrides.testPattern accepts depth-agnostic suffix and root+nested prefix forms', () => {
+  for (const p of [null, '*.test.ts *.test.tsx', 'test_*.py */test_*.py']) {
+    const r = validate({ overrides: { testPattern: p } })
+    assert.equal(r.valid, true, `testPattern ${JSON.stringify(p)} should validate; errors: ${r.errors.join('\n')}`)
+  }
+})
+
+// Delete-and-trace: each of these is a plain glob-clean string, so with the shape check removed it would
+// validate — the guard is the only rejecter. `**/*.test.ts` trips the `**/` arm; `*test_*.py` trips the
+// `*word*` substring arm; `''` trips the charset arm (kept, per plan).
+test('overrides.testPattern rejects **/ and *word* over-match shapes (end state 6 matrix)', () => {
+  for (const p of ['**/*.test.ts', '*test_*.py', '']) {
+    const r = validate({ overrides: { testPattern: p } })
+    assert.equal(r.valid, false, `mis-globbing testPattern ${JSON.stringify(p)} must be rejected`)
+    assert.match(r.errors.join('\n'), /overrides\.testPattern/)
+  }
+  // The rejection names the correct form: `**/` error points at `*.ext`/`pre_* */pre_*`; `*word*` error
+  // points at the `.`/`/`-bounded anchor. Delete-the-feature: without the shape check these strings pass.
+  assert.match(validate({ overrides: { testPattern: '**/*.test.ts' } }).errors.join('\n'), /\*\.ext|pre_\*/)
+  assert.match(validate({ overrides: { testPattern: '*test_*.py' } }).errors.join('\n'), /\*word\*|test_\*\.py/)
+})
+
 test('unknown overrides key rejected with a courtesy error naming the key and /war-room', () => {
   const r = validate({ overrides: { testPatern: '*.test.ts' } }) // typo: single 't'
   assert.equal(r.valid, false)

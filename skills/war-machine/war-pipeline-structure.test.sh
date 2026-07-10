@@ -44,12 +44,31 @@ has() { # file  literal
   fi
 }
 
-# grep -F fixed-string ABSENCE in a file (inverse of has()). Used by the rename criterion to
-# prove old skill-name tokens are gone from an EXPLICITLY ENUMERATED file list — never a
-# repo-root recursive grep ([[absence-guard-search-root-must-anchor-to-subtree]]). This test
-# file is deliberately NOT in that list: its own assertion args legitimately name the old tokens.
+# Strip release/changelog PROSE regions (reads stdin -> stdout) so a release blurb or changelog
+# entry that *names* a renamed-away token can't re-trip the absence guard
+# ([[release-blurb-describing-a-rename-trips-the-renames-own-absence-guard]], rename/p2-release):
+# drop the README `## Status` section and any `## Changelog` section — from the heading through
+# the next heading (a line starting with `#`) or EOF. A *structural* reintroduction (a skill dir
+# path, frontmatter `name:`, or slash-command token) lives OUTSIDE these prose sections and still
+# trips the scan. bash-3.2 awk-safe: no interval expressions ({n,m}); `##*` = one-or-more `#`.
+strip_prose() {
+  awk '
+    /^##* *Status/       { inp = 1; next }
+    /^##* *[Cc]hangelog/ { inp = 1; next }
+    inp && /^#/          { inp = 0 }
+    inp                  { next }
+    { print }
+  '
+}
+
+# grep -F fixed-string ABSENCE in a file (inverse of has()), scanning the file with release/
+# changelog prose stripped (strip_prose) so a blurb describing the rename never re-trips it. Used
+# by the rename criterion to prove old skill-name tokens are gone from an EXPLICITLY ENUMERATED
+# file list — never a repo-root recursive grep ([[absence-guard-search-root-must-anchor-to-subtree]]).
+# This test file is deliberately NOT in that list: its own assertion args legitimately name the
+# old tokens.
 lacks() { # file  literal
-  if grep -qF -e "$2" -- "$1"; then
+  if strip_prose < "$1" | grep -qF -e "$2"; then
     printf 'not ok - %s UNEXPECTEDLY has :: %s\n' "$(basename "$1")" "$2"
     fails=$((fails + 1))
   else
@@ -158,10 +177,47 @@ has "$WAR_HELP" 'clean-up-aftermath'
 # Absence: the OLD tokens are gone from an EXPLICITLY ENUMERATED live-surface list (never a
 # repo-root recursive grep — [[absence-guard-search-root-must-anchor-to-subtree]]). This test
 # file is intentionally excluded: its own assertion args above legitimately carry the old names.
+# lacks() scans each file with strip_prose applied, so a README `## Status`/`## Changelog` blurb
+# that *describes* the rename can't re-trip the guard (see prose-exclusion self-check below).
 for f in "$README" "$CONTEXT" "$PLUGIN" "$SURVEY" "$AFTERMATH" "$WAR_HELP" "$MACHINE" "$WAR_STRATEGY"; do
   lacks "$f" 'war-survey-corps'
   lacks "$f" 'war-aftermath'
 done
+
+printf '\n# Rename prose-exclusion — a release/changelog blurb NAMING a renamed-away token must NOT trip the guard; a STRUCTURAL reintroduction still must (end state 5)\n'
+# [[release-blurb-describing-a-rename-trips-the-renames-own-absence-guard]] — delete strip_prose's
+# Status/Changelog stripping and the first assertion below flips to a failure.
+prose_fixture='## Status
+
+**0.14.99** — renamed war-survey-corps to survey-corps and war-aftermath to aftermath.
+
+## Changelog
+
+- war-survey-corps -> survey-corps (skill rename)
+
+## Real content
+
+name: survey-corps'
+if printf '%s\n' "$prose_fixture" | strip_prose | grep -qF -e 'war-survey-corps'; then
+  printf 'not ok - PROSE mention of war-survey-corps in ## Status/## Changelog tripped the guard\n'
+  fails=$((fails + 1))
+else
+  printf 'ok - PROSE mention of war-survey-corps in ## Status/## Changelog is ignored (correct)\n'
+fi
+
+struct_fixture='## Status
+
+**0.14.99** — routine bump.
+
+## Real content
+
+./skills/war-survey-corps'
+if printf '%s\n' "$struct_fixture" | strip_prose | grep -qF -e 'war-survey-corps'; then
+  printf 'ok - STRUCTURAL war-survey-corps reintroduction outside prose still caught (correct)\n'
+else
+  printf 'not ok - STRUCTURAL war-survey-corps reintroduction was swallowed by strip_prose\n'
+  fails=$((fails + 1))
+fi
 
 printf '\n== war-pipeline-structure: %s failure(s) ==\n' "$fails"
 exit $fails
