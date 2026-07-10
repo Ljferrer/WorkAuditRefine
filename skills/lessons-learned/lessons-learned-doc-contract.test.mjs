@@ -56,3 +56,34 @@ test('doc-contract: migration Step 5 has the CLAUDE.md pointer sub-step (append-
   assert.match(migration, /append-if-absent/,
     'the pointer sub-step must be append-if-absent (never rewrite existing operator content)')
 })
+
+// --- Criterion 6 (memory-store-hygiene plan, Task 1.3): verifier trichotomy + tool-driven hub check ---
+
+// (5) The Phase-2 verifier prompt states the HOT/COLD/MISSING link trichotomy. Case-tolerant,
+//     mid-sentence anchors (the three state tokens survive rewording of the surrounding prose).
+test('doc-contract: verifier prompt carries the HOT/COLD/MISSING link trichotomy', () => {
+  assert.match(skill, /\bhot\b/i, 'trichotomy must name the HOT state')
+  assert.match(skill, /\bcold\b/i, 'trichotomy must name the COLD (archived) state')
+  assert.match(skill, /\bmissing\b/i, 'trichotomy must name the MISSING state')
+  assert.match(skill, /trichotomy/i, 'the link trichotomy must be stated as such')
+})
+
+// (6) Phase 3 counts inbound refs via `war-memory inbound`, not the retired prose grep.
+//     If someone reverts to `grep -rl "\[\[<slug>\]\]"`, the inbound invocation disappears
+//     and this fails. Anchored on the CLI verb + subcommand, case-tolerant on spacing.
+test('doc-contract: Phase 3 hub check invokes war-memory inbound (not the prose grep)', () => {
+  assert.match(skill, /war-memory\.mjs" inbound <slug>/,
+    'Phase 3 must run `war-memory.mjs inbound <slug>` for the inbound count')
+  assert.doesNotMatch(skill, /grep -rl "\\\[\\\[<slug>\\\]\\\]"/,
+    'the retired Phase-3 prose grep must be gone — the count comes from `war-memory inbound`')
+})
+
+// (7) OLD-absent: no surviving instruction produces a removal/retire verdict from a hot-only
+//     `ls`. Every line that mentions "hot-only" must also carry "never" — i.e. the only place
+//     the hot-only listing appears is the forbiddance, never an affirmative removal verdict.
+//     (Mirrors Task 1.1's `archives ALL of these` OLD-absent guard — ADR 0025 discipline.)
+test('doc-contract: no hot-only-ls removal verdict survives (hot-only appears only as forbiddance)', () => {
+  const offenders = skill.split('\n').filter(l => /hot-only/i.test(l) && !/never/i.test(l))
+  assert.deepEqual(offenders, [],
+    `every "hot-only" mention must be the forbiddance ("never ... from a hot-only ls"); offending lines: ${JSON.stringify(offenders)}`)
+})

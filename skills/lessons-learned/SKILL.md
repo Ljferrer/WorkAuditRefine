@@ -93,16 +93,18 @@ Verdict meanings — separate **is the lesson still true?** from **do its anchor
 
 Most memories are **transferable lessons** — a durable pattern almost never goes `stale` just because one code site changed. "The fix landed" or "the line number moved" is `resolved` / `anchor-drift`, not `stale`.
 
+**Link trichotomy — never adjudicate a `[[link]]` from a hot-only listing.** Every `[[link]]` target is in exactly one of three states: **HOT** (`<root>/<slug>.md` — a live topic file; keep), **COLD** (`<root>/archive/<slug>.md` — an archived file; keep, a link into `archive/` is a legal cold link, not dangling), or **MISSING** (in neither the hot set nor `archive/` — the only genuine removal candidate). A verifier **never** recommends removing a link or an index row from a hot-only `ls <staging>/<slug>.md`: that listing cannot see COLD targets and would falsely orphan every legal archived link. All dangling-link and index-row adjudication defers to the central archive-aware `safe-swap verify` (Phase 6), which is the sole authority on link removal — a verifier flags a *suspected* MISSING target for that check, it does not itself delete.
+
 **Also record each lesson's recurrence trail.** As each investigator reads a memory, capture the re-trigger count from the `phase` field's free-text recurrence annotations (e.g. "+ 28 recurrences", "recurred …/T5") — read them as prose, no schema change. A lesson re-triggered ≥ 2 times is a **graduation candidate** input for Phase 3; note the slug and the count alongside the verdict.
 
 - **Report:** counts by verdict and by recommendation; call out anything `stale` or low-confidence, and the recurrence counts for any lesson with ≥ 2 re-triggers.
 
 ### 3 — Plan + the hub-link safety check (the step that prevents rot)
 
-Before archiving anything, **check inbound links** for every `retire` / `merge` candidate:
+Before archiving anything, **check inbound links** for every `retire` / `merge` candidate — the mechanical count comes from `war-memory inbound`, which walks both roots, counts files whose body cites `[[<slug>]]`, excludes the slug's own file, and lists the citing slugs:
 
 ```bash
-cd "$STAGING" && grep -rl "\[\[<slug>\]\]" . | grep -v '^./MEMORY.md'
+node "${CLAUDE_PLUGIN_ROOT}/skills/_shared/war-memory.mjs" inbound <slug> --local "$STAGING" --repo "$REPO_ROOT"
 ```
 
 - **0–1 inbound refs, no durable residue** → safe to retire.
@@ -183,7 +185,7 @@ If the run surfaced a reusable housekeeping insight, write it as a new memory in
 ## Common mistakes
 
 - **Editing the live dir instead of staging.** Defeats fault tolerance. All edits go to `$STAGING`; the live dir is read-only until `commit`.
-- **Retiring a concept hub.** A `resolved` memory with several inbound links is a vocabulary node — keep it as a compressed anchor, or you orphan every sibling that cites it. Always run the Phase-3 grep.
+- **Retiring a concept hub.** A `resolved` memory with several inbound links is a vocabulary node — keep it as a compressed anchor, or you orphan every sibling that cites it. Always run the Phase-3 `war-memory inbound` check.
 - **Re-anchoring to a fresh line number.** It will rot again. Anchor by named construct.
 - **Treating "the bug is fixed" as "stale".** That is `resolved` (compress, keep the rule), not `stale` (retire).
 - **Illustrative `[[slug]]` in examples.** Pollutes the link graph and the verify report. Don't write example wikilinks that look real.

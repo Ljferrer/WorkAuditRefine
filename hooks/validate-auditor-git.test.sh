@@ -142,6 +142,18 @@ expect_allow "A14: git log -p → allowed (subcommand -p)" \
 expect_allow "A15: git diff integration/phase-1...war/task/branch → allowed" \
   "$(auditor_cmd "git diff integration/phase-1...war/task/branch")"
 
+# A16: git show <audit_sha>:<path> — the committed-tree-grounding blob read the auditor
+# uses for verify-and-close / already-done no-op claims (spec §8 / ADR 0029). The sha:path
+# blob form must be admissible WITHOUT widening the allowlist — show is already read-only,
+# and ':' '/' are in the char allowlist. Load-bearing: the clause names this exact command.
+expect_allow "A16: git show abc1234:skills/_shared/war-memory.mjs → allowed (committed-tree blob read)" \
+  "$(auditor_cmd "git show abc1234:skills/_shared/war-memory.mjs")"
+
+# A17: git log -S<token> — the history-shaped verb the committed-grounding clause names for
+# "when did this count change" questions. -S is subcommand-local, chars are in the allowlist.
+expect_allow "A17: git log -Ssome_token → allowed (pickaxe history read)" \
+  "$(auditor_cmd "git log -Ssome_token")"
+
 # ---------------------------------------------------------------------------
 # CASE GROUP B: DENY — auditor write git subcommands
 # Must exit 2 AND emit "WAR:" on stderr.
@@ -338,6 +350,13 @@ expect_deny "G4: git stash → denied (write op)" \
 # G5: git fetch (network write-adjacent)
 expect_deny "G5: git fetch → denied (not in read allowlist)" \
   "$(auditor_cmd "git fetch")"
+
+# G6: git grep — NOT in the read allowlist and stays denied. The committed-grounding clause
+# (spec §8 / ADR 0029) deliberately does NOT widen the allowlist to add a grep verb: blob
+# reads go through `git show`, history through `git log -S/-G`. This case is the mechanical
+# record of that non-widening — flipping it to expect_allow would signal a widened allowlist.
+expect_deny "G6: git grep token → denied (grep verb NOT admitted; allowlist unwidened)" \
+  "$(auditor_cmd "git grep token")"
 
 # ---------------------------------------------------------------------------
 # CASE GROUP H: read-only global -C <path>

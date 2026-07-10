@@ -5239,8 +5239,18 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     { name: 'comment-lag directive (D9, worker prompt)',
       surfaces: [['war-worker.md', workerMd], ['worker prompt', workerP]],
       anchors: [/comment/i, /lag/i, /retired/i] },
+    // Task 1.4 (capture grounding): the servitor finding-match clause lives in D3 on the standing card AND
+    // in the D3 block of the memClause-built Wrap-up prompt — both must carry it (spec criterion 7).
+    { name: 'servitor finding-match check (audit-log-sourced facts ground on the landed tip)',
+      surfaces: [['war-servitor.md', servitorMd], ['servitor Wrap-up prompt', servitorP]],
+      anchors: [/finding-match/i, /named construct/i, /pattern, not live instance/i, /agent-unverified/i] },
+    // Task 1.4 (capture grounding): the auditor committed-tree-grounding clause lives on the standing card
+    // AND in the auditPrompt()-built dispatched prompt — both must carry it (spec criterion 8).
+    { name: 'auditor committed-tree grounding for no-op claims (git show <audit_sha>:<path>, grep advisory)',
+      surfaces: [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]],
+      anchors: [/committed-tree grounding/i, /verify-and-close/i, /git show <audit_sha>:<path>/i, /advisory only/i, /git grep/i] },
   ]
-  assert.ok(REGISTRY.length >= 6, 'the registry lists the migrated servitor row plus the D8/D9/D12/D6 duties and the gate-audit seat row')
+  assert.ok(REGISTRY.length >= 8, 'the registry lists the migrated servitor row, the D8/D9/D12/D6 duties, the gate-audit seat row, and the two Task 1.4 capture-grounding rows')
   for (const row of REGISTRY) {
     for (const [sName, sText] of row.surfaces) {
       for (const re of row.anchors) {

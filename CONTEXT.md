@@ -725,6 +725,49 @@ what, if anything, is filed or built.
 _Avoid_: auto-filed issue, auto-built hook (the flag never implements); treating every recurring lesson
 as a candidate (only machine-checkable ones qualify).
 
+**Concept hub**:
+A lesson that is dead as a bug warning yet load-bearing as a vocabulary anchor (≥2 inbound `[[links]]`
+from siblings citing it as "same family as …"). Archived only with an explicit hub WARN; when its rule
+is resolved it is downgraded to a compressed `RESOLVED — kept as concept anchor` stub that retains its
+hot index row rather than removed ([ADR 0028](docs/adr/0028-memory-store-integrity-tool-enforced.md)).
+_Avoid_: treating inbound-ref count as staleness (a hub is stale as a warning, live as vocabulary);
+dropping the hot index row on archive (the stub keeps it).
+
+**Link trichotomy (HOT / COLD / MISSING)**:
+The three-way classification of a `[[wikilink]]` target — HOT (`<root>/<slug>.md`, keep), COLD
+(`<root>/archive/<slug>.md`, keep — a legal cold link into the queryable-forever archive), MISSING
+(neither — the only removal candidate). Adjudicated centrally by the archive-aware `safe-swap verify`,
+never by a hot-only `ls <staging>/<slug>.md` in a fan-out verifier.
+_Avoid_: calling a cold link dangling (it resolves via `resolves_in()`); a verifier recommending removal
+from a hot-only `ls` (the central check is the sole authority).
+
+**Non-destructive default (`--candidates`)**:
+A flag that reads like a query and *lists* like a query: `war-memory archive --candidates` reports the
+ranked candidate set and mutates nothing (a dry-run); archiving requires an explicit `--apply` or an
+explicit slug list (`archive <slug>…`). The mechanical replacement for the "never run `--candidates`"
+prose gotcha ([ADR 0028](docs/adr/0028-memory-store-integrity-tool-enforced.md)).
+_Avoid_: a query-shaped flag that mutates by default (the retired footgun — `--candidates` archived the
+whole ranked set); assuming `--candidates` alone still moves files.
+
+**Finding-match check**:
+The servitor's obligation to re-confirm that an audit finding's *named construct* (the specific defect,
+not merely the file) still matches at the landed tip before recording it as a live gotcha — match →
+`code-verified` with the file/line locate-cue; no match (fixed in-flight) → the generic pattern at
+`agent-unverified`, never a live file/line. Extends verify-on-write (which checks referent *existence*
+only) ([ADR 0029](docs/adr/0029-capture-grounds-on-committed-tip.md)).
+_Avoid_: recording a stale audit-log finding's file/line as a current instance (the log outlives the
+fix round that resolved it); conflating file-exists with finding-still-matches.
+
+**Committed-tree grounding**:
+Resolving an "already-done" / verify-and-close no-op claim against a pinned committed SHA
+(`git show <audit_sha>:<path>` for a blob, `git log -S/-G` for history) rather than the working tree, so
+a transient uncommitted edit cannot fabricate the verdict; the working-tree grep is advisory only. The
+auditor allowlist is **not** widened — `git grep` stays denied
+([ADR 0029](docs/adr/0029-capture-grounds-on-committed-tip.md)).
+_Avoid_: grepping the dirty working tree as the sole basis (a reverted edit lies about the committed
+tree); assuming `git log -S` answers "is the token present at the path" (it answers "when did the count
+change").
+
 ### State & resume
 
 **Resume precedence**:
