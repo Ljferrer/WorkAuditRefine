@@ -101,3 +101,20 @@ findings route once judgment is licensed. Full mechanics:
 - MCDP 1 *Warfighting* / MCWP 5-1 *Marine Corps Planning Process* — purpose-method-end-state framing
   (operator-supplied, 2026-07-01 design review).
 - Reference run: epics #416/#417, follow-up litter #422 — the 9-finding replay yardstick (spec §10.12).
+
+## Addendum (2026-07-10): the deliberately-unwired marker is an audit-lens finding-class exemption
+
+Decision 4 makes findings route by auditor-owned `disposition`. This addendum records one narrow
+finding-class exemption on the auditor's side: a construct whose adjacent `ponytail:` /
+`deliberately-unwired:` comment names *why* it is intentionally uncalled (an invariant it documents, a
+deliberate ceiling) is **not** a dead-code finding — re-flagging it is out of scope. Absent such a
+comment, dead-code findings proceed as usual.
+
+The engine-hardening spec's §7 offered a fork — amend ADR 0002 (scope by `agent_type`) *or* ADR 0013 —
+and the operator ratified 0013: the marker is a **lens-calibration** rule (which findings the auditor
+raises at all), the disposition model's home, not a capability-confinement rule (ADR 0002's domain). The
+convention lives in `agents/war-auditor.md`'s standing card only — a pure lens-calibration clause reaches
+every seat including the inline gate-audit passes through the standing surface, so no `auditPrompt()`
+mirror is needed (the same standing-surface-only precedent as this ADR's own D7 checklist). See
+[ADR-0034 — engine ingest guards & provision exit-code contract](0034-engine-ingest-guards-and-provision-exit-codes.md)
+§Decision, whose plan lands this clause. This addendum leaves the ratified body above unchanged.

@@ -189,6 +189,31 @@ assert_contains "case10 cwd fallback → payload has body sentinel" "$CTX10" "$C
 assert_contains "case10 cwd fallback → payload has campaign id" "$CTX10" "camp-cwd"
 
 # ---------------------------------------------------------------------------
+# Case 11: campaign dir path containing a SPACE → newest active still selected
+#          and injected. RED against the old `printf | xargs ls -t` idiom, which
+#          word-split the spaced path into two bogus args and dropped it from
+#          the sort. Two active campaigns; the NEWER one lives under a spaced
+#          path — its body must win. (Pairs winner-body presence with a
+#          newest-first assertion.)
+# ---------------------------------------------------------------------------
+R11="$WORK/c11"
+SP_OLD="$R11/.claude/campaigns/camp plain old"     # spaced dir name, older
+SP_NEW="$R11/.claude/campaigns/camp spaced new"    # spaced dir name, newer
+SP_OLD_SENT="ZZ-SPACE-OLD-5555"; SP_NEW_SENT="ZZ-SPACE-NEW-6666"
+mk_ledger "$SP_OLD" "camp-space-old" '[{"slug":"so","status":"queued"}]'
+printf '%s\n' "$SP_OLD_SENT" > "$SP_OLD/CAMPAIGN-STATE.md"
+mk_ledger "$SP_NEW" "camp-space-new" '[{"slug":"sn","status":"queued"}]'
+printf '%s\n' "$SP_NEW_SENT" > "$SP_NEW/CAMPAIGN-STATE.md"
+touch -t 202601010000 "$SP_OLD/ledger.json"
+touch -t 202612310000 "$SP_NEW/ledger.json"
+run_hook "$R11"
+assert_eq       "case11 spaced path → exit 0" 0 "$RC"
+CTX11="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)"
+assert_contains "case11 spaced newer campaign body inlined" "$CTX11" "$SP_NEW_SENT"
+assert_absent   "case11 spaced older campaign body NOT inlined" "$CTX11" "$SP_OLD_SENT"
+assert_contains "case11 spaced older campaign id named" "$CTX11" "camp-space-old"
+
+# ---------------------------------------------------------------------------
 printf '\n%d/%d cases passed\n' "$((n - fails))" "$n"
 [ "$fails" -eq 0 ] || { printf '%d FAILED\n' "$fails"; exit 1; }
 echo "inject-campaign-state.test.sh: PASS"
