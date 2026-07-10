@@ -18,6 +18,7 @@ import {
   projectionRow,
   buildProjection,
   archiveCandidates,
+  inboundCiters,
   findNearDupes,
   migrationPlan,
   routeRoot,
@@ -411,6 +412,105 @@ test('archive: local-root lesson moved into archive/, note appended, projection 
   assert.doesNotMatch(proj, /\[\[to-archive\]\]/); // archived → out of projection
   assert.match(proj, /\[\[stays\]\]/);
   rmSync(local, { recursive: true, force: true });
+});
+
+// ============================================================================
+// (7b) Task 1.1 — non-destructive `--candidates`, `inbound`, concept-hub WARN.
+// ============================================================================
+
+// Count how many hot (top-level, non-archive) lesson files sit in a root.
+function hotCount(dir) {
+  return readdirSync(dir).filter((f) => f.endsWith('.md') && f !== 'MEMORY.md').length;
+}
+
+test('inboundCiters: counts [[slug]] citers, excludes the slug\'s own self-reference', () => {
+  const recs = [
+    { slug: 'hub', temperature: 'hot', body: 'see [[hub]] self-ref should not count' },
+    { slug: 'a', temperature: 'hot', body: 'builds on [[hub]] heavily' },
+    { slug: 'b', temperature: 'hot', body: 'also cites [[hub]] here' },
+    { slug: 'c', temperature: 'hot', body: 'unrelated, no citation' },
+    { slug: 'd', temperature: 'cold', body: 'archived but still cites [[hub]]' },
+  ];
+  assert.deepEqual(inboundCiters(recs, 'hub').map((r) => r.slug).sort(), ['a', 'b', 'd']);
+  // hotOnly drops the cold citer (the hub-WARN counts only lost hot index rows).
+  assert.deepEqual(inboundCiters(recs, 'hub', { hotOnly: true }).map((r) => r.slug).sort(), ['a', 'b']);
+  assert.deepEqual(inboundCiters(recs, 'c'), []); // zero inbound
+});
+
+test('inbound <slug>: CLI reports count + citing slugs across both roots, self-excluded (criterion 3)', () => {
+  const local = tmpDir();
+  lessonFile(local, 'hub', { description: 'a hub', body: 'mentions [[hub]] itself, ignored' });
+  lessonFile(local, 'citer-a', { description: 'a', body: 'grew out of [[hub]]' });
+  lessonFile(local, 'citer-b', { description: 'b', body: 'per [[hub]] rule' });
+  lessonFile(local, 'lonely', { description: 'x', body: 'no links at all' });
+  const r = spawnSync('node', [CLI, 'inbound', 'hub', '--local', local], { encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /inbound hub: 2 — citer-a, citer-b/);
+  const z = spawnSync('node', [CLI, 'inbound', 'lonely', '--local', local], { encoding: 'utf8' });
+  assert.equal(z.status, 0, z.stderr);
+  assert.match(z.stdout, /inbound lonely: 0/);
+  rmSync(local, { recursive: true, force: true });
+});
+
+test('archive --candidates without --apply archives ZERO + lists; --apply then archives the set; refuse msg no longer says "archives ALL of these" (criteria 1,2 + old-absent)', () => {
+  const local = tmpDir();
+  // 210 tiny lessons → LINE hard axis → refuse verdict → candidates = full ranked hot set.
+  for (let i = 0; i < 210; i++) lessonFile(local, `c${String(i).padStart(3, '0')}`, { description: 'x' });
+
+  // render-index refuse message: retired phrasing gone, new "lists" phrasing present.
+  const render = spawnSync('node', [CLI, 'render-index', '--local', local], { encoding: 'utf8' });
+  assert.equal(render.status, 1, 'refuse exits 1');
+  assert.doesNotMatch(render.stderr, /archives ALL of these/, 'retired mutating-default phrasing must be gone');
+  assert.match(render.stderr, /lists them non-destructively/);
+
+  // dry-run: mutates nothing, prints the ranked list.
+  const dry = spawnSync('node', [CLI, 'archive', '--candidates', '--local', local], { encoding: 'utf8' });
+  assert.equal(dry.status, 0, dry.stderr);
+  assert.match(dry.stdout, /archive --candidates \(dry-run/);
+  assert.match(dry.stdout, /c000/); // the ranked list is printed
+  assert.equal(hotCount(local), 210, 'dry-run moved zero files');
+  assert.ok(!existsSync(join(local, 'archive')), 'dry-run created no archive dir');
+  // walkCorpus after the dry-run still shows every candidate hot (end-state 1).
+  assert.equal(walkCorpus({ local }).filter((r) => r.temperature === 'hot').length, 210);
+
+  // --apply: archives the whole ranked set.
+  const apply = spawnSync('node', [CLI, 'archive', '--candidates', '--apply', '--local', local], { encoding: 'utf8' });
+  assert.equal(apply.status, 0, apply.stderr);
+  assert.equal(hotCount(local), 0, '--apply archived every candidate');
+  assert.equal(readdirSync(join(local, 'archive')).filter((f) => f.endsWith('.md')).length, 210);
+  rmSync(local, { recursive: true, force: true });
+});
+
+test('archive <slug>: explicit-slug path is unchanged by the --candidates flip (criterion 2)', () => {
+  const local = tmpDir();
+  lessonFile(local, 'pick-me', { description: 'stale' });
+  lessonFile(local, 'leave-me', { description: 'current' });
+  const r = spawnSync('node', [CLI, 'archive', 'pick-me', '--local', local], { encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(existsSync(join(local, 'archive', 'pick-me.md')), 'explicit slug archived');
+  assert.ok(existsSync(join(local, 'leave-me.md')), 'unnamed slug untouched');
+  rmSync(local, { recursive: true, force: true });
+});
+
+test('archive: concept-hub WARN on ≥2 hot inbound refs, still exits 0; <2 stays silent (criterion 4)', () => {
+  const local = tmpDir();
+  lessonFile(local, 'hub', { description: 'hub' });
+  lessonFile(local, 'ref-a', { description: 'a', body: 'per [[hub]]' });
+  lessonFile(local, 'ref-b', { description: 'b', body: 'see [[hub]]' });
+  const r = spawnSync('node', [CLI, 'archive', 'hub', '--local', local], { encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr); // advisory only — never blocks
+  assert.match(r.stderr, /WARN: archiving concept hub 'hub' \(2 inbound refs\)/);
+  assert.ok(existsSync(join(local, 'archive', 'hub.md')), 'archive still happened');
+
+  // one inbound ref → below the ≥2 threshold → no hub WARN.
+  const local2 = tmpDir();
+  lessonFile(local2, 'solo', { description: 'solo' });
+  lessonFile(local2, 'only-ref', { description: 'r', body: 'links [[solo]] once' });
+  const r2 = spawnSync('node', [CLI, 'archive', 'solo', '--local', local2], { encoding: 'utf8' });
+  assert.equal(r2.status, 0, r2.stderr);
+  assert.doesNotMatch(r2.stderr, /concept hub/);
+  rmSync(local, { recursive: true, force: true });
+  rmSync(local2, { recursive: true, force: true });
 });
 
 // ============================================================================

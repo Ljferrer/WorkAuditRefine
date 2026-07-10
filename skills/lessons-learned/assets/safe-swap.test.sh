@@ -4,7 +4,9 @@
 #
 # Rule 1 (archive-aware wikilinks): a [[slug]] resolving into archive/<slug>.md
 #         is a cold link, NOT dangling; a row resolving into archive/ is not a
-#         missing row.
+#         missing row. Cases 5/6 (Task 1.2, criterion 5) FREEZE the dangling-LINK
+#         half of Rule 1 as the sole link-removal authority: an archive-only link
+#         is not flagged; a link resolving in neither hot nor archive/ IS flagged.
 # Rule 2 (root-aware rows): the index-row<->file HARD-FAIL skips rows carrying
 #         the trailing [repo] marker — their files live in the repo root, not the
 #         staged local dir. Without it, no swap completes once commitLearnings is
@@ -228,6 +230,69 @@ if ls "$MEMD"/MEMORY.md.prev.* >/dev/null 2>&1; then
   fail "case4: stray MEMORY.md.prev.* inside live dir (mem leak regression)"
 else
   pass "case4: no MEMORY.md.prev.* inside the new live dir"
+fi
+
+# =============================================================================
+# CASE 5 — FREEZE (Task 1.2, criterion 5): a [[link]] whose target lives ONLY in
+#   archive/<slug>.md is a legal cold link -> the exact `ok    no dangling
+#   wikilinks` line, exit 0. (The archive-aware dangling arm is the SOLE link-
+#   removal authority; this pins it against future edits. cold is a link-only
+#   target, NOT an index row, so this isolates the dangling-LINK path from the
+#   row hard-fail exercised by case1/temp-break2.)
+# =============================================================================
+D="$(mkmem)"
+printf '# MEMORY\n\n| slug | phase | summary |\n|--|--|--|\n' > "$D/MEMORY.md"
+add_row "$D" "hub"
+printf '# hub\nlinks a cold lesson [[cold]].\n' > "$D/hub.md"
+printf '# cold (archived)\ncold lesson body.\n' > "$D/archive/cold.md"
+
+OUT="$(bash "$SCRIPT" verify "$D" 2>&1)"; RC=$?
+if [ "$RC" -eq 0 ] && printf '%s' "$OUT" | grep -q 'ok    no dangling wikilinks'; then
+  pass "case5: [[cold]] resolving only into archive/ -> 'ok    no dangling wikilinks' (exit 0)"
+else
+  fail "case5: expected archive-only link accepted as not-dangling, got rc=$RC:"; printf '%s\n' "$OUT" >&2
+fi
+
+# =============================================================================
+# CASE 6 — FREEZE (Task 1.2, criterion 5): a [[link]] to a slug in NEITHER hot
+#   NOR archive/ IS flagged (`WARN  wikilinks with no target file … ghost`). It
+#   is a WARN, not a hard-fail: ghost is a link target only (no index row), so
+#   exit stays 0 — this pins the dangling-link WARN independently of the missing-
+#   ROW hard-fail (case2).
+# =============================================================================
+D="$(mkmem)"
+printf '# MEMORY\n\n| slug | phase | summary |\n|--|--|--|\n' > "$D/MEMORY.md"
+add_row "$D" "hub"
+printf '# hub\nlinks a nonexistent lesson [[ghost]].\n' > "$D/hub.md"
+# NOTE: ghost exists nowhere — not hot, not in archive/, and NOT an index row.
+
+OUT="$(bash "$SCRIPT" verify "$D" 2>&1)"; RC=$?
+if [ "$RC" -eq 0 ] && printf '%s' "$OUT" | grep -q 'wikilinks with no target file.*ghost'; then
+  pass "case6: [[ghost]] in neither hot nor archive/ -> flagged dangling WARN (exit 0, not a row hard-fail)"
+else
+  fail "case6: expected dangling WARN naming ghost with exit 0, got rc=$RC:"; printf '%s\n' "$OUT" >&2
+fi
+
+# =============================================================================
+# TEMP-BREAK 3 — the archive arm of resolves_in() is load-bearing for the
+#   dangling-LINK path (delete-and-trace for case5). Strip the `|| [ -f archive ]`
+#   fallback in a copy; case5's archive-only [[cold]] link must now be flagged as
+#   dangling. If it still reports clean, the freeze is inert. (temp-break2 proves
+#   the same arm via the ROW hard-fail; this proves it via the dangling WARN.)
+# =============================================================================
+D="$(mkmem)"
+printf '# MEMORY\n\n| slug | phase | summary |\n|--|--|--|\n' > "$D/MEMORY.md"
+add_row "$D" "hub"
+printf '# hub\nlinks a cold lesson [[cold]].\n' > "$D/hub.md"
+printf '# cold (archived)\ncold lesson body.\n' > "$D/archive/cold.md"
+
+BROKEN3="$(mktemp 2>/dev/null || mktemp -t swapbrk3)"; TMPFILES="$TMPFILES $BROKEN3"
+node -e 'const fs=require("fs");const s=fs.readFileSync(process.argv[1],"utf8");const t=s.replaceAll(" || [ -f \"$1/archive/$2.md\" ]","");if(t===s){console.error("temp-break3 replace no-op");process.exit(3)}fs.writeFileSync(process.argv[2],t)' "$SCRIPT" "$BROKEN3" || fail "temp-break3: literal replace was a no-op (source line changed?)"
+OUT="$(bash "$BROKEN3" verify "$D" 2>&1)"; RC=$?
+if printf '%s' "$OUT" | grep -q 'wikilinks with no target file.*cold'; then
+  pass "temp-break3: without archive fallback, [[cold]] flagged dangling -> archive arm is load-bearing for links"
+else
+  fail "temp-break3: disabling archive fallback did NOT flag [[cold]] as dangling (freeze inert?), rc=$RC:"; printf '%s\n' "$OUT" >&2
 fi
 
 # --- summary ------------------------------------------------------------------

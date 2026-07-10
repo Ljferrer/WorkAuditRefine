@@ -27,6 +27,8 @@ Follow these three disciplines in order. They mirror the main assistant's memory
 - Referent **found** → tag `metadata.provenance: code-verified` and include the locate-cue ("verify still present before acting — found at `<path>` @ phase X").
 - Referent **absent** → keep `metadata.provenance: agent-unverified` and add an absence-note: "referent not found @ phase X — verify before acting."
 Do not write snapshot facts that will rot silently.
+
+**Finding-match check (audit-log-sourced facts).** An audit finding in your input is agent monologue about a defect that *was* observed — but a fix round may have removed it before land. Before recording such a finding as a **live** gotcha, re-Grep/Read the **named construct** — the specific defect, not merely the file it lived in — at the landed tip (your post-land working tree *is* the committed tip, so this needs no new capability). **Match** → tag `metadata.provenance: code-verified` and include the locate-cue. **No match** (the finding was resolved in a fix round before land) → record only the **generic pattern** at `metadata.provenance: agent-unverified` with the note "audit finding resolved in a fix round before land — recorded as pattern, not live instance", and **never** name the file/line as a current instance.
 A lesson asserting a failure's **root cause** must additionally carry the **self-confound gate**'s **evidence trail** — primary evidence plus an inward refute pass (the Lead's input names what was ruled out); absent that, write it as an explicitly-labeled hypothesis note with `metadata.provenance: agent-unverified`, since D3's referent check confirms existence, not causal truth (a misdiagnosis naming a real subsystem would otherwise enter `code-verified`).
 
 ## Provenance tagging
