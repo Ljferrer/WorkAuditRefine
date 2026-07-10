@@ -358,6 +358,16 @@ export function buildProjection(records) {
   return { text, bytes, lines, verdict, candidates };
 }
 
+// Records (excluding the slug's own file) whose body cites [[slug]]. Pure — the
+// mechanical inbound count that the Phase-3 hub-check prose grep becomes. hotOnly
+// restricts to hot temperature (the archive hub-WARN counts only the hot index rows lost).
+export function inboundCiters(records, slug, { hotOnly = false } = {}) {
+  const needle = `[[${slug}]]`;
+  return records.filter(
+    (r) => r.slug !== slug && (!hotOnly || r.temperature === 'hot') && r.body.includes(needle)
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Consolidate (§4.3, criterion 8): flag near-duplicate pairs among changed lessons.
 // Report only. `changedSlugs` is the set of lessons changed since the merge base.
@@ -532,7 +542,8 @@ function cmdRenderIndex(argv) {
     process.stderr.write(
       `war-memory render-index: REFUSED — projection ${bytes}B / ${lines} lines exceeds a hard axis ` +
         `(${HARD_BYTES}B / ${HARD_LINES} lines). Ranked archive candidates (\`archive --candidates\` ` +
-        `archives ALL of these; \`archive <slug>...\` archives just the ones you pick): ` +
+        `lists them non-destructively; add \`--apply\` to archive the whole set, or \`archive <slug>...\` ` +
+        `to archive just the ones you pick): ` +
         candidates.join(', ') + '\n'
     );
     process.exit(1);
@@ -586,6 +597,15 @@ function cmdArchive(argv) {
   let slugs;
   if (argv.candidates) {
     const { candidates } = buildProjection(records);
+    // Non-destructive default: `--candidates` alone LISTS the ranked set and mutates
+    // nothing; mutation requires an explicit `--apply` (or an explicit slug list).
+    if (!argv.apply) {
+      process.stdout.write(
+        `archive --candidates (dry-run — mutates nothing; add --apply to archive the whole set, ` +
+          `or 'archive <slug>...' to pick): ${candidates.join(', ') || '(none)'}\n`
+      );
+      return;
+    }
     slugs = candidates;
   } else {
     slugs = argv._.slice(1);
@@ -597,6 +617,16 @@ function cmdArchive(argv) {
     if (!r) {
       process.stderr.write(`archive: no hot lesson '${slug}'\n`);
       continue;
+    }
+    // Advisory concept-hub WARN: archiving is link-safe (cold links still resolve), but a
+    // hub with ≥2 hot inbound refs loses its hot index row. Non-blocking — the keep-or-stub
+    // call stays human. Counted from the pre-move snapshot.
+    const hotInbound = inboundCiters(records, slug, { hotOnly: true });
+    if (hotInbound.length >= 2) {
+      process.stderr.write(
+        `WARN: archiving concept hub '${slug}' (${hotInbound.length} inbound refs) — ` +
+          `its index row disappears; consider keep-compress stub\n`
+      );
     }
     const rootBase = r.root === 'repo' ? roots.repo : roots.local;
     const dst = path.join(rootBase, ARCHIVE_DIR, path.basename(r.file));
@@ -661,10 +691,27 @@ function cmdMigrate(argv) {
   }
 }
 
+// inbound <slug> [--repo <root>]: mechanical inbound [[slug]] count across both roots.
+// Pure read — no requireLocal (an absent local root is just an empty corpus). The tool
+// form of the Phase-3 hub check: agents call this instead of grepping by hand.
+function cmdInbound(argv) {
+  const slug = argv._[1];
+  if (!slug) {
+    process.stderr.write('war-memory inbound: <slug> required\n');
+    process.exit(1);
+  }
+  const records = walkCorpus(resolveRoots(argv));
+  const citing = [...new Set(inboundCiters(records, slug).map((r) => r.slug))].sort();
+  process.stdout.write(
+    `inbound ${slug}: ${citing.length}${citing.length ? ' — ' + citing.join(', ') : ''}\n`
+  );
+}
+
 const VERBS = {
   query: cmdQuery,
   'render-index': cmdRenderIndex,
   archive: cmdArchive,
+  inbound: cmdInbound,
   lint: cmdLint,
   consolidate: cmdConsolidate,
   migrate: cmdMigrate,
