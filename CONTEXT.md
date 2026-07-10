@@ -323,6 +323,50 @@ prose).
 _Avoid_: treating it as a passing gate (the gate is red — the debt just predates the diff); a silent
 proceed (the backstop entry is mandatory).
 
+### Landing
+
+**Phantom land**:
+A land that reports `status:'landed'` while the working ref **never advanced** — the `--no-ff` merge
+produced no commit because the integration branch had nothing ahead of the working branch, so
+`working_sha` still equals the tip the merge started from and the phase's work is silently dropped.
+Refused by the **Land-truth guard** (exit 3, escalate class — never a reland).
+_Avoid_: a content conflict or a rejected CAS (nothing conflicted — the merge simply produced no
+commit); trusting a `landed` self-report as proof the ref moved.
+
+**Land-truth guard**:
+The `land-advance` (**Land primitive**) assertion set that makes a `landed` result **provable against
+git** rather than self-reported. Immediately before the push it captures the **pre-push origin tip**
+(`git ls-remote origin refs/heads/<working>`; a failed readback exits non-zero and never collapses
+into the first-land carve-out), and it refuses a **phantom land** (exit 3) when `<merge-sha>` equals
+that pre-push origin tip **and** the local follower already sits at it; the post-push readback still
+confirms origin advanced to `<merge-sha>`. Anchored on the **origin tip, never the local follower**
+(which lags). A `landDecision:'landed'` is trustworthy only downstream of it — extends
+[ADR 0008](docs/adr/0008-git-is-the-resume-source-of-truth.md) onto the land path
+([ADR 0023](docs/adr/0023-land-asserts-git-ground-truth.md)).
+_Avoid_: anchoring the advance check on the local follower ref (it lags); treating the post-push
+readback alone as sufficient (it passes on a phantom, which never advanced origin).
+
+**Contender-less transient CAS**:
+A push rejection with **no** competing run behind it, told apart from a real divergence by
+`git rev-list --left-right --count <merge-sha>...origin/<working>` (the merge sha the loop just tried
+to push vs. the freshly-fetched origin tip — **never** the lagging local follower) returning a
+**right count of 0**: every commit on origin is already contained in the merge sha, so no contender
+exists. It buys **exactly one** extra push-first land attempt beyond `roundLimit` exhaustion (an
+explicit +1, once) rather than an immediate surrender; a **nonzero** right count is a real divergence
+and returns `land_stale` at once. A resolved transient returns `landed`, so the existing
+`servitorResult` gate fires with no Lead step.
+_Avoid_: counting against the local follower (`<working>...origin/<working>`) instead of the merge
+sha; folding the extra attempt into `roundLimit` (it is an explicit, one-time +1).
+
+**Land primitive (single land chokepoint)**:
+`provision-worktrees.sh land-advance <working> <merge-sha>` — the one path **every** land routes
+through: the refiner's in-flow land, the `held:land-failed` auto-recover, and the
+escalation-completion land. Routing all of them through it means the **Land-truth guard** and the
+follower CAS reconciliation cover every land and no path re-implements a raw `git push`. The 2-arg
+contract is stable for every caller ([ADR 0023](docs/adr/0023-land-asserts-git-ground-truth.md)).
+_Avoid_: a bespoke escalation-completion script (the resolved gate is a runtime string a subcommand
+can't own); a manual `git push` / `--force-with-lease` land that bypasses the guard and follower sync.
+
 ### Audit
 
 **Audit roster**:

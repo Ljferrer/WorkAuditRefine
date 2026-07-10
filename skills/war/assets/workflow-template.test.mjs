@@ -4600,3 +4600,94 @@ test('run-lifecycle §5 schemas.md presence lock: provisioning-args + footgun ca
   assert.match(schemasMd, /evidence gate/i, 'schemas.md states the evidence-gate rule')
   assert.match(schemasMd, /entry validation/i, 'schemas.md notes the entry validation naming the missing keys + phase.id')
 })
+
+// ---------------------------------------------------------------------------
+// Task 1.2 (#637) — reland-loop transient-vs-divergence discrimination, both surfaces.
+// On the FINAL failed CAS attempt the land prompt runs `git rev-list --left-right --count
+// <merge-sha>...origin/<working>` (the merge sha it tried to push vs. the freshly-fetched origin
+// tip, NEVER the lagging local follower): a right count of 0 (contender-less transient) buys
+// exactly ONE extra push-first attempt beyond roundLimit; a nonzero right count (real contender
+// commits) is land_stale immediately. The discrimination is emitted in BOTH the in-flow land prompt
+// AND the baseline-proceed re-land prompt, and grep-parallel with agents/war-refiner.md §land-phase.
+// The three plain-text anchors below appear VERBATIM in all three surfaces (mirror-drift guard, spec
+// §8; memory: standing-instruction-vs-dispatched-prompt-coverage-split). They are markup-free in the
+// .md source (no backtick/bold inside the span) so a raw-string includes() matches byte-for-byte.
+// ---------------------------------------------------------------------------
+const RELAND_DISC_CMD = 'git rev-list --left-right --count <merge-sha>...origin/'                     // A1: discrimination command core (working branch follows)
+const RELAND_DISC_BUDGET = 'exactly one extra push-first attempt beyond roundLimit exhaustion (an explicit +1, once' // A2: the explicit-+1 budget sentence
+const RELAND_DISC_DIVERGE = 'nonzero right count'                                                     // A3: the real-divergence signal
+
+test('Task 1.2 — in-flow land prompt carries the rev-list discrimination + explicit-+1 budget + land_stale-only-on-nonzero-right-count', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const land = calls.find(isLand)
+  assert.ok(land, 'a land-phase (Land) refiner seat is dispatched')
+  const p = land.prompt
+  // (1) the rev-list --left-right --count <merge-sha>...origin/<working> discrimination, working interpolated.
+  assert.ok(p.includes(RELAND_DISC_CMD), 'in-flow land prompt runs rev-list --left-right --count <merge-sha>...origin/<working>')
+  assert.ok(p.includes('dev/wtprov-a'), 'the discrimination command names origin/<workingBranch> (interpolated), not the local follower')
+  assert.match(p, /git fetch origin dev\/wtprov-a/, 'a fresh fetch precedes the rev-list discrimination')
+  assert.match(p, /NEVER the local follower refs\/heads\/dev\/wtprov-a/, 'the discrimination pins origin, explicitly NOT the lagging local follower')
+  // (2) the explicit-+1-then-land_stale budget.
+  assert.ok(p.includes(RELAND_DISC_BUDGET), 'in-flow land prompt states the explicit +1 (once, not a slot inside roundLimit) budget')
+  assert.match(p, /Right count 0[\s\S]*?buys exactly one extra push-first attempt[\s\S]*?if that extra attempt also fails, return \{ mode: 'land-phase', status: 'land_stale' \}/,
+    'right count 0 buys exactly one extra attempt, then land_stale only if that extra attempt also fails')
+  // (3) land_stale ONLY on a nonzero right count — the immediate-surrender branch.
+  assert.ok(p.includes(RELAND_DISC_DIVERGE), 'in-flow land prompt names the nonzero-right-count divergence branch')
+  assert.match(p, /a nonzero right count \(real contender commits on origin\) is a real divergence: return \{ mode: 'land-phase', status: 'land_stale' \} immediately/,
+    'a nonzero right count returns land_stale immediately, with no extra attempt')
+  // no new status/enum: a resolved transient returns 'landed' (ADR 0005 — no new status member).
+  assert.match(p, /A transient that resolves returns status: 'landed'/, 'a resolved transient returns landed, not a new status')
+  assert.ok(p.includes('no new status'), 'the prompt states no new status is introduced by the recovery path')
+})
+
+test('Task 1.2 — baseline-proceed re-land prompt carries the identical discrimination (both JS land surfaces)', async () => {
+  // A land gate failure classified 'baseline' dispatches the baseline-proceed re-land; its prompt must
+  // carry the same discrimination — the mirror-drift hazard is intra-file too (two land prompts).
+  const impl = clsImpl({ landResult: () => ({ mode: 'land-phase', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: ['pytest:test_pre_existing'], gate_base_sha: 'wbase77' }) })
+  const { calls } = await runPhase(CLS_ARGS(), impl)
+  const bp = calls.find(c => /^land:phase-3:baseline-proceed$/.test(c.opts.label || ''))
+  assert.ok(bp, 'a baseline-proceed re-land is dispatched')
+  const p = bp.prompt
+  assert.ok(p.includes(RELAND_DISC_CMD), 'baseline-proceed re-land prompt runs the rev-list discrimination')
+  assert.ok(p.includes('dev/cls'), 'the discrimination names origin/<workingBranch> (interpolated)')
+  assert.ok(p.includes(RELAND_DISC_BUDGET), 'baseline-proceed re-land prompt states the identical explicit-+1 budget')
+  assert.ok(p.includes(RELAND_DISC_DIVERGE), 'baseline-proceed re-land prompt names the nonzero-right-count divergence branch')
+  assert.match(p, /return \{ mode: 'land-phase', status: 'land_stale' \} immediately/, 'baseline-proceed re-land: nonzero right count → land_stale immediately')
+})
+
+test('Task 1.2 — grep parity: agents/war-refiner.md §land-phase carries the byte-identical discrimination strings the JS prompts emit', () => {
+  // Standing-vs-dispatched coverage split: the same three plain-text anchors the land prompts emit
+  // must appear VERBATIM in the standing card so the surfaces cannot drift (spec §8, grill Q5/Q11).
+  assert.ok(refinerMd.includes(RELAND_DISC_CMD), 'war-refiner.md §land-phase runs rev-list --left-right --count <merge-sha>...origin/')
+  assert.ok(refinerMd.includes(RELAND_DISC_BUDGET), 'war-refiner.md §land-phase states the identical explicit-+1 budget sentence')
+  assert.ok(refinerMd.includes(RELAND_DISC_DIVERGE), 'war-refiner.md §land-phase names the nonzero-right-count divergence branch')
+  // the discrimination must appear for BOTH the superproject land and the submodule-2A land variant.
+  assert.ok((refinerMd.match(/git rev-list --left-right --count <merge-sha>\.\.\.origin\//g) || []).length >= 2,
+    'the discrimination command is present in BOTH the superproject and submodule-2A land variants')
+  // never anchored on the lagging local follower.
+  assert.match(refinerMd, /NEVER the local follower/, 'war-refiner.md pins the discrimination to origin, never the lagging local follower')
+})
+
+test('Task 1.2 — a stale-then-resolved land (final status:landed) reaches the servitorResult dispatch (no new status/enum)', async () => {
+  // The +1 recovery is prompt-level (the refiner runs it internally, then returns a MergeResult). A
+  // transient that resolves returns status:'landed', so it flows through the ORDINARY landed path:
+  // no new status, no HARD_ESCALATION_REASONS member, and the existing servitorResult gate
+  // (landResult.status === 'landed' && memoryLocalRoot) spawns the servitor with no Lead intervention.
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
+    if (seat === 'war-refiner' && /^polish-worktree:/.test(opts.label || '')) return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'abc', tests: {} }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'merged' }
+    // Simulate the refiner resolving a contender-less transient on the +1 attempt: it returns landed.
+    if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed', working_sha: 'cafef00d', notes: 'resolved a contender-less transient on the +1 attempt (right count 0)' }
+    if (seat === 'war-servitor') return { phase: 3, target: 't', learnings: [] }
+    return {}
+  }
+  const { out } = await runPhase(PROVISION_ARGS(), impl)
+  assert.equal(out.landDecision, 'landed', 'a resolved transient lands normally — no held:escalation')
+  assert.notEqual(out.servitorResult, null, 'the landed path spawns the servitor (servitorResult non-null) with no Lead intervention')
+  assert.ok(!out.escalated.some(e => e && String(e.task).includes('-land')),
+    'no land escalation is recorded for a resolved transient (no land_stale reaches HARD_ESCALATION_REASONS)')
+})
