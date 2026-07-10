@@ -58,6 +58,20 @@ check '^### Drift-guard coverage'
 check_f 'unguarded mirror is a plan defect'   # rule (a): new mirror ⇒ registry row same task
 check_f 'OLD value absent'                     # rule (b): default-flip enumerates surfaces, asserts old absent
 
+# "Reference the live artifact, never a stack-fragile literal" convention block (§2) —
+# pin the heading plus each of the six named rules + the defined-but-not-yet-emitted
+# annotation by a distinctive teeth phrase, so a future edit can't silently drop one.
+# Fixed-string, anchored inside the line (no quote-marks/bold crossing the anchor).
+check '^### Reference the live artifact, never a stack-fragile literal'
+check_f 'name the enclosing symbol or comment header'        # construct locator
+check_f 'reference the self-discovery gate'                   # self-discovery gate (resolveGate)
+check_f 'append to the canonical export in'                  # canonical export mirror
+check_f 'use the dotted path'                                # dotted path for nested keys
+check_f 'next free patch above the live base'               # release-task next-free-patch
+check_f 'defined-but-not-yet-emitted; produced in Task N'    # cross-slice annotation
+check_f 'requires a manual same-scope title/comment survey'  # grep-as-floor
+check_f 'plan-literal-lint.mjs'                              # advisory lint named in the convention + §4
+
 # Commander's Intent sits BEFORE ## Build order inside the plan template.
 # Locators anchor to the verbatim arrow-bearing template lines (unique to the plan-template
 # fence) so a stray earlier bare heading of the same text can't misbind them.

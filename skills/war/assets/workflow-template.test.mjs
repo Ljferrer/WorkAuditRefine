@@ -3450,6 +3450,42 @@ test('calibration + cost-claim rules (spec §4.1/§4.2): the REBUTTAL-round audi
   assert.ok(rebuttal.prompt.includes(COST_CLAIM_SHARED), 'rebuttal-round auditPrompt carries the cost-claim rule')
 })
 
+// Task 1.4 — Stale-looking-but-correct calibration (spec criterion 4/5, ADR 0030): the four rule
+// bodies live in agents/war-auditor.md AND are mirrored into auditPrompt(). Anchor on ONE
+// casing/position-stable MID-SENTENCE phrase per rule (never a quote/backtick-bearing byte literal —
+// shared-string-constant-quote-literal-byte-anchor-fragility) and assert it on BOTH surfaces, so the
+// test fails if EITHER surface drops a rule. Plus a floor-lock: each rule retains its
+// "only when the live artifact confirms" qualifier (guards the amnesty floor against silent widening).
+const CALIBRATION_RULE_ANCHORS = [
+  /diverging from the candidate on a line range/i,          // rule 1 — literal-vs-candidate drift
+  /a reference dangling at a task tip/i,                     // rule 2 — dangling cross-slice ref
+  /naming a file the diff never touches/i,                  // rule 3 — untouched plan file-list entry
+  /a grep sweep is a floor, not a ceiling/i,                // rule 4 — grep-sweep floor
+]
+
+test('stale-looking-but-correct calibration (Task 1.4): war-auditor.md AND auditPrompt carry all four rule anchors', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const a = calls.find(isAuditor)
+  assert.ok(a, 'an auditor was dispatched (presence guard)')
+  for (const re of CALIBRATION_RULE_ANCHORS) {
+    assert.match(auditorMd, re, `war-auditor.md carries calibration rule ${re} (standing surface)`)
+    assert.match(a.prompt, re, `auditPrompt carries calibration rule ${re} (dispatched surface)`)
+  }
+})
+
+test('stale-looking-but-correct calibration (Task 1.4): the "only when the live artifact confirms" qualifier survives per rule on BOTH surfaces', async () => {
+  // One qualifier occurrence per rule (four) locks the confirmation floor — a silent widening into
+  // unconditional amnesty would drop these and fail here.
+  const QUALIFIER = /only when the live artifact confirms/gi
+  assert.ok((auditorMd.match(QUALIFIER) || []).length >= 4,
+    'war-auditor.md carries the confirmation qualifier at least once per rule (>= 4)')
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const a = calls.find(isAuditor)
+  assert.ok(a, 'an auditor was dispatched (presence guard)')
+  assert.ok((a.prompt.match(QUALIFIER) || []).length >= 4,
+    'auditPrompt carries the confirmation qualifier at least once per rule (>= 4)')
+})
+
 // --- Intent threading (criterion 10) ---
 
 test('intent absent (criterion 10): no intent block anywhere; intent:null and intent-absent runs are byte-identical', async () => {
