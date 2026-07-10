@@ -124,7 +124,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Diff: A and R target paths only.
+# Diff: A, R, and C target paths only.
 # `--name-status` emits, tab-separated:
 #   A\t<path>                       (added)
 #   M\t<path> / D\t<path>           (modified / deleted — skipped)
