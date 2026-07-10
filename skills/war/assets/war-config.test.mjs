@@ -381,6 +381,21 @@ test('unknown memory key rejected (no accepted-but-ignored keys)', () => {
 // (assert-test-in-diff.sh --pattern) — so it must be a NON-EMPTY glob-safe string, and unknown
 // overrides.* keys get a courtesy error (the memory.* precedent — a typo never runs the bare floor).
 
+// The 'overrides must be an object' branch (mirrors the memory.* non-object guard). Both inputs
+// reach it: {overrides:null} — deepMerge replaces the default object with null (isObj(null)===false);
+// {overrides:'x'} — a scalar is not an object. Without the guard, Object.keys(null) throws a raw
+// TypeError instead of a named validation error (end state 1, delete-the-feature).
+test('overrides non-object rejected (null / scalar reach the object-type branch, no throw)', () => {
+  const rNull = validate({ overrides: null })
+  assert.equal(rNull.valid, false)
+  assert.match(rNull.errors.join('\n'), /overrides must be an object/)
+  const rStr = validate({ overrides: 'x' })
+  assert.equal(rStr.valid, false)
+  assert.match(rStr.errors.join('\n'), /overrides must be an object/)
+  // A valid overrides object still validates as before.
+  assert.equal(validate({ overrides: { gate: null, testPattern: '*.test.ts' } }).valid, true)
+})
+
 test('overrides.testPattern defaults to null (today\'s hardcoded floor, byte-identical)', () => {
   assert.equal(DEFAULTS.overrides.testPattern, null)
   assert.equal(fillDefaults({}).overrides.testPattern, null)

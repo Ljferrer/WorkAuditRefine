@@ -180,7 +180,10 @@ export function validate(input) {
   // only on the clean charset — they are correctness footguns, not injection.
   const KNOWN_OVERRIDES = ['gate', 'workingBranch', 'landingBranch', 'learningsTarget', 'testPattern', 'ghUser']
   const GLOB_UNSAFE = /[^A-Za-z0-9_.*?\/ \[\]-]/
-  for (const k of Object.keys(c.overrides)) {
+  // Non-object guard mirrors the memory.* block above: a hand-edited `overrides: null`/`overrides: 'x'`
+  // would otherwise throw a raw TypeError at Object.keys() instead of a named validation error.
+  if (!isObj(c.overrides)) { errors.push('overrides must be an object') }
+  else for (const k of Object.keys(c.overrides)) {
     const v = c.overrides[k]
     if (!KNOWN_OVERRIDES.includes(k)) { errors.push(`overrides.${k} is not a known key (${KNOWN_OVERRIDES.join('|')}) — run /war-room to regenerate the config`); continue }
     if (v !== null && typeof v !== 'string') { errors.push(`overrides.${k} must be null or a string`); continue }
