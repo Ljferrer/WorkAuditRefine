@@ -8,8 +8,8 @@
 # thin and calls these subcommands from the refiner's Provision barrier.
 #
 # Subcommands (this file):
-#   ensure-integration <slug> <N> <base> [--owned-file PATH] [--owned REF]...  (Task 2)
-#   ensure-exclude                                                             (Task 2)
+#   ensure-integration <slug> <N> <base> [--owned-file PATH] [--owned REF]... [--reclaim-empty-orphan]  (Task 2 + 1.4/G)
+#   ensure-exclude [<repo-dir>]                                                (Task 2 + 1.4/F)
 #   ensure-worktree <path> <branch> <integration-tip>                          (Task 3)
 #   land-advance <working-ref> <new-sha>                                       (Task 2/clandiso)
 #   ensure-refinery-worktree <path> <integration-branch>                       (Task 1/clandiso)
@@ -61,6 +61,35 @@ set -euo pipefail
 PROG="provision-worktrees"
 die()  { printf '%s: %s\n' "$PROG" "$1" >&2; exit "${2:-1}"; }
 warn() { printf '%s: %s\n' "$PROG" "$1" >&2; }
+
+# --- exit-code catalogue (E, ADR 0034) --------------------------------------
+# Every coded `die` passes one of these named constants; a test forbids any
+# uncatalogued numeric-literal exit (`die "…" 3`). SURFACING CONTRACT (single
+# source of non-zero meanings): the refiner treats ANY non-zero exit as a HALT —
+# these names document the DOMINANT meaning of each code, not a per-site semantic
+# contract. Codes are deliberately overloaded where the halt-semantics are
+# identical (the grep-assertion enforces catalogued constants, not per-site
+# uniqueness). Code 1 is the generic `die` default (the ${2:-1} fallback) and is
+# intentionally left unnamed.
+#   3 EX_FOREIGN      — foreign/unowned ref, or a land that did not advance:
+#                       ensure-integration foreign branch, teardown ownership
+#                       gate, resolve-working-branch foreign name, land-advance
+#                       no-advance/escalation. ADR 0003 (ownership) / ADR 0023
+#                       (land-truth guard). Overloaded — halt-semantics identical.
+#   4 EX_DIRTY_UNREG  — a non-empty, unregistered dir at a worktree path; refuse
+#                       to delete unmanaged data. ADR 0003 (D7).
+#   5 EX_OUT_OF_RUN   — a teardown target outside the current run-dir scope;
+#                       cross-run cleanup is manual. ADR 0003 (D9).
+#   6 EX_WRONG_BRANCH — a registered worktree on the wrong branch, or a dirty
+#                       tree we refuse to switch/remove (never destroy work).
+#                       ADR 0008 (repair toward git; never destroy work).
+#   7 EX_DIVERGED     — local <base> and origin/<base> have diverged; only the
+#                       operator can adjudicate which side is real. ADR 0008.
+readonly EX_FOREIGN=3
+readonly EX_DIRTY_UNREG=4
+readonly EX_OUT_OF_RUN=5
+readonly EX_WRONG_BRANCH=6
+readonly EX_DIVERGED=7
 
 # --- git helpers ------------------------------------------------------------
 # Resolve the repo's git dir once; ensure-exclude writes inside it. Run from any
@@ -193,10 +222,11 @@ record_owned_file() {
 # diverged -> die (no branch created); fetch fails / no origin -> stderr warning +
 # local cut (offline fallback). The owned resume/reuse path is never re-cut.
 cmd_ensure_integration() {
-  [ $# -ge 3 ] || die "usage: ensure-integration <slug> <N> <base> [--owned-file PATH] [--owned REF]..."
+  [ $# -ge 3 ] || die "usage: ensure-integration <slug> <N> <base> [--owned-file PATH] [--owned REF]... [--reclaim-empty-orphan]"
   slug="$1"; num="$2"; base="$3"; shift 3
 
   owned_file=""
+  reclaim=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --owned-file)
@@ -205,6 +235,8 @@ cmd_ensure_integration() {
       --owned)
         [ $# -ge 2 ] || die "--owned requires a ref"
         owned_add "$2"; shift 2 ;;
+      --reclaim-empty-orphan)
+        reclaim=1; shift ;;
       *) die "ensure-integration: unknown argument '$1'" ;;
     esac
   done
@@ -224,7 +256,32 @@ cmd_ensure_integration() {
       printf '%s\n' "$branch"
       return 0
     fi
-    die "foreign branch '$branch' already exists and is not owned by this run; refusing to reuse or overwrite it (see ADR 0003). If this is a stale ref from a prior run, delete it or record it as owned." 3
+    # Unowned branch in this run's EXACT namespace (it is integration/<slug>/
+    # phase-<N> by construction). Default: fail loud (ADR 0003). Opt-in
+    # --reclaim-empty-orphan (G, Lead-supplied only on a SANCTIONED recovery
+    # relaunch) is a TWO-PROOF self-heal for a HALF-RUN orphan — a branch a
+    # crashed provision cut but never recorded as owned
+    # (provision-nonidempotent-orphan-integration-branch-blocks-relaunch). BOTH
+    # proofs must hold or we fall through to the unchanged EX_FOREIGN die:
+    #   (1) `git log <base>..<branch>` EMPTY  — the orphan carries no unique
+    #       commits, so deleting it resets no work (ADR 0008 conservative heal;
+    #       no ahead-check ref-reset path — provision-conservative-heal lesson);
+    #   (2) `git ls-remote --exit-code origin <branch>` ABSENT — never published.
+    # Either proof fails => die EX_FOREIGN (never delete unique or published work).
+    if [ "$reclaim" -eq 1 ]; then
+      orphan_commits="$(git log --oneline "$base..$branch" 2>/dev/null || true)"
+      if [ -z "$orphan_commits" ] \
+         && ! git ls-remote --exit-code origin "refs/heads/$branch" >/dev/null 2>&1; then
+        warn "ensure-integration: --reclaim-empty-orphan: '$branch' is unowned but PROVEN EMPTY (no commits ahead of '$base') AND origin-ABSENT — deleting and re-cutting it (ADR 0008: resets no work)."
+        git branch -D "$branch" >/dev/null 2>&1 \
+          || die "ensure-integration: failed to delete the proven-empty orphan '$branch' for reclaim (still checked out somewhere?)." "$EX_FOREIGN"
+        # Branch now absent -> fall through to the create/reconcile path below.
+      else
+        die "ensure-integration: --reclaim-empty-orphan given, but '$branch' is NOT a reclaimable orphan — it has unique commits ahead of '$base' OR is present on origin. Refusing to delete unique or published work (ADR 0008). Adjudicate by hand or record it as owned." "$EX_FOREIGN"
+      fi
+    else
+      die "foreign branch '$branch' already exists and is not owned by this run; refusing to reuse or overwrite it (see ADR 0003). If this is a stale ref from a prior run, delete it or record it as owned (or pass --reclaim-empty-orphan on a sanctioned recovery relaunch to self-heal a proven-empty orphan)." "$EX_FOREIGN"
+    fi
   fi
 
   # Absent -> create. Before cutting, reconcile the local <base> against
@@ -259,7 +316,7 @@ cmd_ensure_integration() {
       elif git merge-base --is-ancestor "$origin_sha" "$local_sha" 2>/dev/null; then
         :   # ahead: cut from local (origin is the stale side).
       else
-        die "ensure-integration: local '$base' ($local_sha) and origin/$base ($origin_sha) have DIVERGED — neither is an ancestor of the other, so no branch was created. Only the operator can adjudicate which side is real (ADR 0008 — git is the source of truth, but here two gits disagree). Inspect both: 'git log --oneline $origin_sha..$local_sha' (local-only commits) and 'git log --oneline $local_sha..$origin_sha' (origin-only commits). Then EITHER reconcile local onto origin (rebase/merge onto origin/$base) and relaunch, OR — if origin is the stale side — push local to advance origin/$base and relaunch. This script never picks a side." 7
+        die "ensure-integration: local '$base' ($local_sha) and origin/$base ($origin_sha) have DIVERGED — neither is an ancestor of the other, so no branch was created. Only the operator can adjudicate which side is real (ADR 0008 — git is the source of truth, but here two gits disagree). Inspect both: 'git log --oneline $origin_sha..$local_sha' (local-only commits) and 'git log --oneline $local_sha..$origin_sha' (origin-only commits). Then EITHER reconcile local onto origin (rebase/merge onto origin/$base) and relaunch, OR — if origin is the stale side — push local to advance origin/$base and relaunch. This script never picks a side." "$EX_DIVERGED"
       fi
     fi
   else
@@ -291,12 +348,30 @@ cmd_ensure_integration() {
 }
 
 # --- subcommand: ensure-exclude --------------------------------------------
+# ensure-exclude [<repo-dir>]
+#
 # Append a `.claude/` line to .git/info/exclude exactly once (idempotent), so a
 # nested worktree under .claude/ does not surface as untracked in the parent
 # repo's `git status` (probe E2).
+#
+# Optional positional <repo-dir> (F): resolve the exclude via
+# `git -C <repo-dir> rev-parse --git-dir`, so the Provision barrier can target
+# the MAIN checkout's exclude explicitly from any cwd (the refiner runs from the
+# _refinery worktree). Absent -> current-cwd git dir, BYTE-IDENTICAL to the old
+# no-arg form (back-compat with the existing no-arg tests).
 cmd_ensure_exclude() {
-  [ $# -eq 0 ] || die "ensure-exclude: unknown argument '$1' (usage: ensure-exclude  takes no arguments)"
-  exclude_line "$(git_dir)/info/exclude" '.claude/'
+  [ $# -le 1 ] || die "ensure-exclude: too many arguments (usage: ensure-exclude [<repo-dir>])"
+  if [ $# -eq 1 ]; then
+    [ -n "$1" ] || die "ensure-exclude: empty <repo-dir>"
+    gdir="$(git -C "$1" rev-parse --git-dir 2>/dev/null)" \
+      || die "ensure-exclude: '$1' is not inside a git repository"
+    # rev-parse --git-dir yields a path relative to <repo-dir>; anchor it so the
+    # write lands in <repo-dir>'s git dir regardless of the caller's cwd.
+    case "$gdir" in /*) ;; *) gdir="$1/$gdir" ;; esac
+  else
+    gdir="$(git_dir)"
+  fi
+  exclude_line "$gdir/info/exclude" '.claude/'
 }
 
 # dir_is_empty <path> -> 0 if <path> is a directory with no entries (dotfiles
@@ -350,7 +425,7 @@ cmd_ensure_worktree() {
       # re-attach (like ensure-refinery-worktree cases c/d) could auto-heal instead.
       cur_branch="$(git -C "$path" symbolic-ref --short HEAD 2>/dev/null || true)"
       if [ "$cur_branch" != "$branch" ]; then
-        die "ensure-worktree: worktree at '$path' is registered but checked out on '${cur_branch:-(detached)}', not the requested branch '$branch' — refusing to reuse it (the checkout may carry un-merged commits, and writing the marker would claim a branch the tree is not on). Run teardown-task for the prior branch first, or remove the worktree by hand." 6
+        die "ensure-worktree: worktree at '$path' is registered but checked out on '${cur_branch:-(detached)}', not the requested branch '$branch' — refusing to reuse it (the checkout may carry un-merged commits, and writing the marker would claim a branch the tree is not on). Run teardown-task for the prior branch first, or remove the worktree by hand." "$EX_WRONG_BRANCH"
       fi
       # Touch nothing but the marker (idempotent). Crucially we do NOT move/reset
       # <branch>, so un-merged commits survive.
@@ -366,7 +441,7 @@ cmd_ensure_worktree() {
     # Not registered. An existing non-empty dir is unmanaged data -> fail loud.
     if [ -e "$path" ]; then
       if ! dir_is_empty "$path"; then
-        die "refusing to provision worktree at '$path': a non-empty, unregistered directory already exists there (not a git worktree of this repo). Move or remove it by hand — provision-worktrees will not delete unmanaged data (D7)." 4
+        die "refusing to provision worktree at '$path': a non-empty, unregistered directory already exists there (not a git worktree of this repo). Move or remove it by hand — provision-worktrees will not delete unmanaged data (D7)." "$EX_DIRTY_UNREG"
       fi
       # Empty dir: git worktree add wants to create the leaf itself, so clear the
       # empty placeholder (no data at risk — we just verified it is empty).
@@ -413,7 +488,7 @@ require_in_run() {
   [ -n "$2" ] || die "teardown is run-scoped: --run-dir <ledger-dir> is required (refusing to act without a run scope)."
   [ -d "$2" ] || die "teardown --run-dir '$2' does not exist or is not a directory; refusing to act outside a known run scope."
   if ! path_under "$1" "$2"; then
-    die "refusing to tear down '$1': it is OUTSIDE the current run-dir '$2' (a different run-id may own it, possibly paused on an escalation). Cross-run cleanup is manual (D9)." 5
+    die "refusing to tear down '$1': it is OUTSIDE the current run-dir '$2' (a different run-id may own it, possibly paused on an escalation). Cross-run cleanup is manual (D9)." "$EX_OUT_OF_RUN"
   fi
 }
 
@@ -508,11 +583,11 @@ cmd_teardown_task() {
   # Fail-closed: no --owned-file (ledger-less) while the branch exists → exit 3.
   if branch_exists "$branch"; then
     if [ -z "$owned_file" ]; then
-      die "teardown-task: no --owned-file ledger supplied but branch '$branch' exists — refusing to tear down without ownership proof. Supply --owned-file, or record the branch as owned (record-as-owned), or delete it manually." 3
+      die "teardown-task: no --owned-file ledger supplied but branch '$branch' exists — refusing to tear down without ownership proof. Supply --owned-file, or record the branch as owned (record-as-owned), or delete it manually." "$EX_FOREIGN"
     fi
     load_owned_file "$owned_file"
     if ! owned_has "$branch"; then
-      die "teardown-task: branch '$branch' is not recorded in the owned-file ledger '$owned_file' — refusing to tear down a foreign or unrecorded ref (F09). Record it as owned or delete it manually." 3
+      die "teardown-task: branch '$branch' is not recorded in the owned-file ledger '$owned_file' — refusing to tear down a foreign or unrecorded ref (F09). Record it as owned or delete it manually." "$EX_FOREIGN"
     fi
   fi
 
@@ -598,11 +673,11 @@ cmd_teardown_phase() {
   int_branch_check="integration/$slug/phase-$num"
   if branch_exists "$int_branch_check"; then
     if [ -z "$owned_file" ]; then
-      die "teardown-phase: no --owned-file ledger supplied but integration branch '$int_branch_check' exists — refusing to tear down without ownership proof. Supply --owned-file, or record the branch as owned, or delete it manually." 3
+      die "teardown-phase: no --owned-file ledger supplied but integration branch '$int_branch_check' exists — refusing to tear down without ownership proof. Supply --owned-file, or record the branch as owned, or delete it manually." "$EX_FOREIGN"
     fi
     load_owned_file "$owned_file"
     if ! owned_has "$int_branch_check"; then
-      die "teardown-phase: integration branch '$int_branch_check' is not recorded in the owned-file ledger '$owned_file' — refusing to tear down a foreign or unrecorded integration branch (F09). Record it as owned or delete it manually." 3
+      die "teardown-phase: integration branch '$int_branch_check' is not recorded in the owned-file ledger '$owned_file' — refusing to tear down a foreign or unrecorded integration branch (F09). Record it as owned or delete it manually." "$EX_FOREIGN"
     fi
   fi
 
@@ -621,7 +696,7 @@ cmd_teardown_phase() {
     # If path_under fails (should be impossible with the formula above, but
     # defensive), refuse rather than silently skipping.
     if ! path_under "$refinery_path" "$run_wt_scope"; then
-      die "teardown-phase: computed _refinery path '$refinery_path' is outside the run-scope '$run_wt_scope' — refusing to reap." 5
+      die "teardown-phase: computed _refinery path '$refinery_path' is outside the run-scope '$run_wt_scope' — refusing to reap." "$EX_OUT_OF_RUN"
     fi
     # Reap by path regardless of what branch _refinery is on (or whether it is
     # detached). `remove_worktree` is branch-agnostic.
@@ -660,7 +735,7 @@ cmd_teardown_phase() {
   int_branch="integration/$slug/phase-$num"
   if branch_exists "$int_branch"; then
     git branch -D "$int_branch" >/dev/null 2>&1 \
-      || die "teardown-phase: could not delete branch '$int_branch' (still checked out? ensure _refinery is reaped first via --worktree-root)." 1
+      || die "teardown-phase: could not delete branch '$int_branch' (still checked out? ensure _refinery is reaped first via --worktree-root)."
   fi
 }
 
@@ -757,7 +832,7 @@ cmd_land_advance() {
   pre_push_origin_rc=0
   pre_push_origin="$(git ls-remote origin "refs/heads/$working" | cut -f1)" || pre_push_origin_rc=$?
   if [ "$pre_push_origin_rc" -ne 0 ]; then
-    die "land-advance: could not read the origin tip of '$working' (git ls-remote failed, rc=$pre_push_origin_rc — network/remote error); refusing to treat a failed readback as a first land. Escalate." 3
+    die "land-advance: could not read the origin tip of '$working' (git ls-remote failed, rc=$pre_push_origin_rc — network/remote error); refusing to treat a failed readback as a first land. Escalate." "$EX_FOREIGN"
   fi
 
   if [ -z "$pre_push_origin" ]; then
@@ -784,7 +859,7 @@ cmd_land_advance() {
       # primitive). Escalating a benign already-landed is harmless — the work is on
       # origin; the operator confirms via the escalation-completion path — and
       # never masks a real phantom nor reports a land that did not advance.
-      die "land-advance: <new-sha> ($new_sha) equals the pre-push origin tip — the --no-ff merge produced no new commit; the integration branch had nothing ahead of '$working'; refusing to report a land that did not advance." 3
+      die "land-advance: <new-sha> ($new_sha) equals the pre-push origin tip — the --no-ff merge produced no new commit; the integration branch had nothing ahead of '$working'; refusing to report a land that did not advance." "$EX_FOREIGN"
     fi
     # ALREADY LANDED: origin holds <new-sha> but the local follower LAGS or is
     # ABSENT — an interrupted prior attempt pushed <new-sha> before the follower
@@ -885,7 +960,7 @@ cmd_ensure_refinery_worktree() {
       # modifications only (-uno); untracked files (e.g. .war-task) are safe.
       if [ -n "$(git -C "$wt_path" status --porcelain -uno 2>/dev/null)" ]; then
         # (d) DIRTY tree -> FAIL LOUD. Never reset, never destroy work.
-        die "ensure-refinery-worktree: worktree at '$wt_path' is not on the integration branch '$int_branch' and has uncommitted tracked-file changes — refusing to switch (would destroy work). Clean or stash changes first." 6
+        die "ensure-refinery-worktree: worktree at '$wt_path' is not on the integration branch '$int_branch' and has uncommitted tracked-file changes — refusing to switch (would destroy work). Clean or stash changes first." "$EX_WRONG_BRANCH"
       fi
       # (c) CLEAN tree, detached or on a different branch -> re-attach.
       git -C "$wt_path" switch "$int_branch" >/dev/null 2>&1 \
@@ -901,7 +976,7 @@ cmd_ensure_refinery_worktree() {
     if [ -e "$wt_path" ]; then
       if ! dir_is_empty "$wt_path"; then
         # (f) Non-empty unregistered dir -> FAIL LOUD.
-        die "refusing to provision refinery worktree at '$wt_path': a non-empty, unregistered directory already exists there. Move or remove it by hand (D7)." 4
+        die "refusing to provision refinery worktree at '$wt_path': a non-empty, unregistered directory already exists there. Move or remove it by hand (D7)." "$EX_DIRTY_UNREG"
       fi
       # Empty dir: git worktree add creates the leaf; clear the empty placeholder.
       rmdir "$wt_path" 2>/dev/null || true
@@ -961,7 +1036,7 @@ cmd_ensure_publication_worktree() {
       # modifications only (-uno); untracked files (e.g. .war-task) are safe.
       if [ -n "$(git -C "$wt_path" status --porcelain -uno 2>/dev/null)" ]; then
         # (d) DIRTY tree -> FAIL LOUD. Never reset, never destroy work.
-        die "ensure-publication-worktree: worktree at '$wt_path' is not on the working branch '$work_branch' and has uncommitted tracked-file changes — refusing to switch (would destroy work). Clean or stash changes first." 6
+        die "ensure-publication-worktree: worktree at '$wt_path' is not on the working branch '$work_branch' and has uncommitted tracked-file changes — refusing to switch (would destroy work). Clean or stash changes first." "$EX_WRONG_BRANCH"
       fi
       # (c) CLEAN tree, detached or on a different branch -> re-attach.
       git -C "$wt_path" switch "$work_branch" >/dev/null 2>&1 \
@@ -977,7 +1052,7 @@ cmd_ensure_publication_worktree() {
     if [ -e "$wt_path" ]; then
       if ! dir_is_empty "$wt_path"; then
         # (f) Non-empty unregistered dir -> FAIL LOUD.
-        die "refusing to provision publication worktree at '$wt_path': a non-empty, unregistered directory already exists there. Move or remove it by hand (D7)." 4
+        die "refusing to provision publication worktree at '$wt_path': a non-empty, unregistered directory already exists there. Move or remove it by hand (D7)." "$EX_DIRTY_UNREG"
       fi
       # Empty dir: git worktree add creates the leaf; clear the empty placeholder.
       rmdir "$wt_path" 2>/dev/null || true
@@ -1019,7 +1094,7 @@ cmd_remove_publication_worktree() {
   if worktree_registered "$wt_path"; then
     if [ -d "$wt_path" ] && [ -n "$(git -C "$wt_path" status --porcelain -uno 2>/dev/null)" ]; then
       # DIRTY tree -> escalate. NEVER --force away uncommitted tracked work.
-      die "remove-publication-worktree: worktree at '$wt_path' has uncommitted tracked-file changes — refusing to remove it (never force; escalate for inspection instead). Commit or discard the changes by hand." 6
+      die "remove-publication-worktree: worktree at '$wt_path' has uncommitted tracked-file changes — refusing to remove it (never force; escalate for inspection instead). Commit or discard the changes by hand." "$EX_WRONG_BRANCH"
     fi
     # CLEAN -> plain remove (NO --force). The branch ref is NEVER touched, so a
     # committed-but-unpushed docs commit on the working branch survives.
@@ -1085,7 +1160,7 @@ cmd_resolve_working_branch() {
       printf '%s\n' "$resolved"
       return 0
     fi
-    die "resolve-working-branch: dedicated branch '$resolved' already exists and is not owned by this run; refusing to reuse or overwrite it (see ADR 0003). Delete the stale ref or record it as owned." 3
+    die "resolve-working-branch: dedicated branch '$resolved' already exists and is not owned by this run; refusing to reuse or overwrite it (see ADR 0003). Delete the stale ref or record it as owned." "$EX_FOREIGN"
   fi
 
   # Absent -> create at the desired branch's tip (checked out nowhere), then

@@ -2168,6 +2168,147 @@ expect "remove dirty: worktree still on the working branch" \
 expect "remove dirty: branch ref left INTACT" \
   "$BRSHA7" "$(git -C "$RP7" rev-parse "$WORKB" 2>/dev/null)"
 
+# ===========================================================================
+# Task 1.4 — (E) exit-code catalogue, (F) ensure-exclude <repo-dir>,
+#            (G) --reclaim-empty-orphan. End states 5, 6, 7 with delete-and-trace.
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# End state 5 (E): structural grep assertion — every coded `die` uses an EX_*
+# constant; NO `die "…" <numeric-literal>` survives outside the catalogue
+# definitions. Delete-and-trace: reverting any conversion back to a bare number
+# re-introduces a `die "…" <n>` line and fails this assertion.
+# ---------------------------------------------------------------------------
+n=$((n + 1))
+# A `die` whose LAST token before EOL is a bare integer (the exit code). The
+# catalogue lines themselves are `readonly EX_*=<n>`, never `die "…" <n>`, and
+# the doc comment's example is `die "…" 3` INSIDE a comment (leading `#`), so
+# anchor the match to a real statement: a line whose first non-space is `die`
+# or `|| die` (never `#`).
+BARE_CODED_DIE="$(grep -nE '^[[:space:]]*(\|\| )?die "[^"]*" [0-9]+[[:space:]]*$' "$SCRIPT" || true)"
+if [ -z "$BARE_CODED_DIE" ]; then
+  printf 'ok %d - E: no coded die uses a bare numeric-literal exit (all catalogued)\n' "$n"
+else
+  printf 'FAIL %d - E: bare numeric-literal die(s) survive outside the catalogue:\n%s\n' "$n" "$BARE_CODED_DIE"
+  fails=$((fails + 1))
+fi
+
+# The catalogue names codes 3/4/5/6/7 as readonly EX_* constants.
+for pair in EX_FOREIGN=3 EX_DIRTY_UNREG=4 EX_OUT_OF_RUN=5 EX_WRONG_BRANCH=6 EX_DIVERGED=7; do
+  n=$((n + 1))
+  if grep -qE "^readonly $pair\$" "$SCRIPT"; then
+    printf 'ok %d - E: catalogue defines readonly %s\n' "$n" "$pair"
+  else
+    printf 'FAIL %d - E: catalogue missing readonly %s\n' "$n" "$pair"
+    fails=$((fails + 1))
+  fi
+done
+
+# At least one coded die actually references each constant (they are wired, not
+# just declared) and the "any non-zero = halt" surfacing contract is documented.
+n=$((n + 1))
+if grep -qE 'die "[^"]*" "\$EX_FOREIGN"' "$SCRIPT"; then
+  printf 'ok %d - E: coded die references $EX_FOREIGN (catalogue wired)\n' "$n"
+else
+  printf 'FAIL %d - E: no die references $EX_FOREIGN — catalogue declared but unwired\n' "$n"
+  fails=$((fails + 1))
+fi
+n=$((n + 1))
+if grep -qiE 'any non-zero.*halt' "$SCRIPT"; then
+  printf 'ok %d - E: "any non-zero = halt" surfacing contract documented\n' "$n"
+else
+  printf 'FAIL %d - E: surfacing contract ("any non-zero = halt") not documented\n' "$n"
+  fails=$((fails + 1))
+fi
+
+# ---------------------------------------------------------------------------
+# End state 6 (F): ensure-exclude <repo-dir> invoked from a DIFFERENT cwd writes
+# the exclude into <repo-dir>'s git dir; the no-arg form is byte-identical (Case
+# 3 above already covers no-arg). Delete-and-trace: without the positional arg
+# the exclude would land in the caller's cwd git dir (or die: not a git repo).
+# ---------------------------------------------------------------------------
+REX="$(new_repo)"
+REX_EXCL="$REX/.git/info/exclude"
+# A different, unrelated cwd (a plain temp dir, NOT inside REX). Registered for
+# cleanup via new_wt_path's parent trick — reuse new_repo so it is a valid cwd
+# that is definitely not REX.
+OTHERCWD="$(new_repo)"
+code="$( ( cd "$OTHERCWD" && bash "$SCRIPT" ensure-exclude "$REX" ); echo $? )"
+expect "ensure-exclude <repo-dir> from a different cwd exits 0" 0 "$code"
+expect "ensure-exclude <repo-dir>: exclude lands in <repo-dir>'s git dir (.claude/ line)" \
+  "1" "$(grep -c '^\.claude/$' "$REX_EXCL" 2>/dev/null || echo 0)"
+# It must NOT have written into the caller's cwd git dir. (grep -c prints 0 AND
+# exits 1 on no match, so tail -1 normalizes the count without a spurious echo.)
+expect "ensure-exclude <repo-dir>: caller-cwd exclude NOT written" \
+  "0" "$(grep -c '^\.claude/$' "$OTHERCWD/.git/info/exclude" 2>/dev/null | tail -1)"
+# Idempotent from the different cwd, too.
+( cd "$OTHERCWD" && bash "$SCRIPT" ensure-exclude "$REX" ) >/dev/null 2>&1
+expect "ensure-exclude <repo-dir> is idempotent (still exactly one .claude/ line)" \
+  "1" "$(grep -c '^\.claude/$' "$REX_EXCL" 2>/dev/null || echo 0)"
+
+# ---------------------------------------------------------------------------
+# End state 7 (G): --reclaim-empty-orphan two-proof self-heal.
+#   (7a) PROVEN-EMPTY + origin-absent orphan -> deleted and re-cut (exit 0,
+#        now recorded as owned — proving the CREATE path ran, not reuse).
+#   (7b) one UNIQUE commit ahead of base -> exit EX_FOREIGN(3), NOT deleted.
+#   (7c) present on ORIGIN -> exit 3, NOT deleted.
+#   (7d) flag ABSENT -> exit 3, byte-identical default (no delete).
+# Delete-and-trace: reverting the reclaim branch makes (7a) exit 3 (foreign die).
+# ---------------------------------------------------------------------------
+# (7a) empty orphan, no origin, unowned -> reclaim succeeds.
+R7A="$(new_repo)"
+TIP7A="$(git -C "$R7A" rev-parse HEAD)"
+OWN7A="$R7A/owned.txt"; : > "$OWN7A"              # empty ledger: orphan is unowned
+git -C "$R7A" branch integration/myplan/phase-1 "$TIP7A"   # out-of-band orphan == base tip
+# Single invocation: reclaim mutates state (records ownership), so a second run
+# would hit the owned-reuse path and emit no reclaim log — capture code + output
+# together from the ONE run.
+OUT7A="$( ( cd "$R7A" && bash "$SCRIPT" ensure-integration myplan 1 "$TIP7A" --owned-file "$OWN7A" --reclaim-empty-orphan ) 2>&1 )"; C7A=$?
+expect "7a: --reclaim-empty-orphan on a proven-empty origin-absent orphan exits 0" 0 "$C7A"
+expect "7a: reclaim logs the proof (deleting and re-cutting)" \
+  "match" "$(printf '%s' "$OUT7A" | grep -qi 'reclaim' && echo match || echo nomatch)"
+expect "7a: branch re-cut and now RECORDED AS OWNED (create path ran, not reuse)" \
+  "1" "$(grep -c '^integration/myplan/phase-1$' "$OWN7A" 2>/dev/null || echo 0)"
+expect "7a: integration branch still exists after reclaim" \
+  "0" "$(git -C "$R7A" rev-parse --verify -q integration/myplan/phase-1 >/dev/null 2>&1; echo $?)"
+
+# (7b) orphan with a UNIQUE commit ahead of base -> refuse, exit 3, not deleted.
+R7B="$(new_repo)"
+TIP7B="$(git -C "$R7B" rev-parse HEAD)"
+OWN7B="$R7B/owned.txt"; : > "$OWN7B"
+# Build a commit whose parent is the base tip WITHOUT checking out (plumbing).
+TREE7B="$(git -C "$R7B" rev-parse 'HEAD^{tree}')"
+UNIQ7B="$(printf 'unique orphan commit\n' | git -C "$R7B" commit-tree "$TREE7B" -p "$TIP7B")"
+git -C "$R7B" branch integration/myplan/phase-1 "$UNIQ7B"
+code="$(run_in "$R7B" ensure-integration myplan 1 "$TIP7B" --owned-file "$OWN7B" --reclaim-empty-orphan)"
+expect "7b: orphan with a unique commit refuses reclaim (exit 3 EX_FOREIGN)" 3 "$code"
+expect "7b: orphan with a unique commit is NOT deleted (still at UNIQ)" \
+  "$UNIQ7B" "$(git -C "$R7B" rev-parse integration/myplan/phase-1 2>/dev/null)"
+
+# (7c) orphan empty locally but PRESENT ON ORIGIN -> refuse, exit 3, not deleted.
+R7C="$(new_repo)"
+TIP7C="$(git -C "$R7C" rev-parse HEAD)"
+OWN7C="$R7C/owned.txt"; : > "$OWN7C"
+BARE7C="$(mktemp -d 2>/dev/null || mktemp -d -t warbare)"; REPOS="$REPOS $BARE7C"
+git init -q --bare "$BARE7C"
+git -C "$R7C" remote add origin "$BARE7C"
+git -C "$R7C" branch integration/myplan/phase-1 "$TIP7C"      # empty vs base
+git -C "$R7C" push -q origin integration/myplan/phase-1        # publish it
+code="$(run_in "$R7C" ensure-integration myplan 1 "$TIP7C" --owned-file "$OWN7C" --reclaim-empty-orphan)"
+expect "7c: empty orphan PRESENT ON ORIGIN refuses reclaim (exit 3)" 3 "$code"
+expect "7c: origin-present orphan is NOT deleted (still resolves)" \
+  "0" "$(git -C "$R7C" rev-parse --verify -q integration/myplan/phase-1 >/dev/null 2>&1; echo $?)"
+
+# (7d) NO flag on an empty unowned orphan -> byte-identical foreign die, exit 3.
+R7D="$(new_repo)"
+TIP7D="$(git -C "$R7D" rev-parse HEAD)"
+OWN7D="$R7D/owned.txt"; : > "$OWN7D"
+git -C "$R7D" branch integration/myplan/phase-1 "$TIP7D"
+code="$(run_in "$R7D" ensure-integration myplan 1 "$TIP7D" --owned-file "$OWN7D")"
+expect "7d: no --reclaim flag on an unowned orphan exits 3 (byte-identical default)" 3 "$code"
+expect "7d: no-flag orphan is left untouched (not deleted)" \
+  "0" "$(git -C "$R7D" rev-parse --verify -q integration/myplan/phase-1 >/dev/null 2>&1; echo $?)"
+
 # ---------------------------------------------------------------------------
 printf '\n%d/%d cases passed\n' "$((n - fails))" "$n"
 [ "$fails" -eq 0 ] || { printf '%d FAILED\n' "$fails"; exit 1; }
