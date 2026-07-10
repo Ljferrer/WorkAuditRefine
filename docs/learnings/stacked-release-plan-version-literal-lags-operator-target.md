@@ -3,10 +3,10 @@ name: stacked-release-plan-version-literal-lags-operator-target
 metadata:
   node_type: memory
   type: project
-  keywords: [hardcoded bump, stale semver, re-baseline, fallback clause, master moved, next free patch, version mismatch]
-  provenance: agent-unverified
+  keywords: [hardcoded bump, stale semver, re-baseline, fallback clause, master moved, next free patch, version mismatch, gh-preflight, release bump]
+  provenance: code-verified
   slug: stacked-release-plan-version-literal-lags-operator-target
-  phase: provisioning-lifecycle/p3; recurred workflow-template-test-fidelity-sweep/phase-7-t7 (v0.8.6, 2026-07-01); recurred learnings-read-path/phase-2-T5 (v0.14.5, 2026-07-06); recurred war-working-branch-checkout-guard/phase-2-t4 (v0.14.8, 2026-07-06); recurred audit-calibration-and-graduation/phase-2-t3 (v0.14.9, 2026-07-06); recurred target-repo-agnostic-execution/phase-4-p4t1 (v0.14.10, 2026-07-07); recurred diagnosis-preflight-self-confound-gate/p2t1 (v0.14.11, 2026-07-08)
+  phase: provisioning-lifecycle/p3; recurred workflow-template-test-fidelity-sweep/phase-7-t7 (v0.8.6, 2026-07-01); recurred learnings-read-path/phase-2-T5 (v0.14.5, 2026-07-06); recurred war-working-branch-checkout-guard/phase-2-t4 (v0.14.8, 2026-07-06); recurred audit-calibration-and-graduation/phase-2-t3 (v0.14.9, 2026-07-06); recurred target-repo-agnostic-execution/phase-4-p4t1 (v0.14.10, 2026-07-07); recurred diagnosis-preflight-self-confound-gate/p2t1 (v0.14.11, 2026-07-08); recurred github-issue-lifecycle-and-run-bookkeeping-mechanization/phase-2-t2.1 (v0.14.18, 2026-07-08)
   tags:
     - release
     - stacking
@@ -16,7 +16,8 @@ metadata:
   related: "[[release-status-is-replace-slot-not-empty-field]], [[release-bump-slots-canonical-no-badge]], [[version-slots-no-cross-slot-consistency-test]]"
   originSessionId: fab06e87-b8c3-454f-a1d8-ecc9fa41faf6
   created: 2026-06-28
-  provenance: agent-unverified
+  promoted: stacked-release-plan-version-literal-lags-operator-target
+description: "Stacked-release version literal in the plan always lags the live tip at land time — resolve against the worktree baseline, not the plan string. 8 straight clean recurrences; the version-slots.test.mjs guard (landed drift-guards phase) now mechanically catches what audit used to eyeball."
 ---
 
 # Stacked releases: plan version literal lags operator-directed target
@@ -34,3 +35,5 @@ Validated four times: provisioning-lifecycle/p3; workflow-template-test-fidelity
 **Sixth recurrence:** target-repo-agnostic-execution/phase-4-p4t1 (2026-07-07) — trailing release phase ("Release") targeted the next free patch above the phase-4 integration base (both master and the base sat at 0.14.9); auditor confirmed via `git show` at branch head that all four slots moved 0.14.9 → 0.14.10 with no silent no-op, README `## Status` kept the replace-in-place `**0.14.10** — <blurb>` shape (no badge), and the blurb quoted no retired token so no pre-existing absence guard re-tripped. Nit/`note` only. Sixth straight clean resolution.
 
 **Seventh recurrence:** diagnosis-preflight-self-confound-gate/phase-2/p2t1 (2026-07-08) — single-task trailing release phase bumping to 0.14.11 off the phase's own integration tip; audit verdict `approve`, zero findings, zero fix rounds, no escalation. Same self-correcting pattern: the plan's literal target is resolved against the live tip at land time, not hand-authored ahead of stacking. Seventh straight clean resolution — this lesson is now load-bearing precedent, not a live risk: a trailing single-task release phase with an `approve`/no-findings audit on the first pass is the expected steady state, not worth flagging in future audits unless a slot actually mismatches.
+
+**Eighth recurrence (code-verified):** github-issue-lifecycle-and-run-bookkeeping-mechanization/phase-2/t2.1 (2026-07-08, landed branch `dev/2026-07-08-github-issue-lifecycle-and-run-bookkeeping-mechanization`) — the plan's authoring-time baseline literal was `0.14.14` (stated non-authoritative in the plan slice itself: "earlier campaign plans will have advanced it"); live tip immediately before this task was `0.14.17` (master commit `034b280`); the task correctly resolved to `0.14.18` across all four slots. Directly verified: `.claude-plugin/plugin.json` reads `0.14.18` at worktree `.claude/worktrees/2026-07-09-gh-lifecycle/p2-t2.1`. Gate-audit verdict `approve`, single informational Nit confirming alignment (`plan_ref`: "The four release slots move together to the resolved next patch"), zero findings, zero fix rounds. Notably this is the **first recurrence after the mechanical guard landed** ([[version-slots-no-cross-slot-consistency-test]], `skills/war/assets/version-slots.test.mjs`, drift-guards-for-mirrored-and-asserted-facts/t1.1) — the guard now enforces in CI what the audit previously had to eyeball each time, so this pattern can be considered closed as a per-phase audit-attention item going forward; only escalate if a slot actually mismatches or the guard test itself is found removed/weakened.
