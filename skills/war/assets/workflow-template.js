@@ -392,6 +392,19 @@ const isSplit    = seats => seats.some(s => s.verdict === 'approve') && seats.so
 // ponytail: applied at the worker-dispatch sites in T2 (not dead code — defined-but-not-yet-emitted-plan-slice-pattern)
 const blockedReason = r => !r ? 'worker returned no result'
   : (r.status === 'blocked' ? (r.blocked_reason || 'worker returned no result') : null)
+// Path contract (spec §9 / criterion 10). General workflow agents are unconfined by design — the confined
+// war-worker main-checkout write is already scope-hook-denied. As a workflow-authoring convention backed by
+// ONE assertion (not a new hook), every ABSOLUTE path a worker reports in files_changed must sit under its
+// injected worktree root (the `.claude/worktrees/<name>/` segment). A relative path is worktree-relative by
+// the cd contract and passes; an absolute path OUTSIDE the worktree is the main-checkout footgun
+// (edits-land-in-main-not-session-worktree) and fails loud here rather than silently landing off-worktree.
+const assertReportedPathsInWorktree = (files, worktree) => {
+  for (const f of (files || [])) {
+    if (typeof f === 'string' && f.startsWith('/') && f !== worktree && !f.startsWith(worktree + '/')) {
+      throw new Error(`worker path-contract violation: reported file "${f}" is an absolute path outside the task worktree ${worktree} — a write outside .claude/worktrees/<name>/ escapes the isolated checkout`)
+    }
+  }
+}
 const nextWave   = () => tasks.filter(t => !done.has(t.id) && (t.deps || []).every(d => succeeded.has(d)))
 
 // Force-with-lease carve-out (ADR 0012). ONE canonical sentence, mirrored VERBATIM in
@@ -468,7 +481,7 @@ const reattachClause = refineryP =>
 // initial merge-task prompt, the floor-retry re-merge prompt, THE LAND PROMPT, and agents/war-refiner.md
 // (both-surfaces rule, same commit). baseDesc names the per-site classification base.
 const classificationClause = (refineryP, baseDesc) =>
-  `\nGATE-FAILURE CLASSIFICATION (spec §6 / ADR 0019 — on gate failure, BEFORE returning gate_failed): re-run ONLY the failing gate at the classification base — ${baseDesc} — by detaching _refinery there (\`git -C ${refineryP} checkout --detach <that base>\`), re-running the failing gate, then RE-ATTACHING _refinery to ${ph.integrationBranch} before you return (\`git -C ${refineryP} checkout ${ph.integrationBranch}\`). Set gate_failure_class: (1) the base is RED with the SAME failing identifiers ⇒ 'baseline'; (2) the base is GREEN AND the failure does NOT reproduce on a second run at the task tip in a FRESH environment (fresh TMPDIR/shell) ⇒ 'environment' (reproducibility — NOT file-disjointness — is the trigger; a diff-disjoint but reproducing failure is a normal introduced regression and stays 'introduced'); (3) otherwise ⇒ 'introduced'. This is JUDGMENT, not parsing — carry the base-run evidence in gate_output UNCURATED. On a 'baseline' classification also report the classified failing identifiers in gate_failing_ids (array) and the classification base sha in gate_base_sha. ABSENT class ⇒ treated as 'introduced' (the permanent fail-safe).\n`
+  `\nGATE-FAILURE CLASSIFICATION (spec §6/§9 / ADR 0019 — on gate failure, BEFORE returning gate_failed): PRECONDITION-MARKER SHORT-CIRCUIT — consult the gate STDERR, not just the TAP stdout: if it carries a recognized precondition marker (e.g. \`REL_GUARD_PRECONDITION_FAILED\`, emitted when a guard's meta-test cannot isolate a clean scratch dir), the gate could not establish its own preconditions ⇒ classify gate_failure_class:'environment' DIRECTLY (never 'introduced'), carry that marker line UNCURATED in gate_output, and skip the base re-run. Otherwise re-run ONLY the failing gate at the classification base — ${baseDesc} — by detaching _refinery there (\`git -C ${refineryP} checkout --detach <that base>\`), re-running the failing gate, then RE-ATTACHING _refinery to ${ph.integrationBranch} before you return (\`git -C ${refineryP} checkout ${ph.integrationBranch}\`). Set gate_failure_class: (1) the base is RED with the SAME failing identifiers ⇒ 'baseline'; (2) the base is GREEN AND the failure does NOT reproduce on a second run at the task tip in a FRESH environment (fresh TMPDIR/shell) ⇒ 'environment' (reproducibility — NOT file-disjointness — is the trigger; a diff-disjoint but reproducing failure is a normal introduced regression and stays 'introduced'); (3) otherwise ⇒ 'introduced'. This is JUDGMENT, not parsing — carry the base-run evidence in gate_output UNCURATED. On a 'baseline' classification also report the classified failing identifiers in gate_failing_ids (array) and the classification base sha in gate_base_sha. ABSENT class ⇒ treated as 'introduced' (the permanent fail-safe).\n`
 
 // gateCaptureClause (D5): the merge-task gate-output capture directive — mirrored into the initial
 // merge-task prompt AND the floor-retry re-merge prompt (both-surfaces rule; agents/war-refiner.md step 7
@@ -694,6 +707,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       { agentType: NS + 'war-worker', phase: 'Work', label: `work:${task.id}`, schema: WORKER_RESULT, ...spawn('worker') })
 
     const why = blockedReason(impl); if (why) return { task, verdict: 'escalate', seats: [], expected: 0, blocked: why }
+    assertReportedPathsInWorktree(impl.files_changed, task.worktree)   // path contract (spec §9): reported abs paths stay under the worktree root
 
     let round = 0, verdict = null, seats = [], expected = 0, blocked = null
     const workerTests = impl && impl.tests ? impl.tests : null

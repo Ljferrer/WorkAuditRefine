@@ -152,6 +152,18 @@ EOF
 fi
 
 # ---------------------------------------------------------------------------
+# VERB EQUIVALENCE CLASS (absence guard) — `checkout | switch`.
+# The re-attach-a-named-branch equivalence class covered by the git-surface
+# absence checks below. Both verbs re-attach a working branch (the failure the
+# detached-land constraint forbids), so BOTH must be scanned, not just one — a
+# bare `switch origin/<branch>` is exactly as forbidden as a bare
+# `checkout origin/<branch>`. Every verb in the class is scanned: `checkout`
+# (ABSENCE CHECK 2) and `switch` (ABSENCE CHECK 3), each requiring `--detach`.
+# MAINTENANCE: if git grows another verb that re-attaches a named branch, add
+# it to BOTH this comment AND a mirroring ABSENCE CHECK below — the class, not
+# any single instance, is what's guarded (CONTEXT.md "Verb equivalence class
+# (absence guard)").
+# ---------------------------------------------------------------------------
 # ABSENCE CHECK 2: the live surface must NOT instruct the Refinery to
 # `git checkout <working-branch>` (by name, non-detached) in a land context.
 # The correct form is `--detach` (spec §5.3). The forbidden token:

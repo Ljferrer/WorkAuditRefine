@@ -14,9 +14,18 @@
 #  the task-worktree cwd, exactly like assert-test-in-diff.sh.)
 #
 # Diff = `git diff --name-status <base>...<branch>` (three-dot symmetric diff).
-# ADDED (`A`) and RENAME-TARGET (`R`) paths only — deletions and pure
-# modifications never flag (removing a file a Dockerfile still COPYs is a
-# *build* failure the docker gate or CI catches, not a packaging-floor concern).
+# ADDED (`A`), RENAME-TARGET (`R`), and COPY-TARGET (`C`) paths only — deletions
+# and pure modifications never flag (removing a file a Dockerfile still COPYs is
+# a *build* failure the docker gate or CI catches, not a packaging-floor concern).
+#
+# SCOPE RATIFICATION (ADR 0017 addendum): Added/Renamed/Copied-only is the
+# INTENDED scope, not an oversight — this floor exists to catch the enumerated-
+# COPY drift where a *new* file is born beside COPY'd siblings but nobody adds it
+# to the image. A Modified or Deleted packaging artifact that breaks the image
+# (an edited/removed file a Dockerfile still enumerates) surfaces as a docker
+# *build* failure — the opt-in docker gate / CI's concern, not this floor's. A
+# purely-Modified diff therefore exits 0 by design. See the dated addendum in
+# docs/adr/0017-packaging-floor-docker-gate-ratified-backstops.md.
 #
 # Per added file F, per Dockerfile D (any file matching Dockerfile /
 # Dockerfile.* / *.Dockerfile, excluding node_modules/ and .git/) whose
@@ -115,7 +124,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Diff: A and R target paths only.
+# Diff: A, R, and C target paths only.
 # `--name-status` emits, tab-separated:
 #   A\t<path>                       (added)
 #   M\t<path> / D\t<path>           (modified / deleted — skipped)
