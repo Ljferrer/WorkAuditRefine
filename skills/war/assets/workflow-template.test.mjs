@@ -5038,6 +5038,48 @@ test('T2.1 criterion 4 (D3) — the release-baseline / stacked-lag clause is on 
     'war-auditor.md names the three-dot merge-base baseline literally')
 })
 
+// Task 1.5 — the version-precedence / adjudication clause is on BOTH surfaces (emitted auditPrompt when
+// adjudications are threaded + war-auditor.md standing card), anchored on a STABLE mid-sentence phrase
+// (never a quote-bearing byte literal — the recorded anchor-fragility lesson).
+test('Task 1.5 — the version-precedence adjudication clause is on BOTH surfaces (threaded auditPrompt + war-auditor.md), mid-sentence anchors', async () => {
+  const adj = [{ adjudicated: '0.14.18', supersedes: '0.14.14' }, 'a bare preformatted adjudication row']
+  const { calls } = await runPhase(PROVISION_ARGS({ adjudications: adj }), defaultImpl)
+  const wa = calls.find(c => isAuditor(c) && !c.prompt.includes('execution-evidence'))
+  assert.ok(wa, 'a work-wave audit seat was dispatched')
+  // emitted auditPrompt surface — mid-sentence anchors (no quote bytes)
+  assert.ok(wa.prompt.includes('task instruction > red-team adjudication > plan body literal'),
+    'the threaded auditPrompt carries the version-precedence ordering (mid-sentence anchor)')
+  assert.ok(wa.prompt.includes('a value matching the adjudication is correct even when it differs from the plan body literal'),
+    'the threaded auditPrompt carries the adjudication-wins clause (mid-sentence anchor)')
+  // the threaded rows render below the clause
+  assert.ok(wa.prompt.includes('0.14.18 (supersedes plan literal: 0.14.14)'),
+    'an object row renders adjudicated value + superseded plan literal')
+  assert.ok(wa.prompt.includes('a bare preformatted adjudication row'),
+    'a string row renders verbatim')
+  // standing surface (byte-identical sentence body)
+  assert.ok(auditorMd.includes('task instruction > red-team adjudication > plan body literal'),
+    'war-auditor.md carries the byte-identical version-precedence ordering')
+  assert.ok(auditorMd.includes('a value matching the adjudication is correct even when it differs from the plan body literal'),
+    'war-auditor.md carries the byte-identical adjudication-wins clause')
+})
+
+test('Task 1.5 back-compat — empty/absent adjudications ⇒ NO version-precedence clause and a byte-identical auditPrompt to today', async () => {
+  const seatP = calls => (calls.find(c => isAuditor(c) && !c.prompt.includes('execution-evidence')) || {}).prompt
+  const { calls: absent } = await runPhase(PROVISION_ARGS(), defaultImpl)              // arg entirely absent
+  const { calls: empty } = await runPhase(PROVISION_ARGS({ adjudications: [] }), defaultImpl)  // empty array
+  const pAbsent = seatP(absent), pEmpty = seatP(empty)
+  assert.ok(pAbsent && pEmpty, 'both runs dispatched a work-wave audit seat')
+  assert.ok(!pAbsent.includes('VERSION-PRECEDENCE RULE'),
+    'no adjudications ⇒ the version-precedence clause is absent (back-compat)')
+  assert.equal(pEmpty, pAbsent,
+    'an empty adjudications array yields a byte-identical prompt to the arg-absent run')
+  // Delete-and-trace: with adjudications threaded, the same seat DOES carry the clause (proves the
+  // control is meaningful, not vacuously passing because the clause never emits).
+  const { calls: threaded } = await runPhase(PROVISION_ARGS({ adjudications: ['x'] }), defaultImpl)
+  assert.ok(seatP(threaded).includes('VERSION-PRECEDENCE RULE'),
+    'threading a non-empty adjudications array DOES emit the clause (delete-and-trace)')
+})
+
 test('T2.1 criterion 5 (D4) — an INTRA-PHASE-DEP phase: the evidence dispatch re-runs the integrated tip AND one authoritative execution-evidence seat consumes it', async () => {
   // PROVISION_ARGS: t2 deps t1, both superproject ⇒ intra-dep.
   const { calls } = await runPhase(PROVISION_ARGS(), evidenceImpl)
