@@ -635,6 +635,39 @@ prose).
 _Avoid_: freezing a structural count ("differ by exactly one entry", "lists 8 reasons") or a line-number
 reference in narrative prose — it reads authoritative while silently going false.
 
+### Red-team plan-vs-state grading (ADR 0032 / ADR 0033)
+
+**Artifact-kind**:
+The class of artifact `/red-team` is verifying (`impl-plan` / `tdd-plan` / `design-doc` / `prd`), computed
+by the Lead pre-flight and threaded into every probe. Drives whether a claimed-but-absent symbol is a
+deliverable baseline (suppressed) or a precondition failure (a finding). Defaults to `impl-plan` when
+absent — the suppression-safe choice.
+_Avoid_: "plan type", "mode" — and never default to a kind that *un*-suppresses future-work absence;
+`impl-plan` leans safe because the reverse direction re-opens the false-Critical misfire.
+
+**Deliverable-absence**:
+A symbol/test/file the plan *promises to build* whose absence from the current repo is the expected
+pre-execution baseline — never a red-team defect. Carried as the typed `deliverableAbsence` finding flag
+that `classify()`/`verdict()` never count as a blocker (the gate keys on the flag, not on `reality`-string
+NLP). Distinct from a **precondition-missing** anchor (a real finding).
+_Avoid_: "missing code", "gap" — and never conflate it with the retained-findings carve-out (a false
+claim about EXISTING code still blocks).
+
+**Sandbox-escape guard**:
+The deterministic post-run check (`assert-no-repo-escape.sh`, floor exit contract 0/1/2) that no executed
+probe mutated the real repo working tree or pushed a junk remote ref. Runs between the Workflow return and
+the gate; a positive result routes the verdict through the self-confound gate (ADR 0020), never `CLEARED`.
+The hardened `git -C` scope-lock is prevention (Layer 2); this guard is the detection authority (Layer 3).
+_Avoid_: "cleanup", "sandbox jail" — it is detection, not confinement; the agent-type probe jail is a
+recorded non-goal (D6).
+
+**Adjudication (red-team)**:
+An authoritative resolved value (especially a version literal) recorded in the red-team report's
+`## Adjudications` block, superseding the plan body literal. Auditor version-scoring keys on it:
+task instruction > red-team adjudication > plan body literal.
+_Avoid_: "override", "the real version" — the block is written by the grill loop when it patches an
+authoritative value, never mined from arbitrary prose.
+
 ### Guard coverage by equivalence class (ADR 0031)
 
 **Traversal equivalence class**:
