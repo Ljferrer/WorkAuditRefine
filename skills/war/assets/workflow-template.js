@@ -265,7 +265,7 @@ const provisionSource = run.provisionSource || 'none'
 // --- Worktree topology (refiner-owned; ADR 0001/0003) ----------------------
 // Branches are plan-namespaced and worktree PATHS carry the run-id (see the plan's "run-id vs
 // plan-slug" note + provision-worktrees.sh teardown regex `war/<slug>/p<N>-*`). We DERIVE each
-// task's branch/worktree from `planSlug` + pt`runId` here so the refiner's Provision barrier and the
+// task's branch/worktree from `planSlug` + `runId` here so the refiner's Provision barrier and the
 // worker/auditor prompts agree on one set of paths. A task that already carries an explicit
 // branch/worktree (older Lead, or a hand-patched DAG) keeps it — the derivation only fills gaps.
 const planSlug = A.planSlug
