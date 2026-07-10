@@ -35,6 +35,10 @@ const FINDINGS = { type: 'object', required: ['probe', 'kind', 'technique', 'sta
     description: 'A DEFECT (false claim, gap, or needsDecision ambiguity) — NOT a confirmation. Omit claims that check out; a clean probe returns findings:[] with status:"pass".',
     items: { type: 'object', properties: {
     severity: { enum: ['Critical', 'Major', 'Minor'] }, needsDecision: { type: 'boolean' },
+    // deliverableAbsence (ADR 0032): set true ONLY when the "absent" symbol is a plan DELIVERABLE
+    // (mapped by coverage-vs-source to a plan task), not a missing precondition. The gate never
+    // counts a deliverableAbsence finding as a blocker (red-team-gate.mjs classify()).
+    deliverableAbsence: { type: 'boolean' },
     claim: { type: 'string' }, reality: { type: 'string' }, evidence: { type: 'string' },
     fix: { type: 'string' }, planRef: { type: 'string' } } } } } }
 
@@ -47,7 +51,7 @@ const ADVERSARIAL_CONFIRM = 'adversarial-confirm'
 let A
 try { A = typeof args === 'string' ? JSON.parse(args) : (args ?? {}) }
 catch { A = {} }
-const { planFile, repo, sourceSpec = 'none', probes = [], fingerprint, provision = [] } = A
+const { planFile, repo, sourceSpec = 'none', probes = [], fingerprint, provision = [], artifactKind = 'impl-plan' } = A
 
 // Layer 1 — the fingerprint is the deterministic ground truth the gate validates every probe
 // against. The Workflow sandbox has NO filesystem access, so the Lead computes it (Bash) from the
@@ -95,35 +99,64 @@ const scopeLock = (technique) => [
   `The ONLY subject of this red-team is the plan file at ${planFile} (titled "${fingerprint.titleLine}")${sourceSpec !== 'none' ? `, its source spec ${sourceSpec},` : ','} and the repository rooted at ${repo}.`,
   `Do not read, reference, or reason about any file outside ${repo} (other than the plan/spec named above).`,
   technique === 'executed'
-    ? `To inspect or run anything, first copy the repo into a throwaway sandbox (e.g. \`cp -R ${repo} <tmp>\` or \`git -C ${repo} worktree add <tmp>\`) and \`cd\` into that copy — run there only, never from the session cwd, and NEVER mutate ${repo}.${provisionDirective(technique)}`
+    ? `To inspect or run anything, first copy the repo into a throwaway sandbox (e.g. \`cp -R ${repo} <tmp>\` or \`git -C ${repo} worktree add <tmp>\`). The Bash tool RESETS cwd between calls, so NEVER rely on a prior \`cd\` into that copy: use \`git -C <abs-sandbox>\` for every git call and absolute paths throughout, run there only, never from the session cwd, and NEVER mutate ${repo}. NEVER run a bare \`git push\` — a cwd reset can land it against the REAL remote (the recorded cwd-reset escape).${provisionDirective(technique)}`
     : `Restrict every Read / Grep / Glob to paths under ${repo} (plus the plan/spec named above); open nothing else on the machine.`,
   `If the plan you open is NOT titled "${fingerprint.titleLine}", or you find yourself reading another project's files, STOP — you are on the WRONG plan. Re-open ${planFile} and confine yourself to ${repo}.`,
   `In your FINDINGS result you MUST set read_anchor.resolved_path to the ABSOLUTE path of the plan file you actually read and read_anchor.plan_title to its first "# " heading line. This is checked against the expected plan; a mismatch discards your findings.`,
 ].join('\n')
 
-// PRECONDITION-vs-DELIVERABLE preamble (#311). A plan PROPOSES changes; it hasn't run. Analyzed
-// probes were filing the plan's own proposed output (new code/tests/comment edits/version bumps) as
-// "missing" defects — backwards from the skill's purpose (verify the plan CAN be applied, not that it
-// already was). This NARROW rule scopes analyzed probes to PRECONDITIONS while explicitly PRESERVING
-// real findings (missing anchor, false claim about existing code, wrong signature, drifted line,
-// contradiction) — the retained-findings clause is the non-blunting guard (asserted in the test). It
-// is prepended alongside scopeLock to ANALYZED probes only (guarded at the composition site);
-// `executed` probes run artifacts in a sandbox rather than presence-checking, so they never see it.
-const preconditionRule = [
-  'PRECONDITION vs DELIVERABLE — a plan PROPOSES changes; it has not run.',
-  'Verify only that its PRECONDITIONS hold against the live repo:',
-  '  • the anchor / insertion-point text each edit attaches to EXISTS (verbatim);',
-  '  • assumed-existing files, symbols, and signatures are present;',
-  '  • the described edits would apply and compose.',
-  "The plan's PROPOSED new code, new tests, comment edits, and version bumps are its",
-  'DELIVERABLE — they are EXPECTED to be absent from the current repo. NEVER report',
-  'their absence as a finding. Only a missing or changed ANCHOR / PRECONDITION —',
-  'something an edit needs in order to land — is a defect.',
-  // Retained-findings carve-out — the non-blunting guard. The phrase 'false claim about EXISTING
-  // code' is asserted verbatim (single line) by workflow-scaffold.test.mjs (#311 1b): blunting this
-  // rule to a bare "ignore proposed changes" would strip it and turn the RED/GREEN test RED again.
-  'A false claim about EXISTING code, a wrong signature, a drifted line number, or an internal contradiction remains a real finding.',
-].join('\n')
+// FUTURE-WORK RULE (#311, generalized by ADR 0032). A plan PROPOSES changes; it hasn't run. Probes
+// were filing the plan's own proposed output (new code/tests/comment edits/version bumps) as "missing"
+// defects — backwards from the skill's purpose (verify the plan CAN be applied, not that it already
+// was). This artifact-kind-aware rule is prepended alongside scopeLock to EVERY probe (analyzed AND
+// executed) at the runProbe composition site. Two wording variants:
+//   • analyzed — the #311 PRECONDITION-vs-DELIVERABLE presence-check framing (an analyzed probe
+//     inspects, it does not run);
+//   • executed — a FUTURE-WORK-vs-DEFECT framing (an executed probe RUNS artifacts in a sandbox
+//     rather than presence-checking; a claimed-but-unbuilt symbol/test/file is the expected baseline).
+// For a `tdd-plan`, a shipped test that runs RED before its implementation lands is status:"pass",
+// never a defect. Both variants PRESERVE the retained-findings carve-out (missing anchor, false claim
+// about EXISTING code, wrong signature, drifted line, contradiction still block) — the non-blunting
+// guard asserted verbatim by workflow-scaffold.test.mjs (#311 1b + ADR 0032). The artifactKind value
+// is interpolated so it appears in every emitted probe prompt (spec criterion 1). absent kind ⇒
+// 'impl-plan' (the suppression-safe default).
+const futureWorkRule = (technique, artifactKind) => {
+  const tdd = artifactKind === 'tdd-plan'
+  const carveOut =
+    'A false claim about EXISTING code, a wrong signature, a drifted line number, or an internal contradiction remains a real finding.'
+  // deliverableAbsence self-tag: the gate honors this flag to demote an expected-absence finding.
+  const absenceFlag =
+    'If you nonetheless surface an expected-absence finding (the "absent" symbol is a plan DELIVERABLE mapped by the coverage-vs-source lens to a plan task), set that finding\'s deliverableAbsence:true so the gate scores it as expected work, never a blocker.'
+  if (technique === 'analyzed') {
+    return [
+      `PRECONDITION vs DELIVERABLE (artifact kind: ${artifactKind}) — a plan PROPOSES changes; it has not run.`,
+      'Verify only that its PRECONDITIONS hold against the live repo:',
+      '  • the anchor / insertion-point text each edit attaches to EXISTS (verbatim);',
+      '  • assumed-existing files, symbols, and signatures are present;',
+      '  • the described edits would apply and compose.',
+      "The plan's PROPOSED new code, new tests, comment edits, and version bumps are its",
+      'DELIVERABLE — they are EXPECTED to be absent from the current repo. NEVER report',
+      'their absence as a finding. Only a missing or changed ANCHOR / PRECONDITION —',
+      'something an edit needs in order to land — is a defect.',
+      tdd
+        ? 'For a tdd-plan, a shipped test that is RED before its implementation lands is the EXPECTED baseline (status:"pass"), never a defect.'
+        : '',
+      carveOut,
+      absenceFlag,
+    ].filter(Boolean).join('\n')
+  }
+  // executed variant — the probe RUNS artifacts in a throwaway sandbox.
+  return [
+    `FUTURE WORK vs DEFECT (artifact kind: ${artifactKind}) — a plan PROPOSES changes; it has not run.`,
+    'For an impl-plan or tdd-plan, a claimed-but-unbuilt symbol, test, or file is the EXPECTED',
+    'deliverable baseline — never a finding merely because it is not yet present in the sandbox.',
+    tdd
+      ? 'For a tdd-plan, a shipped test that runs RED before its implementation lands is status:"pass", not a defect.'
+      : '',
+    carveOut,
+    absenceFlag,
+  ].filter(Boolean).join('\n')
+}
 
 const SPINE = [
   { name: 'claims-vs-reality', kind: 'spine', technique: 'analyzed',
@@ -149,10 +182,10 @@ const allProbes = [...spine, ...probes]
 log(`Red-teaming ${planFile}: ${allProbes.length} probe(s)`)
 
 // Probe (stage 1) + adversarial-confirm (stage 2) as named stages so a dropped probe can be retried.
-// preconditionRule rides alongside scopeLock but ONLY for analyzed probes (#311) — executed probes
-// run the plan's artifacts in a sandbox, so a presence-check carve-out is inert/misleading for them.
+// futureWorkRule rides alongside scopeLock on EVERY probe (analyzed AND executed) — the technique
+// argument selects the presence-check (analyzed) vs future-work-vs-defect (executed) wording variant.
 const runProbe = (p) => agent(
-  `${scopeLock(p.technique)}${p.technique === 'analyzed' ? `\n\n${preconditionRule}` : ''}\n\n${p.prompt}\n\nReturn ONLY the FINDINGS object (probe="${p.name}", kind="${p.kind}", technique="${p.technique}"). Prove any failure with reproduced evidence; never assert. Set needsDecision:true on any finding that is an ambiguity with more than one non-equivalent resolution — a hole only the user can settle. Only record a finding for an actual problem — a false claim, a gap, or an ambiguity (needsDecision). If a claim checks out, do NOT record it. A fully-clean probe returns status:"pass" with findings:[].`,
+  `${scopeLock(p.technique)}\n\n${futureWorkRule(p.technique, artifactKind)}\n\n${p.prompt}\n\nReturn ONLY the FINDINGS object (probe="${p.name}", kind="${p.kind}", technique="${p.technique}"). Prove any failure with reproduced evidence; never assert. Set needsDecision:true on any finding that is an ambiguity with more than one non-equivalent resolution — a hole only the user can settle. Only record a finding for an actual problem — a false claim, a gap, or an ambiguity (needsDecision). If a claim checks out, do NOT record it. A fully-clean probe returns status:"pass" with findings:[].`,
   { label: `probe:${p.name}`, phase: 'Probe',
     agentType: p.technique === 'analyzed' ? 'Explore' : undefined, schema: FINDINGS })
 
