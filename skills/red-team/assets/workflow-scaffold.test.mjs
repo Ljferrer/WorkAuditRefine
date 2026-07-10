@@ -144,6 +144,21 @@ test('executed probes are told to work in a COPY of repo; analyzed probes are re
   assert.match(byLabel['probe:claims-vs-reality'], /Restrict every Read/, 'analyzed probe is read-restricted to repo')
 })
 
+test('executable-proof extracts + runs plan-authored requiresTest:false grep guards and pins the sentence-case default', async () => {
+  const a = baseArgs()
+  const { prompts } = await runScaffold(a, passResult(a))
+  const byLabel = Object.fromEntries(prompts.map(p => [p.opts.label, p.prompt]))
+  const ep = byLabel['probe:executable-proof']
+  // The tightened gist must name the requiresTest:false verification-command class explicitly.
+  assert.match(ep, /requiresTest:false/, 'executed probe must name requiresTest:false verification commands')
+  // It must exercise the re-cased / re-positioned landing site (the sentence-case false-negative class).
+  assert.match(ep, /re-cased|re-positioned/i, 'executed probe must re-run the guard against a re-cased/re-positioned site')
+  assert.match(ep, /false-negate|false-negative/i, 'executed probe must flag a guard that false-negates on drift')
+  // It must state the compliant default: case-insensitive grep anchored on a stable mid-sentence token.
+  assert.match(ep, /grep -rin/, 'executed probe must state the case-insensitive grep -rin default')
+  assert.match(ep, /mid-sentence token/, 'executed probe must require anchoring on a stable mid-sentence token')
+})
+
 test('FINDINGS schema requires read_anchor (Layer 3 attestation is mandatory)', async () => {
   const a = baseArgs()
   const { prompts } = await runScaffold(a, passResult(a))

@@ -53,6 +53,14 @@ Per group, one agent authors a war-shaped design spec using the `/war-strategy` 
 consumed by reference to `skills/war-strategy/SKILL.md` §2, **never forked**. Written to
 `docs/specs/YYYY-MM-DD-<slug>-design.md`; each spec lists the issue numbers it addresses.
 
+**Grep is a floor, not a ceiling.** Any token-sweep instruction the spec emits (a "grep `<token>`,
+handle every match" step) is a completeness *floor*, not a *ceiling* — same-meaning siblings encode
+the concept in different words and survive the sweep silently. So every such step the survey writes
+into a spec MUST carry the mandatory **manual same-scope title/comment survey** note: after the grep,
+hand-scan the target file's same-scope tests/comments and list each straggler as a survey-derived
+correction. Carry this from the first authoring surface here, not only at `/war-strategy` plan
+conversion.
+
 ### 5. Completeness critic
 
 A final agent verifies every swept issue is claimed by **exactly one** spec or explicitly

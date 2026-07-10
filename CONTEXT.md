@@ -635,6 +635,44 @@ prose).
 _Avoid_: freezing a structural count ("differ by exactly one entry", "lists 8 reasons") or a line-number
 reference in narrative prose — it reads authoritative while silently going false.
 
+### Live artifacts over stack-fragile literals (ADR 0030)
+
+**Construct locator**:
+A plan/prompt reference by enclosing symbol or comment header (plus a change description) rather than a
+`:N-M` line range — stable across integration churn because the symbol name survives the serial merge
+queue where a line number does not.
+_Avoid_: a raw line-range literal (stale on any prior land); reserve `:N-M` for a flat config file with
+no named construct, and then qualify it as approximate against a named base sha.
+
+**Stack-fragile literal**:
+Any plan/prompt value pinned to the drafting base that rots the instant an earlier stacked task lands —
+line ranges, `*.test.sh` enumerations, suite counts, mirrored-constant final arrays, hardcoded version
+bumps, flat-key abbreviations of nested paths. The authoritative form is always the live artifact (the
+construct, the self-discovery gate, the canonical export, the worktree baseline).
+_Avoid_: restating a value the live artifact already carries — reference the artifact and let the drift
+guard or the self-discovery gate be the arbiter.
+
+**Defined-but-not-yet-emitted slice**:
+A foundation task's constant/field/prose-ref added *before* its emitter task lands; benign **iff** the
+plan carries a "produced in Task N" cross-link. Without the link, auditors misgrade the inert slice as
+dead code or an omission.
+_Avoid_: shipping a mirrored constant/schema/prose-ref whose emitter is a later task without the
+cross-link — and, as an auditor, holding an inert slice that the cross-link explains.
+
+**Grep as floor**:
+A token sweep is a completeness *floor*, not a *ceiling*: it must be backed by a manual same-scope
+title/comment survey, because same-meaning siblings encode the concept in different words and survive
+the sweep silently. (Extends the existing floor/ceiling language.)
+_Avoid_: treating "grep X, handle every match" as a completeness proof; call out each straggler the
+manual survey catches as a survey-derived correction.
+
+**Stale-looking-but-correct calibration**:
+The auditor discipline of demoting a plan↔candidate divergence to Nit **only** when the live artifact
+confirms benignity — done once per pattern in the standing auditor surface rather than re-litigated per
+seat, per pass.
+_Avoid_: a blanket amnesty — a demonstrably-untrue claim still blocks; the demotion is gated on
+live-artifact confirmation, never unconditional.
+
 ### Memory
 
 **Memory provenance**:

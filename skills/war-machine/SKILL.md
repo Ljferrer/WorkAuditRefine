@@ -12,6 +12,15 @@ yourself") — consume [`skills/war-strategy/SKILL.md`](../war-strategy/SKILL.md
 reference, **never fork the templates**. You stop at plans + roadmap: `/war-campaign` is a ~12+
 hour human-launched commitment and is never auto-invoked.
 
+**Release-phase directive.** When a drafted plan carries a trailing release phase, the drafter
+emits the **directive form**, never a resolved `v<semver>` literal: *"bump all four slots to the
+next free patch above the live integration base at land time"* — stacked campaign plans advance
+the base out from under any version string authored early, so a literal always lags the live tip.
+The plan must also **state the expected integration base** it stacks on and the
+**standalone-fallback rule** (a plan run through plain `/war` resolves the next free patch from the
+four slots itself). Reference the four slots by the `/war-strategy` §2 next-free-patch convention
+rather than restating a target semver.
+
 ## Invocation
 
 ```
