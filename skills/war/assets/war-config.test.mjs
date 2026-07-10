@@ -387,6 +387,25 @@ test('overrides.testPattern defaults to null (today\'s hardcoded floor, byte-ide
   assert.equal(validate({}).valid, true)
 })
 
+// --- overrides.ghUser (gh-preflight expected account, ships null — C1) ---
+test('overrides.ghUser defaults to null (no real handle in any committed file, C1)', () => {
+  assert.equal(DEFAULTS.overrides.ghUser, null)
+  assert.equal(fillDefaults({}).overrides.ghUser, null)
+})
+
+test('overrides.ghUser accepts a handle string', () => {
+  const r = validate({ overrides: { ghUser: 'someuser' } })
+  assert.equal(r.valid, true, `ghUser string should validate; errors: ${r.errors.join('\n')}`)
+})
+
+test('overrides.ghUser non-string/non-null rejected with an error naming the key', () => {
+  for (const bad of [42, true, ['someuser'], { login: 'someuser' }]) {
+    const r = validate({ overrides: { ghUser: bad } })
+    assert.equal(r.valid, false, `ghUser ${JSON.stringify(bad)} must be rejected`)
+    assert.match(r.errors.join('\n'), /overrides\.ghUser/)
+  }
+})
+
 test('overrides.testPattern accepts a glob string (single- and multi-token, glob charclass)', () => {
   for (const p of ['*.test.ts', '*.test.ts *.test.tsx', '*.test.[jt]s', 'src/*.spec.js']) {
     const r = validate({ overrides: { testPattern: p } })

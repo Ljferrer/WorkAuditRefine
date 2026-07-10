@@ -1,63 +1,85 @@
 ---
 name: version-slots-no-cross-slot-consistency-test
-metadata:
+description: "RESOLVED (drift-guards phase, t1.1): version-slots.test.mjs now locks all four release slots in lock-step, fail-closed; also records the heading-anchor extraction gotcha the fix round hit"
+metadata: 
   node_type: memory
-  slug: version-slots-no-cross-slot-consistency-test
-  phase: red-team-verdict-integrity/t4.2 + 7 recurrences (through resume-prec/p2-t4)
   type: project
-  keywords: [partial bump, silent release, manifest mismatch, plugin.json, marketplace.json, release audit, version drift, gate not evidence]
-  tags:
+  provenance: code-verified
+  slug: version-slots-no-cross-slot-consistency-test
+  phase: drift-guards-for-mirrored-and-asserted-facts/t1.1
+  keywords: 
+    - partial bump
+    - silent release
+    - manifest mismatch
+    - plugin.json
+    - marketplace.json
+    - version drift
+    - version-slots.test.mjs
+    - heading anchor
+    - regex extraction
+    - README Status
+  tags: 
     - release
     - version-bump
-    - testing-gap
     - invariant
     - hardening
-    - pre-existing
-  files:
-    - .claude-plugin/plugin.json
-    - .claude-plugin/marketplace.json
+    - resolved
+  files: 
+    - skills/war/assets/version-slots.test.mjs
     - README.md
-  relates:
+  relates: 
     - "[[release-bump-slots-canonical-no-badge]]"
     - "[[release-status-is-replace-slot-not-empty-field]]"
-    - "[[verify-task-no-op-is-correct-when-already-covered]]"
-  created: 2026-06-26
-  originSessionId: e734fab0-d931-4547-a090-ed30c93e12f8
+    - "[[readme-undersell-guard-couples-doc-prose-to-true-slot-count]]"
+  created: 2026-07-09
+  promoted: version-slots-no-cross-slot-consistency-test
+  originSessionId: 68b2ca32-fa05-459c-9ddf-f23ca91a5f40
 ---
 
-# The four canonical version slots have no automated cross-slot consistency test
+# RESOLVED: the four version slots are now locked in lock-step by a dedicated fail-closed test
 
-## The gap (durable, pre-existing)
+**Supersedes the prior "durable, pre-existing gap"** (originally recorded at `red-team-verdict-
+integrity/t4.2` + 7 recurrences through `resume-prec/p2-t4`; repo copy at
+`docs/learnings/version-slots-no-cross-slot-consistency-test.md` uses the older frontmatter shape
+— `metadata.node_type: memory`, no nested `metadata.provenance` field at all — so per the
+recurrence-on-a-repo-lesson rule this is a NEW same-slug local write, not an in-place edit).
 
-Four canonical version slots — `plugin.json#version`, `marketplace.json#metadata.version`,
-`marketplace.json#plugins[0].version`, and `README.md ## Status` — are bumped by convention +
-plan text, NOT by any enforced test. The gate's JSON well-formedness check catches malformed
-JSON but NOT a partial bump where one slot (e.g. `plugins[0].version`) lags the others. A partial
-bump is a silent no-op release from the gate's view: gate green, task approved, manifest internally
-inconsistent. Gap still open as of v0.14.2 — no test parses both JSONs and asserts version equality.
+**What changed (code-verified — `skills/war/assets/version-slots.test.mjs`; verify still present
+before acting):** the gap is closed. `readSlots()` extracts all four slots
+(`plugin.json#version`, `marketplace.json#metadata.version`, `marketplace.json#plugins[0].version`,
+the README `## Status` bold semver token) and asserts each is a well-formed semver (fail-closed:
+`assert.ok(value != null, …)` before the format check, so two independently-`undefined`
+extractions can't pass vacuously against each other). Root is resolved from `import.meta.url`
+(never `process.cwd()` — the WAR subagent cwd is the main repo, not this worktree, and resets
+between Bash calls).
 
-**Corollary (gate is not release evidence):** a green gate does NOT prove a bump occurred — the
-suite has no version-pinning assertion, so it passes identically at any version. Canonical evidence
-is the **diff at the release commit**, not gate output: `git show <sha> -- plugin.json marketplace.json README.md`.
+**A live gotcha this test's own fix round hit (worth recording on its own):** the README `## Status`
+extraction originally anchored on `readme.indexOf('## Status')` — the **first** occurrence of that
+substring in the file, which is actually the backtick-quoted reference to the heading inside the
+`## Releasing` table (`` | `README.md` | the `## Status` line/paragraph | ``), not the heading
+itself. This was benign today only because no bold semver token sits between the table reference
+and the real heading, so extraction still landed on the right value — but it deviated from the
+plan's "extract by construct" instruction and would have silently mis-extracted the moment the
+Releasing prose itself grew a bold semver token before the real heading. **The fix, now in place:**
+anchor on `readme.indexOf('\n## Status')` — the real heading is always newline-prefixed, while
+the table's backtick reference never is. **General pattern:** when a heading name is *also*
+referenced in prose elsewhere in the same doc (a table row describing what the heading contains),
+`indexOf('## Heading')` binds to whichever occurs first in the file, not necessarily the heading —
+require a leading `\n` (or a start-of-line regex, `/^## Heading/m`) to bind to the construct
+itself.
 
-## How to apply (manual protocol, until the test exists)
+Also fixed in the same task: the README `## Releasing` prose was updated from "three
+version-of-truth files" to "all four version slots across three files" so the test's own subject
+matter (the undersell phrase) doesn't itself go stale — see
+[[readme-undersell-guard-couples-doc-prose-to-true-slot-count]].
 
-During any release audit:
-1. Read `plugin.json` — note `version`.
-2. Read `marketplace.json` — confirm `metadata.version` AND `plugins[0].version` both match
-   (the second marketplace slot is the common single-slot-update footgun).
-3. Grep `README.md ## Status` — confirm the version string appears (replace-in-place, no badge).
-4. Record a Nit if any slot mismatches; record HARD only if `plugins[0].version` was left at the
-   prior release value (a real silent-partial-bump, not a cosmetic gap).
-
-Note: release tasks frequently exhibit the stale-tip pattern (gate ran at the pre-release parent),
-so verify the slots by direct Read at the release commit, not at the gate-HEAD tip.
-
-## Suggested hardening (track separately, not a release blocker)
-
-A small gate-level `*.test.mjs` (no framework): read both JSON files, assert
-`metadata.version === plugins[0].version === plugin.json.version`, and assert `README.md ## Status`
-contains the same version string. Runs on every `node --test`.
-
-Relates to [[release-bump-slots-canonical-no-badge]] (canonical bump list + phantom-badge footgun)
-and [[release-status-is-replace-slot-not-empty-field]] (README slot is replace-in-place).
+**First-real-use confirmation (code-verified, gh-issue-lifecycle-and-run-bookkeeping-mechanization
+phase-2/t2.1, 2026-07-08 landed branch):** the very next trailing release-bump task after this
+guard landed exercised it for real — plan-authored baseline was the stale `0.14.14`, live tip
+before the bump was `0.14.17` (commit `034b280`), and the task correctly resolved to `0.14.18`
+across all four slots (verified directly: `.claude-plugin/plugin.json` reads `0.14.18` at worktree
+`.claude/worktrees/2026-07-09-gh-lifecycle/p2-t2.1`). Gate-audit verdict `approve`, zero findings
+beyond an informational Nit confirming alignment. This closes out the long
+[[stacked-release-plan-version-literal-lags-operator-target]] recurrence chain (8 recurrences prior
+to the guard) as no longer worth flagging per-phase — the mechanical test now catches what the
+audit used to have to eyeball.

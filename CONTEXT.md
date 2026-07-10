@@ -754,6 +754,39 @@ against git). A Lead/operator playbook, never template-automated.
 _Avoid_: `resumeFromRunId` for an escalation; letter-suffixed phase ids ("4b"); rewriting the kept
 commits on a retried branch.
 
+### GitHub side-effects
+
+**gh preflight**:
+The pre-batch assertion (`gh-preflight.sh <overrides.ghUser>`) that the active `gh` account is the run's
+`overrides.ghUser`, re-switching on drift (`gh auth switch`) and re-verifying via `gh api user --jq
+.login`, failing loud on an unrecoverable mismatch, so a mid-run account flip never silently drops a
+write batch. Unset `ghUser` ⇒ exit 0 no-op (single-account repos and the shipped default untouched).
+_Avoid_: relying on a once-at-session-start auth check.
+
+**issue-lifecycle floor**:
+The Lead-invoked check (`assert-issues-filed.sh`) that phase epics and task sub-issues named in the
+ledger actually exist on `gh`, and are closed with `status:done` on a landed phase. A hard gate at the
+checkpoint keyed on the ledger's own fields (orthogonal to any plan's `No GitHub issue filed` line);
+issue filing is verified, not doctrinal. Mirrors the `assert-*-in-diff.sh` `0/1/2` exit contract — a `2`
+(gh/ledger/ref error) never collapses into the `1` named route.
+_Avoid_: trusting the ledger's `epic_issue`/`issue` fields as proof of filing.
+
+**acknowledged-stranded**:
+An aftermath report bucket for remote branches an operator has permanently accepted as stranded (content
+landed under rewritten SHAs), recorded in `docs/aftermath/known-stranded.tsv` with a landing PR (or a
+documented PR-less `note`). Suppressed from needs-human, never auto-deleted, the tip-reachable +
+PR-merged deletion bar unchanged. Matched by exact `refs/heads/<ref>` name, never a substring.
+_Avoid_: re-deriving them as fresh needs-human rows every run; treating an allowlist row as a deletion
+license.
+
+**churny shared docs**:
+The pathspec (`docs/plans docs/specs docs/roadmaps`) whose files a stacked branch predictably conflicts
+on against master; snapped to master's canonical copy by `snap-shared-docs.sh` (merge master,
+`checkout --theirs` under the pathspec, byte-identity guard outside it, fast-forward push, never
+`--force`). ADR 0011 stack-and-plow is the primary recurrence reducer; the snap is the residual fallback.
+_Avoid_: rebasing or force-pushing a docs-only conflict; `--theirs`-ing a code-touching doc outside the
+pathspec.
+
 ### Campaigns (multi-plan orchestration)
 
 **Roadmap**:
