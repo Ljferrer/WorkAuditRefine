@@ -69,11 +69,24 @@ for ledger in "$root"/.claude/campaigns/*/ledger.json; do
 done
 [ -n "$candidates" ] || exit 0          # no ledger files at all → silent
 
-# Sort the collected paths newest-first by mtime. `printf | xargs ls -t` keeps
-# `ls` off an empty arg list (which would list the cwd); an empty $candidates
-# already exited above.
-# shellcheck disable=SC2012,SC2046  # ls -t is the portable mtime sort; word-split intentional
-for ledger in $(printf '%s' "$candidates" | xargs ls -t 2>/dev/null); do
+# Read the collected paths into an indexed array (one path per line), then sort
+# them newest-first by mtime with `ls -t "${arr[@]}"`. Passing the paths as
+# distinct array elements — NOT word-splitting an `xargs`/`$(…)` string — is
+# what keeps a campaign dir path containing a SPACE intact: the old
+# `printf | xargs ls -t` idiom split such a path into two bogus args and the
+# ls sort silently dropped the campaign. Indexed arrays + `ls -t "${arr[@]}"`
+# fed through a process-substitution line-read are bash-3.2-safe (a stat-based
+# sort was rejected for BSD/GNU flag divergence). $candidates is non-empty here
+# (the guard above already exited on empty), so `ls` never sees an empty arg
+# list.
+arr=()
+while IFS= read -r f; do
+  [ -n "$f" ] && arr+=("$f")            # skip the trailing blank line
+done <<EOF
+$candidates
+EOF
+# shellcheck disable=SC2012  # ls -t is the portable mtime sort
+while IFS= read -r ledger; do
   is_active "$ledger" || continue
   cid="$(jq -r '.campaign // empty' "$ledger" 2>/dev/null)"
   [ -n "$cid" ] || cid="$(basename "$(dirname "$ledger")")"
@@ -83,7 +96,7 @@ for ledger in $(printf '%s' "$candidates" | xargs ls -t 2>/dev/null); do
   else
     passed_over="$passed_over $cid"  # older active campaigns, named in the banner
   fi
-done
+done < <(ls -t "${arr[@]}" 2>/dev/null)
 
 # No active campaign → silent.
 [ -n "$active_ledger" ] || exit 0
