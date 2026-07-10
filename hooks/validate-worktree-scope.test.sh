@@ -238,6 +238,14 @@ fi
 # misses YAML block-style entries; extract the tools block and scan it.)
 # Strategy: take the tools: line plus any immediately following "- " list lines
 # (block-style YAML list continuation), then check that block for Bash.
+#
+# BLOCK-EXTRACTION REFERENCE IMPLEMENTATION (negation-convention anchor).
+# This awk is the canonical example of the frontmatter *negation* convention:
+# a negation check ("does NOT grant Bash") must extract the full fenced tools
+# block (the `tools:` line PLUS its following `- ` continuation lines) before
+# scanning — never grep a bare `^tools:` header, which sees only the first line
+# and silently misses block-style `- Bash`. Task 1.2's guard-conventions.test.sh
+# meta-guard points here as the PASS reference; keep this block walk intact.
 tools_block="$(printf '%s\n' "$frontmatter" | awk '/^tools:/{found=1; print; next} found && /^- /{print; next} found{exit}')"
 n=$((n + 1))
 if ! printf '%s\n' "$tools_block" | grep -q 'Bash'; then
@@ -309,6 +317,40 @@ expect "war-refiner clean path still allowed (fail-open preserved)" \
 # Regression: main session with a clean (no-..) path remains fail-open.
 expect "main session (no agent_type) clean path still allowed (fail-open preserved)" \
   0 "$(run "$(jq -nc --arg fp "$OUTSIDE_WT" '{"tool_input":{"file_path":$fp}}')")"
+
+# ---------------------------------------------------------------------------
+# Task 1.1: FULL '..' traversal equivalence class — the LEADING-relative
+# (`../etc/foo`) and BARE (`..`) shapes. These have no '/' before the '..', so
+# the old `*/../*|*/..` pair MISSED them (dotdot-pattern-misses-leading-
+# relative-traversal). The widened class `..|../*|*/../*|*/..` catches them.
+# These cases are RED against the old pattern and GREEN after the widening.
+# Covered for a confined role (war-worker) AND the all-agents path (war-refiner
+# + no-agent_type), since the guard is pre-`case "$atype"` (ADR 0002 D5).
+# ---------------------------------------------------------------------------
+
+# Leading-relative `../etc/foo`: confined worker -> deny (exit 2).
+expect "war-worker leading-relative '../' path denied (traversal class)" \
+  2 "$(run "$(mk 'war-worker' "../etc/foo")")"
+
+# Leading-relative `../etc/foo`: refiner (all-agents pre-case) -> deny (exit 2).
+expect "war-refiner leading-relative '../' path denied (pre-case, all agents)" \
+  2 "$(run "$(mk 'war-refiner' "../etc/foo")")"
+
+# Leading-relative `../etc/foo`: no agent_type (main session) -> deny (exit 2).
+expect "main session (no agent_type) leading-relative '../' path denied (pre-case)" \
+  2 "$(run "$(jq -nc '{"tool_input":{"file_path":"../etc/foo"}}')")"
+
+# Bare `..`: confined worker -> deny (exit 2).
+expect "war-worker bare '..' path denied (traversal class)" \
+  2 "$(run "$(mk 'war-worker' "..")")"
+
+# Bare `..`: refiner (all-agents pre-case) -> deny (exit 2).
+expect "war-refiner bare '..' path denied (pre-case, all agents)" \
+  2 "$(run "$(mk 'war-refiner' "..")")"
+
+# Bare `..`: no agent_type (main session) -> deny (exit 2).
+expect "main session (no agent_type) bare '..' path denied (pre-case)" \
+  2 "$(run "$(jq -nc '{"tool_input":{"file_path":".."}}')")"
 
 # Grep assertion: no dead 'warned' variable remains in the hook
 # (printf-json-escaping-vacuous-test-case cleanup, D6 verified-correction).
