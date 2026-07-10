@@ -745,6 +745,45 @@ seat, per pass.
 _Avoid_: a blanket amnesty — a demonstrably-untrue claim still blocks; the demotion is gated on
 live-artifact confirmation, never unconditional.
 
+### Engine ingest guards & provision exit-code contract (ADR 0034)
+
+**Ingest guard**:
+A defensive check at an engine trust boundary (config file, Workflow `args`, session cwd, a relaunch's git
+state) that converts imperfect input into a *named* clean error, never a raw `TypeError` / crash. The
+`overrides` object guard, the args non-null-object guard, and the undefined-render guard are all ingest
+guards.
+_Avoid_: input sanitizer (implies mutation; these reject, not clean).
+
+**Undefined-render guard**:
+The `pt` tagged prompt template's identity check that no interpolated **value** entering a dispatched
+prompt is `undefined`; a missing prompt input throws at build time (before spawn, naming the adjacent
+literal fragment) instead of silently sending garbage to a sub-agent. Checks value identity, never prompt
+text — quoted prose "undefined" can never trip it (revised 2026-07-10, Option B).
+_Avoid_: prompt validator (too broad — this checks one signature).
+
+**Provision exit-code catalogue**:
+The named-constant table in `provision-worktrees.sh` (`EX_FOREIGN=3`, `EX_DIVERGED=7`, …) that is the
+single source of the script's non-zero exit meanings; the surfacing contract is "any non-zero = halt."
+_Avoid_: error codes (undifferentiated from git's own).
+
+**Empty-orphan reclaim**:
+The opt-in, evidence-gated self-heal by which the Provision barrier deletes and re-cuts a half-run's
+orphaned integration branch **only** after proving it carries no unique commits and is absent from origin.
+Distinct from ADR 0021's owned-file-continuity recovery relaunch (which *reuses* a branch carrying landed
+commits).
+_Avoid_: force reclaim, branch cleanup (neither names the two proofs).
+
+**Dispatch kind**:
+The stable `opts.dispatchKind` discriminator (`provision-barrier`, `provision-run`, `polish-worktree`, …)
+that identifies *which* engine dispatch a call is, so handlers/mocks/audits key on it rather than parsing
+`label` prefixes or matching on `phase` alone.
+_Avoid_: dispatch type (collides with `agent_type`).
+
+**Deliberately-unwired marker**:
+The recognized `ponytail:` / `deliberately-unwired:` comment naming *why* a construct is intentionally
+uncalled; the audit lens does not raise dead-code findings against it.
+_Avoid_: dead-code exemption (sounds like a suppression list).
+
 ### Memory
 
 **Memory provenance**:
