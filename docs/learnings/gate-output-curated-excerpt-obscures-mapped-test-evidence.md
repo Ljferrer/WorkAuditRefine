@@ -3,9 +3,9 @@ name: ""
 metadata:
   node_type: memory
   slug: gate-output-curated-excerpt-obscures-mapped-test-evidence
-  phase: probe-findings-contract/t3.1 + dispatched-gate-run-tmpdir-pin-parity/p2-t2 + fix-worker-result-binding/p3-t3 + submodule-inc1/T2 + submodule-inc2/T2 + servitor-provenance-gate-robustness/t1 + auditor-seat-deliberate-choice-comment/t4 + hygiene-sweep/T4 + gate-audit-integration-sha-validation/T1 + issue-422-nit-sweep/p2-t3
+  phase: probe-findings-contract/t3.1 + dispatched-gate-run-tmpdir-pin-parity/p2-t2 + fix-worker-result-binding/p3-t3 + submodule-inc1/T2 + submodule-inc2/T2 + servitor-provenance-gate-robustness/t1 + auditor-seat-deliberate-choice-comment/t4 + hygiene-sweep/T4 + gate-audit-integration-sha-validation/T1 + issue-422-nit-sweep/p2-t3 + audit-gate-verdict-fidelity/t2.1
   type: project
-  keywords: [green-by-deletion, collapse marker, aggregate PASS line, full test output, grep-filtered snippet, per-test tick line, inference chain, skipped=0]
+  keywords: [green-by-deletion, collapse marker, aggregate PASS line, full test output, grep-filtered snippet, per-test tick line, inference chain, skipped=0, gate_log_path, artifact capture, tee to file, structural fix]
   provenance: code-verified
   tags:
     - gate-audit
@@ -15,6 +15,8 @@ metadata:
     - evidence-standard
   files:
     - skills/red-team/assets/workflow-scaffold.test.mjs
+    - skills/war/assets/workflow-template.js
+    - agents/war-refiner.md
   relates:
     - "[[gate-evidence-severity-not-verdict-gates-hard-path]]"
     - "[[auditor-cannot-execute-the-tests-it-must-verify-pass]]"
@@ -55,20 +57,38 @@ inference chain, all conditions required:
   authoring choice → Nit/Minor; suggested fix each time: echo the mapped test's own `✔` line or
   paste a grep-filtered snippet.
 
-**Fix status:** #269 added the "Do NOT curate or excerpt…" clause to the three
-`gate_output`-population prose sites (`workflow-template.js` merge-task prompt ×2,
-`agents/war-refiner.md`). It is scoped to `.test.sh` aggregate-PASS curation and is prompt-only —
-a should-do authoring constraint, not structurally enforced — so the `node --test` suite-summary
-variant remains an open, accepted, non-blocking gap. See
+**Fix status (superseded 2026-07-09, phase audit-gate-verdict-fidelity/t2.1 — verified at
+`agents/war-refiner.md` merge-task step 7 and `skills/war/assets/workflow-template.js`
+`evItems`/evidence-dispatch section):** the prompt-only "Do NOT curate or excerpt…" clause (#269,
+below) is now **structurally replaced** by an artifact-capture mechanism: the refiner tees the
+FULL step-2 gate stdout+stderr to an absolute `<_refinery>/.war/gate-<taskId>.log` file and returns
+that path in `MergeResult.gate_log_path`; the gate-audit seat reads the captured artifact as
+**authoritative** execution evidence and a HARD provably-unrun finding is minted only against the
+file, never a curated inline paste — a missing artifact demotes to SOFT cannot-confirm rather than
+trusting a possibly-curated `gate_output` string. This closes the `node --test` suite-summary gap
+this lesson previously called an "open, accepted, non-blocking gap" **for the artifact-backed
+path** — inline `gate_output` is still read as non-authoritative context when the artifact is
+absent, so the general inference-chain guidance above still applies whenever no artifact exists
+(e.g. an evidence-dispatch failure, which is fail-open by design). The original #269 prompt clause
+history is preserved below for context.
+
+**Fix status (2026-06-26, #269, superseded above):** #269 added the "Do NOT curate or excerpt…"
+clause to the three `gate_output`-population prose sites (`workflow-template.js` merge-task prompt
+×2, `agents/war-refiner.md`). It was scoped to `.test.sh` aggregate-PASS curation and was
+prompt-only — a should-do authoring constraint, not structurally enforced. See
 [[prompt-only-clause-grep-guard-must-tolerate-sentence-case]] for the grep-guard pitfall on that
-clause's own verification.
+clause's own verification (now moot for the artifact path, still relevant to any surviving
+inline-only prose elsewhere).
 
 **Anchors (by construct — verify still present before acting):** the three T3.1 probe assertions
 live in `skills/red-team/assets/workflow-scaffold.test.mjs` (the runProbe-prompt tests asserting
 `'do NOT record'`, `findings:[]`, and the findings-schema `defect` description); recurring
 node-variant examples are the test titled `'M1 criterion #6 — catch after a mid-phase throw skips
 teardown'` and the `'touches a submodule'` unique-token assertions, both in
-`skills/war/assets/workflow-template.test.mjs`.
+`skills/war/assets/workflow-template.test.mjs`. The artifact-capture mechanism lives in
+`agents/war-refiner.md` merge-task step 7 (`.war/gate-<taskId>.log`, `gate_log_path`) and the
+evidence-dispatch section (intra-dep `integratedTipGate`, `.war/gate-phase-<id>.log`) — verify
+still present before acting.
 
 **Caution:** a routine curated-excerpt Nit can crowd out the real check — whether the task's
 primary deliverable is actually present in the diff at all; see

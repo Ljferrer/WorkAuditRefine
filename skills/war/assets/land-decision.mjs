@@ -5,6 +5,7 @@
 // deliberately NOT here: they leave nothing merged, surfaced as 'held:nothing-merged'.
 // gate-evidence: a mapped acceptance-criteria test is provably unrun (present in the pre-merge diff
 // but absent/0-count in the executed gate output). SOFT by default; HARD only when provably unrun (F04 R3).
+// (D8) gate-evidence is ALSO HARD when the gate-audit seat returns verdict === 'escalate' even with zero Critical/Major findings — a finding-less escalate is HARD by design (defence-in-depth); the 'gate-evidence' reason is REUSED intact, no new enum member (ADR 0005).
 // unrunnable-deps: a task whose deps can never be satisfied (a ghost dep), produced by the Workflow's
 // post-loop sweep; a hard hold. Present in BOTH mirrors — the inline copy and this canonical export are
 // identical (L1: the former scheduler-local divergence is removed).
