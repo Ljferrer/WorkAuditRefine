@@ -8,9 +8,11 @@
 #
 # Usage: gh-preflight.sh <expected-account>
 #   <expected-account>  the login the run must write as (overrides.ghUser).
-#                       Empty/unset ⇒ NO-OP: exit 0 immediately, gh never
-#                       invoked (C1 — the knob ships null, so an unconfigured
-#                       run pays nothing and leaks no personal handle).
+#                       Empty-string arg ("") ⇒ NO-OP: exit 0 immediately, gh
+#                       never invoked (C1 — the knob ships null, so an
+#                       unconfigured run pays nothing and leaks no personal
+#                       handle). Zero args (omitted entirely) is a usage error
+#                       ⇒ exit 2; callers must pass a QUOTED possibly-empty arg.
 #
 # Active-account read is via `gh api user --jq .login` — AUTHORITATIVE, not the
 # version-fragile `gh auth status` "Active account" text parse. A read that
