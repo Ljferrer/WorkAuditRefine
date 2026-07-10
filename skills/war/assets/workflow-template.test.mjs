@@ -34,12 +34,14 @@ async function runPhase(args, agentImpl) {
 const seatOf = (opts) => (opts.agentType || '').split(':').pop()
 const defaultImpl = (prompt, opts) => {
   const seat = seatOf(opts)
-  // Provision dispatches now return the ENV_OUTCOME shape: the git-topology barrier (provision:phase-<id>)
-  // AND the per-task provision-run (provision-run:<id>) are both phase 'Provision', and the phase-close
-  // polish-worktree:<id> dispatch is phase 'Refine'. Default all three to { ok: true } so happy-path
-  // tests reach the worker / run the sweep. (Tested BEFORE the generic refiner branch below.)
-  if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
-  if (seat === 'war-refiner' && /^polish-worktree:/.test(opts.label || '')) return { ok: true }
+  // Provision dispatches now return the ENV_OUTCOME shape: the git-topology barrier
+  // (dispatchKind 'provision-barrier') AND the per-task provision-run (dispatchKind 'provision-run')
+  // are both phase 'Provision', and the phase-close polish worktree (dispatchKind 'polish-worktree')
+  // is phase 'Refine'. Default all three to { ok: true } so happy-path tests reach the worker / run the
+  // sweep. Key on opts.dispatchKind — the stable discriminator, NOT a label-prefix regex (spec criterion 8).
+  // (Tested BEFORE the generic refiner branch below.)
+  if (seat === 'war-refiner' && (opts.dispatchKind === 'provision-barrier' || opts.dispatchKind === 'provision-run')) return { ok: true }
+  if (seat === 'war-refiner' && opts.dispatchKind === 'polish-worktree') return { ok: true }
   if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 5, integration: 2 } }
   if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
   if (seat === 'war-refiner') {
@@ -73,7 +75,9 @@ const PROVISION_ARGS = (over = {}) => ({
 })
 
 const idx = (calls, pred) => calls.findIndex(pred)
-const isProvision = (c) => c.opts.phase === 'Provision'
+// isProvision keys on the stable dispatchKind discriminator (the phase git-topology BARRIER),
+// never a label-prefix regex (spec criterion 8).
+const isProvision = (c) => c.opts.dispatchKind === 'provision-barrier'
 const isWorker = (c) => seatOf(c.opts) === 'war-worker' && c.opts.phase === 'Work'
 const isFixWorker = (c) => seatOf(c.opts) === 'war-worker' && c.opts.phase === 'Audit'
 const isAuditor = (c) => seatOf(c.opts) === 'war-auditor'
@@ -274,8 +278,9 @@ test('Part B seam is now FILLED — run.provision is consumed and env-blocked is
 // and BEFORE the worker is spawned. On the first failing step the barrier emits an `env-blocked`
 // task outcome ({ taskId, failedCommand, exitCode, stderrTail, provisionSource } — schemas.md) and
 // the worker is NOT spawned and the worktree is KEPT. On success the worker runs as normal. The
-// per-task provision step is a refiner seat in phase 'Provision' labelled provision-run:<taskId>.
-const isProvisionRun = (c) => c.opts.phase === 'Provision' && /^provision-run:/.test(c.opts.label || '')
+// per-task provision step is a refiner seat in phase 'Provision' carrying dispatchKind 'provision-run'.
+// Keys on the stable dispatchKind discriminator, never a label-prefix regex (spec criterion 8).
+const isProvisionRun = (c) => c.opts.dispatchKind === 'provision-run'
 const PROVISION_LIST = ['pnpm install --frozen-lockfile', 'git submodule update --init --recursive']
 const withProvision = (over = {}) =>
   PROVISION_ARGS({ run: { provision: PROVISION_LIST, provisionSource: 'ci' }, ...over })
@@ -293,6 +298,21 @@ test('run.provision runs (per task) BEFORE that task\'s worker is spawned (Part 
   for (const cmd of PROVISION_LIST) assert.ok(pr.prompt.includes(cmd), `provision-run prompt carries the command: ${cmd}`)
   assert.ok(pr.prompt.indexOf(PROVISION_LIST[0]) < pr.prompt.indexOf(PROVISION_LIST[1]), 'commands are threaded in order')
   assert.ok(pr.prompt.includes('/abs/repo/.claude/worktrees/run-2026/p3-t1'), 'provision-run runs inside the task worktree')
+})
+
+test('criterion 8 — the phase barrier and the per-task provision-run carry DISTINCT opts.dispatchKind', async () => {
+  const { calls } = await runPhase(withProvision(), defaultImpl)
+  const barrier = calls.find(isProvision)
+  const provRun = calls.find(isProvisionRun)
+  assert.ok(barrier, 'the git-topology barrier is dispatched (dispatchKind provision-barrier)')
+  assert.ok(provRun, 'a per-task provision-run is dispatched (dispatchKind provision-run)')
+  assert.equal(barrier.opts.dispatchKind, 'provision-barrier', 'barrier carries dispatchKind provision-barrier')
+  assert.equal(provRun.opts.dispatchKind, 'provision-run', 'provision-run carries dispatchKind provision-run')
+  // Distinctness — collapsing the two kinds to one literal fails this assert (delete-the-feature).
+  assert.notEqual(barrier.opts.dispatchKind, provRun.opts.dispatchKind,
+    'barrier and provision-run kinds are distinct (mocks/handlers/audits discriminate on dispatchKind, not the label)')
+  // The mock + isProvision + isProvisionRun key on dispatchKind — no label-prefix regex survives in them.
+  assert.ok(!/\/\^provision-run:/.test(defaultImpl.toString()), 'defaultImpl carries no provision-run label-prefix regex')
 })
 
 test('a failing provision step → env-blocked outcome, worker NOT spawned, worktree KEPT (Part B)', async () => {
@@ -5393,4 +5413,74 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
   assert.doesNotMatch(servitorMd, /phase-<N>\.md/i, 'war-servitor.md no longer names the phase-<N>.md aggregate file')
   assert.doesNotMatch(servitorMd, /else:\s*append|else\b.{0,20}append to/i, 'war-servitor.md no longer carries an "else: append" routing arm')
   assert.doesNotMatch(src, /memory dir or docs\/learnings/i, 'template args header no longer says "(memory dir or docs/learnings/)"')
+})
+
+// ---------------------------------------------------------------------------
+// Task 1.2 — engine ingest guards: (B) the non-null-object args guard + hoisted phaseId,
+// (C) the `pt` tagged-prompt undefined-interpolation guard. ADR 0034.
+// ---------------------------------------------------------------------------
+
+test("criterion 2 — a scalar args string ('null'/'true'/'5') RETURNS held:workflow-error naming the JSON-object guard, dispatches ZERO agents, renders phase:null", async () => {
+  for (const scalar of ['null', 'true', '5']) {
+    const fn = build()
+    let dispatched = 0
+    const agent = async () => { dispatched++; return {} }
+    const out = await fn(agent, fakeParallel, async () => [], () => {}, () => {}, scalar, { total: null })
+    // Named clean error → the existing catch routes held:workflow-error (no new enum member, ADR 0005).
+    assert.equal(out.landDecision, 'held:workflow-error', `args='${scalar}' → held:workflow-error; got ${JSON.stringify(out.landDecision)}`)
+    assert.match(out.workflowError.message, /args must be a JSON object/, `args='${scalar}' names the guard (delete-the-feature: reverting the guard changes this message to a raw destructure error)`)
+    assert.equal(dispatched, 0, `args='${scalar}' dispatches zero agents (the guard throws at the top of the try, before any spawn)`)
+    // The catch renders phase via the hoisted phaseId fallback — NEVER a secondary TypeError on an unassigned ph.
+    assert.equal(out.phase, null, `args='${scalar}' renders phase:null via the hoisted phaseId fallback`)
+    assert.doesNotMatch(out.workflowError.message, /Cannot (read|destructure)|is not defined|of (null|undefined)/,
+      `args='${scalar}' is the NAMED guard error, not a secondary raw TypeError/ReferenceError on ph`)
+  }
+})
+
+test('criterion 2 (both-sites drift-guard) — the non-null-object args guard is present at BOTH parse sites (template THROWS, scaffold falls back to {})', () => {
+  const scaffoldSrc = readFileSync(join(here, '../../red-team/assets/workflow-scaffold.js'), 'utf8')
+  // Template site: a scalar/array A THROWS a named error routing to held:workflow-error.
+  assert.match(src, /typeof A !== 'object' \|\| A === null \|\| Array\.isArray\(A\)/, 'template carries the non-null-object args guard')
+  assert.match(src, /args must be a JSON object/, 'template throws the named guard error (routes to held:workflow-error)')
+  // Scaffold site: a scalar/array parse result NORMALIZES to {} (same posture as the catch) so the titleLine refusal fires.
+  assert.match(scaffoldSrc, /typeof parsed === 'object' && parsed !== null && !Array\.isArray\(parsed\)/, 'scaffold carries the mirrored non-null-object guard (normalize-to-{})')
+  // The mirrored discipline: both sites reject arrays as well as scalars (hand-mirrored — the sandbox cannot import).
+  for (const [name, s] of [['template', src], ['scaffold', scaffoldSrc]])
+    assert.match(s, /!?Array\.isArray/, `${name} guards against arrays too`)
+})
+
+test('criterion 3 — a pt-tagged prompt interpolating an undefined VALUE throws before spawn naming the adjacent fragment (RETURNS held:workflow-error, no worker dispatched)', async () => {
+  // task.title is a REQUIRED worker-prompt input; omitting it makes ${task.title} undefined. The pt tag
+  // throws at prompt-BUILD (before the agent() call), the entry catch routes held:workflow-error.
+  const args = PROVISION_ARGS({ tasks: [
+    { id: 't1', issue: 101, planSlice: 'slice 1', roster: [{ lens: 'correctness' }],
+      branch: 'war/wtprov-a/p3-t1', worktree: '/abs/repo/.claude/worktrees/run-2026/p3-t1' }, // title OMITTED → undefined
+  ] })
+  const { out, calls } = await runPhase(args, defaultImpl)
+  assert.equal(out.landDecision, 'held:workflow-error', `undefined title → held:workflow-error; got ${JSON.stringify(out.landDecision)}`)
+  assert.match(out.workflowError.message, /undefined interpolation after/, 'the pt guard names the undefined interpolation and its adjacent literal fragment')
+  assert.ok(!calls.some(c => seatOf(c.opts) === 'war-worker' && c.opts.phase === 'Work'),
+    'the worker whose prompt threw at build time is NEVER dispatched (pt throws before agent())')
+})
+
+test("criterion 3 (zero false positives) — a DEFINED interpolation whose text contains the word 'undefined' does NOT throw; the phase lands", async () => {
+  const args = PROVISION_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 'handle the undefined case', planSlice: 'the value is undefined here', roster: [{ lens: 'correctness' }] },
+  ] })
+  const { out } = await runPhase(args, defaultImpl)
+  assert.equal(out.landDecision, 'landed', `defined 'undefined'-containing text must ship and land; got ${JSON.stringify(out.landDecision)}`)
+  assert.ok(!out.workflowError, 'no workflow error — the value-identity check never scans prose, so "undefined" as TEXT can never trip it')
+})
+
+test('criterion 3 (coverage floor) — no agent() spawn site passes a bare untagged inline template literal', () => {
+  // Every prompt-rendering spawn-site literal is pt-tagged (or built by a tagged helper). A bare
+  // `agent(`...`)` — a backtick right after the paren, only whitespace between — is the untagged-literal
+  // footgun this floor forbids; untagging a spawn-site literal (delete-the-feature) reintroduces it.
+  assert.doesNotMatch(src, /\bagent\(\s*`/, 'no agent() call passes a bare (untagged) inline template literal — all are pt-tagged or built by a tagged helper')
+})
+
+test('criterion 3 — the pt tag checks interpolated VALUES for identity === undefined (never scans prose text)', () => {
+  assert.match(src, /const pt = \(strings, \.\.\.vals\) =>/, 'pt is defined as a tagged-template function near the top')
+  assert.match(src, /vals\[i\] === undefined/, 'pt checks each interpolated VALUE for identity === undefined (value, never surrounding text)')
+  assert.match(src, /undefined interpolation after/, 'pt throws naming the adjacent literal fragment (strings[i] tail)')
 })
