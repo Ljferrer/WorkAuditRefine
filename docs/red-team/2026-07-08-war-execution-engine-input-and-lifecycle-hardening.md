@@ -1,29 +1,32 @@
-# Red-team report — war-execution-engine-input-and-lifecycle-hardening
+# Red-team report — war-execution-engine-input-and-lifecycle-hardening (round 2, Option B)
 
 **Plan:** `docs/plans/2026-07-08-war-execution-engine-input-and-lifecycle-hardening.md`
 **Source spec:** `docs/specs/2026-07-08-war-execution-engine-input-and-lifecycle-hardening-design.md`
-**Repo baseline:** `dev/2026-07-08-war-execution-engine-input-and-lifecycle-hardening` @ `af171d4` (stacked on plans 1–8)
-**Run:** `wf_4eb46eb9-894` · **Date:** 2026-07-10
+**Baseline:** `dev/…-war-execution-engine…` (stacked on plans 1–8, now merged to master)
+**Runs:** round-1 `wf_4eb46eb9-894` (whole-prompt design, BLOCKED — 1 Major); Option-B rounds `wf_75455d32-163` (infra-degraded) + `wf_867889bc-c20` (clean) · **Date:** 2026-07-10
 
-## Verdict: **CLEARED-WITH-NOTES**
+## Verdict: **CLEARED-WITH-NOTES** (Option B design)
 
-16 probes — 12 pass, 1 fail, 3 warn. One **Major** (dependency-feasibility, confirmed) resolved by an in-place plan patch; five **Minor** count/coverage findings corrected in the same pass. No blockers survive.
+The undefined-render guard was redesigned to Option B (operator decision 2026-07-10, zero false positives) after round 1 proved the ratified whole-prompt `\bundefined\b` scan false-positives on legitimate content. Round-2 re-run: **13 probes, 12 pass + 1 warn (Minor, resolved by patch)**, 0 blockers, escape guard exit 0.
 
-## Findings & resolutions applied
+## Design change verified (executed)
 
-**F1 — Major (dependency-feasibility, probe fail).** Task 1.2(B) instructed "wrap the `const A = …` parse in the existing entry `try{}` and throw a named error → the existing catch routes `held:workflow-error`." But `const A` (L123) and `const { phase: ph } = A` (L124) sit **above** the try (L298), and both the normal return (L1611) and the catch (L1616) render `phase: ph.id`. Verified directly against `af171d4`: a scalar arg (`args='null'`) makes the guard throw **before** `ph` is assigned, so the catch's `ph.id` is a **secondary `TypeError`** (or a `ReferenceError` if the destructure moves into the try and `ph` becomes block-scoped) — *not* the clean `held:workflow-error` End state 2 promises. The codebase already hoists catch-referenced vars above the try (`landed`/`escalated`, L275 comment), but not `ph`.
+- **`pt` tagged prompt template** (`pt-tag-executed-proof`, executed → pass): value-identity `=== undefined` check throws on a missing interpolation naming the adjacent fragment; a **defined** string containing the word "undefined" renders untouched (zero-false-positive control); `?? '<unset>'` suppression works; byte-identical to untagged rendering incl. numbers. Design is sound by construction.
+- **Task 1.2(B) full A-prelude relocation** (`anchor-b-full-prelude-relocation`, executed → pass): round-2a's executed `executable-proof` caught a **Major** — moving only the parse+destructure into the try stranded ~18 other A-derived consts (`NS`, `roundLimit`, `intent`, `memory`, `endStateClaims`, `defaultRoster`, …) → `ReferenceError: A is not defined` on the happy path. Corrected: the slice now relocates the entire A-dependent prelude (L123–269) into the try, accumulators stay hoisted, `phaseId` hoisted, both `phase:` return sites swapped. Sandbox proof: valid args run clean; `args='null'` → clean `held:workflow-error phase:null`, no secondary crash.
 
-**Resolution (AFK).** Patched Task 1.2(B): move the parse + destructure to the top of the try, hoist `let phaseId = null` above the try (mirroring the existing hoist idiom), set `phaseId = ph?.id ?? null` after a successful guard, and change **both** return sites' `phase:` field from `ph.id` to `phaseId`. A scalar/malformed arg now renders a clean `held:workflow-error` with `phase: null`, never a secondary crash. End state 2 updated accordingly. Re-verified by inspection against the actual entry try/catch structure; the fix aligns the plan with the same temporal-dead-zone hoist the code already uses.
+## Findings & resolutions
 
-**F2–F6 — Minor (count + coverage).**
-- **Non-awaited `runSeat` spawn (executable-proof).** Task 1.2(C)'s "rename every `await agent(`" mechanically misses the auditor-seat dispatch `const runSeat = seat => agent(auditPrompt(...), {...})` at ~L582 (no `await`), so `auditPrompt()`'s interpolated fields would escape the undefined-render guard — contradicting the plan's "every interpolated field" intent. **Patched:** Task 1.2(C) + Method now say "every `agent(` spawn site (awaited or not — incl. the non-awaited `runSeat`)".
-- **Spawn-site count.** Plan said "17 at conversion / verified"; actual = 19 `await agent(` + 1 non-awaited = ~20. **Patched** to ~20 (count marked non-authoritative) in Method, Task 1.2(C), and Notes delta 4.
-- **Die count.** Task 1.4(E) said "17 sites carrying 3/4/5/6/7"; actual = 18. **Patched** to 18 (count non-authoritative), and added a note that code 3 is overloaded (`ensure-integration` foreign-branch dies AND `land-advance` no-advance dies both catalogue to `EX_FOREIGN`=3 — halt-semantics identical; the grep-assertion enforces catalogued constants, not per-site semantic uniqueness).
+- **F1 — Major (round-2a executable-proof, executed).** Incomplete parse relocation → happy-path `ReferenceError`. **Resolved** by the full-prelude relocation (plan `0b959d1`).
+- **F2 — Minor (round-2 claims-vs-reality).** Task 1.1 / spec §3.2 claimed all three scalars `'null'`/`'true'`/`'5'` throw a raw destructure `TypeError`; only `'null'` does (destructuring boolean/number primitives doesn't throw). **Resolved** — spec §3.2 + Task 1.1 corrected: only `'null'` throws pre-guard; the guard's value for `'true'`/`'5'` is uniformity + stopping silent-proceed; the delete-the-feature RED case is `'null'` (do not assert `'true'`/`'5'` throw pre-guard).
 
-## Verified (held at the tip)
+## Passed (analyzed)
 
-Scaffold args-parse block (Task 1.1); `war-config.mjs` `isObj` + `memory`-block idiom + `KNOWN_OVERRIDES` loop (Task 1.3); provision-worktrees `cmd_ensure_exclude`/`cmd_ensure_integration`/coded dies (Task 1.4); `inject-campaign-state.sh` `xargs ls -t` + fail-open guards (Task 1.5); **ADR-0005 enum discipline** — the plan routes to the *existing* `held:workflow-error` and adds no enum member, and does not add it to `HARD_ESCALATION_REASONS` (verified in `land-decision.mjs`); ADR 0034 next-free + 0013/0003/0005/0008 present (Task 1.7); the args-guard both-sites drift-guard ships in Task 1.2 with the correct Task 1.1 wave-edge dep; backstop-legitimacy — all 4 deferrals justified with named runners (one an explicitly-accepted residual recorded in ADR 0034).
+design-consistency (spec↔plan describe the same `pt` mechanism; no surviving `dispatch()`/whole-prompt-scan live instruction); prompt-literals-taggable (every dispatched prompt reachable by tagging literals; `auditPrompt` carries the `Sub-issue #${task.issue}` example); enum-discipline (routes to existing `held:workflow-error`, no enum widening, not in `HARD_ESCALATION_REASONS`); drift-guard (Task 1.2 both-sites args-guard test + wave-edge dep intact; `pt` single-file needs no mirror; coverage grep floor ships in-task); backstop-legitimacy (all 4 justified with named runners; entry 1 now correctly frames the residual as tag coverage / false-negatives).
+
+## Infra note (not a plan defect)
+
+Round-2a: the 0.14.22 red-team scaffold routes analyzed probes to `agentType: 'Explore'`, a built-in agent this harness dropped mid-session → 11/13 probes died. Patched the scaffold copy to `general-purpose`. Filed as a WAR-engine robustness issue (scaffold should fall back when a built-in agent is absent).
 
 ## Residual risk
 
-- Four ratified backstops carried into the `/war` handoff (undefined-render false-positive burn-in; live `--reclaim-empty-orphan` on a real half-run orphan; `ensure-exclude` explicit-arg live wiring; concurrent same-plan runs vs reclaim — accepted residual per ADR 0034) — each a legitimate deferral with a named runner.
+Four ratified backstops carried into the `/war` handoff (undefined-render **tag coverage** — false negatives via future untagged literals, grep floor + audit lens; live `--reclaim-empty-orphan`; `ensure-exclude` explicit-arg live wiring; concurrent same-plan runs vs reclaim — accepted residual per ADR 0034).
