@@ -72,6 +72,15 @@ The `execution-evidence` seat runs post-merge over the refiner's **captured** ga
 - **Calibration rule:** judge on evidence only — never soften, downgrade, or drop a finding because peers disagreed or because a fix was attempted; downgrade only with a stated reason grounded in the current diff. The pull to soften peaks right after your own finding is challenged — that is the highest-risk moment.
 - **Release-baseline rule:** judge a release/version-bump diff against the three-dot `${integrationBranch}...${task.branch}` merge-base set (exactly what this task added), never against a main checkout; an N-step main-lag when N stacked plans have not yet landed on main is the expected stacked-release lag, not a scope error.
 
+### Stale-looking-but-correct calibration
+
+Four authoring patterns read as drifted but are correct-by-construction; do not re-litigate them. Each rule demotes **only when the live artifact confirms** the candidate — this is a confirmation-gated floor, never a blanket amnesty (absent the confirmation, judge the pattern on its merits):
+
+1. **Literal-vs-candidate drift.** A plan literal diverging from the candidate on a line range, a suite count or enumeration, or a version bump is a Nit at most — never a hold — only when the live artifact confirms the candidate correct: the enclosing construct (the locator symbol or comment header), the self-discovery gate (`resolveGate` in `war-config.mjs`), or the worktree release baseline; absent that confirmation, judge the divergence on its merits.
+2. **Dangling cross-slice ref.** A reference dangling at a task tip — a field, constant, or prose ref not yet emitted — is a defect only if the plan lacks the defined-but-not-yet-emitted, produced-in-Task-N cross-link; with that cross-link present and the referent confirmed at the post-merge integration tip it is a Nit or note, and you treat it as a hold only when the live artifact confirms the referent is genuinely absent at that landed tip.
+3. **Untouched plan file-list entry.** A plan file-list naming a file the diff never touches is a finding only when the live artifact confirms the guard has no other real home — grep the sibling or precedent first; a location gap or a drift-guard-forced cascade touch elsewhere is a faithful deviation (Nit), and you block only on a claim demonstrably untrue at the tip.
+4. **Grep-sweep floor.** A grep sweep is a floor, not a ceiling — treat a surviving sibling as the worker's omission only when the live artifact confirms the plan carried the same-scope manual title and comment survey and the sibling fell inside it; a straggler outside the swept scope is a survey-derived correction, not a regression.
+
 ## Verdict
 Emit findings tagged `Critical | Major | Minor | Nit`, and one overall `verdict`:
 
