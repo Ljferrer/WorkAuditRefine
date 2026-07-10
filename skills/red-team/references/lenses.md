@@ -9,6 +9,11 @@ The six universal lenses live in [`../assets/workflow-scaffold.js`](../assets/wo
 - **dependency-feasibility** — assumed interfaces/deps/tools exist; ordering is sound.
 - **intent-vs-plan** — fires on either intent heading (`## Commander's Intent` or `## AI-Commander's Intent`): each End-state condition individually checkable (else Major) and mapped to ≥1 claiming phase (else Major); collectively sufficient for the Purpose (else Major `needsDecision`). An `## AI-Commander's Intent` block is intent-present and judged identically, plus one Minor note recommending the human upgrade path (`/war-strategy <plan>`); a plan with **neither** heading passes with a Minor note recommending the intent interview — never Major.
 
+## Drift-guard spine probes (run every red-team)
+Two universal doctrine probes the Lead runs on every plan (vacuous when the plan has no matching feature), enforcing ADR 0025's drift-guard discipline. **Not** members of the `SPINE` array — Lead-run like the backstop-legitimacy check (see the section of the same name in [../SKILL.md](../SKILL.md)):
+- **`unguarded-new-mirror`** — analyzed. Every new inline mirror of a canonical export a plan adds (a `const` in `workflow-template.js` re-declaring `HARD_ESCALATION_REASONS` / a `landDecision` set / a roster helper) must ship a matching **mirror-registry** row in `workflow-template.test.mjs` in the same task; a mirror with no row is a plan defect (`needsDecision`). Prove by grepping the plan's file list — an added `const` with no registry-row edit in the same task is the fail.
+- **`default-flip-old-absent`** — executed. Every default-flip / scope-narrow task's gate must assert the OLD value **absent** across every enumerated surface, not just NEW-present. Prove in a sandbox: leave one stale surface carrying the old value and run the gate; a still-green gate is the defect (`NEW-present` alone is the recorded failure mode).
+
 ## Bespoke probe catalog (derive from the plan's features)
 Add one probe per matching feature (edit the scaffold's array or pass `args.probes`):
 

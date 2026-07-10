@@ -3,7 +3,8 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import { HARD_ESCALATION_REASONS } from './land-decision.mjs'
+import { HARD_ESCALATION_REASONS, KNOWN_LAND_DECISIONS } from './land-decision.mjs'
+import { spawnOpts, validateRoster, widenRoster, resolveWidenSource, ROLES } from './war-config.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const auditorMd = readFileSync(join(here, '../../../agents/war-auditor.md'), 'utf8')
@@ -238,26 +239,10 @@ test('T1 — Wrap-up gate: memoryLocalRoot absent + landed → NO servitor dispa
   assert.ok(skip, 'a skip line naming the missing memoryLocalRoot is logged (never silent)')
 })
 
-test('T1 — both-surfaces drift guard: template source + war-servitor.md carry the mutation-guard, recurrence-flow, and absolute-path contracts', () => {
-  // Token-anchored, case-tolerant (never full-line bytes). Both the dispatched prompt (in src) and the
-  // standing card must carry the same disciplines; the standing card must have shed the retired routing.
-  for (const [name, surface] of [['template src', src], ['war-servitor.md', servitorMd]]) {
-    assert.match(surface, /metadata\.provenance/i, `${name}: names metadata.provenance (mutation-guard discriminator)`)
-    assert.match(surface, /user-authored/i, `${name}: marks an untagged pre-existing file user-authored`)
-    assert.match(surface, /never edit/i, `${name}: carries a never-edit directive for user-authored files`)
-    assert.match(surface, /same slug/i, `${name}: carries the recurrence-flow same-slug anchor`)
-    assert.match(surface, /overwrite/i, `${name}: carries the overwrite-on-promote anchor`)
-    assert.match(surface, /files_written[\s\S]{0,120}absolute|absolute[\s\S]{0,120}files_written/i,
-      `${name}: demands absolute files_written paths`)
-  }
-  // The standing card must have shed the retired either/or routing tokens.
-  assert.doesNotMatch(servitorMd, /phase-<N>\.md/i, 'war-servitor.md no longer names the phase-<N>.md aggregate file')
-  assert.doesNotMatch(servitorMd, /else:\s*append|else\b.{0,20}append to/i,
-    'war-servitor.md no longer carries an "else: append" routing arm')
-  // The template args header must no longer describe learningsTarget as "memory dir or docs/learnings".
-  assert.doesNotMatch(src, /memory dir or docs\/learnings/i,
-    'template args header no longer says "(memory dir or docs/learnings/)"')
-})
+// T1 — both-surfaces drift guard (servitor mutation-guard / recurrence-flow / absolute-path contracts)
+// was MIGRATED into the D3 both-surfaces directive registry at the end of this file (the servitor row,
+// plus the servitor-migration negative-absence checks). Kept as one generalized registry, not a
+// per-directive test — see 'D3 — both-surfaces directive registry'.
 
 test('plan-slug + run-id are threaded into branch/path construction (assertion 4)', async () => {
   const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
@@ -504,15 +489,9 @@ test('Task 5 — MERGE_RESULT inline enum includes land_stale', () => {
     'MERGE_RESULT status enum includes land_stale')
 })
 
-test('Task 5 — HARD_ESCALATION_REASONS inline includes land_stale', () => {
-  // The inline mirror in the template must now match the canonical export (4 items after Task 5).
-  const match = src.match(/const\s+HARD_ESCALATION_REASONS\s*=\s*(\[[^\]]+\])/)
-  assert.ok(match, 'HARD_ESCALATION_REASONS found in workflow-template.js')
-  const normalized = match[1].replace(/'/g, '"')
-  const parsed = JSON.parse(normalized)
-  assert.ok(parsed.includes('land_stale'),
-    'inline HARD_ESCALATION_REASONS includes land_stale')
-})
+// 'Task 5 — HARD_ESCALATION_REASONS inline includes land_stale' was ABSORBED into the D2 mirror
+// registry (end of file): the HARD_ESCALATION_REASONS row deepEquals the full inline array against the
+// land-decision.mjs export, which subsumes any single-member 'includes land_stale' check.
 
 test('Task 5 — land_stale holds the land (hard escalation)', async () => {
   // A phase where a task lands but another has reason:'land_stale' → held:escalation.
@@ -2157,20 +2136,9 @@ test('L3 T1 — blockedReason predicate is total: extract-and-eval all four case
     'blockedReason({status:"implemented"}) must return null')
 })
 
-test('M2 Test 3 — drift-guard: both HARD_ESCALATION_REASONS mirrors equal including no-test', () => {
-  // The inline HARD_ESCALATION_REASONS in workflow-template.js and the canonical export in
-  // land-decision.mjs (imported at module level) must both include 'no-test' and be equal.
-  const match = src.match(/const\s+HARD_ESCALATION_REASONS\s*=\s*(\[[^\]]+\])/)
-  assert.ok(match, 'HARD_ESCALATION_REASONS not found in workflow-template.js')
-  const inline = JSON.parse(match[1].replace(/'/g, '"'))
-
-  // Both must include no-test (unique M2 token)
-  assert.ok(inline.includes('no-test'), "inline HARD_ESCALATION_REASONS must include 'no-test' (M2)")
-  assert.ok(HARD_ESCALATION_REASONS.includes('no-test'), "canonical HARD_ESCALATION_REASONS must include 'no-test' (M2)")
-  // Both must be equal (order-insensitive)
-  assert.deepEqual([...inline].sort(), [...HARD_ESCALATION_REASONS].sort(),
-    'inline and canonical HARD_ESCALATION_REASONS must be equal including no-test (M2 drift-guard)')
-})
+// 'M2 Test 3 — drift-guard: both HARD_ESCALATION_REASONS mirrors equal including no-test' was ABSORBED
+// into the D2 mirror registry (end of file): the HARD_ESCALATION_REASONS row does the identical
+// order-insensitive deepEqual of the inline array against the canonical export, no-test included.
 
 test('#237 — both merge-task dispatch prompts split exit-1 (no-test) from exit-2 (error), no non-zero collapse', () => {
   // Both merge-task dispatch prompt strings contain an `assert-test-in-diff.sh ... <clause>` sentence.
@@ -5092,4 +5060,197 @@ test('T2.1 (D1/D8) — the escalate reservation ("NEVER escalate" on a cannot-co
   const es = esCalls.find(c => (c.opts.label || '').includes('end-state'))
   assert.ok(es, 'the end-state-only seat was dispatched')
   assert.ok(/NEVER 'escalate'/.test(es.prompt), 'the end-state-only prompt reserves escalate away from the cannot-confirm case')
+})
+
+// ===========================================================================
+// D2 — MIRROR REGISTRY (drift-guards-for-mirrored-and-asserted-facts, ADR 0025)
+// ---------------------------------------------------------------------------
+// Every value/helper the Workflow sandbox mirrors inline in workflow-template.js (it cannot import) is
+// bound here to its canonical export, one equality assertion per row. Const rows deepEqual/subset parsed
+// literals; helper rows assert BEHAVIORAL equivalence on an enumerated fixture-input set — function
+// mirrors legitimately differ in whitespace/comments, so behavior (not bytes) is what must not drift.
+// The inline `spawn` is a CURRIED `role => …` closing over `agents` with a ROLE_MODEL fallback, so its
+// canonical side adapts inputs to `spawnOpts(config, role)`.
+// ponytail: this registry IS the deliberate ceiling — a new inline mirror lands its row here in the same
+// task (the /war-strategy new-mirror authoring rule), never an AST scanner.
+
+const parseInlineArray = (re) => {
+  const m = src.match(re)
+  assert.ok(m, `inline array literal not found for ${re}`)
+  return JSON.parse(m[1].replace(/'/g, '"'))
+}
+// All distinct 'landed'/'held:*' string literals in the template's EXECUTABLE code (comments stripped so
+// a prose example can't count). landDecision is assigned 6 of the 7 KNOWN values (never the Lead-only
+// 'held:phase-incomplete'), with no single inline array to deepEqual — hence the subset check.
+// ponytail: whole-file literal scan is the ceiling; a '//' inside a code string could truncate a line,
+// but no landDecision literal sits after one in this file — good enough, no tokenizer.
+const extractLandDecisionLiterals = () => {
+  const code = src.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
+  return [...new Set([...code.matchAll(/'(landed|held:[a-z0-9-]+)'/g)].map(m => m[1]))]
+}
+// Eval the inline roster-helper mirror block (defined INSIDE the template fn body) in isolation, with an
+// injected `agents` (the only free var the inline `spawn` closes over). Exposes the four inline helpers.
+const inlineHelperBlock = (() => {
+  const s = src.indexOf('const ROLE_MODEL =')
+  const e = src.indexOf('const defaultRoster')
+  return { ok: s !== -1 && e > s, block: s !== -1 && e > s ? src.slice(s, e) : '' }
+})()
+const inlineHelpers = (agents = {}) =>
+  new Function('agents', inlineHelperBlock.block + '\nreturn { spawn, validateRoster, widenRoster, resolveWidenSource }')(agents)
+
+const AGENTS_FIXTURES = [
+  {},                                                                          // all omitted → ROLE_MODEL/DEFAULTS fallback
+  { worker: { model: 'sonnet', effort: 'high' }, auditor: { model: 'fable', effort: 'default' },
+    refiner: { model: 'opus' }, servitor: { model: 'haiku', effort: 'max' } }, // explicit mix
+  { worker: { effort: 'low' } },                                               // effort only, model omitted
+  { auditor: { model: 'sonnet', effort: 'default' } },                         // effort:'default' ⇒ omitted
+]
+const RTRIO = [
+  { lens: 'correctness', depth: 'deep' },
+  { lens: 'cascading-impact', depth: 'deep' },
+  { lens: 'plan-faithfulness', depth: 'deep' },
+]
+const VALIDATE_ROSTER_CASES = [
+  [{ lens: 'correctness' }],                                                   // valid 1-seat
+  [{ lens: 'correctness', depth: 'deep' }, { lens: 'security', depth: 'neighbors' }], // valid 2-seat
+  [],                                                                          // too few
+  [{ lens: 'a' }, { lens: 'b' }, { lens: 'c' }, { lens: 'd' }, { lens: 'e' }, { lens: 'f' }], // too many (6)
+  'not-an-array',                                                              // non-array
+  [{ depth: 'deep' }],                                                         // missing lens
+  [{ lens: 'x' }, { lens: 'x' }],                                              // duplicate lens
+  [{ lens: 'x', depth: 'sideways' }],                                          // bad depth
+  [null],                                                                      // null seat
+  [{ lens: '' }],                                                              // empty lens
+]
+const WIDEN_ROSTER_CASES = [
+  [[{ lens: 'a' }], RTRIO],                                                     // union append
+  [[{ lens: 'a' }, { lens: 'b' }, { lens: 'c' }, { lens: 'd' }, { lens: 'e' }], [{ lens: 'f' }]], // cap 5
+  [[{ lens: 'correctness' }], RTRIO],                                          // dedup by lens
+  [[{ lens: 'a' }], []],                                                       // empty default
+  [[{ lens: 'a' }], undefined],                                                // undefined default
+]
+const RESOLVE_WIDEN_CASES = [
+  [['security', 'cascading-impact'], RTRIO],                                   // valid nomination
+  [['security', 'execution-evidence'], RTRIO],                                 // reserved lens → default
+  [['dup', 'dup'], RTRIO],                                                     // duplicate → default
+  [[], RTRIO],                                                                 // empty → default
+  ['nope', RTRIO],                                                             // non-array → default
+  [null, RTRIO],                                                               // null → default
+  [[''], RTRIO],                                                               // empty string → default
+]
+
+test('D2 mirror registry — every inline sandbox mirror in workflow-template.js equals its canonical export', () => {
+  assert.ok(inlineHelperBlock.ok, 'the inline roster-helper mirror block is locatable in src (const ROLE_MODEL .. const defaultRoster)')
+  const MIRROR_REGISTRY = [
+    { name: 'HARD_ESCALATION_REASONS', mode: 'deepEqual',
+      canonical: HARD_ESCALATION_REASONS,
+      extractInline: () => parseInlineArray(/const\s+HARD_ESCALATION_REASONS\s*=\s*(\[[^\]]+\])/) },
+    { name: 'landDecision known set', mode: 'subset',
+      canonical: KNOWN_LAND_DECISIONS,
+      extractInline: extractLandDecisionLiterals },
+    { name: 'spawnOpts (inline curried spawn=role=>…)', mode: 'behavioral',
+      cases: AGENTS_FIXTURES.flatMap(a => ROLES.map(r => [a, r])),
+      inline: ([agents, role]) => inlineHelpers(agents).spawn(role),
+      canonical: ([agents, role]) => spawnOpts({ agents }, role) },
+    { name: 'validateRoster', mode: 'behavioral',
+      cases: VALIDATE_ROSTER_CASES.map(r => [r]),
+      inline: ([roster]) => inlineHelpers().validateRoster(roster),
+      canonical: ([roster]) => validateRoster(roster) },
+    { name: 'widenRoster', mode: 'behavioral',
+      cases: WIDEN_ROSTER_CASES,
+      inline: ([roster, def]) => inlineHelpers().widenRoster(roster, def),
+      canonical: ([roster, def]) => widenRoster(roster, def) },
+    { name: 'resolveWidenSource', mode: 'behavioral',
+      cases: RESOLVE_WIDEN_CASES,
+      inline: ([nom, def]) => inlineHelpers().resolveWidenSource(nom, def),
+      canonical: ([nom, def]) => resolveWidenSource(nom, def) },
+  ]
+  assert.ok(MIRROR_REGISTRY.length >= 6, 'the mirror registry lists at least the six required rows (HARD_ESCALATION_REASONS, landDecision, and the four roster helpers)')
+  for (const row of MIRROR_REGISTRY) {
+    if (row.mode === 'deepEqual') {
+      const inline = row.extractInline()
+      assert.deepEqual([...inline].sort(), [...row.canonical].sort(),
+        `${row.name}: inline mirror deepEquals the canonical export (order-insensitive)`)
+    } else if (row.mode === 'subset') {
+      const inline = row.extractInline()
+      assert.ok(inline.length >= 6,
+        `${row.name}: the extractor found at least the 6 emitted literals (sanity — got ${JSON.stringify(inline)})`)
+      for (const v of inline) {
+        assert.ok(row.canonical.includes(v), `${row.name}: inline literal '${v}' is a member of the canonical known set`)
+      }
+    } else {
+      for (const args of row.cases) {
+        assert.deepEqual(row.inline(args), row.canonical(args),
+          `${row.name}: inline and canonical agree on ${JSON.stringify(args)}`)
+      }
+    }
+  }
+})
+
+// ===========================================================================
+// D3 — BOTH-SURFACES DIRECTIVE REGISTRY (ADR 0025)
+// ---------------------------------------------------------------------------
+// Each correctness-critical directive duplicated across a standing agents/*.md card and its dispatched
+// prompt(s). Token-anchored, case-tolerant — never full-line bytes (the surfaces phrase the shared
+// discipline differently). Includes rows asserted against the INLINE gate-audit seat prompts
+// (execution-evidence + end-state) sliced from template src — those sit OUTSIDE auditPrompt(), so a base
+// auditPrompt clause never reaches them; they inherit a shared directive only via the standing card.
+// ponytail: this registry IS the deliberate ceiling — a new both-surfaces directive lands its row here in
+// the same task (the /war-strategy new-mirror authoring rule), never an AST scanner.
+const sliceSrc = (startTok, endTok) => {
+  const s = src.indexOf(startTok)
+  const e = src.indexOf(endTok, s)
+  assert.ok(s !== -1 && e > s, `src slice "${startTok}" .. "${endTok}" is locatable`)
+  return src.slice(s, e)
+}
+
+test('D3 — both-surfaces directive registry: every correctness-critical directive is on its standing card AND its dispatched prompt(s)', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const workerP = (calls.find(isWorker) || {}).prompt
+  const auditP = (calls.find(c => isAuditor(c) && !(c.opts.label || '').startsWith('gate-audit:')) || {}).prompt
+  const servitorP = (calls.find(isServitor) || {}).prompt
+  assert.ok(workerP && auditP && servitorP, 'worker, regular auditor, and servitor prompts all dispatched (presence guard)')
+  // The two inline gate-audit seat prompts sit OUTSIDE auditPrompt() — slice them from src by construct.
+  const gateAuditExecSrc = sliceSrc('POST-MERGE GATE-AUDIT', 'gate-audit:${taskId}:execution-evidence')
+  const gateAuditEndStateSrc = sliceSrc('END-STATE-ONLY GATE-AUDIT', 'gate-audit:phase-${ph.id}:end-state')
+
+  const REGISTRY = [
+    { name: 'servitor memory discipline (mutation-guard + recurrence-flow + absolute files_written)',
+      surfaces: [['war-servitor.md', servitorMd], ['servitor Wrap-up prompt', servitorP]],
+      anchors: [/metadata\.provenance/i, /user-authored/i, /never edit/i, /same slug/i, /overwrite/i,
+                /files_written[\s\S]{0,120}absolute|absolute[\s\S]{0,120}files_written/i] },
+    { name: 'ADR policy-table under-attribution (D8)',
+      surfaces: [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]],
+      anchors: [/ADR/i, /policy.table/i, /attribution/i] },
+    { name: 'comment-lag review duty (D9, auditor cascading-impact)',
+      surfaces: [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]],
+      anchors: [/comment/i, /lag/i, /retired/i] },
+    { name: 'mechanism-style narrative (D12)',
+      surfaces: [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]],
+      anchors: [/invariant/i, /guard that holds/i, /snapshot|line.number/i] },
+    { name: 'preset-matrix consumption (D6)',
+      surfaces: [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]],
+      anchors: [/preset/i, /matrix/i] },
+    { name: 'gate-audit inline seat: finding-less escalate is a HARD hold (execution-evidence + end-state, outside auditPrompt)',
+      surfaces: [['war-auditor.md', auditorMd],
+                 ['inline gate-audit execution-evidence seat (src)', gateAuditExecSrc],
+                 ['inline gate-audit end-state seat (src)', gateAuditEndStateSrc]],
+      anchors: [/finding-less/i, /HARD hold/i] },
+    { name: 'comment-lag directive (D9, worker prompt)',
+      surfaces: [['war-worker.md', workerMd], ['worker prompt', workerP]],
+      anchors: [/comment/i, /lag/i, /retired/i] },
+  ]
+  assert.ok(REGISTRY.length >= 6, 'the registry lists the migrated servitor row plus the D8/D9/D12/D6 duties and the gate-audit seat row')
+  for (const row of REGISTRY) {
+    for (const [sName, sText] of row.surfaces) {
+      for (const re of row.anchors) {
+        assert.match(sText, re, `${row.name}: "${sName}" carries ${re}`)
+      }
+    }
+  }
+  // Servitor-migration completeness (migrated from the former T1 both-surfaces test): the standing card
+  // shed the retired routing tokens, and the template args header no longer describes learningsTarget loosely.
+  assert.doesNotMatch(servitorMd, /phase-<N>\.md/i, 'war-servitor.md no longer names the phase-<N>.md aggregate file')
+  assert.doesNotMatch(servitorMd, /else:\s*append|else\b.{0,20}append to/i, 'war-servitor.md no longer carries an "else: append" routing arm')
+  assert.doesNotMatch(src, /memory dir or docs\/learnings/i, 'template args header no longer says "(memory dir or docs/learnings/)"')
 })
