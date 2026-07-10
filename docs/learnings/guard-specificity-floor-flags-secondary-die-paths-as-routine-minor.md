@@ -4,9 +4,10 @@ description: "assert-guard-specificity-in-diff.sh routinely flags secondary/defe
 metadata: 
   node_type: memory
   type: project
+  promoted: dev/2026-07-08-github-issue-lifecycle-and-run-bookkeeping-mechanization@phase-1
   provenance: code-verified
   slug: guard-specificity-floor-flags-secondary-die-paths-as-routine-minor
-  phase: github-issue-lifecycle-and-run-bookkeeping-mechanization/t1.1+t1.2+t1.6
+  phase: github-issue-lifecycle-and-run-bookkeeping-mechanization/t1.1+t1.2+t1.6 + red-team-plan-vs-state-grading-and-probe-sandboxing/t1.3
   keywords: 
     - guard-specificity
     - assert-guard-specificity-in-diff.sh
@@ -17,6 +18,8 @@ metadata:
     - exit code only
     - follow-up finding
     - defensive path
+    - assert-no-repo-escape.sh
+    - escape guard
   tags: 
     - gate-audit
     - test-fidelity
@@ -50,6 +53,16 @@ mechanization`, phase 1 gate-audit):
 - **t1.6** (`snap-shared-docs.sh`): both primary REFUSE guards were message-asserted, but none of
   the arg-parse guards (usage, `--repo` validation, `..`-traversal) or exit-2 tooling guards
   (scratch-worktree creation, checkout/add/merge/push failures) had same-diff coverage.
+- **4th recurrence** (`red-team-plan-vs-state-grading-and-probe-sandboxing`/t1.3,
+  `assert-no-repo-escape.sh`, the new post-run escape guard): the load-bearing exit-code contract
+  (0/1/2, the floor-family boundary the SKILL.md caller routes on) was fully covered and green, but
+  `run_guard()` in the test harness ran the guard under `>/dev/null 2>&1`, so all 9 die/escape
+  stderr messages were unasserted and the 4 argument-parsing die paths had no test case (message OR
+  exit code) at all. Graded Minor, disposition `absorb` (not `follow-up` this time — same-file,
+  mechanical, no version slot / ponytail comment touched, so cheap enough to fold into the same
+  task rather than defer). Referent not found in this checkout @ phase
+  red-team-plan-vs-state-grading-and-probe-sandboxing/t1.3 (worktree predates that branch's merge) —
+  verify `skills/red-team/assets/assert-no-repo-escape.sh` and its `.test.sh` before citing specifics.
 
 Every instance graded **Minor, disposition `follow-up`, non-load-bearing** — the plan's explicitly
 enumerated acceptance-criteria test cases were always present and correct; the gap is always on
