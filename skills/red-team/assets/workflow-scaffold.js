@@ -49,7 +49,15 @@ const CONFIRM = { type: 'object', required: ['reproduced'], properties: {
 const ADVERSARIAL_CONFIRM = 'adversarial-confirm'
 
 let A
-try { A = typeof args === 'string' ? JSON.parse(args) : (args ?? {}) }
+try {
+  const parsed = typeof args === 'string' ? JSON.parse(args) : (args ?? {})
+  // Non-null-object guard: a valid scalar ('null'/'true'/'5') or array parses without throwing but
+  // is not a usable args object — normalize it to {}, the same posture as the catch, so the
+  // titleLine refusal below fires cleanly and uniformly instead of a raw destructure TypeError
+  // (only 'null' actually crashed pre-guard; 'true'/'5' destructured to all-undefined). Mirrored by
+  // the workflow-template.js throw-side guard, pinned by a both-sites drift test (ADR 0034).
+  A = (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) ? parsed : {}
+}
 catch { A = {} }
 const { planFile, repo, sourceSpec = 'none', probes = [], fingerprint, provision = [], artifactKind = 'impl-plan' } = A
 
