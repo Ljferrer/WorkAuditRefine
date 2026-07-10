@@ -40,6 +40,18 @@ Before classifying anything, enumerate the live ledgers and compute what is *act
 
 **Dead runs are needs-human, never safe.** A run held at `held:phase-incomplete` or `held:workflow-error` is a **needs-human row — never in the safe list, never touched under `--afk`**: WAR doctrine preserves a dead phase's git state for resume or inspection. Only `--scorched-earth` may burn a dead run's branches and worktrees, and even then each such row is ⚠-flagged in the report.
 
+### Class-1 acknowledged-stranded bucket
+
+Some remote branches never pass the Class-1 deletion gate because their content **landed under a rewritten SHA** — the original ref is stranded, not un-landed, so it permanently fails tip-reachability and would otherwise reappear as a needs-human row in every future run. `docs/aftermath/known-stranded.tsv` is the committed allowlist that acknowledges these once and for all (ADR 0027).
+
+After deriving the Class-1 candidate set from `git ls-remote` truth, check each candidate against the allowlist:
+
+- **Match by exact `refs/heads/<ref>` name — never substring** (so `…/p1-task1` never shadows `…/p1-task10`). The tsv's `remote_ref` column carries the short ref with no `refs/heads/` prefix; compare against the candidate's short ref.
+- A matched candidate routes to the **acknowledged-stranded** bucket: **printed for the record, excluded from needs-human, and never entering any delete list** — under any flag, including `--afk` and `--scorched-earth`.
+- A candidate that fails the deletion gate and matches **no** allowlist row still reports **needs-human**, exactly as before.
+
+**The allowlist is an acknowledgement, never a deletion license (C3).** The deletion gate (tip-reachable + PR-merged) is byte-unchanged; a row never lowers the bar. Clearing a stranded ref stays a deliberate manual `git push origin --delete <ref>` outside aftermath's gates. Adding an allowlist row requires `landed_pr` populated **or** a `note` documenting a genuinely PR-less stranded ref (e.g. a `claude/*` session remote with no per-branch merged PR) — never a blank justification. The tsv's own header carries the schema and this invariant.
+
 ### Class-4 join rule
 
 The campaign ledger records plan paths as **absolute** paths resolved against the campaign Lead's cwd — routinely a session worktree that may no longer exist — while the survey manifest records repo-relative paths. So the manifest→ledger join matches by plan **basename/slug, never full path**. When no ledger entry matches, `gh pr list --search "<plan filename>"` is the sanctioned fallback for locating the landing PR.
@@ -51,6 +63,8 @@ The campaign ledger records plan paths as **absolute** paths resolved against th
 1. **Always produce the categorized dry-run report first**: safe-to-delete rows, each with its evidence chain spelled out, vs. needs-human rows with the reason they failed the gate.
 2. **Interactive:** one confirm, then execute the safe list only. No row-by-row negotiation, no second pass in the same invocation.
 3. **`--afk`:** skip the confirm; execute **only the provably-safe class**; report the rest for the next human to read.
+
+**Run `gh-preflight.sh` before the issue-close batch.** Closing Class-3 bookkeeping issues and Class-4 survey-swept issues are gh writes; before that batch fires, the Lead runs `skills/_shared/gh-preflight.sh "<overrides.ghUser>"` so a mid-run active-account flip never silently drops an aftermath close onto the wrong account (empty/unset `ghUser` ⇒ no-op, exit 0). Prose-enforced Lead discipline; no confined-agent gains any gh verb (C2, ADR 0002).
 
 ## `--scorched-earth` — widened candidates, lowered bar
 
