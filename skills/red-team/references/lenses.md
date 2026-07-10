@@ -35,13 +35,14 @@ For a plan with **no runnable artifacts** (a design doc/PRD), drop the executed 
 - **Provision step (executed probes)** — when the Lead passes a `provision` list (the pinned, repo-derived setup commands — see Part B's `provision.mjs` / setup-scout), the scope-lock additionally directs every **executed** probe to run those commands **in the sandbox copy, before the baseline**, bringing the tree to a gate-ready state (submodules, dependency install, …). Provisioning is environment setup, not the artifact under test: a **failing** provision step is an env-gap → `status:"warn"` + a note, and is **never** a red/fail verdict (a broken environment must not be mis-scored as a broken plan). An empty/absent list adds nothing (back-compat); analyzed read-only probes never provision.
 - **Anchor attestation** — every probe must report `read_anchor` (what it read); the gate discards off-target results. This is the layer that catches drift even when the preamble fails.
 - **`INCOMPLETE` verdict** — the gate returns `CLEARED | CLEARED-WITH-NOTES | BLOCKED | INCOMPLETE`. `INCOMPLETE` whenever a probe was off-target, dropped, or never ran; the gate **never** returns `CLEARED` on incomplete coverage. The Lead re-runs the off-target/dropped probes before any other verdict can settle.
-- *(Optional, deferred)* a deterministic execution harness for `executed` probes — see the follow-up plan; it removes agent judgment from mechanical pass/fail.
+- **Post-run escape guard (executed probes)** — after the Workflow returns and before the gate, the Lead runs [`../assets/assert-no-repo-escape.sh`](../assets/assert-no-repo-escape.sh) `--repo <repo>` (0 = clean; 1 = a stray working-tree file or junk sandbox ref leaked past a probe's throwaway copy; 2 = git error). A nonzero result routes the verdict through the self-confound gate — never `CLEARED` — so a probe that escaped its sandbox (the recorded cwd-reset / bare-push shape) is caught by **detection** even when the SCOPE-LOCK **prevention** preamble failed. This is the ratified replacement for the previously-deferred execution harness (ADR 0033); a full probe-confinement jail was a rejected non-goal — the post-run guard closes the trust gap without one.
 
 ## Schemas
 `FINDINGS` (per probe) and `CONFIRM` (per adversarial-confirm) are defined in the scaffold. `FINDINGS` has a **required** `read_anchor: { resolved_path, plan_title }` — what the probe ACTUALLY read; the gate validates it against the run's **fingerprint** (`{ absPath, titleLine, tokens }`, computed by the Lead from the absolute `planFile` and passed in `args.fingerprint`). A probe whose `read_anchor` does not match the fingerprint is **off-target**: its findings are discarded and it counts as a coverage failure. Shape of a finding:
 ```jsonc
 { severity: "Critical" | "Major" | "Minor",
   needsDecision: false,          // true = a hole to grill the user on
+  deliverableAbsence: false,     // true ONLY when the 'absent' symbol is mapped by coverage-vs-source to a plan task — the gate never blocks on it
   claim: "what the plan asserts",
   reality: "what red-team found",
   evidence: "reproduced proof — error output, diff, transcript",
@@ -53,6 +54,10 @@ For a plan with **no runnable artifacts** (a design doc/PRD), drop the executed 
 - **precondition-missing → a real finding** (a missing/renamed anchor, a false claim about *existing* code, a wrong signature, a drifted line number, an internal contradiction, edits that would not compose).
 - **after-state-not-yet-present → NEVER a finding** ("the proposed line/version/test isn't in the repo yet" — that is the expected pre-execution baseline, not a defect).
 
+**Artifact-kind grading (all probes — `futureWorkRule` in the scaffold, ADR 0032).** The precondition/deliverable split above generalizes across probe modes by **`artifactKind`** (`impl-plan` / `tdd-plan` / `design-doc` / `prd`; the Lead classifies it in the pre-flight and threads it in `args.artifactKind` — see [../SKILL.md](../SKILL.md) Step 2; absent ⇒ `impl-plan`, the suppression-safe default). For an `impl-plan` or `tdd-plan`, a claimed-but-unbuilt symbol / test / file is the expected deliverable baseline — **never a finding** — on **executed** probes too, not just analyzed ones; for a `tdd-plan` specifically, a shipped test running **red pre-implementation is `status:"pass"`**, not a defect. The retained-findings carve-out is unchanged: a false claim about *existing* code, a missing anchor, a wrong signature, a drifted line, or an internal contradiction still blocks.
+
+**Deliverable-absence flag (`deliverableAbsence` on a finding).** A probe sets `deliverableAbsence: true` **only** when the 'absent' symbol it flags is mapped by `coverage-vs-source` to a plan task (the plan promises to add it). The gate never counts a `deliverableAbsence:true` finding as a blocker, regardless of severity or probe status — it keys on the typed flag alone, doing no `reality`-string parsing (the gate stays pure). This kills the recorded 16-false-findings `BLOCKED` misfire at the gate layer.
+
 ## Severity & gate (enforced by [`../assets/red-team-gate.mjs`](../assets/red-team-gate.mjs))
 - **Critical** — provably false in a way that breaks execution (test fails, edit won't apply, file/symbol absent). Blocks **only when the parent probe's `status` is not `"pass"`** (i.e. `warn`, `fail`, or absent). A Critical from a `status:"pass"` probe is a confirmation artifact, not a defect — it does not block.
 - **Major** — real defect or coverage gap → wrong/incomplete results. Same status-aware rule: blocks only when probe `status !== "pass"`.
@@ -61,6 +66,8 @@ For a plan with **no runnable artifacts** (a design doc/PRD), drop the executed 
 - **Verdict:** `CLEARED` (no blockers/holes/minors) · `CLEARED-WITH-NOTES` (minors only) · `BLOCKED` (open blocker/hole) · `INCOMPLETE` (coverage gap — an off-target, dropped, or never-ran probe; re-run before any other verdict).
 
 > **Two-contract summary.** (1) *Probe side* — a finding is a DEFECT only; claims that check out are NOT recorded; a clean probe returns `status:"pass"` with `findings:[]`. (2) *Gate side* — `probeStatus !== "pass"` (warn/fail/absent) still blocks for Critical/Major; `needsDecision` always blocks; only literal `"pass"` demotes a Critical/Major to non-blocker.
+>
+> _Pinned by the **D7 drift-guard** in [`../assets/red-team-gate.test.mjs`](../assets/red-team-gate.test.mjs): it asserts this two-contract sentence is present in both this file and the CONTRACTS comment in [`../assets/workflow-scaffold.js`](../assets/workflow-scaffold.js), and that `'pass'` is the **only** status demoting a Critical/Major — removing either surface, or widening the demoting set, turns the guard red._
 
 ## Report template → `docs/red-team/YYYY-MM-DD-<plan-slug>.md`
 ```markdown
@@ -79,6 +86,10 @@ Spine: <6 lenses>. Bespoke: <probes run>. Executed in sandbox: <which>.
 
 ## Resolutions applied (grill decisions)
 - <finding> → <decision> → <plan ref patched>
+
+## Adjudications
+<!-- Machine-readable: the WAR Lead reads these rows and threads them into auditPrompt(). Version precedence: task instruction > red-team adjudication > plan body literal. Leave empty (or omit) when no authoritative value was adjudicated — an empty block is byte-identical no-op for the auditor. -->
+- <adjudicated literal> supersedes <plan-body literal it replaces> — <plan ref / reason>
 
 ## Residual risk
 - <minor notes / accepted assumptions>

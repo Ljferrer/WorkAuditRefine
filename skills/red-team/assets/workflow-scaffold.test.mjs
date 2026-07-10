@@ -140,7 +140,7 @@ test('executed probes are told to work in a COPY of repo; analyzed probes are re
   const { prompts } = await runScaffold(a, passResult(a))
   const byLabel = Object.fromEntries(prompts.map(p => [p.opts.label, p.prompt]))
   assert.match(byLabel['probe:executable-proof'], /cp -R|worktree add/, 'executed probe copies the repo')
-  assert.match(byLabel['probe:executable-proof'], /\bcd\b/, 'executed probe cds into the copy')
+  assert.match(byLabel['probe:executable-proof'], /git -C /, 'executed probe runs git via git -C <sandbox>, not a stateful cd')
   assert.match(byLabel['probe:claims-vs-reality'], /Restrict every Read/, 'analyzed probe is read-restricted to repo')
 })
 
@@ -318,10 +318,11 @@ test("FINDINGS schema: findings array description includes 'defect'", async () =
 })
 
 // --- #311 (probe-side): precondition-vs-deliverable rule reaches every ANALYZED probe ----------
-// A shared preconditionRule layer (mirrors scopeLock) is prepended to analyzed-technique probes so
-// spine claims-vs-reality/consistency-placeholders/coverage-vs-source AND any bespoke analyzed probe
-// inherit it. The 1b assertion (the retained-findings carve-out) is the LOAD-BEARING non-blunting
-// guard: blunting the rule to a bare "ignore proposed changes" strips this phrase and goes RED.
+// The futureWorkRule layer (mirrors scopeLock; ADR 0032 generalized it from the #311 preconditionRule)
+// selects its analyzed presence-check variant here, prepended so spine claims-vs-reality/
+// consistency-placeholders/coverage-vs-source AND any bespoke analyzed probe inherit it. The 1b
+// assertion (the retained-findings carve-out) is the LOAD-BEARING non-blunting guard: blunting the
+// rule to a bare "ignore proposed changes" strips this phrase and goes RED.
 const ANALYZED_PROBES_311 = ['claims-vs-reality', 'consistency-placeholders', 'coverage-vs-source']
 
 test('#311: every analyzed probe prompt carries the PRECONDITION vs DELIVERABLE rule + retained-findings carve-out', async () => {
@@ -340,7 +341,7 @@ test('#311: every analyzed probe prompt carries the PRECONDITION vs DELIVERABLE 
   }
 })
 
-test('#311: the EXECUTED spine probe (executable-proof) does NOT gain the precondition rule', async () => {
+test('#311/ADR0032: executed probes get the executed FUTURE-WORK variant, NOT the analyzed PRECONDITION-vs-DELIVERABLE wording', async () => {
   const a = baseArgs({ probes: [
     { name: 'bespoke-executed', kind: 'bespoke', technique: 'executed', prompt: 'do bespoke executed' },
   ] })
@@ -348,8 +349,12 @@ test('#311: the EXECUTED spine probe (executable-proof) does NOT gain the precon
   const byLabel = Object.fromEntries(prompts.filter(p => p.opts.phase === 'Probe').map(p => [p.opts.label, p.prompt]))
   for (const label of ['probe:executable-proof', 'probe:bespoke-executed']) {
     assert.ok(byLabel[label], label + ' must be present')
+    // An executed probe RUNS artifacts in a sandbox — it gets the future-work-vs-defect framing,
+    // never the analyzed presence-check PRECONDITION-vs-DELIVERABLE heading (technique-scoped variant).
     assert.ok(!/PRECONDITION vs DELIVERABLE/.test(byLabel[label]),
-      label + ': executed probes must not gain the precondition rule (technique-scoped, not name-scoped)')
+      label + ': executed probes must not carry the analyzed PRECONDITION-vs-DELIVERABLE heading')
+    assert.match(byLabel[label], /FUTURE WORK vs DEFECT/,
+      label + ': executed probes carry the executed future-work variant')
   }
 })
 
@@ -398,4 +403,78 @@ test(`provision BACK-COMPAT: an empty provision list must not change prompts vs 
   // And the executed-probe prompt must contain NONE of the provision scaffolding tokens.
   assert.ok(!/env[- ]?gap/i.test(absent['probe:executable-proof']),
     'back-compat: with no provision list the executed-probe prompt carries no env-gap provisioning text')
+})
+
+// --- Task 1.1 (ADR 0032): artifactKind + futureWorkRule + deliverableAbsence + scope-lock hardening ---
+
+// End state 1 — args.artifactKind appears in every emitted probe prompt (spine + bespoke) and
+// defaults to 'impl-plan' when absent. Delete the `(artifact kind: ${artifactKind})` interpolation
+// from futureWorkRule and this goes RED.
+test('artifactKind: threads into EVERY probe prompt (spine + bespoke) and defaults to impl-plan when absent', async () => {
+  const bespoke = [
+    { name: 'b-exec', kind: 'bespoke', technique: 'executed', prompt: 'do exec' },
+    { name: 'b-an', kind: 'bespoke', technique: 'analyzed', prompt: 'do an' },
+  ]
+  // absent artifactKind → default 'impl-plan' in every probe
+  const a = baseArgs({ probes: bespoke })
+  const { prompts } = await runScaffold(a, passResult(a))
+  const probePrompts = prompts.filter(p => p.opts.phase === 'Probe')
+  assert.equal(probePrompts.length, 8, '6 spine + 2 bespoke')
+  for (const { prompt, opts } of probePrompts) {
+    assert.match(prompt, /impl-plan/, `default artifactKind 'impl-plan' absent from probe '${opts.label}'`)
+  }
+  // explicit artifactKind threads through to every probe
+  const a2 = baseArgs({ artifactKind: 'design-doc', probes: bespoke })
+  const { prompts: p2 } = await runScaffold(a2, passResult(a2))
+  for (const { prompt, opts } of p2.filter(p => p.opts.phase === 'Probe')) {
+    assert.match(prompt, /design-doc/, `explicit artifactKind 'design-doc' absent from probe '${opts.label}'`)
+  }
+})
+
+// End state 2 — executed carries the future-work clause; for tdd-plan the executed clause states a
+// pre-implementation red test is status:"pass"; the analyzed carve-out is still present (control).
+test('futureWorkRule: executed carries the future-work clause; tdd-plan red-test is pass; analyzed keeps the carve-out', async () => {
+  const ai = baseArgs()
+  const { prompts: pi } = await runScaffold(ai, passResult(ai))
+  const byI = Object.fromEntries(pi.filter(p => p.opts.phase === 'Probe').map(p => [p.opts.label, p.prompt]))
+  // executed probe carries the future-work (deliverable-baseline) clause
+  assert.match(byI['probe:executable-proof'], /FUTURE WORK vs DEFECT/, 'executed probe carries the future-work clause')
+  assert.match(byI['probe:executable-proof'], /deliverable baseline/, 'executed future-work clause names the deliverable baseline')
+  // analyzed carve-out control: the retained-findings phrase stays on analyzed probes
+  assert.match(byI['probe:claims-vs-reality'], /false claim about EXISTING code/, 'analyzed probe keeps the retained-findings carve-out')
+  // tdd-plan: the executed clause states a pre-implementation red test is status:"pass"
+  const at = baseArgs({ artifactKind: 'tdd-plan' })
+  const { prompts: pt } = await runScaffold(at, passResult(at))
+  const byT = Object.fromEntries(pt.filter(p => p.opts.phase === 'Probe').map(p => [p.opts.label, p.prompt]))
+  assert.match(byT['probe:executable-proof'], /runs RED before its implementation lands is status:"pass"/,
+    'tdd-plan executed clause: a pre-implementation red test is status:"pass"')
+  // and the analyzed tdd variant also states the red-test-is-pass baseline
+  assert.match(byT['probe:claims-vs-reality'], /RED before its implementation lands is the EXPECTED baseline \(status:"pass"\)/,
+    'tdd-plan analyzed variant: a red pre-implementation test is the expected baseline')
+})
+
+// End state 7 — the executed scope-lock emits the git -C <sandbox> directive and the explicit
+// no-bare-`git push` / cwd-reset warning.
+test('scope-lock (executed): emits git -C <sandbox> + the no-bare-git-push / cwd-reset warning (criterion 7)', async () => {
+  const a = baseArgs()
+  const { prompts } = await runScaffold(a, passResult(a))
+  const byLabel = Object.fromEntries(prompts.map(p => [p.opts.label, p.prompt]))
+  const ep = byLabel['probe:executable-proof']
+  assert.match(ep, /git -C <abs-sandbox>/, 'executed scope-lock directs git -C <abs-sandbox> for every git call')
+  assert.match(ep, /RESETS cwd between calls/, 'executed scope-lock warns the Bash tool resets cwd between calls')
+  assert.match(ep, /NEVER run a bare `git push`/, 'executed scope-lock forbids a bare git push')
+  assert.match(ep, /cwd-reset escape/, 'executed scope-lock cites the recorded cwd-reset escape')
+})
+
+// The optional deliverableAbsence flag is added to the FINDINGS schema here (Task 1.1); the gate
+// (Task 1.2) is what demotes it. Deleting the schema property goes RED.
+test('FINDINGS schema: findings items carry the optional deliverableAbsence boolean flag', async () => {
+  const a = baseArgs()
+  const { prompts } = await runScaffold(a, passResult(a))
+  const probe = prompts.find(p => p.opts.phase === 'Probe')
+  const props = probe.opts.schema.properties.findings.items.properties
+  assert.deepEqual(props.deliverableAbsence, { type: 'boolean' }, 'findings items carry deliverableAbsence:{type:"boolean"}')
+  // the prompt instructs the probe to set the flag only for a coverage-vs-source-mapped deliverable
+  assert.match(probe.prompt, /deliverableAbsence:true/, 'the probe prompt instructs setting deliverableAbsence:true')
+  assert.match(probe.prompt, /coverage-vs-source/, 'the flag instruction scopes to a coverage-vs-source-mapped deliverable')
 })

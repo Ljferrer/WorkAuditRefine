@@ -1,6 +1,8 @@
 # Commander's intent and disposition routing — licensed judgment over plan literalism; issues become affirmative acts
 
-**Status:** accepted (2026-07-02 — design ratified in the clean-handoff review; implemented in `skills/war/assets/workflow-template.js` + the worker/auditor standing files by the clean-handoff plan's Phase 1; amended per the two-homes ruling, Decision 2; amended by [ADR-0014 — AI-Commander's Intent](0014-ai-commanders-intent.md) — Decision 2's never-invents rule gains its single sanctioned exception, the `## AI-Commander's Intent` block `/war-machine --afk` authors)
+**Status:** accepted (2026-07-02 — design ratified in the clean-handoff review; implemented in `skills/war/assets/workflow-template.js` + the worker/auditor standing files by the clean-handoff plan's Phase 1; amended per the two-homes ruling, Decision 2; amended by [ADR-0014 — AI-Commander's Intent](0014-ai-commanders-intent.md) — Decision 2's never-invents rule gains its single sanctioned exception, the `## AI-Commander's Intent` block `/war-machine --afk` authors; coupled — not amended — by
+[ADR-0032](0032-red-team-grades-by-artifact-kind.md) + friction D7 refine the finding-severity model (Decision 4) and
+friction D8 adds the auditor-prompt adjudicationClause (Decision 3), noted inline below)
 
 WAR's agents had exactly one yardstick: the plan's literal text. The auditor's plan-faithfulness lens judged
 work against the slice ("the plan did not authorize"), severity was the only routing signal (every Minor/Nit
@@ -34,12 +36,21 @@ findings route once judgment is licensed. Full mechanics:
    auditor, ace/sweep, gate-audit, and servitor prompts. For auditors: work beyond the literal slice that
    serves the intent is APPROVE (judged on its own correctness), never a plan-faithfulness violation; only
    deviations that contradict intent or slice block. For workers: license to resolve ambiguity toward the
-   Purpose, noting the deviation in the result.
+   Purpose, noting the deviation in the result. *(Coupled — the red-team spec's friction D8,
+   [ADR-0033](0033-executed-probes-behind-escape-guard.md)'s sibling: `auditPrompt()` gains an
+   `adjudicationClause` appended alongside this `intentClause` construct — a guarded-invariant addition, no
+   new ADR — so auditor version-scoring keys on task instruction > red-team adjudication > plan body literal;
+   mirrored VERBATIM into `agents/war-auditor.md` under the same both-surfaces duty as this decision.)*
 4. **Findings route by auditor-owned `disposition`, orthogonal to severity.** `absorb` (mechanical,
    intent-consistent → ace or phase-close sweep; `phaseClose:true` when the fix needs the integrated tip or
    a shared file), `follow-up` (substantive work beyond the phase — must state why it is not absorbable;
    files the issue), `note` (report + servitor feed, never an issue). Defaults when omitted: Minor →
-   follow-up, Nit → note; `absorb` is never a default. Critical/Major blocking is untouched.
+   follow-up, Nit → note; `absorb` is never a default. Critical/Major blocking is untouched. *(Coupled —
+   [ADR-0032](0032-red-team-grades-by-artifact-kind.md) refines *what counts as a finding at all* when
+   `/red-team` grades a plan against a not-yet-mutated repo: a `deliverableAbsence`-flagged finding is a
+   non-defect the red-team gate never blocks on. The red-team spec's friction D7 pins that gate's pass-only
+   demotion set with a drift-guard — a guarded-invariant addition to the finding-severity model here, no new
+   ADR. This routing/severity model is otherwise unchanged.)*
 5. **The ace string backstop narrows to the two pure version-slot JSONs** (`plugin.json`,
    `marketplace.json`) — the only files where a filename alone is sufficient evidence for a sandbox that
    cannot read code. README and other shared files route to the phase-close sweep instead of being refused.
