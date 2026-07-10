@@ -80,6 +80,32 @@ by `/war-machine --afk` has no operator to ratify, so its drafter uses the AI-de
 `## Deferred validations (backstops — AI-declared)` (ADR 0014 provenance rule) — the marker survives
 extraction and every land-time surfacing renders it, never as operator-ratified.
 
+### Reference the live artifact, never a stack-fragile literal
+
+> **Mechanics (why):** a plan is drafted against a base that keeps advancing as earlier stacked tasks land
+> into the integration tip. Any literal a plan or task prompt pins to that base rots the instant the base
+> moves, and the resulting plan↔candidate divergence reads as scope creep to an auditor who re-adjudicates
+> it from scratch every pass. Author each field to point at the **live artifact**, not a snapshot of it.
+
+- **`Files:` / locators** — name the enclosing symbol or comment header, not a `:N-M` range; reserve line
+  ranges for flat config files and qualify them as approximate against a named base (`approx., measured at base <sha>`).
+- **Gate directives** — reference the self-discovery gate (`resolveGate` in `war-config.mjs`) by name; never
+  enumerate `*.test.sh` suites or state a suite count.
+- **Mirrored constants** — say "append to the canonical export in `land-decision.mjs`; the drift guard in
+  `war-config.test.mjs` is the arbiter"; never restate the final array literal.
+- **Nested keys** — use the dotted path (`metadata.provenance`), never a flat abbreviation.
+- **Release tasks** — state "next free patch above the live base", never a hardcoded `v<semver>`.
+- **Defined-but-not-yet-emitted** — for any cross-slice mirrored constant/schema/prose-ref, annotate
+  "defined-but-not-yet-emitted; produced in Task N" so the auditor cross-links the producing task rather
+  than flagging a dangling ref.
+- **Grep as floor** — "grep X, handle every match" requires a manual same-scope title/comment survey;
+  list stragglers as survey-derived corrections.
+
+The advisory `plan-literal-lint.mjs` (`skills/war-strategy/assets/`) mechanically flags the cheap literals —
+line ranges, `*.test.sh` gate lists, suite counts, release-task version literals — at conversion; it is
+report-only (exit 0 by default, `--strict` opt-in), never a `/war` gate. `/war-strategy` runs it on every
+plan it authors (§4).
+
 ### Roadmap template
 
 ```
@@ -164,6 +190,9 @@ ship this **HANDOFF DIRECTIVE** with the route — the authoring skill executes 
 4. **Given a SPEC:** author the war-shaped plan into `docs/plans/` yourself, running the intent echo-back
    **inline** (draft `## Commander's Intent` from the operator's answers, echo it back, explicit confirm)
    instead of shipping the directive.
+5. **Lint the authored plan:** run `node skills/war-strategy/assets/plan-literal-lint.mjs <plan>` on every
+   plan you author and surface its hits in the conversion report (advisory — report-only, never blocks). Each
+   hit names a stack-fragile literal to rewrite per the "Reference the live artifact" conventions (§2).
 
 ## 5. Closing offer
 
