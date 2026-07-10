@@ -1,0 +1,33 @@
+# known-stranded.tsv — the acknowledged-stranded allowlist consulted by /aftermath (skills/aftermath/SKILL.md Class 1).
+#
+# Each DATA row is one remote ref that permanently fails the tip-reachable + PR-merged deletion gate
+# because its content landed under a REWRITTEN SHA (the original ref is stranded, not un-landed).
+# A candidate matching a row by EXACT refs/heads/<ref> name (never substring) routes to the
+# acknowledged-stranded report bucket: printed for the record, excluded from needs-human, and never
+# added to any delete list. An allowlist row is an ACKNOWLEDGEMENT, never a deletion license — the
+# deletion gate is byte-untouched, and clearing a stranded ref stays a deliberate manual
+# `git push origin --delete <ref>` outside aftermath's gates (ADR 0027).
+#
+# Schema (TAB-separated, exactly three columns). Blank lines and lines beginning with `#` are ignored.
+#   remote_ref  short ref with no refs/heads/ prefix, e.g. war/pipelineskills/p1-task1
+#   landed_pr   the merged PR whose SHA superseded this ref, e.g. #473 — OR `-` for a genuinely
+#               PR-less stranded ref (e.g. a claude/* session remote), which then REQUIRES a note.
+#   note        free text; MANDATORY when landed_pr is `-`, documenting the PR-less reason.
+#
+# Invariant for adding a row: landed_pr populated OR (landed_pr `-` AND a note documenting the
+# PR-less reason). Never a blank justification.
+#
+# Seed (2026-07-09): empty. The stranded set recorded in
+# docs/learnings/aftermath-2026-07-03-stranded-remote-set.md (the pipelineskills / memsub /
+# compaction / followup444 families + two claude/* session remotes) was resolved against
+# `git ls-remote origin` at land time and returned zero live refs — all 26 recorded refs had been
+# manually cleared from origin after recording. The committed file + the Class-1 consultation
+# mechanism are the deliverable, not a non-empty row count. Reference row shapes, kept commented:
+#
+#   war/pipelineskills/p1-task1<TAB>#473<TAB>stranded by .war-task marker amend; content landed under rewritten SHA
+#   war/memsub/p1-task1<TAB>#496<TAB>held-escalation manual completion; tips carry a Revert divergence
+#   war/compaction/p1-task2<TAB>#508<TAB>stranded original; equivalent verified f473f89
+#   war/followup444/p1-task2<TAB>#455<TAB>pre-rebase duplicate of merged 3796d06
+#   claude/frosty-moser-46e719<TAB>-<TAB>session remote with no per-branch merged PR
+#
+# remote_ref	landed_pr	note
