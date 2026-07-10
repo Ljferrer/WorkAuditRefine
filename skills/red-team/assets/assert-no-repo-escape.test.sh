@@ -120,8 +120,12 @@ fi
 # ---------------------------------------------------------------------------
 # Case 4: junk ref on a STUBBED origin remote -> exit 1
 # Push a junk branch to a stubbed origin, then DELETE the local junk branch so
-# only the remote carries it — isolates the remote (b2) arm from the local (b1)
-# arm. Working tree stays clean, so the porcelain arm is inert too.
+# only the remote carries it — isolates the remote (b2 ls-remote) arm from the
+# local (b1 for-each-ref) arm. Working tree stays clean, so the porcelain arm is
+# inert too. NOTE: `git push` also writes the remote-tracking ref
+# refs/remotes/origin/redteam-sandbox-leak, which b1's unpatterned for-each-ref
+# enumerates; `branch -D` only removes refs/heads/*, so we must also drop the
+# remote-tracking ref or b1 would fire first and b2 would get zero coverage.
 # ---------------------------------------------------------------------------
 R4="$(setup_repo)"
 ORIGIN4="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
@@ -130,7 +134,8 @@ git -C "$ORIGIN4" init -q --bare
 git -C "$R4" remote add origin "$ORIGIN4"
 git -C "$R4" branch redteam-sandbox-leak 2>/dev/null
 git -C "$R4" push -q origin redteam-sandbox-leak 2>/dev/null
-git -C "$R4" branch -D redteam-sandbox-leak >/dev/null 2>&1   # drop LOCAL copy
+git -C "$R4" branch -D redteam-sandbox-leak >/dev/null 2>&1   # drop LOCAL heads/ copy
+git -C "$R4" update-ref -d refs/remotes/origin/redteam-sandbox-leak >/dev/null 2>&1  # drop remote-tracking copy so ONLY b2 can fire
 rc4="$(run_guard "$R4")"
 if [ "$rc4" -eq 1 ]; then
   pass "case 4: junk ref on stubbed origin (local copy dropped) -> exit 1"
