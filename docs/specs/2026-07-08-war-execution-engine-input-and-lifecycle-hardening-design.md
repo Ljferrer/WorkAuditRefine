@@ -34,10 +34,14 @@ Ten frictions, in three bands. Each premise is verified against the named constr
    `workflow-template.js` uses `const A = typeof args === 'string' ? JSON.parse(args) : (args || {})`
    (no try/catch at all); `workflow-scaffold.js` uses `try { A = ... JSON.parse(args) ... } catch { A = {} }`.
    The catch only traps `SyntaxError`. A syntactically valid scalar — `'null'`, `'true'`, `'5'` — parses
-   fine (`JSON.parse('null') === null`), sails past the catch, and the subsequent destructure
-   (`const { planFile, ... } = A`) throws a raw `TypeError`, bypassing every downstream domain guard
+   fine (`JSON.parse('null') === null`), sails past the catch. **Precisely (red-team-corrected 2026-07-10):**
+   only `'null'` then makes the destructure (`const { planFile, ... } = A`) throw a raw `TypeError` —
+   destructuring a boolean/number primitive does **not** throw, so `'true'`/`'5'` destructure to
+   all-`undefined` fields and continue past the guard as if valid, bypassing every downstream domain guard
    (the fingerprint check, the entry-validation check). Latent only because both delivery paths always
-   send a stringified object. Same defect class as friction 1.
+   send a stringified object. The non-null-object guard's value is thus twofold: it converts the `'null'`
+   crash into a named error **and** stops `'true'`/`'5'` from silently proceeding — a uniform clean refusal
+   for every scalar. Same defect class as friction 1.
 3. **Missing spawn args interpolate literal `undefined` into prompts** (`post-loop-assert-closes-silent-undefined-class`).
    `workflow-template.js` string-builds every dispatched prompt. A missing interpolation input renders
    the literal text `undefined` into the sub-agent's prompt. The `#586` entry-validation check (and the
