@@ -343,3 +343,75 @@ test('SKILL.md step 4 names both accepted input shapes, the .result unwrap, and 
   assert.match(md, /\.result/)
   assert.match(md, /zero[- ]probe|0 probes?/i)
 })
+
+// --- T1.2 (D3): deliverable-absence findings are never blockers (gate stays pure) ---
+
+// A finding whose "absent" referent is the plan's own expected deliverable, tagged by the probe.
+const DA = (over = {}) => ({ severity: 'Critical', claim: 'adds absent symbol', planRef: 'Task 1', deliverableAbsence: true, ...over })
+
+test('D3: a Critical deliverableAbsence finding is absent from blockers (end state 3)', () => {
+  const findings = allFindings([{ probe: 'claims-vs-reality', status: 'fail', findings: [DA()] }])
+  const c = classify(findings)
+  assert.equal(c.blockers.length, 0, 'deliverable-absence must not be a blocker')
+  assert.notEqual(verdict(findings), 'BLOCKED', 'verdict must not be BLOCKED on a deliverable-absence alone')
+})
+
+test('D3: deliverableAbsence excludes from blockers regardless of probe status', () => {
+  for (const status of ['fail', 'warn', undefined]) {
+    const findings = allFindings([{ probe: 'p', status, findings: [DA()] }])
+    assert.equal(classify(findings).blockers.length, 0, `status=${status} deliverable-absence must not block`)
+  }
+})
+
+test('D3: a deliverableAbsence finding surfaces as a Minor note (not silently dropped)', () => {
+  const findings = allFindings([{ probe: 'p', status: 'fail', findings: [DA()] }])
+  assert.equal(classify(findings).minors.length, 1)
+  assert.equal(verdict(findings), 'CLEARED-WITH-NOTES')
+})
+
+test('D3: keys on the TYPED flag only — the SAME finding WITHOUT the flag still blocks (delete-and-trace)', () => {
+  const withFlag = allFindings([{ probe: 'p', status: 'fail', findings: [DA()] }])
+  const noFlag = allFindings([{ probe: 'p', status: 'fail', findings: [DA({ deliverableAbsence: undefined })] }])
+  assert.equal(classify(withFlag).blockers.length, 0)
+  assert.equal(classify(noFlag).blockers.length, 1, 'without the flag the identical Critical is a genuine blocker')
+})
+
+test('D3: deliverableAbsence:false is honored as untagged (only ===true demotes)', () => {
+  const findings = allFindings([{ probe: 'p', status: 'fail', findings: [DA({ deliverableAbsence: false })] }])
+  assert.equal(classify(findings).blockers.length, 1)
+})
+
+// End state 4: the synthetic 16-false-findings regression. An impl-plan claims-vs-reality run
+// grades every not-yet-built deliverable Critical; each carries deliverableAbsence:true → the
+// verdict is NOT BLOCKED purely on those absence counts.
+test('end state 4: 16 deliverable-absence Criticals from an impl-plan run → verdict NOT BLOCKED', () => {
+  const absences = Array.from({ length: 16 }, (_, i) =>
+    DA({ planRef: `Task ${i + 1}`, claim: `adds absent symbol #${i + 1}` }))
+  const findings = allFindings([{ probe: 'claims-vs-reality', status: 'fail', findings: absences }])
+  assert.equal(classify(findings).blockers.length, 0)
+  assert.notEqual(verdict(findings), 'BLOCKED')
+})
+
+// --- T1.2 (D7): drift-guard pin — pass is the ONLY demoting status + two-contract sentence ---
+
+test('D7(a): the ONLY probe status that demotes a Critical/Major is "pass" (demoting set is exactly {pass})', () => {
+  // Delete-and-trace over the status space: only literal "pass" may demote a Critical out of blockers.
+  for (const status of ['fail', 'warn', 'error', undefined, null, '']) {
+    const findings = allFindings([{ probe: 'p', status, findings: [F('Critical')] }])
+    assert.equal(classify(findings).blockers.length, 1, `status=${JSON.stringify(status)} must still block`)
+  }
+  const passFindings = allFindings([{ probe: 'p', status: 'pass', findings: [F('Critical')] }])
+  assert.equal(classify(passFindings).blockers.length, 0, 'a pass-status Critical is demoted out of blockers')
+})
+
+test('D7(b): the two-contract sentence is pinned in BOTH workflow-scaffold.js and lenses.md', () => {
+  const scaffold = fs.readFileSync(path.join(__dirname, 'workflow-scaffold.js'), 'utf8')
+  const lenses = fs.readFileSync(path.join(__dirname, '../references/lenses.md'), 'utf8')
+  // Anchor on quote-free phrases (the recorded anchor-fragility lesson: never pin a byte literal
+  // containing a quote mark — a quote-style normalization on either surface would false-trip it).
+  for (const [name, text] of [['workflow-scaffold.js', scaffold], ['references/lenses.md', lenses]]) {
+    assert.match(text, /clean probe returns/, `${name} lost the probe-side contract (a clean probe returns pass/empty)`)
+    assert.match(text, /warn\/fail\/absent/, `${name} lost the gate-side contract (warn/fail/absent still blocks)`)
+    assert.match(text, /demotes/, `${name} lost the gate-side demotion contract (only pass demotes)`)
+  }
+})
