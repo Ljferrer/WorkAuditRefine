@@ -105,6 +105,19 @@ export function presetConfig(name) {
   return fillDefaults(PRESETS[name])
 }
 
+// Enumerated (preset, role, model, effort) matrix (D6) — one row per (preset × role), each row the
+// EFFECTIVE model/effort after DEFAULTS.agents is deep-merged with that preset's agents partial.
+// Reuses presetConfig()'s merge (never re-implements it) and iterates the live PRESETS/ROLES, so a new
+// preset or role is automatically enumerated. This is the single watched surface binding these
+// (preset, role) → (model, effort) facts to their canonical source; the doc-honesty audit lens consults
+// it, and war-config.test.mjs proves the coverage is total (ADR 0025 drift-guard discipline).
+export function agentMatrix() {
+  return Object.keys(PRESETS).flatMap(preset => {
+    const { agents } = presetConfig(preset)
+    return ROLES.map(role => ({ preset, role, model: agents[role].model, effort: agents[role].effort }))
+  })
+}
+
 // Validate the *effective* (filled) config. Returns { valid, errors:[string] }.
 export function validate(input) {
   const errors = []

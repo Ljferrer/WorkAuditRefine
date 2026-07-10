@@ -51,6 +51,13 @@ check_f '  - End state: <numbered list'
 check_f '  - requiresPackaging: true|false  ← default true'
 check_f '## Deferred validations (backstops)   ← required; ratify in /red-team; surfaced at every land'
 
+# Drift-guard coverage subsection (§3) — pin the block heading plus each rule by its
+# distinctive teeth phrase so a future edit can't silently drop either authoring rule.
+# Fixed-string, no quote-marks/bold crossing the anchor (byte-anchor-fragility trap).
+check '^### Drift-guard coverage'
+check_f 'unguarded mirror is a plan defect'   # rule (a): new mirror ⇒ registry row same task
+check_f 'OLD value absent'                     # rule (b): default-flip enumerates surfaces, asserts old absent
+
 # Commander's Intent sits BEFORE ## Build order inside the plan template.
 # Locators anchor to the verbatim arrow-bearing template lines (unique to the plan-template
 # fence) so a stray earlier bare heading of the same text can't misbind them.
