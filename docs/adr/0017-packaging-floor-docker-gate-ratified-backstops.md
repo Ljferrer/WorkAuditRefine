@@ -85,3 +85,23 @@ Three complementary mechanisms, one per failure surface:
   tested shell guard, fail-closed exemption, routed miss).
 - [ADR-0013](0013-commanders-intent-and-disposition-routing.md) — the verbatim-extraction and
   surfaced-disposition precedents `args.backstops` follows.
+
+## Addendum (2026-07-08): the packaging floor is Added/Renamed/Copied-only by design
+
+`assert-packaging-in-diff.sh` inspects only Added/Renamed/Copied (`A*`/`R*|C*`) diff paths; a
+purely-Modified or Deleted packaging artifact never flags, and the floor exits 0. This is **intended
+scope, not a silent no-op** ([[packaging-floor-is-a-noop-without-a-dockerfile-and-ignores-modified-paths]]).
+
+The floor exists to catch **enumerated-COPY drift** — a *new* file landing beside individually-COPY'd
+siblings of a Dockerfile that the Dockerfile's COPY list never picked up (the originating field incident,
+2026-07-06). Modifying or deleting an already-packaged artifact in a way that breaks the *image* is a
+different failure surface: it belongs to the opt-in **docker-build gate** (Decision §2 above) when the
+operator accepts it at Setup, or to CI's build, both of which exercise the deployable artifact and fail
+loud on a broken image. Widening the floor to Modified/Deleted paths would re-introduce exactly the
+language-specific, import-aware parsing this ADR rejected (Considered options: *An import-aware floor*),
+in a shell guard, for a failure the build already catches definitively.
+
+The diff-collection arm (`A*` / `R*|C*` / `continue`) is therefore ratified byte-unchanged. The
+decision is recorded both where it executes (the `assert-packaging-in-diff.sh` header) and here, so a
+future reader who finds a Modified packaging break slipping the floor sees a recorded scope boundary
+rather than an unrecorded gap. This addendum leaves the ratified body above unchanged.
