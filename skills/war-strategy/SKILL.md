@@ -92,7 +92,7 @@ extraction and every land-time surfacing renders it, never as operator-ratified.
 - **Gate directives** — reference the self-discovery gate (`resolveGate` in `war-config.mjs`) by name; never
   enumerate `*.test.sh` suites or state a suite count.
 - **Mirrored constants** — say "append to the canonical export in `land-decision.mjs`; the drift guard in
-  `war-config.test.mjs` is the arbiter"; never restate the final array literal.
+  `land-decision.test.mjs` is the arbiter"; never restate the final array literal.
 - **Nested keys** — use the dotted path (`metadata.provenance`), never a flat abbreviation.
 - **Release tasks** — state "next free patch above the live base", never a hardcoded `v<semver>`.
 - **Defined-but-not-yet-emitted** — for any cross-slice mirrored constant/schema/prose-ref, annotate
