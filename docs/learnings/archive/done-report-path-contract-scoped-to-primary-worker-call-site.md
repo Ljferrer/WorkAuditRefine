@@ -1,6 +1,6 @@
 ---
 name: done-report-path-contract-scoped-to-primary-worker-call-site
-description: "A new done-report path-contract assertion wired at one WORKER_RESULT call site (primary worker) leaves sibling call sites returning the same result shape (fix-worker, ace-worker, phase-close polish) unchecked"
+description: "done-report path assertion wired at only the primary WORKER_RESULT site skips sibling sites"
 metadata: 
   node_type: memory
   type: project
@@ -55,3 +55,5 @@ different prompt-builder call site" pattern) before considering the class closed
 sibling site too, or explicitly record which ones are left uncovered and why (as this task's audit
 did) — an assertion added at a single call site reads as "this class is now guarded" to a future
 reader unless the scope is stated.
+
+> archived 2026-07-11: resolved — moved to archive

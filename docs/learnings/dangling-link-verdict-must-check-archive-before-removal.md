@@ -1,6 +1,6 @@
 ---
 name: dangling-link-verdict-must-check-archive-before-removal
-description: "6 of 7 'dangling' wikilinks resolved into archive/; adjudicate links against hot set + archive/ before removing"
+description: "Adjudicate a 'dangling' wikilink against hot set + archive/ before removing; archive resolves"
 metadata: 
   node_type: memory
   type: project

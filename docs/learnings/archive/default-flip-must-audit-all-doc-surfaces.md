@@ -23,3 +23,5 @@ metadata:
 Instances, all resolved/historical: F06/p2-t3 `covenPolicy` `auto`→`all` left prose/JSON/SKILL.md at `auto`; #310 T1's §5.4 reword stranded §5.6's cross-ref (worktree-sync caveat: [[land-local-follower-ref-can-lag-sync-before-next-phase]]); catalog-auto-roster task2 carved a `thorough`-preset exception into design.md §8 while SKILL.md kept the flat `<3x` guardrail.
 
 Related: [[plan-affected-file-list-doc-completeness-vs-correctness]], [[source-comment-lags-emitted-prompt-after-rewrite]]
+
+> archived 2026-07-11: resolved — moved to archive

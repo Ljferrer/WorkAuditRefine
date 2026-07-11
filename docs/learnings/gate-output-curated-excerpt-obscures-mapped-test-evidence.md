@@ -3,7 +3,7 @@ name: ""
 metadata:
   node_type: memory
   slug: gate-output-curated-excerpt-obscures-mapped-test-evidence
-  phase: probe-findings-contract/t3.1 + dispatched-gate-run-tmpdir-pin-parity/p2-t2 + fix-worker-result-binding/p3-t3 + submodule-inc1/T2 + submodule-inc2/T2 + servitor-provenance-gate-robustness/t1 + auditor-seat-deliberate-choice-comment/t4 + hygiene-sweep/T4 + gate-audit-integration-sha-validation/T1 + issue-422-nit-sweep/p2-t3 + audit-gate-verdict-fidelity/t2.1
+  phase: probe-findings-contract/t3.1 +10 recurrences (latest audit-gate-verdict-fidelity/t2.1, 2026-07-09)
   type: project
   keywords: [green-by-deletion, collapse marker, aggregate PASS line, full test output, grep-filtered snippet, per-test tick line, inference chain, skipped=0, gate_log_path, artifact capture, tee to file, structural fix]
   provenance: code-verified

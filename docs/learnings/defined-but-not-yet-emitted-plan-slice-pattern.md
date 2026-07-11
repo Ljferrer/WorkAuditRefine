@@ -6,7 +6,7 @@ metadata:
   type: project
   provenance: code-verified
   slug: defined-but-not-yet-emitted-plan-slice-pattern
-  phase: audit-scheduler-integrity/p1 + ace-nit-autofix/phase1-t2+phase2-t3+phase3-t4 + campaign-xbranch-add/T1 + test-floor-pattern-threading/p2t1
+  phase: audit-scheduler-integrity/p1 +3 recurrences (latest 2026-07-07)
   date: 2026-07-01
   updated: 2026-07-07
   keywords:

@@ -1,6 +1,6 @@
 ---
 name: js-inner-function-param-shadows-outer-const-same-name
-description: "An inner arrow function's parameter reusing an outer module-scope const's name is a latent rename trap, even when harmless today"
+description: "Inner-function param reusing an outer const's name is a latent rename trap, harmless today"
 metadata:
   node_type: memory
   type: project
@@ -27,10 +27,11 @@ duplicate name means a future edit that renames the destructure (or the param) w
 other silently changes what value flows through the closure, with no error and no obviously-wrong
 diff. Graded Nit — harmless today, purely a future-maintenance hazard.
 
-**Referent not verified in this checkout** @ phase red-team-plan-vs-state-grading-and-probe-sandboxing
-(worktree predates that branch's merge — `futureWorkRule` does not exist in this checkout's
-`workflow-scaffold.js`) — verify `skills/red-team/assets/workflow-scaffold.js` before citing the
-exact line/shape.
+**Anchor (by construct):** `const futureWorkRule = (technique, artifactKind) => {...}` in
+`skills/red-team/assets/workflow-scaffold.js` takes a param `artifactKind` that shadows the
+module-level destructured `const artifactKind` (from the `A` destructure). The sole call site
+passes that module const straight back in — `futureWorkRule(p.technique, artifactKind)` — so it is
+a no-op today. Re-anchor by the `futureWorkRule` name, not a line number.
 
 ## How to apply
 When reviewing a new inner function whose parameter name matches an outer (module- or
@@ -38,3 +39,5 @@ closure-scope) binding of the same name, treat it as a Nit-worthy latent trap ev
 call site passes the same value through — either close over the outer binding directly (drop the
 param) or give the param a distinct name so a future rename of either binding can't silently swap
 which value is in scope.
+
+> archived 2026-07-11: resolved — moved to archive

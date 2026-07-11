@@ -1,6 +1,6 @@
 ---
 name: gh-preflight-and-close-epic-mechanize-manual-gh-reminders
-description: gh-preflight.sh + assert-issues-filed.sh --close-epic now mechanize the old manual gh-account/close-epic reminders
+description: "gh-preflight.sh + assert-issues-filed.sh --close-epic mechanize the old manual gh reminders"
 metadata: 
   node_type: memory
   type: project
@@ -69,3 +69,5 @@ not from a direct Read of the shipped files. **Verify both files are present and
 before relying on this mechanism in a future run** — re-check on the branch that actually landed
 this phase (`dev/2026-07-08-github-issue-lifecycle-and-run-bookkeeping-mechanization`) or on
 `master` once merged.
+
+> archived 2026-07-11: resolved — moved to archive

@@ -1,6 +1,6 @@
 ---
 name: dockerfile-shell-form-parser-heuristic-ceiling
-description: "assert-packaging-in-diff.sh's Dockerfile parser is shell-form-only, line-by-line; documented ceiling, not a defect"
+description: "Dockerfile parser in assert-packaging-in-diff.sh is shell-form-only, line-by-line — a ceiling"
 metadata:
   node_type: memory
   type: project

@@ -52,3 +52,5 @@ Not urgent given the invariant already covers it.
 Related: [[land-advance-push-first-cas-rejected-token]] (the automated path's exit-code contract this
 bullet's manual path deliberately does not reuse), [[absent-origin-working-branch-baseline-also-forces-manual-land]]
 (the other `held:land-failed` cause this same phase addressed).
+
+> archived 2026-07-11: resolved — moved to archive

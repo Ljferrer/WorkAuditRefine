@@ -1,6 +1,6 @@
 ---
 name: guard-widening-red-discriminator-must-target-branch-without-fallback
-description: "Widening a case-pattern reject class: a new test case only proves the widening if the branch has no independent fallback that already denies the same input"
+description: "Case-pattern widening test proves the fix only on a branch with no independent fallback deny"
 metadata: 
   node_type: memory
   type: project
@@ -58,3 +58,5 @@ actual regression-guard is thin.
 **Why it's benign here:** the plan's end-state criterion only requires *some* branch to prove
 RED→GREEN, and it does (refiner + no-agent_type) — so this is a test-fidelity observation, not a
 coverage hole in the shipped guard.
+
+> archived 2026-07-11: resolved — moved to archive

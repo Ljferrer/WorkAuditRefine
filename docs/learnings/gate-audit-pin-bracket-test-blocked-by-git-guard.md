@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   provenance: agent-unverified
-  phase: dead-phase-halt/t1 + 30 recurrences (through diagnosis-preflight-self-confound-gate/p1t1)
+  phase: dead-phase-halt/t1 +30 recurrences (latest diagnosis-preflight-self-confound-gate/p1t1, 2026-07-07)
   date: 2026-06-30
   updated: 2026-07-07
   keywords:

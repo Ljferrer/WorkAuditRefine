@@ -1,6 +1,6 @@
 ---
 name: gate-audit-inline-prompts-excluded-from-auditprompt-both-surfaces-coverage
-description: "Gate-audit seats (execution-evidence, end-state) build prompts inline, not via auditPrompt() — new base-prompt clauses reach them only through the standing agents/war-auditor.md surface"
+description: "Gate-audit inline-prompt seats miss auditPrompt() clauses; reached only via war-auditor.md file"
 metadata:
   type: project
   keywords: [gate-audit, auditPrompt, inline prompt, execution-evidence, end-state, calibration rule, cost-claim rule, both-surfaces coverage, standing instruction, SOFT evidence review]
@@ -57,3 +57,5 @@ seat-shape split rather than a standing-vs-dispatched split.
 call site for that agent type (not just the primary `auditPrompt()` one) and classify each as
 "covered via shared function" or "covered via standing file only" — document the latter explicitly,
 as this phase's spec did.
+
+> archived 2026-07-11: resolved — moved to archive

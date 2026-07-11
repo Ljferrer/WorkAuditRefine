@@ -1,6 +1,6 @@
 ---
 name: worker-self-report-count-can-overstate-diff-additions
-description: "A worker's prose done-report can miscount new test cases/assertions vs the actual diff — trust live PASS/FAIL counters or a direct diff count, not the claimed number"
+description: "Worker done-report counts can overstate diff — verify vs live PASS/FAIL counters or diff count"
 metadata: 
   node_type: memory
   type: project

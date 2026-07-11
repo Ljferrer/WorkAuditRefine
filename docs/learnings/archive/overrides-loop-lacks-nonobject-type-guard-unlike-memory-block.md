@@ -50,3 +50,5 @@ prominent feature is the guard this loop lacks.
 **How to apply:** in a future hardening pass, add `if (!isObj(c.overrides)) { errors.push('overrides must be an object'); }`
 before the loop, mirroring the `memory` block, plus a `validate({overrides: null})` regression case
 (and ideally `validate({overrides: 'x'})`).
+
+> archived 2026-07-11: resolved — moved to archive

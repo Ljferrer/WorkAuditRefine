@@ -1,6 +1,6 @@
 ---
 name: plan-can-name-a-nonexistent-lens-even-in-an-anti-drift-plan
-description: "A plan whose entire purpose is closing drift can itself carry a drifted/invented construct name ('doc-honesty lens') that never existed in the codebase — reconcile against the real catalog, don't literal-match"
+description: "A plan can name a nonexistent construct; reconcile vs the real catalog, don't literal-match"
 metadata: 
   node_type: memory
   type: project

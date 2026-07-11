@@ -1,6 +1,6 @@
 ---
 name: red-team-drift-guard-spine-probes-are-lead-run-prose-not-spine-array-entries
-description: "/red-team's two ADR-0025 drift-guard probes are doctrine-level prose the Lead runs directly on every plan — they are deliberately NOT entries in the scaffold's fixed SPINE array"
+description: "/red-team's two ADR-0025 drift-guard probes are Lead-run SKILL.md prose, not SPINE entries"
 metadata: 
   node_type: memory
   type: project

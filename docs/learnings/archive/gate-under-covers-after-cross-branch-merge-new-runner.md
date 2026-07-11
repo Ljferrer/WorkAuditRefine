@@ -41,3 +41,5 @@ suites by hand; trusting the setup-time gate would have shipped a runner's worth
 **How to apply:** never trust a literal gate string across an integration; resolve it fresh each time.
 Same family as [[auditor-cannot-execute-the-tests-it-must-verify-pass]]; consumer side of the gate
 [[retire-token-needs-clean-surface-gate-test]] relies on.
+
+> archived 2026-07-11: resolved — moved to archive

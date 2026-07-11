@@ -1,6 +1,6 @@
 ---
 name: audit-gate-anti-cheat-spine-pin-equality-benign-advance-verdict-hard
-description: "Pattern: pin-equality gate + benign-advance floor + verdict-as-HARD, reusing existing reason codes instead of widening enums"
+description: "Anti-cheat spine: pin-equality gate + benign-advance floor + verdict-as-HARD, reuse reason code"
 metadata: 
   node_type: memory
   type: project

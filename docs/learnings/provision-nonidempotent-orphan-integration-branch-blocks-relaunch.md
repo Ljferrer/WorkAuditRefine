@@ -1,6 +1,6 @@
 ---
 name: provision-nonidempotent-orphan-integration-branch-blocks-relaunch
-description: Half-run provision orphans branch → relaunch exit 3; RESOLVED (opt-in) by --reclaim-empty-orphan two-proof self-heal on ensure-integration
+description: "Half-run provision orphans integration branch → relaunch exit 3; prove empty before deleting"
 metadata: 
   node_type: memory
   type: project

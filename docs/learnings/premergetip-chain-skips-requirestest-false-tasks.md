@@ -1,6 +1,6 @@
 ---
 name: premergetip-chain-skips-requirestest-false-tasks
-description: "preMergeTip chains on the requiresTest:true-filtered mergedTasksForGateAudit list, not the full serial merge order — a requiresTest:false task interleaved between test tasks over-populates the --mapped set"
+description: "preMergeTip chains on requiresTest-filtered list not full merge order; over-populates --mapped"
 metadata: 
   node_type: memory
   type: project

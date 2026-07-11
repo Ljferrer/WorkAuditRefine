@@ -1,6 +1,6 @@
 ---
 name: new-findings-tag-must-avoid-war-memory-provenance-vocabulary-collision
-description: "Spec named a new audit demotion tag 'agent-unverified' — renamed to 'pin-mismatch' to avoid colliding with the war-memory provenance tier of the same name"
+description: "Grep new enum/tag names against war-memory provenance tiers first to avoid vocab collision"
 metadata: 
   node_type: memory
   type: project

@@ -1,13 +1,13 @@
 ---
 name: guard-specificity-floor-flags-secondary-die-paths-as-routine-minor
-description: "assert-guard-specificity-in-diff.sh routinely flags secondary/defensive die-guards as Minor/follow-up when only the exit code (not the message) is asserted, or a case is missing entirely"
+description: "guard-specificity floor flags secondary die-guards Minor/follow-up when only exit-code asserted"
 metadata: 
   node_type: memory
   type: project
   promoted: dev/2026-07-08-github-issue-lifecycle-and-run-bookkeeping-mechanization@phase-1
   provenance: code-verified
   slug: guard-specificity-floor-flags-secondary-die-paths-as-routine-minor
-  phase: github-issue-lifecycle-and-run-bookkeeping-mechanization/t1.1+t1.2+t1.6 + red-team-plan-vs-state-grading-and-probe-sandboxing/t1.3
+  phase: github-issue-lifecycle-and-run-bookkeeping-mechanization/t1.1 +3 recurrences (latest red-team-plan-vs-state-grading-and-probe-sandboxing/t1.3)
   keywords: 
     - guard-specificity
     - assert-guard-specificity-in-diff.sh

@@ -1,6 +1,6 @@
 ---
 name: curried-inline-mirror-needs-adapter-shim-in-registry-row
-description: "A behavioral mirror-registry row for a curried inline function must adapt its call shape to the canonical export's own signature, not call both with identical args"
+description: "Mirror-registry row for a curried inline fn must adapt its call shape to canonical signature"
 metadata: 
   node_type: memory
   type: project

@@ -6,7 +6,7 @@ metadata:
   keywords: [hardcoded bump, stale semver, re-baseline, fallback clause, master moved, next free patch, version mismatch, gh-preflight, release bump]
   provenance: code-verified
   slug: stacked-release-plan-version-literal-lags-operator-target
-  phase: provisioning-lifecycle/p3; recurred workflow-template-test-fidelity-sweep/phase-7-t7 (v0.8.6, 2026-07-01); recurred learnings-read-path/phase-2-T5 (v0.14.5, 2026-07-06); recurred war-working-branch-checkout-guard/phase-2-t4 (v0.14.8, 2026-07-06); recurred audit-calibration-and-graduation/phase-2-t3 (v0.14.9, 2026-07-06); recurred target-repo-agnostic-execution/phase-4-p4t1 (v0.14.10, 2026-07-07); recurred diagnosis-preflight-self-confound-gate/p2t1 (v0.14.11, 2026-07-08); recurred github-issue-lifecycle-and-run-bookkeeping-mechanization/phase-2-t2.1 (v0.14.18, 2026-07-08); recurred memory-and-lessons-learned-hygiene/phase-2-t2.1 (v0.14.19, 2026-07-08); recurred plan-and-prompt-literal-brittleness-and-auditor-calibration/phase-2-t2.1 (v0.14.20, 2026-07-08); recurred guard-floor-and-scope-hook-coverage-completeness/phase-2-t2.1 (v0.14.21, 2026-07-08); recurred red-team-plan-vs-state-grading-and-probe-sandboxing/phase-2-t2.1 (v0.14.22, 2026-07-08); recurred war-execution-engine-input-and-lifecycle-hardening/phase-2-t2.1 (v0.14.23, 2026-07-08)
+  phase: provisioning-lifecycle/p3 +12 recurrences (latest v0.14.23, 2026-07-08)
   tags:
     - release
     - stacking
@@ -17,7 +17,7 @@ metadata:
   originSessionId: fab06e87-b8c3-454f-a1d8-ecc9fa41faf6
   created: 2026-06-28
   promoted: stacked-release-plan-version-literal-lags-operator-target
-description: "Stacked-release version literal in the plan always lags the live tip at land time — resolve against the worktree baseline, not the plan string. 13 straight clean recurrences; the version-slots.test.mjs guard (landed drift-guards phase) now mechanically catches what audit used to eyeball. This is also the concrete precedent case for the 'next free patch above the live base' authoring rule ratified in the plan-and-prompt-literal-brittleness-and-auditor-calibration phase's convention block."
+description: "Stacked-release plan version literal lags live tip — resolve next free patch off worktree base"
 ---
 
 # Stacked releases: plan version literal lags operator-directed target

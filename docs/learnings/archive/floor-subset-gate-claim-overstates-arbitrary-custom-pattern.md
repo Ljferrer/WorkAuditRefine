@@ -70,3 +70,5 @@ broader, unqualified terms of the feature it's part of.
 paragraph documents a residual case where X *does* exceed/violate Y — if so, the general claim
 needs a scoping clause, and if it's mirrored in a second surface (a source-file comment plus a
 SKILL.md paragraph), fix both in the same task.
+
+> archived 2026-07-11: resolved — moved to archive
