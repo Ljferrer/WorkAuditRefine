@@ -291,6 +291,45 @@ test('malformed JSON string for args: still rejects with /fingerprint/i (guard i
   )
 })
 
+// --- Task 1.1 (#49): non-null-object args guard (ADR 0034 ingest guard) -------------------------
+// A scalar/array arg is normalized to {} — same posture as the catch — so the fingerprint refusal
+// fires cleanly and uniformly. Delete-the-feature RED case is 'null' (the only scalar that threw a
+// raw destructure TypeError pre-guard); 'true'/'5' already reached the refusal today (they
+// destructure to all-undefined), so the guard's benefit for them is uniformity, not a crash fix.
+for (const scalar of ["'null' (JSON scalar)", "'true' (JSON scalar)", "'5' (JSON scalar)"]) {
+  const raw = scalar.split(' ')[0].replace(/'/g, '')
+  test(`scalar args ${scalar}: normalized to {}, produces the clean titleLine refusal (not a raw TypeError)`, async () => {
+    await assert.rejects(
+      runScaffold(raw, () => ({ status: 'pass', findings: [] })),
+      /fingerprint/i,
+      `${raw} must normalize to {} and hit the fingerprint guard, not a raw TypeError/SyntaxError`
+    )
+  })
+}
+
+test('array args: normalized to {}, produces the clean titleLine refusal', async () => {
+  await assert.rejects(
+    runScaffold('[1,2,3]', () => ({ status: 'pass', findings: [] })),
+    /fingerprint/i,
+    'a JSON array must normalize to {} and hit the fingerprint guard'
+  )
+})
+
+test('non-null-object args guard is present in the source (delete-the-feature anchor)', () => {
+  // Reverting the guard makes 'null' throw a raw TypeError instead of the fingerprint refusal.
+  assert.ok(
+    /typeof\s+parsed\s*===\s*'object'\s*&&\s*parsed\s*!==\s*null\s*&&\s*!Array\.isArray\(parsed\)/.test(src),
+    'the parse success path must normalize non-null-object results to {}'
+  )
+})
+
+test('valid object args still validate as before (guard does not regress the happy path)', async () => {
+  const a = baseArgs()
+  const { out } = await runScaffold(a, passResult(a))
+  assert.deepEqual(out.fingerprint, FP, 'a valid args object threads through unchanged')
+  assert.equal(out.repo, '/abs/REPO')
+})
+
 // --- Task 3.1 (#50 probe side): FINDINGS-means-defect contract ---------------------------------
 test("scaffold structure OK — runProbe prompt instructs 'do NOT record' a claim that checks out", async () => {
   const a = baseArgs()

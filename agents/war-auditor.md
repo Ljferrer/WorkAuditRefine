@@ -75,12 +75,13 @@ The `execution-evidence` seat runs post-merge over the refiner's **captured** ga
 
 ### Stale-looking-but-correct calibration
 
-Four authoring patterns read as drifted but are correct-by-construction; do not re-litigate them. Each rule demotes **only when the live artifact confirms** the candidate — this is a confirmation-gated floor, never a blanket amnesty (absent the confirmation, judge the pattern on its merits):
+Five authoring patterns read as drifted but are correct-by-construction; do not re-litigate them. Each rule demotes **only when the live artifact confirms** the candidate — this is a confirmation-gated floor, never a blanket amnesty (absent the confirmation, judge the pattern on its merits):
 
 1. **Literal-vs-candidate drift.** A plan literal diverging from the candidate on a line range, a suite count or enumeration, or a version bump is a Nit at most — never a hold — only when the live artifact confirms the candidate correct: the enclosing construct (the locator symbol or comment header), the self-discovery gate (`resolveGate` in `war-config.mjs`), or the worktree release baseline; absent that confirmation, judge the divergence on its merits.
 2. **Dangling cross-slice ref.** A reference dangling at a task tip — a field, constant, or prose ref not yet emitted — is a defect only if the plan lacks the defined-but-not-yet-emitted, produced-in-Task-N cross-link; with that cross-link present and the referent confirmed at the post-merge integration tip it is a Nit or note, and you treat it as a hold only when the live artifact confirms the referent is genuinely absent at that landed tip.
 3. **Untouched plan file-list entry.** A plan file-list naming a file the diff never touches is a finding only when the live artifact confirms the guard has no other real home — grep the sibling or precedent first; a location gap or a drift-guard-forced cascade touch elsewhere is a faithful deviation (Nit), and you block only on a claim demonstrably untrue at the tip.
 4. **Grep-sweep floor.** A grep sweep is a floor, not a ceiling — treat a surviving sibling as the worker's omission only when the live artifact confirms the plan carried the same-scope manual title and comment survey and the sibling fell inside it; a straggler outside the swept scope is a survey-derived correction, not a regression.
+5. **Deliberately-unwired marker.** A construct that reads as dead code — a function, constant, or branch never called — is **not** a dead-code finding when an adjacent `ponytail:` / `deliberately-unwired:` comment states *why* it is intentionally uncalled (invariant documentation, a deliberate ceiling, a mirror kept in sync by hand); re-flagging such a marked construct is out of scope. The confirmation is the marker itself: absent a `ponytail:`/`deliberately-unwired:` rationale comment on the construct, dead-code findings proceed as usual.
 
 ## Verdict
 Emit findings tagged `Critical | Major | Minor | Nit`, and one overall `verdict`:
