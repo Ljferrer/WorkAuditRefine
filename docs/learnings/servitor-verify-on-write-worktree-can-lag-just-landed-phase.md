@@ -1,6 +1,6 @@
 ---
 name: servitor-verify-on-write-worktree-can-lag-just-landed-phase
-description: D3 verify-on-write can run against a servitor worktree checkout that is behind the just-landed phase — absence there is not proof the landed tree lacks the referent
+description: "Servitor verify-on-write can run on a checkout behind the landed phase; absence is not proof"
 metadata: 
   node_type: memory
   type: project

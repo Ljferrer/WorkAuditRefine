@@ -35,3 +35,5 @@ missing **empty-landed × hard-reason** (→ `held:escalation`) and
 its "soft escalation ignored, hard escalation wins" contract. Both are now
 present as named tests in `war-config.test.mjs` ("empty landed × HARD escalation
 → held:escalation" and "non-empty landed × SOFT escalation → landed").
+
+> archived 2026-07-11: resolved — moved to archive

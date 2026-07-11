@@ -51,3 +51,5 @@ Any "inherited-from-integration" file in a candidate diff is a **baseline artifa
 not automatic scope-creep / smuggled-test evidence. Relates to the refiner-owned provisioning
 barrier ([[provision-barrier-refiner-owned-not-worker-self-create]]) that establishes the
 per-phase integration branch the baseline pins to.
+
+> archived 2026-07-11: resolved — moved to archive

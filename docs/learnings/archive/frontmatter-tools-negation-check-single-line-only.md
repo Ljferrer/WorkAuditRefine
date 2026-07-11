@@ -29,3 +29,5 @@ continuation lines via awk) and greps the whole block; the fix comment cites thi
 
 **Why:** the safety invariant rested on an unstated YAML serialization-style assumption.
 **How to apply:** for any forbidden-token frontmatter check, assert over the full fenced block.
+
+> archived 2026-07-11: resolved — moved to archive

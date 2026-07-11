@@ -1,6 +1,6 @@
 ---
 name: mirror-registry-verification-mode-by-construct-kind
-description: "A drift-guard mirror registry needs three distinct equality modes (deepEqual / subset / behavioral) chosen by construct kind, not one uniform check"
+description: "Mirror registry needs 3 equality modes (deepEqual/subset/behavioral) chosen by construct kind"
 metadata: 
   node_type: memory
   type: project

@@ -63,3 +63,5 @@ runs through the CI-read branch.
   `manifest-repo/` sit alongside `ci-submodule-repo/` under `skills/_shared/fixtures/provision/`.
 - The `.gitmodules` is there to confirm submodule-aware behavior coexists with CI-derived install
   steps; it is not the install-step source and should not be conflated with one.
+
+> archived 2026-07-11: resolved — moved to archive

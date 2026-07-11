@@ -36,3 +36,5 @@ When adding a path-safety guard to a scope hook with agent-type dispatch, decide
 
 Instance resolved (1b): the guard lives pre-`case` in `hooks/validate-worktree-scope.sh`; the
 `INTENTIONALLY pre-case ... applies to ALL agent types` header comment named in this rule is now present.
+
+> archived 2026-07-11: resolved — moved to archive

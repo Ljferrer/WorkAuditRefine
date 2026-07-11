@@ -62,3 +62,5 @@ Referent not verified in this checkout @ phase red-team-plan-vs-state-grading-an
 was not read) — verify the status-header wording before citing it as still-current.
 
 [[mirrored-prose-row-parenthetical-inversion]]
+
+> archived 2026-07-11: resolved — moved to archive

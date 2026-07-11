@@ -19,3 +19,5 @@ The 2026-07-03 `/aftermath --scorched-earth` run swept everything local (38 bran
 **Why:** remote deletion never lowers its bar below tip-reachable + PR merged, even under `--scorched-earth`.
 
 **How to apply:** don't re-derive the evidence — treat these as known-stranded. Clearing them requires a deliberate manual `git push origin --delete <branches>` outside aftermath's gates (operator call; memsub is the least-verified family). Also: no `.claude/campaigns/` exists in this repo, and newer run dirs in `.claude/teams/` carry only `owned-refs.txt` (no ledger.json) — active-run reconciliation must go straight to git/PR state.
+
+> archived 2026-07-11: resolved — moved to archive

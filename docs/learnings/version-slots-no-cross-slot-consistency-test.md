@@ -1,6 +1,6 @@
 ---
 name: version-slots-no-cross-slot-consistency-test
-description: "RESOLVED (drift-guards phase, t1.1): version-slots.test.mjs now locks all four release slots in lock-step, fail-closed; also records the heading-anchor extraction gotcha the fix round hit"
+description: "RESOLVED: version-slots.test.mjs now locks all four release slots in lock-step, fail-closed"
 metadata: 
   node_type: memory
   type: project

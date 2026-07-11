@@ -1,6 +1,6 @@
 ---
 name: dispatchkind-discriminator-replaces-label-prefix-parsing
-description: "Stable opts.dispatchKind literal on a spawn call lets mocks/handlers/audits key on an explicit discriminator instead of parsing the human-readable label prefix (e.g. `provision-run:${task.id}` vs `provision:phase-${ph.id}`) — same pattern used for provision-barrier / provision-run / polish-worktree / evidence dispatches"
+description: "Set a stable opts.dispatchKind on spawn calls so downstream keys on it, not the label prefix"
 metadata: 
   node_type: memory
   type: project

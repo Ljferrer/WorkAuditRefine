@@ -48,3 +48,5 @@ the appearance of coverage without providing it.
 [[gate-under-covers-after-cross-branch-merge-new-runner]] is the same class at the runner level
 (`node --test` gate silently missing `*.test.sh` runners) — covers the *visible* surface, not the
 *intended* one.
+
+> archived 2026-07-11: resolved — moved to archive

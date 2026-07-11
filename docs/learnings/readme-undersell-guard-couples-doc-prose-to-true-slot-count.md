@@ -1,6 +1,6 @@
 ---
 name: readme-undersell-guard-couples-doc-prose-to-true-slot-count
-description: "A version-lock-step test can indirectly gate prose that undercounts the true number of mirrored slots — fixing the test forced an out-of-Files-list README edit, intent-authorized"
+description: "A version lock-step test can force a same-task README fix outside the task's Files list"
 metadata: 
   node_type: memory
   type: project

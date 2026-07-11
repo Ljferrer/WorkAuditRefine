@@ -1,6 +1,6 @@
 ---
 name: checkpoint-close-epic-before-assert-issues-filed-ordering
-description: "On a landed phase, Lead must run --close-epic before assert-issues-filed.sh assert, else assert exits 1 (done-but-open)"
+description: "On a landed phase, run --close-epic before assert-issues-filed.sh assert, else assert exits 1"
 metadata: 
   node_type: memory
   type: project
@@ -54,3 +54,5 @@ in the phase's audit log (Task 1.4, approve verdict, Nit finding on the Checkpoi
 plan doc present in this checkout, not a direct Read of the landed SKILL.md. **Re-verify the exact
 Checkpoint bullet wording and ordering** on the branch that landed this phase or on `master` once
 merged, before treating this as gospel.
+
+> archived 2026-07-11: resolved — moved to archive

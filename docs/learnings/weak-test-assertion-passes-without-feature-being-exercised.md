@@ -7,7 +7,7 @@ metadata:
   keywords: [vacuous test, false green, contains substring match, shared exit code, delete and trace, dead regex branch, negative match on undefined, temp-break RED proof, aggregate threshold count, inflated count, padding intro line, single-item removal slack, qualifier lock]
   provenance: agent-unverified
   slug: weak-test-assertion-passes-without-feature-being-exercised
-  phase: audit-scheduler-integrity/t4 + worker-test-floor/t1 + fix-worker-result-binding/p2-t2 + land-advance-origin-propagation/p2-t2 + auditor-git-guard-readonly-c-flag/phase2-t2 + ace-nit-autofix/phase2-t3 + submodule-servitor-hygiene-sweep/phase1-t1 + test-assertion-hygiene-sweep/t3 + pipeline-skills/task10 + plan-and-prompt-literal-brittleness-and-auditor-calibration/t1.4
+  phase: audit-scheduler-integrity/t4 +9 recurrences (latest 2026-07-09)
   date: 2026-07-09
   tags:
     - testing

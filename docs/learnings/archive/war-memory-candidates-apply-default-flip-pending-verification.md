@@ -58,3 +58,7 @@ as a superseding update to its item 1 (which currently still asserts the pre-pha
 and is `code-verified`/`type: project` — editable in place once this claim is independently confirmed, per
 the tier-precedence rule that a lower-tier fact may not silently overwrite a higher-tier one until verified
 at the same-or-higher tier).
+
+> merged into [[lessons-learned-tooling-traps]] (2026-07-11): claim independently code-verified (argv.apply dry-run gate + inbound subcommand present); folded as a superseding update to its item 1.
+
+> archived 2026-07-11: resolved — moved to archive

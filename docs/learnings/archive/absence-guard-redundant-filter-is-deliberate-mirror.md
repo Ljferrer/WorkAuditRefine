@@ -39,3 +39,5 @@ suggesting cleanup; if tightening, change both checks together so the mirror sta
 
 Related: [[absence-guard-verb-specific-coverage-gap]] (why the switch-verb guard exists);
 [[retire-token-needs-clean-surface-gate-test]] (broader clean-surface gate pattern).
+
+> archived 2026-07-11: resolved — moved to archive

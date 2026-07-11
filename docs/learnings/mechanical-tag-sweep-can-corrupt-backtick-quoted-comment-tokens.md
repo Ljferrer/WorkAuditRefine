@@ -1,6 +1,6 @@
 ---
 name: mechanical-tag-sweep-can-corrupt-backtick-quoted-comment-tokens
-description: "A global find/replace that tags template-literal spawn sites (e.g. backtick -> pt-backtick) can also hit a backtick-quoted identifier living inside a // comment, corrupting prose harmlessly (no runtime effect) but leaving a stray token — audit finding resolved in a fix round before land, recorded as pattern not live instance"
+description: "A mechanical tag/replace sweep can corrupt a backtick token inside a // comment — inert but real"
 metadata: 
   node_type: memory
   type: project

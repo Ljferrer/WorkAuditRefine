@@ -1,6 +1,6 @@
 ---
 name: reclaim-empty-orphan-proof-swallows-git-log-error-as-empty
-description: "--reclaim-empty-orphan's proof-1 (git log <base>..<branch> empty) conflates a git-log ERROR (e.g. unresolvable base) with a proven-empty branch — 2>/dev/null || true swallows the exit status"
+description: "git log <base>..<branch> with 2>/dev/null||true reads a git ERROR as a proven-empty branch"
 metadata: 
   node_type: memory
   type: project

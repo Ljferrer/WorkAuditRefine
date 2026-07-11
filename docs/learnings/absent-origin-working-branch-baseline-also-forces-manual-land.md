@@ -1,6 +1,6 @@
 ---
 name: absent-origin-working-branch-baseline-also-forces-manual-land
-description: "held:land-failed can fire from an absent origin working-branch baseline, not only a checked-out working branch"
+description: "held:land-failed also fires when origin/<working> baseline absent, not just checkout collision"
 metadata:
   type: project
   keywords:
@@ -44,7 +44,7 @@ needs the same manual-recovery shape but a different root fix.
 `docs/adr/0018-war-working-branch-checkout-guard.md`) now has Setup call
 `provision-worktrees.sh ensure-origin <resolved>` to bootstrap the resolved working branch on origin
 **before Phase 1 runs**, so every phase's push-first CAS has a baseline from the start. `ensure-origin`
-(confirmed at `skills/war/assets/provision-worktrees.sh` lines 847-856) does
+(the `cmd_ensure_origin` subcommand in `skills/war/assets/provision-worktrees.sh`) does
 `git push -u origin refs/heads/<resolved>:refs/heads/<resolved>`, which is idempotent (no-op if already
 on origin at the same tip) and never a force (a diverged remote is refused).
 

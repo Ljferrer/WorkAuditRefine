@@ -1,6 +1,6 @@
 ---
 name: shell-die-default-exit-arg-can-diverge-from-explicit-callsites
-description: "A shell die() helper's ${2:-N} default exit code is a latent trap when every current call site passes the code explicitly"
+description: "die()'s ${2:-N} default exit is a latent trap when a multi-code contract needs explicit args"
 metadata:
   node_type: memory
   type: project

@@ -55,3 +55,5 @@ lesson slug. This is a citation-*creation*-time check, the mirror image of
 [[dangling-link-verdict-must-check-archive-before-removal]] (a *removal*-verdict-time check) — all three are
 the same underlying invariant ("a `[[link]]` must resolve somewhere reachable by its reader") enforced at a
 different point in the lesson's lifecycle.
+
+> archived 2026-07-11: resolved — moved to archive

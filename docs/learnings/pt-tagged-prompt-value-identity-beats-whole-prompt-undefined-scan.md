@@ -1,6 +1,6 @@
 ---
 name: pt-tagged-prompt-value-identity-beats-whole-prompt-undefined-scan
-description: "Guard against undefined-interpolation in build-time prompt strings by checking each interpolated VALUE's identity (=== undefined) via a tagged template, not by regex-scanning the rendered TEXT for /\\bundefined\\b/ — the text scan is disproved by quoted prose containing the literal word"
+description: "Check each interpolated value's identity in a tag, not a regex scan of rendered text"
 metadata: 
   node_type: memory
   type: project

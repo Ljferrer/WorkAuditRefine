@@ -46,3 +46,5 @@ the file first grows a real exit-code table.
 Related: [[ensure-origin-swallows-stderr-unlike-sibling-subcommands]] (same file, same
 `cmd_ensure_integration`/sibling-subcommand family, different nit — stderr capture idiom rather
 than exit-code enumeration).
+
+> archived 2026-07-11: resolved — moved to archive
