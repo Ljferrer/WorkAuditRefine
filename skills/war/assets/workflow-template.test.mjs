@@ -3493,17 +3493,106 @@ test('stale-looking-but-correct calibration (Task 1.4): war-auditor.md AND audit
   }
 })
 
-test('stale-looking-but-correct calibration (Task 1.4): the "only when the live artifact confirms" qualifier survives per rule on BOTH surfaces', async () => {
-  // One qualifier occurrence per rule (four) locks the confirmation floor — a silent widening into
-  // unconditional amnesty would drop these and fail here.
-  const QUALIFIER = /only when the live artifact confirms/gi
-  assert.ok((auditorMd.match(QUALIFIER) || []).length >= 4,
-    'war-auditor.md carries the confirmation qualifier at least once per rule (>= 4)')
+// Per-rule qualifier lock (spec §4.A, #693). Locate the four CALIBRATION_RULE_ANCHORS SEQUENTIALLY —
+// anchor i searched from anchor i-1's match end — so a rule REORDER surfaces as a distinct
+// 'anchor-missing' status (the out-of-order anchor is not found searching forward), never as a
+// mis-sliced window misread as qualifier drift. Window i = [anchor i start, anchor i+1 start); window
+// 4 runs to the first `\n#` heading after anchor 4, else end-of-text — so on the standing card window 4
+// deliberately spans rule 5's qualifier-free line (it stops before `## Verdict`), and on the isolated
+// dispatched line (no `\n#`) it stops at the clause end. Per rule the helper returns { status: 'ok' |
+// 'qualifier-missing' | 'anchor-missing', anchor, start, end }; the [start,end) offsets feed the
+// companion mutation test's window-scoped splice surgery. It never throws — anchor PRESENCE is the
+// sibling anchor test's job; a missing anchor yields 'anchor-missing' (its message names the anchor).
+//
+// Ceiling (broadened from spec §8, naming the real ceiling): this guard is blind to any QUALIFIER-FREE
+// rule insertion — rule 5 (the deliberately-unwired marker) already demonstrates that by design. A
+// QUALIFIER-BEARING rule inserted BETWEEN two anchors would land in the preceding rule's window and
+// could mask that rule's drop. Both are accepted ceilings; the tripwire for any anchored-rule change is
+// the CALIBRATION_RULE_ANCHORS array and its sibling anchor test above.
+const CALIBRATION_QUALIFIER = /only when the live artifact confirms/i
+function qualifierPerRuleWindows(text) {
+  const starts = []
+  let from = 0
+  for (const re of CALIBRATION_RULE_ANCHORS) {
+    const m = text.slice(from).match(re)          // non-global anchors: .match on a slice is safe
+    if (m) { starts.push(from + m.index); from += m.index + m[0].length }
+    else { starts.push(-1) }                       // leave `from` so a later anchor can still match forward
+  }
+  return CALIBRATION_RULE_ANCHORS.map((re, i) => {
+    if (starts[i] < 0) return { status: 'anchor-missing', anchor: String(re), start: -1, end: -1 }
+    const start = starts[i]
+    let end
+    if (i < CALIBRATION_RULE_ANCHORS.length - 1 && starts[i + 1] >= 0) {
+      end = starts[i + 1]
+    } else {
+      const h = text.indexOf('\n#', start)
+      end = h >= 0 ? h : text.length
+    }
+    const status = CALIBRATION_QUALIFIER.test(text.slice(start, end)) ? 'ok' : 'qualifier-missing'
+    return { status, anchor: String(re), start, end }
+  })
+}
+
+// Dispatched surface = the SINGLE calibration line isolated from the captured auditor prompt: split on
+// `\n`, take the one line matching anchor 1. Running the window helper on that line ALONE puts window
+// 4's end-of-text terminator exactly at the clause end, so no trailing prompt clause (CASCADING-IMPACT)
+// or memory-prefetch text can ever feed window 4 (resolves the spec §3-vs-§4.A window-4 terminator
+// ambiguity without any byte-literal anchor on the trailing clause).
+function calibrationLine(prompt) {
+  const line = prompt.split('\n').find((l) => CALIBRATION_RULE_ANCHORS[0].test(l))
+  assert.ok(line, 'auditPrompt carries the calibration clause on a single line (isolation guard)')
+  return line
+}
+
+async function capturedAuditPrompt() {
   const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
   const a = calls.find(isAuditor)
   assert.ok(a, 'an auditor was dispatched (presence guard)')
-  assert.ok((a.prompt.match(QUALIFIER) || []).length >= 4,
-    'auditPrompt carries the confirmation qualifier at least once per rule (>= 4)')
+  return a.prompt
+}
+
+test('stale-looking-but-correct calibration (Task 1.4): the "only when the live artifact confirms" qualifier survives per rule on BOTH surfaces', async () => {
+  // Per rule, not aggregate-count (#693): each of the four rule windows must carry the confirmation
+  // qualifier on BOTH surfaces. A silent widening that drops the qualifier from ONE rule (unconditional
+  // amnesty) turns that rule's window qualifier-missing — the retired aggregate occurrence count could
+  // not see it: five real occurrences minus one silent drop still cleared the four-rule floor. The
+  // intro-line qualifier sits before anchor 1 on both surfaces, so it is outside every window and never
+  // pads a rule.
+  const standing = qualifierPerRuleWindows(auditorMd)
+  standing.forEach((r, i) => assert.equal(r.status, 'ok',
+    `war-auditor.md rule ${i + 1} window ${r.anchor} carries the confirmation qualifier (standing surface)`))
+  const dispatched = qualifierPerRuleWindows(calibrationLine(await capturedAuditPrompt()))
+  dispatched.forEach((r, i) => assert.equal(r.status, 'ok',
+    `auditPrompt rule ${i + 1} window ${r.anchor} carries the confirmation qualifier (dispatched surface)`))
+})
+
+test('stale-looking-but-correct calibration (Task 1.4): the per-rule qualifier lock discriminates each rule on BOTH surfaces (delete-the-feature)', async () => {
+  // Permanent companion mutation test (Case 10e idiom, spec §4.A.3). For each rule position and each
+  // surface, splice out every qualifier occurrence STRICTLY INSIDE that rule's [start,end) window and
+  // assert the helper reports EXACTLY that rule qualifier-missing and the other three still ok. The
+  // complement (other-three-stay-ok) is load-bearing (weak-test-assertion-passes-without-feature-being-
+  // exercised): it proves the helper is not an all-missing stub, that window 4 cannot borrow a qualifier
+  // from trailing text, and that the intro-line qualifier (pre-anchor-1, outside every window) can never
+  // rescue a rule. Initial-round capture only — a deliberate scope cut matching the sibling anchor test;
+  // the rebuttal-round base prompt is already covered by the CALIBRATION_SHARED rebuttal test.
+  const QUALIFIER_ALL = /only when the live artifact confirms/gi
+  const surfaces = [
+    ['war-auditor.md (standing)', auditorMd],
+    ['auditPrompt (dispatched)', calibrationLine(await capturedAuditPrompt())],
+  ]
+  for (const [label, text] of surfaces) {
+    const base = qualifierPerRuleWindows(text)
+    base.forEach((r, i) => assert.equal(r.status, 'ok', `${label}: rule ${i + 1} ok before mutation (precondition)`))
+    for (let target = 0; target < base.length; target++) {
+      const { start, end } = base[target]
+      const mutated = text.slice(0, start) + text.slice(start, end).replace(QUALIFIER_ALL, '') + text.slice(end)
+      const after = qualifierPerRuleWindows(mutated)
+      assert.equal(after[target].status, 'qualifier-missing',
+        `${label}: removing rule ${target + 1}'s window qualifier reports that rule qualifier-missing`)
+      after.forEach((r, i) => { if (i !== target) assert.equal(r.status, 'ok',
+        `${label}: rule ${i + 1} stays ok when only rule ${target + 1}'s qualifier is removed (complement — no cross-window borrow, intro never rescues)`) })
+    }
+  }
 })
 
 // --- Intent threading (criterion 10) ---
