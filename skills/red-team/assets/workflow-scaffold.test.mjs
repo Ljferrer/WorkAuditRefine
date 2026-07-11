@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { spawnSync } from 'node:child_process'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const scaffoldPath = join(__dirname, 'workflow-scaffold.js')
@@ -172,12 +173,15 @@ test('FINDINGS schema requires read_anchor (Layer 3 attestation is mandatory)', 
 test('a dropped probe is retried once, then emitted as a { probe, dropped:true } marker', async () => {
   const a = baseArgs()
   let calls = 0
-  // claims-vs-reality dies on BOTH the initial run and the retry; everything else passes.
+  // claims-vs-reality (analyzed) dies for EVERY agent type on both the initial run and the retry;
+  // everything else passes. With the #727 analyzed-agent fallback, a dead analyzed dispatch fans out
+  // to preferred (Explore) + fallback (general-purpose) — 2 dispatches per pipeline pass — and
+  // Layer 4 retries the whole probe once, so the documented worst-case bound is 2 × 2 = 4 dispatches.
   const { out, logs } = await runScaffold(a, (_, opts) => {
     if (opts.phase === 'Probe' && opts.label === 'probe:claims-vs-reality') { calls++; return null }
     return { probe: opts.label, technique: 'analyzed', status: 'pass', read_anchor: anchorOf(a), findings: [] }
   })
-  assert.equal(calls, 2, 'the dead probe was attempted twice (initial + one retry)')
+  assert.equal(calls, 4, 'the dead analyzed probe was dispatched 4× (preferred+fallback per pass × initial+one retry)')
   const marker = out.probeResults.find(r => r && r.dropped === true)
   assert.ok(marker, 'a dropped marker is emitted, not a silent omission')
   assert.equal(marker.probe, 'claims-vs-reality')
@@ -185,14 +189,18 @@ test('a dropped probe is retried once, then emitted as a { probe, dropped:true }
   assert.ok(logs.some(l => /retry/i.test(l)), 'the retry is logged')
 })
 
-test('a probe that dies once then succeeds on retry yields a real result (no marker)', async () => {
+test('a probe that dies once then succeeds on the Layer-4 retry yields a real result (no marker)', async () => {
   const a = baseArgs()
   let first = true
+  // executable-proof is EXECUTED (agentType undefined) — it bypasses the analyzed-agent fallback, so
+  // a single transient death is recovered by the Layer-4 retry alone (not the fallback). This keeps a
+  // pure Layer-4 retry-recovery test for the bypass path; the fallback recovery path is covered by
+  // the #727 cases below.
   const { out } = await runScaffold(a, (_, opts) => {
-    if (opts.phase === 'Probe' && opts.label === 'probe:dependency-feasibility' && first) { first = false; return null }
-    return { probe: opts.label, technique: 'analyzed', status: 'pass', read_anchor: anchorOf(a), findings: [] }
+    if (opts.phase === 'Probe' && opts.label === 'probe:executable-proof' && first) { first = false; return null }
+    return { probe: opts.label, technique: opts.agentType === undefined ? 'executed' : 'analyzed', status: 'pass', read_anchor: anchorOf(a), findings: [] }
   })
-  assert.ok(!out.probeResults.some(r => r && r.dropped === true), 'retry succeeded — no dropped marker')
+  assert.ok(!out.probeResults.some(r => r && r.dropped === true), 'the Layer-4 retry succeeded — no dropped marker')
   assert.equal(out.probeResults.length, out.expected)
 })
 
@@ -516,4 +524,180 @@ test('FINDINGS schema: findings items carry the optional deliverableAbsence bool
   // the prompt instructs the probe to set the flag only for a coverage-vs-source-mapped deliverable
   assert.match(probe.prompt, /deliverableAbsence:true/, 'the probe prompt instructs setting deliverableAbsence:true')
   assert.match(probe.prompt, /coverage-vs-source/, 'the flag instruction scopes to a coverage-vs-source-mapped deliverable')
+})
+
+// --- #727: analyzed-agent reactive fallback (Explore → general-purpose) --------------------------
+// Behavioral cases on the mock-agent harness above. Agent-name literals ('Explore',
+// 'general-purpose') are DELIBERATELY hardcoded here: the scaffold compiles as a function body
+// (nothing importable), so a future default-agent change must LOUDLY break these tests, not ride
+// through silently. Every case is a delete-the-feature check — each goes RED against the pre-change
+// scaffold (stash the scaffold edits); recorded in the task done-report (End-state 12).
+const GATE = join(__dirname, 'red-team-gate.mjs')
+
+// A well-formed FINDINGS result for a probe dispatch, on-target for args `a`. `over` overrides
+// status/findings (e.g. a blocking fail). Confirms return their own CONFIRM shape inline.
+const okResult = (a, opts, over = {}) => ({
+  probe: String(opts.label).replace(/^probe:/, '').replace(/^adversarial-confirm:/, ''),
+  kind: 'spine', technique: opts.agentType === undefined ? 'executed' : 'analyzed',
+  status: 'pass', read_anchor: anchorOf(a), findings: [], ...over })
+const MAJOR = [{ severity: 'Major', claim: 'c', reality: 'r' }]
+
+// End-state 1 + 2: a dead preferred (Explore) analyzed dispatch — whether it THROWS or returns
+// NULL (both harness-version-dependent failure shapes) — recovers under the general-purpose
+// fallback: real results for every analyzed probe, zero dropped markers, a captured fallback
+// dispatch, and the stable diagnostic token.
+for (const shape of ['throw', 'null']) {
+  test(`#727 fallback recovery (${shape}): a dead Explore analyzed probe recovers under general-purpose, zero drops`, async () => {
+    const a = baseArgs()
+    const { out, prompts, logs } = await runScaffold(a, (_, opts) => {
+      if (opts.agentType === 'Explore') { if (shape === 'throw') throw new Error("agent type 'Explore' not found"); return null }
+      return okResult(a, opts)
+    })
+    assert.ok(!out.probeResults.some(r => r && r.dropped), 'no probe dropped — the fallback recovered every analyzed probe')
+    assert.equal(out.probeResults.length, out.expected, 'every probe slot yields a result')
+    assert.ok(prompts.some(p => p.opts.phase === 'Probe' && p.opts.agentType === 'general-purpose'),
+      'an analyzed probe was re-dispatched with agentType general-purpose')
+    const fallbackLogs = logs.filter(l => /analyzed-agent fallback engaged/.test(l))
+    assert.ok(fallbackLogs.length > 0, 'the stable analyzed-agent fallback log token is emitted')
+    assert.ok(fallbackLogs.every(l => !/retrying once/.test(l)), 'the fallback token is greppably distinct from the Layer-4 retry line')
+  })
+}
+
+// End-state 3: with BOTH agent types dead for analyzed probes, each analyzed probe stays LOUD —
+// a { probe, dropped:true } marker, `expected` intact, executed probes untouched — and the scaffold
+// output piped through the real gate yields verdict INCOMPLETE (committed, not a manual claim).
+test('#727 exhausted fallback stays loud: both types dead → dropped markers + gate INCOMPLETE (End-state 3)', async () => {
+  const a = baseArgs()
+  const { out, logs } = await runScaffold(a, (_, opts) => {
+    if (opts.agentType !== undefined) return null   // both Explore AND general-purpose die (any analyzed dispatch)
+    return okResult(a, opts)                          // executed probes (undefined agentType) answer normally
+  })
+  for (const name of ['claims-vs-reality', 'coverage-vs-source', 'consistency-placeholders', 'dependency-feasibility', 'intent-vs-plan']) {
+    assert.ok(out.probeResults.some(r => r && r.dropped === true && r.probe === name), `analyzed probe ${name} emits a dropped marker`)
+  }
+  assert.equal(out.expected, 6, 'expected still equals the full probe count')
+  const exec = out.probeResults.find(r => r && r.probe === 'executable-proof')
+  assert.ok(exec && !exec.dropped, 'the executed probe is untouched by the analyzed-agent fallback')
+  assert.ok(logs.some(l => /analyzed-agent fallback engaged/.test(l)), 'the fallback token fires even when exhausted (RED on the pre-change scaffold)')
+  const gate = spawnSync(process.execPath, [GATE, '--stdin'], { input: JSON.stringify(out), encoding: 'utf8' })
+  assert.equal(gate.status, 0, `gate must exit 0 on a classified verdict; stderr=${gate.stderr}`)
+  const g = JSON.parse(gate.stdout)
+  assert.equal(g.verdict, 'INCOMPLETE', 'a both-dead run gates to INCOMPLETE (dropped coverage is fail-closed)')
+  assert.ok(g.summary.dropped.includes('claims-vs-reality'), 'the gate summary reports the dropped analyzed probes')
+})
+
+// End-state 3 (confirm site): a blocking analyzed probe whose CONFIRM dies for both agent types
+// drops the whole slot — the exhausted dispatcher RETHROWS (never returns null), so the item is
+// nulled and Layer-4 marks it dropped, rather than a null confirm falling through
+// `if (c && c.reproduced === false)` and letting an unconfirmed fail stand as a blocker (the Notes
+// deviation: on the pre-change scaffold this same mock leaves the fail STANDING → RED here).
+test('#727 confirm-site both-dead: a blocking analyzed probe whose confirm exhausts both types → dropped, never a standing fail', async () => {
+  const a = baseArgs()
+  const { out, logs } = await runScaffold(a, (_, opts) => {
+    if (opts.phase === 'Confirm') return null   // the confirm dies for BOTH Explore and general-purpose
+    if (opts.label === 'probe:claims-vs-reality') return okResult(a, opts, { status: 'fail', findings: MAJOR })
+    return okResult(a, opts)
+  })
+  assert.ok(out.probeResults.some(r => r && r.dropped === true && r.probe === 'claims-vs-reality'),
+    'the blocking probe drops once its confirm exhausts both agent types')
+  assert.ok(!out.probeResults.some(r => r && r.probe === 'claims-vs-reality' && r.status === 'fail'),
+    'no unconfirmed fail is left standing as a blocker (rethrow, not return-null)')
+  assert.equal(out.expected, 6, 'expected still equals the full probe count')
+  assert.ok(logs.some(l => /analyzed-agent fallback engaged/.test(l)), 'the confirm dispatch attempted the fallback before exhausting')
+})
+
+// End-state 4: executed probes (agentType undefined) BYPASS the wrapper — undefined agentType,
+// exactly one dispatch each — while analyzed probes in the SAME dead-Explore run fall back to
+// general-purpose (the contrast is what makes this RED on the pre-change scaffold).
+test('#727 executed probes never wrapped: undefined agentType, one dispatch, while analyzed fall back (End-state 4)', async () => {
+  const a = baseArgs({ probes: [{ name: 'b-exec', kind: 'bespoke', technique: 'executed', prompt: 'do b-exec' }] })
+  const { out, prompts } = await runScaffold(a, (_, opts) => {
+    if (opts.agentType === 'Explore') throw new Error("agent type 'Explore' not found")
+    return okResult(a, opts)
+  })
+  for (const label of ['probe:executable-proof', 'probe:b-exec']) {
+    const dispatches = prompts.filter(p => p.opts.label === label)
+    assert.equal(dispatches.length, 1, `${label} dispatched exactly once — the fallback never touches the executed path`)
+    assert.strictEqual(dispatches[0].opts.agentType, undefined, `${label} keeps agentType undefined`)
+  }
+  assert.ok(prompts.some(p => p.opts.phase === 'Probe' && p.opts.agentType === 'general-purpose'),
+    'analyzed probes fell back to general-purpose (a fallback ran and left the executed path alone)')
+  assert.ok(!out.probeResults.some(r => r && r.dropped), 'no drops — analyzed recovered, executed passed')
+})
+
+// End-state 5 (override): args.analyzedAgentType is the dispatched preferred type at BOTH the probe
+// (runProbe) and the adversarial-confirm (confirmStage) sites.
+test('#727 override honored: analyzedAgentType is the dispatched type at BOTH the probe and confirm sites (End-state 5)', async () => {
+  const a = baseArgs({ analyzedAgentType: 'custom-agent' })
+  const { prompts } = await runScaffold(a, (_, opts) => {
+    if (opts.phase === 'Confirm') return { reproduced: true }
+    if (opts.label === 'probe:claims-vs-reality') return okResult(a, opts, { status: 'fail', findings: MAJOR })
+    return okResult(a, opts)
+  })
+  const probe = prompts.find(p => p.opts.label === 'probe:claims-vs-reality')
+  assert.equal(probe.opts.agentType, 'custom-agent', 'the probe site dispatches the overridden preferred type')
+  const confirm = prompts.find(p => p.opts.label === 'adversarial-confirm:claims-vs-reality')
+  assert.ok(confirm, 'the blocking probe ran its adversarial-confirm')
+  assert.equal(confirm.opts.agentType, 'custom-agent', 'the confirm site dispatches the overridden preferred type')
+})
+
+// End-state 5 (preferred === fallback): overriding the preferred type to 'general-purpose' means a
+// dead dispatch has no distinct fallback to try — the redundant-dispatch guard skips the identical
+// re-dispatch and goes straight to the rethrow/Layer-4 path (one dispatch per pipeline pass, no
+// fallback-engaged log).
+test('#727 preferred===fallback: a dead general-purpose dispatch is attempted once per pass, no identical re-dispatch (End-state 5)', async () => {
+  const a = baseArgs({ analyzedAgentType: 'general-purpose' })
+  const { out, prompts, logs } = await runScaffold(a, (_, opts) => {
+    if (opts.agentType === 'general-purpose') return null   // preferred IS the fallback, and it is dead
+    return okResult(a, opts)                                  // executed (undefined agentType) answer normally
+  })
+  const dispatches = prompts.filter(p => p.opts.label === 'probe:claims-vs-reality')
+  assert.equal(dispatches.length, 2, 'exactly one dispatch per pipeline pass (initial + one Layer-4 retry) — no identical re-dispatch')
+  assert.ok(dispatches.every(d => d.opts.agentType === 'general-purpose'), 'both dispatches use the (preferred===fallback) type, never a third try')
+  assert.ok(!logs.some(l => /analyzed-agent fallback engaged/.test(l)), 'the redundant-dispatch guard skips the fallback log (no identical second dispatch)')
+  assert.ok(out.probeResults.some(r => r && r.dropped === true && r.probe === 'claims-vs-reality'), 'the probe still drops — fail-closed')
+})
+
+// End-state (spec §4 confirm parity): a blocking analyzed probe whose Explore confirm dies ONCE
+// still gets a fallback-dispatched confirm on general-purpose.
+test('#727 confirm-site parity: an Explore confirm that dies once recovers on the general-purpose fallback', async () => {
+  const a = baseArgs()
+  const { prompts, logs } = await runScaffold(a, (_, opts) => {
+    if (opts.phase === 'Confirm' && opts.agentType === 'Explore') throw new Error("agent type 'Explore' not found")
+    if (opts.phase === 'Confirm') return { reproduced: true }
+    if (opts.label === 'probe:claims-vs-reality') return okResult(a, opts, { status: 'fail', findings: MAJOR })
+    return okResult(a, opts)
+  })
+  const confirmDispatches = prompts.filter(p => p.opts.label === 'adversarial-confirm:claims-vs-reality')
+  assert.ok(confirmDispatches.some(d => d.opts.agentType === 'Explore'), 'the confirm first tried the preferred Explore type')
+  assert.ok(confirmDispatches.some(d => d.opts.agentType === 'general-purpose'), 'the confirm recovered on the general-purpose fallback')
+  assert.ok(logs.some(l => /analyzed-agent fallback engaged/.test(l)), 'the confirm-site fallback logged its diagnostic token')
+})
+
+// --- ff-topology prose presence-pair drift guard (spec §4; End-state 10) ------------------------
+// Reads the two sibling prose surfaces (the same cross-file idiom as red-team-gate.test.mjs's D7
+// guard) and pins BOTH the literal probe name AND its load-bearing clauses. Token presence alone is
+// insufficient (the mirrored-clause-presence lesson: 'mandatory' can rot to 'recommended' while a
+// token-only guard stays green), so each surface's ff-topology REGION must ALSO carry, mid-sentence
+// and case-insensitively, 'mandatory' and '--fast'.
+test('ff-topology prose presence pair: SKILL.md + lenses.md both carry the probe name and its mandatory/--fast clauses (End-state 10)', () => {
+  const surfaces = {
+    'SKILL.md': readFileSync(join(__dirname, '..', 'SKILL.md'), 'utf8'),
+    'references/lenses.md': readFileSync(join(__dirname, '..', 'references', 'lenses.md'), 'utf8'),
+  }
+  // Concatenate a ±320-char window around every 'ff-topology' mention so the clause anchors are
+  // scoped to the probe's region — not satisfied by an unrelated 'mandatory' elsewhere in the file.
+  const region = (text) => {
+    const lower = text.toLowerCase(), out = []
+    for (let i = lower.indexOf('ff-topology'); i !== -1; i = lower.indexOf('ff-topology', i + 1)) {
+      out.push(text.slice(Math.max(0, i - 320), i + 320))
+    }
+    return out.join('\n---\n')
+  }
+  for (const [name, text] of Object.entries(surfaces)) {
+    assert.ok(text.includes('ff-topology'), `${name} must name the ff-topology probe`)
+    const r = region(text)
+    assert.match(r, /mandatory/i, `${name} ff-topology region must state the probe is mandatory (mid-sentence, case-insensitive)`)
+    assert.match(r, /--fast/, `${name} ff-topology region must state the probe is --fast-proof`)
+  }
 })

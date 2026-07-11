@@ -21,7 +21,11 @@ export const meta = {
 //   discarded as a non-defect. needsDecision:true always blocks regardless of probe
 //   status. warn/fail/absent probe status still blocks (only literal "pass" demotes).
 // SAFETY: execution probes work ONLY in throwaway temp dirs / git worktrees and NEVER
-// mutate `repo`. Analysis probes are read-only (Explore agent). A fail is downgraded to
+// mutate `repo`. Analysis probes are read-only: they run on the preferred `Explore` agent when the
+// harness provides it, falling back to `general-purpose` when it does not (analyzed-agent fallback,
+// #727). The fallback widens raw capability (`general-purpose` can write where `Explore` cannot), so
+// its confinement rides the scope-lock preamble (prevention) + assert-no-repo-escape.sh (detection,
+// ADR 0033) — both already applied to every probe/confirm unconditionally. A fail is downgraded to
 // warn unless an independent confirm agent reproduces it. Prove, don't assert.
 // ---------------------------------------------------------------------------
 
@@ -59,7 +63,17 @@ try {
   A = (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) ? parsed : {}
 }
 catch { A = {} }
-const { planFile, repo, sourceSpec = 'none', probes = [], fingerprint, provision = [], artifactKind = 'impl-plan' } = A
+const { planFile, repo, sourceSpec = 'none', probes = [], fingerprint, provision = [], artifactKind = 'impl-plan', analyzedAgentType } = A
+
+// Analyzed-agent dispatch types (#727). Analyzed probes/confirms need a read-only agent; the
+// preferred one is `Explore` (overridable via args.analyzedAgentType — the issue's configurability
+// ask), and this constant is the ONLY place the bare Explore string literal survives. The fallback is
+// 'general-purpose' — present in every observed harness and verified recovering a full analyzed
+// workload in the 2026-07-10 missing-Explore incident. These sit AFTER the args destructure on
+// purpose: ANALYZED_AGENT reads the destructured `analyzedAgentType`, so declaring them beside
+// ADVERSARIAL_CONFIRM (which precedes `A`'s initialization) would be a reference-before-init crash.
+const ANALYZED_AGENT = analyzedAgentType ?? 'Explore'
+const ANALYZED_AGENT_FALLBACK = 'general-purpose'
 
 // Layer 1 — the fingerprint is the deterministic ground truth the gate validates every probe
 // against. The Workflow sandbox has NO filesystem access, so the Lead computes it (Bash) from the
@@ -189,25 +203,59 @@ const allProbes = [...spine, ...probes]
 
 log(`Red-teaming ${planFile}: ${allProbes.length} probe(s)`)
 
+// Shared analyzed-agent dispatch with a reactive fallback (#727 — the missing-`Explore` incident).
+// The Workflow sandbox cannot introspect the harness, so a dropped agent type is observable ONLY as
+// a dead dispatch — a throw OR a nullish result (the shape is harness-version-dependent; treated
+// uniformly). Executed probes (agentType undefined) BYPASS the wrapper entirely — plain agent(),
+// never re-dispatched. For an analyzed probe/confirm: try the preferred type; on a first death log
+// the stable 'analyzed-agent fallback engaged:' token (greppably distinct from Layer 4's 'retrying
+// once') and re-dispatch once with ANALYZED_AGENT_FALLBACK. Redundant-dispatch guard: when the
+// preferred type ALREADY is the fallback (operator override to general-purpose), a first death skips
+// the identical re-dispatch. Exhausted path — RETHROW, never return null: a second death (or the
+// redundant-guard death) throws a descriptive Error, so the Workflow pipeline() nulls the whole item
+// and BOTH sites (probe AND confirm) converge on the existing Layer-4 retry → { probe, dropped:true }
+// marker → gate INCOMPLETE path. Returning null here would let a null confirm fall through
+// `if (c && c.reproduced === false)` below and silently stand an unconfirmed fail as a blocker (see
+// the plan's Notes / conscious deviations). Bound: worst case per analyzed probe is 2 dispatches ×
+// (initial + one Layer-4 retry) = 4, plus the same on a confirm — bounded, composes with Layer 4,
+// never multiplies it.
+const dispatchAgent = async (prompt, opts = {}) => {
+  if (opts.agentType === undefined) return agent(prompt, opts)   // executed probes — never wrapped
+  const label = opts.label || 'analyzed probe'
+  try {
+    const r = await agent(prompt, opts)
+    if (r != null) return r                                       // preferred type answered
+  } catch { /* dead dispatch — fall through to the fallback */ }
+  if (opts.agentType === ANALYZED_AGENT_FALLBACK) {               // redundant-dispatch guard
+    throw new Error(`red-team: analyzed dispatch for ${label} died on ${opts.agentType} (already the ${ANALYZED_AGENT_FALLBACK} fallback) — dropping the probe (gate → INCOMPLETE).`)
+  }
+  log(`analyzed-agent fallback engaged: ${label} — ${opts.agentType} dispatch died; re-dispatching with ${ANALYZED_AGENT_FALLBACK}.`)
+  try {
+    const r2 = await agent(prompt, { ...opts, agentType: ANALYZED_AGENT_FALLBACK })
+    if (r2 != null) return r2                                     // fallback recovered the probe
+  } catch { /* both types dead — fall through to the loud rethrow */ }
+  throw new Error(`red-team: analyzed dispatch for ${label} died on both ${opts.agentType} and ${ANALYZED_AGENT_FALLBACK} — dropping the probe (gate → INCOMPLETE).`)
+}
+
 // Probe (stage 1) + adversarial-confirm (stage 2) as named stages so a dropped probe can be retried.
 // futureWorkRule rides alongside scopeLock on EVERY probe (analyzed AND executed) — the technique
 // argument selects the presence-check (analyzed) vs future-work-vs-defect (executed) wording variant.
-const runProbe = (p) => agent(
+const runProbe = (p) => dispatchAgent(
   `${scopeLock(p.technique)}\n\n${futureWorkRule(p.technique, artifactKind)}\n\n${p.prompt}\n\nReturn ONLY the FINDINGS object (probe="${p.name}", kind="${p.kind}", technique="${p.technique}"). Prove any failure with reproduced evidence; never assert. Set needsDecision:true on any finding that is an ambiguity with more than one non-equivalent resolution — a hole only the user can settle. Only record a finding for an actual problem — a false claim, a gap, or an ambiguity (needsDecision). If a claim checks out, do NOT record it. A fully-clean probe returns status:"pass" with findings:[].`,
   { label: `probe:${p.name}`, phase: 'Probe',
-    agentType: p.technique === 'analyzed' ? 'Explore' : undefined, schema: FINDINGS })
+    agentType: p.technique === 'analyzed' ? ANALYZED_AGENT : undefined, schema: FINDINGS })
 
 const confirmStage = async (res, p) => {               // adversarial-confirm: refute any reproducible blocker
   const blocking = res && (res.findings || []).some(f => f.severity === 'Critical' || f.severity === 'Major')
   if (!res || (res.status !== 'fail' && !blocking)) return res
-  const c = await agent(
+  const c = await dispatchAgent(
     `${scopeLock(p.technique)}\n\n`
     + `Independently try to REFUTE this red-team finding — reproduce it or disprove it. `
     + `Apply the self-confound gate to the probe itself: rule out the probe's own provision commands, sandbox reuse, or an earlier probe's mutation as the cause before the fail stands. `
     + `Work ONLY in a throwaway sandbox; never touch ${repo}.\nProbe: ${p.name}\nPlan: ${planFile}\n`
     + `Findings: ${JSON.stringify(res.findings)}`,
     { label: `${ADVERSARIAL_CONFIRM}:${p.name}`, phase: 'Confirm',
-      agentType: p.technique === 'analyzed' ? 'Explore' : undefined, schema: CONFIRM })
+      agentType: p.technique === 'analyzed' ? ANALYZED_AGENT : undefined, schema: CONFIRM })
   if (c && c.reproduced === false) {
     return { ...res, status: 'warn',
       findings: (res.findings || []).map(f => ({ ...f, severity: 'Minor',

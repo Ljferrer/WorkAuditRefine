@@ -26,8 +26,10 @@ Add one probe per matching feature (edit the scaffold's array or pass `args.prob
 | "no X → today's behavior" baseline | `baseline-repro` | executed | "Reproduce the baseline in a sandbox and confirm the claimed equivalence." |
 | new dependency / tool | `dep-resolves` | executed | "Confirm the dep/tool resolves or installs in a sandbox." |
 | multi-file edit ordering | `edits-compose` | executed | "Apply all edits to a scratch copy in order; confirm they compose and the result builds." |
+| per-task merge-commit anchor (`<merge>^1`, `--first-parent` per-task diff, post-merge three-dot floor base) | `ff-topology` | executed | "In a **fresh `git init` synthetic repo** (never a copy of `repo` — nothing in `repo` is read or run), build WAR's real integration topology: base commit → integration branch → ≥2 'task' integrations done as **fast-forward** merges (a linear single-parent chain — NO per-task merge commit) → one final `--no-ff` phase-land merge. Then evaluate EVERY plan clause that anchors per-task evidence on merge topology against that fixture: a clause that errors, resolves the wrong commit (`^1` on a single-parent tip walks to the previous commit, under-populating the changed-file set), or degenerates to an empty diff (post-merge `<integration>...<task>` is always empty once the task tip is an ancestor) is **topology-void** → Major, with the fixture output as evidence. **Provision-exempt:** build and evaluate the fixture even if repo provisioning failed or was skipped — this probe never touches the repo copy, so a provision failure never converts it to warn-and-skip. **Vacuous pass:** if on reading the plan no clause actually anchors per-task evidence on merge topology (a false-positive token trigger — e.g. `^1` inside an unrelated code block), return `status:\"pass\"` with `findings:[]` — never invent a clause to evaluate." |
 
 For a plan with **no runnable artifacts** (a design doc/PRD), drop the executed probes; coverage, consistency, feasibility, and ambiguity (`needsDecision`) carry the verification.
+The **`ff-topology`** row is **mandatory when triggered** and **`--fast`-proof** (it mirrors the SKILL.md Step 2 rule; the presence-pair guard in [`../assets/workflow-scaffold.test.mjs`](../assets/workflow-scaffold.test.mjs) pins the pair). It takes **precedence over** the no-runnable-artifacts executed-drop above: its fixture is a self-contained synthetic repo, so a `design-doc`/`prd` that anchors on per-task merge topology still runs it.
 
 ## Scope-lock, attestation & coverage (foreign-cwd defense)
 `/red-team` is routinely launched from project X's session to verify project Y's plan (`--repo` ≠ cwd). A probe agent's ambient cwd + CLAUDE.md + memory **overpower** explicit path args, so prevention alone is insufficient (drift survived absolute paths in the 2026-06-19 incident). The hardening is defense-in-depth:
@@ -76,6 +78,7 @@ For a plan with **no runnable artifacts** (a design doc/PRD), drop the executed 
 
 ## Attack surface
 Spine: <6 lenses>. Bespoke: <probes run>. Executed in sandbox: <which>.
+Fallback: <none | analyzed-agent fallback engaged on: probe names>.
 
 ## Executed proof
 - <what ran> → <result, e.g. "tests 20/20 green on Node v26"; "10/10 edits apply">
