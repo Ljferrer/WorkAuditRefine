@@ -459,6 +459,22 @@ _Avoid_: conflating the `pin-mismatch` findings tag with the `agent-unverified` 
 ([ADR 0007](docs/adr/0007-memory-provenance.md)) — unrelated concepts; confusing it with `pin_status`
 (which classifies the `gateHeadSha`↔`observedHead` relationship — this checks seat-vs-dispatched-pin).
 
+### Worker tiers (dispatch)
+
+**Docs tier**:
+The worker spawn tier for a task whose `Files:` list is entirely `*.md` — mechanically classified
+at dispatch (never a plan field), configured at `agents.worker.docs`, default sonnet. Mixed
+docs+code tasks stay on the base worker tier; auditors review docs-tier work at full strength.
+_Avoid_: low-complexity flag (nothing is authored); re-tiering mid-flight (the predicate reads the
+plan's file list, not the diff).
+
+**Fix bump**:
+The optional stronger model/effort (`agents.worker.fix`) applied to fix-round and `--ace` worker
+spawns — e.g. sonnet first pass, opus fixer. Absent = fix work inherits the base worker config
+(today's behavior).
+_Avoid_: fix model (it's an optional override, not a standing role); splitting ace from fix (one
+knob covers both).
+
 ### Diagnosis discipline
 
 **self-confound gate**:
@@ -919,6 +935,13 @@ change").
 
 ### State & resume
 
+**Run manifest**:
+The uncommitted per-run telemetry record `/war` accumulates under the main checkout's
+`.claude/war/runs/` — per-phase timestamps, workflow IDs, transcript-dir pointers, dispatch
+counts, terminal statuses. Fail-open bookkeeping consumed by `/war-review`; **never resume
+input** (the correctness record stays git > issues > ledger).
+_Avoid_: run ledger (the ledger is the owned-refs record); reading it during resume.
+
 **Resume precedence**:
 The ordering **git branch state > GitHub issue labels > `ledger.json`** that decides which layer wins
 when the three resume records disagree. Git wins because the refiner's push-first CAS makes the shared
@@ -1042,6 +1065,26 @@ _Avoid_: `PreCompact` blocking or summary-shaping to steer compaction — reject
 blocking rides into the ceiling); see the ADR.
 
 ### Pipeline (outer loop)
+
+**Memory mining**:
+The survey's opening step: turning qualifying hot lessons from both memory roots into real
+tracker issues — lint-guarded (a redaction hit withholds the issue, never scrubs it) and
+slug-deduped (open or closed prior filing → never re-filed) — before the issue sweep runs, so
+lesson-recorded debt enters the pipeline as ordinary issues.
+_Avoid_: memory sweep (the sweep is the issue step); treating mined lessons as a parallel channel
+(they become real issues or are reported, nothing else).
+
+**memory-mined**:
+The provenance label on an issue that originated as a lesson; the body's lesson citation is the
+durable issue↔lesson link. Distinct from `war-followup` (a run's own deferred debt).
+_Avoid_: reusing `war-followup` for mined issues (conflates two provenances).
+
+**/war-review**:
+The post-run skill that turns a run manifest plus its transcripts into a telemetry and friction
+report (chat + a local untracked file), optionally filing one operator-confirmed friction issue
+on the plugin repo. Metrics it cannot source render `n/a`, never an estimate.
+_Avoid_: cost report (tokens, not dollars); treating it as part of the run (it is post-run,
+read-only apart from the report file and the confirmed issue).
 
 **Survey manifest**:
 The uncommitted record a survey run leaves at `.claude/aot/YYYY-MM-DD-survey.json` under the **main
