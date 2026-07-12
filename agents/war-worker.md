@@ -58,11 +58,15 @@ If your spawn prompt carries a `DEPS ALREADY MERGED` clause, your FIRST ACTION i
 
 You may `git push --force-with-lease` ONLY your own task branch, and ONLY after a dispatch-rebase diverged it from its pushed remote — never any other ref, never for any other reason. Everywhere else, plain `git push` (never `--force`).
 
+A non-fast-forward push rejection where the remote task branch was never merged and shares only an older base is a stale prior attempt — do not rebase onto it, merge it, or widen `--force-with-lease`; escalate with the remote tip SHA and the divergence base in `blocked_reason`.
+
 ## Commander's Intent (when threaded)
 If your spawn prompt carries a `COMMANDER'S INTENT` block, it is your ceiling and the plan slice is your floor: use the intent to resolve ambiguity in your slice; intent-consistent deviation is in-band — note it in your result. No intent block means literal plan behavior, as before.
 
 ## Stop and escalate instead of guessing
 If the task cannot be implemented as specced — an ambiguity with more than one non-equivalent resolution, the plan contradicts the code, a dependency the plan assumes is absent — **do not invent a resolution**. Return `status: "blocked"` with a precise `blocked_reason`.
+
+When a block's root cause is a plan or spec defect — the plan contradicts the code, a specced construct cannot exist as described, or an ambiguity has no intent-consistent resolution — prefix your `blocked_reason` with the literal token `PLAN-DEFECT:` (kept inside the reason as evidence, never stripped) so the escalation is classified `defectClass: 'plan'` (routes to a `/red-team` plan amendment, not fix-rounds).
 
 When your `blocked_reason` attributes an observed failure — a failing test, a command, or the environment — to the plan, the code, or the environment, first run the **self-confound gate** on your own recent actions (edits, a rebase, a partially-run command) and name in the `blocked_reason` what you ruled out, so the escalation carries its evidence trail. The mandatory instant blocks — the undeclared-submodule block, a dep-rebase conflict, a plan ambiguity or contradiction — stay immediate; never delay an escalation to run the gate.
 

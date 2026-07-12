@@ -115,10 +115,17 @@ const SERVITOR_RESULT = { type: 'object', required: ['phase', 'target', 'learnin
 // task worktree: ok:true when every step exits 0; otherwise the env-blocked task-outcome shape from
 // ../references/schemas.md ({ taskId, failedCommand, exitCode, stderrTail, provisionSource }) for the
 // FIRST failing step. NOT a WorkerResult — no worker ran. The barrier skips the worker on ok:false.
+// The provision-BARRIER return (dispatchKind 'provision-barrier') additionally carries two OPTIONAL
+// arrays (recovery mechanics, spec §4.2/§4.4): preMerged — task ids whose local branch is an ancestor
+// of the frozen integration tip (already-integrated on an adopted branch; the derive-and-skip step,
+// armed only under args.recovery.sanctioned); staleRemote — per-task stale-remote classifications
+// ({ task, remoteSha, frozenTip }) captured from an ensure-worktree exit carrying the STALE_REMOTE
+// marker (always-on classification, never recovery-gated). Both absent on a plain non-recovery barrier.
 const ENV_OUTCOME = { type: 'object', required: ['ok'], properties: {
   ok: { type: 'boolean' },
   taskId: { type: 'string' }, failedCommand: { type: 'string' }, exitCode: { type: 'number' },
-  stderrTail: { type: 'string' }, provisionSource: { type: 'string' } } }
+  stderrTail: { type: 'string' }, provisionSource: { type: 'string' },
+  preMerged: { type: 'array' }, staleRemote: { type: 'array' } } }
 
 const done = new Set()
 const succeeded = new Set()
@@ -217,6 +224,16 @@ const backstops = Array.isArray(A.backstops) ? A.backstops : null
 // validated in war-config.mjs, never here (the value is embedded single-quoted into an agent shell line).
 const testPattern = (plan && typeof plan.testPattern === 'string' && plan.testPattern) ? plan.testPattern : null
 const testPatternArg = testPattern ? ` --pattern '${testPattern}'` : ''
+// Partial-phase recovery (spec §4.2/§4.4): a Lead-supplied top-level arg armed ONLY on a sanctioned
+// recovery relaunch (SKILL.md runbook). Shape { sanctioned: true, reclaimStaleRemote?: boolean }.
+// Absent / non-sanctioned ⇒ the barrier's derive-and-skip step and the --reclaim-stale-remote
+// pass-through are DORMANT and every dispatched prompt is byte-identical to a non-recovery run APART
+// FROM the barrier prompt's always-on §4.4 stale-remote classification clause (default behavior, not
+// recovery machinery). A resumeFromRunId replay / accidental same-named local branch never triggers
+// derivation. Normalized to null unless sanctioned === true, so a malformed value is inert.
+const recovery = (A.recovery && typeof A.recovery === 'object' && !Array.isArray(A.recovery) && A.recovery.sanctioned === true)
+  ? { sanctioned: true, reclaimStaleRemote: A.recovery.reclaimStaleRemote === true }
+  : null
 const intentClause = intent
   ? pt`\nCOMMANDER'S INTENT (the operator's purpose — your ceiling; the plan slice is your floor):\n${intent}\n`
   : ''
@@ -467,6 +484,31 @@ const FORCE_WITH_LEASE_RULE = 'You may `git push --force-with-lease` ONLY your o
 // (standing surface); the auditor's cascading-impact lens carries the standing review duty. The
 // both-surfaces registry test anchors the shared tokens — keep the surfaces in sync in the same commit.
 const COMMENT_LAG_RULE = "Before you commit, grep your touched files for the OLD behavior's concrete terms — retired values, old approach names, stale counts — and update any lagging comment/JSDoc so no comment still describes the pre-change behavior."
+// Plan-defect sentinel (spec §4.3, ADR 0005). ONE shared JS constant used by BOTH the worker-prompt
+// sentence (PLAN_DEFECT_RULE below) AND the escalation-record check (defectClassOf). The contract is a
+// strict, case-sensitive `startsWith` at position 0 — no trim, no case folding; the worker is
+// instructed to PREFIX blocked_reason — and the sentinel is LEFT inside blocked_reason (raw worker text
+// is the evidence trail, never stripped). defectClass is metadata ORTHOGONAL to the escalation reason:
+// it never enters decideLand, HARD_ESCALATION_REASONS, or KNOWN_LAND_DECISIONS (the negative guard is
+// Task 3's land-decision.test.mjs); it rides the escalation record into the machine-readable return.
+const PLAN_DEFECT_SENTINEL = 'PLAN-DEFECT:'
+// defectClassOf: set defectClass:'plan' iff the worker-authored blocked text starts with the sentinel;
+// ABSENT otherwise (never 'implementation' by default — absence keeps prior-run records shape-compatible
+// and asserts no classification nobody made). Spread into EVERY escalation push whose record carries
+// worker-authored blocked text (the wave-collector site + the floor sub-loop's blocked-fix-worker site);
+// engine-authored blocked strings can never carry the sentinel, so they need no exclusion logic.
+const defectClassOf = blocked => (typeof blocked === 'string' && blocked.startsWith(PLAN_DEFECT_SENTINEL)) ? { defectClass: 'plan' } : {}
+// Plan-defect worker-prompt sentence (spec §4.3), mirrored in agents/war-worker.md's "Stop and escalate
+// instead of guessing" section (both-surfaces registry test anchors a mid-sentence fragment). Always
+// present in the dispatched worker prompt (not intent/memory/recovery-gated). The literal sentinel is
+// interpolated from PLAN_DEFECT_SENTINEL so the token stays single-sourced.
+const PLAN_DEFECT_RULE = pt`When a block's root cause is a plan or spec defect — the plan contradicts the code, a specced construct cannot exist as described, or an ambiguity has no intent-consistent resolution — prefix your blocked_reason with the literal token ${PLAN_DEFECT_SENTINEL} (kept inside the reason as evidence, never stripped) so the escalation is classified defectClass:'plan'.`
+// Stale-prior-attempt push-handoff sentence (spec §4.4), mirrored in agents/war-worker.md's "Dep-wave
+// rebase + force-with-lease carve-out" section (both-surfaces registry test anchors a mid-sentence
+// fragment). A SEPARATE sentence adjacent to FORCE_WITH_LEASE_RULE — that rule stays byte-identical (its
+// existing byte-compare test is untouched). Names `--force-with-lease` only to FORBID widening it
+// (criterion 15): this is prompt prose, never an executable git invocation.
+const STALE_PRIOR_ATTEMPT_RULE = 'A non-fast-forward push rejection where the remote task branch was never merged and shares only an older base is a stale prior attempt — do not rebase onto it, merge it, or widen `--force-with-lease`; escalate with the remote tip SHA and the divergence base in blocked_reason.'
 // Dep-wave visibility (ADR 0012): a deps-bearing SAME-REPO task sees its merged dep content by
 // rebasing onto the integration branch FIRST. Scoped by taskType — 'gitlink-bump' is EXCLUDED (its
 // dep merged into the SUBMODULE repo's integration branch; this clause would assert a merge that
@@ -476,7 +518,7 @@ const depClause = task => ((task.deps || []).length > 0 && task.taskType !== 'gi
   ? pt`DEPS ALREADY MERGED: this task declares deps [${(task.deps || []).join(', ')}] whose content is already merged into ${ph.integrationBranch}. `
     + pt`FIRST ACTION — before reading or writing anything else — run \`git -C ${task.worktree} rebase ${ph.integrationBranch}\` so your base includes the merged dep content (a first-dispatch task branch has zero commits of its own, so this rebase is a pure fast-forward). `
     + pt`If the rebase CONFLICTS (possible only on a resume with existing commits): abort it and return status:"blocked" with the conflict files in blocked_reason — NEVER resolve the conflict yourself. `
-    + FORCE_WITH_LEASE_RULE + pt`\n`
+    + FORCE_WITH_LEASE_RULE + ' ' + STALE_PRIOR_ATTEMPT_RULE + pt`\n`
   : ''
 // Worker-facing intent block (ADR 0013): the generic intent clause plus the worker's licensed-
 // judgment sentence. Empty when intent is absent (byte-compatible prompts, criterion 10).
@@ -671,8 +713,26 @@ log(`Phase ${ph.id} "${ph.title}": ${tasks.length} task(s) → ${ph.integrationB
 if (tasks.length) {
   const SCRIPT = '${CLAUDE_PLUGIN_ROOT}/skills/war/assets/provision-worktrees.sh'
   const owned = ownedFile ? ` --owned-file ${ownedFile}` : ''
+  // --reclaim-stale-remote is threaded onto every ensure-worktree line ONLY on a sanctioned recovery
+  // relaunch that opts into reclaim (§4.4); absent it, the flag never appears (byte-identical to today).
+  const reclaimFlag = (recovery && recovery.reclaimStaleRemote) ? ' --reclaim-stale-remote' : ''
   const ensures = tasks.map(t =>
-    `   provision-worktrees.sh ensure-worktree ${t.worktree} ${t.branch} "$TIP"`).join('\n')
+    `   provision-worktrees.sh ensure-worktree ${t.worktree} ${t.branch} "$TIP"${reclaimFlag}`).join('\n')
+  // Always-on stale-remote classification (§4.4) — present regardless of args.recovery (the probe is
+  // DEFAULT behavior, not recovery machinery — end states 10/22). The barrier keys on the STALE_REMOTE
+  // marker TOKEN, never the numeric exit code (live-artifact rule; the script's dedicated exit code is
+  // its own direct-invocation contract, Task 1). This is the ONLY delta between a recovery-absent
+  // barrier prompt and today.
+  const staleRemoteClause = pt`STALE-REMOTE CLASSIFICATION (per task, always-on): if a task's ensure-worktree exits NON-ZERO and its output carries the \`STALE_REMOTE\` marker line, do NOT halt the barrier — capture { task: "<that task's id>", remoteSha: "<the marker's remote SHA>", frozenTip: "$TIP" } into a \`staleRemote\` array on the env-outcome and CONTINUE provisioning the remaining tasks. The marker token is the key, never the numeric exit code. Any OTHER non-zero ensure-worktree exit — one WITHOUT the marker — remains a barrier failure exactly as the fail-loud rule above.\n`
+  // Recovery-gated derive-and-skip (§4.2) — DORMANT unless args.recovery.sanctioned. When armed, a task
+  // whose local branch is already an ancestor of the frozen tip is reported preMerged and its
+  // ensure-worktree is SKIPPED. Deriving before cutting means a fresh cut can never pollute the ancestry
+  // check (the "vacuous on a first run" property is true by ordering, not luck). A task branch that
+  // exists but is NOT an ancestor (the escalated task's half-done branch) takes the existing-branch
+  // reuse path — prior commits kept, no reset (spec §8).
+  const deriveSkipClause = recovery
+    ? pt`SANCTIONED RECOVERY RELAUNCH — derive-then-cut: the step-3 ensure-worktree list above is conditional under this relaunch. For EACH task, FIRST check whether its local branch exists AND \`git merge-base --is-ancestor <that task's branch> "$TIP"\` holds (already-integrated on the adopted integration branch). On TRUE, report the task id in a \`preMerged\` array on the env-outcome and SKIP that task's ensure-worktree entirely — no worktree is needed for a task that will not run, and deriving before cutting means a fresh cut can never pollute the ancestry check. On FALSE or an absent local branch, run that task's ensure-worktree as listed${reclaimFlag ? ' (each carries the --reclaim-stale-remote flag under this sanctioned relaunch)' : ''}. A local branch that exists but is NOT an ancestor takes the ordinary existing-branch reuse path (prior commits kept, no reset).\n`
+    : ''
   // Submodule tasks: thread the target repo + base into the Provision prompt so the refiner knows
   // to initialize the submodule checkout (git submodule update --init) before running ensure-integration
   // against the submodule's base (not the superproject working branch). DP3: no script change.
@@ -690,11 +750,13 @@ if (tasks.length) {
   // dispatchKind: 'provision-barrier' (DISTINCT from the per-task 'provision-run' — mocks/isProvision key on it).
   const barrierOut = await agent(
     pt`Provision the worktree topology for WAR phase ${ph.id} "${ph.title}" by running ${SCRIPT}. `
-    + pt`Do NOT free-author git; only run these subcommands, fail loud on ANY non-zero exit — treat every non-zero exit as a halt, do NOT special-case a single code (a foreign integration branch exits 3; a diverged local/origin base halts with its own distinct non-zero exit) — and return the env-outcome JSON: \`{ ok: true }\` only when every subcommand exited 0; on the FIRST non-zero exit return \`{ ok: false, failedCommand: "<the exact provision-worktrees.sh subcommand line>", exitCode: <code>, stderrTail: "<tail of its stderr — the script's die text>" }\`.\n`
+    + pt`Do NOT free-author git; only run these subcommands, fail loud on ANY non-zero exit — do NOT special-case a numeric code (a foreign integration branch exits 3; a diverged local/origin base halts with its own distinct non-zero exit) — with ONE marker-keyed carve-out: a per-task worktree-creation exit whose output carries the \`STALE_REMOTE\` marker line is CLASSIFIED per task (step 3's classify-and-continue clause) and does NOT halt the barrier; the marker token is the key, never the numeric code. Return the env-outcome JSON: \`{ ok: true }\` when every subcommand exited 0 (optionally carrying the step-3 \`preMerged\` / \`staleRemote\` arrays); on the FIRST non-zero exit WITHOUT the STALE_REMOTE marker return \`{ ok: false, failedCommand: "<the exact provision-worktrees.sh subcommand line>", exitCode: <code>, stderrTail: "<tail of its stderr — the script's die text>" }\`.\n`
     + pt`1. FROM THE MAIN CHECKOUT (${mainCheckout || 'the main repo checkout — your current working directory'}, NOT a task worktree): `
     + pt`provision-worktrees.sh ensure-exclude ${mainCheckout || '<mainCheckout>'} — pass the main checkout EXPLICITLY as the target repo (the optional <repo-dir> positional); ensure-exclude then writes the exclude into that repo's git dir regardless of your cwd. This excludes \`.claude/\` in the parent checkout so the nested task worktrees do not surface as untracked there (probe E2).\n`
     + pt`2. provision-worktrees.sh ensure-integration ${planSlug || '<plan-slug>'} ${ph.id} ${ph.workingBranch}${owned} — reuse the plan-namespaced integration branch ${ph.integrationBranch} if it is already ours (the --owned-file ledger); else DERIVE the cut base against origin (ADR 0008): the script fetches origin/${ph.workingBranch} and reconciles the local ${ph.workingBranch} — equal or ahead → cut from local; behind → cut from the ORIGIN tip plus a guarded follower fast-forward (skipped with a warning when ${ph.workingBranch} is checked out in a worktree); a fetch failure or missing origin → cut from local with a stderr warning (today's offline behavior). DIVERGED (neither SHA an ancestor of the other) is a HALT: the script dies non-zero carrying BOTH SHAs and the two repair directions, and creates no branch. On that die — or ANY non-zero exit — return the \`{ ok: false, … }\` env-outcome carrying the die text in \`stderrTail\` and STOP: never pick a side, never retry with a different base. The phase never starts; I surface the die message like today's foreign-branch halt.\n`
     + pt`3. Capture the resulting integration tip (TIP="$(git rev-parse ${ph.integrationBranch})"), then for EACH task run ensure-worktree at the integration tip captured in step 3 (idempotent; reuse if present, conservative heal if the dir went missing):\n${ensures}\n`
+    + deriveSkipClause
+    + staleRemoteClause
     + pt`Each ensure-worktree creates the worktree on its plan-namespaced branch off the integration tip and drops a .war-task marker. After this barrier every task worktree exists and the workers can run.\n`
     + pt`4. provision-worktrees.sh ensure-refinery-worktree ${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/_refinery ${ph.integrationBranch} — create (or re-attach) the Refinery's dedicated worktree on the integration branch. The Refinery performs every merge in this run-scoped worktree, never the Lead's main checkout.`
     + submodNote,
@@ -704,6 +766,40 @@ if (tasks.length) {
   // foreign-branch exit 3 or a diverged exit 7) → held:workflow-error via the catch.
   if (!barrierOut || barrierOut.ok !== true) {
     throw new Error(`phase ${ph.id}: the provision:phase-${ph.id} git-topology barrier did not return { ok: true } — the phase cannot start: ${(barrierOut && barrierOut.stderrTail) || 'no result / no env-outcome returned'}`)
+  }
+  // ---- RECOVERY: barrier-derived merged-set skip (§4.2) ----
+  // The provision-barrier refiner ran the git-ancestry checks (the Workflow sandbox has no shell/fs) and
+  // returned preMerged: task ids whose local branch is an ancestor of the frozen integration tip —
+  // already-integrated on the adopted branch. Record each as terminal `merged` (NEVER `landed` — that is
+  // phase-level) with the recovered note; enter done + succeeded (so a dep-block pre-check on the
+  // re-dispatched task passes — no spurious dep-failed) and the bare-id landed list; one auditLog entry;
+  // NO worker dispatch. Deliberately NOT pushed to mergedTasksForGateAudit — no gate ran for it this run,
+  // and the handoff tipSha fallback reads that list, which must stay truthful. Only ids matching a real
+  // task are honored (git > any Lead-assembled arg). Labels/ledger are Lead-reconciled toward git (ADR 0008).
+  for (const id of (Array.isArray(barrierOut.preMerged) ? barrierOut.preMerged : [])) {
+    if (done.has(id) || !tasks.some(t => t.id === id)) continue
+    done.add(id); succeeded.add(id); landed.push(id)
+    auditLog.push({ task: id, verdict: 'recovered:pre-merged', findings: [], note: 'recovered: pre-merged on adopted integration branch' })
+    log(`recovery: task ${id} is pre-merged on the adopted integration branch (ancestor of the frozen tip) — recorded merged, no worker dispatched.`)
+  }
+  // ---- §4.4 stale-remote classification → per-task env-blocked (always-on, never a phase halt) ----
+  // The barrier CONTINUED past a per-task ensure-worktree exit carrying the STALE_REMOTE marker and
+  // returned each as { task, remoteSha, frozenTip }. Map each to the EXISTING per-task env-blocked status
+  // (worker never spawned) with the full two-direction diagnostic — (a) adopt via `git branch`, (b) a
+  // sanctioned --reclaim-stale-remote — plus the reversible restore command. env-blocked is SOFT: siblings
+  // dispatch normally; a dependent of a blocked task follows the existing dep-failed semantics (the task is
+  // in `done` but NOT `succeeded`). ADR 0021's all-or-nothing topology barrier is untouched — this is env
+  // classification, the same family as run.provision failures. The record rides the machine-readable return.
+  for (const sr of (Array.isArray(barrierOut.staleRemote) ? barrierOut.staleRemote : [])) {
+    if (!sr || typeof sr !== 'object' || done.has(sr.task) || !tasks.some(t => t.id === sr.task)) continue
+    const br = (tasks.find(t => t.id === sr.task) || {}).branch || '<branch>'
+    const remoteSha = sr.remoteSha || '<remote-sha>'
+    const frozenTip = sr.frozenTip || '<frozen-tip>'
+    const diagnostic = `stale prior attempt: the remote task branch ${br} tip ${remoteSha} is not an ancestor of the frozen integration tip ${frozenTip} — a prior run's torn-down attempt blocks the identically-named relaunch push. Two recovery directions: (a) adopt via \`git branch ${br} ${remoteSha}\` then relaunch, or (b) a sanctioned recovery relaunch (args.recovery.reclaimStaleRemote) threading \`--reclaim-stale-remote\`, which deletes the stale remote after three mechanical proofs then cuts fresh. Restore the deleted ref anytime before remote GC with \`git push origin ${remoteSha}:refs/heads/${br}\`.`
+    done.add(sr.task)
+    escalated.push({ task: sr.task, reason: 'env-blocked', staleRemote: true, remoteSha, frozenTip, diagnostic })
+    auditLog.push({ task: sr.task, verdict: 'env-blocked:stale-remote', findings: [], requested: 0, returned: 0, blocked: diagnostic })
+    log(`Task ${sr.task}: env-blocked — stale remote task branch ${br} (${remoteSha}) is not an ancestor of the frozen tip ${frozenTip}. Worker not spawned; siblings proceed. Recover by adopt-or-reclaim + relaunch.`)
   }
 }
 
@@ -760,7 +856,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       + pt`The refiner's Provision barrier already created this worktree and its .war-task marker — do NOT create it yourself and do NOT set any worktree env var. cd into ${task.worktree} and work only inside it; commit and push ${task.branch}.\n`
       + pt`Sub-issue #${task.issue ?? '<unset>'} — ${task.title}\nPlan slice: ${task.planSlice}\nPlan file: ${plan.file}\nGate: ${plan.gate}${workerIntentClause}`
       + WORKER_MEMORY_SELF_QUERY_LINE + workerMemClause(task.id) + provisionClause + workerExtraCtx
-      + '\n' + COMMENT_LAG_RULE,
+      + '\n' + COMMENT_LAG_RULE + '\n' + PLAN_DEFECT_RULE,
       { agentType: NS + 'war-worker', phase: 'Work', label: `work:${task.id}`, schema: WORKER_RESULT, ...spawn('worker') })
 
     const why = blockedReason(impl); if (why) return { task, verdict: 'escalate', seats: [], expected: 0, blocked: why }
@@ -992,8 +1088,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           const blockedVerdict = isNoTest ? 'no-test:add-test-blocked' : 'unpackaged:package-it-blocked'
           const floorFixWhy = blockedReason(floorFix)
           if (floorFixWhy) {
-            // Blocked fix-worker — escalate with reason and break the floor-retry sub-loop
-            escalated.push({ task: r.task.id, reason: 'escalate', blocked: floorFixWhy })
+            // Blocked floor fix-worker (worker-authored blocked text) — escalate and break the
+            // floor-retry sub-loop. defectClassOf tags defectClass:'plan' on a sentinel-prefixed
+            // reason (a fix-round plan defect is as plan-shaped as a first-round one; §4.3).
+            escalated.push({ task: r.task.id, reason: 'escalate', blocked: floorFixWhy, ...defectClassOf(floorFixWhy) })
             auditLog.push({ task: r.task.id, verdict: blockedVerdict, findings: [], blocked: floorFixWhy, fixRounds: r.task.fixRounds })
             floorMr = null
             reAuditFailed = true
@@ -1128,7 +1226,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         log(`Task ${r.task.id}: env-blocked — provision step "${r.envOutcome.failedCommand}" exited ${r.envOutcome.exitCode}. Worktree kept; worker not spawned.`)
         escalated.push({ task: r.task.id, reason: 'env-blocked', outcome: r.envOutcome })
       } else {
-        escalated.push({ task: r.task.id, reason: r.verdict, blocked: r.blocked })
+        // Wave-collector escalation (worker-authored blocked text: the initial worker's why or a
+        // blocked audit-round fix-worker's reason). defectClassOf tags defectClass:'plan' iff the
+        // blocked text is sentinel-prefixed; absent otherwise (§4.3, orthogonal to reason).
+        escalated.push({ task: r.task.id, reason: r.verdict, blocked: r.blocked, ...defectClassOf(r.blocked) })
       }
     }
   }
