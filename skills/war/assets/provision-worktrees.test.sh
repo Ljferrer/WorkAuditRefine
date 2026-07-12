@@ -1685,21 +1685,29 @@ expect "EE.1: ensure-exclude unknown-arg error message is non-empty" \
   "match" "$(printf '%s' "$msg_ee1" | grep -qi 'unknown\|usage\|arg' && echo match || echo nomatch)"
 
 # ---------------------------------------------------------------------------
-# Case (SI.1) cmd_ensure_integration branch-create: git stderr surfaced in
-# the die message. We trigger a create failure by supplying a non-existent
-# base ref so git branch fails. The error message must contain something from
-# git's stderr (not just a generic "failed to create branch" with no detail).
+# Case (SI.1) cmd_ensure_integration branch-create with a base that resolves
+# NOWHERE (no local ref, no origin). Survey-derived correction (§4.7, #725.4):
+# this input is now exactly the missing-local-ref shape, so the AUTHORITATIVE
+# die is the NAMED missing-local-ref diagnostic (referencing the lesson), NOT
+# the raw "not a valid object name" from `git branch` — the §4.7 guard fires
+# before the cut. The fetch-fallback warn still surfaces git's own stderr in the
+# combined output (offline-fallback behavior, unchanged), which this case also
+# pins so the offline diagnostic never regresses to a generic message.
 # ---------------------------------------------------------------------------
 RSI1="$(new_repo)"
 OWN_SI1="$RSI1/owned_si.txt"; : > "$OWN_SI1"
 msg_si1="$(run_in_msg "$RSI1" ensure-integration myplan 99 nonexistent-base-sha-ZZZZZ --owned-file "$OWN_SI1")"
 code_si1="$(run_in "$RSI1" ensure-integration myplan 99 nonexistent-base-sha-ZZZZZ --owned-file "$OWN_SI1")"
-expect "SI.1: ensure-integration with bad base exits non-zero" \
+expect "SI.1: ensure-integration with an unresolvable base exits non-zero" \
   "nonzero" "$([ "$code_si1" -ne 0 ] && echo nonzero || echo zero)"
-# The die message must include git's stderr (e.g. "invalid object name" or "not
-# a valid object name" or the bad ref itself).
-expect "SI.1: die message surfaces git stderr (bad-ref detail present)" \
+# The combined output still surfaces git's stderr (via the fetch-fallback warn),
+# never a generic detail-free message.
+expect "SI.1: combined output surfaces git stderr (offline-fallback detail present)" \
   "match" "$(printf '%s' "$msg_si1" | grep -qiE 'not a valid object|invalid object|fatal' && echo match || echo nomatch)"
+# §4.7: the authoritative die names the missing-local-ref cause + the lesson,
+# not the raw "not a valid object name" (end state 9, both-absent half).
+expect "SI.1: die names the missing-local-ref cause (§4.7)" \
+  "match" "$(printf '%s' "$msg_si1" | grep -qi 'no local ref\|local working branch\|war-provision-barrier-needs-local-working-branch-ref' && echo match || echo nomatch)"
 
 # ---------------------------------------------------------------------------
 # Case (ED.1) ensure-worktree empty-dir-recreate: an empty unregistered dir
@@ -2193,8 +2201,8 @@ else
   fails=$((fails + 1))
 fi
 
-# The catalogue names codes 3/4/5/6/7 as readonly EX_* constants.
-for pair in EX_FOREIGN=3 EX_DIRTY_UNREG=4 EX_OUT_OF_RUN=5 EX_WRONG_BRANCH=6 EX_DIVERGED=7; do
+# The catalogue names codes 3/4/5/6/7/8 as readonly EX_* constants.
+for pair in EX_FOREIGN=3 EX_DIRTY_UNREG=4 EX_OUT_OF_RUN=5 EX_WRONG_BRANCH=6 EX_DIVERGED=7 EX_STALE_REMOTE=8; do
   n=$((n + 1))
   if grep -qE "^readonly $pair\$" "$SCRIPT"; then
     printf 'ok %d - E: catalogue defines readonly %s\n' "$n" "$pair"
@@ -2308,6 +2316,320 @@ code="$(run_in "$R7D" ensure-integration myplan 1 "$TIP7D" --owned-file "$OWN7D"
 expect "7d: no --reclaim flag on an unowned orphan exits 3 (byte-identical default)" 3 "$code"
 expect "7d: no-flag orphan is left untouched (not deleted)" \
   "0" "$(git -C "$R7D" rev-parse --verify -q integration/myplan/phase-1 >/dev/null 2>&1; echo $?)"
+
+# (7e) reclaim with an UNRESOLVABLE base -> proof 0 dies EX_FOREIGN(3); the orphan
+# tip is UNCHANGED (a git error is NEVER read as "proven empty", #728). Survey
+# note: the (7a)-(7d) case comments describe the two-proof self-heal, none
+# describe the old swallowed-error behavior, so no straggler comment to correct.
+R7E="$(new_repo)"
+TIP7E="$(git -C "$R7E" rev-parse HEAD)"
+OWN7E="$R7E/owned.txt"; : > "$OWN7E"
+git -C "$R7E" branch integration/myplan/phase-1 "$TIP7E"      # out-of-band orphan (unowned)
+ORPHAN7E="$(git -C "$R7E" rev-parse integration/myplan/phase-1)"
+code="$(run_in "$R7E" ensure-integration myplan 1 nonexistent-base-ZZZ --owned-file "$OWN7E" --reclaim-empty-orphan)"
+expect "7e: reclaim with an UNRESOLVABLE base exits 3 (EX_FOREIGN, #728)" 3 "$code"
+expect "7e: orphan tip UNCHANGED after refused reclaim (git error never 'proven empty')" \
+  "$ORPHAN7E" "$(git -C "$R7E" rev-parse integration/myplan/phase-1 2>/dev/null)"
+msg="$(run_in_msg "$R7E" ensure-integration myplan 1 nonexistent-base-ZZZ --owned-file "$OWN7E" --reclaim-empty-orphan)"
+expect "7e: refusal names the unresolvable base (proof 0)" \
+  "match" "$(printf '%s' "$msg" | grep -qi 'does not resolve\|unresolvable' && echo match || echo nomatch)"
+
+# ===========================================================================
+# Partial-phase recovery mechanics (§4.1 record-as-owned, §4.4 stale-remote,
+# §4.6 sync-follower, §4.7 origin-fallback). One fresh repo/fixture per case.
+# ===========================================================================
+
+# new_bare -> echoes a fresh bare repo dir (registered for cleanup), usable as a
+# file-path origin. Mirrors the fixture-remote idiom (bash-3.2-safe, cwd-indep).
+new_bare() {
+  b="$(mktemp -d 2>/dev/null || mktemp -d -t warbare)"; REPOS="$REPOS $b"
+  git init -q --bare "$b"; echo "$b"
+}
+
+# --- §4.1 record-as-owned --------------------------------------------------
+# Build an orphan integration branch two commits ahead of the frozen base
+# (plumbing commit-tree, no checkout) — the observed held-partial-phase shape.
+RRA="$(new_repo)"
+BASE_RA="$(git -C "$RRA" rev-parse HEAD)"
+TREE_RA="$(git -C "$RRA" rev-parse 'HEAD^{tree}')"
+C1_RA="$(printf 'merged task one\n' | git -C "$RRA" commit-tree "$TREE_RA" -p "$BASE_RA")"
+ORPHAN_RA="$(printf 'merged task two\n' | git -C "$RRA" commit-tree "$TREE_RA" -p "$C1_RA")"
+git -C "$RRA" branch integration/myplan/phase-1 "$ORPHAN_RA"
+OWN_RA="$RRA/.claude/teams/run-x/owned.txt"          # ledger dir does NOT exist yet
+OUT_RA="$( ( cd "$RRA" && bash "$SCRIPT" record-as-owned integration/myplan/phase-1 "$BASE_RA" --owned-file "$OWN_RA" ) 2>&1 )"; C_RA=$?
+expect "record-as-owned: accepts a descendant orphan (exit 0)" 0 "$C_RA"
+expect "record-as-owned: prints the ahead-commits (proof 2)" \
+  "match" "$(printf '%s' "$OUT_RA" | grep -qi 'merged task two' && echo match || echo nomatch)"
+expect "record-as-owned: appends exactly one ledger line" \
+  "1" "$(grep -c '^integration/myplan/phase-1$' "$OWN_RA" 2>/dev/null || echo 0)"
+expect "record-as-owned: moved NO ref (orphan tip unchanged)" \
+  "$ORPHAN_RA" "$(git -C "$RRA" rev-parse integration/myplan/phase-1 2>/dev/null)"
+expect "record-as-owned: created the ledger dir/file when absent" \
+  "yes" "$([ -f "$OWN_RA" ] && echo yes || echo no)"
+# Idempotent re-run: no-op exit 0, ledger still one line.
+C_RA2="$(run_in "$RRA" record-as-owned integration/myplan/phase-1 "$BASE_RA" --owned-file "$OWN_RA")"
+expect "record-as-owned: idempotent re-run is a no-op (exit 0)" 0 "$C_RA2"
+expect "record-as-owned: ledger still has exactly one line after re-run" \
+  "1" "$(grep -c '^integration/myplan/phase-1$' "$OWN_RA" 2>/dev/null || echo 0)"
+# After adoption, ensure-integration for the same slug/N takes the owned-reuse
+# path — prints the branch, tip unchanged, no re-cut.
+code="$(run_in "$RRA" ensure-integration myplan 1 "$BASE_RA" --owned-file "$OWN_RA")"
+expect "record-as-owned: ensure-integration then REUSES the adopted branch (exit 0)" 0 "$code"
+expect "record-as-owned: adopted branch tip UNCHANGED after ensure-integration reuse" \
+  "$ORPHAN_RA" "$(git -C "$RRA" rev-parse integration/myplan/phase-1 2>/dev/null)"
+expect "record-as-owned: ensure-integration reuse prints the adopted branch" \
+  "integration/myplan/phase-1" "$(run_out "$RRA" ensure-integration myplan 1 "$BASE_RA" --owned-file "$OWN_RA")"
+
+# Non-descendant refuse: a branch rooted elsewhere (a parentless commit) — <base>
+# is NOT its ancestor -> exit 3, ledger unchanged.
+RRB="$(new_repo)"
+BASE_RB="$(git -C "$RRB" rev-parse HEAD)"
+TREE_RB="$(git -C "$RRB" rev-parse 'HEAD^{tree}')"
+FOREIGN_RB="$(printf 'foreign root\n' | git -C "$RRB" commit-tree "$TREE_RB")"   # no -p => root, not a descendant
+git -C "$RRB" branch integration/myplan/phase-1 "$FOREIGN_RB"
+OWN_RB="$RRB/owned.txt"; : > "$OWN_RB"
+code="$(run_in "$RRB" record-as-owned integration/myplan/phase-1 "$BASE_RB" --owned-file "$OWN_RB")"
+expect "record-as-owned: refuses a NON-descendant branch (exit 3)" 3 "$code"
+expect "record-as-owned: non-descendant refusal leaves the ledger unchanged (empty)" \
+  "0" "$(wc -l < "$OWN_RB" | tr -d ' ')"
+expect "record-as-owned: non-descendant refusal moved no ref (orphan tip intact)" \
+  "$FOREIGN_RB" "$(git -C "$RRB" rev-parse integration/myplan/phase-1 2>/dev/null)"
+
+# Unresolvable-ref refuse: an unresolvable <branch>, and an unresolvable <base>.
+RRC="$(new_repo)"
+BASE_RC="$(git -C "$RRC" rev-parse HEAD)"
+OWN_RC="$RRC/owned.txt"; : > "$OWN_RC"
+code="$(run_in "$RRC" record-as-owned nonexistent-branch-ZZZ "$BASE_RC" --owned-file "$OWN_RC")"
+expect "record-as-owned: refuses an unresolvable BRANCH ref (exit 3)" 3 "$code"
+git -C "$RRC" branch integration/myplan/phase-1 "$BASE_RC"
+code="$(run_in "$RRC" record-as-owned integration/myplan/phase-1 nonexistent-base-ZZZ --owned-file "$OWN_RC")"
+expect "record-as-owned: refuses an unresolvable BASE ref (exit 3)" 3 "$code"
+expect "record-as-owned: unresolvable-ref refusals left the ledger unchanged" \
+  "0" "$(wc -l < "$OWN_RC" | tr -d ' ')"
+
+# --- §4.4 ensure-worktree stale-remote probe (#650) ------------------------
+# Fixture: origin (bare) carries a task branch NOT an ancestor of the frozen tip
+# (a stale prior attempt), and NO local task branch exists (fresh-cut shape).
+Lsr="$(new_repo)"; Osr="$(new_bare)"
+git -C "$Lsr" remote add origin "$Osr"
+git -C "$Lsr" branch integration/myplan/phase-1 HEAD
+TIP_SR="$(git -C "$Lsr" rev-parse integration/myplan/phase-1)"
+TREE_SR="$(git -C "$Lsr" rev-parse 'HEAD^{tree}')"
+STALE_SR="$(printf 'stale prior attempt\n' | git -C "$Lsr" commit-tree "$TREE_SR")"   # root commit, not an ancestor of TIP
+git -C "$Lsr" push -q origin "$STALE_SR:refs/heads/war/myplan/p1-t9"
+WT_SR="$(new_wt_path)"
+OUT_SR="$( ( cd "$Lsr" && bash "$SCRIPT" ensure-worktree "$WT_SR" war/myplan/p1-t9 "$TIP_SR" ) 2>&1 )"; C_SR=$?
+expect "stale-remote: non-ancestor remote dies EX_STALE_REMOTE (exit 8)" 8 "$C_SR"
+expect "stale-remote: diagnostic carries the STALE_REMOTE marker" \
+  "match" "$(printf '%s' "$OUT_SR" | grep -q 'STALE_REMOTE' && echo match || echo nomatch)"
+expect "stale-remote: marker carries the remote SHA" \
+  "match" "$(printf '%s' "$OUT_SR" | grep -q "remoteSha=$STALE_SR" && echo match || echo nomatch)"
+expect "stale-remote: marker carries the frozen tip" \
+  "match" "$(printf '%s' "$OUT_SR" | grep -q "frozenTip=$TIP_SR" && echo match || echo nomatch)"
+expect "stale-remote: diagnostic carries the restore command" \
+  "match" "$(printf '%s' "$OUT_SR" | grep -q "git push origin $STALE_SR:refs/heads/war/myplan/p1-t9" && echo match || echo nomatch)"
+expect "stale-remote: names both recovery directions (adopt via git branch + --reclaim-stale-remote)" \
+  "match" "$(printf '%s' "$OUT_SR" | grep -q 'git branch war/myplan/p1-t9' && printf '%s' "$OUT_SR" | grep -q 'reclaim-stale-remote' && echo match || echo nomatch)"
+expect "stale-remote: NO worktree created on the die" \
+  "no" "$([ -d "$WT_SR" ] && echo yes || echo no)"
+expect "stale-remote: NO local task branch created on the die" \
+  "no" "$(branch_exists_in "$Lsr" war/myplan/p1-t9)"
+expect "stale-remote: remote ref left intact on the die (not deleted)" \
+  "1" "$(git -C "$Lsr" ls-remote origin refs/heads/war/myplan/p1-t9 | grep -c .)"
+
+# ANCESTOR remote -> warn and proceed (already-integrated work; nothing deleted).
+Lan="$(new_repo)"; Oan="$(new_bare)"
+git -C "$Lan" remote add origin "$Oan"
+OLD_AN="$(git -C "$Lan" rev-parse HEAD)"
+git -C "$Lan" push -q origin "$OLD_AN:refs/heads/war/myplan/p1-t8"    # remote at the OLD tip
+printf 'adv\n' > "$Lan/adv.txt"; git -C "$Lan" add -A; git -C "$Lan" commit -qm adv
+git -C "$Lan" branch integration/myplan/phase-1 HEAD
+TIP_AN="$(git -C "$Lan" rev-parse integration/myplan/phase-1)"        # ahead of OLD_AN
+WT_AN="$(new_wt_path)"
+C_AN="$(run_in "$Lan" ensure-worktree "$WT_AN" war/myplan/p1-t8 "$TIP_AN")"
+expect "stale-remote: ANCESTOR remote warns and proceeds (exit 0, fresh cut)" 0 "$C_AN"
+expect "stale-remote: ancestor case created the worktree on the branch" \
+  "war/myplan/p1-t8" "$(wt_on_branch "$Lan" "$WT_AN")"
+expect "stale-remote: ancestor remote NOT deleted" \
+  "1" "$(git -C "$Lan" ls-remote origin refs/heads/war/myplan/p1-t8 | grep -c .)"
+# --reclaim-stale-remote is INERT on an ancestor remote (the probe warns+proceeds
+# before the flag is ever consulted; nothing deleted — end state 6).
+Lai="$(new_repo)"; Oai="$(new_bare)"
+git -C "$Lai" remote add origin "$Oai"
+OLD_AI="$(git -C "$Lai" rev-parse HEAD)"
+git -C "$Lai" push -q origin "$OLD_AI:refs/heads/war/myplan/p1-t4"
+printf 'adv\n' > "$Lai/adv.txt"; git -C "$Lai" add -A; git -C "$Lai" commit -qm adv
+git -C "$Lai" branch integration/myplan/phase-1 HEAD
+TIP_AI="$(git -C "$Lai" rev-parse integration/myplan/phase-1)"
+WT_AI="$(new_wt_path)"
+C_AI="$(run_in "$Lai" ensure-worktree "$WT_AI" war/myplan/p1-t4 "$TIP_AI" --reclaim-stale-remote)"
+expect "stale-remote: reclaim flag INERT on an ancestor remote (exit 0)" 0 "$C_AI"
+expect "stale-remote: reclaim flag + ancestor remote deletes NOTHING" \
+  "1" "$(git -C "$Lai" ls-remote origin refs/heads/war/myplan/p1-t4 | grep -c .)"
+
+# --reclaim-stale-remote on the stale shape: delete the remote + cut fresh.
+Lrc="$(new_repo)"; Orc="$(new_bare)"
+git -C "$Lrc" remote add origin "$Orc"
+git -C "$Lrc" branch integration/myplan/phase-1 HEAD
+TIP_RC="$(git -C "$Lrc" rev-parse integration/myplan/phase-1)"
+TREE_RC="$(git -C "$Lrc" rev-parse 'HEAD^{tree}')"
+STALE_RC="$(printf 'superseded attempt\n' | git -C "$Lrc" commit-tree "$TREE_RC")"
+git -C "$Lrc" push -q origin "$STALE_RC:refs/heads/war/myplan/p1-t7"
+WT_RC="$(new_wt_path)"
+OUT_RC="$( ( cd "$Lrc" && bash "$SCRIPT" ensure-worktree "$WT_RC" war/myplan/p1-t7 "$TIP_RC" --reclaim-stale-remote ) 2>&1 )"; C_RC=$?
+expect "stale-remote reclaim: exits 0 (deleted + cut fresh)" 0 "$C_RC"
+expect "stale-remote reclaim: warn carries the deleted SHA" \
+  "match" "$(printf '%s' "$OUT_RC" | grep -q "$STALE_RC" && echo match || echo nomatch)"
+expect "stale-remote reclaim: warn carries the restore command" \
+  "match" "$(printf '%s' "$OUT_RC" | grep -q "git push origin $STALE_RC:refs/heads/war/myplan/p1-t7" && echo match || echo nomatch)"
+expect "stale-remote reclaim: remote ref DELETED from origin" \
+  "0" "$(git -C "$Lrc" ls-remote origin refs/heads/war/myplan/p1-t7 | grep -c .)"
+expect "stale-remote reclaim: fresh worktree created" \
+  "war/myplan/p1-t7" "$(wt_on_branch "$Lrc" "$WT_RC")"
+expect "stale-remote reclaim: local branch cut at the frozen tip" \
+  "$TIP_RC" "$(git -C "$Lrc" rev-parse war/myplan/p1-t7 2>/dev/null)"
+
+# Flag INERT when a LOCAL ref exists (the reuse/existing-branch path owns it).
+Lin="$(new_repo)"; Oin="$(new_bare)"
+git -C "$Lin" remote add origin "$Oin"
+git -C "$Lin" branch integration/myplan/phase-1 HEAD
+TIP_IN="$(git -C "$Lin" rev-parse integration/myplan/phase-1)"
+TREE_IN="$(git -C "$Lin" rev-parse 'HEAD^{tree}')"
+STALE_IN="$(printf 'stale but local present\n' | git -C "$Lin" commit-tree "$TREE_IN")"
+git -C "$Lin" push -q origin "$STALE_IN:refs/heads/war/myplan/p1-t6"
+git -C "$Lin" branch war/myplan/p1-t6 "$TIP_IN"                       # LOCAL ref present
+WT_IN="$(new_wt_path)"
+C_IN="$(run_in "$Lin" ensure-worktree "$WT_IN" war/myplan/p1-t6 "$TIP_IN" --reclaim-stale-remote)"
+expect "stale-remote: flag INERT when a local ref exists (exit 0)" 0 "$C_IN"
+expect "stale-remote: flag inert leaves the remote ref intact (reuse path owns it)" \
+  "1" "$(git -C "$Lin" ls-remote origin refs/heads/war/myplan/p1-t6 | grep -c .)"
+
+# Flag REFUSES a non-war-namespace branch (proof 1) — no deletion.
+Lns="$(new_repo)"; Ons="$(new_bare)"
+git -C "$Lns" remote add origin "$Ons"
+git -C "$Lns" branch integration/myplan/phase-1 HEAD
+TIP_NS="$(git -C "$Lns" rev-parse integration/myplan/phase-1)"
+TREE_NS="$(git -C "$Lns" rev-parse 'HEAD^{tree}')"
+STALE_NS="$(printf 'stale non-namespace\n' | git -C "$Lns" commit-tree "$TREE_NS")"
+git -C "$Lns" push -q origin "$STALE_NS:refs/heads/notwar/foo"
+WT_NS="$(new_wt_path)"
+code="$(run_in "$Lns" ensure-worktree "$WT_NS" notwar/foo "$TIP_NS" --reclaim-stale-remote)"
+expect "stale-remote reclaim: refuses a non-war-namespace branch (exit 3)" 3 "$code"
+expect "stale-remote reclaim: non-namespace refusal did NOT delete the remote" \
+  "1" "$(git -C "$Lns" ls-remote origin refs/heads/notwar/foo | grep -c .)"
+
+# UNREACHABLE remote on a fresh cut -> warn and proceed (fail-open by design).
+Lur="$(new_repo)"
+git -C "$Lur" remote add origin "$Lur/nonexistent-origin.git"        # bogus, unreachable
+git -C "$Lur" branch integration/myplan/phase-1 HEAD
+TIP_UR="$(git -C "$Lur" rev-parse integration/myplan/phase-1)"
+WT_UR="$(new_wt_path)"
+OUT_UR="$( ( cd "$Lur" && bash "$SCRIPT" ensure-worktree "$WT_UR" war/myplan/p1-t5 "$TIP_UR" ) 2>&1 )"; C_UR=$?
+expect "stale-remote: UNREACHABLE remote warns and proceeds (exit 0, fail-open)" 0 "$C_UR"
+expect "stale-remote: unreachable-remote warn names the fail-open probe" \
+  "match" "$(printf '%s' "$OUT_UR" | grep -qi 'could not probe origin' && echo match || echo nomatch)"
+expect "stale-remote: unreachable-remote still created the worktree" \
+  "war/myplan/p1-t5" "$(wt_on_branch "$Lur" "$WT_UR")"
+
+# --- §4.6 sync-follower (#731 residual) ------------------------------------
+# equal -> exit 0.
+Fse="$(fixture_remote)"; Lse="${Fse%% *}"; Ose="${Fse##* }"
+git -C "$Lse" checkout -q --detach
+code="$(run_in "$Lse" sync-follower "$FBASE")"
+expect "sync-follower: local == origin exits 0" 0 "$code"
+
+# behind, not checked out -> guarded CAS fast-forward to the origin tip.
+# The origin commit must be a LOCAL object for the ancestry check — exactly the
+# production reality (sync-follower runs in the just-landed repo, whose merge
+# commit is local before the follower CAS). The fetch models that; it updates
+# FETCH_HEAD / remote-tracking, never refs/heads/<branch> (the follower lag).
+Fsb="$(fixture_remote)"; Lsb="${Fsb%% *}"; Osb="${Fsb##* }"
+git -C "$Lsb" checkout -q --detach
+printf 'c1\n' > "$Osb/adv.txt"; git -C "$Osb" add -A; git -C "$Osb" commit -qm c1
+ORI_SB="$(git -C "$Osb" rev-parse "$FBASE")"
+git -C "$Lsb" fetch -q origin "$FBASE"
+code="$(run_in "$Lsb" sync-follower "$FBASE")"
+expect "sync-follower: local BEHIND (not checked out) fast-forwards (exit 0)" 0 "$code"
+expect "sync-follower: follower advanced to the origin tip" \
+  "$ORI_SB" "$(git -C "$Lsb" rev-parse "$FBASE" 2>/dev/null)"
+
+# behind BUT checked out somewhere -> warn, still exit 0, follower NOT moved.
+Fsc="$(fixture_remote)"; Lsc="${Fsc%% *}"; Osc="${Fsc##* }"
+LOC_SC="$(git -C "$Lsc" rev-parse "$FBASE")"                          # $FBASE stays checked out
+printf 'c1\n' > "$Osc/adv.txt"; git -C "$Osc" add -A; git -C "$Osc" commit -qm c1
+git -C "$Lsc" fetch -q origin "$FBASE"                                # origin commit local (post-land reality)
+code="$(run_in "$Lsc" sync-follower "$FBASE")"
+expect "sync-follower: behind + checked-out warns, still exit 0" 0 "$code"
+expect "sync-follower: checked-out follower NOT moved" \
+  "$LOC_SC" "$(git -C "$Lsc" rev-parse "$FBASE" 2>/dev/null)"
+msg="$(run_in_msg "$Lsc" sync-follower "$FBASE")"
+expect "sync-follower: checked-out warn names the skipped fast-forward" \
+  "match" "$(printf '%s' "$msg" | grep -qi 'skipping the follower fast-forward' && echo match || echo nomatch)"
+
+# local ABSENT -> create the follower at the origin tip.
+Fsl="$(fixture_remote)"; Lsl="${Fsl%% *}"; Osl="${Fsl##* }"
+git -C "$Lsl" checkout -q --detach
+git -C "$Lsl" branch -D "$FBASE"                                     # remove the local follower
+ORI_SL="$(git -C "$Osl" rev-parse "$FBASE")"
+code="$(run_in "$Lsl" sync-follower "$FBASE")"
+expect "sync-follower: local ABSENT creates the follower at the origin tip (exit 0)" 0 "$code"
+expect "sync-follower: created follower points at the origin tip" \
+  "$ORI_SL" "$(git -C "$Lsl" rev-parse "$FBASE" 2>/dev/null)"
+
+# diverged -> exit 7 (EX_DIVERGED), both SHAs in the message, no ref moved. Both
+# tips are local objects (fetch brings the origin-only commit in) so this is a
+# REAL divergence, not an object-missing artifact.
+Fsd="$(fixture_remote)"; Lsd="${Fsd%% *}"; Osd="${Fsd##* }"
+printf 'c1o\n' > "$Osd/o.txt"; git -C "$Osd" add -A; git -C "$Osd" commit -qm c1o
+ORI_SD="$(git -C "$Osd" rev-parse "$FBASE")"
+printf 'c1l\n' > "$Lsd/l.txt"; git -C "$Lsd" add -A; git -C "$Lsd" commit -qm c1l
+LOC_SD="$(git -C "$Lsd" rev-parse "$FBASE")"
+git -C "$Lsd" checkout -q --detach
+git -C "$Lsd" fetch -q origin "$FBASE"                               # origin-only commit now local
+code="$(run_in "$Lsd" sync-follower "$FBASE")"
+expect "sync-follower: diverged exits 7 (EX_DIVERGED)" 7 "$code"
+expect "sync-follower: diverged did NOT move the local ref" \
+  "$LOC_SD" "$(git -C "$Lsd" rev-parse "$FBASE" 2>/dev/null)"
+msg="$(run_in_msg "$Lsd" sync-follower "$FBASE")"
+expect "sync-follower: diverged message carries both SHAs" \
+  "match" "$(printf '%s' "$msg" | grep -q "$LOC_SD" && printf '%s' "$msg" | grep -q "$ORI_SD" && echo match || echo nomatch)"
+
+# origin ref ABSENT -> die with the "nothing landed to origin" hint.
+Fso="$(new_repo)"; Ooo="$(new_bare)"
+git -C "$Fso" remote add origin "$Ooo"
+git -C "$Fso" branch someland HEAD
+code="$(run_in "$Fso" sync-follower someland)"
+expect "sync-follower: origin ref ABSENT dies non-zero" \
+  "nonzero" "$([ "$code" -ne 0 ] && echo nonzero || echo zero)"
+msg="$(run_in_msg "$Fso" sync-follower someland)"
+expect "sync-follower: origin-absent die carries the 'nothing landed to origin' hint" \
+  "match" "$(printf '%s' "$msg" | grep -qi 'nothing landed to origin\|did the manual land push' && echo match || echo nomatch)"
+
+# ls-remote FAILURE (unreachable) -> die, never read as "absent".
+Fsf="$(new_repo)"
+git -C "$Fsf" remote add origin "$Fsf/nonexistent-origin.git"
+git -C "$Fsf" branch someland HEAD
+code="$(run_in "$Fsf" sync-follower someland)"
+expect "sync-follower: ls-remote FAILURE dies non-zero (never reads 'absent')" \
+  "nonzero" "$([ "$code" -ne 0 ] && echo nonzero || echo zero)"
+msg="$(run_in_msg "$Fsf" sync-follower someland)"
+expect "sync-follower: ls-remote-failure die names the readback failure" \
+  "match" "$(printf '%s' "$msg" | grep -qi 'ls-remote failed\|could not read the origin' && echo match || echo nomatch)"
+
+# --- §4.7 origin-fallback cut (#725.4) -------------------------------------
+# No LOCAL base ref but origin resolves -> cut integration at the origin tip
+# (warn, exit 0, no follower ff). The both-absent die half is pinned by SI.1.
+Fof="$(fixture_remote)"; Lof="${Fof%% *}"; Oof="${Fof##* }"
+git -C "$Lof" checkout -q --detach
+git -C "$Lof" branch -D "$FBASE"                                     # remove the LOCAL base ref (origin-only)
+ORI_OF="$(git -C "$Oof" rev-parse "$FBASE")"
+OWN_OF="$Lof/owned.txt"; : > "$OWN_OF"
+run_capture "$Lof" ensure-integration myplan 1 "$FBASE" --owned-file "$OWN_OF"
+expect "§4.7 origin-fallback: exits 0" 0 "$CAP_CODE"
+expect "§4.7 origin-fallback: integration cut at the ORIGIN tip (no local ref)" \
+  "$ORI_OF" "$(git -C "$Lof" rev-parse integration/myplan/phase-1 2>/dev/null)"
+expect "§4.7 origin-fallback: warn names the origin fallback" \
+  "match" "$(printf '%s' "$CAP_OUT" | grep -qi 'origin fallback\|has no ref' && echo match || echo nomatch)"
 
 # ---------------------------------------------------------------------------
 printf '\n%d/%d cases passed\n' "$((n - fails))" "$n"

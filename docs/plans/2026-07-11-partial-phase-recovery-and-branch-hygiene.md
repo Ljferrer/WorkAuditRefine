@@ -368,7 +368,7 @@ slot files that every stacked plan in this campaign also touches).
 
 - Files: `skills/war/assets/workflow-template.js`,
   `skills/war/assets/workflow-template.test.mjs`, `agents/war-worker.md`,
-  `skills/war/references/schemas.md`
+  `agents/war-refiner.md`, `skills/war/references/schemas.md`
 - Plan slice: implement spec §4.2, §4.3 (engine + worker surfaces), §4.4
   (barrier classification + env-blocked mapping + prompt half), plus the
   schemas.md contract rows. The two `agents/war-worker.md`
@@ -465,6 +465,18 @@ slot files that every stacked plan in this campaign also touches).
     restructured — all cuttable worktrees are still cut from the one frozen
     base; stale-remote is env classification, the same family as
     `run.provision` failures.
+    **Standing-card twin (`agents/war-refiner.md`, prompt-surface split —
+    the provision barrier is refiner-dispatched, `dispatchKind:
+    provision-barrier`):** that card today reads "Fail **loud** on any non-zero
+    exit — do not special-case a code"; reword it in the SAME commit so a
+    `STALE_REMOTE`-marker exit is the one classify-and-continue carve-out
+    (capture into the `staleRemote` env-outcome array, continue with the
+    remaining tasks) while every other nonzero exit stays fail-loud exactly as
+    today — the marker token is the key, never the numeric code. Add a
+    both-surfaces token test asserting the barrier's dispatched clause
+    (`workflow-template.js`) and the `war-refiner.md` card carry the same
+    `STALE_REMOTE` carve-out (anchor-token, delete-the-feature per surface —
+    not a new inline mirror of a canonical export, so no D2 registry row is owed).
   - **§4.4 stale-prior-attempt sentence:** one sentence adjacent to
     `FORCE_WITH_LEASE_RULE` on both surfaces (`agents/war-worker.md` "Dep-wave
     rebase + force-with-lease carve-out" section; the dispatched prompt clause in
