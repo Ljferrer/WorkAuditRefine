@@ -72,11 +72,27 @@ task per phase, carrying all three features' changes to that file.
 
 ### Task 1.2: workflow-template — tier-aware worker dispatch
 
-- Files: `skills/war/assets/workflow-template.js`, `skills/war/assets/workflow-template.test.mjs`
+- Files: `skills/war/assets/workflow-template.js`, `skills/war/assets/workflow-template.test.mjs`,
+  `skills/war/SKILL.md`
 - Plan slice:
+  - **[RED-TEAM CORRECTION — dependency-feasibility Major] `files` plumbing (prompt-surface split).**
+    The tier predicate reads `task.files` (the plan's `Files:` list), but the threaded task object
+    carries **no** `files` field today — its shape is `{ id, issue, title, branch, worktree, deps,
+    roster, planSlice, requiresTest?, requiresPackaging? }` (`workflow-template.js` task-shape doc
+    comment) and the Lead's task construction in `skills/war/SKILL.md` threads
+    `planSlice`/`requiresTest`/`requiresPackaging` only. So this task ALSO: (a) documents in
+    `skills/war/SKILL.md`'s Decompose/task-construction step that the Lead threads each task's
+    `Files:` list (the plan file list, **not** the worker's reported diff) into the per-phase
+    Workflow as `tasks[].files`; (b) updates the `workflow-template.js` task-shape doc comment to
+    include `files: [<repo-relative plan paths>]`; (c) the predicate reads `task.files` with a
+    fail-safe: an **absent or empty** `files` list ⇒ **base worker tier** (never vacuously
+    docs-tier — an undefined/empty list must not misclassify a non-doc task as docs). This is the
+    prompt-surface-split doctrine: the dispatched read (`workflow-template.js`) and the standing
+    instruction (`skills/war/SKILL.md`) change in the same task. Mapped test asserts the
+    absent-`files` → base-tier fail-safe explicitly.
   - Extend the per-role spawn-opts helper (the `ROLE_MODEL` neighborhood — locate by construct,
     not line): worker spawns become tier-aware. First-pass worker dispatch uses the `docs` tier
-    iff **every** entry in the task's `Files:` list matches `*.md`; fix-round and `--ace` fix
+    iff `task.files` is non-empty **and every** entry matches `*.md`; fix-round and `--ace` fix
     dispatches use the `fix` tier when configured, else the base worker config. Non-worker roles
     unchanged.
   - The tier defaults hand-mirrored into the template (the sandbox cannot import) extend the
@@ -125,7 +141,8 @@ task per phase, carrying all three features' changes to that file.
 
 ### Task 2.2: lessons-learned — migrate ask/abort flow
 
-- Files: `skills/lessons-learned/SKILL.md`, `skills/lessons-learned/lessons-learned-doc-contract.test.mjs`
+- Files: `skills/lessons-learned/SKILL.md`, `skills/lessons-learned/references/migration.md`,
+  `skills/lessons-learned/lessons-learned-doc-contract.test.mjs`
 - Plan slice: `migrate` gains a pre-flight: resolve the effective flag from
   `.claude/war/config.json` (absent file = defaults = `false`). If `false` → ask. Accept →
   write `memory.commitLearnings: true` through the `war-config.mjs` validator path
@@ -134,6 +151,16 @@ task per phase, carrying all three features' changes to that file.
   re-run after opting in"; nothing staged. `evict`'s existing flip-back ask is unchanged, but
   reword any clause that *justifies* it by the old default. Extend the doc-contract test where
   it locks affected clauses (mapped test).
+  - **[RED-TEAM CORRECTION — old-value-sweep-scope-gap Major] `references/migration.md` is the
+    live playbook** `/lessons-learned migrate` **and** `evict` load and execute (`SKILL.md`
+    lines 12/20) and the doc-contract test already reads it. It asserts the retired default in
+    two operator-facing spots — `default \`true\`; the economy preset pins it \`false\`` (its
+    migrate opt-in confirm) and `The default is \`true\` (economy pins \`false\`)…` (its evict
+    justification — the twin of the `SKILL.md` clause this task already fixes). Reword **both**
+    to the opt-in default (`commitLearnings` is opt-in / off by default; `/war-room` turns it on)
+    and drop the economy-pins-false framing. Extend the doc-contract test to lock the reworded
+    migration.md clauses. Correcting only the `SKILL.md` copy and leaving its `migration.md` twin
+    stale would violate End state #6.
 - requiresTest: true
 - requiresPackaging: false
 - deps: []
@@ -193,7 +220,8 @@ task per phase, carrying all three features' changes to that file.
 
 - Files: `skills/war/assets/war-config.test.mjs`, `README.md`, `CLAUDE.md`,
   `skills/war-room/SKILL.md`, `skills/war/references/schemas.md`,
-  `skills/lessons-learned/SKILL.md`
+  `skills/lessons-learned/SKILL.md`, `skills/lessons-learned/references/migration.md`,
+  `skills/war/assets/war-config.mjs`
 - Plan slice: rule-6 closure over the landed Phase-1/2 work.
   - **Sweep**: grep the retired claim across every enumerated surface (`commitLearnings`
     default-`true` phrasings, "economy pins false", "defaults toward sharing" rationale). Grep
@@ -201,11 +229,18 @@ task per phase, carrying all three features' changes to that file.
     clauses, and comment blocks that encode the old behavior without the token) and fix each
     straggler as a survey-derived correction. A surface with zero stragglers is a **verified
     no-op, which is success** — the file list enumerates the audit scope, not promised diffs.
+  - **[RED-TEAM CORRECTION] Enumerated surface set now includes
+    `skills/lessons-learned/references/migration.md` (the live migrate/evict playbook — Blocker 2)
+    and `skills/war/assets/war-config.mjs`** (its file-local memory-defaults **comment block** is
+    an OLD-value surface per spec §5/§10.1 — Task 1.1 fixes it in-diff, but no permanent guard
+    binds it, so a future comment re-introducing "default ON/true" would sail through green). Both
+    join the sweep scope AND the permanent guard's zero-old-surface-match set below.
   - **Permanent guard** (mapped: `war-config.test.mjs`): a doc-claim drift guard binding the
     documented default to `DEFAULTS.memory.commitLearnings` by extraction + equality — read the
     schemas.md `memory` row's stated default and assert it equals the canonical value, and
-    assert the retired-value claim matches zero surfaces in the enumerated doc set. Fails when
-    either side drifts; tolerant of sentence case (use case-insensitive, mid-sentence anchors).
+    assert the retired-value claim matches zero surfaces in the enumerated doc set (which now
+    includes `migration.md` and the `war-config.mjs` comment block). Fails when either side
+    drifts; tolerant of sentence case (use case-insensitive, mid-sentence anchors).
 - requiresTest: true
 - requiresPackaging: false
 - deps: []
@@ -254,7 +289,16 @@ task per phase, carrying all three features' changes to that file.
   consumed by `/red-team`, not the per-phase spawn path; the matrix-stays-four-roles assertion
   in Task 1.1 locks that boundary.
 - README/`CLAUDE.md` and `war-config.test.mjs` are each touched in two phases (2→3, 1→3) —
-  cross-phase landed-first edges, no same-phase collisions.
+  cross-phase landed-first edges, no same-phase collisions. **[RED-TEAM CORRECTION] same pattern
+  now applies to `skills/lessons-learned/references/migration.md`** (Task 2.2 Phase 2 edits it →
+  Task 3.1 Phase 3 audits/guards it) **and `skills/war/assets/war-config.mjs`** (Task 1.1 Phase 1
+  edits its comment → Task 3.1 Phase 3 guards it) — landed-first edges, no same-phase collisions
+  (`skills/war/SKILL.md` is Task 1.2-only). The Phase-1→3 and Phase-2→3 base edges already exist,
+  so no new phase ordering.
+- **[RED-TEAM CORRECTION] Spec §5's OLD-value-absent enumeration is under-complete** — it omits
+  `references/migration.md` (a live migrate/evict surface) and treats `war-config.mjs comments`
+  as author-time-only. This plan's Task 3.1 guard scope is deliberately a superset of spec §5;
+  the spec's §5 list may be reconciled at implementation time but does not gate this plan.
 
 ## Open decisions
 
