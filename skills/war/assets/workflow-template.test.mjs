@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { HARD_ESCALATION_REASONS, KNOWN_LAND_DECISIONS } from './land-decision.mjs'
-import { spawnOpts, validateRoster, widenRoster, resolveWidenSource, ROLES } from './war-config.mjs'
+import { spawnOpts, validateRoster, widenRoster, resolveWidenSource, ROLES, DEFAULTS } from './war-config.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const auditorMd = readFileSync(join(here, '../../../agents/war-auditor.md'), 'utf8')
@@ -5302,6 +5302,72 @@ test('T2.1 (D1/D8) — the escalate reservation ("NEVER escalate" on a cannot-co
 })
 
 // ===========================================================================
+// Task 1.2 (war-room-config-expansion) — tier-aware worker dispatch + task.files plumbing
+// ---------------------------------------------------------------------------
+// First-pass workers dispatch on the docs tier for an all-*.md task (task.files = the plan Files:
+// list, NOT the worker's diff); fix-round and --ace dispatch on the fix tier when configured, else
+// the base worker. End-to-end (captures the real spawn opts at each dispatch label) so the predicate
+// AND the wiring are exercised together — a reverted tier arg fails these.
+// ---------------------------------------------------------------------------
+
+// Run a single-task happy-path phase and return the first-pass worker's captured spawn opts.
+// files === undefined ⇒ NO files field on the task (the absent-list fail-safe case).
+const firstPassWorkOpts = async (files) => {
+  const task = { id: 't1', issue: 101, title: 'T', planSlice: 's', roster: [{ lens: 'correctness' }],
+    ...(files !== undefined ? { files } : {}) }
+  const { calls } = await runPhase(PROVISION_ARGS({ tasks: [task] }), defaultImpl)
+  return (calls.find(c => c.opts.label === 'work:t1') || {}).opts || {}
+}
+
+test('Task 1.2 — docs tier: an all-*.md task dispatches its first-pass worker on the docs tier (sonnet); a non-*.md entry or an absent/empty files list stays base (opus, the fail-safe)', async () => {
+  const allMd = await firstPassWorkOpts(['docs/a.md', 'skills/war/SKILL.md'])
+  assert.equal(allMd.model, 'sonnet', 'all-*.md task → docs tier model (sonnet, the mirrored DEFAULTS.agents.worker.docs)')
+  assert.equal(allMd.effort, undefined, "docs default effort is 'default' ⇒ omitted from spawn opts")
+
+  const mixed = await firstPassWorkOpts(['docs/a.md', 'skills/war/assets/x.js'])
+  assert.equal(mixed.model, 'opus', 'a single non-*.md entry keeps the base worker tier (opus)')
+
+  const absent = await firstPassWorkOpts(undefined)   // task carries NO files field
+  assert.equal(absent.model, 'opus', 'ABSENT files list ⇒ base worker tier (fail-safe: an undefined list never vacuously reads as all-*.md)')
+
+  const empty = await firstPassWorkOpts([])
+  assert.equal(empty.model, 'opus', 'EMPTY files list ⇒ base worker tier (fail-safe)')
+})
+
+// Drive a Major → fix-round → approve+absorb-nit → --ace → clean re-audit flow so BOTH the fix-round
+// worker (fix:t1:r1) and the --ace worker (ace:t1:r2) dispatch in one phase. Returns captured opts.
+const runFixAndAce = async (agentsCfg) => {
+  const blockingMajor = { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'request_changes', confidence: 'high',
+    findings: [{ severity: 'Major', title: 'fix me', file: 'a.js', rationale: 'because' }] }
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [blockingMajor, approveWith('audit:t1:correctness', [nit()]), approveWith('audit:t1:correctness', [])] },
+    aceBase([]))
+  const args = PROVISION_ARGS({
+    tasks: [{ id: 't1', issue: 101, title: 'T', planSlice: 's', roster: [{ lens: 'correctness' }] }],   // no files ⇒ base first-pass
+    run: { ace: true },
+    agents: agentsCfg,
+  })
+  const { calls } = await runPhase(args, impl)
+  const optsOf = (label) => (calls.find(c => c.opts.label === label) || {}).opts || {}
+  return { work: optsOf('work:t1'), fix: optsOf('fix:t1:r1'), ace: optsOf('ace:t1:r2') }
+}
+
+test('Task 1.2 — fix tier set: the fix-round AND the --ace worker both dispatch on agents.worker.fix (and the base first-pass differs)', async () => {
+  const { work, fix, ace } = await runFixAndAce({ worker: { model: 'sonnet', fix: { model: 'opus', effort: 'high' } } })
+  assert.equal(work.model, 'sonnet', 'the base first-pass worker uses agents.worker (sonnet) — NOT the fix tier')
+  assert.deepEqual({ model: fix.model, effort: fix.effort }, { model: 'opus', effort: 'high' }, 'the fix-round worker carries agents.worker.fix')
+  assert.deepEqual({ model: ace.model, effort: ace.effort }, { model: 'opus', effort: 'high' }, 'the --ace worker carries agents.worker.fix')
+})
+
+test('Task 1.2 — fix tier absent: the fix-round AND the --ace worker both inherit the base worker (no fix block)', async () => {
+  const { fix, ace } = await runFixAndAce({ worker: { model: 'sonnet' } })
+  assert.equal(fix.model, 'sonnet', 'fix absent ⇒ the fix-round worker inherits the base worker model')
+  assert.equal(fix.effort, undefined, 'base worker has no configured effort ⇒ omitted (inherit session)')
+  assert.equal(ace.model, 'sonnet', 'fix absent ⇒ the --ace worker inherits the base worker model')
+  assert.equal(ace.effort, undefined, 'base worker has no configured effort ⇒ omitted (inherit session)')
+})
+
+// ===========================================================================
 // D2 — MIRROR REGISTRY (drift-guards-for-mirrored-and-asserted-facts, ADR 0025)
 // ---------------------------------------------------------------------------
 // Every value/helper the Workflow sandbox mirrors inline in workflow-template.js (it cannot import) is
@@ -5335,7 +5401,7 @@ const inlineHelperBlock = (() => {
   return { ok: s !== -1 && e > s, block: s !== -1 && e > s ? src.slice(s, e) : '' }
 })()
 const inlineHelpers = (agents = {}) =>
-  new Function('agents', inlineHelperBlock.block + '\nreturn { spawn, validateRoster, widenRoster, resolveWidenSource }')(agents)
+  new Function('agents', inlineHelperBlock.block + '\nreturn { spawn, validateRoster, widenRoster, resolveWidenSource, WORKER_TIER_DEFAULTS, isDocsTask }')(agents)
 
 const AGENTS_FIXTURES = [
   {},                                                                          // all omitted → ROLE_MODEL/DEFAULTS fallback
@@ -5403,8 +5469,15 @@ test('D2 mirror registry — every inline sandbox mirror in workflow-template.js
       cases: RESOLVE_WIDEN_CASES,
       inline: ([nom, def]) => inlineHelpers().resolveWidenSource(nom, def),
       canonical: ([nom, def]) => resolveWidenSource(nom, def) },
+    // Worker sub-tier defaults (Task 1.2): the inline WORKER_TIER_DEFAULTS mirror bound to the canonical
+    // DEFAULTS.agents.worker sub-tiers — value equality, never a restated literal. docs is the only
+    // defaulted tier (fix has no default block: absent ⇒ inherit the base worker, nothing to mirror).
+    { name: 'WORKER_TIER_DEFAULTS (inline ↔ DEFAULTS.agents.worker sub-tiers)', mode: 'behavioral',
+      cases: [['docs']],
+      inline: ([tier]) => inlineHelpers().WORKER_TIER_DEFAULTS[tier],
+      canonical: ([tier]) => DEFAULTS.agents.worker[tier] },
   ]
-  assert.ok(MIRROR_REGISTRY.length >= 6, 'the mirror registry lists at least the six required rows (HARD_ESCALATION_REASONS, landDecision, and the four roster helpers)')
+  assert.ok(MIRROR_REGISTRY.length >= 7, 'the mirror registry lists at least the seven required rows (HARD_ESCALATION_REASONS, landDecision, the four roster helpers, and the worker-tier-defaults row)')
   for (const row of MIRROR_REGISTRY) {
     if (row.mode === 'deepEqual') {
       const inline = row.extractInline()
