@@ -518,6 +518,111 @@ test('memory.commitLearnings non-boolean rejected', () => {
   assert.match(r.errors.join('\n'), /memory\.commitLearnings must be a boolean/)
 })
 
+// --- Doc-claim drift guard (Task 3.1 / End-state 6): no surface reasserts the retired ------------
+// commitLearnings default-`true` claim, and every documented default stays bound to the canonical
+// DEFAULTS value. Two extraction+equality clauses pin the STRUCTURED "default <value>" surfaces
+// (schemas.md's memory row; war-config.mjs's own memory-defaults comment — the surface the red-team
+// correction flagged as fixed-in-diff but otherwise unguarded); one zero-match scan proves the
+// retired-true claim absent from the enumerated doc set. All matchers are case-insensitive and
+// mid-sentence anchored so a sentence-case reword still binds. Delete-the-feature: revert the
+// DEFAULTS flip to `true` (docs still say false/off) and every clause below goes red.
+//
+// The two structured surfaces are EXTRACTED, not swept, and are excluded from the free-text adjacency
+// sweep because a proximity scan mis-fires on their shape:
+//   - schemas.md lists `retrieval` (legitimately `default true`) on the SAME row as the
+//     `commitLearnings` destructure token (doc-contract leak-detector false-positive family).
+//   - war-config.mjs's comment wraps across `// `-prefixed lines, so a single-line sweep can't bridge
+//     `commitLearnings:` to its `(default …)` value.
+// Extraction sidesteps both and pins the exact value (stronger than absence-of-true); the prose
+// surfaces, whose claims are free text, get the sweep.
+
+const WORD_TO_BOOL = { true: true, on: true, false: false, off: false }
+
+// The enumerated doc set (sub-issue #779 Files list + red-team correction: migration.md, war-config.mjs).
+const RETIRED_CLAIM_SURFACES = [
+  'README.md',
+  'CLAUDE.md',
+  'skills/war-room/SKILL.md',
+  'skills/war/references/schemas.md',
+  'skills/lessons-learned/SKILL.md',
+  'skills/lessons-learned/references/migration.md',
+  'skills/war/assets/war-config.mjs',
+]
+// Structured surfaces pinned by clauses A/C — excluded from the prose adjacency sweep (see header).
+const STRUCTURED_SURFACES = new Set([
+  'skills/war/references/schemas.md',
+  'skills/war/assets/war-config.mjs',
+])
+
+// Retired-true claim scanners. Each targets a real pre-flip form (the removed lines in the Phase-2
+// retire commits) and is proven absent from every current surface.
+const RETIRED_PUBLICATION_PHRASES = [
+  /lessons\s+commit\s+by\s+default/i,           // retired README §heading ("why lessons commit by default")
+  /(?:leans?|defaults?)\s+towards?\s+sharing/i, // retired "that default leans toward sharing" rationale
+]
+// commitLearnings' default asserted true/on within one `;`/newline-bounded clause — so an opt-in
+// "off by default … turn it on" phrasing or an action-write can't co-trip it.
+const COMMITLEARNINGS_DEFAULT_TRUE = /commitLearnings`?[^;\n]{0,90}?defaults?\s+(?:is\s+|to\s+)?[*`]*(?:true|on)\b/i
+// Bare "commitLearnings: true" value-assertion that is NOT an opt-in accept action (set/write …: true).
+const COMMITLEARNINGS_BARE_TRUE = /(.{0,16})commitLearnings`?\s*:\s*`?\**(?:true|on)\b/gi
+function bareTrueOffense(text) {
+  for (const m of text.matchAll(COMMITLEARNINGS_BARE_TRUE)) {
+    if (/\b(?:set|write|writes|writing)\b/i.test(m[1])) continue // migrate/opt-in accept, not a default claim
+    return m[0]
+  }
+  return null
+}
+
+// Clause A: schemas.md memory row documents commitLearnings' default == canonical.
+test('doc-claim guard: schemas.md memory row documents commitLearnings default == DEFAULTS (extraction + equality)', () => {
+  const text = readDoc('skills/war/references/schemas.md')
+  // Slice from the commitLearnings DEFINITION (last "commitLearnings:" — the row's destructure token
+  // has no colon), so retrieval's own "default true" earlier on the row can't be misread as this one.
+  const row = text.slice(text.lastIndexOf('commitLearnings:'))
+  const m = row.match(/default\s+(\w+)/i)
+  assert.ok(m, 'schemas.md memory row must document the commitLearnings default (e.g. "…(bool, default false…")')
+  const documented = WORD_TO_BOOL[m[1].toLowerCase()]
+  assert.equal(documented, DEFAULTS.memory.commitLearnings,
+    `schemas.md documents commitLearnings default "${m[1]}" (→ ${documented}) but ` +
+    `DEFAULTS.memory.commitLearnings is ${DEFAULTS.memory.commitLearnings} — bind the doc to the canonical value`)
+})
+
+// Clause C: war-config.mjs memory-defaults comment documents commitLearnings' default == canonical.
+test('doc-claim guard: war-config.mjs memory-defaults comment documents commitLearnings default == DEFAULTS', () => {
+  const src = readDoc('skills/war/assets/war-config.mjs')
+  const at = src.indexOf('commitLearnings: write the repo-root')
+  assert.ok(at >= 0, 'war-config.mjs must retain the memory-defaults comment naming commitLearnings')
+  const block = src.slice(at, at + 240).replace(/\n\s*\/\/\s?/g, ' ') // unwrap the `// ` comment lines
+  const m = block.match(/\(default\s+(\w+)/i)
+  assert.ok(m, 'war-config.mjs comment must state the commitLearnings default (e.g. "(default OFF …")')
+  const documented = WORD_TO_BOOL[m[1].toLowerCase()]
+  assert.equal(documented, DEFAULTS.memory.commitLearnings,
+    `war-config.mjs comment states commitLearnings default "${m[1]}" (→ ${documented}) but canonical is ` +
+    `${DEFAULTS.memory.commitLearnings} — a future comment re-introducing "default ON/true" must fail here`)
+})
+
+// Clause B: the retired default-true claim is absent from every enumerated surface.
+test('doc-claim guard: no enumerated surface reasserts the retired commitLearnings default-`true` claim', () => {
+  const offenses = []
+  for (const surface of RETIRED_CLAIM_SURFACES) {
+    const text = readDoc(surface)
+    for (const re of RETIRED_PUBLICATION_PHRASES) {
+      const m = text.match(re)
+      if (m) offenses.push(`${surface}: retired publication rationale "${m[0]}"`)
+    }
+    const bare = bareTrueOffense(text)
+    if (bare) offenses.push(`${surface}: bare default-true value "${bare.trim()}"`)
+    // Free-text adjacency sweep — prose surfaces only; structured surfaces are pinned by A/C (see header).
+    if (!STRUCTURED_SURFACES.has(surface)) {
+      const m = text.match(COMMITLEARNINGS_DEFAULT_TRUE)
+      if (m) offenses.push(`${surface}: commitLearnings default asserted true/on "${m[0]}"`)
+    }
+  }
+  assert.deepEqual(offenses, [],
+    'A surface reasserts the retired commitLearnings default-`true` claim (the flip landed `false`):\n  ' +
+    offenses.join('\n  '))
+})
+
 test('memory.topK non-integer rejected', () => {
   const r = validate({ memory: { topK: 2.5 } })
   assert.equal(r.valid, false)
