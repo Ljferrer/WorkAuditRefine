@@ -7,7 +7,7 @@
       "effort": "max",
       "docs": {
         "model": "sonnet",
-        "effort": "default"
+        "effort": "max"
       },
       "fix": {
         "model": "fable",
