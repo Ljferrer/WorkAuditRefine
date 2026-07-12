@@ -49,12 +49,26 @@ Source spec: [docs/specs/2026-07-11-war-review-run-telemetry-design.md](../specs
     same-run resume updates in place (latest-wins per runId). Untracked-ness rides the existing
     `.claude/` line the provisioning `ensure-exclude` step maintains — no `.gitignore` change.
   - **When**: updated at phase boundaries — stamp `startedAt` at phase launch, and on phase
-    return stamp `endedAt` plus the per-phase record: `workflowRunId` and `transcriptDir` as
-    surfaced by the harness's task result (absent → `null`), dispatch counts by role derived
-    from the decompose + the returned `auditLog`/fix rounds/`servitorResult`, task terminal
-    statuses, `landDecision`, lessons written, issues filed. Top level: `runId`, `planPath`,
-    `configProfile`, run `startedAt`/`endedAt`. Field set per spec §4.A (the spec's field
-    contract; nesting refinements allowed, the MUST-carry list is binding).
+    return stamp `endedAt` plus the per-phase record: `workflowRunId` and `transcriptDir`, dispatch
+    counts by role derived from the decompose + the returned `auditLog`/fix rounds/`servitorResult`,
+    task terminal statuses, `landDecision`, lessons written, issues filed. Top level: `runId`,
+    `planPath`, `configProfile`, run `startedAt`/`endedAt`. Field set per spec §4.A (the spec's
+    field contract; nesting refinements allowed, the MUST-carry list is binding).
+    - **[RED-TEAM CORRECTION — rescope-feasibility, transcriptDir/workflowRunId source grounded].**
+      The workflow *return object* (`{ phase, landed, escalated, minorsFiled, aced, notes,
+      landResult, servitorResult, auditLog, landDecision, handoff? }`,
+      `workflow-template.js` return) carries **neither** `transcriptDir` **nor** `workflowRunId` —
+      so the Lead does **not** read them off the return. It captures both from the **`Workflow`
+      tool's own launch envelope**: launching a per-phase Workflow yields a `Run ID: <runId>` line
+      **and** a `Transcript dir: …/subagents/workflows/<runId>` line, and the task-completion
+      notification's `<diagnostics>` repeats the same `…/subagents/workflows/<runId>/journal.jsonl`
+      path. The Lead therefore records `workflowRunId = <runId>` and
+      `transcriptDir = …/subagents/workflows/<runId>` **at phase launch** (harness-surfaced, this is
+      the same directory `/war-review`'s End-state-2 mining later reads). This grounds the "engine
+      stays closed" rescope: the transcript context is Lead-visible at the tool boundary, never
+      needing a `workflow-template.js` change. If a future harness ever omits these lines,
+      `transcriptDir`/`workflowRunId` degrade to `null` and token/tool mining renders `n/a`
+      (fail-open, End state 1/2) — never a fabricated value.
   - **Fail-open**: every manifest write is best-effort — a failed write logs one line and the
     run proceeds unaffected; the manifest is telemetry, **never resume input** (ADR 0008
     ordering untouched).
@@ -113,11 +127,15 @@ Source spec: [docs/specs/2026-07-11-war-review-run-telemetry-design.md](../specs
 
 - Files: `README.md`
 - Plan slice: document `/war-review` — anchor by construct, not line:
-  - the **command-set overview sentence** (the pipeline walk-through paragraph) gains the
-    post-run step,
-  - a short **`/war-review`** subsection in the command tour: what it tallies, the friction
-    verdict, the confirmed-issue offer, `--scavenge`,
-  - the **quick-reference command block** gains its line.
+  - the **command-set overview sentence** (the `## Usage` pipeline walk-through paragraph —
+    "The command set, in the order you'll run it: …") gains the post-run step,
+  - a short **`/war-review`** subsection in the command tour (a sibling of the per-command `###`
+    subsections): what it tallies, the friction verdict, the confirmed-issue offer, `--scavenge`.
+  **[RED-TEAM CORRECTION]** the earlier draft named a third "quick-reference command block" anchor —
+  **it does not exist** (README's only command enumeration is the overview sentence above; the
+  rest are per-command `###` subsections). Do NOT hunt for a command table/cheat-sheet block; the
+  two anchors above carry the mention. (If the `Pro Tip` block near the bottom, which names
+  `/war-machine`+`/war-campaign`, is later extended, it is optional, not required.)
   Grep is a floor: after the token sweep for `war-review`/pipeline mentions, hand-scan the
   same-scope pipeline prose for sentences enumerating the command set (they claim completeness)
   and fix each straggler as a survey-derived correction.
