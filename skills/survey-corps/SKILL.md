@@ -1,14 +1,14 @@
 ---
 name: survey-corps
-description: Survey this repo's open GitHub issues into war-shaped design specs — sweep the backlog (run-bookkeeping labels dropped, war-followup debt first-class), fan out reader agents per issue, cluster the summaries into coherent groups, synthesize one spec per group via the /war-strategy spec template, then verify every swept issue is claimed or explicitly deferred. Hands off to /war-machine via an uncommitted survey manifest; never commits. Use when the user runs /survey-corps, wants to turn the open-issue backlog into specs, asks to survey or triage issues into design specs, or starts the WAR pipeline's issues → specs step.
+description: Survey this repo's memory lessons and open GitHub issues into war-shaped design specs — first mine qualifying hot lessons from both memory roots into real memory-mined issues (redaction-lint-guarded, slug-deduped across open + closed), then sweep the backlog (run-bookkeeping labels dropped, war-followup debt first-class), fan out reader agents per issue, cluster the summaries into coherent groups, synthesize one spec per group via the /war-strategy spec template, then verify every swept issue is claimed or explicitly deferred. Hands off to /war-machine via an uncommitted survey manifest; never commits. Use when the user runs /survey-corps, wants to turn the open-issue backlog or recorded memory/lesson debt into specs, to mine memories or learnings into issues, asks to survey or triage issues into design specs, or starts the WAR pipeline's memories + issues → specs step.
 ---
 
-# /survey-corps — issues → specs
+# /survey-corps — memories + issues → specs
 
-You are the **Survey Corps**. You sweep the repo's open issues, cluster them into coherent
-groups, and author one war-shaped design spec per group — every swept issue accounted for,
-nothing committed. The next pipeline step is `/war-machine` (specs → plans + roadmap); you hand
-off via the survey manifest below.
+You are the **Survey Corps**. You first **mine** qualifying memory lessons into real issues, then
+sweep the repo's open issues, cluster them into coherent groups, and author one war-shaped design
+spec per group — every swept issue accounted for, nothing committed. The next pipeline step is
+`/war-machine` (specs → plans + roadmap); you hand off via the survey manifest below.
 
 This skill authorizes the **Workflow tool** (precedent: `/red-team`, `/lessons-learned`): the
 reader fan-out, the cluster barrier, and the per-group spec synthesis run as a Workflow.
@@ -19,18 +19,64 @@ reader fan-out, the cluster barrier, and the per-group spec synthesis run as a W
 /survey-corps [--erwin]
 ```
 
-`--erwin` = pause after clustering and present the proposed groups for approval before
-synthesizing. The flag makes the survey **un-cronable by design** — bare invoke is fully
-autonomous end to end.
+`--erwin` = two human gates: pause **before filing** any mined issue (present the drafted batch;
+file only approved ones) and pause **after clustering** to present the proposed groups for
+approval before synthesizing. The flag makes the survey **un-cronable by design** — bare invoke
+is fully autonomous end to end (it mines, files, and synthesizes without pausing).
 
 ## Steps (in order)
+
+### 0. Mine
+
+Turn qualifying **hot** memory lessons into real GitHub issues **before** the sweep, so
+lesson-recorded debt (open defects, ceilings, recurring traps) rides the normal
+sweep → cluster → synthesize machinery instead of staying invisible. This step may ride the same
+Workflow authorization as the reader fan-out below.
+
+1. **Enumerate both roots.** Collect hot lessons from **both** memory roots — the repo root
+   `docs/learnings/` and the local root (resolved exactly as `war-memory render-index` resolves
+   the local root). Exclude `archive/` in **both** roots — cold lessons are mostly
+   resolved/evicted.
+2. **Classify (reader fan-out).** One reader per lesson (batched like the issue readers in Step 2):
+   verify the lesson's referent against the **live tree** and classify —
+   *actionable* / *resolved-or-stale* / *process-recipe* / *excluded-type* (`user`/`feedback`).
+   Only **open actionable defects** proceed: the referent still exists and names a live
+   defect/limitation/ceiling, and the lesson is **not** `[RESOLVED]` and not superseded.
+   Recurrence counters boost the drafted issue's **priority in the body, never eligibility**.
+3. **Draft the issue.** Title from the lesson `description`; body = the defect statement, a fixed
+   greppable citation line **`Lesson: <slug>`** plus the lesson path (`docs/learnings/<slug>.md`
+   or `<local-root>/<slug>.md`), the provenance tier, and a recurrence note if any. Quote lesson
+   bodies **minimally** — titles can leak too.
+4. **Dedup (open AND closed).** Search issues in **both** states for the slug (cite it verbatim so
+   the substring-fragile `gh` search has a stable token). Open hit → **skip** (the normal sweep
+   already covers it). Closed hit → **skip** and report `previously adjudicated (#N)` — a human
+   reopens if they disagree. A closed-as-fixed issue whose lesson still verifies live is a
+   **stale-lesson signal reported** for `/lessons-learned`, never acted on here.
+5. **Redaction lint (fail-closed).** Guard every drafted body — **title included** — with the
+   existing fail-closed redaction lint before filing. **`war-memory.mjs lint` reads
+   files/directories only; it does NOT read stdin** — with no path arg it lints the local root, so
+   piping a body in returns a false `clean` and would file a leaking issue. So **write the drafted
+   title + body to a temp `.md` file and run `war-memory.mjs lint <tmpfile>`** — a non-zero exit
+   (exit 1) or any reported hit is a redaction hit — then delete the temp file. (Equivalent: call
+   the module's exported `lint(text)` on the drafted text directly — same fail-closed detector.)
+   Hit → the issue is **NOT filed**; report `withheld: redaction`. **No auto-scrub, ever.**
+6. **File survivors.** File each surviving draft with the **`memory-mined`** label (create the
+   label on the target repo if absent). Under `--erwin`, **pause before filing** — present the
+   drafted batch and file only approved ones. All `gh` writes ride the existing gh-preflight
+   (`overrides.ghUser`) discipline like every other write batch.
+7. **Report every mined lesson.** One row per lesson, no silent drops:
+   `filed #N` / `withheld: redaction` / `previously adjudicated (#N)` /
+   `skipped: <not-actionable reason>`. These rows become the coverage report's **Mining** section
+   (Step 6).
 
 ### 1. Sweep
 
 `gh issue list --state open` on the current repo. Drop every issue carrying a run-bookkeeping
 label: `phase:*`, `status:*`, `task`, `run:*`, legacy `coven`. `war-followup` issues are
 **first-class input** — they are WAR's own deferred debt getting its shot at becoming spec'd
-work. Zero issues after the filter → report **"nothing to survey"** and stop (no empty specs).
+work; `memory-mined` issues (just filed in Step 0) are **not** bookkeeping — they pass the filter
+and enter the sweep as ordinary open issues. Zero issues after the filter → report
+**"nothing to survey"** and stop (no empty specs).
 
 ### 2. Fan out readers
 
@@ -69,8 +115,11 @@ Strays are **flagged, never dropped**.
 
 ### 6. Manifest + report
 
-Write the survey manifest (schema below), then print the coverage report: every swept issue →
-its spec, or its `deferred: <why>` row.
+Write the survey manifest (schema below), then print the coverage report. It opens with a
+**Mining** section — the Step 0.7 rows (`filed #N` / `withheld: redaction` /
+`previously adjudicated (#N)` / `skipped: <reason>`) accounting for **every** mined lesson —
+rendered **ahead of** the issue→spec table: every swept issue → its spec, or its
+`deferred: <why>` row.
 
 ## The survey manifest
 
@@ -114,4 +163,5 @@ close swept issues later).
 - Specs go to the working tree; the survey **never commits** (the autonomous path's commit
   belongs to `/war-machine --afk`). The operator reviews and commits interactive runs.
 - Every swept issue is accounted for in the closing coverage report — mapped to a spec or
-  explicitly deferred with a reason. No silent drops.
+  explicitly deferred with a reason — and every **mined** lesson appears in its Mining section
+  (`filed` / `withheld: redaction` / `previously adjudicated` / `skipped`). No silent drops.
