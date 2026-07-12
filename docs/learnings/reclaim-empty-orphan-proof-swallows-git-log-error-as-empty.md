@@ -1,6 +1,6 @@
 ---
 name: reclaim-empty-orphan-proof-swallows-git-log-error-as-empty
-description: "git log <base>..<branch> with 2>/dev/null||true reads a git ERROR as a proven-empty branch"
+description: "git log 2>/dev/null||true reads a git error as a proven-empty branch"
 metadata: 
   node_type: memory
   type: project

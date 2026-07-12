@@ -1,6 +1,6 @@
 ---
 name: gate-can-assert-mirrored-clause-presence-without-asserting-byte-identity
-description: "Presence-only gate on a mirrored pointer line misses future wording drift"
+description: "Presence-only gate on a mirrored line misses wording drift"
 metadata:
   node_type: memory
   type: project

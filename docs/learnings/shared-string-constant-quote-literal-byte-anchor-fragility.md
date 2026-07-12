@@ -1,6 +1,6 @@
 ---
 name: shared-string-constant-quote-literal-byte-anchor-fragility
-description: "A both-surfaces byte-identity test on a string with quote-mark examples breaks on quote lint"
+description: "Byte-identity test on a quote-bearing string breaks on quote lint"
 metadata:
   type: project
   keywords: [byte-anchor, quote normalization, curly quotes, straight quotes, both-surfaces test, drift guard, shared constant, doc-lint, COST_CLAIM_SHARED]

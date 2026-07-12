@@ -1,6 +1,6 @@
 ---
 name: pin-mismatch-demotion-preserves-disposition-can-ride-ace-path
-description: "auditRound's pin-mismatch demotion keeps disposition — an absorb-tagged finding can still reach --ace"
+description: "auditRound pin-mismatch demotion keeps disposition; can ride --ace"
 metadata: 
   node_type: memory
   type: project

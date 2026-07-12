@@ -1,6 +1,6 @@
 ---
 name: curried-inline-mirror-needs-adapter-shim-in-registry-row
-description: "Mirror-registry row for a curried inline fn must adapt its call shape to canonical signature"
+description: "Curried inline fn mirror-registry row needs a call-shape adapter shim"
 metadata: 
   node_type: memory
   type: project

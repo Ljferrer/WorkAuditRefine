@@ -1,6 +1,6 @@
 ---
 name: ""
-description: "case glob */../*|*/.. misses leading-relative ../ traversal; use the full .. equivalence class"
+description: "case glob misses leading ../; use the full .. equivalence class"
 metadata: 
   node_type: memory
   type: project

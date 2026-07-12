@@ -1,6 +1,6 @@
 ---
 name: dispatchkind-discriminator-replaces-label-prefix-parsing
-description: "Set a stable opts.dispatchKind on spawn calls so downstream keys on it, not the label prefix"
+description: "Key downstream on opts.dispatchKind, not label-prefix parsing"
 metadata: 
   node_type: memory
   type: project

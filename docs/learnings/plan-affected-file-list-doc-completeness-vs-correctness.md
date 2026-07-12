@@ -1,6 +1,6 @@
 ---
 name: plan-affected-file-list-doc-completeness-vs-correctness
-description: "Plan file-list names a file untouched; coverage lands correctly elsewhere"
+description: "Plan Files list names untouched file; coverage lands elsewhere"
 metadata:
   node_type: memory
   type: project

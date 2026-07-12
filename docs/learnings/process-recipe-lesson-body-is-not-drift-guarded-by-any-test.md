@@ -1,6 +1,6 @@
 ---
 name: process-recipe-lesson-body-is-not-drift-guarded-by-any-test
-description: "A memory lesson's raw-command recipe rots when land path changes"
+description: "Lesson raw-command recipes rot when the land path changes"
 metadata: 
   node_type: memory
   type: project

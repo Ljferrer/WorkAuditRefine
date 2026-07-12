@@ -1,6 +1,6 @@
 ---
 name: baseline-debt-dedup-exact-set-not-subset
-description: "recordBaselineDebt dedups on exact id-set+baseSha; prompt says 'covered' (subset)"
+description: "recordBaselineDebt dedups exact id-set+baseSha; prompt implies subset"
 metadata:
   node_type: memory
   type: project

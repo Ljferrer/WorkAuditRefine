@@ -1,6 +1,6 @@
 ---
 name: lessons-learned-tooling-traps
-description: "archive --candidates now dry-run (--apply mutates; inbound subcommand exists); safe-swap commit bug RESOLVED"
+description: "archive --candidates is dry-run (--apply mutates); inbound subcommand exists"
 metadata:
   node_type: memory
   type: project

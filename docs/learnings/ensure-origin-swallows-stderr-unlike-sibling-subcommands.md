@@ -1,6 +1,6 @@
 ---
 name: ensure-origin-swallows-stderr-unlike-sibling-subcommands
-description: "cmd_ensure_origin swallows git push stderr behind a static die; siblings capture via _tmp_err"
+description: "cmd_ensure_origin swallows git push stderr; siblings use _tmp_err"
 metadata:
   type: project
   keywords:

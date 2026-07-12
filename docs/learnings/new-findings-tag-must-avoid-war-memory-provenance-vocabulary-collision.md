@@ -1,6 +1,6 @@
 ---
 name: new-findings-tag-must-avoid-war-memory-provenance-vocabulary-collision
-description: "Grep new enum/tag names against war-memory provenance tiers first to avoid vocab collision"
+description: "Grep new tag names against war-memory provenance vocabulary first"
 metadata: 
   node_type: memory
   type: project

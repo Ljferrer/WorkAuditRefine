@@ -45,3 +45,5 @@ Seam closed in B4b (#79/T6): the template reads the pinned `provisionList`, the 
 **How to apply:** land mirror + drift-guard atomically; grep prose consumers before deleting a "dead" helper.
 
 Related: [[template-defers-runtime-values-to-agent-via-literal-placeholder]], [[provision-barrier-refiner-owned-not-worker-self-create]], [[done-add-on-soft-failure-unblocks-true-dependents]]
+
+> archived 2026-07-12: resolved — moved to archive

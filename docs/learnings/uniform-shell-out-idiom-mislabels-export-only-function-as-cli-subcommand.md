@@ -1,6 +1,6 @@
 ---
 name: uniform-shell-out-idiom-mislabels-export-only-function-as-cli-subcommand
-description: "'Shell out to X' file idiom traps prose into calling an export a CLI verb [Minor per adjudication]"
+description: "'Shell out to X' idiom miscasts an export-only function as a CLI verb"
 metadata: 
   node_type: memory
   type: project

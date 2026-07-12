@@ -35,3 +35,5 @@ Bug (#95): the "war-worker relative path denies (no infinite loop)" case of `hoo
 **How to apply:** re-run suspect gates from a clean checkout; read stderr, not just the TAP stdout.
 
 Related: [[relative-path-test-needs-clean-cwd]], [[done-add-on-soft-failure-unblocks-true-dependents]], [[absence-guard-redundant-filter-is-deliberate-mirror]]
+
+> archived 2026-07-12: resolved — moved to archive

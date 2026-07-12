@@ -1,6 +1,6 @@
 ---
 name: absent-origin-working-branch-baseline-also-forces-manual-land
-description: "held:land-failed also fires when origin/<working> baseline absent, not just checkout collision"
+description: "held:land-failed also fires on absent origin/<working> baseline"
 metadata:
   type: project
   keywords:

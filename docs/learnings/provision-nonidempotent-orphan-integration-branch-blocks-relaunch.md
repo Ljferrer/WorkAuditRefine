@@ -1,6 +1,6 @@
 ---
 name: provision-nonidempotent-orphan-integration-branch-blocks-relaunch
-description: "Half-run provision orphans integration branch → relaunch exit 3; prove empty before deleting"
+description: "Orphan integration branch blocks relaunch; prove empty before deleting"
 metadata: 
   node_type: memory
   type: project

@@ -1,6 +1,6 @@
 ---
 name: status-equality-leak-detector-false-positive-ceiling-on-mergeresult-prose
-description: "D9 doc-contract leak detector: equality-regex false-trips on MergeResult prose"
+description: "D9 leak-detector equality-regex false-trips on MergeResult prose"
 metadata: 
   node_type: memory
   type: project

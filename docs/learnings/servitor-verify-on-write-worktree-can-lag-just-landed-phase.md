@@ -1,6 +1,6 @@
 ---
 name: servitor-verify-on-write-worktree-can-lag-just-landed-phase
-description: "Servitor verify-on-write can run on a checkout behind the landed phase; absence is not proof"
+description: "Servitor verify-on-write checkout can lag the landed phase"
 metadata: 
   node_type: memory
   type: project

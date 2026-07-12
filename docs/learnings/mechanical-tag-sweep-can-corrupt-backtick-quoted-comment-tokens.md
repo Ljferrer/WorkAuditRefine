@@ -1,6 +1,6 @@
 ---
 name: mechanical-tag-sweep-can-corrupt-backtick-quoted-comment-tokens
-description: "A mechanical tag/replace sweep can corrupt a backtick token inside a // comment — inert but real"
+description: "Mechanical tag sweep can corrupt backtick tokens in // comments"
 metadata: 
   node_type: memory
   type: project

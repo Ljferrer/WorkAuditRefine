@@ -1,6 +1,6 @@
 ---
 name: projection-byte-budget-driven-by-descriptions-not-bodies
-description: "Body edits can't shrink MEMORY.md; only archiving rows or tightening descriptions moves bytes"
+description: "Only archived rows or tighter descriptions shrink MEMORY.md"
 metadata: 
   node_type: memory
   type: project

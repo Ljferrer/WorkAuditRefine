@@ -1,6 +1,6 @@
 ---
 name: unthreaded-pattern-override-dooms-cross-repo-test-floor
-description: "floor's --pattern hatch unthreaded; every non-meta repo task false-no-tests"
+description: "floor --pattern hatch unthreaded; non-meta tasks false-no-tests"
 metadata:
   node_type: memory
   slug: unthreaded-pattern-override-dooms-cross-repo-test-floor
