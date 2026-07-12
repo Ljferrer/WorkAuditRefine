@@ -54,8 +54,15 @@ Source spec: [docs/specs/2026-07-11-survey-corps-memory-mining-design.md](../spe
        covers it). Closed hit → skip, report `previously adjudicated (#N)`. A closed-as-fixed
        issue whose lesson still verifies live → stale-lesson signal *reported* for
        `/lessons-learned`, never acted on here.
-    5. Lint: pipe every drafted body (title included) through the fail-closed redaction lint
-       (`war-memory.mjs lint`). Hit → NOT filed; report `withheld: redaction`. No auto-scrub.
+    5. Lint: run every drafted body (title included) through the fail-closed redaction lint
+       (`war-memory.mjs lint`). **[RED-TEAM CORRECTION — Major, proven]** `war-memory.mjs lint`
+       reads **files/directories only — it does NOT read stdin** (`cmdLint` `fs.statSync`s each
+       path arg or defaults to the local root); piping a body in returns a false `clean` and would
+       file a leaking issue. So the mechanism is: **write the drafted body (title + body) to a
+       temp `.md` file, then run `war-memory.mjs lint <tmpfile>`** (exit 1 / any reported hit →
+       redaction hit) and delete the temp file. Hit → NOT filed; report `withheld: redaction`. No
+       auto-scrub. (Equivalent: import the module's exported `lint(text)` function directly — same
+       fail-closed detector.)
     6. File survivors with the `memory-mined` label (create the label on the target repo if
        absent); all gh writes ride the existing gh-preflight (`overrides.ghUser`) discipline.
     7. Report rows for **every** mined lesson: `filed #N` / `withheld: redaction` /
@@ -81,8 +88,11 @@ Source spec: [docs/specs/2026-07-11-survey-corps-memory-mining-design.md](../spe
     clause in the pipeline walk-through paragraph),
   - the **`### Turn issues into specs (/survey-corps)`** section — one added sentence naming
     memory mining: hot lessons from both roots become `memory-mined` issues (lint-guarded,
-    slug-deduped) before the sweep,
-  - the **quick-reference command block** line for `/survey-corps`.
+    slug-deduped) before the sweep.
+  **[RED-TEAM CORRECTION]** the earlier draft named a third "quick-reference command block" anchor —
+  README has **no** such block (its only command enumeration is the `## Usage` overview sentence
+  above; the rest are per-command `###` subsections). Do NOT hunt for a command table; the two
+  anchors above carry the mention.
   Grep is a floor: after the token sweep for `survey-corps` in README, hand-scan the same-scope
   pipeline prose for same-meaning siblings ("issues → specs" phrasings that don't name the
   skill) and list each straggler as a survey-derived correction.
@@ -127,6 +137,10 @@ Source spec: [docs/specs/2026-07-11-survey-corps-memory-mining-design.md](../spe
   untouched — the survey Workflow is authored at run time), no default flip.
 - README is touched in Phase 1 (blurb) and Phase 2 (`## Status`) — cross-phase, landed-first
   edge; the tasks name disjoint constructs within the file.
+- **[RED-TEAM CORRECTION] Spec §6's CONTEXT.md terms (`Memory mining`, `memory-mined`) already
+  exist verbatim in the live tree** (`CONTEXT.md` lines ~1125/1133, added with the grill-session
+  spec edits), so no CONTEXT.md task is needed — the §6 surface is accounted for, not silently
+  dropped.
 
 ## Open decisions
 
