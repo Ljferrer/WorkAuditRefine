@@ -6,7 +6,7 @@ metadata:
   type: project
   provenance: code-verified
   slug: servitor-verify-on-write-worktree-can-lag-just-landed-phase
-  phase: guard-floor-and-scope-hook-coverage-completeness/servitor-wrapup
+  phase: guard-floor-and-scope-hook-coverage-completeness/servitor-wrapup +3 recurrences (latest 2026-07-12)
   keywords: 
     - stale worktree
     - D3 verify-on-write
@@ -17,6 +17,10 @@ metadata:
     - branch mismatch
     - phase wrap-up
     - checkout stale
+    - gate-audit rationale
+    - positive confirmation
+    - session-stable lag
+    - HEAD ref check
   tags: 
     - servitor
     - memory-protocol
@@ -24,13 +28,14 @@ metadata:
     - verification
     - process
   created: 2026-07-10
+  updated: 2026-07-12
   originSessionId: 8c039a7f-0c62-47a8-85f9-10099b5a6caf
 ---
 
 # A servitor's own worktree checkout can lag the phase it is wrapping up
 
 **What happened (code-verified — directly confirmed by Read/Grep against this session's cwd,
-`<repo-root>/.claude/worktrees/sad-sutherland-141916`):** while running D3
+a session worktree under `<repo-root>/.claude/worktrees/`):** while running D3
 verify-on-write for phase "guard-floor-and-scope-hook-coverage-completeness" (landed on
 `dev/2026-07-08-guard-floor-and-scope-hook-coverage-completeness`), every phase-1-introduced
 referent was **absent** from this checkout:
@@ -64,9 +69,34 @@ memory that names a specific new symbol/pattern/file from the phase just landed 
 produces a confidently-wrong `code-verified`-tagged lesson that will mislead a future agent
 searching for that referent.
 
+## Recurrences 1–3 (2026-07-11 → 2026-07-12, one session worktree; compressed)
+
+Three further phase wrap-ups hit the same lagging checkout — the worktree HEAD pointed at an
+unrelated campaign branch across **four consecutive phases**, so the hazard is **session-stable,
+not a per-phase fluke**. The durable edge each recurrence added:
+
+1. **The trap extends to positive claims, not just absences.** A gate-audit's own approved,
+   `gateEvidence:true` "verified MET" rationale can still be read against a stale checkout by the
+   servitor that inherits it — an "approve" verdict never substitutes for the servitor's own D3
+   re-grep of the named construct.
+2. **Cheap preflight:** read the worktree's HEAD ref (the cwd's `.git` gitlink →
+   `.git/worktrees/<name>/HEAD`) and compare the branch against the one the spawn prompt names as
+   landed. A mismatch downgrades confidence on **every** D3 check in that session — treat the
+   signal as standing for the rest of the session, don't re-litigate per phase.
+3. **When the cwd is a known-stale hazard**, rely on gate-audit confirmations re-verified at the
+   pinned `audit_sha` (a stronger claim than a stale-cwd Grep), and record anything else
+   `agent-unverified` with the checkout-mismatch evidence inline — never assert a construct
+   missing at the *true* landed tip from a lagging view.
+
+One recurrence's stale reading was later proven stale-in-fact: the checkout still asserted
+`DEFAULTS.memory.commitLearnings` as `true` after the phase that flipped it, while the live tip
+holds `false` — the lag was real, not an audit failure.
+
 ## Related
 
 [[audit-worktree-pre-impl-tip-stale-verdict]] — the auditor-side analogue (audit worktree HEAD can
 be stale relative to `audit_sha`). [[land-local-follower-ref-can-lag-sync-before-next-phase]] —
 same staleness family at the ref-sync layer. [[war-launch-worktree-with-working-branch-checked-out-forces-manual-land]]
 — another worktree/branch-state trap in the same pipeline stage.
+[[audit-log-finding-can-be-stale-by-land-time]] — the negative-finding sibling of the gate-audit
+edge above.
