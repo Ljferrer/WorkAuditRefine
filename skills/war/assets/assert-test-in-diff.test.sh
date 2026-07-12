@@ -46,6 +46,14 @@
 #      d. floor node glob literal == skills/**/*.test.mjs
 #      e. DELETE-THE-FEATURE: floor with the .claude arm removed != gate set,
 #         proving 10b is load-bearing (mutating either side turns it RED).
+#  11. FAIL-CLOSED FLOOR CLASSIFICATION (#732): every non-test .sh in
+#      skills/war/assets/ must carry a hardcoded parity/exempt-with-reason row —
+#      an unclassified new floor turns this RED, forcing the author to classify.
+#      a. every enumerated non-test .sh is classified (parity or exempt-with-reason)
+#      b. each `parity` row is content-verified: its twin <name>.test.sh invokes
+#         --resolve-gate (comment-stripped) — tag honesty checked, not trusted
+#      c. DELETE-THE-FEATURE: classify_floors flags a stub (new-floor.sh) as
+#         UNCLASSIFIED, proving the fail-closed arm is load-bearing.
 set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -666,6 +674,107 @@ if [ "$M_EXCL" != "$G_EXCL" ]; then
   pass "case 10e: floor with .claude arm removed != gate set (parity check is load-bearing)"
 else
   fail "case 10e: mutated floor (.claude dropped) still == gate set -> parity check is vacuous"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 11: FAIL-CLOSED FLOOR CLASSIFICATION (#732). Built on the Case 10 parity
+# idiom but a distinct, cross-floor concern: enumerate every non-test .sh in
+# skills/war/assets/ and require each to carry a hardcoded classification row —
+# `parity` (owes a floor⊆gate parity case) or `exempt: <reason>` naming its
+# ACTUAL non-gate discovery mechanism (spec §3's exemption table, never a generic
+# "different"). A new floor script with no row, or a row whose script vanished,
+# turns this RED and directs the author to classify. Each `parity` row is
+# CONTENT-VERIFIED (11b): its twin <name>.test.sh must invoke --resolve-gate in
+# comment-stripped text — the irreducible fingerprint of the parity idiom (gate
+# side extracted from emitted output). An honor-system `parity` tag with no real
+# parity case goes RED, closing the silent-copy hole that let the lesson recur.
+# The enumeration is NOT prefix-narrowed: gate-pin-status.sh and
+# provision-worktrees.sh carry no assert- prefix and must still be evaluated.
+# memory: floor-script-discovery-set-must-mirror-gate-exclusions (3rd recurrence).
+# ---------------------------------------------------------------------------
+
+# Hardcoded classification: one row per non-test .sh, `<name> parity` or
+# `<name> exempt: <actual discovery mechanism>`. Survey-derived (directory listing
+# + manual header-comment survey of every script), never a name-prefix grep.
+CLASSIFICATION="$(cat <<'EOF'
+assert-guard-specificity-in-diff.sh parity
+assert-issues-filed.sh exempt: gh/ledger reconciliation, no file discovery
+assert-no-submodule-mutation.sh exempt: git diff --raw gitlink-mode inspection, no file discovery
+assert-packaging-in-diff.sh exempt: Dockerfile-naming discovery via git ls-tree
+assert-test-in-diff.sh parity
+gate-pin-status.sh parity
+provision-worktrees.sh exempt: lifecycle tool, not a merge-path floor
+EOF
+)"
+
+# floor_listing: non-test .sh basenames under $HERE (cwd-independent). Excludes
+# only the *.test.sh suites — NOT narrowed to assert-*.sh (End state 9).
+floor_listing() {
+  for p in "$HERE"/*.sh; do
+    b="$(basename "$p")"
+    case "$b" in
+      *.test.sh) ;;                 # skip the test suites themselves
+      *) printf '%s\n' "$b" ;;
+    esac
+  done
+}
+
+# classify_floors <listing>: set-diff a newline listing against CLASSIFICATION's
+# names. Echoes `UNCLASSIFIED <name>` (listed, no row) and `ABSENT <name>` (row,
+# not listed); empty output == fully classified. Factored so the mutation arm
+# (11c) can feed a synthetic listing — the permanent delete-the-feature proof.
+classify_floors() {
+  _cf_listing="$(printf '%s\n' "$1" | grep -v '^[[:space:]]*$' | sort)"
+  _cf_names="$(printf '%s\n' "$CLASSIFICATION" | grep -v '^[[:space:]]*$' | sed 's/ .*//' | sort)"
+  comm -23 <(printf '%s\n' "$_cf_listing") <(printf '%s\n' "$_cf_names") | sed 's/^/UNCLASSIFIED /'
+  comm -13 <(printf '%s\n' "$_cf_listing") <(printf '%s\n' "$_cf_names") | sed 's/^/ABSENT /'
+}
+
+# verify_parity_twins: content-verify each `parity` row — the tag is checked, not
+# trusted. Echoes `MISSING-TWIN <name>` / `NO-FINGERPRINT <name>` for any parity
+# floor whose twin <name>.test.sh is absent or lacks --resolve-gate (comment-
+# stripped). Empty output == every parity tag is backed by a real parity case.
+verify_parity_twins() {
+  printf '%s\n' "$CLASSIFICATION" | grep ' parity$' | sed 's/ .*//' | while IFS= read -r name; do
+    [ -z "$name" ] && continue
+    twin="$HERE/${name%.sh}.test.sh"
+    if [ ! -f "$twin" ]; then
+      printf 'MISSING-TWIN %s\n' "$name"
+    elif ! grep -v '^[[:space:]]*#' "$twin" | grep -q -- '--resolve-gate'; then
+      printf 'NO-FINGERPRINT %s\n' "$name"
+    fi
+  done
+}
+
+LISTING="$(floor_listing)"
+
+# 11a: every enumerated non-test .sh carries a classification row (parity or exempt).
+CLASS_ISSUES="$(classify_floors "$LISTING")"
+if [ -z "$CLASS_ISSUES" ]; then
+  pass "case 11a: every non-test .sh in skills/war/assets/ is classified (parity or exempt-with-reason)"
+else
+  fail "case 11a: floor classification drift. Each line is either UNCLASSIFIED (a floor script with no row — add a parity case, idiom: this file's Case 10, or an exempt: row naming its non-gate discovery mechanism) or ABSENT (a row whose script vanished — remove the row):
+$CLASS_ISSUES"
+fi
+
+# 11b: every `parity` tag is content-verified — its twin suite really runs the idiom.
+PARITY_ISSUES="$(verify_parity_twins)"
+if [ -z "$PARITY_ISSUES" ]; then
+  pass "case 11b: every parity-tagged floor has a content-verified twin (--resolve-gate present, comment-stripped)"
+else
+  fail "case 11b: a parity tag is not backed by a real parity case. Its twin <name>.test.sh must invoke --resolve-gate (the idiom's fingerprint — gate side from emitted output):
+$PARITY_ISSUES"
+fi
+
+# 11c: DELETE-THE-FEATURE (permanent, not a one-off dev run). Feed classify_floors
+# the real listing PLUS an unclassified stub floor; it MUST report it UNCLASSIFIED.
+# A vacuous always-empty classify_floors would pass 11a yet let the next floor slip.
+# memory: weak-test-assertion-passes-without-feature-being-exercised.
+MUT_LISTING="$(printf '%s\nnew-floor.sh\n' "$LISTING")"
+if classify_floors "$MUT_LISTING" | grep -q '^UNCLASSIFIED new-floor.sh$'; then
+  pass "case 11c: classify_floors flags an unclassified stub (new-floor.sh) RED (fail-closed arm is load-bearing)"
+else
+  fail "case 11c: classify_floors did NOT flag new-floor.sh -> the classification check is vacuous (a new floor would pass unnoticed)"
 fi
 
 # ---------------------------------------------------------------------------
