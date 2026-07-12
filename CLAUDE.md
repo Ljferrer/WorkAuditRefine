@@ -37,7 +37,7 @@ node skills/_shared/war-memory.mjs render-index --local "$CLAUDE_MEMORY_LOCAL" -
 
 Local plugin iteration: `claude --plugin-dir /path/to/WorkAuditRefine`, then `/reload-plugins` after each edit (local paths resolve to version `unknown`, so reloads always pick up changes).
 
-**Releasing:** a version bump must update all four slots together or the release is a silent no-op — `.claude-plugin/plugin.json` `version`, `.claude-plugin/marketplace.json` `metadata.version` **and** `plugins[0].version`, and the `README.md` `## Status` line (replace-in-place, no badge). There is no automated cross-slot check. Version literals inside plans/roadmaps are non-authoritative — resolve the next free patch from the slots at land time.
+**Releasing:** a version bump must update all four slots together or the release is a silent no-op — `.claude-plugin/plugin.json` `version`, `.claude-plugin/marketplace.json` `metadata.version` **and** `plugins[0].version`, and the `README.md` `## Status` line (replace-in-place, no badge). `skills/war/assets/version-slots.test.mjs` locks the four slots in lock-step (fail-closed — a partial bump is a red test, and it also guards the README Releasing prose against the "three files" undersell). Version literals inside plans/roadmaps are non-authoritative — resolve the next free patch from the slots at land time.
 
 ## The pipeline is gospel: spec → plan → red-team → war
 
