@@ -118,8 +118,8 @@ run by hand. A lesson's root is decided by **which directory the file physically
 relocates a lesson into the repo root for you (`migrate --apply` only archives `[RESOLVED]` lessons;
 `render-index` only ever writes the local `MEMORY.md` — no repo-root projection is ever written). So:
 
-1. Confirm committing is on for this repo (`memory.commitLearnings` — default `true`; the economy preset
-   pins it `false`; check `.claude/war/config.json` or run `/war-room`) — the operator signal that
+1. Confirm committing is on for this repo (`memory.commitLearnings` — opt-in / off by default; `/war-room`
+   turns it on; check `.claude/war/config.json`) — the operator signal that
    `project`-typed lessons may travel.
 2. **Move the confirmed `project`-typed files into the repo root** — the set the dry-run reported under
    `→ repo root`, minus anything you decided to keep local. `mkdir -p "$CLAUDE_MEMORY_REPO"` then move each
@@ -171,10 +171,11 @@ just a file move. No lesson is ever deleted — eviction only relocates.
    tree and a non-empty repo root. Default scope is the **full** repo root, hot + `archive/`; a
    selective evict names slugs as extra arguments (`/lessons-learned evict <slug>…`).
 2. **Ask about the flag — always, and first.** Ask the operator whether to also set
-   `memory.commitLearnings: false` (edit `.claude/war/config.json`, or via `/war-room`). The default is
-   `true` (economy pins `false`), so an evict **without** the flip is temporary: the next landed WAR
-   phase repopulates `docs/learnings/`. Apply their answer before moving any file; if they decline,
-   say so in the final report so the repopulation surprise is on record.
+   `memory.commitLearnings: false` (edit `.claude/war/config.json`, or via `/war-room`). `commitLearnings`
+   is opt-in / off by default, but a populated repo root means it was turned **on**, so an evict
+   **without** flipping it back off is temporary: the next landed WAR phase repopulates `docs/learnings/`.
+   Apply their answer before moving any file; if they decline, say so in the final report so the
+   repopulation surprise is on record.
 3. **Collision check.** For each evictee, confirm the local root (hot **and** `archive/`) has no file
    with the same slug. A hit means the lesson exists in both roots — diff and reconcile by hand (keep
    one, fold residue into it) before evicting. Never clobber.

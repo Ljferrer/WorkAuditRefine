@@ -63,7 +63,7 @@ try {
   A = (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) ? parsed : {}
 }
 catch { A = {} }
-const { planFile, repo, sourceSpec = 'none', probes = [], fingerprint, provision = [], artifactKind = 'impl-plan', analyzedAgentType } = A
+const { planFile, repo, sourceSpec = 'none', probes = [], fingerprint, provision = [], artifactKind = 'impl-plan', analyzedAgentType, model, effort } = A
 
 // Analyzed-agent dispatch types (#727). Analyzed probes/confirms need a read-only agent; the
 // preferred one is `Explore` (overridable via args.analyzedAgentType — the issue's configurability
@@ -74,6 +74,19 @@ const { planFile, repo, sourceSpec = 'none', probes = [], fingerprint, provision
 // ADVERSARIAL_CONFIRM (which precedes `A`'s initialization) would be a reference-before-init crash.
 const ANALYZED_AGENT = analyzedAgentType ?? 'Explore'
 const ANALYZED_AGENT_FALLBACK = 'general-purpose'
+
+// Optional model/effort threading (Task 1.3, #773). /red-team reads the fail-open agents.redteam
+// block and passes model/effort here via args; the scaffold spreads modelOpts into EVERY agent()
+// dispatch — both the probe (runProbe) and the adversarial-confirm (confirmStage) sites below — so
+// the whole verification run spawns on the configured model. Absent model AND (non-default) effort
+// → {} → the agent() calls carry NO model/effort opts, today's inherit-session behavior byte-for-
+// byte (exactly the provision:[] back-compat posture). effort is omitted when 'default' — mirrors
+// war-config.mjs / workflow-template.js spawnOpts, where effort rides only when non-default (a
+// 'default' effort means inherit the session, so adding the key would break byte-for-byte parity).
+const modelOpts = {
+  ...(model ? { model } : {}),
+  ...(effort && effort !== 'default' ? { effort } : {}),
+}
 
 // Layer 1 — the fingerprint is the deterministic ground truth the gate validates every probe
 // against. The Workflow sandbox has NO filesystem access, so the Lead computes it (Bash) from the
@@ -242,7 +255,7 @@ const dispatchAgent = async (prompt, opts = {}) => {
 // argument selects the presence-check (analyzed) vs future-work-vs-defect (executed) wording variant.
 const runProbe = (p) => dispatchAgent(
   `${scopeLock(p.technique)}\n\n${futureWorkRule(p.technique, artifactKind)}\n\n${p.prompt}\n\nReturn ONLY the FINDINGS object (probe="${p.name}", kind="${p.kind}", technique="${p.technique}"). Prove any failure with reproduced evidence; never assert. Set needsDecision:true on any finding that is an ambiguity with more than one non-equivalent resolution — a hole only the user can settle. Only record a finding for an actual problem — a false claim, a gap, or an ambiguity (needsDecision). If a claim checks out, do NOT record it. A fully-clean probe returns status:"pass" with findings:[].`,
-  { label: `probe:${p.name}`, phase: 'Probe',
+  { ...modelOpts, label: `probe:${p.name}`, phase: 'Probe',
     agentType: p.technique === 'analyzed' ? ANALYZED_AGENT : undefined, schema: FINDINGS })
 
 const confirmStage = async (res, p) => {               // adversarial-confirm: refute any reproducible blocker
@@ -254,7 +267,7 @@ const confirmStage = async (res, p) => {               // adversarial-confirm: r
     + `Apply the self-confound gate to the probe itself: rule out the probe's own provision commands, sandbox reuse, or an earlier probe's mutation as the cause before the fail stands. `
     + `Work ONLY in a throwaway sandbox; never touch ${repo}.\nProbe: ${p.name}\nPlan: ${planFile}\n`
     + `Findings: ${JSON.stringify(res.findings)}`,
-    { label: `${ADVERSARIAL_CONFIRM}:${p.name}`, phase: 'Confirm',
+    { ...modelOpts, label: `${ADVERSARIAL_CONFIRM}:${p.name}`, phase: 'Confirm',
       agentType: p.technique === 'analyzed' ? ANALYZED_AGENT : undefined, schema: CONFIRM })
   if (c && c.reproduced === false) {
     return { ...res, status: 'warn',

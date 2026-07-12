@@ -23,8 +23,9 @@ export const meta = {
 //                                     // VERBATIM as the assert-test-in-diff.sh `--pattern '<value>'` arg at
 //                                     // both merge-task sites; null ⇒ bare, byte-identical to today.
 //     tasks: [ { id, issue, title, branch, worktree, deps:[id],
-//                roster:[{ lens, depth? }], planSlice, requiresTest?, requiresPackaging? } ],  // roster: 1–5 distinct-lens audit seats; depth omitted → 'deep'.
+//                roster:[{ lens, depth? }], planSlice, files:[<repo-relative plan paths>], requiresTest?, requiresPackaging? } ],  // roster: 1–5 distinct-lens audit seats; depth omitted → 'deep'.
 //                                     // requiresTest/requiresPackaging default true; false (Lead-set) skips that pre-merge floor with a logged, never-silent skip.
+//                                     // files = the plan's `Files:` list (plan paths, NOT the worker's diff — the diff doesn't exist at dispatch); an all-*.md task runs its first-pass worker on the docs tier. Absent/empty ⇒ base worker tier (fail-safe).
 //     learningsTarget,                // read-path resolved repo root — the worker self-query `--repo` flag AND
 //                                     // the Lead's Gate-2 promotion destination. NOT a servitor write path.
 //     memoryLocalRoot,                // absolute local memory root — the servitor's ONLY writable path;
@@ -36,7 +37,8 @@ export const meta = {
 //                                     // blocks (spec §4.5), threaded like intent; concatenated at the worker/
 //                                     // auditor/fix-worker/add-test/servitor sites. Empty/absent ⇒ byte-identical.
 //     agentPrefix,                    // optional namespace prefix for agent types (default: 'work-audit-refine:')
-//     agents: { worker|auditor|refiner|servitor: { model, effort } },  // from .claude/war/config.json (resolved by the Lead); defaults below
+//     agents: { worker|auditor|refiner|servitor: { model, effort } },  // from .claude/war/config.json (resolved by the Lead); defaults below.
+//                                     // worker may also carry { docs?, fix? } { model, effort } sub-tiers: docs = the all-*.md first-pass tier (sonnet default), fix = the fix-round + --ace tier (absent ⇒ inherit worker).
 //     audit:  { roster, rosterPolicy, autoEscalate },                  // rosterPolicy 'auto' = Lead composes each task.roster from the catalog (Lead-side); audit.roster is the widening FALLBACK roster (auditor-nominated-or-default, D4); autoEscalate used here
 //     run:    { roundLimit, afk },                                     // afk is Lead-side; roundLimit used here
 //     backstops }                     // array|null of { check, why, runner, source:'plan'|'auto', aiDeclared? } — every
@@ -305,6 +307,29 @@ const spawn = role => {
   const model = a.model || ROLE_MODEL[role]
   return a.effort && a.effort !== 'default' ? { model, effort: a.effort } : { model }
 }
+// Worker sub-tier defaults, hand-mirrored from DEFAULTS.agents.worker (war-config.mjs) and bound to
+// the canonical source by the D2 registry row in workflow-template.test.mjs. docs dispatches all-*.md
+// tasks (sonnet by default); fix (the fix-round + --ace tier) has NO default block — absent ⇒ inherit
+// the base worker — so it is not listed here (nothing to bind).
+const WORKER_TIER_DEFAULTS = { docs: { model: 'sonnet', effort: 'default' } }
+// spawnWorker(tier): worker spawn opts for a sub-tier ('docs'|'fix') — the configured agents.worker[tier]
+// block when present, else WORKER_TIER_DEFAULTS[tier] (docs), else the base worker (fix absent ⇒ inherit;
+// a null/absent tier ⇒ base). A partial tier block falls back to ITS tier's default model (docs⇒sonnet),
+// matching war-config's fillDefaults deep-merge. Effort only when non-default (omit = inherit session).
+const spawnWorker = tier => {
+  if (!tier) return spawn('worker')
+  const w = agents.worker || {}
+  const dflt = WORKER_TIER_DEFAULTS[tier]
+  const cfg = w[tier]
+  const a = (cfg && typeof cfg === 'object' && !Array.isArray(cfg)) ? cfg : (dflt || w)
+  const model = a.model || (dflt && dflt.model) || ROLE_MODEL.worker
+  return a.effort && a.effort !== 'default' ? { model, effort: a.effort } : { model }
+}
+// docs-tier predicate (plan 1.2): a task is docs-tier iff its plan Files: list (task.files — the plan
+// file list, NOT the worker's reported diff) is non-empty and EVERY entry is a *.md path. Fail-safe:
+// an absent OR empty files list ⇒ FALSE (base worker tier) — an undefined/empty list must never
+// vacuously read as all-*.md and misclassify a non-doc task as docs.
+const isDocsTask = t => Array.isArray(t.files) && t.files.length > 0 && t.files.every(f => typeof f === 'string' && f.endsWith('.md'))
 // Roster validation (D8): 1–5 seats, non-empty string lens, depth absent or neighbors|deep, lenses distinct.
 const validateRoster = roster => {
   const errors = []
@@ -857,7 +882,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       + pt`Sub-issue #${task.issue ?? '<unset>'} — ${task.title}\nPlan slice: ${task.planSlice}\nPlan file: ${plan.file}\nGate: ${plan.gate}${workerIntentClause}`
       + WORKER_MEMORY_SELF_QUERY_LINE + workerMemClause(task.id) + provisionClause + workerExtraCtx
       + '\n' + COMMENT_LAG_RULE + '\n' + PLAN_DEFECT_RULE,
-      { agentType: NS + 'war-worker', phase: 'Work', label: `work:${task.id}`, schema: WORKER_RESULT, ...spawn('worker') })
+      { agentType: NS + 'war-worker', phase: 'Work', label: `work:${task.id}`, schema: WORKER_RESULT, ...spawnWorker(isDocsTask(task) ? 'docs' : null) })
 
     const why = blockedReason(impl); if (why) return { task, verdict: 'escalate', seats: [], expected: 0, blocked: why }
     assertReportedPathsInWorktree(impl.files_changed, task.worktree)   // path contract (spec §9): reported abs paths stay under the worktree root
@@ -895,7 +920,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + pt`Resolve ALL of these blocking findings, keep the gate green, commit and push:\n`
         + b.map((f, i) => `${i + 1}. [${f.severity}] ${f.title} (${f.file}${f.line ? ':' + f.line : ''}) — ${f.rationale}${f.suggested_fix ? ` → ${f.suggested_fix}` : ''}`).join('\n')
         + workerMemClause(task.id) + provisionClause,
-        { agentType: NS + 'war-worker', phase: 'Audit', label: `fix:${task.id}:r${round + 1}`, schema: WORKER_RESULT, ...spawn('worker') })
+        { agentType: NS + 'war-worker', phase: 'Audit', label: `fix:${task.id}:r${round + 1}`, schema: WORKER_RESULT, ...spawnWorker('fix') })
       const fixWhy = blockedReason(fix); if (fixWhy) { verdict = 'escalate'; blocked = fixWhy; break }
       pin = fix && fix.head_sha   // D2: re-pin to the fix-worker's new tip for the next round's audit
       round++
@@ -960,7 +985,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           + aceable.map((f, i) => `${i + 1}. [${f.severity}] ${f.title} (${f.file}${f.line ? ':' + f.line : ''}) — ${f.rationale}${f.suggested_fix ? ` → ${f.suggested_fix}` : ''}`).join('\n') + '\n'
           + pt`Make ONE commit only (the panel re-audits it at the new sha; on regression it is forward-reverted). Do NOT touch version/release slots. Commit and push ${r.task.branch}.`
           + intentClause + provisionClause,
-          { agentType: NS + 'war-worker', phase: 'Audit', label: `ace:${r.task.id}:r${r.task.fixRounds + 1}`, schema: WORKER_RESULT, ...spawn('worker') })
+          { agentType: NS + 'war-worker', phase: 'Audit', label: `ace:${r.task.id}:r${r.task.fixRounds + 1}`, schema: WORKER_RESULT, ...spawnWorker('fix') })
         const aceWhy = blockedReason(ace)
         // WORKER_RESULT's commit field is `head_sha` (NOT `sha` — no worker result carries `.sha`).
         // Guard on a TRUTHY head_sha: a falsy sha would make r.aceReverted falsy (revert clause never

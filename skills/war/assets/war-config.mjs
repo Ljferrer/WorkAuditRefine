@@ -23,7 +23,9 @@ export const DEFAULTS = {
   version: 1,
   profile: 'balanced',
   agents: {
-    worker:   { model: 'opus',   effort: 'max' },
+    // worker.docs: the tier that dispatches all-*.md tasks (defaults sonnet everywhere). worker.fix
+    // (fix-round + --ace tier) is absent by default → inherits the base worker; add it only via config.
+    worker:   { model: 'opus',   effort: 'max', docs: { model: 'sonnet', effort: 'default' } },
     auditor:  { model: 'opus',   effort: 'xhigh' },
     refiner:  { model: 'sonnet', effort: 'default' },
     servitor: { model: 'sonnet', effort: 'high' },
@@ -40,9 +42,9 @@ export const DEFAULTS = {
   run: { roundLimit: 3, afk: false, ace: true, provision: [], provisionSource: 'none', provisionAuto: true },
   // Compounding-memory retrieval + publication (spec 2026-07-03). retrieval: Lead prefetches
   // per-seat lesson blocks; topK: max lessons per block; commitLearnings: write the repo-root
-  // docs/learnings/ lessons (default ON — published lessons are lint-scrubbed and ride each
-  // phase PR, human-reviewed like code; the economy preset pins it off).
-  memory: { retrieval: true, topK: 10, commitLearnings: true },
+  // docs/learnings/ lessons (default OFF — a conscious opt-in via /war-room; when on, published
+  // lessons are lint-scrubbed and ride each phase PR, human-reviewed like code; all presets inherit off).
+  memory: { retrieval: true, topK: 10, commitLearnings: false },
   // overrides.testPattern: the run's pinned test-floor glob set (space-separated glob tokens) | null.
   // null ⇒ today's hardcoded gate-mirror floor defaults, byte-identical. Floor ⊆ gate is ONE Setup
   // decision (ADR 0006): testPattern is pinned TOGETHER with the gate, and the floor always unions the
@@ -84,7 +86,7 @@ export const PRESETS = {
     },
     audit: { rosterPolicy: 'solo' },
     run: { roundLimit: 2, ace: false },
-    memory: { commitLearnings: false },
+    // (memory.commitLearnings is no longer pinned — DEFAULTS is now false, so economy inherits off.)
   },
 }
 
@@ -121,6 +123,38 @@ export function agentMatrix() {
   })
 }
 
+// Enumerated (preset, tier, model, effort) worker-tier matrix — the worker-role sibling of
+// agentMatrix() (ADR 0025 drift-guard discipline). One row per (preset × PRESENT worker tier):
+// 'base' (the worker role's own model/effort), 'docs' (defaulted in DEFAULTS — the all-*.md tier),
+// and 'fix' (only when a preset sets agents.worker.fix; none do today, so no 'fix' rows). Reuses
+// presetConfig()'s merge and iterates the live PRESETS, so a new preset or tier is enumerated
+// automatically. The doc-honesty lens consults it to prove documented tier defaults (e.g. docs=sonnet
+// everywhere, fix absent by default) match this canonical source rather than a hand-copied literal.
+export function workerTierMatrix() {
+  return Object.keys(PRESETS).flatMap(preset => {
+    const w = presetConfig(preset).agents.worker
+    // base + docs are always effective (docs is defaulted in DEFAULTS); fix is enumerated only when a
+    // preset sets it (none do today → no fix rows, so "no fix rows" is a real derivation, not a tautology,
+    // and a future fix-setting preset is auto-enumerated — the agentMatrix auto-enumerate philosophy).
+    const tiers = [['base', w], ['docs', w.docs]]
+    if (isObj(w.fix)) tiers.push(['fix', w.fix])
+    return tiers.map(([tier, block]) => ({ preset, tier, model: block.model, effort: block.effort }))
+  })
+}
+
+// Validate an optional agent tier block { model, effort } — model/effort must be in the role enums
+// and no unknown sub-keys (the memory.* unknown-key precedent, so a typo never runs silently). Used
+// for agents.redteam and the agents.worker.docs/fix tiers: validated exactly like a phase role, but
+// none of them is itself a ROLE (redteam feeds /red-team; the tiers refine worker dispatch).
+function validateAgentTier(block, path, errors) {
+  if (!isObj(block)) { errors.push(`${path} must be an object { model, effort }`); return }
+  if (!MODELS.includes(block.model)) errors.push(`${path}.model must be one of ${MODELS.join('|')} (got ${JSON.stringify(block.model)})`)
+  if (!EFFORTS.includes(block.effort)) errors.push(`${path}.effort must be one of ${EFFORTS.join('|')} (got ${JSON.stringify(block.effort)})`)
+  for (const k of Object.keys(block)) {
+    if (k !== 'model' && k !== 'effort') errors.push(`${path}.${k} is not a known key (model|effort) — run /war-room to regenerate the config`)
+  }
+}
+
 // Validate the *effective* (filled) config. Returns { valid, errors:[string] }.
 export function validate(input) {
   const errors = []
@@ -133,8 +167,21 @@ export function validate(input) {
     if (!MODELS.includes(a.model)) errors.push(`agents.${role}.model must be one of ${MODELS.join('|')} (got ${JSON.stringify(a.model)})`)
     if (!EFFORTS.includes(a.effort)) errors.push(`agents.${role}.effort must be one of ${EFFORTS.join('|')} (got ${JSON.stringify(a.effort)})`)
   }
-  for (const role of Object.keys(c.agents)) {
-    if (!ROLES.includes(role)) errors.push(`agents.${role} is not a known role (${ROLES.join('|')})`)
+  // Worker tiers: agents.worker.docs (defaulted in DEFAULTS — the all-*.md dispatch tier) and the
+  // optional agents.worker.fix (absent by default — the fix-round + --ace tier). Each a { model, effort }
+  // tier validated like a role when present (unknown sub-keys rejected).
+  const worker = c.agents.worker
+  if (isObj(worker)) {
+    if (Object.prototype.hasOwnProperty.call(worker, 'docs')) validateAgentTier(worker.docs, 'agents.worker.docs', errors)
+    if (Object.prototype.hasOwnProperty.call(worker, 'fix')) validateAgentTier(worker.fix, 'agents.worker.fix', errors)
+  }
+  // Optional agents.redteam — a { model, effort } tier validated like a role when present, but NOT a
+  // phase ROLE: it joins validation only (/red-team consumes it fail-open; the per-phase spawn path never
+  // does, and agentMatrix stays four roles). Presets never set it; absent → red-team inherits the session.
+  if (Object.prototype.hasOwnProperty.call(c.agents, 'redteam')) validateAgentTier(c.agents.redteam, 'agents.redteam', errors)
+  const KNOWN_AGENT_KEYS = [...ROLES, 'redteam']
+  for (const key of Object.keys(c.agents)) {
+    if (!KNOWN_AGENT_KEYS.includes(key)) errors.push(`agents.${key} is not a known agent key (${KNOWN_AGENT_KEYS.join('|')}) — run /war-room to regenerate the config`)
   }
 
   const au = c.audit

@@ -7,7 +7,7 @@ import { dirname, join, relative } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import {
   DEFAULTS, PRESETS, MODELS, EFFORTS, ROLES, PROVISION_SOURCES, ROSTER_POLICIES, RESERVED_LENSES,
-  fillDefaults, presetConfig, agentMatrix, validate, spawnOpts,
+  fillDefaults, presetConfig, agentMatrix, workerTierMatrix, validate, spawnOpts,
   validateRoster, widenRoster, resolveWidenSource, resolveProvision, resolveGate,
 } from './war-config.mjs'
 import { HARD_ESCALATION_REASONS, decideLand } from './land-decision.mjs'
@@ -118,7 +118,7 @@ test('economy preset (pinned to its historical effective config)', () => {
   assert.equal(c.audit.rosterPolicy, 'solo')
   assert.equal(c.run.roundLimit, 2)
   assert.equal(c.run.ace, false)                    // pinned — DEFAULTS moved to true
-  assert.equal(c.memory.commitLearnings, false)     // pinned — DEFAULTS moved to true
+  assert.equal(c.memory.commitLearnings, false)     // inherited — DEFAULTS is now false; economy no longer pins it
   assert.equal(validate(c).valid, true)
 })
 
@@ -166,6 +166,164 @@ test('agentMatrix: each row equals the presetConfig() merge (reuses the canonica
     const a = presetConfig(preset).agents[role]
     assert.equal(model, a.model, `agentMatrix (${preset}, ${role}).model must equal presetConfig().agents.${role}.model`)
     assert.equal(effort, a.effort, `agentMatrix (${preset}, ${role}).effort must equal presetConfig().agents.${role}.effort`)
+  }
+})
+
+// --- agents.redteam (validator-only, NOT a phase ROLE) + worker tiers (T1.1) --------------------
+// redteam joins validation only: it must NEVER enter ROLES or the (preset, role) agentMatrix — the
+// per-phase spawn path stays four roles (/red-team consumes redteam fail-open). worker.docs/fix are
+// per-tier { model, effort } refinements of the worker role, validated exactly like a role tier.
+
+test('matrix stays four roles: ROLES is exactly the four phase roles and excludes redteam (T1.1)', () => {
+  assert.deepEqual(ROLES, ['worker', 'auditor', 'refiner', 'servitor'])
+  assert.equal(ROLES.length, 4, 'ROLES must stay exactly four phase roles')
+  assert.ok(!ROLES.includes('redteam'), 'redteam is NOT a phase role — it joins validation only')
+  // agentMatrix enumerates ROLES only, so no emitted row may carry role "redteam".
+  assert.ok(!agentMatrix().some(r => r.role === 'redteam'),
+    'agentMatrix must stay four roles — redteam must never appear as a matrix row')
+  // Delete-the-feature: if redteam were pushed into ROLES, both the length check and the row count bite.
+  assert.equal(agentMatrix().length, Object.keys(PRESETS).length * 4,
+    'agentMatrix must have exactly |PRESETS| × 4 rows (four roles, redteam excluded)')
+})
+
+test('agents.redteam is absent by default in DEFAULTS and every preset (presets never set it) (T1.1)', () => {
+  assert.equal(DEFAULTS.agents.redteam, undefined, 'DEFAULTS must not carry an agents.redteam block (absent = red-team inherits session)')
+  for (const preset of Object.keys(PRESETS)) {
+    assert.equal(presetConfig(preset).agents.redteam, undefined, `${preset} preset must not set agents.redteam`)
+  }
+  // Absent block still validates — today's behavior byte-for-byte.
+  assert.equal(validate({}).valid, true)
+})
+
+test('agents.redteam validates when present: every MODELS model and every EFFORTS effort accepted (T1.1)', () => {
+  for (const model of MODELS) {
+    assert.equal(validate({ agents: { redteam: { model, effort: 'high' } } }).valid, true, `redteam model ${model} should validate`)
+  }
+  for (const effort of EFFORTS) {
+    assert.equal(validate({ agents: { redteam: { model: 'opus', effort } } }).valid, true, `redteam effort ${effort} should validate`)
+  }
+})
+
+test('agents.redteam rejects a bad model / bad effort with an error naming the key (T1.1)', () => {
+  // Delete-the-feature: without the redteam validation call, both of these validate as an unknown-but-ignored
+  // key — so each MUST be rejected with a redteam-scoped error.
+  const rm = validate({ agents: { redteam: { model: 'gpt-5', effort: 'high' } } })
+  assert.equal(rm.valid, false)
+  assert.match(rm.errors.join('\n'), /agents\.redteam\.model/)
+  const re = validate({ agents: { redteam: { model: 'opus', effort: 'ultrathink' } } })
+  assert.equal(re.valid, false)
+  assert.match(re.errors.join('\n'), /agents\.redteam\.effort/)
+})
+
+test('agents.redteam rejects unknown sub-keys with a courtesy error naming the key and /war-room (T1.1)', () => {
+  const r = validate({ agents: { redteam: { model: 'opus', effort: 'high', depth: 'deep' } } })
+  assert.equal(r.valid, false)
+  const msg = r.errors.join('\n')
+  assert.match(msg, /agents\.redteam\.depth/)
+  assert.match(msg, /\/war-room/)
+})
+
+test('agents.redteam non-object rejected (null / scalar / array reach the tier object-type branch) (T1.1)', () => {
+  for (const bad of [null, 'opus', 42, ['opus']]) {
+    const r = validate({ agents: { redteam: bad } })
+    assert.equal(r.valid, false, `redteam ${JSON.stringify(bad)} must be rejected`)
+    assert.match(r.errors.join('\n'), /agents\.redteam must be an object/)
+  }
+})
+
+test('agents.redteam is tolerated by the unknown-agent-key loop; a genuine unknown key is still rejected (T1.1)', () => {
+  // redteam must pass the known-agent-key gate (it is a valid non-role agent key)…
+  assert.equal(validate({ agents: { redteam: { model: 'opus', effort: 'high' } } }).valid, true)
+  // …while a genuine typo/unknown agent key is rejected, naming the key and /war-room.
+  const r = validate({ agents: { wizard: { model: 'opus', effort: 'max' } } })
+  assert.equal(r.valid, false)
+  const msg = r.errors.join('\n')
+  assert.match(msg, /agents\.wizard/)
+  assert.match(msg, /\/war-room/)
+})
+
+test('agents.worker.docs defaults to { sonnet, default } and every preset inherits it (T1.1)', () => {
+  // Delete-the-feature: remove docs from DEFAULTS.agents.worker → this deepEqual fails for every preset.
+  assert.deepEqual(DEFAULTS.agents.worker.docs, { model: 'sonnet', effort: 'default' })
+  for (const preset of Object.keys(PRESETS)) {
+    assert.deepEqual(presetConfig(preset).agents.worker.docs, { model: 'sonnet', effort: 'default' },
+      `${preset} preset must inherit agents.worker.docs === { sonnet, default }`)
+  }
+})
+
+test('legacy worker block without a docs tier fills it from DEFAULTS and validates (criterion-12 style) (T1.1)', () => {
+  const legacy = { version: 1, agents: { worker: { model: 'opus', effort: 'max' } } } // no docs key
+  const c = fillDefaults(legacy)
+  assert.deepEqual(c.agents.worker.docs, { model: 'sonnet', effort: 'default' })
+  assert.equal(validate(legacy).valid, true, validate(legacy).errors.join('\n'))
+})
+
+test('agents.worker.docs rejects bad model / bad effort / unknown sub-key (validated like a role tier) (T1.1)', () => {
+  const rm = validate({ agents: { worker: { docs: { model: 'gpt-5', effort: 'default' } } } })
+  assert.equal(rm.valid, false)
+  assert.match(rm.errors.join('\n'), /agents\.worker\.docs\.model/)
+  const re = validate({ agents: { worker: { docs: { model: 'sonnet', effort: 'ultrathink' } } } })
+  assert.equal(re.valid, false)
+  assert.match(re.errors.join('\n'), /agents\.worker\.docs\.effort/)
+  const rk = validate({ agents: { worker: { docs: { model: 'sonnet', effort: 'default', tier: 'x' } } } })
+  assert.equal(rk.valid, false)
+  const msg = rk.errors.join('\n')
+  assert.match(msg, /agents\.worker\.docs\.tier/)
+  assert.match(msg, /\/war-room/)
+})
+
+test('agents.worker.fix is absent by default but validated when present (T1.1)', () => {
+  assert.equal(DEFAULTS.agents.worker.fix, undefined, 'worker.fix must be absent by default (absent = inherit worker)')
+  for (const preset of Object.keys(PRESETS)) {
+    assert.equal(presetConfig(preset).agents.worker.fix, undefined, `${preset} preset must not set worker.fix`)
+  }
+  // Present + valid → accepted.
+  assert.equal(validate({ agents: { worker: { fix: { model: 'opus', effort: 'max' } } } }).valid, true)
+  // Present + bad effort → rejected. Delete-the-feature: without the fix validation call this validates.
+  const re = validate({ agents: { worker: { fix: { model: 'opus', effort: 'nope' } } } })
+  assert.equal(re.valid, false)
+  assert.match(re.errors.join('\n'), /agents\.worker\.fix\.effort/)
+  // Unknown sub-key → courtesy error naming the key and /war-room.
+  const rk = validate({ agents: { worker: { fix: { model: 'opus', effort: 'max', extra: 1 } } } })
+  assert.equal(rk.valid, false)
+  assert.match(rk.errors.join('\n'), /agents\.worker\.fix\.extra/)
+  assert.match(rk.errors.join('\n'), /\/war-room/)
+})
+
+// --- workerTierMatrix (T1.1): sibling canonical export the doc-honesty lens consults -------------
+// Mirrors the agentMatrix pattern: base + docs rows per preset (docs defaulted in DEFAULTS), and a
+// fix row only when a preset sets worker.fix (none do today → no fix rows, a real derivation).
+
+test('workerTierMatrix: base + docs row per preset; docs is sonnet everywhere; no fix rows today (T1.1)', () => {
+  const matrix = workerTierMatrix()
+  const presets = Object.keys(PRESETS)
+  for (const preset of presets) {
+    const base = matrix.filter(r => r.preset === preset && r.tier === 'base')
+    const docs = matrix.filter(r => r.preset === preset && r.tier === 'docs')
+    assert.equal(base.length, 1, `workerTierMatrix must carry exactly one base row for ${preset}`)
+    assert.equal(docs.length, 1, `workerTierMatrix must carry exactly one docs row for ${preset}`)
+    assert.equal(docs[0].model, 'sonnet', `${preset} docs tier must be sonnet (the documented default)`)
+    assert.equal(docs[0].effort, 'default', `${preset} docs tier effort must be default`)
+  }
+  // fix is absent by default → no preset emits a fix row. Delete-the-feature: a stray fix pin on any
+  // preset makes a fix row appear here (the "no fix rows" derivation is real, not a tautology).
+  assert.ok(!matrix.some(r => r.tier === 'fix'), 'no preset sets worker.fix today, so workerTierMatrix must emit no fix rows')
+  // Total rows: base + docs per preset (2 × |PRESETS|), no phantom tier.
+  assert.equal(matrix.length, presets.length * 2, `workerTierMatrix must have base+docs per preset = ${presets.length}×2 rows`)
+  // Every row's model/effort is a valid enum value (an out-of-enum tier literal goes red here).
+  for (const r of matrix) {
+    assert.ok(MODELS.includes(r.model), `workerTierMatrix (${r.preset}, ${r.tier}).model ${JSON.stringify(r.model)} must be a valid model`)
+    assert.ok(EFFORTS.includes(r.effort), `workerTierMatrix (${r.preset}, ${r.tier}).effort ${JSON.stringify(r.effort)} must be a valid effort`)
+  }
+})
+
+test('workerTierMatrix: each row equals the presetConfig() merge (reuses the canonical merge, never re-implements it) (T1.1)', () => {
+  // Delegation guard mirroring agentMatrix's — if workerTierMatrix ever hand-rolls the merge, this bites.
+  for (const { preset, tier, model, effort } of workerTierMatrix()) {
+    const w = presetConfig(preset).agents.worker
+    const block = tier === 'base' ? w : w[tier]
+    assert.equal(model, block.model, `workerTierMatrix (${preset}, ${tier}).model must equal the presetConfig() worker${tier === 'base' ? '' : '.' + tier} source`)
+    assert.equal(effort, block.effort, `workerTierMatrix (${preset}, ${tier}).effort must equal the same source`)
   }
 })
 
@@ -300,20 +458,26 @@ test('non-boolean ace rejected', () => {
 })
 
 // --- memory block (compounding-memory retrieval + publication) ----------------
-// DEFAULTS.memory = { retrieval: true, topK: 10, commitLearnings: true }.
+// DEFAULTS.memory = { retrieval: true, topK: 10, commitLearnings: false }.
+// Publication is now a conscious opt-in (T1.1 flip) — the store stays local unless /war-room turns it on.
 // Doctrine: no accepted-but-ignored keys, so validate() rejects bad types AND unknown keys.
 
-test('memory defaults: retrieval true, topK 10, commitLearnings true', () => {
+test('memory defaults: retrieval true, topK 10, commitLearnings false (opt-in publication)', () => {
   const c = fillDefaults({})
-  assert.deepEqual(c.memory, { retrieval: true, topK: 10, commitLearnings: true })
+  assert.deepEqual(c.memory, { retrieval: true, topK: 10, commitLearnings: false })
 })
 
-test('commitLearnings defaults to true; economy pins false', () => {
-  assert.equal(DEFAULTS.memory.commitLearnings, true)
-  for (const preset of ['balanced', 'thorough']) {
-    assert.equal(presetConfig(preset).memory.commitLearnings, true, `${preset} preset must inherit memory.commitLearnings === true`)
+test('commitLearnings defaults to false; all three presets inherit false (opt-in publication, economy no longer pins) (T1.1)', () => {
+  // Delete-the-feature: revert the DEFAULTS flip → this line fails.
+  assert.equal(DEFAULTS.memory.commitLearnings, false)
+  for (const preset of ['balanced', 'thorough', 'economy']) {
+    assert.equal(presetConfig(preset).memory.commitLearnings, false,
+      `${preset} preset must inherit memory.commitLearnings === false (publication is now an opt-in)`)
   }
-  assert.equal(presetConfig('economy').memory.commitLearnings, false, 'economy preset must pin memory.commitLearnings === false')
+  // The economy preset's own memory pin was deleted as now-redundant (DEFAULTS returned to false).
+  // Delete-the-feature: re-add `memory: { commitLearnings: false }` to economy → this assertion fails.
+  assert.ok(!Object.prototype.hasOwnProperty.call(PRESETS.economy, 'memory'),
+    'economy preset must NOT carry a redundant memory pin now that DEFAULTS.memory.commitLearnings is false')
 })
 
 // criterion 12: a config WITHOUT a memory block fills defaults clean and validates.
@@ -321,7 +485,7 @@ test('commitLearnings defaults to true; economy pins false', () => {
 test('old config without a memory block fills defaults clean and validates (criterion 12)', () => {
   const legacy = { version: 1, agents: { worker: { model: 'opus', effort: 'max' } } } // no memory key
   const c = fillDefaults(legacy)
-  assert.deepEqual(c.memory, { retrieval: true, topK: 10, commitLearnings: true })
+  assert.deepEqual(c.memory, { retrieval: true, topK: 10, commitLearnings: false })
   assert.equal(validate(legacy).valid, true, validate(legacy).errors.join('\n'))
 })
 
@@ -352,6 +516,111 @@ test('memory.commitLearnings non-boolean rejected', () => {
   const r = validate({ memory: { commitLearnings: 1 } })
   assert.equal(r.valid, false)
   assert.match(r.errors.join('\n'), /memory\.commitLearnings must be a boolean/)
+})
+
+// --- Doc-claim drift guard (Task 3.1 / End-state 6): no surface reasserts the retired ------------
+// commitLearnings default-`true` claim, and every documented default stays bound to the canonical
+// DEFAULTS value. Two extraction+equality clauses pin the STRUCTURED "default <value>" surfaces
+// (schemas.md's memory row; war-config.mjs's own memory-defaults comment — the surface the red-team
+// correction flagged as fixed-in-diff but otherwise unguarded); one zero-match scan proves the
+// retired-true claim absent from the enumerated doc set. All matchers are case-insensitive and
+// mid-sentence anchored so a sentence-case reword still binds. Delete-the-feature: revert the
+// DEFAULTS flip to `true` (docs still say false/off) and every clause below goes red.
+//
+// The two structured surfaces are EXTRACTED, not swept, and are excluded from the free-text adjacency
+// sweep because a proximity scan mis-fires on their shape:
+//   - schemas.md lists `retrieval` (legitimately `default true`) on the SAME row as the
+//     `commitLearnings` destructure token (doc-contract leak-detector false-positive family).
+//   - war-config.mjs's comment wraps across `// `-prefixed lines, so a single-line sweep can't bridge
+//     `commitLearnings:` to its `(default …)` value.
+// Extraction sidesteps both and pins the exact value (stronger than absence-of-true); the prose
+// surfaces, whose claims are free text, get the sweep.
+
+const WORD_TO_BOOL = { true: true, on: true, false: false, off: false }
+
+// The enumerated doc set (sub-issue #779 Files list + red-team correction: migration.md, war-config.mjs).
+const RETIRED_CLAIM_SURFACES = [
+  'README.md',
+  'CLAUDE.md',
+  'skills/war-room/SKILL.md',
+  'skills/war/references/schemas.md',
+  'skills/lessons-learned/SKILL.md',
+  'skills/lessons-learned/references/migration.md',
+  'skills/war/assets/war-config.mjs',
+]
+// Structured surfaces pinned by clauses A/C — excluded from the prose adjacency sweep (see header).
+const STRUCTURED_SURFACES = new Set([
+  'skills/war/references/schemas.md',
+  'skills/war/assets/war-config.mjs',
+])
+
+// Retired-true claim scanners. Each targets a real pre-flip form (the removed lines in the Phase-2
+// retire commits) and is proven absent from every current surface.
+const RETIRED_PUBLICATION_PHRASES = [
+  /lessons\s+commit\s+by\s+default/i,           // retired README §heading ("why lessons commit by default")
+  /(?:leans?|defaults?)\s+towards?\s+sharing/i, // retired "that default leans toward sharing" rationale
+]
+// commitLearnings' default asserted true/on within one `;`/newline-bounded clause — so an opt-in
+// "off by default … turn it on" phrasing or an action-write can't co-trip it.
+const COMMITLEARNINGS_DEFAULT_TRUE = /commitLearnings`?[^;\n]{0,90}?defaults?\s+(?:is\s+|to\s+)?[*`]*(?:true|on)\b/i
+// Bare "commitLearnings: true" value-assertion that is NOT an opt-in accept action (set/write …: true).
+const COMMITLEARNINGS_BARE_TRUE = /(.{0,16})commitLearnings`?\s*:\s*`?\**(?:true|on)\b/gi
+function bareTrueOffense(text) {
+  for (const m of text.matchAll(COMMITLEARNINGS_BARE_TRUE)) {
+    if (/\b(?:set|write|writes|writing)\b/i.test(m[1])) continue // migrate/opt-in accept, not a default claim
+    return m[0]
+  }
+  return null
+}
+
+// Clause A: schemas.md memory row documents commitLearnings' default == canonical.
+test('doc-claim guard: schemas.md memory row documents commitLearnings default == DEFAULTS (extraction + equality)', () => {
+  const text = readDoc('skills/war/references/schemas.md')
+  // Slice from the commitLearnings DEFINITION (last "commitLearnings:" — the row's destructure token
+  // has no colon), so retrieval's own "default true" earlier on the row can't be misread as this one.
+  const row = text.slice(text.lastIndexOf('commitLearnings:'))
+  const m = row.match(/default\s+(\w+)/i)
+  assert.ok(m, 'schemas.md memory row must document the commitLearnings default (e.g. "…(bool, default false…")')
+  const documented = WORD_TO_BOOL[m[1].toLowerCase()]
+  assert.equal(documented, DEFAULTS.memory.commitLearnings,
+    `schemas.md documents commitLearnings default "${m[1]}" (→ ${documented}) but ` +
+    `DEFAULTS.memory.commitLearnings is ${DEFAULTS.memory.commitLearnings} — bind the doc to the canonical value`)
+})
+
+// Clause C: war-config.mjs memory-defaults comment documents commitLearnings' default == canonical.
+test('doc-claim guard: war-config.mjs memory-defaults comment documents commitLearnings default == DEFAULTS', () => {
+  const src = readDoc('skills/war/assets/war-config.mjs')
+  const at = src.indexOf('commitLearnings: write the repo-root')
+  assert.ok(at >= 0, 'war-config.mjs must retain the memory-defaults comment naming commitLearnings')
+  const block = src.slice(at, at + 240).replace(/\n\s*\/\/\s?/g, ' ') // unwrap the `// ` comment lines
+  const m = block.match(/\(default\s+(\w+)/i)
+  assert.ok(m, 'war-config.mjs comment must state the commitLearnings default (e.g. "(default OFF …")')
+  const documented = WORD_TO_BOOL[m[1].toLowerCase()]
+  assert.equal(documented, DEFAULTS.memory.commitLearnings,
+    `war-config.mjs comment states commitLearnings default "${m[1]}" (→ ${documented}) but canonical is ` +
+    `${DEFAULTS.memory.commitLearnings} — a future comment re-introducing "default ON/true" must fail here`)
+})
+
+// Clause B: the retired default-true claim is absent from every enumerated surface.
+test('doc-claim guard: no enumerated surface reasserts the retired commitLearnings default-`true` claim', () => {
+  const offenses = []
+  for (const surface of RETIRED_CLAIM_SURFACES) {
+    const text = readDoc(surface)
+    for (const re of RETIRED_PUBLICATION_PHRASES) {
+      const m = text.match(re)
+      if (m) offenses.push(`${surface}: retired publication rationale "${m[0]}"`)
+    }
+    const bare = bareTrueOffense(text)
+    if (bare) offenses.push(`${surface}: bare default-true value "${bare.trim()}"`)
+    // Free-text adjacency sweep — prose surfaces only; structured surfaces are pinned by A/C (see header).
+    if (!STRUCTURED_SURFACES.has(surface)) {
+      const m = text.match(COMMITLEARNINGS_DEFAULT_TRUE)
+      if (m) offenses.push(`${surface}: commitLearnings default asserted true/on "${m[0]}"`)
+    }
+  }
+  assert.deepEqual(offenses, [],
+    'A surface reasserts the retired commitLearnings default-`true` claim (the flip landed `false`):\n  ' +
+    offenses.join('\n  '))
 })
 
 test('memory.topK non-integer rejected', () => {
