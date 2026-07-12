@@ -8,6 +8,10 @@
       "docs": {
         "model": "sonnet",
         "effort": "default"
+      },
+      "fix": {
+        "model": "fable",
+        "effort": "xhigh"
       }
     },
     "auditor": {
