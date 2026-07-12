@@ -12,6 +12,10 @@
 // no-test: a requiresTest task whose diff never grew a mapped test after the bounded add-test/re-audit sub-loop exhausted budget (M2).
 // unpackaged: a requiresPackaging task whose diff still trips assert-packaging-in-diff.sh (adds a file a Dockerfile's enumerated
 // COPYs miss) after the combined floor-retry sub-loop exhausted the shared budget. Mirrors no-test; must land in BOTH mirrors + the drift guard.
+// defectClass ('plan') is escalation-record METADATA on the escalation record, orthogonal to `reason` — it is NEVER a member of this
+// array nor of KNOWN_LAND_DECISIONS (ADR 0005). A worker-authored plan/spec defect is *classified*, never routed through a new reason
+// enum member; the negative drift-guard in land-decision.test.mjs pins both tokens ('plan-defect'/'held:plan-defect') out of both sets
+// permanently, so "completing" the sentinel feature into an enum here fails loud.
 export const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps', 'no-test', 'unpackaged']
 
 // The canonical landDecision known-set — the SINGLE source of truth for every phase-land outcome.
