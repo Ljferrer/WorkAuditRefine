@@ -9,8 +9,10 @@
 #
 # Subcommands (this file):
 #   ensure-integration <slug> <N> <base> [--owned-file PATH] [--owned REF]... [--reclaim-empty-orphan]  (Task 2 + 1.4/G)
+#   record-as-owned <branch> <base> --owned-file PATH                          (partial-phase recovery §4.1)
 #   ensure-exclude [<repo-dir>]                                                (Task 2 + 1.4/F)
-#   ensure-worktree <path> <branch> <integration-tip>                          (Task 3)
+#   ensure-worktree <path> <branch> <integration-tip> [--reclaim-stale-remote] (Task 3 + partial-phase recovery §4.4)
+#   sync-follower <branch>                                                     (partial-phase recovery §4.6)
 #   land-advance <working-ref> <new-sha>                                       (Task 2/clandiso)
 #   ensure-refinery-worktree <path> <integration-branch>                       (Task 1/clandiso)
 #   ensure-publication-worktree <path> <working-branch>                        (servitor-learnings-write-path)
@@ -85,11 +87,19 @@ warn() { printf '%s: %s\n' "$PROG" "$1" >&2; }
 #                       ADR 0008 (repair toward git; never destroy work).
 #   7 EX_DIVERGED     — local <base> and origin/<base> have diverged; only the
 #                       operator can adjudicate which side is real. ADR 0008.
+#                       Also sync-follower's ahead/diverged follower vs origin.
+#   8 EX_STALE_REMOTE — ensure-worktree fresh-cut found an unmerged remote task
+#                       branch that is NOT an ancestor of the frozen integration
+#                       tip: a STALE PRIOR ATTEMPT (§4.4, #650). The direct-
+#                       invocation contract; the provision barrier keys on the
+#                       STALE_REMOTE marker token (never this number) and classi-
+#                       fies the task per-task (env-blocked), never a phase halt.
 readonly EX_FOREIGN=3
 readonly EX_DIRTY_UNREG=4
 readonly EX_OUT_OF_RUN=5
 readonly EX_WRONG_BRANCH=6
 readonly EX_DIVERGED=7
+readonly EX_STALE_REMOTE=8
 
 # --- git helpers ------------------------------------------------------------
 # Resolve the repo's git dir once; ensure-exclude writes inside it. Run from any
@@ -262,14 +272,35 @@ cmd_ensure_integration() {
     # relaunch) is a TWO-PROOF self-heal for a HALF-RUN orphan — a branch a
     # crashed provision cut but never recorded as owned
     # (provision-nonidempotent-orphan-integration-branch-blocks-relaunch). BOTH
-    # proofs must hold or we fall through to the unchanged EX_FOREIGN die:
-    #   (1) `git log <base>..<branch>` EMPTY  — the orphan carries no unique
-    #       commits, so deleting it resets no work (ADR 0008 conservative heal;
-    #       no ahead-check ref-reset path — provision-conservative-heal lesson);
+    # proofs must hold or we fall through to the unchanged EX_FOREIGN die. Every
+    # proof FAILS LOUD on a git ERROR — a non-zero rc is never read as a pass
+    # (#728; lessons reclaim-empty-orphan-proof-swallows-git-log-error-as-empty +
+    # ensure-origin-swallows-stderr-unlike-sibling-subcommands):
+    #   (0) <base> resolves to a commit — an unresolvable base cannot prove
+    #       emptiness, so it dies EX_FOREIGN BEFORE proof 1 runs, never a pass.
+    #   (1) `git log <base>..<branch>` EMPTY with rc 0 — the orphan carries no
+    #       unique commits, so deleting it resets no work (ADR 0008 conservative
+    #       heal; no ahead-check ref-reset path — provision-conservative-heal
+    #       lesson). The rc is captured SEPARATELY from stdout (the _tmp_err idiom
+    #       the fetch path below uses); a non-zero rc dies EX_FOREIGN surfacing
+    #       git's own stderr, NEVER swallowed into empty output.
     #   (2) `git ls-remote --exit-code origin <branch>` ABSENT — never published.
-    # Either proof fails => die EX_FOREIGN (never delete unique or published work).
+    # Any proof fails => die EX_FOREIGN (never delete unique or published work).
     if [ "$reclaim" -eq 1 ]; then
-      orphan_commits="$(git log --oneline "$base..$branch" 2>/dev/null || true)"
+      # Proof 0: the base must resolve. An unresolvable base cannot prove the
+      # orphan empty, so it is an operator error, never a silent pass (#728).
+      git rev-parse --verify --quiet "$base^{commit}" >/dev/null \
+        || die "ensure-integration: --reclaim-empty-orphan given, but the base '$base' does not resolve to a commit — cannot prove '$branch' is empty against an unresolvable base. Refusing to delete (ADR 0008: a git error is never 'proven empty'). Fix the base ref or adjudicate by hand." "$EX_FOREIGN"
+      # Proof 1: capture git log's rc SEPARATELY from its output; a non-zero rc
+      # dies (never collapses into empty). Only rc-0 empty output passes.
+      _tmp_err="$(mktemp 2>/dev/null || mktemp -t warreclaim)"
+      orphan_rc=0
+      orphan_commits="$(git log --oneline "$base..$branch" 2>"$_tmp_err")" || orphan_rc=$?
+      if [ "$orphan_rc" -ne 0 ]; then
+        _orphan_err="$(cat "$_tmp_err")"; rm -f "$_tmp_err"
+        die "ensure-integration: --reclaim-empty-orphan: could not compute the commits of '$branch' ahead of '$base' (git log failed, rc=$orphan_rc); refusing to treat a failed proof as 'proven empty' (ADR 0008). git: $_orphan_err" "$EX_FOREIGN"
+      fi
+      rm -f "$_tmp_err"
       if [ -z "$orphan_commits" ] \
          && ! git ls-remote --exit-code origin "refs/heads/$branch" >/dev/null 2>&1; then
         warn "ensure-integration: --reclaim-empty-orphan: '$branch' is unowned but PROVEN EMPTY (no commits ahead of '$base') AND origin-ABSENT — deleting and re-cutting it (ADR 0008: resets no work)."
@@ -277,10 +308,10 @@ cmd_ensure_integration() {
           || die "ensure-integration: failed to delete the proven-empty orphan '$branch' for reclaim (still checked out somewhere?)." "$EX_FOREIGN"
         # Branch now absent -> fall through to the create/reconcile path below.
       else
-        die "ensure-integration: --reclaim-empty-orphan given, but '$branch' is NOT a reclaimable orphan — it has unique commits ahead of '$base' OR is present on origin. Refusing to delete unique or published work (ADR 0008). Adjudicate by hand or record it as owned." "$EX_FOREIGN"
+        die "ensure-integration: --reclaim-empty-orphan given, but '$branch' is NOT a reclaimable orphan — it has unique commits ahead of '$base' OR is present on origin. Refusing to delete unique or published work (ADR 0008). Adjudicate by hand, or adopt it with record-as-owned." "$EX_FOREIGN"
       fi
     else
-      die "foreign branch '$branch' already exists and is not owned by this run; refusing to reuse or overwrite it (see ADR 0003). If this is a stale ref from a prior run, delete it or record it as owned (or pass --reclaim-empty-orphan on a sanctioned recovery relaunch to self-heal a proven-empty orphan)." "$EX_FOREIGN"
+      die "foreign branch '$branch' already exists and is not owned by this run; refusing to reuse or overwrite it (see ADR 0003). If this is a stale ref from a prior run, delete it or adopt it with record-as-owned (or pass --reclaim-empty-orphan on a sanctioned recovery relaunch to self-heal a proven-empty orphan)." "$EX_FOREIGN"
     fi
   fi
 
@@ -298,6 +329,10 @@ cmd_ensure_integration() {
   #   local ahead of origin   -> cut from local (origin is the stale side).
   #   diverged (neither anc.)  -> die non-zero, NO branch created, both SHAs + the
   #                              two ADR-0008 repair directions (operator picks).
+  #   no LOCAL ref, origin ok  -> §4.7 (#725.4): cut from the ORIGIN tip with a
+  #                              warn (origin fallback; no follower ff to do).
+  #   neither resolvable       -> §4.7 (#725.4): die with the NAMED missing-local-
+  #                              ref diagnostic (not the raw "not a valid object").
   cut_ref="$base"
   do_follower_ff=0
   origin_sha=""
@@ -318,10 +353,26 @@ cmd_ensure_integration() {
       else
         die "ensure-integration: local '$base' ($local_sha) and origin/$base ($origin_sha) have DIVERGED — neither is an ancestor of the other, so no branch was created. Only the operator can adjudicate which side is real (ADR 0008 — git is the source of truth, but here two gits disagree). Inspect both: 'git log --oneline $origin_sha..$local_sha' (local-only commits) and 'git log --oneline $local_sha..$origin_sha' (origin-only commits). Then EITHER reconcile local onto origin (rebase/merge onto origin/$base) and relaunch, OR — if origin is the stale side — push local to advance origin/$base and relaunch. This script never picks a side." "$EX_DIVERGED"
       fi
+    elif [ -n "$origin_sha" ] && [ -z "$local_sha" ]; then
+      # §4.7 (#725.4): no LOCAL base ref, but origin resolved (an origin-only
+      # working branch). Cut from the ORIGIN tip; NO follower ff — there is no
+      # local ref to move (the follower stays absent, which land-advance's create
+      # branch and sync-follower both handle later).
+      cut_ref="$origin_sha"
+      warn "ensure-integration: local '$base' has no ref; cutting '$branch' from the origin tip ($origin_sha) — origin fallback (no local follower to move)."
     fi
   else
     _fetch_err="$(cat "$_tmp_err")"; rm -f "$_tmp_err"
     warn "ensure-integration: could not fetch origin/$base (offline, or no origin remote); proceeding with the local base '$base'. git: $_fetch_err"
+  fi
+
+  # §4.7 (#725.4): if the resolved cut ref does not name a commit, the base has
+  # NO local ref AND origin did not resolve it (both empty). Die with a NAMED
+  # missing-local-ref diagnostic rather than letting `git branch` surface the raw
+  # "not a valid object name" as held:workflow-error (lesson
+  # war-provision-barrier-needs-local-working-branch-ref).
+  if ! git rev-parse --verify --quiet "$cut_ref^{commit}" >/dev/null 2>&1; then
+    die "ensure-integration: base '$base' has no local ref and could not be resolved on origin — cannot cut '$branch'. Create the local working branch, or check the branch name; the provision barrier needs a LOCAL working-branch ref (lesson war-provision-barrier-needs-local-working-branch-ref)." "$EX_FOREIGN"
   fi
 
   # Cut the integration branch from the resolved ref. Capture stderr so a bad ref
@@ -345,6 +396,76 @@ cmd_ensure_integration() {
 
   record_owned_file "$owned_file" "$branch"
   printf '%s\n' "$branch"
+}
+
+# --- subcommand: record-as-owned -------------------------------------------
+# record-as-owned <branch> <base> --owned-file PATH
+#
+# Tooled ADOPTION of a non-empty orphaned integration branch (§4.1, #725.1). A
+# held partial phase leaves integration/<slug>/phase-<N> carrying real merged
+# commits, so --reclaim-empty-orphan's proven-empty delete correctly REFUSES it.
+# Recovery is ADOPTION, not deletion (ADR 0008): append <branch> to the
+# --owned-file ledger so a sanctioned recovery relaunch hits ensure-integration's
+# unchanged owned-reuse path ("Legitimate resume: reuse as-is. NEVER re-cut or
+# move it."). This subcommand REPAIRS THE RECORD TOWARD GIT and creates, moves,
+# or deletes NO ref.
+#
+# Proof 1 (mechanical, lineage): rev-parse --verify --quiet BOTH <branch> and
+#   <base> (die EX_FOREIGN on either — same fail-loud discipline as the reclaim
+#   proof), then require `git merge-base --is-ancestor <base> <branch>`. A branch
+#   that does not strictly descend from the supplied frozen phase base is foreign
+#   work, not this run's partial phase -> die EX_FOREIGN.
+# Proof 2 (procedural, sanction): print the `git log --oneline <base>..<branch>`
+#   ahead-commits to stdout BEFORE recording, so the invocation is an INFORMED
+#   sanction. Deliberately PROSE-ADJUDICATED, not mechanized: task merges land
+#   under fast-forward topology (plus phase-close sweep polish merges), so a
+#   second-parent/merge-shape classifier would false-refuse legitimate histories.
+#   The Lead's standing duty (SKILL.md runbook) is to map every listed commit to
+#   a merged task before invoking; an unexplained commit halts recovery (ADR 0008).
+# On both proofs: append <branch> via record_owned_file — idempotent
+#   (already-recorded is a no-op, exit 0; it mkdir -p's the ledger dir, so a
+#   not-yet-existing new-run ledger is fine).
+cmd_record_as_owned() {
+  owned_file=""; branch=""; base=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --owned-file)
+        [ $# -ge 2 ] || die "--owned-file requires a path"
+        owned_file="$2"; shift 2 ;;
+      --) shift; break ;;
+      -*) die "record-as-owned: unknown flag '$1'" ;;
+      *)
+        if [ -z "$branch" ]; then branch="$1"
+        elif [ -z "$base" ]; then base="$1"
+        else die "record-as-owned: too many positional arguments (usage: record-as-owned <branch> <base> --owned-file PATH)"
+        fi
+        shift ;;
+    esac
+  done
+  [ -n "$branch" ] || die "usage: record-as-owned <branch> <base> --owned-file PATH"
+  [ -n "$base" ]   || die "usage: record-as-owned <branch> <base> --owned-file PATH"
+  [ -n "$owned_file" ] || die "record-as-owned: --owned-file PATH is required (the ledger the recovery relaunch will read)."
+
+  git_dir >/dev/null
+
+  # Proof 1 (lineage): both refs resolve; <base> is an ancestor of <branch>.
+  git rev-parse --verify --quiet "$branch^{commit}" >/dev/null \
+    || die "record-as-owned: branch '$branch' does not resolve to a commit — nothing to adopt (check the branch name)." "$EX_FOREIGN"
+  git rev-parse --verify --quiet "$base^{commit}" >/dev/null \
+    || die "record-as-owned: base '$base' does not resolve to a commit — cannot prove '$branch' descends from it (check the base ref)." "$EX_FOREIGN"
+  if ! git merge-base --is-ancestor "$base" "$branch"; then
+    die "record-as-owned: base '$base' is NOT an ancestor of '$branch' — the branch does not strictly descend from the frozen phase base, so it is foreign work, not this run's partial phase. Refusing to adopt it (ADR 0003/0008). Adjudicate by hand." "$EX_FOREIGN"
+  fi
+
+  # Proof 2 (informed sanction): print the ahead-commits so the Lead maps each to
+  # a merged task before this record stands (an unexplained commit halts recovery,
+  # ADR 0008). Prose-adjudicated, not mechanized (see the header rationale).
+  printf 'record-as-owned: adopting orphan %s — commits ahead of %s (map each to a merged task before relaunch; an unexplained commit halts, ADR 0008):\n' "$branch" "$base"
+  git log --oneline "$base..$branch"
+
+  # Repair the record toward git: append <branch> idempotently. No ref created,
+  # moved, or deleted.
+  record_owned_file "$owned_file" "$branch"
 }
 
 # --- subcommand: ensure-exclude --------------------------------------------
@@ -382,7 +503,15 @@ dir_is_empty() {
 }
 
 # --- subcommand: ensure-worktree -------------------------------------------
-# ensure-worktree <path> <branch> <integration-tip>
+# ensure-worktree <path> <branch> <integration-tip> [--reclaim-stale-remote]
+#
+# On the FRESH-CUT path only (local <branch> absent), a stale-remote probe runs
+# before the cut (§4.4, #650): origin/<branch> is classified against the frozen
+# tip by ANCESTRY — an ancestor/equal remote is already-integrated work (warn +
+# proceed); a non-ancestor remote is a STALE PRIOR ATTEMPT that dies
+# EX_STALE_REMOTE (marker-led), or, with --reclaim-stale-remote (sanctioned
+# recovery relaunch only), is deleted after three proofs and re-cut. See
+# stale_remote_probe below. No path force-pushes.
 #
 # Idempotent "ensure" with conservative heal (D4/D7). The real guard is
 # NEVER-RESET-ON-REUSE: we never destroy a worktree whose branch carries
@@ -401,9 +530,23 @@ dir_is_empty() {
 #   * Not registered, NON-EMPTY dir     -> FAIL LOUD; never delete unmanaged data
 #     (D7).
 cmd_ensure_worktree() {
-  [ $# -ge 3 ] || die "usage: ensure-worktree <path> <branch> <integration-tip>"
-  path="$1"; branch="$2"; tip="$3"
-  [ -n "$path" ]   || die "ensure-worktree: empty <path>"
+  reclaim_stale_remote=0
+  path=""; branch=""; tip=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --reclaim-stale-remote) reclaim_stale_remote=1; shift ;;
+      --) shift; break ;;
+      -*) die "ensure-worktree: unknown flag '$1'" ;;
+      *)
+        if [ -z "$path" ]; then path="$1"
+        elif [ -z "$branch" ]; then branch="$1"
+        elif [ -z "$tip" ]; then tip="$1"
+        else die "ensure-worktree: too many positional arguments (usage: ensure-worktree <path> <branch> <integration-tip> [--reclaim-stale-remote])"
+        fi
+        shift ;;
+    esac
+  done
+  [ -n "$path" ]   || die "usage: ensure-worktree <path> <branch> <integration-tip> [--reclaim-stale-remote]"
   [ -n "$branch" ] || die "ensure-worktree: empty <branch>"
   [ -n "$tip" ]    || die "ensure-worktree: empty <integration-tip>"
 
@@ -455,12 +598,82 @@ cmd_ensure_worktree() {
     git worktree add "$path" "$branch" >/dev/null 2>&1 \
       || die "failed to add worktree at '$path' on existing branch '$branch' (is the branch checked out elsewhere?)"
   else
+    # FRESH CUT (local <branch> absent — the exact torn-down-locally-but-not-
+    # remotely restart shape). Before cutting, probe origin for a STALE PRIOR
+    # ATTEMPT: an unmerged remote task branch a prior run left behind (§4.4,
+    # #650). The rc is captured SEPARATELY from output (a network failure warns
+    # and proceeds — offline runs must still provision; the worker's push-handoff
+    # escalation is the backstop, never a false stale classification; lesson
+    # ensure-origin-swallows-stderr-unlike-sibling-subcommands).
+    stale_remote_probe "$branch" "$tip" "$reclaim_stale_remote"
     git worktree add -b "$branch" "$path" "$tip" >/dev/null 2>&1 \
       || die "failed to add worktree at '$path' on new branch '$branch' at '$tip'"
   fi
 
   write_marker "$path" "$branch"
   printf '%s\n' "$path"
+}
+
+# stale_remote_probe <branch> <frozen-tip> <reclaim-flag> : on the fresh-cut path,
+# classify origin/<branch> against the frozen integration tip (§4.4, #650). No ref
+# or worktree is created here — this only probes/reclaims BEFORE the caller cuts.
+#   ls-remote FAILS (rc!=0)          -> warn and return (fail-open; offline runs
+#                                       must provision; a git error is never a
+#                                       false stale classification).
+#   remote ABSENT (rc 0, empty)      -> return (clean fresh cut).
+#   remote tip IS an ancestor of (or == the) frozen tip -> already-integrated
+#                                       work; warn and return (a later plain push
+#                                       fast-forwards; NEVER flag or delete it —
+#                                       that would punish the merged tasks a
+#                                       recovery relaunch re-provisions).
+#   remote tip is NOT an ancestor    -> a STALE PRIOR ATTEMPT.
+#     * with <reclaim-flag>=1 (--reclaim-stale-remote, sanctioned recovery only):
+#       delete the remote after THREE proofs — (1) the branch is in the
+#       war/<slug>/pN-tK namespace, (2) the local ref is absent (guaranteed on
+#       this path), (3) the remote is NOT an ancestor of the frozen tip (just
+#       proven) — via `git push origin --delete` (rc-checked; NO force), warning
+#       with the deleted SHA + the restore command, then return to cut fresh.
+#     * without the flag: emit the machine-readable STALE_REMOTE marker line (the
+#       barrier keys on the token, never the numeric code) and die EX_STALE_REMOTE
+#       with both recovery directions + the restore command. No force-push exists
+#       on any path — deletion + a later plain push is the recorded #650 Lead
+#       reconciliation, now tooled.
+stale_remote_probe() {
+  sr_branch="$1"; sr_tip="$2"; sr_reclaim="$3"
+  sr_rc=0
+  sr_remote_sha="$(git ls-remote origin "refs/heads/$sr_branch" 2>/dev/null | cut -f1)" || sr_rc=$?
+  if [ "$sr_rc" -ne 0 ]; then
+    warn "ensure-worktree: could not probe origin for '$sr_branch' (offline, or no origin remote); proceeding with a fresh cut at the frozen tip. A stale prior attempt, if any, will surface later as a push rejection the worker escalates."
+    return 0
+  fi
+  [ -n "$sr_remote_sha" ] || return 0   # remote absent: clean fresh cut.
+
+  if git merge-base --is-ancestor "$sr_remote_sha" "$sr_tip" 2>/dev/null; then
+    # Already-integrated work (ancestor of, or equal to, the frozen tip).
+    warn "ensure-worktree: origin already has '$sr_branch' ($sr_remote_sha) as an ancestor of the frozen tip ($sr_tip) — already-integrated work; proceeding with a fresh cut (a later plain push fast-forwards)."
+    return 0
+  fi
+
+  # NOT an ancestor -> a STALE PRIOR ATTEMPT.
+  if [ "$sr_reclaim" -eq 1 ]; then
+    # Proof 1 (namespace): the caller-supplied positional is proved in-script (every
+    # destructive path here proves its own preconditions). Proofs 2 (local absent)
+    # and 3 (non-ancestor) hold by construction on this path.
+    case "$sr_branch" in
+      war/*/p*-t*) ;;
+      *) die "ensure-worktree: --reclaim-stale-remote refuses '$sr_branch' — not in the war/<slug>/pN-tK task-branch namespace; refusing to delete a remote ref outside this run's namespace (ADR 0003)." "$EX_FOREIGN" ;;
+    esac
+    git push origin --delete "refs/heads/$sr_branch" >/dev/null 2>&1 \
+      || die "ensure-worktree: --reclaim-stale-remote: failed to delete the stale remote '$sr_branch' on origin (permission, or already gone?)."
+    warn "ensure-worktree: --reclaim-stale-remote: DELETED the stale prior attempt origin/$sr_branch (was $sr_remote_sha); cutting fresh at the frozen tip ($sr_tip). Reversible until remote GC: git push origin $sr_remote_sha:refs/heads/$sr_branch"
+    return 0
+  fi
+
+  # No flag: emit the machine-readable marker line FIRST (the barrier keys on the
+  # STALE_REMOTE token, never the numeric exit code — live-artifact rule), then
+  # die with the two-direction operator diagnostic + the restore command.
+  printf 'STALE_REMOTE branch=%s remoteSha=%s frozenTip=%s\n' "$sr_branch" "$sr_remote_sha" "$sr_tip" >&2
+  die "ensure-worktree: origin has '$sr_branch' at $sr_remote_sha, which is NOT an ancestor of the frozen integration tip $sr_tip — a STALE PRIOR ATTEMPT (an unmerged remote task branch left by a prior run whose local state was torn down). No ref or worktree was created. Reconcile one of two ways: (a) ADOPT the remote as the real work — 'git branch $sr_branch $sr_remote_sha' then relaunch (the existing-branch reuse path checks it out as-is); or (b) on a SANCTIONED recovery relaunch where the remote is a superseded attempt, pass --reclaim-stale-remote to delete it. Reversible until remote GC: git push origin $sr_remote_sha:refs/heads/$sr_branch" "$EX_STALE_REMOTE"
 }
 
 # --- run-scoping ------------------------------------------------------------
@@ -583,11 +796,11 @@ cmd_teardown_task() {
   # Fail-closed: no --owned-file (ledger-less) while the branch exists → exit 3.
   if branch_exists "$branch"; then
     if [ -z "$owned_file" ]; then
-      die "teardown-task: no --owned-file ledger supplied but branch '$branch' exists — refusing to tear down without ownership proof. Supply --owned-file, or record the branch as owned (record-as-owned), or delete it manually." "$EX_FOREIGN"
+      die "teardown-task: no --owned-file ledger supplied but branch '$branch' exists — refusing to tear down without ownership proof. Supply --owned-file, or adopt the branch with record-as-owned, or delete it manually." "$EX_FOREIGN"
     fi
     load_owned_file "$owned_file"
     if ! owned_has "$branch"; then
-      die "teardown-task: branch '$branch' is not recorded in the owned-file ledger '$owned_file' — refusing to tear down a foreign or unrecorded ref (F09). Record it as owned or delete it manually." "$EX_FOREIGN"
+      die "teardown-task: branch '$branch' is not recorded in the owned-file ledger '$owned_file' — refusing to tear down a foreign or unrecorded ref (F09). Adopt it with record-as-owned or delete it manually." "$EX_FOREIGN"
     fi
   fi
 
@@ -673,11 +886,11 @@ cmd_teardown_phase() {
   int_branch_check="integration/$slug/phase-$num"
   if branch_exists "$int_branch_check"; then
     if [ -z "$owned_file" ]; then
-      die "teardown-phase: no --owned-file ledger supplied but integration branch '$int_branch_check' exists — refusing to tear down without ownership proof. Supply --owned-file, or record the branch as owned, or delete it manually." "$EX_FOREIGN"
+      die "teardown-phase: no --owned-file ledger supplied but integration branch '$int_branch_check' exists — refusing to tear down without ownership proof. Supply --owned-file, or adopt the branch with record-as-owned, or delete it manually." "$EX_FOREIGN"
     fi
     load_owned_file "$owned_file"
     if ! owned_has "$int_branch_check"; then
-      die "teardown-phase: integration branch '$int_branch_check' is not recorded in the owned-file ledger '$owned_file' — refusing to tear down a foreign or unrecorded integration branch (F09). Record it as owned or delete it manually." "$EX_FOREIGN"
+      die "teardown-phase: integration branch '$int_branch_check' is not recorded in the owned-file ledger '$owned_file' — refusing to tear down a foreign or unrecorded integration branch (F09). Adopt it with record-as-owned or delete it manually." "$EX_FOREIGN"
     fi
   fi
 
@@ -917,6 +1130,84 @@ cmd_land_advance() {
   # Any other non-zero (network failure, bad URL, permission error, etc.)
   # → escalate. The Lead must intervene.
   exit 3
+}
+
+# --- subcommand: sync-follower ----------------------------------------------
+# sync-follower <branch>
+#
+# Manual-land follower assertion (#731 residual, §4.6). The AUTOMATED land path
+# needs nothing — cmd_land_advance already does the post-push origin readback +
+# follower CAS + ALREADY-LANDED reconcile, and cmd_ensure_integration's create
+# path reconciles local-vs-origin before cutting (landed in #593). This
+# subcommand CITES that mechanization; it does NOT rebuild it. It exists only to
+# ASSERT, after a MANUAL escalation-completion / held:land-failed land, that the
+# local follower ref matches origin — catching a recipe deviation (a raw
+# `git push` instead of land-advance) before the next phase consumes a stale
+# follower. Reads origin via ls-remote as ground truth (ADR 0023), rc captured
+# separately (a git error is never "absent"). Never force-pushes; never touches
+# origin.
+#   origin ls-remote FAILS (rc!=0)   -> die (network error is never "absent").
+#   origin ABSENT (rc 0, empty)      -> die with the "nothing landed to origin —
+#                                       did the manual land push?" hint.
+#   local == origin                  -> exit 0 (in sync).
+#   local ABSENT                     -> create the follower at the origin tip
+#                                       (mirrors land-advance's create branch).
+#   local strictly BEHIND origin     -> guarded CAS ff (update-ref expected old);
+#                                       SKIPPED with a warn (still exit 0) when the
+#                                       branch is checked out anywhere (byte-
+#                                       consistent with ensure-integration's ff).
+#   local strictly AHEAD or DIVERGED -> die EX_DIVERGED, both SHAs + the two ADR
+#                                       0008 repair directions.
+cmd_sync_follower() {
+  [ $# -ge 1 ] || die "usage: sync-follower <branch>"
+  branch="$1"
+  [ -n "$branch" ] || die "sync-follower: empty <branch>"
+
+  git_dir >/dev/null
+
+  # Origin is ground truth (ADR 0023). Capture the ls-remote rc SEPARATELY from
+  # its output — a failed readback is never read as "absent".
+  origin_rc=0
+  origin_sha="$(git ls-remote origin "refs/heads/$branch" 2>/dev/null | cut -f1)" || origin_rc=$?
+  if [ "$origin_rc" -ne 0 ]; then
+    die "sync-follower: could not read the origin tip of '$branch' (git ls-remote failed, rc=$origin_rc — network/remote error); refusing to treat a failed readback as 'absent'." "$EX_FOREIGN"
+  fi
+  if [ -z "$origin_sha" ]; then
+    die "sync-follower: origin has no '$branch' — nothing landed to origin; did the manual land push? (This assertion exists to catch exactly that deviation — a raw 'git push' or a skipped land-advance.)" "$EX_FOREIGN"
+  fi
+
+  local_sha="$(git rev-parse --verify --quiet "refs/heads/$branch" 2>/dev/null || true)"
+
+  if [ -z "$local_sha" ]; then
+    # Local follower absent -> create it at the origin tip (mirrors land-advance's
+    # create branch). A fresh create has no CAS old-value; never force.
+    git update-ref "refs/heads/$branch" "$origin_sha" \
+      || die "sync-follower: failed to create the local follower '$branch' at the origin tip $origin_sha."
+    warn "sync-follower: created local '$branch' at the origin tip $origin_sha (the follower was absent)."
+    return 0
+  fi
+
+  if [ "$local_sha" = "$origin_sha" ]; then
+    return 0   # in sync.
+  fi
+
+  if git merge-base --is-ancestor "$local_sha" "$origin_sha" 2>/dev/null; then
+    # Local strictly BEHIND origin -> guarded CAS fast-forward, UNLESS <branch> is
+    # checked out anywhere (moving a live ref phantom-dirties that checkout; the
+    # next phase's create path cuts from origin regardless). Byte-consistent with
+    # cmd_ensure_integration's follower-ff discipline.
+    if branch_checked_out_anywhere "$branch"; then
+      warn "sync-follower: local '$branch' ($local_sha) is behind origin ($origin_sha) but is checked out in a worktree; skipping the follower fast-forward (the next phase's create path cuts from origin regardless)."
+      return 0
+    fi
+    git update-ref "refs/heads/$branch" "$origin_sha" "$local_sha" \
+      || die "sync-follower: could not fast-forward local '$branch' to the origin tip (concurrent move?)."
+    return 0
+  fi
+
+  # Local strictly AHEAD or DIVERGED -> the operator adjudicates (ADR 0008). Never
+  # force, never touch origin. Reuse the DIVERGED die's two-direction wording.
+  die "sync-follower: local '$branch' ($local_sha) is AHEAD OF or DIVERGED FROM origin ($origin_sha) — neither is a fast-forward of the other, so no ref was moved. Only the operator can adjudicate (ADR 0008). EITHER reconcile local onto origin (rebase/merge onto origin/$branch) if origin is real, OR — if local is the real land — push local to advance origin/$branch. This assertion never picks a side and never force-pushes." "$EX_DIVERGED"
 }
 
 # --- subcommand: ensure-refinery-worktree -----------------------------------
@@ -1160,7 +1451,7 @@ cmd_resolve_working_branch() {
       printf '%s\n' "$resolved"
       return 0
     fi
-    die "resolve-working-branch: dedicated branch '$resolved' already exists and is not owned by this run; refusing to reuse or overwrite it (see ADR 0003). Delete the stale ref or record it as owned." "$EX_FOREIGN"
+    die "resolve-working-branch: dedicated branch '$resolved' already exists and is not owned by this run; refusing to reuse or overwrite it (see ADR 0003). Delete the stale ref or adopt it with record-as-owned." "$EX_FOREIGN"
   fi
 
   # Absent -> create at the desired branch's tip (checked out nowhere), then
@@ -1211,13 +1502,15 @@ cmd_prune() {
 # --- dispatch ---------------------------------------------------------------
 main() {
   [ $# -ge 1 ] || die "usage: $PROG <subcommand> [args...]
-subcommands: ensure-integration, ensure-exclude, ensure-worktree, land-advance, ensure-refinery-worktree, ensure-publication-worktree, remove-publication-worktree, resolve-working-branch, ensure-origin, teardown-task, teardown-phase, prune"
+subcommands: ensure-integration, record-as-owned, ensure-exclude, ensure-worktree, sync-follower, land-advance, ensure-refinery-worktree, ensure-publication-worktree, remove-publication-worktree, resolve-working-branch, ensure-origin, teardown-task, teardown-phase, prune"
   sub="$1"; shift
   case "$sub" in
     ensure-integration)          cmd_ensure_integration "$@" ;;
+    record-as-owned)             cmd_record_as_owned "$@" ;;
     ensure-exclude)              cmd_ensure_exclude "$@" ;;
     ensure-worktree)             cmd_ensure_worktree "$@" ;;
     land-advance)                cmd_land_advance "$@" ;;
+    sync-follower)               cmd_sync_follower "$@" ;;
     ensure-refinery-worktree)    cmd_ensure_refinery_worktree "$@" ;;
     ensure-publication-worktree) cmd_ensure_publication_worktree "$@" ;;
     remove-publication-worktree) cmd_remove_publication_worktree "$@" ;;
@@ -1226,7 +1519,7 @@ subcommands: ensure-integration, ensure-exclude, ensure-worktree, land-advance, 
     teardown-task)               cmd_teardown_task "$@" ;;
     teardown-phase)              cmd_teardown_phase "$@" ;;
     prune)                       cmd_prune "$@" ;;
-    *) die "unknown subcommand '$sub' (have: ensure-integration, ensure-exclude, ensure-worktree, land-advance, ensure-refinery-worktree, ensure-publication-worktree, remove-publication-worktree, resolve-working-branch, ensure-origin, teardown-task, teardown-phase, prune)" ;;
+    *) die "unknown subcommand '$sub' (have: ensure-integration, record-as-owned, ensure-exclude, ensure-worktree, sync-follower, land-advance, ensure-refinery-worktree, ensure-publication-worktree, remove-publication-worktree, resolve-working-branch, ensure-origin, teardown-task, teardown-phase, prune)" ;;
   esac
 }
 
