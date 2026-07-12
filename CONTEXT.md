@@ -668,6 +668,18 @@ task instruction > red-team adjudication > plan body literal.
 _Avoid_: "override", "the real version" — the block is written by the grill loop when it patches an
 authoritative value, never mined from arbitrary prose.
 
+**topology-void**:
+A plan clause anchored on git topology that does not exist under WAR's fast-forward per-task merges (a
+per-task merge commit, its `^1` parent, a non-empty post-merge three-dot diff). The `ff-topology` executed
+probe classifies it — error, wrong-commit resolution, or degenerate/empty diff for the claimed anchor.
+_Avoid_: conflating with a merge *conflict* — the anchor is void, not contested.
+
+**analyzed-agent fallback**:
+The red-team scaffold's reactive re-dispatch of an analyzed probe/confirm from the preferred read-only
+agent type to `general-purpose` when the harness lacks the preferred type.
+_Avoid_: "capability check" — the fallback is reactive (detect the dead dispatch, re-dispatch), never a
+pre-flight harness query.
+
 ### Guard coverage by equivalence class (ADR 0031)
 
 **Traversal equivalence class**:
