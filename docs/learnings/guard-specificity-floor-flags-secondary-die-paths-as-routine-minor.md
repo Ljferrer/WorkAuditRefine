@@ -1,6 +1,6 @@
 ---
 name: guard-specificity-floor-flags-secondary-die-paths-as-routine-minor
-description: "guard-specificity floor flags secondary die-guards Minor/follow-up when only exit-code asserted"
+description: "guard-specificity floor flags exit-code-only secondary die-guards Minor"
 metadata: 
   node_type: memory
   type: project

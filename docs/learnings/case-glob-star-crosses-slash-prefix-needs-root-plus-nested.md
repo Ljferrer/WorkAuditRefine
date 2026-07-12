@@ -1,6 +1,6 @@
 ---
 name: case-glob-star-crosses-slash-prefix-needs-root-plus-nested
-description: "case fnmatch: * crosses /, **/ misses root; prefix conventions need token pair"
+description: "case fnmatch: * crosses /, **/ misses root; need the token pair"
 metadata:
   node_type: memory
   slug: case-glob-star-crosses-slash-prefix-needs-root-plus-nested

@@ -1,6 +1,6 @@
 ---
 name: floor-script-discovery-set-must-mirror-gate-exclusions
-description: "Floor match set must mirror gate find excl+depth (3rd recurrence: gate-pin-status.sh)"
+description: "Floor match set must mirror gate find exclusions+depth"
 metadata:
   type: project
   provenance: code-verified

@@ -1,6 +1,6 @@
 ---
 name: provision-phase-mocks-must-match-on-label-not-just-phase
-description: "Two Provision-phase dispatches share phase:'Provision'; mocks/handlers must key on opts.label too"
+description: "Provision dispatches share phase; mocks must key on opts.label too"
 metadata:
   node_type: memory
   type: project

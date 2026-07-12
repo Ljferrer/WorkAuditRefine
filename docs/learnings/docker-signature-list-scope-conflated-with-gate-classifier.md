@@ -1,6 +1,6 @@
 ---
 name: docker-signature-list-scope-conflated-with-gate-classifier
-description: "SKILL.md docker bullet overstates: signature list governs Setup deferral, not gate-time classification"
+description: "Docker signature list governs Setup deferral, not gate classification"
 metadata:
   node_type: memory
   type: project

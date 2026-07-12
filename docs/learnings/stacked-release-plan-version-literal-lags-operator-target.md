@@ -17,7 +17,7 @@ metadata:
   originSessionId: fab06e87-b8c3-454f-a1d8-ecc9fa41faf6
   created: 2026-06-28
   promoted: stacked-release-plan-version-literal-lags-operator-target
-description: "Stacked-release plan version literal lags live tip — resolve next free patch off worktree base"
+description: "Plan version literal lags live tip; resolve next free patch at land"
 ---
 
 # Stacked releases: plan version literal lags operator-directed target

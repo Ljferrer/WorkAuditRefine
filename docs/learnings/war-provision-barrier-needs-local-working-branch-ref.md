@@ -1,6 +1,6 @@
 ---
 name: war-provision-barrier-needs-local-working-branch-ref
-description: "/war provision barrier needs a LOCAL working-branch ref; origin-only fails held:workflow-error"
+description: "/war provision barrier needs a LOCAL working-branch ref, not origin-only"
 metadata: 
   node_type: memory
   type: project

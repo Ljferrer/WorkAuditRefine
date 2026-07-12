@@ -1,6 +1,6 @@
 ---
 name: stacked-per-branch-releases-make-main-lag-cumulative
-description: "N stacked unlanded releases = N-step baseline lag, not scope error"
+description: "N stacked unlanded releases = N-step baseline lag"
 metadata:
   node_type: memory
   type: project

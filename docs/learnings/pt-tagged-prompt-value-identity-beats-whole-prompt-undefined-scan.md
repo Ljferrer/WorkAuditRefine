@@ -1,6 +1,6 @@
 ---
 name: pt-tagged-prompt-value-identity-beats-whole-prompt-undefined-scan
-description: "Check each interpolated value's identity in a tag, not a regex scan of rendered text"
+description: "Check interpolated value identity per tag, not a rendered-text regex"
 metadata: 
   node_type: memory
   type: project

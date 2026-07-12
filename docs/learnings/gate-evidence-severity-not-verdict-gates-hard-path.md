@@ -1,6 +1,6 @@
 ---
 name: ""
-description: "Gate-evidence HARD/SOFT keys on finding severity (Critical/Major), not the verdict field"
+description: "Gate-evidence HARD/SOFT keys on severity, not the verdict field"
 metadata: 
   node_type: memory
   type: project

@@ -1,6 +1,6 @@
 ---
 name: readme-undersell-guard-couples-doc-prose-to-true-slot-count
-description: "A version lock-step test can force a same-task README fix outside the task's Files list"
+description: "Version lock-step test can force a README fix outside plan Files list"
 metadata: 
   node_type: memory
   type: project

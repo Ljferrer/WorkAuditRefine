@@ -1,6 +1,6 @@
 ---
 name: mirror-registry-verification-mode-by-construct-kind
-description: "Mirror registry needs 3 equality modes (deepEqual/subset/behavioral) chosen by construct kind"
+description: "Mirror registry: deepEqual/subset/behavioral mode per construct kind"
 metadata: 
   node_type: memory
   type: project

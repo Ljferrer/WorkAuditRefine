@@ -83,3 +83,5 @@ beyond an informational Nit confirming alignment. This closes out the long
 [[stacked-release-plan-version-literal-lags-operator-target]] recurrence chain (8 recurrences prior
 to the guard) as no longer worth flagging per-phase — the mechanical test now catches what the
 audit used to have to eyeball.
+
+> archived 2026-07-12: resolved — moved to archive

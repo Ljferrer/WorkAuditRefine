@@ -1,6 +1,6 @@
 ---
 name: plan-can-name-a-nonexistent-lens-even-in-an-anti-drift-plan
-description: "A plan can name a nonexistent construct; reconcile vs the real catalog, don't literal-match"
+description: "Plans can name nonexistent constructs; reconcile vs the real catalog"
 metadata: 
   node_type: memory
   type: project

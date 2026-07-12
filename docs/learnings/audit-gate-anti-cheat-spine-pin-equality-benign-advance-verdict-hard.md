@@ -1,6 +1,6 @@
 ---
 name: audit-gate-anti-cheat-spine-pin-equality-benign-advance-verdict-hard
-description: "Anti-cheat spine: pin-equality gate + benign-advance floor + verdict-as-HARD, reuse reason code"
+description: "Anti-cheat spine: pin-equality gate, benign-advance floor, verdict-as-HARD"
 metadata: 
   node_type: memory
   type: project

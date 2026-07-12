@@ -1,6 +1,6 @@
 ---
 name: premergetip-chain-skips-requirestest-false-tasks
-description: "preMergeTip chains on requiresTest-filtered list not full merge order; over-populates --mapped"
+description: "preMergeTip chains requiresTest-filtered list; over-populates --mapped"
 metadata: 
   node_type: memory
   type: project

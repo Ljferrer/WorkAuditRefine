@@ -1,6 +1,6 @@
 ---
 name: structure-test-check-f-locks-presence-anywhere-not-intended-location
-description: "check_f/check locks prove whole-file presence, not location — use per-location anchors or count"
+description: "check_f locks prove presence anywhere, not intended location"
 metadata:
   node_type: memory
   type: project

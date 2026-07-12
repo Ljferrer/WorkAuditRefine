@@ -1,6 +1,6 @@
 ---
 name: worker-self-report-count-can-overstate-diff-additions
-description: "Worker done-report counts can overstate diff — verify vs live PASS/FAIL counters or diff count"
+description: "Worker done-report counts can overstate diff; verify vs diff count"
 metadata: 
   node_type: memory
   type: project

@@ -1,6 +1,6 @@
 ---
 name: audit-2026-06-29-plans-serial-stack
-description: "Restack: re-anchor by named construct, resolve version as next-free patch across slots"
+description: "Restack: re-anchor by named construct; version = next free patch"
 metadata: 
   node_type: memory
   type: project

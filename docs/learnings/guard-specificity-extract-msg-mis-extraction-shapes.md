@@ -1,6 +1,6 @@
 ---
 name: guard-specificity-extract-msg-mis-extraction-shapes
-description: assert-guard-specificity-in-diff.sh extract_msg() has two documented mis-extraction shapes
+description: extract_msg() in the guard-specificity floor has two mis-extraction shapes
 metadata: 
   node_type: memory
   type: project
