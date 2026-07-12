@@ -5582,3 +5582,214 @@ test('criterion 3 — the pt tag checks interpolated VALUES for identity === und
   assert.match(src, /vals\[i\] === undefined/, 'pt checks each interpolated VALUE for identity === undefined (value, never surrounding text)')
   assert.match(src, /undefined interpolation after/, 'pt throws naming the adjacent literal fragment (strings[i] tail)')
 })
+
+// ---------------------------------------------------------------------------
+// Partial-phase recovery (spec §4.2/§4.3/§4.4): args.recovery derive-and-skip merged set,
+// PLAN-DEFECT: sentinel → defectClass metadata, always-on STALE_REMOTE classification → env-blocked.
+// ---------------------------------------------------------------------------
+
+// A barrier mock keyed on the STABLE dispatchKind discriminator ('provision-barrier'), never the label
+// prefix (lesson provision-phase-mocks-must-match-on-label-not-just-phase / spec criterion 8). Returns
+// the given env-outcome for the barrier; everything else rides defaultImpl.
+const barrierEnv = (env) => (prompt, opts) =>
+  (seatOf(opts) === 'war-refiner' && opts.dispatchKind === 'provision-barrier') ? env : defaultImpl(prompt, opts)
+
+test('recovery absent (criterion 10): the recovery machinery is DORMANT — every dispatched prompt is byte-identical to a sanctioned run EXCEPT the provision barrier; the always-on STALE_REMOTE clause rides both', async () => {
+  const { calls: absent } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const { calls: sanctioned } = await runPhase(PROVISION_ARGS({ recovery: { sanctioned: true } }), defaultImpl)
+  assert.equal(absent.length, sanctioned.length, 'same dispatch count — the recovery machinery changes NO dispatch when the barrier reports nothing')
+  for (let i = 0; i < absent.length; i++) {
+    if (absent[i].opts.dispatchKind === 'provision-barrier') {
+      assert.notEqual(absent[i].prompt, sanctioned[i].prompt, 'the provision-barrier prompt DIFFERS (derive-and-skip is added when sanctioned)')
+    } else {
+      assert.equal(absent[i].prompt, sanctioned[i].prompt, `prompt #${i} (${absent[i].opts.label}) is byte-identical between recovery-absent and sanctioned`)
+    }
+  }
+  const bAbsent = absent.find(isProvision).prompt
+  const bSanctioned = sanctioned.find(isProvision).prompt
+  // The always-on stale-remote classification is the ONLY barrier delta from a pre-feature run — present regardless of recovery.
+  assert.match(bAbsent, /STALE_REMOTE/, 'the always-on stale-remote classification rides the barrier even when recovery is absent')
+  assert.match(bSanctioned, /STALE_REMOTE/, 'the always-on stale-remote classification rides the barrier when sanctioned too')
+  // The derive-and-skip step is dormant without recovery, present with it (delete-the-feature: the two-run diff IS the derive step).
+  assert.doesNotMatch(bAbsent, /SANCTIONED RECOVERY RELAUNCH|derive-then-cut/i, 'the derive-and-skip step is DORMANT when recovery is absent')
+  assert.match(bSanctioned, /SANCTIONED RECOVERY RELAUNCH|derive-then-cut/i, 'the derive-and-skip step is present when sanctioned')
+})
+
+test('recovery reclaim pass-through: --reclaim-stale-remote rides each ensure-worktree line IFF recovery.reclaimStaleRemote', async () => {
+  const { calls: noReclaim } = await runPhase(PROVISION_ARGS({ recovery: { sanctioned: true } }), defaultImpl)
+  const { calls: reclaim } = await runPhase(PROVISION_ARGS({ recovery: { sanctioned: true, reclaimStaleRemote: true } }), defaultImpl)
+  const bNo = noReclaim.find(isProvision).prompt
+  const bYes = reclaim.find(isProvision).prompt
+  assert.doesNotMatch(bNo, /--reclaim-stale-remote/, 'no --reclaim-stale-remote flag when reclaimStaleRemote is unset (sanctioned but not reclaiming)')
+  assert.match(bYes, /ensure-worktree[^\n]*--reclaim-stale-remote/, 'the ensure-worktree line carries --reclaim-stale-remote when reclaimStaleRemote is set')
+})
+
+test('recovery preMerged (criterion 10): a mocked barrier preMerged id → merged (NOT landed status), done+succeeded+landed+auditLog, NO worker, NOT in gate-audit; a dep on it is not dep-failed', async () => {
+  // PROVISION_ARGS: t1, t2(deps:['t1']). The barrier reports t1 already-integrated on the adopted branch.
+  const { out, calls } = await runPhase(PROVISION_ARGS(), barrierEnv({ ok: true, preMerged: ['t1'] }))
+  assert.equal(out.landDecision, 'landed', 'the recovered phase still lands (t1 pre-merged, t2 re-dispatched + merged)')
+  assert.ok(out.landed.includes('t1'), 't1 is recorded in the bare-id landed list')
+  assert.ok(!calls.some(c => (c.opts.label || '') === 'work:t1'), 'NO worker dispatched for the pre-merged task t1')
+  const entry = (out.auditLog || []).find(e => e && e.task === 't1')
+  assert.ok(entry, 'an auditLog entry exists for the pre-merged t1')
+  assert.match(String(entry.note || ''), /recovered: pre-merged on adopted integration branch/, 't1 auditLog entry carries the recovered note')
+  // t2 (dep on the pre-merged t1) satisfies the dep-block pre-check and dispatches normally.
+  assert.ok(calls.some(c => (c.opts.label || '') === 'work:t2'), 't2 (dep on pre-merged t1) IS dispatched — the dep-block pre-check passes (t1 in succeeded)')
+  assert.ok(!(out.escalated || []).some(e => e && e.task === 't2' && e.reason === 'dep-failed'), 't2 is NOT spuriously dep-failed')
+  // The pre-merged task ran no gate this run, so it is NOT in the gate-audit set (handoff tipSha fallback stays truthful).
+  assert.ok(!calls.some(c => (c.opts.label || '') === 'gate-audit:t1:execution-evidence'), 'NO gate-audit seat for the pre-merged t1 (no gate ran for it this run)')
+  // Criterion 11: the merged-set skip never skips the gate-audit for the re-dispatched task.
+  assert.ok(calls.some(c => (c.opts.label || '') === 'gate-audit:t2:execution-evidence'), 't2 gate-audit IS still dispatched on the recovered phase (criterion 11)')
+})
+
+test('recovery all-pre-merged degenerate (criterion 11): endState claims + every task pre-merged → the End-state-only seat fires at the confirmed tip', async () => {
+  // ES_ARGS is a single-task phase (t1) claiming End-state conditions. The barrier reports t1 pre-merged,
+  // so mergedTasksForGateAudit is empty AND the phase claims conditions → the End-state-only seat branch fires.
+  const { out, calls } = await runPhase(ES_ARGS(), barrierEnv({ ok: true, preMerged: ['t1'] }))
+  assert.ok(out.landed.includes('t1'), 't1 recorded merged/landed (pre-merged)')
+  assert.ok(!calls.some(c => (c.opts.label || '') === 'work:t1'), 'no worker dispatched for the pre-merged task')
+  const esSeat = calls.filter(c => (c.opts.label || '') === 'gate-audit:phase-3:end-state')
+  assert.equal(esSeat.length, 1, 'exactly ONE End-state-only seat fires in the degenerate all-pre-merged case (the existing branch)')
+})
+
+test('recovery staleRemote (end-state 22): a mocked barrier staleRemote entry → per-task env-blocked (no worker), two-direction diagnostic + restore command; siblings dispatch; a dependent follows dep-failed; no phase halt; rides the return', async () => {
+  const args = PROVISION_ARGS({ tasks: [
+    { id: 'tStale', issue: 201, title: 'Stale task', planSlice: 's1', roster: [{ lens: 'correctness' }] },
+    { id: 'tSib', issue: 202, title: 'Sibling', planSlice: 's2', roster: [{ lens: 'correctness' }] },
+    { id: 'tDep', issue: 203, title: 'Dependent', planSlice: 's3', roster: [{ lens: 'correctness' }], deps: ['tStale'] },
+  ] })
+  // The barrier CONTINUED past tStale's STALE_REMOTE marker and reported it (mock keyed on the barrier dispatchKind).
+  const { out, calls } = await runPhase(args, barrierEnv({ ok: true, staleRemote: [{ task: 'tStale', remoteSha: 'cafebabe', frozenTip: 'deadbeef' }] }))
+  // tStale → the EXISTING per-task env-blocked status, worker never spawned.
+  const eb = (out.escalated || []).find(e => e && e.task === 'tStale' && e.reason === 'env-blocked')
+  assert.ok(eb, 'tStale is mapped to the existing per-task env-blocked status')
+  assert.equal(eb.staleRemote, true, 'the escalation record is tagged staleRemote')
+  assert.ok(!calls.some(c => (c.opts.label || '') === 'work:tStale'), 'NO worker dispatched for the stale-remote task')
+  // Full two-direction diagnostic + the reversible restore command.
+  const diag = String(eb.diagnostic || '')
+  assert.match(diag, /git branch [^\n]*cafebabe/, 'diagnostic direction (a): adopt via git branch <branch> <remoteSha>')
+  assert.match(diag, /--reclaim-stale-remote/, 'diagnostic direction (b): sanctioned --reclaim-stale-remote')
+  assert.match(diag, /git push origin cafebabe:refs\/heads\//, 'diagnostic carries the reversible restore command')
+  // Siblings dispatch normally; a dependent follows the EXISTING dep-failed semantics; no barrier halt.
+  assert.ok(calls.some(c => (c.opts.label || '') === 'work:tSib'), 'the independent sibling dispatches normally (no barrier halt of the phase)')
+  const dep = (out.escalated || []).find(e => e && e.task === 'tDep' && e.reason === 'dep-failed')
+  assert.ok(dep, 'a dependent of the stale-remote task follows the existing dep-failed semantics')
+  assert.ok(!calls.some(c => (c.opts.label || '') === 'work:tDep'), 'the dependent is NOT dispatched (dep-failed)')
+  // The classification rides the machine-readable return; a hard dep-failed → held:escalation → handoff emitted.
+  assert.ok((out.escalated || []).some(e => e && e.staleRemote), 'the stale-remote classification rides the machine-readable return')
+  assert.ok(out.handoff, 'handoff emitted on held:escalation (the classification is handed off to the Lead)')
+})
+
+test('defectClass (criterion 12, wave-collector site): a worker blocked_reason prefixed PLAN-DEFECT: → escalation record defectClass:plan; sentinel kept inside blocked_reason; reason unchanged', async () => {
+  const impl = (prompt, opts) =>
+    (seatOf(opts) === 'war-worker' && opts.phase === 'Work')
+      ? { task_id: 't1', status: 'blocked', blocked_reason: 'PLAN-DEFECT: the plan names a construct that cannot exist as described' }
+      : defaultImpl(prompt, opts)
+  const args = PROVISION_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'T', planSlice: 's1', roster: [{ lens: 'correctness' }] }] })
+  const { out } = await runPhase(args, impl)
+  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  assert.ok(esc, 't1 escalated')
+  assert.equal(esc.defectClass, 'plan', 'defectClass is "plan" (the sentinel matched at position 0)')
+  assert.equal(esc.reason, 'escalate', 'the escalation reason is UNCHANGED — defectClass is orthogonal metadata, not a reason')
+  assert.match(String(esc.blocked), /^PLAN-DEFECT:/, 'the sentinel is LEFT inside blocked_reason (raw worker text is evidence, never stripped)')
+  assert.equal(out.landDecision, 'held:escalation', 'the plan-defect block still holds the land (escalate is HARD)')
+})
+
+test('defectClass (criterion 12): NO sentinel (or a non-position-0 / case / whitespace variant) → defectClass ABSENT (never "implementation" by default); reason unchanged', async () => {
+  // Strict, case-sensitive startsWith at position 0 — no trim, no case folding.
+  for (const reason of ['an ordinary implementation block', ' PLAN-DEFECT: has a leading space', 'plan-defect: lowercase', 'see PLAN-DEFECT: mid-string']) {
+    const impl = (prompt, opts) =>
+      (seatOf(opts) === 'war-worker' && opts.phase === 'Work')
+        ? { task_id: 't1', status: 'blocked', blocked_reason: reason }
+        : defaultImpl(prompt, opts)
+    const args = PROVISION_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'T', planSlice: 's1', roster: [{ lens: 'correctness' }] }] })
+    const { out } = await runPhase(args, impl)
+    const esc = (out.escalated || []).find(e => e && e.task === 't1')
+    assert.ok(esc, `t1 escalated (reason="${reason}")`)
+    assert.ok(!('defectClass' in esc), `defectClass is ABSENT for a non-sentinel reason "${reason}" (never "implementation" by default)`)
+    assert.equal(esc.reason, 'escalate', 'the escalation reason is unchanged')
+  }
+})
+
+test('defectClass (criterion 12, floor sub-loop site): a blocked add-test fix-worker prefixed PLAN-DEFECT: → escalation defectClass:plan', async () => {
+  // merge:t1 → no-test enters the floor sub-loop; the add-test fix-worker blocks with the sentinel.
+  const impl = buildSeqImpl(
+    {
+      'merge:t1': [{ mode: 'merge-task', status: 'no-test' }],
+      'add-test:t1:r1': [{ task_id: 't1', status: 'blocked', blocked_reason: "PLAN-DEFECT: the plan's specced mapped test cannot exist as described" }],
+    },
+    (prompt, opts) => {
+      const seat = seatOf(opts)
+      if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
+      if (seat === 'war-worker' && opts.phase === 'Work') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
+      if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+      if (seat === 'war-refiner') return opts.phase === 'Land' ? { mode: 'land-phase', status: 'landed' } : { mode: 'merge-task', status: 'merged' }
+      if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+      return {}
+    }
+  )
+  const { out } = await runPhase(L3_ARGS(), impl)
+  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  assert.ok(esc, 't1 escalated from the floor sub-loop')
+  assert.equal(esc.defectClass, 'plan', 'a fix-round plan defect is tagged defectClass:plan (as plan-shaped as a first-round one)')
+  assert.equal(esc.reason, 'escalate', 'the floor-sub-loop escalation reason is unchanged')
+})
+
+test('defectClass: the PLAN-DEFECT: sentinel is a SINGLE shared JS constant used by BOTH the prompt sentence AND the check (single-source contract)', () => {
+  assert.match(src, /const PLAN_DEFECT_SENTINEL = 'PLAN-DEFECT:'/, 'PLAN_DEFECT_SENTINEL is the one shared constant')
+  assert.match(src, /\.startsWith\(PLAN_DEFECT_SENTINEL\)/, 'the check uses the shared constant (strict startsWith at position 0)')
+  assert.match(src, /\$\{PLAN_DEFECT_SENTINEL\}/, 'the worker-prompt sentence interpolates the SAME constant (single-source token)')
+  // defectClass must never leak into the land/escalation enums (ADR 0005 — Task 3 owns the negative guard).
+  assert.ok(!HARD_ESCALATION_REASONS.includes('plan-defect') && !HARD_ESCALATION_REASONS.includes('plan'),
+    'defectClass value is not a HARD_ESCALATION_REASONS member')
+  assert.ok(!KNOWN_LAND_DECISIONS.includes('held:plan-defect') && !KNOWN_LAND_DECISIONS.includes('plan-defect'),
+    'defectClass value is not a KNOWN_LAND_DECISIONS member')
+})
+
+// --- Both-surfaces token tests (criterion 14): the two new worker sentences + the refiner-card
+// STALE_REMOTE carve-out are on their standing card AND their dispatched prompt (the D3-registry idiom:
+// a casing/position-stable mid-sentence fragment, never a quote/backtick byte literal; delete-the-feature
+// per surface proves the anchor is non-vacuous). Not new inline mirrors of a canonical export — no D2 row owed.
+
+test('both-surfaces (criterion 14): the PLAN-DEFECT: sentinel sentence is on agents/war-worker.md AND the dispatched worker prompt; delete-the-feature per surface', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const w = calls.find(isWorker)
+  assert.ok(w, 'a worker was dispatched (presence guard)')
+  const FRAG = 'a specced construct cannot exist as described'   // mid-sentence, no quote/backtick byte literal
+  const surfaces = [['war-worker.md', workerMd], ['dispatched worker prompt', w.prompt]]
+  for (const [name, text] of surfaces) {
+    assert.ok(text.includes(FRAG), `${name} carries the plan-defect sentinel sentence`)
+    assert.ok(!text.split(FRAG).join('REMOVED').includes(FRAG), `${name}: deleting the sentence reds the anchor (non-vacuous)`)
+    assert.ok(text.includes('PLAN-DEFECT:'), `${name} names the literal sentinel token the worker prefixes`)
+  }
+})
+
+test('both-surfaces (criterion 14): the stale-prior-attempt push-handoff sentence is on agents/war-worker.md AND the dispatched dep-clause worker prompt; delete-the-feature per surface', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  // The sentence rides depClause (adjacent to FORCE_WITH_LEASE_RULE), so it is on a deps-bearing worker (work:t2).
+  const w2 = calls.find(c => isWorker(c) && (c.opts.label || '') === 'work:t2')
+  assert.ok(w2, 'the deps-bearing worker was dispatched (presence guard)')
+  const FRAG = 'the remote task branch was never merged and shares only an older base is a stale prior attempt'
+  const surfaces = [['war-worker.md', workerMd], ['dispatched dep-clause worker prompt', w2.prompt]]
+  for (const [name, text] of surfaces) {
+    assert.ok(text.includes(FRAG), `${name} carries the stale-prior-attempt sentence`)
+    assert.ok(!text.split(FRAG).join('REMOVED').includes(FRAG), `${name}: deleting the sentence reds the anchor (non-vacuous)`)
+  }
+  // FORCE_WITH_LEASE_RULE stays byte-identical (its own byte-compare test is untouched) — the stale sentence is ADJACENT, not a rewrite.
+  const RULE = 'You may `git push --force-with-lease` ONLY your own task branch, and ONLY after a dispatch-rebase diverged it from its pushed remote — never any other ref, never for any other reason.'
+  assert.ok(w2.prompt.includes(RULE), 'the force-with-lease rule stays byte-identical adjacent to the new sentence')
+})
+
+test('both-surfaces (criterion/end-state 22): the STALE_REMOTE classify-and-continue carve-out is on agents/war-refiner.md AND the dispatched barrier prompt; delete-the-feature per surface', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const barrier = calls.find(isProvision)
+  assert.ok(barrier, 'the barrier was dispatched (presence guard)')
+  const ANCHORS = [/STALE_REMOTE/, /classify-and-continue/i, /marker token is the key, never the numeric/i, /staleRemote/]
+  const surfaces = [['war-refiner.md', refinerMd], ['dispatched barrier prompt', barrier.prompt]]
+  for (const [name, text] of surfaces) {
+    for (const re of ANCHORS) assert.match(text, re, `${name} carries the STALE_REMOTE carve-out anchor ${re}`)
+    // delete-the-feature: strip the carve-out's distinctive shared phrase (global) → the anchor reds.
+    const mutated = text.replace(/marker token is the key, never the numeric/gi, 'REMOVED')
+    assert.doesNotMatch(mutated, /marker token is the key, never the numeric/i, `${name}: removing the carve-out phrase reds the anchor (non-vacuous)`)
+  }
+})

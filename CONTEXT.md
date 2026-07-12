@@ -117,6 +117,31 @@ divergence halts.
 _Avoid_: silently picking local or origin; conflating it with a fetch failure / no-origin (which falls
 back to today's local cut with a warning).
 
+**Orphan adoption** (`record-as-owned`):
+Repairing the owned-file ledger *toward git* so a non-empty partial-phase integration branch — real
+merged commits left by a held/escalated run whose local state was torn down — becomes a legitimate
+resume target. The `record-as-owned` subcommand proves the branch strictly descends the frozen base,
+prints its ahead-commits for the Lead to map to merged tasks
+([ADR 0008](docs/adr/0008-git-is-the-resume-source-of-truth.md) — an unexplained commit halts), and
+appends the ref to the run's owned-file ledger, **moving no ref**. The ADR 0008-conformant opposite of
+reclaim-deletion — **Empty-orphan reclaim** *deletes* a branch proven empty; adoption *keeps* one proven
+non-empty — and the tooled, proof-carrying form of a recovery relaunch's owned-file continuity.
+_Avoid_: resetting or moving the branch (adoption records toward git, never mutates it); conflating it
+with empty-orphan reclaim (opposite direction — keep vs delete).
+
+**Stale prior attempt**:
+An unmerged remote `war/<slug>/pN-tK` task branch whose tip is **not an ancestor** of the frozen phase
+base's integration tip — left by a prior run whose local state was torn down, so it never merged and
+shares only an older base. It blocks the identically-named relaunch push (a non-fast-forward rejection);
+at the Provision barrier the fresh-cut stale-remote probe catches it (the `STALE_REMOTE` marker) and
+classifies it as a per-task **`env-blocked`** outcome — the worker is never spawned, **siblings
+proceed**, never a phase halt. Reconciled only by Lead-sanctioned remote deletion
+(`--reclaim-stale-remote`, proof-gated, prints its restore command) or by adopting the remote tip —
+**never** a force-push. A remote tip that *is* an ancestor of the frozen tip is already-integrated work
+that warns and proceeds, not a stale prior attempt.
+_Avoid_: SHA inequality as the test (ancestry is — an already-merged remote is not stale); force-pushing
+over it; treating it as a phase halt (it is per-task `env-blocked`).
+
 ### Repo-derived provisioning (Part B)
 
 **Provision list** (`run.provision`):
@@ -322,6 +347,18 @@ land and in the final PR (ADR 0017: the un-run validation becomes a ratified-bac
 prose).
 _Avoid_: treating it as a passing gate (the gate is red — the debt just predates the diff); a silent
 proceed (the backstop entry is mandatory).
+
+**Defect class** (`defectClass`):
+Escalation-record metadata distinguishing the *root cause* of a worker block: a **plan/spec defect** —
+tagged `defectClass: 'plan'` when the worker prefixes its `blocked_reason` with the `PLAN-DEFECT:`
+sentinel — routes to a `/red-team` plan amendment, while an **implementation defect** (the field
+**absent**, never `'implementation'`) routes to fix-rounds / escalation-completion. Orthogonal to the
+escalation `reason` and **never an enum member** — it rides the escalation record into the `handoff`
+block but never enters `HARD_ESCALATION_REASONS`, `KNOWN_LAND_DECISIONS`, or any land decision (ADR 0005
+enum discipline; the same orthogonal-label pattern as **gate-failure class** and the finding-`disposition`
+precedent).
+_Avoid_: adding a `plan-defect` reason or land-decision member (the classification is metadata, not a
+reason); reading an absent field as `'implementation'` (absence asserts no classification nobody made).
 
 ### Landing
 
@@ -976,10 +1013,17 @@ reuses the run's owned integration branch instead of dying foreign. It composes 
 ([ADR 0008](docs/adr/0008-git-is-the-resume-source-of-truth.md)) — the existing task branches (with their
 kept commits) are checked out into the fresh run's phase-scoped worktrees and fixed forward — and is
 **never** `resumeFromRunId` (which replays the same run's off-ladder journal, the cached escalation).
-Single-task retry uses a one-task DAG; whole-phase relaunch uses the phase's unmerged tasks (verified
-against git). A Lead/operator playbook, never template-automated.
+A dep-less single-task retry uses a one-task DAG; a held partial phase relaunches as a **sanctioned
+recovery relaunch** — it adopts the held integration branch as the frozen base via **orphan adoption**
+(`record-as-owned`), passes the **full original phase DAG** armed with `args.recovery`, and lets the
+Provision barrier derive the already-merged set from **git ancestry** and skip it (those tasks recorded
+terminal `merged`, no worker dispatch), re-dispatching only the escalated task; the barrier's ancestry
+check is authoritative over any hand-filtered task list, and `args.recovery.reclaimStaleRemote` arms
+`--reclaim-stale-remote` to clear a **stale prior attempt**. A Lead/operator playbook, never
+template-automated.
 _Avoid_: `resumeFromRunId` for an escalation; letter-suffixed phase ids ("4b"); rewriting the kept
-commits on a retried branch.
+commits on a retried branch; hand-filtering the DAG to the unmerged tasks (pass the full DAG; git at the
+barrier is the filter).
 
 ### GitHub side-effects
 

@@ -151,6 +151,46 @@ test('held:phase-incomplete is ∈ KNOWN_LAND_DECISIONS but ∉ the Workflow-emi
   assert.ok(!workflowEmitted().includes('held:phase-incomplete'))
 })
 
+// ---- ADR 0005 negative drift-guard: defectClass is NEVER a reason/landDecision enum member (#761) ----
+// The PLAN-DEFECT: sentinel (Task 2) tags a worker-authored block with ORTHOGONAL escalation-record
+// metadata `defectClass: 'plan'` — never a `reason` and never a landDecision. This guard pins that
+// permanently against someone later "completing" the feature into an enum: neither 'plan-defect' nor
+// 'held:plan-defect' may appear in HARD_ESCALATION_REASONS or the landDecision known-set, asserted on BOTH
+// the canonical land-decision.mjs exports AND the workflow-template.js surfaces — the inline
+// HARD_ESCALATION_REASONS mirror (extracted the way war-config.test.mjs's inline-mirror drift-guard does)
+// and, for the landDecision side (which has NO inline array in the template), the BEHAVIORALLY-extracted
+// emitted-landDecision set via workflowEmitted().
+const DEFECT_CLASS_TOKENS = ['plan-defect', 'held:plan-defect']
+
+test('ADR 0005: defectClass tokens are absent from the canonical HARD_ESCALATION_REASONS / KNOWN_LAND_DECISIONS exports', () => {
+  for (const t of DEFECT_CLASS_TOKENS) {
+    assert.ok(!HARD_ESCALATION_REASONS.includes(t), `${t} must never be a HARD_ESCALATION_REASONS member — defectClass is metadata, not a reason (ADR 0005)`)
+    assert.ok(!KNOWN_LAND_DECISIONS.includes(t), `${t} must never be a KNOWN_LAND_DECISIONS member — defectClass is metadata, not a landDecision (ADR 0005)`)
+  }
+})
+
+test('ADR 0005: defectClass tokens are absent from the inline HARD_ESCALATION_REASONS mirror in workflow-template.js', () => {
+  // Same extraction idiom as war-config.test.mjs's inline-mirror drift-guard: pin the literal, fail loud if the anchor rotted.
+  const wf = readAsset('workflow-template.js')
+  const match = wf.match(/const\s+HARD_ESCALATION_REASONS\s*=\s*(\[[^\]]+\])/)
+  assert.ok(match, 'inline HARD_ESCALATION_REASONS not found in workflow-template.js (anchor rotted — non-vacuous guard)')
+  const inlineMembers = JSON.parse(match[1].replace(/'/g, '"'))
+  for (const t of DEFECT_CLASS_TOKENS) {
+    assert.ok(!inlineMembers.includes(t), `${t} leaked into the inline HARD_ESCALATION_REASONS mirror — the sentinel feature was "completed" into the enum (ADR 0005)`)
+  }
+})
+
+test('ADR 0005: defectClass tokens are absent from the Workflow-emitted landDecision set (no inline KNOWN_LAND_DECISIONS array exists to mirror)', () => {
+  // KNOWN_LAND_DECISIONS has NO inline copy in workflow-template.js — its behavioral surface is the
+  // scattered `landDecision: 'held:…'` literals workflowEmitted() extracts. A landDecision is always
+  // 'landed' | 'held:*', so 'held:plan-defect' is the structurally-reachable regression here; the bare
+  // 'plan-defect' can never match the emitted-literal shape and rides along as a belt-and-braces check.
+  const emitted = workflowEmitted()
+  for (const t of DEFECT_CLASS_TOKENS) {
+    assert.ok(!emitted.includes(t), `${t} is emitted as a landDecision in workflow-template.js — held:plan-defect must never become a landDecision (ADR 0005)`)
+  }
+})
+
 // ---- D8: per-mode HARD_ESCALATION_REASONS reachability drift-guard (#639) ----
 // HARD_ESCALATION_REASONS is ONE array shared by the merge-task AND land-phase modes — canonical in
 // land-decision.mjs, hand-mirrored in workflow-template.js (ADR 0005; never split/narrow — the
