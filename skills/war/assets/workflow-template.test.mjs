@@ -5458,6 +5458,15 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
       surfaces: [['war-servitor.md', servitorMd], ['servitor Wrap-up prompt', servitorP]],
       anchors: [/metadata\.provenance/i, /user-authored/i, /never edit/i, /same slug/i, /overwrite/i,
                 /files_written[\s\S]{0,120}absolute|absolute[\s\S]{0,120}files_written/i] },
+    // servitor-redaction-at-source: D3 path-hygiene clause — lesson-content paths are repo-relative or
+    // placeholder-based (<repo-root>/<session-worktree>/<local-memory-root>), never an absolute checkout
+    // path, with an explicit files_written-stays-absolute carve-out. Both surfaces, one task; the
+    // placeholder tokens and "governs lesson content only" fragment appear only in the new clause, so a
+    // per-surface revert reds this row (End-state-7 delete-the-feature proof).
+    { name: 'servitor path-hygiene (repo-relative / placeholder locate-cues; files_written stays absolute)',
+      surfaces: [['war-servitor.md', servitorMd], ['servitor Wrap-up prompt', servitorP]],
+      anchors: [/repo-relative/i, /<repo-root>/i, /<session-worktree>/i, /<local-memory-root>/i,
+                /never an absolute/i, /governs lesson content only[\s\S]{0,120}files_written/i] },
     { name: 'ADR policy-table under-attribution (D8)',
       surfaces: [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]],
       anchors: [/ADR/i, /policy.table/i, /attribution/i] },
@@ -5489,7 +5498,7 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
       surfaces: [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]],
       anchors: [/committed-tree grounding/i, /verify-and-close/i, /git show <audit_sha>:<path>/i, /advisory only/i, /git grep/i] },
   ]
-  assert.ok(REGISTRY.length >= 8, 'the registry lists the migrated servitor row, the D8/D9/D12/D6 duties, the gate-audit seat row, and the two Task 1.4 capture-grounding rows')
+  assert.ok(REGISTRY.length >= 10, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, and the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree) — floor equals the true row count, no slack (#693)')
   for (const row of REGISTRY) {
     for (const [sName, sText] of row.surfaces) {
       for (const re of row.anchors) {
