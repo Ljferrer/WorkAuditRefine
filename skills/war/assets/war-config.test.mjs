@@ -7,7 +7,7 @@ import { dirname, join, relative } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import {
   DEFAULTS, PRESETS, MODELS, EFFORTS, ROLES, PROVISION_SOURCES, ROSTER_POLICIES, RESERVED_LENSES,
-  fillDefaults, presetConfig, agentMatrix, validate, spawnOpts,
+  fillDefaults, presetConfig, agentMatrix, workerTierMatrix, validate, spawnOpts,
   validateRoster, widenRoster, resolveWidenSource, resolveProvision, resolveGate,
 } from './war-config.mjs'
 import { HARD_ESCALATION_REASONS, decideLand } from './land-decision.mjs'
@@ -118,7 +118,7 @@ test('economy preset (pinned to its historical effective config)', () => {
   assert.equal(c.audit.rosterPolicy, 'solo')
   assert.equal(c.run.roundLimit, 2)
   assert.equal(c.run.ace, false)                    // pinned — DEFAULTS moved to true
-  assert.equal(c.memory.commitLearnings, false)     // pinned — DEFAULTS moved to true
+  assert.equal(c.memory.commitLearnings, false)     // inherited — DEFAULTS is now false; economy no longer pins it
   assert.equal(validate(c).valid, true)
 })
 
@@ -166,6 +166,164 @@ test('agentMatrix: each row equals the presetConfig() merge (reuses the canonica
     const a = presetConfig(preset).agents[role]
     assert.equal(model, a.model, `agentMatrix (${preset}, ${role}).model must equal presetConfig().agents.${role}.model`)
     assert.equal(effort, a.effort, `agentMatrix (${preset}, ${role}).effort must equal presetConfig().agents.${role}.effort`)
+  }
+})
+
+// --- agents.redteam (validator-only, NOT a phase ROLE) + worker tiers (T1.1) --------------------
+// redteam joins validation only: it must NEVER enter ROLES or the (preset, role) agentMatrix — the
+// per-phase spawn path stays four roles (/red-team consumes redteam fail-open). worker.docs/fix are
+// per-tier { model, effort } refinements of the worker role, validated exactly like a role tier.
+
+test('matrix stays four roles: ROLES is exactly the four phase roles and excludes redteam (T1.1)', () => {
+  assert.deepEqual(ROLES, ['worker', 'auditor', 'refiner', 'servitor'])
+  assert.equal(ROLES.length, 4, 'ROLES must stay exactly four phase roles')
+  assert.ok(!ROLES.includes('redteam'), 'redteam is NOT a phase role — it joins validation only')
+  // agentMatrix enumerates ROLES only, so no emitted row may carry role "redteam".
+  assert.ok(!agentMatrix().some(r => r.role === 'redteam'),
+    'agentMatrix must stay four roles — redteam must never appear as a matrix row')
+  // Delete-the-feature: if redteam were pushed into ROLES, both the length check and the row count bite.
+  assert.equal(agentMatrix().length, Object.keys(PRESETS).length * 4,
+    'agentMatrix must have exactly |PRESETS| × 4 rows (four roles, redteam excluded)')
+})
+
+test('agents.redteam is absent by default in DEFAULTS and every preset (presets never set it) (T1.1)', () => {
+  assert.equal(DEFAULTS.agents.redteam, undefined, 'DEFAULTS must not carry an agents.redteam block (absent = red-team inherits session)')
+  for (const preset of Object.keys(PRESETS)) {
+    assert.equal(presetConfig(preset).agents.redteam, undefined, `${preset} preset must not set agents.redteam`)
+  }
+  // Absent block still validates — today's behavior byte-for-byte.
+  assert.equal(validate({}).valid, true)
+})
+
+test('agents.redteam validates when present: every MODELS model and every EFFORTS effort accepted (T1.1)', () => {
+  for (const model of MODELS) {
+    assert.equal(validate({ agents: { redteam: { model, effort: 'high' } } }).valid, true, `redteam model ${model} should validate`)
+  }
+  for (const effort of EFFORTS) {
+    assert.equal(validate({ agents: { redteam: { model: 'opus', effort } } }).valid, true, `redteam effort ${effort} should validate`)
+  }
+})
+
+test('agents.redteam rejects a bad model / bad effort with an error naming the key (T1.1)', () => {
+  // Delete-the-feature: without the redteam validation call, both of these validate as an unknown-but-ignored
+  // key — so each MUST be rejected with a redteam-scoped error.
+  const rm = validate({ agents: { redteam: { model: 'gpt-5', effort: 'high' } } })
+  assert.equal(rm.valid, false)
+  assert.match(rm.errors.join('\n'), /agents\.redteam\.model/)
+  const re = validate({ agents: { redteam: { model: 'opus', effort: 'ultrathink' } } })
+  assert.equal(re.valid, false)
+  assert.match(re.errors.join('\n'), /agents\.redteam\.effort/)
+})
+
+test('agents.redteam rejects unknown sub-keys with a courtesy error naming the key and /war-room (T1.1)', () => {
+  const r = validate({ agents: { redteam: { model: 'opus', effort: 'high', depth: 'deep' } } })
+  assert.equal(r.valid, false)
+  const msg = r.errors.join('\n')
+  assert.match(msg, /agents\.redteam\.depth/)
+  assert.match(msg, /\/war-room/)
+})
+
+test('agents.redteam non-object rejected (null / scalar / array reach the tier object-type branch) (T1.1)', () => {
+  for (const bad of [null, 'opus', 42, ['opus']]) {
+    const r = validate({ agents: { redteam: bad } })
+    assert.equal(r.valid, false, `redteam ${JSON.stringify(bad)} must be rejected`)
+    assert.match(r.errors.join('\n'), /agents\.redteam must be an object/)
+  }
+})
+
+test('agents.redteam is tolerated by the unknown-agent-key loop; a genuine unknown key is still rejected (T1.1)', () => {
+  // redteam must pass the known-agent-key gate (it is a valid non-role agent key)…
+  assert.equal(validate({ agents: { redteam: { model: 'opus', effort: 'high' } } }).valid, true)
+  // …while a genuine typo/unknown agent key is rejected, naming the key and /war-room.
+  const r = validate({ agents: { wizard: { model: 'opus', effort: 'max' } } })
+  assert.equal(r.valid, false)
+  const msg = r.errors.join('\n')
+  assert.match(msg, /agents\.wizard/)
+  assert.match(msg, /\/war-room/)
+})
+
+test('agents.worker.docs defaults to { sonnet, default } and every preset inherits it (T1.1)', () => {
+  // Delete-the-feature: remove docs from DEFAULTS.agents.worker → this deepEqual fails for every preset.
+  assert.deepEqual(DEFAULTS.agents.worker.docs, { model: 'sonnet', effort: 'default' })
+  for (const preset of Object.keys(PRESETS)) {
+    assert.deepEqual(presetConfig(preset).agents.worker.docs, { model: 'sonnet', effort: 'default' },
+      `${preset} preset must inherit agents.worker.docs === { sonnet, default }`)
+  }
+})
+
+test('legacy worker block without a docs tier fills it from DEFAULTS and validates (criterion-12 style) (T1.1)', () => {
+  const legacy = { version: 1, agents: { worker: { model: 'opus', effort: 'max' } } } // no docs key
+  const c = fillDefaults(legacy)
+  assert.deepEqual(c.agents.worker.docs, { model: 'sonnet', effort: 'default' })
+  assert.equal(validate(legacy).valid, true, validate(legacy).errors.join('\n'))
+})
+
+test('agents.worker.docs rejects bad model / bad effort / unknown sub-key (validated like a role tier) (T1.1)', () => {
+  const rm = validate({ agents: { worker: { docs: { model: 'gpt-5', effort: 'default' } } } })
+  assert.equal(rm.valid, false)
+  assert.match(rm.errors.join('\n'), /agents\.worker\.docs\.model/)
+  const re = validate({ agents: { worker: { docs: { model: 'sonnet', effort: 'ultrathink' } } } })
+  assert.equal(re.valid, false)
+  assert.match(re.errors.join('\n'), /agents\.worker\.docs\.effort/)
+  const rk = validate({ agents: { worker: { docs: { model: 'sonnet', effort: 'default', tier: 'x' } } } })
+  assert.equal(rk.valid, false)
+  const msg = rk.errors.join('\n')
+  assert.match(msg, /agents\.worker\.docs\.tier/)
+  assert.match(msg, /\/war-room/)
+})
+
+test('agents.worker.fix is absent by default but validated when present (T1.1)', () => {
+  assert.equal(DEFAULTS.agents.worker.fix, undefined, 'worker.fix must be absent by default (absent = inherit worker)')
+  for (const preset of Object.keys(PRESETS)) {
+    assert.equal(presetConfig(preset).agents.worker.fix, undefined, `${preset} preset must not set worker.fix`)
+  }
+  // Present + valid → accepted.
+  assert.equal(validate({ agents: { worker: { fix: { model: 'opus', effort: 'max' } } } }).valid, true)
+  // Present + bad effort → rejected. Delete-the-feature: without the fix validation call this validates.
+  const re = validate({ agents: { worker: { fix: { model: 'opus', effort: 'nope' } } } })
+  assert.equal(re.valid, false)
+  assert.match(re.errors.join('\n'), /agents\.worker\.fix\.effort/)
+  // Unknown sub-key → courtesy error naming the key and /war-room.
+  const rk = validate({ agents: { worker: { fix: { model: 'opus', effort: 'max', extra: 1 } } } })
+  assert.equal(rk.valid, false)
+  assert.match(rk.errors.join('\n'), /agents\.worker\.fix\.extra/)
+  assert.match(rk.errors.join('\n'), /\/war-room/)
+})
+
+// --- workerTierMatrix (T1.1): sibling canonical export the doc-honesty lens consults -------------
+// Mirrors the agentMatrix pattern: base + docs rows per preset (docs defaulted in DEFAULTS), and a
+// fix row only when a preset sets worker.fix (none do today → no fix rows, a real derivation).
+
+test('workerTierMatrix: base + docs row per preset; docs is sonnet everywhere; no fix rows today (T1.1)', () => {
+  const matrix = workerTierMatrix()
+  const presets = Object.keys(PRESETS)
+  for (const preset of presets) {
+    const base = matrix.filter(r => r.preset === preset && r.tier === 'base')
+    const docs = matrix.filter(r => r.preset === preset && r.tier === 'docs')
+    assert.equal(base.length, 1, `workerTierMatrix must carry exactly one base row for ${preset}`)
+    assert.equal(docs.length, 1, `workerTierMatrix must carry exactly one docs row for ${preset}`)
+    assert.equal(docs[0].model, 'sonnet', `${preset} docs tier must be sonnet (the documented default)`)
+    assert.equal(docs[0].effort, 'default', `${preset} docs tier effort must be default`)
+  }
+  // fix is absent by default → no preset emits a fix row. Delete-the-feature: a stray fix pin on any
+  // preset makes a fix row appear here (the "no fix rows" derivation is real, not a tautology).
+  assert.ok(!matrix.some(r => r.tier === 'fix'), 'no preset sets worker.fix today, so workerTierMatrix must emit no fix rows')
+  // Total rows: base + docs per preset (2 × |PRESETS|), no phantom tier.
+  assert.equal(matrix.length, presets.length * 2, `workerTierMatrix must have base+docs per preset = ${presets.length}×2 rows`)
+  // Every row's model/effort is a valid enum value (an out-of-enum tier literal goes red here).
+  for (const r of matrix) {
+    assert.ok(MODELS.includes(r.model), `workerTierMatrix (${r.preset}, ${r.tier}).model ${JSON.stringify(r.model)} must be a valid model`)
+    assert.ok(EFFORTS.includes(r.effort), `workerTierMatrix (${r.preset}, ${r.tier}).effort ${JSON.stringify(r.effort)} must be a valid effort`)
+  }
+})
+
+test('workerTierMatrix: each row equals the presetConfig() merge (reuses the canonical merge, never re-implements it) (T1.1)', () => {
+  // Delegation guard mirroring agentMatrix's — if workerTierMatrix ever hand-rolls the merge, this bites.
+  for (const { preset, tier, model, effort } of workerTierMatrix()) {
+    const w = presetConfig(preset).agents.worker
+    const block = tier === 'base' ? w : w[tier]
+    assert.equal(model, block.model, `workerTierMatrix (${preset}, ${tier}).model must equal the presetConfig() worker${tier === 'base' ? '' : '.' + tier} source`)
+    assert.equal(effort, block.effort, `workerTierMatrix (${preset}, ${tier}).effort must equal the same source`)
   }
 })
 
@@ -300,20 +458,26 @@ test('non-boolean ace rejected', () => {
 })
 
 // --- memory block (compounding-memory retrieval + publication) ----------------
-// DEFAULTS.memory = { retrieval: true, topK: 10, commitLearnings: true }.
+// DEFAULTS.memory = { retrieval: true, topK: 10, commitLearnings: false }.
+// Publication is now a conscious opt-in (T1.1 flip) — the store stays local unless /war-room turns it on.
 // Doctrine: no accepted-but-ignored keys, so validate() rejects bad types AND unknown keys.
 
-test('memory defaults: retrieval true, topK 10, commitLearnings true', () => {
+test('memory defaults: retrieval true, topK 10, commitLearnings false (opt-in publication)', () => {
   const c = fillDefaults({})
-  assert.deepEqual(c.memory, { retrieval: true, topK: 10, commitLearnings: true })
+  assert.deepEqual(c.memory, { retrieval: true, topK: 10, commitLearnings: false })
 })
 
-test('commitLearnings defaults to true; economy pins false', () => {
-  assert.equal(DEFAULTS.memory.commitLearnings, true)
-  for (const preset of ['balanced', 'thorough']) {
-    assert.equal(presetConfig(preset).memory.commitLearnings, true, `${preset} preset must inherit memory.commitLearnings === true`)
+test('commitLearnings defaults to false; all three presets inherit false (opt-in publication, economy no longer pins) (T1.1)', () => {
+  // Delete-the-feature: revert the DEFAULTS flip → this line fails.
+  assert.equal(DEFAULTS.memory.commitLearnings, false)
+  for (const preset of ['balanced', 'thorough', 'economy']) {
+    assert.equal(presetConfig(preset).memory.commitLearnings, false,
+      `${preset} preset must inherit memory.commitLearnings === false (publication is now an opt-in)`)
   }
-  assert.equal(presetConfig('economy').memory.commitLearnings, false, 'economy preset must pin memory.commitLearnings === false')
+  // The economy preset's own memory pin was deleted as now-redundant (DEFAULTS returned to false).
+  // Delete-the-feature: re-add `memory: { commitLearnings: false }` to economy → this assertion fails.
+  assert.ok(!Object.prototype.hasOwnProperty.call(PRESETS.economy, 'memory'),
+    'economy preset must NOT carry a redundant memory pin now that DEFAULTS.memory.commitLearnings is false')
 })
 
 // criterion 12: a config WITHOUT a memory block fills defaults clean and validates.
@@ -321,7 +485,7 @@ test('commitLearnings defaults to true; economy pins false', () => {
 test('old config without a memory block fills defaults clean and validates (criterion 12)', () => {
   const legacy = { version: 1, agents: { worker: { model: 'opus', effort: 'max' } } } // no memory key
   const c = fillDefaults(legacy)
-  assert.deepEqual(c.memory, { retrieval: true, topK: 10, commitLearnings: true })
+  assert.deepEqual(c.memory, { retrieval: true, topK: 10, commitLearnings: false })
   assert.equal(validate(legacy).valid, true, validate(legacy).errors.join('\n'))
 })
 
