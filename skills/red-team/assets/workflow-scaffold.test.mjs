@@ -701,3 +701,75 @@ test('ff-topology prose presence pair: SKILL.md + lenses.md both carry the probe
     assert.match(r, /--fast/, `${name} ff-topology region must state the probe is --fast-proof`)
   }
 })
+
+// --- Task 1.3 (#773): optional model/effort threaded into EVERY agent() dispatch ----------------
+// /red-team reads the fail-open agents.redteam block and passes model/effort via args; the scaffold
+// spreads modelOpts into every probe (runProbe) AND adversarial-confirm (confirmStage) dispatch, so
+// the whole verification run spawns on the configured model. Both branches are asserted on the
+// SPAWNED-OPTS SHAPE (the plan's mapped-test requirement): absent args → the opts carry NO
+// model/effort key (inherit-session, byte-for-byte); present → every dispatch carries them. A
+// blocking Major on claims-vs-reality forces its confirm to fire, so the confirm site's opts is
+// captured alongside the probe sites; executable-proof (agentType undefined) covers the executed
+// bypass path in dispatchAgent.
+const blockingMock = (a) => (_, opts) => {
+  if (opts.phase === 'Confirm') return { reproduced: true }
+  if (opts.label === 'probe:claims-vs-reality') return okResult(a, opts, { status: 'fail', findings: MAJOR })
+  return okResult(a, opts)
+}
+const dispatchOpts = (prompts) => prompts
+  .filter(p => p.opts.phase === 'Probe' || p.opts.phase === 'Confirm')
+  .map(p => p.opts)
+
+test('model/effort threading: ABSENT args → every probe AND confirm dispatch carries no model/effort opt (inherit-session, byte-for-byte)', async () => {
+  const a = baseArgs()
+  const { prompts } = await runScaffold(a, blockingMock(a))
+  const opts = dispatchOpts(prompts)
+  assert.ok(opts.some(o => o.phase === 'Confirm'), 'a confirm dispatch fired (harness sanity — the both-sites assertion needs it)')
+  assert.ok(opts.some(o => o.agentType === undefined), 'an executed probe dispatched (the agentType-undefined bypass path is exercised)')
+  for (const o of opts) {
+    // Byte-for-byte: the opts shape is exactly today's — no model/effort key is spread in. A
+    // stray `model: undefined` (or any regression that adds the key) fails this exact-key anchor.
+    assert.deepEqual(Object.keys(o).sort(), ['agentType', 'label', 'phase', 'schema'],
+      `dispatch '${o.label}' opts shape must be byte-for-byte today's (no model/effort keys added)`)
+  }
+})
+
+test('model/effort threading: PRESENT model+effort → every probe AND confirm dispatch (incl. executed + confirm) carries both (End state 3)', async () => {
+  const a = baseArgs({ model: 'sonnet', effort: 'max' })
+  const { prompts } = await runScaffold(a, blockingMock(a))
+  const opts = dispatchOpts(prompts)
+  assert.ok(opts.some(o => o.phase === 'Confirm'), 'a confirm dispatch fired')
+  for (const o of opts) {
+    assert.equal(o.model, 'sonnet', `dispatch '${o.label}' must carry the configured model`)
+    assert.equal(o.effort, 'max', `dispatch '${o.label}' must carry the configured effort`)
+  }
+  // Nail the two sites the plan calls out by name: an executed probe and an adversarial confirm.
+  const exec = opts.find(o => o.label === 'probe:executable-proof')
+  assert.ok(exec && exec.agentType === undefined && exec.model === 'sonnet' && exec.effort === 'max',
+    'the executed probe (agentType undefined — the dispatchAgent bypass path) still carries model/effort')
+  const confirm = opts.find(o => o.label === 'adversarial-confirm:claims-vs-reality')
+  assert.ok(confirm && confirm.model === 'sonnet' && confirm.effort === 'max',
+    'the adversarial-confirm dispatch carries model/effort')
+})
+
+test("model/effort threading: effort 'default' is omitted (inherit), model still threaded (mirrors war-engine spawnOpts)", async () => {
+  const a = baseArgs({ model: 'opus', effort: 'default' })
+  const { prompts } = await runScaffold(a, blockingMock(a))
+  const opts = dispatchOpts(prompts)
+  assert.ok(opts.length > 0, 'dispatches were captured')
+  for (const o of opts) {
+    assert.equal(o.model, 'opus', `dispatch '${o.label}' threads the model`)
+    assert.ok(!('effort' in o), `dispatch '${o.label}' omits a 'default' effort (adding the key would break byte-for-byte inherit)`)
+  }
+})
+
+test('model/effort threading: model-only args (no effort) → only model threaded', async () => {
+  const a = baseArgs({ model: 'haiku' })
+  const { prompts } = await runScaffold(a, blockingMock(a))
+  const opts = dispatchOpts(prompts)
+  assert.ok(opts.length > 0, 'dispatches were captured')
+  for (const o of opts) {
+    assert.equal(o.model, 'haiku', `dispatch '${o.label}' threads the model`)
+    assert.ok(!('effort' in o), `dispatch '${o.label}' carries no effort when args omit it`)
+  }
+})
