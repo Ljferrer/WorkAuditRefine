@@ -9,7 +9,27 @@ You run a **full pass** over this project's Claude memory store: verify every me
 
 ## `migrate` mode — one-time two-root adoption
 
-If the arguments contain the word **`migrate`** (`/lessons-learned migrate`), do **not** run the housekeeping phases below. Instead load [`references/migration.md`](references/migration.md) and execute that playbook: `migrate` dry-run → agent-assisted retype of the `untyped` bucket → `migrate --apply` (archives `[RESOLVED]` lessons) → keywords backfill → move the operator-confirmed `project`-typed set into `docs/learnings/` and open the reviewed learnings PR (gate 2 by hand, `lint` fail-closed). Three warnings the playbook expands on:
+If the arguments contain the word **`migrate`** (`/lessons-learned migrate`), do **not** run the housekeeping phases below.
+
+**Pre-flight — the opt-in gate (before staging or moving anything).** Migration's endpoint is publishing the `project`-typed set to the committed repo root, which only travels when `memory.commitLearnings` is on. That flag is **opt-in / off by default** (`/war-room` turns it on), so resolve the effective value first — `node ${CLAUDE_PLUGIN_ROOT}/skills/war/assets/war-config.mjs .claude/war/config.json --fill-defaults` and read `memory.commitLearnings`; an **absent** config file means defaults, i.e. `false`.
+
+- Already `true` (the operator opted in earlier) → proceed to the playbook.
+- `false` → **ask the operator to opt in now** ("lessons travel with the repo, human-reviewed like code"), then branch on the answer:
+  - **Accept** → write `memory.commitLearnings: true` through the **validator path** — merge the flag into the existing config (or a minimal `{"memory":{"commitLearnings":true}}` when the file is absent) and pipe it through `--stdin --fill-defaults` to a temp file, then `mv` it into place (the never-truncate discipline `/war-room` uses — a validation failure leaves any existing config intact):
+
+    ```bash
+    mkdir -p .claude/war
+    printf '%s' '<config-json-with-commitLearnings-true>' \
+      | node ${CLAUDE_PLUGIN_ROOT}/skills/war/assets/war-config.mjs --stdin --fill-defaults \
+      > .claude/war/config.json.tmp \
+      && mv .claude/war/config.json.tmp .claude/war/config.json \
+      || { echo "validation failed — config NOT written"; rm -f .claude/war/config.json.tmp; }
+    ```
+
+    Then proceed to the playbook.
+  - **Decline** → **abort: "nothing migrated — re-run after opting in."** Nothing is staged, nothing is moved — the store is untouched.
+
+Once the flag is on, load [`references/migration.md`](references/migration.md) and execute that playbook: `migrate` dry-run → agent-assisted retype of the `untyped` bucket → `migrate --apply` (archives `[RESOLVED]` lessons) → keywords backfill → move the operator-confirmed `project`-typed set into `docs/learnings/` and open the reviewed learnings PR (gate 2 by hand, `lint` fail-closed). Three warnings the playbook expands on:
 
 - Migration edits the **live store directly** (it is not the staging flow below) — take the tarball backup the playbook names before `--apply`.
 - Requires Node ≥ 24 (`node:sqlite`); on older Node every verb exits non-zero with a one-line message and does nothing (callers fail open; no partial migration).
@@ -19,7 +39,7 @@ If the arguments contain the word **`migrate`** (`/lessons-learned migrate`), do
 
 If the arguments contain **`evict`** (`/lessons-learned evict [slug…]`), do **not** run the housekeeping phases. Load [`references/migration.md`](references/migration.md) and execute its **Evict** section: return repo-root lessons to the local root (temperature preserved — repo `archive/` lands in local `archive/`), re-render the projection, and open the reviewed deletion PR. Two rules that section expands on:
 
-- **Always ask the operator whether to also set `memory.commitLearnings: false`** in `.claude/war/config.json` (or via `/war-room`) — the default is `true`, so without the flip the next landed WAR phase repopulates `docs/learnings/` and the evict is temporary. Ask **before** moving any file; apply their answer; record a decline in the final report.
+- **Always ask the operator whether to also set `memory.commitLearnings: false`** in `.claude/war/config.json` (or via `/war-room`) — `commitLearnings` is opt-in / off by default, but a populated repo root means the operator turned it **on**, so without flipping it back off the next landed WAR phase repopulates `docs/learnings/` and the evict is temporary. Ask **before** moving any file; apply their answer; record a decline in the final report.
 - Check for slug collisions between the roots before moving; diff and reconcile by hand — never clobber.
 
 Any other argument text (or none) means a normal housekeeping pass.
