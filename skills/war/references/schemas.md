@@ -171,10 +171,13 @@ Produced by `/war-room`, consumed by `/war`'s Setup. The schema, defaults, prese
 ```jsonc
 { version: 1, profile: "balanced" | "thorough" | "economy" | "<custom>",
   agents: {                                  // model ∈ opus|sonnet|haiku|fable; effort ∈ default|low|medium|high|xhigh|max ("default" = inherit session)
-    worker:   { model, effort },             // worker config also drives fix-workers
+    worker:   { model, effort },             // worker config also drives fix-workers (unless agents.worker.fix is set, below)
     auditor:  { model, effort },
     refiner:  { model, effort },
-    servitor: { model, effort } },
+    servitor: { model, effort },
+    redteam?: { model, effort } },           // OPTIONAL, not a phase role — /red-team reads it fail-open; absent → red-team inherits the session
+  //   agents.worker.docs { model, effort }  — the all-*.md dispatch tier (default { model: "sonnet", effort: "default" }; every preset inherits)
+  //   agents.worker.fix  { model, effort }  — OPTIONAL; the fix-round AND --ace tier; absent → inherit the base worker config
   audit: {
     roster: [ { lens: "correctness", depth: "deep" },        // 1–5 seats; lenses distinct; depth "neighbors"|"deep", omitted → "deep"
               { lens: "cascading-impact", depth: "deep" },   // this default roster is also the union-widening FALLBACK for autoEscalate (used when a lone seat's widen nomination is absent/invalid)
@@ -191,7 +194,7 @@ Produced by `/war-room`, consumed by `/war`'s Setup. The schema, defaults, prese
                                              // ace = pre-merge auto-fix of absorb-disposition nits (default true; economy preset false);
                                              // provision = ordered worktree-prep commands ([] = none); provisionSource ∈ explicit|manifest|ci|onboarding|structural|none;
                                              // provisionAuto = let /war-room scout provisioning when no explicit list (default true)
-  memory: { retrieval, topK, commitLearnings },  // retrieval: Lead prefetches per-seat prior-lesson blocks (bool, default true); topK: max lessons/block (int >= 1, default 10); commitLearnings: write the repo-root docs/learnings lessons (bool, default true — lint-scrubbed, PR-reviewed; the economy preset pins false)
+  memory: { retrieval, topK, commitLearnings },  // retrieval: Lead prefetches per-seat prior-lesson blocks (bool, default true); topK: max lessons/block (int >= 1, default 10); commitLearnings: write the repo-root docs/learnings lessons (bool, default false — a conscious opt-in via /war-room; when on, lint-scrubbed and PR-reviewed; all presets inherit off)
   overrides: { gate, workingBranch, landingBranch, learningsTarget, testPattern } }  // null = let /war auto-detect
 // overrides.gate is the *declared base* command (string|null); the *resolved* gate run by agents
 // is a self-discovering string produced by war-config.mjs resolveGate(declaredGate): it appends

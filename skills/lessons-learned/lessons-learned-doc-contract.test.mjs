@@ -87,3 +87,50 @@ test('doc-contract: no hot-only-ls removal verdict survives (hot-only appears on
   assert.deepEqual(offenders, [],
     `every "hot-only" mention must be the forbiddance ("never ... from a hot-only ls"); offending lines: ${JSON.stringify(offenders)}`)
 })
+
+// --- Task 2.2 (war-room-config-expansion): migrate opt-in gate + opt-in-default rewording ---
+
+// (8) migrate mode gains the opt-in pre-flight: it frames commitLearnings as off-by-default,
+//     the accept path writes through the war-config validator, and the decline path aborts with
+//     the exact "nothing migrated" message and nothing staged.
+test('doc-contract: migrate mode gates on the commitLearnings opt-in (ask → validator-path accept / abort decline)', () => {
+  assert.match(skill, /`migrate` mode/, 'migrate mode section must exist')
+  assert.match(skill, /opt-in \/ off by default/i,
+    'migrate pre-flight must frame commitLearnings as opt-in / off by default (retired: default `true`)')
+  assert.match(skill, /--stdin --fill-defaults/,
+    'accept path must write memory.commitLearnings: true through the war-config validator path')
+  assert.match(skill, /nothing migrated — re-run after opting in/,
+    'decline path must abort with the exact "nothing migrated — re-run after opting in" message')
+})
+
+// (9) The evict flip-back ask is unchanged, but its justification no longer cites the retired
+//     default `true`; it now frames commitLearnings as opt-in / turned on.
+test('doc-contract: evict flip-back ask survives, justified by opt-in (not the retired default `true`)', () => {
+  const ask = lineWith(skill, 'whether to also set `memory.commitLearnings: false`')
+  assert.match(ask, /opt-in \/ off by default/i,
+    'evict ask justification must frame commitLearnings as opt-in / off by default')
+})
+
+// (10) migration.md's two operator-facing spots — the migrate Step-5 opt-in confirm and the
+//      evict flip-back justification — are reworded to the opt-in default.
+test('doc-contract: migration.md migrate-confirm + evict-justification reworded to opt-in default', () => {
+  const confirm = lineWith(migration, 'Confirm committing is on for this repo')
+  assert.match(confirm, /opt-in \/ off by default/i,
+    'migration.md migrate opt-in confirm must frame commitLearnings as opt-in / off by default')
+  assert.match(migration, /flipping it back off/i,
+    'migration.md evict justification must reframe the flip as turning an opted-in flag back off (not the retired default `true`)')
+})
+
+// (11) OLD-absent (ADR 0025): no surface in either doc still claims the retired `true` default
+//      or the economy-pins-false framing. A value assignment (`commitLearnings: true` on the accept
+//      path) is NOT a default claim, so the guard anchors on "default … `true`" and "economy … pin … false".
+test('doc-contract: no retired commitLearnings default-`true` / economy-pins-false claim survives', () => {
+  for (const [name, doc] of [['SKILL.md', skill], ['migration.md', migration]]) {
+    const defaultTrue = doc.split('\n').filter(l => /\bdefaults?\b[^`\n]{0,14}`true`/i.test(l))
+    assert.deepEqual(defaultTrue, [],
+      `${name}: retired "default … \`true\`" commitLearnings claim must be gone; offending: ${JSON.stringify(defaultTrue)}`)
+    const economyPins = doc.split('\n').filter(l => /economy[^\n]*pin[^\n]*false/i.test(l))
+    assert.deepEqual(economyPins, [],
+      `${name}: retired "economy pins \`false\`" framing must be gone; offending: ${JSON.stringify(economyPins)}`)
+  }
+})
