@@ -112,6 +112,34 @@ A task reaches the refiner with exactly one terminal **outcome**. Two are produc
 - **`pr_number` / `pr_remote` are advisory** — recorded when the Workflow enters `held:submodule-pr`; read by the Resume procedure to confirm the PR state via `gh pr view`. Absent on superproject phases and on submodule 2A (WAR-owned) phases that land without a PR.
 - **`submodule_merge_sha` is advisory, authoritative-when-reachable** — same rule as `merge_sha`: the gitlink pin is authoritative only when reachable on the submodule remote (`git -C <submodule-checkout> fetch && git cat-file -e <submodule_merge_sha>`). A SHA not reachable on the submodule remote → treat as class A (ledger-ahead for the pin; clear the pin, surface to the user before re-landing). Written on resume from `mergeCommit.oid` (2B) or from the CAS push result (2A).
 
+## Run manifest — `.claude/war/runs/<runId>.json` (telemetry, not resume state)
+Fail-open per-run **telemetry** the `/war` Lead accumulates at phase boundaries and `/war-review` consumes. **Distinct from the `ledger.json` above:** the ledger is run **state** — the git-authoritative correctness record ([ADR-0008](../../../docs/adr/0008-git-is-the-resume-source-of-truth.md)) at `.claude/teams/<run-id>/`; the manifest is a cost/effort record at `.claude/war/runs/` that **no code reads back**. It is Lead-side bookkeeping in `/war` prose, not an engine structure.
+
+- **Location:** `.claude/war/runs/<runId>.json` under the **main checkout** (anchored via `git rev-parse --path-format=absolute --git-common-dir`, never the invoking worktree's `.claude/`). `runId` = `<plan-slug>-<YYYY-MM-DD>`. Untracked — rides the existing `.claude/` exclude the provisioning `ensure-exclude` step maintains (no `.gitignore` change). A same-run resume updates the file in place (latest-wins per `runId`).
+
+```jsonc
+{ runId: "<plan-slug>-<YYYY-MM-DD>",                     // MUST
+  planPath: "docs/plans/….md",                          // MUST
+  configProfile: "balanced|thorough|economy|<custom>",  // MUST
+  startedAt: "<ISO 8601>",                              // MUST — run launch
+  endedAt: "<ISO 8601> | null",                         // MUST — null until the run ends
+  phases: [
+    { id: "phase-1",
+      startedAt: "<ISO 8601>", endedAt: "<ISO 8601> | null",   // MUST — per-phase boundaries
+      workflowRunId: "wf_… | null",                     // MUST — harness task-result run id (unsurfaced ⇒ null)
+      scriptPath: "… | null",                           // workflow script path (unsurfaced ⇒ null)
+      transcriptDir: "… | null",                        // MUST — harness transcript dir /war-review mines (unsurfaced ⇒ null)
+      dispatches: { worker: 4, auditor: 9, fixRounds: 1, refiner: 6, servitor: 1 },   // MUST — dispatch counts by role
+      tasks: { t1: "merged", t2: "escalated" },         // MUST — per-task terminal status
+      land: "landed",                                   // the phase landDecision
+      lessonsWritten: 3, issuesFiled: 7 } ] }
+```
+
+- **MUST-carry** (field names are the spec's contract; nesting may be refined, the list is binding) — per-phase `transcriptDir`, `workflowRunId`, ISO-8601 timestamps (top-level run + per-phase), dispatch counts by role, and task terminal statuses; top-level `runId`, `planPath`, `configProfile`, and run `startedAt`/`endedAt`. These are what `/war-review` consumes; anything the Lead cannot source is `null`/omitted and the review renders `n/a` (**never** fabricated).
+- **`tasks` vs `land`** — `tasks` maps each task id to its **task** terminal status (the `ledger.json` task-status enum above: `merged`|`escalated`|`blocked`, or `env-blocked`); `land` is the phase `landDecision` (`landed`|`held:*`, the Workflow per-phase return enum below). Both are copied from the Workflow per-phase return / handoff, not re-derived.
+- **The review saves a sibling** — `/war-review` renders the manifest + its transcripts into `.claude/war/runs/<runId>-review.md` beside the manifest (always written; a `/war-review` output, not a `/war` write).
+- **Fail-open, never resume input** — every manifest write is best-effort: a failed write logs one line and the run proceeds unaffected. The manifest is telemetry only; the resume source-of-truth ordering (git > issues > ledger, [ADR-0008](../../../docs/adr/0008-git-is-the-resume-source-of-truth.md)) is untouched.
+
 ## GitHub conventions
 - **Epic issue per phase**; **sub-issue per task** (GitHub sub-issues).
 - Labels: `phase:<N>`, `status:todo|working|audited|merged|escalated|blocked`, `audit:<seatCount>`.
