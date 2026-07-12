@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "profile": "balanced",
+  "agents": {
+    "worker": {
+      "model": "opus",
+      "effort": "max",
+      "docs": {
+        "model": "sonnet",
+        "effort": "default"
+      }
+    },
+    "auditor": {
+      "model": "opus",
+      "effort": "xhigh"
+    },
+    "refiner": {
+      "model": "sonnet",
+      "effort": "default"
+    },
+    "servitor": {
+      "model": "sonnet",
+      "effort": "high"
+    }
+  },
+  "audit": {
+    "roster": [
+      {
+        "lens": "correctness",
+        "depth": "deep"
+      },
+      {
+        "lens": "cascading-impact",
+        "depth": "deep"
+      },
+      {
+        "lens": "plan-faithfulness",
+        "depth": "deep"
+      }
+    ],
+    "rosterPolicy": "auto",
+    "autoEscalate": true
+  },
+  "run": {
+    "roundLimit": 3,
+    "afk": false,
+    "ace": true,
+    "provision": [],
+    "provisionSource": "structural",
+    "provisionAuto": true
+  },
+  "memory": {
+    "retrieval": true,
+    "topK": 10,
+    "commitLearnings": true
+  },
+  "overrides": {
+    "gate": null,
+    "workingBranch": null,
+    "landingBranch": null,
+    "learningsTarget": null,
+    "testPattern": null,
+    "ghUser": "Ljferrer"
+  }
+}
