@@ -1117,6 +1117,13 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // only when explicitly set. A false skip is LOGGED, never silent (the requiresTest:false idiom).
       const requiresPackaging = r.task.requiresPackaging !== false
       if (!requiresPackaging) log(`packaging-floor: skipping ${r.task.id} (requiresPackaging:false — assert-packaging-in-diff.sh not run for this task)`)
+      // TWO predicates on ONE field, deliberately (spec §4.B.2, #819). requiresPackaging (!== false)
+      // decides whether the floor RUNS — fail-closed default true, so it runs for every task the Lead
+      // did not exempt. advisePackagingVacuous (=== true) decides whether the run threads --advise-vacuous,
+      // and fires ONLY on an EXPLICIT requiresPackaging:true declaration. Collapsing them into one
+      // !== false predicate would thread the advisory onto every defaulted task in every non-docker repo —
+      // re-noising the gate-audit evidence for exactly the tasks #819's anti-noise requirement leaves silent.
+      const advisePackagingVacuous = r.task.requiresPackaging === true
       // For a submodule task: thread targetRepo (the submodule checkout) + targetBase so the refiner
       // runs the rebase/merge/gate cwd-scoped to the submodule repo (DP3 — no script change needed).
       const isSubmodTask = r.task.taskType === 'submodule'
@@ -1155,7 +1162,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           ? pt` Also before step (b), run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${testPatternArg} to verify the task diff contains at least one test file. Branch on the exit code: exit 1 (no test in the diff) → return { mode: 'merge-task', status: 'no-test' } — do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'no-test' — a transient bad-ref must not spin a pointless add-test loop.`
           : pt` requiresTest:false — skip the assert-test-in-diff.sh check and proceed directly to the rebase+merge.`)
         + (requiresPackaging
-          ? pt` Also before step (b), run assert-packaging-in-diff.sh ${ph.integrationBranch} ${r.task.branch} to verify the task diff adds no file a Dockerfile's enumerated COPYs miss. Branch on the exit code: exit 1 (a flagged file → Dockerfile pair) → return { mode: 'merge-task', status: 'unpackaged' } — do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'unpackaged' — a transient bad-ref must not spin a pointless package-it loop.`
+          ? pt` Also before step (b), run assert-packaging-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${advisePackagingVacuous ? ' --advise-vacuous' : ''} to verify the task diff adds no file a Dockerfile's enumerated COPYs miss. Branch on the exit code: exit 1 (a flagged file → Dockerfile pair) → return { mode: 'merge-task', status: 'unpackaged' } — do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'unpackaged' — a transient bad-ref must not spin a pointless package-it loop.${advisePackagingVacuous ? ' The --advise-vacuous flag may print one informational advisory line on stderr when the packaging run is structurally vacuous under the ADR-0017-ratified scope — exit 0 still means PROCEED; never treat the advisory as an error or report it as a finding.' : ''}`
           : pt` requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`)
         + submodMergeNote,
         { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}`, schema: MERGE_RESULT, ...spawn('refiner') })
@@ -1246,7 +1253,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
               ? pt`Before the _refinery merge step (b), run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${testPatternArg} to verify the task diff now contains at least one test file. Branch on the exit code: exit 1 (no test in the diff) → return { mode: 'merge-task', status: 'no-test' }, do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'no-test' — a transient bad-ref must not spin a pointless add-test loop. `
               : pt`requiresTest:false — skip the assert-test-in-diff.sh check. `)
             + (requiresPackaging
-              ? pt`Also before step (b), run assert-packaging-in-diff.sh ${ph.integrationBranch} ${r.task.branch} to verify the task diff now adds no file a Dockerfile's enumerated COPYs miss. Branch on the exit code: exit 1 (a flagged file → Dockerfile pair) → return { mode: 'merge-task', status: 'unpackaged' }, do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'unpackaged' — a transient bad-ref must not spin a pointless package-it loop.`
+              ? pt`Also before step (b), run assert-packaging-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${advisePackagingVacuous ? ' --advise-vacuous' : ''} to verify the task diff now adds no file a Dockerfile's enumerated COPYs miss. Branch on the exit code: exit 1 (a flagged file → Dockerfile pair) → return { mode: 'merge-task', status: 'unpackaged' }, do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'unpackaged' — a transient bad-ref must not spin a pointless package-it loop.${advisePackagingVacuous ? ' The --advise-vacuous flag may print one informational advisory line on stderr when the packaging run is structurally vacuous under the ADR-0017-ratified scope — exit 0 still means PROCEED; never treat the advisory as an error or report it as a finding.' : ''}`
               : pt`requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`),
             { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:floor-retry:r${r.task.fixRounds}`, schema: MERGE_RESULT, ...spawn('refiner') })
         }
@@ -1307,7 +1314,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
               ? pt` Also run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${testPatternArg} (exit 1 → no-test; exit 2 → error).`
               : pt` requiresTest:false — skip the assert-test-in-diff.sh check.`)
             + (requiresPackaging
-              ? pt` Also run assert-packaging-in-diff.sh ${ph.integrationBranch} ${r.task.branch} (exit 1 → unpackaged; exit 2 → error).`
+              ? pt` Also run assert-packaging-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${advisePackagingVacuous ? ' --advise-vacuous' : ''} (exit 1 → unpackaged; exit 2 → error).${advisePackagingVacuous ? ' The --advise-vacuous flag may print one informational advisory line on stderr (structurally-vacuous packaging run under the ADR-0017-ratified scope) — exit 0 still means PROCEED, never a finding.' : ''}`
               : pt` requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`),
             { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:baseline-proceed`, schema: MERGE_RESULT, ...spawn('refiner') })
           if (bp && bp.status === 'merged') landMerged(r.task, bp, (mr.gate_failing_ids || []))

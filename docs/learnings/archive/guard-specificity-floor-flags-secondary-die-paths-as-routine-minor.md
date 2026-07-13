@@ -1,13 +1,13 @@
 ---
 name: guard-specificity-floor-flags-secondary-die-paths-as-routine-minor
-description: "guard-specificity floor flags exit-code-only secondary die-guards Minor"
+description: "assert-guard-specificity-in-diff.sh routinely flags secondary/defensive die-guards as Minor/follow-up when only the exit code (not the message) is asserted, or a case is missing entirely"
 metadata: 
   node_type: memory
   type: project
   promoted: dev/2026-07-08-github-issue-lifecycle-and-run-bookkeeping-mechanization@phase-1
   provenance: code-verified
   slug: guard-specificity-floor-flags-secondary-die-paths-as-routine-minor
-  phase: github-issue-lifecycle-and-run-bookkeeping-mechanization/t1.1 +3 recurrences (latest red-team-plan-vs-state-grading-and-probe-sandboxing/t1.3)
+  phase: github-issue-lifecycle-and-run-bookkeeping-mechanization/t1.1+t1.2+t1.6 + red-team-plan-vs-state-grading-and-probe-sandboxing/t1.3
   keywords: 
     - guard-specificity
     - assert-guard-specificity-in-diff.sh
@@ -86,3 +86,28 @@ implementation — grade Minor/follow-up (never Critical/Major) when the plan's 
 criteria are all met and covered; see [[guard-specificity-extract-msg-mis-extraction-shapes]] for
 the floor's own extraction-heuristic ceiling (a separate, orthogonal source of false
 positives/negatives on top of this genuine-gap pattern).
+
+## Recurrence 5 — packaging floor + submodule floor (phase "Floor fixes", plan `2026-07-12-floor-script-correctness`, landed `dev/2026-07-12-floor-script-correctness`, 2026-07-12)
+
+Two more instances, both gate-audit findings (`gateEvidence:true`), both Minor-or-lower, both
+`note`/non-blocking, confirming the pattern generalizes beyond the four scripts named in the
+origin instances:
+
+- **Task 1** (`assert-packaging-in-diff.sh`): the arg-count usage die (line ~89) gained a new
+  `[--advise-vacuous]` token in its message this diff; no same-diff test asserts the exact usage
+  substring. Graded Minor — cosmetic help-text change to a pre-existing secondary die-path, the
+  new feature itself (cases 18-22) is thoroughly covered.
+- **Task 3 gate-audit** (`assert-no-submodule-mutation.sh`): the new exit-2 blob-read-failure die
+  guard (`die "git config --blob failed reading '$branch:.gitmodules'" 2`) has no same-diff test
+  asserting its stderr — but this one is the **plan-ratified deferred validation** (the plan slice
+  explicitly sanctioned deferring it, backstopped by a documented /red-team sandbox probe), so it
+  is expected-and-approved, not merely the routine gap.
+
+**Refined guidance:** the routine version of this finding (a defensive/secondary die-guard added
+incidentally alongside a plan-named feature, with no test spec calling for it) and the
+plan-ratified-deferral version (a guard the plan itself named as intentionally untested, with a
+documented reason) look identical in the gate-audit output — both show as an "uncovered" guard.
+Before grading, check whether the plan slice or its End-state explicitly discusses the specific
+guard; if so, cite the ratification and grade Nit/informational rather than Minor/follow-up.
+
+> archived 2026-07-11: resolved — moved to archive (recurrence 5 added 2026-07-12; still archived, not restored)

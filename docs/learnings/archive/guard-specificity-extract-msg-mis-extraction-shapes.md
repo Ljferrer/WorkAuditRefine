@@ -1,9 +1,10 @@
 ---
 name: guard-specificity-extract-msg-mis-extraction-shapes
-description: extract_msg() in the guard-specificity floor has two mis-extraction shapes
+description: assert-guard-specificity-in-diff.sh extract_msg() has two documented mis-extraction shapes
 metadata: 
   node_type: memory
   type: project
+  promoted: dev/2026-07-08-audit-gate-verdict-fidelity@phase-1
   provenance: code-verified
   keywords: 
     - extract_msg
@@ -17,6 +18,11 @@ metadata:
     - false positive
     - heuristic ceiling
     - D6
+    - emit segment
+    - echo printf keyword
+    - LAST-keyword
+    - floor-script-correctness
+    - record_guard
   slug: guard-specificity-extract-msg-mis-extraction-shapes
   phase: audit-gate-verdict-fidelity/t1.2
   tags: 
@@ -43,3 +49,29 @@ metadata:
 **If this recurs / bites for real:** prefer the quoted literal immediately preceding `>&2` (or the echo/printf arg) over first-quote-on-line; and/or skip flagging when the sole quoted token in a `die`/stderr call is a bare `$var` (no literal text) since no test could ever assert it. Not required as of phase audit-gate-verdict-fidelity — advisory-only, documented ceiling.
 
 [[dockerfile-shell-form-parser-heuristic-ceiling]]
+
+## Recurrence — both shapes fixed, narrower ceiling introduced (phase "Floor fixes" / plan `2026-07-12-floor-script-correctness`, landed `dev/2026-07-12-floor-script-correctness`, 2026-07-12)
+
+Per that plan's Commander's Intent Method: `extract_msg` was rescoped to the **emit segment**
+between the `echo`/`printf` keyword and `>&2` (no longer "first quoted literal on the whole
+line"), and `record_guard` was changed to skip bare-`$var` messages and truncate `printf` format
+strings to their pre-`%` literal prefix. This closes both documented shapes above (1: whole-line
+first-quote false extraction; 2: bare-variable false-positive uncovered flag).
+
+**New, narrower ceiling introduced by the fix (task-4 audit finding, Nit, disposition `note`,
+non-blocking):** the emit-segment scan takes the text after the **LAST** occurrence of the chosen
+keyword (`${hal_seg##*$hal_kw}` in the audit's description of the mechanism) and picks `echo` over
+`printf` when both are present as space-delimited words. A guard whose stderr message itself
+contains ` echo `/` printf ` as a literal space-delimited word (e.g. `echo "run echo now" >&2`)
+still mis-extracts. Judged advisory-evidence-only and unrealistic for real guard messages — not
+worth closing now; the header's existing shell-aware-tokenizer upgrade path (already named in this
+lesson's parent ceiling family) is the documented escape hatch if it ever bites for real.
+
+**Provenance caveat on this recurrence note:** this checkout's `HEAD` does not match the phase's
+landed branch (worktree-lag — see [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]]),
+so the exact variable names (`hal_kw`/`hal_seg`) and line numbers were **not** independently
+re-Grepped here; sourced from the phase's Commander's Intent + unanimous gate-audit `approve`
+verdicts (`audit_sha a38520a6`). Verify `extract_msg`/`record_guard` in
+`skills/war/assets/assert-guard-specificity-in-diff.sh` directly before citing exact mechanics.
+
+> archived 2026-07-11: resolved — moved to archive (recurrence note added 2026-07-12; still archived, not restored — knowledge only, no status change)

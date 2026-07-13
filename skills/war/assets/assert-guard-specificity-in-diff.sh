@@ -19,15 +19,21 @@
 # Detection (per ADDED line of a NON-test, non-comment file):
 #   - `die "MSG"` / `die 'MSG'`  — the repo's canonical early-exit helper *call* (the
 #                                   `die() { ... }` *definition* is skipped, see below).
-#   - `... "MSG" ... >&2 ...`     — a stderr-directed quoted message, flagged as a guard when
+#   - `echo/printf "MSG" … >&2`  — a stderr-directed quoted message, flagged as a guard when
 #                                   an `exit`/`return` is on the SAME added line OR the
 #                                   immediately-following added line (adjacency).
-# MSG = the first quoted string literal (single or double) after the `die` token, else the
-# first quoted literal on the stderr line; a trailing `\n` and surrounding whitespace are
-# stripped. Function-definition openers (`name() { ... }`, matched after a whitespace strip
-# as `*(){*`) and `#`-comment lines are skipped — the ubiquitous
-# `die() { printf ... >&2; exit; }` helper is a definition, not a guard, and must never
-# self-flag.
+# MSG (die)    = the first quoted string literal (single or double) after the `die` token.
+# MSG (stderr) = the first quoted literal in the EMIT SEGMENT between an `echo`/`printf`
+#                keyword and the `>&2` token — so a quoted literal in a preceding test
+#                condition (`[ -f "$path" ]`) is NOT mis-read as the message. A `>&2` line with
+#                no recognized emit keyword falls back to the first quoted literal on the whole
+#                line (documented ceiling). A trailing `\n` and surrounding whitespace are
+#                stripped. record_guard then drops a message that is a bare variable reference
+#                ($name/${name} and nothing else) and truncates a message containing `%` to its
+#                literal prefix before the first `%` (see record_guard below).
+# Function-definition openers (`name() { ... }`, matched after a whitespace strip as `*(){*`)
+# and `#`-comment lines are skipped — the ubiquitous `die() { printf ... >&2; exit; }` helper
+# is a definition, not a guard, and must never self-flag.
 #
 # Coverage: for each unique new guard MSG, some TEST file in the same diff must contain MSG
 # as a substring in its ADDED lines. The set of files that count as tests is EXACTLY the
@@ -51,8 +57,14 @@
 # # Dockerfile-parser precedent ([[dockerfile-shell-form-parser-heuristic-ceiling]]). It sees:
 # #   - only shell early-exit idioms (die / stderr-emit + exit|return); NOT Node `throw`,
 # #     Python `raise`, or any non-shell guard;
-# #   - only single-line message literals; a message split across lines, built from a
-# #     variable, or whose `>&2`/`exit` are >1 added line apart escapes detection;
+# #   - only single-line message literals; a message split across lines, or whose `>&2`/`exit`
+# #     are >1 added line apart, escapes detection. A message that is ENTIRELY a bare variable
+# #     ($name/${name}) is intentionally DROPPED by record_guard (no assertable literal — a
+# #     `die "$msg"` guard used to self-flag forever); a `%`-bearing message is truncated to
+# #     its literal prefix before the FIRST `%` (a `%%` literal-percent truncates too — spurious
+# #     but safe: the prefix stays a true substring of the emitted text);
+# #   - the stderr emit-segment scan recognizes only `echo`/`printf` keywords; a multi-command
+# #     emit segment or a `cat <<EOF >&2` heredoc stays undetected (whole-line fallback);
 # #   - `exit`/`return` matched as space-delimited words on the raw line, so a stderr WARNING
 # #     whose message contains the literal word "exit"/"return" may be over-flagged.
 # # Upgrade path when a masked guard recurs in the learnings feed: replace the line scan with
@@ -227,12 +239,50 @@ guard_hits=""      # newline-joined "<msg>\t<file>" for every detected new guard
 
 TAB="$(printf '\t')"
 
-# record_guard <msg> <file>: normalize <msg> (strip one trailing `\n`, trim) and append.
+# record_guard <msg> <file>: the SINGLE choke point both the die branch and the stderr branch
+# route through. Normalize <msg> (strip one trailing `\n`, trim), then apply two message-fidelity
+# rules before appending:
+#   - bare variable reference ($name / ${name} and nothing else)  -> drop (no assertable literal;
+#     a `die "$msg"` guard would otherwise be flagged uncovered forever);
+#   - message containing `%`                                       -> truncate to the literal
+#     prefix before the FIRST `%` (empty/whitespace prefix drops), so coverage keys on the
+#     emitted literal text, not the printf conversion spec.
+# Partially-interpolated literals ("error: $x missing") still record — only a message that is
+# ENTIRELY a variable reference is dropped.
 record_guard() {
   rg_msg="$1"; rg_file="$2"
   rg_msg="${rg_msg%\\n}"                                    # drop one trailing literal \n
   rg_msg="${rg_msg#"${rg_msg%%[![:space:]]*}"}"            # ltrim
   rg_msg="${rg_msg%"${rg_msg##*[![:space:]]}"}"            # rtrim
+  # Bare-variable skip: the ENTIRE trimmed message is a single $name or ${name} reference.
+  # After stripping the sigil the remainder must be all identifier chars; a space or any other
+  # char ("error: $x missing", "${x-default}") means literal text is present -> still records.
+  case "$rg_msg" in
+    '$'[A-Za-z_]*)
+      case "${rg_msg#\$}" in
+        *[!A-Za-z0-9_]*) : ;;                              # literal text present -> record
+        *) return 0 ;;                                     # bare $name -> drop
+      esac ;;
+    '${'[A-Za-z_]*'}')
+      rg_bare="${rg_msg#\$\{}"; rg_bare="${rg_bare%\}}"
+      case "$rg_bare" in
+        *[!A-Za-z0-9_]*) : ;;                              # e.g. ${x-default}, ${x}y} -> record
+        *) return 0 ;;                                     # bare ${name} -> drop
+      esac ;;
+  esac
+  # printf format-string truncation: keep only the literal prefix before the FIRST `%`.
+  # # ponytail: naive first-% split — a `%%` literal-percent is spuriously truncated too, but the
+  # # prefix stays a true substring of the emitted text (safe). Upgrade to a conversion-aware
+  # # parse or a minimum-prefix-length floor only if gate-audit evidence shows near-vacuous
+  # # prefix matches; the floor is advisory-evidence-only, so the trade stands (spec §4.D).
+  case "$rg_msg" in
+    *'%'*)
+      rg_msg="${rg_msg%%%*}"                               # literal prefix before the FIRST %
+      rg_pfx="${rg_msg#"${rg_msg%%[![:space:]]*}"}"        # trim a COPY only to test emptiness;
+      rg_pfx="${rg_pfx%"${rg_pfx##*[![:space:]]}"}"        # the stored prefix keeps its space ("error: ")
+      [ -n "$rg_pfx" ] || return 0                         # empty/whitespace-only prefix -> drop
+      ;;
+  esac
   [ -n "$rg_msg" ] || return 0
   guard_hits="$guard_hits$rg_msg$TAB$rg_file
 "
@@ -283,7 +333,21 @@ handle_added_line() {
   hal_has_stderr=0
   case "$lt" in *'>&2'*) hal_has_stderr=1 ;; esac
   if [ "$hal_has_stderr" = 1 ]; then
-    hal_msg="$(extract_msg "$lt")"
+    # Scope extraction to the emit segment between an echo/printf keyword and >&2 — a quoted
+    # literal in a preceding test condition (`[ -f "$path" ]`) must not be mis-read as the
+    # message. Keyword set is EXACTLY {echo,printf} (the header contract's tokens, never
+    # widened). A >&2 line with no recognized emit keyword keeps whole-line extraction (ceiling).
+    hal_seg=" $lt "                                  # pad so a line-leading keyword still has a leading space
+    hal_kw=""
+    case "$hal_seg" in *' printf '*) hal_kw=' printf ' ;; esac
+    case "$hal_seg" in *' echo '*)   hal_kw=' echo ' ;; esac
+    if [ -n "$hal_kw" ]; then
+      hal_emit="${hal_seg##*$hal_kw}"                # text after the LAST emit keyword ...
+      hal_emit="${hal_emit%%>&2*}"                   # ... up to the FIRST >&2
+      hal_msg="$(extract_msg "$hal_emit")"
+    else
+      hal_msg="$(extract_msg "$lt")"                 # ceiling: whole-line fallback
+    fi
     if [ -n "$hal_msg" ]; then
       if [ "$hal_has_exit" = 1 ]; then
         record_guard "$hal_msg" "$cur_file"          # exit on same line -> guard now
