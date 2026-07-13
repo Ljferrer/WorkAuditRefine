@@ -293,11 +293,12 @@ test('renderPromptBlock: exact §4.5 line shape, and empty records → empty str
 });
 
 // ============================================================================
-// (4) Render — atomicity (tmp+rename), hot ≡ indexed, union across both roots,
-//     ≥17KB warn + candidate ordering, refusal on BOTH hard axes.
+// (4) Render — atomicity (tmp+rename), hot ≡ indexed (cross-root twin collapses to
+//     the single repo row), union across both roots, ≥17KB warn + candidate ordering
+//     (equal tier → local before repo), refusal on BOTH hard axes.
 // ============================================================================
 
-test('render: hot ≡ indexed — every hot lesson one row, cold lessons no row', () => {
+test('render: hot ≡ indexed — every hot fact gets one row, cold lessons no row', () => {
   const dir = tmpDir();
   lessonFile(dir, 'hot-a', { description: 'A' });
   lessonFile(dir, 'hot-b', { description: 'B' });
@@ -321,6 +322,23 @@ test('render: union across both roots; repo-root rows carry the trailing [repo] 
   assert.match(text, /\[\[repo-one\]\].*\[code-verified\] \[repo\] \|/);
   assert.match(text, /\[\[local-one\]\].*\[code-verified\] \|/);
   assert.doesNotMatch(text, /\[\[local-one\]\].*\[repo\]/);
+  rmSync(local, { recursive: true, force: true });
+  rmSync(repo, { recursive: true, force: true });
+});
+
+test('render: cross-root promoted twin collapses to ONE row carrying [repo]; local-only control still renders (#821)', () => {
+  const local = tmpDir();
+  const repo = tmpDir();
+  // same slug in both roots = one promoted fact (Gate-2 promotion copied it to the repo root)
+  lessonFile(local, 'promoted', { description: 'twin fact', meta: { type: 'project', provenance: 'code-verified' } });
+  lessonFile(repo, 'promoted', { description: 'twin fact', meta: { type: 'project', provenance: 'code-verified' } });
+  // (b) a local-only control still renders — dedup only drops the shadowed twin
+  lessonFile(local, 'local-solo', { description: 'control', meta: { provenance: 'code-verified' } });
+  const { text } = buildProjection(walkCorpus({ local, repo }));
+  const twinRows = text.split('\n').filter((l) => l.includes('[[promoted]]'));
+  assert.equal(twinRows.length, 1, 'promoted twin must collapse to exactly one row'); // reds (2 rows) without dedup
+  assert.match(twinRows[0], /\[repo\]/); // the surviving row is the repo copy, not the local twin
+  assert.match(text, /\[\[local-solo\]\]/); // local-only control unaffected by dedup
   rmSync(local, { recursive: true, force: true });
   rmSync(repo, { recursive: true, force: true });
 });
@@ -358,6 +376,28 @@ test('render: ≥17KB → warn + ranked archive candidates (lowest tier, then ol
   rmSync(dir, { recursive: true, force: true });
 });
 
+test('render: promoted twin contributes ONE candidate slug — buildProjection feeds archiveCandidates the DEDUPED set (#821)', () => {
+  const local = tmpDir();
+  const repo = tmpDir();
+  // pad past WARN_BYTES with the existing long-description idiom so candidates is non-empty
+  for (let i = 0; i < 150; i++) {
+    lessonFile(local, `bulk-${String(i).padStart(3, '0')}`, {
+      description: 'a fairly long summary line used to pad the projection past the advisory byte budget threshold, kept under the hard cap',
+      meta: { provenance: 'code-verified', date: '2026-05-01' },
+    });
+  }
+  // the promoted twin: same slug in both roots
+  lessonFile(local, 'promoted', { description: 'twin fact', meta: { type: 'project', provenance: 'code-verified', date: '2026-05-01' } });
+  lessonFile(repo, 'promoted', { description: 'twin fact', meta: { type: 'project', provenance: 'code-verified', date: '2026-05-01' } });
+  const { verdict, candidates } = buildProjection(walkCorpus({ local, repo }));
+  assert.equal(verdict, 'warn', 'fixture must clear WARN_BYTES so candidates is populated'); // goes through buildProjection
+  // the shadowed local twin is absent from the ranked candidates: the slug appears ONCE (the
+  // repo copy), not twice — proving the deduped set (not raw `hot`) feeds archiveCandidates
+  assert.equal(candidates.filter((s) => s === 'promoted').length, 1); // reds (===2) without the dedup
+  rmSync(local, { recursive: true, force: true });
+  rmSync(repo, { recursive: true, force: true });
+});
+
 test('render: refuses above the BYTE hard axis', () => {
   const dir = tmpDir();
   for (let i = 0; i < 170; i++) {
@@ -391,6 +431,15 @@ test('archiveCandidates: lowest tier first, then oldest', () => {
     { slug: 'unverified', provenance: 'agent-unverified', date: '2026-01-01' },
   ];
   assert.deepEqual(archiveCandidates(hot).map((r) => r.slug), ['unverified', 'old-verified', 'new-verified', 'keep']);
+});
+
+test('archiveCandidates: equal tier → local before repo, even when the local row is newer (#820)', () => {
+  const hot = [
+    { slug: 'repo-old', provenance: 'code-verified', date: '2020-01-01', root: 'repo' },
+    { slug: 'local-new', provenance: 'code-verified', date: '2026-01-01', root: 'local' },
+  ];
+  // local is STRICTLY NEWER: without the root clause the oldest-first tiebreak would order repo first
+  assert.deepEqual(archiveCandidates(hot).map((r) => r.slug), ['local-new', 'repo-old']);
 });
 
 // ============================================================================
