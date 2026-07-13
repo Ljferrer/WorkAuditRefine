@@ -25,6 +25,10 @@
     "servitor": {
       "model": "sonnet",
       "effort": "high"
+    },
+    "redteam": {
+      "model": "opus",
+      "effort": "high"
     }
   },
   "audit": {
