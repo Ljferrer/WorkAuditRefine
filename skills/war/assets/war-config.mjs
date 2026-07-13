@@ -86,7 +86,7 @@ export const PRESETS = {
     profile: 'economy',
     // Pins every knob that drifted from DEFAULTS so economy's effective config stays what it always was.
     agents: {
-      worker:   { model: 'sonnet', effort: 'default', fix: { model: 'opus', effort: 'default' } },
+      worker:   { model: 'sonnet', effort: 'default', docs: { model: 'haiku', effort: 'high' }, fix: { model: 'opus', effort: 'default' } },
       auditor:  { model: 'sonnet', effort: 'default' },
       servitor: { model: 'sonnet', effort: 'default' },
       redteam:  { model: 'sonnet', effort: 'max' },
@@ -136,8 +136,8 @@ export function agentMatrix() {
 // and 'fix' (the fix-round + --ace tier — now defaulted in DEFAULTS too, so every preset emits a fix
 // row). Reuses presetConfig()'s merge and iterates the live PRESETS, so a new preset or tier is
 // enumerated automatically. The doc-honesty lens consults it to prove documented tier defaults (e.g.
-// docs=sonnet default with thorough overriding to opus/high, fix=fable/high on balanced) match this
-// canonical source, not a hand-copied literal.
+// docs=sonnet default with per-preset overrides (thorough opus/high, economy haiku/high), fix=fable/high
+// on balanced) match this canonical source, not a hand-copied literal.
 export function workerTierMatrix() {
   return Object.keys(PRESETS).flatMap(preset => {
     const w = presetConfig(preset).agents.worker

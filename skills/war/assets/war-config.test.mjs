@@ -247,10 +247,10 @@ test('agents.redteam is tolerated by the unknown-agent-key loop; a genuine unkno
   assert.match(msg, /\/war-room/)
 })
 
-test('agents.worker.docs defaults to { sonnet, default }; balanced/economy inherit, thorough overrides to opus/high (T1.1)', () => {
+test('agents.worker.docs defaults to { sonnet, default }; balanced inherits, thorough → opus/high, economy → haiku/high (T1.1)', () => {
   // Delete-the-feature: remove docs from DEFAULTS.agents.worker → the DEFAULTS deepEqual fails.
   assert.deepEqual(DEFAULTS.agents.worker.docs, { model: 'sonnet', effort: 'default' })
-  const DOCS = { balanced: { model: 'sonnet', effort: 'default' }, thorough: { model: 'opus', effort: 'high' }, economy: { model: 'sonnet', effort: 'default' } }
+  const DOCS = { balanced: { model: 'sonnet', effort: 'default' }, thorough: { model: 'opus', effort: 'high' }, economy: { model: 'haiku', effort: 'high' } }
   for (const [preset, expected] of Object.entries(DOCS)) {
     assert.deepEqual(presetConfig(preset).agents.worker.docs, expected, `${preset} preset docs tier must be ${JSON.stringify(expected)}`)
   }
