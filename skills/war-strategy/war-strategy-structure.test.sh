@@ -45,6 +45,11 @@ check_f '  - Purpose: <why'
 check_f '  - Method: <how'
 check_f '  - End state: <numbered list'
 
+# Per-task Files line: the backticked-path contract the campaign ledger's extractFiles reads
+# (the producer half of the ingestion contract). Presence-only like every sibling; fragment chosen
+# free of embedded double quotes ([[shared-string-constant-quote-literal-byte-anchor-fragility]]).
+check_f 'every path backticked & comma-separated; the campaign ledger'
+
 # Packaging: the per-task requiresPackaging field line AND the required backstop section.
 # Both are fence-blind verbatim lines (arrow annotation makes each unique to the template
 # fence). Delete either from the template and the matching check fails.

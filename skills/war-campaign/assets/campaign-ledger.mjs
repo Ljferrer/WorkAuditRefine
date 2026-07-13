@@ -22,10 +22,21 @@ export const MODES = ['stack', 'wait-for-merge']
 // Matches the line that opens a Files: block. `s?` also matches the house
 // singular "**File:**" form — silent-miss is the unsafe direction here.
 const FILES_ANCHOR = /^\s*(-\s+)?\*{0,2}Files?:\*{0,2}\s*/i
-const NEW_CONSTRUCT = /^\s*(#{1,6}\s|\*\*|-\s*\[[ xX]\])/
+// A continuation line ends the Files block when it opens a NEW construct: a
+// heading, a bold line, a checkbox item, OR any other list item (`- `). The
+// plain-bullet break (`-\s`) scopes the block to the Files line's OWN content:
+// on a real /war-machine plan `- Files:` is immediately followed by `- Plan slice:`
+// with no blank line between, and without this break the backtick-heavy Plan-slice
+// prose bleeds into the block — its construct-name backticks defeat the
+// backtick-absence fallback in extractFiles, so a bare `- Files:` path is lost and
+// init throws `unparseable footprint` (a /red-team CRITICAL). The checkbox
+// alternative is retained for the space-less `-[x]` form the plain-bullet pattern
+// would miss.
+const NEW_CONSTRUCT = /^\s*(#{1,6}\s|\*\*|-\s*\[[ xX]\]|-\s)/
 
-// Consume the anchor line's remainder + continuation lines until a blank line
-// or a new construct (heading, bold, checkbox item).
+// Consume the anchor line's remainder + continuation lines until a blank line or
+// a new construct (heading, bold, checkbox, or any new list item — the list-item
+// break keeps the block scoped to the Files line's own content).
 function collectBlock(lines) {
   let start = -1
   let remainder = ''
@@ -70,6 +81,25 @@ function isPathShaped(token) {
 // Extract the file footprint from a plan's `Files:` block. `lines` is either
 // the full plan text split into lines, or an already-sliced block (tests pass
 // small fixtures directly).
+//
+// Backticked path-shaped tokens are the PRIMARY extraction — backticks are the
+// precision mechanism that keeps prose words and doc paths out of the footprint
+// (constraint 6). Backtick-ABSENCE fallback: if the annotation-stripped block
+// carries NO backtick character at all and is non-empty (the bare `- Files:`
+// shape a /war-machine plan often emits), split on commas and accept whole
+// segments passing isPathShaped(). The trigger is backtick ABSENCE, not
+// zero-files: a block whose sole backticked token is non-path-shaped stays
+// backtick-only, yields [], and surfaces via assertOrderable's fail-loud throw —
+// never diluted by a bare fallback (mixed lines defer to backticks).
+//
+// Fallback ceilings (both fail-loud-backstopped, never a silent wrong ingest):
+//  - isPathShaped over-acceptance: it accepts any dot-suffixed token (a stray
+//    prose `e.g.` would pass), so a sloppy bare line can over-widen the footprint.
+//    Bounded — worst case is an over-conservative contention order, never a throw.
+//  - Parenthetical keep-rule asymmetry: stripAnnotations preserves a parenthetical
+//    ONLY when its sole content is a BACKTICKED path token; a bare parenthesized
+//    path is stripped BEFORE the fallback sees it. A block reduced to empty that
+//    way yields [] and surfaces via the fail-loud throw.
 export function extractFiles(lines) {
   const arr = Array.isArray(lines) ? lines : String(lines).split(/\r?\n/)
   const block = collectBlock(arr)
@@ -80,6 +110,15 @@ export function extractFiles(lines) {
   for (const raw of cleaned.split(',')) {
     for (const m of raw.matchAll(/`([^`]+)`/g)) {
       if (isPathShaped(m[1]) && !files.includes(m[1])) files.push(m[1])
+    }
+  }
+  // Backtick-ABSENCE fallback (see header): fires ONLY when the cleaned block
+  // carries no backtick at all — any backtick present keeps extraction
+  // backtick-only, so a bare path never dilutes a mixed line (constraint 6).
+  if (!cleaned.includes('`') && cleaned.trim() !== '') {
+    for (const raw of cleaned.split(',')) {
+      const seg = raw.trim()
+      if (isPathShaped(seg) && !files.includes(seg)) files.push(seg)
     }
   }
   return files
@@ -107,7 +146,11 @@ export function intersectFootprints(a, b) {
 function assertOrderable(entries, { positions } = {}) {
   for (const e of entries) {
     if (e.files.length === 0 && !(positions && Object.prototype.hasOwnProperty.call(positions, e.plan))) {
-      throw new Error(`unparseable footprint for ${e.plan} — explicit position required`)
+      throw new Error(
+        `unparseable footprint for ${e.plan} — explicit position required, ` +
+          `or give the plan a Files: line with backticked, comma-separated paths ` +
+          `(extractFiles reads backticked tokens; see war-strategy §2)`,
+      )
     }
   }
   // Overlap is expected/normal (release-bearing plans regularly share
@@ -159,49 +202,88 @@ function makePlanEntry(planPath, files) {
 // Rev 1). Two accepted forms, read in a SINGLE pass so queue order is document line
 // order:
 //   1. A bare bulleted/numbered list line whose sole content is a `.md` path
-//      (`- plans/a.md` or `1. plans/a.md`) — the legacy contract, unchanged.
-//   2. A plan-index TABLE row (a line starting with `|`): contributes the target of
-//      its FIRST markdown link whose target ends `.md` (`[slug](../plans/<file>.md)`).
-//      This is the ratified roadmap template (war-strategy SKILL.md §2); every
-//      committed roadmap uses it. Header/separator rows carry no link and so
-//      contribute nothing — the link requirement is the structural filter.
+//      (`- plans/a.md` or `1. plans/a.md`) — the legacy contract, accepted ANYWHERE
+//      outside code fences (NOT subject to the first-table restriction below).
+//   2. A plan-index TABLE row (a line starting with `|`) WITHIN THE FIRST TABLE:
+//      contributes the target of its FIRST markdown link whose target ends `.md`
+//      (`[slug](../plans/<file>.md)`). This is the ratified roadmap template
+//      (war-strategy SKILL.md §2); every committed roadmap uses it. Header/separator
+//      rows carry no link and so contribute nothing — the link requirement is the
+//      structural filter.
 // Both forms resolve their target against the roadmap's own directory, so a
 // `../plans/<file>.md` target from a `docs/roadmaps/` roadmap lands in `docs/plans/`.
 //
-// FAIL-LOUD contract: a parse that yields 0 plans THROWS (naming the roadmap path
-// and both accepted forms). Returning [] would let init() write a valid-but-empty
-// ledger at exit 0 — the #585 silent failure.
+// FIRST-TABLE-ONLY ingestion (the #738 fix): a /war-machine roadmap carries auxiliary
+// tables AFTER the plan index — the issue→spec→plan chain (whose rows link
+// `../specs/*-design.md`) and the shared-file contention table. Only the first
+// contiguous table block is ingested: a two-flag state machine where ANY leading-`|`
+// line opens the table (`inTable`) and the first non-table line seen after ≥1 table
+// line closes it PERMANENTLY (`tableClosed`); later tables contribute nothing. This is
+// structural and name-blind (constraint 1) — no `../specs/` path or `-design.md`
+// suffix heuristic. A stray leading-`|` prose line before the real plan index thus
+// opens AND closes a link-less first table, disqualifying the real table — the parse
+// then 0-plan-throws (loud and named; a pinned fixture).
+//
+// CODE-FENCE-BLIND: lines inside ```-delimited fences are invisible to BOTH forms (an
+// `inFence` toggle). A fenced EXAMPLE table would otherwise BECOME the first table and
+// mis-ingest its illustrative links.
+//
+// FAIL-LOUD contract: a parse that yields 0 plans THROWS (naming the roadmap path, both
+// accepted forms, the first-table-only restriction, and the `--plans` explicit-seed
+// escape hatch). Returning [] would let init() write a valid-but-empty ledger at exit 0
+// — the #585 silent failure.
 //
 // Documented ceilings (with triggers):
-//  (a) First-link-per-row: only the first `.md` link target in a row is taken. A
-//      future roadmap with a `.md` link in a column BEFORE the Plan column, or links
-//      (not backticks) in the contention table, would mis-ingest. The ratified
-//      template keeps the Plan column the only linked cell; backticked doc paths in
-//      the Files-owned / contention cells are never extracted (the link syntax is the
-//      whole precision mechanism — `isPathShaped` does not discriminate here).
+//  (a) First-link-per-row, WITHIN THE FIRST TABLE: only the first `.md` link target in
+//      a first-table row is taken. The ratified template keeps the Plan column the only
+//      linked cell; backticked doc paths in the Files-owned / contention cells are never
+//      extracted (link syntax is the whole precision mechanism — `isPathShaped` does not
+//      discriminate here). A future first table with a `.md` link in a column BEFORE the
+//      Plan column would mis-ingest.
 //  (b) Bulleted MARKDOWN-LINK lines (`- [slug](../plans/x.md)`) match NEITHER form
 //      (out of contract, operator-ratified); the 0-plan throw names the miss.
-//  (c) Legacy spec-index roadmaps are OUT OF CONTRACT: a Plan column linking
-//      `../specs/*.md` would seed a campaign of spec files. The contract is "the Plan
-//      column links plans"; deliberately NO path or `-design.md` suffix heuristic
-//      discriminates (target-repo-agnostic code carries no repo naming convention).
-//      Such over-ingestion surfaces via the existing backstops (assertOrderable's
-//      unparseable-footprint throw — a spec has no `Files:` block — or
-//      extractFilesFromPlanFile's ENOENT).
+//  (c) Legacy spec-index roadmaps are OUT OF CONTRACT: a FIRST table linking
+//      `../specs/*.md` would seed a campaign of spec files. First-table-only ingestion
+//      SUPERSEDES the old whole-document ceiling for the chain-table shape (a later
+//      spec-linking table is now structurally ignored), but this ceiling is RETAINED
+//      for a roadmap whose *first* table links non-plans: deliberately NO path or
+//      `-design.md` suffix heuristic discriminates (target-repo-agnostic code carries no
+//      repo naming convention). Such over-ingestion surfaces via the existing backstops
+//      (assertOrderable's unparseable-footprint throw — a spec has no `Files:` block —
+//      or extractFilesFromPlanFile's ENOENT).
 function resolveRoadmapPlans(roadmapPath) {
   const text = fs.readFileSync(roadmapPath, 'utf8')
   const roadmapDir = path.dirname(roadmapPath)
   const plans = []
+  let inFence = false
+  let inTable = false
+  let tableClosed = false
   for (const line of text.split(/\r?\n/)) {
+    // Code fences hide their contents from BOTH forms. The ```-delimiter line
+    // toggles the fence and is itself skipped.
+    if (/^\s*```/.test(line)) {
+      inFence = !inFence
+      continue
+    }
+    if (inFence) continue
+
+    const isTableLine = /^\s*\|/.test(line)
+    // First-table state machine: the first NON-table line after any table line
+    // closes the first table permanently (later tables are inert). A bare-list line
+    // is a non-table line, so it closes the table too — but still ingests as form 1.
+    if (!isTableLine && inTable) tableClosed = true
+
     const bare = line.match(/^\s*(?:\d+[.)]|-)\s+(\S+\.md)\s*$/)
     if (bare) {
       plans.push(path.resolve(roadmapDir, bare[1]))
       continue
     }
-    // A table row (leading-`|`, whitespace-tolerant) contributes its first markdown
-    // link target ending `.md` immediately before the closing paren (target
-    // whitespace-free, so `<file>.md#anchor` and non-`.md` targets don't match).
-    if (/^\s*\|/.test(line)) {
+    // A table row (leading-`|`, whitespace-tolerant) within the first table
+    // contributes its first markdown link target ending `.md` immediately before the
+    // closing paren (target whitespace-free, so `<file>.md#anchor` and non-`.md`
+    // targets don't match).
+    if (isTableLine && !tableClosed) {
+      inTable = true
       const link = line.match(/\[[^\]]*\]\((\S+\.md)\)/)
       if (link) plans.push(path.resolve(roadmapDir, link[1]))
     }
@@ -209,8 +291,10 @@ function resolveRoadmapPlans(roadmapPath) {
   if (plans.length === 0) {
     throw new Error(
       `0 plans parsed from ${roadmapPath} — expected a plan-index table ` +
-        `([slug](../plans/<file>.md) rows) or bare bulleted/numbered .md path lines; ` +
-        `bulleted markdown links (- [slug](file.md)) are not an accepted form`,
+        `([slug](../plans/<file>.md) rows; ONLY the first table in the document is ingested) ` +
+        `or bare bulleted/numbered .md path lines; ` +
+        `bulleted markdown links (- [slug](file.md)) are not an accepted form. ` +
+        `To seed a campaign explicitly instead of from a roadmap, pass --plans.`,
     )
   }
   return plans

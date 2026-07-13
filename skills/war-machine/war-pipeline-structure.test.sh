@@ -162,6 +162,9 @@ has "$MACHINE" '+ no fresh manifest + no explicit paths'
 has "$MACHINE" 'closing commit'
 has "$MACHINE" 'one commit of the pipeline artifacts'
 
+printf '\n# Ledger-ingestion contract — machine §3 mandates plan-index-table-first (campaign-ledger reads only the first table)\n'
+has "$MACHINE" 'plan-index table MUST be the first table in the document'
+
 printf '\n# Rename — pipeline-edge skills are /survey-corps and /aftermath (paired presence + absence)\n'
 # Presence: the new names live where they must. Frontmatter name: on both renamed skills;
 # plugin.json skills array carries the new dir paths; README carries both command tokens;

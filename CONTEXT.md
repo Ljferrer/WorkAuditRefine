@@ -1072,6 +1072,14 @@ writers can never merge-conflict on it.
 _Avoid_: a generic product roadmap; treating it as a plan `/war` can execute directly (it indexes
 plans); treating the committed file as live campaign state (that's the **Campaign ledger**).
 
+**Plan-index table**:
+The **first table** in a **Roadmap** — its ordered plan rows (`| # | Plan | Files owned | Ver | Depends on |`).
+The **only** table `campaign-ledger.mjs init --roadmap` ingests; every later table (the issue→spec→plan
+chain, the **shared-file contention** table) is **ledger-inert**. Placing an auxiliary table first would get
+it ingested as the plan index instead of the real plans.
+_Avoid_: putting an auxiliary table before it (silently mis-ingested); assuming the ledger reads all tables
+(it reads only the first).
+
 **Campaign ledger**:
 The uncommitted per-run state of a campaign at `.claude/campaigns/<id>/ledger.json` — the plan queue
 plus per-plan outcome (status, branch, PR#, landed SHA, stop point). **Single-writer** (the campaign
