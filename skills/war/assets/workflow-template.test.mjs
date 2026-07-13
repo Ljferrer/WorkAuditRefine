@@ -3448,6 +3448,12 @@ test('latitude + disposition rules (criterion 8): war-auditor.md AND auditPrompt
 // case-tolerant per the prompt-only-clause-grep lesson. Each assertion fails if EITHER surface
 // drops the sentence.
 const CALIBRATION_SHARED = 'judge on evidence only — never soften, downgrade, or drop a finding because peers disagreed or because a fix was attempted; downgrade only with a stated reason grounded in the current diff. The pull to soften peaks right after your own finding is challenged — that is the highest-risk moment.'
+// #811 QUOTE-LINT ANCHOR: COST_CLAIM_SHARED is a quote-bearing byte literal COUPLED across THREE surfaces —
+// (1) the COST-CLAIM RULE literal in auditPrompt() / workflow-template.js, (2) agents/war-auditor.md's
+// Cost-claim rule line, (3) this test's own copy below. The presence tests below byte-compare all three, so
+// any quote-style lint (straight↔curly, escaping) MUST run identically across ALL THREE in ONE commit or it
+// silently breaks the byte-identity guard here (shared-string-constant-quote-literal lesson; a JS pointer
+// comment mirrors this at the workflow-template.js literal; CALIBRATION_RULE_ANCHORS precedent).
 const COST_CLAIM_SHARED = 'a finding justified by a cost — "too slow", "too expensive", "too complex" — must name a magnitude (ms, MB, LOC, call count, or complexity class). An unquantifiable cost claim caps the finding at Minor.'
 
 test('calibration + cost-claim rules (spec §4.1/§4.2): war-auditor.md AND initial-round auditPrompt carry the same rule sentences', async () => {
@@ -4440,6 +4446,52 @@ test("#598 validation 5+6 — merge 'baseline' → ONE baseline-proceed re-merge
   assert.ok(t2Init && /KNOWN BASELINE GATE DEBT/.test(t2Init.prompt), "t2's initial merge threads the debt recorded from t1 (classify baseline directly — no 2nd base re-run)")
 })
 
+test("#798 — SUBSET containment dedup: a SUPERSET then a strict-SUBSET report at the same base ⇒ exactly ONE source:'auto' backstop (the subset is COVERED)", async () => {
+  const SUP = ['pytest:test_a', 'pytest:test_b', 'pytest:test_c']
+  const SUB = ['pytest:test_a', 'pytest:test_b']   // ⊂ SUP, same base
+  // t1 records the SUPERSET first; t2's strict-subset at the SAME base is contained ⇒ no-op (one-entry-one-backstop).
+  const impl = clsImpl({ mergeResult: (label) => ({ mode: 'merge-task', status: 'gate_failed', gate_failure_class: 'baseline',
+    gate_failing_ids: /t1/.test(label) ? SUP : SUB, gate_base_sha: 'basecommon', gate_output: 'base RED, pre-existing' }) })
+  const { out } = await runPhase(CLS_ARGS({ tasks: [
+    { id: 't1', issue: 301, title: 'T1', planSlice: 's1', roster: [{ lens: 'correctness' }] },
+    { id: 't2', issue: 302, title: 'T2', planSlice: 's2', roster: [{ lens: 'correctness' }] },
+  ] }), impl)
+  assert.ok(out.landed.includes('t1') && out.landed.includes('t2'), 'both baseline tasks merged over the recorded debt')
+  const auto = (out.handoff.backstops || []).filter(b => b && b.source === 'auto')
+  assert.equal(auto.length, 1, 'the subset report is CONTAINED by the superset entry at the same base ⇒ exactly one deduped backstop (exact-key dedup would have minted two)')
+  assert.ok(auto[0].check.includes('pytest:test_c'), 'the single retained entry is the SUPERSET (recorded first, contains the later subset) — test_c is superset-only')
+})
+
+test("#798 — non-subset (strict SUPERSET arriving second) still RECORDS: subset-first then superset at the same base ⇒ TWO entries (only subset minting is collapsed)", async () => {
+  const SUB = ['pytest:test_a']
+  const SUP = ['pytest:test_a', 'pytest:test_b']   // ⊃ SUB — a non-subset of the existing entry
+  const impl = clsImpl({ mergeResult: (label) => ({ mode: 'merge-task', status: 'gate_failed', gate_failure_class: 'baseline',
+    gate_failing_ids: /t1/.test(label) ? SUB : SUP, gate_base_sha: 'basecommon', gate_output: 'base RED' }) })
+  const { out } = await runPhase(CLS_ARGS({ tasks: [
+    { id: 't1', issue: 301, title: 'T1', planSlice: 's1', roster: [{ lens: 'correctness' }] },
+    { id: 't2', issue: 302, title: 'T2', planSlice: 's2', roster: [{ lens: 'correctness' }] },
+  ] }), impl)
+  const auto = (out.handoff.backstops || []).filter(b => b && b.source === 'auto')
+  assert.equal(auto.length, 2, 'a strict SUPERSET arriving after a subset entry is NOT contained ⇒ records normally (spec §8: only subset minting is collapsed)')
+})
+
+test("#798 — EMPTY-set carve-out: an absent-gate_failing_ids baseline at a base already carrying a NON-EMPTY entry STILL records its own '(see gate_output)' backstop (empty dedups exact-empty-vs-empty ONLY)", async () => {
+  const NONEMPTY = ['pytest:test_x']
+  // t1 records a non-empty entry at 'baseZ'; t2 classifies 'baseline' with NO gate_failing_ids at the SAME base.
+  // Under naive containment [] ⊆ everything would swallow it — the carve-out keeps exact-key dedup so it records.
+  const impl = clsImpl({ mergeResult: (label) => /t1/.test(label)
+    ? ({ mode: 'merge-task', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: NONEMPTY, gate_base_sha: 'baseZ', gate_output: 'base RED x' })
+    : ({ mode: 'merge-task', status: 'gate_failed', gate_failure_class: 'baseline', gate_base_sha: 'baseZ', gate_output: 'base RED (unenumerated)' }) })  // NO gate_failing_ids ⇒ debtIds()=[]
+  const { out } = await runPhase(CLS_ARGS({ tasks: [
+    { id: 't1', issue: 301, title: 'T1', planSlice: 's1', roster: [{ lens: 'correctness' }] },
+    { id: 't2', issue: 302, title: 'T2', planSlice: 's2', roster: [{ lens: 'correctness' }] },
+  ] }), impl)
+  const auto = (out.handoff.backstops || []).filter(b => b && b.source === 'auto')
+  assert.equal(auto.length, 2, "the empty-id-set report is NOT swallowed by the non-empty entry (the carve-out keeps exact-key dedup for []) ⇒ its own entry records; naive containment would have yielded one")
+  assert.ok(auto.some(b => /\(see gate_output\)/.test(b.check)), "the empty report records the '(see gate_output)' backstop")
+  assert.ok(auto.some(b => b.check.includes('pytest:test_x')), 'the pre-existing non-empty entry is still present (both coexist)')
+})
+
 test('#598 validation 5 — merge absent class → byte-identical to today (soft escalation reason gate_failed, held:nothing-merged, no env-blocked, no baseline-proceed)', async () => {
   const impl = clsImpl({ mergeResult: () => ({ mode: 'merge-task', status: 'gate_failed', gate_output: 'boom' }) })  // NO gate_failure_class
   const { out, calls } = await runPhase(CLS_ARGS(), impl)
@@ -5096,6 +5148,47 @@ test('T1.3 (D2) — work-wave auditRound demotes a pin-mismatched seat: a blocki
   assert.ok(ctlCalls.some(isFixWorker), 'a matching-pin blocking finding is NOT demoted — a fix-worker is dispatched')
 })
 
+test("#805 (D2) — a pin-mismatched ABSORB finding is STRIPPED of routing metadata: NO ace dispatch, the demoted finding keeps pinMismatch/originalSeverity but drops disposition/autoFixable; a matching-pin control DOES ace", async () => {
+  // A work-wave correctness seat APPROVES with a Minor absorb finding (autoFixable + ace-eligible file) but
+  // reviewed a DIFFERENT tree (audit_sha ≠ the worker pin 'deadbeef'). auditRound demotes it to a Nit AND strips
+  // disposition+autoFixable ⇒ it falls to the Nit default disposition (note), never enters aceable ⇒ no ace worker.
+  const absorbImpl = (auditSha) => (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 1 } }
+    if (seat === 'war-auditor') {
+      if (prompt.includes('execution-evidence') || (opts.label || '').includes('execution-evidence')) {
+        return { seat: opts.label, lens: 'execution-evidence', verdict: 'approve', findings: [], confidence: 'high' }
+      }
+      return { seat: opts.label, lens: 'correctness', verdict: 'approve', confidence: 'high', audit_sha: auditSha,
+        findings: [{ severity: 'Minor', title: 'absorb me', file: 'a.js', rationale: 'mechanical', disposition: 'absorb', autoFixable: true }] }
+    }
+    if (seat === 'war-refiner') return opts.phase === 'Land' ? { mode: 'land-phase', status: 'landed' } : { mode: 'merge-task', status: 'merged', gate_output: 'ok', integration_sha: 'deadbeef' }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const ACE_ONE = () => PROVISION_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'T1', planSlice: 's1', roster: [{ lens: 'correctness' }] }], run: { ace: true } })
+
+  // MISMATCH: audit_sha 'cafe1234' ≠ pin 'deadbeef' ⇒ demoted + stripped ⇒ never aceable.
+  const { out: mm, calls: mmCalls } = await runPhase(ACE_ONE(), absorbImpl('cafe1234'))
+  assert.ok(!mmCalls.some(c => /^ace:/.test(c.opts.label || '')),
+    'a pin-mismatched absorb finding is stripped of its disposition ⇒ NO ace worker is dispatched')
+  const demotedEntry = (mm.auditLog || []).find(e => e && e.task === 't1' && (e.findings || []).some(f => f.title === 'absorb me'))
+  assert.ok(demotedEntry, 'the demoted finding is recorded in auditLog')
+  const demoted = demotedEntry.findings.find(f => f.title === 'absorb me')
+  assert.equal(demoted.pinMismatch, true, 'the demoted finding is tagged pinMismatch')
+  assert.equal(demoted.originalSeverity, 'Minor', 'the original severity is preserved (nothing silently lost, ADR 0013)')
+  assert.equal(demoted.severity, 'Nit', 'the finding is demoted to a non-blocking Nit')
+  assert.ok(!('disposition' in demoted), 'the absorb disposition is STRIPPED (cannot route to ace)')
+  assert.ok(!('autoFixable' in demoted), 'the legacy autoFixable is STRIPPED (cannot read back as absorb via the dispositionOf legacy path)')
+
+  // CONTROL (delete-and-trace): the BYTE-SAME fixture with a MATCHING audit_sha ⇒ no demotion ⇒ the absorb
+  // finding stays absorb ⇒ an ace worker IS dispatched. Proves the no-ace assertion above is load-bearing.
+  const { calls: ctlCalls } = await runPhase(ACE_ONE(), absorbImpl('deadbeef'))
+  assert.ok(ctlCalls.some(c => /^ace:/.test(c.opts.label || '')),
+    'a matching-pin absorb finding is NOT demoted ⇒ it rides --ace (an ace worker IS dispatched)')
+})
+
 test('T1.3 criterion 9 (D8) — a finding-less gate-audit escalate holds the land at the per-task site; an approve control does not; HARD_ESCALATION_REASONS byte-unchanged in both mirrors', async () => {
   // Per-task gate-audit seat returns verdict:'escalate' with ZERO Critical/Major findings and no audit_sha
   // (⇒ no pin-mismatch demotion). D8's verdict disjunct makes it HARD.
@@ -5194,7 +5287,8 @@ test('T1.3 (D2) — auditPrompt carries the AUDIT PIN line naming the worker hea
 // Faithful evidence-dispatch mock: returns an EVIDENCE_RESULT for the evidence:phase-<id> dispatch
 // (perTask tokens + integratedTipGate), CONFIRMED tips (observedHead == the merge integration_sha 'aaaa1111'
 // so the seats' audit_sha matches the pin — no demotion, happy-path land). Merge returns a per-task
-// gate_log_path so the artifact-path threading is observable.
+// gate_log_path AND integratedTipGate carries its own gate_log_path (#818) so both artifact-path threadings
+// are observable.
 const evidenceImpl = (prompt, opts) => {
   const seat = seatOf(opts), label = opts.label || ''
   if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
@@ -5204,7 +5298,7 @@ const evidenceImpl = (prompt, opts) => {
       { taskId: 't1', pin_status: 'CONFIRMED', pin_evidence: 'tip == gate-HEAD', observedHead: 'aaaa1111', guard_specificity: 'covered', guard_evidence: '' },
       { taskId: 't2', pin_status: 'BENIGN-ADVANCE', pin_evidence: 'intervening: docs/readme.md', observedHead: 'aaaa1111', guard_specificity: 'covered', guard_evidence: '' },
     ],
-    integratedTipGate: { gate_output: 'INTEGRATED TIP GATE: all suites passed', tip_sha: 'aaaa1111' },
+    integratedTipGate: { gate_output: 'INTEGRATED TIP GATE: all suites passed', tip_sha: 'aaaa1111', gate_log_path: '/abs/repo/.claude/worktrees/run-2026/_refinery/.war/gate-phase-3.log' },
   }
   if (seat === 'war-auditor') return { seat: label, lens: label.includes('execution-evidence') ? 'execution-evidence' : 'correctness', verdict: 'approve', findings: [], confidence: 'high', audit_sha: 'aaaa1111' }
   if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
@@ -5349,6 +5443,53 @@ test('T2.1 criterion 5 (D4) — an INTRA-PHASE-DEP phase: the evidence dispatch 
   assert.ok(/LAND-AUTHORITATIVE/.test(auth.prompt), 'the authoritative seat is told the integrated-tip run is land-authoritative')
 })
 
+test('#818 — the INTEGRATED-TIP GATE-AUDIT seat threads integratedTipGate.gate_log_path with the captured-artifact-authoritative clause (modeled on the per-task seat)', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), evidenceImpl)   // intra-dep (t2 deps t1) ⇒ the authoritative seat fires
+  const auth = calls.find(c => isAuditor(c) && /:integrated-tip$/.test(c.opts.label || ''))
+  assert.ok(auth, 'the authoritative integrated-tip seat was dispatched')
+  assert.ok(auth.prompt.includes('GATE LOG ARTIFACT:'), 'the authoritative seat carries a GATE LOG ARTIFACT clause')
+  assert.ok(auth.prompt.includes('/_refinery/.war/gate-phase-3.log'), 'the threaded path is integratedTipGate.gate_log_path')
+  assert.ok(/authoritative execution evidence/i.test(auth.prompt), 'the captured integrated-tip log is the authoritative HARD-path evidence')
+  assert.ok(/MISSING artifact[\s\S]*SOFT cannot-confirm/.test(auth.prompt), 'a missing artifact ⇒ SOFT cannot-confirm for the HARD path')
+  assert.ok(!auth.prompt.includes('curate or excerpt'), 'the new clause does not reintroduce the retired anti-excerpt token (locked negative, all-surfaces)')
+  // EVIDENCE_RESULT.integratedTipGate declares gate_log_path (one-line match, distinct from the MERGE_RESULT one)
+  assert.match(src, /integratedTipGate: \{ type: 'object', properties: \{[^\n]*gate_log_path: \{ type: 'string' \}/,
+    'EVIDENCE_RESULT.integratedTipGate declares gate_log_path')
+})
+
+test('#818 — fail-open: an integratedTipGate WITHOUT gate_log_path ⇒ the authoritative seat renders the SOFT missing-artifact fallback and the phase still LANDS', async () => {
+  // Same intra-dep phase, but the evidence dispatch returns integratedTipGate with gate_output + tip_sha only.
+  const noPathImpl = (prompt, opts) => {
+    const seat = seatOf(opts), label = opts.label || ''
+    if (seat === 'war-refiner' && /^evidence:/.test(label)) return {
+      perTask: [ { taskId: 't1', pin_status: 'CONFIRMED', observedHead: 'aaaa1111', guard_specificity: 'covered' },
+                 { taskId: 't2', pin_status: 'CONFIRMED', observedHead: 'aaaa1111', guard_specificity: 'covered' } ],
+      integratedTipGate: { gate_output: 'INTEGRATED TIP GATE: all suites passed', tip_sha: 'aaaa1111' } }  // NO gate_log_path
+    return evidenceImpl(prompt, opts)
+  }
+  const { out, calls } = await runPhase(PROVISION_ARGS(), noPathImpl)
+  const auth = calls.find(c => isAuditor(c) && /:integrated-tip$/.test(c.opts.label || ''))
+  assert.ok(auth, 'the authoritative seat still fires (integratedTipGate.gate_output present)')
+  assert.ok(auth.prompt.includes('(no gate-log artifact path recorded)'), 'an absent gate_log_path renders the fail-open placeholder, not "undefined"')
+  assert.ok(!auth.prompt.includes('undefined'), 'the fail-open authoritative prompt never contains the literal "undefined"')
+  assert.ok(/MISSING artifact[\s\S]*SOFT cannot-confirm/.test(auth.prompt), 'the missing-artifact ⇒ SOFT rule is present even with no path')
+  assert.equal(out.landDecision, 'landed', 'fail-open: no integrated-tip artifact ⇒ no hold, the phase lands')
+})
+
+test('#818 both-surfaces — war-refiner.md intra-phase-dep paragraph names gate_log_path in its integratedTipGate literal; the return-shape line stays field-free', () => {
+  assert.match(refinerMd, /integratedTipGate:\s*\{ gate_output, tip_sha, gate_log_path \}/,
+    "war-refiner.md's intra-phase-dep paragraph widened its integratedTipGate literal to the three-field shape (both-surfaces, same commit)")
+  assert.ok(refinerMd.includes('integratedTipGate? }'),
+    'the Return shape line keeps the bare integratedTipGate? (does not enumerate the object fields — verified byte-unchanged)')
+})
+
+test('#815 — durable source-count: workflow-template.js has EXACTLY 2 "cwd stays the task worktree" (merge-task sites) and EXACTLY 1 "cwd stays the _refinery land worktree" (land site) — the three near-identical clauses can never silently re-converge', () => {
+  const taskWt = (src.match(/cwd stays the task worktree/g) || []).length
+  const landWt = (src.match(/cwd stays the _refinery land worktree/g) || []).length
+  assert.equal(taskWt, 2, 'exactly two merge-task gate clauses keep "cwd stays the task worktree" (initial merge + floor-retry re-merge)')
+  assert.equal(landWt, 1, 'exactly one land gate clause reads "cwd stays the _refinery land worktree" (the land step-2 site names its TRUE cwd) — a one-time grep cannot guard the three clauses staying distinct')
+})
+
 test('T2.1 criterion 5 (D4) — a NO-intra-dep phase dispatches no integrated-tip re-run and no authoritative seat; its per-task gate-audit prompts are byte-identical to the intra-dep phase', async () => {
   const noDepTasks = [
     { id: 't1', issue: 101, title: 'T1', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] },
@@ -5413,6 +5554,65 @@ test('T2.1 both-surfaces — the refiner post-merge evidence-dispatch duty is in
   assert.ok(refinerMd.includes('gate-pin-status.sh') && refinerMd.includes('assert-guard-specificity-in-diff.sh'),
     'war-refiner.md names both floor scripts')
   assert.ok(/fast-forward/.test(refinerMd), 'war-refiner.md states the fast-forward pre-merge-base idiom')
+})
+
+// #806 — the evidence-dispatch preMergeTip is the task's TRUE immediate predecessor tip in serial merge
+// order (the stamped lastLandedTip), NOT the previous LIST entry's gateHeadSha (which over-counts across a
+// requiresTest:false skip and can carry a sentinel). Reads the evItems lines the evidence dispatch renders.
+const evPromptOf = (calls) => (calls.find(c => seatOf(c.opts) === 'war-refiner' && /^evidence:phase-/.test(c.opts.label || '')) || {}).prompt || ''
+const evLineOf = (evPrompt, taskId) => evPrompt.split('\n').find(l => new RegExp(`- ${taskId} · gateHeadSha=`).test(l)) || ''
+const preMergeTipOf = (evPrompt, taskId) => { const m = evLineOf(evPrompt, taskId).match(/ · preMergeTip=(.*)$/); return m ? m[1] : null }
+const gateHeadShaOf = (evPrompt, taskId) => { const m = evLineOf(evPrompt, taskId).match(/gateHeadSha=(.*) · preMergeTip=/); return m ? m[1] : null }
+// Three dep-free tasks (one wave, serial merge order t1→t2→t3). `shas` maps merge label → integration_sha
+// (absent ⇒ omitted from the MergeResult, forcing the sentinel gateHeadSha). requiresTest:false lives on
+// the TASK (set via THREE), not the refiner mock.
+const skewImpl = (shas) => (prompt, o) => {
+  const seat = seatOf(o), label = o.label || ''
+  if (seat === 'war-refiner' && o.phase === 'Provision') return { ok: true }
+  if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 1 } }
+  if (seat === 'war-auditor') return { seat: label, lens: label.includes('execution-evidence') ? 'execution-evidence' : 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+  if (seat === 'war-refiner' && /^evidence:/.test(label)) return { perTask: [] }   // fail-open: no stamped tokens
+  if (seat === 'war-refiner' && o.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
+  if (seat === 'war-refiner') {
+    const m = /^merge:(t\d)/.exec(label)
+    const sha = m ? shas[m[1]] : undefined
+    return { mode: 'merge-task', status: 'merged', gate_output: 'ok', ...(sha !== undefined ? { integration_sha: sha } : {}) }
+  }
+  if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+  return {}
+}
+const THREE = (noTest = new Set()) => PROVISION_ARGS({ tasks: [
+  { id: 't1', issue: 101, title: 'T1', planSlice: 's1', roster: [{ lens: 'correctness' }] },
+  { id: 't2', issue: 102, title: 'T2', planSlice: 's2', roster: [{ lens: 'correctness' }], ...(noTest.has('t2') ? { requiresTest: false } : {}) },
+  { id: 't3', issue: 103, title: 'T3', planSlice: 's3', roster: [{ lens: 'correctness' }] },
+] })
+
+test("#806 — a requiresTest:false interleave: successor C's preMergeTip is B's integration sha (its TRUE predecessor tip), NOT A's gateHeadSha (the previous LIST entry)", async () => {
+  // t1(gated)→t2(requiresTest:false)→t3(gated). t2 lands (updates the tracker) but is skipped from the
+  // gate-audit list, so t3 is the SECOND list entry. Old code chained mergedTasks[0].gateHeadSha = t1's sha.
+  const { calls } = await runPhase(THREE(new Set(['t2'])), skewImpl({ t1: 'aaaa1111', t2: 'bbbb2222', t3: 'cccc3333' }))
+  const ev = evPromptOf(calls)
+  assert.ok(ev, 'the evidence dispatch fired')
+  assert.equal(preMergeTipOf(ev, 't3'), 'bbbb2222', "C's preMergeTip is B's (the requiresTest:false task's) integration sha — its true immediate predecessor tip")
+  assert.notEqual(preMergeTipOf(ev, 't3'), 'aaaa1111', "NOT A's gateHeadSha (the previous LIST entry) — the over-count is fixed")
+  assert.match(preMergeTipOf(ev, 't1'), /merge-base/, "the FIRST landed task falls back to the phaseBaseCmd merge-base substitution")
+})
+
+test("#806 — a sentinel integration_sha leaves the tracker at the last REAL sha: successor's preMergeTip is that real sha, never the '(integration_sha …)' sentinel", async () => {
+  // t1(real)→t2(gated, NO integration_sha ⇒ sentinel gateHeadSha)→t3(real). The tracker skips the sentinel.
+  const { calls } = await runPhase(THREE(new Set()), skewImpl({ t1: 'aaaa1111', t3: 'cccc3333' }))  // t2 omitted ⇒ sentinel
+  const ev = evPromptOf(calls)
+  assert.match(gateHeadShaOf(ev, 't2'), /integration_sha/, 'sanity: t2 has the sentinel gateHeadSha (no real integration_sha returned)')
+  assert.equal(preMergeTipOf(ev, 't3'), 'aaaa1111', "C's preMergeTip is the last REAL sha (t1's), retained across the sentinel")
+  assert.ok(!/integration_sha/.test(preMergeTipOf(ev, 't3')), "C's preMergeTip is NEVER the sentinel string (which would poison its diff range into a guaranteed exit-2 ERROR)")
+})
+
+test('#806 — no-skip control: all gated, all real shas ⇒ the chain is byte-identical to today (first=phaseBaseCmd, each successor=predecessor gateHeadSha)', async () => {
+  const { calls } = await runPhase(THREE(new Set()), skewImpl({ t1: 'aaaa1111', t2: 'bbbb2222', t3: 'cccc3333' }))
+  const ev = evPromptOf(calls)
+  assert.match(preMergeTipOf(ev, 't1'), /merge-base/, 'first entry = the phaseBaseCmd merge-base substitution (unchanged)')
+  assert.equal(preMergeTipOf(ev, 't2'), gateHeadShaOf(ev, 't1'), "t2's preMergeTip = t1's gateHeadSha (predecessor chain, unchanged)")
+  assert.equal(preMergeTipOf(ev, 't3'), gateHeadShaOf(ev, 't2'), "t3's preMergeTip = t2's gateHeadSha (predecessor chain, unchanged)")
 })
 
 test('T2.1 both-surfaces — the execution-evidence checklist + guard-specificity duty live in war-auditor.md (standing surface); the stale spawn-prompt-only sentence is updated', () => {
@@ -5511,6 +5711,40 @@ test('Task 1.2 — fix tier absent: the fix-round AND the --ace worker both inhe
   assert.equal(fix.effort, undefined, 'base worker has no configured effort ⇒ omitted (inherit session)')
   assert.equal(ace.model, 'sonnet', 'fix absent ⇒ the --ace worker inherits the base worker model')
   assert.equal(ace.effort, undefined, 'base worker has no configured effort ⇒ omitted (inherit session)')
+})
+
+// #817 — the add-test/package-it floor-retry dispatch is now tier-aware (spawnWorker('fix')), uniform with
+// the fix:/ace: fix-follow-up classes. Drive a no-test → add-test fix → re-audit(approve) → re-merge(merged)
+// chain and capture the add-test worker's spawn opts, with and without an agents.worker.fix override.
+const runFloorRetry = async (agentsCfg) => {
+  let mergeCount = 0
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts), label = opts.label || ''
+    if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 1 } }
+    if (seat === 'war-auditor') return { seat: label, lens: label.includes('execution-evidence') ? 'execution-evidence' : 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-refiner' && opts.phase === 'Refine') return (++mergeCount === 1)
+      ? { mode: 'merge-task', status: 'no-test' }                                                   // first attempt trips the floor
+      : { mode: 'merge-task', status: 'merged', gate_output: 'ok', integration_sha: 'deadbeef' }    // re-merge after the add-test fix
+    if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const args = PROVISION_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'T', planSlice: 's', roster: [{ lens: 'correctness' }] }], agents: agentsCfg })
+  const { calls } = await runPhase(args, impl)
+  return (calls.find(c => /^add-test:t1/.test(c.opts.label || '')) || {}).opts || {}
+}
+
+test('#817 — floor-retry fix tier set: the add-test dispatch carries agents.worker.fix { model, effort } (spawnWorker(\'fix\'), not the base worker)', async () => {
+  const opts = await runFloorRetry({ worker: { model: 'sonnet', fix: { model: 'opus', effort: 'high' } } })
+  assert.deepEqual({ model: opts.model, effort: opts.effort }, { model: 'opus', effort: 'high' },
+    'the add-test floor-retry worker dispatches on the configured fix tier — revert spawnWorker(\'fix\') → base and this fails')
+})
+
+test('#817 — floor-retry fix tier absent: the add-test dispatch inherits the base worker (no fix block ⇒ byte-identical to today)', async () => {
+  const opts = await runFloorRetry({ worker: { model: 'sonnet' } })
+  assert.equal(opts.model, 'sonnet', 'fix absent ⇒ the add-test worker inherits the base worker model (unchanged)')
+  assert.equal(opts.effort, undefined, 'base worker has no configured effort ⇒ omitted (inherit session)')
 })
 
 // ===========================================================================
