@@ -8,7 +8,7 @@ Every agent returns **only** its JSON object (no prose). The Workflow passes the
   status: "implemented" | "blocked",
   tests: { added: ["path"], command: "uv run pytest ...", passed: true },
   acceptance_criteria_covered: ["criterion_id"],
-  files_changed: ["path"],
+  files_changed: ["path"],           // each path worktree-relative — never absolute, never main-checkout-rooted (the engine normalizes a main-rooted report and escalates any other absolute)
   notes: "anything the auditor should know",
   blocked_reason?: "present iff status==blocked — the ambiguity/contradiction" }
 ```
@@ -27,7 +27,7 @@ Every `provision`-mode refiner dispatch — the **phase git-topology barrier** (
   staleRemote? }        // (barrier, always-on) [{ task, remoteSha, frozenTip }] — classified per-task stale-remote markers
 ```
 
-- **Evidence gate (per-task provision-run).** An `ok: false` becomes an **`env-blocked`** task outcome ONLY with **execution evidence**: a `failedCommand` that trim-matches one of the dispatched `run.provision` steps (exact array membership, never substring) **and** a numeric **non-zero** `exitCode`. An `ok: false` missing that evidence — a missing/typeless result, refusal prose, a foreign/absent `failedCommand`, a non-numeric or an incoherent `exitCode: 0` — is **not** trustworthy: it classifies **`held:workflow-error`**, never a fabricated `env-blocked`. (There is no `provisionList[0]` / synthetic-`exitCode:1` fallback — the template throws.)
+- **Evidence gate (per-task provision-run).** An `ok: false` becomes an **`env-blocked`** task outcome ONLY with **execution evidence**: a `failedCommand` that trim-matches one of the dispatched `run.provision` steps (exact array membership, never substring) **and** a numeric **non-zero** `exitCode`. An `ok: false` missing that evidence — a missing/typeless result, refusal prose, a foreign/absent `failedCommand`, a non-numeric or an incoherent `exitCode: 0` — is **not** trustworthy: the provision-run throws inside the work thunk, the wave-loop-invariant catch converts it, and the task **escalates** (**`held:escalation`**, the evidence-gate message naming the task + `provision-run` carried verbatim in the escalation's `blocked`), never a fabricated `env-blocked`. (There is no `provisionList[0]` / synthetic-`exitCode:1` fallback — the template throws.)
 - **Barrier / polish routing.** A barrier `ok: false` (or missing result) → `held:workflow-error` carrying the `stderrTail` (no topology ⇒ nothing in the phase can run — a hard stop, evidence or not). A polish-worktree `ok: false` (or missing) → **fail-open**: the sweep is skipped, the phase-close queue drains to `follow-up`, the phase still lands (never a hold).
 - **Barrier recovery arrays (phase git-topology barrier only).** On an `ok: true` return the barrier may carry two OPTIONAL arrays (spec §4.2/§4.4):
   - **`preMerged`** — `[taskId]`. Present only on a **sanctioned recovery relaunch** (`args.recovery.sanctioned`, §Provisioning args): task ids whose local branch is an **ancestor of the frozen integration tip** (already-integrated on the adopted branch — the barrier ran the git-ancestry check, the Workflow sandbox has no shell). The Workflow records each `merged` (terminal task status, **never** `landed`) with note `recovered: pre-merged on adopted integration branch`, enters it into `done` + `succeeded` + the bare-id `landed` list with one `auditLog` entry, and **dispatches no worker**; it does **not** enter it into the gate-audit set (no gate ran for it this run — the handoff `tipSha` fallback stays truthful). A `deps` entry of the re-dispatched task therefore satisfies the dep-block pre-check (no spurious `dep-failed`).
@@ -274,11 +274,17 @@ The refiner's **Provision** barrier ([ADR 0001](../../../docs/adr/0001-explicitl
 > the literal string `"undefined"` into the worker/auditor/refiner prompts (an unprovisionable branch
 > name and a bogus path). Always thread `planSlug`, `runId`, and `worktreeRoot` (or set explicit
 > `task.branch`/`task.worktree`).
-> **Entry validation (H).** When any task lacks an explicit `branch`/`worktree`, the template
-> validates the derivation inputs **once at entry** (top of the `try{}` body, before the per-task
-> loop) and throws — routed to `held:workflow-error` — naming the exact absent keys. Two distinct
-> classes: the missing members of `{ planSlug, runId, worktreeRoot }`, and a missing `phase.id` (the
-> silent `pundefined-` derivation class). Zero tasks ⇒ no throw.
+> **Entry validation (H).** The template validates required launch inputs **once at entry** (top of
+> the `try{}` body, before any pt-tagged prompt interpolation and before git is touched) and throws —
+> routed to `held:workflow-error` — naming every absent key. Two categories: a **derivation** category
+> consumed only when a task lacks an explicit `branch`/`worktree` (the missing members of
+> `{ planSlug, runId, worktreeRoot }`, plus a missing `phase.id` — the silent `pundefined-` derivation
+> class), and an **unconditional phase-field** class — `title`, `workingBranch`, `integrationBranch`
+> on `phase` (each interpolated fallback-free through the `pt` tag in the Provision-barrier / merge /
+> land prompts, so even a zero-task phase requires them; #740). The `(or supply explicit
+> branch/worktree per task)` suffix rides a derivation-class problem only, never the phase-field class.
+> Zero tasks / all-explicit ⇒ the derivation category vacuously adds nothing; the phase-field class
+> still applies.
 
 ## Workflow per-phase return
 

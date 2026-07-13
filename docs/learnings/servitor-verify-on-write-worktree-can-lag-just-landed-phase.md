@@ -1,13 +1,14 @@
 ---
 name: servitor-verify-on-write-worktree-can-lag-just-landed-phase
 description: "Servitor verify-on-write checkout can lag the landed phase"
-metadata: 
+metadata:
   node_type: memory
   type: project
   provenance: code-verified
   slug: servitor-verify-on-write-worktree-can-lag-just-landed-phase
-  phase: guard-floor-and-scope-hook-coverage-completeness/servitor-wrapup +3 recurrences (latest 2026-07-12)
-  keywords: 
+  phase: guard-floor-and-scope-hook-coverage-completeness/servitor-wrapup +4 recurrences (latest Engine-routes-contract-surfaces/1.1, 2026-07-12)
+  promoted: true
+  keywords:
     - stale worktree
     - D3 verify-on-write
     - servitor cwd
@@ -21,7 +22,9 @@ metadata:
     - positive confirmation
     - session-stable lag
     - HEAD ref check
-  tags: 
+    - task worktree gitdir
+    - war-worktrees
+  tags:
     - servitor
     - memory-protocol
     - worktree
@@ -92,6 +95,26 @@ One recurrence's stale reading was later proven stale-in-fact: the checkout stil
 `DEFAULTS.memory.commitLearnings` as `true` after the phase that flipped it, while the live tip
 holds `false` — the lag was real, not an audit failure.
 
+## Recurrence 4 (2026-07-12, phase "Engine routes + contract surfaces" / task 1.1) — a concrete fix, not just a downgrade
+
+The hazard recurred a fifth time in the exact same session worktree (still on an unrelated
+`claude/survey-corps-*` branch, still lagging by four+ phases). This time a **positive resolution**
+was available instead of just downgrading confidence: `.git/worktrees/` (readable via Glob/Read,
+no Bash needed) lists every live worktree in the repo by name, including the phase's own per-task
+worktree (named after the task id, e.g. `p1-1.1`) and the run-scoped `_refinery` worktree. Each
+one's `HEAD` file names its checked-out branch and its `gitdir` file gives the absolute filesystem
+path the worktree is physically checked out at (typically under
+`<repo-root>/.claude/war-worktrees/<plan-slug>/<task-id>/`, a **session-worktree**-scoped path).
+Reading `HEAD` for the task-id-named worktree, confirming it names the phase's actual working
+branch (from the spawn prompt), and then Read/Grep-ing the referent **at that path** instead of at
+the servitor's own stale cwd gave a true `code-verified` read of the landed code — all four new
+symbols from this phase (`normalizeReportedPaths`, `FILES_CHANGED_RULE`, `held:escalation` routing,
+the wave-loop-invariant comment) were confirmed present there while the servitor's own cwd still
+showed none of them and the OLD (pre-rename) token still present in an unrelated stale file. This
+upgrades step 2's "mismatch downgrades confidence" workaround to a first choice: **before settling
+for `agent-unverified`, check whether the phase's own task worktree is still on disk under
+`.git/worktrees/<task-id>/` and read the referent there.**
+
 ## Related
 
 [[audit-worktree-pre-impl-tip-stale-verdict]] — the auditor-side analogue (audit worktree HEAD can
@@ -99,4 +122,6 @@ be stale relative to `audit_sha`). [[land-local-follower-ref-can-lag-sync-before
 same staleness family at the ref-sync layer. [[war-launch-worktree-with-working-branch-checked-out-forces-manual-land]]
 — another worktree/branch-state trap in the same pipeline stage.
 [[audit-log-finding-can-be-stale-by-land-time]] — the negative-finding sibling of the gate-audit
-edge above.
+edge above. [[wave-loop-thunk-catch-prevents-null-result-infinite-redispatch]] and
+[[entry-validation-unconditional-phase-field-check-comment-overclaims-runtime-path]] — the facts
+this recurrence's task-worktree technique was used to verify.

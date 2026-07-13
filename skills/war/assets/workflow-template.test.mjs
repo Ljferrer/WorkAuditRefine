@@ -1921,27 +1921,30 @@ test('M1 criterion #1 — in-script derivation throw is caught and RETURNS held:
   assert.ok('stack' in out.workflowError, 'workflowError must have a stack property')
 })
 
-test('M1 criterion #6 — catch after a mid-phase throw skips teardown (structural: no teardown agent call recorded)', async () => {
-  // NON-vacuous: inject the throw via a mock agent that succeeds for the topology barrier and
-  // for the first worker, then throws on the auditor. This is a point past which teardown would
-  // otherwise run, making the "no teardown" assertion non-vacuous (plan DP2 vacuity trap).
+test('M1 criterion #6 — catch after a mid-phase throw in the serial merge queue (outside the work thunk) skips teardown (structural: no teardown agent call recorded)', async () => {
+  // Retitled + re-pointed (wave-loop invariant, #742): an INSIDE-thunk throw (worker/auditor/fix/provision)
+  // is now caught as a per-task escalate, so the top-level try/catch handles only OUTSIDE-thunk throws — the
+  // serial merge queue, land, gate-audit, phase-close. The mock succeeds for the topology barrier, the first
+  // worker, and the auditor (approve), then throws on the serial MERGE (phase Refine, run AFTER the wave loop
+  // OUTSIDE the thunk). The merge is the first such point past the worker, so workerRan===true keeps the "no
+  // teardown" assertion non-vacuous (plan DP2 vacuity trap).
   let workerRan = false
-  const throwAfterWorkerImpl = (prompt, opts) => {
+  const throwAtMergeImpl = (prompt, opts) => {
     const seat = seatOf(opts)
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
-    if (seat === 'war-refiner' && opts.phase === 'Provision') return { mode: 'merge-task', status: 'merged' }
     if (seat === 'war-worker') { workerRan = true; return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} } }
-    // auditor seat = first agent() past the worker, before any merge; workerRan===true guarantees the catch is reached mid-flow — the non-vacuous injection point (supersedes historical 'after a merge' prose).
-    if (seat === 'war-auditor') throw new Error('injected-auditor-throw-after-worker')
-    // refiner merge path — should not be reached since auditor throws first
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    // merge (phase Refine) runs in the serial merge queue AFTER the wave loop, OUTSIDE the work thunk →
+    // its throw reaches the top-level try/catch → held:workflow-error (an inside-thunk throw would escalate).
+    if (seat === 'war-refiner' && opts.phase === 'Refine') throw new Error('injected-merge-throw-after-worker')
     if (seat === 'war-refiner') return { mode: 'merge-task', status: 'merged' }
     return {}
   }
-  const { out, calls } = await runPhase(PROVISION_ARGS(), throwAfterWorkerImpl)
+  const { out, calls } = await runPhase(PROVISION_ARGS(), throwAtMergeImpl)
   assert.ok(workerRan, 'worker must have run before the injected throw (non-vacuous setup)')
   assert.equal(out.landDecision, 'held:workflow-error',
     `landDecision must be 'held:workflow-error'; got: ${JSON.stringify(out.landDecision)}`)
-  assert.ok(out.workflowError && out.workflowError.message.includes('injected-auditor-throw-after-worker'),
+  assert.ok(out.workflowError && out.workflowError.message.includes('injected-merge-throw-after-worker'),
     `workflowError.message must surface the injected error; got: ${JSON.stringify(out.workflowError && out.workflowError.message)}`)
   // Structural teardown check: teardown is not an observable agent() call in this template
   // (red-team confirmed — only inline cleanup). Use the suite's structural idiom.
@@ -3417,6 +3420,15 @@ test('force-with-lease carve-out: IDENTICAL wording in agents/war-worker.md and 
   assert.ok(w2.prompt.includes(RULE), 'the dispatched dep clause carries the SAME sentence byte-for-byte')
 })
 
+test('files_changed contract (end state 8): IDENTICAL wording in agents/war-worker.md and the dispatched worker prompt', async () => {
+  const RULE = 'Report every files_changed path as worktree-relative — never an absolute path and never one rooted in the main checkout — so no downstream consumer ever sees a path that escapes the isolated worktree.'
+  assert.ok(workerMd.includes(RULE), 'war-worker.md carries the canonical files_changed contract sentence (standing surface)')
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const w = calls.find(isWorker)
+  assert.ok(w, 'a worker dispatched (presence guard)')
+  assert.ok(w.prompt.includes(RULE), 'the dispatched worker prompt carries the SAME sentence byte-for-byte (both-surfaces rule, one commit)')
+})
+
 // --- Auditor surfaces (criterion 8): latitude + disposition rules on BOTH surfaces ---
 
 test('latitude + disposition rules (criterion 8): war-auditor.md AND auditPrompt carry the same rule sentences', async () => {
@@ -4525,20 +4537,24 @@ test('t1.8 — precondition-marker reader contract lands on BOTH surfaces (war-r
   }
 })
 
-// t1.8 — PATH CONTRACT (spec §9 / criterion 10): the done-reporting step fails loud when a worker reports
-// an ABSOLUTE files_changed path OUTSIDE its injected worktree root. The throw is caught by the phase-level
-// guard and surfaced as held:workflow-error (a hard halt — the phase does NOT land). Fixture drives the real
-// phase, so deleting the assertReportedPathsInWorktree call at the worker-done site turns this GREEN→RED (not
-// a weak assertion). In-worktree absolute paths and relative paths pass.
-test('t1.8 — path contract: an out-of-worktree absolute files_changed path fails loud → held:workflow-error (fixture)', async () => {
+// t1.8 — PATH CONTRACT (rewritten + retitled — relaxed-assertion lesson: the semantics moved from the
+// phase-level catch to the wave-loop-invariant catch inside the thunk). normalizeReportedPaths turns a
+// reported ABSOLUTE files_changed path OUTSIDE BOTH the task worktree AND the main checkout (arm d) into
+// a throw, caught in the thunk → a per-task held:escalation (a hard halt — the phase does NOT land), the
+// path-contract message riding the escalation's `blocked`. Fixture drives the real phase, so deleting the
+// normalizeReportedPaths call at the worker-done site turns this GREEN→RED. In-worktree absolute + relative
+// paths pass (positive control); a main-checkout-rooted path is NORMALIZED, not escalated (cases below).
+test('t1.8 — path contract: an absolute files_changed path outside BOTH roots escalates the task → held:escalation (fixture)', async () => {
   const badImpl = (prompt, opts) => {
     if (seatOf(opts) === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {},
-      files_changed: ['/abs/repo/skills/war/assets/workflow-template.js'] }  // absolute, OUTSIDE the task worktree
+      files_changed: ['/opt/elsewhere/skills/war/assets/workflow-template.js'] }  // absolute, OUTSIDE the worktree AND the main checkout
     return clsImpl()(prompt, opts)
   }
   const { out } = await runPhase(CLS_ARGS(), badImpl)
-  assert.equal(out.landDecision, 'held:workflow-error', 'an out-of-worktree absolute path halts the phase (does not land)')
-  assert.match(out.workflowError.message, /path-contract violation/, 'the workflow-error carries the path-contract violation message')
+  assert.equal(out.landDecision, 'held:escalation', 'an out-of-both-roots absolute path escalates the task (does not land)')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1' && e.reason === 'escalate')
+  assert.ok(esc, 'the offending task is escalated with reason escalate')
+  assert.match(esc.blocked, /path-contract violation/, 'the escalation blocked carries the path-contract violation message')
   assert.ok(!out.landed || !out.landed.includes('t1'), 'the offending task did NOT land')
 })
 
@@ -4550,6 +4566,78 @@ test('t1.8 — path contract: in-worktree absolute + relative files_changed path
   }
   const { out } = await runPhase(CLS_ARGS(), goodImpl)
   assert.notEqual(out.landDecision, 'held:workflow-error', 'in-worktree absolute + relative paths satisfy the contract (no workflow-error)')
+})
+
+// t1.8 — NORMALIZATION (end state 5). A main-checkout-rooted reported path is a REPORTING artifact (the
+// confined war-worker's real main-checkout write is scope-hook-denied), so normalizeReportedPaths arm (c)
+// rewrites it worktree-relative and warns — it does NOT escalate. mainCheckout unset ⇒ arm (c) disabled
+// (never a guessed root) ⇒ the same path escalates. A path under worktreeRoot but in a SIBLING worktree
+// throws (arm b2), never normalized (grill Q7 — normalizing would fabricate a nonsense relative path).
+test('t1.8 — path contract normalization: a main-checkout-rooted files_changed path is REWRITTEN worktree-relative on the WorkerResult object + a warning names the task and original path; the phase proceeds', async () => {
+  // The mock returns a SHARED object reference so the impl.files_changed reassignment is observable post-run.
+  const workerResult = { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {},
+    files_changed: ['/abs/repo/skills/war/assets/workflow-template.js', 'agents/war-refiner.md'] } // main-rooted + already-relative
+  const impl = (prompt, opts) => seatOf(opts) === 'war-worker' ? workerResult : clsImpl()(prompt, opts)
+  const { out, logs } = await runPhase(CLS_ARGS(), impl)
+  assert.notEqual(out.landDecision, 'held:escalation', 'a main-rooted report is normalized, not escalated')
+  assert.notEqual(out.landDecision, 'held:workflow-error', 'a main-rooted report does not fail loud')
+  assert.deepEqual(workerResult.files_changed, ['skills/war/assets/workflow-template.js', 'agents/war-refiner.md'],
+    'the reassignment rewrote the main-checkout-rooted path worktree-relative; the already-relative path is untouched')
+  assert.ok(logs.some(l => l.includes('/abs/repo/skills/war/assets/workflow-template.js') && /normalized/i.test(l) && l.includes('t1')),
+    'a warning log names the task id and the original main-rooted path')
+})
+
+test('t1.8 — path contract normalization: mainCheckout UNSET ⇒ a main-checkout-rooted path is NOT normalized — it escalates (arm c disabled, never a guessed root)', async () => {
+  const impl = (prompt, opts) => seatOf(opts) === 'war-worker'
+    ? { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {}, files_changed: ['/abs/repo/skills/war/assets/workflow-template.js'] }
+    : clsImpl()(prompt, opts)
+  const { out } = await runPhase(CLS_ARGS({ mainCheckout: undefined }), impl)
+  assert.equal(out.landDecision, 'held:escalation', 'with mainCheckout unset the same path escalates (no normalization attempted)')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1' && e.reason === 'escalate')
+  assert.ok(esc && /path-contract violation/.test(esc.blocked), 'the escalation carries the path-contract message')
+})
+
+test('t1.8 — path contract normalization: an absolute path under worktreeRoot but in a SIBLING worktree THROWS → escalates, never normalizes (grill Q7)', async () => {
+  const impl = (prompt, opts) => seatOf(opts) === 'war-worker'
+    ? { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {}, files_changed: ['/abs/repo/.claude/worktrees/run-cls/p3-sibling/x.js'] }
+    : clsImpl()(prompt, opts)
+  const { out } = await runPhase(CLS_ARGS(), impl)
+  assert.equal(out.landDecision, 'held:escalation', 'a sibling-worktree path escalates (never normalized to a nonsense worktree-relative path)')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1' && e.reason === 'escalate')
+  assert.ok(esc && /sibling-worktree checkout/.test(esc.blocked), 'the escalation names the sibling-worktree reason')
+})
+
+test('t1.8 — escalate-not-redispatch (end state 4): a worker mis-reporting an out-of-both-roots absolute path with mainCheckout SET escalates in EXACTLY one dispatch (live-mirroring parallel)', async () => {
+  // liveParallel mirrors the REAL engine: a rejected thunk becomes null (NOT a propagated rejection).
+  // Pre-fix (no thunk-wide catch) the normalizeReportedPaths throw nulls the thunk → results.filter(Boolean)
+  // drops it → done.add never runs → nextWave() re-dispatches t1 EVERY wave iteration (the one-dispatch
+  // clause is RED). fakeParallel's Promise.all would instead propagate + abort (one dispatch, vacuously
+  // green) and mask the pre-fix re-dispatch — hence liveParallel here.
+  const liveParallel = async (thunks) => Promise.all(thunks.map(t => t().catch(() => null)))
+  const calls = []
+  const fn = build()
+  const agent = async (prompt, opts = {}) => {
+    calls.push({ prompt, opts })
+    return seatOf(opts) === 'war-worker'
+      ? { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {}, files_changed: ['/opt/elsewhere/x.js'] } // outside BOTH roots; mainCheckout SET (/abs/repo)
+      : clsImpl()(prompt, opts)
+  }
+  const out = await fn(agent, liveParallel, async () => [], () => {}, () => {}, CLS_ARGS(), { total: null })
+  // 1. exactly ONE work dispatch (pre-fix the dropped thunk re-dispatches every wave iteration)
+  assert.equal(calls.filter(c => (c.opts.label || '') === 'work:t1').length, 1, 'the task is dispatched to a worker EXACTLY once (no wave re-dispatch)')
+  // 2. escalated entry reason 'escalate' with the path-contract message verbatim in blocked
+  const esc = (out.escalated || []).find(e => e && e.task === 't1' && e.reason === 'escalate')
+  assert.ok(esc, 'the task escalates with reason escalate')
+  assert.match(esc.blocked, /worker path-contract violation: reported file "\/opt\/elsewhere\/x\.js" is an absolute path outside the task worktree/, 'the path-contract message rides blocked verbatim')
+  // 3. held:escalation
+  assert.equal(out.landDecision, 'held:escalation', 'landDecision is held:escalation (escalate is HARD)')
+  // 4. no unrunnable-deps anywhere (the dropped-thunk mislabel is gone)
+  assert.ok(!(out.escalated || []).some(e => e && e.reason === 'unrunnable-deps'), 'no unrunnable-deps in escalated (the task was collected, not dropped)')
+  assert.ok(!(out.auditLog || []).some(e => e && e.verdict === 'unrunnable-deps'), 'no unrunnable-deps in auditLog')
+})
+
+test('t1.8 — path contract: the retired path-contract assert token appears NOWHERE in the template source (renamed to normalizeReportedPaths)', () => {
+  assert.ok(!src.includes('assertReportedPathsInWorktree'), 'assertReportedPathsInWorktree is fully retired from workflow-template.js (deleted-fabrication-literal precedent)')
 })
 
 test('#598 — the initial merge + land prompts begin with the idempotent _refinery re-attach and carry the classification procedure (per-site base)', async () => {
@@ -4645,6 +4733,51 @@ test('run-lifecycle §1 entry validation (d): trio present, phase.id absent → 
   assert.equal(agentCalls, 0)
 })
 
+// #740 — the UNCONDITIONAL phase-field entry class: ph.title / ph.workingBranch / ph.integrationBranch
+// are interpolated fallback-free through the `pt` tag in the Provision-barrier / merge / land prompts
+// REGARDLESS of whether tasks carry explicit paths, so a launch omitting any dies at ENTRY
+// (held:workflow-error) — not opaquely deep inside prompt construction. The `(or supply explicit
+// branch/worktree per task)` suffix is a LIE for this class (an explicit path cannot supply a missing
+// ph.title) and must be ABSENT. EXPLICIT_TASK carries branch+worktree so the derivation class is silent.
+const EXPLICIT_TASK = [{ id: 'tX', issue: 1, title: 't', planSlice: 's', roster: [{ lens: 'correctness' }],
+  branch: 'war/x/p1-tX', worktree: '/abs/repo/.claude/worktrees/run-x/p1-tX' }]
+for (const field of ['title', 'workingBranch', 'integrationBranch']) {
+  test(`run-lifecycle §1 entry validation (#740): explicit paths but phase.${field} absent → held:workflow-error names the phase-field class, NO derivation suffix; zero agents`, async () => {
+    const phase = { id: 1, title: 'P1', workingBranch: 'dev/x', integrationBranch: 'integration/x/phase-1' }
+    delete phase[field]
+    const args = { phase, plan: { file: 'x', gate: 'true' }, planSlug: 'x', runId: 'r', worktreeRoot: '/abs',
+      tasks: EXPLICIT_TASK, learningsTarget: null }
+    const { out, agentCalls } = await runCounting(args)
+    assert.equal(out.landDecision, 'held:workflow-error')
+    assert.match(out.workflowError.message, /requires phase \{ title, workingBranch, integrationBranch \} — missing:/, 'names the phase-field class in the trio style')
+    assert.match(out.workflowError.message, new RegExp(`missing: \\[[^\\]]*\\b${field}\\b`), `the missing list names ${field}`)
+    assert.ok(!/or supply explicit branch\/worktree per task/.test(out.workflowError.message), 'the derivation suffix is NOT appended for the pure phase-field class (it would be a lie)')
+    assert.ok(!/requires top-level/.test(out.workflowError.message), 'the trio class is NOT reported (paths are explicit)')
+    assert.equal(agentCalls, 0, 'zero agents dispatched on the phase-field entry throw')
+  })
+}
+
+test('run-lifecycle §1 entry validation (#740): phase nullish → one error naming ALL three phase fields; zero agents', async () => {
+  const args = { phase: null, plan: { file: 'x', gate: 'true' }, planSlug: 'x', runId: 'r', worktreeRoot: '/abs',
+    tasks: EXPLICIT_TASK, learningsTarget: null }
+  const { out, agentCalls } = await runCounting(args)
+  assert.equal(out.landDecision, 'held:workflow-error')
+  assert.match(out.workflowError.message, /requires phase \{ title, workingBranch, integrationBranch \} — missing: \[title, workingBranch, integrationBranch\]/, 'all three phase fields named when phase is nullish (guarded access, no TypeError)')
+  assert.ok(!/or supply explicit branch\/worktree per task/.test(out.workflowError.message), 'no derivation suffix on the pure phase-field class')
+  assert.equal(agentCalls, 0)
+})
+
+test('run-lifecycle §1 entry validation (#740, criterion 2): trio absent AND phase.workingBranch absent → ONE aggregated message naming both classes WITH the derivation suffix', async () => {
+  const args = { phase: { id: 1, title: 'P1', integrationBranch: 'integration/x/phase-1' }, // workingBranch OMITTED; id+title+integration present
+    plan: { file: 'x', gate: 'true' }, tasks: NEEDS_DERIVATION_TASK, learningsTarget: null } // trio OMITTED → derivation-needing
+  const { out, agentCalls } = await runCounting(args)
+  assert.equal(out.landDecision, 'held:workflow-error')
+  assert.equal(out.workflowError.message,
+    'workflow-template: requires top-level { planSlug, runId, worktreeRoot } — missing: [planSlug, runId, worktreeRoot]; workflow-template: requires phase { title, workingBranch, integrationBranch } — missing: [workingBranch] (or supply explicit branch/worktree per task)',
+    'the two classes aggregate into a single throw; the suffix rides the present derivation-class problem')
+  assert.equal(agentCalls, 0)
+})
+
 test('run-lifecycle §2 phase-scoped keying: same taskId under two phase ids → distinct worktree paths (delete-the-feature)', async () => {
   const mk = (id) => PROVISION_ARGS({
     phase: { id, title: `P${id}`, integrationBranch: `integration/wtprov-a/phase-${id}`, workingBranch: 'dev/wtprov-a' },
@@ -4682,6 +4815,11 @@ test('run-lifecycle §3 evidence gate: an evidence-bearing ok:false → soft env
   assert.ok(!calls.some(c => isWorker(c) && /task t1\b/.test(c.prompt)), 'the worker is NOT spawned')
 })
 
+// §3 no-evidence family (rewritten + retitled — relaxed-assertion lesson). The provision-run
+// evidence-gate throw fires INSIDE the work thunk (provisionStep is the leading call), so the
+// wave-loop-invariant catch converts it to a per-task held:escalation carrying the evidence-gate
+// message verbatim in `blocked` — instead of the old harness-only held:workflow-error. Still NO
+// fabricated env-block, and the worker is still never spawned (the throw precedes its dispatch).
 for (const [name, bad] of [
   ['no result (null)', null],
   ['refusal prose (ok:false, no failedCommand)', { ok: false, stderrTail: 'I will not run this' }],
@@ -4689,13 +4827,16 @@ for (const [name, bad] of [
   ['incoherent exitCode:0 with a matching failedCommand', { ok: false, failedCommand: PROVISION_LIST[0], exitCode: 0, stderrTail: 'x' }],
   ['non-numeric exitCode', { ok: false, failedCommand: PROVISION_LIST[0], exitCode: 'boom', stderrTail: 'x' }],
 ]) {
-  test(`run-lifecycle §3 evidence gate: ${name} → held:workflow-error naming the task + provision-run (no fabricated env-block)`, async () => {
+  test(`run-lifecycle §3 evidence gate: ${name} → held:escalation naming the task + provision-run in the escalation blocked (no fabricated env-block, no worker)`, async () => {
     const impl = (p, o) => isProvisionRun({ opts: o }) ? bad : defaultImpl(p, o)
-    const { out } = await runPhase(SINGLE_PROV(), impl)
-    assert.equal(out.landDecision, 'held:workflow-error', `${name} must NOT fabricate an env-block`)
-    assert.ok(out.workflowError.message.includes('t1'), 'the message names the task id')
-    assert.ok(out.workflowError.message.includes('provision-run'), 'the message names the provision-run label')
+    const { out, calls } = await runPhase(SINGLE_PROV(), impl)
+    assert.equal(out.landDecision, 'held:escalation', `${name} escalates (escalate is a HARD reason), never a fabricated env-block`)
+    const esc = (out.escalated || []).find(e => e && e.task === 't1' && e.reason === 'escalate')
+    assert.ok(esc, `${name}: the task escalates with reason 'escalate'`)
+    assert.ok(esc.blocked.includes('t1'), 'the escalation blocked names the task id')
+    assert.ok(esc.blocked.includes('provision-run'), 'the escalation blocked names the provision-run label')
     assert.ok(!(out.escalated || []).some(e => e && e.reason === 'env-blocked'), 'no env-blocked escalation is invented')
+    assert.ok(!calls.some(isWorker), 'the worker is NOT spawned (the evidence-gate throw precedes the worker dispatch)')
   })
 }
 
@@ -4764,7 +4905,12 @@ test('run-lifecycle §5 schemas.md presence lock: provisioning-args + footgun ca
   assert.match(schemasMd, /ENV_OUTCOME/, 'schemas.md documents the ENV_OUTCOME shape')
   assert.match(schemasMd, /uniform return for all three .{0,20}provision/i, 'ENV_OUTCOME is stated as the uniform return for all three provision dispatches')
   assert.match(schemasMd, /evidence gate/i, 'schemas.md states the evidence-gate rule')
-  assert.match(schemasMd, /entry validation/i, 'schemas.md notes the entry validation naming the missing keys + phase.id')
+  assert.match(schemasMd, /entry validation/i, 'schemas.md notes the entry validation naming the missing keys + phase.id (legacy anchor)')
+  // Widened (#740): a proximity-window anchor scoped to the Entry validation (H) blockquote proves the
+  // unconditional phase-field class is documented THERE, not merely present somewhere in the file
+  // (structure-test-check-f-locks-presence-anywhere-not-intended-location).
+  assert.match(schemasMd, /Entry validation \(H\)[\s\S]{0,600}\btitle\b[\s\S]{0,60}workingBranch[\s\S]{0,60}integrationBranch/,
+    'the Entry validation (H) blockquote documents the unconditional phase-field class (title, workingBranch, integrationBranch) within a bounded window of the heading token')
 })
 
 // ---------------------------------------------------------------------------
@@ -5620,16 +5766,21 @@ test('criterion 2 (both-sites drift-guard) — the non-null-object args guard is
     assert.match(s, /!?Array\.isArray/, `${name} guards against arrays too`)
 })
 
-test('criterion 3 — a pt-tagged prompt interpolating an undefined VALUE throws before spawn naming the adjacent fragment (RETURNS held:workflow-error, no worker dispatched)', async () => {
-  // task.title is a REQUIRED worker-prompt input; omitting it makes ${task.title} undefined. The pt tag
-  // throws at prompt-BUILD (before the agent() call), the entry catch routes held:workflow-error.
+test('criterion 3 — a pt-tagged prompt interpolating an undefined VALUE INSIDE the work thunk escalates the task (held:escalation, pt message in blocked, no worker dispatched)', async () => {
+  // Rewritten + retitled: task.title is a REQUIRED worker-prompt input; omitting it makes ${task.title}
+  // undefined. The pt tag throws at prompt-BUILD INSIDE the work thunk (before the agent() call), so the
+  // wave-loop-invariant catch converts it to a per-task held:escalation carrying the pt message in
+  // `blocked` — an INSIDE-thunk pt throw is a per-task escalate now, NOT held:workflow-error (that route
+  // stays for OUTSIDE-thunk pt throws: the Provision-barrier / merge-land / gate-audit prompts).
   const args = PROVISION_ARGS({ tasks: [
     { id: 't1', issue: 101, planSlice: 'slice 1', roster: [{ lens: 'correctness' }],
-      branch: 'war/wtprov-a/p3-t1', worktree: '/abs/repo/.claude/worktrees/run-2026/p3-t1' }, // title OMITTED → undefined
+      branch: 'war/wtprov-a/p3-t1', worktree: '/abs/repo/.claude/worktrees/run-2026/p3-t1' }, // title OMITTED → undefined inside the worker prompt build
   ] })
   const { out, calls } = await runPhase(args, defaultImpl)
-  assert.equal(out.landDecision, 'held:workflow-error', `undefined title → held:workflow-error; got ${JSON.stringify(out.landDecision)}`)
-  assert.match(out.workflowError.message, /undefined interpolation after/, 'the pt guard names the undefined interpolation and its adjacent literal fragment')
+  assert.equal(out.landDecision, 'held:escalation', `undefined title inside the thunk → held:escalation; got ${JSON.stringify(out.landDecision)}`)
+  const esc = (out.escalated || []).find(e => e && e.task === 't1' && e.reason === 'escalate')
+  assert.ok(esc, 'the task escalates with reason escalate')
+  assert.match(esc.blocked, /undefined interpolation after/, 'the pt guard message (the undefined interpolation + adjacent fragment) rides the escalation blocked')
   assert.ok(!calls.some(c => seatOf(c.opts) === 'war-worker' && c.opts.phase === 'Work'),
     'the worker whose prompt threw at build time is NEVER dispatched (pt throws before agent())')
 })
