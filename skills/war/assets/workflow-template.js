@@ -97,7 +97,9 @@ const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties:
 // the _refinery tip the proof was computed against — the gate-audit seat's pin-equality expectation) and
 // the assert-guard-specificity-in-diff.sh advisory-evidence token per merged task. integratedTipGate is
 // populated ONLY on an intra-phase-dep phase (a re-run of plan.gate at the final integration tip — the
-// land-authoritative execution evidence feeding the D4 authoritative seat). ALL fields optional: a
+// land-authoritative execution evidence feeding the D4 authoritative seat); its gate_log_path is the
+// ABSOLUTE teed path of that integrated-tip gate log — the authoritative seat's HARD-path artifact
+// (absent ⇒ SOFT cannot-confirm, mirroring the per-task gate_log_path; D5). ALL fields optional: a
 // failed/absent dispatch ⇒ no tokens ⇒ seats keep today's SOFT cannot-confirm path (fail-open, never a hold).
 const EVIDENCE_RESULT = { type: 'object', properties: {
   perTask: { type: 'array', items: { type: 'object', properties: {
@@ -105,7 +107,7 @@ const EVIDENCE_RESULT = { type: 'object', properties: {
     pin_status: { enum: ['CONFIRMED', 'BENIGN-ADVANCE', 'STALE-MISMATCH', 'ERROR'] },
     pin_evidence: { type: 'string' }, observedHead: { type: 'string' },
     guard_specificity: { enum: ['covered', 'uncovered', 'ERROR'] }, guard_evidence: { type: 'string' } } } },
-  integratedTipGate: { type: 'object', properties: { gate_output: { type: 'string' }, tip_sha: { type: 'string' } } } } }
+  integratedTipGate: { type: 'object', properties: { gate_output: { type: 'string' }, tip_sha: { type: 'string' }, gate_log_path: { type: 'string' } } } } }
 
 // memory_index_updated retired (spec §4.6, D4 deleted): the servitor no longer maintains the index —
 // the Lead runs `render-index` post-servitor (Gate 2). The servitor only writes/updates lesson files.
@@ -145,7 +147,15 @@ const aced = []
 // Phase-close queue (ADR 0012): absorb findings the per-task ace cannot reach (phaseClose:true or a
 // release-slot filename) — drained by the phase-close coherence sweep at the integrated tip.
 const phaseCloseQueue = []
-const mergedTasksForGateAudit = []   // collect {taskId, gateOutput, acceptanceCriteria, gateHeadSha, baselineDebt?} for post-merge gate-audit pass (F04 R3)
+const mergedTasksForGateAudit = []   // collect {taskId, gateOutput, acceptanceCriteria, gateHeadSha, preMergeTip, baselineDebt?} for post-merge gate-audit pass (F04 R3)
+// #806: the last REAL integration_sha any landMerged() call recorded (incl. requiresTest:false tasks,
+// which never enter mergedTasksForGateAudit). Each gate-audit entry stamps the tracker's value from
+// BEFORE its own task's update — its true immediate predecessor tip in serial merge order — so a
+// requiresTest:false interleave no longer over-populates the successor's --mapped diff range. A sentinel
+// integration_sha leaves the tracker at the last REAL sha (feeding the sentinel forward would poison the
+// successor's `git diff <preMergeTip> <gateHeadSha>` into a guaranteed exit-2 ERROR — the [i-1].gateHeadSha
+// chain this replaces had exactly that defect). Null until the first real land ⇒ evItems falls back to phaseBaseCmd.
+let lastLandedTip = null
 // Baseline gate debt (spec §6 / ADR 0019): the in-run record of pre-existing gate failures this phase
 // consciously proceeds over. `baselineDebt` is keyed on (failing-identifier set, base sha) — a later
 // failure whose identifiers are COVERED by a recorded entry classifies 'baseline' directly (no repeated
@@ -608,13 +618,21 @@ const WORKER_MEMORY_SELF_QUERY_LINE = pt`\nYou MAY run \`node <plugin>/skills/_s
 const classOf = mr => (mr && (mr.gate_failure_class === 'baseline' || mr.gate_failure_class === 'environment'))
   ? mr.gate_failure_class : 'introduced'
 const debtIds = ids => (Array.isArray(ids) ? ids : (ids ? [ids] : [])).map(String)
-// recordBaselineDebt: dedup on (sorted failing-identifier set, base sha). On a NEW key it records the
-// debt AND appends EXACTLY ONE source:'auto' backstop entry; a known key is a no-op (no repeated base
-// re-run, no duplicate entry — two tasks with the same identifiers cost one entry + one base re-run).
+// recordBaselineDebt: dedup by SUBSET-CONTAINMENT with an EMPTY-set carve-out (#798). A NON-EMPTY
+// id-set that is a subset (⊆) of some existing entry's ids at the SAME base sha is a no-op — already
+// covered, one-entry-one-backstop (a later COVERED failure adds nothing; a non-subset set, incl. a
+// strict SUPERSET, records normally). An EMPTY id-set (absent/empty gate_failing_ids ⇒ debtIds()=[])
+// keeps EXACT-key dedup: [] is a subset of EVERY set, so naive containment would silently stop recording
+// the '(see gate_output)' entry whenever ANY entry exists at that base — a behavior change never ratified;
+// empty dedups only against another empty at the same base. On a recorded entry it appends EXACTLY ONE
+// source:'auto' backstop. Two tasks with the same identifiers cost one entry + one base re-run.
 const recordBaselineDebt = (ids, baseSha) => {
   const idset = debtIds(ids), base = String(baseSha || '')
   const key = JSON.stringify([[...idset].sort(), base])
-  if (baselineDebt.some(d => d.key === key)) return
+  const covered = idset.length
+    ? baselineDebt.some(d => d.baseSha === base && idset.every(id => d.ids.includes(id)))   // ⊆ an existing entry at the same base
+    : baselineDebt.some(d => d.key === key)                                                 // empty: exact-empty-vs-empty only
+  if (covered) return
   baselineDebt.push({ key, ids: idset, baseSha: base })
   autoBaselineBackstops.push({
     check: `baseline gate debt: ${idset.join(', ') || '(see gate_output)'} — pre-existing at ${base || '(base sha unrecorded)'}`,
@@ -677,6 +695,11 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin) {
     + pt`\nLATITUDE RULE: the plan slice is the floor, the Commander's Intent is the ceiling — intent-consistent work beyond the literal slice is APPROVE (judge it on its own correctness), never a plan-faithfulness violation; only deviations that contradict the intent or the slice block. No intent threaded means judge against the plan slice alone, as before.`
     + pt`\nDISPOSITION RULE: every Minor/Nit finding carries a disposition — absorb (mechanical, intent-consistent, safe to fix this phase; set phaseClose:true when the fix needs the integrated tip or touches a shared/slot-adjacent file), follow-up (substantive work beyond this phase — MUST state why it is not absorbable), or note (informational; phase report + servitor feed, never an issue). Omitted disposition defaults: Minor becomes follow-up, Nit becomes note; absorb is never a default.`
     + pt`\nCALIBRATION RULE: judge on evidence only — never soften, downgrade, or drop a finding because peers disagreed or because a fix was attempted; downgrade only with a stated reason grounded in the current diff. The pull to soften peaks right after your own finding is challenged — that is the highest-risk moment.`
+    // #811 BYTE-COUPLED SURFACE (JS comment — NOT emitted into the prompt): this quote-bearing COST-CLAIM
+    // RULE literal is byte-identical to agents/war-auditor.md's Cost-claim rule line AND the test's
+    // COST_CLAIM_SHARED anchor. Any quote-style lint MUST run identically across ALL THREE in one commit —
+    // canonicalizing quotes on one surface alone silently breaks the byte-identity guards (shared-string-
+    // constant-quote-literal lesson; CALIBRATION_RULE_ANCHORS precedent). A lint most plausibly starts here.
     + pt`\nCOST-CLAIM RULE: a finding justified by a cost — "too slow", "too expensive", "too complex" — must name a magnitude (ms, MB, LOC, call count, or complexity class). An unquantifiable cost claim caps the finding at Minor.`
     // RELEASE-BASELINE RULE (D3) — verbatim-mirrored in agents/war-auditor.md (same commit). The literal
     // ${integrationBranch}...${task.branch} is escaped so the emitted prose byte-matches the static mirror.
@@ -740,16 +763,19 @@ async function auditRound(task, peers, workerTests, pin) {
   // escalate check: a seat whose well-formed audit_sha differs from its well-formed dispatched pin reviewed
   // a DIFFERENT tree than the worker's committed tip — its findings cannot be trusted for the HARD path.
   // Tag pin-mismatch, drop each finding to a non-blocking Nit (SOFT; original severity preserved so nothing
-  // is silently lost), neutralize the verdict to a non-blocking 'approve' so it can neither escalate nor
-  // block a merge, and push a SOFT absence-note (task, seat, both SHAs) to auditLog. Fail-open: absent or
-  // malformed pin OR audit_sha ⇒ no demotion (today's behavior). Demotion is findings/verdict-only — a
-  // wrong-tree seat's convergent unanimity on one audit_sha stays doctrine, out of D2's slice (plan Notes).
+  // is silently lost) AND STRIP its routing metadata (disposition + legacy autoFixable) so the demoted
+  // finding falls to the Nit default disposition (note) and can NEVER enter aceable / ride --ace (#805),
+  // neutralize the verdict to a non-blocking 'approve' so it can neither escalate nor block a merge, and push
+  // a SOFT absence-note (task, seat, both SHAs) to auditLog. Fail-open: absent or malformed pin OR audit_sha
+  // ⇒ no demotion (today's behavior). The strip is at this single collection site — NO new filter at the
+  // approve-branch routing loop; a wrong-tree seat's convergent unanimity on one audit_sha stays doctrine,
+  // out of D2's slice (plan Notes).
   for (const s of seats) {
     if (!pinMismatch(s.audit_sha, pin)) continue
     auditLog.push({ task: task.id, seat: s.seat, verdict: `pin-mismatch:${s.verdict}`, pinMismatch: true,
       auditSha: s.audit_sha, expectedPin: pin, findings: [],
       note: `pin-mismatch: seat reviewed ${s.audit_sha} but the dispatched pin is ${pin} — findings demoted to SOFT, not a land-halt` })
-    s.findings = (s.findings || []).map(f => ({ ...f, pinMismatch: true, originalSeverity: f.severity, severity: 'Nit' }))
+    s.findings = (s.findings || []).map(({ disposition, autoFixable, ...f }) => ({ ...f, pinMismatch: true, originalSeverity: f.severity, severity: 'Nit' }))
     s.verdict = 'approve'
   }
   return { seats, expected }
@@ -994,13 +1020,19 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // as a provably-unrun mapped test; empty/absent ⇒ the field is omitted (byte-identical entry).
   const landMerged = (task, mr, taskDebt) => {
     landed.push(task.id); succeeded.add(task.id)
+    // #806: capture this task's TRUE immediate predecessor tip (the tracker's value BEFORE this task's
+    // own update) — the successor's --mapped diff range starts there, even across a requiresTest:false skip.
+    const predTip = lastLandedTip
     if (task.requiresTest === false) {
       log(`gate-audit: skipping ${task.id} (requiresTest:false — no mapped tests, HARD path vacuous)`)
     } else {
       mergedTasksForGateAudit.push({ taskId: task.id, gateOutput: mr.gate_output, acceptanceCriteria: task.planSlice,
-        gateHeadSha: pinOrSentinel(mr.integration_sha), gateLogPath: mr.gate_log_path,
+        gateHeadSha: pinOrSentinel(mr.integration_sha), gateLogPath: mr.gate_log_path, preMergeTip: predTip,
         ...(Array.isArray(taskDebt) && taskDebt.length ? { baselineDebt: taskDebt } : {}) })
     }
+    // Update the tracker AFTER capturing predTip, and ONLY on a real integration_sha (isSha === the
+    // pinOrSentinel hex test); a sentinel leaves it at the last REAL sha. requiresTest:false tasks update it too.
+    if (isSha(mr.integration_sha)) lastLandedTip = mr.integration_sha
   }
   for (const r of results.filter(Boolean)) {
     // Carry the audit-loop round counter onto the task object so the no-test sub-loop
@@ -1160,7 +1192,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
               + pt`Resolve it for the slice described in: ${r.task.planSlice}. add the COPY or dockerignore it — never delete the file to satisfy the floor. Keep the gate green, commit and push.`
           const floorFix = await agent(
             fixPrompt + workerMemClause(r.task.id) + provisionClause,
-            { agentType: NS + 'war-worker', phase: 'Audit', label: `${isNoTest ? 'add-test' : 'package-it'}:${r.task.id}:r${r.task.fixRounds + 1}`, schema: WORKER_RESULT, ...spawn('worker') })
+            // #817: spawnWorker('fix') makes the add-test/package-it floor retry tier-aware, uniform with
+            // the fix:/ace: fix-follow-up classes (absent agents.worker.fix ⇒ inherit-base — byte-identical).
+            { agentType: NS + 'war-worker', phase: 'Audit', label: `${isNoTest ? 'add-test' : 'package-it'}:${r.task.id}:r${r.task.fixRounds + 1}`, schema: WORKER_RESULT, ...spawnWorker('fix') })
           // Floor-specific verdict tokens: no-test keeps its historical strings (regression guard #268);
           // unpackaged uses the parallel package-it form. status ('no-test'|'unpackaged') prefixes both.
           const blockedVerdict = isNoTest ? 'no-test:add-test-blocked' : 'unpackaged:package-it-blocked'
@@ -1347,14 +1381,19 @@ if (mergedTasksForGateAudit.length > 0) {
   const sameRepo = (a, b) => repoOf(a) === repoOf(b)
   const intraDep = tasks.some(t => (t.deps || []).some(d => tasks.some(x => x.id === d && sameRepo(x, t))))
   // Per-task pre-merge base for the task's own changed-file set + the guard floor. Per-task merges are
-  // FAST-FORWARD (linear single-parent chain, NO per-task merge commit), so the base is the PREVIOUS merged
-  // task's gateHeadSha in serial order (mergedTasksForGateAudit is pushed in merge order) — or, for the
-  // FIRST merged task, the phase integration base (a shell substitution the refiner resolves). NOT <merge>^1
-  // (void: no merge commit) and NOT the post-merge integration tip (an empty three-dot no-op).
+  // FAST-FORWARD (linear single-parent chain, NO per-task merge commit), so the base is the task's TRUE
+  // immediate predecessor tip in serial merge order — the stamped preMergeTip landMerged() captured (#806),
+  // which correctly spans a requiresTest:false interleave (that skipped task lands but never enters this
+  // list, yet its real integration tip IS the successor's base) — or, for the FIRST landed task, the phase
+  // integration base (a shell substitution the refiner resolves). NOT the previous LIST entry's gateHeadSha
+  // (over-counts across a requiresTest:false skip / can be a sentinel), NOT <merge>^1 (void: no merge commit),
+  // and NOT the post-merge integration tip (an empty three-dot no-op).
   const phaseBaseCmd = `$(git -C ${refineryPath} merge-base ${ph.integrationBranch} ${ph.workingBranch})`
-  const evItems = mergedTasksForGateAudit.map((m, i) => ({
+  const evItems = mergedTasksForGateAudit.map((m) => ({
     taskId: m.taskId, gateHeadSha: m.gateHeadSha,
-    preMergeTip: i === 0 ? phaseBaseCmd : mergedTasksForGateAudit[i - 1].gateHeadSha }))
+    // A null/absent stamp (the first landed task, or a barrier-recovery preMerged residual) falls back to
+    // the SAME phaseBaseCmd const — byte-identity by reference, never a re-typed literal.
+    preMergeTip: m.preMergeTip || phaseBaseCmd }))
   const evidence = await agent(
     pt`EVIDENCE DISPATCH for WAR phase ${ph.id} (mode=merge-task post-merge evidence; you are the refiner). `
     + pt`cwd = ${refineryPath} (the _refinery worktree, on ${ph.integrationBranch} at the FINAL integration tip after the serial merge queue). `
@@ -1366,7 +1405,7 @@ if (mergedTasksForGateAudit.length > 0) {
     + pt`The --mapped set is THIS task's OWN changed files (the <preMergeTip>..<gateHeadSha> range — exactly what the task brought in under fast-forward topology), NOT the global gate-discovery set. Record pin_status = CONFIRMED (exit 0, equal shas) | BENIGN-ADVANCE (exit 0, tip descends gateHeadSha and no mapped file changed in between) | STALE-MISMATCH (exit 1, a mapped file changed or not an ancestor) | ERROR (exit 2, git/ref error or the '(integration_sha …)' sentinel), plus pin_evidence (the script's printed intervening/offending file list or error text).\n`
     + pt`  2. GUARD SPECIFICITY — run: assert-guard-specificity-in-diff.sh <preMergeTip> <gateHeadSha> (SAME pre-merge base). Record guard_specificity = covered (exit 0) | uncovered (exit 1 — capture the printed uncovered guard message + defining file as guard_evidence) | ERROR (exit 2).\n`
     + (intraDep
-      ? pt`INTRA-PHASE-DEP phase (a same-repo dep edge exists): ALSO re-run the FULL gate (${plan.gate}) ONCE at the final integration tip in ${refineryPath} with a fresh TMPDIR (TMPDIR=$(cd / && mktemp -d)), tee its full stdout+stderr to ${refineryPath}/.war/gate-phase-${ph.id}.log, and return integratedTipGate = { gate_output: <the full captured output>, tip_sha: $(git -C ${refineryPath} rev-parse HEAD) } — the land-authoritative execution evidence. Ensure .war/ is git-excluded (append \`.war/\` once to the path printed by \`git -C ${refineryPath} rev-parse --git-path info/exclude\`).\n`
+      ? pt`INTRA-PHASE-DEP phase (a same-repo dep edge exists): ALSO re-run the FULL gate (${plan.gate}) ONCE at the final integration tip in ${refineryPath} with a fresh TMPDIR (TMPDIR=$(cd / && mktemp -d)), tee its full stdout+stderr to ${refineryPath}/.war/gate-phase-${ph.id}.log, and return integratedTipGate = { gate_output: <the full captured output>, tip_sha: $(git -C ${refineryPath} rev-parse HEAD), gate_log_path: ${refineryPath}/.war/gate-phase-${ph.id}.log } (the ABSOLUTE teed path) — the land-authoritative execution evidence, the captured log being the authoritative HARD-path artifact for the integrated-tip seat. Ensure .war/ is git-excluded (append \`.war/\` once to the path printed by \`git -C ${refineryPath} rev-parse --git-path info/exclude\`).\n`
       : pt`No intra-phase same-repo dep edge on this phase: do NOT re-run the gate; omit integratedTipGate.\n`)
     + pt`Return { perTask: [{ taskId, pin_status, pin_evidence, observedHead, guard_specificity, guard_evidence }], integratedTipGate? }. On any failure, return what you have — a partial/empty result is FAIL-OPEN (seats fall back to today's SOFT cannot-confirm path); never block.`,
     { agentType: NS + 'war-refiner', phase: 'Refine', label: `evidence:phase-${ph.id}`, dispatchKind: 'evidence', schema: EVIDENCE_RESULT, ...spawn('refiner') })
@@ -1437,6 +1476,10 @@ if (mergedTasksForGateAudit.length > 0) {
       // well-formed pin means the seat judged a different tree — tag pin-mismatch, EXCLUDE from the HARD path.
       const pin = observedHead || gateHeadSha
       const mismatch = pinMismatch(gateAuditVerdict.audit_sha, pin)
+      // #805 EXEMPT from the auditRound disposition-strip: this stamp is annotation-only (no disposition/
+      // autoFixable drop) — `!mismatch` already gates the ENTIRE HARD disjunct below, and gate-audit findings
+      // route ONLY into auditLog/escalated, never into aceable (populated solely at the per-task approve
+      // branch), so a demoted finding here can NEVER ride --ace. Not the same bug half-fixed.
       const findings = mismatch ? rawFindings.map(f => ({ ...f, pinMismatch: true })) : rawFindings
       // D8: severity OR verdict gates the hard path — a finding-less `verdict === 'escalate'` is HARD by
       // design (defence-in-depth against a silent finding-less escalate landing); Minor/Nit stay SOFT-by-
@@ -1470,13 +1513,18 @@ if (mergedTasksForGateAudit.length > 0) {
     const authCriteria = mergedTasksForGateAudit
       .filter(m => depCrossingIds.has(m.taskId))
       .map(m => `- ${m.taskId}: ${m.acceptanceCriteria || '(see plan file)'}`).join('\n') || '(see plan file)'
+    // #818: the captured integrated-tip gate log is the AUTHORITATIVE HARD-path artifact for THIS seat
+    // (mirroring the per-task GATE LOG ARTIFACT clause); an absent path ⇒ SOFT cannot-confirm (fail-open —
+    // an in-flight refiner returning integratedTipGate without gate_log_path lands SOFT, never an error).
+    const authArtifactLine = integratedTip.gate_log_path || '(no gate-log artifact path recorded)'
     const authVerdict = await agent(
       pt`INTEGRATED-TIP GATE-AUDIT for WAR phase ${ph.id} (lens: execution-evidence — AUTHORITATIVE). `
       + pt`You are a READ-ONLY auditor with read-only git. The phase integration branch is checked out at ${refineryPath} at the FINAL integration tip ${integratedTip.tip_sha || '(tip sha unrecorded)'}, and the FULL gate was re-run there after the serial merge queue — this integrated-tip run is LAND-AUTHORITATIVE over the per-branch gates for the intra-phase dep tasks (their branches were gated before their dep's content landed).\n`
       + pt`Judge the union of the dep-crossing tasks' mapped acceptance criteria against this integrated-tip evidence. Record a HARD gate-evidence finding (Critical/Major) ONLY when a mapped test is provably unrun at this tip; a cannot-confirm is SOFT, never a hold; NEVER 'escalate' for a stale/unconfirmable tip (escalate is reserved for a wrong/underspecified plan).\n`
+      + pt`GATE LOG ARTIFACT: read the FULL captured integrated-tip gate log at ${authArtifactLine} (read-only Read) — this captured file, NOT the inline gate output below, is the AUTHORITATIVE execution evidence for a HARD provably-unrun determination. A MISSING artifact (no path, or the file cannot be read) ⇒ SOFT cannot-confirm for the HARD path (never a HARD finding); the inline gate output stays readable as NON-AUTHORITATIVE context.\n`
       + pt`Return the sha you reviewed as audit_sha (it should equal ${integratedTip.tip_sha || 'the integration tip'}).\n`
       + pt`Dep-crossing tasks' acceptance criteria:\n${authCriteria}\n`
-      + pt`Integrated-tip gate output (AUTHORITATIVE — the land-decisive execution evidence):\n${integratedTip.gate_output}\n`
+      + pt`Integrated-tip gate output (NON-AUTHORITATIVE context — the captured artifact above is authoritative for the HARD path):\n${integratedTip.gate_output}\n`
       + endStateBlock + intentClause
       + pt`\nDefault: SOFT. Hard only when provably unrun.`,
       { agentType: NS + 'war-auditor', phase: 'Audit',
@@ -1598,6 +1646,11 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
       + phaseCloseQueue.map((f, i) => `${i + 1}. [${f.severity}] ${f.title} (task ${f.task}${f.file ? `, ${f.file}` : ''}${f.line ? ':' + f.line : ''}) — ${f.rationale || ''}${f.suggested_fix ? ` → ${f.suggested_fix}` : ''}`).join('\n') + pt`\n`
       + pt`Merged tasks' plan slices (context for cross-task coherence at the integrated tip):\n${mergedSlices || '(none)'}`
       + provisionClause,
+      // #817: this dispatch is DELIBERATELY non-tiered — the phase-close sweep is a fresh phase-scope
+      // coherence worker over absorb findings, NOT a per-task fix follow-up, so it inherits the base worker,
+      // never agents.worker.fix. (The three fix-follow-up classes — fix:/ace:/add-test:|package-it: — are
+      // tier-aware via spawnWorker('fix'); this one intentionally is not. The only other non-tiered base
+      // spawn is the fallback inside spawnWorker itself — the tier resolver, definitionally correct.)
       { agentType: NS + 'war-worker', phase: 'Work', label: `polish:phase-${ph.id}`, schema: WORKER_RESULT, ...spawn('worker') })
     // 3. Full auditRound panel re-audit at the polish SHA — same unanimity rules as any task.
     const sweepWhy = blockedReason(sweep)
@@ -1666,7 +1719,7 @@ if (landDecision === 'landed') {
     + pt`  1. In ${refineryLandPath}: detach HEAD at origin/${ph.workingBranch} (`
     + pt`\`git -C ${refineryLandPath} fetch origin ${ph.workingBranch} && git -C ${refineryLandPath} checkout --detach origin/${ph.workingBranch}\`). `
     + pt`This is the detached land — never checkout the working branch by name in _refinery.\n`
-    + pt`  2. Merge: \`git -C ${refineryLandPath} merge --no-ff ${ph.integrationBranch}\` (one phase commit). Run the gate (${plan.gate}) with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)), so any meta-test that materialises scratch dirs isolates from the worktree's .war-task marker; the gate's cwd stays the task worktree. On gate failure return gate_failed.\n`
+    + pt`  2. Merge: \`git -C ${refineryLandPath} merge --no-ff ${ph.integrationBranch}\` (one phase commit). Run the gate (${plan.gate}) with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)), so any meta-test that materialises scratch dirs isolates from the worktree's .war-task marker; the gate's cwd stays the _refinery land worktree. On gate failure return gate_failed.\n`
     + classificationClause(refineryLandPath, pt`the detached origin/${ph.workingBranch} tip the merge lands onto (\`git -C ${refineryLandPath} rev-parse origin/${ph.workingBranch}\`) — a stacked working branch carries prior plans' content the phase integration base lacks, so the land uses the working tip, NOT the integration base`)
     + baselineDebtClause()
     + pt`  3. Push-first CAS: run \`cd ${refineryLandPath} && provision-worktrees.sh land-advance ${ph.workingBranch} <merge-sha>\` where <merge-sha> is HEAD in _refinery after the merge.\n`

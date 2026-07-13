@@ -1,6 +1,6 @@
 ---
 name: premergetip-chain-skips-requirestest-false-tasks
-description: "preMergeTip chains requiresTest-filtered list; over-populates --mapped"
+description: "preMergeTip chains on the requiresTest:true-filtered mergedTasksForGateAudit list, not the full serial merge order — a requiresTest:false task interleaved between test tasks over-populates the --mapped set"
 metadata: 
   node_type: memory
   type: project
@@ -71,3 +71,21 @@ not the filtered list's own predecessor.
 **Disposition at find time:** filed as a Minor follow-up (task 2.1 audit), not fixed in the same
 task — the spawn directive specified exactly this prev-`gateHeadSha`/phase-base idiom, so this is a
 latent gap in the directed design, not a deviation from it.
+
+## Actually fixed — phase "Engine fidelity + evidence contract" (#806, 2026-07-12)
+
+The prior `> archived: resolved` tag below was routine housekeeping (age/budget eviction), NOT a
+claim the code defect was fixed — it wasn't, until now. **Code-verified via the phase's own task
+worktree** (this servitor's own cwd was a stale, unrelated checkout — see
+[[servitor-verify-on-write-worktree-can-lag-just-landed-phase]] — confirmed instead at
+`<repo-root>/.claude/war-worktrees/2026-07-12-audit-gate-evidence-fidelity/p1-1.1/skills/war/assets/workflow-template.js`):
+a new `lastLandedTip` tracker (module-level, alongside `mergedTasksForGateAudit`) now stamps each
+gate-audit entry's `preMergeTip` from the tracker's value **before** that task's own update — its
+true immediate predecessor tip in real serial merge order, including `requiresTest:false`
+interleaves. A `requiresTest:false` task's `MergeResult` lacking `integration_sha` leaves the
+tracker at the last REAL sha rather than poisoning the chain with a sentinel. The filtered-list-vs-
+full-order gap this lesson named as the durable pattern is closed for this specific chain; the
+generic "a filtered accumulator is the wrong list to derive a topology pointer from" lesson below
+still stands for any *other* filtered-list pointer built the same way.
+
+> archived 2026-07-11: resolved — moved to archive

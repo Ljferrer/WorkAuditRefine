@@ -7,7 +7,7 @@ metadata:
   provenance: code-verified
   slug: servitor-verify-on-write-worktree-can-lag-just-landed-phase
   phase: guard-floor-and-scope-hook-coverage-completeness/servitor-wrapup +4 recurrences (latest Engine-routes-contract-surfaces/1.1, 2026-07-12)
-  promoted: true
+  promoted: dev/2026-07-12-war-launch-entry-validation@phase-1
   keywords:
     - stale worktree
     - D3 verify-on-write
@@ -115,6 +115,29 @@ upgrades step 2's "mismatch downgrades confidence" workaround to a first choice:
 for `agent-unverified`, check whether the phase's own task worktree is still on disk under
 `.git/worktrees/<task-id>/` and read the referent there.**
 
+## Recurrence 5 (2026-07-12, phase "Engine fidelity + evidence contract" / tasks 1.1+1.2) — technique reused, plus a worktree-name-collision wrinkle
+
+Sixth occurrence, a **new** session worktree this time (`survey-corps-06a1c3`, branch
+`claude/survey-corps-06a1c3` — confirmed via `<repo-root>/.git/worktrees/survey-corps-06a1c3/HEAD`),
+so this is NOT the same stale worktree as Recurrences 1-4 — a fresh instance of the general hazard,
+not a continuation of one session's specific lag. The Recurrence 4 technique (read
+`.git/worktrees/<task-id>/gitdir` for the phase's own task worktree, then Read/Grep the referent
+there) was applied again and again succeeded fully: all seven of the phase's fixed gaps (#798,
+#805, #806, #811, #815, #817, #818) were independently code-verified at
+`<repo-root>/.claude/war-worktrees/2026-07-12-audit-gate-evidence-fidelity/p1-1.1/skills/war/assets/workflow-template.js`
+and `.../p1-1.2/`, while this servitor's own cwd still showed the OLD pre-fix code for every one of
+them (e.g. `spawn('worker')` at the floor-retry site instead of `spawnWorker('fix')`).
+
+**New wrinkle — worktree-name collision:** `.git/worktrees/p1-1.1` existed but pointed at a
+*different, unrelated* concurrently-run plan's task 1.1
+(`.claude/war-worktrees/2026-07-12-war-launch-entry-validation/p1-1.1`) — git had already
+auto-suffixed the name for THIS phase's real task 1.1 to `p1-1.11` (`.claude/war-worktrees/2026-07-12-audit-gate-evidence-fidelity/p1-1.1`,
+confirmed via that entry's `gitdir` file). **Do not assume `.git/worktrees/<task-id>/` is unique per
+task id across the whole repo** — worktree names collide across concurrent plans/runs and git
+resolves it with a numeric suffix; always confirm via `gitdir` (the physical path names the
+plan-slug directory) rather than trusting the worktree-registry name alone, and check `HEAD` for
+the expected working branch too.
+
 ## Related
 
 [[audit-worktree-pre-impl-tip-stale-verdict]] — the auditor-side analogue (audit worktree HEAD can
@@ -124,4 +147,8 @@ same staleness family at the ref-sync layer. [[war-launch-worktree-with-working-
 [[audit-log-finding-can-be-stale-by-land-time]] — the negative-finding sibling of the gate-audit
 edge above. [[wave-loop-thunk-catch-prevents-null-result-infinite-redispatch]] and
 [[entry-validation-unconditional-phase-field-check-comment-overclaims-runtime-path]] — the facts
-this recurrence's task-worktree technique was used to verify.
+Recurrence 4's task-worktree technique was used to verify.
+[[integrated-tip-authoritative-gate-audit-seat-has-no-gate-log-path-field]],
+[[floor-retry-add-test-package-it-worker-stays-base-tier]],
+[[baseline-debt-dedup-exact-set-not-subset]] — facts Recurrence 5 confirmed RESOLVED using this
+same technique.
