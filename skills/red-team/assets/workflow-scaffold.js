@@ -18,8 +18,9 @@ export const meta = {
 //   fully-clean probe returns status:"pass" with findings:[].
 //   Gate side — a Critical/Major finding is a blocker only when its parent probe's
 //   status is NOT "pass" (probeStatus !== "pass"). A pass probe's Critical/Major is
-//   discarded as a non-defect. needsDecision:true always blocks regardless of probe
-//   status. warn/fail/absent probe status still blocks (only literal "pass" demotes).
+//   filtered from `blockers` (it remains in `allFindings()` and downstream diagnostics).
+//   needsDecision:true always blocks regardless of probe status. warn/fail/absent probe
+//   status still blocks (only literal "pass" demotes).
 // SAFETY: execution probes work ONLY in throwaway temp dirs / git worktrees and NEVER
 // mutate `repo`. Analysis probes are read-only: they run on the preferred `Explore` agent when the
 // harness provides it, falling back to `general-purpose` when it does not (analyzed-agent fallback,
@@ -43,6 +44,11 @@ const FINDINGS = { type: 'object', required: ['probe', 'kind', 'technique', 'sta
     // (mapped by coverage-vs-source to a plan task), not a missing precondition. The gate never
     // counts a deliverableAbsence finding as a blocker (red-team-gate.mjs classify()).
     deliverableAbsence: { type: 'boolean' },
+    // envGap (ADR 0032 / #807): set true ONLY on the finding that records a PROVISION-STEP failure
+    // (the failed command + its output) — never on a defect in the artifact under test. The gate
+    // demotes an envGap finding to an informational Minor note, never a blocker (red-team-gate.mjs
+    // classify()) — a broken environment is not a broken plan.
+    envGap: { type: 'boolean' },
     claim: { type: 'string' }, reality: { type: 'string' }, evidence: { type: 'string' },
     fix: { type: 'string' }, planRef: { type: 'string' } } } } } }
 
@@ -100,9 +106,11 @@ if (!fingerprint || !fingerprint.titleLine) {
 // from the target repo's own declared setup — see provision.mjs / the setup-scout). An EXECUTED
 // probe must run those commands in its throwaway sandbox BEFORE the baseline, so the gate-relevant
 // work runs against a provisioned tree. Provisioning is environment setup, not the artifact under
-// test: a FAILING provision step is an env-gap → status:"warn" + a note, and must NEVER become a
-// red/fail verdict (that would mis-score a broken environment as a broken plan). Empty list ⇒ no
-// directive at all (byte-for-byte back-compat). Analyzed/read-only probes never provision.
+// test: a FAILING provision step is an env-gap → status:"warn" + a note STAMPED envGap:true, and must
+// NEVER become a red/fail verdict (that would mis-score a broken environment as a broken plan). The
+// gate demotes that envGap-flagged note to an informational Minor (red-team-gate.mjs classify()) — the
+// enforcement is gate-side and typed, not prompt-trust alone. Empty list ⇒ no directive at all
+// (byte-for-byte back-compat). Analyzed/read-only probes never provision.
 //
 // PROVENANCE of args.provision — three valid sources (in descending authority):
 //   1. Operator pin: the user passes an explicit list when invoking /red-team.
@@ -119,7 +127,7 @@ const provisionDirective = (technique) =>
         'PROVISION FIRST — before the baseline. Inside that sandbox copy, and BEFORE you run any of the plan’s artifacts (the baseline), run these provisioning commands IN ORDER:',
         ...provision.map(c => `  - ${c}`),
         'These bring the sandbox to a gate-ready state (submodules, dependency install, etc.); they are environment setup, NOT the subject under test.',
-        'If a provision step FAILS, set status to "warn", add a finding noting the env-gap (the failed command + its output), and do NOT run the baseline. A provision failure is an environment gap — it is NEVER a red/fail verdict and must not be reported as a Critical/Major plan defect.',
+        'If a provision step FAILS, set status to "warn", add a finding noting the env-gap (the failed command + its output) and stamp that finding envGap: true, and do NOT run the baseline. A provision failure is an environment gap — it is NEVER a red/fail verdict and must not be reported as a Critical/Major plan defect; the envGap: true flag makes the gate demote that note to an informational Minor.',
       ].join('\n')
     : ''
 // Layer 2 — SCOPE-LOCK preamble. /red-team is routinely launched from project X's session to

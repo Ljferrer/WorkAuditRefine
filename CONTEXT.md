@@ -706,6 +706,16 @@ NLP). Distinct from a **precondition-missing** anchor (a real finding).
 _Avoid_: "missing code", "gap" — and never conflate it with the retained-findings carve-out (a false
 claim about EXISTING code still blocks).
 
+**env-gap finding**:
+A probe finding flagged `envGap: true` — recording a PROVISION-STEP failure inside an executed probe's
+own sandbox (the setup broke; the artifact under test did not). `classify()` demotes it to an
+informational Minor regardless of severity or probe status, checked adjacent to and after the
+`deliverableAbsence` flag (a finding carrying both demotes via `deliverableAbsence` first). `needsDecision`
+is not cleared by the flag — a self-declared ambiguity still blocks.
+_Avoid_: conflating it with /war's **`env-blocked`** — that is a per-task *provisioning* outcome (the
+worker is never spawned); an env-gap finding is a /red-team probe-*result* flag (the probe ran to
+completion and reports the broken environment as a note).
+
 **Sandbox-escape guard**:
 The deterministic post-run check (`assert-no-repo-escape.sh`, floor exit contract 0/1/2) that no executed
 probe mutated the real repo working tree or pushed a junk remote ref. Runs between the Workflow return and
