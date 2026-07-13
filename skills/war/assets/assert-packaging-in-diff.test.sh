@@ -24,6 +24,23 @@
 #   10. rename TARGET into an enumerated-COPY dir -> exit 1 (R path flags).
 #   11. .. traversal in base arg -> exit 2 via the guard, message on stderr
 #       (load-bearing: distinguishes the guard from a plain bad-ref error).
+# Continuation join, parse-once inversion, and --advise-vacuous (this plan):
+#   12. backslash-continued enumerated COPY, uncovered sibling -> exit 1 (RED
+#       vs pre-change: base can't parse the continuation).
+#   13. backslash-continued COPY covering the added sibling -> exit 0 (RED vs
+#       pre-change: base flags the un-parsed coverage).
+#   14. mid-continuation `#` comment dropped -> parity with case 12.
+#   15. dangling final-line `\` -> no hang, tokens preserved (exit 0).
+#   16. runtime parse_dockerfile invocation count == #Dockerfiles (2), never
+#       F×D -> the delete-the-inversion lock (a static call-site count can't
+#       catch a revert).
+#   17. multi-F×multi-D flagged-pair SET (sorted) + pair-count equality.
+#   18. --advise-vacuous + no-Dockerfile -> exit 0 + stderr advisory.
+#   19. --advise-vacuous + Modified-only diff -> exit 0 + stderr advisory.
+#   20. --advise-vacuous + flagged run -> exit 1, pair on stdout, NO advisory.
+#   21. --advise-vacuous + entirely empty diff -> exit 0, stderr byte-empty.
+#   22. no flag -> stderr silent on BOTH vacuous shapes (default byte-identical).
+# (18/19 advisory lines are prose-locked to contain `ratified scope` + `ADR 0017`.)
 set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -57,15 +74,33 @@ setup_repo() {
   printf '%s\n' "$T"
 }
 
-# run_floor <repo> <base> <branch> -> sets RC and OUT (stdout); stderr -> ERR.
+# run_floor <repo> <base> <branch> [extra-args...] -> sets RC and OUT (stdout);
+# stderr -> ERR. Extra args (e.g. --advise-vacuous) are forwarded after --repo.
 # Always run from an UNRELATED clean cwd (memory: relative-path-test-needs-clean-cwd).
 run_floor() {
-  rf_repo="$1"; rf_base="$2"; rf_branch="$3"
+  rf_repo="$1"; rf_base="$2"; rf_branch="$3"; shift 3
   cwd="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
   TMPFILES="$TMPFILES $cwd"
   RC=0
-  OUT="$( ( cd "$cwd" && bash "$SCRIPT" "$rf_base" "$rf_branch" --repo "$rf_repo" ) 2>/tmp/pkg_err_$$ )" || RC=$?
+  OUT="$( ( cd "$cwd" && bash "$SCRIPT" "$rf_base" "$rf_branch" --repo "$rf_repo" "$@" ) 2>/tmp/pkg_err_$$ )" || RC=$?
   ERR="$(cat /tmp/pkg_err_$$ 2>/dev/null)"; rm -f /tmp/pkg_err_$$
+}
+
+# trace_parse_count <repo> <base> <branch> -> sets TRACE_N to the number of
+# RUNTIME parse_dockerfile invocations (counted from bash -x xtrace). This locks
+# the Dockerfile-outer/added-file-inner inversion: each Dockerfile must parse
+# EXACTLY ONCE (total == #Dockerfiles), never once per (F,D) pair. A static
+# call-site count can NOT catch a revert — the base already has one call site and
+# the inversion only moves it — so the lock must count actual runtime calls.
+trace_parse_count() {
+  tp_repo="$1"; tp_base="$2"; tp_branch="$3"
+  cwd="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
+  TMPFILES="$TMPFILES $cwd"
+  ( cd "$cwd" && bash -x "$SCRIPT" "$tp_base" "$tp_branch" --repo "$tp_repo" ) >/dev/null 2>"$cwd/xtrace.log" || true
+  # xtrace emits `+ parse_dockerfile <path>` per invocation; the arg always ends
+  # in a Dockerfile basename, which excludes the `parse_dockerfile() {` definition.
+  TRACE_N="$(grep -cE 'parse_dockerfile ([^ ]*/)?Dockerfile' "$cwd/xtrace.log" 2>/dev/null || true)"
+  [ -n "$TRACE_N" ] || TRACE_N=0
 }
 
 # ---------------------------------------------------------------------------
@@ -406,6 +441,321 @@ elif [ "$RC" -ne 2 ]; then
   fail "case 11: .. traversal -> expected exit 2, got $RC (guard missing/bypassed; err: $ERR)"
 else
   fail "case 11: .. traversal -> exit 2 but guard message absent on stderr (err: $ERR)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 12: backslash-continuation, UNCOVERED sibling -> exit 1 + pair.
+# The enumerated COPY spans four physical lines joined by trailing `\`. It
+# enumerates loader.py/helper.py (into app/), but NOT the added case_metadata.py.
+# RED vs the pre-change script (base-ref evidence in the worker done-report):
+# the base tokenizer reads the broken physical lines, finds NO parseable source,
+# and passes vacuously (exit 0); the continuation join is what lets step 1 fire.
+# ---------------------------------------------------------------------------
+R12="$(setup_repo)"
+mkdir -p "$R12/app"
+printf 'loader\n' > "$R12/app/loader.py"
+printf 'helper\n' > "$R12/app/helper.py"
+cat > "$R12/app/Dockerfile" <<'DF'
+FROM python:3.12
+WORKDIR /app
+COPY \
+    loader.py \
+    helper.py \
+    /app/
+DF
+git -C "$R12" add app/loader.py app/helper.py app/Dockerfile
+git -C "$R12" commit -qm "enumerated COPY across a backslash continuation"
+BASE12="$(git -C "$R12" rev-parse HEAD)"
+git -C "$R12" checkout -qb task/cont-uncovered 2>/dev/null
+printf 'meta\n' > "$R12/app/case_metadata.py"
+git -C "$R12" add app/case_metadata.py
+git -C "$R12" commit -qm "add uncovered sibling beside the continued COPY"
+TASK12="$(git -C "$R12" rev-parse HEAD)"
+git -C "$R12" checkout -q - 2>/dev/null
+
+run_floor "$R12" "$BASE12" "$TASK12"
+if [ "$RC" -eq 1 ] && printf '%s' "$OUT" | grep -qF "app/case_metadata.py -> app/Dockerfile"; then
+  pass "case 12: continuation join, uncovered sibling -> exit 1 + pair (RED vs pre-change)"
+elif [ "$RC" -ne 1 ]; then
+  fail "case 12: continuation uncovered -> expected exit 1, got $RC (join missing: continued COPY not parsed)"
+else
+  fail "case 12: continuation uncovered -> exit 1 but pair absent (out: $OUT)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 13: backslash-continuation, COVERED sibling -> exit 0.
+# A single-line enumerated `COPY loader.py` makes step 1 fire in BOTH scripts,
+# then a CONTINUATION-spanning `COPY \ case_metadata.py \ /app/` provides the
+# coverage. RED vs the pre-change script: base fires step 1 (via loader.py) but
+# can't parse the continued coverage line -> flags (exit 1); the join covers it.
+# ---------------------------------------------------------------------------
+R13="$(setup_repo)"
+mkdir -p "$R13/app"
+printf 'loader\n' > "$R13/app/loader.py"
+cat > "$R13/app/Dockerfile" <<'DF'
+FROM python:3.12
+WORKDIR /app
+COPY loader.py /app/loader.py
+COPY \
+    case_metadata.py \
+    /app/
+DF
+git -C "$R13" add app/loader.py app/Dockerfile
+git -C "$R13" commit -qm "enumerated single-line + continued coverage COPY"
+BASE13="$(git -C "$R13" rev-parse HEAD)"
+git -C "$R13" checkout -qb task/cont-covered 2>/dev/null
+printf 'meta\n' > "$R13/app/case_metadata.py"
+git -C "$R13" add app/case_metadata.py
+git -C "$R13" commit -qm "add sibling covered by the continued COPY"
+TASK13="$(git -C "$R13" rev-parse HEAD)"
+git -C "$R13" checkout -q - 2>/dev/null
+
+run_floor "$R13" "$BASE13" "$TASK13"
+if [ "$RC" -eq 0 ]; then
+  pass "case 13: continuation join, covered sibling -> exit 0 (RED vs pre-change)"
+else
+  fail "case 13: continuation covered -> expected exit 0, got $RC (out: $OUT) — continued coverage not parsed"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 14: mid-continuation `#` comment parity. Same shape as case 12 but with a
+# full-line comment BETWEEN two continued sources. Docker strips comments before
+# joining continuations, so the parse (and thus the flag outcome) must be
+# IDENTICAL to the comment-free case 12: exit 1, same pair. WITHOUT comment-
+# dropping the comment splices into the logical line and corrupts the parse.
+# ---------------------------------------------------------------------------
+R14="$(setup_repo)"
+mkdir -p "$R14/app"
+printf 'loader\n' > "$R14/app/loader.py"
+printf 'helper\n' > "$R14/app/helper.py"
+cat > "$R14/app/Dockerfile" <<'DF'
+FROM python:3.12
+WORKDIR /app
+COPY \
+    loader.py \
+# the sibling helper, pulled in explicitly
+    helper.py \
+    /app/
+DF
+git -C "$R14" add app/loader.py app/helper.py app/Dockerfile
+git -C "$R14" commit -qm "continued COPY with a mid-continuation comment"
+BASE14="$(git -C "$R14" rev-parse HEAD)"
+git -C "$R14" checkout -qb task/cont-comment 2>/dev/null
+printf 'meta\n' > "$R14/app/case_metadata.py"
+git -C "$R14" add app/case_metadata.py
+git -C "$R14" commit -qm "add uncovered sibling (comment must not change the parse)"
+TASK14="$(git -C "$R14" rev-parse HEAD)"
+git -C "$R14" checkout -q - 2>/dev/null
+
+run_floor "$R14" "$BASE14" "$TASK14"
+if [ "$RC" -eq 1 ] && printf '%s' "$OUT" | grep -qF "app/case_metadata.py -> app/Dockerfile"; then
+  pass "case 14: mid-continuation comment dropped -> parity with case 12 (exit 1 + same pair)"
+else
+  fail "case 14: mid-continuation comment -> expected exit 1 + pair like case 12, got RC=$RC out=$OUT"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 15: dangling final-line `\` -> no hang, no dropped tokens.
+# The Dockerfile's LAST physical line ends in `\` (a dangling continuation). The
+# join must terminate the logical line at EOF, PRESERVING that line's tokens so
+# `COPY case_metadata.py /app/` still registers case_metadata.py as covered
+# (exit 0). WITHOUT the EOF-emit those tokens are dropped -> the file flags
+# (exit 1); so exit 0 here is the delete-the-EOF-terminator lock.
+# ---------------------------------------------------------------------------
+R15="$(setup_repo)"
+printf 'loader\n' > "$R15/loader.py"
+# Note: heredoc adds a trailing newline; the last CONTENT line ends in `\`.
+cat > "$R15/Dockerfile" <<'DF'
+FROM python:3.12
+COPY loader.py /app/loader.py
+COPY case_metadata.py /app/ \
+DF
+git -C "$R15" add loader.py Dockerfile
+git -C "$R15" commit -qm "Dockerfile whose last line dangles on a backslash"
+BASE15="$(git -C "$R15" rev-parse HEAD)"
+git -C "$R15" checkout -qb task/dangling 2>/dev/null
+printf 'meta\n' > "$R15/case_metadata.py"
+git -C "$R15" add case_metadata.py
+git -C "$R15" commit -qm "add file covered by the dangling-line COPY"
+TASK15="$(git -C "$R15" rev-parse HEAD)"
+git -C "$R15" checkout -q - 2>/dev/null
+
+run_floor "$R15" "$BASE15" "$TASK15"
+if [ "$RC" -eq 0 ]; then
+  pass "case 15: dangling final-line backslash -> no hang, tokens preserved (exit 0)"
+else
+  fail "case 15: dangling backslash -> expected exit 0, got $RC (out: $OUT) — EOF-emit dropped the final tokens"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 16 + 17: multi-F x multi-D fixture. Two Dockerfiles (root + app/), three
+# added files. Case 16 TRACES the runtime parse_dockerfile invocation count and
+# asserts it equals the Dockerfile COUNT (2), never F×D — the delete-the-
+# inversion lock (a revert to added-file-outer/parse-per-pair pushes the count
+# to 5 here). Case 17 asserts the flagged-pair SET (sorted) plus pair-count,
+# so a dropped pair cannot hide inside a reorder introduced by the inversion.
+# ---------------------------------------------------------------------------
+R16="$(setup_repo)"
+printf 'root\n' > "$R16/root.py"
+mkdir -p "$R16/app"
+printf 'loader\n' > "$R16/app/loader.py"
+cat > "$R16/Dockerfile" <<'DF'
+FROM python:3.12
+COPY root.py /root.py
+DF
+cat > "$R16/app/Dockerfile" <<'DF'
+FROM python:3.12
+COPY loader.py /app/loader.py
+DF
+git -C "$R16" add root.py app/loader.py Dockerfile app/Dockerfile
+git -C "$R16" commit -qm "two Dockerfiles, each enumerated"
+BASE16="$(git -C "$R16" rev-parse HEAD)"
+git -C "$R16" checkout -qb task/multi 2>/dev/null
+printf 'a\n' > "$R16/added_root.py"
+printf 'b\n' > "$R16/app/added_app.py"
+printf 'c\n' > "$R16/app/more.py"
+git -C "$R16" add added_root.py app/added_app.py app/more.py
+git -C "$R16" commit -qm "add three uncovered siblings across both contexts"
+TASK16="$(git -C "$R16" rev-parse HEAD)"
+git -C "$R16" checkout -q - 2>/dev/null
+
+trace_parse_count "$R16" "$BASE16" "$TASK16"
+if [ "$TRACE_N" -eq 2 ]; then
+  pass "case 16: parse_dockerfile invoked once per Dockerfile (== 2), never F×D (runtime-trace inversion lock)"
+else
+  fail "case 16: expected 2 runtime parse_dockerfile invocations (== #Dockerfiles), got $TRACE_N (inversion reverted -> per-pair re-parse)"
+fi
+
+run_floor "$R16" "$BASE16" "$TASK16"
+# Expected flagged SET (the pre-change set is identical — the inversion is
+# set-preserving; compared sorted, never as a hand-written ordered block).
+EXPECTED16="$(printf '%s\n' \
+  "added_root.py -> Dockerfile" \
+  "app/added_app.py -> app/Dockerfile" \
+  "app/more.py -> app/Dockerfile" | sort)"
+ACTUAL16="$(printf '%s' "$OUT" | grep -F ' -> ' | sort)"
+ACTUAL16_N="$(printf '%s' "$OUT" | grep -cF ' -> ')"
+if [ "$RC" -eq 1 ] && [ "$ACTUAL16" = "$EXPECTED16" ] && [ "$ACTUAL16_N" -eq 3 ]; then
+  pass "case 17: multi-F×multi-D flagged-pair SET equal (sorted) + pair-count 3 (order-independent)"
+else
+  fail "case 17: multi-F×multi-D set/count mismatch -> RC=$RC count=$ACTUAL16_N
+--- expected ---
+$EXPECTED16
+--- actual ---
+$ACTUAL16"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 18: --advise-vacuous + no-Dockerfile -> exit 0 + ONE stderr advisory
+# naming the no-Dockerfile shape and citing the ratified scope + ADR 0017.
+# Reuses case 6's shape (added file, no Dockerfile anywhere).
+# ---------------------------------------------------------------------------
+R18="$(setup_repo)"
+BASE18="$(git -C "$R18" rev-parse HEAD)"
+git -C "$R18" checkout -qb task/advise-nodf 2>/dev/null
+printf 'src\n' > "$R18/impl.py"
+git -C "$R18" add impl.py
+git -C "$R18" commit -qm "add impl, no Dockerfile"
+TASK18="$(git -C "$R18" rev-parse HEAD)"
+git -C "$R18" checkout -q - 2>/dev/null
+
+run_floor "$R18" "$BASE18" "$TASK18" --advise-vacuous
+if [ "$RC" -eq 0 ] \
+   && printf '%s' "$ERR" | grep -qi 'no Dockerfile' \
+   && printf '%s' "$ERR" | grep -qF 'ratified scope' \
+   && printf '%s' "$ERR" | grep -qF 'ADR 0017'; then
+  pass "case 18: --advise-vacuous + no-Dockerfile -> exit 0 + advisory (ratified scope, ADR 0017)"
+else
+  fail "case 18: --advise-vacuous no-Dockerfile -> RC=$RC, advisory/prose wrong (err: $ERR)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 19: --advise-vacuous + Modified-only diff (non-empty diff_out, zero
+# A/R/C) -> exit 0 + advisory naming the A/R/C-empty shape + prose lock.
+# ---------------------------------------------------------------------------
+R19="$(setup_repo)"
+printf 'v1\n' > "$R19/a.py"
+git -C "$R19" add a.py
+git -C "$R19" commit -qm "seed a.py"
+BASE19="$(git -C "$R19" rev-parse HEAD)"
+git -C "$R19" checkout -qb task/advise-mod 2>/dev/null
+printf 'v2\n' > "$R19/a.py"
+git -C "$R19" add a.py
+git -C "$R19" commit -qm "modify a.py only (M, no A/R/C)"
+TASK19="$(git -C "$R19" rev-parse HEAD)"
+git -C "$R19" checkout -q - 2>/dev/null
+
+run_floor "$R19" "$BASE19" "$TASK19" --advise-vacuous
+if [ "$RC" -eq 0 ] \
+   && printf '%s' "$ERR" | grep -qiF 'no Added/Renamed/Copied' \
+   && printf '%s' "$ERR" | grep -qF 'ratified scope' \
+   && printf '%s' "$ERR" | grep -qF 'ADR 0017'; then
+  pass "case 19: --advise-vacuous + Modified-only -> exit 0 + advisory (ratified scope, ADR 0017)"
+else
+  fail "case 19: --advise-vacuous Modified-only -> RC=$RC, advisory/prose wrong (err: $ERR)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 20: --advise-vacuous on a FLAGGED run -> exit 1, unchanged stdout pairs,
+# NO advisory (the flag surfaces only the two structural no-ops, never a flag).
+# Reuses case 1's incident shape.
+# ---------------------------------------------------------------------------
+R20="$(setup_repo)"
+mkdir -p "$R20/app"
+printf 'loader\n' > "$R20/app/loader.py"
+cat > "$R20/app/Dockerfile" <<'DF'
+FROM python:3.12
+COPY loader.py /app/loader.py
+DF
+git -C "$R20" add app/loader.py app/Dockerfile
+git -C "$R20" commit -qm "enumerated Dockerfile"
+BASE20="$(git -C "$R20" rev-parse HEAD)"
+git -C "$R20" checkout -qb task/advise-flag 2>/dev/null
+printf 'meta\n' > "$R20/app/case_metadata.py"
+git -C "$R20" add app/case_metadata.py
+git -C "$R20" commit -qm "add uncovered sibling (flags)"
+TASK20="$(git -C "$R20" rev-parse HEAD)"
+git -C "$R20" checkout -q - 2>/dev/null
+
+run_floor "$R20" "$BASE20" "$TASK20" --advise-vacuous
+if [ "$RC" -eq 1 ] \
+   && printf '%s' "$OUT" | grep -qF "app/case_metadata.py -> app/Dockerfile" \
+   && ! printf '%s' "$ERR" | grep -qi 'advisory'; then
+  pass "case 20: --advise-vacuous + flagged run -> exit 1, pair on stdout, no advisory"
+else
+  fail "case 20: --advise-vacuous flagged -> RC=$RC out=$OUT err=$ERR (expected exit 1, pair, no advisory)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 21: --advise-vacuous + entirely EMPTY diff -> exit 0, stderr BYTE-EMPTY.
+# The empty-diff no-op must stay silent even with the flag (diff_out empty
+# distinguishes it from a Modified-only diff). base==branch => empty diff.
+# ---------------------------------------------------------------------------
+R21="$(setup_repo)"
+BASE21="$(git -C "$R21" rev-parse HEAD)"
+
+run_floor "$R21" "$BASE21" "$BASE21" --advise-vacuous
+if [ "$RC" -eq 0 ] && [ -z "$ERR" ]; then
+  pass "case 21: --advise-vacuous + empty diff -> exit 0, stderr byte-empty (silent no-op)"
+else
+  fail "case 21: --advise-vacuous empty diff -> RC=$RC, expected silent (err: [$ERR])"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 22: WITHOUT the flag, both vacuous shapes stay stderr-SILENT (byte-
+# identical to pre-change behavior). Reuses case 18 (no-Dockerfile) and case 19
+# (Modified-only) inputs, run with NO --advise-vacuous.
+# ---------------------------------------------------------------------------
+run_floor "$R18" "$BASE18" "$TASK18"
+NODF_SILENT=0
+[ "$RC" -eq 0 ] && [ -z "$ERR" ] && NODF_SILENT=1
+run_floor "$R19" "$BASE19" "$TASK19"
+MOD_SILENT=0
+[ "$RC" -eq 0 ] && [ -z "$ERR" ] && MOD_SILENT=1
+if [ "$NODF_SILENT" -eq 1 ] && [ "$MOD_SILENT" -eq 1 ]; then
+  pass "case 22: no --advise-vacuous -> stderr silent on BOTH vacuous shapes (default byte-identical)"
+else
+  fail "case 22: no-flag silence -> no-Dockerfile silent=$NODF_SILENT, Modified-only silent=$MOD_SILENT (expected both 1)"
 fi
 
 # ---------------------------------------------------------------------------
