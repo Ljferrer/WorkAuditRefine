@@ -105,3 +105,24 @@ The diff-collection arm (`A*` / `R*|C*` / `continue`) is therefore ratified byte
 decision is recorded both where it executes (the `assert-packaging-in-diff.sh` header) and here, so a
 future reader who finds a Modified packaging break slipping the floor sees a recorded scope boundary
 rather than an unrecorded gap. This addendum leaves the ratified body above unchanged.
+
+## Addendum (2026-07-12): an explicit-declaration `--advise-vacuous` advisory surface (scope unchanged)
+
+The ratified no-op shapes above stand. What was missing was any *signal* to a plan author who
+**explicitly** declared `requiresPackaging: true` that the floor run was structurally vacuous — no
+Dockerfile at all, or a non-empty diff carrying zero Added/Renamed/Copied paths ([[packaging-floor-is-a-noop-without-a-dockerfile-and-ignores-modified-paths]]).
+The declaration reads as "I expect this floor to prove something," yet under the ratified scope it can
+prove nothing, silently (#819).
+
+`assert-packaging-in-diff.sh` now accepts an opt-in `--advise-vacuous` flag that prints **one
+informational advisory line on stderr per ratified vacuous shape**, citing the 2026-07-08 addendum
+above; stdout and every exit code are byte-identical to a run without the flag. The Workflow threads
+the flag into all three dispatched refiner packaging-floor invocations (initial merge, floor-retry,
+baseline-proceed) **only** when the plan explicitly declares `requiresPackaging: true` — a defaulted
+task runs the floor exactly as before and stays silent, preserving the anti-noise property (the
+advisory would otherwise fire on every defaulted task in every non-docker repo). The advisory is
+stderr-only and informational: exit 0 still means proceed, and the refiner never treats it as an error
+or a finding.
+
+This is a surfacing addition only. The A*/R*|C*-only diff scope, the fail-closed `requiresPackaging`
+default, and the no-op-without-a-Dockerfile shapes are all unchanged.

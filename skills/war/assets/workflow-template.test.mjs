@@ -4099,6 +4099,12 @@ const PKG_ARGS = (over = {}) => PROVISION_ARGS({
   ...over,
 })
 const isPackageItWorker = (c) => seatOf(c.opts) === 'war-worker' && /package-it:/.test(c.opts.label || '')
+// Explicit requiresPackaging:true — the ONLY shape that threads --advise-vacuous (#819). A defaulted
+// (undefined) task runs the floor but withholds the advisory (advisePackagingVacuous === true only).
+const PKG_TRUE_ARGS = (over = {}) => PROVISION_ARGS({
+  tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], requiresPackaging: true }],
+  ...over,
+})
 
 test('pkg §4.2 — main merge prompt invokes assert-packaging-in-diff.sh with the unpackaged/exit-1, error/exit-2 contract', async () => {
   // The default (requiresPackaging true) merge prompt must instruct the packaging floor exactly like
@@ -4323,6 +4329,77 @@ test('pkg §4.2 — polish-merge prompt carries the explicit packaging-floor ski
   assert.match(polishMerge.prompt, /skip assert-test-in-diff\.sh/, 'polish merge skips the test floor')
   assert.match(polishMerge.prompt, /skip the packaging floor assert-packaging-in-diff\.sh|assert-packaging-in-diff\.sh/,
     'polish merge explicitly skips the packaging floor (delete the clause → no packaging-floor mention in the polish prompt)')
+})
+
+// ---------------------------------------------------------------------------
+// #819 — engine-side --advise-vacuous threading. A task that EXPLICITLY declares
+// requiresPackaging:true threads ` --advise-vacuous` into all three dispatched packaging-floor
+// invocations (initial merge, floor-retry, baseline-proceed); a defaulted (undefined) task runs
+// the floor but OMITS the flag (advisePackagingVacuous === r.task.requiresPackaging === true, NOT
+// the !== false floor-run default). Spec §4.B.2–4.
+// ---------------------------------------------------------------------------
+
+test('pkg #819 — explicit requiresPackaging:true threads --advise-vacuous into the initial merge prompt; a defaulted task omits it (delete-the-feature lock)', async () => {
+  const { calls: trueCalls } = await runPhase(PKG_TRUE_ARGS(), defaultImpl)
+  const trueMerge = trueCalls.find(isMergeTask)
+  assert.ok(trueMerge, 'a merge-task is dispatched for the requiresPackaging:true task')
+  assert.match(trueMerge.prompt, /assert-packaging-in-diff\.sh \S+ \S+ --advise-vacuous/,
+    'requiresPackaging:true → the initial merge prompt threads --advise-vacuous immediately after the task branch')
+  // Delete-the-feature lock (lesson weak-test-assertion-passes-without-feature-being-exercised):
+  // a defaulted (undefined requiresPackaging) task must OMIT the flag. Collapsing the `=== true`
+  // advisePackagingVacuous const into the `!== false` floor-run default makes a defaulted task carry
+  // it → this REDs. The floor STILL runs for a defaulted task; only the advisory is withheld.
+  const { calls: defCalls } = await runPhase(PKG_ARGS(), defaultImpl)
+  const defMerge = defCalls.find(isMergeTask)
+  assert.ok(defMerge, 'a merge-task is dispatched for the defaulted task')
+  assert.match(defMerge.prompt, /assert-packaging-in-diff\.sh integration\/wtprov-a\/phase-3 war\/wtprov-a\/p3-t1 to verify/,
+    'the defaulted task STILL runs the packaging floor (only the advisory is withheld)')
+  assert.ok(!defMerge.prompt.includes('--advise-vacuous'),
+    'a defaulted (undefined requiresPackaging) task OMITS --advise-vacuous')
+})
+
+test('pkg #819 — the floor-retry re-merge prompt threads --advise-vacuous for an explicit requiresPackaging:true task', async () => {
+  let mergeCount = 0
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-refiner' && opts.phase === 'Refine') { mergeCount++; return mergeCount === 1 ? { mode: 'merge-task', status: 'unpackaged' } : { mode: 'merge-task', status: 'merged' } }
+    if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { calls } = await runPhase(PKG_TRUE_ARGS(), impl)
+  const retry = calls.find(c => /floor-retry/.test(c.opts.label || ''))
+  assert.ok(retry, 'a floor-retry re-merge is dispatched')
+  assert.match(retry.prompt, /assert-packaging-in-diff\.sh \S+ \S+ --advise-vacuous/,
+    'the floor-retry re-merge threads --advise-vacuous for a requiresPackaging:true task')
+})
+
+test('pkg #819 — the baseline-proceed re-merge prompt threads --advise-vacuous for an explicit requiresPackaging:true task', async () => {
+  const impl = clsImpl({ mergeResult: () => ({ mode: 'merge-task', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: ['pytest:test_legacy'], gate_base_sha: 'base9999', gate_output: 'base RED with the same id — pre-existing' }) })
+  const { calls } = await runPhase(CLS_ARGS({ tasks: [{ id: 't1', issue: 301, title: 'T1', planSlice: 's1', roster: [{ lens: 'correctness' }], requiresPackaging: true }] }), impl)
+  const bp = calls.find(c => /:baseline-proceed$/.test(c.opts.label || ''))
+  assert.ok(bp, 'a baseline-proceed re-merge is dispatched')
+  assert.match(bp.prompt, /assert-packaging-in-diff\.sh \S+ \S+ --advise-vacuous/,
+    'the baseline-proceed re-merge threads --advise-vacuous for a requiresPackaging:true task')
+})
+
+test('pkg #819 — source-level: all three dispatched packaging-floor invocations carry the advisePackagingVacuous conditional flag (count === 3; a two-of-three thread or a static collapse is RED)', () => {
+  // Extract each INVOCATION literal — the script name followed by its two ref interpolations. The
+  // mentions ("skip the assert-packaging-in-diff.sh check", the PACKAGE_IT description, the log line,
+  // the comment) never carry `${ph.integrationBranch} ${r.task.branch}` and are excluded. The optional
+  // group must be present at EVERY site: a two-of-three thread leaves count 3 but one m[1] undefined
+  // (RED), and a static ` --advise-vacuous` (no conditional) fails to match `${advisePackagingVacuous …}`
+  // → undefined (RED) — pivotal constraint 4 (silent drift between rounds).
+  const invocations = [...src.matchAll(/assert-packaging-in-diff\.sh \$\{ph\.integrationBranch\} \$\{r\.task\.branch\}(\$\{advisePackagingVacuous[^}]*--advise-vacuous[^}]*\})?/g)]
+  assert.equal(invocations.length, 3,
+    'exactly three dispatched packaging-floor invocation literals (initial merge, floor-retry, baseline-proceed)')
+  for (const m of invocations) {
+    assert.ok(m[1],
+      `every dispatched packaging-floor invocation must thread the advisePackagingVacuous conditional flag immediately after the task branch (a two-of-three thread or a static-flag collapse is RED): "${m[0]}"`)
+  }
 })
 
 test('pkg §4.4 — args.backstops passes through UNTOUCHED into handoff.backstops[] on a landed phase', async () => {
