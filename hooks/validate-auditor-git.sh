@@ -3,9 +3,12 @@
 # F03 — fail-closed confinement for the war-auditor agent.
 #
 # PURPOSE
-#   For agent_type matching *war-auditor*: ALLOW iff the command is a single
-#   git read-subcommand from the explicit allowlist, with no shell
-#   metacharacters.  DENY (exit 2) anything else.
+#   Gate only the war-auditor agent: the case arm is suffix-anchored
+#   (pattern `*war-auditor`), so it captures the dispatched agent_type
+#   `<ns>:war-auditor` but NOT a longer `war-auditor-helper` decoration.
+#   For a captured type: ALLOW iff the command is a single git read-subcommand
+#   from the explicit allowlist, with no shell metacharacters.  DENY (exit 2)
+#   anything else.
 #   Non-auditor agent types → exit 0 (pass-through; this guard is auditor-only).
 #
 # FAIL-CLOSED CHARACTER ALLOWLIST (bash 3.2.57 compatible)
@@ -42,10 +45,13 @@ atype="$(get '.agent_type')"
 cmd="$(get '.tool_input.command')"
 
 # ---------------------------------------------------------------------------
-# Only gate war-auditor agents; all others pass through.
+# Only gate war-auditor agents; all others pass through. The arm is
+# suffix-anchored (`*war-auditor`) so it captures the dispatched
+# `<ns>:war-auditor` but not a `war-auditor-helper` decoration, which falls
+# through to the fail-open `*) exit 0`.
 # ---------------------------------------------------------------------------
 case "$atype" in
-  *war-auditor*) ;;
+  *war-auditor) ;;
   *) exit 0 ;;
 esac
 

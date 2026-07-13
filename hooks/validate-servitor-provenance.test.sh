@@ -188,6 +188,27 @@ expect "path outside memory target -> allow (scope hook handles)" \
   0 "$(run "$(mk_write 'war-servitor' "$OUTSIDE_PATH" "$(content_no_metadata)")")"
 
 # ---------------------------------------------------------------------------
+# Case 9: suffix-anchored servitor arm (#810). The exemption arm is
+# suffix-anchored (`*war-servitor`), capturing the dispatched
+# `work-audit-refine:war-servitor` but NOT a `...war-servitor-helper`
+# decoration. 9a/9b are a delete-the-feature pair: revert the anchor to a
+# substring arm and 9a flips to deny while 9b stays deny — so 9a is the case
+# that proves the narrowing.
+# ---------------------------------------------------------------------------
+
+# 9a: trailing-junk agent type → arm no longer captures → falls through to the
+# `*) exit 0` exemption, so a provenance-less Write that WOULD be denied when
+# gated (cf. Case 1) is allowed un-gated.
+expect "trailing-junk war-servitor-helper: provenance-less Write -> allow (arm no longer captures)" \
+  0 "$(run "$(mk_write 'work-audit-refine:war-servitor-helper' "$FACT_PATH" "$(content_no_metadata)")")"
+
+# 9b: exact dispatched shape (namespaced, nothing trailing) → still captured →
+# provenance-less Write still gated → deny exit 2. Guards against deny-side
+# under-capture (fail-open inversion) on the live default string.
+expect "exact work-audit-refine:war-servitor: provenance-less Write -> deny exit 2 (still gated)" \
+  2 "$(run "$(mk_write 'work-audit-refine:war-servitor' "$FACT_PATH" "$(content_no_metadata)")")"
+
+# ---------------------------------------------------------------------------
 # Layer 1: existing-target authorship guard (Write, Edit, NotebookEdit).
 # These stat the DISK, so build real temp files under a mktemp'd
 # .../.claude/projects/<p>/memory/ shape that matches the hook's glob.

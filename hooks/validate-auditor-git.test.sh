@@ -2,7 +2,8 @@
 # Tests for the WAR auditor read-only-git Bash guard (F03 confinement).
 # hooks/validate-auditor-git.sh
 #
-# This guard is FAIL-CLOSED: for agent_type matching *war-auditor*, it allows
+# This guard is FAIL-CLOSED: for agent_type suffix-anchored to war-auditor
+# (case pattern `*war-auditor`), it allows
 # ONLY a single git read-subcommand (diff/log/show/merge-base/rev-parse/status/
 # ls-files/cat-file/blame) with no shell metacharacters. Anything else → DENY
 # (exit 2). Non-auditor agent types → exit 0 (pass-through).
@@ -417,6 +418,27 @@ expect_deny "H5: [ \"\$(git -C <path> rev-parse HEAD)\" = \"<sha>\" ] → denied
 # extractor's `*)` default deny → exit 2, so expect_allow FAILs.
 expect_allow "H6: git -C -C rev-parse HEAD → allowed (first -C peeled; rest = rev-parse HEAD)" \
   "$(auditor_cmd "git -C -C rev-parse HEAD")"
+
+# ---------------------------------------------------------------------------
+# CASE GROUP I: suffix-anchored agent-type arm (#810)
+# The "Only gate war-auditor agents" arm is suffix-anchored (`*war-auditor`),
+# capturing the dispatched `work-audit-refine:war-auditor` but NOT a longer
+# `...war-auditor-helper` decoration. I1/I2 are a delete-the-feature pair:
+# revert the anchor to a substring arm and I1 flips to deny (over-capture)
+# while I2 stays deny — so I1 is the case that proves the narrowing.
+# ---------------------------------------------------------------------------
+
+# I1: trailing-junk agent type → arm no longer captures → falls through to the
+# pass-through `*) exit 0`, so a write command that WOULD be denied when gated
+# (git push, cf. B1) is allowed un-gated.
+expect_allow "I1: work-audit-refine:war-auditor-helper git push → exit 0 (arm no longer captures)" \
+  "$(typed_cmd "work-audit-refine:war-auditor-helper" "git push")"
+
+# I2: exact dispatched shape (namespaced, nothing trailing) → still captured →
+# git push still verb-gated → denied. Guards against deny-side under-capture
+# (fail-open inversion) on the live default string.
+expect_deny "I2: work-audit-refine:war-auditor git push → denied (exact dispatched shape still gated)" \
+  "$(typed_cmd "work-audit-refine:war-auditor" "git push")"
 
 # ---------------------------------------------------------------------------
 # Summary
