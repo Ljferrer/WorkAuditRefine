@@ -48,3 +48,19 @@ Related: [[absent-origin-working-branch-baseline-also-forces-manual-land]] (the 
 exists to fix); [[provision-divergence-die-exit-7-unenumerated]] (same file, same
 `cmd_ensure_integration`/sibling family, a different nit from the same p1t2 task — exit-code
 enumeration rather than stderr capture).
+
+## Resolution (2026-07-12, plan `land-path-verification-hygiene`, #801)
+
+**Resolved by the `land-path-verification-hygiene` plan.** The `_tmp_err` capture idiom this lesson
+prescribed under *How to apply* was retrofitted around `cmd_ensure_origin`'s
+`git push -u origin …` exactly as the sibling `cmd_ensure_integration` fetch and branch-create
+sites use it: stdout still discarded, stderr to a `mktemp` file, and on failure the captured stderr
+is **appended to** the die message before the temp file is removed on both paths — no third pattern
+invented.
+
+The static never-force guidance **SURVIVED** — it was NOT deleted or replaced. The die now reads
+`…refusing to force). git: <git's own stderr>`: the operator keeps the never-force context AND now
+also sees git's ground truth (e.g. `does not appear to be a git repository`). The push command, its
+refspec, and the `-u` flag are byte-identical (ADR 0004 never-force). Regression coverage:
+`provision-worktrees.test.sh` case `RWB.e` (a broken-origin-URL failure fixture); `RWB.c` stays the
+success/idempotency control, unmodified.
