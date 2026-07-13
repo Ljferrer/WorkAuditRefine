@@ -9,9 +9,16 @@
 # deploy (the field incident: `case_metadata.py` added beside `loader.py`,
 # `FileNotFoundError: /app/case_metadata.py`).
 #
-# Usage: assert-packaging-in-diff.sh <integration-base> <task-branch> [--repo <git-dir>]
+# Usage: assert-packaging-in-diff.sh <integration-base> <task-branch> \
+#          [--repo <git-dir>] [--advise-vacuous]
 # (--repo is test-only: points git at a fixture repo; production invokes from
 #  the task-worktree cwd, exactly like assert-test-in-diff.sh.)
+# --advise-vacuous: when the run is structurally vacuous under the ratified
+#  scope below (no Dockerfile, or a non-empty diff with zero Added/Renamed/
+#  Copied paths), print ONE informational advisory line to stderr citing that
+#  scope. Opt-in only (the engine appends it when a plan explicitly declares
+#  requiresPackaging: true) — stdout and every exit code stay byte-identical
+#  without the flag. An entirely empty diff stays silent even with the flag.
 #
 # Diff = `git diff --name-status <base>...<branch>` (three-dot symmetric diff).
 # ADDED (`A`), RENAME-TARGET (`R`), and COPY-TARGET (`C`) paths only — deletions
@@ -79,18 +86,21 @@ die()  { printf '%s: %s\n' "$PROG" "$1" >&2; exit "${2:-1}"; }
 # ---------------------------------------------------------------------------
 # Argument parsing
 # ---------------------------------------------------------------------------
-[ $# -ge 2 ] || die "usage: $PROG <integration-base> <task-branch> [--repo <dir>]"
+[ $# -ge 2 ] || die "usage: $PROG <integration-base> <task-branch> [--repo <dir>] [--advise-vacuous]"
 
 base="$1"
 branch="$2"
 shift 2
 
 repo_dir=""
+advise_vacuous=0          # --advise-vacuous: stderr note on structurally-vacuous no-ops
 while [ $# -gt 0 ]; do
   case "$1" in
     --repo)
       [ $# -ge 2 ] || die "--repo requires a path"
       repo_dir="$2"; shift 2 ;;
+    --advise-vacuous)
+      advise_vacuous=1; shift ;;
     --) shift; break ;;
     -*) die "unknown argument '$1'" ;;
     *)  die "unexpected positional argument '$1'" ;;
@@ -154,6 +164,13 @@ fi
 
 # Trivial no-op: nothing added/renamed -> nothing to flag.
 if [ -z "$added_files" ]; then
+  # Vacuous shape (b): the diff had changes but ZERO Added/Renamed/Copied paths
+  # (a Modified/Deleted-only diff). --advise-vacuous surfaces this to a plan that
+  # explicitly asked for the floor — but only when there WAS a diff; an entirely
+  # empty diff ($diff_out empty) stays silent (diff_out distinguishes the two).
+  if [ "$advise_vacuous" -eq 1 ] && [ -n "$diff_out" ]; then
+    printf '%s: advisory: diff has no Added/Renamed/Copied paths (Modified/Deleted only) — packaging floor is structurally vacuous under its ratified scope (2026-07-08 ADR 0017 addendum); nothing new to check for container coverage.\n' "$PROG" >&2
+  fi
   exit 0
 fi
 
@@ -193,6 +210,11 @@ fi
 
 # No Dockerfile anywhere -> nothing can flag (spec: trivial no-Dockerfile -> 0).
 if [ -z "$dockerfiles" ]; then
+  # Vacuous shape (a): no Dockerfile discovered, so the floor can never flag.
+  # --advise-vacuous surfaces this to a plan that explicitly asked for the floor.
+  if [ "$advise_vacuous" -eq 1 ]; then
+    printf '%s: advisory: no Dockerfile found at %s — packaging floor is structurally vacuous under its ratified scope (2026-07-08 ADR 0017 addendum); no container build to check coverage against.\n' "$PROG" "$branch" >&2
+  fi
   exit 0
 fi
 
@@ -276,6 +298,60 @@ parse_dockerfile() {
   D_COVERS=""
 
   pd_body="$(GIT show "$branch:$pd_path" 2>/dev/null)" || return 0
+
+  # -------------------------------------------------------------------------
+  # Continuation join (spec §4.A): fold physical lines whose LAST non-whitespace
+  # character is `\` into single-space-joined logical lines, so the tokenizing
+  # loop below sees each COPY/ADD instruction whole. Full-line `#` comments met
+  # while a continuation is open are dropped (Docker strips comments before
+  # joining continuations). A dangling `\` on the file's LAST line terminates
+  # the logical line at EOF (no hang, no dropped tokens).
+  # # ponytail: "last non-whitespace char is `\`" is the continuation test —
+  # # laxer than strict BuildKit, where a trailing backslash FOLLOWED BY spaces
+  # # is NOT a continuation; a `\` that is merely line-final inside a quoted
+  # # token is also read as a continuation marker (quoted-token backslash is a
+  # # documented ceiling, no fixture). Heredoc/JSON COPY forms stay deferred
+  # # (spec §9), same as the shell-form-only tokenizer below.
+  pd_joined=""
+  pd_cont=""             # logical line accumulated while a continuation is open
+  pd_open=0              # 1 while the previous physical line ended in `\`
+  while IFS= read -r pline; do
+    pl_lead="${pline#"${pline%%[![:space:]]*}"}"   # ltrim (comment test only)
+    if [ "$pd_open" -eq 1 ]; then
+      # Mid-continuation: drop a full-line comment, stay open.
+      case "$pl_lead" in \#*) continue ;; esac
+    else
+      # Not continuing: a full-line comment is passed through verbatim (the
+      # tokenizer skips it) and never STARTS a continuation, even if it ends
+      # in `\` (Docker treats a comment line as a comment, not a splice).
+      case "$pl_lead" in \#*) pd_joined="$pd_joined$pline
+"; continue ;; esac
+    fi
+    pl_trim="${pline%"${pline##*[![:space:]]}"}"   # rtrim (continuation test)
+    case "$pl_trim" in
+      *\\)
+        seg="${pl_trim%\\}"                          # drop the trailing backslash
+        seg="${seg%"${seg##*[![:space:]]}"}"          # rtrim the joined segment
+        if [ "$pd_open" -eq 1 ]; then pd_cont="$pd_cont $seg"; else pd_cont="$seg"; fi
+        pd_open=1 ;;
+      *)
+        if [ "$pd_open" -eq 1 ]; then
+          pd_joined="$pd_joined$pd_cont $pline
+"
+        else
+          pd_joined="$pd_joined$pline
+"
+        fi
+        pd_cont=""; pd_open=0 ;;
+    esac
+  done <<EOF
+$pd_body
+EOF
+  # Dangling `\` on the final physical line: emit the accumulated tokens at EOF.
+  if [ "$pd_open" -eq 1 ]; then
+    pd_joined="$pd_joined$pd_cont
+"
+  fi
 
   while IFS= read -r line; do
     # Trim leading whitespace; skip blanks and comments.
@@ -361,7 +437,7 @@ parse_dockerfile() {
 $srcs
 INNER
   done <<EOF
-$pd_body
+$pd_joined
 EOF
 }
 
@@ -438,7 +514,8 @@ EOF
 }
 
 # covers_file: does D's parsed source set cover F (repo-relative)?
-# Uses D_COVERS from the most recent parse_dockerfile call.
+# Uses D_COVERS from the current Dockerfile's parse (the main loop parses each
+# Dockerfile exactly once, in the outer loop, then reuses D_COVERS per added F).
 covers_file() {
   cf_f="$1"
   while IFS= read -r c; do
@@ -474,7 +551,8 @@ EOF
 }
 
 # lit_dir_into: does any literal-file COPY source resolve into F's directory?
-# (enumerated-COPY-style probe). Uses D_LIT_DIRS from the last parse.
+# (enumerated-COPY-style probe). Uses D_LIT_DIRS from the current Dockerfile's
+# parse (the main loop parses each Dockerfile exactly once, in the outer loop).
 lit_dir_into() {
   ld_dir="$1"                         # F's directory (repo-relative, "" for root)
   while IFS= read -r d; do
@@ -490,18 +568,24 @@ EOF
 }
 
 # ---------------------------------------------------------------------------
-# Main: for each added F, for each Dockerfile D whose ctx dir is an ancestor of
-# (or equals) F's dir, apply steps 1-4. Collect flagged "F -> D" pairs.
+# Main: for each Dockerfile D, parse it EXACTLY ONCE, then for each added F
+# whose dir is contained by D's context dir, apply steps 1-4. Collect flagged
+# "F -> D" pairs. Nesting is Dockerfile-outer / added-file-inner so each
+# Dockerfile parses once (O(#Dockerfiles), not the old O(#files × #Dockerfiles)
+# re-parse). The flagged-pair SET is loop-order-independent — the inversion may
+# reorder pairs on stdout but never drops or adds one (the test proves this via
+# a sort-both-sides set-equality plus pair-count check).
 # ---------------------------------------------------------------------------
-flagged=""
 
+# Pre-filter the added files ONCE. Build-control files are never deployable
+# artifacts: docker auto-excludes `.dockerignore` and the `-f` Dockerfile from
+# what a COPY would need to pick up, so an ADDED one never wants a COPY line
+# (adding a Dockerfile or a .dockerignore must never itself trip the floor).
+# Filtering here, rather than per (F,D) pair, is behavior-identical to the old
+# per-F skip.
+scan_files=""
 while IFS= read -r F; do
   [ -n "$F" ] || continue
-
-  # Build-control files are never deployable artifacts: docker auto-excludes
-  # `.dockerignore` and the `-f` Dockerfile from what a COPY would need to pick
-  # up, so an ADDED one never wants a COPY line. Skip them (adding a Dockerfile
-  # or a .dockerignore must never itself trip the floor).
   bF="${F##*/}"
   case "$bF" in
     .dockerignore) continue ;;
@@ -509,17 +593,28 @@ while IFS= read -r F; do
   if is_dockerfile "$F"; then
     continue
   fi
+  scan_files="$scan_files$F
+"
+done <<EOF
+$added_files
+EOF
 
-  fdir="$(dir_of "$F")"
+flagged=""
 
-  while IFS= read -r D; do
-    [ -n "$D" ] || continue
-    ctx="$(dir_of "$D")"
+while IFS= read -r D; do
+  [ -n "$D" ] || continue
+  ctx="$(dir_of "$D")"
+
+  # Parse this Dockerfile EXACTLY ONCE (fills D_LIT_DIRS / D_COVERS), then reuse
+  # the result across every added file below.
+  parse_dockerfile "$D"
+
+  while IFS= read -r F; do
+    [ -n "$F" ] || continue
+    fdir="$(dir_of "$F")"
 
     # Dockerfile's context must contain F (ancestor-or-equal).
     is_ancestor_dir "$ctx" "$fdir" || continue
-
-    parse_dockerfile "$D"
 
     # Step 1: enumerated-COPY style? >=1 literal-file source into F's dir.
     lit_dir_into "$fdir" || continue
@@ -534,10 +629,10 @@ while IFS= read -r F; do
     flagged="${flagged}${F} -> ${D}
 "
   done <<EOF
-$dockerfiles
+$scan_files
 EOF
 done <<EOF
-$added_files
+$dockerfiles
 EOF
 
 # ---------------------------------------------------------------------------

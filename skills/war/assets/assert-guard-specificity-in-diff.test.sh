@@ -43,6 +43,24 @@
 #         inside match_default — asserted via function-body extraction + grep -F.
 #      e. DELETE-THE-FEATURE: floor with the .claude arm removed != gate set,
 #         proving 10b is load-bearing (mutating either side turns it RED).
+#   -- extract_msg fidelity (#803): emit-segment scoping + bare-var skip + %-truncation --
+#  11. shape-1 stderr-emit guard `[ -f "$path" ] || { echo "real msg" >&2; exit 1; }`
+#      with a test asserting the REAL message -> exit 0 (covered). RED pre-change: the
+#      base extracts the test-condition `$path`, not `real msg` (mis-extraction).
+#  12. shape-1 NEGATIVE: same guard, but the test asserts only the OLD mis-extracted
+#      `$path` token -> exit 1 (flagged). Isolates emit-segment scoping — revert to
+#      whole-line and the real message is no longer the recorded guard, flipping to 0.
+#  13. printf format guard `printf 'error: %s' … >&2` (+exit) with a test containing the
+#      truncated `error: ` prefix -> exit 0 (covered). Delete %-truncation -> the stored
+#      `error: %s` is not a corpus substring -> exit 1.
+#  14. %%-bearing format guard `printf '100%% complete\n' >&2` (+exit), uncovered ->
+#      exit 1, stdout carries the pre-% prefix `100` and NOT the post-% literal (no crash;
+#      the spurious %% truncation is safe — the prefix is a true substring of emitted text).
+#  15. shape-2 guard `die "$msg"`, uncovered -> exit 0 (bare-var message dropped, NO
+#      uncovered line at all). RED pre-change: the base records `$msg` and flags it.
+#  16. partially-interpolated literal `die "error: $x missing"` still records:
+#      16a uncovered -> exit 1 + the full literal on stdout (not dropped as bare-var);
+#      16b same guard + a test asserting the literal -> exit 0 (matched).
 set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -441,6 +459,210 @@ if [ "$M_EXCL" != "$G_EXCL" ]; then
   pass "case 10e: floor with .claude arm removed != gate set (parity check is load-bearing)"
 else
   fail "case 10e: mutated floor (.claude dropped) still == gate set -> parity check is vacuous"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 11: shape-1 stderr-emit guard — the message lives in the echo/printf emit segment,
+# NOT the preceding `[ -f "$path" ]` test condition. A test asserting the real message
+# covers it -> exit 0. (RED pre-change: the base extracts the whole-line first quote `$path`,
+# never records `real msg`, and flags a phantom `$path` guard as uncovered -> exit 1.)
+# ---------------------------------------------------------------------------
+R11="$(setup_repo)"
+BASE11="$(git -C "$R11" rev-parse HEAD)"
+git -C "$R11" checkout -qb task/shape1-covered 2>/dev/null
+add_file "$R11" lib/g1.sh <<'BODY'
+#!/usr/bin/env bash
+[ -f "$path" ] || { echo "real msg eleven" >&2; exit 1; }
+BODY
+add_file "$R11" helpers/g1.test.sh <<'BODY'
+# regression: the guard emits its real stderr message
+grep -qF "real msg eleven" out
+BODY
+git -C "$R11" commit -qm "add shape-1 emit guard + covering test"
+TASK11="$(git -C "$R11" rev-parse HEAD)"
+git -C "$R11" checkout -q - 2>/dev/null
+
+cwd11="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"; TMPFILES="$TMPFILES $cwd11"
+rc11=0
+( cd "$cwd11" && bash "$SCRIPT" "$BASE11" "$TASK11" --repo "$R11" ) >/dev/null 2>&1 || rc11=$?
+if [ "$rc11" -eq 0 ]; then
+  pass "case 11: shape-1 emit-segment guard covered by the real message -> exit 0"
+else
+  fail "case 11: shape-1 emit guard -> expected exit 0, got $rc11 (emit-segment scoping broken; test-condition literal mis-read?)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 12: shape-1 NEGATIVE — the ISOLATION for emit-segment scoping. Same guard, but the
+# test asserts only the OLD mis-extracted `$path` token, not the real message. Because the
+# floor now scopes extraction to the emit segment, the recorded guard is `real msg twelve`,
+# which the corpus (only `$path`) does NOT cover -> exit 1. Revert to whole-line extraction
+# and the recorded guard becomes `$path` (dropped as bare-var) OR `$path`-covered -> exit 0.
+# ---------------------------------------------------------------------------
+R12="$(setup_repo)"
+BASE12="$(git -C "$R12" rev-parse HEAD)"
+git -C "$R12" checkout -qb task/shape1-negative 2>/dev/null
+add_file "$R12" lib/g2.sh <<'BODY'
+#!/usr/bin/env bash
+[ -f "$path" ] || { echo "real msg twelve" >&2; exit 1; }
+BODY
+add_file "$R12" helpers/g2.test.sh <<'BODY'
+# asserts ONLY the old mis-extracted token, never the real message
+grep -qF "$path" out
+BODY
+git -C "$R12" commit -qm "add shape-1 emit guard + negative (old-token) test"
+TASK12="$(git -C "$R12" rev-parse HEAD)"
+git -C "$R12" checkout -q - 2>/dev/null
+
+cwd12="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"; TMPFILES="$TMPFILES $cwd12"
+rc12=0
+out12="$( ( cd "$cwd12" && bash "$SCRIPT" "$BASE12" "$TASK12" --repo "$R12" ) 2>/dev/null )" || rc12=$?
+if [ "$rc12" -eq 1 ] && printf '%s' "$out12" | grep -qF "real msg twelve"; then
+  pass "case 12: shape-1 negative (test asserts old \$path token) -> exit 1 + real message flagged"
+elif [ "$rc12" -ne 1 ]; then
+  fail "case 12: shape-1 negative -> expected exit 1, got $rc12 (emit-segment scoping reverted?)"
+else
+  fail "case 12: shape-1 negative -> exit 1 but real message absent on stdout (got: $out12)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 13: printf format guard — record_guard truncates `error: %s` to the literal prefix
+# `error: ` before the FIRST `%`, so a test containing `error: ` covers it -> exit 0.
+# (Delete the %-truncation and the stored `error: %s` is no longer a corpus substring -> exit 1.)
+# ---------------------------------------------------------------------------
+R13="$(setup_repo)"
+BASE13="$(git -C "$R13" rev-parse HEAD)"
+git -C "$R13" checkout -qb task/printf-prefix 2>/dev/null
+add_file "$R13" lib/g3.sh <<'BODY'
+#!/usr/bin/env bash
+check() {
+  printf 'error: %s' "$bad" >&2
+  exit 1
+}
+BODY
+add_file "$R13" helpers/g3.test.sh <<'BODY'
+# the emitted literal prefix is asserted (the conversion spec is not a literal)
+grep -qF "error: " out
+BODY
+git -C "$R13" commit -qm "add printf format guard + prefix-asserting test"
+TASK13="$(git -C "$R13" rev-parse HEAD)"
+git -C "$R13" checkout -q - 2>/dev/null
+
+cwd13="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"; TMPFILES="$TMPFILES $cwd13"
+rc13=0
+( cd "$cwd13" && bash "$SCRIPT" "$BASE13" "$TASK13" --repo "$R13" ) >/dev/null 2>&1 || rc13=$?
+if [ "$rc13" -eq 0 ]; then
+  pass "case 13: printf 'error: %s' guard covered via the truncated 'error: ' prefix -> exit 0"
+else
+  fail "case 13: printf format guard -> expected exit 0, got $rc13 (%-truncation broken; stored the conversion spec?)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 14: %%-bearing format guard — no crash, recorded as the pre-% prefix `100`. The
+# truncation stops at the FIRST `%` (here the `%` of `%%`), so stdout carries `100` and NOT
+# the post-% literal `complete`. The spurious %% truncation is safe: `100` is a true substring
+# of the emitted `100% complete`. (Delete %-truncation -> stdout carries `100%% complete`,
+# the `complete` assertion flips.)
+# ---------------------------------------------------------------------------
+R14="$(setup_repo)"
+BASE14="$(git -C "$R14" rev-parse HEAD)"
+git -C "$R14" checkout -qb task/double-percent 2>/dev/null
+add_file "$R14" lib/g4.sh <<'BODY'
+#!/usr/bin/env bash
+report() {
+  printf '100%% complete\n' >&2
+  exit 1
+}
+BODY
+git -C "$R14" commit -qm "add %%-bearing format guard, no test"
+TASK14="$(git -C "$R14" rev-parse HEAD)"
+git -C "$R14" checkout -q - 2>/dev/null
+
+cwd14="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"; TMPFILES="$TMPFILES $cwd14"
+rc14=0
+out14="$( ( cd "$cwd14" && bash "$SCRIPT" "$BASE14" "$TASK14" --repo "$R14" ) 2>/dev/null )" || rc14=$?
+if [ "$rc14" -eq 1 ] && printf '%s' "$out14" | grep -qF "100" && ! printf '%s' "$out14" | grep -qF "complete"; then
+  pass "case 14: %%-bearing format guard -> exit 1, pre-% prefix '100' recorded, post-% literal truncated (no crash)"
+elif [ "$rc14" -ne 1 ]; then
+  fail "case 14: %%-bearing guard -> expected exit 1, got $rc14 (crash on %% or dropped?)"
+else
+  fail "case 14: %%-bearing guard -> exit 1 but prefix not truncated at first % (got: $out14)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 15: shape-2 `die "$msg"` — the bare-variable message is dropped by record_guard, so
+# there is NO uncovered guard line at all -> exit 0. (RED pre-change: the base records the
+# bare `$msg` and, with no test asserting the literal `$msg`, flags it -> exit 1.)
+# ---------------------------------------------------------------------------
+R15="$(setup_repo)"
+BASE15="$(git -C "$R15" rev-parse HEAD)"
+git -C "$R15" checkout -qb task/shape2-barevar 2>/dev/null
+add_file "$R15" lib/g5.sh <<'BODY'
+#!/usr/bin/env bash
+[ -n "$val" ] || die "$msg"
+BODY
+git -C "$R15" commit -qm "add die \$msg bare-var guard, no test"
+TASK15="$(git -C "$R15" rev-parse HEAD)"
+git -C "$R15" checkout -q - 2>/dev/null
+
+cwd15="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"; TMPFILES="$TMPFILES $cwd15"
+rc15=0
+( cd "$cwd15" && bash "$SCRIPT" "$BASE15" "$TASK15" --repo "$R15" ) >/dev/null 2>&1 || rc15=$?
+if [ "$rc15" -eq 0 ]; then
+  pass "case 15: shape-2 die \"\$msg\" bare-var message -> exit 0 (dropped; no uncovered line)"
+else
+  fail "case 15: shape-2 bare-var die -> expected exit 0, got $rc15 (bare-var skip broken; perpetual flag)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 16: partially-interpolated literal `die "error: $x missing"` STILL records (only an
+# ENTIRELY-variable message is dropped). 16a: uncovered -> exit 1 + the full literal on stdout
+# (isolates over-broad bare-var skip — a wrong drop flips to exit 0). 16b: same guard + a test
+# asserting the literal -> exit 0 (matched).
+# ---------------------------------------------------------------------------
+R16="$(setup_repo)"
+BASE16="$(git -C "$R16" rev-parse HEAD)"
+git -C "$R16" checkout -qb task/partial-literal 2>/dev/null
+add_file "$R16" lib/g6.sh <<'BODY'
+#!/usr/bin/env bash
+[ -n "$x" ] || die "error: $x missing"
+BODY
+git -C "$R16" commit -qm "add partially-interpolated literal guard, no test"
+TASK16a="$(git -C "$R16" rev-parse HEAD)"
+git -C "$R16" checkout -q - 2>/dev/null
+
+cwd16a="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"; TMPFILES="$TMPFILES $cwd16a"
+rc16a=0
+out16a="$( ( cd "$cwd16a" && bash "$SCRIPT" "$BASE16" "$TASK16a" --repo "$R16" ) 2>/dev/null )" || rc16a=$?
+if [ "$rc16a" -eq 1 ] && printf '%s' "$out16a" | grep -qF 'error: $x missing'; then
+  pass "case 16a: partially-interpolated literal, uncovered -> exit 1 + full literal on stdout (still records)"
+elif [ "$rc16a" -ne 1 ]; then
+  fail "case 16a: partial literal -> expected exit 1, got $rc16a (over-broad bare-var skip dropped it?)"
+else
+  fail "case 16a: partial literal -> exit 1 but full literal absent on stdout (got: $out16a)"
+fi
+
+# 16b: add a covering test asserting the exact literal -> exit 0 (recorded AND matched).
+R16b="$(setup_repo)"
+BASE16b="$(git -C "$R16b" rev-parse HEAD)"
+git -C "$R16b" checkout -qb task/partial-literal-covered 2>/dev/null
+add_file "$R16b" lib/g6.sh <<'BODY'
+#!/usr/bin/env bash
+[ -n "$x" ] || die "error: $x missing"
+BODY
+add_file "$R16b" helpers/g6.test.sh <<'BODY'
+grep -qF "error: $x missing" out
+BODY
+git -C "$R16b" commit -qm "add partial literal guard + covering test"
+TASK16b="$(git -C "$R16b" rev-parse HEAD)"
+git -C "$R16b" checkout -q - 2>/dev/null
+
+cwd16b="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"; TMPFILES="$TMPFILES $cwd16b"
+rc16b=0
+( cd "$cwd16b" && bash "$SCRIPT" "$BASE16b" "$TASK16b" --repo "$R16b" ) >/dev/null 2>&1 || rc16b=$?
+if [ "$rc16b" -eq 0 ]; then
+  pass "case 16b: partially-interpolated literal covered by a same-diff test -> exit 0 (matched)"
+else
+  fail "case 16b: partial literal covered -> expected exit 0, got $rc16b (coverage matching broken?)"
 fi
 
 # ---------------------------------------------------------------------------

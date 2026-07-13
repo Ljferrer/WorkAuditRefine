@@ -15,19 +15,27 @@
 #   5. empty diff (base == branch) -> exit 0
 #   6. repo with no .gitmodules + normal diff -> exit 0 (no-op case)
 #   7. --declared + gitlink-only move -> exit 0 (legitimate gitlink-bump path)
-#   8. --declared + non-gitlink content under a .gitmodules path -> exit 1 (still refused)
+#   8. --declared + gitlink bump AND non-gitlink content under a branch-declared path
+#      -> exit 1 (step 3 fires despite --declared's gitlink fall-through)
 #   9. no flag + gitlink move -> exit 1 (Increment-1 behavior intact — regression guard)
 #  10. step-3 isolation: .gitmodules-path content touch, NO gitlink move -> exit 1 (step 3 only)
 #  11. step-2 isolation: pure gitlink mode-160000 move, path NOT in .gitmodules -> exit 1 (step 2 only)
-#  12. --declared + pure content under a .gitmodules path, NO incidental gitlink deletion -> exit 1
+#  12. --declared + pure content under a .gitmodules path, NO gitlink move at all -> exit 1
+#  13. --declared + branch itself declares a submodule path + content under it, working
+#      tree diverged to LACK the declaration -> exit 1 (ref read keys on the branch)
+#  14. content under a path the WORKING TREE declares but the BRANCH REF does NOT
+#      -> exit 0 (a working-tree-only declaration no longer leaks into the ref read)
+#  15. branch .gitmodules exists but declares no paths (empty) -> exit 0 (git config
+#      rc==1 is a clean "no declared paths", never a die-2; + exit-2 deferred-validation note)
 #
-# Cases 1/2/8 conflate the guard's two refuse arms (both the mode-160000 step-2 arm
+# Cases 1/2 conflate the guard's two refuse arms (both the mode-160000 step-2 arm
 # and the .gitmodules-path step-3 arm fire on the same fixture). Cases 10/11/12 each
 # isolate ONE arm so a regression in that arm alone is caught (proven by temp-break:
 # disabling that arm flips the case to allow; disabling the other keeps it refused).
-# The guard reads the WORKING-TREE .gitmodules, so the step-3/12 fixtures leave the
-# working tree ON the task branch (do NOT `checkout -`) — that is where .gitmodules
-# carries the added "data" path entry the step-3 arm cross-checks against.
+# The guard reads .gitmodules from the BRANCH REF (`$branch:.gitmodules`), NOT the
+# checked-out working tree (#802) — a fixture's declared paths come from what the
+# TASK BRANCH commits, so the working-tree position is irrelevant. Cases 13/14 prove
+# the ref read by dirtying the working tree to diverge from the branch ref.
 set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -292,13 +300,21 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Case 8: --declared + non-gitlink content under a .gitmodules path -> exit 1
+# Case 8: --declared + a legit gitlink bump AND non-gitlink content under a
+# branch-declared submodule path -> exit 1 (step 3 fires despite --declared)
 #
-# Even with --declared, a content change (regular file) under a submodule path
-# is still refused (exit 1). The --declared allowance is ONLY for pure gitlink
-# mode 160000 moves. A non-gitlink content touch signals a submodule task whose
-# diff should have been run inside the submodule repo — it must never reach
-# this guard with a superproject non-gitlink change.
+# --declared lets a gitlink mode-160000 move fall through the step-2 arm (the
+# legitimate gitlink-bump path). This fixture ALSO adds regular-file content
+# under a SEPARATE submodule path 'data' that the BRANCH ITSELF declares in
+# .gitmodules — the step-3 arm must still refuse that (exit 1) even though the
+# gitlink move is allowed. A gitlink is present in the diff, so the --declared
+# fall-through is exercised; the refusal must come from step 3, so we assert the
+# step-3-specific stderr token (not the step-2 gitlink token).
+#
+# Ref-read (#802): the declared 'data' path is read from the branch ref, so no
+# working-tree parking is needed. (The pre-#802 fixture deinit'd + `git rm`'d the
+# submodule and leaned on a base-parked working tree; under a correct ref read
+# that is a legitimate de-submodule — allowed, not refused — so it was reworked.)
 # ---------------------------------------------------------------------------
 SUB8="$(setup_submodule_repo)"
 R8="$(setup_repo)"
@@ -307,25 +323,36 @@ git -C "$R8" commit -qm "add submodule"
 BASE8="$(git -C "$R8" rev-parse HEAD)"
 
 git -C "$R8" checkout -qb task/declared-content-under-subpath 2>/dev/null
-git -C "$R8" submodule deinit -q sub 2>/dev/null || true
-rm -rf "$R8/.git/modules/sub" 2>/dev/null || true
-git -C "$R8" rm -qrf sub 2>/dev/null || true
-mkdir -p "$R8/sub"
-printf 'changed\n' > "$R8/sub/extra.txt"
-git -C "$R8" add sub/extra.txt
-git -C "$R8" commit -qm "non-gitlink content under sub/ (declared but still refused)"
+# Legit --declared move: advance the real 'sub' gitlink (mode 160000 in the diff
+# -> the step-2 fall-through path is exercised under --declared).
+printf 'v2\n' > "$SUB8/v2.txt"
+git -C "$SUB8" add v2.txt
+git -C "$SUB8" commit -qm "v2"
+git -C "$R8" -c protocol.file.allow=always submodule update --remote -q sub 2>/dev/null
+git -C "$R8" add sub
+# Non-gitlink content under a separately-declared 'data' path (the thing step 3
+# must STILL refuse under --declared). The branch commits the 'data' declaration.
+git -C "$R8" config -f .gitmodules submodule.data.path data
+git -C "$R8" config -f .gitmodules submodule.data.url ./nowhere
+mkdir -p "$R8/data"
+printf 'changed\n' > "$R8/data/extra.txt"
+git -C "$R8" add .gitmodules data/extra.txt
+git -C "$R8" commit -qm "bump sub gitlink + regular content under branch-declared data/"
 TASK8="$(git -C "$R8" rev-parse HEAD)"
-git -C "$R8" checkout -q - 2>/dev/null
 
 cwd8="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
 TMPFILES="$TMPFILES $cwd8"
 rc8=0
-( cd "$cwd8" && bash "$SCRIPT" "$BASE8" "$TASK8" --repo "$R8" --declared ) >/dev/null 2>&1 || rc8=$?
+stderr8="$(mktemp 2>/dev/null || mktemp -t wartest)"
+TMPFILES="$TMPFILES $stderr8"
+( cd "$cwd8" && bash "$SCRIPT" "$BASE8" "$TASK8" --repo "$R8" --declared ) >"$stderr8" 2>&1 || rc8=$?
 
-if [ "$rc8" -eq 1 ]; then
-  pass "case 8: --declared + non-gitlink content under .gitmodules path -> exit 1 (still refused)"
+# Refuse must come from step 3 (the --declared gitlink fall-through does NOT
+# bypass step 3), so assert the step-3-specific token.
+if [ "$rc8" -eq 1 ] && grep -q "path under .gitmodules submodule path" "$stderr8" 2>/dev/null; then
+  pass "case 8: --declared + gitlink bump + content under branch-declared path -> exit 1 (step 3 fires)"
 else
-  fail "case 8: --declared + non-gitlink content under .gitmodules path -> expected exit 1, got $rc8"
+  fail "case 8: --declared + content under branch-declared path -> expected exit 1 + step-3 token, got rc=$rc8"
 fi
 
 # ---------------------------------------------------------------------------
@@ -373,14 +400,13 @@ fi
 # Case 10: STEP-3 ISOLATION — .gitmodules-path content touch, NO gitlink move -> exit 1
 #
 # Isolates the step-3 (.gitmodules-path) arm. Unlike cases 1/2/8 (where a mode
-# 160000 gitlink also appears in the diff and the step-2 arm fires too), here the
-# raw diff carries NO mode 160000: the existing "sub" gitlink is untouched, and a
-# NEW .gitmodules entry ("data") plus a plain tracked file under data/ is added.
-# The guard reads the working-tree .gitmodules, so we DELIBERATELY leave the repo
-# on the task branch (no `checkout -`): the working tree then carries the "data"
-# path the step-3 arm cross-checks. Only step 3 can refuse this -> exit 1.
-# (Temp-break proof, plan Step 3: disabling step 3 flips this to allow; disabling
-# step 2 leaves it refused — so it exercises step 3 alone.)
+# 160000 gitlink also appears in the diff and the step-2 arm fires/falls through),
+# here the raw diff carries NO mode 160000: the existing "sub" gitlink is untouched,
+# and a NEW .gitmodules entry ("data") plus a plain tracked file under data/ is added.
+# The branch itself commits the "data" declaration, so the step-3 arm reads it from
+# the branch ref (#802) — the working-tree position is irrelevant. Only step 3 can
+# refuse this -> exit 1. (Temp-break proof, plan Step 3: disabling step 3 flips this
+# to allow; disabling step 2 leaves it refused — so it exercises step 3 alone.)
 # ---------------------------------------------------------------------------
 SUB10="$(setup_submodule_repo)"
 R10="$(setup_repo)"
@@ -398,8 +424,8 @@ printf 'content\n' > "$R10/data/file.txt"
 git -C "$R10" add .gitmodules data/file.txt
 git -C "$R10" commit -qm "content under data/ submodule path, no gitlink move"
 TASK10="$(git -C "$R10" rev-parse HEAD)"
-# NOTE: no `checkout -` — leave the working tree on the task branch so the
-# guard reads a .gitmodules that carries the "data" path (working-tree read).
+# The branch ref carries the "data" path the step-3 arm cross-checks; the guard
+# reads it from the ref, so the working-tree position is immaterial (#802).
 
 cwd10="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
 TMPFILES="$TMPFILES $cwd10"
@@ -421,12 +447,12 @@ fi
 #
 # Isolates the step-2 (mode 160000) arm. The submodule gitlink is bumped (mode
 # 160000 in the raw diff), and .gitmodules is REMOVED in the same commit so the
-# changed gitlink path "sub" matches NO configured submodule path — the step-3
-# arm therefore has nothing to cross-check. Only step 2 can refuse this -> exit 1.
-# We leave the working tree on the task branch (no `checkout -`) so the guard
-# reads a .gitmodules-less tree, keeping step 3 inert.
-# (Temp-break proof, plan Step 3: disabling step 2 flips this to allow; disabling
-# step 3 leaves it refused — so it exercises step 2 alone.)
+# changed gitlink path "sub" matches NO declared submodule path. In default mode
+# step 2 refuses before step 3 runs at all; and even if step 3 were reached, the
+# branch ref has no .gitmodules (removed here), so its cat-file -e probe finds
+# nothing (#802) — the working-tree position is immaterial. Only step 2 can refuse
+# this -> exit 1. (Temp-break proof, plan Step 3: disabling step 2 flips this to
+# allow; disabling step 3 leaves it refused — so it exercises step 2 alone.)
 # ---------------------------------------------------------------------------
 SUB11="$(setup_submodule_repo)"
 R11="$(setup_repo)"
@@ -446,7 +472,8 @@ git -C "$R11" rm -q --cached .gitmodules 2>/dev/null || true
 rm -f "$R11/.gitmodules"
 git -C "$R11" commit -qm "bump gitlink; drop .gitmodules entry (path unmatched by step 3)"
 TASK11="$(git -C "$R11" rev-parse HEAD)"
-# NOTE: no `checkout -` — working tree stays .gitmodules-less so step 3 stays inert.
+# The branch ref has no .gitmodules (removed above), so the step-3 probe would
+# find nothing even if reached; the working-tree position is immaterial (#802).
 
 cwd11="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
 TMPFILES="$TMPFILES $cwd11"
@@ -464,16 +491,17 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Case 12: --declared + pure content under a .gitmodules path, NO incidental
-#          gitlink deletion -> exit 1 (still refused via step 3)
+# Case 12: --declared + pure content under a .gitmodules path, NO gitlink move
+#          at all -> exit 1 (still refused via step 3)
 #
-# Case-8 analogue WITHOUT the incidental gitlink move. Case 8 deinits + `git rm`s
-# the submodule, which drops the gitlink (mode 160000 in the diff) and so also
-# trips the step-2 arm. Here the diff is PURE content: a new .gitmodules "data"
-# path + a plain file under data/, and NO gitlink is deleted or moved (raw diff
-# has no mode 160000). Invoked WITH --declared, the guard must STILL refuse — the
-# --declared allowance is only for pure gitlink moves, never non-gitlink content
-# under a submodule path. This exercises the step-3 refuse under --declared.
+# Case-8 analogue WITHOUT any gitlink move in the diff. Case 8 bumps the "sub"
+# gitlink (mode 160000 present -> the step-2 --declared fall-through is exercised).
+# Here the diff is PURE content: a new .gitmodules "data" path + a plain file under
+# data/, and NO gitlink is moved (raw diff has no mode 160000), so step 2 never even
+# finds a gitlink. Invoked WITH --declared, the guard must STILL refuse — the
+# --declared allowance is only for gitlink moves, never non-gitlink content under a
+# declared submodule path. This exercises the step-3 refuse under --declared with no
+# step-2 material at all.
 # ---------------------------------------------------------------------------
 SUB12="$(setup_submodule_repo)"
 R12="$(setup_repo)"
@@ -489,7 +517,8 @@ printf 'content\n' > "$R12/data/file.txt"
 git -C "$R12" add .gitmodules data/file.txt
 git -C "$R12" commit -qm "pure content under data/ (no gitlink move), declared"
 TASK12="$(git -C "$R12" rev-parse HEAD)"
-# NOTE: no `checkout -` — working-tree .gitmodules must carry the "data" path.
+# The branch ref declares the "data" path; the guard reads it from the ref, so
+# the working-tree position is immaterial (#802).
 
 cwd12="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
 TMPFILES="$TMPFILES $cwd12"
@@ -504,6 +533,130 @@ if [ "$rc12" -eq 1 ] && grep -q "path under .gitmodules submodule path" "$stderr
   pass "case 12: --declared + pure content under .gitmodules path (no gitlink deletion) -> exit 1 (still refused)"
 else
   fail "case 12: --declared + pure content under .gitmodules path -> expected exit 1 + 'path under .gitmodules submodule path', got rc=$rc12"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 13: --declared + the BRANCH ITSELF declares a submodule path and commits
+# non-gitlink content under it, while the WORKING TREE is dirtied to LACK that
+# declaration -> exit 1 (the ref read keys on the branch's own .gitmodules).
+#
+# This is the #802 fix's headline case: a working-tree read (the pre-fix code)
+# would MISS the branch-declared "data" path (the dirtied working-tree .gitmodules
+# only has "sub") and WRONGLY allow; the branch-ref read sees "data" and refuses.
+# Built with plumbing (commit the declaration, then dirty the working tree via
+# `git config --remove-section`), not checkout gymnastics — cwd-independent.
+# RED pre-change: the base-ref script exits 0 here (proven in the done-report).
+# ---------------------------------------------------------------------------
+SUB13="$(setup_submodule_repo)"
+R13="$(setup_repo)"
+git -C "$R13" -c protocol.file.allow=always submodule add -q "$SUB13" sub 2>/dev/null
+git -C "$R13" commit -qm "add submodule"
+BASE13="$(git -C "$R13" rev-parse HEAD)"
+
+git -C "$R13" checkout -qb task/branch-declares-data 2>/dev/null
+# The BRANCH commits a new "data" submodule declaration + regular content under it.
+git -C "$R13" config -f .gitmodules submodule.data.path data
+git -C "$R13" config -f .gitmodules submodule.data.url ./nowhere
+mkdir -p "$R13/data"
+printf 'content\n' > "$R13/data/file.txt"
+git -C "$R13" add .gitmodules data/file.txt
+git -C "$R13" commit -qm "branch declares data submodule + content under data/"
+TASK13="$(git -C "$R13" rev-parse HEAD)"
+# Dirty the working tree so it does NOT carry the branch's "data" declaration:
+# strip the data section from the checked-out .gitmodules. A working-tree read
+# would now miss "data" and wrongly allow; the ref read must still refuse.
+git -C "$R13" config -f "$R13/.gitmodules" --remove-section submodule.data 2>/dev/null
+
+cwd13="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
+TMPFILES="$TMPFILES $cwd13"
+rc13=0
+stderr13="$(mktemp 2>/dev/null || mktemp -t wartest)"
+TMPFILES="$TMPFILES $stderr13"
+( cd "$cwd13" && bash "$SCRIPT" "$BASE13" "$TASK13" --repo "$R13" --declared ) >"$stderr13" 2>&1 || rc13=$?
+
+if [ "$rc13" -eq 1 ] && grep -q "path under .gitmodules submodule path" "$stderr13" 2>/dev/null; then
+  pass "case 13: branch-declared path + working tree lacks it -> exit 1 (ref read keys on branch)"
+else
+  fail "case 13: branch-declared path (WT diverged) -> expected exit 1 + step-3 token, got rc=$rc13"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 14 (inverse of 13): content under a path the WORKING TREE declares but the
+# BRANCH REF does NOT -> exit 0 (a working-tree-only declaration no longer leaks
+# into the ref read).
+#
+# The branch adds regular content under data/ but does NOT declare "data" in its
+# committed .gitmodules; the working tree is then dirtied to ADD a "data"
+# declaration the branch ref lacks. The pre-fix working-tree read would WRONGLY
+# refuse (it sees the dirtied "data" path); the branch-ref read correctly allows,
+# because the branch never declared data/ a submodule — it is just regular content.
+# RED pre-change: the base-ref script exits 1 here (proven in the done-report).
+# ---------------------------------------------------------------------------
+SUB14="$(setup_submodule_repo)"
+R14="$(setup_repo)"
+git -C "$R14" -c protocol.file.allow=always submodule add -q "$SUB14" sub 2>/dev/null
+git -C "$R14" commit -qm "add submodule"
+BASE14="$(git -C "$R14" rev-parse HEAD)"
+
+git -C "$R14" checkout -qb task/wt-only-data 2>/dev/null
+# Branch adds content under data/ but does NOT declare "data" in .gitmodules.
+mkdir -p "$R14/data"
+printf 'content\n' > "$R14/data/file.txt"
+git -C "$R14" add data/file.txt
+git -C "$R14" commit -qm "content under data/ (branch does NOT declare data)"
+TASK14="$(git -C "$R14" rev-parse HEAD)"
+# Dirty the working tree to ADD a "data" declaration the BRANCH REF lacks.
+git -C "$R14" config -f "$R14/.gitmodules" submodule.data.path data
+git -C "$R14" config -f "$R14/.gitmodules" submodule.data.url ./nowhere
+
+cwd14="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
+TMPFILES="$TMPFILES $cwd14"
+rc14=0
+( cd "$cwd14" && bash "$SCRIPT" "$BASE14" "$TASK14" --repo "$R14" ) >/dev/null 2>&1 || rc14=$?
+
+if [ "$rc14" -eq 0 ]; then
+  pass "case 14: working-tree-only declaration does NOT leak into the ref read -> exit 0"
+else
+  fail "case 14: working-tree-only declaration -> expected exit 0 (ref read ignores WT), got $rc14"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 15: branch .gitmodules EXISTS but declares no submodule paths (empty) +
+# a plain file change -> exit 0 (clean, no declared paths).
+#
+# `git config --blob ... --get-regexp '\.path$'` exits 1 (no match) on an empty
+# or path-less .gitmodules; the ref-read Step 3 treats rc==1 as "no declared
+# paths" (today's empty-result no-op), NOT a git error. This is the delete-the-
+# feature guard for that branch: a naive "any non-zero git config -> die 2" would
+# flip this case to exit 2 (and would wrongly refuse a branch that de-submodules
+# its last submodule by emptying .gitmodules).
+#
+# NOTE on the exit-2 (blob-read-failure) deferred validation (spec §10.7 / plan
+# backstops): after a successful `cat-file -e`, `git config --blob ... --get-regexp`
+# cannot be cheaply driven to exit >1 — git normalizes EVERY read failure to exit 1
+# (empty, path-less, a MALFORMED config blob that prints 'bad config line' to
+# stderr, even a non-blob/tree object). So the script's `cfg_rc > 1 -> die 2` branch
+# is a defensive guard with no cheap fixture; it is documented here per the plan's
+# escape hatch and backstopped by /red-team's sandbox probe.
+# ---------------------------------------------------------------------------
+R15="$(setup_repo)"
+BASE15="$(git -C "$R15" rev-parse HEAD)"
+git -C "$R15" checkout -qb task/empty-gitmodules 2>/dev/null
+: > "$R15/.gitmodules"
+printf 'x\n' > "$R15/plain.txt"
+git -C "$R15" add .gitmodules plain.txt
+git -C "$R15" commit -qm "empty .gitmodules + plain file (no declared paths)"
+TASK15="$(git -C "$R15" rev-parse HEAD)"
+
+cwd15="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
+TMPFILES="$TMPFILES $cwd15"
+rc15=0
+( cd "$cwd15" && bash "$SCRIPT" "$BASE15" "$TASK15" --repo "$R15" ) >/dev/null 2>&1 || rc15=$?
+
+if [ "$rc15" -eq 0 ]; then
+  pass "case 15: empty branch .gitmodules (git config rc==1) -> exit 0 (clean, not die-2)"
+else
+  fail "case 15: empty branch .gitmodules -> expected exit 0 (rc==1 is clean), got $rc15"
 fi
 
 # ---------------------------------------------------------------------------
