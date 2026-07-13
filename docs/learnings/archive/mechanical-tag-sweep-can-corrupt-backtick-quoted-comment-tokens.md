@@ -56,3 +56,5 @@ Related: [[source-comment-lags-emitted-prompt-after-rewrite]] (a different comme
 staleness after a logic rewrite, not a mechanical-sweep collision), [[audit-log-finding-can-be-stale-by-land-time]]
 (the general finding-match discipline this lesson followed to confirm the instance was resolved
 before recording).
+
+> archived 2026-07-13: resolved — moved to archive

@@ -44,3 +44,5 @@ Skipping either non-failure case lets a regression break back-compat or derivati
 Lead without actionable context.
 **How to apply:** adding a derived-field loop → post-loop assert + 3-case test + 3-property
 message check (id, surface, hint).
+
+> archived 2026-07-13: resolved — moved to archive

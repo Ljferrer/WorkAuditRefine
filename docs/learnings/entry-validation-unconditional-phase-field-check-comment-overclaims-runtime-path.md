@@ -1,6 +1,6 @@
 ---
 name: entry-validation-unconditional-phase-field-check-comment-overclaims-runtime-path
-description: "The hoisted entry-validation problems[] check for ph.title/workingBranch/integrationBranch is unconditional BY DESIGN (fail fast at entry, before any pt-tagged interpolation), but its justifying comment overclaims a zero-task phase 'builds the Provision-barrier prompt' — that path is actually inside if(tasks.length) and never runs for zero tasks"
+description: "Hoisted entry-validation phase-field check is unconditional by design; its comment overclaims a zero-task phase builds the Provision-barrier prompt — that path is inside if(tasks.length), never runs for zero tasks"
 metadata: 
   node_type: memory
   type: project
@@ -8,14 +8,16 @@ metadata:
   slug: entry-validation-unconditional-phase-field-check-comment-overclaims-runtime-path
   phase: "Engine-routes-contract-surfaces/1.1 (2026-07-12, fixes"
   keywords: 
-    - entry validation H
+    - entry-validation problems[]
     - hoisted problems array
-    - pt tag
-    - fail at entry
+    - pt-tagged interpolation
+    - fail-fast at entry
     - held:workflow-error
-    - phase.title
+    - phase.title workingBranch integrationBranch
+    - unconditional by design
     - zero-task phase
-    - absorb-eligible
+    - Provision-barrier prompt
+    - if(tasks.length)
     - cross-file doc inaccuracy
     - schemas.md blockquote
     - comment accuracy

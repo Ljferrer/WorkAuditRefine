@@ -74,3 +74,5 @@ Related: [[gate-output-curated-excerpt-obscures-mapped-test-evidence]] (the gene
 artifact-vs-curation lesson this refines — that lesson already established the tee-to-file
 mechanism as the fix for curated excerpts; this note flags that the mechanism itself may not be
 capturing the full compound command).
+
+> archived 2026-07-13: resolved — moved to archive

@@ -134,3 +134,22 @@ test('doc-contract: no retired commitLearnings default-`true` / economy-pins-fal
       `${name}: retired "economy pins \`false\`" framing must be gone; offending: ${JSON.stringify(economyPins)}`)
   }
 })
+
+// --- Task 1.3 (memory-tooling-frictions): migrate pre-flight absent-config guard (#823) ---
+
+// (12) The migrate pre-flight must guard the resolver on config-file existence. The resolver
+//      exits non-zero on an absent config (war-config-fill-defaults-resolver-exits-nonzero-on-absent-config),
+//      and an absent config is the common state (/war-room is opt-in), so the pre-flight has to
+//      `test -f .claude/war/config.json` FIRST and treat an absent config as effective defaults
+//      (commitLearnings: false) WITHOUT calling the resolver. Case-tolerant, mid-sentence anchors
+//      (prompt-only-clause grep-guard lesson): grab the pre-flight branch line by its command token,
+//      then assert the absent→skip semantics survive rewording of the surrounding prose. Binding the
+//      absent/skip words to the SAME line as the command keeps this from passing on a stray `test -f`
+//      elsewhere (check_f-locks-presence-anywhere lesson).
+test('doc-contract: migrate pre-flight carries the `test -f .claude/war/config.json` absent-config branch', () => {
+  const branch = lineWith(skill, 'test -f .claude/war/config.json')
+  assert.match(branch, /absent/i,
+    'the pre-flight `test -f` branch must name the absent-config case')
+  assert.match(branch, /\bskip\b/i,
+    'the absent-config case must skip the resolver call (it exits non-zero on an absent config)')
+})
