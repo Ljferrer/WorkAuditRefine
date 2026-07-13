@@ -89,9 +89,12 @@ export function dedupe(findings) {
   for (const f of findings) {
     // Primary key is planRef|severity|claim. When severity AND claim are both absent
     // (a malformed finding), that key collapses distinct findings to one — fall back to
-    // file|line|summary so two severity-less findings don't vanish into a single slot (#311).
+    // probe|file|line|summary so two severity-less findings don't vanish into a single slot (#311).
+    // The leading `probe` component keeps two DIFFERENT probes' identical severity-less env-gap notes
+    // (same file/line/summary) from silently collapsing across probes — a cross-probe drop would break
+    // the never-silently-dropped guarantee; same-probe identical notes still collapse (the #311 intent).
     const key = (f.severity == null && f.claim == null)
-      ? `${f.file || ''}|${f.line || ''}|${f.summary || ''}`
+      ? `${f.probe || ''}|${f.file || ''}|${f.line || ''}|${f.summary || ''}`
       : `${f.planRef || ''}|${f.severity}|${f.claim || ''}`
     if (seen.has(key)) continue
     seen.add(key)
@@ -111,6 +114,17 @@ export function classify(findings) {
     // Critical) at the gate layer. The retained-findings carve-out (a false claim about existing
     // code) is untagged and so still lands in `blockers` below.
     if (f.deliverableAbsence === true) return { ...f, severity: 'Minor' }
+    // Env-gap (ADR 0032 / #807): a probe-set TYPED flag meaning this finding records a PROVISION-STEP
+    // failure (the sandbox setup broke — a submodule/dep-install command failed), NOT a defect in the
+    // artifact under test. A broken environment must never be mis-scored as a broken plan, so demote to
+    // an informational Minor note regardless of severity or probe status. Checked BEFORE the
+    // KNOWN_SEVERITIES branch so a severity-less env-gap note on a non-pass probe never reaches the
+    // needsDecision force-promotion below (the obedient-path trap); adjacent to and AFTER the
+    // deliverableAbsence check (a finding carrying both flags demotes via deliverableAbsence, first in
+    // order). `needsDecision` is deliberately NOT cleared — parity with deliverableAbsence; an env-gap
+    // note that self-declares needsDecision:true stays user-owned and still blocks via the needsDecision
+    // bucket. Keys on the typed flag ONLY — the gate does NO NLP on `reality` (spec constraint 2: pure).
+    if (f.envGap === true) return { ...f, severity: 'Minor' }
     // A finding with no/invalid severity is malformed. On a non-pass probe it is a genuine
     // (mis-shaped) defect → force needsDecision so it can't fall through every bucket. On a
     // pass probe demote it to Minor (informational), never a blocker — preserves #50.

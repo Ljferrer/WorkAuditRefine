@@ -392,6 +392,95 @@ test('end state 4: 16 deliverable-absence Criticals from an impl-plan run → ve
   assert.notEqual(verdict(findings), 'BLOCKED')
 })
 
+// --- Task 1.1 (#807): envGap findings are never blockers (gate demotes; gate stays pure) -------
+// Mirrors the D3 deliverableAbsence suite shape. An env-gap finding records a PROVISION-STEP failure
+// (the sandbox setup broke), not a defect in the artifact under test — the gate demotes it to a Minor.
+const EG = (over = {}) => ({ severity: 'Critical', claim: 'provision failed', planRef: 'Task 1', envGap: true, ...over })
+
+test('1a: a Critical envGap finding is absent from blockers (end state 1a)', () => {
+  const findings = allFindings([{ probe: 'executable-proof', status: 'fail', findings: [EG()] }])
+  const c = classify(findings)
+  assert.equal(c.blockers.length, 0, 'env-gap must not be a blocker')
+  assert.notEqual(verdict(findings), 'BLOCKED', 'verdict must not be BLOCKED on an env-gap alone')
+})
+
+test('1a: envGap excludes from blockers regardless of probe status', () => {
+  for (const status of ['fail', 'warn', undefined]) {
+    const findings = allFindings([{ probe: 'p', status, findings: [EG()] }])
+    assert.equal(classify(findings).blockers.length, 0, `status=${status} env-gap must not block`)
+  }
+})
+
+test('1b: an envGap finding surfaces as a Minor note (never silently dropped)', () => {
+  const findings = allFindings([{ probe: 'p', status: 'fail', findings: [EG()] }])
+  assert.equal(classify(findings).minors.length, 1)
+  assert.equal(verdict(findings), 'CLEARED-WITH-NOTES')
+})
+
+test('1c: a severity-less envGap note on a non-pass probe lands in minors, NOT needsDecision (envGap check precedes KNOWN_SEVERITIES)', () => {
+  // Branch-ordering anchor: the envGap demotion runs BEFORE the malformed-severity force-promotion,
+  // so a severity-less env-gap note on a non-pass probe never reaches the needsDecision branch. Move
+  // the envGap check after KNOWN_SEVERITIES and this goes RED (needsDecision:1, minors:0).
+  const findings = allFindings([{ probe: 'p', status: 'fail', findings: [EG({ severity: undefined, claim: undefined })] }])
+  const c = classify(findings)
+  assert.equal(c.needsDecision.length, 0, 'a severity-less env-gap note must NOT be force-promoted to needsDecision')
+  assert.equal(c.minors.length, 1, 'it lands in minors — the envGap branch runs ahead of the force-promotion')
+  assert.notEqual(verdict(findings), 'BLOCKED')
+})
+
+test('1d: keys on the TYPED flag only — the SAME Critical WITHOUT the flag still blocks (delete-and-trace)', () => {
+  const withFlag = allFindings([{ probe: 'p', status: 'fail', findings: [EG()] }])
+  const noFlag = allFindings([{ probe: 'p', status: 'fail', findings: [EG({ envGap: undefined })] }])
+  assert.equal(classify(withFlag).blockers.length, 0)
+  assert.equal(classify(noFlag).blockers.length, 1, 'without the flag the identical Critical is a genuine blocker')
+})
+
+test('1d: envGap:false is honored as untagged (only ===true demotes)', () => {
+  const findings = allFindings([{ probe: 'p', status: 'fail', findings: [EG({ envGap: false })] }])
+  assert.equal(classify(findings).blockers.length, 1)
+})
+
+test("1d: a truthy non-boolean (envGap:'true' string) is untagged — only strict ===true demotes", () => {
+  const findings = allFindings([{ probe: 'p', status: 'fail', findings: [EG({ envGap: 'true' })] }])
+  assert.equal(classify(findings).blockers.length, 1, "envGap:'true' (string) must NOT demote — the check is === true")
+})
+
+test('1e: a finding carrying BOTH deliverableAbsence:true AND envGap:true lands in minors (one Minor; deliverableAbsence branch is first in order)', () => {
+  const findings = allFindings([{ probe: 'p', status: 'fail', findings: [EG({ deliverableAbsence: true })] }])
+  const c = classify(findings)
+  assert.equal(c.blockers.length, 0)
+  assert.equal(c.minors.length, 1, 'one Minor — both branches demote to Minor; deliverableAbsence wins by order')
+  assert.equal(verdict(findings), 'CLEARED-WITH-NOTES')
+})
+
+test('1f: envGap:true + agent-set needsDecision:true STILL blocks via the needsDecision bucket — BY DESIGN, do not "fix"', () => {
+  // The demotion deliberately never clears needsDecision (parity with deliverableAbsence): an env-gap
+  // note that self-declares an ambiguity stays user-owned and MUST still block. A future pass that
+  // "fixes" this to CLEARED is a regression, not an improvement — leave it.
+  const findings = allFindings([{ probe: 'p', status: 'fail', findings: [EG({ needsDecision: true })] }])
+  const c = classify(findings)
+  assert.equal(c.needsDecision.length, 1, 'the env-gap note still lands in needsDecision')
+  assert.equal(c.blockers.length, 0, 'not via blockers — severity is demoted to Minor; it blocks via the needsDecision bucket')
+  assert.equal(verdict(findings), 'BLOCKED', 'a self-declared ambiguity blocks even on an env-gap note')
+})
+
+test('1g: two severity-less env-gap notes from TWO probes both survive dedupe → two minors; from ONE probe collapse to one (fallback-key probe component)', () => {
+  const note = { envGap: true, file: 'setup.sh', line: 3, summary: 'pnpm install failed' } // severity-less, claim-less
+  // Two DIFFERENT probes filing the identical env-gap note — must NOT collapse (a silent cross-probe drop).
+  const twoProbes = allFindings([
+    { probe: 'executable-proof', status: 'warn', findings: [note] },
+    { probe: 'ff-topology', status: 'warn', findings: [{ ...note }] },
+  ])
+  assert.equal(dedupe(twoProbes).length, 2, 'two probes → the leading `probe` key component keeps both')
+  assert.equal(classify(twoProbes).minors.length, 2, 'both surface as minors')
+  // The SAME two notes from ONE probe are a genuine dupe — still collapse to one (#311 intent preserved).
+  const oneProbe = allFindings([
+    { probe: 'executable-proof', status: 'warn', findings: [note, { ...note }] },
+  ])
+  assert.equal(dedupe(oneProbe).length, 1, 'one probe, identical notes → collapse to one (genuine dupe)')
+  assert.equal(classify(oneProbe).minors.length, 1)
+})
+
 // --- T1.2 (D7): drift-guard pin — pass is the ONLY demoting status + two-contract sentence ---
 
 test('D7(a): the ONLY probe status that demotes a Critical/Major is "pass" (demoting set is exactly {pass})', () => {
