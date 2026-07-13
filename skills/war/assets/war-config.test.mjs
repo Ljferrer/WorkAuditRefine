@@ -186,13 +186,18 @@ test('matrix stays four roles: ROLES is exactly the four phase roles and exclude
     'agentMatrix must have exactly |PRESETS| × 4 rows (four roles, redteam excluded)')
 })
 
-test('agents.redteam is absent by default in DEFAULTS and every preset (presets never set it) (T1.1)', () => {
-  assert.equal(DEFAULTS.agents.redteam, undefined, 'DEFAULTS must not carry an agents.redteam block (absent = red-team inherits session)')
-  for (const preset of Object.keys(PRESETS)) {
-    assert.equal(presetConfig(preset).agents.redteam, undefined, `${preset} preset must not set agents.redteam`)
+test('agents.redteam is preset-populated: balanced opus/max in DEFAULTS, thorough/economy override (fix + red-team asks)', () => {
+  // /war-room now asks for the red-team model/effort and never leaves it blank — the values live in
+  // DEFAULTS (balanced) + the two overriding presets. Delete-the-feature: drop the redteam blocks and
+  // the deepEquals below go red.
+  assert.deepEqual(DEFAULTS.agents.redteam, { model: 'opus', effort: 'max' }, 'DEFAULTS (balanced) red-team must be opus/max')
+  const REDTEAM = { balanced: { model: 'opus', effort: 'max' }, thorough: { model: 'fable', effort: 'xhigh' }, economy: { model: 'sonnet', effort: 'max' } }
+  for (const [preset, expected] of Object.entries(REDTEAM)) {
+    assert.deepEqual(presetConfig(preset).agents.redteam, expected, `${preset} preset red-team must be ${JSON.stringify(expected)}`)
   }
-  // Absent block still validates — today's behavior byte-for-byte.
-  assert.equal(validate({}).valid, true)
+  // A partial input that omits redteam still validates (the block is optional at the input layer;
+  // fillDefaults injects the balanced default, and a missing config FILE still lets /red-team inherit).
+  assert.equal(validate({ agents: { worker: { model: 'opus' } } }).valid, true)
 })
 
 test('agents.redteam validates when present: every MODELS model and every EFFORTS effort accepted (T1.1)', () => {
@@ -272,10 +277,13 @@ test('agents.worker.docs rejects bad model / bad effort / unknown sub-key (valid
   assert.match(msg, /\/war-room/)
 })
 
-test('agents.worker.fix is absent by default but validated when present (T1.1)', () => {
-  assert.equal(DEFAULTS.agents.worker.fix, undefined, 'worker.fix must be absent by default (absent = inherit worker)')
-  for (const preset of Object.keys(PRESETS)) {
-    assert.equal(presetConfig(preset).agents.worker.fix, undefined, `${preset} preset must not set worker.fix`)
+test('agents.worker.fix is preset-populated (balanced fable/high in DEFAULTS) and validated when present (fix + red-team asks)', () => {
+  // /war-room now asks for the fix-worker model/effort and never leaves it blank — balanced's value
+  // lives in DEFAULTS, thorough/economy override. Delete-the-feature: drop the fix blocks → these fail.
+  assert.deepEqual(DEFAULTS.agents.worker.fix, { model: 'fable', effort: 'high' }, 'DEFAULTS (balanced) fix tier must be fable/high')
+  const FIX = { balanced: { model: 'fable', effort: 'high' }, thorough: { model: 'fable', effort: 'max' }, economy: { model: 'opus', effort: 'default' } }
+  for (const [preset, expected] of Object.entries(FIX)) {
+    assert.deepEqual(presetConfig(preset).agents.worker.fix, expected, `${preset} preset fix tier must be ${JSON.stringify(expected)}`)
   }
   // Present + valid → accepted.
   assert.equal(validate({ agents: { worker: { fix: { model: 'opus', effort: 'max' } } } }).valid, true)
@@ -291,25 +299,29 @@ test('agents.worker.fix is absent by default but validated when present (T1.1)',
 })
 
 // --- workerTierMatrix (T1.1): sibling canonical export the doc-honesty lens consults -------------
-// Mirrors the agentMatrix pattern: base + docs rows per preset (docs defaulted in DEFAULTS), and a
-// fix row only when a preset sets worker.fix (none do today → no fix rows, a real derivation).
+// Mirrors the agentMatrix pattern: base + docs + fix rows per preset — docs and fix are both defaulted
+// in DEFAULTS (fix flipped from absent-by-default once /war-room began asking for the fix-worker tier).
 
-test('workerTierMatrix: base + docs row per preset; docs is sonnet everywhere; no fix rows today (T1.1)', () => {
+test('workerTierMatrix: base + docs + fix row per preset; docs is sonnet everywhere; fix now defaulted (fix + red-team asks)', () => {
   const matrix = workerTierMatrix()
   const presets = Object.keys(PRESETS)
   for (const preset of presets) {
     const base = matrix.filter(r => r.preset === preset && r.tier === 'base')
     const docs = matrix.filter(r => r.preset === preset && r.tier === 'docs')
+    const fix = matrix.filter(r => r.preset === preset && r.tier === 'fix')
     assert.equal(base.length, 1, `workerTierMatrix must carry exactly one base row for ${preset}`)
     assert.equal(docs.length, 1, `workerTierMatrix must carry exactly one docs row for ${preset}`)
+    assert.equal(fix.length, 1, `workerTierMatrix must carry exactly one fix row for ${preset} (fix is now defaulted)`)
     assert.equal(docs[0].model, 'sonnet', `${preset} docs tier must be sonnet (the documented default)`)
     assert.equal(docs[0].effort, 'default', `${preset} docs tier effort must be default`)
   }
-  // fix is absent by default → no preset emits a fix row. Delete-the-feature: a stray fix pin on any
-  // preset makes a fix row appear here (the "no fix rows" derivation is real, not a tautology).
-  assert.ok(!matrix.some(r => r.tier === 'fix'), 'no preset sets worker.fix today, so workerTierMatrix must emit no fix rows')
-  // Total rows: base + docs per preset (2 × |PRESETS|), no phantom tier.
-  assert.equal(matrix.length, presets.length * 2, `workerTierMatrix must have base+docs per preset = ${presets.length}×2 rows`)
+  // fix is now defaulted in DEFAULTS → every preset emits a fix row. Delete-the-feature: drop the fix
+  // block from DEFAULTS and every preset, and the per-preset fix.length===1 check above goes red (the
+  // push stays isObj(w.fix)-guarded, so an unset fix would omit its row — the derivation is real).
+  assert.ok(presets.every(p => matrix.some(r => r.preset === p && r.tier === 'fix')),
+    'fix is defaulted in DEFAULTS, so every preset must emit a fix row')
+  // Total rows: base + docs + fix per preset (3 × |PRESETS|), no phantom tier.
+  assert.equal(matrix.length, presets.length * 3, `workerTierMatrix must have base+docs+fix per preset = ${presets.length}×3 rows`)
   // Every row's model/effort is a valid enum value (an out-of-enum tier literal goes red here).
   for (const r of matrix) {
     assert.ok(MODELS.includes(r.model), `workerTierMatrix (${r.preset}, ${r.tier}).model ${JSON.stringify(r.model)} must be a valid model`)

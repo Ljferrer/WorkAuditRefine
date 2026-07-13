@@ -307,10 +307,11 @@ const spawn = role => {
   const model = a.model || ROLE_MODEL[role]
   return a.effort && a.effort !== 'default' ? { model, effort: a.effort } : { model }
 }
-// Worker sub-tier defaults, hand-mirrored from DEFAULTS.agents.worker (war-config.mjs) and bound to
-// the canonical source by the D2 registry row in workflow-template.test.mjs. docs dispatches all-*.md
-// tasks (sonnet by default); fix (the fix-round + --ace tier) has NO default block — absent ⇒ inherit
-// the base worker — so it is not listed here (nothing to bind).
+// Worker sub-tier SANDBOX fallbacks. docs is bound to DEFAULTS.agents.worker.docs by the D2 registry
+// row in workflow-template.test.mjs (sonnet by default). fix (the fix-round + --ace tier) is NOT listed
+// here even though DEFAULTS/presets now default it: its authoring default is applied by fillDefaults
+// BEFORE the resolved config reaches this sandbox, so at this layer an absent fix ⇒ inherit the base
+// worker (the correct fallback for a partial/hand-passed config — nothing to bind).
 const WORKER_TIER_DEFAULTS = { docs: { model: 'sonnet', effort: 'default' } }
 // spawnWorker(tier): worker spawn opts for a sub-tier ('docs'|'fix') — the configured agents.worker[tier]
 // block when present, else WORKER_TIER_DEFAULTS[tier] (docs), else the base worker (fix absent ⇒ inherit;
