@@ -35,7 +35,8 @@ Workflow authorization as the reader fan-out below.
 
 1. **Enumerate both roots.** Collect hot lessons from **both** memory roots — the repo root
    `docs/learnings/` and the local root (resolved exactly as `war-memory render-index` resolves
-   the local root). Exclude `archive/` in **both** roots — cold lessons are mostly
+   the local root, for **reading** lessons only — this resolved path never appears in drafted
+   issue text; see Step 3). Exclude `archive/` in **both** roots — cold lessons are mostly
    resolved/evicted.
 2. **Classify (reader fan-out).** One reader per lesson (batched like the issue readers in Step 2):
    verify the lesson's referent against the **live tree** and classify —
@@ -44,9 +45,13 @@ Workflow authorization as the reader fan-out below.
    defect/limitation/ceiling, and the lesson is **not** `[RESOLVED]` and not superseded.
    Recurrence counters boost the drafted issue's **priority in the body, never eligibility**.
 3. **Draft the issue.** Title from the lesson `description`; body = the defect statement, a fixed
-   greppable citation line **`Lesson: <slug>`** plus the lesson path (`docs/learnings/<slug>.md`
-   or `<local-root>/<slug>.md`), the provenance tier, and a recurrence note if any. Quote lesson
-   bodies **minimally** — titles can leak too.
+   greppable citation line **`Lesson: <slug>`**, the provenance tier, and a recurrence note if any.
+   A **repo-root** lesson's citation also carries its path, `docs/learnings/<slug>.md` —
+   repo-relative and lint-clean. A **local-root** lesson's citation is **slug-only**:
+   `Lesson: <slug>` alone, never a path. Resolving `<local-root>` to a real filesystem path
+   anywhere in drafted text is forbidden — a resolved home path trips the `home-path` entry in
+   `LINT_PATTERNS` and withholds the whole otherwise-clean issue. Quote lesson bodies
+   **minimally** — titles can leak too.
 4. **Dedup (open AND closed).** Search issues in **both** states for the slug (cite it verbatim so
    the substring-fragile `gh` search has a stable token). Open hit → **skip** (the normal sweep
    already covers it). Closed hit → **skip** and report `previously adjudicated (#N)` — a human
