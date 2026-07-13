@@ -73,6 +73,8 @@ When your `blocked_reason` attributes an observed failure — a failing test, a 
 ## Return
 Return ONLY the `WorkerResult` JSON (see the skill's `references/schemas.md`): `{ task_id, branch, worktree, head_sha, status, tests, acceptance_criteria_covered, files_changed, notes, blocked_reason? }`.
 
+Report every files_changed path as worktree-relative — never an absolute path and never one rooted in the main checkout — so no downstream consumer ever sees a path that escapes the isolated worktree.
+
 ## Servitor confinement
 The WAR servitor runs after each phase lands with a restricted capability allowlist (Read, Grep, Glob, Write, Edit — no Bash). This allowlist is the **primary confinement**: without Bash the servitor cannot touch branches, issues, or arbitrary paths. The `agent_type` PreToolUse hook and the `..`-traversal guard are **defense-in-depth** layered on top — they catch any residual Write/Edit attempt that escapes the allowlist check (e.g. a path that pattern-matches the learnings target but contains a `..` traversal). See [ADR 0002](../docs/adr/0002-scope-by-agent-type.md).
 

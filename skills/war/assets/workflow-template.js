@@ -375,23 +375,39 @@ const defaultRoster = (Array.isArray(audit.roster) ? audit.roster : []).map(s =>
   (s && typeof s === 'object' && !Array.isArray(s) && s.depth === undefined) ? { ...s, depth: 'deep' } : s)
 
 
-// Entry validation (H, widened per operator decision 4). If ANY task lacks an explicit
-// branch/worktree the derivation must consume the top-level trio + phase.id — so validate them ONCE
-// here, at the top of the try{} body (before the per-task derivation loop), so a missing input dies
-// at ENTRY with the exact absent keys named (→ held:workflow-error via the catch, git untouched),
-// rather than N per-task derivation throws (#586). Two DISTINCT classes: the missing-trio-keys list,
-// and a missing phase.id — the silent `pundefined-` branch/worktree derivation class the trio check
-// alone would leave open. Zero tasks ⇒ vacuously no throw. The per-task derivation throw below stays
-// as the belt-and-suspenders backstop.
+// Entry validation (H, widened per operator decision 4 + #740). TWO problem classes feed ONE hoisted
+// `problems` aggregation and a SINGLE throw here, at the top of the try{} body — before any pt-tagged
+// interpolation and before git is touched — so a missing input dies at ENTRY with every absent key
+// named (→ held:workflow-error via the catch, git untouched), not opaquely deep inside prompt
+// construction (#586, #740).
+//   (1) DERIVATION class — the missing-trio-keys list + a missing phase.id (the silent `pundefined-`
+//       branch/worktree derivation class). Consumed ONLY when a task lacks an explicit branch/worktree,
+//       so it is guarded by that `some(...)` check: zero tasks / all-explicit ⇒ this class vacuously
+//       adds nothing (the vacuous-no-throw rule applies to THIS class only). The per-task derivation
+//       throw below stays as the belt-and-suspenders backstop.
+//   (2) PHASE-FIELD class — ph.title / ph.workingBranch / ph.integrationBranch, each interpolated
+//       fallback-free through the `pt` tag in the Provision-barrier / depClause / merge / land /
+//       classification / phase-close prompts REGARDLESS of whether tasks carry explicit paths. So this
+//       class is UNCONDITIONAL — even a zero-task phase builds the Provision-barrier prompt from these
+//       fields. Guarded access only (`ph` nullish ⇒ all three named); no earlier ph-field deref can
+//       pre-empt this message (phaseId uses `ph?.id`, endStateClaims guards `ph && ph.endState`,
+//       taskBranch/taskWorktree are lazy arrows evaluated after validation).
+// The `(or supply explicit branch/worktree per task)` suffix is appended ONLY when a derivation-class
+// problem fired — it is a lie for the phase-field class (an explicit branch/worktree cannot supply a
+// missing ph.title).
+const problems = []
+let derivationProblem = false
 if ((tasks || []).some(t => !t.branch || !t.worktree)) {
   const missingTrio = [['planSlug', planSlug], ['runId', runId], ['worktreeRoot', worktreeRoot]]
     .filter(([, v]) => !v).map(([k]) => k)
   const phaseIdMissing = ph == null || ph.id === undefined || ph.id === null || ph.id === ''
-  const problems = []
-  if (missingTrio.length) problems.push(`workflow-template: requires top-level { planSlug, runId, worktreeRoot } — missing: [${missingTrio.join(', ')}]`)
-  if (phaseIdMissing) problems.push(`phase.id is missing (derivation would produce 'pundefined-' branch/worktree names)`)
-  if (problems.length) throw new Error(`${problems.join('; ')} (or supply explicit branch/worktree per task)`)
+  if (missingTrio.length) { problems.push(`workflow-template: requires top-level { planSlug, runId, worktreeRoot } — missing: [${missingTrio.join(', ')}]`); derivationProblem = true }
+  if (phaseIdMissing) { problems.push(`phase.id is missing (derivation would produce 'pundefined-' branch/worktree names)`); derivationProblem = true }
 }
+const missingPhaseFields = [['title', ph == null ? undefined : ph.title], ['workingBranch', ph == null ? undefined : ph.workingBranch], ['integrationBranch', ph == null ? undefined : ph.integrationBranch]]
+  .filter(([, v]) => v == null || v === '').map(([k]) => k)
+if (missingPhaseFields.length) problems.push(`workflow-template: requires phase { title, workingBranch, integrationBranch } — missing: [${missingPhaseFields.join(', ')}]`)
+if (problems.length) throw new Error(`${problems.join('; ')}${derivationProblem ? ' (or supply explicit branch/worktree per task)' : ''}`)
 
 for (const t of (tasks || [])) {
   t.branch = taskBranch(t); t.worktree = taskWorktree(t)
@@ -486,25 +502,47 @@ const isSplit    = seats => seats.some(s => s.verdict === 'approve') && seats.so
 // ponytail: applied at the worker-dispatch sites in T2 (not dead code — defined-but-not-yet-emitted-plan-slice-pattern)
 const blockedReason = r => !r ? 'worker returned no result'
   : (r.status === 'blocked' ? (r.blocked_reason || 'worker returned no result') : null)
-// Path contract (spec §9 / criterion 10). General workflow agents are unconfined by design — the confined
-// war-worker main-checkout write is already scope-hook-denied. As a workflow-authoring convention backed by
-// ONE assertion (not a new hook), every ABSOLUTE path a worker reports in files_changed must sit under its
-// injected worktree root (the `.claude/worktrees/<name>/` segment). A relative path is worktree-relative by
-// the cd contract and passes; an absolute path OUTSIDE the worktree is the main-checkout footgun
-// (edits-land-in-main-not-session-worktree) and fails loud here rather than silently landing off-worktree.
-const assertReportedPathsInWorktree = (files, worktree) => {
-  for (const f of (files || [])) {
-    if (typeof f === 'string' && f.startsWith('/') && f !== worktree && !f.startsWith(worktree + '/')) {
-      throw new Error(`worker path-contract violation: reported file "${f}" is an absolute path outside the task worktree ${worktree} — a write outside .claude/worktrees/<name>/ escapes the isolated checkout`)
-    }
+// Reported-path normalize-or-throw (this spec: launch-entry-validation; provenance: the former path
+// contract at spec §9 / criterion 10). General workflow agents are unconfined by design — the confined
+// war-worker main-checkout write is already scope-hook-denied, so a main-rooted files_changed entry is a
+// REPORTING artifact, not evidence of a real off-worktree write. For each reported string:
+//   (a) relative → pass through (worktree-relative by the cd contract);
+//   (b) absolute under THIS task's worktree → pass;
+//   (b2) absolute under worktreeRoot (when truthy) but NOT under this task's worktree → THROW: a
+//        sibling-worktree checkout; normalizing against mainCheckout would fabricate a nonsense
+//        worktree-relative path rooted in the wrong worktree, so it stays a loud failure (grill Q7);
+//   (c) absolute under mainCheckout (only when truthy) → rewrite to the worktree-relative remainder and
+//        log() a warning naming the task + original path; mainCheckout falsy ⇒ this arm is DISABLED
+//        (never a guessed root — the path falls through to (d));
+//   (d) any other absolute → THROW the named path-contract error.
+// The (b2)/(d) throws are caught by the thunk-wide catch below → verdict:'escalate' (held:escalation),
+// NOT a silent drop. The caller REASSIGNS impl.files_changed to the returned array, so the normalized
+// form is the only form any downstream consumer sees (edits-land-in-main-not-session-worktree).
+const normalizeReportedPaths = (files, worktree, taskId) => (files || []).map(f => {
+  if (typeof f !== 'string' || !f.startsWith('/')) return f                                   // (a) relative → pass
+  if (f === worktree || f.startsWith(worktree + '/')) return f                                // (b) this worktree → pass
+  if (worktreeRoot && (f === worktreeRoot || f.startsWith(worktreeRoot + '/'))) {             // (b2) sibling worktree → throw
+    throw new Error(`worker path-contract violation: reported file "${f}" is an absolute path under worktreeRoot ${worktreeRoot} but OUTSIDE this task's worktree ${worktree} — a sibling-worktree checkout; normalizing would fabricate a nonsense worktree-relative path`)
   }
-}
+  if (mainCheckout && (f === mainCheckout || f.startsWith(mainCheckout + '/'))) {              // (c) main-checkout-rooted → rewrite + warn
+    const rel = f === mainCheckout ? '' : f.slice(mainCheckout.length + 1)
+    log(`Task ${taskId}: normalized main-checkout-rooted files_changed path "${f}" → "${rel}" (worktree-relative). NB: a Bash-mediated REAL main-checkout write is a known residual — it leaves the file out of the branch diff, which the audit catches at the pinned sha.`)
+    return rel
+  }
+  throw new Error(`worker path-contract violation: reported file "${f}" is an absolute path outside the task worktree ${worktree} — a write outside .claude/worktrees/<name>/ escapes the isolated checkout`)  // (d) other absolute → throw
+})
 const nextWave   = () => tasks.filter(t => !done.has(t.id) && (t.deps || []).every(d => succeeded.has(d)))
 
 // Force-with-lease carve-out (ADR 0012). ONE canonical sentence, mirrored VERBATIM in
 // agents/war-worker.md (standing surface) — the two surfaces are independent and both load-bearing;
 // the both-surfaces unit test byte-compares this string. Keep them identical in the same commit.
 const FORCE_WITH_LEASE_RULE = 'You may `git push --force-with-lease` ONLY your own task branch, and ONLY after a dispatch-rebase diverged it from its pushed remote — never any other ref, never for any other reason.'
+// files_changed worktree-relative contract (this spec: launch-entry-validation). ONE canonical sentence,
+// mirrored VERBATIM beside agents/war-worker.md's WorkerResult return line (standing surface); the
+// dedicated both-surfaces byte-compare test anchors this string. Authored WITHOUT backtick or quote-mark
+// tokens (shared-string-constant-quote-literal-byte-anchor-fragility). The engine enforces it in
+// normalizeReportedPaths: a main-checkout-rooted report is normalized, any other absolute escalates.
+const FILES_CHANGED_RULE = 'Report every files_changed path as worktree-relative — never an absolute path and never one rooted in the main checkout — so no downstream consumer ever sees a path that escapes the isolated worktree.'
 // Comment-lag directive (D9, ADR 0025). ONE canonical sentence, mirrored in agents/war-worker.md
 // (standing surface); the auditor's cascading-impact lens carries the standing review duty. The
 // both-surfaces registry test anchors the shared tokens — keep the surfaces in sync in the same commit.
@@ -848,85 +886,99 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
 
   // ---- WORK + AUDIT each task in the wave concurrently ----
   const results = await parallel(wave.map(task => async () => {
-    // PROVISION (Part B): run the pinned run.provision list inside this task's worktree FIRST. A
-    // failing step → env-blocked: the worker is NOT spawned and the worktree is KEPT (schemas.md).
-    const env = await provisionStep(task)
-    if (!env.ok) {
-      return { task, verdict: 'env-blocked', seats: [], expected: 0, envOutcome: {
-        taskId: env.taskId, failedCommand: env.failedCommand, exitCode: env.exitCode,
-        stderrTail: env.stderrTail, provisionSource: env.provisionSource } }
-    }
+    // Wave-loop invariant (spec constraint 4, #742): a task dispatched into a work wave MUST terminate
+    // in exactly ONE collected result — it may never re-enter the wave because of an engine-side throw.
+    // The live `parallel` NULLS a rejected thunk, so results.filter(Boolean) drops it → done.add never
+    // runs → nextWave() re-dispatches a COMPLETED, pushed, gate-green task every iteration (~660k
+    // tokens/round) until the post-loop ghost-dep sweep mislabels it unrunnable-deps. So catch EVERY
+    // engine error across the WHOLE thunk body (provisionStep + the pt-tagged worker/fix prompt builds +
+    // normalizeReportedPaths + auditRound) and return a HARD 'escalate' (already in
+    // HARD_ESCALATION_REASONS): the collection loop threads blocked verbatim, so the phase holds
+    // :escalation with the true diagnostic instead of silently looping.
+    try {
+      // PROVISION (Part B): run the pinned run.provision list inside this task's worktree FIRST. A
+      // failing step → env-blocked: the worker is NOT spawned and the worktree is KEPT (schemas.md).
+      const env = await provisionStep(task)
+      if (!env.ok) {
+        return { task, verdict: 'env-blocked', seats: [], expected: 0, envOutcome: {
+          taskId: env.taskId, failedCommand: env.failedCommand, exitCode: env.exitCode,
+          stderrTail: env.stderrTail, provisionSource: env.provisionSource } }
+      }
 
-    // Submodule and gitlink-bump tasks get extra dispatch context (new dispatch sites, T4 plan §(f)).
-    // ponytail: inline branch — avoids a helper for two taskType variants
-    let workerExtraCtx = ''
-    if (task.taskType === 'submodule') {
-      workerExtraCtx = pt`\nTARGET REPO: ${task.targetRepo || '<targetRepo>'} — this is a submodule task. `
-        + pt`Your worktree is rooted inside the submodule checkout at ${task.targetRepo || '<targetRepo>'}; `
-        + pt`the submodule base is "${task.targetBase || '<targetBase>'}". `
-        + pt`Implement, write mapped tests in the submodule repo, gate green, commit, push ${task.branch}.`
-    } else if (task.taskType === 'gitlink-bump') {
-      // Find the dep submodule task for the submodule path. The dep's landed SHA is a CROSS-PHASE
-      // value the worker resolves from the ledger (war-worker.md T7) — emit the placeholder here.
-      const depSubmodTask = tasks.find(t => (task.deps || []).includes(t.id) && t.taskType === 'submodule')
-      const depSha = '<dep-submodule-landed-sha>'
-      const submodPath = depSubmodTask ? (depSubmodTask.targetRepo || '<submodule-path>') : '<submodule-path>'
-      workerExtraCtx = pt`\nGITLINK-BUMP task: pin the superproject gitlink to the dep submodule task's landed SHA. `
-        + pt`Dep submodule task landed SHA: ${depSha}. Submodule path: ${submodPath}. `
-        + pt`Run: git -C ${mainCheckout || '<superproject>'} add ${submodPath} — stage the submodule at the dep SHA, then commit the bump.`
-    }
-    const impl = await agent(
-      depClause(task)
-      + pt`Implement WAR task ${task.id} in the ALREADY-PROVISIONED worktree at ${task.worktree} (branch ${task.branch}, cut from ${ph.integrationBranch}).\n`
-      + pt`The refiner's Provision barrier already created this worktree and its .war-task marker — do NOT create it yourself and do NOT set any worktree env var. cd into ${task.worktree} and work only inside it; commit and push ${task.branch}.\n`
-      + pt`Sub-issue #${task.issue ?? '<unset>'} — ${task.title}\nPlan slice: ${task.planSlice}\nPlan file: ${plan.file}\nGate: ${plan.gate}${workerIntentClause}`
-      + WORKER_MEMORY_SELF_QUERY_LINE + workerMemClause(task.id) + provisionClause + workerExtraCtx
-      + '\n' + COMMENT_LAG_RULE + '\n' + PLAN_DEFECT_RULE,
-      { agentType: NS + 'war-worker', phase: 'Work', label: `work:${task.id}`, schema: WORKER_RESULT, ...spawnWorker(isDocsTask(task) ? 'docs' : null) })
+      // Submodule and gitlink-bump tasks get extra dispatch context (new dispatch sites, T4 plan §(f)).
+      // ponytail: inline branch — avoids a helper for two taskType variants
+      let workerExtraCtx = ''
+      if (task.taskType === 'submodule') {
+        workerExtraCtx = pt`\nTARGET REPO: ${task.targetRepo || '<targetRepo>'} — this is a submodule task. `
+          + pt`Your worktree is rooted inside the submodule checkout at ${task.targetRepo || '<targetRepo>'}; `
+          + pt`the submodule base is "${task.targetBase || '<targetBase>'}". `
+          + pt`Implement, write mapped tests in the submodule repo, gate green, commit, push ${task.branch}.`
+      } else if (task.taskType === 'gitlink-bump') {
+        // Find the dep submodule task for the submodule path. The dep's landed SHA is a CROSS-PHASE
+        // value the worker resolves from the ledger (war-worker.md T7) — emit the placeholder here.
+        const depSubmodTask = tasks.find(t => (task.deps || []).includes(t.id) && t.taskType === 'submodule')
+        const depSha = '<dep-submodule-landed-sha>'
+        const submodPath = depSubmodTask ? (depSubmodTask.targetRepo || '<submodule-path>') : '<submodule-path>'
+        workerExtraCtx = pt`\nGITLINK-BUMP task: pin the superproject gitlink to the dep submodule task's landed SHA. `
+          + pt`Dep submodule task landed SHA: ${depSha}. Submodule path: ${submodPath}. `
+          + pt`Run: git -C ${mainCheckout || '<superproject>'} add ${submodPath} — stage the submodule at the dep SHA, then commit the bump.`
+      }
+      const impl = await agent(
+        depClause(task)
+        + pt`Implement WAR task ${task.id} in the ALREADY-PROVISIONED worktree at ${task.worktree} (branch ${task.branch}, cut from ${ph.integrationBranch}).\n`
+        + pt`The refiner's Provision barrier already created this worktree and its .war-task marker — do NOT create it yourself and do NOT set any worktree env var. cd into ${task.worktree} and work only inside it; commit and push ${task.branch}.\n`
+        + pt`Sub-issue #${task.issue ?? '<unset>'} — ${task.title}\nPlan slice: ${task.planSlice}\nPlan file: ${plan.file}\nGate: ${plan.gate}${workerIntentClause}`
+        + WORKER_MEMORY_SELF_QUERY_LINE + workerMemClause(task.id) + provisionClause + workerExtraCtx
+        + '\n' + COMMENT_LAG_RULE + '\n' + PLAN_DEFECT_RULE + '\n' + FILES_CHANGED_RULE,
+        { agentType: NS + 'war-worker', phase: 'Work', label: `work:${task.id}`, schema: WORKER_RESULT, ...spawnWorker(isDocsTask(task) ? 'docs' : null) })
 
-    const why = blockedReason(impl); if (why) return { task, verdict: 'escalate', seats: [], expected: 0, blocked: why }
-    assertReportedPathsInWorktree(impl.files_changed, task.worktree)   // path contract (spec §9): reported abs paths stay under the worktree root
+      const why = blockedReason(impl); if (why) return { task, verdict: 'escalate', seats: [], expected: 0, blocked: why }
+      impl.files_changed = normalizeReportedPaths(impl.files_changed, task.worktree, task.id)   // path contract (this spec): normalize main-rooted, escalate any other absolute
 
-    let round = 0, verdict = null, seats = [], expected = 0, blocked = null
-    const workerTests = impl && impl.tests ? impl.tests : null
-    let pin = impl && impl.head_sha   // D2: the worker's committed tip — the pin each audit seat's audit_sha must match
-    while (round < roundLimit) {
-      ;({ seats, expected } = await auditRound(task, null, workerTests, pin))      // independent — no cross-talk
-      if (seats.length < expected) { verdict = 'audit-blocked'; break }   // persistent shortfall after retries
-      if (seats.some(s => s.verdict === 'escalate')) { verdict = 'escalate'; break }
-      if (allApprove(seats, expected)) { verdict = 'approve'; break }
-
-      if (isSplit(seats) && seats.length > 1) {                  // one rebuttal round on a split
-        ;({ seats, expected } = await auditRound(task, seats, workerTests, pin))
-        if (seats.length < expected) { verdict = 'audit-blocked'; break } // persistent shortfall after retries
+      let round = 0, verdict = null, seats = [], expected = 0, blocked = null
+      const workerTests = impl && impl.tests ? impl.tests : null
+      let pin = impl && impl.head_sha   // D2: the worker's committed tip — the pin each audit seat's audit_sha must match
+      while (round < roundLimit) {
+        ;({ seats, expected } = await auditRound(task, null, workerTests, pin))      // independent — no cross-talk
+        if (seats.length < expected) { verdict = 'audit-blocked'; break }   // persistent shortfall after retries
         if (seats.some(s => s.verdict === 'escalate')) { verdict = 'escalate'; break }
         if (allApprove(seats, expected)) { verdict = 'approve'; break }
-        if (isSplit(seats)) { verdict = 'escalate'; break }      // still deadlocked → human tiebreak
-      }
 
-      if (audit.autoEscalate !== false && task.roster.length === 1 &&   // lone-seat widening (D4/D5; config can disable)
-          (seats[0].confidence === 'low' || (seats[0].findings || []).some(f => f.severity === 'Critical'))) {
-        // Widening source (D4): the lone seat may nominate catalog lenses via `widen`; a valid
-        // nomination widens toward those seats @ deep, else the trio-union default roster. Never silent.
-        const widen = resolveWidenSource(seats[0].widen, defaultRoster)
-        task.roster = widenRoster(task.roster, widen.seats)
-        const src = widen.source === 'nominated' ? 'nominated' : 'default fallback'
-        log(`Task ${task.id}: lone-seat widening (Critical or low confidence; source: ${src}) — roster is now [${task.roster.map(s => s.lens).join(', ')}].`)
-      }
+        if (isSplit(seats) && seats.length > 1) {                  // one rebuttal round on a split
+          ;({ seats, expected } = await auditRound(task, seats, workerTests, pin))
+          if (seats.length < expected) { verdict = 'audit-blocked'; break } // persistent shortfall after retries
+          if (seats.some(s => s.verdict === 'escalate')) { verdict = 'escalate'; break }
+          if (allApprove(seats, expected)) { verdict = 'approve'; break }
+          if (isSplit(seats)) { verdict = 'escalate'; break }      // still deadlocked → human tiebreak
+        }
 
-      const b = blockingOf(seats)                                // batched FIX_NEEDED → fresh fix-worker
-      const fix = await agent(
-        pt`FIX_NEEDED for WAR task ${task.id}. Work in the ALREADY-PROVISIONED worktree at ${task.worktree} (branch ${task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
-        + pt`Resolve ALL of these blocking findings, keep the gate green, commit and push:\n`
-        + b.map((f, i) => `${i + 1}. [${f.severity}] ${f.title} (${f.file}${f.line ? ':' + f.line : ''}) — ${f.rationale}${f.suggested_fix ? ` → ${f.suggested_fix}` : ''}`).join('\n')
-        + workerMemClause(task.id) + provisionClause,
-        { agentType: NS + 'war-worker', phase: 'Audit', label: `fix:${task.id}:r${round + 1}`, schema: WORKER_RESULT, ...spawnWorker('fix') })
-      const fixWhy = blockedReason(fix); if (fixWhy) { verdict = 'escalate'; blocked = fixWhy; break }
-      pin = fix && fix.head_sha   // D2: re-pin to the fix-worker's new tip for the next round's audit
-      round++
+        if (audit.autoEscalate !== false && task.roster.length === 1 &&   // lone-seat widening (D4/D5; config can disable)
+            (seats[0].confidence === 'low' || (seats[0].findings || []).some(f => f.severity === 'Critical'))) {
+          // Widening source (D4): the lone seat may nominate catalog lenses via `widen`; a valid
+          // nomination widens toward those seats @ deep, else the trio-union default roster. Never silent.
+          const widen = resolveWidenSource(seats[0].widen, defaultRoster)
+          task.roster = widenRoster(task.roster, widen.seats)
+          const src = widen.source === 'nominated' ? 'nominated' : 'default fallback'
+          log(`Task ${task.id}: lone-seat widening (Critical or low confidence; source: ${src}) — roster is now [${task.roster.map(s => s.lens).join(', ')}].`)
+        }
+
+        const b = blockingOf(seats)                                // batched FIX_NEEDED → fresh fix-worker
+        const fix = await agent(
+          pt`FIX_NEEDED for WAR task ${task.id}. Work in the ALREADY-PROVISIONED worktree at ${task.worktree} (branch ${task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
+          + pt`Resolve ALL of these blocking findings, keep the gate green, commit and push:\n`
+          + b.map((f, i) => `${i + 1}. [${f.severity}] ${f.title} (${f.file}${f.line ? ':' + f.line : ''}) — ${f.rationale}${f.suggested_fix ? ` → ${f.suggested_fix}` : ''}`).join('\n')
+          + workerMemClause(task.id) + provisionClause,
+          { agentType: NS + 'war-worker', phase: 'Audit', label: `fix:${task.id}:r${round + 1}`, schema: WORKER_RESULT, ...spawnWorker('fix') })
+        const fixWhy = blockedReason(fix); if (fixWhy) { verdict = 'escalate'; blocked = fixWhy; break }
+        pin = fix && fix.head_sha   // D2: re-pin to the fix-worker's new tip for the next round's audit
+        round++
+      }
+      if (verdict === null) verdict = 'audit-blocked'
+      return { task, verdict, seats, expected, round, blocked }
+    } catch (err) {
+      // The caught engine error is the ONLY evidence trail — carried verbatim, uncurated, in blocked.
+      return { task, verdict: 'escalate', seats: [], expected: 0, blocked: `engine error during work/audit: ${err.message}` }
     }
-    if (verdict === null) verdict = 'audit-blocked'
-    return { task, verdict, seats, expected, round, blocked }
   }))
 
   // ---- REFINE — serial merge of approved tasks (THE merge queue) ----
