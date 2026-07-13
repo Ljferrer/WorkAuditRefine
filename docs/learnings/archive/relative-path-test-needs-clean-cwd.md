@@ -66,3 +66,5 @@ the repo/worktree root silently satisfies the walk via the root's own
 `.war-task`, producing a false-allow that masks regression.
 
 The test comment should document the clean dir as load-bearing, not incidental.
+
+> archived 2026-07-13: resolved — moved to archive

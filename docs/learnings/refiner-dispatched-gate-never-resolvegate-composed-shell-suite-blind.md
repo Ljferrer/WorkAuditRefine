@@ -1,6 +1,6 @@
 ---
 name: refiner-dispatched-gate-never-resolvegate-composed-shell-suite-blind
-description: "Refiner's captured gate artifact is always JS-only in this repo — plan.gate is dispatched raw, never routed through resolveGate()'s shell-suite discovery clause"
+description: "Refiner's captured gate artifact is always JS-only here — plan.gate is dispatched raw, never routed through resolveGate()'s shell-suite discovery"
 metadata: 
   node_type: memory
   type: project

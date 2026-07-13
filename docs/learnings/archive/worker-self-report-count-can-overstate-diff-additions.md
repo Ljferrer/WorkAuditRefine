@@ -41,3 +41,5 @@ verdict is driven by the live PASS/FAIL counters in the test run, never by the w
 count — so a miscounted done-report is never load-bearing for merge/land, but propagating the wrong
 number into a phase summary, PR body, or memory file would be. Cross-check any reported count
 against a direct diff read or the test's own counter output before repeating it.
+
+> archived 2026-07-13: resolved — moved to archive
