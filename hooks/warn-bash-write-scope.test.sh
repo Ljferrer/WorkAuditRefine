@@ -6,10 +6,13 @@
 # warning to stderr when a war-worker's Bash command appears to write outside
 # any provisioned worktree (no .war-task ancestor on the resolved target).
 #
-# It is a best-effort, low-false-positive detector — opaque write forms like
-# `python -c "open(...)"` are accepted misses; benign edge-cases like a
-# comparison operator inside quotes are accepted false-negatives. Document it
-# as advisory, not a guarantee (ADR 0002).
+# It is a best-effort, low-false-positive detector — interpreter payloads
+# (e.g. `python -c "open('/abs/path','w')"`) carrying a write-indicative token
+# AND a literal absolute-path token are now detected (hook section 10; case F8
+# below); only DYNAMICALLY-built paths (concatenation, vars) remain the
+# documented ceiling, matching the hook's LIMITATIONS block. Benign edge-cases
+# like a comparison operator inside quotes are accepted false-negatives.
+# Document it as advisory, not a guarantee (ADR 0002).
 #
 # Plain-bash assertion runner.  No bats, no package.json.
 # Runs under macOS bash 3.2.57 (no globstar, no assoc-arrays, no ${,,}).
