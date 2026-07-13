@@ -268,8 +268,11 @@ test('D8: the land-phase-reachable subset is HARD_ESCALATION_REASONS minus the t
 // EQUALITY or the issue-label form — NOT a bare word — so it does not false-trip on war-worker.md's
 // "dep task's landed SHA" narration, nor on the refiner's legitimate MergeResult `status: "landed"`
 // returns (colon-space-quote object literals, which are neither equality nor label form).
-// ponytail: known ceiling — a legit MergeResult equality (`mr.status === 'landed'`) added to agent PROSE
-// would false-flag; today these two surfaces carry only returns + enum declarations, none present.
+// ponytail: known ceiling — pattern 1 drops equality hits whose captured receiver is in NARRATION_RECEIVERS
+// (`mr` / `mergeResult`), so a legit MergeResult narration equality like `mr.status === 'landed'` no longer
+// false-trips. Residuals: an UNLISTED narration receiver (`result.status === …`) and CHAINED narration
+// (`result.mr.status === …`, whose inner receiver the lookbehind refuses) still false-trip until listed or
+// reworded. Knob: extend NARRATION_RECEIVERS — never loosen the equality match itself.
 const AGENTS_DIR = join(HERE, '../../../agents')
 const reEsc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
@@ -284,19 +287,33 @@ function landDecisionEnumFromSchemas() {
   return uniqSort([...line.matchAll(/"(landed|held:[a-z-]+)"/g)].map((m) => m[1]))
 }
 
+// Narration receivers whose equality-form `<recv>.status === …` is legit MergeResult narration, not a leak
+// (`mr` / `mergeResult`); pattern 1 drops equality hits captured on these. Narrow by design — an unlisted
+// or chained receiver still flags (fail-toward-flagging). Extend this list, never loosen the equality match.
+const NARRATION_RECEIVERS = ['mr', 'mergeResult']
+
 // Enum-level leak detector over one text blob. phaseOnly = landDecision tokens ∉ task-status enum;
 // taskOnly = task-status tokens ∉ landDecision enum. Both derived fresh, so the guard follows enum growth.
 function detectEnumLeaks(text, phaseOnly, taskOnly) {
   const hits = []
   const patterns = [
-    // a phase-level landDecision token used as a task-level `status` value (equality)…
-    [new RegExp(`\\bstatus\\s*===?\\s*['"\\\`]?(${phaseOnly.map(reEsc).join('|')})\\b`, 'g'), 'phase-token-in-status-equality'],
+    // a phase-level landDecision token used as a task-level `status` value (equality)… optional dotted
+    // receiver at m[1] (token at m[2]); the (?<![\w$.]) boundary refuses a receiver preceded by a dot, so a
+    // chained path (result.mr.status) can't capture `mr` — the group fails and the hit surfaces flagging.
+    [new RegExp(`(?:(?<![\\w$.])([A-Za-z_$][\\w$]*)\\.)?\\bstatus\\s*===?\\s*['"\\\`]?(${phaseOnly.map(reEsc).join('|')})\\b`, 'g'), 'phase-token-in-status-equality'],
     // …or as a task-level `status:` issue-label
     [new RegExp(`\\bstatus:(${phaseOnly.map(reEsc).join('|')})\\b`, 'g'), 'phase-token-as-status-label'],
     // vice-versa: a task-level status token used in a landDecision equality/assignment
     [new RegExp(`\\blandDecision\\s*(?:===?|:)\\s*['"\\\`]?(${taskOnly.map(reEsc).join('|')})\\b`, 'g'), 'task-token-in-landDecision'],
   ]
-  for (const [re, kind] of patterns) for (const m of text.matchAll(re)) hits.push({ kind, token: m[1], match: m[0].trim() })
+  for (const [re, kind] of patterns) for (const m of text.matchAll(re)) {
+    if (kind === 'phase-token-in-status-equality') {
+      if (m[1] && NARRATION_RECEIVERS.includes(m[1])) continue  // allowlisted MergeResult narration receiver
+      hits.push({ kind, token: m[2], match: m[0].trim() })
+    } else {
+      hits.push({ kind, token: m[1], match: m[0].trim() })
+    }
+  }
   return hits
 }
 
@@ -335,4 +352,10 @@ test('D9: the leak-guard catches injected leaks and does not false-trip on narra
   assert.ok(!bite("Resolve the dep submodule task's landed SHA from the ledger"), 'bare "landed SHA" narration (war-worker.md §deps) must not flag')
   assert.ok(!bite('On push success → return `status: "landed"` with the new working SHA'), 'a legitimate MergeResult `status: "landed"` return must not flag')
   assert.ok(!bite('status: "todo"|"running"|"landed"|"blocked"'), 'a phase-status enum union containing "landed" must not flag')
+  // #813 — pattern 1's narration-receiver allowlist (NARRATION_RECEIVERS = mr/mergeResult): drop an equality
+  // captured on a listed receiver, but stay narrow — unlisted and chained receivers still flag.
+  assert.ok(!bite("the refiner branches on `mr.status === 'landed'` before advancing the tip"), '#813: an allowlisted MergeResult receiver (mr) equality must NOT flag')
+  assert.ok(bite("a bare `status === 'landed'` check"), 'a receiver-less status equality must still flag')
+  assert.ok(bite("`task.status === 'landed'` on the task object"), 'an unlisted receiver (task) must flag — the allowlist is narrow, not a dotted-receiver hole')
+  assert.ok(bite("`result.mr.status === 'landed'` deep in a chain"), 'a chained receiver (result.mr) must flag — a real leak behind a chained path cannot ride the allowlist')
 })
