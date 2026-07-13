@@ -208,7 +208,8 @@ test('a probe that dies once then succeeds on the Layer-4 retry yields a real re
 // The scaffold itself runs no shell — the EXECUTED probe agent does, inside its throwaway sandbox.
 // Threading `provision` therefore means injecting the pinned commands into the executed-probe
 // SCOPE-LOCK with a hard directive: run them BEFORE the baseline, and a FAILING step is `warn`
-// + an env-gap note, NEVER a red/fail verdict. Analyzed probes (read-only) never provision.
+// + an env-gap note stamped `envGap: true` (the gate demotes it to a Minor), NEVER a red/fail
+// verdict. Analyzed probes (read-only) never provision.
 const PROVISION = ['git submodule update --init --recursive', 'pnpm install --frozen-lockfile']
 
 // Grab the prompt of a representative executed / analyzed spine probe for a given args set.
@@ -526,6 +527,16 @@ test('FINDINGS schema: findings items carry the optional deliverableAbsence bool
   assert.match(probe.prompt, /coverage-vs-source/, 'the flag instruction scopes to a coverage-vs-source-mapped deliverable')
 })
 
+// Task 1.1 (#807): the envGap flag is added to the FINDINGS schema; the gate (red-team-gate.mjs
+// classify()) is what demotes it. Deleting the schema property goes RED.
+test('FINDINGS schema: findings items carry the optional envGap boolean flag (End state 2)', async () => {
+  const a = baseArgs()
+  const { prompts } = await runScaffold(a, passResult(a))
+  const probe = prompts.find(p => p.opts.phase === 'Probe')
+  const props = probe.opts.schema.properties.findings.items.properties
+  assert.deepEqual(props.envGap, { type: 'boolean' }, 'findings items carry envGap:{type:"boolean"}')
+})
+
 // --- #727: analyzed-agent reactive fallback (Explore → general-purpose) --------------------------
 // Behavioral cases on the mock-agent harness above. Agent-name literals ('Explore',
 // 'general-purpose') are DELIBERATELY hardcoded here: the scaffold compiles as a function body
@@ -700,6 +711,49 @@ test('ff-topology prose presence pair: SKILL.md + lenses.md both carry the probe
     assert.match(r, /mandatory/i, `${name} ff-topology region must state the probe is mandatory (mid-sentence, case-insensitive)`)
     assert.match(r, /--fast/, `${name} ff-topology region must state the probe is --fast-proof`)
   }
+})
+
+// --- Task 1.1 (#807): envGap region-scoped presence-pair lock (End state 2) ---------------------
+// Both-surfaces rule: the dispatched provisionDirective string and the standing lenses.md provision
+// bullet must both carry the load-bearing envGap clauses in the SAME commit. Modeled on the
+// ff-topology ±window pattern above — token presence alone rots (the mirrored-clause lesson), so each
+// surface's envGap region must ALSO carry its clauses: the directive stamps `envGap: true` and keeps
+// the `warn` status; the lenses bullet carries `envGap: true` and, mid-sentence and case-insensitively,
+// `never` with `red/fail` (or `Critical/Major`).
+test('envGap prose presence pair: provisionDirective + lenses.md both carry envGap:true and their load-bearing clauses (End state 2)', async () => {
+  // (a) directive surface — the emitted executed-probe prompt's failure clause (line-scoped: the
+  //     scaffold has several envGap mentions, so anchor on the directive's failure sentence).
+  const byLabel = await promptsByLabel({ provision: PROVISION })
+  const dirLine = byLabel['probe:executable-proof'].split('\n').find(l => /If a provision step FAILS/.test(l))
+  assert.ok(dirLine, 'the provisionDirective failure clause must be emitted into the executed probe')
+  assert.match(dirLine, /envGap: true/, 'the directive failure clause stamps envGap: true')
+  assert.match(dirLine, /warn/, 'the directive failure clause keeps the warn status (extend, not rewrite)')
+  // (b) lenses surface — ±320-char window around every envGap mention in lenses.md (the ff-topology idiom).
+  const lenses = readFileSync(join(__dirname, '..', 'references', 'lenses.md'), 'utf8')
+  const lower = lenses.toLowerCase(), regions = []
+  for (let i = lower.indexOf('envgap'); i !== -1; i = lower.indexOf('envgap', i + 1)) {
+    regions.push(lenses.slice(Math.max(0, i - 320), i + 320))
+  }
+  assert.ok(regions.length > 0, 'lenses.md must name the envGap flag')
+  const r = regions.join('\n---\n')
+  assert.match(r, /envGap: true/, 'lenses envGap region stamps envGap: true')
+  assert.match(r, /never/i, 'lenses envGap region states the never-red rule (mid-sentence, case-insensitive)')
+  assert.match(r, /red\/fail|Critical\/Major/i, 'lenses envGap region names red/fail (or Critical/Major)')
+})
+
+// --- Task 1.1 (#808): CONTRACTS "Gate side" reword standing lock (End state 3) ------------------
+// A pass-probe Critical/Major is FILTERED from `blockers`, not "discarded as a non-defect" — it stays
+// in allFindings() and downstream diagnostics. Lock the replacement wording (positive) and the retired
+// phrase (negative) so the reword cannot silently rot back.
+test('CONTRACTS Gate-side bullet: "filtered from blockers" + allFindings(), never "discarded as a non-defect" (End state 3)', () => {
+  const start = src.indexOf('CONTRACTS:')
+  assert.notEqual(start, -1, 'the CONTRACTS header comment must be present')
+  const end = src.indexOf('SAFETY:', start)   // scope to the CONTRACTS block, before the SAFETY block
+  assert.notEqual(end, -1, 'the SAFETY block terminating the CONTRACTS region must be present')
+  const block = src.slice(start, end)
+  assert.match(block, /filtered from `blockers`/, 'the Gate-side bullet names the blockers filter')
+  assert.match(block, /allFindings\(\)/, 'the Gate-side bullet notes the finding stays in allFindings()')
+  assert.doesNotMatch(block, /discarded as a non-defect/, 'the retired "discarded as a non-defect" wording must not rot back')
 })
 
 // --- Task 1.3 (#773): optional model/effort threaded into EVERY agent() dispatch ----------------

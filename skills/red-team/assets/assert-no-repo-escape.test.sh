@@ -20,6 +20,12 @@
 #   8.  CONTROL: origin with only a benign head -> exit 0
 #       (delete-and-trace: proves the remote arm is pattern-specific, not
 #        "any remote ref = escape")
+#   9.  SOURCE LOCK: die() definition carries the ${2:-2} default (infra code),
+#       not ${2:-1} — no call site omits the code today, so this is the only way
+#       to prove the default itself against a silent revert.
+#   10. CALL-SITE LOCK: every `die "..."` invocation in the guard (definition and
+#       comment lines excluded) passes an explicit exit code — the §4.4 one-time
+#       manual sweep made a permanent standing guard.
 set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -199,6 +205,55 @@ if [ "$rc8" -eq 0 ]; then
   pass "case 8: CONTROL benign origin head -> exit 0 (remote arm is specific)"
 else
   fail "case 8: CONTROL benign origin head -> expected exit 0, got $rc8"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 9: SOURCE LOCK — die() default exit substitution is ${2:-2} (the infra
+# code), not ${2:-1}. A behavioral exercise is impossible today because every die
+# call site passes an explicit code (case 10 locks that), so this source-level
+# assertion is the only guard against a silent revert of the default itself (#812):
+# ${2:-1} would let a code-omitting die misreport an infra failure (2) as an
+# escape (1). Delete-and-trace: reverting the source to ${2:-1} flips this to FAIL.
+# ---------------------------------------------------------------------------
+die_def_line="$(grep '^die()' "$SCRIPT" || true)"
+if printf '%s\n' "$die_def_line" | grep -qF '${2:-2}'; then
+  pass "case 9: die() default exit substitution is \${2:-2} (infra code)"
+else
+  fail "case 9: die() must default to \${2:-2}; definition line was: $die_def_line"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 10: STANDING NEGATIVE CALL-SITE LOCK — every `die "..."` invocation in the
+# guard script (the die() definition line and comment lines excluded) MUST pass an
+# explicit trailing exit code. Converts the spec §4.4 one-time manual sweep into a
+# permanent guard: a future code-omitting die call — silently taking the ${2:-2}
+# default — is a RED test here, not a diff-review hope. All 9 call sites pass an
+# explicit 2 today. Delete-and-trace: drop the trailing code from any call site and
+# this flips to FAIL.
+# Ceiling: detection strips to the message's closing (last) double-quote and
+# requires a digit after it; exact for this script (messages quote internals with
+# ' and carry no escaped "). An embedded escaped " would need a real parser.
+# ---------------------------------------------------------------------------
+callsite_offenders=""
+callsite_seen=0
+while IFS= read -r _line; do
+  [ -n "$_line" ] || continue
+  callsite_seen=$((callsite_seen + 1))
+  _after="${_line##*\"}"                 # text after the message's closing quote
+  case "$_after" in
+    *[0-9]*) : ;;                        # explicit exit code present -> OK
+    *) callsite_offenders="$callsite_offenders
+    $_line" ;;
+  esac
+done <<CALLSITES
+$(grep 'die "' "$SCRIPT" | grep -v '^[[:space:]]*#')
+CALLSITES
+if [ "$callsite_seen" -lt 1 ]; then
+  fail "case 10: no die call sites found in $SCRIPT (lock would be vacuous)"
+elif [ -z "$callsite_offenders" ]; then
+  pass "case 10: all $callsite_seen die call site(s) pass an explicit exit code"
+else
+  fail "case 10: die call site(s) missing an explicit exit code:$callsite_offenders"
 fi
 
 # ---------------------------------------------------------------------------
