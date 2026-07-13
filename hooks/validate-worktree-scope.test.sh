@@ -17,6 +17,21 @@ n=0
 # run <payload-json> -> echoes the hook's exit code
 run() { printf '%s' "$1" | bash "$HOOK" >/dev/null 2>&1; echo $?; }
 
+# run_home <home-dir> <payload-json> -> exit code, with HOME pinned to $1 for
+# THIS case only (per-case env pinning, no global export; deliberately NOT
+# shared with the sibling warn-bash-write-scope suite — Q16 keeps file-disjoint
+# suites' helpers independent). Proves the servitor $HOME anchor (#810).
+run_home() { printf '%s' "$2" | HOME="$1" bash "$HOOK" >/dev/null 2>&1; echo $?; }
+
+# run_home_err <home-dir> <payload-json> -> the hook's STDERR (the deny message),
+# for asserting self-diagnosis content. Stdout is discarded; stderr is captured.
+run_home_err() { printf '%s' "$2" | HOME="$1" bash "$HOOK" 2>&1 >/dev/null; }
+
+# run_nohome <payload-json> -> exit code with HOME truly UNSET (env -u HOME),
+# distinct from HOME='' (set-but-empty). Both must reach the fallback shape glob
+# via the ${HOME:-} spelling WITHOUT tripping `set -u` (a bare $HOME would crash).
+run_nohome() { printf '%s' "$1" | env -u HOME bash "$HOOK" >/dev/null 2>&1; echo $?; }
+
 # mk <agent_type-string> <file_path-string> -> a PreToolUse payload.
 # $1 is a raw agent_type string (e.g. war-worker); $2 is a raw file path.
 # Uses jq -nc --arg to avoid printf double-quote escaping making tests vacuous
@@ -55,6 +70,13 @@ SERV_MEM="$WT/repo/.claude/projects/myproj/memory/x.md"
 SERV_LEARN="$WT/repo/docs/learnings/phase-1.md"
 SERV_RANDOM="$WT/repo/src/whatever.md"
 
+# $HOME-anchoring fixtures (#810). HOME is pinned per case via run_home; the
+# servitor arm string-matches the path, so these dirs need not exist.
+SERV_HOME="$WT/home"                                              # pinned $HOME root
+SERV_MEM_UNDER_HOME="$SERV_HOME/.claude/projects/proj/memory/x.md"      # under pinned $HOME
+SERV_MEM_OTHER_PROJ="$SERV_HOME/.claude/projects/other-proj/memory/y.md" # cross-project, same $HOME
+SERV_MEM_OUTSIDE_HOME="$WT/other/.claude/projects/proj/memory/x.md"      # shape-matching, NOT under $HOME
+
 # ---------------------------------------------------------------------------
 # Cases (mirror the plan's 9 acceptance cases for Task 1).
 # ---------------------------------------------------------------------------
@@ -71,9 +93,10 @@ expect "war-worker outside any worktree denied" \
 expect "war-auditor write denied (read-only)" \
   2 "$(run "$(mk 'war-auditor' "$INSIDE_WT")")"
 
-# 4a: war-servitor under .../.claude/projects/<p>/memory/x.md -> 0
-expect "war-servitor memory path allowed" \
-  0 "$(run "$(mk 'war-servitor' "$SERV_MEM")")"
+# 4a: war-servitor under .../.claude/projects/<p>/memory/x.md, with HOME pinned
+# so the path sits under the servitor's own $HOME anchor (#810 retrofit) -> 0.
+expect "war-servitor memory path under pinned \$HOME allowed" \
+  0 "$(run_home "$WT/repo" "$(mk 'war-servitor' "$SERV_MEM")")"
 
 # 4b: war-servitor under a random path -> 2 (deny)
 expect "war-servitor random path denied" \
@@ -280,9 +303,10 @@ WORKER_DOTDOT="$WT/wt/task-1/sub/../../../plain/file.txt"
 expect "war-worker path with .. denied (traversal)" \
   2 "$(run "$(mk 'war-worker' "$WORKER_DOTDOT")")"
 
-# Regression: clean (no-..) servitor memory path still allowed.
-expect "war-servitor clean memory path still allowed (regression)" \
-  0 "$(run "$(mk 'war-servitor' "$SERV_MEM")")"
+# Regression: clean (no-..) servitor memory path still allowed (HOME pinned so
+# SERV_MEM sits under the $HOME anchor — #810 retrofit).
+expect "war-servitor clean memory path still allowed (regression, pinned \$HOME)" \
+  0 "$(run_home "$WT/repo" "$(mk 'war-servitor' "$SERV_MEM")")"
 
 # Regression: clean (no-..) servitor learnings path now DENIED (#58 subtraction);
 # the .. guard is not what blocks it — the servitor allow-glob no longer covers
@@ -351,6 +375,101 @@ expect "war-refiner bare '..' path denied (pre-case, all agents)" \
 # Bare `..`: no agent_type (main session) -> deny (exit 2).
 expect "main session (no agent_type) bare '..' path denied (pre-case)" \
   2 "$(run "$(jq -nc '{"tool_input":{"file_path":".."}}')")"
+
+# ---------------------------------------------------------------------------
+# Task 1.2 (#810): servitor $HOME anchor + suffix-anchored agent-type arms.
+#
+# The servitor memory-write glob is now anchored to the CURRENT user's $HOME
+# (with the unanchored shape glob retained only as the HOME-unset/empty
+# fallback), and all three agent-type arms are suffix-anchored (*war-<role>,
+# not *war-<role>*). HOME is pinned per case via run_home / run_nohome so the
+# cases stay hermetic regardless of the runner's ambient HOME.
+# ---------------------------------------------------------------------------
+
+# Anchored allow: a memory path UNDER the pinned $HOME -> allow (exit 0). The
+# positive baseline for the discriminator triple below (under=allow,
+# cross-project=allow, outside=deny), all sharing one pinned $HOME.
+expect "war-servitor memory path under pinned \$HOME allowed (#810 anchor)" \
+  0 "$(run_home "$SERV_HOME" "$(mk 'war-servitor' "$SERV_MEM_UNDER_HOME")")"
+
+# Cross-project residual (re-ratified #810): a DIFFERENT project slug under the
+# user's OWN $HOME is still allowed — per-run project-slug anchoring is out of
+# reach (a hook cannot receive per-run values), so this residual is by design.
+expect "war-servitor cross-project memory path under own \$HOME allowed (re-ratified residual)" \
+  0 "$(run_home "$SERV_HOME" "$(mk 'war-servitor' "$SERV_MEM_OTHER_PROJ")")"
+
+# Anchor deny: a path matching the memory SHAPE but rooted OUTSIDE the pinned
+# $HOME -> deny (exit 2). Delete-the-feature: reverting the anchored case pattern
+# to the bare shape glob flips this to exit 0 (the shape alone would then match).
+expect "war-servitor shape path outside pinned \$HOME denied (#810 anchor)" \
+  2 "$(run_home "$SERV_HOME" "$(mk 'war-servitor' "$SERV_MEM_OUTSIDE_HOME")")"
+
+# ...and the deny message names the anchored expectation (self-diagnosis for an
+# operator hit by a HOME anomaly — plan Q15). Substring is glob-free so it does
+# not itself count as a memory-glob survivor (End state 4).
+serv_anchor_deny="$(run_home_err "$SERV_HOME" "$(mk 'war-servitor' "$SERV_MEM_OUTSIDE_HOME")")"
+n=$((n + 1))
+case "$serv_anchor_deny" in
+  *".claude/projects/<project>/memory"*)
+    printf 'ok %d - servitor anchor-deny message names the anchored expectation\n' "$n" ;;
+  *)
+    printf 'FAIL %d - servitor anchor-deny message omits the anchored expectation (got: %s)\n' "$n" "$serv_anchor_deny"
+    fails=$((fails + 1)) ;;
+esac
+
+# Trailing-slash HOME normalized (${home%/}): a trailing '/' on $HOME must not
+# brick the match. Delete-the-feature: dropping the ${home%/} strip forms a '//'
+# in the anchored pattern and flips this to deny (exit 2).
+expect "war-servitor pinned \$HOME with trailing slash still allows (normalization)" \
+  0 "$(run_home "$SERV_HOME/" "$(mk 'war-servitor' "$SERV_MEM_UNDER_HOME")")"
+
+# HOME truly UNSET (env -u HOME): the ${HOME:-} spelling must not let `set -u`
+# kill the hook — it falls back to the unanchored shape glob and allows.
+# Delete-the-feature: a bare $HOME here crashes the hook (exit != 0), not 0.
+expect "war-servitor HOME unset -> fallback shape glob allows (\${HOME:-} spelling)" \
+  0 "$(run_nohome "$(mk 'war-servitor' "$SERV_MEM")")"
+
+# HOME set-but-EMPTY (HOME=''): distinct from unset; ${HOME:-} collapses it to
+# empty too, so the same fallback shape glob allows.
+expect "war-servitor HOME empty -> fallback shape glob allows (\${HOME:-} spelling)" \
+  0 "$(run_home "" "$(mk 'war-servitor' "$SERV_MEM")")"
+
+# Exact live dispatched shape work-audit-refine:war-servitor still hits the
+# CONFINED servitor arm (suffix-anchored *war-servitor): an outside path denies.
+# Under-capture guard — if this fell to the fail-open default arm it would be 0.
+expect "exact-shape :war-servitor still confined (outside path denied)" \
+  2 "$(run_home "$SERV_HOME" "$(mk 'work-audit-refine:war-servitor' "$SERV_RANDOM")")"
+
+# Trailing-junk work-audit-refine:war-servitor-helper no longer matches the
+# suffix-anchored *war-servitor arm -> falls to the fail-open default arm (0).
+# Delete-the-feature: under the old *war-servitor* substring pattern this
+# SERV_RANDOM write denied (exit 2).
+expect "trailing-junk :war-servitor-helper falls to fail-open default arm" \
+  0 "$(run_home "$SERV_HOME" "$(mk 'work-audit-refine:war-servitor-helper' "$SERV_RANDOM")")"
+
+# Exact live dispatched shape work-audit-refine:war-auditor still hits the
+# read-only auditor arm (suffix-anchored *war-auditor) -> write denied. Deny-side
+# under-capture guard: if this fell to default it would fail-open (0), silently
+# letting a read-only auditor write.
+expect "exact-shape :war-auditor still write-denied (deny-side under-capture guard)" \
+  2 "$(run "$(mk 'work-audit-refine:war-auditor' "$INSIDE_WT")")"
+
+# Trailing-junk :war-auditor-helper no longer matches *war-auditor -> fail-open
+# default (0). Delete-the-feature: under the old *war-auditor* substring pattern
+# this denied (2).
+expect "trailing-junk :war-auditor-helper falls to fail-open default arm" \
+  0 "$(run "$(mk 'work-audit-refine:war-auditor-helper' "$INSIDE_WT")")"
+
+# Exact live dispatched shape work-audit-refine:war-worker still hits the worker
+# arm (suffix-anchored *war-worker): an outside-worktree write denies.
+expect "exact-shape :war-worker still gated (outside-worktree write denied)" \
+  2 "$(run "$(mk 'work-audit-refine:war-worker' "$OUTSIDE_WT")")"
+
+# Trailing-junk :war-worker-helper no longer matches *war-worker -> fail-open
+# default (0). Delete-the-feature: under the old *war-worker* substring pattern
+# this denied (2).
+expect "trailing-junk :war-worker-helper falls to fail-open default arm" \
+  0 "$(run "$(mk 'work-audit-refine:war-worker-helper' "$OUTSIDE_WT")")"
 
 # Grep assertion: no dead 'warned' variable remains in the hook
 # (printf-json-escaping-vacuous-test-case cleanup, D6 verified-correction).
