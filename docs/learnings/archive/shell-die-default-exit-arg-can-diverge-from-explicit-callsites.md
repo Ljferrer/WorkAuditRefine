@@ -50,3 +50,5 @@ one), or (b) require every call site to pass the code explicitly and say so in a
 helper — don't leave a silent default that only one code path currently avoids by convention.
 
 [[floor-script-exit-codes-1-vs-2-route-differently]]
+
+> archived 2026-07-13: resolved — moved to archive

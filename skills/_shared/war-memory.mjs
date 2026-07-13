@@ -314,6 +314,8 @@ export function renderPromptBlock(records, { seat } = {}) {
 // ---------------------------------------------------------------------------
 // Projection render (§4.4, criterion 4). Row = table row + tier marker; repo-root
 // lessons additionally carry a trailing [repo] marker (the T1↔T3 contract, plan Note 1).
+// buildProjection collapses cross-root slug twins to the single repo row before
+// rendering (#821) — see its invariant comment for the same-fact rationale.
 // ---------------------------------------------------------------------------
 export function projectionRow(r) {
   const phase = r.phase || '';
@@ -331,11 +333,14 @@ export const PROJECTION_HEADER = [
   '|------|-------|---------|',
 ];
 
-// Rank candidates for archiving: lowest provenance tier first, then oldest (§4.4).
+// Rank candidates for archiving: lowest provenance tier first, then local-before-repo,
+// then oldest (§4.4). Within a tier a local row is the cheaper archive (a repo row is
+// human-reviewed committed corpus), so nominate locals before repos before falling to date.
 export function archiveCandidates(hotRecords) {
   return [...hotRecords].sort((a, b) => {
     const tr = tierRank(b.provenance) - tierRank(a.provenance); // lowest tier (highest rank) first
     if (tr !== 0) return tr;
+    if (a.root !== b.root) return a.root === 'repo' ? 1 : -1; // equal tier → local before repo
     return String(a.date).localeCompare(String(b.date)); // oldest first
   });
 }
@@ -344,8 +349,16 @@ export function archiveCandidates(hotRecords) {
 // Returns { text, bytes, lines, verdict: 'ok'|'warn'|'refuse', candidates: [slug...] }.
 export function buildProjection(records) {
   const hot = records.filter((r) => r.temperature === 'hot');
-  // Invariant hot ≡ indexed: every hot lesson gets exactly one row; cold lessons appear in none.
-  const rows = hot.map(projectionRow);
+  // Invariant hot ≡ indexed: every hot *fact* gets exactly one row; cold lessons appear in none.
+  // A promoted lesson lives in both roots but is ONE fact — collapse the cross-root twin
+  // to a single row here, keeping the repo copy and shadowing the local twin (dropped from
+  // the projection input only; walkCorpus, query ranking, inboundCiters, and lint still see
+  // BOTH copies — dedup lives in projection rendering, never promotion or indexing). The
+  // dedup key is bare slug: a cross-root slug collision ⇒ same fact, because Gate-2 promotion
+  // is the only cross-root copy path, so an unrelated same-slug pair cannot arise (#821).
+  const repoSlugs = new Set(hot.filter((r) => r.root === 'repo').map((r) => r.slug));
+  const deduped = hot.filter((r) => r.root === 'repo' || !repoSlugs.has(r.slug));
+  const rows = deduped.map(projectionRow);
   const text = [...PROJECTION_HEADER, ...rows, ''].join('\n');
   const bytes = Buffer.byteLength(text, 'utf8');
   const lines = text.split('\n').length;
@@ -353,7 +366,7 @@ export function buildProjection(records) {
   if (bytes > HARD_BYTES || lines > HARD_LINES) verdict = 'refuse';
   else if (bytes >= WARN_BYTES) verdict = 'warn';
   const candidates = verdict === 'refuse' || verdict === 'warn'
-    ? archiveCandidates(hot).map((r) => r.slug)
+    ? archiveCandidates(deduped).map((r) => r.slug) // deduped: a shadowed twin costs 0 bytes, nominating it recovers nothing
     : [];
   return { text, bytes, lines, verdict, candidates };
 }

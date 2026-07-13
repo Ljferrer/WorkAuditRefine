@@ -27,3 +27,5 @@ Instance fixed: the fail-closed `--owned-file` gate in `provision-worktrees.sh` 
 **How to apply:** when adding a gate, audit every existing test that calls the function in a gate-failing configuration; add the prerequisite or split out an explicit gate test, and prefer mechanism-specific tokens (exit code + unique stderr substring) over "non-zero".
 
 Related: [[teardown-phase-reap-order-and-delete-fail-loud]], [[weak-test-assertion-passes-without-feature-being-exercised]]
+
+> archived 2026-07-13: resolved — moved to archive

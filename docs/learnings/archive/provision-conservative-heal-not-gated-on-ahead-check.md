@@ -36,3 +36,5 @@ introduce a ref-resetting (work-destroying) path.
 
 Related: provision-ownership-ledger-gates-create-not-teardown (a merged-only delete
 fallback is where such an ahead-check could legitimately be wired).
+
+> archived 2026-07-13: resolved — moved to archive

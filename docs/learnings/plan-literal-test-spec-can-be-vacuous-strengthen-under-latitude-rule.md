@@ -1,6 +1,6 @@
 ---
 name: plan-literal-test-spec-can-be-vacuous-strengthen-under-latitude-rule
-description: "A plan's literal test-spec wording can be provably vacuous both before and after the change — a worker's stronger substitute is a latitude-rule win, not a plan-faithfulness deviation"
+description: "A plan's literal test-spec can be provably vacuous — a worker's stronger substitute is a latitude-rule win, not a plan-faithfulness deviation"
 metadata: 
   node_type: memory
   type: project

@@ -65,3 +65,5 @@ Related: [[reland-loop-contender-less-transient-vs-real-divergence]],
 [[test-reframe-can-strand-adjacent-branch-coverage]],
 [[dockerfile-shell-form-parser-heuristic-ceiling]],
 [[floor-subset-gate-claim-overstates-arbitrary-custom-pattern]].
+
+> archived 2026-07-13: resolved — moved to archive

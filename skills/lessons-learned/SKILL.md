@@ -11,7 +11,7 @@ You run a **full pass** over this project's Claude memory store: verify every me
 
 If the arguments contain the word **`migrate`** (`/lessons-learned migrate`), do **not** run the housekeeping phases below.
 
-**Pre-flight — the opt-in gate (before staging or moving anything).** Migration's endpoint is publishing the `project`-typed set to the committed repo root, which only travels when `memory.commitLearnings` is on. That flag is **opt-in / off by default** (`/war-room` turns it on), so resolve the effective value first — `node ${CLAUDE_PLUGIN_ROOT}/skills/war/assets/war-config.mjs .claude/war/config.json --fill-defaults` and read `memory.commitLearnings`; an **absent** config file means defaults, i.e. `false`.
+**Pre-flight — the opt-in gate (before staging or moving anything).** Migration's endpoint is publishing the `project`-typed set to the committed repo root, which only travels when `memory.commitLearnings` is on. That flag is **opt-in / off by default** (`/war-room` turns it on), so resolve the effective value first — but **`test -f .claude/war/config.json` before invoking the resolver**, which exits non-zero on an **absent** config (the most common state, since `/war-room` is opt-in). **Absent** → **skip** the resolver call entirely; the effective defaults apply, i.e. `memory.commitLearnings: false`. **Present** → run the existing command unchanged — `node ${CLAUDE_PLUGIN_ROOT}/skills/war/assets/war-config.mjs .claude/war/config.json --fill-defaults` — and read `memory.commitLearnings`.
 
 - Already `true` (the operator opted in earlier) → proceed to the playbook.
 - `false` → **ask the operator to opt in now** ("lessons travel with the repo, human-reviewed like code"), then branch on the answer:

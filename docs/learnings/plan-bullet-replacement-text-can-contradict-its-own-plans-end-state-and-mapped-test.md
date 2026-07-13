@@ -1,6 +1,6 @@
 ---
 name: plan-bullet-replacement-text-can-contradict-its-own-plans-end-state-and-mapped-test
-description: "A plan's task-bullet literal replacement text can byte-diverge from its own Commander's Intent End state and mapped durable test — resolve toward the checkable pair, not the bullet"
+description: "A plan task-bullet's literal replacement text can byte-diverge from its own End state and mapped test — resolve toward the checkable pair, not the bullet"
 metadata: 
   node_type: memory
   type: project
