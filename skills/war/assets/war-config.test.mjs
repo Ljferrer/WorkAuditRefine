@@ -247,12 +247,12 @@ test('agents.redteam is tolerated by the unknown-agent-key loop; a genuine unkno
   assert.match(msg, /\/war-room/)
 })
 
-test('agents.worker.docs defaults to { sonnet, default } and every preset inherits it (T1.1)', () => {
-  // Delete-the-feature: remove docs from DEFAULTS.agents.worker → this deepEqual fails for every preset.
+test('agents.worker.docs defaults to { sonnet, default }; balanced/economy inherit, thorough overrides to opus/high (T1.1)', () => {
+  // Delete-the-feature: remove docs from DEFAULTS.agents.worker → the DEFAULTS deepEqual fails.
   assert.deepEqual(DEFAULTS.agents.worker.docs, { model: 'sonnet', effort: 'default' })
-  for (const preset of Object.keys(PRESETS)) {
-    assert.deepEqual(presetConfig(preset).agents.worker.docs, { model: 'sonnet', effort: 'default' },
-      `${preset} preset must inherit agents.worker.docs === { sonnet, default }`)
+  const DOCS = { balanced: { model: 'sonnet', effort: 'default' }, thorough: { model: 'opus', effort: 'high' }, economy: { model: 'sonnet', effort: 'default' } }
+  for (const [preset, expected] of Object.entries(DOCS)) {
+    assert.deepEqual(presetConfig(preset).agents.worker.docs, expected, `${preset} preset docs tier must be ${JSON.stringify(expected)}`)
   }
 })
 
@@ -302,7 +302,7 @@ test('agents.worker.fix is preset-populated (balanced fable/high in DEFAULTS) an
 // Mirrors the agentMatrix pattern: base + docs + fix rows per preset — docs and fix are both defaulted
 // in DEFAULTS (fix flipped from absent-by-default once /war-room began asking for the fix-worker tier).
 
-test('workerTierMatrix: base + docs + fix row per preset; docs is sonnet everywhere; fix now defaulted (fix + red-team asks)', () => {
+test('workerTierMatrix: base + docs + fix row per preset; fix now defaulted; exact tier values pinned elsewhere (fix + red-team asks)', () => {
   const matrix = workerTierMatrix()
   const presets = Object.keys(PRESETS)
   for (const preset of presets) {
@@ -312,8 +312,8 @@ test('workerTierMatrix: base + docs + fix row per preset; docs is sonnet everywh
     assert.equal(base.length, 1, `workerTierMatrix must carry exactly one base row for ${preset}`)
     assert.equal(docs.length, 1, `workerTierMatrix must carry exactly one docs row for ${preset}`)
     assert.equal(fix.length, 1, `workerTierMatrix must carry exactly one fix row for ${preset} (fix is now defaulted)`)
-    assert.equal(docs[0].model, 'sonnet', `${preset} docs tier must be sonnet (the documented default)`)
-    assert.equal(docs[0].effort, 'default', `${preset} docs tier effort must be default`)
+    // Exact per-preset docs/fix values live in the dedicated docs + fix tests and the
+    // "each row equals presetConfig() merge" delegation test below (thorough docs = opus/high, not sonnet).
   }
   // fix is now defaulted in DEFAULTS → every preset emits a fix row. Delete-the-feature: drop the fix
   // block from DEFAULTS and every preset, and the per-preset fix.length===1 check above goes red (the

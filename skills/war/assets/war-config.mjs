@@ -66,7 +66,7 @@ export const PRESETS = {
   thorough: {
     profile: 'thorough',
     agents: {
-      worker:   { model: 'fable', effort: 'max', fix: { model: 'fable', effort: 'max' } },
+      worker:   { model: 'fable', effort: 'max', docs: { model: 'opus', effort: 'high' }, fix: { model: 'fable', effort: 'max' } },
       auditor:  { model: 'opus',  effort: 'max' },
       servitor: { model: 'opus',  effort: 'default' },
       redteam:  { model: 'fable', effort: 'xhigh' },
@@ -136,7 +136,8 @@ export function agentMatrix() {
 // and 'fix' (the fix-round + --ace tier — now defaulted in DEFAULTS too, so every preset emits a fix
 // row). Reuses presetConfig()'s merge and iterates the live PRESETS, so a new preset or tier is
 // enumerated automatically. The doc-honesty lens consults it to prove documented tier defaults (e.g.
-// docs=sonnet everywhere, fix=fable/high on balanced) match this canonical source, not a hand-copied literal.
+// docs=sonnet default with thorough overriding to opus/high, fix=fable/high on balanced) match this
+// canonical source, not a hand-copied literal.
 export function workerTierMatrix() {
   return Object.keys(PRESETS).flatMap(preset => {
     const w = presetConfig(preset).agents.worker
