@@ -91,3 +91,54 @@ test('D12 — tour step 17 (land-decision.mjs) carries no member count / line-nu
     'tour step 17 should name the mirror-registry drift-guard that holds the mirrors identical',
   )
 })
+
+// (D13) Every `.sh` asset invoked in SKILL.md must run under `bash`, never `node` — the scripts are
+// `#!/usr/bin/env bash`, so a `node <script>.sh` invocation SyntaxErrors on every Setup, Gate-2, and
+// manual-land call (#741). The riskiest exposure is the Checkpoint/escalation land recipes: a
+// SyntaxError on `land-advance` tempts a Lead into the raw `git push` those recipes exist to prevent.
+// Assert-OLD-absent: no `node ` immediately invoking a non-whitespace path token ending `.sh`
+// anywhere in the file — matches BOTH the `${CLAUDE_PLUGIN_ROOT}/…/provision-worktrees.sh` form and
+// the `…/provision-worktrees.sh` elided form; the invocation *shape*, not "node" and ".sh" merely
+// co-occurring in prose (a `.mjs` helper followed later by `*.test.sh` never matches, since `\S*`
+// cannot cross the space between them). The `bash`-prefixed presence companion is anti-vacuous — no
+// other D-series guard locks the land recipes' presence, so a wholesale deletion would otherwise pass.
+test('D13 — SKILL.md invokes every .sh asset with bash, never node (#741)', () => {
+  const nodeSh = skillMd.match(/node\s+\S*\.sh\b/)
+  assert.ok(
+    !nodeSh,
+    `SKILL.md invokes a .sh asset with node ("${nodeSh ? nodeSh[0] : ''}") — ` +
+      'use bash, or rephrase the example without a literal `node …*.sh` invocation shape',
+  )
+  assert.match(
+    skillMd,
+    /bash\s+\S*provision-worktrees\.sh\b/,
+    'SKILL.md must retain at least one `bash …/provision-worktrees.sh` invocation (land recipes present)',
+  )
+})
+
+// (D14) The Setup step-3 "Daemon reachable" docker bullet must not attribute the platform-signature
+// list to the gate-time classifier (#799): the signature list governs ONLY Setup-time per-image
+// probe-build deferral, whereas the gate-time `gate_failure_class` classifier (`classOf`) keys on
+// re-running the failing gate at the classification base and comparing failing identifiers — the two
+// share only the `'introduced'` fallthrough. Assert-OLD-absent on the misattribution clause
+// (case-insensitive, mid-sentence anchor — the corrected sentence legitimately still says "gate-time
+// classifier" to DENY the coupling, so we never key on the bare term). The companion isolates the
+// bullet by its `**Daemon reachable**` marker (D10-style intended-location extraction, not a
+// whole-file presence check) and asserts the three signatures survive — so deleting the bullet fails
+// loudly instead of passing vacuously.
+test('D14 — SKILL.md docker bullet does not misattribute the signature list to the gate-time classifier (#799)', () => {
+  assert.doesNotMatch(
+    skillMd,
+    /signature list is what the gate-time classifier keys on/i,
+    'SKILL.md still couples the platform-signature list to the gate-time classifier (#799 ' +
+      'misattribution) — the list governs only Setup-time probe-build deferral',
+  )
+  const bullet = skillMd.match(/\*\*Daemon reachable\*\*[\s\S]*?(?=\n\s*- \*\*)/)
+  assert.ok(bullet, 'could not locate the **Daemon reachable** docker bullet in SKILL.md')
+  for (const sig of ['EBADPLATFORM', 'no matching manifest for <platform>', 'exec format error']) {
+    assert.ok(
+      bullet[0].includes(sig),
+      `the **Daemon reachable** bullet must still name the platform signature "${sig}"`,
+    )
+  }
+})

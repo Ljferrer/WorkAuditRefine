@@ -135,11 +135,25 @@ git switch --detach origin/<working>                 # re-base the land on the S
 git merge --no-ff integration/<slug>/phase-N
 <run the gate>                                        # green required
 provision-worktrees.sh land-advance <working> <merge-sha>
-  # 1) git push origin <merge-sha>:refs/heads/<working>   (NO --force)
-  #      -> non-ff REJECTED (another run advanced origin/<working>) => loop (re-fetch, re-merge, re-gate)
-  #      -> classify push output: 'non-fast-forward' => reland; any other error => escalate (never infer success)
-  # 2) on push ACCEPTED only: git update-ref refs/heads/<working> <merge-sha> <old>   (local follower)
+  # 1) git push origin HEAD:refs/heads/<working>   (named source — HEAD IS <merge-sha> in this
+  #    detached worktree; NEVER a bare-SHA <merge-sha>:refs/heads refspec, which can spuriously
+  #    report "src refspec does not match any"; NO --force)
+  #      -> classify SOLELY on the '[rejected]' token in the push output — NEVER the literal
+  #         'non-fast-forward' (red-team-proved unreliable for this push form):
+  #           exit 0 -> accepted, or already-landed (origin already at <merge-sha>)
+  #           exit 2 -> '[rejected]' seen (another run won the CAS) => reland (re-fetch, re-merge, re-gate)
+  #           exit 3 -> any other push error, or a post-push readback mismatch => escalate
+  #                     (never infer success from the mere absence of '[rejected]')
+  # 2) ONLY on exit 0, after a ls-remote readback confirms origin == <merge-sha>:
+  #      git update-ref refs/heads/<working> <merge-sha> <old>   (local follower)
 ```
+
+**Supersession pointer:** the `cmd_land_advance` subcommand of
+`skills/war/assets/provision-worktrees.sh` is the authoritative contract for this pseudocode — its
+header comment is the full contract of record (exact push form, the land-truth guard, the
+`[rejected]`-token classification, and the 0/2/3 exit codes). The subcommand name is the stable
+anchor: a sibling plan may relocate or rewrite the header comment, but the function name survives
+refactors the comment does not.
 
 - On success → `status: "landed"` + the new working SHA; then **opportunistic resync** of the Lead's
   cwd (§5.4). The local ref only ever advances after a successful push, so a failed attempt leaves
