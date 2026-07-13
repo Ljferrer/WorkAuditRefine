@@ -61,7 +61,7 @@ pro-tip — one link covers `grill-with-docs`, `grilling`, and `domain-modeling`
 ## Build order (for /war)          ← the phase list, in DAG order
 ## Phase 1 — <name>
 ### Task 1: <name>
-  - Files: <exact paths this task touches>
+  - Files: `<path/one>`, `<path/two>`   ← every path backticked & comma-separated; the campaign ledger's `extractFiles` reads backticked tokens
   - Plan slice: <what to implement>
   - requiresTest: true|false
   - requiresPackaging: true|false  ← default true; Lead may set false at decompose to skip the packaging floor
@@ -87,8 +87,10 @@ extraction and every land-time surfacing renders it, never as operator-ratified.
 > moves, and the resulting plan↔candidate divergence reads as scope creep to an auditor who re-adjudicates
 > it from scratch every pass. Author each field to point at the **live artifact**, not a snapshot of it.
 
-- **`Files:` / locators** — name the enclosing symbol or comment header, not a `:N-M` range; reserve line
-  ranges for flat config files and qualify them as approximate against a named base (`approx., measured at base <sha>`).
+- **`Files:` / locators** — **back-tick every path and comma-separate them** so the campaign ledger's
+  `extractFiles` reads them (a bare path silently narrows the ingested footprint); within a file,
+  name the enclosing symbol or comment header, not a `:N-M` range; reserve line ranges for flat config
+  files and qualify them as approximate against a named base (`approx., measured at base <sha>`).
 - **Gate directives** — reference the self-discovery gate (`resolveGate` in `war-config.mjs`) by name; never
   enumerate `*.test.sh` suites or state a suite count.
 - **Mirrored constants** — say "append to the canonical export in `land-decision.mjs`; the drift guard in

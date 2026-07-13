@@ -80,12 +80,21 @@ file footprints of the plans already authored (honest contention).
    entire existing corpus), citing its source spec path near the top — the `docs/specs/…` line
    `/red-team` step 1 greps for, and the third link in `/aftermath`'s swept-issue evidence
    chain (issue → spec → plan → PR).
+5. **Lint the finalized plan** — run `node skills/war-strategy/assets/plan-literal-lint.mjs <plan>`
+   on the plan just written and **surface its advisory hits in the conversion report**: stack-fragile
+   literals (`:N-M` locators, `*.test.sh` gate lists, suite counts, release-version literals) and
+   **un-backticked `- Files:` paths** (the campaign ledger reads backticked tokens). Report-only — it
+   **never blocks** conversion (exit 0 by default; `/war-strategy` §2 owns the rule set).
 
 ## 3. After the last spec
 
 1. **Author the roadmap** at `docs/roadmaps/YYYY-MM-DD-<slug>-roadmap.md` per the `/war-strategy`
    roadmap template: dependency spine from the manifest's `dependsOn` hints firmed up by the
-   actual plan `Files:` footprints; shared-file contention table from those same footprints.
+   actual plan `Files:` footprints; shared-file contention table from those same footprints. The
+   **plan-index table MUST be the first table in the document** — auxiliary tables (the
+   issue→spec→plan chain, shared-file contention) come after it, because `/war-campaign`'s campaign
+   ledger ingests **only the first table** (`init --roadmap`); a chain or contention table placed
+   first would be ingested as the plan index instead of the real plans.
 2. **Stamp the manifest consumed** — consumed-stamp semantics: replace `consumed: null` with
    `{ "by": "war-machine", "at": "<ISO 8601>", "plans": { "<spec path>": "<plan path>" } }`.
    Consumed manifests are **retained, never deleted** — `/aftermath` reads the

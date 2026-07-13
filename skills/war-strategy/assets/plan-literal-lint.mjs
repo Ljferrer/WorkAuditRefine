@@ -2,9 +2,11 @@
 // plan-literal-lint — advisory scan for stack-fragile literals in a war-shaped plan.
 //
 // Modeled on war-memory.mjs's LINT_PATTERNS array + lint(text) + CLI shape (no parser, no deps —
-// node:fs only). Flags the four cheap, high-precision literal antipatterns the /war-strategy plan
-// template teaches authors to avoid (spec §4.3): a :N-M line-range locator, a concrete *.test.sh
-// gate enumeration, a stale "ALL FIVE suites" count, and a hardcoded version inside a release task.
+// node:fs only). Flags the cheap, high-precision literal antipatterns the /war-strategy plan
+// template teaches authors to avoid: a :N-M line-range locator, a concrete *.test.sh gate
+// enumeration, a stale "ALL FIVE suites" count, and a hardcoded version inside a release task
+// (spec §4.3); plus an un-backticked path on a `- Files:` line — the campaign ledger's extractFiles
+// reads backticked tokens, so a bare path silently narrows a plan's ingested footprint.
 //
 // FAIL-OPEN BY DECISION (ADR 0030): report-and-exit-0. This is NEVER a CI gate — the only CI job is
 // war-memory's redaction lint. `--strict` is opt-in (exit non-zero on any hit) for local authoring.
@@ -17,7 +19,9 @@ import { fileURLToPath } from 'node:url';
 // ---------------------------------------------------------------------------
 // Pattern table. Each entry is a per-line regex plus optional context guards:
 //   requireOnLine — the line must also match this (e.g. a gate/run directive);
-//   releaseScoped — only fires inside a task/phase heading naming a release/version bump.
+//   releaseScoped — only fires inside a task/phase heading naming a release/version bump;
+//   stripBackticks — remove `backtick spans` from the line before running re (so a compliant
+//                    backticked token can't trip a rule that only cares about bare tokens).
 // Extending the lint is editing this one array (the war-memory.mjs idiom).
 // ---------------------------------------------------------------------------
 export const LINT_PATTERNS = [
@@ -47,6 +51,20 @@ export const LINT_PATTERNS = [
     re: /\bv?\d+\.\d+\.\d+\b/gi,
     releaseScoped: true,
   },
+  {
+    // A `- Files:` line should back-tick every path (comma-separated) so the campaign ledger's
+    // extractFiles reads it (war-strategy §2). stripBackticks removes the compliant backticked
+    // spans; any surviving path-shaped token — one containing a `/`, or a bare dotted-extension
+    // token like `foo.mjs` — is an un-backticked path, so flag it. DELIBERATELY LOOSE, an
+    // independent advisory heuristic, NOT a mirror of the ledger's isPathShaped (unexported;
+    // mirroring it would add a cross-skill dep edge and serialize the phase). Divergence costs
+    // only advisory noise or a missed nudge — the fail-loud extractFiles/assertOrderable throw is
+    // the real backstop, so there is no sync contract to drift-guard.
+    name: 'bare-files-path',
+    re: /[\w.-]+\/[\w./-]*|\b[\w-]+\.[A-Za-z][\w-]*\b/g,
+    requireOnLine: /^\s*-\s*Files:/i,
+    stripBackticks: true,
+  },
 ];
 
 // A markdown heading or a **Task N** / **Phase N** bold heading resets release scope.
@@ -62,9 +80,12 @@ export function lint(text) {
     for (const p of LINT_PATTERNS) {
       if (p.releaseScoped && !inRelease) continue;
       if (p.requireOnLine && !p.requireOnLine.test(line)) continue;
+      // stripBackticks entry guard: run re against the line with `backtick spans` removed, so a
+      // compliant backticked token doesn't trip a rule (bare-files-path) that only wants bare ones.
+      const target = p.stripBackticks ? line.replace(/`[^`]*`/g, '') : line;
       p.re.lastIndex = 0;
       let m;
-      while ((m = p.re.exec(line)) !== null) {
+      while ((m = p.re.exec(target)) !== null) {
         hits.push({ pattern: p.name, match: m[0].trim() });
         if (m.index === p.re.lastIndex) p.re.lastIndex++; // guard zero-width
       }

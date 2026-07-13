@@ -108,6 +108,59 @@ This roadmap has no plan index — only paragraphs describing intent.
 No table, no list.
 `
 
+// Chain-table regression roadmap (#738): a plan-index FIRST table (2 plan links)
+// followed by an issue→spec→plan chain table whose rows LINK ../specs/*-design.md,
+// plus a backticked .md decoy token in a chain cell. First-table-only ingestion must
+// take only the first table; every second-table target is structurally inert.
+const ROADMAP_CHAIN_TABLE = `# Roadmap — plan index then a chain table (#738)
+
+| # | Plan | Files owned | Ver | Depends on |
+|---|------|-------------|-----|------------|
+| 1 | [plan-a](../plans/a.md) | \`src/a.js\` | v0.1.0 | — |
+| 2 | [plan-b](../plans/b.md) | \`src/z.js\` | v0.1.1 | 1 |
+
+## Issue → spec → plan chain
+
+| Issue | Spec | Plan | Notes |
+|-------|------|------|-------|
+| #1 | [spec-x](../specs/x-design.md) | 1 | \`notes/decoy2.md\` |
+| #2 | [spec-y](../specs/y-design.md) | 2 | — |
+`
+
+// A fenced EXAMPLE table (carrying a .md link) precedes the real plan-index table.
+// Code fences hide their contents from ingestion, so only the real table's links are
+// taken. RED without the fence-skip toggle: the fenced table becomes the first table.
+const ROADMAP_FENCED_TABLE = `# Roadmap — fenced example then the real table
+
+Here is an EXAMPLE of the plan-index format (must be ignored):
+
+\`\`\`
+| # | Plan | Files |
+|---|------|-------|
+| 1 | [example](../plans/example.md) | \`x\` |
+\`\`\`
+
+| # | Plan | Files owned | Ver | Depends on |
+|---|------|-------------|-----|------------|
+| 1 | [plan-a](../plans/a.md) | \`src/a.js\` | v0.1.0 | — |
+| 2 | [plan-b](../plans/b.md) | \`src/z.js\` | v0.1.1 | 1 |
+`
+
+// A stray leading-| prose line BEFORE the plan index opens (and, at the next non-table
+// line, closes) a link-less first table — so the real plan table is a SECOND table,
+// structurally ignored, and the parse 0-plan-throws. Pins the "any leading-| line opens
+// the table" semantics loudly.
+const ROADMAP_STRAY_PIPE = `# Roadmap — a stray leading-| line disqualifies the real table
+
+| this line is prose that merely happens to start with a pipe
+
+## Plans
+
+| # | Plan | Files owned | Ver | Depends on |
+|---|------|-------------|-----|------------|
+| 1 | [plan-a](../plans/a.md) | \`src/a.js\` | v0.1.0 | — |
+`
+
 // ---- init -------------------------------------------------------------
 
 test('init from a bare plan list produces the canonical ledger shape', () => {
@@ -137,9 +190,15 @@ test('init from a bare plan list produces the canonical ledger shape', () => {
 
 // Build the canonical-table roadmap fixture tree: roadmap under roadmaps/, plans
 // under plans/ (so the `../plans/` targets exercise real resolution), plus the
-// backticked decoy CREATED ON DISK — a table extractor that regressed into grabbing
-// backticked cell tokens would resolve it to a real file and return 3 plans, so the
-// exactly-2 assertions (not an ENOENT) are what catch a precision failure.
+// backticked decoy `notes/decoy.md` CREATED ON DISK with NO Files: block. The decoy
+// sits in a Files-owned cell of the FIRST table, so it still proves within-first-table
+// backtick precision under the first-table restriction. If a regressed extractor
+// grabbed backticked cell tokens it would resolve the decoy to this real file and
+// ingest it as a phantom plan — and because the decoy has no Files: block, the
+// FIRST-LINE catch is assertOrderable's unparseable-footprint throw (init passes no
+// positions), NOT the length check; the exactly-2 assertions are the BACKSTOP behind
+// that throw. #816: never give the decoy a Files: block — that would silence the throw
+// and quietly change which mechanism the test proves.
 function setupCanonicalRoadmap(dir) {
   fs.mkdirSync(path.join(dir, 'plans'), { recursive: true })
   fs.mkdirSync(path.join(dir, 'roadmaps', 'notes'), { recursive: true })
@@ -147,6 +206,29 @@ function setupCanonicalRoadmap(dir) {
   writePlan(dir, 'plans/b.md', PLAN_DISJOINT)
   writePlan(dir, 'roadmaps/notes/decoy.md', '# decoy doc — must never be ingested\n')
   return writePlan(dir, 'roadmaps/roadmap.md', ROADMAP)
+}
+
+// Build the chain-table regression tree (#738): plan-index FIRST table (2 plan links)
+// then an issue→spec→plan chain table linking two on-disk ../specs/*-design.md files —
+// spec-x with NO Files: block, spec-y WITH a parsable backticked Files: block — plus a
+// backticked .md decoy token in a chain cell (also on disk, for parity with the
+// first-table decoy so a regressed backtick-extractor resolves it rather than ENOENT).
+// First-table-only ingestion must yield exactly [a, b]; every second-table target is
+// structurally inert.
+function setupChainTableRoadmap(dir) {
+  fs.mkdirSync(path.join(dir, 'plans'), { recursive: true })
+  fs.mkdirSync(path.join(dir, 'specs'), { recursive: true })
+  fs.mkdirSync(path.join(dir, 'roadmaps', 'notes'), { recursive: true })
+  writePlan(dir, 'plans/a.md', PLAN_A)
+  writePlan(dir, 'plans/b.md', PLAN_DISJOINT)
+  // spec-x: no Files: block — would throw unparseable-footprint if ingested
+  writePlan(dir, 'specs/x-design.md', '# Spec X\n\nProse only, no files section.\n')
+  // spec-y: parsable backticked Files: block — would silently become a phantom ledger
+  // entry (non-empty footprint, NO throw) if ingested; the exact-content assertion
+  // catches that DIRECTLY, not via throw-absence (survives the fallback landing here).
+  writePlan(dir, 'specs/y-design.md', '# Spec Y\n\n**Files:** `src/y.js`.\n')
+  writePlan(dir, 'roadmaps/notes/decoy2.md', '# second-table decoy — must never be ingested\n')
+  return writePlan(dir, 'roadmaps/roadmap.md', ROADMAP_CHAIN_TABLE)
 }
 
 test('init from a canonical plan-index table roadmap ingests the two linked plans, queued, in row order', () => {
@@ -236,6 +318,91 @@ test('init from a prose-only (0-plan) roadmap throws naming the path, and create
   assert.equal(fs.existsSync(campaignDir), false)
 })
 
+// ---- first-table-only + fence-blind ingestion (#738) ----------------------
+
+test('chain-table roadmap: only the first (plan-index) table ingests; the second table\'s spec links and decoy are structurally inert (#738)', () => {
+  const dir = tmpDir()
+  const roadmapPath = setupChainTableRoadmap(dir)
+  const campaignDir = path.join(dir, 'campaign')
+
+  const ledger = init(campaignDir, { roadmap: roadmapPath, mode: 'stack' })
+
+  // exactly the two plan-index rows, in row order
+  assert.equal(ledger.plans.length, 2)
+  assert.deepEqual(
+    ledger.plans.map((p) => p.plan),
+    [path.resolve(dir, 'plans/a.md'), path.resolve(dir, 'plans/b.md')],
+  )
+  // Neither chain-table spec LINK nor the backticked decoy may appear. Without the
+  // first-table fix the OLD parser ingests every table row's first link: spec-x (no
+  // Files) throws unparseable-footprint AND spec-y (parsable backticked Files) becomes
+  // a phantom entry — the deepEqual above catches that phantom DIRECTLY, independent of
+  // spec-x's throw (so the fixture survives the fallback landing in this same task).
+  for (const phantom of [
+    path.resolve(dir, 'specs/x-design.md'),
+    path.resolve(dir, 'specs/y-design.md'),
+    path.resolve(dir, 'roadmaps/notes/decoy2.md'),
+  ]) {
+    assert.ok(!ledger.plans.some((p) => p.plan === phantom), `must never ingest ${phantom}`)
+  }
+})
+
+test('fenced example table before the plan index is ignored; only the real first table ingests (#738 fence-skip)', () => {
+  const dir = tmpDir()
+  fs.mkdirSync(path.join(dir, 'plans'))
+  fs.mkdirSync(path.join(dir, 'roadmaps'))
+  writePlan(dir, 'plans/a.md', PLAN_A)
+  writePlan(dir, 'plans/b.md', PLAN_DISJOINT)
+  // example.md on disk, so a fence-skip regression fails on the exact-content check
+  // (length/order) rather than an ENOENT that would mask what broke.
+  writePlan(dir, 'plans/example.md', PLAN_A)
+  const roadmapPath = writePlan(dir, 'roadmaps/roadmap.md', ROADMAP_FENCED_TABLE)
+  const campaignDir = path.join(dir, 'campaign')
+
+  const ledger = init(campaignDir, { roadmap: roadmapPath, mode: 'stack' })
+
+  assert.equal(ledger.plans.length, 2)
+  assert.deepEqual(
+    ledger.plans.map((p) => p.plan),
+    [path.resolve(dir, 'plans/a.md'), path.resolve(dir, 'plans/b.md')],
+  )
+  // the fenced example link must never be ingested — without the fence toggle the
+  // fenced table BECOMES the first table and ingests example.md instead of a/b.
+  assert.ok(!ledger.plans.some((p) => p.plan === path.resolve(dir, 'plans/example.md')))
+})
+
+test('a stray leading-| prose line opens+closes a link-less first table; the real table is a second table and the parse 0-plan-throws (#738 first-table semantics)', () => {
+  const dir = tmpDir()
+  fs.mkdirSync(path.join(dir, 'plans'))
+  fs.mkdirSync(path.join(dir, 'roadmaps'))
+  writePlan(dir, 'plans/a.md', PLAN_A)
+  const roadmapPath = writePlan(dir, 'roadmaps/roadmap.md', ROADMAP_STRAY_PIPE)
+  const campaignDir = path.join(dir, 'campaign')
+
+  // MESSAGE-MATCHED: the stray-pipe line opens the (link-less) first table and the next
+  // non-table line closes it, so the real plan table is a SECOND table and inert → 0
+  // plans. Match /0 plans/ + the roadmap path to pin THIS throw (not assertOrderable).
+  // Without the first-table fix the OLD parser ingests the real row and does NOT throw.
+  assert.throws(
+    () => init(campaignDir, { roadmap: roadmapPath, mode: 'stack' }),
+    (err) => /0 plans/.test(err.message) && err.message.includes(roadmapPath),
+  )
+  assert.equal(fs.existsSync(campaignDir), false)
+})
+
+test('the 0-plan throw message names first-table-only ingestion AND the --plans escape hatch (delete-the-clause RED)', () => {
+  const dir = tmpDir()
+  const roadmapPath = writePlan(dir, 'roadmap.md', ROADMAP_PROSE_ONLY)
+  let msg = ''
+  assert.throws(
+    () => init(path.join(dir, 'campaign'), { roadmap: roadmapPath, mode: 'stack' }),
+    (e) => { msg = e.message; return true },
+  )
+  assert.match(msg, /0 plans/)       // existing clause survives in kind
+  assert.match(msg, /first table/i)  // first-table-only clause
+  assert.match(msg, /--plans/)       // explicit-seed escape hatch
+})
+
 test('mode must be stack or wait-for-merge', () => {
   const dir = tmpDir()
   const planA = writePlan(dir, 'a.md', PLAN_A)
@@ -308,6 +475,19 @@ test('unparseable footprint is refused unless an explicit position is given', ()
   const ledger = init(campaignDir, { plans: [planD], mode: 'stack', positions: { [path.resolve(planD)]: 0 } })
   assert.equal(ledger.plans.length, 1)
   assert.deepEqual(ledger.plans[0].files, [])
+})
+
+test('the unparseable-footprint throw carries the backticked + comma-separated authoring hint (delete-the-clause RED)', () => {
+  const dir = tmpDir()
+  const planD = writePlan(dir, 'd.md', PLAN_UNPARSEABLE)
+  let msg = ''
+  assert.throws(
+    () => init(path.join(dir, 'campaign'), { plans: [planD], mode: 'stack' }),
+    (e) => { msg = e.message; return true },
+  )
+  assert.match(msg, /unparseable|explicit position/i) // existing assertion stays green in kind
+  assert.match(msg, /backtick/i)                       // authoring hint: backticked
+  assert.match(msg, /comma/i)                          // authoring hint: comma-separated
 })
 
 // ---- add / sweep --------------------------------------------------------
@@ -722,6 +902,42 @@ test('extractFiles rejects non-path-shaped backticked tokens (no slash/extension
 
 test('extractFiles returns empty array when there is no Files: line', () => {
   assert.deepEqual(extractFiles(['just prose', 'no files line here']), [])
+})
+
+// ---- extractFiles backtick-ABSENCE fallback + block scoping (#739) --------
+// When the collected block carries NO backtick at all, fall back to comma-split
+// whole-segment isPathShaped acceptance. Any backtick present keeps extraction
+// backtick-only — backticks stay the precision mechanism (constraint 6).
+
+test('extractFiles fallback: a zero-backtick comma-separated Files line yields the bare paths (RED without the fallback)', () => {
+  const block = ['- Files: src/one.js, src/two.js', '']
+  assert.deepEqual(extractFiles(block), ['src/one.js', 'src/two.js'])
+})
+
+test('extractFiles stays backtick-only when ANY backtick is present: a sole non-path-shaped `TODO` yields [] (no bare dilution)', () => {
+  const block = ['- Files: `TODO`', '']
+  assert.deepEqual(extractFiles(block), [])
+})
+
+test('extractFiles fallback: space-separated (uncomma\'d) bare paths yield [] — a whole segment carrying whitespace fails isPathShaped', () => {
+  const block = ['- Files: src/one.js src/two.js', '']
+  assert.deepEqual(extractFiles(block), [])
+})
+
+test('extractFiles on a mixed block (one backticked path + bare text) defers to backticks, yielding only the backticked path', () => {
+  const block = ['- Files: `src/a.js`, src/bare-ignored.js', '']
+  assert.deepEqual(extractFiles(block), ['src/a.js'])
+})
+
+test('extractFiles block-scoping: a bare "- Files:" line immediately followed by a backtick-bearing "- Plan slice:" bullet yields only the Files path (collectBlock stops at the next list item)', () => {
+  // RED without the collectBlock list-item break: the Plan-slice backticks (construct
+  // names, not paths) bleed into the block, a backtick is then present, the
+  // backtick-absence fallback never fires, and extractFiles returns [].
+  const block = [
+    '- Files: src/only.js',
+    '- Plan slice: rewrite `resolveRoadmapPlans` and `extractFiles` per the design tree',
+  ]
+  assert.deepEqual(extractFiles(block), ['src/only.js'])
 })
 
 // ---- intersectFootprints -------------------------------------------------
