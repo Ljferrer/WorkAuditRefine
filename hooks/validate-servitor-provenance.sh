@@ -59,14 +59,26 @@ extract_provenance() {
 # (1) Exemptions — pass through without any check.
 # Non-servitor agent_type (hoisted above the Write short-circuit; behavior-
 # identical for non-servitors, but now also exempts their Edit/NotebookEdit).
+# The arm is suffix-anchored (`*war-servitor`): it captures the dispatched
+# `<ns>:war-servitor` but not a `war-servitor-helper` decoration, which falls
+# through to the fail-open `*) exit 0`.
 case "$atype" in
-  *war-servitor*) ;;
+  *war-servitor) ;;
   *) exit 0 ;;
 esac
 # No file_path.
 [ -z "$fp" ] && exit 0
 # Path outside the memory/learnings target — scope hook handles denial; this
 # content gate allows it to avoid double-gating non-fact paths.
+#
+# The memory/learnings classifier glob below is DELIBERATELY left unanchored
+# (NOT $HOME-anchored like the servitor arm in validate-worktree-scope.sh): it
+# is a content-gate classifier, not an allow gate. Broader capture means MORE
+# provenance enforcement, so over-capture fails SAFE here — the opposite
+# direction from a deny/allow scope gate. This is the second of exactly two
+# sanctioned survivors of the unanchored memory-glob sweep (ADR 0002 addendum /
+# plan End state 4); the first is the HOME-unset/empty fallback branch in
+# validate-worktree-scope.sh.
 case "$fp" in
   */.claude/projects/*/memory/*|*/docs/learnings/*) ;;
   *) exit 0 ;;

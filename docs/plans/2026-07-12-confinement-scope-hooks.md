@@ -29,14 +29,15 @@ Issues addressed: #809, #810
      including every new case added by this plan.
   2. `grep -cE 'exit 2|deny' hooks/warn-bash-write-scope.sh` reports 0 and the script's final line is
      still `exit 0` — advisory posture provably unchanged, owned as a STANDING grep case inside
-     `hooks/warn-bash-write-scope.test.sh` (not a one-time hand check; the hook's three early
-     `exit 0`s are fine — the assertion is zero deny-routes, not one exit statement).
+     `hooks/warn-bash-write-scope.test.sh` (not a one-time hand check; the hook's two early
+     `exit 0`s plus its terminal `exit 0` are fine — the assertion is zero deny-routes, not any
+     single exit statement).
   3. `grep -n '\*war-[a-z-]*\*' hooks/*.sh` (excluding `*.test.sh`) returns zero matches — all six
      agent-type arms suffix-anchored (`*war-<role>`); the same zero-match assertion is a STANDING
      convention case in `hooks/guard-conventions.test.sh` (offending literal assembled via printf in
      fixtures, never scannable in the lint file itself); the manual survey has also fixed the known
      prose stragglers (the SCOPE paragraph in `warn-bash-write-scope.sh`'s header, the purpose comment
-     near the top of `validate-auditor-git.sh`, ADR 0002's policy-table prose) plus any further
+     near the top of `validate-auditor-git.sh`) plus any further
      stragglers found in hook headers, same-file case arms, and `hooks/*.test.sh` titles/comments.
   4. `grep -rn '\*/\.claude/projects/\*/memory/\*' hooks/ docs/adr/0002-scope-by-agent-type.md` — every
      remaining hit is one of exactly TWO sanctioned survivors: (a) the documented `HOME`-unset/empty
@@ -44,16 +45,19 @@ Issues addressed: #809, #810
      `validate-servitor-provenance.sh` (a content-gate classifier, deliberately left unanchored —
      broader capture means MORE provenance enforcement, fail-safe — with an in-file comment saying so).
      A STANDING convention case in `hooks/guard-conventions.test.sh` asserts the unanchored glob
-     appears in no other `hooks/*.sh` file. The manual survey has also checked the servitor
-     deny-message string, the `#58 resolution` comment block, and `hooks/validate-worktree-scope.test.sh`
+     appears in no other `hooks/*.sh` file. The manual survey has also ensured the servitor
+     deny-message string names its expectation descriptively and does NOT embed the literal
+     unanchored glob (which would be a third grep hit breaking the exactly-TWO-survivors count), and
+     checked the `#58 resolution` comment block and `hooks/validate-worktree-scope.test.sh`
      case titles for the unanchored shape written in prose.
   5. Servitor arm behavior, all proven by HOME-pinned cases in `hooks/validate-worktree-scope.test.sh`
      via a new `run_home` helper: shape-matching path rooted outside the pinned `$HOME` → deny exit 2;
      same path under the pinned `$HOME` → allow; `HOME` with a trailing slash → still allows under it
      (normalization proven); `HOME` unset (`env -u HOME`) → fallback shape glob allows; `HOME=''`
      (empty) → fallback shape glob allows (two separate cases — `set -u` must not kill the hook:
-     `${HOME:-}` spelling throughout). The pre-existing `SERV_MEM` cases (4a, the two clean-memory
-     regressions) are retrofitted to `run_home` in the same commit so they stay green.
+     `${HOME:-}` spelling throughout). The pre-existing `SERV_MEM` allow cases (4a + the one
+     clean-memory regression — two allow cases total) are retrofitted to `run_home` in the same
+     commit so they stay green.
   6. A worker Bash command writing a relative redirect target while payload `.cwd` is an absolute path
      outside any `.war-task` worktree produces a stderr warning and exit 0; the same with `.cwd`
      inside a `.war-task` fixture stays silent; `.cwd` absent → old skip behavior (silent);
@@ -156,8 +160,8 @@ Issues addressed: #809, #810
   4. The all-agents `..`-traversal rejection and the fail-open default arm are untouched.
   Test cases (same commit): add a `run_home` helper (`printf '%s' "$2" | HOME="$1" bash "$HOOK"`) —
   per-case env pinning, no global export, no helper shared with the sibling suite. RETROFIT the
-  pre-existing `SERV_MEM` cases that flip under anchoring (case 4a "war-servitor memory path allowed"
-  and the two clean-memory regression cases) to `run_home "$WT/repo"` so `SERV_MEM` sits under the
+  pre-existing `SERV_MEM` allow cases that flip under anchoring (case 4a "war-servitor memory path
+  allowed" and the one clean-memory regression case — two allow cases total) to `run_home "$WT/repo"` so `SERV_MEM` sits under the
   pinned HOME — same commit as the hook change or the suite goes red. New cases: shape-matching path
   rooted outside the pinned `$HOME` → deny exit 2 (assert the deny message names the anchored
   expectation); path under the pinned `$HOME/.claude/projects/<other-project>/memory/` → allow (cite
@@ -216,8 +220,10 @@ Issues addressed: #809, #810
      on a deny-side arm fail-opens; the exact-shape test cases pin the live default string); the
      symlinked-home residual (the hook never realpaths — the Lead's memoryLocalRoot derives from the
      same `~` expansion as `$HOME`, and a realpath'd-vs-spelled mismatch surfaces as the named deny
-     with a documented one-line rollback: revert the servitor case pattern to the shape glob). Update
-     ADR 0002's policy-table prose where it still describes substring semantics (known straggler).
+     with a documented one-line rollback: revert the servitor case pattern to the shape glob).
+     (Survey confirmed ADR 0002 carries no `*war-<role>*` / substring-semantics arm prose to fix —
+     only the additive dated addendum below lands there; the spec §10.3 straggler claim is likewise
+     unsupported against the live 48-line ADR.)
   2. BODY-ONLY narrowing note in the learnings file (relative-path and interpreter-payload coverage
      added; advisory posture unchanged) — frontmatter and `description` line untouched (the MEMORY.md
      projection budget is description-driven; no change to it), and the note cites no local-root
@@ -312,7 +318,7 @@ Issues addressed: #809, #810
   cwd inside their worktree, so cd-prefixed relative writes resolve inside `.war-task` → silent;
   `.cwd` absent/relative keeps the old skip (pinned by a test). Noise budget accepted for an advisory
   layer.
-- **Q3 (fixture flip)**: anchoring flips three pre-existing `SERV_MEM` cases (4a + two regressions)
+- **Q3 (fixture flip)**: anchoring flips two pre-existing `SERV_MEM` allow cases (4a + one regression)
   red — Task 1.2 explicitly owns retrofitting them via the new `run_home` per-case env-pinning helper
   (no global HOME export, no shared helper with the sibling suite).
 - **Q4 (`set -u`)**: `${HOME:-}` spelling mandated throughout; `env -u HOME` (unset) and `HOME=''`
@@ -343,7 +349,7 @@ Issues addressed: #809, #810
   (delete-the-feature discipline), enumerated in Task 1.1's case list.
 - **Q11 (End state 2 as written was un-greppable)**: rewritten machine-checkable — zero
   `exit 2`/`deny` occurrences + terminal `exit 0`, owned as a standing case in
-  `warn-bash-write-scope.test.sh` (the three early `exit 0`s are irrelevant to the assertion).
+  `warn-bash-write-scope.test.sh` (the three `exit 0` statements are irrelevant to the assertion).
 - **Q12 (decomposition)**: spec criterion 7's "same change" is consciously relaxed to same-PHASE
   landing via Task 1.4's deps wave — nothing must be *landed* first, the docs only need the merged
   hooks visible on the integration tip. Task 1.3 stays ONE task (single mechanical narrowing across
