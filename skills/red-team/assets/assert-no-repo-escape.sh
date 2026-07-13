@@ -37,7 +37,13 @@
 set -euo pipefail
 
 PROG="assert-no-repo-escape"
-die()    { printf '%s: %s\n' "$PROG" "$1" >&2; exit "${2:-1}"; }
+# die() default exit = 2 (the conservative infra code, per the header exit
+# contract), NOT 1. The escape code (1) is emitted ONLY by escape() below — its
+# hardcoded `exit 1` IS the detection path. Every die call site passes an explicit
+# code (all 2) today; the default only governs a future code-omitting die call,
+# which must read as an infra failure (2), never a false escape (1). Locked by
+# assert-no-repo-escape.test.sh (source default lock + negative call-site lock).
+die()    { printf '%s: %s\n' "$PROG" "$1" >&2; exit "${2:-2}"; }
 escape() { printf '%s: escape detected — %s\n' "$PROG" "$1" >&2; exit 1; }
 
 # ---------------------------------------------------------------------------
