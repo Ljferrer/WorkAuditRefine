@@ -20,7 +20,7 @@
 #   9. no flag + gitlink move -> exit 1 (Increment-1 behavior intact — regression guard)
 #  10. step-3 isolation: .gitmodules-path content touch, NO gitlink move -> exit 1 (step 3 only)
 #  11. step-2 isolation: pure gitlink mode-160000 move, path NOT in .gitmodules -> exit 1 (step 2 only)
-#  12. --declared + pure content under a .gitmodules path, NO incidental gitlink deletion -> exit 1
+#  12. --declared + pure content under a .gitmodules path, NO gitlink move at all -> exit 1
 #  13. --declared + branch itself declares a submodule path + content under it, working
 #      tree diverged to LACK the declaration -> exit 1 (ref read keys on the branch)
 #  14. content under a path the WORKING TREE declares but the BRANCH REF does NOT
