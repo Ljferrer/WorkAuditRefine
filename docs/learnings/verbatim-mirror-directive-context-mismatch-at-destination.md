@@ -4,7 +4,7 @@ description: VERBATIM mirror copies env-specific prose wrong-context
 metadata: 
   node_type: memory
   slug: verbatim-mirror-directive-context-mismatch-at-destination
-  phase: dispatched-gate-run-tmpdir-pin-parity/t1
+  phase: dispatched-gate-run-tmpdir-pin-parity/t1 → RESOLVED audit-gate-evidence-fidelity/1.1
   type: project
   keywords: [byte-identical copy, wrong cwd prose, directive-parallel paraphrase, TMPDIR clause, copy-paste drift, misleading prose, two-surface parity]
   tags: 
@@ -75,6 +75,23 @@ monologue'`), preserving every semantic directive while avoiding the verbatim-mi
 context-mismatch footgun. Gate-audit confirmed full parity (all four directives + three
 tier names present in both surfaces) with no context-noun errors. This is the recommended
 pattern when two surfaces share directives but differ in execution context.
+
+## Resolution (audit-gate-evidence-fidelity/1.1)
+
+**RESOLVED (instance) — kept as concept anchor.** The land-site instance this lesson tracked
+is fixed: the land dispatch's step 2 "Merge" clause in `skills/war/assets/workflow-template.js`
+now reads "the gate's cwd stays the `_refinery` land worktree" (exact bytes, backticks
+included) instead of the inherited "the gate's cwd stays the task worktree". The two
+merge-task TMPDIR clauses are untouched and stay byte-identical to each other. A new durable
+source-count test in `workflow-template.test.mjs` asserts `workflow-template.js` contains
+exactly 2 occurrences of `cwd stays the task worktree` and exactly 1 of `` cwd stays the
+`_refinery` land worktree `` — the three near-identical clauses can no longer silently
+re-converge into the same wrong noun.
+
+The lesson stays hot (no archive, no retitle): it remains the generic verbatim-mirror
+pattern record, and the durable rule above ("verify the noun is correct at each destination
+site — don't assume same text = correct semantics") still governs any future "mirror
+VERBATIM from X into Y and Z" directive.
 
 Relates to [[standing-instruction-vs-dispatched-prompt-coverage-split]] (the broader
 two-layer coverage pattern this Nit lives inside);
