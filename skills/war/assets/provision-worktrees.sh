@@ -317,7 +317,7 @@ cmd_ensure_integration() {
 
   # Absent -> create. Before cutting, reconcile the local <base> against
   # origin/<base> (ADR 0008). Fetch stderr is captured via the _tmp_err idiom
-  # (NOT swallowed behind a static message like cmd_ensure_origin) so the offline
+  # (the same idiom cmd_ensure_origin's push now uses too) so the offline
   # fallback surfaces git's own diagnostic. Resolution:
   #   fetch fails / no origin -> warn, cut from local base (offline = today).
   #   local == origin         -> cut from local (unchanged).
@@ -1480,8 +1480,16 @@ cmd_ensure_origin() {
 
   git_dir >/dev/null
 
-  git push -u origin "refs/heads/$resolved:refs/heads/$resolved" >/dev/null 2>&1 \
-    || die "ensure-origin: failed to push '$resolved' to origin (no origin remote, or the remote branch has diverged — refusing to force)."
+  # Capture git's own stderr via the _tmp_err idiom (the fetch + branch-create
+  # sites in cmd_ensure_integration / cmd_resolve_working_branch use the same one)
+  # so a push failure surfaces git's ground truth APPENDED AFTER the never-force
+  # guidance — not swallowed behind the static message alone
+  # (ensure-origin-swallows-stderr-unlike-sibling-subcommands, now resolved). The
+  # push command, refspec, and -u flag are byte-identical (never-force, ADR 0004).
+  _tmp_err="$(mktemp 2>/dev/null || mktemp -t warorigin)"
+  git push -u origin "refs/heads/$resolved:refs/heads/$resolved" >/dev/null 2>"$_tmp_err" \
+    || { _push_err="$(cat "$_tmp_err")"; rm -f "$_tmp_err"; die "ensure-origin: failed to push '$resolved' to origin (no origin remote, or the remote branch has diverged — refusing to force). git: $_push_err"; }
+  rm -f "$_tmp_err"
 }
 
 # --- subcommand: prune ------------------------------------------------------

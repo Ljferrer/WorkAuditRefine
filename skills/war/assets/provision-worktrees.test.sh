@@ -802,7 +802,9 @@ expect "T2.2: origin/<working> advanced to <new-sha>" \
 # (Pre-guard this case exercised the PUSH-error classification; with the
 # land-truth guard, an entirely-unreachable origin short-circuits at the
 # ls-remote readback — comment kept honest per
-# decoy-fixture-comment-must-match-actual-throw-order-not-just-outcome.)
+# decoy-fixture-comment-must-match-actual-throw-order-not-just-outcome. The
+# bare push-error exit-3 classification is now exercised directly by T2.9
+# below, where a reachable origin's pre-receive hook rejects the push.)
 # ---------------------------------------------------------------------------
 PAIR3="$(setup_origin_pair)"
 C1_3="$(printf '%s' "$PAIR3" | cut -d' ' -f1)"
@@ -1105,6 +1107,92 @@ expect "T2.8b: already-landed, follower absent -> exit 0" \
   "0" "$code"
 expect "T2.8b: already-landed, follower absent -> follower CREATED at <new-sha>" \
   "$NEW_SHA8B" "$(git -C "$C1_8B" rev-parse refs/heads/working/myplan8b 2>/dev/null)"
+
+# ---------------------------------------------------------------------------
+# Case (T2.9) PUSH ERROR (pre-receive rejection) -> the [rejected]-token
+# classifier does NOT match git's "! [remote rejected] ... (pre-receive hook
+# declined)" line (the space in "[remote rejected]" is distinct from the
+# contiguous [rejected] non-ff token cmd_land_advance greps for), so
+# classification falls through to the bare `exit 3` push-error branch (the 0/2/3
+# contract in cmd_land_advance's CLASSIFY header). This is the exit-3 route T2.3
+# STOPPED exercising when it was reframed to prove the ls-remote rc-guard
+# short-circuit (test-reframe-can-strand-adjacent-branch-coverage).
+#
+# Exit 3 alone is shared by T2.3/T2.5/T2.6, and the push-error branch is a SILENT
+# bare exit 3 (land-advance captures the push output internally and prints
+# nothing), so route identity rests on (b)+(c)+(d) TOGETHER:
+#   (b) ls-remote SUCCEEDS pre-call — closes the T2.3 rc-guard route by
+#       construction (pre-receive is push-side; ls-remote is fetch-side);
+#   (c) the token-distinctness fact asserted BY NAME (remote rejected present,
+#       contiguous [rejected] absent) — a future git wording change fails HERE,
+#       loud, not as an unexplained exit-code mismatch (never widen to bare
+#       `rejected`; extend/adjudicate instead);
+#   (d) the land-advance invocation emits NEITHER the rc-guard die text ("could
+#       not read the origin tip") NOR the phantom die text ("refusing to report a
+#       land that did not advance") — a regression rerouting the fixture through
+#       either route would surface that die text and fail (d).
+# ---------------------------------------------------------------------------
+PAIR9="$(setup_origin_pair)"
+C1_9="$(printf '%s' "$PAIR9" | cut -d' ' -f1)"
+C2_9="$(printf '%s' "$PAIR9" | cut -d' ' -f2)"
+ORIG9="$(printf '%s' "$PAIR9" | cut -d' ' -f3)"
+
+SEED9="$(seed_working_branch "$C1_9" "$C2_9" "working/myplan9")"
+
+# (a) Install a pre-receive hook in the bare origin that rejects every push
+# (marker to stderr, exit 1). Installed AFTER the seed push so seeding succeeds.
+cat > "$ORIG9/hooks/pre-receive" <<'HOOK'
+#!/bin/sh
+echo "T2.9-PRERECEIVE-DECLINED" >&2
+exit 1
+HOOK
+chmod +x "$ORIG9/hooks/pre-receive"
+
+# clone1 produces a ff-descendant new-sha (so the ONLY rejection reason is the
+# hook, never a non-ff [rejected] token — that would ride the reland exit-2 path).
+printf 'clone1-merge9\n' > "$C1_9/merge9.txt"
+git -C "$C1_9" add -A
+git -C "$C1_9" commit -qm "clone1 merge sha for T2.9"
+NEW_SHA9="$(git -C "$C1_9" rev-parse HEAD)"
+
+# (b) Fixture sanity: ls-remote (fetch-side; the pre-receive hook is push-side)
+# still succeeds, so the ls-remote rc-guard route (T2.3) is closed by construction.
+LSR9="$( ( cd "$C1_9" && git ls-remote origin refs/heads/working/myplan9 >/dev/null 2>&1 ); echo $? )"
+expect "T2.9: fixture sanity — ls-remote origin succeeds pre-call (rc-guard route closed)" \
+  "0" "$LSR9"
+
+# (c) Direct-push probe: the SAME push land-advance will issue, run here in the
+# test so the token-distinctness fact is asserted BY NAME. 'remote rejected' is
+# present; the contiguous [rejected] token (what cmd_land_advance greps) is NOT.
+PROBE9="$( ( cd "$C1_9" && git checkout --detach "$NEW_SHA9" >/dev/null 2>&1 && git push origin "HEAD:refs/heads/working/myplan9" ) 2>&1 )"
+expect "T2.9: direct-push probe output contains 'remote rejected' (pre-receive declined)" \
+  "1" "$(printf '%s' "$PROBE9" | grep -c 'remote rejected')"
+expect "T2.9: direct-push probe output does NOT contain the contiguous [rejected] token (space-distinct)" \
+  "0" "$(printf '%s' "$PROBE9" | grep -c '\[rejected\]')"
+
+# Record refs before the land-advance call — a push-error exit 3 rewinds nothing.
+FOLLOWER_BEFORE9="$(git -C "$C1_9" rev-parse refs/heads/working/myplan9)"
+ORIGIN_BEFORE9="$(git -C "$C1_9" ls-remote origin refs/heads/working/myplan9 | cut -f1)"
+
+# (d) Run land-advance, capturing BOTH combined output and exit code (T2.3/T2.6
+# idiom; run_in_detached swallows stderr). The push-error branch prints nothing,
+# so the die-text-ABSENCE assertions are what exclude the rc-guard (T2.3) and
+# phantom (T2.6) exit-3 routes.
+OUT9="$( ( cd "$C1_9" && git checkout --detach "$NEW_SHA9" >/dev/null 2>&1 && bash "$SCRIPT" land-advance working/myplan9 "$NEW_SHA9" ) 2>&1 )"
+CODE9=$?
+expect "T2.9: pre-receive push rejection -> bare push-error branch (exit 3)" \
+  "3" "$CODE9"
+expect "T2.9: push-error exit 3 does NOT emit the rc-guard die text (route distinct from T2.3)" \
+  "0" "$(printf '%s' "$OUT9" | grep -c 'could not read the origin tip')"
+expect "T2.9: push-error exit 3 does NOT emit the phantom die text (route distinct from T2.6)" \
+  "0" "$(printf '%s' "$OUT9" | grep -c 'refusing to report a land that did not advance')"
+
+# (e) A push-error escalation rewinds nothing: local follower byte-identical,
+# origin tip unchanged (still the seed — the rejected push never advanced it).
+expect "T2.9: push-error leaves the local follower byte-identical to before" \
+  "$FOLLOWER_BEFORE9" "$(git -C "$C1_9" rev-parse refs/heads/working/myplan9 2>/dev/null)"
+expect "T2.9: push-error leaves the origin tip unchanged (still the seed)" \
+  "$ORIGIN_BEFORE9" "$(git -C "$C1_9" ls-remote origin refs/heads/working/myplan9 | cut -f1)"
 
 # ===========================================================================
 # Task 3 (clandiso): teardown-phase --worktree-root <root> — reap _refinery
@@ -1860,6 +1948,27 @@ expect "RWB.d: resume returns the same dedicated branch" \
   "$RESOLVED_D1" "$RESOLVED_D2"
 expect "RWB.d: dedicated branch did NOT move (never re-cut)" \
   "$DEV_TIP_D1" "$(git -C "$RWB_D" rev-parse dev/2026-07-06-myplan)"
+
+# --- Case (RWB.e) ensure-origin FAILURE PATH: the origin remote URL points at a
+# nonexistent path, so `git push -u origin ...` fails for a non-CAS reason. The
+# die message must RETAIN the never-force guidance ("refusing to force") AND
+# APPEND git's own stderr (the _tmp_err capture, #801; resolved lesson
+# ensure-origin-swallows-stderr-unlike-sibling-subcommands). Assert the guidance
+# is present AND at least one of the two known git-stderr family fragments is
+# present — a case-insensitive DISJUNCTION, never an exact full-message match
+# (git wording varies across versions; on a future miss EXTEND the fragment list,
+# never weaken to "any non-static content"). RWB.c above stays the success /
+# idempotency control, unmodified. Die stderr captured via the T2.3/T2.6
+# hand-rolled inline idiom (run_in echoes only the exit code; run_in_detached
+# swallows both streams — neither can assert die text). ---
+RWB_E="$(new_repo)"
+git -C "$RWB_E" remote add origin "/nonexistent/path/that/cannot/be/a/repo-eo.git"
+git -C "$RWB_E" branch dev/2026-07-06-myplan HEAD
+OUT_EO="$( ( cd "$RWB_E" && bash "$SCRIPT" ensure-origin dev/2026-07-06-myplan ) 2>&1 )"
+expect "RWB.e: ensure-origin failure die RETAINS the never-force guidance" \
+  "1" "$(printf '%s' "$OUT_EO" | grep -c 'refusing to force')"
+expect "RWB.e: ensure-origin failure die APPENDS git's own stderr (a known family fragment)" \
+  "yes" "$(printf '%s' "$OUT_EO" | grep -Eiq 'does not appear to be a git repository|could not read from remote repository' && echo yes || echo no)"
 
 # ===========================================================================
 # Task 2 (target-repo-agnostic): ensure-integration reconciles the local <base>
