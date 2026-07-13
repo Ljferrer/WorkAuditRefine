@@ -13,16 +13,22 @@
 #                    confinement was proven unattainable (E1). The sibling-write
 #                    residual is accepted, mitigated by absolute-path prompts +
 #                    auditor review.
-#   - war-servitor : allow only the local project memory dir; deny anything
-#                    else. The repo-root (docs/learnings) allowance is
-#                    SUBTRACTED (#58 resolution): under the Gate-2 promotion
+#   - war-servitor : allow only the CURRENT user's local project memory dir;
+#                    deny anything else. The repo-root (docs/learnings) allowance
+#                    is SUBTRACTED (#58 resolution): under the Gate-2 promotion
 #                    model the servitor has no legitimate repo-root write left —
 #                    the Lead copies+lints selected lessons into docs/learnings
-#                    from a transient publication worktree. The local glob stays
-#                    shape-based (not a per-run absolute path) because a hook
-#                    process cannot receive per-run values; the cross-project
-#                    residual is re-ratified, bounded by the provenance hook's
-#                    existing-target mutation guard.
+#                    from a transient publication worktree. The local memory glob
+#                    is now anchored to `$HOME` (#810): only a path under
+#                    `$HOME/.claude/projects/<project>/memory/` is allowed, with
+#                    the pre-#810 unanchored shape glob retained solely as the
+#                    `HOME`-unset/empty fallback (fail toward the ratified
+#                    residual, never deny-all). Per-run PROJECT-SLUG anchoring is
+#                    still out of reach — a hook process cannot receive per-run
+#                    values — so a cross-project write under the user's OWN
+#                    `$HOME` stays allowed; that residual is re-ratified, bounded
+#                    by the servitor's no-Bash allowlist and the provenance
+#                    hook's existing-target mutation guard.
 #   - everything else (war-refiner, the main session with no agent_type, and
 #                    any non-WAR agent) : fail-open / unrestricted, so no
 #                    existing non-WAR flow is newly constrained (back-compat).
@@ -43,13 +49,15 @@ path="$(get '.tool_input.file_path // .tool_input.path // .tool_input.notebook_p
 deny() { echo "WAR: $1" >&2; exit 2; }
 
 # Reject any path that contains a '..' segment before per-agent checks.
-# A path like /x/docs/learnings/../../etc/foo matches the servitor's bare glob
-# yet escapes the intended directory. The worker's .war-task ancestor walk is
-# equally bypassable. Rejecting '..' early closes the traversal hole in BOTH
-# branches. (#58 RESOLVED: the servitor's repo-root allowance is subtracted —
-# see the servitor bullet above; the local glob stays shape-based because a hook
-# cannot receive per-run values. Full per-run absolute anchoring remains out of
-# reach for that structural reason, not for lack of a decision.)
+# A path like /x/.claude/projects/p/memory/../../etc/foo matches the servitor's
+# memory glob yet escapes the intended directory. The worker's .war-task ancestor
+# walk is equally bypassable. Rejecting '..' early closes the traversal hole in
+# BOTH branches. (#58 RESOLVED: the servitor's repo-root allowance is subtracted
+# — see the servitor bullet above. #810: the local memory glob is now anchored to
+# `$HOME`, with the unanchored shape glob retained only as the `HOME`-unset/empty
+# fallback; per-run PROJECT-SLUG anchoring remains out of reach because a hook
+# cannot receive per-run values, so a cross-project write under the user's own
+# `$HOME` stays allowed by design.)
 # Portable case-pattern covering the FULL '..' traversal equivalence class
 # (four shapes, works on macOS bash 3.2.57):
 #   '..'      bare (the whole path is a single .. segment)
@@ -71,11 +79,11 @@ case "$path" in
 esac
 
 case "$atype" in
-  *war-auditor*)
+  *war-auditor)
     [ -n "$path" ] && deny "auditors are read-only; refusing write to '$path'."
     exit 0
     ;;
-  *war-worker*)
+  *war-worker)
     [ -z "$path" ] && exit 0
     d="$(dirname "$path")"
     # Walk ancestors until a .war-task marker is found, or until dirname stops
@@ -91,12 +99,29 @@ case "$atype" in
     done
     deny "write to '$path' is outside any provisioned worktree (no .war-task marker). Stay in your worktree."
     ;;
-  *war-servitor*)
+  *war-servitor)
     [ -z "$path" ] && exit 0
-    case "$path" in
-      */.claude/projects/*/memory/*) exit 0 ;;
-      *) deny "servitor write to '$path' is outside the local memory root (expected */.claude/projects/*/memory/*)." ;;
-    esac
+    # $HOME anchor (#810): confine the write to the CURRENT user's local memory
+    # root, not merely any path of the right SHAPE. ${HOME:-} is mandatory — a
+    # bare $HOME under `set -u` with HOME unset would kill the hook before the
+    # fallback below; ${home%/} strips a trailing slash so the anchored pattern
+    # never forms a `//` that matches nothing and bricks every wrap-up write.
+    home="${HOME:-}"; home="${home%/}"
+    if [ -n "$home" ]; then
+      case "$path" in
+        "$home"/.claude/projects/*/memory/*) exit 0 ;;
+      esac
+    else
+      # HOME unset/empty: fall back to the pre-#810 unanchored shape glob (fail
+      # toward the ratified cross-project residual, never toward deny-all). This
+      # branch is one of exactly two sanctioned survivors of the unanchored
+      # memory-glob sweep (the other is validate-servitor-provenance.sh's
+      # content-gate classifier, deliberately left unanchored for fail-safe).
+      case "$path" in
+        */.claude/projects/*/memory/*) exit 0 ;;
+      esac
+    fi
+    deny "servitor write to '$path' is outside the local memory root: expected a path under \$HOME/.claude/projects/<project>/memory/ (\$HOME='$home'); when \$HOME is unset or empty the hook falls back to any .claude/projects/<project>/memory/ path shape."
     ;;
   *)
     # war-refiner, the main session (no agent_type), and any non-WAR agent.

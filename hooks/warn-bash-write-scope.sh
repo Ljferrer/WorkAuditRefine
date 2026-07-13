@@ -9,12 +9,15 @@
 #   never blocks execution.
 #
 # SCOPE
-#   Active ONLY for agent_type matching *war-worker*.  All other agents
-#   (refiner, servitor, auditor, main session, unknown) → silent exit 0.
+#   Active ONLY for an agent_type ending in `war-worker` (suffix-anchored, so
+#   any operator agentPrefix is tolerated while trailing-junk types are not
+#   captured).  All other agents (refiner, servitor, auditor, main session,
+#   unknown) → silent exit 0.
 #
 # DETECTION (conservative, low-false-positive)
 #   Scans .tool_input.command for patterns that imply a write:
-#     - Shell redirections:  > PATH  or  >> PATH
+#     - Shell redirections:  > PATH  or  >> PATH  (absolute, or relative
+#       resolved against the payload's .cwd)
 #     - tee TARGET
 #     - sed -i … FILE
 #     - perl -i … FILE
@@ -23,15 +26,36 @@
 #     - mv SRC DEST  (last non-flag arg)
 #     - install … DEST
 #     - dd of=PATH
+#     - Interpreter -c/-e payloads (python/python3/perl/ruby/node) that also
+#       contain a write-indicative token (open(, write, writeFile)
 #   Resolves the obvious write target(s).  For each resolved target, walks
 #   its ancestors: if none holds a .war-task marker → emit a warning on
 #   stderr and continue (exit 0).
 #
+# COVERAGE (widened 2026-07-12, #809)
+#   - Relative redirect targets (> foo, >> foo, a>b) are now resolved against
+#     the payload's .cwd and checked; previously every relative target was
+#     skipped.  Only the redirect extractor is widened — all other extractors
+#     resolve absolute targets only.
+#   - Interpreter payloads (python/python3/perl/ruby/node -c/-e) that also
+#     carry a write-indicative token have their absolute-path-shaped tokens
+#     extracted and checked.
+#
 # LIMITATIONS (accepted per ADR 0002 / plan notes)
-#   - Opaque writes (python -c "open(...)", here-doc targets, etc.) are
-#     missed.  This is a best-effort detector, not a guarantee.
-#   - A '>' inside a quoted string like '[ "$x" = ">" ]' may be detected
-#     as a redirect target — exit 0 is still guaranteed.
+#   - Interpreter payloads that build paths dynamically (concatenation, vars)
+#     are missed — the scan is a token match, not payload parsing.  Best-effort,
+#     not a guarantee.
+#   - Non-redirect extractors (tee, sed -i, perl -i, git -C, cp/mv/install,
+#     dd of=) resolve absolute targets only; a relative target to them is
+#     skipped.
+#   - Quoted-string false positives: a relative token after '>' inside a quoted
+#     string now resolves against .cwd and may warn where it previously
+#     skipped; exit 0 is still guaranteed, so the noise is harmless.
+#   - Unresolvable redirect targets ($var, ~user) are skipped, not guessed.
+#   - sh -c / bash -c / zsh -c payloads are NOT in the interpreter list: their
+#     redirect/cp/tee tokens live in the same command string and are already
+#     scanned by the extractors above (a `bash -c "echo x > /abs"` warn case in
+#     the test suite proves this string-level rescan).
 #   - git -C into a sibling worktree (which has a .war-task) is silently
 #     allowed, consistent with the ratified sibling-write residual.
 #   See docs/adr/0002-scope-by-agent-type.md.
@@ -46,10 +70,11 @@ get() { printf '%s' "$input" | jq -r "$1 // empty" 2>/dev/null || true; }
 
 atype="$(get '.agent_type')"
 cmd="$(get '.tool_input.command')"
+cwd="$(get '.cwd')"
 
-# --- Only warn for war-worker agents ---
+# --- Only warn for war-worker agents (suffix-anchored; prefix-agnostic) ---
 case "$atype" in
-  *war-worker*) ;;
+  *war-worker) ;;
   *) exit 0 ;;
 esac
 
@@ -73,13 +98,24 @@ has_war_task() {
 }
 
 # warn_if_outside <target-path>: emit advisory if target has no .war-task ancestor.
+# A relative target is resolved against the payload's .cwd when .cwd is a
+# non-empty absolute path (workers run with cwd inside their worktree, so a
+# cd-prefixed relative write resolves inside .war-task and stays silent); when
+# .cwd is absent or itself relative, the old best-effort skip is kept.
 warn_if_outside() {
   _t="$1"
-  # Skip empty targets, relative paths (can't resolve reliably), and non-paths.
-  [ -z "$_t" ] && return
+  # NB: return an explicit 0 on every skip — this runs in a `set -e` for-loop
+  # body, so a bare `return` would leak the preceding test's non-zero status
+  # and abort the (always-exit-0) hook.
+  [ -z "$_t" ] && return 0
   case "$_t" in
     /*) ;;  # absolute path — proceed
-    *)  return ;;  # relative path: skip (can't determine if inside worktree)
+    *)
+      case "$cwd" in
+        /*) _t="$cwd/$_t" ;;   # resolve relative target against absolute .cwd
+        *)  return 0 ;;        # .cwd absent/relative: keep the best-effort skip
+      esac
+      ;;
   esac
   if ! has_war_task "$_t"; then
     echo "WAR [advisory]: war-worker Bash command appears to write to '$_t' which has no .war-task ancestor. Verify this is intentional. (This is advisory only — F01 D4, ADR 0002)" >&2
@@ -88,9 +124,10 @@ warn_if_outside() {
 
 # ---------------------------------------------------------------------------
 # 1. Shell redirections: > PATH and >> PATH
-#    Extract the token after > or >> that looks like an absolute path.
-#    Use a simple sed that finds '>>' or '>' followed by optional space and a
-#    /…path.  We strip off '>>' first (so '>>' doesn't match as '>').
+#    Extract the token after > or >>: an absolute /…path (redir_targets*) or a
+#    relative token (redir_rel*, resolved against .cwd by warn_if_outside).
+#    Use a simple sed that finds '>>' or '>' followed by optional space and the
+#    target.  We strip off '>>' first (so '>>' doesn't match as '>').
 #    Then we check the single '>' case.
 #    MacOS sed doesn't support \s; use a character class instead.
 # ---------------------------------------------------------------------------
@@ -99,8 +136,16 @@ redir_targets="$(printf '%s' "$cmd" | sed -n 's/.*>>[[:space:]]*\(\/[^[:space:]>
 # Extract targets from > (write) redirections (skip >>)
 # Replace >> with a placeholder to avoid double-matching, then find >
 redir_targets2="$(printf '%s' "$cmd" | sed 's/>>//g' | sed -n 's/.*>[[:space:]]*\(\/[^[:space:]>|;&]\{1,\}\).*/\1/p')"
+# Relative redirect targets (the ONLY extractor widened to relative paths).
+# First-char class excludes '/' (absolute — captured above), '&' (fd
+# duplication: 2>&1, >&2), whitespace, the redirect/pipe operators >|;<, and
+# '$'/'~' (unresolvable variable/tilde targets — skip, don't guess).  The
+# continuation reuses the redirect char-class discipline.  warn_if_outside
+# resolves each against the payload's .cwd.
+redir_rel="$(printf '%s' "$cmd" | sed -n 's/.*>>[[:space:]]*\([^/&[:space:]>|;<$~][^[:space:]>|;&]*\).*/\1/p')"
+redir_rel2="$(printf '%s' "$cmd" | sed 's/>>//g' | sed -n 's/.*>[[:space:]]*\([^/&[:space:]>|;<$~][^[:space:]>|;&]*\).*/\1/p')"
 
-for _t in $redir_targets $redir_targets2; do
+for _t in $redir_targets $redir_targets2 $redir_rel $redir_rel2; do
   warn_if_outside "$_t"
 done
 
@@ -210,6 +255,29 @@ case "$cmd" in
   *dd\ *of=/*|*\ dd\ *of=/*)
     _dd_target="$(printf '%s' "$cmd" | sed -n 's/.*of=\(\/[^[:space:]]\{1,\}\).*/\1/p')"
     [ -n "$_dd_target" ] && warn_if_outside "$_dd_target"
+    ;;
+esac
+
+# ---------------------------------------------------------------------------
+# 10. Interpreter payloads: python/python3/perl/ruby/node invoked with -c/-e
+#     AND a write-indicative token (open(, write, writeFile).  Extract each
+#     absolute-path-shaped token (same char-class discipline as the redirect
+#     sed, plus quote/paren/comma stops for the payload syntax) and check it.
+#     Heuristic + conservative — a token scan, not payload parsing; interpreter
+#     payloads that build paths dynamically are a documented ceiling.
+#     sh -c / bash -c / zsh -c are DELIBERATELY excluded: their redirect/cp/tee
+#     tokens sit in the same command string and are already scanned above.
+# ---------------------------------------------------------------------------
+case "$cmd" in
+  *python*\ -c\ *|*python*\ -e\ *|*perl*\ -c\ *|*perl*\ -e\ *|*ruby*\ -c\ *|*ruby*\ -e\ *|*node*\ -c\ *|*node*\ -e\ *)
+    case "$cmd" in
+      *open\(*|*write*|*writeFile*)
+        _interp_targets="$(printf '%s' "$cmd" | grep -oE "/[^[:space:]>|;&'\"(),]+" 2>/dev/null || true)"
+        for _t in $_interp_targets; do
+          warn_if_outside "$_t"
+        done
+        ;;
+    esac
     ;;
 esac
 

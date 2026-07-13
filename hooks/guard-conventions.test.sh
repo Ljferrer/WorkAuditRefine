@@ -114,6 +114,44 @@ search_root_scan() {
 }
 
 # ---------------------------------------------------------------------------
+# Lint 3: suffix-anchored agent-type arms
+#   (End state 3, plan 2026-07-12-confinement-scope-hooks; #810).
+#
+# A hit is a trailing-star agent-type case arm of the form `*war-<role>*`
+# (substring match) in a NON-TEST hook. The dispatched agent_type is
+# `work-audit-refine:war-<role>`, so a suffix anchor (`*war-<role>`) captures it
+# while rejecting a `war-<role>-helper` decoration; a trailing `*` re-captures
+# the decoration and, on a deny-side arm (auditor/servitor), fail-opens a
+# read-only agent by inversion. Test files are exempt — they legitimately name
+# the retired trailing-star shape in delete-the-feature comments.
+# ---------------------------------------------------------------------------
+war_arm_scan() {
+  _f="$1"
+  grep -nE '\*war-[a-z-]*\*' "$_f" 2>/dev/null
+}
+
+# ---------------------------------------------------------------------------
+# Lint 4: unanchored local-memory glob
+#   (End state 4, same plan; #810).
+#
+# The servitor WRITE-SCOPE arm is `$HOME`-anchored, so the unanchored
+# `.claude/projects/<project>/memory/` shape glob must survive in EXACTLY TWO
+# sanctioned places: (a) validate-worktree-scope.sh's HOME-unset/empty fallback
+# branch, and (b) validate-servitor-provenance.sh's content-gate classifier
+# (left unanchored on purpose — for a content gate broader capture means MORE
+# provenance enforcement, fail-safe). A hit in any other hooks/*.sh regresses
+# the anchor. The glob literal is assembled from parts (each '*' via a variable)
+# so the offending sequence never appears as a scannable line in THIS file,
+# which the full-tree pass below re-scans.
+# ---------------------------------------------------------------------------
+memglob_scan() {
+  _f="$1"
+  _st='*'
+  _pat="${_st}/.claude/projects/${_st}/memory/${_st}"
+  grep -nF "$_pat" "$_f" 2>/dev/null
+}
+
+# ---------------------------------------------------------------------------
 # Fixtures (mktemp — never heredoc; see file header).
 # ---------------------------------------------------------------------------
 TMP="$(mktemp -d 2>/dev/null || mktemp -d -t guardconv)"
@@ -146,6 +184,22 @@ printf 'grep -rn WAR_TOKEN %s 2>/dev/null # guard-conventions: allow demo\n' "."
 SR_OK="$TMP/sr-ok.sh"
 printf '#!/usr/bin/env bash\n' > "$SR_OK"
 printf 'grep -rn WAR_TOKEN %s --exclude-dir=.claude 2>/dev/null\n' "." >> "$SR_OK"
+
+# RED arm fixture: a trailing-star agent-type arm. The two '*' are passed via %s
+# so the offending `*war-...*` sequence exists only in this temp file, never on a
+# scannable line in THIS file.
+ARM_RED="$TMP/arm-red.sh"
+printf '#!/usr/bin/env bash\n' > "$ARM_RED"
+printf 'case "$atype" in\n' >> "$ARM_RED"
+printf '  %swar-servitor%s) ;;\n' '*' '*' >> "$ARM_RED"
+printf 'esac\n' >> "$ARM_RED"
+
+# RED memglob fixture: the unanchored memory shape glob. Each '*' is passed via
+# %s so the full glob sequence exists only in this temp file, never on a
+# scannable line in THIS file (which the full-tree memglob pass re-scans).
+MEM_RED="$TMP/mem-red.sh"
+printf '#!/usr/bin/env bash\n' > "$MEM_RED"
+printf '  %s/.claude/projects/%s/memory/%s) exit 0 ;;\n' '*' '*' '*' >> "$MEM_RED"
 
 # ---------------------------------------------------------------------------
 # Assertions — negation-block lint
@@ -247,6 +301,87 @@ if [ -z "$sr_hits" ]; then
   pass "search-root lint clean across all hooks/ + skills/ guard tests"
 else
   fail "search-root lint found violations:"$'\n'"$sr_hits"
+fi
+
+# ---------------------------------------------------------------------------
+# Assertions — suffix-anchored arm lint (Lint 3)
+# ---------------------------------------------------------------------------
+if [ -n "$(war_arm_scan "$ARM_RED")" ]; then
+  pass "arm lint FIRES on a trailing-star agent-type arm (RED fixture)"
+else
+  fail "arm lint missed a trailing-star agent-type arm"
+fi
+
+# PASS reference: a real suffix-anchored hook arm is clean.
+if [ -z "$(war_arm_scan "$REPO/hooks/validate-auditor-git.sh")" ]; then
+  pass "arm lint PASSES the suffix-anchored validate-auditor-git.sh arm"
+else
+  fail "arm lint false-fired on the suffix-anchored validate-auditor-git.sh arm"
+fi
+
+# ---------------------------------------------------------------------------
+# Assertions — unanchored memory-glob lint (Lint 4)
+# ---------------------------------------------------------------------------
+if [ -n "$(memglob_scan "$MEM_RED")" ]; then
+  pass "memglob lint FIRES on the unanchored memory shape glob (RED fixture)"
+else
+  fail "memglob lint missed the unanchored memory shape glob"
+fi
+
+# PASS reference: a hook carrying no memory glob is clean.
+if [ -z "$(memglob_scan "$REPO/hooks/validate-auditor-git.sh")" ]; then
+  pass "memglob lint PASSES a hook with no memory glob"
+else
+  fail "memglob lint false-fired on a hook with no memory glob"
+fi
+
+# The two sanctioned survivors DO carry the glob (proves the scanner matches
+# real code, not just the fixture — delete-the-feature: a scanner that never
+# matches would pass the full-tree assertion vacuously).
+if [ -n "$(memglob_scan "$REPO/hooks/validate-worktree-scope.sh")" ]; then
+  pass "memglob lint SEES the glob in survivor validate-worktree-scope.sh (HOME-unset fallback)"
+else
+  fail "memglob lint did not see the survivor glob in validate-worktree-scope.sh"
+fi
+if [ -n "$(memglob_scan "$REPO/hooks/validate-servitor-provenance.sh")" ]; then
+  pass "memglob lint SEES the glob in survivor validate-servitor-provenance.sh (classifier)"
+else
+  fail "memglob lint did not see the survivor glob in validate-servitor-provenance.sh"
+fi
+
+# ---------------------------------------------------------------------------
+# Full-tree enforcement — Lint 3: zero trailing-star agent-type arms across
+# NON-TEST hooks/*.sh (End state 3). Test files are excluded by design.
+# ---------------------------------------------------------------------------
+arm_hits=""
+for _s in "$REPO"/hooks/*.sh; do
+  case "$_s" in *.test.sh) continue ;; esac
+  _h="$(war_arm_scan "$_s")"
+  [ -n "$_h" ] && arm_hits="$arm_hits$_s: $_h"$'\n'
+done
+if [ -z "$arm_hits" ]; then
+  pass "arm lint clean: no trailing-star agent-type arm in any non-test hooks/*.sh"
+else
+  fail "arm lint found trailing-star agent-type arms:"$'\n'"$arm_hits"
+fi
+
+# ---------------------------------------------------------------------------
+# Full-tree enforcement — Lint 4: the unanchored memory glob appears in NO
+# hooks/*.sh other than the two sanctioned survivors (End state 4). The glob
+# is a servitor write-scope allow gate; a regression re-widens the allow.
+# ---------------------------------------------------------------------------
+mem_hits=""
+for _s in "$REPO"/hooks/*.sh; do
+  case "$_s" in
+    */validate-worktree-scope.sh|*/validate-servitor-provenance.sh) continue ;;
+  esac
+  _h="$(memglob_scan "$_s")"
+  [ -n "$_h" ] && mem_hits="$mem_hits$_s: $_h"$'\n'
+done
+if [ -z "$mem_hits" ]; then
+  pass "memglob lint clean: unanchored glob only in the two sanctioned survivors"
+else
+  fail "memglob lint found the unanchored glob outside the survivors:"$'\n'"$mem_hits"
 fi
 
 # ---------------------------------------------------------------------------
