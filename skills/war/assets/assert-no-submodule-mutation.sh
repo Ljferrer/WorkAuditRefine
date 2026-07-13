@@ -9,7 +9,8 @@
 # Detect a submodule mutation if ANY of:
 #   1. A gitlink entry appears in the raw diff (mode 160000 in old OR new mode field).
 #   2. A changed path lives under a .gitmodules submodule path
-#      (cross-checked via `git config -f .gitmodules --get-regexp '\.path$'`).
+#      (declared submodule paths read from `.gitmodules` AT $branch — the
+#       branch-ref blob, not the checked-out working tree; see Step 3).
 #
 # --declared flag (Increment 2): a declared gitlink-bump task may move the
 # gitlink pointer. With --declared, a GITLINK-ONLY move (mode 160000, and no
@@ -139,30 +140,50 @@ if [ "$found_gitlink" -eq 1 ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Step 3: collect submodule paths from .gitmodules (if present).
-# git config -f .gitmodules --get-regexp '\.path$' prints lines like:
-#   submodule.sub.path  sub
-# We extract the path values (second field) and check whether any changed
-# file in the diff lives under them.
+# Step 3: collect submodule paths declared in .gitmodules AT $branch (the tree
+# being merged), NOT the checked-out working tree — the declared-path judgment
+# must match the diff endpoints, or a branch that itself adds/edits .gitmodules
+# is graded against a stale working-tree path set (lesson
+# gitmodules-working-tree-read-vs-ref-snapshot; #802).
+#
+# Probe existence at the ref first with `cat-file -e "$branch:.gitmodules"`. On
+# failure the blob is absent at $branch -> no declared paths -> clean no-op
+# (exactly today's no-.gitmodules semantics). No `rev-parse --verify` pre-check
+# is needed: Step 1's `git diff --raw "$base...$branch"` already dies 2 on an
+# unresolvable $branch in BOTH default and --declared modes before Step 3 runs
+# (test case 4 locks it), so a cat-file -e failure here can only mean the blob
+# is absent at $branch, never a bad ref.
+#
+# `git config --blob "$branch:.gitmodules" --get-regexp '\.path$'` prints lines
+# like `submodule.sub.path  sub`; we take the path value (second field).
 # ---------------------------------------------------------------------------
 
-# Resolve .gitmodules location (relative to repo root or cwd).
-if [ -n "$repo_dir" ]; then
-  gitmodules_file="$repo_dir/.gitmodules"
-else
-  gitmodules_file=".gitmodules"
-fi
-
-# No .gitmodules -> no submodule paths to cross-check; clean (no-op).
-if [ ! -f "$gitmodules_file" ]; then
+# No .gitmodules at $branch -> no submodule paths to cross-check; clean (no-op).
+if ! $git_cmd cat-file -e "$branch:.gitmodules" 2>/dev/null; then
   exit 0
 fi
 
-# Collect submodule paths; one per line.
+# Collect submodule paths declared at $branch; one per line.
+# git config --get-regexp exits 1 when the blob has no matching keys (an empty
+# or path-less .gitmodules) — a legitimate "no declared paths" case, today's
+# empty-result no-op; exit >1 is a genuine git read failure -> exit 2 (never a
+# clean pass). ponytail: git config --blob normalizes EVERY post-cat-file-e read
+# failure (malformed config, non-blob object) to exit 1 too, so those are
+# treated as no-declared-paths rather than a git error — indistinguishable from
+# a path-less .gitmodules by git config's exit code (see the test file's
+# blob-read-failure note); the Step-2 gitlink-mode arm remains the ref-independent
+# backstop. Upgrade path: parse stderr for 'bad config' if gate-audit ever shows
+# a malformed-.gitmodules blind spot.
 submod_paths=""
-submod_paths="$(git config -f "$gitmodules_file" --get-regexp '\.path$' 2>/dev/null | awk '{print $2}')" || true
+if submod_paths="$($git_cmd config --blob "$branch:.gitmodules" --get-regexp '\.path$' 2>/dev/null)"; then
+  submod_paths="$(printf '%s\n' "$submod_paths" | awk '{print $2}')"
+else
+  cfg_rc=$?
+  [ "$cfg_rc" -eq 1 ] || die "git config --blob failed reading '$branch:.gitmodules'" 2
+  submod_paths=""
+fi
 
-# No submodule paths configured -> no-op.
+# No submodule paths declared -> no-op.
 if [ -z "$submod_paths" ]; then
   exit 0
 fi
