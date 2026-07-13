@@ -24,11 +24,16 @@ export const DEFAULTS = {
   profile: 'balanced',
   agents: {
     // worker.docs: the tier that dispatches all-*.md tasks (defaults sonnet everywhere). worker.fix
-    // (fix-round + --ace tier) is absent by default → inherits the base worker; add it only via config.
-    worker:   { model: 'opus',   effort: 'max', docs: { model: 'sonnet', effort: 'default' } },
+    // (fix-round + --ace tier) defaults to a fast, cheap follow-up tier (fable/high) — the balanced
+    // profile's value, which thorough/economy override; a config may still override it per-run.
+    worker:   { model: 'opus',   effort: 'max', docs: { model: 'sonnet', effort: 'default' }, fix: { model: 'fable', effort: 'high' } },
     auditor:  { model: 'opus',   effort: 'xhigh' },
     refiner:  { model: 'sonnet', effort: 'default' },
     servitor: { model: 'sonnet', effort: 'high' },
+    // redteam: the model/effort /red-team threads (fail-open) into its probe + adversarial-confirm
+    // sub-agents. NOT a phase role (never in ROLES/agentMatrix); the balanced default is opus/max,
+    // overridden by thorough/economy. Consumed only when /red-team runs against this repo.
+    redteam:  { model: 'opus',   effort: 'max' },
   },
   audit: {
     roster: [
@@ -61,9 +66,10 @@ export const PRESETS = {
   thorough: {
     profile: 'thorough',
     agents: {
-      worker:   { model: 'fable', effort: 'max' },
+      worker:   { model: 'fable', effort: 'max', docs: { model: 'opus', effort: 'high' }, fix: { model: 'fable', effort: 'max' } },
       auditor:  { model: 'opus',  effort: 'max' },
       servitor: { model: 'opus',  effort: 'default' },
+      redteam:  { model: 'fable', effort: 'xhigh' },
     },
     // 5-lens pool: under rosterPolicy 'auto' the Lead seeds 1–5 seats per task from it.
     audit: {
@@ -80,9 +86,10 @@ export const PRESETS = {
     profile: 'economy',
     // Pins every knob that drifted from DEFAULTS so economy's effective config stays what it always was.
     agents: {
-      worker:   { model: 'sonnet', effort: 'default' },
+      worker:   { model: 'sonnet', effort: 'default', docs: { model: 'haiku', effort: 'high' }, fix: { model: 'opus', effort: 'default' } },
       auditor:  { model: 'sonnet', effort: 'default' },
       servitor: { model: 'sonnet', effort: 'default' },
+      redteam:  { model: 'sonnet', effort: 'max' },
     },
     audit: { rosterPolicy: 'solo' },
     run: { roundLimit: 2, ace: false },
@@ -126,16 +133,17 @@ export function agentMatrix() {
 // Enumerated (preset, tier, model, effort) worker-tier matrix — the worker-role sibling of
 // agentMatrix() (ADR 0025 drift-guard discipline). One row per (preset × PRESENT worker tier):
 // 'base' (the worker role's own model/effort), 'docs' (defaulted in DEFAULTS — the all-*.md tier),
-// and 'fix' (only when a preset sets agents.worker.fix; none do today, so no 'fix' rows). Reuses
-// presetConfig()'s merge and iterates the live PRESETS, so a new preset or tier is enumerated
-// automatically. The doc-honesty lens consults it to prove documented tier defaults (e.g. docs=sonnet
-// everywhere, fix absent by default) match this canonical source rather than a hand-copied literal.
+// and 'fix' (the fix-round + --ace tier — now defaulted in DEFAULTS too, so every preset emits a fix
+// row). Reuses presetConfig()'s merge and iterates the live PRESETS, so a new preset or tier is
+// enumerated automatically. The doc-honesty lens consults it to prove documented tier defaults (e.g.
+// docs=sonnet default with per-preset overrides (thorough opus/high, economy haiku/high), fix=fable/high
+// on balanced) match this canonical source, not a hand-copied literal.
 export function workerTierMatrix() {
   return Object.keys(PRESETS).flatMap(preset => {
     const w = presetConfig(preset).agents.worker
-    // base + docs are always effective (docs is defaulted in DEFAULTS); fix is enumerated only when a
-    // preset sets it (none do today → no fix rows, so "no fix rows" is a real derivation, not a tautology,
-    // and a future fix-setting preset is auto-enumerated — the agentMatrix auto-enumerate philosophy).
+    // base + docs are always effective (both defaulted in DEFAULTS); fix is likewise defaulted in
+    // DEFAULTS now, so every preset emits a fix row. The push stays guarded on isObj(w.fix), so a
+    // hand-written config that drops the fix tier simply omits its row (never a fabricated tautology).
     const tiers = [['base', w], ['docs', w.docs]]
     if (isObj(w.fix)) tiers.push(['fix', w.fix])
     return tiers.map(([tier, block]) => ({ preset, tier, model: block.model, effort: block.effort }))
@@ -167,17 +175,18 @@ export function validate(input) {
     if (!MODELS.includes(a.model)) errors.push(`agents.${role}.model must be one of ${MODELS.join('|')} (got ${JSON.stringify(a.model)})`)
     if (!EFFORTS.includes(a.effort)) errors.push(`agents.${role}.effort must be one of ${EFFORTS.join('|')} (got ${JSON.stringify(a.effort)})`)
   }
-  // Worker tiers: agents.worker.docs (defaulted in DEFAULTS — the all-*.md dispatch tier) and the
-  // optional agents.worker.fix (absent by default — the fix-round + --ace tier). Each a { model, effort }
-  // tier validated like a role when present (unknown sub-keys rejected).
+  // Worker tiers: agents.worker.docs (all-*.md dispatch tier) and agents.worker.fix (fix-round + --ace
+  // tier) — both defaulted in DEFAULTS. Each a { model, effort } tier validated like a role when present
+  // (unknown sub-keys rejected); a hand-written config may still omit either, which validates fine.
   const worker = c.agents.worker
   if (isObj(worker)) {
     if (Object.prototype.hasOwnProperty.call(worker, 'docs')) validateAgentTier(worker.docs, 'agents.worker.docs', errors)
     if (Object.prototype.hasOwnProperty.call(worker, 'fix')) validateAgentTier(worker.fix, 'agents.worker.fix', errors)
   }
-  // Optional agents.redteam — a { model, effort } tier validated like a role when present, but NOT a
-  // phase ROLE: it joins validation only (/red-team consumes it fail-open; the per-phase spawn path never
-  // does, and agentMatrix stays four roles). Presets never set it; absent → red-team inherits the session.
+  // agents.redteam — a { model, effort } tier validated like a role when present, but NOT a phase ROLE:
+  // it joins validation only (/red-team consumes it fail-open; the per-phase spawn path never does, and
+  // agentMatrix stays four roles). Defaulted in DEFAULTS (balanced opus/max, preset-overridden); a config
+  // that omits it still validates and red-team then inherits the session.
   if (Object.prototype.hasOwnProperty.call(c.agents, 'redteam')) validateAgentTier(c.agents.redteam, 'agents.redteam', errors)
   const KNOWN_AGENT_KEYS = [...ROLES, 'redteam']
   for (const key of Object.keys(c.agents)) {
