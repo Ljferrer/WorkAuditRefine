@@ -2,11 +2,10 @@
 name: servitor-verify-on-write-worktree-can-lag-just-landed-phase
 description: "Servitor verify-on-write checkout can lag the landed phase"
 metadata:
-  node_type: memory
   type: project
   provenance: code-verified
   slug: servitor-verify-on-write-worktree-can-lag-just-landed-phase
-  phase: guard-floor-and-scope-hook-coverage-completeness/servitor-wrapup +6 recurrences (latest gate-evidence-and-prose-truth/phase-2, 2026-07-15)
+  phase: guard-floor-and-scope-hook-coverage-completeness/servitor-wrapup +7 recurrences (latest Sticky fallback + anchor hygiene/phase-1, 2026-07-15)
   promoted: dev/2026-07-12-war-launch-entry-validation@phase-1
   keywords:
     - stale worktree
@@ -24,7 +23,8 @@ metadata:
     - HEAD ref check
     - task worktree gitdir
     - war-worktrees
-    - near-miss misdiagnosis
+    - worktree name collision
+    - numeric suffix
   tags:
     - servitor
     - memory-protocol
@@ -139,35 +139,31 @@ resolves it with a numeric suffix; always confirm via `gitdir` (the physical pat
 plan-slug directory) rather than trusting the worktree-registry name alone, and check `HEAD` for
 the expected working branch too.
 
-## Recurrence 6 (2026-07-15, phase "Gate evidence and prose truth" / tasks 2.1–2.3) — a near-miss that would have shipped a false defect claim
+## Recurrence 6 (2026-07-15, phase "Sticky fallback + anchor hygiene" / tasks 1.1+1.2) — collision wrinkle is now a recurring pattern, not a one-off
 
-Seventh occurrence, yet another fresh session worktree (`survey-corps-8cc638`, branch
-`claude/survey-corps-8cc638`). This recurrence is the highest-stakes yet: the stale cwd's read of
-**three separate landed-phase referents** all matched the pre-fix state so exactly that, absent the
-task-worktree check, the natural conclusion would have been "Task 2.3 was approved by audit but its
-edits never actually landed" — a confidently-wrong `code-verified` defect claim:
+Seventh occurrence, session worktree `survey-corps-8cc638` (its own `.git/worktrees/survey-corps-8cc638/HEAD`
+resolved to `refs/heads/master`, not the landed branch — a maximally stale case: neither the phase's
+`dev/2026-07-14-red-team-fallback-and-anchor-hygiene` branch NOR even this session's own working
+branch). At this cwd, `skills/red-team/assets/workflow-scaffold.js` showed NONE of the phase's new
+constructs (no `analyzedFallbackPinned`, no `dispatchedOn`/`fallbackEngaged` stamps), `skills/red-team/SKILL.md`
+had no `analyzedAgentType` pre-flight text at all, and `skills/red-team/assets/red-team-gate.test.mjs`
+still carried the pre-fix 1c title parenthetical (`"(envGap check precedes KNOWN_SEVERITIES)"`) and
+1e's `'deliverableAbsence wins by order'` message — i.e. every referent named in the phase's audit
+log read as absent, a maximal false-negative surface if taken at face value.
 
-- `docs/plans/2026-07-12-audit-gate-evidence-fidelity.md`'s task-1.1 bullet still read the
-  backtick-wrapped replacement literal plus the `(exact bytes, backticks included)` parenthetical
-  in the stale cwd — exactly the pre-fix text Task 2.3's plan slice targeted for removal.
-- `docs/learnings/plan-bullet-replacement-text-can-contradict-its-own-plans-end-state-and-mapped-test.md`
-  still read "Known residual (not fixed, out of scope for the implementing task)" in the stale cwd.
-- `docs/learnings/refiner-dispatched-gate-never-resolvegate-composed-shell-suite-blind.md` showed no
-  resolution note or stale-as-of marker in the stale cwd.
-- `skills/war/assets/skill-doc-contracts.test.mjs`'s D14 comment and `skills/war/SKILL.md`'s docker
-  Daemon-reachable bullet both still carried the classOf-performs-the-re-run misattribution in the
-  stale cwd — the exact defect the phase's End state 10 was meant to correct.
-
-Applying the Recurrence 4/5 technique — `.git/worktrees/p2-2.1`, `p2-2.3`'s `gitdir` files resolved
-to `<repo-root>/.claude/war-worktrees/2026-07-14-gate-evidence-and-prose-truth-2026-07-15/p2-2.1`
-and `.../p2-2.3` — and Read/Grep against those paths showed **every one of the four referents
-above correctly fixed**: the plan bullet uses the non-backtick form with no parenthetical, both
-learnings carry `## RESOLVED` sections dated 2026-07-15, and both the D14 comment and the SKILL.md
-bullet correctly attribute the re-run to the refiner with `classOf` as a pure reader. The phase had
-landed correctly; only the servitor's own cwd was stale. **The technique generalizes across
-multi-task phases too** — a single `p2-2.1`/`p2-2.3` pair sufficed to re-verify referents spanning
-three different tasks (2.1 and 2.3) in the same phase, since task worktrees share the same
-integration lineage.
+The Recurrence 4/5 technique was applied and, **again**, hit the exact Recurrence-5 name-collision
+wrinkle: `.git/worktrees/p1-1.1/gitdir` pointed at a *different concurrent plan*
+(`.claude/war-worktrees/2026-07-14-gate-evidence-and-prose-truth-2026-07-15/p1-1.1`); this phase's
+real task 1.1 was auto-suffixed to `p1-1.11`
+(`.claude/war-worktrees/2026-07-14-red-team-fallback-and-anchor-hygiene-2026-07-16/p1-1.1`), and its
+task 1.2 to `p1-1.21`. Reading the referents at those two paths confirmed ALL of the phase's changes
+present and correct: `analyzedFallbackPinned`/`stampResult`/the sticky-pin comments in
+`workflow-scaffold.js`, and the corrected 1c/1e titles in `red-team-gate.test.mjs` (verified via
+that task worktree's own `COMMIT_EDITMSG`, which also documents its own `Survey:` block satisfying
+End state 10). **Takeaway: the numeric-suffix collision is not a one-off — treat it as the norm
+whenever multiple plans/phases run concurrently in the same repo, and always resolve the task
+worktree by walking `.git/worktrees/*/gitdir` for a path containing the CURRENT phase's plan slug,
+never by assuming the bare `p1-<task-id>` name resolves to the right plan.**
 
 ## Related
 
