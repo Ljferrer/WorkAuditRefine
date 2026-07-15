@@ -25,10 +25,11 @@ Three independent prose surfaces have drifted from the code they describe:
   `skills/war/SKILL.md` ends with "This same signature list is what the gate-time classifier keys
   on". The platform-signature list (`EBADPLATFORM` / `no matching manifest for <platform>` /
   `exec format error`) governs only Setup-time per-image probe-build deferral. The actual
-  gate-time `gate_failure_class` classifier (`classOf` plus the classification-base re-run prompt
-  and the KNOWN BASELINE GATE DEBT path in `skills/war/assets/workflow-template.js`) keys on
-  re-running the failing gate at the classification base and comparing failing identifiers — no
-  gate-time code references the docker signature strings. The two mechanisms share only the
+  gate-time `gate_failure_class` is produced by the **refiner** re-running the failing gate at the
+  classification base and comparing failing identifiers (driven by the classification-base re-run
+  prompt and the KNOWN BASELINE GATE DEBT path in `skills/war/assets/workflow-template.js`;
+  `classOf` there only reads the resulting class) — no gate-time code references the docker
+  signature strings. The two mechanisms share only the
   `'introduced'` fallthrough, so the sentence is right on outcome, wrong on attribution. The
   originally-planned same-phase-close softening never landed.
 - **#804 (superseded contract in a ratified spec).** §5.3 of
@@ -94,9 +95,10 @@ same change.** (Survey at spec time found `gh-preflight.sh` and `assert-issues-f
 In the Setup step-3 "Daemon reachable" bullet (locate by the `EBADPLATFORM` construct, never by
 line), replace the sentence "This same signature list is what the gate-time classifier keys on"
 with a correctly-scoped statement: the signature list governs **only Setup-time per-image
-probe-build deferral**; the gate-time `gate_failure_class` classifier (`classOf` in
-`workflow-template.js`) keys on re-running the failing gate at the classification base and
-comparing failing identifiers; the two share only the `'introduced'` fallthrough (retain the
+probe-build deferral**; the gate-time `gate_failure_class` is produced by the **refiner**
+re-running the failing gate at the classification base and comparing failing identifiers (per
+`agents/war-refiner.md` Gate-failure classification), while `classOf` in `workflow-template.js`
+only reads the resulting class; the two share only the `'introduced'` fallthrough (retain the
 existing fail-safe-fallthrough clause and its meaning). Token sweep: grep `skills/war/SKILL.md`
 for `signature list` and `gate-time classifier` and handle every match — confirm no *other*
 sentence couples the list to gate-time classification. **Grep is a floor, not a ceiling: after
