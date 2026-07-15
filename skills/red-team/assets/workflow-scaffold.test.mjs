@@ -66,7 +66,10 @@ function compileScaffold() {
 }
 
 // Faithful pipeline: each item flows through every stage independently; a throwing stage drops
-// it to null (mirrors the Workflow tool's documented pipeline() semantics).
+// it to null (mirrors the Workflow tool's documented pipeline() semantics). Promise.all-CONCURRENT:
+// every item's first dispatch fires synchronously before any death is observed — so the sticky pin
+// is not yet set when siblings dispatch (exploited by the trace-stamps case, where a sibling stays on
+// the preferred type). The deterministic exactly-one-preferred-dispatch assertion needs serialPipeline.
 async function fakePipeline(items, ...stages) {
   return Promise.all(items.map(async (item, i) => {
     let v = item
@@ -77,14 +80,30 @@ async function fakePipeline(items, ...stages) {
   }))
 }
 
+// Serial variant of the same contract: each item flows through every stage to completion before the
+// next item starts. TEST-HARNESS knob only (production pipeline() is untouched) — it makes the sticky
+// pin's "Explore dispatched exactly ONCE per run" assertion deterministic: item 1's death pins the run
+// before item 2 ever dispatches, so no concurrent pre-pin window races the count (spec §8).
+async function serialPipeline(items, ...stages) {
+  const out = []
+  for (let i = 0; i < items.length; i++) {
+    let v = items[i]
+    try { for (const stage of stages) v = await stage(v, items[i], i) } catch { v = null }
+    out.push(v)
+  }
+  return out
+}
+
 // Run the scaffold with a mock `agent`. agentImpl(prompt, opts) returns the probe/confirm result
-// (or null to simulate a dead probe). Captures every prompt + opts and every log line.
-async function runScaffold(args, agentImpl) {
+// (or null to simulate a dead probe). Captures every prompt + opts and every log line. `pipelineImpl`
+// defaults to the concurrent fakePipeline (all existing callers byte-unchanged); pass serialPipeline
+// for the deterministic sticky-pin count.
+async function runScaffold(args, agentImpl, pipelineImpl = fakePipeline) {
   const prompts = [], logs = []
   const fn = compileScaffold()
   const agent = async (prompt, opts = {}) => { prompts.push({ prompt, opts }); return agentImpl(prompt, opts) }
   const log = (m) => logs.push(m)
-  const out = await fn(agent, () => {}, fakePipeline, log, () => {}, args, {})
+  const out = await fn(agent, () => {}, pipelineImpl, log, () => {}, args, {})
   return { out, prompts, logs }
 }
 
@@ -174,14 +193,15 @@ test('a dropped probe is retried once, then emitted as a { probe, dropped:true }
   const a = baseArgs()
   let calls = 0
   // claims-vs-reality (analyzed) dies for EVERY agent type on both the initial run and the retry;
-  // everything else passes. With the #727 analyzed-agent fallback, a dead analyzed dispatch fans out
-  // to preferred (Explore) + fallback (general-purpose) — 2 dispatches per pipeline pass — and
-  // Layer 4 retries the whole probe once, so the documented worst-case bound is 2 × 2 = 4 dispatches.
+  // everything else passes. With the STICKY analyzed-agent fallback (#890) the worst case is 3
+  // dispatches, not 4: pass 1 = preferred (Explore) + fallback (general-purpose), and that first death
+  // SETS the run pin; so the Layer-4 retry entry-swaps straight to general-purpose (pinned-fallback)
+  // and its death hits the redundant-dispatch guard → rethrow, with no second re-dispatch. 2 + 1 = 3.
   const { out, logs } = await runScaffold(a, (_, opts) => {
     if (opts.phase === 'Probe' && opts.label === 'probe:claims-vs-reality') { calls++; return null }
     return { probe: opts.label, technique: 'analyzed', status: 'pass', read_anchor: anchorOf(a), findings: [] }
   })
-  assert.equal(calls, 4, 'the dead analyzed probe was dispatched 4× (preferred+fallback per pass × initial+one retry)')
+  assert.equal(calls, 3, 'the dead analyzed probe was dispatched 3× (preferred+fallback on pass 1; pinned-fallback + redundant-guard rethrow on the Layer-4 retry — sticky pin, not 2×2)')
   const marker = out.probeResults.find(r => r && r.dropped === true)
   assert.ok(marker, 'a dropped marker is emitted, not a silent omission')
   assert.equal(marker.probe, 'claims-vs-reality')
@@ -683,6 +703,127 @@ test('#727 confirm-site parity: an Explore confirm that dies once recovers on th
   assert.ok(confirmDispatches.some(d => d.opts.agentType === 'Explore'), 'the confirm first tried the preferred Explore type')
   assert.ok(confirmDispatches.some(d => d.opts.agentType === 'general-purpose'), 'the confirm recovered on the general-purpose fallback')
   assert.ok(logs.some(l => /analyzed-agent fallback engaged/.test(l)), 'the confirm-site fallback logged its diagnostic token')
+})
+
+// --- #890: sticky fallback pin + durable trace stamps + Lead pre-flight --------------------------
+// Every case is a delete-the-feature check — each goes RED against the pre-change (per-dispatch,
+// unstamped) scaffold; recorded in the task done-report. Hardcoded 'Explore'/'general-purpose'
+// literals stay deliberate (a future default change must LOUDLY break these).
+
+// End state 1 — on a SERIAL pipeline where every 'Explore' dispatch dies, 'Explore' is dispatched
+// exactly ONCE for the whole run (the first death pins it); every later analyzed dispatch — probes AND
+// a fired confirm — routes to 'general-purpose', zero drops, and every post-pin analyzed result carries
+// the pinned-swap stamps. RED on the pre-change scaffold (which dispatches 'Explore' once per analyzed slot).
+test('#890 sticky pin: a dead-Explore serial run dispatches Explore exactly ONCE across all analyzed probes + a confirm, rest general-purpose, zero drops (End state 1)', async () => {
+  const a = baseArgs()
+  const { out, prompts } = await runScaffold(a, (_, opts) => {
+    if (opts.agentType === 'Explore') return null                                   // every Explore dispatch dies (one failure shape)
+    if (opts.phase === 'Confirm') return { reproduced: true }
+    if (opts.label === 'probe:claims-vs-reality') return okResult(a, opts, { status: 'fail', findings: MAJOR })  // its fallback result blocks → a confirm fires
+    return okResult(a, opts)
+  }, serialPipeline)
+  const exploreDispatches = prompts.filter(p => p.opts.agentType === 'Explore')
+  assert.equal(exploreDispatches.length, 1, 'Explore is dispatched exactly ONCE for the whole run (sticky pin), not once per analyzed slot')
+  const analyzedDispatches = prompts.filter(p => p.opts.agentType !== undefined)
+  assert.ok(analyzedDispatches.filter(p => p.opts.agentType !== 'Explore').every(p => p.opts.agentType === 'general-purpose'),
+    'every analyzed dispatch after the pin is general-purpose')
+  assert.ok(prompts.some(p => p.opts.phase === 'Confirm' && p.opts.agentType === 'general-purpose'),
+    'the fired confirm also routes through the pin to general-purpose')
+  assert.ok(!out.probeResults.some(r => r && r.dropped), 'zero dropped markers — the fallback recovered every analyzed probe')
+  assert.equal(out.probeResults.length, out.expected, 'every probe slot yields a result')
+  const analyzedResults = out.probeResults.filter(r => r && !r.dropped && r.technique === 'analyzed')
+  assert.ok(analyzedResults.length > 0, 'analyzed results were produced (the state-3 stamp assertion is not vacuous)')
+  for (const r of analyzedResults) {
+    assert.equal(r.dispatchedOn, 'general-purpose', `pinned analyzed result ${r.probe} stamps dispatchedOn:general-purpose`)
+    assert.equal(r.fallbackEngaged, true, `pinned analyzed result ${r.probe} stamps fallbackEngaged:true`)
+  }
+})
+
+// End state 3 — the four trace-stamp states, one assertion each, on the CONCURRENT pipeline (so a
+// sibling analyzed probe dispatches on Explore BEFORE the killed probe's death pins the run). Kill
+// 'Explore' for ONE probe label only. RED on the pre-change scaffold (no stamps at all).
+test('#890 trace stamps: recovered probe carries both stamps; a sibling success is dispatchedOn Explore with NO fallbackEngaged key; the executed probe carries neither (End state 3)', async () => {
+  const a = baseArgs({ probes: [{ name: 'b-exec', kind: 'bespoke', technique: 'executed', prompt: 'do b-exec' }] })
+  const { out } = await runScaffold(a, (_, opts) => {
+    if (opts.phase === 'Probe' && opts.label === 'probe:claims-vs-reality' && opts.agentType === 'Explore') return null  // dies on Explore → recovers on general-purpose
+    return okResult(a, opts)
+  })
+  const byProbe = Object.fromEntries(out.probeResults.filter(Boolean).map(r => [r.probe, r]))
+  // (i) fallback-recovered analyzed probe (state 2): both stamps
+  const recovered = byProbe['claims-vs-reality']
+  assert.equal(recovered.fallbackEngaged, true, 'the fallback-recovered probe carries fallbackEngaged:true')
+  assert.equal(recovered.dispatchedOn, 'general-purpose', 'the fallback-recovered probe stamps dispatchedOn:general-purpose')
+  // (ii) a sibling analyzed success (state 1): dispatchedOn Explore AND NO fallbackEngaged KEY (absence, not falsiness)
+  const sibling = byProbe['coverage-vs-source']
+  assert.equal(sibling.dispatchedOn, 'Explore', 'a preferred-type success stamps dispatchedOn:Explore')
+  assert.ok(!('fallbackEngaged' in sibling), 'a preferred-type success carries NO fallbackEngaged key (absence, not falsiness)')
+  // (iii) the executed probe (state 4): neither key
+  const exec = byProbe['b-exec']
+  assert.ok(!('dispatchedOn' in exec), 'the executed probe result carries no dispatchedOn key')
+  assert.ok(!('fallbackEngaged' in exec), 'the executed probe result carries no fallbackEngaged key')
+})
+
+// End state 3 (downgrade-survival arm) — a blocking fallback-recovered probe whose confirm returns
+// reproduced:false is downgraded to status:'warn' by confirmStage's `{ ...res }` spread; the probe's
+// two stamps must survive that spread. RED on the pre-change scaffold (no stamps to survive).
+test('#890 trace stamps survive confirm downgrade: a warn-downgraded probe result still carries both stamps through confirmStage (End state 3)', async () => {
+  const a = baseArgs()
+  const { out } = await runScaffold(a, (_, opts) => {
+    if (opts.phase === 'Confirm') return { reproduced: false }                       // the confirm refutes → downgrade to warn
+    if (opts.label === 'probe:claims-vs-reality' && opts.agentType === 'Explore') return null            // dies on Explore
+    if (opts.label === 'probe:claims-vs-reality') return okResult(a, opts, { status: 'fail', findings: MAJOR })  // blocks on the fallback
+    return okResult(a, opts)
+  })
+  const cvr = out.probeResults.find(r => r && r.probe === 'claims-vs-reality')
+  assert.ok(cvr, 'the claims-vs-reality probe yields a result')
+  assert.equal(cvr.status, 'warn', 'the unreproduced blocker is downgraded to warn')
+  assert.equal(cvr.dispatchedOn, 'general-purpose', 'the downgraded result retains dispatchedOn through the { ...res } spread')
+  assert.equal(cvr.fallbackEngaged, true, 'the downgraded result retains fallbackEngaged through the { ...res } spread')
+})
+
+// End state 4 — the two stamp fields are inert to the gate: a stamped scaffold output and its
+// stamp-stripped twin gate to the same verdict, both exit 0. RED on the pre-change scaffold (its output
+// carries no stamps, so the "stamps are present" guard below fails and the strip is a no-op).
+test('#890 gate pass-through: a stamped scaffold output and its stamp-stripped twin gate to the same verdict (End state 4)', async () => {
+  const a = baseArgs()
+  const { out } = await runScaffold(a, (_, opts) => {
+    if (opts.phase === 'Probe' && opts.label === 'probe:claims-vs-reality' && opts.agentType === 'Explore') return null
+    return okResult(a, opts)
+  })
+  assert.ok(out.probeResults.some(r => r && r.fallbackEngaged === true && r.dispatchedOn === 'general-purpose'),
+    'the fallback-recovered probe result actually carries the two stamp fields (else the strip comparison is vacuous)')
+  const strip = (o) => ({ ...o, probeResults: o.probeResults.map(r => {
+    if (!r) return r
+    const { dispatchedOn, fallbackEngaged, ...rest } = r
+    return rest
+  }) })
+  const run = (payload) => spawnSync(process.execPath, [GATE, '--stdin'], { input: JSON.stringify(payload), encoding: 'utf8' })
+  const stamped = run(out), stripped = run(strip(out))
+  assert.equal(stamped.status, 0, `gate exits 0 on the stamped output; stderr=${stamped.stderr}`)
+  assert.equal(stripped.status, 0, `gate exits 0 on the stamp-stripped output; stderr=${stripped.stderr}`)
+  assert.equal(JSON.parse(stamped.stdout).verdict, JSON.parse(stripped.stdout).verdict,
+    'stamped and stripped outputs gate to the same verdict — the two stamp fields are inert')
+})
+
+// End state 6 — Step-3 presence lock (the ff-topology cross-file region idiom): SKILL.md Step 3 must
+// carry analyzedAgentType inside the Workflow args literal AND the harness-registry pre-flight clause
+// (case-tolerant mid-sentence anchor naming general-purpose). RED on the pre-change SKILL.md (which
+// omits the arg and the clause).
+test('#890 Step-3 presence lock: SKILL.md Step 3 carries analyzedAgentType in the Workflow args literal + the pre-flight registry clause (End state 6)', () => {
+  const skill = readFileSync(join(__dirname, '..', 'SKILL.md'), 'utf8')
+  // (a) the arg is a member of the Step 3 Workflow({ ... args: { ... } }) literal (flat object → first }).
+  assert.match(skill, /Workflow\(\{[\s\S]*?args:\s*\{[^}]*\banalyzedAgentType\b[^}]*\}/,
+    'Step 3 Workflow args literal must include analyzedAgentType')
+  // (b) the pre-flight clause via the ±window region idiom around every analyzedAgentType mention, so
+  //     an unrelated 'registry'/'general-purpose' elsewhere can't satisfy it — case-tolerant, mid-sentence.
+  const lower = skill.toLowerCase(), regions = []
+  for (let i = lower.indexOf('analyzedagenttype'); i !== -1; i = lower.indexOf('analyzedagenttype', i + 1)) {
+    regions.push(skill.slice(Math.max(0, i - 420), i + 420))
+  }
+  assert.ok(regions.length > 0, 'SKILL.md Step 3 must mention analyzedAgentType')
+  const r = regions.join('\n---\n')
+  assert.match(r, /registry/i, 'Step 3 pre-flight must instruct the harness agent-registry check (mid-sentence, case-insensitive)')
+  assert.match(r, /general-purpose/, "Step 3 pre-flight arm must name the 'general-purpose' analyzedAgentType value")
 })
 
 // --- ff-topology prose presence-pair drift guard (spec §4; End-state 10) ------------------------

@@ -23,8 +23,10 @@ export const meta = {
 //   status still blocks (only literal "pass" demotes).
 // SAFETY: execution probes work ONLY in throwaway temp dirs / git worktrees and NEVER
 // mutate `repo`. Analysis probes are read-only: they run on the preferred `Explore` agent when the
-// harness provides it, falling back to `general-purpose` when it does not (analyzed-agent fallback,
-// #727). The fallback widens raw capability (`general-purpose` can write where `Explore` cannot), so
+// harness provides it; when it does not, the FIRST dead preferred dispatch pins the whole run onto
+// `general-purpose` so every later analyzed dispatch routes there proactively (sticky analyzed-agent
+// fallback, #727 recovery + #890 stickiness — not a per-dispatch retry). The fallback widens raw
+// capability (`general-purpose` can write where `Explore` cannot), so
 // its confinement rides the scope-lock preamble (prevention) + assert-no-repo-escape.sh (detection,
 // ADR 0033) — both already applied to every probe/confirm unconditionally. A fail is downgraded to
 // warn unless an independent confirm agent reproduces it. Prove, don't assert.
@@ -75,9 +77,12 @@ const { planFile, repo, sourceSpec = 'none', probes = [], fingerprint, provision
 // preferred one is `Explore` (overridable via args.analyzedAgentType — the issue's configurability
 // ask), and this constant is the ONLY place the bare Explore string literal survives. The fallback is
 // 'general-purpose' — present in every observed harness and verified recovering a full analyzed
-// workload in the 2026-07-10 missing-Explore incident. These sit AFTER the args destructure on
-// purpose: ANALYZED_AGENT reads the destructured `analyzedAgentType`, so declaring them beside
-// ADVERSARIAL_CONFIRM (which precedes `A`'s initialization) would be a reference-before-init crash.
+// workload in the 2026-07-10 missing-Explore incident. Engagement is STICKY per run (#890): the first
+// dead preferred dispatch flips the run-scoped `analyzedFallbackPinned` let declared beside
+// `dispatchAgent`, and every later analyzed dispatch entry-swaps to this fallback — not a per-item
+// re-dispatch. These sit AFTER the args destructure on purpose: ANALYZED_AGENT reads the destructured
+// `analyzedAgentType`, so declaring them beside ADVERSARIAL_CONFIRM (which precedes `A`'s
+// initialization) would be a reference-before-init crash.
 const ANALYZED_AGENT = analyzedAgentType ?? 'Explore'
 const ANALYZED_AGENT_FALLBACK = 'general-purpose'
 
@@ -224,36 +229,70 @@ const allProbes = [...spine, ...probes]
 
 log(`Red-teaming ${planFile}: ${allProbes.length} probe(s)`)
 
-// Shared analyzed-agent dispatch with a reactive fallback (#727 — the missing-`Explore` incident).
-// The Workflow sandbox cannot introspect the harness, so a dropped agent type is observable ONLY as
-// a dead dispatch — a throw OR a nullish result (the shape is harness-version-dependent; treated
-// uniformly). Executed probes (agentType undefined) BYPASS the wrapper entirely — plain agent(),
-// never re-dispatched. For an analyzed probe/confirm: try the preferred type; on a first death log
-// the stable 'analyzed-agent fallback engaged:' token (greppably distinct from Layer 4's 'retrying
-// once') and re-dispatch once with ANALYZED_AGENT_FALLBACK. Redundant-dispatch guard: when the
-// preferred type ALREADY is the fallback (operator override to general-purpose), a first death skips
-// the identical re-dispatch. Exhausted path — RETHROW, never return null: a second death (or the
-// redundant-guard death) throws a descriptive Error, so the Workflow pipeline() nulls the whole item
-// and BOTH sites (probe AND confirm) converge on the existing Layer-4 retry → { probe, dropped:true }
-// marker → gate INCOMPLETE path. Returning null here would let a null confirm fall through
-// `if (c && c.reproduced === false)` below and silently stand an unconfirmed fail as a blocker (see
-// the plan's Notes / conscious deviations). Bound: worst case per analyzed probe is 2 dispatches ×
-// (initial + one Layer-4 retry) = 4, plus the same on a confirm — bounded, composes with Layer 4,
-// never multiplies it.
+// Shared analyzed-agent dispatch with a STICKY fallback (#727 recovery + #890 stickiness — the
+// missing-`Explore` incident). The Workflow sandbox cannot introspect the harness, so a dropped agent
+// type is observable ONLY as a dead dispatch — a throw OR a nullish result (the shape is
+// harness-version-dependent; treated uniformly). Executed probes (agentType undefined) BYPASS the
+// wrapper entirely — plain agent(), never re-dispatched, never stamped. For an analyzed probe/confirm:
+// try the preferred type; on a first death log the stable 'analyzed-agent fallback engaged:' token
+// (greppably distinct from Layer 4's 'retrying once'), SET the run-scoped pin, and re-dispatch once
+// with ANALYZED_AGENT_FALLBACK. Once the pin is set, every later analyzed dispatch entry-swaps at the
+// top (`opts = { ...opts, agentType: ANALYZED_AGENT_FALLBACK }`) so the first agent() call, the
+// redundant-dispatch guard, the log line, and both error messages all read the EFFECTIVE type from one
+// place — the swap changes an opts VALUE, never its key set (the model/effort exact-key deepEqual lock
+// stays green). Redundant-dispatch guard: when the effective type ALREADY is the fallback (an operator
+// override to general-purpose, OR a pinned dispatch that then dies), a death skips the identical
+// re-dispatch and RETHROWS. The pin-set sits PAST that guard, so a preferred===fallback run never sets
+// it and that existing case stays green unmodified. Exhausted path — RETHROW, never return null: a
+// second death (or the redundant-guard death) throws a descriptive Error, so the Workflow pipeline()
+// nulls the whole item and BOTH sites (probe AND confirm) converge on the existing Layer-4 retry →
+// { probe, dropped:true } marker → gate INCOMPLETE path. Returning null here would let a null confirm
+// fall through `if (c && c.reproduced === false)` below and silently stand an unconfirmed fail as a
+// blocker (see the plan's Notes / conscious deviations).
+// Trace stamps (result-spread ONLY, never a dispatch-opts key): the RETURNED result of a successful
+// analyzed dispatch is spread with `dispatchedOn: <effective type>`, plus `fallbackEngaged: true`
+// whenever it ran on ANALYZED_AGENT_FALLBACK while the preferred type ≠ the fallback (covers both the
+// re-dispatch recovery and the pinned entry-swap successes; excludes the preferred===fallback
+// override, where general-purpose IS the preferred and carries no fallbackEngaged key). Executed
+// results are never stamped. Confirm-site stamps are consumed inside confirmStage and do not survive
+// into probeResults (accepted residual; confirm engagement stays visible via the log token).
+// Bound: a both-dead analyzed probe is preferred + fallback on the first pipeline pass, then
+// pinned-fallback + redundant-guard rethrow on the Layer-4 retry — 3 dispatches, not 4 (only 2 for any
+// slot dispatched AFTER the pin; in a preferred===fallback run the pin is never set). Composes with
+// Layer 4, never multiplies it. Transient-death-pinning residual (accepted, NO unpin logic): one flaky
+// preferred dispatch pins the rest of the run onto the fallback — fine, because confinement is
+// type-independent (the scope-lock preamble + assert-no-repo-escape.sh ride every probe/confirm
+// unconditionally) and the pin is run-scoped by construction (this scaffold body re-evaluates per
+// Workflow run, which also discharges the no-cross-run-persistence non-goal). Pin race:
+// `analyzedFallbackPinned` is a plain boolean set idempotently under JS's single-threaded microtask
+// model — no torn state; under a concurrent pipeline several in-flight preferred dispatches may die
+// before the first observer pins, so dead preferred dispatches are "at most the in-flight window",
+// never exactly one.
+let analyzedFallbackPinned = false
+// Trace-stamp a returned result with the effective dispatch type; fallbackEngaged rides only when the
+// result was produced on the fallback while the preferred type differs (uniform forensics across the
+// re-dispatch recovery and pinned entry-swap successes; the override preferred===fallback case is a
+// plain preferred success). Result-spread ONLY — never touches dispatch opts.
+const stampResult = (r, dispatchedOn) =>
+  (dispatchedOn === ANALYZED_AGENT_FALLBACK && ANALYZED_AGENT !== ANALYZED_AGENT_FALLBACK)
+    ? { ...r, dispatchedOn, fallbackEngaged: true }
+    : { ...r, dispatchedOn }
 const dispatchAgent = async (prompt, opts = {}) => {
-  if (opts.agentType === undefined) return agent(prompt, opts)   // executed probes — never wrapped
+  if (opts.agentType === undefined) return agent(prompt, opts)   // executed probes — never wrapped, never stamped
+  if (analyzedFallbackPinned) opts = { ...opts, agentType: ANALYZED_AGENT_FALLBACK }   // sticky entry swap — one place feeds guard/log/errors/stamps
   const label = opts.label || 'analyzed probe'
   try {
     const r = await agent(prompt, opts)
-    if (r != null) return r                                       // preferred type answered
+    if (r != null) return stampResult(r, opts.agentType)          // preferred/effective type answered
   } catch { /* dead dispatch — fall through to the fallback */ }
   if (opts.agentType === ANALYZED_AGENT_FALLBACK) {               // redundant-dispatch guard
     throw new Error(`red-team: analyzed dispatch for ${label} died on ${opts.agentType} (already the ${ANALYZED_AGENT_FALLBACK} fallback) — dropping the probe (gate → INCOMPLETE).`)
   }
+  analyzedFallbackPinned = true                                  // sticky pin — first dead preferred dispatch pins the run (past the redundant guard, so a preferred===fallback run never reaches it)
   log(`analyzed-agent fallback engaged: ${label} — ${opts.agentType} dispatch died; re-dispatching with ${ANALYZED_AGENT_FALLBACK}.`)
   try {
     const r2 = await agent(prompt, { ...opts, agentType: ANALYZED_AGENT_FALLBACK })
-    if (r2 != null) return r2                                     // fallback recovered the probe
+    if (r2 != null) return stampResult(r2, ANALYZED_AGENT_FALLBACK)  // fallback recovered the probe
   } catch { /* both types dead — fall through to the loud rethrow */ }
   throw new Error(`red-team: analyzed dispatch for ${label} died on both ${opts.agentType} and ${ANALYZED_AGENT_FALLBACK} — dropping the probe (gate → INCOMPLETE).`)
 }
