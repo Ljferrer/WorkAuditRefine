@@ -6,7 +6,7 @@ metadata:
   type: project
   provenance: code-verified
   slug: servitor-verify-on-write-worktree-can-lag-just-landed-phase
-  phase: guard-floor-and-scope-hook-coverage-completeness/servitor-wrapup +6 recurrences (latest campaign-state-anchor/phase-1 servitor-wrapup, 2026-07-15)
+  phase: guard-floor-and-scope-hook-coverage-completeness/servitor-wrapup +7 recurrences (latest campaign-state-anchor/phase-2 task-2.1 wrap-up, 2026-07-15)
   promoted: dev/2026-07-12-war-launch-entry-validation@phase-1
   keywords:
     - stale worktree
@@ -27,6 +27,8 @@ metadata:
     - worktree name collision
     - reserved worktree name _refinery
     - gitdir numeric suffix
+    - reaped task worktree
+    - gate-audit confirmed-tip fallback
   tags:
     - servitor
     - memory-protocol
@@ -173,6 +175,27 @@ phase's own plan-slug (from the spawn prompt), and (b) prefer the merge/`_refine
 sha, compared directly against the spawn prompt's stated landed-tip sha, as the strongest positive
 match — a branch-name match is good, a sha match is better.
 
+## Recurrence 7 (2026-07-15, campaign-state-anchor/phase-2 task 2.1 wrap-up) — reaped worktree + a second, non-`_refinery` collision instance
+
+At phase-2 wrap-up for plan `campaign-state-anchor` (task 2.1, End-state 8 version-bump), the
+phase's own task worktree no longer existed on disk: a glob for `.claude/war-worktrees/*campaign-
+state-anchor*` under `<repo-root>` returned nothing — Refine/Land had already reaped it by the time
+the servitor ran. `<repo-root>/.git/worktrees/p2-2.1` DID exist under that exact task-id name, but
+its `gitdir`/`HEAD` named an unrelated concurrent plan (`gate-evidence-and-prose-truth`, branch
+`war/2026-07-14-gate-evidence-and-prose-truth/p2-2.1`) — a second, independent instance of
+Recurrence 5's worktree-name-collision wrinkle, this time on a plain per-task name (`p2-2.1`) rather
+than `_refinery`.
+
+**New edge:** the Recurrence 4/5 "read the phase's own task worktree" technique has a
+precondition — the worktree must still be on disk. Post-land, Refine reaps task worktrees, so by
+servitor wrap-up time a plausible task-id match under `.git/worktrees/<task-id>/` may (a) not exist
+at all, or (b) exist but resolve to an unrelated concurrent plan (never assume presence proves
+relevance — check `gitdir` every time, even when the task-id string matches exactly). When no live
+task worktree resolves to the right plan, fall back to Recurrence 3's approach: trust the
+gate-audit's own direct-read confirmation at the pinned confirmed tip (here: `gateEvidence:true`,
+an approved verdict that read the landed blobs directly and named the confirmed SHA) rather than
+asserting anything from the servitor's own stale cwd.
+
 ## Related
 
 [[audit-worktree-pre-impl-tip-stale-verdict]] — the auditor-side analogue (audit worktree HEAD can
@@ -191,6 +214,3 @@ same technique.
 [[git-probing-hook-requires-fixtures-outside-any-git-repo]] — facts Recurrence 6 confirmed
 `code-verified` using this same technique.
 
-> local recurrence-edit (2026-07-15): the repo-root copy of this lesson is stale by one recurrence;
-> this local copy is the canonical edit target per the D1 recurrence protocol and will overwrite the
-> same-slug repo file on the next Gate-2 promotion.
