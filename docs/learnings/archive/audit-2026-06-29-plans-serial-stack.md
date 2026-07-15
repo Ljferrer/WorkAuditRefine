@@ -10,3 +10,5 @@ metadata:
 ---
 
 **RESOLVED (instance) — kept as concept anchor.** For any restack, re-anchor by named construct ([[plan-line-number-refs-stale-use-construct-locator]]) and resolve the version as the next-free patch across all slots ([[version-slots-no-cross-slot-consistency-test]]).
+
+> archived 2026-07-15: resolved — moved to archive

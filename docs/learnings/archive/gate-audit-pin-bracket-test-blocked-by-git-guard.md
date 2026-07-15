@@ -77,3 +77,5 @@ Related: [[auditor-cannot-execute-the-tests-it-must-verify-pass]],
 [[release-status-is-replace-slot-not-empty-field]],
 [[release-bump-slots-canonical-no-badge]],
 [[drift-guard-extraction-regex-unions-comparisons-with-assignments]]
+
+> archived 2026-07-15: resolved — moved to archive

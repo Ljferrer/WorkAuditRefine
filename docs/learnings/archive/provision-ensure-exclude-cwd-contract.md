@@ -32,3 +32,5 @@ wrong git dir and nested worktrees still surface as untracked in the parent repo
 
 **Why:** cwd-coupled tools "work" in unit tests (cwd = repo) and break only in the wired pipeline.
 **How to apply:** invoke `ensure-exclude` from the main checkout only; if hardening, add an explicit target-repo argument rather than relying on caller cwd.
+
+> archived 2026-07-15: resolved — moved to archive

@@ -25,3 +25,5 @@ AND that `git log master..dev/<slug>` actually contains the task's commit / the 
 (`git worktree add --detach … <taskBranch>`; run the full gate), then **manually re-land** it (`--no-ff` merge of
 the task branch into the working branch + push), and clean up the phantom integration branch. Recovery used on
 `servitor-confinement-memory` T2: re-landed `990bc01` → dev `034744f`.
+
+> archived 2026-07-15: resolved — moved to archive

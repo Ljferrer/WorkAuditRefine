@@ -57,3 +57,5 @@ Related: [[weak-test-assertion-passes-without-feature-being-exercised]] (Variant
 [[submodule-fixture-protocol-file-allow-discipline]],
 [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]] (why this update is agent-unverified
 rather than code-verified).
+
+> archived 2026-07-15: resolved — moved to archive

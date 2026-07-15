@@ -66,3 +66,5 @@ independent preconditions gate the push-first CAS; both must hold for the automa
 Related: [[war-launch-worktree-with-working-branch-checked-out-forces-manual-land]] (the checkout-collision
 trigger), [[land-advance-push-first-cas-rejected-token]] (the CAS exit-code contract this baseline feeds
 into), [[held-escalation-lead-manual-completion]] (manual-land-then-servitor procedure shape).
+
+> archived 2026-07-15: resolved — moved to archive

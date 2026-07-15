@@ -45,3 +45,5 @@ coven. Instead:
 > as ground truth (`left/right 0/0` on dev vs origin). If clean: re-verify the full gate
 > on the integration tip, then re-land manually (`--no-ff` merge + push-first). Do NOT
 > re-implement the phase's tasks.
+
+> archived 2026-07-15: resolved — moved to archive

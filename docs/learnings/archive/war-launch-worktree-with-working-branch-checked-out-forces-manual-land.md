@@ -33,3 +33,5 @@ metadata:
 **Fixed in:** ADR 0018 (`docs/adr/0018-war-working-branch-checkout-guard.md`) — Setup's `resolve-working-branch` + `ensure-origin` (`provision-worktrees.sh cmd_ensure_origin`) prevent both, and the `/war` SKILL.md Checkpoint `held:land-failed` auto-recover heals both root causes if they still fire.
 
 **Related:** [[land-local-follower-ref-can-lag-sync-before-next-phase]], [[war-phantom-land-reports-success-without-advancing-integration]]
+
+> archived 2026-07-15: resolved — moved to archive

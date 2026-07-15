@@ -19,3 +19,5 @@ metadata:
 ---
 
 **RESOLVED (instance) — kept as concept anchor.** In `mergedTasksForGateAudit`, `isHardGateEvidence` keys the hold-land decision on finding severity (`Critical`/`Major` = provably-unrun, per Open decision #1), never on the gate-audit seat's `verdict` field — a finding-less `escalate` is SOFT by design.
+
+> archived 2026-07-15: resolved — moved to archive

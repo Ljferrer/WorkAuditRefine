@@ -41,3 +41,5 @@ grading a *plan* reads a stated future-fix as a present-tense defect — but her
 misread was the plan's own explicit deviation note, not a task's forward-looking claim. See
 [[plan-survey-token-sweep-misses-untagged-siblings]] for the underlying drift this dismissal was
 about.
+
+> archived 2026-07-15: resolved — moved to archive

@@ -18,3 +18,5 @@ Two /lessons-learned tooling traps (ops/2026-07-04), both absorbed by the stagin
 
 **Why:** both traps look like successful/harmless commands until you inspect state.
 **How to apply:** `archive --candidates` is safe to run as a listing; add `--apply` only deliberately, or archive explicit slugs. After any safe-swap `commit` error, check `ls memory*` before retrying.
+
+> archived 2026-07-15: resolved — moved to archive

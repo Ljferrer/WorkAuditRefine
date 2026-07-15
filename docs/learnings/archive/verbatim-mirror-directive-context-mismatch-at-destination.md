@@ -102,3 +102,5 @@ label drift when rename is in one file and test titles are in another);
 [[shared-string-constant-quote-literal-byte-anchor-fragility]] (sibling fragility: a
 byte-identity test anchored on literal punctuation rather than semantic content, from
 audit-calibration-and-graduation/t1).
+
+> archived 2026-07-15: resolved — moved to archive

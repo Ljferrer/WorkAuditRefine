@@ -64,3 +64,5 @@ execution harness — don't "harden" the deferred runner in passing; it is still
 
 **Why:** a future robustness lens auditing this guarantee should verify the `classify()` branch order
 and the flag-omission residual — not re-litigate whether an enforcement point exists (it does now).
+
+> archived 2026-07-15: resolved — moved to archive

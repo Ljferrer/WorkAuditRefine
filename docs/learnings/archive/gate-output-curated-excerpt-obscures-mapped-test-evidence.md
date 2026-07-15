@@ -100,3 +100,5 @@ SOFT in code), [[auditor-cannot-execute-the-tests-it-must-verify-pass]] (auditor
 runs — curation compounds this), and [[gate-audit-pin-bracket-test-blocked-by-git-guard]]
 (stale-tip + collapse-marker combo: the deficiencies compound the inference burden but neither
 escalates severity independently).
+
+> archived 2026-07-15: resolved — moved to archive

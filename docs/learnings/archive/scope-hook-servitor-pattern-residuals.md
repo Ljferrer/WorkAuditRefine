@@ -29,3 +29,5 @@ The `..`-traversal hole originally recorded here is CLOSED: a phase-1b guard rej
 **How to apply:** if tightening is ever wanted, anchor the servitor glob to the run's memory root via a trusted payload/env value, and switch agent_type arms to exact strings.
 
 Related: [[scope-guard-needs-agent-type]], [[scope-hook-relative-path-loop-hang]]
+
+> archived 2026-07-15: resolved — moved to archive

@@ -18,3 +18,5 @@ metadata:
 ---
 
 **RESOLVED (instance) — kept as concept anchor.** The shell case pattern `*/../*|*/..` catches embedded and trailing `..` but misses a leading-relative `../` (and bare `..`); to reject all `..` traversal use the full equivalence class `".." | "../*" | *"/../"* | *"/.."`, or document why an adjacent mechanism already denies relative paths.
+
+> archived 2026-07-15: resolved — moved to archive

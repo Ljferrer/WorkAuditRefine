@@ -73,3 +73,5 @@ deferred.** Two of three named ceilings in one repo did eventually get fixed in 
 **How to apply:** grep the target parser file for existing `# ponytail:` / ceiling comments and the
 owning spec section before grading a parser gap above Nit; if a ceiling has an owning-lesson slug,
 check whether a later phase closed it before assuming it's still open.
+
+> archived 2026-07-15: resolved — moved to archive
