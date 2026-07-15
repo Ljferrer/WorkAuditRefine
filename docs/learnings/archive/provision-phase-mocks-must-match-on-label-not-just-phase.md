@@ -58,3 +58,5 @@ calling a branch dead.
 Any new Provision-phase agent-call site must get its own distinct `label` prefix, and any mock/handler
 gating on `opts.phase === 'Provision'` must also branch on `opts.label` to pick the right response
 shape (`ENV_OUTCOME` for `provision-run:*`, `MergeResult` for `provision:phase-*`).
+
+> archived 2026-07-15: resolved — moved to archive

@@ -73,3 +73,5 @@ manually sanity-check that `$base` resolves (`git rev-parse --verify --quiet "$b
 trusting the flag on an unusual/typo'd base.
 
 Related: [[provision-ensure-exclude-cwd-contract]], [[provision-barrier-refiner-owned-not-worker-self-create]], [[held-escalation-lead-manual-completion]], [[reclaim-empty-orphan-proof-swallows-git-log-error-as-empty]].
+
+> archived 2026-07-15: resolved — moved to archive

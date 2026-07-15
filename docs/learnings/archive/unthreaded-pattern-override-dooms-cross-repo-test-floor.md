@@ -68,3 +68,5 @@ mirror-the-gate rule; this lesson is its cross-repo dual: the mirror must be *de
 only hardcoded.
 [[floor-subset-gate-claim-overstates-arbitrary-custom-pattern]] — the doc-precision nit surfaced
 while landing this fix's prose.
+
+> archived 2026-07-15: resolved — moved to archive

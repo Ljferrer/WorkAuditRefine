@@ -60,3 +60,5 @@ step and (b) pipes it through `xargs` for a second pass (sort, filter, batch-inv
    does not generalize to code that's fail-closed or side-effecting.
 3. If ever tightened: iterate the newline list directly (`while IFS= read -r`) instead of
    `xargs`, or sort via `ls -t` fed a here-string, to avoid the word-splitting seam entirely.
+
+> archived 2026-07-15: resolved — moved to archive

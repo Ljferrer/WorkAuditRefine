@@ -63,3 +63,5 @@ routing is removed.
 Relates to [[pass-probe-demotion-gate-layer-without-probe-contract]] (the gate-layer demotion
 contract this comment documents) and [[source-comment-lags-emitted-prompt-after-rewrite]] (the
 general pattern of comments lagging code changes).
+
+> archived 2026-07-15: resolved — moved to archive

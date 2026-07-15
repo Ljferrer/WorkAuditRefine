@@ -29,3 +29,5 @@ paths + `git -C <sandbox>` for every git call** (never a bare `cd` + later relat
 after any red-team run with executed git probes, check `git ls-remote --heads origin` + the working
 tree for stray refs/files before trusting the verdict. A deterministic execution harness for executed
 probes (already noted as deferred in lenses.md) would remove this class of escape.
+
+> archived 2026-07-15: resolved — moved to archive

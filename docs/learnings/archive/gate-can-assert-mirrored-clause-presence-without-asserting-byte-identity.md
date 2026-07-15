@@ -60,3 +60,5 @@ each surface and asserts equality (not just each surface's own anchor-phrase pre
 owned by whichever task lands last among the mirrored sites, or as a phase-closing task. Absent
 that test, flag the gap as a Nit at every task landing that emits the mirrored text, so a future
 sweep can add the missing consistency gate deliberately rather than by accident.
+
+> archived 2026-07-15: resolved — moved to archive

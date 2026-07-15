@@ -82,3 +82,5 @@ the true landed task worktree, reached via `.git/worktrees/<task-id>/gitdir`):
 
 Widening tier-aware dispatch to "every follow-up worker" (the broader Purpose reading) is now
 fully closed except `polish:`, which is intentionally out of scope per the updated comment.
+
+> archived 2026-07-15: resolved — moved to archive

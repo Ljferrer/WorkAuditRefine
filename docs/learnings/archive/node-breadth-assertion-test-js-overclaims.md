@@ -25,3 +25,5 @@ Fixed in audit-fidelity/p1 T1.3: the node-breadth `walkFiles(REPO_ROOT, ...)` ca
 **Why:** a coverage assertion broader than the runner certifies files the gate never executes.
 **How to apply:** derive the walk's extension filter from the gate glob itself, not from "looks like a test file".
 Related: [[gate-under-covers-after-cross-branch-merge-new-runner]]
+
+> archived 2026-07-15: resolved — moved to archive

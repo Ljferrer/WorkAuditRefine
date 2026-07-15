@@ -62,3 +62,5 @@ proof-of-absence built on shell command output, not specific to this one call si
 Related: [[provision-nonidempotent-orphan-integration-branch-blocks-relaunch]] (the resolved
 symptom this self-heal fixes), [[fail-open-design-bounds-xargs-word-split-blast-radius]] (same
 "swallowed failure mode is bounded by opt-in/scope" reasoning applied elsewhere in this repo).
+
+> archived 2026-07-15: resolved — moved to archive

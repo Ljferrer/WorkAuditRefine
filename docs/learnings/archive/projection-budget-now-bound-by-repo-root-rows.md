@@ -35,3 +35,5 @@ This lesson's recommended lever was executed: a reviewed `docs/learnings/` descr
 **New measurement technique worth reusing:** measure repo-root-only headroom deterministically with a **scratch empty `--local` dir**: `node skills/_shared/war-memory.mjs render-index --local <scratch-empty-dir> --repo docs/learnings` — this isolates the repo-root byte count from whatever the operator's personal local dev-memory currently holds (which varies session to session and would otherwise make the same repo-root diet look like a different verdict depending on who measures it). The render output itself is measurement-only and discarded (no real index gets written to the scratch dir's `MEMORY.md`).
 
 **Landed & re-confirmed:** the diet landed in PR #881; the scratch-root render on the current master tip (2026-07-13) gives the 19,777 B / 115 lines / `warn` figures above — `warn` is the designed steady state, not a residual problem.
+
+> archived 2026-07-15: resolved — moved to archive

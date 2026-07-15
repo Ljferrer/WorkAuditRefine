@@ -102,3 +102,5 @@ the true landed task worktree, reached via `.git/worktrees/<task-id>/gitdir`):
 The fix shape section above is exactly what shipped. This lesson stays as a record of the root
 cause and the "fourth distinct call site needs its own row" pattern for the next genuinely-new
 gate-audit directive.
+
+> archived 2026-07-15: resolved — moved to archive

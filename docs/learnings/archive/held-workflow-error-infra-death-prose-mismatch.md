@@ -29,3 +29,5 @@ Fixed in SKILL.md: the §4.3 `held:workflow-error` bullet now reads "garbage / u
 **How to apply:** auditor reflex — read each class's example list against its predicate, not just the predicate itself.
 
 Related: [[run-provision-config-not-yet-mirrored-into-template]] (multi-class enum docs that lag routing code).
+
+> archived 2026-07-15: resolved — moved to archive

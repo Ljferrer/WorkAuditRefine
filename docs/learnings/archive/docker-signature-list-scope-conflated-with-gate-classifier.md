@@ -49,3 +49,5 @@ different pipeline stages (Setup-time deferral vs. gate-time classification), a 
 claiming one "is what X keys on" needs re-verification once X's actual implementation lands —
 don't let a plausible-sounding cross-reference outlive the code it described before the sibling
 task existed.
+
+> archived 2026-07-15: resolved — moved to archive

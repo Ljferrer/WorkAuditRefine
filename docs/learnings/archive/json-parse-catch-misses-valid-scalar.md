@@ -48,3 +48,5 @@ Found in `skills/red-team/assets/workflow-scaffold.js` around the args normalize
 ## Reuse signal
 
 Whenever normalizing args with `JSON.parse` + try/catch, always add an `typeof result === 'object' && result !== null` guard. The catch block alone is not sufficient.
+
+> archived 2026-07-15: resolved — moved to archive

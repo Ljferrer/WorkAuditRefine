@@ -64,3 +64,5 @@ also sees git's ground truth (e.g. `does not appear to be a git repository`). Th
 refspec, and the `-u` flag are byte-identical (ADR 0004 never-force). Regression coverage:
 `provision-worktrees.test.sh` case `RWB.e` (a broken-origin-URL failure fixture); `RWB.c` stays the
 success/idempotency control, unmodified.
+
+> archived 2026-07-15: resolved — moved to archive

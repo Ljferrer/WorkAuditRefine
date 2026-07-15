@@ -96,3 +96,5 @@ above).**
 key (`recordBaselineDebt`) and the reuse-clause wording (`baselineDebtClause`) for granularity
 agreement — as of #798 they now agree (subset-containment on both sides, with the empty-set
 carve-out as the one deliberate asymmetry).
+
+> archived 2026-07-15: resolved — moved to archive

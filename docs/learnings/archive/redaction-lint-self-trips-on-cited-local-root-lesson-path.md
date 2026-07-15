@@ -47,3 +47,5 @@ survives it. Mirror image of
 
 Related: [[d3-locate-cue-paths-must-be-repo-relative-or-placeholder-not-absolute-home-path]],
 [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]].
+
+> archived 2026-07-15: resolved — moved to archive

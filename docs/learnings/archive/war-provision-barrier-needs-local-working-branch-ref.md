@@ -61,3 +61,5 @@ push-first CAS land). A direct `git push origin <sha>:refs/heads/dev/slug-N` giv
 origin half and strands provision. This is distinct from
 [[absent-origin-working-branch-baseline-also-forces-manual-land]] (that one is about the *origin*
 side being absent at land; this is the *local* side being absent at provision).
+
+> archived 2026-07-15: resolved — moved to archive
