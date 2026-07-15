@@ -6073,6 +6073,25 @@ test('gate composition point (ADR 0036) — the NINE enumerated gate-bearing cap
   }
 })
 
+test('gate composition point (ADR 0036) — plan-less / zero-task phase: the GUARDED normalization is a no-op (clean held:nothing-merged, never held:workflow-error)', async () => {
+  // `plan` is destructured with no default and is never entry-validated, so the `if (plan)` guard MUST
+  // make an absent plan a NO-OP. An unconditional `plan.gate = resolveGate(plan.gate)` would TypeError here
+  // → the catch converts it to held:workflow-error; this arm proves the null-safe-by-mandate boundary
+  // (distinct from a null plan.gate, which composes to the discovery-only clause). A plan-less zero-task
+  // phase reaches no ${plan.gate} dispatch site.
+  const args = {
+    phase: { id: 3, title: 'P3', integrationBranch: 'integration/x/phase-3', workingBranch: 'dev/x' },
+    planSlug: 'x', runId: 'run-x', worktreeRoot: '/abs/repo/.claude/worktrees',
+    tasks: [],   // zero tasks — no gate-bearing dispatch
+    // NB: NO `plan` key — an ABSENT plan object (not a null plan.gate).
+  }
+  const { out, calls } = await runPhase(args, defaultImpl)
+  assert.equal(out.landDecision, 'held:nothing-merged',
+    'a plan-less zero-task phase resolves cleanly to held:nothing-merged (the if(plan) guard no-op ran) — an unconditional plan.gate= would TypeError into held:workflow-error')
+  assert.ok(!calls.some(c => (c.prompt || '').includes(GATE_TOKEN)),
+    'no dispatch carries the discovery token — a plan-less zero-task phase reaches no gate-bearing site')
+})
+
 // ===========================================================================
 // D3 — BOTH-SURFACES DIRECTIVE REGISTRY (ADR 0025)
 // ---------------------------------------------------------------------------
