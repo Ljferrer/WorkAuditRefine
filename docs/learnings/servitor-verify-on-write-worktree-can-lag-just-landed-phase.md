@@ -6,7 +6,7 @@ metadata:
   type: project
   provenance: code-verified
   slug: servitor-verify-on-write-worktree-can-lag-just-landed-phase
-  phase: guard-floor-and-scope-hook-coverage-completeness/servitor-wrapup +4 recurrences (latest Engine-routes-contract-surfaces/1.1, 2026-07-12)
+  phase: guard-floor-and-scope-hook-coverage-completeness/servitor-wrapup +6 recurrences (latest gate-evidence-and-prose-truth/phase-2, 2026-07-15)
   promoted: dev/2026-07-12-war-launch-entry-validation@phase-1
   keywords:
     - stale worktree
@@ -24,6 +24,7 @@ metadata:
     - HEAD ref check
     - task worktree gitdir
     - war-worktrees
+    - near-miss misdiagnosis
   tags:
     - servitor
     - memory-protocol
@@ -31,7 +32,7 @@ metadata:
     - verification
     - process
   created: 2026-07-10
-  updated: 2026-07-12
+  updated: 2026-07-15
   originSessionId: 8c039a7f-0c62-47a8-85f9-10099b5a6caf
 ---
 
@@ -137,6 +138,36 @@ task id across the whole repo** — worktree names collide across concurrent pla
 resolves it with a numeric suffix; always confirm via `gitdir` (the physical path names the
 plan-slug directory) rather than trusting the worktree-registry name alone, and check `HEAD` for
 the expected working branch too.
+
+## Recurrence 6 (2026-07-15, phase "Gate evidence and prose truth" / tasks 2.1–2.3) — a near-miss that would have shipped a false defect claim
+
+Seventh occurrence, yet another fresh session worktree (`survey-corps-8cc638`, branch
+`claude/survey-corps-8cc638`). This recurrence is the highest-stakes yet: the stale cwd's read of
+**three separate landed-phase referents** all matched the pre-fix state so exactly that, absent the
+task-worktree check, the natural conclusion would have been "Task 2.3 was approved by audit but its
+edits never actually landed" — a confidently-wrong `code-verified` defect claim:
+
+- `docs/plans/2026-07-12-audit-gate-evidence-fidelity.md`'s task-1.1 bullet still read the
+  backtick-wrapped replacement literal plus the `(exact bytes, backticks included)` parenthetical
+  in the stale cwd — exactly the pre-fix text Task 2.3's plan slice targeted for removal.
+- `docs/learnings/plan-bullet-replacement-text-can-contradict-its-own-plans-end-state-and-mapped-test.md`
+  still read "Known residual (not fixed, out of scope for the implementing task)" in the stale cwd.
+- `docs/learnings/refiner-dispatched-gate-never-resolvegate-composed-shell-suite-blind.md` showed no
+  resolution note or stale-as-of marker in the stale cwd.
+- `skills/war/assets/skill-doc-contracts.test.mjs`'s D14 comment and `skills/war/SKILL.md`'s docker
+  Daemon-reachable bullet both still carried the classOf-performs-the-re-run misattribution in the
+  stale cwd — the exact defect the phase's End state 10 was meant to correct.
+
+Applying the Recurrence 4/5 technique — `.git/worktrees/p2-2.1`, `p2-2.3`'s `gitdir` files resolved
+to `<repo-root>/.claude/war-worktrees/2026-07-14-gate-evidence-and-prose-truth-2026-07-15/p2-2.1`
+and `.../p2-2.3` — and Read/Grep against those paths showed **every one of the four referents
+above correctly fixed**: the plan bullet uses the non-backtick form with no parenthetical, both
+learnings carry `## RESOLVED` sections dated 2026-07-15, and both the D14 comment and the SKILL.md
+bullet correctly attribute the re-run to the refiner with `classOf` as a pure reader. The phase had
+landed correctly; only the servitor's own cwd was stale. **The technique generalizes across
+multi-task phases too** — a single `p2-2.1`/`p2-2.3` pair sufficed to re-verify referents spanning
+three different tasks (2.1 and 2.3) in the same phase, since task worktrees share the same
+integration lineage.
 
 ## Related
 

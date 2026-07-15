@@ -335,7 +335,12 @@ export function resolveWidenSource(nominated, defaultRoster) {
     : { source: 'default', seats: defaultRoster }
 }
 
-// Self-discovering multi-runner gate (F12).
+// GATE_DISCOVERY_TOKEN: a short stable substring of the discovery find clause (the `-name '*.test.sh'`
+// neighborhood), declared once in resolveGate's own module scope and used BOTH to build the discovery
+// string AND as the idempotence detector — so composer and detector cannot drift from each other by
+// construction. The inline workflow-template.js mirror duplicates the same pairing.
+const GATE_DISCOVERY_TOKEN = `-name '*.test.sh'`
+// Self-discovering multi-runner gate (F12), IDEMPOTENT (engine-owned composition, ADR 0036).
 // Given the declared base command (e.g. `node --test 'skills/**/*.test.mjs'`), returns
 // a portable shell string that runs the declared gate AND discovers + runs every *.test.sh
 // found in the repo tree (excluding node_modules, .git, and .claude). The bash suites are
@@ -343,12 +348,18 @@ export function resolveWidenSource(nominated, defaultRoster) {
 // The .claude/ exclusion keeps a repo-root gate run from executing the ~100 stale duplicate
 // suites under .claude/worktrees/ (WAR's own task worktrees).
 // Empty/null/falsy declaredGate → the discovery clause ALONE (no leading &&).
+// IDEMPOTENT: a declaredGate that ALREADY carries the discovery clause (detected via
+// GATE_DISCOVERY_TOKEN) is returned UNCHANGED, so resolveGate(resolveGate(g)) === resolveGate(g).
+// The engine now normalizes plan.gate through this composition AND the Lead still pre-resolves via
+// --resolve-gate; idempotence makes that double composition harmless by construction (belt-and-suspenders).
+// MIRRORED inline in workflow-template.js. Keep in sync.
 export function resolveGate(declaredGate) {
   const discovery = [
-    `for f in $(find . -type f -name '*.test.sh' -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/.claude/*' | sort);`,
+    `for f in $(find . -type f ${GATE_DISCOVERY_TOKEN} -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/.claude/*' | sort);`,
     `do printf '\\n== gate(bash): %s ==\\n' "$f" && bash "$f" || exit 1; done`,
   ].join(' ')
   if (!declaredGate) return discovery
+  if (declaredGate.includes(GATE_DISCOVERY_TOKEN)) return declaredGate
   return `${declaredGate} && ${discovery}`
 }
 

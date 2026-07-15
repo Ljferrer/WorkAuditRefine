@@ -310,7 +310,7 @@ const taskBranch = t => t.branch || (planSlug ? `war/${planSlug}/p${ph.id}-${t.i
 // `_refinery` and the polish worktree stay run-scoped/phase-scoped per their own literals below.
 const taskWorktree = t => t.worktree || ((worktreeRoot && runId) ? `${worktreeRoot}/${runId}/p${ph.id}-${t.id}` : t.worktree)
 // Per-role spawn opts: model always; effort only when non-default (omit = inherit session).
-// Mirror of war-config.mjs spawnOpts/validateRoster/widenRoster/resolveWidenSource — the Workflow sandbox can't import. Keep in sync.
+// Mirror of war-config.mjs spawnOpts/validateRoster/widenRoster/resolveWidenSource/resolveGate — the Workflow sandbox can't import. Keep in sync.
 const ROLE_MODEL = { worker: 'opus', auditor: 'opus', refiner: 'sonnet', servitor: 'sonnet' }
 const spawn = role => {
   const a = agents[role] || {}
@@ -380,6 +380,20 @@ const resolveWidenSource = (nominated, defaultRoster) => {
     ? { source: 'nominated', seats: nominated.map(lens => ({ lens, depth: 'deep' })) }
     : { source: 'default', seats: defaultRoster }
 }
+// resolveGate (F12, idempotent) — inline copy of war-config.mjs resolveGate (named in the block-head marker
+// above; the D2 registry row in workflow-template.test.mjs behaviorally binds it to the canonical export).
+// GATE_DISCOVERY_TOKEN is the SAME substring used to BUILD the discovery clause AND to detect it, so composer
+// and detector cannot drift; a declaredGate already carrying it is returned UNCHANGED (idempotent composition).
+const GATE_DISCOVERY_TOKEN = `-name '*.test.sh'`
+const resolveGate = (declaredGate) => {
+  const discovery = [
+    `for f in $(find . -type f ${GATE_DISCOVERY_TOKEN} -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/.claude/*' | sort);`,
+    `do printf '\\n== gate(bash): %s ==\\n' "$f" && bash "$f" || exit 1; done`,
+  ].join(' ')
+  if (!declaredGate) return discovery
+  if (declaredGate.includes(GATE_DISCOVERY_TOKEN)) return declaredGate
+  return `${declaredGate} && ${discovery}`
+}
 // audit.roster (args) is the union-widening default roster (D5). A default seat with an omitted
 // depth normalizes to 'deep' (D2) — the same rule the per-task phase-start normalization applies.
 const defaultRoster = (Array.isArray(audit.roster) ? audit.roster : []).map(s =>
@@ -399,8 +413,9 @@ const defaultRoster = (Array.isArray(audit.roster) ? audit.roster : []).map(s =>
 //   (2) PHASE-FIELD class — ph.title / ph.workingBranch / ph.integrationBranch, each interpolated
 //       fallback-free through the `pt` tag in the Provision-barrier / depClause / merge / land /
 //       classification / phase-close prompts REGARDLESS of whether tasks carry explicit paths. So this
-//       class is UNCONDITIONAL — even a zero-task phase builds the Provision-barrier prompt from these
-//       fields. Guarded access only (`ph` nullish ⇒ all three named); no earlier ph-field deref can
+//       class is UNCONDITIONAL — a DEFENSIVE FAIL-FAST that names every absent phase field HERE at entry
+//       (→ held:workflow-error via the catch) instead of throwing opaquely deep inside pt-tagged prompt
+//       construction. Guarded access only (`ph` nullish ⇒ all three named); no earlier ph-field deref can
 //       pre-empt this message (phaseId uses `ph?.id`, endStateClaims guards `ph && ph.endState`,
 //       taskBranch/taskWorktree are lazy arrows evaluated after validation).
 // The `(or supply explicit branch/worktree per task)` suffix is appended ONLY when a derivation-class
@@ -419,6 +434,15 @@ const missingPhaseFields = [['title', ph == null ? undefined : ph.title], ['work
   .filter(([, v]) => v == null || v === '').map(([k]) => k)
 if (missingPhaseFields.length) problems.push(`workflow-template: requires phase { title, workingBranch, integrationBranch } — missing: [${missingPhaseFields.join(', ')}]`)
 if (problems.length) throw new Error(`${problems.join('; ')}${derivationProblem ? ' (or supply explicit branch/worktree per task)' : ''}`)
+
+// GATE COMPOSITION POINT (engine-owned, ADR 0036): normalize plan.gate ONCE here, immediately after entry
+// validation and before any of the nine gate-bearing dispatch sites interpolate ${plan.gate}. resolveGate is
+// idempotent, so this composes harmlessly even when the Lead already pre-resolved via --resolve-gate (the belt;
+// this engine normalization is the suspenders — a missed pre-resolution can no longer ship a shell-blind gate).
+// GUARDED: `plan` is destructured with no default and is NEVER entry-validated, so an absent plan (a plan-less
+// zero-task phase) is a NO-OP here — distinct from a null/absent plan.gate, which composes to the discovery-only
+// clause. An unconditional plan.gate= would TypeError into held:workflow-error on that reachable state.
+if (plan) plan.gate = resolveGate(plan.gate)
 
 for (const t of (tasks || [])) {
   t.branch = taskBranch(t); t.worktree = taskWorktree(t)
