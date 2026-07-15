@@ -13,7 +13,8 @@
 # globstar, no associative arrays, no ${,,}. jq is already a hook dependency.
 #
 # FAIL-OPEN SILENCE: no campaigns dir / no ledger / unparsable ledger / jq
-# missing / any internal error → exit 0 with empty stdout. A broken hook must
+# missing / any internal error → exit 0 (with empty stdout, EXCEPT the
+# stranded-state warning — see warn_if_stranded below). A broken hook must
 # NEVER wedge session start in an unrelated repo, so we never exit nonzero and
 # never emit a partial payload. set -e is deliberately NOT used: a nonzero from
 # any probe (jq parse of a malformed ledger, a missing file) must fall through
@@ -26,16 +27,29 @@ command -v jq >/dev/null 2>&1 || exit 0
 
 input="$(cat)"
 
-# Scan root: $CLAUDE_PROJECT_DIR when set, else the input cwd. If neither
-# resolves to a real dir, there is nothing to scan → silent.
+# Scan root (initial candidate — anchored to the main checkout below):
+# $CLAUDE_PROJECT_DIR when set, else the input cwd. If neither resolves to a
+# real dir, there is nothing to scan → silent.
 root="${CLAUDE_PROJECT_DIR:-}"
 if [ -z "$root" ]; then
   root="$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null)"
 fi
 [ -n "$root" ] || exit 0
-[ -d "$root/.claude/campaigns" ] || exit 0
 
-# --- find the active campaign, latest-by-mtime ------------------------------
+# Anchor the scan root at the MAIN checkout. Campaign state lives under the main
+# checkout's .claude/campaigns (ADR 0016) — a Lead invoked from a linked git
+# worktree would otherwise scan the disposable worktree's own .claude/ and miss
+# it. `rev-parse --git-common-dir` resolves to the shared .git even from a linked
+# worktree; its dirname is the main checkout (the same idiom survey-corps and
+# war-machine use). TWO-STEP, failure-distinguishable form: capture git's output
+# FIRST so the assignment propagates git's exit status, gate on that `&&` a
+# non-empty result, only THEN dirname. A composed one-liner
+# (`root=$(dirname "$(git … )")`) is WRONG: dirname of a failed command
+# substitution returns "." (never empty), silently anchoring root=. in a non-git
+# dir. FAIL-OPEN: git absent / not a repo / bare → $root is left exactly as
+# resolved above.
+common="$(git -C "$root" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" && [ -n "$common" ] && root="$(dirname "$common")"
+
 # ACTIVE ⇔ ledger parses as JSON AND .plans is a non-empty array AND at least
 # one plan has .status != "landed". Gate on found-and-open, NOT array length
 # alone: an all-landed campaign is inactive.
@@ -50,6 +64,35 @@ is_active() {
     "$1" >/dev/null 2>&1
 }
 
+# Stranded-state probe. The hook has THREE silent no-inject exits (no campaigns
+# dir; the campaigns dir present but holding no ledger files; no ACTIVE ledger
+# after the mtime scan). Before falling silent at ANY of them, check whether an
+# ACTIVE campaign ledger is stranded under a worktree's OWN .claude/campaigns —
+# state placed there will NOT survive worktree reaping (/aftermath), so warn
+# once, naming the path, then exit 0. All-landed stranded ledgers stay silent
+# (is_active gate). ONE landing site invoked at all three exits keeps this
+# drift-proof: a fourth future exit copies one call. Deliberately does NOT inject
+# the stranded ledger's state body — that would legitimize the wrong placement.
+# FAIL-OPEN: on no match the function returns and the caller's silent exit 0 stands.
+warn_if_stranded() {
+  stranded=""
+  for stranded in "$root"/.claude/worktrees/*/.claude/campaigns/*/ledger.json; do
+    [ -f "$stranded" ] || continue        # no-match leaves the literal pattern → skip
+    is_active "$stranded" || continue      # all-landed stranded ledger → stay silent
+    warn_ctx="WARNING: an active campaign ledger is stranded under a worktree: ${stranded}
+Campaign state outside the main checkout's .claude/campaigns will not survive worktree reaping (/aftermath) — move it there."
+    jq -nc --arg ctx "$warn_ctx" \
+      '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":$ctx}}' \
+      2>/dev/null
+    exit 0
+  done
+}
+
+[ -d "$root/.claude/campaigns" ] || { warn_if_stranded; exit 0; }
+
+# --- find the active campaign, latest-by-mtime ------------------------------
+# (is_active is defined above, before the campaigns-dir guard, so the stranded
+# probe can reuse it.)
 # Order candidate ledgers newest-first by mtime via `ls -t` (portable; NEVER
 # `stat -f`/`stat -c` — BSD/GNU flag divergence). The SHELL expands the glob;
 # on no-match the loop var holds the literal pattern, caught by `[ -f ]`. We
@@ -67,7 +110,7 @@ for ledger in "$root"/.claude/campaigns/*/ledger.json; do
   candidates="${candidates}${ledger}
 "
 done
-[ -n "$candidates" ] || exit 0          # no ledger files at all → silent
+[ -n "$candidates" ] || { warn_if_stranded; exit 0; }   # no ledger files → warn-if-stranded, else silent
 
 # Read the collected paths into an indexed array (one path per line), then sort
 # them newest-first by mtime with `ls -t "${arr[@]}"`. Passing the paths as
@@ -98,8 +141,8 @@ while IFS= read -r ledger; do
   fi
 done < <(ls -t "${arr[@]}" 2>/dev/null)
 
-# No active campaign → silent.
-[ -n "$active_ledger" ] || exit 0
+# No active campaign → warn if one is stranded under a worktree, else silent.
+[ -n "$active_ledger" ] || { warn_if_stranded; exit 0; }
 
 campaign_dir="$(dirname "$active_ledger")"
 state_file="$campaign_dir/CAMPAIGN-STATE.md"

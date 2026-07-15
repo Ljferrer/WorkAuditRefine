@@ -822,6 +822,87 @@ test('CLI record --backstops parses a JSON array and persists it onto the entry'
   assert.deepEqual(readLedger(campaignDir).plans[0].backstops, [BACKSTOP_A, BACKSTOP_AI])
 })
 
+// ---- CLI --campaign anchoring + init dangling-symlink (plan Task 2, End states 4-5) --
+// A relative --campaign must anchor at the MAIN checkout (git rev-parse
+// --path-format=absolute --git-common-dir), never the invoking worktree's cwd, so
+// campaign state survives worktree reaping (ADR 0016). Absolute passes through; a failed
+// git probe falls back to today's cwd-relative behavior. init() names a dangling-symlink
+// ENOENT instead of leaking a bare stack.
+
+// A real git repo with a `git worktree add` linked worktree, so `--git-common-dir` from
+// the worktree cwd resolves to the main checkout's `.git` (dirname → the main checkout).
+function makeGitRepoWithWorktree() {
+  const root = tmpDir()
+  const main = path.join(root, 'main')
+  fs.mkdirSync(main)
+  const g = (...a) => execFileSync('git', a, { cwd: main, stdio: 'ignore' })
+  g('init', '-q')
+  g('config', 'user.email', 'war@test')
+  g('config', 'user.name', 'war test')
+  fs.writeFileSync(path.join(main, 'README.md'), '# fixture\n')
+  g('add', '-A')
+  g('commit', '-qm', 'init')
+  const wt = path.join(root, 'wt')
+  g('worktree', 'add', '-q', wt)
+  return { main, wt }
+}
+
+function cliIn(opts, ...args) {
+  return execFileSync(process.execPath, [CLI, ...args], { encoding: 'utf8', ...opts })
+}
+
+test('CLI init with a relative --campaign from a linked worktree writes the ledger under the MAIN checkout, not the worktree (End state 4)', () => {
+  const { main, wt } = makeGitRepoWithWorktree()
+  const rel = path.join('.claude', 'campaigns', 'anchored-camp')
+
+  cliIn({ cwd: wt }, 'init', '--campaign', rel) // no plans → empty ledger, stack mode
+
+  // existsSync (not string equality): git returns the /private/var realpath on macOS
+  // while `main` is the /var symlink — existsSync follows the symlink, path equality wouldn't.
+  assert.ok(fs.existsSync(path.join(main, rel, 'ledger.json')), 'ledger lands under the main checkout')
+  assert.ok(!fs.existsSync(path.join(wt, rel, 'ledger.json')), 'ledger must NOT land under the worktree cwd')
+})
+
+test('CLI init with an ABSOLUTE --campaign uses it verbatim, never anchored to the main checkout (End state 4)', () => {
+  const { main, wt } = makeGitRepoWithWorktree()
+  const abs = path.join(tmpDir(), 'abs-camp')
+
+  cliIn({ cwd: wt }, 'init', '--campaign', abs)
+
+  assert.ok(fs.existsSync(path.join(abs, 'ledger.json')), 'absolute --campaign is used verbatim')
+  // nothing was anchored under the main checkout (would catch a path.join mis-anchor of the abs path)
+  assert.ok(!fs.existsSync(path.join(main, '.claude')), 'absolute --campaign must not touch the main checkout')
+})
+
+test('CLI init with a relative --campaign from a NON-git cwd falls back to cwd-relative today\'s behavior (End state 4)', () => {
+  const cwd = tmpDir() // pristine temp dir, not a git repo
+  const rel = path.join('.claude', 'campaigns', 'fallback-camp')
+
+  // GIT_CEILING_DIRECTORIES stops git's upward repo search at the temp parent, so the
+  // anchor probe fails deterministically regardless of where os.tmpdir() lives → fallback.
+  cliIn(
+    { cwd, env: { ...process.env, GIT_CEILING_DIRECTORIES: path.dirname(cwd) } },
+    'init', '--campaign', rel,
+  )
+
+  assert.ok(fs.existsSync(path.join(cwd, rel, 'ledger.json')), 'relative path resolves against cwd when the anchor probe fails')
+})
+
+test('init() through a dangling `campaigns` symlink throws a named error (not a bare ENOENT stack) (End state 5)', () => {
+  const dir = tmpDir()
+  const planA = writePlan(dir, 'a.md', PLAN_A) // valid footprint → reach the mkdir, not assertOrderable
+  // dangling symlink: `campaigns` → a nonexistent target, so recursive mkdir under it throws ENOENT
+  fs.symlinkSync(path.join(dir, 'no-such-target'), path.join(dir, 'campaigns'))
+  const campaignDir = path.join(dir, 'campaigns', 'default')
+
+  // MESSAGE-MATCHED: the raw ENOENT already names campaignDir, so the /dangling|symlink/i
+  // clause is what discriminates the wrap — a bare rethrow goes RED on it.
+  assert.throws(
+    () => init(campaignDir, { plans: [planA], mode: 'stack' }),
+    (err) => err.message.includes(campaignDir) && /dangling|symlink/i.test(err.message),
+  )
+})
+
 // ---- Files: extraction (block-based, anchored) --------------------------
 
 test('extractFiles captures a wrapped Files: list across continuation lines (this plan\'s own T3 entry)', () => {

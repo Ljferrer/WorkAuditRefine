@@ -30,6 +30,7 @@ PLUGIN="$ROOT/.claude-plugin/plugin.json"
 CONTEXT="$ROOT/CONTEXT.md"
 WAR_HELP="$ROOT/skills/war-help/SKILL.md"
 WAR_STRATEGY="$ROOT/skills/war-strategy/SKILL.md"
+WAR_CAMPAIGN="$ROOT/skills/war-campaign/SKILL.md"
 
 fails=0
 
@@ -40,6 +41,19 @@ has() { # file  literal
     printf 'ok - %s :: %s\n' "$(basename "$1")" "$2"
   else
     printf 'not ok - %s MISSING :: %s\n' "$(basename "$1")" "$2"
+    fails=$((fails + 1))
+  fi
+}
+
+# grep -iF case-INSENSITIVE fixed-string presence. For PROSE tokens that a benign
+# re-casing (sentence case) must not false-negate — the recorded sentence-case class
+# ([[prompt-only-clause-grep-guard-must-tolerate-sentence-case]]). Flag/token literals
+# that never re-case (e.g. `--git-common-dir`) stay case-sensitive via has().
+has_i() { # file  literal
+  if grep -qiF -e "$2" -- "$1"; then
+    printf 'ok - %s :: %s (case-insensitive)\n' "$(basename "$1")" "$2"
+  else
+    printf 'not ok - %s MISSING :: %s (case-insensitive)\n' "$(basename "$1")" "$2"
     fails=$((fails + 1))
   fi
 }
@@ -154,6 +168,16 @@ done
 has_re "$MACHINE" 'Input selection precedence'
 has "$MACHINE" 'consumed: null'
 has_re "$MACHINE" 'consumed-stamp semantics'
+
+printf '\n# Criterion 9b — war-campaign SKILL anchors campaign state at the main checkout (same --git-common-dir idiom)\n'
+# The flag literal is case-STABLE (a flag is never re-cased) -> exact has(). The prose rule
+# "main checkout" is case-INSENSITIVE via has_i(): a benign sentence-case re-casing of the
+# SKILL prose must not false-negate the drift guard (red-team fix 2026-07-16, the sentence-case
+# false-negative class). The adjacent Criterion 9 survey+machine "main checkout" assertions above
+# still use the case-sensitive has() and inherit that fragility — out of this plan's footprint,
+# noted for a follow-up, not fixed here.
+has   "$WAR_CAMPAIGN" '--git-common-dir'
+has_i "$WAR_CAMPAIGN" 'main checkout'
 
 printf '\n# Criterion 10 — machine predecessor-consistency, skip-and-report, --afk manifest + closing-commit rules\n'
 has "$MACHINE" 'Predecessor-consistency'

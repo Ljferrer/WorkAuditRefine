@@ -1,6 +1,6 @@
 # Compaction survival: write-ahead checkpoint + post-compact re-injection (self-compaction rejected)
 
-**Status:** accepted (design ratified 2026-07-03; implementation tracked by the spec below)
+**Status:** accepted (design ratified 2026-07-03; implementation tracked by the spec below; amended 2026-07-15 — campaign state anchors at the **main checkout**, not the Lead's cwd; see the amendment below)
 
 An overnight `/war-campaign` run outlives many context windows. When compaction fires — at a moment
 nobody controls — the Lead's working context is replaced by a summary, and the campaign thread can be
@@ -75,3 +75,32 @@ is always fresh before the wait, and it is deterministically restored after the 
 - [ADR-0011](0011-campaign-stack-and-plow-branch-model.md) — the stacked-branch campaign model whose
   overnight duration makes compaction survival load-bearing.
 - The 2026-07-03 compaction failure (operator-supplied) — the originating defect.
+
+## Amendment (2026-07-15): campaign state anchors at the main checkout
+
+The 2026-07-03 design assumed the campaign Lead's cwd *is* the campaign's home — the `SessionStart` hook
+scanned `<cwd>/.claude/campaigns/*/ledger.json` and the ledger CLI resolved a relative `--campaign`
+against cwd. But in the normal case the Lead runs from a **session git worktree**, which carries its own
+`.claude/` and is **disposable** (`/aftermath` reaps it). A cwd-anchored campaign dir therefore strands the
+queue where it cannot outlive the session — the exact failure this ADR exists to prevent.
+
+**Decision — hook half, amended.** The `SessionStart` hook resolves its scan root at the **main checkout**,
+not the invoking worktree: from any linked worktree it reads `git rev-parse --path-format=absolute
+--git-common-dir` (the main `.git`'s parent) and scans `<main>/.claude/campaigns/*/ledger.json`. Every git
+probe **fails open** to today's cwd-relative behavior (git absent, not a repo, bare → the scan root is left
+untouched), so a non-git session is unchanged. The formerly-silent no-campaign path now **warns** when an
+*active* ledger is found stranded under `<main>/.claude/worktrees/*/.claude/campaigns/*/`: a bounded
+`additionalContext` payload naming the stranded path and stating that campaign state outside the main
+checkout's `.claude/campaigns` will not survive worktree reaping. It deliberately does **not** inject the
+stranded body (injecting would legitimize the wrong placement and reintroduce a latest-by-mtime race between
+duplicated ledgers); an all-`landed` stranded ledger stays silent. The ledger CLI anchors its relative
+`--campaign` the same way, and the `/war-campaign` placement prose states the rule — locked by the
+`skills/war-machine/war-pipeline-structure.test.sh` drift guard.
+
+**Consequences — amended.** The spec's *"campaigns live under the session's project dir"*
+([`2026-07-03-campaign-compaction-survival.md`](../specs/2026-07-03-campaign-compaction-survival.md) §8,
+"Worktree vs main-checkout cwd") is **superseded**: campaign state lives under the **main checkout's**
+`.claude/campaigns` — the one durable place — because session worktrees are disposable (`/aftermath` reaps
+them) and campaign state must outlive any one session. Per-worktree symlinks or copies of the campaign dir
+are no longer needed; any that exist become stranded duplicates to clean up. The spec is left untouched as a
+point-in-time record; this amendment carries the supersession.
