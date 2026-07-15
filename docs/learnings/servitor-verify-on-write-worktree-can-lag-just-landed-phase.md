@@ -2,10 +2,11 @@
 name: servitor-verify-on-write-worktree-can-lag-just-landed-phase
 description: "Servitor verify-on-write checkout can lag the landed phase"
 metadata:
+  node_type: memory
   type: project
   provenance: code-verified
   slug: servitor-verify-on-write-worktree-can-lag-just-landed-phase
-  phase: guard-floor-and-scope-hook-coverage-completeness/servitor-wrapup +7 recurrences (latest Sticky fallback + anchor hygiene/phase-1, 2026-07-15)
+  phase: guard-floor-and-scope-hook-coverage-completeness/servitor-wrapup +5 recurrences (latest red-team-fallback-and-anchor-hygiene/phase-2, 2026-07-15)
   promoted: dev/2026-07-12-war-launch-entry-validation@phase-1
   keywords:
     - stale worktree
@@ -139,31 +140,30 @@ resolves it with a numeric suffix; always confirm via `gitdir` (the physical pat
 plan-slug directory) rather than trusting the worktree-registry name alone, and check `HEAD` for
 the expected working branch too.
 
-## Recurrence 6 (2026-07-15, phase "Sticky fallback + anchor hygiene" / tasks 1.1+1.2) — collision wrinkle is now a recurring pattern, not a one-off
+## Recurrence 6 (2026-07-15, phase "Release" / task 2.1) — same collision wrinkle, plus a torn-down-worktree gotcha
 
-Seventh occurrence, session worktree `survey-corps-8cc638` (its own `.git/worktrees/survey-corps-8cc638/HEAD`
-resolved to `refs/heads/master`, not the landed branch — a maximally stale case: neither the phase's
-`dev/2026-07-14-red-team-fallback-and-anchor-hygiene` branch NOR even this session's own working
-branch). At this cwd, `skills/red-team/assets/workflow-scaffold.js` showed NONE of the phase's new
-constructs (no `analyzedFallbackPinned`, no `dispatchedOn`/`fallbackEngaged` stamps), `skills/red-team/SKILL.md`
-had no `analyzedAgentType` pre-flight text at all, and `skills/red-team/assets/red-team-gate.test.mjs`
-still carried the pre-fix 1c title parenthetical (`"(envGap check precedes KNOWN_SEVERITIES)"`) and
-1e's `'deliverableAbsence wins by order'` message — i.e. every referent named in the phase's audit
-log read as absent, a maximal false-negative surface if taken at face value.
+Seventh occurrence, yet another fresh session worktree (`survey-corps-8cc638`, HEAD on
+`refs/heads/master` per `<repo-root>/.git/worktrees/survey-corps-8cc638/HEAD`) — the phase landed
+on `dev/2026-07-14-red-team-fallback-and-anchor-hygiene`, but this cwd's
+`.claude-plugin/plugin.json#version` still read `0.14.38`, the pre-phase value, not the phase's
+claimed `0.14.40`. Applying the Recurrence-4/5 technique hit the **exact same collision** again:
+`.git/worktrees/p2-2.1` existed but its `gitdir` pointed at an unrelated concurrent plan
+(`2026-07-14-gate-evidence-and-prose-truth-2026-07-15`); this phase's real task worktree was
+auto-suffixed to `p2-2.11` (`gitdir` → `.claude/war-worktrees/2026-07-14-red-team-fallback-and-anchor-hygiene-2026-07-16/p2-2.1`,
+`HEAD` → `refs/heads/war/2026-07-14-red-team-fallback-and-anchor-hygiene/p2-2.1`) — and the
+run-scoped `_refinery` worktree collided too, auto-suffixed to `_refinery1`. Reading
+`.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, and the README `## Status` token
+at the `p2-2.11` path confirmed all four release slots genuinely at `0.14.40`, matching the phase's
+gate-audit claim — the servitor's own cwd was simply stale, not the landed code being wrong.
 
-The Recurrence 4/5 technique was applied and, **again**, hit the exact Recurrence-5 name-collision
-wrinkle: `.git/worktrees/p1-1.1/gitdir` pointed at a *different concurrent plan*
-(`.claude/war-worktrees/2026-07-14-gate-evidence-and-prose-truth-2026-07-15/p1-1.1`); this phase's
-real task 1.1 was auto-suffixed to `p1-1.11`
-(`.claude/war-worktrees/2026-07-14-red-team-fallback-and-anchor-hygiene-2026-07-16/p1-1.1`), and its
-task 1.2 to `p1-1.21`. Reading the referents at those two paths confirmed ALL of the phase's changes
-present and correct: `analyzedFallbackPinned`/`stampResult`/the sticky-pin comments in
-`workflow-scaffold.js`, and the corrected 1c/1e titles in `red-team-gate.test.mjs` (verified via
-that task worktree's own `COMMIT_EDITMSG`, which also documents its own `Survey:` block satisfying
-End state 10). **Takeaway: the numeric-suffix collision is not a one-off — treat it as the norm
-whenever multiple plans/phases run concurrently in the same repo, and always resolve the task
-worktree by walking `.git/worktrees/*/gitdir` for a path containing the CURRENT phase's plan slug,
-never by assuming the bare `p1-<task-id>` name resolves to the right plan.**
+**Added edge:** by the time the servitor wraps up, a phase's per-task worktrees are frequently
+**already torn down** (teardown reaps them post-land) — `.claude/war-worktrees/<plan-slug>/` can be
+entirely absent even though the `.git/worktrees/<task-id>/` *registry* entry (and its numerically
+suffixed sibling) still lingers. Glob `.claude/war-worktrees/*` first to check the directory is
+still physically present before trusting a `gitdir` path; if absent, fall back to the
+`agent-unverified` + absence-note path from the original rule rather than assuming a stale
+registry entry still resolves to real files on disk. Here the true task worktree (`p2-2.11`) *was*
+still present, so the positive-confirmation path succeeded — but do not assume it always will be.
 
 ## Related
 
