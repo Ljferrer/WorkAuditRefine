@@ -8,7 +8,11 @@
 # ([[bsd-mktemp-ignores-tmpdir-gnu-only]]). Most cases invoke the hook with
 # CLAUDE_PROJECT_DIR pinned at each fixture root (so the test never reads the
 # developer's real ~/.claude). Case 10 covers the OTHER root-resolution branch:
-# env unset, root taken from the stdin `cwd` fallback (lines 33-34 of the hook).
+# env unset, root taken from the stdin `cwd` fallback (the ${CLAUDE_PROJECT_DIR:-}
+# else branch of the hook). Cases 12–18 exercise the git-common-dir ANCHOR (a
+# linked-worktree cwd resolves to the main checkout) and the stranded-state
+# WARNING emitted at each of the hook's three silent no-inject exits. Cases 1–11
+# remain UNMODIFIED — they are the non-git fail-open fallback coverage.
 #
 # Each case asserts BOTH stdout content AND exit code.
 # Exit 0 (this script) = all cases passed; non-zero = at least one failed.
@@ -212,6 +216,126 @@ CTX11="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.additionalContext // em
 assert_contains "case11 spaced newer campaign body inlined" "$CTX11" "$SP_NEW_SENT"
 assert_absent   "case11 spaced older campaign body NOT inlined" "$CTX11" "$SP_OLD_SENT"
 assert_contains "case11 spaced older campaign id named" "$CTX11" "camp-space-old"
+
+# ---------------------------------------------------------------------------
+# Cases 12–13: ANCHORING — a Lead invoked from a linked git worktree injects the
+# MAIN checkout's active campaign. `git rev-parse --path-format=absolute
+# --git-common-dir` resolves the worktree back to the main checkout (End state
+# 1). Case 12: CLAUDE_PROJECT_DIR UNSET (root from stdin .cwd). Case 13:
+# CLAUDE_PROJECT_DIR SET to the worktree path. Both must inject identically.
+# Requires real git (a hard plugin dependency, always present in the gate env).
+# ---------------------------------------------------------------------------
+GMAIN="$WORK/gmain"; mkdir -p "$GMAIN"
+git -C "$GMAIN" init -q
+git -C "$GMAIN" config user.email t@t.t
+git -C "$GMAIN" config user.name t
+: > "$GMAIN/seed"; git -C "$GMAIN" add seed; git -C "$GMAIN" commit -qm seed >/dev/null 2>&1
+# Active campaign lives under the MAIN checkout only (untracked → the worktree
+# checkout below will NOT contain it, so nothing is stranded under the worktree).
+WT_SENT="ZZ-WT-BODY-7777"
+mk_ledger "$GMAIN/.claude/campaigns/camp-wt" "camp-wt" '[{"slug":"p","status":"queued"}]'
+printf '%s\n' "$WT_SENT body line" > "$GMAIN/.claude/campaigns/camp-wt/CAMPAIGN-STATE.md"
+# Linked worktree (its own disposable .claude/, no campaign of its own).
+GWT="$WORK/gwt"
+git -C "$GMAIN" worktree add --detach -q "$GWT" HEAD >/dev/null 2>&1
+
+# Case 12: env UNSET, stdin cwd = worktree → anchor resolves to MAIN, injects.
+OUT12="$(env -u CLAUDE_PROJECT_DIR bash -c '
+  jq -nc --arg cwd "$1" "{\"cwd\":\$cwd,\"hook_event_name\":\"SessionStart\"}" | bash "$2"
+' _ "$GWT" "$HOOK" 2>/dev/null)"; RC12=$?
+assert_eq       "case12 worktree cwd, env unset → exit 0" 0 "$RC12"
+CTX12="$(printf '%s' "$OUT12" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)"
+assert_contains "case12 injects MAIN campaign body sentinel" "$CTX12" "$WT_SENT"
+assert_contains "case12 injects MAIN campaign id" "$CTX12" "camp-wt"
+
+# Case 13: CLAUDE_PROJECT_DIR SET to the worktree (env + stdin cwd both = WT).
+run_hook "$GWT"
+assert_eq       "case13 worktree cwd, env set → exit 0" 0 "$RC"
+CTX13="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)"
+assert_contains "case13 injects MAIN campaign body sentinel" "$CTX13" "$WT_SENT"
+assert_contains "case13 injects MAIN campaign id" "$CTX13" "camp-wt"
+
+# ---------------------------------------------------------------------------
+# Case 14: git shadowed off PATH (a failing shim) + a NON-git fixture → the
+# anchor fails open and the hook still injects via the unanchored (env/cwd)
+# root. Proves the anchor never breaks the pre-anchor fail-open path (End state
+# 2 — the same guarantee cases 1–11 rely on, here with git unavailable).
+# ---------------------------------------------------------------------------
+FAKEBIN="$WORK/fakebin"; mkdir -p "$FAKEBIN"
+printf '%s\n' '#!/bin/sh' 'exit 127' > "$FAKEBIN/git"; chmod +x "$FAKEBIN/git"
+R14="$WORK/c14"; CDIR14="$R14/.claude/campaigns/camp-nogit"
+mk_ledger "$CDIR14" "camp-nogit" '[{"slug":"only","status":"queued"}]'
+NOGIT_SENT="ZZ-NOGIT-BODY-8888"
+printf '%s\n' "$NOGIT_SENT body line" > "$CDIR14/CAMPAIGN-STATE.md"
+JSON14="$(jq -nc --arg cwd "$R14" '{"cwd":$cwd,"hook_event_name":"SessionStart"}')"
+OUT14="$(printf '%s' "$JSON14" | CLAUDE_PROJECT_DIR="$R14" PATH="$FAKEBIN:$PATH" bash "$HOOK" 2>/dev/null)"; RC14=$?
+assert_eq       "case14 git off PATH, non-git → exit 0" 0 "$RC14"
+CTX14="$(printf '%s' "$OUT14" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)"
+assert_contains "case14 injects via unanchored root (body sentinel)" "$CTX14" "$NOGIT_SENT"
+assert_contains "case14 injects via unanchored root (campaign id)" "$CTX14" "camp-nogit"
+
+# ---------------------------------------------------------------------------
+# Case 15: STRANDED-STATE WARNING at the no-campaigns-dir exit (site 1). No
+# <root>/.claude/campaigns, but an ACTIVE ledger sits under a worktree's OWN
+# .claude/campaigns. The hook warns, naming the stranded path, and deliberately
+# does NOT inject the stranded body (End state 3).
+# ---------------------------------------------------------------------------
+R15="$WORK/c15"; mkdir -p "$R15"
+STRAND15="$R15/.claude/worktrees/wt-x/.claude/campaigns/camp-strand"
+mk_ledger "$STRAND15" "camp-strand" '[{"slug":"s","status":"queued"}]'
+STRAND15_SENT="ZZ-STRAND-BODY-9999"
+printf '%s\n' "$STRAND15_SENT" > "$STRAND15/CAMPAIGN-STATE.md"
+run_hook "$R15"
+assert_eq       "case15 stranded active (site 1) → exit 0" 0 "$RC"
+if printf '%s' "$OUT" | jq -e . >/dev/null 2>&1; then ok "case15 warning parses with jq"; else no "case15 warning parses with jq"; fi
+CTX15="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)"
+assert_contains "case15 warning names the stranded ledger path" "$CTX15" "$STRAND15/ledger.json"
+assert_contains "case15 warning mentions worktree reaping" "$CTX15" "reaping"
+assert_absent   "case15 warning does NOT inject the stranded body" "$CTX15" "$STRAND15_SENT"
+
+# ---------------------------------------------------------------------------
+# Case 16: an ALL-LANDED stranded ledger stays SILENT (the is_active gate). Same
+# site-1 shape as case 15 but every plan landed → empty stdout, exit 0.
+# ---------------------------------------------------------------------------
+R16="$WORK/c16"; mkdir -p "$R16"
+STRAND16="$R16/.claude/worktrees/wt-x/.claude/campaigns/camp-landed"
+mk_ledger "$STRAND16" "camp-landed" '[{"slug":"a","status":"landed"},{"slug":"b","status":"landed"}]'
+run_hook "$R16"
+assert_eq       "case16 all-landed stranded → exit 0" 0 "$RC"
+assert_eq       "case16 all-landed stranded → empty stdout" "" "$OUT"
+
+# ---------------------------------------------------------------------------
+# Case 17: STRANDED-STATE WARNING at the empty-candidates exit (site 2). The main
+# .claude/campaigns dir is PRESENT-BUT-EMPTY (holds no */ledger.json), so site 1
+# passes and the empty-candidates guard fires. REDS if warn_if_stranded is wired
+# into only the two originally-named sites (guard + no-active) and misses this
+# empty-candidates exit (red-team coverage fix 2026-07-16).
+# ---------------------------------------------------------------------------
+R17="$WORK/c17"; mkdir -p "$R17/.claude/campaigns"   # present but EMPTY (no */ledger.json)
+STRAND17="$R17/.claude/worktrees/wt-x/.claude/campaigns/camp-strand"
+mk_ledger "$STRAND17" "camp-strand" '[{"slug":"s","status":"queued"}]'
+run_hook "$R17"
+assert_eq       "case17 stranded active (site 2, empty-candidates) → exit 0" 0 "$RC"
+CTX17="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)"
+assert_contains "case17 warning names the stranded ledger path" "$CTX17" "$STRAND17/ledger.json"
+assert_contains "case17 warning mentions worktree reaping" "$CTX17" "reaping"
+
+# ---------------------------------------------------------------------------
+# Case 18: STRANDED-STATE WARNING at the no-active-ledger exit (site 3). The main
+# .claude/campaigns holds an ALL-LANDED (inactive) ledger — candidates non-empty,
+# but the mtime scan finds no active winner — so the third silent exit fires. An
+# active stranded ledger under a worktree still warns. Enforces the THIRD wiring
+# of the single probe helper.
+# ---------------------------------------------------------------------------
+R18="$WORK/c18"
+mk_ledger "$R18/.claude/campaigns/camp-inactive" "camp-inactive" '[{"slug":"z","status":"landed"}]'
+STRAND18="$R18/.claude/worktrees/wt-x/.claude/campaigns/camp-strand"
+mk_ledger "$STRAND18" "camp-strand" '[{"slug":"s","status":"queued"}]'
+run_hook "$R18"
+assert_eq       "case18 stranded active (site 3, no-active-ledger) → exit 0" 0 "$RC"
+CTX18="$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)"
+assert_contains "case18 warning names the stranded ledger path" "$CTX18" "$STRAND18/ledger.json"
+assert_contains "case18 warning mentions worktree reaping" "$CTX18" "reaping"
 
 # ---------------------------------------------------------------------------
 printf '\n%d/%d cases passed\n' "$((n - fails))" "$n"
