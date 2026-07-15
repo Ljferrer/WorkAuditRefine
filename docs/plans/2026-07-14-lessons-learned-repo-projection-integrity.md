@@ -80,16 +80,20 @@ release slots with this plan — see Build order contention.
      matches the Phase 5 Archive command block, accompanied by the same
      omit-only-when-no-repo-root-resolves conditional prose the render bullet carries, plus a note
      that archive's trailing re-render now walks both roots (criterion 1).
-  10. SKILL.md Phase 6 "It checks:" prose names the repo-completeness hard fail as the fourth
-      check, and the Phase 6 `verify` and Phase 7 `commit` command blocks carry the conditional
+  10. SKILL.md Phase 6 "It checks:" prose names the repo-completeness hard fail as its own new
+      clause — the FIFTH check listed (the sentence already carries four: row→file hard fail,
+      unindexed-file warn, dangling-wikilink warn, budget hard fail; the new one is the third
+      hard fail — red-team off-by-one correction 2026-07-16),
+      and the Phase 6 `verify` and Phase 7 `commit` command blocks carry the conditional
       `CLAUDE_MEMORY_REPO="$REPO_ROOT"` prefix (criterion 10); the Common-mistakes `--repo` bullet
       covers the archive invocation and the new verify backstop while retaining the
       evict-exception sentence and the exact ``silently drops every `[repo]` row`` phrase an
       existing doc-contract lock anchors on (criterion 11).
   11. `node --test skills/lessons-learned/lessons-learned-doc-contract.test.mjs` green: every
       pre-existing lock untouched and passing, plus new locks pinning the Phase 5 archive
-      `--repo`, the Phase 6 and Phase 7 `CLAUDE_MEMORY_REPO` prefixes, and the fourth "It checks:"
-      clause (case-tolerant, mid-sentence anchors).
+      `--repo`, the Phase 6 and Phase 7 `CLAUDE_MEMORY_REPO` prefixes, and the new repo-completeness
+      "It checks:" clause (case-tolerant, mid-sentence anchors — anchor on the clause's own
+      tokens, never an ordinal).
   12. The backing lesson
       `docs/learnings/archive-subcommand-rerender-drops-repo-rows-and-verify-cannot-catch-it.md`
       carries a FIXED-phase resolution note (existing provenance-line convention), and
@@ -203,8 +207,10 @@ release slots with this plan — see Build order contention.
       both roots, so the staged projection keeps its `[repo]` rows even if the pass dies before
       the explicit render step.
     - **Phase 6 block:** prefix the verify invocation with `CLAUDE_MEMORY_REPO="$REPO_ROOT"`
-      (same conditional), and extend the "It checks:" sentence with the fourth hard check — a
-      populated repo root with a zero-`[repo]`-row projection is a hard fail.
+      (same conditional), and extend the "It checks:" sentence with the new repo-completeness
+      hard fail — a populated repo root with a zero-`[repo]`-row projection is a hard fail. (The
+      sentence already lists four checks; this is the fifth clause and third hard fail — do not
+      write an ordinal into the prose or the lock.)
     - **Phase 7 block:** the `commit` invocation gains the same `CLAUDE_MEMORY_REPO="$REPO_ROOT"`
       prefix (commit re-verifies staging itself). For both blocks the prose treats `$REPO_ROOT`
       as the Phase-0-detected repo root, **re-resolvable in a fresh shell** — each command block
@@ -213,9 +219,13 @@ release slots with this plan — see Build order contention.
     - **Common mistakes, the "Dropping `--repo` from the Phase 5 render…" bullet:** widen to
       cover the archive invocation and note the verify gate now backstops the mistake when the
       repo root is threaded. **Two anchors are frozen:** the evict-exception sentence stays
-      exactly as is (a doc-contract lock asserts the evict re-render is local-only by design),
-      and the ``silently drops every `[repo]` row`` phrase survives the rewording (an existing
-      doc-contract lock regex-anchors it).
+      exactly as is — NOTE (red-team correction 2026-07-16): the evict local-only lock anchors on
+      `references/migration.md` (`lineWith(migration, 'evicted rows lose their')` + no `--repo`
+      in the evict block), NOT on this SKILL.md sentence, so freezing the SKILL.md
+      Common-mistakes evict-exception clause is same-commit manual discipline the auditor
+      verifies in the diff, not lock-enforced — and the ``silently drops every `[repo]` row``
+      phrase survives the rewording (that one IS regex-anchored by an existing SKILL.md
+      doc-contract lock).
   - **`lessons-learned-doc-contract.test.mjs` — new locks, semantics not bytes** (the worker owns
     phrasing; the plan-bullet byte-literal trap is the recorded failure mode): mirror the in-file
     precedent lock that guards the Phase 5 *render* bullet's `--repo` (same defect class — #891
@@ -375,10 +385,14 @@ release slots with this plan — see Build order contention.
   passes (the migration preamble export); only the test suite must be hermetic against it. The
   sanitation is one `unset` line, placed exactly where the spec says (after the `SCRIPT` guard,
   before CASE 1).
-- **Two frozen anchors named for the Common-mistakes rewording** — the evict-exception sentence
-  and the ``silently drops every `[repo]` row`` phrase are both regex-anchored by pre-existing
-  doc-contract locks (verified at survey base); the slice freezes them so the widening cannot
-  red a lock this plan does not own the intent to change.
+- **Two frozen anchors named for the Common-mistakes rewording (lock attribution corrected by
+  red-team 2026-07-16)** — the ``silently drops every `[repo]` row`` phrase is regex-anchored by
+  a pre-existing SKILL.md doc-contract lock; the evict-exception protection lives in the
+  migration.md-reading lock (`evicted rows lose their` + evict block carries no `--repo`), which
+  does NOT grip the SKILL.md Common-mistakes evict-exception sentence — that sentence's freeze is
+  the task's manual same-commit discipline (auditor-verified in the diff), not lock-enforced. The
+  slice freezes both so the widening cannot red the phrase lock nor silently reword the
+  evict-exception clause this plan does not own the intent to change.
 - **`references/migration.md` excluded from `Files:` — read-only sweep target, zero-diff
   expected.** Its prose is anchored by pre-existing doc-contract locks (verified: the evict
   local-only re-render lock, the CLAUDE.md-pointer lock, the migrate-confirm/evict-justification
