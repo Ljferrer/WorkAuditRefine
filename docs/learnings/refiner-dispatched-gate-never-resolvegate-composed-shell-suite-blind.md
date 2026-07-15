@@ -45,6 +45,9 @@ step 7 tees **that** run's stdout+stderr to the captured artifact. So for a repo
 config value is JS-only (this repo's default), the refiner's captured gate artifact — even though it
 is the FULL, non-curated stdout+stderr of the command that was actually run — can **never** contain
 shell-suite output, regardless of how thorough the refiner is about capture-completeness.
+**[Stale as of 2026-07-15 in this repo — see the RESOLVED section below: the engine now composes
+`plan.gate` before any dispatch site interpolates it, so this specific consequence no longer holds
+here.]**
 
 **Why this differs from [[gate-output-curated-excerpt-obscures-mapped-test-evidence]]:** that lesson's
 gap was about a refiner *curating/collapsing* a full run's output before pasting/logging it — fixed by
@@ -62,7 +65,9 @@ shell tests were present+substantive at the pinned tip. That is 5 recurrences of
 structural cause inside a single phase — a strong signal this will recur on **every** future phase
 in this repo whose task diff lives in `hooks/*.sh`, until either (a) the run config's `gate` value is
 authored as `resolveGate(...)`'s output directly, or (b) `workflow-template.js`/`war-refiner.md` are
-changed to route the dispatched gate through `resolveGate()` before executing/teeing it.
+changed to route the dispatched gate through `resolveGate()` before executing/teeing it. Option (b)
+shipped 2026-07-15 — see the RESOLVED section below; this specific recurrence class is now closed in
+this repo.
 
 **Anchors (verify still present before acting):** `resolveGate` exported at
 `skills/war/assets/war-config.mjs` (the discovery-clause composition + the `--resolve-gate` CLI-only
@@ -77,4 +82,28 @@ skills/war/assets/war-config.mjs --resolve-gate '<declaredGate>'`), or change th
 gate-run steps in `workflow-template.js`/`war-refiner.md` to call `resolveGate(plan.gate)` before
 executing — either fix is outside this phase's slice (hooks-only). Until then, a gate-audit seat on
 any hooks-diff task in this repo should expect and correctly SOFT-grade this finding rather than
-treat each recurrence as a fresh discovery.
+treat each recurrence as a fresh discovery. **This "until then" no longer holds as of 2026-07-15 (see
+RESOLVED below) — a gate-audit seat should NOT expect this finding in this repo anymore; if it
+recurs, treat it as a fresh regression, not a known SOFT.**
+
+## RESOLVED — phase "gate-evidence-and-prose-truth" Phase 1 (#894, 2026-07-15)
+
+**Code-verified in this repo** (`skills/war/assets/workflow-template.js`,
+`skills/war/assets/war-config.mjs` — already landed on this task's base before this task started):
+gap-closing option (b) above shipped. `workflow-template.js` now carries a GATE COMPOSITION POINT
+(ADR 0036) immediately after entry validation and before any of the nine gate-bearing dispatch sites
+interpolate `${plan.gate}`: `if (plan) plan.gate = resolveGate(plan.gate)`, using an inline mirror of
+`war-config.mjs`'s `resolveGate` (the Workflow sandbox still can't import — mirrored, not called
+directly, per the existing D2 mirror-registry discipline). `war-config.mjs`'s `resolveGate` is now
+idempotent by construction (an already-composed input returns byte-unchanged), so the CLI's own
+`--resolve-gate` pre-resolution and this engine-side composition never double up. Every merge-task,
+land-phase, and phase-close-polish gate-run prompt now interpolates the COMPOSED string, so a
+refiner's teed `gate_log_path` artifact for a JS-only declared `plan.gate` now includes the
+`*.test.sh` discovery-and-run clause's output too.
+
+**The lesson stays hot as the pattern record (no archive, no retitle):** the underlying structural
+insight — a captured gate artifact can only ever reflect what the *dispatched* command included, so
+any future dispatch site added outside the reach of the entry-point composition (or a regression that
+removes or reorders the composition point relative to dispatch) reopens exactly this gap — remains
+durable and applies beyond this one fix. Re-verify the composition point is still upstream of every
+dispatch site before assuming this finding is impossible in a future phase.

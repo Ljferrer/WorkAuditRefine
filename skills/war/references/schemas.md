@@ -281,7 +281,8 @@ The refiner's **Provision** barrier ([ADR 0001](../../../docs/adr/0001-explicitl
 > `{ planSlug, runId, worktreeRoot }`, plus a missing `phase.id` — the silent `pundefined-` derivation
 > class), and an **unconditional phase-field** class — `title`, `workingBranch`, `integrationBranch`
 > on `phase` (each interpolated fallback-free through the `pt` tag in the Provision-barrier / merge /
-> land prompts, so even a zero-task phase requires them; #740). The `(or supply explicit
+> land prompts, so a missing one is named at entry as `held:workflow-error` rather than thrown opaquely
+> deep inside prompt construction; #740). The `(or supply explicit
 > branch/worktree per task)` suffix rides a derivation-class problem only, never the phase-field class.
 > Zero tasks / all-explicit ⇒ the derivation category vacuously adds nothing; the phase-field class
 > still applies.

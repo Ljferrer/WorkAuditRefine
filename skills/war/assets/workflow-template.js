@@ -413,8 +413,9 @@ const defaultRoster = (Array.isArray(audit.roster) ? audit.roster : []).map(s =>
 //   (2) PHASE-FIELD class — ph.title / ph.workingBranch / ph.integrationBranch, each interpolated
 //       fallback-free through the `pt` tag in the Provision-barrier / depClause / merge / land /
 //       classification / phase-close prompts REGARDLESS of whether tasks carry explicit paths. So this
-//       class is UNCONDITIONAL — even a zero-task phase builds the Provision-barrier prompt from these
-//       fields. Guarded access only (`ph` nullish ⇒ all three named); no earlier ph-field deref can
+//       class is UNCONDITIONAL — a DEFENSIVE FAIL-FAST that names every absent phase field HERE at entry
+//       (→ held:workflow-error via the catch) instead of throwing opaquely deep inside pt-tagged prompt
+//       construction. Guarded access only (`ph` nullish ⇒ all three named); no earlier ph-field deref can
 //       pre-empt this message (phaseId uses `ph?.id`, endStateClaims guards `ph && ph.endState`,
 //       taskBranch/taskWorktree are lazy arrows evaluated after validation).
 // The `(or supply explicit branch/worktree per task)` suffix is appended ONLY when a derivation-class

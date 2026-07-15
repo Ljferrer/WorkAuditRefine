@@ -9,10 +9,23 @@ import { dirname, join } from 'node:path'
 // cwd resets between bash calls). HERE = skills/war/assets.
 // ponytail: deliberately regex/JSON extraction, not a markdown AST parser — the registry/prose
 // guards in this campaign take extraction+equality as the ceiling, no AST scanner.
+// Maintenance rule: a sanctioned rewrite of a guarded claim updates its row in the SAME commit —
+// this file is where revert-pressure lands when a row reds; correct the row to the new truth,
+// never delete or weaken it to make a reword pass.
 const HERE = dirname(fileURLToPath(import.meta.url))
 const skillMd = readFileSync(join(HERE, '..', 'SKILL.md'), 'utf8')
 const tour = JSON.parse(
   readFileSync(join(HERE, '..', '..', '..', '.tours', 'architect-war-system.tour'), 'utf8'),
+)
+// Spec-truth guards (D15–D17) read the ratified design specs directly — same construct-anchored
+// extraction style as the SKILL.md/tour rows above.
+const specCasIsolation = readFileSync(
+  join(HERE, '..', '..', '..', 'docs', 'specs', '2026-06-25-concurrent-run-land-isolation-design.md'),
+  'utf8',
+)
+const specProseDrift = readFileSync(
+  join(HERE, '..', '..', '..', 'docs', 'specs', '2026-07-12-prose-drift-corrections-design.md'),
+  'utf8',
 )
 
 // (D10) The Checkpoint classification ladder's routing predicates are the source of truth; each
@@ -118,8 +131,9 @@ test('D13 — SKILL.md invokes every .sh asset with bash, never node (#741)', ()
 
 // (D14) The Setup step-3 "Daemon reachable" docker bullet must not attribute the platform-signature
 // list to the gate-time classifier (#799): the signature list governs ONLY Setup-time per-image
-// probe-build deferral, whereas the gate-time `gate_failure_class` classifier (`classOf`) keys on
-// re-running the failing gate at the classification base and comparing failing identifiers — the two
+// probe-build deferral, whereas the gate-time `gate_failure_class` is produced by the refiner
+// re-running the failing gate at the classification base and comparing failing identifiers (per
+// `agents/war-refiner.md`), and only READ by `classOf` in `workflow-template.js` — the two
 // share only the `'introduced'` fallthrough. Assert-OLD-absent on the misattribution clause
 // (case-insensitive, mid-sentence anchor — the corrected sentence legitimately still says "gate-time
 // classifier" to DENY the coupling, so we never key on the bare term). The companion isolates the
@@ -141,4 +155,90 @@ test('D14 — SKILL.md docker bullet does not misattribute the signature list to
       `the **Daemon reachable** bullet must still name the platform signature "${sig}"`,
     )
   }
+})
+
+// (D15) The 2026-06-25 §5.3 land-phase CAS prose was corrected by the #804 prose-drift pass: the
+// superseded bare-SHA push + `non-fast-forward` classification is replaced by cmd_land_advance's
+// push-first HEAD:refs form, `[rejected]`-token classification, and a 0/2/3 exit contract, with a
+// supersession pointer naming cmd_land_advance as the contract of record. This row guards that
+// ALREADY-CORRECT prose (no correction applied in this task) — mental-delete check: reverting §5.3
+// to the superseded mechanics drops the pointer / push-first / [rejected] / exit codes and reds this.
+// Located by the `### 5.3 land-phase` heading construct, not a line number.
+test('D15 — 2026-06-25 §5.3 land-phase keeps the push-first CAS contract (cmd_land_advance pointer, [rejected] classification, 0/2/3 exit)', () => {
+  const sec = specCasIsolation.match(/### 5\.3 land-phase[\s\S]*?(?=\n### |\n## )/)
+  assert.ok(sec, 'could not locate §5.3 land-phase section in the 2026-06-25 spec')
+  const s = sec[0]
+  assert.match(s, /push-first/i, '§5.3 must state push-first land ordering')
+  assert.match(
+    s,
+    /cmd_land_advance/,
+    '§5.3 must keep its supersession pointer to cmd_land_advance (the contract of record)',
+  )
+  assert.match(s, /\[rejected\]/, "§5.3 must classify the push on the '[rejected]' token")
+  for (const code of ['exit 0', 'exit 2', 'exit 3']) {
+    assert.ok(
+      s.includes(code),
+      `§5.3 must document the "${code}" arm of the 0/2/3 land-advance exit contract`,
+    )
+  }
+})
+
+// (D16) The Setup step-3 "Daemon reachable" docker bullet must name the reader-vs-producer split
+// truthfully (#887): the REFINER performs the classification-base gate re-run (per
+// agents/war-refiner.md Gate-failure classification), and `classOf` in workflow-template.js is a pure
+// READER of the refiner-computed gate_failure_class (classOf reads the class off a MergeResult; it
+// never re-runs a gate). This row guards prose THIS task CORRECTS, so it carries a Red-proof in the
+// commit body. Extract the bullet by its `**Daemon reachable**` marker (D10/D14-style intended-location
+// extraction). Negative arm is reword-tolerant: a case-tolerant, mid-sentence pairing of `classOf`
+// with a following `re-run`/`re-running` verb — never a byte-lock on the corrected sentence.
+test('D16 — SKILL.md docker bullet names classOf a reader of the refiner-computed class, never the re-run agent (#887)', () => {
+  const bullet = skillMd.match(/\*\*Daemon reachable\*\*[\s\S]*?(?=\n\s*- \*\*)/)
+  assert.ok(bullet, 'could not locate the **Daemon reachable** docker bullet in SKILL.md')
+  const b = bullet[0]
+  // Presence: the refiner is the re-run performer, and classOf is named a reader.
+  assert.match(
+    b,
+    /refiner[\s\S]{0,80}re-runn?/i,
+    'the docker bullet must name the refiner as the classification-base gate re-run performer',
+  )
+  assert.match(
+    b,
+    /classOf[\s\S]{0,80}read/i,
+    'the docker bullet must name classOf as a reader of the refiner-computed gate_failure_class',
+  )
+  // Negative (reword-tolerant): classOf is never cast as the agent of the re-run.
+  assert.doesNotMatch(
+    b,
+    /classOf[\s\S]{0,80}re-runn?/i,
+    'the docker bullet still pairs classOf with the re-run as its verb (#887 reader-vs-producer ' +
+      'misattribution) — the refiner re-runs the gate; classOf only reads the resulting class',
+  )
+})
+
+// (D17) The 2026-07-12 prose-drift spec's #799 replacement-text prescription (§4.2) and its problem
+// statement (§1) once asserted, in the spec's own voice, that `classOf` "keys on re-running the
+// failing gate" — an instance of the same reader-vs-producer misattribution D16 guards, corrected in
+// this task by the #887 docs/specs sweep. Post-#894 truth: the refiner performs the classification-base
+// re-run; classOf in workflow-template.js only reads the resulting class. Presence arm anchors on §4.2
+// (the prescriptive passage); the reword-tolerant negative arm scans the WHOLE spec so a re-drift at
+// EITHER occurrence reds. This row guards prose THIS task corrects → Red-proof in the commit body.
+test('D17 — 2026-07-12 prose-drift spec names classOf a reader, never the re-run agent (#887 sweep-corrected)', () => {
+  const sec = specProseDrift.match(/### 4\.2[\s\S]*?(?=\n### |\n## )/)
+  assert.ok(sec, 'could not locate §4.2 docker-bullet reword section in the 2026-07-12 spec')
+  assert.match(
+    sec[0],
+    /refiner[\s\S]{0,80}re-runn?/i,
+    '§4.2 must name the refiner as the classification-base re-run performer',
+  )
+  assert.match(
+    sec[0],
+    /classOf[\s\S]{0,80}read/i,
+    '§4.2 must name classOf as a reader of the refiner-computed class',
+  )
+  assert.doesNotMatch(
+    specProseDrift,
+    /classOf[\s\S]{0,80}re-runn?/i,
+    'the 2026-07-12 spec still pairs classOf with the re-run as its verb (reader-vs-producer ' +
+      'misattribution) — classOf only reads the refiner-computed gate_failure_class',
+  )
 })
