@@ -42,13 +42,24 @@ Source spec: `docs/specs/2026-07-15-campaign-state-anchor-design.md`
 
 - Files: `hooks/inject-campaign-state.sh`, `hooks/inject-campaign-state.test.sh`
 - Plan slice: In the hook, after the existing scan-root resolution (the "Scan root" comment
-  block) and before the campaigns-dir existence guard, add one anchor block: attempt
-  `main=$(dirname "$(git -C "$root" rev-parse --path-format=absolute --git-common-dir
-  2>/dev/null)")`; on success reassign `root="$main"`, on any failure (git absent, not a repo,
-  bare) keep `$root` — preserving the fail-open discipline stated in the header comment
-  (never nonzero, never partial output; bash 3.2, jq-only hard dependency). Where the hook
-  currently exits silently with nothing to inject (no campaigns dir, and the no-active-ledger
-  exit after the mtime scan), first probe
+  block) and before the campaigns-dir existence guard, add one anchor block — **two-step,
+  failure-distinguishable form (red-team blocker fix 2026-07-16):**
+  `common=$(git -C "$root" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) &&
+  [ -n "$common" ] && root=$(dirname "$common")` — capture git's output FIRST so the
+  assignment propagates git's exit status and the `&&` chain gates the reassignment; only then
+  `dirname` it. The spec §3 composed one-liner
+  (`main=$(dirname "$(git … 2>/dev/null)")` + non-empty guard) is REJECTED as the
+  implementation: `dirname` of a failed/empty command substitution returns `.` (never empty),
+  so the composed form silently sets `root=.` in a non-git dir — proven on bash 3.2.57 —
+  violating this plan's own fail-open constraint. On any failure (git absent, not a repo,
+  bare) `$root` stays untouched — preserving the fail-open discipline stated in the header
+  comment (never nonzero, never partial output; bash 3.2, jq-only hard dependency). The hook has THREE
+  silent no-inject exits (red-team enumeration correction 2026-07-16): the no-campaigns-dir
+  guard, the empty-candidates exit (campaigns dir present but holding no `*/ledger.json` —
+  the site between the other two that the original two-site enumeration missed), and the
+  no-active-ledger exit after the mtime scan. Factor the stranded-state probe into ONE helper
+  function invoked at ALL THREE sites (a single landing site is the drift-proof shape — a
+  fourth future exit should have one obvious call to copy): probe
   `"$root"/.claude/worktrees/*/.claude/campaigns/*/ledger.json`; if any passes the existing
   `is_active` predicate, emit the standard single-JSON-object payload whose `additionalContext`
   is a bounded two-line warning naming the stranded ledger path and stating that campaign state
@@ -62,7 +73,10 @@ Source spec: `docs/specs/2026-07-15-campaign-state-anchor-design.md`
   `git` shadowed off `PATH`, a non-git fixture still injects via the unanchored root (End
   state 2); an active ledger present only under the main checkout's
   `.claude/worktrees/x/.claude/campaigns/` yields the warning payload and exit 0, while an
-  all-`landed` one yields empty stdout and exit 0 (End state 3).
+  all-`landed` one yields empty stdout and exit 0 (End state 3); AND the same stranded-active
+  fixture with a PRESENT-BUT-EMPTY `<main>/.claude/campaigns/` directory (the empty-candidates
+  exit) also yields the warning payload — the arm that reds if the probe is wired into only
+  the two originally-named sites (red-team coverage fix 2026-07-16).
 - requiresTest: true
 - requiresPackaging: false
 - deps: []
@@ -97,9 +111,14 @@ Source spec: `docs/specs/2026-07-15-campaign-state-anchor-design.md`
   the same wording family as survey-corps/war-machine — resolve the main checkout via
   `git rev-parse --path-format=absolute --git-common-dir`; never the invoking worktree's
   `.claude/` — and pass an anchored `--campaign` in every `campaign-ledger.mjs` invocation
-  example. In `skills/war-machine/war-pipeline-structure.test.sh`, add a criterion (existing
-  `has` helper, adjacent to the survey+machine anchor criterion) asserting
-  `skills/war-campaign/SKILL.md` states `--git-common-dir` and `main checkout` (End state 6).
+  example. In `skills/war-machine/war-pipeline-structure.test.sh`, add a criterion adjacent to the
+  survey+machine anchor criterion asserting `skills/war-campaign/SKILL.md` states
+  `--git-common-dir` (existing case-sensitive `has` helper — the flag literal is case-stable)
+  AND the `main checkout` prose rule via a CASE-INSENSITIVE match (a `has_i` variant using
+  `grep -qiF`, or an inline `grep -qi`) — the recorded sentence-case false-negative class: a
+  benign re-casing of the SKILL prose must not false-negate the drift guard (red-team fix
+  2026-07-16; the existing survey+machine criterion inherits the same fragility — out of this
+  plan's footprint, noted for a follow-up) (End state 6).
   In `docs/adr/0016-campaign-compaction-survival.md`, add a dated amendment: the Decision's
   hook half gains the anchored scan root and the stranded-state warning; the Consequences note
   that the 2026-07-03 spec's "campaigns live under the session's project dir" assumption is
