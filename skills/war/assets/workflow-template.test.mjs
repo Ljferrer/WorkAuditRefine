@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { HARD_ESCALATION_REASONS, KNOWN_LAND_DECISIONS } from './land-decision.mjs'
-import { spawnOpts, validateRoster, widenRoster, resolveWidenSource, ROLES, DEFAULTS } from './war-config.mjs'
+import { spawnOpts, validateRoster, widenRoster, resolveWidenSource, resolveGate, ROLES, DEFAULTS } from './war-config.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const auditorMd = readFileSync(join(here, '../../../agents/war-auditor.md'), 'utf8')
@@ -870,8 +870,13 @@ test('Task 3 — termination: done.size reaches tasks.length with no spin (dep-f
 })
 
 test('Task 3 — succeeded set exists in template source and gates nextWave', () => {
-  // Structural: verify the template declares `succeeded` and uses it in nextWave
-  const code = src.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
+  // Structural: verify the template declares `succeeded` and uses it in nextWave.
+  // Strip LINE comments only. A block-comment strip (/\/\*[\s\S]*?\*\//g) mis-reads the resolveGate
+  // discovery string's glob literals ('*/node_modules/*' etc. carry /* and */) as block-comment
+  // delimiters and cascades over executable code (the ADR 0036 inline gate-composition mirror added
+  // that string to this file). succeeded.add/.has/`const succeeded = new Set()` appear only in
+  // executable code — never a real block comment — so line-only stripping is sufficient and robust.
+  const code = src.replace(/\/\/[^\n]*/g, '')
   assert.ok(/const\s+succeeded\s*=\s*new\s+Set\s*\(\s*\)/.test(code),
     'template declares `const succeeded = new Set()`')
   assert.ok(/succeeded\.add/.test(code),
@@ -5858,7 +5863,7 @@ const inlineHelperBlock = (() => {
   return { ok: s !== -1 && e > s, block: s !== -1 && e > s ? src.slice(s, e) : '' }
 })()
 const inlineHelpers = (agents = {}) =>
-  new Function('agents', inlineHelperBlock.block + '\nreturn { spawn, validateRoster, widenRoster, resolveWidenSource, WORKER_TIER_DEFAULTS, isDocsTask }')(agents)
+  new Function('agents', inlineHelperBlock.block + '\nreturn { spawn, validateRoster, widenRoster, resolveWidenSource, WORKER_TIER_DEFAULTS, isDocsTask, resolveGate }')(agents)
 
 const AGENTS_FIXTURES = [
   {},                                                                          // all omitted → ROLE_MODEL/DEFAULTS fallback
@@ -5900,6 +5905,15 @@ const RESOLVE_WIDEN_CASES = [
   [null, RTRIO],                                                               // null → default
   [[''], RTRIO],                                                               // empty string → default
 ]
+// resolveGate (ADR 0036) case set: null/empty (discovery-only), plain (composes), and a PRE-COMPOSED input
+// built from the CANONICAL resolveGate output — so a partial detector-token move (inline copy only) makes the
+// inline mirror recompose while canonical returns it unchanged, and the behavioral row diverges (idempotence).
+const RESOLVE_GATE_CASES = [
+  null,                                                 // null → discovery clause alone
+  '',                                                   // empty → discovery clause alone
+  `node --test 'skills/**/*.test.mjs'`,                 // plain → composes declared && discovery
+  resolveGate(`node --test 'skills/**/*.test.mjs'`),    // pre-composed FROM CANONICAL output → idempotent, unchanged
+]
 
 test('D2 mirror registry — every inline sandbox mirror in workflow-template.js equals its canonical export', () => {
   assert.ok(inlineHelperBlock.ok, 'the inline roster-helper mirror block is locatable in src (const ROLE_MODEL .. const defaultRoster)')
@@ -5933,8 +5947,16 @@ test('D2 mirror registry — every inline sandbox mirror in workflow-template.js
       cases: [['docs']],
       inline: ([tier]) => inlineHelpers().WORKER_TIER_DEFAULTS[tier],
       canonical: ([tier]) => DEFAULTS.agents.worker[tier] },
+    // resolveGate (ADR 0036): the engine's inline gate-composition mirror bound to the canonical war-config.mjs
+    // resolveGate. Behavioral equality over null/empty, plain, and PRE-COMPOSED (built from canonical output),
+    // so a partial detector-token move breaks idempotence and reds this row. Delete the inline resolveGate OR
+    // its composition line and this row (and the enumerated exactly-once prompt asserts below) fail.
+    { name: 'resolveGate (inline gate-composition ↔ canonical war-config.mjs, idempotent)', mode: 'behavioral',
+      cases: RESOLVE_GATE_CASES.map(g => [g]),
+      inline: ([g]) => inlineHelpers().resolveGate(g),
+      canonical: ([g]) => resolveGate(g) },
   ]
-  assert.ok(MIRROR_REGISTRY.length >= 7, 'the mirror registry lists at least the seven required rows (HARD_ESCALATION_REASONS, landDecision, the four roster helpers, and the worker-tier-defaults row)')
+  assert.ok(MIRROR_REGISTRY.length >= 8, 'the mirror registry lists at least the eight required rows (HARD_ESCALATION_REASONS, landDecision, the four roster helpers, the worker-tier-defaults row, and the resolveGate gate-composition row)')
   for (const row of MIRROR_REGISTRY) {
     if (row.mode === 'deepEqual') {
       const inline = row.extractInline()
@@ -5954,6 +5976,120 @@ test('D2 mirror registry — every inline sandbox mirror in workflow-template.js
       }
     }
   }
+})
+
+// ===========================================================================
+// GATE COMPOSITION POINT (ADR 0036) — enumerated exactly-once prompt evidence
+// ---------------------------------------------------------------------------
+// The engine normalizes plan.gate ONCE (`if (plan) plan.gate = resolveGate(plan.gate)`, immediately after
+// entry validation), so every one of the NINE gate-bearing dispatch sites interpolates the SAME composed
+// gate. This enumerates all nine captures by label/dispatchKind — the count IS the anti-vacuity floor: a
+// site an existing fixture cannot reach is added, never skipped, so deleting the composition line reds every
+// arm. Anchors ONLY on the discovery-clause token; no assertion enumerates shell suites or states a count.
+const GATE_TOKEN = `-name '*.test.sh'`   // a substring of resolveGate's find clause; absent from every fixed prompt prose
+const PLAIN_FIXTURE_GATE = `node --test 'skills/**/*.test.mjs'`
+const countOccurrences = (hay, needle) => hay.split(needle).length - 1
+const planWith = (gate) => ({ file: 'docs/plans/wtprov-A.md', gate })
+// A gate_failure_class:'baseline' first result routes the workflow to the baseline-proceed re-merge / re-land
+// dispatch site (clsImpl returns merged/landed for the :baseline-proceed relabel, so the phase proceeds).
+const baselineMergeResult = () => ({ mode: 'merge-task', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: ['pytest:test_legacy'], gate_base_sha: 'base9999', gate_output: 'base RED same id — pre-existing' })
+const baselineLandResult = () => ({ mode: 'land-phase', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: ['pytest:test_legacy'], gate_base_sha: 'base9999', gate_output: 'base RED same id — pre-existing' })
+// no-test → add-test → re-audit(approve) → re-merge(merged): reaches the floor-retry re-merge site. Fresh
+// closure per run so the FIRST merge of each run trips the floor (requiresTest defaults true — no field needed).
+const floorRetryImpl = () => {
+  let mergeCount = 0
+  return (prompt, opts) => {
+    const seat = seatOf(opts), label = opts.label || ''
+    if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 1 } }
+    if (seat === 'war-auditor') return { seat: label, lens: label.includes('execution-evidence') ? 'execution-evidence' : 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-refiner' && opts.phase === 'Refine') return (++mergeCount === 1)
+      ? { mode: 'merge-task', status: 'no-test' }
+      : { mode: 'merge-task', status: 'merged', gate_output: 'ok', integration_sha: 'deadbeef' }
+    if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+}
+const SINGLE_TASK = [{ id: 't1', issue: 101, title: 'T', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] }]
+// The nine gate-bearing dispatch captures, enumerated by label/dispatchKind. Each drives the fixture that
+// reaches its site with the given fixture gate and returns the captured prompt.
+const GATE_SITE_CAPTURES = [
+  { site: 'worker Gate: line (work:<task>)', find: (c) => c.find(isWorker),
+    run: (gate) => runPhase(PROVISION_ARGS({ plan: planWith(gate) }), evidenceImpl) },
+  { site: 'merge:<task> rebase clause', find: (c) => c.find(x => /^merge:t\d+$/.test(x.opts.label || '')),
+    run: (gate) => runPhase(PROVISION_ARGS({ plan: planWith(gate) }), evidenceImpl) },
+  { site: 'merge:<task>:floor-retry re-merge clause', find: (c) => c.find(x => /floor-retry/.test(x.opts.label || '')),
+    run: (gate) => runPhase(PROVISION_ARGS({ plan: planWith(gate), tasks: SINGLE_TASK }), floorRetryImpl()) },
+  { site: 'merge:<task>:baseline-proceed re-merge clause', find: (c) => c.find(x => /^merge:.*:baseline-proceed$/.test(x.opts.label || '')),
+    run: (gate) => runPhase(CLS_ARGS({ plan: planWith(gate) }), clsImpl({ mergeResult: baselineMergeResult })) },
+  { site: 'evidence:phase-<id> intra-dep integrated-tip re-run', find: (c) => c.find(x => /^evidence:phase-/.test(x.opts.label || '')),
+    run: (gate) => runPhase(PROVISION_ARGS({ plan: planWith(gate) }), evidenceImpl) },
+  { site: 'polish:phase-<id> keep-green clause', find: (c) => c.find(x => /^polish:phase-/.test(x.opts.label || '')),
+    run: (gate) => runPhase(SWEEP_ARGS({ plan: planWith(gate) }), sweepBase([queuedAbsorb()])) },
+  { site: 'merge:p<id>-polish re-merge clause', find: (c) => c.find(x => /^merge:p\d+-polish$/.test(x.opts.label || '')),
+    run: (gate) => runPhase(SWEEP_ARGS({ plan: planWith(gate) }), sweepBase([queuedAbsorb()])) },
+  { site: 'land:phase-<id> merge clause', find: (c) => c.find(x => /^land:phase-\d+$/.test(x.opts.label || '')),
+    run: (gate) => runPhase(PROVISION_ARGS({ plan: planWith(gate) }), evidenceImpl) },
+  { site: 'land:phase-<id>:baseline-proceed re-land clause', find: (c) => c.find(x => /^land:phase-\d+:baseline-proceed$/.test(x.opts.label || '')),
+    run: (gate) => runPhase(CLS_ARGS({ plan: planWith(gate) }), clsImpl({ landResult: baselineLandResult })) },
+]
+
+test('gate composition point (ADR 0036) — the NINE enumerated gate-bearing captures render the discovery token EXACTLY ONCE (plain), idempotently once (pre-composed), and the discovery-only clause (null)', async () => {
+  assert.equal(GATE_SITE_CAPTURES.length, 9,
+    'exactly nine gate-bearing dispatch sites are enumerated (anti-vacuity floor — a site an existing fixture cannot reach is ADDED, never skipped)')
+
+  // Arm 1 — plain JS-only fixture gate ⇒ the discovery token appears EXACTLY ONCE per captured prompt.
+  for (const cap of GATE_SITE_CAPTURES) {
+    const { calls } = await cap.run(PLAIN_FIXTURE_GATE)
+    const c = cap.find(calls)
+    assert.ok(c, `site "${cap.site}" reached and captured (presence guard — the enumerated count is the floor)`)
+    assert.equal(countOccurrences(c.prompt, GATE_TOKEN), 1,
+      `site "${cap.site}": plain gate ⇒ the discovery token appears EXACTLY ONCE (delete the composition line ⇒ 0 ⇒ this fails)`)
+    assert.ok(c.prompt.includes(PLAIN_FIXTURE_GATE),
+      `site "${cap.site}": composition kept the declared base (it composed, did not replace)`)
+  }
+
+  // Arm 2 — pre-composed fixture gate ⇒ STILL exactly once (idempotence: no second discovery loop appended).
+  const preComposed = resolveGate(PLAIN_FIXTURE_GATE)
+  for (const cap of GATE_SITE_CAPTURES) {
+    const { calls } = await cap.run(preComposed)
+    const c = cap.find(calls)
+    assert.ok(c, `site "${cap.site}" reached (pre-composed arm)`)
+    assert.equal(countOccurrences(c.prompt, GATE_TOKEN), 1,
+      `site "${cap.site}": pre-composed gate ⇒ the discovery token STILL appears exactly once (a second discovery loop would make it twice)`)
+  }
+
+  // Arm 3 — null/absent fixture gate ⇒ the discovery-ONLY clause (deliberate change from today's literal `null`).
+  const discoveryOnly = resolveGate(null)
+  for (const cap of GATE_SITE_CAPTURES) {
+    const { calls } = await cap.run(null)
+    const c = cap.find(calls)
+    assert.ok(c, `site "${cap.site}" reached (null arm)`)
+    assert.ok(c.prompt.includes(discoveryOnly),
+      `site "${cap.site}": null gate ⇒ the discovery-only clause is rendered (not the literal string "null")`)
+    assert.equal(countOccurrences(c.prompt, GATE_TOKEN), 1,
+      `site "${cap.site}": null gate ⇒ the discovery token appears exactly once (the discovery-only clause)`)
+  }
+})
+
+test('gate composition point (ADR 0036) — plan-less / zero-task phase: the GUARDED normalization is a no-op (clean held:nothing-merged, never held:workflow-error)', async () => {
+  // `plan` is destructured with no default and is never entry-validated, so the `if (plan)` guard MUST
+  // make an absent plan a NO-OP. An unconditional `plan.gate = resolveGate(plan.gate)` would TypeError here
+  // → the catch converts it to held:workflow-error; this arm proves the null-safe-by-mandate boundary
+  // (distinct from a null plan.gate, which composes to the discovery-only clause). A plan-less zero-task
+  // phase reaches no ${plan.gate} dispatch site.
+  const args = {
+    phase: { id: 3, title: 'P3', integrationBranch: 'integration/x/phase-3', workingBranch: 'dev/x' },
+    planSlug: 'x', runId: 'run-x', worktreeRoot: '/abs/repo/.claude/worktrees',
+    tasks: [],   // zero tasks — no gate-bearing dispatch
+    // NB: NO `plan` key — an ABSENT plan object (not a null plan.gate).
+  }
+  const { out, calls } = await runPhase(args, defaultImpl)
+  assert.equal(out.landDecision, 'held:nothing-merged',
+    'a plan-less zero-task phase resolves cleanly to held:nothing-merged (the if(plan) guard no-op ran) — an unconditional plan.gate= would TypeError into held:workflow-error')
+  assert.ok(!calls.some(c => (c.prompt || '').includes(GATE_TOKEN)),
+    'no dispatch carries the discovery token — a plan-less zero-task phase reaches no gate-bearing site')
 })
 
 // ===========================================================================

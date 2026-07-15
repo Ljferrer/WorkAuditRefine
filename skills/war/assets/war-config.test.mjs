@@ -1062,6 +1062,31 @@ test('resolveGate: includes printf banner for each suite', () => {
   assert.ok(result.includes('gate(bash)'), `expected gate(bash) label in result, got: ${result}`)
 })
 
+// Idempotence trio (ADR 0036): the engine now composes plan.gate AND the Lead still pre-resolves via
+// --resolve-gate, so resolveGate MUST be idempotent — composing an already-composed gate is a no-op.
+// The pre-composed inputs are built from resolveGate's OWN output, never a hardcoded composed string,
+// so a partial move of the detector/composer token pairing would red these.
+test('resolveGate: idempotent — an already-composed gate (built from resolveGate output) is returned BYTE-UNCHANGED', () => {
+  const composed = resolveGate('node --test x')      // pre-composed input from resolveGate's own output
+  assert.equal(resolveGate(composed), composed,
+    'a gate already carrying the discovery clause is returned unchanged (no second discovery loop appended)')
+})
+
+test('resolveGate: idempotent — resolveGate(resolveGate(g)) === resolveGate(g) for a plain gate', () => {
+  const g = 'make gate'
+  assert.equal(resolveGate(resolveGate(g)), resolveGate(g),
+    'double composition equals single composition (idempotence)')
+})
+
+test('resolveGate: idempotent — empty/null still yields the discovery-only clause, itself idempotent', () => {
+  const disco = resolveGate(null)
+  assert.equal(resolveGate(''), disco, 'empty and null both yield the same discovery-only clause (unchanged)')
+  assert.ok(!disco.startsWith('&&') && disco.includes('*.test.sh') && disco.includes('bash "$f"'),
+    'the discovery-only clause has no leading && and still discovers/runs bash suites')
+  assert.equal(resolveGate(disco), disco,
+    'the discovery-only clause is itself idempotent under re-composition (it already carries the token)')
+})
+
 // ---------------------------------------------------------------------------
 // CLI usage string — pinned to the implemented verb set
 // ---------------------------------------------------------------------------
@@ -1787,6 +1812,39 @@ test('drift-guard(F07): inline resolveWidenSource mirror equals canonical resolv
     'inline RESERVED_LENSES literal in workflow-template.js diverges from canonical RESERVED_LENSES export')
 })
 
+// resolveGate (ADR 0036): the inline gate-composition mirror. Extract the arrow body + its own detector
+// const and behaviorally compare to canonical resolveGate over the null/empty/plain/pre-composed set — the
+// pre-composed case built from the CANONICAL output, so a partial token move (detector const moved in one
+// copy only, breaking idempotence) diverges. Registered under the block-head marker's LOGIC_MIRROR entry.
+const RG_EXTRACT = /const resolveGate\s*=\s*\(declaredGate\)\s*=>\s*\{([\s\S]*?)\n\}/
+const RG_TOKEN_EXTRACT = /const\s+GATE_DISCOVERY_TOKEN\s*=\s*(`[^`]*`)/
+test('drift-guard(F07): inline resolveGate mirror equals canonical resolveGate across null/empty/plain/pre-composed cases', () => {
+  const rgMatch = templateText.match(RG_EXTRACT)
+  assert.ok(rgMatch, 'inline resolveGate arrow not found in workflow-template.js')
+  const tokMatch = templateText.match(RG_TOKEN_EXTRACT)
+  assert.ok(tokMatch, 'inline GATE_DISCOVERY_TOKEN literal not found in workflow-template.js')
+  const inlineToken = new Function(`return (${tokMatch[1]})`)()
+  // The extracted body references GATE_DISCOVERY_TOKEN; inject it as a parameter so the closure resolves.
+  const inline = new Function('declaredGate', 'GATE_DISCOVERY_TOKEN', rgMatch[1])
+  const call = (g) => inline(g, inlineToken)
+
+  const plain = `node --test 'skills/**/*.test.mjs'`
+  const cases = [
+    null,                 // null → discovery clause alone
+    '',                   // empty → discovery clause alone
+    plain,                // plain → composes declared && discovery
+    resolveGate(plain),   // pre-composed FROM CANONICAL output → idempotent, returned unchanged
+  ]
+  for (const g of cases) {
+    assert.equal(call(g), resolveGate(g),
+      `inline resolveGate diverges from canonical for case ${JSON.stringify(g)}`)
+  }
+  // The inline detector token must be a real substring of the canonical discovery clause (a token move in
+  // the inline copy only would recompose the pre-composed case above — this pins the token to canonical too).
+  assert.ok(resolveGate(null).includes(inlineToken),
+    'inline GATE_DISCOVERY_TOKEN in workflow-template.js is not a substring of the canonical discovery clause (detector/composer drift)')
+})
+
 // ---------------------------------------------------------------------------
 // decideLand drift guard (D1): the landDecision + HARD_ESCALATION_REASONS markers
 // ---------------------------------------------------------------------------
@@ -1914,9 +1972,9 @@ test('meta-guard(F07): all Keep-in-sync/Mirror-of markers in workflow-template.j
   // Registry of LOGIC mirrors → each must have ≥1 registered drift test (keyed by a stable identifier).
   // The identifier is a substring of the marker text (robust to line-number shifts).
   const LOGIC_MIRROR_REGISTRY = new Map([
-    // Combined marker: "Mirror of war-config.mjs spawnOpts/validateRoster/widenRoster/resolveWidenSource … Keep in sync"
-    // → covered by the spawnOpts + validateRoster + widenRoster + resolveWidenSource drift tests
-    ['spawnOpts/validateRoster/widenRoster', ['drift-guard(F07): inline spawnOpts', 'drift-guard(F07): inline validateRoster', 'drift-guard(F07): inline widenRoster', 'drift-guard(F07): inline resolveWidenSource']],
+    // Combined marker: "Mirror of war-config.mjs spawnOpts/validateRoster/widenRoster/resolveWidenSource/resolveGate … Keep in sync"
+    // → covered by the spawnOpts + validateRoster + widenRoster + resolveWidenSource + resolveGate drift tests
+    ['spawnOpts/validateRoster/widenRoster', ['drift-guard(F07): inline spawnOpts', 'drift-guard(F07): inline validateRoster', 'drift-guard(F07): inline widenRoster', 'drift-guard(F07): inline resolveWidenSource', 'drift-guard(F07): inline resolveGate']],
     // Marker: "landDecision mirrors land-decision.mjs (decideLand) … Keep in sync"
     // → covered by decideLand drift tests
     ['landDecision mirrors', ['drift-guard(F07): inline HARD_ESCALATION_REASONS + decideLand', 'drift-guard(F07): inline decideLand']],
