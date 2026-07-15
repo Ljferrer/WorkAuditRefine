@@ -6,7 +6,7 @@ metadata:
   type: project
   provenance: code-verified
   slug: servitor-verify-on-write-worktree-can-lag-just-landed-phase
-  phase: guard-floor-and-scope-hook-coverage-completeness/servitor-wrapup +5 recurrences (latest red-team-fallback-and-anchor-hygiene/phase-2, 2026-07-15)
+  phase: guard-floor-and-scope-hook-coverage-completeness/servitor-wrapup +7 recurrences (latest campaign-state-anchor/phase-2 task-2.1 wrap-up, 2026-07-15)
   promoted: dev/2026-07-12-war-launch-entry-validation@phase-1
   keywords:
     - stale worktree
@@ -25,7 +25,10 @@ metadata:
     - task worktree gitdir
     - war-worktrees
     - worktree name collision
-    - numeric suffix
+    - reserved worktree name _refinery
+    - gitdir numeric suffix
+    - reaped task worktree
+    - gate-audit confirmed-tip fallback
   tags:
     - servitor
     - memory-protocol
@@ -140,30 +143,58 @@ resolves it with a numeric suffix; always confirm via `gitdir` (the physical pat
 plan-slug directory) rather than trusting the worktree-registry name alone, and check `HEAD` for
 the expected working branch too.
 
-## Recurrence 6 (2026-07-15, phase "Release" / task 2.1) — same collision wrinkle, plus a torn-down-worktree gotcha
+## Recurrence 6 (2026-07-15, phase "Anchor the three surfaces" / campaign-state-anchor tasks 1.1-1.3) — the collision now hits a RESERVED name, `_refinery`
 
-Seventh occurrence, yet another fresh session worktree (`survey-corps-8cc638`, HEAD on
-`refs/heads/master` per `<repo-root>/.git/worktrees/survey-corps-8cc638/HEAD`) — the phase landed
-on `dev/2026-07-14-red-team-fallback-and-anchor-hygiene`, but this cwd's
-`.claude-plugin/plugin.json#version` still read `0.14.38`, the pre-phase value, not the phase's
-claimed `0.14.40`. Applying the Recurrence-4/5 technique hit the **exact same collision** again:
-`.git/worktrees/p2-2.1` existed but its `gitdir` pointed at an unrelated concurrent plan
-(`2026-07-14-gate-evidence-and-prose-truth-2026-07-15`); this phase's real task worktree was
-auto-suffixed to `p2-2.11` (`gitdir` → `.claude/war-worktrees/2026-07-14-red-team-fallback-and-anchor-hygiene-2026-07-16/p2-2.1`,
-`HEAD` → `refs/heads/war/2026-07-14-red-team-fallback-and-anchor-hygiene/p2-2.1`) — and the
-run-scoped `_refinery` worktree collided too, auto-suffixed to `_refinery1`. Reading
-`.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, and the README `## Status` token
-at the `p2-2.11` path confirmed all four release slots genuinely at `0.14.40`, matching the phase's
-gate-audit claim — the servitor's own cwd was simply stale, not the landed code being wrong.
+Seventh occurrence, in a session worktree named `survey-corps-8cc638` (branch
+`claude/survey-corps-8cc638`) — again not the same worktree as any prior recurrence, and again on a
+branch wholly unrelated to the landed phase (`dev/2026-07-15-campaign-state-anchor`). Confirmed via
+both this worktree's own `.git` gitlink → `<repo-root>/.git/worktrees/survey-corps-8cc638/gitdir`
+(unrelated plan) AND the **main checkout's** detached HEAD (`<repo-root>/.git/HEAD`, sha `0a42e34c…`)
+also predating the landed phase — this time NEITHER the session worktree NOR the main checkout had the fix.
 
-**Added edge:** by the time the servitor wraps up, a phase's per-task worktrees are frequently
-**already torn down** (teardown reaps them post-land) — `.claude/war-worktrees/<plan-slug>/` can be
-entirely absent even though the `.git/worktrees/<task-id>/` *registry* entry (and its numerically
-suffixed sibling) still lingers. Glob `.claude/war-worktrees/*` first to check the directory is
-still physically present before trusting a `gitdir` path; if absent, fall back to the
-`agent-unverified` + absence-note path from the original rule rather than assuming a stale
-registry entry still resolves to real files on disk. Here the true task worktree (`p2-2.11`) *was*
-still present, so the positive-confirmation path succeeded — but do not assume it always will be.
+Applying the Recurrence 4/5 technique surfaced a new twist: the run-scoped merge worktree is always
+named `_refinery` (never task-id-suffixed), so **this reserved name collides across concurrent
+plans too**, exactly like the `p1-1.1`-style task-id names in Recurrence 5.
+`<repo-root>/.git/worktrees/_refinery/gitdir` pointed at a *different* concurrently-run plan
+(`2026-07-14-gate-evidence-and-prose-truth`); the campaign-state-anchor phase's real `_refinery`
+worktree had been auto-suffixed to `<repo-root>/.git/worktrees/_refinery3`. Its `HEAD` file held a **detached
+commit sha** (`d3d2f5984abc265362421c32994d5f172e1e1f30`) matching **exactly** the phase's stated
+landed tip (from the spawn prompt) — a stronger positive signal than a branch-name match, since a
+merge worktree is typically left checked out at the precise merge commit rather than a moving branch
+ref. Reading the phase's touched files at that worktree's physical path (from its own `gitdir` file,
+under `<repo-root>/.claude/war-worktrees/<plan-slug>-<suffix>/_refinery/`) confirmed all of the
+phase's landed constructs directly — `code-verified`, not `agent-unverified` — while both this
+servitor's own cwd and the main checkout still showed the pre-phase code.
+
+**Generalized rule (supersedes the task-id-only framing of Recurrence 5):** ANY fixed/reserved
+worktree name the WAR engine uses per-run — task ids (`p1-1.1`) AND the constant `_refinery` alike —
+can collide across concurrently-active plans in the same repo, and git resolves every collision with
+a numeric suffix (`_refinery`, `_refinery2`, `_refinery3`, …). Never trust a bare name lookup under
+`.git/worktrees/`; always (a) enumerate every entry whose `gitdir` file's physical path contains the
+phase's own plan-slug (from the spawn prompt), and (b) prefer the merge/`_refinery` worktree's `HEAD`
+sha, compared directly against the spawn prompt's stated landed-tip sha, as the strongest positive
+match — a branch-name match is good, a sha match is better.
+
+## Recurrence 7 (2026-07-15, campaign-state-anchor/phase-2 task 2.1 wrap-up) — reaped worktree + a second, non-`_refinery` collision instance
+
+At phase-2 wrap-up for plan `campaign-state-anchor` (task 2.1, End-state 8 version-bump), the
+phase's own task worktree no longer existed on disk: a glob for `.claude/war-worktrees/*campaign-
+state-anchor*` under `<repo-root>` returned nothing — Refine/Land had already reaped it by the time
+the servitor ran. `<repo-root>/.git/worktrees/p2-2.1` DID exist under that exact task-id name, but
+its `gitdir`/`HEAD` named an unrelated concurrent plan (`gate-evidence-and-prose-truth`, branch
+`war/2026-07-14-gate-evidence-and-prose-truth/p2-2.1`) — a second, independent instance of
+Recurrence 5's worktree-name-collision wrinkle, this time on a plain per-task name (`p2-2.1`) rather
+than `_refinery`.
+
+**New edge:** the Recurrence 4/5 "read the phase's own task worktree" technique has a
+precondition — the worktree must still be on disk. Post-land, Refine reaps task worktrees, so by
+servitor wrap-up time a plausible task-id match under `.git/worktrees/<task-id>/` may (a) not exist
+at all, or (b) exist but resolve to an unrelated concurrent plan (never assume presence proves
+relevance — check `gitdir` every time, even when the task-id string matches exactly). When no live
+task worktree resolves to the right plan, fall back to Recurrence 3's approach: trust the
+gate-audit's own direct-read confirmation at the pinned confirmed tip (here: `gateEvidence:true`,
+an approved verdict that read the landed blobs directly and named the confirmed SHA) rather than
+asserting anything from the servitor's own stale cwd.
 
 ## Related
 
@@ -179,3 +210,7 @@ Recurrence 4's task-worktree technique was used to verify.
 [[floor-retry-add-test-package-it-worker-stays-base-tier]],
 [[baseline-debt-dedup-exact-set-not-subset]] — facts Recurrence 5 confirmed RESOLVED using this
 same technique.
+[[git-common-dir-anchor-idiom-fail-open-gotchas]],
+[[git-probing-hook-requires-fixtures-outside-any-git-repo]] — facts Recurrence 6 confirmed
+`code-verified` using this same technique.
+

@@ -12,6 +12,7 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
+import { execFileSync } from 'node:child_process'
 
 export const MODES = ['stack', 'wait-for-merge']
 
@@ -310,8 +311,25 @@ export function init(campaignDir, opts = {}) {
 
   assertOrderable(entries, { positions })
 
-  fs.mkdirSync(campaignDir, { recursive: true })
-  fs.mkdirSync(path.join(campaignDir, 'inbox'), { recursive: true })
+  // A dangling `campaigns` symlink (pointing at a missing target) makes recursive
+  // mkdir throw a bare ENOENT that names only the leaf path — the 2026-07-15 incident.
+  // Rethrow it named, so the operator sees the campaign dir and the symlink cause
+  // instead of an opaque stack. Any non-ENOENT error propagates unchanged.
+  try {
+    fs.mkdirSync(campaignDir, { recursive: true })
+    fs.mkdirSync(path.join(campaignDir, 'inbox'), { recursive: true })
+  } catch (err) {
+    if (err && err.code === 'ENOENT') {
+      throw new Error(
+        `cannot create campaign dir ${campaignDir}: ${err.message} — a dangling ` +
+          `'campaigns' symlink pointing at a missing target makes recursive mkdir throw ` +
+          `ENOENT; check whether ${campaignDir} or an ancestor 'campaigns' is a symlink ` +
+          `to a nonexistent path.`,
+        { cause: err },
+      )
+    }
+    throw err
+  }
 
   const ledger = {
     campaign: path.basename(campaignDir),
@@ -439,10 +457,37 @@ function parseArgs(argv) {
   return out
 }
 
+// Resolve the CLI `--campaign` value to a concrete directory. Campaign state must
+// live in exactly ONE durable place — the MAIN checkout's `.claude/campaigns` — so it
+// survives session-worktree reaping (ADR 0016); anchoring off the invoking worktree's
+// cwd would strand the ledger under a disposable worktree. An absolute `--campaign` is
+// the operator's explicit choice and passes through untouched. A relative path
+// (including the `.claude/campaigns/default` default) is anchored to the main checkout,
+// resolved via the ratified `git rev-parse --path-format=absolute --git-common-dir`
+// idiom (dirname of the common `.git` dir = the main checkout), exactly as
+// survey-corps / war-machine anchor their run state. The probe FAILS OPEN: on any
+// failure (git absent, not a repo, bare) the relative path is returned untouched —
+// today's cwd-relative behavior. Used ONLY here at the CLI layer; the exported library
+// functions take `campaignDir` verbatim, so existing callers and tests are unaffected.
+function resolveCampaignDir(campaignDir) {
+  if (path.isAbsolute(campaignDir)) return campaignDir
+  try {
+    const common = execFileSync(
+      'git',
+      ['rev-parse', '--path-format=absolute', '--git-common-dir'],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+    ).trim()
+    if (!common) return campaignDir // empty output — fail open to cwd-relative
+    return path.resolve(path.dirname(common), campaignDir)
+  } catch {
+    return campaignDir // git absent / not a repo / bare — today's cwd-relative behavior
+  }
+}
+
 function main() {
   const [, , cmd, ...rest] = process.argv
   const args = parseArgs(rest)
-  const campaignDir = args.campaign || '.claude/campaigns/default'
+  const campaignDir = resolveCampaignDir(args.campaign || '.claude/campaigns/default')
 
   switch (cmd) {
     case 'init': {
