@@ -69,7 +69,36 @@ checkable End state + test) would fail its own phase's gate.
   defect — if the live durable test confirms the candidate, the bullet (not the code) is the stale
   artifact, and the finding is at most a Nit/note recommending a future plan-doc correction.
 
-**Known residual (not fixed, out of scope for the implementing task):** the plan file's bullet
-parenthetical `(exact bytes, backticks included)` still contradicts End state #8 / test #815 as of
-phase land — a future plan-doc pass should correct it to match the non-backtick form. The plan file
-is not in the implementing task's `Files:` list.
+**Known residual — RESOLVED, see the dated note below:** the plan file's bullet parenthetical
+`(exact bytes, backticks included)` contradicted End state #8 / test #815 as of this lesson's
+original phase land (not fixed by the implementing task itself — the plan file was never in that
+task's `Files:` list). A later plan-doc-correction task closed it; see below for what shipped and
+the post-fix counts.
+
+## RESOLVED — phase "gate-evidence-and-prose-truth" Task 2.3 (#893, 2026-07-15)
+
+**Code-verified in this task's own worktree** (`docs/plans/2026-07-12-audit-gate-evidence-fidelity.md`,
+the Task 1.1 "Land-cwd noun" bullet and its Tests-list `**#815:**` sub-bullet): red-team review
+(2026-07-15) found the residual above undersold the defect — it was **two** bullets, not one, and
+fixing only the first would have left the same falsehood standing:
+
+- **(a)** the task-1.1 land-cwd bullet's replacement literal, wrapped in the `(exact bytes, backticks
+  included)` parenthetical this lesson names.
+- **(b)** a second, unparenthesised sub-bullet under that same task's Tests list (the `**#815:**`
+  count-assertion mapping bullet), which independently restated the backticked form via a
+  double-backtick-escaped code span — no "(exact bytes…)" marker of its own, so a fix or a grep
+  scoped to bullet (a)'s parenthetical alone would never have reached it.
+
+Both bullets now read the non-backtick form ("the gate's cwd stays the _refinery land worktree"),
+matching End state #8, the shipped `workflow-template.js` land clause, and the #815 durable
+source-count test — all four now agree. Post-fix in that file: a case-insensitive count of `exact
+bytes, backticks included` is 0; the backtick-wrapped `` `_refinery` `` literal count is exactly 1 —
+Task 1.2's learning-note prose noun ("the `_refinery` land worktree", a directory name in prose, not
+a code-literal claim), the one occurrence this lesson's own residual always expected to survive.
+
+**Durable pattern unaffected:** this closes the specific residual this file recorded — the general
+rule (resolve toward a plan's own checkable End state + mapped test when a bullet's literal
+replacement text disagrees; grep a plan's own End state for a matching checkable condition before
+publishing an "(exact bytes)" bullet; a sweep for one restatement of a corrected literal is a floor,
+not a ceiling — hand-scan the same scope for siblings phrased without the grepped token) still
+applies to every future plan.
