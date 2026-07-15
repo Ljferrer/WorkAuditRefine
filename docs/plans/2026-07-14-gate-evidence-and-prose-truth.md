@@ -32,13 +32,19 @@ Stacks on: nothing — manifest `dependsOn` is empty; base is the live master ti
   1. `node --test skills/war/assets/war-config.test.mjs` green, including the idempotence trio: an
      already-composed input returned byte-unchanged; `resolveGate(resolveGate(g))` equals
      `resolveGate(g)` for a plain gate; empty/null input still yields the discovery-only clause.
-  2. `grep -c 'resolveGate' skills/war/assets/workflow-template.js` is non-zero, and the D2
-     mirror-registry test in `workflow-template.test.mjs` carries a behavioral row holding the inline
-     mirror equal to the canonical `resolveGate` over the null/empty, plain, and pre-composed case
-     set — the pre-composed fixture built from the canonical `resolveGate` output, never a hardcoded
-     composed string — with the registry's sanity floor bumped to `>= 8` and its message naming the
-     new row (mentally delete the inline mirror or the composition line: the row / the prompt asserts
-     must fail).
+  2. The engine's gate composition point exists in `workflow-template.js`, located **by named
+     construct**: the in-place `plan.gate` normalization statement (guarded per Task 1.1) and the
+     inline `resolveGate` mirror's own declaration inside the extracted mirror block. **A bare
+     `grep -c 'resolveGate' skills/war/assets/workflow-template.js` is non-zero is NOT the check** —
+     it is vacuous, already satisfied at base (count 1) by the `resolveGate` prose inside the
+     emitted STALE-LOOKING-BUT-CORRECT calibration prompt, which this plan deliberately leaves
+     standing (grill Q27); any composition grep must pin a token absent from that prompt string.
+     The D2 mirror-registry test in `workflow-template.test.mjs` is the arbiter: a behavioral row
+     holding the inline mirror equal to the canonical `resolveGate` over the null/empty, plain, and
+     pre-composed case set — the pre-composed fixture built from the canonical `resolveGate` output,
+     never a hardcoded composed string — with the registry's sanity floor bumped to `>= 8` and its
+     message naming the new row (mentally delete the inline mirror or the composition line: the row
+     / the prompt asserts must fail).
   3. Rendered-prompt evidence in `workflow-template.test.mjs`, asserted over an **enumerated
      inventory of the nine gate-bearing dispatch captures** (by label/`dispatchKind` — the enumerated
      count is the anti-vacuity floor; a capture an existing fixture cannot reach is added, never
@@ -56,15 +62,29 @@ Stacks on: nothing — manifest `dependsOn` is empty; base is the live master ti
      `war-config.test.mjs` doc-contract asserting SKILL.md mentions `--resolve-gate` stays green.
   6. Stage ordering held: the Phase-1 engine commit is an ancestor of every Phase-2 commit
      (`git merge-base --is-ancestor` per commit pair at the Phase-2 land).
-  7. **#892:** `grep -rn 'zero-task' skills/war/assets/workflow-template.js
-     skills/war/references/schemas.md` yields no match claiming a zero-task phase builds the
-     Provision-barrier prompt or requires the phase fields for prompt-build reasons; both surfaces
-     instead carry the defensive fail-fast rationale naming `held:workflow-error`; both edits share
-     one commit.
-  8. **#893:** `grep -c '(exact bytes, backticks included)'
-     docs/plans/2026-07-12-audit-gate-evidence-fidelity.md` returns 0, and the task-1.1 land-cwd
-     bullet's replacement literal byte-matches the non-backtick form its own End state #8 specifies;
-     the #815 durable count test in `workflow-template.test.mjs` is untouched and green.
+  7. **#892:** `grep -rin 'zero-task' skills/war/assets/workflow-template.js
+     skills/war/references/schemas.md` — **case-insensitive** (a reword that splits the clause into
+     its own sentence naturally re-cases the token to `Zero-task`; the same sentence-case
+     false-negative class End state 8 guards against) — yields no match claiming a zero-task phase
+     builds the Provision-barrier prompt or requires the phase fields for prompt-build reasons; both
+     surfaces instead carry the defensive fail-fast rationale naming `held:workflow-error`. The one
+     legitimate surviving `zero-task` mention (schemas.md's true zero-tasks/derivation-vacuous
+     sentence, kept by design) is excluded by pairing the floor with the claim token
+     (`… | grep -i 'provision-barrier\|requires them'`). Both edits share one commit.
+  8. **#893:** `grep -c -i 'exact bytes, backticks included'
+     docs/plans/2026-07-12-audit-gate-evidence-fidelity.md` returns 0 — **case-insensitive, anchored
+     on the interior token**, never the parenthesised full phrase: a case-sensitive
+     `grep -c '(exact bytes, backticks included)'` false-negates on a re-cased copy while the
+     self-contradiction survives (the recorded sentence-case false-negative class — see the
+     `prompt-only-clause-grep-guard-must-tolerate-sentence-case` learning). **AND** the count of the
+     **backticked** land-cwd literal (the form wrapping `_refinery` in backticks) in that same file
+     is **exactly 1** — the sole legitimate survivor being the Task-1.2 slice's learning-note
+     **prose noun** (a directory name in prose, correct as-is, untouched). Both *code-literal*
+     claims — the task-1.1 land-cwd bullet **and** the `**#815:**` test-mapping sub-bullet under its
+     Tests list — then byte-match the non-backtick form that the shipped code (the land step-2
+     clause in `workflow-template.js`) and the #815 count-test regex both actually carry; that plan's
+     own End state #8 already used the non-backtick form and stays untouched. The #815 durable count
+     test in `workflow-template.test.mjs` is untouched and green.
   9. `node --test skills/war/assets/skill-doc-contracts.test.mjs` green with at least two new
      spec-truth rows — the 2026-06-25 §5.3 push-first-CAS prose guard and the docker-bullet
      reader-vs-producer guard — plus one row per claim the #887 sweep **corrects**; each row fails
@@ -74,12 +94,36 @@ Stacks on: nothing — manifest `dependsOn` is empty; base is the live master ti
   10. The `skills/war/SKILL.md` docker Daemon-reachable bullet no longer attributes the
       classification-base gate re-run to `classOf`; it names the refiner as performing the re-run
       (per `agents/war-refiner.md` Gate-failure classification) and `classOf` as a reader of the
-      refiner-computed `gate_failure_class`; the existing D14 guard stays green.
-  11. Every sweep-bearing task (1.1, 2.1, 2.2) records its sweep as a `Survey:` block in its
-      implementation commit body — the grep-floor command, every hit's disposition, and the manual
-      same-scope survey outcome (stragglers listed as survey-derived corrections, or an explicit
-      none-found note); zero survey notes recorded = this item failed. Task 2.1's block additionally
-      carries the per-hit verify/correct adjudication for the docs/specs sweep.
+      refiner-computed `gate_failure_class`; the existing D14 guard stays green. **The correction is
+      OLD-absent on every surface carrying the old value, not merely NEW-present in the bullet**
+      (/war-strategy §3 rule 6). The surfaces are **enumerated, and each closed by its own
+      mechanism** — deliberately NOT by a repo-wide grep (see the scope note below):
+      - `skills/war/SKILL.md`'s `**Daemon reachable**` bullet — closed by Task 2.1's reword plus the
+        new guard row's **bullet-scoped** negative arm (D14's own extraction anchor).
+      - `skills/war/assets/skill-doc-contracts.test.mjs`'s **D14 block comment**, which restates the
+        same misattribution ("…classifier (`classOf`) keys on / re-running the failing gate…") —
+        corrected **in the same task**; that file is already Task-2.1-owned, so no ownership-rule
+        conflict and no follow-up issue. **This is the surface the both-surfaces rule turns on here.**
+      - `docs/specs/2026-07-12-prose-drift-corrections-design.md` — a live misattribution in its own
+        voice, inside the #887 sweep's `docs/specs/` scope; process-covered there.
+      - **Not a surface:** this plan's own source spec
+        (`docs/specs/2026-07-14-gate-evidence-and-prose-truth-design.md`) pairs `classOf` with the
+        re-run while *describing the defect and the desired end state*. A spec's statement **of** a
+        drift is not an instance of it and must survive untouched.
+      **Scope note (red-team adjudication, 2026-07-15):** the assertion stays **bullet-scoped**,
+      matching spec criterion 10 verbatim. A repo-scoped OLD-absent grep was tried and rejected: it
+      invents scope the spec does not carry, needs a carve-out list that rots as future specs
+      describe this same drift, and — decisively — a **line-based** repo grep is **vacuous on the
+      very surface it was invented to catch**, because D14's comment wraps the pairing across two
+      lines (`classOf` ends one, `re-running` opens the next). The in-task D14 correction, not a
+      wider grep, is what closes rule 6 here.
+  11. Every sweep-bearing task (1.1, 2.1, 2.2, **2.3**) records its sweep as a `Survey:` block in
+      its implementation commit body — the grep-floor command, every hit's disposition, and the
+      manual same-scope survey outcome (stragglers listed as survey-derived corrections, or an
+      explicit none-found note); zero survey notes recorded = this item failed. Task 2.1's block
+      additionally carries the per-hit verify/correct adjudication for the docs/specs sweep. Task
+      2.3's block carries the per-hit *code-literal claim vs prose noun* adjudication for its
+      `land worktree` sweep.
   12. A new ADR (next free number) records "Gate self-discovery composition is engine-owned"
       including the rejected fail-closed alternative, and `CONTEXT.md` gains the **Gate composition
       point** and **Spec-truth guard** glossary entries (spec §6 definitions).
@@ -130,12 +174,32 @@ Stacks on: nothing — manifest `dependsOn` is empty; base is the live master ti
   - **Inline mirror + gate composition point (`workflow-template.js`):** add a hand-mirrored inline
     copy of `resolveGate` **inside the existing extracted mirror block** (between the
     `const ROLE_MODEL =` and `const defaultRoster` anchors the D2 harness already slices and evals),
-    marked with the repo's "MIRRORED inline … Keep in sync" comment convention naming the canonical
-    export and the D2 registry row as arbiter — the existing `inlineHelpers` shim then exposes it
-    with a one-token addition to its return list, no new extractor. Apply it as **in-place
-    normalization of `plan.gate`, once, immediately after entry validation** (the hoisted `problems`
-    throw) — in-place is mandated, not latitude: it is the only shape that satisfies both spec
-    clauses (single composition point AND the nine interpolation sites untouched in source).
+    marked with the **two-sided** mirror-comment convention this repo already uses (verified,
+    red-team 2026-07-15): the **canonical side** carries `// MIRRORED inline in workflow-template.js.
+    Keep in sync.` (as `war-config.mjs` lines 261/292/312/327 and `land-decision.mjs` line 2 already
+    do), and the **mirror side** — the block head at `workflow-template.js`'s
+    `Mirror of war-config.mjs <exports> — the Workflow sandbox can't import. Keep in sync.` comment —
+    gets `resolveGate` appended to its export list. So Task 1.1 touches **both** markers: add the
+    `// MIRRORED inline …` line immediately above `export function resolveGate` in `war-config.mjs`
+    (same commit as the idempotence-header update), and extend the `workflow-template.js` block-head
+    export list to name `resolveGate`. The comment names the canonical export and the D2 registry
+    row as arbiter. The existing `inlineHelpers` shim then exposes the inline copy with a one-token
+    addition to its return list, no new extractor. Apply it as **in-place normalization of `plan.gate`, once, immediately after entry
+    validation** (the hoisted `problems` throw) — in-place is mandated, not latitude: it is the only
+    shape that satisfies both spec clauses (single composition point AND the nine interpolation
+    sites untouched in source).
+    **Null-safe by mandate, not by implementer discretion (red-team finding, 2026-07-15):** the
+    statement is `if (plan) plan.gate = resolveGate(plan.gate)` — **guarded**. `plan` is destructured
+    with no default and is **never** entry-validated (the `problems`/`missingPhaseFields` block
+    checks only the derivation trio and the three phase fields), and the template's own
+    `testPattern` line guards it with `plan &&` — proving an absent `plan` is a reachable state.
+    An **unconditional** `plan.gate = …` at that position would TypeError on a plan-less zero-task
+    phase, converting a clean `held:nothing-merged` into `held:workflow-error` — a regression that
+    would also falsify Task 2.2's own replacement rationale. Adding `plan` to entry validation is
+    **not** the alternative: that is the fail-closed validation spec §9 cuts and Task 1.2's ADR
+    records as rejected. An absent `plan` object is a **no-op**, distinct from the absent/null
+    `plan.gate` arm (which renders the discovery-only clause). Add a **plan-less / zero-task fixture
+    arm** to the prompt-assert set so this boundary stays proven.
     Verified at survey base: `plan.gate` is read nowhere before the nine dispatch sites (earlier
     matches are comments only), so no pre-composition consumer exists, and a resumed/relaunched
     phase re-enters the template from the top and re-applies composition idempotently. Grep-verify
@@ -234,6 +298,22 @@ Stacks on: nothing — manifest `dependsOn` is empty; base is the live master ti
     bullet** — the step-3 gate/engine-normalization sentences Phase 1 landed are out of its scope
     (End state 5's anchor grep re-checks them at this phase's land). This is the
     `skills/war/SKILL.md` edit that trails Phase 1's step-3 edit (spec constraint 4).
+  - **Second surface of the same correction — the D14 block comment (red-team finding, 2026-07-15):**
+    `skill-doc-contracts.test.mjs`'s own D14 explanatory comment restates the misattribution it
+    guards against — "the gate-time `gate_failure_class` classifier (`classOf`) keys on re-running
+    the failing gate at the classification base and comparing failing identifiers". Reword it to the
+    same reader-vs-producer truth **in this task** (the file is already Task-2.1-owned — no
+    ownership-rule conflict, no follow-up). This surface is invisible to every other mechanism here:
+    it is not under `docs/specs/` so the #887 sweep grep never reaches it, and D14's own extraction
+    plus the new negative arm are scoped *within the extracted SKILL.md bullet*. Sweep it with a
+    **multi-line** matcher (the D14 pairing wraps `classOf` / `re-running` across two comment lines,
+    so a line-based `grep` misses it): e.g. `grep -rniz 'classOf'` then confirm the re-run verb is no
+    longer paired with it, or a `perl -0777` / `rg -U` multiline scan over
+    `skills/war/assets/skill-doc-contracts.test.mjs` and `skills/war/SKILL.md`. Handle every match;
+    **grep is a floor, not a ceiling — hand-scan both files' same-scope comments and test titles for
+    re-run-agency phrasing that names the classifier without the `classOf` token, and list each
+    straggler as a survey-derived correction** in the `Survey:` block. Do **not** widen the sweep to
+    the plan's own source spec — a spec describing this drift is not an instance of it.
   - **Spec-truth guard rows (`skill-doc-contracts.test.mjs`):** extend with rows at the next free
     D-numbers (self-discover across the D-series test files at implementation time; D15/D16 free at
     survey base), same construct-anchored extraction style as D10/D12 (locate by construct, extract
@@ -253,15 +333,30 @@ Stacks on: nothing — manifest `dependsOn` is empty; base is the live master ti
       as the agent of the re-run (case-tolerant mid-sentence regex pairing `classOf` with
       `re-run`/`re-running` as its verb — never a byte-lock on the new sentence).
     - One further row per claim the sweep below **corrects** (sweep hits verified-correct get a
-      `Survey:` disposition, not a row — the two named residuals above are the only
-      verified-correct claims that get rows; see Notes). For each row guarding a correction applied
-      in this task, prove it red against the pre-fix prose and paste the failing assertion output as
-      a `Red-proof:` block in the commit message body (prose-drift precedent); the two named-residual
-      rows guarding already-correct prose take the mental-delete check instead.
-  - **Sweep (grep floor + mandatory survey):**
-    `grep -rln 'workflow-template\.js\|war-config\.mjs\|provision-worktrees\.sh\|resolveGate\|land-advance\|classOf' docs/specs/`
+      `Survey:` disposition, not a row; see Notes). **Row classification (red-team 2026-07-15 — the
+      two named rows are NOT both verified-correct):** the **docker-bullet reader-vs-producer row
+      guards prose this task corrects** (Task 2.1's first bullet rewords the live-wrong `classOf`
+      misattribution), so it carries a `Red-proof:` block like every other corrected-claim row. Only
+      the **2026-06-25 §5.3 CAS row** guards already-correct prose and takes the **mental-delete
+      check** instead. For every row guarding a correction applied in this task — the docker-bullet
+      row and each sweep-corrected claim — prove it red against the pre-fix prose and paste the
+      failing assertion output as a `Red-proof:` block in the commit message body (prose-drift
+      precedent).
+  - **Sweep (grep floor + mandatory survey) — scoped to #894 gate mechanics, not bare filenames
+    (red-team adjudication, 2026-07-15):**
+    `grep -rln 'resolveGate\|classOf\|plan\.gate' docs/specs/`
     — re-verify each hit's code-fact prose against the **post-#894** tree, correcting verified
-    drifts and adding a guard row for each corrected claim. Corrections are bounded to
+    drifts and adding a guard row for each corrected claim. **Why this token set, not the broader
+    one:** the original `workflow-template\.js|war-config\.mjs|provision-worktrees\.sh|…|land-advance`
+    grep matched **77 of 90** spec files — 86% of the corpus, an untractable per-file
+    re-verification buried inside a task that also does the docker + D14 rewords and the guard rows.
+    This plan is about gate composition; the three gate-mechanics tokens (`resolveGate`, `classOf`,
+    `plan.gate`) match **~15** specs — the surface that can actually have drifted *on #894's
+    mechanics* — while a spec merely *naming* `workflow-template.js` is rarely a code-fact drift
+    about this change. **This plan's own source spec
+    (`docs/specs/2026-07-14-gate-evidence-and-prose-truth-design.md`) is a sweep hit that must be
+    dispositioned `Survey:` verified-correct, never "corrected" — its `classOf`/re-run prose
+    describes the defect and desired end state (see End state 10).** Corrections are bounded to
     `docs/specs/*.md` + this task's two listed files (Phase-2 ownership rule); stragglers outside
     that set route to Lead-filed follow-up issues. **Grep is a completeness floor, not a ceiling —
     after the grep, hand-scan the candidate specs' same-scope headings, tables, and inline comments
@@ -288,8 +383,11 @@ Stacks on: nothing — manifest `dependsOn` is empty; base is the live master ti
   requires them") to the same fail-fast rationale; the two-category structure, the suffix rule, and
   the zero-tasks/derivation-vacuous sentence stay (they are true). **One commit for both surfaces**
   (mirror-drift prevention). Comment/prose-only — no behavior, no test cascade (verified: no test
-  locks the old wording). Sweep: `grep -rn 'zero-task' skills/war/assets/workflow-template.js
-  skills/war/references/schemas.md`, handle every match; **grep is a floor, not a ceiling —
+  locks the old wording). Sweep: `grep -rin 'zero-task' skills/war/assets/workflow-template.js
+  skills/war/references/schemas.md` — **case-insensitive** (a reword re-cases the mid-sentence
+  token; End state 7's compliant default), the surviving legitimate mention (the kept
+  zero-tasks/derivation-vacuous sentence) excluded by pairing with the claim token — handle every
+  match; **grep is a floor, not a ceiling —
   hand-scan both files' same-scope comments/blockquotes (and `workflow-template.test.mjs` titles)
   for other restatements of the zero-task justification and list each straggler as a survey-derived
   correction in the commit-body `Survey:` block.**
@@ -304,11 +402,32 @@ Stacks on: nothing — manifest `dependsOn` is empty; base is the live master ti
 - Files: `docs/plans/2026-07-12-audit-gate-evidence-fidelity.md`,
   `docs/learnings/plan-bullet-replacement-text-can-contradict-its-own-plans-end-state-and-mapped-test.md`,
   `docs/learnings/refiner-dispatched-gate-never-resolvegate-composed-shell-suite-blind.md`
-- Plan slice: In the landed plan's task-1.1 land-cwd bullet, replace the backticked replacement
-  literal with the non-backtick form its own End state #8 specifies (the form the shipped code
-  carries, locked by the #815 durable count test), and delete the "(exact bytes, backticks
-  included)" parenthetical. Bullet, End state #8, shipped code, and the count test then agree —
-  **no code or test change** (nothing may "fix" code toward the old bullet; code and the #815 test
+- Plan slice: Correct **both** code-literal claims in the landed plan — they are two bullets, not
+  one, and fixing only the first leaves the same falsehood standing (red-team finding, 2026-07-15):
+  - **(a) the task-1.1 land-cwd bullet:** replace the backticked replacement literal with the
+    non-backtick form its own End state #8 specifies (the form the shipped code carries, locked by
+    the #815 durable count test), and delete the "(exact bytes, backticks included)" parenthetical.
+  - **(b) the `**#815:**` test-mapping sub-bullet under that same task's Tests list:** it describes
+    what the new count assertion asserts — "exactly 1 of `` `cwd stays the `_refinery` land
+    worktree` ``" — with `_refinery` backticked, while the shipped test's regex
+    (`workflow-template.test.mjs`, the #815 durable source-count test) carries **no** backticks.
+    Rewrite its literal to the non-backtick form so the bullet describes the regex that actually
+    ships. It carries no "(exact bytes…)" parenthetical, so End state 8's first grep alone never
+    reaches it — this bullet is the reason End state 8 also counts the backticked form.
+  - **Leave alone:** that plan's End state #8 (already non-backticked, correct) and its Task-1.2
+    learning-note **prose noun** "(the `_refinery` land worktree)" — prose naming a directory, not a
+    claim about a code literal; backticks are correct there and it is the one occurrence End state
+    8's count of 1 expects to survive.
+  - **Sweep (grep floor + mandatory survey)** — Task 2.3 is sweep-bearing like every other content
+    task: `grep -n 'land worktree' docs/plans/2026-07-12-audit-gate-evidence-fidelity.md`, handle
+    every match, adjudicating each as *code-literal claim* (correct to non-backtick) vs *prose noun*
+    (leave). **Grep is a completeness floor, not a ceiling — after the grep, hand-scan the file's
+    same-scope bullets, End-state items, and Tests sub-lists for further restatements of the #815
+    counted literals phrased without the `land worktree` token, and list each straggler as a
+    survey-derived correction** in the commit-body `Survey:` block (End state 11).
+
+  Bullet (a), bullet (b), End state #8, shipped code, and the count test then all agree —
+  **no code or test change** (nothing may "fix" code toward the old bullets; code and the #815 test
   are already correct). Append the resolution note to the #893 source learning (repo-convention
   recurrence-note style; frontmatter otherwise untouched). Also append the resolution note to the
   #894 originating lesson `refiner-dispatched-gate-never-resolvegate-composed-shell-suite-blind` —
@@ -343,21 +462,11 @@ Stacks on: nothing — manifest `dependsOn` is empty; base is the live master ti
 
 ## Deferred validations (backstops)
 
-- Live-run confirmation that a real refiner executes the composed gate — the teed
-  `.war/gate-*.log` artifact of the next real `/war` phase shows the declared gate AND the
-  discovery loop's `gate(bash)` banners actually running · why deferred: unit tests prove prompt
-  rendering with fixture gates; only a live phase produces a genuine gate execution artifact ·
-  runner: operator of the next `/war` run, via the gate log / `/war-review`.
 - Live-run confirmation that belt-and-suspenders never double-runs: with Lead Setup pre-resolution
   active, the shell suites execute exactly once per gate invocation in the teed log · why deferred:
   idempotence is unit-proven at the function and prompt layers; the Lead→engine composition chain
   end-to-end is only observable in a real run · runner: operator of the next `/war` run, via the
   gate log / `/war-review`.
-- **#892's replacement rationale prose is unguarded** (no test locks the old or new wording —
-  verified; the spec mandates no new guard for it) · why deferred: adding a comment-prose drift
-  guard on engine-source comments would open a new guard class this plan does not ratify · runner:
-  future doc-truth sweeps (`/survey-corps` doc-drift mining); the Lead files a follow-up issue only
-  if it re-rots.
 - **Out-of-footprint survey stragglers** — any #887 survey hit pointing outside
   `docs/specs/*.md` + Task 2.1's listed files (e.g. `schemas.md`, `agents/*.md`) is
   found-but-not-corrected in-task by the ownership rule · why deferred: editing it in-task would
@@ -399,6 +508,29 @@ Stacks on: nothing — manifest `dependsOn` is empty; base is the live master ti
   verified-correct prose) plus every claim the sweep corrects; sweep hits verified-correct get a
   `Survey:` disposition, not a row. Bounds the row count; consistent with §3's "not one guard per
   spec file".
+- **#892's replacement rationale prose stays unguarded — accepted residual, NOT a backstop
+  (red-team adjudication, 2026-07-15; operator-ratified):** no test locks the old or new wording
+  (verified). Adding a comment-prose drift guard on engine-source comments would open a new guard
+  class spec §9 cuts and this plan does not ratify — so the exposure is **documented here, not
+  backstopped**, following the Q9 precedent below (a design residual, not a deferred validation).
+  It was demoted out of `## Deferred validations (backstops)` because its declared runner did not
+  exist: `/survey-corps` mines **memory lessons and open issues** into specs and never scans source
+  comments for prose drift, so "future doc-truth sweeps (`/survey-corps` doc-drift mining) … only
+  if it re-rots" named no real owner and no accountable timing — which ADR 0017 forbids in a
+  backstop. The entry's claim that "the spec mandates no new guard for it" was also false: spec
+  §"no test cascade" says only that **existing** tests do not break, not that a future guard is
+  barred. A residual with no runner is honest; a backstop with a fictional one is not.
+- **Live-run gate-log confirmation dropped, not deferred (red-team adjudication, 2026-07-15;
+  operator-ratified):** the plan previously deferred "live-run confirmation that a real refiner
+  executes the composed gate — the teed `.war/gate-*.log` shows the discovery loop's banners". That
+  check **can never fail** and was removed rather than kept as a false honesty marker: the Lead's
+  Setup `--resolve-gate` pre-resolution (the belt, retained by End state 5) already composes the
+  gate before any phase runs, and the refiner tees the log at every merge — so the artifact is
+  byte-identical whether engine composition works, is broken, or is absent. It has zero
+  discriminating power for the #894 payload. Detection stays where Q12 ratified it: the **test
+  layer** (the D2 behavioral row + the enumerated exactly-once prompt asserts). The surviving
+  double-run backstop does NOT share this defect — a second discovery loop is observable only with
+  the new engine actually installed.
 - **Accepted double-composition residual (grill Q9):** an `overrides.gate` carrying a hand-rolled
   `*.test.sh` loop phrased without the detector token gains a second discovery loop (suites run
   twice — slow, never wrong); the converse (a gate legitimately containing the token) skips
@@ -441,7 +573,9 @@ Stacks on: nothing — manifest `dependsOn` is empty; base is the live master ti
   recorded in the ADR (Task 1.2); no AST/blanket parser over the spec corpus, no
   `skill-doc-contracts.test.mjs` rename, no docs/plans retro-verification beyond #893, no
   exclusions/floor/classification changes, no enum moves → non-goals restated in the relevant task
-  slices and this section; #892's unguarded replacement prose → explicit backstop entry.
+  slices and this section; #892's unguarded replacement prose → accepted residual documented in
+  this section (red-team 2026-07-15 demoted it from a backstop entry: its declared `/survey-corps`
+  runner does not exist — see the residual note above).
 - **Originating lesson closed in-plan (grill Q30):** the #894 origin lesson
   (`refiner-dispatched-gate-…-shell-suite-blind`) gets its resolution note in Task 2.3 (repo-root
   learning, file-disjoint, lint-guarded) — the audit-gate-evidence-fidelity plan's Task 1.2 is the
