@@ -10,7 +10,9 @@
 #
 # Subcommands:
 #   stage   <memdir>              backup tarball + create <memdir>.staging copy
-#   verify  <dir>                  integrity-check a dir (index<->file, links, budget)
+#   verify  <dir>                  integrity-check a dir (index<->file, links, budget;
+#                                  env CLAUDE_MEMORY_REPO=<repo root> adds a repo-row
+#                                  completeness hard fail)
 #   commit  <memdir>              verify staging, then atomic-swap it into place
 #   recover <memdir>              detect + repair an interrupted swap
 #
@@ -38,7 +40,7 @@ resolves_in() { # <dir> <slug> -> 0 if <dir>/<slug>.md or <dir>/archive/<slug>.m
 do_verify() {
   # local: commit calls do_verify then reuses $mem for the swap — a leaked
   # mem="$dir/MEMORY.md" here redirected the mv targets into staging (bug).
-  local dir mem FAILED rows_missing unindexed dangling lines bytes lpct bpct s
+  local dir mem FAILED rows_missing unindexed dangling lines bytes lpct bpct s repo hot repo_rows
   dir="$1"
   [ -d "$dir" ] || die "verify: no such dir: $dir"
   mem="$dir/MEMORY.md"
@@ -110,6 +112,39 @@ do_verify() {
   if [ "$lines" -gt "$LINE_BUDGET" ]; then echo "FAIL  MEMORY.md over the ${LINE_BUDGET}-line budget"; FAILED=1; fi
   if [ "$bytes" -gt "$BYTE_BUDGET" ]; then echo "FAIL  MEMORY.md over the ${BYTE_BUDGET}-byte budget"; FAILED=1; fi
 
+  # HARD FAIL: a repo-adopted store whose projection lost EVERY [repo] row.
+  # Root-resolution reuses resolveRoots' own CLAUDE_MEMORY_REPO convention
+  # (skills/_shared/war-memory.mjs) — never a second channel. Set-u-safe.
+  # Arms only when the env is set AND resolves to a directory AND that directory
+  # holds >=1 top-level hot lesson: a local-only store, an unset env, and the
+  # post-evict emptied repo root all skip silently (legacy output byte-identical).
+  # This is a DIFFERENT, additive predicate over the [repo] marker than the Rule-2
+  # row<->file exclusion above: Rule 2 SKIPS [repo] rows (their files live in the
+  # repo root); this COUNTS them to catch a wholesale drop. Row-scoped like the two
+  # extractors above — never a whole-file grep -c (a stray literal [repo] in a
+  # surviving LOCAL row's summary would silently defeat that).
+  repo="${CLAUDE_MEMORY_REPO:-}"
+  if [ -n "$repo" ]; then
+    if [ ! -d "$repo" ]; then
+      # Misconfiguration signal, not a store defect — plain [ -d ], never abspath
+      # (abspath's die exits 2, turning this WARN into a hard death). Never FAILED=1.
+      echo "WARN  CLAUDE_MEMORY_REPO set but not a directory (repo-completeness check skipped): $repo"
+    else
+      # `|| true` on both pipelines: `ls -1 *.md` errors on an empty glob and
+      # `grep`/`grep -c` exit 1 on zero matches — under pipefail either would kill
+      # verify on exactly the FAIL-triggering input, before it prints VERIFY: FAIL.
+      hot=$( ( cd "$repo" && ls -1 *.md 2>/dev/null | grep -v '^MEMORY.md$' | wc -l ) | tr -d ' ' || true )
+      repo_rows=$( grep -E '^\|' "$mem" 2>/dev/null | grep '\[\[' | grep -c '\[repo\]' || true )
+      if [ "${hot:-0}" -ge 1 ] && [ "${repo_rows:-0}" -eq 0 ]; then
+        echo "FAIL  repo root has hot lessons but MEMORY.md carries zero [repo] rows: $repo — re-render with: render-index --local <staging> --repo <repo root>"; FAILED=1
+      else
+        # Covers both "otherwise" branches: [repo] rows present (populated root), and
+        # an emptied repo root with no hot lessons (e.g. post-evict) — no drop either way.
+        echo "ok    no wholesale [repo]-row drop against the repo root"
+      fi
+    fi
+  fi
+
   rm -f /tmp/.ll_idx.$$ /tmp/.ll_local_idx.$$ /tmp/.ll_files.$$ /tmp/.ll_links.$$
   [ "$FAILED" -eq 0 ] && echo "VERIFY: PASS" || echo "VERIFY: FAIL"
   return "$FAILED"
@@ -172,7 +207,7 @@ case "$cmd" in
       if [ -d "$staging" ]; then
         echo "recover: live dir MISSING but staging present — swap was interrupted. Restoring staging → live."
         mv "$staging" "$mem"
-        echo "recover: restored. Re-verify with: safe-swap.sh verify '$mem'"
+        echo "recover: restored. Re-verify with: [CLAUDE_MEMORY_REPO=<repo root>] safe-swap.sh verify '$mem'"
       else
         latest="$(ls -1t "$parent"/lessons-learned.bak.*.tgz 2>/dev/null | head -1 || true)"
         [ -n "$latest" ] || die "recover: live dir missing, no staging, no backup tarball found — manual recovery needed."

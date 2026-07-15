@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Tests for safe-swap.sh do_verify — the two §4.8 rules added for the memory
-# substrate, plus a regression guard for the budget hard-fail (unchanged).
+# substrate, the #891 repo-completeness hard fail (Rule 3), plus a regression
+# guard for the budget hard-fail (unchanged).
 #
 # Rule 1 (archive-aware wikilinks): a [[slug]] resolving into archive/<slug>.md
 #         is a cold link, NOT dangling; a row resolving into archive/ is not a
@@ -11,6 +12,13 @@
 #         the trailing [repo] marker — their files live in the repo root, not the
 #         staged local dir. Without it, no swap completes once commitLearnings is
 #         on.
+# Rule 3 (repo-completeness): when CLAUDE_MEMORY_REPO points at a populated repo
+#         root (>=1 top-level hot lesson, MEMORY.md excluded, non-recursive) but
+#         MEMORY.md carries zero [repo] rows, do_verify HARD-FAILs — the
+#         wholesale-[repo]-drop detector (#891). Env unset / non-dir / empty repo
+#         root are skips (WARN on non-dir, never a hard fail). A DIFFERENT, additive
+#         predicate over the [repo] marker than Rule 2 (Rule 2 excludes them; Rule 3
+#         counts them), so both live in the shared do_verify and gate verify + commit.
 # Unchanged: the budget hard-fail (>200 lines / >25600 bytes) still fires.
 #
 # Each case builds a fresh mktemp memory dir (a MEMORY.md + topic files, some in
@@ -61,6 +69,15 @@ if [ ! -f "$SCRIPT" ]; then
   echo "FAIL - safe-swap.sh not found at $SCRIPT" >&2
   exit 1
 fi
+
+# Ambient-env sanitation: the Rule-3 repo-completeness check reads CLAUDE_MEMORY_REPO
+# (the migration playbook's env preamble exports it — references/migration.md). A
+# developer's ambient export must NOT inject the check into the pre-existing cases:
+# CASES 4/5/6 build zero-[repo]-row projections and assert success, so an ambient
+# populated repo root would red all three. Unset it here; the Rule-3 case sets it
+# explicitly per-invocation. (Load-bearing — deleting this line reds CASES 4/5/6
+# under any shell that has CLAUDE_MEMORY_REPO exported.)
+unset CLAUDE_MEMORY_REPO
 
 # =============================================================================
 # CASE 1 — the happy staged corpus: an archived lesson + a [repo] row PASS.
@@ -293,6 +310,116 @@ if printf '%s' "$OUT" | grep -q 'wikilinks with no target file.*cold'; then
   pass "temp-break3: without archive fallback, [[cold]] flagged dangling -> archive arm is load-bearing for links"
 else
   fail "temp-break3: disabling archive fallback did NOT flag [[cold]] as dangling (freeze inert?), rc=$RC:"; printf '%s\n' "$OUT" >&2
+fi
+
+# =============================================================================
+# CASE 7 — Rule 3 (repo-completeness) — the #891 wholesale-[repo]-drop detector.
+#   One shared repo dir (RD, one hot lesson) + a zero-[repo]-row staging (SD, an
+#   otherwise-clean local corpus). Arms mapped 1:1 to plan End states 2-7.
+# =============================================================================
+RD="$(mkmem)"                       # stand-in repo root: one top-level hot lesson
+printf '# a repo lesson\nbody.\n' > "$RD/some-repo-lesson.md"
+SD="$(mkmem)"                       # staging: clean local corpus, ZERO [repo] rows
+printf '# MEMORY\n\n| slug | phase | summary |\n|--|--|--|\n' > "$SD/MEMORY.md"
+add_row "$SD" "alpha"
+printf '# alpha\nhot.\n' > "$SD/alpha.md"
+
+# --- FAIL arm (End state 2): populated repo root + zero [repo] rows -> hard fail.
+#     Three separate assertions: nonzero exit; a FAIL line naming the repo root;
+#     the VERIFY: FAIL trailer (the no-premature-death proof — a set -e death
+#     before the report tail also exits nonzero, and RC+trailer together catch a
+#     FAIL line whose FAILED=1 was forgotten).
+OUT="$(CLAUDE_MEMORY_REPO="$RD" bash "$SCRIPT" verify "$SD" 2>&1)"; RC=$?
+if [ "$RC" -ne 0 ]; then
+  pass "case7-fail: zero-[repo]-row projection vs populated repo root -> nonzero exit ($RC)"
+else
+  fail "case7-fail: expected nonzero exit, got rc=$RC:"; printf '%s\n' "$OUT" >&2
+fi
+if printf '%s' "$OUT" | grep 'FAIL' | grep -qF "$RD"; then
+  pass "case7-fail: a FAIL line names the repo root"
+else
+  fail "case7-fail: no FAIL line naming the repo root $RD:"; printf '%s\n' "$OUT" >&2
+fi
+if printf '%s' "$OUT" | grep -q 'VERIFY: FAIL'; then
+  pass "case7-fail: prints the VERIFY: FAIL trailer (no premature set -e death)"
+else
+  fail "case7-fail: missing VERIFY: FAIL trailer (died before the report tail?):"; printf '%s\n' "$OUT" >&2
+fi
+
+# --- Legacy-invisibility arm (End state 6): same zero-[repo]-row fixture, env
+#     UNSET -> exit 0 and NO repo-completeness output line (legacy byte-identical).
+#     Run BEFORE the PASS arm mutates SD.
+OUT="$(bash "$SCRIPT" verify "$SD" 2>&1)"; RC=$?
+if [ "$RC" -eq 0 ] && ! printf '%s' "$OUT" | grep -qE '\[repo\]|CLAUDE_MEMORY_REPO'; then
+  pass "case7-legacy: env unset -> exit 0, zero repo-completeness output (silent skip)"
+else
+  fail "case7-legacy: env unset should be a silent skip, got rc=$RC:"; printf '%s\n' "$OUT" >&2
+fi
+
+# --- PASS arm (End state 3): add one gamma-style [repo] row (CASE 1's fixture
+#     pattern) -> exit 0, VERIFY: PASS, no FAIL line.
+add_row "$SD" "gamma" "[repo]"
+OUT="$(CLAUDE_MEMORY_REPO="$RD" bash "$SCRIPT" verify "$SD" 2>&1)"; RC=$?
+if [ "$RC" -eq 0 ] && printf '%s' "$OUT" | grep -q 'VERIFY: PASS' \
+   && ! printf '%s' "$OUT" | grep -q 'FAIL'; then
+  pass "case7-pass: one [repo] row present -> VERIFY: PASS (exit 0), no FAIL line"
+else
+  fail "case7-pass: expected PASS/exit0/no-FAIL, got rc=$RC:"; printf '%s\n' "$OUT" >&2
+fi
+
+# --- WARN arm (End state 4): CLAUDE_MEMORY_REPO set to a NONEXISTENT path (a
+#     child of RD that was never created) -> exit 0 + a WARN naming the path,
+#     never a FAIL. SD (now with a valid [repo] row) is otherwise clean.
+NOPATH="$RD/no-such-repo-root"
+OUT="$(CLAUDE_MEMORY_REPO="$NOPATH" bash "$SCRIPT" verify "$SD" 2>&1)"; RC=$?
+if [ "$RC" -eq 0 ] && printf '%s' "$OUT" | grep 'WARN' | grep -qF "$NOPATH" \
+   && ! printf '%s' "$OUT" | grep -q 'FAIL'; then
+  pass "case7-warn: nonexistent repo path -> WARN naming it, exit 0, no FAIL"
+else
+  fail "case7-warn: expected WARN/exit0/no-FAIL for a non-dir repo path, got rc=$RC:"; printf '%s\n' "$OUT" >&2
+fi
+
+# --- Empty-repo-root skip arm (End state 5): a repo dir holding ONLY archive/
+#     content plus a MEMORY.md (no other top-level *.md) does not arm the check —
+#     one fixture exercising non-recursion (archive/ ignored) AND the MEMORY.md
+#     exclusion. Uses a fresh zero-[repo]-row staging (SD2) that WOULD fail against
+#     a populated root, proving the hot-lesson predicate is load-bearing.
+EMPTYREPO="$(mkmem)"
+printf '# projection\n' > "$EMPTYREPO/MEMORY.md"
+printf '# cold\narchived body.\n' > "$EMPTYREPO/archive/cold.md"
+SD2="$(mkmem)"
+printf '# MEMORY\n\n| slug | phase | summary |\n|--|--|--|\n' > "$SD2/MEMORY.md"
+add_row "$SD2" "alpha"
+printf '# alpha\nhot.\n' > "$SD2/alpha.md"
+OUT="$(CLAUDE_MEMORY_REPO="$EMPTYREPO" bash "$SCRIPT" verify "$SD2" 2>&1)"; RC=$?
+if [ "$RC" -eq 0 ] && ! printf '%s' "$OUT" | grep -q 'FAIL'; then
+  pass "case7-skip: empty repo root (only MEMORY.md + archive/) -> no fail (hot-lesson predicate load-bearing)"
+else
+  fail "case7-skip: empty repo root should be a skip, got rc=$RC:"; printf '%s\n' "$OUT" >&2
+fi
+
+# --- Commit-gate arm (End state 7): the check lives in the SHARED do_verify, so
+#     `commit`'s pre-swap re-verify refuses a zero-[repo]-row staging too. Reuse
+#     CASE 4's stage/commit wrapper. Reds if the check landed in the `verify`
+#     dispatch branch instead of do_verify (commit would then swap through).
+CWRAP="$(mktemp -d 2>/dev/null || mktemp -d -t swapcommit7)"; TMPFILES="$TMPFILES $CWRAP"
+CMEMD="$CWRAP/memory"
+mkdir -p "$CMEMD/archive"
+printf '# MEMORY\n\n| slug | phase | summary |\n|--|--|--|\n' > "$CMEMD/MEMORY.md"
+add_row "$CMEMD" "alpha"
+printf '# alpha\ncontent.\n' > "$CMEMD/alpha.md"
+OUT="$(bash "$SCRIPT" stage "$CMEMD" 2>&1)"; RC=$?
+[ "$RC" -eq 0 ] || { fail "case7-commit: stage failed, rc=$RC:"; printf '%s\n' "$OUT" >&2; }
+OUT="$(CLAUDE_MEMORY_REPO="$RD" bash "$SCRIPT" commit "$CMEMD" 2>&1)"; RC=$?
+if [ "$RC" -ne 0 ] && printf '%s' "$OUT" | grep -q 'NOT swapping'; then
+  pass "case7-commit: zero-[repo]-row staging + populated repo root -> commit refuses swap (check in shared do_verify)"
+else
+  fail "case7-commit: expected commit to refuse the swap, got rc=$RC:"; printf '%s\n' "$OUT" >&2
+fi
+if [ -f "$CMEMD/MEMORY.md" ] && ! ls "$CMEMD".prev.* >/dev/null 2>&1; then
+  pass "case7-commit: live dir untouched (no swap, no .prev)"
+else
+  fail "case7-commit: live dir mutated despite failed verification"
 fi
 
 # --- summary ------------------------------------------------------------------
