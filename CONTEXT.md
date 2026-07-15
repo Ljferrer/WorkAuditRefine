@@ -859,6 +859,29 @@ The recognized `ponytail:` / `deliberately-unwired:` comment naming *why* a cons
 uncalled; the audit lens does not raise dead-code findings against it.
 _Avoid_: dead-code exemption (sounds like a suppression list).
 
+### Gate composition & spec-truth guards (ADR 0036)
+
+**Gate composition point**:
+The single site in `workflow-template.js`, immediately after entry validation, where `plan.gate` is
+normalized once, in place — idempotently, via a hand-mirrored inline `resolveGate` (the
+sandbox-cannot-import rule), drift-guarded by its D2 mirror-registry row — to its self-discovering
+form; every one of the nine gate-bearing dispatch sites downstream renders the composed string without
+itself changing. Distinct from the Lead's Setup `--resolve-gate` pre-resolution, now the belt to this
+composition point's suspenders ([ADR 0036](docs/adr/0036-gate-self-discovery-composition-engine-owned.md)).
+_Avoid_: conflating it with `resolveGate` itself (the canonical function this point calls inline);
+expecting composition per dispatch site — it fires once, upstream of all nine.
+
+**Spec-truth guard**:
+A per-claim, construct-anchored doc-contract row in `skill-doc-contracts.test.mjs` locking a
+`docs/specs/` (or SKILL.md) code-fact sentence to the mechanics it actually describes — the
+`docs/specs/` sibling of the file's existing SKILL.md rows (D10/D12 style: locate by construct, extract
+by regex, assert the truth-bearing tokens). A **defined-but-not-yet-emitted slice** as of this entry:
+its first rows are produced in Task 2.1 of the
+[gate-evidence-and-prose-truth plan](docs/plans/2026-07-14-gate-evidence-and-prose-truth.md).
+_Avoid_: a blanket markdown/AST parser over every `docs/specs/*.md` file (the ratified ceiling stays
+per-claim, not per-file); treating an unguarded spec claim as verified — only a guarded claim is
+drift-proof.
+
 ### Memory
 
 **Memory provenance**:
