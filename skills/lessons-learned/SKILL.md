@@ -152,13 +152,13 @@ Author a `Workflow` over the `keep-compress` + `fix-anchor` + `merge` items (bat
 
 ### 5 — Archive, merge-source removal, index render (in STAGING)
 
-- **Archive** the confirmed `retire` files and the `merge` sources — point the CLI at the staging root so the live dir stays untouched:
+- **Archive** the confirmed `retire` files and the `merge` sources — point the CLI at the staging root so the live dir stays untouched, and **pass `--repo "$REPO_ROOT"` when the repo root exists** (omit it only when no repo root resolves — the same conditional the render below carries):
 
   ```bash
-  node "${CLAUDE_PLUGIN_ROOT}/skills/_shared/war-memory.mjs" archive --local "$STAGING" <slug>...
+  node "${CLAUDE_PLUGIN_ROOT}/skills/_shared/war-memory.mjs" archive --local "$STAGING" --repo "$REPO_ROOT" <slug>...
   ```
 
-  This appends an archive note, `mv`s each into `$STAGING/archive/` (the local root is not a git repo, so a plain move — no `git mv`), and stays queryable. It does **not** delete. A `[[wikilink]]` into `archive/` is legal (safe-swap treats it as resolved, not dangling), so leave inbound links to an archived slug in place.
+  This appends an archive note, `mv`s each into `$STAGING/archive/` (the local root is not a git repo, so a plain move — no `git mv`), and stays queryable. It does **not** delete. **`archive`'s trailing re-render now walks both roots**, so the staged projection keeps its `[repo]` rows even if the pass dies before the explicit render step below — without `--repo`, that intermediate render silently drops every `[repo]` row on a repo-adopted store. A `[[wikilink]]` into `archive/` is legal (safe-swap treats it as resolved, not dangling), so leave inbound links to an archived slug in place.
 - **Fix only the frontmatter `relates:` entries** that point at an archived slug if you want the graph tidy — body `[[…]]` mentions may stay, since the target now lives in `archive/` and still resolves. (Contrast a true delete, which would orphan them — this pipeline no longer deletes.)
 - **Render the projection** — the final, authoritative index rewrite is generated, not hand-typed (the projection is derived from the files; a hand-authored `MEMORY.md` summary is normalised away at the next render). **Pass `--repo <repo root>` when the repo root exists** (`docs/learnings/` in the audited repo, or the configured override) so the walk sees the repo-root lessons and re-marks their `[repo]` rows; omit it only when no repo root resolves:
 
@@ -172,18 +172,18 @@ Author a `Workflow` over the `keep-compress` + `fix-anchor` + `merge` items (bat
 ### 6 — Verify STAGING (the gate)
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/skills/lessons-learned/assets/safe-swap.sh" verify "$STAGING"
+CLAUDE_MEMORY_REPO="$REPO_ROOT" bash "${CLAUDE_PLUGIN_ROOT}/skills/lessons-learned/assets/safe-swap.sh" verify "$STAGING"
 ```
 
-It checks: every index row maps to a file (**hard fail**; rows carrying the trailing `[repo]` marker are skipped — their files live in the repo root, not the staged local dir), every file is indexed (warn), no dangling wikilinks (warn — a link resolving into `archive/` is **not** dangling, so archived-slug links are fine; investigate only links to a slug that exists in neither the hot set nor `archive/`), and `MEMORY.md` within budget (**hard fail** if over). **If it does not print `VERIFY: PASS`, do NOT swap** — fix `$STAGING` and re-verify. The live store is still pristine, so there is no rush.
+Set the `CLAUDE_MEMORY_REPO="$REPO_ROOT"` prefix when the repo root exists (same conditional as the Phase 5 commands; each command block runs in its own shell, so re-resolve `$REPO_ROOT` here rather than assuming live shell state — omit the prefix only when no repo root resolves). It checks: every index row maps to a file (**hard fail**; rows carrying the trailing `[repo]` marker are skipped — their files live in the repo root, not the staged local dir), every file is indexed (warn), no dangling wikilinks (warn — a link resolving into `archive/` is **not** dangling, so archived-slug links are fine; investigate only links to a slug that exists in neither the hot set nor `archive/`), `MEMORY.md` within budget (**hard fail** if over), and — when `CLAUDE_MEMORY_REPO` names a populated repo root — that the projection still carries its `[repo]` rows (**hard fail** if the repo root holds hot lessons but `MEMORY.md` carries zero `[repo]` rows: the wholesale-drop the Phase 5 `--repo` prevents). **If it does not print `VERIFY: PASS`, do NOT swap** — fix `$STAGING` and re-verify. The live store is still pristine, so there is no rush.
 
 ### 7 — Atomic swap + final report
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/skills/lessons-learned/assets/safe-swap.sh" commit "$MEM"
+CLAUDE_MEMORY_REPO="$REPO_ROOT" bash "${CLAUDE_PLUGIN_ROOT}/skills/lessons-learned/assets/safe-swap.sh" commit "$MEM"
 ```
 
-`commit` re-verifies staging itself and refuses to swap on failure, then moves `$MEM → $MEM.prev.<UTC>` and `$STAGING → $MEM`. Capture `PREV=`.
+`commit` re-verifies staging itself — with the same repo-completeness gate when `CLAUDE_MEMORY_REPO` is set, so thread the prefix whenever the repo root exists (re-resolving `$REPO_ROOT` in this fresh shell, same conditional as above) — and refuses to swap on failure, then moves `$MEM → $MEM.prev.<UTC>` and `$STAGING → $MEM`. Capture `PREV=`.
 
 - **Report:** before/after `MEMORY.md` lines/bytes + % full, before/after file count and total disk, the buckets actioned (kept / compressed / re-anchored / retired / merged / hubs restored), and the backup + prev paths for reverting.
 - **Surface the Phase 3 graduation-candidates list verbatim** (slug · recurrence count · proposed enforcement shape), or state "none". Restate the flag-only constraint: nothing here was implemented or filed — the operator decides.
@@ -211,7 +211,7 @@ If the run surfaced a reusable housekeeping insight, write it as a new memory in
 - **Illustrative `[[slug]]` in examples.** Pollutes the link graph and the verify report. Don't write example wikilinks that look real.
 - **Deleting instead of archiving a `retire`/`merge`.** `rm` destroys knowledge; `war-memory archive <slug>` keeps it queryable. This pipeline archives — it never `rm`s a lesson.
 - **Swapping on a `VERIFY: FAIL` or warnings you didn't read.** A link into `archive/` is legal (cold links resolve); the real rot is a link to a slug in neither the hot set nor `archive/`. Resolve those before committing.
-- **Dropping `--repo` from the Phase 5 render on a repo-adopted store.** `render-index` re-derives the projection from the roots it is told to walk; if `$REPO_ROOT` exists but you render `--local` only, the walk never sees the repo lessons and the regenerated `MEMORY.md` **silently drops every `[repo]` row**. Always pass `--repo <repo root>` in Phase 5 when the repo root exists. (The **evict** re-render is the deliberate exception — it stays local-only *by design* so eviction drops the `[repo]` markers.)
+- **Dropping `--repo` from the Phase 5 archive or render on a repo-adopted store.** Both `archive` (its trailing re-render) and `render-index` re-derive the projection from the roots they are told to walk; if `$REPO_ROOT` exists but you invoke either `--local` only, the walk never sees the repo lessons and the regenerated `MEMORY.md` **silently drops every `[repo]` row**. Always pass `--repo <repo root>` on **both** the Phase 5 `archive` and the Phase 5 render when the repo root exists — and thread `CLAUDE_MEMORY_REPO="$REPO_ROOT"` into the Phase 6/7 `verify`/`commit`, whose repo-completeness hard fail now backstops this mistake (a zero-`[repo]`-row projection against a populated repo root refuses to swap). (The **evict** re-render is the deliberate exception — it stays local-only *by design* so eviction drops the `[repo]` markers.)
 
 ## Note on write gates
 

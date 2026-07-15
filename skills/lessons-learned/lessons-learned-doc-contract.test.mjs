@@ -153,3 +153,47 @@ test('doc-contract: migrate pre-flight carries the `test -f .claude/war/config.j
   assert.match(branch, /\bskip\b/i,
     'the absent-config case must skip the resolver call (it exits non-zero on an absent config)')
 })
+
+// --- Task 1.1 (repo-projection-integrity, #891): --repo on archive + CLAUDE_MEMORY_REPO threading ---
+// Mirror the render-bullet precedent (test 1): #891 is the identical defect class on the archive
+// bullet and the Phase 6/7 gate — the env prefixes are the wire without which the new shell check
+// never fires in a real pass. Semantics not bytes; the worker owns phrasing. Anchor distinctness is
+// binding: (13) grips the ARCHIVE line (not the render line test 1 owns), and (14)/(15) carry
+// separate needles for the verify- vs commit-invocation lines (one lock on either lets the other rot).
+
+// (13) Phase 5 archive command passes --repo (repo-adopted store keeps [repo] rows on the archive
+//      re-render). Anchored on `archive --local "$STAGING"` so it matches the archive line, not the
+//      render line (which is `render-index --local "$STAGING"` and stays owned by test 1).
+test('doc-contract: Phase 5 archive passes --repo (archive re-render keeps [repo] rows)', () => {
+  const archive = lineWith(skill, 'archive --local "$STAGING"')
+  assert.match(archive, /archive --local "\$STAGING" --repo /,
+    'Phase 5 archive must pass --repo <repo root> or its trailing re-render silently drops every [repo] row (#891)')
+})
+
+// (14) Phase 6 verify invocation carries the CLAUDE_MEMORY_REPO prefix — without it the new
+//      repo-completeness gate never fires in a real pass. Separate needle from (15).
+test('doc-contract: Phase 6 verify threads CLAUDE_MEMORY_REPO="$REPO_ROOT"', () => {
+  const verify = lineWith(skill, 'safe-swap.sh" verify "$STAGING"')
+  assert.match(verify, /CLAUDE_MEMORY_REPO="\$REPO_ROOT"/,
+    'Phase 6 verify must be prefixed CLAUDE_MEMORY_REPO="$REPO_ROOT" so the repo-completeness check arms')
+})
+
+// (15) Phase 7 commit invocation carries the same prefix (commit re-verifies staging itself).
+//      Separate needle from (14) — one lock passing on either block would let the other rot.
+test('doc-contract: Phase 7 commit threads CLAUDE_MEMORY_REPO="$REPO_ROOT"', () => {
+  const commit = lineWith(skill, 'safe-swap.sh" commit "$MEM"')
+  assert.match(commit, /CLAUDE_MEMORY_REPO="\$REPO_ROOT"/,
+    'Phase 7 commit must be prefixed CLAUDE_MEMORY_REPO="$REPO_ROOT" so the pre-swap re-verify arms the check')
+})
+
+// (16) Phase 6 "It checks:" names the repo-completeness hard fail as its own clause. Case-tolerant,
+//      mid-sentence anchors on the clause's own tokens (never an ordinal — the sentence's check count
+//      is not pinned). "populated repo root" + "zero ... [repo] ... rows" are new-clause-specific
+//      (the pre-existing [repo]-skip clause says "rows carrying the trailing [repo] marker", no "zero").
+test('doc-contract: Phase 6 It-checks names the repo-completeness hard fail', () => {
+  const checks = lineWith(skill, 'It checks:')
+  assert.match(checks, /populated repo root/i,
+    'It-checks must name the populated-repo-root arming condition of the new hard fail')
+  assert.match(checks, /zero[^\n]*\[repo\][^\n]*rows/i,
+    'It-checks must name the zero-[repo]-rows wholesale-drop hard fail')
+})
