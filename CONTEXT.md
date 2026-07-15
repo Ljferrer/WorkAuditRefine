@@ -738,10 +738,14 @@ probe classifies it — error, wrong-commit resolution, or degenerate/empty diff
 _Avoid_: conflating with a merge *conflict* — the anchor is void, not contested.
 
 **analyzed-agent fallback**:
-The red-team scaffold's reactive re-dispatch of an analyzed probe/confirm from the preferred read-only
-agent type to `general-purpose` when the harness lacks the preferred type.
-_Avoid_: "capability check" — the fallback is reactive (detect the dead dispatch, re-dispatch), never a
-pre-flight harness query.
+The red-team scaffold's sticky re-route of analyzed probes/confirms from the preferred read-only agent
+type to `general-purpose` when the harness lacks the preferred type: the FIRST dead preferred dispatch
+pins the whole run (#890), and every later analyzed dispatch routes to `general-purpose` proactively —
+not a per-item re-dispatch. The Lead's SKILL.md Step-3 pre-flight can pre-empt it entirely by passing
+`analyzedAgentType` up front; the pin is the in-run backstop when the Lead doesn't (or can't enumerate
+the registry).
+_Avoid_: "capability check" — the scaffold fallback is reactive (detect the first dead dispatch, pin,
+re-route), never itself a pre-flight harness query (that is the separate Lead-side Step-3 check).
 
 ### Guard coverage by equivalence class (ADR 0031)
 
