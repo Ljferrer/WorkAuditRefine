@@ -134,8 +134,9 @@ release slots with this plan — see Build order contention.
 
 ### Task 1.1: Sticky pin + trace stamps + worst-case bound + Lead pre-flight (#890)
 
-- Files: `skills/red-team/assets/workflow-scaffold.js`, `skills/red-team/assets/workflow-scaffold.test.mjs`, `skills/red-team/SKILL.md`, `skills/red-team/references/lenses.md`
-  (`lenses.md` is a sweep re-verify target — may be zero-diff; see the sweep bullet)
+- Files: `skills/red-team/assets/workflow-scaffold.js`, `skills/red-team/assets/workflow-scaffold.test.mjs`, `skills/red-team/SKILL.md`, `skills/red-team/references/lenses.md`, `CONTEXT.md`
+  (`lenses.md` is a sweep re-verify target — may be zero-diff; see the sweep bullet. `CONTEXT.md` is
+  the glossary touch-up added by red-team 2026-07-16 — the sixth lock-step site, see below.)
 - Plan slice:
   - **Sticky pin (`workflow-scaffold.js`):** declare a scaffold-scope mutable pin (e.g.
     `let analyzedFallbackPinned = false`) beside `dispatchAgent` (scaffold-scope `let` is the
@@ -171,7 +172,7 @@ release slots with this plan — see Build order contention.
       byte-shape lock reads *dispatch opts* key sets, not results), so the stamps break no
       existing case — re-verify at the dispatch base.
   - **Comment lock-step (same commit — comments lag rewritten code). The fallback model is
-    restated at exactly FIVE sites; all five move together:**
+    restated at exactly SIX sites; all six move together:**
     1. the scaffold header SAFETY paragraph (where its wording implies a per-dispatch retry);
     2. the `ANALYZED_AGENT` declaration comment;
     3. the `dispatchAgent` block comment, including: the "Bound:" arithmetic — a both-dead
@@ -187,7 +188,14 @@ release slots with this plan — see Build order contention.
        first observer pins, so dead dispatches are "at most the in-flight window", never
        "exactly one");
     4. the worst-case bound test's lead-in comment + assertion message (End state 2);
-    5. `SKILL.md` Step 3 (the pre-flight bullet below).
+    5. `SKILL.md` Step 3 (the pre-flight bullet below);
+    6. the `**analyzed-agent fallback**` glossary entry in `CONTEXT.md` (locate by the bolded term,
+       ~line 740 at survey base) — its per-item "reactive re-dispatch of an analyzed probe/confirm"
+       framing drifts under stickiness: reword so the first dead preferred dispatch pins the run and
+       later analyzed dispatches route to `general-purpose` proactively (no per-item re-dispatch).
+       The term itself stays — this is a definitional touch-up, NOT a new CONTEXT.md term (spec §6's
+       "no new terms" holds). Added by red-team 2026-07-16 (sweep-scope gap finding: the entry sits
+       outside `skills/red-team/` so the sweep grep structurally cannot reach it).
     **Explicit do-not-touch:** the `analyzed-agent fallback engaged:` log token is frozen
     byte-for-byte (greppably load-bearing; asserted by existing tests).
   - **Tests (`workflow-scaffold.test.mjs`), same commit — each new case must go RED against the
@@ -245,9 +253,10 @@ release slots with this plan — see Build order contention.
     in-run. Add `analyzedAgentType` to the Step 3 `Workflow({ scriptPath, args: { … } })` args
     literal (currently omits it — verified; no test locks the literal at survey base, and the new
     Step-3 presence lock above becomes its standing guard).
-  - **Sweep (grep floor + mandatory survey):** `grep -rn -i 'fallback' skills/red-team/` — handle
+  - **Sweep (grep floor + mandatory survey):** `grep -rn -i 'fallback' skills/red-team/ CONTEXT.md` — handle
     every match: any prose implying a per-dispatch retry model is corrected to the sticky/pinned
     model. Known hits to adjudicate: the scaffold's own header + block comments (edited above);
+    the `CONTEXT.md` glossary entry (lock-step site 6 above);
     the `references/lenses.md` report-template line
     `Fallback: <none | analyzed-agent fallback engaged on: probe names>.` — under stickiness the
     per-probe enumeration comes from the `dispatchedOn`/`fallbackEngaged` result stamps, not one
@@ -422,7 +431,10 @@ release slots with this plan — see Build order contention.
   discipline; SKILL.md rides along because pre-flight and pin are one layered defense the spec
   lands together (pre-flight alone is prompt-only; pin alone leaves the Lead uninformed). No
   same-file collision results — Task 1.2 owns only `red-team-gate.test.mjs`.
-- **No CONTEXT.md term, no ADR** — spec §6/§7 record None ("sticky pin" is a local mechanic of
+- **No NEW CONTEXT.md term, no ADR** — spec §6/§7 record None; the EXISTING `analyzed-agent
+  fallback` glossary entry does get a definitional touch-up (red-team 2026-07-16, sweep-scope-gap
+  Minor, AFK self-adjudicated: the entry's reactive-re-dispatch framing predates the sticky pin) —
+  a reword of an existing entry, not a new term ("sticky pin" stays a local mechanic of
   the established analyzed-agent fallback; #727's decision envelope is refined, not amended). A
   conscious divergence from the sibling plans that carry ADR/CONTEXT tasks — spec-ratified.
 - **Hardcoded agent-name literals stay** in the test file (spec constraint 5) — a future default
@@ -488,7 +500,8 @@ release slots with this plan — see Build order contention.
     directly.
   - **Backstops (Q24):** already two honest AI-declared entries with named runners (live
     Explore-less behavior; pre-flight obedience) — never a bare None.
-  - **Five restatement sites enumerated (Q25):** SAFETY header, `ANALYZED_AGENT` declaration
+  - **Restatement sites enumerated (Q25; five at drafting, SIX after red-team added the
+    CONTEXT.md glossary entry):** SAFETY header, `ANALYZED_AGENT` declaration
     comment, `dispatchAgent` block comment (incl. Bound), worst-case test comment/message,
     SKILL.md Step 3 — the lock-step bullet lists all five; the log token is an explicit frozen
     do-not-touch. (`lenses.md`'s report-template line is a sweep target, not a restatement of the

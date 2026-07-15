@@ -1,13 +1,12 @@
 ---
 name: decoy-fixture-comment-must-match-actual-throw-order-not-just-outcome
 description: "Test decoy comment must match real throw order"
-metadata: 
-  node_type: memory
+metadata:
   type: project
   provenance: code-verified
   slug: decoy-fixture-comment-must-match-actual-throw-order-not-just-outcome
-  phase: fail-loud-ingest-boundaries/t1
-  keywords: 
+  phase: fail-loud-ingest-boundaries/t1 +2 recurrences (latest Sticky fallback + anchor hygiene/1.2, 2026-07-15)
+  keywords:
     - decoy fixture
     - assertOrderable
     - unparseable footprint
@@ -19,13 +18,16 @@ metadata:
     - delete-and-trace overclaim
     - envGap
     - move-X-and-this-reds
-  tags: 
+    - deleting the envGap demotion branch
+    - KNOWN_SEVERITIES membership check
+    - outcome-unobservable order
+  tags:
     - test-authoring
     - audit-grading
     - campaign-ledger
     - red-team-gate
   created: 2026-07-08
-  updated: 2026-07-12
+  updated: 2026-07-15
   originSessionId: 67b9a13b-7f13-4b27-bc54-8459e04f97b5
 ---
 
@@ -91,5 +93,35 @@ control flow, not the comment author's mental model of "the next branch down" �
 early return (here: the severity-less-but-flagged demotion that fires before the unconditional
 force-promotion) can make a described refactor a no-op RED-wise even though the underlying
 assertion is genuinely failable via a different edit (deletion, not reordering).
+
+## Recurrence 2 CLOSED (phase "Sticky fallback + anchor hygiene", task 1.2, #895, 2026-07-15)
+
+The Recurrence-2 Nit (left as-is at the 2026-07-12 land) was deliberately fixed here, as a
+dedicated task rather than an incidental note — a following plan explicitly scoped "1c/1e anchor
+comment corrections" as its own task (#895), citing this lesson by name in its plan prose ("recurrence
+2 of the decoy-comment lesson"). Verified present at the phase's own task worktree
+(`.claude/war-worktrees/2026-07-14-red-team-fallback-and-anchor-hygiene-2026-07-16/p1-1.2/` —
+this servitor's own cwd read as stale for this phase, see
+[[servitor-verify-on-write-worktree-can-lag-just-landed-phase]] Recurrence 6):
+
+- 1c's title/comment now reads "...(deleting the envGap demotion branch reds it)" and states the
+  real mechanism: `KNOWN_SEVERITIES.includes(f.severity)` is `false` for `severity: undefined`, so
+  a severity-less finding does NOT early-return at that membership check — the envGap demotion
+  holds at any executable position ahead of `classify()`'s final force-promotion return, and moving
+  it after `KNOWN_SEVERITIES` does NOT red the case.
+- 1e's assertion message now states what the case actually proves (both `deliverableAbsence` and
+  `envGap` demote to the identical Minor) instead of an order-anchoring claim, with the order
+  explicitly noted as outcome-unobservable.
+- Change was prose-only (assertion expressions, fixtures, imports, and `red-team-gate.mjs` itself
+  byte-unchanged) — confirmed via the task worktree's own commit message, which records its own
+  mandatory sweep (`Survey:` block) finding no further stragglers across the file's 1a-1g and
+  D-series cases.
+
+**Updated generalized rule:** this defect class is now closeable, not just describable — when a
+later plan explicitly cites this lesson's slug and scopes a dedicated no-behavioral-diff
+prose-correction task against the named comment, that is the intended remediation path (vs.
+leaving a permanent Nit). A future sweep finding a *third* instance of this pattern anywhere in the
+codebase should check first whether it is this exact 1c/1e pair reappearing (already fixed, do not
+re-flag) before treating it as a new occurrence.
 
 [[red-team-env-gap-warn-is-agent-directive-not-code-enforced]]

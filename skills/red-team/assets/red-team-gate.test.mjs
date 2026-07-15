@@ -417,10 +417,13 @@ test('1b: an envGap finding surfaces as a Minor note (never silently dropped)', 
   assert.equal(verdict(findings), 'CLEARED-WITH-NOTES')
 })
 
-test('1c: a severity-less envGap note on a non-pass probe lands in minors, NOT needsDecision (envGap check precedes KNOWN_SEVERITIES)', () => {
-  // Branch-ordering anchor: the envGap demotion runs BEFORE the malformed-severity force-promotion,
-  // so a severity-less env-gap note on a non-pass probe never reaches the needsDecision branch. Move
-  // the envGap check after KNOWN_SEVERITIES and this goes RED (needsDecision:1, minors:0).
+test('1c: a severity-less envGap note on a non-pass probe lands in minors, NOT needsDecision (deleting the envGap demotion branch reds it)', () => {
+  // The edit that reds this case is DELETING the envGap demotion branch in classify(), NOT moving it:
+  // a severity-less finding is not in KNOWN_SEVERITIES (includes() is false for undefined), so it
+  // never early-returns at that membership check — the envGap demotion holds at any executable
+  // position ahead of classify()'s final force-promotion return, and relocating it past
+  // KNOWN_SEVERITIES leaves this case green. Delete the branch and the note falls through to
+  // force-promotion (needsDecision:1, minors:0).
   const findings = allFindings([{ probe: 'p', status: 'fail', findings: [EG({ severity: undefined, claim: undefined })] }])
   const c = classify(findings)
   assert.equal(c.needsDecision.length, 0, 'a severity-less env-gap note must NOT be force-promoted to needsDecision')
@@ -445,11 +448,11 @@ test("1d: a truthy non-boolean (envGap:'true' string) is untagged — only stric
   assert.equal(classify(findings).blockers.length, 1, "envGap:'true' (string) must NOT demote — the check is === true")
 })
 
-test('1e: a finding carrying BOTH deliverableAbsence:true AND envGap:true lands in minors (one Minor; deliverableAbsence branch is first in order)', () => {
+test('1e: a finding carrying BOTH deliverableAbsence:true AND envGap:true demotes to exactly one Minor', () => {
   const findings = allFindings([{ probe: 'p', status: 'fail', findings: [EG({ deliverableAbsence: true })] }])
   const c = classify(findings)
   assert.equal(c.blockers.length, 0)
-  assert.equal(c.minors.length, 1, 'one Minor — both branches demote to Minor; deliverableAbsence wins by order')
+  assert.equal(c.minors.length, 1, 'one Minor — both flags demote to the identical Minor, so the branch order is outcome-unobservable')
   assert.equal(verdict(findings), 'CLEARED-WITH-NOTES')
 })
 

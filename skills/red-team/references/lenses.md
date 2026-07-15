@@ -78,7 +78,7 @@ The **`ff-topology`** row is **mandatory when triggered** and **`--fast`-proof**
 
 ## Attack surface
 Spine: <6 lenses>. Bespoke: <probes run>. Executed in sandbox: <which>.
-Fallback: <none | analyzed-agent fallback engaged on: probe names>.
+Fallback: <none | analyzed-agent fallback engaged (sticky pin); probes run on general-purpose: names from the dispatchedOn/fallbackEngaged result stamps>.
 
 ## Executed proof
 - <what ran> → <result, e.g. "tests 20/20 green on Node v26"; "10/10 edits apply">
