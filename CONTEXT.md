@@ -591,6 +591,24 @@ place; queue demotes to follow-up) and the pre-polish tip lands exactly as it wo
 improve the tip; a discarded sweep recomputes nothing.
 _Avoid_: cleanup phase; ad-hoc seam hunting; treating a discard as a failure that holds the land.
 
+**Retired-token sweep**:
+A Lead-run, judgment-triggered check at every landed phase close (manual completions via the §4.3
+escalation-completion recipe included) — never plan-declared, judged from the **mandatory**
+landed-phase diff plus the plan slice / Commander's Intent: did this phase retire, rename, or
+consolidate a land, merge, or escalation mechanism? Runs **two hot-only nets** over both memory roots
+— a tip-true `git grep` of `origin/<working>` (a completeness floor, not a ceiling) plus the
+fully-flagged ranked `war-memory query --local <root> --repo <root>` — then a bounded hand-scan,
+adjudicating every hit **load-bearing** (a no-longer-sanctioned recipe step) or **exempt** (narration,
+or still-live-in-context), never via an allowlist. Repo-root load-bearing hits route to one
+dedup-checked consolidated `war-followup` issue per triggering phase; local-root hits are counts only
+on gh-mirrored surfaces, slugs in the uncommitted ledger notes. Every landed phase carries a mandatory
+`retired-token sweep:` record line. The clause lives under `## Per phase (in DAG order)` in
+`skills/war/SKILL.md` (*defined-but-not-yet-emitted; produced in Task 1.1, same phase*).
+_Avoid_: conflating with **Phase-close coherence sweep** (findings-queue-driven, engine-dispatched,
+fail-open polish; [ADR 0012](docs/adr/0012-intra-phase-visibility-and-phase-close-sweep.md)); treating
+it as a gate (it never blocks or holds a land); an exemption allowlist (adjudication is per-hit);
+assuming it edits lesson bodies (it only files debt and records).
+
 **Dep-wave visibility**:
 The mechanism by which a task's declared `deps` grant **code visibility**, not just ordering: the
 worker's first action is `git rebase <integrationBranch>` in its own worktree (a pure fast-forward on
