@@ -246,5 +246,46 @@ else
   fails=$((fails + 1))
 fi
 
+printf '\n# Class-1 gate evidence (docs/specs/2026-07-16-aftermath-class1-gate-evidence-design.md) — per-ref gate clause, git-cherry row evidence, unset-upstream recovery\n'
+# Named, not numbered: the original pipeline spec owns criteria 2/3/4/9/10 and a bare number here
+# would collide with its numbering. Four checks, two shapes and two casings:
+#
+#   * has() for the command/flag literals ('git cherry', '--unset-upstream'). Command and flag
+#     tokens are never benignly re-cased, so the case-SENSITIVE form is correct and stricter.
+#   * ROW-SCOPED two-stage pipes for the gate cell, the second case-INSENSITIVE because its token
+#     is PROSE (the recorded sentence-case class). Stage 1 MUST anchor on the Class-1 table-row
+#     literal '| 1. Stray WAR branches |' and NEVER on 'merge-base --is-ancestor': this SKILL uses
+#     unwrapped one-line paragraphs, and the acknowledged-stranded bucket's comparator sentence
+#     carries BOTH 'merge-base --is-ancestor' AND the per-ref prose anchor on its own line. Keying
+#     stage 1 on the is-ancestor token would make the co-location check pass with a byte-unamended
+#     gate cell, and leave the keep-green pin unfalsifiable (the comparator line would satisfy it
+#     alone) — both proven, 2026-07-16. The row literal is unique to the gate row.
+#   * The keep-green pin is DELIBERATELY not red pre-fix. It locks the PRE-EXISTING bar
+#     ('git merge-base --is-ancestor') inside the gate CELL against a silent drop by this or any
+#     later amendment (ADR 0027 C3 — the deletion gate stays byte-unchanged). Row-scoped for the
+#     same reason: a whole-file pin would survive on the comparator line's copy of the token.
+#
+# Review floor, deliberately NOT mechanized here: `grep -F 'git branch -d' skills/aftermath/SKILL.md`
+# is a WHOLE-FILE review floor only. That verb is named in BOTH the Class-1 gate cell (the per-ref
+# clause's local-delete parenthetical) AND the recovery subsection, so the grep stays green with the
+# entire subsection reverted and can discriminate nothing about it. `has "$AFTERMATH"
+# '--unset-upstream'` is the SOLE mechanical pin for that subsection.
+has "$AFTERMATH" 'git cherry'
+has "$AFTERMATH" '--unset-upstream'
+# Keep-green (not red pre-fix): the pre-existing deletion bar still lives IN the Class-1 gate cell.
+if grep -F -e '| 1. Stray WAR branches |' -- "$AFTERMATH" | grep -qF -e 'git merge-base --is-ancestor'; then
+  printf 'ok - %s :: Class-1 gate cell keeps git merge-base --is-ancestor (row-scoped, keep-green)\n' "$(basename "$AFTERMATH")"
+else
+  printf 'not ok - %s Class-1 gate cell DROPPED :: git merge-base --is-ancestor (row-scoped)\n' "$(basename "$AFTERMATH")"
+  fails=$((fails + 1))
+fi
+# Red pre-fix: the per-ref rule lives IN the gate cell — not merely somewhere in the file.
+if grep -iF -e '| 1. Stray WAR branches |' -- "$AFTERMATH" | grep -qiF -e 'exact ref being removed'; then
+  printf 'ok - %s :: Class-1 gate cell carries the per-ref rule (row-scoped, case-insensitive)\n' "$(basename "$AFTERMATH")"
+else
+  printf 'not ok - %s Class-1 gate cell MISSING :: exact ref being removed (row-scoped, case-insensitive)\n' "$(basename "$AFTERMATH")"
+  fails=$((fails + 1))
+fi
+
 printf '\n== war-pipeline-structure: %s failure(s) ==\n' "$fails"
 exit $fails

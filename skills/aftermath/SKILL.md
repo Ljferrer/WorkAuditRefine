@@ -33,7 +33,7 @@ Before classifying anything, enumerate the live ledgers and compute what is *act
 
 | Class | Candidates | Evidence gate |
 |---|---|---|
-| 1. Stray WAR branches | `integration/<plan-slug>/phase-N`, task branches; working branches with merged PRs | Tip reachable from the working/landing branch (`git merge-base --is-ancestor` against `git ls-remote` truth); `gh pr view` = `MERGED` |
+| 1. Stray WAR branches | `integration/<plan-slug>/phase-N`, task branches; working branches with merged PRs | Tip reachable from the working/landing branch (`git merge-base --is-ancestor` against `git ls-remote` truth); `gh pr view` = `MERGED`; the gate is derived against the **exact ref being removed** — a remote delete (`git push origin --delete`) gates on the remote (`ls-remote`) SHA, a local delete (`git branch -d`) on the local SHA, never mixed |
 | 2. Orphaned run worktrees | `<worktreeRoot>/<runId>/` dirs incl. `_refinery`, `_polish` — **landed runs only** | Run ledger says landed **and** the landed SHA is reachable on the working/landing branch (`git ls-remote` truth — the ledger alone is the weakest authority); reaped **by path before** any branch delete |
 | 3. WAR bookkeeping issues | Phase epics `status:done` still open; task sub-issues of landed phases | Label state + the phase's landed SHA reachable |
 | 4. Survey-swept issues | Issues mapped in a survey manifest whose spec's plan's PR **merged** | Chain: issue → spec (manifest) → plan (its source-spec line) → PR (campaign ledger PR#, or `gh pr list --search`) = `MERGED`; close with a comment linking the landing PR |
@@ -44,13 +44,50 @@ Before classifying anything, enumerate the live ledgers and compute what is *act
 
 Some remote branches never pass the Class-1 deletion gate because their content **landed under a rewritten SHA** — the original ref is stranded, not un-landed, so it permanently fails tip-reachability and would otherwise reappear as a needs-human row in every future run. `docs/aftermath/known-stranded.tsv` is the committed allowlist that acknowledges these once and for all (ADR 0027).
 
+**The stranding is structural, not an accident.** The /war refiner rebases each task branch locally in the serial merge queue and **never force-pushes**, so the remote ref keeps the worker's pre-rebase SHA forever while the local ref advances to the rebased tip that actually landed. **"Stranded" is therefore a property of the specific SHA probed, not of the branch**: the same branch reads STRANDED via its remote SHA and REACHABLE via its local SHA — which is why the gate is derived per ref (Class-1's evidence gate above), and why a stranded remote ref implies nothing about the local branch of the same name.
+
+**Two populations, two routes — the two remote-delete sentences in this skill are not in tension.** A Class-1 remote ref that **passes** the evidence gate is deleted in-run by `git push origin --delete` under the default scope; that population is what `--scorched-earth`'s "remote deletion stays in the default evidence-gated scope" refers to (scorched-earth widens *local* candidates only). A remote ref that **fails** the gate and lands in this bucket is cleared **only** by the deliberate manual push-delete named in the C3 paragraph below, outside aftermath's gates — never in-run, under any flag.
+
 After deriving the Class-1 candidate set from `git ls-remote` truth, check each candidate against the allowlist:
 
 - **Match by exact `refs/heads/<ref>` name — never substring** (so `…/p1-task1` never shadows `…/p1-task10`). The tsv's `remote_ref` column carries the short ref with no `refs/heads/` prefix; compare against the candidate's short ref.
 - A matched candidate routes to the **acknowledged-stranded** bucket: **printed for the record, excluded from needs-human, and never entering any delete list** — under any flag, including `--afk` and `--scorched-earth`.
 - A candidate that fails the deletion gate and matches **no** allowlist row still reports **needs-human**, exactly as before.
 
+**The comparator is always the freshly-fetched landing ref.** `git merge-base --is-ancestor <candidate-sha> origin/<working|landing>` takes that ref as its comparator — fetch it first, so the comparison matches `git ls-remote` truth and not a lagging local follower — while the candidate side is the exact ref being removed: the remote SHA for a remote delete, the local SHA for a local delete.
+
+**`git cherry` is the patch-equivalence probe the tip-reachability gate cannot produce.** Run `git cherry <landing-ref> <candidate-sha>` — **landing/upstream ref first, candidate second**; on a gate-failing ref the healthy result is **non-empty with every line `-`-prefixed**, and zero `+` lines among ≥1 `-` lines means every patch on the candidate is already in the landing branch by patch-id: the retroactive confirmation that its content landed under a rewritten SHA. **Empty output is a suspect result, never a PASS** — it means the probe compared nothing, so re-check the argument order and that both refs resolved before reading anything into it.
+
+**A zero-`+` result is evidence for a row, never a deletion license (C3).** It justifies acknowledging the ref in `docs/aftermath/known-stranded.tsv`; it deletes nothing and lowers no bar — the deletion gate stays byte-unchanged, exactly as the C3 paragraph below states.
+
+**The probe substantiates the row's justification, and the operator writes the row.** A zero-`+` result locates or confirms the `landed_pr` the row needs, or substantiates the `note` on a genuinely PR-less stranded ref, in the shape of the tsv's own commented reference rows — e.g. `0-unmerged via git cherry vs <landing>, <date>`. **Adding the row is a reviewed operator commit, never an in-run Lead write**, and the tsv's header and schema are untouched by this probe.
+
+**Any `+` line means patch-equivalence is NOT PROVEN — never that the work is un-merged.** Squash merges, conflict-resolved rebases, and split or joined commits all legitimately change patch-ids, so a `+` line proves nothing in either direction: the candidate stays **needs-human** and gets no row. Fail-closed, as everywhere else in this skill.
+
+**Probe hygiene: fetch the landing ref first, and leave no new refs behind.** Fetch `origin/<working|landing>` before probing so the comparison matches `git ls-remote` truth; if the candidate SHA's objects are not local, fetch them with **`git fetch --refmap= origin <ref>`**. The empty `--refmap=` is load-bearing, not decoration: a bare `git fetch origin <ref>` in a normal clone matches the command-line refspec against `remote.origin.fetch`, whose `+refs/heads/*:refs/remotes/origin/*` wildcard matches every branch, so it **does create `refs/remotes/origin/<ref>`** — only `--refmap=` suppresses that and leaves `FETCH_HEAD` alone with **zero refs created** (fetching a raw SHA instead of a ref name is server-config-dependent). A sweep's probes are objects-only: they must add no refs at all, not merely no refs under a scratch namespace.
+
+A gate-failing **remote** ref says nothing about the local branch of the same name — the local ref usually passes the gate on its own local SHA, and deleting it has its own procedure and its own confounder: see **Class-1 local branches — the stranded-upstream `-d` refusal** below.
+
 **The allowlist is an acknowledgement, never a deletion license (C3).** The deletion gate (tip-reachable + PR-merged) is byte-unchanged; a row never lowers the bar. Clearing a stranded ref stays a deliberate manual `git push origin --delete <ref>` outside aftermath's gates. Adding an allowlist row requires `landed_pr` populated **or** a `note` documenting a genuinely PR-less stranded ref (e.g. a `claude/*` session remote with no per-branch merged PR) — never a blank justification. The tsv's own header carries the schema and this invariant.
+
+### Class-1 local branches — the stranded-upstream `-d` refusal
+
+**`git branch -d` is the default-mode delete verb for a local branch — and with an upstream set it checks merged-into-*upstream*, not merged-into-HEAD.** Every WAR task branch tracks its own stranded pre-rebase remote tip (the mechanism above), so the safe verb refuses on branches whose content is provably in master. The upstream is the confounder; the refusal is not evidence about the work.
+
+**The recovery, in order — the gate first, always.** (1) The Class-1 evidence gate passes **on the local SHA** (the per-ref rule: a local delete gates on the ref being removed). For a task or integration branch with no per-branch PR, the PR-merged half is evidenced by the **plan's landing PR** — the campaign ledger's PR#, or `gh pr list --search "<plan filename>"` per the Class-4 join rule's fallback below; tip-reachability on the exact ref stays the load-bearing half and is never substituted by it. (2) `git branch --unset-upstream <branch>` removes the confounder — a config mutation that is harmless and restorable, with the restore below as the mandated form of that restorability. (3) `git branch -d <branch>` deletes it, run **from a checkout whose HEAD carries the landing content** (fetch first; the main checkout on an up-to-date default branch is the normal home). With a stale HEAD the failure mode is refusal noise — fail-closed, never a wrong delete.
+
+**`-d` after the unset is git's own second opinion, and that is precisely the point.** Post-unset it independently re-verifies merged-into-HEAD, which is the check `-D` would discard — so **`-D` is never the default-mode answer here**; that escalation belongs to `--scorched-earth` alone.
+
+**Refusal taxonomy after the unset — classify on the string git actually prints:**
+
+- `error: the branch '<b>' is not fully merged` — the genuine un-merged signal ⇒ **needs-human**.
+- `error: cannot delete branch '<b>' used by worktree at '<path>'` — a **worktree-ordering** signal, not an un-merged one. Teardown ordering normally reaps worktrees by path before their branches are deleted, so a worktree surviving to this point *is* the gap (typically a needs-human worktree that was never reaped). Report the branch and the worktree as **one needs-human row**. The same string also fires when the candidate is the sweep checkout's own HEAD branch — under the checkout precondition above that can never be a task branch, so the worktree-ordering reading holds.
+
+Neither refusal is ever answered with `-D` in default mode.
+
+**Restore tracking on every needs-human route after an unset:** `git branch -u origin/<ref> <branch>`. A sweep must not leave mutated config behind on a row it reports and never touches.
+
+**The one-sweep asymmetry, stated once:** the local branch deletes via the safe `-d` while the remote ref it tracked stays acknowledged-stranded/needs-human on the remote side — allowlisted per ADR 0027 and cleared only by the deliberate manual push-delete. One sweep reaches two verdicts on one branch name; that is the per-ref rule working, not an inconsistency.
 
 ### Class-4 join rule
 
