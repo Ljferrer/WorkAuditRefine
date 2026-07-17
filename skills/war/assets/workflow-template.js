@@ -266,10 +266,12 @@ const intentClause = intent
 const adjudications = Array.isArray(A.adjudications)
   ? A.adjudications.filter(r => r && (typeof r === 'string' || typeof r === 'object')) : []
 const adjRow = r => typeof r === 'string' ? r
-  : `${r.adjudicated ?? r.value ?? ''}${r.supersedes ? ` (supersedes plan literal: ${r.supersedes})` : ''}`
+  // pt-tagged prompt-feeding row (adjudicationClause → auditPrompt): every interpolation is guarded/defaulted
+  // (r.adjudicated/r.value ?? '', r.supersedes ternary-gated) — a behavioral no-op tag for census uniformity.
+  : pt`${r.adjudicated ?? r.value ?? ''}${r.supersedes ? pt` (supersedes plan literal: ${r.supersedes})` : ''}`
 const adjudicationClause = adjudications.length
   ? pt`\nVERSION-PRECEDENCE RULE: the authoritative version is task instruction > red-team adjudication > plan body literal. Before scoring a version/release-slot mismatch as a defect, consult the adjudicated rows below; a value matching the adjudication is correct even when it differs from the plan body literal.\n`
-    + adjudications.map(r => `- ${adjRow(r)}`).join('\n') + '\n'
+    + adjudications.map(r => pt`- ${adjRow(r)}`).join('\n') + '\n'
   : ''
 // Prior-lessons memory (spec §4.5): the Lead prefetches per-seat lesson blocks (one batched
 // `war-memory query --queries` invocation at phase launch) and threads a map here as args.memory —
@@ -481,7 +483,9 @@ async function provisionStep(task) {
     pt`PROVISION the worktree for WAR task ${task.id} before its worker runs. cd into ${task.worktree} `
     + pt`(the refiner's Provision barrier already created it) and run these provisioning commands IN ORDER, `
     + pt`inside that worktree:\n`
-    + provisionList.map((c, i) => `  ${i + 1}. ${c}`).join('\n') + pt`\n`
+    // pt-tagged prompt-feeding row builder: ${c ?? '<step>'} is absence-tolerant (run.provision elements
+    // are not per-task-schema-guaranteed; a placeholder over a phase-killing throw — Q17/ADR 0034).
+    + provisionList.map((c, i) => pt`  ${i + 1}. ${c ?? '<step>'}`).join('\n') + pt`\n`
     + pt`These steps make the worktree gate-ready (derived from the repo's own setup; source: ${provisionSource}). `
     + pt`Run them verbatim; do NOT free-author other commands. If EVERY step exits 0, return { ok: true }. `
     + pt`If a step exits NON-ZERO, STOP at that first failure and return the env-blocked outcome — `
@@ -511,7 +515,9 @@ async function provisionStep(task) {
 // must be told the pinned provision list (idempotent — re-running it is safe; D-Validation).
 const provisionClause = provisionList.length
   ? pt`\nThis worktree was provisioned with (source: ${provisionSource}); re-run them if the env looks unset before you drive the gate:\n`
-    + provisionList.map((c, i) => `  ${i + 1}. ${c}`).join('\n')
+    // pt-tagged prompt-feeding row builder (threaded into worker/fix/ace/polish prompts); ${c ?? '<step>'}
+    // absence-tolerant (this clause is built at init — top-level-catch context; placeholder over a throw).
+    + provisionList.map((c, i) => pt`  ${i + 1}. ${c ?? '<step>'}`).join('\n')
   : ''
 
 const blockingOf = seats => seats.flatMap(s => s.findings || []).filter(f => f.severity === 'Critical' || f.severity === 'Major')
@@ -677,7 +683,7 @@ const recordBaselineDebt = (ids, baseSha) => {
 // debt-less run — a phase with no recorded debt dispatches unchanged prompts).
 const baselineDebtClause = () => baselineDebt.length
   ? pt`\nKNOWN BASELINE GATE DEBT (pre-existing failures this phase already classified — if your gate failure's failing identifiers are COVERED by one of these, classify gate_failure_class:'baseline' DIRECTLY, report the covered identifiers in gate_failing_ids, and do NOT re-run the base):\n`
-    + baselineDebt.map((d, i) => `  ${i + 1}. [${d.ids.join(', ')}] — pre-existing at ${d.baseSha || '(base sha unrecorded)'}`).join('\n') + '\n'
+    + baselineDebt.map((d, i) => pt`  ${i + 1}. [${d.ids.join(', ')}] — pre-existing at ${d.baseSha || '(base sha unrecorded)'}`).join('\n') + '\n'
   : ''
 // reattachClause: every merge/land prompt's _refinery step BEGINS with this idempotent re-attach, so a
 // dispatch that died mid-classification (classification detaches _refinery to re-run the base) cannot
@@ -766,7 +772,9 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin) {
   }
   if (peers && peers.length) {
     p += pt`\n\nREBUTTAL ROUND — your panel split. Re-judge in light of your peers below, then re-emit your final verdict:\n`
-      + peers.map(s => `- ${s.seat} (${s.lens}) → ${s.verdict}: ${(s.findings || []).map(f => `[${f.severity}] ${f.title}`).join('; ') || 'no findings'}`).join('\n')
+      // pt-tagged prompt-feeding rows (auditPrompt, thunk-catch): seat/lens/verdict/severity are AUDIT_VERDICT-required
+      // (construction-guaranteed → bare); ${f.title ?? ''} absence-tolerant (title is a schema-optional finding field).
+      + peers.map(s => pt`- ${s.seat} (${s.lens}) → ${s.verdict}: ${(s.findings || []).map(f => pt`[${f.severity}] ${f.title ?? ''}`).join('; ') || 'no findings'}`).join('\n')
   }
   return p
 }
@@ -860,7 +868,9 @@ if (tasks.length) {
   const submodTasks = tasks.filter(t => t.taskType === 'submodule')
   const submodNote = submodTasks.length
     ? pt`\nSUBMODULE TASKS in this phase: ${submodTasks.map(t =>
-        `task ${t.id} targets repo "${t.targetRepo || '<targetRepo>'}" at base "${t.targetBase || '<targetBase>'}"`
+        // pt-tagged prompt-feeding interior (nested in the barrier prompt): t.id is entry-validated (bare);
+        // targetRepo/targetBase carry their own || defaults — a nested literal is a first-class census entry.
+        pt`task ${t.id} targets repo "${t.targetRepo || '<targetRepo>'}" at base "${t.targetBase || '<targetBase>'}"`
       ).join(', ')}. `
       + pt`Before running ensure-integration for these tasks, ensure the submodule checkout is initialized: `
       + pt`\`git submodule update --init --recursive\` in the superproject, so the submodule worktree at `
@@ -1024,7 +1034,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         const fix = await agent(
           pt`FIX_NEEDED for WAR task ${task.id}. Work in the ALREADY-PROVISIONED worktree at ${task.worktree} (branch ${task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
           + pt`Resolve ALL of these blocking findings, keep the gate green, commit and push:\n`
-          + b.map((f, i) => `${i + 1}. [${f.severity}] ${f.title} (${f.file}${f.line ? ':' + f.line : ''}) — ${f.rationale}${f.suggested_fix ? ` → ${f.suggested_fix}` : ''}`).join('\n')
+          // pt-tagged prompt-feeding rows (fix prompt, thunk-catch): f.severity is construction-guaranteed (b =
+          // blockingOf → Critical/Major only, bare); title/file/rationale are schema-optional → ?? '' absence-tolerant.
+          + b.map((f, i) => pt`${i + 1}. [${f.severity}] ${f.title ?? ''} (${f.file ?? ''}${f.line ? ':' + f.line : ''}) — ${f.rationale ?? ''}${f.suggested_fix ? pt` → ${f.suggested_fix}` : ''}`).join('\n')
           + workerMemClause(task.id) + provisionClause,
           { agentType: NS + 'war-worker', phase: 'Audit', label: `fix:${task.id}:r${round + 1}`, schema: WORKER_RESULT, ...spawnWorker('fix') })
         const fixWhy = blockedReason(fix); if (fixWhy) { verdict = 'escalate'; blocked = fixWhy; break }
@@ -1098,7 +1110,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         const ace = await agent(
           pt`ADVISORY POLISH (--ace) for WAR task ${r.task.id}. Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
           + pt`This task is ALREADY APPROVED. These are auditor-flagged absorb-disposition Minor/Nit findings — apply the smallest mechanical fix for EACH, keep the gate green, and make EXACTLY ONE commit whose message cites each finding's title + rationale:\n`
-          + aceable.map((f, i) => `${i + 1}. [${f.severity}] ${f.title} (${f.file}${f.line ? ':' + f.line : ''}) — ${f.rationale}${f.suggested_fix ? ` → ${f.suggested_fix}` : ''}`).join('\n') + '\n'
+          // pt-tagged prompt-feeding rows (ace prompt, top-level-catch): f.severity is construction-guaranteed (aceable =
+          // minorsOf/absorb → Minor/Nit only, bare); title/file/rationale schema-optional → ?? '' (never a phase-killing throw).
+          + aceable.map((f, i) => pt`${i + 1}. [${f.severity}] ${f.title ?? ''} (${f.file ?? ''}${f.line ? ':' + f.line : ''}) — ${f.rationale ?? ''}${f.suggested_fix ? pt` → ${f.suggested_fix}` : ''}`).join('\n') + '\n'
           + pt`Make ONE commit only (the panel re-audits it at the new sha; on regression it is forward-reverted). Do NOT touch version/release slots. Commit and push ${r.task.branch}.`
           + intentClause + provisionClause,
           { agentType: NS + 'war-worker', phase: 'Audit', label: `ace:${r.task.id}:r${r.task.fixRounds + 1}`, schema: WORKER_RESULT, ...spawnWorker('fix') })
@@ -1398,7 +1412,8 @@ const endStateBlock = endStateClaims.length
     + pt`(2) a condition you cannot verify, or a tip you cannot confirm, is a SOFT note (Minor/Nit), never a hold; `
     + pt`(3) a condition owned by a LATER phase is out-of-scope — record a Nit finding whose title contains "out-of-scope", NEVER a hold. `
     + pt`Set plan_ref on EVERY End-state finding to the condition text VERBATIM (the handoff block keys endState statuses on it).\n`
-    + endStateClaims.map((c, i) => `  ${i + 1}. ${c}`).join('\n') + '\n'
+    // pt-tagged prompt-feeding row builder (endStateBlock → gate-audit prompt, top-level-catch): ${c ?? ''} absence-tolerant.
+    + endStateClaims.map((c, i) => pt`  ${i + 1}. ${c ?? ''}`).join('\n') + '\n'
   : ''
 if (mergedTasksForGateAudit.length > 0) {
   const refineryPath = `${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/_refinery`
@@ -1438,7 +1453,9 @@ if (mergedTasksForGateAudit.length > 0) {
     + pt`This is a READ-ONLY proof computation — do NOT merge, push, rebase, or edit. Run the two floor scripts (siblings of assert-test-in-diff.sh, invoked the same bare way) per merged task and return the tokens.\n`
     + pt`observedHead — the _refinery tip you compute every proof against — is \`git -C ${refineryPath} rev-parse HEAD\`; return it per task.\n`
     + pt`For EACH merged task below (taskId · gateHeadSha · preMergeTip):\n`
-    + evItems.map(e => `  - ${e.taskId} · gateHeadSha=${e.gateHeadSha} · preMergeTip=${e.preMergeTip}`).join('\n') + '\n'
+    // pt-tagged prompt-feeding row builder (evidence dispatch, top-level-catch): e.taskId is task.id (entry-validated,
+    // bare), e.preMergeTip is constructed with a || phaseBaseCmd fallback; ${e.gateHeadSha ?? …} absence-tolerant.
+    + evItems.map(e => pt`  - ${e.taskId} · gateHeadSha=${e.gateHeadSha ?? '<gateHeadSha>'} · preMergeTip=${e.preMergeTip}`).join('\n') + '\n'
     + pt`  1. PIN STATUS — run: gate-pin-status.sh <gateHeadSha> $(git -C ${refineryPath} rev-parse HEAD) --mapped "$(git -C ${refineryPath} diff --name-only <preMergeTip> <gateHeadSha>)". `
     + pt`The --mapped set is THIS task's OWN changed files (the <preMergeTip>..<gateHeadSha> range — exactly what the task brought in under fast-forward topology), NOT the global gate-discovery set. Record pin_status = CONFIRMED (exit 0, equal shas) | BENIGN-ADVANCE (exit 0, tip descends gateHeadSha and no mapped file changed in between) | STALE-MISMATCH (exit 1, a mapped file changed or not an ancestor) | ERROR (exit 2, git/ref error or the '(integration_sha …)' sentinel), plus pin_evidence (the script's printed intervening/offending file list or error text).\n`
     + pt`  2. GUARD SPECIFICITY — run: assert-guard-specificity-in-diff.sh <preMergeTip> <gateHeadSha> (SAME pre-merge base). Record guard_specificity = covered (exit 0) | uncovered (exit 1 — capture the printed uncovered guard message + defining file as guard_evidence) | ERROR (exit 2).\n`
@@ -1473,11 +1490,13 @@ if (mergedTasksForGateAudit.length > 0) {
     // D1 seat token consumption: the pin proof is a STAMPED token (gate-pin-status.sh, from the evidence
     // dispatch), not a hand-run recipe. guardLine surfaces the advisory guard-specificity evidence.
     const pinStatusLine = pinStatus
-      ? pt`${pinStatus}${pinEvidence ? ` (cited evidence: ${pinEvidence})` : ''}`
+      // nested pt-tagged interior (first-class census entry): ${pinEvidence} is ternary-guarded.
+      ? pt`${pinStatus}${pinEvidence ? pt` (cited evidence: ${pinEvidence})` : ''}`
       : '(no pin-status token — the evidence dispatch produced none)'
     const artifactLine = gateLogPath || '(no gate-log artifact path recorded)'
     const guardLine = guardSpecificity
-      ? pt`\nGUARD SPECIFICITY (stamped by the same evidence dispatch): ${guardSpecificity}${guardEvidence ? ` — ${guardEvidence}` : ''}. An 'uncovered' token means a new die/stderr guard was added whose exact stderr message NO same-diff test asserts — emit a test-fidelity finding citing the guard message (severity/disposition are yours, ADR 0013). 'covered' / 'ERROR' / absent ⇒ no guard finding on this axis.\n`
+      // nested pt-tagged interior (first-class census entry): ${guardEvidence} is ternary-guarded.
+      ? pt`\nGUARD SPECIFICITY (stamped by the same evidence dispatch): ${guardSpecificity}${guardEvidence ? pt` — ${guardEvidence}` : ''}. An 'uncovered' token means a new die/stderr guard was added whose exact stderr message NO same-diff test asserts — emit a test-fidelity finding citing the guard message (severity/disposition are yours, ADR 0013). 'covered' / 'ERROR' / absent ⇒ no guard finding on this axis.\n`
       : ''
     const gateAuditVerdict = await agent(
       pt`POST-MERGE GATE-AUDIT for WAR task ${taskId} (lens: execution-evidence). `
@@ -1550,7 +1569,9 @@ if (mergedTasksForGateAudit.length > 0) {
       .map(t => t.id))
     const authCriteria = mergedTasksForGateAudit
       .filter(m => depCrossingIds.has(m.taskId))
-      .map(m => `- ${m.taskId}: ${m.acceptanceCriteria || '(see plan file)'}`).join('\n') || '(see plan file)'
+      // pt-tagged prompt-feeding row builder (integrated-tip authVerdict prompt, top-level-catch): m.taskId is
+      // task.id (entry-validated, bare); m.acceptanceCriteria carries its own || '(see plan file)' default.
+      .map(m => pt`- ${m.taskId}: ${m.acceptanceCriteria || '(see plan file)'}`).join('\n') || '(see plan file)'
     // #818: the captured integrated-tip gate log is the AUTHORITATIVE HARD-path artifact for THIS seat
     // (mirroring the per-task GATE LOG ARTIFACT clause); an absent path ⇒ SOFT cannot-confirm (fail-open —
     // an in-flight refiner returning integratedTipGate without gate_log_path lands SOFT, never an error).
@@ -1675,13 +1696,17 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
       for (const f of phaseCloseQueue.splice(0)) demote(f, 'follow-up', 'sweep skipped — the polish worktree provisioning did not return { ok: true }')
     } else {
     // 2. ONE war-worker dispatch: the queued findings VERBATIM + the intent + the merged tasks' plan slices.
-    const mergedSlices = tasks.filter(t => succeeded.has(t.id)).map(t => `- ${t.id}: ${t.planSlice}`).join('\n')
+    // pt-tagged prompt-feeding row builder (sweep prompt, top-level-catch, fail-open polish): t.id entry-validated
+    // (bare); ${t.planSlice ?? …} absence-tolerant — a cosmetic missing slice must never phase-kill (Q17/ADR 0034).
+    const mergedSlices = tasks.filter(t => succeeded.has(t.id)).map(t => pt`- ${t.id}: ${t.planSlice ?? '(no slice)'}`).join('\n')
     const sweep = await agent(
       pt`PHASE-CLOSE COHERENCE SWEEP for WAR phase ${ph.id} "${ph.title}". Work in the ALREADY-PROVISIONED polish worktree at ${polishWorktree} (branch ${polishBranch}, cut at the post-merge integrated tip of ${ph.integrationBranch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
       + intentClause
       + pt`Fix ONLY the queued findings below — NO ad-hoc seam hunting (the bounded, enumerated scope is what makes discard-on-reject a sufficient guard), NEVER touch version/release-slot literals, make EXACTLY ONE commit whose message cites each finding's title, keep the gate (${plan.gate}) green, and push ${polishBranch}.\n`
       + pt`Queued findings (verbatim):\n`
-      + phaseCloseQueue.map((f, i) => `${i + 1}. [${f.severity}] ${f.title} (task ${f.task}${f.file ? `, ${f.file}` : ''}${f.line ? ':' + f.line : ''}) — ${f.rationale || ''}${f.suggested_fix ? ` → ${f.suggested_fix}` : ''}`).join('\n') + pt`\n`
+      // pt-tagged prompt-feeding rows (sweep prompt, top-level-catch, fail-open polish): f.severity is a required
+      // finding field (bare); title/task ?? absence-tolerant; file/rationale/suggested_fix already guarded/defaulted.
+      + phaseCloseQueue.map((f, i) => pt`${i + 1}. [${f.severity}] ${f.title ?? ''} (task ${f.task ?? '?'}${f.file ? pt`, ${f.file}` : ''}${f.line ? ':' + f.line : ''}) — ${f.rationale || ''}${f.suggested_fix ? pt` → ${f.suggested_fix}` : ''}`).join('\n') + pt`\n`
       + pt`Merged tasks' plan slices (context for cross-task coherence at the integrated tip):\n${mergedSlices || '(none)'}`
       + provisionClause,
       // #817: this dispatch is DELIBERATELY non-tiered — the phase-close sweep is a fresh phase-scope
