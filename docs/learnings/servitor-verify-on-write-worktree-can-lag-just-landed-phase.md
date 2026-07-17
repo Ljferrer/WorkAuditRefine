@@ -6,8 +6,16 @@ metadata:
   type: project
   provenance: code-verified
   slug: servitor-verify-on-write-worktree-can-lag-just-landed-phase
-  phase: guard-floor-and-scope-hook-coverage-completeness/servitor-wrapup +9 recurrences (latest learnings-recipe-drift-sweep/1.1-1.3 wrap-up, 2026-07-16)
+  phase: guard-floor-and-scope-hook-coverage-completeness/servitor-wrapup +10 recurrences (latest learnings-recipe-drift-sweep/phase-2 Release task-2.1 wrap-up, 2026-07-17)
   promoted: dev/2026-07-12-war-launch-entry-validation@phase-1
+  tags:
+    - servitor
+    - memory-protocol
+    - worktree
+    - verification
+    - process
+  created: 2026-07-10
+  updated: 2026-07-17
   keywords:
     - stale worktree
     - D3 verify-on-write
@@ -35,14 +43,8 @@ metadata:
     - version-slots test
     - release version bump verification
     - loose ref present no checkout
-  tags:
-    - servitor
-    - memory-protocol
-    - worktree
-    - verification
-    - process
-  created: 2026-07-10
-  updated: 2026-07-17
+    - same branch reused across phases
+    - campaign branch persistence
   originSessionId: 8c039a7f-0c62-47a8-85f9-10099b5a6caf
 ---
 
@@ -266,3 +268,24 @@ same technique.
 `code-verified` using this same technique.
 [[release-bump-slots-canonical-no-badge]] — the version-slot fact Recurrence 8 could not
 `code-verified`-confirm from the stale main checkout.
+
+## Recurrence 10 (2026-07-17, phase "Release" / learnings-recipe-drift-sweep task 2.1 wrap-up) — Recurrence 9's exact branch, a later phase of the same campaign
+
+Tenth occurrence, and the closest repeat yet to Recurrence 9: same main-checkout topology
+(`<repo-root>/.git/HEAD` → `ref: refs/heads/master`, `<repo-root>/.git/worktrees/` entirely
+empty) and the **identical loose ref** already named in Recurrence 9
+(`<repo-root>/.git/refs/heads/dev/2026-07-16-learnings-recipe-drift-sweep`) — this campaign's
+phases 1 and 2 land on the same working branch, so the stale-checkout hazard persisted across a
+phase boundary within one campaign rather than appearing fresh. Reading
+`.claude-plugin/plugin.json`/`marketplace.json` at the main checkout showed `0.14.42` in every
+slot, while the phase's own gate-audit (`gateEvidence:true`, pinned
+`auditSha: 503f3e7586916a4c1ea693e844652ea4f01a4735`) directly `git show`-confirmed all four
+release slots at `0.14.45` at that pinned tip. Per Recurrence 3/7/8/9's fallback, the version-bump
+fact rests on the audit log's `gate-audit:approve` verdict, not on this servitor's own stale read.
+
+**Refinement:** a campaign that lands multiple phases on one shared working branch (rather than a
+fresh per-phase branch) does not make the loose-ref check any more reliable between phases — the
+main checkout can still be arbitrarily behind that branch's latest tip at each wrap-up. Treat
+"I already confirmed this exact ref exists, last phase" as **zero** evidence about the current
+phase's content; the ref-presence check is per-wrap-up, not cacheable across phases even on the
+literal same branch name.
