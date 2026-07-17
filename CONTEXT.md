@@ -1146,6 +1146,29 @@ PR-merged deletion bar unchanged. Matched by exact `refs/heads/<ref>` name, neve
 _Avoid_: re-deriving them as fresh needs-human rows every run; treating an allowlist row as a deletion
 license.
 
+**patch-equivalence probe**:
+The `git cherry <landing-ref> <sha>` check (landing ref first) that tests whether a gate-failing
+candidate's patches already landed under a rewritten SHA. Zero `+` lines among ≥1 `-` lines ⇒ every
+patch is already in the landing branch by patch-id — **proven equivalent**, the evidence a
+tip-reachability gate cannot produce, and grounds for a `known-stranded.tsv` row in the
+**acknowledged-stranded** bucket. Any `+` line ⇒ patch-equivalence is **not proven** (squashes and
+conflict-resolved rebases legitimately change patch-ids) ⇒ needs-human, no row — never read as
+proof of unmerged work. Never a deletion license (ADR 0027 C3).
+_Avoid_: treating a zero-`+` result as permission to delete; reading a `+` line as proof of unmerged
+work; probing against a stale local landing ref; trusting an empty result (suspect — check argument
+order).
+
+**stranded upstream**:
+A local WAR branch's tracking ref pinned at the worker's pre-rebase remote SHA — the refiner
+rebases task branches locally in the serial merge queue and **never force-pushes**, so the tracked
+remote ref never advances to the rebased tip that lands. Makes `git branch -d` check
+merged-into-upstream and refuse a branch whose content is already in master. Recovery, only after
+the gate passes on the **local SHA**: `git branch --unset-upstream` then `git branch -d` (restoring
+git's own merged-into-HEAD check), never `-D`; a needs-human outcome after the unset restores
+tracking (`git branch -u`).
+_Avoid_: reading the `-d` refusal as an unmerged-work signal; escalating to `-D` in a default-mode
+sweep.
+
 **churny shared docs**:
 The pathspec (`docs/plans docs/specs docs/roadmaps`) whose files a stacked branch predictably conflicts
 on against master; snapped to master's canonical copy by `snap-shared-docs.sh` (merge master,
