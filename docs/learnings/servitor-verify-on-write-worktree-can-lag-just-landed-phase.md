@@ -6,7 +6,7 @@ metadata:
   type: project
   provenance: code-verified
   slug: servitor-verify-on-write-worktree-can-lag-just-landed-phase
-  phase: guard-floor-and-scope-hook-coverage-completeness/servitor-wrapup +7 recurrences (latest campaign-state-anchor/phase-2 task-2.1 wrap-up, 2026-07-15)
+  phase: guard-floor-and-scope-hook-coverage-completeness/servitor-wrapup +8 recurrences (latest structural-test-integrity/Release phase-2 task-2.1 wrap-up, 2026-07-17)
   promoted: dev/2026-07-12-war-launch-entry-validation@phase-1
   keywords:
     - stale worktree
@@ -29,6 +29,11 @@ metadata:
     - gitdir numeric suffix
     - reaped task worktree
     - gate-audit confirmed-tip fallback
+    - main checkout no worktree
+    - branch not locally fetched
+    - packed-refs absent
+    - version-slots test
+    - release version bump verification
   tags:
     - servitor
     - memory-protocol
@@ -36,7 +41,7 @@ metadata:
     - verification
     - process
   created: 2026-07-10
-  updated: 2026-07-15
+  updated: 2026-07-17
   originSessionId: 8c039a7f-0c62-47a8-85f9-10099b5a6caf
 ---
 
@@ -196,6 +201,36 @@ gate-audit's own direct-read confirmation at the pinned confirmed tip (here: `ga
 an approved verdict that read the landed blobs directly and named the confirmed SHA) rather than
 asserting anything from the servitor's own stale cwd.
 
+## Recurrence 8 (2026-07-17, phase "Release" / structural-test-integrity task 2.1 wrap-up) — main checkout, no worktree at all, branch not even locally fetched
+
+Eighth occurrence, and a new floor under the whole pattern: this time the servitor's threaded cwd
+was the **main checkout** itself (no `.git` gitlink, `<repo-root>/.git/HEAD` reads
+`ref: refs/heads/master`), not a session or task worktree. `<repo-root>/.git/worktrees/` was
+entirely empty (no live worktrees of any kind), and a Grep of `<repo-root>/.git/packed-refs` for
+the landed branch name (`dev/2026-07-16-structural-test-integrity`) found nothing — the branch has
+**no local ref at all**, packed or loose. This is a stricter version of Recurrence 7's "worktree
+reaped" edge: there the task worktree was gone but a same-named collision worktree still existed to
+mislead a naive lookup; here there is nothing under `.git/worktrees/` to even collide with, and the
+landed branch isn't resolvable locally by name at any path.
+
+The plan's own intent named the concrete version-bump target (`0.14.43` → `0.14.44` across the four
+`version-slots.test.mjs`-locked slots — see [[release-bump-slots-canonical-no-badge]]), giving a
+sharp, checkable value. Reading `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`
+at the main checkout showed `0.14.42` in every slot — **older than even the plan's stated
+pre-bump base** (`0.14.43`), confirming this is stale-checkout lag rather than a legitimate
+alternate value. Per Recurrence 3/7's fallback, the version-bump fact was **not** asserted
+`code-verified` from this reading; it rests on the audit log's own `gate-audit:approve` verdict
+(`gateEvidence:true`, pinned `auditSha: f03b682794599580c87e2e9823182ef4468d4490`) as the trusted
+positive confirmation instead.
+
+**New rule (extends Recurrence 7's fallback precondition):** before falling back to "no live task
+worktree resolves — trust gate-audit," first confirm the landed branch has **any** local ref at
+all (`Glob .git/worktrees/*` for a live checkout, then `Grep` `.git/packed-refs` for the branch
+name, then check `.git/refs/heads/<branch>` directly). All-absent is a stronger, cheaper signal
+than a worktree-name collision that the servitor's cwd/main-checkout is not just behind but was
+**never fetched to** this local git — the D3 read must fall back to trusting the audit trail
+immediately, without wasting a round hunting for a worktree that cannot exist.
+
 ## Related
 
 [[audit-worktree-pre-impl-tip-stale-verdict]] — the auditor-side analogue (audit worktree HEAD can
@@ -213,4 +248,5 @@ same technique.
 [[git-common-dir-anchor-idiom-fail-open-gotchas]],
 [[git-probing-hook-requires-fixtures-outside-any-git-repo]] — facts Recurrence 6 confirmed
 `code-verified` using this same technique.
-
+[[release-bump-slots-canonical-no-badge]] — the version-slot fact Recurrence 8 could not
+`code-verified`-confirm from the stale main checkout.
