@@ -1163,7 +1163,7 @@ A local WAR branch's tracking ref pinned at the worker's pre-rebase remote SHA â
 rebases task branches locally in the serial merge queue and **never force-pushes**, so the tracked
 remote ref never advances to the rebased tip that lands. Makes `git branch -d` check
 merged-into-upstream and refuse a branch whose content is already in master. Recovery, only after
-the gate passes on the **local SHA**: `git branch --unset-upstream` then `git branch -d` (restoring
+the gate passes on the **local SHA**: `git branch --unset-upstream <branch>` then `git branch -d <branch>` (restoring
 git's own merged-into-HEAD check), never `-D`; a needs-human outcome after the unset restores
 tracking (`git branch -u`).
 _Avoid_: reading the `-d` refusal as an unmerged-work signal; escalating to `-D` in a default-mode
