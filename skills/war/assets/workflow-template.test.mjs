@@ -575,6 +575,63 @@ test('Task 5 — source-text: else-if for error/gate_failed demote to held:land-
     "source sets landDecision to 'held:land-failed'")
 })
 
+// ---- Task 1.2 — terminal-else arm: a DEAD or unrouted land dispatch routes held:land-failed ----
+// The load-bearing pair in (i)/(ii) is `landDecision` + the single `-land` escalation; delete the
+// terminal else and `landDecision` reads the pre-dispatch 'landed' (the exact bug the feature closes).
+test('Task 1.2 (i) — dead land agent: Land mock returns null → held:land-failed, one -land escalation reason error', async () => {
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'abc' }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'merged' }
+    if (seat === 'war-refiner' && opts.phase === 'Land') return null  // DEAD land agent — the observed transient-API 529 repro (run completed, landResult:null)
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { out, calls } = await runPhase(PROVISION_ARGS(), impl)
+  assert.equal(out.landDecision, 'held:land-failed',
+    'a null land result routes held:land-failed, NEVER the pre-dispatch landed')
+  const landEsc = out.escalated.filter(e => e.task && e.task.endsWith('-land'))
+  assert.equal(landEsc.length, 1, 'exactly one -land escalation pushed (single-push proof)')
+  assert.equal(landEsc[0].reason, 'error', 'a null land result escalates with reason error')
+  // Regression context (pre-existing behavior — the wrap-up gate already skips the servitor on a
+  // non-landed result; green even without the arm, so NOT the load-bearing assertion).
+  assert.equal(out.servitorResult, null, 'no servitor result on a dead land')
+  assert.equal(calls.filter(c => seatOf(c.opts) === 'war-servitor').length, 0, 'zero war-servitor dispatches on a dead land')
+})
+
+test('Task 1.2 (ii) — unrouted land status: Land mock returns a bogus status → held:land-failed, never landed', async () => {
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'abc' }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-refiner' && opts.phase === 'Refine') return { mode: 'merge-task', status: 'merged' }
+    if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'bogus' }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { out } = await runPhase(PROVISION_ARGS(), impl)
+  assert.equal(out.landDecision, 'held:land-failed',
+    'an unrecognized land status routes held:land-failed, never landed')
+  const landEsc = out.escalated.filter(e => e.task && e.task.endsWith('-land'))
+  assert.equal(landEsc.length, 1, 'exactly one -land escalation pushed')
+  assert.equal(landEsc[0].reason, 'bogus', 'the unrouted escalation reason echoes the returned status')
+})
+
+test('Task 1.2 (iii) — source-text: the terminal else carries the discriminating landResult fallback (line-scoped, #929)', () => {
+  // Line-scoped raw-source match — NO block-comment strip (lesson
+  // glob-literal-fools-block-comment-strip-regex-in-structural-tests, #929). The terminal else's push
+  // carries the unique token `landResult ? String(landResult.status || 'error') : 'error'`; the
+  // baseline-proceed sibling fallback reads `reLand ? reLand.status : 'error'` (different receiver), so
+  // this pin cannot silently migrate to the wrong chain. Red: terminal else deleted or moved out of the
+  // primary land routing chain.
+  const token = "reason: landResult ? String(landResult.status || 'error') : 'error'"
+  const hits = src.split('\n').filter(l => l.includes(token))
+  assert.equal(hits.length, 1, 'exactly one terminal-else land fallback line carrying the discriminating landResult token')
+})
+
 test('Task 5 — opportunistic resync: after landed, Lead runs ff-only clean-guard resync (prompt check)', async () => {
   // The wrap-up or a final step must reference the ff-only resync against the Lead cwd.
   // We verify the template source describes the resync logic (it is in the land flow or as a comment

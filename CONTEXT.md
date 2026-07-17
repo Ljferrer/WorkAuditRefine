@@ -404,6 +404,23 @@ contract is stable for every caller ([ADR 0023](docs/adr/0023-land-asserts-git-g
 _Avoid_: a bespoke escalation-completion script (the resolved gate is a runtime string a subcommand
 can't own); a manual `git push` / `--force-with-lease` land that bypasses the guard and follower sync.
 
+**Dead-agent land failure**:
+A `held:land-failed` root cause where the `land:phase-<N>` dispatch itself never produced a
+trustworthy `MergeResult` — it died (returned `null`; the observed class: a transient API error, 0
+tokens, `land-advance` never ran) or returned a status the primary land routing chain's arms do not
+recognize. A terminal `else` on that chain, mirroring the baseline-proceed re-land's existing
+`reLand ? reLand.status : 'error'` fallback idiom, pushes one escalated `phase-<N>-land` entry
+(`reason:'error'`, `detail: landResult` — `null` on a dead dispatch) and sets
+`landDecision = 'held:land-failed'`: a **reused** enum member, no `land-decision.mjs` change
+([ADR 0005](docs/adr/0005-dead-phase-halts-the-dag.md) enum discipline). Distinct from a **Dead
+phase**: the *Workflow itself* completed normally (`status: completed`, `handoff` present) — only its
+land *sub-dispatch* produced no usable result. A land dispatch that *throws* instead routes
+`held:workflow-error` via the top-level catch; the two constructs partition the failure space.
+_Avoid_: conflating with **Dead phase** (there the whole Workflow never completed); treating the
+printed `resumeFromRunId` hint as the recovery — it replays the run's journal live, re-running
+already-merged `merge:*` agents' gate + push-first CAS, which is exactly wrong when the integration
+tip is already complete and green.
+
 ### Audit
 
 **Audit roster**:
@@ -885,6 +902,30 @@ its first rows are produced in Task 2.1 of the
 _Avoid_: a blanket markdown/AST parser over every `docs/specs/*.md` file (the ratified ceiling stays
 per-claim, not per-file); treating an unguarded spec claim as verified — only a guarded claim is
 drift-proof.
+
+### Run-scoped staged phase scripts (ADR 0037)
+
+**Staged phase script**:
+The run-scoped, identity-stamped copy of `workflow-template.js` the Lead dispatches for one phase —
+basename `war-[c<K>-]<planSlug>-p<N>.js` under `$MAIN/.claude/war/runs/<runId>/` (a directory sibling
+of the run manifest, same main-checkout anchor idiom, riding the existing `.claude/` exclude),
+produced by `stage-workflow.mjs` (**defined-but-not-yet-emitted as of this entry; produced in Task 1.1,
+same phase** — see [ADR 0037](docs/adr/0037-run-scoped-staged-phase-scripts.md)). The stager
+substitutes the two `export const meta` anchor literals (`name`/`description`) **exactly once**,
+pre-dispatch, as pure literals — the Workflow sandbox has no shell/fs to compute them — and fails loud
+on a missing or duplicated anchor rather than forking silently onto the wrong text.
+**Write-if-absent**: an existing staged file *is* the run's script and is reused byte-untouched
+(approved stage injections and journal-replay identity survive a resume or a same-day recovery
+relaunch); a deliberate `--force` overwrites it with a fresh substitution from the shipped template.
+Retention is **manifest-equivalent** — kept, never reaped, doubling as dispatch provenance for
+`/war-review`. The **sole sanctioned home** for approved stage injection (superseding an edit to the
+shipped template directly); `Workflow({ scriptPath, resumeFromRunId })` resume dispatches the **same**
+staged path the launch used.
+_Avoid_: dispatching `assets/workflow-template.js` directly (loses the per-phase display identity —
+the harness renders the workflow-list title from the dispatched script's own basename); editing the
+shipped template to inject an approved stage (the staged copy is now the sanctioned home); treating a
+same-`runId` restage that reuses the existing file as a bug (same phase ⇒ same basename ⇒ benign reuse
+by construction).
 
 ### Memory
 
