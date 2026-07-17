@@ -82,6 +82,49 @@ a string that merely *looks like* a comment delimiter. The failure mode is a fal
 crash — exactly the kind of drift a future worker adding a new glob/regex/shell literal near an
 existing structural-test target could reintroduce without any test going red to warn them.
 
+## Mitigation (phase "structural-test-integrity", tasks 1.1–1.2, #929, 2026-07-16)
+
+The three sibling tests this note originally flagged as latently fragile — still running the full
+two-step strip, passing only because their asserted tokens sat outside the corrupted span — are
+the test titled
+`Part B seam is now FILLED — run.provision is consumed and env-blocked is wired (was the Part-A seam guard)`,
+the test titled
+`Task 4 — post-merge gate-audit is PARALLEL (runs over all merged tasks, not one-by-one inline)`,
+and the `extractLandDecisionLiterals` helper, all in `skills/war/assets/workflow-template.test.mjs`.
+Task 1.1 of this phase narrows all three to line-comment-only stripping
+(`src.replace(/\/\/[^\n]*/g, '')`, no block-comment pass) — the same treatment this note's own
+"generalizable rule" already recommended, now applied to the remaining sites — each with a
+per-site comment naming the glob-literal trap and, for the `Part B seam …` site specifically, the
+new block-comment-prose sensitivity its negative `setup-scout` assert takes on once block comments
+are no longer stripped there.
+
+Narrowing alone only protects the sites a worker remembers to touch. The durable half of the
+mitigation is a **census**: `blockCommentSpans(text)`, added near `MIRROR_REGISTRY` in
+`workflow-template.test.mjs` and duplicated locally (~10 lines does not warrant a shared module)
+in `skills/red-team/assets/workflow-scaffold.test.mjs`. The helper deliberately *reproduces* the
+naive two-step idiom this note describes — fake spans included, by design, since the census's
+subject is the idiom's own behavior, not a string-aware read of the file — and asserts the
+**ordered exact list** of `/\/\*[\s\S]*?\*\//`-shaped spans (as `{head, tail}` substring pairs,
+never lengths/offsets, so the two byte-identical fake spans stay distinguishable by position),
+red on **both** an added span (a new block comment, or a new `/*`-bearing string literal anywhere
+in the file) and a removed/merged one. That ordered-exact-list assertion is the conscious-decision
+point this note could previously only ask for as a manual per-file check ("verify the
+corrupted-vs-real span manually … whenever a new string literal is added") — it is now a forcing
+function: any future glob/regex/shell literal that reshapes the fake-span landscape fails a named
+test instead of silently changing what a two-step-strip site actually asserts on. The
+`workflow-scaffold.test.mjs` census guards a different, real choice in that file: its own two
+strip sites deliberately *keep* the two-step pass (their positive "survives comment stripping"
+asserts need the block pass to mean anything), so its census exists to keep that choice sound by
+pinning the file's two genuine block comments (the `dead dispatch` fall-through and the
+`both types dead` fall-through) as the only ones the block pass is allowed to see.
+
+At this note's authoring time (Task 1.3, same wave as Tasks 1.1/1.2 — file-disjoint, no `deps`
+edge between them), `blockCommentSpans` is defined-but-not-yet-emitted from this worker's own
+worktree; verify presence and shape at the phase's landed tip
+(`skills/war/assets/workflow-template.test.mjs`,
+`skills/red-team/assets/workflow-scaffold.test.mjs`) before treating the mechanism above as
+independently code-verified in a fresh session.
+
 ## Related
 
 [[weak-test-assertion-passes-without-feature-being-exercised]] — the broader "test looks strict
