@@ -144,6 +144,35 @@ test('doc-parity (d): schemas.md per-value bullet headers == KNOWN_LAND_DECISION
   assert.deepEqual(uniqSort(bullets), wantSorted)
 })
 
+// ---- Task 1.2 drift-guard: the §4.3 `held:land-failed` bullet steers resumeFromRunId AWAY from a land
+// failure (spec decision 11). Region-scoped + case-tolerant + line-scoped (lessons
+// prompt-only-clause-grep-guard-must-tolerate-sentence-case and #929 — NO block-comment strip). Extract
+// the bullet by its REAL 2-space-indented `- **`held:land-failed`` header (a TOKEN-ONLY prefix, trailing
+// bullet text variable — NOT the compact `**`held:land-failed`**` wrap, which is *schemas.md*'s header
+// form and does not occur in SKILL.md), terminating at the next SAME-INDENT 2-space `- **` sibling
+// (`- **Escalation-completion land`) — NOT "the next `- **`", which would truncate at the nested
+// `    - **(a)` sub-bullet and leave the pin vacuously red forever. The region spans the nested
+// (a)/(b)/(c)/green-gate/every-other-cause sub-bullets where root cause (c) and the anti-hint clause live.
+// Provably red pre-fix: the bullet carried NO resumeFromRunId token before this task (the file's six
+// other never-resume sites all live outside it).
+test('Task 1.2: SKILL.md §4.3 held:land-failed bullet pairs resumeFromRunId with a negation (never/not/forbidden)', () => {
+  const lines = readAsset('../SKILL.md').split('\n')
+  const headerIdx = lines.findIndex((l) => /^ {2}- \*\*`held:land-failed`/.test(l))
+  assert.ok(headerIdx >= 0, 'SKILL.md §4.3 held:land-failed 2-space bullet header not found — anchor rotted (non-vacuous guard)')
+  let endIdx = lines.length
+  for (let i = headerIdx + 1; i < lines.length; i++) {
+    if (/^ {2}- \*\*/.test(lines[i])) { endIdx = i; break }  // next SAME-INDENT sibling, not a nested `    - **`
+  }
+  const region = lines.slice(headerIdx, endIdx)
+  // Non-vacuous: the region must actually reach root cause (c) — proves the extraction did not truncate
+  // early at a nested sub-bullet (the exact failure the same-indent terminator avoids).
+  assert.ok(region.some((l) => /dead land agent/i.test(l)), 'region must span through root cause (c) "dead land agent" — extraction truncated too early')
+  // Line-scoped pairing (#929 — no block-comment strip, no cross-line [\s\S] scan): SOME line in the
+  // region carries resumeFromRunId AND a negation, mid-sentence-anchored + case-insensitive.
+  const paired = region.find((l) => /resumeFromRunId/.test(l) && /\b(never|not|forbidden)\b/i.test(l))
+  assert.ok(paired, 'the §4.3 held:land-failed bullet must pair resumeFromRunId with a negation (never/not/forbidden) on one line — steer the printed hint away from land failures')
+})
+
 // Step 5 — the intentional gap: held:phase-incomplete is canonical (Lead-classified when a phase
 // notification is non-'completed') but NOT emitted by the Workflow.
 test('held:phase-incomplete is ∈ KNOWN_LAND_DECISIONS but ∉ the Workflow-emitted set (Lead-classified)', () => {

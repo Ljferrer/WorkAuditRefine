@@ -1,3 +1,8 @@
+// COUPLING (ADR 0037): stage-workflow.mjs mirrors the meta.name and meta.description literals below as
+// its NAME_ANCHOR / DESCRIPTION_ANCHOR exports (its own byte copy — the Workflow sandbox cannot import
+// this module). Change a byte in either field below and you MUST update stage-workflow.mjs in lock-step;
+// the imported-constant anchor guard in stage-workflow.test.mjs is the arbiter. This comment stays
+// REFERENTIAL — it never restates either anchor's bytes, which would trip that exactly-once guard.
 export const meta = {
   name: 'war-phase',
   description: 'WAR per-phase execution: Work, Audit, Refine, Land, then Wrap-up learnings for one phase.',
@@ -46,7 +51,9 @@ export const meta = {
 //                                     // + Setup auto-recorded merged here). Passed through UNTOUCHED into handoff.backstops[].
 //                                     // null = legacy plan with no backstop section. Empty/absent ⇒ handoff.backstops = null.
 // auditors receive the absolute worktree path and self-serve the change set via read-only git (git diff <integrationBranch>...<task.branch>, three-dot); no main-checkout baseline.
-// The Lead may inject APPROVED extra stages by editing a copy of this file; never free-author the core loop.
+// The Lead may inject APPROVED extra stages ONLY by editing the run-scoped, per-phase STAGED copy — the
+// stage-workflow.mjs output under $MAIN/.claude/war/runs/<runId>/ (ADR 0037), which is the sanctioned
+// home for approved stage injection — never the shipped file itself; never free-author the core loop.
 // ---------------------------------------------------------------------------
 
 const WORKER_RESULT = { type: 'object', required: ['task_id', 'status'], properties: {
@@ -1825,6 +1832,22 @@ if (landDecision === 'landed') {
     // never block (truth is origin/<workingBranch>; the human reconciles). This is a resync,
     // not a gated operation. The Lead runs this after land-advance succeeds.
     log(`Phase ${ph.id} landed. Attempting opportunistic resync of cwd to origin/${ph.workingBranch} (ff-only, on-branch, clean-guard — skip if any condition fails; never force).`)
+  } else {
+    // ---- TERMINAL ELSE (spec decision 2; ADR 0005 reuse) — the land dispatch returned NO routable
+    // result: a DEAD land agent (returned null — the observed transient-API 529 repro: the run
+    // completed, landResult:null, handoff present) OR a non-null result whose status matched no routed
+    // arm above. Route the EXISTING held:land-failed — no new enum member, land-decision.mjs untouched,
+    // the emitted-superset comment above `let landResult = null` stays at 6. The Lead re-runs the land
+    // per SKILL.md §4.3 root cause (c) dead land agent.
+    // PARTITION NOTE: a land dispatch that THROWS routes held:workflow-error via the top-level catch
+    // (HARD, no re-land) — that catch owns the thrown case; THIS arm owns only the returned-but-unrouted
+    // case (the two partition the failure space, no overlap). The fallback reason mirrors the
+    // baseline-proceed re-land's `reLand ? reLand.status : 'error'` idiom and is escalation metadata
+    // only, never an enum member (a flat 'error' for the non-null unrouted case is equally acceptable —
+    // spec §8 latitude).
+    escalated.push({ task: `phase-${ph.id}-land`, reason: landResult ? String(landResult.status || 'error') : 'error', detail: landResult })
+    landDecision = 'held:land-failed'
+    log(`Phase ${ph.id}: dead or unrouted land dispatch (no routable land result) — held:land-failed; the Lead re-runs the land per SKILL.md §4.3.`)
   }
 } else if (landDecision === 'held:escalation') {
   log(`Holding the land for phase ${ph.id}: ${escalated.length} escalation(s) need the Lead's decision.`)
