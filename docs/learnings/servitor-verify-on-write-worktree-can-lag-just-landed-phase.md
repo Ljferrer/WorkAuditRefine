@@ -6,7 +6,7 @@ metadata:
   type: project
   provenance: code-verified
   slug: servitor-verify-on-write-worktree-can-lag-just-landed-phase
-  phase: guard-floor-and-scope-hook-coverage-completeness/servitor-wrapup +8 recurrences (latest structural-test-integrity/Release phase-2 task-2.1 wrap-up, 2026-07-17)
+  phase: guard-floor-and-scope-hook-coverage-completeness/servitor-wrapup +9 recurrences (latest learnings-recipe-drift-sweep/1.1-1.3 wrap-up, 2026-07-16)
   promoted: dev/2026-07-12-war-launch-entry-validation@phase-1
   keywords:
     - stale worktree
@@ -34,6 +34,7 @@ metadata:
     - packed-refs absent
     - version-slots test
     - release version bump verification
+    - loose ref present no checkout
   tags:
     - servitor
     - memory-protocol
@@ -230,6 +231,21 @@ name, then check `.git/refs/heads/<branch>` directly). All-absent is a stronger,
 than a worktree-name collision that the servitor's cwd/main-checkout is not just behind but was
 **never fetched to** this local git — the D3 read must fall back to trusting the audit trail
 immediately, without wasting a round hunting for a worktree that cannot exist.
+
+## Recurrence 9 (2026-07-16, phase "Retired-token sweep clause, drift guard, glossary term, and lesson note" / learnings-recipe-drift-sweep tasks 1.1-1.3 wrap-up) — loose ref present, still no readable checkout
+
+Ninth occurrence, a variant of Recurrence 8: main checkout again (`<repo-root>/.git/HEAD` →
+`ref: refs/heads/master`), `<repo-root>/.git/worktrees/` again entirely empty. This time the
+landed branch (`dev/2026-07-16-learnings-recipe-drift-sweep`) **was** resolvable — a local **loose**
+ref existed at `<repo-root>/.git/refs/heads/dev/2026-07-16-learnings-recipe-drift-sweep` (not in
+`packed-refs`) — but a resolvable ref is still not a checkout: with no Bash tool and no live
+worktree, there is no path the Read tool can target to see that branch's blobs. The outcome is
+identical to Recurrence 8's fallback despite the ref being present: trust the phase's own
+`gate-audit:approve` verdict (`gateEvidence:true`, pinned `auditSha: c247088d`) rather than assert
+anything `code-verified` from the stale main checkout. **Refinement to Recurrence 8's rule:** "any
+local ref at all" is necessary but not sufficient for a direct read — a loose ref with zero live
+worktrees is the same dead end as no ref, just reached one Grep later; don't spend a round
+concluding "the branch exists locally" and treat that alone as progress toward a direct read.
 
 ## Related
 
