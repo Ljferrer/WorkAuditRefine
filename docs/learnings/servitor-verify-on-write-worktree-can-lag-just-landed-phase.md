@@ -6,7 +6,7 @@ metadata:
   type: project
   provenance: code-verified
   slug: servitor-verify-on-write-worktree-can-lag-just-landed-phase
-  phase: guard-floor-and-scope-hook-coverage-completeness/servitor-wrapup +10 recurrences (latest learnings-recipe-drift-sweep/phase-2 Release task-2.1 wrap-up, 2026-07-17)
+  phase: guard-floor-and-scope-hook-coverage-completeness/servitor-wrapup +11 recurrences (latest campaign-anchor-comment-truth/phase-1 task-1.1 wrap-up, 2026-07-19)
   promoted: dev/2026-07-12-war-launch-entry-validation@phase-1
   tags:
     - servitor
@@ -15,7 +15,7 @@ metadata:
     - verification
     - process
   created: 2026-07-10
-  updated: 2026-07-17
+  updated: 2026-07-19
   keywords:
     - stale worktree
     - D3 verify-on-write
@@ -46,6 +46,7 @@ metadata:
     - same branch reused across phases
     - campaign branch persistence
   originSessionId: 8c039a7f-0c62-47a8-85f9-10099b5a6caf
+  modified: 2026-07-19T11:07:21.297Z
 ---
 
 # A servitor's own worktree checkout can lag the phase it is wrapping up
@@ -248,6 +249,26 @@ anything `code-verified` from the stale main checkout. **Refinement to Recurrenc
 local ref at all" is necessary but not sufficient for a direct read — a loose ref with zero live
 worktrees is the same dead end as no ref, just reached one Grep later; don't spend a round
 concluding "the branch exists locally" and treat that alone as progress toward a direct read.
+
+## Recurrence 11 (2026-07-19, phase "Comment truth at the three landed sites + hermeticity guard + lesson notes" / campaign-anchor-comment-truth task 1.1 wrap-up) — Recurrence 9/10's exact topology, third campaign
+
+Eleventh occurrence, same shape as Recurrences 9-10: main checkout (`<repo-root>/.git/HEAD` →
+`ref: refs/heads/master`), `<repo-root>/.git/worktrees/` entirely empty, but the landed branch
+(`dev/2026-07-16-campaign-anchor-comment-truth`) DID resolve as a local loose ref at
+`<repo-root>/.git/refs/heads/dev/2026-07-16-campaign-anchor-comment-truth`. As Recurrence 9
+established, a resolvable loose ref with zero live worktrees is still a dead end for a direct
+Read — `hooks/inject-campaign-state.sh`'s anchor-block comment at this checkout still read the
+PRE-fix "git absent / not a repo / bare →" enumeration the phase's own task was supposed to
+correct. Per the established fallback, this was **not** asserted as a plan/code mismatch; the
+comment-truth facts rest on the phase's own gate-audit verdict (`verdict: "gate-audit:approve"`,
+`gateEvidence:true`, pinned `gateHeadSha`/`auditSha: 71e7666e...`) instead of this stale cwd.
+
+**No new edge** — this recurrence is recorded only to keep the frequency signal current: three of
+the last four wrap-ups (Recurrences 8-11, spanning 2026-07-17 to 2026-07-19, three different
+campaigns) hit the identical main-checkout/empty-worktrees topology. Treat "main checkout, no live
+worktree" as the **modal** case at wrap-up time, not an edge case — go straight to the loose-ref
+check and gate-audit fallback rather than spending a round hunting for a task/`_refinery`
+worktree that Refine has already reaped.
 
 ## Related
 
