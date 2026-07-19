@@ -1562,6 +1562,49 @@ test('doc-contract: no stale `_polish` token in the swept doc surfaces (rename t
   }
 })
 
+// The Per-phase retired-token sweep (#930) is a Lead-run, judgment-triggered detection step that
+// catches stale command recipes in memory lessons when a phase retires/renames/consolidates a
+// land/merge/escalation mechanism. It files debt (a `war-followup` issue) and records a line — it
+// NEVER blocks a land, and it is NOT the ADR 0012 phase-close coherence sweep. Lock the clause's
+// load-bearing elements by anchor, scoped to the clause region so the 3 pre-existing `war-followup`
+// occurrences elsewhere in SKILL.md don't satisfy the routing anchor. Style: #534 prefetch-clause
+// slicing (case-insensitive indexOf + region bound at the next `**Post-servitor publication` bold
+// lead-in, the held:workflow-error bounding move); mid-sentence anchors only, never whole sentences
+// (learning `prompt-only-clause-grep-guard-must-tolerate-sentence-case` — rewording tolerance).
+test('doc-contract: SKILL.md Per-phase retired-token sweep clause — trigger family, war-followup routing, record line (#930)', () => {
+  const text = readDoc('skills/war/SKILL.md')
+  const lc = text.toLowerCase()
+  // Region extraction: the clause opens with the `Retired-token sweep` bold lead-in and runs to the
+  // next bold-lead-in paragraph (`**Post-servitor publication`). Pre-fix this anchor has zero
+  // occurrences in SKILL.md (provably red at the dispatch base).
+  const anchor = lc.indexOf('retired-token sweep')
+  assert.ok(anchor >= 0, 'SKILL.md must carry the Per-phase retired-token sweep clause (#930)')
+  // Section containment: the clause lives under `## Per phase (in DAG order)`, before `## Resume`.
+  const perPhase = lc.indexOf('## per phase (in dag order)')
+  const resume = lc.indexOf('## resume')
+  assert.ok(perPhase >= 0 && resume > perPhase,
+    'SKILL.md must retain `## Per phase (in DAG order)` before `## Resume`')
+  assert.ok(anchor > perPhase && anchor < resume,
+    'the retired-token sweep clause must sit inside `## Per phase (in DAG order)` (after that heading, before `## Resume`)')
+  const end = lc.indexOf('**post-servitor publication', anchor)
+  assert.ok(end > anchor, 'the retired-token sweep clause must precede the `**Post-servitor publication` block')
+  const region = lc.slice(anchor, end)
+  // Trigger family — retire / rename / consolidate a land, merge, or escalation mechanism.
+  for (const tok of ['retire', 'rename', 'consolidate', 'land', 'merge', 'escalation']) {
+    assert.ok(region.includes(tok),
+      `retired-token sweep clause must name the trigger-family token \`${tok}\` (retire/rename/consolidate a land/merge/escalation mechanism)`)
+  }
+  // Routing — repo-root load-bearing hits file one consolidated `war-followup` issue. Region scope
+  // discriminates this from the 3 pre-existing `war-followup` occurrences elsewhere in SKILL.md.
+  assert.ok(region.includes('war-followup'),
+    'retired-token sweep clause must route repo-root load-bearing hits to a `war-followup` issue')
+  // Record line — the literal greppable prefix plus the no-trigger `n/a` arm.
+  assert.ok(region.includes('retired-token sweep:'),
+    'retired-token sweep clause must state the record line with the literal `retired-token sweep:` prefix')
+  assert.ok(region.includes('n/a'),
+    'retired-token sweep clause must state the `retired-token sweep: n/a` no-trigger arm')
+})
+
 // ---------------------------------------------------------------------------
 // Task 3 — F06: Default rosterPolicy 'all'; presets; historical-spec doc contract
 // ---------------------------------------------------------------------------

@@ -6,8 +6,16 @@ metadata:
   type: project
   provenance: code-verified
   slug: servitor-verify-on-write-worktree-can-lag-just-landed-phase
-  phase: guard-floor-and-scope-hook-coverage-completeness/servitor-wrapup +8 recurrences (latest structural-test-integrity/Release phase-2 task-2.1 wrap-up, 2026-07-17)
+  phase: guard-floor-and-scope-hook-coverage-completeness/servitor-wrapup +10 recurrences (latest learnings-recipe-drift-sweep/phase-2 Release task-2.1 wrap-up, 2026-07-17)
   promoted: dev/2026-07-12-war-launch-entry-validation@phase-1
+  tags:
+    - servitor
+    - memory-protocol
+    - worktree
+    - verification
+    - process
+  created: 2026-07-10
+  updated: 2026-07-17
   keywords:
     - stale worktree
     - D3 verify-on-write
@@ -34,14 +42,9 @@ metadata:
     - packed-refs absent
     - version-slots test
     - release version bump verification
-  tags:
-    - servitor
-    - memory-protocol
-    - worktree
-    - verification
-    - process
-  created: 2026-07-10
-  updated: 2026-07-17
+    - loose ref present no checkout
+    - same branch reused across phases
+    - campaign branch persistence
   originSessionId: 8c039a7f-0c62-47a8-85f9-10099b5a6caf
 ---
 
@@ -231,6 +234,21 @@ than a worktree-name collision that the servitor's cwd/main-checkout is not just
 **never fetched to** this local git — the D3 read must fall back to trusting the audit trail
 immediately, without wasting a round hunting for a worktree that cannot exist.
 
+## Recurrence 9 (2026-07-16, phase "Retired-token sweep clause, drift guard, glossary term, and lesson note" / learnings-recipe-drift-sweep tasks 1.1-1.3 wrap-up) — loose ref present, still no readable checkout
+
+Ninth occurrence, a variant of Recurrence 8: main checkout again (`<repo-root>/.git/HEAD` →
+`ref: refs/heads/master`), `<repo-root>/.git/worktrees/` again entirely empty. This time the
+landed branch (`dev/2026-07-16-learnings-recipe-drift-sweep`) **was** resolvable — a local **loose**
+ref existed at `<repo-root>/.git/refs/heads/dev/2026-07-16-learnings-recipe-drift-sweep` (not in
+`packed-refs`) — but a resolvable ref is still not a checkout: with no Bash tool and no live
+worktree, there is no path the Read tool can target to see that branch's blobs. The outcome is
+identical to Recurrence 8's fallback despite the ref being present: trust the phase's own
+`gate-audit:approve` verdict (`gateEvidence:true`, pinned `auditSha: c247088d`) rather than assert
+anything `code-verified` from the stale main checkout. **Refinement to Recurrence 8's rule:** "any
+local ref at all" is necessary but not sufficient for a direct read — a loose ref with zero live
+worktrees is the same dead end as no ref, just reached one Grep later; don't spend a round
+concluding "the branch exists locally" and treat that alone as progress toward a direct read.
+
 ## Related
 
 [[audit-worktree-pre-impl-tip-stale-verdict]] — the auditor-side analogue (audit worktree HEAD can
@@ -250,3 +268,24 @@ same technique.
 `code-verified` using this same technique.
 [[release-bump-slots-canonical-no-badge]] — the version-slot fact Recurrence 8 could not
 `code-verified`-confirm from the stale main checkout.
+
+## Recurrence 10 (2026-07-17, phase "Release" / learnings-recipe-drift-sweep task 2.1 wrap-up) — Recurrence 9's exact branch, a later phase of the same campaign
+
+Tenth occurrence, and the closest repeat yet to Recurrence 9: same main-checkout topology
+(`<repo-root>/.git/HEAD` → `ref: refs/heads/master`, `<repo-root>/.git/worktrees/` entirely
+empty) and the **identical loose ref** already named in Recurrence 9
+(`<repo-root>/.git/refs/heads/dev/2026-07-16-learnings-recipe-drift-sweep`) — this campaign's
+phases 1 and 2 land on the same working branch, so the stale-checkout hazard persisted across a
+phase boundary within one campaign rather than appearing fresh. Reading
+`.claude-plugin/plugin.json`/`marketplace.json` at the main checkout showed `0.14.42` in every
+slot, while the phase's own gate-audit (`gateEvidence:true`, pinned
+`auditSha: 503f3e7586916a4c1ea693e844652ea4f01a4735`) directly `git show`-confirmed all four
+release slots at `0.14.45` at that pinned tip. Per Recurrence 3/7/8/9's fallback, the version-bump
+fact rests on the audit log's `gate-audit:approve` verdict, not on this servitor's own stale read.
+
+**Refinement:** a campaign that lands multiple phases on one shared working branch (rather than a
+fresh per-phase branch) does not make the loose-ref check any more reliable between phases — the
+main checkout can still be arbitrarily behind that branch's latest tip at each wrap-up. Treat
+"I already confirmed this exact ref exists, last phase" as **zero** evidence about the current
+phase's content; the ref-presence check is per-wrap-up, not cacheable across phases even on the
+literal same branch name.

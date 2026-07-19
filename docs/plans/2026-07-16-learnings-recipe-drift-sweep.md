@@ -164,9 +164,12 @@ Stacks on: `docs/plans/2026-07-16-structural-test-integrity.md` — **queue posi
      MEMORY.md projection impact). `node skills/_shared/war-memory.mjs lint docs/learnings/` exits 0.
   7. **Worked-example dry run recorded, tip-pinned** — Task 1.1's worker executes the sweep procedure for
      tokens {`--force-with-lease`, `update-ref`, `ls-remote`, raw `git push`} over `docs/learnings/`
-     (repo root only) at its dispatch tree, runs the fully-flagged ranked query
-     (`--repo docs/learnings`; `--local` per the live CLI's requirement — a flagless query silently
-     searches an empty corpus, which is itself part of what the dry run demonstrates), adjudicates every
+     (repo root only) at its dispatch tree, runs the ranked query scoped **repo-only**
+     (`--repo docs/learnings` **alone — no `--local`**: the query verb requires no `--local` (only
+     render-index/archive/consolidate/migrate call `requireLocal`), `--repo` alone walks a non-empty repo
+     corpus, and omitting `--local` guarantees nothing from any local root can enter the committed
+     `Dry-run:` artifact — the production sweep's both-flags requirement is for its two-root search, not
+     this repo-only dry run), adjudicates every
      hit, and records commands + per-hit adjudication as a `Dry-run:` block in the commit body. Expected
      at authoring (re-verified at the dispatch tree): **six hot lessons hit** —
      `aftermath-remote-stranded-differs-from-local-tip-reachability`,
@@ -272,7 +275,9 @@ Stacks on: `docs/plans/2026-07-16-structural-test-integrity.md` — **queue posi
     (rewording tolerance). **Red-proof duty per End state 3**: pre-fix red at the dispatch base +
     per-anchor scratch-copy deletions each red, pasted as the commit-body `Red-proof:` block.
   - **Dry run (End state 7):** execute the worked example over `docs/learnings/` at the dispatch tree —
-    token greps, fully-flagged ranked query, bounded hand-scan, per-hit adjudication — recorded as the
+    token greps, the **repo-only** ranked query (`--repo docs/learnings` alone, **no `--local`** — a
+    local root would leak local slugs into the committed artifact; the query verb requires no `--local`),
+    bounded hand-scan, per-hit adjudication — recorded as the
     commit-body `Dry-run:` block. Expected six hot hits, all exempt, zero follow-ups (re-verify counts at
     the dispatch tree — authoring-base snapshot, non-authoritative). Repo root only; nothing local enters
     the committed artifact.
