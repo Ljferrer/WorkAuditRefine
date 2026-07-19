@@ -63,8 +63,12 @@ Stacks on: nothing — **first plan in its campaign**; expected integration base
      dispatch base per Task 1.2.)
   4. **Enum + doc parity intact** — `node --test skills/war/assets/land-decision.test.mjs` green,
      including one **new** region-scoped, case-tolerant prose pin: within the §4.3
-     `held:land-failed` bullet (extracted by its `**\`held:land-failed\`**` bold header, ending at
-     the next `- **` bullet header), `resumeFromRunId` appears paired with a negation token — a pin
+     `held:land-failed` bullet (extracted by its 2-space-indented `- **\`held:land-failed\`` header —
+     a token-only prefix, the trailing bullet text variable; **not** the compact
+     `**\`held:land-failed\`**` wrap, which is *schemas.md*'s header form, not SKILL.md's — ending at
+     the next **same-indent** 2-space `- **` sibling bullet (`- **Escalation-completion land`), so
+     the region spans the nested (a)/(b)/(c)/green-gate/every-other-cause sub-bullets where the new
+     clause lives), `resumeFromRunId` appears paired with a negation token — a pin
      that is **provably red pre-fix** (the bullet carries no `resumeFromRunId` token today, so it
      discriminates the new clause from the six pre-existing never-resume sites elsewhere in the
      file; `Red-proof:` block in the commit body). `skills/war/assets/land-decision.mjs` has an
@@ -252,6 +256,15 @@ Stacks on: nothing — **first plan in its campaign**; expected integration base
     with 0 tokens — `land-advance` never ran) **or a `reason` that is no `MergeResult` status**
     (an unrouted/contract-breaking return — same ownership: no trustworthy landing evidence either
     way); (c) is diagnosed from the escalation payload before probing (a)/(b)'s git predicates.
+    **Enumeration coherence (mandatory, same edit):** adding (c) as a third auto-recovering cause
+    makes the live bullet's header count and closing enumerations stale — in this same edit,
+    update the header **`Two independent root causes auto-recover`** → **`Three`** (and soften the
+    adjacent `both end in a single land-advance` so it admits (c)'s step-0 already-landed *record*
+    path, which lands nothing new), retitle the **`Green-gate guard (both branches)`** sub-bullet to
+    cover all three recovery branches, and extend the **`Every other cause stays a hold`** exclusion
+    clause (`neither the collided checkout nor absent on origin`) to also exclude the dead-land-agent
+    case. No test guards these three counts, so their update is a plan-faithfulness obligation of
+    this edit (not a checked End state) — leaving them stale ships self-contradictory recovery prose.
     Recovery — **step 0, already-landed probe** (the dead-AFTER-push case): `git -C <_refinery>
     fetch origin <working>` then `git merge-base --is-ancestor <integration-tip>
     origin/<working>`; when it holds, the dispatch died *after* its CAS push succeeded — the land
@@ -295,8 +308,15 @@ Stacks on: nothing — **first plan in its campaign**; expected integration base
   - **Drift-guard pin (`land-decision.test.mjs`, spec decision 11):** ONE new prose pin,
     **region-scoped + case-tolerant + mid-sentence-anchored** (lesson
     `prompt-only-clause-grep-guard-must-tolerate-sentence-case`): extract the §4.3
-    `held:land-failed` bullet by its `**\`held:land-failed\`**` bold header (ending at the next
-    `- **` bullet header), then assert the region pairs `resumeFromRunId` with a negation token
+    `held:land-failed` bullet by its real 2-space-indented `- **\`held:land-failed\`` header (a
+    **token-only prefix**, trailing bullet text variable — **not** the compact
+    `**\`held:land-failed\`**` wrap, which is *schemas.md*'s form and does **not** occur in SKILL.md;
+    verify with `grep -c '\*\*\`held:land-failed\`\*\*' skills/war/SKILL.md` → 0), terminating at the
+    next **same-indent** 2-space `- **` sibling bullet (`- **Escalation-completion land`) — **not**
+    "the next `- **`", which would truncate the region at the nested `    - **(a)` sub-bullet and
+    leave the pin vacuously red forever. The corrected region spans lines 142–146 (the (a)/(b)/(c)/
+    green-gate/every-other-cause sub-bullets), where root cause (c) and the anti-`resumeFromRunId`
+    clause live. Then assert the region pairs `resumeFromRunId` with a negation token
     (never/not/forbidden), case-insensitive. Discrimination is structural: the bullet carries **no**
     `resumeFromRunId` token today (the file's six existing never-resume sites all live outside it),
     so the pin is **provably red pre-fix** — paste the failing run as a `Red-proof:` block in the
