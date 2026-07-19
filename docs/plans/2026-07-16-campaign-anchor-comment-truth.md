@@ -13,7 +13,7 @@ Stacks on: `docs/plans/2026-07-16-aftermath-class1-gate-evidence.md` — **queue
 - `skills/war-machine/war-pipeline-structure.test.sh` — plan 4 **edits** it (new Class-1 criterion); this plan only **runs** it (End state 9). Read-only consumer of the post-plan-4 suite; no file contention.
 - Release slots — all five campaign plans bump the four slots, **serial by stack order**, each resolved from the **live slots** at land time (never a plan literal).
 
-> **Adversarial-grill adjudication notice (2026-07-16, conversion + grill live probes, git 2.50.1):** one spec detail is corrected by this plan, reality winning. **Spec validation criterion 8's sanctioned-carrier allowlist is incomplete against the live tree:** the correcting spec itself — `docs/specs/2026-07-16-campaign-anchor-comment-truth-design.md`, already committed (survey commit `docs(specs): survey 2026-07-16 …`) — carries the banned enumeration pairing on ~5 lines (its §1/§4/§10 quote the false text in order to correct it), and this plan file plus its anticipated `/red-team` report (`docs/red-team/2026-07-16-campaign-anchor-comment-truth.md`) will too once committed. The criterion as written fails on day one against its own paperwork. Corrected allowlist in End state 10. Precision notes, same criterion: of the spec's "two lesson files", only `git-common-dir-anchor-idiom-fail-open-gotchas.md` actually carries the pairing (`git-probing-hook-…`: zero hits — harmless overcount, stated exactly); `docs/red-team/2026-07-15-campaign-state-anchor.md` verified no-hit. All other spec claims verified true in-tree, including the live bare-repo facts (probe exits 0 printing the bare git dir — **and a subdirectory of a bare repo resolves upward to it**; `--is-inside-work-tree` exits 0 printing `false` in a bare repo; non-repo probe exits 128 empty). The spec file stays uncorrected (point-in-time record; this plan + the grill record is the authoritative correction, per `redteam-adjudication-is-authoritative-version-source`).
+> **Adversarial-grill adjudication notice (2026-07-16, conversion + grill live probes, git 2.50.1):** three spec details are corrected by this plan, reality winning — validation criterion 8's allowlist (below); §3's single block-comment contract at the ledger site (superseded by End state 2's site-specific contract: bare there is a probe **success** returning an anchored absolute path — not fail-open); and §3's ADR-handling row + §7 (superseded by Q28's red-team reversal: appended dated amendment, ratified text byte-unchanged). **Spec validation criterion 8's sanctioned-carrier allowlist is incomplete against the live tree:** the correcting spec itself — `docs/specs/2026-07-16-campaign-anchor-comment-truth-design.md`, already committed (survey commit `docs(specs): survey 2026-07-16 …`) — carries the banned enumeration pairing on ~5 lines (its §1/§4/§10 quote the false text in order to correct it), and this plan file plus its anticipated `/red-team` report (`docs/red-team/2026-07-16-campaign-anchor-comment-truth.md`) will too once committed. The criterion as written fails on day one against its own paperwork. Corrected allowlist in End state 10. Precision notes, same criterion: of the spec's "two lesson files", only `git-common-dir-anchor-idiom-fail-open-gotchas.md` actually carries the pairing (`git-probing-hook-…`: zero hits — harmless overcount, stated exactly); `docs/red-team/2026-07-15-campaign-state-anchor.md` verified no-hit. The spec's live bare-repo facts verified true in-tree (probe exits 0 printing the bare git dir — **and a subdirectory of a bare repo resolves upward to it**; `--is-inside-work-tree` exits 0 printing `false` in a bare repo; non-repo probe exits 128 empty). The spec file stays uncorrected (point-in-time record; this plan + the grill record is the authoritative correction, per `redteam-adjudication-is-authoritative-version-source`).
 
 ## Commander's Intent
 
@@ -38,8 +38,9 @@ Stacks on: `docs/plans/2026-07-16-aftermath-class1-gate-evidence.md` — **queue
   (its `mktemp -d` workspace landing outside any repo) is an accident nothing asserts: an
   enclosing repo would silently re-root the scan and injection-path cases would fail far from
   the cause (exactly which cases depends on what the enclosing repo's main checkout carries —
-  illustrative, not a checkable list). Close both: state the true contract at all four comment
-  spots, and make the suite's hermeticity a fatal setup assertion built from **the hook's own
+  illustrative, not a checkable list). Close both: state the true contract at the three
+  code-comment spots — superseding the ADR's parenthetical with an appended dated amendment —
+  and make the suite's hermeticity a fatal setup assertion built from **the hook's own
   probe** — which auto-covers bare ancestors exactly where `--is-inside-work-tree` reports
   confusingly (exit 0 printing `false` — verified) and auto-tolerates git-absent (probe failure
   *is* hermeticity).
@@ -50,16 +51,27 @@ Stacks on: `docs/plans/2026-07-16-aftermath-class1-gate-evidence.md` — **queue
   cross-plan contention and no parallelism need — one worker, one commit, one coherent
   `Survey:`/probe trail; the test-file edit in that same diff satisfies the requiresTest floor
   for the whole task. The reword **states the true contract rather than deleting the word**
-  (spec §3): probe-failure cases (git absent, not a repo) leave the root untouched; a bare/exotic
-  layout is a probe **success** that resolves to a dir carrying no `.claude/campaigns`, so
-  consumers still behave fail-open one level down — worker latitude on block-comment wording
-  **within that three-part content contract**; the catch-arm one-liner is **verbatim**
-  (`// git absent / not a repo — today's cwd-relative behavior`). The ADR fix is an in-place
-  factual correction inside the existing amendment (precedent: the amendment itself landed via
-  reviewed PR #922), **per-sentence bounded** — editing the parenthetical re-flows hard-wrapped
-  lines, so the check is "no sentence outside the parenthetical's own sentence changes", never
-  byte-per-line; no second amendment heading, no breadcrumb (this spec is the correcting
-  record). Reviewers and every check in this plan target the **claim** (bare listed as
+  (spec §3), split by site. The **hook's** anchor block: probe-failure cases (git absent, not a
+  repo) leave the root untouched; a bare/exotic layout is a probe **success** that resolves to
+  a dir carrying no `.claude/campaigns`, so the hook still behaves fail-open one level down —
+  worker latitude on block-comment wording **within that three-part content contract**. The
+  **ledger's** leading block takes End
+  state 2's **site-specific contract** (red-team adjudication, 2026-07-16 — the spec's single
+  shared contract is measured false at this site): probe failure (git absent, not a repo, empty
+  output) returns the relative path **untouched** (genuine fail-open); bare/exotic is a probe
+  **success** returning an anchored **absolute** path under the bare git dir's parent — **not**
+  fail-open, merely harmless (no `.claude/campaigns` there); the hook's "fail-open one level
+  down" rationale is never copied here — worker latitude within that contract. The catch-arm
+  one-liner is **verbatim** (`// git absent / not a repo — today's cwd-relative behavior`).
+  **The ADR 0016 fix is an appended dated amendment, never an in-place rewrite (red-team
+  adjudication, 2026-07-16, reversing the draft):** append a new `## Amendment (<land-date>)`
+  section (date resolved at land, 2026-07-16 or later — the lesson-note date rule) carrying the
+  corrected bare-repo contract, leave **every byte of the ratified 2026-07-15 amendment
+  unchanged** (dated point-in-time record, superseded by pointer), and repoint only the
+  **Status** line at the new amendment — the PR #922 / cd915c0 shape, the tree's only amendment
+  precedent (a pure append; no in-place-rewrite precedent exists in this tree). The
+  per-sentence bound is retired with the in-place shape; no breadcrumb inside the ratified
+  text. Reviewers and every check in this plan target the **claim** (bare listed as
   probe-failure), never the token — the corrected wording still legitimately contains "bare"
   (spec §8). **No standing wording guard** (spec §3): the 2026-07-15 plan's pairing wraps across
   a line break (live-confirmed two-line-wrap defeat) and sanctioned carriers exist; land-time
@@ -105,33 +117,45 @@ Stacks on: `docs/plans/2026-07-16-aftermath-class1-gate-evidence.md` — **queue
      `git grep -n -i bare -- hooks/inject-campaign-state.sh` returns **only** the corrected
      success-case prose (the replaced sentence was the file's only carrier — verified). Executor:
      worker (read + grep, `Survey:` block); semantics per backstop 1.
-  2. **Ledger comments true** — `resolveCampaignDir`'s leading block comment carries the same
-     two-part truth (its "The probe FAILS OPEN: on any failure (…) …" sentence corrected, worker
-     latitude within the contract); the catch-arm comment is **verbatim**
+  2. **Ledger comments true — site-specific contract** — `resolveCampaignDir`'s leading block
+     comment states this site's **actual** contract (its "The probe FAILS OPEN: on any failure
+     (…) …" sentence corrected, worker latitude within the contract): probe **failure** (git
+     absent, not a repo, empty output) → the relative path is returned **untouched** (genuine
+     fail-open); a bare/exotic layout → the probe **succeeds** and the dir resolves to an
+     anchored **absolute** path under the bare git dir's parent — **not** fail-open, merely
+     harmless (that dir carries no `.claude/campaigns`); the hook's "still fail-open one level
+     down" rationale must **not** be copied here; the catch-arm comment is **verbatim**
      `// git absent / not a repo — today's cwd-relative behavior` (bare removed — it never
      reaches the catch; ENOENT and exit-128 do); the
      `// empty output — fail open to cwd-relative` line is untouched (no false claim). The
      bare-claim check on this file is **region-scoped to `resolveCampaignDir`'s comments** —
      the file's ~14 other `bare` tokens are the unrelated Files-extraction sense ("bare
-     `- Files:`", "bare-path form", "bare ENOENT", "bare numbered-list", "bare
-     `assert.throws`"), pre-declared benign and out of scope (grill Q3). Executor: worker;
-     semantics per backstop 1.
-  3. **ADR 0016 amendment corrected in place, per-sentence bounded** — the
-     "Amendment (2026-07-15): campaign state anchors at the main checkout" decision paragraph's
-     parenthetical "(git absent, not a repo, bare → the scan root is left untouched)" names only
-     the true failure cases, with bare's actual resolution (probe success → marker-less dir →
-     fail-open one level down) in a subordinate clause. **No sentence outside the
-     parenthetical's own sentence changes** (hard-wrap re-flow of adjacent physical lines is
-     expected and allowed — the bound is per-sentence, never byte-per-line); no new amendment
-     heading; no "(corrected …)" breadcrumb (this spec is the correcting record; in-place-fix
-     precedent: the amendment itself, PR #922). Executor: worker + landing-PR review.
+     `- Files:`", "bare-path form", "bare ENOENT", "bare numbered-list",
+     the `const bare` list-item match variable), pre-declared benign and out of scope (grill
+     Q3). Executor: worker; semantics per backstop 1.
+  3. **ADR 0016 corrected by an appended dated amendment — ratified text byte-unchanged** —
+     `docs/adr/0016-campaign-compaction-survival.md` gains a new `## Amendment (<land-date>)`
+     section (date resolved at land, 2026-07-16 or later — the lesson-note date rule) stating
+     the corrected bare-repo contract: git absent / not a repo are the probe-failure cases that
+     leave the scan root untouched; a bare/exotic layout is a probe **success** resolving to
+     the bare git dir's parent, which carries no `.claude/campaigns` — fail-open one level
+     down. Every byte of the ratified "Amendment (2026-07-15): campaign state anchors at the
+     main checkout" section stays **unchanged** (dated point-in-time record, superseded by
+     pointer — its parenthetical enumeration survives verbatim by design); only the **Status**
+     line is additionally repointed at the new amendment (the PR #922 / cd915c0 append shape —
+     the tree's only amendment precedent). Check: the landed diff on the ADR shows exactly the
+     appended section plus the Status-line edit and nothing else. Executor: worker +
+     landing-PR review.
   4. **Comment-only diffs** — the hunks touching `hooks/inject-campaign-state.sh`,
      `skills/war-campaign/assets/campaign-ledger.mjs`, and
      `docs/adr/0016-campaign-compaction-survival.md` contain **no executable-line changes**: the
      hook's `common=` probe line, all of `resolveCampaignDir`'s code, and `is_active` are
      byte-identical. Executor: refiner + gate-audit execution-evidence lens + landing-PR review.
   5. **Bare-claim sweep clean (floor + hand-scan, mechanically scoped)** —
-     `git grep -n -i bare` over the hook and the ADR, plus the region-scoped read of
+     `git grep -n -i bare` over the hook, over the ADR's **new `## Amendment (<land-date>)`
+     section only** (the ratified 2026-07-15 amendment's parenthetical survives byte-unchanged
+     **by design** — End state 3's mandate; it is a sanctioned carrier in End state 10's
+     allowlist, never a sweep failure), plus the region-scoped read of
      `resolveCampaignDir`'s comments (End state 2's scoping), yields no line — and, because the
      enumeration is known to wrap, no *sentence* — listing bare among the probe-failure /
      left-untouched cases. **Grep is a completeness floor, not a ceiling**: hand-scan each
@@ -172,8 +196,12 @@ Stacks on: `docs/plans/2026-07-16-aftermath-class1-gate-evidence.md` — **queue
   9. **Suites green, assertions byte-unmodified — explicit gate list** — the task's gate duty
      runs, by name: `bash hooks/inject-campaign-state.test.sh` (green; every case-1–18 assertion
      block byte-unmodified), `node --test skills/war-campaign/assets/campaign-ledger.test.mjs`
-     (green; **empty diff** on the test file — verified at authoring it never reads
-     `resolveCampaignDir` or the edited comments), `bash
+     (green; **empty diff** on the test file — its `resolveCampaignDir` coverage (the "CLI
+     `--campaign` anchoring" section drives the resolver end-to-end via the CLI in a real
+     repo + linked worktree) is **behavioral**, and this plan changes no behavior; the suite's
+     only text-level scan over this file is the bundled-routine token sweep
+     (`ecc:`/`strategic-compact` tokens), which comment-only rewording must not — and does
+     not — introduce; no test asserts on the comments' wording), `bash
      skills/war-machine/war-pipeline-structure.test.sh` (green **unmodified** — criteria 9/9b
      `has()` only `--git-common-dir` presence in SKILL files, untripable here; the suite at the
      dispatch base additionally carries plan 4's new Class-1 criterion, read-only here), and
@@ -186,8 +214,12 @@ Stacks on: `docs/plans/2026-07-16-aftermath-class1-gate-evidence.md` — **queue
       ~100 stale duplicates under `.claude/worktrees/`) **plus one multiline pass** for wrapped
       pairings (`rg -U -i` across the tracked tree, or an equivalent two-line-window pass), each
       hit classified for the bare-as-probe-failure **claim**, matches only: (a) the **corrected
-      sites** (End states 1–3 — post-fix these no longer carry the claim); (b) the **sanctioned
+      sites** (End states 1–2 — post-fix the hook and the ledger no longer carry the claim; the
+      ADR is corrected by **supersession**, not removal — see (b)); (b) the **sanctioned
       carriers** per the adjudicated allowlist —
+      `docs/adr/0016-campaign-compaction-survival.md` §"Amendment (2026-07-15)" (ratified dated
+      record, byte-unchanged by End state 3's mandate, superseded by the appended
+      `## Amendment (<land-date>)`),
       `docs/learnings/git-common-dir-anchor-idiom-fail-open-gotchas.md` (quotes the false text to
       correct it), `docs/specs/2026-07-15-campaign-state-anchor-design.md` §3 (variant "git
       missing, not a repo, bare" — still a match) and `docs/plans/2026-07-15-campaign-state-anchor.md`
@@ -196,10 +228,11 @@ Stacks on: `docs/plans/2026-07-16-aftermath-class1-gate-evidence.md` — **queue
       this plan file, and `docs/red-team/2026-07-16-campaign-anchor-comment-truth.md` when it
       exists (correcting records); and (c) benign non-pairing uses carrying no bare claim
       (verified classes at authoring: "not a repo learning/test" in
-      `skills/war-campaign/assets/snap-shared-docs.sh` and
-      `docs/plans/2026-07-08-github-issue-lifecycle-…`, "not a repo?" in
-      `skills/red-team/assets/assert-no-repo-escape.sh`, "not a repo-root …" in
-      `docs/red-team/2026-07-03-…` and `docs/specs/2026-07-16-aftermath-class1-…`). **Grep is a
+      `skills/war-campaign/assets/snap-shared-docs.sh`,
+      `docs/plans/2026-07-08-github-issue-lifecycle-…`, and
+      `docs/specs/2026-07-16-aftermath-class1-…` (its hit is "not a repo test."), "not a
+      repo?" in `skills/red-team/assets/assert-no-repo-escape.sh`, "not a repo-root …" in
+      `docs/red-team/2026-07-03-…` — its sole member). **Grep is a
       completeness floor, not a ceiling** — hand-scan grep-adjacent wrapped lines in every
       match's file before ruling it sanctioned/benign, and hand-scan for same-meaning token-free
       stragglers. Hit set re-derived at the dispatch base (authoring snapshot,
@@ -207,8 +240,9 @@ Stacks on: `docs/plans/2026-07-16-aftermath-class1-gate-evidence.md` — **queue
       outside this plan's Files routes per backstop 2 (expected zero).
   11. **Lessons annotated, hot, lint-clean — prefixes pinned** —
       `git-common-dir-anchor-idiom-fail-open-gotchas.md` §1 gains a dated body note prefixed
-      **`Corrected (#927, <date>):`** stating the three landed sites' comments now carry the
-      two-part truth (the gotcha itself stays — it binds every future copy of the idiom);
+      **`Corrected (#927, <date>):`** stating the hook's and the ledger's comments now state
+      each site's true contract and ADR 0016 carries an appended dated amendment superseding
+      its parenthetical (the gotcha itself stays — it binds every future copy of the idiom);
       `git-probing-hook-requires-fixtures-outside-any-git-repo.md` gains a dated body note
       prefixed **`Mechanized (#928, <date>):`** stating the latent coupling is now a structural
       guarantee in this suite (the fatal hermeticity guard after the `cd "$WORK"` line — named
@@ -263,18 +297,22 @@ Stacks on: `docs/plans/2026-07-16-aftermath-class1-gate-evidence.md` — **queue
     still-true concern). No executable line changes.
   - **Ledger (`skills/war-campaign/assets/campaign-ledger.mjs`, `resolveCampaignDir`):** the
     leading block comment's "The probe FAILS OPEN: on any failure (git absent, not a repo,
-    bare) …" sentence gets the same two-part truth (latitude within the same contract); the
+    bare) …" sentence is corrected to End state 2's **site-specific contract** (latitude
+    within it): probe failure (git absent, not a repo, empty output) ⇒ the relative path is
+    returned untouched (genuine fail-open); bare/exotic ⇒ probe **success** returning an
+    anchored absolute path under the bare git dir's parent — not fail-open, merely harmless
+    (no `.claude/campaigns` there); never the hook's "fail-open one level down" rationale; the
     catch-arm comment is replaced **verbatim** with
     `// git absent / not a repo — today's cwd-relative behavior` (a one-liner cannot honestly
     compress "succeeds but harmless" and must not re-assert the false failure claim; the block
     comment above carries the full bare story); the `// empty output — fail open to
     cwd-relative` line is untouched. Comment-only diff to this file; the file's ~14
     Files-extraction-sense `bare` tokens are out of scope (End state 2's region scoping).
-  - **ADR (`docs/adr/0016-campaign-compaction-survival.md`):** correct the amendment
-    parenthetical per End state 3 — subordinate clause for bare, **no sentence outside the
-    parenthetical's own sentence changes** (adjacent hard-wrap re-flow expected), no second
-    amendment heading, no breadcrumb (spec §3/§7; the landing commit + this spec are the
-    record).
+  - **ADR (`docs/adr/0016-campaign-compaction-survival.md`):** append the dated amendment per
+    End state 3 — a new `## Amendment (<land-date>)` section carrying the corrected bare-repo
+    contract; **every byte of the ratified 2026-07-15 amendment stays unchanged**; repoint
+    only the **Status** line at the new amendment (the PR #922 / cd915c0 append shape;
+    red-team adjudication 2026-07-16 — Q28 reversed, superseding spec §3's ADR row and §7).
   - **The guard (`hooks/inject-campaign-state.test.sh`):** immediately after the `cd "$WORK"`
     line in the "Fresh hermetic workspace" setup block, before case 1 — the two-step capture
     form of the hook's exact probe (sketch; final wording worker latitude within End state 6):
@@ -381,8 +419,9 @@ Stacks on: `docs/plans/2026-07-16-aftermath-class1-gate-evidence.md` — **queue
   - **Q3 (changed-plan):** End state 5's ledger arm is region-scoped to `resolveCampaignDir`'s
     comments with the ~14 Files-extraction-sense `bare` tokens pre-declared benign — the sweep
     is mechanically executable, not per-run worker judgment.
-  - **Q4 (changed-plan):** End state 3's ADR bound is per-sentence, never byte-per-line —
-    editing the parenthetical re-flows hard-wrapped lines by construction.
+  - **Q4 (superseded by Q28's red-team reversal):** the per-sentence bound is retired with the
+    in-place shape — no parenthetical is edited; the ADR correction is an appended dated
+    amendment with the ratified 2026-07-15 text byte-unchanged (End state 3).
   - **Q5 (settled, folded):** every git-semantics claim re-proven live, including the
     bare-subdir upward resolution — which upgraded the bare-ancestor RED probe from latitude to
     a mandated arm (End state 7).
@@ -451,11 +490,15 @@ Stacks on: `docs/plans/2026-07-16-aftermath-class1-gate-evidence.md` — **queue
     `warn-bash-write-scope.sh`, `validate-worktree-scope.sh`, `validate-servitor-provenance.sh`
     execute no git; `is-inside-work-tree` appears nowhere under `hooks/`) — spec §3's "other
     hooks: no action" stands.
-  - **Q28 (adjudicated, lean adopted):** the in-place ADR fix is legitimate (precedent: the
-    amendment itself landed via reviewed PR #922); it corrects a factual description proven
-    false by live probe, not the decision; **no breadcrumb** — the leave-uncorrected convention
-    protects dated point-in-time records (specs/plans), and an ADR is the living decision
-    record; this spec is the correcting record.
+  - **Q28 (red-team-reversed, 2026-07-16):** the draft's in-place ADR fix is **reversed**. The
+    claimed precedent was false: PR #922 / cd915c0 is a **pure append** — a new dated
+    `## Amendment (2026-07-15)` section plus a Status-line pointer, zero ratified prose
+    modified — i.e. precedent for exactly the dated-amendment shape; and landed plan 1 states
+    the ratified-ADR convention (proposed dated amendment, never an in-task rewrite) three
+    times on this very base. The correction therefore ships as an appended
+    `## Amendment (<land-date>)` section, ratified text byte-unchanged, Status line repointed;
+    still **no breadcrumb** inside the ratified text — the appended amendment is itself the
+    correcting record.
   - **Q29 (adjudicated):** every spec §10 criterion has a named in-run executor —
     §10.1–10.2 → End states 1–3/5 (worker, `Survey:` block; semantics → backstop 1);
     §10.3 → End state 4 (refiner + gate-audit lens); §10.4 → End state 9 (worker gate duty +
@@ -466,9 +509,10 @@ Stacks on: `docs/plans/2026-07-16-aftermath-class1-gate-evidence.md` — **queue
     filing) — ADR 0017 named-owner form, nothing prose-waived. The probes are **not** backstop
     rows: the worker is the in-run executor; /red-team re-proving them in sandboxes is its
     normal verification spine, not a plan assignment.
-  - **Q30 (changed-plan):** the task bullet carries latitude-within-contract for the two block
-    comments, the catch-arm replacement **verbatim**, and restates §8's
-    target-the-claim-never-the-token rule.
+  - **Q30 (changed-plan):** the task bullet carries latitude for the two block comments
+    (hook: the three-part contract; ledger: End state 2's site-specific contract), the
+    catch-arm replacement **verbatim**, and restates §8's target-the-claim-never-the-token
+    rule.
   - **Q31 (settled):** every anchor resolves uniquely today (one `common=` line; one
     `resolveCampaignDir`; unique Amendment heading; unique "Fresh hermetic workspace" block +
     `cd "$WORK"` line; unique `HERMETIC:` header) — preserved, named-construct only.
@@ -515,8 +559,10 @@ Stacks on: `docs/plans/2026-07-16-aftermath-class1-gate-evidence.md` — **queue
 ## Open decisions
 
 - None — the Commander's Intent was ratified by the operator at the conversion volley
-  (2026-07-16) with zero survivors (the grill marked no question operator-grade); the three
-  drafter adjudications (Q9 no ambient-env unsets, Q22 one content task, Q28 no ADR breadcrumb)
-  are recorded with rationale above, and the remaining latitudes (block-comment wording within
-  the three-part contract, guard message wording within End state 6's probe-result form) are
+  (2026-07-16) with zero survivors (the grill marked no question operator-grade); the two
+  drafter adjudications (Q9 no ambient-env unsets, Q22 one content task) and the red-team
+  reversal (Q28: the ADR correction ships as an appended dated amendment, ratified text
+  byte-unchanged) are recorded with rationale above, and the remaining latitudes
+  (block-comment wording — hook within the three-part contract, ledger within End state 2's
+  site-specific contract; guard message wording within End state 6's probe-result form) are
   worker-resolved within checkable End-state bounds.
