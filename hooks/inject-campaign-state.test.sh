@@ -5,7 +5,11 @@
 #
 # HERMETIC: every fixture is built under a fresh `mktemp -d` dir which we `cd`
 # into first. We do NOT rely on TMPDIR redirection — BSD mktemp ignores it
-# ([[bsd-mktemp-ignores-tmpdir-gnu-only]]). Most cases invoke the hook with
+# ([[bsd-mktemp-ignores-tmpdir-gnu-only]]). Since the hook now git-probes every
+# root it is handed (the main-checkout anchor), that hermeticity is asserted, not
+# assumed: a fatal setup guard after the `cd "$WORK"` line below aborts the suite
+# if the hook's own probe finds an enclosing repo at the fixture root. Most cases
+# invoke the hook with
 # CLAUDE_PROJECT_DIR pinned at each fixture root (so the test never reads the
 # developer's real ~/.claude). Case 10 covers the OTHER root-resolution branch:
 # env unset, root taken from the stdin `cwd` fallback (the ${CLAUDE_PROJECT_DIR:-}
@@ -61,6 +65,25 @@ SENTINEL="ZZ-STATE-SENTINEL-9f3a"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 cd "$WORK" || { echo "cannot cd to mktemp dir"; exit 1; }
+
+# HERMETICITY GUARD (fatal setup, before case 1). The hook now git-probes EVERY
+# root it is handed (the main-checkout anchor). If WORK sits inside ANY enclosing
+# repo — a working tree OR a bare repo — the hook's own probe resolves upward and
+# silently re-roots the fixtures to that repo's main checkout, so injection-path
+# cases would fail far from the cause. Assert the hook's OWN probe finds nothing
+# at WORK, in the two-step capture form the hook mandates (a composed one-liner
+# masks failure as "."). Probe FAILURE — including git absent — IS hermeticity, so
+# this is NOT a numbered ok/no case: like the jq presence guard above, a
+# non-hermetic workspace invalidates every case, so aborting at setup is the honest
+# semantic. Cases 12-13 build real repos INSIDE WORK deliberately; git discovery
+# walks UPWARD, so those children never re-root sibling probes (and they are
+# created after this line). No ambient-env unsets: the guard IS the hook's own
+# probe, so any exported GIT_DIR/GIT_CEILING_DIRECTORIES affects guard and hook
+# identically — the guard then fires loudly here rather than letting cases fail far
+# from the cause.
+if common="$(git -C "$WORK" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" && [ -n "$common" ]; then
+  echo "FATAL: the hook's probe at $WORK resolves ($common) — fixture root is not hermetic"; exit 1
+fi
 
 # ---------------------------------------------------------------------------
 # Case 1: no .claude/campaigns dir → empty stdout, exit 0
