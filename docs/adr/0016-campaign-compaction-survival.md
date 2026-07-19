@@ -1,6 +1,6 @@
 # Compaction survival: write-ahead checkpoint + post-compact re-injection (self-compaction rejected)
 
-**Status:** accepted (design ratified 2026-07-03; implementation tracked by the spec below; amended 2026-07-15 — campaign state anchors at the **main checkout**, not the Lead's cwd; see the amendment below)
+**Status:** accepted (design ratified 2026-07-03; implementation tracked by the spec below; amended 2026-07-15 — campaign state anchors at the **main checkout**, not the Lead's cwd; amended 2026-07-19 — the 2026-07-15 amendment's fail-open parenthetical corrected: a bare/exotic layout is a probe **success**, not a probe-failure case; see the amendments below)
 
 An overnight `/war-campaign` run outlives many context windows. When compaction fires — at a moment
 nobody controls — the Lead's working context is replaced by a summary, and the campaign thread can be
@@ -104,3 +104,23 @@ duplicated ledgers); an all-`landed` stranded ledger stays silent. The ledger CL
 them) and campaign state must outlive any one session. Per-worktree symlinks or copies of the campaign dir
 are no longer needed; any that exist become stranded duplicates to clean up. The spec is left untouched as a
 point-in-time record; this amendment carries the supersession.
+
+## Amendment (2026-07-19): a bare layout is a probe success, not a fail-open case
+
+The Decision half of the 2026-07-15 amendment above is corrected here for the **bare** case: a bare/exotic
+layout is a probe **SUCCESS**, not one of the probe-failure cases that leave the scan root untouched. A live
+probe (2026-07-16, git 2.50.1) confirms `git rev-parse --path-format=absolute --git-common-dir` exits 0
+inside a bare repo and prints the bare repo's own git dir — resolving **upward** to it from a subdirectory —
+so the anchor's success arm runs and re-roots the scan to `dirname(bare-git-dir)`. Nothing falls through. The
+genuine fail-open cases are only **git absent** and **not a repo** (exit 128, empty output), where the scan
+root is left exactly as resolved from `$CLAUDE_PROJECT_DIR`/cwd.
+
+The behavior is unchanged and still correct in practice — `dirname(bare-git-dir)` carries no
+`.claude/campaigns`, so the scan finds nothing there and the hook stays **fail-open one level down** (why this
+was graded a nit, not a defect). This amendment changes only the *description* of which cases engage
+fail-open; no decision and no code change. The ledger CLI's `resolveCampaignDir` shares the same probe and
+correction (there a bare layout resolves to an anchored absolute path rather than the returned relative one —
+harmless for the same marker-absence reason). The durable form of this fact lives in
+`docs/learnings/git-common-dir-anchor-idiom-fail-open-gotchas.md` §1, which binds every future copy of the
+idiom. The 2026-07-15 amendment's prose is left **byte-unchanged** as a point-in-time record; this amendment
+carries the correction.
