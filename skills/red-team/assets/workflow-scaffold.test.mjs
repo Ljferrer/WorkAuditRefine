@@ -138,6 +138,79 @@ test('scaffold structure OK — scopeLock is a declared, invoked constant (survi
   assert.ok(/scopeLock\(/.test(stripped), 'scopeLock must be invoked in executable code')
 })
 
+// --- Task 1.2 (#929): scaffold block-comment census ---------------------------------------------
+// This file has TWO POSITIVE "survives comment stripping" asserts — 'adversarial-confirm ...
+// survives comment stripping' and 'scopeLock ... survives comment stripping' (both above). Each
+// strips comments and then requires its token to SURVIVE in the executable remainder, and each
+// DELIBERATELY keeps the two-step strip (line comments THEN block comments). Narrowing them to
+// line-comment-only would FALSE-PASS the day a future block comment carried `adversarial-confirm` /
+// `scopeLock` prose after the real declaration was deleted: the token would survive inside the
+// un-stripped block comment and the assert would stay green with no executable declaration behind
+// it. The block pass is what makes those two asserts sound — so this file does NOT narrow them
+// (unlike the three narrowed sites in workflow-template.test.mjs, whose asserts are negative /
+// extractive and do not need the block pass).
+//
+// THIS census is what keeps the two-step strip sound. blockCommentSpans(text) DELIBERATELY
+// reproduces the naive idiom (its SUBJECT is that idiom's behavior — every /* ... */-shaped span it
+// sees; a string-aware scan would see none of the glob-literal fakes that idiom trips on elsewhere).
+// It is the only sanctioned census idiom for comment-ignoring structural tests in this file (the two
+// survives-stripping asserts are the only other sanctioned block-strip uses). It goes red the moment
+// the block-comment population changes, so a new block comment can never silently start carrying an
+// asserted token. workflow-scaffold.js has no /*-bearing string literals while this census holds
+// (measured: exactly the two real spans, no fakes — this file has no resolveGate-style glob
+// literals), so the naive idiom sees exactly its two real block comments.
+//
+// Backtick-free coupling: the backtick-free assert below mirrors workflow-template.test.mjs's
+// scanTemplateLiterals backtick-free assert — the two censuses are mutually load-bearing (a backtick
+// smuggled into a block comment is where the "line-only is safe" argument would break over there).
+// Naive-strip string-blindness inside the census itself is bounded by EXACT-LIST equality:
+// corruption either leaves the span list identical (harmless) or changes it (loud red) — never
+// silently wrong.
+function blockCommentSpans(text) {
+  return text.replace(/\/\/[^\n]*/g, '').match(/\/\*[\s\S]*?\*\//g) || []
+}
+// Ordered {head, tail} projection — the same census shape as workflow-template.test.mjs's block
+// census (which needs it for a ~40KB fake span). Here both spans are short, so head and tail overlap
+// and cover each span exactly — any edit anywhere in a span flips head or tail. Enumerated from the
+// two hardcoded full comment texts, so the equality is independent of live src (non-vacuous).
+const SPAN_FRAG = 40
+const spanHeadTail = (s) => ({ head: s.slice(0, SPAN_FRAG), tail: s.slice(-SPAN_FRAG) })
+const SCAFFOLD_BLOCK_COMMENTS = [
+  '/* dead dispatch — fall through to the fallback */',
+  '/* both types dead — fall through to the loud rethrow */',
+].map(spanHeadTail)
+
+test('scaffold block-comment census: exactly the two real block comments (dead dispatch + both types dead), backtick-free', () => {
+  const spans = blockCommentSpans(src)
+  assert.deepEqual(spans.map(spanHeadTail), SCAFFOLD_BLOCK_COMMENTS,
+    'workflow-scaffold.js block-comment population changed (a /* ... */ span added, removed, or merged). ' +
+    'BEFORE updating this expectation, re-check the two survives-stripping asserts (adversarial-confirm, ' +
+    'scopeLock): no block comment may carry that asserted prose after its real declaration, or the block ' +
+    'pass false-passes. Offending span heads: ' + JSON.stringify(spans.map(s => s.slice(0, SPAN_FRAG))))
+  for (const span of spans) {
+    assert.ok(!span.includes('`'),
+      'block comment must be backtick-free (census coupling with scanTemplateLiterals): ' + span)
+  }
+})
+
+test('scaffold block-comment census RED on a third block comment (addition — default-deny)', () => {
+  const mutated = src.replace(
+    '/* dead dispatch — fall through to the fallback */',
+    '/* dead dispatch — fall through to the fallback */ /* spurious third comment */')
+  assert.equal(blockCommentSpans(mutated).length, SCAFFOLD_BLOCK_COMMENTS.length + 1,
+    'a newly-added /* ... */ block comment must be seen by the naive idiom')
+  assert.notDeepEqual(blockCommentSpans(mutated).map(spanHeadTail), SCAFFOLD_BLOCK_COMMENTS,
+    'adding a block comment must break the ordered-exact census (else it is not default-deny)')
+})
+
+test('scaffold block-comment census RED on removing/merging a span (removal — default-deny)', () => {
+  const mutated = src.replace('/* both types dead — fall through to the loud rethrow */', '')
+  assert.equal(blockCommentSpans(mutated).length, SCAFFOLD_BLOCK_COMMENTS.length - 1,
+    'removing a /* ... */ block comment must drop a span from the naive idiom')
+  assert.notDeepEqual(blockCommentSpans(mutated).map(spanHeadTail), SCAFFOLD_BLOCK_COMMENTS,
+    'removing/merging a span must break the ordered-exact census (else it is not default-deny)')
+})
+
 test('every probe prompt is scope-locked to the absolute planFile + repo + fingerprint title', async () => {
   const a = baseArgs({ probes: [
     { name: 'b1', kind: 'bespoke', technique: 'executed', prompt: 'do b1' },

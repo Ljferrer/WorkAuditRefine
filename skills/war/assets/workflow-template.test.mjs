@@ -264,9 +264,17 @@ test('Part B seam is now FILLED — run.provision is consumed and env-blocked is
   // Part A left this barrier OPEN with a seam guard asserting run.provision / env-blocked were NOT
   // yet wired. Part B FILLS that seam (this is the planned inversion, not a deleted guard): the
   // refiner barrier now reads the pinned run.provision list and emits env-blocked on a failed step.
-  // We strip comments first so the assertion reads executable code only (mirrors the red-team
-  // scaffold survival checks) — prose mentions don't count.
-  const code = src.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
+  // Strip LINE comments ONLY (dropped the block pass, #929). A block-comment strip
+  // (/\/\*[\s\S]*?\*\//g) mis-reads the resolveGate discovery string's glob literals
+  // ('*/node_modules/*' etc. carry /* and */) as block-comment delimiters and cascades over
+  // executable code — deleting the refine/gate-audit/land core through the file's only real block
+  // comment (/* the single ace commit */). This site's tokens — run.provision / env-blocked /
+  // setup-scout — live only in executable code and prose, never in a block comment, so line-only
+  // is sufficient. NEW sensitivity of dropping the block pass: block-comment PROSE is now visible to
+  // these asserts — in particular the negative `!setup-scout` assert would false-FAIL if a future
+  // block comment carried `setup-scout` prose. The blockCommentSpans census below (near
+  // MIRROR_REGISTRY) is the bound: any new block comment reds it and forces this re-check.
+  const code = src.replace(/\/\/[^\n]*/g, '')
   assert.ok(/run\.provision|run\[['"]provision['"]\]/.test(code), 'the run.provision list is now consumed in executable code')
   assert.ok(/env-blocked|env_blocked/.test(code), 'the env-blocked outcome is now wired in executable code')
   // The setup-scout is still NOT wired here — that lives in war-room Setup (Task 7), not the barrier.
@@ -1155,7 +1163,15 @@ test('Task 4 — post-merge gate-audit is PARALLEL (runs over all merged tasks, 
   // (after the refine for-loop, before the Land decision).
   // The gate-audit pass label or prompt contains 'execution-evidence' and is dispatched via parallel.
   // We confirm by checking the source contains a pattern combining parallel and execution-evidence.
-  const code = src.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
+  // Strip LINE comments ONLY (dropped the block pass, #929). The block-comment strip
+  // (/\/\*[\s\S]*?\*\//g) mis-reads the resolveGate discovery string's glob literals ('*/…/*') as
+  // block-comment delimiters and cascades over the refine/gate-audit core it is meant to inspect —
+  // deleting exactly the execution-evidence / parallel( tokens asserted here. Those tokens live only
+  // in executable code, never a block comment, so line-only is sufficient. NEW sensitivity of
+  // dropping the block pass: these are POSITIVE asserts, so a future block comment carrying
+  // `execution-evidence`/`parallel(` prose could false-PASS them; the blockCommentSpans census below
+  // (near MIRROR_REGISTRY) bounds it — any new block comment reds the census and forces this re-check.
+  const code = src.replace(/\/\/[^\n]*/g, '')
   assert.ok(/execution.evidence/.test(code),
     'template source must reference execution-evidence lens (gate-audit pass)')
   // The gate-audit pass must use parallel() — check for parallel(...) surrounding the gate-audit agent calls.
@@ -5906,10 +5922,18 @@ const parseInlineArray = (re) => {
 // All distinct 'landed'/'held:*' string literals in the template's EXECUTABLE code (comments stripped so
 // a prose example can't count). landDecision is assigned 6 of the 7 KNOWN values (never the Lead-only
 // 'held:phase-incomplete'), with no single inline array to deepEqual — hence the subset check.
-// ponytail: whole-file literal scan is the ceiling; a '//' inside a code string could truncate a line,
-// but no landDecision literal sits after one in this file — good enough, no tokenizer.
-const extractLandDecisionLiterals = () => {
-  const code = src.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
+// Strip LINE comments ONLY (dropped the block pass, #929): the block-comment strip
+// (/\/\*[\s\S]*?\*\//g) mis-reads the resolveGate discovery string's glob literals ('*/…/*' carry /*
+// and */) as block-comment delimiters and cascades over the executable land-routing code — deleting
+// the very 'held:*' literals scanned here (a 'held:bogus' assigned inside the deleted span would slip
+// past the landDecision-known-set membership check with NO red test, #929). 'landed'/'held:*' literals
+// live only in executable code, never a block comment, so line-only is sufficient. Parameterized over
+// `text` (default: live src) so the End-state-7 subset probe below runs on a mutated copy.
+// ponytail: whole-file literal scan is the ceiling; the string-aware scanTemplateLiterals census below
+// is the sanctioned upgrade (it recognizes comments only OUTSIDE strings) — this extractor stays the
+// narrow landDecision-membership check, bounded by the blockCommentSpans / scanTemplateLiterals censuses.
+const extractLandDecisionLiterals = (text = src) => {
+  const code = text.replace(/\/\/[^\n]*/g, '')
   return [...new Set([...code.matchAll(/'(landed|held:[a-z0-9-]+)'/g)].map(m => m[1]))]
 }
 // Eval the inline roster-helper mirror block (defined INSIDE the template fn body) in isolation, with an
@@ -6033,6 +6057,88 @@ test('D2 mirror registry — every inline sandbox mirror in workflow-template.js
       }
     }
   }
+})
+
+// ===========================================================================
+// #929 — block-comment census (protects the MIRROR_REGISTRY's extractLandDecisionLiterals + the two
+// narrowed source-text sites above). The three sites strip LINE comments ONLY. blockCommentSpans
+// DELIBERATELY reproduces the naive two-step idiom's SUBJECT — the spans a block strip would delete —
+// via matchAll (enumerating, not stripping): line-strip THEN the block-comment regex. A string-aware
+// scan (scanTemplateLiterals below) sees ZERO of these fake spans, because the '/* */' sequences are
+// inside the resolveGate discovery string's glob literals ('*/node_modules/*' etc.). Asserting the
+// ORDERED EXACT list of spans as {head, tail} substring pairs (spans 0/1 are byte-identical, so ordered
+// not counted-by-head) bounds the blindness both ways: a new block comment OR a new '/*'-bearing string
+// literal ADDS a span (red), a removed/merged one drops it (red). Naive-strip string-blindness INSIDE the
+// census is itself bounded by this exact equality — corruption either leaves the list identical (harmless)
+// or changes it (loud red), never silently wrong. blockCommentSpans + scanTemplateLiterals are the ONLY
+// sanctioned text-preparation idioms for future structural tests over workflow-template.js.
+const blockCommentSpans = (text = src) =>
+  [...text.replace(/\/\/[^\n]*/g, '').matchAll(/\/\*[\s\S]*?\*\//g)].map(m => m[0])
+// The pre-#929 corrupt idiom, retained in ONE named place as the census's negative reference: the
+// End-state 2/7 both-ways probes run it to PROVE it loses tokens the narrowed line-only prep keeps.
+// NEVER used by a real structural assert (the three sites above are line-only). It is the block-STRIP
+// form; the enumerating census (blockCommentSpans, above) uses the matchAll form.
+const naiveTwoStepStrip = (text) => text.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
+// Re-derived at THIS dispatch base (the live naive idiom yields exactly three spans: two byte-identical
+// 18-byte fake spans from the discovery glob literals + one giant span ending at the file's only real
+// block comment, /* the single ace commit */). {head, tail} substring pairs, ORDERED. A fourth
+// find-exclusion glob would re-shuffle the pairing → red → conscious re-derivation.
+const EXPECTED_BLOCK_SPANS = [
+  { head: "/*' -not -path '*/", tail: "/*' -not -path '*/" },
+  { head: "/*' -not -path '*/", tail: "/*' -not -path '*/" },
+  { head: "/*' | sort);", tail: "/* the single ace commit */" },
+]
+
+test('#929 block-comment census — the naive block-strip idiom yields exactly the enumerated ordered spans (live source)', () => {
+  const spans = blockCommentSpans()
+  assert.equal(spans.length, EXPECTED_BLOCK_SPANS.length,
+    `the naive block-strip must yield exactly ${EXPECTED_BLOCK_SPANS.length} spans — got ${spans.length}. A NEW block comment or /*-bearing string literal ADDS a span; a removed/merged one drops it. BEFORE updating this expectation, re-check the narrowed strip sites' token sets (a new true block comment can now false-pass Task-4's positive asserts or false-fail Part-B's negative setup-scout assert).`)
+  EXPECTED_BLOCK_SPANS.forEach((exp, i) => {
+    assert.ok(spans[i].startsWith(exp.head) && spans[i].endsWith(exp.tail),
+      `block span ${i} must be head=${JSON.stringify(exp.head)} … tail=${JSON.stringify(exp.tail)}; got head=${JSON.stringify(spans[i].slice(0, 24))} … tail=${JSON.stringify(spans[i].slice(-40))}`)
+  })
+})
+
+test('#929 block-comment census — RED both ways: a new /* */ comment, a new /*-bearing string literal, and a removed span each change the ordered span list', () => {
+  const live = blockCommentSpans(src).length
+  assert.equal(live, 3, 'baseline sanity: three live spans')
+  // (add) a genuine block comment → one more span
+  assert.equal(blockCommentSpans(src + '\n/* injected census fixture */\n').length, live + 1,
+    'adding a real block comment is a red test (one more span)')
+  // (add) a /*-bearing STRING LITERAL — the naive idiom (which the census reproduces) counts it, string-blind
+  assert.equal(blockCommentSpans(src + "\nconst censusDecoy = '/* not a comment */'\n").length, live + 1,
+    'adding a /*-bearing string literal is a red test (the naive idiom is string-blind — that is the census subject)')
+  // (remove) the file's only real block comment → the giant span loses its terminator → one fewer span
+  assert.equal(blockCommentSpans(src.replace('/* the single ace commit */', '// ace commit')).length, live - 1,
+    'removing/merging a span is a red test (the delete direction) — its own fixture')
+})
+
+test('#929 false-fail mode dead — the narrowed line-only prep KEEPS a token the old two-step strip provably LOSES (End-state 2)', () => {
+  // A token sandwiched between a '*/…/*'-style glob literal and a later real block comment — exactly the
+  // #929 shape. The naive strip mis-reads the glob's /* … */ as a comment and swallows the token.
+  const fixture = "keep '*/node_modules/*' LOSTTOKEN_929 '*/.git/*' keep /* real block */ keep"
+  assert.ok(fixture.replace(/\/\/[^\n]*/g, '').includes('LOSTTOKEN_929'),
+    'the narrowed line-only preparation KEEPS the token (prose/executable tokens survive)')
+  assert.ok(!naiveTwoStepStrip(fixture).includes('LOSTTOKEN_929'),
+    'the same fixture through the OLD two-step strip provably LOSES the token (the glob-literal /* … */ swallows it) — the #929 false-fail defect')
+  // Coupling to the census: the token sits inside a naive block-comment span the census enumerates.
+  assert.ok(blockCommentSpans(fixture).some(s => s.includes('LOSTTOKEN_929')),
+    'the lost token is inside a blockCommentSpans-enumerated fake span (the census bounds exactly this blindness)')
+})
+
+test('#929 subset-row blindness closed — extractLandDecisionLiterals surfaces a held:bogus assigned inside the deleted span under line-only prep, and NOTHING under the old two-step prep (End-state 7)', () => {
+  // Inject a landDecision = 'held:bogus' immediately before the ace marker — i.e. INSIDE the giant fake
+  // span the naive block strip deletes. Under the narrowed line-only extractor it surfaces (and would then
+  // fail the landDecision-known-set membership assert in MIRROR_REGISTRY); under the old prep it vanishes.
+  const mutated = src.replace('/* the single ace commit */', "landDecision = 'held:bogus' /* the single ace commit */")
+  assert.ok(extractLandDecisionLiterals(mutated).includes('held:bogus'),
+    'the narrowed line-only extractor surfaces held:bogus (it would fail the known-set membership assert — the guard now fires)')
+  const oldLiterals = [...new Set([...naiveTwoStepStrip(mutated).matchAll(/'(landed|held:[a-z0-9-]+)'/g)].map(m => m[1]))]
+  assert.ok(!oldLiterals.includes('held:bogus'),
+    'the old two-step preparation LOSES held:bogus (assigned inside the deleted 42k span) — the #929 subset-row gap this narrowing closes')
+  // The MIRROR_REGISTRY subset row's >= 6 sanity floor and membership semantics are unchanged — only the
+  // extractor's text preparation narrowed; the live extractor still returns its 6 real landDecision values.
+  assert.ok(extractLandDecisionLiterals(src).length >= 6, 'the live extractor still finds at least the 6 emitted landDecision literals (unchanged semantics)')
 })
 
 // ===========================================================================
@@ -6309,6 +6415,275 @@ test('criterion 3 — the pt tag checks interpolated VALUES for identity === und
   assert.match(src, /const pt = \(strings, \.\.\.vals\) =>/, 'pt is defined as a tagged-template function near the top')
   assert.match(src, /vals\[i\] === undefined/, 'pt checks each interpolated VALUE for identity === undefined (value, never surrounding text)')
   assert.match(src, /undefined interpolation after/, 'pt throws naming the adjacent literal fragment (strings[i] tail)')
+})
+
+// ===========================================================================
+// #931 — template-literal census (lifts the criterion-3 coverage floor above from "no bare agent(`" to a
+// DEFAULT-DENY multiset over EVERY untagged template literal in the template). The pt guard's structural
+// floor rejects only a bare backtick right after `agent(`; an untagged literal mid-concatenation, behind a
+// variable, in a helper body, or nested inside a pt interpolation slips undefined into a prompt with the
+// guard never consulted. scanTemplateLiterals is a string-aware single pass: it recognizes // and /* */
+// comments OUTSIDE strings, single/double-quoted strings (backslash-aware; a string that does not close on
+// its line THROWS), and template literals (backslash-aware, recursive ${} interiors — nested literals and
+// each one's tagged/untagged distinction are FIRST-CLASS entries). It THROWS on EOF in any construct —
+// fail-closed, never a silent narrowing. It is NOT a JS lexer.
+// ponytail: the recorded ceiling is regex-literal ambiguity — a regex literal carrying an unbalanced
+// quote/backtick DESYNCS the scanner, but LOUDLY via the unclosed-string/EOF throw, never silently; the
+// upgrade path (a real lexer) is the rejected ceiling. `pt`-tagged = the identifier `pt` immediately
+// precedes the backtick (verified in-file: `pt\`` carries no space).
+const HEAD_LEN = 44
+const scanTemplateLiterals = (text = src) => {
+  const n = text.length
+  const literals = []      // { head, tagged } per template literal (nested interiors included)
+  const blockComments = [] // raw text of each TRUE (string-aware) block comment
+  const isIdent = (c) => c !== undefined && /[A-Za-z0-9_$]/.test(c)
+  const ptTagged = (b) => text.slice(b - 2, b) === 'pt' && !isIdent(text[b - 3])
+  const scanString = (quote, start) => {
+    let j = start + 1
+    while (j < n) {
+      const c = text[j]
+      if (c === '\\') { j += 2; continue }
+      if (c === '\n') throw new Error(`scanTemplateLiterals: unclosed ${quote}-string at line-end near ${JSON.stringify(text.slice(start, start + 40))} (fail-closed)`)
+      if (c === quote) return j + 1
+      j++
+    }
+    throw new Error(`scanTemplateLiterals: EOF inside ${quote}-string (fail-closed)`)
+  }
+  const skipLine = (start) => { let j = start + 2; while (j < n && text[j] !== '\n') j++; return j }
+  const skipBlock = (start) => {
+    let j = start + 2
+    while (j < n) { if (text[j] === '*' && text[j + 1] === '/') return j + 2; j++ }
+    throw new Error('scanTemplateLiterals: EOF inside block comment (fail-closed)')
+  }
+  const scanTemplate = (start, tagged) => {
+    literals.push({ head: text.slice(start + 1, start + 1 + HEAD_LEN), tagged })
+    let j = start + 1
+    while (j < n) {
+      const c = text[j]
+      if (c === '\\') { j += 2; continue }
+      if (c === '`') return j + 1
+      if (c === '$' && text[j + 1] === '{') { j = scanInterp(j + 2); continue }
+      j++
+    }
+    throw new Error('scanTemplateLiterals: EOF inside template literal (fail-closed)')
+  }
+  const scanInterp = (start) => {
+    let j = start, depth = 1
+    while (j < n) {
+      const c = text[j]
+      if (c === "'" || c === '"') { j = scanString(c, j); continue }
+      if (c === '`') { j = scanTemplate(j, ptTagged(j)); continue }   // nested literal — first-class
+      if (c === '/' && text[j + 1] === '/') { j = skipLine(j); continue }
+      if (c === '/' && text[j + 1] === '*') { j = skipBlock(j); continue }
+      if (c === '{') { depth++; j++; continue }
+      if (c === '}') { depth--; if (depth === 0) return j + 1; j++; continue }
+      j++
+    }
+    throw new Error('scanTemplateLiterals: EOF inside ${} interpolation (fail-closed)')
+  }
+  let i = 0
+  while (i < n) {
+    const c = text[i]
+    if (c === '/' && text[i + 1] === '/') { i = skipLine(i); continue }
+    if (c === '/' && text[i + 1] === '*') { const e = skipBlock(i); blockComments.push(text.slice(i, e)); i = e; continue }
+    if (c === "'" || c === '"') { i = scanString(c, i); continue }
+    if (c === '`') { i = scanTemplate(i, ptTagged(i)); continue }
+    i++
+  }
+  return { literals, blockComments }
+}
+
+// The DEFAULT-DENY registry: the enumerated multiset of UNTAGGED template-literal 44-char heads
+// (head + occurrence count), machine-derived once via the scanner at this dispatch base. HEADER RULE
+// (grep-able, for auditors): a literal that FEEDS agent() prompt text is NEVER registered here — tag it
+// with `pt`. Every row is VALUE-COMPOSITION, grouped by class rationale:
+//   • the pt guard's OWN throw-message literal;
+//   • validation / error / refusal messages (throws + escalation detail strings);
+//   • git/shell command & flag builders — spliced into an already-`pt`-tagged carrier that guards the
+//     spliced VALUE; every interpolation here is ternary-guarded or derived-and-validated, so no
+//     undefined can render (the `pt` carrier is the prompt-safety boundary) — e.g. testPatternArg,
+//     the resolveGate discovery/composition mirror (ADR 0036, untouchable), workerSelfQueryRepoFlag,
+//     owned, the ensure-worktree list, the phaseBaseCmd merge-base;
+//   • label / branch / worktree / path / verdict / reason builders — opts.label, t.branch, t.worktree,
+//     the ×5 `${worktreeRoot || '<worktreeRoot>'}/…` path family, escalation task labels & reasons,
+//     gate-audit/land verdict tokens (consumed as VALUES by pt-tagged carriers that guard them);
+//   • log / note / detail lines (log() sinks, auditLog notes, escalation details, one out-of-scope
+//     `.test()` predicate).
+// Entries are in source-appearance order (which tracks the file's phase structure). Exact multiset
+// equality below is red BOTH ways — a new untagged literal (any spawn site, helper operand, variable,
+// or nested interior) AND a stale row whose literal was removed/renamed.
+const LITERAL_REGISTRY = [
+  ["workflow-template prompt: undefined interpol"],
+  ["workflow-template: args must be a JSON objec"],
+  [" --pattern '${testPattern}'` : ''\n// Partial"],
+  ["war/${planSlug}/p${ph.id}-${t.id}` : t.branc"],
+  ["${worktreeRoot}/${runId}/p${ph.id}-${t.id}` "],
+  ["roster must be an array of 1-5 seats (got ${"],
+  ["roster[${i}] must be an object { lens, depth"],
+  ["roster[${i}].lens must be a non-empty string"],
+  ["roster[${i}].lens \"${seat.lens}\" duplicates "],
+  ["roster[${i}].depth must be \"neighbors\" or \"d"],
+  ["-name '*.test.sh'`\nconst resolveGate = (decl"],
+  ["for f in $(find . -type f ${GATE_DISCOVERY_T"],
+  ["do printf '\\\\n== gate(bash): %s ==\\\\n' \"$f\" "],
+  ["${declaredGate} && ${discovery}`\n}\n// audit."],
+  ["workflow-template: requires top-level { plan"],
+  ["phase.id is missing (derivation would produc"],
+  ["workflow-template: requires phase { title, w"],
+  ["${problems.join('; ')}${derivationProblem ? "],
+  ["task ${t.id}: cannot derive branch/worktree "],
+  ["task ${t.id}: invalid roster — ${rv.errors.j"],
+  ["provision-run:${task.id}`, dispatchKind: 'pr"],
+  ["task ${task.id}: the provision-run:${task.id"],
+  ["Disposition demotion: [${f.severity}] \"${f.t"],
+  ["worker path-contract violation: reported fil", 2],
+  ["Task ${taskId}: normalized main-checkout-roo"],
+  [" --repo ${learningsTarget}` : ''\nconst WORKE"],
+  ["baseline gate debt: ${idset.join(', ') || '("],
+  ["audit:${task.id}:${seat.lens}${peers ? ':reb"],
+  ["pin-mismatch:${s.verdict}`, pinMismatch: tru"],
+  ["pin-mismatch: seat reviewed ${s.audit_sha} b"],
+  ["Phase ${ph.id} \"${ph.title}\": ${tasks.length"],
+  [" --owned-file ${ownedFile}` : ''\n  // --recl"],
+  ["   provision-worktrees.sh ensure-worktree ${"],
+  ["provision:phase-${ph.id}`, dispatchKind: 'pr"],
+  ["phase ${ph.id}: the provision:phase-${ph.id}"],
+  ["recovery: task ${id} is pre-merged on the ad"],
+  ["stale prior attempt: the remote task branch "],
+  ["Task ${sr.task}: env-blocked — stale remote "],
+  ["No runnable tasks remain — the rest are bloc"],
+  ["work:${task.id}`, schema: WORKER_RESULT, ..."],
+  ["Task ${task.id}: lone-seat widening (Critica"],
+  ["fix:${task.id}:r${round + 1}`, schema: WORKE"],
+  ["engine error during work/audit: ${err.messag"],
+  ["gate-audit: skipping ${task.id} (requiresTes"],
+  ["ace:${r.task.id}:r${r.task.fixRounds + 1}`, "],
+  ["failed absorb — ${aceWhy || 'ace worker retu"],
+  ["${worktreeRoot || '<worktreeRoot>'}/${runId ", 5],
+  ["packaging-floor: skipping ${r.task.id} (requ"],
+  ["merge:${r.task.id}`, schema: MERGE_RESULT, ."],
+  ["${r.task.id} touches a submodule; WAR is sin"],
+  ["${isNoTest ? 'add-test' : 'package-it'}:${r."],
+  ["${floorMr.status}: re-audit did not approve "],
+  ["${floorMr.status}:re-audit-failed`, findings"],
+  ["merge:${r.task.id}:floor-retry:r${r.task.fix"],
+  ["${floorMr.status}:exhausted`, fixRounds: r.t"],
+  ["merge:${r.task.id}:baseline-proceed`, schema"],
+  ["${r.task.id} touches a submodule (surfaced o"],
+  ["task never reached the approve branch (verdi"],
+  ["Task ${r.task.id}: env-blocked — provision s"],
+  ["$(git -C ${refineryPath} merge-base ${ph.int"],
+  ["evidence:phase-${ph.id}`, dispatchKind: 'evi"],
+  ["gate-audit:${taskId}:execution-evidence`, sc"],
+  ["gate-audit:${gateAuditVerdict.verdict}`, fin"],
+  ["gate-audit:phase-${ph.id}:integrated-tip`, s"],
+  ["phase-${ph.id}-integrated-tip`, verdict: `ga"],
+  ["gate-audit:${authVerdict.verdict}`, findings"],
+  ["phase-${ph.id}-integrated-tip`, reason: 'gat"],
+  ["gate-audit: mergedTasksForGateAudit is empty"],
+  ["gate-audit:phase-${ph.id}:end-state`, schema"],
+  ["phase-${ph.id}-end-state`, verdict: `gate-au"],
+  ["gate-audit:${esVerdict.verdict}`, findings, "],
+  ["phase-${ph.id}-end-state`, reason: 'gate-evi"],
+  ["phase-close sweep: the phase is ${landDecisi"],
+  ["phase-close sweep: the config default audit."],
+  ["war/${planSlug || '<plan-slug>'}/p${ph.id}-p"],
+  ["p${ph.id}-polish`, issue: ph.epicIssue || `<"],
+  ["<phase-${ph.id}-epic>`,\n      title: `phase-"],
+  ["phase-close coherence sweep (phase ${ph.id})"],
+  ["drain the phase-close queue (${phaseCloseQue"],
+  ["polish-worktree:phase-${ph.id}`, dispatchKin"],
+  ["phase-close sweep: the polish worktree provi"],
+  ["polish:phase-${ph.id}`, schema: WORKER_RESUL"],
+  ["merge:p${ph.id}-polish`, schema: MERGE_RESUL"],
+  ["phase-close sweep MERGED at ${polishSha} — t"],
+  ["phase-close sweep DISCARDED (${sweepWhy || ("],
+  ["polish merge returned ${pmr && pmr.status ||"],
+  ["land:phase-${ph.id}`, schema: MERGE_RESULT, "],
+  ["phase-${ph.id}-land`, reason: 'submodule-pr'"],
+  ["phase-${ph.id}-land`, reason: landResult.sta", 2],
+  ["phase-${ph.id}-land`, reason: 'env-blocked',", 2],
+  ["land:phase-${ph.id}:baseline-proceed`, schem"],
+  ["Phase ${ph.id} landed via baseline-proceed r"],
+  ["phase-${ph.id}-land`, reason: reLand.status,"],
+  ["phase-${ph.id}-land`, reason: reLand ? reLan"],
+  ["Phase ${ph.id} landed. Attempting opportunis"],
+  ["phase-${ph.id}-land`, reason: landResult ? S"],
+  ["Phase ${ph.id}: dead or unrouted land dispat"],
+  ["Holding the land for phase ${ph.id}: ${escal"],
+  ["Holding the land for phase ${ph.id}: no task"],
+  ["wrap-up:phase-${ph.id}`, schema: SERVITOR_RE"],
+  ["Phase ${ph.id} landed but no memoryLocalRoot"],
+  ["${f.title || ''} ${f.rationale || ''}`)) ? '"],
+]
+
+const untaggedHeadMultiset = (text) => {
+  const m = new Map()
+  for (const l of scanTemplateLiterals(text).literals) if (!l.tagged) m.set(l.head, (m.get(l.head) || 0) + 1)
+  return m
+}
+const registryMultiset = () => {
+  const m = new Map()
+  for (const row of LITERAL_REGISTRY) m.set(row[0], (m.get(row[0]) || 0) + (row[1] ?? 1))
+  return m
+}
+const multisetsEqual = (a, b) => {
+  if (a.size !== b.size) return false
+  for (const [h, c] of a) if (b.get(h) !== c) return false
+  return true
+}
+const sortedEntries = (m) => [...m.entries()].sort((x, y) => x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : 0)
+
+test('#931 template-literal census — the untagged-literal head multiset equals the registry EXACTLY, and every true block comment is backtick-free', () => {
+  const actual = untaggedHeadMultiset(src)
+  const expected = registryMultiset()
+  const added = [...actual].filter(([h, c]) => expected.get(h) !== c).map(([h, c]) => `${JSON.stringify(h)}×${c} (registry has ${expected.get(h) ?? 0})`)
+  const removed = [...expected].filter(([h, c]) => actual.get(h) !== c).map(([h, c]) => `${JSON.stringify(h)}×${c} (source has ${actual.get(h) ?? 0})`)
+  assert.deepEqual(sortedEntries(actual), sortedEntries(expected),
+    `untagged-literal registry drift — a literal that FEEDS agent() prompt text must be pt-tagged, NEVER registered here.\n  new/changed untagged literal(s): ${added.join('  |  ') || 'none'}\n  stale/missing registry row(s): ${removed.join('  |  ') || 'none'}`)
+  // The census COUPLING (the precondition the block census's "line-only is safe" argument leans on):
+  // every TRUE (string-aware) block comment is backtick-free, so a backtick can never hide in a comment.
+  for (const bc of scanTemplateLiterals(src).blockComments)
+    assert.ok(!bc.includes('`'), `every true block comment must be backtick-free (census coupling): ${JSON.stringify(bc.slice(0, 60))}`)
+})
+
+test('#931 template-literal census — RED paths (a)-(f): bare / var / operand / nested untagged literals red the multiset; an unclosed string/EOF THROWS; a backtick in a block comment breaks the coupling', () => {
+  const censusGreen = (text) => multisetsEqual(untaggedHeadMultiset(text), registryMultiset())
+  assert.ok(censusGreen(src), 'baseline: the live-source census is green')
+  // (a) a bare untagged agent(`…`) spawn literal
+  assert.ok(!censusGreen(src + '\nagent(`bare untagged spawn ${x}`)\n'), '(a) a bare untagged agent(`…`) literal reds the census')
+  // (b) an untagged literal assigned to a variable then passed to agent(
+  assert.ok(!censusGreen(src + '\nconst v = `untagged via var ${x}`\nagent(v)\n'), '(b) an untagged literal behind a variable then passed to agent() reds the census')
+  // (c) an untagged operand inserted into a pt-concatenation (the auditPrompt shape)
+  assert.ok(!censusGreen(src + '\nconst h = pt`a` + `untagged operand ${x}`\n'), '(c) an untagged operand in a pt concatenation reds the census')
+  // (d) an untagged literal nested inside a pt literal's ${} (the submodNote/pinStatusLine/guardLine shape)
+  assert.ok(!censusGreen(src + '\nconst z = pt`outer ${`inner untagged ${x}`}`\n'), '(d) an untagged literal nested in a pt ${} reds the census (nested literals are first-class — helper interiors can never be exempted by accident)')
+  // (e) an unterminated literal / unclosed quoted string → the scanner THROWS (fail-closed, never a silent narrowing)
+  assert.throws(() => scanTemplateLiterals(src + "\nconst bad = 'unclosed at end of line\n"), /unclosed .-string|EOF/, '(e) an unclosed quoted string THROWS (fail-closed)')
+  assert.throws(() => scanTemplateLiterals(src + '\nconst bad = `unterminated ${x}'), /EOF/, '(e) an unterminated template literal THROWS (fail-closed)')
+  // (f) a backtick edited into the /* the single ace commit */ block comment → red via the backtick-free assertion (the designed coupling)
+  const mutated = scanTemplateLiterals(src.replace('/* the single ace commit */', '/* the single ace `commit` */'))
+  assert.ok(mutated.blockComments.some(b => b.includes('`')), '(f) a backtick in a true block comment is detected — breaks the coupling the block census leans on')
+})
+
+test('#931 registry hygiene — exact multiset equality reds a literal WITHOUT a row AND a row WITHOUT a literal (structural stale-row protection, both directions)', () => {
+  // literal-without-row: a new untagged literal in the source with no registry entry.
+  const orphanLiteral = untaggedHeadMultiset(src + '\nconst orphan = `orphan literal no registry row ${x}`\n')
+  assert.ok(!multisetsEqual(orphanLiteral, registryMultiset()), 'a literal with no registry row reds the census (one direction)')
+  // row-without-literal: a registry carrying a phantom row no live literal matches.
+  const phantom = new Map(registryMultiset()); phantom.set('PHANTOM ROW — no live literal matches this head', 1)
+  assert.ok(!multisetsEqual(untaggedHeadMultiset(src), phantom), 'a registry row whose literal was removed/renamed reds the census (the other direction) — the spec per-row deletion loop is subsumed by exact equality')
+})
+
+test('#931 / End-state 9 — the census fixture 5(a) matches the byte-unchanged criterion-3 coverage floor pattern', () => {
+  // Cross-reference: this is the pattern from the test
+  // `criterion 3 (coverage floor) — no agent() spawn site passes a bare untagged inline template literal`
+  // (byte-unchanged above). Re-declared here beside census fixture 5(a) to prove the floor and the census
+  // agree on the footgun; the floor test itself is untouched.
+  const FLOOR_PATTERN = /\bagent\(\s*`/
+  const fixture5a = 'agent(`bare untagged spawn ${x}`)'
+  assert.match(fixture5a, FLOOR_PATTERN, 'census fixture 5(a) is exactly the bare-untagged-literal footgun the criterion-3 floor forbids')
+  assert.doesNotMatch(src, FLOOR_PATTERN, 'the criterion-3 coverage floor still holds over live src (no bare agent(` literal) — the census extends, never replaces, it')
 })
 
 // ---------------------------------------------------------------------------
