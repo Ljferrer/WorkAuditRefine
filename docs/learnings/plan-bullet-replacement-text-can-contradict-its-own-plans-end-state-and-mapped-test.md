@@ -1,13 +1,13 @@
 ---
 name: plan-bullet-replacement-text-can-contradict-its-own-plans-end-state-and-mapped-test
 description: "A plan task-bullet's literal replacement text can byte-diverge from its own End state and mapped test — resolve toward the checkable pair, not the bullet"
-metadata: 
+metadata:
   node_type: memory
   type: project
   provenance: code-verified
   slug: plan-bullet-replacement-text-can-contradict-its-own-plans-end-state-and-mapped-test
-  phase: audit-gate-evidence-fidelity/1.1 (2026-07-12)
-  keywords: 
+  phase: audit-gate-evidence-fidelity/1.1 (2026-07-12) + aftermath-class1-gate-evidence/1.1 (recurrence 2, 2026-07-16)
+  keywords:
     - plan self-contradiction
     - backticks
     - End state grep
@@ -16,14 +16,19 @@ metadata:
     - plan slice is the floor
     - plan authoring defect
     - land-cwd noun
+    - Build order bullet
+    - block comment rationale
+    - source-comment-overclaims
     - "#815"
-  tags: 
+  tags:
     - plan-pattern
     - auditor-warning
     - red-team
     - plan-fidelity
   created: 2026-07-12
+  updated: 2026-07-16
   originSessionId: 3e7df1e1-5759-4eb0-9cb3-db7f6b90a91d
+  promoted: docs/learnings/plan-bullet-replacement-text-can-contradict-its-own-plans-end-state-and-mapped-test.md
 ---
 
 # A plan's own task-bullet text can literally contradict its own End state and mapped test
@@ -102,3 +107,40 @@ replacement text disagrees; grep a plan's own End state for a matching checkable
 publishing an "(exact bytes)" bullet; a sweep for one restatement of a corrected literal is a floor,
 not a ceiling — hand-scan the same scope for siblings phrased without the grepped token) still
 applies to every future plan.
+
+## Recurrence 2 — aftermath-class1-gate-evidence/1.1 (2026-07-16), plan left uncorrected on purpose
+
+**Code-verified at the landed `_refinery` tip** (this servitor's main checkout lags the just-landed
+dev branch — see [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]] — so verification
+used `<repo-root>/.claude/worktrees/2026-07-16-aftermath-class1-gate-evidence-2026-07-16/_refinery/`):
+`docs/plans/2026-07-16-aftermath-class1-gate-evidence.md`'s Build order Task 1.1 bullet (the
+row-scoped structure-test criterion, ~line 306) still instructs the block comment to state that
+`git branch -d` presence is "a review-floor check riding the `--unset-upstream`-pinned subsection" —
+the exact phrasing that same plan's red-team-corrected Commander's Intent End state 3 (~line 158-160)
+explicitly **bans**: *"a comment claiming the `-d` floor 'rides the `--unset-upstream`-pinned
+subsection' would ship a false rationale (the recorded source-comment-overclaims class)"*.
+
+Unlike Recurrence 1 (#893), **this instance was never fixed** — the stale Build-order bullet ships
+as-is in the landed plan. That is not a defect in the candidate: the worker followed End state 3 and
+the spawn prompt's explicit correction, and the shipped block comment
+(`skills/war-machine/war-pipeline-structure.test.sh` lines 268-272, verified present at the same
+`_refinery` tip) correctly states the grep is a WHOLE-FILE review floor only, that the verb is named
+in BOTH the gate cell and the recovery subsection, and that `--unset-upstream` is the sole mechanical
+pin. The audit's own commit-body BREAK 4 empirically proves the resolution: reverting the whole
+recovery subsection leaves the `git branch -d` grep still green (1 hit, in the gate cell) while
+`--unset-upstream` goes red — exactly the asymmetry the shipped comment describes.
+
+**Escalated durable point:** a plan-internal contradiction between a Build-order bullet and a
+red-team-corrected End state does not require a follow-up plan-doc-correction task to be
+"resolved" — the worker resolving toward the checkable pair (End state + test) is a complete fix at
+the CODE surface. The stale bullet is a standing trap for a *future* reader of the plan document
+(who might restore the false rationale from the bullet, not the shipped comment) — worth a
+Nit/note pointing at the specific bullet, but never a hold, and not automatically worth a dedicated
+plan-doc-correction task the way Recurrence 1's two-bullet miss was (that one changed the CHECKABLE
+condition itself; this one is pure narrative-comment rationale already correctly resolved in code).
+
+**How to apply (updated):** when grading this pattern, distinguish "the stale bullet describes a
+CHECKABLE condition the candidate must satisfy" (Recurrence 1 — worth a correction task if the plan
+itself is ever re-touched) from "the stale bullet only pre-scripts BLOCK-COMMENT PROSE the worker
+correctly overrode" (Recurrence 2 — informational Nit is sufficient; the code-level artifact is
+already the source of truth and carries no false claim).

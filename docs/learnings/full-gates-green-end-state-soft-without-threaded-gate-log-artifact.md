@@ -6,7 +6,7 @@ metadata:
   type: project
   provenance: agent-unverified
   slug: full-gates-green-end-state-soft-without-threaded-gate-log-artifact
-  phase: "red-team-fallback-and-anchor-hygiene/phase-2 (Release, task 2.1) +1 recurrence (learnings-recipe-drift-sweep/phase-2 Release task 2.1, 2026-07-17)"
+  phase: "red-team-fallback-and-anchor-hygiene/phase-2 (Release, task 2.1) +2 recurrences (latest aftermath-class1-gate-evidence/phase-2 Release task 2.1, 2026-07-17)"
   keywords:
     - full gates green
     - gate-log artifact
@@ -91,3 +91,14 @@ is the intended reuse — the pattern generalizes across campaigns/releases as d
 auditor doing the same split for a version-slot-bump End-state condition without a threaded
 gate-log/`pin_status` artifact should follow the identical two-finding shape (one HARD structural
 Nit, one SOFT execution-evidence Nit) rather than inventing a new resolution each time.
+
+## Recurrence 2 (2026-07-17, campaign aftermath-class1-gate-evidence, phase 2 "Release", task 2.1)
+
+Third occurrence, same two-finding shape again: End state 10 (`0.14.45` -> `0.14.46`,
+`version-slots.test.mjs` named arbiter), `gate-audit:approve`, `hard:false`, both findings
+`disposition:note`. The HARD structural Nit this time also included an explicit "next free patch
+unclaimed" proof (`refs/tags/0.14.46` does not resolve; `git log -S0.14.46 -- plugin.json` returns
+exactly one commit) and a delete-and-trace confirmation that the arbiter test is non-vacuous — both
+are one-off audit-methodology detail for *this* release, not a new durable pattern (no separate
+lesson written for them). No change to the rule; recorded only to keep the occurrence count/date
+current for retrieval confidence.

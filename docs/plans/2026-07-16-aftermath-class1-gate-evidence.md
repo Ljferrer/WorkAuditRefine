@@ -11,7 +11,7 @@ Stacks on: `docs/plans/2026-07-16-learnings-recipe-drift-sweep.md` — **queue p
 - `CONTEXT.md` — **shared, cross-plan serial**: plan 1 Task 1.5 adds two entries (**Staged phase script**, **Dead-agent land failure**), plan 3 Task 1.2 adds one (**Retired-token sweep**, after the **Phase-close coherence sweep** entry). This plan adds two entries at a **different named construct** (immediately after the **acknowledged-stranded** entry) and must **rebase over both predecessors' landed entries, neither modifying nor duplicating them**. **Roadmap-author note:** the campaign roadmap's shared-file contention table must carry `CONTEXT.md → plans 1 + 3 + 4` (plan 3's header already flags the 1+3 under-listing; this plan extends it — recorded here because a plan cannot edit sibling plans).
 - Release slots — all four campaign plans bump the four slots, **serial by stack order**, each resolved from the **live slots** at land time (never a plan literal).
 
-> **Adversarial-grill adjudication notice (2026-07-16):** two spec details are refined by this plan, reality winning. (1) The spec's cherry framing ("distinguishing it from truly un-merged work") **overstates the probe's negative arm**: a `+` line means patch-equivalence **not proven** — squash merges, conflict-resolved rebases, and split/joined commits legitimately change patch-ids — never "proven unmerged"; every surface below states the asymmetry (zero `+` ⇒ proven equivalent; any `+` ⇒ not proven ⇒ needs-human). (2) The spec's "one new criterion (three assertions)" grows to **four checks**: a keep-green pin on the pre-existing gate token (`git merge-base --is-ancestor`) so the amendment can never silently drop the old bar, and the per-ref prose anchor is **row-scoped** to the gate-cell line (a whole-file `has_i()` would prove presence-anywhere, the recorded `structure-test-check-f` mislocation class). The spec file stays uncorrected (point-in-time record; this plan + the grill record is the authoritative correction, per `redteam-adjudication-is-authoritative-version-source`).
+> **Adversarial-grill adjudication notice (2026-07-16; attribution corrected by /red-team, 2026-07-16):** two details are refined by this plan, reality winning. (1) The cherry framing **overstates the probe's negative arm**. **Attribution (corrected):** the verbatim phrase "distinguishing it from truly un-merged work" lives in the **source lesson** `docs/learnings/aftermath-remote-stranded-differs-from-local-tip-reachability.md` (the spec §6 carries only a differently-worded variant, "distinguishes … from truly un-merged work") — and that lesson is in **this plan's own diff** via Task 1.3, so Task 1.3(c) now corrects the clause rather than leaving the point-in-time waiver (which covers specs, not a live hot `code-verified` lesson that drives recall ranking) to excuse it. The overstatement: a `+` line means patch-equivalence **not proven** — squash merges, conflict-resolved rebases, and split/joined commits legitimately change patch-ids — never "proven unmerged"; every surface below states the asymmetry (zero `+` ⇒ proven equivalent; any `+` ⇒ not proven ⇒ needs-human). (2) The spec's "one new criterion (three assertions)" grows to **four checks**: a keep-green pin on the pre-existing gate token (`git merge-base --is-ancestor`) so the amendment can never silently drop the old bar, and the per-ref prose anchor is **row-scoped** to the gate-cell line (a whole-file `has_i()` would prove presence-anywhere, the recorded `structure-test-check-f` mislocation class). The spec file stays uncorrected (point-in-time record; this plan + the grill record is the authoritative correction, per `redteam-adjudication-is-authoritative-version-source`).
 
 ## Commander's Intent
 
@@ -63,9 +63,15 @@ Stacks on: `docs/plans/2026-07-16-learnings-recipe-drift-sweep.md` — **queue p
   patch-equivalence NOT PROVEN** (squashes and conflict-resolved rebases change patch-ids — never
   read as proven-unmerged) ⇒ candidate stays needs-human, no row. Probe hygiene inline: fetch the
   landing ref first so the comparison matches `ls-remote` truth; if the candidate SHA's objects
-  aren't local, **`git fetch origin <ref>`** (fetch the *ref*, no destination refspec — updates
-  only FETCH_HEAD, creates no refs; fetching a raw SHA is server-config-dependent), leaving no
-  `refs/remotes/probe/*`. Plus a one-sentence **pointer** to the recovery subsection (the same
+  aren't local, **`git fetch --refmap= origin <ref>`** (the `--refmap=` empty-refmap form is
+  **load-bearing, red-team-proven on git 2.50.1**: a bare `git fetch origin <ref>` in a normal
+  clone performs an **opportunistic remote-tracking update** — since git 1.8.4 the command-line
+  refspec is matched against `remote.origin.fetch`, and a full clone's `+refs/heads/*:refs/remotes/origin/*`
+  matches every branch — so it **does create `refs/remotes/origin/<ref>`**; only `--refmap=`
+  suppresses that and leaves FETCH_HEAD-only with **zero refs created**; fetching a raw SHA is
+  server-config-dependent), leaving no new refs at all — not merely no
+  `refs/remotes/probe/*` (the user-confirmed `aftermath-must-delete-its-own-probe-refs` lesson asks
+  for objects-only, which the bare form does not deliver). Plus a one-sentence **pointer** to the recovery subsection (the same
   branch's local ref usually passes the gate — pointer, not a restatement). (3) A **new
   subsection** between the bucket and `### Class-4 join rule` (working title `### Class-1 local
   branches — the stranded-upstream -d refusal`): the merged-into-upstream rule and the WAR
@@ -78,8 +84,13 @@ Stacks on: `docs/plans/2026-07-16-learnings-recipe-drift-sweep.md` — **queue p
   branch is the normal home — with a stale HEAD the failure mode is refusal-noise, fail-closed,
   never a wrong delete) — `-d` post-unset independently re-verifies merged-into-HEAD, **git's own
   second opinion, kept precisely because `-D` would discard it**. **Refusal taxonomy after
-  unset:** a "not fully merged" refusal is the genuine unmerged signal ⇒ needs-human; a "checked
-  out at <path>" refusal is a **worktree-ordering signal**, not an unmerged one (Teardown ordering
+  unset:** a `error: the branch '<b>' is not fully merged` refusal is the genuine unmerged signal ⇒
+  needs-human; a **`error: cannot delete branch '<b>' used by worktree at '<path>'`** refusal
+  (**git's real string, red-team-verified on git 2.50.1 — the plan draft's invented "checked out at
+  <path>" wording is emitted by no `git branch -d` refusal; classify on the string git actually
+  prints**; note the same string also fires when the candidate is the sweep checkout's own HEAD
+  branch, which under the stated checkout precondition cannot be a task branch, so the
+  worktree-ordering reading holds) is a **worktree-ordering signal**, not an unmerged one (Teardown ordering
   normally reaps worktrees before branch deletes; a surviving needs-human worktree is the gap) ⇒
   branch + worktree report as one needs-human row; **never `-D` in default mode** for either. On
   every needs-human route after an unset, **restore tracking** (`git branch -u origin/<ref>
@@ -88,9 +99,14 @@ Stacks on: `docs/plans/2026-07-16-learnings-recipe-drift-sweep.md` — **queue p
   stated once, here**. Drift protection reuses `skills/war-machine/war-pipeline-structure.test.sh`
   (aftermath has no test asset family — the ADR 0027 named residual): **one new named criterion,
   four checks** per the criterion-9b precedent — `has()` on `git cherry` and `--unset-upstream`
-  (red pre-fix), a **keep-green** `has()` pin on `git merge-base --is-ancestor` (the pre-existing
-  bar can never silently drop), and a **row-scoped** case-insensitive co-location check piping the
-  gate-cell row through the per-ref anchor (red pre-fix). No new ADR, no mechanization, no
+  (red pre-fix), a **row-scoped keep-green** pin on the gate cell's `git merge-base --is-ancestor`
+  (the pre-existing bar can never silently drop), and a **row-scoped** case-insensitive co-location
+  check piping the gate-cell row through the per-ref anchor (red pre-fix). **Both row-scoped checks
+  pipe stage 1 from the Class-1 table-row literal `| 1. Stray WAR branches |`, never from
+  `merge-base --is-ancestor`** — this plan's own comparator sentence duplicates that token on
+  another line, and in this file's unwrapped one-line-paragraph style keying on it makes the
+  co-location check pass with a byte-unamended gate cell and the keep-green pin unfalsifiable (both
+  red-team-proven, 2026-07-16; see End state 5). No new ADR, no mechanization, no
   committed test of git's own semantics — the throwaway-repo proof is a /red-team probe. Lesson
   lifecycle: keep-hot **ENCODED-style** note (operator-ratified at the volley — the lesson's third
   paragraph, the shell-exclusion-filter/batched-push-delete gotcha, is *not* resolved by this
@@ -116,23 +132,32 @@ Stacks on: `docs/plans/2026-07-16-learnings-recipe-drift-sweep.md` — **queue p
      ratified "evidence for a row, never a deletion license" vocabulary, existing C3 paragraph
      byte-unchanged; row-evidence convention with **operator-adds-the-row** ownership and tsv
      header untouched; the negative arm as **NOT PROVEN** (never proven-unmerged) ⇒ needs-human,
-     no row; fetch-landing-ref-first + `git fetch origin <ref>` objects-only form (FETCH_HEAD, no
-     refs created, no `refs/remotes/probe/*`); the one-sentence pointer to the recovery
-     subsection. Proof: `has 'git cherry'` mechanically (red pre-fix — zero hits across `skills/`
+     no row; fetch-landing-ref-first + the `git fetch --refmap= origin <ref>` objects-only form
+     (FETCH_HEAD only, **zero refs created** — the bare `git fetch origin <ref>` form is
+     red-team-disproven: a normal clone's wildcard refspec makes it opportunistically create
+     `refs/remotes/origin/<ref>`); the one-sentence pointer to the recovery
+     subsection. Proof: `has "$AFTERMATH" 'git cherry'` mechanically (red pre-fix — zero hits across `skills/`
      `hooks/` `docs/adr/` today); semantics by the /red-team prose read (backstop 2).
   3. **Recovery ordering explicit, taxonomy complete** — the new subsection states in order: gate
      passes on the **local SHA** (with the task-branch PR-half meaning: the plan's landing PR) →
      unset-upstream → `-d` from a checkout whose HEAD carries the landing content (stale-HEAD
      failure mode = refusal noise, fail-closed); `-d` post-unset as git's independent
-     merged-into-HEAD second opinion; the two-class refusal taxonomy (not-fully-merged ⇒ genuine
-     unmerged ⇒ needs-human; checked-out-at ⇒ worktree-ordering, one combined needs-human row,
+     merged-into-HEAD second opinion; the two-class refusal taxonomy keyed on **git's real strings**
+     (`is not fully merged` ⇒ genuine unmerged ⇒ needs-human; **`used by worktree at`** — not the
+     draft's invented "checked out at", which git never emits ⇒ worktree-ordering, one combined needs-human row,
      Teardown-ordering cross-reference); **mandatory tracking restore** (`git branch -u`) on every
      needs-human route after an unset; `-D` never the default-mode answer; `git branch -d` named
-     as the default-mode delete verb. Proof: `has -- '--unset-upstream'` mechanically (red
+     as the default-mode delete verb. Proof: `has "$AFTERMATH" '--unset-upstream'` mechanically (red
      pre-fix); ordering/taxonomy by the /red-team prose read (backstop 2); `grep -F
-     'git branch -d' skills/aftermath/SKILL.md` hits (review-time floor — the token lives inside
-     the subsection the `--unset-upstream` check pins; its review-floor status is stated in the
-     criterion's block comment).
+     'git branch -d' skills/aftermath/SKILL.md` hits — a **whole-file review floor ONLY**
+     (red-team-corrected 2026-07-16): the `git branch -d` token deliberately appears in **both** the
+     Class-1 gate cell (End state 1's drafted verb parenthetical) **and** the recovery subsection, so
+     this grep proves only that the verb is **named somewhere** — it stays green with the entire
+     recovery subsection reverted and therefore **cannot** discriminate it. `has "$AFTERMATH"
+     '--unset-upstream'` is the **sole mechanical pin** for the subsection (proven red on a
+     subsection-reverted fixture). The criterion's block comment must state exactly this — a comment
+     claiming the `-d` floor "rides the `--unset-upstream`-pinned subsection" would ship a false
+     rationale (the recorded source-comment-overclaims class).
   4. **One-sweep asymmetry stated once, in the recovery subsection** — the local branch deletes
      via safe `-d` while the remote ref it tracked stays acknowledged-stranded/needs-human on the
      remote side (allowlisted per ADR 0027, cleared only manually); the bucket section carries
@@ -144,16 +169,28 @@ Stacks on: `docs/plans/2026-07-16-learnings-recipe-drift-sweep.md` — **queue p
      could collide with the original pipeline spec's numbering; header comment not renumbered).
      Four checks, exact bash-3.2-safe shapes: `has "$AFTERMATH" 'git cherry'`;
      `has "$AFTERMATH" '--unset-upstream'` (the helper's `grep -qF -e "$2" -- "$1"` form makes the
-     leading-dash pattern safe — verified); `has "$AFTERMATH" 'git merge-base --is-ancestor'`
-     (**keep-green pin, deliberately not red pre-fix** — it locks the pre-existing bar against a
-     silent drop); and the row-scoped co-location block:
-     `grep -iF -e 'merge-base --is-ancestor' -- "$AFTERMATH" | grep -qiF -e 'exact ref being removed'`
+     leading-dash pattern safe — verified); the **row-scoped keep-green pin**
+     `grep -F -e '| 1. Stray WAR branches |' -- "$AFTERMATH" | grep -qF -e 'git merge-base --is-ancestor'`
+     (**deliberately not red pre-fix** — it locks the pre-existing bar in the **gate cell** against a
+     silent drop); and the **row-scoped co-location block**:
+     `grep -iF -e '| 1. Stray WAR branches |' -- "$AFTERMATH" | grep -qiF -e 'exact ref being removed'`
      (ok/not-ok + `fails` increment in the file's house style — red pre-fix, and red if the clause
      ever migrates off the gate-cell row; final anchor token chosen at implementation against the
-     landed sentence, mid-sentence position required). Reverting each of the three new SKILL
-     clauses flips its check red; deleting the old bar token from the cell flips the keep-green
-     pin red — all four temp-break runs pasted as a `Red-proof:` block in the commit body per the
-     file's header convention. Every existing criterion passes **unmodified**: verified at
+     landed sentence, mid-sentence position required).
+     **Both row-scoped checks MUST anchor stage 1 on the Class-1 table-row literal
+     `| 1. Stray WAR branches |`, never on `merge-base --is-ancestor` (red-team-proven, 2026-07-16):**
+     `skills/aftermath/SKILL.md` uses **unwrapped one-line paragraphs**, and this plan's own Method
+     item 2 mandates a *second* line carrying `merge-base --is-ancestor` (the bucket comparator
+     sentence, whose drafted wording also carries `exact ref being removed`). Keying stage 1 on that
+     token would therefore (a) make the co-location check pass with a **byte-unamended gate cell**
+     (a proven false pass — the comparator sentence satisfies both greps on its own line), and
+     (b) make a whole-file keep-green pin unfalsifiable (deleting the cell's token leaves the
+     comparator's copy). The table-row literal is unique to the gate row (verified: it and the
+     is-ancestor token are the same physical line today) and is never reintroduced by the new prose.
+     Reverting each of the three new SKILL
+     clauses flips its check red; deleting the old bar token **from the cell** flips the row-scoped
+     keep-green pin red — all four temp-break runs pasted as a `Red-proof:` block in the commit body
+     per the file's header convention. Every existing criterion passes **unmodified**: verified at
      authoring that no existing assertion pins any byte of the current gate cell (grep for
      `merge-base`/`ls-remote`/`Tip reachable` across the test: zero hits), and the criteria that
      do read the aftermath SKILL — criterion 2 (frontmatter), criterion 3 (`dangerously
@@ -169,7 +206,15 @@ Stacks on: `docs/plans/2026-07-16-learnings-recipe-drift-sweep.md` — **queue p
      of `/lessons-learned migrate` archive candidacy, per plan 3's Mechanized precedent) with the
      remainder compressed so **post-edit description byte length ≤ pre-edit** (hold-or-shrink —
      descriptions drive the MEMORY.md projection budget); the body gains one dated line naming
-     this spec and noting the third paragraph's gotcha as the live residual. Inbound-wikilink
+     this spec and noting the third paragraph's gotcha as the live residual. **(c) Negative-arm
+     correction (checkable — red-team adjudication 2026-07-16):** the lesson's second paragraph no
+     longer reads `distinguishing it from truly un-merged work`; that clause now states the ratified
+     asymmetry (zero `+` ⇒ patch-equivalence **proven**; any `+` ⇒ **NOT PROVEN** ⇒ needs-human,
+     never "proven unmerged"). Proof: `grep -cF 'distinguishing it from truly un-merged work'
+     docs/learnings/aftermath-remote-stranded-differs-from-local-tip-reachability.md` = **0**
+     post-fix (it is **1** at the dispatch base — provably red pre-fix), and the Notes-Q8
+     "corrected everywhere" claim is then true across this plan's own diff. Everything else in the
+     body and all outbound wikilinks stay untouched. Inbound-wikilink
      check before the edit (hot root **and** `archive/`): **zero inbound verified at authoring,
      re-verify at dispatch**; **grep is a completeness floor** — hand-scan with named surfaces and
      adjudications: the `aftermath-*`/`stranded-*` lesson family (hot + archive) are the real
@@ -231,7 +276,11 @@ Stacks on: `docs/plans/2026-07-16-learnings-recipe-drift-sweep.md` — **queue p
     comparator rule, cherry paragraph in the mandated sentence order (mechanism → probe with
     argument order + healthy shape + empty-output-is-suspect → C3 restatement → row-evidence
     convention with operator-adds ownership → NOT-PROVEN negative arm → probe hygiene with the
-    `git fetch origin <ref>` FETCH_HEAD form), and the one-sentence pointer to the recovery
+    **`git fetch --refmap= origin <ref>`** FETCH_HEAD-only form (**the `--refmap=` is mandatory and
+    load-bearing** — the bare `git fetch origin <ref>` is red-team-disproven on git 2.50.1: a normal
+    clone's wildcard refspec makes it opportunistically create `refs/remotes/origin/<ref>`, which
+    violates the objects-only discipline the `aftermath-must-delete-its-own-probe-refs` lesson
+    requires; see Method item 2 and End state 2), and the one-sentence pointer to the recovery
     subsection — all per Method item 2 and End state 2. The existing C3 paragraph ("The allowlist
     is an acknowledgement, never a deletion license (C3)…") is **byte-unchanged**; the tsv is
     untouched.
@@ -239,7 +288,9 @@ Stacks on: `docs/plans/2026-07-16-learnings-recipe-drift-sweep.md` — **queue p
     working title `### Class-1 local branches — the stranded-upstream -d refusal`): per Method
     item 3 and End state 3 — confounder, gate-first sequencing with the task-branch PR-half
     meaning, checkout precondition (HEAD carries the landing content; stale HEAD ⇒ refusal noise,
-    fail-closed), the two-command recovery, the refusal taxonomy with the checked-out-at
+    fail-closed), the two-command recovery, the refusal taxonomy keyed on git's REAL strings
+    (`is not fully merged` / **`used by worktree at`** — never the draft's invented "checked out at",
+    which no `git branch -d` refusal emits; red-team-verified on git 2.50.1) with the worktree-ordering
     carve-out and Teardown-ordering cross-reference (that section itself untouched), the
     mandatory `git branch -u origin/<ref> <branch>` restore on every needs-human route after an
     unset, `-D` never in default mode, `git branch -d` named as the default-mode verb, and the
@@ -294,8 +345,11 @@ Stacks on: `docs/plans/2026-07-16-learnings-recipe-drift-sweep.md` — **queue p
     reading the `-d` refusal as an unmerged-work signal; escalating to `-D` in a default-mode
     sweep.
   Both entries reference SKILL prose produced in Task 1.1 — *defined-but-not-yet-emitted;
-  produced in Task 1.1 (same phase)*. Adds no `_polish` token and no
-  `war-survey-corps`/`war-aftermath` token (the structure test's `lacks` guards scan CONTEXT.md).
+  produced in Task 1.1 (same phase)*. Adds no `_polish` token (guarded by
+  `skills/war/assets/war-config.test.mjs`'s `sweptSurfaces` assertion, which scans CONTEXT.md —
+  **not** the structure test, which carries no `_polish` guard at all; attribution corrected by
+  /red-team 2026-07-16) and no `war-survey-corps`/`war-aftermath` token (those `lacks` guards **are**
+  the structure test's, and they do scan CONTEXT.md).
   **Rebase note:** plan 1's two entries and plan 3's one entry land elsewhere in this file —
   rebase over them untouched; on any context collision, re-apply by the named anchor (the
   **acknowledged-stranded** entry), never by offset.
@@ -326,7 +380,17 @@ Stacks on: `docs/plans/2026-07-16-learnings-recipe-drift-sweep.md` — **queue p
   `skills/aftermath/SKILL.md` Class-1 (named construct, *defined-but-not-yet-emitted; produced in
   Task 1.1, same phase*) — and naming the **live residual**: the third paragraph's
   shell-exclusion-filter / batched `git push origin --delete` verification gotcha is not encoded
-  anywhere and stays the lesson's standing warning. Body content and outbound wikilinks otherwise
+  anywhere and stays the lesson's standing warning. **(c) NEW — the negative-arm correction
+  (red-team adjudication, 2026-07-16; resolves the `needsDecision`):** this lesson's own body
+  carries the exact framing this plan's doctrine bans on *every* surface — the second paragraph's
+  trailing clause `…is safe, distinguishing it from truly un-merged work` (the phrase the
+  adjudication notice misattributes to the spec: it is **this lesson's** wording, and this task
+  puts the file in the plan's diff). Re-word **that clause only** to the ratified asymmetry —
+  zero `+` ⇒ patch-equivalence **proven**; any `+` ⇒ **NOT PROVEN** (squashes and
+  conflict-resolved rebases legitimately change patch-ids) ⇒ needs-human, never
+  "proven unmerged". This keeps the Notes-Q8 "corrected everywhere" claim true across the plan's
+  own diff and stops the ENCODED tag from blessing a lesson that still teaches the banned
+  reading. Everything else in the body and all outbound wikilinks stay
   untouched; `metadata.keywords` stays nested and untouched. The file stays **hot and in place**;
   any archive move is /lessons-learned housekeeping. MEMORY.md re-render is operator-side (End
   state 7's command and runner). Check: `node skills/_shared/war-memory.mjs lint docs/learnings/`
@@ -409,11 +473,15 @@ Stacks on: `docs/plans/2026-07-16-learnings-recipe-drift-sweep.md` — **queue p
   enumerated per action; the SKILL's two remote-delete sentences adjudicated as two populations —
   gate-passing in-run deletes vs C3 manual clears — **not** a contradiction, so no operator call
   needed), Q3 (clause scoped to Class-1 refs; Class-2 reaps paths), Q4 (comparator named), Q9
-  (healthy shape + empty-is-suspect + argument-order hazard), Q10 (`git fetch origin <ref>`
-  FETCH_HEAD form — raw-SHA fetch is server-dependent), Q15 (checkout precondition; stale-HEAD
+  (healthy shape + empty-is-suspect + argument-order hazard), Q10 (**superseded by the /red-team
+  round-0 proof, 2026-07-16** — the grill's `git fetch origin <ref>` FETCH_HEAD form is
+  **disproven**: in a normal clone it opportunistically creates `refs/remotes/origin/<ref>`; the
+  mandated form everywhere in this plan is now `git fetch --refmap= origin <ref>`, which is
+  FETCH_HEAD-only with zero refs created; raw-SHA fetch remains server-dependent), Q15 (checkout precondition; stale-HEAD
   mode is refusal-noise, fail-closed), Q16 (task-branch PR half = the plan's landing PR;
   tip-reachability stays load-bearing — an interpretation that lowers nothing, C3-consistent),
-  Q17 (checked-out-at refusal carve-out; Teardown ordering as the usual guarantee, surviving
+  Q17 (worktree-ordering refusal carve-out — keyed on git's real `used by worktree at` string, the
+  draft's "checked out at" wording being red-team-disproven; Teardown ordering as the usual guarantee, surviving
   needs-human worktrees as the gap), Q18 (mandatory tracking restore on needs-human routes), Q5
   (keep-green old-bar pin), Q6 (row-scoped co-location check — presence-anywhere rejected), Q7
   (cell drafted; fallback keeps anchor + never-mixed rule in the cell), Q12 (SKILL prose carries
