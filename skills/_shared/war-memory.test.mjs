@@ -463,6 +463,24 @@ test('archive: local-root lesson moved into archive/, note appended, projection 
   rmSync(local, { recursive: true, force: true });
 });
 
+test('archive: cross-root dupe slug moves the LOCAL copy; committed repo copy untouched', () => {
+  const local = tmpDir();
+  const repo = tmpDir();
+  lessonFile(local, 'dupe', { description: 'local copy' });
+  lessonFile(repo, 'dupe', { description: 'repo copy' });
+  const repoBytes = readFileSync(join(repo, 'dupe.md'), 'utf8');
+  const r = spawnSync('node', [CLI, 'archive', 'dupe', '--local', local, '--repo', repo], { encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(existsSync(join(local, 'archive', 'dupe.md')), 'local copy archived');
+  assert.ok(!existsSync(join(local, 'dupe.md')), 'local hot copy removed');
+  assert.equal(readFileSync(join(repo, 'dupe.md'), 'utf8'), repoBytes, 'repo copy byte-identical');
+  assert.ok(!existsSync(join(repo, 'archive')), 'nothing moved under the repo root');
+  // trailing re-render still walks both roots: the surviving repo copy keeps the slug hot
+  assert.match(readFileSync(join(local, 'MEMORY.md'), 'utf8'), /\[\[dupe\]\]/);
+  rmSync(local, { recursive: true, force: true });
+  rmSync(repo, { recursive: true, force: true });
+});
+
 // ============================================================================
 // (7b) Task 1.1 — non-destructive `--candidates`, `inbound`, concept-hub WARN.
 // ============================================================================

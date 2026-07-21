@@ -605,7 +605,7 @@ function cmdLint(argv) {
 
 function cmdArchive(argv) {
   const roots = resolveRoots(argv);
-  requireLocal(roots, 'archive'); // moves files under the local root + re-renders into it
+  requireLocal(roots, 'archive'); // ends in a re-render into the local root
   const records = walkCorpus(roots);
   let slugs;
   if (argv.candidates) {
@@ -623,7 +623,13 @@ function cmdArchive(argv) {
   } else {
     slugs = argv._.slice(1);
   }
-  const bySlug = new Map(records.filter((r) => r.temperature === 'hot').map((r) => [r.slug, r]));
+  // Cross-root dupe (slug hot in BOTH roots): the LOCAL record wins, order-independently —
+  // archiving must never mutate the committed repo copy, which only moves when it is the
+  // slug's sole hot holder (a repo-only slug still git-mv's within the repo root).
+  const bySlug = new Map();
+  for (const r of records.filter((r) => r.temperature === 'hot')) {
+    if (!bySlug.has(r.slug) || r.root === 'local') bySlug.set(r.slug, r);
+  }
   const note = `\n> archived ${new Date().toISOString().slice(0, 10)}: resolved — moved to archive\n`;
   for (const slug of slugs) {
     const r = bySlug.get(slug);
