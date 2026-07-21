@@ -15,9 +15,12 @@ metadata:
     - cwd-independence
     - repo-doc-reading test
     - gate-1.1.log
+    - CI-unexercisable RED path
+    - fakebin git-absent probe
+    - hermeticity guard probe transcript
   provenance: agent-unverified
   slug: deliberately-uncommitted-worker-probe-evidence-is-soft-never-hold
-  phase: Contract-on-both-sides/1.1 (2026-07-12)
+  phase: Contract-on-both-sides/1.1 (2026-07-12) +1 recurrence (campaign-anchor-comment-truth/phase-1 task-1.1, 2026-07-19)
   tags: 
     - audit-pipeline
     - gate-audit
@@ -26,7 +29,9 @@ metadata:
   related: 
     - auditor-cannot-execute-the-tests-it-must-verify-pass
   created: 2026-07-12
+  updated: 2026-07-19
   originSessionId: 3e7df1e1-5759-4eb0-9cb3-db7f6b90a91d
+  modified: 2026-07-19T11:07:41.031Z
 ---
 
 # A plan end state can be validated by a worker probe deliberately left OUT of the committed test suite
@@ -56,3 +61,18 @@ test for that specific probe as a plan-faithfulness gap.
 Related: [[auditor-cannot-execute-the-tests-it-must-verify-pass]] (same family: a seat's capability
 ceiling — here, the gate-audit's captured-log-only visibility — bounds what it can confirm, and the
 prompt/plan should ask only for what that ceiling allows).
+
+## Recurrence 1 (2026-07-19, campaign-anchor-comment-truth/phase-1 task 1.1) — a CI-unexercisable RED path is the same shape as an uncommitted-probe cannot-confirm
+
+The plan's own End states 7 and 8 pre-declared this outcome by name: a shell hook's hermeticity
+guard has a RED path that is CI-unexercisable **by design** (BSD `mktemp` ignores `TMPDIR`, no
+override knob), so its proof — two ancestor-class probes (working-tree and bare-repo) plus a
+`fakebin` git-absent probe — lives only as verbatim transcripts in the worker's done report, never
+a committed test assertion. Gate-audit (`verdict: "gate-audit:approve"`, `gateEvidence:true`)
+recorded both as Nit-severity `disposition: note` cannot-confirm findings, citing this lesson's
+slug by name in its rationale, and did not hold the phase. Extends the original fact from "a
+plan-authored probe that would rot as a doc changes" to a second legitimate shape: **a probe
+whose RED path a CI environment structurally cannot exercise** (a hermetic-fixture assumption a
+test harness can't safely violate on demand) is the same SOFT-never-hold category — the pattern
+generalizes beyond doc-reading cwd-coupling to any deliberately-uncommitted implementation-time
+proof.

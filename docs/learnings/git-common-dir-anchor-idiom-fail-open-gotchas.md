@@ -63,6 +63,19 @@ drop "bare" from the fail-open enumeration, or reword to "bare/exotic layouts
 resolve to a dir that (today) carries none of the expected markers, so they still
 end up behaving fail-open one level down."
 
+**Corrected (#927, 2026-07-19):** the three landed sites now state each site's true
+contract (this gotcha stays — it binds every *future* copy of the idiom). In
+`hooks/inject-campaign-state.sh`, the anchor comment block above the `common=` capture
+line now names only git-absent / not-a-repo as the probe-failure cases and describes a
+bare/exotic layout as a probe success that still lands on a marker-less dir (fail-open
+one level down). In `skills/war-campaign/assets/campaign-ledger.mjs`,
+`resolveCampaignDir`'s leading block comment states the site-specific contract (a bare
+layout resolves to an anchored absolute path — not fail-open, merely harmless) and its
+catch-arm comment drops "bare" (bare never reaches the catch; ENOENT / exit-128 do).
+`docs/adr/0016-campaign-compaction-survival.md` keeps its "Amendment (2026-07-15)"
+paragraph byte-unchanged and carries an appended dated amendment that supersedes the
+parenthetical.
+
 ## 2. Two-step capture-then-check form is mandatory when fail-open matters; a composed one-liner silently breaks it
 
 The **shell** hook uses (and its own comment mandates) the two-step form:

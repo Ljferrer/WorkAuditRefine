@@ -59,6 +59,15 @@ construction (a `mktemp` convention known to be outside any checkout) or by an
 explicit assertion in the test harness. A prior test suite's "never touches git"
 assumption becomes false the day a code change flips that history.
 
+**Mechanized (#928, 2026-07-19):** this suite's latent coupling is now a structural
+guarantee — `hooks/inject-campaign-state.test.sh` carries a fatal hermeticity guard
+immediately after the `cd "$WORK"` line in the "Fresh hermetic workspace" setup block
+(before case 1): it runs the hook's own two-step probe against `$WORK` and aborts if an
+enclosing repo (working tree OR bare) is found, so a fixture root that ever lands inside
+an ancestor checkout fails loudly at setup instead of far from the cause. The durable
+rule above still binds the next hook that grows a git probe — this suite is now its
+worked example, not the only place the rule matters.
+
 ## Related
 
 [[git-common-dir-anchor-idiom-fail-open-gotchas]] — the anchor idiom that

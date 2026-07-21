@@ -465,9 +465,12 @@ function parseArgs(argv) {
 // (including the `.claude/campaigns/default` default) is anchored to the main checkout,
 // resolved via the ratified `git rev-parse --path-format=absolute --git-common-dir`
 // idiom (dirname of the common `.git` dir = the main checkout), exactly as
-// survey-corps / war-machine anchor their run state. The probe FAILS OPEN: on any
-// failure (git absent, not a repo, bare) the relative path is returned untouched —
-// today's cwd-relative behavior. Used ONLY here at the CLI layer; the exported library
+// survey-corps / war-machine anchor their run state. On a genuine probe FAILURE
+// (git absent, not a repo, empty output) the relative path is returned untouched
+// — today's cwd-relative behavior. A bare/exotic layout is NOT such a failure: the
+// probe SUCCEEDS, so this resolves to an anchored ABSOLUTE path under the bare git
+// dir's parent — not fail-open, merely harmless, since that dir carries no
+// .claude/campaigns. Used ONLY here at the CLI layer; the exported library
 // functions take `campaignDir` verbatim, so existing callers and tests are unaffected.
 function resolveCampaignDir(campaignDir) {
   if (path.isAbsolute(campaignDir)) return campaignDir
@@ -480,7 +483,7 @@ function resolveCampaignDir(campaignDir) {
     if (!common) return campaignDir // empty output — fail open to cwd-relative
     return path.resolve(path.dirname(common), campaignDir)
   } catch {
-    return campaignDir // git absent / not a repo / bare — today's cwd-relative behavior
+    return campaignDir // git absent / not a repo — today's cwd-relative behavior
   }
 }
 

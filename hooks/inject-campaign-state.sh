@@ -46,8 +46,11 @@ fi
 # non-empty result, only THEN dirname. A composed one-liner
 # (`root=$(dirname "$(git … )")`) is WRONG: dirname of a failed command
 # substitution returns "." (never empty), silently anchoring root=. in a non-git
-# dir. FAIL-OPEN: git absent / not a repo / bare → $root is left exactly as
-# resolved above.
+# dir. FAIL-OPEN: git absent / not a repo → the probe fails and $root is left
+# exactly as resolved above. A bare/exotic layout is NOT such a failure: the
+# probe SUCCEEDS and resolves $root to the bare git dir's parent, which carries
+# no .claude/campaigns — so the scan still finds nothing there and behaves
+# fail-open one level down.
 common="$(git -C "$root" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" && [ -n "$common" ] && root="$(dirname "$common")"
 
 # ACTIVE ⇔ ledger parses as JSON AND .plans is a non-empty array AND at least
