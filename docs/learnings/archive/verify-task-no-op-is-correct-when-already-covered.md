@@ -28,3 +28,5 @@ supposed to add it and also no-opped (double-no-op).
 Related: [[auditor-cannot-execute-the-tests-it-must-verify-pass]] (gate execution stays with
 the refiner), [[gate-under-covers-after-cross-branch-merge-new-runner]] (re-detect gate
 runners after cross-branch merge before claiming green).
+
+> archived 2026-07-21: resolved — moved to archive

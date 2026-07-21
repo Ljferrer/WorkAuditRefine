@@ -1,6 +1,6 @@
 ---
 name: per-run-sticky-fallback-via-opts-entry-swap-single-source-of-truth
-description: "Convert a per-dispatch reactive fallback into a per-run sticky pin by reassigning the effective value into opts at function entry, not by threading a second parameter"
+description: "Make a per-dispatch fallback sticky per-run by reassigning the effective value into opts at function entry, not by threading a second parameter"
 metadata: 
   node_type: memory
   type: project

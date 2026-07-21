@@ -54,3 +54,5 @@ for the related "assertion passes without feature being exercised" pattern.
   behavior is also exercised by the inner-path test.
 - The plan's task slice defines which layer the step tests; a reviewer cannot flag the inner-layer
   test as a gap without checking whether the integration-layer test is already present.
+
+> archived 2026-07-21: resolved — moved to archive

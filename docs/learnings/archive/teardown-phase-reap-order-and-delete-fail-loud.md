@@ -27,3 +27,5 @@ metadata:
 Landed in the `teardown-phase` command of `skills/war/assets/provision-worktrees.sh` (clandiso/t3): `--worktree-root` supplies where `_refinery` lives (`<wt-root>/<runId>/_refinery`); the path-based reap runs before the integration branch delete; the delete propagates a real non-zero exit ("still checked out? ensure _refinery is reaped first via --worktree-root"); `--keep` preserves `_refinery` and the branch for held/escalated phases.
 
 **Caveat — the tautological path_under guard:** inside the reap, `path_under "$run_wt_scope/_refinery" "$run_wt_scope"` can never fire — the child is derived by appending to the ancestor (the comment says "should be impossible ... but defensive"). Do NOT remove it: it documents intent and covers a hypothetical `..` injection via caller-supplied `--worktree-root`. But do not assume its die-5 branch is test-exercised; the real out-of-run refusal comes from `worktree_registered` returning false for a foreign run's path.
+
+> archived 2026-07-21: resolved — moved to archive

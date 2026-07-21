@@ -1,6 +1,6 @@
 ---
 name: git-probing-hook-requires-fixtures-outside-any-git-repo
-description: "Adding an unconditional git probe to a previously git-free hook creates a new test-hermeticity coupling: every fixture root must live outside any git working tree"
+description: "An unconditional git probe in a previously git-free hook makes every test fixture root need to live outside any git working tree"
 metadata: 
   node_type: memory
   type: project

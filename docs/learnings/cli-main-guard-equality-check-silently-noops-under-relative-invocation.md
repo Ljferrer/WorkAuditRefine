@@ -1,6 +1,6 @@
 ---
 name: cli-main-guard-equality-check-silently-noops-under-relative-invocation
-description: "fileURLToPath(import.meta.url) === process.argv[1] is always-absolute vs as-given — a relative CLI invocation makes them unequal, so main() silently never runs (exit 0, no output)"
+description: "fileURLToPath(import.meta.url) === process.argv[1] compares absolute vs as-given — a relative CLI invocation makes main() silently never run (exit 0)"
 metadata: 
   node_type: memory
   type: project

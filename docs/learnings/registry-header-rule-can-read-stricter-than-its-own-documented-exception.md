@@ -1,6 +1,6 @@
 ---
 name: registry-header-rule-can-read-stricter-than-its-own-documented-exception
-description: "A grep-able registry header rule can read as an absolute prohibition while the classification rationale immediately below it documents a narrower, deliberate carve-out — read the rationale, not just the header, before flagging a row as inconsistent"
+description: "A registry header rule can read absolute while its rationale below documents a deliberate carve-out — read the rationale before flagging a row as inconsistent"
 metadata: 
   node_type: memory
   type: project

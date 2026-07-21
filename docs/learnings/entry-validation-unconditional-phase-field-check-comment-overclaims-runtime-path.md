@@ -1,6 +1,6 @@
 ---
 name: entry-validation-unconditional-phase-field-check-comment-overclaims-runtime-path
-description: "Hoisted entry-validation phase-field check is unconditional by design; its comment overclaims a zero-task phase builds the Provision-barrier prompt — that path is inside if(tasks.length), never runs for zero tasks"
+description: "Hoisted entry-validation phase check is unconditional by design; its comment overclaimed a zero-task Provision-barrier path that never runs for zero tasks"
 metadata: 
   node_type: memory
   type: project

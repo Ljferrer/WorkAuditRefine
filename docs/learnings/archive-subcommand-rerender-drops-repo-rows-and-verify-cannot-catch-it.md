@@ -1,6 +1,6 @@
 ---
 name: archive-subcommand-rerender-drops-repo-rows-and-verify-cannot-catch-it
-description: "RESOLVED (lessons-learned-repo-projection-integrity, phase 2.1): archive's local-only re-render + verify's blind spot are now closed by a do_verify repo-completeness hard fail"
+description: "RESOLVED (lessons-learned-repo-projection-integrity/2.1): archive's local-only re-render + verify's blind spot closed by a do_verify repo-completeness hard fail"
 metadata: 
   node_type: memory
   type: project

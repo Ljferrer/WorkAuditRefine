@@ -59,3 +59,5 @@ When a fix is applied to multiple dispatch sites via a **shared predicate**:
 Calling a site a "retrofit" to avoid writing a test when the branch logic is actually
 novel is a smell. The check: can a reader point to a specific existing test case that
 would FAIL if the new branch were deleted? If yes, the label is legitimate.
+
+> archived 2026-07-21: resolved — moved to archive

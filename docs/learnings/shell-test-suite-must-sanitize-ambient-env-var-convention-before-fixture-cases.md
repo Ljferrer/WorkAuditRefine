@@ -1,6 +1,6 @@
 ---
 name: shell-test-suite-must-sanitize-ambient-env-var-convention-before-fixture-cases
-description: "When a script treats an env var as an implicit config channel (fires only when set), its shell test suite must explicitly unset that var before pre-existing cases — a developer/CI export of the same convention from another playbook otherwise silently activates the new code path in unrelated fixtures"
+description: "Shell tests of an env-var-triggered code path must unset that var before pre-existing fixture cases — an ambient developer/CI export silently activates it"
 metadata: 
   node_type: memory
   type: project

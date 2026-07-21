@@ -30,3 +30,5 @@ This is the stacking analog of [[gate-under-covers-after-cross-branch-merge-new-
 
 ## Implication for plan authors
 When writing a gate block for a release task in a multi-plan stack, prefer referencing the self-discovery mechanism by name rather than enumerating suites literally. Literal enumeration is immediately a maintenance liability.
+
+> archived 2026-07-21: resolved — moved to archive
