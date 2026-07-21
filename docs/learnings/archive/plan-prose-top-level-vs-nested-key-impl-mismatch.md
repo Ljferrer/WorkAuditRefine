@@ -57,3 +57,5 @@ When a plan paragraph abbreviates a nested YAML path as a flat key name, the pla
 is wrong; the authoritative shape lives in the task instruction and the existing file
 corpus. Reconcile the plan prose to say `metadata.provenance` (dotted path) in the
 same task that writes the gate, so a future reader of the plan is not misled.
+
+> archived 2026-07-21: resolved — moved to archive

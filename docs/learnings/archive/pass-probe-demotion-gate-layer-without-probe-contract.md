@@ -44,3 +44,5 @@ name and compared value match the lenses.md two-contract summary, and update the
 
 Relates to [[red-team-env-gap-warn-is-agent-directive-not-code-enforced]] (guarantee split
 across an agent-directive layer and a separate code enforcement point).
+
+> archived 2026-07-21: resolved — moved to archive

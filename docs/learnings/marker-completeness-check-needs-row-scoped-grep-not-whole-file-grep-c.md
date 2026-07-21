@@ -1,6 +1,6 @@
 ---
 name: marker-completeness-check-needs-row-scoped-grep-not-whole-file-grep-c
-description: "A text-marker completeness/drop detector must grep structurally-scoped rows, not whole-file grep -c — the marker literal can legitimately appear outside the target row and produce a false PASS"
+description: "A text-marker drop detector must grep structurally-scoped rows, not whole-file grep -c — the marker can legitimately appear outside the target row: false PASS"
 metadata: 
   node_type: memory
   type: project

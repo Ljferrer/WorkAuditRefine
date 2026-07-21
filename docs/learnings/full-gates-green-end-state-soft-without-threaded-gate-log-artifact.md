@@ -1,6 +1,6 @@
 ---
 name: full-gates-green-end-state-soft-without-threaded-gate-log-artifact
-description: "A plan End-state condition of 'full gates green at each phase's land' is SOFT (never a hold) at gate-audit/end-state-audit time when no gate-log artifact or pin_status token was threaded into that audit spawn — full-gate execution is the refiner's captured-evidence responsibility, not the auditing seat's"
+description: "A full-gates-green-at-land End state is SOFT at audit time without a threaded gate-log artifact/pin_status token — gate evidence capture is the refiner's job"
 metadata:
   node_type: memory
   type: project

@@ -35,3 +35,5 @@ A second instance from the same task: two already-landed-branch test cases asser
 **Why:** guard-insertion tasks age well on correctness but can quietly erode regression coverage on the branches they route *around* — the erosion is invisible in a green run because nothing fails, it only shows up as an absence of a specific fixture.
 
 Related: [[weak-test-assertion-passes-without-feature-being-exercised]], [[decoy-fixture-comment-must-match-actual-throw-order-not-just-outcome]], [[defined-but-not-yet-emitted-plan-slice-pattern]].
+
+> archived 2026-07-21: resolved — moved to archive

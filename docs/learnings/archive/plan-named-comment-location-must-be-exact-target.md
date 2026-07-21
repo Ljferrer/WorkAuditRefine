@@ -48,3 +48,5 @@ location, also update the named location — even if only to add a forward-refer
 
 Related: [[source-comment-lags-emitted-prompt-after-rewrite]] (comments lagging code
 changes), [[default-flip-must-audit-all-doc-surfaces]] (all named surfaces must be hit).
+
+> archived 2026-07-21: resolved — moved to archive

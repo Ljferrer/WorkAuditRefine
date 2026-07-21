@@ -1,6 +1,6 @@
 ---
 name: misattribution-pairing-spanning-two-lines-defeats-line-based-repo-grep
-description: "A banned two-token misattribution pairing that wraps across a comment's line break makes a single-line repo-wide grep vacuous on the exact defect it was meant to catch"
+description: "A banned two-token pairing wrapping across a comment line break defeats a single-line repo-wide grep on exactly the defect it polices"
 metadata:
   node_type: memory
   type: project

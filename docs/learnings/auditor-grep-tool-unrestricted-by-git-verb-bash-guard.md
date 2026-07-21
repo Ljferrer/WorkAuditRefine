@@ -1,6 +1,6 @@
 ---
 name: auditor-grep-tool-unrestricted-by-git-verb-bash-guard
-description: "The WAR auditor's read-only git-verb Bash guard denies shell-level `grep`/`git grep`, but the auditor's own Grep tool capability is a separate, unrestricted channel — a false 'I could not grep the repo' self-report is a calibration miss, not a real capability ceiling"
+description: "Auditor Bash guard denies shell grep, but the Grep tool is a separate unrestricted channel — 'could not grep the repo' is a calibration miss, not a ceiling"
 metadata:
   node_type: memory
   type: project

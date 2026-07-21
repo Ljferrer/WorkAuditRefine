@@ -1,6 +1,6 @@
 ---
 name: spec-context-band-statement-of-drift-survives-code-changes-uncorrected
-description: "A design spec's dated Context/gap-problem statement describes drift as of authoring time; a doc-truth sweep should leave it uncorrected even when a later code change makes it read stale — rewriting it would erase the rationale it records"
+description: "A design spec's dated Context/gap statement records drift as of authoring time — doc-truth sweeps leave it uncorrected even when later code makes it read stale"
 metadata:
   node_type: memory
   type: project

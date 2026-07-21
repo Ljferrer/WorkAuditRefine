@@ -50,3 +50,5 @@ When adding a basename to a shared walk helper's default prune list:
 2. Confirm the prune key is the bare `basename`, not a relative or absolute path prefix.
 3. Write a fixture-based test that asserts the pruned dir's files are absent AND a sibling's
    files are present — this fails RED if the prune entry is later removed.
+
+> archived 2026-07-21: resolved — moved to archive

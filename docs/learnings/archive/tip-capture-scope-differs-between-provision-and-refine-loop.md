@@ -59,3 +59,5 @@ multiple call-sites. It is cheaper to write than per-location tests and automati
 occurrences added later. Write per-location positive assertions (e.g., `TIP=` present in Provision,
 `integrationBranch` ref present in merge-task) as companions to distinguish what the correct
 replacement looks like.
+
+> archived 2026-07-21: resolved — moved to archive

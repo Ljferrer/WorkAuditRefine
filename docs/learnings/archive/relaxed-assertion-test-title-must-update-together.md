@@ -36,3 +36,5 @@ Suggested superset-guard title: `'inline X is canonical superset + exactly the <
 When a task is scope-locked to a single file and a rename inside it leaves a stale label in an out-of-scope test file, the auditor rates that a Nit, not a plan-faithfulness violation — the worker must NOT touch out-of-scope files to satisfy the rule. The follow-up task renames the test titles/section comments; document it in the audit finding rather than blocking the land. (The T3 instance — `TIER PRECEDENCE` / `VERIFY-ON-WRITE` labels in `workflow-template.test.mjs` — landed as prescribed; RESOLVED.)
 
 Related family: [[drift-guard-pin-for-task-split-intermediate-state]], [[plan-array-literal-lags-canonical-export]], [[verbatim-mirror-directive-context-mismatch-at-destination]] (analogous cross-file lag when scope prevents correcting the mirror site).
+
+> archived 2026-07-21: resolved — moved to archive

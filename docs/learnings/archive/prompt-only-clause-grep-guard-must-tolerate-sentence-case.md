@@ -59,3 +59,5 @@ Relates to [[gate-output-curated-excerpt-obscures-mapped-test-evidence]] (the un
 completeness-clause problem this task fixes) and
 [[task-prompt-suite-count-stale-after-stacking]] (sibling "self-discovery over literal"
 discipline in the same plan).
+
+> archived 2026-07-21: resolved — moved to archive

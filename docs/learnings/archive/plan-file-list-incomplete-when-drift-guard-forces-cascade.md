@@ -49,3 +49,5 @@ additional touched files even if they are absent from the plan's file enumeratio
 
 Auditors should classify such cascade touches as "faithful, necessary deviation" rather
 than scope-creep, and note them in the PR/commit body for traceability.
+
+> archived 2026-07-21: resolved — moved to archive

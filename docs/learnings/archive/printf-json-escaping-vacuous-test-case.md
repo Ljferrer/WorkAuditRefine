@@ -93,3 +93,5 @@ The functional warn-bash-write-scope.sh behaviour is correct — the hook never
 false-positives at runtime because real PreToolUse payloads are serialised by
 the harness (not printf). The gap is test-only: C5's false-positive guarantee is
 asserted but not actually exercised by the current test infrastructure.
+
+> archived 2026-07-21: resolved — moved to archive

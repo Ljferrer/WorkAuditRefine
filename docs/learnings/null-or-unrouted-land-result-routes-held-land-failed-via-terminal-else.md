@@ -1,6 +1,6 @@
 ---
 name: null-or-unrouted-land-result-routes-held-land-failed-via-terminal-else
-description: "A dead/unrouted land dispatch (null result, or a status matching no routed arm) needs one terminal else on the landResult&&-guarded chain, reusing an existing held:* enum member"
+description: "A dead/unrouted land dispatch needs one terminal else on the landResult&&-guarded chain, reusing an existing held:* enum member"
 metadata: 
   node_type: memory
   type: project
