@@ -683,7 +683,7 @@ function cmdConsolidate(argv) {
 
 function cmdMigrate(argv) {
   const roots = resolveRoots(argv);
-  requireLocal(roots, 'migrate'); // routes/archives within the local root
+  requireLocal(roots, 'migrate'); // ends in a re-render into the local root
   const commitLearnings = !!argv['commit-learnings'];
   const records = walkCorpus(roots);
   const plan = migrationPlan(records, { commitLearnings });
@@ -697,14 +697,28 @@ function cmdMigrate(argv) {
     // create archive/ and move [RESOLVED] candidates; then render
     const localArchive = path.join(roots.local, ARCHIVE_DIR);
     fs.mkdirSync(localArchive, { recursive: true });
-    const bySlug = new Map(records.map((r) => [r.slug, r]));
-    for (const slug of plan.toArchive) {
+    // Cross-root dupe (slug hot in BOTH roots): the LOCAL record wins, order-independently —
+    // migrate must never mutate the committed repo copy while a local holder exists (the repo
+    // copy moves only when it is the slug's sole hot holder). Hot-filtered so a cold repo
+    // (already-archived) record cannot shadow a hot local one into a silent skip.
+    const bySlug = new Map();
+    for (const r of records.filter((r) => r.temperature === 'hot')) {
+      if (!bySlug.has(r.slug) || r.root === 'local') bySlug.set(r.slug, r);
+    }
+    // Set: migrationPlan pushes a dupe slug once per holding root — move it once.
+    for (const slug of new Set(plan.toArchive)) {
       const r = bySlug.get(slug);
-      if (!r || r.temperature === 'cold') continue;
+      if (!r) continue;
       const base = r.root === 'repo' ? roots.repo : roots.local;
       const dst = path.join(base, ARCHIVE_DIR, path.basename(r.file));
       fs.mkdirSync(path.dirname(dst), { recursive: true });
-      fs.renameSync(r.file, dst);
+      if (r.root === 'repo') {
+        // git mv in the repo root (a git repo); fall back to rename if git unavailable
+        const res = spawnSync('git', ['-C', base, 'mv', r.file, dst], { encoding: 'utf8' });
+        if (res.status !== 0) fs.renameSync(r.file, dst);
+      } else {
+        fs.renameSync(r.file, dst); // plain mv in the local root (not a git repo)
+      }
     }
     cmdRenderIndex(argv);
   }
