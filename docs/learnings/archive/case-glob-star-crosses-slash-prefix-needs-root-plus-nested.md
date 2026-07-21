@@ -49,3 +49,5 @@ m latest_results.py '*test_*.py'                          # yes (the over-match 
 The per-language suggestion table in
 `docs/specs/2026-07-07-test-floor-pattern-threading-design.md` §4 is the single encoded home of
 this dialect; extend the table, don't hand-author patterns at interview time.
+
+> archived 2026-07-21: resolved — moved to archive

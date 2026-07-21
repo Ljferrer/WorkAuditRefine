@@ -69,3 +69,5 @@ schema's `tasks[]` entry; `landDecision` in the aftermath schema block. Verified
 
 Relates to [[shared-status-enum-widening-silently-widens-land-path]] (different failure mode —
 widening an enum rather than confusing level; same schema surface).
+
+> archived 2026-07-21: resolved — moved to archive

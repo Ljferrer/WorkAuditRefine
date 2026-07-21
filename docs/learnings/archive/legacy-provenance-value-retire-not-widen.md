@@ -43,3 +43,5 @@ metadata:
 See also [[awk-sed-exit-zero-on-no-match-comment-trap]] and
 [[yaml-extraction-indent-coupling-in-shell-gate]] for the T1 gate implementation gotchas
 that gate the same `metadata.provenance` field.
+
+> archived 2026-07-21: resolved — moved to archive
