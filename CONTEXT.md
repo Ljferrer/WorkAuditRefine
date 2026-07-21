@@ -997,12 +997,50 @@ state).
 
 **Index projection**:
 The generated, size-capped rendering of both roots' hot sets into the **local** `MEMORY.md` (the
-session auto-load file) — one row per hot lesson, capped by *selection* (archive candidates), never by
-dropping knowledge. Generated-only: no process or person edits it in place; writers write lesson files
-and the projection is re-rendered atomically. The repo root carries no projection — a committed
-generated file is a merge-conflict surface.
+session auto-load file) — a two-column router (`[[slug]]` + summary cell), one row per hot lesson,
+capped by *selection* (archive candidates) **and per-cell budgets** (the cell budget). Both are
+view-mechanisms: neither drops knowledge, which stays whole in the lesson files (deep recall is the
+`query` path, not the projection). Generated-only: no process or person edits it in place; writers write
+lesson files and the projection is re-rendered atomically. The repo root carries no projection — a
+committed generated file is a merge-conflict surface.
 _Avoid_: "the index" as a hand-maintained file; compaction (the projection is regenerated, not
-trimmed); a committed copy.
+trimmed); a committed copy; reading a terse or truncated row as lost detail (the row routes; `query`
+retrieves the full lesson).
+
+**Cell budget**:
+The per-cell render cap on a projection row's summary cell (`SUMMARY_CELL_BYTES`) — a *view-only*
+truncation: the lesson file keeps its full text, only the row's rendering is bounded, and the trailing
+provenance tier / `[repo]` markers are never cut (the `safe-swap` extractors and row classifiers key on
+them). One of the index projection's two cap mechanisms; the other is *selection*.
+_Avoid_: treating a capped cell as lost content (the file is intact; `query` returns it in full);
+conflating it with the advisory line (the cell budget caps one cell, the advisory line caps the whole
+projection).
+
+**Advisory line**:
+The index projection's advisory byte ceiling — the soft WARN threshold that sits below the hard
+render-refuse cap. It is both the **tighten trigger** (crossing it is the signal to run a tighten pass)
+and the **exit target** (a tighten pass runs until the projection is back below it); there is no third
+threshold. The projection's normal operating ceiling.
+_Avoid_: conflating it with the hard cap (the hard cap *refuses* the render; the advisory line only
+warns and invites tightening); treating it as trigger-only (it is equally the exit target).
+
+**Tighten pass**:
+The operator-gated projection-shrink mode (`/lessons-learned tighten`): triggered at the advisory line,
+exits once the projection is back below it. One destructive phase behind a single strike-list approval,
+with a loud shortfall report when the approved strikes still miss the target. Always operator-invoked —
+the system only ever *suggests* it, never self-runs.
+_Avoid_: an auto-run or cron (tighten is only suggested); a per-lesson re-ask loop (one strike-list gate,
+then a shortfall report); equating it with the bare `/lessons-learned` housekeeping pass (that pass stays
+local-only — tighten is this skill's sole repo-side actor, and only through its gate + PR).
+
+**Usage-scored eviction**:
+The tighten pass's ranking of eviction candidates by *ascending* query-log hits, behind hard floors that
+make a lesson ineligible: `user-confirmed` tier, concept hubs (≥2 inbound citers), and lessons created or
+recurrence-stamped within the last 14 days. When the query log is silent the ranking degrades to the
+tier + age eviction order; the floors still apply. Nothing is blended into a weighted composite.
+_Avoid_: reading zero hits as zero value (the log records WAR prefetch/seat queries, not the operator's
+own reading — the floors and the gate are the counterweight); a weighted score (hits *rank*; floors
+*gate*; nothing is summed).
 
 **Derived memory index**:
 The SQLite/FTS5 index built **in memory, per invocation**, from both roots' lesson files (hot + cold).
