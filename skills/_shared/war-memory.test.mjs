@@ -16,9 +16,12 @@ import {
   selectForBudget,
   renderPromptBlock,
   projectionRow,
+  truncateToBytes,
+  effectiveDate,
   buildProjection,
   archiveCandidates,
   inboundCiters,
+  tightenPlan,
   findNearDupes,
   migrationPlan,
   routeRoot,
@@ -28,11 +31,15 @@ import {
   HARD_BYTES,
   HARD_LINES,
   WARN_BYTES,
+  SUMMARY_CELL_BYTES,
+  TIGHTEN_YOUNG_DAYS,
+  TIGHTEN_SLACK_BYTES,
   DEFAULT_TOP_K,
 } from './war-memory.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CLI = join(HERE, 'war-memory.mjs');
+const SAFE_SWAP = join(HERE, '..', 'lessons-learned', 'assets', 'safe-swap.sh');
 
 // Write a lesson file with the given frontmatter + body. `meta` fills metadata.*.
 function lessonFile(dir, slug, { name, description, meta = {}, body = 'body text' } = {}) {
@@ -347,6 +354,32 @@ test('projectionRow: tier marker present; escapes pipes in description', () => {
   const row = projectionRow({ slug: 's', phase: '2', description: 'a | b', provenance: 'user-confirmed', root: 'local', title: '' });
   assert.match(row, /\[user-confirmed\]/);
   assert.match(row, /a \\\| b/); // literal pipe escaped so it does not break the table
+});
+
+// ============================================================================
+// (Task 1.1 / spec §10 criterion 1) 2-COLUMN format lock: the projection is a
+// bounded two-column view — `| [[slug]] | <summary> [tier] [repo] |`. The `phase`
+// column is dropped from the PROJECTION only (frontmatter untouched).
+// ============================================================================
+
+test('2-col format lock: header is 2 columns and the phase value is dropped from every row', () => {
+  const dir = tmpDir();
+  // A distinctive phase value: it must NOT survive into the projection (phase column dropped).
+  lessonFile(dir, 'facty', {
+    description: 'a durable fact',
+    meta: { provenance: 'code-verified', phase: 'PHASE_MARKER_ZZZ_9' },
+  });
+  const { text } = buildProjection(walkCorpus({ local: dir }));
+  // header row: exactly the 2-column shape (reds if a phase column is reintroduced)
+  assert.match(text, /^\| slug \| summary \|$/m);
+  assert.match(text, /^\|------\|---------\|$/m);
+  const row = text.split('\n').find((l) => l.includes('[[facty]]'));
+  // exactly two data columns: | [[slug]] | summary | → three '|' delimiters, two cells
+  assert.equal((row.match(/\|/g) || []).length, 3, `expected a 2-col row, got: ${row}`);
+  assert.equal(row, '| [[facty]] | a durable fact [code-verified] |');
+  // the phase value is GONE from the projection (delete the phase-drop mentally ⇒ this reds)
+  assert.doesNotMatch(text, /PHASE_MARKER_ZZZ_9/);
+  rmSync(dir, { recursive: true, force: true });
 });
 
 test('render: verdict ok below advisory budget', () => {
@@ -852,10 +885,299 @@ test('Node<24 stub: unavailable node:sqlite → non-zero exit + the one-line mes
     ].join('\n')
   );
   const EXPECT = /war-memory: requires node:sqlite \(Node >= 24\); memory features disabled/;
-  for (const verb of ['query', 'render-index', 'archive', 'lint', 'consolidate', 'migrate']) {
+  for (const verb of ['query', 'render-index', 'archive', 'lint', 'consolidate', 'migrate', 'tighten-plan']) {
     const r = spawnSync('node', ['--import', shim, CLI, verb, 'x', '--local', dir], { encoding: 'utf8' });
     assert.notEqual(r.status, 0, `${verb} should exit non-zero without node:sqlite`);
     assert.match(r.stderr, EXPECT, `${verb} should print the one-line message`);
   }
   rmSync(dir, { recursive: true, force: true });
+});
+
+// ============================================================================
+// (Task 1.1 / spec §10 criterion 1) Marker-safe summary-cell cap. Truncation
+// order is load-bearing: truncate the DESCRIPTION first, append the [tier]/[repo]
+// markers second — the markers must never be cut. Both orders exercised; the
+// WRONG order (cut after appending) severs the markers and must fail.
+// ============================================================================
+
+test('truncateToBytes: caps at the byte budget with a … ellipsis, no-op under budget, no multibyte split', () => {
+  assert.equal(truncateToBytes('short', 100), 'short'); // under budget → unchanged
+  const t = truncateToBytes('x'.repeat(300), SUMMARY_CELL_BYTES);
+  assert.ok(Buffer.byteLength(t, 'utf8') <= SUMMARY_CELL_BYTES, 'never exceeds the cap');
+  assert.ok(t.endsWith('…'), 'a truncated cell ends with the ellipsis');
+  // multibyte safety: a 3-byte char must never be split into a partial code unit
+  const multi = truncateToBytes('é'.repeat(200), SUMMARY_CELL_BYTES);
+  assert.ok(Buffer.byteLength(multi, 'utf8') <= SUMMARY_CELL_BYTES);
+  assert.doesNotMatch(multi, /�/); // no replacement char from a severed byte sequence
+});
+
+test('cap: a long summary row ends "… [tier] [repo] |" with the markers INTACT (description-first order)', () => {
+  const longDesc = 'D'.repeat(400); // well over the 160B cell cap
+  const row = projectionRow({ slug: 'big-one', description: longDesc, provenance: 'agent-unverified', root: 'repo', title: '' });
+  // markers survive at the tail — safe-swap's classifiers key on these
+  assert.ok(row.endsWith(' [agent-unverified] [repo] |'), `markers severed: ${row.slice(-40)}`);
+  assert.match(row, /…\s\[agent-unverified\] \[repo\] \|$/); // ellipsis precedes the intact markers
+  // the DESCRIPTION portion (between "| " and " [tier]") is capped to SUMMARY_CELL_BYTES
+  const descCell = row.match(/^\| \[\[big-one\]\] \| (.*) \[agent-unverified\] \[repo\] \|$/)[1];
+  assert.ok(Buffer.byteLength(descCell, 'utf8') <= SUMMARY_CELL_BYTES, `desc cell ${Buffer.byteLength(descCell)}B > cap`);
+
+  // WRONG ORDER (regression guard): had truncation run AFTER appending the tags — i.e. cut the
+  // whole "desc [tier] [repo]" string to the cap — the trailing markers would be severed. Prove
+  // that naive order fails so the description-first order is genuinely load-bearing.
+  const naiveWholeCell = truncateToBytes(`${longDesc} [agent-unverified] [repo]`, SUMMARY_CELL_BYTES);
+  assert.ok(!naiveWholeCell.endsWith('[repo]'), 'wrong order must sever the [repo] marker');
+  assert.doesNotMatch(naiveWholeCell, /\[agent-unverified\]/); // and the tier marker too
+});
+
+// ============================================================================
+// (Task 1.1 / red-team adjudication) effectiveDate = newest ISO date among the
+// four frontmatter date keys AND any 20\d\d-\d\d-\d\d in phase/description prose;
+// null when nothing parses (undated ⇒ PROTECTED). lessonRecord surfaces it.
+// ============================================================================
+
+test('effectiveDate: newest stamp across frontmatter keys + prose; null when none parse', () => {
+  assert.equal(effectiveDate(['2026-01-01', '2026-07-15', null, '', '', '']), '2026-07-15'); // newest key wins
+  // a prose recurrence stamp (phase) is newer than any frontmatter key → it wins
+  assert.equal(effectiveDate(['2026-01-01', null, null, null, 'housekeeping-2026-06-30 +2 recurrences 2026-07-19', '']), '2026-07-19');
+  // a prose date in the description is honoured
+  assert.equal(effectiveDate([null, null, null, null, '', 'fixed 2026-05-05 in prose']), '2026-05-05');
+  assert.equal(effectiveDate([null, '', 'no date anywhere', undefined]), null); // undated ⇒ null
+});
+
+test('lessonRecord: surfaces effectiveDate from frontmatter date keys and prose', () => {
+  const withKey = lessonRecord(
+    parseFrontmatter(['---', 'name: k', 'metadata:', '  slug: k', '  created: 2026-03-03', '---', 'b'].join('\n')),
+    { root: 'local', temperature: 'hot', slug: 'k', file: 'x' }
+  );
+  assert.equal(withKey.effectiveDate, '2026-03-03'); // reads metadata.created (not just .date)
+  const prose = lessonRecord(
+    parseFrontmatter(['---', 'name: p', 'description: "recurrence 2026-07-18 stamp"', 'metadata:', '  slug: p', '---', 'b'].join('\n')),
+    { root: 'local', temperature: 'hot', slug: 'p', file: 'x' }
+  );
+  assert.equal(prose.effectiveDate, '2026-07-18'); // prose-only date surfaced
+  const undated = lessonRecord(
+    parseFrontmatter(['---', 'name: u', 'description: "no date at all"', 'metadata:', '  slug: u', '---', 'b'].join('\n')),
+    { root: 'local', temperature: 'hot', slug: 'u', file: 'x' }
+  );
+  assert.equal(undated.effectiveDate, null); // undated ⇒ null (caller protects it)
+});
+
+// ============================================================================
+// (Task 1.1 / spec §10 criterion 3) tighten-plan FLOORS — one fixture per floor,
+// plus the effective-date branches (undated ⇒ protected; prose-only date honoured
+// both ways). `now` is injected for determinism.
+// ============================================================================
+
+// Build a hot local record inline (pure tightenPlan input) — no filesystem needed.
+function rec(slug, { provenance = 'code-verified', effectiveDate = '2026-01-01', root = 'local', description = 'd', body = 'b' } = {}) {
+  return { slug, name: slug, description, title: '', phase: '', type: '', provenance, tags: [], keywords: [], date: '', effectiveDate, body, root, temperature: 'hot', file: `${slug}.md` };
+}
+const NOW = new Date('2026-07-21T00:00:00Z');
+const evictedSlugs = (records, opts = {}) => tightenPlan(records, { now: NOW, ...opts }).eligible.map((e) => e.slug);
+
+test('floor: a user-confirmed lesson is never eligible', () => {
+  const recs = [rec('drop-me', { provenance: 'agent-unverified' }), rec('keep-user', { provenance: 'user-confirmed' })];
+  const elig = evictedSlugs(recs);
+  assert.ok(elig.includes('drop-me'));
+  assert.ok(!elig.includes('keep-user'), 'user-confirmed is floored'); // reds if the tier floor is removed
+});
+
+test('floor: a hub with ≥2 distinct inbound citers is never eligible', () => {
+  const recs = [
+    rec('hub', { description: 'a hub' }),
+    rec('citer-a', { body: 'builds on [[hub]]' }),
+    rec('citer-b', { body: 'also cites [[hub]]' }),
+    rec('lonely', { body: 'no links' }),
+  ];
+  const elig = evictedSlugs(recs);
+  assert.ok(!elig.includes('hub'), 'a 2-inbound hub is floored'); // reds if the inbound floor is removed
+  assert.ok(elig.includes('lonely'));
+  // one inbound citer is below the ≥2 threshold → NOT floored
+  const recs1 = [rec('semi-hub'), rec('only-ref', { body: 'links [[semi-hub]] once' })];
+  assert.ok(evictedSlugs(recs1).includes('semi-hub'));
+});
+
+test('floor: a lesson within TIGHTEN_YOUNG_DAYS is never eligible; older is eligible', () => {
+  const young = new Date(NOW.getTime() - (TIGHTEN_YOUNG_DAYS - 1) * 86400000).toISOString().slice(0, 10);
+  const old = new Date(NOW.getTime() - (TIGHTEN_YOUNG_DAYS + 1) * 86400000).toISOString().slice(0, 10);
+  const recs = [rec('too-young', { effectiveDate: young }), rec('old-enough', { effectiveDate: old })];
+  const elig = evictedSlugs(recs);
+  assert.ok(!elig.includes('too-young'), 'a <14-day lesson is floored'); // reds if the young floor is removed
+  assert.ok(elig.includes('old-enough'));
+});
+
+test('floor: an UNDATED lesson (no parseable date anywhere) is PROTECTED (treated as within-window)', () => {
+  const recs = [rec('undated', { effectiveDate: null }), rec('dated-old', { effectiveDate: '2026-01-01' })];
+  const elig = evictedSlugs(recs);
+  assert.ok(!elig.includes('undated'), 'undated ⇒ protected'); // reds if undated fell through as eligible
+  assert.ok(elig.includes('dated-old'));
+});
+
+test('floor: a prose-only recurrence date is honoured both ways (old ⇒ eligible, recent ⇒ floored)', () => {
+  // These records carry NO frontmatter date key — only a prose date drives effectiveDate.
+  const oldProse = lessonRecord(
+    parseFrontmatter(['---', 'name: op', 'description: "resolved 2026-01-05 long ago"', 'metadata:', '  slug: op', '  provenance: code-verified', '---', 'b'].join('\n')),
+    { root: 'local', temperature: 'hot', slug: 'op', file: 'op.md' }
+  );
+  const recentProse = lessonRecord(
+    parseFrontmatter(['---', 'name: rp', 'description: "recurrence 2026-07-20 stamp"', 'metadata:', '  slug: rp', '  provenance: code-verified', '---', 'b'].join('\n')),
+    { root: 'local', temperature: 'hot', slug: 'rp', file: 'rp.md' }
+  );
+  const elig = evictedSlugs([oldProse, recentProse]);
+  assert.ok(elig.includes('op'), 'old prose date ⇒ eligible (date honoured, not treated as undated)');
+  assert.ok(!elig.includes('rp'), 'recent prose date ⇒ floored young (recurrence stamp read)');
+});
+
+// ============================================================================
+// (Task 1.1 / spec §10 criteria 4,5,6) tighten-plan ranking, hit dedupe,
+// log-absent fallback, cross-root dupe both-or-nothing.
+// ============================================================================
+
+test('rank: eligible ordered by ascending query-log hits (least-used evicted first)', () => {
+  const recs = [
+    rec('hot-fact', { effectiveDate: '2026-02-01' }),
+    rec('cool-fact', { effectiveDate: '2026-02-01' }),
+    rec('cold-fact', { effectiveDate: '2026-02-01' }),
+  ];
+  const hits = new Map([['hot-fact', 9], ['cool-fact', 3], ['cold-fact', 0]]);
+  assert.deepEqual(evictedSlugs(recs, { hits }), ['cold-fact', 'cool-fact', 'hot-fact']);
+});
+
+test('hits (criterion 4): a slug duplicated within ONE log entry counts once; two entries count twice', () => {
+  const local = tmpDir();
+  // three eligible facts (agent-unverified, old, zero inbound)
+  for (const s of ['dup', 'solo', 'zero']) {
+    lessonFile(local, s, { description: `${s} fact`, meta: { provenance: 'agent-unverified', date: '2026-01-01' } });
+  }
+  // entry 1 lists `dup` TWICE (cross-root-twin shape) + `solo` once; entry 2 lists `dup` once.
+  writeFileSync(join(local, 'war-memory-queries.jsonl'), [
+    JSON.stringify({ ts: '2026-07-01T00:00:00Z', topSlugs: ['dup', 'dup', 'solo'] }),
+    JSON.stringify({ ts: '2026-07-02T00:00:00Z', topSlugs: ['dup'] }),
+  ].join('\n') + '\n');
+  const r = spawnSync('node', [CLI, 'tighten-plan', '--local', local], { encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  const plan = JSON.parse(r.stdout);
+  const hitsBySlug = Object.fromEntries(plan.eligible.map((e) => [e.slug, e.hits]));
+  assert.equal(hitsBySlug.dup, 2, 'dup: once per entry (entry-1 dedupes the double-listing) → 2');
+  assert.equal(hitsBySlug.solo, 1);
+  assert.equal(hitsBySlug.zero, 0);
+  rmSync(local, { recursive: true, force: true });
+});
+
+test('fallback (criterion 5): with the log absent, order equals the tier+age eviction order', () => {
+  // all-local corpus → archiveCandidates' local-before-repo clause is inert, so it reduces to
+  // exactly (tier, age) — the order the plan degrades to when every hit is 0.
+  const recs = [
+    rec('a-unv-old', { provenance: 'agent-unverified', effectiveDate: '2026-01-01' }),
+    rec('b-unv-new', { provenance: 'agent-unverified', effectiveDate: '2026-05-01' }),
+    rec('c-cv-old', { provenance: 'code-verified', effectiveDate: '2026-01-01' }),
+    rec('d-cv-new', { provenance: 'code-verified', effectiveDate: '2026-06-01' }),
+  ];
+  const expected = archiveCandidates(recs).map((r) => r.slug); // tier then (all-local) age
+  // no `hits` passed ⇒ empty map ⇒ all hits 0 (the log-absent degradation)
+  assert.deepEqual(evictedSlugs(recs), expected);
+});
+
+test('dupe (criterion 6): a cross-root twin is ONE both-copies-or-nothing unit — never single-copy savings', () => {
+  const local = tmpDir();
+  const repo = tmpDir();
+  // a promoted twin (same slug both roots) + a plain local control
+  lessonFile(local, 'twin', { description: 'promoted fact', meta: { type: 'project', provenance: 'agent-unverified', date: '2026-01-01' } });
+  lessonFile(repo, 'twin', { description: 'promoted fact', meta: { type: 'project', provenance: 'agent-unverified', date: '2026-01-01' } });
+  lessonFile(local, 'solo', { description: 'plain fact', meta: { provenance: 'agent-unverified', date: '2026-01-01' } });
+  const plan = tightenPlan(walkCorpus({ local, repo }), { now: NOW });
+  const twinEntries = plan.eligible.filter((e) => e.slug === 'twin');
+  assert.equal(twinEntries.length, 1, 'the twin collapses to ONE eligible unit, not two single-copy rows');
+  const twin = twinEntries[0];
+  assert.equal(twin.dupe, true, 'flagged as a cross-root dupe unit');
+  assert.deepEqual(twin.copies, ['local', 'repo'], 'names BOTH copies — archiving one frees zero');
+  assert.ok(twin.bytesFreed > 0, 'the UNIT (both copies) frees the row cost'); // unit value, not single-copy
+  // no eligible entry ever claims single-copy savings for a dupe
+  assert.ok(!plan.eligible.some((e) => e.slug === 'twin' && !e.dupe), 'never a bare single-copy twin entry');
+  rmSync(local, { recursive: true, force: true });
+  rmSync(repo, { recursive: true, force: true });
+});
+
+test('cut line: eligible cumulative freed drives cutIndex to target − slack; a short list reports shortfall', () => {
+  // pad a corpus well over a small --target so cutGoal > 0 and the cut line is meaningful
+  const recs = [];
+  for (let i = 0; i < 40; i++) recs.push(rec(`pad-${String(i).padStart(2, '0')}`, { description: 'x'.repeat(120), provenance: 'agent-unverified', effectiveDate: '2026-01-01' }));
+  const target = 2000; // far below the rendered size ⇒ cutGoal is large
+  const plan = tightenPlan(recs, { now: NOW, target });
+  assert.equal(plan.slack, TIGHTEN_SLACK_BYTES);
+  assert.equal(plan.cutGoalBytes, Math.max(0, plan.currentBytes - (target - TIGHTEN_SLACK_BYTES)));
+  // the first `cutIndex` entries' cumulative freed reaches the goal (or the whole list falls short)
+  const struck = plan.eligible.slice(0, plan.cutIndex).reduce((s, e) => s + e.bytesFreed, 0);
+  if (plan.shortfallBytes === 0) {
+    assert.ok(struck >= plan.cutGoalBytes, 'reached: cumulative crosses the goal');
+  } else {
+    assert.equal(plan.cutIndex, plan.eligible.length, 'short: the whole eligible list is struck');
+    assert.equal(plan.shortfallBytes, plan.cutGoalBytes - struck);
+  }
+  assert.equal(plan.projectedBytes, plan.currentBytes - struck);
+});
+
+// ============================================================================
+// (Task 1.1 / spec §10 criterion 2) BOUND: a realistic ~98-fact corpus renders
+// verdict `ok` (strictly under the advisory) under the 2-col cap — asserted via
+// the verdict, never a byte literal for the rendered size.
+// ============================================================================
+
+test('bound (criterion 2): a realistic ~98-fact corpus renders verdict ok under the 2-col structural bound', () => {
+  const dir = tmpDir();
+  // 98 hot facts, each with a ~95-byte summary and a chunky phase cell (mimicking the recurrence
+  // trail the 2-col view drops). The phase + description RAW content alone exceeds the advisory —
+  // so a verdict of `ok` can only come from the structural bound (phase-column drop + 160B cap),
+  // never from a trivially small corpus. Mentally restore the phase column ⇒ this must go warn.
+  const summary = 'a durable engineering lesson summary of a realistic representative length that sits';
+  const bigPhase = 'phase-with-a-long-recurrence-trail-and-a-few-2026-05-01-stamps-appended-over-time-more-and-more';
+  for (let i = 0; i < 98; i++) {
+    lessonFile(dir, `fact-${String(i).padStart(2, '0')}`, {
+      description: `${summary} #${i}`,
+      meta: { provenance: 'code-verified', phase: `${bigPhase}-${i}`, date: '2026-05-01' },
+    });
+  }
+  const recs = walkCorpus({ local: dir });
+  const rawContent = recs.reduce((s, r) => s + Buffer.byteLength(r.description + r.phase, 'utf8'), 0);
+  assert.ok(rawContent > WARN_BYTES, `fixture must be non-trivial: raw content ${rawContent}B <= advisory`);
+  const { verdict, bytes } = buildProjection(recs);
+  assert.equal(verdict, 'ok', `expected ok, got ${verdict} at ${bytes}B`); // reds if the structural bound is removed
+  rmSync(dir, { recursive: true, force: true });
+});
+
+// ============================================================================
+// (Task 1.1 / spec §10 criterion 1, second clause) The rendered 2-col projection
+// survives the real safe-swap.sh verify extractors (first [[slug]] per |-row;
+// [repo]-marker detection) — the script is INVOKED read-only, never modified.
+// PASS on the faithful render; FAIL once the [repo] markers are stripped while the
+// repo root stays populated (the repo-completeness hard-fail arm).
+// ============================================================================
+
+test('safe-swap cross-check: buildProjection 2-col render PASSes verify; stripping [repo] markers FAILs it', () => {
+  const staging = tmpDir('ll-staging-');
+  const repo = tmpDir('ll-repo-');
+  // local hot lessons live IN the staged dir (row<->file must resolve); repo lessons live in the repo root
+  lessonFile(staging, 'local-a', { description: 'local lesson a', meta: { provenance: 'code-verified' } });
+  lessonFile(staging, 'local-b', { description: 'a longer local lesson '.repeat(12), meta: { provenance: 'agent-unverified' } });
+  lessonFile(repo, 'repo-a', { description: 'repo lesson a', meta: { type: 'project', provenance: 'code-verified' } });
+  lessonFile(repo, 'repo-b', { description: 'repo lesson b '.repeat(20), meta: { type: 'project', provenance: 'code-verified' } });
+
+  // render the real 2-col projection into the staged dir's MEMORY.md
+  const { text } = buildProjection(walkCorpus({ local: staging, repo }));
+  writeFileSync(join(staging, 'MEMORY.md'), text);
+  assert.match(text, /\[repo\] \|$/m); // sanity: the render actually carries [repo] rows
+
+  const env = { ...process.env, CLAUDE_MEMORY_REPO: repo };
+  const pass = spawnSync('bash', [SAFE_SWAP, 'verify', staging], { encoding: 'utf8', env });
+  assert.equal(pass.status, 0, `faithful render should PASS verify:\n${pass.stdout}\n${pass.stderr}`);
+  assert.match(pass.stdout, /VERIFY: PASS/);
+
+  // strip the [repo] markers (a faulty render) while the repo root stays populated → hard fail
+  writeFileSync(join(staging, 'MEMORY.md'), text.replace(/ \[repo\]/g, ''));
+  const fail = spawnSync('bash', [SAFE_SWAP, 'verify', staging], { encoding: 'utf8', env });
+  assert.notEqual(fail.status, 0, 'stripping [repo] with a populated repo root must FAIL verify');
+  assert.match(fail.stdout, /zero \[repo\] rows/); // the repo-completeness hard-fail arm fired
+  assert.match(fail.stdout, /VERIFY: FAIL/);
+  rmSync(staging, { recursive: true, force: true });
+  rmSync(repo, { recursive: true, force: true });
 });

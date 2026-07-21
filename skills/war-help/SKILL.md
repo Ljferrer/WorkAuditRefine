@@ -23,7 +23,7 @@ You print a short orientation card, then stop. You never decompose a plan, spawn
 | `/war-machine` | convert specs to plans + a roadmap, hand off to the campaign ([`../../README.md`](../../README.md#turn-specs-into-plans-war-machine)) |
 | `/war-campaign` | run a queue of plans unattended — **never auto-invokes** ([`../../README.md`](../../README.md#run-a-campaign-war-campaign)) |
 | `/aftermath` | evidence-gated post-campaign cleanup — **never auto-invokes** ([`../../README.md`](../../README.md#clean-up-aftermath)) |
-| `/lessons-learned` | tidy captured memory ([`../../README.md`](../../README.md#tidy-the-memory-lessons-learned)) |
+| `/lessons-learned` | tidy **and tighten** captured memory ([`../../README.md`](../../README.md#tidy-the-memory-lessons-learned)) |
 | `/war-help` | this card |
 
 **3. Roles** — one line each, detail in [`../../README.md`](../../README.md#roles--gas-town-lineage): **Lead** (decomposes, dispatches, adjudicates) · **Worker** (implements one task in its own worktree) · **Auditor** (reads-only, votes on a task) · **Refiner** (serial merge queue, lands each phase) · **Servitor** (write-scoped, captures learnings).
