@@ -38,7 +38,9 @@ try {
 // ---------------------------------------------------------------------------
 export const HARD_BYTES = 24_400; // read-cap axis; render refuses above this
 export const HARD_LINES = 200;    // read-cap axis; render refuses above this
-export const WARN_BYTES = 17_000; // advisory: succeed + loud warning + candidates
+export const WARN_BYTES = 17_000; // advisory: succeed + loud warning + candidates + `/lessons-learned tighten`
+export const SUMMARY_CELL_BYTES = 160; // per-cell render cap for the 2-col projection summary (tighten spec §4)
+export const TIGHTEN_SLACK_BYTES = 500; // tighten-plan cuts to target − this slack (spec §3 eviction policy)
 export const DEFAULT_TOP_K = 10;
 export const DEFAULT_BUDGET = 4096; // ~4KB per query block; a CLI flag, not a config key
 export const PROJECTION_FILE = 'MEMORY.md';
@@ -157,22 +159,45 @@ export function parseFrontmatter(src) {
   return { frontmatter: fm, body };
 }
 
+// Effective date (tighten floor, red-team adjudication 2026-07-21): the NEWEST ISO date
+// (YYYY-MM-DD) found among the four frontmatter date keys (created/updated/modified/date)
+// AND any `20\d\d-\d\d-\d\d` match in the phase/description prose — recurrence stamps live
+// ONLY in prose, invisible to a frontmatter-key reader. Returns the newest 'YYYY-MM-DD'
+// (lexicographic max == chronological max for zero-padded ISO dates), or null when nothing
+// parses (an undated lesson is PROTECTED by the caller — treated as within the young-window).
+export function effectiveDate(sources = []) {
+  const ISO = /20\d\d-\d\d-\d\d/g;
+  const found = [];
+  for (const src of sources) {
+    if (src == null) continue;
+    const matches = String(src).match(ISO);
+    if (matches) found.push(...matches);
+  }
+  if (found.length === 0) return null;
+  found.sort();
+  return found[found.length - 1];
+}
+
 // Normalise one parsed lesson into the row/index shape the rest of the CLI uses.
 export function lessonRecord({ frontmatter, body }, { root, temperature, slug, file }) {
   const md = frontmatter.metadata || {};
   const tags = Array.isArray(md.tags) ? md.tags : [];
   const keywords = Array.isArray(md.keywords) ? md.keywords : [];
+  const description = frontmatter.description || md.title || '';
+  const phase = md.phase != null ? String(md.phase) : '';
   return {
     slug: md.slug || slug,
     name: frontmatter.name || md.slug || slug,
-    description: frontmatter.description || md.title || '',
+    description,
     title: md.title || '',
-    phase: md.phase != null ? String(md.phase) : '',
+    phase,
     type: md.type || '', // absent → '' → routes local
     provenance: md.provenance || DEFAULT_TIER, // absent provenance ranks agent-unverified
     tags,
     keywords,
     date: md.date || '',
+    // Newest stamp anywhere (frontmatter date keys + prose recurrence dates); null ⇒ undated.
+    effectiveDate: effectiveDate([md.created, md.updated, md.modified, md.date, phase, description]),
     body,
     root, // 'repo' | 'local'
     temperature, // 'hot' | 'cold'
@@ -312,16 +337,42 @@ export function renderPromptBlock(records, { seat } = {}) {
 }
 
 // ---------------------------------------------------------------------------
-// Projection render (§4.4, criterion 4). Row = table row + tier marker; repo-root
-// lessons additionally carry a trailing [repo] marker (the T1↔T3 contract, plan Note 1).
-// buildProjection collapses cross-root slug twins to the single repo row before
-// rendering (#821) — see its invariant comment for the same-fact rationale.
+// Projection render (§4.4, criterion 4). The projection is a bounded TWO-COLUMN view
+// (ADR: "The index projection is a bounded two-column view"): `| [[slug]] | summary |`.
+// The `phase` column is dropped from the PROJECTION only — frontmatter keeps the full
+// recurrence trail, which stays the housekeeping graduation signal. The summary cell is
+// the description text, then the provenance tag, then the optional trailing [repo] marker
+// (repo-root lessons; the T1↔T3 contract, plan Note 1). buildProjection collapses
+// cross-root slug twins to the single repo row before rendering (#821).
 // ---------------------------------------------------------------------------
+
+// Truncate `text` so its UTF-8 byte length ≤ maxBytes, appending a … ellipsis when it
+// had to cut. Iterates by code point so a multibyte char is never split. Load-bearing
+// for marker-safe rows: callers truncate the DESCRIPTION here, THEN append the
+// [tier]/[repo] markers — so the markers are never inside the truncated span (the
+// safe-swap repo-completeness gate + row classifiers key on the trailing markers).
+export function truncateToBytes(text, maxBytes) {
+  if (Buffer.byteLength(text, 'utf8') <= maxBytes) return text;
+  const ELLIPSIS = '…';
+  const room = maxBytes - Buffer.byteLength(ELLIPSIS, 'utf8');
+  let out = '';
+  let bytes = 0;
+  for (const ch of text) {
+    const b = Buffer.byteLength(ch, 'utf8');
+    if (bytes + b > room) break;
+    out += ch;
+    bytes += b;
+  }
+  return out + ELLIPSIS;
+}
+
 export function projectionRow(r) {
-  const phase = r.phase || '';
-  const desc = (r.description || r.title || '').replace(/\|/g, '\\|');
+  // Truncate the raw description FIRST (marker-safe), THEN escape pipes so the cut never
+  // lands mid-escape-sequence, THEN append the tags — the [tier]/[repo] markers are
+  // appended after truncation and can never be severed.
+  const desc = truncateToBytes(r.description || r.title || '', SUMMARY_CELL_BYTES).replace(/\|/g, '\\|');
   const repoMark = r.root === 'repo' ? ' [repo]' : '';
-  return `| [[${r.slug}]] | ${phase} | ${desc} [${r.provenance}]${repoMark} |`;
+  return `| [[${r.slug}]] | ${desc} [${r.provenance}]${repoMark} |`;
 }
 
 export const PROJECTION_HEADER = [
@@ -329,8 +380,8 @@ export const PROJECTION_HEADER = [
   '',
   'Index of durable learnings captured by the WAR servitor. (Generated by `war-memory render-index` — do not hand-edit.)',
   '',
-  '| slug | phase | summary |',
-  '|------|-------|---------|',
+  '| slug | summary |',
+  '|------|---------|',
 ];
 
 // Rank candidates for archiving: lowest provenance tier first, then local-before-repo,
@@ -379,6 +430,95 @@ export function inboundCiters(records, slug, { hotOnly = false } = {}) {
   return records.filter(
     (r) => r.slug !== slug && (!hotOnly || r.temperature === 'hot') && r.body.includes(needle)
   );
+}
+
+// ---------------------------------------------------------------------------
+// tighten-plan (spec §4 / §3 eviction policy): a read-only, usage-scored eviction
+// PLAN over the deduped projection rows. PURE — emits the ranked plan, never mutates.
+// `hits` maps slug → per-entry-deduped query-log hit count (absent/empty log ⇒ all 0, so
+// the order degrades to today's tier+age eviction order). `now` is injectable for
+// deterministic tests. Floors (ineligible, never listed): user-confirmed tier; a hub with
+// ≥ 2 distinct inbound citers; a lesson whose EFFECTIVE date is within TIGHTEN_YOUNG_DAYS —
+// and an UNDATED lesson (no parseable date anywhere) is PROTECTED, treated as within-window.
+// ---------------------------------------------------------------------------
+export const TIGHTEN_YOUNG_DAYS = 14;
+const DAY_MS = 86_400_000;
+
+export function tightenPlan(records, { hits = new Map(), target = WARN_BYTES, now = new Date() } = {}) {
+  const { bytes: currentBytes, verdict } = buildProjection(records);
+  const hot = records.filter((r) => r.temperature === 'hot');
+  // Same cross-root dedup as buildProjection: a promoted twin collapses to the repo copy.
+  const repoSlugs = new Set(hot.filter((r) => r.root === 'repo').map((r) => r.slug));
+  const deduped = hot.filter((r) => r.root === 'repo' || !repoSlugs.has(r.slug));
+  // A slug hot in BOTH roots is a cross-root dupe: archiving one copy frees 0 projection
+  // bytes (the twin resurfaces), so eviction is a both-copies-or-nothing unit.
+  const localSlugs = new Set(hot.filter((r) => r.root === 'local').map((r) => r.slug));
+  const nowMs = now.getTime();
+
+  const eligible = [];
+  for (const r of deduped) {
+    // Floor 1: user-confirmed is never evicted.
+    if (tierRank(r.provenance) === TIER_RANK['user-confirmed']) continue;
+    // Floor 2: a hub (≥ 2 distinct inbound citers, both roots) is never evicted.
+    const inbound = new Set(inboundCiters(records, r.slug).map((c) => c.slug)).size;
+    if (inbound >= 2) continue;
+    // Floor 3: within the young window (or undated ⇒ protected) is never evicted.
+    if (!r.effectiveDate) continue; // undated ⇒ PROTECTED (treated as within-window)
+    const effMs = Date.parse(r.effectiveDate + 'T00:00:00Z');
+    if (Number.isNaN(effMs)) continue; // a well-formed-but-invalid stamp ⇒ protected (never NaN age)
+    const ageDays = Math.floor((nowMs - effMs) / DAY_MS);
+    if (ageDays < TIGHTEN_YOUNG_DAYS) continue;
+    const entry = {
+      slug: r.slug,
+      hits: hits.get(r.slug) ?? 0,
+      tier: r.provenance,
+      ageDays,
+      inbound,
+      bytesFreed: Buffer.byteLength(projectionRow(r) + '\n', 'utf8'),
+    };
+    if (r.root === 'repo' && localSlugs.has(r.slug)) {
+      // Both-copies-or-nothing: bytesFreed is the UNIT saving (the row is removed only when
+      // BOTH copies are archived); a single copy frees 0. Never a single-copy claim.
+      entry.dupe = true;
+      entry.copies = ['local', 'repo'];
+    }
+    eligible.push(entry);
+  }
+
+  // Eviction order: ascending hits, ties by tier rank (lowest tier first) then age (oldest first).
+  eligible.sort((a, b) => {
+    if (a.hits !== b.hits) return a.hits - b.hits;
+    const tr = tierRank(b.tier) - tierRank(a.tier); // lowest tier (highest rank #) evicted first
+    if (tr !== 0) return tr;
+    return b.ageDays - a.ageDays; // oldest (largest age) first
+  });
+
+  // Cumulative cut line: strike from the top until cumulative bytesFreed reaches the goal
+  // (currentBytes down to target − slack). Running total annotated on every entry.
+  const cutGoal = Math.max(0, currentBytes - (target - TIGHTEN_SLACK_BYTES));
+  let running = 0;
+  let cutIndex = 0;
+  for (let i = 0; i < eligible.length; i++) {
+    running += eligible[i].bytesFreed;
+    eligible[i].cumulativeFreed = running;
+    if (cutGoal > 0 && cutIndex === 0 && running >= cutGoal) cutIndex = i + 1;
+  }
+  const totalFreed = running;
+  const reached = cutGoal === 0 || totalFreed >= cutGoal;
+  if (cutGoal > 0 && !reached) cutIndex = eligible.length; // full list still short of the goal
+  const struckFreed = eligible.slice(0, cutIndex).reduce((s, e) => s + e.bytesFreed, 0);
+
+  return {
+    target,
+    slack: TIGHTEN_SLACK_BYTES,
+    currentBytes,
+    verdict,
+    cutGoalBytes: cutGoal,
+    cutIndex,
+    projectedBytes: currentBytes - struckFreed,
+    shortfallBytes: reached ? 0 : cutGoal - totalFreed,
+    eligible,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -499,6 +639,29 @@ function appendQueryLog(localRoot, entry) {
   }
 }
 
+// Per-slug query-log hit counts for tighten-plan, best-effort / fail-open (mirrors the log
+// writer). Reads QUERY_LOG_FILE in the local root; absent/unreadable ⇒ empty map ⇒ all 0.
+// PER-ENTRY dedupe of topSlugs: a cross-root twin double-listed in ONE entry counts once for
+// that entry; two entries count twice. Single pass, no index (tolerates a large log cheaply).
+function readQueryHits(localRoot) {
+  const hits = new Map();
+  if (!localRoot) return hits;
+  let text;
+  try {
+    text = fs.readFileSync(path.join(localRoot, QUERY_LOG_FILE), 'utf8');
+  } catch {
+    return hits; // absent log ⇒ all hits 0
+  }
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue;
+    let entry;
+    try { entry = JSON.parse(line); } catch { continue; } // skip a malformed line, keep going
+    const slugs = Array.isArray(entry.topSlugs) ? entry.topSlugs : [];
+    for (const slug of new Set(slugs)) hits.set(slug, (hits.get(slug) ?? 0) + 1);
+  }
+  return hits;
+}
+
 function cmdQuery(argv) {
   const roots = resolveRoots(argv);
   const text = argv._.slice(1).join(' ');
@@ -569,6 +732,7 @@ function cmdRenderIndex(argv) {
   if (verdict === 'warn') {
     process.stderr.write(
       `war-memory render-index: WARNING — projection ${bytes}B >= ${WARN_BYTES}B advisory. ` +
+        `Run \`/lessons-learned tighten\` to shrink it (usage-scored eviction behind hard floors). ` +
         `Ranked archive candidates: ${candidates.join(', ')}\n`
     );
   }
@@ -740,6 +904,20 @@ function cmdInbound(argv) {
   );
 }
 
+// tighten-plan [--local <dir>] [--repo <dir>] [--target <bytes>]: emit the usage-scored,
+// floored eviction PLAN as JSON. Read-only — walks the corpus, reads the query log
+// best-effort, and prints the ranked eligible list + cut line. Never mutates (the skill's
+// gate is the sole destructive actor). Pure read: an absent local root is just an empty
+// corpus (no requireLocal), matching query/inbound.
+function cmdTightenPlan(argv) {
+  const roots = resolveRoots(argv);
+  const target = argv.target ? Number(argv.target) : WARN_BYTES;
+  const records = walkCorpus(roots);
+  const hits = readQueryHits(roots.local);
+  const plan = tightenPlan(records, { hits, target });
+  process.stdout.write(JSON.stringify(plan, null, 2) + '\n');
+}
+
 const VERBS = {
   query: cmdQuery,
   'render-index': cmdRenderIndex,
@@ -748,6 +926,7 @@ const VERBS = {
   lint: cmdLint,
   consolidate: cmdConsolidate,
   migrate: cmdMigrate,
+  'tighten-plan': cmdTightenPlan,
 };
 
 // Entry point — only when run directly, not when imported by the test suite.
