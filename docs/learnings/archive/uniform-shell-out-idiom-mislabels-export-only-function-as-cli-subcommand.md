@@ -88,3 +88,5 @@ observed pre-merge to master; re-grep `skills/war-campaign/SKILL.md` and
   Lead adjudicates real-but-Minor → fixes in place rather than re-running); here the
   adjudication turned on **finding severity** (doc-only Minor, not a Major behavior bug),
   distinguishing it from that file's Major-escalation manual-completion path.
+
+> archived 2026-07-21: resolved — moved to archive

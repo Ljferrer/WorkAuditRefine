@@ -49,3 +49,5 @@ thorough: {
 **How to apply:** when a plan/task says "verify current defaults" or "doc-truth sweep the config prose," grep BOTH `export const DEFAULTS` and `export const PRESETS` in `war-config.mjs` and diff every named preset's `agents.<role>.{model,effort}` against the prose claim — do not assume `DEFAULTS` coverage implies preset coverage.
 
 Related: [[default-flip-must-audit-all-doc-surfaces]], [[stacked-release-plan-version-literal-lags-operator-target]], [[tour-narrative-can-assert-a-false-code-fact-that-survives-until-a-doc-sweep-catches-it]]
+
+> archived 2026-07-21: resolved — moved to archive

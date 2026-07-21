@@ -26,3 +26,5 @@ Instance (landed in v0.8.14, #368/#385): the submodule-support spec's reachabili
 
 **Why:** distinct from [[plan-line-number-refs-stale-use-construct-locator]] (stale line numbers) and [[prose-cross-ref-direction-contradicts-physical-layout]] (wrong direction to a right section) — here the section itself is the wrong target.
 **How to apply:** any "reattribute this claim to the section that really does X" edit should grep for X (here: "reachab") inside the candidate section before citing it as the definer.
+
+> archived 2026-07-21: resolved — moved to archive
