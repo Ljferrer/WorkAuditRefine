@@ -619,6 +619,39 @@ test('migrate --apply: dry-run text + [RESOLVED] moved to archive/, projection r
   rmSync(local, { recursive: true, force: true });
 });
 
+test('migrate --apply: cross-root dupe slug archives the LOCAL copy; committed repo copy untouched', () => {
+  const local = tmpDir();
+  const repo = tmpDir();
+  lessonFile(local, 'dupe', { description: 'local copy', body: 'this was [RESOLVED] here' });
+  lessonFile(repo, 'dupe', { description: 'repo copy', body: 'this was [RESOLVED] here' });
+  const repoBytes = readFileSync(join(repo, 'dupe.md'), 'utf8');
+  const r = spawnSync('node', [CLI, 'migrate', '--apply', '--local', local, '--repo', repo], { encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(existsSync(join(local, 'archive', 'dupe.md')), 'local copy archived');
+  assert.ok(!existsSync(join(local, 'dupe.md')), 'local hot copy removed');
+  assert.equal(readFileSync(join(repo, 'dupe.md'), 'utf8'), repoBytes, 'repo copy byte-identical');
+  assert.ok(!existsSync(join(repo, 'archive')), 'nothing moved under the repo root');
+  // trailing re-render still walks both roots: the surviving repo copy keeps the slug hot
+  assert.match(readFileSync(join(local, 'MEMORY.md'), 'utf8'), /\[\[dupe\]\]/);
+  rmSync(local, { recursive: true, force: true });
+  rmSync(repo, { recursive: true, force: true });
+});
+
+test('migrate --apply: slug hot in local but cold in repo still archives the hot local copy', () => {
+  const local = tmpDir();
+  const repo = tmpDir();
+  lessonFile(local, 'gone', { description: 'hot local', body: 'this was [RESOLVED] here' });
+  lessonFile(join(repo, 'archive'), 'gone', { description: 'cold repo' });
+  const coldBytes = readFileSync(join(repo, 'archive', 'gone.md'), 'utf8');
+  const r = spawnSync('node', [CLI, 'migrate', '--apply', '--local', local, '--repo', repo], { encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(existsSync(join(local, 'archive', 'gone.md')), 'hot local copy archived, not silently skipped');
+  assert.ok(!existsSync(join(local, 'gone.md')), 'local hot copy removed');
+  assert.equal(readFileSync(join(repo, 'archive', 'gone.md'), 'utf8'), coldBytes, 'repo cold copy untouched');
+  rmSync(local, { recursive: true, force: true });
+  rmSync(repo, { recursive: true, force: true });
+});
+
 test('migrate fixture: two clones add/archive DIFFERENT lessons → git merge with ZERO conflicts (E8/criterion 15)', () => {
   // The repo root carries NO generated shared file (§4.4/E8), so disjoint per-file
   // changes in two clones merge cleanly. Prove it end to end with real git.
