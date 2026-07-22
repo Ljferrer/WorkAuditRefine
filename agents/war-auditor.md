@@ -15,6 +15,17 @@ You are a **WAR auditor seat**. You are **READ-ONLY**: files via Read/Grep/Glob,
 - the **worktree** path for reading candidate files
 - your **depth** — carried **per seat** on your roster entry: `neighbors` (the diff + what its changed lines directly reference, one hop) or `deep` (trace impact wherever the changed symbols are used)
 
+## Read-only git guard contract
+
+You compute the diff yourself, but a guard (`hooks/validate-auditor-git.sh`) **fail-closed denies** anything that is not a read-only git command. Work within its grammar so you never pay the discovery tax — this contract is mirrored verbatim into your dispatched audit prompt (both surfaces, one commit):
+
+- **Run one bare git command per Bash call** from the read-verb allowlist: `diff`, `log`, `show`, `merge-base`, `rev-parse`, `status`, `ls-files`, `ls-tree`, `cat-file`, `blame`, `branch`.
+- **No pipes, chaining, redirects, quotes, globs, braces, or substitution** — compose nothing. Filter and search the output with the Read/Grep/Glob tools instead.
+- **Non-git shell reads** (`ls`, `cat`, `wc`, …) always deny — use Read/Glob, or `git ls-files` / `git ls-tree` to list tree contents.
+- **`branch` takes `=`-attached read flags only** (`git branch --contains=<rev>`, `--merged=<rev>`, `--points-at=<rev>`, `--list`, `-a`, `-r`, `--show-current`, `-v`); a bare name or any write flag denies.
+- **`git grep` stays denied** — the Grep tool is the sweep channel for repo-wide search.
+- **Avoid `@{}` reflog** (braces are denied) — use `git log -g` instead.
+
 ## Submodule pre-flight (before lens review)
 
 **Step 1 — Identify the task type** from your spawn prompt: `submodule-task`, `gitlink-bump-task`, or a regular task.

@@ -12,7 +12,10 @@
 #   Non-auditor agent types → exit 0 (pass-through; this guard is auditor-only).
 #
 # FAIL-CLOSED CHARACTER ALLOWLIST (bash 3.2.57 compatible)
-#   Permitted chars: [A-Za-z0-9 ./_=:,@^-]
+#   Permitted chars: [A-Za-z0-9 ./_=:,@^~%-]
+#   (~ and % admit the idiomatic read forms HEAD~1 and --pretty=format:%H;
+#   neither carries shell-metacharacter semantics in the denied-composition
+#   space that remains — quotes/globs/braces/$/parens/pipes/redirects still deny.)
 #   Method: LC_ALL=C tr -d '<allowlist>' extracts residue.
 #   If residue is non-empty → forbidden char detected → DENY.
 #   This approach is safe on bash 3.2 (no bracket-class case mixing
@@ -31,7 +34,8 @@
 #   immediately after 'git' (before the subcommand).
 #
 # READ-ONLY SUBCOMMAND ALLOWLIST
-#   diff, log, show, merge-base, rev-parse, status, ls-files, cat-file, blame
+#   diff, log, show, merge-base, rev-parse, status, ls-files, ls-tree,
+#   cat-file, blame, branch (read forms only — see the per-token loop below)
 #
 # CONSTRAINTS
 #   Runs on macOS bash 3.2.57 — no globstar, no associative arrays, no ${,,}.
@@ -68,7 +72,7 @@ deny() {
 
 # ---------------------------------------------------------------------------
 # CHARACTER ALLOWLIST check (fail-closed).
-# Permit only: A-Za-z0-9 SPACE . / _ = : , @ ^ -
+# Permit only: A-Za-z0-9 SPACE . / _ = : , @ ^ ~ % -
 # Use LC_ALL=C tr -d to extract any character outside the allowed set.
 # If residue is non-empty, a forbidden character is present → DENY.
 #
@@ -76,16 +80,16 @@ deny() {
 # strips trailing newlines from $(...) so the pattern would be empty.
 # Instead, newline is implicitly denied because it is NOT in the allowlist.
 # ---------------------------------------------------------------------------
-residue="$(printf '%s' "$cmd" | LC_ALL=C tr -d 'A-Za-z0-9 ./_=:,@^-')"
+residue="$(printf '%s' "$cmd" | LC_ALL=C tr -d 'A-Za-z0-9 ./_=:,@^~%-')"
 [ -n "$residue" ] && deny "command contains forbidden character(s): $(printf '%s' "$residue" | LC_ALL=C tr -d $'\n' | head -c 20)"
 
 # ---------------------------------------------------------------------------
-# At this point, the command contains only [A-Za-z0-9 ./_=:,@^-].
+# At this point, the command contains only [A-Za-z0-9 ./_=:,@^~%-].
 # Parse it: must start with 'git ' (or be exactly 'git').
 # ---------------------------------------------------------------------------
 case "$cmd" in
   git\ *|git) ;;
-  *) deny "not a git command" ;;
+  *) deny "not a git command; auditors use the Read/Grep/Glob tools for file access" ;;
 esac
 
 # Strip the leading 'git' token and any surrounding spaces to get the rest.
@@ -144,15 +148,41 @@ case "$rest" in
   rev-parse\ *|rev-parse)   subcmd="rev-parse" ;;
   status\ *|status)         subcmd="status" ;;
   ls-files\ *|ls-files)     subcmd="ls-files" ;;
+  ls-tree\ *|ls-tree)       subcmd="ls-tree" ;;
   cat-file\ *|cat-file)     subcmd="cat-file" ;;
   blame\ *|blame)           subcmd="blame" ;;
+  branch\ *|branch)         subcmd="branch" ;;
   "")
     deny "bare 'git' with no subcommand" ;;
   *)
     # Extract first word for a cleaner error message.
     first_word="$(printf '%s' "$rest" | cut -d' ' -f1)"
-    deny "git subcommand '$first_word' is not in the read-only allowlist (diff/log/show/merge-base/rev-parse/status/ls-files/cat-file/blame)" ;;
+    deny "git subcommand '$first_word' is not in the read-only allowlist (diff/log/show/merge-base/rev-parse/status/ls-files/ls-tree/cat-file/blame/branch); for repo-wide search use the Grep tool" ;;
 esac
+
+# ---------------------------------------------------------------------------
+# READ-FORM branch enforcement (D4): `branch` is admitted only in read shapes.
+# A bare `git branch` (empty rest) lists — allow. With arguments, EVERY token
+# must be an enumerated read flag with =-attached values; the first token that
+# is a bare name (flagless creation), a write flag (-d/-D/-m/-M/-c/-f/-u/--track/
+# --set-upstream-to/…), a combined short cluster (-av), or a space-form value
+# (--contains <rev>) denies — WITHOUT enumerating the write flags (default-deny
+# by token shape). --format is deliberately absent (parens stay denied anyway).
+# bash-3.2-safe: unquoted `for tok in $branch_rest` word-split is safe here —
+# the char allowlist already excludes quotes and glob chars, so no re-split/glob.
+# ---------------------------------------------------------------------------
+if [ "$subcmd" = "branch" ]; then
+  branch_rest="${rest#branch}"
+  branch_rest="${branch_rest# }"
+  for tok in $branch_rest; do
+    case "$tok" in
+      --contains=*|--no-contains=*|--merged=*|--no-merged=*|--points-at=*|--sort=*) ;;
+      --list|--all|-a|--remotes|-r|--show-current|--verbose|-v|-vv) ;;
+      *)
+        deny "git branch takes only =-attached read flags (--contains=<rev>, --merged=<rev>, --points-at=<rev>, --list, -a, -r, --show-current, -v); '$tok' is not one — space-form values and write flags deny" ;;
+    esac
+  done
+fi
 
 # ---------------------------------------------------------------------------
 # Post-subcommand scan: deny --output / --output= / -o / --output-directory
@@ -160,7 +190,7 @@ esac
 #
 # Rationale: git supports --output=<file> and --output-directory=<dir> as
 # subcommand-local flags on diff/log/format-patch etc. that WRITE files.
-# The global-flag block above (lines 94-110) only catches these flags when
+# The leading-position global-flag block above only catches these flags when
 # they appear BEFORE the subcommand (i.e. in leading position).  If they
 # appear AFTER the subcommand (e.g. "git diff --output=/tmp/x"), $rest starts
 # with "diff" and the global block never fires — ALLOW.  This post-subcommand

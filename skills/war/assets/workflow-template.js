@@ -196,7 +196,20 @@ let phaseId = null
 
 try {
 
-const A = typeof args === 'string' ? JSON.parse(args) : (args || {})
+// D8 (spec §8): wrap ONLY the string arm's JSON.parse in a dedicated try/catch that re-throws a NAMED,
+// self-diagnosing Error — the payload length in characters, the engine's OWN parse message (position only
+// when the engine supplies one; JSC supplies none, so it is never fabricated), and a bounded ~60-char head
+// snippet. It routes to the existing top-level held:workflow-error catch (no new enum member, no new return
+// route — ADR 0005; never add held:workflow-error to HARD_ESCALATION_REASONS). The object arm and the
+// ADR 0034 non-null-object guard below are untouched.
+const A = typeof args === 'string' ? (() => {
+  try {
+    return JSON.parse(args)
+  } catch (parseErr) {
+    const head = args.length > 60 ? args.slice(0, 60) + '…' : args
+    throw new Error(`workflow-template: args is a string but not valid JSON (${args.length} chars): ${(parseErr && parseErr.message) || parseErr}. head: ${JSON.stringify(head)}`)
+  }
+})() : (args || {})
 // Non-null-object args guard (ADR 0034, hand-mirrored in skills/red-team/assets/workflow-scaffold.js —
 // the Workflow sandbox cannot import; a both-sites drift test pins both). A scalar/array parse result
 // ('null'/'true'/'5', arrays) is not a usable args object: THROW a named error routing to the existing
@@ -722,8 +735,13 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin) {
   let p = pt`Audit WAR task ${task.id} through the "${lens}" lens at depth ${depth}.\n`
     + pt`Sub-issue #${task.issue ?? '<unset>'}. Plan slice: ${task.planSlice}. Plan file: ${plan.file}.\n`
     + pt`Run \`git diff ${ph.integrationBranch}...${task.branch}\` (three-dot = merge-base..head = exactly what this task added) for the authoritative change set; re-run it each round (a fix-worker may have pushed). `
-    + pt`Use allowlist-safe git forms: --name-status, --stat, --format=oneline, A...B, HEAD^. `
-    + pt`Avoid %-format strings (e.g. --pretty=format:%H) and @{} reflog syntax — those are denied by the read-only guard.\n`
+    // READ-ONLY GIT GUARD CONTRACT (D5, spec §5) — mirrored as the "## Read-only git guard contract"
+    // section in agents/war-auditor.md (same commit); the D3 both-surfaces registry row anchors the
+    // shared tokens (one bare git / no pipes / ls-tree / Grep tool) on BOTH surfaces AND asserts the
+    // retired partial teach (the old pretty-format / reflog fragments) is absent from both (red-team
+    // adjudication, ADR 0025). The verb list mirrors the hook's unlisted-verb deny enumeration in
+    // hooks/validate-auditor-git.sh.
+    + pt`READ-ONLY GIT GUARD CONTRACT: run one bare git command per Bash call from the read-verb allowlist (diff, log, show, merge-base, rev-parse, status, ls-files, ls-tree, cat-file, blame, branch) — no pipes, chaining, redirects, quotes, globs, braces, or substitution: compose nothing, and filter or search the output with the Read/Grep/Glob tools instead. Non-git shell reads (ls, cat, wc, …) always deny — use Read/Glob, or git ls-files / git ls-tree to list tree contents. branch takes =-attached read flags only (--contains=<rev>, --merged=<rev>, --points-at=<rev>, --list, -a, -r, --show-current, -v); a bare name or write flag denies. git grep stays denied — the Grep tool is the sweep channel. Avoid @{} reflog (braces are denied) — use git log -g instead.\n`
     + pt`Then read candidate files under ${task.worktree}/ for neighbor/deep context.\n`
     + pt`Verify the mapped acceptance-criteria tests EXIST and are not weakened or skipped (anti-cheat: catch "green by deletion" and test-integrity erosion). You cannot execute the gate — the refiner runs the gate. Your job is to confirm tests exist in the diff and are uncompromised.`
     // Latitude + disposition + calibration + cost-claim rules (ADR 0013) — mirrored VERBATIM in
@@ -1968,5 +1986,11 @@ return { phase: phaseId, landed, escalated, minorsFiled, aced, notes, landResult
   return { phase: phaseId, landed, escalated, minorsFiled, aced, notes, landResult: null,
            servitorResult: null, auditLog,
            landDecision: 'held:workflow-error',
-           workflowError: { message: String(err && err.message || err), stack: err && err.stack } }
+           // recovery (D9, spec §9): an ADDITIVE field naming the sanctioned retry — held:workflow-error is
+           // Lead/infra-side, so it retries via a FRESH Recovery relaunch (new runId), NEVER resumeFromRunId
+           // (the journal replays the cached error). Conforms to the ratified skills/war/SKILL.md
+           // "Resume vs. recovery relaunch" prose (that file untouched). Existing consumers read
+           // workflowError.message/stack and are unaffected.
+           workflowError: { message: String(err && err.message || err), stack: err && err.stack,
+             recovery: 'held:workflow-error is Lead/infra-side — retry via a fresh Recovery relaunch (new runId), never resumeFromRunId (the journal replays the cached error).' } }
 }
