@@ -1,0 +1,237 @@
+{
+  "seed": [
+    {
+      "slug": "case-glob-star-crosses-slash-prefix-needs-root-plus-nested",
+      "bytes": 2236,
+      "sha256": "ad76fe0410c20c809b796d49916cfb849d87ba150348acf7c2a29aabe05c4ec8",
+      "description": "case fnmatch: * crosses /, **/ misses root; need the token pair",
+      "type": "project",
+      "provenance": "agent-unverified"
+    },
+    {
+      "slug": "consolidate-exts-v2-timeout",
+      "bytes": 5566,
+      "sha256": "2faa578b85a5284a396497b3b3a7d56d652b690c1a33b0298a7bcfdcb347e25e",
+      "description": "Why ConsolidateExtsV2Handler times out at 900s on big cases, why redrives eventually succeed, and the Phase-1 fix (run_parallel fan-out + SFN retry) that landed",
+      "type": "project",
+      "provenance": "agent-unverified"
+    },
+    {
+      "slug": "default-flip-must-audit-all-doc-surfaces",
+      "bytes": 1571,
+      "sha256": "a46dcdf1cbc7c1a9f428157961b14d766c10ee11aa947e7cc89d0c712a2f317b",
+      "description": "Default flip: sweep ALL doc surfaces; assert old absent",
+      "type": "project",
+      "provenance": "agent-unverified"
+    },
+    {
+      "slug": "drift-matrix-stated-vs-covered-cells",
+      "bytes": 1409,
+      "sha256": "8381601a75c192ecdc4db93e0964399e2b76583241d2e64393b92eae24cd97bf",
+      "description": "Drift matrix stated vs covered cells",
+      "type": "project",
+      "provenance": "agent-unverified"
+    },
+    {
+      "slug": "ensure-origin-swallows-stderr-unlike-sibling-subcommands",
+      "bytes": 2936,
+      "sha256": "1d04d5bf9d2783693d5516da745c378dc5afabe5f1b771004eac54745ad7e9da",
+      "description": "cmd_ensure_origin swallows git push stderr; siblings use _tmp_err",
+      "type": "project",
+      "provenance": "agent-unverified"
+    },
+    {
+      "slug": "fail-closed-gate-silently-redirects-existing-failure-tests",
+      "bytes": 1465,
+      "sha256": "f5f2081aa925a2d1d0182a4d676a23591311aa90e96126a3b761f0197c80159b",
+      "description": "New gate flips loose failure tests into gate tests",
+      "type": "project",
+      "provenance": "agent-unverified"
+    },
+    {
+      "slug": "fail-open-design-bounds-xargs-word-split-blast-radius",
+      "bytes": 3062,
+      "sha256": "3d4679c849a9bd96613cf98b7b64e7e79e97ff2f7c14d1baa0b48a54176fb6d9",
+      "description": "xargs ls -t splits on spaces; fail-open = silence",
+      "type": "project",
+      "provenance": "agent-unverified"
+    },
+    {
+      "slug": "git-common-dir-anchor-idiom-fail-open-gotchas",
+      "bytes": 4341,
+      "sha256": "f349db1ef31ccda6e4afe454bb3822a4d4b4d67ba3566de0fd45114bd0a4c8e9",
+      "description": "The ratified `git rev-parse --path-format=absolute --git-common-dir` main-checkout anchor idiom: two fail-open correctness gotchas",
+      "type": "project",
+      "provenance": "agent-unverified"
+    },
+    {
+      "slug": "git-probing-hook-requires-fixtures-outside-any-git-repo",
+      "bytes": 3072,
+      "sha256": "98c233b647764075ea3c17bc867336a4fe242f1d4fc5693dc08f732ae930893f",
+      "description": "An unconditional git probe in a previously git-free hook makes every test fixture root need to live outside any git working tree",
+      "type": "project",
+      "provenance": "agent-unverified"
+    },
+    {
+      "slug": "gitmodules-working-tree-read-vs-ref-snapshot",
+      "bytes": 2199,
+      "sha256": "da2eaa3f6b91f0b7deca541425e3137203708fb62eed35f5165c72993a554405",
+      "description": ".gitmodules read = working-tree not ref snapshot — FIXED phase 'Floor fixes' 2026-07-12",
+      "type": "project",
+      "provenance": "agent-unverified"
+    },
+    {
+      "slug": "guard-widening-red-discriminator-must-target-branch-without-fallback",
+      "bytes": 2829,
+      "sha256": "b0832173bdd41a4bba2d081231072e51237b6d383bf75ad35455ff9e636a9b1e",
+      "description": "Case-pattern widening test proves the fix only on a branch with no independent fallback deny",
+      "type": "project",
+      "provenance": "agent-unverified"
+    },
+    {
+      "slug": "js-inner-function-param-shadows-outer-const-same-name",
+      "bytes": 2076,
+      "sha256": "fa1ed74316cafa9323327f64de86fdfee0bcb533312a00e477cfae13b41a64ca",
+      "description": "Inner-function param reusing an outer const's name is a latent rename trap, harmless today",
+      "type": "project",
+      "provenance": "agent-unverified"
+    },
+    {
+      "slug": "json-parse-catch-misses-valid-scalar",
+      "bytes": 1826,
+      "sha256": "8b1b6cb6660fb9485efa4394016bfe9101267ec42ed62a84533c5b4934e27c97",
+      "description": "JSON.parse catch does not guard against valid-but-non-object scalars",
+      "type": "project",
+      "provenance": "agent-unverified"
+    },
+    {
+      "slug": "land-advance-push-first-cas-rejected-token",
+      "bytes": 1572,
+      "sha256": "8e6d0f9f71c1589aa0b19743066f1183505b218c9fe30c9fd9d6fcf42f501580",
+      "description": "CAS reject = [rejected] token; exit 0/2/3 contract",
+      "type": "project",
+      "provenance": "agent-unverified"
+    },
+    {
+      "slug": "mechanical-tag-sweep-can-corrupt-backtick-quoted-comment-tokens",
+      "bytes": 2711,
+      "sha256": "54fa7678be71243946c41899ad40f4c76e5381567eaa023b6dd4234fc2d0559e",
+      "description": "Mechanical tag sweep can corrupt backtick tokens in // comments",
+      "type": "project",
+      "provenance": "agent-unverified"
+    },
+    {
+      "slug": "non-discriminating-test-can-still-be-plan-faithful",
+      "bytes": 2444,
+      "sha256": "c855726efaf14324a24558969b6d6c9345bcce469fcccf33ba2de4975abd8227",
+      "description": "A test that never goes RED for the current mechanism, or doesn't alone discriminate a trigger, can still be a legitimate non-vacuous guard",
+      "type": "project",
+      "provenance": "agent-unverified"
+    },
+    {
+      "slug": "overrides-loop-lacks-nonobject-type-guard-unlike-memory-block",
+      "bytes": 2152,
+      "sha256": "90a5b6cfbc78bd58bfd6c00a1b971823295a9b731b0b3d4450017d0d8b692478",
+      "description": "war-config.mjs validate()'s overrides loop has no isObj guard, unlike the memory.* block right above it — a hand-edited overrides: null crashes with an uncaught TypeError instead of a clean validation error",
+      "type": "project",
+      "provenance": "agent-unverified"
+    },
+    {
+      "slug": "printf-json-escaping-vacuous-test-case",
+      "bytes": 3237,
+      "sha256": "c4d26fc6f21babd55cb3b0291cb6909756e7ed8a4200fb00c1ab98084a81fb5a",
+      "description": "printf-interpolated JSON payloads make embedded-quote test cases vacuous",
+      "type": "project",
+      "provenance": "agent-unverified"
+    },
+    {
+      "slug": "push-to-deleted-pr-branch-silently-recreates-it",
+      "bytes": 1706,
+      "sha256": "151c4b312b14c0cb013f35cc0f33d1de362dfa1eabf8376a740256aa52df5bba",
+      "description": "Push after PR merge recreates dead branch, misses PR",
+      "type": "project",
+      "provenance": "agent-unverified"
+    },
+    {
+      "slug": "reclaim-empty-orphan-proof-swallows-git-log-error-as-empty",
+      "bytes": 2618,
+      "sha256": "6416ce248866a81cdf6f9f9183935466eda860d03e9aec7f52588c46849fd9d4",
+      "description": "git log 2>/dev/null||true reads a git error as a proven-empty branch",
+      "type": "project",
+      "provenance": "agent-unverified"
+    },
+    {
+      "slug": "redteam-executed-probe-cwd-reset-hits-real-remote",
+      "bytes": 1893,
+      "sha256": "2bc6ac260e24cdaa20f904cd47ba9939e6f22117e8f101d2b7087cbfb5588133",
+      "description": "Bash cwd reset → sandbox probe pushed real remote",
+      "type": "project",
+      "provenance": "agent-unverified"
+    },
+    {
+      "slug": "relative-path-test-needs-clean-cwd",
+      "bytes": 2637,
+      "sha256": "cd7765808dd915ace24b7b1a1b637d5afa40a0c15e13dfca55a0f08779997edd",
+      "description": "rel_guard false-allow from dirty cwd; use clean dir",
+      "type": "project",
+      "provenance": "agent-unverified"
+    },
+    {
+      "slug": "scope-hook-relative-path-loop-hang",
+      "bytes": 3216,
+      "sha256": "026bb3434b641a68c83b9673923738d9068edac84e3f20f7770546b43fc12e05",
+      "description": "Ancestor walk hangs on rel paths; add prev guard",
+      "type": "project",
+      "provenance": "agent-unverified"
+    },
+    {
+      "slug": "shell-test-suite-must-sanitize-ambient-env-var-convention-before-fixture-cases",
+      "bytes": 2156,
+      "sha256": "cbe6e330052cd8cc922743c7133e5e81f693b69d86b5e0f3d5e06e7cac0f5a97",
+      "description": "Shell tests of an env-var-triggered code path must unset that var before pre-existing fixture cases — an ambient developer/CI export silently activates it",
+      "type": "project",
+      "provenance": "agent-unverified"
+    },
+    {
+      "slug": "teardown-phase-reap-order-and-delete-fail-loud",
+      "bytes": 1983,
+      "sha256": "5d3b5faa3e263e06c225a9b96743a203b15f4121c676c399997c73a155f3bf64",
+      "description": "teardown-phase: reap _refinery BEFORE branch delete; delete must fail loud",
+      "type": "project",
+      "provenance": "agent-unverified"
+    },
+    {
+      "slug": "war-normalize-extraction-shadow-bake",
+      "bytes": 5569,
+      "sha256": "38d12fbdb165270b05294a9da940b2ee283e8156164291126b6bcf2de06b6371",
+      "description": "durable mechanics from WAR phase-1 of the normalize_extraction migration — the shadow/bake pattern, the MetricFilter gate, and the recurring stale-tip gate-audit gotcha; reuse for the remaining per-site swaps",
+      "type": "project",
+      "provenance": "agent-unverified"
+    },
+    {
+      "slug": "war-provision-barrier-needs-local-working-branch-ref",
+      "bytes": 2656,
+      "sha256": "845f18b030ee185103bcd90164e7820db09762755f1ec0ac72e01f2a07587bf5",
+      "description": "/war provision barrier needs a LOCAL working-branch ref, not origin-only",
+      "type": "project",
+      "provenance": "agent-unverified"
+    },
+    {
+      "slug": "weak-test-assertion-passes-without-feature-being-exercised",
+      "bytes": 7387,
+      "sha256": "60a475c551296a88fd160de08dbea9e839a5c2ae6298da3bfa9dae37937fcccd",
+      "description": "Delete feature mentally; assert must fail w/o it",
+      "type": "project",
+      "provenance": "agent-unverified"
+    },
+    {
+      "slug": "workflow-args-global-arrives-json-stringified",
+      "bytes": 1543,
+      "sha256": "c597f076b9695df70bfc3b1d13661ecbbe260c8983dd585b3919804a84b713ee",
+      "description": "Workflow args global arrives as a JSON string",
+      "type": "project",
+      "provenance": "agent-unverified"
+    }
+  ],
+  "archive": []
+}
