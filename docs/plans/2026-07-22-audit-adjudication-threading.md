@@ -36,22 +36,46 @@ is the ceiling, the plan slice is the floor)*
   3. A new assertion proves a threaded run's gate-audit-family prompt (e.g. the seat labeled
      `gate-audit:phase-<id>:end-state`) carries the clause, and an unthreaded run's gate-audit
      prompts carry none of the new anchors.
-  4. `grep -n 'args.adjudications' skills/war/SKILL.md` hits the `## Decompose + approve — GATE`
-     section (assemble/thread/record duty) AND the held-partial-phase recovery runbook (record at
-     escalation adjudication; re-thread the accumulated set on relaunch).
+  4. The `args.adjudications` duty is present in BOTH the `## Decompose + approve — GATE` section
+     (assemble/thread/record duty) AND the held-partial-phase recovery runbook (record at
+     escalation adjudication; re-thread the accumulated set on relaunch) — verified by two
+     **section-scoped, case-insensitive** checks (red-team adjudication, ADR 0025): a bare
+     repo-wide `grep -n` proves neither the section binding nor casing/position robustness, so
+     each section is checked independently, e.g.
+     `awk '/^## Decompose \+ approve/,/^## Run manifest/' skills/war/SKILL.md | grep -in 'args\.adjudications'`
+     and
+     `awk '/^### Held-partial-phase recovery runbook/,/^## Finish/' skills/war/SKILL.md | grep -in 'args\.adjudications'`
+     must each hit.
   5. `skills/war/references/schemas.md` `## Workflow per-phase args contract` documents
      `adjudications`: shape, both producers, run-long accumulation + recovery-relaunch
      re-threading, empty ⇒ byte-identical.
   6. `skills/red-team/SKILL.md` step 5 names the channel as shared with decompose/escalation-time
      Lead adjudications.
-  7. No sole-producer claim survives: the `workflow-template.js` comment introducing the
-     `adjudications` const names both producers; the §4.F sweep + manual same-scope survey are
-     completed with stragglers listed as survey-derived corrections.
+  7. No sole-producer claim survives. The two surfaces Task 1.1 itself lands carry **RED-able**
+     absence enforcement (red-team adjudication, ADR 0025): the `workflow-template.js` comment
+     introducing the `adjudications` const names both producers, and a new **scoped** absence test in
+     `workflow-template.test.mjs` asserts no surviving single-producer phrasing across those two
+     surfaces present at Task 1.1's tip — `skills/war/assets/workflow-template.js` (the adjudications
+     header comment) and `agents/war-auditor.md` (the version-precedence bullet's producer
+     parenthetical). The matcher keys on a **red-team-report sentence missing its second-producer
+     clause**, never on an `only`/`sole` token — neither surface carries such a token, so that
+     spelling would be provably vacuous (red-team correction; see Task 1.1 mapped test (e)). The four prose surfaces edited by later-wave tasks 1.2/1.3
+     (`skills/war/SKILL.md`, `skills/war/references/schemas.md`, `skills/red-team/SKILL.md`,
+     `CONTEXT.md`) are **not** in the RED-able test — they are not present at Task 1.1's dispatch tip,
+     so a test reading them would RED in-wave — and stay under the §4.F grep + manual same-scope
+     survey floor (explicitly accepted for these low-drift doc files). The two spec §4.F
+     narration-only files stay exempt from the **producer** sweep — `skills/_shared/war-memory.mjs`
+     entirely untouched, and `skills/red-team/references/lenses.md` untouched *on the producer axis*
+     while Task 1.3 widens its **destination** phrase (a separate axis §4.F does not rule on).
+     Stragglers are listed as survey-derived corrections.
   8. `agents/war-auditor.md` carries the Adjudication-match bullet verbatim and the widened
      producer parenthetical.
-  9. The D3 both-surfaces directive registry and its `REGISTRY.length` floor assertion are
+  9. The D3 both-surfaces directive **REGISTRY rows** and the `REGISTRY.length` floor assertion are
      byte-unchanged by this plan (D6; #693 floor untouched at whatever exact count the
-     integration base carries).
+     integration base carries). Scope note (red-team correction): "byte-unchanged" covers the rows
+     and the floor assertion, **not** the registry's surrounding rationale comment — Task 1.1 must
+     correct that comment's now-false claim that a base `auditPrompt` clause never reaches the inline
+     gate-audit seats.
   10. `CONTEXT.md` carries the widened **Adjudication** term (per spec §6) and
       `docs/adr/0013-commanders-intent-and-disposition-routing.md` carries the one-paragraph
       second-producer amendment note (spec §7).
@@ -66,7 +90,7 @@ manifest's ordering edge; spec constraint 3 — same two auditor prompt surfaces
 file). Draft assumes that plan's deltas are present at dispatch; landing order is
 roadmap/campaign-enforced, not re-mechanized here.
 
-1. **Phase 1 — Channel widening + doctrine** (waves: 1.1 ∥ 1.2 → 1.3)
+1. **Phase 1 — Channel widening + doctrine** (waves: 1.2 → 1.1 → 1.3)
 2. **Phase 2 — Release** (trailing, own phase)
 
 ## Phase 1 — Channel widening + doctrine
@@ -84,8 +108,16 @@ roadmap/campaign-enforced, not re-mechanized here.
   existing `pt`-tagged clause: no new interpolations, the pt census is untouched. **Three new
   emission sites:** append `adjudicationClause` immediately after `intentClause` in the
   `POST-MERGE GATE-AUDIT`, `INTEGRATED-TIP GATE-AUDIT`, and `END-STATE-ONLY GATE-AUDIT` prompt
-  blocks (each currently ends `… + endStateBlock + intentClause`). Every other `intentClause`
-  site (worker dispatch, provision barrier, refiner, servitor, phase-close sweep) is untouched —
+  blocks. **Insertion point (red-team correction):** each block carries `+ endStateBlock +
+  intentClause`, but only END-STATE-ONLY *ends* there — POST-MERGE and INTEGRATED-TIP then append a
+  trailing `+ pt`\nDefault: SOFT. Hard only when provably unrun.`` line. Insert `adjudicationClause`
+  **immediately after `intentClause`** at all three (i.e. before that trailing `Default: SOFT…` line
+  where it exists), not at the block's textual end. Every other `intentClause`
+  site is untouched — the **real** untouched dispatch-site set (red-team correction; beyond the
+  definition, the `workerIntentClause` construct, `auditPrompt()`, and the three gate-audit blocks
+  this task edits) is: worker dispatch, the **ace/absorb fix-worker** prompt, the phase-close
+  coherence sweep, and the servitor Wrap-up. There is **no** `intentClause` in any provision-barrier
+  or refiner/merge prompt — do not go looking for one —
   workers take adjudicated values via task instructions, the top of the precedence order (D5).
   Empty set ⇒ `''` ⇒ all three prompts byte-identical to today. **Header-comment producer
   rewrite:** the comment block introducing the `adjudications` const names BOTH producers — the
@@ -112,17 +144,47 @@ roadmap/campaign-enforced, not re-mechanized here.
   **unmodified** — it is the byte-identity proof for constraint 2. (d) The D3 both-surfaces
   directive registry and its `REGISTRY.length` floor assertion are **not touched** (D6 — the
   registry's baseline dispatch threads no adjudications, so a row would be unsatisfiable there).
+  (e) **Scoped single-producer absence test (red-team adjudication, ADR 0025, End state 7):** a new
+  test in `workflow-template.test.mjs` `readFileSync`s the two surfaces present at this task's tip —
+  `skills/war/assets/workflow-template.js` (the adjudications header comment block) and
+  `agents/war-auditor.md` (the version-precedence bullet) — and asserts each **red-team-report
+  sentence also carries the second-producer clause**. **Matcher discipline (red-team correction — the
+  obvious spelling is provably vacuous):** do **not** match on `only`/`sole`/`exclusively`. Neither
+  pre-rewrite surface contains any such token — the current exclusivity is *implicit* (a single named
+  producer), so an `only`/`sole` matcher passes on the very text it must reject, and `war-auditor.md`
+  independently contains unrelated "only when …" clauses that would false-positive. Instead: within
+  each scoped block, find every sentence naming `red-team report` and assert **none** of them lacks a
+  second-producer fragment (an `and/or` + `the Lead` / `skills/war/SKILL.md` reference). Scope
+  **only** these two surfaces by path (later-wave prose surfaces are absent at this tip; a repo-wide
+  assertion would RED in-wave and on the two §4.F narration-only exemptions). **Red-first proof:**
+  temp-revert the header-comment rewrite — the reverted text's red-team-report sentence carries no
+  second-producer clause, so the test must go RED; confirm it does before shipping.
   **Sweep (this task's half) + mandatory survey (§4.F).** Known sole-producer hits inside this
   task's files: the `workflow-template.js` header comment (rewritten above) and the
   `war-auditor.md` parenthetical (widened above). Then the manual same-scope survey — grep is a
   floor, not a ceiling: hand-scan the Task 1.5 comment block in `workflow-template.test.mjs`,
   the clause-adjacent comments in `workflow-template.js`, and the surrounding bullets in
   `war-auditor.md` for same-meaning phrasings of the sole-producer claim; update each and list
-  stragglers as survey-derived corrections in the done report. Spec §10 criteria 1–4, 8–10.
+  stragglers as survey-derived corrections in the done report. **Also in scope (red-team correction):
+  the D3 registry's own header comment** in `workflow-template.test.mjs` — it currently asserts the
+  inline gate-audit seat prompts "sit OUTSIDE `auditPrompt()`, so a base auditPrompt clause never
+  reaches them; they inherit a shared directive only via the standing card." This task's three new
+  emission sites **falsify** that code-fact (those seats now also receive `adjudicationClause`
+  directly), so correct the comment in this same diff — otherwise the diff ships a false comment a
+  gate-auditor legitimately flags. This is a *comment* correction only: the REGISTRY rows and the
+  `REGISTRY.length` floor assertion stay byte-unchanged (End state 9). Spec §10 criteria 1–4, 8–10.
 - requiresTest: true
 - requiresPackaging: false
-- deps: []
+- deps: [1.2]
 - target repo: superproject
+
+  **Wave edge `deps: [1.2]` (red-team correction — prose-coherence, not a same-file dodge):** Task
+  1.1's header comment and `war-auditor.md` parenthetical reference "the Lead's gate/escalation
+  adjudications per `skills/war/SKILL.md`" — the procedure Task 1.2 lands. The edge means 1.1's
+  worker and auditors judge that forward pointer against an integrated tip where the SKILL.md step is
+  real, avoiding a false "references a nonexistent step" audit finding. Files are disjoint (1.2 edits
+  only `skills/war/SKILL.md`), so this is pure wave ordering — the plan's own idiom, already used for
+  1.3's `deps: [1.1, 1.2]`.
 
 ### Task 1.2: Lead procedure — decompose-gate producer step + recovery-runbook record/re-thread
 
@@ -161,7 +223,7 @@ roadmap/campaign-enforced, not re-mechanized here.
 
 ### Task 1.3: docs — args contract, shared-channel clause, glossary widening, ADR 0013 amendment note
 
-- Files: `skills/war/references/schemas.md`, `skills/red-team/SKILL.md`, `CONTEXT.md`, `docs/adr/0013-commanders-intent-and-disposition-routing.md`
+- Files: `skills/war/references/schemas.md`, `skills/red-team/SKILL.md`, `skills/red-team/references/lenses.md`, `CONTEXT.md`, `docs/adr/0013-commanders-intent-and-disposition-routing.md`
 - Plan slice: **schemas.md (D7).** In `## Workflow per-phase args contract`, add an
   `adjudications` paragraph alongside the existing `intent` and `memory` paragraphs: optional
   `adjudications` (array|null of preformatted strings or `{ adjudicated|value, supersedes }`
@@ -176,9 +238,18 @@ roadmap/campaign-enforced, not re-mechanized here.
   byte-identical, D2). In the **same sentence edit**, widen the destination phrase "the WAR Lead
   threads those rows into `auditPrompt()`" — after Task 1.1 the rows also reach the
   gate-audit-family prompts, so `auditPrompt()`-only is under-inclusive (e.g. "into the auditor
-  prompts (`auditPrompt()` and the gate-audit seats)"). The **identical** destination phrase in
-  `skills/red-team/references/lenses.md`'s machine-readable comment stays untouched per the
-  spec's explicit §4.F ruling — record the pair in the done report's sweep notes.
+  prompts (`auditPrompt()` and the gate-audit seats)"). **`lenses.md` destination widening
+  (red-team adjudication — two axes, do not conflate):** the machine-readable comment in
+  `skills/red-team/references/lenses.md` carries a **same-meaning, NOT byte-identical** phrase — it
+  reads "the WAR Lead reads these rows and threads them into auditPrompt()" (no backticks, different
+  verb phrase), so a worker grepping the SKILL.md string verbatim will not find it; locate it by the
+  `auditPrompt()` token inside that comment. Spec §4.F rules it exempt from the **producer** sweep
+  (it makes no exclusivity claim) and that ruling **stands** — but §4.F says nothing about
+  **destination** scope, and after Task 1.1 lands the three gate-audit emission sites this line's
+  `auditPrompt()`-only destination is under-inclusive in exactly the way the plan cites to justify
+  widening red-team/SKILL.md. Therefore: **widen its destination phrase the same way** (to the
+  auditor prompts — `auditPrompt()` and the gate-audit seats), leaving its producer wording
+  untouched. Record both edits in the done report's sweep notes.
   **CONTEXT.md (spec §6 — this task's sweep half).** Widen
   **Adjudication (red-team)** → **Adjudication** per the spec §6 text: an authoritative resolved
   ruling threaded to audit seats as an `args.adjudications` row — produced by the red-team
@@ -279,12 +350,17 @@ roadmap/campaign-enforced, not re-mechanized here.
   Task 1.3. Spec-internal inconsistency, logged here rather than silently absorbed.
 - **Sweep split along task file-ownership lines** (the predecessor plan's pattern): every known
   sole-producer hit falls inside Task 1.1's or Task 1.3's Files — no dedicated sweep task.
-  Plan-time survey already run against the live tree; two narration-only hits are **deliberately
-  untouched**: the `skills/red-team/references/lenses.md` machine-readable comment (no
-  exclusivity claim — spec §4.F expects it to survive unchanged) and the
-  `skills/_shared/war-memory.mjs` effective-date comment ("red-team adjudication 2026-07-21" —
-  narration of one past ruling, not a producer claim). An auditor finding those files unmodified
-  is confirming the design, not catching an omission. `docs/adr/0013`'s Decision-3 precedence
+  Plan-time survey already run against the live tree. **Producer-sweep exemptions (two axes — read
+  carefully, red-team correction):** neither `skills/red-team/references/lenses.md` nor
+  `skills/_shared/war-memory.mjs` carries a producer-exclusivity claim, so both are exempt from the
+  **producer** sweep per spec §4.F. The `war-memory.mjs` effective-date comment ("red-team
+  adjudication 2026-07-21" — narration of one past ruling) is **fully untouched**; an auditor finding
+  it unmodified is confirming the design. **`lenses.md` is the exception:** it is exempt from the
+  producer sweep but IS edited by Task 1.3 on the separate **destination** axis — its
+  `auditPrompt()`-only destination goes under-inclusive once Task 1.1 lands the three gate-audit
+  emission sites (§4.F rules on exclusivity, not destination). An auditor finding `lenses.md`'s
+  producer wording unchanged is confirming the design; finding its destination phrase *un*widened is
+  catching a real omission. `docs/adr/0013`'s Decision-3 precedence
   sentence also survives byte-identical (D2); the amendment note is additive.
 - **`deps: [1.1, 1.2]` on Task 1.3 is a prose-coherence wave edge, not a same-file dodge:** the
   schemas paragraph, the CONTEXT term, the red-team clause, and the ADR note all describe the
