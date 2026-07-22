@@ -5,7 +5,8 @@
 # This guard is FAIL-CLOSED: for agent_type suffix-anchored to war-auditor
 # (case pattern `*war-auditor`), it allows
 # ONLY a single git read-subcommand (diff/log/show/merge-base/rev-parse/status/
-# ls-files/cat-file/blame) with no shell metacharacters. Anything else → DENY
+# ls-files/ls-tree/cat-file/blame, plus read-form branch) with no shell
+# metacharacters. Anything else → DENY
 # (exit 2). Non-auditor agent types → exit 0 (pass-through).
 #
 # CRITICAL ASSERTION DESIGN:
@@ -70,6 +71,33 @@ expect_deny() {
   else
     printf 'FAIL %d - %s (expected exit 2 + WAR: deny, got rc=%s stderr=|%s|)\n' \
       "$n" "$1" "$_rc" "$_err"
+    fails=$((fails + 1))
+  fi
+}
+
+# expect_deny_teach <description> <payload-json> <substr>
+# Asserts: exit 2 AND "WAR:" marker AND <substr> present on stderr.
+# The extra <substr> check is the D6 micro-teach assertion — the deny message
+# must name the sanctioned alternative (Read/Grep/Glob, the Grep tool, or the
+# =-attached branch read-flag form). Substr matched literally via a quoted case
+# pattern (the payloads carry no glob-special chars).
+expect_deny_teach() {
+  n=$((n + 1))
+  _rc="$(rc_of "$2")"
+  _err="$(stderr_of "$2")"
+  _has_war_deny=0
+  _has_teach=0
+  case "$_err" in
+    *WAR:*) _has_war_deny=1 ;;
+  esac
+  case "$_err" in
+    *"$3"*) _has_teach=1 ;;
+  esac
+  if [ "$_rc" = "2" ] && [ "$_has_war_deny" = "1" ] && [ "$_has_teach" = "1" ]; then
+    printf 'ok %d - %s (exit 2, WAR: deny + micro-teach |%s|)\n' "$n" "$1" "$3"
+  else
+    printf 'FAIL %d - %s (expected exit 2 + WAR: + micro-teach |%s|, got rc=%s stderr=|%s|)\n' \
+      "$n" "$1" "$3" "$_rc" "$_err"
     fails=$((fails + 1))
   fi
 }
@@ -286,7 +314,7 @@ expect_deny "E7: git --pager=cat log → denied (global --pager=)" \
 
 # E8: git diff --output=FILE (subcommand-position --output=, write primitive)
 # Open Decision #1: this is the NAMED bypass — subcommand-local --output bypasses
-# the global-flag block above (lines 94-110) because $rest starts with "diff".
+# the hook's leading-position global-flag block because $rest starts with "diff".
 # The post-subcommand scan must catch it.
 expect_deny "E8: git diff --output=/tmp/x → denied (subcommand-position --output=)" \
   "$(auditor_cmd "git diff --output=/tmp/x")"
@@ -356,6 +384,9 @@ expect_deny "G5: git fetch → denied (not in read allowlist)" \
 # (spec §8 / ADR 0029) deliberately does NOT widen the allowlist to add a grep verb: blob
 # reads go through `git show`, history through `git log -S/-G`. This case is the mechanical
 # record of that non-widening — flipping it to expect_allow would signal a widened allowlist.
+# D3 re-ratification (2026-07-22 auditor-guard-ergonomics spec §3): the char/verb widening
+# admitted ~/%, ls-tree and read-form branch but DECLINED `git grep` — the unrestricted Grep
+# tool is the sanctioned repo-wide sweep channel (named in the unlisted-verb deny's micro-teach).
 expect_deny "G6: git grep token → denied (grep verb NOT admitted; allowlist unwidened)" \
   "$(auditor_cmd "git grep token")"
 
@@ -439,6 +470,92 @@ expect_allow "I1: work-audit-refine:war-auditor-helper git push → exit 0 (arm 
 # (fail-open inversion) on the live default string.
 expect_deny "I2: work-audit-refine:war-auditor git push → denied (exact dispatched shape still gated)" \
   "$(typed_cmd "work-audit-refine:war-auditor" "git push")"
+
+# ---------------------------------------------------------------------------
+# CASE GROUP J: widened read grammar (#980 / #982)
+# Proves exactly ~ and % were added to the char set, ls-tree is admitted, and
+# read-form branch admits its read shapes while EVERY write shape denies by
+# token-shape default-deny (no write flag is enumerated). The C/E/H5 injection
+# cases above stay unmodified and green — that is the widening proof: only ~/%
+# joined the char set, nothing in the metacharacter/global-flag defense moved.
+# ---------------------------------------------------------------------------
+
+# J1: git diff HEAD~1 — the ~ char (most idiomatic revision form) now allowed
+expect_allow "J1: git diff HEAD~1 → allowed (~ admitted to char set)" \
+  "$(auditor_cmd "git diff HEAD~1")"
+
+# J2: git log --pretty=format:%H — the % char now allowed
+expect_allow "J2: git log --pretty=format:%H → allowed (% admitted to char set)" \
+  "$(auditor_cmd "git log --pretty=format:%H")"
+
+# J3: git ls-tree -r HEAD — new pure-read verb
+expect_allow "J3: git ls-tree -r HEAD → allowed (ls-tree read verb)" \
+  "$(auditor_cmd "git ls-tree -r HEAD")"
+
+# J4: git ls-tree HEAD skills/ — ls-tree with a pathspec
+expect_allow "J4: git ls-tree HEAD skills/ → allowed (ls-tree pathspec)" \
+  "$(auditor_cmd "git ls-tree HEAD skills/")"
+
+# J5: git branch (bare) — lists, allow
+expect_allow "J5: git branch → allowed (bare branch lists)" \
+  "$(auditor_cmd "git branch")"
+
+# J6: git branch -a -v — separated enumerated read short flags
+expect_allow "J6: git branch -a -v → allowed (enumerated read flags)" \
+  "$(auditor_cmd "git branch -a -v")"
+
+# J7: git branch --contains=abc123 — =-attached read flag
+expect_allow "J7: git branch --contains=abc123 → allowed (=-attached read flag)" \
+  "$(auditor_cmd "git branch --contains=abc123")"
+
+# J8: git branch --show-current — read flag
+expect_allow "J8: git branch --show-current → allowed (read flag)" \
+  "$(auditor_cmd "git branch --show-current")"
+
+# J9: git branch -d x → deny (delete write flag, not enumerated)
+expect_deny "J9: git branch -d x → denied (delete write flag)" \
+  "$(auditor_cmd "git branch -d x")"
+
+# J10: git branch -D x → deny (force-delete write flag)
+expect_deny "J10: git branch -D x → denied (force-delete write flag)" \
+  "$(auditor_cmd "git branch -D x")"
+
+# J11: git branch -m a b → deny (rename write flag)
+expect_deny "J11: git branch -m a b → denied (rename write flag)" \
+  "$(auditor_cmd "git branch -m a b")"
+
+# J12: git branch newname → deny (flagless creation — bare non-flag token)
+expect_deny "J12: git branch newname → denied (flagless creation)" \
+  "$(auditor_cmd "git branch newname")"
+
+# J13: git branch -f x HEAD → deny (force write flag)
+expect_deny "J13: git branch -f x HEAD → denied (force write flag)" \
+  "$(auditor_cmd "git branch -f x HEAD")"
+
+# J14: git branch --set-upstream-to=origin/x → deny (=-form but a WRITE flag,
+# not in the enumerated read set — default-deny by token shape)
+expect_deny "J14: git branch --set-upstream-to=origin/x → denied (upstream write flag)" \
+  "$(auditor_cmd "git branch --set-upstream-to=origin/x")"
+
+# J15: git branch -av → deny. The combined short cluster is NOT an enumerated
+# token, so the per-token loop denies it even though separated `-a -v` (J6)
+# allows — equivalence-class discipline: only the exact enumerated tokens pass.
+expect_deny "J15: git branch -av → denied (combined short cluster not enumerated; cf. J6)" \
+  "$(auditor_cmd "git branch -av")"
+
+# J16: git branch --contains abc123 (SPACE form) → deny, AND the deny
+# micro-teaches the =-attached read-flag form on stderr (D6). The space form is
+# the first friction a seat hits; the message names the sanctioned = form.
+expect_deny_teach "J16: git branch --contains abc123 (space form) → denied + =-form micro-teach" \
+  "$(auditor_cmd "git branch --contains abc123")" "=-attached"
+
+# J17: non-git command → deny micro-teaches the Read/Grep/Glob file-access tools (D6).
+expect_deny_teach "J17: cat file.txt → denied + Read/Grep/Glob micro-teach" \
+  "$(auditor_cmd "cat file.txt")" "Read/Grep/Glob"
+
+# J18: unlisted git verb → deny micro-teaches the Grep tool for repo-wide search (D6).
+expect_deny_teach "J18: git tag v1 → denied + Grep-tool micro-teach" \
+  "$(auditor_cmd "git tag v1")" "Grep tool"
 
 # ---------------------------------------------------------------------------
 # Summary
