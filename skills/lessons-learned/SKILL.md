@@ -1,6 +1,6 @@
 ---
 name: lessons-learned
-description: Audit and tidy this project's Claude memory store (the MEMORY.md index plus its [[wikilinked]] topic files) — fan out agents to verify every memory against the live repo, classify stale vs durable, then compress / re-anchor / retire and rewrite the index, fault-tolerantly (backup → stage → verify → atomic swap). Always a full pass over the local repo's memory. Use when the user runs /lessons-learned, wants a memory housekeeping or "lessons learned" round, asks whether MEMORY.md is too large / stale / how full it is, or wants to prune, compress, or de-duplicate accumulated learnings. Invoked as /lessons-learned migrate, it instead runs the one-time two-root adoption playbook — retype untyped lessons, archive [RESOLVED] ones, and split committable project lessons into docs/learnings/ via a reviewed PR. Invoked as /lessons-learned evict, it undoes that migration — repo-root lessons return to the local root via a reviewed deletion PR, asking whether to also set commitLearnings: false. Invoked as /lessons-learned tighten, it runs the operator-gated projection-shrink pass — preflight the render-state (already under the advisory line means nothing to do), plan usage-scored evictions behind hard floors via the tighten-plan verb, gate every mutation behind one strike-list ask, execute local archives through the staged swap and any repo archives through a reviewed PR, then report before/after sizes with a loud shortfall block if the target is still missed.
+description: Audit and tidy this project's Claude memory store (the MEMORY.md index plus its [[wikilinked]] topic files) — fan out agents to verify every memory against the live repo, classify stale vs durable, then compress / re-anchor / retire and rewrite the index, fault-tolerantly (backup → stage → verify → atomic swap). Always a full pass over the local repo's memory. Use when the user runs /lessons-learned, wants a memory housekeeping or "lessons learned" round, asks whether MEMORY.md is too large / stale / how full it is, or wants to prune, compress, or de-duplicate accumulated learnings. Invoked as /lessons-learned migrate, it instead runs the one-time two-root adoption playbook — retype untyped lessons, archive [RESOLVED] ones, and split committable project lessons into docs/learnings/ via a reviewed PR. Invoked as /lessons-learned evict, it undoes that migration — repo-root lessons return to the local root via a reviewed deletion PR, asking whether to also set commitLearnings: false. Invoked as /lessons-learned tighten, it runs the operator-gated projection-shrink pass — preflight the render-state (already under the advisory line means nothing to do), plan usage-scored evictions behind hard floors via the tighten-plan verb, gate every mutation behind one strike-list ask, execute local archives through the staged swap and any repo archives through a reviewed PR, then report before/after sizes with a loud shortfall block if the target is still missed. Invoked as /lessons-learned seed, it instead warm-seeds the current repo's memory from the plugin-shipped portable seed set — unpacking the capped, manifest-mirrored corpus into an operator-chosen destination (docs/learnings/ or the local memory root), skipping slug collisions, stamping each placed lesson metadata.seededFrom, linting fail-closed before any repo-root write, and re-rendering MEMORY.md; the same bare pass also nominates portable lessons back into the corpus — re-packing in-WAR candidates behind one operator gate and filing redaction-linted seed-candidate issues from everywhere else.
 ---
 
 # /lessons-learned — fault-tolerant memory housekeeping
@@ -118,6 +118,38 @@ numbered phases, it just borrows their variable names). Five steps, strict order
    onward). Never silent, never a second automatic gate — the operator re-runs `tighten` by hand for
    another pass if they want to close the gap.
 
+## `seed` mode — warm-seed a repo from the portable corpus
+
+If the arguments contain **`seed`** (`/lessons-learned seed`), do **not** run the housekeeping
+phases below. This mode **imports** portable lessons the current repo has never had — it unpacks
+the plugin-shipped seed corpus at `${CLAUDE_PLUGIN_ROOT}/docs/seed/` into the memory root you
+choose, never reprojecting or pruning lessons already present (that is the Phase-0 **Setup seed
+render**, a different mechanism — see the disambiguation note beside Phase 0).
+
+**Preflight gates — both fail-closed, before any write:**
+
+- **Corpus verify.** Resolve `${CLAUDE_PLUGIN_ROOT}/docs/seed/` and run `seed-pack.mjs verify` on
+  the shipped `seed.tar.gz` + `seed-manifest.json` pair. A **non-zero exit aborts the mode
+  outright** — treat it as a corrupt or tampered plugin install; never re-pack it yourself.
+- **Lint fail-closed before any repo-root write.** A `docs/learnings/` destination lints the whole
+  directory (`war-memory.mjs lint`) *before* the render/commit/PR, and a single hit **refuses the
+  entire repo-root placement** — no render, no commit, no PR, no auto-scrub.
+
+**Warnings:**
+
+- **Collisions are skipped, never clobbered.** A slug already present in *either* root (the target
+  `docs/learnings/` or the local `$MEM`) is left byte-identical and reported — warm-seeding never
+  overwrites an existing lesson.
+- **Every placed member is stamped `metadata.seededFrom`.** That stamp is exactly what the
+  `## Nominate` rubric excludes on sight, so a seeded lesson is never re-nominated back into the
+  set it came from.
+- **A non-git target collapses the destination ask to the local root only** — there is no repo to
+  commit a `docs/learnings/` placement into.
+
+Load [`references/seeding.md`](references/seeding.md) and execute its `## Seed` section (the
+destination ask, unpack-to-temp, both-root collision scan, `seededFrom` stamp, lint-gated
+placement, and the placed / skipped-collision / lint / projection-bytes report).
+
 Any other argument text (or none) means a normal housekeeping pass.
 
 ## The cardinal invariant — never mutate the live store until it is verified
@@ -153,6 +185,8 @@ Create a todo per phase. Do them in order. Report after each.
   ```
 
   (Skip the seed only when the Node probe reports memory unavailable — Node < 24 / no `node:sqlite`.)
+
+  > **Disambiguation ("seed" names two mechanisms):** the **Setup seed render** here *projects* lessons that **already exist** in the roots into `MEMORY.md`; the **`seed` mode** (`/lessons-learned seed`) *imports* **new** lessons from the plugin-shipped portable corpus into a memory root — the two share the word, not a mechanism.
 - **Report:** local file count, disk, `MEMORY.md` lines/bytes + % full, the `$REPO_ROOT` file count (and whether the seed render ran), and a one-line verdict on whether it is over/under budget. **At or above the 17,000 B advisory line, name it and suggest `/lessons-learned tighten`** (the operator-gated projection-shrink pass, run separately from this housekeeping round) as the next step.
 
 ### 1 — Backup & stage (the fault-tolerance step)
@@ -270,6 +304,15 @@ CLAUDE_MEMORY_REPO="$REPO_ROOT" bash "${CLAUDE_PLUGIN_ROOT}/skills/lessons-learn
 ### 8 — Capture the meta-lesson (optional)
 
 If the run surfaced a reusable housekeeping insight, write it as a new memory in the now-live `$MEM` (with an index pointer), following the auto-memory format. Then this skill's own pass is recorded for the next round.
+
+### 9 — Nominate portable lessons + sweep contributions (delegated)
+
+The bare pass closes by feeding the **portable seed corpus** (`docs/seed/`). This phase is only a hook — the mechanics live in [`references/seeding.md`](references/seeding.md), run after the swap so nominations are judged against the settled store:
+
+- **Nominate** — each lesson the Phase 2 review already read is *also* judged against the portability rubric in [`references/seeding.md`](references/seeding.md) `## Nominate`. Inside `WorkAuditRefine` an approved candidate is re-packed into the seed set behind one operator gate; from any other repo it becomes a redaction-linted `seed-candidate` issue on the plugin's own repo.
+- **Ingest** (WAR repo only) — when this pass runs inside `WorkAuditRefine`, sweep open `seed-candidate` issues per [`references/seeding.md`](references/seeding.md) `## Ingest`: extract the fenced lesson → temp-file lint → manifest dedup → one batch gate → re-pack and close-citing-the-commit for each accepted issue.
+
+Both bullets delegate entirely to `references/seeding.md`; this list entry is only the phase hook that fires them.
 
 ## Resume & recovery (interruption)
 

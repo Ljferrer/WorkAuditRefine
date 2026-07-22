@@ -12,6 +12,10 @@ const __dir = dirname(fileURLToPath(import.meta.url))
 const REPO_ROOT = join(__dir, '..', '..')
 const skill = readFileSync(join(REPO_ROOT, 'skills/lessons-learned/SKILL.md'), 'utf8')
 const migration = readFileSync(join(REPO_ROOT, 'skills/lessons-learned/references/migration.md'), 'utf8')
+// Task 2.2 (lessons-learned-seed): the seed mode reads three more surfaces.
+const seeding = readFileSync(join(REPO_ROOT, 'skills/lessons-learned/references/seeding.md'), 'utf8')
+const readme = readFileSync(join(REPO_ROOT, 'README.md'), 'utf8')
+const warhelp = readFileSync(join(REPO_ROOT, 'skills/war-help/SKILL.md'), 'utf8')
 
 // Grab a single line matching a substring (throws if absent — makes intent explicit).
 const lineWith = (text, needle) => {
@@ -196,4 +200,125 @@ test('doc-contract: Phase 6 It-checks names the repo-completeness hard fail', ()
     'It-checks must name the populated-repo-root arming condition of the new hard fail')
   assert.match(checks, /zero[^\n]*\[repo\][^\n]*rows/i,
     'It-checks must name the zero-[repo]-rows wholesale-drop hard fail')
+})
+
+// --- Task 2.2 (lessons-learned-seed): `seed` mode wiring + seeding.md/README/war-help locks ---
+// Maps spec §10 criterion 8 (doc contract) + prose locks for criteria 3(b)/5/6/7 (agent-mode
+// behaviors that live only as skill prose — deferred as live validations, doc-contract-locked here).
+// Convention as above: semantics not bytes, distinct needle per lock, whole-file presence for a
+// reference-file directive (the plan says seeding.md "carries" these — presence, not a pinned line),
+// mid-sentence anchors that survive rewording. Thresholds asserted as numbers, never layout literals.
+
+// The mode-section placement is factored into a helper so the temp-break proof (18b) can drive the
+// SAME predicate the green test (18a) asserts — deleting the heading must flip it. Em dash is byte-exact.
+const SEED_HEADING = '## `seed` mode — warm-seed a repo from the portable corpus'
+const SENTINEL = 'Any other argument text (or none) means a normal housekeeping pass.'
+const seedSectionBetweenTightenAndSentinel = (doc) => {
+  const iTighten = doc.indexOf('## `tighten` mode')
+  const iSeed = doc.indexOf(SEED_HEADING)
+  const iSentinel = doc.indexOf(SENTINEL)
+  return iTighten !== -1 && iSeed !== -1 && iSentinel !== -1 && iTighten < iSeed && iSeed < iSentinel
+}
+
+// (17) Frontmatter description gains the seed-mode clause. Bound to the frontmatter block (first
+//      `---`…`---`) so a body mention could not satisfy it — the clause must ship in the description.
+test('doc-contract: SKILL.md frontmatter carries the seed-mode clause', () => {
+  const frontmatter = skill.slice(0, skill.indexOf('\n---', 3))
+  assert.match(frontmatter, /Invoked as \/lessons-learned seed, it instead warm-seeds/,
+    'frontmatter description must gain the "Invoked as /lessons-learned seed, it instead warm-seeds…" clause')
+})
+
+// (18a) The mode section sits BETWEEN the `tighten` section and the "Any other argument text" sentinel.
+test('doc-contract: `seed` mode section sits between the tighten section and the sentinel', () => {
+  assert.ok(seedSectionBetweenTightenAndSentinel(skill),
+    'the `seed` mode heading must appear after `## `tighten` mode` and before the housekeeping sentinel')
+})
+
+// (18b) Temp-break proof: deleting the mode-section heading from a fixture copy breaks (18a) — proves
+//       the green contract is discriminating, not vacuous (mirrors seed-set.test.mjs's one-byte break).
+test('doc-contract: deleting the `seed` mode heading breaks the placement contract (guard is discriminating)', () => {
+  const broken = skill.replace(SEED_HEADING + '\n', '')
+  assert.notEqual(broken, skill, 'the fixture mutation must actually remove the heading line')
+  assert.ok(!seedSectionBetweenTightenAndSentinel(broken),
+    'with the mode heading removed, the between-tighten-and-sentinel contract must fail')
+})
+
+// (19) The Phase-0 disambiguation contrasts the Setup seed render (projects existing) vs the `seed`
+//      mode (imports new) — both sides bound to ONE line so a scattered half-mention cannot satisfy it.
+test('doc-contract: Phase-0 disambiguation contrasts Setup seed render (projects) vs `seed` mode (imports)', () => {
+  const note = lineWith(skill, 'names two mechanisms')
+  assert.match(note, /Setup seed render/, 'the note must name the Setup seed render side')
+  assert.match(note, /projects/i, 'the Setup-seed-render side must be described as projecting existing lessons')
+  assert.match(note, /`seed` mode/, 'the note must name the `seed` mode side')
+  assert.match(note, /imports/i, 'the `seed`-mode side must be described as importing new lessons')
+})
+
+// (20) The bare-pass phase list gains the nomination + ingest hook, delegating to seeding.md.
+test('doc-contract: bare-pass phase list carries the nomination + ingest hook delegating to seeding.md', () => {
+  assert.match(skill, /Nominate portable lessons \+ sweep contributions/,
+    'the phase list must gain a nomination + ingest phase hook')
+  const hook = lineWith(skill, 'this list entry is only the phase hook')
+  assert.match(hook, /references\/seeding\.md/, 'the hook must delegate to references/seeding.md')
+})
+
+// (21) seeding.md carries all three mode-section headings.
+test('doc-contract: seeding.md carries the ## Seed / ## Nominate / ## Ingest section headings', () => {
+  assert.match(seeding, /^## Seed\b/m, 'seeding.md must have the ## Seed section')
+  assert.match(seeding, /^## Nominate\b/m, 'seeding.md must have the ## Nominate section')
+  assert.match(seeding, /^## Ingest\b/m, 'seeding.md must have the ## Ingest section')
+})
+
+// (22) Collision-skip rule (criterion 5): a colliding slug is skipped and never overwritten.
+test('doc-contract: seeding.md ## Seed carries the collision-skip / never-clobber rule (criterion 5)', () => {
+  assert.match(seeding, /skipped-collision/,
+    'the collision scan must report a skip (`skipped-collision`)')
+  assert.match(seeding, /never (over\w+|clobber)/i,
+    'the collision rule must state the existing file is never overwritten / clobbered')
+})
+
+// (23) seededFrom stamp line (criterion 6 stamp): each placed member is stamped with the
+//      work-audit-refine/docs/seed@<version> value.
+test('doc-contract: seeding.md ## Seed stamps metadata.seededFrom (criterion 6 stamp)', () => {
+  assert.match(seeding, /metadata\.seededFrom/,
+    'the ## Seed placement must stamp metadata.seededFrom on each member')
+  assert.match(seeding, /work-audit-refine\/docs\/seed@/,
+    'the seededFrom stamp value must be work-audit-refine/docs/seed@<version>')
+})
+
+// (24) Nomination exclusions (criteria 6 exclude-stamped + 7 dedup): a seededFrom-stamped lesson,
+//      a slug in either manifest tier, and a slug on an open/closed issue are all excluded. Distinct
+//      needles, each matched within a single line (`[^\n]*`) so a two-line reflow cannot spoof the pair.
+test('doc-contract: seeding.md ## Nominate rubric excludes stamped + both manifest tiers + open/closed issues (criteria 6, 7)', () => {
+  assert.match(seeding, /carries `metadata\.seededFrom`/,
+    'the rubric must exclude a lesson already carrying metadata.seededFrom (criterion 6)')
+  assert.match(seeding, /`seed-manifest\.json` tier[^\n]*`seed`[^\n]*`archive`/,
+    'the rubric must exclude a slug already in either seed-manifest.json tier — seed or archive (criterion 7)')
+  assert.match(seeding, /open or closed[^\n]*`seed-candidate` issue/,
+    'the rubric must exclude a slug already carried by an open or closed seed-candidate issue')
+})
+
+// (25) Lint-fail-closed placement rule (criterion 3b): a repo-root placement lints the whole dir and
+//      a hit refuses the placement outright.
+test('doc-contract: seeding.md ## Seed lint-gates the repo-root placement fail-closed (criterion 3b)', () => {
+  assert.match(seeding, /lint the whole directory fail-closed/i,
+    'repo-root placement must lint the whole directory fail-closed before render/commit/PR')
+  assert.match(seeding, /refuses the whole repo-root placement/i,
+    'a lint hit must refuse the whole repo-root placement — no render, no commit, no PR')
+})
+
+// (26) README documents the seed verb, behaviors, and BOTH caps as thresholds (never layout literals).
+test('doc-contract: README documents the seed verb, warm-seed + contribution behaviors, and the ≤ 50 / ≤ 1,500,000 caps', () => {
+  assert.match(readme, /\/lessons-learned seed/, 'README must mention the /lessons-learned seed verb')
+  assert.match(readme, /warm-seed/i, 'README must describe the warm-seed behavior')
+  assert.match(readme, /seed-candidate/, 'README must document the seed-candidate contribution flow')
+  assert.match(readme, /50 members/, 'README must state the ≤ 50-member seed cap (threshold, not layout)')
+  assert.match(readme, /1,500,000/, 'README must state the ≤ 1,500,000 B seed byte cap (threshold, not layout)')
+})
+
+// (27) war-help orientation card mentions the seed verb + its warm-seed/import behavior (a card, so
+//      NO caps — asserting thresholds here would force a layout literal into a one-line orientation row).
+test('doc-contract: war-help card mentions the seed verb + warm-seed behavior', () => {
+  assert.match(warhelp, /\/lessons-learned seed/, 'war-help card must mention the /lessons-learned seed verb')
+  assert.match(warhelp, /warm-seed|portable corpus/i,
+    'war-help card must convey the warm-seed / portable-corpus behavior')
 })
