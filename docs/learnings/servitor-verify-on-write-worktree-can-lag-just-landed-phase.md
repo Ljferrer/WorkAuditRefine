@@ -6,8 +6,8 @@ metadata:
   type: project
   provenance: code-verified
   slug: servitor-verify-on-write-worktree-can-lag-just-landed-phase
-  phase: guard-floor-and-scope-hook-coverage-completeness/servitor-wrapup +16 recurrences (latest war-memory-hardening/phase-2 Release wrap-up, 2026-07-23) — MECHANIZED at phase servitor-wrapup-landed-tip (2026-07-22)
-  promoted: dev/2026-07-16-campaign-anchor-comment-truth@phase-1
+  phase: guard-floor-and-scope-hook-coverage-completeness/servitor-wrapup +17 recurrences (latest aftermath-class1-postdelete-verify/phase-1 wrap-up, 2026-07-23) — MECHANIZED at phase servitor-wrapup-landed-tip (2026-07-22)
+  promoted: dev/2026-07-22-war-memory-hardening@phase-2
   tags:
     - servitor
     - memory-protocol
@@ -73,7 +73,7 @@ metadata:
     - long-lived session worktree
     - war-memory-hardening
   originSessionId: 8c039a7f-0c62-47a8-85f9-10099b5a6caf
-  modified: 2026-07-23T17:30:45.944Z
+  modified: 2026-07-23T18:35:02.774Z
 ---
 
 # A servitor's own worktree checkout can lag the phase it is wrapping up
@@ -562,3 +562,35 @@ each recurrence as a fresh diagnosis.
 Related: same family as Recurrences 4-7/12/13/14/15 (task/`_refinery` worktree lookup via
 `gitdir`); [[release-bump-slots-canonical-no-badge]] — the version-slot fact (0.14.54) this
 recurrence `code-verified`-confirmed via the nested `_refinery6` worktree.
+
+## Recurrence 17 (2026-07-23, phase "residual-verification subsection, drift pins, lesson
+amendment, glossary" / `aftermath-class1-postdelete-verify` task 1.1-1.2 wrap-up) — the SAME
+recurring worktree, a fifth distinct campaign, spawn prompt still lacks the anchor
+
+Seventeenth occurrence. The servitor's threaded cwd
+(`<repo-root>/.claude/worktrees/war-campaign-resilience-roadmap-33290f`) was — for the **fifth**
+distinct wrap-up (Recurrences 12, 14, 15, 16, now 17) — the exact same linked worktree, still on
+branch `claude/war-campaign-resilience-roadmap-33290f`. Its copy of `skills/aftermath/SKILL.md`
+had no `### Class-1 remote deletes — post-batch residual verification` subsection at all, and its
+`skills/war-machine/war-pipeline-structure.test.sh` had no `has_i` pins on `hold set`/`before
+declaring the run clean` — consistent with staleness, not with the phase's content failing to
+land. This wrap-up's spawn prompt again lacked a `Landed tip:` line (as Recurrences 14/15/16),
+now confirmed for a **fifth** distinct campaign/plan through this same harness path.
+
+Applying the Recurrence 4/5/12/13 `gitdir`-sweep (`Glob '.git/worktrees/*/gitdir'`, grepped for
+the plan slug) surfaced `p1-1.17`, `p1-1.27`, and `_refinery7`, all resolving to
+`<repo-root>/.claude/war/wt/2026-07-22-aftermath-class1-postdelete-verify-2026-07-23/`. Reading
+`skills/aftermath/SKILL.md`, `skills/war-machine/war-pipeline-structure.test.sh`,
+`docs/learnings/aftermath-remote-stranded-differs-from-local-tip-reachability.md`, and
+`CONTEXT.md` at the `_refinery7` worktree confirmed all of the phase's landed content present —
+`code-verified` — while this servitor's own cwd still showed none of it.
+
+**Rule (extends Recurrence 16):** this specific session worktree is now confirmed stale across
+five unrelated campaigns in a row with zero self-correction. Treat "cwd is
+`war-campaign-resilience-roadmap-33290f`" as a standing, permanent trigger — skip any preflight
+read of the cwd itself for D3 purposes and go straight to the `gitdir`-sweep on every future
+wrap-up through this harness path, unless a future spawn prompt is confirmed to carry the
+mechanized `Landed tip:` line.
+
+Related: same family as Recurrences 4-7/12/13/14/15/16 (task/`_refinery` worktree lookup via
+`gitdir`).
