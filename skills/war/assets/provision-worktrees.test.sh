@@ -1050,6 +1050,38 @@ expect "T2.5b: already-landed -> origin unchanged at <new-sha> (push skipped)" \
   "$NEW_SHA5B" "$(git -C "$C1_5B" ls-remote origin refs/heads/working/myplan5b | cut -f1)"
 
 # ---------------------------------------------------------------------------
+# Case (T2.5c) UNRESOLVABLE <new-sha> (precheck escalate arm): a <new-sha> that
+# does not resolve to a commit dies EX_FOREIGN (3) — a git error is never the
+# reland code (2) and never the wrong-HEAD code (6). With origin non-empty at
+# the seed and != the bogus sha, control reaches the precheck on every run and
+# the `rev-parse <new-sha>^{commit}` arm fails deterministically. Refs untouched.
+# ---------------------------------------------------------------------------
+PAIR5C="$(setup_origin_pair)"
+C1_5C="$(printf '%s' "$PAIR5C" | cut -d' ' -f1)"
+C2_5C="$(printf '%s' "$PAIR5C" | cut -d' ' -f2)"
+ORIG5C="$(printf '%s' "$PAIR5C" | cut -d' ' -f3)"
+
+SEED5C="$(seed_working_branch "$C1_5C" "$C2_5C" "working/myplan5c")"
+git -C "$C1_5C" checkout -q --detach "$SEED5C"
+BOGUS5C="deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
+LOCAL_BEFORE5C="$(git -C "$C1_5C" rev-parse refs/heads/working/myplan5c)"
+ORIGIN_BEFORE5C="$(git -C "$C1_5C" ls-remote origin refs/heads/working/myplan5c | cut -f1)"
+
+OUT5C="$( ( cd "$C1_5C" && bash "$SCRIPT" land-advance working/myplan5c "$BOGUS5C" ) 2>&1 )"
+CODE5C=$?
+
+expect "T2.5c: unresolvable <new-sha> → EX_FOREIGN (3), never reland (2) or wrong-HEAD (6)" \
+  "3" "$CODE5C"
+expect "T2.5c: unresolvable-<new-sha> die names the bogus sha" \
+  "1" "$(printf '%s' "$OUT5C" | grep -c "$BOGUS5C")"
+expect "T2.5c: unresolvable-<new-sha> die carries the 'does not resolve to a commit' substring" \
+  "match" "$(printf '%s' "$OUT5C" | grep -q 'does not resolve to a commit' && echo match || echo nomatch)"
+expect "T2.5c: local refs/heads/<working> byte-unchanged (die happens before any push or update-ref)" \
+  "$LOCAL_BEFORE5C" "$(git -C "$C1_5C" rev-parse refs/heads/working/myplan5c)"
+expect "T2.5c: origin refs/heads/<working> byte-unchanged (nothing pushed)" \
+  "$ORIGIN_BEFORE5C" "$(git -C "$C1_5C" ls-remote origin refs/heads/working/myplan5c | cut -f1)"
+
+# ---------------------------------------------------------------------------
 # Case (T2.6 / plan case 1) PHANTOM LAND: the --no-ff merge produced no commit,
 # so <new-sha> == the pre-push origin tip AND the local follower already sits at
 # it. land-advance must refuse (exit 3, loud die), leaving refs/heads/<working>
