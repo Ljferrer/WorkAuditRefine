@@ -6,8 +6,8 @@ metadata:
   type: project
   provenance: code-verified
   slug: servitor-verify-on-write-worktree-can-lag-just-landed-phase
-  phase: guard-floor-and-scope-hook-coverage-completeness/servitor-wrapup +17 recurrences (latest aftermath-class1-postdelete-verify/phase-1 wrap-up, 2026-07-23) — MECHANIZED at phase servitor-wrapup-landed-tip (2026-07-22)
-  promoted: dev/2026-07-22-war-memory-hardening@phase-2
+  phase: guard-floor-and-scope-hook-coverage-completeness/servitor-wrapup +18 recurrences (latest aftermath-class1-postdelete-verify/phase-2 Release wrap-up, 2026-07-23) — MECHANIZED at phase servitor-wrapup-landed-tip (2026-07-22)
+  promoted: dev/2026-07-22-aftermath-class1-postdelete-verify@phase-1
   tags:
     - servitor
     - memory-protocol
@@ -17,6 +17,10 @@ metadata:
   created: 2026-07-10
   updated: 2026-07-23
   keywords:
+    - phase boundary persistence
+    - cross-phase gitdir sweep
+    - trailing release phase persistence check
+    - p2-2.17
     - landed tip anchor
     - Landed tip prompt line
     - landedTipAnchor
@@ -73,7 +77,7 @@ metadata:
     - long-lived session worktree
     - war-memory-hardening
   originSessionId: 8c039a7f-0c62-47a8-85f9-10099b5a6caf
-  modified: 2026-07-23T18:35:02.774Z
+  modified: 2026-07-23T19:10:51.620Z
 ---
 
 # A servitor's own worktree checkout can lag the phase it is wrapping up
@@ -594,3 +598,38 @@ mechanized `Landed tip:` line.
 
 Related: same family as Recurrences 4-7/12/13/14/15/16 (task/`_refinery` worktree lookup via
 `gitdir`).
+
+## Recurrence 18 (2026-07-23, phase "Release" / `aftermath-class1-postdelete-verify` task 2.1
+wrap-up) — same recurring worktree, trailing Release phase of the exact plan Recurrence 17 just
+confirmed; phase-1 content persists into phase-2's task worktree unregressed
+
+Eighteenth occurrence, a direct sequel to Recurrence 17 within the same campaign. The servitor's
+threaded cwd (`<repo-root>/.claude/worktrees/war-campaign-resilience-roadmap-33290f`) was — for
+the **sixth** distinct wrap-up (Recurrences 12, 14, 15, 16, 17, now 18) — the exact same linked
+worktree, still on branch `claude/war-campaign-resilience-roadmap-33290f`; its
+`.claude-plugin/plugin.json` read `0.14.48`, unchanged from every prior recurrence's reading in
+this worktree. This wrap-up's spawn prompt again lacked a `Landed tip:` line, now confirmed for
+this harness path across a plan's own phase-1→phase-2 boundary as well as across campaigns.
+
+Applying the Recurrence 4/5/12/13 `gitdir`-sweep (`Glob '.git/worktrees/*/gitdir'`) surfaced
+`p2-2.17`, resolving to
+`<repo-root>/.claude/war/wt/2026-07-22-aftermath-class1-postdelete-verify-2026-07-23/p2-2.1/` —
+the phase-2 task worktree for the same plan Recurrence 17 verified phase 1 of. Reading
+`.claude-plugin/plugin.json` there confirmed all four release slots at `0.14.55` (matching the
+phase's own gate-audit finding exactly, `auditSha: cc98956`) and the `README.md ## Status` blurb
+carrying the "post-batch residual verification for Class-1 remote deletes" release notes —
+`code-verified` — while this servitor's own cwd still showed `0.14.48`. This task worktree also
+still carries phase 1's landed content (the SKILL subsection, drift pins, lesson amendment,
+glossary entry Recurrence 17 confirmed) since a task worktree is cut from the frozen phase base
+which for phase 2 already includes phase 1's merged commits — confirming that content persists
+unregressed one phase later, the same cross-phase-persistence pattern Recurrence 15 established.
+
+**Rule (extends Recurrence 17):** the `gitdir`-sweep technique resolves cleanly across a plan's
+own phase boundary too — a later phase's task-worktree name (`p2-2.17` here, git-suffixed per the
+Recurrence 5 collision rule) is just as reliable a target as the phase-1 worktrees Recurrence 17
+used, and its checkout already carries every prior-phase commit, making it a valid single read
+site for both the trailing phase's own change AND a persistence check on earlier phases' content.
+
+Related: same family as Recurrences 4-7/12/13/14/15/16/17 (task/`_refinery` worktree lookup via
+`gitdir`); [[release-bump-slots-canonical-no-badge]] — the version-slot fact (0.14.55) this
+recurrence `code-verified`-confirmed via the `p2-2.17` task worktree.
