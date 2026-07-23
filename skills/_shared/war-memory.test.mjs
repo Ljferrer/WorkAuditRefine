@@ -936,7 +936,7 @@ test('cap: a long summary row ends "… [tier] [repo] |" with the markers INTACT
 // (undated ⇒ PROTECTED). lessonRecord surfaces it.
 // ============================================================================
 
-test('effectiveDate: newest stamp across frontmatter keys + prose; null when none parse', () => {
+test('effectiveDate: newest VALID stamp across frontmatter keys + prose; null when no token survives', () => {
   assert.equal(effectiveDate(['2026-01-01', '2026-07-15', null, '', '', '']), '2026-07-15'); // newest key wins
   // a prose recurrence stamp (phase) is newer than any frontmatter key → it wins
   assert.equal(effectiveDate(['2026-01-01', null, null, null, 'housekeeping-2026-06-30 +2 recurrences 2026-07-19', '']), '2026-07-19');
@@ -1032,7 +1032,7 @@ test('floor: a lesson within TIGHTEN_YOUNG_DAYS is never eligible; older is elig
   assert.ok(elig.includes('old-enough'));
 });
 
-test('floor: an UNDATED lesson (no parseable date anywhere) is PROTECTED (treated as within-window)', () => {
+test('floor: an UNDATED lesson (no surviving date token anywhere) is PROTECTED (treated as within-window)', () => {
   const recs = [rec('undated', { effectiveDate: null }), rec('dated-old', { effectiveDate: '2026-01-01' })];
   const elig = evictedSlugs(recs);
   assert.ok(!elig.includes('undated'), 'undated ⇒ protected'); // reds if undated fell through as eligible

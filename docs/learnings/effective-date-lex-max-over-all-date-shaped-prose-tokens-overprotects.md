@@ -31,10 +31,9 @@ metadata:
   modified: 2026-07-21T21:00:54.763Z
 ---
 
-# `effectiveDate` protects on the newest date-*shaped* token anywhere, not the newest real date
+# MITIGATED — `effectiveDate` protects on the newest date-*shaped* token anywhere, not the newest real date
 
-**What (code-verified — found at `skills/_shared/war-memory.mjs`, `effectiveDate()`, verify still
-present before acting):** the tighten-eviction floor's "lessons younger than 14 days are protected"
+**What (as shipped 2026-07-21, MITIGATED by #989 — see below):** the tighten-eviction floor's "lessons younger than 14 days are protected"
 check is driven by `effectiveDate([md.created, md.updated, md.modified, md.date, phase,
 description])`, which regex-matches `/20\d\d-\d\d-\d\d/g` across **every** source string
 (frontmatter date keys AND the free-text `phase`/`description` prose) and returns the
