@@ -1260,6 +1260,15 @@ tracking (`git branch -u`).
 _Avoid_: reading the `-d` refusal as an unmerged-work signal; escalating to `-D` in a default-mode
 sweep.
 
+**residual-set verification**:
+The mandatory post-batch Class-1 check: after a batched `git push origin --delete`, re-list
+remote heads and two-sided-diff the survivors against the pre-batch snapshot's hold set (the
+exact-name complement of the delete list). A missing hold-set ref is a data-loss row reported
+with its snapshot SHA and restore command; a surviving delete-list ref is a failed-delete row;
+the run is not clean until the diff is empty or fully reported.
+_Avoid_: trusting the delete loop's own exclusion filter; declaring a sweep clean on push success
+alone; auto-retrying a failed delete into a second unverified batch.
+
 **churny shared docs**:
 The pathspec (`docs/plans docs/specs docs/roadmaps`) whose files a stacked branch predictably conflicts
 on against master; snapped to master's canonical copy by `snap-shared-docs.sh` (merge master,
