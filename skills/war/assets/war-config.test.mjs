@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync, readdirSync, mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
+import { readFileSync, readdirSync, mkdtempSync, mkdirSync, writeFileSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, relative } from 'node:path'
@@ -1099,6 +1099,26 @@ test('CLI --help usage documents the implemented verb set (incl --resolve-gate)'
   for (const verb of ['--preset', '<path>', '--stdin', '--resolve-gate', '--fill-defaults']) {
     assert.ok(usage.includes(verb), `usage line must document ${verb}; got: ${usage.trim()}`)
   }
+})
+
+// (guard) Symlink-invocation regression: running the CLI through a symlink must still fire main()
+// (fail loud), never silently exit 0. RED against the pre-normalization guard
+// (`fileURLToPath(import.meta.url) === process.argv[1]`): the loader realpaths the main module but
+// argv[1] keeps the symlink, so bare-equality is false and main() never runs. war-config's no-args
+// path writes its usage line to STDOUT (exit 1), so the assertion targets stdout, not stderr.
+test('CLI symlinked invocation still runs main() — usage on stdout, non-zero exit', () => {
+  const link = join(mkdtempSync(join(tmpdir(), 'war-config-symlink-')), 'link.mjs')
+  symlinkSync(join(__dir, 'war-config.mjs'), link)
+  let status, stdout
+  try {
+    execFileSync(process.execPath, [link], { encoding: 'utf8' })
+    status = 0
+  } catch (err) {
+    status = err.status
+    stdout = err.stdout || ''
+  }
+  assert.notEqual(status, 0, 'symlinked invocation must exit non-zero (no-args usage path)')
+  assert.match(stdout, /usage: war-config\.mjs/, `usage line must reach stdout; got: ${stdout}`)
 })
 
 test('drift-guard: inline HARD_ESCALATION_REASONS in workflow-template.js matches canonical export in land-decision.mjs (#36)', () => {

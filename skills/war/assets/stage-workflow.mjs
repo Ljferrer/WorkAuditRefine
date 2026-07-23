@@ -94,6 +94,6 @@ function main(argv) {
 }
 
 // Run as CLI only when invoked directly (not when imported by the test).
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+if (process.argv[1] && fileURLToPath(import.meta.url) === fs.realpathSync(process.argv[1])) {
   main(process.argv)
 }
