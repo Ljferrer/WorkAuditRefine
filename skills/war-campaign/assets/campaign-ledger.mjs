@@ -13,6 +13,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 
 export const MODES = ['stack', 'wait-for-merge']
 
@@ -534,4 +535,4 @@ function main() {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main()
+if (process.argv[1] && fileURLToPath(import.meta.url) === fs.realpathSync(process.argv[1])) main()
