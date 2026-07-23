@@ -639,6 +639,9 @@ expect "non-empty unregistered dir: precious file NOT deleted" \
 # Push-first cross-run CAS. The caller has already produced <new-sha> (the
 # --no-ff merge of integration into a detached refinery worktree at
 # origin/<working>). Steps:
+#   0b. Wrong-HEAD precheck (§4.4), AFTER the land-truth guard's early-return
+#      arms and before the push: HEAD must resolve to <new-sha>, else die
+#      EX_WRONG_BRANCH (6) — never the reland code.
 #   1. git push origin HEAD:refs/heads/<working>  — named source, no --force;
 #      HEAD in the detached _refinery IS <new-sha>.
 #   2. Classify on the [rejected] token (always emitted on non-ff rejection):
@@ -651,6 +654,8 @@ expect "non-empty unregistered dir: precious file NOT deleted" \
 #   0  -> push accepted; local follower advanced
 #   2  -> push rejected ([rejected] token seen); local ref UNCHANGED
 #   3  -> unrelated push error (not a non-ff rejection); escalate
+#   6  -> EX_WRONG_BRANCH: invoked from a worktree whose HEAD is not <new-sha>;
+#         no push attempted, all refs untouched (never 2 — #986)
 #
 # Test harness uses a bare origin + two clones to simulate cross-run races
 # deterministically (same method as spec §12):
@@ -933,19 +938,26 @@ expect "T2.4: origin/branch-b == new_sha_B (no cross-bleed)" \
   "$NEW_SHA_B" "$ORIG_B_SHA"
 
 # ---------------------------------------------------------------------------
-# Case (T2.5) NO-OP PUSH FROM THE WRONG CWD -> origin readback mismatch -> exit
-# 3, local ref UNCHANGED. This is the #251 bug: from a cwd whose HEAD == origin's
-# OLD tip, `git push HEAD:refs/heads/<working>` is a genuine no-op — it exits 0
-# and prints no [rejected] — yet origin never moved to <new-sha>. Pre-fix the
-# step-3 update-ref advanced the LOCAL follower past origin while reporting
-# success. The origin readback (`ls-remote origin == new_sha`) must catch this
-# and exit 3 with the local ref left untouched.
+# Case (T2.5) WRONG-HEAD PRECHECK (§4.4, End state 7) -> die EX_WRONG_BRANCH (6),
+# BEFORE any push; local follower AND origin byte-unchanged. Invoked from a cwd
+# whose HEAD is NOT <new-sha> while origin/<working> sits at an older tip, the
+# named-source push (`HEAD:refs/heads/<working>`) either no-ops or advances
+# <working> to a foreign commit, and its outcome could surface as a misleading
+# exit 2 (#986). The precheck refuses first, so exit 2 keeps ONE meaning: a real
+# concurrent advance.
+#
+# This case was formerly the "no-op push from the wrong cwd -> readback mismatch
+# -> exit 3" case: same fixture, and its expected exit necessarily changes 3 -> 6
+# because the precheck now intercepts pre-push (plan Notes / adjudication 10).
+# The step-3 post-push origin readback (`ls-remote origin == new_sha`) and its
+# comment STAY as defense in depth for a mid-push origin race — that residual is
+# a declared backstop, not a deterministically fixture-able branch.
 #
 # CRUCIAL: this case does NOT use run_in_detached — that helper detaches HEAD to
-# <new-sha>, making HEAD == new_sha so the push is a REAL ff push that moves
-# origin (readback would see origin == new_sha and pass, masking the bug). We
-# instead check clone1's HEAD BACK to the SEED tip so HEAD == origin's old tip
-# and the push is a true no-op (weak-test-assertion-passes-without-feature).
+# <new-sha>, making HEAD == new_sha so the precheck passes and the push is a real
+# ff push (masking the wrong-HEAD route entirely). We instead check clone1's HEAD
+# BACK to the SEED tip so HEAD != <new-sha>
+# (weak-test-assertion-passes-without-feature).
 # ---------------------------------------------------------------------------
 PAIR5="$(setup_origin_pair)"
 C1_5="$(printf '%s' "$PAIR5" | cut -d' ' -f1)"
@@ -963,19 +975,111 @@ git -C "$C1_5" commit -qm "clone1 merge sha for T2.5"
 NEW_SHA5="$(git -C "$C1_5" rev-parse HEAD)"
 
 # The NEW_SHA5 commit above moved clone1's HEAD off the seed; detach back to SEED5
-# so HEAD == origin's old tip and `git push HEAD:…` is a genuine no-op (exit 0,
-# no [rejected]). Do NOT detach to NEW_SHA5 (that is the masked path
-# run_in_detached already covers in T2.2).
-git -C "$C1_5" checkout -q "$SEED5"
+# so HEAD != <new-sha> and origin/<working> sits at that older tip. Do NOT detach
+# to NEW_SHA5 (that is the well-formed path run_in_detached covers in T2.2).
+git -C "$C1_5" checkout -q --detach "$SEED5"
+HEAD_BEFORE5="$(git -C "$C1_5" rev-parse HEAD)"                          # == SEED5
 LOCAL_BEFORE5="$(git -C "$C1_5" rev-parse refs/heads/working/myplan5)"   # == SEED5
-# Call the script DIRECTLY from clone1's cwd (HEAD == SEED5), NOT via run_in_detached.
-code="$( ( cd "$C1_5" && bash "$SCRIPT" land-advance working/myplan5 "$NEW_SHA5" ); echo $? )"
+ORIGIN_BEFORE5="$(git -C "$C1_5" ls-remote origin refs/heads/working/myplan5 | cut -f1)"
+expect "T2.5: fixture sanity — HEAD is NOT <new-sha> and origin sits at the older tip" \
+  "wrong-head-older-origin" \
+  "$([ "$HEAD_BEFORE5" != "$NEW_SHA5" ] && [ "$ORIGIN_BEFORE5" = "$SEED5" ] && echo wrong-head-older-origin || echo unexpected)"
 
-expect "T2.5: no-op push from wrong cwd (HEAD≠new_sha, origin already at HEAD) → readback mismatch → exit 3" \
-  "3" "$code"
+# Call the script DIRECTLY from clone1's cwd (HEAD == SEED5), NOT via
+# run_in_detached; capture the die message and the exit code from the ONE run
+# (test runs under `set -u` only, so a non-zero substitution does not abort it).
+OUT5="$( ( cd "$C1_5" && bash "$SCRIPT" land-advance working/myplan5 "$NEW_SHA5" ) 2>&1 )"
+CODE5=$?
+
+expect "T2.5: wrong HEAD (HEAD≠new_sha, origin at an older tip) → EX_WRONG_BRANCH (6), never reland (2) or escalate (3)" \
+  "6" "$CODE5"
+expect "T2.5: wrong-HEAD die names the actual HEAD sha" \
+  "1" "$(printf '%s' "$OUT5" | grep -c "$HEAD_BEFORE5")"
+expect "T2.5: wrong-HEAD die names the <new-sha> it expected" \
+  "1" "$(printf '%s' "$OUT5" | grep -c "$NEW_SHA5")"
+expect "T2.5: wrong-HEAD die carries the expected-cwd guidance (HEAD is the merge sha / _refinery)" \
+  "match" "$(printf '%s' "$OUT5" | grep -qi 'HEAD is the merge sha' && printf '%s' "$OUT5" | grep -qi '_refinery' && echo match || echo nomatch)"
 LOCAL_AFTER5="$(git -C "$C1_5" rev-parse refs/heads/working/myplan5)"
-expect "T2.5: local working ref did NOT advance to new_sha (origin readback gated the advance)" \
+expect "T2.5: local refs/heads/<working> byte-unchanged (die happens before any push or update-ref)" \
   "$LOCAL_BEFORE5" "$LOCAL_AFTER5"
+expect "T2.5: origin refs/heads/<working> byte-unchanged (nothing pushed)" \
+  "$ORIGIN_BEFORE5" "$(git -C "$C1_5" ls-remote origin refs/heads/working/myplan5 | cut -f1)"
+
+# ---------------------------------------------------------------------------
+# Case (T2.5b) PRECHECK PLACEMENT DISCRIMINATOR (spec decision 8): the wrong-HEAD
+# precheck sits AFTER the land-truth guard's early-return arms, not at the top of
+# the function. An ALREADY-LANDED invocation (origin already at <new-sha>, local
+# follower lagging) reconciles the follower WITHOUT pushing, so it is correct from
+# ANY cwd and must stay idempotent (ADR 0008 repair-toward-git) — here it runs
+# from a cwd whose HEAD != <new-sha> and must still exit 0.
+#
+# Delete-and-trace: hoist the precheck above the guard and this case dies 6.
+# Same fixture as T2.8 EXCEPT the deliberate detach off <new-sha> before the call.
+# ---------------------------------------------------------------------------
+PAIR5B="$(setup_origin_pair)"
+C1_5B="$(printf '%s' "$PAIR5B" | cut -d' ' -f1)"
+C2_5B="$(printf '%s' "$PAIR5B" | cut -d' ' -f2)"
+ORIG5B="$(printf '%s' "$PAIR5B" | cut -d' ' -f3)"
+
+SEED5B="$(seed_working_branch "$C1_5B" "$C2_5B" "working/myplan5b")"
+# A prior interrupted land pushed <new-sha> to origin but died before its follower
+# CAS: the commit lands on clone1's default branch, refs/heads/working/myplan5b
+# stays at SEED5B (lags one commit).
+printf 'already-landed-5b\n' > "$C1_5B/landed5b.txt"
+git -C "$C1_5B" add -A
+git -C "$C1_5B" commit -qm "already-landed merge sha for T2.5b"
+NEW_SHA5B="$(git -C "$C1_5B" rev-parse HEAD)"
+git -C "$C1_5B" push -q origin "HEAD:refs/heads/working/myplan5b"
+
+# The discriminating half: move HEAD OFF <new-sha>. A top-of-function precheck
+# would die 6 right here; the specced placement lets the already-landed arm run.
+git -C "$C1_5B" checkout -q --detach "$SEED5B"
+expect "T2.5b: fixture sanity — HEAD is NOT <new-sha> at call time (the discriminating half)" \
+  "different" "$([ "$(git -C "$C1_5B" rev-parse HEAD)" != "$NEW_SHA5B" ] && echo different || echo same)"
+expect "T2.5b: fixture sanity — follower lags origin before the call" \
+  "different" "$([ "$(git -C "$C1_5B" rev-parse refs/heads/working/myplan5b)" != "$NEW_SHA5B" ] && echo different || echo same)"
+
+OUT5B="$( ( cd "$C1_5B" && bash "$SCRIPT" land-advance working/myplan5b "$NEW_SHA5B" ) 2>&1 )"
+CODE5B=$?
+
+expect "T2.5b: already-landed from a wrong-HEAD cwd still exits 0 (precheck sits AFTER the guard's early-return arms)" \
+  "0" "$CODE5B"
+expect "T2.5b: already-landed -> follower reconciled to <new-sha> (repair toward git)" \
+  "$NEW_SHA5B" "$(git -C "$C1_5B" rev-parse refs/heads/working/myplan5b 2>/dev/null)"
+expect "T2.5b: already-landed -> origin unchanged at <new-sha> (push skipped)" \
+  "$NEW_SHA5B" "$(git -C "$C1_5B" ls-remote origin refs/heads/working/myplan5b | cut -f1)"
+
+# ---------------------------------------------------------------------------
+# Case (T2.5c) UNRESOLVABLE <new-sha> (precheck escalate arm): a <new-sha> that
+# does not resolve to a commit dies EX_FOREIGN (3) — a git error is never the
+# reland code (2) and never the wrong-HEAD code (6). With origin non-empty at
+# the seed and != the bogus sha, control reaches the precheck on every run and
+# the `rev-parse <new-sha>^{commit}` arm fails deterministically. Refs untouched.
+# ---------------------------------------------------------------------------
+PAIR5C="$(setup_origin_pair)"
+C1_5C="$(printf '%s' "$PAIR5C" | cut -d' ' -f1)"
+C2_5C="$(printf '%s' "$PAIR5C" | cut -d' ' -f2)"
+ORIG5C="$(printf '%s' "$PAIR5C" | cut -d' ' -f3)"
+
+SEED5C="$(seed_working_branch "$C1_5C" "$C2_5C" "working/myplan5c")"
+git -C "$C1_5C" checkout -q --detach "$SEED5C"
+BOGUS5C="deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
+LOCAL_BEFORE5C="$(git -C "$C1_5C" rev-parse refs/heads/working/myplan5c)"
+ORIGIN_BEFORE5C="$(git -C "$C1_5C" ls-remote origin refs/heads/working/myplan5c | cut -f1)"
+
+OUT5C="$( ( cd "$C1_5C" && bash "$SCRIPT" land-advance working/myplan5c "$BOGUS5C" ) 2>&1 )"
+CODE5C=$?
+
+expect "T2.5c: unresolvable <new-sha> → EX_FOREIGN (3), never reland (2) or wrong-HEAD (6)" \
+  "3" "$CODE5C"
+expect "T2.5c: unresolvable-<new-sha> die names the bogus sha" \
+  "1" "$(printf '%s' "$OUT5C" | grep -c "$BOGUS5C")"
+expect "T2.5c: unresolvable-<new-sha> die carries the 'does not resolve to a commit' substring" \
+  "match" "$(printf '%s' "$OUT5C" | grep -q 'does not resolve to a commit' && echo match || echo nomatch)"
+expect "T2.5c: local refs/heads/<working> byte-unchanged (die happens before any push or update-ref)" \
+  "$LOCAL_BEFORE5C" "$(git -C "$C1_5C" rev-parse refs/heads/working/myplan5c)"
+expect "T2.5c: origin refs/heads/<working> byte-unchanged (nothing pushed)" \
+  "$ORIGIN_BEFORE5C" "$(git -C "$C1_5C" ls-remote origin refs/heads/working/myplan5c | cut -f1)"
 
 # ---------------------------------------------------------------------------
 # Case (T2.6 / plan case 1) PHANTOM LAND: the --no-ff merge produced no commit,
@@ -1118,7 +1222,7 @@ expect "T2.8b: already-landed, follower absent -> follower CREATED at <new-sha>"
 # STOPPED exercising when it was reframed to prove the ls-remote rc-guard
 # short-circuit (test-reframe-can-strand-adjacent-branch-coverage).
 #
-# Exit 3 alone is shared by T2.3/T2.5/T2.6, and the push-error branch is a SILENT
+# Exit 3 alone is shared by T2.3/T2.6, and the push-error branch is a SILENT
 # bare exit 3 (land-advance captures the push output internally and prints
 # nothing), so route identity rests on (b)+(c)+(d) TOGETHER:
 #   (b) ls-remote SUCCEEDS pre-call — closes the T2.3 rc-guard route by

@@ -464,7 +464,7 @@ if (missingPhaseFields.length) problems.push(`workflow-template: requires phase 
 if (problems.length) throw new Error(`${problems.join('; ')}${derivationProblem ? ' (or supply explicit branch/worktree per task)' : ''}`)
 
 // GATE COMPOSITION POINT (engine-owned, ADR 0036): normalize plan.gate ONCE here, immediately after entry
-// validation and before any of the nine gate-bearing dispatch sites interpolate ${plan.gate}. resolveGate is
+// validation and before ANY gate-bearing dispatch site interpolates ${plan.gate}. resolveGate is
 // idempotent, so this composes harmlessly even when the Lead already pre-resolved via --resolve-gate (the belt;
 // this engine normalization is the suspenders — a missed pre-resolution can no longer ship a shell-blind gate).
 // GUARDED: `plan` is destructured with no default and is NEVER entry-validated, so an absent plan (a plan-less
@@ -1083,8 +1083,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   //           the model must still be able to emit the '(integration_sha …)' sentinel legitimately.
   const pinOrSentinel = s =>
     (typeof s === 'string' && /^[0-9a-f]{7,40}$/.test(s)) ? s : '(integration_sha unrecorded/malformed)'
-  // landMerged: the shared merged-task landing step (initial merge, floor-retry re-merge, and the
-  // baseline-proceed re-merge all funnel through it). requiresTest:false ⇒ the gate-audit HARD path is
+  // landMerged: the shared merged-task landing step (initial merge, floor-retry re-merge, the
+  // baseline-proceed re-merge, and the environment-proceed re-merge all funnel through it). requiresTest:false ⇒ the gate-audit HARD path is
   // vacuous — skip + LOG (never silent). taskDebt (spec §6 / ADR 0019): a baseline-merged task carries
   // its classified failing identifiers so the gate-audit prompt won't read a pre-existing base failure
   // as a provably-unrun mapped test; empty/absent ⇒ the field is omitted (byte-identical entry).
@@ -1360,15 +1360,42 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // The refiner re-ran the failing gate at the phase integration base and returned
         // gate_failure_class (classOf ⇒ 'introduced' when ABSENT — the permanent fail-safe). Routes
         // recovery WITHOUT touching any status enum, HARD_ESCALATION_REASONS, or KNOWN_LAND_DECISIONS
-        // (land-decision.mjs untouched, ADR 0005). Merge-time gate_failed is a SOFT escalation — there
-        // is NO audit-stage fix-worker loop at this site (the stale war-refiner.md step-3 FIX_NEEDED
-        // sentence is corrected in the same commit).
+        // (land-decision.mjs untouched, ADR 0005). There is NO audit-stage fix-worker loop at this site:
+        // recovery is a bounded REFINER re-dispatch per class ('environment' → one environment-proceed,
+        // 'baseline' → one baseline-proceed), never a fix round. Merge-time gate_failed stays a SOFT
+        // escalation for 'introduced'/absent; only environment-proceed EXHAUSTION is HARD.
         const cls = classOf(mr)
         if (cls === 'environment') {
-          // 'environment': soft escalate reusing reason 'env-blocked' (0 fix rounds, worktree kept,
-          // siblings proceed; detail = the MergeResult — a gate-time env-block, NOT the provision
-          // ENV_OUTCOME shape). No new reason string, no enum change.
-          escalated.push({ task: r.task.id, reason: 'env-blocked', detail: mr })
+          // 'environment': BOUNDED retry, not an immediate escalation. The refiner already proved the
+          // failure does NOT reproduce in a fresh env, so dispatch EXACTLY ONE environment-proceed
+          // re-merge whose gate must go FULLY GREEN in a fresh .war-task-free TMPDIR + fresh shell —
+          // nothing is waived (no proceed-over, no debt, no source:'auto' backstop). Exhaustion (a 2nd
+          // 'environment' classification) is HARD via the existing reason 'escalate': an approved task
+          // must never be silently dropped from a landed phase by a transient. Bounded at ONE — no
+          // chaining (a 2nd result classified 'baseline' routes as 'introduced'), no enum change.
+          const ep = await agent(
+            pt`ENVIRONMENT-PROCEED re-merge for WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
+            + reattachClause(refineryPath)
+            + pt`The prior merge-task gate failure was classified gate_failure_class:'environment' — a TRANSIENT environment failure, proven NOT to reproduce at the task tip in a fresh environment, NOT a defect introduced by this task. This is the bounded environment-proceed retry: exactly ONE re-run, and the gate must come back fully green — never a proceed-over.\n`
+            + pt`  (a) REBASE in the TASK worktree: git -C ${r.task.worktree} rebase ${ph.integrationBranch}.\n`
+            + pt`  (b) Run the gate (${plan.gate}) in a FRESH shell with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)). The gate MUST GO FULLY GREEN: this is a clean re-run, NOT a proceed-over — nothing is waived, no failure is proceeded past, no debt is recorded. ANY remaining failure → return { mode: 'merge-task', status: 'gate_failed' } classifying it afresh in gate_failure_class, and do NOT merge.\n`
+            + gateCaptureClause(refineryPath, r.task.id)
+            + pt`  (c) On a fully green gate, MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), git merge ${r.task.branch}, push, return { mode: 'merge-task', status: 'merged', integration_sha: <tip> } — populate integration_sha with the rebased integration tip the gate ran against, so the gate-audit pass can confirm the gate ran at the integration tip.`
+            + pt` Before the merge, run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${r.task.branch}${r.task.taskType === 'gitlink-bump' && r.task.declared ? ' --declared' : ''} (exit 1 → submodule-blocked; exit 2 → error).`
+            + (requiresTest
+              ? pt` Also run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${testPatternArg} (exit 1 → no-test; exit 2 → error).`
+              : pt` requiresTest:false — skip the assert-test-in-diff.sh check.`)
+            + (requiresPackaging
+              ? pt` Also run assert-packaging-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${advisePackagingVacuous ? ' --advise-vacuous' : ''} (exit 1 → unpackaged; exit 2 → error).${advisePackagingVacuous ? ' The --advise-vacuous flag may print one informational advisory line on stderr (structurally-vacuous packaging run under the ADR-0017-ratified scope) — exit 0 still means PROCEED, never a finding.' : ''}`
+              : pt` requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`),
+            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:environment-proceed`, schema: MERGE_RESULT, ...spawn('refiner') })
+          if (ep && ep.status === 'merged') landMerged(r.task, ep)
+          else if (ep && ep.status === 'gate_failed' && classOf(ep) === 'environment') escalated.push({ task: r.task.id, reason: 'escalate', detail: { note: 'environment-class gate failure persisted through the bounded environment-proceed re-merge — approved task unmerged; the phase must not complete without it', result: ep } })
+          else if (ep && ep.status === 'gate_failed') escalated.push({ task: r.task.id, reason: ep.status, detail: ep })   // introduced OR baseline→introduced (bounded)
+          // A submodule mutation surfaced by the environment-proceed floor is HARD (mirror the primary
+          // submodule-blocked path — a soft escalation must never let a submodule touch ride a land).
+          else if (ep && ep.status === 'submodule-blocked') escalated.push({ task: r.task.id, reason: 'escalate', detail: `${r.task.id} touches a submodule (surfaced on the environment-proceed re-merge)` })
+          else escalated.push({ task: r.task.id, reason: ep ? ep.status : 'merge_failed', detail: ep })
         } else if (cls === 'baseline') {
           // 'baseline': record the debt (deduped) + ONE source:'auto' backstop, then dispatch ONE
           // baseline-proceed re-merge naming the classified ids. Route its result normally; a 2nd
@@ -1790,8 +1817,8 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
 
 // Reland-loop transient-vs-divergence discrimination (Task 1.2 / D4). BYTE-PARALLEL with
 // agents/war-refiner.md §land-phase (grep parity — the mirror-drift hazard, spec §8): both surfaces
-// state the identical discrimination AND the identical +1 budget. Shared here so the in-flow land
-// prompt and the baseline-proceed re-land prompt cannot drift from each other either. A resolved
+// state the identical discrimination AND the identical +1 budget. Shared here so all three land prompts
+// (in-flow, baseline-proceed re-land, environment-proceed re-land) cannot drift from each other. A resolved
 // transient returns 'landed' — NO new status/enum member — so the existing servitorResult gate fires.
 const relandDiscrimination = (working) =>
   pt`     - On the FINAL failed CAS attempt (after roundLimit rejected pushes), before returning land_stale, discriminate a contender-less transient from a real divergence: run \`git fetch origin ${working} && git rev-list --left-right --count <merge-sha>...origin/${working}\` — the merge sha the loop just tried to push vs. the freshly-fetched origin tip, NEVER the local follower refs/heads/${working} (it lags). Right count 0 (contender-less transient: every commit on the fetched origin tip is already contained in the merge sha, so no competing commit exists and the rejection cannot be a lost CAS) buys exactly one extra push-first attempt beyond roundLimit exhaustion (an explicit +1, once — not a slot inside roundLimit): re-fetch, re-detach at origin/${working}, re-merge --no-ff, re-gate, land-advance; if that extra attempt also fails, return { mode: 'land-phase', status: 'land_stale' } (topology exhaustion / CAS failure, NOT a content conflict). Otherwise a nonzero right count (real contender commits on origin) is a real divergence: return { mode: 'land-phase', status: 'land_stale' } immediately, with no extra attempt. A transient that resolves returns status: 'landed' — no new status, so the servitor wrap-up fires automatically.\n`
@@ -1843,11 +1870,37 @@ if (landDecision === 'landed') {
     escalated.push({ task: `phase-${ph.id}-land`, reason: landResult.status, detail: landResult })
     landDecision = 'held:escalation'
   } else if (landResult && landResult.status === 'gate_failed' && classOf(landResult) === 'environment') {
-    // 'environment' land gate failure (spec §6 / ADR 0019): the land failed environmentally, not by a
-    // code defect. Soft-escalate reusing reason 'env-blocked'; the Lead re-runs the land (an
-    // environmental failure passes on retry — held:land-failed). No enum change; detail = the MergeResult.
-    escalated.push({ task: `phase-${ph.id}-land`, reason: 'env-blocked', detail: landResult })
-    landDecision = 'held:land-failed'
+    // 'environment' land gate failure (spec §6 / ADR 0019): the land failed transiently, not by a code
+    // defect. BOUNDED retry — dispatch EXACTLY ONE environment-proceed re-land whose gate must go FULLY
+    // GREEN in a fresh env (no proceed-over, no debt, no source:'auto' backstop). Exhaustion (a 2nd
+    // 'environment' classification) falls back to today's reason 'env-blocked' + held:land-failed, with
+    // the retry provably spent — the Lead re-runs the land. Bounded at ONE: no chaining into
+    // baseline-proceed. No enum change; every landDecision literal below is already emitted.
+    const reLand = await agent(
+      pt`ENVIRONMENT-PROCEED re-land for WAR phase ${ph.id}: merge ${ph.integrationBranch} into ${ph.workingBranch} with --no-ff. mode=land-phase.\n`
+      + reattachClause(refineryLandPath)
+      + pt`The prior land gate failure was classified gate_failure_class:'environment' — a TRANSIENT environment failure, proven NOT to reproduce in a fresh environment, NOT a defect introduced by this phase. This is the bounded environment-proceed retry: exactly ONE re-run, and the gate must come back fully green — never a proceed-over.\n`
+      + pt`  1. Detach at origin/${ph.workingBranch}: \`git -C ${refineryLandPath} fetch origin ${ph.workingBranch} && git -C ${refineryLandPath} checkout --detach origin/${ph.workingBranch}\`.\n`
+      + pt`  2. Merge --no-ff ${ph.integrationBranch}; run the gate (${plan.gate}) in a FRESH shell with a fresh TMPDIR (TMPDIR=$(cd / && mktemp -d)). The gate MUST GO FULLY GREEN: this is a clean re-run, NOT a proceed-over — nothing is waived, no failure is proceeded past, no debt is recorded. ANY remaining failure → return { mode: 'land-phase', status: 'gate_failed' } classifying it afresh in gate_failure_class.\n`
+      + pt`  3. Push-first CAS: \`cd ${refineryLandPath} && provision-worktrees.sh land-advance ${ph.workingBranch} <merge-sha>\`. Reland up to roundLimit (${roundLimit}); error on a non-rejection push error. On success return { mode: 'land-phase', status: 'landed', working_sha: '<merge-sha>' }. Never --force.\n`
+      + relandDiscrimination(ph.workingBranch),
+      { agentType: NS + 'war-refiner', phase: 'Land', label: `land:phase-${ph.id}:environment-proceed`, schema: MERGE_RESULT, ...spawn('refiner') })
+    if (reLand && reLand.status === 'landed') {
+      landResult = reLand
+      landDecision = 'landed'
+      log(`Phase ${ph.id} landed via environment-proceed re-land (the transient environment-class gate failure did not recur; the gate went FULLY green — nothing waived, no debt recorded). Opportunistic resync as on any landed phase.`)
+    } else if (reLand && HARD_ESCALATION_REASONS.includes(reLand.status)) {
+      escalated.push({ task: `phase-${ph.id}-land`, reason: reLand.status, detail: reLand })
+      landDecision = 'held:escalation'
+    } else if (reLand && reLand.status === 'gate_failed' && classOf(reLand) === 'environment') {
+      // Bound exhausted: the ONE retry is spent — today's route, now with a proven-non-transient failure.
+      escalated.push({ task: `phase-${ph.id}-land`, reason: 'env-blocked', detail: reLand })
+      landDecision = 'held:land-failed'
+    } else {
+      // introduced OR baseline→introduced (bounded, no chaining) OR error → held:land-failed (Lead re-runs).
+      escalated.push({ task: `phase-${ph.id}-land`, reason: reLand ? reLand.status : 'error', detail: reLand })
+      landDecision = 'held:land-failed'
+    }
   } else if (landResult && landResult.status === 'gate_failed' && classOf(landResult) === 'baseline') {
     // 'baseline' land gate failure: record the debt (deduped) + ONE source:'auto' backstop, then
     // dispatch ONE baseline-proceed re-land naming the classified ids. Route its result normally (a 2nd
