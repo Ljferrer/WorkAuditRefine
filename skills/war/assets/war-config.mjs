@@ -50,10 +50,13 @@ export const DEFAULTS = {
   // docs/learnings/ lessons (default OFF — a conscious opt-in via /war-room; when on, published
   // lessons are lint-scrubbed and ride each phase PR, human-reviewed like code; all presets inherit off).
   memory: { retrieval: true, topK: 10, commitLearnings: false },
-  // overrides.testPattern: the run's pinned test-floor glob set (space-separated glob tokens) | null.
+  // overrides.testPattern: the run's declared test-floor glob set (space-separated glob tokens) | null.
   // null ⇒ today's hardcoded gate-mirror floor defaults, byte-identical. Floor ⊆ gate is ONE Setup
-  // decision (ADR 0006): testPattern is pinned TOGETHER with the gate, and the floor always unions the
-  // gate's unconditional *.test.sh discovery — so no custom pattern can make the floor exceed the gate.
+  // decision (ADR 0006): testPattern is pinned TOGETHER with the gate — though that confirmation is not
+  // the final word on the VALUE under --afk, where a sanity-floor-rejected proposal is re-checked at each
+  // phase launch and can be adopted monotonically (Lead-side, no write-back — this field is unchanged).
+  // The floor always unions the gate's unconditional *.test.sh discovery — so no custom pattern can make
+  // the floor exceed the gate.
   // overrides.ghUser: the personal `gh` account gh-preflight.sh asserts is active before every gh write
   // batch (multi-account machines) | null. Ships null — no real handle in any committed file (C1); it lives
   // in the local .claude/war/config.json. Validated as string|null by the generic overrides loop below.

@@ -661,13 +661,33 @@ weakened or skipped).
 _Avoid_: test coverage, test gate (the gate runs the suite; the floor inspects the diff).
 
 **test-floor pattern** (`overrides.testPattern`):
-The per-run glob set the **Test floor** matches a task's diff against, pinned at Setup *together with*
-the gate so floor ⊆ gate holds on any target repo. Threaded end-to-end like `plan.gate`, never parsed
-out of the gate command (the globs live in the target's test-runner config, not the command line). The
-gate's unconditional `*.test.sh` discovery is always unioned in; `null` (default) = the built-in
-WAR-repo gate-mirror defaults, byte-identical to today.
+The glob set the **Test floor** matches a task's diff against, pinned at Setup *together with* the gate
+so floor ⊆ gate holds on any target repo, then **resolved per phase** (see **Pending testPattern
+proposal**). Threaded end-to-end like `plan.gate`, never parsed out of the gate command (the globs live
+in the target's test-runner config, not the command line). The gate's unconditional `*.test.sh`
+discovery is always unioned in; `null` (default) = the built-in WAR-repo gate-mirror defaults,
+byte-identical to today.
 _Avoid_: deriving it by parsing the gate command; pinning a pattern independent of the confirmed gate
 (floor ⊆ gate is one decision).
+
+**Pending testPattern proposal**:
+A Setup-proposed **test-floor pattern** the `--afk` sanity floor rejected (it had zero-match tokens),
+recorded verbatim in the ledger and re-checked at each phase launch until adopted. Adoption is
+monotonic (`null` → the Setup proposal, once, for that and every subsequent phase) and never a fresh
+interactive ask — it is why `overrides.testPattern` is *per-phase-resolved* rather than decided once
+per run.
+_Avoid_: treating the Setup confirmation as the final word on the value; minting a new pattern at
+re-check time (the pending proposal is the only adoptable value); reading the ledger note as a resume
+authority (git > labels > ledger).
+
+**Near-miss diagnostic**:
+The advisory stderr block `assert-test-in-diff.sh` emits on exit 1 when the diff contains test-shaped
+files the **active** pattern set does not match — it names the active set and each near-miss path so
+the `no-test` route says "your pattern missed these" instead of "add a test". Never affects the exit
+code; carried to the add-test worker and the exhaustion escalation as `MergeResult.floor_diagnostic`.
+_Avoid_: routing on it (fail-open advisory — absent ⇒ every consumer byte-identical); calling it a
+floor failure reason (`no-test` is the reason; this is context on it); conflating the near-miss set
+with the active pattern set (the scan is a fixed documented shape list, not the matcher).
 
 **`requiresTest`** (task field):
 Whether a task must change a test file to be mergeable. Defaults `true`; the Lead sets it `false` at

@@ -67,8 +67,10 @@
 # ---------------------------------------------------------------------------
 # Target-repo-agnostic audit (epic #579; #574 item 4, decision C): NO override
 # added. Unlike the test-floor pattern — which pins a repo/language-specific
-# `*.test.*` convention and so gained a per-run `overrides.testPattern` — this
-# floor is ALREADY target-agnostic and needs no per-run knob:
+# `*.test.*` convention and so gained a per-phase-resolved `overrides.testPattern`
+# (pinned at Setup; under `--afk` a sanity-floor-rejected proposal is re-checked
+# at each phase launch and can be adopted monotonically) — this floor is ALREADY
+# target-agnostic and needs no such knob:
 #   - Discovery keys on Dockerfile *naming* only (`Dockerfile` / `Dockerfile.*`
 #     / `*.Dockerfile`; see is_dockerfile), a convention every Docker-packaging
 #     repo shares — never on this repo's paths, layout, or file conventions.
