@@ -4166,6 +4166,57 @@ test('handoff absorbed grouping: per-task ace absorbs group by commit sha as [{ 
 })
 
 // ---------------------------------------------------------------------------
+// #990 — the LANDED-TIP ANCHOR is hoisted above the Wrap-up gate and THREADED into the servitor
+// prompt. Same computation the handoff block used to own (the test above pins its semantics
+// unchanged); these three pin the RENDERED value at each rung of its fallback chain:
+// landed working_sha → last pinned gateHeadSha → the named placeholder. The placeholder rung is the
+// ADR 0034 proof: `pt` throws on undefined, so the null case must be pre-resolved BEFORE interpolation.
+// ---------------------------------------------------------------------------
+const TIP_PLACEHOLDER = /landed tip unrecorded — ground via the gate-audit auditSha entries in your audit-log input/
+// One-task happy path with the land + merge results injected, so each rung is reachable.
+const tipImpl = (land, merge) => (prompt, opts) => {
+  const seat = seatOf(opts)
+  if (seat === 'war-refiner' && (opts.dispatchKind === 'provision-barrier' || opts.dispatchKind === 'provision-run')) return { ok: true }
+  if (seat === 'war-refiner' && opts.dispatchKind === 'polish-worktree') return { ok: true }
+  if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'deadbeef' }
+  if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+  if (seat === 'war-refiner') return opts.phase === 'Land'
+    ? { mode: 'land-phase', status: 'landed', ...land }
+    : { mode: 'merge-task', status: 'merged', ...merge }
+  if (seat === 'war-servitor') return { phase: 3, target: 't', learnings: [] }
+  return {}
+}
+const servitorPromptAtTip = async (land, merge) => {
+  const args = PROVISION_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'T', planSlice: 's', roster: [{ lens: 'correctness' }] }] })
+  const { calls, out } = await runPhase(args, tipImpl(land, merge))
+  assert.equal(out.landDecision, 'landed', 'presence guard: the phase landed, so the Wrap-up gate opens')
+  const p = (calls.find(isServitor) || {}).prompt
+  assert.ok(p, 'presence guard: a servitor was dispatched')
+  return { p, out }
+}
+
+test('#990 threaded tip — a landed working_sha renders as the Wrap-up prompt Landed tip anchor', async () => {
+  const { p, out } = await servitorPromptAtTip({ working_sha: 'abc1234def' }, { integration_sha: 'beefcafe12' })
+  assert.match(p, /Landed tip: abc1234def on dev\/wtprov-a \(plan slug: wtprov-a\)/,
+    'the prompt carries the landed sha, the working branch, and the plan slug (the worktree-lookup gitdir match)')
+  assert.equal(out.handoff.tipSha, 'abc1234def', 'the hoisted computation still feeds handoff.tipSha — one source of truth')
+})
+
+test('#990 threaded tip — working_sha absent falls back to the last pinned gateHeadSha, never the string "undefined"', async () => {
+  const { p, out } = await servitorPromptAtTip({}, { integration_sha: 'beefcafe12' })
+  assert.match(p, /Landed tip: beefcafe12 on dev\/wtprov-a/, 'the documented fallback rung renders the last pinned gate head sha')
+  assert.doesNotMatch(p, /Landed tip: undefined/, 'the pt undefined-guard stays unhit and no raw "undefined" reaches the prompt')
+  assert.equal(out.handoff.tipSha, 'beefcafe12', 'handoff.tipSha takes the same rung — semantics unchanged by the hoist')
+})
+
+test('#990 threaded tip — no working_sha and no SHA-shaped pin renders the NAMED placeholder and the dispatch does not throw', async () => {
+  const { p, out } = await servitorPromptAtTip({}, {})
+  assert.match(p, TIP_PLACEHOLDER, 'the null tip is pre-resolved to the named placeholder BEFORE interpolation (ADR 0034)')
+  assert.doesNotMatch(p, /Landed tip: (undefined|null)\b/, 'never the string "undefined", and never a bare "null" either')
+  assert.equal(out.handoff.tipSha, null, 'handoff.tipSha stays null — the placeholder is a prompt-side resolution only')
+})
+
+// ---------------------------------------------------------------------------
 // Container-packaging Task 2 (#527): packaging floor wiring + unpackaged enum +
 // combined floor-retry sub-loop + polish skip + args.backstops pass-through.
 // Spec §10.2–3. Each new assertion fails without its feature (delete-it-mentally).
@@ -6345,6 +6396,22 @@ const sliceSrc = (startTok, endTok) => {
   return src.slice(s, e)
 }
 
+// #990 — the RETIRED asserting cwd-is-tip premise, as a whole-string (never line-scoped) regex. It fires on
+// "<working tree|working directory|cwd> <is|are|reflects> … committed tip" and is EXEMPTED by an immediately
+// following negation, so the replacement prose ("is NOT assumed to be the committed tip", with or without
+// markdown emphasis around the tokens) passes while any re-assertion reds.
+const CWD_IS_TIP_ASSERTING = /(?:working tree|working directory|working dir|cwd)[\s*_`]{0,6}(?:\w+\s+){0,2}(?:is|are|reflects)\b(?![\s*_`]{0,6}not\b)[\s\S]{0,80}?committed tip/i
+// Unwired negative reference (both-ways proof): the two premise sentences this task retired, verbatim from
+// the pre-change surfaces, plus the "reflects" phrasing a naive "is the committed tip" grep misses. They are
+// FIXTURES — never re-introduced into a live surface.
+const RETIRED_PREMISE_SAMPLES = [
+  ['war-servitor.md', 'at the landed tip (your post-land working tree *is* the committed tip, so this needs no new capability).'],
+  ['servitor Wrap-up prompt', 'at the landed tip (your post-land working tree IS the committed tip — no new capability needed).'],
+  ['reflects phrasing', 'the servitor runs after the merge, so its working tree already reflects the committed tip'],
+  ['line-break-wrapping pairing (why the guard is whole-string, never line-scoped)',
+    'your post-land working tree IS\nthe committed tip'],
+]
+
 test('D3 — both-surfaces directive registry: every correctness-critical directive is on its standing card AND its dispatched prompt(s)', async () => {
   const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
   const workerP = (calls.find(isWorker) || {}).prompt
@@ -6407,8 +6474,16 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     { name: 'read-only git guard contract (D5): one bare git per Bash call, no composition, ls-tree/branch read verbs, Grep tool is the sweep channel',
       surfaces: [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]],
       anchors: [/one bare git/i, /no pipes/i, /ls-tree/i, /Grep tool/i] },
+    // #990 (D3/D4): the four-step landed-tip grounding ladder — the servitor grounds every referent read
+    // on the THREADED landed tip, never on its own cwd. Anchor precondition (#990 plan): every token here
+    // was verified ABSENT from both surfaces at the pre-change base, so a per-surface revert REDs this row.
+    // Deliberately NOT /<session-worktree>/i: that token already lives in the card's D3 path-hygiene text
+    // and is anchored by the path-hygiene row above — behind it, a ladder-only revert would stay green.
+    { name: 'servitor landed-tip grounding ladder (preflight → gitdir-matched worktree lookup → ref-check dead end → gate-audit fallback)',
+      surfaces: [['war-servitor.md', servitorMd], ['servitor Wrap-up prompt', servitorP]],
+      anchors: [/gitdir/i, /not assumed/i, /gate-audit fallback/i, /checkout-topology/i] },
   ]
-  assert.ok(REGISTRY.length >= 11, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), and the Task 1.2 read-only git guard contract row — floor equals the true row count, no slack (#693)')
+  assert.ok(REGISTRY.length >= 12, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, and the #990 servitor landed-tip grounding ladder row — floor equals the true row count, no slack (#693)')
   for (const row of REGISTRY) {
     for (const [sName, sText] of row.surfaces) {
       for (const re of row.anchors) {
@@ -6418,6 +6493,20 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
   }
   // Servitor-migration completeness (migrated from the former T1 both-surfaces test): the standing card
   // shed the retired routing tokens, and the template args header no longer describes learningsTarget loosely.
+  // #990 premise absence (End state 5): the ASSERTING cwd-is-tip form is gone from BOTH servitor prompt
+  // surfaces. Matched against the WHOLE surface string, never line-scoped — the retired pairing could wrap
+  // a line break (the card's version does) and a line-based sweep would miss exactly the defect it polices.
+  // The negation lookahead is what lets the NEW prose ("is NOT assumed to be the committed tip") pass while
+  // the asserting form still reds; RETIRED_PREMISE_SAMPLES below is the unwired negative reference proving
+  // the guard is not vacuous in the other direction.
+  for (const [sName, sText] of [['war-servitor.md', servitorMd], ['servitor Wrap-up prompt', servitorP]]) {
+    assert.doesNotMatch(sText, CWD_IS_TIP_ASSERTING,
+      `${sName}: the asserting cwd-is-tip premise is absent (grounding is on the threaded landed tip — ADR 0029 amendment)`)
+  }
+  for (const [label, sample] of RETIRED_PREMISE_SAMPLES) {
+    assert.match(sample, CWD_IS_TIP_ASSERTING,
+      `negative reference (${label}): the retired asserting form DOES match the guard — the doesNotMatch above is non-vacuous`)
+  }
   assert.doesNotMatch(servitorMd, /phase-<N>\.md/i, 'war-servitor.md no longer names the phase-<N>.md aggregate file')
   assert.doesNotMatch(servitorMd, /else:\s*append|else\b.{0,20}append to/i, 'war-servitor.md no longer carries an "else: append" routing arm')
   assert.doesNotMatch(src, /memory dir or docs\/learnings/i, 'template args header no longer says "(memory dir or docs/learnings/)"')

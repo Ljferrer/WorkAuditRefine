@@ -1911,6 +1911,25 @@ if (landDecision === 'landed') {
   log(`Holding the land for phase ${ph.id}: no task merged cleanly (see escalations) — the Lead must resolve and land.`)
 }
 
+// ---- LANDED-TIP ANCHOR (hoisted; spec D1) — computed ONCE here, at TOP LEVEL between the land
+// section's close and the Wrap-up gate, and consumed by BOTH the Wrap-up dispatch below and the
+// handoff block further down (one source of truth, zero new tip semantics). Deliberately NOT inside
+// the Wrap-up 'if': the handoff block also emits on held:escalation, where landResult can be NULL
+// (land never dispatched) and an in-gate const would be undeclared there — the dereference would hit
+// the top-level catch and turn the degraded path that most needs a handoff into held:workflow-error.
+// The computation moved VERBATIM (its own landResult && … null-guard retained, truthy-string check on
+// working_sha unchanged — no new SHA-shape validation), so handoff.tipSha is byte-identical to the
+// pre-hoist value.
+// tipSha: the landed working sha; degraded → the last confirmed merge tip; else null.
+const lastPinned = [...mergedTasksForGateAudit].reverse().find(m => /^[0-9a-f]{7,40}$/.test(m.gateHeadSha || ''))
+const tipSha = (landResult && landResult.status === 'landed' && typeof landResult.working_sha === 'string' && landResult.working_sha)
+  ? landResult.working_sha
+  : (lastPinned ? lastPinned.gateHeadSha : null)
+// Pre-resolved BEFORE any interpolation: the pt tag throws on undefined and a bare null would render
+// the literal "null" — the null case becomes the NAMED placeholder the grounding ladder's step 4
+// routes on (ADR 0034; working_sha is contract-promised but not schema-required in MERGE_RESULT).
+const landedTipAnchor = tipSha || 'landed tip unrecorded — ground via the gate-audit auditSha entries in your audit-log input'
+
 // ---- WRAP-UP — capture durable learnings (war-servitor, write-scoped to the local memory root) ----
 // Gate (spec §4, decision B): dispatch only when the phase landed AND memoryLocalRoot was threaded. An
 // absent memoryLocalRoot (Setup's memory probe reported memory disabled / a legacy args shape) self-skips
@@ -1920,6 +1939,7 @@ let servitorResult = null
 if (landResult && landResult.status === 'landed' && memoryLocalRoot) {
   servitorResult = await agent(
     pt`Wrap up learnings for WAR phase ${ph.id} "${ph.title}" (landed on ${ph.workingBranch}).\n`
+    + pt`Landed tip: ${landedTipAnchor} on ${ph.workingBranch} (plan slug: ${planSlug || '<plan-slug>'}). This anchor — NOT your working directory — is what every referent read grounds on; see LANDED-TIP GROUNDING below.\n`
     + pt`Your ONLY writable path (your capability allowlist holds no Bash — Write/Edit only — and the PreToolUse scope hook gates those by agent_type to the local memory root): ${memoryLocalRoot}.\n`
     + pt`Every lesson file — regardless of metadata.type — is written under that local root. type: project marks a lesson PROMOTABLE (the Lead's Gate 2 promotes it into the repo root); NEVER write into any docs/learnings/ directory yourself — repo-root publication is the Lead's job, not yours.\n`
     + pt`Landed tasks: ${landed.join(', ') || 'none'}.\n`
@@ -1933,7 +1953,8 @@ if (landResult && landResult.status === 'landed' && memoryLocalRoot) {
     + pt`D1 DEDUP BEFORE WRITE: Glob the memory dir and read MEMORY.md. Read related candidate files. If an existing covering file exists, update that file in place — do not duplicate — BUT only when it bears a nested metadata.provenance value; a covering file WITHOUT one is user-authored, never edit it — write a new file and [[slug]]-cross-link it. Create a new file only when no existing file covers the fact. RECURRENCE ON A REPO LESSON: when the covering lesson lives in the repo root (docs/learnings/), write the updated FULL COPY into your local root under the SAME slug with type: project (a prior promotion's metadata.promoted-stamped local copy, when present, is the canonical recurrence-edit target and is provenance-tagged so the mutation guard allows the edit); the Lead's Gate-2 promotion then OVERWRITES the same-slug repo file (overwrite-on-promote is the ratified update mechanism). Cross-link related facts with [[slug]] references.\n`
     + pt`D2 TIER PRECEDENCE: A higher tier supersedes a lower; a user-confirmed fact outranks any agent write; never overwrite a higher-tier fact with a lower-tier one. A contradicting fact supersedes an existing memory only if it is at the same or higher tier — update or replace the stale file and note the supersession inline with the tier that wins. Only a provenance-tagged file is supersession-editable; to contradict an UNTAGGED (user-authored) file, write a NEW file carrying the supersession note inline and leave the old file untouched.\n`
     + pt`D3 VERIFY-ON-WRITE: Before recording any fact that names a file, flag, function, or symbol: use Read/Grep to confirm the referent currently exists. Referent found → tag metadata.provenance: code-verified and include the cue "verify still present before acting — found at skills/war/assets/workflow-template.js @ phase X". Referent absent → keep metadata.provenance: agent-unverified and add an absence-note: "referent not found @ phase X — verify before acting". PATH HYGIENE (both arms): any path written anywhere in the lesson file — body, description, metadata.keywords, locate-cues, and absence-notes, for every lesson type (the Gate-2 lint scans the whole file, and type is mutable across recurrence-updates and promotion) — is written repo-relative for any referent tracked in this repo (e.g. skills/war/assets/workflow-template.js), or as one of three placeholders for out-of-tree locations: <repo-root> for the root of the inspected checkout (an untracked under-checkout location like .claude/worktrees/…, or when the root itself is the fact — this replaces the servitor's absolute cwd prefix); <session-worktree> for a path meaningful only inside the ephemeral session/task worktree; <local-memory-root> for a file under the local memory root (the memory-about-memory case, legitimate in a locate-cue). A referent living in another repo (a cross-repo campaign) is written relative to that repo, prefixed with that repo's name. It is never an absolute path rooted at a home directory or a checkout location: that checkout path is incidental, and the fail-closed Gate-2 redaction lint demotes any type: project lesson carrying one. CARVE-OUT: this path-hygiene rule governs lesson content only — the ServitorResult.files_written return contract (see RETURN below) still requires ABSOLUTE paths and is unchanged. Do not write snapshot facts that will rot silently.\n`
-    + pt`FINDING-MATCH CHECK (audit-log-sourced facts): an audit finding in your input is agent monologue about a defect that WAS observed — a fix round may have removed it before land. Before recording such a finding as a LIVE gotcha, re-Grep/Read the NAMED CONSTRUCT (the specific defect, not merely the file it lived in) at the landed tip (your post-land working tree IS the committed tip — no new capability needed). Match → tag metadata.provenance: code-verified with the locate-cue. No match (resolved in a fix round before land) → record only the GENERIC PATTERN at metadata.provenance: agent-unverified with the note "audit finding resolved in a fix round before land — recorded as pattern, not live instance", and NEVER name the file/line as a current instance.\n`
+    + pt`LANDED-TIP GROUNDING — run this BEFORE any D3 verify-on-write read and before the FINDING-MATCH CHECK below. Your working directory is NOT assumed to be the committed tip: Refine reaps the task worktrees at phase close, so you are usually left in the main checkout at an older commit. Ground every referent read on the threaded Landed tip above, taking the FIRST rung that holds: (1) PREFLIGHT — resolve your cwd's .git: a gitlink FILE means you are inside a worktree (it names that entry's gitdir); a DIRECTORY means the main checkout (read <repo-root>/.git/HEAD there). HEAD equal to the threaded landed tip on the threaded working branch ⇒ a direct Read/Grep here is code-verified-capable. (2) WORKTREE LOOKUP — enumerate <repo-root>/.git/worktrees/* and match each entry by its gitdir PHYSICAL PATH containing this plan's slug; NEVER trust the bare entry name (task-id and _refinery names collide across concurrent plans and git auto-suffixes them numerically). An entry whose HEAD equals the threaded landed tip SHA is the strongest match — read referents under that entry's gitdir path. (3) REF CHECK — a loose or packed ref for the landed branch with NO live worktree is a dead end for Read (you have no Bash to check it out): spend no rounds on it. (4) GATE-AUDIT FALLBACK — when no rung reaches the tip, trust the pinned auditSha verdicts (gateEvidence: true) in your audit-log input, and record anything else at metadata.provenance: agent-unverified with the checkout-topology evidence in the absence-note (which rung failed, and what your cwd HEAD actually was). NEVER assert a plan/code mismatch from a lagging view.\n`
+    + pt`FINDING-MATCH CHECK (audit-log-sourced facts): an audit finding in your input is agent monologue about a defect that WAS observed — a fix round may have removed it before land. Before recording such a finding as a LIVE gotcha, re-Grep/Read the NAMED CONSTRUCT (the specific defect, not merely the file it lived in) at the landed tip (your working tree is NOT assumed to be the committed tip — ground the read on the threaded landed tip via LANDED-TIP GROUNDING above; still no new capability needed). Match → tag metadata.provenance: code-verified with the locate-cue. No match (resolved in a fix round before land) → record only the GENERIC PATTERN at metadata.provenance: agent-unverified with the note "audit finding resolved in a fix round before land — recorded as pattern, not live instance", and NEVER name the file/line as a current instance.\n`
     + pt`\n`
     + pt`Provenance tagging — tag EVERY memory file you write with metadata.provenance (nested under metadata:, next to type:). Use only the three canonical tiers: agent-unverified (default — the input is LLM-authored audit monologue), code-verified (D3 referent confirmed via Read/Grep), user-confirmed (operator/user explicitly confirmed). Retire legacy agent-observed: treat it as agent-unverified and never emit it going forward.\n`
     + pt`\n`
@@ -1950,11 +1971,9 @@ if (landResult && landResult.status === 'landed' && memoryLocalRoot) {
 // holds (nothing landed to hand off).
 let handoff = null
 if (landDecision === 'landed' || landDecision === 'held:escalation') {
-  // tipSha: the landed working sha; degraded → the last confirmed merge tip; else null.
-  const lastPinned = [...mergedTasksForGateAudit].reverse().find(m => /^[0-9a-f]{7,40}$/.test(m.gateHeadSha || ''))
-  const tipSha = (landResult && landResult.status === 'landed' && typeof landResult.working_sha === 'string' && landResult.working_sha)
-    ? landResult.working_sha
-    : (lastPinned ? lastPinned.gateHeadSha : null)
+  // tipSha + lastPinned are HOISTED above the Wrap-up gate (see LANDED-TIP ANCHOR) — the Wrap-up
+  // dispatch threads the same value. This block consumes them unchanged: Wrap-up fires only on
+  // 'landed', a strict subset of this block's emit conditions, so the hoist widens nothing.
   // absorbed: aced provenance grouped by commit sha → [{ sha, findings: [title] }].
   const bySha = {}
   for (const a of aced) (bySha[a.sha] = bySha[a.sha] || []).push(a.finding && a.finding.title)

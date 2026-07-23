@@ -1106,7 +1106,8 @@ not merely the file) still matches at the landed tip before recording it as a li
 `agent-unverified`, never a live file/line. Extends verify-on-write (which checks referent *existence*
 only) ([ADR 0029](docs/adr/0029-capture-grounds-on-committed-tip.md)).
 _Avoid_: recording a stale audit-log finding's file/line as a current instance (the log outlives the
-fix round that resolved it); conflating file-exists with finding-still-matches.
+fix round that resolved it); conflating file-exists with finding-still-matches; assuming the wrap-up
+cwd is the committed tip (ground on the threaded landed-tip anchor via the grounding ladder instead).
 
 **Committed-tree grounding**:
 Resolving an "already-done" / verify-and-close no-op claim against a pinned committed SHA

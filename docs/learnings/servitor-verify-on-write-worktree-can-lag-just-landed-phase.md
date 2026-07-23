@@ -354,3 +354,17 @@ Recurrence 8-10 "trust the audit log, no direct read possible" fallback in a ses
 Related: same family as Recurrences 4-7 (task/`_refinery` worktree lookup via `gitdir`), now with
 the added precondition that the servitor's own cwd being a linked worktree (rather than main
 checkout) does not exempt it from the lag hazard, and the Glob-pattern gotcha above.
+
+**Mechanized (#990, 2026-07-22):** the four-step ladder these recurrences distilled by hand each time
+(cwd preflight → `gitdir`-matched worktree lookup → ref-check dead-end → gate-audit fallback) is now
+standing guidance on both wrap-up prompt surfaces — `agents/war-servitor.md`'s landed-tip grounding
+subsection and the dispatched Wrap-up prompt in `skills/war/assets/workflow-template.js` — instead of
+something each servitor had to reconstruct from this lesson at read time. The engine also threads a
+`Landed tip:` line into the Wrap-up dispatch itself (the handoff block's existing `tipSha`
+computation, hoisted so it's populated on every landed dispatch), giving step 1's preflight a known
+target to compare against rather than only the spawn prompt's working-branch name. This is a
+mechanization of the recurring workaround, not a resolution of the underlying hazard: the servitor's
+threaded cwd can still lag the phase it is wrapping up, obedience to the ladder is still
+prompt-enforced (ADR 0029, amended 2026-07-22), and a future wrap-up can still hit a topology none of
+the recurrences above anticipated. The recurrence history above stays the canonical long-form record
+of *why* the ladder has the shape it does — this note does not retire it.
