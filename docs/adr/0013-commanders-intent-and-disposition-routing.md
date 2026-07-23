@@ -118,3 +118,18 @@ every seat including the inline gate-audit passes through the standing surface, 
 mirror is needed (the same standing-surface-only precedent as this ADR's own D7 checklist). See
 [ADR-0034 — engine ingest guards & provision exit-code contract](0034-engine-ingest-guards-and-provision-exit-codes.md)
 §Decision, whose plan lands this clause. This addendum leaves the ratified body above unchanged.
+
+## Addendum (2026-07-22): a second adjudication producer, and an adjudication-match confirmation-note rule
+
+Decision 3 introduced `adjudicationClause` with one producer: the red-team report's `## Adjudications`
+block. This addendum records a second, coequal producer — the Lead's own scope rulings, assembled at
+the decompose gate and at held-escalation adjudications and threaded as `args.adjudications` rows per
+`skills/war/SKILL.md` — so a ruling the Lead has already made reaches every audit seat instead of being
+re-litigated on a later relaunch. The clause also gains a producer-agnostic ADJUDICATION-MATCH sentence:
+a finding whose substance matches an adjudicated row is a confirmation note, never an escalation; a
+candidate deviating from both the plan and the row is still judged normally. Both are guarded-invariant
+widenings of the existing channel — no new ADR — emitted at the roster-seat `auditPrompt()` and, newly,
+at the three gate-audit-family prompt sites, and mirrored VERBATIM into `agents/war-auditor.md` under the
+same both-surfaces duty as Decision 3. This addendum leaves the ratified body above — including Decision
+3's byte-identical version-precedence sentence — unchanged. See
+[the design spec](../specs/2026-07-22-audit-adjudication-threading-design.md) §4, §6–§7, §10 criteria 5–8.
