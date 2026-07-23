@@ -96,6 +96,12 @@ resolved design tree is the ceiling; the plan slice is the floor.)*
      ("standing warning", "stays unencoded", "this lesson's warning"); the 2026-07-16 spec's
      Context band is **deliberately left uncorrected** (dated spec Context bands record drift as of
      authoring time — [[spec-context-band-statement-of-drift-survives-code-changes-uncorrected]]).
+     The **landed 2026-07-16 plan** (`docs/plans/2026-07-16-aftermath-class1-gate-evidence.md`, the
+     `is not encoded / anywhere and stays the lesson's standing warning` line, ~L381) is **also
+     deliberately left uncorrected** — a landed plan is a point-in-time record, never retro-edited
+     (the 2026-07-16 plan states this convention itself: "point-in-time record, never corrected");
+     the same rule as the dated spec band, one surface over. Only the source lesson's own dated
+     line is corrected (by this task's amendment).
      Anchor-uniqueness sweep: each candidate anchor grepped against the SKILL and the test file
      (zero pre-existing hits), then hand-scan the Class-1 prose and the block's comments for
      same-meaning near-collisions ("surviving refs", "what remains", "left behind"); stragglers
@@ -196,9 +202,13 @@ resolved design tree is the ceiling; the plan slice is the floor.)*
     indexed). Check: `node skills/_shared/war-memory.mjs lint docs/learnings/` exits 0.
   - **The stale-claim sweep** (End state 6): after the edits, `grep -rn 'not encoded' docs/ skills/`,
     adjudicate every match; then the mandatory hand-scan of the named same-scope siblings for
-    same-meaning phrasings. Known adjudications carried from the spec: the 2026-07-16 spec's §1
-    Context band stays uncorrected (deliberate — dated-Context-band convention); this lesson's
-    dated line is corrected by this task's own amendment. Record sweep results and any
+    same-meaning phrasings. Known adjudications (three, exhaustive over the base-state hits): (i) the
+    2026-07-16 **spec's** §1 Context band stays uncorrected (deliberate — dated-Context-band
+    convention); (ii) the landed 2026-07-16 **plan** (`docs/plans/2026-07-16-aftermath-class1-gate-evidence.md`,
+    ~L381) stays uncorrected (a landed plan is a point-in-time record, never retro-edited — the same
+    rule); (iii) this lesson's own dated line **is** corrected by this task's amendment. A worker who
+    finds a fourth `not encoded` hit outside these three lists it as a survey-derived correction and
+    does **not** edit any landed plan or dated spec band. Record sweep results and any
     survey-derived corrections in the done-report; local-root lessons are referenced by
     already-public slug only (body content and local paths never enter gh-mirrored surfaces).
 - requiresTest: true (mapped evidence: the `war-pipeline-structure.test.sh` edit in this diff —
