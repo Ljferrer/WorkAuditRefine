@@ -28,10 +28,9 @@ metadata:
   modified: 2026-07-21T21:01:05.485Z
 ---
 
-# `tighten-plan --target` never moves the preflight stop condition — only the plan step
+# RESOLVED — `tighten-plan --target` never moves the preflight stop condition — only the plan step
 
-**What (code-verified — found at `skills/_shared/war-memory.mjs`; verify still present before
-acting):** `buildProjection`'s `verdict` (`ok`/`warn`/`refuse`, line ~416-418) is computed purely
+**What (as shipped 2026-07-21, superseded by #992 — see below):** `buildProjection`'s `verdict` (`ok`/`warn`/`refuse`, line ~416-418) is computed purely
 against the module-level constants `WARN_BYTES` (17,000 B, line 41) and `HARD_BYTES` — it has no
 knowledge of `tightenPlan`'s `target` parameter (also defaulted to `WARN_BYTES`, but overridable
 via the CLI's `--target` flag, e.g. `skills/_shared/war-memory.mjs` argv handling around line 914).
@@ -40,7 +39,7 @@ via the CLI's `--target` flag, e.g. `skills/_shared/war-memory.mjs` argv handlin
 i.e. it stops **exactly** when the live corpus is under the fixed 17,000 B advisory, regardless of
 what `--target` was passed.
 
-**The gotcha:** pass a custom `--target` *below* 17,000 (e.g. to force a tighter bound), and if the
+**The gotcha (as shipped 2026-07-21, superseded by #992 — see below):** pass a custom `--target` *below* 17,000 (e.g. to force a tighter bound), and if the
 live corpus sits between that custom target and 17,000 B, the preflight still reads `verdict: "ok"`
 and reports "nothing to tighten" — the pass never reaches the **plan** step where `--target` would
 actually take effect (shifting `cutGoalBytes`/`cutIndex`/`projectedBytes`). `--target` only changes

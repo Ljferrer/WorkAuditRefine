@@ -84,4 +84,6 @@ over-protect, never false-evict.
 **What's still true (unchanged by the fix):** the underlying observation — that the field can be
 dominated by a coincidental digit-shaped substring anywhere in prose, not just the four frontmatter
 date keys — remains the durable pattern; only the failure mode changed, from *permanent*
-over-protection to a *bounded* (48 h) one.
+over-protection to a *bounded* (48 h) one. And a day-overflow token such as `2026-02-31` still
+survives the UTC round-trip (it rolls over to early March) — a bounded residual accepted by
+design in the fix.
