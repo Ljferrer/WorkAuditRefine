@@ -286,6 +286,18 @@ else
   printf 'not ok - %s Class-1 gate cell MISSING :: exact ref being removed (row-scoped, case-insensitive)\n' "$(basename "$AFTERMATH")"
   fails=$((fails + 1))
 fi
+# Post-delete residual verification (docs/specs/2026-07-22-aftermath-class1-postdelete-verify-design.md)
+# — pins the new '### Class-1 remote deletes — post-batch residual verification' subsection against a
+# silent drop, self-describing (criterion-9b precedent: nothing renumbered, the block banner + its four
+# assertions above stay byte-untouched). Two mandated has_i() prose pins on mid-sentence anchors unique
+# to the subsection (survivors-vs-hold-set diff rule + clean-verdict rule) — sentence-case class, so
+# case-insensitive. Plus one has() pin on the restore colon-refspec (a command literal, case-stable).
+# All three verified zero-hit in SKILL + test at the 2026-07-22 base; temp-break-proven (revert the
+# subsection -> all three red), runs in the commit-body Red-proof: block. `ls-remote` stays banned as an
+# anchor (6× in the SKILL — the whole-file-pin-discriminates-nothing class).
+has_i "$AFTERMATH" 'hold set must survive'
+has_i "$AFTERMATH" 'before declaring the run clean'
+has   "$AFTERMATH" ':refs/heads/'
 
 printf '\n== war-pipeline-structure: %s failure(s) ==\n' "$fails"
 exit $fails

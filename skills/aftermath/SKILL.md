@@ -89,6 +89,20 @@ Neither refusal is ever answered with `-D` in default mode.
 
 **The one-sweep asymmetry, stated once:** the local branch deletes via the safe `-d` while the remote ref it tracked stays acknowledged-stranded/needs-human on the remote side — allowlisted per ADR 0027 and cleared only by the deliberate manual push-delete. One sweep reaches two verdicts on one branch name; that is the per-ref rule working, not an inconsistency.
 
+### Class-1 remote deletes — post-batch residual verification
+
+**The pre-batch `git ls-remote` snapshot is retained, never retaken.** The Class-1 candidate set is already derived from one `git ls-remote` snapshot (ref → SHA); keep *that* snapshot — re-snapshotting between classification and the batch would let the window swallow a discrepancy. The **hold set** is its exact-`refs/heads/<ref>`-name complement of the delete list — never substring, the same match rule as the allowlist above — every ref in the snapshot that is *not* being deleted (needs-human, acknowledged-stranded, active/out-of-scope, protected, and non-WAR refs alike), with no re-classification.
+
+**Build the delete batch by explicit set-difference — never by an exclusion filter inside a piped `while read` subshell.** Compute it `comm`-style as a sorted set-difference of the snapshot against the hold set; the recorded silent-no-op is a `$STRANDED` match evaluated inside a piped `while read … done` subshell that quietly matches nothing, letting hold-meant refs flow into the batch while `git push` prints success. Advisory, not mandated — the verification below is the backstop for **any** construction bug — but the set-difference form removes the whole class.
+
+**After the batched `git push origin --delete`, re-list once with a fresh `git ls-remote --heads origin` and diff it two ways against the retained snapshot**, reading the survivors from `git ls-remote` truth, never a lagging local follower. Every ref in the hold set must survive by exact `refs/heads/<ref>` name — a missing one is a **data-loss row** (measured *missing vs. the pre-batch snapshot*: hold-set SHA drift, e.g. master advancing mid-run, is informational, and a concurrent human push or delete is normal remote activity, not proof of a bug); every delete-list ref must be gone — a survivor is a **failed-delete row**, routine reporting (permissions and protected-branch rules make survivors plausible), reported and never silently re-batched into a second delete.
+
+**The clean verdict is withheld until that two-sided diff is empty or every discrepancy is already a report row.** Neither interactively nor under `--afk` may the sweep report clean while a discrepancy is unreported — confirm the diff empty or every row reported before declaring the run clean; a non-empty unreported diff makes the verdict *verification-failed*, never *clean-with-a-footnote*.
+
+**A data-loss row prints the pre-batch snapshot SHA and the ready-to-run restore `git push origin <snapshot-sha>:refs/heads/<ref>`** (valid while the objects still survive on the remote). Interactively that restore executes only behind an explicit operator confirm; under `--afk` it is **printed, never executed** — an unattended sweep must not grow autonomous ref-*creation* authority to compensate for its own delete bug, and a concurrent deliberate human delete must never be resurrected unreviewed.
+
+**`git ls-remote` creates no local refs**, so the verification is objects-only and honors the zero-refs probe discipline ([[aftermath-must-delete-its-own-probe-refs]], and the objects-only clause above) by construction — there is nothing to clean up after it.
+
 ### Class-4 join rule
 
 The campaign ledger records plan paths as **absolute** paths resolved against the campaign Lead's cwd — routinely a session worktree that may no longer exist — while the survey manifest records repo-relative paths. So the manifest→ledger join matches by plan **basename/slug, never full path**. When no ledger entry matches, `gh pr list --search "<plan filename>"` is the sanctioned fallback for locating the landing PR.
