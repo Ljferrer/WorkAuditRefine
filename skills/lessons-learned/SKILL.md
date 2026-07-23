@@ -54,11 +54,12 @@ numbered phases, it just borrows their variable names). Five steps, strict order
 
 1. **Preflight** (read-only — nothing is staged or mutated yet). If the invocation named a target
    (`/lessons-learned tighten --target <bytes>`, or a byte figure the operator gave in the ask), set
-   `$TARGET` to it; leave `$TARGET` unset when none was supplied, so the flag drops out and the default
-   run is unchanged:
+   `$TIGHTEN_TARGET` to it; leave `$TIGHTEN_TARGET` unset when none was supplied, so the flag drops out
+   and the default run is unchanged (set `$TIGHTEN_TARGET` in the same shell invocation as the command
+   below, or substitute the literal figure — each command block runs in its own shell):
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/skills/_shared/war-memory.mjs" tighten-plan --local "$MEM" --repo "$REPO_ROOT" ${TARGET:+--target "$TARGET"}
+   node "${CLAUDE_PLUGIN_ROOT}/skills/_shared/war-memory.mjs" tighten-plan --local "$MEM" --repo "$REPO_ROOT" ${TIGHTEN_TARGET:+--target "$TIGHTEN_TARGET"}
    ```
 
    (`--target` defaults to 17,000 = `WARN_BYTES`; a `--target <bytes>` below it binds the pass at that
