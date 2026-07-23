@@ -331,10 +331,11 @@ _Avoid_: separate per-loop limits, max-attempts.
 
 **gate-failure class** (`MergeResult.gate_failure_class`):
 The orthogonal label on a `gate_failed` — `introduced` | `baseline` | `environment` — that selects the
-recovery path: the bounded fix-worker loop, a proceed-with-backstop record, or a 0-round `env-blocked`
-escalation. Populated by the refiner's on-failure base re-run; absent ⇒ `introduced` (the fail-safe
-default). **Class routes; status stays `gate_failed`** — the status enum, `HARD_ESCALATION_REASONS`, and
-`KNOWN_LAND_DECISIONS` are untouched (ADR 0005 enum discipline; the finding-`disposition` precedent).
+recovery path: the bounded fix-worker loop, a proceed-with-backstop record, or a single
+**environment-proceed** re-run. Populated by the refiner's on-failure base re-run; absent ⇒
+`introduced` (the fail-safe default). **Class routes; status stays `gate_failed`** — the status enum,
+`HARD_ESCALATION_REASONS`, and `KNOWN_LAND_DECISIONS` are untouched (ADR 0005 enum discipline; the
+finding-`disposition` precedent).
 _Avoid_: a new `MergeResult` status for the baseline/environment cases (status widening leaks into the
 land path); treating an absent class as anything but `introduced`.
 
@@ -347,6 +348,22 @@ land and in the final PR (ADR 0017: the un-run validation becomes a ratified-bac
 prose).
 _Avoid_: treating it as a passing gate (the gate is red — the debt just predates the diff); a silent
 proceed (the backstop entry is mandatory).
+
+**environment-proceed**:
+The bounded — exactly **one per gate site** — Workflow-dispatched fresh-env re-run of a gate-failed
+merge or land whose failure classified `environment` (`merge:<taskId>:environment-proceed`,
+`land:phase-<N>:environment-proceed`). Sibling of the baseline-proceed re-dispatch with the
+**opposite gate discipline**: baseline-proceed *proceeds over* named pre-existing failures with
+**baseline gate debt** recorded; environment-proceed *re-runs and must be green* — nothing is
+pre-existing, so there is no `gate_failing_ids` carve-out and no `source:'auto'` backstop. Never
+chained, and exhaustion holds rather than shrugs: a second `environment` classification
+hard-escalates the merge site (the reused reason `'escalate'` ⇒ `held:escalation`, so the phase never
+completes minus an approved task) and falls back to `held:land-failed` at the land site, with the retry
+provably spent ([ADR 0040](docs/adr/0040-environment-class-gate-failures-earn-one-retry.md)).
+_Avoid_: any new `MergeResult` status or escalation-reason enum member for it (the existing
+`merged`/`gate_failed`/`landed` statuses and the reused `'escalate'`/`'env-blocked'` reasons carry it
+end-to-end); a second retry at the same gate site, or chaining it with a **baseline gate debt**
+proceed (the bound is structural, not a config knob).
 
 **Defect class** (`defectClass`):
 Escalation-record metadata distinguishing the *root cause* of a worker block: a **plan/spec defect** —

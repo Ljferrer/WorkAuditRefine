@@ -150,3 +150,56 @@ Both manual land paths route through `land-advance` on a green gate, retiring th
 - **Split `HARD_ESCALATION_REASONS` per mode vs. a drift-guarded test (chosen: test).** Splitting breaks
   the mirror and the existing drift-guard (ADR 0005); the test pins per-mode reachability without
   touching the shared constant.
+
+## Amendment (2026-07-22): the push's own precondition is part of land truth
+
+The original Decision made the land's *effect* provable against git — origin advanced to
+`<merge-sha>` — but left the push's **precondition** unasserted. `cmd_land_advance` pushes
+`HEAD:refs/heads/<working>`, and `HEAD` resolves from the invocation cwd; the `<merge-sha>` argument
+the caller passes is never compared against the commit that is actually about to be pushed. A phase-3
+manual land ran the primitive from the main checkout: the push attempted that checkout's `master`
+HEAD, took a non-ff `[rejected]`, and exited **2** — the CAS-reject code. Nothing was forced and no
+ref moved, so the guard's safety held; what broke was the *diagnostic*. Exit 2 read "CAS contention —
+reland" when the truth was "wrong worktree", and the operator spent a loop chasing a contender that
+did not exist. The wrong-cwd trap is already a published lesson, and being prose did not stop it
+recurring — hence the fix belongs in the script.
+
+**Decision, extended.** `cmd_land_advance` asserts `HEAD == <merge-sha>` immediately before the push
+and dies loudly on mismatch, naming both SHAs and the expected cwd. Three properties make this an
+extension of (B) rather than a new mechanism:
+
+- **It is land truth, not a new check.** A land is only provable if the thing pushed is the thing the
+  caller vouched for. The pre-push origin-tip capture proves *where the ref is going*; the precheck
+  proves *what is going there*. Together they close the assertion.
+- **It sits after the guard's early-return arms** (first-land fall-through, phantom die, already-landed
+  reconciliation), immediately before the push — the exact code path that can emit the misleading exit
+  2. The already-landed arm reconciles the follower **without** pushing and is correct from any cwd;
+  it must stay idempotent (ADR 0008 repair-toward-git), so the precheck must not gate it.
+- **It adds no constant and no new exit class.** The die reuses the catalogued `EX_WRONG_BRANCH` (6),
+  whose family is exactly "the worktree is not in the state the operation requires; fix the topology
+  and re-run"; the catalogue comment gains the new site. A dedicated `EX_WRONG_HEAD` was rejected —
+  the catalogue's own rule blesses overloading where halt-semantics are identical, and 6 is already
+  distinct from 0/2/3.
+
+**Consequence — the point of the change.** Exit 2 now means *only* a real concurrent advance. The
+push form, the `[rejected]` classification, and the 0/2/3 contract are byte-unchanged: the semantics
+of exit 2 did not change, they became unambiguous. Pushing an explicit `<merge-sha>:refs/heads/<working>`
+refspec instead was rejected — it would reverse the red-team-verified named-source-`HEAD:` push
+finding.
+
+No in-workflow prompt changes: the refiner lands from `_refinery` detached at the merge sha, so the
+precheck cannot fire in-flow, and a non-0/non-2 exit already routes the refiner's `status: 'error'`
+arm. Only the SKILL.md **manual**-land recipes — the paths that historically ran from the wrong cwd —
+gain the explanatory sentence.
+
+**Uncorrected by convention.** The originating spec prose
+([`2026-06-25-concurrent-run-land-isolation-design.md`](../specs/2026-06-25-concurrent-run-land-isolation-design.md)
+§5.3, guarded by the D15 doc-contract row) states the push-first CAS contract as of its own ratification
+and is not edited here — historical specs record what was decided then; this ADR is the live authority
+on the land primitive's assertions. The D15 row's subject (the `cmd_land_advance` pointer, the
+`[rejected]` classification, the 0/2/3 exits) is untouched by this amendment.
+
+Full mechanics: [the design spec](../specs/2026-07-22-merge-land-resilience-design.md) §3 decisions
+6–9 and §4.4, and [the plan](../plans/2026-07-22-merge-land-resilience.md) Task 1.2. The sibling
+change landed in the same plan — one bounded in-workflow retry for environment-class gate failures —
+is [ADR 0040](0040-environment-class-gate-failures-earn-one-retry.md).
