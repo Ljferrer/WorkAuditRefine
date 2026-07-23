@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   provenance: code-verified
-  keywords: aftermath stranded branch reachability git-cherry patch-equivalence merge-queue rebase remote-ref local-tip tip-reachability class-1 known-stranded serial-merge
+  keywords: aftermath stranded branch reachability git-cherry patch-equivalence merge-queue rebase remote-ref local-tip tip-reachability class-1 known-stranded serial-merge residual-set hold-set
   originSessionId: 3e7df1e1-5759-4eb0-9cb3-db7f6b90a91d
 ---
 
@@ -15,6 +15,6 @@ When a ref genuinely fails tip-reachability, `git cherry origin/master <ref>` (0
 
 Also: a shell exclusion filter (`$STRANDED` matched inside a piped `while read … done` subshell) can silently no-op and delete refs you meant to hold — verify the residual set after a batched `git push origin --delete`, don't trust the loop.
 
-2026-07-16: `docs/specs/2026-07-16-aftermath-class1-gate-evidence-design.md` — the per-ref gate rule, the git-cherry row-evidence recipe, and the unset-upstream `-d` recovery are now encoded in `skills/aftermath/SKILL.md` Class-1; the third paragraph's shell-exclusion-filter / batched `git push origin --delete` verification gotcha above is not encoded anywhere and stays this lesson's standing warning.
+2026-07-16: `docs/specs/2026-07-16-aftermath-class1-gate-evidence-design.md` — the per-ref gate rule, the git-cherry row-evidence recipe, and the unset-upstream `-d` recovery are now encoded in `skills/aftermath/SKILL.md` Class-1; the third paragraph's shell-exclusion-filter / batched `git push origin --delete` verification gotcha above is now encoded (2026-07-22) as the post-batch residual-set verification subsection in `skills/aftermath/SKILL.md` Class-1, per `docs/specs/2026-07-22-aftermath-class1-postdelete-verify-design.md`.
 
 Related: [[aftermath-2026-07-03-stranded-remote-set]], [[audit-2026-06-29-plans-serial-stack]].
