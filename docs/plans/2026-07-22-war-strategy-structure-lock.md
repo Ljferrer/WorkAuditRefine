@@ -84,9 +84,13 @@ drafted by `/war-machine --afk`, 2026-07-22).
   conversion-flow step, pinned by one bare `check_f` — *was* confirmed present on the integrated
   tree (superseding the note's earlier stale-worktree "not found") and is now closed by two
   location-unique `check_f` anchors (issue #991); the mechanism-level guidance (options (a)/(b)
-  in "How to apply") stays live for future structure tests, with the added caveat that
-  `grep -c` counts matching *lines*, not occurrences (`-o` is overridden by `-c` on GNU and BSD
-  grep), so option (b) count recipes are line-counts in disguise — prefer option (a). This task
+  in "How to apply") stays live for future structure tests, with the added caveat that a bare
+  `grep -c` is a **line-count, not an occurrence-count** — it reports the number of matching
+  *lines* regardless of `-o` on the stock GNU and BSD greps (verified against real BSD grep
+  `/usr/bin/grep`), so a `-oc`/`-co` "count recipe" is a line-count in disguise on those greps —
+  prefer option (a). (Environment caveat, red-team-verified: a `grep` shimmed to a third-party
+  drop-in such as ugrep may instead count *occurrences* under `-oc`, so a count recipe is
+  doubly unsafe — option (a)'s explicit-location anchor sidesteps the whole question.) This task
   rides the dep wave so the writer verifies the claim before making it: on the rebased
   integration tip, confirm the two anchored `check_f` calls exist in
   `war-strategy-structure.test.sh` and the bare-token lock is absent. Byte-unchanged surfaces:
