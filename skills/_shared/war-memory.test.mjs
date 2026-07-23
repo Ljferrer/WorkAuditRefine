@@ -930,9 +930,10 @@ test('cap: a long summary row ends "… [tier] [repo] |" with the markers INTACT
 });
 
 // ============================================================================
-// (Task 1.1 / red-team adjudication) effectiveDate = newest ISO date among the
-// four frontmatter date keys AND any 20\d\d-\d\d-\d\d in phase/description prose;
-// null when nothing parses (undated ⇒ PROTECTED). lessonRecord surfaces it.
+// (Task 1.1 / red-team adjudication) effectiveDate = newest VALID, non-future
+// ISO date among the four frontmatter date keys AND any 20\d\d-\d\d-\d\d in
+// phase/description prose; null when no token survives validation
+// (undated ⇒ PROTECTED). lessonRecord surfaces it.
 // ============================================================================
 
 test('effectiveDate: newest stamp across frontmatter keys + prose; null when none parse', () => {
