@@ -2275,14 +2275,19 @@ test('#237 — both merge-task dispatch prompts split exit-1 (no-test) from exit
 })
 
 // ---------------------------------------------------------------------------
-// Phase 2 Task 1 (#574/#596) — thread overrides.testPattern → assert-test-in-diff.sh --pattern
-// (both dispatched merge-task sites) + Provision-prompt base-derivation prose + war-refiner.md mirror.
+// Phase 2 Task 1 (#574/#596) — thread the per-phase-resolved overrides.testPattern →
+// assert-test-in-diff.sh --pattern at every dispatched merge-task floor invocation site (the site set
+// grows under stacking — the #1046 drift-guard below DISCOVERS it; no count is asserted in prose)
+// + Provision-prompt base-derivation prose + war-refiner.md mirror.
 // Validation 2 (byte-identical when null) + the --pattern half of validation 6 (drift guard).
 // ---------------------------------------------------------------------------
 
 // Drive the no-test → add-test fix → re-audit(approve) → re-merge flow so BOTH the initial merge-task
 // prompt AND the floor-retry re-merge prompt are dispatched (first Refine call = no-test, second = merged).
-async function runNoTestLoop(over) {
+// firstMerge (optional) overrides the FIRST Refine result — the no-test MergeResult the floor-retry
+// sub-loop consumes — so a test can ride extra advisory fields (e.g. floor_diagnostic) on it. Omitted ⇒
+// today's bare { mode:'merge-task', status:'no-test' }, so every pre-existing caller is unchanged.
+async function runNoTestLoop(over, firstMerge) {
   let mergeCallCount = 0
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
@@ -2291,7 +2296,7 @@ async function runNoTestLoop(over) {
     if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
     if (seat === 'war-refiner' && opts.phase === 'Refine') {
       mergeCallCount++
-      return mergeCallCount === 1 ? { mode: 'merge-task', status: 'no-test' } : { mode: 'merge-task', status: 'merged' }
+      return mergeCallCount === 1 ? (firstMerge || { mode: 'merge-task', status: 'no-test' }) : { mode: 'merge-task', status: 'merged' }
     }
     if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
     if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
@@ -2346,7 +2351,133 @@ test('testPattern drift-guard (validation 6, --pattern half): war-refiner.md ste
   assert.match(refinerMd, /--pattern/i,
     'war-refiner.md step 4 names the --pattern argument (standing mirror of the dispatched prompt)')
   assert.match(refinerMd, /overrides\.testPattern/i,
-    "war-refiner.md step 4 attributes --pattern to the run's pinned overrides.testPattern")
+    'war-refiner.md step 4 attributes --pattern to the per-phase-resolved overrides.testPattern')
+})
+
+// ---------------------------------------------------------------------------
+// #1046 — MERGE_RESULT.floor_diagnostic: the test floor's verbatim exit-1 stderr (the near-miss
+// diagnostic), captured at every dispatched floor site, interpolated into the ADD_TEST fix prompt and
+// the no-test exhaustion detail. Fail-open advisory — never routed on, no status enum change.
+// ---------------------------------------------------------------------------
+
+// The requiresTest-TRUE arm of each dispatched assert-test-in-diff.sh site, DISCOVERED from the template
+// source: the invocation literal (script + both ref interpolations + ${testPatternArg}) through to the
+// ternary's `: pt\`` false arm. The requiresTest:false skip arms carry no ${testPatternArg} and are
+// excluded by construction, as are the prose mentions (the ADD_TEST description, the polish-merge skip).
+const FLOOR_SITE_RE = /assert-test-in-diff\.sh \$\{ph\.integrationBranch\} \$\{r\.task\.branch\}\$\{testPatternArg\}([^]*?)\n\s*: pt`/g
+
+test('#1046 floor_diagnostic drift-guard (validation 6, both surfaces): EVERY dispatched assert-test-in-diff.sh site instructs verbatim-stderr capture into floor_diagnostic scoped to exit 1; war-refiner.md step 4 carries the same tokens', () => {
+  // DISCOVER the sites instead of hardcoding a count — the dispatched-site set grows under stacking
+  // (four at this base: initial merge, floor-retry re-merge, environment-proceed, baseline-proceed).
+  // The bound is a >= 3 NON-VACUITY floor, never an exact count: an exact count re-breaks on the next
+  // site added and invites a stale-number fix instead of a real one.
+  const sites = [...src.matchAll(FLOOR_SITE_RE)]
+  assert.ok(sites.length >= 3,
+    `expected >= 3 dispatched assert-test-in-diff.sh sites rendering \${testPatternArg} in the template source (non-vacuity floor); found ${sites.length}`)
+  sites.forEach((m, i) => {
+    const arm = m[1]
+    const where = `dispatched floor site #${i + 1} of ${sites.length}`
+    assert.match(arm, /floor_diagnostic/, `${where} must name the floor_diagnostic capture field`)
+    assert.match(arm, /stderr/i, `${where} must name stderr as the capture source`)
+    assert.match(arm, /verbatim/i, `${where} must demand the stderr VERBATIM (never edited or summarised)`)
+    // Exit-1-SCOPED: the capture must sit in the same clause as an exit-1 mention. A capture instructed
+    // unconditionally — or on the exit-2 (git/ref error) route — is exactly the defect this anchors against.
+    assert.match(arm, /exit 1[^]{0,240}floor_diagnostic/i,
+      `${where} must scope the floor_diagnostic capture to the exit 1 path`)
+  })
+
+  // Standing surface (both-surfaces rule): the same instruction in war-refiner.md step 4's exit-1 bullet.
+  // Scoped to that bullet so the tokens cannot be satisfied by unrelated prose elsewhere in the file
+  // (step 4 already said "verbatim" about the --pattern arg — an unscoped grep would pass vacuously).
+  const step4 = refinerMd.match(/\*\*Test-floor check\*\*[^]*?(?=\n\d+\. \*\*Packaging-floor check\*\*)/)
+  assert.ok(step4, 'war-refiner.md carries a **Test-floor check** step delimited by the packaging-floor step')
+  const exit1 = step4[0].match(/\*\*exit 1\*\*[^]*?(?=\n\s*-\s*\*\*exit 2\*\*)/)
+  assert.ok(exit1, 'war-refiner.md step 4 carries an **exit 1** bullet')
+  assert.match(exit1[0], /floor_diagnostic/, "war-refiner.md step 4's exit-1 bullet names floor_diagnostic")
+  assert.match(exit1[0], /stderr/i, "war-refiner.md step 4's exit-1 bullet names stderr as the capture source")
+  assert.match(exit1[0], /verbatim/i, "war-refiner.md step 4's exit-1 bullet demands the stderr verbatim")
+})
+
+test('#1046 schema lock: MERGE_RESULT gains OPTIONAL floor_diagnostic and its status enum is unchanged (ADR 0005 — an orthogonal field, never a status value)', () => {
+  const mr = src.match(/const\s+MERGE_RESULT\s*=[^]*?(?=\n\n)/)
+  assert.ok(mr, 'MERGE_RESULT literal found in workflow-template.js')
+  assert.match(mr[0], /floor_diagnostic:\s*\{\s*type:\s*'string'\s*\}/,
+    'MERGE_RESULT declares floor_diagnostic: { type: \'string\' }')
+  assert.ok(!/required:\s*\[[^\]]*floor_diagnostic/.test(mr[0]),
+    'floor_diagnostic is OPTIONAL — never added to MERGE_RESULT.required (fail-open advisory)')
+  const enumMatch = mr[0].match(/status\s*:\s*\{\s*enum\s*:\s*(\[[^\]]+\])/)
+  assert.ok(enumMatch, 'MERGE_RESULT status enum found')
+  assert.deepEqual(
+    JSON.parse(enumMatch[1].replace(/'/g, '"')),
+    ['merged', 'landed', 'gate_failed', 'conflict', 'error', 'land_stale', 'no-test', 'unpackaged', 'submodule-blocked', 'submodule-pr'],
+    'the status enum is byte-unchanged — floor_diagnostic adds NO status value, HARD_ESCALATION_REASONS member, or KNOWN_LAND_DECISIONS member (land-decision.mjs and both hand-mirrored enum blocks untouched)')
+})
+
+test('#1046 ADD_TEST fixPrompt: a non-empty floor_diagnostic is quoted VERBATIM and instructs reconciling against the ACTIVE pattern; absent ⇒ byte-identical to a diagnostic-less run', async () => {
+  const DIAG = "near-miss: runner/x.test.mjs is test-shaped but the active pattern set ('*.test.ts') does not match it"
+  const addTestPrompt = (calls) => calls.find(isAddTestWorker).prompt
+
+  const withDiag = addTestPrompt((await runNoTestLoop(undefined,
+    { mode: 'merge-task', status: 'no-test', floor_diagnostic: DIAG })).calls)
+  const without = addTestPrompt((await runNoTestLoop()).calls)
+
+  assert.ok(withDiag.includes(DIAG),
+    'the ADD_TEST prompt quotes the diagnostic VERBATIM (byte-for-byte, never summarised)')
+  assert.match(withDiag, /reconcile[^]{0,200}ACTIVE pattern/i,
+    "the ADD_TEST prompt instructs reconciling the diff's test files against the ACTIVE pattern")
+  assert.match(withDiag, /report blocked naming the mismatch rather than adding a duplicate test/i,
+    'the ADD_TEST prompt names the blocked-not-duplicate outcome when the test already exists under an unmatched path')
+
+  // Set-minus byte-identity: removing the appended near-miss paragraph restores the diagnostic-less
+  // prompt EXACTLY — nothing else in the prompt is conditioned on the field (criterion 5's absent half).
+  const clause = withDiag.match(/\nNEAR-MISS DIAGNOSTIC[^]*?adding a duplicate test\./)
+  assert.ok(clause, 'the appended paragraph is delimited (NEAR-MISS DIAGNOSTIC … adding a duplicate test.)')
+  assert.equal(withDiag.replace(clause[0], ''), without,
+    'floor_diagnostic absent ⇒ the ADD_TEST prompt is byte-identical to the diagnostic-bearing prompt minus the appended paragraph')
+  assert.ok(!without.includes('NEAR-MISS DIAGNOSTIC'),
+    'the diagnostic-less ADD_TEST prompt carries no near-miss residue at all')
+})
+
+test('#1046 no-test exhaustion: the LAST diagnostic rides both the escalated entry and the no-test:exhausted auditLog entry as detail; absent ⇒ neither entry grows a detail key', async () => {
+  const DIAG = "near-miss: skills/x/y.spec.mjs unmatched by the active pattern set ('*.test.mjs')"
+  // roundLimit 1: initial merge (no-test, NO diagnostic) → one add-test round → floor-retry re-merge
+  // (no-test, WITH the diagnostic) → fixRounds hits the limit → exhaustion. The detail must be the
+  // LAST result's diagnostic, so a first-result read would be RED here.
+  const drive = (diag) => {
+    let merges = 0
+    return runPhase(NO_TEST_ARGS({ run: { roundLimit: 1 } }), (prompt, opts) => {
+      const seat = seatOf(opts)
+      if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
+      if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
+      if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+      if (seat === 'war-refiner' && opts.phase === 'Refine') {
+        merges++
+        return (merges > 1 && diag)
+          ? { mode: 'merge-task', status: 'no-test', floor_diagnostic: diag }
+          : { mode: 'merge-task', status: 'no-test' }
+      }
+      if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
+      if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+      return {}
+    })
+  }
+
+  const { out } = await drive(DIAG)
+  const esc = (out.escalated || []).find(e => e && e.task === 't1' && e.reason === 'no-test')
+  const log = (out.auditLog || []).find(e => e && e.task === 't1' && e.verdict === 'no-test:exhausted')
+  assert.ok(esc, 'budget exhaustion escalates {task:"t1", reason:"no-test"}')
+  assert.ok(log, "auditLog records verdict 'no-test:exhausted'")
+  assert.equal(esc.detail, DIAG, "the escalated entry carries the LAST no-test result's diagnostic as detail")
+  assert.equal(log.detail, DIAG, "the no-test:exhausted auditLog entry carries the same diagnostic as detail")
+
+  const { out: bare } = await drive(null)
+  const bareEsc = (bare.escalated || []).find(e => e && e.task === 't1' && e.reason === 'no-test')
+  const bareLog = (bare.auditLog || []).find(e => e && e.task === 't1' && e.verdict === 'no-test:exhausted')
+  assert.ok(bareEsc && bareLog, 'the diagnostic-less run still exhausts the same way')
+  assert.ok(!('detail' in bareEsc),
+    'floor_diagnostic absent ⇒ the escalated entry grows NO detail key (shape-identical to a diagnostic-less run)')
+  assert.ok(!('detail' in bareLog),
+    'floor_diagnostic absent ⇒ the auditLog entry grows NO detail key (shape-identical to a diagnostic-less run)')
 })
 
 test('Provision prompt (part c): step 2 describes the origin-derived base + divergence HALT, treating ANY non-zero exit as a halt (not exit-3-only)', async () => {
