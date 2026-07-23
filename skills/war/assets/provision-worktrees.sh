@@ -82,9 +82,15 @@ warn() { printf '%s: %s\n' "$PROG" "$1" >&2; }
 #                       to delete unmanaged data. ADR 0003 (D7).
 #   5 EX_OUT_OF_RUN   — a teardown target outside the current run-dir scope;
 #                       cross-run cleanup is manual. ADR 0003 (D9).
-#   6 EX_WRONG_BRANCH — a registered worktree on the wrong branch, or a dirty
-#                       tree we refuse to switch/remove (never destroy work).
-#                       ADR 0008 (repair toward git; never destroy work).
+#   6 EX_WRONG_BRANCH — a registered worktree on the wrong branch, a dirty tree
+#                       we refuse to switch/remove (never destroy work), or
+#                       land-advance's wrong-HEAD precheck (HEAD is not the
+#                       <new-sha> the push would advance <working> to — §4.4,
+#                       ADR 0023 amendment; deliberately NOT exit 2, so a
+#                       [rejected] reland always means a real concurrent
+#                       advance). ADR 0008 (repair toward git; never destroy
+#                       work). Overloaded — halt-semantics identical: the
+#                       worktree is not in the state the operation requires.
 #   7 EX_DIVERGED     — local <base> and origin/<base> have diverged; only the
 #                       operator can adjudicate which side is real. ADR 0008.
 #                       Also sync-follower's ahead/diverged follower vs origin.
@@ -982,7 +988,20 @@ cmd_teardown_phase() {
 #      interrupted land pushed <new-sha> before its follower CAS; skip the push and
 #      reconcile the follower toward git (ADR 0008). Makes an in-loop re-land
 #      idempotent instead of a false phantom.
-#    - origin!=new_sha                     → normal path (steps 1-3 below).
+#    - origin!=new_sha                     → normal path (steps 0b-3 below).
+#
+# 0b. WRONG-HEAD PRECHECK (§4.4; placement = spec decision 8). Resolve
+#    head_sha=`git rev-parse HEAD^{commit}` and want=`git rev-parse <new-sha>^{commit}`
+#    (an unresolvable ref dies escalate-class EX_FOREIGN — a git error is never
+#    the reland code), then require head_sha == want:
+#    - MISMATCH → die EX_WRONG_BRANCH (6), naming BOTH SHAs and the expected cwd.
+#      Step 1 pushes the NAMED source HEAD, so from the wrong cwd it advances
+#      <working> to the wrong commit or no-ops — and its rejection can surface as
+#      a misleading exit 2 (#986). Refusing here keeps exit 2 meaning ONLY a real
+#      concurrent advance. Nothing is pushed or written: all refs untouched.
+#    Placed AFTER the guard's early-return arms on purpose: the already-landed
+#    arm reconciles the follower WITHOUT pushing and must stay correct and
+#    idempotent from any cwd (ADR 0008 repair-toward-git).
 #
 # 1. PUSH: git push origin HEAD:refs/heads/<working>
 #    - Named source (HEAD, which IS <new-sha>) — NOT a bare SHA refspec.
@@ -1009,8 +1028,12 @@ cmd_teardown_phase() {
 #   0  → push accepted and local follower advanced to <new-sha>; OR already-landed
 #        (origin already at <new-sha>, follower reconciled, push skipped).
 #   2  → push rejected ([rejected] token seen); local ref unchanged; reland.
-#   3  → phantom land, failed origin readback, unrelated push error, or post-push
-#        readback mismatch; escalate. A git error never collapses into 0 or 2.
+#   3  → phantom land, failed origin readback, unresolvable HEAD/<new-sha>,
+#        unrelated push error, or post-push readback mismatch; escalate. A git
+#        error never collapses into 0 or 2.
+#   6  → EX_WRONG_BRANCH: wrong-HEAD precheck (step 0b) — invoked from a worktree
+#        whose HEAD is not <new-sha>. No push attempted; local and origin refs
+#        untouched. Never exit 2: a wrong cwd is not a lost CAS (#986).
 #
 # Constraint: macOS bash 3.2.57 — no process substitution with stderr routing
 # that drops one stream; use a temp file to capture combined output.
@@ -1093,6 +1116,26 @@ cmd_land_advance() {
   # else: pre_push_origin is non-empty and != new_sha -> normal path below (push,
   # [rejected] classification, post-push readback, follower CAS), byte-unchanged.
 
+  # --- Wrong-HEAD precheck (§4.4, spec decision 8) --------------------------
+  # The push below uses the NAMED source `HEAD:` (never a bare-SHA refspec —
+  # red-team-verified), so it pushes whatever HEAD points at. Invoked from a cwd
+  # whose HEAD is not <new-sha> that push either no-ops or advances <working> to
+  # a foreign commit, and its rejection surfaces as a misleading exit 2 (#986).
+  # Refuse with a self-explaining die instead, so exit 2 means ONLY a real
+  # concurrent advance. Deliberately AFTER the guard's early-return arms: the
+  # already-landed arm reconciles the follower WITHOUT pushing and must stay
+  # correct and idempotent from any cwd (ADR 0008 repair-toward-git).
+  #
+  # A git error is never the reland code (floor-script 0/1/2 discipline): an
+  # unresolvable HEAD or <new-sha> dies escalate-class, never 2 and never 6.
+  head_sha="$(git rev-parse "HEAD^{commit}" 2>/dev/null)" \
+    || die "land-advance: could not resolve HEAD to a commit — the cwd is not a worktree with a checked-out commit; run land-advance from the worktree whose HEAD is the merge sha (normally the detached _refinery). Escalate." "$EX_FOREIGN"
+  want="$(git rev-parse "$new_sha^{commit}" 2>/dev/null)" \
+    || die "land-advance: <new-sha> '$new_sha' does not resolve to a commit in this repository — refusing to push an unresolvable merge sha. Escalate." "$EX_FOREIGN"
+  if [ "$head_sha" != "$want" ]; then
+    die "land-advance: wrong HEAD — HEAD is at $head_sha but <new-sha> resolves to $want; the push source is HEAD, so pushing from here would advance '$working' to the wrong commit (or silently no-op). Run land-advance from the worktree whose HEAD is the merge sha — normally the detached _refinery. Nothing was pushed; local and origin refs are untouched." "$EX_WRONG_BRANCH"
+  fi
+
   # Push HEAD (which IS <new-sha> in the detached refinery) to the named branch
   # on origin. Capture combined stdout+stderr for [rejected] detection.
   push_out="$(mktemp 2>/dev/null || mktemp -t warpush)"
@@ -1102,9 +1145,14 @@ cmd_land_advance() {
   rm -f "$push_out"
 
   if [ "$push_rc" -eq 0 ]; then
-    # Origin readback: the push exited 0, but a no-op push from the wrong cwd
-    # (HEAD == origin's old tip) also exits 0 without moving origin. Advance the
-    # local follower ONLY if origin actually holds <new-sha>; else escalate.
+    # Origin readback (#251): the push exited 0, but a push that did not move
+    # origin to <new-sha> also exits 0 — pre-fix, step 3 advanced the LOCAL
+    # follower past origin while reporting success. Advance the follower ONLY if
+    # origin actually holds <new-sha>; else escalate.
+    # DEFENSE IN DEPTH (§4.4): the wrong-HEAD precheck above now intercepts the
+    # deterministic wrong-cwd no-op pre-push, leaving a mid-push origin race as
+    # the reachable route here — the branch stays deliberately (declared
+    # backstop: not deterministically fixture-able).
     actual="$(git ls-remote origin "refs/heads/$working" | cut -f1)"
     [ "$actual" = "$new_sha" ] || exit 3
     # Success: advance the local follower ref with a CAS update-ref.
