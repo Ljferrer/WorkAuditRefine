@@ -60,5 +60,16 @@ presence-only, no location/count anchor) IS confirmed present and unchanged at l
 checkout, which is why the mechanism-level claim is tagged `code-verified` — re-confirm the specific duplicate
 -token instance on the landed branch before citing line numbers.
 
+**Instance closure (2026-07-23):** the specific two-site instance flagged above — `plan-literal-lint.mjs` in
+the §2 convention block and the §4 conversion-flow step, pinned by one bare `check_f` — *was* confirmed
+present on the integrated tree (superseding the verification note's earlier stale-worktree "not found") and
+is now closed by two location-unique `check_f` anchors (issue #991); the mechanism-level guidance (options
+(a)/(b) in "How to apply") stays live for future structure tests, with the added caveat that a bare `grep -c`
+is a **line-count, not an occurrence-count** — it reports the number of matching *lines* regardless of `-o`
+on the stock GNU and BSD greps (verified against real BSD grep `/usr/bin/grep`), so a `-oc`/`-co` "count
+recipe" is a line-count in disguise on those greps — prefer option (a). (Environment caveat, red-team-verified:
+a `grep` shimmed to a third-party drop-in such as ugrep may instead count *occurrences* under `-oc`, so a
+count recipe is doubly unsafe — option (a)'s explicit-location anchor sidesteps the whole question.)
+
 Related: [[gate-can-assert-mirrored-clause-presence-without-asserting-byte-identity]],
 [[weak-test-assertion-passes-without-feature-being-exercised]], [[audit-worktree-pre-impl-tip-stale-verdict]].
