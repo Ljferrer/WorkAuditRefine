@@ -672,7 +672,8 @@ _Avoid_: deriving it by parsing the gate command; pinning a pattern independent 
 
 **Pending testPattern proposal**:
 A Setup-proposed **test-floor pattern** the `--afk` sanity floor rejected (it had zero-match tokens),
-recorded verbatim in the ledger and re-checked at each phase launch until adopted. Adoption is
+recorded verbatim in the ledger and re-checked at each phase launch until adopted (or closed — a
+validator-failing proposal cannot self-heal and is never re-checked). Adoption is
 monotonic (`null` → the Setup proposal, once, for that and every subsequent phase) and never a fresh
 interactive ask — it is why `overrides.testPattern` is *per-phase-resolved* rather than decided once
 per run.
