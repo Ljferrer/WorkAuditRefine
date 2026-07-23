@@ -75,11 +75,17 @@ phase's End state, not only the lock-step test.
 
 ## Prevention
 
-Never stage a Gate-2 learnings commit with a blanket `git add -A` / `git add .` in a worktree that
-has been `git checkout`-ed across versions — stage the explicit `docs/learnings/<slug>.md` paths
-only. Relatedly, a verify/publication worktree reused across phases is exactly the
-[[servitor-verify-on-write-worktree-can-lag-just-landed-phase]] hazard applied to the version
-files: its tracked tree can lag the branch you think you are on.
+Staging only the explicit `docs/learnings/<slug>.md` paths is **not sufficient** — it was tried and
+still failed here. A verify/publication worktree reused across phases can hold the release branch at
+an older tip: when a later phase lands elsewhere (the `_refinery` push-first CAS), this worktree's
+checked-out working tree and index keep the **old** version-slot files, and the Gate-2 commit
+records them relative to the new parent as a downgrade — no blanket `git add` required. The
+authoritative guard is **detection, not staging discipline**: after *any* commit made in a reused
+verify worktree, re-read the tip's version slot (`git show <tip>:.claude-plugin/plugin.json`) and
+confirm it still equals the release value before pushing. `version-slots.test.mjs` will not warn —
+lock-step ≠ monotonic. This is the [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]]
+hazard applied to the version files; the safest habit is to run Gate-2 from a **freshly checked-out**
+worktree at the true landed tip, never one reused across the phase's own merge work.
 
 Related: [[stacked-per-branch-releases-make-main-lag-cumulative]],
 [[stacked-release-plan-version-literal-lags-operator-target]],
