@@ -159,23 +159,33 @@ export function parseFrontmatter(src) {
   return { frontmatter: fm, body };
 }
 
-// Effective date (tighten floor, red-team adjudication 2026-07-21): the NEWEST ISO date
-// (YYYY-MM-DD) found among the four frontmatter date keys (created/updated/modified/date)
-// AND any `20\d\d-\d\d-\d\d` match in the phase/description prose — recurrence stamps live
-// ONLY in prose, invisible to a frontmatter-key reader. Returns the newest 'YYYY-MM-DD'
-// (lexicographic max == chronological max for zero-padded ISO dates), or null when nothing
-// parses (an undated lesson is PROTECTED by the caller — treated as within the young-window).
-export function effectiveDate(sources = []) {
+// Effective date (tighten floor, red-team adjudication 2026-07-21; VALIDATED per #989): the
+// newest **valid, non-future** ISO date (YYYY-MM-DD) among the four frontmatter date keys
+// (created/updated/modified/date) AND any `20\d\d-\d\d-\d\d` match in the phase/description
+// prose — recurrence stamps live ONLY in prose, invisible to a frontmatter-key reader. A
+// date-SHAPED match is not a date: every token must survive two checks before it can win.
+//   1. UTC round-trip — `Date.parse(token + 'T00:00:00Z')` must not be NaN. The engine's ISO
+//      parse IS the month/day range check (`2026-13-45`/`2026-00-10`/`2026-12-00` are rejected);
+//      `2026-02-31` rolls over to early March, a bounded residual accepted by design.
+//   2. Future bound — the parse must not exceed `now + FUTURE_SKEW_MS`, so a stray forward-dated
+//      token (the `2099-01-01` shape) can no longer protect a lesson from eviction forever.
+// Returns the newest SURVIVING token, or null when none survives — no fallback to a rejected
+// token: an undated lesson is PROTECTED by the caller (treated as within the young-window), so
+// the fail-safe direction is preserved. `now` is injectable for deterministic tests.
+export function effectiveDate(sources = [], { now = new Date() } = {}) {
   const ISO = /20\d\d-\d\d-\d\d/g;
-  const found = [];
+  const horizon = now.getTime() + FUTURE_SKEW_MS;
+  let newest = null;
   for (const src of sources) {
     if (src == null) continue;
-    const matches = String(src).match(ISO);
-    if (matches) found.push(...matches);
+    for (const token of String(src).match(ISO) || []) {
+      const ms = Date.parse(token + 'T00:00:00Z');
+      if (Number.isNaN(ms) || ms > horizon) continue;
+      // zero-padded ISO ⇒ plain string comparison IS chronological; taken over SURVIVORS only
+      if (newest === null || token > newest) newest = token;
+    }
   }
-  if (found.length === 0) return null;
-  found.sort();
-  return found[found.length - 1];
+  return newest;
 }
 
 // Normalise one parsed lesson into the row/index shape the rest of the CLI uses.
@@ -196,7 +206,8 @@ export function lessonRecord({ frontmatter, body }, { root, temperature, slug, f
     tags,
     keywords,
     date: md.date || '',
-    // Newest stamp anywhere (frontmatter date keys + prose recurrence dates); null ⇒ undated.
+    // Newest VALID, non-future stamp anywhere (frontmatter date keys + prose recurrence dates);
+    // null ⇒ undated (no token survived validation) ⇒ PROTECTED. Wall clock by design here.
     effectiveDate: effectiveDate([md.created, md.updated, md.modified, md.date, phase, description]),
     body,
     root, // 'repo' | 'local'
@@ -437,15 +448,35 @@ export function inboundCiters(records, slug, { hotOnly = false } = {}) {
 // PLAN over the deduped projection rows. PURE — emits the ranked plan, never mutates.
 // `hits` maps slug → per-entry-deduped query-log hit count (absent/empty log ⇒ all 0, so
 // the order degrades to today's tier+age eviction order). `now` is injectable for
-// deterministic tests. Floors (ineligible, never listed): user-confirmed tier; a hub with
+// deterministic tests. The returned `verdict` is NOT `buildProjection`'s own read: it is the
+// STRICTER of that advisory read and the effective `--target` (#992) — see below.
+// Floors (ineligible, never listed): user-confirmed tier; a hub with
 // ≥ 2 distinct inbound citers; a lesson whose EFFECTIVE date is within TIGHTEN_YOUNG_DAYS —
-// and an UNDATED lesson (no parseable date anywhere) is PROTECTED, treated as within-window.
+// and an UNDATED lesson (no VALID, non-future date token anywhere) is PROTECTED, treated as
+// within-window.
 // ---------------------------------------------------------------------------
 export const TIGHTEN_YOUNG_DAYS = 14;
 const DAY_MS = 86_400_000;
+// How far past `now` a date token may still be read as real (#989). 48 h — comfortably above the
+// ≤ ~26 h worst-case UTC-midnight-vs-local-date skew, far below any abuse horizon. Module-private:
+// the boundary is exercised through `effectiveDate`'s injectable `now`, so exporting it is
+// speculative surface. Read at call time, never during module evaluation (no TDZ hazard).
+const FUTURE_SKEW_MS = 48 * 60 * 60 * 1000;
 
 export function tightenPlan(records, { hits = new Map(), target = WARN_BYTES, now = new Date() } = {}) {
-  const { bytes: currentBytes, verdict } = buildProjection(records);
+  const { bytes: currentBytes, verdict: projectionVerdict } = buildProjection(records);
+  // Target-aware severity (#992): `refuse` passes straight through; `warn` fires on the advisory
+  // projection's own warn OR at `currentBytes >= target` — equivalently the effective trigger is
+  // `currentBytes >= min(target, WARN_BYTES)`. So a sub-advisory `--target` binds the preflight at
+  // that target, while a target ABOVE the advisory never suppresses the advisory warn (the two
+  // surfaces must not fork). With the default `target = WARN_BYTES` this is byte-identical to the
+  // projection verdict, so the default path is untouched. `buildProjection` itself is unchanged —
+  // render-index and archive still read the pure advisory verdict.
+  const verdict = projectionVerdict === 'refuse'
+    ? 'refuse'
+    : projectionVerdict === 'warn' || currentBytes >= target
+      ? 'warn'
+      : 'ok';
   const hot = records.filter((r) => r.temperature === 'hot');
   // Same cross-root dedup as buildProjection: a promoted twin collapses to the repo copy.
   const repoSlugs = new Set(hot.filter((r) => r.root === 'repo').map((r) => r.slug));
@@ -465,7 +496,11 @@ export function tightenPlan(records, { hits = new Map(), target = WARN_BYTES, no
     // Floor 3: within the young window (or undated ⇒ protected) is never evicted.
     if (!r.effectiveDate) continue; // undated ⇒ PROTECTED (treated as within-window)
     const effMs = Date.parse(r.effectiveDate + 'T00:00:00Z');
-    if (Number.isNaN(effMs)) continue; // a well-formed-but-invalid stamp ⇒ protected (never NaN age)
+    // Defense-in-depth backstop, NOT the validation itself — `effectiveDate` now rejects any token
+    // that fails the UTC round-trip, so a corpus-walked record cannot reach here with an unparseable
+    // stamp. Kept because `tightenPlan` is exported and takes caller-built records (tests inject
+    // arbitrary `effectiveDate` strings): protected, never a NaN age.
+    if (Number.isNaN(effMs)) continue;
     const ageDays = Math.floor((nowMs - effMs) / DAY_MS);
     if (ageDays < TIGHTEN_YOUNG_DAYS) continue;
     const entry = {
@@ -908,7 +943,9 @@ function cmdInbound(argv) {
 // floored eviction PLAN as JSON. Read-only — walks the corpus, reads the query log
 // best-effort, and prints the ranked eligible list + cut line. Never mutates (the skill's
 // gate is the sole destructive actor). Pure read: an absent local root is just an empty
-// corpus (no requireLocal), matching query/inbound.
+// corpus (no requireLocal), matching query/inbound. `--target` sets both the cut goal AND the
+// effective trigger: the printed `verdict` is the stricter of the advisory line and that target
+// (#992), so a sub-advisory target makes the skill's preflight bind there rather than at 17,000 B.
 function cmdTightenPlan(argv) {
   const roots = resolveRoots(argv);
   const target = argv.target ? Number(argv.target) : WARN_BYTES;
