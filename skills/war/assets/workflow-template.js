@@ -23,10 +23,11 @@ export const meta = {
 //              // endState: the Commander's-Intent End-state conditions THIS phase claims (Lead-mapped);
 //              // checked by the gate-audit pass — later-phase conditions are out-of-scope there, never a hold
 //     plan:  { file, gate, testPattern },  // gate = a shell command, run BY agents (this script has no
-//                                     // shell/fs). testPattern = the run's pinned overrides.testPattern
-//                                     // (string|null; absent ⇒ null — the plan.gate precedent), appended
-//                                     // VERBATIM as the assert-test-in-diff.sh `--pattern '<value>'` arg at
-//                                     // both merge-task sites; null ⇒ bare, byte-identical to today.
+//                                     // shell/fs). testPattern = the per-phase-RESOLVED overrides.testPattern
+//                                     // the Lead threads at this phase's launch (string|null; absent ⇒ null
+//                                     // — the plan.gate precedent), appended VERBATIM as the
+//                                     // assert-test-in-diff.sh `--pattern '<value>'` arg at every dispatched
+//                                     // merge-task floor invocation site; null ⇒ bare, byte-identical to today.
 //     tasks: [ { id, issue, title, branch, worktree, deps:[id],
 //                roster:[{ lens, depth? }], planSlice, files:[<repo-relative plan paths>], requiresTest?, requiresPackaging? } ],  // roster: 1–5 distinct-lens audit seats; depth omitted → 'deep'.
 //                                     // requiresTest/requiresPackaging default true; false (Lead-set) skips that pre-merge floor with a logged, never-silent skip.
@@ -97,6 +98,14 @@ const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties:
   // provably-unrun determination has no captured file ⇒ SOFT cannot-confirm, never a hold). The captured
   // artifact — NOT the possibly-curated inline gate_output — is the authoritative HARD-path evidence.
   gate_log_path: { type: 'string' },
+  // floor_diagnostic (spec §6 / D6): the VERBATIM stderr of an exit-1 assert-test-in-diff.sh run — the
+  // near-miss diagnostic (the diff carries test-shaped files the ACTIVE pattern set does not match).
+  // merge-task only. FAIL-OPEN ADVISORY: it is interpolated into the ADD_TEST fix prompt and the no-test
+  // exhaustion detail and is NEVER routed on — absent/empty ⇒ every consumer is byte-identical to a
+  // diagnostic-less run. Orthogonal to status exactly like gate_failure_class — NO status enum value,
+  // HARD_ESCALATION_REASONS member, or KNOWN_LAND_DECISIONS member is added or changed (land-decision.mjs
+  // and both hand-mirrored enum blocks byte-untouched, ADR 0005).
+  floor_diagnostic: { type: 'string' },
   pr_number: { type: 'number' }, pr_remote: { type: 'string' } } }
 
 // EVIDENCE_RESULT (D1/D4/D6): the shape of the ONE consolidated post-merge refiner "evidence dispatch"
@@ -247,11 +256,13 @@ const memoryLocalRoot = (typeof A.memoryLocalRoot === 'string' && A.memoryLocalR
 // entries; Lead-normalized entries stay untouched. handoff.backstops is the two concatenated
 // (mergedBackstops at land): null promotes to a one-entry array when a baseline debt is recorded.
 const backstops = Array.isArray(A.backstops) ? A.backstops : null
-// Test-floor pattern (spec §6 / ADR 0019): the Lead threads the run's pinned overrides.testPattern into
-// args.plan.testPattern exactly like plan.gate (string|null; absent ⇒ null — the plan.gate precedent).
+// Test-floor pattern (spec §6 / ADR 0019): the Lead threads the per-phase-RESOLVED overrides.testPattern
+// into args.plan.testPattern exactly like plan.gate (string|null; absent ⇒ null — the plan.gate precedent;
+// pinned at Setup, and under --afk a sanity-floor-rejected Setup proposal is re-checked at each phase
+// launch and can be adopted monotonically — so this value is resolved per phase, not once per run).
 // A non-empty string is appended VERBATIM as the assert-test-in-diff.sh `--pattern '<value>'` argument at
-// BOTH merge-task invocation sites (initial + floor-retry); null ⇒ testPatternArg is '' so both dispatched
-// prompts are byte-identical to a testPattern-less run (criterion 2). The floor's *.test.sh union is
+// EVERY dispatched merge-task floor invocation site; null ⇒ testPatternArg is '' so every dispatched
+// prompt is byte-identical to a testPattern-less run (criterion 2). The floor's *.test.sh union is
 // script-side (Phase 1, assert-test-in-diff.sh) — never re-stated per prompt. The glob-safe charset is
 // validated in war-config.mjs, never here (the value is embedded single-quoted into an agent shell line).
 const testPattern = (plan && typeof plan.testPattern === 'string' && plan.testPattern) ? plan.testPattern : null
@@ -673,6 +684,11 @@ const WORKER_MEMORY_SELF_QUERY_LINE = pt`\nYou MAY run \`node <plugin>/skills/_s
 // 'baseline' and 'environment' branch away from today's soft escalation.
 const classOf = mr => (mr && (mr.gate_failure_class === 'baseline' || mr.gate_failure_class === 'environment'))
   ? mr.gate_failure_class : 'introduced'
+// floorDiagOf: the optional MERGE_RESULT.floor_diagnostic (the test floor's verbatim exit-1 stderr —
+// the near-miss diagnostic), normalized to null unless it is a NON-EMPTY string. Fail-open advisory:
+// its only consumers are the ADD_TEST fix prompt and the floor-exhaustion detail, and null ⇒ both are
+// byte-/shape-identical to a diagnostic-less run. Never routed on, never a status.
+const floorDiagOf = mr => (mr && typeof mr.floor_diagnostic === 'string' && mr.floor_diagnostic) ? mr.floor_diagnostic : null
 const debtIds = ids => (Array.isArray(ids) ? ids : (ids ? [ids] : [])).map(String)
 // recordBaselineDebt: dedup by SUBSET-CONTAINMENT with an EMPTY-set carve-out (#798). A NON-EMPTY
 // id-set that is a subset (⊆) of some existing entry's ids at the SAME base sha is a no-op — already
@@ -1231,7 +1247,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + pt`Also populate integration_sha with the rebased integration tip the gate ran against, so the gate-audit pass can confirm the gate ran at the integration tip.`
         + pt` Before the _refinery merge step (b), run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${r.task.branch}${r.task.taskType === 'gitlink-bump' && r.task.declared ? ' --declared' : ''} (REGARDLESS of requiresTest — a submodule touch is refused whether or not the task needs a test; the relax-flag is only threaded for a declared gitlink-bump task). Exit 1 → return { mode: 'merge-task', status: 'submodule-blocked' } — do NOT merge. Exit 2 → return { mode: 'merge-task', status: 'error' }.`
         + (requiresTest
-          ? pt` Also before step (b), run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${testPatternArg} to verify the task diff contains at least one test file. Branch on the exit code: exit 1 (no test in the diff) → return { mode: 'merge-task', status: 'no-test' } — do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'no-test' — a transient bad-ref must not spin a pointless add-test loop.`
+          ? pt` Also before step (b), run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${testPatternArg} to verify the task diff contains at least one test file. Branch on the exit code: exit 1 (no test in the diff) → return { mode: 'merge-task', status: 'no-test' } — do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'no-test' — a transient bad-ref must not spin a pointless add-test loop. On that exit 1 path ONLY, ALSO capture the script's stderr VERBATIM (the near-miss diagnostic) into floor_diagnostic alongside status:'no-test' — never edited, never summarised; empty/absent stderr ⇒ omit floor_diagnostic. It is fail-open advisory context, never a routing input.`
           : pt` requiresTest:false — skip the assert-test-in-diff.sh check and proceed directly to the rebase+merge.`)
         + (requiresPackaging
           ? pt` Also before step (b), run assert-packaging-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${advisePackagingVacuous ? ' --advise-vacuous' : ''} to verify the task diff adds no file a Dockerfile's enumerated COPYs miss. Branch on the exit code: exit 1 (a flagged file → Dockerfile pair) → return { mode: 'merge-task', status: 'unpackaged' } — do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'unpackaged' — a transient bad-ref must not spin a pointless package-it loop.${advisePackagingVacuous ? ' The --advise-vacuous flag may print one informational advisory line on stderr when the packaging run is structurally vacuous under the ADR-0017-ratified scope — exit 0 still means PROCEED; never treat the advisory as an error or report it as a finding.' : ''}`
@@ -1262,10 +1278,17 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         while (floorMr && FLOOR_STATUSES.includes(floorMr.status) && r.task.fixRounds < roundLimit) {
           // Dispatch a fix-worker keyed to the CURRENT tripped floor, in the SAME worktree.
           const isNoTest = floorMr.status === 'no-test'
+          // Near-miss diagnostic (D6): present ⇒ one appended pt-tagged paragraph quoting it VERBATIM;
+          // absent ⇒ '' so the ADD_TEST prompt is byte-identical to a diagnostic-less run (set-minus).
+          const nearMissDiag = floorDiagOf(floorMr)
+          const nearMissClause = nearMissDiag
+            ? pt`\nNEAR-MISS DIAGNOSTIC (verbatim stderr from the exit 1 assert-test-in-diff.sh run):\n${nearMissDiag}\nReconcile the diff's test files against the ACTIVE pattern named above BEFORE adding anything — the mapped test may already exist under a path that pattern does not match. When it does, a second test is the wrong fix: report blocked naming the mismatch rather than adding a duplicate test.`
+            : ''
           const fixPrompt = isNoTest
             ? pt`ADD_TEST for WAR task ${r.task.id}. The refiner's merge-task check (assert-test-in-diff.sh) found no test file in the diff. `
               + pt`Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
               + pt`Add a mapped test for this task (the test must exercise the slice described in: ${r.task.planSlice}), keep the gate green, commit and push.`
+              + nearMissClause
             : pt`PACKAGE_IT for WAR task ${r.task.id}. The refiner's merge-task check (assert-packaging-in-diff.sh) flagged an added/renamed file a Dockerfile's enumerated COPYs miss. `
               + pt`Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
               + pt`Resolve it for the slice described in: ${r.task.planSlice}. add the COPY or dockerignore it — never delete the file to satisfy the floor. Keep the gate green, commit and push.`
@@ -1322,7 +1345,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             + classificationClause(refineryPath, pt`the phase integration base — the cut point of ${ph.integrationBranch}, i.e. \`git -C ${refineryPath} merge-base ${ph.integrationBranch} ${ph.workingBranch}\``)
             + baselineDebtClause()
             + (requiresTest
-              ? pt`Before the _refinery merge step (b), run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${testPatternArg} to verify the task diff now contains at least one test file. Branch on the exit code: exit 1 (no test in the diff) → return { mode: 'merge-task', status: 'no-test' }, do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'no-test' — a transient bad-ref must not spin a pointless add-test loop. `
+              ? pt`Before the _refinery merge step (b), run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${testPatternArg} to verify the task diff now contains at least one test file. Branch on the exit code: exit 1 (no test in the diff) → return { mode: 'merge-task', status: 'no-test' }, do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'no-test' — a transient bad-ref must not spin a pointless add-test loop. On that exit 1 path ONLY, ALSO capture the script's stderr VERBATIM (the near-miss diagnostic) into floor_diagnostic alongside status:'no-test' — never edited, never summarised; empty/absent stderr ⇒ omit floor_diagnostic. It is fail-open advisory context, never a routing input. `
               : pt`requiresTest:false — skip the assert-test-in-diff.sh check. `)
             + (requiresPackaging
               ? pt`Also before step (b), run assert-packaging-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${advisePackagingVacuous ? ' --advise-vacuous' : ''} to verify the task diff now adds no file a Dockerfile's enumerated COPYs miss. Branch on the exit code: exit 1 (a flagged file → Dockerfile pair) → return { mode: 'merge-task', status: 'unpackaged' }, do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'unpackaged' — a transient bad-ref must not spin a pointless package-it loop.${advisePackagingVacuous ? ' The --advise-vacuous flag may print one informational advisory line on stderr when the packaging run is structurally vacuous under the ADR-0017-ratified scope — exit 0 still means PROCEED; never treat the advisory as an error or report it as a finding.' : ''}`
@@ -1332,8 +1355,13 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
 
         if (!reAuditFailed && floorMr && FLOOR_STATUSES.includes(floorMr.status)) {
           // Budget exhausted — hard escalation with reason = whichever floor is still tripping (both HARD).
-          escalated.push({ task: r.task.id, reason: floorMr.status, fixRounds: r.task.fixRounds })
-          auditLog.push({ task: r.task.id, verdict: `${floorMr.status}:exhausted`, fixRounds: r.task.fixRounds, findings: [] })
+          // The LAST result's near-miss diagnostic rides both entries as `detail` when present (a
+          // string-valued detail is legal — this key is already shape-heterogeneous per route: the
+          // merge-failure route below pushes the whole MergeResult object). Absent ⇒ no `detail` key at
+          // all, so both entries are shape-identical to a diagnostic-less run.
+          const exhaustedDiag = floorDiagOf(floorMr)
+          escalated.push({ task: r.task.id, reason: floorMr.status, fixRounds: r.task.fixRounds, ...(exhaustedDiag ? { detail: exhaustedDiag } : {}) })
+          auditLog.push({ task: r.task.id, verdict: `${floorMr.status}:exhausted`, fixRounds: r.task.fixRounds, findings: [], ...(exhaustedDiag ? { detail: exhaustedDiag } : {}) })
           continue
         }
 
@@ -1383,7 +1411,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             + pt`  (c) On a fully green gate, MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), git merge ${r.task.branch}, push, return { mode: 'merge-task', status: 'merged', integration_sha: <tip> } — populate integration_sha with the rebased integration tip the gate ran against, so the gate-audit pass can confirm the gate ran at the integration tip.`
             + pt` Before the merge, run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${r.task.branch}${r.task.taskType === 'gitlink-bump' && r.task.declared ? ' --declared' : ''} (exit 1 → submodule-blocked; exit 2 → error).`
             + (requiresTest
-              ? pt` Also run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${testPatternArg} (exit 1 → no-test; exit 2 → error).`
+              ? pt` Also run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${testPatternArg} (exit 1 → no-test; exit 2 → error). On that exit 1 path ONLY, ALSO capture the script's stderr VERBATIM (the near-miss diagnostic) into floor_diagnostic alongside status:'no-test' — never edited, never summarised; empty/absent stderr ⇒ omit floor_diagnostic. It is fail-open advisory context, never a routing input.`
               : pt` requiresTest:false — skip the assert-test-in-diff.sh check.`)
             + (requiresPackaging
               ? pt` Also run assert-packaging-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${advisePackagingVacuous ? ' --advise-vacuous' : ''} (exit 1 → unpackaged; exit 2 → error).${advisePackagingVacuous ? ' The --advise-vacuous flag may print one informational advisory line on stderr (structurally-vacuous packaging run under the ADR-0017-ratified scope) — exit 0 still means PROCEED, never a finding.' : ''}`
@@ -1410,7 +1438,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             + pt`  (c) If the ONLY failures are the pre-existing baseline set, MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), git merge ${r.task.branch}, push, return { mode: 'merge-task', status: 'merged', integration_sha: <tip> }.`
             + pt` Before the merge, run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${r.task.branch}${r.task.taskType === 'gitlink-bump' && r.task.declared ? ' --declared' : ''} (exit 1 → submodule-blocked; exit 2 → error).`
             + (requiresTest
-              ? pt` Also run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${testPatternArg} (exit 1 → no-test; exit 2 → error).`
+              ? pt` Also run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${testPatternArg} (exit 1 → no-test; exit 2 → error). On that exit 1 path ONLY, ALSO capture the script's stderr VERBATIM (the near-miss diagnostic) into floor_diagnostic alongside status:'no-test' — never edited, never summarised; empty/absent stderr ⇒ omit floor_diagnostic. It is fail-open advisory context, never a routing input.`
               : pt` requiresTest:false — skip the assert-test-in-diff.sh check.`)
             + (requiresPackaging
               ? pt` Also run assert-packaging-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${advisePackagingVacuous ? ' --advise-vacuous' : ''} (exit 1 → unpackaged; exit 2 → error).${advisePackagingVacuous ? ' The --advise-vacuous flag may print one informational advisory line on stderr (structurally-vacuous packaging run under the ADR-0017-ratified scope) — exit 0 still means PROCEED, never a finding.' : ''}`
