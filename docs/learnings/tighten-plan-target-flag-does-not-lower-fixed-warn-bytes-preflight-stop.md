@@ -1,6 +1,6 @@
 ---
 name: tighten-plan-target-flag-does-not-lower-fixed-warn-bytes-preflight-stop
-description: "/lessons-learned tighten's preflight verdict-stop tracks the fixed WARN_BYTES=17000 advisory, never a custom --target"
+description: "RESOLVED (#992): tightenPlan verdict is now target-aware; warns when currentBytes >= --target too"
 metadata: 
   node_type: memory
   type: project
@@ -54,3 +54,25 @@ below-17,000-custom-target case explicitly. Adjudicated as out-of-scope/informat
 would live in `war-memory.mjs`'s `buildProjection`, not the SKILL doc. Record this before adding
 any future feature (a stricter local operator policy, a CI budget check) that assumes `--target`
 governs the preflight stop — it doesn't.
+
+*(The paragraph above is left as a provenance-dated historical record of the 2026-07-21
+out-of-scope adjudication and the SKILL.md sentence it quotes — see the superseding RESOLVED note
+below.)*
+
+## RESOLVED — `tightenPlan` verdict is now target-aware (#992, 2026-07-23)
+
+**Code-verified in this task's rebased worktree** (Task 1.1 landed into the phase-1 integration
+tip before this task ran; confirmed at `skills/_shared/war-memory.mjs`, `tightenPlan()`): the gap
+this lesson records is closed. `tightenPlan`'s returned `verdict` is no longer `buildProjection`'s
+own advisory read passed straight through — it is now the STRICTER of that advisory read and the
+effective `--target`: `refuse` passes through unchanged; `warn` now also fires at
+`currentBytes >= target` (equivalently, the effective trigger is
+`currentBytes >= min(target, WARN_BYTES)`); otherwise `ok`. A custom `--target` below the fixed
+17,000 B advisory now actually binds the `/lessons-learned tighten` preflight's stop condition —
+the exact gap this lesson names. The default path (`--target` unset ⇒ `WARN_BYTES`) is
+byte-identical to the prior behavior, and a target ABOVE the advisory can never suppress the
+advisory's own `warn` (the two surfaces never fork, per the spec's D7). `buildProjection` itself is
+byte-untouched; `render-index` and `archive --candidates` still read the pure advisory verdict.
+(`skills/_shared/war-memory.test.mjs`: `verdict (#992): a sub-advisory --target binds the
+trigger; the default target is byte-identical to the projection read`, `verdict (#992): a target
+ABOVE the advisory never suppresses the projection warn`.)
