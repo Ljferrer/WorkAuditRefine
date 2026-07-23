@@ -4515,16 +4515,16 @@ test('pkg #819 — the baseline-proceed re-merge prompt threads --advise-vacuous
     'the baseline-proceed re-merge threads --advise-vacuous for a requiresPackaging:true task')
 })
 
-test('pkg #819 — source-level: all three dispatched packaging-floor invocations carry the advisePackagingVacuous conditional flag (count === 3; a two-of-three thread or a static collapse is RED)', () => {
+test('pkg #819 — source-level: all four dispatched packaging-floor invocations carry the advisePackagingVacuous conditional flag (count === 4; a three-of-four thread or a static collapse is RED)', () => {
   // Extract each INVOCATION literal — the script name followed by its two ref interpolations. The
   // mentions ("skip the assert-packaging-in-diff.sh check", the PACKAGE_IT description, the log line,
   // the comment) never carry `${ph.integrationBranch} ${r.task.branch}` and are excluded. The optional
-  // group must be present at EVERY site: a two-of-three thread leaves count 3 but one m[1] undefined
-  // (RED), and a static ` --advise-vacuous` (no conditional) fails to match `${advisePackagingVacuous …}`
-  // → undefined (RED) — pivotal constraint 4 (silent drift between rounds).
+  // group must be present at EVERY site: a three-of-four thread leaves the count right but one m[1]
+  // undefined (RED), and a static ` --advise-vacuous` (no conditional) fails to match
+  // `${advisePackagingVacuous …}` → undefined (RED) — pivotal constraint 4 (silent drift between rounds).
   const invocations = [...src.matchAll(/assert-packaging-in-diff\.sh \$\{ph\.integrationBranch\} \$\{r\.task\.branch\}(\$\{advisePackagingVacuous[^}]*--advise-vacuous[^}]*\})?/g)]
-  assert.equal(invocations.length, 3,
-    'exactly three dispatched packaging-floor invocation literals (initial merge, floor-retry, baseline-proceed)')
+  assert.equal(invocations.length, 4,
+    'exactly four dispatched packaging-floor invocation literals (initial merge, floor-retry, baseline-proceed, environment-proceed)')
   for (const m of invocations) {
     assert.ok(m[1],
       `every dispatched packaging-floor invocation must thread the advisePackagingVacuous conditional flag immediately after the task branch (a two-of-three thread or a static-flag collapse is RED): "${m[0]}"`)
@@ -4583,27 +4583,37 @@ const CLS_ARGS = (over = {}) => ({
   mainCheckout: '/abs/repo',
   tasks: [{ id: 't1', issue: 301, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] }],
   learningsTarget: '/abs/learnings',
+  // The servitor wrap-up gate keys on memoryLocalRoot (NOT learningsTarget) — a recovered-land test that
+  // asserts the wrap-up dispatch fired needs it threaded, or the assertion reds on a correct implementation.
+  memoryLocalRoot: '/abs/mem',
   ...over,
 })
-// A refiner impl parameterized by what the initial merge / land returns; baseline-proceed re-dispatches
-// (labels ending :baseline-proceed) return merged/landed so the phase can proceed.
-const clsImpl = ({ mergeResult, landResult } = {}) => (prompt, opts) => {
+// A refiner impl parameterized by what the initial merge / land returns; the two bounded recovery
+// re-dispatches (labels ending :baseline-proceed / :environment-proceed) return merged/landed by default
+// so the phase can proceed. Pass mergeProceed/landProceed to drive the recovery dispatch's own result
+// (the bound tests need a SECOND failure out of the environment-proceed re-run).
+const clsImpl = ({ mergeResult, landResult, mergeProceed, landProceed } = {}) => (prompt, opts) => {
   const seat = seatOf(opts)
   const label = opts.label || ''
   if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true } // barrier + provision-run: env-outcome
   if (seat === 'war-worker') return { task_id: 't', status: 'implemented', head_sha: 'abc', tests: {} }
   if (seat === 'war-auditor') return { seat: label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
   if (seat === 'war-refiner' && opts.phase === 'Refine') {
+    if (/:environment-proceed$/.test(label)) return mergeProceed ? mergeProceed(label) : { mode: 'merge-task', status: 'merged', integration_sha: 'beef1234beef' }
     if (/:baseline-proceed$/.test(label)) return { mode: 'merge-task', status: 'merged', integration_sha: 'beef1234beef' }
     return mergeResult ? mergeResult(label) : { mode: 'merge-task', status: 'merged' }
   }
   if (seat === 'war-refiner' && opts.phase === 'Land') {
+    if (/:environment-proceed$/.test(label)) return landProceed ? landProceed(label) : { mode: 'land-phase', status: 'landed', working_sha: 'cafe5678cafe' }
     if (/:baseline-proceed$/.test(label)) return { mode: 'land-phase', status: 'landed', working_sha: 'cafe5678cafe' }
     return landResult ? landResult(label) : { mode: 'land-phase', status: 'landed' }
   }
   if (seat === 'war-servitor') return { phase: 3, target: 't', learnings: [] }
   return {}
 }
+// The two environment-class first results that trigger the bounded environment-proceed dispatches.
+const envMergeResult = () => ({ mode: 'merge-task', status: 'gate_failed', gate_failure_class: 'environment', gate_output: 'flaky timeout at task tip; base green; not reproduced' })
+const envLandResult = () => ({ mode: 'land-phase', status: 'gate_failed', gate_failure_class: 'environment', gate_output: 'flaky at land; base green; not reproduced' })
 
 test('#598 validation 5 — schema: the three gate_failure_class values appear in BOTH the inline MERGE_RESULT constant and references/schemas.md', () => {
   const m = src.match(/gate_failure_class\s*:\s*\{\s*enum\s*:\s*(\[[^\]]+\])/)
@@ -4618,15 +4628,68 @@ test('#598 validation 5 — schema: the three gate_failure_class values appear i
   assert.ok(!/gate_failure_class|baseline|environment/.test(landDecMjs), 'land-decision.mjs is UNTOUCHED by the classification feature (ADR 0005)')
 })
 
-test("#598 validation 5 — merge 'environment' → soft escalate reason 'env-blocked', NO fix-worker; fails if the classification branch is deleted", async () => {
-  const impl = clsImpl({ mergeResult: () => ({ mode: 'merge-task', status: 'gate_failed', gate_failure_class: 'environment', gate_output: 'flaky timeout at task tip; base green; not reproduced' }) })
-  const { out, calls } = await runPhase(CLS_ARGS(), impl)
-  const env = out.escalated.find(e => e && e.task === 't1' && e.reason === 'env-blocked')
-  assert.ok(env, "gate_failed+'environment' soft-escalates reusing reason 'env-blocked' (delete the environment branch ⇒ reason is 'gate_failed' ⇒ this fails)")
-  assert.equal(env.detail && env.detail.gate_failure_class, 'environment', 'detail is the MergeResult (a gate-time env-block, not the provision ENV_OUTCOME shape)')
-  assert.ok(!calls.some(c => seatOf(c.opts) === 'war-worker' && c.opts.phase === 'Audit'), 'NO fix-worker prompt is built for a merge-time gate_failed (soft escalation, not a fix loop)')
-  assert.ok(!out.landed.includes('t1'), 'the environment-classified task did NOT merge')
+// REWRITTEN IN PLACE (merge-land-resilience Task 1.1, End state 1): this case used to assert the retired
+// ZERO-round route (immediate reason:'env-blocked', task never merged). The 'environment' class now buys
+// exactly ONE environment-proceed re-merge; a green re-run merges the task and the phase lands. The
+// surviving "environment never dispatches a BASELINE-proceed" assertion is still correct — the two
+// recovery flavors never chain — and stays.
+test("#598 validation 5 — merge 'environment' → ONE environment-proceed re-merge, task merges, NO fix-worker; fails if the classification branch is deleted", async () => {
+  const { out, calls } = await runPhase(CLS_ARGS(), clsImpl({ mergeResult: envMergeResult }))
+  const ep = calls.filter(c => /^merge:t1:environment-proceed$/.test(c.opts.label || ''))
+  assert.equal(ep.length, 1, "gate_failed+'environment' dispatches EXACTLY ONE environment-proceed re-merge (revert the arm ⇒ 0 dispatches + an immediate env-blocked escalation ⇒ this fails)")
+  assert.equal(seatOf(ep[0].opts), 'war-refiner', 'the environment-proceed re-merge is a refiner dispatch')
+  assert.equal(ep[0].opts.phase, 'Refine', 'it runs in the Refine phase (the serial merge queue), not Audit')
+  assert.ok(out.landed.includes('t1'), 'the recovered task MERGED — an approved task is not silently dropped by a transient')
+  assert.equal(out.landDecision, 'landed', 'the phase lands with its deliverable')
+  assert.ok(!out.escalated.some(e => e && e.task === 't1'), 'a recovered environment failure escalates nothing')
+  assert.ok(!calls.some(c => seatOf(c.opts) === 'war-worker' && c.opts.phase === 'Audit'), 'NO fix-worker prompt is built for a merge-time gate_failed (bounded refiner retry, not a fix loop)')
   assert.ok(!calls.some(c => /:baseline-proceed$/.test(c.opts.label || '')), 'environment never dispatches a baseline-proceed')
+  assert.equal((out.handoff.backstops || []).filter(b => b && b.source === 'auto').length, 0,
+    "an environment-proceed waives NOTHING — no debt, no source:'auto' backstop (unlike baseline-proceed)")
+})
+
+test("Task 1.1 (End state 2) — a SECOND 'environment' classification out of the environment-proceed re-merge HARD-escalates reason 'escalate' ⇒ held:escalation, WITH merged siblings present", async () => {
+  // t1 flakes persistently; t2 merges cleanly. The old behavior completed the phase minus t1 (soft
+  // env-blocked); the bound now holds the phase so an approved deliverable is never silently dropped.
+  const impl = clsImpl({
+    mergeResult: (label) => /t1/.test(label) ? envMergeResult() : { mode: 'merge-task', status: 'merged', integration_sha: 'feed0001feed' },
+    mergeProceed: envMergeResult,
+  })
+  const { out, calls } = await runPhase(CLS_ARGS({ tasks: [
+    { id: 't1', issue: 301, title: 'T1', planSlice: 's1', roster: [{ lens: 'correctness' }] },
+    { id: 't2', issue: 302, title: 'T2', planSlice: 's2', roster: [{ lens: 'correctness' }] },
+  ] }), impl)
+  assert.equal(calls.filter(c => /^merge:t1:environment-proceed$/.test(c.opts.label || '')).length, 1,
+    'the retry is BOUNDED at one — a second environment classification does NOT re-dispatch')
+  const esc = out.escalated.find(e => e && e.task === 't1')
+  assert.ok(esc, 't1 escalates')
+  assert.equal(esc.reason, 'escalate', "exhaustion reuses the existing HARD reason 'escalate' (no new enum member)")
+  assert.match(esc.detail.note, /environment-proceed/, 'the detail names the mechanism that was spent')
+  assert.equal(esc.detail.result && esc.detail.result.gate_failure_class, 'environment', 'the detail carries the second MergeResult')
+  assert.ok(out.landed.includes('t2'), 'the sibling merged — the hold is not "nothing merged"')
+  assert.equal(out.landDecision, 'held:escalation',
+    'with merged siblings present the phase HOLDS (it must not complete without the approved-but-unmerged task)')
+  assert.ok(!calls.some(c => /^land:phase-3$/.test(c.opts.label || '')), 'a held phase never dispatches the land')
+})
+
+test("Task 1.1 (End state 4) — merge-site bounds: a baseline-proceed re-merge failing environment-class dispatches NO environment-proceed, and an environment-proceed's second failure classified 'baseline' routes as introduced with NO baseline-proceed", async () => {
+  // (a) baseline-proceed → environment: today's route, no chaining into the new flavor.
+  const a = await runPhase(CLS_ARGS(), (prompt, opts) => /^merge:t1:baseline-proceed$/.test(opts.label || '')
+    ? envMergeResult()
+    : clsImpl({ mergeResult: () => ({ mode: 'merge-task', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: ['pytest:test_legacy'], gate_base_sha: 'base9999' }) })(prompt, opts))
+  assert.equal(a.calls.filter(c => /:environment-proceed$/.test(c.opts.label || '')).length, 0,
+    'a baseline-proceed result classified environment never chains into an environment-proceed')
+  assert.ok(a.out.escalated.some(e => e && e.task === 't1' && e.reason === 'env-blocked'), "it keeps routing today's soft env-blocked escalation")
+  // (b) environment-proceed → baseline: bounded, treated as 'introduced', no baseline-proceed dispatch.
+  const b = await runPhase(CLS_ARGS(), clsImpl({
+    mergeResult: envMergeResult,
+    mergeProceed: () => ({ mode: 'merge-task', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: ['pytest:test_legacy'], gate_base_sha: 'base9999' }),
+  }))
+  assert.equal(b.calls.filter(c => /:baseline-proceed$/.test(c.opts.label || '')).length, 0,
+    "an environment-proceed's baseline-classified second failure never chains into a baseline-proceed (bounded, spec decision 4)")
+  const esc = b.out.escalated.find(e => e && e.task === 't1')
+  assert.equal(esc && esc.reason, 'gate_failed', "it routes as 'introduced' — today's SOFT escalation, not the HARD exhaustion route")
+  assert.equal(b.out.landDecision, 'held:nothing-merged', 'the lone task never merged and the escalation is SOFT (not the HARD held:escalation the exhaustion route yields)')
 })
 
 test("#598 validation 5+6 — merge 'baseline' → ONE baseline-proceed re-merge, merge proceeds, ONE deduped source:'auto' backstop; two same-id tasks ⇒ one entry + debt threaded (no 2nd base re-run)", async () => {
@@ -4708,12 +4771,48 @@ test('#598 validation 5 — merge absent class → byte-identical to today (soft
   assert.ok(!calls.some(c => /:baseline-proceed$/.test(c.opts.label || '')), 'absent class never dispatches a baseline-proceed')
 })
 
-test("#598 validation 5 — land 'environment' → reason 'env-blocked', held:land-failed; fails if the classification branch is deleted", async () => {
-  const impl = clsImpl({ landResult: () => ({ mode: 'land-phase', status: 'gate_failed', gate_failure_class: 'environment', gate_output: 'flaky at land; base green; not reproduced' }) })
-  const { out } = await runPhase(CLS_ARGS(), impl)
-  assert.equal(out.landDecision, 'held:land-failed', 'environment land gate_failed → held:land-failed')
+// REWRITTEN IN PLACE (merge-land-resilience Task 1.1, End state 3): this case used to assert the retired
+// ZERO-round land route. The bound now spends exactly ONE environment-proceed re-land first; the
+// held:land-failed + reason 'env-blocked' outcome survives only as the EXHAUSTION route asserted here.
+test("#598 validation 5 — land 'environment' → ONE environment-proceed re-land; a SECOND environment classification exhausts the bound ⇒ reason 'env-blocked', held:land-failed", async () => {
+  const { out, calls } = await runPhase(CLS_ARGS(), clsImpl({ landResult: envLandResult, landProceed: envLandResult }))
+  assert.equal(calls.filter(c => /^land:phase-3:environment-proceed$/.test(c.opts.label || '')).length, 1,
+    'EXACTLY ONE environment-proceed re-land (revert the arm ⇒ 0 dispatches ⇒ this fails; a chaining bug ⇒ 2 ⇒ this fails)')
+  assert.equal(out.landDecision, 'held:land-failed', 'the exhausted bound falls back to held:land-failed (the Lead re-runs the land)')
   const esc = out.escalated.find(e => e && String(e.task).includes('-land') && e.reason === 'env-blocked')
-  assert.ok(esc, "land 'environment' ⇒ reason 'env-blocked' (delete the environment branch ⇒ reason 'gate_failed' ⇒ this fails)")
+  assert.ok(esc, "the second environment classification keeps reason 'env-blocked' — no new enum member")
+  assert.equal(esc.detail && esc.detail.gate_failure_class, 'environment', 'the detail is the re-land MergeResult, not the first one')
+})
+
+test("Task 1.1 (End state 3) — land 'environment' recovered: the environment-proceed re-land's 'landed' ⇒ landDecision 'landed', the resync log line, and the servitor wrap-up dispatch fires", async () => {
+  const { out, calls, logs } = await runPhase(CLS_ARGS(), clsImpl({ landResult: envLandResult }))
+  assert.equal(calls.filter(c => /^land:phase-3:environment-proceed$/.test(c.opts.label || '')).length, 1, 'exactly one re-land is dispatched')
+  assert.equal(out.landDecision, 'landed', 'a green re-land lands the phase (delete the recovery arm ⇒ held:land-failed ⇒ this fails)')
+  assert.ok(logs.some(l => /environment-proceed re-land/.test(l) && /Opportunistic resync as on any landed phase/.test(l)),
+    'it logs the same opportunistic-resync line the baseline-proceed landed arm logs (the primary chain resync arm is unreachable from a recovery arm)')
+  assert.ok(calls.some(c => seatOf(c.opts) === 'war-servitor'),
+    'the servitor wrap-up dispatch fires on the recovered land (the gate keys on memoryLocalRoot — CLS_ARGS threads it)')
+  assert.equal((out.handoff.backstops || []).filter(b => b && b.source === 'auto').length, 0, "no debt, no source:'auto' backstop — nothing was waived")
+})
+
+test("Task 1.1 (End state 4) — land-site bounds: a baseline-proceed re-land failing environment-class dispatches NO environment-proceed, and an environment-proceed's second failure classified 'baseline' routes as introduced with NO baseline-proceed", async () => {
+  // (a) baseline-proceed → environment keeps routing held:land-failed directly (no chaining).
+  const a = await runPhase(CLS_ARGS(), (prompt, opts) => /^land:phase-3:baseline-proceed$/.test(opts.label || '')
+    ? envLandResult()
+    : clsImpl({ landResult: () => ({ mode: 'land-phase', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: ['pytest:test_pre_existing'], gate_base_sha: 'wbase77' }) })(prompt, opts))
+  assert.equal(a.calls.filter(c => /:environment-proceed$/.test(c.opts.label || '')).length, 0,
+    'a baseline-proceed re-land classified environment never chains into an environment-proceed')
+  assert.equal(a.out.landDecision, 'held:land-failed', 'it holds directly, exactly as before')
+  // (b) environment-proceed → baseline is bounded: routed as 'introduced', no baseline-proceed dispatch.
+  const b = await runPhase(CLS_ARGS(), clsImpl({
+    landResult: envLandResult,
+    landProceed: () => ({ mode: 'land-phase', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: ['pytest:test_pre_existing'], gate_base_sha: 'wbase77' }),
+  }))
+  assert.equal(b.calls.filter(c => /:baseline-proceed$/.test(c.opts.label || '')).length, 0,
+    "an environment-proceed re-land's baseline-classified second failure never chains into a baseline-proceed")
+  assert.equal(b.out.landDecision, 'held:land-failed', 'it falls through to held:land-failed')
+  const esc = b.out.escalated.find(e => e && String(e.task).includes('-land'))
+  assert.equal(esc && esc.reason, 'gate_failed', "reason is the returned status, not 'env-blocked' (that arm is class-gated)")
 })
 
 test("#598 validation 5 — land 'baseline' → ONE baseline-proceed re-land, phase lands, ONE source:'auto' backstop from the land site", async () => {
@@ -5177,9 +5276,10 @@ test('run-lifecycle §5 schemas.md presence lock: provisioning-args + footgun ca
 // <merge-sha>...origin/<working>` (the merge sha it tried to push vs. the freshly-fetched origin
 // tip, NEVER the lagging local follower): a right count of 0 (contender-less transient) buys
 // exactly ONE extra push-first attempt beyond roundLimit; a nonzero right count (real contender
-// commits) is land_stale immediately. The discrimination is emitted in BOTH the in-flow land prompt
-// AND the baseline-proceed re-land prompt, and grep-parallel with agents/war-refiner.md §land-phase.
-// The three plain-text anchors below appear VERBATIM in all three surfaces (mirror-drift guard, spec
+// commits) is land_stale immediately. The discrimination is emitted in ALL THREE land prompts (in-flow,
+// baseline-proceed re-land, environment-proceed re-land) via the shared relandDiscrimination helper, and
+// grep-parallel with agents/war-refiner.md §land-phase.
+// The three plain-text anchors below appear VERBATIM in all four surfaces (mirror-drift guard, spec
 // §8; memory: standing-instruction-vs-dispatched-prompt-coverage-split). They are markup-free in the
 // .md source (no backtick/bold inside the span) so a raw-string includes() matches byte-for-byte.
 // ---------------------------------------------------------------------------
@@ -5210,19 +5310,24 @@ test('Task 1.2 — in-flow land prompt carries the rev-list discrimination + exp
   assert.ok(p.includes('no new status'), 'the prompt states no new status is introduced by the recovery path')
 })
 
-test('Task 1.2 — baseline-proceed re-land prompt carries the identical discrimination (both JS land surfaces)', async () => {
-  // A land gate failure classified 'baseline' dispatches the baseline-proceed re-land; its prompt must
-  // carry the same discrimination — the mirror-drift hazard is intra-file too (two land prompts).
-  const impl = clsImpl({ landResult: () => ({ mode: 'land-phase', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: ['pytest:test_pre_existing'], gate_base_sha: 'wbase77' }) })
-  const { calls } = await runPhase(CLS_ARGS(), impl)
-  const bp = calls.find(c => /^land:phase-3:baseline-proceed$/.test(c.opts.label || ''))
-  assert.ok(bp, 'a baseline-proceed re-land is dispatched')
-  const p = bp.prompt
-  assert.ok(p.includes(RELAND_DISC_CMD), 'baseline-proceed re-land prompt runs the rev-list discrimination')
-  assert.ok(p.includes('dev/cls'), 'the discrimination names origin/<workingBranch> (interpolated)')
-  assert.ok(p.includes(RELAND_DISC_BUDGET), 'baseline-proceed re-land prompt states the identical explicit-+1 budget')
-  assert.ok(p.includes(RELAND_DISC_DIVERGE), 'baseline-proceed re-land prompt names the nonzero-right-count divergence branch')
-  assert.match(p, /return \{ mode: 'land-phase', status: 'land_stale' \} immediately/, 'baseline-proceed re-land: nonzero right count → land_stale immediately')
+test('Task 1.2 — BOTH recovery re-land prompts carry the identical discrimination (all three JS land surfaces)', async () => {
+  // A land gate failure classified 'baseline'/'environment' dispatches its bounded recovery re-land; each
+  // prompt must carry the same discrimination — the mirror-drift hazard is intra-file too (three land prompts).
+  const cases = [
+    ['baseline-proceed', /^land:phase-3:baseline-proceed$/, clsImpl({ landResult: () => ({ mode: 'land-phase', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: ['pytest:test_pre_existing'], gate_base_sha: 'wbase77' }) })],
+    ['environment-proceed', /^land:phase-3:environment-proceed$/, clsImpl({ landResult: envLandResult })],
+  ]
+  for (const [name, label, impl] of cases) {
+    const { calls } = await runPhase(CLS_ARGS(), impl)
+    const rp = calls.find(c => label.test(c.opts.label || ''))
+    assert.ok(rp, `a ${name} re-land is dispatched`)
+    const p = rp.prompt
+    assert.ok(p.includes(RELAND_DISC_CMD), `${name} re-land prompt runs the rev-list discrimination`)
+    assert.ok(p.includes('dev/cls'), `${name}: the discrimination names origin/<workingBranch> (interpolated)`)
+    assert.ok(p.includes(RELAND_DISC_BUDGET), `${name} re-land prompt states the identical explicit-+1 budget`)
+    assert.ok(p.includes(RELAND_DISC_DIVERGE), `${name} re-land prompt names the nonzero-right-count divergence branch`)
+    assert.match(p, /return \{ mode: 'land-phase', status: 'land_stale' \} immediately/, `${name} re-land: nonzero right count → land_stale immediately`)
+  }
 })
 
 test('Task 1.2 — grep parity: agents/war-refiner.md §land-phase carries the byte-identical discrimination strings the JS prompts emit', () => {
@@ -5556,7 +5661,7 @@ test('T2.1 criterion 6 (D5) — the gate-audit seat carries the captured-artifac
     'the anti-excerpt prose is gone from ALL workflow-template.js dispatched prompts (replaced by the capture clause)')
   assert.ok(!refinerMd.includes('curate or excerpt'), 'the anti-excerpt prose is gone from war-refiner.md step 7')
   const captureUses = (src.match(/gateCaptureClause\(refineryPath, r\.task\.id\)/g) || []).length
-  assert.equal(captureUses, 2, 'the gate-capture clause replaces the anti-excerpt prose at BOTH dispatched merge sites (initial + floor-retry)')
+  assert.equal(captureUses, 3, 'the gate-capture clause replaces the anti-excerpt prose at ALL THREE dispatched merge sites (initial + floor-retry + environment-proceed) — the evidence chain must survive a retried merge')
 })
 
 test('T2.1 criterion 6 (D5) — fail-open: absent artifact + absent pin token ⇒ the SOFT cannot-confirm rule is still in the prompt and the phase still LANDS (never a hold)', async () => {
@@ -6266,8 +6371,8 @@ test('#929 subset-row blindness closed — extractLandDecisionLiterals surfaces 
 // GATE COMPOSITION POINT (ADR 0036) — enumerated exactly-once prompt evidence
 // ---------------------------------------------------------------------------
 // The engine normalizes plan.gate ONCE (`if (plan) plan.gate = resolveGate(plan.gate)`, immediately after
-// entry validation), so every one of the NINE gate-bearing dispatch sites interpolates the SAME composed
-// gate. This enumerates all nine captures by label/dispatchKind — the count IS the anti-vacuity floor: a
+// entry validation), so every one of the ELEVEN gate-bearing dispatch sites interpolates the SAME composed
+// gate. This enumerates all eleven captures by label/dispatchKind — the count IS the anti-vacuity floor: a
 // site an existing fixture cannot reach is added, never skipped, so deleting the composition line reds every
 // arm. Anchors ONLY on the discovery-clause token; no assertion enumerates shell suites or states a count.
 const GATE_TOKEN = `-name '*.test.sh'`   // a substring of resolveGate's find clause; absent from every fixed prompt prose
@@ -6296,7 +6401,7 @@ const floorRetryImpl = () => {
   }
 }
 const SINGLE_TASK = [{ id: 't1', issue: 101, title: 'T', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] }]
-// The nine gate-bearing dispatch captures, enumerated by label/dispatchKind. Each drives the fixture that
+// The eleven gate-bearing dispatch captures, enumerated by label/dispatchKind. Each drives the fixture that
 // reaches its site with the given fixture gate and returns the captured prompt.
 const GATE_SITE_CAPTURES = [
   { site: 'worker Gate: line (work:<task>)', find: (c) => c.find(isWorker),
@@ -6317,11 +6422,18 @@ const GATE_SITE_CAPTURES = [
     run: (gate) => runPhase(PROVISION_ARGS({ plan: planWith(gate) }), evidenceImpl) },
   { site: 'land:phase-<id>:baseline-proceed re-land clause', find: (c) => c.find(x => /^land:phase-\d+:baseline-proceed$/.test(x.opts.label || '')),
     run: (gate) => runPhase(CLS_ARGS({ plan: planWith(gate) }), clsImpl({ landResult: baselineLandResult })) },
+  // The two bounded environment-proceed recovery dispatches (merge-land-resilience Task 1.1) are equally
+  // gate-bearing — each interpolates ${plan.gate} for its must-go-fully-green fresh-env re-run — so they are
+  // ADDED here, never skipped (this array's own doctrine).
+  { site: 'merge:<task>:environment-proceed re-merge clause', find: (c) => c.find(x => /^merge:.*:environment-proceed$/.test(x.opts.label || '')),
+    run: (gate) => runPhase(CLS_ARGS({ plan: planWith(gate) }), clsImpl({ mergeResult: envMergeResult })) },
+  { site: 'land:phase-<id>:environment-proceed re-land clause', find: (c) => c.find(x => /^land:phase-\d+:environment-proceed$/.test(x.opts.label || '')),
+    run: (gate) => runPhase(CLS_ARGS({ plan: planWith(gate) }), clsImpl({ landResult: envLandResult })) },
 ]
 
-test('gate composition point (ADR 0036) — the NINE enumerated gate-bearing captures render the discovery token EXACTLY ONCE (plain), idempotently once (pre-composed), and the discovery-only clause (null)', async () => {
-  assert.equal(GATE_SITE_CAPTURES.length, 9,
-    'exactly nine gate-bearing dispatch sites are enumerated (anti-vacuity floor — a site an existing fixture cannot reach is ADDED, never skipped)')
+test('gate composition point (ADR 0036) — the ELEVEN enumerated gate-bearing captures render the discovery token EXACTLY ONCE (plain), idempotently once (pre-composed), and the discovery-only clause (null)', async () => {
+  assert.equal(GATE_SITE_CAPTURES.length, 11,
+    'exactly eleven gate-bearing dispatch sites are enumerated (anti-vacuity floor — a site an existing fixture cannot reach is ADDED, never skipped)')
 
   // Arm 1 — plain JS-only fixture gate ⇒ the discovery token appears EXACTLY ONCE per captured prompt.
   for (const cap of GATE_SITE_CAPTURES) {
@@ -6414,6 +6526,14 @@ const RETIRED_PREMISE_SAMPLES = [
 
 test('D3 — both-surfaces directive registry: every correctness-critical directive is on its standing card AND its dispatched prompt(s)', async () => {
   const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  // The two bounded environment-proceed recovery prompts are only emitted on an environment-classified
+  // gate failure — drive each with its own mock-classified fixture and capture the LIVE prompt text
+  // (preferred over slicing src: it asserts what the refiner actually receives).
+  const epMergeP = ((await runPhase(CLS_ARGS(), clsImpl({ mergeResult: envMergeResult }))).calls
+    .find(c => /:environment-proceed$/.test(c.opts.label || '')) || {}).prompt
+  const epLandP = ((await runPhase(CLS_ARGS(), clsImpl({ landResult: envLandResult }))).calls
+    .find(c => /^land:phase-\d+:environment-proceed$/.test(c.opts.label || '')) || {}).prompt
+  assert.ok(epMergeP && epLandP, 'both environment-proceed recovery prompts dispatched (presence guard)')
   const workerP = (calls.find(isWorker) || {}).prompt
   const auditP = (calls.find(c => isAuditor(c) && !(c.opts.label || '').startsWith('gate-audit:')) || {}).prompt
   const servitorP = (calls.find(isServitor) || {}).prompt
@@ -6482,8 +6602,19 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     { name: 'servitor landed-tip grounding ladder (preflight → gitdir-matched worktree lookup → ref-check dead end → gate-audit fallback)',
       surfaces: [['war-servitor.md', servitorMd], ['servitor Wrap-up prompt', servitorP]],
       anchors: [/gitdir/i, /not assumed/i, /gate-audit fallback/i, /checkout-topology/i] },
+    // merge-land-resilience Task 1.1: the bounded environment-proceed contract lives on the refiner's
+    // standing card AND in both dispatched recovery prompts. Anchor precondition (red-team): /fresh TMPDIR/i
+    // is NOT usable — it already appears at base on BOTH surfaces (the card's classification line, the
+    // baseline-proceed prompts), so a revert of the new clause would stay green behind those hits. Every
+    // token below was verified ABSENT from war-refiner.md AND workflow-template.js at the pre-change base,
+    // so a per-surface revert REDs this row.
+    { name: 'bounded environment-proceed recovery (exactly ONE re-run, fresh env, must come back fully green — never a proceed-over)',
+      surfaces: [['war-refiner.md', refinerMd],
+                 ['environment-proceed re-merge prompt', epMergeP],
+                 ['environment-proceed re-land prompt', epLandP]],
+      anchors: [/environment-proceed/i, /exactly one re-run/i, /fully green/i, /never a proceed-over/i] },
   ]
-  assert.ok(REGISTRY.length >= 12, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, and the #990 servitor landed-tip grounding ladder row — floor equals the true row count, no slack (#693)')
+  assert.ok(REGISTRY.length >= 13, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, and the bounded environment-proceed recovery row — floor equals the true row count, no slack (#693)')
   for (const row of REGISTRY) {
     for (const [sName, sText] of row.surfaces) {
       for (const re of row.anchors) {
@@ -6781,8 +6912,9 @@ const LITERAL_REGISTRY = [
   ["${floorMr.status}:re-audit-failed`, findings"],
   ["merge:${r.task.id}:floor-retry:r${r.task.fix"],
   ["${floorMr.status}:exhausted`, fixRounds: r.t"],
+  ["merge:${r.task.id}:environment-proceed`, sch"],
   ["merge:${r.task.id}:baseline-proceed`, schema"],
-  ["${r.task.id} touches a submodule (surfaced o"],
+  ["${r.task.id} touches a submodule (surfaced o", 2],
   ["task never reached the approve branch (verdi"],
   ["Task ${r.task.id}: env-blocked — provision s"],
   ["$(git -C ${refineryPath} merge-base ${ph.int"],
@@ -6816,10 +6948,12 @@ const LITERAL_REGISTRY = [
   ["phase-${ph.id}-land`, reason: 'submodule-pr'"],
   ["phase-${ph.id}-land`, reason: landResult.sta", 2],
   ["phase-${ph.id}-land`, reason: 'env-blocked',", 2],
+  ["land:phase-${ph.id}:environment-proceed`, sc"],
+  ["Phase ${ph.id} landed via environment-procee"],
   ["land:phase-${ph.id}:baseline-proceed`, schem"],
   ["Phase ${ph.id} landed via baseline-proceed r"],
-  ["phase-${ph.id}-land`, reason: reLand.status,"],
-  ["phase-${ph.id}-land`, reason: reLand ? reLan"],
+  ["phase-${ph.id}-land`, reason: reLand.status,", 2],
+  ["phase-${ph.id}-land`, reason: reLand ? reLan", 2],
   ["Phase ${ph.id} landed. Attempting opportunis"],
   ["phase-${ph.id}-land`, reason: landResult ? S"],
   ["Phase ${ph.id}: dead or unrouted land dispat"],
