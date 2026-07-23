@@ -1067,14 +1067,17 @@ projection).
 
 **Advisory line**:
 The index projection's advisory byte ceiling — the soft WARN threshold that sits below the hard
-render-refuse cap. It is both the **tighten trigger** (crossing it is the signal to run a tighten pass)
-and the **exit target** (a tighten pass runs until the projection is back below it); there is no third
-threshold. The projection's normal operating ceiling.
+render-refuse cap. It is the **default tighten trigger** (crossing it is the signal to run a tighten
+pass) and the **default exit target** (a tighten pass runs until the projection is back below it); a
+stricter operator-supplied `--target` becomes both for that one invocation. The projection's normal
+operating ceiling.
 _Avoid_: conflating it with the hard cap (the hard cap *refuses* the render; the advisory line only
-warns and invites tightening); treating it as trigger-only (it is equally the exit target).
+warns and invites tightening); treating it as trigger-only (it is equally the exit target); reading a
+*looser* `--target` as raising it (a target above the advisory line never suppresses the advisory warn).
 
 **Tighten pass**:
-The operator-gated projection-shrink mode (`/lessons-learned tighten`): triggered at the advisory line,
+The operator-gated projection-shrink mode (`/lessons-learned tighten`): triggered at the **effective
+target** — the advisory line by default, a stricter `--target` when the operator supplies one — and
 exits once the projection is back below it. One destructive phase behind a single strike-list approval,
 with a loud shortfall report when the approved strikes still miss the target. Always operator-invoked —
 the system only ever *suggests* it, never self-runs.
