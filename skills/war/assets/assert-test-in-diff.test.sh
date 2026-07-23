@@ -362,8 +362,9 @@ fi
 # The branch has a REAL skills/x.test.mjs that WOULD match if the diff ran.
 # With the .. guard:    dies with "refusing to use potentially unsafe ref"
 #                       on stderr BEFORE any git operation.
-# Without the guard:    git diff reaches line 94, fails on "../<sha>" as an
-#                       unknown ref, and dies with "git diff failed" on stderr.
+# Without the guard:    git diff reaches the `git diff --name-only` call,
+#                       fails on "../<sha>" as an unknown ref, and dies with
+#                       "git diff failed" on stderr.
 #
 # Assertion: stderr contains the guard's unique token
 # ("refusing to use potentially unsafe ref") so that deleting the guard
@@ -796,8 +797,9 @@ fi
 # hits on STDERR beside the ACTIVE pattern set. The whole family is about the
 # diagnostic channel: stdout stays the refiner's empty-summary read contract and
 # every exit code is byte-preserved (0/1/2 never conflated, ADR 0006).
-# NEAR_MARKER is the block's distinctive token — 12d asserts its ABSENCE on the
-# exit-2 die path (row-scoped marker assert, not a whole-output count).
+# NEAR_MARKER is the block's distinctive token — 12a asserts it PRESENT on the
+# exit-1 path and 12d asserts its ABSENCE on the exit-2 die path (both-ways
+# proof; row-scoped marker assert, not a whole-output count).
 # memory: marker-completeness-check-needs-row-scoped-grep-not-whole-file-grep-c.
 # ---------------------------------------------------------------------------
 NEAR_MARKER='near-miss — test-shaped files in the diff'
@@ -839,11 +841,16 @@ fi
 
 # Both default patterns must be named, and from the pattern_mjs/pattern_sh
 # variables — asserting BOTH catches a diagnostic that names only half the set.
+# The union-arm note and NEAR_MARKER are asserted PRESENT here too: the note's
+# printf is otherwise deletable with every check green, and 12d's marker-absence
+# assert needs a positive anchor so a reword cannot make it silently vacuous.
 if printf '%s' "$err12a" | grep -qF 'skills/**/*.test.mjs' \
-   && printf '%s' "$err12a" | grep -qF '**/*.test.sh'; then
-  pass "case 12a: stderr names both default patterns (active pattern set)"
+   && printf '%s' "$err12a" | grep -qF '**/*.test.sh' \
+   && printf '%s' "$err12a" | grep -qF 'union arm is always in force' \
+   && printf '%s' "$err12a" | grep -qF "$NEAR_MARKER"; then
+  pass "case 12a: stderr names both default patterns, the union-arm note, and the near-miss marker"
 else
-  fail "case 12a: stderr does not name both default patterns (stderr: $err12a)"
+  fail "case 12a: stderr missing a default pattern, the union-arm note, or the near-miss marker (stderr: $err12a)"
 fi
 
 if printf '%s' "$err12a" | grep -qF 'runner/x.test.mjs'; then
