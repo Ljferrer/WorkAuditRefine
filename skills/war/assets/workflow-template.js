@@ -464,7 +464,7 @@ if (missingPhaseFields.length) problems.push(`workflow-template: requires phase 
 if (problems.length) throw new Error(`${problems.join('; ')}${derivationProblem ? ' (or supply explicit branch/worktree per task)' : ''}`)
 
 // GATE COMPOSITION POINT (engine-owned, ADR 0036): normalize plan.gate ONCE here, immediately after entry
-// validation and before any of the nine gate-bearing dispatch sites interpolate ${plan.gate}. resolveGate is
+// validation and before ANY gate-bearing dispatch site interpolates ${plan.gate}. resolveGate is
 // idempotent, so this composes harmlessly even when the Lead already pre-resolved via --resolve-gate (the belt;
 // this engine normalization is the suspenders — a missed pre-resolution can no longer ship a shell-blind gate).
 // GUARDED: `plan` is destructured with no default and is NEVER entry-validated, so an absent plan (a plan-less
@@ -1083,8 +1083,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   //           the model must still be able to emit the '(integration_sha …)' sentinel legitimately.
   const pinOrSentinel = s =>
     (typeof s === 'string' && /^[0-9a-f]{7,40}$/.test(s)) ? s : '(integration_sha unrecorded/malformed)'
-  // landMerged: the shared merged-task landing step (initial merge, floor-retry re-merge, and the
-  // baseline-proceed re-merge all funnel through it). requiresTest:false ⇒ the gate-audit HARD path is
+  // landMerged: the shared merged-task landing step (initial merge, floor-retry re-merge, the
+  // baseline-proceed re-merge, and the environment-proceed re-merge all funnel through it). requiresTest:false ⇒ the gate-audit HARD path is
   // vacuous — skip + LOG (never silent). taskDebt (spec §6 / ADR 0019): a baseline-merged task carries
   // its classified failing identifiers so the gate-audit prompt won't read a pre-existing base failure
   // as a provably-unrun mapped test; empty/absent ⇒ the field is omitted (byte-identical entry).

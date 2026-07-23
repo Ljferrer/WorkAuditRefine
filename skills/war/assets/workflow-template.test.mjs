@@ -4527,7 +4527,7 @@ test('pkg #819 — source-level: all four dispatched packaging-floor invocations
     'exactly four dispatched packaging-floor invocation literals (initial merge, floor-retry, baseline-proceed, environment-proceed)')
   for (const m of invocations) {
     assert.ok(m[1],
-      `every dispatched packaging-floor invocation must thread the advisePackagingVacuous conditional flag immediately after the task branch (a two-of-three thread or a static-flag collapse is RED): "${m[0]}"`)
+      `every dispatched packaging-floor invocation must thread the advisePackagingVacuous conditional flag immediately after the task branch (a three-of-four thread or a static-flag collapse is RED): "${m[0]}"`)
   }
 })
 
