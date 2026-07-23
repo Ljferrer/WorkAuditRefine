@@ -111,7 +111,9 @@ Intent is the ceiling, the plan slice is the floor.)*
   diagnostic marker absent — row-scoped, not a whole-file count); (e) a custom-pattern near-miss
   (diff adds `src/foo.spec.ts`, `--pattern '*.test.ts'`) → exit 1, stderr names the custom token
   set and lists the spec file. Update the test-file header case index. All pre-existing cases
-  (1–10, incl. the floor ⊆ gate parity family) stay unmodified and green. **Mandatory manual
+  (1–11, incl. the floor ⊆ gate parity family and case 11's FAIL-CLOSED FLOOR CLASSIFICATION
+  (#732) — landed after this plan was authored; new near-miss cases append **after** case 11,
+  never treating case 10 as the last existing family) stay unmodified and green. **Mandatory manual
   survey (grep is a floor):** hand-scan the script's header blocks and the test file's case
   comments for same-meaning one-shot/per-run phrasings; list stragglers as survey-derived
   corrections in the done report.
