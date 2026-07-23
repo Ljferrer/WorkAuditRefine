@@ -331,8 +331,10 @@ _Avoid_: separate per-loop limits, max-attempts.
 
 **gate-failure class** (`MergeResult.gate_failure_class`):
 The orthogonal label on a `gate_failed` — `introduced` | `baseline` | `environment` — that selects the
-recovery path: the bounded fix-worker loop, a proceed-with-backstop record, or a single
-**environment-proceed** re-run. Populated by the refiner's on-failure base re-run; absent ⇒
+recovery path: the bounded fix-worker loop, a proceed-with-backstop record, or one bounded
+**environment-proceed** re-run (green required — exhaustion hard-escalates the merge site via the
+reused `'escalate'` reason, and falls back to `env-blocked` ⇒ `held:land-failed` at the land site,
+never a 0-round escalation). Populated by the refiner's on-failure base re-run; absent ⇒
 `introduced` (the fail-safe default). **Class routes; status stays `gate_failed`** — the status enum,
 `HARD_ESCALATION_REASONS`, and `KNOWN_LAND_DECISIONS` are untouched (ADR 0005 enum discipline; the
 finding-`disposition` precedent).
@@ -393,8 +395,15 @@ git** rather than self-reported. Immediately before the push it captures the **p
 (`git ls-remote origin refs/heads/<working>`; a failed readback exits non-zero and never collapses
 into the first-land carve-out), and it refuses a **phantom land** (exit 3) when `<merge-sha>` equals
 that pre-push origin tip **and** the local follower already sits at it; the post-push readback still
-confirms origin advanced to `<merge-sha>`. Anchored on the **origin tip, never the local follower**
-(which lags). A `landDecision:'landed'` is trustworthy only downstream of it — extends
+confirms origin advanced to `<merge-sha>`. Immediately before that push — and deliberately *after* the
+early-return arms, so already-landed reconciliation stays cwd-independent — it also asserts
+`HEAD == <merge-sha>`: the push source is `HEAD:`, so a wrong-cwd invocation dies with the catalogued
+`EX_WRONG_BRANCH` (6) naming both SHAs and the expected cwd (normally the detached `_refinery`) rather
+than surfacing as a misleading `[rejected]` exit 2 — which is what makes exit 2 mean **only** a real
+concurrent advance ([ADR 0023 amendment](docs/adr/0023-land-asserts-git-ground-truth.md)). Where the
+pre-push origin-tip capture proves *where* the ref is going, the precheck proves *what* is going there.
+Anchored on the **origin tip, never the local follower** (which lags). A `landDecision:'landed'` is
+trustworthy only downstream of it — extends
 [ADR 0008](docs/adr/0008-git-is-the-resume-source-of-truth.md) onto the land path
 ([ADR 0023](docs/adr/0023-land-asserts-git-ground-truth.md)).
 _Avoid_: anchoring the advance check on the local follower ref (it lags); treating the post-push
@@ -923,11 +932,11 @@ _Avoid_: dead-code exemption (sounds like a suppression list).
 The single site in `workflow-template.js`, immediately after entry validation, where `plan.gate` is
 normalized once, in place — idempotently, via a hand-mirrored inline `resolveGate` (the
 sandbox-cannot-import rule), drift-guarded by its D2 mirror-registry row — to its self-discovering
-form; every one of the nine gate-bearing dispatch sites downstream renders the composed string without
-itself changing. Distinct from the Lead's Setup `--resolve-gate` pre-resolution, now the belt to this
-composition point's suspenders ([ADR 0036](docs/adr/0036-gate-self-discovery-composition-engine-owned.md)).
+form; every gate-bearing dispatch site downstream renders the composed string without itself changing.
+Distinct from the Lead's Setup `--resolve-gate` pre-resolution, now the belt to this composition
+point's suspenders ([ADR 0036](docs/adr/0036-gate-self-discovery-composition-engine-owned.md)).
 _Avoid_: conflating it with `resolveGate` itself (the canonical function this point calls inline);
-expecting composition per dispatch site — it fires once, upstream of all nine.
+expecting composition per dispatch site — it fires once, upstream of them all.
 
 **Spec-truth guard**:
 A per-claim, construct-anchored doc-contract row in `skill-doc-contracts.test.mjs` locking a
