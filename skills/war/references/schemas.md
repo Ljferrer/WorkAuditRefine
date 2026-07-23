@@ -250,6 +250,8 @@ Optional `intent` (string|null, ADR 0013) — the plan's `## Commander's Intent`
 
 Optional `memory` (spec §4.5) — the Lead's per-phase prior-lesson prefetch, shaped `{ byTask: { <task-id>: { worker, seats: { <lens>: block } } }, servitor }`, where each `block` is the `war-memory query` CLI's ready-to-inject text. Threaded like `intent`: the template concatenates a `memoryClause` at the worker, auditor, fix-worker, add-test, and servitor spawn sites (ace / gate-audit / polish-sweep get none). An empty/absent map ⇒ every prompt is **byte-identical** to a memory-less run. Retrieval fails open — a missing `memory` is never an error.
 
+Optional `adjudications` (array|null) — preformatted strings or `{ adjudicated|value, supersedes }` objects (row shapes unchanged by this widening). **Two producers** feed the set: the plan's red-team report `## Adjudications` block (`docs/red-team/<plan-slug>.md`) and the Lead's own decompose-gate / escalation-time scope adjudications, assembled and recorded per SKILL.md. The set **accumulates run-long** and is **re-threaded in full** — from the run-ledger record, alongside `args.recovery` — on a sanctioned recovery relaunch, so a relaunched seat is never adjudication-blind. Threaded like `intent`: the template concatenates an `adjudicationClause` at the roster-seat `auditPrompt` and the three gate-audit-family seats (post-merge, integrated-tip, end-state-only). Empty/absent ⇒ every prompt is **byte-identical** to an adjudication-less run.
+
 Auditors receive the **absolute `task.worktree` path** so they can `Read` candidate files directly in the task's isolated checkout rather than the main repo tree.
 
 ### Provisioning args (refiner-owned worktree lifecycle)

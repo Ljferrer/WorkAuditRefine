@@ -91,7 +91,7 @@ Fallback: <none | analyzed-agent fallback engaged (sticky pin); probes run on ge
 - <finding> → <decision> → <plan ref patched>
 
 ## Adjudications
-<!-- Machine-readable: the WAR Lead reads these rows and threads them into auditPrompt(). Version precedence: task instruction > red-team adjudication > plan body literal. Leave empty (or omit) when no authoritative value was adjudicated — an empty block is byte-identical no-op for the auditor. -->
+<!-- Machine-readable: the WAR Lead reads these rows and threads them into the auditor prompts (auditPrompt() and the gate-audit seats). Version precedence: task instruction > red-team adjudication > plan body literal. Leave empty (or omit) when no authoritative value was adjudicated — an empty block is byte-identical no-op for the auditor. -->
 - <adjudicated literal> supersedes <plan-body literal it replaces> — <plan ref / reason>
 
 ## Residual risk
