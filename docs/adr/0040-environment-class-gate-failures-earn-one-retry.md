@@ -118,9 +118,9 @@ the design, not catching an omission.
   chokepoint, which is unchanged. A recovered land is still `landed` only because git proved the ref
   advanced.
 - **Does not weaken [ADR 0024](0024-audit-gate-verdicts-integrated-tip-captured-evidence.md)** — the
-  environment-proceed dispatches thread `gateCaptureClause`/`gate_log_path` and `integration_sha` the
+  environment-proceed re-merge threads `gateCaptureClause`/`gate_log_path` and `integration_sha` the
   way the primary merge prompt does, so a retried merge keeps its evidence chain into the post-merge
-  gate-audit.
+  gate-audit; the re-land mirrors the primary land prompt, which threads no capture clause.
 
 ## Considered options
 
