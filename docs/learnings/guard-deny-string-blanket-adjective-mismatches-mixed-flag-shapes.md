@@ -5,6 +5,7 @@ metadata:
   node_type: memory
   type: project
   provenance: code-verified
+  promoted: dev/2026-07-22-cli-main-guard-normalization@phase-2
   slug: guard-deny-string-blanket-adjective-mismatches-mixed-flag-shapes
   phase: "auditor-guard-ergonomics/phase-2 (Release, task 2.1)"
   keywords: 
@@ -26,7 +27,7 @@ metadata:
     - audit-finding
   created: 2026-07-22
   originSessionId: 8e99f0a3-aecc-4068-9cd8-79868840feb7
-  modified: 2026-07-22T22:23:46.812Z
+  modified: 2026-07-23T21:24:29.512Z
 ---
 
 # A guard's deny string can generalize a mixed flag set with one adjective that contradicts its own parenthetical
@@ -69,5 +70,7 @@ only the blurb without the source string leaves the two back in sync but the und
 still wrong in both.
 
 Related: [[release-blurb-overstates-guard-semantics]] (sibling family: release-blurb prose
-imprecision about guard semantics, different failure mode). [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]]
+imprecision about guard semantics, different failure mode — see its Recurrence 3, 2026-07-23, for
+the closest-mechanism instance: one clause summarizing three guards where one used a structurally
+different comparison form). [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]]
 (how this fact was confirmed against the actual landed tip rather than a stale cwd).
