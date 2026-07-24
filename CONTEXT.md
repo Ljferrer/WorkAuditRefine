@@ -1169,6 +1169,36 @@ _Avoid_: grepping the dirty working tree as the sole basis (a reverted edit lies
 tree); assuming `git log -S` answers "is the token present at the path" (it answers "when did the count
 change").
 
+**Seed set**:
+The capped, manifest-mirrored portable-lesson corpus shipped at `docs/seed/seed.tar.gz` — the initial 29
+scrubbed war-game lessons, each redaction-lint-clean and free of `[[wikilinks]]`. Packed, verified, and
+evicted by `seed-pack.mjs`; capped on both axes at ≤ 50 members and ≤ 1,500,000 B uncompressed
+([ADR 0039](docs/adr/0039-seed-set-capped-manifest-mirrored-tarball.md)). A portable, plugin-shipped
+source corpus, not a per-repo store — distinct from either **Memory root**.
+_Avoid_: seed render (the Phase-0 `MEMORY.md` projection of lessons a repo already has); "corpus" left
+unqualified (name the seed set explicitly so it is never read as a repo's own memory).
+
+**Seed candidate**:
+A portable lesson nominated for the seed set. The bare `/lessons-learned` pass adds one directly inside
+`WorkAuditRefine` (gated, re-packed); from any other repo it travels as a `seed-candidate` GitHub issue
+on `Ljferrer/WorkAuditRefine` carrying the full lesson body, filed only after both-states slug dedup and
+a fail-closed redaction lint on the drafted issue.
+_Avoid_: memory-mined (a different mining loop over a repo's own defect-shaped lessons, filed under that
+label instead of `seed-candidate`).
+
+**Warm-seed**:
+Injecting the seed set into a repo's chosen memory root via `/lessons-learned seed`: unpack, ask the
+destination (`docs/learnings/` vs the local root), skip any slug already present in either root, and
+stamp each placed member's frontmatter with `metadata.seededFrom`.
+_Avoid_: seed render (that projects lessons a root already has — warm-seed instead *adds* new ones);
+sync (re-running `seed` only tops up; nothing tracks or updates a downstream repo's copy afterward).
+
+**Seed archive**:
+The overflow tier at `docs/seed/archive/` — capped at ≤ 500 members and ≤ 100 MB, grown only by
+`seed-pack.mjs evict` (append-only, never deletes), pruned only by hand.
+_Avoid_: the memory roots' cold `archive/` tier (per-repo eviction of a repo's own live lessons — a
+different mechanism with different caps; see **Hot set** / **Cold set**).
+
 ### State & resume
 
 **Run manifest**:
