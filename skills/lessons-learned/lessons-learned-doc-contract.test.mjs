@@ -12,12 +12,25 @@ const __dir = dirname(fileURLToPath(import.meta.url))
 const REPO_ROOT = join(__dir, '..', '..')
 const skill = readFileSync(join(REPO_ROOT, 'skills/lessons-learned/SKILL.md'), 'utf8')
 const migration = readFileSync(join(REPO_ROOT, 'skills/lessons-learned/references/migration.md'), 'utf8')
+// CONTEXT.md joined the swept surfaces with the #992 target-aware preflight (Task 1.2): its
+// **Advisory line** / **Tighten pass** glossary entries carried the same fixed-advisory claim as
+// SKILL.md, in stronger definitional form. Without loading it here those two surfaces have zero
+// mechanical check.
+const context = readFileSync(join(REPO_ROOT, 'CONTEXT.md'), 'utf8')
 
 // Grab a single line matching a substring (throws if absent — makes intent explicit).
 const lineWith = (text, needle) => {
   const line = text.split('\n').find(l => l.includes(needle))
   assert.ok(line, `no line containing ${JSON.stringify(needle)}`)
   return line
+}
+
+// Grab the body of the ```bash fence containing `needle` (throws if absent). Fence-scoped so a
+// lock on a command flag cannot pass on a mention of that flag in the surrounding prose.
+const bashFenceWith = (text, needle) => {
+  const body = [...text.matchAll(/```bash\n([\s\S]*?)```/g)].map(m => m[1]).find(b => b.includes(needle))
+  assert.ok(body, `no \`\`\`bash fence containing ${JSON.stringify(needle)}`)
+  return body
 }
 
 // (1) Phase 5 housekeeping render-index passes --repo. If someone reverts the render
@@ -196,4 +209,65 @@ test('doc-contract: Phase 6 It-checks names the repo-completeness hard fail', ()
     'It-checks must name the populated-repo-root arming condition of the new hard fail')
   assert.match(checks, /zero[^\n]*\[repo\][^\n]*rows/i,
     'It-checks must name the zero-[repo]-rows wholesale-drop hard fail')
+})
+
+// --- Task 1.2 (war-memory-hardening, #992): target-aware tighten preflight ------------------
+// `tightenPlan`'s printed `verdict` is now the STRICTER of the advisory projection verdict and the
+// effective `--target`, so every doc sentence that read the advisory line as the sole, fixed
+// tighten trigger became false. ADR 0025 default-flip discipline: OLD-absent per enumerated
+// surface, not just NEW-present — a worker could otherwise APPEND a target-aware sentence and
+// leave the false clause standing, and a presence-only lock would pass. Eight enumerated
+// surfaces: (1)–(6) in SKILL.md, (7)–(8) in CONTEXT.md's glossary. Each needle was verified to sit
+// on a single physical line (the stop rule and CONTEXT's "no third threshold" sentence both WRAP,
+// hence the whitespace-tolerant / truncated needles below).
+
+// (17) OLD-absent ×6, one per SKILL.md surface. Case-tolerant, mid-sentence, no ordinals and no
+//      whole-file counts — each needle is the retired clause itself.
+test('doc-contract: no fixed-advisory tighten-preflight reading survives in SKILL.md (surfaces 1-6)', () => {
+  const retired = [
+    ['surface 1 (explanatory sentence)', /never a `≤ target` reading/i],
+    ['surface 2 (step-1 --target parenthetical)', /only for a different bound/i],
+    ['surface 3 (frontmatter description clause)', /already under the advisory line/i],
+    ['surface 4 (Phase-0 budget bullet)', /and the trigger for the `tighten` mode below/i],
+    ['surface 5 (verdict attribution)', /`buildProjection`'s own read/i],
+    ['surface 6 (stop-rule appositive)', /strictly under the advisory line/i],
+  ]
+  for (const [surface, re] of retired)
+    assert.doesNotMatch(skill, re,
+      `SKILL.md ${surface}: the retired fixed-advisory reading must be gone — the preflight verdict is the stricter of the advisory line and the effective --target (#992)`)
+})
+
+// (18) OLD-absent ×2 on CONTEXT.md's glossary (surfaces 7-8). The definitional entries asserted the
+//      advisory line was the ONLY trigger threshold; a sub-advisory --target is exactly a second,
+//      stricter one. `there is no third` stops before `threshold` on purpose: that sentence wraps.
+test('doc-contract: CONTEXT.md glossary no longer calls the advisory line the sole tighten trigger (surfaces 7-8)', () => {
+  assert.doesNotMatch(context, /there is no third/i,
+    'CONTEXT.md **Advisory line**: the "no third threshold" claim must be gone — a stricter --target IS a second trigger threshold (#992)')
+  assert.doesNotMatch(context, /triggered at the advisory line/i,
+    'CONTEXT.md **Tighten pass**: the pass triggers at the EFFECTIVE target (advisory line by default, a stricter --target when supplied)')
+})
+
+// (19) NEW-present on the reworded explanatory sentence (surface 1). Anchored there, NOT on the
+//      stop line — the stop instruction wraps and `lineWith` is single-line-scoped.
+test('doc-contract: Preflight teaches the target-aware verdict (stricter of advisory line and --target)', () => {
+  const sentence = lineWith(skill, 'stricter of the advisory line')
+  assert.match(sentence, /--target/,
+    'the reworded Preflight sentence must name --target as the other half of the stricter-of reading')
+})
+
+// (20) NEW-present on the SURVIVING stop rule. Absence locks cannot catch an over-rewrite that
+//      deletes it, and the plan requires the rule (`ok` ⇒ report "nothing to tighten" and stop, no
+//      later step runs) to survive semantically unchanged. Whitespace-tolerant: the rule wraps.
+test('doc-contract: the Preflight stop rule survives (verdict ok ⇒ nothing to tighten, stop)', () => {
+  assert.match(skill, /`verdict: "ok"`[\s\S]{0,80}means report\s+"nothing to tighten" and stop; no later step runs/,
+    'the stop RULE must survive the target-aware rewording: verdict "ok" ⇒ report "nothing to tighten" and stop, no later step runs')
+})
+
+// (21) NEW-present, FENCE-SCOPED: the live preflight invocation itself threads an operator-supplied
+//      target. Scoped to the step-1 ```bash fence, never the surrounding region — the region
+//      already mentions `--target` in the parenthetical below the fence and would pass unfixed.
+test('doc-contract: the step-1 tighten-plan invocation threads an operator-supplied --target', () => {
+  const fence = bashFenceWith(skill, 'tighten-plan')
+  assert.match(fence, /tighten-plan[^\n]*--target/,
+    'the fenced tighten-plan command must carry the operator-supplied --target (omitted when none is supplied) — otherwise the live preflight always binds at the default 17,000 B')
 })

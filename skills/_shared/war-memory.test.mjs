@@ -930,18 +930,44 @@ test('cap: a long summary row ends "… [tier] [repo] |" with the markers INTACT
 });
 
 // ============================================================================
-// (Task 1.1 / red-team adjudication) effectiveDate = newest ISO date among the
-// four frontmatter date keys AND any 20\d\d-\d\d-\d\d in phase/description prose;
-// null when nothing parses (undated ⇒ PROTECTED). lessonRecord surfaces it.
+// (Task 1.1 / red-team adjudication) effectiveDate = newest VALID, non-future
+// ISO date among the four frontmatter date keys AND any 20\d\d-\d\d-\d\d in
+// phase/description prose; null when no token survives validation
+// (undated ⇒ PROTECTED). lessonRecord surfaces it.
 // ============================================================================
 
-test('effectiveDate: newest stamp across frontmatter keys + prose; null when none parse', () => {
+test('effectiveDate: newest VALID stamp across frontmatter keys + prose; null when no token survives', () => {
   assert.equal(effectiveDate(['2026-01-01', '2026-07-15', null, '', '', '']), '2026-07-15'); // newest key wins
   // a prose recurrence stamp (phase) is newer than any frontmatter key → it wins
   assert.equal(effectiveDate(['2026-01-01', null, null, null, 'housekeeping-2026-06-30 +2 recurrences 2026-07-19', '']), '2026-07-19');
   // a prose date in the description is honoured
   assert.equal(effectiveDate([null, null, null, null, '', 'fixed 2026-05-05 in prose']), '2026-05-05');
   assert.equal(effectiveDate([null, '', 'no date anywhere', undefined]), null); // undated ⇒ null
+});
+
+// Validation (#989): a matched token survives only if it round-trips through the engine's UTC
+// ISO parse AND does not post-date now + FUTURE_SKEW_MS (48 h). `now` is injected so the future
+// bound is deterministic; the constant itself stays module-private (the boundary is asserted here).
+const SKEW_NOW = new Date('2026-07-21T00:00:00Z'); // ⇒ horizon 2026-07-23T00:00:00Z (+48 h)
+
+test('effectiveDate: a well-formed-but-invalid token is discarded; an older VALID token wins', () => {
+  // reds pre-fix: the lexicographic max picked 2026-13-45, which no calendar has
+  assert.equal(effectiveDate(['2026-01-01', 'note 2026-13-45']), '2026-01-01');
+  // every token invalid ⇒ null ⇒ the caller's undated-PROTECTED path (fail-safe direction)
+  assert.equal(effectiveDate([null, null, null, null, '', 'both 2026-12-00 and 2026-00-10 are bogus']), null);
+});
+
+test('effectiveDate: a future token is discarded under injected now; only-future ⇒ null', () => {
+  // the #989 shape: a stray 2099 stamp in prose no longer beats the real frontmatter date
+  assert.equal(
+    effectiveDate(['2026-01-01', null, null, null, '', 'ship by 2099-01-01'], { now: SKEW_NOW }),
+    '2026-01-01'
+  );
+  assert.equal(effectiveDate([null, null, null, null, '', 'ship by 2099-01-01'], { now: SKEW_NOW }), null);
+  // skew boundary, both sides: within FUTURE_SKEW_MS is kept (inclusive at exactly +48 h), beyond is dropped
+  assert.equal(effectiveDate(['2026-07-22'], { now: SKEW_NOW }), '2026-07-22'); // +24 h ⇒ kept
+  assert.equal(effectiveDate(['2026-07-23'], { now: SKEW_NOW }), '2026-07-23'); // exactly +48 h ⇒ kept
+  assert.equal(effectiveDate(['2026-07-24'], { now: SKEW_NOW }), null); // +72 h ⇒ beyond the skew
 });
 
 test('lessonRecord: surfaces effectiveDate from frontmatter date keys and prose', () => {
@@ -1006,7 +1032,7 @@ test('floor: a lesson within TIGHTEN_YOUNG_DAYS is never eligible; older is elig
   assert.ok(elig.includes('old-enough'));
 });
 
-test('floor: an UNDATED lesson (no parseable date anywhere) is PROTECTED (treated as within-window)', () => {
+test('floor: an UNDATED lesson (no surviving date token anywhere) is PROTECTED (treated as within-window)', () => {
   const recs = [rec('undated', { effectiveDate: null }), rec('dated-old', { effectiveDate: '2026-01-01' })];
   const elig = evictedSlugs(recs);
   assert.ok(!elig.includes('undated'), 'undated ⇒ protected'); // reds if undated fell through as eligible
@@ -1026,6 +1052,28 @@ test('floor: a prose-only recurrence date is honoured both ways (old ⇒ eligibl
   const elig = evictedSlugs([oldProse, recentProse]);
   assert.ok(elig.includes('op'), 'old prose date ⇒ eligible (date honoured, not treated as undated)');
   assert.ok(!elig.includes('rp'), 'recent prose date ⇒ floored young (recurrence stamp read)');
+});
+
+test('#989 end-to-end: a stray FUTURE prose stamp no longer protects an old lesson from eviction', () => {
+  // lessonRecord builds with the wall-clock default `now` (2099-01-01 is future against any real
+  // clock); tightenPlan gets the injected NOW. Pre-fix the 2099 token won the lexicographic max,
+  // so the lesson read as permanently young and never appeared in `eligible`.
+  const stray = lessonRecord(
+    parseFrontmatter([
+      '---',
+      'name: sf',
+      'description: "rollout note citing 2099-01-01 that used to protect this row forever"',
+      'metadata:',
+      '  slug: sf',
+      '  provenance: code-verified',
+      '  created: 2026-01-01',
+      '---',
+      'b',
+    ].join('\n')),
+    { root: 'local', temperature: 'hot', slug: 'sf', file: 'sf.md' }
+  );
+  assert.equal(stray.effectiveDate, '2026-01-01', 'future token discarded; the real created stamp governs');
+  assert.ok(evictedSlugs([stray]).includes('sf'), '#989: eligible for eviction, not permanently protected');
 });
 
 // ============================================================================
@@ -1115,6 +1163,36 @@ test('cut line: eligible cumulative freed drives cutIndex to target − slack; a
     assert.equal(plan.shortfallBytes, plan.cutGoalBytes - struck);
   }
   assert.equal(plan.projectedBytes, plan.currentBytes - struck);
+});
+
+// ============================================================================
+// (Task 1.1 / #992) tightenPlan's returned `verdict` is the STRICTER of the advisory
+// projection read and the effective `--target`. buildProjection is byte-untouched, so
+// the render-verdict tests above (which read ITS verdict) stay green unchanged.
+// ============================================================================
+
+test('verdict (#992): a sub-advisory --target binds the trigger; the default target is byte-identical to the projection read', () => {
+  const recs = [rec('a'), rec('b')]; // tiny corpus ⇒ the projection itself renders `ok`
+  assert.equal(buildProjection(recs).verdict, 'ok', 'fixture must render ok for this test to mean anything');
+  const { currentBytes } = tightenPlan(recs, { now: NOW });
+  // default target = WARN_BYTES ⇒ unchanged from the projection verdict (the byte-identical default path)
+  assert.equal(tightenPlan(recs, { now: NOW }).verdict, 'ok');
+  // a target BELOW currentBytes now binds — reds pre-fix, where the projection verdict passed straight through
+  assert.equal(tightenPlan(recs, { now: NOW, target: Math.floor(currentBytes / 2) }).verdict, 'warn');
+  // the `>=` boundary, both sides
+  assert.equal(tightenPlan(recs, { now: NOW, target: currentBytes }).verdict, 'warn');
+  assert.equal(tightenPlan(recs, { now: NOW, target: currentBytes + 1 }).verdict, 'ok');
+});
+
+test('verdict (#992): a target ABOVE the advisory never suppresses the projection warn', () => {
+  const recs = [];
+  for (let i = 0; i < 170; i++) {
+    recs.push(rec(`bulk-${String(i).padStart(3, '0')}`, { description: 'x'.repeat(80), effectiveDate: '2026-01-01' }));
+  }
+  const { verdict: projection, bytes } = buildProjection(recs);
+  assert.equal(projection, 'warn', `fixture must render warn, got ${projection} at ${bytes}B`);
+  // the advisory line is a floor: a loose target cannot silence it (D7 — the two surfaces never fork)
+  assert.equal(tightenPlan(recs, { now: NOW, target: HARD_BYTES }).verdict, 'warn');
 });
 
 // ============================================================================

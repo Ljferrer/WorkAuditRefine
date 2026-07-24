@@ -6,7 +6,7 @@ metadata:
   type: project
   provenance: code-verified
   slug: servitor-verify-on-write-worktree-can-lag-just-landed-phase
-  phase: guard-floor-and-scope-hook-coverage-completeness/servitor-wrapup +12 recurrences (latest auditor-guard-ergonomics/phase-1 tasks 1.1-1.2 wrap-up, 2026-07-22)
+  phase: guard-floor-and-scope-hook-coverage-completeness/servitor-wrapup +16 recurrences (latest war-memory-hardening/phase-2 Release wrap-up, 2026-07-23) — MECHANIZED at phase servitor-wrapup-landed-tip (2026-07-22)
   promoted: dev/2026-07-16-campaign-anchor-comment-truth@phase-1
   tags:
     - servitor
@@ -15,8 +15,15 @@ metadata:
     - verification
     - process
   created: 2026-07-10
-  updated: 2026-07-19
+  updated: 2026-07-23
   keywords:
+    - landed tip anchor
+    - Landed tip prompt line
+    - landedTipAnchor
+    - grounding ladder
+    - tipSha hoist
+    - ADR 0034
+    - premise retired
     - stale worktree
     - D3 verify-on-write
     - servitor cwd
@@ -50,11 +57,57 @@ metadata:
     - Glob wildcard file suffix required
     - false negative live worktree enumeration
     - HEAD suffix glob pattern
+    - nested task worktree under session worktree
+    - war/wt path convention
+    - task worktree naming scheme drift
+    - release phase version bump confirmed via task worktree
+    - p3-3.1
+    - cross-phase fix persistence
+    - trailing release phase wrap-up
+    - test orchestration harness gap not phase-specific
+    - p2-2.13
+    - p2-2.16
+    - _refinery6
+    - persistent worktree fixture
+    - cross-campaign recurrence
+    - long-lived session worktree
+    - war-memory-hardening
   originSessionId: 8c039a7f-0c62-47a8-85f9-10099b5a6caf
-  modified: 2026-07-22T21:57:50.292Z
+  modified: 2026-07-23T17:30:45.944Z
 ---
 
 # A servitor's own worktree checkout can lag the phase it is wrapping up
+
+## MECHANIZED (phase `servitor-wrapup-landed-tip`, landed 2026-07-22) — read this first
+
+The engine now threads the fix this lesson's 13 prior recurrences argued for. Confirmed
+`code-verified` at the true landed tip (via the `.claude/war/wt/2026-07-22-servitor-wrapup-landed-tip-2026-07-22/_refinery/`
+worktree — this servitor's own cwd was ITSELF stale for this exact wrap-up; see Recurrence 14
+below):
+
+- `skills/war/assets/workflow-template.js` (~line 1914 area, comment `LANDED-TIP ANCHOR (hoisted;
+  spec D1)`) hoists the `tipSha` computation that used to live only inside the handoff block to
+  run BEFORE the Wrap-up dispatch, then derives `landedTipAnchor = tipSha || 'landed tip
+  unrecorded — ground via the gate-audit auditSha entries in your audit-log input'` — a named
+  placeholder pre-resolved before interpolation so the `pt` tag's undefined-guard can never fire
+  (ADR 0034). `handoff.tipSha` itself is byte-identical to the pre-hoist value (moved verbatim).
+- The Wrap-up prompt now carries a `Landed tip: ${landedTipAnchor} on ${ph.workingBranch} (plan
+  slug: ...)` line plus a "LANDED-TIP GROUNDING" clause (a compact four-step ladder: cwd preflight
+  → `gitdir`-matched worktree lookup → ref-check dead-end → gate-audit fallback — i.e. this
+  lesson's own Recurrences 4/5/8/9/12/13 techniques, now handed to the servitor up front instead of
+  rediscovered per-phase).
+- `agents/war-servitor.md`'s Inputs bullet mirrors the same anchor + ladder (both surfaces landed
+  in the same task per the standing-instruction/dispatched-prompt coverage-split discipline — see
+  [[standing-instruction-vs-dispatched-prompt-coverage-split]]).
+- The premise this lesson exists to correct ("your working tree IS the committed tip") is retired
+  at both surfaces — neither asserts it in any form anymore.
+
+**Practical upshot for future D3 checks:** before running the Recurrence 4/5/12/13 worktree-hunt
+technique below, first check whether the spawn prompt itself already carries a `Landed tip:` line
+— when present, that IS the grounding, no worktree hunt needed. The worktree-hunt techniques
+documented in Recurrences 1–13 remain the fallback for any invocation whose prompt lacks the
+anchor (a null/unrecorded tip resolves to the named placeholder, which itself directs the
+gate-audit-`auditSha` fallback).
 
 **What happened (code-verified — directly confirmed by Read/Grep against this session's cwd,
 a session worktree under `<repo-root>/.claude/worktrees/`):** while running D3
@@ -355,16 +408,157 @@ Related: same family as Recurrences 4-7 (task/`_refinery` worktree lookup via `g
 the added precondition that the servitor's own cwd being a linked worktree (rather than main
 checkout) does not exempt it from the lag hazard, and the Glob-pattern gotcha above.
 
-**Mechanized (#990, 2026-07-22):** the four-step ladder these recurrences distilled by hand each time
-(cwd preflight → `gitdir`-matched worktree lookup → ref-check dead-end → gate-audit fallback) is now
-standing guidance on both wrap-up prompt surfaces — `agents/war-servitor.md`'s landed-tip grounding
-subsection and the dispatched Wrap-up prompt in `skills/war/assets/workflow-template.js` — instead of
-something each servitor had to reconstruct from this lesson at read time. The engine also threads a
-`Landed tip:` line into the Wrap-up dispatch itself (the handoff block's existing `tipSha`
-computation, hoisted so it's populated on every landed dispatch), giving step 1's preflight a known
-target to compare against rather than only the spawn prompt's working-branch name. This is a
-mechanization of the recurring workaround, not a resolution of the underlying hazard: the servitor's
-threaded cwd can still lag the phase it is wrapping up, obedience to the ladder is still
-prompt-enforced (ADR 0029, amended 2026-07-22), and a future wrap-up can still hit a topology none of
-the recurrences above anticipated. The recurrence history above stays the canonical long-form record
-of *why* the ladder has the shape it does — this note does not retire it.
+## Recurrence 13 (2026-07-22, phase "Release" / lessons-learned-seed task 3.1 wrap-up) — task worktree nested INSIDE the servitor's own session worktree, plus a `.claude/war/wt/` naming-scheme instance
+
+Thirteenth occurrence. Spawn prompt named the landed branch as
+`dev/2026-07-22-lessons-learned-seed`; the servitor's threaded cwd
+(`<repo-root>/.claude/worktrees/sharp-perlman-39f070`, itself a linked worktree per Recurrence
+12) was on an unrelated branch (`claude/2026-campaign-lessons-learned-020ff0`). Reading
+`.claude-plugin/plugin.json`/`marketplace.json`/`README.md ## Status` at that cwd showed
+`0.14.48` in every slot with release-notes prose describing a **different, earlier** feature
+(`/lessons-learned tighten`) — not the seed-corpus notes task 3.1's plan slice specified, and
+not even the plan's stated pre-bump base. Per Recurrence 8's rule, this was flagged as
+stale-checkout lag, not a plan/code mismatch.
+
+Applying the Recurrence 4/5/12 technique (`Glob '.git/worktrees/*/gitdir'` and `*/HEAD`)
+surfaced `<repo-root>/.git/worktrees/p3-3.1`, whose `gitdir` resolved to:
+`<repo-root>/.claude/worktrees/sharp-perlman-39f070/.claude/war/wt/2026-07-22-lessons-learned-seed-2026-07-22/p3-3.1/.git`
+— **nested inside the servitor's own session-worktree directory tree**, not a sibling under
+`<repo-root>/.claude/war-worktrees/` (Recurrences 4-7's convention) or a bare
+`.claude/war/wt/<plan-slug>-<date>/` off the repo root (Recurrence 12's convention at a
+different session). Reading the four version slots at that nested path confirmed `0.14.49` with
+the correct seed-corpus release-notes text verbatim matching the plan's task 3.1 slice —
+`code-verified`, while the servitor's own cwd still showed the stale `0.14.48`/tighten-notes
+pair.
+
+**New wrinkle (extends Recurrence 12's naming-scheme note):** the task worktree's physical path
+is not reliably a sibling of `<repo-root>` — it can be nested several levels inside the
+servitor's own session worktree (`<session-worktree>/.claude/war/wt/<plan-slug>-<date>/<task-id>/`).
+Never assume the task-worktree search is scoped to paths directly under `<repo-root>`; the
+`Glob '.git/worktrees/*/gitdir'` sweep (Recurrence 4/5/12 technique) still finds it regardless of
+nesting depth because `gitdir` always holds the full absolute path — read that value rather than
+guessing a path shape from prior recurrences' examples.
+
+Related (Recurrence 13): [[release-bump-slots-canonical-no-badge]] — the version-slot fact
+Recurrence 13 confirmed `code-verified` (0.14.48→0.14.49) using the nested task-worktree
+technique above; same related set as the "## Related" section earlier in this file otherwise.
+
+## Recurrence 14 (2026-07-22, phase "Thread the anchor + retire the premise" /
+`servitor-wrapup-landed-tip` task 1.1-1.2 wrap-up) — the mechanized fix landed, but THIS wrap-up's
+own spawn prompt still lacked the new anchor, and the old worktree-hunt technique was still needed
+
+Fourteenth occurrence, and a genuinely reflexive one: this is the wrap-up for the very phase that
+mechanizes this lesson's mitigation (see the "MECHANIZED" section at the top of this file). The
+servitor's threaded cwd (`<repo-root>/.claude/worktrees/war-campaign-resilience-roadmap-33290f`)
+was — again — the EXACT same worktree Recurrence 12 already flagged as stale, still on branch
+`claude/war-campaign-resilience-roadmap-33290f`, not the landed branch
+(`dev/2026-07-22-servitor-wrapup-landed-tip`). Its copy of `skills/war/assets/workflow-template.js`
+showed the OLD, pre-hoist code (no `landedTipAnchor`, no `Landed tip:` prompt line, `tipSha`
+computed only inline inside the handoff block) — an outcome consistent with staleness, not with
+the phase's fix having failed to land.
+
+**This wrap-up's own spawn prompt did not include a `Landed tip:` line** despite the fix being
+confirmed live at the true tip moments later — most likely because this particular invocation runs
+through a test/orchestration harness around the servitor rather than the production Lead-side
+`agent()` dispatch in `workflow-template.js` (the spawn-prompt shape it received matches the
+pre-hoist template almost verbatim). Applying the Recurrence 4/5/12/13 `gitdir`-sweep technique
+(`Glob '.git/worktrees/*/gitdir'`) surfaced `p1-1.13`, `p1-1.23`, and `_refinery3`, all resolving to
+`<repo-root>/.claude/war/wt/2026-07-22-servitor-wrapup-landed-tip-2026-07-22/...` — reading
+`skills/war/assets/workflow-template.js` and `agents/war-servitor.md` at that `_refinery3` path
+confirmed the hoisted `tipSha`/`landedTipAnchor` computation, the `Landed tip:` prompt line, and
+the mirrored Inputs-bullet anchor on the card, all `code-verified`.
+
+**Rule (extends the "Practical upshot" note above):** the presence of a `Landed tip:` line in the
+spawn prompt is now the FIRST-CLASS signal for whether grounding is already handled — but its
+*absence* is not proof the fix didn't land (it may mean this particular servitor invocation isn't
+routed through the production dispatch path). On absence, fall straight back to the Recurrence
+4/5/12/13 `gitdir`-sweep technique exactly as before; the mechanized fix changes the common case,
+not the fallback.
+
+**Aside, unrelated to the worktree hazard:** this same phase's ADR 0029 amendment cites "11
+recurrences (2026-07-10 → 2026-07-19)" — a figure that is explicitly window-bounded and correct
+for that window — while this file's own frontmatter `phase` field independently ran ahead to "+13"
+and now "+14" recurrences by the time of later wrap-ups (including a same-day sibling campaign's
+increment). **Don't read a lower plan-cited count against a higher live frontmatter count as a
+contradiction to reconcile** when the plan's citation names an explicit evidence window — the two
+are different measurements (a point-in-time citation vs. an ever-growing running total) and the
+plan-directed number should not be "corrected" to match.
+
+Related: same family as Recurrences 4-7/12/13 (task/`_refinery` worktree lookup via `gitdir`).
+
+## Recurrence 15 (2026-07-22, phase "Release" / `servitor-wrapup-landed-tip` task 2.1 wrap-up) —
+same session, trailing phase of the mechanizing plan: fix persists cross-phase, harness gap is
+session-wide not phase-specific
+
+Fifteenth occurrence, and a direct sequel to Recurrence 14 within the same session. This wrap-up is
+for task 2.1 (the trailing Release phase) of the very plan (`servitor-wrapup-landed-tip`) whose
+phase 1 mechanized this lesson's own mitigation. Two findings, both confirmatory rather than novel:
+
+1. **This wrap-up's spawn prompt again lacked a `Landed tip:` line** — same as Recurrence 14, but
+   now one phase later in the same plan/session. This rules out "only the mechanizing phase's own
+   wrap-up misses the anchor" as the harness gap's scope: the gap is session/harness-wide (this
+   servitor invocation path, whatever it is, never threads the anchor), not specific to being the
+   phase that introduces the fix.
+2. **The servitor's own cwd (`<repo-root>/.claude/worktrees/war-campaign-resilience-roadmap-33290f`,
+   confirmed via its `.git` gitlink) was — again — the exact same stale worktree flagged in
+   Recurrences 12 and 14**, still on the unrelated branch `claude/war-campaign-resilience-roadmap-33290f`,
+   with neither `landedTipAnchor` nor `Landed tip:` present in its copy of
+   `skills/war/assets/workflow-template.js` or `agents/war-servitor.md`. Applying the Recurrence
+   4/5/12/13 `gitdir`-sweep (`Glob '.git/worktrees/*/gitdir'`) surfaced `p2-2.13` and `_refinery3`,
+   both resolving to `<repo-root>/.claude/war/wt/2026-07-22-servitor-wrapup-landed-tip-2026-07-22/`.
+   Reading `.claude-plugin/plugin.json` at the `_refinery` worktree there confirmed `version:
+   "0.14.51"` (matching the phase's own gate-audit finding, `auditSha: 962ee59`) — `code-verified` —
+   AND confirmed the phase-1 mechanization (`landedTipAnchor`, the `Landed tip:` prompt line at
+   `workflow-template.js` line ~1942) is still live and unregressed one phase later, while this
+   servitor's own cwd showed neither.
+
+**Rule (extends Recurrence 14):** a mechanized fix confirmed live at one phase's true tip should be
+re-confirmed, not assumed persistent, at the next phase's wrap-up — but a stale session-worktree cwd
+recurring identically across multiple phases of the same plan is not independent evidence of
+anything new; it is the same standing hazard Recurrence 2 already established ("treat the signal as
+standing for the rest of the session"). Go straight to the `gitdir`-sweep technique rather than
+re-deriving the staleness diagnosis from scratch each phase.
+
+Related: same family as Recurrences 4-7/12/13/14 (task/`_refinery` worktree lookup via `gitdir`);
+[[release-bump-slots-canonical-no-badge]] — the version-slot fact (0.14.51) this recurrence
+`code-verified`-confirmed via the nested `_refinery` worktree.
+
+## Recurrence 16 (2026-07-23, phase "Release" / `war-memory-hardening` task 2.1 wrap-up) — the
+SAME literal worktree recurs a fourth time, now across a different campaign entirely
+
+Sixteenth occurrence. The servitor's threaded cwd
+(`<repo-root>/.claude/worktrees/war-campaign-resilience-roadmap-33290f`) was — for the fourth
+distinct wrap-up (Recurrences 12, 14, 15, now 16) — the exact same linked worktree, still on
+branch `claude/war-campaign-resilience-roadmap-33290f`. This time the landed phase belongs to a
+wholly different plan/campaign (`war-memory-hardening`, landed on
+`dev/2026-07-22-war-memory-hardening`) than any prior recurrence in this worktree, and the cwd's
+own `.claude-plugin/plugin.json` still read `0.14.48` — behind even this campaign's own pre-bump
+base. **New confirmation:** this specific session worktree is not a per-plan or per-session
+fixture that gets torn down and re-provisioned — it persists as a standing environment across at
+least four unrelated phase wrap-ups spanning multiple different campaigns/plans. Treat "cwd is
+this exact worktree" as an immediate, zero-cost trigger to skip straight to the `gitdir`-sweep
+fallback, without spending a round re-diagnosing staleness from scratch.
+
+This wrap-up's spawn prompt again lacked a `Landed tip:` line (as Recurrences 14/15), now
+confirmed across a *different* campaign than the one that introduced the anchor mechanism —
+extending Recurrence 15's finding ("session/harness-wide, not phase-specific") to "harness-wide
+across campaigns," not merely across phases of one plan.
+
+Applying the Recurrence 4/5/12/13 `gitdir`-sweep (`Glob '.git/worktrees/*/gitdir'`) surfaced
+`p2-2.16` and `_refinery6`, both resolving to
+`<repo-root>/.claude/war/wt/2026-07-22-war-memory-hardening-2026-07-23/`. Reading
+`.claude-plugin/plugin.json` at the `_refinery6` worktree there confirmed `version: "0.14.54"` —
+matching the phase's own gate-audit finding exactly (`auditSha: da67aa1`, all four slots
+lock-step at `0.14.54`) — `code-verified`, while this servitor's own cwd still showed `0.14.48`.
+
+**Rule (extends Recurrence 15):** a specific named session worktree recurring identically across
+wrap-ups for *different, unrelated campaigns* (not just different phases of the same plan) is
+strong evidence the harness reuses one long-lived worktree across many separate `/war` launches
+rather than provisioning fresh per run. Once a worktree name has been flagged stale in this file
+once, assume it stays the servitor's cwd — and stays stale — for an indefinite number of future,
+unrelated wrap-ups; go straight to the `gitdir`-sweep on sight of that name rather than treating
+each recurrence as a fresh diagnosis.
+
+Related: same family as Recurrences 4-7/12/13/14/15 (task/`_refinery` worktree lookup via
+`gitdir`); [[release-bump-slots-canonical-no-badge]] — the version-slot fact (0.14.54) this
+recurrence `code-verified`-confirmed via the nested `_refinery6` worktree.

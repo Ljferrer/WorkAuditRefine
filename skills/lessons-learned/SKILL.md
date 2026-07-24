@@ -1,6 +1,6 @@
 ---
 name: lessons-learned
-description: Audit and tidy this project's Claude memory store (the MEMORY.md index plus its [[wikilinked]] topic files) — fan out agents to verify every memory against the live repo, classify stale vs durable, then compress / re-anchor / retire and rewrite the index, fault-tolerantly (backup → stage → verify → atomic swap). Always a full pass over the local repo's memory. Use when the user runs /lessons-learned, wants a memory housekeeping or "lessons learned" round, asks whether MEMORY.md is too large / stale / how full it is, or wants to prune, compress, or de-duplicate accumulated learnings. Invoked as /lessons-learned migrate, it instead runs the one-time two-root adoption playbook — retype untyped lessons, archive [RESOLVED] ones, and split committable project lessons into docs/learnings/ via a reviewed PR. Invoked as /lessons-learned evict, it undoes that migration — repo-root lessons return to the local root via a reviewed deletion PR, asking whether to also set commitLearnings: false. Invoked as /lessons-learned tighten, it runs the operator-gated projection-shrink pass — preflight the render-state (already under the advisory line means nothing to do), plan usage-scored evictions behind hard floors via the tighten-plan verb, gate every mutation behind one strike-list ask, execute local archives through the staged swap and any repo archives through a reviewed PR, then report before/after sizes with a loud shortfall block if the target is still missed.
+description: Audit and tidy this project's Claude memory store (the MEMORY.md index plus its [[wikilinked]] topic files) — fan out agents to verify every memory against the live repo, classify stale vs durable, then compress / re-anchor / retire and rewrite the index, fault-tolerantly (backup → stage → verify → atomic swap). Always a full pass over the local repo's memory. Use when the user runs /lessons-learned, wants a memory housekeeping or "lessons learned" round, asks whether MEMORY.md is too large / stale / how full it is, or wants to prune, compress, or de-duplicate accumulated learnings. Invoked as /lessons-learned migrate, it instead runs the one-time two-root adoption playbook — retype untyped lessons, archive [RESOLVED] ones, and split committable project lessons into docs/learnings/ via a reviewed PR. Invoked as /lessons-learned evict, it undoes that migration — repo-root lessons return to the local root via a reviewed deletion PR, asking whether to also set commitLearnings: false. Invoked as /lessons-learned tighten, it runs the operator-gated projection-shrink pass — preflight the render-state (already under the effective target — the advisory line, or a stricter --target — means nothing to do), plan usage-scored evictions behind hard floors via the tighten-plan verb, gate every mutation behind one strike-list ask, execute local archives through the staged swap and any repo archives through a reviewed PR, then report before/after sizes with a loud shortfall block if the target is still missed.
 ---
 
 # /lessons-learned — fault-tolerant memory housekeeping
@@ -52,18 +52,25 @@ time. Resolve `$MEM` per [Locate the memory store](#locate-the-memory-store) and
 way Phase 0 does (both defined further down this doc — this mode still runs before/instead of the
 numbered phases, it just borrows their variable names). Five steps, strict order:
 
-1. **Preflight** (read-only — nothing is staged or mutated yet):
+1. **Preflight** (read-only — nothing is staged or mutated yet). If the invocation named a target
+   (`/lessons-learned tighten --target <bytes>`, or a byte figure the operator gave in the ask), set
+   `$TIGHTEN_TARGET` to it; leave `$TIGHTEN_TARGET` unset when none was supplied, so the flag drops out
+   and the default run is unchanged (set `$TIGHTEN_TARGET` in the same shell invocation as the command
+   below, or substitute the literal figure — each command block runs in its own shell):
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/skills/_shared/war-memory.mjs" tighten-plan --local "$MEM" --repo "$REPO_ROOT"
+   node "${CLAUDE_PLUGIN_ROOT}/skills/_shared/war-memory.mjs" tighten-plan --local "$MEM" --repo "$REPO_ROOT" ${TIGHTEN_TARGET:+--target "$TIGHTEN_TARGET"}
    ```
 
-   (`--target` defaults to 17,000 = `WARN_BYTES`; pass `--target <bytes>` only for a different bound.)
-   Read the printed JSON's `verdict` field — `buildProjection`'s own read on the **current, live** corpus
-   (`ok` | `warn` | `refuse`). **`verdict: "ok"` — strictly under the advisory line — means report
+   (`--target` defaults to 17,000 = `WARN_BYTES`; a `--target <bytes>` below it binds the pass at that
+   figure — the flag sets the cut goal **and** whether the pass triggers at all.)
+   Read the printed JSON's `verdict` field — the **effective** read on the **current, live** corpus: the
+   stricter of the advisory projection verdict and the `--target` bound (`ok` | `warn` | `refuse`).
+   **`verdict: "ok"` — strictly under the effective target — means report
    "nothing to tighten" and stop; no later step runs.** Anything else (`warn` or `refuse`) proceeds —
-   this is exactly the render WARN's own trigger (`bytes >= WARN_BYTES`), never a `≤ target` reading (the
-   two diverge at exactly 17,000 B, where render already warns).
+   the verdict is the stricter of the advisory line (`bytes >= WARN_BYTES`) and the effective `--target`,
+   so a `--target` below 17,000 B makes the preflight bind at that target, while a looser one never
+   suppresses the advisory `warn`.
 
 2. **Plan.** Reuse that same JSON — `tighten-plan` is the corpus authority; **never re-derive hits,
    floors, or ranking by hand.** Its `eligible` array is the ranked mutation set (ascending `hits`, ties
@@ -143,7 +150,8 @@ Create a todo per phase. Do them in order. Report after each.
 - Count topic files, total disk, and `MEMORY.md` size (`wc -l -c`).
 - Budget (from `consolidate-memory`): `MEMORY.md` should stay **< 200 lines and ~25 KB** (the hard cap;
   render refuses above it). The **advisory line** sits well under that, at `WARN_BYTES` = 17,000 B —
-  `buildProjection`'s `warn` verdict, and the trigger for the `tighten` mode below. Compute **% full** on
+  `buildProjection`'s `warn` verdict, and the **default** trigger for the `tighten` mode below (a
+  stricter `--target` moves that mode's own trigger down). Compute **% full** on
   both axes; the byte axis usually binds.
 - Gather the live-repo baseline the verifiers need: current version (`plugin.json`), top-level layout, recent merges (`git log --oneline --merges`), and where the code under audit actually lives.
 - **Detect the repo root** — `docs/learnings/` in the audited repo (or the configured `overrides.learningsTarget`); call it `$REPO_ROOT`. Count its topic files too and report that count alongside the local inventory. When `$REPO_ROOT` exists and is **non-empty** and the local `MEMORY.md` **lacks any `[repo]`-marked rows** (a fresh clone that never adopted the repo lessons), run the **Setup seed render** — the same idempotent seed WAR Setup runs (Task 2, identical flag set; only the `<local>` path is environment-specific) — so the projection reflects the repo lessons before you inventory staleness, and **say so in the Phase 0 report**. This seed is the **sole** live-dir write in Phase 0 and is safe to run before the Phase 1 backup: it only reprojects the index from existing files (never touches a topic file), and, like the Phase 5 render, it regenerates `MEMORY.md` atomically (`.tmp` + rename) and idempotently.
