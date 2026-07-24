@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync, writeFileSync, mkdtempSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdtempSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, isAbsolute } from 'node:path'
@@ -154,4 +154,25 @@ test('(g) --force overwrites a pre-existing different-content staged file with a
   const staged = readFileSync(stagedPath, 'utf8')
   assert.ok(staged.includes(`name: '${deriveName('slug', '1')}'`), 'stale bytes replaced by a fresh substitution')
   assert.ok(!staged.includes('stale bytes'), 'stale bytes gone')
+})
+
+// (guard) Symlink-invocation regression: running the CLI through a symlink must still fire main()
+// (fail loud), never silently exit 0. RED against the pre-normalization guard
+// (`fileURLToPath(import.meta.url) === process.argv[1]`): the loader realpaths the main module, but
+// argv[1] keeps the symlink path, so bare-equality is false and main() never runs. The realpathSync
+// idiom canonicalizes both sides so the guard fires. (Relative invocation is non-discriminating on
+// Node >= 24 — argv[1] arrives pre-resolved — so the symlink is the trigger that goes RED.)
+test('(guard) symlinked invocation still runs main() — usage on stderr, non-zero exit', () => {
+  const link = join(scratch('stage-symlink-'), 'link.mjs')
+  symlinkSync(STAGER, link)
+  let status, stderr
+  try {
+    execFileSync(process.execPath, [link], { encoding: 'utf8' })
+    status = 0
+  } catch (err) {
+    status = err.status
+    stderr = err.stderr || ''
+  }
+  assert.notEqual(status, 0, 'symlinked invocation must exit non-zero (main ran and hit the missing-arg path)')
+  assert.match(stderr, /usage: node stage-workflow\.mjs/, `usage line must reach stderr; got: ${stderr}`)
 })

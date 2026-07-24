@@ -1095,3 +1095,25 @@ test('no external ecc:/strategic-compact invocation anywhere under skills/war-ca
   assert.equal(hits.length, 1, `expected exactly one bundled-routine mention, got: ${JSON.stringify(hits, null, 2)}`)
   assert.match(hits[0].text, /bundled/i)
 })
+
+// (guard) Symlink-invocation regression: running the CLI through a symlink must still fire main()
+// (fail loud), never silently exit 0. RED against the pre-normalization concat guard
+// (`import.meta.url === `file://${process.argv[1]}``): the loader realpaths the main module but
+// argv[1] keeps the symlink, so the compare is false and main() never runs. The `cli` helper pins
+// the real CLI path, so spawn the symlink directly; execFileSync throws on the exit-1 default
+// (usage on stderr). Node >= 24 pre-resolves argv[1] for relative invocation, so the symlink is
+// the trigger that goes RED — a relative-invocation test is vacuous.
+test('CLI symlinked invocation still runs main() — usage on stderr, non-zero exit', () => {
+  const link = path.join(tmpDir(), 'link.mjs')
+  fs.symlinkSync(CLI, link)
+  let status, stderr
+  try {
+    execFileSync(process.execPath, [link], { encoding: 'utf8' })
+    status = 0
+  } catch (err) {
+    status = err.status
+    stderr = err.stderr || ''
+  }
+  assert.notEqual(status, 0, 'symlinked invocation must exit non-zero (default usage path)')
+  assert.match(stderr, /usage: campaign-ledger\.mjs/, `usage line must reach stderr; got: ${stderr}`)
+})

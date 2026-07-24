@@ -6,8 +6,8 @@ metadata:
   type: project
   provenance: code-verified
   slug: servitor-verify-on-write-worktree-can-lag-just-landed-phase
-  phase: guard-floor-and-scope-hook-coverage-completeness/servitor-wrapup +18 recurrences (latest aftermath-class1-postdelete-verify/phase-2 Release wrap-up, 2026-07-23) — MECHANIZED at phase servitor-wrapup-landed-tip (2026-07-22)
-  promoted: dev/2026-07-22-aftermath-class1-postdelete-verify@phase-1
+  phase: guard-floor-and-scope-hook-coverage-completeness/servitor-wrapup +19 recurrences (latest cli-main-guard-normalization/phase-1 tasks 1.1-1.2 wrap-up, 2026-07-23) — MECHANIZED at phase servitor-wrapup-landed-tip (2026-07-22)
+  promoted: dev/2026-07-22-cli-main-guard-normalization@phase-1
   tags:
     - servitor
     - memory-protocol
@@ -76,8 +76,10 @@ metadata:
     - cross-campaign recurrence
     - long-lived session worktree
     - war-memory-hardening
+    - cli-main-guard-normalization
+    - realpathSync gitdir sweep
   originSessionId: 8c039a7f-0c62-47a8-85f9-10099b5a6caf
-  modified: 2026-07-23T19:10:51.620Z
+  modified: 2026-07-23T20:42:04.754Z
 ---
 
 # A servitor's own worktree checkout can lag the phase it is wrapping up
@@ -633,3 +635,37 @@ site for both the trailing phase's own change AND a persistence check on earlier
 Related: same family as Recurrences 4-7/12/13/14/15/16/17 (task/`_refinery` worktree lookup via
 `gitdir`); [[release-bump-slots-canonical-no-badge]] — the version-slot fact (0.14.55) this
 recurrence `code-verified`-confirmed via the `p2-2.17` task worktree.
+
+## Recurrence 19 (2026-07-23, phase "Guard convergence + lesson correction" /
+`cli-main-guard-normalization` tasks 1.1-1.2 wrap-up) — SAME recurring worktree, seventh time,
+gitdir-sweep resolved a numbered `_refinery8`
+
+Nineteenth occurrence. The servitor's threaded cwd
+(`<repo-root>/.claude/worktrees/war-campaign-resilience-roadmap-33290f`) was — for the **seventh**
+distinct wrap-up (Recurrences 12, 14, 15, 16, 17, 18, now 19) — the exact same linked worktree,
+still on branch `claude/war-campaign-resilience-roadmap-33290f`. Its copies of
+`skills/war/assets/war-config.mjs`, `skills/war/assets/stage-workflow.mjs`, and
+`skills/war-campaign/assets/campaign-ledger.mjs` all still read the pre-fix bare-equality guard
+(`fileURLToPath(import.meta.url) === process.argv[1]`, no `realpathSync`) — consistent with
+staleness, not with the phase's fix having failed to land.
+
+Applying the Recurrence 4/5/12/13 `gitdir`-sweep (`Glob '.git/worktrees/*/gitdir'` from
+`<repo-root>`, grepped for the plan slug) surfaced `p1-1.18`/`p1-1.28`/`_refinery8`, all resolving
+to `<repo-root>/.claude/war/wt/2026-07-22-cli-main-guard-normalization-2026-07-23/`. Reading the
+three guard files plus `docs/learnings/cli-main-guard-equality-check-silently-noops-under-relative-invocation.md`
+at the `_refinery8` worktree confirmed all of the phase's landed content present — the
+`realpathSync`-normalized guard at all three sites (named-import bare form in `war-config.mjs`,
+qualified `fs.realpathSync` form in the other two, per the plan's per-file directive — see
+[[byte-convergence-plan-can-mandate-per-file-import-style-variant]]) and the origin lesson's
+`RESOLVED (` description plus mechanism-correction body — all `code-verified`, while this
+servitor's own cwd still showed none of it.
+
+**Rule (extends Recurrence 18):** the numbered `_refinery` suffix keeps climbing (now `_refinery8`)
+as more unrelated phases land through this same harness session — always re-run the `gitdir`-sweep
+fresh per wrap-up rather than guessing the next suffix from the last-seen number; `gitdir`'s
+absolute path is the only reliable signal, and grepping its physical-path segment for the phase's
+own plan slug (from the spawn prompt) is the fastest way to pick the right entry out of 50+
+worktree registrations.
+
+Related: same family as Recurrences 4-7/12/13/14/15/16/17/18 (task/`_refinery` worktree lookup via
+`gitdir`).

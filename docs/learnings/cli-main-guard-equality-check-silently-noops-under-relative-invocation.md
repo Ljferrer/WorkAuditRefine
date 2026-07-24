@@ -1,12 +1,13 @@
 ---
 name: cli-main-guard-equality-check-silently-noops-under-relative-invocation
-description: "fileURLToPath(import.meta.url) === process.argv[1] compares absolute vs as-given — a relative CLI invocation makes main() silently never run (exit 0)"
+description: "RESOLVED (realpathSync normalization + symlink-invocation regression tests, 2026-07-23): all three run-as-CLI guards now realpath before comparing; the real trigger was symlink invocation, not relative paths"
 metadata: 
   node_type: memory
   type: project
   provenance: code-verified
+  promoted: dev/2026-07-22-cli-main-guard-normalization@phase-2
   slug: cli-main-guard-equality-check-silently-noops-under-relative-invocation
-  phase: "land-failure-recovery/phase-1 task 1.1 (landed dev/2026-07-16-land-failure-recovery; audit finding, disposition note)"
+  phase: "land-failure-recovery/phase-1 task 1.1 (landed dev/2026-07-16-land-failure-recovery; audit finding, disposition note) +1 recurrence (war-campaign-resilience-roadmap phase-2 'Release' task 2.1, 2026-07-23 — local copy synced to repo's already-landed RESOLVED text from cli-main-guard-normalization/phase-1 task 1.1)"
   keywords: 
     - fileURLToPath import.meta.url
     - "process.argv[1]"
@@ -15,6 +16,9 @@ metadata:
     - relative invocation silent no-op
     - ESM entry point check
     - path.resolve argv
+    - symlink invocation
+    - realpathSync
+    - percent-encodable path
   tags: 
     - node
     - cli
@@ -22,6 +26,7 @@ metadata:
     - fail-loud
   created: 2026-07-16
   originSessionId: 655475be-a01b-4702-b846-b2c53bbde3d3
+  modified: 2026-07-23T21:23:49.408Z
 ---
 
 # `fileURLToPath(import.meta.url) === process.argv[1]` silently no-ops under a relative CLI invocation
@@ -54,6 +59,42 @@ still resolves to the same absolute path and correctly triggers `main()`.
 successor), and it is commonly copy-pasted **without** the `path.resolve` normalization. Any new
 Node CLI script in this codebase that uses the bare-equality form inherits the same silent-no-op
 footgun under relative invocation — worth a quick check whenever adding one.
+
+*(The four paragraphs above are the lesson's original incident record, preserved for provenance —
+the specific trigger they name, relative invocation, is now known never to have been live. See the
+mechanism correction below.)*
+
+## RESOLVED — guards normalized to the realpathSync idiom (#1070, 2026-07-23)
+
+**Resolution — code-verified** (this task's own worktree rebased onto the phase-1 integration
+tip; confirmed at all three sites, and re-confirmed by this servitor at the phase-2 `_refinery`
+merge worktree of `cli-main-guard-normalization` — `<local-memory-root>`-relative note: verify
+still present at `skills/war-campaign/assets/campaign-ledger.mjs` line ~538, `if
+(process.argv[1] && fileURLToPath(import.meta.url) === fs.realpathSync(process.argv[1])) main()`):
+the run-as-CLI guards in `stage-workflow.mjs`, `war-config.mjs`, and `campaign-ledger.mjs` now use
+the canonical `process.argv[1] && fileURLToPath(import.meta.url) === fs.realpathSync(process.argv[1])`
+idiom already live in `skills/_shared/war-memory.mjs`, each locked by a symlink-invocation
+regression test (symlink a link to the CLI in a `mkdtempSync` scratch dir, spawn the symlink with
+no args, assert non-zero exit plus the CLI's live `usage:` line on the stream it actually uses).
+
+**Mechanism correction:** this lesson's originally recorded trigger — relative CLI invocation —
+never actually fired the no-op. On Node ≥ 24, `process.argv[1]` arrives **pre-resolved to an
+absolute path** before the script ever sees it, so a relative invocation string can't reach the
+guard at all (confirmed live via red-team probe on Node v24.17.0); the relative-invocation framing
+above was a vacuous, untested hypothesis. The two triggers that DO fire the no-op: **symlink
+invocation**, on every bare-equality guard — the module loader realpaths the main module for
+`import.meta.url`, but `process.argv[1]` keeps the symlink path the caller typed, so the two sides
+disagree — and **percent-encodable checkout paths**, on `campaign-ledger.mjs`'s now-replaced
+`` file://${process.argv[1]} `` string-concat guard (an instance this lesson originally missed:
+string concatenation never percent-encodes, but `import.meta.url` does, so a checkout path
+containing a reserved character broke the comparison even on an absolute, non-symlinked
+invocation).
+
+**Recurrence note (2026-07-23, phase-2 "Release", task 2.1):** this local recurrence copy had
+drifted stale relative to the repo-root file (the repo copy was corrected directly by the phase-1
+worker's task 1.1, since a worker — unlike a servitor — may write anywhere in the repo). Synced in
+place by this phase's servitor per D1 (this local file carries `metadata.promoted`, so it is the
+canonical recurrence-edit target); no new incident, just store-coherence maintenance.
 
 ## Related
 

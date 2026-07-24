@@ -4,11 +4,11 @@ description: "Guard blurb: say 'refuse diffs touching X' not repos"
 metadata:
   node_type: memory
   type: project
-  keywords: [Status section wording, trigger surface, diff vs repo, fail-closed phrasing, submodule refuse, prose nit, operator misinformation, absolute claim vs residual exception, ADR carve-out, fresh-env re-run, unconditional vs conditional emission, near-miss diagnostic, assert-test-in-diff.sh, stderr guard clause]
+  keywords: [Status section wording, trigger surface, diff vs repo, fail-closed phrasing, submodule refuse, prose nit, operator misinformation, absolute claim vs residual exception, ADR carve-out, fresh-env re-run, unconditional vs conditional emission, near-miss diagnostic, assert-test-in-diff.sh, stderr guard clause, umbrella clause, heterogeneous guard shapes, realpathSync, campaign-ledger, fileURLToPath]
   provenance: code-verified
-  promoted: dev/2026-07-22-test-floor-target-repo@phase-2
+  promoted: dev/2026-07-22-cli-main-guard-normalization@phase-2
   slug: release-blurb-overstates-guard-semantics
-  phase: "submodule-inc1/T4 +2 recurrences (war-campaign-resilience-roadmap/phase-2 Release task 2.1, 2026-07-22; test-floor-target-repo/phase-2 Release task 2.1, 2026-07-22)"
+  phase: "submodule-inc1/T4 +3 recurrences (war-campaign-resilience-roadmap/phase-2 Release task 2.1, 2026-07-22; test-floor-target-repo/phase-2 Release task 2.1, 2026-07-22; cli-main-guard-normalization/phase-2 Release task 2.1, 2026-07-23)"
   tags:
     - war
     - release
@@ -24,7 +24,7 @@ metadata:
     - "[[gitmodules-working-tree-read-vs-ref-snapshot]]"
   created: 2026-06-30
   originSessionId: 0e364ee5-f0b3-47f6-a9e4-9bf2dd555733
-  modified: 2026-07-23T10:03:04.108Z
+  modified: 2026-07-23T21:24:23.857Z
 ---
 
 # Release blurb prose overstates guard semantics
@@ -100,3 +100,30 @@ cannot distinguish "always emits on this exit code" from "emits only when this s
 holds" without the explicit qualifier, and the gap is exactly the kind of prose a fresh operator
 would trust literally when deciding whether empty stderr on a real no-test run is expected or a
 regression.
+
+## Recurrence 3 (2026-07-23, campaign `war-campaign-resilience-roadmap`, plan `cli-main-guard-normalization`, phase 2 "Release", task 2.1) — blanket clause across three heterogeneous guard shapes
+
+A fourth distinct instantiation, closest in mechanism to
+[[guard-deny-string-blanket-adjective-mismatches-mixed-flag-shapes]] rather than the
+trigger-surface-vs-topology Rule above: the `## Status` blurb (`README.md` line 339 at land, tip
+`4a96b14fc5c7d23530d1e3372d664b630dcb9311`) opens "The three run-as-CLI guards that still compared
+`fileURLToPath(import.meta.url)` against a raw `process.argv[1]`" as a single umbrella clause
+covering all three normalized guards. `code-verified` — read at the phase's `_refinery` merge
+worktree (`.claude/war/wt/2026-07-22-cli-main-guard-normalization-2026-07-23/_refinery/`, this
+servitor's own cwd being stale per [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]]):
+the clause is accurate for `stage-workflow.mjs` and `war-config.mjs`, but the pre-change guard in
+`skills/war-campaign/assets/campaign-ledger.mjs` was `` import.meta.url === `file://${process.argv[1]}` ``
+— it never called `fileURLToPath` and wrapped `argv[1]` in a `file://` template, not a raw
+comparison. Two auditor lenses independently flagged this (both `disposition: note`, Nit) but both
+also noted the blurb **self-corrects two sentences later** ("for the ledger's `file://`-string
+form, a percent-encodable path"), so a reader is not left misled — the umbrella clause is imprecise
+but not an overstatement of guard *power*, which is why this was a non-blocking Nit both times.
+
+**How this differs from the guard-deny-string sibling:** there, one adjective ("=-attached")
+summarized eight enumerated flags where five didn't fit the shape. Here, one clause describes
+three guards where one (the ledger's) used a structurally different comparison form. Same family —
+a summary phrase applied uniformly across a set with a shape-heterogeneous member — different
+surface (guard *forms* across files vs. flag *shapes* within one enumeration).
+
+**Left unfixed at land** (both times): the change would touch the README `## Status` release slot
+mid-phase, which is out of task 2.1's `Files:` list to touch incidentally.

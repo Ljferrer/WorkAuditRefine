@@ -422,6 +422,7 @@ async function main(argv) {
 
 // Run as CLI only when invoked directly (not when imported by the test).
 import { fileURLToPath } from 'node:url'
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+import { realpathSync } from 'node:fs'
+if (process.argv[1] && fileURLToPath(import.meta.url) === realpathSync(process.argv[1])) {
   main(process.argv)
 }
