@@ -42,8 +42,12 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
      file and `skills/war/SKILL.md` step 5's "record each row in the run ledger" both carry the
      parenthetical citation to that key (grep `adjudications` over both files shows the
      citations; each match adjudicated per spec §4.1).
-  2. Two-path `held:land-failed` prose: the `- **`held:land-failed`**` Outcome-handling bullet in
-     `skills/war/SKILL.md` carries both arms — a primary-land arm (retry spent: the bounded
+  2. Two-path `held:land-failed` prose: the `held:land-failed` Outcome-handling bullet in
+     `skills/war/SKILL.md` — located by its **2-space-indented, token-only** prefix
+     `/^ {2}- \*\*`held:land-failed`/` and terminated at the next **same-indent** `/^ {2}- \*\*/`
+     sibling, the construct `land-decision.test.mjs` already uses (the compact
+     `` - **`held:land-failed`** `` wrap has **zero** occurrences in `SKILL.md`; it is
+     *schemas.md*'s header form, never this file's) — carries both arms — a primary-land arm (retry spent: the bounded
      fresh-env re-land came back `environment`-classified a second time; expect a persistent
      environment, inspect before re-running) and a baseline-proceed arm (retry never dispatched —
      no chaining, deliberate — so the first manual re-run is genuinely the first fresh attempt) —
@@ -55,7 +59,15 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
      `already spent` grep + same-scope hand-scan record is in the done report, with the two known
      keeps adjudicated (the sibling `environment` bullet's "the retry provably spent" — correct
      for the exhaustion path it describes; `workflow-template.js`'s ace-demotion string "the
-     single ace attempt is already spent" — a different retry budget entirely).
+     single ace attempt is already spent" — a different retry budget entirely). **This absence is
+     mechanically guarded, not merely swept:** Task 1.3's new lock **(c)** (End state 6) asserts
+     the extracted `held:land-failed` bullet carries **both arms** — so leaving the single
+     unconditional sentence in place reds the gate. It is a **presence** key, not a
+     `/already\s+spent/i` absence key: the sanctioned two-path text keeps "already spent" inside
+     the *conditional* primary-land arm, so an absence key would red the correct text and pass
+     the wrong one. The grep and the Lead's integrated-tip backstop sweep are the breadth layer
+     over the rest of `skills/war/` + `agents/`; the lock is the depth layer on the one bullet
+     this plan rewrites.
   3. Shared-mechanics duty present: the `### Recovery relaunch` section's **Shared mechanics
      (both entry points)** list contains a fourth, **Adjudication continuity** bullet — re-thread
      the full accumulated `args.adjudications` set from the ledger record (the `ledger.json`
@@ -69,32 +81,86 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
      envelope (unsurfaced ⇒ `null`) and `## Checkpoint` carries a **Manifest stamp (telemetry,
      fail-open)** bullet placed before the issue-lifecycle floor bullet; `skills/war-review/SKILL.md`
      contains no "manifest never carries them" claim (grep `never carries` over that file is
-     empty), its §3 total-tokens and total-tool-calls Source cells read "manifest
-     `phases[].envelope`, else mined (transcripts)" with the input/output/cache split staying
-     mined-or-`n/a`, and §4 lists the **unfinalized phase record** friction signal (a phase
-     record lacking `endedAt`, `tasks`, or `land` although the run ended or a later phase
-     started). Sweep record (grep `manifest` over `skills/war-review/SKILL.md` + hand-scan of the
-     §3 table and `## Scavenge`) in the done report.
+     empty); its §3 **total tool calls** row's Source cell reads "manifest `phases[].envelope`,
+     else mined (transcripts)", and — because §3 today carries a **single combined row** whose
+     metric label *is* the split (`total tokens — input / output / cache (split when
+     available)`), which cannot simultaneously source from the envelope and stay mined — that
+     one row is **split into two**: `total tokens` with Source "manifest `phases[].envelope`,
+     else mined (transcripts)", and `token split — input / output / cache` with Source "mined
+     (transcripts), `n/a` when unsourceable". §4 lists the **unfinalized phase record** friction
+     signal (a phase record lacking `endedAt`, `tasks`, or `land` although the run ended or a
+     later phase started). Sweep record (grep `manifest` over `skills/war-review/SKILL.md` +
+     hand-scan of the §3 table and `## Scavenge`) in the done report.
+     **Envelope provenance (attested, not assumed).** The three aggregate names are the
+     harness's real task-completion envelope fields, observed on this campaign's own runs — WAR
+     plan 1 phase 1 (`agentCount` 18 / `totalTokens` 1898609 / `totalToolCalls` 409), plan 1
+     phase 2 (7 / 554519 / 159), and this plan's `/red-team` run (27 / 2108110 / 508). They are
+     recorded here because nothing in the repo tree evidences the envelope shape, so a reader
+     (or an auditor seat) cannot otherwise tell an observed field from an invented one; the
+     null-tolerated posture stays, but it is a tolerance, not a cover for an unsourceable field.
+     **Charter unchanged (the Purpose's "stays fail-open telemetry that no code reads back and
+     ADR 0008's resume ordering is untouched" clause, made checkable here rather than left as
+     unverifiable Purpose prose):** the `## Run manifest` block's fail-open / never-resume-input
+     charter sentences are **byte-unchanged** by this plan — the widening ADDS the `envelope`
+     aggregate to the MUST-carry list and edits nothing that describes what the manifest is for —
+     and **no ADR 0008 surface is edited** (`git diff --name-only` for the phase contains no
+     `docs/adr/0008-*` path). A grep for readers of `.claude/war/runs/*.json` across the repo
+     returns no code reader, so the widening stays telemetry, never resume input.
   5. Doctrine anchor restored and cited: a **wrap-tolerant** repo-wide census of the phrase
-     (whitespace-tolerant between tokens — the lesson body carries one occurrence wrapped across
-     a line break, and a single-line grep misses exactly the defect class the
-     misattribution-pairing lesson records) finds it at exactly the expected homes — the
-     `CONTEXT.md` `**Adjudication**:` term's `_Avoid_` line, `skills/war/SKILL.md` step 5's
-     Provenance-discipline sentence, the 2026-07-22 spec's dated correction note, the learnings
-     lesson body (left as a record), and the new test lock — and nowhere else unexpected
-     (classification record in the done report).
+     (whitespace-tolerant between tokens — at least one occurrence is wrapped across a line
+     break, so a single-line grep silently drops it, exactly the defect class the
+     misattribution-pairing lesson records; the census **enumerates every hit** rather than
+     matching a pre-declared count, because a hardcoded count rots the moment any surface
+     rewraps) finds it at exactly the expected homes — the `CONTEXT.md` `**Adjudication**:`
+     term's `_Avoid_` line, `skills/war/SKILL.md` step 5's Provenance-discipline sentence
+     (which Task 1.2 (e) writes carrying the **literal** phrase — see that slice's floor), the
+     2026-07-22 spec's dated correction note, the learnings lesson bodies (left as records —
+     note `spec-non-goal-citation-of-a-doctrines-home-file-can-be-wrong.md` carries **multiple**
+     occurrences, two of them wrapped), **this plan and its source spec**
+     (`docs/plans/2026-07-24-runbook-and-standing-record-coherence.md`,
+     `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design.md` — planning
+     artifacts that quote the doctrine to specify it; **leave**), and the new test lock — and
+     nowhere else unexpected (classification record, enumerating every hit with its ruling, in
+     the done report).
   6. New locks green and red-provable: `node --test skills/war/assets/skill-doc-contracts.test.mjs`
-     passes with two new construct-anchored locks — (a) the `CONTEXT.md` `**Adjudication**:` block
-     (extracted from the bolded term to the next bolded glossary term) matches the doctrine
+     passes with **three** new construct-anchored locks — (a) the `CONTEXT.md` `**Adjudication**:`
+     block (extracted from the bolded term to the next bolded glossary term) matches the doctrine
      phrase with `\s+` between tokens, case-insensitive (wrap-tolerant — Task 1.3's regex floor);
      (b) the `## ledger.json — run state` jsonc block of
-     `skills/war/references/schemas.md` names `adjudications` — and temporarily removing either
-     referent reds exactly its lock (red-proof recorded in the commit body, the file's house
+     `skills/war/references/schemas.md` names `adjudications`; **(c) a BOTH-ARMS PRESENCE key —
+     the `held:land-failed` Outcome-handling bullet extracted from `skills/war/SKILL.md`
+     (located by the 2-space token-only prefix `/^ {2}- \*\*`held:land-failed`/`, terminated at
+     the next SAME-INDENT `/^ {2}- \*\*/` sibling — the in-repo precedent at
+     `land-decision.test.mjs`) matches BOTH a primary-land-arm marker AND a
+     baseline-proceed-arm marker** — the committed mechanical guard backing End state 2. It is
+     deliberately **not** a bare `/already\s+spent/i` absence key: the spec's own sanctioned
+     replacement text keeps "already spent" **inside the conditional primary-land arm**, so an
+     absence key would red the *correct* two-path text and green the *unconditional* one only by
+     accident. The defect End state 2 targets is the **unconditional framing**, not the token —
+     so the lock asserts the two-path shape positively. Temporarily collapsing the bullet back to
+     the single unconditional sentence reds exactly (c); temporarily removing either other
+     referent reds exactly its lock (red-proofs recorded in the commit body, the file's house
      style). D18 and every existing row pass with their extraction constructs untouched.
   7. Guard text truth: `bash hooks/validate-auditor-git.test.sh` passes with zero
      assertion/expectation edits — J16 still finds the literal `=-attached` in the space-form
-     deny stderr and every J-series `git branch` allow/deny outcome is unchanged. Absence floor:
-     grep `takes only =-attached` over `hooks/` returns nothing. Presence floor (the
+     deny stderr and every J-series `git branch` allow/deny outcome is unchanged. Absence floor
+     (a **string set**, not one literal — the two corrected surfaces word the same blanket claim
+     differently, so a deny-only grep would come back empty while the header comment's blanket
+     wording survives verbatim). Each key must be **non-vacuous at the base**: it MUST match
+     today, before any edit, or it can never discriminate a corrected surface from an untouched
+     one. Both keys are **case-insensitive** (`grep -rin`) — the deny reword's likeliest shape is
+     a sentence-initial recasing (`Takes only =-attached …`), which a case-sensitive grep would
+     wave through — and the header key is **line-local by construction**, because the live header
+     comment wraps mid-phrase across two lines with a `# ` continuation marker sitting inside it
+     (`… With arguments, EVERY token` / `# must be an enumerated read flag with =-attached
+     values`), so `EVERY token must be an enumerated read flag` matches **zero** times at the base
+     and is a vacuous key — the exact wrap-blindness this plan calls out for the doctrine census
+     in End state 5. The two keys, over `hooks/`, both returning nothing after the edit:
+     (1) `grep -rin 'takes only =-attached' hooks/` — pre-change hit count **1** (the deny
+     string); (2) `grep -rin 'an enumerated read flag with =-attached values' hooks/` —
+     pre-change hit count **1** (line-resident on the header comment's second line). Record both
+     pre-change counts in the done report so each floor is provably red-provable, not vacuous.
+     Presence floor (the
      discriminating proof the reword actually landed — J16's surviving-substring pin alone cannot
      show it): the deny-message line greps positive for both shape classes — at least one
      `=-attached` value-flag form (`--contains=<rev>`) **and** at least one enumerated bare flag
@@ -106,11 +172,19 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
      reads `2, 3, 4, 5, 6, 7`; nothing else in the file moves.
   9. Zero collateral drift: `node --test 'skills/**/*.test.mjs'` and the anchored shell-test
      sweep over `hooks/` and `skills/` green at the tip carrying all changes; the phase's
-     `git diff --name-only <frozen phase base>...<integrated tip>` file list equals exactly the
-     Phase-1 `Files:` union of this plan (each worker threads its task's name-only diff into its
-     done report; gate-audit re-derives the union at the integrated tip). The expected-untouched
-     surfaces stay byte-identical unless a survey finds a straggler: `workflow-template.js`,
-     `land-decision.mjs`, every floor script, and `hooks/validate-auditor-git.test.sh`.
+     `git diff --name-only <frozen phase base>...<integrated tip>` file list is a **subset** of
+     the Phase-1 `Files:` union of this plan — **no file outside the union**, which is the
+     collateral-drift property this condition exists to prove — and its **only** permitted
+     absentee is `hooks/validate-auditor-git.test.sh`, Task 1.5's declared straggler-home slot,
+     which is expected byte-untouched and therefore expected NOT to appear in the diff (each
+     worker threads its task's name-only diff into its done report; gate-audit re-derives the
+     union at the integrated tip and applies exactly this subset-plus-named-absentee predicate).
+     Equality is deliberately NOT the predicate: `hooks/validate-auditor-git.test.sh` is in the
+     union only so a survey-found straggler comment has an in-footprint home, so on the plan's
+     own expected path (no straggler) an equality check would red the phase on a non-defect.
+     The expected-untouched surfaces stay byte-identical unless a survey finds a straggler:
+     `workflow-template.js`, `land-decision.mjs`, every floor script, and
+     `hooks/validate-auditor-git.test.sh`.
   10. Release lands last: all four version slots in lock-step at the next free patch above the
       live integration base; `version-slots.test.mjs` green.
   11. T2.9 census accuracy (campaign carry-over from plan 1): in
@@ -125,8 +199,10 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
 
 ## Build order (for /war)
 
-1. **Phase 1 — Standing-record truth sweep + doctrine locks** (waves: 1.1 ∥ 1.4 ∥ 1.5 ∥ 1.6, then
-   1.2 ∥ 1.3 with `deps: [1.1]` — all six tasks file-disjoint)
+1. **Phase 1 — Standing-record truth sweep + doctrine locks** (waves: 1.1 ∥ 1.4 ∥ 1.5 ∥ 1.6,
+   then 1.2 (`deps: [1.1]`), then 1.3 (`deps: [1.1, 1.2]`) — all six tasks file-disjoint.
+   1.3 is its own third wave because its both-arms presence lock (c) asserts against the
+   `skills/war/SKILL.md` bullet 1.2 rewrites; run in the same wave as 1.2 it would be born RED)
 2. **Phase 2 — Release** (trailing, own phase)
 
 ## Phase 1 — Standing-record truth sweep + doctrine locks
@@ -162,9 +238,19 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
   transcript-derived split values best-effort/possibly-undercounting** (the incident's own
   calibration: transcripts undercount tool calls ~20× against the envelope — a split presented
   unqualified beside envelope totals would invite exactly the false cross-sum the never-fabricate
-  rule exists to prevent). (2) §3 (Tally): the "total tool calls" and "total tokens" rows' Source
-  cells become "manifest `phases[].envelope`, else mined (transcripts)"; the split qualifier
-  stays mined-only. (3) §4 (Friction): add one signal class — **unfinalized phase record**: a
+  rule exists to prevent). (2) §3 (Tally) — **read End state 4 before editing; §3 has NO
+  `total tokens` row today and this edit is a row SPLIT, not two cell rewrites.** The live table
+  carries `| total tool calls | mined (transcripts) |` and ONE combined row whose metric label
+  *is* the split: `| total tokens — input / output / cache (split when available) | mined
+  (transcripts) |` (quote that label verbatim as your anchor). Do two things: set the **total
+  tool calls** row's Source cell to "manifest `phases[].envelope`, else mined (transcripts)";
+  and **split the combined row into two** — `| total tokens | manifest `phases[].envelope`, else
+  mined (transcripts) |` and `| token split — input / output / cache | mined (transcripts),
+  `n/a` when unsourceable |`. Rewriting the combined row's Source cell in place instead would
+  claim envelope sourcing for a split the spec pins as transcript-mined-only, and End state 4's
+  required second row would never exist — nothing else catches it (`requiresTest:false`, no
+  `/war-review` prose lock, and the `manifest` keyword backstop is satisfied by the drifted row).
+  (3) §4 (Friction): add one signal class — **unfinalized phase record**: a
   phase whose record lacks `endedAt`, `tasks`, or `land` **although the run ended or a later
   phase started** — evidence the phase-close stamp was skipped. That conditional clause is the
   deliberate killed-run discriminator: a run that died mid-phase leaves run `endedAt` null and no
@@ -175,8 +261,15 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
   and reconcile every claim about what the manifest carries with the widened contract; then
   hand-scan the §3 tally rows and the `## Scavenge` section for indirect "never carries"
   paraphrases the keyword grep misses, listing each straggler as a survey-derived correction in
-  the done report. The `land-decision.test.mjs` doc-parity rows that read `schemas.md` extract
-  only the `landDecision` enum line and per-value bullets — neither block is touched here.
+  the done report. **`land-decision.test.mjs` reads `schemas.md` at FIVE sites, not two — run
+  `node --test 'skills/**/*.test.mjs'` locally before you commit and do not assume this file is
+  out of scope.** Two are the doc-parity extractions (the `landDecision` enum line and the
+  per-value bullets — genuinely untouched here), but three more reach the blocks this task edits:
+  a second `landDecision` enum-line read in the D9 helper, a **task-status enum anchor that sits
+  INSIDE the `## ledger.json — run state` jsonc block you are editing**, and D9's enum-leak
+  detector, which is fed the **entire file**. So both edited blocks are in D9's scan scope: keep
+  the new `adjudications` / `envelope` prose free of equality-shaped or label-shaped examples
+  (`status: "landed"`, `landDecision === 'merged'`) that would trip its patterns.
 - requiresTest: false — docs-tier contract + consumer prose; the doc-contract lock guarding the
   new ledger key arrives with Task 1.3 (no-test route recorded here for the floor)
 - requiresPackaging: false
@@ -244,8 +337,14 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
   "unfinalized phase record" friction row `/war-review` reports; fail-open discipline unchanged
   (a failed write logs one line and never blocks the advance). **(e) Doctrine framing
   (spec §4.5).** In step 5's **Provenance discipline** sentence, after "the Lead never
-  synthesizes a row to smooth over an unruled delta (spec constraint 6)", add "and never mines
-  one from arbitrary prose — rows come only from the two producers above". **Token sweep (floor,
+  synthesizes a row to smooth over an unruled delta (spec constraint 6)", add — **verbatim, the
+  literal phrasing is load-bearing** — "and a row is **never mined from arbitrary prose** — rows
+  come only from the two producers above". Do NOT paraphrase it as "never mines one from
+  arbitrary prose": End state 5's wrap-tolerant census, Task 1.3's classification list, and spec
+  §3's "same literal framing" row all key on the literal token `mined from arbitrary prose`, and
+  the paraphrase contains `mines one from` instead — which would make this expected census home
+  return **zero** hits under every form (single-line, case-insensitive, and `\s+`-tolerant
+  alike), silently falsifying End state 5 while every other check stayed green. **Token sweep (floor,
   not ceiling):** grep `already spent` across `skills/war/` and `agents/` and adjudicate every
   match against the two-path truth — known matches at drafting: the target sentence (fixed
   here); `workflow-template.js`'s ace-demotion string "the single ace attempt is already spent"
@@ -309,12 +408,40 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
   CONTEXT.md `Adjudication` term body and SKILL.md step 5 for paraphrase echoes ("synthesizes a
   row", "ruling already made and routed") to confirm the restored clause composes with rather
   than duplicates them, listing any straggler adjusted as a survey-derived correction.
-- requiresTest: true — the deliverable includes the two new locks; the diff touches
+  **(c) BOTH-ARMS PRESENCE lock backing End state 2 (the plan's only committed guard for it).**
+  Extract the `held:land-failed` Outcome-handling bullet from `skills/war/SKILL.md` **exactly the
+  way the live guard already does it** — copy the construct at `land-decision.test.mjs`: locate
+  with `/^ {2}- \*\*`held:land-failed`/` (a **2-space-indented, token-only prefix**; the live
+  header is a phrase-wrapping bold — ``  - **`held:land-failed` — root-cause-branched
+  auto-recover, else hold.**`` — so the compact `` - **`held:land-failed`** `` form has **zero**
+  occurrences in `SKILL.md`; that compact wrap is *schemas.md*'s header form, never anchor on it
+  here) and terminate at the next **SAME-INDENT** `/^ {2}- \*\*/` sibling, never a top-level
+  `/^- \*\*/` one (a top-level terminator over-extends past four sub-bullets and the entire
+  `- **Escalation-completion land …**` sibling). Then assert the extracted region matches **both**
+  arm markers — a primary-land arm and a baseline-proceed arm — per End state 2's two-path
+  requirement.
+  **Do NOT write this as a `/already\s+spent/i` absence key.** The spec's own sanctioned §4.2
+  replacement text keeps "already spent" inside the *conditional* primary-land arm (the retry
+  spent because the bounded fresh-env re-land came back `environment`-classified a second time),
+  so an absence key would go RED on the correct two-path text and could pass only by the worker
+  dropping sanctioned prose. The defect End state 2 targets is the **unconditional framing**, not
+  the token — so the lock asserts the two-path shape positively.
+  Red-proof: temporarily collapse the bullet back to the single unconditional sentence and
+  confirm exactly (c) reds.
+  Rationale for living here rather than in Task 1.2: `skill-doc-contracts.test.mjs` is this
+  task's file, and putting the lock in 1.2 would make two tasks edit one file — the same-file
+  collision the decomposition rule forbids (never a deps/wave dodge; this is a genuine
+  cross-file dependency).
+- requiresTest: true — the deliverable includes the three new locks; the diff touches
   `skill-doc-contracts.test.mjs`, satisfying the test floor
 - requiresPackaging: false
-- deps: [1.1] — lock (b) asserts the `adjudications` key Task 1.1 writes into `schemas.md`; the
-  wave edge rebases this worker onto the tip carrying it, so the lock is born green off its own
-  dispatch base (a conscious placement deviation — see Notes)
+- deps: [1.1, 1.2] — lock (b) asserts the `adjudications` key Task 1.1 writes into `schemas.md`,
+  and lock (c) asserts **both arms are PRESENT** in the `held:land-failed` bullet Task 1.2
+  rewrites in `skills/war/SKILL.md`; both wave edges rebase this worker onto the tip carrying
+  those edits, so each lock is born green off its own dispatch base (a conscious placement
+  deviation — see Notes). Without the 1.2 edge, lock (c) would be born RED — the pre-1.2 bullet
+  carries only the single unconditional sentence, so the baseline-proceed arm it requires does
+  not exist yet.
 - target repo: superproject
 
 ### Task 1.4: Campaign roadmap record — row 6 Files cell + CONTEXT.md contention row (#1053)
@@ -389,8 +516,14 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
   mismatch) print nothing, while the rest die LOUDLY with route-naming text — so route identity
   rests on (b)+(c)+(d) TOGETHER:"*. **Floors (the audit rubric — latitude beyond them is the
   worker's, never re-adjudicated as drift):** (i) the replacement paragraph greps **zero** for
-  `T2\.` (plan 1's End-state-4 count-free floor is preserved, not regressed); (ii) the strings
-  `only SILENT` and `every one of which` grep **empty** from the comment; (iii) the `(b)`, `(c)`,
+  `T2\.` (plan 1's End-state-4 count-free floor is preserved, not regressed); (ii) the claims are
+  gone under a **case-insensitive, wrap-tolerant** check — normalize the comment first
+  (`tr '\n' ' ' | tr -s ' '`, so a re-wrap cannot hide a surviving claim the way it does for the
+  `hooks/` header comment in End state 7) and then `grep -i` for **both** `only silent` **and**
+  `every one of which`, plus a universality scan for an `every … dies loudly`-shaped adjective
+  that a re-phrasing could reintroduce under different words. A line-local, case-sensitive pair
+  of greps is NOT sufficient: sentence-initial recasing or a re-wrap would report PASS on a
+  paragraph that still carries both false claims; (iii) the `(b)`, `(c)`,
   `(d)` detail lines and **all** assertion code are byte-unchanged; (iv) the sentence is truthful
   against `cmd_land_advance` **as written at your base** — re-read the function and confirm the
   two silent arms before writing, rather than trusting this slice's summary (that is precisely the
@@ -439,14 +572,24 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
 
 ## Deferred validations (backstops)
 
-- Integrated-tip sweep re-check — re-run the four token sweeps (`already spent` over
-  `skills/war/` + `agents/`; `manifest` over `skills/war-review/SKILL.md`; the **wrap-tolerant**
-  doctrine-phrase census repo-wide; `takes only =-attached` over `hooks/`) once on the
-  landed Phase-1 tip and confirm End states 2, 4, 5, 7 hold after the serial merge · why
-  deferred: sweep completeness is a whole-repo property spanning five parallel tasks that each
+- Integrated-tip sweep re-check — re-run the **five** token sweeps once on the landed Phase-1
+  tip. **Every key is case-insensitive (`grep -i`), and every key over a wrapped-prose surface is
+  wrap-tolerant (normalize with `tr '\n' ' ' | tr -s ' '` first) — a line-local case-sensitive
+  grep is vacuous against a re-wrap or a sentence-initial recasing, which is the same
+  wrap-blindness this plan corrects in End states 5 and 7.** The five: (1) `already spent` over
+  `skills/war/` + `agents/`; (2) `manifest` over `skills/war-review/SKILL.md`; (3) the
+  wrap-tolerant doctrine-phrase census repo-wide; (4) over `hooks/`, both absence keys
+  `takes only =-attached` **and** the line-resident `an enumerated read flag with =-attached
+  values` (**not** `EVERY token must be an enumerated read flag` — that phrase wraps mid-sentence
+  across the live header comment's two lines with a `# ` continuation marker inside it, so it
+  matches zero times even before any edit and can never discriminate); and (5) `only silent` /
+  `every one of which` / `T2\.` over `skills/war/assets/provision-worktrees.test.sh`. Confirm
+  End states 2, 4, 5, 7, **11** hold after the serial merge · why
+  deferred: sweep completeness is a whole-repo property spanning **six** parallel tasks that each
   adjudicate at their own frozen base — the cross-task fixed-in-flight rulings (Task 1.3
-  classifying Task 1.2's step-5 edit) are only provable on the integrated union · runner: the
-  Lead at Phase-1 land, before dispatching Phase 2.
+  classifying Task 1.2's step-5 edit) are only provable on the integrated union, and Task 1.6's
+  absence floors can be re-broken by any later-landing sibling that re-enters
+  `provision-worktrees.test.sh` · runner: the Lead at Phase-1 land, before dispatching Phase 2.
 - "Unfinalized phase record" friction signal fires in practice — a future run whose Lead skips
   the phase-close stamp shows the new §4 row in its review · why deferred: the signal's trigger
   is a *future* run's manifest, unreachable from this plan's tree; the in-phase checkable floor
@@ -455,9 +598,12 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
 
 ## Notes / conscious deviations
 
-- **Decomposition:** six Phase-1 tasks, pairwise file-disjoint. The two `deps` edges
-  (1.2 ← 1.1, 1.3 ← 1.1) are real cross-file dependencies — prose citations and a test lock
-  naming constructs Task 1.1 writes — never a same-file dodge (the shared-file rule: all five
+- **Decomposition:** six Phase-1 tasks, pairwise file-disjoint. The **three** `deps` edges
+  (1.2 ← 1.1, 1.3 ← 1.1, **1.3 ← 1.2**) are real cross-file dependencies — prose citations and
+  test locks naming constructs Task 1.1 writes, plus the **lock-(c) ordering edge**: 1.3's
+  both-arms presence lock asserts against the `skills/war/SKILL.md` bullet 1.2 rewrites, so 1.3
+  is its own third wave and would be born RED if run alongside 1.2 —
+  never a same-file dodge (the shared-file rule: all five
   SKILL.md edits are one task, all schemas.md edits another). Task **1.6** is the plan-1 campaign
   carry-over; it is `deps: []` and owns `skills/war/assets/provision-worktrees.test.sh`, a file no
   other task in this plan touches, so it rides the first wave alongside 1.1 ∥ 1.4 ∥ 1.5 with no
@@ -469,7 +615,25 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
   close-each-task-issue rule; the seven **source** issues close against this map when the
   campaign PR lands): #1016 → 1.1 + 1.2 (+ 1.3's lock (b)); #1039 → 1.2; #1053 → 1.4;
   #1078 parts 2–3 → 1.1 + 1.2 (part 1 overtaken, no task — closes on the spec's
-  overtaken-by-v0.14.49 rationale); #1084 → 1.2; #1085 → 1.5; #1087 → 1.2 + 1.3.
+  overtaken-by-v0.14.49 rationale); #1084 → 1.2; **#1085 → 1.5 PARTIAL — DO NOT CLOSE on this
+  plan's PR**; #1087 → 1.2 + 1.3.
+  **#1085 partial-closure note (red-team finding, adjudicated — corrected in round 2).** The same
+  blanket "`=`-attached read flags only" characterization is live on **three** surfaces, and Task
+  1.5 corrects only one: `hooks/validate-auditor-git.sh` (this plan). The other two —
+  `agents/war-auditor.md`'s standing `` **`branch` takes `=`-attached read flags only** `` bullet
+  and the mirrored `READ-ONLY GIT GUARD CONTRACT` clause in `workflow-template.js`'s dispatched
+  auditor prompt — are **out of footprint here** (spec constraint 1 pins `workflow-template.js`
+  byte-untouched). **They are NOT picked up by campaign plan 4 either.** Plan 4
+  (`docs/plans/2026-07-24-drift-guard-and-floor-diagnostic-hardening.md`) explicitly disclaims
+  them: its design row 7 is spec-ratified that the hook deny string and both mirrors must move
+  together, it owns neither the hook nor that sentence family, and its End state 5 pins **no**
+  `workflow-template.js` edit. Its named vehicle is a **Lead-filed `war-followup` issue at its
+  Phase-1 close**, naming `agents/war-auditor.md` and the `workflow-template.js` dispatched
+  clause. So **#1085 closes on NEITHER plan's PR** — it stays open behind that follow-up. (The
+  two mirrors travel together in one commit per the standing split rule: a change to auditor
+  behavior updates the standing `agents/*.md` doc and the string-built dispatched prompt in the
+  same commit, or they drift silently.) This plan's PR body cites #1085 as partially addressed
+  and must **not** use a closing keyword for it.
 - **Ledger row-shape correction (conscious deviation from the spec's jsonc sketch):** spec §4.1
   sketches the `adjudications` key as "preformatted row strings", but the args contract it cites
   admits string **or** `{ adjudicated|value, supersedes }` object rows, and the spec's own
@@ -492,11 +656,18 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
   `skill-doc-contracts.test.mjs` is a single file already owned by 1.3 (same-file → same-task
   beats guard-travels-with-fact here). The `deps: [1.1]` wave edge closes the gap: the lock is
   authored against a base already carrying the key, and both land in the same phase.
-- **Campaign stacking (plan 2 of 6, ADR 0011 stack-and-plow):** Phase-1 footprint is fully
-  disjoint from plan 1's Phase-1 footprint (`docs/learnings/land-advance-push-first-cas-rejected-token.md`,
-  `docs/seed/seed-manifest.json`, `docs/seed/seed.tar.gz`,
-  `skills/war/assets/provision-worktrees.test.sh`, `docs/adr/0023-land-asserts-git-ground-truth.md`).
-  The only overlap is the trailing release phase's four slots (`plugin.json`,
+- **Campaign stacking (plan 2 of 6, ADR 0011 stack-and-plow):** Phase-1 footprints **intersect on
+  exactly one file, by design**: `skills/war/assets/provision-worktrees.test.sh`, which plan 1's
+  Task 1.2 edited and this plan's **Task 1.6** re-enters to correct the T2.9 census wording plan 1
+  landed there. The intersection is **sequential, never concurrent** — plan 1 is fully landed at
+  this plan's base (phase merges `09e4969` and `9cd713f`, release `441855c`, Gate-2 `f9fc4a4`), so
+  Task 1.6 dispatches off a tree that already carries the strings its floors delete. That ordering
+  is load-bearing: dispatched off any base predating plan 1's land, Task 1.6's floor (ii)
+  (`only SILENT` / `every one of which` grep empty) would be **vacuously true** and the task would
+  land having corrected nothing. The rest of plan 1's Phase-1 footprint
+  (`docs/learnings/land-advance-push-first-cas-rejected-token.md`, `docs/seed/seed-manifest.json`,
+  `docs/seed/seed.tar.gz`, `docs/adr/0023-land-asserts-git-ground-truth.md`) is untouched here.
+  The other overlap is the trailing release phase's four slots (`plugin.json`,
   `marketplace.json` ×2, `README.md ## Status`) — expected and fine: both plans use the
   directive form, so each resolves its patch from the slots as they stand at its own land time.
 - **Cross-plan contention for the roadmap table:** this plan claims **stack position 2** (after
