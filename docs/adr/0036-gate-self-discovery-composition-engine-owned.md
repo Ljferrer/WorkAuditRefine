@@ -24,8 +24,8 @@ belt; it is no longer the enforcement.**
 1. **Composition moves into the engine.** Immediately after entry validation, a single **gate
    composition point** in `workflow-template.js` normalizes `plan.gate` once, in place, to its
    self-discovering form via a hand-mirrored inline copy of `resolveGate` (the Workflow sandbox cannot
-   `import`). Every one of the nine gate-bearing dispatch sites downstream renders the composed string
-   without itself changing.
+   `import`). Every gate-bearing dispatch site downstream renders the composed string without itself
+   changing.
 
 2. **Idempotence makes the belt-and-suspenders safe by construction.** `resolveGate(declaredGate)`
    detects the discovery-clause token already present in its input and returns it byte-unchanged;

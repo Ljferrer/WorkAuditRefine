@@ -242,3 +242,66 @@ test('D17 — 2026-07-12 prose-drift spec names classOf a reader, never the re-r
       'misattribution) — classOf only reads the refiner-computed gate_failure_class',
   )
 })
+
+// (D18) SKILL.md's `gate_failed`-routing **`environment`** arm must document the BOUNDED
+// environment-proceed mechanics, never the retired gate-time zero-retry doctrine — the arm formerly
+// declared the gate-time route identical to a provision `env-blocked` (soft-escalate, 0 FIX rounds,
+// worktree kept, siblings proceed). Live truth: an `environment` gate failure earns ONE environment-proceed
+// re-run per gate site whose gate must go FULLY GREEN (never a proceed-over, no debt); merge-site
+// exhaustion is HARD via reason 'escalate' → held:escalation, land-site exhaustion → env-blocked +
+// held:land-failed (workflow-template.js both gate sites; agents/war-refiner.md step 3).
+//
+// Extraction is BY CONSTRUCT — the `- **`environment`** →` bullet only, never a whole-file scan:
+// "0 FIX rounds" and the zero-round soft doctrine legitimately survive in the PROVISION `env-blocked`
+// bullet above, which a whole-file absence key would false-trip (D10/D14/D16-style
+// intended-location extraction).
+//
+// Absence keys are MARKUP-TOLERANT (red-team correction): the live bullet interleaves `**` and
+// backticks, so a plain-space phrase would match nothing even pre-change and be born vacuous.
+// Red-then-green PROVEN at the pre-change base (commit body carries the proof): both absence keys
+// HIT the old bullet and all six presence anchors were ABSENT from it — so a revert reds every arm.
+//
+// The first key's inner space is written `\s+` on purpose: the retired phrase is one of the three
+// anchors the End-state-9 retired-claim sweep greps line-locally across `skills/war/` + `agents/`
+// (this file included), so spelling it contiguously here would make the guard trip the very floor it
+// backs. `\s+` keeps the literal out of the source line while matching the live prose identically —
+// and, per the two-line-pairing lesson, strictly widens it across a wrap.
+test('D18 — SKILL.md gate_failed environment arm documents bounded environment-proceed, not the gate-time zero-retry doctrine (#1030)', () => {
+  const bullet = skillMd.match(/^ {2}- \*\*`environment`\*\* →[\s\S]*?(?=\n {2}- \*\*)/m)
+  assert.ok(
+    bullet,
+    'could not locate the `- **`environment`** →` bullet under SKILL.md\'s `gate_failed` routing ' +
+      'by class — the D18 construct is gone or its markup changed',
+  )
+  const b = bullet[0]
+  // Absence: the retired gate-time doctrine, in either of its two live-byte-derived forms.
+  assert.doesNotMatch(
+    b,
+    /env-blocked[\s*`]{0,6}doctrine applied\s+at gate time/i,
+    'the environment arm still claims the env-blocked doctrine is "applied at gate time" — a ' +
+      'gate-time environment failure now earns ONE bounded environment-proceed re-run first',
+  )
+  assert.doesNotMatch(
+    b,
+    /same handling as a provision[\s*`]{0,6}env-blocked/i,
+    'the environment arm still equates gate-time handling with a provision env-blocked — the ' +
+      'provision route stays zero-round, the gate-time route spends one environment-proceed retry',
+  )
+  // Presence: the bounded mechanics, both gate sites, and the green-required asymmetry.
+  assert.match(b, /environment-proceed/i, 'the environment arm must name the environment-proceed re-run')
+  assert.match(
+    b,
+    /fully green/i,
+    'the environment arm must state the re-run gate has to come back fully green (never a ' +
+      'proceed-over — the asymmetry with baseline-proceed)',
+  )
+  // Non-vacuous companion: the bullet names BOTH gate sites and each site's exhaustion route.
+  for (const [anchor, why] of [
+    ['merge site', 'the environment arm must name the merge gate site'],
+    ['land site', 'the environment arm must name the land gate site'],
+    ['held:escalation', 'merge-site exhaustion must route held:escalation (the phase holds)'],
+    ['held:land-failed', 'land-site exhaustion must route held:land-failed'],
+  ]) {
+    assert.ok(new RegExp(anchor, 'i').test(b), why)
+  }
+})

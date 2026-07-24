@@ -331,10 +331,13 @@ _Avoid_: separate per-loop limits, max-attempts.
 
 **gate-failure class** (`MergeResult.gate_failure_class`):
 The orthogonal label on a `gate_failed` — `introduced` | `baseline` | `environment` — that selects the
-recovery path: the bounded fix-worker loop, a proceed-with-backstop record, or a 0-round `env-blocked`
-escalation. Populated by the refiner's on-failure base re-run; absent ⇒ `introduced` (the fail-safe
-default). **Class routes; status stays `gate_failed`** — the status enum, `HARD_ESCALATION_REASONS`, and
-`KNOWN_LAND_DECISIONS` are untouched (ADR 0005 enum discipline; the finding-`disposition` precedent).
+recovery path: the bounded fix-worker loop, a proceed-with-backstop record, or one bounded
+**environment-proceed** re-run (green required — exhaustion hard-escalates the merge site via the
+reused `'escalate'` reason, and falls back to `env-blocked` ⇒ `held:land-failed` at the land site,
+never a 0-round escalation). Populated by the refiner's on-failure base re-run; absent ⇒
+`introduced` (the fail-safe default). **Class routes; status stays `gate_failed`** — the status enum,
+`HARD_ESCALATION_REASONS`, and `KNOWN_LAND_DECISIONS` are untouched (ADR 0005 enum discipline; the
+finding-`disposition` precedent).
 _Avoid_: a new `MergeResult` status for the baseline/environment cases (status widening leaks into the
 land path); treating an absent class as anything but `introduced`.
 
@@ -347,6 +350,22 @@ land and in the final PR (ADR 0017: the un-run validation becomes a ratified-bac
 prose).
 _Avoid_: treating it as a passing gate (the gate is red — the debt just predates the diff); a silent
 proceed (the backstop entry is mandatory).
+
+**environment-proceed**:
+The bounded — exactly **one per gate site** — Workflow-dispatched fresh-env re-run of a gate-failed
+merge or land whose failure classified `environment` (`merge:<taskId>:environment-proceed`,
+`land:phase-<N>:environment-proceed`). Sibling of the baseline-proceed re-dispatch with the
+**opposite gate discipline**: baseline-proceed *proceeds over* named pre-existing failures with
+**baseline gate debt** recorded; environment-proceed *re-runs and must be green* — nothing is
+pre-existing, so there is no `gate_failing_ids` carve-out and no `source:'auto'` backstop. Never
+chained, and exhaustion holds rather than shrugs: a second `environment` classification
+hard-escalates the merge site (the reused reason `'escalate'` ⇒ `held:escalation`, so the phase never
+completes minus an approved task) and falls back to `held:land-failed` at the land site, with the retry
+provably spent ([ADR 0040](docs/adr/0040-environment-class-gate-failures-earn-one-retry.md)).
+_Avoid_: any new `MergeResult` status or escalation-reason enum member for it (the existing
+`merged`/`gate_failed`/`landed` statuses and the reused `'escalate'`/`'env-blocked'` reasons carry it
+end-to-end); a second retry at the same gate site, or chaining it with a **baseline gate debt**
+proceed (the bound is structural, not a config knob).
 
 **Defect class** (`defectClass`):
 Escalation-record metadata distinguishing the *root cause* of a worker block: a **plan/spec defect** —
@@ -376,8 +395,15 @@ git** rather than self-reported. Immediately before the push it captures the **p
 (`git ls-remote origin refs/heads/<working>`; a failed readback exits non-zero and never collapses
 into the first-land carve-out), and it refuses a **phantom land** (exit 3) when `<merge-sha>` equals
 that pre-push origin tip **and** the local follower already sits at it; the post-push readback still
-confirms origin advanced to `<merge-sha>`. Anchored on the **origin tip, never the local follower**
-(which lags). A `landDecision:'landed'` is trustworthy only downstream of it — extends
+confirms origin advanced to `<merge-sha>`. Immediately before that push — and deliberately *after* the
+early-return arms, so already-landed reconciliation stays cwd-independent — it also asserts
+`HEAD == <merge-sha>`: the push source is `HEAD:`, so a wrong-cwd invocation dies with the catalogued
+`EX_WRONG_BRANCH` (6) naming both SHAs and the expected cwd (normally the detached `_refinery`) rather
+than surfacing as a misleading `[rejected]` exit 2 — which is what makes exit 2 mean **only** a real
+concurrent advance ([ADR 0023 amendment](docs/adr/0023-land-asserts-git-ground-truth.md)). Where the
+pre-push origin-tip capture proves *where* the ref is going, the precheck proves *what* is going there.
+Anchored on the **origin tip, never the local follower** (which lags). A `landDecision:'landed'` is
+trustworthy only downstream of it — extends
 [ADR 0008](docs/adr/0008-git-is-the-resume-source-of-truth.md) onto the land path
 ([ADR 0023](docs/adr/0023-land-asserts-git-ground-truth.md)).
 _Avoid_: anchoring the advance check on the local follower ref (it lags); treating the post-push
@@ -906,11 +932,11 @@ _Avoid_: dead-code exemption (sounds like a suppression list).
 The single site in `workflow-template.js`, immediately after entry validation, where `plan.gate` is
 normalized once, in place — idempotently, via a hand-mirrored inline `resolveGate` (the
 sandbox-cannot-import rule), drift-guarded by its D2 mirror-registry row — to its self-discovering
-form; every one of the nine gate-bearing dispatch sites downstream renders the composed string without
-itself changing. Distinct from the Lead's Setup `--resolve-gate` pre-resolution, now the belt to this
-composition point's suspenders ([ADR 0036](docs/adr/0036-gate-self-discovery-composition-engine-owned.md)).
+form; every gate-bearing dispatch site downstream renders the composed string without itself changing.
+Distinct from the Lead's Setup `--resolve-gate` pre-resolution, now the belt to this composition
+point's suspenders ([ADR 0036](docs/adr/0036-gate-self-discovery-composition-engine-owned.md)).
 _Avoid_: conflating it with `resolveGate` itself (the canonical function this point calls inline);
-expecting composition per dispatch site — it fires once, upstream of all nine.
+expecting composition per dispatch site — it fires once, upstream of them all.
 
 **Spec-truth guard**:
 A per-claim, construct-anchored doc-contract row in `skill-doc-contracts.test.mjs` locking a
