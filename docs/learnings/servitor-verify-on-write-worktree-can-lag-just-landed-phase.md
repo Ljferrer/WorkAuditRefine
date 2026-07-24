@@ -6,8 +6,8 @@ metadata:
   type: project
   provenance: code-verified
   slug: servitor-verify-on-write-worktree-can-lag-just-landed-phase
-  phase: guard-floor-and-scope-hook-coverage-completeness/servitor-wrapup +11 recurrences (latest campaign-anchor-comment-truth/phase-1 task-1.1 wrap-up, 2026-07-19)
-  promoted: dev/2026-07-12-war-launch-entry-validation@phase-1
+  phase: guard-floor-and-scope-hook-coverage-completeness/servitor-wrapup +12 recurrences (latest auditor-guard-ergonomics/phase-1 tasks 1.1-1.2 wrap-up, 2026-07-22)
+  promoted: dev/2026-07-16-campaign-anchor-comment-truth@phase-1
   tags:
     - servitor
     - memory-protocol
@@ -45,8 +45,13 @@ metadata:
     - loose ref present no checkout
     - same branch reused across phases
     - campaign branch persistence
+    - servitor cwd is a linked worktree
+    - Glob bare directory pattern returns nothing
+    - Glob wildcard file suffix required
+    - false negative live worktree enumeration
+    - HEAD suffix glob pattern
   originSessionId: 8c039a7f-0c62-47a8-85f9-10099b5a6caf
-  modified: 2026-07-19T11:07:21.297Z
+  modified: 2026-07-22T21:57:50.292Z
 ---
 
 # A servitor's own worktree checkout can lag the phase it is wrapping up
@@ -310,3 +315,42 @@ main checkout can still be arbitrarily behind that branch's latest tip at each w
 "I already confirmed this exact ref exists, last phase" as **zero** evidence about the current
 phase's content; the ref-presence check is per-wrap-up, not cacheable across phases even on the
 literal same branch name.
+
+## Recurrence 12 (2026-07-22, phase "Guard grammar + taught contract + self-diagnosing error path" /
+auditor-guard-ergonomics tasks 1.1-1.2 wrap-up) — the servitor's OWN cwd is itself a linked
+worktree this time, and a bare `Glob('.git/worktrees/*')` (no trailing filename) silently returns
+zero entries even though 17 exist
+
+Twelfth occurrence, a new topology variant: this time the servitor's threaded cwd
+(`<repo-root>/.claude/worktrees/war-campaign-resilience-roadmap-33290f`) was itself a **linked
+worktree** (confirmed via its own `.git` file: `gitdir:
+<repo-root>/.git/worktrees/war-campaign-resilience-roadmap-33290f`), on an unrelated branch
+(`claude/war-campaign-resilience-roadmap-33290f`) — not the main checkout (Recurrences 8-11) and
+not a reaped/absent task worktree (Recurrence 7). Reading `hooks/validate-auditor-git.sh` at this
+cwd directly confirmed staleness: the char allowlist still read `[A-Za-z0-9 ./_=:,@^-]`, missing
+the `~`/`%` this phase's task 1.1 was supposed to add, and `skills/war/assets/workflow-template.test.mjs`
+still carried the pre-fix `%-format`/`@{}` reflog-avoidance test task 1.2 was supposed to retitle.
+
+**New wrinkle — a bare `Glob('.git/worktrees/*')` pattern returns nothing, and reads as "no live
+worktrees" (Recurrence 8/9/10's fallback trigger) when 17 entries actually exist.** Glob matches
+*files*, not bare directory names — `.git/worktrees/<name>` is a directory, so the pattern must
+target a file one level inside it (`'.git/worktrees/*/HEAD'` or `'.git/worktrees/*/gitdir'`), never
+the bare directory glob. Retrying with `'.git/worktrees/*/HEAD'` surfaced all 17 live worktrees,
+including two whose `gitdir` resolved to this exact phase's plan-slug
+(`.claude/war/wt/2026-07-22-auditor-guard-ergonomics-2026-07-22/p1-1.1` and `/p1-1.2`, git-suffixed
+to `p1-1.11`/`p1-1.21` per Recurrence 5's name-collision wrinkle) and one resolving to its
+`_refinery1` (same plan-slug, `/_refinery`). Reading the phase's touched files at those physical
+paths gave a true `code-verified` read of the landed tip — the "mirrored verbatim" phrase in
+`agents/war-auditor.md` (Task 1.2 Nit), the exact branch-deny message text (Task 1.1 Nit), and the
+new D3 `REGISTRY` row for the guard contract were all confirmed present there, while this
+servitor's own cwd still showed none of them.
+
+**Generalized rule (extends Recurrence 4/5's technique):** before concluding "zero live
+worktrees" from a `Glob` of `.git/worktrees/*`, re-run with a file-suffixed pattern
+(`*/HEAD` or `*/gitdir`) — a bare directory-glob false-negative would otherwise wrongly trigger the
+Recurrence 8-10 "trust the audit log, no direct read possible" fallback in a session where a direct
+`code-verified` read was actually available all along.
+
+Related: same family as Recurrences 4-7 (task/`_refinery` worktree lookup via `gitdir`), now with
+the added precondition that the servitor's own cwd being a linked worktree (rather than main
+checkout) does not exempt it from the lag hazard, and the Glob-pattern gotcha above.

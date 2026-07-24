@@ -38,7 +38,9 @@ Source spec: `docs/specs/2026-07-22-auditor-guard-ergonomics-design.md` (from is
      new D3 both-surfaces registry row with the `REGISTRY.length` floor at the new exact row count
      (#693 no-slack); reverting either surface's block alone REDs the row.
   6. The stale partial teach is fully replaced: `grep -rn '%-format'` over
-     `skills/war/assets/workflow-template.js` and `agents/war-auditor.md` returns zero matches; the
+     `skills/war/assets/workflow-template.js` and `agents/war-auditor.md` returns zero matches, and
+     that absence is RED-able — the D3 registry test asserts `/%-format/` and `/reflog syntax/`
+     match nowhere in either surface (red-team adjudication, ADR 0025); the
      retitled F03 prompt test passes with `@{}` still confined to avoidance context.
   7. A malformed JSON **string** args value (e.g. `'{oops'`) returns `landDecision:
      'held:workflow-error'` whose `workflowError.message` carries the payload char length and a head
@@ -142,7 +144,12 @@ Source spec: `docs/specs/2026-07-22-auditor-guard-ergonomics-design.md` (from is
   `/one bare git/i`, `/no pipes/i`, `/Grep tool/i`); bump the `REGISTRY.length` floor and its
   assertion message to the new exact row count — floor equals true count, no slack (#693); the
   registry's per-surface anchor loop is the delete-the-feature proof (reverting either surface's
-  contract block alone REDs the row — verify red-first by temp-revert during development). (b) Retitle
+  contract block alone REDs the row — verify red-first by temp-revert during development). The same
+  test additionally asserts the OLD fragments ABSENT (red-team adjudication, ADR 0025
+  replacement-class drift): `/%-format/` and `/reflog syntax/` match NOWHERE in either surface
+  (`auditorMd`, `auditP`) — a partial edit that adds the new contract but leaves the stale teach
+  co-present REDs the suite, promoting the criterion-6 grep from un-encoded prose to a RED-able
+  assertion. (b) Retitle
   and re-anchor the F03 allowlist-steer prompt test to the new contract clause; correct its stale
   "Task-2 guard denies those chars" comment in the same commit (comment-lag duty); keep the
   `@{}`-avoidance-context assertion. (c) New test, sibling of the scalar-args criterion-2 test: a
@@ -233,7 +240,9 @@ Source spec: `docs/specs/2026-07-22-auditor-guard-ergonomics-design.md` (from is
   (the original teach's authoring plan — its reflog-syntax prose),
   `docs/specs/2026-07-08-audit-gate-verdict-fidelity-design.md` and
   `docs/specs/2026-07-08-memory-and-lessons-learned-hygiene-design.md` (the old verb enumeration
-  quoted in constraint lines), `docs/learnings/auditor-grep-tool-unrestricted-by-git-verb-bash-guard.md`,
+  quoted in constraint lines), `docs/specs/2026-07-01-auditor-pin-validity-no-fetch-design.md` (the
+  same verb set in comma form — `ls-files, cat-file, blame` — which a slash-pattern grep misses;
+  added by red-team sweep), `docs/learnings/auditor-grep-tool-unrestricted-by-git-verb-bash-guard.md`,
   plus the self-referential source spec and this plan. All are decision records: **byte-untouched** —
   a worker must not edit history, and an auditor finding them surviving the sweep is confirming the
   design, not catching an omission (`docs/red-team/` was checked and carries zero hits).

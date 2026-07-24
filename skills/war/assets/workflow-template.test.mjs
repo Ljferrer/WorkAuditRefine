@@ -1505,22 +1505,22 @@ test('F03 — auditPrompt: does NOT contain "main repo checkout" prose (baseline
   }
 })
 
-test('F03 — auditPrompt: steers auditor to allowlist-safe git forms (mentions avoid for %-format and @{} reflog)', async () => {
-  // The prompt must steer the auditor away from disallowed git forms.
-  // It must warn about %-format strings and @{} reflog (Task-2 guard denies those chars).
-  // The prompt may mention them as things to avoid (negative examples), but must not
-  // positively recommend them without an avoidance qualifier.
+test('F03 — auditPrompt: teaches the read-only git guard contract (one bare git per Bash call, no composition, Grep-tool sweep channel), keeps @{} in avoidance context', async () => {
+  // The prompt teaches the D5 read-only git guard contract (Task 1.2, spec §5): one bare git command per
+  // Bash call from the read-verb allowlist, no pipes/chaining/redirects/quotes/globs/braces/substitution,
+  // the Grep tool as the repo-wide sweep channel, and @{} reflog kept in avoidance context (braces are
+  // denied). The guard's grammar is widened (~/%, ls-tree, read-form branch) — no longer the narrow
+  // "%-format denied" teach, so the anchors moved to the contract's distinctive fragments.
   const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
   // Filter to regular audit calls only (not gate-audit execution-evidence seats)
   const auditCalls = calls.filter(c => isAuditor(c) && !c.prompt.includes('execution-evidence'))
   assert.ok(auditCalls.length > 0, 'at least one regular auditor call was made')
   for (const c of auditCalls) {
     const p = c.prompt
-    // The prompt must mention avoidance of % or @{} (either as "Avoid" or "denied")
-    assert.ok(
-      /avoid|denied|not.*use|do not use/i.test(p),
-      `audit prompt must warn the auditor about disallowed git forms (avoid/denied); got: "${p.slice(0, 400)}"`
-    )
+    // The contract's distinctive fragments must be present (re-anchored off the retired %-format teach).
+    assert.match(p, /one bare git/i, `audit prompt must teach one bare git command per Bash call; got: "${p.slice(0, 400)}"`)
+    assert.match(p, /no pipes/i, `audit prompt must ban composition (no pipes/chaining/…); got: "${p.slice(0, 400)}"`)
+    assert.match(p, /Grep tool/i, `audit prompt must name the Grep tool as the repo-wide sweep channel; got: "${p.slice(0, 400)}"`)
     // Must NOT positively recommend @{} reflog (without avoidance context)
     // Check: @{ only appears in context of avoidance (the word "avoid" or "denied" nearby)
     const atBraceIdx = p.indexOf('@{')
@@ -6326,8 +6326,16 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     { name: 'auditor committed-tree grounding for no-op claims (git show <audit_sha>:<path>, grep advisory)',
       surfaces: [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]],
       anchors: [/committed-tree grounding/i, /verify-and-close/i, /git show <audit_sha>:<path>/i, /advisory only/i, /git grep/i] },
+    // Task 1.2 (D5, spec §5): the read-only git guard contract lives in the "## Read-only git guard contract"
+    // section of the standing card AND in the auditPrompt()-built dispatched prompt — both must carry it. The
+    // anchors are the contract's distinctive fragments: a widened-verb token (/ls-tree/i) plus the
+    // composition-ban tokens (/one bare git/i, /no pipes/i, /Grep tool/i). Reverting either surface's block
+    // alone REDs this row (End-state-5 delete-the-feature proof).
+    { name: 'read-only git guard contract (D5): one bare git per Bash call, no composition, ls-tree/branch read verbs, Grep tool is the sweep channel',
+      surfaces: [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]],
+      anchors: [/one bare git/i, /no pipes/i, /ls-tree/i, /Grep tool/i] },
   ]
-  assert.ok(REGISTRY.length >= 10, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, and the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree) — floor equals the true row count, no slack (#693)')
+  assert.ok(REGISTRY.length >= 11, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), and the Task 1.2 read-only git guard contract row — floor equals the true row count, no slack (#693)')
   for (const row of REGISTRY) {
     for (const [sName, sText] of row.surfaces) {
       for (const re of row.anchors) {
@@ -6340,6 +6348,14 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
   assert.doesNotMatch(servitorMd, /phase-<N>\.md/i, 'war-servitor.md no longer names the phase-<N>.md aggregate file')
   assert.doesNotMatch(servitorMd, /else:\s*append|else\b.{0,20}append to/i, 'war-servitor.md no longer carries an "else: append" routing arm')
   assert.doesNotMatch(src, /memory dir or docs\/learnings/i, 'template args header no longer says "(memory dir or docs/learnings/)"')
+  // Old-fragment absence (D5, spec criterion 6; red-team adjudication, ADR 0025 replacement-class drift):
+  // the retired partial teach ('%-format' / 'reflog syntax') is GONE from BOTH prompt surfaces. A partial
+  // edit that adds the new contract but leaves the stale teach co-present REDs here — this promotes the
+  // criterion-6 `grep -rn '%-format'` from un-encoded prose to a RED-able assertion.
+  for (const [sName, sText] of [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]]) {
+    assert.doesNotMatch(sText, /%-format/, `${sName}: the retired '%-format' teach is absent (the D5 contract replaced it)`)
+    assert.doesNotMatch(sText, /reflog syntax/, `${sName}: the retired 'reflog syntax' teach is absent (the D5 contract replaced it)`)
+  }
 })
 
 // ---------------------------------------------------------------------------
@@ -6361,6 +6377,40 @@ test("criterion 2 — a scalar args string ('null'/'true'/'5') RETURNS held:work
     assert.equal(out.phase, null, `args='${scalar}' renders phase:null via the hoisted phaseId fallback`)
     assert.doesNotMatch(out.workflowError.message, /Cannot (read|destructure)|is not defined|of (null|undefined)/,
       `args='${scalar}' is the NAMED guard error, not a secondary raw TypeError/ReferenceError on ph`)
+  }
+})
+
+test("D8 (spec §8) — a malformed JSON STRING args ('{oops') RETURNS held:workflow-error whose message carries the payload char length + head snippet, dispatches ZERO agents, renders phase:null", async () => {
+  // Sibling of the scalar-args criterion-2 test: the string arm's JSON.parse throws, and the D8 wrapper
+  // re-throws a NAMED, self-diagnosing error routed to the existing held:workflow-error catch (no new enum
+  // member, ADR 0005). Delete-the-feature: reverting the D8 try/catch lets the raw SyntaxError propagate
+  // (still held:workflow-error at the top-level catch, but with no char-length / head-snippet self-diagnosis).
+  const payload = '{oops'
+  const fn = build()
+  let dispatched = 0
+  const agent = async () => { dispatched++; return {} }
+  const out = await fn(agent, fakeParallel, async () => [], () => {}, () => {}, payload, { total: null })
+  assert.equal(out.landDecision, 'held:workflow-error', `malformed JSON string → held:workflow-error; got ${JSON.stringify(out.landDecision)}`)
+  assert.match(out.workflowError.message, /not valid JSON/, 'the message names the malformed-JSON class (the D8 diagnostic, not a raw uncaught parse throw)')
+  assert.match(out.workflowError.message, new RegExp(`${payload.length} chars`), `the message carries the payload length in characters (${payload.length})`)
+  assert.ok(out.workflowError.message.includes(payload), `the message carries the head snippet of the payload ("${payload}")`)
+  assert.equal(dispatched, 0, 'zero agents dispatched (the string-arm parse throws at the top of the try, before any spawn)')
+  assert.equal(out.phase, null, 'renders phase:null via the hoisted phaseId fallback (parse throws before ph is assigned)')
+})
+
+test('D9 (spec §9) — the held:workflow-error catch return carries workflowError.recovery (fresh Recovery relaunch, never resumeFromRunId) — one shared return site, universal', async () => {
+  // The top-level catch has a SINGLE return site, so the additive recovery field rides EVERY catch-path
+  // return. Probe two distinct throw origins (a malformed JSON string, a scalar args) to show it is on the
+  // shared return, not path-specific. It names the sanctioned retry: a FRESH Recovery relaunch (new runId),
+  // NEVER resumeFromRunId (the journal replays the cached error) — conforming to SKILL.md's ratified prose.
+  for (const payload of ['{oops', 'null']) {
+    const fn = build()
+    const out = await fn(async () => ({}), fakeParallel, async () => [], () => {}, () => {}, payload, { total: null })
+    assert.equal(out.landDecision, 'held:workflow-error', `args='${payload}' reaches the top-level catch`)
+    assert.ok(typeof out.workflowError.recovery === 'string' && out.workflowError.recovery.length > 0,
+      `args='${payload}': workflowError.recovery is a non-empty string`)
+    assert.match(out.workflowError.recovery, /fresh Recovery relaunch/i, `args='${payload}': recovery names a fresh Recovery relaunch (new runId)`)
+    assert.match(out.workflowError.recovery, /never\s+resumeFromRunId/i, `args='${payload}': recovery says never resumeFromRunId`)
   }
 })
 
@@ -6514,6 +6564,7 @@ const scanTemplateLiterals = (text = src) => {
 // or nested interior) AND a stale row whose literal was removed/renamed.
 const LITERAL_REGISTRY = [
   ["workflow-template prompt: undefined interpol"],
+  ["workflow-template: args is a string but not "],
   ["workflow-template: args must be a JSON objec"],
   [" --pattern '${testPattern}'` : ''\n// Partial"],
   ["war/${planSlug}/p${ph.id}-${t.id}` : t.branc"],
