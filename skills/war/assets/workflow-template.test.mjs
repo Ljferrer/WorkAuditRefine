@@ -5555,6 +5555,11 @@ test('Task 1.5 — the version-precedence adjudication clause is on BOTH surface
     'the threaded auditPrompt carries the version-precedence ordering (mid-sentence anchor)')
   assert.ok(wa.prompt.includes('a value matching the adjudication is correct even when it differs from the plan body literal'),
     'the threaded auditPrompt carries the adjudication-wins clause (mid-sentence anchor)')
+  // adjudication-match rule (Task 1.1) — two new mid-sentence anchors on the same threaded auditPrompt
+  assert.ok(wa.prompt.includes('a confirmation note, never an escalation'),
+    'the threaded auditPrompt carries the adjudication-match confirmation-note clause (mid-sentence anchor)')
+  assert.ok(wa.prompt.includes('not re-litigable this run'),
+    'the threaded auditPrompt carries the adjudication-match not-re-litigable clause (mid-sentence anchor)')
   // the threaded rows render below the clause
   assert.ok(wa.prompt.includes('0.14.18 (supersedes plan literal: 0.14.14)'),
     'an object row renders adjudicated value + superseded plan literal')
@@ -5565,6 +5570,11 @@ test('Task 1.5 — the version-precedence adjudication clause is on BOTH surface
     'war-auditor.md carries the byte-identical version-precedence ordering')
   assert.ok(auditorMd.includes('a value matching the adjudication is correct even when it differs from the plan body literal'),
     'war-auditor.md carries the byte-identical adjudication-wins clause')
+  // adjudication-match rule (Task 1.1) — the same two mid-sentence anchors on the standing card
+  assert.ok(auditorMd.includes('a confirmation note, never an escalation'),
+    'war-auditor.md carries the byte-identical adjudication-match confirmation-note clause')
+  assert.ok(auditorMd.includes('not re-litigable this run'),
+    'war-auditor.md carries the byte-identical adjudication-match not-re-litigable clause')
 })
 
 test('Task 1.5 back-compat — empty/absent adjudications ⇒ NO version-precedence clause and a byte-identical auditPrompt to today', async () => {
@@ -5582,6 +5592,66 @@ test('Task 1.5 back-compat — empty/absent adjudications ⇒ NO version-precede
   const { calls: threaded } = await runPhase(PROVISION_ARGS({ adjudications: ['x'] }), defaultImpl)
   assert.ok(seatP(threaded).includes('VERSION-PRECEDENCE RULE'),
     'threading a non-empty adjudications array DOES emit the clause (delete-and-trace)')
+})
+
+// Task 1.1 (b) — the adjudication clause ALSO rides the gate-audit-family seats (three new emission
+// sites). Exercised via the cheapest existing harness idiom: the end-state-only seat (empty per-task
+// merge set from a requiresTest:false task + non-empty phase.endState). A threaded run carries the
+// clause on that seat; an unthreaded run carries none of the new anchors.
+test('Task 1.1 — a threaded gate-audit-family prompt carries the adjudication clause (end-state-only seat); unthreaded carries none', async () => {
+  const esSeatP = (calls) => (calls.find(c => (c.opts.label || '') === 'gate-audit:phase-3:end-state') || {}).prompt
+  const docsTask = [{ id: 't1', issue: 101, title: 'Docs task', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], requiresTest: false }]
+  const { calls: threaded } = await runPhase(ES_ARGS({ tasks: docsTask, adjudications: ['a bare gate-time scope row'] }), gateAuditImpl)
+  const pt = esSeatP(threaded)
+  assert.ok(pt, 'the end-state-only gate-audit seat was dispatched (threaded run)')
+  assert.ok(pt.includes('task instruction > red-team adjudication > plan body literal'),
+    'the threaded gate-audit seat carries the version-precedence anchor')
+  assert.ok(pt.includes('a confirmation note, never an escalation'),
+    'the threaded gate-audit seat carries the adjudication-match anchor')
+  assert.ok(pt.includes('a bare gate-time scope row'),
+    'the threaded gate-audit seat renders the adjudicated row')
+  const { calls: unthreaded } = await runPhase(ES_ARGS({ tasks: docsTask }), gateAuditImpl)
+  const pu = esSeatP(unthreaded)
+  assert.ok(pu, 'the end-state-only gate-audit seat was dispatched (unthreaded run)')
+  assert.ok(!pu.includes('VERSION-PRECEDENCE RULE') && !pu.includes('ADJUDICATION-MATCH RULE'),
+    'an unthreaded gate-audit seat carries none of the new adjudication anchors (back-compat)')
+})
+
+// Task 1.1 (e) — scoped single-producer absence test (End state 7, ADR 0025). Scope ONLY the two
+// surfaces present at this task's tip: the workflow-template.js adjudications header comment block and
+// the war-auditor.md version-precedence bullet. Every sentence naming "red-team report" MUST also carry
+// a second-producer fragment (a `skills/war/SKILL.md` reference and/or an `and/or` conjunction). Matcher
+// discipline (the obvious `only`/`sole` spelling is PROVABLY VACUOUS — neither surface ever carried such
+// a token, so an only-matcher passes on the very single-producer text it must reject): key on a
+// red-team-report sentence MISSING its second-producer clause. Red-first proof: temp-reverting the
+// header-comment rewrite drops `skills/war/SKILL.md` from that sentence → this test goes RED.
+test('Task 1.1 (e) — no surviving single-producer phrasing on the two Task 1.1 surfaces (scoped, red-team-report sentences name the second producer)', () => {
+  const between = (text, startTok, endTok) => {
+    const s = text.indexOf(startTok)
+    assert.ok(s !== -1, `scope start "${startTok}" is locatable`)
+    const e = text.indexOf(endTok, s + startTok.length)
+    assert.ok(e > s, `scope end "${endTok}" is locatable after the start`)
+    return text.slice(s, e)
+  }
+  // Normalize a block to plain sentences: drop `//` comment markers, flatten newlines, split on `. `.
+  // No period inside `docs/red-team/<plan-slug>.md)`, `skills/war/SKILL.md,` or `args.adjudications` is
+  // followed by whitespace, so none of them splits mid-sentence.
+  const sentences = (block) => block.replace(/\/\//g, ' ').replace(/\s+/g, ' ').split(/\.\s+/)
+  const secondProducer = (s) => /skills\/war\/SKILL\.md/.test(s) || /and\/or/.test(s)
+  const surfaces = [
+    ['workflow-template.js adjudications header', between(src, 'Adjudications (Task 1.5', '\nconst adjudications =')],
+    ['war-auditor.md version-precedence bullet', between(auditorMd, '**Version-precedence rule:**', '**Adjudication-match rule:**')],
+  ]
+  for (const [name, block] of surfaces) {
+    const hits = sentences(block).filter(s => /red-team report/i.test(s))
+    // Non-vacuity guard: each scoped surface DOES name the red-team report (else the loop below is empty
+    // and the test passes for the wrong reason — the negative-reference discipline, ADR 0025).
+    assert.ok(hits.length >= 1, `${name}: at least one sentence names the red-team report (non-vacuity guard)`)
+    for (const s of hits) {
+      assert.ok(secondProducer(s),
+        `${name}: a red-team-report sentence must also name the second producer (skills/war/SKILL.md and/or an and/or conjunction) — surviving single-producer phrasing: "${s.trim()}"`)
+    }
+  }
 })
 
 test('T2.1 criterion 5 (D4) — an INTRA-PHASE-DEP phase: the evidence dispatch re-runs the integrated tip AND one authoritative execution-evidence seat consumes it', async () => {
@@ -6261,8 +6331,11 @@ test('gate composition point (ADR 0036) — plan-less / zero-task phase: the GUA
 // Each correctness-critical directive duplicated across a standing agents/*.md card and its dispatched
 // prompt(s). Token-anchored, case-tolerant — never full-line bytes (the surfaces phrase the shared
 // discipline differently). Includes rows asserted against the INLINE gate-audit seat prompts
-// (execution-evidence + end-state) sliced from template src — those sit OUTSIDE auditPrompt(), so a base
-// auditPrompt clause never reaches them; they inherit a shared directive only via the standing card.
+// (execution-evidence + end-state) sliced from template src — those sit OUTSIDE auditPrompt(), so MOST
+// base auditPrompt clauses never reach them; they inherit those shared directives only via the standing
+// card. The ONE exception is adjudicationClause (a module-level const, not an auditPrompt-internal
+// clause): it is concatenated onto both auditPrompt AND the three gate-audit-family seats directly, so
+// the adjudication rules reach those seats without the card — the rows below still assert the card too.
 // ponytail: this registry IS the deliberate ceiling — a new both-surfaces directive lands its row here in
 // the same task (the /war-strategy new-mirror authoring rule), never an AST scanner.
 const sliceSrc = (startTok, endTok) => {

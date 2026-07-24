@@ -759,12 +759,14 @@ The hardened `git -C` scope-lock is prevention (Layer 2); this guard is the dete
 _Avoid_: "cleanup", "sandbox jail" — it is detection, not confinement; the agent-type probe jail is a
 recorded non-goal (D6).
 
-**Adjudication (red-team)**:
-An authoritative resolved value (especially a version literal) recorded in the red-team report's
-`## Adjudications` block, superseding the plan body literal. Auditor version-scoring keys on it:
-task instruction > red-team adjudication > plan body literal.
-_Avoid_: "override", "the real version" — the block is written by the grill loop when it patches an
-authoritative value, never mined from arbitrary prose.
+**Adjudication**:
+An authoritative resolved ruling threaded to audit seats as an `args.adjudications` row — produced by
+the red-team report's `## Adjudications` block (version literals and grill decisions) **or** by the
+Lead at the decompose gate / an escalation adjudication (scope deltas routed to follow-ups). Auditor
+scoring keys on it: version precedence (task instruction > red-team adjudication > plan body literal)
+and the adjudication-match confirmation-note rule.
+_Avoid_: "override", "waiver" — a row records a ruling already made and routed; it never waives a gate,
+floor, or backstop (ADR 0017).
 
 **topology-void**:
 A plan clause anchored on git topology that does not exist under WAR's fast-forward per-task merges (a
