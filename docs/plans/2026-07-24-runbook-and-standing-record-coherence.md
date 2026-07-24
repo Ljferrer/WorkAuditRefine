@@ -162,15 +162,15 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
      pre-change counts in the done report so each floor is provably red-provable, not vacuous.
      Presence floor (the
      discriminating proof the reword actually landed — J16's surviving-substring pin alone cannot
-     show it): the deny-message line greps positive for **every token the two `case` arms admit**,
-     not a representative sample — all six `=-attached` value forms (`--contains=`,
-     `--no-contains=`, `--merged=`, `--no-merged=`, `--points-at=`, `--sort=`) **and** all nine
-     bare tokens (`--list`, `--all`, `-a`, `--remotes`, `-r`, `--show-current`, `--verbose`, `-v`,
-     `-vv`) — with no blanket adjective covering the bare set and **no completeness adjective
-     ("exactly", "only", "all") standing over a list shorter than the arm it describes**. A
-     sample-based presence floor is what let the live string ship partial in the first place. The
-     done report quotes the new deny string and header comment verbatim and states the arm-vs-message
-     token count as `15/15`. The adjacent header comment states the same mixed-shape truth.
+     show it), **identical to Task 1.5 floor (iii)**: the set of flag tokens named in the new deny
+     message **equals, exactly**, the union of the two `case` arms' `|`-split patterns — both sides
+     derived mechanically at the base, neither taken from a list in this plan. **Not a per-token
+     substring grep** (`-a` ⊂ `--all`, `-r` ⊂ `--remotes`, `-v` ⊂ `--verbose`/`-vv`: a long-forms-only
+     message passes a substring check while omitting three tokens — the exact partial-enumeration
+     defect this floor exists to catch). No blanket adjective covers the bare set, and **no
+     completeness adjective ("exactly", "only", "all") stands over a list shorter than the arm it
+     describes**. The done report quotes the new deny string, the header comment, and **both derived
+     token sets** verbatim. The adjacent header comment states the same mixed-shape truth.
   8. Roadmap record honest: in `docs/roadmaps/2026-07-22-run-resilience-and-hardening-roadmap.md`,
      row 6's Files-owned cell lists `CONTEXT.md` and the shared-file contention `CONTEXT.md` row
      reads `2, 3, 4, 5, 6, 7`; nothing else in the file moves.
@@ -195,12 +195,16 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
       `skills/war/assets/provision-worktrees.test.sh`, the T2.9 block-comment census no longer
       asserts a uniqueness/universality claim about exit-3 routes — the strings `only SILENT`
       and `every one of which` both grep empty from that comment — while the **replacement
-      invariant sentence** (the prose from `Exit 3 is shared by` through its `(b)+(c)+(d)`
-      lead-in, *excluding* the `(b)`/`(c)`/`(d)` detail lines below it) stays **count-free** and
-      greps **zero** for `T2\.` — **sentence-scoped, exactly as plan 1's End state 4 scoped it**;
-      the key is neither file-wide (90 matching lines at base) nor census-block-wide (3, one of
-      them the byte-pinned `(b)` line), and either wider reading makes this End state and floor
-      (iii) jointly unsatisfiable. The `(b)`/`(c)`/`(d)` detail lines and all assertion code are
+      invariant sentence** stays **count-free** and greps **zero** for `T2\.` —
+      **sentence-scoped, exactly as plan 1's End state 4 scoped it**; the key is neither file-wide
+      (90 matching lines at base) nor census-block-wide (3, one of them the byte-pinned `(b)`
+      line), and either wider reading makes this End state and floor (iii) jointly unsatisfiable.
+      **The region is the one the worker declares** — the replacement sentence quoted verbatim in
+      the done report, terminating at its `(b)+(c)+(d)` lead-in and excluding the `(b)`/`(c)`/`(d)`
+      detail lines below it. It is deliberately **not** anchored on any opening literal: the
+      sentence being replaced opens `Exit 3 is shared by`, so pinning that phrase would either
+      survive only by forbidding the rewording this task exists to perform, or evaporate the
+      moment the worker rewords. The `(b)`/`(c)`/`(d)` detail lines and all assertion code are
       **byte-unchanged**, and the
       replacement sentence remains truthful against `cmd_land_advance` as written (which has two
       silent bare-`exit 3` arms: the push-error branch and the post-push origin-readback
@@ -487,13 +491,21 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
   `--sort=` (**six**) — and bare read flags are enumerated — `--list`, `--all`, `-a`, `--remotes`,
   `-r`, `--show-current`, `--verbose`, `-v`, `-vv` (**nine**); the offending token is named;
   space-form values and write flags deny. If the case arms at your base differ from these fifteen
-  tokens, the arms win — transcribe what you read and say so in the done report. Wording is worker latitude within three floors, and the floors are the
+  tokens, the arms win — transcribe what you read and say so in the done report. Wording is worker
+  latitude within the numbered floors below, and the floors are the
   audit rubric (the plan-faithfulness seat judges against them; latitude beyond is the worker's,
-  never re-adjudicated as drift): the literal `=-attached` survives (it is J16's pinned
-  micro-teach and stays accurate for the value-carrying flags); no blanket adjective covers the
-  bare-flag set; **every token the two case arms admit appears in the new message — a partial
-  enumeration is the defect, and an enumeration claiming completeness while omitting a token is
-  the defect made worse**; and the message stays **one line, no embedded newlines** — `deny()`
+  never re-adjudicated as drift): **(i)** the literal `=-attached` survives (it is J16's pinned
+  micro-teach and stays accurate for the value-carrying flags); **(ii)** no blanket adjective
+  covers the bare-flag set; **(iii) token-set equality — the set of flag tokens named in the new
+  message equals, exactly, the union of the two `case` arms' `|`-split patterns.** Derive both
+  sides mechanically at your base rather than trusting any list (including this plan's): split the
+  two arm patterns on `|` to get the accepted set, extract the flag tokens from the message you
+  wrote, and assert the two multisets are **equal** — neither side may carry a token the other
+  lacks. **Do not check this with a bare per-token substring grep: `-a` is a substring of `--all`,
+  `-r` of `--remotes`, and `-v` of both `--verbose` and `-vv`, so a message naming only the long
+  forms passes a substring check while omitting three tokens** — the partial-enumeration defect
+  sailing through the floor built to stop it. Quote both derived sets in the done report; **(iv)**
+  the message stays **one line, no embedded newlines** — `deny()`
   echoes a single stderr line and the J-series substring greps assume line-local text (length
   itself is unconstrained; a longer honest line beats a short false one). **Header comment** —
   correct
@@ -540,8 +552,13 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
   mismatch) print nothing, while the rest die LOUDLY with route-naming text — so route identity
   rests on (b)+(c)+(d) TOGETHER:"*. **Floors (the audit rubric — latitude beyond them is the
   worker's, never re-adjudicated as drift):** (i) the **replacement invariant sentence** — the
-  prose you write from `Exit 3 is shared by` through its `(b)+(c)+(d)` lead-in, *excluding* the
-  `(b)`/`(c)`/`(d)` detail lines that floor (iii) pins byte-unchanged — greps **zero** for `T2\.`
+  prose you write, terminating at its `(b)+(c)+(d)` lead-in and *excluding* the `(b)`/`(c)`/`(d)`
+  detail lines that floor (iii) pins byte-unchanged — greps **zero** for `T2\.`. **Quote the
+  replacement sentence verbatim in your done report; that quoted block IS the region this floor,
+  End state 11, and backstop key (5) all scan.** No opening literal is pinned — you are rewording
+  this sentence, so any phrase anchored from the old text would either forbid the reword or vanish
+  with it (the suggested shape below already opens `Exit 3 is reached by`, not the current
+  `Exit 3 is shared by`)
   (plan 1's End-state-4 count-free floor, preserved at plan 1's scope: **sentence**, never the
   census block and never the file, both of which match `T2\.` at base and would report a false
   RED); (ii) the claims are gone under a **case-insensitive, wrap-tolerant** check — normalize
@@ -623,7 +640,10 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
   (each pre-change hit count **1**, line-resident) plus `T2\.` **scoped to the replacement
   invariant sentence only** — never the file (90 matching lines at base) and never the whole T2.9
   census block (3, one of them the byte-pinned `(b)` detail line); a file-wide or block-wide
-  reading of this key reports a false RED on a correctly-executed Task 1.6. Confirm
+  reading of this key reports a false RED on a correctly-executed Task 1.6. **Take the region from
+  Task 1.6's done report** — the worker quotes the replacement sentence verbatim, and that quoted
+  block is what this key scans at the landed tip; do not re-derive it from an opening literal,
+  which the reword may legitimately have removed. Confirm
   End states 2, 4, 5, 7, **11** hold after the serial merge · why
   deferred: sweep completeness is a whole-repo property spanning **six** parallel tasks that each
   adjudicate at their own frozen base — the cross-task fixed-in-flight rulings (Task 1.3
@@ -682,10 +702,13 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
   reappearing one layer down. Resolved toward the checkable pair (the args contract + the
   re-thread promise): the ledger key documents rows verbatim-as-threaded in either shape.
 - **No `/war-review` prose lock (self-decided, grill):** the §2/§3/§4 edits stay grep-checked
-  (End state 4) rather than test-locked — the spec's design tree deliberately chose exactly two
-  new locks, a third would add contention on `skill-doc-contracts.test.mjs` (which a sibling
-  campaign spec also edits) for a low-blast-radius prose surface no test has ever pinned, and
-  the integrated-tip backstop re-checks the greps at land.
+  (End state 4) rather than test-locked. The spec's design tree chose two new locks; **this plan
+  carries three** — red-team round 1 added lock (c) (the End state 2 both-arms presence guard) to
+  close an End state that otherwise had no committed guard, and Task 1.3 owns all three. A
+  **fourth**, on `/war-review` prose, is where the line is drawn: it would add further contention
+  on `skill-doc-contracts.test.mjs` (which a sibling campaign spec also edits) for a
+  low-blast-radius prose surface no test has ever pinned, and the integrated-tip backstop
+  re-checks the greps at land.
 - **Split stays transcript-mined but caveated (self-decided, grill):** spec constraint 3 pins
   the split as transcript-mined-or-`n/a`; the plan adds the best-effort/undercount label to the
   rewritten §2 sentence (from #1078's own 13-vs-265 calibration) so the split is never read as
