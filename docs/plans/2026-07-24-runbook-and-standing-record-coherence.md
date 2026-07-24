@@ -6,10 +6,14 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
 
 ## Commander's Intent
 
-- **Purpose:** seven independently re-verified drifts between WAR's standing records (runbooks,
-  contracts, glossary, roadmap, guard text) and the behavior those records describe — none an
+- **Purpose:** eight independently re-verified drifts between WAR's standing records (runbooks,
+  contracts, glossary, roadmap, guard text, test-comment census) and the behavior those records
+  describe — seven surveyed for this plan plus one **campaign carry-over** from plan 1
+  (`2026-07-24-land-advance-exit-contract-truth`, Task 1.2), whose plan-mandated T2.9 census
+  wording two auditor seats code-traced false and the operator ratified correcting here — none an
   engine defect, every one misleading exactly the reader the record exists for (a recovering Lead,
-  a relaunch operator, a `/war-review` miner, an auditor seat hitting a deny message). Realign
+  a relaunch operator, a `/war-review` miner, an auditor seat hitting a deny message, a future
+  reader trusting a test's own account of the routes it discriminates). Realign
   every record with the live truth, restore the orphaned "never mined from arbitrary prose"
   doctrine anchor and drift-lock it, and widen the run-manifest contract so `/war-review` can
   honestly source token/tool totals — while the manifest stays fail-open telemetry that no code
@@ -109,11 +113,20 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
      `land-decision.mjs`, every floor script, and `hooks/validate-auditor-git.test.sh`.
   10. Release lands last: all four version slots in lock-step at the next free patch above the
       live integration base; `version-slots.test.mjs` green.
+  11. T2.9 census accuracy (campaign carry-over from plan 1): in
+      `skills/war/assets/provision-worktrees.test.sh`, the T2.9 block-comment census no longer
+      asserts a uniqueness/universality claim about exit-3 routes — the strings `only SILENT`
+      and `every one of which` both grep empty from that comment — while the paragraph stays
+      **count-free** and still greps **zero** for `T2\.` (plan 1's End-state-4 floor, preserved),
+      the `(b)`/`(c)`/`(d)` detail lines and all assertion code are **byte-unchanged**, and the
+      replacement sentence remains truthful against `cmd_land_advance` as written (which has two
+      silent bare-`exit 3` arms: the push-error branch and the post-push origin-readback
+      mismatch). `bash skills/war/assets/provision-worktrees.test.sh` stays green.
 
 ## Build order (for /war)
 
-1. **Phase 1 — Standing-record truth sweep + doctrine locks** (waves: 1.1 ∥ 1.4 ∥ 1.5, then
-   1.2 ∥ 1.3 with `deps: [1.1]` — all five tasks file-disjoint)
+1. **Phase 1 — Standing-record truth sweep + doctrine locks** (waves: 1.1 ∥ 1.4 ∥ 1.5 ∥ 1.6, then
+   1.2 ∥ 1.3 with `deps: [1.1]` — all six tasks file-disjoint)
 2. **Phase 2 — Release** (trailing, own phase)
 
 ## Phase 1 — Standing-record truth sweep + doctrine locks
@@ -354,6 +367,44 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
 - deps: []
 - target repo: superproject
 
+### Task 1.6: T2.9 census accuracy — drop the uniqueness overclaim (campaign carry-over from plan 1)
+
+- Files: `skills/war/assets/provision-worktrees.test.sh`
+- Plan slice: **comment text only** — every assertion, fixture, and case in the file is
+  byte-untouched; this task adds and removes no test. Campaign carry-over: plan 1
+  (`2026-07-24-land-advance-exit-contract-truth`, Task 1.2) rewrote T2.9's block-comment census
+  count-free, and the mandated replacement wording asserted that the push-error branch is
+  "the **only** SILENT exit-3 route", with a universal lead-in that "every one of which dies
+  LOUDLY with route-naming text". Two auditor seats independently code-traced both claims FALSE
+  and dispositioned them `note` (not `absorb`) solely because the wording was plan-mandated; the
+  operator ratified routing the correction here. **The defect:** `cmd_land_advance` has a
+  **second** silent bare-`exit 3` arm — the post-push origin-readback mismatch
+  (`[ "$actual" = "$new_sha" ] || exit 3`, on the push-**success** path) — distinct from the
+  push-error branch on the push-failure path. Neither "every … dies LOUDLY" nor "the only SILENT"
+  is true. **The fix:** in the T2.9 census block comment (anchor: the block comment immediately
+  above the `PAIR9="$(setup_origin_pair)"` fixture line — anchor by that named construct, never a
+  line number), replace the invariant sentence with a truthful, still-count-free one. Auditor-
+  suggested shape, and worker latitude within the floors below: *"Exit 3 is reached by several
+  routes; the push-path silent ones (the push-error branch and the post-push origin-readback
+  mismatch) print nothing, while the rest die LOUDLY with route-naming text — so route identity
+  rests on (b)+(c)+(d) TOGETHER:"*. **Floors (the audit rubric — latitude beyond them is the
+  worker's, never re-adjudicated as drift):** (i) the replacement paragraph greps **zero** for
+  `T2\.` (plan 1's End-state-4 count-free floor is preserved, not regressed); (ii) the strings
+  `only SILENT` and `every one of which` grep **empty** from the comment; (iii) the `(b)`, `(c)`,
+  `(d)` detail lines and **all** assertion code are byte-unchanged; (iv) the sentence is truthful
+  against `cmd_land_advance` **as written at your base** — re-read the function and confirm the
+  two silent arms before writing, rather than trusting this slice's summary (that is precisely the
+  failure mode this task exists to correct); (v) no numeric count of exit-3 routes appears
+  (count-free means no "two"/"three" either — the file must not re-acquire a number that rots).
+  Also hand-scan the rest of the T2.9 comment block for any other universality claim the two greps
+  in (ii) miss. Verify: `bash skills/war/assets/provision-worktrees.test.sh` green (it must be —
+  no assertion moved). End state 11.
+- requiresTest: false — comment-only; the existing T2.x suite passing with zero assertion edits
+  is the check (no-test route recorded here for the floor)
+- requiresPackaging: false
+- deps: []
+- target repo: superproject
+
 ## Phase 2 — Release
 
 ### Task 2.1: Version bump — all four slots
@@ -404,10 +455,13 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
 
 ## Notes / conscious deviations
 
-- **Decomposition:** five Phase-1 tasks, pairwise file-disjoint. The two `deps` edges
+- **Decomposition:** six Phase-1 tasks, pairwise file-disjoint. The two `deps` edges
   (1.2 ← 1.1, 1.3 ← 1.1) are real cross-file dependencies — prose citations and a test lock
   naming constructs Task 1.1 writes — never a same-file dodge (the shared-file rule: all five
-  SKILL.md edits are one task, all schemas.md edits another). Release is its own trailing phase
+  SKILL.md edits are one task, all schemas.md edits another). Task **1.6** is the plan-1 campaign
+  carry-over; it is `deps: []` and owns `skills/war/assets/provision-worktrees.test.sh`, a file no
+  other task in this plan touches, so it rides the first wave alongside 1.1 ∥ 1.4 ∥ 1.5 with no
+  rebase-conflict surface. Release is its own trailing phase
   per the rule. Tasks are carved on **file boundaries, not issue boundaries** — deliberately:
   issue-per-task would put five issues' edits in the same two files and guarantee serial-merge
   rebase conflicts. Issue → task closure map (so the Lead's Checkpoint duty and the campaign
