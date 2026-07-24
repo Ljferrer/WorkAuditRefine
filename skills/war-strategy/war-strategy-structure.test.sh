@@ -75,7 +75,8 @@ check_f 'use the dotted path'                                # dotted path for n
 check_f 'next free patch above the live base'               # release-task next-free-patch
 check_f 'defined-but-not-yet-emitted; produced in Task N'    # cross-slice annotation
 check_f 'requires a manual same-scope title/comment survey'  # grep-as-floor
-check_f 'plan-literal-lint.mjs'                              # advisory lint named in the convention + §4
+check_f 'The advisory `plan-literal-lint.mjs` (`skills/war-strategy/assets/`)'   # §2 convention block
+check_f 'run `node skills/war-strategy/assets/plan-literal-lint.mjs <plan>`'     # §4 lint-the-authored-plan step
 
 # Commander's Intent sits BEFORE ## Build order inside the plan template.
 # Locators anchor to the verbatim arrow-bearing template lines (unique to the plan-template
