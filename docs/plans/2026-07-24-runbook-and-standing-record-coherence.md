@@ -162,11 +162,15 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
      pre-change counts in the done report so each floor is provably red-provable, not vacuous.
      Presence floor (the
      discriminating proof the reword actually landed — J16's surviving-substring pin alone cannot
-     show it): the deny-message line greps positive for both shape classes — at least one
-     `=-attached` value-flag form (`--contains=<rev>`) **and** at least one enumerated bare flag
-     (`--list`) — with no blanket adjective covering the bare set, and the done report quotes the
-     new deny string and header comment verbatim. The adjacent header comment states the same
-     mixed-shape truth.
+     show it): the deny-message line greps positive for **every token the two `case` arms admit**,
+     not a representative sample — all six `=-attached` value forms (`--contains=`,
+     `--no-contains=`, `--merged=`, `--no-merged=`, `--points-at=`, `--sort=`) **and** all nine
+     bare tokens (`--list`, `--all`, `-a`, `--remotes`, `-r`, `--show-current`, `--verbose`, `-v`,
+     `-vv`) — with no blanket adjective covering the bare set and **no completeness adjective
+     ("exactly", "only", "all") standing over a list shorter than the arm it describes**. A
+     sample-based presence floor is what let the live string ship partial in the first place. The
+     done report quotes the new deny string and header comment verbatim and states the arm-vs-message
+     token count as `15/15`. The adjacent header comment states the same mixed-shape truth.
   8. Roadmap record honest: in `docs/roadmaps/2026-07-22-run-resilience-and-hardening-roadmap.md`,
      row 6's Files-owned cell lists `CONTEXT.md` and the shared-file contention `CONTEXT.md` row
      reads `2, 3, 4, 5, 6, 7`; nothing else in the file moves.
@@ -190,9 +194,14 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
   11. T2.9 census accuracy (campaign carry-over from plan 1): in
       `skills/war/assets/provision-worktrees.test.sh`, the T2.9 block-comment census no longer
       asserts a uniqueness/universality claim about exit-3 routes — the strings `only SILENT`
-      and `every one of which` both grep empty from that comment — while the paragraph stays
-      **count-free** and still greps **zero** for `T2\.` (plan 1's End-state-4 floor, preserved),
-      the `(b)`/`(c)`/`(d)` detail lines and all assertion code are **byte-unchanged**, and the
+      and `every one of which` both grep empty from that comment — while the **replacement
+      invariant sentence** (the prose from `Exit 3 is shared by` through its `(b)+(c)+(d)`
+      lead-in, *excluding* the `(b)`/`(c)`/`(d)` detail lines below it) stays **count-free** and
+      greps **zero** for `T2\.` — **sentence-scoped, exactly as plan 1's End state 4 scoped it**;
+      the key is neither file-wide (90 matching lines at base) nor census-block-wide (3, one of
+      them the byte-pinned `(b)` line), and either wider reading makes this End state and floor
+      (iii) jointly unsatisfiable. The `(b)`/`(c)`/`(d)` detail lines and all assertion code are
+      **byte-unchanged**, and the
       replacement sentence remains truthful against `cmd_land_advance` as written (which has two
       silent bare-`exit 3` arms: the push-error branch and the post-push origin-readback
       mismatch). `bash skills/war/assets/provision-worktrees.test.sh` stays green.
@@ -380,7 +389,8 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
   spec-truth rows pin only the 2026-06-25 and 2026-07-12 specs — so the annotative note cannot
   red anything; re-confirm with a cheap grep for the spec's filename over `skills/` and `hooks/`
   test files before commit.) **Drift locks
-  (two new tests in `skill-doc-contracts.test.mjs`, house style: construct-anchored extraction,
+  (three new tests in `skill-doc-contracts.test.mjs` — (a), (b), and (c) below, matching End
+  state 6 and this task's `requiresTest` line; house style: construct-anchored extraction,
   root resolved from `import.meta.url` never `process.cwd()`, maintenance-rule header
   respected).** (a) Read `CONTEXT.md` (repo root, resolved relative to the test file the same way
   the existing spec-truth reads resolve `docs/specs/`), extract the `**Adjudication**:` block by
@@ -392,15 +402,19 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
   loud assertion (the existing rows' could-not-locate pattern). (b) Sibling lock guarding
   Task 1.1's contract fix:
   extract the `## ledger.json — run state` jsonc block from `skills/war/references/schemas.md`
-  (heading to the block's closing fence) and assert it names `adjudications`. Prove both locks
-  red by temporarily removing each referent (red-proof recorded in the commit body, matching the
-  file's house style; per End state 3-style done-report threading, quote the failing output).
+  (heading to the block's closing fence) and assert it names `adjudications`. Prove locks **(a)
+  and (b)** red by temporarily removing each referent (red-proof recorded in the commit body,
+  matching the file's house style; per End state 3-style done-report threading, quote the failing
+  output); lock **(c)** carries its own red-proof below.
   Every existing row — D10, D18, the spec-truth reads — passes with extraction constructs
   untouched. **Token sweep (floor, not ceiling — wrap-tolerant):** census the phrase repo-wide
   with a whitespace-tolerant form that crosses line breaks (e.g. per file
   `tr '\n' ' ' | grep -c 'mined from arbitrary prose'`, or a `\s+`-separated multiline match) —
-  the lesson body carries one occurrence wrapped across a line break that a single-line grep
-  silently drops, the misattribution-pairing defect class exactly. Classify every hit —
+  the lesson body `docs/learnings/spec-non-goal-citation-of-a-doctrines-home-file-can-be-wrong.md`
+  carries **four** occurrences of which **two** wrap across a line break, so a single-line grep
+  reports 2 and silently drops half — the misattribution-pairing defect class exactly. **Enumerate
+  and classify every hit; never match a count** (these numbers are the base-state rationale for
+  using a wrap-tolerant form, not a floor to assert). Classify every hit —
   CONTEXT.md term (standing home, this task's edit),
   `skills/war/SKILL.md` step 5 (standing home, Task 1.2's edit — adjudicate fixed-in-flight by
   the sibling, same phase), the 2026-07-22 spec (this task's correction-note site), the learnings
@@ -465,19 +479,29 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
   the guard byte-untouched (no flag added to or removed from the branch arm's accepted set). In
   the READ-FORM branch-enforcement arm (the `if [ "$subcmd" = "branch" ]` block):
   **Deny message** — replace the "takes only =-attached read flags" blanket characterization with
-  one matching the enumeration's mixed shapes: value-carrying flags must be `=-attached`
-  (`--contains=<rev>`, `--merged=<rev>`, `--points-at=<rev>`) and bare read flags are enumerated
-  (`--list`, `-a`, `-r`, `--show-current`, `-v`); the offending token is named; space-form values
-  and write flags deny. Wording is worker latitude within three floors, and the floors are the
+  one matching the enumeration's mixed shapes. **Enumerate the accepted set as the case arm
+  actually admits it — the live deny string is itself partial (3 of 6 value flags, 5 of 9 bare
+  tokens), and reproducing that partial list is re-committing the very defect this task removes.**
+  Read the two `case` patterns at your base and transcribe them: value-carrying flags must be
+  `=-attached` — `--contains=`, `--no-contains=`, `--merged=`, `--no-merged=`, `--points-at=`,
+  `--sort=` (**six**) — and bare read flags are enumerated — `--list`, `--all`, `-a`, `--remotes`,
+  `-r`, `--show-current`, `--verbose`, `-v`, `-vv` (**nine**); the offending token is named;
+  space-form values and write flags deny. If the case arms at your base differ from these fifteen
+  tokens, the arms win — transcribe what you read and say so in the done report. Wording is worker latitude within three floors, and the floors are the
   audit rubric (the plan-faithfulness seat judges against them; latitude beyond is the worker's,
   never re-adjudicated as drift): the literal `=-attached` survives (it is J16's pinned
   micro-teach and stays accurate for the value-carrying flags); no blanket adjective covers the
-  bare-flag set; and the message stays **one line, no embedded newlines** — `deny()` echoes a
-  single stderr line and the J-series substring greps assume line-local text (length itself is
-  unconstrained; a longer honest line beats a short false one). **Header comment** — correct
+  bare-flag set; **every token the two case arms admit appears in the new message — a partial
+  enumeration is the defect, and an enumeration claiming completeness while omitting a token is
+  the defect made worse**; and the message stays **one line, no embedded newlines** — `deny()`
+  echoes a single stderr line and the J-series substring greps assume line-local text (length
+  itself is unconstrained; a longer honest line beats a short false one). **Header comment** —
+  correct
   "EVERY token must
   be an enumerated read flag with =-attached values" to the mixed-shape truth (value-carrying
-  flags `=-attached`; bare read flags enumerated exactly). **Token sweep (floor, not ceiling):**
+  flags `=-attached`; bare read flags enumerated). **Do not write "exactly" (or any other
+  completeness adjective) unless the adjacent list is in fact the complete fifteen** — an
+  overclaiming completeness adjective is the same misdescription defect in a new coat. **Token sweep (floor, not ceiling):**
   grep `=-attached` across `hooks/` and adjudicate every match — the deny string (reworded
   here), the header comment (corrected here), and the test file's J7/J16 comments (verified
   accurate at drafting: they describe genuinely `=-attached` flags — leave). Then hand-scan the
@@ -515,15 +539,22 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
   routes; the push-path silent ones (the push-error branch and the post-push origin-readback
   mismatch) print nothing, while the rest die LOUDLY with route-naming text — so route identity
   rests on (b)+(c)+(d) TOGETHER:"*. **Floors (the audit rubric — latitude beyond them is the
-  worker's, never re-adjudicated as drift):** (i) the replacement paragraph greps **zero** for
-  `T2\.` (plan 1's End-state-4 count-free floor is preserved, not regressed); (ii) the claims are
-  gone under a **case-insensitive, wrap-tolerant** check — normalize the comment first
-  (`tr '\n' ' ' | tr -s ' '`, so a re-wrap cannot hide a surviving claim the way it does for the
-  `hooks/` header comment in End state 7) and then `grep -i` for **both** `only silent` **and**
-  `every one of which`, plus a universality scan for an `every … dies loudly`-shaped adjective
-  that a re-phrasing could reintroduce under different words. A line-local, case-sensitive pair
-  of greps is NOT sufficient: sentence-initial recasing or a re-wrap would report PASS on a
-  paragraph that still carries both false claims; (iii) the `(b)`, `(c)`,
+  worker's, never re-adjudicated as drift):** (i) the **replacement invariant sentence** — the
+  prose you write from `Exit 3 is shared by` through its `(b)+(c)+(d)` lead-in, *excluding* the
+  `(b)`/`(c)`/`(d)` detail lines that floor (iii) pins byte-unchanged — greps **zero** for `T2\.`
+  (plan 1's End-state-4 count-free floor, preserved at plan 1's scope: **sentence**, never the
+  census block and never the file, both of which match `T2\.` at base and would report a false
+  RED); (ii) the claims are gone under a **case-insensitive, wrap-tolerant** check — normalize
+  the comment first with the continuation marker stripped **before** the lines are joined
+  (`sed 's/^[[:space:]]*#[[:space:]]*//' <file> | tr '\n' ' ' | tr -s ' '`; a bare
+  `tr '\n' ' '` leaves the `# ` mid-phrase and a re-wrapped claim still evades it) and then
+  `grep -i` for **both** `only silent` **and** `every one of which`, plus a universality scan for
+  an `every … dies loudly`-shaped adjective that a re-phrasing could reintroduce under different
+  words. Both keys are line-resident at base (pre-change hit count **1** each, under every
+  normalization) — that is what makes them non-vacuous; the normalization buys tolerance to a
+  *future* re-wrap, and a line-local case-sensitive pair is still NOT sufficient, because a
+  sentence-initial recasing or a re-wrap would report PASS on a paragraph that still carries both
+  false claims; (iii) the `(b)`, `(c)`,
   `(d)` detail lines and **all** assertion code are byte-unchanged; (iv) the sentence is truthful
   against `cmd_land_advance` **as written at your base** — re-read the function and confirm the
   two silent arms before writing, rather than trusting this slice's summary (that is precisely the
@@ -574,16 +605,25 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
 
 - Integrated-tip sweep re-check — re-run the **five** token sweeps once on the landed Phase-1
   tip. **Every key is case-insensitive (`grep -i`), and every key over a wrapped-prose surface is
-  wrap-tolerant (normalize with `tr '\n' ' ' | tr -s ' '` first) — a line-local case-sensitive
-  grep is vacuous against a re-wrap or a sentence-initial recasing, which is the same
-  wrap-blindness this plan corrects in End states 5 and 7.** The five: (1) `already spent` over
+  wrap-tolerant — a line-local case-sensitive grep is vacuous against a re-wrap or a
+  sentence-initial recasing, which is the same wrap-blindness this plan corrects in End states 5
+  and 7. On a `#`-comment surface, wrap-tolerance requires stripping the continuation marker
+  *before* joining lines — `sed 's/^[[:space:]]*#[[:space:]]*//' <file> | tr '\n' ' ' | tr -s ' '`
+  — because a bare `tr '\n' ' '` leaves the `# ` sitting mid-phrase and the joined text still
+  fails to match. (Every key below is line-resident at base and matches under all three forms;
+  the normalization buys tolerance to a *future* re-wrap, not present non-vacuity, and the
+  pre-change counts are what prove non-vacuity.)** The five: (1) `already spent` over
   `skills/war/` + `agents/`; (2) `manifest` over `skills/war-review/SKILL.md`; (3) the
   wrap-tolerant doctrine-phrase census repo-wide; (4) over `hooks/`, both absence keys
   `takes only =-attached` **and** the line-resident `an enumerated read flag with =-attached
   values` (**not** `EVERY token must be an enumerated read flag` — that phrase wraps mid-sentence
   across the live header comment's two lines with a `# ` continuation marker inside it, so it
-  matches zero times even before any edit and can never discriminate); and (5) `only silent` /
-  `every one of which` / `T2\.` over `skills/war/assets/provision-worktrees.test.sh`. Confirm
+  matches zero times even before any edit and can never discriminate); and (5) over
+  `skills/war/assets/provision-worktrees.test.sh`, `only silent` / `every one of which`
+  (each pre-change hit count **1**, line-resident) plus `T2\.` **scoped to the replacement
+  invariant sentence only** — never the file (90 matching lines at base) and never the whole T2.9
+  census block (3, one of them the byte-pinned `(b)` detail line); a file-wide or block-wide
+  reading of this key reports a false RED on a correctly-executed Task 1.6. Confirm
   End states 2, 4, 5, 7, **11** hold after the serial merge · why
   deferred: sweep completeness is a whole-repo property spanning **six** parallel tasks that each
   adjudicate at their own frozen base — the cross-task fixed-in-flight rulings (Task 1.3
@@ -656,10 +696,22 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
   `skill-doc-contracts.test.mjs` is a single file already owned by 1.3 (same-file → same-task
   beats guard-travels-with-fact here). The `deps: [1.1]` wave edge closes the gap: the lock is
   authored against a base already carrying the key, and both land in the same phase.
-- **Campaign stacking (plan 2 of 6, ADR 0011 stack-and-plow):** Phase-1 footprints **intersect on
-  exactly one file, by design**: `skills/war/assets/provision-worktrees.test.sh`, which plan 1's
-  Task 1.2 edited and this plan's **Task 1.6** re-enters to correct the T2.9 census wording plan 1
-  landed there. The intersection is **sequential, never concurrent** — plan 1 is fully landed at
+- **Campaign stacking (plan 2 of 6, ADR 0011 stack-and-plow):** Phase-1 footprints intersect
+  **plan 1's** on exactly one file, by design: `skills/war/assets/provision-worktrees.test.sh`,
+  which plan 1's Task 1.2 edited and this plan's **Task 1.6** re-enters to correct the T2.9 census
+  wording plan 1 landed there. **That same file is also declared in plan 5's
+  (`gate-evidence-and-release-integrity`) footprint**, so the campaign-wide contention set for it
+  is **1, 2, 5** — three plans, all strictly sequential in stack order, different case families
+  (1: T2.5d + T2.9 census; 2: T2.9 census wording; 5: a new P-family refusal case), no content
+  dependency. **Known stale record:** the campaign roadmap
+  (`docs/roadmaps/2026-07-24-standing-record-and-guard-hardening-roadmap.md`) still records this
+  file against **1, 5** only — its row-2 Files cell, its `1 → 5` dependency line, and its
+  shared-file contention row all predate the Task 1.6 fold. Correcting the campaign roadmap is a
+  **campaign-Lead bookkeeping action, not a task in this plan** (the roadmap is a campaign
+  artifact, outside every task's declared footprint); it is recorded here so a gate-audit seat
+  re-deriving the footprint union from the roadmap reads the intersection as declared, not as
+  collateral drift, and so plan 5's provisioning does not inherit a stale contention set. The
+  intersection is **sequential, never concurrent** — plan 1 is fully landed at
   this plan's base (phase merges `09e4969` and `9cd713f`, release `441855c`, Gate-2 `f9fc4a4`), so
   Task 1.6 dispatches off a tree that already carries the strings its floors delete. That ordering
   is load-bearing: dispatched off any base predating plan 1's land, Task 1.6's floor (ii)
