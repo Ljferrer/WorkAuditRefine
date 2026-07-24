@@ -54,6 +54,19 @@
 #         --resolve-gate (comment-stripped) — tag honesty checked, not trusted
 #      c. DELETE-THE-FEATURE: classify_floors flags a stub (new-floor.sh) as
 #         UNCLASSIFIED, proving the fail-closed arm is load-bearing.
+#  12. NEAR-MISS DIAGNOSTIC (spec §10 criteria 1–4): on the EXIT-1 path only, the
+#      changed-file list is re-scanned against the fixed set (*.test.*, *.spec.*,
+#      *_test.*, basename test_*) and any hit is named on STDERR next to the
+#      ACTIVE pattern set. Exit codes and stdout are untouched.
+#      a. runner/x.test.mjs BARE -> exit 1, stderr names BOTH defaults and lists
+#         the path, stdout BYTE-EMPTY (the refiner's read contract)
+#      b. same fixture + --pattern '*.test.mjs' -> exit 0, stderr EMPTY (no
+#         diagnostic on success)
+#      c. docs-only exit-1 diff (no near-miss files) -> stderr empty, i.e.
+#         byte-identical to the pre-diagnostic behaviour
+#      d. bad-ref exit 2 -> die path only; the near-miss marker is ABSENT
+#      e. src/foo.spec.ts + --pattern '*.test.ts' -> exit 1, stderr names the
+#         CUSTOM token set (defaults ABSENT) and lists the .spec.ts file
 set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -349,8 +362,9 @@ fi
 # The branch has a REAL skills/x.test.mjs that WOULD match if the diff ran.
 # With the .. guard:    dies with "refusing to use potentially unsafe ref"
 #                       on stderr BEFORE any git operation.
-# Without the guard:    git diff reaches line 94, fails on "../<sha>" as an
-#                       unknown ref, and dies with "git diff failed" on stderr.
+# Without the guard:    git diff reaches the `git diff --name-only` call,
+#                       fails on "../<sha>" as an unknown ref, and dies with
+#                       "git diff failed" on stderr.
 #
 # Assertion: stderr contains the guard's unique token
 # ("refusing to use potentially unsafe ref") so that deleting the guard
@@ -775,6 +789,162 @@ if classify_floors "$MUT_LISTING" | grep -q '^UNCLASSIFIED new-floor.sh$'; then
   pass "case 11c: classify_floors flags an unclassified stub (new-floor.sh) RED (fail-closed arm is load-bearing)"
 else
   fail "case 11c: classify_floors did NOT flag new-floor.sh -> the classification check is vacuous (a new floor would pass unnoticed)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 12: NEAR-MISS DIAGNOSTIC (spec §10 criteria 1–4). The exit-1 path
+# re-scans the changed-file list against the fixed near-miss set and names the
+# hits on STDERR beside the ACTIVE pattern set. The whole family is about the
+# diagnostic channel: stdout stays the refiner's empty-summary read contract and
+# every exit code is byte-preserved (0/1/2 never conflated, ADR 0006).
+# NEAR_MARKER is the block's distinctive token — 12a asserts it PRESENT on the
+# exit-1 path and 12d asserts its ABSENCE on the exit-2 die path (both-ways
+# proof; row-scoped marker assert, not a whole-output count).
+# memory: marker-completeness-check-needs-row-scoped-grep-not-whole-file-grep-c.
+# ---------------------------------------------------------------------------
+NEAR_MARKER='near-miss — test-shaped files in the diff'
+
+# Case 12a/12b share one fixture: a diff adding ONLY runner/x.test.mjs — the
+# incident shape (#983). It is .test.mjs OUTSIDE skills/, so the default set
+# refuses it (Case 3c's path-scoping) while the near-miss set catches it.
+R12="$(setup_repo)"
+BASE12="$(git -C "$R12" rev-parse HEAD)"
+git -C "$R12" checkout -qb task/near-miss-mjs 2>/dev/null
+mkdir -p "$R12/runner"
+printf 'test\n' > "$R12/runner/x.test.mjs"
+git -C "$R12" add runner/x.test.mjs
+git -C "$R12" commit -qm "add runner/x.test.mjs (outside skills/)"
+TASK12="$(git -C "$R12" rev-parse HEAD)"
+git -C "$R12" checkout -q - 2>/dev/null
+
+cwd12="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
+TMPFILES="$TMPFILES $cwd12"
+
+# 12a: BARE -> exit 1; stderr names BOTH defaults + the near-miss path; stdout
+# BYTE-EMPTY. Two invocations of the same fixture so the channels are captured
+# separately — asserting stdout emptiness from a 2>&1 merge would be vacuous.
+rc12a=0
+out12a="$( ( cd "$cwd12" && bash "$SCRIPT" "$BASE12" "$TASK12" --repo "$R12" ) 2>/dev/null )" || rc12a=$?
+err12a="$( ( cd "$cwd12" && bash "$SCRIPT" "$BASE12" "$TASK12" --repo "$R12" ) 2>&1 >/dev/null )" || true
+
+if [ "$rc12a" -eq 1 ]; then
+  pass "case 12a: runner/x.test.mjs BARE -> exit 1 (default set refuses it)"
+else
+  fail "case 12a: runner/x.test.mjs BARE -> expected exit 1, got $rc12a"
+fi
+
+if [ -z "$out12a" ]; then
+  pass "case 12a: near-miss diagnostic leaves stdout BYTE-EMPTY (refiner read contract intact)"
+else
+  fail "case 12a: expected byte-empty stdout, got: $out12a (diagnostic leaked onto the refiner's read channel)"
+fi
+
+# Both default patterns must be named, and from the pattern_mjs/pattern_sh
+# variables — asserting BOTH catches a diagnostic that names only half the set.
+# The union-arm note and NEAR_MARKER are asserted PRESENT here too: the note's
+# printf is otherwise deletable with every check green, and 12d's marker-absence
+# assert needs a positive anchor so a reword cannot make it silently vacuous.
+if printf '%s' "$err12a" | grep -qF 'skills/**/*.test.mjs' \
+   && printf '%s' "$err12a" | grep -qF '**/*.test.sh' \
+   && printf '%s' "$err12a" | grep -qF 'union arm is always in force' \
+   && printf '%s' "$err12a" | grep -qF "$NEAR_MARKER"; then
+  pass "case 12a: stderr names both default patterns, the union-arm note, and the near-miss marker"
+else
+  fail "case 12a: stderr missing a default pattern, the union-arm note, or the near-miss marker (stderr: $err12a)"
+fi
+
+if printf '%s' "$err12a" | grep -qF 'runner/x.test.mjs'; then
+  pass "case 12a: stderr lists the near-miss path (runner/x.test.mjs)"
+else
+  fail "case 12a: stderr does not list the near-miss path (stderr: $err12a)"
+fi
+
+# 12b: the SAME diff with a matching --pattern -> exit 0 and EMPTY stderr.
+# LOAD-BEARING pair with 12a: proves the diagnostic is exit-1-only, not printed
+# on every invocation, and that the pattern is what flips the verdict.
+rc12b=0
+err12b="$( ( cd "$cwd12" && bash "$SCRIPT" "$BASE12" "$TASK12" --pattern '*.test.mjs' --repo "$R12" ) 2>&1 >/dev/null )" || rc12b=$?
+if [ "$rc12b" -eq 0 ] && [ -z "$err12b" ]; then
+  pass "case 12b: same fixture + --pattern '*.test.mjs' -> exit 0, empty stderr (no scan on exit 0)"
+elif [ "$rc12b" -ne 0 ]; then
+  fail "case 12b: same fixture + --pattern '*.test.mjs' -> expected exit 0, got $rc12b"
+else
+  fail "case 12b: exit 0 but stderr non-empty -> diagnostic printed on the success path (stderr: $err12b)"
+fi
+
+# 12c: a docs-only exit-1 diff has no near-miss file -> stderr byte-identical to
+# the pre-diagnostic behaviour (empty). Guards the noisy-floor regression: the
+# block must fire on near-misses only, not on every no-test.
+R12c="$(setup_repo)"
+BASE12c="$(git -C "$R12c" rev-parse HEAD)"
+git -C "$R12c" checkout -qb task/docs-only 2>/dev/null
+mkdir -p "$R12c/docs"
+printf 'notes\n' > "$R12c/docs/notes.md"
+git -C "$R12c" add docs/notes.md
+git -C "$R12c" commit -qm "add docs/notes.md (no test-shaped file)"
+TASK12c="$(git -C "$R12c" rev-parse HEAD)"
+git -C "$R12c" checkout -q - 2>/dev/null
+
+cwd12c="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
+TMPFILES="$TMPFILES $cwd12c"
+rc12c=0
+err12c="$( ( cd "$cwd12c" && bash "$SCRIPT" "$BASE12c" "$TASK12c" --repo "$R12c" ) 2>&1 >/dev/null )" || rc12c=$?
+if [ "$rc12c" -eq 1 ] && [ -z "$err12c" ]; then
+  pass "case 12c: docs-only exit-1 diff -> stderr byte-identical to today (empty)"
+elif [ "$rc12c" -ne 1 ]; then
+  fail "case 12c: docs-only diff -> expected exit 1, got $rc12c"
+else
+  fail "case 12c: docs-only diff -> expected empty stderr, got: $err12c (diagnostic fires without a near-miss)"
+fi
+
+# 12d: the exit-2 die path emits NO near-miss block. A diff that could not be
+# computed has no file list, and exit 2 must never acquire "no-test" flavour
+# (ADR 0006). Three-part assert: exit 2 + the die message present (proves the
+# die path was actually reached, so the marker-absent half is not vacuous) +
+# the near-miss marker ABSENT.
+R12d="$(setup_repo)"
+BASE12d="$(git -C "$R12d" rev-parse HEAD)"
+cwd12d="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
+TMPFILES="$TMPFILES $cwd12d"
+rc12d=0
+err12d="$( ( cd "$cwd12d" && bash "$SCRIPT" no-such-ref "$BASE12d" --repo "$R12d" ) 2>&1 >/dev/null )" || rc12d=$?
+if [ "$rc12d" -eq 2 ] \
+   && printf '%s' "$err12d" | grep -qF 'git diff failed' \
+   && ! printf '%s' "$err12d" | grep -qF "$NEAR_MARKER"; then
+  pass "case 12d: bad-ref exit 2 -> die path only, no near-miss block on stderr"
+elif [ "$rc12d" -ne 2 ]; then
+  fail "case 12d: bad-ref -> expected exit 2 (git error, NOT no-test), got $rc12d"
+else
+  fail "case 12d: bad-ref exit 2 -> die message missing or near-miss block present (stderr: $err12d)"
+fi
+
+# 12e: a CUSTOM pattern that misses -> stderr names the CUSTOM token set, not
+# the defaults. Asserting the defaults ABSENT is the load-bearing half: a block
+# that always printed pattern_mjs/pattern_sh would pass a presence-only check
+# while lying about what was actually in force.
+R12e="$(setup_repo)"
+BASE12e="$(git -C "$R12e" rev-parse HEAD)"
+git -C "$R12e" checkout -qb task/spec-ts 2>/dev/null
+mkdir -p "$R12e/src"
+printf 'test\n' > "$R12e/src/foo.spec.ts"
+git -C "$R12e" add src/foo.spec.ts
+git -C "$R12e" commit -qm "add src/foo.spec.ts"
+TASK12e="$(git -C "$R12e" rev-parse HEAD)"
+git -C "$R12e" checkout -q - 2>/dev/null
+
+cwd12e="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
+TMPFILES="$TMPFILES $cwd12e"
+rc12e=0
+err12e="$( ( cd "$cwd12e" && bash "$SCRIPT" "$BASE12e" "$TASK12e" --pattern '*.test.ts' --repo "$R12e" ) 2>&1 >/dev/null )" || rc12e=$?
+if [ "$rc12e" -eq 1 ] \
+   && printf '%s' "$err12e" | grep -qF '*.test.ts' \
+   && printf '%s' "$err12e" | grep -qF 'src/foo.spec.ts' \
+   && ! printf '%s' "$err12e" | grep -qF 'skills/**/*.test.mjs'; then
+  pass "case 12e: src/foo.spec.ts + --pattern '*.test.ts' -> exit 1, stderr names the CUSTOM set and lists the .spec.ts file"
+elif [ "$rc12e" -ne 1 ]; then
+  fail "case 12e: src/foo.spec.ts + --pattern '*.test.ts' -> expected exit 1, got $rc12e"
+else
+  fail "case 12e: stderr must name the custom token set and the .spec.ts path with the defaults absent (stderr: $err12e)"
 fi
 
 # ---------------------------------------------------------------------------

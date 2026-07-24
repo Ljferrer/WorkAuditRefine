@@ -4,10 +4,11 @@ description: "Guard blurb: say 'refuse diffs touching X' not repos"
 metadata:
   node_type: memory
   type: project
-  keywords: [Status section wording, trigger surface, diff vs repo, fail-closed phrasing, submodule refuse, prose nit, operator misinformation, absolute claim vs residual exception, ADR carve-out, fresh-env re-run]
+  keywords: [Status section wording, trigger surface, diff vs repo, fail-closed phrasing, submodule refuse, prose nit, operator misinformation, absolute claim vs residual exception, ADR carve-out, fresh-env re-run, unconditional vs conditional emission, near-miss diagnostic, assert-test-in-diff.sh, stderr guard clause]
   provenance: code-verified
+  promoted: dev/2026-07-22-test-floor-target-repo@phase-2
   slug: release-blurb-overstates-guard-semantics
-  phase: "submodule-inc1/T4 +1 recurrence (war-campaign-resilience-roadmap/phase-2 Release task 2.1, 2026-07-22)"
+  phase: "submodule-inc1/T4 +2 recurrences (war-campaign-resilience-roadmap/phase-2 Release task 2.1, 2026-07-22; test-floor-target-repo/phase-2 Release task 2.1, 2026-07-22)"
   tags:
     - war
     - release
@@ -23,7 +24,7 @@ metadata:
     - "[[gitmodules-working-tree-read-vs-ref-snapshot]]"
   created: 2026-06-30
   originSessionId: 0e364ee5-f0b3-47f6-a9e4-9bf2dd555733
-  modified: 2026-07-23T06:57:31.774Z
+  modified: 2026-07-23T10:03:04.108Z
 ---
 
 # Release blurb prose overstates guard semantics
@@ -67,3 +68,35 @@ The honest absence note was the correct servitor behavior; resolving it is Gate-
 that states a proof-strength claim as universal when a design doc records a named residual
 carve-out: hedge with "normally"/"typically" rather than an unqualified claim whenever a known
 exception is on record, even a Nit-severity, not-required-to-fix one.
+
+## Recurrence 2 (2026-07-22, plan `test-floor-target-repo`, phase 2 "Release", task 2.1) — unconditional-reads prose for a guard-clause-conditional code path
+
+A third distinct instantiation: **unconditional-reading prose vs. an explicit runtime guard
+clause.** The `## Status` blurb (`README.md` line 339 at land) describes the new near-miss
+diagnostic as: "[assert-test-in-diff.sh] prints a **stderr** block naming the active pattern set
+... followed by each near-miss path" — phrased as something the exit-1 path always does. The
+landed script wraps the entire block behind `if [ -n "$near_misses" ]` (`skills/war/assets/assert-test-in-diff.sh`,
+~line 254 at the phase-2 tip `088e2cb75787ca2dfd9ed80aaa0ec417d7df2201` — verify still present
+before acting), so a docs-only exit-1 diff (no test-shaped file anywhere in the changed-file list)
+keeps stderr byte-identical to today: empty. `code-verified`: read directly at the task's
+`_refinery` merge worktree (`<session-worktree>/.claude/war/wt/2026-07-22-test-floor-target-repo-2026-07-23/_refinery/`)
+since the servitor's own cwd was — again — the stale worktree
+[[servitor-verify-on-write-worktree-can-lag-just-landed-phase]] documents (Recurrences 12/14/15,
+same physical worktree `war-campaign-resilience-roadmap-33290f`).
+
+Auditor disposition was `note` (Nit, not required to fix) and the blurb was **not** corrected before
+land. **Resolved at Gate-2 (Lead, 2026-07-23):** the servitor's "remains unapplied" status was
+accurate at wrap-up time but is now superseded — the Lead applied the auditor's own suggested wording
+(`and, **when that scan finds anything**, prints a **stderr** block …`) to the landed `## Status`
+blurb before the plan's PR was opened, re-running `version-slots.test.mjs` (3/3) and the full JS gate
+(881/881) to confirm the four release slots and the arbiter's README-token extraction were untouched.
+The general Rule below stands on its own; only this instance's disposition changed.
+
+**Sharper form of the Rule for this instance:** when a release blurb narrates a diagnostic/logging
+side effect that lives behind its own runtime conditional (as opposed to firing unconditionally
+whenever the parent code path is taken), state the conditional explicitly — "prints X **when** Y"
+— never just "prints X" with the trigger condition left implicit in the surrounding prose. A reader
+cannot distinguish "always emits on this exit code" from "emits only when this sub-condition also
+holds" without the explicit qualifier, and the gap is exactly the kind of prose a fresh operator
+would trust literally when deciding whether empty stderr on a real no-test run is expected or a
+regression.
