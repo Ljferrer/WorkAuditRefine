@@ -1,6 +1,6 @@
 # Capture grounds on the committed tip, not the working tree
 
-**Status:** accepted (design ratified 2026-07-08; implemented by the spec and plan below)
+**Status:** accepted; amended 2026-07-22
 
 Two recorded frictions show a *capture* step — the servitor recording a learning, an auditor forming a
 verify-and-close verdict — trusting a surface that does not match the committed tree, so a fact enters the
@@ -107,3 +107,47 @@ dirty working tree) instead of the committed tip the fact is supposed to describ
 - Memory lessons (the originating friction cluster):
   [[audit-log-finding-can-be-stale-by-land-time]], [[verify-and-close-claim-can-trace-to-transient-uncommitted-edit]],
   [[audit-worktree-pre-impl-tip-stale-verdict]].
+
+## Amendment (2026-07-22): capture grounds on a threaded landed-tip anchor, not the servitor's own working tree
+
+The original Decision's servitor half rests on the same premise asserted in two different sentences — a
+phrasing gap that matters for anyone grepping for it. Decision item 1 argues the D3 finding-match check
+"runs *after* land, so its working tree **is** the committed tip," while the
+[ADR 0002](0002-scope-by-agent-type.md) relationship bullet restates it in different words: the servitor's
+post-land working tree "already **reflects** the committed tip." A grep for the literal string "is the
+committed tip" catches the first and misses the second. Both sentences are superseded here — not because
+the *decision* changed (capture must still ground on the committed tip, never a mutable surface), but
+because the *mechanism* they lean on — "the servitor runs after land, therefore its cwd already sees the
+landed tip" — does not hold.
+
+[[servitor-verify-on-write-worktree-can-lag-just-landed-phase]] recorded 11 recurrences of exactly this
+failure (2026-07-10 → 2026-07-19, across five campaigns) before this amendment landed: the servitor's
+threaded cwd is a session-scoped checkout frozen at provision time ([ADR 0001](0001-explicitly-managed-worktrees.md)),
+and nothing re-syncs it after land. By the later recurrences the **modal** case at wrap-up time is the main
+checkout with **zero live worktrees** — no `.git/worktrees/` entry to read the landed branch from, and in
+the most recent shape not even a locally fetched ref for it. "Runs after land" never implied "sees the
+landed tip."
+
+**Decision, corrected — the servitor half.** The decision item is unchanged in substance and strengthened
+in mechanism: capture still grounds on the committed tip. What changes is how the servitor gets there —
+never by trusting its own working tree to already be that tip. The engine now threads a `Landed tip:` line
+into the Wrap-up dispatch (the handoff block's existing `tipSha` computation — the landed `working_sha`,
+else the last SHA-shaped `gateHeadSha`, else a named placeholder — hoisted above the Wrap-up gate so it is
+populated on every landed dispatch). Both prompt surfaces (`agents/war-servitor.md` and the dispatched
+Wrap-up prompt in `skills/war/assets/workflow-template.js`) carry one shared four-step grounding ladder
+ahead of any D3/finding-match read: (1) cwd preflight — compare the checkout's own HEAD against the
+threaded tip and working branch; (2) `gitdir`-matched worktree lookup — enumerate `.git/worktrees/*` and
+match by each entry's physical path against this plan's slug, never by bare name (names collide across
+concurrent plans); (3) ref check — a resolvable ref with no live worktree is still a dead end for Read,
+spend no rounds on it; (4) gate-audit fallback — trust the pinned `auditSha` verdicts (`gateEvidence:true`)
+and record anything else `agent-unverified` with the checkout-topology evidence in the absence note, never
+asserting a plan/code mismatch from a lagging view. The servitor gains no new capability — still no Bash,
+still Read/Grep/Glob only, [ADR 0002](0002-scope-by-agent-type.md) unwidened — it is told which tip to
+ground against instead of assuming its own cwd already is that tip.
+
+This amendment supersedes only the two sentences named above; the auditor half of the Decision (items 2–3),
+the Considered options, and the rest of this ADR's original body stand as originally ratified and are left
+byte-unchanged. Full mechanics: [the design spec](../specs/2026-07-22-servitor-wrapup-landed-tip-design.md)
+and [the plan](../plans/2026-07-22-servitor-wrapup-landed-tip.md).
+[[servitor-verify-on-write-worktree-can-lag-just-landed-phase]] carries the full recurrence history and its
+own dated mitigation note.
