@@ -4,9 +4,10 @@ description: "A full-gates-green-at-land End state is SOFT at audit time without
 metadata:
   node_type: memory
   type: project
-  provenance: agent-unverified
+  provenance: code-verified
+  promoted: dev/2026-07-24-land-advance-exit-contract-truth@phase-2
   slug: full-gates-green-end-state-soft-without-threaded-gate-log-artifact
-  phase: "red-team-fallback-and-anchor-hygiene/phase-2 (Release, task 2.1) +2 recurrences (latest aftermath-class1-gate-evidence/phase-2 Release task 2.1, 2026-07-17)"
+  phase: "red-team-fallback-and-anchor-hygiene/phase-2 (Release, task 2.1) +3 recurrences (latest land-advance-exit-contract-truth/phase-2 Release task 2.1, 2026-07-24)"
   keywords:
     - full gates green
     - gate-log artifact
@@ -28,9 +29,15 @@ metadata:
     - release
     - test-strategy
   created: 2026-07-15
-  updated: 2026-07-17
+  updated: 2026-07-24
   originSessionId: e11422bd-1b49-4d13-9840-37a67306b3f5
+  modified: 2026-07-24T21:37:05.481Z
 ---
+
+**Local recurrence copy** of the repo-root lesson at `docs/learnings/full-gates-green-end-state-soft-without-threaded-gate-log-artifact.md`
+(same slug) — the repo copy is not directly editable by a servitor (D1), so this file carries the
+original content plus the new Recurrence 3 below; a future Gate-2 promotion of this file overwrites
+the same-slug repo file.
 
 # "Full gates green" as an end-state condition is SOFT, not HARD, without a threaded gate-log artifact
 
@@ -102,3 +109,27 @@ exactly one commit) and a delete-and-trace confirmation that the arbiter test is
 are one-off audit-methodology detail for *this* release, not a new durable pattern (no separate
 lesson written for them). No change to the rule; recorded only to keep the occurrence count/date
 current for retrieval confidence.
+
+## Recurrence 3 (2026-07-24, plan `2026-07-24-land-advance-exit-contract-truth`, phase 2 "Release", task 2.1)
+
+Fourth occurrence, same shape again: this phase's End state 1 required all four version slots in
+lock-step at the next free patch above the live integration base (`0.14.57` -> `0.14.58`,
+`version-slots.test.mjs` named as arbiter). The `phase-2-end-state` gate-audit split the condition
+exactly as prescribed — `gate-audit:approve`, `hard:false`, one Nit/`disposition:note` finding
+covering both halves in one write-up this time (content half ruled MET via direct `git show` at the
+pinned `auditSha`; the "green" half explicitly called SOFT/cannot-confirm because "this pass was
+threaded no pin_status token and no gate-log artifact path").
+
+**`code-verified`** at the landed tip `9cd713f560d0953a4664610eef2b7d02ef292171` (read via the
+`_refinery` worktree matching this SHA, gitdir at
+`.claude/worktrees/2026-07-24-land-advance-exit-contract-truth-2026-07-24/_refinery/` — this
+servitor's own cwd was a stale sibling worktree on a different branch, per
+[[servitor-verify-on-write-worktree-can-lag-just-landed-phase]]): `.claude-plugin/plugin.json`
+`version` and `README.md` `## Status` both read `0.14.58`, and
+`skills/war/assets/version-slots.test.mjs` is present at that path — the structural half is
+directly confirmed, not just audit-log-trusted.
+
+**Confirms:** the two-finding (or, as here, combined single-finding-covering-both-halves) SOFT
+split continues to be the correct, non-escalating resolution across a fourth distinct
+plan/campaign — no drift in the pattern, no new lesson warranted, only occurrence-count/date
+freshness.

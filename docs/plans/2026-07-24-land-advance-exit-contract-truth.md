@@ -84,7 +84,15 @@ from the merge-land-resilience plan).
   9. Seed corpus truth: `docs/seed/seed-manifest.json`'s entry for slug
      `land-advance-push-first-cas-rejected-token` states the contract as 0/2/3/6 in its
      `description` (no bare `0/2/3` anywhere in the manifest —
-     `grep '0/2/3' docs/seed/seed-manifest.json | grep -v '0/2/3/6'` empty);
+     `grep '0/2/3' docs/seed/seed-manifest.json | grep -v '0/2/3/6'` empty); **and the packed
+     member body itself is corrected, not merely its manifest projection** — the manifest
+     `description` regenerates from the member *frontmatter*, so a clean manifest grep cannot
+     witness a stale `**Exit contract:**` or `**How to apply:**` body line (the member ships those
+     on their own lines). So the twin's body is verified **directly against the tarball member,
+     mirroring End state 1's checks on the repo-root twin**:
+     `tar -xzOf docs/seed/seed.tar.gz land-advance-push-first-cas-rejected-token.md | grep '0/2/3'
+     | grep -v '0/2/3/6'` is empty, **and** the same extraction greps **positive** for the exit-6
+     wrong-HEAD-precheck arm (refusal semantics: nothing pushed, local and origin refs untouched).
      `node skills/lessons-learned/assets/seed-pack.mjs verify docs/seed` exits 0; the
      `seed-set.test.mjs` suite stays green (its pins are pair-integrity only — verified at
      drafting: verify-passes + one-byte-mutation-fails, no content pins).
