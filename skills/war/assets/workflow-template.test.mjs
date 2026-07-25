@@ -5016,8 +5016,11 @@ test('#598 validation 6 — drift-guard: war-refiner.md names the three class va
 // ---------------------------------------------------------------------------
 const SUBMOD_RETRY_REPO = '/abs/submodule-checkout'
 // The T4 #297 fixture SHAPE (taskType + targetRepo + targetBase) carried on the task id both harnesses
-// already stub (t1), so neither harness needs an edit. requiresTest:true is load-bearing for the
-// floor-retry route alone — that sub-loop is only entered via the test floor's no-test status.
+// already stub (t1), so neither harness needs an edit. requiresTest:true mirrors the plan-pinned
+// floor-retry fixture (in production the test floor is what returns no-test); inside this harness it
+// shapes only the dispatched prompt's requiresTest ternary, never route reachability — the sub-loop is
+// entered on EITHER floor status (no-test OR unpackaged), and runNoTestLoop's first Refine call returns
+// no-test unconditionally.
 const submodRetryTask = (over = {}) => ({
   id: 't1', issue: 301, title: 'Submodule task', planSlice: 'submod slice',
   roster: [{ lens: 'correctness' }], taskType: 'submodule',
