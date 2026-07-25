@@ -164,8 +164,11 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
      wave through. The rejected key `EVERY token must be an enumerated read flag` wraps mid-phrase
      across the live header comment's two lines with a `# ` continuation marker sitting inside it
      (`… With arguments, EVERY token` / `# must be an enumerated read flag with =-attached
-     values`), so it matches **zero** times at the base
-     and is a vacuous key — the exact wrap-blindness this plan calls out for the doctrine census
+     values`), so it matches **zero** times at the base **under any line-local grep** and is
+     rejected as a line-local key — under the `#`-comment normalized form below it does match
+     once, so the phrase is not inherently unmatchable; key (2) is preferred because it is both
+     line-resident today and normalized-checked, discriminating under every form — the exact
+     wrap-blindness this plan calls out for the doctrine census
      in End state 5. The two keys, over `hooks/`, both returning nothing after the edit:
      (1) `grep -rin 'takes only =-attached' hooks/` — pre-change hit count **1** (the deny
      string); (2) the phrase `an enumerated read flag with =-attached values` checked under the
@@ -266,7 +269,11 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
 
 - Files: `skills/war/references/schemas.md`, `skills/war-review/SKILL.md`
 - Plan slice: **Ledger contract (spec §4.1, one shape correction — see Notes).** In the
-  `## ledger.json — run state` jsonc block, add one top-level key, sibling of `phases` /
+  `## ledger.json — run state` jsonc block (heading **prefix** — the live heading continues
+  `at `.claude/teams/<run-id>/``; every anchor on either schemas.md heading in this plan is a
+  prefix match, never an exact-line match, and the same holds for `## Run manifest`, whose live
+  heading continues `— `.claude/war/runs/<runId>.json` (telemetry, not resume state)`), add one
+  top-level key, sibling of `phases` /
   `pr_url?`: `adjudications?` — an array carrying the rows **verbatim as threaded** in either
   args-contract shape (preformatted string or `{ adjudicated|value, supersedes }` object; the
   spec's jsonc sketch says "row strings", but its own parenthetical — "the same rows threaded as
@@ -462,7 +469,9 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
   loud assertion (the existing rows' could-not-locate pattern). (b) Sibling lock guarding
   Task 1.1's contract fix:
   extract the `## ledger.json — run state` jsonc block from `skills/war/references/schemas.md`
-  (heading to the block's closing fence) and assert it names `adjudications`. Prove locks **(a)
+  (locate the heading by **prefix** — the live line continues `at `.claude/teams/<run-id>/`` —
+  then extract to the block's closing fence; an exact-line match finds nothing) and assert it
+  names `adjudications`. Prove locks **(a)
   and (b)** red by temporarily removing each referent (red-proof recorded in the commit body,
   matching the file's house style; quote the failing output in the done report — the
   done-report-evidence convention End states 7 and 9 use); lock **(c)** carries its own
@@ -718,8 +727,9 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
   **(3) is an enumeration/census**, whose wrap-tolerance is load-bearing **today** — two of the
   lesson body's four occurrences already wrap at base, so a single-line form under-reports
   before any edit; **(1) and (2) are adjudicated sweeps** that keep legitimate matches
-  post-change — (1) keeps the ace-demotion string, and (2) censuses a file that says `manifest`
-  legitimately throughout, so no pre-change count is pinned for it.)** The five:
+  post-change — (1) keeps the ace-demotion string; (2)'s `manifest` census pins no count (the
+  file says `manifest` legitimately throughout) while its never-carries absence sub-key pins
+  pre-change count **1**.)** The five:
   (1) `already spent` over
   `skills/war/` + `agents/` (pre-change hit count **2**; the `environment` bullet's "the retry
   provably spent" is a hand-scan keep, not a grep match); (2) `manifest` over
@@ -732,7 +742,9 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
   re-wrap that keeps the claim (**not** `EVERY token must be an enumerated read flag` — that
   phrase wraps mid-sentence
   across the live header comment's two lines with a `# ` continuation marker inside it, so it
-  matches zero times even before any edit and can never discriminate); and (5) over
+  any line-local form of it matches zero times even before an edit — rejected as a line-local
+  key, not as inherently unmatchable: the normalized form above finds it once, and key (2)
+  discriminates under every form); and (5) over
   `skills/war/assets/provision-worktrees.test.sh`, `only silent` / `every one of which`
   (each pre-change hit count **1**, line-resident) plus `T2\.` **scoped to the replacement
   invariant sentence only** — never the file (90 matching lines at base) and never the whole T2.9
