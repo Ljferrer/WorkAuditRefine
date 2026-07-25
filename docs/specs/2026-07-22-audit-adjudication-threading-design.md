@@ -231,6 +231,17 @@ uncorrected per convention.
 - **No auto-mining of adjudications from prose** — rows are written at the moment of ruling by
   the Lead or the red-team grill loop, never extracted from plan/report prose after the fact
   (matches the existing `lenses.md` "never mined from arbitrary prose" doctrine).
+  **[Correction 2026-07-24 — annotative; the ratified sentence above stands unchanged.]** That
+  `lenses.md` citation was **false**. `skills/red-team/references/lenses.md` never carried
+  "never mined from arbitrary prose"; a `git log -G` over the phrase (code-verified at this spec's
+  own execution worktree) showed the `CONTEXT.md` `**Adjudication**:` term's `_Avoid_` line was the
+  doctrine's **sole** live home repo-wide. This spec's §6 verbatim rewrite of that term was
+  plan-faithful and therefore **orphaned** the doctrine — zero operative anchors after landing, with
+  nothing downstream positioned to catch it. The anchor is restored in the `CONTEXT.md` term (and
+  given a second standing home in `skills/war/SKILL.md` step 5) and drift-locked in
+  `skills/war/assets/skill-doc-contracts.test.mjs`, per
+  `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design.md` / #1087. Provenance and
+  the general rule: `docs/learnings/spec-non-goal-citation-of-a-doctrines-home-file-can-be-wrong.md`.
 - **No worker-visible adjudications** — workers receive adjudicated values via task
   instructions, the top of the precedence order.
 - **No precedence-vocabulary rename** (D2) and **no D3 registry row** (D6).
