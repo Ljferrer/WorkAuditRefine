@@ -163,7 +163,8 @@ esac
 # ---------------------------------------------------------------------------
 # READ-FORM branch enforcement (D4): `branch` is admitted only in read shapes.
 # A bare `git branch` (empty rest) lists — allow. With arguments, EVERY token
-# must be an enumerated read flag with =-attached values; the first token that
+# must match one of the two read arms below — value-carrying flags =-attached,
+# bare read flags enumerated; the first token that
 # is a bare name (flagless creation), a write flag (-d/-D/-m/-M/-c/-f/-u/--track/
 # --set-upstream-to/…), a combined short cluster (-av), or a space-form value
 # (--contains <rev>) denies — WITHOUT enumerating the write flags (default-deny
@@ -179,7 +180,7 @@ if [ "$subcmd" = "branch" ]; then
       --contains=*|--no-contains=*|--merged=*|--no-merged=*|--points-at=*|--sort=*) ;;
       --list|--all|-a|--remotes|-r|--show-current|--verbose|-v|-vv) ;;
       *)
-        deny "git branch takes only =-attached read flags (--contains=<rev>, --merged=<rev>, --points-at=<rev>, --list, -a, -r, --show-current, -v); '$tok' is not one — space-form values and write flags deny" ;;
+        deny "git branch admits read forms only: value-carrying flags =-attached (--contains=<rev>, --no-contains=<rev>, --merged=<rev>, --no-merged=<rev>, --points-at=<rev>, --sort=<key>), bare read flags (--list, --all, -a, --remotes, -r, --show-current, --verbose, -v, -vv); '$tok' is not one — space-form values and write flags deny" ;;
     esac
   done
 fi
