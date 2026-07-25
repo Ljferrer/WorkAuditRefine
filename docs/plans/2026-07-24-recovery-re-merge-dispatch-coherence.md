@@ -82,10 +82,16 @@ merge-land-resilience).
      recorded wrap trap).
   7. **ADR coherence, both directions:** ADR 0019 ends with a dated
      `## Amendment (2026-07-24)` heading naming ADR 0040 and superseding exactly the `environment`
-     class-route row (original Decision/Scope prose byte-intact; `introduced` and `baseline` routes
+     class-route — its `## Decision` row and the `**Scope.**` paragraph's "routes as
+     `env-blocked`" restatement, both under the single `## Decision` heading (ADR 0019 carries no
+     `## Scope` heading) — with the amendment stating BOTH exhaustion routes (merge-site HARD via
+     `'escalate'`; land-site fallback to `held:land-failed`, reason `env-blocked`, retry provably
+     spent) and the fully-green re-run requirement (original Decision prose byte-intact;
+     `introduced` and `baseline` routes
      and the target-derived execution values explicitly unchanged); ADR 0040's
      `## Relationship to prior ADRs` gains one **Supersedes one row of ADR 0019** bullet. A reader
-     landing on either record reaches the live routing in one hop. The §4.5 `env-blocked` grep over
+     landing on either record reaches the live routing in one hop. The §4.5 case-insensitive
+     `env-blocked` grep over
      the two ADRs shows every 0019 hit sitting either inside byte-intact original text covered by
      the amendment or inside the amendment itself.
   8. **Enum/routing discipline untouched:** the phase diff shows no edit to
@@ -153,7 +159,13 @@ merge-land-resilience).
   state 3 RED probe in the done report.
   **Same-scope survey (spec §4.5 — this task owns the two code files' share).** Run the file-anchored
   greps — `grep -n "submodMergeNote" skills/war/assets/workflow-template.js` (expect exactly 5
-  post-change) and `grep -n "floor-retry\|ALL THREE\|all three\|initial merge"` over both Files —
+  post-change; case-sensitive is correct here, a JS identifier) and
+  `grep -in "floor-retry\|all three\|initial merge" skills/war/assets/workflow-template.js
+  skills/war/assets/workflow-template.test.mjs` (case-insensitive with explicit file operands —
+  `-i` subsumes every casing including the un-enumerated `ALL three`; two known extra keeps
+  under `-i` at base, both unrelated to merge-site enumeration: the memory-checklist prompt line
+  "follow ALL three disciplines" and the entry-validation test title "naming ALL three phase
+  fields" — read in context, keep; red-team round 1) —
   then hand-scan same-scope comments and test titles, reading every hit in context (the #1034
   phrase itself wraps a line break; full-sentence single-line greps are blind here). Re-confirm the
   spec's survey dispositions at implementation time: the `classificationClause` header comment's
@@ -197,21 +209,32 @@ merge-land-resilience).
   `## Amendment (2026-07-24): the environment class-route is superseded by ADR 0040` — the ADR
   0023 amendment shape (same plan-4 precedent the spec cites). Body: the class-routes doctrine's
   `environment` row in `## Decision` ("soft-escalate reusing the `env-blocked` reason with
-  **zero** fix rounds") and the `## Scope` supersession paragraph's "routes as `env-blocked`"
-  restatement are superseded — an `environment`-classified gate failure now earns exactly one
-  bounded `environment-proceed` re-run per gate site, with merge-site exhaustion HARD via the
-  existing reason `'escalate'`; cite
+  **zero** fix rounds") and the "routes as `env-blocked`" restatement in the `**Scope.**`
+  bold-labelled paragraph (lead-in `**Scope.** This ADR **extends** [ADR 0006]` — an inline
+  paragraph label INSIDE `## Decision`; ADR 0019 carries NO `## Scope` heading — red-team
+  round 1) are superseded — an `environment`-classified gate failure now earns exactly one
+  bounded `environment-proceed` re-run per gate site whose re-run gate must come back **fully
+  green** (a clean re-run, never a proceed-over — ADR 0040 §C); exhaustion at the **merge
+  site** HARD-escalates via the existing reason `'escalate'`, and exhaustion at the **land
+  site** falls back to `held:land-failed` (reason `env-blocked`) with the retry provably spent
+  (ADR 0040 states BOTH exhaustion routes; the superseded 0019 sentence is site-agnostic, so an
+  amendment naming only the merge-site half would hand a one-hop reader half the routing); cite
   `docs/adr/0040-environment-class-gate-failures-earn-one-retry.md`. State explicitly that the
   original Decision text is not retro-edited and that the `introduced` and `baseline` routes and
-  the target-derived execution values stand unchanged. Anchor by heading names (`## Decision`,
-  `## Scope`), never line numbers; the original prose above the amendment stays byte-intact.
+  the target-derived execution values stand unchanged. Anchor by named constructs — the
+  `## Decision` heading and the `**Scope.**` paragraph lead-in inside it — never line numbers
+  (both superseded restatements live under the single `## Decision` heading); the original prose
+  above the amendment stays byte-intact.
   **ADR 0040 (spec §4.4).** Add one bullet to `## Relationship to prior ADRs`:
   **Supersedes one row of ADR 0019** — the class-routes doctrine's `environment` →
   0-fix-round `env-blocked` route; 0019 carries the matching dated amendment; every other 0019
   route (`introduced`, `baseline`, the target-derived execution values) stands. Existing bullets
   (0005, 0025, 0017, 0023, 0024) are untouched.
   **Same-scope survey (spec §4.5 — this task owns the two ADRs' share).** Run
-  `grep -n "env-blocked"` over both Files and adjudicate every 0019 hit: each must sit either
+  `grep -in "env-blocked" docs/adr/0019-target-derived-execution-values.md
+  docs/adr/0040-environment-class-gate-failures-earn-one-retry.md` (case-insensitive, file
+  operands explicit — a re-cased restatement must not evade the sweep; red-team round 1) and
+  adjudicate every 0019 hit: each must sit either
   inside byte-intact original text covered by the new amendment or inside the amendment itself
   (End state 7); 0040's own `env-blocked` mentions (its Relationship bullet to 0005 legitimately
   names the reason) are accurate — no edit. Hand-scan both ADRs' headings and the amendment for
@@ -252,8 +275,9 @@ merge-land-resilience).
 ## Deferred validations (backstops)
 
 - Integrated-tip sweep re-check — re-run the three §4.5 greps (`submodMergeNote` count = 5 on
-  `skills/war/assets/workflow-template.js`; `env-blocked` over the two ADRs; the
-  `floor-retry|ALL THREE|all three|initial merge` token hunt over the two code files) on the landed
+  `skills/war/assets/workflow-template.js`, case-sensitive — a JS identifier; case-insensitive
+  `env-blocked` over the two ADRs; the case-insensitive
+  `floor-retry|all three|initial merge` token hunt over the two code files) on the landed
   Phase-1 tip · why deferred: the two Phase-1 tasks adjudicate at their own frozen bases; the
   coherence claims (End states 1, 7) are properties of the integrated tip after the serial merge
   queue, and an audit-time finding can be stale by land time · runner: the Lead at Phase-1 land,
@@ -341,6 +365,12 @@ merge-land-resilience).
 - **Anchors:** every edit site is named by construct — dispatch label, const name, comment
   lead-in phrase, ADR heading — never line numbers; the issue bodies' `:1202`/`:1239`/`:718-719`
   references have already drifted on the live tree (spec §1, §8).
+- **Spec §4.4 anchor misnomer (red-team round 1, adjudicated):** the spec and issue #1033 call
+  the Scope material "the `## Scope` paragraph"; ADR 0019 carries no such heading — the live
+  construct is the `**Scope.**` bold-labelled paragraph inside `## Decision` (its restatement
+  sits there). The plan's construct anchors above are authoritative; the spec is a ratified
+  historical record and is deliberately not edited for this (an auditor must not flag the
+  plan-vs-spec anchor wording as drift).
 - **Redaction:** no absolute home paths, emails, or handles in this plan, the new tests (the T4
   fixture's `targetRepo` literal is a synthetic path), the ADR amendment, or the release blurb.
 
