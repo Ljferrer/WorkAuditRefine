@@ -121,6 +121,10 @@ the design, not catching an omission.
   environment-proceed re-merge threads `gateCaptureClause`/`gate_log_path` and `integration_sha` the
   way the primary merge prompt does, so a retried merge keeps its evidence chain into the post-merge
   gate-audit; the re-land mirrors the primary land prompt, which threads no capture clause.
+- **Supersedes one row of [ADR 0019](0019-target-derived-execution-values.md)** — the class-routes
+  doctrine's `environment` → 0-fix-round `env-blocked` route. 0019 carries the matching dated
+  amendment; every other 0019 route (`introduced`, `baseline`, the target-derived execution values)
+  stands.
 
 ## Considered options
 

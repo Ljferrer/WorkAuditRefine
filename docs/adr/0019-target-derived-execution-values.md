@@ -138,3 +138,29 @@ behavioral revert never erases them.
   ratified-backstop vehicle that baseline debt and the docker auto-defer both use.
 - Container-packaging design spec: [`docs/specs/2026-07-06-container-packaging-blind-spot-design.md`](../specs/2026-07-06-container-packaging-blind-spot-design.md)
   — its §8 "mid-run daemon death" residual is superseded for the environment class (not retro-edited).
+
+## Amendment (2026-07-24): the environment class-route is superseded by ADR 0040
+
+**Superseded.** Two passages under this ADR's `## Decision` heading — the only heading either lives
+under; this ADR has no separate `## Scope` heading — described the `environment` gate-failure class
+as a zero-retry soft escalation: the class-routes-doctrine row, "`environment` → soft-escalate
+reusing the `env-blocked` reason with **zero** fix rounds (a broken environment is never fixed by a
+fix-worker)," and the `**Scope.**` paragraph's restatement of the same route for the docker
+daemon-death instance, "such a post-provision docker *environment* failure now classifies
+`gate_failure_class: 'environment'` and routes as `env-blocked`, not a code verdict." Both are
+superseded by [ADR 0040](0040-environment-class-gate-failures-earn-one-retry.md).
+
+**Live routing.** An `environment`-classified gate failure now earns exactly one bounded
+`environment-proceed` re-run per gate site, and that re-run must come back **fully green** — a clean
+re-run, never a proceed-over (ADR 0040 §C) — never a second, and never chained with another
+recovery dispatch (ADR 0040 §B): a `baseline-proceed` re-dispatch that then fails `environment`
+keeps this ADR's original soft `env-blocked` routing. Exhaustion routes by site: exhaustion at the
+**merge site** HARD-escalates via the existing reason `'escalate'`; exhaustion at the **land site** falls
+back to today's `held:land-failed` (reason `env-blocked`), with the retry provably spent. Full
+mechanics: [ADR 0040](0040-environment-class-gate-failures-earn-one-retry.md).
+
+The original Decision text above is not retro-edited — this amendment records the supersession, the
+same convention this ADR already applies to the container-packaging spec's §8 residual above. The
+`introduced` and `baseline` routes, and the target-derived execution values (the test-floor pattern,
+docker-gate composition, and the provision base), stand unchanged; only the `environment`
+class-route moved.
