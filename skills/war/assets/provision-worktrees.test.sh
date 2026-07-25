@@ -1275,10 +1275,10 @@ expect "T2.8b: already-landed, follower absent -> follower CREATED at <new-sha>"
 # STOPPED exercising when it was reframed to prove the ls-remote rc-guard
 # short-circuit (test-reframe-can-strand-adjacent-branch-coverage).
 #
-# Exit 3 is shared by multiple routes, every one of which dies LOUDLY with
-# route-naming text — except this one: the push-error branch is the only SILENT
-# exit-3 route (land-advance captures the push output internally and prints
-# nothing), so route identity rests on (b)+(c)+(d) TOGETHER:
+# Exit 3 is reached by several routes; the push-path silent ones (the
+# push-error branch and the post-push origin-readback mismatch) print nothing,
+# while the rest die LOUDLY with route-naming text — so route identity rests
+# on (b)+(c)+(d) TOGETHER:
 #   (b) ls-remote SUCCEEDS pre-call — closes the T2.3 rc-guard route by
 #       construction (pre-receive is push-side; ls-remote is fetch-side);
 #   (c) the token-distinctness fact asserted BY NAME (remote rejected present,
