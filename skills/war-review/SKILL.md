@@ -21,8 +21,9 @@ run from it (ADR 0008 ordering is git > issues > ledger, untouched here).
   absent, deleted, or unparseable renders **`n/a`** — never an estimate, never a guess. Every mined
   metric degrades to `n/a` independently.
 - **Numbers are best-effort harness reads, not billing truth.** Token and tool-call counts come from
-  Claude Code's transcript files, whose formats are harness-internal and may change; state this in
-  the report. This is not an invoice.
+  the harness — the manifest `envelope` aggregates where present, otherwise Claude Code's transcript
+  files — whose formats are harness-internal and may change; state this in the report. This is not
+  an invoice.
 
 ## Run
 
