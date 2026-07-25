@@ -813,7 +813,8 @@ Lead at the decompose gate / an escalation adjudication (scope deltas routed to 
 scoring keys on it: version precedence (task instruction > red-team adjudication > plan body literal)
 and the adjudication-match confirmation-note rule.
 _Avoid_: "override", "waiver" — a row records a ruling already made and routed; it never waives a gate,
-floor, or backstop (ADR 0017).
+floor, or backstop (ADR 0017), and a row is **never mined from arbitrary prose** — rows come only from
+the two named producers.
 
 **topology-void**:
 A plan clause anchored on git topology that does not exist under WAR's fast-forward per-task merges (a

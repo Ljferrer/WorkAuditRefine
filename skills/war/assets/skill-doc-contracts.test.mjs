@@ -27,6 +27,11 @@ const specProseDrift = readFileSync(
   join(HERE, '..', '..', '..', 'docs', 'specs', '2026-07-12-prose-drift-corrections-design.md'),
   'utf8',
 )
+// Glossary + contract reads (D19/D20) — same construct-anchored style as the rows above.
+// CONTEXT.md is the repo-root ubiquitous-language glossary; schemas.md is the war skill's contract
+// sheet (skills/war/references/), so the two roots differ — both resolved from HERE, never cwd.
+const contextMd = readFileSync(join(HERE, '..', '..', '..', 'CONTEXT.md'), 'utf8')
+const schemasMd = readFileSync(join(HERE, '..', 'references', 'schemas.md'), 'utf8')
 
 // (D10) The Checkpoint classification ladder's routing predicates are the source of truth; each
 // class's inline example list must map to its predicate. The recorded regression
@@ -303,5 +308,116 @@ test('D18 — SKILL.md gate_failed environment arm documents bounded environment
     ['held:land-failed', 'land-site exhaustion must route held:land-failed'],
   ]) {
     assert.ok(new RegExp(anchor, 'i').test(b), why)
+  }
+})
+
+// ---- Task 1.3 locks (a)/(b)/(c) — plan 2026-07-24-runbook-and-standing-record-coherence ----
+
+// (D19) The CONTEXT.md `**Adjudication**:` glossary term must keep the provenance-discipline clause
+// on its `_Avoid_` line — the doctrine that a row comes only from the two named producers and is
+// never sourced from surrounding prose (#1087). Recorded regression: the 2026-07-22
+// audit-adjudication-threading spec justified overwriting that clause by citing a duplicate home at
+// `skills/red-team/references/lenses.md` which never carried it, so the plan-faithful rewrite left
+// the doctrine with ZERO operative anchors repo-wide
+// ([[spec-non-goal-citation-of-a-doctrines-home-file-can-be-wrong]]; that spec now carries a dated
+// correction note at the citing non-goal). This row is the committed guard against a second orphaning.
+//
+// Extraction is BY CONSTRUCT — the bolded term to the next bolded glossary term — never a
+// whole-file scan: the same doctrine has a second standing home in SKILL.md step 5, and a
+// repo-wide key could not tell the two anchors apart (deleting this one would still pass).
+// The key spells its inner spaces `\s+` on purpose, D18's first absence key being the in-file
+// precedent: CONTEXT.md wraps near 100 columns, so the restored `_Avoid_` line may legitimately wrap
+// mid-phrase, and per the two-line-pairing lesson the `\s+` form strictly widens the match across a
+// wrap. It also keeps the contiguous literal out of this file, which the plan's wrap-tolerant
+// repo-wide doctrine census expects to return zero hits here — a guard must never trip the floor it backs.
+test('D19 — CONTEXT.md **Adjudication** term keeps its provenance-discipline doctrine clause (#1087)', () => {
+  const block = contextMd.match(/^\*\*Adjudication\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:)/m)
+  assert.ok(
+    block,
+    'could not locate the `**Adjudication**:` glossary term in CONTEXT.md (bolded term → next ' +
+      'bolded glossary term) — the extraction construct rotted',
+  )
+  assert.match(
+    block[0],
+    /never\s+mined\s+from\s+arbitrary\s+prose/i,
+    "the CONTEXT.md **Adjudication** term's `_Avoid_` line must keep the provenance-discipline " +
+      'doctrine clause — it is the doctrine\'s original and standing anchor (#1087); correct this ' +
+      'row to a sanctioned rewording, never drop the clause to make a reword pass',
+  )
+})
+
+// (D20) `skills/war/references/schemas.md`'s ledger.json contract block must declare the top-level
+// `adjudications` key (#1016). SKILL.md step 5 ("record each row in the run ledger") and this same
+// file's args-contract paragraph both cite that key as the record a recovery relaunch re-threads
+// `args.adjudications` from — a ledger block that never declares it leaves both citations dangling,
+// which is the #1016 gap itself. Heading located by PREFIX (the live line continues
+// ``at `.claude/teams/<run-id>/```), region terminated at the block's closing fence — an exact-line
+// heading match finds nothing, and a whole-file key would pass on the args-contract paragraph alone.
+test('D20 — schemas.md ledger.json block declares the top-level adjudications key (#1016)', () => {
+  const block = schemasMd.match(/^## ledger\.json — run state[^\n]*\n```jsonc\n([\s\S]*?)\n```/m)
+  assert.ok(
+    block,
+    'could not locate the `## ledger.json — run state` jsonc block in references/schemas.md ' +
+      '(heading prefix → closing fence) — the extraction construct rotted',
+  )
+  assert.match(
+    block[1],
+    /adjudications/,
+    'the ledger.json contract block must declare the top-level `adjudications` key — SKILL.md ' +
+      "step 5 and this file's args contract both cite it as the re-thread source (#1016)",
+  )
+})
+
+// (D21) SKILL.md's `held:land-failed` Outcome-handling bullet must carry BOTH arms by which a
+// gate-time `environment` failure reaches the hold (#1039). The retired sentence was unconditional —
+// the retry was declared spent for every such entry — which is false on the baseline-proceed arm,
+// where a `baseline-proceed` re-land's `environment`-classified failure routes straight to the hold
+// with NO `environment-proceed` retry ever dispatched (the two `*-proceed` flavors never chain), so
+// the operator's first manual re-run genuinely is the first fresh attempt.
+//
+// This is a PRESENCE key on the two-path shape and deliberately NOT an `/already\s+spent/i` absence
+// key: the sanctioned replacement keeps that token inside the CONDITIONAL primary-land arm, so an
+// absence key would red the correct text and green the unconditional one only by accident. The
+// defect is the unconditional framing, not the token.
+//
+// Extraction copies the live construct at `land-decision.test.mjs` (same bullet, same file): locate
+// the REAL 2-space-indented ``- **`held:land-failed``` header — a TOKEN-ONLY prefix, trailing bullet
+// text variable; the compact ``- **`held:land-failed`**`` wrap is *schemas.md*'s header form and has
+// zero occurrences in SKILL.md — and terminate at the next SAME-INDENT 2-space `- **` sibling, never
+// a top-level `- **` one (that truncates at the nested `    - **(a)` sub-bullet, or, read the other
+// way, over-extends past the whole `- **Escalation-completion land …**` sibling and would let arm
+// vocabulary from unrelated prose green the lock). Arm markers are markup-tolerant (D18's idiom), so
+// a bold/backtick reshuffle inside an arm name does not false-red.
+test('D21 — SKILL.md held:land-failed bullet names both environment arms, never one unconditional retry-spent claim (#1039)', () => {
+  const lines = skillMd.split('\n')
+  const headerIdx = lines.findIndex((l) => /^ {2}- \*\*`held:land-failed`/.test(l))
+  assert.ok(
+    headerIdx >= 0,
+    'could not locate the 2-space ``- **`held:land-failed``` bullet header in SKILL.md — anchor ' +
+      'rotted (non-vacuous guard)',
+  )
+  let endIdx = lines.length
+  for (let i = headerIdx + 1; i < lines.length; i++) {
+    if (/^ {2}- \*\*/.test(lines[i])) { endIdx = i; break }  // next SAME-INDENT sibling, not a nested `    - **`
+  }
+  const region = lines.slice(headerIdx, endIdx).join('\n')
+  // Non-vacuous: the region must reach root cause (c) — proves the extraction did not truncate early
+  // at a nested sub-bullet (the exact failure the same-indent terminator avoids).
+  assert.match(
+    region,
+    /dead land agent/i,
+    'the extracted held:land-failed region must span through root cause (c) "dead land agent" — ' +
+      'extraction truncated too early',
+  )
+  for (const [re, arm, why] of [
+    [/primary-land[\s*`]{0,6}arm/i, 'primary-land', 'the land gate failure was itself classified `environment`, a bounded environment-proceed re-land was dispatched, and it came back `environment` a second time — the retry IS spent there'],
+    [/baseline-proceed[\s*`]{0,6}arm/i, 'baseline-proceed', 'a `baseline-proceed` re-land failed `environment`-classified with no environment-proceed retry ever dispatched — the manual re-run is the first fresh attempt'],
+  ]) {
+    assert.match(
+      region,
+      re,
+      `the held:land-failed bullet must name the ${arm} arm (${why}) — a single unconditional ` +
+        'retry-spent sentence is false on one of the two paths (#1039)',
+    )
   }
 })
