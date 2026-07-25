@@ -80,10 +80,16 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
      each number-or-null, whole object nullable) on the MUST-carry list (binding-to-attempt,
      null-tolerated — the `workflowRunId` posture); `skills/war/SKILL.md`'s **On phase return**
      stamp list includes the envelope aggregates sourced from the Workflow task-completion
-     envelope (unsurfaced ⇒ `null`) and `## Checkpoint` carries a **Manifest stamp (telemetry,
+     envelope (unsurfaced ⇒ `null`), **its `Field names follow spec §4.A` MUST-carry mirror
+     sentence lists the envelope aggregates in its per-phase set** (grep `MUST-carry` over
+     `skills/war/SKILL.md` and confirm — the schemas.md/SKILL.md binding-set pair moves in
+     lock-step, never one side alone), and `## Checkpoint` carries a **Manifest stamp (telemetry,
      fail-open)** bullet placed before the issue-lifecycle floor bullet; `skills/war-review/SKILL.md`
-     contains no "manifest never carries them" claim (`grep -in 'never carries'` over that file
-     is empty — case-insensitive, per the every-key rule the backstop preamble states); its §3 **total tool calls** row's Source cell reads "manifest `phases[].envelope`,
+     contains no "manifest never carries them" claim (the **wrap-tolerant** absence check
+     `tr '\n' ' ' < skills/war-review/SKILL.md | tr -s ' ' | grep -oi 'never carries'` returns
+     nothing — case-insensitive AND joined-line, both limbs of the backstop preamble's rule:
+     that file hard-wraps at ~100 columns, so a line-local grep is exactly the wrap-blindness
+     this plan corrects elsewhere; pre-change hit count **1**); its §3 **total tool calls** row's Source cell reads "manifest `phases[].envelope`,
      else mined (transcripts)", and — because §3 today carries a **single combined row** whose
      metric label *is* the split (`total tokens — input / output / cache (split when
      available)`), which cannot simultaneously source from the envelope and stay mined — that
@@ -121,9 +127,12 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
      occurrences, two of them wrapped), **this plan and its source spec**
      (`docs/plans/2026-07-24-runbook-and-standing-record-coherence.md`,
      `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design.md` — planning
-     artifacts that quote the doctrine to specify it; **leave**), and the new test lock — and
-     nowhere else unexpected (classification record, enumerating every hit with its ruling, in
-     the done report).
+     artifacts that quote the doctrine to specify it; **leave**) — and nowhere else unexpected
+     (classification record, enumerating every hit with its ruling, in the done report). The
+     new test lock is deliberately **not** an expected census home: lock (a) spells the phrase
+     `\s+`-separated by its own floor (never literal spaces), so it is invisible to the census
+     by construction — an empty census result over `skill-doc-contracts.test.mjs` is correct,
+     not a missing home.
   6. New locks green and red-provable: `node --test skills/war/assets/skill-doc-contracts.test.mjs`
      passes with **three** new construct-anchored locks — (a) the `CONTEXT.md` `**Adjudication**:`
      block (extracted from the bolded term to the next bolded glossary term) matches the doctrine
@@ -173,8 +182,11 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
      flag tokens named in the new deny message **equals, exactly**, the union of the two `case`
      arms' `|`-split patterns — arm side split on `|` with each token's trailing `*` stripped
      (`--contains=*` → `--contains=`); message side extracted only at a start/space/`(`/`,`
-     boundary (so the floor-(i) literal `=-attached` yields no token) with value placeholders
-     collapsed to the bare `=` (`--contains=<rev>` → `--contains=`); **scope is the whole
+     boundary (so the floor-(i) literal `=-attached` yields no token), each token running from
+     that boundary **to the first character outside `[A-Za-z0-9=<>_-]`** (trailing `,` `;` `)`
+     `.` never part of the token), with **everything after a token's `=` discarded** to leave
+     the bare `=` (`--contains=<rev>` → `--contains=`; a concrete value like `--sort=refname`
+     collapses identically); **scope is the whole
      one-line message** (operator-adjudicated, red-team round 5), so the deny string names no
      denied token as a counter-example — denied-shape teaching lives in the header comment, never
      the deny string. **Not a per-token
@@ -222,8 +234,10 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
       (90 matching lines at base) nor census-block-wide (3, one of them the byte-pinned `(b)`
       line), and either wider reading makes this End state and floor (iii) jointly unsatisfiable.
       **The region is structural and worker-independent** (operator-adjudicated, red-team round
-      5): the census comment lines strictly **between the block's last bare `#`
-      paragraph-break line and its `#   (b) ` detail line**, located from the
+      5): the census comment lines strictly **between the block's first bare `#`
+      paragraph-break line and its `#   (b) ` detail line** (the block has exactly one bare `#`
+      at base, so first = last there; "first" is immune to any break a reword adds inside the
+      replacement), located from the
       `PAIR9="$(setup_origin_pair)"` fixture anchor Task 1.6 already names — at base that region
       is exactly the invariant sentence, and after the edit it is exactly what the worker wrote
       there. It is never derived from an opening literal (the sentence being replaced opens
@@ -368,7 +382,13 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
   (`totalTokens` / `totalToolCalls` / `agentCount`) to the stamp list, sourced from the Workflow
   task-completion notification's envelope — the same harness-surfaced channel the **At phase
   launch** bullet already reads `workflowRunId`/`transcriptDir` from; unsurfaced ⇒ `null`,
-  `/war-review` renders `n/a`. The stamp applies on **every** phase return — `held:*` included
+  `/war-review` renders `n/a`. **Same edit, same section: the file's own MUST-carry mirror
+  sentence** — the standalone line `Field names follow spec §4.A (nesting may be refined; the
+  **MUST-carry** set is binding): **per phase** — …` — gains the envelope aggregates in its
+  per-phase list, so `skills/war/SKILL.md`'s binding-set summary and `schemas.md`'s MUST-carry
+  list move in lock-step (landing the schemas.md widening without this sentence would create a
+  fresh two-record MUST-carry divergence — the exact defect class this plan exists to remove,
+  and no doc-contract lock reads either MUST-carry sentence to catch it). The stamp applies on **every** phase return — `held:*` included
   (the record's `land` field already carries the hold; a held phase without its stamp is exactly
   the unfinalized record the friction signal exists to catch). The envelope field names
   (`totalTokens` / `totalToolCalls` / `agentCount`) are the incident run's observed
@@ -465,7 +485,9 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
   lesson (leave — lesson bodies are records), **this plan and its source spec
   (`docs/plans/2026-07-24-runbook-and-standing-record-coherence.md`,
   `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design.md` — planning artifacts
-  quoting the doctrine to specify it; leave)**, the new locks themselves (own). Then hand-scan the
+  quoting the doctrine to specify it; leave)**. The new locks are deliberately **not** census
+  homes — lock (a) writes the phrase `\s+`-separated per its own floor, invisible to the census
+  by construction (End state 5 says the same). Then hand-scan the
   CONTEXT.md `Adjudication` term body and SKILL.md step 5 for paraphrase echoes ("synthesizes a
   row", "ruling already made and routed") to confirm the restored clause composes with rather
   than duplicates them, listing any straggler adjusted as a survey-derived correction.
@@ -546,8 +568,12 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
   patterns split on `|`, each token's trailing `*` stripped (`--contains=*` → `--contains=` —
   the arm tokens are shell globs; no honest message carries a literal `*`); **named set** = every
   flag-shaped token in the message, matched only at a start-of-string/space/`(`/`,` boundary —
-  so the floor-(i) literal `=-attached` yields no token — with any value placeholder collapsed
-  to the bare `=` (`--contains=<rev>` → `--contains=`); compare the two sorted sets and assert
+  so the floor-(i) literal `=-attached` yields no token — where **a token runs from that
+  boundary to the first character outside `[A-Za-z0-9=<>_-]`** (trailing sentence punctuation —
+  `,` `;` `)` `.` — is never part of the token, so an honest flag abutting a `)` or `;` still
+  extracts clean), and **everything after a token's `=` is discarded to leave the bare `=`**
+  (`--contains=<rev>` → `--contains=`; a concrete illustrative value collapses identically —
+  `--sort=refname` → `--sort=` — placeholder or value alike); compare the two sorted sets and assert
   they are **equal** — neither side may carry a token the other
   lacks. **Scope is the whole one-line message**: the deny string therefore names no denied
   token as a counter-example — denied-shape teaching lives in the header comment, never the deny
@@ -602,8 +628,10 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
   mismatch) print nothing, while the rest die LOUDLY with route-naming text — so route identity
   rests on (b)+(c)+(d) TOGETHER:"*. **Floors (the audit rubric — latitude beyond them is the
   worker's, never re-adjudicated as drift):** (i) the **replacement invariant sentence** —
-  structurally delimited as the census comment lines strictly **between the block's last bare
-  `#` paragraph-break line and its `#   (b) ` detail line**, both located from the
+  structurally delimited as the census comment lines strictly **between the block's first bare
+  `#` paragraph-break line and its `#   (b) ` detail line** (exactly one bare `#` exists at
+  base, so first = last there; "first" survives any break your reword adds), both located from
+  the
   `PAIR9="$(setup_origin_pair)"` fixture anchor above (at base that region is exactly the
   invariant sentence; after your edit it is exactly what you wrote there), *excluding* the
   `(b)`/`(c)`/`(d)` detail lines that floor (iii) pins byte-unchanged — greps **zero** for
@@ -627,7 +655,10 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
   *future* re-wrap, and a line-local case-sensitive pair is still NOT sufficient, because a
   sentence-initial recasing or a re-wrap would report PASS on a paragraph that still carries both
   false claims; (iii) the `(b)`, `(c)`,
-  `(d)` detail lines and **all** assertion code are byte-unchanged; (iv) the sentence is truthful
+  `(d)` detail lines and **all** assertion code are byte-unchanged, and the census block gains
+  **no new `#   (`-prefixed detail-label line** (the floor-(i) region's end boundary keys on the
+  byte-pinned `#   (b) ` line — a second `(x)`-shaped label would make it ambiguous); (iv) the
+  sentence is truthful
   against `cmd_land_advance` **as written at your base** — re-read the function and confirm the
   two silent arms before writing, rather than trusting this slice's summary (that is precisely the
   failure mode this task exists to correct); (v) no numeric count of exit-3 routes appears
@@ -682,15 +713,18 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
   and 7. On a `#`-comment surface, wrap-tolerance requires stripping the continuation marker
   *before* joining lines — `sed 's/^[[:space:]]*#[[:space:]]*//' <file> | tr '\n' ' ' | tr -s ' '`
   — because a bare `tr '\n' ' '` leaves the `# ` sitting mid-phrase and the joined text still
-  fails to match. (Keys (1), (2), (4), (5) are line-resident at base and match under all three
-  forms — for them the normalization buys tolerance to a *future* re-wrap, and the pre-change
-  counts prove non-vacuity. Key (3) is an **enumeration**, not an absence key, and its
-  wrap-tolerance is load-bearing **today**: two of the lesson body's four occurrences already
-  wrap at base, so a single-line form under-reports the census before any edit.)** The five:
+  fails to match. (Key taxonomy — three kinds, not one: **(4) and (5) are absence keys** — they
+  must return nothing after the edit, and their stated pre-change counts prove non-vacuity;
+  **(3) is an enumeration/census**, whose wrap-tolerance is load-bearing **today** — two of the
+  lesson body's four occurrences already wrap at base, so a single-line form under-reports
+  before any edit; **(1) and (2) are adjudicated sweeps** that keep legitimate matches
+  post-change — (1) keeps the ace-demotion string, and (2) censuses a file that says `manifest`
+  legitimately throughout, so no pre-change count is pinned for it.)** The five:
   (1) `already spent` over
   `skills/war/` + `agents/` (pre-change hit count **2**; the `environment` bullet's "the retry
   provably spent" is a hand-scan keep, not a grep match); (2) `manifest` over
-  `skills/war-review/SKILL.md`; (3) the
+  `skills/war-review/SKILL.md` — an adjudicated census, plus End state 4's wrap-tolerant
+  `never carries` absence re-check over the same file (pre-change count **1**); (3) the
   wrap-tolerant doctrine-phrase census repo-wide; (4) over `hooks/`, both absence keys
   `takes only =-attached` **and** `an enumerated read flag with =-attached
   values` — the latter under the `#`-comment normalized form above, because Task 1.5's own
@@ -705,8 +739,9 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
   census block (3, one of them the byte-pinned `(b)` detail line); a file-wide or block-wide
   reading of this key reports a false RED on a correctly-executed Task 1.6. **The region is
   structural, worker-independent** (operator-adjudicated, red-team round 5): the census comment
-  lines strictly between the block's last bare `#` paragraph-break line and its `#   (b) `
-  detail line, located from the `PAIR9="$(setup_origin_pair)"` fixture anchor — never derived
+  lines strictly between the block's **first** bare `#` paragraph-break line and its `#   (b) `
+  detail line (exactly one bare `#` at base, so first = last there; "first" survives any break
+  the reword adds), located from the `PAIR9="$(setup_origin_pair)"` fixture anchor — never derived
   from an opening literal (the reword may legitimately have removed any old phrase) and never
   taken from the done report's quote alone (reconcile Task 1.6's verbatim quote against this
   region; a partial quote must not narrow the scan). Confirm
