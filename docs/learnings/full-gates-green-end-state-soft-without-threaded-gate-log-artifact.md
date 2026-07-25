@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   provenance: code-verified
-  promoted: dev/2026-07-24-land-advance-exit-contract-truth@phase-2
+  promoted: dev/2026-07-24-runbook-and-standing-record-coherence@phase-1
   slug: full-gates-green-end-state-soft-without-threaded-gate-log-artifact
   phase: "red-team-fallback-and-anchor-hygiene/phase-2 (Release, task 2.1) +4 recurrences (latest runbook-and-standing-record-coherence/phase-1-integrated-tip gate-audit, 2026-07-24)"
   keywords:
@@ -35,7 +35,7 @@ metadata:
   created: 2026-07-15
   updated: 2026-07-24
   originSessionId: e11422bd-1b49-4d13-9840-37a67306b3f5
-  modified: 2026-07-25T06:18:22.481Z
+  modified: 2026-07-25T07:05:55.757Z
 ---
 
 **Local recurrence copy** of the repo-root lesson at `docs/learnings/full-gates-green-end-state-soft-without-threaded-gate-log-artifact.md`
@@ -169,3 +169,27 @@ landed tip `3f136c0327713487768aed59f986b665b07f9cb6` — confirmed present in
 `docs/adr/0024-audit-gate-verdicts-integrated-tip-captured-evidence.md` (read via the `_refinery`
 worktree matching that SHA, gitdir physical path containing this plan's slug —
 `.claude/worktrees/2026-07-24-runbook-and-standing-record-coherence-2026-07-24/_refinery/`).
+
+## Recurrence 5 (2026-07-24/25, plan `2026-07-24-runbook-and-standing-record-coherence`, phase 2 "Release", task 2.1) — back to the per-task/version-slot shape, with self-mitigation spelled out
+
+Fifth occurrence, back to the Recurrences 1-3 per-task/version-slot `phase-N-end-state` shape (not
+the integrated-tip variant of Recurrence 4): End state 10 required all four version slots bumped in
+lock-step to the next free patch (`0.14.59`), `version-slots.test.mjs` named as arbiter. This pass
+carried no stamped `pin_status` token and no captured gate-log artifact path, so the commit body's
+"929/929 pass 0 fail, 26 shell suites" claim is unverified evidence — SOFT, never a hold, per the
+standing rule; verdict stayed `gate-audit:approve`, `hard:false`, `disposition:note`.
+
+**What this occurrence adds:** the auditor's own rationale spelled out its mitigation chain in full
+rather than just citing the rule — confirmed the tip with `git rev-parse`, confirmed
+`git status --porcelain` empty in the `_refinery` worktree, and read all four slots directly from
+the pinned blobs (all `0.14.59` bare semver, `## Releasing` section satisfying both the absence key
+and the presence key). `code-verified` at the landed tip `3444016a48a3d97b5beb21fc9700bd7fa788272d`
+(gitdir physical path containing this plan's slug:
+`.claude/worktrees/2026-07-24-runbook-and-standing-record-coherence-2026-07-24/_refinery/`):
+`.claude-plugin/plugin.json` `version`, `.claude-plugin/marketplace.json` `metadata.version` and
+`plugins[0].version`, and the README `## Status` line all read `0.14.59` at that tip, and
+`skills/war/assets/version-slots.test.mjs` is present.
+
+**Confirms:** the SOFT-never-hold disposition for this exact End-state shape now holds across five
+occurrences and two campaigns; the mechanical-half-confirmable / execution-half-SOFT split is
+stable and needs no further pattern refinement, only occurrence-count freshness.
