@@ -29,9 +29,9 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
   ride `deps` wave edges so no citation ever dangles. Each spec token sweep is a floor, not a
   ceiling — grep, adjudicate every match, then hand-scan the same-scope prose and record
   survey-derived corrections in the done report; a straggler outside all task footprints is
-  reported (`war-followup`), never edited. Wording latitude on the 4.2/4.7 replacement texts is
-  the worker's within the named-element floors (both arms in 4.2; the `=-attached` literal and no
-  blanket adjective in 4.7).
+  reported (`war-followup`), never edited. Wording latitude on the 4.2/4.7 replacement texts and
+  Task 1.6's replacement invariant sentence is the worker's within the named-element floors (both
+  arms in 4.2; the `=-attached` literal and no blanket adjective in 4.7; floors (i)–(v) in 1.6).
 - **End state:**
   1. Ledger contract closes the loop: the `## ledger.json — run state` jsonc block in
      `skills/war/references/schemas.md` names a top-level `adjudications` key (sibling of
@@ -57,9 +57,11 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
      existing root-cause prose and stay untouched). No surface in `skills/war/` or `agents/`
      still states the unconditional **environment-retry** "already spent" claim: the
      `already spent` grep + same-scope hand-scan record is in the done report, with the two known
-     keeps adjudicated (the sibling `environment` bullet's "the retry provably spent" — correct
-     for the exhaustion path it describes; `workflow-template.js`'s ace-demotion string "the
-     single ace attempt is already spent" — a different retry budget entirely). **This absence is
+     keeps adjudicated (the sibling `environment` bullet's "the retry provably spent" — a
+     **hand-scan find, not an `already spent` grep hit**, correct for the exhaustion path it
+     describes; `workflow-template.js`'s ace-demotion string "the single ace attempt is already
+     spent" — a different retry budget entirely; the grep's own pre-change hit count over the
+     scope is **2** — the target sentence plus the ace-demotion string). **This absence is
      mechanically guarded, not merely swept:** Task 1.3's new lock **(c)** (End state 6) asserts
      the extracted `held:land-failed` bullet carries **both arms** — so leaving the single
      unconditional sentence in place reds the gate. It is a **presence** key, not a
@@ -80,8 +82,8 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
      stamp list includes the envelope aggregates sourced from the Workflow task-completion
      envelope (unsurfaced ⇒ `null`) and `## Checkpoint` carries a **Manifest stamp (telemetry,
      fail-open)** bullet placed before the issue-lifecycle floor bullet; `skills/war-review/SKILL.md`
-     contains no "manifest never carries them" claim (grep `never carries` over that file is
-     empty); its §3 **total tool calls** row's Source cell reads "manifest `phases[].envelope`,
+     contains no "manifest never carries them" claim (`grep -in 'never carries'` over that file
+     is empty — case-insensitive, per the every-key rule the backstop preamble states); its §3 **total tool calls** row's Source cell reads "manifest `phases[].envelope`,
      else mined (transcripts)", and — because §3 today carries a **single combined row** whose
      metric label *is* the split (`total tokens — input / output / cache (split when
      available)`), which cannot simultaneously source from the envelope and stay mined — that
@@ -148,23 +150,34 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
      differently, so a deny-only grep would come back empty while the header comment's blanket
      wording survives verbatim). Each key must be **non-vacuous at the base**: it MUST match
      today, before any edit, or it can never discriminate a corrected surface from an untouched
-     one. Both keys are **case-insensitive** (`grep -rin`) — the deny reword's likeliest shape is
+     one. Both keys are **case-insensitive** — the deny reword's likeliest shape is
      a sentence-initial recasing (`Takes only =-attached …`), which a case-sensitive grep would
-     wave through — and the header key is **line-local by construction**, because the live header
-     comment wraps mid-phrase across two lines with a `# ` continuation marker sitting inside it
+     wave through. The rejected key `EVERY token must be an enumerated read flag` wraps mid-phrase
+     across the live header comment's two lines with a `# ` continuation marker sitting inside it
      (`… With arguments, EVERY token` / `# must be an enumerated read flag with =-attached
-     values`), so `EVERY token must be an enumerated read flag` matches **zero** times at the base
+     values`), so it matches **zero** times at the base
      and is a vacuous key — the exact wrap-blindness this plan calls out for the doctrine census
      in End state 5. The two keys, over `hooks/`, both returning nothing after the edit:
      (1) `grep -rin 'takes only =-attached' hooks/` — pre-change hit count **1** (the deny
-     string); (2) `grep -rin 'an enumerated read flag with =-attached values' hooks/` —
-     pre-change hit count **1** (line-resident on the header comment's second line). Record both
+     string); (2) the phrase `an enumerated read flag with =-attached values` checked under the
+     `#`-comment normalized form
+     (`sed 's/^[[:space:]]*#[[:space:]]*//' hooks/validate-auditor-git.sh | tr '\n' ' ' |
+     tr -s ' ' | grep -ic 'an enumerated read flag with =-attached values'`) — pre-change hit
+     count **1**. Key (2) is normalized, **not line-local, because Task 1.5's own deliverable
+     rewrites this wrapped comment**: a bare line-local grep goes green on any re-wrap that moves
+     the split point while the blanket claim survives verbatim. Record both
      pre-change counts in the done report so each floor is provably red-provable, not vacuous.
      Presence floor (the
      discriminating proof the reword actually landed — J16's surviving-substring pin alone cannot
-     show it), **identical to Task 1.5 floor (iii)**: the set of flag tokens named in the new deny
-     message **equals, exactly**, the union of the two `case` arms' `|`-split patterns — both sides
-     derived mechanically at the base, neither taken from a list in this plan. **Not a per-token
+     show it), **identical to Task 1.5 floor (iii), including its stated derivation**: the set of
+     flag tokens named in the new deny message **equals, exactly**, the union of the two `case`
+     arms' `|`-split patterns — arm side split on `|` with each token's trailing `*` stripped
+     (`--contains=*` → `--contains=`); message side extracted only at a start/space/`(`/`,`
+     boundary (so the floor-(i) literal `=-attached` yields no token) with value placeholders
+     collapsed to the bare `=` (`--contains=<rev>` → `--contains=`); **scope is the whole
+     one-line message** (operator-adjudicated, red-team round 5), so the deny string names no
+     denied token as a counter-example — denied-shape teaching lives in the header comment, never
+     the deny string. **Not a per-token
      substring grep** (`-a` ⊂ `--all`, `-r` ⊂ `--remotes`, `-v` ⊂ `--verbose`/`-vv`: a long-forms-only
      message passes a substring check while omitting three tokens — the exact partial-enumeration
      defect this floor exists to catch). No blanket adjective covers the bare set, and **no
@@ -181,14 +194,23 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
      collateral-drift property this condition exists to prove — and its **only** permitted
      absentee is `hooks/validate-auditor-git.test.sh`, Task 1.5's declared straggler-home slot,
      which is expected byte-untouched and therefore expected NOT to appear in the diff (each
-     worker threads its task's name-only diff into its done report; gate-audit re-derives the
-     union at the integrated tip and applies exactly this subset-plus-named-absentee predicate).
+     worker threads `git diff --name-only <its own dispatch base>...HEAD` into its done report —
+     the frozen phase base for wave-1 tasks, the rebased integration tip for `deps` tasks, so a
+     deps task's report shows its **own** footprint, never the union of its ancestors';
+     gate-audit re-derives the
+     union at the integrated tip and applies exactly this subset-plus-named-absentee predicate —
+     where `<integrated tip>` is the phase **integration-branch tip at the post-merge
+     gate-audit**, before Land and before any `docs(learnings): phase N` commit, whose
+     `docs/learnings/` paths sit outside every task footprint by design and would false-RED a
+     working-branch reading).
      Equality is deliberately NOT the predicate: `hooks/validate-auditor-git.test.sh` is in the
      union only so a survey-found straggler comment has an in-footprint home, so on the plan's
      own expected path (no straggler) an equality check would red the phase on a non-defect.
-     The expected-untouched surfaces stay byte-identical unless a survey finds a straggler:
-     `workflow-template.js`, `land-decision.mjs`, every floor script, and
-     `hooks/validate-auditor-git.test.sh`.
+     The expected-untouched surfaces stay byte-identical: `workflow-template.js`,
+     `land-decision.mjs`, and every floor script **unconditionally** (outside every task
+     footprint — a straggler there is reported `war-followup`, never edited);
+     `hooks/validate-auditor-git.test.sh` unless a survey finds a straggler comment (the one
+     in-footprint straggler home, Task 1.5's).
   10. Release lands last: all four version slots in lock-step at the next free patch above the
       live integration base; `version-slots.test.mjs` green.
   11. T2.9 census accuracy (campaign carry-over from plan 1): in
@@ -199,12 +221,18 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
       **sentence-scoped, exactly as plan 1's End state 4 scoped it**; the key is neither file-wide
       (90 matching lines at base) nor census-block-wide (3, one of them the byte-pinned `(b)`
       line), and either wider reading makes this End state and floor (iii) jointly unsatisfiable.
-      **The region is the one the worker declares** — the replacement sentence quoted verbatim in
-      the done report, terminating at its `(b)+(c)+(d)` lead-in and excluding the `(b)`/`(c)`/`(d)`
-      detail lines below it. It is deliberately **not** anchored on any opening literal: the
-      sentence being replaced opens `Exit 3 is shared by`, so pinning that phrase would either
-      survive only by forbidding the rewording this task exists to perform, or evaporate the
-      moment the worker rewords. The `(b)`/`(c)`/`(d)` detail lines and all assertion code are
+      **The region is structural and worker-independent** (operator-adjudicated, red-team round
+      5): the census comment lines strictly **between the block's last bare `#`
+      paragraph-break line and its `#   (b) ` detail line**, located from the
+      `PAIR9="$(setup_origin_pair)"` fixture anchor Task 1.6 already names — at base that region
+      is exactly the invariant sentence, and after the edit it is exactly what the worker wrote
+      there. It is never derived from an opening literal (the sentence being replaced opens
+      `Exit 3 is shared by`; pinning that phrase would either forbid the reword this task exists
+      to perform or evaporate the moment the worker rewords) and never taken from the done
+      report's quote alone (a worker-chosen quote could omit part of the landed sentence — the
+      worker still quotes the replacement sentence verbatim in the done report as evidence, and
+      the auditor reconciles that quote against this structural region). The `(b)`/`(c)`/`(d)`
+      detail lines and all assertion code are
       **byte-unchanged**, and the
       replacement sentence remains truthful against `cmd_land_advance` as written (which has two
       silent bare-`exit 3` arms: the push-error branch and the post-push origin-readback
@@ -282,7 +310,9 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
   INSIDE the `## ledger.json — run state` jsonc block you are editing**, and D9's enum-leak
   detector, which is fed the **entire file**. So both edited blocks are in D9's scan scope: keep
   the new `adjudications` / `envelope` prose free of equality-shaped or label-shaped examples
-  (`status: "landed"`, `landDecision === 'merged'`) that would trip its patterns.
+  (`status:landed` label form, `landDecision === 'merged'` equality form) that would trip its
+  patterns — colon-space-quote object literals like `status: "landed"` are the test's own
+  documented non-trip carve-out, neither equality nor label shape.
 - requiresTest: false — docs-tier contract + consumer prose; the doc-contract lock guarding the
   new ledger key arrives with Task 1.3 (no-test route recorded here for the floor)
 - requiresPackaging: false
@@ -297,7 +327,10 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
   "Assemble, thread, and record the run's adjudication set" step), extend "record each row in the
   run ledger" with the parenthetical citation to the `ledger.json` top-level `adjudications` key
   in `references/schemas.md`. **(b) Two-path `held:land-failed` truth (spec §4.2).** In the
-  `## Checkpoint` Outcome-handling list, locate the `- **`held:land-failed`**` bullet's sentence
+  `## Checkpoint` Outcome-handling list, locate the `held:land-failed` bullet by its
+  **2-space-indented, token-only prefix** `/^ {2}- \*\*`held:land-failed`/` (End state 2's
+  locator; the compact `` - **`held:land-failed`** `` wrap has zero occurrences in this file —
+  never anchor on it here) and within it the sentence
   beginning "A **gate-time `environment` failure that reaches this hold has already spent…" and
   replace it with the two-path form — primary-land arm: retry spent (the bounded fresh-env
   re-land came back `environment`-classified a second time — see the `gate_failed` routing bullet
@@ -359,10 +392,13 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
   return **zero** hits under every form (single-line, case-insensitive, and `\s+`-tolerant
   alike), silently falsifying End state 5 while every other check stayed green. **Token sweep (floor,
   not ceiling):** grep `already spent` across `skills/war/` and `agents/` and adjudicate every
-  match against the two-path truth — known matches at drafting: the target sentence (fixed
+  match against the two-path truth — known **grep matches** at drafting (pre-change hit count
+  **2**): the target sentence (fixed
   here); `workflow-template.js`'s ace-demotion string "the single ace attempt is already spent"
-  (a different retry budget — leave, and the engine file is out of footprint regardless); the
-  `environment` bullet's "the retry provably spent" (correct — keep). Then hand-scan the full
+  (a different retry budget — leave, and the engine file is out of footprint regardless). The
+  `environment` bullet's "the retry provably spent" is a **hand-scan keep, not a grep match** —
+  it does not contain the string `already spent` (correct for its exhaustion path — keep). Then
+  hand-scan the full
   Outcome-handling list and the `### Recovery relaunch` / runbook subsections for paraphrase
   echoes of the unconditional claim the grep cannot catch, adjudicating each and listing every
   straggler edited as a survey-derived correction in the done report. A straggler in a file
@@ -408,21 +444,28 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
   extract the `## ledger.json — run state` jsonc block from `skills/war/references/schemas.md`
   (heading to the block's closing fence) and assert it names `adjudications`. Prove locks **(a)
   and (b)** red by temporarily removing each referent (red-proof recorded in the commit body,
-  matching the file's house style; per End state 3-style done-report threading, quote the failing
-  output); lock **(c)** carries its own red-proof below.
+  matching the file's house style; quote the failing output in the done report — the
+  done-report-evidence convention End states 7 and 9 use); lock **(c)** carries its own
+  red-proof below.
   Every existing row — D10, D18, the spec-truth reads — passes with extraction constructs
   untouched. **Token sweep (floor, not ceiling — wrap-tolerant):** census the phrase repo-wide
   with a whitespace-tolerant form that crosses line breaks (e.g. per file
-  `tr '\n' ' ' | grep -c 'mined from arbitrary prose'`, or a `\s+`-separated multiline match) —
+  `tr '\n' ' ' | grep -oi 'mined from arbitrary prose' | wc -l` — case-insensitive to match
+  lock (a), and `-o … | wc -l` because on a single joined line `grep -c` caps at 1 and
+  undercounts a multi-occurrence file — or a `\s+`-separated case-insensitive multiline match) —
   the lesson body `docs/learnings/spec-non-goal-citation-of-a-doctrines-home-file-can-be-wrong.md`
   carries **four** occurrences of which **two** wrap across a line break, so a single-line grep
   reports 2 and silently drops half — the misattribution-pairing defect class exactly. **Enumerate
   and classify every hit; never match a count** (these numbers are the base-state rationale for
   using a wrap-tolerant form, not a floor to assert). Classify every hit —
   CONTEXT.md term (standing home, this task's edit),
-  `skills/war/SKILL.md` step 5 (standing home, Task 1.2's edit — adjudicate fixed-in-flight by
-  the sibling, same phase), the 2026-07-22 spec (this task's correction-note site), the learnings
-  lesson (leave — lesson bodies are records), the new locks themselves (own). Then hand-scan the
+  `skills/war/SKILL.md` step 5 (standing home, written by Task 1.2 and **present at this task's
+  rebased base** via the `deps: [1.1, 1.2]` edge — leave), the 2026-07-22 spec (this task's
+  correction-note site), the learnings
+  lesson (leave — lesson bodies are records), **this plan and its source spec
+  (`docs/plans/2026-07-24-runbook-and-standing-record-coherence.md`,
+  `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design.md` — planning artifacts
+  quoting the doctrine to specify it; leave)**, the new locks themselves (own). Then hand-scan the
   CONTEXT.md `Adjudication` term body and SKILL.md step 5 for paraphrase echoes ("synthesizes a
   row", "ruling already made and routed") to confirm the restored clause composes with rather
   than duplicates them, listing any straggler adjusted as a survey-derived correction.
@@ -434,8 +477,8 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
   auto-recover, else hold.**`` — so the compact `` - **`held:land-failed`** `` form has **zero**
   occurrences in `SKILL.md`; that compact wrap is *schemas.md*'s header form, never anchor on it
   here) and terminate at the next **SAME-INDENT** `/^ {2}- \*\*/` sibling, never a top-level
-  `/^- \*\*/` one (a top-level terminator over-extends past four sub-bullets and the entire
-  `- **Escalation-completion land …**` sibling). Then assert the extracted region matches **both**
+  `/^- \*\*/` one (a top-level terminator over-extends past the bullet's nested sub-bullets and
+  the entire `- **Escalation-completion land …**` sibling). Then assert the extracted region matches **both**
   arm markers — a primary-land arm and a baseline-proceed arm — per End state 2's two-path
   requirement.
   **Do NOT write this as a `/already\s+spent/i` absence key.** The spec's own sanctioned §4.2
@@ -498,10 +541,17 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
   micro-teach and stays accurate for the value-carrying flags); **(ii)** no blanket adjective
   covers the bare-flag set; **(iii) token-set equality — the set of flag tokens named in the new
   message equals, exactly, the union of the two `case` arms' `|`-split patterns.** Derive both
-  sides mechanically at your base rather than trusting any list (including this plan's): split the
-  two arm patterns on `|` to get the accepted set, extract the flag tokens from the message you
-  wrote, and assert the two multisets are **equal** — neither side may carry a token the other
-  lacks. **Do not check this with a bare per-token substring grep: `-a` is a substring of `--all`,
+  sides mechanically at your base rather than trusting any list (including this plan's), under
+  this stated derivation (operator-adjudicated, red-team round 5): **accepted set** = the two arm
+  patterns split on `|`, each token's trailing `*` stripped (`--contains=*` → `--contains=` —
+  the arm tokens are shell globs; no honest message carries a literal `*`); **named set** = every
+  flag-shaped token in the message, matched only at a start-of-string/space/`(`/`,` boundary —
+  so the floor-(i) literal `=-attached` yields no token — with any value placeholder collapsed
+  to the bare `=` (`--contains=<rev>` → `--contains=`); compare the two sorted sets and assert
+  they are **equal** — neither side may carry a token the other
+  lacks. **Scope is the whole one-line message**: the deny string therefore names no denied
+  token as a counter-example — denied-shape teaching lives in the header comment, never the deny
+  string. **Do not check this with a bare per-token substring grep: `-a` is a substring of `--all`,
   `-r` of `--remotes`, and `-v` of both `--verbose` and `-vv`, so a message naming only the long
   forms passes a substring check while omitting three tokens** — the partial-enumeration defect
   sailing through the floor built to stop it. Quote both derived sets in the done report; **(iv)**
@@ -551,14 +601,19 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
   routes; the push-path silent ones (the push-error branch and the post-push origin-readback
   mismatch) print nothing, while the rest die LOUDLY with route-naming text — so route identity
   rests on (b)+(c)+(d) TOGETHER:"*. **Floors (the audit rubric — latitude beyond them is the
-  worker's, never re-adjudicated as drift):** (i) the **replacement invariant sentence** — the
-  prose you write, terminating at its `(b)+(c)+(d)` lead-in and *excluding* the `(b)`/`(c)`/`(d)`
-  detail lines that floor (iii) pins byte-unchanged — greps **zero** for `T2\.`. **Quote the
-  replacement sentence verbatim in your done report; that quoted block IS the region this floor,
-  End state 11, and backstop key (5) all scan.** No opening literal is pinned — you are rewording
-  this sentence, so any phrase anchored from the old text would either forbid the reword or vanish
-  with it (the suggested shape below already opens `Exit 3 is reached by`, not the current
-  `Exit 3 is shared by`)
+  worker's, never re-adjudicated as drift):** (i) the **replacement invariant sentence** —
+  structurally delimited as the census comment lines strictly **between the block's last bare
+  `#` paragraph-break line and its `#   (b) ` detail line**, both located from the
+  `PAIR9="$(setup_origin_pair)"` fixture anchor above (at base that region is exactly the
+  invariant sentence; after your edit it is exactly what you wrote there), *excluding* the
+  `(b)`/`(c)`/`(d)` detail lines that floor (iii) pins byte-unchanged — greps **zero** for
+  `T2\.`. The region is deliberately **worker-independent** (operator-adjudicated, red-team
+  round 5): no opening literal is pinned (you are rewording this sentence — any phrase anchored
+  from the old text would either forbid the reword or vanish with it; the suggested shape below
+  already opens `Exit 3 is reached by`, not the current `Exit 3 is shared by`), and the scanned
+  region is never taken from your done-report quote (a partial quote must not narrow the scan).
+  **Still quote the replacement sentence verbatim in your done report as evidence** — the
+  auditor reconciles that quote against this structural region
   (plan 1's End-state-4 count-free floor, preserved at plan 1's scope: **sentence**, never the
   census block and never the file, both of which match `T2\.` at base and would report a false
   RED); (ii) the claims are gone under a **case-insensitive, wrap-tolerant** check — normalize
@@ -627,28 +682,39 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
   and 7. On a `#`-comment surface, wrap-tolerance requires stripping the continuation marker
   *before* joining lines — `sed 's/^[[:space:]]*#[[:space:]]*//' <file> | tr '\n' ' ' | tr -s ' '`
   — because a bare `tr '\n' ' '` leaves the `# ` sitting mid-phrase and the joined text still
-  fails to match. (Every key below is line-resident at base and matches under all three forms;
-  the normalization buys tolerance to a *future* re-wrap, not present non-vacuity, and the
-  pre-change counts are what prove non-vacuity.)** The five: (1) `already spent` over
-  `skills/war/` + `agents/`; (2) `manifest` over `skills/war-review/SKILL.md`; (3) the
+  fails to match. (Keys (1), (2), (4), (5) are line-resident at base and match under all three
+  forms — for them the normalization buys tolerance to a *future* re-wrap, and the pre-change
+  counts prove non-vacuity. Key (3) is an **enumeration**, not an absence key, and its
+  wrap-tolerance is load-bearing **today**: two of the lesson body's four occurrences already
+  wrap at base, so a single-line form under-reports the census before any edit.)** The five:
+  (1) `already spent` over
+  `skills/war/` + `agents/` (pre-change hit count **2**; the `environment` bullet's "the retry
+  provably spent" is a hand-scan keep, not a grep match); (2) `manifest` over
+  `skills/war-review/SKILL.md`; (3) the
   wrap-tolerant doctrine-phrase census repo-wide; (4) over `hooks/`, both absence keys
-  `takes only =-attached` **and** the line-resident `an enumerated read flag with =-attached
-  values` (**not** `EVERY token must be an enumerated read flag` — that phrase wraps mid-sentence
+  `takes only =-attached` **and** `an enumerated read flag with =-attached
+  values` — the latter under the `#`-comment normalized form above, because Task 1.5's own
+  deliverable rewrites that wrapped header comment and a line-local grep goes green on any
+  re-wrap that keeps the claim (**not** `EVERY token must be an enumerated read flag` — that
+  phrase wraps mid-sentence
   across the live header comment's two lines with a `# ` continuation marker inside it, so it
   matches zero times even before any edit and can never discriminate); and (5) over
   `skills/war/assets/provision-worktrees.test.sh`, `only silent` / `every one of which`
   (each pre-change hit count **1**, line-resident) plus `T2\.` **scoped to the replacement
   invariant sentence only** — never the file (90 matching lines at base) and never the whole T2.9
   census block (3, one of them the byte-pinned `(b)` detail line); a file-wide or block-wide
-  reading of this key reports a false RED on a correctly-executed Task 1.6. **Take the region from
-  Task 1.6's done report** — the worker quotes the replacement sentence verbatim, and that quoted
-  block is what this key scans at the landed tip; do not re-derive it from an opening literal,
-  which the reword may legitimately have removed. Confirm
+  reading of this key reports a false RED on a correctly-executed Task 1.6. **The region is
+  structural, worker-independent** (operator-adjudicated, red-team round 5): the census comment
+  lines strictly between the block's last bare `#` paragraph-break line and its `#   (b) `
+  detail line, located from the `PAIR9="$(setup_origin_pair)"` fixture anchor — never derived
+  from an opening literal (the reword may legitimately have removed any old phrase) and never
+  taken from the done report's quote alone (reconcile Task 1.6's verbatim quote against this
+  region; a partial quote must not narrow the scan). Confirm
   End states 2, 4, 5, 7, **11** hold after the serial merge · why
-  deferred: sweep completeness is a whole-repo property spanning **six** parallel tasks that each
-  adjudicate at their own frozen base — the cross-task fixed-in-flight rulings (Task 1.3
-  classifying Task 1.2's step-5 edit) are only provable on the integrated union, and Task 1.6's
-  absence floors can be re-broken by any later-landing sibling that re-enters
+  deferred: sweep completeness is a whole-repo property spanning **six Phase-1 tasks across
+  three waves**, each adjudicating at its own frozen dispatch base — only the integrated union
+  proves every task's keys simultaneously, e.g. Task 1.6's absence floors can be re-broken by
+  any later-landing sibling that re-enters
   `provision-worktrees.test.sh` · runner: the Lead at Phase-1 land, before dispatching Phase 2.
 - "Unfinalized phase record" friction signal fires in practice — a future run whose Lead skips
   the phase-close stamp shows the new §4 row in its review · why deferred: the signal's trigger
@@ -790,5 +856,6 @@ Source spec: `docs/specs/2026-07-24-runbook-and-standing-record-coherence-design
 ## Open decisions
 
 None — the spec's design tree resolved every decision; remaining latitude (4.2's exact two-arm
-phrasing, 4.7's exact deny wording, the correction note's sentence shape) is the worker's within
+phrasing, 4.7's exact deny wording, Task 1.6's replacement invariant sentence, the correction
+note's sentence shape) is the worker's within
 the named-element floors stated per task.
