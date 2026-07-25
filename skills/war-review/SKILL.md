@@ -65,10 +65,14 @@ JSON** — read them **defensively**:
 - Sum **token usage** (input / output / cache-read / cache-creation) from whatever usage-shaped
   fields the records carry; count **tool-call** events. If a phase's `transcriptDir` is `null`,
   missing on disk, expired, or carries no usage-shaped fields → that phase's mined metrics are
-  **`n/a`** (do not fall back to the manifest for token counts — the manifest never carries them).
+  **`n/a`**. Prefer the manifest's per-phase `envelope` aggregates for **totals** when present — the
+  authoritative non-transcript source; the input/output/cache **split** stays transcript-mined and
+  renders `n/a` when unsourceable, and a mined split value is always **best-effort and possibly
+  undercounting** (transcripts undercount tool calls roughly 20× against the envelope), never
+  cross-summable against an envelope total.
 - The **manifest** — not the transcripts — supplies dispatch counts by role, task terminal
-  statuses, per-phase and run timestamps, `land`, `lessonsWritten`, and `issuesFiled`. These stand
-  even when a transcript is gone.
+  statuses, per-phase and run timestamps, `land`, `lessonsWritten`, `issuesFiled`, and — when
+  present — the `envelope` token/tool-call totals. These stand even when a transcript is gone.
 
 Do not hardcode a rigid transcript schema. If a future harness renames the usage fields, the
 defensive read degrades to `n/a` instead of crashing — that is the intended failure mode.
@@ -81,8 +85,9 @@ Render **per phase and as run totals** (the full End-state-2 set; `n/a` for any 
 |---|---|
 | workflows run (= phase count) | manifest `phases[]` |
 | sub-agents by role — workers / auditors / fix-rounds / refiner dispatches / servitor | manifest `phases[].dispatches` |
-| total tool calls | mined (transcripts) |
-| total tokens — input / output / cache (split when available) | mined (transcripts) |
+| total tool calls | manifest `phases[].envelope`, else mined (transcripts) |
+| total tokens | manifest `phases[].envelope`, else mined (transcripts) |
+| token split — input / output / cache | mined (transcripts), `n/a` when unsourceable |
 | wall-clock — total and per phase | manifest `startedAt`/`endedAt` (run) + `phases[].startedAt`/`endedAt` |
 | audit rounds used vs limit | manifest `phases[].dispatches.fixRounds` vs `run.roundLimit` (from `$MAIN/.claude/war/config.json`; `n/a` if absent) |
 | findings by severity and disposition | manifest / handoff if present, else `n/a` |
@@ -112,6 +117,12 @@ string, its phase, and its task (where task-scoped):
 - **guard denials** — a hook denial observed in an `agent-*.jsonl` transcript (a scope/git/servitor
   guard that fired).
 - **phase-close sweep failures** — a coherence/absorb sweep that failed at phase close.
+- **unfinalized phase record** — a phase record missing `endedAt`, `tasks`, or `land` **although
+  the run ended or a later phase started** (evidence the phase-close stamp was skipped). This is a
+  deliberate killed-run discriminator: a run that died mid-phase leaves the run's own `endedAt`
+  null and starts no later phase, so the signal stays silent there — that death already surfaces
+  through the `held:*` / dropped-return signal classes above; this one fires only when a Lead
+  demonstrably outlived the phase and still skipped the close stamp.
 
 Close with the **verdict line**: **clean** (no signals) or **friction found (N signals)**.
 
