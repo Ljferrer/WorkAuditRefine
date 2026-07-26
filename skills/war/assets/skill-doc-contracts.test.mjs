@@ -444,3 +444,48 @@ test('D21 — SKILL.md held:land-failed bullet names both environment arms, neve
     )
   }
 })
+
+// (D22) SKILL.md's Gate-2 post-servitor publication flow must carry the PRE-PUSH STAGED-FILE
+// CHECK between the `docs(learnings): phase N` commit step and the `ensure-origin` push step
+// (#1083). Recorded incident: a Gate-2 promotion commit authored in a publication worktree whose
+// tracked version-slot files were stale swept them into the docs commit and silently reverted a
+// landed release — the lock-step version guard stayed green throughout, because lock-step is not
+// monotonic ([[gate2-commit-from-stale-verify-worktree-can-revert-a-release-bump]]). The staged
+// file *list* is the root-cause probe: the mechanism is a bulk stage of stale tracked files, so it
+// catches every stale-staged path (a stale skill or hook alike), not just the four version slots.
+//
+// The key is ONE ORDERED match, never independent presence checks: commit step → `--name-only`
+// probe → do-not-push clause → `ensure-origin` push step. That single regex locks the pairing
+// (probe + refusal) AND the position (after the commit, before the push) at once — removing
+// either half, or relocating the sentence outside that span, fails it RED.
+//
+// Extraction is BY CONSTRUCT — the `**Post-servitor publication (Gate 2` marker to the next `##`
+// heading — never a whole-file scan: `ensure-origin` and `remove-publication-worktree` also appear
+// in Setup step 2's crash-heal pre-flight and the Checkpoint land recipes, so a whole-file key
+// could be greened by prose outside the flow this row polices. Markup-tolerant on the emphasis
+// spans (D18/D21's idiom): a bold/backtick reshuffle inside a clause must not false-red.
+test('D22 — SKILL.md Gate-2 flow pairs the pre-push staged-file probe with its do-not-push clause, between commit and push (#1083)', () => {
+  const region = skillMd.match(/\*\*Post-servitor publication \(Gate 2[\s\S]*?(?=\n## )/)
+  assert.ok(
+    region,
+    'could not locate the `**Post-servitor publication (Gate 2` flow in SKILL.md (marker → next ' +
+      '`##` heading) — the extraction construct rotted',
+  )
+  // Non-vacuous: the region must span through the push step, so a truncated extraction reds here
+  // (a distinguishable failure) instead of masquerading as a missing duty below.
+  assert.match(
+    region[0],
+    /ensure-origin/,
+    'the extracted Gate-2 region must span through the `ensure-origin` push step — extraction ' +
+      'truncated too early',
+  )
+  assert.match(
+    region[0],
+    /docs\(learnings\): phase N[\s\S]*?git show\s+--name-only[\s\S]*?do\s+\*{0,2}not\*{0,2}\s+push[\s\S]*?ensure-origin/,
+    'the Gate-2 flow must carry the pre-push staged-file check as ONE ordered span — the ' +
+      '`docs(learnings): phase N` commit step, then the `git show --name-only` staged-file probe, ' +
+      'then its do-not-push clause, then the `ensure-origin` push step (#1083). Both halves are ' +
+      'load-bearing: the probe without the refusal is advice, the refusal without the probe has ' +
+      'no trigger. Correct this row to a sanctioned rewording, never drop a half to make it pass',
+  )
+})
