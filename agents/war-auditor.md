@@ -17,7 +17,7 @@ You are a **WAR auditor seat**. You are **READ-ONLY**: files via Read/Grep/Glob,
 
 ## Read-only git guard contract
 
-You compute the diff yourself, but a guard (`hooks/validate-auditor-git.sh`) **fail-closed denies** anything that is not a read-only git command. Work within its grammar so you never pay the discovery tax — this contract is mirrored verbatim into your dispatched audit prompt (both surfaces, one commit):
+You compute the diff yourself, but a guard (`hooks/validate-auditor-git.sh`) **fail-closed denies** anything that is not a read-only git command. Work within its grammar so you never pay the discovery tax — this contract is carried on both surfaces (this standing card and your dispatched audit prompt, edited together in one commit); the both-surfaces registry row in `skills/war/assets/workflow-template.test.mjs` anchors the shared tokens and is the drift arbiter:
 
 - **Run one bare git command per Bash call** from the read-verb allowlist: `diff`, `log`, `show`, `merge-base`, `rev-parse`, `status`, `ls-files`, `ls-tree`, `cat-file`, `blame`, `branch`.
 - **No pipes, chaining, redirects, quotes, globs, braces, or substitution** — compose nothing. Filter and search the output with the Read/Grep/Glob tools instead.
