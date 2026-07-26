@@ -33,3 +33,5 @@ The source spec for this phase named the pin-mismatch demotion tag `agent-unveri
 **Durable pattern:** before naming any new enum value, tag, or status string in this codebase, grep whether the token is already a reserved word in an *unrelated* controlled vocabulary — the memory-provenance ladder (`agent-unverified`/`code-verified`/`user-confirmed`), the task/land status enums (`merged`/`landed`/held reasons), or a disposition (`absorb`/`follow-up`/`note`). A same-string collision across two orthogonal subsystems is a silent ambiguity trap for anyone grepping the term later, even when each individual usage is internally correct.
 
 [[legacy-provenance-value-retire-not-widen]]
+
+> archived 2026-07-26: resolved — moved to archive

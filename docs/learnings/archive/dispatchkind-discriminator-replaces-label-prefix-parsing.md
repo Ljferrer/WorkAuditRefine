@@ -54,3 +54,5 @@ routing table" shape in this codebase.
 
 Related: [[standing-instruction-vs-dispatched-prompt-coverage-split]] (same file family, different
 axis — prompt-surface coverage rather than dispatch routing).
+
+> archived 2026-07-26: resolved — moved to archive

@@ -57,3 +57,5 @@ un-gated. Re-read the construct's exact pattern before recording the residual-ri
 Related: [[shared-status-enum-widening-silently-widens-land-path]] (same shape: a shared enum/regex
 widened for one caller reaches every caller), [[plan-array-literal-lags-canonical-export]] (a
 sibling "shared array, multiple readers" drift family).
+
+> archived 2026-07-26: resolved — moved to archive

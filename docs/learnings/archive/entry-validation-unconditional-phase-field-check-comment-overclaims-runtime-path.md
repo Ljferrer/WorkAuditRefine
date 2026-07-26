@@ -72,3 +72,5 @@ Related: [[wave-loop-thunk-catch-prevents-null-result-infinite-redispatch]] (the
 in the same task, same "route the engine error to a named held: state at the right boundary"
 theme), [[source-comment-lags-emitted-prompt-after-rewrite]] (a different comment-accuracy failure
 mode — drift after rewrite, vs. this one being wrong from the start).
+
+> archived 2026-07-26: resolved — moved to archive
