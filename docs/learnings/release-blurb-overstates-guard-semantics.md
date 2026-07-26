@@ -24,7 +24,7 @@ metadata:
     - "[[gitmodules-working-tree-read-vs-ref-snapshot]]"
   created: 2026-06-30
   originSessionId: 0e364ee5-f0b3-47f6-a9e4-9bf2dd555733
-  modified: 2026-07-23T21:24:23.857Z
+  modified: 2026-07-25T07:05:38.230Z
 ---
 
 # Release blurb prose overstates guard semantics
@@ -127,3 +127,49 @@ surface (guard *forms* across files vs. flag *shapes* within one enumeration).
 
 **Left unfixed at land** (both times): the change would touch the README `## Status` release slot
 mid-phase, which is out of task 2.1's `Files:` list to touch incidentally.
+
+## Recurrence 4 (2026-07-24, plan `2026-07-24-runbook-and-standing-record-coherence`, phase 2 "Release", task 2.1) — "every case arm ... byte-unchanged" claims a byte-identity property one arm doesn't hold
+
+A fifth distinct instantiation, closest in mechanism to
+[[guard-deny-string-blanket-adjective-mismatches-mixed-flag-shapes]] (same guard file, same
+`branch` read-form loop, a different release cycle's touch-up of it) but a different specific
+overclaim: the `## Status` blurb (`README.md` line 340 at land, landed tip
+`3444016a48a3d97b5beb21fc9700bd7fa788272d`) states the auditor `git branch` guard's deny message and
+header comment change "with every `case` arm, and so every allow/deny outcome, byte-unchanged," and
+closes with "every guard case arm are byte-untouched." **`code-verified`** — read at the phase's
+`_refinery` worktree (gitdir physical path containing this plan's slug:
+`.claude/worktrees/2026-07-24-runbook-and-standing-record-coherence-2026-07-24/_refinery/`, this
+servitor's own cwd being a stale sibling worktree on a different branch per
+[[servitor-verify-on-write-worktree-can-lag-just-landed-phase]]): in
+`hooks/validate-auditor-git.sh`, the corrected deny message lives **inside** the branch-loop's `*)`
+catch-all arm's body (the `deny "git branch admits read forms only: ..."` string), so that one arm's
+body is not literally byte-unchanged — only its `case` *pattern* (bare `*`) is. What genuinely is
+byte-identical across every arm is the **pattern list** each arm matches on
+(`--contains=*|--no-contains=*|...` and `--list|--all|...`), and therefore every allow/deny
+*outcome* for any given input token — which is the substantively true and load-bearing claim.
+
+**The pattern, sharper than Recurrence 3's:** Recurrence 3 was one clause misapplying a uniform
+descriptor to a set where one *member* used a structurally different mechanism. Here the blurb
+conflates two distinct properties of the same `case` statement — "the arm's matching *pattern* is
+byte-unchanged" (true, and it's what actually matters for allow/deny behavior) with "the arm's
+*body* is byte-unchanged" (false for the one arm whose body is the exact site of the intentional
+fix) — and states the stronger, false property using the weaker, true property's evidence. The
+imprecision is self-disclosing in context (the same sentence just said the deny message changed,
+and the paragraph's own closing "No behavior change" clause enumerates "one corrected deny string"),
+so no reader is actually misled; both auditor seats that flagged it (task-level and gate-audit)
+rated it Nit/`disposition: note`, non-blocking, not absorbable (release slot; also plan-mandated
+phrasing — mirrors the plan slice's own parenthetical almost verbatim).
+
+**How to apply:** when a release blurb claims "every arm of `case` construct X is byte-unchanged" as
+shorthand for "the allow/deny outcome didn't change," check whether the touched fix (a corrected
+error string, a reworded comment) sits *inside* one of those arms' bodies. If it does, the true
+claim is at the *pattern*/*outcome* level, not the *arm* level — say "every arm's pattern — and so
+every allow/deny outcome — byte-unchanged" rather than "every arm ... byte-unchanged," or the two
+will visibly contradict a sentence two clauses earlier that says a string inside one of those arms
+changed.
+
+Related: [[guard-deny-string-blanket-adjective-mismatches-mixed-flag-shapes]] (same guard file,
+same `branch` read-form loop, an earlier release's adjective-vs-enumeration mismatch — together
+these two lessons show this one guard's deny-message precision has now tripped an auditor twice
+across two different plans). [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]] (how
+this fact was confirmed against the actual landed tip rather than a stale cwd).
