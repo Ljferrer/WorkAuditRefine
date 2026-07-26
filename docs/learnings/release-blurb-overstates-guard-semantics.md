@@ -4,11 +4,11 @@ description: "Guard blurb: say 'refuse diffs touching X' not repos"
 metadata:
   node_type: memory
   type: project
-  keywords: [Status section wording, trigger surface, diff vs repo, fail-closed phrasing, submodule refuse, prose nit, operator misinformation, absolute claim vs residual exception, ADR carve-out, fresh-env re-run, unconditional vs conditional emission, near-miss diagnostic, assert-test-in-diff.sh, stderr guard clause, umbrella clause, heterogeneous guard shapes, realpathSync, campaign-ledger, fileURLToPath]
+  keywords: [Status section wording, trigger surface, diff vs repo, fail-closed phrasing, submodule refuse, prose nit, operator misinformation, absolute claim vs residual exception, ADR carve-out, fresh-env re-run, unconditional vs conditional emission, near-miss diagnostic, assert-test-in-diff.sh, stderr guard clause, umbrella clause, heterogeneous guard shapes, realpathSync, campaign-ledger, fileURLToPath, No behavior change label, bolded lead-in, colon-scoped enumeration, release headline contradiction, anti-overclaim device]
   provenance: code-verified
-  promoted: dev/2026-07-22-cli-main-guard-normalization@phase-2
+  promoted: dev/2026-07-24-runbook-and-standing-record-coherence@phase-2
   slug: release-blurb-overstates-guard-semantics
-  phase: "submodule-inc1/T4 +3 recurrences (war-campaign-resilience-roadmap/phase-2 Release task 2.1, 2026-07-22; test-floor-target-repo/phase-2 Release task 2.1, 2026-07-22; cli-main-guard-normalization/phase-2 Release task 2.1, 2026-07-23)"
+  phase: "submodule-inc1/T4 +5 recurrences (war-campaign-resilience-roadmap/phase-2 Release task 2.1, 2026-07-22; test-floor-target-repo/phase-2 Release task 2.1, 2026-07-22; cli-main-guard-normalization/phase-2 Release task 2.1, 2026-07-23; runbook-and-standing-record-coherence/phase-2 Release task 2.1, 2026-07-24; recovery-re-merge-dispatch-coherence/phase-2 Release task 2.1, 2026-07-24)"
   tags:
     - war
     - release
@@ -24,7 +24,7 @@ metadata:
     - "[[gitmodules-working-tree-read-vs-ref-snapshot]]"
   created: 2026-06-30
   originSessionId: 0e364ee5-f0b3-47f6-a9e4-9bf2dd555733
-  modified: 2026-07-25T07:05:38.230Z
+  modified: 2026-07-25T23:50:27.611Z
 ---
 
 # Release blurb prose overstates guard semantics
@@ -173,3 +173,44 @@ same `branch` read-form loop, an earlier release's adjective-vs-enumeration mism
 these two lessons show this one guard's deny-message precision has now tripped an auditor twice
 across two different plans). [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]] (how
 this fact was confirmed against the actual landed tip rather than a stale cwd).
+
+## Recurrence 5 (2026-07-24, plan `2026-07-24-recovery-re-merge-dispatch-coherence`, phase 2 "Release", task 2.1) — a bolded absolute-sounding lead-in label is colon-scoped to a narrower enumeration than the paragraph's own headline
+
+A sixth distinct instantiation, closest in mechanism to Recurrence 3's "blanket clause across
+heterogeneous items" but inverted: here the label itself is **not false** once its colon-scope is
+read strictly, yet it visually contradicts the paragraph's own opening sentence. `code-verified` —
+read at `README.md` line 340, `## Status` blurb, at the landed tip `a84b42d4264207e8de22063c75d035b9179eddc0`
+(worktree gitdir physical path containing this plan's slug:
+`<repo-root>/.claude/worktrees/2026-07-24-recovery-re-merge-dispatch-coherence-2026-07-25/_refinery/`,
+this servitor's own cwd being a stale sibling worktree on a different plan/branch, per
+[[servitor-verify-on-write-worktree-can-lag-just-landed-phase]]). The blurb's headline sentence
+states a real engine behavior change ("Submodule scoping now rides *every* merge-task dispatch,
+not just the first" — a `taskType:'submodule'` task whose first merge trips a recoverable route
+now gets the `SUBMODULE TASK:` targetRepo/targetBase paragraph on its retry dispatch, where it
+previously rode only the initial merge prompt), but the closing sentence opens with the bolded
+label **`No behavior change:`** before narrowing, in the same sentence, to an enumerated set of
+untouched surfaces (`land-decision.mjs`, every `MergeResult` status,
+`HARD_ESCALATION_REASONS`/`KNOWN_LAND_DECISIONS`, every dispatch label, every merge-path floor —
+all independently confirmed absent from the phase diff by two auditor seats). Both the task-level
+auditor and the gate-audit lens flagged it (`disposition: note`, Nit, non-blocking) — the label is
+technically accurate (colon-scoped, not a false claim) and is exactly the anti-overclaim device
+this plan's own task-2.1 slice mandated ("never a claim that any recovery route, status enum, or
+escalation reason changed"), but a reader who skims only the bolded lead-in — the part of a Status
+paragraph readers are most likely to skim — gets a signal that contradicts the paragraph's first
+sentence. Both seats also noted the immediately preceding `0.14.59` blurb used the byte-identical
+`**No behavior change:**` label on a release that shipped *zero* behavior change, so consecutive
+release notes give a reader no visual signal distinguishing "genuinely nothing changed" from
+"routing/enums/labels/floors didn't change, but something else did."
+
+**Sharper form of the Rule for this instance:** a bolded absolute-sounding label ("No behavior
+change:", "No routing change:") that is colon-scoped to a specific enumerated list, appended at
+the *end* of a paragraph whose *opening* sentence already described a real, shipped behavior
+change, is technically defensible but reads as a headline contradiction to any skim-reader.
+Prefer a label that names what it actually scopes — "**No routing or enum change:**" or "**No
+recovery-route or escalation-reason change:**" — over the maximally-generic "**No behavior
+change:**", reserving the fully generic label for releases that ship none at all (as the prior
+`0.14.59` cycle correctly did).
+
+Not corrected before land (Nit, `disposition: note`, `## Status` is a release slot; the plan slice
+mandated this exact anti-overclaim phrasing, so a fix would need re-authoring the label, not just
+prose polish).

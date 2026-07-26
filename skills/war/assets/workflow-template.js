@@ -731,9 +731,12 @@ const reattachClause = refineryP =>
 const classificationClause = (refineryP, baseDesc) =>
   pt`\nGATE-FAILURE CLASSIFICATION (spec §6/§9 / ADR 0019 — on gate failure, BEFORE returning gate_failed): PRECONDITION-MARKER SHORT-CIRCUIT — consult the gate STDERR, not just the TAP stdout: if it carries a recognized precondition marker (e.g. \`REL_GUARD_PRECONDITION_FAILED\`, emitted when a guard's meta-test cannot isolate a clean scratch dir), the gate could not establish its own preconditions ⇒ classify gate_failure_class:'environment' DIRECTLY (never 'introduced'), carry that marker line UNCURATED in gate_output, and skip the base re-run. Otherwise re-run ONLY the failing gate at the classification base — ${baseDesc} — by detaching _refinery there (\`git -C ${refineryP} checkout --detach <that base>\`), re-running the failing gate, then RE-ATTACHING _refinery to ${ph.integrationBranch} before you return (\`git -C ${refineryP} checkout ${ph.integrationBranch}\`). Set gate_failure_class: (1) the base is RED with the SAME failing identifiers ⇒ 'baseline'; (2) the base is GREEN AND the failure does NOT reproduce on a second run at the task tip in a FRESH environment (fresh TMPDIR/shell) ⇒ 'environment' (reproducibility — NOT file-disjointness — is the trigger; a diff-disjoint but reproducing failure is a normal introduced regression and stays 'introduced'); (3) otherwise ⇒ 'introduced'. This is JUDGMENT, not parsing — carry the base-run evidence in gate_output UNCURATED. On a 'baseline' classification also report the classified failing identifiers in gate_failing_ids (array) and the classification base sha in gate_base_sha. ABSENT class ⇒ treated as 'introduced' (the permanent fail-safe).\n`
 
-// gateCaptureClause (D5): the merge-task gate-output capture directive — mirrored into the initial
-// merge-task prompt AND the floor-retry re-merge prompt (both-surfaces rule; agents/war-refiner.md step 7
-// is the standing mirror, same commit). It STRUCTURALLY REPLACES the retired anti-excerpt prose: the
+// gateCaptureClause (D5): the merge-task gate-output capture directive — threaded into the dispatched
+// merge-task prompts whose evidence contract REQUIRES the captured fully-green gate for the post-merge
+// gate-audit (ADR 0024). Never enumerate those sites here: the captureUses drift guard in
+// workflow-template.test.mjs is the arbiter of the site list. Deliberately NOT every merge-task prompt —
+// a prompt with a different evidence contract carries no clause (both-surfaces rule; agents/war-refiner.md
+// step 7 is the standing mirror, same commit). It STRUCTURALLY REPLACES the retired anti-excerpt prose: the
 // refiner tees the FULL step-2 gate stdout+stderr to an absolute artifact file and returns its path, so
 // the gate-audit seat's HARD provably-unrun determination reads the CAPTURED file, never a possibly-
 // curated inline paste. .war/ is git-excluded inside _refinery so the clean-surface posture holds.
@@ -1349,7 +1352,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
               : pt`requiresTest:false — skip the assert-test-in-diff.sh check. `)
             + (requiresPackaging
               ? pt`Also before step (b), run assert-packaging-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${advisePackagingVacuous ? ' --advise-vacuous' : ''} to verify the task diff now adds no file a Dockerfile's enumerated COPYs miss. Branch on the exit code: exit 1 (a flagged file → Dockerfile pair) → return { mode: 'merge-task', status: 'unpackaged' }, do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'unpackaged' — a transient bad-ref must not spin a pointless package-it loop.${advisePackagingVacuous ? ' The --advise-vacuous flag may print one informational advisory line on stderr when the packaging run is structurally vacuous under the ADR-0017-ratified scope — exit 0 still means PROCEED; never treat the advisory as an error or report it as a finding.' : ''}`
-              : pt`requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`),
+              : pt`requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`)
+            + submodMergeNote,
             { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:floor-retry:r${r.task.fixRounds}`, schema: MERGE_RESULT, ...spawn('refiner') })
         }
 
@@ -1415,7 +1419,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
               : pt` requiresTest:false — skip the assert-test-in-diff.sh check.`)
             + (requiresPackaging
               ? pt` Also run assert-packaging-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${advisePackagingVacuous ? ' --advise-vacuous' : ''} (exit 1 → unpackaged; exit 2 → error).${advisePackagingVacuous ? ' The --advise-vacuous flag may print one informational advisory line on stderr (structurally-vacuous packaging run under the ADR-0017-ratified scope) — exit 0 still means PROCEED, never a finding.' : ''}`
-              : pt` requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`),
+              : pt` requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`)
+            + submodMergeNote,
             { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:environment-proceed`, schema: MERGE_RESULT, ...spawn('refiner') })
           if (ep && ep.status === 'merged') landMerged(r.task, ep)
           else if (ep && ep.status === 'gate_failed' && classOf(ep) === 'environment') escalated.push({ task: r.task.id, reason: 'escalate', detail: { note: 'environment-class gate failure persisted through the bounded environment-proceed re-merge — approved task unmerged; the phase must not complete without it', result: ep } })
@@ -1442,7 +1447,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
               : pt` requiresTest:false — skip the assert-test-in-diff.sh check.`)
             + (requiresPackaging
               ? pt` Also run assert-packaging-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${advisePackagingVacuous ? ' --advise-vacuous' : ''} (exit 1 → unpackaged; exit 2 → error).${advisePackagingVacuous ? ' The --advise-vacuous flag may print one informational advisory line on stderr (structurally-vacuous packaging run under the ADR-0017-ratified scope) — exit 0 still means PROCEED, never a finding.' : ''}`
-              : pt` requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`),
+              : pt` requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`)
+            + submodMergeNote,
             { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:baseline-proceed`, schema: MERGE_RESULT, ...spawn('refiner') })
           if (bp && bp.status === 'merged') landMerged(r.task, bp, (mr.gate_failing_ids || []))
           else if (bp && bp.status === 'gate_failed' && classOf(bp) === 'environment') escalated.push({ task: r.task.id, reason: 'env-blocked', detail: bp })

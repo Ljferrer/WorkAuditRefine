@@ -5000,6 +5000,59 @@ test('#598 validation 6 — drift-guard: war-refiner.md names the three class va
   assert.match(refinerMd, /KNOWN BASELINE GATE DEBT|debt reuse/i, 'war-refiner.md names the baseline-debt reuse threading')
 })
 
+// ---------------------------------------------------------------------------
+// #1032 (recovery-re-merge-dispatch-coherence Task 1.1) — the submodule scoping note rides EVERY
+// merge-task dispatch for a taskType:'submodule' task, not just the initial merge: the floor-retry
+// re-merge, the environment-proceed re-merge and the baseline-proceed re-merge each append the same
+// in-scope submodMergeNote as their final prompt segment. An unscoped re-dispatch would rebase and
+// gate in the SUPERPROJECT — the defect these pin.
+//
+// SIBLING tests by design (never an extension of the T4 #297 threading test, whose header enumeration
+// of the four threaded prompts stays accurate untouched). Each drives ONE recovery route through the
+// harness that already stubs it and reads the captured prompt BY DISPATCH LABEL — never a source
+// occurrence count (a source-regex count proves shape, not what the engine actually dispatched).
+// Load-bearing: remove one route's `+ submodMergeNote` and exactly that route's test REDs; the note
+// is '' off the submodule path, so no existing non-submodule prompt test moves either way.
+// ---------------------------------------------------------------------------
+const SUBMOD_RETRY_REPO = '/abs/submodule-checkout'
+// The T4 #297 fixture SHAPE (taskType + targetRepo + targetBase) carried on the task id both harnesses
+// already stub (t1), so neither harness needs an edit. requiresTest:true mirrors the plan-pinned
+// floor-retry fixture (in production the test floor is what returns no-test); inside this harness it
+// shapes only the dispatched prompt's requiresTest ternary, never route reachability — the sub-loop is
+// entered on EITHER floor status (no-test OR unpackaged), and runNoTestLoop's first Refine call returns
+// no-test unconditionally.
+const submodRetryTask = (over = {}) => ({
+  id: 't1', issue: 301, title: 'Submodule task', planSlice: 'submod slice',
+  roster: [{ lens: 'correctness' }], taskType: 'submodule',
+  targetRepo: SUBMOD_RETRY_REPO, targetBase: 'main', requiresTest: true, ...over,
+})
+// Marker asserted WITH its colon: the phase-level "SUBMODULE TASKS in this phase:" note (a different
+// prompt) would satisfy a bare `SUBMODULE TASK` substring — the colon pins the per-task merge note.
+const assertSubmodScoped = (call, where) => {
+  assert.ok(call, `${where} must be dispatched for a submodule task whose first merge tripped this route`)
+  assert.ok(call.prompt.includes('SUBMODULE TASK:'),
+    `${where}: prompt must carry the SUBMODULE TASK marker — without it the refiner re-merges in the superproject`)
+  assert.ok(call.prompt.includes(SUBMOD_RETRY_REPO),
+    `${where}: prompt must name the task's targetRepo "${SUBMOD_RETRY_REPO}" so rebase+gate run cwd-scoped to the submodule checkout`)
+}
+
+test('#1032 — the floor-retry re-merge prompt carries the submodule scoping note (SUBMODULE TASK + targetRepo)', async () => {
+  // no-test → add-test fix-worker → unanimous re-audit → floor-retry re-merge (runNoTestLoop's flow).
+  const { calls } = await runNoTestLoop({ tasks: [submodRetryTask()] })
+  assertSubmodScoped(mergePromptsOf(calls).floorRetry, 'the floor-retry re-merge (merge:t1:floor-retry:r<n>)')
+})
+
+test('#1032 — the environment-proceed re-merge prompt carries the submodule scoping note (SUBMODULE TASK + targetRepo)', async () => {
+  const { calls } = await runPhase(CLS_ARGS({ tasks: [submodRetryTask()] }), clsImpl({ mergeResult: envMergeResult }))
+  assertSubmodScoped(calls.find(c => /^merge:t1:environment-proceed$/.test(c.opts.label || '')), 'the environment-proceed re-merge')
+})
+
+test('#1032 — the baseline-proceed re-merge prompt carries the submodule scoping note (SUBMODULE TASK + targetRepo)', async () => {
+  const impl = clsImpl({ mergeResult: () => ({ mode: 'merge-task', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: ['pytest:test_legacy'], gate_base_sha: 'base9999', gate_output: 'base RED with the same ids — pre-existing' }) })
+  const { calls } = await runPhase(CLS_ARGS({ tasks: [submodRetryTask()] }), impl)
+  assertSubmodScoped(calls.find(c => /^merge:t1:baseline-proceed$/.test(c.opts.label || '')), 'the baseline-proceed re-merge')
+})
+
 // t1.8 — hermetic-gate READER CONTRACT: a gate_failed bearing a recognized stderr precondition marker
 // (REL_GUARD_PRECONDITION_FAILED) classifies 'environment', never 'introduced', carried uncurated in
 // gate_output. Both-surfaces drift assert (token-anchored, case-tolerant): war-refiner.md AND the
