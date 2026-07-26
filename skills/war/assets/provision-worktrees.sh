@@ -1381,7 +1381,7 @@ cmd_ensure_publication_worktree() {
         # them as its own change. FAIL LOUD; only ever refuse — never reset,
         # never clean, never switch away (never-destroy-work, as in (d)/(f)).
         if [ -n "$(git -C "$wt_path" status --porcelain -uno 2>/dev/null)" ]; then
-          die "ensure-publication-worktree: worktree at '$wt_path' is already on the working branch '$work_branch' but has uncommitted tracked-file changes — refusing to reuse it (stale-staging hazard: a ref that advanced underneath, or leftover edits, would be swept into the docs(learnings) commit and can silently revert landed work). Run remove-publication-worktree '$wt_path', then re-provision. Nothing was changed; inspect the modifications by hand before discarding them." "$EX_WRONG_BRANCH"
+          die "ensure-publication-worktree: worktree at '$wt_path' is already on the working branch '$work_branch' but has uncommitted tracked-file changes — refusing to reuse it (stale-staging hazard: a ref that advanced underneath, or leftover edits, would be swept into the docs(learnings) commit and can silently revert landed work). Nothing was changed; inspect the modifications by hand, then commit or discard them (remove-publication-worktree refuses while the tree is dirty), then run remove-publication-worktree '$wt_path' and re-provision." "$EX_WRONG_BRANCH"
         fi
         # CLEAN -> reuse untouched.
         write_marker "$wt_path" "$work_branch"
