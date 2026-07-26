@@ -141,7 +141,7 @@ test('version slots: the tip never moves backwards (lock-step ≠ monotonic)', (
   const log = String(git.stdout)
   if (log.trim() === '') {
     return t.diagnostic(
-      `monotonic floor: fail-open — empty log, no slot-touching commits in the last ${WINDOW} first-parent commits`,
+      `monotonic floor: fail-open — empty log, git found no slot-touching first-parent commits at all (window: the last ${WINDOW} slot-touching commits; shallow clone, fresh history, or a moved plugin.json path)`,
     )
   }
 
