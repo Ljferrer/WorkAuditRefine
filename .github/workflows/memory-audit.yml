@@ -1,8 +1,11 @@
-# Gate 3 of the memory substrate (spec §4.6): the only automated check on a
-# hand-committed lesson that never went through the war-memory CLI. WAR repo
-# only — this is not plugin code. Directory-wide lint is simpler than
-# diff-scoped and strictly stronger. Enforced-by-CI, deliberately not
-# unit-validated (plan Task 7).
+# Gate 3 of the memory substrate (spec §4.6): the POST-PUSH BACKSTOP on a
+# hand-committed lesson that never went through the war-memory CLI — it catches
+# whatever reaches a PR without passing a WAR gate. PRE-MERGE enforcement of this
+# same lint is the gate-discovered suite skills/_shared/war-memory-lint.test.sh
+# (#1081): the gate's own `-name '*.test.sh'` sweep runs it, so lint results land
+# in the captured `.war/gate-<taskId>.log` artifact. WAR repo only — this is not
+# plugin code. Directory-wide lint is simpler than diff-scoped and strictly
+# stronger. Enforced-by-CI, deliberately not unit-validated (plan Task 7).
 name: memory-audit
 
 on:
@@ -25,5 +28,7 @@ jobs:
         with:
           node-version: '24' # node:sqlite / FTS5 floor
       # Fails the job on any lint hit (CLI exits non-zero — fail-closed).
-      # Absent docs/learnings/ → "lint: clean", exit 0 (fail-open on absence).
+      # Absent docs/learnings/ → "lint: clean", exit 0 (fail-open on absence);
+      # the pre-merge wrapper instead fails LOUD on an absent target, so a moved
+      # or renamed dir can never make the gate evidence silently vacuous.
       - run: node skills/_shared/war-memory.mjs lint docs/learnings/
