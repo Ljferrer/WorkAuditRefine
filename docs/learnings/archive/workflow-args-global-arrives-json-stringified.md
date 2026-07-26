@@ -37,3 +37,5 @@ uses (the `const A = typeof args === 'string' ? JSON.parse(args) : (args || {})`
 top; red-team's `workflow-scaffold.js` has the `?? {}` variant) — or skip `args` entirely and
 bake constants into the script. Related:
 [[baked-workflow-war-launch-recipe-and-watchdog-gotchas]].
+
+> archived 2026-07-26: resolved — moved to archive

@@ -19,3 +19,5 @@ During the 2026-07-04 /lessons-learned pass, fan-out verifier agents flagged 7 w
 **Why:** temperature is location — archived lessons still resolve (spec §4.8), so "no file in the hot root" is not "no target". Verifier prompts that say "check the staging dir" get `ls <staging>/<slug>.md` and miss `archive/`.
 
 **How to apply:** any verdict that recommends removing or repointing a wiki-style link must classify the target three ways first: HOT (`<root>/<slug>.md`), COLD (`<root>/archive/<slug>.md` — keep the link, it is legal), or MISSING (neither — safe to drop). Bake the three-way check into the verifier prompt, or run the classification centrally before dispatching editors (as this run did). Same family as [[retiring-a-resolved-memory-must-check-inbound-links-hubs-stay]] — that lesson protects inbound links to a memory being retired; this one protects outbound links whose target merely went cold. See also [[lessons-learned-tooling-traps]] for the same run's swap trap.
+
+> archived 2026-07-26: resolved — moved to archive

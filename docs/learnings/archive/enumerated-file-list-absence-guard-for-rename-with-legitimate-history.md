@@ -38,3 +38,5 @@ Landed in the `lacks()` helper + enumerated list in `skills/war-machine/war-pipe
 **How to apply:** true retirement (no legitimate home) → repo-wide grep per [[retire-token-needs-clean-surface-gate-test]]; rename with a real permanent exemption → enumerated list (recursive roots are error-prone: [[absence-guard-search-root-must-anchor-to-subtree]]).
 
 Related: [[absence-guard-verb-specific-coverage-gap]], [[absence-guard-redundant-filter-is-deliberate-mirror]] cover *how* one grep's filter chain covers a class within a file; this note is one level up — *which files* to scan.
+
+> archived 2026-07-26: resolved — moved to archive

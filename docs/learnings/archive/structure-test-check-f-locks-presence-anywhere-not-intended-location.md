@@ -73,3 +73,5 @@ count recipe is doubly unsafe — option (a)'s explicit-location anchor sidestep
 
 Related: [[gate-can-assert-mirrored-clause-presence-without-asserting-byte-identity]],
 [[weak-test-assertion-passes-without-feature-being-exercised]], [[audit-worktree-pre-impl-tip-stale-verdict]].
+
+> archived 2026-07-26: resolved — moved to archive

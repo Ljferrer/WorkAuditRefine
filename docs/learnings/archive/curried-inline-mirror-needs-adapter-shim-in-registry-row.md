@@ -64,3 +64,5 @@ sites first — the inline sandbox factory signature AND the canonical export si
 where they diverge (currying, argument wrapping, extra closed-over free variables). Write the two
 adapter lambdas to bridge that divergence explicitly; don't assume a shared fixture tuple can be
 spread identically into both calls.
+
+> archived 2026-07-26: resolved — moved to archive

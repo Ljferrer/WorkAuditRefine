@@ -58,3 +58,5 @@ the same suite section for split discrimination, before rating it a defect.
 
 Related: [[weak-test-assertion-passes-without-feature-being-exercised]] (the contrasting failure
 mode — when a weak assertion genuinely IS the defect, because no sibling test picks up the slack).
+
+> archived 2026-07-26: resolved — moved to archive

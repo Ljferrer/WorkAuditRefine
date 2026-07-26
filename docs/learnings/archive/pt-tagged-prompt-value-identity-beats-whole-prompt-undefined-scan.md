@@ -121,3 +121,5 @@ as code-verified in a fresh session.
 Related: [[held-workflow-error-infra-death-prose-mismatch]] (same phase family — held:workflow-error
 routing discipline), [[decoy-fixture-comment-must-match-actual-throw-order-not-just-outcome]]
 (a different case of the general "test the mechanism, not just the surface symptom" theme).
+
+> archived 2026-07-26: resolved — moved to archive

@@ -57,3 +57,5 @@ mismatch is treated as more than informational.
 
 Related: [[dockerfile-shell-form-parser-heuristic-ceiling]] (same floor script, different
 finding class — parser ceiling vs flag over-declaration).
+
+> archived 2026-07-26: resolved — moved to archive

@@ -73,3 +73,5 @@ canonical side a function whose logic — not literal text — must match? → `
 enumerated fixture set covering the branchy cases (see
 [[curried-inline-mirror-needs-adapter-shim-in-registry-row]] for a related gotcha when the inline
 mirror is curried).
+
+> archived 2026-07-26: resolved — moved to archive
