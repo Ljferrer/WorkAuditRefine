@@ -106,9 +106,9 @@
     },
     {
       "slug": "land-advance-push-first-cas-rejected-token",
-      "bytes": 1572,
-      "sha256": "8e6d0f9f71c1589aa0b19743066f1183505b218c9fe30c9fd9d6fcf42f501580",
-      "description": "CAS reject = [rejected] token; exit 0/2/3 contract",
+      "bytes": 1815,
+      "sha256": "c91d7e0602fd9cc390117eca8fd3347d628171f4c48835f60afcaa2569ce8a81",
+      "description": "CAS reject = [rejected] token; exit 0/2/3/6 contract (6 = wrong-HEAD precheck)",
       "type": "project",
       "provenance": "agent-unverified"
     },

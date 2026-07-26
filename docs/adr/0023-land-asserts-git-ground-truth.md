@@ -48,7 +48,8 @@ reading. It then branches:
   interrupted prior attempt pushed `<merge-sha>` but died before the follower CAS): skip the no-op
   push, reconcile the follower to `<merge-sha>`, **exit 0**.
 - **`<merge-sha>` != pre-push origin tip** — the normal path: push, `[rejected]` classification,
-  post-push readback, follower CAS. The 0/2/3 exit contract is unchanged.
+  post-push readback, follower CAS. The 0/2/3 exit contract is unchanged (exit 6 and the widened
+  exit-3 triggers arrive with the wrong-HEAD amendment below).
 
 The anchor is the **origin tip, never the local follower** `refs/heads/<working>`, which lags — the
 follower is fast-forwarded toward origin *outside* `land-advance`, in the next phase's
@@ -182,10 +183,11 @@ extension of (B) rather than a new mechanism:
   distinct from 0/2/3.
 
 **Consequence — the point of the change.** Exit 2 now means *only* a real concurrent advance. The
-push form, the `[rejected]` classification, and the 0/2/3 contract are byte-unchanged: the semantics
-of exit 2 did not change, they became unambiguous. Pushing an explicit `<merge-sha>:refs/heads/<working>`
-refspec instead was rejected — it would reverse the red-team-verified named-source-`HEAD:` push
-finding.
+push form and the `[rejected]` exit-2 classification are byte-unchanged — the semantics of exit 2 did
+not change, they became unambiguous. Exit 3 remains the escalate class and gains the
+unresolvable-`HEAD`/`<new-sha>` triggers; exit 6 is new. Pushing an explicit
+`<merge-sha>:refs/heads/<working>` refspec instead was rejected — it would reverse the
+red-team-verified named-source-`HEAD:` push finding.
 
 No in-workflow prompt changes: the refiner lands from `_refinery` detached at the merge sha, so the
 precheck cannot fire in-flow, and a non-0/non-2 exit already routes the refiner's `status: 'error'`

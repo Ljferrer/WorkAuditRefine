@@ -1082,6 +1082,59 @@ expect "T2.5c: origin refs/heads/<working> byte-unchanged (nothing pushed)" \
   "$ORIGIN_BEFORE5C" "$(git -C "$C1_5C" ls-remote origin refs/heads/working/myplan5c | cut -f1)"
 
 # ---------------------------------------------------------------------------
+# Case (T2.5d) UNRESOLVABLE HEAD (precheck escalate arm): an orphan/unborn HEAD
+# dies EX_FOREIGN (3) — a git error is never the reland code (2), and this is
+# never the wrong-HEAD code (6): a wrong-HEAD MISMATCH requires a RESOLVABLE HEAD
+# to compare against <new-sha>, so an unresolvable HEAD can only escalate. The
+# phase-close waiver claimed this arm was production-unreachable; an orphan-HEAD
+# cwd reaches it deterministically — fixture infeasibility and production
+# unreachability are different claims, and only the former was ever in doubt.
+#
+# Fixture notes (spec §8):
+#  - The orphan branch MUST be a FRESH name, never the seeded <working> branch:
+#    `git checkout --orphan <existing-name>` refuses (rc 128, probe-verified) — a
+#    deliberate divergence from the family's branch-naming idiom.
+#  - `git checkout --orphan` leaves the prior tree staged in the index; the
+#    fixture does NOT care (no commit is made; land-advance reads only HEAD/refs).
+#    Do not "fix" this with `git rm`.
+#  - The script resolves `HEAD^{commit}` BEFORE `<new-sha>^{commit}`, so <new-sha>
+#    is passed RESOLVABLE (origin-distinct, committed on the default branch) to
+#    make the failure unambiguously the HEAD arm — the assertion matches the real
+#    first-failing arm, never relies on die order.
+# ---------------------------------------------------------------------------
+PAIR5D="$(setup_origin_pair)"
+C1_5D="$(printf '%s' "$PAIR5D" | cut -d' ' -f1)"
+C2_5D="$(printf '%s' "$PAIR5D" | cut -d' ' -f2)"
+ORIG5D="$(printf '%s' "$PAIR5D" | cut -d' ' -f3)"
+
+SEED5D="$(seed_working_branch "$C1_5D" "$C2_5D" "working/myplan5d")"
+# Commit a resolvable, origin-distinct <new-sha> on clone1's default branch (the
+# T2.2/T2.5 add+commit-after-seed idiom); refs/heads/working/myplan5d stays parked
+# at the seed — committing on the default branch never moves the follower.
+printf 'orphan-head-newsha-5d\n' > "$C1_5D/newsha5d.txt"
+git -C "$C1_5D" add -A
+git -C "$C1_5D" commit -qm "clone1 merge sha for T2.5d"
+NEW_SHA5D="$(git -C "$C1_5D" rev-parse HEAD)"
+# Orphan HEAD -> unborn. Origin is non-empty (at the seed) and distinct from
+# <new-sha>, so control passes the step-0 guard arms (rc-guard, phantom,
+# already-landed) and dies at the precheck's HEAD^{commit} resolution.
+git -C "$C1_5D" checkout -q --orphan orphan-head-5d
+LOCAL_BEFORE5D="$(git -C "$C1_5D" rev-parse refs/heads/working/myplan5d)"
+ORIGIN_BEFORE5D="$(git -C "$C1_5D" ls-remote origin refs/heads/working/myplan5d | cut -f1)"
+
+OUT5D="$( ( cd "$C1_5D" && bash "$SCRIPT" land-advance working/myplan5d "$NEW_SHA5D" ) 2>&1 )"
+CODE5D=$?
+
+expect "T2.5d: unresolvable HEAD (orphan/unborn) → EX_FOREIGN (3), never reland (2) or wrong-HEAD (6)" \
+  "3" "$CODE5D"
+expect "T2.5d: unresolvable-HEAD die carries the 'could not resolve HEAD to a commit' substring (discriminates from T2.5c's die and the silent push-error exit 3)" \
+  "match" "$(printf '%s' "$OUT5D" | grep -q 'could not resolve HEAD to a commit' && echo match || echo nomatch)"
+expect "T2.5d: local refs/heads/<working> byte-unchanged (die happens before any push or update-ref)" \
+  "$LOCAL_BEFORE5D" "$(git -C "$C1_5D" rev-parse refs/heads/working/myplan5d)"
+expect "T2.5d: origin refs/heads/<working> byte-unchanged (nothing pushed)" \
+  "$ORIGIN_BEFORE5D" "$(git -C "$C1_5D" ls-remote origin refs/heads/working/myplan5d | cut -f1)"
+
+# ---------------------------------------------------------------------------
 # Case (T2.6 / plan case 1) PHANTOM LAND: the --no-ff merge produced no commit,
 # so <new-sha> == the pre-push origin tip AND the local follower already sits at
 # it. land-advance must refuse (exit 3, loud die), leaving refs/heads/<working>
@@ -1222,8 +1275,9 @@ expect "T2.8b: already-landed, follower absent -> follower CREATED at <new-sha>"
 # STOPPED exercising when it was reframed to prove the ls-remote rc-guard
 # short-circuit (test-reframe-can-strand-adjacent-branch-coverage).
 #
-# Exit 3 alone is shared by T2.3/T2.6, and the push-error branch is a SILENT
-# bare exit 3 (land-advance captures the push output internally and prints
+# Exit 3 is shared by multiple routes, every one of which dies LOUDLY with
+# route-naming text — except this one: the push-error branch is the only SILENT
+# exit-3 route (land-advance captures the push output internally and prints
 # nothing), so route identity rests on (b)+(c)+(d) TOGETHER:
 #   (b) ls-remote SUCCEEDS pre-call — closes the T2.3 rc-guard route by
 #       construction (pre-receive is push-side; ls-remote is fetch-side);
