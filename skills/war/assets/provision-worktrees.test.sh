@@ -2295,7 +2295,9 @@ expect "(f) behind+checked-out: checkout not phantom-dirtied (tracked files clea
 #
 # ensure-publication-worktree <path> <working-branch> structurally mirrors
 # ensure-refinery-worktree's (a)-(f) with the WORKING branch in place of the
-# integration branch. remove-publication-worktree <path> is a NO-FORCE,
+# integration branch, EXCEPT behavior (b): the publication verb also refuses a
+# DIRTY reuse (#1083, case P.8) — the refinery verb still reuses unconditionally
+# on-branch. remove-publication-worktree <path> is a NO-FORCE,
 # dirty-guarded removal that NEVER touches the branch ref (the working branch —
 # WAR's land target — must survive; a committed-but-unpushed docs commit lives
 # on it).
@@ -2337,7 +2339,9 @@ expect "publication worktree tip == working-branch tip" \
 
 # ---------------------------------------------------------------------------
 # Case (P.2) Idempotent reuse when already on the working branch: a sentinel
-# survives (no recreation).
+# survives (no recreation). The sentinel is UNTRACKED on purpose — with P.8's
+# behavior-(b) dirty refusal in place, this case is also the standing proof that
+# `-uno` holds: untracked files never count as dirty, so reuse still exits 0.
 # ---------------------------------------------------------------------------
 printf 'sentinel-p2\n' > "$WTP1/SENTINEL"
 code="$(run_in "$RP1" ensure-publication-worktree "$WTP1" "$WORKB")"
@@ -2442,6 +2446,42 @@ expect "remove dirty: worktree still on the working branch" \
   "$WORKB" "$(wt_on_branch "$RP7" "$WTP7")"
 expect "remove dirty: branch ref left INTACT" \
   "$BRSHA7" "$(git -C "$RP7" rev-parse "$WORKB" 2>/dev/null)"
+
+# ---------------------------------------------------------------------------
+# Case (P.8) Behavior (b) DIRTY reuse -> FAIL LOUD (#1083). Registered + present
+# + HEAD already ON the working branch + one TRACKED-file modification: the
+# stale-staging hazard — a docs(learnings) commit made on top sweeps those files
+# in and can silently revert landed work.
+#
+# CRITICAL ASSERTION DESIGN: the exit code is pinned to the SPECIFIC
+# EX_WRONG_BRANCH value (6), never merely non-zero — a crashed script also exits
+# non-zero, so a nonzero-only assert (P.4's weaker form) cannot tell a deliberate
+# refusal from a crash on the way to it. Refusal-only posture is asserted too:
+# the tracked modification and the branch checkout must both survive (the P.4
+# never-destroy idiom). Contrast P.2, whose UNTRACKED sentinel still reuses at
+# exit 0 — `-uno` means untracked files never count as dirty.
+# ---------------------------------------------------------------------------
+RP8="$(new_repo)"
+git -C "$RP8" branch "$WORKB" HEAD
+WTP8="$(new_wt_path)"
+run_in "$RP8" ensure-publication-worktree "$WTP8" "$WORKB" >/dev/null 2>&1
+printf 'stale-tracked-change\n' >> "$WTP8/seed.txt"   # tracked-file modification
+expect "P.8 setup: publication worktree is ON the working branch" \
+  "$WORKB" "$(wt_on_branch "$RP8" "$WTP8")"
+expect "P.8 setup: worktree is dirty (tracked-file modification)" \
+  "dirty" "$([ -n "$(git -C "$WTP8" status --porcelain -uno 2>/dev/null)" ] && echo dirty || echo clean)"
+code="$(run_in "$RP8" ensure-publication-worktree "$WTP8" "$WORKB")"
+expect "on-branch+dirty reuse refused with EX_WRONG_BRANCH (6), never merely non-zero" \
+  "6" "$code"
+msg="$(run_in_msg "$RP8" ensure-publication-worktree "$WTP8" "$WORKB")"
+expect "on-branch+dirty: refusal names the stale-staging hazard" \
+  "match" "$(printf '%s' "$msg" | grep -qiE 'stale-staging|stale staging' && echo match || echo nomatch)"
+expect "on-branch+dirty: refusal names the remove-then-re-provision remedy" \
+  "match" "$(printf '%s' "$msg" | grep -qi 'remove-publication-worktree' && printf '%s' "$msg" | grep -qi 're-provision' && echo match || echo nomatch)"
+expect "on-branch+dirty: tracked modification still present (nothing destroyed)" \
+  "dirty" "$([ -n "$(git -C "$WTP8" status --porcelain -uno 2>/dev/null)" ] && echo dirty || echo clean)"
+expect "on-branch+dirty: worktree still on the working branch (never switched away)" \
+  "$WORKB" "$(wt_on_branch "$RP8" "$WTP8")"
 
 # ===========================================================================
 # Task 1.4 — (E) exit-code catalogue, (F) ensure-exclude <repo-dir>,

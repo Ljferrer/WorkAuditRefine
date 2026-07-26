@@ -21,7 +21,9 @@ export const meta = {
 //   args may arrive as an object OR a JSON string (auto-parsed at the top of this file).
 //   { phase: { id, title, integrationBranch, workingBranch, epicIssue?, endState?: [condition] },
 //              // endState: the Commander's-Intent End-state conditions THIS phase claims (Lead-mapped);
-//              // checked by the gate-audit pass — later-phase conditions are out-of-scope there, never a hold
+//              // checked by the gate-audit pass — conditions owned by a later phase, OR by a deps-chained
+//              // sibling task of THIS phase not yet landed at the audit's scope, are out-of-scope there,
+//              // never a hold
 //     plan:  { file, gate, testPattern },  // gate = a shell command, run BY agents (this script has no
 //                                     // shell/fs). testPattern = the per-phase-RESOLVED overrides.testPattern
 //                                     // the Lead threads at this phase's launch (string|null; absent ⇒ null
@@ -318,8 +320,9 @@ const workerMemClause = taskId => memClause((memoryByTask[taskId] || {}).worker)
 const auditorMemClause = (taskId, lens) => memClause(((memoryByTask[taskId] || {}).seats || {})[lens])
 const servitorMemClause = () => memClause(memory.servitor)
 // Phase-scoped End-state claims (ADR 0013): the intent's numbered End-state conditions THIS phase
-// claims (Lead-mapped). Verified by the gate-audit pass; a later-phase condition is out-of-scope
-// there, never a hold.
+// claims (Lead-mapped). Verified by the gate-audit pass; a condition owned by a LATER phase — or by a
+// deps-chained sibling task of THIS phase not yet landed at the audit's scope — is out-of-scope there,
+// never a hold.
 const endStateClaims = Array.isArray(ph && ph.endState)
   ? ph.endState.filter(c => typeof c === 'string' && c) : []
 // Repo-derived provisioning (Part B). The Lead resolves run.provision from war-config.mjs
@@ -1498,7 +1501,11 @@ const endStateBlock = endStateClaims.length
   ? pt`\nEND-STATE CHECK (phase-scoped): this phase claims the Commander's-Intent End-state condition(s) below. Three cases, mirroring the provably-unrun/SOFT split: `
     + pt`(1) a condition provably UNMET by the landed content at the CONFIRMED integration tip is HARD — record a Critical/Major finding (gate-evidence lane, holds the land); `
     + pt`(2) a condition you cannot verify, or a tip you cannot confirm, is a SOFT note (Minor/Nit), never a hold; `
-    + pt`(3) a condition owned by a LATER phase is out-of-scope — record a Nit finding whose title contains "out-of-scope", NEVER a hold. `
+    // GUARDED interpolation is MANDATORY here: `plan` is destructured with no default and is never
+    // entry-validated, and this const is built at TOP-LEVEL scope (outside the work thunk) whenever the
+    // phase claims conditions — a bare ${plan.file} would throw phase-wide (held:workflow-error) on a
+    // plan-less claims-bearing phase, and `pt` throws on an undefined value by contract.
+    + pt`(3) a condition owned by a LATER phase — or by a deps-chained sibling task of THIS phase not yet landed at your audit's scope (map each numbered condition to the task slice that owns it before scoring — read the plan at ${(plan && plan.file) ?? '<unset>'} in the checked-out tree for the per-task Plan slice and deps edges) — is out-of-scope for THIS audit — record a Nit finding whose title contains "out-of-scope", NEVER a hold. `
     + pt`Set plan_ref on EVERY End-state finding to the condition text VERBATIM (the handoff block keys endState statuses on it).\n`
     // pt-tagged prompt-feeding row builder (endStateBlock → gate-audit prompt, top-level-catch): ${c ?? ''} absence-tolerant.
     + endStateClaims.map((c, i) => pt`  ${i + 1}. ${c ?? ''}`).join('\n') + '\n'

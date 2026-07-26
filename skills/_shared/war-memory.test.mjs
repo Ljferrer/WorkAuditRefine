@@ -1259,3 +1259,59 @@ test('safe-swap cross-check: buildProjection 2-col render PASSes verify; strippi
   rmSync(staging, { recursive: true, force: true });
   rmSync(repo, { recursive: true, force: true });
 });
+
+// ============================================================================
+// (#1081) The gate-DISCOVERED redaction-lint wrapper, war-memory-lint.test.sh.
+// In a real gate the wrapper only ever runs the live docs/learnings/ (green), so
+// its red and existence-guard paths are provable ONLY here — these meta-tests are
+// what keeps the discovered suite from being vacuous evidence.
+// Fixture hygiene (redaction-safe by construction): every fixture lives under this
+// test's own mkdtemp dir, NEVER under docs/learnings/, and the violating home-path
+// shape is ASSEMBLED AT RUNTIME — never a committed .md fixture — so it can never
+// trip CI's own redaction lint or a future repo-wide sweep.
+// ============================================================================
+
+const LINT_WRAPPER = join(HERE, 'war-memory-lint.test.sh');
+
+test('lint wrapper: violating fixture → exit 1, offending file + pattern class on stdout', () => {
+  const dir = tmpDir('war-lint-red-');
+  const homeShaped = ['', 'Users', 'fixture-person', 'notes', 'draft.md'].join('/'); // assembled here, never committed
+  lessonFile(dir, 'violator', { description: 'fixture lesson', body: `captured at ${homeShaped} during the run` });
+  const r = spawnSync('bash', [LINT_WRAPPER, dir], { encoding: 'utf8' });
+  // delete-and-trace: drop the wrapper's `exec node … lint` line → exit 0, empty stdout → all three RED.
+  assert.equal(r.status, 1, `expected the CLI's fail-closed exit 1, got ${r.status}\n${r.stdout}\n${r.stderr}`);
+  assert.match(r.stdout, /violator\.md/); // names the offending FILE
+  assert.match(r.stdout, /home-path/); // ...and the pattern class
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('lint wrapper: clean fixture → exit 0 and "lint: clean" on stdout', () => {
+  const dir = tmpDir('war-lint-green-');
+  lessonFile(dir, 'clean-lesson', { description: 'clean prose', body: 'The renderer refuses above either hard axis.' });
+  const r = spawnSync('bash', [LINT_WRAPPER, dir], { encoding: 'utf8' });
+  assert.equal(r.status, 0, `expected exit 0, got ${r.status}\n${r.stdout}\n${r.stderr}`);
+  assert.match(r.stdout, /lint: clean/);
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('lint wrapper: nonexistent target → guard exit 2 naming the path, never a vacuous "lint: clean"', () => {
+  const missing = join(tmpdir(), 'war-lint-absent-1081-does-not-exist');
+  assert.equal(existsSync(missing), false, 'fixture precondition: the path must not exist');
+  const r = spawnSync('bash', [LINT_WRAPPER, missing], { encoding: 'utf8' });
+  // SPECIFIC exit code, never merely non-zero — a crashed script also exits non-zero.
+  // delete-and-trace: remove the `[ ! -d "$TARGET" ]` guard and cmdLint's `catch { continue }`
+  // prints "lint: clean" at exit 0 → all three asserts RED.
+  assert.equal(r.status, 2, `expected the existence guard's exit 2, got ${r.status}\n${r.stdout}\n${r.stderr}`);
+  assert.ok(r.stderr.includes(missing), `stderr must name the missing path, got: ${r.stderr}`);
+  assert.doesNotMatch(r.stdout, /lint: clean/);
+});
+
+test('lint wrapper: no-arg DEFAULT target → live docs/learnings/, exit 0 and "lint: clean" from a foreign cwd', () => {
+  // (absorb hardening) Pins TARGET="${1:-$ROOT/docs/learnings/}": the three override
+  // cases always pass $1, so a default silently repointed at an existing wrong dir
+  // (e.g. $ROOT/docs — exists, no top-level .md) would stay a vacuous "lint: clean"
+  // in the gate forever. cwd: tmpdir() also pins the $0-derived cwd-independence.
+  const r = spawnSync('bash', [LINT_WRAPPER], { cwd: tmpdir(), encoding: 'utf8' });
+  assert.equal(r.status, 0, `expected exit 0 on the live default target, got ${r.status}\n${r.stdout}\n${r.stderr}`);
+  assert.match(r.stdout, /lint: clean/);
+});

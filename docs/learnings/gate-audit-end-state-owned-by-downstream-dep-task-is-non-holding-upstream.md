@@ -1,6 +1,6 @@
 ---
 name: gate-audit-end-state-owned-by-downstream-dep-task-is-non-holding-upstream
-description: "An End-state condition explicitly owned by a downstream deps-task is non-holding (note-only) for an upstream task's own gate-audit, even though both share one numbered End-state list"
+description: "RESOLVED (#1082): a downstream deps-task's End-state condition is non-holding for an upstream task's gate-audit — now carved out on both prompt surfaces"
 metadata: 
   node_type: memory
   type: project
@@ -55,6 +55,15 @@ serial), the natural per-task gate-audit will run before every End state in the 
 satisfiable. An auditor (or the audit-log reader downstream) that doesn't map each End-state
 condition to its owning task risks a false hold that blocks a task that already fully met its own
 slice.
+
+**RESOLVED (#1082, gate-evidence-and-release-integrity phase 1 task 1.2):** the rule no longer rests
+on auditor judgment alone — the ownership exemption now names BOTH owners on both prompt surfaces, in
+one commit: the `endStateBlock` const's case (3) in `skills/war/assets/workflow-template.js` (the
+dispatched gate-audit prompt — it also interpolates the plan path so the seat can map conditions to
+owning slices without guessing) and the `execution-evidence` gate-audit checklist's
+**End-state ownership mapping** bullet in `agents/war-auditor.md` (the standing card). Both routes
+still key on the same `out-of-scope` finding-title token, so the handoff `endState` status derivation
+is unchanged. The incident above is what the carve-out encodes.
 
 ## Related
 

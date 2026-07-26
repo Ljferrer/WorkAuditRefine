@@ -4200,8 +4200,23 @@ test('end-state check rides the gate-audit prompt (criterion 11): three cases + 
   assert.ok(p.includes('condition A: the wibble exists at the tip'), 'the claimed conditions are enumerated')
   assert.match(p, /provably UNMET[\s\S]*CONFIRMED integration tip[\s\S]*Critical\/Major/, 'case 1: provably-unmet at the confirmed tip → HARD')
   assert.match(p, /cannot verify[\s\S]*SOFT note/, 'case 2: unverifiable/tip-unconfirmable → SOFT')
-  assert.match(p, /LATER phase[\s\S]*out-of-scope[\s\S]*NEVER a hold/, 'case 3: later-phase condition → out-of-scope, never a hold')
+  // Case 3 owns TWO owners (#1082). ONE ordered regex, CASE-BOUNDED: anchored on the literal `(3)`
+  // case marker fused to its `LATER phase` owner, lazy spans, terminating on case (3)'s own
+  // `NEVER a hold` — so the window is exactly case 3's text, never a whole-prompt `[\s\S]*` span that
+  // would let the tokens co-occur across unrelated prompt regions. Never two independent presence
+  // checks: dropping EITHER owner must break this single pin.
+  assert.match(p, /\(3\) a condition owned by a LATER phase[^]*?deps-chained sibling task[^]*?out-of-scope[^]*?NEVER a hold/,
+    'case 3: a later-phase OR not-yet-landed deps-chained-sibling condition → out-of-scope, never a hold')
   assert.match(p, /plan_ref[\s\S]*VERBATIM/, 'findings key on the condition text via plan_ref')
+})
+
+test('End-state ownership carve-out (#1082): the standing war-auditor.md card carries the same two-owner rule', () => {
+  // Standing surface of the split-surface discipline (ADR 0025) — the dispatched twin is pinned in the
+  // criterion-11 prompt test above. Same shape: ONE ordered regex bounded inside the bullet it polices,
+  // anchored from the lead-in through the bullet's own terminal hold clause.
+  assert.match(auditorMd,
+    /\*\*End-state ownership mapping:\*\*[^]*?later phase[^]*?sibling task in this phase[^]*?out-of-scope[^]*?never a Critical\/Major hold/,
+    'war-auditor.md execution-evidence checklist carries the two-owner End-state ownership mapping duty')
 })
 
 test('end-state check: NO claims ⇒ the gate-audit prompt carries no end-state block (byte-compatible)', async () => {
@@ -4237,6 +4252,50 @@ test('end-state out-of-scope case (criterion 11): a later-phase condition is mar
   assert.equal(out.landDecision, 'landed', 'out-of-scope never holds')
   const b = out.handoff.endState.find(e => e.condition === ES_CONDS[1])
   assert.equal(b && b.status, 'out-of-scope')
+})
+
+test('end-state out-of-scope case (#1082): a condition owned by a not-yet-landed deps-chained SIBLING task is marked out-of-scope, never a hold', async () => {
+  // The second owner the carve-out added. Same route as the later-phase case above (added BESIDE it,
+  // never over it): the `out-of-scope` title token keys the handoff derivation — ZERO routing changes.
+  const impl = esImpl([{ severity: 'Nit', title: 'out-of-scope — owned by deps-chained sibling task', plan_ref: ES_CONDS[1], rationale: 'task 1.2 (deps:[1.1]) owns it; not landed at this audit_sha' }])
+  const { out } = await runPhase(ES_ARGS(), impl)
+  assert.equal(out.landDecision, 'landed', 'a sibling-owned condition never holds the land')
+  const b = out.handoff.endState.find(e => e.condition === ES_CONDS[1])
+  assert.equal(b && b.status, 'out-of-scope')
+})
+
+test('end-state derivation arm order (#1082): a Critical finding merely MENTIONING out-of-scope still derives unmet and holds', async () => {
+  // NEGATIVE pin on the handoff derivation: the `severity === Critical || Major` arm is evaluated BEFORE
+  // the `/out-of-scope/i` title-or-rationale arm, so a hold-severity finding can never launder itself into
+  // 'out-of-scope' by naming the token. Delete the severity arm and this case goes RED.
+  const impl = esImpl([{ severity: 'Critical', title: 'condition provably unmet at tip', plan_ref: ES_CONDS[0], rationale: 'considered whether this is out-of-scope for a sibling task — it is not; grep found nothing' }])
+  const { out } = await runPhase(ES_ARGS(), impl)
+  assert.equal(out.landDecision, 'held:escalation', 'severity wins — the land is held')
+  const a = out.handoff.endState.find(e => e.condition === ES_CONDS[0])
+  assert.equal(a && a.status, 'unmet', 'a Critical finding derives unmet even when its rationale mentions out-of-scope')
+})
+
+test('endStateBlock guarded plan.file (#1082): a plan-less phase that CLAIMS End-state conditions still dispatches (never held:workflow-error)', async () => {
+  // `endStateBlock` is built at TOP-LEVEL scope (outside the work thunk) whenever endStateClaims is
+  // non-empty, `plan` is destructured with no default and is never entry-validated, and `pt` throws on an
+  // undefined interpolated value BY CONTRACT — so a bare ${plan.file} in case (3) would throw phase-wide
+  // into held:workflow-error on this reachable state. The sibling `gate composition point (ADR 0036) —
+  // plan-less / zero-task phase` test carries NO endState key, so it cannot see this route: the
+  // `${(plan && plan.file) ?? '<unset>'}` guard's SOLE coverage is here (the rendered-prompt pins above
+  // cannot see the source literal either).
+  const args = {
+    phase: { id: 3, title: 'P3', integrationBranch: 'integration/x/phase-3', workingBranch: 'dev/x', endState: ES_CONDS },
+    planSlug: 'x', runId: 'run-x', worktreeRoot: '/abs/repo/.claude/worktrees',
+    tasks: [],   // zero tasks — the End-state-only seat route
+    // NB: NO `plan` key — an ABSENT plan object, with claims that force endStateBlock to render.
+  }
+  const { out, calls } = await runPhase(args, gateAuditImpl)
+  assert.notEqual(out.landDecision, 'held:workflow-error',
+    'the guarded interpolation renders a placeholder instead of throwing — a bare ${plan.file} would regress this to held:workflow-error, phase-wide')
+  const seats = calls.filter(c => (c.opts.label || '') === 'gate-audit:phase-3:end-state')
+  assert.equal(seats.length, 1, 'the End-state-only seat still dispatches')
+  assert.match(seats[0].prompt, /read the plan at <unset> in the checked-out tree/,
+    'the absent plan path renders the explicit <unset> placeholder')
 })
 
 test('end-state plan_ref binding (F1 #452): whitespace/case-drifted plan_ref still binds → unmet; a non-matching plan_ref does NOT bind', async () => {
