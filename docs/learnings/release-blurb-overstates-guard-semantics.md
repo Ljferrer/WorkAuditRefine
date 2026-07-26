@@ -4,11 +4,11 @@ description: "Guard blurb: say 'refuse diffs touching X' not repos"
 metadata:
   node_type: memory
   type: project
-  keywords: [Status section wording, trigger surface, diff vs repo, fail-closed phrasing, submodule refuse, prose nit, operator misinformation, absolute claim vs residual exception, ADR carve-out, fresh-env re-run, unconditional vs conditional emission, near-miss diagnostic, assert-test-in-diff.sh, stderr guard clause, umbrella clause, heterogeneous guard shapes, realpathSync, campaign-ledger, fileURLToPath, No behavior change label, bolded lead-in, colon-scoped enumeration, release headline contradiction, anti-overclaim device]
+  keywords: [Status section wording, trigger surface, diff vs repo, fail-closed phrasing, submodule refuse, prose nit, operator misinformation, absolute claim vs residual exception, ADR carve-out, fresh-env re-run, unconditional vs conditional emission, near-miss diagnostic, assert-test-in-diff.sh, stderr guard clause, umbrella clause, heterogeneous guard shapes, realpathSync, campaign-ledger, fileURLToPath, No behavior change label, bolded lead-in, colon-scoped enumeration, release headline contradiction, anti-overclaim device, appositive antecedent ambiguity, dangling modifier, itself unchanged, nearest-noun misattachment, D6 verbatim-capture contract]
   provenance: code-verified
-  promoted: dev/2026-07-24-runbook-and-standing-record-coherence@phase-2
+  promoted: dev/2026-07-24-recovery-re-merge-dispatch-coherence@phase-2
   slug: release-blurb-overstates-guard-semantics
-  phase: "submodule-inc1/T4 +5 recurrences (war-campaign-resilience-roadmap/phase-2 Release task 2.1, 2026-07-22; test-floor-target-repo/phase-2 Release task 2.1, 2026-07-22; cli-main-guard-normalization/phase-2 Release task 2.1, 2026-07-23; runbook-and-standing-record-coherence/phase-2 Release task 2.1, 2026-07-24; recovery-re-merge-dispatch-coherence/phase-2 Release task 2.1, 2026-07-24)"
+  phase: "submodule-inc1/T4 +6 recurrences (war-campaign-resilience-roadmap/phase-2 Release task 2.1, 2026-07-22; test-floor-target-repo/phase-2 Release task 2.1, 2026-07-22; cli-main-guard-normalization/phase-2 Release task 2.1, 2026-07-23; runbook-and-standing-record-coherence/phase-2 Release task 2.1, 2026-07-24; recovery-re-merge-dispatch-coherence/phase-2 Release task 2.1, 2026-07-24; drift-guard-and-floor-diagnostic-hardening/phase-2 Release task 2.1, 2026-07-24/25)"
   tags:
     - war
     - release
@@ -24,7 +24,7 @@ metadata:
     - "[[gitmodules-working-tree-read-vs-ref-snapshot]]"
   created: 2026-06-30
   originSessionId: 0e364ee5-f0b3-47f6-a9e4-9bf2dd555733
-  modified: 2026-07-25T23:50:27.611Z
+  modified: 2026-07-26T03:54:44.321Z
 ---
 
 # Release blurb prose overstates guard semantics
@@ -214,3 +214,42 @@ change:**", reserving the fully generic label for releases that ship none at all
 Not corrected before land (Nit, `disposition: note`, `## Status` is a release slot; the plan slice
 mandated this exact anti-overclaim phrasing, so a fix would need re-authoring the label, not just
 prose polish).
+
+## Recurrence 6 (2026-07-24/25, plan `2026-07-24-drift-guard-and-floor-diagnostic-hardening`, phase 2 "Release", task 2.1) — an appositive's nearest-noun antecedent lands on the very guard the same release re-anchors
+
+A seventh distinct instantiation, a new sub-mechanism in the family: not a blanket clause, a scoped
+label, or an absolute claim, but a **dangling-appositive antecedent ambiguity**. `code-verified` —
+read at `README.md` line 340, `## Status` blurb, at the landed tip
+`64cf6bb4e06470f4c093c618bef085a62d132d18` (worktree gitdir physical path containing this plan's
+slug: `<repo-root>/.claude/worktrees/2026-07-24-drift-guard-and-floor-diagnostic-hardening-2026-07-25/_refinery/`,
+this servitor's own cwd being a stale sibling worktree on a different plan/branch, per
+[[servitor-verify-on-write-worktree-can-lag-just-landed-phase]]). The clause reads: "… the
+verbatim-capture contract established by row **D6** of the *test-floor-target-repo* design and
+enforced by the #1046 drift guard above, **itself unchanged** …". The intended antecedent of "itself
+unchanged" is the D6 contract (genuinely unchanged — the per-site `floor_diagnostic`/stderr/verbatim/
+exit-1 arms are byte-unchanged and `workflow-template.js` is untouched), but the grammatically
+nearest noun phrase is "the #1046 drift guard above" — and this very release is the one that
+re-anchors that guard (`FLOOR_SITE_RE` terminator + source-derived count cross-check). Both the
+task-level auditor and later re-reads rated it Nit/`disposition: note`, non-blocking, not absorbable
+(fix edits `README.md`, a release-slot file) — the two sentences immediately preceding it already
+describe the #1046 hardening explicitly, so no reader is actually left with a false behavior claim;
+the ambiguity is local-parse only, not a substantive overstatement (the plan's prohibited overclaims
+— floor exit code, matcher, routing enum, prompt byte, guard verb set — are all explicitly denied and
+true elsewhere in the same paragraph).
+
+**How this differs from the rest of the family:** Recurrences 1-5 are all clause-*scope* problems
+(a claim states a broader/narrower/differently-conditioned property than the code supports).
+Recurrence 6 is a clause-*attachment* problem — the words are individually true, but a trailing
+appositive with no restated subject binds, by proximity, to the wrong preceding noun phrase when
+that sentence names two things in sequence (an unchanged contract, and the just-hardened guard that
+enforces it) and only one of them is what "itself" was meant to describe.
+
+**How to apply:** when a release blurb sentence names two related constructs back-to-back — one
+that changed this release, one that didn't — and closes with a bare appositive ("… enforced by X,
+itself unchanged"), restate the subject explicitly rather than trusting proximity: "… the contract —
+established by Y, enforced by X, and itself unchanged by this release —" binds "itself" unambiguously
+to the contract even though X (the just-hardened guard) is the nearer noun.
+
+Related: [[guard-deny-string-blanket-adjective-mismatches-mixed-flag-shapes]],
+[[servitor-verify-on-write-worktree-can-lag-just-landed-phase]] (worktree-lookup path used to
+ground this recurrence's D3 read).
