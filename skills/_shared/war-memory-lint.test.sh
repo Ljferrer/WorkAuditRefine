@@ -23,6 +23,12 @@
 # on stderr. On an existing target the CLI's exit code propagates untouched
 # (fail-closed: exit 1 with each hit on stdout naming file + pattern).
 #
+# Eviction coupling: the default target IS docs/learnings/, so an eviction
+# (`/lessons-learned evict`; skills/lessons-learned/references/migration.md
+# §Evict) must delete this wrapper in the SAME PR — otherwise the guard above
+# reds EVERY discovered gate in this repo. That playbook's "CI's memory-audit
+# gate fails open once the dir is absent" is true of CI only.
+#
 # macOS bash 3.2.57 compatible; cwd-independent (repo root resolved from $0, two
 # directories up from skills/_shared/).
 set -u
