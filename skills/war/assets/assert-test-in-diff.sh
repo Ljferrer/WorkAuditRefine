@@ -270,7 +270,7 @@ EOF
     done <<EOF
 $near_misses
 EOF
-    printf '%s: if those ARE the mapped tests, the pattern is wrong for this repo (--pattern / overrides.testPattern), not the diff.\n' "$PROG" >&2
+    printf '%s: if those ARE the mapped tests, either the pattern is wrong for this repo (--pattern / overrides.testPattern) or the file sits under an excluded location (node_modules/, .git/, .claude/ — mirrored from the gate discovery) — not the diff.\n' "$PROG" >&2
   fi
 fi
 

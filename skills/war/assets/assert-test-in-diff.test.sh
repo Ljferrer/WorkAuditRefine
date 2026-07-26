@@ -67,6 +67,13 @@
 #      d. bad-ref exit 2 -> die path only; the near-miss marker is ABSENT
 #      e. src/foo.spec.ts + --pattern '*.test.ts' -> exit 1, stderr names the
 #         CUSTOM token set (defaults ABSENT) and lists the .spec.ts file
+#      f. node_modules/x/foo.test.sh (EXCLUDED LOCATION, #1049) -> exit 1,
+#         stdout BYTE-EMPTY, the path LISTED, and the advisory ROW names BOTH
+#         causes: the pattern (--pattern / overrides.testPattern) AND the
+#         excluded location, pinning all three prefixes (node_modules/, .git/,
+#         .claude/). (ii)/(iii) are row-scoped, never whole-stderr — the
+#         listing prints the path verbatim, so a whole-stderr prefix grep is
+#         vacuous.
 set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -945,6 +952,87 @@ elif [ "$rc12e" -ne 1 ]; then
   fail "case 12e: src/foo.spec.ts + --pattern '*.test.ts' -> expected exit 1, got $rc12e"
 else
   fail "case 12e: stderr must name the custom token set and the .spec.ts path with the defaults absent (stderr: $err12e)"
+fi
+
+# 12f: an EXCLUDED-LOCATION near-miss (#1049) — the advisory names BOTH causes.
+# Case 3f's diff shape: node_modules/x/foo.test.sh is caught by near_miss()'s
+# *.test.* arm but refused by match_sh_suite's node_modules/ exclusion, so the
+# cause here is the LOCATION, not the pattern — no --pattern value would let
+# this file satisfy the floor. The old one-cause advisory asserted the pattern
+# was wrong, and D6 carries the stderr verbatim into MERGE_RESULT.floor_diagnostic
+# and the add-test fix-worker prompt, so the misattribution travelled downstream.
+# Assertions (ii)/(iii) are ROW-SCOPED to the extracted advisory row, NEVER the
+# whole stderr: the near-miss listing prints each path verbatim, so on this very
+# fixture a whole-stderr `grep -qF 'node_modules/'` passes even with that prefix
+# deleted from the advisory — the exact prefix this case exists to pin would go
+# silently unasserted (reproduced; the recorded
+# marker-completeness-check-needs-row-scoped-grep-not-whole-file-grep-c class).
+# (i) keeps whole-stderr scope — the listing row IS what it asserts.
+R12f="$(setup_repo)"
+BASE12f="$(git -C "$R12f" rev-parse HEAD)"
+git -C "$R12f" checkout -qb task/excluded-location 2>/dev/null
+mkdir -p "$R12f/node_modules/x"
+printf 'test\n' > "$R12f/node_modules/x/foo.test.sh"
+git -C "$R12f" add node_modules/x/foo.test.sh
+git -C "$R12f" commit -qm "add node_modules/x/foo.test.sh (excluded location)"
+TASK12f="$(git -C "$R12f" rev-parse HEAD)"
+git -C "$R12f" checkout -q - 2>/dev/null
+
+cwd12f="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
+TMPFILES="$TMPFILES $cwd12f"
+
+# Two invocations of the same fixture so the channels are captured separately
+# (12a's idiom — asserting stdout emptiness off a 2>&1 merge would be vacuous).
+rc12f=0
+out12f="$( ( cd "$cwd12f" && bash "$SCRIPT" "$BASE12f" "$TASK12f" --repo "$R12f" ) 2>/dev/null )" || rc12f=$?
+err12f="$( ( cd "$cwd12f" && bash "$SCRIPT" "$BASE12f" "$TASK12f" --repo "$R12f" ) 2>&1 >/dev/null )" || true
+
+# The advisory ROW: the single stderr line carrying the two-cause statement.
+# Empty extraction reds (ii) and (iii) — fail-closed, no separate assert needed.
+adv12f="$(printf '%s' "$err12f" | grep -F 'if those ARE the mapped tests' || true)"
+
+if [ "$rc12f" -eq 1 ]; then
+  pass "case 12f: node_modules/x/foo.test.sh (excluded location) -> exit 1"
+else
+  fail "case 12f: node_modules/x/foo.test.sh (excluded location) -> expected exit 1, got $rc12f"
+fi
+
+if [ -z "$out12f" ]; then
+  pass "case 12f: excluded-location near-miss leaves stdout BYTE-EMPTY (refiner read contract intact)"
+else
+  fail "case 12f: expected byte-empty stdout, got: $out12f (diagnostic leaked onto the refiner's read channel)"
+fi
+
+# (i) whole-stderr: the excluded file is still LISTED. near_miss() stays
+# exclusion-free (D5 of the test-floor-target-repo spec), so the fix-worker sees
+# the path — adding exclusion arms would remove it from the very listing it needs.
+if printf '%s' "$err12f" | grep -qF 'node_modules/x/foo.test.sh'; then
+  pass "case 12f: stderr lists the excluded-location near-miss path"
+else
+  fail "case 12f: stderr does not list node_modules/x/foo.test.sh (stderr: $err12f)"
+fi
+
+# (ii) ROW-SCOPED: the advisory names the LOCATION cause, enumerating all three
+# excluded prefixes — the mirror of the gate discovery. Deleting ANY one of the
+# three from the advisory reds this assert; it is RED against the pre-change
+# one-cause wording, which is this case's discrimination proof.
+if printf '%s' "$adv12f" | grep -qF 'node_modules/' \
+   && printf '%s' "$adv12f" | grep -qF '.git/' \
+   && printf '%s' "$adv12f" | grep -qF '.claude/'; then
+  pass "case 12f: advisory row names the excluded-location cause, all three prefixes pinned"
+else
+  fail "case 12f: advisory row must enumerate node_modules/, .git/ and .claude/ (advisory row: $adv12f)"
+fi
+
+# (iii) ROW-SCOPED: the pattern cause survives beside it — the advisory is a
+# two-cause disjunction, not one wrong cause swapped for another.
+# The `--` option terminator is REQUIRED: a bare `grep -qF '--pattern'` parses
+# the leading -- as an option terminator and exits 2, redding on correct work.
+if printf '%s' "$adv12f" | grep -qF -- '--pattern' \
+   && printf '%s' "$adv12f" | grep -qF 'overrides.testPattern'; then
+  pass "case 12f: advisory row still names the pattern cause (--pattern / overrides.testPattern)"
+else
+  fail "case 12f: advisory row must still name --pattern / overrides.testPattern (advisory row: $adv12f)"
 fi
 
 # ---------------------------------------------------------------------------

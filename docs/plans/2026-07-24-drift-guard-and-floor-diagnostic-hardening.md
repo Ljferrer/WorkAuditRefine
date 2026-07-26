@@ -17,9 +17,10 @@ all open `war-followup`/`memory-mined` findings; source lessons
   advisory asserts one specific wrong cause ("the pattern is wrong") for excluded-location files,
   and D6 carries that misattribution verbatim into `floor_diagnostic` and the add-test fix-worker
   prompt (#1049); and `agents/war-auditor.md` claims the read-only git guard contract is "mirrored
-  verbatim" into the dispatched audit prompt when the enforcing D3 registry row anchors four
-  tokens per surface and the two surfaces are deliberately different formats — the claim is false
-  today (#1080). Make each guard discriminate the defect it polices, and each prose claim state
+  verbatim" into the dispatched audit prompt when the enforcing D5 read-only-git-guard-contract
+  row (a row *inside* the D3 both-surfaces directive registry — D3 names the registry, D5 names
+  this row) anchors four tokens per surface and the two surfaces are deliberately different
+  formats — the claim is false today (#1080). Make each guard discriminate the defect it polices, and each prose claim state
   exactly what is enforced.
 - **Method:** tests, one stderr diagnostic line, and one standing-doc sentence only — exit codes,
   routing enums, prompt bytes, matcher logic, and floor semantics are untouched, and
@@ -31,7 +32,8 @@ all open `war-followup`/`memory-mined` findings; source lessons
   (the file-local D18 "Red-then-green PROVEN" precedent). Ratified floors stay ratified: the
   `>= 3` non-vacuity floor survives (never an exact hardcoded count — the new cross-check is an
   equality whose both sides derive from the same source string, no literal to rot); the
-  D5-ratified exclusion-free `near_miss()` set is not touched (the fix is the one advisory line
+  exclusion-free `near_miss()` set — ratified by row D5 of the *test-floor-target-repo* spec, a
+  different namespace from the D5 drift-guard registry row above — is not touched (the fix is the one advisory line
   that asserts the wrong cause, never new exclusion arms or pattern workarounds — floor ⊆ gate is
   load-bearing); token-anchoring stays the correct mirror mode for cross-format prose (the #1080
   fix trues the claim to the mechanism, never upgrades to quote-lint-fragile byte-identity).
@@ -59,16 +61,25 @@ all open `war-followup`/`memory-mined` findings; source lessons
      against in-memory copies each red via the count cross-check, pinned to the shapes that
      exercise it: SIM A — a 5th invocation head inserted **inside an existing site's template
      literal**, sharing its closing backtick (discovered 4, raw 5); SIM B — a bare 5th head
-     appended **after the final template's closing backtick, enclosed in no template**
-     (discovered 4, raw 5). A well-formed 5th site in its own template is discovered and
-     adjudicated by the per-site arms — the fix's success mode, not a red case. At this base the
-     equality reads 4 === 4 (initial merge, floor-retry re-merge, environment-proceed,
-     baseline-proceed). The rewritten header comment states the closing-backtick anchor, the
-     by-construction skip-arm exclusion, BOTH residuals — the fail-closed inline-backtick
-     truncation (loud false red) and the accepted head-shape residual (a site whose invocation
-     head diverges from the canonical interpolation escapes both sides of the equality) — and the
-     plan-3 reconciliation (the `>= 3` floor retained; the equality is source-derived on both
-     sides, never an exact-count hardening). Red proof recorded in the commit body.
+     appended **at the END of the mutated source copy, past every remaining backtick in the file**
+     (discovered 4, raw 5). SIM B's placement is load-bearing and is stated as "past every
+     remaining backtick", never as "after the final template's closing backtick": the re-anchored
+     regex has no notion of enclosure — it scans from the head to the NEXT backtick *anywhere* in
+     the source — and 402 backticks follow the last floor site, so a head appended mid-file is
+     spuriously DISCOVERED with a junk capture and the equality stays green (red-team round 1
+     measured discovered 5 / raw 5 at that position, vs 4 / 5 at EOF). A well-formed 5th site in
+     its own template is discovered and adjudicated by the per-site arms — the fix's success mode,
+     not a red case. At this base the equality reads 4 === 4 (initial merge, floor-retry re-merge,
+     environment-proceed, baseline-proceed). The rewritten header comment states the
+     closing-backtick anchor, the by-construction skip-arm exclusion, ALL THREE residuals — the
+     fail-closed inline-backtick truncation (loud false red); the accepted head-shape residual (a
+     site whose invocation head diverges from the canonical interpolation escapes both sides of
+     the equality); and the mid-file unenclosed-head residual (an unenclosed head followed by any
+     later backtick is spuriously discovered with a junk capture, so the cross-check stays green
+     and the red arrives via the per-site token arms instead — still fail-closed and loud, never a
+     silent pass) — and the plan-3 reconciliation (the `>= 3` floor retained; the equality is
+     source-derived on both sides, never an exact-count hardening). Red proof recorded in the
+     commit body.
   3. **Advisory truth:** the closing advisory line of the near-miss block in
      `skills/war/assets/assert-test-in-diff.sh` names BOTH possible causes — the pattern
      (`--pattern` / `overrides.testPattern`) and the excluded location, enumerating the three
@@ -78,7 +89,15 @@ all open `war-followup`/`memory-mined` findings; source lessons
      (i) lists the excluded file in the near-miss listing, (ii) asserts the advisory names the
      location cause pinning ALL THREE prefixes (`node_modules/`, `.git/`, `.claude/`) — RED
      against the pre-change wording, the discrimination proof — and (iii) asserts the advisory
-     still names `--pattern` / `overrides.testPattern`. stdout on the exit-1 path stays
+     still names `--pattern` / `overrides.testPattern`. **Assertions (ii) and (iii) are
+     ROW-SCOPED** — they run against the extracted advisory row (the stderr line containing
+     `if those ARE the mapped tests`), never against the whole captured stderr; assertion (i)
+     keeps its whole-stderr scope. This is a checkable floor, not a stylistic preference: the
+     near-miss listing prints each near-miss path verbatim, so on this case's own
+     `node_modules/x/foo.test.sh` fixture a whole-stderr `grep -qF 'node_modules/'` passes even
+     when that prefix is deleted from the advisory (reproduced in red-team round 1) — leaving the
+     very prefix the case exists to pin silently unasserted. Deleting ANY one of the three
+     prefixes from the advisory must red the case. stdout on the exit-1 path stays
      byte-empty (asserted on this case's own fixture), every existing case-3/case-12 assertion
      still passes, and `bash skills/war/assets/assert-test-in-diff.test.sh` is green.
   4. **Mirror claim trued and locked:** case-insensitive grep finds no `mirrored verbatim` in
@@ -89,10 +108,10 @@ all open `war-followup`/`memory-mined` findings; source lessons
      1.4). The reworded guard-contract intro sentence keeps its opening clause **in substance** —
      the guard name `hooks/validate-auditor-git.sh`, the fail-closed denial, the read-only-git
      scope; byte-identity is NOT required (no test pins those bytes — the F03 doc test's
-     `/guard|read.?only/i` is the only mechanical pin on this sentence, and the D3 anchors avoid
+     `/guard|read.?only/i` is the only mechanical pin on this sentence, and the D5 row's anchors avoid
      it entirely) — keeps the both-surfaces one-commit discipline clause and the trailing colon,
      and names the both-surfaces registry row in `skills/war/assets/workflow-template.test.mjs`
-     as the token-anchored drift arbiter. The D3 registry row's four anchors (`one bare git` /
+     as the token-anchored drift arbiter. The D5 row's four anchors (`one bare git` /
      `no pipes` / `ls-tree` / `Grep tool`) and all F03 war-auditor.md doc tests pass untouched.
   5. **No behavior drift:** the phase diff shows no edit to
      `skills/war/assets/workflow-template.js`; the `assert-test-in-diff.sh` diff is exactly the
@@ -105,9 +124,15 @@ all open `war-followup`/`memory-mined` findings; source lessons
      comments survive untouched (other constructs, each with its own arbiter); the `=`-attached
      bare-flag straggler on both auditor surfaces is #1085's claim (sibling
      `runbook-and-standing-record-coherence` group) — deferred here, with the orphaned-mirror
-     follow-up filed by the Lead at Phase-1 close (Notes); `pattern is wrong` matches only the
-     advisory line being replaced; `FLOOR_SITE_RE` is the only terminator-coupled discovery regex
-     in its file, and the D18 companion loop was the only multi-token presence loop in its file.
+     follow-up filed by the Lead at Phase-1 close (Notes); the `pattern is wrong` sweep **at the
+     pre-change base** matched only the advisory line being replaced (a survey-moment disposition,
+     not a post-change expectation — the phrase's exact bytes are worker latitude, so the
+     integrated-tip backstop anchors on the stable `if those ARE the mapped tests` lead-in
+     instead); `FLOOR_SITE_RE` is the only terminator-coupled discovery regex
+     in its file, and the D18 companion loop was the only multi-token presence loop **carrying a
+     pairing invariant** in its file — plan 2's landed D21 arm-naming loop is the file's second
+     `for (const [` presence loop and is dispositioned as needing no correction (it asserts arm
+     NAMES, not a site→route pair, so there is no pairing to discriminate).
   7. **Suites green:** `node --test 'skills/**/*.test.mjs'` and the anchored shell-test loop over
      `hooks/` + `skills/` both pass.
   8. **Release lands last:** all four version slots bump in lock-step to the next free patch
@@ -135,8 +160,17 @@ all open `war-followup`/`memory-mined` findings; source lessons
   first-following `held:*` token (lowercased) to the pair's route, one loud per-pair message each
   (spec §4.1 carries the reference implementation; exact message text is worker latitude within
   End state 1). The bullet-extraction regex, both absence keys, and the four presence anchors
-  above the loop are untouched.
-  **Comments move with the code (same edit):** update the "Non-vacuous companion" comment line to
+  above the loop are untouched. **Count corrected (round 1, measured):** exactly TWO presence
+  asserts sit above the loop — `assert.match(b, /environment-proceed/i, …)` and
+  `assert.match(b, /fully green/i, …)`; the "four anchors" are the loop's OWN entries, i.e. the
+  thing this task replaces. Read the sentence as: the bullet-extraction regex, both absence keys,
+  and those two presence asserts are untouched.
+  **Comments move with the code (same edit):** the D18 header comment's revert-proof sentence
+  counts "all six presence anchors" (the two standalone presence asserts plus the loop's four
+  entries) — this edit deletes the four-entry loop in favour of two paired arms, so that count is
+  falsified by the change and MUST be updated in the same edit (round-3 finding; the recorded
+  count-word-vs-enumeration drift class). Restate it count-free, e.g. "every presence anchor and
+  both routing pairs". Also update the "Non-vacuous companion" comment line to
   describe the pairing (presence-anywhere anchors could not discriminate a swapped routing,
   #1040), extend the D18 header comment's red-then-green note with the swap proof, and record the
   guard's TWO fail-closed residuals in the same comment (symmetric with FLOOR_SITE_RE's residual
@@ -153,15 +187,22 @@ all open `war-followup`/`memory-mined` findings; source lessons
   body (the file-local "Red-then-green PROVEN" D18 precedent). SKILL.md itself is never edited —
   the live bullet already orders site-before-route (spec §8).
   **Same-scope survey (spec §4.5 item 4 — this file's share):** confirm at implementation time
-  that the D18 companion loop is the file's only multi-token presence loop — the other rows
-  (D10–D17) assert single-construct anchors where pairing is not the invariant; no further
+  that the D18 companion loop is the file's only multi-token presence loop **carrying a pairing
+  invariant** — the other rows (D10–D21) assert single-construct anchors, or (D21) arm names,
+  where pairing is not the invariant. **Round-1
+  correction (measured):** the file carries exactly TWO `for (const [` presence loops — D18's
+  (this task's target) and plan 2's already-landed **D21**, whose two-entry loop asserts the
+  `primary-land` and `baseline-proceed` arm names are each present anywhere in an extracted
+  region. D21 is arm-NAMING, not a site→route pair, so it has no pairing invariant to
+  discriminate and needs no correction — record that disposition rather than re-deriving it. No
+  further
   corrections expected. Any new straggler: fix here only if inside this file and stale for exactly
   this change's reason; otherwise a named `war-followup` in the done report.
   **Rebase duty (campaign stacking):** plan 2 of this campaign
-  (`runbook-and-standing-record-coherence`) lands two new locks in this same file before this
+  (`runbook-and-standing-record-coherence`) lands THREE new locks (D19, D20, D21 — the `Task 1.3 locks (a)/(b)/(c)` block) in this same file before this
   plan; the worker's first act is a rebase onto the integration tip carrying them. The D18 edit is
-  confined to the D18 test block — reconcile any textual adjacency at rebase, never touch the two
-  new locks.
+  confined to the D18 test block — reconcile any textual adjacency at rebase, never touch plan 2's
+  landed locks.
 - requiresTest: true — the deliverable IS the hardened test; the diff touches
   `skill-doc-contracts.test.mjs`, satisfying the test floor
 - requiresPackaging: false
@@ -194,14 +235,20 @@ all open `war-followup`/`memory-mined` findings; source lessons
   there is no literal to rot (design row 5).
   **Header comment rewrite (same edit):** the FLOOR_SITE_RE comment currently explains the
   ternary false-arm terminator; it must now state (a) the closing-backtick anchor and the
-  by-construction exclusion of skip arms and prose mentions; (b) BOTH residuals — the fail-closed
+  by-construction exclusion of skip arms and prose mentions; (b) ALL THREE residuals — the fail-closed
   inline-backtick residual (a future floor arm embedding an inline backtick *before* its capture
   tokens truncates that site's capture and reds the per-site asserts — loud false red, never a
-  silent pass; spec §8) and the accepted head-shape residual (a site whose invocation head
+  silent pass; spec §8); the accepted head-shape residual (a site whose invocation head
   diverges from the canonical `${ph.integrationBranch} ${r.task.branch}${testPatternArg}`
   interpolation escapes BOTH the discovery regex and the raw count — equality holds, silent
   escape; mitigation: the canonical head is the invocation grammar every dispatched site copies,
-  so a new site is authored by copying an existing one); and (c) the ratified-floor
+  so a new site is authored by copying an existing one); and the mid-file unenclosed-head
+  residual (red-team round 1, measured: the regex has no notion of enclosure, so an unenclosed
+  head followed by ANY later backtick is spuriously DISCOVERED with a junk capture — the
+  cross-check reads 5 === 5 and stays green, and the red arrives from the per-site token arms
+  instead, since the junk capture carries none of `floor_diagnostic` / `stderr` / `verbatim`;
+  fail-closed and loud, never a silent pass, which is why the equality is a companion to the
+  per-site arms and not a replacement for them); and (c) the ratified-floor
   reconciliation — the `>= 3` floor is retained and the equality is source-derived on both
   sides, never the prohibited exact-count hardening — so a later gate-audit reading the block
   cannot misadjudicate it against the sibling plan's pin.
@@ -214,12 +261,18 @@ all open `war-followup`/`memory-mined` findings; source lessons
   (on the frozen phase base it would be born RED — the ordering is load-bearing).
   **Red proof (commit body):** replay the issue's two mutations against in-memory mutated copies
   of the template source (nothing written to disk), pinned to the shapes that exercise the
-  cross-check (grill-corrected): SIM A — insert a 5th invocation head INSIDE an existing site's
-  template literal, sharing its closing backtick → discovered 4, raw 5, equality reds; SIM B —
-  append a bare 5th head after the final template's closing backtick, enclosed in no template →
-  discovered 4, raw 5, equality reds. Note in the proof that a well-formed 5th site in its own
-  template is discovered and adjudicated by the per-site arms — the success mode, not a red
-  case. At this base the live cross-check reads 4 === 4.
+  cross-check (grill-corrected, then red-team-corrected in round 1): SIM A — insert a 5th
+  invocation head INSIDE an existing site's template literal, sharing its closing backtick →
+  discovered 4, raw 5, equality reds; SIM B — append a bare 5th head **at the END of the mutated
+  copy, past every remaining backtick in the source** → discovered 4, raw 5, equality reds.
+  **Do NOT place SIM B "after the final template's closing backtick"** — 402 backticks follow the
+  last floor site, so a head there is spuriously discovered with a junk capture (measured:
+  discovered 5, raw 5, equality GREEN) and the red arrives from the per-site `floor_diagnostic`
+  arm instead of the cross-check the SIM exists to exercise. Record BOTH observations in the proof:
+  the EOF placement reds the equality, and the mid-file placement reds the per-site arms — the
+  third residual the header comment must now enumerate. Note also that a well-formed 5th site in
+  its own template is discovered and adjudicated by the per-site arms — the success mode, not a
+  red case. At this base the live cross-check reads 4 === 4.
   **Same-scope survey (spec §4.5 item 4 — this file's share):** grep the `: pt`-backtick
   terminator sequence across this file — at this base FLOOR_SITE_RE is the only discovery regex
   anchored on that shape; hand-scan the file's other discovery regexes for a second instance of
@@ -247,8 +300,13 @@ all open `war-followup`/`memory-mined` findings; source lessons
   `overrides.testPattern`), not the diff" — with a two-cause statement in the spirit of (exact
   bytes are worker latitude within End state 3's checkable floors):
   ```
-  if those ARE the mapped tests, either the pattern is wrong for this repo (--pattern / overrides.testPattern) or the file sits under an excluded location (node_modules/, .git/, .claude/ — mirrored from the gate's discovery) — not the diff.
+  if those ARE the mapped tests, either the pattern is wrong for this repo (--pattern / overrides.testPattern) or the file sits under an excluded location (node_modules/, .git/, .claude/ — mirrored from the gate discovery) — not the diff.
   ```
+  **No apostrophe may appear anywhere in the advisory text** — the line lives inside a bash
+  SINGLE-QUOTED `printf` format string, so an apostrophe (e.g. "the gate's discovery") terminates
+  the quote and breaks the script (`bash -n` fails, taking the whole `assert-test-in-diff` suite
+  with it — count-free deliberately, per this plan's own restate-count-free doctrine). Write "the
+  gate discovery". The fenced text above is already apostrophe-free; keep any rewording so.
   The three excluded prefixes are enumerated literally (design row 3: the advisory IS the product
   — it rides `floor_diagnostic` into a fix-worker prompt where a vague pointer is useless; the
   set mirrors the gate's find-exclusions, which move in lock-step with `resolveGate` under the
@@ -257,7 +315,8 @@ all open `war-followup`/`memory-mined` findings; source lessons
   the diagnostic block (Notes record the rejected conditional variant). stderr-only: the exit-1
   stdout contract stays byte-empty, and `near_miss()`, `match_sh_suite()`, `match_default()`, the
   custom-pattern branch, and every exit code are untouched — **no exclusion arms are added
-  anywhere** (D5-ratified exclusion-free diagnostic set; adding them would remove the excluded
+  anywhere** (the exclusion-free diagnostic set ratified by row D5 of the *test-floor-target-repo*
+  spec — not the D5 drift-guard registry row; adding them would remove the excluded
   file from the very listing the fix-worker needs) **and no pattern workaround is advised** (a
   `--pattern` "remedy" would break floor ⊆ gate — spec §2).
   **New test case (the discrimination proof).** In `assert-test-in-diff.test.sh`, add one case to
@@ -272,6 +331,23 @@ all open `war-followup`/`memory-mined` findings; source lessons
   the location cause pinning ALL THREE excluded prefixes — `grep -qF` each of `node_modules/`,
   `.git/`, `.claude/` — **RED against the current wording**, record it as the discrimination
   proof; (iii) the advisory still names `--pattern` and `overrides.testPattern`.
+  **Assertions (ii) and (iii) MUST be row-scoped to the advisory line, never run against the whole
+  captured stderr** (round-1 finding, reproduced): the near-miss listing prints each near-miss
+  path verbatim, so on this case's own fixture the string `node_modules/` is already in stderr
+  from the listing row — a whole-stderr `grep -qF 'node_modules/'` passes no matter what the
+  advisory says, leaving the very prefix the case exists to pin silently unasserted (the recorded
+  `marker-completeness-check-needs-row-scoped-grep-not-whole-file-grep-c` class, reproduced here:
+  deleting `node_modules/` from the advisory left the case fully GREEN). Extract the advisory row
+  first — e.g. `adv="$(printf '%s' "$err" | grep -F 'if those ARE the mapped tests' || true)"` —
+  then run all of (ii)'s three `grep -qF` checks and (iii)'s two against `$adv`. Costs no extra
+  invocation, stays bash-3.2-safe. Assertion (i) keeps its whole-stderr scope (the listing row is
+  exactly what it asserts).
+  **(iii) MUST use the `--` option terminator: `grep -qF -- '--pattern'`** (or `grep -qF -e`).
+  A bare `grep -qF '--pattern'` is NOT runnable — grep parses the leading `--` as an option
+  terminator/unknown option and exits 2, so the assertion reds spuriously on correctly-completed
+  work (reproduced in red-team round 4). The suite carries no file-local precedent to copy, which
+  is why the form is spelled out here even though every sibling assertion in this paragraph uses
+  the bare `grep -qF` shape.
   **No prompt or standing-doc companion edit:** D6 already carries the stderr verbatim into
   `MERGE_RESULT.floor_diagnostic` and the add-test fix prompt — fixing the one line fixes every
   downstream consumer; `agents/war-refiner.md` and the dispatched prompts are untouched (spec
@@ -302,7 +378,7 @@ all open `war-followup`/`memory-mined` findings; source lessons
   The sentence's opening keeps its SUBSTANCE — the guard name `hooks/validate-auditor-git.sh`,
   the fail-closed denial, the read-only-git scope — but byte-identity is NOT required: no test
   pins those bytes (grill-verified — the F03 doc test's `/guard|read.?only/i` is the only
-  mechanical pin on this sentence, and the D3 row's four anchors avoid it entirely); mandating
+  mechanical pin on this sentence, and the D5 row's four anchors avoid it entirely); mandating
   byte-identity would be a closure rationale without a code trace, falsely constraining worker
   latitude (Notes). The trailing colon survives (the sentence introduces the bullet list), the
   one-commit both-surfaces discipline clause survives in the rewording — that discipline is real
@@ -311,7 +387,7 @@ all open `war-followup`/`memory-mined` findings; source lessons
   **No companion edits:** the dispatched prompt never carried the "verbatim" claim, so no
   `workflow-template.js` edit exists to mirror (the standing-vs-dispatched same-commit rule is
   satisfied vacuously — this is a meta-claim about enforcement, not a behavioral instruction;
-  spec §2), and the D3 registry row and all F03 war-auditor.md doc tests must stay green
+  spec §2), and the D5 registry row and all F03 war-auditor.md doc tests must stay green
   untouched. The committed regression lock for the retired claim lands in Task 1.2 (the
   `workflow-template.test.mjs` owner), deps-ordered after this task.
   **Same-scope survey (spec §4.5 items 1–2 — this task's share):** sweep `mirrored verbatim`
@@ -325,7 +401,7 @@ all open `war-followup`/`memory-mined` findings; source lessons
   in the sibling `runbook-and-standing-record-coherence` group; deliberately NOT fixed here
   (design row 7), disposition in the done report, orphan closed by the Lead-filed follow-up at
   Phase-1 close (Notes). Any new straggler: named `war-followup`, never edited.
-- requiresTest: false — docs-tier (one standing-card sentence; the existing D3 registry row and
+- requiresTest: false — docs-tier (one standing-card sentence; the existing D5 registry row and
   F03 locks arbiter the surviving content, and the new absence lock ships in Task 1.2 — no test
   surface in this task's own diff)
 - requiresPackaging: false
@@ -377,8 +453,29 @@ all open `war-followup`/`memory-mined` findings; source lessons
 - Integrated-tip sweep re-check — re-run the §4.5 greps on the landed Phase-1 tip:
   case-insensitive `mirrored verbatim` over `agents/` + `skills/war/assets/workflow-template.js`
   (expect zero hits in `agents/war-auditor.md` — now also locked by Task 1.2's committed absence
-  assertion — and the surviving source comments elsewhere); `pattern is wrong` over `skills/` +
-  `hooks/` (expect zero hits — the advisory line is replaced); the `: pt`-backtick terminator
+  assertion — and the surviving source comments elsewhere); the advisory sweep, **scoped to the
+  single emitting file `skills/war/assets/assert-test-in-diff.sh`** and anchored there on the
+  stable lead-in `if those ARE the mapped tests` (NOT the phrase `pattern is wrong`, whose exact
+  bytes End state 3 leaves to worker latitude): **expect EXACTLY ONE such advisory row in that
+  file**, naming both causes and all three excluded prefixes. **Scope, not just anchor, is
+  load-bearing** (round-3 correction): the advisory is emitted by exactly one file, while the same
+  lead-in literal legitimately recurs in `skills/war/assets/assert-test-in-diff.test.sh` as Task
+  1.3's own mandated row-extractor — so a tree-wide `skills/` + `hooks/` sweep counts 2 on
+  correctly-completed work (measured: 1 at base, 2 after Task 1.3). Scoping to the emitting file
+  ends this class outright: no cross-file literal collision is possible. Round-1/2 corrections: the original
+  "expect zero `pattern is wrong` hits" was self-contradictory — the plan's own replacement text
+  contains that phrase, so correctly-completed Task 1.3 work would have failed its own backstop;
+  the round-1 repair then over-corrected by pinning `pattern is wrong` as a required substring,
+  which no End-state floor demands and which a plan-faithful rewording (e.g. "the active pattern
+  does not match this repo") would legitimately drop, producing a spurious zero. Anchoring on the
+  freed phrase is the bug in both directions; anchor on the stable lead-in instead. To assert the
+  *retirement* rather than the phrase, run
+  `grep -rin 'pattern is wrong for this repo' skills/war/assets/assert-test-in-diff.sh` — **expect
+  zero**. Note the `-i` and the mid-sentence fragment: a full-clause, case-SENSITIVE grep
+  false-negates on a re-cased or re-positioned reintroduction (round-4 finding, reproduced by
+  injecting `# NOTE: The pattern is wrong for this repo ...` — the case-sensitive form returned 0
+  while `-i` caught it), and every other retirement guard in this plan is already
+  case-insensitive; this one was the outlier); the `: pt`-backtick terminator
   hunt in `skills/war/assets/workflow-template.test.mjs` (expect FLOOR_SITE_RE's old shape gone,
   no new instance of the class) · why deferred: the four tasks adjudicate at their own frozen
   bases; the absence claims (End state 6) are properties of the integrated tip after the serial
@@ -417,10 +514,17 @@ all open `war-followup`/`memory-mined` findings; source lessons
 - **SIM shapes pinned (grill Q6 — truth correction to spec §4.2's replay wording):** under the
   closing-backtick terminator, the cross-check's discrimination is exercised only by SIM A's
   same-template inline head (a 5th head inside an existing site's template — discovered 4, raw
-  5) and SIM B's unenclosed appended head (after the final closing backtick, in no template —
-  discovered 4, raw 5). A well-formed 5th site in its own template is DISCOVERED and adjudicated
-  by the per-site arms — the fix working, not a red case. The issue's original SIM B was defined
-  against the old regex; the replay uses the unenclosed shape so the equality is what reds.
+  5) and SIM B's appended head placed **past every remaining backtick in the source (end of
+  file)** — discovered 4, raw 5. A well-formed 5th site in its own template is DISCOVERED and
+  adjudicated by the per-site arms — the fix working, not a red case. The issue's original SIM B
+  was defined against the old regex; the replay uses the EOF shape so the equality is what reds.
+  **Round-1 truth correction (measured, supersedes the grill-Q6 "unenclosed" wording):**
+  "enclosed in no template" does NOT imply "not discovered" — the re-anchored regex has no notion
+  of enclosure and scans forward to the next backtick anywhere in the file. With 402 backticks
+  after the last floor site, an unenclosed head placed mid-file yields discovered 5 / raw 5
+  (equality GREEN) and reds only via the per-site arms. Hence SIM B is pinned at EOF, and the
+  mid-file behaviour is recorded as the THIRD residual in Task 1.2's mandated header comment
+  rather than left undocumented.
 - **Head-shape residual accepted and documented (grill Q2):** a future site whose invocation
   head diverges from the canonical `${ph.integrationBranch} ${r.task.branch}${testPatternArg}`
   interpolation escapes both the discovery regex and the raw count — equality holds, silent
@@ -431,13 +535,13 @@ all open `war-followup`/`memory-mined` findings; source lessons
 - **Byte-identity claim corrected (grill Q7 — conscious deviation from spec §4.4):** the spec
   says the sentence's opening "is load-bearing for other anchors and stays byte-identical", but
   no test anywhere pins "fail-closed denies" or "read-only git command" as bytes (grill-verified;
-  the F03 doc test pins only `/guard|read.?only/i`, and the D3 anchors avoid the sentence). The
+  the F03 doc test pins only `/guard|read.?only/i`, and the D5 row's anchors avoid the sentence). The
   plan pins the opening's SUBSTANCE and leaves bytes to worker latitude — mandating byte-identity
   would be a closure rationale without a code trace (the recorded lesson class).
 - **Advisory stays an unconditional disjunction (grill Q8, self-decided):** a conditional
   location clause (printed only when a listed near-miss sits under an excluded prefix) would be
   sharper but (i) re-introduces exclusion-aware logic into the diagnostic block whose cheap
-  exclusion-free ceiling is D5-ratified, (ii) breaks End state 5's exactly-one-printf-line diff
+  exclusion-free ceiling is ratified by D5 of the test-floor-target-repo spec, (ii) breaks End state 5's exactly-one-printf-line diff
   pin, and (iii) the disjunction is never false — it names two possible causes where the old
   line asserted one specific wrong one; the fix-worker also receives the near-miss listing
   itself, prefix visible. Three-prefix pinning in the new case (grill Q9) couples all three
@@ -464,10 +568,14 @@ all open `war-followup`/`memory-mined` findings; source lessons
     manifest `dependsOn` already names plan 3's spec; the roadmap MUST encode the edge as a
     Depends-on on this plan's row. Task 1.2 owns the rebase and the post-rebase parity re-run
     (the appends sit outside every template literal's closing backtick, so the re-anchored
-    capture and the raw head count are both insensitive to them).
+    capture and the raw head count are both insensitive to them). **Second edge (spec §5, round-4
+    finding):** the downstream `gate-evidence-and-release-integrity` spec ALSO edits this test file
+    (its `## Surface changes` declares extended paired pins) and declares its dependency on this
+    spec — so this plan precedes it, exactly as recorded for `agents/war-auditor.md` below. The
+    roadmap contention row must carry both edges, not just plan 3's.
   - `skills/war/assets/skill-doc-contracts.test.mjs` — shared with plan 2
-    (`runbook-and-standing-record-coherence`: two new locks). Land order: plan 2 before this
-    plan (campaign serial order); Task 1.1's worker rebases over the two locks — the D18 edit is
+    (`runbook-and-standing-record-coherence`: three new locks, D19/D20/D21). Land order: plan 2 before this
+    plan (campaign serial order); Task 1.1's worker rebases over plan 2's locks — the D18 edit is
     confined to the D18 block, textual adjacency at worst, the new locks never touched. The
     roadmap contention table must carry this row too (grill Q3).
   - `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `README.md` — shared with

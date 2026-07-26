@@ -2361,10 +2361,39 @@ test('testPattern drift-guard (validation 6, --pattern half): war-refiner.md ste
 // ---------------------------------------------------------------------------
 
 // The requiresTest-TRUE arm of each dispatched assert-test-in-diff.sh site, DISCOVERED from the template
-// source: the invocation literal (script + both ref interpolations + ${testPatternArg}) through to the
-// ternary's `: pt\`` false arm. The requiresTest:false skip arms carry no ${testPatternArg} and are
-// excluded by construction, as are the prose mentions (the ADD_TEST description, the polish-merge skip).
-const FLOOR_SITE_RE = /assert-test-in-diff\.sh \$\{ph\.integrationBranch\} \$\{r\.task\.branch\}\$\{testPatternArg\}([^]*?)\n\s*: pt`/g
+// source: the invocation head (script + both ref interpolations + ${testPatternArg}) through to the
+// ENCLOSING `pt` template literal's OWN CLOSING BACKTICK — a negated-backtick capture class, so a match
+// can never cross into a neighbouring template and swallow it (#1050: the retired terminator anchored on
+// the requiresTest:false skip arm's line shape instead of the invocation's own grammar, so a 5th site
+// written inline was swallowed into its neighbour). The skip arms and the prose mentions (the ADD_TEST
+// description, the polish-merge skip) stay excluded BY CONSTRUCTION — they carry no ${testPatternArg}.
+//
+// Paired below with a source-derived count cross-check (discovered === raw invocation heads). THREE
+// residuals, all on the record for the next editor:
+//   1. Inline-backtick truncation — FAIL-CLOSED. A future floor arm embedding an inline backtick BEFORE
+//      its capture tokens truncates that site's capture and reds the per-site arms: a loud false red
+//      forcing a deliberate re-anchor, never a silent pass.
+//   2. Head-shape divergence — ACCEPTED silent escape. A site whose invocation head diverges from the
+//      canonical `${ph.integrationBranch} ${r.task.branch}${testPatternArg}` interpolation escapes BOTH
+//      sides of the equality, so the equality holds. Mitigation: that head IS the invocation grammar
+//      every dispatched site copies (all sites at this base are byte-identical heads).
+//   3. Mid-file unenclosed head — the regex has NO notion of enclosure: it scans from the head to the
+//      NEXT backtick anywhere in the source, and 402 backticks follow the last floor site at this base.
+//      An unenclosed head placed mid-file is therefore spuriously DISCOVERED with a junk capture, the
+//      cross-check reads 5 === 5 and stays GREEN, and the red arrives from the per-site token arms
+//      instead — a junk capture carries none of floor_diagnostic / stderr / verbatim. Fail-closed and
+//      loud, never a silent pass, which is why the cross-check is a COMPANION to the per-site arms and
+//      never a replacement for them. (Only past every remaining backtick — end of source — does the
+//      equality itself red: discovered 4, raw 5.)
+//
+// Ratified-floor reconciliation: plan 3's End state 5 and the merge-land-resilience adjudication pin this
+// guard as a `>= 3` non-vacuity floor plus per-site arms, "never harden it to an exact count". That floor
+// is RETAINED below byte-unchanged, and the cross-check is not the prohibited hardening — both of its
+// sides derive from the same `src` string, so a genuinely new dispatched site grows them together and no
+// literal exists to rot.
+const FLOOR_SITE_RE = /assert-test-in-diff\.sh \$\{ph\.integrationBranch\} \$\{r\.task\.branch\}\$\{testPatternArg\}([^`]*)`/g
+// The same invocation head with no capture and no terminator — the cross-check's raw side.
+const FLOOR_HEAD_RE = /assert-test-in-diff\.sh \$\{ph\.integrationBranch\} \$\{r\.task\.branch\}\$\{testPatternArg\}/g
 
 test('#1046 floor_diagnostic drift-guard (validation 6, both surfaces): EVERY dispatched assert-test-in-diff.sh site instructs verbatim-stderr capture into floor_diagnostic scoped to exit 1; war-refiner.md step 4 carries the same tokens', () => {
   // DISCOVER the sites instead of hardcoding a count — the dispatched-site set grows under stacking
@@ -2374,6 +2403,13 @@ test('#1046 floor_diagnostic drift-guard (validation 6, both surfaces): EVERY di
   const sites = [...src.matchAll(FLOOR_SITE_RE)]
   assert.ok(sites.length >= 3,
     `expected >= 3 dispatched assert-test-in-diff.sh sites rendering \${testPatternArg} in the template source (non-vacuity floor); found ${sites.length}`)
+  // Source-derived count cross-check (#1050): every raw invocation head in `src` must have been
+  // DISCOVERED with its capture. Both sides derive from the same source string — a new dispatched site
+  // grows them together, so there is no literal to rot (see the reconciliation in FLOOR_SITE_RE's
+  // comment). Reads 4 === 4 at this base.
+  const rawCount = [...src.matchAll(FLOOR_HEAD_RE)].length
+  assert.equal(sites.length, rawCount,
+    `a dispatched floor site escaped discovery — its capture instruction is unchecked: ${sites.length} discovered vs ${rawCount} raw assert-test-in-diff.sh invocation heads in the template source`)
   sites.forEach((m, i) => {
     const arm = m[1]
     const where = `dispatched floor site #${i + 1} of ${sites.length}`
@@ -6833,6 +6869,12 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     assert.doesNotMatch(sText, /%-format/, `${sName}: the retired '%-format' teach is absent (the D5 contract replaced it)`)
     assert.doesNotMatch(sText, /reflog syntax/, `${sName}: the retired 'reflog syntax' teach is absent (the D5 contract replaced it)`)
   }
+  // #1080 retired-claim lock: the card used to claim this contract was "mirrored verbatim" into the
+  // dispatched audit prompt. False — the two surfaces are deliberately different FORMATS, and what is
+  // actually enforced is the D5 row above, which anchors four shared TOKENS per surface. The card now
+  // names that row as the drift arbiter; this absence assert keeps the overclaim from silently returning.
+  assert.doesNotMatch(auditorMd, /mirrored verbatim/i,
+    "war-auditor.md: the retired 'mirrored verbatim' guard-contract claim is absent — the D5 row's per-surface token anchors are what enforce the mirror (#1080)")
 })
 
 // ---------------------------------------------------------------------------

@@ -264,7 +264,19 @@ test('D17 — 2026-07-12 prose-drift spec names classOf a reader, never the re-r
 // Absence keys are MARKUP-TOLERANT (red-team correction): the live bullet interleaves `**` and
 // backticks, so a plain-space phrase would match nothing even pre-change and be born vacuous.
 // Red-then-green PROVEN at the pre-change base (commit body carries the proof): both absence keys
-// HIT the old bullet and all six presence anchors were ABSENT from it — so a revert reds every arm.
+// HIT the old bullet and every presence anchor and both routing pairs were ABSENT from it — so a
+// revert reds every arm.
+//
+// The routing arms are PAIRED, not presence-anywhere (#1040): the retired four-entry companion loop
+// asserted `merge site` / `land site` / `held:escalation` / `held:land-failed` each present ANYWHERE
+// in the bullet, so it greened a bullet with the two exhaustion routes SWAPPED. Proven RED against
+// an in-memory copy of the extracted bullet with the two `held:*` tokens swapped (SKILL.md is never
+// edited); the commit body carries that swap red plus the per-pair green-half capture record.
+// TWO fail-closed residuals — both loud false reds forcing a deliberate re-anchor, never a silent
+// pass: (a) the pairing assumes site-before-route ordering within each sentence (true of the live
+// bullet, inherent to first-following-token semantics); (b) a later doc edit that adds an early
+// JOINT mention ("at either the merge site or land site …") ahead of the real routing sentences
+// makes the first-following grab capture from the joint sentence.
 //
 // The first key's inner space is written `\s+` on purpose: the retired phrase is one of the three
 // anchors the End-state-9 retired-claim sweep greps line-locally across `skills/war/` + `agents/`
@@ -300,14 +312,25 @@ test('D18 — SKILL.md gate_failed environment arm documents bounded environment
     'the environment arm must state the re-run gate has to come back fully green (never a ' +
       'proceed-over — the asymmetry with baseline-proceed)',
   )
-  // Non-vacuous companion: the bullet names BOTH gate sites and each site's exhaustion route.
-  for (const [anchor, why] of [
-    ['merge site', 'the environment arm must name the merge gate site'],
-    ['land site', 'the environment arm must name the land gate site'],
-    ['held:escalation', 'merge-site exhaustion must route held:escalation (the phase holds)'],
-    ['held:land-failed', 'land-site exhaustion must route held:land-failed'],
+  // Non-vacuous companion, PAIRED: for each gate site the FIRST `held:*` token following it must be
+  // that site's own exhaustion route — presence-anywhere anchors could not discriminate a swapped
+  // routing (#1040). Site presence is subsumed: a missing site token fails the assert.ok loudly.
+  for (const [site, route] of [
+    ['merge site', 'held:escalation'],
+    ['land site', 'held:land-failed'],
   ]) {
-    assert.ok(new RegExp(anchor, 'i').test(b), why)
+    const pair = b.match(new RegExp(`${site}[^]*?(held:[a-z-]+)`, 'i'))
+    assert.ok(
+      pair,
+      `the environment arm must name the ${site} and route its exhaustion to an explicit held:* ` +
+        `outcome — the ${site} token is gone, or no held:* token follows it`,
+    )
+    assert.equal(
+      pair[1].toLowerCase(),
+      route,
+      `${site} exhaustion must route ${route}, but the first held:* token after "${site}" is ` +
+        `"${pair[1]}" — the two exhaustion routes read swapped (#1040)`,
+    )
   }
 })
 
