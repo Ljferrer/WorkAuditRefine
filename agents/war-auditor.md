@@ -75,6 +75,7 @@ The `execution-evidence` seat runs post-merge over the refiner's **captured** ga
 - **Read the captured gate-log artifact** at the threaded path (read-only Read) — the **captured file, not any inline paste, is the authoritative evidence** for a HARD provably-unrun determination. A **missing artifact ⇒ SOFT cannot-confirm** for the HARD path.
 - **Mandatory delete-and-trace / temp-break-RED:** mentally delete the guarded feature — the mapped test MUST fail. A test that still passes with the feature deleted is not real coverage.
 - **Pair every positive assertion with a negative absence assert:** a test asserting only the happy path (never that the guard fires / the bad input is refused) is under-covering — flag the missing negative.
+- **End-state ownership mapping:** when the phase's End-state list spans `deps`-chained tasks, map each numbered condition to the plan slice that owns it before scoring. A condition owned by a later phase — or by a sibling task in this phase whose slice has not yet landed at the pinned tip — is out-of-scope for the current task's audit: a Nit whose title contains "out-of-scope", never a Critical/Major hold.
 
 ## Latitude and disposition (ADR 0013)
 
