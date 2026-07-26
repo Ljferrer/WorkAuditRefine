@@ -1305,3 +1305,13 @@ test('lint wrapper: nonexistent target → guard exit 2 naming the path, never a
   assert.ok(r.stderr.includes(missing), `stderr must name the missing path, got: ${r.stderr}`);
   assert.doesNotMatch(r.stdout, /lint: clean/);
 });
+
+test('lint wrapper: no-arg DEFAULT target → live docs/learnings/, exit 0 and "lint: clean" from a foreign cwd', () => {
+  // (absorb hardening) Pins TARGET="${1:-$ROOT/docs/learnings/}": the three override
+  // cases always pass $1, so a default silently repointed at an existing wrong dir
+  // (e.g. $ROOT/docs — exists, no top-level .md) would stay a vacuous "lint: clean"
+  // in the gate forever. cwd: tmpdir() also pins the $0-derived cwd-independence.
+  const r = spawnSync('bash', [LINT_WRAPPER], { cwd: tmpdir(), encoding: 'utf8' });
+  assert.equal(r.status, 0, `expected exit 0 on the live default target, got ${r.status}\n${r.stdout}\n${r.stderr}`);
+  assert.match(r.stdout, /lint: clean/);
+});

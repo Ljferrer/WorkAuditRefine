@@ -31,8 +31,8 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 TARGET="${1:-$ROOT/docs/learnings/}"
 
-if [ ! -d "$TARGET" ]; then
-  printf 'war-memory-lint: target directory does not exist: %s\n' "$TARGET" >&2
+if [ ! -d "$TARGET" ] || [ ! -r "$TARGET" ]; then
+  printf 'war-memory-lint: target directory does not exist or is not readable: %s\n' "$TARGET" >&2
   printf 'war-memory-lint: refusing to report a vacuous "lint: clean" — restore the path or pass the new one.\n' >&2
   exit 2
 fi
