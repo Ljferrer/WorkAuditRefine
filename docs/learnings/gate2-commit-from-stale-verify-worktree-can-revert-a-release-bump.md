@@ -1,14 +1,14 @@
 ---
 name: gate2-commit-from-stale-verify-worktree-can-revert-a-release-bump
 description: "MITIGATED (#1083): a Gate-2 docs(learnings) commit staged from a stale verify/publication worktree silently reverts a landed release bump — version-slots.test.mjs passed it because lock-step is not monotonic"
-metadata: 
+metadata:
   node_type: memory
   type: project
   provenance: code-verified
   promoted: dev/2026-07-22-cli-main-guard-normalization@phase-2
   slug: gate2-commit-from-stale-verify-worktree-can-revert-a-release-bump
-  phase: "war-campaign-resilience-roadmap plan 8 (cli-main-guard-normalization) — Lead-caught during plan-8 phase-2 setup, 2026-07-23"
-  keywords: 
+  phase: "war-campaign-resilience-roadmap plan 8 (cli-main-guard-normalization) — Lead-caught during plan-8 phase-2 setup, 2026-07-23; MITIGATED gate-evidence-and-release-integrity/phase-1 task 1.4 (#1083, landed dev/2026-07-24-gate-evidence-and-release-integrity, 2026-07-26)"
+  keywords:
     - Gate-2 promotion commit
     - stale verify worktree
     - version slot regression
@@ -19,13 +19,17 @@ metadata:
     - plugin.json marketplace.json README Status
     - lock-step invariant blind to downgrade
     - restore release on predecessor tip then merge into successor
-  tags: 
+    - monotonic floor
+    - pre-push staged-file check
+    - publication-worktree dirty-reuse refusal
+    - EX_WRONG_BRANCH
+  tags:
     - release
     - version
     - gate-2
     - campaign
   originSessionId: 8e99f0a3-aecc-4068-9cd8-79868840feb7
-  modified: 2026-07-23T21:28:54.243Z
+  modified: 2026-07-26T22:55:35.620Z
 ---
 
 # A Gate-2 `docs(learnings)` commit from a stale verify worktree can silently revert a release bump
@@ -91,7 +95,11 @@ tip, never one reused across the phase's own merge work.
 1. **Monotonic floor (mechanical).** `skills/war/assets/version-slots.test.mjs` gained a test
    asserting the working tree's `plugin.json#version` is `>=` the max version seen in a bounded
    first-parent window of slot-touching history. A lock-step-coherent all-four-slots *downgrade* —
-   the exact shape of this incident — now reds the gate that used to pass it.
+   the exact shape of this incident — now reds the gate that used to pass it. Fail-open only on an
+   unusable git context (non-git dir, non-zero git exit) or a genuinely empty window; a non-empty
+   log that parses to zero versions is RED, never a vacuous pass. Ceiling: the load-bearing
+   `--diff-merges=first-parent` flag requires git >= 2.31 — an older git exits non-zero and the
+   floor fail-opens (disclosed via a `t.diagnostic`, not silent).
 2. **Gate-2 pre-push staged-file check (procedural).** The `skills/war/SKILL.md` publication flow
    now lists the docs commit's staged file set (`git show --name-only --format= HEAD`) between the
    commit step and the `ensure-origin` push, and refuses to push when any path falls outside the
@@ -110,4 +118,7 @@ reused worktree whose index and tree simply lag a ref that advanced underneath.
 
 Related: [[stacked-per-branch-releases-make-main-lag-cumulative]],
 [[stacked-release-plan-version-literal-lags-operator-target]],
-[[version-slots-no-cross-slot-consistency-test]].
+[[version-slots-no-cross-slot-consistency-test]],
+[[gate-audit-end-state-owned-by-downstream-dep-task-is-non-holding-upstream]],
+[[gate-artifact-never-includes-war-memory-lint]] — sibling #1082/#1081 closures landed in the same
+gate-evidence-and-release-integrity phase 1.

@@ -1,20 +1,21 @@
 ---
 name: gate-artifact-never-includes-war-memory-lint
 description: "MITIGATED (#1081): lint was CI-only — every End state citing it read SOFT from gate evidence; the discovered wrapper war-memory-lint.test.sh now runs it inside every gate"
-metadata: 
+metadata:
   node_type: memory
   type: project
   provenance: code-verified
+  promoted: dev/2026-07-22-war-memory-hardening@phase-1
   slug: gate-artifact-never-includes-war-memory-lint
-  phase: war-memory-hardening/phase-1 tasks 1.2 + phase-1-integrated-tip gate-audit (2026-07-22/23)
+  phase: "war-memory-hardening/phase-1 tasks 1.2 + phase-1-integrated-tip gate-audit (2026-07-22/23); MITIGATED gate-evidence-and-release-integrity/phase-1 task 1.1 (#1081, landed dev/2026-07-24-gate-evidence-and-release-integrity, 2026-07-26)"
   created: 2026-07-23
-  tags: 
+  tags:
     - gate-audit
     - gate-evidence
     - war-memory
     - lint
     - evidence-standard
-  keywords: 
+  keywords:
     - war-memory.mjs lint
     - docs/learnings lint
     - CI-only command
@@ -26,10 +27,12 @@ metadata:
     - End state unverifiable
     - war-memory-lint.test.sh
     - gate-discovered wrapper
-  relates: 
+    - zero engine change
+    - resolveGate untouched
+  relates:
     - "[[refiner-dispatched-gate-never-resolvegate-composed-shell-suite-blind]]"
   originSessionId: 8e99f0a3-aecc-4068-9cd8-79868840feb7
-  modified: 2026-07-23T16:49:46.124Z
+  modified: 2026-07-26T22:55:03.475Z
 ---
 
 # `war-memory.mjs lint docs/learnings/` WAS CI-only — MITIGATED (#1081) by a gate-discovered wrapper
@@ -40,10 +43,10 @@ own `-name '*.test.sh'` sweep executes it and the captured `.war/gate-<taskId>.l
 `== gate(bash): … ==` banner. An End state citing the redaction lint is therefore CONFIRMABLE from
 gate evidence on any tip carrying that wrapper — do NOT reach for the SOFT-note disposition below
 without first checking whether the wrapper is present in the checked-out tree. The wrapper also
-fails LOUD (exit 2) when its target directory is absent, so a moved or renamed `docs/learnings/`
-cannot make the evidence vacuous. CI (`.github/workflows/memory-audit.yml`) stays the post-push
-backstop for lessons that reach a PR without passing a WAR gate. Everything below is the
-HISTORICAL record of the gap and why it mattered.
+fails LOUD (exit 2) when its target directory is absent or unreadable, so a moved or renamed
+`docs/learnings/` cannot make the evidence vacuous. CI (`.github/workflows/memory-audit.yml`) stays
+the post-push backstop for lessons that reach a PR without passing a WAR gate. Everything below is
+the HISTORICAL record of the gap and why it mattered.
 
 **What (code-verified at the time — confirmed at CLAUDE.md's Commands section):** the repo defined
 exactly two check surfaces —
@@ -74,3 +77,12 @@ must reach the captured artifact, first ask what the gate already discovers. A g
 a tip that PREDATES the wrapper should still go straight to the SOFT-note disposition rather than
 hunting for lint output in the captured log; on any later tip, grep the log for the wrapper's
 `gate(bash)` banner instead.
+
+**Residual, recorded not fixed (verified still present — found at
+`skills/_shared/war-memory-lint.test.sh` @ dev/2026-07-24-gate-evidence-and-release-integrity,
+2026-07-26):** the wrapper only scans the HOT `docs/learnings/` set (`cmdLint` is non-recursive), so
+`docs/learnings/archive/` is out of scope for both this wrapper and CI, same as before. And the
+wrapper's default `TARGET` is absolute, so a lint hit's file/pattern line renders with a home path in
+the captured gate log rather than the CI's repo-relative form — see
+[[d3-locate-cue-paths-must-be-repo-relative-or-placeholder-not-absolute-home-path]] for the general
+rule this collides with. Neither was in scope for #1081's plan slice.
