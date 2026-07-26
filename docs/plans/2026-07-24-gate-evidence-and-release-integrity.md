@@ -43,7 +43,14 @@ live at spec time and re-checked against the working tree at drafting).
   literal). Every new pin is a paired or ordered anchor tied to the clause it polices, never
   an independent presence-anywhere check; every edit site anchors by named construct, never
   line number; every grep sweep is a completeness floor backed by the spec's §4.4 hand-survey,
-  whose six spec-time dispositions are re-confirmed at implementation time. Shell edits stay
+  whose six spec-time dispositions are re-confirmed at implementation time. **Every §4.4 sweep
+  runs CASE-INSENSITIVE (`grep -in`) and is read in full context, never trusted as a single-line
+  match** (red-team round 1): a case-sensitive full-clause grep false-negates the moment its
+  target token moves to a sentence start or wraps across a line — and this plan's own contention
+  table records that stacked campaign plans 1–4 rewrite these very files, while each of its own
+  tasks rewords the swept sentences. A sweep that reports a clean PASS over an unamended surface
+  is the failure mode. Prefer the shortest stable mid-sentence token over a full clause, and pair
+  each sweep with a control proving the matcher actually fires. Shell edits stay
   bash-3.2-safe and cwd-independent.
 - **End state:**
   1. **Lint is gate-discoverable and green:** from the repo root, the gate's discovery clause
@@ -187,7 +194,7 @@ live at spec time and re-checked against the working tree at drafting).
   projection bytes); add a short body note naming the wrapper file — the "CI-only" framing is
   now historical. The lesson edit must itself pass the very lint this task wires in.
   **Sweep (§4.4, this task's share):**
-  `grep -n "CI-only\|only thing CI runs\|only automated check\|never appears in a captured gate" CLAUDE.md .github/workflows/memory-audit.yml docs/learnings/gate-artifact-never-includes-war-memory-lint.md skills/war/references/schemas.md`
+  `grep -in "CI-only\|only thing CI runs\|only automated check\|never appears in a captured gate" CLAUDE.md .github/workflows/memory-audit.yml docs/learnings/gate-artifact-never-includes-war-memory-lint.md skills/war/references/schemas.md`
   — no surface may still assert the lint cannot appear in gate evidence. Known survivor
   (spec-time disposition, re-confirm only, NO edit): CLAUDE.md's Commands comment "(exactly
   what CI runs — the only thing CI runs)" remains a true statement *about CI* — and CLAUDE.md
@@ -210,16 +217,30 @@ live at spec time and re-checked against the working tree at drafting).
   `NEVER a hold`, in that order):
   > (3) a condition owned by a LATER phase — or by a deps-chained sibling task of THIS phase
   > not yet landed at your audit's scope (map each numbered condition to the task slice that
-  > owns it before scoring — read the plan at ${plan.file} in the checked-out tree for the
+  > owns it before scoring — read the plan at ${(plan && plan.file) ?? '<unset>'} in the checked-out tree for the
   > per-task Plan slice and deps edges) — is out-of-scope for THIS audit — record a Nit
   > finding whose title contains "out-of-scope", NEVER a hold.
   **Executability threading (self-decided, Notes):** the gate-audit prompt threads
   `acceptanceCriteria` but NOT the plan path today — the mapping instruction is only
   executable because the seat runs against the `_refinery` worktree where the plan file is
-  checked out; interpolate the existing `plan.file` value (the `${plan.file}` idiom already
-  used at the worker dispatch sites) into the case-(3) parenthetical so the seat needn't
-  guess the path. `endStateBlock` has `plan` in scope; the criterion-11 tests build prompts
-  through `runPhase` args that already carry `plan.file`, so the pins stay buildable.
+  checked out; interpolate the plan path into the case-(3) parenthetical so the seat needn't
+  guess it. **MANDATORY GUARDED FORM: `${(plan && plan.file) ?? '<unset>'}` — never a bare
+  `${plan.file}`** (red-team round 1, reproduced). Three facts make the bare form a phase-level
+  crash, not a stylistic choice: (a) `plan` is destructured with **no default** and is **never
+  entry-validated** (`workflow-template.js:231`), and the file's own gate-composition comment
+  says so explicitly, which is why line 484 reads `if (plan) plan.gate = …`; (b) `endStateBlock`
+  is built at **TOP-LEVEL scope**, unconditionally whenever `endStateClaims.length > 0`
+  (`:1497`) — unlike the two existing `${plan.file}` reads, which sit INSIDE the work thunk
+  where a throw degrades to a task-level `held:escalation`; and (c) `pt` **throws on an
+  `undefined` interpolated value by contract** (its own header at `:191`: "Optional interpolated
+  fields must carry an explicit `?? '<unset>'` default so a legitimately-absent field renders a
+  placeholder instead of throwing"). A plan-less zero-task phase that claims End-state
+  conditions is a reachable state with a committed test (`workflow-template.test.mjs:6692`,
+  which pins a clean `held:nothing-merged`, never `held:workflow-error`) — the bare form would
+  regress exactly that route to `held:workflow-error`, phase-wide.
+  **Add one test case for it:** build the End-state-only seat from args with `plan` deleted and
+  `tasks: []`, and assert the seat still dispatches and the landDecision is NOT
+  `held:workflow-error`.
   Cases (1) and (2) are byte-untouched; the `out-of-scope` title token keeps the handoff
   `endState` status derivation (the `rel.some(f => /out-of-scope/i.test(…))` arm) working with
   ZERO routing changes — do not touch it. It is ONE rule with two owners — extend case (3),
@@ -266,7 +287,7 @@ live at spec time and re-checked against the working tree at drafting).
   silently derive `out-of-scope`). The existing later-phase fixture title stays accurate for
   its own case — add beside, never edit over (spec-time survey disposition 4).
   **Sweep (§4.4, this task's share):**
-  `grep -n "later-phase\|LATER phase\|later phase" skills/war/assets/workflow-template.js skills/war/assets/workflow-template.test.mjs agents/war-auditor.md skills/war/references/schemas.md skills/war/SKILL.md`
+  `grep -in "later-phase\|LATER phase\|later phase" skills/war/assets/workflow-template.js skills/war/assets/workflow-template.test.mjs agents/war-auditor.md skills/war/references/schemas.md skills/war/SKILL.md`
   — every hit either carries the sibling-task clause post-change or is verified
   out-of-scope-accurate as-is (file-anchored, never repo-root — the `.claude/worktrees/`
   stale-duplicate trap). Known survivors (spec-time dispositions, re-confirm only): ADR 0013
@@ -289,9 +310,37 @@ live at spec time and re-checked against the working tree at drafting).
   fail-closed, lock-step, and the README Releasing prose guard; spec §2). Mechanics
   (implementation latitude within these floors, spec §4.3): ONE bounded git invocation from
   the suite's existing `repoRoot` (e.g.
-  `git log --first-parent -n 50 -p -- .claude-plugin/plugin.json` parsed for
-  introduced/`+`-side `"version"` values, or an equivalent `rev-list` + `git show` walk capped
-  at ≈50 slot-touching commits — never walk unbounded history, never spawn per-commit).
+  `git log --first-parent --diff-merges=first-parent -n 50 -p -- .claude-plugin/plugin.json`
+  parsed for introduced/`+`-side `"version"` values, or an equivalent path-filtered `rev-list`
+  + `git show` walk capped at ≈50 slot-touching commits — never walk unbounded history, never
+  spawn per-commit).
+  **`--diff-merges=first-parent` MUST be passed explicitly** (red-team round 1, reproduced):
+  every slot-touching commit in the live first-parent window on a campaign branch is a MERGE
+  (measured 50 of 50), so the primary form's entire signal comes from merge-commit diffs, which
+  modern git only shows because it *implies* that flag. Suppress the implication
+  (`--diff-merges=off`) and the same command yields **zero** version values — i.e. the mechanic
+  silently depends on an unpinned git display default, and `version-slots.test.mjs` runs in
+  EVERY refiner-dispatched gate, so a zero-parse would brick the gate campaign-wide.
+  **⚠️ The `rev-list` + `git show` alternative is UNRESOLVED — see the red-team report's residual
+  open questions; do not implement it from this paragraph.** Red-team rounds 1–2 produced two
+  successive WRONG Lead explanations of why it does or does not work, both withdrawn:
+  (i) round 1 claimed it yields zero versions on live history — false; (ii) the round-1 Lead patch
+  then claimed the **path filter** is what makes it work and cited "6 from 6" — both false. The
+  measured facts at base `93b1c2d` are: `git rev-list --first-parent -n 50 HEAD -- <slot path>`
+  returns 50 commits **all with 2 parents (merges)**, while the same command **without**
+  `--first-parent` returns 50 commits **all with 1 parent (non-merges)** yielding 49 `+`-side
+  version values. So **`--first-parent` is the discriminator, not the path filter**, and the
+  earlier "6 from 6" was a `-n 6` sample mis-recorded as a full-window measurement.
+  Additionally, this alternative cannot satisfy the "ONE bounded git invocation" floor stated
+  above (it is inherently ≥2 invocations, and reproducing it per-commit violates "never spawn
+  per-commit") — that contradiction is unresolved.
+  **Until an operator rules: implement ONLY the primary `git log --first-parent
+  --diff-merges=first-parent` form, and re-measure at the implementation base.**
+  Either mechanic is governed by the **non-vacuity rule already stated in Method and End state 5**
+  — a non-empty log that parses to zero versions is RED, never a vacuous pass. That rule is what
+  makes the display-default hazard above fail loudly instead of silently: an unpinned
+  `--diff-merges` yielding zero parses is exactly the "broken parse masquerading as an empty
+  window" case it forbids. Do not restate the rule here; satisfy it.
   Assert `readSlots()`'s canonical `plugin.json#version` (the working tree — same source as
   the lock-step test) is `>=` the maximum version observed in the window under numeric
   three-component semver comparison (a small local helper; no dependency). **Fail-open
@@ -315,12 +364,15 @@ live at spec time and re-checked against the working tree at drafting).
   `version-slots.test.mjs` ("locks the four slots in lock-step…") to also name the monotonic
   floor (fail-open outside a usable git context), keeping the standing doc truthful.
   **Sweep (§4.4, this task's share):**
-  `grep -n "lock-step" CLAUDE.md README.md skills/war/assets/version-slots.test.mjs docs/learnings/gate2-commit-from-stale-verify-worktree-can-revert-a-release-bump.md`
+  `grep -in "lock-step" CLAUDE.md README.md skills/war/assets/version-slots.test.mjs docs/learnings/gate2-commit-from-stale-verify-worktree-can-revert-a-release-bump.md`
   — every characterization of the version guard must acknowledge the monotonic floor or
-  remain true without it. Known survivor (re-confirm, NO edit): the README `## Status`
-  blurb's "keeps all four version slots in lock-step" is release prose about the prior
-  release — true without the floor, replaced wholesale by Phase 2's blurb anyway (and the
-  recorded release-blurb-absence-guard trap says never let a status blurb trip a guard). The
+  remain true without it. **README survivor disposition is MOOT at this base (red-team round 1,
+  measured): `README.md` carries ZERO `lock-step` hits** — the spec-time `## Status` blurb it
+  named has already rotated to plan 4's 0.14.61 release prose, which says nothing about version
+  slots. Record "no README hit — disposition moot" rather than hunting for absent prose; the
+  general principle still holds if a future blurb reintroduces the phrase (a `## Status` blurb is
+  release prose about the prior release and must never trip a guard — the recorded
+  release-blurb-absence-guard trap). The
   gate2 lesson file is Task 1.4's — report, never edit here.
 - requiresTest: true — the deliverable IS the monotonic-floor test; the diff touches
   `version-slots.test.mjs`, satisfying the test floor
@@ -399,7 +451,7 @@ live at spec time and re-checked against the working tree at drafting).
   Task 1.3, same phase — cross-link, not a dangling ref), the Gate-2 pre-push re-read duty,
   and the behavior-(b) refusal (both this task's own edits).
   **Sweep (§4.4, this task's share):**
-  `grep -n "AS-IS AT THE LOCAL TIP\|staleness is the CAS\|byte-for-byte" skills/war/assets/provision-worktrees.sh skills/war/SKILL.md`
+  `grep -in "AS-IS AT THE LOCAL TIP\|staleness is the CAS\|byte-for-byte" skills/war/assets/provision-worktrees.sh skills/war/SKILL.md`
   — the publication-verb doctrine sentences must match the amended behavior (b); read each
   hit in full context (wrapped phrases — never trust a single-line grep of a full sentence).
   At drafting, `skills/war/SKILL.md` carries none of these tokens — expect hits only in
@@ -580,8 +632,10 @@ live at spec time and re-checked against the working tree at drafting).
   because the gate-audit seat runs against the `_refinery` worktree (plan file checked out,
   read-only git available for landed-sibling probes) AND Task 1.2 interpolates the existing
   `plan.file` value into the case-(3) parenthetical so the path is threaded, not guessed —
-  a prompt-text addition inside the same `endStateBlock` const the spec already edits, using
-  the `${plan.file}` idiom the worker dispatch sites already use; no engine/schema change.
+  a prompt-text addition inside the same `endStateBlock` const the spec already edits — using
+  the **guarded** form `${(plan && plan.file) ?? '<unset>'}`, NOT the bare `${plan.file}` the
+  worker dispatch sites use (those sit inside the work thunk; `endStateBlock` is top-level and
+  `plan` is never entry-validated — see Task 1.2's mandate); no engine/schema change.
 - **Campaign contention (for the roadmap table):** this is plan 5 of 6, stacking after plans
   1–4 (ADR 0011 stack-and-plow; the later lander owns rebase-by-named-anchor). Manifest
   `dependsOn`: plans 2, 3, 4.
