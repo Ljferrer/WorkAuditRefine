@@ -63,7 +63,7 @@ dispatched gate-audit prompt — it also interpolates the plan path so the seat 
 owning slices without guessing) and the `execution-evidence` gate-audit checklist's
 **End-state ownership mapping** bullet in `agents/war-auditor.md` (the standing card). Both routes
 still key on the same `out-of-scope` finding-title token, so the handoff `endState` status derivation
-is unchanged. The incident below is what the carve-out encodes.
+is unchanged. The incident above is what the carve-out encodes.
 
 ## Related
 
