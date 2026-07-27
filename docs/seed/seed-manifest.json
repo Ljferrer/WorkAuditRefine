@@ -9,6 +9,14 @@
       "provenance": "agent-unverified"
     },
     {
+      "slug": "cli-main-guard-equality-check-silently-noops-under-relative-invocation",
+      "bytes": 3347,
+      "sha256": "4a151cd66c931f5002ab8a80bcb071027f28568895565c266ecf8c2f03b83d41",
+      "description": "RESOLVED (realpathSync normalization + symlink-invocation regression tests, 2026-07-23): all three run-as-CLI guards now realpath before comparing; the real trigger was symlink invocation, not relative paths",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
       "slug": "consolidate-exts-v2-timeout",
       "bytes": 5566,
       "sha256": "2faa578b85a5284a396497b3b3a7d56d652b690c1a33b0298a7bcfdcb347e25e",
@@ -23,6 +31,14 @@
       "description": "Default flip: sweep ALL doc surfaces; assert old absent",
       "type": "project",
       "provenance": "agent-unverified"
+    },
+    {
+      "slug": "die-process-exit-inside-try-skips-finally-cleanup",
+      "bytes": 3612,
+      "sha256": "e4bb561860f89ff7bca826263e7961747a6774a4b9c18bb3b01c0ceedcfe07fc",
+      "description": "RESOLVED (memory-tooling-hardening/1.3, #1079, landed 2026-07-26): die() now throws a tagged Error and main() alone calls process.exit after every finally has unwound. Was: a die()/process.exit() helper called from inside a try block terminates the process without unwinding the stack, so the enclosing try/finally cleanup never runs — scratch dirs leaked on every error path",
+      "type": "project",
+      "provenance": "code-verified"
     },
     {
       "slug": "drift-matrix-stated-vs-covered-cells",
@@ -193,6 +209,14 @@
       "provenance": "agent-unverified"
     },
     {
+      "slug": "stranded-upstream-makes-safe-branch-d-refuse-a-merged-branch",
+      "bytes": 3694,
+      "sha256": "3376b8178e1122e137f448a49262b7b0d31540a06a700bacba0bbcbcb394fe32",
+      "description": "A stranded remote tip makes `git branch -d` refuse a local branch that IS merged into master — unset the upstream, don't escalate to -D",
+      "type": "project",
+      "provenance": "code-verified"
+    },
+    {
       "slug": "teardown-phase-reap-order-and-delete-fail-loud",
       "bytes": 1983,
       "sha256": "5d3b5faa3e263e06c225a9b96743a203b15f4121c676c399997c73a155f3bf64",
@@ -231,6 +255,14 @@
       "description": "Workflow args global arrives as a JSON string",
       "type": "project",
       "provenance": "agent-unverified"
+    },
+    {
+      "slug": "zsh-parameter-modifiers-mangle-sha-colon-path-git-expansions",
+      "bytes": 2092,
+      "sha256": "5cf51a6f1f2e637fd2f6ad1498f4e18fbe00d32e1ab065e892c2da9fcc5fd36d",
+      "description": "In zsh, `$T:hooks/...`-style git <sha>:<path> arguments trigger parameter modifiers (`:h` dirname, `:s` substitute) — the command silently gets a mangled path or errors, and a grep floor piped from it reports 0 on EMPTY input: a vacuous pass. Always brace: `\\\"${T}:path\\\"`.",
+      "type": "feedback",
+      "provenance": "code-verified"
     }
   ],
   "archive": []
