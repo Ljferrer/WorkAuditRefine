@@ -56,9 +56,17 @@ const PROJECTION_FILE = 'MEMORY.md'; // generated projection, never a lesson (mi
 // ---------------------------------------------------------------------------
 // Small utilities
 // ---------------------------------------------------------------------------
+// die THROWS a tagged error — it never terminates the process itself. process.exit() bypasses
+// stack unwinding, so a die() called from inside cmdPack's / verifyTier's / cmdEvict's
+// try/finally left their mkdtemp scratch dirs behind on every error path (lesson
+// die-process-exit-inside-try-skips-finally-cleanup). Throwing lets every finally unwind first;
+// main() is the ONE place that inspects the tag, writes the message, and exits. The observable
+// subprocess contract (status + stderr bytes) is unchanged at every call site. Side benefit: when
+// this module is imported rather than run, a stray die() throws instead of killing the importer.
 function die(code, msg) {
-  process.stderr.write(msg.endsWith('\n') ? msg : msg + '\n');
-  process.exit(code);
+  const err = new Error(msg);
+  err.exitCode = code; // the sole discriminator — checked in main()'s catch, nowhere else
+  throw err;
 }
 
 function sha256(buf) {
@@ -486,12 +494,22 @@ function cmdEvict(argv) {
 // ---------------------------------------------------------------------------
 const VERBS = { pack: cmdPack, verify: cmdVerify, evict: cmdEvict };
 
+// One throw shape, one catch, one exit. The unknown-verb refusal stays INSIDE the try: main() is
+// called at module scope with no enclosing try, so a die() before the try would escape uncaught and
+// Node would print a stack trace instead of the clean single-line refusal.
 function main() {
   const argv = parseArgv(process.argv.slice(2));
-  const verb = argv._[0];
-  const fn = VERBS[verb];
-  if (!fn) die(EXIT_REFUSE, `seed-pack: unknown verb '${verb ?? ''}'. Verbs: ${Object.keys(VERBS).join(', ')}`);
-  fn(argv);
+  try {
+    const verb = argv._[0];
+    const fn = VERBS[verb];
+    if (!fn) die(EXIT_REFUSE, `seed-pack: unknown verb '${verb ?? ''}'. Verbs: ${Object.keys(VERBS).join(', ')}`);
+    fn(argv);
+  } catch (e) {
+    // Untagged => an engine bug; rethrow unchanged so it never masquerades as a contract exit.
+    if (typeof e?.exitCode !== 'number') throw e;
+    process.stderr.write(e.message.endsWith('\n') ? e.message : e.message + '\n');
+    process.exit(e.exitCode); // every finally has unwound by now — scratch dirs are gone
+  }
 }
 
 // Robust CLI-entry guard: fileURLToPath(import.meta.url) is absolute; process.argv[1] may be

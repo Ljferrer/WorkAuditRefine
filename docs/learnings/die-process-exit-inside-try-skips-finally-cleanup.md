@@ -1,6 +1,6 @@
 ---
 name: die-process-exit-inside-try-skips-finally-cleanup
-description: "A die()/process.exit() helper called from inside a try block terminates the process without unwinding the stack, so the enclosing try/finally cleanup never runs — scratch dirs leak on every error path"
+description: "RESOLVED (memory-tooling-hardening/1.3, #1079): A die()/process.exit() helper called from inside a try block terminates the process without unwinding the stack, so the enclosing try/finally cleanup never runs — scratch dirs leak on every error path; seed-pack's die() now throws a tagged error and main() exits once, after every finally"
 metadata: 
   node_type: memory
   type: project
