@@ -46,7 +46,8 @@ Phase edge rationale: the release bump is its own trailing phase per the decompo
 
 ### Task 1.2: lesson prose truth-up (#1147 + D9)
 
-- Files: `docs/learnings/tighten-target-flag-has-three-independent-silent-degradation-paths.md`, `docs/learnings/cmdquery-topk-budget-share-tighten-targets-pre-fix-truthy-ternary-shape.md`
+- Files: `docs/learnings/archive/tighten-target-flag-has-three-independent-silent-degradation-paths.md`, `docs/learnings/cmdquery-topk-budget-share-tighten-targets-pre-fix-truthy-ternary-shape.md`
+- **Path note (Lead adjudication, 2026-07-27):** the tighten lesson was archived on 2026-07-27 (PR #1167, operator-directed `RESOLVED` sweep) and now lives under `docs/learnings/archive/`. Archiving is a move, not a deletion — the lesson stays queryable via FTS, so its mechanism prose still misleads and still needs this correction. Edit it **in place at the archive path**; do NOT restore it to the hot set (that would re-breach the 17,000 B projection advisory this repo just cleared). The sibling `cmdquery-…` lesson is still hot at its declared path.
 - Plan slice: Two committed-lesson corrections, sourced from the red-team report (`docs/red-team/2026-07-24-memory-tooling-hardening.md`, Minors, "Purpose, zsh threading") and spec §4 — not re-derived:
   - **Tighten lesson, failure-mode-3 item:** replace the "collapses to one argv token and the flag is dropped entirely" sentence pair with the fuse mechanism (zsh, lacking `SH_WORD_SPLIT`, does not word-split the unquoted `${TIGHTEN_TARGET:+…}` expansion → one fused argv word `--target 2000` → `parseArgv` keys `{"target 2000": true}` → `argv.target` stays `undefined`; observable end state coincides with never setting the variable). Keep the "same silent outcome" clause — it was the accurate part.
   - **Tighten lesson, closing paragraph:** rewrite "Not yet extended to siblings" to past tense recording that the extension landed in Task 1.1's `cmdQuery` fix.
