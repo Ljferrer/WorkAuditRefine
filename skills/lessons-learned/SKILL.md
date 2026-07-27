@@ -52,14 +52,19 @@ time. Resolve `$MEM` per [Locate the memory store](#locate-the-memory-store) and
 way Phase 0 does (both defined further down this doc — this mode still runs before/instead of the
 numbered phases, it just borrows their variable names). Five steps, strict order:
 
-1. **Preflight** (read-only — nothing is staged or mutated yet). If the invocation named a target
-   (`/lessons-learned tighten --target <bytes>`, or a byte figure the operator gave in the ask), set
-   `$TIGHTEN_TARGET` to it; leave `$TIGHTEN_TARGET` unset when none was supplied, so the flag drops out
-   and the default run is unchanged (set `$TIGHTEN_TARGET` in the same shell invocation as the command
-   below, or substitute the literal figure — each command block runs in its own shell):
+1. **Preflight** (read-only — nothing is staged or mutated yet). Run **exactly one** of the fence's
+   two lines below — never the fence wholesale. When the invocation named a target
+   (`/lessons-learned tighten --target <bytes>`, or a byte figure the operator gave in the ask), run
+   the flagged line with the **literal byte figure substituted for the `<bytes>` placeholder**;
+   otherwise run the bare line, so the default run is unchanged. If the flagged line exits 1 with the
+   `--target` diagnostic, the byte figure was substituted wrong — correct it and rerun the preflight
+   (the verb is read-only; nothing was staged or mutated).
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/skills/_shared/war-memory.mjs" tighten-plan --local "$MEM" --repo "$REPO_ROOT" ${TIGHTEN_TARGET:+--target "$TIGHTEN_TARGET"}
+   # a target was named — substitute the operator's literal byte figure for <bytes>
+   node "${CLAUDE_PLUGIN_ROOT}/skills/_shared/war-memory.mjs" tighten-plan --local "$MEM" --repo "$REPO_ROOT" --target <bytes>
+   # no target was named
+   node "${CLAUDE_PLUGIN_ROOT}/skills/_shared/war-memory.mjs" tighten-plan --local "$MEM" --repo "$REPO_ROOT"
    ```
 
    (`--target` defaults to 17,000 = `WARN_BYTES`; a `--target <bytes>` below it binds the pass at that

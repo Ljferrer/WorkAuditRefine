@@ -12,10 +12,14 @@ against the working tree at drafting: the `cmdTightenPlan` truthy ternary, the S
 - **Purpose:** four code-verified defects in the memory tooling family produce plausible
   results at bounds the operator never asked for, or leak state. `tighten-plan`'s
   `--target` resolution has three independent silent-degradation paths — a non-numeric
-  value collapses to the 17,000 B advisory as if the flag were never passed, a bare flag
-  becomes `Number(true) === 1` and pre-selects **every** eligible lesson onto the
-  `/lessons-learned tighten` strike list, and the SKILL.md fence's `${TIGHTEN_TARGET:+…}`
-  threading drops the flag entirely under zsh (#1059 + #1088). seeding.md's `## Seed`
+  value becomes `NaN` and echoes `target: null` with a null cut goal and an **empty**
+  strike list (matching the default path only in its verdict, never in its cut plan), a
+  bare flag becomes `Number(true) === 1` and pre-selects **every** eligible lesson onto
+  the `/lessons-learned tighten` strike list, and the SKILL.md fence's
+  `${TIGHTEN_TARGET:+…}` threading **fuses** the flag and its value into a single argv
+  word under zsh (zsh does not word-split unquoted parameter expansions), so `argv.target`
+  never binds and the run silently reverts to the 17,000 B advisory default
+  (#1059 + #1088). seeding.md's `## Seed`
   Local-destination code block contradicts its own prose — copied literally it renders
   local-only and silently drops every `[repo]` row, the exact recorded known trap (#1086).
   And seed-pack's `die()` terminates via `process.exit` inside `try` regions, so `finally`
@@ -77,7 +81,11 @@ against the working tree at drafting: the `cmdTightenPlan` truthy ternary, the S
   6. **seed-pack contract byte-stable:** the entire existing `seed-pack.test.mjs` suite
      passes **unmodified** — every subprocess exit status (1/3/4/5 per the ratified code
      map) and every stderr fragment identical under the throw-based `die()`; `rankEvictions`
-     and the realpath-normalized CLI-entry guard are byte-untouched.
+     and the realpath-normalized CLI-entry guard are byte-untouched. **And the shipped
+     corpus is proven pre-merge:** `skills/lessons-learned/seed-set.test.mjs` — which runs
+     `seed-pack verify` against the committed `docs/seed/` and is discovered by the gate
+     glob — is green and **byte-unmodified**, so the reworked verifier is exercised
+     against the real shipped artifacts inside the gate, not deferred to a manual step.
   7. **Sweep clean:** the spec's `grep -rn ':+--' skills/ hooks/` returns zero matches on
      the task's tree after the change, **and** the broadened shape sweep
      `grep -rEn '\$\{[^}]*:\+' skills/ hooks/` (which also catches respellings like
@@ -85,14 +93,26 @@ against the working tree at drafting: the `cmdTightenPlan` truthy ternary, the S
      only dispositioned hits; the done reports record every disposition — at drafting: the
      SKILL.md tighten fence (**fixed** by Task 1.2), the seeding.md bare-render block
      (#1086, invisible to any token grep — **fixed** by Task 1.2), migration.md's two
-     `--repo`-less render lines (**cleared as deliberate** — evict path; do not "fix"),
+     `--repo`-less render lines (**cleared as deliberate**, for two different reasons —
+     the Evict-section render is the local-only evict path and is lock-guarded; the
+     Step-4 render is the migrate path's confirm-render, local-only because the repo root
+     is not populated until Step 5, and is guarded by no lock; do not "fix" either),
      and `skills/war/assets/assert-issues-filed.sh`'s `${_phase_label:+…}` (**cleared** —
      a shebang-pinned bash script, never an operator-shell copy-paste fence; the dialect
      trap binds only prose fences executed in the operator's own shell).
   8. **Whole-surface green, no collateral drift:** `node --test 'skills/**/*.test.mjs'`
      passes; the Phase-1 diff touches no version slot, not `parseArgv`, not `tightenPlan()`,
      not `cmdLint`, no status enum, and no hook.
-  9. **Release lands last:** all four version slots bump in lock-step to the next free
+  9. **Records true (at Phase-1 land):** the three origin lessons under `docs/learnings/`
+     each carry a `RESOLVED (…)` description prefix naming this plan and the owning task
+     slice — `tighten-target-flag-has-three-independent-silent-degradation-paths.md`
+     (1.1 + 1.2, both arms), `seeding-md-seed-local-render-block-omits-conditional-repo-flag.md`
+     (1.2), `die-process-exit-inside-try-skips-finally-cleanup.md` (1.3) — so the shipped
+     corpus stops asserting defects the release closes. Bodies and `metadata.keywords` are
+     otherwise untouched and every file stays redaction-lint clean. This condition is
+     **phase-scoped**: it is checkable on the integrated Phase-1 tip, not inside any single
+     task's audit diff.
+  10. **Release lands last:** all four version slots bump in lock-step to the next free
      patch above the live integration base at land time; `version-slots.test.mjs` (as it
      stands at land — the campaign's plan 5 extends it) is green.
 
@@ -106,15 +126,24 @@ against the working tree at drafting: the `cmdTightenPlan` truthy ternary, the S
 
 ### Task 1.1: `tighten-plan --target` refuses invalid values loud (#1059 + #1088, CLI arm)
 
-- Files: `skills/_shared/war-memory.mjs`, `skills/_shared/war-memory.test.mjs`
+- Files: `skills/_shared/war-memory.mjs`, `skills/_shared/war-memory.test.mjs`, `docs/learnings/tighten-target-flag-has-three-independent-silent-degradation-paths.md`
 - Plan slice: **Guard (spec §4, design rows D1/D2):** in `cmdTightenPlan` in
   `skills/_shared/war-memory.mjs`, replace the truthy ternary
   (`const target = argv.target ? Number(argv.target) : WARN_BYTES;`) with an explicit
   three-way resolution at the argv boundary:
   - `argv.target === undefined` (flag never passed) → `target = WARN_BYTES` — the default
     path stays byte-identical in behavior.
-  - Otherwise `const t = Number(argv.target)`; `Number.isFinite(t) && t > 0` →
-    `target = t`.
+  - Otherwise coerce **only a string** token: `const t = typeof argv.target === 'string' ?
+    Number(argv.target) : NaN;` then `Number.isFinite(t) && t > 0` → `target = t`.
+    **The `typeof` test is load-bearing, not defensive padding** — `parseArgv` maps a bare
+    `--target` to boolean `true`, and `Number(true) === 1` satisfies
+    `Number.isFinite(t) && t > 0`, so a bare `Number(argv.target)` would route the bare
+    flag into the **accept** arm with `target = 1` and reproduce the exact #1059 defect
+    this task exists to close. (Equivalent and equally acceptable: an explicit
+    `argv.target === true` → refuse branch ahead of the `Number()` call. What is **not**
+    acceptable is any resolution that reaches `Number()` with a non-string.) The bare flag
+    must land in the refusal arm — that is the only way its diagnostic renders the token
+    as `true`, as End state 1 requires.
   - Otherwise write a stderr diagnostic naming the flag and the received token — shape
     mirrors the existing `requireLocal` refusal idiom in the same file, in the spirit of
     `war-memory tighten-plan: --target requires a positive byte count (got '<token>')`
@@ -151,6 +180,16 @@ against the working tree at drafting: the `cmdTightenPlan` truthy ternary, the S
   small temp-dir fixture corpus per the file's `tmpDir()`/`lessonFile()` helpers. The
   refusal cases are red against today's ternary (the bare flag currently exits 0 with
   `target: 1`); the unchanged-path cases pin the guard's absent/valid arms.
+  **Lesson stamp (in-task, sibling-plan convention):** prefix the `description` of
+  `docs/learnings/tighten-target-flag-has-three-independent-silent-degradation-paths.md`
+  with a `RESOLVED (<plan-slug>/1.1+1.2, #<issue>)` marker, exactly the shape plans 1–5
+  use. Body/keywords otherwise untouched; the file stays lint-clean (no home paths,
+  emails, handles, or credential shapes). **Scope honesty:** this lesson names all three
+  degradation paths — two CLI (closed here) and the `${VAR:+…}` fence (closed by Task
+  1.2) — so the stamp asserts a resolution that is true at **Phase-1 land**, when both
+  tasks have merged, not at this task's own audit scope. Word it accordingly and cite
+  both task slices; an auditor reading Task 1.1's diff alone should not read the stamp as
+  a claim about the fence.
 - requiresTest: true — the four refusal cases and two unchanged-path cases land in
   `war-memory.test.mjs`, satisfying the test floor
 - requiresPackaging: false
@@ -159,7 +198,7 @@ against the working tree at drafting: the `cmdTightenPlan` truthy ternary, the S
 
 ### Task 1.2: Dialect-safe fences + doc-contract locks (#1088 doc arm + #1086)
 
-- Files: `skills/lessons-learned/SKILL.md`, `skills/lessons-learned/references/seeding.md`, `skills/lessons-learned/lessons-learned-doc-contract.test.mjs`
+- Files: `skills/lessons-learned/SKILL.md`, `skills/lessons-learned/references/seeding.md`, `skills/lessons-learned/lessons-learned-doc-contract.test.mjs`, `docs/learnings/seeding-md-seed-local-render-block-omits-conditional-repo-flag.md`
 - Plan slice: **Tighten step-1 fence rewrite (spec §4, design row D3):** in the `tighten`
   mode section of `skills/lessons-learned/SKILL.md`, rewrite step 1's prose and fence.
   Delete the `$TIGHTEN_TARGET` set-then-thread instruction entirely (the prose currently
@@ -193,10 +232,18 @@ against the working tree at drafting: the `cmdTightenPlan` truthy ternary, the S
   **Seed Local-destination block (spec §4, design row D4):** in the `## Seed` section of
   `skills/lessons-learned/references/seeding.md`, **Local destination** bullet, replace
   the single bare-render code block with a two-branch block matching the prose directly
-  above it (which is already correct and stays): one line for the
-  repo-learnings-dir-present case —
+  above it (which is already correct and stays). **The prose is the authority on the
+  branch predicate, and the predicate is `$REPO_ROOT` non-empty** — the bullet above the
+  fence reads "passing `--repo docs/learnings/` **iff** `$REPO_ROOT` is non-empty", so the
+  branch comments must restate *that* test verbatim, never a learnings-dir-existence test
+  (the two are not equivalent — a repo can resolve with no `docs/learnings/` yet, and the
+  converse). Writing dir-existence comments here would contradict the untouched prose in
+  the very block whose defect is prose/fence incoherence. (Spec §3 row D4 states the
+  predicate the other way; this plan's `$REPO_ROOT` reading governs, and the correction is
+  recorded in Notes as survey-derived.) So: one line for the **`$REPO_ROOT` non-empty**
+  case —
   `node "${CLAUDE_PLUGIN_ROOT}/skills/_shared/war-memory.mjs" render-index --local "$MEM" --repo docs/learnings/`
-  — and one for the absent case (the existing bare render line), each introduced by a
+  — and one for the empty/unset case (the existing bare render line), each introduced by a
   comment naming its condition. **No `${REPO_ROOT:+…}` one-liner** — that would re-import
   the exact dialect trap this plan retires (pivotal constraint, spec §2). The
   repo-destination bullet's fence above (which already carries `--repo docs/learnings/`)
@@ -207,8 +254,11 @@ against the working tree at drafting: the `cmdTightenPlan` truthy ternary, the S
   header comment naming the guarded construct). Placement: append under a **new task
   banner** naming this plan and its issues (the file's existing
   `// --- Task N.N (<plan-slug>, #issue): … ---` convention), continuing the file's
-  `(N)` lock numbering at the **next free numbers resolved at implementation time** —
-  never pinned here or in any count literal (the recorded banner-count trap). No other
+  `(N)` lock numbering **sequentially within the new task banner** — the file does *not*
+  carry one monotonic file-global `(N)` sequence (numbering restarts per banner, and
+  17–21 are each already used twice across the existing banners), so "the next free
+  number" has no well-defined file-global value; number from the new banner and never pin
+  a count literal here or in any banner text (the recorded banner-count trap). No other
   campaign plan touches this file.
   - *Seed-block `--repo` presence lock:* **the slicer is authored by this task** — the
     file's existing helpers are `lineWith`, `bashFenceWith`, and the seed-mode
@@ -238,8 +288,16 @@ against the working tree at drafting: the `cmdTightenPlan` truthy ternary, the S
     (`/\$\{[^}]*:\+/` failing the match — the shape, not the `:+--` literal, so respelled
     threading like `${V:+ --target $V}` or `${V:+"--target=$V"}` is equally red); and
     (ii) assert the whole `skill` text contains no `TIGHTEN_TARGET` token — the variable
-    is retired entirely (D3), and this half also locks the **prose** against a
-    reintroduced set-then-thread instruction that a fence-scoped assert cannot see.
+    is retired entirely (D3), and this half locks the **prose** against a reintroduced
+    `TIGHTEN_TARGET` set-then-thread instruction that a fence-scoped assert cannot see.
+    **Scope note (do not overstate this half):** assert (ii) is *token*-scoped, not
+    shape-scoped — a set-then-thread instruction reintroduced in prose under a different
+    variable name (`${V:+ --target $V}`), or `:+` threading added to some *other* bash
+    fence in SKILL.md, passes both asserts green. Those cases are End state 7's broadened
+    one-time sweep's job, not this lock's. (A third whole-file
+    `assert.doesNotMatch(skill, /\$\{[^}]*:\+/)` would close them standing; it is
+    deliberately **not** mandated here — the two-assert lock is what End state 3 claims,
+    and widening a lock beyond its End state is out of this task's footprint.)
     Both-ways proof: both asserts are red against today's SKILL.md (fence carries
     `${TIGHTEN_TARGET:+…}`, prose carries `$TIGHTEN_TARGET` at the step-1 instruction)
     and green after the rewrite; the existing `tighten-plan…--target` presence lock is
@@ -260,9 +318,23 @@ against the working tree at drafting: the `cmdTightenPlan` truthy ternary, the S
   no token grep can see. Spec-time dispositions to re-confirm (record in the done
   report): the seeding.md bare-render block itself (#1086 — no `:+` token, same
   silent-drop outcome; **fixed by this task**), and `references/migration.md`'s two
-  `--repo`-less render lines (**cleared** — the deliberately local-only evict path,
-  guarded by the existing evict lock; do **not** "fix"). List any further stragglers as
-  survey-derived corrections.
+  `--repo`-less render lines — both **cleared**, but for *two different reasons*, and the
+  worker must not go looking for one lock that covers both:
+  - the render under `## Evict — undoing the migration` (the "evicted rows lose their
+    trailing `[repo]` marker" step) is the deliberately local-only **evict** path, and it
+    **is** guarded by the existing `evict re-render is local-only — NO --repo` lock
+    (anchored on `lineWith(migration, 'evicted rows lose their')`);
+  - the render under `## Step 4 — keywords backfill` is the **migrate** path's
+    confirm-render, local-only because the repo root is not populated until Step 5 (which
+    the file itself calls the first repo-root population) — deliberate but guarded by
+    **no** lock.
+
+  Do **not** "fix" either. List any further stragglers as survey-derived corrections.
+  **Lesson stamp (in-task, sibling-plan convention):** prefix the `description` of
+  `docs/learnings/seeding-md-seed-local-render-block-omits-conditional-repo-flag.md` with
+  a `RESOLVED (<plan-slug>/1.2, #1086)` marker — the two-branch block closes exactly the
+  defect that lesson records. Body/keywords otherwise untouched; the file stays
+  lint-clean.
 - requiresTest: true — both locks land in `lessons-learned-doc-contract.test.mjs`,
   satisfying the test floor
 - requiresPackaging: false
@@ -271,7 +343,7 @@ against the working tree at drafting: the `cmdTightenPlan` truthy ternary, the S
 
 ### Task 1.3: seed-pack tagged-throw termination + TMPDIR hygiene proof (#1079)
 
-- Files: `skills/lessons-learned/assets/seed-pack.mjs`, `skills/lessons-learned/assets/seed-pack.test.mjs`
+- Files: `skills/lessons-learned/assets/seed-pack.mjs`, `skills/lessons-learned/assets/seed-pack.test.mjs`, `docs/learnings/die-process-exit-inside-try-skips-finally-cleanup.md`
 - Plan slice: **Termination rework (spec §4, design row D6):** in
   `skills/lessons-learned/assets/seed-pack.mjs`, `die(code, msg)` becomes a **throw** of a
   tagged error — a plain `Error` (or small subclass) carrying an `exitCode` property; the
@@ -281,9 +353,21 @@ against the working tree at drafting: the `cmdTightenPlan` truthy ternary, the S
   (`msg.endsWith('\n') ? msg : msg + '\n'` — no message may gain or lose a newline, spec
   §8) and calls `process.exit(exitCode)` **once**, after every `finally` has unwound; any
   untagged error rethrows unchanged (an engine bug must never masquerade as a contract
-  exit). The unknown-verb refusal in `main()` routes through the same catch or sits
-  before the `try` — either (no scratch dir exists at that point), keeping its exit-1 +
-  message contract identical. **Termination mechanics ONLY — nothing else "improves":**
+  exit). The unknown-verb refusal in `main()` — the `die(EXIT_REFUSE, …)` on the failed
+  `VERBS` lookup — **stays inside the `try`**, so its thrown tagged error routes through
+  the one catch, the one writer, and the one `process.exit`, keeping its exit-1 + message
+  contract identical. **This placement is pinned, not a choice:** `main()` is called at
+  module scope from the realpath-normalized CLI-entry guard with no enclosing try, so a
+  `die()`-turned-throw sitting *before* the try escapes uncaught and Node prints a stack
+  trace instead of the clean single-line
+  `seed-pack: unknown verb '<x>'. Verbs: pack, verify, evict` — a stderr-contract
+  regression that End state 6's byte-stability proof would **not** catch, since no case in
+  `seed-pack.test.mjs` exercises the unknown-verb path today (`grep 'unknown verb'` on
+  that file returns nothing). A worker who wants the refusal before the `try` anyway must
+  keep it as a direct `process.stderr.write` + `process.exit(1)` and never call the
+  now-throwing `die()` — but the in-`try` route is the mandated one, and it is what "one
+  throw shape, one catch, one exit" means.
+  **Termination mechanics ONLY — nothing else "improves":**
   the rework changes *how* a die-routed error reaches `process.exit`, never *what* the
   verbs do on the way there — no rollback semantics, no operation reordering, no new
   cleanup beyond what the existing `finally` blocks already do. In particular,
@@ -310,8 +394,12 @@ against the working tree at drafting: the `cmdTightenPlan` truthy ternary, the S
   fixture shape and the file's `run(args, opts)` spawn helper: pack a valid seed dir,
   corrupt one manifest `sha256`, then run `verify` as a subprocess with
   `env: { ...process.env, TMPDIR: <scratch> }` — the spread is load-bearing: a bare
-  `env: { TMPDIR: … }` strips `PATH`, the system `tar` spawn fails, and the run exits 1
-  via `runTar`'s refusal instead of the asserted 3 — where `<scratch>` is a **fresh
+  `env: { TMPDIR: … }` strips `PATH` from the child environment, so the test's own
+  `spawnSync('node', [CLI, …])` cannot resolve the interpreter and returns
+  `error: ENOENT` with `status: null` — the exit-3 assertion then fails against a run
+  that never happened (it is *not* a `tar` failure: `spawnSync('tar', …)` resolves fine
+  under the same PATH-less env, and there is no exit code at all, let alone 1) — where
+  `<scratch>` is a **fresh
   test-owned scratch dir** (created and removed by the test itself, so a parallel
   `node --test` run never races another suite's temp entries — spec §8); assert exit 3
   with the existing sha-mismatch stderr fragment
@@ -322,6 +410,18 @@ against the working tree at drafting: the `cmdTightenPlan` truthy ternary, the S
   survives) and passes after the rework — a genuinely discriminating red→green. The rest
   of the suite is byte-untouched (End state 6 runs it unmodified as the byte-stability
   proof).
+  **Shipped-seed verify is covered pre-merge — do not "fix" the proxy:**
+  `skills/lessons-learned/seed-set.test.mjs` already runs
+  `spawnSync('node', [CLI, 'verify', SEED_DIR])` against the committed `docs/seed/`, and
+  it matches the gate glob `skills/**/*.test.mjs`, so this task's own gate run exercises
+  the *reworked* verifier against the *shipped* artifacts before merge. That file must
+  stay **green and byte-unmodified** — it is the standing coverage for what would
+  otherwise be a deferred Lead command, and a worker "tidying" it would silently remove
+  the only pre-merge proof of End state 6's shipped-corpus half.
+  **Lesson stamp (in-task, sibling-plan convention):** prefix the `description` of
+  `docs/learnings/die-process-exit-inside-try-skips-finally-cleanup.md` with a
+  `RESOLVED (<plan-slug>/1.3, #1079)` marker. Body/keywords otherwise untouched; the file
+  stays lint-clean.
 - requiresTest: true — the deliverable includes the TMPDIR hygiene test in
   `seed-pack.test.mjs`, satisfying the test floor
 - requiresPackaging: false
@@ -367,18 +467,15 @@ against the working tree at drafting: the `cmdTightenPlan` truthy ternary, the S
 
 ## Deferred validations (backstops)
 
-- RESOLVED/MITIGATED stamps on the mined lessons backing #1088/#1079/#1086 · why
-  deferred: spec §9 explicitly defers lesson-file updates to the standard
-  servitor/aftermath convention — they are not part of the code change, and the backing
-  lessons live in the local memory root, which task worktrees cannot see · runner: the
-  servitor post-land (standing convention), backstopped by `/aftermath`'s evidence-gated
-  cleanup.
-- Shipped-seed verify under the reworked CLI — `node
-  skills/lessons-learned/assets/seed-pack.mjs verify docs/seed` exits 0 on the landed
-  tip · why deferred: the campaign's plan 1 re-packs `docs/seed/` and lands **before**
-  this plan, so the meaningful check is the reworked verifier against the final shipped
-  artifacts on the integrated tip, not a task-base snapshot · runner: the Lead at
-  Phase-1 land (one command, read-only).
+- Phase-1-tip lesson-stamp check — confirm all three `docs/learnings/` origin lessons
+  carry their `RESOLVED (…)` description prefix on the integrated Phase-1 tip (End state
+  9) · why deferred: the stamps land in three **parallel** tasks, so no single task's
+  audit diff can see all three, and the tighten lesson's stamp is only true once 1.1 and
+  1.2 have both merged · runner: the Lead at Phase-1 land, before dispatching Phase 2
+  (one `grep -l 'RESOLVED' docs/learnings/<three files>`, read-only). *The stamps
+  themselves are no longer deferred — red-team round 1 established that all three lessons
+  are repo-root files a task worktree can see, so they are stamped in-task per the
+  sibling-plan convention; only the cross-task completeness check is deferred.*
 - Integrated-tip sweep re-check — re-run `grep -rn ':+--' skills/ hooks/` on the landed
   Phase-1 tip and re-confirm the two spec-time hand-scan dispositions · why deferred:
   Task 1.2 adjudicates at its own frozen base; a zero-matches claim (End state 7) is a
@@ -426,19 +523,41 @@ against the working tree at drafting: the `cmdTightenPlan` truthy ternary, the S
     and **no re-pack is owed**. Direction B (this plan first, e.g. standalone `/war`):
     plan 1's later re-pack simply runs the reworked binary — same output contract
     (manifest JSON shape unchanged; tarball bytes are never asserted, per the CLI's own
-    BSD-tar note). The deferred shipped-seed verify backstop confirms the final pairing
-    on the integrated tip.
+    BSD-tar note). Either way the pairing is confirmed **pre-merge, inside the gate**, by
+    `skills/lessons-learned/seed-set.test.mjs`'s `verify docs/seed` case — not by a
+    deferred Lead command (red-team round 1: plan 1 has already landed, so its re-pack is
+    in this plan's own frozen base, and the gate proxy covers the reworked verifier
+    against the shipped artifacts; the former backstop row was retired as redundant).
   - `skills/lessons-learned/lessons-learned-doc-contract.test.mjs`, `SKILL.md`,
     `references/seeding.md`, `seed-pack.test.mjs` — touched by **no other campaign plan**
     (plans 2/4/5 touch `skill-doc-contracts.test.mjs`, a different file).
   - `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `README.md` — shared
     with every campaign plan's trailing release phase; this plan is the **final** lander
     and re-resolves the next free patch from the slots at land.
-- **No lesson edits in this plan — deliberate divergence from sibling campaign plans:**
-  plans 1–5 stamp their mined `docs/learnings/` lessons in-task; this plan's backing
-  lessons are deferred by its own spec (§9, "deferred to the standard servitor/aftermath
-  convention") and live in the local memory root, so the plan carries no
-  `docs/learnings/` files at all. The backstop row owns the follow-through.
+- **Lessons are stamped in-task, following plans 1–5 (red-team round 1, operator-ratified
+  — corrects a false premise in the drafted plan):** the draft carried no
+  `docs/learnings/` files, justified by the claim that its backing lessons "live in the
+  local memory root, which task worktrees cannot see." That premise is **false** and was
+  code-verified against the plan's own base: all three are committed at the repo root —
+  `docs/learnings/tighten-target-flag-has-three-independent-silent-degradation-paths.md`,
+  `docs/learnings/seeding-md-seed-local-render-block-omits-conditional-repo-flag.md`, and
+  `docs/learnings/die-process-exit-inside-try-skips-finally-cleanup.md` — and are plainly
+  visible to every task worktree. Spec §9 defers "lesson-file updates" but never claims
+  they are local-root-only, and the servitor could not have run this backstop anyway: it
+  is write-scoped to the **local** memory root, so a repo-root stamp needs the reviewed-PR
+  path, not a servitor write. Deferring would also have shipped a release whose own
+  corpus asserts the defects are live — the tighten lesson's `description` becomes
+  code-traceably false the moment Task 1.1's guard lands. So each owning task now stamps
+  its lesson (End state 9), and only the cross-task completeness check stays deferred.
+- **Survey-derived correction to spec §3 row D4 (red-team round 1, operator-ratified):**
+  the spec states the seeding.md branch predicate as "repo learnings dir present"; the
+  prose above the fence — which the plan leaves untouched and calls already correct —
+  tests `$REPO_ROOT` non-empty. The two are not equivalent. **This plan's `$REPO_ROOT`
+  reading governs** (Task 1.2), for the same reason the plan refuses to reword the prose:
+  a branch comment contradicting the prose directly above it would reintroduce, in the
+  fixed block, exactly the prose/fence incoherence #1086 is about. The spec row is
+  non-authoritative on this point, as version literals and construct citations in specs
+  are elsewhere — reconcile toward the checkable surface.
 - **Refuse-loud is a behavior change at the CLI edge (D1, ratified):** silent fallback
   was rejected because it preserves the exact complaint (a plausible result at a bound
   the operator did not ask for) for the NaN path. `tighten-plan` is a read-only verb —

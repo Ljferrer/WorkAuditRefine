@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   provenance: code-verified
-  promoted: dev/2026-07-24-runbook-and-standing-record-coherence@phase-1
+  promoted: dev/2026-07-24-runbook-and-standing-record-coherence@phase-2
   slug: full-gates-green-end-state-soft-without-threaded-gate-log-artifact
   phase: "red-team-fallback-and-anchor-hygiene/phase-2 (Release, task 2.1) +4 recurrences (latest runbook-and-standing-record-coherence/phase-1-integrated-tip gate-audit, 2026-07-24)"
   keywords:
@@ -35,7 +35,7 @@ metadata:
   created: 2026-07-15
   updated: 2026-07-24
   originSessionId: e11422bd-1b49-4d13-9840-37a67306b3f5
-  modified: 2026-07-25T07:05:55.757Z
+  modified: 2026-07-27T03:52:24.313Z
 ---
 
 **Local recurrence copy** of the repo-root lesson at `docs/learnings/full-gates-green-end-state-soft-without-threaded-gate-log-artifact.md`
@@ -193,3 +193,61 @@ and the presence key). `code-verified` at the landed tip `3444016a48a3d97b5beb21
 **Confirms:** the SOFT-never-hold disposition for this exact End-state shape now holds across five
 occurrences and two campaigns; the mechanical-half-confirmable / execution-half-SOFT split is
 stable and needs no further pattern refinement, only occurrence-count freshness.
+
+## Recurrence 6 (2026-07-26, plan `2026-07-24-gate-evidence-and-release-integrity`, phase 2 "Release", task 2.1) — sixth occurrence, End state 11
+
+Sixth occurrence, back to the Recurrences 1-3/5 per-task/version-slot `phase-N-end-state` shape:
+End state 11 required all four version slots bumped in lock-step to the next free patch
+(`0.14.62`) and the full `version-slots.test.mjs` suite (now including the new monotonic floor)
+green. The `phase-2-end-state` gate-audit split the condition exactly as prescribed — content half
+HARD-verified MET (all four slots read `0.14.62` at the confirmed tip `1e9c287965f57e31acc347bb2153c86b868e5219`,
+the land-time base read `0.14.61`, and `git log --all -S0.14.62/-S0.14.63` confirmed `0.14.62` is
+the next free patch), execution half recorded SOFT ("this pass was threaded NO gate-log artifact
+path and NO pin_status token, so greenness is established by deterministic reconstruction of each
+assertion against the confirmed tip, not by reading captured refiner gate output"). Verdict stayed
+`gate-audit:approve`, `hard:false`, `disposition:note`.
+
+**What this occurrence adds:** the seat went further than prior recurrences and independently
+*reconstructed* the monotonic-floor assertion's outcome by reproducing its exact command
+(`git log --first-parent --diff-merges=first-parent -n 50 -p -- .claude-plugin/plugin.json`) against
+the confirmed tip and checking the parsed window max against the working tree's `plugin.json#version` —
+a deeper mitigation than a bare SOFT note, though still recorded as SOFT rather than promoted to HARD,
+since it reconstructs rather than reads captured gate output. This sits between Recurrence 4's
+integrated-tip spot-verify (which independently re-derives *pin proof*, promoting to HARD) and
+Recurrences 1-3/5's bare SOFT note (no independent reconstruction at all) — a new middle rung:
+independently reconstructing an assertion's *outcome* stays SOFT/note even when the reconstruction is
+thorough, because it still isn't the refiner's own captured gate-log artifact.
+
+`code-verified` at the landed tip `23f853c9b51c2256a0ea59bfd4762204181724ac` (read via the `_refinery`
+worktree matching that SHA, gitdir physical path containing this plan's slug:
+`<repo-root>/.claude/worktrees/2026-07-24-gate-evidence-and-release-integrity-2026-07-26/_refinery/`):
+`.claude-plugin/plugin.json` `version` reads `0.14.62`, matching the audit's confirmed content.
+
+**Confirms:** the SOFT-never-hold disposition holds across six occurrences and three campaigns; a
+seat's independent reconstruction of the withheld artifact's outcome is a valid deepening of the
+mitigation but does not itself convert the finding to HARD — only a genuinely captured gate-log
+artifact or pin_status token does that (per Recurrence 4's narrower promotion path, which relies on
+*pin* re-derivation, not *assertion-outcome* re-derivation).
+
+## Recurrence 7 (2026-07-26, plan `2026-07-24-memory-tooling-hardening`, phase 1, tasks 1.1/1.2/1.3 per-task gate-audits) — three occurrences in one phase, mixed HEAD-equal and HEAD-advanced
+
+Seventh occurrence, and the first time the pattern fires three times in a single phase (one per
+task's own gate-audit, not the phase-2-Release/version-slot shape of Recurrences 1-3/5-6): each of
+tasks 1.1, 1.2, 1.3 threaded a captured gate-log path but **no stamped `pin_status` token**, so each
+seat formally downgraded its execution evidence to SOFT per the standing rule — `gate-audit:approve`,
+`hard:false`, `disposition:note`, none HARD. Task 1.3's observed `_refinery` worktree HEAD happened to
+equal that task's own gate-HEAD exactly (both `80bf15e0...`), so the practical risk was nil even
+though the seat still formally downgraded (no shortcut taken just because the SHAs matched — the rule
+is "no token ⇒ SOFT," not "no token unless the SHA happens to match"). Tasks 1.1 and 1.2 both observed
+a HEAD several commits ahead of their own gate-HEAD (later sibling tasks' commits already landed by
+the time each seat ran) and used the same advisory, non-substituting mitigation as Recurrence 6:
+read-only `git diff --name-only <gate-HEAD> <observed-HEAD>` showed the divergence touched only
+later-task files (BENIGN-ADVANCE shape), and the seat judged the task's own content from
+`git show <gate-HEAD>:<path>` (committed-tree grounding), never the advanced working tree.
+
+**Confirms:** the SOFT-never-hold disposition and the "verify content at the pinned blob via `git
+show`, never trust an advanced working tree" mitigation both continue to hold at per-task gate-audit
+granularity, including the degenerate case where the observed HEAD happens to equal the gate-HEAD
+exactly — no shortcut is taken on a SHA-equality coincidence; the seat still records SOFT absent the
+stamped token. No new edge — recorded only to keep the occurrence count/date current for retrieval
+confidence.

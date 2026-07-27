@@ -1,6 +1,6 @@
 ---
 name: seeding-md-seed-local-render-block-omits-conditional-repo-flag
-description: "seeding.md's `## Seed` local-destination bullet mandates `--repo docs/learnings/` conditionally in prose but the code block right below it shows the bare render-index call — a copy-paste footgun that silently drops [repo] rows"
+description: "RESOLVED (memory-tooling-hardening/1.2, #1086): seeding.md's `## Seed` local-destination bullet mandates `--repo docs/learnings/` conditionally in prose but the code block right below it shows the bare render-index call — a copy-paste footgun that silently drops [repo] rows"
 metadata: 
   node_type: memory
   type: project

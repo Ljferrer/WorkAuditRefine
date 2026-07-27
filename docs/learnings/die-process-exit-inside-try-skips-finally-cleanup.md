@@ -1,6 +1,6 @@
 ---
 name: die-process-exit-inside-try-skips-finally-cleanup
-description: "A die()/process.exit() helper called from inside a try block terminates the process without unwinding the stack, so the enclosing try/finally cleanup never runs — scratch dirs leak on every error path"
+description: "RESOLVED (memory-tooling-hardening/1.3, #1079, landed 2026-07-26): die() now throws a tagged Error and main() alone calls process.exit after every finally has unwound. Was: a die()/process.exit() helper called from inside a try block terminates the process without unwinding the stack, so the enclosing try/finally cleanup never runs — scratch dirs leaked on every error path"
 metadata: 
   node_type: memory
   type: project
@@ -15,9 +15,13 @@ metadata:
     - cleanup skipped
     - os.tmpdir leak
     - error path hygiene
+    - RESOLVED
+    - tagged Error throw
+    - single exit point
   provenance: code-verified
+  promoted: dev/2026-07-22-lessons-learned-seed@phase-1
   slug: die-process-exit-inside-try-skips-finally-cleanup
-  phase: lessons-learned-seed/phase-1 task 1.1 (landed dev/2026-07-22-lessons-learned-seed)
+  phase: "lessons-learned-seed/phase-1 task 1.1 (landed dev/2026-07-22-lessons-learned-seed); RESOLVED memory-tooling-hardening/phase-1 task 1.3 (landed dev/2026-07-24-memory-tooling-hardening, 2026-07-26)"
   tags: 
     - node
     - cli-tooling
@@ -25,9 +29,16 @@ metadata:
     - cleanup
     - temp-files
   created: 2026-07-22
+  updated: 2026-07-26
   originSessionId: 8a3e4cd6-492f-43ba-b10c-46e460a457b9
-  modified: 2026-07-22T20:07:02.113Z
+  modified: 2026-07-27T03:52:08.384Z
 ---
+
+**Local recurrence copy** of the repo-root lesson at
+`docs/learnings/die-process-exit-inside-try-skips-finally-cleanup.md` (same slug) — the repo copy is
+not directly editable by a servitor (D1), so this file carries the original content plus the
+`## RESOLVED` section below; a future Gate-2 promotion of this file overwrites the same-slug repo
+file.
 
 # `process.exit()` inside a `try` body never runs the enclosing `finally`
 
@@ -53,6 +64,40 @@ whether any function reachable inside the try (including transitively, via a sha
 helper) can call `process.exit()` directly — if so, the `finally` is dead code on that path. Fix
 options: (1) have the fail helper `throw` a tagged Error instead of exiting, and exit once at the
 outermost catch after cleanup runs; or (2) wrap the exit call itself so it deletes any registered
-scratch dirs first. Low-value to fix in a re-runnable, author-time CLI tool (accepted as-is here,
-disposition `note`) — but load-bearing to know before reusing the same `die()`-into-`process.exit()`
-shape in a long-running or automated context where leaked temp dirs actually accumulate.
+scratch dirs first. Option (1) is what actually landed — see `## RESOLVED` below; the "low-value to
+fix... accepted as-is" framing that used to close this paragraph no longer applies.
+
+## RESOLVED (memory-tooling-hardening/1.3, #1079, landed dev/2026-07-24-memory-tooling-hardening 2026-07-26)
+
+**Code-verified — found at `skills/lessons-learned/assets/seed-pack.mjs`; verify still present
+before acting.** Option (1) above is what shipped: `die(code, msg)` (now at the `die helper` comment
+block starting line 59, function body at line 66) no longer calls `process.exit` — it throws
+`Object.assign(new Error(msg), { exitCode: code })`. `main()` (module-scope, no enclosing try around
+itself) wraps the single dispatch call in one try/catch: an untagged error (`typeof e?.exitCode !==
+'number'`) rethrows unchanged (never masquerades as a contract exit); a tagged error writes
+`e.message` to stderr and is the **only** `process.exit()` call left in the file, reached only after
+every `finally` in the call chain (`cmdPack`'s staging dir, `verifyTier`'s extraction tmp dir,
+`cmdEvict`'s seed/archive tmp dirs) has already unwound and `fs.rmSync(..., {recursive:true,
+force:true})`'d its scratch dir. Observable subprocess contract (every exit status 1/3/4/5, every
+stderr fragment) is byte-identical — proven by the full pre-existing `seed-pack.test.mjs` suite
+passing unmodified, plus a new TMPDIR-scoped subprocess test asserting zero `seed-pack-*` entries
+survive a `verify` failure.
+
+**New narrow divergence this refactor introduces (not closed, recorded as a residual):** because the
+three `finally` blocks now actually run during a die-triggered unwind (they never did under the old
+`process.exit()`-inside-try shape), a `finally` body that itself throws — e.g.
+`fs.rmSync(scratchDir, {recursive:true, force:true})` hitting EACCES/EBUSY on the self-created temp
+dir — REPLACES the tagged error. `main()`'s catch then sees `typeof e?.exitCode !== 'number'`,
+rethrows, and the process exits 1 with a raw stack trace instead of the intended 3/4/5 contract exit.
+Likelihood is low (`force:true` absorbs ENOENT, dirs are self-created under `os.tmpdir()`, seed
+tarballs carry only flat `*.md` members) and deliberately left unguarded — wrapping every cleanup
+`finally` in a bare `try {} catch {}` was scoped out of the fix ("no new cleanup beyond what the
+existing finally blocks already do"). Know this before copying the throw-based `die()` pattern
+elsewhere: a `finally`-cleanup-failure-masks-the-real-error class of bug becomes reachable the moment
+`process.exit()`-in-try becomes `throw`-in-try, where it wasn't reachable before.
+
+**Also newly implicit:** `main()`'s single try/catch design is silently coupled to every verb
+(`cmdPack`/`cmdVerify`/`cmdEvict`) staying fully synchronous — a future `async` verb whose tagged
+`die()` throw happens inside a Promise becomes an unhandled rejection that skips the catch entirely
+(stack trace + exit 1, not the contract code). No guard exists for this today since no async verb
+exists; note it before adding one.
