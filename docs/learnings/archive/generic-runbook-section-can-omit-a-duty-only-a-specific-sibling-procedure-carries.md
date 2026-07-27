@@ -69,3 +69,5 @@ doctrine on a duty needing mirroring into a second surface, though that pairing 
 vs dispatched-prompt, not two sections of the same standing doc.
 [[doc-promises-ledger-field-the-schema-contract-never-defines]] — sibling finding from the same
 phase, same doc-completeness-survey theme, different file (schemas.md vs SKILL.md).
+
+> archived 2026-07-27: resolved — moved to archive

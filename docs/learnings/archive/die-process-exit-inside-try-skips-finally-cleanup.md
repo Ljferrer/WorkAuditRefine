@@ -101,3 +101,5 @@ elsewhere: a `finally`-cleanup-failure-masks-the-real-error class of bug becomes
 `die()` throw happens inside a Promise becomes an unhandled rejection that skips the catch entirely
 (stack trace + exit 1, not the contract code). No guard exists for this today since no async verb
 exists; note it before adding one.
+
+> archived 2026-07-27: resolved — moved to archive

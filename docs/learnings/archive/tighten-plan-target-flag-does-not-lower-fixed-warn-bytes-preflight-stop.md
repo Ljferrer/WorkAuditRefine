@@ -75,3 +75,5 @@ byte-untouched; `render-index` and `archive --candidates` still read the pure ad
 (`skills/_shared/war-memory.test.mjs`: `verdict (#992): a sub-advisory --target binds the
 trigger; the default target is byte-identical to the projection read`, `verdict (#992): a target
 ABOVE the advisory never suppresses the projection warn`.)
+
+> archived 2026-07-27: resolved — moved to archive

@@ -70,3 +70,5 @@ Related: [[full-gates-green-end-state-soft-without-threaded-gate-log-artifact]] 
 promises an artifact the mechanism doesn't actually thread" gap. [[standing-instruction-vs-dispatched-prompt-coverage-split]]
 (repo) — the closest existing doctrine on doc-surface completeness checks, though scoped to a
 different pairing (standing `.md` vs dispatched prompt, not doc-promise vs schema-contract).
+
+> archived 2026-07-27: resolved — moved to archive

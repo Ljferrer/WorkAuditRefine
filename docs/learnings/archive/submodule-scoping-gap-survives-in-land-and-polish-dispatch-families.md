@@ -132,3 +132,5 @@ is a promise to verify per-site, not to trust.
 
 Related: [[prompt-mirror-shape-inherits-donor-prompts-latent-omission]] (the resolved half of this
 same submodule-scoping family — MERGE-side `submodMergeNote`).
+
+> archived 2026-07-27: resolved — moved to archive

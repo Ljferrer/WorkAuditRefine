@@ -74,3 +74,5 @@ imprecision about guard semantics, different failure mode — see its Recurrence
 the closest-mechanism instance: one clause summarizing three guards where one used a structurally
 different comparison form). [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]]
 (how this fact was confirmed against the actual landed tip rather than a stale cwd).
+
+> archived 2026-07-27: resolved — moved to archive

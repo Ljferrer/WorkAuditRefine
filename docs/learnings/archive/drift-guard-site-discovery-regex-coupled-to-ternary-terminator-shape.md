@@ -96,3 +96,5 @@ drift-guard built on the `matchAll`-sweep idiom, this instance is closed.
 
 [[plan-survey-token-sweep-misses-untagged-siblings]]
 [[structural-test-blind-spot-narrowing-needs-negative-reference-and-default-deny-census]]
+
+> archived 2026-07-27: resolved — moved to archive

@@ -133,3 +133,5 @@ pre-fix truthy-ternary shape (`argv['top-k'] ? Number(...) : DEFAULT_TOP_K`, sam
 not extend it to `cmdQuery`. See [[cmdquery-topk-budget-share-tighten-targets-pre-fix-truthy-ternary-shape]]
 for the standalone gotcha and its failure-direction difference (NaN `--top-k` empties the seat
 prefetch instead of over-selecting).
+
+> archived 2026-07-27: resolved — moved to archive

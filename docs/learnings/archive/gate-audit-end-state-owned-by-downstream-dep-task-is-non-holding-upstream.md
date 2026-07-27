@@ -89,3 +89,5 @@ confirmed End state 5 was in fact satisfied by land time. [[within-phase-dep-gat
 what's checkable when." [[gate-artifact-never-includes-war-memory-lint]] and
 [[gate2-commit-from-stale-verify-worktree-can-revert-a-release-bump]] — sibling #1081/#1083 closures
 landed in the same gate-evidence-and-release-integrity phase 1.
+
+> archived 2026-07-27: resolved — moved to archive
