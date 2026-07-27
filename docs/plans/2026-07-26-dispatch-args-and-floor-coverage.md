@@ -54,10 +54,17 @@ call sites, and neither `'submodule-blocked'` nor `'submodule-pr'` is in
      substitutions, so that comment's `EMBEDDED_ARGS` mention rides into every staged copy by
      construction — a zero-bare-token assertion would be RED on arrival (red-team 2026-07-27).
   2. **Valid `--args`:** staging with a valid JSON-object file yields a staged script whose text
-     (i) starts with the `EMBEDDED_ARGS` prelude carrying the payload, (ii) contains
+     (i) carries the `EMBEDDED_ARGS` prelude **immediately after the `export const meta { … }`
+     statement — never before it**, so `export const meta` remains the staged script's first
+     *statement* (the Workflow tool refuses any script where it is not, dying `Invalid workflow
+     script` before dispatch — reproduced live 2026-07-27; a leading *comment* is fine, a leading
+     `const` is not), (ii) contains
      `: (args || EMBEDDED_ARGS)` and not the original fallback bytes, and (iii) restores to the
      shipped template when the three substitutions (two meta anchors + fallback) are reversed
-     and the prelude stripped.
+     and the prelude stripped. A test pins (i) **positionally** — the prelude's index is greater
+     than the `export const meta` index — and a dispatch-shape assertion that no statement
+     precedes `export const meta`; a mere "prelude is present" check would have passed the
+     broken prepend.
   3. **Invalid `--args`:** a malformed-JSON file, and each non-object parse (array, scalar,
      `null`), exits non-zero with a named `stage-workflow:`-prefixed stderr error and writes no
      staged file; `--args` missing its value token exits non-zero with the usage error; a
@@ -298,13 +305,25 @@ call sites, and neither `'submodule-blocked'` nor `'submodule-pr'` is in
   **Substitution order (the spec §2 invariant):** (1) the two existing meta-anchor
   substitutions; (2) when `--args` is present,
   `replaceExactlyOnce(staged, ARGS_FALLBACK_ANCHOR, ': (args || EMBEDDED_ARGS)')`; (3) **last**,
-  prepend the prelude — one provenance comment line plus
-  `const EMBEDDED_ARGS = <JSON.stringify(parsed)>` — to the top of the staged text. Payload
+  insert the prelude — one provenance comment line plus
+  `const EMBEDDED_ARGS = <JSON.stringify(parsed)>` — **immediately after the staged text's
+  `export const meta = { … }` statement**. Payload
   bytes are injected only after every exactly-once count has run, so a payload quoting any
   anchor cannot fork the stage. `JSON.stringify` output is valid JS source (ES2019 JSON-superset
-  grammar) — no re-escaping pass. Prelude placement above the template's opening COUPLING
-  comment is legal (spec §8 latitude); any placement satisfying injected-after-all-substitutions
-  is acceptable.
+  grammar) — no re-escaping pass.
+  **Placement is NOT free latitude — corrected 2026-07-27 from live evidence.** The spec's §8
+  claim that "prelude placement above the template's opening COUPLING comment is legal" and that
+  "any placement satisfying injected-after-all-substitutions is acceptable" is **FALSE**: the
+  Workflow tool **refuses** a script whose first *statement* is not `export const meta`, dying
+  `Invalid workflow script: export const meta = { name, description, phases } must be the FIRST
+  statement in the script` — before any agent is dispatched. A leading *comment* is fine (the
+  shipped template already opens with the COUPLING comment); a leading `const` is not. Reproduced
+  live by the campaign Lead on 2026-07-26-dispatch-args-and-floor-coverage phase 1 while
+  hand-embedding args into the staged copy. Red-team round 0 missed it because its executed probe
+  built the substitution pipeline in a sandbox and asserted on staged **text**, never dispatching
+  a staged script through the real Workflow tool. Implementation must therefore brace-match the
+  `export const meta` statement and insert past its closing line — **never** `staged = prelude +
+  staged`.
   **Contract preserved:** write-if-absent short-circuits before any `--args` processing exactly
   as today (path printed, exit 0) — with one addition: when `--args` was passed and the
   short-circuit fires, print one stderr warning line (`stage-workflow: existing staged file
@@ -331,7 +350,10 @@ call sites, and neither `'submodule-blocked'` nor `'submodule-pr'` is in
   **Tests:** extend the anchor-guard loop to the imported `ARGS_FALLBACK_ANCHOR`
   (exactly-once in the shipped template); the invalid-`--args` cases incl. duplicate-`--args`
   and the `--args --force` peel-ordering case (End state 3); the valid-`--args` staged-text
-  assertions (End state 2 i–iii); the payload-quotes-anchor-bytes + JS-meta payload case (End
+  assertions (End state 2 i–iii) — including the **positional** prelude-placement pin (the
+  `EMBEDDED_ARGS` prelude's index exceeds the `export const meta` index, and no statement
+  precedes `export const meta`), which a presence-only check would not have caught; the
+  payload-quotes-anchor-bytes + JS-meta payload case (End
   state 4); the no-flag negative in its **substitution-evidence** form — zero
   `const EMBEDDED_ARGS =`, zero `: (args || EMBEDDED_ARGS)`, and `: (args || {})` still
   exactly-once — never the bare-token form, which the template coupling comment makes RED by
