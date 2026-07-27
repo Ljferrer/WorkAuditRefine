@@ -92,8 +92,9 @@ from GitHub and never confused with a *target's* `$REPO_ROOT`.
      branch and opens a PR (`gh pr create`, base = the target's default branch); empty leaves the
      commit local on the `dev/...` branch and the report says so plainly — never an error.
    - **Local destination:** write every surviving stamped member into `$MEM` (created if it does
-     not yet exist — nothing here mkdirs by hand), then render, passing `--repo docs/learnings/`
-     **iff** `$REPO_ROOT` is non-empty:
+     not yet exist — nothing here mkdirs by hand), then render, running **exactly one** of the two
+     lines below (never the fence wholesale), passing `--repo docs/learnings/` **iff** `$REPO_ROOT`
+     is non-empty:
 
      ```bash
      # $REPO_ROOT is non-empty
