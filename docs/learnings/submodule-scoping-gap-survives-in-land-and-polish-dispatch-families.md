@@ -1,9 +1,10 @@
 ---
 name: submodule-scoping-gap-survives-in-land-and-polish-dispatch-families
-description: "Phase 1 of recovery-re-merge-dispatch-coherence closed the submodMergeNote gap at the three MERGE-side retry dispatches, but two sibling gaps in the same submodule-scoping family remain open by design: the LAND-side submodLandNote never rides the environment-proceed/baseline-proceed re-land dispatches, and the class-exempt phase-close polish merge has no per-task lexical scope to carry a submodule note at all — plus a separate, still-live pre-existing bug: the floor-retry re-merge's own comment claims it re-instructs the submodule floor script but does not"
+description: "RESOLVED (2026-07-26-dispatch-args-and-floor-coverage/1.1): all three residual gaps below are now closed — submodLandNote rides both re-land dispatches, the polish merge carries a bare submodule-floor invocation, and the floor-retry re-merge now invokes assert-no-submodule-mutation.sh for real. Phase 1 of recovery-re-merge-dispatch-coherence closed the submodMergeNote gap at the three MERGE-side retry dispatches, but two sibling gaps in the same submodule-scoping family remain open by design: the LAND-side submodLandNote never rides the environment-proceed/baseline-proceed re-land dispatches, and the class-exempt phase-close polish merge has no per-task lexical scope to carry a submodule note at all — plus a separate, still-live pre-existing bug: the floor-retry re-merge's own comment claims it re-instructs the submodule floor script but does not"
 metadata: 
   node_type: memory
   type: project
+  promoted: dev/2026-07-24-recovery-re-merge-dispatch-coherence@phase-1
   provenance: code-verified
   slug: submodule-scoping-gap-survives-in-land-and-polish-dispatch-families
   phase: "recovery-re-merge-dispatch-coherence/phase-1 (tasks 1.1, 1.2)"
@@ -21,6 +22,9 @@ metadata:
     - targetRepo
     - war-followup
     - workflow-template.js
+    - --declared arg order
+    - war-refiner.md step 6
+    - assert-no-submodule-mutation exit 2
   tags: 
     - war
     - workflow-template
@@ -29,7 +33,7 @@ metadata:
     - recovery-dispatch
   created: 2026-07-25
   originSessionId: 4eee3466-8bcc-44f9-a6c2-754d46624537
-  modified: 2026-07-25T09:05:02.825Z
+  modified: 2026-07-27T20:38:28.571Z
 ---
 
 # Three residual submodule-scoping gaps in the merge/land/polish dispatch families (one pre-existing bug, two by-design deferrals)
@@ -89,6 +93,36 @@ sibling sites D/E in the same code family open — check whether the deferral is
 non-goal (durable, expected — nothing to fix) versus an unstated comment/behavior mismatch
 discovered as a side effect of tracing the same subject area (a real bug, needs its own
 follow-up). Both shapes surfaced in the SAME phase here; only #3 needs action.
+
+**RESOLUTION (phase `2026-07-26-dispatch-args-and-floor-coverage/1.1`, landed tip
+`0250694ea5c69e77e2fa2f0543f81c6ccf111978`, verified in the phase's `_refinery` worktree):** all
+three items above are now closed in the same commit.
+- **#1 (submodLandNote at re-land dispatches):** `submodLandNote` (built once at
+  `skills/war/assets/workflow-template.js`, around the `const submodLandNote = ...` line) now
+  appears at exactly 4 sites total — the build line plus the initial `land:phase-<id>` prompt,
+  `land:phase-<id>:environment-proceed`, and `land:phase-<id>:baseline-proceed` — confirmed via
+  `grep -n submodLandNote workflow-template.js`.
+- **#2 (polish merge submodule floor):** the `merge:p<phaseId>-polish` dispatch now runs
+  `assert-no-submodule-mutation.sh` **bare** (never `--declared` — a coherence sweep is never a
+  declared gitlink bump), with an explicit comment stating why the relax-flag never threads there.
+- **#3 (floor-retry omission):** the `merge:<taskId>:floor-retry:r<round>` dispatch now actually
+  invokes `assert-no-submodule-mutation.sh` (with the `--declared` conditional for a gitlink-bump
+  task), matching what its own header comment always claimed. Total dispatched-prompt sites for
+  `assert-no-submodule-mutation.sh` across the file: exactly 5 (initial merge, floor-retry,
+  environment-proceed re-merge, baseline-proceed re-merge, polish).
+
+**Still-live sibling gotcha surfaced by the SAME phase, NOT fixed (out of scope — see
+End state 10's "no `agents/*.md` edit"):** `agents/war-refiner.md` step 6's declared-gitlink-bump
+example writes the flag BEFORE the positionals — `assert-no-submodule-mutation.sh --declared
+<integrationBranch> <taskBranch>`. The script
+(`skills/war/assets/assert-no-submodule-mutation.sh`) parses unconditionally with
+`base="$1"; branch="$2"; shift 2` before its flag loop, so that invocation order binds
+`base='--declared'`, `branch='<integrationBranch>'`, and the leftover `<taskBranch>` hits the
+`*) die "unexpected positional argument"` arm — **exit 2**, which the refiner contract maps to
+`status:'error'`, not a clean pass. All 5 dispatched-prompt sites use the correct trailing-flag
+form (`<base> <branch> --declared`), so only the standing doc card is wrong. Verified still present
+at the same landed tip. Fix (when a future task touches `agents/war-refiner.md`): reorder step 6
+to `assert-no-submodule-mutation.sh <integrationBranch> <taskBranch> --declared`.
 
 **How to apply:** when auditing (or extending) any of `submodMergeNote`/`submodLandNote`-style
 scoping notes or floor-script re-instruction comments in `workflow-template.js`, grep all
