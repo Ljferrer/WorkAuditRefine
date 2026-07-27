@@ -1,14 +1,14 @@
 ---
 name: gate2-commit-from-stale-verify-worktree-can-revert-a-release-bump
-description: "A Gate-2 docs(learnings) commit staged from a verify worktree carrying stale version-slot files silently reverts a landed release bump; version-slots.test.mjs passes it because the test checks lock-step, not monotonic increase"
-metadata: 
+description: "MITIGATED (#1083): a Gate-2 docs(learnings) commit staged from a stale verify/publication worktree silently reverts a landed release bump — version-slots.test.mjs passed it because lock-step is not monotonic"
+metadata:
   node_type: memory
   type: project
   provenance: code-verified
   promoted: dev/2026-07-22-cli-main-guard-normalization@phase-2
   slug: gate2-commit-from-stale-verify-worktree-can-revert-a-release-bump
-  phase: "war-campaign-resilience-roadmap plan 8 (cli-main-guard-normalization) — Lead-caught during plan-8 phase-2 setup, 2026-07-23"
-  keywords: 
+  phase: "war-campaign-resilience-roadmap plan 8 (cli-main-guard-normalization) — Lead-caught during plan-8 phase-2 setup, 2026-07-23; MITIGATED gate-evidence-and-release-integrity/phase-1 task 1.4 (#1083, landed dev/2026-07-24-gate-evidence-and-release-integrity, 2026-07-26)"
+  keywords:
     - Gate-2 promotion commit
     - stale verify worktree
     - version slot regression
@@ -19,13 +19,17 @@ metadata:
     - plugin.json marketplace.json README Status
     - lock-step invariant blind to downgrade
     - restore release on predecessor tip then merge into successor
-  tags: 
+    - monotonic floor
+    - pre-push staged-file check
+    - publication-worktree dirty-reuse refusal
+    - EX_WRONG_BRANCH
+  tags:
     - release
     - version
     - gate-2
     - campaign
   originSessionId: 8e99f0a3-aecc-4068-9cd8-79868840feb7
-  modified: 2026-07-23T21:28:54.243Z
+  modified: 2026-07-26T22:55:35.620Z
 ---
 
 # A Gate-2 `docs(learnings)` commit from a stale verify worktree can silently revert a release bump
@@ -48,11 +52,11 @@ erased.
 
 ## Why the guard missed it
 
-`skills/war/assets/version-slots.test.mjs` locks the four release slots **in lock-step** — it
-asserts they all carry the *same* version, fail-closed. It does **not** assert the version
-**increased** over any base. A wholesale revert that moves all four slots down together (here
-`0.14.55` → `0.14.54`) keeps them consistent, so the lock-step invariant still holds and the test
-stays green. Lock-step ≠ monotonic.
+At the time, `skills/war/assets/version-slots.test.mjs` locked the four release slots **in
+lock-step** only — it asserted they all carry the *same* version, fail-closed, but **not** that the
+version **increased** over any base. A wholesale revert that moves all four slots down together
+(here `0.14.55` → `0.14.54`) keeps them consistent, so the lock-step invariant still held and the
+test stayed green. Lock-step ≠ monotonic. (Closed by layer 1 below.)
 
 ## Detection (the check that would have caught it at land)
 
@@ -81,12 +85,40 @@ an older tip: when a later phase lands elsewhere (the `_refinery` push-first CAS
 checked-out working tree and index keep the **old** version-slot files, and the Gate-2 commit
 records them relative to the new parent as a downgrade — no blanket `git add` required. The
 authoritative guard is **detection, not staging discipline**: after *any* commit made in a reused
-verify worktree, re-read the tip's version slot (`git show <tip>:.claude-plugin/plugin.json`) and
-confirm it still equals the release value before pushing. `version-slots.test.mjs` will not warn —
-lock-step ≠ monotonic. This is the [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]]
-hazard applied to the version files; the safest habit is to run Gate-2 from a **freshly checked-out**
-worktree at the true landed tip, never one reused across the phase's own merge work.
+verify worktree, inspect what the commit actually staged before pushing (see layer 2 below). This is
+the [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]] hazard applied to the version
+files; the safest habit is to run Gate-2 from a **freshly checked-out** worktree at the true landed
+tip, never one reused across the phase's own merge work.
+
+## Mitigation (#1083) — three layers, all landed in one phase
+
+1. **Monotonic floor (mechanical).** `skills/war/assets/version-slots.test.mjs` gained a test
+   asserting the working tree's `plugin.json#version` is `>=` the max version seen in a bounded
+   first-parent window of slot-touching history. A lock-step-coherent all-four-slots *downgrade* —
+   the exact shape of this incident — now reds the gate that used to pass it. Fail-open only on an
+   unusable git context (non-git dir, non-zero git exit) or a genuinely empty window; a non-empty
+   log that parses to zero versions is RED, never a vacuous pass. Ceiling: the load-bearing
+   `--diff-merges=first-parent` flag requires git >= 2.31 — an older git exits non-zero and the
+   floor fail-opens (disclosed via a `t.diagnostic`, not silent).
+2. **Gate-2 pre-push staged-file check (procedural).** The `skills/war/SKILL.md` publication flow
+   now lists the docs commit's staged file set (`git show --name-only --format= HEAD`) between the
+   commit step and the `ensure-origin` push, and refuses to push when any path falls outside the
+   promotion destination or `CLAUDE.md`. This is the **root-cause** probe, one level above the
+   version slots: the mechanism is stale *tracked files* being staged, so it catches a stale skill
+   or hook the same way it catches a stale slot. Locked by a paired-anchor row in
+   `skills/war/assets/skill-doc-contracts.test.mjs`.
+3. **Publication-worktree dirty-reuse refusal (provisioning).** `cmd_ensure_publication_worktree`'s
+   behavior (b) — registered, present, already on the working branch — now runs the same
+   `status --porcelain -uno` probe as behaviors (c)/(d) and refuses a dirty reuse loudly
+   (`$EX_WRONG_BRANCH`), naming the remove-then-re-provision remedy. It only ever refuses: nothing
+   is reset, cleaned, or switched away. Untracked files (the `.war-task` marker) still never count.
+
+Layers 2 and 3 also stop the *non-`git add`* variant this file's Prevention section records — a
+reused worktree whose index and tree simply lag a ref that advanced underneath.
 
 Related: [[stacked-per-branch-releases-make-main-lag-cumulative]],
 [[stacked-release-plan-version-literal-lags-operator-target]],
-[[version-slots-no-cross-slot-consistency-test]].
+[[version-slots-no-cross-slot-consistency-test]],
+[[gate-audit-end-state-owned-by-downstream-dep-task-is-non-holding-upstream]],
+[[gate-artifact-never-includes-war-memory-lint]] — sibling #1082/#1081 closures landed in the same
+gate-evidence-and-release-integrity phase 1.

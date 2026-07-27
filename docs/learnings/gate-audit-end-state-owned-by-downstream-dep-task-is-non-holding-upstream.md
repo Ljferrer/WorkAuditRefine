@@ -1,14 +1,14 @@
 ---
 name: gate-audit-end-state-owned-by-downstream-dep-task-is-non-holding-upstream
-description: "An End-state condition explicitly owned by a downstream deps-task is non-holding (note-only) for an upstream task's own gate-audit, even though both share one numbered End-state list"
-metadata: 
+description: "RESOLVED (#1082): a downstream deps-task's End-state condition is non-holding for an upstream task's gate-audit — now carved out on both prompt surfaces"
+metadata:
   node_type: memory
   type: project
   provenance: code-verified
   promoted: dev/2026-07-22-cli-main-guard-normalization@phase-1
   slug: gate-audit-end-state-owned-by-downstream-dep-task-is-non-holding-upstream
-  phase: "cli-main-guard-normalization/phase-1 task 1.1 gate-audit (landed dev/2026-07-22-cli-main-guard-normalization, 2026-07-23)"
-  keywords: 
+  phase: "cli-main-guard-normalization/phase-1 task 1.1 gate-audit (landed dev/2026-07-22-cli-main-guard-normalization, 2026-07-23); RESOLVED gate-evidence-and-release-integrity/phase-1 task 1.2 (#1082, landed dev/2026-07-24-gate-evidence-and-release-integrity, 2026-07-26)"
+  keywords:
     - gate-audit scope
     - out-of-scope end state
     - deps task ownership
@@ -18,13 +18,17 @@ metadata:
     - End state ownership
     - premature gate-audit hold
     - disposition note phaseClose false
-  tags: 
+    - endStateBlock case 3
+    - End-state ownership mapping
+    - deps-chained sibling task
+    - engine-encoded not judgment-only
+  tags:
     - gate-audit
     - plan-fidelity
     - audit-scope
   created: 2026-07-23
   originSessionId: 8e99f0a3-aecc-4068-9cd8-79868840feb7
-  modified: 2026-07-23T20:42:42.115Z
+  modified: 2026-07-26T22:54:41.239Z
 ---
 
 # A gate-audit scoped to task N must not hold on an End state owned by task N+1's `deps`-chained slice
@@ -56,9 +60,32 @@ satisfiable. An auditor (or the audit-log reader downstream) that doesn't map ea
 condition to its owning task risks a false hold that blocks a task that already fully met its own
 slice.
 
+**RESOLVED (#1082, gate-evidence-and-release-integrity phase 1 task 1.2):** the rule no longer rests
+on auditor judgment alone — the ownership exemption now names BOTH owners on both prompt surfaces, in
+one commit: the `endStateBlock` const's case (3) in `skills/war/assets/workflow-template.js` (the
+dispatched gate-audit prompt — it also interpolates the plan path so the seat can map conditions to
+owning slices without guessing) and the `execution-evidence` gate-audit checklist's
+**End-state ownership mapping** bullet in `agents/war-auditor.md` (the standing card). Both routes
+still key on the same `out-of-scope` finding-title token, so the handoff `endState` status derivation
+is unchanged. The incident above is what the carve-out encodes.
+
+**Verified still present (this phase, 2026-07-26):** `skills/war/assets/workflow-template.js`
+`endStateBlock` case (3) literal text — "a condition owned by a LATER phase — or by a deps-chained
+sibling task of THIS phase not yet landed at your audit's scope ... is out-of-scope for THIS audit,
+NEVER a hold" — and `agents/war-auditor.md`'s "**End-state ownership mapping:**" bullet both exist at
+the landed tip (dev/2026-07-24-gate-evidence-and-release-integrity, `c663340`). Note the observed
+real-world shape widened what "deps-chained" covers in practice: phase 1 of that same plan ran tasks
+1.1-1.4 in **one wave with no `deps` edges between them at all** — each task's own gate-audit still
+ran pinned at its own `audit_sha`, before sibling tasks in the *same wave* had landed, so the
+exemption fires for plain parallel siblings too, not only for a task carrying an explicit `deps:`
+edge on the owner. Read "deps-chained sibling" as "any sibling task in this phase, dep-edge or not,
+not yet landed at this audit's pinned sha."
+
 ## Related
 
 [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]] — Recurrence 19, the D3 check that
 confirmed End state 5 was in fact satisfied by land time. [[within-phase-dep-gate-must-rerun-on-integrated-tip]]
 — a different deps-chain gate concern (rerun on integrated tip), same family of "deps chain changes
-what's checkable when."
+what's checkable when." [[gate-artifact-never-includes-war-memory-lint]] and
+[[gate2-commit-from-stale-verify-worktree-can-revert-a-release-bump]] — sibling #1081/#1083 closures
+landed in the same gate-evidence-and-release-integrity phase 1.

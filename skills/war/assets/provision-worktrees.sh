@@ -1335,19 +1335,27 @@ cmd_ensure_refinery_worktree() {
 # ensure-publication-worktree <path> <working-branch>
 #
 # Ensure+re-attach for the Gate-2 learnings-publication worktree (p<N>-publication).
-# Structurally byte-for-byte mirrors cmd_ensure_refinery_worktree's six behaviors,
-# with the WORKING branch in place of the integration branch: the Lead checks out
-# the working branch here to commit `docs(learnings): phase N` before pushing via
-# ensure-origin's CAS. It checks the branch out AS-IS AT THE LOCAL TIP — the land
-# path's land-advance already advanced the local follower ref on every successful
-# land, so staleness is the CAS retry's job, never this subcommand's. A dirty tree
-# (tracked-file modifications) always FAILS LOUD — never reset, never destroy work.
-# Untracked files (e.g. the .war-task marker) do not count as dirty.
+# Structurally mirrors cmd_ensure_refinery_worktree's six behaviors byte-for-byte
+# EXCEPT behavior (b), which here also refuses a DIRTY reuse (#1083; the refinery
+# counterpart deliberately keeps today's six behaviors — extending the refusal
+# there interacts with the serial merge queue's legitimate in-flight state and is
+# a recorded non-goal), with the WORKING branch in place of the integration
+# branch: the Lead checks out the working branch here to commit
+# `docs(learnings): phase N` before pushing via ensure-origin's CAS. It checks the
+# branch out AS-IS AT THE LOCAL TIP — the land path's land-advance already
+# advanced the local follower ref on every successful land, so REF staleness is
+# the CAS retry's job, never this subcommand's; WORKING-TREE staleness
+# (tracked-file modifications in a worktree reused across phases) IS this
+# subcommand's own refusal, publication verb only — left alone, those files get
+# swept into the docs commit and silently revert landed work (#1083's incident).
+# A dirty tree (tracked-file modifications) always FAILS LOUD — never reset, never
+# destroy work. Untracked files (e.g. the .war-task marker) do not count as dirty.
 #
-# Behaviors (mirror ensure-refinery-worktree):
+# Behaviors (mirror ensure-refinery-worktree; (b) diverges — dirty refusal):
 #   (a) Not registered / empty dir  -> git worktree add <path> <working-branch>
 #                                       + .war-task marker.
-#   (b) Registered + present + HEAD on the working branch  -> reuse (marker only).
+#   (b) Registered + present + HEAD on the working branch + CLEAN -> reuse
+#                                       (marker only); DIRTY -> FAIL LOUD.
 #   (c) Registered + present + HEAD detached/different + CLEAN  -> switch to the
 #                                       working branch (re-attach) + marker.
 #   (d) Registered + present + HEAD detached/different + DIRTY  -> FAIL LOUD.
@@ -1366,7 +1374,16 @@ cmd_ensure_publication_worktree() {
       # Worktree is present and registered. Check what HEAD is on.
       cur_branch="$(git -C "$wt_path" symbolic-ref --short HEAD 2>/dev/null || true)"
       if [ "$cur_branch" = "$work_branch" ]; then
-        # (b) Already on the working branch -> reuse untouched.
+        # (b) Already on the working branch. Same tracked-file probe (-uno) as
+        # (c)/(d): a dirty tree here is the stale-staging hazard — the reused
+        # worktree's tracked files lag a ref that advanced underneath (or carry
+        # leftover edits), and the docs(learnings) commit made on top records
+        # them as its own change. FAIL LOUD; only ever refuse — never reset,
+        # never clean, never switch away (never-destroy-work, as in (d)/(f)).
+        if [ -n "$(git -C "$wt_path" status --porcelain -uno 2>/dev/null)" ]; then
+          die "ensure-publication-worktree: worktree at '$wt_path' is already on the working branch '$work_branch' but has uncommitted tracked-file changes — refusing to reuse it (stale-staging hazard: a ref that advanced underneath, or leftover edits, would be swept into the docs(learnings) commit and can silently revert landed work). Nothing was changed; inspect the modifications by hand, then commit or discard them (remove-publication-worktree refuses while the tree is dirty), then run remove-publication-worktree '$wt_path' and re-provision." "$EX_WRONG_BRANCH"
+        fi
+        # CLEAN -> reuse untouched.
         write_marker "$wt_path" "$work_branch"
         printf '%s\n' "$wt_path"
         return 0
