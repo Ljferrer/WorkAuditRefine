@@ -98,14 +98,6 @@ It interviews you (starting from a **balanced / thorough / economy** preset, the
 
 **What "today's defaults" actually are.** With no config file WAR runs the built-in `DEFAULTS`: opus workers on `max` effort, opus auditors on `xhigh`, `rosterPolicy: auto` (the Lead composes each task's roster), the pre-merge ace-fix on, and a 3-round fix budget. For **memory** the defaults are `retrieval: true` with `topK: 10` (prefetch the ten most relevant lessons into each seat's prompt) and **`commitLearnings: false`** — distilled `project`-typed lessons stay local to your machine unless you opt in via `/war-room` (see [Tidy the memory](#tidy-the-memory-lessons-learned) for the publication pitch). The three presets move the whole profile at once: **`balanced`** *is* the defaults, **`thorough`** widens rosters and deepens effort (and pumps tokens), and **`economy`** pins the cheaper knobs it always had — sonnet across every role, a solo roster, a 2-round budget, and ace off. `/war-room` only ever asks about the overrides you want *on top of* the chosen preset.
 
-**For best results** I recommend using:
-
-```
-/war-room thorough preset
-```
-
-> NOTE: This configuration absolutely pumps tokens.
-
 ### Author a plan (`/war-strategy`)
 
 **Spec ≠ plan — the *what* vs. the *how*.** A **design spec** (`docs/specs/`) is the ratified decision record for a change — problem, pivotal constraints, numbered decisions with alternatives considered, affected surfaces, test intent. It answers *what changes and why*, and carries no dispatch structure — `/war` cannot execute one. An **implementation plan** (`docs/plans/`) is the executable artifact `/war` consumes — phases and tasks with exact file sets, `requiresTest`, `deps`, and target repo. It answers *how*: who does what, in which order, against which files. Every plan opens with a **Commander's Intent** — **Purpose** (why), **Method** (how you envision winning), **End state** (numbered, individually *checkable* conditions) — drafted from your answers, confirmed by you explicitly, and threaded into every worker and auditor prompt: the plan slice is the floor, your intent is the ceiling. Full glossary: [`CONTEXT.md`](CONTEXT.md).
