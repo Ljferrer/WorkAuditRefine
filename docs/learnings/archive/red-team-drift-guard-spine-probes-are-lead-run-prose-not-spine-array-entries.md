@@ -61,3 +61,5 @@ editing `workflow-scaffold.js`; (2) SKILL.md doctrine-prose probes (backstop-leg
 drift-guard spine probes) — Lead-run-by-instruction, extended by editing `skills/red-team/
 SKILL.md` prose, with an EXECUTED probe among them still ultimately routed through the scaffold's
 bespoke array/`args.probes` at run time (not the `SPINE` const).
+
+> archived 2026-07-27: resolved — moved to archive

@@ -52,3 +52,5 @@ spec's instruction, downgrade to Nit (spec-doc-lag) and note it for a future doc
 blocking the task. This is the spec-analogue of
 [[redteam-adjudication-is-authoritative-version-source]] (which covers version-literal authority) —
 here the same precedence rule applies to scope/surgery instructions, not version numbers.
+
+> archived 2026-07-27: resolved — moved to archive

@@ -66,3 +66,5 @@ a design spec) that may already resolve the naming to something real; if one exi
 consistent, route there and record the reconciliation (as this lesson does) rather than silently
 "fixing" the plan's wording without a note, and rather than inventing the named-but-nonexistent
 construct from scratch.
+
+> archived 2026-07-27: resolved — moved to archive
