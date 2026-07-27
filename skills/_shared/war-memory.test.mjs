@@ -1166,6 +1166,64 @@ test('cut line: eligible cumulative freed drives cutIndex to target − slack; a
 });
 
 // ============================================================================
+// (Task 1.1 / #1059 + #1088 CLI arm) A SUPPLIED-but-invalid `--target` refuses
+// loud at cmdTightenPlan's argv boundary instead of silently collapsing to the
+// advisory default. Red today: a bare `--target` exits 0 with `target: 1`
+// (parseArgv → boolean true, Number(true) === 1) and pre-selects the WHOLE
+// eligible list; `--target abc` exits 0 with `target: null` (NaN) and an inert
+// plan. Both look plausible and are not the bound the operator asked for.
+// The guard is CLI-local: `parseArgv` and `tightenPlan()`'s `target = WARN_BYTES`
+// default parameter are byte-untouched, so the absent-flag path is unchanged.
+// ============================================================================
+
+// Two hot, evictable facts — a real corpus, so a run that reached the plan printer
+// would emit JSON: an empty stdout can only come from the guard firing first.
+function tightenTargetFixture() {
+  const local = tmpDir('war-tighten-target-');
+  for (const s of ['alpha-fact', 'beta-fact']) {
+    lessonFile(local, s, { description: `${s} summary`, meta: { provenance: 'agent-unverified', date: '2026-01-01' } });
+  }
+  return local;
+}
+
+for (const [label, valueArgs, token] of [
+  ['bare --target (parseArgv maps a valueless flag to boolean true)', [], 'true'],
+  ['--target abc (non-numeric ⇒ NaN)', ['abc'], 'abc'],
+  ['--target 0 (zero is not a positive byte count)', ['0'], '0'],
+  ['--target -500 (negative)', ['-500'], '-500'],
+]) {
+  test(`refusal (#1059): ${label} → exit 1, empty stdout, stderr names --target + the token`, () => {
+    const local = tightenTargetFixture();
+    const r = spawnSync('node', [CLI, 'tighten-plan', '--local', local, '--target', ...valueArgs], { encoding: 'utf8' });
+    assert.equal(r.status, 1, `expected the guard's exit 1, got ${r.status}\n${r.stdout}\n${r.stderr}`);
+    // Empty, not merely unparseable: a refusal must not print a partial plan.
+    assert.equal(r.stdout, '', `expected no plan bytes on stdout, got: ${r.stdout}`);
+    assert.match(r.stderr, /tighten-plan/); // the verb, per the requireLocal diagnostic shape
+    assert.match(r.stderr, /--target/); // the flag
+    assert.ok(r.stderr.includes(`'${token}'`), `stderr must render the received token, got: ${r.stderr}`);
+    rmSync(local, { recursive: true, force: true });
+  });
+}
+
+test('unchanged path (#1059): a valid --target still binds and is echoed verbatim', () => {
+  const local = tightenTargetFixture();
+  const r = spawnSync('node', [CLI, 'tighten-plan', '--local', local, '--target', '2000'], { encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(JSON.parse(r.stdout).target, 2000);
+  rmSync(local, { recursive: true, force: true });
+});
+
+test('unchanged path (#1059): the flagless invocation keeps the advisory default target', () => {
+  const local = tightenTargetFixture();
+  const r = spawnSync('node', [CLI, 'tighten-plan', '--local', local], { encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  const plan = JSON.parse(r.stdout);
+  assert.equal(plan.target, WARN_BYTES, 'absent flag ⇒ the WARN_BYTES default, byte-identically');
+  assert.equal(plan.target, 17_000, 'the advisory line is 17,000 B');
+  rmSync(local, { recursive: true, force: true });
+});
+
+// ============================================================================
 // (Task 1.1 / #992) tightenPlan's returned `verdict` is the STRICTER of the advisory
 // projection read and the effective `--target`. buildProjection is byte-untouched, so
 // the render-verdict tests above (which read ITS verdict) stay green unchanged.

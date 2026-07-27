@@ -395,3 +395,49 @@ test('doc-contract: war-help card mentions the seed verb + warm-seed behavior', 
   assert.match(warhelp, /warm-seed|portable corpus/i,
     'war-help card must convey the warm-seed / portable-corpus behavior')
 })
+
+// --- Task 1.2 (memory-tooling-hardening, #1088 doc arm + #1086): dialect-safe doc fences --------
+// Both fixes retire the same failure mode: a fenced command an agent copies into the OPERATOR's own
+// shell that does something other than what the prose beside it promises. `(N)` numbering here is
+// banner-scoped, as it is throughout this file (it restarts per banner — 17–21 are each already used
+// twice above), so this banner's locks start at (1).
+
+// (1) The `## Seed` **Local destination:** fence shows the `--repo docs/learnings/` render branch its
+//     own prose mandates ("passing `--repo docs/learnings/` **iff** `$REPO_ROOT` is non-empty").
+//     MUST be slice-scoped to that bullet: seeding.md has two `render-index --local "$MEM"` fences and
+//     the FIRST is the repo-destination one (which already carries --repo), so a whole-file
+//     `bashFenceWith(seeding, 'render-index')` would pass vacuously against the wrong fence and guard
+//     nothing. Slicing from the lead-in makes the first render-bearing fence AFTER it the
+//     Local-destination one by construction (the repo-destination fence sits above the lead-in), so no
+//     end-of-scope terminator is needed. The flag is matched contiguously with the render it belongs
+//     to, so the bare branch living in the same fence cannot satisfy the lock on its own (#1086).
+test('doc-contract: seeding.md ## Seed Local-destination fence shows the --repo docs/learnings/ render branch', () => {
+  const leadIn = seeding.indexOf('**Local destination:**')
+  assert.notEqual(leadIn, -1, 'seeding.md ## Seed must carry the **Local destination:** bullet lead-in')
+  const fence = bashFenceWith(seeding.slice(leadIn), 'render-index')
+  assert.match(fence, /render-index --local "\$MEM" --repo docs\/learnings\//,
+    'the Local-destination fence must show the `--repo docs/learnings/` branch its own prose mandates — a bare-render-only block silently drops every [repo] row whenever $REPO_ROOT is non-empty (#1086)')
+})
+
+// (2) The step-1 tighten fence threads no alternate-value parameter expansion, and `TIGHTEN_TARGET`
+//     is retired doc-wide. The retired fence passed the flag through an alternate-value expansion on
+//     that variable — assert (i)'s regex is the authoritative spelling of the banned shape; this
+//     comment deliberately does NOT reproduce the byte sequence, so the plan's retirement sweeps do
+//     not false-red on the guard's own documentation. zsh does not word-split an unquoted parameter
+//     expansion, so the flag and its value FUSED into a single argv word: `--target` never bound and
+//     the pass silently reverted to the 17,000 B advisory default (#1088). Assert (i) co-targets the
+//     SAME `bashFenceWith(skill, 'tighten-plan')` extraction the `--target` presence lock above uses,
+//     so the two locks can never silently drift onto different fences; it pins the expansion SHAPE
+//     rather than the narrower flag-attached literal, so a respelling that puts the flag elsewhere
+//     inside the same expansion is equally red. Assert (ii) is whole-file because the retired
+//     set-then-thread instruction lived in PROSE, which a fence-scoped assert cannot see. Scope,
+//     deliberately not overstated: (ii) is TOKEN-scoped — a set-then-thread revived under a different
+//     variable name, or the same expansion added to some OTHER bash fence in this doc, passes both
+//     asserts. That residue belongs to the plan's one-time broadened shape sweep, not to this lock.
+test('doc-contract: the step-1 tighten fence threads no alternate-value expansion and TIGHTEN_TARGET is retired doc-wide', () => {
+  const fence = bashFenceWith(skill, 'tighten-plan')
+  assert.doesNotMatch(fence, /\$\{[^}]*:\+/,
+    'the tighten-plan fence must carry no alternate-value parameter expansion — under zsh the flag and its value fuse into a single argv word and --target silently never binds (#1088)')
+  assert.doesNotMatch(skill, /TIGHTEN_TARGET/,
+    'the retired $TIGHTEN_TARGET set-then-thread instruction must be gone from SKILL.md entirely — reintroducing it in prose is the same defect, and a fence-scoped assert cannot see prose')
+})

@@ -1,6 +1,6 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, readFileSync, rmSync, mkdirSync, existsSync, unlinkSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, readFileSync, readdirSync, rmSync, mkdirSync, existsSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -114,6 +114,42 @@ test('verify fails non-zero naming the member when a manifest sha256 is altered'
   assert.notEqual(v.status, 0);
   assert.match(out(v), /shell-quoting/);
   assert.match(out(v), /sha256|mismatch/i);
+});
+
+// =============================================================================
+// scratch-dir hygiene: a die-routed failure still unwinds its finally (design row D7)
+// =============================================================================
+test('verify leaves no seed-pack-* scratch dir behind when it fails (TMPDIR-scoped)', () => {
+  // Same fixture shape as the sha256-mismatch case above: the exit-3 path dies from *inside*
+  // verifyTier's try/finally, so it is the densest die-site cluster and the strictest proof that
+  // die() unwinds instead of terminating the process.
+  const src = goodCorpus();
+  const dest = tmp('seed-pack-out-');
+  assert.equal(run(['pack', src, '--out', dest]).status, 0);
+
+  const manifestPath = join(dest, 'seed-manifest.json');
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  const victim = manifest.seed.find((r) => r.slug === 'shell-quoting');
+  victim.sha256 = victim.sha256.replace(/^./, (c) => (c === 'a' ? 'b' : 'a'));
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+
+  // A fresh test-owned scratch dir, created and removed here: os.tmpdir() honors TMPDIR on POSIX,
+  // so the child's mkdtemp('seed-pack-…') lands inside it and a parallel `node --test` run can
+  // never contribute an entry. Assert on the seed-pack-* PREFIX, never directory emptiness.
+  const scratch = mkdtempSync(join(tmpdir(), 'seed-pack-tmpdir-'));
+  try {
+    // The `...process.env` spread is load-bearing: a bare { TMPDIR } strips PATH from the child
+    // env, so this spawnSync('node', …) cannot resolve the interpreter and returns error ENOENT
+    // with status null — the exit-3 assertion would then fail against a run that never happened.
+    const v = run(['verify', dest], { env: { ...process.env, TMPDIR: scratch } });
+    assert.equal(v.status, 3, out(v));
+    assert.match(out(v), /sha256|mismatch/i);
+
+    const leaked = readdirSync(scratch).filter((e) => e.startsWith('seed-pack-'));
+    assert.deepEqual(leaked, [], `verify leaked scratch dir(s) under TMPDIR: ${leaked.join(', ')}`);
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
 });
 
 // =============================================================================
@@ -323,6 +359,17 @@ test('evict exits 1 when a slug is not in the seed tier', () => {
   const e = run(['evict', '--slugs', 'not-a-member', dest]);
   assert.equal(e.status, 1, out(e));
   assert.match(out(e), /not-a-member/);
+});
+
+// =============================================================================
+// dispatch: the unknown-verb refusal survives the tagged-throw termination rework.
+// Its die() sits inside main()'s try; moved before it, the throw would escape uncaught and Node
+// would print a stack trace instead of this single line. Nothing else in this file covers it.
+// =============================================================================
+test('an unknown verb exits 1 with a single-line refusal (no stack trace)', () => {
+  const r = run(['bogus']);
+  assert.equal(r.status, 1, out(r));
+  assert.equal(r.stderr, "seed-pack: unknown verb 'bogus'. Verbs: pack, verify, evict\n");
 });
 
 // =============================================================================
