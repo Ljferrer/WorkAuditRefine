@@ -728,9 +728,13 @@ const baselineDebtClause = () => baselineDebt.length
 // strand the serial queue detached (the re-attached-by-default _refinery, spec §6 / ADR 0019).
 const reattachClause = refineryP =>
   pt`HYGIENE (idempotent): begin by re-attaching _refinery to the integration branch — \`git -C ${refineryP} checkout ${ph.integrationBranch}\` — so a prior dispatch that died mid-classification cannot leave _refinery detached.\n`
-// classificationClause: the gate-failure classification PROCEDURE, mirrored (per-site base) into the
-// initial merge-task prompt, the floor-retry re-merge prompt, THE LAND PROMPT, and agents/war-refiner.md
-// (both-surfaces rule, same commit). baseDesc names the per-site classification base.
+// classificationClause: the gate-failure classification PROCEDURE, mirrored (per-site base) into every
+// dispatched prompt whose refiner must classify a gate failure. Never enumerate those sites here: the
+// classification-site drift guard in workflow-template.test.mjs is the arbiter of the site list (it counts
+// this helper's call-paren occurrences in this file — writing that byte-run into this comment reds it; a
+// prose count or a bare site list would not, so count-free here is convention, not mechanism).
+// agents/war-refiner.md is the standing mirror (both-surfaces rule, same commit). baseDesc names the
+// per-site classification base.
 const classificationClause = (refineryP, baseDesc) =>
   pt`\nGATE-FAILURE CLASSIFICATION (spec §6/§9 / ADR 0019 — on gate failure, BEFORE returning gate_failed): PRECONDITION-MARKER SHORT-CIRCUIT — consult the gate STDERR, not just the TAP stdout: if it carries a recognized precondition marker (e.g. \`REL_GUARD_PRECONDITION_FAILED\`, emitted when a guard's meta-test cannot isolate a clean scratch dir), the gate could not establish its own preconditions ⇒ classify gate_failure_class:'environment' DIRECTLY (never 'introduced'), carry that marker line UNCURATED in gate_output, and skip the base re-run. Otherwise re-run ONLY the failing gate at the classification base — ${baseDesc} — by detaching _refinery there (\`git -C ${refineryP} checkout --detach <that base>\`), re-running the failing gate, then RE-ATTACHING _refinery to ${ph.integrationBranch} before you return (\`git -C ${refineryP} checkout ${ph.integrationBranch}\`). Set gate_failure_class: (1) the base is RED with the SAME failing identifiers ⇒ 'baseline'; (2) the base is GREEN AND the failure does NOT reproduce on a second run at the task tip in a FRESH environment (fresh TMPDIR/shell) ⇒ 'environment' (reproducibility — NOT file-disjointness — is the trigger; a diff-disjoint but reproducing failure is a normal introduced regression and stays 'introduced'); (3) otherwise ⇒ 'introduced'. This is JUDGMENT, not parsing — carry the base-run evidence in gate_output UNCURATED. On a 'baseline' classification also report the classified failing identifiers in gate_failing_ids (array) and the classification base sha in gate_base_sha. ABSENT class ⇒ treated as 'introduced' (the permanent fail-safe).\n`
 
@@ -1350,6 +1354,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             + pt`Also populate integration_sha with the rebased integration tip the gate ran against, so the gate-audit pass can confirm the gate ran at the integration tip. `
             + classificationClause(refineryPath, pt`the phase integration base — the cut point of ${ph.integrationBranch}, i.e. \`git -C ${refineryPath} merge-base ${ph.integrationBranch} ${ph.workingBranch}\``)
             + baselineDebtClause()
+            + pt`Before the _refinery merge step (b), re-run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${r.task.branch}${r.task.taskType === 'gitlink-bump' && r.task.declared ? ' --declared' : ''} — the floor fix-worker pushed new commits, so the check runs afresh REGARDLESS of requiresTest (the relax-flag is only threaded for a declared gitlink-bump task). Exit 1 → return { mode: 'merge-task', status: 'submodule-blocked' }, do NOT merge; exit 2 → return { mode: 'merge-task', status: 'error' }. `
             + (requiresTest
               ? pt`Before the _refinery merge step (b), run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${testPatternArg} to verify the task diff now contains at least one test file. Branch on the exit code: exit 1 (no test in the diff) → return { mode: 'merge-task', status: 'no-test' }, do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'no-test' — a transient bad-ref must not spin a pointless add-test loop. On that exit 1 path ONLY, ALSO capture the script's stderr VERBATIM (the near-miss diagnostic) into floor_diagnostic alongside status:'no-test' — never edited, never summarised; empty/absent stderr ⇒ omit floor_diagnostic. It is fail-open advisory context, never a routing input. `
               : pt`requiresTest:false — skip the assert-test-in-diff.sh check. `)
@@ -1380,7 +1385,16 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // there for prompt-contract reachability).
         if (floorMr.status === 'merged') {
           landMerged(r.task, floorMr)
-        } else {
+        }
+        // A submodule mutation surfaced by the floor-retry re-merge's submodule floor is HARD (mirror the
+        // primary submodule-blocked path — a soft escalation must never let a submodule touch ride a land).
+        // Explicit arm, NOT the generic fallback below: 'submodule-blocked' is not in HARD_ESCALATION_REASONS,
+        // so `reason: floorMr.status` would route it SOFT and the phase would land minus the task, silently.
+        else if (floorMr.status === 'submodule-blocked') {
+          escalated.push({ task: r.task.id, reason: 'escalate', detail: `${r.task.id} touches a submodule (surfaced on the floor-retry re-merge)` })
+          auditLog.push({ task: r.task.id, verdict: 'submodule-blocked', findings: [], fixRounds: r.task.fixRounds })
+        }
+        else {
           escalated.push({ task: r.task.id, reason: floorMr.status ?? 'merge_failed', detail: floorMr })
         }
         continue
@@ -1835,7 +1849,8 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
         + reattachClause(refineryLandPath)
         + pt`  (a) REBASE in the POLISH worktree: git -C ${polishWorktree} rebase ${ph.integrationBranch} (the branch was cut at the integrated tip, so this is normally a no-op).\n`
         + pt`  (b) MERGE in _refinery: cd ${refineryLandPath} (on ${ph.integrationBranch}), then git merge ${polishBranch} (fast-forward merge). Push.\n`
-        + pt`Run the gate (${plan.gate}) after the rebase in the polish worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)). The polish commit is a coherence sweep, not a mapped-test task — skip assert-test-in-diff.sh AND skip the packaging floor assert-packaging-in-diff.sh (a coherence sweep has no task fields to consult). This sweep is class-exempt — on gate failure return gate_failed (no classification); the Workflow fail-open DISCARDS. On conflict return conflict; never force.`,
+        + pt`Run the gate (${plan.gate}) after the rebase in the polish worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)). The polish commit is a coherence sweep, not a mapped-test task — skip assert-test-in-diff.sh AND skip the packaging floor assert-packaging-in-diff.sh: those two are task-field-gated and a coherence sweep has no task fields to consult. The submodule floor is NOT among the skips — it is unconditional, consults no task fields, and still runs (invocation below). This sweep is class-exempt — on gate failure return gate_failed (no classification); the Workflow fail-open DISCARDS. On conflict return conflict; never force.`
+        + pt` Before the _refinery merge step (b), run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${polishBranch} — always BARE: a coherence sweep is never a declared gitlink bump, so the relax-flag is never threaded here. Exit 1 → return { mode: 'merge-task', status: 'submodule-blocked' }, do NOT merge; exit 2 → return { mode: 'merge-task', status: 'error' }.`,
         { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:p${ph.id}-polish`, schema: MERGE_RESULT, ...spawn('refiner') })
     }
     if (sweepApproved && pmr && pmr.status === 'merged') {
@@ -1924,9 +1939,16 @@ if (landDecision === 'landed') {
       + pt`  1. Detach at origin/${ph.workingBranch}: \`git -C ${refineryLandPath} fetch origin ${ph.workingBranch} && git -C ${refineryLandPath} checkout --detach origin/${ph.workingBranch}\`.\n`
       + pt`  2. Merge --no-ff ${ph.integrationBranch}; run the gate (${plan.gate}) in a FRESH shell with a fresh TMPDIR (TMPDIR=$(cd / && mktemp -d)). The gate MUST GO FULLY GREEN: this is a clean re-run, NOT a proceed-over — nothing is waived, no failure is proceeded past, no debt is recorded. ANY remaining failure → return { mode: 'land-phase', status: 'gate_failed' } classifying it afresh in gate_failure_class.\n`
       + pt`  3. Push-first CAS: \`cd ${refineryLandPath} && provision-worktrees.sh land-advance ${ph.workingBranch} <merge-sha>\`. Reland up to roundLimit (${roundLimit}); error on a non-rejection push error. On success return { mode: 'land-phase', status: 'landed', working_sha: '<merge-sha>' }. Never --force.\n`
-      + relandDiscrimination(ph.workingBranch),
+      + relandDiscrimination(ph.workingBranch)
+      + submodLandNote,
       { agentType: NS + 'war-refiner', phase: 'Land', label: `land:phase-${ph.id}:environment-proceed`, schema: MERGE_RESULT, ...spawn('refiner') })
-    if (reLand && reLand.status === 'landed') {
+    // 2B submodule PR-and-hold, newly reachable from this re-land now that it carries the submodule-phase
+    // land note: mirror the initial land's direct-return guard. Without this arm the return would fall to
+    // the held:land-failed else, mislabelling the hold AND losing the PR ref the Lead's gh-resume reads.
+    if (reLand && reLand.status === 'submodule-pr') {
+      escalated.push({ task: `phase-${ph.id}-land`, reason: 'submodule-pr', pr_number: reLand.pr_number, pr_remote: reLand.pr_remote, detail: reLand })
+      landDecision = 'held:submodule-pr'
+    } else if (reLand && reLand.status === 'landed') {
       landResult = reLand
       landDecision = 'landed'
       log(`Phase ${ph.id} landed via environment-proceed re-land (the transient environment-class gate failure did not recur; the gate went FULLY green — nothing waived, no debt recorded). Opportunistic resync as on any landed phase.`)
@@ -1954,9 +1976,15 @@ if (landDecision === 'landed') {
       + pt`  1. Detach at origin/${ph.workingBranch}: \`git -C ${refineryLandPath} fetch origin ${ph.workingBranch} && git -C ${refineryLandPath} checkout --detach origin/${ph.workingBranch}\`.\n`
       + pt`  2. Merge --no-ff ${ph.integrationBranch}; run the gate (${plan.gate}) with a fresh TMPDIR (TMPDIR=$(cd / && mktemp -d)); PROCEED over EXACTLY those pre-existing baseline failures and populate gate_output UNCURATED. A NEW failure whose identifiers are NOT in that set is a real regression → return { mode: 'land-phase', status: 'gate_failed' } classifying the NEW failure.\n`
       + pt`  3. Push-first CAS: \`cd ${refineryLandPath} && provision-worktrees.sh land-advance ${ph.workingBranch} <merge-sha>\`. Reland up to roundLimit (${roundLimit}); error on a non-rejection push error. On success return { mode: 'land-phase', status: 'landed', working_sha: '<merge-sha>' }. Never --force.\n`
-      + relandDiscrimination(ph.workingBranch),
+      + relandDiscrimination(ph.workingBranch)
+      + submodLandNote,
       { agentType: NS + 'war-refiner', phase: 'Land', label: `land:phase-${ph.id}:baseline-proceed`, schema: MERGE_RESULT, ...spawn('refiner') })
-    if (reLand && reLand.status === 'landed') {
+    // 2B submodule PR-and-hold, newly reachable from this re-land now that it carries the submodule-phase
+    // land note: mirror the initial land's direct-return guard (same rationale as environment-proceed).
+    if (reLand && reLand.status === 'submodule-pr') {
+      escalated.push({ task: `phase-${ph.id}-land`, reason: 'submodule-pr', pr_number: reLand.pr_number, pr_remote: reLand.pr_remote, detail: reLand })
+      landDecision = 'held:submodule-pr'
+    } else if (reLand && reLand.status === 'landed') {
       landResult = reLand
       landDecision = 'landed'
       log(`Phase ${ph.id} landed via baseline-proceed re-land (proceeded over recorded baseline gate debt; the deduped source:'auto' backstop rides handoff.backstops + the final PR). Opportunistic resync as on any landed phase.`)
