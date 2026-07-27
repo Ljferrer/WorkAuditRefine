@@ -45,3 +45,5 @@ Phase 1 of `audit-gate-verdict-fidelity` moved three previously-prose anti-cheat
 
 [[gate-audit-pin-bracket-test-blocked-by-git-guard]]
 [[audit-worktree-pre-impl-tip-stale-verdict]]
+
+> archived 2026-07-27: resolved — moved to archive

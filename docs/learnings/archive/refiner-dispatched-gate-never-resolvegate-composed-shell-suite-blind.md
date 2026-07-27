@@ -107,3 +107,5 @@ any future dispatch site added outside the reach of the entry-point composition 
 removes or reorders the composition point relative to dispatch) reopens exactly this gap — remains
 durable and applies beyond this one fix. Re-verify the composition point is still upstream of every
 dispatch site before assuming this finding is impossible in a future phase.
+
+> archived 2026-07-27: resolved — moved to archive

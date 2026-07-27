@@ -62,3 +62,5 @@ pre-authorization note before treating it as scope creep, and prefer editing the
 invariant-worded rather than re-asserting a new hardcoded count (see the sibling pattern in
 [[version-slots-no-cross-slot-consistency-test]] for the analogous "no snapshot counts, describe
 the invariant" move applied to tour prose).
+
+> archived 2026-07-27: resolved — moved to archive

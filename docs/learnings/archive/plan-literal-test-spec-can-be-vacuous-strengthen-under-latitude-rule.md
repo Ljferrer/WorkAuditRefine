@@ -66,3 +66,5 @@ grade on wording-match alone — check whether the *literal* wording would itsel
 if so, the worker's substitute isn't a deviation to flag, it's the plan's actual intent finally
 being served. Record it as a reviewed `note`, not a Minor/Major finding, so a later reader knows the
 divergence was traced and adjudicated, not overlooked.
+
+> archived 2026-07-27: resolved — moved to archive

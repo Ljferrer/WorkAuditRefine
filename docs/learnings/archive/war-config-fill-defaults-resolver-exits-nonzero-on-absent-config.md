@@ -48,3 +48,5 @@ with judgment can still read the adjacent prose correctly — but flag it for th
 **Closed at the `/lessons-learned migrate` call site** (projection-dedup-citation-hygiene-preflight-guard-headroom-remediation/1.3): `skills/lessons-learned/SKILL.md`'s `migrate` pre-flight branches on `test -f .claude/war/config.json` before invoking `--fill-defaults` — verified at master 2026-07-13. `war-config.mjs` itself is unchanged (still exits 1 on ENOENT), so the rule still binds for every other call site.
 
 Related: [[report-nothing-to-commit-never-implement-unprompted]].
+
+> archived 2026-07-27: resolved — moved to archive
