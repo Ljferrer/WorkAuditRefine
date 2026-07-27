@@ -50,6 +50,16 @@ sanctioned surface for both display identity and approved stage injection.**
    [ADR 0030](0030-live-artifacts-over-stack-fragile-literals.md) — the derived identity is read from
    the live export, never restated as a literal at each call site).
 
+   **Amendment (2026-07-27, plan `2026-07-26-dispatch-args-and-floor-coverage` Task 2.1, #1134):**
+   both `two`-scoped sentences above are superseded **in count, not in kind** — append-only, so the
+   ratified sentences stay byte-intact and this note is the correction channel. The stager gained an
+   **optional third exactly-once substitution**: with `--args <file>` it also replaces the template's
+   string-arm args fallback tail, embedding the validated phase-args object in the staged copy as a
+   prelude so an assembled payload too large to ride the Workflow tool call travels with the script
+   instead (dispatched args, when passed, still win). It therefore now exports **three** anchor
+   literals, not two, and the anchor-guard test imports all three — still never a hardcoded second
+   copy. The exactly-once, fail-loud discipline and the mirror-registry arbiter are unchanged.
+
 3. **Write-if-absent, with an explicit `--force` restage.** If the derived staged path already exists,
    the stager leaves it **byte-untouched**, prints its absolute path, and exits 0 — the existing file
    *is* the run's script. This is deliberate, not an oversight: an operator may have hand-edited the
@@ -137,6 +147,11 @@ sanctioned surface for both display identity and approved stage injection.**
   anchor constants and `workflow-template.js`'s `export const meta` literals are now a canonical-source
   ↔ mirror-site pair like any other ([ADR 0025](0025-drift-guard-discipline.md)); the anchor-guard test
   (`stage-workflow.test.mjs`) is that pair's arbiter, not a new detection mechanism.
+  - **Amendment (2026-07-27, plan `2026-07-26-dispatch-args-and-floor-coverage` Task 2.1, #1134):** the
+    pair is **wider** than the sentence above — decision 2's amendment added a third exported anchor
+    whose mirror site is the `const A =` ternary's args-fallback tail in `workflow-template.js`, **not**
+    an `export const meta` literal. Same arbiter, wider pair; append-only, so the ratified sentence
+    stays byte-intact and this note is the correction channel.
 
 ## References
 

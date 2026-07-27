@@ -4624,9 +4624,11 @@ test('pkg §4.2 — both floors tripped but budget too small: the SECOND floor e
   assert.ok(!out.workflowError, 'the combined loop terminates cleanly — no workflow error')
 })
 
-test('pkg §4.2 — retry-merge prompt re-instructs ALL floor invocations (test + packaging kept in sync with standing steps)', async () => {
-  // The floor-retry merge prompt must re-instruct BOTH assert-test-in-diff.sh AND
-  // assert-packaging-in-diff.sh (dispatched-vs-standing coverage-split lesson).
+test('pkg §4.2 — retry-merge prompt re-instructs ALL floor invocations (test + packaging + submodule kept in sync with standing steps)', async () => {
+  // The floor-retry merge prompt must re-instruct assert-test-in-diff.sh, assert-packaging-in-diff.sh AND
+  // assert-no-submodule-mutation.sh (dispatched-vs-standing coverage-split lesson). The submodule arm is a
+  // #1114 survey-derived correction: this test's own "ALL floor invocations" claim (and the two adjacent
+  // engine comments that word it identically) enumerated two of the three floors the retry now carries.
   let mergeCount = 0
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
@@ -4643,6 +4645,7 @@ test('pkg §4.2 — retry-merge prompt re-instructs ALL floor invocations (test 
   assert.ok(retry, 'a floor-retry merge is dispatched')
   assert.match(retry.prompt, /assert-test-in-diff\.sh/, 'retry-merge re-instructs the test floor')
   assert.match(retry.prompt, /assert-packaging-in-diff\.sh/, 'retry-merge re-instructs the packaging floor')
+  assert.match(retry.prompt, /assert-no-submodule-mutation\.sh/, 'retry-merge re-instructs the submodule floor (unconditional per war-refiner.md step 6 — "always")')
 })
 
 test('pkg §4.2 — drift-guard: both HARD_ESCALATION_REASONS mirrors include unpackaged and are equal', () => {
@@ -5146,6 +5149,132 @@ test('#1032 — the baseline-proceed re-merge prompt carries the submodule scopi
   const impl = clsImpl({ mergeResult: () => ({ mode: 'merge-task', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: ['pytest:test_legacy'], gate_base_sha: 'base9999', gate_output: 'base RED with the same ids — pre-existing' }) })
   const { calls } = await runPhase(CLS_ARGS({ tasks: [submodRetryTask()] }), impl)
   assertSubmodScoped(calls.find(c => /^merge:t1:baseline-proceed$/.test(c.opts.label || '')), 'the baseline-proceed re-merge')
+})
+
+// ---------------------------------------------------------------------------
+// #1114 — submodule floor/note completion across the three remaining dispatch families (re-land, polish
+// merge, floor-retry re-merge). SIBLINGS of the #1032 block above and bound by the same doctrine: each
+// prompt test drives ONE route through the harness that already stubs it and reads the captured prompt BY
+// DISPATCH LABEL (a source occurrence count proves shape, not what the engine dispatched); each routing
+// test stubs the returned status and asserts the route the engine took.
+// Load-bearing: delete an append/arm and exactly that route's test REDs — the notes are '' off the
+// submodule path, so no existing non-submodule prompt test moves either way.
+// ---------------------------------------------------------------------------
+
+// The PHASE-level land note, asserted WITH its colon: the per-task merge note ("SUBMODULE TASK:") would
+// satisfy a bare `SUBMODULE` substring — the colon + targetRepo pin the land note specifically.
+const assertSubmodLandScoped = (call, where) => {
+  assert.ok(call, `${where} must be dispatched for a submodule phase whose first land tripped this route`)
+  assert.ok(call.prompt.includes('SUBMODULE PHASE:'),
+    `${where}: prompt must carry the SUBMODULE PHASE marker — without it the phase is re-dispatched land-blind (no 2A CAS inside the submodule, no 2B PR-and-hold)`)
+  assert.ok(call.prompt.includes(SUBMOD_RETRY_REPO),
+    `${where}: prompt must name the phase's targetRepo "${SUBMOD_RETRY_REPO}" so the submodule land is scoped to the submodule checkout`)
+}
+const baselineLandFail = () => ({ mode: 'land-phase', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: ['pytest:test_pre_existing'], gate_base_sha: 'wbase77' })
+
+test('#1114 — the environment-proceed RE-LAND prompt carries the submodule land note (SUBMODULE PHASE + targetRepo)', async () => {
+  const { calls } = await runPhase(CLS_ARGS({ tasks: [submodRetryTask()] }), clsImpl({ landResult: envLandResult }))
+  assertSubmodLandScoped(calls.find(c => /^land:phase-3:environment-proceed$/.test(c.opts.label || '')), 'the environment-proceed re-land')
+})
+
+test('#1114 — the baseline-proceed RE-LAND prompt carries the submodule land note (SUBMODULE PHASE + targetRepo)', async () => {
+  const { calls } = await runPhase(CLS_ARGS({ tasks: [submodRetryTask()] }), clsImpl({ landResult: baselineLandFail }))
+  assertSubmodLandScoped(calls.find(c => /^land:phase-3:baseline-proceed$/.test(c.opts.label || '')), 'the baseline-proceed re-land')
+})
+
+test('#1114 — the polish merge prompt runs the submodule floor, always BARE (a coherence sweep is never a declared gitlink bump)', async () => {
+  const { calls } = await runPhase(SWEEP_ARGS(), sweepBase([queuedAbsorb()]))
+  const polishMerge = calls.find(c => (c.opts.label || '') === 'merge:p3-polish')
+  assert.ok(polishMerge, 'the polish merge is dispatched (phase-close sweep)')
+  assert.match(polishMerge.prompt, /assert-no-submodule-mutation\.sh\s+integration\/wtprov-a\/phase-3\s+war\/wtprov-a\/p3-polish/,
+    'the polish merge prompt invokes the submodule floor on <integrationBranch> <polishBranch> (delete the append ⇒ no invocation ⇒ RED)')
+  assert.ok(!polishMerge.prompt.includes('--declared'),
+    'the invocation is BARE — the gitlink-bump relax flag never appears anywhere in the polish prompt')
+  // The reworded skip rationale still skips the two task-field-gated floors (collateral pin, #819/§4.2).
+  assert.match(polishMerge.prompt, /skip assert-test-in-diff\.sh/, 'the polish merge still skips the test floor')
+  assert.match(polishMerge.prompt, /skip the packaging floor assert-packaging-in-diff\.sh/, 'the polish merge still skips the packaging floor')
+})
+
+test('#1114 — the floor-retry re-merge prompt runs the submodule floor WITH the gitlink-bump --declared conditional (both arms)', async () => {
+  const bare = mergePromptsOf((await runNoTestLoop()).calls).floorRetry
+  assert.ok(bare, 'a floor-retry re-merge is dispatched (non-declared task)')
+  assert.match(bare.prompt, /assert-no-submodule-mutation\.sh\s+integration\/wtprov-a\/phase-3\s+war\/wtprov-a\/p3-t1/,
+    'the floor-retry re-merge invokes the submodule floor on <integrationBranch> <taskBranch> (delete the insert ⇒ RED)')
+  assert.ok(!bare.prompt.includes('--declared'),
+    'a non-declared task gets the BARE floor at the floor-retry re-merge (the conditional is real, never static)')
+
+  const declared = mergePromptsOf((await runNoTestLoop({ tasks: [
+    { id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], requiresTest: true, taskType: 'gitlink-bump', declared: true },
+  ] })).calls).floorRetry
+  assert.ok(declared, 'a floor-retry re-merge is dispatched (declared gitlink-bump task)')
+  assert.match(declared.prompt, /assert-no-submodule-mutation\.sh\s+\S+\s+\S+\s+--declared/,
+    'a declared gitlink-bump task threads --declared AFTER both positional refs, so the retry does not refuse its own legitimate pin move')
+})
+
+test('#1114 — a floor-retry re-merge returning submodule-blocked escalates HARD (reason:"escalate"), never the soft status fallback', async () => {
+  // Mirrors T2 #280 Test 1's routing assertions one dispatch later: the FIRST merge trips the test floor
+  // and the floor-retry re-merge is what surfaces the submodule mutation. Load-bearing: without the
+  // explicit arm the result falls to `reason: floorMr.status` — 'submodule-blocked' is NOT in
+  // HARD_ESCALATION_REASONS, so the phase would LAND minus the task with a soft escalation.
+  let mergeCallCount = 0
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-refiner' && opts.phase === 'Refine') return (++mergeCallCount === 1)
+      ? { mode: 'merge-task', status: 'no-test' }
+      : { mode: 'merge-task', status: 'submodule-blocked' }
+    if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  const { out, calls } = await runPhase(NO_TEST_ARGS(), impl)
+  assert.ok(calls.some(c => /floor-retry/.test(c.opts.label || '')), 'the floor-retry re-merge was dispatched (the route under test is reached)')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  assert.ok(esc, 'escalated must carry an entry for t1')
+  assert.equal(esc.reason, 'escalate',
+    'a floor-retry submodule-blocked escalates via the existing HARD "escalate" member, never the soft `reason: floorMr.status` fallback')
+  assert.ok(typeof esc.detail === 'string' && esc.detail.includes('floor-retry re-merge'),
+    'the detail names the floor-retry surface (distinct from the primary / environment-proceed / baseline-proceed arms)')
+  assert.ok((out.auditLog || []).some(e => e && e.task === 't1' && e.verdict === 'submodule-blocked'),
+    'the audit log records the submodule-blocked verdict (mirroring the primary arm)')
+  assert.equal(out.landDecision, 'held:escalation', 'the phase HOLDS — a submodule touch never rides a land')
+  assert.ok(!out.landed.includes('t1'), 't1 does not land')
+})
+
+test('#1114 — a RE-LAND returning submodule-pr yields held:submodule-pr with the PR ref captured (BOTH re-land routes)', async () => {
+  const SUBMOD_PR = { mode: 'land-phase', status: 'submodule-pr', pr_number: 77, pr_remote: 'git@github.com:org/submodule.git' }
+  // environment-proceed: clsImpl's landProceed hook drives the re-land's own result.
+  const env = await runPhase(CLS_ARGS({ tasks: [submodRetryTask()] }),
+    clsImpl({ landResult: envLandResult, landProceed: () => SUBMOD_PR }))
+  // baseline-proceed: that label has no clsImpl hook — relabel-wrap the impl (the established pattern).
+  const baseImpl = clsImpl({ landResult: baselineLandFail })
+  const base = await runPhase(CLS_ARGS({ tasks: [submodRetryTask()] }),
+    (prompt, opts) => /^land:phase-3:baseline-proceed$/.test(opts.label || '') ? SUBMOD_PR : baseImpl(prompt, opts))
+
+  for (const [where, r] of [['environment-proceed', env], ['baseline-proceed', base]]) {
+    assert.equal(r.out.landDecision, 'held:submodule-pr',
+      `the ${where} re-land's submodule-pr must yield held:submodule-pr — the held:land-failed else would mislabel the hold`)
+    const esc = (r.out.escalated || []).find(e => e && e.reason === 'submodule-pr')
+    assert.ok(esc, `the ${where} re-land pushes an escalated entry with reason:"submodule-pr"`)
+    assert.equal(esc.pr_number, SUBMOD_PR.pr_number, `the ${where} re-land captures pr_number for the Lead's gh-resume`)
+    assert.equal(esc.pr_remote, SUBMOD_PR.pr_remote, `the ${where} re-land captures pr_remote for the Lead's gh-resume`)
+  }
+})
+
+test('#1114 — a polish merge returning submodule-blocked routes the EXISTING fail-open DISCARD arm (no new hold)', async () => {
+  const base = sweepBase([queuedAbsorb()])
+  const impl = (prompt, opts) => (opts.label || '') === 'merge:p3-polish'
+    ? { mode: 'merge-task', status: 'submodule-blocked' }
+    : base(prompt, opts)
+  const { out, logs } = await runPhase(SWEEP_ARGS(), impl)
+  assert.equal(out.handoff.polish, 'discarded', 'the sweep DISCARDS — the pre-polish tip lands unchanged')
+  assert.equal(out.landDecision, 'landed', 'fail-open: a blocked polish is never a hold')
+  assert.ok((out.escalated || []).every(e => !e || e.reason !== 'escalate'),
+    'no escalation is minted for a blocked polish (the discard arm is the whole routing — no routing edit was needed)')
+  assert.ok(logs.some(l => /phase-close sweep DISCARDED/.test(l) && /submodule-blocked/.test(l)),
+    'the discard log names the returned status — the Lead sees WHY before re-dispatching')
 })
 
 // t1.8 — hermetic-gate READER CONTRACT: a gate_failed bearing a recognized stderr precondition marker
@@ -5941,6 +6070,20 @@ test('T2.1 criterion 6 (D5) — the gate-audit seat carries the captured-artifac
   assert.ok(!refinerMd.includes('curate or excerpt'), 'the anti-excerpt prose is gone from war-refiner.md step 7')
   const captureUses = (src.match(/gateCaptureClause\(refineryPath, r\.task\.id\)/g) || []).length
   assert.equal(captureUses, 3, 'the gate-capture clause replaces the anti-excerpt prose at ALL THREE dispatched merge sites (initial + floor-retry + environment-proceed) — the evidence chain must survive a retried merge')
+})
+
+// #1151 — the classification-site drift guard: the sibling of captureUses above, and the ARBITER the
+// classificationClause header comment delegates its site list to (the #1034 gateCaptureClause treatment).
+// The anchor is the bare call-paren, deliberately wider than a first-argument pin: a 4th site passing any
+// other base variable still trips it, a line-wrapped argument list still matches (the wrap lands after the
+// paren), and the definition cannot match (the source has " = (" between the name and the paren). Because
+// it counts occurrences in workflow-template.js, writing the call-paren byte-run into that header comment
+// would itself red this guard — the comment is kept count-free by convention; the call-paren byte-run is
+// the part the guard mechanically forbids (a prose count or a bare site list re-added there stays green).
+test('#1151 — classification-site drift guard: EXACTLY 3 classificationClause call sites in the template', () => {
+  const classificationSites = (src.match(/classificationClause\(/g) || []).length
+  assert.equal(classificationSites, 3,
+    'the gate-failure classification clause is threaded at EXACTLY THREE dispatched sites — the initial merge-task prompt, the floor-retry re-merge prompt, and the land prompt. Adding or removing one is a deliberate RED: update the count AND this message together, and leave the header comment count-free (it names this guard as the arbiter of the site list).')
 })
 
 test('T2.1 criterion 6 (D5) — fail-open: absent artifact + absent pin token ⇒ the SOFT cannot-confirm rule is still in the prompt and the phase still LANDS (never a hold)', async () => {
@@ -7199,7 +7342,7 @@ const LITERAL_REGISTRY = [
   ["${floorMr.status}:exhausted`, fixRounds: r.t"],
   ["merge:${r.task.id}:environment-proceed`, sch"],
   ["merge:${r.task.id}:baseline-proceed`, schema"],
-  ["${r.task.id} touches a submodule (surfaced o", 2],
+  ["${r.task.id} touches a submodule (surfaced o", 3],
   ["task never reached the approve branch (verdi"],
   ["Task ${r.task.id}: env-blocked — provision s"],
   ["$(git -C ${refineryPath} merge-base ${ph.int"],
@@ -7230,7 +7373,7 @@ const LITERAL_REGISTRY = [
   ["phase-close sweep DISCARDED (${sweepWhy || ("],
   ["polish merge returned ${pmr && pmr.status ||"],
   ["land:phase-${ph.id}`, schema: MERGE_RESULT, "],
-  ["phase-${ph.id}-land`, reason: 'submodule-pr'"],
+  ["phase-${ph.id}-land`, reason: 'submodule-pr'", 3],
   ["phase-${ph.id}-land`, reason: landResult.sta", 2],
   ["phase-${ph.id}-land`, reason: 'env-blocked',", 2],
   ["land:phase-${ph.id}:environment-proceed`, sc"],

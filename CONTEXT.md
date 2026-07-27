@@ -978,10 +978,14 @@ The run-scoped, identity-stamped copy of `workflow-template.js` the Lead dispatc
 basename `war-[c<K>-]<planSlug>-p<N>.js` under `$MAIN/.claude/war/runs/<runId>/` (a directory sibling
 of the run manifest, same main-checkout anchor idiom, riding the existing `.claude/` exclude),
 produced by `stage-workflow.mjs` (**defined-but-not-yet-emitted as of this entry; produced in Task 1.1,
-same phase** — see [ADR 0037](docs/adr/0037-run-scoped-staged-phase-scripts.md)). The stager
-substitutes the two `export const meta` anchor literals (`name`/`description`) **exactly once**,
-pre-dispatch, as pure literals — the Workflow sandbox has no shell/fs to compute them — and fails loud
-on a missing or duplicated anchor rather than forking silently onto the wrong text.
+same phase** — see [ADR 0037](docs/adr/0037-run-scoped-staged-phase-scripts.md)). The stager makes
+**exactly-once**, pre-dispatch substitutions as pure literals — the Workflow sandbox has no shell/fs
+to compute them: always the two `export const meta` anchors (`name`/`description`), and, when
+`--args <file>` is passed, an **optional third** — the template's string-arm args fallback tail,
+rewritten so the staged copy falls back to a prelude carrying the validated phase-args object, which
+lets an assembled payload too large to ride the Workflow tool call travel with the script instead
+(dispatched args, when passed, still win). It fails loud on a missing or duplicated anchor rather
+than forking silently onto the wrong text.
 **Write-if-absent**: an existing staged file *is* the run's script and is reused byte-untouched
 (approved stage injections and journal-replay identity survive a resume or a same-day recovery
 relaunch); a deliberate `--force` overwrites it with a fresh substitution from the shipped template.

@@ -32,6 +32,19 @@ const specProseDrift = readFileSync(
 // sheet (skills/war/references/), so the two roots differ — both resolved from HERE, never cwd.
 const contextMd = readFileSync(join(HERE, '..', '..', '..', 'CONTEXT.md'), 'utf8')
 const schemasMd = readFileSync(join(HERE, '..', 'references', 'schemas.md'), 'utf8')
+// (D23) This file's FIRST `docs/adr/` read — same construct-anchored style, third root.
+const adr0037 = readFileSync(
+  join(HERE, '..', '..', '..', 'docs', 'adr', '0037-run-scoped-staged-phase-scripts.md'),
+  'utf8',
+)
+
+// Strip comment leaders BEFORE whitespace-normalizing, then collapse every whitespace run to one
+// space — the recorded doc-cascade sweep trap ([[repo-doc-sweep-needs-leader-strip-before-whitespace-normalize-before-grep]]):
+// normalizing first glues `#`/`//`/`>` leaders into the sentence, and a clause wrapped at ~100
+// columns never matches a contiguous key. Markdown bold `*` is deliberately NOT treated as a leader
+// in these two files — stripping it would mangle the very `**term**` markers the blocks extract by.
+const norm = (s) =>
+  s.split('\n').map((l) => l.replace(/^\s*(?:\/\/+|>+|#+)\s?/, '')).join(' ').replace(/\s+/g, ' ')
 
 // (D10) The Checkpoint classification ladder's routing predicates are the source of truth; each
 // class's inline example list must map to its predicate. The recorded regression
@@ -488,4 +501,88 @@ test('D22 — SKILL.md Gate-2 flow pairs the pre-push staged-file probe with its
       'load-bearing: the probe without the refusal is advice, the refusal without the probe has ' +
       'no trigger. Correct this row to a sanctioned rewording, never drop a half to make it pass',
   )
+})
+
+// ---- Task 2.1 doc-cascade gates (plan 2026-07-26-dispatch-args-and-floor-coverage) ----
+//
+// The ADR 0037 and CONTEXT.md amendments below are deliberately phrased OUT of the spec §4.4
+// four-surface `EMBEDDED_ARGS|ARGS_FALLBACK_ANCHOR` grep, and nothing else in the suite reads them —
+// so without these two rows the doc reword would ship with no mechanical check of any kind. They are
+// PER-MEDIUM, not uniform: an ADR is append-only, so its superseded sentences legitimately stay
+// byte-intact and only NEW-present can discriminate; CONTEXT.md is a living glossary edited in place,
+// so it gets NEW-present AND OLD-absent. Every OLD-absent predicate is sentence-literal-scoped —
+// never a bare `two` word test (decision 2's "two pure, independently-tested exports" sentence is
+// still true and must not trip it).
+
+// (D23) ADR 0037 decision 2 carries TWO `two`-scoped sentences — the substitution sentence ("replaces
+// exactly once each of the two `export const meta` anchor literals") AND the exports sentence ("the
+// stager also exports the two anchor literals as constants"). Task 2.1 falsifies BOTH: the stager
+// gained an optional third exactly-once substitution and now exports three anchors. The correction
+// channel is one inline dated amendment note covering both — NOT a retro-edit of the ratified
+// sentences (append-only). NEW-present only, and proven sufficient: leave the ADR unamended and every
+// row below REDs. Extraction is BY CONSTRUCT (decision 2 → decision 3), never a whole-file scan —
+// decision 3 and the Consequences section discuss the same stager and would green a deleted note.
+test('D23 — ADR 0037 decision 2 carries the dated amendment covering BOTH of its two-scoped sentences (#1134)', () => {
+  const block = adr0037.match(/^2\. \*\*A dedicated stager[\s\S]*?(?=\n3\. \*\*)/m)
+  assert.ok(
+    block,
+    'could not locate ADR 0037 decision 2 (`2. **A dedicated stager` → `3. **`) — the extraction ' +
+      'construct rotted',
+  )
+  const b = norm(block[0])
+  // Non-vacuous: the extraction really spans decision 2's own claims, not an empty slice.
+  assert.match(b, /anchor-guard test/i, 'the extracted decision-2 block must span its anchor-guard sentence — extraction truncated')
+  for (const [re, what] of [
+    [/Amendment \(2026-07-27/, 'the inline dated amendment note itself'],
+    [/--args/, 'the `--args <file>` flag that introduces the third substitution'],
+    [/optional[\s*_`]{0,4}third[\s*_`]{0,4}exactly-once substitution/i,
+      'the THIRD exactly-once substitution (the substitution sentence’s correction)'],
+    [/three[\s*_`]{0,4}anchor literals/i,
+      'the now-THREE exported anchor literals (the exports sentence’s correction — amending only ' +
+      'the substitution sentence leaves the more directly-falsified one stale)'],
+  ]) {
+    assert.match(
+      b,
+      re,
+      `ADR 0037 decision 2 must name ${what}. Correct this row to a sanctioned rewording of the ` +
+        'amendment, never delete it to make a reword pass',
+    )
+  }
+})
+
+// (D24) CONTEXT.md's staged-phase-script glossary entry claimed the stager substitutes exactly the
+// two `export const meta` anchor literals. A living glossary is edited IN PLACE, so this row is
+// NEW-present AND OLD-absent — the bare unqualified two-only claim must be gone, keyed on the
+// sentence literal (not the word `two`, which stays legitimately in the corrected sentence naming the
+// two meta anchors). Extraction is BY CONSTRUCT — the bolded term to the next bolded glossary term OR
+// the next `###` heading, D19's idiom — never a whole-file scan: ADR 0037's own prose and the
+// `_Avoid_` line below discuss the same stager.
+test('D24 — CONTEXT.md staged-phase-script entry names the optional third substitution, drops the two-only claim (#1134)', () => {
+  const block = contextMd.match(/^\*\*Staged phase script\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:|\n### )/m)
+  assert.ok(
+    block,
+    'could not locate the `**Staged phase script**:` glossary entry in CONTEXT.md (bolded term → ' +
+      'next bolded term or `###` heading) — the extraction construct rotted',
+  )
+  const b = norm(block[0])
+  // Non-vacuous: the extraction really spans the entry's substitution prose.
+  assert.match(b, /fails loud/i, 'the extracted entry must span its fail-loud sentence — extraction truncated')
+  assert.doesNotMatch(
+    b,
+    /substitutes the two `export const meta` anchor literals/i,
+    'the CONTEXT.md staged-phase-script entry still makes the bare unqualified two-only ' +
+      'substitution claim — the stager now makes an OPTIONAL THIRD exactly-once substitution under ' +
+      '`--args <file>` (#1134)',
+  )
+  for (const [re, what] of [
+    [/--args/, 'the `--args <file>` flag'],
+    [/optional[\s*_`]{0,4}third/i, 'the optional THIRD exactly-once substitution'],
+  ]) {
+    assert.match(
+      b,
+      re,
+      `the CONTEXT.md staged-phase-script entry must name ${what}. Correct this row to a sanctioned ` +
+        'rewording, never drop the clause to make a reword pass',
+    )
+  }
 })

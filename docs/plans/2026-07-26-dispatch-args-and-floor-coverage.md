@@ -45,20 +45,38 @@ call sites, and neither `'submodule-blocked'` nor `'submodule-pr'` is in
   1. **No-flag byte identity:** staging the shipped template without `--args` produces
      byte-identical output to the pre-change stager — the existing restore-roundtrip tests in
      `stage-workflow.test.mjs` pass unmodified (they whole-file byte-compare via reverse
-     substitution — a full-byte proof, not a spot check), plus one direct negative: the no-flag
-     staged output contains zero `EMBEDDED_ARGS` occurrences (steps (2)–(3) provably never ran).
+     substitution — a full-byte proof, not a spot check), plus one direct negative scoped to the
+     **substitution evidence, never the bare token**: the no-flag staged output contains zero
+     `const EMBEDDED_ARGS =` and zero `: (args || EMBEDDED_ARGS)` occurrences and still carries
+     `: (args || {})` exactly once (steps (2)–(3) provably never ran). The bare-token form is
+     deliberately NOT the predicate: Task 2.1's referential coupling comment lives in
+     `workflow-template.js`, and the stager copies template bytes verbatim apart from the anchor
+     substitutions, so that comment's `EMBEDDED_ARGS` mention rides into every staged copy by
+     construction — a zero-bare-token assertion would be RED on arrival (red-team 2026-07-27).
   2. **Valid `--args`:** staging with a valid JSON-object file yields a staged script whose text
-     (i) starts with the `EMBEDDED_ARGS` prelude carrying the payload, (ii) contains
+     (i) carries the `EMBEDDED_ARGS` prelude **immediately after the `export const meta { … }`
+     statement — never before it**, so `export const meta` remains the staged script's first
+     *statement* (the Workflow tool refuses any script where it is not, dying `Invalid workflow
+     script` before dispatch — reproduced live 2026-07-27; a leading *comment* is fine, a leading
+     `const` is not), (ii) contains
      `: (args || EMBEDDED_ARGS)` and not the original fallback bytes, and (iii) restores to the
      shipped template when the three substitutions (two meta anchors + fallback) are reversed
-     and the prelude stripped.
+     and the prelude stripped. A test pins (i) **positionally** — the prelude's index is greater
+     than the `export const meta` index — and a dispatch-shape assertion that no statement
+     precedes `export const meta`; a mere "prelude is present" check would have passed the
+     broken prepend.
   3. **Invalid `--args`:** a malformed-JSON file, and each non-object parse (array, scalar,
      `null`), exits non-zero with a named `stage-workflow:`-prefixed stderr error and writes no
      staged file; `--args` missing its value token exits non-zero with the usage error; a
      duplicate `--args` exits non-zero with the usage error; `--args --force` consumes `--force`
      as the filename and dies at the named read error (the value is the immediately-following
-     token verbatim — the peel ordering is pinned by tests, never incidental). All
-     validation runs before any write (ADR 0034 parity with the template's entry guard).
+     token verbatim — the peel ordering is pinned by tests, never incidental); and an
+     **attached-form** `--args=<file>` token exits non-zero with the usage error — the two-token
+     contract is *enforced*, not merely declared. Without that guard the attached form survives
+     the `--force` filter and binds to the 5th positional `campaignOrdinal`, staging an
+     args-**less** script at exit 0: the exact #1134 incident this change exists to close
+     (red-team 2026-07-27). All validation runs before any write (ADR 0034 parity with the
+     template's entry guard).
   4. **Injection-order invariant:** an args file whose payload string-quotes the `NAME_ANCHOR`,
      `DESCRIPTION_ANCHOR`, and `: (args || {})` bytes AND carries JS-meta content (backticks,
      `${`, quote characters, newlines, U+2028/U+2029) still stages cleanly — exactly-once
@@ -90,10 +108,15 @@ call sites, and neither `'submodule-blocked'` nor `'submodule-pr'` is in
      enumeration, never contains the `classificationClause(` byte-run, and names that guard as
      arbiter — verified by reading the comment block, not a single-line grep (the wrap trap).
   9. **Sweeps + survey:** every spec §4.4 grep lands on its expected post-change count
-     (`submodLandNote` 4; `assert-no-submodule-mutation` 5 dispatched-prompt sites —
+     (`submodLandNote` 4; `assert-no-submodule-mutation` **exactly 5** dispatched-prompt sites —
      **site-classified**, never a whole-file `grep -c`: each hit is named by its dispatch label
-     and any extra non-prompt mention (a comment, the reworded skip sentence) is recorded
-     separately, per the marker-completeness lesson; every `submodule-pr`/`submodule-blocked`
+     and any extra non-prompt mention (a comment) is recorded separately, per the
+     marker-completeness lesson. The reworded polish skip sentence is **not** such a mention: it
+     is `pt`-tagged prompt text inside the `merge:p<id>-polish` dispatch that already contributes
+     one of the 5, so it must name the submodule floor **descriptively** ("the submodule floor
+     still runs") and must NOT carry the `assert-no-submodule-mutation` byte-run — a filename
+     mention there forks the count to 6 inside an already-counted dispatch (red-team
+     2026-07-27); every `submodule-pr`/`submodule-blocked`
      routing arm hard/held; the `EMBEDDED_ARGS`/`ARGS_FALLBACK_ANCHOR` grep hits exactly its
      four named surfaces), Phase 1 additionally asserts `grep -cF ': (args || {})'` = 1 on
      `workflow-template.js` (Phase 2's anchor stays exactly-once through the prose edits), the two
@@ -119,10 +142,22 @@ call sites, and neither `'submodule-blocked'` nor `'submodule-pr'` is in
       `--args`; small hand-built launches may stay inline), the stage-failure runbook line
       (an exactly-once failure names the offending anchor label; `--force` cannot help), and
       the `--force` re-embed rule; the paragraph's inline stager command line gains
-      `[--args <file>]`. **Doc truth, same commit:** ADR 0037's "the two anchor literals"
-      enumeration gains a one-line dated amendment note and `CONTEXT.md`'s staged-phase-script
-      entry gains one clause, each naming the optional third exactly-once substitution — no
-      new glossary term.
+      `[--args <file>]`. **Doc truth, same commit:** ADR 0037 decision 2 gains a one-line dated
+      amendment note covering **both** of its `two`-scoped sentences (the substitution sentence
+      *and* the exports sentence — Phase 2 falsifies both, since the stager then exports three
+      anchors), and `CONTEXT.md`'s staged-phase-script entry gains one clause, each naming the
+      optional third exactly-once substitution — no new glossary term. **Mechanically gated, not
+      prose-waived:** `skills/war/assets/skill-doc-contracts.test.mjs` carries block-scoped
+      assertions, per-medium (re-verify round 2026-07-27): the **ADR 0037 decision-2** block is
+      **NEW-present only** — the amendment note is *inline* inside decision 2 (not a
+      `## Amendment` section), and an appended note cannot make the superseded sentences
+      byte-absent (ADRs are append-only; retro-editing the ratified sentences is forbidden),
+      so per-block NEW-present is the whole mechanical discriminator there and it is proven
+      sufficient (an unamended surface REDs its NEW-present row); the **CONTEXT.md entry** is a
+      living glossary edited in place, so its block is NEW-present **and** OLD-absent (the bare
+      unqualified two-only claim is gone). Every OLD-absent predicate is
+      **sentence-literal-scoped, never a bare `two` word test** — decision 2's "two pure,
+      independently-tested exports" sentence is true and must not trip it.
   13. **Whole suite green:** `node --test 'skills/**/*.test.mjs'` passes; the shipped
       `workflow-template.js` stages cleanly through the extended anchor guard (all three
       anchors exactly-once).
@@ -166,8 +201,12 @@ call sites, and neither `'submodule-blocked'` nor `'submodule-pr'` is in
   'error'`. Keep the existing test/packaging skip sentence and class-exempt prose, but reword
   the skip rationale minimally so it no longer implies *all* floors are skipped — the submodule
   floor is named as the one that still runs (it is unconditional per `agents/war-refiner.md`
-  step 6 and needs no task fields). No routing edit: both non-`merged` statuses already hit the
-  fail-open DISCARD arm.
+  step 6 and needs no task fields). **Name it descriptively, never by filename:** this skip
+  sentence is `pt`-tagged prompt text inside the `merge:p<id>-polish` dispatch that already
+  contributes one of the 5 counted sites, so the reworded sentence must NOT contain the
+  `assert-no-submodule-mutation` byte-run — a filename mention forks the End-state-9 sweep count
+  to 6 inside an already-counted dispatch (red-team 2026-07-27). No routing edit: both
+  non-`merged` statuses already hit the fail-open DISCARD arm.
   **(c) Floor-retry re-merge:** insert the compact floor sentence — mirroring the
   environment-proceed re-merge's form, **with** the
   `taskType === 'gitlink-bump' && declared ? ' --declared' : ''` conditional — into the
@@ -215,8 +254,13 @@ call sites, and neither `'submodule-blocked'` nor `'submodule-pr'` is in
   **Sweeps:** the `submodLandNote` (expect 4), `assert-no-submodule-mutation` (expect 5
   dispatched-prompt sites — **site-classified**: name each hit's dispatch label, record extra
   non-prompt mentions separately, never a bare whole-file count), `submodule-pr|submodule-blocked`
-  (every arm hard/held; read each hit in context), and `ALL floor invocations|all
-  three|floor-retry` greps from spec §4.4, anchored to the named files, **plus**
+  (every arm hard/held; read each hit in context), and the floor-set **prose** sweep from spec
+  §4.4 run **case-insensitively** on a stable mid-sentence token —
+  `grep -in 'floor invocations' <named files>`, keeping `all three` / `floor-retry` as further
+  `-i` terms. The spec's all-caps case-sensitive form false-negates on a sentence-cased reword
+  of its own landing site: exactly the #1034 drift this grep exists to hunt (red-team
+  2026-07-27). Case-sensitivity stays correct on the identifier/filename sweeps above — this is
+  the one prose grep in the set. Anchored to the named files, **plus**
   `grep -cF ': (args || {})' skills/war/assets/workflow-template.js` = 1 (Phase 2's fallback
   anchor must stay exactly-once through this phase's prose edits — caught here, not first by
   Phase 2's guard), plus the mandatory same-scope hand-scan; record survey-derived corrections
@@ -231,7 +275,7 @@ call sites, and neither `'submodule-blocked'` nor `'submodule-pr'` is in
 
 ### Task 2.1: `--args <file>` embedding in `stage-workflow.mjs`
 
-- Files: `skills/war/assets/stage-workflow.mjs`, `skills/war/assets/stage-workflow.test.mjs`, `skills/war/assets/workflow-template.js`, `skills/war/SKILL.md`, `docs/adr/0037-run-scoped-staged-phase-scripts.md`, `CONTEXT.md`
+- Files: `skills/war/assets/stage-workflow.mjs`, `skills/war/assets/stage-workflow.test.mjs`, `skills/war/assets/workflow-template.js`, `skills/war/SKILL.md`, `docs/adr/0037-run-scoped-staged-phase-scripts.md`, `CONTEXT.md`, `skills/war/assets/skill-doc-contracts.test.mjs`
 - Plan slice: spec §4.1 + §4.5. The CLI grows one optional value-attached flag —
   `[--args <file>]` — two-token only, never `--args=<file>`; usage string and the header-comment
   CLI line updated in the same commit; never describe the flag set with a blanket adjective in
@@ -242,6 +286,14 @@ call sites, and neither `'submodule-blocked'` nor `'submodule-pr'` is in
   consumes `--force` as the filename and dies at the named read error (fail-loud, pinned by a
   test); `--args` as the last token (missing value) ⇒ the named usage error, non-zero; a second
   `--args` remaining after the peel (duplicate) ⇒ the named usage error, non-zero.
+  **Attached form enforced, not merely declared:** after the peel, any remaining token matching
+  `/^--args=/` ⇒ the named usage error, non-zero, before any write. Without this guard the
+  attached form is not a flag to the existing parser at all — it survives
+  `rest.filter((a) => a !== '--force')` and binds to the 5th positional `campaignOrdinal`, so
+  `--args=f.json` silently stages an args-**less** script and exits 0: the exact #1134 incident
+  shape this change exists to close (red-team 2026-07-27, reproduced against `main` in
+  `stage-workflow.mjs`). Residual, accepted and recorded: the parser still absorbs an unrelated
+  typo'd flag into `campaignOrdinal`; a general unknown-flag guard is out of this plan's slice.
   **Validate before any write:** read the file, `JSON.parse`, require a non-null, non-array
   object — the ADR 0034 predicate mirrored from the template's entry guard. Read failure, parse
   failure, or a scalar/array/`null` result ⇒ one named `stage-workflow:`-prefixed stderr error,
@@ -253,13 +305,25 @@ call sites, and neither `'submodule-blocked'` nor `'submodule-pr'` is in
   **Substitution order (the spec §2 invariant):** (1) the two existing meta-anchor
   substitutions; (2) when `--args` is present,
   `replaceExactlyOnce(staged, ARGS_FALLBACK_ANCHOR, ': (args || EMBEDDED_ARGS)')`; (3) **last**,
-  prepend the prelude — one provenance comment line plus
-  `const EMBEDDED_ARGS = <JSON.stringify(parsed)>` — to the top of the staged text. Payload
+  insert the prelude — one provenance comment line plus
+  `const EMBEDDED_ARGS = <JSON.stringify(parsed)>` — **immediately after the staged text's
+  `export const meta = { … }` statement**. Payload
   bytes are injected only after every exactly-once count has run, so a payload quoting any
   anchor cannot fork the stage. `JSON.stringify` output is valid JS source (ES2019 JSON-superset
-  grammar) — no re-escaping pass. Prelude placement above the template's opening COUPLING
-  comment is legal (spec §8 latitude); any placement satisfying injected-after-all-substitutions
-  is acceptable.
+  grammar) — no re-escaping pass.
+  **Placement is NOT free latitude — corrected 2026-07-27 from live evidence.** The spec's §8
+  claim that "prelude placement above the template's opening COUPLING comment is legal" and that
+  "any placement satisfying injected-after-all-substitutions is acceptable" is **FALSE**: the
+  Workflow tool **refuses** a script whose first *statement* is not `export const meta`, dying
+  `Invalid workflow script: export const meta = { name, description, phases } must be the FIRST
+  statement in the script` — before any agent is dispatched. A leading *comment* is fine (the
+  shipped template already opens with the COUPLING comment); a leading `const` is not. Reproduced
+  live by the campaign Lead on 2026-07-26-dispatch-args-and-floor-coverage phase 1 while
+  hand-embedding args into the staged copy. Red-team round 0 missed it because its executed probe
+  built the substitution pipeline in a sandbox and asserted on staged **text**, never dispatching
+  a staged script through the real Workflow tool. Implementation must therefore brace-match the
+  `export const meta` statement and insert past its closing line — **never** `staged = prelude +
+  staged`.
   **Contract preserved:** write-if-absent short-circuits before any `--args` processing exactly
   as today (path printed, exit 0) — with one addition: when `--args` was passed and the
   short-circuit fires, print one stderr warning line (`stage-workflow: existing staged file
@@ -275,23 +339,50 @@ call sites, and neither `'submodule-blocked'` nor `'submodule-pr'` is in
   surface and the anchor-guard test as arbiter, **never restating the anchor bytes** (restating
   trips the exactly-once count — the meta-anchor comment discipline). Deliberate asymmetry,
   recorded so a worker does not "clean it up": the template comment **may and does** name
-  `EMBEDDED_ARGS`/the stager (that name is the §4.4 sweep's expected template hit) while it
-  must never contain the `: (args || {})` byte-run — naming the mechanism is referential;
-  restating the anchor bytes forks the count. This is this task's only
+  `EMBEDDED_ARGS`/the stager (that bare name is the §4.4 sweep's expected template hit) while it
+  must never contain **any of the three byte-runs End state 1 asserts absent from the no-flag
+  staged output** — `: (args || {})` (restating anchor bytes forks the exactly-once count) and
+  `: (args || EMBEDDED_ARGS)` / `const EMBEDDED_ARGS =` (the template's comment bytes ride
+  verbatim into every staged copy, so either would make End state 1's negative RED on arrival —
+  re-verify round 2026-07-27). Naming the mechanism is referential; restating the rewritten
+  form is a staged-output leak. This is this task's only
   `workflow-template.js` touch; Phase 1 landed first, so no collision.
   **Tests:** extend the anchor-guard loop to the imported `ARGS_FALLBACK_ANCHOR`
   (exactly-once in the shipped template); the invalid-`--args` cases incl. duplicate-`--args`
   and the `--args --force` peel-ordering case (End state 3); the valid-`--args` staged-text
-  assertions (End state 2 i–iii); the payload-quotes-anchor-bytes + JS-meta payload case (End
-  state 4); the no-flag zero-`EMBEDDED_ARGS` negative (End state 1); the ignored-`--args`
-  write-if-absent warning case (stderr line present, exit 0, staged file byte-untouched);
-  existing restore-roundtrip tests pass unmodified.
+  assertions (End state 2 i–iii) — including the **positional** prelude-placement pin (the
+  `EMBEDDED_ARGS` prelude's index exceeds the `export const meta` index, and no statement
+  precedes `export const meta`), which a presence-only check would not have caught; the
+  payload-quotes-anchor-bytes + JS-meta payload case (End
+  state 4); the no-flag negative in its **substitution-evidence** form — zero
+  `const EMBEDDED_ARGS =`, zero `: (args || EMBEDDED_ARGS)`, and `: (args || {})` still
+  exactly-once — never the bare-token form, which the template coupling comment makes RED by
+  construction (End state 1); the **attached-form** `--args=<file>` usage-error case (End
+  state 3); the ignored-`--args` write-if-absent warning case (stderr line present, exit 0,
+  staged file byte-untouched); the doc-contract block assertions added to
+  `skill-doc-contracts.test.mjs` (ADR 0037 decision-2 NEW-present only; CONTEXT.md entry
+  NEW-present + OLD-absent — the per-medium rule above); **plus the semantic half of backstop 2
+  pulled pre-merge**, landing in `stage-workflow.test.mjs` — stage the shipped template with a
+  valid `--args` fixture and drive the staged text through a **local ~3-line AsyncFunction
+  harness** (strip `^export const meta`, stub `agent`/`parallel`/`pipeline`/`log`/`phase`/`budget`,
+  `args` undefined) with a **falsy** `args`, asserting the embedded fallback satisfies the
+  top-level entry validation (only the live-transport half stays deferred). The harness is
+  **net-new, not reused**: `workflow-template.test.mjs`'s AsyncFunction builder is module-scoped
+  and closed over the shipped template, unreachable from this suite (re-verify round
+  2026-07-27). **Known collateral pin (same commit):** `stage-workflow.test.mjs`'s file-header
+  design-invariant comment ("we NEVER import()/execute a staged copy or the shipped template")
+  must be reworded with a carve-out for this entry-validation harness case — shipping the test
+  without the reword leaves a comment its own file falsifies, the #1034 rot class this plan
+  exists to fight. Existing restore-roundtrip tests pass unmodified.
   **SKILL.md (§4.5):** extend the "Stage the per-phase script first (ADR 0037)" paragraph — the
   real-size class (~104.5 KB: `args.memory` + verbatim plan slices + intent) writes the
   assembled args JSON to `$MAIN/.claude/war/runs/<runId>/args-p<phase.id>.json` (sibling of the
   staged script, untracked via the same existing `.claude/` ensure-exclude — no new ignore
   machinery) and passes `--args <that file>`; then dispatch the staged script with **no**
-  Workflow `args` (a dispatched `{}` is truthy and beats the embedded fallback); dispatched
+  Workflow `args` (a dispatched `{}` is truthy and beats the embedded `EMBEDDED_ARGS` fallback —
+  the paragraph names the constant **once**, deliberately: that mention is the §4.4 four-surface
+  sweep's expected SKILL.md hit, otherwise a fully compliant paragraph would yield only three
+  hits and fail End state 9 — re-verify round 2026-07-27); dispatched
   args, when passed, always win; a `resumeFromRunId` resume of an `--args`-staged script needs
   no re-passed args (write-if-absent guarantees the resume sees the same embedded bytes — the
   staged script's top-level entry validation re-runs on resume, the exact incident shape #1134
@@ -316,6 +407,31 @@ call sites, and neither `'submodule-blocked'` nor `'submodule-pr'` is in
   literal so the §4.4 four-surface grep expectation stays exact. No new glossary term
   ("embedded args" stays a mechanism of the staged-copy concept — the /war-machine review
   ruling, final).
+  **ADR 0037 decision 2 carries TWO `two`-scoped sentences, not one** (red-team 2026-07-27) —
+  the substitution sentence quoted above *and* an exports sentence ("the stager **also exports
+  the two anchor literals** as constants so the anchor-guard test … imports them rather than
+  hardcoding a second copy"). Phase 2 falsifies **both**: after this task the stager exports
+  three anchors and End state 13 pins all three through the extended guard. The dated amendment
+  note must therefore cover both sentences; amending only the substitution sentence leaves the
+  more directly-falsified one stale.
+  **Gate the cascade, do not waive it in prose** (red-team 2026-07-27, adjudicated): the ADR
+  0037 and CONTEXT.md amendments are deliberately phrased out of the §4.4 four-surface grep, and
+  nothing else in the suite reads them — so as drafted this doc reword shipped with **no**
+  mechanical check of any kind, neither OLD-absent nor NEW-present. Close it in the same commit
+  by extending `skills/war/assets/skill-doc-contracts.test.mjs` (it already reads
+  `skills/war/SKILL.md` and repo-root `CONTEXT.md`; it gains its first `docs/adr/` read here)
+  with **block-scoped** assertions over the ADR 0037 decision-2 paragraph and the CONTEXT.md
+  staged-phase-script entry — **per-medium** (re-verify round 2026-07-27): the ADR block gets
+  **NEW-present only** (the inline dated amendment note present, naming the third exactly-once
+  substitution and covering both `two`-scoped sentences) because the amendment is an *appended
+  note* — the superseded sentences legitimately stay byte-intact in an append-only ADR, so a
+  literal OLD-absent row would be RED against the plan's own correct amendment, while
+  NEW-present alone is proven discriminating (leave a surface unamended and its row REDs); the
+  CONTEXT.md block, an in-place glossary edit, gets NEW-present **and** OLD-absent (the bare
+  unqualified two-only claim gone). OLD-absent predicates are sentence-literal-scoped, never a
+  bare `two` word test — "two pure, independently-tested exports" stays true and must not trip.
+  Scope the assertions to the extracted block, never a whole-file grep, and strip comment
+  leaders before whitespace-normalizing (the recorded doc-cascade sweep trap).
   **Sweep:** the spec §4.4 `EMBEDDED_ARGS|ARGS_FALLBACK_ANCHOR` grep over the four named files —
   post-change hits exactly: stager (constant + prelude builder), test (imported anchor + cases),
   template (referential comment only, not the bytes), SKILL.md (launch prose) — plus the
@@ -342,7 +458,10 @@ call sites, and neither `'submodule-blocked'` nor `'submodule-pr'` is in
   `738cf6a`) — or, when run inside the campaign, the campaign's live integration tip after
   every stacked predecessor (including its own release bumps) has landed; resolve the next free
   patch from the four slots **as they stand at land time**, never from any plan literal, so
-  stacked-release lag is absorbed by construction. Standalone fallback: a run through plain
+  stacked-release lag is absorbed by construction. (The `738cf6a` parenthetical is the master tip
+  **as of plan authoring** and is already stale — `origin/master` was `c73e9f6` at red-team time,
+  2026-07-27. It is illustrative only; all four slots read the same version at both commits, so
+  the next-free-patch computation is unaffected. The operative rule is the land-time resolve.) Standalone fallback: a run through plain
   `/war` (outside the campaign) resolves the next free patch from the four slots itself.
   An intervening external release landing between this phase's provision and its land surfaces
   as a **rebase conflict on the slot lines** at the serial merge (all four slots are same-line
@@ -373,16 +492,18 @@ call sites, and neither `'submodule-blocked'` nor `'submodule-pr'` is in
   sweep runs pre-land in its own worktree; only the integrated tip proves the counts survived
   the serial merge queue and the cross-phase file handoff · runner: the Lead at Phase 3 land
   (before the release commit), from the repo root anchored to the named files.
-- First real-size `--args` launch observation — one live phase launch staging with an actual
-  large args file (the ~104.5 KB class) dispatched with no Workflow `args`, confirming entry
-  validation passes via the embedded fallback · why deferred: needs a live `/war` run; the test
-  suite proves the mechanism on fixtures, not the harness path end-to-end — this observation
-  also re-proves the harness's absent-args dispatch behavior (args arrives falsy; the embedded
-  fallback satisfies entry validation), which the phase-1 hand-edited staged copy demonstrated
-  live exactly once · runner: the operator/Lead on the first campaign phase that uses `--args`,
-  recorded in that run's notes; the entry rides `args.backstops` → `handoff.backstops` → the
-  final PR like every backstop, so it stays visible until executed
-  (spec §9 defers any new staged-file-size ceiling until observed).
+- First real-size `--args` **live-transport** observation — one live phase launch staging with an
+  actual large args file (the ~104.5 KB class) dispatched with no Workflow `args`, confirming the
+  **harness** delivers a falsy `args` at that size · why deferred: only the transport half needs a
+  live `/war` run — nothing pre-merge can observe what the Workflow tool hands a staged script at
+  real size · runner: the operator/Lead on the first campaign phase that uses `--args`, recorded
+  in that run's notes; the entry rides `args.backstops` → `handoff.backstops` → the final PR like
+  every backstop, so it stays visible until executed (spec §9 defers any new staged-file-size
+  ceiling until observed). **Narrowed at red-team (2026-07-27):** the *semantic* half — that a
+  staged script entered with falsy `args` clears entry validation via the embedded fallback — is
+  provable pre-merge with machinery this repo already has and has been **moved into Phase 2's
+  suite** (Task 2.1 Tests). Deferring it too was over-declared: a backstop covers only what no
+  pre-merge gate can reach.
 
 ## Notes / conscious deviations
 
@@ -452,6 +573,57 @@ call sites, and neither `'submodule-blocked'` nor `'submodule-pr'` is in
   - **Backstop 1's runner is the standing backstop pipeline**, not a new enforcement: the entry
     rides `args.backstops` → `handoff.backstops` → the final PR's "Unexecuted backstops" line
     until the Lead executes and records it — same for Backstop 2.
+- **Red-team adjudications (2026-07-27, `/war-campaign` AFK self-adjudication).** Report:
+  `docs/red-team/2026-07-26-dispatch-args-and-floor-coverage.md`. Each was reproduced against
+  live code before the plan was patched:
+  - **End state 1's negative re-scoped to substitution evidence.** The bare-token form ("zero
+    `EMBEDDED_ARGS` occurrences") contradicted this same task's `workflow-template.js` coupling
+    comment: `stage-workflow.mjs` `main` builds the staged file as `readFileSync(template)` →
+    two `replaceExactlyOnce` → `writeFileSync`, so every template comment byte survives into
+    every staged copy. Resolution: keep the coupling comment (it is the §4.4 sweep's expected
+    template hit and the both-surfaces rule needs it) and assert the substitutions instead.
+  - **`--args=<file>` attached form is now enforced.** The plan declared "two-token only, never
+    `--args=<file>`" but pinned nothing; the live parser has no unknown-flag rejection, so the
+    attached token survives `rest.filter((a) => a !== '--force')` and binds to the 5th
+    positional `campaignOrdinal` — staging an args-less script at exit 0, the very #1134 shape.
+    Scoped deliberately to `--args`-prefixed tokens; a general unknown-flag guard is out of slice
+    and the residual is recorded at the Parse bullet.
+  - **The doc-truth cascade is gated, not prose-waived.** As drafted, the ADR 0037 + CONTEXT.md
+    amendments were phrased *out* of the §4.4 grep and read by no test, leaving a multi-surface
+    reword with no OLD-absent (or even NEW-present) check — the recorded drift-guard failure
+    mode, and unwaivable in prose per ADR 0017. Resolution: block-scoped assertions in
+    `skills/war/assets/skill-doc-contracts.test.mjs`, which already reads both `skills/war/SKILL.md`
+    and repo-root `CONTEXT.md`. **New cross-plan contention, recorded:** that file is owned by the
+    sibling plan `2026-07-26-standing-doc-and-remedy-truth-sweep` (roadmap row 4), which already
+    lands *after* this plan — the existing ordering edge covers it, but plan 4's worker must
+    rebase onto this task's block rather than assume the file is untouched. Plan 4's two
+    "sole shared non-release file is `skills/war/SKILL.md`" sentences were corrected in the same
+    campaign pass (2026-07-27) to name this second shared file — its own red-team round
+    re-verifies.
+  - **ADR 0037 decision 2 has two `two`-scoped sentences.** The amendment now covers the exports
+    sentence as well as the substitution sentence; Phase 2 falsifies both.
+  - **Polish skip-sentence reword must name the submodule floor descriptively.** The sentence is
+    `pt`-tagged prompt text *inside* the `merge:p<id>-polish` dispatch that already contributes
+    one of the 5 counted sites, so a filename mention would fork the sweep count to 6.
+  - **Floor-set prose grep made case-insensitive.** The all-caps case-sensitive form
+    false-negates on a sentence-cased reword of its own landing site — the #1034 shape it exists
+    to hunt. Identifier/filename sweeps stay case-sensitive.
+  - **Backstop 2 narrowed** to the live-transport half; the semantic half moved into Phase 2's
+    suite (a backstop covers only what no pre-merge gate can reach).
+  - **Stale `738cf6a`** marked illustrative — `origin/master` was `c73e9f6` at red-team time; the
+    land-time next-free-patch resolve is unaffected.
+  - **Re-verify round refinements (2026-07-27, round 1):** (i) the doc-contract gate is
+    **per-medium** — ADR 0037 block NEW-present only (append-only medium: the inline dated note
+    cannot make superseded sentences byte-absent, and NEW-present alone is proven
+    discriminating), CONTEXT.md block NEW-present + OLD-absent (in-place glossary edit);
+    OLD-absent predicates sentence-literal-scoped, never a bare `two` word test. (ii) The
+    template coupling comment must avoid all three End-state-1 byte-runs, not just the anchor —
+    `: (args || EMBEDDED_ARGS)` / `const EMBEDDED_ARGS =` would ride into every staged copy.
+    (iii) The §4.5 SKILL.md paragraph names `EMBEDDED_ARGS` exactly once (the `{}`-is-truthy
+    caveat) so the four-surface sweep's fourth hit is mandated, not incidental. (iv) The
+    backstop-2 semantic-half test lands in `stage-workflow.test.mjs` with a net-new local
+    AsyncFunction harness (the sibling suite's builder is module-scoped and unreachable) and the
+    file-header "never execute" invariant comment gains its carve-out in the same commit.
 
 ## Open decisions
 

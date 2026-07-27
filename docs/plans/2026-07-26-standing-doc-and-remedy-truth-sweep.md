@@ -10,11 +10,14 @@ ref, and `agents/war-worker.md`'s escalation section offers `PLAN-DEFECT:` as it
 classification token).
 
 **Cross-plan ordering (binding via the roadmap spine):** this plan stacks on the landed tip of
-`docs/plans/2026-07-26-dispatch-args-and-floor-coverage.md`. The sole shared non-release file is
-`skills/war/SKILL.md` (verified against that plan's actual `Files:` lines — its SKILL.md edit is
-the "Stage the per-phase script first (ADR 0037)" launch paragraph, which never touches the
-`**Post-servitor publication (Gate 2` construct, so Task 1.6's D22 anchors are byte-stable under
-it; `agents/war-worker.md` appears in **no** sibling's footprint and is exclusive to this plan).
+`docs/plans/2026-07-26-dispatch-args-and-floor-coverage.md`. **Two** shared non-release files
+(re-verified 2026-07-27, after that plan's red-team patch): `skills/war/SKILL.md` — its SKILL.md
+edit is the "Stage the per-phase script first (ADR 0037)" launch paragraph, which never touches
+the `**Post-servitor publication (Gate 2` construct, so Task 1.6's D22 anchors are byte-stable
+under it — and `skills/war/assets/skill-doc-contracts.test.mjs`, where that plan's red-team round
+added block-scoped ADR 0037/CONTEXT.md doc-contract assertions: this plan's worker must rebase
+onto that landed block, never assume the file's pre-campaign shape
+(`agents/war-worker.md` appears in **no** sibling's footprint and is exclusive to this plan).
 This plan's `skills/war/SKILL.md` hunks are authored as construct-anchored insertions against
 that plan's landed state, never context-heavy patches (spec §2.1, §8). The **enforcing** record
 of this ordering is the campaign roadmap's spine entry (this plan sequenced after dispatch-args);
@@ -453,10 +456,11 @@ and Phase 2; a sibling release landing *before* Phase 1 is handled inside Task 1
   here (spec §5: memory-root lesson files are servitor/Gate-2 territory — Task 1.1 cites the
   slug, never edits the file), so there is no `docs/learnings/` collision with the war-memory
   sibling's lesson-file edits.
-  `skills/war/SKILL.md` is the sole shared non-release file with the dispatch-args plan
-  (verified against its `Files:` lines; `agents/war-worker.md` appears in no sibling's
-  footprint) — carried as the roadmap-spine ordering constraint at the top; within this plan
-  both files are file-disjoint across tasks.
+  `skills/war/SKILL.md` and `skills/war/assets/skill-doc-contracts.test.mjs` are the two shared
+  non-release files with the dispatch-args plan (re-verified 2026-07-27 against its red-team-patched
+  `Files:` lines; `agents/war-worker.md` appears in no sibling's footprint) — carried as the
+  roadmap-spine ordering constraint at the top; within this plan both files are file-disjoint
+  across tasks.
 - **No dispatched-prompt mirror for #1096** — deliberate standing-doc-only asymmetry (spec §3);
   recorded in Task 1.7 so auditors adjudicate it as chosen.
 - **No new lock for ADR 0019, no drift guards for the #1146/#1152 comment rewords** — accepted

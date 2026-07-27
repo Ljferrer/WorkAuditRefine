@@ -1,10 +1,11 @@
 ---
 name: header-comment-delegates-site-count-to-drift-guard-test-instead-of-enumerating
-description: "A shared prompt-clause helper's header comment can name a drift-guard test as the arbiter of its consumer-site count instead of enumerating the sites in prose — the enumeration is exactly what rotted last time"
+description: "RESOLVED (2026-07-26-dispatch-args-and-floor-coverage/1.1, #1151): classificationClause converted to the drift-guard-arbiter form this lesson recommends. A shared prompt-clause helper's header comment can name a drift-guard test as the arbiter of its consumer-site count instead of enumerating the sites in prose — the enumeration is exactly what rotted last time"
 metadata: 
   node_type: memory
   type: project
   provenance: code-verified
+  promoted: dev/2026-07-24-recovery-re-merge-dispatch-coherence@phase-2
   slug: header-comment-delegates-site-count-to-drift-guard-test-instead-of-enumerating
   phase: 2026-07-24-recovery-re-merge-dispatch-coherence/2.1 (2026-07-24)
   keywords: 
@@ -16,6 +17,9 @@ metadata:
     - classificationClause
     - site-list drift
     - count-free invariant
+    - classification-site drift guard
+    - overstated guard reach
+    - byte-run vs prose enumeration
   tags: 
     - workflow-template
     - documentation-pattern
@@ -27,7 +31,7 @@ metadata:
     - "[[shared-block-extraction-regex-reaches-every-consumer]]"
   created: 2026-07-25
   originSessionId: 4eee3466-8bcc-44f9-a6c2-754d46624537
-  modified: 2026-07-25T23:52:40.512Z
+  modified: 2026-07-27T20:37:59.822Z
 ---
 
 # Prefer "a named test is the arbiter of this count" over enumerating consumer sites in a header comment
@@ -61,14 +65,25 @@ site-tracking mechanism can silently under-cover). Pointing the comment at a **n
 that would go red on drift converts "trust the prose" into "trust the gate" — the comment can
 say "never enumerate here" precisely because the enumeration is exactly what previously rotted.
 
-**Contrast in the same file:** the sibling `classificationClause` helper's header comment (a few
-lines above `gateCaptureClause` in the same file) still enumerates its consumer sites by name
-("mirrored ... into the initial merge-task prompt, the floor-retry re-merge prompt, THE LAND
-PROMPT, and agents/war-refiner.md") — a live instance of the very shape that just rotted for its
-neighbor. Not a defect (out of this phase's scope, and no drift has yet been observed there), but
-a reminder that this fix was applied to one helper, not to the pattern generally — a future task
-touching `classificationClause`'s site list should consider the same drift-guard-arbiter
-conversion rather than re-fixing another hand-enumerated comment later.
+**Contrast in the same file — RESOLVED at phase `2026-07-26-dispatch-args-and-floor-coverage/1.1`:**
+the sibling `classificationClause` helper's header comment previously enumerated its consumer
+sites by name ("mirrored ... into the initial merge-task prompt, the floor-retry re-merge prompt,
+THE LAND PROMPT, and agents/war-refiner.md") — a live instance of the very shape that just rotted
+for its neighbor. This phase performed exactly the conversion this lesson recommends: the header
+comment above `classificationClause` (`skills/war/assets/workflow-template.js`, immediately before
+the helper's definition) is now count-free and names a new sibling drift guard, `#1151` (test
+`'#1151 — classification-site drift guard: EXACTLY 3 classificationClause call sites in the
+template'`, `skills/war/assets/workflow-template.test.mjs`), which counts
+`classificationClause\(` call-paren occurrences in the source and asserts exactly 3 — the same
+`captureUses` pattern this lesson documents, applied to the second helper. Verified present at
+landed tip `0250694ea5c69e77e2fa2f0543f81c6ccf111978`. One nuance surfaced during that phase's
+audit and self-corrected before land: an early draft of both header comments overstated the guard
+as catching *any* site enumeration ("a site enumeration written here would itself go RED"), which
+is false for a **prose** enumeration (only a `classificationClause(` call-paren byte-run trips the
+guard, exactly the enumeration shape this lesson's own donor fix predates) — the landed wording
+correctly narrows this to "kept count-free by convention; the call-paren byte-run is the part the
+guard mechanically forbids". State the guard's actual reach precisely when writing this kind of
+comment: it forbids the byte-run it counts, not the human-readable fact it stands for.
 
 **How to apply:** when a shared clause/constant/helper's header comment names its own consumer
 sites in prose, check whether a test already counts real call sites (a `matchAll`/`match` +
