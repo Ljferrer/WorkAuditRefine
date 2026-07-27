@@ -96,6 +96,9 @@ from GitHub and never confused with a *target's* `$REPO_ROOT`.
      **iff** `$REPO_ROOT` is non-empty:
 
      ```bash
+     # $REPO_ROOT is non-empty
+     node "${CLAUDE_PLUGIN_ROOT}/skills/_shared/war-memory.mjs" render-index --local "$MEM" --repo docs/learnings/
+     # $REPO_ROOT is empty or unset
      node "${CLAUDE_PLUGIN_ROOT}/skills/_shared/war-memory.mjs" render-index --local "$MEM"
      ```
 
