@@ -1,6 +1,6 @@
 ---
 name: tighten-target-flag-has-three-independent-silent-degradation-paths
-description: "cmdTightenPlan's `argv.target ? Number(argv.target) : WARN_BYTES` plus a bash-only ${VAR:+...} fence give --target three distinct silent fallback-to-default paths, now load-bearing since #992 made target govern the verdict trigger"
+description: "RESOLVED (memory-tooling-hardening/1.1+1.2, #1059 + #1088) at Phase-1 land: --target's two CLI silent-fallback paths now refuse loud (task 1.1) and the bash-only ${VAR:+...} fence is rewritten dialect-safe (task 1.2); cmdTightenPlan's `argv.target ? Number(argv.target) : WARN_BYTES` ternary plus that fence gave --target three distinct silent fallback-to-default paths, load-bearing since #992 made target govern the verdict trigger"
 metadata: 
   node_type: memory
   type: project

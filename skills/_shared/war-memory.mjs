@@ -946,9 +946,29 @@ function cmdInbound(argv) {
 // corpus (no requireLocal), matching query/inbound. `--target` sets both the cut goal AND the
 // effective trigger: the printed `verdict` is the stricter of the advisory line and that target
 // (#992), so a sub-advisory target makes the skill's preflight bind there rather than at 17,000 B.
+// A SUPPLIED-but-invalid `--target` refuses loud (exit 1, diagnostic naming the received token)
+// rather than silently collapsing back to the advisory default (#1059); an absent flag still takes
+// the default, byte-identically.
 function cmdTightenPlan(argv) {
   const roots = resolveRoots(argv);
-  const target = argv.target ? Number(argv.target) : WARN_BYTES;
+  // Three-way resolution at the argv boundary (#1059). `parseArgv` is shared by every verb and
+  // its bare-flag → boolean `true` mapping is load-bearing elsewhere (`archive --candidates`), so
+  // the guard lives HERE, never there. The `typeof … === 'string'` test is what makes the bare
+  // flag refuse: `Number(true) === 1` would otherwise pass `isFinite && > 0` and silently
+  // pre-select the entire eligible list at `target: 1`. Refusal is inline (`requireLocal`'s
+  // shape) — `main()` has no catch, so a throw would surface as a stack trace, not a diagnostic.
+  let target = WARN_BYTES; // flag absent ⇒ the advisory default (unchanged path)
+  if (argv.target !== undefined) {
+    const t = typeof argv.target === 'string' ? Number(argv.target) : NaN;
+    if (Number.isFinite(t) && t > 0) {
+      target = t;
+    } else {
+      process.stderr.write(
+        `war-memory tighten-plan: --target requires a positive byte count (got '${argv.target}')\n`
+      );
+      process.exit(1);
+    }
+  }
   const records = walkCorpus(roots);
   const hits = readQueryHits(roots.local);
   const plan = tightenPlan(records, { hits, target });
