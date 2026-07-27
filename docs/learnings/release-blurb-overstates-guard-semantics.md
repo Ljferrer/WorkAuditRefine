@@ -4,11 +4,11 @@ description: "Guard blurb: say 'refuse diffs touching X' not repos"
 metadata:
   node_type: memory
   type: project
-  keywords: [Status section wording, trigger surface, diff vs repo, fail-closed phrasing, submodule refuse, prose nit, operator misinformation, absolute claim vs residual exception, ADR carve-out, fresh-env re-run, unconditional vs conditional emission, near-miss diagnostic, assert-test-in-diff.sh, stderr guard clause, umbrella clause, heterogeneous guard shapes, realpathSync, campaign-ledger, fileURLToPath, No behavior change label, bolded lead-in, colon-scoped enumeration, release headline contradiction, anti-overclaim device, appositive antecedent ambiguity, dangling modifier, itself unchanged, nearest-noun misattachment, D6 verbatim-capture contract]
+  keywords: [Status section wording, trigger surface, diff vs repo, fail-closed phrasing, submodule refuse, prose nit, operator misinformation, absolute claim vs residual exception, ADR carve-out, fresh-env re-run, unconditional vs conditional emission, near-miss diagnostic, assert-test-in-diff.sh, stderr guard clause, umbrella clause, heterogeneous guard shapes, realpathSync, campaign-ledger, fileURLToPath, No behavior change label, bolded lead-in, colon-scoped enumeration, release headline contradiction, anti-overclaim device, appositive antecedent ambiguity, dangling modifier, itself unchanged, nearest-noun misattachment, D6 verbatim-capture contract, on every error path, seed-pack die try region, mkdtemp scratch leak scope, TOKEN-scoped absence lock, prose-only reintroduction, verifyTier cap exceeded]
   provenance: code-verified
-  promoted: dev/2026-07-24-recovery-re-merge-dispatch-coherence@phase-2
+  promoted: dev/2026-07-24-drift-guard-and-floor-diagnostic-hardening@phase-2
   slug: release-blurb-overstates-guard-semantics
-  phase: "submodule-inc1/T4 +6 recurrences (war-campaign-resilience-roadmap/phase-2 Release task 2.1, 2026-07-22; test-floor-target-repo/phase-2 Release task 2.1, 2026-07-22; cli-main-guard-normalization/phase-2 Release task 2.1, 2026-07-23; runbook-and-standing-record-coherence/phase-2 Release task 2.1, 2026-07-24; recovery-re-merge-dispatch-coherence/phase-2 Release task 2.1, 2026-07-24; drift-guard-and-floor-diagnostic-hardening/phase-2 Release task 2.1, 2026-07-24/25)"
+  phase: "submodule-inc1/T4 +7 recurrences (war-campaign-resilience-roadmap/phase-2 Release task 2.1, 2026-07-22; test-floor-target-repo/phase-2 Release task 2.1, 2026-07-22; cli-main-guard-normalization/phase-2 Release task 2.1, 2026-07-23; runbook-and-standing-record-coherence/phase-2 Release task 2.1, 2026-07-24; recovery-re-merge-dispatch-coherence/phase-2 Release task 2.1, 2026-07-24; drift-guard-and-floor-diagnostic-hardening/phase-2 Release task 2.1, 2026-07-24/25; 2026-07-24-memory-tooling-hardening/phase-2 Release task 2.1, 2026-07-26)"
   tags:
     - war
     - release
@@ -24,7 +24,7 @@ metadata:
     - "[[gitmodules-working-tree-read-vs-ref-snapshot]]"
   created: 2026-06-30
   originSessionId: 0e364ee5-f0b3-47f6-a9e4-9bf2dd555733
-  modified: 2026-07-26T03:54:44.321Z
+  modified: 2026-07-27T04:43:57.254Z
 ---
 
 # Release blurb prose overstates guard semantics
@@ -253,3 +253,55 @@ to the contract even though X (the just-hardened guard) is the nearer noun.
 Related: [[guard-deny-string-blanket-adjective-mismatches-mixed-flag-shapes]],
 [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]] (worktree-lookup path used to
 ground this recurrence's D3 read).
+
+## Recurrence 7 (2026-07-26, plan `2026-07-24-memory-tooling-hardening`, phase 2 "Release", task 2.1) — two independent overstate-scope Nits in the same paragraph, both "the guard's real reach is narrower than the summary clause"
+
+An eighth and ninth instantiation, both flagged by the task auditor in the same `## Status`
+paragraph (`README.md` line 340 at land, landed tip `e50e3ca47f42181fa5715251f08be099118516f9`
+— worktree gitdir physical path containing this plan's slug:
+`<repo-root>/.claude/worktrees/2026-07-24-memory-tooling-hardening-2026-07-26/_refinery/`, this
+servitor's own cwd being a stale sibling worktree on a different plan/branch, per
+[[servitor-verify-on-write-worktree-can-lag-just-landed-phase]]). `code-verified` — both findings
+confirmed against `skills/lessons-learned/assets/seed-pack.mjs` and
+`skills/lessons-learned/lessons-learned-doc-contract.test.mjs` at that tip.
+
+**(a) "on every error path" for a fix scoped to three specific `try` regions.** The blurb says
+`die()` "wrote to stderr and called `process.exit` from inside `cmdPack`'s, `verifyTier`'s, and
+`cmdEvict`'s `try` regions; ... their `mkdtemp` scratch dirs leaked ... on every error path."
+`verifyTier`'s two cap-exceeded `die()` calls (member cap, byte cap, `seed-pack.mjs` lines
+357/361) fire **before** its `mkdtemp('seed-pack-verify-<tier>-')` at line 364 and **outside**
+its `try` — that error path never creates, and so never leaks, a scratch dir. Same shape for
+`cmdPack`'s seed-cap-exceeded `die()` (line 322, before the `mkdtemp` at 335) and `cmdEvict`'s two
+archive-cap `die()`s (lines 455/458, before the `mkdtemp`s at 464-465). The claim is accurate for
+every `die()` reachable *inside* the three named `try` regions (which "those" grammatically
+scopes it to), but the bare "every error path" reads as every `die()` call site in the file,
+several of which fire pre-`try`. Sharper form: when a blurb quantifies "every error path" right
+after naming specific enclosing regions, the quantifier silently inherits the region's boundary in
+the writer's head but not on the page — say "every error path that had already reached the scratch
+phase" or name the pre-`try` refusal `die()`s as an explicit exception.
+
+**(b) "a prose-only reintroduction is red too" for a lock whose own code comment disclaims that
+exact generality.** The blurb says the new absence lock plus a whole-file token check means "a
+prose-only reintroduction is red too." The lock's own comment in
+`lessons-learned-doc-contract.test.mjs` states the opposite explicitly: "(ii) is TOKEN-scoped — a
+set-then-thread revived under a different variable name, or the same expansion added to some OTHER
+bash fence in this doc, passes both asserts." A prose reintroduction that never spells the literal
+token `TIGHTEN_TARGET` (renamed variable, respelled fence) is **not** caught. The mechanism is
+named immediately before the overstated claim, so a careful reader isn't misled, but the sentence
+itself generalizes past what the cited guard proves — the same "state the true property, not the
+adjacent stronger one the evidence doesn't cover" mistake as Recurrence 4's arm-pattern-vs-arm-body
+conflation, here applied to a token-literal guard vs. a semantic/token-family guard.
+
+Both `disposition: note`, Nit, non-blocking, not fixed before land (`fixRounds: 0`) — not
+absorb-eligible, `## Status` is a release slot. **Now 7 recurrences of the "on every error path" /
+"X is Y too" absolute-overclaim shape alone**, on top of the 6 prior distinct sub-mechanisms above:
+this family is the single most frequent recurring Nit class in this repo's release blurbs.
+**Applies-to checklist for a blurb author:** before writing "every"/"all"/"X is Y too" about a
+guard or cleanup's reach, ask (1) does the enclosing scope word ("those `try` regions", "that
+lock") actually bound every instance the absolute covers, and (2) does the guard's own code
+comment already disclaim a narrower scope than the blurb claims — if the guard's own comment says
+"TOKEN-scoped" or similar, the blurb cannot say "X is red too" without repeating that same scope
+word.
+
+Related: [[full-gates-green-end-state-soft-without-threaded-gate-log-artifact]] (this phase's
+other recurring finding, a different family — gate-audit artifact threading, not blurb prose).
