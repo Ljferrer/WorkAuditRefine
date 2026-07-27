@@ -221,6 +221,14 @@ const A = typeof args === 'string' ? (() => {
     throw new Error(`workflow-template: args is a string but not valid JSON (${args.length} chars): ${(parseErr && parseErr.message) || parseErr}. head: ${JSON.stringify(head)}`)
   }
 })() : (args || {})
+// COUPLING (ADR 0037, #1134): stage-workflow.mjs mirrors the ternary's object-arm fallback tail above
+// as its ARGS_FALLBACK_ANCHOR export and rewrites it, at stage time and only under `--args <file>`, so
+// a staged copy falls back to an EMBEDDED_ARGS prelude when the assembled phase args are too large to
+// ride the Workflow tool call. Change a byte in that tail and you MUST update stage-workflow.mjs in
+// lock-step; the imported-constant anchor guard in stage-workflow.test.mjs is the arbiter. This comment
+// stays REFERENTIAL: it never restates the tail's bytes (that would trip the exactly-once guard), and
+// never the rewritten form or the prelude's declaration line either — those bytes would ride verbatim
+// into every staged copy and falsify the no-flag staged-output negative.
 // Non-null-object args guard (ADR 0034, hand-mirrored in skills/red-team/assets/workflow-scaffold.js —
 // the Workflow sandbox cannot import; a both-sites drift test pins both). A scalar/array parse result
 // ('null'/'true'/'5', arrays) is not a usable args object: THROW a named error routing to the existing
