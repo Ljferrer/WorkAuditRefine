@@ -101,3 +101,5 @@ canonical recurrence-edit target); no new incident, just store-coherence mainten
 [[uniform-shell-out-idiom-mislabels-export-only-function-as-cli-subcommand]] — a different
 CLI-surface footgun in the same family (shell-invocation idiom assumptions), unrelated mechanism
 but same "grep the idiom before trusting it" discipline.
+
+> archived 2026-07-27: resolved — moved to archive

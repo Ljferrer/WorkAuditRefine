@@ -68,3 +68,5 @@ downstream reads of "which value was actually used" inside the same function, an
 requirement to make the fallback sticky/global without touching call sites. Not applicable if the
 downstream reads live outside the function that owns the fallback decision — the entry-swap only
 unifies reads *within* the same call frame.
+
+> archived 2026-07-27: resolved — moved to archive

@@ -53,3 +53,5 @@ that followed the export-teaching playbook.
 **When to apply:** any shell test suite in this repo whose script-under-test reads an env var by
 convention rather than an explicit flag, where a *different* skill's doc teaches operators to
 export that same var name for a legitimate real-pass workflow.
+
+> archived 2026-07-27: resolved — moved to archive

@@ -87,3 +87,5 @@ health.
 fidelity gotcha in the same family (comment prose vs. real behavior).
 [[plan-survey-token-sweep-misses-untagged-siblings]] — grep-as-floor-not-ceiling, the general
 sibling principle this instance sharpens with a concrete line-wrap mechanism.
+
+> archived 2026-07-27: resolved — moved to archive

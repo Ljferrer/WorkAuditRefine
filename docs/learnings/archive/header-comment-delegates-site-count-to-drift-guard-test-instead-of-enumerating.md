@@ -90,3 +90,5 @@ sites in prose, check whether a test already counts real call sites (a `matchAll
 `assert.equal(count, N)` shape). If one exists, point the comment at that test by name and drop
 the enumeration. If none exists, consider adding one before trusting the enumeration to stay
 accurate across future edits.
+
+> archived 2026-07-27: resolved — moved to archive

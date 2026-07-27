@@ -129,3 +129,5 @@ independently code-verified in a fresh session.
 
 [[weak-test-assertion-passes-without-feature-being-exercised]] — the broader "test looks strict
 but isn't" family this belongs to.
+
+> archived 2026-07-27: resolved — moved to archive

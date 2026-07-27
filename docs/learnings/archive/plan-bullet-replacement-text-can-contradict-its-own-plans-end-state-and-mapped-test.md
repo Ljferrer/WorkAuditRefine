@@ -144,3 +144,5 @@ CHECKABLE condition the candidate must satisfy" (Recurrence 1 — worth a correc
 itself is ever re-touched) from "the stale bullet only pre-scripts BLOCK-COMMENT PROSE the worker
 correctly overrode" (Recurrence 2 — informational Nit is sufficient; the code-level artifact is
 already the source of truth and carries no false claim).
+
+> archived 2026-07-27: resolved — moved to archive

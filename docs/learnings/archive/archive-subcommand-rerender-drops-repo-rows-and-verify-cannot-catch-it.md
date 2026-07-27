@@ -86,3 +86,5 @@ provided `CLAUDE_MEMORY_REPO` is exported in the calling shell.
 
 Related: [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]] (how this resolution was
 confirmed despite this servitor's own lagging checkout), [[projection-byte-budget-driven-by-descriptions-not-bodies]].
+
+> archived 2026-07-27: resolved — moved to archive

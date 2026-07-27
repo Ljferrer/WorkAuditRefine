@@ -75,3 +75,5 @@ silently fall through" family). [[servitor-verify-on-write-worktree-can-lag-just
 the verification technique used to confirm this fix landed despite a lagging main checkout.
 [[never-follow-resumefromrunid-hint-after-a-land-failure]] — the companion fix in the same phase
 (the recovery-prose half of the same land-failure story).
+
+> archived 2026-07-27: resolved — moved to archive

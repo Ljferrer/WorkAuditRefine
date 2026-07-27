@@ -68,3 +68,5 @@ local-destination run can still have a non-empty `$REPO_ROOT`) or adding a doc-c
 anchored specifically on this bullet, mirroring the existing Phase-5-render lock.
 
 Related: [[archive-subcommand-rerender-drops-repo-rows-and-verify-cannot-catch-it]].
+
+> archived 2026-07-27: resolved — moved to archive

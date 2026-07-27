@@ -96,3 +96,5 @@ claim") stays live for the next standing-doc sentence describing a mirrored cons
 instance is closed. A sibling straggler on the SAME two auditor surfaces (`#1085`'s
 `=`-attached bare-flag mischaracterization) was deliberately NOT touched by this fix and remains
 live — a distinct claim, tracked separately, not reopening this one.
+
+> archived 2026-07-27: resolved — moved to archive

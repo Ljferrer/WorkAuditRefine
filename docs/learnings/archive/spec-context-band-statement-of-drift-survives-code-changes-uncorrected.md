@@ -81,3 +81,5 @@ two disagree" judgment calls.
 [[tour-narrative-can-assert-a-false-code-fact-that-survives-until-a-doc-sweep-catches-it]] — the
 counter-case: a doc making a **live** code-fact claim that a sweep correctly *should* fix, useful as
 the contrast case when distinguishing bands.
+
+> archived 2026-07-27: resolved — moved to archive

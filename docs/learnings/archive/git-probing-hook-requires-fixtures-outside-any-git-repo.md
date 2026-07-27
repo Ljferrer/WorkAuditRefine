@@ -73,3 +73,5 @@ worked example, not the only place the rule matters.
 [[git-common-dir-anchor-idiom-fail-open-gotchas]] — the anchor idiom that
 introduced this coupling. [[bsd-mktemp-ignores-tmpdir-gnu-only]] — why this suite
 uses bare `mktemp -d` rather than a `TMPDIR`-pinned one.
+
+> archived 2026-07-27: resolved — moved to archive
