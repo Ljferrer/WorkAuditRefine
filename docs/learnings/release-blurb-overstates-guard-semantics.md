@@ -4,11 +4,11 @@ description: "Guard blurb: say 'refuse diffs touching X' not repos"
 metadata:
   node_type: memory
   type: project
-  keywords: [Status section wording, trigger surface, diff vs repo, fail-closed phrasing, submodule refuse, prose nit, operator misinformation, absolute claim vs residual exception, ADR carve-out, fresh-env re-run, unconditional vs conditional emission, near-miss diagnostic, assert-test-in-diff.sh, stderr guard clause, umbrella clause, heterogeneous guard shapes, realpathSync, campaign-ledger, fileURLToPath, No behavior change label, bolded lead-in, colon-scoped enumeration, release headline contradiction, anti-overclaim device, appositive antecedent ambiguity, dangling modifier, itself unchanged, nearest-noun misattachment, D6 verbatim-capture contract, on every error path, seed-pack die try region, mkdtemp scratch leak scope, TOKEN-scoped absence lock, prose-only reintroduction, verifyTier cap exceeded]
+  keywords: [Status section wording, trigger surface, diff vs repo, fail-closed phrasing, submodule refuse, prose nit, operator misinformation, absolute claim vs residual exception, ADR carve-out, fresh-env re-run, unconditional vs conditional emission, near-miss diagnostic, assert-test-in-diff.sh, stderr guard clause, umbrella clause, heterogeneous guard shapes, realpathSync, campaign-ledger, fileURLToPath, No behavior change label, bolded lead-in, colon-scoped enumeration, release headline contradiction, anti-overclaim device, appositive antecedent ambiguity, dangling modifier, itself unchanged, nearest-noun misattachment, D6 verbatim-capture contract, on every error path, seed-pack die try region, mkdtemp scratch leak scope, TOKEN-scoped absence lock, prose-only reintroduction, verifyTier cap exceeded, unconditional prose append, gating-premise mismatch, non-submodule byte identity claim, submodule floor gain, polish merge prompt, floor-retry prompt, submodLandNote, submodMergeNote, every existing non-submodule prompt, issue citation convention, origin issue vs task issue]
   provenance: code-verified
-  promoted: dev/2026-07-24-drift-guard-and-floor-diagnostic-hardening@phase-2
+  promoted: dev/2026-07-24-memory-tooling-hardening@phase-2
   slug: release-blurb-overstates-guard-semantics
-  phase: "submodule-inc1/T4 +7 recurrences (war-campaign-resilience-roadmap/phase-2 Release task 2.1, 2026-07-22; test-floor-target-repo/phase-2 Release task 2.1, 2026-07-22; cli-main-guard-normalization/phase-2 Release task 2.1, 2026-07-23; runbook-and-standing-record-coherence/phase-2 Release task 2.1, 2026-07-24; recovery-re-merge-dispatch-coherence/phase-2 Release task 2.1, 2026-07-24; drift-guard-and-floor-diagnostic-hardening/phase-2 Release task 2.1, 2026-07-24/25; 2026-07-24-memory-tooling-hardening/phase-2 Release task 2.1, 2026-07-26)"
+  phase: "submodule-inc1/T4 +8 recurrences (war-campaign-resilience-roadmap/phase-2 Release task 2.1, 2026-07-22; test-floor-target-repo/phase-2 Release task 2.1, 2026-07-22; cli-main-guard-normalization/phase-2 Release task 2.1, 2026-07-23; runbook-and-standing-record-coherence/phase-2 Release task 2.1, 2026-07-24; recovery-re-merge-dispatch-coherence/phase-2 Release task 2.1, 2026-07-24; drift-guard-and-floor-diagnostic-hardening/phase-2 Release task 2.1, 2026-07-24/25; 2026-07-24-memory-tooling-hardening/phase-2 Release task 2.1, 2026-07-26; 2026-07-26-dispatch-args-and-floor-coverage/phase-3 Release task 3.1, 2026-07-26/27)"
   tags:
     - war
     - release
@@ -24,7 +24,7 @@ metadata:
     - "[[gitmodules-working-tree-read-vs-ref-snapshot]]"
   created: 2026-06-30
   originSessionId: 0e364ee5-f0b3-47f6-a9e4-9bf2dd555733
-  modified: 2026-07-27T04:43:57.254Z
+  modified: 2026-07-27T22:34:51.460Z
 ---
 
 # Release blurb prose overstates guard semantics
@@ -305,3 +305,51 @@ word.
 
 Related: [[full-gates-green-end-state-soft-without-threaded-gate-log-artifact]] (this phase's
 other recurring finding, a different family — gate-audit artifact threading, not blurb prose).
+
+## Recurrence 8 (2026-07-26/27, plan `2026-07-26-dispatch-args-and-floor-coverage`, phase 3
+"Release", task 3.1) — a gating-premise sentence covers only 2 of 4 enumerated gains, the other 2
+are unconditional and DID change every non-submodule prompt
+
+A tenth instantiation, the sharpest yet of the "X is Y too" family: the `## Status` blurb
+(`README.md` line 340 at land, landed tip `da7a5f37e145aaf246bb04fa0d2e235f8786d118` — `code-verified`,
+read directly at the `_refinery` worktree whose `HEAD` equals the landed tip, gitdir physical path
+`<repo-root>/.claude/war/worktrees/2026-07-26-dispatch-args-and-floor-coverage-2026-07-27/_refinery/`)
+closes its section (2) paragraph with: "Every gain is a prose append reusing in-scope constants,
+and `submodLandNote`/`submodMergeNote` remain `''` off the submodule path — so every existing
+non-submodule prompt is byte-unchanged." The paragraph enumerates **four** distinct gains (both
+re-land prompts gaining `submodLandNote`, the polish-merge prompt gaining a bare
+`assert-no-submodule-mutation.sh` invocation, the floor-retry re-merge prompt gaining the same
+invocation with a `--declared` conditional suffix), but the `''`-off-the-submodule-path premise
+only covers the first two (the note-gated ones). The polish and floor-retry gains are
+**unconditional string concatenations** — not gated on `submodLandNote`/`submodMergeNote` at all —
+so both of those prompts changed byte-for-byte on **every** phase, submodule or not. The blurb's
+own two preceding sentences describe those unconditional gains explicitly ("it now carries the
+invocation bare", "it now carries it with the gitlink-bump `--declared` conditional shape"), so the
+closing clause visibly contradicts its own paragraph three sentences up — the same
+"state-the-stronger-property-using-the-weaker-property's-evidence" shape as Recurrence 4 and both
+halves of Recurrence 7. Two auditor seats (task-level + gate-audit lens) independently flagged the
+identical defect (`disposition: follow-up`, Minor — one severity step above this family's usual
+Nit, since the false claim sits in the same clause the plan's own End state 11 scopes correctly
+to "no non-submodule prompt gains a submodule NOTE"). **Not fixed before land** (`fixRounds: 0`):
+the edit lands in the README `## Status` release-slot paragraph, Lead/operator-owned — a phase-close
+absorb-worktree edit there is the recorded #1083 stale-worktree-revert shape
+([[gate2-commit-from-stale-verify-worktree-can-revert-a-release-bump]]), so it is correctly deferred
+to a follow-up rather than absorbed.
+
+**Sharper form of the Rule for this instance:** when a release blurb enumerates N gains and then
+appends a single gating-premise clause ("X remains `''` off path P, so every non-P surface is
+unchanged") to justify a byte-identity claim, verify the premise actually gates **every** enumerated
+gain — not just the first ones named. An unconditional gain slipped into the same enumeration (a
+floor invocation appended regardless of any note/flag) silently rides the closing claim's shadow
+and produces a false byte-identity statement about a real, shipped, unconditional prompt change.
+**Secondary, same paragraph:** a companion Nit in the same landed text — section (2) cites the WAR
+task issue `#1160` where its sibling sections (1) and (4) cite origin defect issues (`#1134`,
+`#1151`) matching the plan's own `Source spec: … (issues #1134, #1114, #1151)` line — is a distinct,
+narrower mechanism (issue-citation convention, not a code-semantics overclaim) but the same family
+of "a summary sentence quietly narrower/broader than its own paragraph's evidence"; worth a fast
+gut-check on any future blurb citing an issue number in an enumerated list: confirm every item cites
+the same tier (origin defect issue vs. execution/task sub-issue), since the two look identical to a
+skimming reader.
+
+Related: [[gate2-commit-from-stale-verify-worktree-can-revert-a-release-bump]] (why this Minor stays
+a follow-up rather than a phase-close absorb).
