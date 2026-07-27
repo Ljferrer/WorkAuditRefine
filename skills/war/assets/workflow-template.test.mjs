@@ -5192,7 +5192,7 @@ test('#1114 — the polish merge prompt runs the submodule floor, always BARE (a
     'the invocation is BARE — the gitlink-bump relax flag never appears anywhere in the polish prompt')
   // The reworded skip rationale still skips the two task-field-gated floors (collateral pin, #819/§4.2).
   assert.match(polishMerge.prompt, /skip assert-test-in-diff\.sh/, 'the polish merge still skips the test floor')
-  assert.match(polishMerge.prompt, /assert-packaging-in-diff\.sh/, 'the polish merge still skips the packaging floor')
+  assert.match(polishMerge.prompt, /skip the packaging floor assert-packaging-in-diff\.sh/, 'the polish merge still skips the packaging floor')
 })
 
 test('#1114 — the floor-retry re-merge prompt runs the submodule floor WITH the gitlink-bump --declared conditional (both arms)', async () => {
@@ -6077,8 +6077,9 @@ test('T2.1 criterion 6 (D5) — the gate-audit seat carries the captured-artifac
 // The anchor is the bare call-paren, deliberately wider than a first-argument pin: a 4th site passing any
 // other base variable still trips it, a line-wrapped argument list still matches (the wrap lands after the
 // paren), and the definition cannot match (the source has " = (" between the name and the paren). Because
-// it counts occurrences in workflow-template.js, a site enumeration re-introduced into that header comment
-// would itself red this guard — the comment is mechanically kept count-free, not merely asked to be.
+// it counts occurrences in workflow-template.js, writing the call-paren byte-run into that header comment
+// would itself red this guard — the comment is kept count-free by convention; the call-paren byte-run is
+// the part the guard mechanically forbids (a prose count or a bare site list re-added there stays green).
 test('#1151 — classification-site drift guard: EXACTLY 3 classificationClause call sites in the template', () => {
   const classificationSites = (src.match(/classificationClause\(/g) || []).length
   assert.equal(classificationSites, 3,

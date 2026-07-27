@@ -731,7 +731,8 @@ const reattachClause = refineryP =>
 // classificationClause: the gate-failure classification PROCEDURE, mirrored (per-site base) into every
 // dispatched prompt whose refiner must classify a gate failure. Never enumerate those sites here: the
 // classification-site drift guard in workflow-template.test.mjs is the arbiter of the site list (it counts
-// the call-paren occurrences in this file, so a site enumeration written here would itself go RED).
+// this helper's call-paren occurrences in this file — writing that byte-run into this comment reds it; a
+// prose count or a bare site list would not, so count-free here is convention, not mechanism).
 // agents/war-refiner.md is the standing mirror (both-surfaces rule, same commit). baseDesc names the
 // per-site classification base.
 const classificationClause = (refineryP, baseDesc) =>
