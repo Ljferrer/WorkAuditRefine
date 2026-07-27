@@ -147,6 +147,11 @@ sanctioned surface for both display identity and approved stage injection.**
   anchor constants and `workflow-template.js`'s `export const meta` literals are now a canonical-source
   ↔ mirror-site pair like any other ([ADR 0025](0025-drift-guard-discipline.md)); the anchor-guard test
   (`stage-workflow.test.mjs`) is that pair's arbiter, not a new detection mechanism.
+  - **Amendment (2026-07-27, plan `2026-07-26-dispatch-args-and-floor-coverage` Task 2.1, #1134):** the
+    pair is **wider** than the sentence above — decision 2's amendment added a third exported anchor
+    whose mirror site is the `const A =` ternary's args-fallback tail in `workflow-template.js`, **not**
+    an `export const meta` literal. Same arbiter, wider pair; append-only, so the ratified sentence
+    stays byte-intact and this note is the correction channel.
 
 ## References
 
