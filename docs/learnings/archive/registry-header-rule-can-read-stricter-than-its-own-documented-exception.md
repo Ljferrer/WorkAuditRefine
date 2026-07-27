@@ -58,3 +58,5 @@ adjacent rationale before flagging an entry as inconsistent.
 
 - [[structural-test-blind-spot-narrowing-needs-negative-reference-and-default-deny-census]] —
   same phase, the census technique this registry is half of.
+
+> archived 2026-07-27: resolved — moved to archive

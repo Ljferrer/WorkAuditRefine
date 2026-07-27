@@ -57,3 +57,5 @@ document containing the literal string `[repo]`).
 
 Related: [[archive-subcommand-rerender-drops-repo-rows-and-verify-cannot-catch-it]] (the concrete
 defect this row-scoped check was built to close).
+
+> archived 2026-07-27: resolved — moved to archive
