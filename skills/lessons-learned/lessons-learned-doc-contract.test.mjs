@@ -398,9 +398,13 @@ test('doc-contract: war-help card mentions the seed verb + warm-seed behavior', 
 
 // --- Task 1.2 (memory-tooling-hardening, #1088 doc arm + #1086): dialect-safe doc fences --------
 // Both fixes retire the same failure mode: a fenced command an agent copies into the OPERATOR's own
-// shell that does something other than what the prose beside it promises. `(N)` numbering here is
-// banner-scoped, as it is throughout this file (it restarts per banner — 17–21 are each already used
-// twice above), so this banner's locks start at (1).
+// shell that does something other than what the prose beside it promises. `(N)` numbering is
+// NOT banner-scoped: it runs on across banners rather than restarting at each one, with two
+// backward jumps, each sanctioned by the plan that made it — the lessons-learned-seed banner
+// above resumes at (17), re-using the (17)–(21) numbers the banner before it had already spent,
+// and this banner is the second jump, its locks starting over at (1) and colliding the same way
+// with the low numbers at the top of the file. A `(N)` is therefore not unique file-wide — cite
+// one with its banner.
 
 // (1) The `## Seed` **Local destination:** fence shows the `--repo docs/learnings/` render branch its
 //     own prose mandates ("passing `--repo docs/learnings/` **iff** `$REPO_ROOT` is non-empty").
