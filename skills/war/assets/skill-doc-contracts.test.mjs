@@ -37,6 +37,16 @@ const adr0037 = readFileSync(
   join(HERE, '..', '..', '..', 'docs', 'adr', '0037-run-scoped-staged-phase-scripts.md'),
   'utf8',
 )
+// (D25) The two surfaces of ONE cross-ADR prose mirror — 0040 §B is the canonical source, 0019's
+// Amendment the mirror site. Both are read so a per-surface revert reds (ADR 0025's mirror registry).
+const adr0019 = readFileSync(
+  join(HERE, '..', '..', '..', 'docs', 'adr', '0019-target-derived-execution-values.md'),
+  'utf8',
+)
+const adr0040 = readFileSync(
+  join(HERE, '..', '..', '..', 'docs', 'adr', '0040-environment-class-gate-failures-earn-one-retry.md'),
+  'utf8',
+)
 
 // Strip comment leaders BEFORE whitespace-normalizing, then collapse every whitespace run to one
 // space — the recorded doc-cascade sweep trap ([[repo-doc-sweep-needs-leader-strip-before-whitespace-normalize-before-grep]]):
@@ -459,25 +469,52 @@ test('D21 — SKILL.md held:land-failed bullet names both environment arms, neve
 })
 
 // (D22) SKILL.md's Gate-2 post-servitor publication flow must carry the PRE-PUSH STAGED-FILE
-// CHECK between the `docs(learnings): phase N` commit step and the `ensure-origin` push step
-// (#1083). Recorded incident: a Gate-2 promotion commit authored in a publication worktree whose
+// CHECK — probe, refusal, AND the undo that removes the condemned commit from the working branch —
+// between the `docs(learnings): phase N` commit step and the `ensure-origin` push step
+// (#1083, #1136). Recorded incident: a Gate-2 promotion commit authored in a publication worktree whose
 // tracked version-slot files were stale swept them into the docs commit and silently reverted a
 // landed release — the lock-step version guard stayed green throughout, because lock-step is not
 // monotonic ([[gate2-commit-from-stale-verify-worktree-can-revert-a-release-bump]]). The staged
 // file *list* is the root-cause probe: the mechanism is a bulk stage of stale tracked files, so it
 // catches every stale-staged path (a stale skill or hook alike), not just the four version slots.
 //
+// The undo arm (#1136): detect-and-refuse alone left the condemned docs commit sitting on the
+// working branch inside the publication worktree — the remedy re-provisioned but never removed it,
+// leaving a release-reverting commit one `ensure-origin` from origin. The arm is pinned on
+// `reset --hard HEAD~1`, deliberately NOT on bare `reset --hard`: the remedy's own carve-out
+// sentence names the no-`reset --hard` shared-branch doctrine inside this same region, so a bare
+// key would be greened by the doctrine mention alone and the negative reference below would stop
+// discriminating. A bare `revert` key is unusable for the same reason — the incident sentence
+// above already reads "silently reverted a landed release".
+//
 // The key is ONE ORDERED match, never independent presence checks: commit step → `--name-only`
-// probe → do-not-push clause → `ensure-origin` push step. That single regex locks the pairing
-// (probe + refusal) AND the position (after the commit, before the push) at once — removing
-// either half, or relocating the sentence outside that span, fails it RED.
+// probe → do-not-push clause → undo (`reset --hard HEAD~1`) → `ensure-origin` push step. That
+// single regex locks the pairing (probe + refusal + undo) AND the position (after the commit,
+// before the push) at once — dropping any arm, or relocating one outside that span, fails it RED.
 //
 // Extraction is BY CONSTRUCT — the `**Post-servitor publication (Gate 2` marker to the next `##`
 // heading — never a whole-file scan: `ensure-origin` and `remove-publication-worktree` also appear
 // in Setup step 2's crash-heal pre-flight and the Checkpoint land recipes, so a whole-file key
 // could be greened by prose outside the flow this row polices. Markup-tolerant on the emphasis
 // spans (D18/D21's idiom): a bold/backtick reshuffle inside a clause must not false-red.
-test('D22 — SKILL.md Gate-2 flow pairs the pre-push staged-file probe with its do-not-push clause, between commit and push (#1083)', () => {
+//
+// ONE ordered key, shared by the live row and its negative reference — the two must never drift.
+const D22_ORDERED_SPAN =
+  /docs\(learnings\): phase N[\s\S]*?git show\s+--name-only[\s\S]*?do\s+\*{0,2}not\*{0,2}\s+push[\s\S]*?reset[\s*`]{0,4}--hard[\s*`]{0,4}HEAD~1[\s\S]*?ensure-origin/
+// Unwired negative reference (both-ways proof, zero fixture files — the structural-test
+// blind-spot idiom): the pre-#1136 region shape, probe and refusal intact, undo clause absent,
+// carrying a bare `reset --hard` doctrine mention so the proof also covers the pinning decision
+// above (a bare key would green THIS string). Run through the same ordered key, asserted red.
+const D22_REGION_WITHOUT_UNDO =
+  '**Post-servitor publication (Gate 2, spec §4.6). ' +
+  '- Commit `docs(learnings): phase N` in the publication worktree, plus the CLAUDE.md pointer duty. ' +
+  '- **Pre-push staged-file check (never skip).** Before pushing, list the staged file set — ' +
+  '`git show --name-only --format= HEAD` — and confirm every path is under the promotion ' +
+  'destination: **ANY** other path means stale tracked files were staged — do **not** push; the ' +
+  'refiner never runs `reset --hard` on a shared branch. Run `remove-publication-worktree`, ' +
+  're-provision, and re-commit. ' +
+  '- Push via `provision-worktrees.sh ensure-origin <working>` (push-first CAS, never force).'
+test('D22 — SKILL.md Gate-2 flow orders the pre-push staged-file probe, its do-not-push clause and the undo step between commit and push (#1083, #1136)', () => {
   const region = skillMd.match(/\*\*Post-servitor publication \(Gate 2[\s\S]*?(?=\n## )/)
   assert.ok(
     region,
@@ -494,12 +531,24 @@ test('D22 — SKILL.md Gate-2 flow pairs the pre-push staged-file probe with its
   )
   assert.match(
     region[0],
-    /docs\(learnings\): phase N[\s\S]*?git show\s+--name-only[\s\S]*?do\s+\*{0,2}not\*{0,2}\s+push[\s\S]*?ensure-origin/,
+    D22_ORDERED_SPAN,
     'the Gate-2 flow must carry the pre-push staged-file check as ONE ordered span — the ' +
       '`docs(learnings): phase N` commit step, then the `git show --name-only` staged-file probe, ' +
-      'then its do-not-push clause, then the `ensure-origin` push step (#1083). Both halves are ' +
-      'load-bearing: the probe without the refusal is advice, the refusal without the probe has ' +
-      'no trigger. Correct this row to a sanctioned rewording, never drop a half to make it pass',
+      'then its do-not-push clause, then the `git reset --hard HEAD~1` undo of the condemned ' +
+      'commit, then the `ensure-origin` push step (#1083, #1136). Every arm is load-bearing: the ' +
+      'probe without the refusal is advice, the refusal without the probe has no trigger, and ' +
+      'refusal without the undo strands the poisoned commit on the working branch one push from ' +
+      'origin. Correct this row to a sanctioned rewording, never drop an arm to make it pass',
+  )
+  // Both-ways proof: the same key must REJECT the pre-#1136 shape (undo absent, bare `reset
+  // --hard` doctrine mention present). Without this, a key that silently stopped discriminating
+  // would still read green above.
+  assert.doesNotMatch(
+    D22_REGION_WITHOUT_UNDO,
+    D22_ORDERED_SPAN,
+    'the D22 ordered key matched a region whose undo clause is absent — the key no longer ' +
+      'discriminates (a bare `reset --hard` mention must not satisfy the undo arm). Tighten the ' +
+      'key, never relax this negative reference',
   )
 })
 
@@ -585,4 +634,78 @@ test('D24 — CONTEXT.md staged-phase-script entry names the optional third subs
         'rewording, never drop the clause to make a reword pass',
     )
   }
+})
+
+// (D25) CROSS-ADR MIRROR — the no-chaining routing fact lives on TWO surfaces (#1115, ADR 0025).
+// ADR 0040 §B is the canonical source: a `baseline-proceed` re-dispatch that then fails
+// `environment` keeps the PRE-RETRY routing, and that routing is TWO-SITED — soft `env-blocked` at
+// the merge site, `held:land-failed` at the land site. ADR 0019's Amendment restates it; before
+// #1115 it named only the merge-site half ("keeps this ADR's original soft `env-blocked` routing"),
+// silently dropping the land-site half its own next sentence already models. This row reads BOTH
+// files so a revert on EITHER surface reds — the standing both-surfaces registry shape; neither ADR
+// may drift alone.
+//
+// Extraction is BY CONSTRUCT per surface, never a whole-file scan — and the 0019 side is scoped to
+// the NO-CHAINING clause alone, NOT the whole Amendment paragraph. That scoping is the row's whole
+// discriminating power: the immediately following "Exhaustion routes by site" sentence already
+// carries `merge site`, `land site` and `held:land-failed`, so a paragraph-wide presence check
+// would read green against the reverted single-site clause (the recorded presence-anywhere blind
+// spot, [[multi-token-presence-loop-needs-paired-first-following-match-to-catch-a-swap]]). Keys are
+// ORDERED and per-surface, anchored on the ADRs' own tokens rather than either ADR's sentence bytes,
+// so sanctioned rewording latitude on either side does not false-red.
+test('D25 — the no-chaining two-site routing fact is present on BOTH mirror surfaces, ADR 0019 Amendment and ADR 0040 §B (#1115)', () => {
+  // 0019: the no-chaining clause — its own `(ADR 0040 §B)` cross-reference (the mirror pointer)
+  // through to the start of the separate exhaustion sentence.
+  const clause0019 = adr0019.match(/\(ADR 0040 §B\)[\s\S]*?(?=Exhaustion routes by site)/)
+  assert.ok(
+    clause0019,
+    'could not locate ADR 0019\'s no-chaining clause (`(ADR 0040 §B)` → `Exhaustion routes by ' +
+      'site`) — the extraction construct rotted',
+  )
+  // 0040: §B in full — heading to the next `###`.
+  const sectionB = adr0040.match(/^### \(B\) No chaining between recovery dispatches[\s\S]*?(?=\n### )/m)
+  assert.ok(
+    sectionB,
+    'could not locate ADR 0040 §B (`### (B) No chaining between recovery dispatches` → next ' +
+      '`###`) — the extraction construct rotted',
+  )
+  for (const [surface, block, key, why] of [
+    [
+      'ADR 0040 §B (canonical source)',
+      sectionB[0],
+      /env-blocked[\s\S]{0,60}held:land-failed/,
+      'the chained-failure routing as ONE pair — soft `env-blocked` (merge site) AND ' +
+        '`held:land-failed` (land site). Naming one status alone is the exact half-truth #1115 ' +
+        'corrected on the 0019 side',
+    ],
+    [
+      'ADR 0019 Amendment (mirror site)',
+      clause0019[0],
+      /env-blocked[\s\S]{0,80}merge[\s*_`]{0,4}site[\s\S]{0,80}held:land-failed[\s\S]{0,80}land[\s*_`]{0,4}site/,
+      'both statuses WITH their sites — soft `env-blocked` at the merge site, `held:land-failed` ' +
+        'at the land site (#1115). The bare single-site form is what this row exists to catch',
+    ],
+  ]) {
+    // Non-vacuous per surface: each extracted block must really span its own no-chaining sentence.
+    assert.match(
+      norm(block),
+      /baseline-proceed/,
+      `the extracted ${surface} block must span its \`baseline-proceed\` no-chaining sentence — ` +
+        'extraction truncated too early',
+    )
+    assert.match(
+      norm(block),
+      key,
+      `${surface} must carry ${why}. Both surfaces mirror one fact: correct this row to a ` +
+        'sanctioned rewording, never drop a surface or a half to make it pass',
+    )
+  }
+  // OLD-absent on the mirror site only (an ADR Amendment is edited in place; the superseded
+  // original Decision text above it is append-only and deliberately untouched — D24's idiom).
+  assert.doesNotMatch(
+    norm(clause0019[0]),
+    /keeps this ADR.s original soft/i,
+    'ADR 0019\'s no-chaining clause still carries the single-site form ("keeps this ADR\'s ' +
+      'original soft `env-blocked` routing") — it must name both sites, mirroring ADR 0040 §B (#1115)',
+  )
 })
