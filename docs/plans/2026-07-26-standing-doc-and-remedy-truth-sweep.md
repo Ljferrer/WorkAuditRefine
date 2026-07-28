@@ -1,8 +1,16 @@
 # Standing-doc, release-prose & remedy-path truth sweep — seven surfaces converge on what their own code enforces
 
 Source spec: `docs/specs/2026-07-26-standing-doc-and-remedy-truth-sweep-design.md` (issues #1153,
-#1115, #1146, #1152, #1107, #1136, #1096 — every anchor below re-verified live on this working
-tree: the README `## Status` blurb carries both overclaims, ADR 0019's Amendment carries the
+#1115, #1146, #1152, #1107, #1136, #1096.
+
+**Re-verification status at the plan-4 stack base `4afa174` (red-team, 2026-07-27 — this
+supersedes the authoring-time attestation):** six of seven anchors are live and unchanged. The
+**#1153 README anchor is GONE**: two sibling releases (0.14.64, 0.14.65) plus 0.14.66 replaced
+the `## Status` paragraph — `## Status` is a replace-in-place slot — so both overclaim greps
+print 0 and the blurb token is `**0.14.66**`, not `**0.14.63**`. Task 1.1's **Vacuous-reword
+route is therefore the PRIMARY route**, not a contingency: record the two zero-hit greps as
+evidence and land the checklist + presence lock alone. No `**0.14.63**` literal anywhere in
+this plan is authoritative. Anchors confirmed present at base: ADR 0019's Amendment carries the
 one-site clause, the "restarts per banner" and "(b)+(c)+(d) TOGETHER" comments are present, the
 war-review `## 3` total rows read "manifest `phases[].envelope`, else mined" with zero
 mixed-source language in the file, the Gate-2 pre-push bullet's remedy never touches the branch
@@ -35,7 +43,7 @@ and Phase 2; a sibling release landing *before* Phase 1 is handled inside Task 1
   re-provisions but never removes the poisoned commit from the working branch, leaving a
   release-reverting docs commit one `ensure-origin` from origin — three auditor seats filed it
   independently). Two of the fixes also gain their first mechanical guard: a Status-blurb
-  authoring checklist locked for presence (the 7-recurrence overclaim family's first
+  authoring checklist locked for presence (the recurring overclaim family's first
   authoring-time surface) and a D22 undo-arm extension (so the remedy cannot regress to
   detect-only without a red test).
 - **Method:** one content phase of seven **file-disjoint, fully parallel** tasks, then the
@@ -62,14 +70,18 @@ and Phase 2; a sibling release landing *before* Phase 1 is handled inside Task 1
   provably-**unpushed** commit in the transient Lead-owned publication worktree, the sanctioned
   exception, stated in the doc so an auditor reads it as chosen, not conflicting.
 - **End state:**
-  1. **#1153(a):** `grep -c 'on every error path' README.md` prints 0, or every remaining hit
+  1. **#1153(a):** `grep -cin 'on every error path' README.md` prints 0, or every remaining hit
      carries the scratch-phase qualifier in the same sentence (the pre-`mkdtemp` cap-refusal
-     `die()`s named as the exception); the `**0.14.63**` version token is byte-unchanged in
-     Phase 1 (re-resolve the token identity at land if a release has landed since — the edit
-     targets the *live* `## Status` paragraph, whatever version it carries).
-  2. **#1153(b):** `grep -c 'prose-only reintroduction is red' README.md` prints 0; the
-     replacement sentence carries a token-scope word (mirroring the lock's own "TOKEN-scoped"
-     comment).
+     `die()`s named as the exception). **Already satisfied at the plan-4 base** — red-team
+     measured 0 at `4afa174`; the reword half is a documented no-op under Task 1.1's
+     Vacuous-reword route, which is the PRIMARY route here, not a contingency. The live
+     `## Status` version token (0.14.66 at base, and it moves again at Phase 2) is
+     byte-unchanged in Phase 1 — never a plan literal, always re-read from the live paragraph.
+  2. **#1153(b):** `grep -cin 'prose-only reintroduction is red' README.md` prints 0; **if** a
+     replacement sentence was authored, it carries a token-scope word (mirroring the lock's own
+     "TOKEN-scoped" comment). **Already satisfied at the plan-4 base** (red-team measured 0) —
+     under the Vacuous-reword route no replacement sentence is authored, so the second clause
+     is conditional and its non-authoring is a pass, never a stranded End state.
   3. **#1153 guard:** `README.md` `## Releasing` contains a `### Status-blurb authoring
      checklist` subsection (~6 bullets distilled from the lesson family, citing
      `release-blurb-overstates-guard-semantics` as provenance) placed before `## Status`;
@@ -82,22 +94,49 @@ and Phase 2; a sibling release landing *before* Phase 1 is handled inside Task 1
      the existing undersell guard's extraction is undisturbed and the whole suite is green.
   4. **#1115:** exactly one sentence in ADR 0019's Amendment "**Live routing.**" paragraph now
      names both sites — soft `env-blocked` at the merge site, `held:land-failed` at the land
-     site — mirroring ADR 0040 §B; `grep -n 'keeps this ADR.s original soft'
+     site — mirroring ADR 0040 §B; `grep -in 'keeps this ADR.s original soft'
      docs/adr/0019-target-derived-execution-values.md` prints no hits; the superseded original
-     Decision text is byte-unchanged (no retro-edit).
-  5. **#1146:** `grep -c 'restarts per banner'
+     Decision text is byte-unchanged (no retro-edit). **Mirror guard (red-team, ADR 0025):**
+     ADR 0040 §B already carries this fact, so the two-site clause is a NEW cross-ADR prose
+     mirror and the drafted "no new lock needed" rationale does not hold. The guard ships in
+     **Task 1.6**, which already owns `skills/war/assets/skill-doc-contracts.test.mjs`: a row
+     reading BOTH ADRs and asserting the two-site characterization on each, so a future edit to
+     either ADR alone REDs. **Deliberate deviation, adjudicated:** ADR 0025 wants a mirror and
+     its guard in one *task*, but file-disjointness is the stronger constraint here (adding the
+     file to Task 1.2 would collide with 1.6 and rebase-conflict at the serial merge, and
+     deps/waves may never be used to dodge a same-file collision). Tasks 1.2 and 1.6 are in the
+     same phase and the same wave, so the mirror and its guard still land **together** — the
+     mirror can never ship unguarded.
+  5. **#1146:** `grep -cin 'restarts per banner'
      skills/lessons-learned/lessons-learned-doc-contract.test.mjs` prints 0; the reworded
-     banner parenthetical states file-global-monotonic numbering with the lessons-learned-seed
-     banner as the sole (plan-sanctioned) restart and source of the 17–21 collision;
+     banner parenthetical states the **actual** convention — numbering is *not* per-banner: it
+     continues across banners, with **two** sanctioned backward jumps, the lessons-learned-seed
+     banner resuming in the (17)–(21) range (the source of the collision this comment cites)
+     and **this** banner starting a fresh (1) run (a second collision, in the low numbers) —
+     and pins **no** terminal count literal. **Red-team correction (walked live at `4afa174`):
+     the drafted wording "file-global-monotonic … sole restart" is FALSE on both counts — six
+     banners run (1)…(21) monotonically, the seed banner at ~L278 resumes at (17), and the
+     banner being edited at ~L399 restarts at (1). A truth sweep may not ship a fresh false
+     generalization; the worker re-walks the banners at its base and states what it finds.**
      `node --test` on the file is green and every diff hunk is inside comment lines (zero
      assertion, fixture, or expected-value changes).
-  6. **#1152:** `grep -c 'TOGETHER' skills/war/assets/provision-worktrees.test.sh` prints 0
-     within the T2.9 census comment; the reword states (b)+(d) exclude the rc-guard and loud-die
+  6. **#1152:** `grep -cin 'together' skills/war/assets/provision-worktrees.test.sh` scoped to
+     the T2.9 census comment block prints 0 — **case-insensitive and single-token by red-team
+     correction**: the drafted case-sensitive multi-word `'TOGETHER'` check passes on a copy
+     where the false claim survives re-cased ("together") or reflowed across a line, the
+     recorded sentence-case false-negative class; the reword states (b)+(d) exclude the rc-guard and loud-die
      routes while identity **between the two silent exit-3 routes** rests on (c) (the push is
      pre-receive-declined, so no post-push readback ever ran) plus (e) (origin tip unchanged —
      the readback-mismatch route requires an advanced origin); the bash suite is green with zero
      `expect`-line changes.
-  7. **#1107:** `grep -c 'mixed-source' skills/war-review/SKILL.md` ≥ 2; the §2 clause extends
+  7. **#1107:** **two PLACEMENT-BOUND greps, not a file-wide count** (red-team: the drafted
+     `grep -c 'mixed-source' … ≥ 2` binds nothing about placement — `grep -c` counts matching
+     *lines*, so a §2-only edit whose clause wraps the token onto two lines satisfies the floor
+     with §3 entirely un-migrated; reproduced in the sandbox). Required instead: (i) the §2
+     bullet region (the `never cross-summable against an envelope total` sentence through the
+     end of that bullet) contains `mixed-source` **and** `every phase`; (ii) the §3 region
+     (from the `## 3` heading to the next `\n## `) contains `mixed-source`. Both regions
+     extracted by construct, both greps case-insensitive. The §2 clause extends
      the sentence ending "never cross-summable against an envelope total" and contains "every
      phase" (run total is envelope-sourced only when every phase carries an envelope; any mix
      renders `n/a (mixed-source)`, never a silent sum); §3's "total tool calls" / "total tokens"
@@ -214,9 +253,14 @@ and Phase 2; a sibling release landing *before* Phase 1 is handled inside Task 1
   soft `env-blocked` at the merge site, `held:land-failed` at the land site". The immediately
   following "Exhaustion routes by site" sentence already models the wording — converge on it.
   Single additive phrase; the change is confined to the Amendment section and the superseded
-  original Decision text is never retro-edited (spec §2.4). No new lock — ADR text is not
-  test-pinned; the D21 lock on the `skills/war/SKILL.md` sibling already guards the doctrine's
-  operative surface (spec §3). Floor: `grep -n 'keeps this ADR.s original soft'` prints no hits, then
+  original Decision text is never retro-edited (spec §2.4). **Lock (red-team, supersedes the
+  drafted "no new lock — ADR text is not test-pinned" rationale, which does not hold because
+  ADR 0040 §B already carries this fact — the two-site clause is a new cross-ADR prose
+  mirror):** the binding drift guard ships in **Task 1.6**, which owns
+  `skills/war/assets/skill-doc-contracts.test.mjs`; file-disjointness forbids this task
+  touching that file, and both tasks land in the same wave so mirror and guard land together.
+  Author the clause on the ADRs' own tokens so 1.6's guard can anchor on them.
+  Floor: `grep -in 'keeps this ADR.s original soft'` prints no hits, then
   hand-scan the Amendment section for any other single-site restatement and list stragglers.
 - requiresTest: false
 - requiresPackaging: false
@@ -227,12 +271,17 @@ and Phase 2; a sibling release landing *before* Phase 1 is handled inside Task 1
 
 - Files: `skills/lessons-learned/lessons-learned-doc-contract.test.mjs`
 - Plan slice: reword the Task-1.2 banner parenthetical ("banner-scoped, as it is throughout this
-  file (it restarts per banner …)") to state the real convention: check numbering is
-  **file-global-monotonic across banners** — the reworded comment must NOT pin a terminal count
-  literal (the tip currently reaches (27), re-verified, but a "(1)→(N)" literal stales on the
-  next added check: the exact count-word failure mode this plan's own checklist bans, spec §4.5);
-  the lessons-learned-seed banner is the sole, plan-sanctioned restart and the sole source of
-  the 17–21 collision the comment cites; this banner also restarts at (1) per its own plan.
+  file (it restarts per banner …)") to state the real convention. **Re-walk the banners at your
+  base and state what you find** — the reworded comment must NOT pin a terminal count literal
+  (a "(1)→(N)" literal stales on the next added check: the exact count-word failure mode this
+  plan's own checklist bans, spec §4.5). **Measured convention at `4afa174` (red-team, which
+  RETIRED this task's drafted wording):** numbering is *not* per-banner — it continues across
+  banners, six of them running (1)…(21) monotonically — with **two** sanctioned backward jumps:
+  the lessons-learned-seed banner (~L278) resumes at **(17)**, the source of the 17–21 collision
+  this comment cites, and **this** banner (~L399, the one being edited) starts a fresh **(1)**
+  run, a second collision in the low numbers. The drafted "file-global-monotonic … sole restart"
+  wording was false on both counts — a truth sweep may not ship a fresh false generalization.
+  Neither jump is a defect; each is sanctioned by its own plan, and the reword says so.
   Zero assertion, fixture, or expected-value changes — **mechanical form (worker proves, auditor
   re-runs):** `git diff -U0 <task base> -- <file>` where every `+`/`-` content line (the
   `+++`/`---` file headers excluded) matches `^[+-]\s*//`; no check renumbering (the collision
@@ -277,14 +326,18 @@ and Phase 2; a sibling release landing *before* Phase 1 is handled inside Task 1
   In §3 ("Tally — the metric set"), annotate the "total tool calls" and "total tokens" rows'
   Source cells (or the table's preamble) with the same rule **by reference** to the §2 clause,
   so the render instruction and the ban cannot drift apart. "By reference" means: the §3 note
-  repeats the `mixed-source` **token** (that repetition is what the ≥ 2 floor counts) and names
+  repeats the `mixed-source` **token** (that repetition is what End state 7's §3 region grep
+  requires — the drafted file-wide `≥ 2` count was retired at red-team as placement-blind) and names
   the §2 rule, but does **not** restate the every-phase conditional — the rule lives once; the
   gate-audit verifies exactly that shape. The `n/a (mixed-source)` rendering is a deliberate
   parenthetical variant of the file's bare `n/a` convention — it distinguishes "sourceable but
   unmixable" from "unsourceable"; nothing downstream pattern-matches on the bare token (the
   tables render for humans). Per-phase cells keep their per-phase sourcing byte-unchanged.
   Anchor by the sentence fragment and row names, never line numbers. Floor: the End-state 7
-  checks (`mixed-source` ≥ 2, clause contains "every phase"), then hand-scan §3's full metric
+  checks — the **two placement-bound region greps** (§2 bullet region contains `mixed-source`
+  AND `every phase`; §3 region contains `mixed-source`), case-insensitive; the drafted
+  file-wide `≥ 2` count is retired (a §2-only edit wrapping the token onto two lines satisfied
+  it with §3 un-migrated — reproduced at red-team) — then hand-scan §3's full metric
   table for any other row whose run total could mix sources (e.g. wall-clock is manifest-only
   and cannot) — a mixable row found there is in-scope (same file, same defect class: fix
   in-task per the Method straggler rule).
@@ -293,9 +346,19 @@ and Phase 2; a sibling release landing *before* Phase 1 is handled inside Task 1
 - deps: []
 - target repo: superproject
 
-### Task 1.6: #1136 — Gate-2 pre-push remedy gains the branch-ref undo step + D22 undo arm
+### Task 1.6: #1136 — Gate-2 pre-push remedy gains the branch-ref undo step + D22 undo arm (+ Task 1.2's cross-ADR mirror guard)
 
 - Files: `skills/war/SKILL.md`, `skills/war/assets/skill-doc-contracts.test.mjs`
+- **Added duty (red-team, ADR 0025 — see Task 1.2):** this task also ships the drift guard for
+  Task 1.2's new ADR 0019 ↔ ADR 0040 §B two-site prose mirror, because this task owns
+  `skill-doc-contracts.test.mjs` and file-disjointness forbids Task 1.2 touching it. Add a row
+  that reads **both** `docs/adr/0019-target-derived-execution-values.md` and
+  `docs/adr/0040-environment-class-gate-failures-earn-one-retry.md` and asserts the two-site
+  characterization (soft `env-blocked` at the merge site, `held:land-failed` at the land site)
+  is present on **each** surface — a per-surface revert must RED the row (the standing
+  both-surfaces registry shape). The two tasks are in the same wave, so mirror and guard land
+  together. Anchor on the ADRs' own tokens, not Task 1.2's exact new sentence bytes, so bounded
+  wording latitude in 1.2 does not red 1.6.
 - Plan slice: **(doc)** in the Gate-2 flow's pre-push staged-file bullet (inside the
   `**Post-servitor publication (Gate 2` construct — the D22 extraction region, which ends at
   the next `## ` heading, `## Resume`; the shared-branch doctrine's home in the Invariants
@@ -381,7 +444,7 @@ and Phase 2; a sibling release landing *before* Phase 1 is handled inside Task 1
 
 - Files: `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `README.md`
 - Plan slice: this plan changes plugin-shipped surfaces (`skills/war/SKILL.md`,
-  `skills/war-review/SKILL.md`, `agents/war-worker.md`, three test assets, `README.md`) — users
+  `skills/war-review/SKILL.md`, `agents/war-worker.md`, four test assets, `README.md`) — users
   receive them only via a release. Bump all four release slots together to the **next free patch
   above the live integration base at land time** (never a resolved semver literal, per the
   /war-strategy §2 next-free-patch convention; version literals in plans are non-authoritative):
@@ -417,7 +480,10 @@ and Phase 2; a sibling release landing *before* Phase 1 is handled inside Task 1
 ## Deferred validations (backstops)
 
 - **Checklist efficacy (the #1153 guard is semantic, not mechanical)** — whether the authoring
-  checklist actually prevents an 8th overclaim recurrence cannot be proven at Phase 1 land ·
+  checklist actually prevents the NEXT overclaim recurrence cannot be proven at Phase 1 land
+  (never a count literal — re-resolve from
+  `docs/learnings/release-blurb-overstates-guard-semantics.md` at dispatch; red-team measured
+  the family at ten recorded instances, the newest being this campaign's own 0.14.66 release) ·
   why deferred: overclaims are semantic judgments; no mechanical lint by design (spec §3, §9) ·
   runner: Phase 2's Task 2.1 authors its blurb against the checklist and its gate-audit
   (`execution-evidence` lens) verifies the blurb against each checklist item — the first live
@@ -445,9 +511,11 @@ and Phase 2; a sibling release landing *before* Phase 1 is handled inside Task 1
 - **README.md appears in Task 1.1 and Task 2.1** — resolved by the phase edge (release is its
   own trailing phase, decomposition rule 4), never a deps-wave dodge. Task 2.1's `## Status`
   replacement is replace-in-place of the whole blurb paragraph; Task 1.1's blurb corrections
-  are still landed first deliberately (spec §3: waiting re-opens the window for an 8th
-  recurrence, and the corrected 0.14.63 blurb remains the last-released truth until Phase 2
-  supersedes it).
+  are still landed first deliberately (spec §3: waiting re-opens the window for the next
+  overclaim recurrence). **Red-team note:** under the Vacuous-reword route Task 1.1 authors no
+  blurb corrections at all — the #1153(a)/(b) sentences are already absent at base — so this
+  ordering rationale now rests solely on landing the checklist + presence lock before Phase 2
+  authors its blurb against them.
 - **Cross-plan contention:** `README.md` `## Status` is a release-slot surface every sibling
   campaign plan's release phase also rewrites (`2026-07-26-dispatch-args-and-floor-coverage`,
   `2026-07-26-war-memory-cli-correctness`) — the serial stack-and-plow order (ADR 0011)
@@ -463,9 +531,11 @@ and Phase 2; a sibling release landing *before* Phase 1 is handled inside Task 1
   across tasks.
 - **No dispatched-prompt mirror for #1096** — deliberate standing-doc-only asymmetry (spec §3);
   recorded in Task 1.7 so auditors adjudicate it as chosen.
-- **No new lock for ADR 0019, no drift guards for the #1146/#1152 comment rewords** — accepted
-  residuals per spec §3 (ADR text is not test-pinned and D21 guards the operative sibling;
-  comments are not drift-guarded here).
+- **No drift guards for the #1146/#1152 comment rewords** — accepted residual per spec §3
+  (comments are not drift-guarded here). **ADR 0019 is NO LONGER on this list (red-team):** its
+  new two-site clause duplicates a fact ADR 0040 §B already carries, so it is a real cross-ADR
+  mirror and ADR 0025 requires a guard — shipped in Task 1.6 (the owner of
+  `skill-doc-contracts.test.mjs`), same wave as Task 1.2.
 - **Zero behavior change is the plan-wide invariant** (spec §2.2): if any task finds it cannot
   fix its surface without touching an engine code path, exit code, enum, prompt byte, or floor,
   that is a `PLAN-DEFECT:` escalation, not a latitude call.
@@ -477,10 +547,11 @@ and Phase 2; a sibling release landing *before* Phase 1 is handled inside Task 1
   files. Worker temp-break probes in done reports remain welcome supplements and stay SOFT.
 - **Source-issue closure is owned by /aftermath at campaign close** (evidence-gated), distinct
   from the Checkpoint duty of closing run task issues. #1153's closure text must state that
-  the durable artifact is the checklist + presence lock and that Phase 2's whole-paragraph
-  `## Status` replacement supersedes Task 1.1's corrected sentences **by design** (the
-  corrected 0.14.63 blurb was the last-released truth only until this release) — preempting a
-  reopen when the corrected wording is noticed gone.
+  the durable artifact is the checklist + presence lock — and, under the Vacuous-reword route
+  that is live at this base, the **only** artifact: #1153's two overclaim sentences were
+  already superseded by sibling releases before Phase 1 ran, so there are no corrected
+  sentences for Phase 2 to supersede. Close #1153 on the checklist + lock plus the two
+  zero-hit greps as no-op evidence — preempting a reopen when no reworded sentence is found.
 - **Phase 1 landed with Phase 2 held is an accepted intermediate state** — the standard
   stacked-campaign posture (repo tip ahead of the shipped plugin); the run stays held/open
   until the release lands, so /aftermath sees it as an unclosed run, not silent debt.
