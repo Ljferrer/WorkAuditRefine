@@ -114,9 +114,22 @@ the surface that shape's ladder forbids as a verdict basis.
   resume state keeps its own doctrine (git > labels > ledger); the Lead's `ls-remote` remote-truth
   binding cites it rather than restating it. Resume precedence and audit-evidence precedence are
   sibling doctrines, not one ladder.
+- **[ADR 0024](0024-audit-gate-verdicts-integrated-tip-captured-evidence.md) — integrated-tip /
+  captured-evidence verdicts, §(C).** The canonical source of `execution` rung 1 (the captured
+  gate-evidence artifact — `_refinery/.war/gate-<taskId>.log`, never a possibly-curated inline
+  paste — is the sole basis for a HARD provably-unrun finding) and rung 4 (an absent artifact ⇒
+  SOFT `cannot-confirm`, never a hold). This ADR ranks those ratified rules into the `execution`
+  ladder; §(C) remains their home — cited, not restated.
 - **[ADR 0025](0025-drift-guard-discipline.md) — drift-guard discipline.** The ladder is mirrored
   prose (standing card + dispatched prompt skeleton + Lead/glossary surfaces); every mirror ships
   its token-anchored drift guard in the same task that creates it.
+- **[ADR 0029](0029-capture-grounds-on-committed-tip.md) — capture grounds on the committed tip,
+  Decision point 2.** The canonical source of `content-at-pin` rungs 1–2 (the pinned blob read is
+  `git show <audit_sha>:<path>`; a working-tree grep "must never be the sole basis" of a
+  verify-and-close verdict) and of `history` rung 1 (the history verb chosen per claim shape —
+  `git log -S` for occurrence-count change, `-G` for content-pattern change, `git show` for
+  presence-at-tip). This ADR ranks those ratified rules into ladders; Decision point 2 remains
+  their home — cited, not restated.
 
 ## Considered options
 
@@ -166,6 +179,10 @@ the surface that shape's ladder forbids as a verdict basis.
 - [Design spec](../specs/2026-07-28-audit-evidence-precedence-design.md) — decisions D1–D5,
   mechanics §4, validation criteria §10.
 - [Implementation plan](../plans/2026-07-28-audit-evidence-precedence.md).
+- [ADR 0024](0024-audit-gate-verdicts-integrated-tip-captured-evidence.md) — §(C), the canonical
+  source of `execution` rungs 1 and 4.
+- [ADR 0029](0029-capture-grounds-on-committed-tip.md) — Decision point 2, the canonical source
+  of `content-at-pin` rungs 1–2 and `history` rung 1.
 - Precedent lessons (by slug, in `docs/learnings/` / the memory roots):
   `audit-worktree-pre-impl-tip-stale-verdict`, `audit-log-finding-can-be-stale-by-land-time`,
   `auditor-grep-tool-unrestricted-by-git-verb-bash-guard`.
