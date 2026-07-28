@@ -77,7 +77,7 @@ expect_deny() {
 
 # expect_deny_teach <description> <payload-json> <substr>
 # Asserts: exit 2 AND "WAR:" marker AND <substr> present on stderr.
-# The extra <substr> check is the D6 micro-teach assertion — the deny message
+# The extra <substr> check is the 2026-07-22 spec's D6 micro-teach assertion — the deny message
 # must name the sanctioned alternative (Read/Grep/Glob, the Grep tool, the
 # =-attached branch read-flag form, or — since the 2026-07-26 spec's D3 — the
 # one-bare-git-command-per-Bash-call form at the forbidden-char deny). Substr
@@ -390,7 +390,7 @@ expect_deny "G5: git fetch → denied (not in read allowlist)" \
 # D3 re-ratification (2026-07-22 auditor-guard-ergonomics spec §3): the char/verb widening
 # admitted ~/%, ls-tree and read-form branch but DECLINED `git grep` — the unrestricted Grep
 # tool is the sanctioned repo-wide sweep channel (named in the unlisted-verb deny's micro-teach).
-# D2 THIRD ratification (2026-07-26 auditor-guard-policy-and-mirror-truth spec §5, after ADR 0029's
+# D2 THIRD ratification (2026-07-26 auditor-guard-policy-and-mirror-truth spec §3, after ADR 0029's
 # rejected-and-deferred grep-verb option and the 2026-07-22 spec's D3): still no — admitting the verb
 # would also open an execution hole (git grep -O<cmd> runs an arbitrary pager command the fail-closed
 # char allowlist cannot tell from a benign search). See ADR 0029's Amendment (2026-07-26).
@@ -597,7 +597,7 @@ expect_allow "K3: git log -L 5,+3:hooks/validate-auditor-git.sh → allowed (log
 expect_deny "K4: git blame -L 1,+5; rm -rf . → denied (semicolon composition still denied)" \
   "$(auditor_cmd "git blame -L 1,+5; rm -rf .")"
 
-# K5/K6: the D3 forbidden-char micro-teach, asserted twice on one payload.
+# K5/K6/K7: the D3 forbidden-char micro-teach, asserted three times on one payload.
 # SITE-PINNED BY ROUTING, not merely by substring: the char check is the first check
 # after the empty-command guard, so "git diff HEAD && git log" can only exit at the
 # forbidden-char deny site — a future teach-vocabulary overlap at another deny site
@@ -610,6 +610,12 @@ expect_deny_teach "K5: git diff HEAD && git log → denied + byte-preserved pref
 # around it is in bounds; editing the span reds this case, by design.
 expect_deny_teach "K6: git diff HEAD && git log → denied + one-bare-git-command micro-teach" \
   "$(auditor_cmd "git diff HEAD && git log")" "one bare git command per Bash call"
+
+# K7 pins the third teach element — the Read/Grep/Glob clause — at THIS deny site.
+# Without it the message could be trimmed to end after "per Bash call" and K5/K6 stay
+# green (J17's Read/Grep/Glob assertion is anchored on the not-a-git deny, a different route).
+expect_deny_teach "K7: git diff HEAD && git log → denied + Read/Grep/Glob teach element" \
+  "$(auditor_cmd "git diff HEAD && git log")" "Read/Grep/Glob tools"
 
 # ---------------------------------------------------------------------------
 # Summary

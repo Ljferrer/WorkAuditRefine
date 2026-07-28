@@ -1,6 +1,6 @@
 # Capture grounds on the committed tip, not the working tree
 
-**Status:** accepted; amended 2026-07-22
+**Status:** accepted; amended 2026-07-22, 2026-07-26
 
 Two recorded frictions show a *capture* step — the servitor recording a learning, an auditor forming a
 verify-and-close verdict — trusting a surface that does not match the committed tree, so a fact enters the
