@@ -4,10 +4,10 @@ description: "An ADR/doctrine record's 'precedent evidence' or 'mapping' subsect
 metadata:
   node_type: memory
   type: project
-  promoted: dev/2026-07-28-audit-evidence-precedence@phase-1
+  promoted: dev/2026-07-28-audit-evidence-precedence@phase-2
   provenance: code-verified
   slug: canonical-doc-precedent-mapping-subsection-can-contradict-the-same-docs-own-consequences-bullet
-  phase: "audit-evidence-precedence/phase-1 task 1.1 +1 recurrence (phase-2 task 2.1 README blurb, live at land, 2026-07-28)"
+  phase: "audit-evidence-precedence/phase-1 task 1.1 +1 recurrence (phase-2 task 2.1 README blurb, corrected at phase close, 2026-07-28)"
   keywords:
     - ADR self-contradiction
     - precedent-lesson mapping
