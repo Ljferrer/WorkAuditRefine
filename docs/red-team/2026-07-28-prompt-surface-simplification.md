@@ -13,10 +13,14 @@ Probes ran on opus/high per the resolved `agents.redteam` config block.
 1 pass, 11 fail; 23 status-aware blockers, 19 `needsDecision`, 9 minors → **40 unique findings**
 after cross-probe dedup, rooted in **13 defects**.
 
-**Terminal state: CLEARED by adjudication** — all 13 roots patched into the plan in place
-(this same commit) under AFK self-adjudication; the `## Adjudications` table below is the
-authority when any seat disputes a superseded literal. Per the recorded plan-1 precedent the
-patched probes were **not re-run**; the clear is adjudicated, not re-proven.
+**Terminal state: OPERATOR-ADJUDICATED CLEAR (ratified, not AI-declared — ADR 0014 provenance;
+restamped 2026-07-28 under the operator directive making /red-team's BLOCKED advisory to the Lead
+once every root is patched with an adjudication row).** All 13 roots are patched into the plan in
+place under AFK self-adjudication; the `## Adjudications` table below is the authority when any
+seat disputes a superseded literal. The patched probes were **not re-run**: under the directive a
+re-run is owed only where an EXECUTED probe proved the finding by running something AND the patch
+changes what that same probe would measure — no root here meets both arms (the executed probes'
+measurements were adopted by the patches, not contradicted by them).
 
 ## Attack surface / executed proof
 
@@ -118,9 +122,10 @@ spec literal. Threaded into every `/war` seat of this plan's run.
   purely mechanical marker grep cannot decide "reachable only through".
 - The registry carve-out (G) may leave Phases 3–5 with modest literal shrink — the plan now says
   measure-and-report rather than force; the budget rows still land either way.
-- The adjudicated clear is not re-proven (plan-1 precedent); the recorded 2026-07-26 lesson that
-  a same-wave adjudication once proved insufficient is acknowledged — mitigation: every seat of
-  this run receives the full A–N table, and disputes resolve to it, not to superseded literals.
+- The adjudicated clear is not re-proven (operator-ratified directive, 2026-07-28 — not mere
+  precedent); the recorded 2026-07-26 lesson that a same-wave adjudication once proved
+  insufficient is acknowledged — mitigation: every seat of this run receives the full A–N table,
+  and disputes resolve to it, not to superseded literals.
 - Spec file left byte-unchanged (decision record); the plan + this table carry every deviation.
   The `.tours/architect-war-system.tour` references to moved SKILL.md sections are in Task 2.1's
   Files and slice (tour rot is a recorded lesson class).
