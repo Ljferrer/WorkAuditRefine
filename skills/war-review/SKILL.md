@@ -70,7 +70,11 @@ JSON** — read them **defensively**:
   authoritative non-transcript source; the input/output/cache **split** stays transcript-mined and
   renders `n/a` when unsourceable, and a mined split value is always **best-effort and possibly
   undercounting** (transcripts undercount tool calls roughly 20× against the envelope), never
-  cross-summable against an envelope total.
+  cross-summable against an envelope total — the same bar binds the **run** total for tool
+  calls/tokens: it is envelope-sourced only when every phase carries an envelope, and any
+  envelope/mined mix renders `n/a (mixed-source)`, never a silent sum (a mixed per-phase sum is
+  exactly the cross-sum this bullet already bans — the ~20× skew makes it disinformation, not
+  approximation).
 - The **manifest** — not the transcripts — supplies dispatch counts by role, task terminal
   statuses, per-phase and run timestamps, `land`, `lessonsWritten`, `issuesFiled`, and — when
   present — the `envelope` token/tool-call totals. These stand even when a transcript is gone.
@@ -80,7 +84,9 @@ defensive read degrades to `n/a` instead of crashing — that is the intended fa
 
 ## 3. Tally — the metric set
 
-Render **per phase and as run totals** (the full End-state-2 set; `n/a` for any unsourced cell):
+Render **per phase and as run totals** (the full End-state-2 set; `n/a` for any unsourced cell).
+The **total tool calls** and **total tokens** rows below are run totals bound by the §2
+mixed-source rule — a mixed envelope/mined total renders `n/a (mixed-source)`, never a silent sum:
 
 | Metric | Source |
 |---|---|
