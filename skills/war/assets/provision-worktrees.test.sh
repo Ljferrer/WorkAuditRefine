@@ -1277,18 +1277,29 @@ expect "T2.8b: already-landed, follower absent -> follower CREATED at <new-sha>"
 #
 # Exit 3 is reached by several routes; the push-path silent ones (the
 # push-error branch and the post-push origin-readback mismatch) print nothing,
-# while the rest die LOUDLY with route-naming text — so route identity rests
-# on (b)+(c)+(d) TOGETHER:
+# while the rest die LOUDLY with route-naming text. Route identity is therefore
+# proved in TWO steps — (b)+(d) exclude the LOUD routes; (c)+(e) then
+# discriminate BETWEEN the two silent ones:
 #   (b) ls-remote SUCCEEDS pre-call — closes the T2.3 rc-guard route by
 #       construction (pre-receive is push-side; ls-remote is fetch-side);
 #   (c) the token-distinctness fact asserted BY NAME (remote rejected present,
 #       contiguous [rejected] absent) — a future git wording change fails HERE,
 #       loud, not as an unexplained exit-code mismatch (never widen to bare
-#       `rejected`; extend/adjudicate instead);
+#       `rejected`; extend/adjudicate instead). (c) is ALSO the primary
+#       silent-route discriminator: it proves the push is pre-receive-DECLINED
+#       (exits non-zero), and the post-push origin readback lives inside the
+#       `push_rc -eq 0` arm — a declined push never runs that readback, so the
+#       only silent exit-3 route left is the bare push-error branch;
 #   (d) the land-advance invocation emits NEITHER the rc-guard die text ("could
 #       not read the origin tip") NOR the phantom die text ("refusing to report a
 #       land that did not advance") — a regression rerouting the fixture through
-#       either route would surface that die text and fail (d).
+#       either route would surface that die text and fail (d). The remaining loud
+#       exit-3 dies (unresolvable HEAD / unresolvable <new-sha>) are closed by
+#       construction: the call detaches at $NEW_SHA9, so both resolve;
+#   (e) origin tip byte-unchanged (still the seed) corroborates (c): with the
+#       wrong-HEAD precheck passed, a push that exits 0 has already put <new-sha>
+#       on origin, so a readback mismatch means an origin someone else ADVANCED —
+#       never one still sitting at the seed.
 # ---------------------------------------------------------------------------
 PAIR9="$(setup_origin_pair)"
 C1_9="$(printf '%s' "$PAIR9" | cut -d' ' -f1)"
