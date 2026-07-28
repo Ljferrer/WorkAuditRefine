@@ -1,11 +1,14 @@
 # Red-team report — 2026-07-28-audit-evidence-precedence
 
-**Verdict: BLOCKED at gate, CLEARED after the adjudicated patches.** The gate returned BLOCKED
+**Verdict: BLOCKED at gate → OPERATOR-ADJUDICATED CLEAR (ratified, not AI-declared — ADR 0014
+provenance; restamped 2026-07-28 under the operator directive that makes a fully-patched BLOCKED
+advisory to the Lead).** The gate returned BLOCKED
 (24 blockers, 25 needsDecision, 14 minors — collapsing to ~10 roots, because eleven independent
 probes converged on the same defects). Every root was self-adjudicated under AFK and patched into
-the plan in this pass. **The affected probes were NOT re-run** — this is an *adjudicated* clear,
-not a re-proven one; the Lead re-verifies before dispatch. Two roots (K, and the two Minors listed
-under Residual risk) are Lead-reversible and flagged as such.
+the plan in this pass. **The affected probes were NOT re-run** — under the ratified directive a
+re-run is owed only where an EXECUTED probe proved the finding by running something AND the patch
+changes what that same probe would measure; no root here meets both arms. Two roots (K, and the
+two Minors listed under Residual risk) are Lead-reversible and flagged as such.
 
 - **Plan:** `docs/plans/2026-07-28-audit-evidence-precedence.md` (patched in place)
 - **Source spec:** `docs/specs/2026-07-28-audit-evidence-precedence-design.md`
