@@ -574,7 +574,7 @@ expect_deny_teach "J18: git tag v1 → denied + Grep-tool micro-teach" \
 # allowlisted verb (blame / log) is ever consulted. Nothing else moves: K4 pins
 # that a +-carrying command still dies on ; composition, and the C/E/H5
 # injection cases above stay unmodified and green — the same widening proof
-# group J used. K5/K6 pin the D3 micro-teach on the forbidden-char deny.
+# group J used. K5/K6/K7/K8 pin the D3 micro-teach on the forbidden-char deny.
 # ---------------------------------------------------------------------------
 
 # K1: git blame -L <start>,+<n> — the numeric range-length form (the #1138 denial family)
@@ -597,12 +597,14 @@ expect_allow "K3: git log -L 5,+3:hooks/validate-auditor-git.sh → allowed (log
 expect_deny "K4: git blame -L 1,+5; rm -rf . → denied (semicolon composition still denied)" \
   "$(auditor_cmd "git blame -L 1,+5; rm -rf .")"
 
-# K5/K6/K7: the D3 forbidden-char micro-teach, asserted three times on one payload.
+# K5/K6/K7/K8: the D3 forbidden-char micro-teach, asserted four times on one payload —
+# one per contract element, so no element can be trimmed away silently.
 # SITE-PINNED BY ROUTING, not merely by substring: the char check is the first check
 # after the empty-command guard, so "git diff HEAD && git log" can only exit at the
 # forbidden-char deny site — a future teach-vocabulary overlap at another deny site
-# cannot make either assertion pass vacuously.
-# K5 pins the byte-preserved historical prefix plus the head -c 20 residue echo at the front.
+# cannot make any of these assertions pass vacuously.
+# K5 pins the prefix tail "forbidden character(s):" plus the head -c 20 residue echo at
+# the front (the leading "command contains" fragment rides along, unpinned by itself).
 expect_deny_teach "K5: git diff HEAD && git log → denied + byte-preserved prefix and residue echo" \
   "$(auditor_cmd "git diff HEAD && git log")" "forbidden character(s): &&"
 
@@ -616,6 +618,12 @@ expect_deny_teach "K6: git diff HEAD && git log → denied + one-bare-git-comman
 # green (J17's Read/Grep/Glob assertion is anchored on the not-a-git deny, a different route).
 expect_deny_teach "K7: git diff HEAD && git log → denied + Read/Grep/Glob teach element" \
   "$(auditor_cmd "git diff HEAD && git log")" "Read/Grep/Glob tools"
+
+# K8 pins the remaining teach element — split-the-chain. Without it the middle clause
+# could be dropped from the message and K5/K6/K7 all stay green (the same trimming
+# argument K7 records, applied to the one element K7 left unpinned).
+expect_deny_teach "K8: git diff HEAD && git log → denied + split-the-chain teach element" \
+  "$(auditor_cmd "git diff HEAD && git log")" "split && / ; chains"
 
 # ---------------------------------------------------------------------------
 # Summary
