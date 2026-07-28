@@ -152,14 +152,15 @@ tokens, not sentence bytes — sanctioned rewording latitude on either surface d
   posture as all existing Lead doctrine.
 - Done-report placement (below all mechanical evidence, above nothing) is the one judgment call
   not forced by a recorded lesson; flagged for red-team attention.
-- **Run config (operator-directed, 2026-07-28): docs-tier workers run on `fable` at `high` effort
-  for this implementation** — set `agents.worker.docs: { model: 'fable', effort: 'high' }` in the
-  run's `.claude/war/config.json` (via `/war-room` or hand-edit) before launch. Most of this
-  plan's tasks are all-`*.md` (`Files:` entirely markdown ⇒ mechanically classified to the docs
-  tier at dispatch), so the default sonnet docs tier would carry the doctrine-bearing prose; the
-  ladder text is precision-critical enough to warrant the stronger tier. Code-bearing tasks
-  (`workflow-template.js` + test suites) stay on the base worker tier — this note does not touch
-  `agents.worker` or `agents.worker.fix`.
+- **Run config (operator-directed, 2026-07-28): the `thorough` preset with a docs-tier
+  override** — `.claude/war/config.json` carries `profile: 'thorough'` (`PRESETS.thorough` in
+  `war-config.mjs` is the arbiter) plus the layered override
+  `agents.worker.docs: { model: 'fable', effort: 'high' }` — deliberate: thorough's own docs tier
+  is opus/high, and the operator directed fable/high for this implementation's prose. All-`*.md`
+  tasks (`Files:` entirely markdown ⇒ mechanically classified to the docs tier at dispatch) get
+  the override; code-bearing tasks (`workflow-template.js` + test suites) ride the preset's base
+  worker tier — this note does not touch `agents.worker` or `agents.worker.fix` beyond what the
+  preset sets.
 
 ## 9. Non-goals / deferred
 
