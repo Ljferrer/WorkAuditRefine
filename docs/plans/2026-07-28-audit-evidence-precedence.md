@@ -134,15 +134,14 @@ Phase 2 — release (trailing, own phase per the decomposition rule).
 
 ## Notes / conscious deviations
 
-- **Run config (operator-directed, 2026-07-28): the `thorough` preset, with a docs-tier
-  override.** Launch with `.claude/war/config.json` carrying `profile: 'thorough'` (the
-  `PRESETS.thorough` block in `war-config.mjs` is the arbiter of what that sets — fable/max
-  workers, opus/max auditors, the 5-lens deep pool) **plus** the operator's layered override
-  `agents.worker.docs: { model: 'fable', effort: 'high' }` — deliberate: thorough's own docs tier
-  is opus/high, and the operator directed fable/high for this implementation's prose. Task 1.1 is
-  all-`*.md` and rides the docs tier; Tasks 1.2/1.3 mix `.md` + `.js`/`.mjs` and stay on the base
-  worker tier by mechanical classification — the docs-tier directive cannot reach them, which is
-  inherent to the standing/dispatched same-commit rule, not an oversight.
+- **Run config (operator-directed, 2026-07-28): default profile, all worker tiers fable/high.**
+  Launch with `.claude/war/config.json` on the default (`balanced`) profile plus the operator's
+  worker override — `agents.worker: { model: 'fable', effort: 'high', docs: { model: 'fable',
+  effort: 'high' }, fix: { model: 'fable', effort: 'high' } }` — so every worker spawn (base,
+  docs-tier, and fix/ace rounds) runs fable/high. Auditor, servitor, and red-team stay at the
+  profile defaults (`DEFAULTS` in `war-config.mjs` is the arbiter). With all three tiers pinned
+  identically, the docs-vs-base mechanical classification (Task 1.1 all-`*.md`; Tasks 1.2/1.3
+  mixed) no longer changes model or effort anywhere — it remains dispatch bookkeeping only.
 - **The `deps: [1.1]` edges are content dependencies, not collision dodges** — file sets are fully
   disjoint. 1.2 and 1.3 cite the new ADR by its resolved number, which 1.1 authors; per the
   2026-07-27 execution-outcome correction on the standing-doc sweep's red-team report, a task

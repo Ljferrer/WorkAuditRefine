@@ -240,16 +240,15 @@ Phase 5 worker+servitor families → Phase 6 periphery → Phase 7 ratchet + rel
 
 ## Notes / conscious deviations
 
-- **Run config (operator-directed, 2026-07-28): the `thorough` preset, with a docs-tier
-  override.** Launch with `.claude/war/config.json` carrying `profile: 'thorough'` (the
-  `PRESETS.thorough` block in `war-config.mjs` is the arbiter — fable/max workers, opus/max
-  auditors, the 5-lens deep pool) **plus** the operator's layered override
-  `agents.worker.docs: { model: 'fable', effort: 'high' }` — deliberate: thorough's own docs tier
-  is opus/high, and the operator directed fable/high for this implementation's prose. Tasks 1.1
-  and 6.2 are all-`*.md` and ride the docs tier; every card+literal task (2.1, 3.1, 4.1, 5.1,
-  6.1) mixes `.md` with `.js`/`.mjs` guard re-anchors and stays on the base worker tier by
-  mechanical classification — inherent to the guards-follow-text same-task rule, not an
-  oversight.
+- **Run config (operator-directed, 2026-07-28): default profile, all worker tiers fable/high.**
+  Launch with `.claude/war/config.json` on the default (`balanced`) profile plus the operator's
+  worker override — `agents.worker: { model: 'fable', effort: 'high', docs: { model: 'fable',
+  effort: 'high' }, fix: { model: 'fable', effort: 'high' } }` — so every worker spawn (base,
+  docs-tier, and fix/ace rounds) runs fable/high. Auditor, servitor, and red-team stay at the
+  profile defaults (`DEFAULTS` in `war-config.mjs` is the arbiter). With all three tiers pinned
+  identically, the docs-vs-base classification (Tasks 1.1/6.2 all-`*.md`; every card+literal or
+  shrink+re-anchor task mixed) no longer changes model or effort anywhere — it remains dispatch
+  bookkeeping only.
 - **Placeholder-constants two-step (Tasks 1.2 → 7.1)** resolves the spec's internal ordering
   tension (D6 wants the counterweight first; D5 derives constants from post-shrink sizes):
   machinery lands in Phase 1 with pre-shrink × 1.25 placeholders, the Phase 7 ratchet lands the

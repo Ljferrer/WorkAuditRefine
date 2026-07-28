@@ -136,16 +136,15 @@ definitions (glossary — its job); operative procedure lives in exactly one ope
 - **Literal-extraction fragility**: the budget test's ≥ 200 B template-literal measurement of
   `workflow-template.js` must tolerate engine refactors — anchor it on the same extraction the
   audit used and assert non-vacuity (zero extracted blocks = red, the fail-closed idiom).
-- **Run config (operator-directed, 2026-07-28): the `thorough` preset with a docs-tier
-  override** — `.claude/war/config.json` carries `profile: 'thorough'` (`PRESETS.thorough` in
-  `war-config.mjs` is the arbiter) plus the layered override
-  `agents.worker.docs: { model: 'fable', effort: 'high' }` — deliberate: thorough's own docs tier
-  is opus/high, and the operator directed fable/high for this implementation's prose (same
-  directive as the evidence-precedence plan). Only the all-`*.md` tasks (the governance-doctrine
-  and CLAUDE/CONTEXT-dedup tasks) ride the docs tier; every card+literal or shrink+re-anchor task
-  is mixed-file and stays on the preset's base worker tier by mechanical classification —
-  inherent to the guards-follow-text same-task rule, not an oversight. The plan's Notes must
-  carry this directive.
+- **Run config (operator-directed, 2026-07-28): default profile, all worker tiers fable/high** —
+  `.claude/war/config.json` on the default (`balanced`) profile plus the worker override
+  `agents.worker: { model: 'fable', effort: 'high', docs: { model: 'fable', effort: 'high' },
+  fix: { model: 'fable', effort: 'high' } }`, so every worker spawn (base, docs-tier, fix/ace)
+  runs fable/high — same directive as the evidence-precedence plan. Auditor, servitor, and
+  red-team stay at profile defaults (`DEFAULTS` in `war-config.mjs` is the arbiter). With all
+  three tiers pinned identically, the docs-vs-base classification (all-`*.md` vs mixed
+  shrink+re-anchor tasks) no longer changes model or effort anywhere. The plan's Notes must carry
+  this directive.
 
 ## 9. Non-goals / deferred
 

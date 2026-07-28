@@ -152,15 +152,13 @@ tokens, not sentence bytes — sanctioned rewording latitude on either surface d
   posture as all existing Lead doctrine.
 - Done-report placement (below all mechanical evidence, above nothing) is the one judgment call
   not forced by a recorded lesson; flagged for red-team attention.
-- **Run config (operator-directed, 2026-07-28): the `thorough` preset with a docs-tier
-  override** — `.claude/war/config.json` carries `profile: 'thorough'` (`PRESETS.thorough` in
-  `war-config.mjs` is the arbiter) plus the layered override
-  `agents.worker.docs: { model: 'fable', effort: 'high' }` — deliberate: thorough's own docs tier
-  is opus/high, and the operator directed fable/high for this implementation's prose. All-`*.md`
-  tasks (`Files:` entirely markdown ⇒ mechanically classified to the docs tier at dispatch) get
-  the override; code-bearing tasks (`workflow-template.js` + test suites) ride the preset's base
-  worker tier — this note does not touch `agents.worker` or `agents.worker.fix` beyond what the
-  preset sets.
+- **Run config (operator-directed, 2026-07-28): default profile, all worker tiers fable/high** —
+  `.claude/war/config.json` on the default (`balanced`) profile plus the worker override
+  `agents.worker: { model: 'fable', effort: 'high', docs: { model: 'fable', effort: 'high' },
+  fix: { model: 'fable', effort: 'high' } }`, so every worker spawn (base, docs-tier, fix/ace)
+  runs fable/high. Auditor, servitor, and red-team stay at profile defaults (`DEFAULTS` in
+  `war-config.mjs` is the arbiter). With all three tiers pinned identically, the docs-vs-base
+  classification no longer changes model or effort anywhere.
 
 ## 9. Non-goals / deferred
 

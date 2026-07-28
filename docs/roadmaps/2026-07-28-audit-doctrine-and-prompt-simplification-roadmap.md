@@ -1,10 +1,11 @@
 # Audit doctrine & prompt-surface simplification — 2 plans
 
 Campaign roadmap, 2026-07-28. Mode: `stack` (stack-and-plow, ADR 0011) — plan 2 cuts from plan
-1's tip. Both runs launch under the **`thorough` preset with the operator's docs-tier override**
-(`agents.worker.docs: { model: 'fable', effort: 'high' }`) — each plan's Notes carries the full
-directive. Version literals below are non-authoritative — each release resolves the next free
-patch from the live slots at land time.
+1's tip. Both runs launch on the **default (`balanced`) profile with every worker tier pinned
+fable/high** (`agents.worker` base, `docs`, and `fix` all `{ model: 'fable', effort: 'high' }`;
+auditor/servitor/red-team at profile defaults) — each plan's Notes carries the full directive.
+Version literals below are non-authoritative — each release resolves the next free patch from
+the live slots at land time.
 
 | # | Plan | Files owned | Ver | Depends on |
 |---|------|-------------|-----|------------|
