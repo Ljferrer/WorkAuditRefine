@@ -77,6 +77,39 @@ The `execution-evidence` seat runs post-merge over the refiner's **captured** ga
 - **Pair every positive assertion with a negative absence assert:** a test asserting only the happy path (never that the guard fires / the bad input is refused) is under-covering — flag the missing negative.
 - **End-state ownership mapping:** when the phase's End-state list spans `deps`-chained tasks, map each numbered condition to the plan slice that owns it before scoring. A condition owned by a later phase — or by a sibling task in this phase whose slice has not yet landed at the pinned tip — is out-of-scope for the current task's audit: a Nit whose title contains "out-of-scope", never a Critical/Major hold.
 
+## Evidence precedence (ADR 0041)
+
+Four claim shapes (closed set): `content-at-pin`, `execution`, `history`, `authority`. Classify each claim by its shape and judge it at the highest rung of that shape's ladder that holds. Shape names are deliberately distinct from lens names — `execution` the shape classifies a claim; `execution-evidence` the reserved lens judges gate output through it. The **Committed-tree grounding** paragraph above is the pre-existing narrow (no-op-claim) instantiation of the `content-at-pin` and `history` ladders — it carries the git verbs and the verb-per-claim-shape mapping, which are not restated here.
+
+**`content-at-pin`** — "is X present / absent / worded-thus at the judged state."
+1. Pinned blob at the judged `audit_sha` (or the pinned three-dot diff, recomputed per round) — the Committed-tree grounding paragraph carries the verbs.
+2. Working-tree Read/Grep — **advisory corroboration only**, never the sole basis (the tree may carry uncommitted edits; existing doctrine, now ranked).
+3. Worker done-report claims about content.
+
+**`execution`** — "did it run / did it pass."
+1. Gate-evidence artifact (`_refinery/.war/gate-<taskId>.log`) — the **sole** basis for a HARD provably-unrun finding (existing rule, now rung 1).
+2. Refiner-reported inline gate result — SOFT (possibly curated).
+3. Worker done-report / in-task probe evidence — SOFT, **never a hold** (`deliberately-uncommitted-worker-probe-evidence-is-soft-never-hold`).
+4. Absent evidence ⇒ SOFT `cannot-confirm`, never a hold.
+
+**`history`** — "when did this change / was it ever removed."
+1. Pinned history verbs at the pin, verb-per-claim-shape — the Committed-tree grounding paragraph carries the verb mapping (occurrence-count change vs content-pattern change vs presence-at-tip); `git blame` at the pin belongs to this rung too.
+2. Prose or comments *claiming* history ("measured 50 of 50 at the implementation base") — a claim to verify, never evidence (`bounded-window-measurement-comment-self-invalidates-when-its-own-release-commit-lands`).
+
+**`authority`** — "what was decided / what version / what is in scope."
+1. Task instruction (the dispatched prompt, incl. the threaded adjudication set).
+2. Red-team report `## Adjudications` rows.
+3. Plan body literal.
+4. Roadmap/spec literals (non-authoritative at land time — existing doctrine).
+
+This generalizes the existing version chain — the Version-precedence rule below is its `authority` instance.
+
+Universal floor rules (all shapes, all roles):
+- The working tree and the worker done-report are **never the top rung** of any ladder.
+- Prefetched lessons are **never evidence**. They are priors that direct where to look; a lesson-derived claim must be re-grounded at the pin before it may appear in a finding (lessons reflect what was true when written).
+- Conflict rule (D3): the higher rung rules the verdict; a cross-rung contradiction is mandatorily recorded as a `disposition: note` finding naming both rungs. Benign forward-advance stays benign — steady-state pin/HEAD mismatch is not a cross-rung contradiction.
+- Default arm (D2): an unmatched claim is judged under `content-at-pin` (strictest); if unworkable, a SOFT `cannot-confirm`, never a new shape.
+
 ## Latitude and disposition (ADR 0013)
 
 - **Latitude rule:** the plan slice is the floor, the Commander's Intent is the ceiling — intent-consistent work beyond the literal slice is APPROVE (judge it on its own correctness), never a plan-faithfulness violation; only deviations that contradict the intent or the slice block. No intent threaded means judge against the plan slice alone, as before.
