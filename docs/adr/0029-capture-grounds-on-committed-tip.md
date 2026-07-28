@@ -1,6 +1,6 @@
 # Capture grounds on the committed tip, not the working tree
 
-**Status:** accepted; amended 2026-07-22
+**Status:** accepted; amended 2026-07-22, 2026-07-26
 
 Two recorded frictions show a *capture* step — the servitor recording a learning, an auditor forming a
 verify-and-close verdict — trusting a surface that does not match the committed tree, so a fact enters the
@@ -151,3 +151,21 @@ byte-unchanged. Full mechanics: [the design spec](../specs/2026-07-22-servitor-w
 and [the plan](../plans/2026-07-22-servitor-wrapup-landed-tip.md).
 [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]] carries the full recurrence history and its
 own dated mitigation note.
+
+## Amendment (2026-07-26): D2 third ratification of the grep-verb rejection
+
+[The auditor-guard-policy-and-mirror-truth spec](../specs/2026-07-26-auditor-guard-policy-and-mirror-truth-design.md)
+re-ratified this ADR's rejected `grep`-verb option a **third** time (after the 2026-07-22
+auditor-guard-ergonomics spec's D3): its D2 answers #1138's open "admit `git grep`?" question with **no**,
+against a measured run in which the verb was among the top denial families. The original rejection above
+rests on *sufficiency* — `git show <sha>:<path>` plus `git log -S/-G` plus the auditor's unrestricted Grep
+tool already cover the verify-and-close need, so widening buys marginal convenience for a larger read
+surface. D2 adds a second, harder argument: `git grep -O<cmd>` / `--open-files-in-pager` executes an
+arbitrary pager command, and the guard's fail-closed character allowlist cannot distinguish that shape from
+a benign search — admitting the verb would require per-flag policing of its own, on the one verb whose
+whole appeal was that it needed none. The `expect_deny` G6 case in `hooks/validate-auditor-git.test.sh`
+remains the mechanical record, its payload byte-identical, its comment now citing all three ratifications.
+
+This amendment records a re-ratification, not a change of decision: the Decision (items 1–3), the
+Considered options — including the `grep`-verb entry it re-affirms — and every other line of this ADR's
+pre-existing body stand as originally ratified and are left byte-unchanged.

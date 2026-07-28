@@ -6946,6 +6946,24 @@ const RETIRED_PREMISE_SAMPLES = [
     'your post-land working tree IS\nthe committed tip'],
 ]
 
+// Task 1.2 (D5, spec §5; #1085/#1124) — the RETIRED branch mischaracterization: "=-attached read flags
+// only", a blanket claim its own parenthetical contradicted with five BARE flags. Both mirrors now carry
+// the hook's two-arm form instead. Backtick-tolerant because the .md writes `=`-attached (a backtick
+// between = and -attached) where the JS prompt writes the plain =-attached — within THIS regex's matched
+// span that backtick is the sole difference, so one optional-backtick pattern covers both surfaces.
+const BRANCH_READ_FLAGS_ONLY_RETIRED = /=`?-attached read flags only/i
+// Unwired negative reference (both-ways proof): the pre-change sentence in each surface's OWN real bytes.
+// The full sentences diverge well past that backtick — bold markers, a backticked `branch`, a `git branch`
+// prefix inside the first flag, "any write flag" vs "write flag" — so a hand-normalized common form would
+// prove nothing about what actually lived on either surface. FIXTURES: never re-introduced into a live
+// surface, and the sanctioned deliberate deposit named by End state 5's carve-out for the repo-wide grep.
+const BRANCH_READ_FLAGS_ONLY_SAMPLES = [
+  ['war-auditor.md bullet (pre-change bytes)',
+    '- **`branch` takes `=`-attached read flags only** (`git branch --contains=<rev>`, `--merged=<rev>`, `--points-at=<rev>`, `--list`, `-a`, `-r`, `--show-current`, `-v`); a bare name or any write flag denies.'],
+  ['auditPrompt() sentence (pre-change bytes)',
+    'branch takes =-attached read flags only (--contains=<rev>, --merged=<rev>, --points-at=<rev>, --list, -a, -r, --show-current, -v); a bare name or write flag denies.'],
+]
+
 test('D3 — both-surfaces directive registry: every correctness-critical directive is on its standing card AND its dispatched prompt(s)', async () => {
   const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
   // The two bounded environment-proceed recovery prompts are only emitted on an environment-classified
@@ -7010,12 +7028,14 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
       anchors: [/committed-tree grounding/i, /verify-and-close/i, /git show <audit_sha>:<path>/i, /advisory only/i, /git grep/i] },
     // Task 1.2 (D5, spec §5): the read-only git guard contract lives in the "## Read-only git guard contract"
     // section of the standing card AND in the auditPrompt()-built dispatched prompt — both must carry it. The
-    // anchors are the contract's distinctive fragments: a widened-verb token (/ls-tree/i) plus the
-    // composition-ban tokens (/one bare git/i, /no pipes/i, /Grep tool/i). Reverting either surface's block
-    // alone REDs this row (End-state-5 delete-the-feature proof).
-    { name: 'read-only git guard contract (D5): one bare git per Bash call, no composition, ls-tree/branch read verbs, Grep tool is the sweep channel',
+    // anchors are the contract's distinctive fragments: a widened-verb token (/ls-tree/i), the composition-ban
+    // tokens (/one bare git/i, /no pipes/i, /Grep tool/i), and — re-anchored by Task 1.2 (D4/D5, #1124) — the
+    // two-arm branch characterization the mirrors adopted from the hook's own deny string (/value-carrying/i,
+    // /bare read flags/i), which replaced the retired "=-attached read flags only" blanket claim. Reverting
+    // either surface's block OR just its branch clause REDs this row (End-state-5 delete-the-feature proof).
+    { name: 'read-only git guard contract (D5): one bare git per Bash call, no composition, ls-tree/branch read verbs, two-arm branch flags, Grep tool is the sweep channel',
       surfaces: [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]],
-      anchors: [/one bare git/i, /no pipes/i, /ls-tree/i, /Grep tool/i] },
+      anchors: [/one bare git/i, /no pipes/i, /ls-tree/i, /Grep tool/i, /value-carrying/i, /bare read flags/i] },
     // #990 (D3/D4): the four-step landed-tip grounding ladder — the servitor grounds every referent read
     // on the THREADED landed tip, never on its own cwd. Anchor precondition (#990 plan): every token here
     // was verified ABSENT from both surfaces at the pre-change base, so a per-surface revert REDs this row.
@@ -7073,10 +7093,74 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
   }
   // #1080 retired-claim lock: the card used to claim this contract was "mirrored verbatim" into the
   // dispatched audit prompt. False — the two surfaces are deliberately different FORMATS, and what is
-  // actually enforced is the D5 row above, which anchors four shared TOKENS per surface. The card now
-  // names that row as the drift arbiter; this absence assert keeps the overclaim from silently returning.
+  // actually enforced is the D5 row above, which anchors shared TOKENS per surface (four at #1080, six
+  // since Task 1.2 added the two-arm branch anchors). The card names that row as the shared-token anchor
+  // and the D6 test below as the branch-flag arbiter; this absence assert keeps the overclaim from
+  // silently returning.
   assert.doesNotMatch(auditorMd, /mirrored verbatim/i,
     "war-auditor.md: the retired 'mirrored verbatim' guard-contract claim is absent — the D5 row's per-surface token anchors are what enforce the mirror (#1080)")
+  // Task 1.2 (D5, spec §5; #1085/#1124) retired-claim lock: the blanket "=-attached read flags only" branch
+  // characterization — self-contradicted by the five bare flags in its own parenthetical, and shed by the
+  // hook's deny string on 2026-07-24 — is GONE from both mirror surfaces, which now carry the two-arm form
+  // anchored by the D5 row above. The samples are the both-ways proof: each is asserted to MATCH, so the
+  // absence checks cannot pass vacuously through a regex that stopped firing.
+  for (const [sName, sText] of [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]]) {
+    assert.doesNotMatch(sText, BRANCH_READ_FLAGS_ONLY_RETIRED,
+      `${sName}: the retired "=-attached read flags only" branch claim is absent (the two-arm characterization replaced it — #1124)`)
+  }
+  for (const [label, sample] of BRANCH_READ_FLAGS_ONLY_SAMPLES) {
+    assert.match(sample, BRANCH_READ_FLAGS_ONLY_RETIRED,
+      `negative reference (${label}): the retired claim DOES match the guard — the doesNotMatch above is non-vacuous`)
+  }
+})
+
+// ---------------------------------------------------------------------------
+// D6 (Task 1.2, spec §4) — EXTRACTION-EQUALITY drift lock for the branch flag enumeration.
+// The hook's branch deny string is CANONICAL; both prompt mirrors are followers. This test reads the hook,
+// extracts the flag tokens from the two parenthesized arms of that deny string, and asserts every one of
+// them onto both mirror surfaces — so the next hook-side flag change REDs the mirrors instead of stranding
+// them (the exact defect class #1124 records, which the D5 hand anchors alone could not catch).
+// ---------------------------------------------------------------------------
+
+// Token-boundary matcher: a naive substring check would pass VACUOUSLY for the short flags — `-a` is a
+// substring of `--points-at=` and `--all`, `-r` of `--remotes`, `-v` of `--verbose` and `-vv` — so dropping
+// one from a mirror would go unnoticed. Word/hyphen boundaries on both sides fix that, and admit the .md's
+// backtick fencing (a backtick is neither \w nor -) without a markdown-specific special case.
+const flagTokenRe = tok => new RegExp(`(?<![\\w-])${tok.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\w-])`)
+
+test('D6 — branch flag enumeration: every token in the hook\'s canonical deny string reaches BOTH prompt mirrors (token-boundary matched)', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const auditP = (calls.find(c => isAuditor(c) && !(c.opts.label || '').startsWith('gate-audit:')) || {}).prompt
+  assert.ok(auditP, 'a regular auditor prompt was dispatched (presence guard)')
+  const hookSh = readFileSync(join(here, '../../../hooks/validate-auditor-git.sh'), 'utf8')
+  const REPOINT = 're-point the extractor at the reshaped deny string in hooks/validate-auditor-git.sh'
+  // The two arms, in the hook's own words. Anchored on the arm labels rather than on line position or on
+  // the full deny sentence, so wording latitude around them does not false-red.
+  // Slice the deny statement itself first, so the arm regex and the third-arm count below both read the
+  // one canonical string rather than the whole file (`[^"]*` spans newlines, so a reflow does not false-red).
+  const denyStmt = (hookSh.match(/deny "git branch admits read forms only:[^"]*"/) || [])[0]
+  assert.ok(denyStmt, `hook branch deny string not locatable — ${REPOINT}`)
+  const arms = denyStmt.match(/value-carrying flags =-attached \(([^)]*)\)[^(]*bare read flags \(([^)]*)\)/)
+  assert.ok(arms, `hook branch deny string's two flag arms not locatable — ${REPOINT}`)
+  // Third-arm guard. The two-arm regex above still matches when a THIRD labeled group is appended to the
+  // deny string, so its flags would go unextracted and the mirrors would strand silently — the exact #1124
+  // class D6 exists to RED. Counting the deny statement's own open parens is what catches that. (A prior
+  // `arms.length === 3` check here was tautological: a non-global match with two capture groups is always
+  // length 3 whenever it is truthy, so it could not fire under any input.)
+  const groupCount = (denyStmt.match(/\(/g) || []).length
+  assert.equal(groupCount, 2,
+    `branch deny string carries ${groupCount} parenthesized flag groups, expected exactly two — a third arm's flags are never extracted; ${REPOINT}`)
+  const groups = arms.slice(1).map(g => g.split(',').map(t => t.trim().replace(/<[^>]*>/g, '')).filter(Boolean))
+  // A locatable anchor whose groups parse to nothing (reflowed enumeration, emptied arm) must fail LOUDLY —
+  // an empty token list would otherwise make the per-token loop below a silent vacuous green.
+  groups.forEach((g, i) => assert.ok(g.length > 0,
+    `flag group ${i + 1} parsed to zero tokens — ${REPOINT}`))
+  for (const tok of groups.flat()) {
+    for (const [sName, sText] of [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]]) {
+      assert.match(sText, flagTokenRe(tok),
+        `${sName}: the hook admits branch flag "${tok}" but the mirror does not enumerate it (token-boundary matched) — the mirrors follow the hook's deny string`)
+    }
+  }
 })
 
 // ---------------------------------------------------------------------------
