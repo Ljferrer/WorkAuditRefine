@@ -64,8 +64,10 @@ none of which raise a diagnostic:
 3. **Shell-dialect word-splitting**, at the doc layer: `skills/lessons-learned/SKILL.md`'s step-1
    fence threads the flag as `${TIGHTEN_TARGET:+--target "$TIGHTEN_TARGET"}` inside a ` ```bash `
    block. Bash splits the `:+` replacement text into two argv words as expected; **zsh does not**
-   (no `SH_WORD_SPLIT` by default), so under zsh the same line collapses to one argv token and the
-   flag is dropped entirely — same silent outcome as never setting `$TIGHTEN_TARGET`.
+   — lacking `SH_WORD_SPLIT` by default, it does not word-split the unquoted expansion, so the
+   whole replacement fuses into one argv word (`--target 2000` arrives as a single token), which
+   `parseArgv` keys as `{"target 2000": true}`; `argv.target` itself stays `undefined` — same
+   silent outcome as never setting `$TIGHTEN_TARGET`.
 
 **Why this matters:** all three degrade toward one of two silent states (default 17,000 B advisory,
 or the "verdict always warn" pre-select) with zero diagnostic — an operator who typos `--target`
@@ -126,12 +128,12 @@ Method explicitly froze as a shared blast-radius fence — not reopened by this 
 it at `cmdTightenPlan`'s own boundary (e.g. also refuse when any argv key starts with `target=`),
 never by widening `parseArgv`.
 
-**Not yet extended to siblings:** `cmdQuery`'s `--top-k`/`--budget` resolve via the identical
-pre-fix truthy-ternary shape (`argv['top-k'] ? Number(...) : DEFAULT_TOP_K`, same for `budget`) at
-`skills/_shared/war-memory.mjs` lines 703-704 — this task's Method deliberately bound the fix to
-`cmdTightenPlan`'s boundary only ("bind each fix at its own boundary, never a shared one") and did
-not extend it to `cmdQuery`. See [[cmdquery-topk-budget-share-tighten-targets-pre-fix-truthy-ternary-shape]]
-for the standalone gotcha and its failure-direction difference (NaN `--top-k` empties the seat
-prefetch instead of over-selecting).
+**Extended to siblings (war-memory-cli-correctness/1.1, #1145):** `cmdQuery`'s `--top-k`/`--budget`
+now carry the same three-way `typeof`-gated resolution described above for `--target` — a shape
+copy at `cmdQuery`'s own boundary, not a shared helper (`parseArgv` stays frozen). See
+[[cmdquery-topk-budget-share-tighten-targets-pre-fix-truthy-ternary-shape]] for the RESOLVED
+sibling gotcha and the failure-direction difference that made it worth its own lesson (a bare/NaN
+`--top-k` had silently emptied the seat prefetch instead of over-selecting, unlike `--target`'s
+over-select failure mode).
 
 > archived 2026-07-27: resolved — moved to archive

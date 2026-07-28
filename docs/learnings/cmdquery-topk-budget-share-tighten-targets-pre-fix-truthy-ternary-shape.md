@@ -1,6 +1,6 @@
 ---
 name: cmdquery-topk-budget-share-tighten-targets-pre-fix-truthy-ternary-shape
-description: "cmdQuery's --top-k/--budget resolve via argv['top-k'] ? Number(...) : DEFAULT — the exact truthy-ternary silent-degradation shape #1059 closed for tighten-plan's --target, left open here on purpose (fix bound to cmdTightenPlan's boundary only); a bare/NaN --top-k silently empties the seat memory-prefetch block instead of over-selecting"
+description: "RESOLVED (war-memory-cli-correctness/1.1, #1145): cmdQuery's --top-k/--budget now carry the same three-way typeof-gated resolution #1059 ratified for tighten-plan's --target, closing the truthy-ternary shape (argv['top-k'] ? Number(...) : DEFAULT) this lesson flagged as deliberately left open; a bare/NaN --top-k no longer silently empties the seat memory-prefetch block, it refuses loud instead"
 metadata: 
   node_type: memory
   type: project
@@ -69,3 +69,23 @@ three-way `typeof argv[x] === 'string'` resolution (undefined → default; strin
 
 Related: [[tighten-target-flag-has-three-independent-silent-degradation-paths]] (the sibling fix this
 gotcha was found alongside, in the same audit pass).
+
+## RESOLVED (war-memory-cli-correctness/1.1, #1145)
+
+`cmdQuery` now carries the same three-way `typeof`-gated resolution ratified for
+`cmdTightenPlan`'s `--target` — a shape copy at `cmdQuery`'s own boundary, not a shared helper
+(`parseArgv` stays frozen): flag absent → the unchanged default; `typeof === 'string'` and
+`Number.isFinite(t) && t > 0` → the value binds; anything else (bare flag, non-numeric, zero,
+negative) → `war-memory query: --top-k requires a positive count (got '<token>')` (resp.
+`--budget requires a positive byte count`) on stderr, exit 1 — placed above the `walkCorpus` call,
+so a refusal appends no query-log line and prints no block. This closes exactly the gap this
+lesson flagged: a bare `--top-k` no longer takes `Number(true) === 1` into a one-lesson block, and
+a `NaN` `--top-k`/`--budget` no longer reaches `selectForBudget`'s `slice` to silently empty it.
+
+Covered by the `refusal (#1145): --<flag> <label> → exit 1, empty stdout, stderr names the flag +
+the token` parameterized test cases in `war-memory.test.mjs` (eight cases — bare, non-numeric,
+zero, negative, crossed with `--top-k`/`--budget`) plus the no-query-log-on-refusal assertion and
+the unchanged-path cases built from the imported `DEFAULT_TOP_K`/`DEFAULT_BUDGET` constants.
+
+Related: [[tighten-target-flag-has-three-independent-silent-degradation-paths]] — its own
+"Extended to siblings" paragraph now records this fix in past tense.
