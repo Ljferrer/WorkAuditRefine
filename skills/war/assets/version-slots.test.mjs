@@ -88,6 +88,73 @@ test('README Releasing prose names the four slots, not the "three files" underse
   )
 })
 
+// The `## Releasing` section also carries the Status-blurb authoring checklist — the only
+// authoring-time surface guarding the release-prose overclaim family, which no lint can judge.
+// The lock is deliberately LIGHT: the subsection heading plus ONE distinctive anchor token, never
+// a byte-pin of the bullet prose (a heavy pin makes every wording tweak a two-file change for no
+// defect coverage). Extraction anchors on the heading BOUNDARY '\n## Releasing' — the same
+// first-occurrence trap the Status-token extraction above records, where a table row quoting a
+// heading in backticks precedes the real heading. It is a separate reader from the undersell
+// guard's on purpose: that guard's own extraction stays untouched. `### ` subheadings do not
+// terminate either section — the '\n## ' terminator requires a space at the third character.
+const CHECKLIST_HEADING = '### Status-blurb authoring checklist'
+// Anchor token: the provenance slug. It lives in a checklist BULLET, not the heading, and occurs
+// nowhere else in README.md — so deleting the checklist body while leaving the heading still reds
+// this lock, which a heading-only assert would sail through.
+const CHECKLIST_ANCHOR = 'release-blurb-overstates-guard-semantics'
+
+function releasingSection(readme) {
+  const start = readme.indexOf('\n## Releasing')
+  if (start === -1) return null
+  const rest = readme.slice(start + '\n## Releasing'.length)
+  const nextHeading = rest.indexOf('\n## ')
+  return nextHeading === -1 ? rest : rest.slice(0, nextHeading)
+}
+
+function assertChecklistPresent(section, label) {
+  assert.ok(section != null, `${label}: no '## Releasing' section — the Status-blurb authoring checklist lock cannot run`)
+  assert.ok(
+    section.includes(CHECKLIST_HEADING),
+    `${label}: '## Releasing' is missing the '${CHECKLIST_HEADING}' subsection — the release-prose overclaim family's only authoring-time guard`,
+  )
+  assert.ok(
+    section.includes(CHECKLIST_ANCHOR),
+    `${label}: the Status-blurb authoring checklist lost its provenance anchor '${CHECKLIST_ANCHOR}' — the heading survived but the bullets did not`,
+  )
+}
+
+test('README Releasing carries the Status-blurb authoring checklist (heading + anchor token)', () => {
+  const readme = readFileSync(join(repoRoot, 'README.md'), 'utf8')
+  assertChecklistPresent(releasingSection(readme), 'README.md')
+})
+
+// Unwired negative reference — the both-ways half of the proof. The `## Releasing` region in its
+// real shape with the ENTIRE subsection (heading and bullets) absent, run through the same
+// extraction+assert path and asserted RED. Without it, a lock that quietly stopped firing (a
+// renamed heading, an extraction that returns the wrong slice) would stay green forever. Not a
+// fixture file by design: it never drifts out of sync with the reader it exercises.
+const RELEASING_WITHOUT_CHECKLIST = `
+## Releasing
+
+A version bump **must** update all four version slots across three files together (\`marketplace.json\` carries two) — Claude Code dispatches plugin updates by the \`marketplace.json\` version string, so a stale \`marketplace.json\` makes a release a silent no-op (release-drift / mirrored-value pattern):
+
+| File | Field(s) to bump |
+|---|---|
+| \`.claude-plugin/plugin.json\` | \`version\` |
+| \`.claude-plugin/marketplace.json\` | \`metadata.version\` **and** \`plugins[0].version\` |
+| \`README.md\` | the \`## Status\` line/paragraph |
+
+## Status
+`
+
+test('checklist lock is non-vacuous: a subsection-absent reference fails the same path', () => {
+  assert.throws(
+    () => assertChecklistPresent(releasingSection(RELEASING_WITHOUT_CHECKLIST), 'negative reference'),
+    /Status-blurb authoring checklist/,
+    'the negative reference passed the checklist lock — the lock has stopped firing and the README assert above is vacuous',
+  )
+})
+
 // Monotonic floor — lock-step is NOT monotonic. A coherent all-four-slots DOWNGRADE moves
 // every slot together, so the lock-step test above passes it: that is exactly how a Gate-2
 // `docs(learnings)` commit staged from a stale publication worktree silently reverted a
