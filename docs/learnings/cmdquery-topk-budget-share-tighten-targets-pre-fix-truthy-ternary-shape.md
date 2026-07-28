@@ -1,6 +1,6 @@
 ---
 name: cmdquery-topk-budget-share-tighten-targets-pre-fix-truthy-ternary-shape
-description: "RESOLVED (war-memory-cli-correctness/1.1, #1145): cmdQuery's --top-k/--budget now carry the same three-way typeof-gated resolution #1059 ratified for tighten-plan's --target, closing the truthy-ternary shape (argv['top-k'] ? Number(...) : DEFAULT) this lesson flagged as deliberately left open; a bare/NaN --top-k no longer silently empties the seat memory-prefetch block, it refuses loud instead"
+description: "RESOLVED (war-memory-cli-correctness/1.1, #1145): cmdQuery's --top-k/--budget now carry the same three-way typeof-gated resolution #1059 ratified for tighten-plan's --target, closing the truthy-ternary shape (argv['top-k'] ? Number(...) : DEFAULT) this lesson flagged as deliberately left open; a bare --top-k no longer silently selects one lesson and a NaN/zero/negative value no longer empties the seat memory-prefetch block — both refuse loud instead"
 metadata: 
   node_type: memory
   type: project
@@ -79,8 +79,9 @@ gotcha was found alongside, in the same audit pass).
 negative) → `war-memory query: --top-k requires a positive count (got '<token>')` (resp.
 `--budget requires a positive byte count`) on stderr, exit 1 — placed above the `walkCorpus` call,
 so a refusal appends no query-log line and prints no block. This closes exactly the gap this
-lesson flagged: a bare `--top-k` no longer takes `Number(true) === 1` into a one-lesson block, and
-a `NaN` `--top-k`/`--budget` no longer reaches `selectForBudget`'s `slice` to silently empty it.
+lesson flagged: a bare `--top-k` no longer takes `Number(true) === 1` into a one-lesson block, a
+`NaN` `--top-k` no longer reaches `selectForBudget`'s `slice(0, topK)` to silently empty the block,
+and a `NaN` `--budget` no longer silently uncaps it (`bytes + size > NaN` never breaks the loop).
 
 Covered by the `refusal (#1145): --<flag> <label> → exit 1, empty stdout, stderr names the flag +
 the token` parameterized test cases in `war-memory.test.mjs` (eight cases — bare, non-numeric,

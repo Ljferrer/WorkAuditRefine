@@ -132,8 +132,8 @@ never by widening `parseArgv`.
 now carry the same three-way `typeof`-gated resolution described above for `--target` — a shape
 copy at `cmdQuery`'s own boundary, not a shared helper (`parseArgv` stays frozen). See
 [[cmdquery-topk-budget-share-tighten-targets-pre-fix-truthy-ternary-shape]] for the RESOLVED
-sibling gotcha and the failure-direction difference that made it worth its own lesson (a bare/NaN
-`--top-k` had silently emptied the seat prefetch instead of over-selecting, unlike `--target`'s
-over-select failure mode).
+sibling gotcha and the failure-direction difference that made it worth its own lesson (a bare
+`--top-k` had silently selected ONE lesson and a NaN/zero/negative value emptied the seat
+prefetch, unlike `--target`'s over-select failure mode).
 
 > archived 2026-07-27: resolved — moved to archive
