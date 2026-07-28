@@ -4,11 +4,11 @@ description: "Guard blurb: say 'refuse diffs touching X' not repos"
 metadata:
   node_type: memory
   type: project
-  keywords: [Status section wording, trigger surface, diff vs repo, fail-closed phrasing, submodule refuse, prose nit, operator misinformation, absolute claim vs residual exception, ADR carve-out, fresh-env re-run, unconditional vs conditional emission, near-miss diagnostic, assert-test-in-diff.sh, stderr guard clause, umbrella clause, heterogeneous guard shapes, realpathSync, campaign-ledger, fileURLToPath, No behavior change label, bolded lead-in, colon-scoped enumeration, release headline contradiction, anti-overclaim device, appositive antecedent ambiguity, dangling modifier, itself unchanged, nearest-noun misattachment, D6 verbatim-capture contract, on every error path, seed-pack die try region, mkdtemp scratch leak scope, TOKEN-scoped absence lock, prose-only reintroduction, verifyTier cap exceeded, unconditional prose append, gating-premise mismatch, non-submodule byte identity claim, submodule floor gain, polish merge prompt, floor-retry prompt, submodLandNote, submodMergeNote, every existing non-submodule prompt, issue citation convention, origin issue vs task issue]
+  keywords: [Status section wording, trigger surface, diff vs repo, fail-closed phrasing, submodule refuse, prose nit, operator misinformation, absolute claim vs residual exception, ADR carve-out, fresh-env re-run, unconditional vs conditional emission, near-miss diagnostic, assert-test-in-diff.sh, stderr guard clause, umbrella clause, heterogeneous guard shapes, realpathSync, campaign-ledger, fileURLToPath, No behavior change label, bolded lead-in, colon-scoped enumeration, release headline contradiction, anti-overclaim device, appositive antecedent ambiguity, dangling modifier, itself unchanged, nearest-noun misattachment, D6 verbatim-capture contract, on every error path, seed-pack die try region, mkdtemp scratch leak scope, TOKEN-scoped absence lock, prose-only reintroduction, verifyTier cap exceeded, unconditional prose append, gating-premise mismatch, non-submodule byte identity claim, submodule floor gain, polish merge prompt, floor-retry prompt, submodLandNote, submodMergeNote, every existing non-submodule prompt, issue citation convention, origin issue vs task issue, ADR body vs header qualifier, byte-unchanged body qualifier dropped, ADR Status line amendment, expect_deny_teach pinning granularity, K5 combined substring stated as separate pins, test assertion granularity overclaim]
   provenance: code-verified
   promoted: dev/2026-07-24-memory-tooling-hardening@phase-2
   slug: release-blurb-overstates-guard-semantics
-  phase: "submodule-inc1/T4 +8 recurrences (war-campaign-resilience-roadmap/phase-2 Release task 2.1, 2026-07-22; test-floor-target-repo/phase-2 Release task 2.1, 2026-07-22; cli-main-guard-normalization/phase-2 Release task 2.1, 2026-07-23; runbook-and-standing-record-coherence/phase-2 Release task 2.1, 2026-07-24; recovery-re-merge-dispatch-coherence/phase-2 Release task 2.1, 2026-07-24; drift-guard-and-floor-diagnostic-hardening/phase-2 Release task 2.1, 2026-07-24/25; 2026-07-24-memory-tooling-hardening/phase-2 Release task 2.1, 2026-07-26; 2026-07-26-dispatch-args-and-floor-coverage/phase-3 Release task 3.1, 2026-07-26/27)"
+  phase: "submodule-inc1/T4 +9 recurrences (war-campaign-resilience-roadmap/phase-2 Release task 2.1, 2026-07-22; test-floor-target-repo/phase-2 Release task 2.1, 2026-07-22; cli-main-guard-normalization/phase-2 Release task 2.1, 2026-07-23; runbook-and-standing-record-coherence/phase-2 Release task 2.1, 2026-07-24; recovery-re-merge-dispatch-coherence/phase-2 Release task 2.1, 2026-07-24; drift-guard-and-floor-diagnostic-hardening/phase-2 Release task 2.1, 2026-07-24/25; 2026-07-24-memory-tooling-hardening/phase-2 Release task 2.1, 2026-07-26; 2026-07-26-dispatch-args-and-floor-coverage/phase-3 Release task 3.1, 2026-07-26/27; 2026-07-26-auditor-guard-policy-and-mirror-truth/phase-2 Release task 2.1, 2026-07-27)"
   tags:
     - war
     - release
@@ -24,7 +24,7 @@ metadata:
     - "[[gitmodules-working-tree-read-vs-ref-snapshot]]"
   created: 2026-06-30
   originSessionId: 0e364ee5-f0b3-47f6-a9e4-9bf2dd555733
-  modified: 2026-07-27T22:34:51.460Z
+  modified: 2026-07-28T04:06:12.610Z
 ---
 
 # Release blurb prose overstates guard semantics
@@ -353,3 +353,54 @@ skimming reader.
 
 Related: [[gate2-commit-from-stale-verify-worktree-can-revert-a-release-bump]] (why this Minor stays
 a follow-up rather than a phase-close absorb).
+
+## Recurrence 9 (2026-07-27, plan `2026-07-26-auditor-guard-policy-and-mirror-truth`, phase 2 "Release", task 2.1) — two independent overclaims in the same paragraph: a dropped qualifier from the cited source's own precise wording, and a combined test assertion described as separately pinned
+
+An eleventh and twelfth instantiation, both flagged by the task auditor in the same `## Status`
+paragraph (`README.md` line 332 at land, landed tip `a6c3c099dc9a95600894240b410c11df6ce6375e` —
+`code-verified`, read directly at the `_refinery` worktree whose `HEAD` equals the landed tip,
+gitdir physical path
+`<repo-root>/.claude/war/worktrees/2026-07-26-auditor-guard-policy-and-mirror-truth-2026-07-27/_refinery/`).
+
+**(a) "every other pre-existing line stand byte-unchanged" drops the cited ADR's own "body" qualifier.**
+The blurb says "ADR 0029 gains a dated, append-only amendment recording the re-ratification while its
+Decision, its Considered options and every other pre-existing line stand byte-unchanged." The ADR's own
+new `## Amendment (2026-07-26)` paragraph is more precise: "every other line of this ADR's pre-existing
+**body** stand as originally ratified and are left byte-unchanged." The two differ on exactly one line —
+`docs/adr/0029-capture-grounds-on-committed-tip.md`'s `**Status:**` header line was itself edited in the
+same plan (`accepted; amended 2026-07-22` → `accepted; amended 2026-07-22, 2026-07-26`, an absorbed
+phase-1 "ADR Status currency" finding), so "every other **line**" is false for that one line while "every
+other line of the **body**" is true (a Status header field is not body prose). Same shape as Recurrence 4's
+arm-pattern-vs-arm-body conflation and Recurrence 7(b)'s token-vs-family generalization: the blurb states
+the broader, false property (every line) using the narrower, true property's evidence (every body line) —
+and the source document it paraphrases had *already* stated the narrower, correct claim in its own words.
+**Sharper form of the Rule:** when a blurb paraphrases a cited doc's own precision claim, carry every
+scoping noun the source used ("body", "those try regions", "TOKEN-scoped") verbatim or the paraphrase
+silently regresses to the broader claim the source deliberately avoided.
+
+**(b) "pin the prefix, the residue echo, and each teach element separately" overstates test granularity —
+never guard behavior.** Item (2) of the blurb defines the deny prefix as `` `command contains forbidden
+character(s)` `` plus the `head -c 20` residue echo, then says the four `expect_deny_teach` cases "pin the
+prefix, the residue echo, and each teach element separately" — enumerating 5 separately-pinned items across
+4 cases. In the landed `hooks/validate-auditor-git.test.sh`, K5's single substring assertion
+(`"forbidden character(s): &&"`) covers the prefix tail and the residue echo **together, in one pinned
+string** — its own comment says so explicitly: "K5 pins the prefix tail ... plus the ... residue echo at
+the front (the leading 'command contains' fragment rides along, unpinned by itself)." K6/K7/K8 each pin one
+teach element separately, so 3 of the 4 named items are genuinely separately pinned and 2 (prefix tail +
+residue echo) are pinned jointly by one assertion — a test-coverage-granularity overclaim, not a behavior
+overclaim (the prefix is still byte-preserved and K5 still reds if the string changes). Distinct sub-mechanism
+from (a): this is a claim about how finely a *test* verifies a property, not about how broadly a *code*
+property holds — the closest sibling is describing what a guard's *code* enforces, only here it is what a
+*test* separately asserts.
+
+Both `disposition: note`, Nit, non-blocking, not fixed before land (`fixRounds: 0`) — not absorb-eligible,
+`## Status` is a release slot outside task 2.1's `Files:` list to touch incidentally, and the disposition
+rule refuses `absorb` for anything touching a version/release slot.
+
+**Applies-to checklist addendum:** when a blurb paraphrases another artifact's own precision language
+(an ADR amendment, a test's own comment), diff the blurb's wording against that artifact's *exact* scoping
+words before trusting the paraphrase — a paraphrase that drops one scoping noun ("body", "separately")
+silently promotes a narrow true claim to a broad false one even when the cited artifact itself got it right.
+
+Related: [[full-gates-green-end-state-soft-without-threaded-gate-log-artifact]] (unrelated family, same
+phase-close audit-log-sourced-finding provenance discipline).
