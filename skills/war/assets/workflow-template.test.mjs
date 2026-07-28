@@ -6979,7 +6979,7 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
   const auditP = (calls.find(c => isAuditor(c) && !(c.opts.label || '').startsWith('gate-audit:')) || {}).prompt
   const servitorP = (calls.find(isServitor) || {}).prompt
   assert.ok(workerP && auditP && servitorP, 'worker, regular auditor, and servitor prompts all dispatched (presence guard)')
-  // The two inline gate-audit seat prompts sit OUTSIDE auditPrompt() — slice them from src by construct.
+  // The inline gate-audit seat prompts sit OUTSIDE auditPrompt() — slice them from src by construct.
   const gateAuditExecSrc = sliceSrc('POST-MERGE GATE-AUDIT', 'gate-audit:${taskId}:execution-evidence')
   const gateAuditIntegratedTipSrc = sliceSrc('INTEGRATED-TIP GATE-AUDIT', 'gate-audit:phase-${ph.id}:integrated-tip')
   const gateAuditEndStateSrc = sliceSrc('END-STATE-ONLY GATE-AUDIT', 'gate-audit:phase-${ph.id}:end-state')
@@ -7069,13 +7069,14 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     // surface REDs this row. (The rung-body pairing suggested by the plan — e.g. pairing with the
     // gate-artifact rung fragment — is card-only by construction: End state 8(ii) requires the §4.1
     // rung-body tokens to measure 0 on the dispatched prompt surfaces, so a five-surface anchor cannot
-    // carry them; the chain pairing is the five-surface-valid equivalent.)
+    // carry them; the chain pairing is the five-surface-valid substitute — the rung bodies themselves
+    // are covered by the card-only assert below the registry loop.)
     { name: 'evidence precedence (ADR 0041): four claim-shape ladders on the card, token skeleton on auditPrompt + all three gate-audit-family seats',
       surfaces: [['war-auditor.md', auditorMd], ['auditPrompt()', auditP],
                  ['inline gate-audit execution-evidence seat (src)', gateAuditExecSrc],
                  ['inline gate-audit integrated-tip seat (src)', gateAuditIntegratedTipSrc],
                  ['inline gate-audit end-state seat (src)', gateAuditEndStateSrc]],
-      anchors: [/content-at-pin/i, /never the top rung/i, /never evidence/i,
+      anchors: [/content-at-pin/i, /never the top rung/i, /never evidence/i, /## Evidence precedence/i,
                 /content-at-pin[\s\S]{0,200}\bexecution\b[\s\S]{0,200}\bhistory\b[\s\S]{0,200}\bauthority\b/i] },
   ]
   assert.ok(REGISTRY.length >= 14, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, and the evidence-precedence five-surface row (ADR 0041) — floor equals the true row count, no slack (#693)')
@@ -7085,6 +7086,13 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
         assert.match(sText, re, `${row.name}: "${sName}" carries ${re}`)
       }
     }
+  }
+  // ADR 0041 ladder rung bodies — card-only by construction: End state 8(ii) forbids these tokens on the
+  // dispatched surfaces, so the five-surface row above cannot carry them; assert them on the card alone
+  // (the file's existing supplementary-assert idiom, cf. the CWD_IS_TIP_ASSERTING loop below).
+  for (const re of [/Pinned blob/i, /Gate-evidence artifact/i, /advisory corroboration/i, /a claim to verify, never evidence/i]) {
+    assert.match(auditorMd, re,
+      `war-auditor.md carries the spec §4.1 rung body ${re} — card-only by construction: End state 8(ii) forbids these tokens on the dispatched surfaces, so the five-surface row above cannot carry them`)
   }
   // Servitor-migration completeness (migrated from the former T1 both-surfaces test): the standing card
   // shed the retired routing tokens, and the template args header no longer describes learningsTarget loosely.
