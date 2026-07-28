@@ -720,8 +720,10 @@ test('D25 — the no-chaining two-site routing fact is present on BOTH mirror su
 // `### Audit` section (**Claim shape**, **Evidence rung**, **Rule + record**) restate doctrine that
 // ADR 0041 carries canonically: the `execution`-shape vs `execution-evidence`-lens disambiguation,
 // the lessons floor rule (priors, never evidence), and the D3 conflict rule (`disposition: note`
-// naming both rungs). ADR 0025: a new mirror ships its drift guard in the same task — this row is
-// that guard, landing in the commit that creates the mirror. Extraction is BY CONSTRUCT per term —
+// naming both rungs, plus the benign-forward-advance carve-out — so the `Rule + record` entry's
+// `_Avoid_` doctrine is anchored too, not just its definition body). ADR 0025: a new mirror ships
+// its drift guard in the same task — this row is that guard, landing in the commit that creates
+// the mirror. Extraction is BY CONSTRUCT per term —
 // bolded term → next bolded term or `###` heading, D19/D24's idiom — never a whole-file scan (the
 // same doctrine clauses live on the auditor card and, as skeleton tokens, on the dispatched prompt;
 // a repo-wide key could not tell the anchors apart). Keys are token-anchored `\s+`-wrapped `/…/i`
@@ -750,6 +752,7 @@ test('D26 — CONTEXT.md audit-evidence glossary terms mirror ADR 0041 doctrine 
       [
         [/disposition:?[\s`*_]{0,3}note/i, 'the D3 `disposition: note` recording channel'],
         [/naming\s+both\s+rungs/i, 'the D3 both-rungs-named recording clause'],
+        [/benign\s+forward-advance/i, 'the benign-forward-advance carve-out'],
       ],
     ],
   ]) {
