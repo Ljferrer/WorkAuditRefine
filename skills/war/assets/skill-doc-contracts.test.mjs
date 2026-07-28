@@ -784,3 +784,68 @@ test('D26 — CONTEXT.md audit-evidence glossary terms mirror ADR 0041 doctrine 
     }
   }
 })
+
+// (D27) SKILL.md's `**Lead evidence bindings` paragraph — the Lead's phase-close/Gate-2
+// instantiation of the ADR 0041 evidence-precedence doctrine (plan 2026-07-28-audit-evidence-
+// precedence, Task 1.3). The paragraph carries the spec §4.4 token skeleton (the four claim-shape
+// names + the two floor tokens) plus THREE Lead bindings, each pinned by its own distinctive
+// anchor pair — the skeleton alone cannot discriminate: delete any single binding and all six
+// skeleton tokens survive, so a skeleton-only row would stay green on exactly the loss that
+// matters (D19/D21/D22's per-claim-anchor idiom). Extraction is BY CONSTRUCT — the `**Lead
+// evidence bindings` bold lead-in to the next bold lead-in paragraph or `##` heading, never a
+// whole-file scan: the shape names and both floor tokens also live on the auditor card, in
+// ADR 0041, and in CONTEXT.md's `### Audit` glossary, so a repo-wide key could not tell the
+// anchors apart. Keys are token-anchored `\s+`-wrapped `/…/i` forms, never sentence bytes —
+// sanctioned rewording latitude must not false-red.
+test('D27 — SKILL.md Lead evidence bindings paragraph carries the §4.4 skeleton and all three bindings, each with its own anchor pair (ADR 0041)', () => {
+  const region = skillMd.match(/\*\*Lead evidence bindings[\s\S]*?(?=\n\*\*|\n## )/)
+  assert.ok(
+    region,
+    'could not locate the `**Lead evidence bindings` paragraph in SKILL.md (bold lead-in → next ' +
+      'bold lead-in or `##` heading) — the extraction construct rotted',
+  )
+  const b = norm(region[0])
+  // The mandated ADR pointer (skeleton + pointer only, never a restated ladder) — doubles as the
+  // non-vacuity span check.
+  assert.match(
+    b,
+    /ADR\s+0041/,
+    'the Lead evidence bindings paragraph must point at ADR 0041 (the doctrine record) — the ' +
+      'binding surface is skeleton + pointer, never a restated ladder',
+  )
+  // The spec §4.4 token skeleton: four shape names + the two floor-rule tokens.
+  for (const key of [
+    /content-at-pin/i,
+    /\bexecution\b/i,
+    /\bhistory\b/i,
+    /\bauthority\b/i,
+    /never\s+the\s+top\s+rung/i,
+    /never\s+evidence/i,
+  ]) {
+    assert.match(
+      b,
+      key,
+      `the Lead evidence bindings paragraph must carry the §4.4 skeleton token ${key} — correct ` +
+        'this row to a sanctioned rewording, never drop a token to make it pass',
+    )
+  }
+  // One distinctive anchor pair per binding — deleting any single binding reds its own pair.
+  for (const [binding, keys] of [
+    [
+      '(1) close-out evidence in a dedicated worktree',
+      [/dedicated\s+worktree/i, /never\s+the\s+main\s+checkout/i],
+    ],
+    ['(2) remote truth via ls-remote, ADR 0008 cited', [/ls-remote/i, /0008/]],
+    ['(3) a threaded claim is rung 1 of authority', [/rung\s+1[\s\S]{0,40}authority/i, /unverified/i]],
+  ]) {
+    for (const key of keys) {
+      assert.match(
+        b,
+        key,
+        `the Lead evidence bindings paragraph must keep binding ${binding}'s anchor ${key} — ` +
+          'each binding is pinned by its own pair, so losing one binding reds while the skeleton ' +
+          'survives; correct this row to a sanctioned rewording, never drop a binding',
+      )
+    }
+  }
+})
