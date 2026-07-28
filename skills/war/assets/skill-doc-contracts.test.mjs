@@ -805,8 +805,7 @@ test('D27 — SKILL.md Lead evidence bindings paragraph carries the §4.4 skelet
       'bold lead-in or `##` heading) — the extraction construct rotted',
   )
   const b = norm(region[0])
-  // The mandated ADR pointer (skeleton + pointer only, never a restated ladder) — doubles as the
-  // non-vacuity span check.
+  // The mandated ADR pointer (skeleton + pointer only, never a restated ladder).
   assert.match(
     b,
     /ADR\s+0041/,
