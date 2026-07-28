@@ -118,3 +118,37 @@ form — no AI-declared marker applies.
 | 3 | The three `requiresTest:false` tasks' grep floors are case-sensitive and reflow-fragile — and are those tasks' only coverage | Converted End states 1/2/4/5/6 and Task 1.2's inline floor to case-insensitive, single-token where reflow-fragile | End states 1,2,4,5,6 · Task 1.2 slice | red-team, 2026-07-27 |
 | 4 | End state 7's file-wide `grep -c 'mixed-source' ≥ 2` is placement-blind (a §2-only edit satisfies it) | Replaced with two placement-bound region greps, case-insensitive; Task 1.5's two restatements updated | End state 7 · Task 1.5 slice | red-team, 2026-07-27 |
 | 5 | Task 1.2's new ADR 0019 ↔ ADR 0040 §B two-site clause is an unguarded prose mirror ("no new lock" rationale false) | Guard REQUIRED (ADR 0025) and assigned to **Task 1.6**, the owner of `skill-doc-contracts.test.mjs` — file-disjointness is the stronger constraint and forbids Task 1.2 touching it; same wave, so mirror and guard land together. Deliberate, recorded deviation from "same task" to "same wave" | End state 4 · Task 1.2 slice · Task 1.6 slice · Notes | red-team, 2026-07-27 |
+
+## Execution outcome (2026-07-27)
+
+Appended after the run, never edited in place — the rows above record what was adjudicated at
+red-team time and stand as written. This section records what execution then proved.
+
+**Adjudication 5's "same wave" reasoning was insufficient, and it cost the run an escalation.**
+The ruling assigned Task 1.2's new ADR 0019 ↔ ADR 0040 §B mirror guard to Task 1.6 (correctly —
+file-disjointness forbids Task 1.2 touching `skill-doc-contracts.test.mjs`) and justified the split
+on the grounds that both tasks sit in the same wave, "so mirror and guard land together." They do
+land together. They do not *build* together: every task worktree in a phase is cut from one frozen
+phase base at the Provision barrier, and waves order only *when* workers run, never *what base they
+see*. Task 1.6's guard therefore asserted a clause that did not yet exist in its own base, and was
+red there by construction — 992 tests, 991 pass, 1 fail. Task 1.6's worker ran the self-confound
+gate, reproduced the failure, proved the remedy, and returned `PLAN-DEFECT`.
+
+**No `deps` edge was ever applied.** All eight tasks landed with `deps: []` (verified at `5c46597`),
+and the plan's Build order line still reads "one wave, no deps". The Lead resolved the escalation a
+different way: the war-refiner rebased Task 1.6 onto the integration tip after Task 1.2 merged, at
+which point the gate went green including the D25 row and the land CAS succeeded on the first
+attempt. No rework, no plan amendment — which is precisely why the plan text still carries the
+reasoning this section corrects.
+
+**The correct remedy for the general case is a real `deps` wave edge** from the guard task to the
+task authoring the fact it guards. That is the decomposition rule's own answer for a content
+dependency, and it is *not* the forbidden "deps to dodge a same-file collision" — the two tasks here
+are genuinely file-disjoint. A rebase is a valid one-off recovery, not a substitute for the edge.
+
+**Provenance note.** The Lead's servitor dispatch prompt for this phase asserted that a
+`deps: ["1.2"]` fix had been applied during execution. It had not. The servitor checked the landed
+plan and this report, found `deps: []` on every task and the "same wave" text still in place,
+refused to record the unverifiable specific claim, recorded only the architecture-verified general
+rule, stamped the lesson `agent-unverified`, and flagged the discrepancy in the lesson body. That
+stamp and flag are correct and are deliberately left as written.
