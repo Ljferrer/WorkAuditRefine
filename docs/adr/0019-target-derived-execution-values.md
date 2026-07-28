@@ -154,7 +154,8 @@ superseded by [ADR 0040](0040-environment-class-gate-failures-earn-one-retry.md)
 `environment-proceed` re-run per gate site, and that re-run must come back **fully green** — a clean
 re-run, never a proceed-over (ADR 0040 §C) — never a second, and never chained with another
 recovery dispatch (ADR 0040 §B): a `baseline-proceed` re-dispatch that then fails `environment`
-keeps this ADR's original soft `env-blocked` routing. Exhaustion routes by site: exhaustion at the
+keeps its pre-retry routing at that site — soft `env-blocked` at the merge site, `held:land-failed`
+at the land site. Exhaustion routes by site: exhaustion at the
 **merge site** HARD-escalates via the existing reason `'escalate'`; exhaustion at the **land site** falls
 back to today's `held:land-failed` (reason `env-blocked`), with the retry provably spent. Full
 mechanics: [ADR 0040](0040-environment-class-gate-failures-earn-one-retry.md).
