@@ -6916,11 +6916,12 @@ test('gate composition point (ADR 0036) — plan-less / zero-task phase: the GUA
 // Each correctness-critical directive duplicated across a standing agents/*.md card and its dispatched
 // prompt(s). Token-anchored, case-tolerant — never full-line bytes (the surfaces phrase the shared
 // discipline differently). Includes rows asserted against the INLINE gate-audit seat prompts
-// (execution-evidence + end-state) sliced from template src — those sit OUTSIDE auditPrompt(), so MOST
-// base auditPrompt clauses never reach them; they inherit those shared directives only via the standing
-// card. The ONE exception is adjudicationClause (a module-level const, not an auditPrompt-internal
-// clause): it is concatenated onto both auditPrompt AND the three gate-audit-family seats directly, so
-// the adjudication rules reach those seats without the card — the rows below still assert the card too.
+// (execution-evidence + integrated-tip + end-state) sliced from template src — those sit OUTSIDE
+// auditPrompt(), so MOST base auditPrompt clauses never reach them; they inherit those shared
+// directives only via the standing card. The exceptions are adjudicationClause (a module-level const
+// concatenated onto both auditPrompt AND the three gate-audit-family seats directly) and the
+// evidence-precedence skeleton (ADR 0041, inlined at auditPrompt AND all three seats), so those rules
+// reach the seats without the card — the rows below still assert the card too.
 // ponytail: this registry IS the deliberate ceiling — a new both-surfaces directive lands its row here in
 // the same task (the /war-strategy new-mirror authoring rule), never an AST scanner.
 const sliceSrc = (startTok, endTok) => {
@@ -6980,6 +6981,7 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
   assert.ok(workerP && auditP && servitorP, 'worker, regular auditor, and servitor prompts all dispatched (presence guard)')
   // The two inline gate-audit seat prompts sit OUTSIDE auditPrompt() — slice them from src by construct.
   const gateAuditExecSrc = sliceSrc('POST-MERGE GATE-AUDIT', 'gate-audit:${taskId}:execution-evidence')
+  const gateAuditIntegratedTipSrc = sliceSrc('INTEGRATED-TIP GATE-AUDIT', 'gate-audit:phase-${ph.id}:integrated-tip')
   const gateAuditEndStateSrc = sliceSrc('END-STATE-ONLY GATE-AUDIT', 'gate-audit:phase-${ph.id}:end-state')
 
   const REGISTRY = [
@@ -7055,8 +7057,28 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
                  ['environment-proceed re-merge prompt', epMergeP],
                  ['environment-proceed re-land prompt', epLandP]],
       anchors: [/environment-proceed/i, /exactly one re-run/i, /fully green/i, /never a proceed-over/i] },
+    // audit-evidence-precedence Task 1.2 (ADR 0041): full four claim-shape ladders on the standing card,
+    // identical token skeleton on ALL FOUR dispatched surfaces — auditPrompt() plus the three
+    // gate-audit-family seats (post-merge / integrated-tip / end-state), which sit outside auditPrompt()
+    // and inherit nothing from it. Anchor precondition (measured at the pre-change base): `content-at-pin`,
+    // `never the top rung`, and `never evidence` were each verified ABSENT (0 occurrences) on BOTH
+    // agents/war-auditor.md and workflow-template.js, so each alone discriminates a one-sided revert.
+    // A bare `execution` (6 on the card / 21 in the template at base) or `history` (1 / 1) key is NOT
+    // usable — the ordered four-shape chain anchor below pairs each ambiguous name with the base-absent
+    // first shape name, so it cannot green on the pre-existing hits and a one-sided edit of any single
+    // surface REDs this row. (The rung-body pairing suggested by the plan — e.g. pairing with the
+    // gate-artifact rung fragment — is card-only by construction: End state 8(ii) requires the §4.1
+    // rung-body tokens to measure 0 on the dispatched prompt surfaces, so a five-surface anchor cannot
+    // carry them; the chain pairing is the five-surface-valid equivalent.)
+    { name: 'evidence precedence (ADR 0041): four claim-shape ladders on the card, token skeleton on auditPrompt + all three gate-audit-family seats',
+      surfaces: [['war-auditor.md', auditorMd], ['auditPrompt()', auditP],
+                 ['inline gate-audit execution-evidence seat (src)', gateAuditExecSrc],
+                 ['inline gate-audit integrated-tip seat (src)', gateAuditIntegratedTipSrc],
+                 ['inline gate-audit end-state seat (src)', gateAuditEndStateSrc]],
+      anchors: [/content-at-pin/i, /never the top rung/i, /never evidence/i,
+                /content-at-pin[\s\S]{0,200}\bexecution\b[\s\S]{0,200}\bhistory\b[\s\S]{0,200}\bauthority\b/i] },
   ]
-  assert.ok(REGISTRY.length >= 13, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, and the bounded environment-proceed recovery row — floor equals the true row count, no slack (#693)')
+  assert.ok(REGISTRY.length >= 14, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, and the evidence-precedence five-surface row (ADR 0041) — floor equals the true row count, no slack (#693)')
   for (const row of REGISTRY) {
     for (const [sName, sText] of row.surfaces) {
       for (const re of row.anchors) {
