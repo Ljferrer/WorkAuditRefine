@@ -700,8 +700,35 @@ function readQueryHits(localRoot) {
 function cmdQuery(argv) {
   const roots = resolveRoots(argv);
   const text = argv._.slice(1).join(' ');
-  const topK = argv['top-k'] ? Number(argv['top-k']) : DEFAULT_TOP_K;
-  const budget = argv.budget ? Number(argv.budget) : DEFAULT_BUDGET;
+  // Both flag guards are shape copies of cmdTightenPlan's ratified `--target` block (#1059) —
+  // see its rationale comment; no shared helper (`parseArgv` is frozen). They sit ABOVE the
+  // walkCorpus call, so a refusal writes nothing: no query-log line, no prompt block (#1145).
+  let topK = DEFAULT_TOP_K; // flag absent ⇒ the default (unchanged path)
+  if (argv['top-k'] !== undefined) {
+    // ratified reference implementation: cmdTightenPlan's `--target` three-way resolution
+    const t = typeof argv['top-k'] === 'string' ? Number(argv['top-k']) : NaN;
+    if (Number.isFinite(t) && t > 0) {
+      topK = t;
+    } else {
+      process.stderr.write(
+        `war-memory query: --top-k requires a positive count (got '${argv['top-k']}')\n`
+      );
+      process.exit(1);
+    }
+  }
+  let budget = DEFAULT_BUDGET; // flag absent ⇒ the default (unchanged path)
+  if (argv.budget !== undefined) {
+    // ratified reference implementation: cmdTightenPlan's `--target` three-way resolution
+    const b = typeof argv.budget === 'string' ? Number(argv.budget) : NaN;
+    if (Number.isFinite(b) && b > 0) {
+      budget = b;
+    } else {
+      process.stderr.write(
+        `war-memory query: --budget requires a positive byte count (got '${argv.budget}')\n`
+      );
+      process.exit(1);
+    }
+  }
   const seat = argv.seat || null;
   const records = walkCorpus(roots);
   const db = buildIndex(records);
@@ -783,7 +810,10 @@ function cmdLint(argv) {
     try {
       const st = fs.statSync(t);
       if (st.isDirectory()) {
-        files = fs.readdirSync(t).filter((f) => f.endsWith('.md')).map((f) => path.join(t, f));
+        // Recursive (#1135): the committed `archive/` subtree is prose too, and every lint
+        // surface (CI, the gate wrapper, a bare interactive run) inherits the walk from here.
+        // `path.join` is correct on the subdir-prefixed relative paths recursion returns.
+        files = fs.readdirSync(t, { recursive: true }).filter((f) => f.endsWith('.md')).map((f) => path.join(t, f));
       } else {
         files = [t];
       }
@@ -837,12 +867,14 @@ function cmdArchive(argv) {
       continue;
     }
     // Advisory concept-hub WARN: archiving is link-safe (cold links still resolve), but a
-    // hub with ≥2 hot inbound refs loses its hot index row. Non-blocking — the keep-or-stub
-    // call stays human. Counted from the pre-move snapshot.
+    // hub with ≥2 hot inbound citers loses its hot index row. Non-blocking — the keep-or-stub
+    // call stays human. Counted from the pre-move snapshot, SLUG-DEDUPED (#1154) so a
+    // cross-root twin counts once — matching the `inbound` verb and tightenPlan's Floor 2.
     const hotInbound = inboundCiters(records, slug, { hotOnly: true });
-    if (hotInbound.length >= 2) {
+    const hubCiters = new Set(hotInbound.map((r) => r.slug)).size;
+    if (hubCiters >= 2) {
       process.stderr.write(
-        `WARN: archiving concept hub '${slug}' (${hotInbound.length} inbound refs) — ` +
+        `WARN: archiving concept hub '${slug}' (${hubCiters} inbound citers) — ` +
           `its index row disappears; consider keep-compress stub\n`
       );
     }
@@ -957,6 +989,8 @@ function cmdTightenPlan(argv) {
   // flag refuse: `Number(true) === 1` would otherwise pass `isFinite && > 0` and silently
   // pre-select the entire eligible list at `target: 1`. Refusal is inline (`requireLocal`'s
   // shape) — `main()` has no catch, so a throw would surface as a stack trace, not a diagnostic.
+  // This block is the RATIFIED reference implementation: cmdQuery copies its shape twice
+  // (`--top-k`, `--budget`, #1145). Three comment-coupled sites, deliberately no shared helper.
   let target = WARN_BYTES; // flag absent ⇒ the advisory default (unchanged path)
   if (argv.target !== undefined) {
     const t = typeof argv.target === 'string' ? Number(argv.target) : NaN;
