@@ -97,10 +97,11 @@ the surface that shape's ladder forbids as a verdict basis.
   advanced; the ladder forbids ruling from a prose claim about content when the pinned read is
   available — re-ground at the tip before acting.
 - `auditor-grep-tool-unrestricted-by-git-verb-bash-guard` → **`content-at-pin`**. The seat treated
-  a Bash-guard denial of shell `grep` as exhausting rung 1 and fell back to lower-rung prose while
-  the unrestricted Grep tool still reached the pinned content; the ladder forbids resting a
-  content verdict on rung-3 claims while a rung-1 read remains reachable — the default arm's SOFT
-  `cannot-confirm` is licensed only when rung 1 is genuinely unworkable.
+  a Bash-guard denial of shell `grep` as exhausting the shape's evidence and self-demoted to a
+  SOFT cannot-confirm `note`, while rung 1 (`git show <audit_sha>:<path>`) remained reachable
+  through the allowlisted read verbs and the unrestricted Grep tool still offered rung-2
+  corroboration; the default arm's SOFT `cannot-confirm` is licensed only when rung 1 is
+  genuinely unworkable.
 
 ## Relationship to prior ADRs
 
@@ -141,9 +142,17 @@ the surface that shape's ladder forbids as a verdict basis.
   threading it, or marks it unverified. This is a named consequence of the done-report's floor
   placement — not a separate Lead rule — and it is the 2026-07-27 false-`deps`-claim incident
   stated as a rule.
+- **The done-report's floor placement is lesson-forced, not a bare judgment call.** Three recorded
+  lessons force it independently:
+  `deliberately-uncommitted-worker-probe-evidence-is-soft-never-hold`,
+  `worker-self-report-count-can-overstate-diff-additions` (a done-report claimed 10 additions; the
+  diff had 5), and `closure-rationale-infeasibility-claim-needs-code-trace-not-assertion`. Spec §8's
+  contrary sentence ("the one judgment call not forced by a recorded lesson") is left byte-unchanged
+  because the spec is ratified; this ADR carries the corrected provenance.
 - Progressive disclosure holds: the full ladders live on the standing auditor card; dispatched
-  prompts and Lead/servitor surfaces carry only the token skeleton (the four shape names,
-  `never the top rung`, `never evidence`) plus a pointer here.
+  prompts and the Lead/glossary surfaces carry only the token skeleton (the four shape names,
+  `never the top rung`, `never evidence`) plus a pointer here; the servitor card carries the
+  pointer alone.
 - The third precedent-lesson mapping is the least clean fit: the ladders (like `history`'s rung 1)
   mostly *prescribe* the ranked surface rather than *forbid* a named one, so
   `auditor-grep-tool-unrestricted-by-git-verb-bash-guard` maps to misuse of the D2 default arm —
