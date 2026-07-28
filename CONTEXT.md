@@ -539,6 +539,36 @@ _Avoid_: conflating the `pin-mismatch` findings tag with the `agent-unverified` 
 ([ADR 0007](docs/adr/0007-memory-provenance.md)) — unrelated concepts; confusing it with `pin_status`
 (which classifies the `gateHeadSha`↔`observedHead` relationship — this checks seat-vs-dispatched-pin).
 
+**Claim shape**:
+Which of the **four closed evidence categories** a claim under audit falls into — `content-at-pin`,
+`execution`, `history`, `authority` — determining the evidence ladder it is judged by
+([ADR 0041](docs/adr/0041-audit-evidence-precedence.md)). Closed with a default arm: an unmatched
+claim is judged under `content-at-pin` (strictest); if unworkable, a SOFT `cannot-confirm`, never a
+new shape. The phrase predates the doctrine: "pick the verb per claim shape" in the mirrored
+COMMITTED-TREE GROUNDING clause (`agents/war-auditor.md` + `workflow-template.js`) is its first,
+open use — *what kind of question is being asked* — and ADR 0041 closes the set those verbs are
+picked against.
+_Avoid_: mintable shapes; conflating the `execution` shape with the `execution-evidence` lens (the
+shape classifies a claim, the reserved lens judges gate output through it); treating shape as a
+finding field (judgment guidance, not schema).
+
+**Evidence rung**:
+A surface's rank within **one claim shape's ladder** — e.g. the pinned blob is rung 1 of
+`content-at-pin`, the gate-evidence artifact rung 1 of `execution`. The floor rules hold across all
+shapes and all bound roles: the working tree and the worker done-report are never any ladder's top
+rung.
+_Avoid_: a global rank across shapes (rank inverts by claim — a single total order is wrong
+somewhere); treating a prefetched lesson as a rung (lessons are priors, never evidence — a
+lesson-derived claim is re-grounded at the pin before it may appear in a finding).
+
+**Rule + record**:
+The conflict discipline when evidence at two rungs disagrees: the **higher rung rules the verdict**,
+and the cross-rung contradiction is mandatorily recorded as a `disposition: note` finding naming
+both rungs — signal, never silence, never an automatic escalation. Benign forward-advance stays
+benign: the steady-state pin/HEAD mismatch is not a cross-rung contradiction.
+_Avoid_: silent-win; escalation-on-contradiction; recording benign forward-advance as a
+contradiction.
+
 ### Worker tiers (dispatch)
 
 **Docs tier**:

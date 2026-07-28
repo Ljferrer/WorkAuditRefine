@@ -47,6 +47,12 @@ const adr0040 = readFileSync(
   join(HERE, '..', '..', '..', 'docs', 'adr', '0040-environment-class-gate-failures-earn-one-retry.md'),
   'utf8',
 )
+// (D26) The audit-evidence-precedence doctrine's glossary mirror — CONTEXT.md `### Audit` terms
+// restate ADR 0041's D3 conflict semantics and lessons floor rule (ADR 0025 same-task mirror guard).
+const adr0041 = readFileSync(
+  join(HERE, '..', '..', '..', 'docs', 'adr', '0041-audit-evidence-precedence.md'),
+  'utf8',
+)
 
 // Strip comment leaders BEFORE whitespace-normalizing, then collapse every whitespace run to one
 // space — the recorded doc-cascade sweep trap ([[repo-doc-sweep-needs-leader-strip-before-whitespace-normalize-before-grep]]):
@@ -708,4 +714,73 @@ test('D25 — the no-chaining two-site routing fact is present on BOTH mirror su
     'ADR 0019\'s no-chaining clause still carries the single-site form ("keeps this ADR\'s ' +
       'original soft `env-blocked` routing") — it must name both sites, mirroring ADR 0040 §B (#1115)',
   )
+})
+
+// (D26) GLOSSARY ↔ ADR MIRROR — the three audit-evidence-precedence glossary terms in CONTEXT.md's
+// `### Audit` section (**Claim shape**, **Evidence rung**, **Rule + record**) restate doctrine that
+// ADR 0041 carries canonically: the `execution`-shape vs `execution-evidence`-lens disambiguation,
+// the lessons floor rule (priors, never evidence), and the D3 conflict rule (`disposition: note`
+// naming both rungs). ADR 0025: a new mirror ships its drift guard in the same task — this row is
+// that guard, landing in the commit that creates the mirror. Extraction is BY CONSTRUCT per term —
+// bolded term → next bolded term or `###` heading, D19/D24's idiom — never a whole-file scan (the
+// same doctrine clauses live on the auditor card and, as skeleton tokens, on the dispatched prompt;
+// a repo-wide key could not tell the anchors apart). Keys are token-anchored `\s+`-wrapped `/…/i`
+// forms, never sentence bytes — sanctioned rewording latitude on either surface must not false-red;
+// a one-sided edit (glossary reworded away from the doctrine, or the ADR clause dropped) reds.
+test('D26 — CONTEXT.md audit-evidence glossary terms mirror ADR 0041 doctrine clauses on both surfaces', () => {
+  for (const [term, keys] of [
+    [
+      'Claim shape',
+      [
+        [
+          /execution[`*_]{0,2}\s+shape\s+with\s+the\s+[`*_]{0,2}execution-evidence[`*_]{0,2}\s+lens/i,
+          'the `execution`-shape vs `execution-evidence`-lens disambiguation clause',
+        ],
+      ],
+    ],
+    [
+      'Evidence rung',
+      [
+        [/priors/i, 'the lessons-are-priors half of the lessons floor rule'],
+        [/never\s+evidence/i, 'the never-evidence half of the lessons floor rule'],
+      ],
+    ],
+    [
+      'Rule + record',
+      [
+        [/disposition:?[\s`*_]{0,3}note/i, 'the D3 `disposition: note` recording channel'],
+        [/naming\s+both\s+rungs/i, 'the D3 both-rungs-named recording clause'],
+      ],
+    ],
+  ]) {
+    // `Rule + record` carries a regex metacharacter — escape the term before building the pattern.
+    const t = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const block = contextMd.match(
+      new RegExp(`^\\*\\*${t}\\*\\*:[\\s\\S]*?(?=\\n\\*\\*[^\\n*]+\\*\\*:|\\n### )`, 'm'),
+    )
+    assert.ok(
+      block,
+      `could not locate the \`**${term}**:\` glossary term in CONTEXT.md (bolded term → next ` +
+        'bolded term or `###` heading) — the extraction construct rotted',
+    )
+    // Non-vacuous: every entry must really reach its own `_Avoid_` line.
+    assert.match(
+      norm(block[0]),
+      /_Avoid_/,
+      `the extracted **${term}** entry must span its \`_Avoid_\` line — extraction truncated`,
+    )
+    for (const [key, what] of keys) {
+      for (const [surface, text] of [
+        [`CONTEXT.md **${term}** entry (mirror)`, norm(block[0])],
+        ['ADR 0041 (canonical source)', norm(adr0041)],
+      ]) {
+        assert.match(
+          text,
+          key,
+          `${surface} must carry ${what} (ADR 0025 mirror registry). Correct this row to a ` +
+            'sanctioned rewording, never drop the clause on one surface to make it pass',
+        )
+      }
+    }
+  }
 })
