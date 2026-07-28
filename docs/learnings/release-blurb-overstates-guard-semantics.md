@@ -4,11 +4,11 @@ description: "Guard blurb: say 'refuse diffs touching X' not repos"
 metadata:
   node_type: memory
   type: project
-  keywords: [Status section wording, trigger surface, diff vs repo, fail-closed phrasing, submodule refuse, prose nit, operator misinformation, absolute claim vs residual exception, ADR carve-out, fresh-env re-run, unconditional vs conditional emission, near-miss diagnostic, assert-test-in-diff.sh, stderr guard clause, umbrella clause, heterogeneous guard shapes, realpathSync, campaign-ledger, fileURLToPath, No behavior change label, bolded lead-in, colon-scoped enumeration, release headline contradiction, anti-overclaim device, appositive antecedent ambiguity, dangling modifier, itself unchanged, nearest-noun misattachment, D6 verbatim-capture contract, on every error path, seed-pack die try region, mkdtemp scratch leak scope, TOKEN-scoped absence lock, prose-only reintroduction, verifyTier cap exceeded, unconditional prose append, gating-premise mismatch, non-submodule byte identity claim, submodule floor gain, polish merge prompt, floor-retry prompt, submodLandNote, submodMergeNote, every existing non-submodule prompt, issue citation convention, origin issue vs task issue, ADR body vs header qualifier, byte-unchanged body qualifier dropped, ADR Status line amendment, expect_deny_teach pinning granularity, K5 combined substring stated as separate pins, test assertion granularity overclaim]
+  keywords: [Status section wording, trigger surface, diff vs repo, fail-closed phrasing, submodule refuse, prose nit, operator misinformation, absolute claim vs residual exception, ADR carve-out, fresh-env re-run, unconditional vs conditional emission, near-miss diagnostic, assert-test-in-diff.sh, stderr guard clause, umbrella clause, heterogeneous guard shapes, realpathSync, campaign-ledger, fileURLToPath, No behavior change label, bolded lead-in, colon-scoped enumeration, release headline contradiction, anti-overclaim device, appositive antecedent ambiguity, dangling modifier, itself unchanged, nearest-noun misattachment, D6 verbatim-capture contract, on every error path, seed-pack die try region, mkdtemp scratch leak scope, TOKEN-scoped absence lock, prose-only reintroduction, verifyTier cap exceeded, unconditional prose append, gating-premise mismatch, non-submodule byte identity claim, submodule floor gain, polish merge prompt, floor-retry prompt, submodLandNote, submodMergeNote, every existing non-submodule prompt, issue citation convention, origin issue vs task issue, ADR body vs header qualifier, byte-unchanged body qualifier dropped, ADR Status line amendment, expect_deny_teach pinning granularity, K5 combined substring stated as separate pins, test assertion granularity overclaim, authoring checklist self-violation, checklist item dropped in its own introducing paragraph, D25 cross-ADR mirror, two-site characterization, either-alone overclaim, guard scope word omission]
   provenance: code-verified
   promoted: dev/2026-07-24-memory-tooling-hardening@phase-2
   slug: release-blurb-overstates-guard-semantics
-  phase: "submodule-inc1/T4 +9 recurrences (war-campaign-resilience-roadmap/phase-2 Release task 2.1, 2026-07-22; test-floor-target-repo/phase-2 Release task 2.1, 2026-07-22; cli-main-guard-normalization/phase-2 Release task 2.1, 2026-07-23; runbook-and-standing-record-coherence/phase-2 Release task 2.1, 2026-07-24; recovery-re-merge-dispatch-coherence/phase-2 Release task 2.1, 2026-07-24; drift-guard-and-floor-diagnostic-hardening/phase-2 Release task 2.1, 2026-07-24/25; 2026-07-24-memory-tooling-hardening/phase-2 Release task 2.1, 2026-07-26; 2026-07-26-dispatch-args-and-floor-coverage/phase-3 Release task 3.1, 2026-07-26/27; 2026-07-26-auditor-guard-policy-and-mirror-truth/phase-2 Release task 2.1, 2026-07-27)"
+  phase: "submodule-inc1/T4 +10 recurrences (war-campaign-resilience-roadmap/phase-2 Release task 2.1, 2026-07-22; test-floor-target-repo/phase-2 Release task 2.1, 2026-07-22; cli-main-guard-normalization/phase-2 Release task 2.1, 2026-07-23; runbook-and-standing-record-coherence/phase-2 Release task 2.1, 2026-07-24; recovery-re-merge-dispatch-coherence/phase-2 Release task 2.1, 2026-07-24; drift-guard-and-floor-diagnostic-hardening/phase-2 Release task 2.1, 2026-07-24/25; 2026-07-24-memory-tooling-hardening/phase-2 Release task 2.1, 2026-07-26; 2026-07-26-dispatch-args-and-floor-coverage/phase-3 Release task 3.1, 2026-07-26/27; 2026-07-26-auditor-guard-policy-and-mirror-truth/phase-2 Release task 2.1, 2026-07-27; 2026-07-26-standing-doc-and-remedy-truth-sweep/phase-2 Release task 2.1, 2026-07-27)"
   tags:
     - war
     - release
@@ -24,7 +24,7 @@ metadata:
     - "[[gitmodules-working-tree-read-vs-ref-snapshot]]"
   created: 2026-06-30
   originSessionId: 0e364ee5-f0b3-47f6-a9e4-9bf2dd555733
-  modified: 2026-07-28T04:06:12.610Z
+  modified: 2026-07-28T06:15:25.430Z
 ---
 
 # Release blurb prose overstates guard semantics
@@ -404,3 +404,47 @@ silently promotes a narrow true claim to a broad false one even when the cited a
 
 Related: [[full-gates-green-end-state-soft-without-threaded-gate-log-artifact]] (unrelated family, same
 phase-close audit-log-sourced-finding provenance discipline).
+
+## Recurrence 10 (2026-07-27, plan `2026-07-26-standing-doc-and-remedy-truth-sweep`, phase 2 "Release",
+task 2.1) — the paragraph that ships this lesson's own new authoring checklist violates the
+checklist's own item 2, in the same sentence
+
+A thirteenth instantiation, and the sharpest irony in the family so far: this release's `## Status`
+paragraph (`README.md`, `## Status` section at the landed tip
+`bb1b1c0877396838f5057dabc19c2281882c37b5` — `code-verified`, read directly at the `_refinery`
+worktree whose `HEAD` equals the landed tip, gitdir physical path
+`<repo-root>/.claude/war/worktrees/2026-07-26-standing-doc-and-remedy-truth-sweep-2026-07-27/_refinery/`)
+is the one that **introduces** `README.md`'s new `### Status-blurb authoring checklist` — item 2 of
+which is "Repeat the guard's own scope word … Dropping it silently promotes a narrow true claim to a
+broad false one" — and that checklist explicitly cites this very lesson
+(`docs/learnings/release-blurb-overstates-guard-semantics.md`) as its provenance (item 7). The same
+paragraph's `#1115` sub-clause then commits exactly the violation the checklist warns against: "the
+new D25 row reads both ADRs and asserts the two-site characterization on each, so an edit to either
+ADR alone reds." The D25 row's own code comment
+(`skills/war/assets/skill-doc-contracts.test.mjs`, the `(D25) CROSS-ADR MIRROR` banner) states a
+narrower reach: "This row reads BOTH files so a revert on EITHER surface reds" and "Keys are ORDERED
+and per-surface, anchored on the ADRs' own tokens rather than either ADR's sentence bytes, so
+sanctioned rewording latitude on either side does not false-red." A **sanctioned rewording** of
+either ADR is "an edit to either ADR alone" and does **not** red — so the blurb's consequence clause
+generalizes past the guard's own disclaimed scope, dropping the "revert"/"sanctioned rewording"
+distinction the guard's comment is careful to draw. The paragraph's immediately preceding clause
+("asserts the two-site characterization on each") does supply enough context that the sentence reads
+as true in situ, which is why the task auditor rated it Nit and not a hold; not fixed before land
+(`disposition: note`, non-blocking, `## Status` is a release slot outside task 2.1's `Files:` list to
+touch incidentally, and the disposition rule refuses `absorb` for anything touching a version/release
+slot).
+
+**Why this recurrence is worth its own entry despite being "just another Nit":** authoring a checklist
+distilled from this lesson family is not self-applying. The same drafting pass that writes "repeat the
+guard's own scope word: revert vs. sanctioned rewording" as new standing guidance can, in the very
+paragraph announcing that guidance, drop that exact distinction describing an unrelated guard two
+sentences later — the checklist protects future blurbs only if the author re-reads their own paragraph
+against it, not merely by virtue of having written it down in the same commit. **Applies-to checklist
+addendum:** when a release blurb introduces a new anti-overclaim checklist/guard in the same paragraph
+that also narrates unrelated guards, re-run each of that paragraph's *own* sentences through the new
+checklist before treating the paragraph as compliant — the checklist's presence in the document is not
+evidence its own introducing prose passes it.
+
+Related: [[audit-log-finding-can-be-stale-by-land-time]] (this recurrence's finding-match check
+confirmed the defect live at the landed tip rather than fixed-in-flight — both audit-log Nits on this
+task's paragraph were verified present, not resolved, before this entry was written).
