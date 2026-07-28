@@ -85,7 +85,7 @@ test('doc-contract: verifier prompt carries the HOT/COLD/MISSING link trichotomy
   assert.match(skill, /trichotomy/i, 'the link trichotomy must be stated as such')
 })
 
-// (6) Phase 3 counts inbound refs via `war-memory inbound`, not the retired prose grep.
+// (6) Phase 3 counts inbound citers via `war-memory inbound`, not the retired prose grep.
 //     If someone reverts to `grep -rl "\[\[<slug>\]\]"`, the inbound invocation disappears
 //     and this fails. Anchored on the CLI verb + subcommand, case-tolerant on spacing.
 test('doc-contract: Phase 3 hub check invokes war-memory inbound (not the prose grep)', () => {

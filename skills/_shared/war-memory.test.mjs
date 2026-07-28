@@ -35,6 +35,7 @@ import {
   TIGHTEN_YOUNG_DAYS,
   TIGHTEN_SLACK_BYTES,
   DEFAULT_TOP_K,
+  DEFAULT_BUDGET,
 } from './war-memory.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -592,14 +593,14 @@ test('archive <slug>: explicit-slug path is unchanged by the --candidates flip (
   rmSync(local, { recursive: true, force: true });
 });
 
-test('archive: concept-hub WARN on ≥2 hot inbound refs, still exits 0; <2 stays silent (criterion 4)', () => {
+test('archive: concept-hub WARN on ≥2 hot inbound citers, still exits 0; <2 stays silent (criterion 4)', () => {
   const local = tmpDir();
   lessonFile(local, 'hub', { description: 'hub' });
   lessonFile(local, 'ref-a', { description: 'a', body: 'per [[hub]]' });
   lessonFile(local, 'ref-b', { description: 'b', body: 'see [[hub]]' });
   const r = spawnSync('node', [CLI, 'archive', 'hub', '--local', local], { encoding: 'utf8' });
   assert.equal(r.status, 0, r.stderr); // advisory only — never blocks
-  assert.match(r.stderr, /WARN: archiving concept hub 'hub' \(2 inbound refs\)/);
+  assert.match(r.stderr, /WARN: archiving concept hub 'hub' \(2 inbound citers\)/);
   assert.ok(existsSync(join(local, 'archive', 'hub.md')), 'archive still happened');
 
   // one inbound ref → below the ≥2 threshold → no hub WARN.
@@ -611,6 +612,74 @@ test('archive: concept-hub WARN on ≥2 hot inbound refs, still exits 0; <2 stay
   assert.doesNotMatch(r2.stderr, /concept hub/);
   rmSync(local, { recursive: true, force: true });
   rmSync(local2, { recursive: true, force: true });
+});
+
+// ============================================================================
+// (Task 1.1 / #1154) The hub WARN counts CITERS, slug-deduped — one Set drives
+// both the ≥2 predicate and the printed number, converging cmdArchive onto the
+// `inbound` verb and tightenPlan's cross-root Floor 2. Red pre-fix: the raw
+// record count made a slug hot in BOTH roots read as two, so a single-citer
+// archive printed a "concept hub (2 …)" WARN that the `inbound` verb flatly
+// contradicted (the recorded ground-truth-the-hub trap). The retired noun is
+// deliberately NOT spelled here — quoting it would self-match its own sweep.
+// ============================================================================
+
+// Two-root hub fixture: `hub` is hot in the LOCAL root (so the archive moves the
+// local copy); each [slug, roots] entry writes one citing lesson per named root —
+// listing a slug in both roots makes it a cross-root twin, ONE citer.
+function hubFixture(citers) {
+  const local = tmpDir('war-hub-local-');
+  const repo = tmpDir('war-hub-repo-');
+  lessonFile(local, 'hub', { description: 'a concept hub' });
+  for (const [slug, roots] of citers) {
+    for (const which of roots) {
+      lessonFile(which === 'repo' ? repo : local, slug, {
+        description: `${slug} summary`,
+        meta: { type: 'project' },
+        body: 'builds on [[hub]] heavily',
+      });
+    }
+  }
+  return { local, repo };
+}
+
+function archiveHub({ local, repo }) {
+  return spawnSync('node', [CLI, 'archive', 'hub', '--local', local, '--repo', repo], { encoding: 'utf8' });
+}
+
+// The WARN is advisory: every case must still archive and re-render around it.
+function assertHubArchived(r, local) {
+  assert.equal(r.status, 0, `advisory WARN must never block, got ${r.status}\n${r.stderr}`);
+  assert.ok(existsSync(join(local, 'archive', 'hub.md')), 'hub file moved into archive/');
+  assert.ok(!existsSync(join(local, 'hub.md')), 'and left the hot root');
+  assert.match(r.stdout, /rendered .*MEMORY\.md/); // the trailing re-render completed
+}
+
+test('hub WARN (#1154): a cross-root twin citer counts ONCE → below the ≥2 line, no WARN', () => {
+  const { local, repo } = hubFixture([['twin-citer', ['local', 'repo']]]);
+  const r = archiveHub({ local, repo });
+  assertHubArchived(r, local);
+  assert.doesNotMatch(r.stderr, /concept hub/, 'two records, one citer — pre-fix this printed a false 2');
+  for (const d of [local, repo]) rmSync(d, { recursive: true, force: true });
+});
+
+test('hub WARN (#1154): two DISTINCT hot citers (one per root) → WARN counting 2 inbound citers', () => {
+  const { local, repo } = hubFixture([['citer-a', ['local']], ['citer-b', ['repo']]]);
+  const r = archiveHub({ local, repo });
+  assertHubArchived(r, local);
+  assert.match(r.stderr, /WARN: archiving concept hub 'hub' \(2 inbound citers\)/);
+  for (const d of [local, repo]) rmSync(d, { recursive: true, force: true });
+});
+
+test('hub WARN (#1154): one twin + one distinct citer → 3 records, WARN counting 2 (not 3)', () => {
+  // The mixed case pins predicate and printed count together: dedupe must not simply
+  // suppress the WARN, and the number must be the citer count, not the record count.
+  const { local, repo } = hubFixture([['twin-citer', ['local', 'repo']], ['citer-b', ['local']]]);
+  const r = archiveHub({ local, repo });
+  assertHubArchived(r, local);
+  assert.match(r.stderr, /WARN: archiving concept hub 'hub' \(2 inbound citers\)/);
+  assert.doesNotMatch(r.stderr, /\(3 inbound/, 'the raw record count (3) must never reach the message');
+  for (const d of [local, repo]) rmSync(d, { recursive: true, force: true });
 });
 
 // ============================================================================
@@ -1224,6 +1293,100 @@ test('unchanged path (#1059): the flagless invocation keeps the advisory default
 });
 
 // ============================================================================
+// (Task 1.1 / #1145) `query`'s `--top-k` and `--budget` carry the SAME three-way
+// argv-boundary resolution #1059 ratified for `--target` — the two flags that fix
+// deliberately left open. Red pre-fix, every case exiting 0 with no diagnostic:
+// a bare `--top-k` took `Number(true) === 1` (a one-lesson block), while `abc`/`0`/
+// `-500` reached `records.slice(0, NaN | 0 | -500)` and rendered an EMPTY block —
+// a silently lesson-less seat prefetch. `--budget abc` (NaN) silently uncapped the
+// block instead. `parseArgv` is byte-untouched, so the flagless path is unchanged.
+// ============================================================================
+
+// Four hot facts sharing a query token — a real corpus, so any run reaching the
+// printer emits a block: an empty stdout can only come from the guard firing first.
+function queryFlagFixture() {
+  const local = tmpDir('war-query-flags-');
+  for (const s of ['alpha-fact', 'beta-fact', 'gamma-fact', 'delta-fact']) {
+    lessonFile(local, s, { description: `${s} ordering token summary`, meta: { provenance: 'code-verified' } });
+  }
+  return local;
+}
+
+const lessonLines = (stdout) => stdout.split('\n').filter((l) => l.startsWith('- ['));
+
+for (const [flag, noun] of [['top-k', 'positive count'], ['budget', 'positive byte count']]) {
+  for (const [label, valueArgs, token] of [
+    ['bare (parseArgv maps a valueless flag to boolean true)', [], 'true'],
+    ['abc (non-numeric ⇒ NaN)', ['abc'], 'abc'],
+    ['0 (zero is not positive)', ['0'], '0'],
+    ['-500 (negative)', ['-500'], '-500'],
+  ]) {
+    test(`refusal (#1145): --${flag} ${label} → exit 1, empty stdout, stderr names the flag + the token`, () => {
+      const local = queryFlagFixture();
+      const r = spawnSync(
+        'node',
+        [CLI, 'query', 'ordering token', '--local', local, `--${flag}`, ...valueArgs],
+        { encoding: 'utf8' }
+      );
+      assert.equal(r.status, 1, `expected the guard's exit 1, got ${r.status}\n${r.stdout}\n${r.stderr}`);
+      // Empty, not merely short: a refusal must not print a partial prompt block.
+      assert.equal(r.stdout, '', `expected no block bytes on stdout, got: ${r.stdout}`);
+      assert.match(r.stderr, /war-memory query:/); // the verb, per the requireLocal diagnostic shape
+      assert.ok(r.stderr.includes(`--${flag}`), `stderr must name the flag, got: ${r.stderr}`);
+      assert.ok(r.stderr.includes(noun), `stderr must name what the flag wants, got: ${r.stderr}`);
+      assert.ok(r.stderr.includes(`'${token}'`), `stderr must render the received token, got: ${r.stderr}`);
+      // The guard sits ABOVE walkCorpus, so a refusal writes nothing — and since the
+      // log dir's mkdirSync lives inside appendQueryLog, an absent log proves it too.
+      assert.equal(
+        existsSync(join(local, 'war-memory-queries.jsonl')), false,
+        'a refused query must append no query-log line'
+      );
+      rmSync(local, { recursive: true, force: true });
+    });
+  }
+}
+
+test('unchanged path (#1145): flagless output is byte-identical to an explicit-defaults invocation', () => {
+  const local = queryFlagFixture();
+  const args = [CLI, 'query', 'ordering token', '--local', local];
+  const flagless = spawnSync('node', args, { encoding: 'utf8' });
+  // built from the imported constants — a hand-typed literal would pass a changed default
+  const explicit = spawnSync(
+    'node',
+    [...args, '--top-k', String(DEFAULT_TOP_K), '--budget', String(DEFAULT_BUDGET)],
+    { encoding: 'utf8' }
+  );
+  assert.equal(flagless.status, 0, flagless.stderr);
+  assert.equal(explicit.status, 0, explicit.stderr);
+  assert.ok(lessonLines(flagless.stdout).length > 0, 'fixture must render a block for this to mean anything');
+  assert.equal(flagless.stdout, explicit.stdout);
+  rmSync(local, { recursive: true, force: true });
+});
+
+test('unchanged path (#1145): a valid --top-k caps the block; a fractional value BINDS (D3 — no integer check)', () => {
+  const local = queryFlagFixture(); // four matching lessons
+  const three = spawnSync('node', [CLI, 'query', 'ordering token', '--local', local, '--top-k', '3'], { encoding: 'utf8' });
+  assert.equal(three.status, 0, three.stderr);
+  assert.equal(lessonLines(three.stdout).length, 3);
+  // 3.5 mirrors --target's predicate exactly (finite and > 0): it binds, and slice truncates.
+  const frac = spawnSync('node', [CLI, 'query', 'ordering token', '--local', local, '--top-k', '3.5'], { encoding: 'utf8' });
+  assert.equal(frac.status, 0, `a fractional --top-k must NOT refuse\n${frac.stderr}`);
+  assert.equal(lessonLines(frac.stdout).length, 3);
+  rmSync(local, { recursive: true, force: true });
+});
+
+test('unchanged path (#1145): a valid --budget still caps the rendered block', () => {
+  const local = queryFlagFixture();
+  const wide = spawnSync('node', [CLI, 'query', 'ordering token', '--local', local], { encoding: 'utf8' });
+  const tight = spawnSync('node', [CLI, 'query', 'ordering token', '--local', local, '--budget', '90'], { encoding: 'utf8' });
+  assert.equal(tight.status, 0, tight.stderr);
+  const [w, t] = [lessonLines(wide.stdout).length, lessonLines(tight.stdout).length];
+  assert.ok(t >= 1, 'the byte budget always emits at least one lesson');
+  assert.ok(t < w, `a tight budget must cap the block (${t} vs ${w})`);
+  rmSync(local, { recursive: true, force: true });
+});
+
+// ============================================================================
 // (Task 1.1 / #992) tightenPlan's returned `verdict` is the STRICTER of the advisory
 // projection read and the effective `--target`. buildProjection is byte-untouched, so
 // the render-verdict tests above (which read ITS verdict) stay green unchanged.
@@ -1319,6 +1482,45 @@ test('safe-swap cross-check: buildProjection 2-col render PASSes verify; strippi
 });
 
 // ============================================================================
+// (Task 1.1 / #1135) `lint <dir>` walks the target RECURSIVELY, so the committed
+// `archive/` subtree is covered on every surface that shares the one invocation
+// (CI, the gate wrapper, a bare interactive run) with zero edits to either.
+// Red pre-fix: the one-level readdirSync never opened archive/, so a nested
+// violation printed "lint: clean" at exit 0 — a fail-closed gate reporting green.
+// Fixture hygiene: violating shapes are ASSEMBLED AT RUNTIME under this test's own
+// mkdtemp dir, never committed .md, so they cannot trip the repo's own lint.
+// ============================================================================
+
+test('lint <dir>: an archive/-nested violation exits 1, hit path carrying the archive/ prefix (#1135)', () => {
+  const dir = tmpDir('war-lint-nested-red-');
+  lessonFile(dir, 'clean-hot', { description: 'clean prose', body: 'The renderer refuses above either hard axis.' });
+  lessonFile(join(dir, 'archive'), 'archived-violator', {
+    description: 'an archived fixture lesson',
+    body: `pasted ${'ghp_' + 'd'.repeat(36)} into the note`, // assembled here, never committed
+  });
+  const r = spawnSync('node', [CLI, 'lint', dir], { encoding: 'utf8' });
+  assert.equal(r.status, 1, `expected the fail-closed exit 1, got ${r.status}\n${r.stdout}\n${r.stderr}`);
+  assert.match(r.stdout, /github-token/); // names the pattern class
+  // ...and the FILE by its subdir-prefixed path: proof the recursion found it, not a flattened walk
+  assert.ok(
+    r.stdout.includes(join(dir, 'archive', 'archived-violator.md')),
+    `hit path must carry the archive/ prefix, got: ${r.stdout}`
+  );
+  assert.doesNotMatch(r.stdout, /lint: clean/);
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('lint <dir>: a clean nested tree still exits 0 (recursion invents no hit) (#1135)', () => {
+  const dir = tmpDir('war-lint-nested-green-');
+  lessonFile(dir, 'clean-hot', { description: 'clean prose', body: 'Archive is a file move, never a deletion.' });
+  lessonFile(join(dir, 'archive'), 'clean-cold', { description: 'clean cold prose', body: 'Cold links still resolve.' });
+  const r = spawnSync('node', [CLI, 'lint', dir], { encoding: 'utf8' });
+  assert.equal(r.status, 0, `expected exit 0, got ${r.status}\n${r.stdout}\n${r.stderr}`);
+  assert.match(r.stdout, /lint: clean/);
+  rmSync(dir, { recursive: true, force: true });
+});
+
+// ============================================================================
 // (#1081) The gate-DISCOVERED redaction-lint wrapper, war-memory-lint.test.sh.
 // In a real gate the wrapper only ever runs the live docs/learnings/ (green), so
 // its red and existence-guard paths are provable ONLY here — these meta-tests are
@@ -1340,6 +1542,25 @@ test('lint wrapper: violating fixture → exit 1, offending file + pattern class
   assert.equal(r.status, 1, `expected the CLI's fail-closed exit 1, got ${r.status}\n${r.stdout}\n${r.stderr}`);
   assert.match(r.stdout, /violator\.md/); // names the offending FILE
   assert.match(r.stdout, /home-path/); // ...and the pattern class
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('lint wrapper: archive/-NESTED violating fixture → exit 1 propagated, subdir path on stdout (#1135)', () => {
+  // The wrapper is byte-unchanged by #1135 — it inherits the recursive walk through the
+  // one shared `lint` invocation. This case is what proves the inheritance at the surface
+  // a real gate actually runs (CI's memory-audit.yml rides the same call).
+  const dir = tmpDir('war-lint-wrapper-nested-');
+  const homeShaped = ['', 'Users', 'fixture-person', 'notes', 'draft.md'].join('/'); // assembled here, never committed
+  lessonFile(dir, 'clean-hot', { description: 'fixture lesson', body: 'no findings at the top level' });
+  lessonFile(join(dir, 'archive'), 'nested-violator', {
+    description: 'archived fixture lesson',
+    body: `captured at ${homeShaped} during the run`,
+  });
+  const r = spawnSync('bash', [LINT_WRAPPER, dir], { encoding: 'utf8' });
+  assert.equal(r.status, 1, `expected the CLI's fail-closed exit 1, got ${r.status}\n${r.stdout}\n${r.stderr}`);
+  assert.match(r.stdout, /nested-violator\.md/); // names the offending FILE
+  assert.match(r.stdout, /home-path/); // ...and the pattern class
+  assert.ok(r.stdout.includes(join('archive', 'nested-violator.md')), 'hit path carries the archive/ prefix');
   rmSync(dir, { recursive: true, force: true });
 });
 

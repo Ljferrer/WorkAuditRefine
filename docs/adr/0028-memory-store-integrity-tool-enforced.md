@@ -91,6 +91,18 @@ judgment — which hub to keep, which lesson to compress — stays human.** Conc
   reach — the sweep greps the current tree; the drift-guard/`/lessons-learned` posture is the standing
   backstop.
 
+## Amendments
+
+- **2026-07-27 — the hub WARN counts slug-deduped `inbound citers`.** Decision item 2 above quotes the
+  WARN as first shipped: an undeduped record count with the noun `inbound refs`. A slug hot in *both*
+  roots is two records but one citer, so that count read `2` where the `inbound` verb (and `tightenPlan`'s
+  cross-root Floor 2) read `1`. As of
+  [`docs/plans/2026-07-26-war-memory-cli-correctness.md`](../plans/2026-07-26-war-memory-cli-correctness.md)
+  Task 1.1 (#1154), `cmdArchive` counts `new Set(hotInbound.map((r) => r.slug)).size` for both the ≥2
+  predicate and the printed number, and the noun reads **`inbound citers`** — the deduped count counts
+  slugs, so the old noun would be false. Advisory, non-blocking, exit 0: unchanged. The quote in item 2
+  stands as the historical record (superseded, never rewritten).
+
 ## References
 
 - Design spec:
