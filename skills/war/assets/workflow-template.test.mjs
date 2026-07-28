@@ -7136,9 +7136,20 @@ test('D6 — branch flag enumeration: every token in the hook\'s canonical deny 
   const REPOINT = 're-point the extractor at the reshaped deny string in hooks/validate-auditor-git.sh'
   // The two arms, in the hook's own words. Anchored on the arm labels rather than on line position or on
   // the full deny sentence, so wording latitude around them does not false-red.
-  const arms = hookSh.match(/value-carrying flags =-attached \(([^)]*)\)[^(]*bare read flags \(([^)]*)\)/)
-  assert.ok(arms, `hook branch deny string not locatable — ${REPOINT}`)
-  assert.equal(arms.length, 3, `expected exactly two parenthesized flag groups, got ${arms.length - 1} — ${REPOINT}`)
+  // Slice the deny statement itself first, so the arm regex and the third-arm count below both read the
+  // one canonical string rather than the whole file (`[^"]*` spans newlines, so a reflow does not false-red).
+  const denyStmt = (hookSh.match(/deny "git branch admits read forms only:[^"]*"/) || [])[0]
+  assert.ok(denyStmt, `hook branch deny string not locatable — ${REPOINT}`)
+  const arms = denyStmt.match(/value-carrying flags =-attached \(([^)]*)\)[^(]*bare read flags \(([^)]*)\)/)
+  assert.ok(arms, `hook branch deny string's two flag arms not locatable — ${REPOINT}`)
+  // Third-arm guard. The two-arm regex above still matches when a THIRD labeled group is appended to the
+  // deny string, so its flags would go unextracted and the mirrors would strand silently — the exact #1124
+  // class D6 exists to RED. Counting the deny statement's own open parens is what catches that. (A prior
+  // `arms.length === 3` check here was tautological: a non-global match with two capture groups is always
+  // length 3 whenever it is truthy, so it could not fire under any input.)
+  const groupCount = (denyStmt.match(/\(/g) || []).length
+  assert.equal(groupCount, 2,
+    `branch deny string carries ${groupCount} parenthesized flag groups, expected exactly two — a third arm's flags are never extracted; ${REPOINT}`)
   const groups = arms.slice(1).map(g => g.split(',').map(t => t.trim().replace(/<[^>]*>/g, '')).filter(Boolean))
   // A locatable anchor whose groups parse to nothing (reflowed enumeration, emptied arm) must fail LOUDLY —
   // an empty token list would otherwise make the per-token loop below a silent vacuous green.
