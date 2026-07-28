@@ -4,9 +4,10 @@
 [the spec](../specs/2026-07-28-prompt-surface-simplification-design.md) and
 [the plan](../plans/2026-07-28-prompt-surface-simplification.md))
 
-Every prompt-bearing prose surface in this repo grew monotonically across 22 patch releases with
-zero shrink events — `skills/war/SKILL.md` +33%, `CONTEXT.md` +24%, the dispatched-prompt literals
-of `workflow-template.js` growing with the file. The mechanism is a one-way ratchet with no
+Every prompt-bearing prose surface in this repo grew monotonically across the 0.14.38 → 0.14.67
+release window (measured at `fa3c838`) with zero shrink events — `skills/war/SKILL.md` +33%,
+`CONTEXT.md` +24%, the dispatched-prompt literals of `workflow-template.js` growing with the file.
+The mechanism is a one-way ratchet with no
 counterweight: auditor findings and incident lessons only ever *add* doctrine; nothing ever files
 "this is too big". The memory subsystem already solved this exact problem shape — an advisory line,
 an operator-gated `tighten` pass, a hard refusal, and temperature-is-location (archive = move,
@@ -20,8 +21,9 @@ the prompt surfaces, which — unlike memory — cost tokens on *every dispatch*
 defaults to cold storage.** The resolved design tree (D1–D6):
 
 - **D1 — Scope: prompt-bearing prose only.** SKILL.md files, standing agent cards,
-  dispatched-prompt literals, `CLAUDE.md`/`CONTEXT.md` dedup, README pointers. Engine logic and
-  test suites are out of scope.
+  dispatched-prompt literals, `CLAUDE.md`/`CONTEXT.md` dedup. Engine logic and test suites are out
+  of scope, and `README.md` is out of scope too — a human release surface (red-team adjudication
+  dropped the spec's README-pointers arm; the trailing release-slot bump is its only touch).
 - **D2 — Mechanism: full memory-pattern port.** A one-time shrink pass now, plus standing
   per-surface byte budgets (advisory + hard, enforced by
   `skills/war/assets/prompt-surface-budgets.test.mjs`), with `references/` as the archive

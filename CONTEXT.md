@@ -1241,7 +1241,8 @@ The advisory/hard byte pair a prompt-bearing surface may not exceed, test-enforc
 advisory line warns, crossing the hard line is a red test. Lowering a budget is a normal PR; raising
 one requires ADR 0042's named justification in the commit body.
 _Avoid_: treating advisory as blocking; raising a hard line without the ADR's justification rule;
-budgeting `references/` (cold storage is unbudgeted, like `archive/`).
+budgeting `references/` (cold storage is unbudgeted, like `archive/`); not the index projection's
+**Advisory line** (a different mechanism, different caps).
 
 **Prose temperature**:
 A block's branch-frequency tier — every-phase / once-per-run / branch-gated / incident-only — i.e.
@@ -1249,7 +1250,8 @@ how often a window pays for the text unused that turn. Only tier-1 (every-invoca
 inline; everything rarer lives in `references/` behind a trigger pointer.
 _Avoid_: size as temperature (a long every-invocation procedure belongs inline; a short
 incident-only note still costs every window); a tier-1 claim for text reachable only through a
-conditional.
+conditional; not the memory roots' hot/cold split (**Hot set** / **Cold set**) — that temperature
+is location, this one is branch frequency.
 
 **Trigger pointer**:
 The inline residue of an evicted block: `when <trigger>, read references/<file>` — the trigger is
