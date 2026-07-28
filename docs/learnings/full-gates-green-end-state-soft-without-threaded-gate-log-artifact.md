@@ -5,9 +5,9 @@ metadata:
   node_type: memory
   type: project
   provenance: code-verified
-  promoted: dev/2026-07-24-runbook-and-standing-record-coherence@phase-2
+  promoted: dev/2026-07-24-memory-tooling-hardening@phase-1
   slug: full-gates-green-end-state-soft-without-threaded-gate-log-artifact
-  phase: "red-team-fallback-and-anchor-hygiene/phase-2 (Release, task 2.1) +4 recurrences (latest runbook-and-standing-record-coherence/phase-1-integrated-tip gate-audit, 2026-07-24)"
+  phase: "red-team-fallback-and-anchor-hygiene/phase-2 (Release, task 2.1) +7 recurrences (latest audit-evidence-precedence/phase-1 task 1.1 gate-audit, 2026-07-28)"
   keywords:
     - full gates green
     - gate-log artifact
@@ -26,6 +26,10 @@ metadata:
     - self spot-verify
     - git rev-parse HEAD
     - pin proof
+    - STALE-MISMATCH
+    - reserved lens
+    - mapped file moved between gate and audit
+    - four-value pin_status enum
   tags:
     - audit-pipeline
     - gate-audit
@@ -33,14 +37,14 @@ metadata:
     - release
     - test-strategy
   created: 2026-07-15
-  updated: 2026-07-24
+  updated: 2026-07-28
   originSessionId: e11422bd-1b49-4d13-9840-37a67306b3f5
-  modified: 2026-07-27T03:52:24.313Z
+  modified: 2026-07-28T19:50:25.961Z
 ---
 
 **Local recurrence copy** of the repo-root lesson at `docs/learnings/full-gates-green-end-state-soft-without-threaded-gate-log-artifact.md`
 (same slug) — the repo copy is not directly editable by a servitor (D1), so this file carries the
-original content plus the new Recurrence 3 below; a future Gate-2 promotion of this file overwrites
+original content plus the new Recurrence 8 below; a future Gate-2 promotion of this file overwrites
 the same-slug repo file.
 
 # "Full gates green" as an end-state condition is SOFT, not HARD, without a threaded gate-log artifact
@@ -251,3 +255,53 @@ granularity, including the degenerate case where the observed HEAD happens to eq
 exactly — no shortcut is taken on a SHA-equality coincidence; the seat still records SOFT absent the
 stamped token. No new edge — recorded only to keep the occurrence count/date current for retrieval
 confidence.
+
+## Recurrence 8 (2026-07-28, plan `2026-07-28-audit-evidence-precedence`, phase 1, task 1.1 gate-audit) — first captured live STALE-MISMATCH instance (distinct from missing-token and BENIGN-ADVANCE)
+
+Eighth occurrence, a genuinely new sub-shape within the same `pin_status` family Recurrences 4/7
+name but had not yet captured live: this seat's `pin_status` token **was** stamped — unlike
+Recurrences 1-3/5-7 (missing token) — and its computed value was **`STALE-MISMATCH`**, the third of
+the four enum values (`CONFIRMED` / `BENIGN-ADVANCE` / `STALE-MISMATCH` / `ERROR`,
+`code-verified` at the landed tip `731d46e88b502009745bfbb07e9655fdd027cd0a` — read via the
+`_refinery` worktree matching that SHA, gitdir physical path
+`<repo-root>/.claude/war-worktrees/2026-07-28-audit-evidence-precedence-2026-07-28/_refinery/`,
+`skills/war/assets/workflow-template.js` line 125 `pin_status: { enum: [...] }` and lines 1638-1639,
+the STALE-MISMATCH/ERROR handling prose). Observed HEAD `68d5ff6130fcaeb9c1b73fb0a3378297b4abe4b1`
+diverged from the expected gate-HEAD `58bbca9bedb02280addb1c461dbf6079184fac87` **specifically in a
+file this task's own audit maps** (`skills/war/assets/skill-doc-contracts.test.mjs`, moved by
+sibling task 1.3's D27 row, landed in commits `77b9302`/`68d5ff6` after task 1.1's own gate ran) —
+this is the discriminator between `STALE-MISMATCH` and Recurrence 7's `BENIGN-ADVANCE`:
+BENIGN-ADVANCE is divergence touching only *unrelated* (later-task) files; STALE-MISMATCH is
+divergence touching a file *this task's own mapped test reads*, so the task's execution evidence
+for that mapped file is genuinely unreliable at the observed HEAD, not merely stale-but-safe. The
+seat correctly downgraded per the reserved-lens rule (verdict stayed `gate-audit:approve`,
+`hard:false`, `disposition:note`, `severity:Minor`) and recorded the mandated SOFT-note fields
+verbatim (observed HEAD, expected gate-HEAD, the reason string
+`"gate-audit worktree not at the integration tip — execution evidence unreliable, downgraded to
+SOFT, not a land-halt"`) — matching `workflow-template.js` line 1638's prompt-mandated wording
+exactly.
+
+**New nuance over Recurrences 4/7:** a stamped `pin_status` token does not itself guarantee HARD
+evidence — `STALE-MISMATCH` and `ERROR` are stamped-but-still-SOFT outcomes, distinct from
+`CONFIRMED` (stamped and HARD) and from the missing-token case (Recurrences 1-3/5-7, which is SOFT
+for a different reason: no token at all to read). And `STALE-MISMATCH` itself is distinct from
+`BENIGN-ADVANCE` (Recurrence 7): both arise from an observed HEAD past the gate-HEAD, but
+`BENIGN-ADVANCE` is safe (divergence is in unrelated files) while `STALE-MISMATCH` is not (divergence
+touches this task's own mapped file) — the seat cannot substitute a `git show <gate-HEAD>:<path>`
+committed-tree read to rescue the verdict to HARD the way Recurrence 7's BENIGN-ADVANCE mitigation
+does, because the very question at issue (does the mapped test still look the way it did at gate
+time) is what changed. Independently, this same gate-audit pass separately confirmed via `git show
+<audit_sha>:<path>` reads that the 1.1-mapped content was unaffected in substance — nothing here
+suggests a real defect, only that the HARD determination path was unavailable this pass.
+
+**Confirms:** the four-value `pin_status` enum's SOFT-never-hold rule extends cleanly to
+`STALE-MISMATCH`, and the STALE-MISMATCH/BENIGN-ADVANCE distinction (unrelated-file divergence vs.
+mapped-file divergence) is the operative test for whether a HEAD-advanced gate-audit seat can
+mitigate its way back to HARD (BENIGN-ADVANCE: yes, via committed-tree grounding) or must stay SOFT
+(STALE-MISMATCH: the mapped file itself is what's in question).
+
+Related: [[deliberately-uncommitted-worker-probe-evidence-is-soft-never-hold]] (same family: an
+evidence-ceiling cannot-confirm is SOFT, not a hold). [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]]
+(how the four release slots were independently re-verified after this servitor's own cwd proved
+stale). [[version-slots-no-cross-slot-consistency-test]] (RESOLVED — the lock-step test this
+condition's structural half relies on).
