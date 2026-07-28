@@ -7,7 +7,7 @@ metadata:
   provenance: code-verified
   promoted: dev/2026-07-24-memory-tooling-hardening@phase-1
   slug: full-gates-green-end-state-soft-without-threaded-gate-log-artifact
-  phase: "red-team-fallback-and-anchor-hygiene/phase-2 (Release, task 2.1) +7 recurrences (latest audit-evidence-precedence/phase-1 task 1.1 gate-audit, 2026-07-28)"
+  phase: "red-team-fallback-and-anchor-hygiene/phase-2 (Release, task 2.1) +8 recurrences (latest audit-evidence-precedence/phase-2 task 2.1 phase-2-end-state gate-audit, 2026-07-28)"
   keywords:
     - full gates green
     - gate-log artifact
@@ -39,7 +39,7 @@ metadata:
   created: 2026-07-15
   updated: 2026-07-28
   originSessionId: e11422bd-1b49-4d13-9840-37a67306b3f5
-  modified: 2026-07-28T19:50:25.961Z
+  modified: 2026-07-28T21:00:12.524Z
 ---
 
 **Local recurrence copy** of the repo-root lesson at `docs/learnings/full-gates-green-end-state-soft-without-threaded-gate-log-artifact.md`
@@ -299,6 +299,22 @@ suggests a real defect, only that the HARD determination path was unavailable th
 mapped-file divergence) is the operative test for whether a HEAD-advanced gate-audit seat can
 mitigate its way back to HARD (BENIGN-ADVANCE: yes, via committed-tree grounding) or must stay SOFT
 (STALE-MISMATCH: the mapped file itself is what's in question).
+
+## Recurrence 9 (2026-07-28, plan `2026-07-28-audit-evidence-precedence`, phase 2 "Release", task 2.1 phase-2-end-state gate-audit) — ninth occurrence, back to the per-task/version-slot shape
+
+Ninth occurrence, the same per-task/version-slot `phase-N-end-state` shape as Recurrences 1/3/5/6:
+End state 9 required all four release slots bumped in lock-step to the next free patch above the
+live base (`0.14.67` -> `0.14.68`), `version-slots.test.mjs` named as arbiter. The seat split the
+condition exactly as prescribed: content half HARD-verified MET (`git show` at the confirmed
+`auditSha` `9f35c6a9249a5d162e43fd27a59ebeaeacb56a44` — all four slots read `0.14.68`, the 50-commit
+first-parent monotonic-floor window strictly ascending `0.14.19` -> `0.14.68`, README `## Status`
+extraction anchor resolves, `## Releasing` byte-identical across the phase); execution half recorded
+SOFT — "no stamped `pin_status` and no captured gate-log artifact path... the residual 'the suite
+actually ran green' is inference, not gate evidence." Verdict `gate-audit:approve`, `hard:false`,
+`gateEvidence:true`, both findings `disposition:note`.
+
+**Confirms:** the SOFT-never-hold split for this End-state shape now holds across nine occurrences
+and five-plus campaigns; no new nuance, recorded for occurrence-count/date freshness only.
 
 Related: [[deliberately-uncommitted-worker-probe-evidence-is-soft-never-hold]] (same family: an
 evidence-ceiling cannot-confirm is SOFT, not a hold). [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]]
