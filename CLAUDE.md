@@ -72,6 +72,10 @@ One durable lesson = one Markdown file: `name`/`description` + nested `metadata:
 - **In a run**: the Lead prefetches top-K lessons per seat into worker/auditor/servitor prompts at phase launch (fails open); the servitor writes new lessons post-land; with `commitLearnings` opted in (off by default), the Lead lints and commits `docs(learnings): phase N`. `/lessons-learned` is the housekeeping pass (staging copy + atomic swap via `safe-swap.sh`); its `migrate`/`evict` modes adopt/undo the repo root.
 - The pointer line at the top of this file is **ratified and byte-identical across surfaces** — never reword it.
 
+## Doctrine placement: the hot/cold law (ADR 0042)
+
+New doctrine defaults to a `references/` file plus a trigger pointer on the operative surface — inline placement is reserved for tier-1 (every-invocation) doctrine. The pointer shape is fixed: `when <trigger>, read references/<file>` — the trigger is the skeleton, and a pointer without a trigger is a defect. Eviction is a byte-identical move, never a rewrite; budgeted surfaces carry advisory/hard byte lines with ratchet-down semantics (lowering is a normal PR; raising cites ADR 0042's justification rule in the commit body).
+
 ## Known traps
 
 - `docs/learnings/` on a branch/PR not yet merged ⇒ `render-index --local`-only silently drops every `[repo]` row — pass `--repo` whenever the dir exists.
