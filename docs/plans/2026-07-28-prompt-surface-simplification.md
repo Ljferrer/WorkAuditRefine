@@ -36,6 +36,9 @@ on the working branch before `/war` runs: task workers cite its sections and mea
      only.
   9. All four release slots bumped to the next free patch above the live base;
      `version-slots.test.mjs` green; blurb authored against the checklist.
+  10. ADR 0041's `## Relationship to prior ADRs` names ADR 0029 (Decision point 2) and ADR 0024
+     (§(C)) with matching reference-section lines; every pre-existing 0041 line byte-unchanged
+     (additive insertion only); the landing commit cites #1200.
 
 ## Build order (for /war)
 
@@ -81,6 +84,32 @@ Phase 5 worker+servitor families → Phase 6 periphery → Phase 7 ratchet + rel
   Phase 7 by ratchet-down, which D5 classifies as a normal change). The comment also carries the
   D5 formula and the raising-requires-ADR-justification rule.
 - requiresTest: true
+- requiresPackaging: false
+- deps: []
+- target repo: superproject
+
+### Task 1.3: ADR 0041 attribution repair — name ADR 0029 and ADR 0024 (#1200)
+
+- Files: `docs/adr/0041-audit-evidence-precedence.md`
+- Plan slice: Operator-directed fold-in (2026-07-28) of follow-up #1200 — plan 1's phase-1 absorb
+  that never landed, demoted to `follow-up` per the residual rule. Add two bullets to the ADR's
+  `## Relationship to prior ADRs`, matching the existing 0007/0008/0025 bullet style, naming the
+  two ADRs whose ratified rules 0041 ranks without attribution: **ADR 0029
+  (capture grounds on the committed tip), Decision point 2** — the canonical source of
+  `content-at-pin` rungs 1–2 (`git show <audit_sha>:<path>`; a working-tree grep "must never be
+  the sole basis") and of `history` rung 1 (history verb chosen per claim shape); **ADR 0024
+  (integrated-tip / captured-evidence verdicts), §(C)** — the canonical source of `execution`
+  rung 1 (the captured gate-evidence artifact as the sole HARD basis for a provably-unrun
+  finding) and rung 4 (absent artifact ⇒ SOFT `cannot-confirm`). Mirror both citations into the
+  ADR's `## References` section in its existing entry style. **Verify before writing** (recorded
+  spec-citation lesson): read 0029's `## Decision` point 2 and 0024's `### (C)` at the task base
+  and confirm each actually carries the rule being attributed — if a rule's real home differs,
+  cite the true home and say so in the done report rather than propagating #1200's shorthand.
+  Additive only: every pre-existing line of 0041 stays byte-unchanged (word-diff-verifiable); the
+  D26 doc-contract row matches token keys against the whole normalized ADR (`norm(adr0041)`), so
+  purely additive text cannot un-match a key — re-confirm at the task base. The commit body cites
+  #1200 (its close condition); the Lead closes #1200 at phase close citing the landed SHA.
+- requiresTest: false
 - requiresPackaging: false
 - deps: []
 - target repo: superproject
@@ -249,6 +278,12 @@ Phase 5 worker+servitor families → Phase 6 periphery → Phase 7 ratchet + rel
   identically, the docs-vs-base classification (Tasks 1.1/6.2 all-`*.md`; every card+literal or
   shrink+re-anchor task mixed) no longer changes model or effort anywhere — it remains dispatch
   bookkeeping only.
+- **#1200 fold-in (operator-directed, 2026-07-28).** Task 1.3 and End state 10 land a campaign
+  residual from plan 1 (the un-landed ADR-attribution absorb, filed as #1200) — deliberately
+  outside the source spec's scope; the operator's direction ("Add #1200 to Plan 2") is the
+  authority. File-disjoint from Tasks 1.1/1.2, same wave, `deps: []`. Threaded as an adjudication
+  row at launch so plan-faithfulness seats read the amended plan as authoritative rather than
+  flagging spec drift.
 - **Placeholder-constants two-step (Tasks 1.2 → 7.1)** resolves the spec's internal ordering
   tension (D6 wants the counterweight first; D5 derives constants from post-shrink sizes):
   machinery lands in Phase 1 with pre-shrink × 1.25 placeholders, the Phase 7 ratchet lands the
