@@ -77,10 +77,13 @@ expect_deny() {
 
 # expect_deny_teach <description> <payload-json> <substr>
 # Asserts: exit 2 AND "WAR:" marker AND <substr> present on stderr.
-# The extra <substr> check is the D6 micro-teach assertion — the deny message
-# must name the sanctioned alternative (Read/Grep/Glob, the Grep tool, or the
-# =-attached branch read-flag form). Substr matched literally via a quoted case
-# pattern (the payloads carry no glob-special chars).
+# The extra <substr> check is the 2026-07-22 spec's D6 micro-teach assertion — the deny message
+# must name the sanctioned alternative (Read/Grep/Glob, the Grep tool, the
+# =-attached branch read-flag form, or — since the 2026-07-26 spec's D3 — the
+# one-bare-git-command-per-Bash-call form at the forbidden-char deny). Substr
+# matched literally via a quoted case pattern: "$3" is quoted, so even a substr
+# carrying glob-special chars (e.g. the parens in "character(s)") matches
+# literally, and the payloads themselves are never used as patterns.
 expect_deny_teach() {
   n=$((n + 1))
   _rc="$(rc_of "$2")"
@@ -387,6 +390,10 @@ expect_deny "G5: git fetch → denied (not in read allowlist)" \
 # D3 re-ratification (2026-07-22 auditor-guard-ergonomics spec §3): the char/verb widening
 # admitted ~/%, ls-tree and read-form branch but DECLINED `git grep` — the unrestricted Grep
 # tool is the sanctioned repo-wide sweep channel (named in the unlisted-verb deny's micro-teach).
+# D2 THIRD ratification (2026-07-26 auditor-guard-policy-and-mirror-truth spec §3, after ADR 0029's
+# rejected-and-deferred grep-verb option and the 2026-07-22 spec's D3): still no — admitting the verb
+# would also open an execution hole (git grep -O<cmd> runs an arbitrary pager command the fail-closed
+# char allowlist cannot tell from a benign search). See ADR 0029's Amendment (2026-07-26).
 expect_deny "G6: git grep token → denied (grep verb NOT admitted; allowlist unwidened)" \
   "$(auditor_cmd "git grep token")"
 
@@ -478,6 +485,8 @@ expect_deny "I2: work-audit-refine:war-auditor git push → denied (exact dispat
 # token-shape default-deny (no write flag is enumerated). The C/E/H5 injection
 # cases above stay unmodified and green — that is the widening proof: only ~/%
 # joined the char set, nothing in the metacharacter/global-flag defense moved.
+# SCOPE: the "only ~/%" delta above is THIS group's history (#980 / #982), not a
+# standing claim about the live char set — 2026-07-26 D1 later added + (group K).
 # ---------------------------------------------------------------------------
 
 # J1: git diff HEAD~1 — the ~ char (most idiomatic revision form) now allowed
@@ -556,6 +565,65 @@ expect_deny_teach "J17: cat file.txt → denied + Read/Grep/Glob micro-teach" \
 # J18: unlisted git verb → deny micro-teaches the Grep tool for repo-wide search (D6).
 expect_deny_teach "J18: git tag v1 → denied + Grep-tool micro-teach" \
   "$(auditor_cmd "git tag v1")" "Grep tool"
+
+# ---------------------------------------------------------------------------
+# CASE GROUP K: + admitted to the char set + forbidden-char micro-teach (#1138 / #1025)
+# A LATER widening than group J's (#980 / #982) ~ and % pair: the 2026-07-26 D1
+# adds exactly one more char, +, so the range-length line forms -L <start>,+<n>
+# and -L /re/,+<n> stop tripping the forbidden-char deny before their already-
+# allowlisted verb (blame / log) is ever consulted. Nothing else moves: K4 pins
+# that a +-carrying command still dies on ; composition, and the C/E/H5
+# injection cases above stay unmodified and green — the same widening proof
+# group J used. K5/K6/K7/K8 pin the D3 micro-teach on the forbidden-char deny.
+# ---------------------------------------------------------------------------
+
+# K1: git blame -L <start>,+<n> — the numeric range-length form (the #1138 denial family)
+expect_allow "K1: git blame -L 10,+5 hooks/validate-auditor-git.sh → allowed (+ admitted to char set)" \
+  "$(auditor_cmd "git blame -L 10,+5 hooks/validate-auditor-git.sh")"
+
+# K2: git blame -L /re/,+<n> — the regex-anchored range-length form
+expect_allow "K2: git blame -L /deny/,+10 hooks/validate-auditor-git.sh → allowed (regex -L form)" \
+  "$(auditor_cmd "git blame -L /deny/,+10 hooks/validate-auditor-git.sh")"
+
+# K3: git log -L <start>,+<n>:<file> — the log-side range form. Required, not optional:
+# the log/blame case arms carry no per-flag policing and -L matches no post-subcommand
+# deny pattern, so the char set is the whole gate here.
+expect_allow "K3: git log -L 5,+3:hooks/validate-auditor-git.sh → allowed (log -L range form)" \
+  "$(auditor_cmd "git log -L 5,+3:hooks/validate-auditor-git.sh")"
+
+# K4: composition deny with a + payload → the widening must NOT weaken chain denial.
+# ; is still outside the char set, so the forbidden-char deny fires before the
+# allowlisted blame verb is ever consulted (C2 parity, now with a + in the command).
+expect_deny "K4: git blame -L 1,+5; rm -rf . → denied (semicolon composition still denied)" \
+  "$(auditor_cmd "git blame -L 1,+5; rm -rf .")"
+
+# K5/K6/K7/K8: the D3 forbidden-char micro-teach, asserted four times on one payload —
+# one per contract element, so no element can be trimmed away silently.
+# SITE-PINNED BY ROUTING, not merely by substring: the char check is the first check
+# after the empty-command guard, so "git diff HEAD && git log" can only exit at the
+# forbidden-char deny site — a future teach-vocabulary overlap at another deny site
+# cannot make any of these assertions pass vacuously.
+# K5 pins the prefix tail "forbidden character(s):" plus the head -c 20 residue echo at
+# the front (the leading "command contains" fragment rides along, unpinned by itself).
+expect_deny_teach "K5: git diff HEAD && git log → denied + byte-preserved prefix and residue echo" \
+  "$(auditor_cmd "git diff HEAD && git log")" "forbidden character(s): &&"
+
+# K6 pins the teach span itself. This substring is BYTE-FROZEN — polishing the prose
+# around it is in bounds; editing the span reds this case, by design.
+expect_deny_teach "K6: git diff HEAD && git log → denied + one-bare-git-command micro-teach" \
+  "$(auditor_cmd "git diff HEAD && git log")" "one bare git command per Bash call"
+
+# K7 pins the third teach element — the Read/Grep/Glob clause — at THIS deny site.
+# Without it the message could be trimmed to end after "per Bash call" and K5/K6 stay
+# green (J17's Read/Grep/Glob assertion is anchored on the not-a-git deny, a different route).
+expect_deny_teach "K7: git diff HEAD && git log → denied + Read/Grep/Glob teach element" \
+  "$(auditor_cmd "git diff HEAD && git log")" "Read/Grep/Glob tools"
+
+# K8 pins the remaining teach element — split-the-chain. Without it the middle clause
+# could be dropped from the message and K5/K6/K7 all stay green (the same trimming
+# argument K7 records, applied to the one element K7 left unpinned).
+expect_deny_teach "K8: git diff HEAD && git log → denied + split-the-chain teach element" \
+  "$(auditor_cmd "git diff HEAD && git log")" "split && / ; chains"
 
 # ---------------------------------------------------------------------------
 # Summary

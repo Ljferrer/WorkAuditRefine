@@ -12,9 +12,10 @@
 #   Non-auditor agent types → exit 0 (pass-through; this guard is auditor-only).
 #
 # FAIL-CLOSED CHARACTER ALLOWLIST (bash 3.2.57 compatible)
-#   Permitted chars: [A-Za-z0-9 ./_=:,@^~%-]
+#   Permitted chars: [A-Za-z0-9 ./_=:,@^~%+-]
 #   (~ and % admit the idiomatic read forms HEAD~1 and --pretty=format:%H;
-#   neither carries shell-metacharacter semantics in the denied-composition
+#   + admits the range-length line forms blame -L <start>,+<n> and -L /re/,+<n>;
+#   none carries shell-metacharacter semantics in the denied-composition
 #   space that remains — quotes/globs/braces/$/parens/pipes/redirects still deny.)
 #   Method: LC_ALL=C tr -d '<allowlist>' extracts residue.
 #   If residue is non-empty → forbidden char detected → DENY.
@@ -72,7 +73,7 @@ deny() {
 
 # ---------------------------------------------------------------------------
 # CHARACTER ALLOWLIST check (fail-closed).
-# Permit only: A-Za-z0-9 SPACE . / _ = : , @ ^ ~ % -
+# Permit only: A-Za-z0-9 SPACE . / _ = : , @ ^ ~ % + -
 # Use LC_ALL=C tr -d to extract any character outside the allowed set.
 # If residue is non-empty, a forbidden character is present → DENY.
 #
@@ -80,11 +81,11 @@ deny() {
 # strips trailing newlines from $(...) so the pattern would be empty.
 # Instead, newline is implicitly denied because it is NOT in the allowlist.
 # ---------------------------------------------------------------------------
-residue="$(printf '%s' "$cmd" | LC_ALL=C tr -d 'A-Za-z0-9 ./_=:,@^~%-')"
-[ -n "$residue" ] && deny "command contains forbidden character(s): $(printf '%s' "$residue" | LC_ALL=C tr -d $'\n' | head -c 20)"
+residue="$(printf '%s' "$cmd" | LC_ALL=C tr -d 'A-Za-z0-9 ./_=:,@^~%+-')"
+[ -n "$residue" ] && deny "command contains forbidden character(s): $(printf '%s' "$residue" | LC_ALL=C tr -d $'\n' | head -c 20) — the guard admits one bare git command per Bash call: split && / ; chains and continuations into separate calls; filter and search output with the Read/Grep/Glob tools"
 
 # ---------------------------------------------------------------------------
-# At this point, the command contains only [A-Za-z0-9 ./_=:,@^~%-].
+# At this point, the command contains only [A-Za-z0-9 ./_=:,@^~%+-].
 # Parse it: must start with 'git ' (or be exactly 'git').
 # ---------------------------------------------------------------------------
 case "$cmd" in
@@ -171,6 +172,9 @@ esac
 # by token shape). --format is deliberately absent (parens stay denied anyway).
 # bash-3.2-safe: unquoted `for tok in $branch_rest` word-split is safe here —
 # the char allowlist already excludes quotes and glob chars, so no re-split/glob.
+# COUPLING: the deny string's two parenthesized flag groups are parsed by the
+# extraction-equality test (2026-07-26 spec D6) in
+# skills/war/assets/workflow-template.test.mjs — reshape both together.
 # ---------------------------------------------------------------------------
 if [ "$subcmd" = "branch" ]; then
   branch_rest="${rest#branch}"

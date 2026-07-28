@@ -777,11 +777,15 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin) {
     + pt`Run \`git diff ${ph.integrationBranch}...${task.branch}\` (three-dot = merge-base..head = exactly what this task added) for the authoritative change set; re-run it each round (a fix-worker may have pushed). `
     // READ-ONLY GIT GUARD CONTRACT (D5, spec §5) — mirrored as the "## Read-only git guard contract"
     // section in agents/war-auditor.md (same commit); the D3 both-surfaces registry row anchors the
-    // shared tokens (one bare git / no pipes / ls-tree / Grep tool) on BOTH surfaces AND asserts the
+    // shared tokens (one bare git / no pipes / ls-tree / Grep tool / value-carrying / bare read flags) on
+    // BOTH surfaces AND asserts the
     // retired partial teach (the old pretty-format / reflog fragments) is absent from both (red-team
     // adjudication, ADR 0025). The verb list mirrors the hook's unlisted-verb deny enumeration in
-    // hooks/validate-auditor-git.sh.
-    + pt`READ-ONLY GIT GUARD CONTRACT: run one bare git command per Bash call from the read-verb allowlist (diff, log, show, merge-base, rev-parse, status, ls-files, ls-tree, cat-file, blame, branch) — no pipes, chaining, redirects, quotes, globs, braces, or substitution: compose nothing, and filter or search the output with the Read/Grep/Glob tools instead. Non-git shell reads (ls, cat, wc, …) always deny — use Read/Glob, or git ls-files / git ls-tree to list tree contents. branch takes =-attached read flags only (--contains=<rev>, --merged=<rev>, --points-at=<rev>, --list, -a, -r, --show-current, -v); a bare name or write flag denies. git grep stays denied — the Grep tool is the sweep channel. Avoid @{} reflog (braces are denied) — use git log -g instead.\n`
+    // hooks/validate-auditor-git.sh. The branch two-arm flag enumeration below has a STRICTER arbiter:
+    // the D6 extraction-equality test in workflow-template.test.mjs reads the hook's own branch deny
+    // string and asserts every flag token it lists onto BOTH mirror surfaces — the hook string is
+    // canonical, these mirrors are followers, so a hook-side flag change REDs the mirrors.
+    + pt`READ-ONLY GIT GUARD CONTRACT: run one bare git command per Bash call from the read-verb allowlist (diff, log, show, merge-base, rev-parse, status, ls-files, ls-tree, cat-file, blame, branch) — no pipes, chaining, redirects, quotes, globs, braces, or substitution: compose nothing, and filter or search the output with the Read/Grep/Glob tools instead. Non-git shell reads (ls, cat, wc, …) always deny — use Read/Glob, or git ls-files / git ls-tree to list tree contents. branch admits read forms only, in two arms: value-carrying flags =-attached (--contains=<rev>, --no-contains=<rev>, --merged=<rev>, --no-merged=<rev>, --points-at=<rev>, --sort=<key>), and bare read flags (--list, --all, -a, --remotes, -r, --show-current, --verbose, -v, -vv); a bare name, a space-form value (--contains <rev>), or any write flag denies. git grep stays denied — the Grep tool is the sweep channel. Avoid @{} reflog (braces are denied) — use git log -g instead.\n`
     + pt`Then read candidate files under ${task.worktree}/ for neighbor/deep context.\n`
     + pt`Verify the mapped acceptance-criteria tests EXIST and are not weakened or skipped (anti-cheat: catch "green by deletion" and test-integrity erosion). You cannot execute the gate — the refiner runs the gate. Your job is to confirm tests exist in the diff and are uncompromised.`
     // Latitude + disposition + calibration + cost-claim rules (ADR 0013) — mirrored VERBATIM in

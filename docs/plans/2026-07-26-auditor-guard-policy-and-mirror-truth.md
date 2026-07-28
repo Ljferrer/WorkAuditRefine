@@ -3,7 +3,9 @@
 Source spec: `docs/specs/2026-07-26-auditor-guard-policy-and-mirror-truth-design.md` (issues
 #1138, #1025, #1124 — all re-verified live on the working tree at plan time: the `tr -d` set in
 `hooks/validate-auditor-git.sh` is `'A-Za-z0-9 ./_=:,@^~%-'` with no `+`; the forbidden-char
-`deny` is the only deny site with no remediation hint; the hook's branch deny string already
+`deny` is the deny site the measured runs actually trip that names no compliant form (seven
+other low-traffic deny sites are also hintless — red-team corrected the earlier "only" claim;
+D3's scope, one suffix on the forbidden-char message, is unchanged); the hook's branch deny string already
 carries the two-arm form while **both** prompt mirrors still teach the contradictory
 `` `=`-attached read flags only `` claim with the seven-flag under-enumeration; the D3 registry
 guard-contract row anchors only `/one bare git/i`, `/no pipes/i`, `/ls-tree/i`, `/Grep tool/i`;
@@ -18,8 +20,8 @@ ADR 0029's rejected-option record for the `grep` verb exists and stands).
   families: `blame -L …,+N` tripping the char allowlist before its allowlisted verb is ever
   consulted (admit `+` — provably inert in the remaining denied composition space), `git grep`
   (keep denied — third ratification; the Grep tool is the sweep channel and `-O` is an execution
-  hole), and `&&`-chains dying at the one deny site that names no compliant form (micro-teach
-  it). Independently, both prompt mirrors still teach the #1085 branch-clause
+  hole), and `&&`-chains dying at the deny site the measured runs actually trip that names no
+  compliant form (micro-teach it). Independently, both prompt mirrors still teach the #1085 branch-clause
   self-contradiction ("`=`-attached read flags only" followed by five bare flags) that the
   hook's own deny string shed on 2026-07-24, and omit seven flags the hook admits — rewrite
   both mirrors to the hook's two-arm characterization and drift-lock them so the next hook-side
@@ -40,8 +42,9 @@ ADR 0029's rejected-option record for the `grep` verb exists and stands).
   fixture; D6 adds the extraction-equality test that reads the hook's branch deny string and
   asserts every extracted flag token onto both mirror surfaces — token-boundary matched, never
   naive substring — failing loudly if the deny string is unlocatable). The D4 wording keeps every pre-existing anchor token (`one bare git`,
-  `no pipes`, `Grep tool`, `ls-tree`, `=-attached`) so F03, the registry, and J16 pass without
-  weakening. Every spec §4 grep is a floor, not a ceiling — run it, then hand-scan the named
+  `no pipes`, `Grep tool`, `ls-tree`, `=-attached`) so F03 and the registry pass without
+  weakening (J16 is anchored on the hook's stderr — its `=-attached` comes from the
+  byte-untouched deny string and stays green independently of D4's mirror wording). Every spec §4 grep is a floor, not a ceiling — run it, then hand-scan the named
   same-scope comments and adjudicate each match as a survey-derived correction or an explicit
   confirm-correct; dated decision records and lesson bodies are provenance-dated history,
   confirm-correct, never rewritten.
@@ -70,7 +73,11 @@ ADR 0029's rejected-option record for the `grep` verb exists and stands).
      test; wording latitude applies only to the suffix prose around it.
   4. `git grep <token>` still denies: the G6 case stays `expect_deny` with a byte-identical
      payload, and its comment gains one line citing this spec's D2 third ratification (after
-     ADR 0029's rejected-option record and the 2026-07-22 spec's D3).
+     ADR 0029's rejected-option record and the 2026-07-22 spec's D3); **and**
+     `docs/adr/0029-capture-grounds-on-committed-tip.md` ends with an appended dated
+     `## Amendment (2026-07-26)` section recording the D2 third ratification (naming the `-O`
+     pager execution-hole argument), with the Considered-options entry and all pre-existing
+     body text byte-unchanged.
   5. Both mirror surfaces — the branch bullet in `## Read-only git guard contract` of
      `agents/war-auditor.md` and the branch sentence in the `READ-ONLY GIT GUARD CONTRACT`
      clause of `auditPrompt()` in `skills/war/assets/workflow-template.js` — carry the D4
@@ -102,7 +109,10 @@ ADR 0029's rejected-option record for the `grep` verb exists and stands).
      substring — `-a`/`-r`/`-v` are substrings of `--all`/`--points-at=`/`--remotes`/
      `--verbose`/`-vv` and a dropped short flag would pass a substring check vacuously); an
      unlocatable deny string fails loudly with a message directing "re-point the extractor at
-     the reshaped deny string" — never a silent empty pass.
+     the reshaped deny string", **and** the extractor asserts it found exactly two
+     parenthesized groups each yielding a non-empty token list (a locatable-but-zero-token
+     parse — reflowed enumeration, emptied group — fails loudly too; red-team closed this
+     vacuous-pass hole) — never a silent empty pass.
   9. Delete-the-feature probes (worker-run in-worktree, reverted before commit, evidence in
      the done report — the recorded deliberately-uncommitted-probe lesson makes the resulting
      cannot-confirm SOFT at gate-audit, never a hold): reverting either surface's branch
@@ -118,7 +128,9 @@ ADR 0029's rejected-option record for the `grep` verb exists and stands).
       same-meaning siblings of the retired claim — every straggler listed as a survey-derived
       correction or an explicit confirm-correct.
   11. `node --test 'skills/**/*.test.mjs'` green; every pre-existing anchor token (`one bare
-      git`, `no pipes`, `Grep tool`, `ls-tree`, and J16's literal `=-attached`) survives.
+      git`, `no pipes`, `Grep tool`, `ls-tree`, `=-attached`) survives on the mirror surfaces
+      (J16's own `=-attached` assertion reads the hook's stderr — the byte-untouched deny
+      string — and is proven by the shell suite, not this JS gate).
   12. **Release:** all four version slots bumped in lock-step to the next free patch above the
       live integration base at land time; `version-slots.test.mjs` green.
 
@@ -128,7 +140,9 @@ ADR 0029's rejected-option record for the `grep` verb exists and stands).
   file-disjoint (Task 1.1: the hook pair; Task 1.2: the two mirrors + JS guards). Task 1.2's
   D6 test *reads* `hooks/validate-auditor-git.sh` but does not modify it, and its extraction
   target — the branch deny string's two parenthesized groups — is byte-untouched by Task 1.1
-  (D1/D3 touch only the char set, its comments, and the forbidden-char deny message), so this
+  (D1/D3 touch only the char set, its comments, the forbidden-char deny message, **plus the
+  one sanctioned coupling comment in the comment block above the branch per-token loop** —
+  the deny-string lines themselves stay byte-untouched), so this
   is a read of an unmodified construct, not a footprint collision and not a deps edge.
 - Phase 2 — Release (its own trailing phase per the decomposition rule).
 
@@ -150,13 +164,20 @@ ADR 0029's rejected-option record for the `grep` verb exists and stands).
   (already-correct) deny string, the global-flag block, the `-C` peel, the post-subcommand
   `--output`/`-o` scan, all exit codes, the `WAR:` marker — with **one sanctioned
   exception**: add a one-line coupling comment in the comment block above the branch
-  per-token loop ("the deny string's two parenthesized flag groups are parsed by the D6
-  extraction-equality test in skills/war/assets/workflow-template.test.mjs — reshape both
-  together"), per the #811 shared-string coupling-comment precedent. The deny-string lines
+  per-token loop ("the deny string's two parenthesized flag groups are parsed by the
+  extraction-equality test (2026-07-26 spec D6) in
+  skills/war/assets/workflow-template.test.mjs — reshape both together"), per the #811
+  shared-string coupling-comment precedent. **D-letter namespace caution (red-team):** the
+  hook's existing comments already use a PRIOR spec's D-numbers (e.g. line ~164
+  `READ-FORM branch enforcement (D4)` is the 2026-07-22 spec's D4, not this plan's) — the
+  new comment must carry the `2026-07-26 spec` qualifier and no existing D-numbered comment
+  is renumbered. The deny-string lines
   themselves are byte-untouched and must not be reflowed — they are D6's extraction target
   and Task 1.2 merges against them.
-  **(b) D3 micro-teach:** the forbidden-char `deny()` message — the only deny site with no
-  sanctioned-alternative hint — gains a bounded suffix after the byte-preserved prefix and
+  **(b) D3 micro-teach:** the forbidden-char `deny()` message — the deny site the measured
+  runs actually trip that names no sanctioned alternative (seven other hintless deny sites
+  exist but carry no measured traffic; they are out of scope) — gains a bounded suffix after
+  the byte-preserved prefix and
   `head -c 20` residue echo. Wording latitude is allowed; the contract is the prefix intact at
   the front plus the three teach elements: run **one bare git command per Bash call**; split
   `&&` / `;` chains and continuations into separate calls; filter and search output with the
@@ -181,12 +202,17 @@ ADR 0029's rejected-option record for the `grep` verb exists and stands).
   ratification of the `git grep` denial (after ADR 0029's "widen the auditor allowlist to add
   a `grep` verb — rejected, deferred" record and the 2026-07-22 spec's D3); the G6 case itself
   stays `expect_deny`, payload byte-identical. **Additionally (operator-ratified at the
-  war-machine volley, superseding spec §7's comment-only vehicle):** add a one-line dated
-  status note to the `grep`-verb Considered-options entry in
-  `docs/adr/0029-capture-grounds-on-committed-tip.md` — "re-ratified 2026-07-26 by the
-  auditor-guard-policy-and-mirror-truth spec D2, adding the `-O` pager execution-hole
-  argument" — a status annotation matching that ADR's existing dated-amendment precedent,
-  never a rewrite of the historical record. Injection groups C, E, H5 and all existing
+  war-machine volley, superseding spec §7's comment-only vehicle; vehicle re-adjudicated at
+  red-team):** append a new dated section at the **end** of
+  `docs/adr/0029-capture-grounds-on-committed-tip.md` — heading
+  `## Amendment (2026-07-26): D2 third ratification of the grep-verb rejection`, one short
+  paragraph recording that the auditor-guard-policy-and-mirror-truth spec D2 re-ratified the
+  `grep`-verb rejection and added the `-O` pager execution-hole argument. The Considered-options
+  entry and ALL pre-existing body text stay byte-unchanged — this matches the ADR's real
+  precedent (the appended `## Amendment (2026-07-22)` section, whose closing sentence states
+  the Considered options were left byte-unchanged) and its "superseded, never edited"
+  convention; an in-place entry edit would have falsified both (red-team finding). Injection
+  groups C, E, H5 and all existing
   cases untouched and green — no existing case sends a `+` (verified at tip), so no fixture
   flips.
   **(e) Mandatory same-file comment survey (spec §10 criterion 9):** after the mechanical
@@ -235,8 +261,12 @@ ADR 0029's rejected-option record for the `grep` verb exists and stands).
   negative lands beside the existing `RETIRED_PREMISE_SAMPLES` negative-reference precedent:
   the pre-change sentence kept as fixture samples in **both byte variants** (the .md's
   `` `=`-attached read flags only `` — backtick between `=` and `-attached` — and the JS's
-  plain `=-attached read flags only`; that backtick position is the only spot the variants
-  differ, which is exactly what the regex's optional backtick tolerates — validated against
+  plain `=-attached read flags only`; **within the regex's matched span** that backtick is
+  the only difference, which is exactly what the regex's optional backtick tolerates — the
+  full surrounding sentences differ more widely (bold markers, backticked `branch`, flag
+  lists), so the fixture samples must capture each surface's real bytes for the matched
+  span, not a hand-normalized common form; red-team corrected the earlier only-difference
+  claim — validated against
   both surfaces' real bytes at plan time), the backtick-tolerant absence regex (e.g.
   ``/=`?-attached read flags only/i``) asserted absent on both surfaces, and each fixture
   sample asserted to MATCH the regex (non-vacuity, the precedent's both-ways proof —
@@ -253,19 +283,28 @@ ADR 0029's rejected-option record for the `grep` verb exists and stands).
   never naive substring presence (`-a`, `-r`, `-v` are substrings of `--all`/`--points-at=`,
   `--remotes`, and `--verbose`/`-vv`; a dropped short flag would pass a substring check
   vacuously). An unlocatable deny string fails loudly with a
-  message saying "re-point the extractor at the reshaped deny string" — never a silent skip
+  message saying "re-point the extractor at the reshaped deny string", and the extraction
+  itself asserts exactly two parenthesized groups each yielding a non-empty token list — a
+  locatable anchor whose groups parse to zero tokens fails loudly with the same re-point
+  message, never a vacuous green (End state 8) — never a silent skip
   and never an implication that the mirrors drifted. D5's hand anchors remain as the presence
   floor beneath it. The F03 prompt test needs no anchor change (all its fragments survive the
   D4 wording), but re-read its comment for lagging claims during the edit.
   **(e) Retired-phrase token sweep (floor) + mandatory survey:** grep the repo for the retired
-  claim — tokens `read flags only` and `=-attached read flags only`, backtick-tolerant — and
-  handle every match: the two mirror surfaces are the rewrites; this task's own
+  claim — tokens `read flags only` and `=-attached read flags only`, backtick-tolerant, **plus
+  the inverted word order `only =-attached read flag` / `=-attached read flag (`** (red-team:
+  the known sibling phrasing lives in the archived lesson
+  `docs/learnings/archive/guard-deny-string-blanket-adjective-mismatches-mixed-flag-shapes.md`,
+  which writes "takes only =-attached read flags" — the straight tokens never fire on it) —
+  and handle every match: the two mirror surfaces are the rewrites; this task's own
   negative-reference fixture in `workflow-template.test.mjs` is the one sanctioned deliberate
-  deposit (End state 5's named carve-out); matches inside dated decision records
-  (`docs/specs/2026-07-24-runbook-and-standing-record-coherence-design.md`, red-team
-  reports, lesson bodies under `docs/learnings/` such as
-  `guard-deny-string-blanket-adjective-mismatches-mixed-flag-shapes`) are provenance-dated
-  history — confirm-correct, never rewrite. Then the mandatory manual same-scope survey (the
+  deposit (End state 5's named carve-out); at base the straight tokens hit **only** the two
+  mirrors plus dated plans/specs (this plan/spec pair and the 2026-07-22
+  auditor-guard-ergonomics pair — zero hits under `docs/red-team/` or `docs/learnings/`
+  proper; red-team corrected the earlier match-class enumeration), and matches inside dated
+  decision records, red-team reports, or lesson bodies (hot or `archive/`) are
+  provenance-dated history — confirm-correct, never rewrite. Then the mandatory manual
+  same-scope survey (the
   grep is a completeness floor, not a ceiling): hand-scan the full `## Read-only git guard
   contract` section of `agents/war-auditor.md`, the whole `READ-ONLY GIT GUARD CONTRACT`
   clause and its provenance comment in `workflow-template.js`, the D3 registry row comment and
@@ -339,13 +378,6 @@ ADR 0029's rejected-option record for the `grep` verb exists and stands).
 
 ## Deferred validations (backstops)
 
-- Shell suite green at land · why deferred: the refiner-dispatched gate artifact is JS-only
-  (the recorded `refiner-dispatched-gate-never-resolvegate-composed-shell-suite-blind`
-  lesson), so `bash hooks/validate-auditor-git.test.sh` never appears in the captured gate
-  log even though it proves the entire D1/D3 change · runner: the Task 1.1 worker
-  in-worktree, full output threaded into the done report; gate-audit treats the resulting
-  cannot-confirm as SOFT per the recorded uncommitted-probe lesson — and this bullet (not
-  Notes prose) is what keeps the evidence non-waivable (ADR 0017).
 - Live-run denial-rate reduction · why deferred: D1 + D3 claim to cut the measured
   denial-retry turn-burn (#1025: 244, #1138: 52), but the actual reduction is observable only
   in a future real audit phase — no sandbox reproduces 30 opus seats' first-instinct idioms ·
@@ -375,13 +407,18 @@ ADR 0029's rejected-option record for the `grep` verb exists and stands).
   byte-unmoved.
 - **No CONTEXT.md, no new ADR (spec §6/§7):** "micro-teach" and "both-surfaces registry" are
   established terms; no new ADR is authored. The operator ratified one amendment to spec §7 at
-  the war-machine volley: ADR 0029 gains a dated status note on its `grep`-verb
-  Considered-options entry (Task 1.1(d)) alongside the G6 comment-line citation.
-- **Gate:** reference the self-discovery gate (`resolveGate` in `war-config.mjs`) by name; the
-  refiner-dispatched gate artifact is JS-only here, so `bash hooks/validate-auditor-git.test.sh`
-  green-at-land is carried as an explicit bullet under `## Deferred validations (backstops)`
-  (ADR 0017 — never prose-waivable), evidenced by the worker's in-worktree run in the done
-  report.
+  the war-machine volley: ADR 0029 gains an appended dated `## Amendment (2026-07-26)` section
+  recording the D2 third ratification (Task 1.1(d)) alongside the G6 comment-line citation —
+  the Considered-options entry itself stays byte-unchanged (vehicle corrected at red-team).
+- **Gate (red-team corrected, prior premise false):** the resolved gate (`resolveGate` in
+  `war-config.mjs`, engine-normalized at the ADR 0036 gate composition point in
+  `workflow-template.js`) composes the `*.test.sh` discovery loop, so
+  `bash hooks/validate-auditor-git.test.sh` runs inside the refiner's gate at every merge and
+  land — the D1/D3 shell evidence is HARD gate-log evidence, not a deferred backstop. (The
+  earlier draft cited the `refiner-dispatched-gate-…-shell-suite-blind` lesson; that lesson is
+  RESOLVED #894 and archived — a gate log missing the shell section is a fresh regression,
+  never a known SOFT.) The Task 1.1 worker's in-worktree suite run stays as pre-merge
+  corroboration threaded into the done report.
 
 ### Resolve-round decisions (adversarial grill, self-decided)
 
@@ -401,13 +438,22 @@ ADR 0029's rejected-option record for the `grep` verb exists and stands).
   checked mechanically by audit seats on the pinned diff (End state 1 states the property);
   the three comment homes move in the same edit and drift is the standing comment-lag duty's
   jurisdiction. No new self-referential test added.
-- **Old-char-set prose census ran at plan time:** `grep -rF 'A-Za-z0-9 ./_=:,@^~%-'` hits only
-  the hook's three comment homes and dated plans/specs (provenance history) — CLAUDE.md, the
-  tour, war-help, and ADR 0029 carry no char-set literal. Worker re-runs it at base.
-- **ADR 0029 status note (operator-ratified, superseding the drafted spec-§7-only form):**
-  the triad survivor was raised at the war-machine volley and the operator chose the dated
-  status-note option — Task 1.1(d) carries it. The ADR's "rejected — deferred" record itself
-  stays byte-accurate; the note is additive, matching the ADR's dated-amendment precedent.
+- **Old-char-set prose census ran at plan time (hit-set corrected at red-team):**
+  `grep -rF 'A-Za-z0-9 ./_=:,@^~%-'` hits, inside the hook, the header comment, the live
+  `tr -d` **code line**, and the post-check comment — two comment homes plus code; the third
+  comment home (the "Permit only: A-Za-z0-9 SPACE . / _ = : , @ ^ ~ % -" block) spells the
+  set space-separated and is NOT hit by the fixed-string grep, yet D1 must still update it
+  (Task 1.1(a) enumerates all three homes independently of this census). Outside the hook the
+  literal appears only in dated plans/specs (provenance history) — CLAUDE.md, the tour,
+  war-help, and ADR 0029 carry no char-set literal. Worker re-runs it at base.
+- **ADR 0029 status note (operator-ratified, superseding the drafted spec-§7-only form;
+  vehicle corrected at red-team):** the triad survivor was raised at the war-machine volley
+  and the operator chose the dated status-note option — Task 1.1(d) carries it, as an
+  **appended dated amendment section** (never an in-place edit of the Considered-options
+  entry: the ADR's 2026-07-22 amendment precedent explicitly left the Considered options
+  byte-unchanged, and the ADR records the "superseded, never edited" convention — an in-place
+  note would have contradicted both). The "rejected — deferred" record itself stays
+  byte-accurate; the appended section is purely additive.
 - **D4 full enumeration over a pointer-to-hook shape is load-bearing:** D6 asserts every hook
   token present on both mirrors, and the mirrors exist to front-load the flag list at the
   seat's decision point; ~15 tokens/seat is the accepted cost (spec §8).

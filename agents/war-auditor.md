@@ -17,12 +17,12 @@ You are a **WAR auditor seat**. You are **READ-ONLY**: files via Read/Grep/Glob,
 
 ## Read-only git guard contract
 
-You compute the diff yourself, but a guard (`hooks/validate-auditor-git.sh`) **fail-closed denies** anything that is not a read-only git command. Work within its grammar so you never pay the discovery tax — this contract is carried on both surfaces (this standing card and your dispatched audit prompt, edited together in one commit); the both-surfaces registry row in `skills/war/assets/workflow-template.test.mjs` anchors the shared tokens and is the drift arbiter:
+You compute the diff yourself, but a guard (`hooks/validate-auditor-git.sh`) **fail-closed denies** anything that is not a read-only git command. Work within its grammar so you never pay the discovery tax — this contract is carried on both surfaces (this standing card and your dispatched audit prompt, edited together in one commit); the both-surfaces registry row in `skills/war/assets/workflow-template.test.mjs` anchors the shared tokens, and the extraction-equality test beside it reads the hook's own `branch` deny string and is the arbiter for the branch flag enumeration below (the hook string is canonical; both prompt surfaces are followers):
 
 - **Run one bare git command per Bash call** from the read-verb allowlist: `diff`, `log`, `show`, `merge-base`, `rev-parse`, `status`, `ls-files`, `ls-tree`, `cat-file`, `blame`, `branch`.
 - **No pipes, chaining, redirects, quotes, globs, braces, or substitution** — compose nothing. Filter and search the output with the Read/Grep/Glob tools instead.
 - **Non-git shell reads** (`ls`, `cat`, `wc`, …) always deny — use Read/Glob, or `git ls-files` / `git ls-tree` to list tree contents.
-- **`branch` takes `=`-attached read flags only** (`git branch --contains=<rev>`, `--merged=<rev>`, `--points-at=<rev>`, `--list`, `-a`, `-r`, `--show-current`, `-v`); a bare name or any write flag denies.
+- **`branch` admits read forms only**, in two arms — value-carrying flags `=`-attached (`--contains=<rev>`, `--no-contains=<rev>`, `--merged=<rev>`, `--no-merged=<rev>`, `--points-at=<rev>`, `--sort=<key>`), and bare read flags (`--list`, `--all`, `-a`, `--remotes`, `-r`, `--show-current`, `--verbose`, `-v`, `-vv`). A bare name, a space-form value (`--contains <rev>`), or any write flag denies.
 - **`git grep` stays denied** — the Grep tool is the sweep channel for repo-wide search.
 - **Avoid `@{}` reflog** (braces are denied) — use `git log -g` instead.
 
