@@ -133,6 +133,14 @@ the surface that shape's ladder forbids as a verdict basis.
 - The bound roles are exactly the D5 set — all auditor seats including the reserved
   `execution-evidence` and `pin-validity` passes, the Lead's phase-close/Gate-2 evidence duties,
   and the servitor. Workers and refiners are deliberately not bound.
+- **Sharp edge — the done-report's floor placement inverts on rethreading.** A worker done-report
+  claim is a bottom rung in `content-at-pin` and rung 3 of `execution`, but once the Lead threads
+  it into a dispatch prompt it reaches the receiving agent as `authority` rung 1 (the dispatched
+  task instruction) — the inverse of the floor placement. Spec §4.3 Lead binding (3) is the
+  mitigation, not a re-rank: the Lead grounds such a claim at `content-at-pin`/`execution` before
+  threading it, or marks it unverified. This is a named consequence of the done-report's floor
+  placement — not a separate Lead rule — and it is the 2026-07-27 false-`deps`-claim incident
+  stated as a rule.
 - Progressive disclosure holds: the full ladders live on the standing auditor card; dispatched
   prompts and Lead/servitor surfaces carry only the token skeleton (the four shape names,
   `never the top rung`, `never evidence`) plus a pointer here.
