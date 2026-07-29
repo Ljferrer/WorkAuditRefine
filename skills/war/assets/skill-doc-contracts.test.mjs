@@ -1089,8 +1089,11 @@ test('D29 — ADR 0042 doctrine mirrors (CONTEXT.md glossary terms, CLAUDE.md ho
       ],
     ],
   ]) {
+    // Mirror D26's idiom: escape the term before building the pattern, so a future
+    // metachar-bearing term cannot silently mis-anchor the extraction.
+    const t = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     const block = contextMd.match(
-      new RegExp(`^\\*\\*${term}\\*\\*:[\\s\\S]*?(?=\\n\\*\\*[^\\n*]+\\*\\*:|\\n### )`, 'm'),
+      new RegExp(`^\\*\\*${t}\\*\\*:[\\s\\S]*?(?=\\n\\*\\*[^\\n*]+\\*\\*:|\\n### )`, 'm'),
     )
     assert.ok(
       block,

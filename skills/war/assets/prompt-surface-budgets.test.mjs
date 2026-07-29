@@ -6,8 +6,11 @@
 // size <= hard (red) and logs a warning above advisory (never a failure). Budgets have
 // ratchet-down semantics — LOWERING a constant is a normal PR; RAISING any hard or
 // advisory constant requires citing the prompt-surface-budgets ADR's justification
-// rule in the commit body. Formula (adjudication D): advisory = post-shrink measured
-// size × 1.10 rounded up to the KB; hard = post-shrink × 1.25 rounded up to the KB.
+// rule in the commit body.
+// Pinned by skill-doc-contracts.test.mjs's D29 row (ADR 0042 mirror registry) — reword
+// the Formula sentence below and that row in the same commit.
+// Formula (adjudication D): advisory = post-shrink measured size × 1.10 rounded up to
+// the KB; hard = post-shrink × 1.25 rounded up to the KB.
 // `references/` files are deliberately unbudgeted (cold storage, like memory
 // `archive/`), and README.md is deliberately unbudgeted (a human release surface).
 //
