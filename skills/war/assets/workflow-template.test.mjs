@@ -7838,11 +7838,21 @@ test('Task 5.1 — worker/servitor card evictions: destination carries the moved
     'This allowlist is the **primary confinement**',                // worker §Servitor confinement
     'never move a lesson between hot and `archive/`',               // servitor §Archived lessons
   ]) assert.ok(edges.includes(frag), `worker-servitor-edges.md carries the moved fragment: ${frag}`)
-  // Trigger pointers route each card to the destination.
-  assert.ok(workerMd.includes('../skills/war/references/worker-servitor-edges.md'),
-    'war-worker.md carries a trigger pointer to worker-servitor-edges.md')
-  assert.ok(servitorMd.includes('../skills/war/references/worker-servitor-edges.md'),
-    'war-servitor.md carries a trigger pointer to worker-servitor-edges.md')
+  // Trigger pointers route each card to the destination — owner-relative bare
+  // form (adjudication O(2)): `skills/war/references/<file>`, never `../`-prefixed
+  // (the seat's cwd is a task worktree or the main checkout, so ../ walks out of
+  // the repo — same defect fixed for war-refiner.md by commit 606b72b).
+  assert.equal((workerMd.match(/\(skills\/war\/references\/worker-servitor-edges\.md\)/g) || []).length, 3,
+    'war-worker.md carries all three owner-relative trigger pointers to worker-servitor-edges.md')
+  assert.match(servitorMd, /\(skills\/war\/references\/worker-servitor-edges\.md\)/,
+    'war-servitor.md carries an owner-relative trigger pointer to worker-servitor-edges.md')
+  // Shape-generic absence: NO references/ pointer on either card may be
+  // ../-prefixed, at any depth — closes the enumerated-scope gap that let the
+  // 606b72b defect recur on a second file.
+  assert.ok(!/\((?:\.\.\/)+[^)]*skills\/war\/references\/[^)]+\)/.test(workerMd),
+    'war-worker.md: no references/ pointer uses a forbidden ../-prefixed path, at any depth (adjudication O(2))')
+  assert.ok(!/\((?:\.\.\/)+[^)]*skills\/war\/references\/[^)]+\)/.test(servitorMd),
+    'war-servitor.md: no references/ pointer uses a forbidden ../-prefixed path, at any depth (adjudication O(2))')
   // Decisive rules survive inline on the cards (pointer = enrichment, never sole carrier).
   assert.match(workerMd, /merge_sha/, 'war-worker.md keeps the ledger merge_sha authority rule inline')
   assert.match(workerMd, /gitlink-only/, 'war-worker.md keeps the gitlink-only diff rule inline')
