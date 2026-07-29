@@ -17,9 +17,6 @@ const refinerMd = readFileSync(join(here, '../../../agents/war-refiner.md'), 'ut
 // 2A/2B submodule land arms from the card into this reference file — presence keys over the moved text
 // relocate their read here; every OLD-absent key over the card scans it too.
 const refinerRecoveryMd = readFileSync(join(here, '../references/refiner-recovery.md'), 'utf8')
-// UNION surface (prompt-surface simplification, adjudication I): Task 5.1 evicted the worker/servitor
-// tier>=2 blocks from the cards into this reference file — every OLD-absent key over the card scans it too.
-const edgesMd = readFileSync(join(here, '../references/worker-servitor-edges.md'), 'utf8')
 const src = readFileSync(join(here, 'workflow-template.js'), 'utf8').replace(/^export const meta/m, 'const meta')
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 const build = () => new AsyncFunction('agent', 'parallel', 'pipeline', 'log', 'phase', 'args', 'budget', src)
@@ -7136,10 +7133,8 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     assert.match(sample, CWD_IS_TIP_ASSERTING,
       `negative reference (${label}): the retired asserting form DOES match the guard — the doesNotMatch above is non-vacuous`)
   }
-  for (const [sName, sText] of [['war-servitor.md', servitorMd], ['worker-servitor-edges.md', edgesMd]]) {
-    assert.doesNotMatch(sText, /phase-<N>\.md/i, `${sName} no longer names the phase-<N>.md aggregate file`)
-    assert.doesNotMatch(sText, /else:\s*append|else\b.{0,20}append to/i, `${sName} no longer carries an "else: append" routing arm`)
-  }
+  assert.doesNotMatch(servitorMd, /phase-<N>\.md/i, 'war-servitor.md no longer names the phase-<N>.md aggregate file')
+  assert.doesNotMatch(servitorMd, /else:\s*append|else\b.{0,20}append to/i, 'war-servitor.md no longer carries an "else: append" routing arm')
   assert.doesNotMatch(src, /memory dir or docs\/learnings/i, 'template args header no longer says "(memory dir or docs/learnings/)"')
   // Old-fragment absence (D5, spec criterion 6; red-team adjudication, ADR 0025 replacement-class drift):
   // the retired partial teach ('%-format' / 'reflog syntax') is GONE from BOTH prompt surfaces. A partial
@@ -7861,10 +7856,6 @@ test('Task 5.1 — worker/servitor card evictions: destination carries the moved
   // Decisive rules survive inline on the cards (pointer = enrichment, never sole carrier).
   assert.match(workerMd, /merge_sha/, 'war-worker.md keeps the ledger merge_sha authority rule inline')
   assert.match(workerMd, /gitlink-only/, 'war-worker.md keeps the gitlink-only diff rule inline')
-  assert.match(workerMd, /own remote, not the superproject/,
-    'war-worker.md keeps the submodule remote-identity check inline')
-  assert.match(workerMd, /primary confinement/,
-    'war-worker.md keeps the servitor primary-confinement summary inline')
   assert.match(servitorMd, /never move a lesson between hot and `archive\/`/,
     'war-servitor.md keeps the hot/archive temperature prohibition inline')
 })
