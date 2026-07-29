@@ -7818,3 +7818,34 @@ test('both-surfaces (criterion/end-state 22): the STALE_REMOTE classify-and-cont
     assert.doesNotMatch(mutated, /marker token is the key, never the numeric/i, `${name}: removing the carve-out phrase reds the anchor (non-vacuous)`)
   }
 })
+
+// ---------------------------------------------------------------------------
+// Task 5.1 (prompt-surface simplification): the worker/servitor cards' tier>=2
+// blocks moved to skills/war/references/worker-servitor-edges.md. Relocated
+// presence keys (adjudication E — the keys move with the text): one distinctive
+// fragment per moved block must exist at the destination; each card must keep
+// (a) a trigger pointer routing to the destination and (b) the decisive rule
+// inline (foreign-target-repo lesson: a references/ pointer is best-effort
+// enrichment on a non-plugin target repo, never the sole carrier of a
+// blocking rule).
+// ---------------------------------------------------------------------------
+test('Task 5.1 — worker/servitor card evictions: destination carries the moved blocks; cards keep trigger pointers + decisive rules inline', () => {
+  const edges = readFileSync(join(here, '../references/worker-servitor-edges.md'), 'utf8')
+  for (const frag of [
+    'the worktree is a standalone checkout of the submodule',       // worker §Submodule task mechanics
+    "find the dep task's entry, read its `merge_sha`",              // worker §Gitlink-bump task mechanics (ledger step)
+    'preserving the Container/Contents distinction',                // worker §Gitlink-bump commit step
+    'This allowlist is the **primary confinement**',                // worker §Servitor confinement
+    'never move a lesson between hot and `archive/`',               // servitor §Archived lessons
+  ]) assert.ok(edges.includes(frag), `worker-servitor-edges.md carries the moved fragment: ${frag}`)
+  // Trigger pointers route each card to the destination.
+  assert.ok(workerMd.includes('../skills/war/references/worker-servitor-edges.md'),
+    'war-worker.md carries a trigger pointer to worker-servitor-edges.md')
+  assert.ok(servitorMd.includes('../skills/war/references/worker-servitor-edges.md'),
+    'war-servitor.md carries a trigger pointer to worker-servitor-edges.md')
+  // Decisive rules survive inline on the cards (pointer = enrichment, never sole carrier).
+  assert.match(workerMd, /merge_sha/, 'war-worker.md keeps the ledger merge_sha authority rule inline')
+  assert.match(workerMd, /gitlink-only/, 'war-worker.md keeps the gitlink-only diff rule inline')
+  assert.match(servitorMd, /never move a lesson between hot and `archive\/`/,
+    'war-servitor.md keeps the hot/archive temperature prohibition inline')
+})

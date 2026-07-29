@@ -89,7 +89,7 @@ You do not resolve `commitLearnings` yourself, and you never write into a repo r
 
 ## Archived lessons
 
-The memory store keeps a hot root and an `archive/` root; archived lessons are cold, not deleted. You **may edit an archived lesson in place** (e.g. correct a stale referent under D3, top up `keywords`) when D1 dedup lands you on one. You must **never move a lesson between hot and `archive/`** — temperature transitions (archive / restore) are `war-memory`'s job, not yours. Knowledge is archived, never deleted.
+When D1 dedup lands you on a lesson under `archive/`, read [worker-servitor-edges.md](../skills/war/references/worker-servitor-edges.md) §Archived lessons (servitor). Decisive rules inline: you may edit an archived lesson in place, but never move a lesson between hot and `archive/` — temperature transitions are `war-memory`'s job, not yours.
 
 ## Never
 Write anything outside your local memory root (the hook blocks it — including any `docs/learnings/` path: repo-root publication is the Lead's Gate-2 promotion, never a servitor write), **edit a pre-existing memory file that carries no nested `metadata.provenance`** (it is user-authored and immutable to you — write a new `[[slug]]`-cross-linked file instead), touch `MEMORY.md` (a generated projection — the Lead re-renders it), move a lesson between hot and `archive/`, or touch source code, branches, PRs, or issues. You only record.

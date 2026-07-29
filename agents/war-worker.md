@@ -20,25 +20,10 @@ Before writing any code, check whether the task is a **declared** submodule task
 - **Undeclared target inside a submodule path** — a `.gitmodules` file exists in the worktree root, a `path =` entry covers the task's target file(s), and the sub-issue carries **no** `target repo` tag: return `status: "blocked"` immediately with a `blocked_reason` that names the submodule path (e.g. `"target path 'vendor/lib/foo.py' is inside submodule 'vendor/lib' — declare a submodule task with a target repo tag or handle by hand"`). **Never** attempt to implement, commit, or return a false-success result. An empty commit or no-op diff is not acceptable — it is a silent failure mode.
 
 ## Submodule task mechanics
-For a **declared submodule task** the worktree is a standalone checkout of the submodule (provisioned by the refiner from the initialized submodule dir). Work entirely inside it:
-
-1. **Verify the worktree root is the submodule repo** — `git remote -v` should show the submodule's own remote, not the superproject's.
-2. **Implement** inside the submodule worktree exactly as for a normal task (the worktree is already on the task branch, integration branch already exists in the submodule repo).
-3. **Write the mapped tests in the submodule repo** — tests live alongside the submodule's own source, run under the submodule's own gate. Use the gate command from the spawn prompt (it was derived from the submodule's own signals).
-4. **Run the gate to green** inside the submodule worktree.
-5. **Commit** with a message referencing the sub-issue (`#<n>`), then `git push` the submodule branch.
-6. Return `WorkerResult` as normal — `worktree` is the submodule worktree path, `branch` is the submodule task branch.
-
-The superproject's gitlink is **not touched** by the submodule task worker — that is the gitlink-bump task's sole responsibility.
+When the sub-issue declares a submodule task, read [worker-servitor-edges.md](../skills/war/references/worker-servitor-edges.md) §Submodule task mechanics for the full step-by-step. Decisive rules inline: your worktree is a standalone checkout of the submodule — verify `git remote -v` shows the submodule's own remote, not the superproject's; tests and gate run in the submodule repo; the superproject's gitlink is **not touched** by the submodule task worker — that is the gitlink-bump task's sole responsibility. Your dispatched prompt threads the runtime `TARGET REPO` / submodule-base context.
 
 ## Gitlink-bump task mechanics
-For a **declared gitlink-bump task** the task's entire diff is advancing a submodule gitlink to the SHA produced by a depended-on submodule task. The SHA is authoritative only when read from the **ledger** — never from an in-memory map or a local branch tip.
-
-1. **Resolve the dep submodule task's landed SHA from the ledger** — open `.claude/teams/<run-id>/ledger.json`, find the dep task's entry, read its `merge_sha`. This is the authoritative cross-phase source. If `merge_sha` is absent or the dep task is not yet `merged`, return `status: "blocked"` with `blocked_reason` naming the missing dep.
-2. **Stage the gitlink** — `git -C <superproject-worktree> add <submodule-path>` after ensuring the submodule is checked out at that SHA (`git -C <superproject-worktree>/<submodule-path> checkout <sha>`), or equivalently update the gitlink directly. The diff must be gitlink-only (no file content changes in the submodule path).
-3. **Commit** in the superproject worktree — this is a **worker/contents commit** (the bump is a real task output, preserving the Container/Contents distinction). Message referencing the sub-issue (`#<n>`).
-4. **Push** the superproject task branch.
-5. Return `WorkerResult` — `files_changed` includes the submodule path (the gitlink entry), `notes` records the SHA advanced to.
+When the sub-issue declares a gitlink-bump task, read [worker-servitor-edges.md](../skills/war/references/worker-servitor-edges.md) §Gitlink-bump task mechanics for the full step-by-step. Decisive rules inline: the dep submodule task's landed SHA is authoritative ONLY when read from the ledger's `merge_sha` (`.claude/teams/<run-id>/ledger.json`) — never from an in-memory map or a local branch tip; `merge_sha` absent or the dep task not yet `merged` ⇒ return `status: "blocked"` naming the missing dep; the diff must be gitlink-only. Your dispatched prompt threads the runtime `GITLINK-BUMP` context (dep-SHA placeholder + submodule path).
 
 ## Do
 1. `cd <worktree>`. Work only inside it.
@@ -78,7 +63,7 @@ Return ONLY the `WorkerResult` JSON (see the skill's `references/schemas.md`): `
 Report every files_changed path as worktree-relative — never an absolute path and never one rooted in the main checkout — so no downstream consumer ever sees a path that escapes the isolated worktree.
 
 ## Servitor confinement
-The WAR servitor runs after each phase lands with a restricted capability allowlist (Read, Grep, Glob, Write, Edit — no Bash). This allowlist is the **primary confinement**: without Bash the servitor cannot touch branches, issues, or arbitrary paths. The `agent_type` PreToolUse hook and the `..`-traversal guard are **defense-in-depth** layered on top — they catch any residual Write/Edit attempt that escapes the allowlist check (e.g. a path that pattern-matches the learnings target but contains a `..` traversal). See [ADR 0002](../docs/adr/0002-scope-by-agent-type.md).
+When you need the rationale for the servitor's write confinement (e.g. a hook denial cites it), read [worker-servitor-edges.md](../skills/war/references/worker-servitor-edges.md) §Servitor confinement — the capability allowlist is the primary confinement; the `agent_type` hook and `..`-traversal guard are defense-in-depth (ADR 0002).
 
 ## Harness note
 If a `[Fact-Forcing Gate]` (GateGuard) blocks a command or edit, present the facts it asks for, then retry the identical operation — it passes on retry.
