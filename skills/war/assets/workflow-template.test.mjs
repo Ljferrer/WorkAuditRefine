@@ -8,6 +8,9 @@ import { spawnOpts, validateRoster, widenRoster, resolveWidenSource, resolveGate
 
 const here = dirname(fileURLToPath(import.meta.url))
 const auditorMd = readFileSync(join(here, '../../../agents/war-auditor.md'), 'utf8')
+// UNION surface (prompt-surface simplification, adjudication I): Task 3.1 evicted the guard-contract
+// teach prose from the card into this reference file — every OLD-absent key over the card scans it too.
+const auditorTeachMd = readFileSync(join(here, '../references/auditor-teach.md'), 'utf8')
 const refinerMd = readFileSync(join(here, '../../../agents/war-refiner.md'), 'utf8')
 const src = readFileSync(join(here, 'workflow-template.js'), 'utf8').replace(/^export const meta/m, 'const meta')
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
@@ -3819,8 +3822,8 @@ test('stale-looking-but-correct calibration (Task 1.4): the "only when the live 
   // qualifier on BOTH surfaces. A silent widening that drops the qualifier from ONE rule (unconditional
   // amnesty) turns that rule's window qualifier-missing — the retired aggregate occurrence count could
   // not see it: five real occurrences minus one silent drop still cleared the four-rule floor. The
-  // intro-line qualifier sits before anchor 1 on both surfaces, so it is outside every window and never
-  // pads a rule.
+  // intro-line qualifier sits before anchor 1 on the standing card, so it is outside every window and
+  // never pads a rule; the dispatched skeleton's intro carries no qualifier occurrence at all.
   const standing = qualifierPerRuleWindows(auditorMd)
   standing.forEach((r, i) => assert.equal(r.status, 'ok',
     `war-auditor.md rule ${i + 1} window ${r.anchor} carries the confirmation qualifier (standing surface)`))
@@ -3835,8 +3838,9 @@ test('stale-looking-but-correct calibration (Task 1.4): the per-rule qualifier l
   // assert the helper reports EXACTLY that rule qualifier-missing and the other three still ok. The
   // complement (other-three-stay-ok) is load-bearing (weak-test-assertion-passes-without-feature-being-
   // exercised): it proves the helper is not an all-missing stub, that window 4 cannot borrow a qualifier
-  // from trailing text, and that the intro-line qualifier (pre-anchor-1, outside every window) can never
-  // rescue a rule. Initial-round capture only — a deliberate scope cut matching the sibling anchor test;
+  // from trailing text, and that the standing card's intro-line qualifier (pre-anchor-1, outside every
+  // window; the dispatched skeleton carries none) can never rescue a rule. Initial-round capture only —
+  // a deliberate scope cut matching the sibling anchor test;
   // the rebuttal-round base prompt is already covered by the CALIBRATION_SHARED rebuttal test.
   const QUALIFIER_ALL = /only when the live artifact confirms/gi
   const surfaces = [
@@ -7117,24 +7121,34 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
   // the retired partial teach ('%-format' / 'reflog syntax') is GONE from BOTH prompt surfaces. A partial
   // edit that adds the new contract but leaves the stale teach co-present REDs here — this promotes the
   // criterion-6 `grep -rn '%-format'` from un-encoded prose to a RED-able assertion.
-  for (const [sName, sText] of [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]]) {
+  // UNION extension (prompt-surface simplification, adjudication I): Task 3.1 evicted the
+  // guard-contract teach into references/auditor-teach.md — the OLD-absent scan covers the
+  // eviction destination too, never a relocated read.
+  for (const [sName, sText] of [['war-auditor.md', auditorMd], ['auditPrompt()', auditP],
+    ['references/auditor-teach.md', auditorTeachMd]]) {
     assert.doesNotMatch(sText, /%-format/, `${sName}: the retired '%-format' teach is absent (the D5 contract replaced it)`)
     assert.doesNotMatch(sText, /reflog syntax/, `${sName}: the retired 'reflog syntax' teach is absent (the D5 contract replaced it)`)
   }
   // #1080 retired-claim lock: the card used to claim this contract was "mirrored verbatim" into the
   // dispatched audit prompt. False — the two surfaces are deliberately different FORMATS, and what is
   // actually enforced is the D5 row above, which anchors shared TOKENS per surface (four at #1080, six
-  // since Task 1.2 added the two-arm branch anchors). The card names that row as the shared-token anchor
-  // and the D6 test below as the branch-flag arbiter; this absence assert keeps the overclaim from
-  // silently returning.
-  assert.doesNotMatch(auditorMd, /mirrored verbatim/i,
-    "war-auditor.md: the retired 'mirrored verbatim' guard-contract claim is absent — the D5 row's per-surface token anchors are what enforce the mirror (#1080)")
+  // since Task 1.2 added the two-arm branch anchors). The mirror-architecture prose the lock polices now
+  // lives in references/auditor-teach.md (Task 3.1 eviction), which names the D5 row as the shared-token
+  // anchor and the D6 test below as the branch-flag arbiter; the UNION scan (adjudication I) keeps the
+  // overclaim from silently returning on either the card or the eviction destination.
+  for (const [sName, sText] of [['war-auditor.md', auditorMd],
+    ['references/auditor-teach.md', auditorTeachMd]]) {
+    assert.doesNotMatch(sText, /mirrored verbatim/i,
+      `${sName}: the retired 'mirrored verbatim' guard-contract claim is absent — the D5 row's per-surface token anchors are what enforce the mirror (#1080)`)
+  }
   // Task 1.2 (D5, spec §5; #1085/#1124) retired-claim lock: the blanket "=-attached read flags only" branch
   // characterization — self-contradicted by the five bare flags in its own parenthetical, and shed by the
   // hook's deny string on 2026-07-24 — is GONE from both mirror surfaces, which now carry the two-arm form
   // anchored by the D5 row above. The samples are the both-ways proof: each is asserted to MATCH, so the
-  // absence checks cannot pass vacuously through a regex that stopped firing.
-  for (const [sName, sText] of [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]]) {
+  // absence checks cannot pass vacuously through a regex that stopped firing. UNION extension
+  // (adjudication I): the Task 3.1 eviction destination joins the scan.
+  for (const [sName, sText] of [['war-auditor.md', auditorMd], ['auditPrompt()', auditP],
+    ['references/auditor-teach.md', auditorTeachMd]]) {
     assert.doesNotMatch(sText, BRANCH_READ_FLAGS_ONLY_RETIRED,
       `${sName}: the retired "=-attached read flags only" branch claim is absent (the two-arm characterization replaced it — #1124)`)
   }
