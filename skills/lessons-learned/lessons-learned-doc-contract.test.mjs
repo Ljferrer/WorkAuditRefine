@@ -97,8 +97,9 @@ test('doc-contract: verifier prompt carries the HOT/COLD/MISSING link trichotomy
 test('doc-contract: Phase 3 hub check invokes war-memory inbound (not the prose grep)', () => {
   assert.match(skill, /war-memory\.mjs" inbound <slug>/,
     'Phase 3 must run `war-memory.mjs inbound <slug>` for the inbound count')
-  assert.doesNotMatch(skill, /grep -rl "\\\[\\\[<slug>\\\]\\\]"/,
-    'the retired Phase-3 prose grep must be gone — the count comes from `war-memory inbound`')
+  for (const [name, doc] of [['SKILL.md', skill], ['references/tighten.md', tighten]])
+    assert.doesNotMatch(doc, /grep -rl "\\\[\\\[<slug>\\\]\\\]"/,
+      `${name}: the retired Phase-3 prose grep must be gone — the count comes from \`war-memory inbound\``)
 })
 
 // (7) OLD-absent: no surviving instruction produces a removal/retire verdict from a hot-only
@@ -106,9 +107,11 @@ test('doc-contract: Phase 3 hub check invokes war-memory inbound (not the prose 
 //     the hot-only listing appears is the forbiddance, never an affirmative removal verdict.
 //     (Mirrors Task 1.1's `archives ALL of these` OLD-absent guard — ADR 0025 discipline.)
 test('doc-contract: no hot-only-ls removal verdict survives (hot-only appears only as forbiddance)', () => {
-  const offenders = skill.split('\n').filter(l => /hot-only/i.test(l) && !/never/i.test(l))
-  assert.deepEqual(offenders, [],
-    `every "hot-only" mention must be the forbiddance ("never ... from a hot-only ls"); offending lines: ${JSON.stringify(offenders)}`)
+  for (const [name, doc] of [['SKILL.md', skill], ['references/tighten.md', tighten]]) {
+    const offenders = doc.split('\n').filter(l => /hot-only/i.test(l) && !/never/i.test(l))
+    assert.deepEqual(offenders, [],
+      `${name}: every "hot-only" mention must be the forbiddance ("never ... from a hot-only ls"); offending lines: ${JSON.stringify(offenders)}`)
+  }
 })
 
 // --- Task 2.2 (war-room-config-expansion): migrate opt-in gate + opt-in-default rewording ---
@@ -148,7 +151,7 @@ test('doc-contract: migration.md migrate-confirm + evict-justification reworded 
 //      or the economy-pins-false framing. A value assignment (`commitLearnings: true` on the accept
 //      path) is NOT a default claim, so the guard anchors on "default … `true`" and "economy … pin … false".
 test('doc-contract: no retired commitLearnings default-`true` / economy-pins-false claim survives', () => {
-  for (const [name, doc] of [['SKILL.md', skill], ['migration.md', migration]]) {
+  for (const [name, doc] of [['SKILL.md', skill], ['migration.md', migration], ['references/tighten.md', tighten]]) {
     const defaultTrue = doc.split('\n').filter(l => /\bdefaults?\b[^`\n]{0,14}`true`/i.test(l))
     assert.deepEqual(defaultTrue, [],
       `${name}: retired "default … \`true\`" commitLearnings claim must be gone; offending: ${JSON.stringify(defaultTrue)}`)
@@ -231,9 +234,10 @@ test('doc-contract: Phase 6 It-checks names the repo-completeness hard fail', ()
 // on a single physical line (the stop rule and CONTEXT's "no third threshold" sentence both WRAP,
 // hence the whitespace-tolerant / truncated needles below).
 // Task 6.1 re-anchor: the tighten procedure (which carried surfaces 1, 2, 5, 6) moved verbatim to
-// references/tighten.md, so the six OLD-absent keys below scan the UNION of SKILL.md + tighten.md
-// (adjudication I: an OLD-absent key re-anchors as a UNION over origin + every destination, never
-// a relocated read); the NEW-present keys (19)-(21) moved their reads to the destination file.
+// references/tighten.md, so the six-needle OLD-absent key (17) below scans the UNION of SKILL.md +
+// tighten.md (adjudication I: an OLD-absent key re-anchors as a UNION over origin + every
+// destination, never a relocated read); the NEW-present keys (19)-(21) of THIS banner (Task 1.2,
+// #992) moved their reads to the destination file.
 
 // (17) OLD-absent ×6, per retired surface, UNION-scanned over SKILL.md + references/tighten.md.
 //      Case-tolerant, mid-sentence, no ordinals and no whole-file counts — each needle is the
