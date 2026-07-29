@@ -888,15 +888,21 @@ test('D27 — SKILL.md Lead evidence bindings paragraph carries the §4.4 skelet
 
 // (D28) GLOSSARY → CANONICAL-HOME POINTER PAIRS — Task 6.2's two CONTEXT.md compressions (#1228)
 // replaced operative procedure with a trigger pointer at each doctrine's single surviving operative
-// home. Nothing else pins either pointer or the delegated doctrine, and the plan explicitly
-// licenses re-partitioning `references/` ("expected carves, not contracts"), so a rename or
-// re-partition would orphan both pointers with zero red — the recorded
+// home. The residual this guard closes: war-config.test.mjs pins the '### Recovery relaunch'
+// heading + entry-point tokens at the destination, and a destination-file rename already reds
+// loudly (this file readFileSync's both destinations at module scope, and war-config.test.mjs
+// enumerates both paths in its UNION absence sweeps) — but nothing pins the CONTEXT.md trigger
+// clauses/paths, the submodule sub-procedure's mergeCommit.oid + operator-supplied-SHA content,
+// or the runbook's record-as-owned / args.recovery / reclaimStaleRemote / full-original-DAG
+// tokens. A within-file re-home or a gutted section is the rot class D28 closes — the recorded
 // [[verbatim-doc-move-breaks-relative-links-authored-for-old-location]] /
 // [[spec-non-goal-citation-of-a-doctrines-home-file-can-be-wrong]] rot class D19 exists for.
 // Per compressed entry, two halves: (a) the glossary entry keeps its definition anchors plus the
 // trigger clause naming its destination path; (b) the destination still carries the delegated
-// doctrine's tokens, extracted BY CONSTRUCT from its own heading to EOF (each destination is its
-// file's trailing section) — never a whole-file scan. Delete-and-trace: re-home or gut a
+// doctrine's tokens, extracted BY CONSTRUCT from its own heading to EOF (submodule-flows.md's
+// section is its file's trailing section; the resume-and-recovery.md match deliberately spans the
+// Recovery-relaunch subsection plus the held-partial-phase runbook — see the recDest comment)
+// — never a whole-file scan. Delete-and-trace: re-home or gut a
 // destination section and its (b) reds while CONTEXT.md still points at it; drop a pointer or a
 // definition core and its (a) reds.
 test('D28 — CONTEXT.md compressed glossary entries keep definition + trigger pointer, and each destination carries the delegated doctrine (#1228)', () => {
@@ -972,6 +978,10 @@ test('D28 — CONTEXT.md compressed glossary entries keep definition + trigger p
       "CONTEXT.md's trigger pointer now dangles; re-anchor BOTH surfaces together",
   )
   for (const [re, what] of [
+    // First key anchors in the Recovery-relaunch body proper (its only in-extraction occurrence)
+    // — gutting that body while the adjacent runbook survives must red, since the CONTEXT.md
+    // pointer promises the single-task vs full-DAG entry-point split that lives only there.
+    [/two entry points/i, 'the two-entry-point structure the CONTEXT.md pointer names'],
     [/record-as-owned/, 'the `record-as-owned` orphan-adoption step'],
     [/args\.recovery/, 'the `args.recovery` arming'],
     [/reclaimStaleRemote/, 'the `reclaimStaleRemote` arming'],
