@@ -3822,8 +3822,8 @@ test('stale-looking-but-correct calibration (Task 1.4): the "only when the live 
   // qualifier on BOTH surfaces. A silent widening that drops the qualifier from ONE rule (unconditional
   // amnesty) turns that rule's window qualifier-missing — the retired aggregate occurrence count could
   // not see it: five real occurrences minus one silent drop still cleared the four-rule floor. The
-  // intro-line qualifier sits before anchor 1 on both surfaces, so it is outside every window and never
-  // pads a rule.
+  // intro-line qualifier sits before anchor 1 on the standing card, so it is outside every window and
+  // never pads a rule; the dispatched skeleton's intro carries no qualifier occurrence at all.
   const standing = qualifierPerRuleWindows(auditorMd)
   standing.forEach((r, i) => assert.equal(r.status, 'ok',
     `war-auditor.md rule ${i + 1} window ${r.anchor} carries the confirmation qualifier (standing surface)`))
@@ -3838,8 +3838,9 @@ test('stale-looking-but-correct calibration (Task 1.4): the per-rule qualifier l
   // assert the helper reports EXACTLY that rule qualifier-missing and the other three still ok. The
   // complement (other-three-stay-ok) is load-bearing (weak-test-assertion-passes-without-feature-being-
   // exercised): it proves the helper is not an all-missing stub, that window 4 cannot borrow a qualifier
-  // from trailing text, and that the intro-line qualifier (pre-anchor-1, outside every window) can never
-  // rescue a rule. Initial-round capture only — a deliberate scope cut matching the sibling anchor test;
+  // from trailing text, and that the standing card's intro-line qualifier (pre-anchor-1, outside every
+  // window; the dispatched skeleton carries none) can never rescue a rule. Initial-round capture only —
+  // a deliberate scope cut matching the sibling anchor test;
   // the rebuttal-round base prompt is already covered by the CALIBRATION_SHARED rebuttal test.
   const QUALIFIER_ALL = /only when the live artifact confirms/gi
   const surfaces = [
