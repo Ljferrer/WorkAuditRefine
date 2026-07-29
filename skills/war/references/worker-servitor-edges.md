@@ -1,10 +1,10 @@
 # Worker + servitor edges — submodule/gitlink-bump task mechanics, servitor confinement rationale, archived lessons
 
 Verbatim evictions from `agents/war-worker.md` and `agents/war-servitor.md` (prompt-surface
-simplification, Task 5.1; each moved block is byte-identical to its pre-eviction card text, except
-the one ADR link in §Servitor confinement, whose relative depth is re-rooted so it resolves from
-this file's location). Positional words inside the moved blocks ("below", "above") refer to their
-original card positions. The dispatched worker prompt in `skills/war/assets/workflow-template.js`
+simplification, Task 5.1; each moved block is byte-identical to its pre-eviction card text).
+Positional words inside the moved blocks ("below", "above") refer to their original card
+positions. Relative link paths inside the moved blocks are likewise written relative to
+`agents/` — read `../docs/…` as `../../../docs/…` from here. The dispatched worker prompt in `skills/war/assets/workflow-template.js`
 threads the runtime submodule/gitlink-bump context (`TARGET REPO` / `GITLINK-BUMP` clauses) at the
 dispatch site — this file is the standing step-by-step those clauses assume.
 
@@ -39,7 +39,7 @@ For a **declared gitlink-bump task** the task's entire diff is advancing a submo
 
 Trigger: you need the rationale for the servitor's write confinement — e.g. a scope-hook denial cites it, or you are reasoning about why the memory phase cannot touch your branches.
 
-The WAR servitor runs after each phase lands with a restricted capability allowlist (Read, Grep, Glob, Write, Edit — no Bash). This allowlist is the **primary confinement**: without Bash the servitor cannot touch branches, issues, or arbitrary paths. The `agent_type` PreToolUse hook and the `..`-traversal guard are **defense-in-depth** layered on top — they catch any residual Write/Edit attempt that escapes the allowlist check (e.g. a path that pattern-matches the learnings target but contains a `..` traversal). See [ADR 0002](../../../docs/adr/0002-scope-by-agent-type.md).
+The WAR servitor runs after each phase lands with a restricted capability allowlist (Read, Grep, Glob, Write, Edit — no Bash). This allowlist is the **primary confinement**: without Bash the servitor cannot touch branches, issues, or arbitrary paths. The `agent_type` PreToolUse hook and the `..`-traversal guard are **defense-in-depth** layered on top — they catch any residual Write/Edit attempt that escapes the allowlist check (e.g. a path that pattern-matches the learnings target but contains a `..` traversal). See [ADR 0002](../docs/adr/0002-scope-by-agent-type.md).
 
 ## Archived lessons (servitor)
 
