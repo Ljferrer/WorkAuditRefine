@@ -93,8 +93,9 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# ABSENCE CHECK: the live surface (agents/ + workflow-template.js, excluding
-# *.test.*) must NOT instruct the Refinery to operate via the Lead's main
+# ABSENCE CHECK: the live surface (agents/ + workflow-template.js +
+# skills/war/references/refiner-recovery.md — UNION scan, excluding *.test.*)
+# must NOT instruct the Refinery to operate via the Lead's main
 # checkout. The forbidden pattern: "from the Lead" appearing as a POSITIVE
 # instruction (i.e. NOT on a line that starts with "Never" / "never" / "-"
 # prohibition prose / "Do NOT" / comment).
@@ -108,6 +109,14 @@ fi
 # reland discrimination, 2A/2B land arms) into refiner-recovery.md — the whole-file absence checks
 # scan the eviction destination too, never a narrowed origin-only surface.
 RECOVERY_FILE="skills/war/references/refiner-recovery.md"
+# PRESENCE CHECK 5: the UNION member must exist, or all three whole-file absence
+# scans silently narrow back to the pre-eviction surface (the loops' [ -f ] guard
+# skips a missing file with zero signal).
+if [ ! -f "$RECOVERY_FILE" ]; then
+  fail "PRESENCE CHECK 5 — UNION member $RECOVERY_FILE not found — the eviction destination must exist or the absence scans silently narrow"
+else
+  pass "PRESENCE CHECK 5 — UNION member $RECOVERY_FILE exists (absence scans cover the eviction destination)"
+fi
 LIVE_SURFACE_FILES="$REFINER_FILE $WORKFLOW_FILE $RECOVERY_FILE"
 
 # Collect all lines containing "from the Lead" in the live surface

@@ -18,7 +18,7 @@ You are the **WAR refiner** — the Refinery. You own every merge and every push
 
 ## Submodule-as-repo provisioning
 
-When a phase's `target repo` is a submodule (not the superproject), read [refiner-recovery.md](skills/war/references/refiner-recovery.md) (§ Submodule-as-repo provisioning) BEFORE invoking any toolchain steps — the entire cwd-scoped toolchain runs from the initialized submodule checkout, and the reference carries the four-step init / integration-cut / worktree recipe. All merge-task and land-phase steps below then run with `<taskWorktree>` and `<_refinery>` rooted in the submodule checkout; the submodule's own `.git`, remote, and branches are the authority.
+When a phase's `target repo` is a submodule (not the superproject), read [refiner-recovery.md](skills/war/references/refiner-recovery.md) (§ Submodule-as-repo provisioning) BEFORE invoking any toolchain steps — the entire cwd-scoped toolchain runs from the initialized submodule checkout, and the reference carries the four-step init / integration-cut / worktree recipe; the integration cut uses the resolved base from run config or `.gitmodules`, never silently the remote default. All merge-task and land-phase steps below then run with `<taskWorktree>` and `<_refinery>` rooted in the submodule checkout; the submodule's own `.git`, remote, and branches are the authority. Your dispatched merge/land prompt threads the submodule targetRepo/targetBase and the 2A/2B routing.
 
 ## provision
 
@@ -96,7 +96,7 @@ The land runs in `_refinery`, **detached** at the working tip — the working br
 
 ### Submodule phase (2A WAR-owned / 2B PR-and-hold)
 
-When `target repo` is a submodule, read [refiner-recovery.md](skills/war/references/refiner-recovery.md) (§ Submodule phase — 2A / § Submodule phase — 2B): declared WAR-owned ⇒ **2A** — the same push-first CAS loop and final-attempt discrimination, scoped to the submodule checkout and remote; otherwise ⇒ **2B (default)** — push the submodule integration branch, open a PR, and return `status: "submodule-pr"` with `pr_number`/`pr_remote` (never author the merge commit; the run holds until a human merges).
+When `target repo` is a submodule, read [refiner-recovery.md](skills/war/references/refiner-recovery.md) (§ Submodule phase — 2A / § Submodule phase — 2B): declared WAR-owned ⇒ **2A** — the same push-first CAS loop and final-attempt discrimination, scoped to the submodule checkout and remote; otherwise ⇒ **2B (default)** — push the submodule integration branch, open a PR, and return `status: "submodule-pr"` with `pr_number`/`pr_remote` (never author the merge commit; the run holds until a human merges). Your dispatched merge/land prompt threads the submodule targetRepo/targetBase and the 2A/2B routing.
 
 ## Gate-failure classification
 
