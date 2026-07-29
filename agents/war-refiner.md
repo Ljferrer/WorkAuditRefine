@@ -18,7 +18,7 @@ You are the **WAR refiner** — the Refinery. You own every merge and every push
 
 ## Submodule-as-repo provisioning
 
-When a phase's `target repo` is a submodule (not the superproject), read [refiner-recovery.md](../skills/war/references/refiner-recovery.md) (§ Submodule-as-repo provisioning) BEFORE invoking any toolchain steps — the entire cwd-scoped toolchain runs from the initialized submodule checkout, and the reference carries the four-step init / integration-cut / worktree recipe. All merge-task and land-phase steps below then run with `<taskWorktree>` and `<_refinery>` rooted in the submodule checkout; the submodule's own `.git`, remote, and branches are the authority.
+When a phase's `target repo` is a submodule (not the superproject), read [refiner-recovery.md](skills/war/references/refiner-recovery.md) (§ Submodule-as-repo provisioning) BEFORE invoking any toolchain steps — the entire cwd-scoped toolchain runs from the initialized submodule checkout, and the reference carries the four-step init / integration-cut / worktree recipe. All merge-task and land-phase steps below then run with `<taskWorktree>` and `<_refinery>` rooted in the submodule checkout; the submodule's own `.git`, remote, and branches are the authority.
 
 ## provision
 
@@ -91,12 +91,12 @@ The land runs in `_refinery`, **detached** at the working tip — the working br
    - On push success → exit the loop, proceed to step 3.
    - On push rejection (reland code) → go back to the top of the loop (re-fetch, re-detach at new `origin/<working>`, re-merge, re-gate). Never `--force`.
    - On any other push error → return `status: "error"` (escalate).
-3. **On the final failed CAS attempt** (after `roundLimit` rejected pushes), do NOT return `land_stale` yet — read [refiner-recovery.md](../skills/war/references/refiner-recovery.md) (§ Reland discrimination — superproject land-phase step 3) and run the transient-vs-divergence discrimination it directs (D4): right count 0 buys exactly one extra push-first attempt; a nonzero right count is a real divergence and returns `land_stale` immediately. Your dispatched land prompt carries the same discrimination verbatim.
+3. **On the final failed CAS attempt** (after `roundLimit` rejected pushes), do NOT return `land_stale` yet — read [refiner-recovery.md](skills/war/references/refiner-recovery.md) (§ Reland discrimination — superproject land-phase step 3) and run the transient-vs-divergence discrimination it directs (D4): right count 0 buys exactly one extra push-first attempt; a nonzero right count is a real divergence and returns `land_stale` immediately. Your dispatched land prompt carries the same discrimination verbatim.
 4. On push success → return `status: "landed"` with the new working SHA. The Lead then runs an **opportunistic resync** of its cwd: `git -C <cwd> merge --ff-only <new-working-tip>` iff the cwd is on the working branch and the tree is clean; otherwise skip. The Lead never forces or blocks on this.
 
 ### Submodule phase (2A WAR-owned / 2B PR-and-hold)
 
-When `target repo` is a submodule, read [refiner-recovery.md](../skills/war/references/refiner-recovery.md) (§ Submodule phase — 2A / § Submodule phase — 2B): declared WAR-owned ⇒ **2A** — the same push-first CAS loop and final-attempt discrimination, scoped to the submodule checkout and remote; otherwise ⇒ **2B (default)** — push the submodule integration branch, open a PR, and return `status: "submodule-pr"` with `pr_number`/`pr_remote` (never author the merge commit; the run holds until a human merges).
+When `target repo` is a submodule, read [refiner-recovery.md](skills/war/references/refiner-recovery.md) (§ Submodule phase — 2A / § Submodule phase — 2B): declared WAR-owned ⇒ **2A** — the same push-first CAS loop and final-attempt discrimination, scoped to the submodule checkout and remote; otherwise ⇒ **2B (default)** — push the submodule integration branch, open a PR, and return `status: "submodule-pr"` with `pr_number`/`pr_remote` (never author the merge commit; the run holds until a human merges).
 
 ## Gate-failure classification
 

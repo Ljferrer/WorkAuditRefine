@@ -5762,8 +5762,11 @@ test('Task 1.2 — grep parity: the standing discrimination copy (references/ref
     'the discrimination command is present in BOTH the superproject and submodule-2A land variants')
   // never anchored on the lagging local follower.
   assert.match(refinerRecoveryMd, /NEVER the local follower/, 'refiner-recovery.md pins the discrimination to origin, never the lagging local follower')
-  // the card still ROUTES to the standing copy: land step 3 must keep its trigger pointer.
-  assert.match(refinerMd, /refiner-recovery\.md/, 'war-refiner.md carries the trigger pointer to references/refiner-recovery.md')
+  // the card still ROUTES to the standing copy: land step 3 must keep its trigger pointer, in the
+  // adjudication-O(2) owner-relative shape (bare skills/war/references/<file> — the refiner seat's
+  // cwd is the main checkout, so a ../-prefixed path walks OUT of the repo and never opens).
+  assert.match(refinerMd, /\(skills\/war\/references\/refiner-recovery\.md\)/, 'war-refiner.md carries the owner-relative trigger pointer to skills/war/references/refiner-recovery.md')
+  assert.ok(!/\(\.\.\/skills\/war\/references\/refiner-recovery\.md\)/.test(refinerMd), 'no pointer uses the forbidden ../-prefixed path (adjudication O(2))')
 })
 
 test('Task 1.2 — a stale-then-resolved land (final status:landed) reaches the servitorResult dispatch (no new status/enum)', async () => {
