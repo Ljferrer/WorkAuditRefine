@@ -201,7 +201,7 @@ test('D13 — SKILL.md and its eviction destinations invoke every .sh asset with
 test('D14 — docker bullet does not misattribute the signature list to the gate-time classifier (#799)', () => {
   // UNION on the OLD-absent misattribution clause (adjudication I); the bullet itself moved
   // verbatim into references/docker-gate.md, so the extraction read relocates there.
-  for (const text of [skillMd, dockerMd]) {
+  for (const text of [skillMd, setupRefMd, dockerMd, submoduleMd, resumeMd]) {
     assert.doesNotMatch(
       text,
       /signature list is what the gate-time classifier keys on/i,
@@ -306,7 +306,7 @@ test('D17 — 2026-07-12 prose-drift spec names classOf a reader, never the re-r
   )
 })
 
-// (D18) SKILL.md's `gate_failed`-routing **`environment`** arm must document the BOUNDED
+// (D18) references/resume-and-recovery.md's `gate_failed`-routing **`environment`** arm must document the BOUNDED
 // environment-proceed mechanics, never the retired gate-time zero-retry doctrine — the arm formerly
 // declared the gate-time route identical to a provision `env-blocked` (soft-escalate, 0 FIX rounds,
 // worktree kept, siblings proceed). Live truth: an `environment` gate failure earns ONE environment-proceed
@@ -451,7 +451,7 @@ test('D20 — schemas.md ledger.json block declares the top-level adjudications 
   )
 })
 
-// (D21) SKILL.md's `held:land-failed` Outcome-handling bullet must carry BOTH arms by which a
+// (D21) references/resume-and-recovery.md's `held:land-failed` Outcome-handling bullet must carry BOTH arms by which a
 // gate-time `environment` failure reaches the hold (#1039). The retired sentence was unconditional —
 // the retry was declared spent for every such entry — which is false on the baseline-proceed arm,
 // where a `baseline-proceed` re-land's `environment`-classified failure routes straight to the hold
@@ -466,7 +466,7 @@ test('D20 — schemas.md ledger.json block declares the top-level adjudications 
 // Extraction copies the live construct at `land-decision.test.mjs` (same bullet, same file): locate
 // the REAL 2-space-indented ``- **`held:land-failed``` header — a TOKEN-ONLY prefix, trailing bullet
 // text variable; the compact ``- **`held:land-failed`**`` wrap is *schemas.md*'s header form and has
-// zero occurrences in SKILL.md — and terminate at the next SAME-INDENT 2-space `- **` sibling, never
+// zero occurrences in the bullet's home file — and terminate at the next SAME-INDENT 2-space `- **` sibling, never
 // a top-level `- **` one (that truncates at the nested `    - **(a)` sub-bullet, or, read the other
 // way, over-extends past the whole `- **Escalation-completion land …**` sibling and would let arm
 // vocabulary from unrelated prose green the lock). Arm markers are markup-tolerant (D18's idiom), so

@@ -4,7 +4,9 @@ Verbatim evictions from `skills/war/SKILL.md` (prompt-surface simplification, sp
 block is byte-identical to its pre-eviction SKILL.md text). Positional words inside the moved blocks
 ("above", "below") refer to their original SKILL.md positions; the Checkpoint's `held:submodule-pr`
 outcome bullet lives with the other `held:*` arms in
-[resume-and-recovery.md](resume-and-recovery.md).
+[resume-and-recovery.md](resume-and-recovery.md). Relative link paths inside the moved blocks are
+likewise written relative to `skills/war/SKILL.md` — read `references/<x>.md` as a sibling of this
+file, and `../../docs/…` as `../../../docs/…` from here.
 
 ## Submodule router (Decompose step 8)
 

@@ -7,7 +7,9 @@ byte-identical to its pre-eviction SKILL.md text). Positional words inside the m
 fail-closed phase classification, the Gate-2 post-servitor publication flow, and the per-phase
 launch step remain in `skills/war/SKILL.md`; the submodule router, the submodule reconciliation
 extension, and the `held:submodule-pr` sub-procedure live in
-[submodule-flows.md](submodule-flows.md).
+[submodule-flows.md](submodule-flows.md). Relative link paths inside the moved blocks are likewise
+written relative to `skills/war/SKILL.md` — read `references/<x>.md` as a sibling of this file, and
+`../../docs/…` as `../../../docs/…` from here.
 
 ## Resume reconciliation pre-flight (on restart)
 

@@ -1,7 +1,8 @@
 # Opt-in docker gate — probe-build routing (Setup step 3)
 
 Verbatim eviction from `skills/war/SKILL.md` Setup step 3 (prompt-surface simplification, spec §4.3;
-byte-identical to the pre-eviction SKILL.md text).
+byte-identical to the pre-eviction SKILL.md text). Positional words inside the moved block
+("step below", "the Checkpoint's `gate_failed` routing") refer to their original SKILL.md positions.
 
 Trigger: at least one Dockerfile is discovered in the repo (basename `Dockerfile` / `Dockerfile.*` /
 `*.Dockerfile`, excluding `node_modules/` and `.git/` — the packaging floor's shared discovery
