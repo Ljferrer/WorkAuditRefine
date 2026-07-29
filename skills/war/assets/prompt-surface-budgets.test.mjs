@@ -53,8 +53,9 @@ const FILE_BUDGETS = {
   'CONTEXT.md': { hard: 126976, advisory: 111616 },
   // Budgeted per adjudication F: CLAUDE.md loads every session, prompt-bearing.
   // post-shrink 12,987 B @ c6a05fb → hard ×1.25 ceil-KB = 16,384; advisory ×1.10 ceil-KB
-  // = 14,336 (ceil-KB rounding lands both on the Phase-1 placeholder values exactly —
-  // computed hard does not exceed the placeholder, so no flag).
+  // = 14,336 (grew 12,400 B @ 762a7e4 → 12,987 B, but ceil-KB rounding lands both on the
+  // Phase-1 placeholder values exactly — computed hard does not exceed the placeholder,
+  // so no flag).
   'CLAUDE.md': { hard: 16384, advisory: 14336 },
 };
 
