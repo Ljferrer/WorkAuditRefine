@@ -61,6 +61,10 @@ Phases are strictly sequential (each shrink phase re-measures against the prior 
 Phase 1 governance → Phase 2 Lead surface → Phase 3 auditor family → Phase 4 refiner family →
 Phase 5 worker+servitor families → Phase 6 periphery → Phase 7 ratchet + release.
 
+Phase 7 runs in **two waves**: wave 1 = Task 7.1 ∥ Task 7.3 (file-disjoint — the budget suite vs
+`skill-doc-contracts.test.mjs`), wave 2 = Task 7.2, the release bump, `deps: [7.1, 7.3]` so the
+version bump stays the trailing act and its blurb is written over the finished phase.
+
 ## Phase 1 — Governance
 
 ### Task 1.1: Doctrine record — ADR, glossary terms, hot/cold law summary
@@ -323,7 +327,34 @@ Phase 5 worker+servitor families → Phase 6 periphery → Phase 7 ratchet + rel
   test re-anchors moved; no engine code path, exit code, schema, or floor script did).
 - requiresTest: false
 - requiresPackaging: false
-- deps: [7.1]
+- deps: [7.1, 7.3]
+- target repo: superproject
+
+### Task 7.3: D29 doctrine-mirror guard — bind ADR 0042 ↔ CONTEXT.md ↔ CLAUDE.md (#1208)
+
+- Files: `skills/war/assets/skill-doc-contracts.test.mjs`
+- Plan slice: **Operator-directed addition (2026-07-29)** — issue #1208 was folded into Task 6.2's
+  dispatch and did NOT land: the `D28` label was consumed by 6.2's own glossary-compression row,
+  and the three-surface mirror Task 1.1 authored is still hand-synced with no suite reading any of
+  it (measured at `5df7e47`: `0042`, `trigger is the skeleton`, `when <trigger>`,
+  `Doctrine placement` all return ZERO across `skills/**/*.test.mjs`). This task supplies the
+  missing mechanical guard for **End state 7**, whose content phase 1 landed but left unpinned.
+  Write **one row under the next free label — `D29`; `D28` is taken** (verify at the rebased base
+  before choosing, and never reuse a label). Shape it on the existing D26 row (the ADR 0041
+  both-surfaces mirror) — the nearest landed precedent. Extraction: per-term for the three
+  `CONTEXT.md` entries (**surface budget**, **prose temperature**, **trigger pointer**; bolded
+  term → next bolded term or `###`, each non-vacuously reaching its own `_Avoid_` line) plus
+  construct extraction of `CLAUDE.md`'s `## Doctrine placement` (heading → next `##`).
+  Token-anchored keys: `/when\s+<trigger>,\s+read\s+references\//i`,
+  `/trigger\s+is\s+the\s+skeleton/i`, `/byte-identical/i`, a **paired** lowering/raising key so
+  the ratchet direction cannot invert, and the ×1.10 / ×1.25 pair. **Every key asserted on BOTH
+  the mirror block and `norm(adr0042)`**, so a one-sided edit reds while sanctioned rewording
+  latitude does not. Zero rows deleted or loosened; additive only. Non-vacuity is the acceptance
+  bar: a one-sided mutation of ANY of the three surfaces must red the row — demonstrate it in the
+  done report per surface (mutate, observe red, revert), not by assertion.
+- requiresTest: true
+- requiresPackaging: false
+- deps: []
 - target repo: superproject
 
 ## Deferred validations (backstops)
