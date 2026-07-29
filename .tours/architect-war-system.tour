@@ -22,7 +22,7 @@
     },
     {
       "file": "skills/war/SKILL.md",
-      "line": 51,
+      "line": 119,
       "title": "4 · The Lead and the invariants",
       "description": "**Situation:** The human-driving half is the **Lead** (the Mayor): it decomposes, gates at phase boundaries, surfaces escalations, and talks to you — and *never edits code itself*.\n\n**Mechanism:** These Invariants are the system's safety contract. Note the strongest ones: the auditor is read-only; the servitor is the *only* reviewer-side role that writes, and only to `learningsTarget`; the refiner owns **all** merges, one at a time, never `--force`/`reset --hard` on shared branches; never merge un-audited, without a green gate, or before unanimous approval.\n\n**Implication:** an architect should read this block as the spec the rest of the code must not violate. Everything downstream is mechanism in service of these invariants."
     },

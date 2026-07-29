@@ -149,16 +149,18 @@ test('doc-parity (d): schemas.md per-value bullet headers == KNOWN_LAND_DECISION
 // prompt-only-clause-grep-guard-must-tolerate-sentence-case and #929 — NO block-comment strip). Extract
 // the bullet by its REAL 2-space-indented `- **`held:land-failed`` header (a TOKEN-ONLY prefix, trailing
 // bullet text variable — NOT the compact `**`held:land-failed`**` wrap, which is *schemas.md*'s header
-// form and does not occur in SKILL.md), terminating at the next SAME-INDENT 2-space `- **` sibling
+// form and does not occur in the bullet's home file), terminating at the next SAME-INDENT 2-space `- **` sibling
 // (`- **Escalation-completion land`) — NOT "the next `- **`", which would truncate at the nested
 // `    - **(a)` sub-bullet and leave the pin vacuously red forever. The region spans the nested
 // (a)/(b)/(c)/green-gate/every-other-cause sub-bullets where root cause (c) and the anti-hint clause live.
 // Provably red pre-fix: the bullet carried NO resumeFromRunId token before this task (the file's six
 // other never-resume sites all live outside it).
-test('Task 1.2: SKILL.md §4.3 held:land-failed bullet pairs resumeFromRunId with a negation (never/not/forbidden)', () => {
-  const lines = readAsset('../SKILL.md').split('\n')
+// Relocated read (prompt-surface simplification): the §4.3 held:land-failed bullet moved verbatim
+// from SKILL.md into references/resume-and-recovery.md; the pin follows the text (ADR 0025).
+test('Task 1.2: §4.3 held:land-failed bullet pairs resumeFromRunId with a negation (never/not/forbidden)', () => {
+  const lines = readAsset('../references/resume-and-recovery.md').split('\n')
   const headerIdx = lines.findIndex((l) => /^ {2}- \*\*`held:land-failed`/.test(l))
-  assert.ok(headerIdx >= 0, 'SKILL.md §4.3 held:land-failed 2-space bullet header not found — anchor rotted (non-vacuous guard)')
+  assert.ok(headerIdx >= 0, 'references/resume-and-recovery.md §4.3 held:land-failed 2-space bullet header not found — anchor rotted (non-vacuous guard)')
   let endIdx = lines.length
   for (let i = headerIdx + 1; i < lines.length; i++) {
     if (/^ {2}- \*\*/.test(lines[i])) { endIdx = i; break }  // next SAME-INDENT sibling, not a nested `    - **`

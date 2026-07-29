@@ -14,6 +14,13 @@ import { dirname, join } from 'node:path'
 // never delete or weaken it to make a reword pass.
 const HERE = dirname(fileURLToPath(import.meta.url))
 const skillMd = readFileSync(join(HERE, '..', 'SKILL.md'), 'utf8')
+// Prompt-surface simplification (spec §4.3): tier-2+ SKILL.md blocks moved verbatim into
+// references/ — presence keys relocate their read to the destination file; OLD-absent keys widen
+// to a UNION over origin + every destination (adjudication I).
+const resumeMd = readFileSync(join(HERE, '..', 'references', 'resume-and-recovery.md'), 'utf8')
+const dockerMd = readFileSync(join(HERE, '..', 'references', 'docker-gate.md'), 'utf8')
+const setupRefMd = readFileSync(join(HERE, '..', 'references', 'setup.md'), 'utf8')
+const submoduleMd = readFileSync(join(HERE, '..', 'references', 'submodule-flows.md'), 'utf8')
 const tour = JSON.parse(
   readFileSync(join(HERE, '..', '..', '..', '.tours', 'architect-war-system.tour'), 'utf8'),
 )
@@ -93,8 +100,9 @@ test('D10 — held:workflow-error class examples exclude infra-death (which rout
   }
 
   // Isolate the held:workflow-error outcome bullet by construct (marker → next held:* bullet).
-  const wfErr = skillMd.match(/- \*\*`held:workflow-error`[\s\S]*?(?=\n\s*- \*\*`held:)/)
-  assert.ok(wfErr, 'could not locate the held:workflow-error outcome bullet in SKILL.md')
+  // Relocated read: the outcome-handling bullets moved verbatim into references/resume-and-recovery.md.
+  const wfErr = resumeMd.match(/- \*\*`held:workflow-error`[\s\S]*?(?=\n\s*- \*\*`held:)/)
+  assert.ok(wfErr, 'could not locate the held:workflow-error outcome bullet in references/resume-and-recovery.md')
   const examples = wfErr[0].match(
     /\*\*Class examples\*\*(.*?)(?:Those never route|The documented exit)/s,
   )
@@ -139,7 +147,8 @@ test('D12 — tour step 17 (land-decision.mjs) carries no member count / line-nu
   )
 })
 
-// (D13) Every `.sh` asset invoked in SKILL.md must run under `bash`, never `node` — the scripts are
+// (D13) Every `.sh` asset invoked in SKILL.md or its eviction-destination references/ files must run
+// under `bash`, never `node` — the scripts are
 // `#!/usr/bin/env bash`, so a `node <script>.sh` invocation SyntaxErrors on every Setup, Gate-2, and
 // manual-land call (#741). The riskiest exposure is the Checkpoint/escalation land recipes: a
 // SyntaxError on `land-advance` tempts a Lead into the raw `git push` those recipes exist to prevent.
@@ -149,17 +158,32 @@ test('D12 — tour step 17 (land-decision.mjs) carries no member count / line-nu
 // co-occurring in prose (a `.mjs` helper followed later by `*.test.sh` never matches, since `\S*`
 // cannot cross the space between them). The `bash`-prefixed presence companion is anti-vacuous — no
 // other D-series guard locks the land recipes' presence, so a wholesale deletion would otherwise pass.
-test('D13 — SKILL.md invokes every .sh asset with bash, never node (#741)', () => {
-  const nodeSh = skillMd.match(/node\s+\S*\.sh\b/)
-  assert.ok(
-    !nodeSh,
-    `SKILL.md invokes a .sh asset with node ("${nodeSh ? nodeSh[0] : ''}") — ` +
-      'use bash, or rephrase the example without a literal `node …*.sh` invocation shape',
-  )
+test('D13 — SKILL.md and its eviction destinations invoke every .sh asset with bash, never node (#741)', () => {
+  // UNION scan (adjudication I): the OLD-absent invocation-shape key covers the origin surface plus
+  // every eviction destination, so a moved recipe can never re-shelter a `node …*.sh` invocation.
+  for (const [name, text] of [
+    ['SKILL.md', skillMd],
+    ['references/setup.md', setupRefMd],
+    ['references/docker-gate.md', dockerMd],
+    ['references/submodule-flows.md', submoduleMd],
+    ['references/resume-and-recovery.md', resumeMd],
+  ]) {
+    const nodeSh = text.match(/node\s+\S*\.sh\b/)
+    assert.ok(
+      !nodeSh,
+      `${name} invokes a .sh asset with node ("${nodeSh ? nodeSh[0] : ''}") — ` +
+        'use bash, or rephrase the example without a literal `node …*.sh` invocation shape',
+    )
+  }
   assert.match(
     skillMd,
     /bash\s+\S*provision-worktrees\.sh\b/,
-    'SKILL.md must retain at least one `bash …/provision-worktrees.sh` invocation (land recipes present)',
+    'SKILL.md must retain at least one `bash …/provision-worktrees.sh` invocation (Setup/Gate-2 calls present)',
+  )
+  assert.match(
+    resumeMd,
+    /bash\s+\S*provision-worktrees\.sh\b/,
+    'references/resume-and-recovery.md must retain at least one `bash …/provision-worktrees.sh` invocation (land recipes present)',
   )
 })
 
@@ -174,15 +198,19 @@ test('D13 — SKILL.md invokes every .sh asset with bash, never node (#741)', ()
 // bullet by its `**Daemon reachable**` marker (D10-style intended-location extraction, not a
 // whole-file presence check) and asserts the three signatures survive — so deleting the bullet fails
 // loudly instead of passing vacuously.
-test('D14 — SKILL.md docker bullet does not misattribute the signature list to the gate-time classifier (#799)', () => {
-  assert.doesNotMatch(
-    skillMd,
-    /signature list is what the gate-time classifier keys on/i,
-    'SKILL.md still couples the platform-signature list to the gate-time classifier (#799 ' +
-      'misattribution) — the list governs only Setup-time probe-build deferral',
-  )
-  const bullet = skillMd.match(/\*\*Daemon reachable\*\*[\s\S]*?(?=\n\s*- \*\*)/)
-  assert.ok(bullet, 'could not locate the **Daemon reachable** docker bullet in SKILL.md')
+test('D14 — docker bullet does not misattribute the signature list to the gate-time classifier (#799)', () => {
+  // UNION on the OLD-absent misattribution clause (adjudication I); the bullet itself moved
+  // verbatim into references/docker-gate.md, so the extraction read relocates there.
+  for (const text of [skillMd, setupRefMd, dockerMd, submoduleMd, resumeMd]) {
+    assert.doesNotMatch(
+      text,
+      /signature list is what the gate-time classifier keys on/i,
+      'the docker prose still couples the platform-signature list to the gate-time classifier ' +
+        '(#799 misattribution) — the list governs only Setup-time probe-build deferral',
+    )
+  }
+  const bullet = dockerMd.match(/\*\*Daemon reachable\*\*[\s\S]*?(?=\n\s*- \*\*)/)
+  assert.ok(bullet, 'could not locate the **Daemon reachable** docker bullet in references/docker-gate.md')
   for (const sig of ['EBADPLATFORM', 'no matching manifest for <platform>', 'exec format error']) {
     assert.ok(
       bullet[0].includes(sig),
@@ -225,9 +253,10 @@ test('D15 — 2026-06-25 §5.3 land-phase keeps the push-first CAS contract (cmd
 // commit body. Extract the bullet by its `**Daemon reachable**` marker (D10/D14-style intended-location
 // extraction). Negative arm is reword-tolerant: a case-tolerant, mid-sentence pairing of `classOf`
 // with a following `re-run`/`re-running` verb — never a byte-lock on the corrected sentence.
-test('D16 — SKILL.md docker bullet names classOf a reader of the refiner-computed class, never the re-run agent (#887)', () => {
-  const bullet = skillMd.match(/\*\*Daemon reachable\*\*[\s\S]*?(?=\n\s*- \*\*)/)
-  assert.ok(bullet, 'could not locate the **Daemon reachable** docker bullet in SKILL.md')
+test('D16 — docker bullet names classOf a reader of the refiner-computed class, never the re-run agent (#887)', () => {
+  // Relocated read: the docker bullet moved verbatim into references/docker-gate.md (D14's move).
+  const bullet = dockerMd.match(/\*\*Daemon reachable\*\*[\s\S]*?(?=\n\s*- \*\*)/)
+  assert.ok(bullet, 'could not locate the **Daemon reachable** docker bullet in references/docker-gate.md')
   const b = bullet[0]
   // Presence: the refiner is the re-run performer, and classOf is named a reader.
   assert.match(
@@ -277,7 +306,7 @@ test('D17 — 2026-07-12 prose-drift spec names classOf a reader, never the re-r
   )
 })
 
-// (D18) SKILL.md's `gate_failed`-routing **`environment`** arm must document the BOUNDED
+// (D18) references/resume-and-recovery.md's `gate_failed`-routing **`environment`** arm must document the BOUNDED
 // environment-proceed mechanics, never the retired gate-time zero-retry doctrine — the arm formerly
 // declared the gate-time route identical to a provision `env-blocked` (soft-escalate, 0 FIX rounds,
 // worktree kept, siblings proceed). Live truth: an `environment` gate failure earns ONE environment-proceed
@@ -312,12 +341,14 @@ test('D17 — 2026-07-12 prose-drift spec names classOf a reader, never the re-r
 // (this file included), so spelling it contiguously here would make the guard trip the very floor it
 // backs. `\s+` keeps the literal out of the source line while matching the live prose identically —
 // and, per the two-line-pairing lesson, strictly widens it across a wrap.
-test('D18 — SKILL.md gate_failed environment arm documents bounded environment-proceed, not the gate-time zero-retry doctrine (#1030)', () => {
-  const bullet = skillMd.match(/^ {2}- \*\*`environment`\*\* →[\s\S]*?(?=\n {2}- \*\*)/m)
+test('D18 — gate_failed environment arm documents bounded environment-proceed, not the gate-time zero-retry doctrine (#1030)', () => {
+  // Relocated read: the `gate_failed` routing bullets moved verbatim into
+  // references/resume-and-recovery.md (prompt-surface simplification).
+  const bullet = resumeMd.match(/^ {2}- \*\*`environment`\*\* →[\s\S]*?(?=\n {2}- \*\*)/m)
   assert.ok(
     bullet,
-    'could not locate the `- **`environment`** →` bullet under SKILL.md\'s `gate_failed` routing ' +
-      'by class — the D18 construct is gone or its markup changed',
+    'could not locate the `- **`environment`** →` bullet under the `gate_failed` routing ' +
+      'in references/resume-and-recovery.md — the D18 construct is gone or its markup changed',
   )
   const b = bullet[0]
   // Absence: the retired gate-time doctrine, in either of its two live-byte-derived forms.
@@ -420,7 +451,7 @@ test('D20 — schemas.md ledger.json block declares the top-level adjudications 
   )
 })
 
-// (D21) SKILL.md's `held:land-failed` Outcome-handling bullet must carry BOTH arms by which a
+// (D21) references/resume-and-recovery.md's `held:land-failed` Outcome-handling bullet must carry BOTH arms by which a
 // gate-time `environment` failure reaches the hold (#1039). The retired sentence was unconditional —
 // the retry was declared spent for every such entry — which is false on the baseline-proceed arm,
 // where a `baseline-proceed` re-land's `environment`-classified failure routes straight to the hold
@@ -435,18 +466,20 @@ test('D20 — schemas.md ledger.json block declares the top-level adjudications 
 // Extraction copies the live construct at `land-decision.test.mjs` (same bullet, same file): locate
 // the REAL 2-space-indented ``- **`held:land-failed``` header — a TOKEN-ONLY prefix, trailing bullet
 // text variable; the compact ``- **`held:land-failed`**`` wrap is *schemas.md*'s header form and has
-// zero occurrences in SKILL.md — and terminate at the next SAME-INDENT 2-space `- **` sibling, never
+// zero occurrences in the bullet's home file — and terminate at the next SAME-INDENT 2-space `- **` sibling, never
 // a top-level `- **` one (that truncates at the nested `    - **(a)` sub-bullet, or, read the other
 // way, over-extends past the whole `- **Escalation-completion land …**` sibling and would let arm
 // vocabulary from unrelated prose green the lock). Arm markers are markup-tolerant (D18's idiom), so
 // a bold/backtick reshuffle inside an arm name does not false-red.
-test('D21 — SKILL.md held:land-failed bullet names both environment arms, never one unconditional retry-spent claim (#1039)', () => {
-  const lines = skillMd.split('\n')
+test('D21 — held:land-failed bullet names both environment arms, never one unconditional retry-spent claim (#1039)', () => {
+  // Relocated read: the held:land-failed bullet moved verbatim into
+  // references/resume-and-recovery.md (prompt-surface simplification).
+  const lines = resumeMd.split('\n')
   const headerIdx = lines.findIndex((l) => /^ {2}- \*\*`held:land-failed`/.test(l))
   assert.ok(
     headerIdx >= 0,
-    'could not locate the 2-space ``- **`held:land-failed``` bullet header in SKILL.md — anchor ' +
-      'rotted (non-vacuous guard)',
+    'could not locate the 2-space ``- **`held:land-failed``` bullet header in ' +
+      'references/resume-and-recovery.md — anchor rotted (non-vacuous guard)',
   )
   let endIdx = lines.length
   for (let i = headerIdx + 1; i < lines.length; i++) {
@@ -499,8 +532,9 @@ test('D21 — SKILL.md held:land-failed bullet names both environment arms, neve
 // before the push) at once — dropping any arm, or relocating one outside that span, fails it RED.
 //
 // Extraction is BY CONSTRUCT — the `**Post-servitor publication (Gate 2` marker to the next `##`
-// heading — never a whole-file scan: `ensure-origin` and `remove-publication-worktree` also appear
-// in Setup step 2's crash-heal pre-flight and the Checkpoint land recipes, so a whole-file key
+// heading — never a whole-file scan: `ensure-origin` also appears in Setup step 2 (and, since the
+// prompt-surface eviction, the crash-heal detail and the Checkpoint land recipes carry both tokens
+// in references/setup.md / references/resume-and-recovery.md), so a whole-file key
 // could be greened by prose outside the flow this row polices. Markup-tolerant on the emphasis
 // spans (D18/D21's idiom): a bold/backtick reshuffle inside a clause must not false-red.
 //

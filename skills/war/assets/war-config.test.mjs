@@ -1379,11 +1379,21 @@ test('doc-contract: SKILL.md Setup step 4 threads memoryLocalRoot and names the 
 })
 
 test('doc-contract: SKILL.md drops the retired scope-hook-glob compatibility clause (Task 2 obsoletes it, #584)', () => {
-  const text = readDoc('skills/war/SKILL.md')
-  assert.ok(
-    !text.includes('must still match the servitor scope-hook'),
-    'SKILL.md must drop the retired "must still match the servitor scope-hook\'s glob" clause — the servitor has no repo-root write left'
-  )
+  // UNION scan (prompt-surface simplification, adjudication I): the OLD-absent key covers the
+  // origin surface PLUS every eviction destination, so moved prose can never re-shelter the clause.
+  for (const relPath of [
+    'skills/war/SKILL.md',
+    'skills/war/references/setup.md',
+    'skills/war/references/docker-gate.md',
+    'skills/war/references/submodule-flows.md',
+    'skills/war/references/resume-and-recovery.md',
+  ]) {
+    const text = readDoc(relPath)
+    assert.ok(
+      !text.includes('must still match the servitor scope-hook'),
+      `${relPath} must not carry the retired "must still match the servitor scope-hook's glob" clause — the servitor has no repo-root write left`
+    )
+  }
 })
 
 test('doc-contract: SKILL.md Gate 2 carries the files_written reconciliation assertion (#584)', () => {
@@ -1453,6 +1463,12 @@ test('doc-contract: swept surfaces no longer offer docs/learnings as a servitor-
     'skills/war/SKILL.md',
     'skills/war/references/design.md',
     'skills/war/references/schemas.md',
+    // UNION extension (prompt-surface simplification, adjudication I): the SKILL.md eviction
+    // destinations join the enumerated OLD-absent list — still an anchored file list, never a scan.
+    'skills/war/references/setup.md',
+    'skills/war/references/docker-gate.md',
+    'skills/war/references/submodule-flows.md',
+    'skills/war/references/resume-and-recovery.md',
   ]
   for (const relPath of sweptSurfaces) {
     const text = readDoc(relPath)
@@ -1488,17 +1504,20 @@ test('doc-contract: SKILL.md launch step names the derivation trio planSlug/runI
 })
 
 // Helper: slice the `### Recovery relaunch` subsection body (heading → next top-level heading).
+// Relocated read (prompt-surface simplification, adjudication I presence-key rule): the subsection
+// moved verbatim from skills/war/SKILL.md into references/resume-and-recovery.md; the SKILL keeps a
+// trigger pointer under its Checkpoint outcome-handling bullet.
 function recoveryRelaunchSection() {
-  const text = readDoc('skills/war/SKILL.md')
+  const text = readDoc('skills/war/references/resume-and-recovery.md')
   const lc = text.toLowerCase()
   const start = lc.indexOf('### recovery relaunch')
-  assert.ok(start >= 0, 'SKILL.md must carry a `### Recovery relaunch` subsection (G)')
-  // Bound at the next `## ` (top-level) heading after the subsection.
+  assert.ok(start >= 0, 'references/resume-and-recovery.md must carry a `### Recovery relaunch` subsection (G)')
+  // Bound at the next `## ` (top-level) heading after the subsection (end-of-file otherwise).
   const rest = text.indexOf('\n## ', start)
   return text.slice(start, rest === -1 ? undefined : rest)
 }
 
-test('doc-contract: SKILL.md recovery-relaunch names both entry points (single-task + whole-phase) (G)', () => {
+test('doc-contract: recovery-relaunch (references/resume-and-recovery.md) names both entry points (single-task + whole-phase) (G)', () => {
   const section = recoveryRelaunchSection().toLowerCase()
   assert.ok(section.includes('single-task'), 'recovery-relaunch body must name the single-task retry entry point')
   assert.ok(
@@ -1516,7 +1535,7 @@ test('doc-contract: SKILL.md recovery-relaunch names both entry points (single-t
   )
 })
 
-test('doc-contract: SKILL.md recovery-relaunch names owned-file continuity, never resumeFromRunId, keep-commits-as-WIP (G)', () => {
+test('doc-contract: recovery-relaunch (references/resume-and-recovery.md) names owned-file continuity, never resumeFromRunId, keep-commits-as-WIP (G)', () => {
   const section = recoveryRelaunchSection()
   const lc = section.toLowerCase()
   assert.ok(lc.includes('owned-file') || lc.includes('ownedfile'), 'recovery-relaunch must name owned-file continuity')
@@ -1536,11 +1555,13 @@ test('doc-contract: SKILL.md recovery-relaunch names owned-file continuity, neve
   )
 })
 
-test('doc-contract: SKILL.md held:workflow-error prose names the provision-refusal / no-evidence case (C)', () => {
-  const text = readDoc('skills/war/SKILL.md')
+// Relocated read (prompt-surface simplification): the Checkpoint outcome-handling bullets moved
+// verbatim into references/resume-and-recovery.md; the SKILL keeps the trigger pointer.
+test('doc-contract: held:workflow-error prose names the provision-refusal / no-evidence case (C)', () => {
+  const text = readDoc('skills/war/references/resume-and-recovery.md')
   const lc = text.toLowerCase()
   const idx = lc.indexOf('`held:workflow-error` — terminal')
-  assert.ok(idx >= 0, 'SKILL.md must retain the held:workflow-error terminal outcome bullet')
+  assert.ok(idx >= 0, 'references/resume-and-recovery.md must retain the held:workflow-error terminal outcome bullet')
   // Bound to the end of the bullet (next list-item at the same indent, or blank line).
   const bulletEnd = text.indexOf('\n  - ', idx)
   const clause = text.slice(idx, bulletEnd === -1 ? undefined : bulletEnd).toLowerCase()
@@ -1550,11 +1571,12 @@ test('doc-contract: SKILL.md held:workflow-error prose names the provision-refus
   )
 })
 
-test('doc-contract: SKILL.md env-blocked bullet carries the evidence-gate token (C)', () => {
-  const text = readDoc('skills/war/SKILL.md')
+// Relocated read (prompt-surface simplification): same move as the held:workflow-error row above.
+test('doc-contract: env-blocked bullet carries the evidence-gate token (C)', () => {
+  const text = readDoc('skills/war/references/resume-and-recovery.md')
   const lc = text.toLowerCase()
   const idx = lc.indexOf('`env-blocked` task outcome')
-  assert.ok(idx >= 0, 'SKILL.md must retain the env-blocked task outcome bullet')
+  assert.ok(idx >= 0, 'references/resume-and-recovery.md must retain the env-blocked task outcome bullet')
   const bulletEnd = text.indexOf('\n- ', idx)
   const clause = text.slice(idx, bulletEnd === -1 ? undefined : bulletEnd).toLowerCase()
   assert.ok(
@@ -1572,6 +1594,12 @@ test('doc-contract: no stale `_polish` token in the swept doc surfaces (rename t
     'skills/war/SKILL.md',
     'skills/war/references/design.md',
     'CONTEXT.md',
+    // UNION extension (prompt-surface simplification, adjudication I): the SKILL.md eviction
+    // destinations join the enumerated OLD-absent list — still an anchored file list, never a scan.
+    'skills/war/references/setup.md',
+    'skills/war/references/docker-gate.md',
+    'skills/war/references/submodule-flows.md',
+    'skills/war/references/resume-and-recovery.md',
   ]
   for (const relPath of sweptSurfaces) {
     const text = readDoc(relPath)

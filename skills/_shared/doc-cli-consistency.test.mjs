@@ -108,6 +108,22 @@ function skillDocs() {
     const p = join(skillsDir, d.name, 'SKILL.md')
     if (existsSync(p)) docs.push({ path: `skills/${d.name}/SKILL.md`, text: readFileSync(p, 'utf8') })
   }
+  // UNION scan (prompt-surface simplification, adjudication I): SKILL.md prose evicts tier-2+
+  // blocks verbatim into per-skill references/ files, so the verb-claim scan follows the moved
+  // text — a moved shell-out claim stays checked, never silently unscanned. Enumerated eviction
+  // destinations only (a shrink task extends this list in the same commit as its move): the
+  // pre-existing contract/design references (e.g. skills/war/references/schemas.md) legitimately
+  // name module EXPORTS beside module filenames and are not shell-out prose.
+  const EVICTION_DESTINATIONS = [
+    'skills/war/references/setup.md',
+    'skills/war/references/docker-gate.md',
+    'skills/war/references/submodule-flows.md',
+    'skills/war/references/resume-and-recovery.md',
+  ]
+  for (const rel of EVICTION_DESTINATIONS) {
+    const p = join(REPO, rel)
+    if (existsSync(p)) docs.push({ path: rel, text: readFileSync(p, 'utf8') })
+  }
   assert.ok(docs.length > 0, 'no skills/*/SKILL.md found — repo root misresolved?')
   return docs
 }

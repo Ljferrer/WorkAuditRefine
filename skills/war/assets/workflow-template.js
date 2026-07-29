@@ -278,7 +278,7 @@ const backstops = Array.isArray(A.backstops) ? A.backstops : null
 const testPattern = (plan && typeof plan.testPattern === 'string' && plan.testPattern) ? plan.testPattern : null
 const testPatternArg = testPattern ? ` --pattern '${testPattern}'` : ''
 // Partial-phase recovery (spec §4.2/§4.4): a Lead-supplied top-level arg armed ONLY on a sanctioned
-// recovery relaunch (SKILL.md runbook). Shape { sanctioned: true, reclaimStaleRemote?: boolean }.
+// recovery relaunch (the war skill's references/resume-and-recovery.md runbook). Shape { sanctioned: true, reclaimStaleRemote?: boolean }.
 // Absent / non-sanctioned ⇒ the barrier's derive-and-skip step and the --reclaim-stale-remote
 // pass-through are DORMANT and every dispatched prompt is byte-identical to a non-recovery run APART
 // FROM the barrier prompt's always-on §4.4 stale-remote classification clause (default behavior, not
@@ -2172,8 +2172,8 @@ return { phase: phaseId, landed, escalated, minorsFiled, aced, notes, landResult
            landDecision: 'held:workflow-error',
            // recovery (D9, spec §9): an ADDITIVE field naming the sanctioned retry — held:workflow-error is
            // Lead/infra-side, so it retries via a FRESH Recovery relaunch (new runId), NEVER resumeFromRunId
-           // (the journal replays the cached error). Conforms to the ratified skills/war/SKILL.md
-           // "Resume vs. recovery relaunch" prose (that file untouched). Existing consumers read
+           // (the journal replays the cached error). Conforms to the ratified "Resume vs. recovery
+           // relaunch" prose (skills/war/references/resume-and-recovery.md). Existing consumers read
            // workflowError.message/stack and are unaffected.
            workflowError: { message: String(err && err.message || err), stack: err && err.stack,
              recovery: 'held:workflow-error is Lead/infra-side — retry via a fresh Recovery relaunch (new runId), never resumeFromRunId (the journal replays the cached error).' } }
