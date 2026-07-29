@@ -87,7 +87,8 @@ already in the merge sha ⇒ no contender) buys **exactly one** extra push-first
 once. A transient that resolves returns `status:'landed'`, so the **existing** `servitorResult` gate
 spawns the wrap-up servitor with no Lead intervention — only a genuine divergence reaches the
 `land_stale` → `held:escalation` path. **No new status or enum.** The discrimination is mirrored
-byte-parallel in `agents/war-refiner.md` §land-phase and the `workflow-template.js` land prompt.
+byte-parallel in `skills/war/references/refiner-recovery.md` (evicted from `agents/war-refiner.md`
+§land-phase, which retains the trigger pointer) and the `workflow-template.js` land prompt.
 
 ### (E) Per-mode enum reachability is a drift-guarded test; the comment stays as narration
 
