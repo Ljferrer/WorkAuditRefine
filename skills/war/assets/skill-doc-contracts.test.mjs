@@ -885,3 +885,103 @@ test('D27 — SKILL.md Lead evidence bindings paragraph carries the §4.4 skelet
     }
   }
 })
+
+// (D28) GLOSSARY → CANONICAL-HOME POINTER PAIRS — Task 6.2's two CONTEXT.md compressions (#1228)
+// replaced operative procedure with a trigger pointer at each doctrine's single surviving operative
+// home. Nothing else pins either pointer or the delegated doctrine, and the plan explicitly
+// licenses re-partitioning `references/` ("expected carves, not contracts"), so a rename or
+// re-partition would orphan both pointers with zero red — the recorded
+// [[verbatim-doc-move-breaks-relative-links-authored-for-old-location]] /
+// [[spec-non-goal-citation-of-a-doctrines-home-file-can-be-wrong]] rot class D19 exists for.
+// Per compressed entry, two halves: (a) the glossary entry keeps its definition anchors plus the
+// trigger clause naming its destination path; (b) the destination still carries the delegated
+// doctrine's tokens, extracted BY CONSTRUCT from its own heading to EOF (each destination is its
+// file's trailing section) — never a whole-file scan. Delete-and-trace: re-home or gut a
+// destination section and its (b) reds while CONTEXT.md still points at it; drop a pointer or a
+// definition core and its (a) reds.
+test('D28 — CONTEXT.md compressed glossary entries keep definition + trigger pointer, and each destination carries the delegated doctrine (#1228)', () => {
+  // --- Pair 1: **`held:submodule-pr`** → references/submodule-flows.md ---
+  const subEntry = contextMd.match(/^\*\*`held:submodule-pr`\*\*[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  assert.ok(
+    subEntry,
+    'could not locate the `**`held:submodule-pr`**` glossary entry in CONTEXT.md (bolded term → ' +
+      'next bolded term or `###` heading) — the extraction construct rotted',
+  )
+  const sub = norm(subEntry[0])
+  for (const [re, what] of [
+    [/\*\*human-triggered\*\* resume/i, 'the human-triggered-resume definition core'],
+    [/there is \*\*no\*\* background poller/i, 'the no-background-poller clause'],
+    [/reachable on the submodule remote/i, 'the remote-reachable-SHA clause'],
+    [/When clearing the hold/i, 'the trigger clause ("When clearing the hold, read …")'],
+    [/skills\/war\/references\/submodule-flows\.md/, 'the destination path'],
+  ]) {
+    assert.match(
+      sub,
+      re,
+      `the CONTEXT.md \`held:submodule-pr\` entry must keep ${what} — correct this row to a ` +
+        'sanctioned rewording, never drop the anchor to make a reword pass',
+    )
+  }
+  const subDest = submoduleMd.match(/^## `held:submodule-pr` sub-procedure[\s\S]*$/m)
+  assert.ok(
+    subDest,
+    'references/submodule-flows.md no longer carries the `## `held:submodule-pr` sub-procedure` ' +
+      "section — CONTEXT.md's trigger pointer now dangles; re-anchor BOTH surfaces together",
+  )
+  for (const [re, what] of [
+    [/mergeCommit\.oid/, 'the `mergeCommit.oid`-as-landed-SHA step'],
+    [/operator-supplied SHA/i, 'the operator-supplied-SHA fallback'],
+  ]) {
+    assert.match(
+      norm(subDest[0]),
+      re,
+      `the submodule-flows.md sub-procedure section must keep ${what} — it is the doctrine's sole ` +
+        'operative home since the #1228 glossary compression',
+    )
+  }
+
+  // --- Pair 2: **recovery relaunch** → references/resume-and-recovery.md ---
+  const recEntry = contextMd.match(/^\*\*recovery relaunch\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  assert.ok(
+    recEntry,
+    'could not locate the `**recovery relaunch**:` glossary entry in CONTEXT.md (bolded term → ' +
+      'next bolded term or `###` heading) — the extraction construct rotted',
+  )
+  const rec = norm(recEntry[0])
+  for (const [re, what] of [
+    [/\*\*fresh Workflow run\*\*/i, 'the fresh-Workflow-run definition core'],
+    [/same numeric `phase\.id`/i, 'the same-numeric-phase.id clause'],
+    [/owned-file continuity/i, 'the owned-file-continuity clause'],
+    [/\*\*never\*\* `resumeFromRunId`/, 'the never-resumeFromRunId clause'],
+    [/when retrying an escalated task or a held phase/i, 'the trigger clause'],
+    [/skills\/war\/references\/resume-and-recovery\.md/, 'the destination path'],
+  ]) {
+    assert.match(
+      rec,
+      re,
+      `the CONTEXT.md recovery-relaunch entry must keep ${what} — correct this row to a ` +
+        'sanctioned rewording, never drop the anchor to make a reword pass',
+    )
+  }
+  // Heading → EOF: the pointer delegates to the whole playbook (the Recovery relaunch subsection
+  // plus the held-partial-phase runbook that carries orphan adoption + reclaimStaleRemote arming).
+  const recDest = resumeMd.match(/^### Recovery relaunch\n[\s\S]*$/m)
+  assert.ok(
+    recDest,
+    'references/resume-and-recovery.md no longer carries the `### Recovery relaunch` section — ' +
+      "CONTEXT.md's trigger pointer now dangles; re-anchor BOTH surfaces together",
+  )
+  for (const [re, what] of [
+    [/record-as-owned/, 'the `record-as-owned` orphan-adoption step'],
+    [/args\.recovery/, 'the `args.recovery` arming'],
+    [/reclaimStaleRemote/, 'the `reclaimStaleRemote` arming'],
+    [/full original phase DAG/i, 'the full-original-DAG clause'],
+  ]) {
+    assert.match(
+      norm(recDest[0]),
+      re,
+      `the resume-and-recovery.md Recovery-relaunch playbook must keep ${what} — it is the ` +
+        'doctrine\'s sole operative home since the #1228 glossary compression',
+    )
+  }
+})
