@@ -4,6 +4,7 @@ description: "A byte-identical verbatim move of a doc block into a deeper refere
 metadata: 
   node_type: memory
   type: project
+  promoted: dev/2026-07-28-prompt-surface-simplification@phase-2
   provenance: code-verified
   slug: verbatim-doc-move-breaks-relative-links-authored-for-old-location
   phase: prompt-surface-simplification/2.1
@@ -17,6 +18,9 @@ metadata:
     - trigger pointer
     - prompt-surface-budgets
     - SKILL.md shrink
+    - auditor-teach.md
+    - co-source-of-truth
+    - phase-close revert
   tags: 
     - war
     - doc-prose-drift
@@ -24,7 +28,7 @@ metadata:
     - prompt-surface
   created: 2026-07-28
   originSessionId: 15ea107f-a540-466b-bb69-7ce45fb6e5a4
-  modified: 2026-07-29T01:09:59.708Z
+  modified: 2026-07-29T03:11:40.758Z
 ---
 
 # Verbatim doc-block moves break relative links/citations authored for the old location
@@ -72,3 +76,18 @@ rather than touching the moved bytes; separately sweep the **origin file's own s
 (and sibling files across the repo) for citations pointing at content that just left — that sweep
 is NOT byte-identity-protected and should be fixed at the citing site in the same task (ADR 0025
 comment-lag duty).
+
+**Confirmed recurrence, phase 3 (code-verified at landed tip `53ef8a7b1eed93a55a7a30dbc9137228f31e5d7b`,
+`skills/war/references/auditor-teach.md` line 38):** exactly the predicted instance. Task 3.1
+verbatim-moved the auditor card's gitlink-bump pin-validity arm into `auditor-teach.md`; the moved
+block still cites `` `SKILL.md`, submodule co-source-of-truth `` for content phase 2 (`b6ee5a2`)
+had already relocated to `skills/war/references/submodule-flows.md` § "Resume — submodule remote
+as co-source-of-truth". The fix landed once (`c6015c4`, a header-caveat addition matching this
+lesson's sanctioned shape) but a **whole-commit revert** (`7e21867`, no rationale recorded)
+undid it; the phase-close polish redo (`39afb54`, task `p3-polish`) re-derived its own two-item
+queue from the *then-current* open findings and happened to drain a **different** pair (a tour
+line-anchor Nit + a qualifier-lock comment-lag Minor) — so the `auditor-teach.md` caveat is still
+missing at the landed tip. **New gotcha layered on the base lesson:** when a phase-close polish
+commit that fixes N findings gets reverted wholesale, do not assume a later polish pass restores
+all N — it re-scopes to whatever is queued *at redo time*, which can silently orphan a subset
+forever unless the orphaned finding is re-filed. See [[phase-close-polish-revert-can-silently-orphan-a-subset-of-absorbed-findings]].
