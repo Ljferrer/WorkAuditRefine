@@ -50,85 +50,14 @@ one-time and already in place — `tighten` is the **repeatable** lever that kee
 the `WARN_BYTES` advisory line (17,000 B) via usage-scored eviction, one operator-approved gate at a
 time. Resolve `$MEM` per [Locate the memory store](#locate-the-memory-store) and `$REPO_ROOT` the same
 way Phase 0 does (both defined further down this doc — this mode still runs before/instead of the
-numbered phases, it just borrows their variable names). Five steps, strict order:
+numbered phases, it just borrows their variable names). Five steps, strict order — load
+[`references/tighten.md`](references/tighten.md) and execute them top to bottom
+(Preflight → Plan → Gate → Execute → Report). Two rules that file expands on:
 
-1. **Preflight** (read-only — nothing is staged or mutated yet). Run **exactly one** of the fence's
-   two lines below — never the fence wholesale. When the invocation named a target
-   (`/lessons-learned tighten --target <bytes>`, or a byte figure the operator gave in the ask), run
-   the flagged line with the **literal byte figure substituted for the `<bytes>` placeholder**;
-   otherwise run the bare line, so the default run is unchanged. If the flagged line exits 1 with the
-   `--target` diagnostic, the byte figure was substituted wrong — correct it and rerun the preflight
-   (the verb is read-only; nothing was staged or mutated).
-
-   ```bash
-   # a target was named — substitute the operator's literal byte figure for <bytes>
-   node "${CLAUDE_PLUGIN_ROOT}/skills/_shared/war-memory.mjs" tighten-plan --local "$MEM" --repo "$REPO_ROOT" --target <bytes>
-   # no target was named
-   node "${CLAUDE_PLUGIN_ROOT}/skills/_shared/war-memory.mjs" tighten-plan --local "$MEM" --repo "$REPO_ROOT"
-   ```
-
-   (`--target` defaults to 17,000 = `WARN_BYTES`; a `--target <bytes>` below it binds the pass at that
-   figure — the flag sets the cut goal **and** whether the pass triggers at all.)
-   Read the printed JSON's `verdict` field — the **effective** read on the **current, live** corpus: the
-   stricter of the advisory projection verdict and the `--target` bound (`ok` | `warn` | `refuse`).
-   **`verdict: "ok"` — strictly under the effective target — means report
-   "nothing to tighten" and stop; no later step runs.** Anything else (`warn` or `refuse`) proceeds —
-   the verdict is the stricter of the advisory line (`bytes >= WARN_BYTES`) and the effective `--target`,
-   so a `--target` below 17,000 B makes the preflight bind at that target, while a looser one never
-   suppresses the advisory `warn`.
-
-2. **Plan.** Reuse that same JSON — `tighten-plan` is the corpus authority; **never re-derive hits,
-   floors, or ranking by hand.** Its `eligible` array is the ranked mutation set (ascending `hits`, ties
-   by `tier` then `ageDays`), one entry per candidate: `slug`, `hits`, `tier`, `ageDays`, `inbound`,
-   `bytesFreed`, a running `cumulativeFreed` — plus, on a cross-root dupe, `dupe: true` /
-   `copies: ["local","repo"]`. The top-level `cutIndex` marks how many entries (from the top) the
-   **default** proposal strikes to clear `cutGoalBytes` (`currentBytes` down to `target − slack`, `slack`
-   = 500 B); `projectedBytes` is the file size if exactly that default set lands. Optionally fold in
-   editorial description trims for cells the 160 B cap visibly cut mid-thought — polish only, never
-   counted toward the byte math (eviction owns bytes; edits are cosmetic).
-
-3. **Gate** (the single destructive phase — every mutation behind one ask, never a row-by-row
-   negotiation). Present the full `eligible` list as a strike-list — slug · hits · tier · age · inbound ·
-   bytes, the `cutIndex` entries pre-selected as the default — plus the projected post-run size
-   (`currentBytes` minus the *approved* set's `bytesFreed` sum; recompute it if the operator strikes a
-   different subset than the default). Collect the approved subset in this one ask.
-
-4. **Execute**, in this order — a struck dupe only fully archives across both sub-steps below, so the
-   order is load-bearing, not stylistic:
-   - If the approved set touches any `[repo]`-marked slug, first
-     `git -C "$REPO_ROOT" checkout -b dev/<YYYY-MM-DD>-memory-tighten` off the current HEAD, so every
-     repo-root move below lands on the dedicated branch, never wherever `$REPO_ROOT` happened to be
-     checked out.
-   - **Local**, reusing the Phase 1/5/6/7 subcommands verbatim (no fan-out — this isn't the audit
-     flow): `safe-swap.sh stage "$MEM"` for `$STAGING`, then the same Phase 5 `archive` /
-     `render-index` invocations (both flags, `--repo "$REPO_ROOT"` included) against the approved
-     local-side slugs in place of a retire/merge list (a struck dupe's **local** half moves now — the
-     prefer-local rule wins while both copies are hot; a repo-only slug's sole copy also moves now,
-     `git mv`d straight into the branch above) plus any approved editorial trims, then the same Phase 6
-     `verify` and Phase 7 `commit` invocations. Take the same stale-staging guard as the bare pass — a
-     `stage` refusal over a leftover `.staging` dir means `recover` first.
-   - **Repo**, only after the local commit lands: a struck dupe's repo half is now its slug's *sole* hot
-     copy, so `archive --local "$MEM" --repo "$REPO_ROOT" <struck-dupe-slugs>` now resolves to it and
-     `git mv`s it inside `$REPO_ROOT` (repo-only slugs already moved above — a no-op for them here). Then
-     `lint "$REPO_ROOT"` (fail-closed), `git -C "$REPO_ROOT" add -A && git commit` (one commit, covering
-     every move this run made). **Before the push**, run
-     `bash "${CLAUDE_PLUGIN_ROOT}/skills/_shared/gh-preflight.sh" Ljferrer` (the recorded gh-account
-     gotcha — a stale active account on a multi-account machine silently drops the PR onto the wrong
-     identity), then push and open the PR. Skip every bullet in this step when nothing `[repo]`-marked
-     was struck.
-   - *(Why local-then-repo: `archive`'s prefer-local rule — the fix for the recorded "archiving a dupe's
-     local copy frees zero projection bytes" incident — always resolves a slug hot in both roots to its
-     local copy; no flag forces the repo copy while a local hot copy survives. A struck `dupe: true`
-     entry needs both passes, in this order, to actually drop its row.)*
-
-5. **Report.** Before/after `MEMORY.md` lines + bytes + % full on both axes, the actioned buckets (slugs
-   struck: local-only / repo-only / dupe-both), any editorial trims, the PR URL (or "no repo-side change"
-   when nothing `[repo]`-marked was struck), and the local swap's backup + `.prev` paths. **When the
-   approved subset still leaves the file at or above `target`** (fewer strikes than the default
-   `cutIndex`, or the eligible list itself falls short) — **execute anyway, then report the shortfall
-   loudly**: bytes still missing plus the next-best candidates (the same `eligible` array from `cutIndex`
-   onward). Never silent, never a second automatic gate — the operator re-runs `tighten` by hand for
-   another pass if they want to close the gap.
+- The preflight is read-only and binds at the **effective target** — the stricter of the advisory
+  line and an operator-supplied `--target`; an `ok` verdict ends the mode with nothing staged.
+- Every mutation sits behind **one** strike-list gate, executed local-then-repo (a struck cross-root
+  dupe only fully archives when both halves move, in that order).
 
 ## `seed` mode — warm-seed a repo from the portable corpus
 
@@ -347,7 +276,7 @@ Both bullets delegate entirely to `references/seeding.md`; this list entry is on
 - **Deleting instead of archiving a `retire`/`merge`.** `rm` destroys knowledge; `war-memory archive <slug>` keeps it queryable. This pipeline archives — it never `rm`s a lesson.
 - **Swapping on a `VERIFY: FAIL` or warnings you didn't read.** A link into `archive/` is legal (cold links resolve); the real rot is a link to a slug in neither the hot set nor `archive/`. Resolve those before committing.
 - **Dropping `--repo` from the Phase 5 archive or render on a repo-adopted store.** Both `archive` (its trailing re-render) and `render-index` re-derive the projection from the roots they are told to walk; if `$REPO_ROOT` exists but you invoke either `--local` only, the walk never sees the repo lessons and the regenerated `MEMORY.md` **silently drops every `[repo]` row**. Always pass `--repo <repo root>` on **both** the Phase 5 `archive` and the Phase 5 render when the repo root exists — and thread `CLAUDE_MEMORY_REPO="$REPO_ROOT"` into the Phase 6/7 `verify`/`commit`, whose repo-completeness hard fail now backstops this mistake (a zero-`[repo]`-row projection against a populated repo root refuses to swap). (The **evict** re-render is the deliberate exception — it stays local-only *by design* so eviction drops the `[repo]` markers.)
-- **Claiming a single-copy dupe archive frees projection bytes.** A cross-root dupe's `tighten-plan` entry (`dupe: true`, `copies: ["local","repo"]`) reports the saving for archiving **both** copies together — striking only one side (including a bare `archive <slug>` that only ever touches the local record, per the prefer-local rule) leaves the row exactly as it was; `buildProjection` re-collapses the surviving twin right back into the same row. Always archive both sides of a struck dupe, local before repo (`tighten`'s Execute step 4).
+- **Claiming a single-copy dupe archive frees projection bytes.** A cross-root dupe's `tighten-plan` entry (`dupe: true`, `copies: ["local","repo"]`) reports the saving for archiving **both** copies together — striking only one side (including a bare `archive <slug>` that only ever touches the local record, per the prefer-local rule) leaves the row exactly as it was; `buildProjection` re-collapses the surviving twin right back into the same row. Always archive both sides of a struck dupe, local before repo (`tighten`'s Execute step 4, in [`references/tighten.md`](references/tighten.md)).
 - **Hand-truncating a summary cell, or truncating after appending tags.** The projection's cell cap (`SUMMARY_CELL_BYTES` = 160 B) truncates the **description text first**, *then* appends the `[tier]`/`[repo]` markers — reversing that order (or hand-editing a cell to "fit") can sever a trailing `[repo]` marker, which `safe-swap.sh verify`'s repo-completeness check and the row classifiers both key on. Let `buildProjection` / `render-index` own every summary cell; never hand-truncate one.
 
 ## Note on write gates
