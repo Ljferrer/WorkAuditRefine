@@ -119,11 +119,13 @@ function skillDocs() {
     'skills/war/references/docker-gate.md',
     'skills/war/references/submodule-flows.md',
     'skills/war/references/resume-and-recovery.md',
+    'skills/lessons-learned/references/tighten.md',
   ]
-  for (const rel of EVICTION_DESTINATIONS) {
-    const p = join(REPO, rel)
-    if (existsSync(p)) docs.push({ path: rel, text: readFileSync(p, 'utf8') })
-  }
+  // Unguarded read: an enumerated destination that vanishes (rename/delete) must throw,
+  // never silently narrow the UNION scan (lesson: enumerated-destination-list-existssync-
+  // guard-fail-open-vs-sibling-fail-closed).
+  for (const rel of EVICTION_DESTINATIONS)
+    docs.push({ path: rel, text: readFileSync(join(REPO, rel), 'utf8') })
   assert.ok(docs.length > 0, 'no skills/*/SKILL.md found — repo root misresolved?')
   return docs
 }
