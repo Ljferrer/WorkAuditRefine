@@ -558,6 +558,11 @@ const RETIRED_CLAIM_SURFACES = [
   'skills/war/references/schemas.md',
   'skills/lessons-learned/SKILL.md',
   'skills/lessons-learned/references/migration.md',
+  // UNION member (adjudication I): Task 6.1 evicted the tighten five-step procedure out of
+  // skills/lessons-learned/SKILL.md into references/tighten.md. A whole-file OLD-absent key
+  // re-anchors as a UNION over origin + every destination, never a relocated read — otherwise
+  // the eviction silently narrows clause B's scan. Same reason migration.md sits above.
+  'skills/lessons-learned/references/tighten.md',
   'skills/war/assets/war-config.mjs',
 ]
 // Structured surfaces pinned by clauses A/C — excluded from the prose adjacency sweep (see header).
