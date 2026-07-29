@@ -4,6 +4,7 @@ description: "Prompt-surface-simplification's references/<file>.md eviction patt
 metadata: 
   node_type: memory
   type: project
+  promoted: dev/2026-07-28-prompt-surface-simplification@phase-3
   provenance: code-verified
   slug: agent-card-reference-pointer-is-repo-relative-and-wont-resolve-against-a-foreign-target-repo
   phase: prompt-surface-simplification/3.1
@@ -25,7 +26,7 @@ metadata:
     - cross-repo
   created: 2026-07-28
   originSessionId: 15ea107f-a540-466b-bb69-7ce45fb6e5a4
-  modified: 2026-07-29T03:12:19.108Z
+  modified: 2026-07-29T16:17:53.793Z
 ---
 
 # Agent-card reference pointer is repo-relative and won't resolve against a foreign target repo
@@ -65,3 +66,17 @@ never as the sole carrier of an anti-false-positive guard.
 form already used in hook error output would resolve regardless of target-repo topology, but
 applying it here would touch pointer text on other, untouched cards — out of this task's slice
 at time of writing.
+
+**Confirmed recurrence, phase 4.1 (code-verified — landed tip
+`cce668634ff6d566d1370e9502c08d317fea4e3c`, via the `_refinery` worktree at
+`.claude/war-worktrees/2026-07-28-prompt-surface-simplification-2026-07-28/_refinery/`,
+`agents/war-refiner.md` line 21):** exactly the predicted instance — Task 4.1 evicted the
+submodule-as-repo provisioning recipe into `refiner-recovery.md`, and the card's retained
+sentence initially dropped the recipe's one anti-false-positive refusal ("the resolved base is
+... never silently the remote default"). Fixed in the same task's polish round: the pointer
+paragraph now states the refusal inline (verified present) AND adds an explicit survival
+sentence ("Your dispatched merge/land prompt threads the submodule targetRepo/targetBase and the
+2A/2B routing"), mirroring the precedent the land-step-3 pointer already used. **Added technique
+for future eviction pointers:** when a pointer gates content that also survives some other way
+(a dispatched-prompt mirror, a Lead-owned resolution upstream), say so in the pointer's own
+prose — don't leave the survival implicit, even when it's true.

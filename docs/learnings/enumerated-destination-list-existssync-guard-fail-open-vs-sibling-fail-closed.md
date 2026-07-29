@@ -4,6 +4,7 @@ description: "existsSync-guarding an explicitly enumerated (not directory-scanne
 metadata: 
   node_type: memory
   type: project
+  promoted: dev/2026-07-28-prompt-surface-simplification@phase-2
   provenance: code-verified
   slug: enumerated-destination-list-existssync-guard-fail-open-vs-sibling-fail-closed
   phase: prompt-surface-simplification/2.1
@@ -23,7 +24,7 @@ metadata:
     - prompt-surface
   created: 2026-07-28
   originSessionId: 15ea107f-a540-466b-bb69-7ce45fb6e5a4
-  modified: 2026-07-29T01:10:17.999Z
+  modified: 2026-07-29T16:18:03.289Z
 ---
 
 # An existsSync guard is the right shape for a directory scan, wrong for an enumerated list
@@ -48,3 +49,15 @@ another same-diff suite going red. That's a lucky redundancy, not a designed one
 scan whose membership legitimately varies), read them unguarded (let a missing file throw) or add
 an explicit `assert.ok(docs.some(d => d.path === rel))` per enumerated entry — reserve
 `existsSync`-skip for genuine directory/glob scans where absence is an expected, valid state.
+
+**Confirmed correctly applied, phase 4.1 (code-verified — landed tip
+`cce668634ff6d566d1370e9502c08d317fea4e3c`, via the `_refinery` worktree at
+`.claude/war-worktrees/2026-07-28-prompt-surface-simplification-2026-07-28/_refinery/`,
+`skills/war/assets/refinery-surface.test.sh` lines 111-119):** Task 4.1 added a new UNION-scanned
+eviction destination (`skills/war/references/refiner-recovery.md`) to a *shell* absence-scan
+suite's enumerated `LIVE_SURFACE_FILES` list. The first-round diff repeated exactly this lesson's
+shape (member guarded only by the loop's `[ -f ]` skip, no dedicated existence assertion); the
+audit finding named it, and the fix round added a fail-loud `PRESENCE CHECK 5` immediately before
+`LIVE_SURFACE_FILES` is built — verified present at the landed tip. Confirms the prescribed fix
+(a dedicated presence check per enumerated member) is the concrete pattern to reach for, in shell
+suites as well as `*.test.mjs` ones.
