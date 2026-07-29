@@ -4,6 +4,7 @@ description: "A phase-close polish commit that absorbs N queued findings can be 
 metadata: 
   node_type: memory
   type: project
+  promoted: dev/2026-07-28-prompt-surface-simplification@phase-3
   provenance: code-verified
   slug: phase-close-polish-revert-can-silently-orphan-a-subset-of-absorbed-findings
   phase: prompt-surface-simplification/3.1
@@ -62,3 +63,40 @@ than assuming the redo superseded it.
 specific defect that got orphaned here is an instance of that lesson's predicted phase-3
 recurrence; this lesson is about the *process* gap (revert/redo bookkeeping), not the doc-link
 defect itself.
+
+---
+
+## RECURRENCE — phase 5, same plan, harder failure mode (2026-07-29)
+
+**Second occurrence, code-verified at `bd5faa9c8d60d51d800c6e2528437c36bfd6679b`.** Task 5.1's
+polish `a8cbd17` absorbed six findings. Commit `dc72d36` reverted it wholesale with the same
+signature as `7e21867`: body was only git's auto-generated `This reverts commit a8cbd17…`. So
+the rationale-free-revert shape is **not a one-off** — treat it as a standing hazard of the
+phase-close flow, not an incident.
+
+**What made this one worse than phase 3:** the reverted polish had added *assertions*, so the
+revert was **green-by-deletion**. It removed two `assert.match(workerMd, …)` pins
+(`/own remote, not the superproject/`, `/primary confinement/`) from the mapped acceptance test
+while **both pinned sentences stayed live inline** on `agents/war-worker.md`. Test count was
+identical before and after (1010/1010) because the polish's assertions live *inside* an existing
+test rather than adding cases — so no count-based check could see it. It also re-narrowed two D3
+OLD-absent keys from a UNION scan back to a single-surface read (adjudication I), and
+re-introduced a rewritten ADR 0002 link over the byte-identical original.
+
+**What caught it:** the post-merge gate-audit (`execution-evidence` lens) filed it **Critical**
+and the phase held at `held:escalation` — `landResult: null`, the dev branch never advanced.
+Phase 3's instance shipped silently; this one could not. The lens that works is
+*delete-and-trace against still-live text*: an assertion whose subject is still present in the
+guarded file is guard, never obsolescence.
+
+**The cheap decisive check, before re-applying or accepting a revert:** run the gate at the
+**reverted commit itself**. Here `a8cbd17` was fully green (1010/1010 JS + 27/27 shell) — so the
+revert had no gate justification of any kind, and re-applying was unambiguous. A revert whose
+target is green is a defect until someone records why. Resolution: `git revert <the-revert>` with
+the rationale in the body (`bd5faa9`), then land manually — the servitor does **not** run on a
+held phase (`servitorResult: null`), so the exactly-once learnings capture falls to the Lead.
+
+**Standing rule this pair establishes:** a phase-close revert with an auto-generated body is
+never self-justifying. Before accepting one — (1) gate the reverted commit; (2) diff the revert
+against still-live text for green-by-deletion; (3) if it stands, re-land it with a real rationale
+naming which findings are being re-opened.
