@@ -4,10 +4,7 @@ Verbatim evictions from `agents/war-auditor.md` (prompt-surface simplification, 
 moved block is byte-identical to its pre-eviction card text). Positional words inside the moved
 blocks ("below", "above") refer to their original card positions — "the branch flag enumeration
 below" is the card's Read-only git guard contract bullet list, and the two pre-flight arms sat
-between the card's Step 1 task-type triage and its regular-task refusal arm. A `SKILL.md` citation
-inside the moved blocks resolves to
-[submodule-flows.md](submodule-flows.md) (§ Resume — submodule remote as
-co-source-of-truth) since the phase-2 eviction of that block from `skills/war/SKILL.md`.
+between the card's Step 1 task-type triage and its regular-task refusal arm.
 
 ## Guard-contract mirror architecture
 
