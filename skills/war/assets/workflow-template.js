@@ -1909,7 +1909,9 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
 }
 
 // Reland-loop transient-vs-divergence discrimination (Task 1.2 / D4). BYTE-PARALLEL with
-// agents/war-refiner.md §land-phase (grep parity — the mirror-drift hazard, spec §8): both surfaces
+// skills/war/references/refiner-recovery.md (the standing copy — evicted from war-refiner.md
+// §land-phase by Task 4.1, which left a trigger pointer on the card; grep parity — the
+// mirror-drift hazard, spec §8): both surfaces
 // state the identical discrimination AND the identical +1 budget. Shared here so all three land prompts
 // (in-flow, baseline-proceed re-land, environment-proceed re-land) cannot drift from each other. A resolved
 // transient returns 'landed' — NO new status/enum member — so the existing servitorResult gate fires.

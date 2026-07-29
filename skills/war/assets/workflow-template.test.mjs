@@ -12,6 +12,11 @@ const auditorMd = readFileSync(join(here, '../../../agents/war-auditor.md'), 'ut
 // teach prose from the card into this reference file — every OLD-absent key over the card scans it too.
 const auditorTeachMd = readFileSync(join(here, '../references/auditor-teach.md'), 'utf8')
 const refinerMd = readFileSync(join(here, '../../../agents/war-refiner.md'), 'utf8')
+// UNION/relocated surface (prompt-surface simplification, adjudications E+I): Task 4.1 evicted the
+// submodule-as-repo provisioning recipe, the superproject reland discrimination (land step 3), and the
+// 2A/2B submodule land arms from the card into this reference file — presence keys over the moved text
+// relocate their read here; every OLD-absent key over the card scans it too.
+const refinerRecoveryMd = readFileSync(join(here, '../references/refiner-recovery.md'), 'utf8')
 const src = readFileSync(join(here, 'workflow-template.js'), 'utf8').replace(/^export const meta/m, 'const meta')
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 const build = () => new AsyncFunction('agent', 'parallel', 'pipeline', 'log', 'phase', 'args', 'budget', src)
@@ -5648,7 +5653,7 @@ test('run-lifecycle §4 polish worktree provisioning ok:false → fail-open: swe
   assert.ok((out.minorsFiled || []).some(m => m && m.title === 'dangling link'), 'the queued finding drains to follow-up')
 })
 
-test('run-lifecycle §5 both-surfaces drift guard: war-refiner.md names the provision mode, the three labels, the env-outcome fields, the submodule p<phase>-<task> path, and the frontmatter blurb (token-anchored, case-tolerant)', () => {
+test('run-lifecycle §5 both-surfaces drift guard: war-refiner.md names the provision mode, the three labels, the env-outcome fields, and the frontmatter blurb; refiner-recovery.md carries the evicted submodule p<phase>-<task> path (token-anchored, case-tolerant)', () => {
   assert.match(refinerMd, /## provision/i, 'the standing card has a ## provision section')
   // the three dispatch labels wherever the dispatched prompts name them
   assert.match(refinerMd, /provision:phase-<id>/i, 'names the git-topology barrier label')
@@ -5658,8 +5663,9 @@ test('run-lifecycle §5 both-surfaces drift guard: war-refiner.md names the prov
   assert.match(refinerMd, /env-outcome/i, 'names the env-outcome return')
   for (const f of ['failedCommand', 'exitCode', 'stderrTail']) assert.match(refinerMd, new RegExp(f, 'i'), `names the env-outcome field ${f}`)
   assert.match(refinerMd, /never\b[\s\S]{0,16}(out-of-mode|decline)/i, 'states a provision dispatch is never declined')
-  // submodule worktree add path mirrors the template derivation shape
-  assert.match(refinerMd, /p<phase>-<taskId>/i, 'the submodule step-4 worktree path carries the p<phase>-<taskId> shape')
+  // submodule worktree add path mirrors the template derivation shape — read relocated to
+  // references/refiner-recovery.md (Task 4.1 evicted the submodule-as-repo provisioning recipe there)
+  assert.match(refinerRecoveryMd, /p<phase>-<taskId>/i, 'the submodule step-4 worktree path carries the p<phase>-<taskId> shape (refiner-recovery.md, evicted from the card)')
   // frontmatter description (the agent-catalog blurb) names the provision mode + env-outcome return
   const fm = refinerMd.split('---')[1] || ''
   assert.match(fm, /provision mode/i, 'the frontmatter blurb names the provision mode')
@@ -5690,7 +5696,8 @@ test('run-lifecycle §5 schemas.md presence lock: provisioning-args + footgun ca
 // exactly ONE extra push-first attempt beyond roundLimit; a nonzero right count (real contender
 // commits) is land_stale immediately. The discrimination is emitted in ALL THREE land prompts (in-flow,
 // baseline-proceed re-land, environment-proceed re-land) via the shared relandDiscrimination helper, and
-// grep-parallel with agents/war-refiner.md §land-phase.
+// grep-parallel with the standing copy in references/refiner-recovery.md (evicted from war-refiner.md
+// §land-phase by Task 4.1; the card's land step 3 is a trigger pointer).
 // The three plain-text anchors below appear VERBATIM in all four surfaces (mirror-drift guard, spec
 // §8; memory: standing-instruction-vs-dispatched-prompt-coverage-split). They are markup-free in the
 // .md source (no backtick/bold inside the span) so a raw-string includes() matches byte-for-byte.
@@ -5742,17 +5749,21 @@ test('Task 1.2 — BOTH recovery re-land prompts carry the identical discriminat
   }
 })
 
-test('Task 1.2 — grep parity: agents/war-refiner.md §land-phase carries the byte-identical discrimination strings the JS prompts emit', () => {
+test('Task 1.2 — grep parity: the standing discrimination copy (references/refiner-recovery.md, evicted from war-refiner.md §land-phase by Task 4.1) carries the byte-identical strings the JS prompts emit', () => {
   // Standing-vs-dispatched coverage split: the same three plain-text anchors the land prompts emit
-  // must appear VERBATIM in the standing card so the surfaces cannot drift (spec §8, grill Q5/Q11).
-  assert.ok(refinerMd.includes(RELAND_DISC_CMD), 'war-refiner.md §land-phase runs rev-list --left-right --count <merge-sha>...origin/')
-  assert.ok(refinerMd.includes(RELAND_DISC_BUDGET), 'war-refiner.md §land-phase states the identical explicit-+1 budget sentence')
-  assert.ok(refinerMd.includes(RELAND_DISC_DIVERGE), 'war-refiner.md §land-phase names the nonzero-right-count divergence branch')
+  // must appear VERBATIM in the standing copy so the surfaces cannot drift (spec §8, grill Q5/Q11).
+  // Presence keys relocated with the moved text (adjudication E): the standing copy now lives in
+  // references/refiner-recovery.md; the card's land step 3 is a trigger pointer to it.
+  assert.ok(refinerRecoveryMd.includes(RELAND_DISC_CMD), 'refiner-recovery.md § reland discrimination runs rev-list --left-right --count <merge-sha>...origin/')
+  assert.ok(refinerRecoveryMd.includes(RELAND_DISC_BUDGET), 'refiner-recovery.md states the identical explicit-+1 budget sentence')
+  assert.ok(refinerRecoveryMd.includes(RELAND_DISC_DIVERGE), 'refiner-recovery.md names the nonzero-right-count divergence branch')
   // the discrimination must appear for BOTH the superproject land and the submodule-2A land variant.
-  assert.ok((refinerMd.match(/git rev-list --left-right --count <merge-sha>\.\.\.origin\//g) || []).length >= 2,
+  assert.ok((refinerRecoveryMd.match(/git rev-list --left-right --count <merge-sha>\.\.\.origin\//g) || []).length >= 2,
     'the discrimination command is present in BOTH the superproject and submodule-2A land variants')
   // never anchored on the lagging local follower.
-  assert.match(refinerMd, /NEVER the local follower/, 'war-refiner.md pins the discrimination to origin, never the lagging local follower')
+  assert.match(refinerRecoveryMd, /NEVER the local follower/, 'refiner-recovery.md pins the discrimination to origin, never the lagging local follower')
+  // the card still ROUTES to the standing copy: land step 3 must keep its trigger pointer.
+  assert.match(refinerMd, /refiner-recovery\.md/, 'war-refiner.md carries the trigger pointer to references/refiner-recovery.md')
 })
 
 test('Task 1.2 — a stale-then-resolved land (final status:landed) reaches the servitorResult dispatch (no new status/enum)', async () => {
@@ -6072,6 +6083,9 @@ test('T2.1 criterion 6 (D5) — the gate-audit seat carries the captured-artifac
   assert.ok(!src.includes('Do NOT curate or excerpt'),
     'the anti-excerpt prose is gone from ALL workflow-template.js dispatched prompts (replaced by the capture clause)')
   assert.ok(!refinerMd.includes('curate or excerpt'), 'the anti-excerpt prose is gone from war-refiner.md step 7')
+  // UNION scan (adjudication I): Task 4.1 evicted card blocks into references/refiner-recovery.md —
+  // the OLD-absent key scans the eviction destination too, never a relocated read.
+  assert.ok(!refinerRecoveryMd.includes('curate or excerpt'), 'the anti-excerpt prose is absent from refiner-recovery.md (eviction destination)')
   const captureUses = (src.match(/gateCaptureClause\(refineryPath, r\.task\.id\)/g) || []).length
   assert.equal(captureUses, 3, 'the gate-capture clause replaces the anti-excerpt prose at ALL THREE dispatched merge sites (initial + floor-retry + environment-proceed) — the evidence chain must survive a retried merge')
 })

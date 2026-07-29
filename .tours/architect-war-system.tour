@@ -64,7 +64,7 @@
     },
     {
       "file": "agents/war-refiner.md",
-      "line": 21,
+      "line": 35,
       "title": "11 · Why merge-task is split across two worktrees",
       "description": "**Situation:** A single merge-task is *inherently* split across two worktrees — a constraint that surprises every new reader.\n\n**Mechanism:** The task branch stays checked out in its live task worktree (so fix-in-place still works), and `git rebase` refuses to run against a branch checked out in *another* worktree. So the **rebase runs in the task worktree**, then the **merge runs in `_refinery`**. `git rebase --onto` does *not* dodge this (equally refused); a no-checkout `update-ref` replay desyncs the task worktree.\n\n**Implication:** this is a hard git fact, sandbox-verified (ADR 0004), not a stylistic choice — an architect proposing to 'simplify' the two-worktree dance will rediscover the same wall. **Gotcha:** the gate runs with `TMPDIR` pinned to a fresh, `.war-task`-free dir so a meta-test's scratch space can't trip the worker scope hook."
     },
