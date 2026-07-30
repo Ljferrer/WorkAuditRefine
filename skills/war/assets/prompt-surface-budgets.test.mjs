@@ -6,15 +6,18 @@
 // size <= hard (red) and logs a warning above advisory (never a failure). Budgets have
 // ratchet-down semantics — LOWERING a constant is a normal PR; RAISING any hard or
 // advisory constant requires citing the prompt-surface-budgets ADR's justification
-// rule in the commit body. Formula (adjudication D): advisory = post-shrink measured
-// size × 1.10 rounded up to the KB; hard = post-shrink × 1.25 rounded up to the KB.
+// rule in the commit body.
+// Pinned by skill-doc-contracts.test.mjs's D29 row (ADR 0042 mirror registry) — reword
+// the Formula sentence below and that row in the same commit.
+// Formula (adjudication D): advisory = post-shrink measured size × 1.10 rounded up to
+// the KB; hard = post-shrink × 1.25 rounded up to the KB.
 // `references/` files are deliberately unbudgeted (cold storage, like memory
 // `archive/`), and README.md is deliberately unbudgeted (a human release surface).
 //
-// Phase-1 note: every constant below is a placeholder derived from the PRE-shrink
-// size measured at this task's base (762a7e4, 2026-07-28) — the Phase 7 ratchet
-// (Task 7.1) replaces them with post-shrink derivations and retires the placeholder
-// marker token carried once in each row's comment.
+// Phase-7 note (Task 7.1): every constant below is derived from the POST-shrink size
+// measured at this task's rebased base (c6a05fb, 2026-07-29) — except CONTEXT.md,
+// whose computed hard would EXCEED its Phase-1 placeholder (the surface grew): ratchet-
+// down only, so its placeholder is retained pending Lead adjudication (see its row).
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -28,36 +31,46 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 // One row per budgeted file surface, keyed by repo-relative path. Bytes, ceil-KB.
 
 const FILE_BUDGETS = {
-  // PLACEHOLDER-BUDGET: pre-shrink 96,608 B @ 762a7e4 → hard 96,608×1.25 ceil-KB, advisory ×1.10 ceil-KB
-  'skills/war/SKILL.md': { hard: 120832, advisory: 106496 },
-  // PLACEHOLDER-BUDGET: pre-shrink 23,823 B @ 762a7e4 → hard 23,823×1.25 ceil-KB, advisory ×1.10 ceil-KB
-  'agents/war-auditor.md': { hard: 30720, advisory: 26624 },
-  // PLACEHOLDER-BUDGET: pre-shrink 31,957 B @ 762a7e4 → hard 31,957×1.25 ceil-KB, advisory ×1.10 ceil-KB
-  'agents/war-refiner.md': { hard: 40960, advisory: 35840 },
-  // PLACEHOLDER-BUDGET: pre-shrink 15,550 B @ 762a7e4 → hard 15,550×1.25 ceil-KB, advisory ×1.10 ceil-KB
+  // post-shrink 58,555 B @ c6a05fb → hard ×1.25 ceil-KB = 73,728; advisory ×1.10 ceil-KB = 64,512
+  'skills/war/SKILL.md': { hard: 73728, advisory: 64512 },
+  // post-shrink 22,216 B @ c6a05fb → hard ×1.25 ceil-KB = 28,672; advisory ×1.10 ceil-KB = 24,576
+  'agents/war-auditor.md': { hard: 28672, advisory: 24576 },
+  // post-shrink 27,109 B @ c6a05fb → hard ×1.25 ceil-KB = 34,816; advisory ×1.10 ceil-KB = 30,720
+  'agents/war-refiner.md': { hard: 34816, advisory: 30720 },
+  // post-shrink 15,531 B @ c6a05fb → hard ×1.25 ceil-KB = 19,456; advisory ×1.10 ceil-KB = 17,408
   'agents/war-servitor.md': { hard: 19456, advisory: 17408 },
-  // PLACEHOLDER-BUDGET: pre-shrink 8,989 B @ 762a7e4 → hard 8,989×1.25 ceil-KB, advisory ×1.10 ceil-KB
+  // No shrink task targeted this surface (adjudication M: unchanged is not failed) —
+  // it ratchets to its own measured size, no flag.
+  // post-shrink 8,989 B @ c6a05fb → hard ×1.25 ceil-KB = 11,264; advisory ×1.10 ceil-KB = 10,240
   'agents/war-setup-scout.md': { hard: 11264, advisory: 10240 },
-  // PLACEHOLDER-BUDGET: pre-shrink 10,664 B @ 762a7e4 → hard 10,664×1.25 ceil-KB, advisory ×1.10 ceil-KB
-  'agents/war-worker.md': { hard: 14336, advisory: 12288 },
-  // PLACEHOLDER-BUDGET: pre-shrink 38,711 B @ 762a7e4 → hard 38,711×1.25 ceil-KB, advisory ×1.10 ceil-KB
-  'skills/lessons-learned/SKILL.md': { hard: 49152, advisory: 43008 },
+  // post-shrink 9,199 B @ c6a05fb → hard ×1.25 ceil-KB = 12,288; advisory ×1.10 ceil-KB = 10,240
+  'agents/war-worker.md': { hard: 12288, advisory: 10240 },
+  // post-shrink 32,923 B @ c6a05fb → hard ×1.25 ceil-KB = 41,984; advisory ×1.10 ceil-KB = 36,864
+  'skills/lessons-learned/SKILL.md': { hard: 41984, advisory: 36864 },
   // Budgeted per adjudication F: CONTEXT.md is the shared glossary, prompt-bearing.
-  // PLACEHOLDER-BUDGET: pre-shrink 100,984 B @ 762a7e4 → hard 100,984×1.25 ceil-KB, advisory ×1.10 ceil-KB
+  // GREW (Task 7.1): post-shrink 101,769 B @ c6a05fb → computed hard ×1.25 ceil-KB =
+  // 128,000 B would EXCEED the Phase-1 placeholder hard of 126,976 B (pre-shrink
+  // 100,984 B @ 762a7e4 → 126,976/111,616). Ratchet-down only: placeholder retained,
+  // blocking done-report flag raised for Lead adjudication (accept with an ADR-
+  // justification note, or a re-shrink follow-up).
   'CONTEXT.md': { hard: 126976, advisory: 111616 },
   // Budgeted per adjudication F: CLAUDE.md loads every session, prompt-bearing.
-  // PLACEHOLDER-BUDGET: pre-shrink 12,400 B @ 762a7e4 → hard 12,400×1.25 ceil-KB, advisory ×1.10 ceil-KB
+  // post-shrink 12,987 B @ c6a05fb → hard ×1.25 ceil-KB = 16,384; advisory ×1.10 ceil-KB
+  // = 14,336 (grew 12,400 B @ 762a7e4 → 12,987 B, but ceil-KB rounding lands both on the
+  // Phase-1 placeholder values exactly — computed hard does not exceed the placeholder,
+  // so no flag).
   'CLAUDE.md': { hard: 16384, advisory: 14336 },
 };
 
 // The prompt-literal share of workflow-template.js — measured by the PINNED extraction
 // algorithm below so engine-code growth never trips a prose budget. Derivation
 // (adjudication C): the pinned algorithm yields 112 top-level blocks >= 200 B /
-// 52,636 B at this task's base (762a7e4, file 227,469 B), and reproduces exactly
+// 52,636 B at Task 1.2's base (762a7e4, file 227,469 B), and reproduces exactly
 // 108 blocks / 50,648 B at fa3c838 — the spec §1 row's 164,234 B / 238 blocks / 74%
 // is unreproducible (~3× the file's total template-literal content) and is superseded.
-// PLACEHOLDER-BUDGET: pre-shrink 52,636 B @ 762a7e4 → hard 52,636×1.25 ceil-KB, advisory ×1.10 ceil-KB
-const WORKFLOW_LITERAL_BUDGET = { hard: 66560, advisory: 58368 };
+// post-shrink 49,864 B (113 blocks, file 225,911 B) @ c6a05fb → hard ×1.25 ceil-KB
+// = 62,464; advisory ×1.10 ceil-KB = 55,296
+const WORKFLOW_LITERAL_BUDGET = { hard: 62464, advisory: 55296 };
 
 const WORKFLOW_TEMPLATE = 'skills/war/assets/workflow-template.js';
 const MIN_BLOCK_BYTES = 200;
@@ -218,19 +231,19 @@ test('pinned extraction — fixture witnesses the four pinned behaviors (adjudic
   assert.deepEqual(kept, [blocks[1]]);
 });
 
-test('placeholder marker self-assert — each placeholder budget row carries the marker (adjudication M)', () => {
+test('placeholder marker retired — zero occurrences remain in this suite (Task 7.1 OLD-absent)', () => {
   // Token built by concatenation so this test's own source never matches the count
-  // it measures. In-gate self-assert: Task 7.1 retires the markers by flipping the
-  // expected count to 0 in this file — a file-scoped mechanical flip, no repo grep.
+  // it measures. In-gate OLD-absent self-assert (Task 7.1): the Phase-1 placeholder
+  // markers are retired — the gate itself carries the equivalent of the pinned
+  // zero-hit grep of this file for the marker token.
   const marker = 'PLACEHOLDER-' + 'BUDGET';
   const own = readFileSync(fileURLToPath(import.meta.url), 'utf8');
   const count = own.split(marker).length - 1;
-  const expected = Object.keys(FILE_BUDGETS).length + 1; // +1: the WORKFLOW_LITERAL_BUDGET row
   assert.equal(
     count,
-    expected,
-    `expected exactly ${expected} ${marker} markers (one per placeholder row), found ${count} — `
-      + 'a row lost its marker or the token leaked into other prose in this file',
+    0,
+    `expected zero ${marker} markers after the Task 7.1 ratchet, found ${count} — `
+      + 'the retired token leaked back into this file',
   );
 });
 

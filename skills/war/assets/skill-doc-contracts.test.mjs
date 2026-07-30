@@ -60,6 +60,16 @@ const adr0041 = readFileSync(
   join(HERE, '..', '..', '..', 'docs', 'adr', '0041-audit-evidence-precedence.md'),
   'utf8',
 )
+// (D29) The prompt-surface-budgets doctrine's canonical record plus its two prose mirror surfaces
+// beyond CONTEXT.md (read via contextMd above): CLAUDE.md's hot/cold-law summary, and the budget
+// suite's header formula comment — the ×1.10/×1.25 numeric pair's ONLY mirror block (neither
+// prose summary carries the numbers; verified at this task's base).
+const adr0042 = readFileSync(
+  join(HERE, '..', '..', '..', 'docs', 'adr', '0042-prompt-surface-budgets.md'),
+  'utf8',
+)
+const claudeMd = readFileSync(join(HERE, '..', '..', '..', 'CLAUDE.md'), 'utf8')
+const budgetSuiteSrc = readFileSync(join(HERE, 'prompt-surface-budgets.test.mjs'), 'utf8')
 
 // Strip comment leaders BEFORE whitespace-normalizing, then collapse every whitespace run to one
 // space — the recorded doc-cascade sweep trap ([[repo-doc-sweep-needs-leader-strip-before-whitespace-normalize-before-grep]]):
@@ -994,4 +1004,150 @@ test('D28 — CONTEXT.md compressed glossary entries keep definition + trigger p
         'doctrine\'s sole operative home since the #1228 glossary compression',
     )
   }
+})
+
+// (D29) ADR 0042 DOCTRINE MIRROR — the hot/cold law + budget doctrine is hand-synced across three
+// surfaces beyond the ADR (#1208; folded into Task 6.2 and lost to a row-label collision —
+// [[folded-in-followup-can-be-silently-consumed-by-a-row-label-collision]] — relanded as #1231):
+// CONTEXT.md's `### Prompt-surface budgets` glossary terms (**Surface budget**, **Prose
+// temperature**, **Trigger pointer**), CLAUDE.md's `## Doctrine placement` summary, and
+// prompt-surface-budgets.test.mjs's header formula comment (D5/adjudication-D mandates the budget
+// constants carry the formula — and it is the ×1.10/×1.25 numeric pair's ONLY mirror block:
+// neither prose summary carries the numbers). ADR 0025: every key is asserted on BOTH its mirror
+// block and norm(adr0042), so a one-sided edit reds while sanctioned rewording latitude does not —
+// keys are token-anchored `\s+`-wrapped `/…/i` forms with `[`*_]{0,2}` emphasis tolerance (the
+// ADR italicizes *is* in "the trigger *is* the skeleton"), never sentence bytes. Extraction is BY
+// CONSTRUCT (D19/D24/D26's idiom), never a whole-file scan: per glossary term bolded term → next
+// bolded-term-with-colon or `###` heading (the colon matters — the Surface-budget body wraps a
+// bold `**Advisory line**` cross-reference to column 0); CLAUDE.md heading → next `##`; budget
+// suite file start → first top-level `import` (so the per-row PLACEHOLDER/derivation comments
+// below the imports can never satisfy the formula keys). Direction-PAIRED keys bind each ratchet
+// arm to its own consequence inside one bounded-gap regex (lowering↔normal-PR,
+// raising↔commit-body; advisory↔×1.10, hard↔×1.25; the tier ladder in canonical order) — the
+// recorded [[multi-token-presence-loop-needs-paired-first-following-match-to-catch-a-swap]]
+// class: presence-anywhere keys stay green on exactly the direction inversion that matters.
+test('D29 — ADR 0042 doctrine mirrors (CONTEXT.md glossary terms, CLAUDE.md hot/cold summary, budget-suite formula) track the canonical ADR on both surfaces (#1208)', () => {
+  const adr = norm(adr0042)
+  const assertMirror = (blockName, blockText, keys) => {
+    for (const [key, what] of keys) {
+      for (const [surface, text] of [
+        [blockName, blockText],
+        ['ADR 0042 (canonical source)', adr],
+      ]) {
+        assert.match(
+          text,
+          key,
+          `${surface} must carry ${what} (ADR 0025 mirror registry). Correct this row to a ` +
+            'sanctioned rewording, never drop the clause on one surface to make it pass',
+        )
+      }
+    }
+  }
+
+  // --- CONTEXT.md `### Prompt-surface budgets` glossary terms, per-term extraction ---
+  for (const [term, keys] of [
+    [
+      'Surface budget',
+      [
+        [/lowering[\s\S]{0,20}is\s+a\s+normal\s+PR/i, 'the lowering-is-a-normal-PR ratchet arm'],
+        [
+          /raising[\s\S]{0,60}commit\s+body/i,
+          'the raising-needs-commit-body-justification ratchet arm',
+        ],
+        [/advisory\s+line\s+warns/i, 'the advisory-line-warns half of the enforcement split'],
+        [/hard\s+line\s+is\s+a\s+red\s+test/i, 'the hard-line-reds half of the enforcement split'],
+        [/cold\s+storage\s+is\s+unbudgeted/i, 'the cold-storage-is-unbudgeted carve-out'],
+      ],
+    ],
+    [
+      'Prose temperature',
+      [
+        [/branch-frequency/i, 'the branch-frequency definition core'],
+        [
+          /every-phase[\s\S]{0,8}once-per-run[\s\S]{0,8}branch-gated[\s\S]{0,8}incident-only/i,
+          'the four-tier ladder in canonical order',
+        ],
+        [
+          /tier-1\s+\(every-invocation\)\s+doctrine\s+stays\s+inline/i,
+          'the only-tier-1-stays-inline placement rule',
+        ],
+      ],
+    ],
+    [
+      'Trigger pointer',
+      [
+        [/when\s+<trigger>,\s+read\s+references\//i, 'the fixed `when <trigger>` pointer shape'],
+        [
+          /trigger\s+[`*_]{0,2}is[`*_]{0,2}\s+the\s+skeleton/i,
+          'the trigger-is-the-skeleton clause',
+        ],
+        [/byte-identical/i, 'the byte-identical-move eviction rule'],
+        [
+          /pointers?\s+without\s+(?:a\s+)?triggers?/i,
+          'the pointer-without-a-trigger defect clause',
+        ],
+      ],
+    ],
+  ]) {
+    // Mirror D26's idiom: escape the term before building the pattern, so a future
+    // metachar-bearing term cannot silently mis-anchor the extraction.
+    const t = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const block = contextMd.match(
+      new RegExp(`^\\*\\*${t}\\*\\*:[\\s\\S]*?(?=\\n\\*\\*[^\\n*]+\\*\\*:|\\n### )`, 'm'),
+    )
+    assert.ok(
+      block,
+      `could not locate the \`**${term}**:\` glossary term in CONTEXT.md (bolded term → next ` +
+        'bolded term or `###` heading) — the extraction construct rotted',
+    )
+    // Non-vacuous: every entry must really reach its own `_Avoid_` line.
+    assert.match(
+      norm(block[0]),
+      /_Avoid_/,
+      `the extracted **${term}** entry must span its \`_Avoid_\` line — extraction truncated`,
+    )
+    assertMirror(`CONTEXT.md **${term}** entry (mirror)`, norm(block[0]), keys)
+  }
+
+  // --- CLAUDE.md `## Doctrine placement` summary, heading → next `##` ---
+  const placement = claudeMd.match(/^## Doctrine placement[\s\S]*?(?=\n## )/m)
+  assert.ok(
+    placement,
+    'could not locate the `## Doctrine placement` section in CLAUDE.md (heading → next `##`) — ' +
+      'the extraction construct rotted',
+  )
+  assertMirror('CLAUDE.md ## Doctrine placement summary (mirror)', norm(placement[0]), [
+    [/when\s+<trigger>,\s+read\s+references\//i, 'the fixed `when <trigger>` pointer shape'],
+    [/trigger\s+[`*_]{0,2}is[`*_]{0,2}\s+the\s+skeleton/i, 'the trigger-is-the-skeleton clause'],
+    [/pointers?\s+without\s+(?:a\s+)?triggers?/i, 'the pointer-without-a-trigger defect clause'],
+    [/byte-identical/i, 'the byte-identical-move eviction rule'],
+    [/tier-1\s+\(every-invocation\)/i, 'the tier-1 every-invocation inline reservation'],
+    [/lowering[\s\S]{0,20}is\s+a\s+normal\s+PR/i, 'the lowering-is-a-normal-PR ratchet arm'],
+    [
+      /raising[\s\S]{0,60}commit\s+body/i,
+      'the raising-needs-commit-body-justification ratchet arm',
+    ],
+  ])
+
+  // --- Budget-suite header formula comment, file start → first top-level `import` ---
+  const formula = budgetSuiteSrc.match(/^[\s\S]*?(?=^import )/m)
+  assert.ok(
+    formula,
+    "could not locate prompt-surface-budgets.test.mjs's header comment (file start → first " +
+      'top-level `import`) — the extraction construct rotted',
+  )
+  // Non-vacuous: the header must really reach its Formula sentence.
+  assert.match(
+    norm(formula[0]),
+    /Formula/,
+    'the extracted budget-suite header must span its Formula sentence — extraction truncated',
+  )
+  assertMirror(
+    'prompt-surface-budgets.test.mjs header formula comment (mirror)',
+    norm(formula[0]),
+    [
+      [/advisory\s*=\s*post-shrink[\s\S]{0,30}1\.10/i, 'the advisory↔×1.10 formula binding'],
+      [/hard\s*=\s*post-shrink[\s\S]{0,30}1\.25/i, 'the hard↔×1.25 formula binding'],
+    ],
+  )
 })
