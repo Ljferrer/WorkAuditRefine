@@ -8,7 +8,7 @@ In this repo the plugin ships at `skills/_shared/`, so that ranked query is `nod
 
 ## What this repo is
 
-WAR (Work · Audit · Refine) — a Claude Code **plugin**; this repo *is* the plugin (`.claude-plugin/plugin.json` + `skills/` + `agents/` + `hooks/`). It orchestrates multi-phase plan execution with worker / auditor / refinery / servitor agents over git worktrees and GitHub issues. There is no application build: developing here means editing skill prose (`skills/*/SKILL.md`), the per-phase Workflow engine (`skills/war/assets/workflow-template.js`), shell hooks/floors, the memory CLI, and their tests. `CONTEXT.md` is the glossary (ubiquitous language); `docs/adr/` (0001–0022) records the binding decisions.
+WAR (Work · Audit · Refine) — a Claude Code **plugin**; this repo *is* the plugin (`.claude-plugin/plugin.json` + `skills/` + `agents/` + `hooks/`). It orchestrates multi-phase plan execution with worker / auditor / refinery / servitor agents over git worktrees and GitHub issues. There is no application build: developing here means editing skill prose (`skills/*/SKILL.md`), the per-phase Workflow engine (`skills/war/assets/workflow-template.js`), shell hooks/floors, the memory CLI, and their tests. `CONTEXT.md` is the glossary (ubiquitous language); `docs/adr/` (0001–0042) records the binding decisions.
 
 ## Commands
 
@@ -71,6 +71,10 @@ One durable lesson = one Markdown file: `name`/`description` + nested `metadata:
 - **Retrieval**: FTS5 index built in-memory per invocation (nothing on disk to commit or corrupt); `metadata.keywords` weigh ~8× body — a lesson without keywords is under-retrievable. `keywords` must be nested under `metadata:` (a top-level `keywords:` is silently not indexed).
 - **In a run**: the Lead prefetches top-K lessons per seat into worker/auditor/servitor prompts at phase launch (fails open); the servitor writes new lessons post-land; with `commitLearnings` opted in (off by default), the Lead lints and commits `docs(learnings): phase N`. `/lessons-learned` is the housekeeping pass (staging copy + atomic swap via `safe-swap.sh`); its `migrate`/`evict` modes adopt/undo the repo root.
 - The pointer line at the top of this file is **ratified and byte-identical across surfaces** — never reword it.
+
+## Doctrine placement: the hot/cold law (ADR 0042)
+
+New doctrine defaults to a `references/` file plus a trigger pointer on the operative surface — inline placement is reserved for tier-1 (every-invocation) doctrine. The pointer shape is fixed: `when <trigger>, read references/<file>` — the trigger is the skeleton, and a pointer without a trigger is a defect. Eviction is a byte-identical move, never a rewrite; budgeted surfaces carry advisory/hard byte lines with ratchet-down semantics (lowering is a normal PR; raising cites ADR 0042's justification rule in the commit body).
 
 ## Known traps
 

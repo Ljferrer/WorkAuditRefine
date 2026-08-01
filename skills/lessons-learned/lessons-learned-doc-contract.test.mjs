@@ -19,6 +19,12 @@ const migration = readFileSync(join(REPO_ROOT, 'skills/lessons-learned/reference
 const context = readFileSync(join(REPO_ROOT, 'CONTEXT.md'), 'utf8')
 // Task 2.2 (lessons-learned-seed): the seed mode reads three more surfaces.
 const seeding = readFileSync(join(REPO_ROOT, 'skills/lessons-learned/references/seeding.md'), 'utf8')
+// Prompt-surface simplification Task 6.1: the tighten five-step procedure was evicted verbatim
+// from SKILL.md's `## \`tighten\` mode` section into references/tighten.md. Presence locks that
+// gripped the moved text now read this file; OLD-absent locks scan the UNION of origin +
+// destination (adjudication I). Unguarded read on purpose — a rename/delete must throw, never
+// silently narrow the scan (enumerated-destination existsSync-guard lesson).
+const tighten = readFileSync(join(REPO_ROOT, 'skills/lessons-learned/references/tighten.md'), 'utf8')
 const readme = readFileSync(join(REPO_ROOT, 'README.md'), 'utf8')
 const warhelp = readFileSync(join(REPO_ROOT, 'skills/war-help/SKILL.md'), 'utf8')
 
@@ -91,8 +97,9 @@ test('doc-contract: verifier prompt carries the HOT/COLD/MISSING link trichotomy
 test('doc-contract: Phase 3 hub check invokes war-memory inbound (not the prose grep)', () => {
   assert.match(skill, /war-memory\.mjs" inbound <slug>/,
     'Phase 3 must run `war-memory.mjs inbound <slug>` for the inbound count')
-  assert.doesNotMatch(skill, /grep -rl "\\\[\\\[<slug>\\\]\\\]"/,
-    'the retired Phase-3 prose grep must be gone — the count comes from `war-memory inbound`')
+  for (const [name, doc] of [['SKILL.md', skill], ['references/tighten.md', tighten]])
+    assert.doesNotMatch(doc, /grep -rl "\\\[\\\[<slug>\\\]\\\]"/,
+      `${name}: the retired Phase-3 prose grep must be gone — the count comes from \`war-memory inbound\``)
 })
 
 // (7) OLD-absent: no surviving instruction produces a removal/retire verdict from a hot-only
@@ -100,9 +107,11 @@ test('doc-contract: Phase 3 hub check invokes war-memory inbound (not the prose 
 //     the hot-only listing appears is the forbiddance, never an affirmative removal verdict.
 //     (Mirrors Task 1.1's `archives ALL of these` OLD-absent guard — ADR 0025 discipline.)
 test('doc-contract: no hot-only-ls removal verdict survives (hot-only appears only as forbiddance)', () => {
-  const offenders = skill.split('\n').filter(l => /hot-only/i.test(l) && !/never/i.test(l))
-  assert.deepEqual(offenders, [],
-    `every "hot-only" mention must be the forbiddance ("never ... from a hot-only ls"); offending lines: ${JSON.stringify(offenders)}`)
+  for (const [name, doc] of [['SKILL.md', skill], ['references/tighten.md', tighten]]) {
+    const offenders = doc.split('\n').filter(l => /hot-only/i.test(l) && !/never/i.test(l))
+    assert.deepEqual(offenders, [],
+      `${name}: every "hot-only" mention must be the forbiddance ("never ... from a hot-only ls"); offending lines: ${JSON.stringify(offenders)}`)
+  }
 })
 
 // --- Task 2.2 (war-room-config-expansion): migrate opt-in gate + opt-in-default rewording ---
@@ -142,7 +151,7 @@ test('doc-contract: migration.md migrate-confirm + evict-justification reworded 
 //      or the economy-pins-false framing. A value assignment (`commitLearnings: true` on the accept
 //      path) is NOT a default claim, so the guard anchors on "default … `true`" and "economy … pin … false".
 test('doc-contract: no retired commitLearnings default-`true` / economy-pins-false claim survives', () => {
-  for (const [name, doc] of [['SKILL.md', skill], ['migration.md', migration]]) {
+  for (const [name, doc] of [['SKILL.md', skill], ['migration.md', migration], ['references/tighten.md', tighten]]) {
     const defaultTrue = doc.split('\n').filter(l => /\bdefaults?\b[^`\n]{0,14}`true`/i.test(l))
     assert.deepEqual(defaultTrue, [],
       `${name}: retired "default … \`true\`" commitLearnings claim must be gone; offending: ${JSON.stringify(defaultTrue)}`)
@@ -224,10 +233,16 @@ test('doc-contract: Phase 6 It-checks names the repo-completeness hard fail', ()
 // surfaces: (1)–(6) in SKILL.md, (7)–(8) in CONTEXT.md's glossary. Each needle was verified to sit
 // on a single physical line (the stop rule and CONTEXT's "no third threshold" sentence both WRAP,
 // hence the whitespace-tolerant / truncated needles below).
+// Task 6.1 re-anchor: the tighten procedure (which carried surfaces 1, 2, 5, 6) moved verbatim to
+// references/tighten.md, so the six-needle OLD-absent key (17) below scans the UNION of SKILL.md +
+// tighten.md (adjudication I: an OLD-absent key re-anchors as a UNION over origin + every
+// destination, never a relocated read); the NEW-present keys (19)-(21) of THIS banner (Task 1.2,
+// #992) moved their reads to the destination file.
 
-// (17) OLD-absent ×6, one per SKILL.md surface. Case-tolerant, mid-sentence, no ordinals and no
-//      whole-file counts — each needle is the retired clause itself.
-test('doc-contract: no fixed-advisory tighten-preflight reading survives in SKILL.md (surfaces 1-6)', () => {
+// (17) OLD-absent ×6, per retired surface, UNION-scanned over SKILL.md + references/tighten.md.
+//      Case-tolerant, mid-sentence, no ordinals and no whole-file counts — each needle is the
+//      retired clause itself.
+test('doc-contract: no fixed-advisory tighten-preflight reading survives in SKILL.md + references/tighten.md (surfaces 1-6)', () => {
   const retired = [
     ['surface 1 (explanatory sentence)', /never a `≤ target` reading/i],
     ['surface 2 (step-1 --target parenthetical)', /only for a different bound/i],
@@ -237,8 +252,9 @@ test('doc-contract: no fixed-advisory tighten-preflight reading survives in SKIL
     ['surface 6 (stop-rule appositive)', /strictly under the advisory line/i],
   ]
   for (const [surface, re] of retired)
-    assert.doesNotMatch(skill, re,
-      `SKILL.md ${surface}: the retired fixed-advisory reading must be gone — the preflight verdict is the stricter of the advisory line and the effective --target (#992)`)
+    for (const [name, doc] of [['SKILL.md', skill], ['references/tighten.md', tighten]])
+      assert.doesNotMatch(doc, re,
+        `${name} ${surface}: the retired fixed-advisory reading must be gone — the preflight verdict is the stricter of the advisory line and the effective --target (#992)`)
 })
 
 // (18) OLD-absent ×2 on CONTEXT.md's glossary (surfaces 7-8). The definitional entries asserted the
@@ -252,9 +268,10 @@ test('doc-contract: CONTEXT.md glossary no longer calls the advisory line the so
 })
 
 // (19) NEW-present on the reworded explanatory sentence (surface 1). Anchored there, NOT on the
-//      stop line — the stop instruction wraps and `lineWith` is single-line-scoped.
+//      stop line — the stop instruction wraps and `lineWith` is single-line-scoped. Task 6.1:
+//      a presence key follows its moved text — the sentence lives in references/tighten.md now.
 test('doc-contract: Preflight teaches the target-aware verdict (stricter of advisory line and --target)', () => {
-  const sentence = lineWith(skill, 'stricter of the advisory line')
+  const sentence = lineWith(tighten, 'stricter of the advisory line')
   assert.match(sentence, /--target/,
     'the reworded Preflight sentence must name --target as the other half of the stricter-of reading')
 })
@@ -262,16 +279,18 @@ test('doc-contract: Preflight teaches the target-aware verdict (stricter of advi
 // (20) NEW-present on the SURVIVING stop rule. Absence locks cannot catch an over-rewrite that
 //      deletes it, and the plan requires the rule (`ok` ⇒ report "nothing to tighten" and stop, no
 //      later step runs) to survive semantically unchanged. Whitespace-tolerant: the rule wraps.
+//      Task 6.1: the rule rode the verbatim eviction into references/tighten.md.
 test('doc-contract: the Preflight stop rule survives (verdict ok ⇒ nothing to tighten, stop)', () => {
-  assert.match(skill, /`verdict: "ok"`[\s\S]{0,80}means report\s+"nothing to tighten" and stop; no later step runs/,
+  assert.match(tighten, /`verdict: "ok"`[\s\S]{0,80}means report\s+"nothing to tighten" and stop; no later step runs/,
     'the stop RULE must survive the target-aware rewording: verdict "ok" ⇒ report "nothing to tighten" and stop, no later step runs')
 })
 
 // (21) NEW-present, FENCE-SCOPED: the live preflight invocation itself threads an operator-supplied
-//      target. Scoped to the step-1 ```bash fence, never the surrounding region — the region
-//      already mentions `--target` in the parenthetical below the fence and would pass unfixed.
+//      target. Scoped to the step-1 ```bash fence (in references/tighten.md since Task 6.1), never
+//      the surrounding region — the region already mentions `--target` in the parenthetical below
+//      the fence and would pass unfixed.
 test('doc-contract: the step-1 tighten-plan invocation threads an operator-supplied --target', () => {
-  const fence = bashFenceWith(skill, 'tighten-plan')
+  const fence = bashFenceWith(tighten, 'tighten-plan')
   assert.match(fence, /tighten-plan[^\n]*--target/,
     'the fenced tighten-plan command must carry the operator-supplied --target (omitted when none is supplied) — otherwise the live preflight always binds at the default 17,000 B')
 })
@@ -430,18 +449,21 @@ test('doc-contract: seeding.md ## Seed Local-destination fence shows the --repo 
 //     not false-red on the guard's own documentation. zsh does not word-split an unquoted parameter
 //     expansion, so the flag and its value FUSED into a single argv word: `--target` never bound and
 //     the pass silently reverted to the 17,000 B advisory default (#1088). Assert (i) co-targets the
-//     SAME `bashFenceWith(skill, 'tighten-plan')` extraction the `--target` presence lock above uses,
-//     so the two locks can never silently drift onto different fences; it pins the expansion SHAPE
+//     SAME `bashFenceWith(tighten, 'tighten-plan')` extraction the `--target` presence lock above uses
+//     (both moved with the fence to references/tighten.md, Task 6.1), so the two locks can never
+//     silently drift onto different fences; it pins the expansion SHAPE
 //     rather than the narrower flag-attached literal, so a respelling that puts the flag elsewhere
 //     inside the same expansion is equally red. Assert (ii) is whole-file because the retired
-//     set-then-thread instruction lived in PROSE, which a fence-scoped assert cannot see. Scope,
+//     set-then-thread instruction lived in PROSE, which a fence-scoped assert cannot see — since
+//     Task 6.1 it UNION-scans origin + destination (adjudication I). Scope,
 //     deliberately not overstated: (ii) is TOKEN-scoped — a set-then-thread revived under a different
-//     variable name, or the same expansion added to some OTHER bash fence in this doc, passes both
+//     variable name, or the same expansion added to some OTHER bash fence in these docs, passes both
 //     asserts. That residue belongs to the plan's one-time broadened shape sweep, not to this lock.
 test('doc-contract: the step-1 tighten fence threads no alternate-value expansion and TIGHTEN_TARGET is retired doc-wide', () => {
-  const fence = bashFenceWith(skill, 'tighten-plan')
+  const fence = bashFenceWith(tighten, 'tighten-plan')
   assert.doesNotMatch(fence, /\$\{[^}]*:\+/,
     'the tighten-plan fence must carry no alternate-value parameter expansion — under zsh the flag and its value fuse into a single argv word and --target silently never binds (#1088)')
-  assert.doesNotMatch(skill, /TIGHTEN_TARGET/,
-    'the retired $TIGHTEN_TARGET set-then-thread instruction must be gone from SKILL.md entirely — reintroducing it in prose is the same defect, and a fence-scoped assert cannot see prose')
+  for (const [name, doc] of [['SKILL.md', skill], ['references/tighten.md', tighten]])
+    assert.doesNotMatch(doc, /TIGHTEN_TARGET/,
+      `the retired $TIGHTEN_TARGET set-then-thread instruction must be gone from ${name} entirely — reintroducing it in prose is the same defect, and a fence-scoped assert cannot see prose`)
 })

@@ -4,7 +4,9 @@
 # _refinery worktree, NEVER through the Lead's main checkout.
 #
 # ABSENCE assertions (the forbidden pattern):
-#   The live surface (agents/ + skills/war/assets/workflow-template.js, excluding
+#   The live surface (agents/ + skills/war/assets/workflow-template.js + the
+#   skills/war/references/refiner-recovery.md eviction destination — UNION scan,
+#   prompt-surface simplification adjudication I — excluding
 #   *.test.* files) must NOT contain a direct instruction for the Refinery to
 #   re-base onto the working branch (non-detached) in a land context via either
 #   the 'checkout' or 'switch' verb. The correct form is `--detach` for both
@@ -91,8 +93,9 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# ABSENCE CHECK: the live surface (agents/ + workflow-template.js, excluding
-# *.test.*) must NOT instruct the Refinery to operate via the Lead's main
+# ABSENCE CHECK: the live surface (agents/ + workflow-template.js +
+# skills/war/references/refiner-recovery.md — UNION scan, excluding *.test.*)
+# must NOT instruct the Refinery to operate via the Lead's main
 # checkout. The forbidden pattern: "from the Lead" appearing as a POSITIVE
 # instruction (i.e. NOT on a line that starts with "Never" / "never" / "-"
 # prohibition prose / "Do NOT" / comment).
@@ -102,7 +105,19 @@ fi
 # "never", "Do NOT", "do NOT", "do not", or "must not") — a positive instruction
 # would be a bare "merge ... from the Lead" without a prohibition prefix.
 # ---------------------------------------------------------------------------
-LIVE_SURFACE_FILES="$REFINER_FILE $WORKFLOW_FILE"
+# UNION scan (adjudication I): Task 4.1 evicted branch-gated card blocks (submodule provisioning,
+# reland discrimination, 2A/2B land arms) into refiner-recovery.md — the whole-file absence checks
+# scan the eviction destination too, never a narrowed origin-only surface.
+RECOVERY_FILE="skills/war/references/refiner-recovery.md"
+# PRESENCE CHECK 5: the UNION member must exist, or all three whole-file absence
+# scans silently narrow back to the pre-eviction surface (the loops' [ -f ] guard
+# skips a missing file with zero signal).
+if [ ! -f "$RECOVERY_FILE" ]; then
+  fail "PRESENCE CHECK 5 — UNION member $RECOVERY_FILE not found — the eviction destination must exist or the absence scans silently narrow"
+else
+  pass "PRESENCE CHECK 5 — UNION member $RECOVERY_FILE exists (absence scans cover the eviction destination)"
+fi
+LIVE_SURFACE_FILES="$REFINER_FILE $WORKFLOW_FILE $RECOVERY_FILE"
 
 # Collect all lines containing "from the Lead" in the live surface
 # (excluding *.test.* paths — load-bearing exclusion)
@@ -212,7 +227,7 @@ if [ ! -f "$WORKFLOW_FILE" ]; then
   fail "PRESENCE CHECK 4 — $WORKFLOW_FILE not found"
 else
   if [ "$(grep -cF 'TMPDIR=' "$WORKFLOW_FILE")" -ge 2 ]; then
-    pass "PRESENCE CHECK 4 — both dispatched gate-run prompts in $WORKFLOW_FILE pin a .war-task-free TMPDIR= (merge-task + land-phase parity with war-refiner.md:24, #184)"
+    pass "PRESENCE CHECK 4 — both dispatched gate-run prompts in $WORKFLOW_FILE pin a .war-task-free TMPDIR= (merge-task + land-phase parity with war-refiner.md merge-task step 2, #184)"
   else
     fail "PRESENCE CHECK 4 — $WORKFLOW_FILE has fewer than 2 'TMPDIR=' hits — mirror the .war-task-free TMPDIR pin into BOTH the merge-task and land-phase dispatched gate-run prompts (#184)"
   fi

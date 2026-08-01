@@ -264,12 +264,11 @@ _Avoid_: silently assuming `main`/`master`/the remote default; inferring the bas
 **`held:submodule-pr`** (cross-repo hold):
 The phase outcome when a submodule task has produced a reviewed PR in the submodule repo that has not
 yet merged. Distinct from a dead phase (the Workflow completed) and from a content `conflict`; it is a
-deliberate pause on an out-of-band merge, cleared by a **human-triggered** resume that auto-detects the
-merge via `gh pr view <n> --json state,mergeCommit` against the submodule remote — taking
-**`mergeCommit.oid`** (squash/rebase-correct) as the phase's landed SHA, with an operator-supplied SHA as
-fallback. There is **no** background poller; the resume trigger is the human re-running `/war` after they
-merge. The merged SHA must still be reachable on the submodule remote (the branch the PR targeted — not
-assumed to be the default branch).
+deliberate pause on an out-of-band merge, cleared by a **human-triggered** resume (there is **no**
+background poller — the trigger is the human re-running `/war` after they merge) that reads the *actual
+merged SHA*, which must still be reachable on the submodule remote (the branch the PR targeted — not
+assumed to be the default branch). When clearing the hold, read the resume sub-procedure (merge
+auto-detect, operator-SHA fallback) in `skills/war/references/submodule-flows.md`.
 _Avoid_: treating it as a failure; resuming before the submodule PR actually merged; building a watcher.
 
 **Undeclared submodule touch** (the fail-closed guard):
@@ -1234,6 +1233,31 @@ The overflow tier at `docs/seed/archive/` — capped at ≤ 500 members and ≤ 
 _Avoid_: the memory roots' cold `archive/` tier (per-repo eviction of a repo's own live lessons — a
 different mechanism with different caps; see **Hot set** / **Cold set**).
 
+### Prompt-surface budgets (ADR 0042)
+
+**Surface budget**:
+The advisory/hard byte pair a prompt-bearing surface may not exceed, test-enforced: crossing the
+advisory line warns, crossing the hard line is a red test. Lowering a budget is a normal PR; raising
+one requires ADR 0042's named justification in the commit body.
+_Avoid_: treating advisory as blocking; raising a hard line without the ADR's justification rule;
+budgeting `references/` (cold storage is unbudgeted, like `archive/`); not the index projection's
+**Advisory line** (a different mechanism, different caps).
+
+**Prose temperature**:
+A block's branch-frequency tier — every-phase / once-per-run / branch-gated / incident-only — i.e.
+how often a window pays for the text unused that turn. Only tier-1 (every-invocation) doctrine stays
+inline; everything rarer lives in `references/` behind a trigger pointer.
+_Avoid_: size as temperature (a long every-invocation procedure belongs inline; a short
+incident-only note still costs every window); a tier-1 claim for text reachable only through a
+conditional; not the memory roots' hot/cold split (**Hot set** / **Cold set**) — that temperature
+is location, this one is branch frequency.
+
+**Trigger pointer**:
+The inline residue of an evicted block: `when <trigger>, read references/<file>` — the trigger is
+the skeleton.
+_Avoid_: pointers without triggers; rewriting while moving (the move is byte-identical; the pointer
+is new text).
+
 ### State & resume
 
 **Run manifest**:
@@ -1261,18 +1285,12 @@ _Avoid_: editing git to match a stale record; auto-trusting a commit no ledger t
 The sanctioned retry of an escalated/`env-blocked` task or a dead phase (`held:workflow-error`,
 retries-exhausted `held:phase-incomplete`): a **fresh Workflow run** (new `runId`) over the **same plan
 slug** and the **same numeric `phase.id`**, with **owned-file continuity** so `cmd_ensure_integration`
-reuses the run's owned integration branch instead of dying foreign. It composes git-first reuse
-([ADR 0008](docs/adr/0008-git-is-the-resume-source-of-truth.md)) — the existing task branches (with their
-kept commits) are checked out into the fresh run's phase-scoped worktrees and fixed forward — and is
-**never** `resumeFromRunId` (which replays the same run's off-ladder journal, the cached escalation).
-A dep-less single-task retry uses a one-task DAG; a held partial phase relaunches as a **sanctioned
-recovery relaunch** — it adopts the held integration branch as the frozen base via **orphan adoption**
-(`record-as-owned`), passes the **full original phase DAG** armed with `args.recovery`, and lets the
-Provision barrier derive the already-merged set from **git ancestry** and skip it (those tasks recorded
-terminal `merged`, no worker dispatch), re-dispatching only the escalated task; the barrier's ancestry
-check is authoritative over any hand-filtered task list, and `args.recovery.reclaimStaleRemote` arms
-`--reclaim-stale-remote` to clear a **stale prior attempt**. A Lead/operator playbook, never
-template-automated.
+reuses the run's owned integration branch instead of dying foreign
+([ADR 0008](docs/adr/0008-git-is-the-resume-source-of-truth.md)) — and **never** `resumeFromRunId`
+(which replays the same run's off-ladder journal, the cached escalation). A Lead/operator playbook,
+never template-automated; when retrying an escalated task or a held phase, read the Recovery relaunch
+playbook (single-task vs full-DAG forms, orphan adoption, `args.recovery` and
+`reclaimStaleRemote` arming) in `skills/war/references/resume-and-recovery.md`.
 _Avoid_: `resumeFromRunId` for an escalation; letter-suffixed phase ids ("4b"); rewriting the kept
 commits on a retried branch; hand-filtering the DAG to the unmerged tasks (pass the full DAG; git at the
 barrier is the filter).

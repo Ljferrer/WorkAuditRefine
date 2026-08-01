@@ -14,6 +14,13 @@ import { dirname, join } from 'node:path'
 // never delete or weaken it to make a reword pass.
 const HERE = dirname(fileURLToPath(import.meta.url))
 const skillMd = readFileSync(join(HERE, '..', 'SKILL.md'), 'utf8')
+// Prompt-surface simplification (spec §4.3): tier-2+ SKILL.md blocks moved verbatim into
+// references/ — presence keys relocate their read to the destination file; OLD-absent keys widen
+// to a UNION over origin + every destination (adjudication I).
+const resumeMd = readFileSync(join(HERE, '..', 'references', 'resume-and-recovery.md'), 'utf8')
+const dockerMd = readFileSync(join(HERE, '..', 'references', 'docker-gate.md'), 'utf8')
+const setupRefMd = readFileSync(join(HERE, '..', 'references', 'setup.md'), 'utf8')
+const submoduleMd = readFileSync(join(HERE, '..', 'references', 'submodule-flows.md'), 'utf8')
 const tour = JSON.parse(
   readFileSync(join(HERE, '..', '..', '..', '.tours', 'architect-war-system.tour'), 'utf8'),
 )
@@ -53,6 +60,16 @@ const adr0041 = readFileSync(
   join(HERE, '..', '..', '..', 'docs', 'adr', '0041-audit-evidence-precedence.md'),
   'utf8',
 )
+// (D29) The prompt-surface-budgets doctrine's canonical record plus its two prose mirror surfaces
+// beyond CONTEXT.md (read via contextMd above): CLAUDE.md's hot/cold-law summary, and the budget
+// suite's header formula comment — the ×1.10/×1.25 numeric pair's ONLY mirror block (neither
+// prose summary carries the numbers; verified at this task's base).
+const adr0042 = readFileSync(
+  join(HERE, '..', '..', '..', 'docs', 'adr', '0042-prompt-surface-budgets.md'),
+  'utf8',
+)
+const claudeMd = readFileSync(join(HERE, '..', '..', '..', 'CLAUDE.md'), 'utf8')
+const budgetSuiteSrc = readFileSync(join(HERE, 'prompt-surface-budgets.test.mjs'), 'utf8')
 
 // Strip comment leaders BEFORE whitespace-normalizing, then collapse every whitespace run to one
 // space — the recorded doc-cascade sweep trap ([[repo-doc-sweep-needs-leader-strip-before-whitespace-normalize-before-grep]]):
@@ -93,8 +110,9 @@ test('D10 — held:workflow-error class examples exclude infra-death (which rout
   }
 
   // Isolate the held:workflow-error outcome bullet by construct (marker → next held:* bullet).
-  const wfErr = skillMd.match(/- \*\*`held:workflow-error`[\s\S]*?(?=\n\s*- \*\*`held:)/)
-  assert.ok(wfErr, 'could not locate the held:workflow-error outcome bullet in SKILL.md')
+  // Relocated read: the outcome-handling bullets moved verbatim into references/resume-and-recovery.md.
+  const wfErr = resumeMd.match(/- \*\*`held:workflow-error`[\s\S]*?(?=\n\s*- \*\*`held:)/)
+  assert.ok(wfErr, 'could not locate the held:workflow-error outcome bullet in references/resume-and-recovery.md')
   const examples = wfErr[0].match(
     /\*\*Class examples\*\*(.*?)(?:Those never route|The documented exit)/s,
   )
@@ -139,7 +157,8 @@ test('D12 — tour step 17 (land-decision.mjs) carries no member count / line-nu
   )
 })
 
-// (D13) Every `.sh` asset invoked in SKILL.md must run under `bash`, never `node` — the scripts are
+// (D13) Every `.sh` asset invoked in SKILL.md or its eviction-destination references/ files must run
+// under `bash`, never `node` — the scripts are
 // `#!/usr/bin/env bash`, so a `node <script>.sh` invocation SyntaxErrors on every Setup, Gate-2, and
 // manual-land call (#741). The riskiest exposure is the Checkpoint/escalation land recipes: a
 // SyntaxError on `land-advance` tempts a Lead into the raw `git push` those recipes exist to prevent.
@@ -149,17 +168,32 @@ test('D12 — tour step 17 (land-decision.mjs) carries no member count / line-nu
 // co-occurring in prose (a `.mjs` helper followed later by `*.test.sh` never matches, since `\S*`
 // cannot cross the space between them). The `bash`-prefixed presence companion is anti-vacuous — no
 // other D-series guard locks the land recipes' presence, so a wholesale deletion would otherwise pass.
-test('D13 — SKILL.md invokes every .sh asset with bash, never node (#741)', () => {
-  const nodeSh = skillMd.match(/node\s+\S*\.sh\b/)
-  assert.ok(
-    !nodeSh,
-    `SKILL.md invokes a .sh asset with node ("${nodeSh ? nodeSh[0] : ''}") — ` +
-      'use bash, or rephrase the example without a literal `node …*.sh` invocation shape',
-  )
+test('D13 — SKILL.md and its eviction destinations invoke every .sh asset with bash, never node (#741)', () => {
+  // UNION scan (adjudication I): the OLD-absent invocation-shape key covers the origin surface plus
+  // every eviction destination, so a moved recipe can never re-shelter a `node …*.sh` invocation.
+  for (const [name, text] of [
+    ['SKILL.md', skillMd],
+    ['references/setup.md', setupRefMd],
+    ['references/docker-gate.md', dockerMd],
+    ['references/submodule-flows.md', submoduleMd],
+    ['references/resume-and-recovery.md', resumeMd],
+  ]) {
+    const nodeSh = text.match(/node\s+\S*\.sh\b/)
+    assert.ok(
+      !nodeSh,
+      `${name} invokes a .sh asset with node ("${nodeSh ? nodeSh[0] : ''}") — ` +
+        'use bash, or rephrase the example without a literal `node …*.sh` invocation shape',
+    )
+  }
   assert.match(
     skillMd,
     /bash\s+\S*provision-worktrees\.sh\b/,
-    'SKILL.md must retain at least one `bash …/provision-worktrees.sh` invocation (land recipes present)',
+    'SKILL.md must retain at least one `bash …/provision-worktrees.sh` invocation (Setup/Gate-2 calls present)',
+  )
+  assert.match(
+    resumeMd,
+    /bash\s+\S*provision-worktrees\.sh\b/,
+    'references/resume-and-recovery.md must retain at least one `bash …/provision-worktrees.sh` invocation (land recipes present)',
   )
 })
 
@@ -174,15 +208,19 @@ test('D13 — SKILL.md invokes every .sh asset with bash, never node (#741)', ()
 // bullet by its `**Daemon reachable**` marker (D10-style intended-location extraction, not a
 // whole-file presence check) and asserts the three signatures survive — so deleting the bullet fails
 // loudly instead of passing vacuously.
-test('D14 — SKILL.md docker bullet does not misattribute the signature list to the gate-time classifier (#799)', () => {
-  assert.doesNotMatch(
-    skillMd,
-    /signature list is what the gate-time classifier keys on/i,
-    'SKILL.md still couples the platform-signature list to the gate-time classifier (#799 ' +
-      'misattribution) — the list governs only Setup-time probe-build deferral',
-  )
-  const bullet = skillMd.match(/\*\*Daemon reachable\*\*[\s\S]*?(?=\n\s*- \*\*)/)
-  assert.ok(bullet, 'could not locate the **Daemon reachable** docker bullet in SKILL.md')
+test('D14 — docker bullet does not misattribute the signature list to the gate-time classifier (#799)', () => {
+  // UNION on the OLD-absent misattribution clause (adjudication I); the bullet itself moved
+  // verbatim into references/docker-gate.md, so the extraction read relocates there.
+  for (const text of [skillMd, setupRefMd, dockerMd, submoduleMd, resumeMd]) {
+    assert.doesNotMatch(
+      text,
+      /signature list is what the gate-time classifier keys on/i,
+      'the docker prose still couples the platform-signature list to the gate-time classifier ' +
+        '(#799 misattribution) — the list governs only Setup-time probe-build deferral',
+    )
+  }
+  const bullet = dockerMd.match(/\*\*Daemon reachable\*\*[\s\S]*?(?=\n\s*- \*\*)/)
+  assert.ok(bullet, 'could not locate the **Daemon reachable** docker bullet in references/docker-gate.md')
   for (const sig of ['EBADPLATFORM', 'no matching manifest for <platform>', 'exec format error']) {
     assert.ok(
       bullet[0].includes(sig),
@@ -225,9 +263,10 @@ test('D15 — 2026-06-25 §5.3 land-phase keeps the push-first CAS contract (cmd
 // commit body. Extract the bullet by its `**Daemon reachable**` marker (D10/D14-style intended-location
 // extraction). Negative arm is reword-tolerant: a case-tolerant, mid-sentence pairing of `classOf`
 // with a following `re-run`/`re-running` verb — never a byte-lock on the corrected sentence.
-test('D16 — SKILL.md docker bullet names classOf a reader of the refiner-computed class, never the re-run agent (#887)', () => {
-  const bullet = skillMd.match(/\*\*Daemon reachable\*\*[\s\S]*?(?=\n\s*- \*\*)/)
-  assert.ok(bullet, 'could not locate the **Daemon reachable** docker bullet in SKILL.md')
+test('D16 — docker bullet names classOf a reader of the refiner-computed class, never the re-run agent (#887)', () => {
+  // Relocated read: the docker bullet moved verbatim into references/docker-gate.md (D14's move).
+  const bullet = dockerMd.match(/\*\*Daemon reachable\*\*[\s\S]*?(?=\n\s*- \*\*)/)
+  assert.ok(bullet, 'could not locate the **Daemon reachable** docker bullet in references/docker-gate.md')
   const b = bullet[0]
   // Presence: the refiner is the re-run performer, and classOf is named a reader.
   assert.match(
@@ -277,7 +316,7 @@ test('D17 — 2026-07-12 prose-drift spec names classOf a reader, never the re-r
   )
 })
 
-// (D18) SKILL.md's `gate_failed`-routing **`environment`** arm must document the BOUNDED
+// (D18) references/resume-and-recovery.md's `gate_failed`-routing **`environment`** arm must document the BOUNDED
 // environment-proceed mechanics, never the retired gate-time zero-retry doctrine — the arm formerly
 // declared the gate-time route identical to a provision `env-blocked` (soft-escalate, 0 FIX rounds,
 // worktree kept, siblings proceed). Live truth: an `environment` gate failure earns ONE environment-proceed
@@ -312,12 +351,14 @@ test('D17 — 2026-07-12 prose-drift spec names classOf a reader, never the re-r
 // (this file included), so spelling it contiguously here would make the guard trip the very floor it
 // backs. `\s+` keeps the literal out of the source line while matching the live prose identically —
 // and, per the two-line-pairing lesson, strictly widens it across a wrap.
-test('D18 — SKILL.md gate_failed environment arm documents bounded environment-proceed, not the gate-time zero-retry doctrine (#1030)', () => {
-  const bullet = skillMd.match(/^ {2}- \*\*`environment`\*\* →[\s\S]*?(?=\n {2}- \*\*)/m)
+test('D18 — gate_failed environment arm documents bounded environment-proceed, not the gate-time zero-retry doctrine (#1030)', () => {
+  // Relocated read: the `gate_failed` routing bullets moved verbatim into
+  // references/resume-and-recovery.md (prompt-surface simplification).
+  const bullet = resumeMd.match(/^ {2}- \*\*`environment`\*\* →[\s\S]*?(?=\n {2}- \*\*)/m)
   assert.ok(
     bullet,
-    'could not locate the `- **`environment`** →` bullet under SKILL.md\'s `gate_failed` routing ' +
-      'by class — the D18 construct is gone or its markup changed',
+    'could not locate the `- **`environment`** →` bullet under the `gate_failed` routing ' +
+      'in references/resume-and-recovery.md — the D18 construct is gone or its markup changed',
   )
   const b = bullet[0]
   // Absence: the retired gate-time doctrine, in either of its two live-byte-derived forms.
@@ -420,7 +461,7 @@ test('D20 — schemas.md ledger.json block declares the top-level adjudications 
   )
 })
 
-// (D21) SKILL.md's `held:land-failed` Outcome-handling bullet must carry BOTH arms by which a
+// (D21) references/resume-and-recovery.md's `held:land-failed` Outcome-handling bullet must carry BOTH arms by which a
 // gate-time `environment` failure reaches the hold (#1039). The retired sentence was unconditional —
 // the retry was declared spent for every such entry — which is false on the baseline-proceed arm,
 // where a `baseline-proceed` re-land's `environment`-classified failure routes straight to the hold
@@ -435,18 +476,20 @@ test('D20 — schemas.md ledger.json block declares the top-level adjudications 
 // Extraction copies the live construct at `land-decision.test.mjs` (same bullet, same file): locate
 // the REAL 2-space-indented ``- **`held:land-failed``` header — a TOKEN-ONLY prefix, trailing bullet
 // text variable; the compact ``- **`held:land-failed`**`` wrap is *schemas.md*'s header form and has
-// zero occurrences in SKILL.md — and terminate at the next SAME-INDENT 2-space `- **` sibling, never
+// zero occurrences in the bullet's home file — and terminate at the next SAME-INDENT 2-space `- **` sibling, never
 // a top-level `- **` one (that truncates at the nested `    - **(a)` sub-bullet, or, read the other
 // way, over-extends past the whole `- **Escalation-completion land …**` sibling and would let arm
 // vocabulary from unrelated prose green the lock). Arm markers are markup-tolerant (D18's idiom), so
 // a bold/backtick reshuffle inside an arm name does not false-red.
-test('D21 — SKILL.md held:land-failed bullet names both environment arms, never one unconditional retry-spent claim (#1039)', () => {
-  const lines = skillMd.split('\n')
+test('D21 — held:land-failed bullet names both environment arms, never one unconditional retry-spent claim (#1039)', () => {
+  // Relocated read: the held:land-failed bullet moved verbatim into
+  // references/resume-and-recovery.md (prompt-surface simplification).
+  const lines = resumeMd.split('\n')
   const headerIdx = lines.findIndex((l) => /^ {2}- \*\*`held:land-failed`/.test(l))
   assert.ok(
     headerIdx >= 0,
-    'could not locate the 2-space ``- **`held:land-failed``` bullet header in SKILL.md — anchor ' +
-      'rotted (non-vacuous guard)',
+    'could not locate the 2-space ``- **`held:land-failed``` bullet header in ' +
+      'references/resume-and-recovery.md — anchor rotted (non-vacuous guard)',
   )
   let endIdx = lines.length
   for (let i = headerIdx + 1; i < lines.length; i++) {
@@ -499,8 +542,9 @@ test('D21 — SKILL.md held:land-failed bullet names both environment arms, neve
 // before the push) at once — dropping any arm, or relocating one outside that span, fails it RED.
 //
 // Extraction is BY CONSTRUCT — the `**Post-servitor publication (Gate 2` marker to the next `##`
-// heading — never a whole-file scan: `ensure-origin` and `remove-publication-worktree` also appear
-// in Setup step 2's crash-heal pre-flight and the Checkpoint land recipes, so a whole-file key
+// heading — never a whole-file scan: `ensure-origin` also appears in Setup step 2 (and, since the
+// prompt-surface eviction, the crash-heal detail and the Checkpoint land recipes carry both tokens
+// in references/setup.md / references/resume-and-recovery.md), so a whole-file key
 // could be greened by prose outside the flow this row polices. Markup-tolerant on the emphasis
 // spans (D18/D21's idiom): a bold/backtick reshuffle inside a clause must not false-red.
 //
@@ -850,4 +894,260 @@ test('D27 — SKILL.md Lead evidence bindings paragraph carries the §4.4 skelet
       )
     }
   }
+})
+
+// (D28) GLOSSARY → CANONICAL-HOME POINTER PAIRS — Task 6.2's two CONTEXT.md compressions (#1228)
+// replaced operative procedure with a trigger pointer at each doctrine's single surviving operative
+// home. The residual this guard closes: war-config.test.mjs pins the '### Recovery relaunch'
+// heading + entry-point tokens at the destination, and a destination-file rename already reds
+// loudly (this file readFileSync's both destinations at module scope, and war-config.test.mjs
+// enumerates both paths in its UNION absence sweeps) — but nothing pins the CONTEXT.md trigger
+// clauses/paths, the submodule sub-procedure's mergeCommit.oid + operator-supplied-SHA content,
+// or the runbook's record-as-owned / args.recovery / reclaimStaleRemote / full-original-DAG
+// tokens. A within-file re-home or a gutted section is the rot class D28 closes — the recorded
+// [[verbatim-doc-move-breaks-relative-links-authored-for-old-location]] /
+// [[spec-non-goal-citation-of-a-doctrines-home-file-can-be-wrong]] rot class D19 exists for.
+// Per compressed entry, two halves: (a) the glossary entry keeps its definition anchors plus the
+// trigger clause naming its destination path; (b) the destination still carries the delegated
+// doctrine's tokens, extracted BY CONSTRUCT from its own heading to EOF (submodule-flows.md's
+// section is its file's trailing section; the resume-and-recovery.md match deliberately spans the
+// Recovery-relaunch subsection plus the held-partial-phase runbook — see the recDest comment)
+// — never a whole-file scan. Delete-and-trace: re-home or gut a
+// destination section and its (b) reds while CONTEXT.md still points at it; drop a pointer or a
+// definition core and its (a) reds.
+test('D28 — CONTEXT.md compressed glossary entries keep definition + trigger pointer, and each destination carries the delegated doctrine (#1228)', () => {
+  // --- Pair 1: **`held:submodule-pr`** → references/submodule-flows.md ---
+  const subEntry = contextMd.match(/^\*\*`held:submodule-pr`\*\*[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  assert.ok(
+    subEntry,
+    'could not locate the `**`held:submodule-pr`**` glossary entry in CONTEXT.md (bolded term → ' +
+      'next bolded term or `###` heading) — the extraction construct rotted',
+  )
+  const sub = norm(subEntry[0])
+  for (const [re, what] of [
+    [/\*\*human-triggered\*\* resume/i, 'the human-triggered-resume definition core'],
+    [/there is \*\*no\*\* background poller/i, 'the no-background-poller clause'],
+    [/reachable on the submodule remote/i, 'the remote-reachable-SHA clause'],
+    [/When clearing the hold/i, 'the trigger clause ("When clearing the hold, read …")'],
+    [/skills\/war\/references\/submodule-flows\.md/, 'the destination path'],
+  ]) {
+    assert.match(
+      sub,
+      re,
+      `the CONTEXT.md \`held:submodule-pr\` entry must keep ${what} — correct this row to a ` +
+        'sanctioned rewording, never drop the anchor to make a reword pass',
+    )
+  }
+  const subDest = submoduleMd.match(/^## `held:submodule-pr` sub-procedure[\s\S]*$/m)
+  assert.ok(
+    subDest,
+    'references/submodule-flows.md no longer carries the `## `held:submodule-pr` sub-procedure` ' +
+      "section — CONTEXT.md's trigger pointer now dangles; re-anchor BOTH surfaces together",
+  )
+  for (const [re, what] of [
+    [/mergeCommit\.oid/, 'the `mergeCommit.oid`-as-landed-SHA step'],
+    [/operator-supplied SHA/i, 'the operator-supplied-SHA fallback'],
+  ]) {
+    assert.match(
+      norm(subDest[0]),
+      re,
+      `the submodule-flows.md sub-procedure section must keep ${what} — it is the doctrine's sole ` +
+        'operative home since the #1228 glossary compression',
+    )
+  }
+
+  // --- Pair 2: **recovery relaunch** → references/resume-and-recovery.md ---
+  const recEntry = contextMd.match(/^\*\*recovery relaunch\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  assert.ok(
+    recEntry,
+    'could not locate the `**recovery relaunch**:` glossary entry in CONTEXT.md (bolded term → ' +
+      'next bolded term or `###` heading) — the extraction construct rotted',
+  )
+  const rec = norm(recEntry[0])
+  for (const [re, what] of [
+    [/\*\*fresh Workflow run\*\*/i, 'the fresh-Workflow-run definition core'],
+    [/same numeric `phase\.id`/i, 'the same-numeric-phase.id clause'],
+    [/owned-file continuity/i, 'the owned-file-continuity clause'],
+    [/\*\*never\*\* `resumeFromRunId`/, 'the never-resumeFromRunId clause'],
+    [/when retrying an escalated task or a held phase/i, 'the trigger clause'],
+    [/skills\/war\/references\/resume-and-recovery\.md/, 'the destination path'],
+  ]) {
+    assert.match(
+      rec,
+      re,
+      `the CONTEXT.md recovery-relaunch entry must keep ${what} — correct this row to a ` +
+        'sanctioned rewording, never drop the anchor to make a reword pass',
+    )
+  }
+  // Heading → EOF: the pointer delegates to the whole playbook (the Recovery relaunch subsection
+  // plus the held-partial-phase runbook that carries orphan adoption + reclaimStaleRemote arming).
+  const recDest = resumeMd.match(/^### Recovery relaunch\n[\s\S]*$/m)
+  assert.ok(
+    recDest,
+    'references/resume-and-recovery.md no longer carries the `### Recovery relaunch` section — ' +
+      "CONTEXT.md's trigger pointer now dangles; re-anchor BOTH surfaces together",
+  )
+  for (const [re, what] of [
+    // First key anchors in the Recovery-relaunch body proper (its only in-extraction occurrence)
+    // — gutting that body while the adjacent runbook survives must red, since the CONTEXT.md
+    // pointer promises the single-task vs full-DAG entry-point split that lives only there.
+    [/two entry points/i, 'the two-entry-point structure the CONTEXT.md pointer names'],
+    [/record-as-owned/, 'the `record-as-owned` orphan-adoption step'],
+    [/args\.recovery/, 'the `args.recovery` arming'],
+    [/reclaimStaleRemote/, 'the `reclaimStaleRemote` arming'],
+    [/full original phase DAG/i, 'the full-original-DAG clause'],
+  ]) {
+    assert.match(
+      norm(recDest[0]),
+      re,
+      `the resume-and-recovery.md Recovery-relaunch playbook must keep ${what} — it is the ` +
+        'doctrine\'s sole operative home since the #1228 glossary compression',
+    )
+  }
+})
+
+// (D29) ADR 0042 DOCTRINE MIRROR — the hot/cold law + budget doctrine is hand-synced across three
+// surfaces beyond the ADR (#1208; folded into Task 6.2 and lost to a row-label collision —
+// [[folded-in-followup-can-be-silently-consumed-by-a-row-label-collision]] — relanded as #1231):
+// CONTEXT.md's `### Prompt-surface budgets` glossary terms (**Surface budget**, **Prose
+// temperature**, **Trigger pointer**), CLAUDE.md's `## Doctrine placement` summary, and
+// prompt-surface-budgets.test.mjs's header formula comment (D5/adjudication-D mandates the budget
+// constants carry the formula — and it is the ×1.10/×1.25 numeric pair's ONLY mirror block:
+// neither prose summary carries the numbers). ADR 0025: every key is asserted on BOTH its mirror
+// block and norm(adr0042), so a one-sided edit reds while sanctioned rewording latitude does not —
+// keys are token-anchored `\s+`-wrapped `/…/i` forms with `[`*_]{0,2}` emphasis tolerance (the
+// ADR italicizes *is* in "the trigger *is* the skeleton"), never sentence bytes. Extraction is BY
+// CONSTRUCT (D19/D24/D26's idiom), never a whole-file scan: per glossary term bolded term → next
+// bolded-term-with-colon or `###` heading (the colon matters — the Surface-budget body wraps a
+// bold `**Advisory line**` cross-reference to column 0); CLAUDE.md heading → next `##`; budget
+// suite file start → first top-level `import` (so the per-row PLACEHOLDER/derivation comments
+// below the imports can never satisfy the formula keys). Direction-PAIRED keys bind each ratchet
+// arm to its own consequence inside one bounded-gap regex (lowering↔normal-PR,
+// raising↔commit-body; advisory↔×1.10, hard↔×1.25; the tier ladder in canonical order) — the
+// recorded [[multi-token-presence-loop-needs-paired-first-following-match-to-catch-a-swap]]
+// class: presence-anywhere keys stay green on exactly the direction inversion that matters.
+test('D29 — ADR 0042 doctrine mirrors (CONTEXT.md glossary terms, CLAUDE.md hot/cold summary, budget-suite formula) track the canonical ADR on both surfaces (#1208)', () => {
+  const adr = norm(adr0042)
+  const assertMirror = (blockName, blockText, keys) => {
+    for (const [key, what] of keys) {
+      for (const [surface, text] of [
+        [blockName, blockText],
+        ['ADR 0042 (canonical source)', adr],
+      ]) {
+        assert.match(
+          text,
+          key,
+          `${surface} must carry ${what} (ADR 0025 mirror registry). Correct this row to a ` +
+            'sanctioned rewording, never drop the clause on one surface to make it pass',
+        )
+      }
+    }
+  }
+
+  // --- CONTEXT.md `### Prompt-surface budgets` glossary terms, per-term extraction ---
+  for (const [term, keys] of [
+    [
+      'Surface budget',
+      [
+        [/lowering[\s\S]{0,20}is\s+a\s+normal\s+PR/i, 'the lowering-is-a-normal-PR ratchet arm'],
+        [
+          /raising[\s\S]{0,60}commit\s+body/i,
+          'the raising-needs-commit-body-justification ratchet arm',
+        ],
+        [/advisory\s+line\s+warns/i, 'the advisory-line-warns half of the enforcement split'],
+        [/hard\s+line\s+is\s+a\s+red\s+test/i, 'the hard-line-reds half of the enforcement split'],
+        [/cold\s+storage\s+is\s+unbudgeted/i, 'the cold-storage-is-unbudgeted carve-out'],
+      ],
+    ],
+    [
+      'Prose temperature',
+      [
+        [/branch-frequency/i, 'the branch-frequency definition core'],
+        [
+          /every-phase[\s\S]{0,8}once-per-run[\s\S]{0,8}branch-gated[\s\S]{0,8}incident-only/i,
+          'the four-tier ladder in canonical order',
+        ],
+        [
+          /tier-1\s+\(every-invocation\)\s+doctrine\s+stays\s+inline/i,
+          'the only-tier-1-stays-inline placement rule',
+        ],
+      ],
+    ],
+    [
+      'Trigger pointer',
+      [
+        [/when\s+<trigger>,\s+read\s+references\//i, 'the fixed `when <trigger>` pointer shape'],
+        [
+          /trigger\s+[`*_]{0,2}is[`*_]{0,2}\s+the\s+skeleton/i,
+          'the trigger-is-the-skeleton clause',
+        ],
+        [/byte-identical/i, 'the byte-identical-move eviction rule'],
+        [
+          /pointers?\s+without\s+(?:a\s+)?triggers?/i,
+          'the pointer-without-a-trigger defect clause',
+        ],
+      ],
+    ],
+  ]) {
+    // Mirror D26's idiom: escape the term before building the pattern, so a future
+    // metachar-bearing term cannot silently mis-anchor the extraction.
+    const t = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const block = contextMd.match(
+      new RegExp(`^\\*\\*${t}\\*\\*:[\\s\\S]*?(?=\\n\\*\\*[^\\n*]+\\*\\*:|\\n### )`, 'm'),
+    )
+    assert.ok(
+      block,
+      `could not locate the \`**${term}**:\` glossary term in CONTEXT.md (bolded term → next ` +
+        'bolded term or `###` heading) — the extraction construct rotted',
+    )
+    // Non-vacuous: every entry must really reach its own `_Avoid_` line.
+    assert.match(
+      norm(block[0]),
+      /_Avoid_/,
+      `the extracted **${term}** entry must span its \`_Avoid_\` line — extraction truncated`,
+    )
+    assertMirror(`CONTEXT.md **${term}** entry (mirror)`, norm(block[0]), keys)
+  }
+
+  // --- CLAUDE.md `## Doctrine placement` summary, heading → next `##` ---
+  const placement = claudeMd.match(/^## Doctrine placement[\s\S]*?(?=\n## )/m)
+  assert.ok(
+    placement,
+    'could not locate the `## Doctrine placement` section in CLAUDE.md (heading → next `##`) — ' +
+      'the extraction construct rotted',
+  )
+  assertMirror('CLAUDE.md ## Doctrine placement summary (mirror)', norm(placement[0]), [
+    [/when\s+<trigger>,\s+read\s+references\//i, 'the fixed `when <trigger>` pointer shape'],
+    [/trigger\s+[`*_]{0,2}is[`*_]{0,2}\s+the\s+skeleton/i, 'the trigger-is-the-skeleton clause'],
+    [/pointers?\s+without\s+(?:a\s+)?triggers?/i, 'the pointer-without-a-trigger defect clause'],
+    [/byte-identical/i, 'the byte-identical-move eviction rule'],
+    [/tier-1\s+\(every-invocation\)/i, 'the tier-1 every-invocation inline reservation'],
+    [/lowering[\s\S]{0,20}is\s+a\s+normal\s+PR/i, 'the lowering-is-a-normal-PR ratchet arm'],
+    [
+      /raising[\s\S]{0,60}commit\s+body/i,
+      'the raising-needs-commit-body-justification ratchet arm',
+    ],
+  ])
+
+  // --- Budget-suite header formula comment, file start → first top-level `import` ---
+  const formula = budgetSuiteSrc.match(/^[\s\S]*?(?=^import )/m)
+  assert.ok(
+    formula,
+    "could not locate prompt-surface-budgets.test.mjs's header comment (file start → first " +
+      'top-level `import`) — the extraction construct rotted',
+  )
+  // Non-vacuous: the header must really reach its Formula sentence.
+  assert.match(
+    norm(formula[0]),
+    /Formula/,
+    'the extracted budget-suite header must span its Formula sentence — extraction truncated',
+  )
+  assertMirror(
+    'prompt-surface-budgets.test.mjs header formula comment (mirror)',
+    norm(formula[0]),
+    [
+      [/advisory\s*=\s*post-shrink[\s\S]{0,30}1\.10/i, 'the advisory↔×1.10 formula binding'],
+      [/hard\s*=\s*post-shrink[\s\S]{0,30}1\.25/i, 'the hard↔×1.25 formula binding'],
+    ],
+  )
 })

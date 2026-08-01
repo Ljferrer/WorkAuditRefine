@@ -8,7 +8,18 @@ import { spawnOpts, validateRoster, widenRoster, resolveWidenSource, resolveGate
 
 const here = dirname(fileURLToPath(import.meta.url))
 const auditorMd = readFileSync(join(here, '../../../agents/war-auditor.md'), 'utf8')
+// UNION surface (prompt-surface simplification, adjudication I): Task 3.1 evicted the guard-contract
+// teach prose from the card into this reference file — every OLD-absent key over the card scans it too.
+const auditorTeachMd = readFileSync(join(here, '../references/auditor-teach.md'), 'utf8')
 const refinerMd = readFileSync(join(here, '../../../agents/war-refiner.md'), 'utf8')
+// UNION/relocated surface (prompt-surface simplification, adjudications E+I): Task 4.1 evicted the
+// submodule-as-repo provisioning recipe, the superproject reland discrimination (land step 3), and the
+// 2A/2B submodule land arms from the card into this reference file — presence keys over the moved text
+// relocate their read here; every OLD-absent key over the card scans it too.
+const refinerRecoveryMd = readFileSync(join(here, '../references/refiner-recovery.md'), 'utf8')
+// UNION surface (prompt-surface simplification, adjudication I): Task 5.1 evicted the worker/servitor
+// tier>=2 blocks from the cards into this reference file — every OLD-absent key over the card scans it too.
+const edgesMd = readFileSync(join(here, '../references/worker-servitor-edges.md'), 'utf8')
 const src = readFileSync(join(here, 'workflow-template.js'), 'utf8').replace(/^export const meta/m, 'const meta')
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 const build = () => new AsyncFunction('agent', 'parallel', 'pipeline', 'log', 'phase', 'args', 'budget', src)
@@ -3819,8 +3830,8 @@ test('stale-looking-but-correct calibration (Task 1.4): the "only when the live 
   // qualifier on BOTH surfaces. A silent widening that drops the qualifier from ONE rule (unconditional
   // amnesty) turns that rule's window qualifier-missing — the retired aggregate occurrence count could
   // not see it: five real occurrences minus one silent drop still cleared the four-rule floor. The
-  // intro-line qualifier sits before anchor 1 on both surfaces, so it is outside every window and never
-  // pads a rule.
+  // intro-line qualifier sits before anchor 1 on the standing card, so it is outside every window and
+  // never pads a rule; the dispatched skeleton's intro carries no qualifier occurrence at all.
   const standing = qualifierPerRuleWindows(auditorMd)
   standing.forEach((r, i) => assert.equal(r.status, 'ok',
     `war-auditor.md rule ${i + 1} window ${r.anchor} carries the confirmation qualifier (standing surface)`))
@@ -3835,8 +3846,9 @@ test('stale-looking-but-correct calibration (Task 1.4): the per-rule qualifier l
   // assert the helper reports EXACTLY that rule qualifier-missing and the other three still ok. The
   // complement (other-three-stay-ok) is load-bearing (weak-test-assertion-passes-without-feature-being-
   // exercised): it proves the helper is not an all-missing stub, that window 4 cannot borrow a qualifier
-  // from trailing text, and that the intro-line qualifier (pre-anchor-1, outside every window) can never
-  // rescue a rule. Initial-round capture only — a deliberate scope cut matching the sibling anchor test;
+  // from trailing text, and that the standing card's intro-line qualifier (pre-anchor-1, outside every
+  // window; the dispatched skeleton carries none) can never rescue a rule. Initial-round capture only —
+  // a deliberate scope cut matching the sibling anchor test;
   // the rebuttal-round base prompt is already covered by the CALIBRATION_SHARED rebuttal test.
   const QUALIFIER_ALL = /only when the live artifact confirms/gi
   const surfaces = [
@@ -5644,7 +5656,7 @@ test('run-lifecycle §4 polish worktree provisioning ok:false → fail-open: swe
   assert.ok((out.minorsFiled || []).some(m => m && m.title === 'dangling link'), 'the queued finding drains to follow-up')
 })
 
-test('run-lifecycle §5 both-surfaces drift guard: war-refiner.md names the provision mode, the three labels, the env-outcome fields, the submodule p<phase>-<task> path, and the frontmatter blurb (token-anchored, case-tolerant)', () => {
+test('run-lifecycle §5 both-surfaces drift guard: war-refiner.md names the provision mode, the three labels, the env-outcome fields, and the frontmatter blurb; refiner-recovery.md carries the evicted submodule p<phase>-<task> path (token-anchored, case-tolerant)', () => {
   assert.match(refinerMd, /## provision/i, 'the standing card has a ## provision section')
   // the three dispatch labels wherever the dispatched prompts name them
   assert.match(refinerMd, /provision:phase-<id>/i, 'names the git-topology barrier label')
@@ -5654,8 +5666,9 @@ test('run-lifecycle §5 both-surfaces drift guard: war-refiner.md names the prov
   assert.match(refinerMd, /env-outcome/i, 'names the env-outcome return')
   for (const f of ['failedCommand', 'exitCode', 'stderrTail']) assert.match(refinerMd, new RegExp(f, 'i'), `names the env-outcome field ${f}`)
   assert.match(refinerMd, /never\b[\s\S]{0,16}(out-of-mode|decline)/i, 'states a provision dispatch is never declined')
-  // submodule worktree add path mirrors the template derivation shape
-  assert.match(refinerMd, /p<phase>-<taskId>/i, 'the submodule step-4 worktree path carries the p<phase>-<taskId> shape')
+  // submodule worktree add path mirrors the template derivation shape — read relocated to
+  // references/refiner-recovery.md (Task 4.1 evicted the submodule-as-repo provisioning recipe there)
+  assert.match(refinerRecoveryMd, /p<phase>-<taskId>/i, 'the submodule step-4 worktree path carries the p<phase>-<taskId> shape (refiner-recovery.md, evicted from the card)')
   // frontmatter description (the agent-catalog blurb) names the provision mode + env-outcome return
   const fm = refinerMd.split('---')[1] || ''
   assert.match(fm, /provision mode/i, 'the frontmatter blurb names the provision mode')
@@ -5686,7 +5699,8 @@ test('run-lifecycle §5 schemas.md presence lock: provisioning-args + footgun ca
 // exactly ONE extra push-first attempt beyond roundLimit; a nonzero right count (real contender
 // commits) is land_stale immediately. The discrimination is emitted in ALL THREE land prompts (in-flow,
 // baseline-proceed re-land, environment-proceed re-land) via the shared relandDiscrimination helper, and
-// grep-parallel with agents/war-refiner.md §land-phase.
+// grep-parallel with the standing copy in references/refiner-recovery.md (evicted from war-refiner.md
+// §land-phase by Task 4.1; the card's land step 3 is a trigger pointer).
 // The three plain-text anchors below appear VERBATIM in all four surfaces (mirror-drift guard, spec
 // §8; memory: standing-instruction-vs-dispatched-prompt-coverage-split). They are markup-free in the
 // .md source (no backtick/bold inside the span) so a raw-string includes() matches byte-for-byte.
@@ -5738,17 +5752,26 @@ test('Task 1.2 — BOTH recovery re-land prompts carry the identical discriminat
   }
 })
 
-test('Task 1.2 — grep parity: agents/war-refiner.md §land-phase carries the byte-identical discrimination strings the JS prompts emit', () => {
+test('Task 1.2 — grep parity: the standing discrimination copy (references/refiner-recovery.md, evicted from war-refiner.md §land-phase by Task 4.1) carries the byte-identical strings the JS prompts emit', () => {
   // Standing-vs-dispatched coverage split: the same three plain-text anchors the land prompts emit
-  // must appear VERBATIM in the standing card so the surfaces cannot drift (spec §8, grill Q5/Q11).
-  assert.ok(refinerMd.includes(RELAND_DISC_CMD), 'war-refiner.md §land-phase runs rev-list --left-right --count <merge-sha>...origin/')
-  assert.ok(refinerMd.includes(RELAND_DISC_BUDGET), 'war-refiner.md §land-phase states the identical explicit-+1 budget sentence')
-  assert.ok(refinerMd.includes(RELAND_DISC_DIVERGE), 'war-refiner.md §land-phase names the nonzero-right-count divergence branch')
+  // must appear VERBATIM in the standing copy so the surfaces cannot drift (spec §8, grill Q5/Q11).
+  // Presence keys relocated with the moved text (adjudication E): the standing copy now lives in
+  // references/refiner-recovery.md; the card's land step 3 is a trigger pointer to it.
+  assert.ok(refinerRecoveryMd.includes(RELAND_DISC_CMD), 'refiner-recovery.md § reland discrimination runs rev-list --left-right --count <merge-sha>...origin/')
+  assert.ok(refinerRecoveryMd.includes(RELAND_DISC_BUDGET), 'refiner-recovery.md states the identical explicit-+1 budget sentence')
+  assert.ok(refinerRecoveryMd.includes(RELAND_DISC_DIVERGE), 'refiner-recovery.md names the nonzero-right-count divergence branch')
   // the discrimination must appear for BOTH the superproject land and the submodule-2A land variant.
-  assert.ok((refinerMd.match(/git rev-list --left-right --count <merge-sha>\.\.\.origin\//g) || []).length >= 2,
+  assert.ok((refinerRecoveryMd.match(/git rev-list --left-right --count <merge-sha>\.\.\.origin\//g) || []).length >= 2,
     'the discrimination command is present in BOTH the superproject and submodule-2A land variants')
   // never anchored on the lagging local follower.
-  assert.match(refinerMd, /NEVER the local follower/, 'war-refiner.md pins the discrimination to origin, never the lagging local follower')
+  assert.match(refinerRecoveryMd, /NEVER the local follower/, 'refiner-recovery.md pins the discrimination to origin, never the lagging local follower')
+  // the card still ROUTES to the standing copy: all three trigger pointers (submodule
+  // provisioning, land step 3, 2A/2B land arms) must survive, each in the adjudication-O(2)
+  // owner-relative shape (bare skills/war/references/<file> — the refiner seat's cwd is the main
+  // checkout, so a ../-prefixed path walks OUT of the repo and never opens). Count-pinned:
+  // presence-only would stay green if two pointers were dropped, orphaning their evicted sections.
+  assert.equal((refinerMd.match(/\(skills\/war\/references\/refiner-recovery\.md\)/g) || []).length, 3, 'all three owner-relative trigger pointers to skills/war/references/refiner-recovery.md survive')
+  assert.ok(!/\((?:\.\.\/)+[^)]*refiner-recovery\.md\)/.test(refinerMd), 'no pointer uses a forbidden ../-prefixed path, at any depth (adjudication O(2))')
 })
 
 test('Task 1.2 — a stale-then-resolved land (final status:landed) reaches the servitorResult dispatch (no new status/enum)', async () => {
@@ -6068,6 +6091,9 @@ test('T2.1 criterion 6 (D5) — the gate-audit seat carries the captured-artifac
   assert.ok(!src.includes('Do NOT curate or excerpt'),
     'the anti-excerpt prose is gone from ALL workflow-template.js dispatched prompts (replaced by the capture clause)')
   assert.ok(!refinerMd.includes('curate or excerpt'), 'the anti-excerpt prose is gone from war-refiner.md step 7')
+  // UNION scan (adjudication I): Task 4.1 evicted card blocks into references/refiner-recovery.md —
+  // the OLD-absent key scans the eviction destination too, never a relocated read.
+  assert.ok(!refinerRecoveryMd.includes('curate or excerpt'), 'the anti-excerpt prose is absent from refiner-recovery.md (eviction destination)')
   const captureUses = (src.match(/gateCaptureClause\(refineryPath, r\.task\.id\)/g) || []).length
   assert.equal(captureUses, 3, 'the gate-capture clause replaces the anti-excerpt prose at ALL THREE dispatched merge sites (initial + floor-retry + environment-proceed) — the evidence chain must survive a retried merge')
 })
@@ -7110,31 +7136,43 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     assert.match(sample, CWD_IS_TIP_ASSERTING,
       `negative reference (${label}): the retired asserting form DOES match the guard — the doesNotMatch above is non-vacuous`)
   }
-  assert.doesNotMatch(servitorMd, /phase-<N>\.md/i, 'war-servitor.md no longer names the phase-<N>.md aggregate file')
-  assert.doesNotMatch(servitorMd, /else:\s*append|else\b.{0,20}append to/i, 'war-servitor.md no longer carries an "else: append" routing arm')
+  for (const [sName, sText] of [['war-servitor.md', servitorMd], ['worker-servitor-edges.md', edgesMd]]) {
+    assert.doesNotMatch(sText, /phase-<N>\.md/i, `${sName} no longer names the phase-<N>.md aggregate file`)
+    assert.doesNotMatch(sText, /else:\s*append|else\b.{0,20}append to/i, `${sName} no longer carries an "else: append" routing arm`)
+  }
   assert.doesNotMatch(src, /memory dir or docs\/learnings/i, 'template args header no longer says "(memory dir or docs/learnings/)"')
   // Old-fragment absence (D5, spec criterion 6; red-team adjudication, ADR 0025 replacement-class drift):
   // the retired partial teach ('%-format' / 'reflog syntax') is GONE from BOTH prompt surfaces. A partial
   // edit that adds the new contract but leaves the stale teach co-present REDs here — this promotes the
   // criterion-6 `grep -rn '%-format'` from un-encoded prose to a RED-able assertion.
-  for (const [sName, sText] of [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]]) {
+  // UNION extension (prompt-surface simplification, adjudication I): Task 3.1 evicted the
+  // guard-contract teach into references/auditor-teach.md — the OLD-absent scan covers the
+  // eviction destination too, never a relocated read.
+  for (const [sName, sText] of [['war-auditor.md', auditorMd], ['auditPrompt()', auditP],
+    ['references/auditor-teach.md', auditorTeachMd]]) {
     assert.doesNotMatch(sText, /%-format/, `${sName}: the retired '%-format' teach is absent (the D5 contract replaced it)`)
     assert.doesNotMatch(sText, /reflog syntax/, `${sName}: the retired 'reflog syntax' teach is absent (the D5 contract replaced it)`)
   }
   // #1080 retired-claim lock: the card used to claim this contract was "mirrored verbatim" into the
   // dispatched audit prompt. False — the two surfaces are deliberately different FORMATS, and what is
   // actually enforced is the D5 row above, which anchors shared TOKENS per surface (four at #1080, six
-  // since Task 1.2 added the two-arm branch anchors). The card names that row as the shared-token anchor
-  // and the D6 test below as the branch-flag arbiter; this absence assert keeps the overclaim from
-  // silently returning.
-  assert.doesNotMatch(auditorMd, /mirrored verbatim/i,
-    "war-auditor.md: the retired 'mirrored verbatim' guard-contract claim is absent — the D5 row's per-surface token anchors are what enforce the mirror (#1080)")
+  // since Task 1.2 added the two-arm branch anchors). The mirror-architecture prose the lock polices now
+  // lives in references/auditor-teach.md (Task 3.1 eviction), which names the D5 row as the shared-token
+  // anchor and the D6 test below as the branch-flag arbiter; the UNION scan (adjudication I) keeps the
+  // overclaim from silently returning on either the card or the eviction destination.
+  for (const [sName, sText] of [['war-auditor.md', auditorMd],
+    ['references/auditor-teach.md', auditorTeachMd]]) {
+    assert.doesNotMatch(sText, /mirrored verbatim/i,
+      `${sName}: the retired 'mirrored verbatim' guard-contract claim is absent — the D5 row's per-surface token anchors are what enforce the mirror (#1080)`)
+  }
   // Task 1.2 (D5, spec §5; #1085/#1124) retired-claim lock: the blanket "=-attached read flags only" branch
   // characterization — self-contradicted by the five bare flags in its own parenthetical, and shed by the
   // hook's deny string on 2026-07-24 — is GONE from both mirror surfaces, which now carry the two-arm form
   // anchored by the D5 row above. The samples are the both-ways proof: each is asserted to MATCH, so the
-  // absence checks cannot pass vacuously through a regex that stopped firing.
-  for (const [sName, sText] of [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]]) {
+  // absence checks cannot pass vacuously through a regex that stopped firing. UNION extension
+  // (adjudication I): the Task 3.1 eviction destination joins the scan.
+  for (const [sName, sText] of [['war-auditor.md', auditorMd], ['auditPrompt()', auditP],
+    ['references/auditor-teach.md', auditorTeachMd]]) {
     assert.doesNotMatch(sText, BRANCH_READ_FLAGS_ONLY_RETIRED,
       `${sName}: the retired "=-attached read flags only" branch claim is absent (the two-arm characterization replaced it — #1124)`)
   }
@@ -7784,4 +7822,49 @@ test('both-surfaces (criterion/end-state 22): the STALE_REMOTE classify-and-cont
     const mutated = text.replace(/marker token is the key, never the numeric/gi, 'REMOVED')
     assert.doesNotMatch(mutated, /marker token is the key, never the numeric/i, `${name}: removing the carve-out phrase reds the anchor (non-vacuous)`)
   }
+})
+
+// ---------------------------------------------------------------------------
+// Task 5.1 (prompt-surface simplification): the worker/servitor cards' tier>=2
+// blocks moved to skills/war/references/worker-servitor-edges.md. Relocated
+// presence keys (adjudication E — the keys move with the text): one distinctive
+// fragment per moved block must exist at the destination; each card must keep
+// (a) a trigger pointer routing to the destination and (b) the decisive rule
+// inline (foreign-target-repo lesson: a references/ pointer is best-effort
+// enrichment on a non-plugin target repo, never the sole carrier of a
+// blocking rule).
+// ---------------------------------------------------------------------------
+test('Task 5.1 — worker/servitor card evictions: destination carries the moved blocks; cards keep trigger pointers + decisive rules inline', () => {
+  const edges = readFileSync(join(here, '../references/worker-servitor-edges.md'), 'utf8')
+  for (const frag of [
+    'the worktree is a standalone checkout of the submodule',       // worker §Submodule task mechanics
+    "find the dep task's entry, read its `merge_sha`",              // worker §Gitlink-bump task mechanics (ledger step)
+    'preserving the Container/Contents distinction',                // worker §Gitlink-bump commit step
+    'This allowlist is the **primary confinement**',                // worker §Servitor confinement
+    'never move a lesson between hot and `archive/`',               // servitor §Archived lessons
+  ]) assert.ok(edges.includes(frag), `worker-servitor-edges.md carries the moved fragment: ${frag}`)
+  // Trigger pointers route each card to the destination — owner-relative bare
+  // form (adjudication O(2)): `skills/war/references/<file>`, never `../`-prefixed
+  // (the seat's cwd is a task worktree or the main checkout, so ../ walks out of
+  // the repo — same defect fixed for war-refiner.md by commit 606b72b).
+  assert.equal((workerMd.match(/\(skills\/war\/references\/worker-servitor-edges\.md\)/g) || []).length, 3,
+    'war-worker.md carries all three owner-relative trigger pointers to worker-servitor-edges.md')
+  assert.match(servitorMd, /\(skills\/war\/references\/worker-servitor-edges\.md\)/,
+    'war-servitor.md carries an owner-relative trigger pointer to worker-servitor-edges.md')
+  // Shape-generic absence: NO references/ pointer on either card may be
+  // ../-prefixed, at any depth — closes the enumerated-scope gap that let the
+  // 606b72b defect recur on a second file.
+  assert.ok(!/\((?:\.\.\/)+[^)]*skills\/war\/references\/[^)]+\)/.test(workerMd),
+    'war-worker.md: no references/ pointer uses a forbidden ../-prefixed path, at any depth (adjudication O(2))')
+  assert.ok(!/\((?:\.\.\/)+[^)]*skills\/war\/references\/[^)]+\)/.test(servitorMd),
+    'war-servitor.md: no references/ pointer uses a forbidden ../-prefixed path, at any depth (adjudication O(2))')
+  // Decisive rules survive inline on the cards (pointer = enrichment, never sole carrier).
+  assert.match(workerMd, /merge_sha/, 'war-worker.md keeps the ledger merge_sha authority rule inline')
+  assert.match(workerMd, /gitlink-only/, 'war-worker.md keeps the gitlink-only diff rule inline')
+  assert.match(workerMd, /own remote, not the superproject/,
+    'war-worker.md keeps the submodule remote-identity check inline')
+  assert.match(workerMd, /primary confinement/,
+    'war-worker.md keeps the servitor primary-confinement summary inline')
+  assert.match(servitorMd, /never move a lesson between hot and `archive\/`/,
+    'war-servitor.md keeps the hot/archive temperature prohibition inline')
 })
