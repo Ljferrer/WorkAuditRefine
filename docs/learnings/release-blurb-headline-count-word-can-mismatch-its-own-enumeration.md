@@ -4,6 +4,7 @@ description: "A release blurb's opening count word ('a truth sweep across eight 
 metadata: 
   node_type: memory
   type: project
+  promoted: dev/2026-07-24-runbook-and-standing-record-coherence@phase-2
   provenance: code-verified
   slug: release-blurb-headline-count-word-can-mismatch-its-own-enumeration
   phase: "runbook-and-standing-record-coherence/phase-2 (Release, task 2.1)"
@@ -22,7 +23,7 @@ metadata:
     - audit-finding
     - readme-status
   created: 2026-07-25
-  modified: 2026-07-25T07:06:20.997Z
+  modified: 2026-07-28T21:01:27.742Z
   originSessionId: 4eee3466-8bcc-44f9-a6c2-754d46624537
 ---
 
@@ -75,3 +76,22 @@ is whether a plan mandate freezes the number deliberately). [[release-blurb-over
 scope rather than headline arithmetic). [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]]
 (how the eighth drift's referents were confirmed against the actual landed tip rather than a stale
 cwd).
+
+## Recurrence 1 (2026-07-28, plan `2026-07-28-audit-evidence-precedence`, phase 2 "Release", task 2.1) — a micro-count sub-shape: "one-sentence" describing a quoted skeleton that is actually two sentences
+
+A new sub-mechanism: not a headline number vs. a following enumeration, but a count word describing
+the internal structure of a single quoted/described text block. `code-verified` at the landed tip
+`5f018f183eefa225ee900afd7e33dca9c5dfb4e8` (`_refinery` worktree whose `HEAD` equals that SHA,
+gitdir `<repo-root>/.claude/war-worktrees/2026-07-28-audit-evidence-precedence-2026-07-28/_refinery/`).
+The blurb says the four dispatched surfaces "each carry an identical one-sentence skeleton" — the
+"identical" half is true (byte-identical `pt` string at all four seats), but the skeleton itself
+reads as two sentences: "...the auditor standing card)." followed by "The working tree and the
+worker done-report are never the top rung of any ladder; prefetched lessons are never evidence —
+re-ground a lesson-derived claim at the pin before it appears in a finding." Multiple auditor seats
+flagged this identical Nit independently across both the task-level and gate-audit passes.
+`disposition: note`, non-blocking, not fixed before land — `## Status` is a release slot.
+
+**Applies-to note:** the same "count the thing before naming its count" discipline this lesson's
+core Rule already states applies at any granularity, not just headline-vs-enumeration — before
+calling a quoted/appended text block "one-X", count the X (sentences, clauses, lines) in the actual
+string, not the number of times the block itself was appended.

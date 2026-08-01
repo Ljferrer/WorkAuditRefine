@@ -23,7 +23,7 @@ metadata:
     - plan-fidelity
   created: 2026-07-27
   originSessionId: 0ad881e1-4bbc-43c6-8e45-8597d9cec1cf
-  modified: 2026-07-28T01:29:44.641Z
+  modified: 2026-07-28T21:01:36.668Z
 ---
 
 # A release blurb quoting a code call can rename the variable, silently defeating a later grep
@@ -69,3 +69,23 @@ the exact identifier isn't the point, or use the real identifier if it is.
 verifying blurb/lesson prose against code. [[release-blurb-headline-count-word-can-mismatch-its-own-enumeration]]
 and [[release-blurb-overstates-guard-semantics]] — sibling release-blurb-precision findings from
 earlier phases in this same family.
+
+## Recurrence 1 (2026-07-28, plan `2026-07-28-audit-evidence-precedence`, phase 2 "Release", task 2.1) — a bold-markdown lead-in quoted with a closing `**` the artifact doesn't carry
+
+Same pattern, markdown bold markers instead of a code call. `code-verified` at the landed tip
+`5f018f183eefa225ee900afd7e33dca9c5dfb4e8` (`_refinery` worktree whose `HEAD` equals that SHA,
+gitdir `<repo-root>/.claude/war-worktrees/2026-07-28-audit-evidence-precedence-2026-07-28/_refinery/`).
+The `## Status` blurb writes: "`skills/war/SKILL.md` gains one `**Lead evidence bindings**`
+paragraph" — a reader grepping the rendered literal `**Lead evidence bindings**` (closing markers
+included) finds nothing, because the real lead-in is `**Lead evidence bindings (phase-close + Gate
+2; ADR 0041).**` — the bold markers close only after the parenthetical, not right after the phrase.
+The D27 row in `skill-doc-contracts.test.mjs` deliberately anchors on the open prefix
+`/\*\*Lead evidence bindings/` (no closing `**`) for exactly this reason — the guard's own extraction
+already accounts for the variable close position; the blurb's grep-friendly quoting didn't. Multiple
+auditor seats flagged this independently. `disposition: note`, Nit, non-blocking, not fixed before
+land — `## Status` is a release slot.
+
+**Sharper form of the rule:** when quoting a bold-markdown lead-in (not just a code call) verbatim
+in release prose, quote through the actual close position — if the bold run continues past the
+"headline" phrase into a parenthetical or qualifier, either quote the whole run or quote only the
+open prefix (no closing `**`) the way a drift guard anchoring on that construct already does.

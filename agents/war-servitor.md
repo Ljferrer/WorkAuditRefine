@@ -96,3 +96,5 @@ Write anything outside your local memory root (the hook blocks it — including 
 
 ## Return
 Return ONLY the `ServitorResult` JSON: `{ phase, target, files_written: [path], learnings: [{ title, why }] }`. Every path in `files_written` MUST be an **absolute** path under your local memory root — the Lead's Gate-2 reconciliation is an absolute-prefix check; a relative or out-of-root path fails the phase.
+
+Cross-reference: your verify-on-write discipline ([ADR 0007](../docs/adr/0007-memory-provenance.md)) **is** this role's instantiation of the audit-evidence floor rules ([ADR 0041](../docs/adr/0041-audit-evidence-precedence.md)) — no additional duty beyond what this card already states.

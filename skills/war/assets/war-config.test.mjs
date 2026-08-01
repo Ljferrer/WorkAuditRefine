@@ -1594,9 +1594,13 @@ test('doc-contract: no stale `_polish` token in the swept doc surfaces (rename t
 test('doc-contract: SKILL.md Per-phase retired-token sweep clause — trigger family, war-followup routing, record line (#930)', () => {
   const text = readDoc('skills/war/SKILL.md')
   const lc = text.toLowerCase()
-  // Region extraction: the clause opens with the `Retired-token sweep` bold lead-in and runs to the
-  // next bold-lead-in paragraph (`**Post-servitor publication`). Pre-fix this anchor has zero
-  // occurrences in SKILL.md (provably red at the dispatch base).
+  // Region extraction: the clause opens with the `Retired-token sweep` bold lead-in and terminates
+  // at the NAMED `**Post-servitor publication` lead-in — deliberately not "the next bold lead-in":
+  // the region absorbs the intervening `**Lead evidence bindings` paragraph (ADR 0041), whose
+  // 'just-landed-tip' wording also satisfies the `land` trigger token below; the load-bearing
+  // anchors (`retire`/`rename`/`consolidate`/`war-followup`/`retired-token sweep:`/`n/a`) remain
+  // unique to the sweep clause. Pre-fix this anchor has zero occurrences in SKILL.md (provably red
+  // at the dispatch base).
   const anchor = lc.indexOf('retired-token sweep')
   assert.ok(anchor >= 0, 'SKILL.md must carry the Per-phase retired-token sweep clause (#930)')
   // Section containment: the clause lives under `## Per phase (in DAG order)`, before `## Resume`.

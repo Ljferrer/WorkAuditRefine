@@ -8,7 +8,7 @@ metadata:
   provenance: code-verified
   promoted: dev/2026-07-24-memory-tooling-hardening@phase-2
   slug: release-blurb-overstates-guard-semantics
-  phase: "submodule-inc1/T4 +10 recurrences (war-campaign-resilience-roadmap/phase-2 Release task 2.1, 2026-07-22; test-floor-target-repo/phase-2 Release task 2.1, 2026-07-22; cli-main-guard-normalization/phase-2 Release task 2.1, 2026-07-23; runbook-and-standing-record-coherence/phase-2 Release task 2.1, 2026-07-24; recovery-re-merge-dispatch-coherence/phase-2 Release task 2.1, 2026-07-24; drift-guard-and-floor-diagnostic-hardening/phase-2 Release task 2.1, 2026-07-24/25; 2026-07-24-memory-tooling-hardening/phase-2 Release task 2.1, 2026-07-26; 2026-07-26-dispatch-args-and-floor-coverage/phase-3 Release task 3.1, 2026-07-26/27; 2026-07-26-auditor-guard-policy-and-mirror-truth/phase-2 Release task 2.1, 2026-07-27; 2026-07-26-standing-doc-and-remedy-truth-sweep/phase-2 Release task 2.1, 2026-07-27)"
+  phase: "submodule-inc1/T4 +11 recurrences (war-campaign-resilience-roadmap/phase-2 Release task 2.1, 2026-07-22; test-floor-target-repo/phase-2 Release task 2.1, 2026-07-22; cli-main-guard-normalization/phase-2 Release task 2.1, 2026-07-23; runbook-and-standing-record-coherence/phase-2 Release task 2.1, 2026-07-24; recovery-re-merge-dispatch-coherence/phase-2 Release task 2.1, 2026-07-24; drift-guard-and-floor-diagnostic-hardening/phase-2 Release task 2.1, 2026-07-24/25; 2026-07-24-memory-tooling-hardening/phase-2 Release task 2.1, 2026-07-26; 2026-07-26-dispatch-args-and-floor-coverage/phase-3 Release task 3.1, 2026-07-26/27; 2026-07-26-auditor-guard-policy-and-mirror-truth/phase-2 Release task 2.1, 2026-07-27; 2026-07-26-standing-doc-and-remedy-truth-sweep/phase-2 Release task 2.1, 2026-07-27; 2026-07-28-audit-evidence-precedence/phase-2 Release task 2.1, 2026-07-28)"
   tags:
     - war
     - release
@@ -24,7 +24,7 @@ metadata:
     - "[[gitmodules-working-tree-read-vs-ref-snapshot]]"
   created: 2026-06-30
   originSessionId: 0e364ee5-f0b3-47f6-a9e4-9bf2dd555733
-  modified: 2026-07-28T06:15:25.430Z
+  modified: 2026-07-28T21:01:11.727Z
 ---
 
 # Release blurb prose overstates guard semantics
@@ -448,3 +448,54 @@ evidence its own introducing prose passes it.
 Related: [[audit-log-finding-can-be-stale-by-land-time]] (this recurrence's finding-match check
 confirmed the defect live at the landed tip rather than fixed-in-flight — both audit-log Nits on this
 task's paragraph were verified present, not resolved, before this entry was written).
+
+## Recurrence 11 (2026-07-28, plan `2026-07-28-audit-evidence-precedence`, phase 2 "Release", task 2.1) — two independent overclaims in the same paragraph: a per-term guard's construct-level reach described as applying to both surfaces it only applies to one, and a token-anchored registry row's "any edit reds" overstating a guard that only reds on a reword away from its anchors
+
+A fourteenth and fifteenth instantiation, both flagged across two auditor seats on the same `##
+Status` paragraph (`README.md`, at the landed tip `5f018f183eefa225ee900afd7e33dca9c5dfb4e8` —
+`code-verified`, read directly at the `_refinery` worktree whose `HEAD` equals the landed tip,
+gitdir physical path
+`<repo-root>/.claude/war-worktrees/2026-07-28-audit-evidence-precedence-2026-07-28/_refinery/`).
+
+**(a) "per-term extraction by construct... so a diff that rewords either surface... reds" claims a
+symmetry the guard's own code doesn't have.** The blurb describes the new D26 row in
+`skill-doc-contracts.test.mjs` as doing "per-term extraction by construct (bolded term to the next
+bolded term or heading), token-anchored `\s+`-wrapped keys rather than sentence bytes, so a diff
+that rewords either surface away from a doctrine clause reds." Read at the pin, the per-term
+construct extraction applies only to the `CONTEXT.md` side; the ADR side matches each key against
+the whole normalized file (`norm(adr0041)`), not a per-term extracted region. Two of the row's keys
+even have two independent homes in ADR 0041 (`/never\s+evidence/i` matches both the floor-rule
+bullet and the `history` rung-2 clause; `/naming\s+both\s+rungs/i` matches both the D3 table row and
+the floor-rule bullet), so removing either clause alone from the ADR still greens the row — "either
+surface... reds" is stronger than the guard actually is. Same family as Recurrence 9(b) (a claim
+about how finely a *guard* discriminates, not about how broadly a code property holds), just applied
+to extraction *symmetry* between two surfaces rather than test-assertion granularity within one.
+
+**(b) "a diff editing any single one of the five copies one-sidedly reds" overstates a
+token-anchored row to plain edit-sensitivity.** The row's own banner in
+`workflow-template.test.mjs` states the narrower reach explicitly: "Token-anchored, case-tolerant —
+never full-line bytes (the surfaces phrase the shared discipline differently)." A one-sided reword
+that preserves the anchor tokens (`content-at-pin`, `never the top rung`, `never evidence`, `##
+Evidence precedence`, the ordered four-shape chain) stays green by design — sanctioned rewording
+latitude is the row's entire point — so "editing... reds" is broader than "rewording away from the
+anchors reds." This is the exact shape Recurrence 10's `#1115` sub-clause already named for a
+different (D25 cross-ADR) row in the *same drafting pass's own new checklist paragraph* — the
+"repeat the guard's own scope word: revert/reword vs. sanctioned rewording" item continues to trip
+even after being spelled out as standing guidance two prior recurrences ago.
+
+Both `disposition: note`, Nit, non-blocking, not fixed before land (`fixRounds: 0`) — not
+absorb-eligible, `## Status` is a release slot outside task 2.1's `Files:` list to touch
+incidentally.
+
+**Now 15 recurrences across two overlapping sub-families** ("X is Y too" absolute-overclaim, and
+"a guard's discrimination/reach described more broadly than its own code"): this paragraph alone
+carried nine `disposition: note` findings across two auditor passes, the highest single-paragraph
+count recorded in this family to date, entirely because a doctrine-heavy release (four ladders,
+floor rules, precedent mapping, three new guard rows) gives a blurb author many more scope words to
+drop than a typical mechanical-fix release does.
+
+Related: [[canonical-doc-precedent-mapping-subsection-can-contradict-the-same-docs-own-consequences-bullet]]
+(same paragraph, same phase — the third and most serious of this paragraph's overclaims, an
+unqualified absolute the ADR's own Consequences bullet contradicts, recorded separately since it is
+doctrine-mapping rather than guard-semantics). [[release-blurb-quoted-code-literal-can-diverge-from-actual-identifier]]
+(same paragraph, a fourth overclaim family — a quoted code-font literal that doesn't exist verbatim).

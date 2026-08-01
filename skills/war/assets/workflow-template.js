@@ -808,7 +808,8 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin) {
     // (same commit; prompt-surface split rule); the both-surfaces drift test anchors a mid-sentence
     // phrase per rule on BOTH surfaces and locks the "only when the live artifact confirms" qualifier.
     // Reaches the inline gate-audit seats ONLY via the standing card (THIS clause is not emitted there;
-    // adjudicationClause below is the one clause that also rides those seats directly).
+    // adjudicationClause below and the EVIDENCE PRECEDENCE skeleton (ADR 0041) are the clauses that
+    // also ride those seats directly).
     + pt`\nSTALE-LOOKING-BUT-CORRECT CALIBRATION: four authoring patterns read as drifted but are correct-by-construction — each demotes only when the live artifact confirms the candidate (a confirmation-gated floor, never blanket amnesty): (1) a plan literal diverging from the candidate on a line range, a suite count or enumeration, or a version bump is a Nit at most — never a hold — only when the live artifact confirms the candidate correct: the enclosing construct (the locator symbol or comment header), the self-discovery gate (\`resolveGate\` in \`war-config.mjs\`), or the worktree release baseline; absent that confirmation, judge the divergence on its merits. (2) a reference dangling at a task tip — a field, constant, or prose ref not yet emitted — is a defect only if the plan lacks the defined-but-not-yet-emitted, produced-in-Task-N cross-link; with that cross-link present and the referent confirmed at the post-merge integration tip it is a Nit or note, and you treat it as a hold only when the live artifact confirms the referent is genuinely absent at that landed tip. (3) a plan file-list naming a file the diff never touches is a finding only when the live artifact confirms the guard has no other real home — grep the sibling or precedent first; a location gap or a drift-guard-forced cascade touch elsewhere is a faithful deviation (Nit), and you block only on a claim demonstrably untrue at the tip. (4) a grep sweep is a floor, not a ceiling — treat a surviving sibling as the worker's omission only when the live artifact confirms the plan carried the same-scope manual title and comment survey and the sibling fell inside it; a straggler outside the swept scope is a survey-derived correction, not a regression.`
     // CASCADING-IMPACT DOC CASCADE (D8/D9/D12/D6, ADR 0025) — verbatim-parallel to the cascading-impact
     // lens bullet in agents/war-auditor.md (same commit); the both-surfaces registry test anchors the
@@ -818,6 +819,14 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin) {
     // commit); the both-surfaces registry test anchors the shared tokens on BOTH surfaces. The auditor git
     // allowlist is NOT widened — git show/git log are already read-only allowlisted, git grep stays denied.
     + pt`\nCOMMITTED-TREE GROUNDING (verify-and-close / already-done no-op claims): a claim that the diff is a no-op because the base tree already covers the requirement must be grounded against the pinned audit_sha, NOT the mutable working tree — read the blob with \`git show <audit_sha>:<path>\` (an allowlisted read verb), and for history-shaped questions ("when did this count change?", "was this token ever removed?") use \`git log -S<token>\` / \`git log -G<regex>\` — pick the verb per claim shape (-S answers "when did the occurrence count change", NOT "is the token present at the path" — for presence at the tip use git show). A working-tree grep is ADVISORY ONLY, never the sole basis for approving a no-op claim. The auditor git allowlist is NOT widened for this: git show and git log are already allowlisted, git grep is not and stays denied.`
+    // EVIDENCE PRECEDENCE SKELETON (ADR 0041) — the full four claim-shape ladders live in the
+    // "## Evidence precedence" section of agents/war-auditor.md (same commit; standing/dispatched
+    // split, progressive disclosure: skeleton only in the hot path). The identical skeleton line is
+    // ALSO inlined at each of the three gate-audit-family seats below (they sit OUTSIDE auditPrompt
+    // and inherit nothing from it); the five-surface evidence-precedence registry row in
+    // workflow-template.test.mjs anchors the shared tokens on the card + all four dispatched
+    // surfaces, so a one-sided edit of any single copy REDs.
+    + pt`\nEVIDENCE PRECEDENCE (ADR 0041): classify each claim by shape — content-at-pin, execution, history, or authority — and judge it at the highest rung of that shape's ladder (full ladders + floor rules: the "## Evidence precedence" section of agents/war-auditor.md, the auditor standing card). The working tree and the worker done-report are never the top rung of any ladder; prefetched lessons are never evidence — re-ground a lesson-derived claim at the pin before it appears in a finding.`
     // VERSION-PRECEDENCE + ADJUDICATION-MATCH RULES (Task 1.5, ADR 0032) — appended alongside intentClause;
     // both sentence bodies are mirrored VERBATIM in agents/war-auditor.md (standing surface, same commit);
     // the both-surfaces test anchors a mid-sentence phrase from each on both. This clause ALSO rides the
@@ -1640,6 +1649,9 @@ if (mergedTasksForGateAudit.length > 0) {
       // adjudicationClause rides this seat directly (Task 1.1): a gate-time ruling reaches the gate-audit
       // pass, so a pre-adjudicated delta is a confirmation note here too. Empty set ⇒ '' ⇒ byte-identical.
       + endStateBlock + intentClause + adjudicationClause
+      // Evidence-precedence skeleton (ADR 0041) rides this seat directly, same as adjudicationClause
+      // — this seat sits outside auditPrompt(); the five-surface registry row anchors it here.
+      + pt`\nEVIDENCE PRECEDENCE (ADR 0041): classify each claim by shape — content-at-pin, execution, history, or authority — and judge it at the highest rung of that shape's ladder (full ladders + floor rules: the "## Evidence precedence" section of agents/war-auditor.md, the auditor standing card). The working tree and the worker done-report are never the top rung of any ladder; prefetched lessons are never evidence — re-ground a lesson-derived claim at the pin before it appears in a finding.`
       + pt`\nDefault: SOFT. Hard only when provably unrun.`,
       { agentType: NS + 'war-auditor', phase: 'Audit',
         label: `gate-audit:${taskId}:execution-evidence`, schema: AUDIT_VERDICT, ...spawn('auditor') })
@@ -1709,6 +1721,9 @@ if (mergedTasksForGateAudit.length > 0) {
       + pt`Integrated-tip gate output (NON-AUTHORITATIVE context — the captured artifact above is authoritative for the HARD path):\n${integratedTip.gate_output}\n`
       // adjudicationClause rides this seat directly (Task 1.1) — same reason as the per-task seat above.
       + endStateBlock + intentClause + adjudicationClause
+      // Evidence-precedence skeleton (ADR 0041) rides this AUTHORITATIVE seat directly, same as
+      // adjudicationClause — outside auditPrompt(); the five-surface registry row anchors it here.
+      + pt`\nEVIDENCE PRECEDENCE (ADR 0041): classify each claim by shape — content-at-pin, execution, history, or authority — and judge it at the highest rung of that shape's ladder (full ladders + floor rules: the "## Evidence precedence" section of agents/war-auditor.md, the auditor standing card). The working tree and the worker done-report are never the top rung of any ladder; prefetched lessons are never evidence — re-ground a lesson-derived claim at the pin before it appears in a finding.`
       + pt`\nDefault: SOFT. Hard only when provably unrun.`,
       { agentType: NS + 'war-auditor', phase: 'Audit',
         label: `gate-audit:phase-${ph.id}:integrated-tip`, schema: AUDIT_VERDICT, ...spawn('auditor') })
@@ -1734,7 +1749,10 @@ if (mergedTasksForGateAudit.length > 0) {
     + pt`If the command cannot run, every condition below is unverifiable — SOFT notes only, never a hold.\n`
     + pt`In any cannot-confirm case KEEP verdict at 'approve' or 'request_changes' WITH the SOFT note — NEVER 'escalate' (a finding-less escalate is a HARD hold, reserved for a wrong/underspecified plan; it must never signal an unconfirmable tip).\n`
     // adjudicationClause rides this seat directly (Task 1.1) — same reason as the two seats above.
-    + endStateBlock + intentClause + adjudicationClause,
+    + endStateBlock + intentClause + adjudicationClause
+    // Evidence-precedence skeleton (ADR 0041) rides this seat directly, same as adjudicationClause
+    // — outside auditPrompt(); the five-surface registry row anchors it here.
+    + pt`\nEVIDENCE PRECEDENCE (ADR 0041): classify each claim by shape — content-at-pin, execution, history, or authority — and judge it at the highest rung of that shape's ladder (full ladders + floor rules: the "## Evidence precedence" section of agents/war-auditor.md, the auditor standing card). The working tree and the worker done-report are never the top rung of any ladder; prefetched lessons are never evidence — re-ground a lesson-derived claim at the pin before it appears in a finding.`,
     { agentType: NS + 'war-auditor', phase: 'Audit',
       label: `gate-audit:phase-${ph.id}:end-state`, schema: AUDIT_VERDICT, ...spawn('auditor') })
   if (esVerdict) {
