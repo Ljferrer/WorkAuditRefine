@@ -119,13 +119,16 @@ test('doc-contract: no hot-only-ls removal verdict survives (hot-only appears on
 // (8) migrate mode gains the opt-in pre-flight: it frames commitLearnings as off-by-default,
 //     the accept path writes through the war-config validator, and the decline path aborts with
 //     the exact "nothing migrated" message and nothing staged.
+//     SKILL.md-minimalism re-anchor (ADR 0042 D3, guards follow their text): the pre-flight block
+//     moved verbatim to the top of references/migration.md, so the three pre-flight presence locks
+//     read `migration` now; SKILL.md keeps only the mode heading, dispatch, and trigger pointer.
 test('doc-contract: migrate mode gates on the commitLearnings opt-in (ask → validator-path accept / abort decline)', () => {
   assert.match(skill, /`migrate` mode/, 'migrate mode section must exist')
-  assert.match(skill, /opt-in \/ off by default/i,
+  assert.match(migration, /opt-in \/ off by default/i,
     'migrate pre-flight must frame commitLearnings as opt-in / off by default (retired: default `true`)')
-  assert.match(skill, /--stdin --fill-defaults/,
+  assert.match(migration, /--stdin --fill-defaults/,
     'accept path must write memory.commitLearnings: true through the war-config validator path')
-  assert.match(skill, /nothing migrated — re-run after opting in/,
+  assert.match(migration, /nothing migrated — re-run after opting in/,
     'decline path must abort with the exact "nothing migrated — re-run after opting in" message')
 })
 
@@ -171,9 +174,10 @@ test('doc-contract: no retired commitLearnings default-`true` / economy-pins-fal
 //      (prompt-only-clause grep-guard lesson): grab the pre-flight branch line by its command token,
 //      then assert the absent→skip semantics survive rewording of the surrounding prose. Binding the
 //      absent/skip words to the SAME line as the command keeps this from passing on a stray `test -f`
-//      elsewhere (check_f-locks-presence-anywhere lesson).
+//      elsewhere (check_f-locks-presence-anywhere lesson). SKILL.md-minimalism re-anchor: the
+//      pre-flight moved verbatim to references/migration.md, so the read follows it there.
 test('doc-contract: migrate pre-flight carries the `test -f .claude/war/config.json` absent-config branch', () => {
-  const branch = lineWith(skill, 'test -f .claude/war/config.json')
+  const branch = lineWith(migration, 'test -f .claude/war/config.json')
   assert.match(branch, /absent/i,
     'the pre-flight `test -f` branch must name the absent-config case')
   assert.match(branch, /\bskip\b/i,

@@ -120,6 +120,13 @@ function skillDocs() {
     'skills/war/references/submodule-flows.md',
     'skills/war/references/resume-and-recovery.md',
     'skills/lessons-learned/references/tighten.md',
+    'skills/lessons-learned/references/migration.md',
+    'skills/lessons-learned/references/recovery.md',
+    'skills/red-team/references/backstop-legitimacy.md',
+    'skills/war-campaign/references/add-resolution.md',
+    'skills/war-machine/references/afk-conversion.md',
+    'skills/war-review/references/offer-issue.md',
+    'skills/war-review/references/scavenge.md',
   ]
   // Unguarded read: an enumerated destination that vanishes (rename/delete) must throw,
   // never silently narrow the UNION scan (lesson: enumerated-destination-list-existssync-

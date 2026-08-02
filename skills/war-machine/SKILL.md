@@ -33,9 +33,9 @@ rather than restating a target semver.
 2. **Fresh survey manifest.** The latest `.claude/aot/*-survey.json` under the **main checkout**
    (path pattern `.claude/aot/YYYY-MM-DD-survey.json`) with `consumed: null` whose listed specs
    still exist; filter to specs with no corresponding plan. Non-empty → take exactly that list,
-   no questions ("the survey just ran"). The anchor rule: resolve the main checkout from any
-   linked worktree via `git rev-parse --path-format=absolute --git-common-dir` (the main `.git`'s
-   parent) — **never the invoking worktree's `.claude/`** (session worktrees each carry their own).
+   no questions ("the survey just ran"). Resolve the main checkout via
+   `git rev-parse --path-format=absolute --git-common-dir` — **never the invoking worktree's
+   `.claude/`**.
 3. **Fallback inference.** Scan `docs/specs/*.md` for specs no plan references. "References"
    must match the corpus, where nearly all plans cite specs by *relative* markdown link: match
    `docs/specs/<name>`, `../specs/<name>`, **or the spec's basename**. Even then, absence is a
@@ -62,20 +62,7 @@ file footprints of the plans already authored (honest contention).
    `/red-team`, which the campaign runs per plan — `/war-machine` never red-teams).
 3. **Interactive:** one `AskUserQuestion` volley per spec — the drafted `## Commander's Intent`
    echo-back confirm (mandatory, per ADR 0013) plus the triad survivors.
-   **`--afk`:** triad survivors are self-adjudicated into the deviations log. The plan carries
-   **`## AI-Commander's Intent`** instead — the one sanctioned Lead-invented intent block
-   (ADR 0014, amending [ADR 0013](../../docs/adr/0013-commanders-intent-and-disposition-routing.md)),
-   provenance-marked by the heading itself. The **same ADR 0014 provenance rule applies to
-   waivers:** when the drafter authors the plan's backstop section, it uses the AI-declared heading
-   variant **`## Deferred validations (backstops — AI-declared)`** — never the plain
-   operator-ratified `## Deferred validations (backstops)` — because an `--afk` plan has no operator
-   to ratify its deferrals; the marker survives extraction (`aiDeclared: true`) so an AI-declared
-   waiver is never surfaced as operator-ratified. **Predecessor-consistency check:** before committing
-   to a synthetic intent, read the prior intent blocks — either heading, `## Commander's Intent`
-   or `## AI-Commander's Intent` — across `docs/plans/*.md` and check the new block is in line
-   with its predecessors (tone, scope, standing constraints); a divergence is **recorded in the
-   deviations log, never silently shipped**. A spec that cannot be converted without an operator
-   decision is **skipped and reported**, never stalled on.
+   When invoked with `--afk`, read [references/afk-conversion.md](references/afk-conversion.md).
 4. **Write the plan** to `docs/plans/YYYY-MM-DD-<slug>.md` (**no `-plan` suffix** — matching the
    entire existing corpus), citing its source spec path near the top — the `docs/specs/…` line
    `/red-team` step 1 greps for, and the third link in `/aftermath`'s swept-issue evidence
@@ -114,8 +101,3 @@ The roadmap is authoring input + an on-demand committable snapshot — **never t
 (that is the campaign ledger; `/war-strategy` §2 rev 1 note). Remind the operator: the campaign
 runs `/red-team` per plan before executing it; anyone running a plan through standalone `/war`
 must red-team it manually. Then **stop** — never launch the campaign.
-
-## 5. Upgrade path
-
-An `--afk` plan later getting a human pass runs `/war-strategy <plan>`, which replaces
-`## AI-Commander's Intent` with an interviewed, operator-confirmed `## Commander's Intent`.

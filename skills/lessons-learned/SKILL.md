@@ -11,25 +11,7 @@ You run a **full pass** over this project's Claude memory store: verify every me
 
 If the arguments contain the word **`migrate`** (`/lessons-learned migrate`), do **not** run the housekeeping phases below.
 
-**Pre-flight — the opt-in gate (before staging or moving anything).** Migration's endpoint is publishing the `project`-typed set to the committed repo root, which only travels when `memory.commitLearnings` is on. That flag is **opt-in / off by default** (`/war-room` turns it on), so resolve the effective value first — but **`test -f .claude/war/config.json` before invoking the resolver**, which exits non-zero on an **absent** config (the most common state, since `/war-room` is opt-in). **Absent** → **skip** the resolver call entirely; the effective defaults apply, i.e. `memory.commitLearnings: false`. **Present** → run the existing command unchanged — `node ${CLAUDE_PLUGIN_ROOT}/skills/war/assets/war-config.mjs .claude/war/config.json --fill-defaults` — and read `memory.commitLearnings`.
-
-- Already `true` (the operator opted in earlier) → proceed to the playbook.
-- `false` → **ask the operator to opt in now** ("lessons travel with the repo, human-reviewed like code"), then branch on the answer:
-  - **Accept** → write `memory.commitLearnings: true` through the **validator path** — merge the flag into the existing config (or a minimal `{"memory":{"commitLearnings":true}}` when the file is absent) and pipe it through `--stdin --fill-defaults` to a temp file, then `mv` it into place (the never-truncate discipline `/war-room` uses — a validation failure leaves any existing config intact):
-
-    ```bash
-    mkdir -p .claude/war
-    printf '%s' '<config-json-with-commitLearnings-true>' \
-      | node ${CLAUDE_PLUGIN_ROOT}/skills/war/assets/war-config.mjs --stdin --fill-defaults \
-      > .claude/war/config.json.tmp \
-      && mv .claude/war/config.json.tmp .claude/war/config.json \
-      || { echo "validation failed — config NOT written"; rm -f .claude/war/config.json.tmp; }
-    ```
-
-    Then proceed to the playbook.
-  - **Decline** → **abort: "nothing migrated — re-run after opting in."** Nothing is staged, nothing is moved — the store is untouched.
-
-Once the flag is on, load [`references/migration.md`](references/migration.md) and execute that playbook: `migrate` dry-run → agent-assisted retype of the `untyped` bucket → `migrate --apply` (archives `[RESOLVED]` lessons) → keywords backfill → move the operator-confirmed `project`-typed set into `docs/learnings/` and open the reviewed learnings PR (gate 2 by hand, `lint` fail-closed). Three warnings the playbook expands on:
+When the arguments contain `migrate`, read [`references/migration.md`](references/migration.md) — its **pre-flight opt-in gate** (resolving `memory.commitLearnings`; a decline aborts with nothing staged or moved) runs before the playbook: `migrate` dry-run → agent-assisted retype of the `untyped` bucket → `migrate --apply` (archives `[RESOLVED]` lessons) → keywords backfill → move the operator-confirmed `project`-typed set into `docs/learnings/` and open the reviewed learnings PR (gate 2 by hand, `lint` fail-closed). Three warnings the playbook expands on:
 
 - Migration edits the **live store directly** (it is not the staging flow below) — take the tarball backup the playbook names before `--apply`.
 - Requires Node ≥ 24 (`node:sqlite`); on older Node every verb exits non-zero with a one-line message and does nothing (callers fail open; no partial migration).
@@ -245,7 +227,7 @@ CLAUDE_MEMORY_REPO="$REPO_ROOT" bash "${CLAUDE_PLUGIN_ROOT}/skills/lessons-learn
 
 ### 8 — Capture the meta-lesson (optional)
 
-If the run surfaced a reusable housekeeping insight, write it as a new memory in the now-live `$MEM` (with an index pointer), following the auto-memory format. Then this skill's own pass is recorded for the next round.
+If the run surfaced a reusable housekeeping insight, write it as a new memory in the now-live `$MEM`, following the auto-memory format, then re-run `render-index` to project it (`MEMORY.md` is generated — never hand-add a row). Then this skill's own pass is recorded for the next round.
 
 ### 9 — Nominate portable lessons + sweep contributions (delegated)
 
@@ -258,13 +240,7 @@ Both bullets delegate entirely to `references/seeding.md`; this list entry is on
 
 ## Resume & recovery (interruption)
 
-| State on restart | What happened | Fix |
-|---|---|---|
-| `$MEM/MEMORY.md` present, `$MEM.staging` present | died before commit | discard staging, restart: `rm -rf "$MEM.staging"` |
-| `$MEM` missing, `$MEM.staging` present | died **between** the two swap `mv`s | `safe-swap.sh recover "$MEM"` restores staging → live |
-| `$MEM` missing, no staging | catastrophic | `tar xzf <newest lessons-learned.bak.*.tgz> -C <parent>` |
-
-`safe-swap.sh recover "$MEM"` diagnoses and repairs the first two automatically. The backup tarball is always the fallback.
+When a restart finds `$MEM.staging` present or `$MEM` missing, read [`references/recovery.md`](references/recovery.md) — the state-signature table and the `recover`-vs-tarball routing.
 
 ## Common mistakes
 

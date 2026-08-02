@@ -8,8 +8,6 @@ disable-model-invocation: true
 
 You sweep the debris WAR campaigns leave behind — branches, worktrees, bookkeeping issues, survey-swept issues — and you delete or close **only what a checkable evidence chain proves is safe**. Git is the source of truth at every gate: ancestry and reachability are checked against `git ls-remote` truth, never a possibly-lagging local follower ref, and never a ledger claim alone (the ledger is the weakest authority). Anything without a complete chain is **reported, never touched**. Design: [`../../docs/specs/2026-07-02-war-pipeline-skills-design.md`](../../docs/specs/2026-07-02-war-pipeline-skills-design.md) §4.3.
 
-This skill carries `disable-model-invocation: true` deliberately: a deleting verb must never fire because a sentence pattern-matched.
-
 ## Invocation
 
 ```
@@ -115,7 +113,7 @@ The campaign ledger records plan paths as **absolute** paths resolved against th
 2. **Interactive:** one confirm, then execute the safe list only. No row-by-row negotiation, no second pass in the same invocation.
 3. **`--afk`:** skip the confirm; execute **only the provably-safe class**; report the rest for the next human to read.
 
-**Run `gh-preflight.sh` before the issue-close batch.** Closing Class-3 bookkeeping issues and Class-4 survey-swept issues are gh writes; before that batch fires, the Lead runs `skills/_shared/gh-preflight.sh "<overrides.ghUser>"` so a mid-run active-account flip never silently drops an aftermath close onto the wrong account (empty/unset `ghUser` ⇒ no-op, exit 0). Prose-enforced Lead discipline; no confined-agent gains any gh verb (C2, ADR 0002).
+**Run `gh-preflight.sh` before the issue-close batch.** Closing Class-3 bookkeeping issues and Class-4 survey-swept issues are gh writes; before that batch fires, the Lead runs `skills/_shared/gh-preflight.sh "<overrides.ghUser>"` (empty/unset `ghUser` ⇒ no-op, exit 0). Prose-enforced Lead discipline; no confined-agent gains any gh verb (C2, ADR 0002).
 
 ## `--scorched-earth` — widened candidates, lowered bar
 
