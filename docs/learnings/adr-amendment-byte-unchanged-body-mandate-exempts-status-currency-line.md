@@ -4,7 +4,7 @@ description: "A plan/red-team mandate that an ADR amendment leave 'all pre-exist
 metadata: 
   node_type: memory
   type: project
-  provenance: agent-unverified
+  provenance: code-verified
   slug: adr-amendment-byte-unchanged-body-mandate-exempts-status-currency-line
   phase: "auditor-guard-policy-and-mirror-truth/phase-1 task 1.1 (audit + gate-audit findings, landed dev/2026-07-26-auditor-guard-policy-and-mirror-truth, 2026-07-27)"
   keywords: 
@@ -56,15 +56,9 @@ per-amendment-mutable field. Before flagging a Status-line move as a mandate vio
 silently absorbing a "fix" that reverts it), trace whether a prior amendment to the *same* ADR
 already moved that line — if so, the move is the sanctioned convention, not a deviation.
 
-**Verify before acting:** confirmed the referent file exists at `docs/adr/0029-capture-grounds-on-committed-tip.md`
-(read in a lagging checkout during this write — landed-tip grounding could not reach the true
-2026-07-27 tip: my session cwd was a different concurrent plan's worktree, and no live task
-worktree under `.git/worktrees/*` matched this plan's slug — the file there still read line 3 as
-`accepted; amended 2026-07-22` only, consistent with a lagging view, not a contradiction). The
-`accepted; amended 2026-07-22, 2026-07-26` line and the appended `## Amendment (2026-07-26)`
-section are sourced from this phase's `gate-audit:approve` finding (`gateEvidence:true`, pinned
-`auditSha: 4e15632bc2313ee9e3c1965c3d952006fb9bf4f3`), not independently confirmed by my own
-Read/Grep this round.
+**Anchors re-verified at the live tip (2026-08-02):** `docs/adr/0029-capture-grounds-on-committed-tip.md`'s
+`**Status:**` header reads `accepted; amended 2026-07-22, 2026-07-26`, both `## Amendment (2026-07-22)`
+and `## Amendment (2026-07-26)` sections exist, and precedent commit `c0f2f0d` resolves.
 
 ## Related
 

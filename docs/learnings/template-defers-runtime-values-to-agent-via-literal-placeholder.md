@@ -1,9 +1,11 @@
 ---
-name: ""
+name: template-defers-runtime-values-to-agent-via-literal-placeholder
+description: "workflow-template.js has no shell — emit agent-resolved $VAR placeholders (e.g. \"$TIP\"), never bare angle-bracket tokens"
 metadata: 
   node_type: memory
   type: project
   keywords: [no shell sandbox, $TIP capture, angle bracket token, deferred resolution, git rev-parse, unresolved variable, prompt emits shell var]
+  provenance: code-verified
   slug: template-defers-runtime-values-to-agent-via-literal-placeholder
   phase: 3
   tags: 
@@ -34,7 +36,7 @@ template computes:
 
 ```js
 const ensures = tasks.map(t =>
-  `   provision-worktrees.sh ensure-worktree ${t.worktree} ${t.branch} "$TIP"`).join('\n')
+  `   provision-worktrees.sh ensure-worktree ${t.worktree} ${t.branch} "$TIP"${reclaimFlag}`).join('\n')
 ```
 
 and the surrounding prompt tells the refiner agent (step 3) to first capture

@@ -88,10 +88,9 @@ metadata:
 
 The engine now threads the fix this lesson's 13 prior recurrences argued for. Confirmed
 `code-verified` at the true landed tip (via the `.claude/war/wt/2026-07-22-servitor-wrapup-landed-tip-2026-07-22/_refinery/`
-worktree — this servitor's own cwd was ITSELF stale for this exact wrap-up; see Recurrence 14
-below):
+worktree — this servitor's own cwd was ITSELF stale for this exact wrap-up):
 
-- `skills/war/assets/workflow-template.js` (~line 1914 area, comment `LANDED-TIP ANCHOR (hoisted;
+- `skills/war/assets/workflow-template.js` (comment `LANDED-TIP ANCHOR (hoisted;
   spec D1)`) hoists the `tipSha` computation that used to live only inside the handoff block to
   run BEFORE the Wrap-up dispatch, then derives `landedTipAnchor = tipSha || 'landed tip
   unrecorded — ground via the gate-audit auditSha entries in your audit-log input'` — a named
@@ -100,7 +99,7 @@ below):
 - The Wrap-up prompt now carries a `Landed tip: ${landedTipAnchor} on ${ph.workingBranch} (plan
   slug: ...)` line plus a "LANDED-TIP GROUNDING" clause (a compact four-step ladder: cwd preflight
   → `gitdir`-matched worktree lookup → ref-check dead-end → gate-audit fallback — i.e. this
-  lesson's own Recurrences 4/5/8/9/12/13 techniques, now handed to the servitor up front instead of
+  lesson's own techniques below, now handed to the servitor up front instead of
   rediscovered per-phase).
 - `agents/war-servitor.md`'s Inputs bullet mirrors the same anchor + ladder (both surfaces landed
   in the same task per the standing-instruction/dispatched-prompt coverage-split discipline — see
@@ -108,32 +107,20 @@ below):
 - The premise this lesson exists to correct ("your working tree IS the committed tip") is retired
   at both surfaces — neither asserts it in any form anymore.
 
-**Practical upshot for future D3 checks:** before running the Recurrence 4/5/12/13 worktree-hunt
+**Practical upshot for future D3 checks:** before running the worktree-hunt
 technique below, first check whether the spawn prompt itself already carries a `Landed tip:` line
 — when present, that IS the grounding, no worktree hunt needed. The worktree-hunt techniques
-documented in Recurrences 1–13 remain the fallback for any invocation whose prompt lacks the
+documented below remain the fallback for any invocation whose prompt lacks the
 anchor (a null/unrecorded tip resolves to the named placeholder, which itself directs the
 gate-audit-`auditSha` fallback).
 
-**What happened (code-verified — directly confirmed by Read/Grep against this session's cwd,
-a session worktree under `<repo-root>/.claude/worktrees/`):** while running D3
-verify-on-write for phase "guard-floor-and-scope-hook-coverage-completeness" (landed on
-`dev/2026-07-08-guard-floor-and-scope-hook-coverage-completeness`), every phase-1-introduced
-referent was **absent** from this checkout:
+## The durable rule
 
-- `hooks/guard-conventions.test.sh` (t1.2's new meta-guard file) does not exist here.
-- `hooks/validate-worktree-scope.sh` line 61 still reads the OLD pattern `*/../*|*/..`, not the
-  widened `..|../*|*/../*|*/..` t1.1 was supposed to land.
-- `skills/war/assets/assert-test-in-diff.test.sh` exists but has no `Case 10` content (t1.6).
-- `skills/war/assets/workflow-template.js` has no `assertReportedPathsInWorktree` (t1.8's path
-  contract).
-- `CONTEXT.md` has no "ADR 0031" text anywhere, and `docs/adr/0031-*.md` does not exist (glob of
-  `docs/adr/*.md` tops out at `0025-drift-guard-discipline.md`).
-
-**Root cause (inferred, not independently confirmed):** the servitor's Read/Grep tools operate on
-whatever is physically checked out at the threaded cwd, which is a session worktree — not
-necessarily fast-forwarded to the phase's just-merged branch tip. A worktree base is frozen at
-provision time (ADR 0001); nothing in the servitor's own toolset re-syncs it after land.
+Origin incident (2026-07-10, phase "guard-floor-and-scope-hook-coverage-completeness" wrap-up):
+every phase-1-introduced referent was absent from the servitor's session-worktree cwd. Root cause:
+the servitor's Read/Grep tools operate on whatever is physically checked out at the threaded cwd —
+a worktree base is frozen at provision time (ADR 0001); nothing in the servitor's own toolset
+re-syncs it after land.
 
 **The rule:** when D3 verify-on-write reports a referent absent, do **not** immediately conclude
 "the landed tree lacks this" or "the fix wasn't actually applied." First weigh whether the local
@@ -144,195 +131,99 @@ checkout could simply be behind the branch the phase actually landed on. Concret
 - Never write a memory fact claiming a plan/code mismatch ("the fix didn't land") purely from a
   local-checkout absence — that requires reading the actual landed branch/commit, which the
   servitor's Read tool cannot target directly (no Bash, no `git checkout`).
+- The trap extends to positive claims, not just absences: a gate-audit's own approved,
+  `gateEvidence:true` "verified MET" rationale can still be read against a stale checkout by the
+  servitor that inherits it — an "approve" verdict never substitutes for the servitor's own D3
+  re-grep of the named construct.
 
 **Why it matters:** this is the single highest-leverage check before writing any phase-close
 memory that names a specific new symbol/pattern/file from the phase just landed — getting it wrong
 produces a confidently-wrong `code-verified`-tagged lesson that will mislead a future agent
 searching for that referent.
 
-## Recurrences 1–3 (2026-07-11 → 2026-07-12, one session worktree; compressed)
+## The gitdir-sweep technique (the fallback when the prompt lacks the anchor)
 
-Three further phase wrap-ups hit the same lagging checkout — the worktree HEAD pointed at an
-unrelated campaign branch across **four consecutive phases**, so the hazard is **session-stable,
-not a per-phase fluke**. The durable edge each recurrence added:
+`.git/worktrees/` (readable via Glob/Read, no Bash needed) lists every live worktree in the repo
+by name, including the phase's own per-task worktree (named after the task id, e.g. `p1-1.1`) and
+the run-scoped `_refinery` worktree. Each one's `HEAD` file names its checked-out branch and its
+`gitdir` file gives the absolute filesystem path the worktree is physically checked out at.
+Reading `HEAD`/`gitdir` for the phase's own worktree, confirming it matches the phase (see the
+wrinkles below), and then Read/Grep-ing the referent **at that physical path** instead of at the
+servitor's own stale cwd gives a true `code-verified` read of the landed code. Grepping each
+`gitdir`'s physical-path segment for the phase's own plan slug (from the spawn prompt) is the
+fastest way to pick the right entry out of 50+ worktree registrations.
 
-1. **The trap extends to positive claims, not just absences.** A gate-audit's own approved,
-   `gateEvidence:true` "verified MET" rationale can still be read against a stale checkout by the
-   servitor that inherits it — an "approve" verdict never substitutes for the servitor's own D3
-   re-grep of the named construct.
-2. **Cheap preflight:** read the worktree's HEAD ref (the cwd's `.git` gitlink →
-   `.git/worktrees/<name>/HEAD`) and compare the branch against the one the spawn prompt names as
-   landed. A mismatch downgrades confidence on **every** D3 check in that session — treat the
-   signal as standing for the rest of the session, don't re-litigate per phase.
-3. **When the cwd is a known-stale hazard**, rely on gate-audit confirmations re-verified at the
-   pinned `audit_sha` (a stronger claim than a stale-cwd Grep), and record anything else
-   `agent-unverified` with the checkout-mismatch evidence inline — never assert a construct
-   missing at the *true* landed tip from a lagging view.
+**Glob gotcha:** a bare `Glob('.git/worktrees/*')` pattern returns nothing and reads as "no live
+worktrees" even when many entries exist — Glob matches *files*, not bare directory names, so the
+pattern must target a file one level inside (`'.git/worktrees/*/HEAD'` or
+`'.git/worktrees/*/gitdir'`), never the bare directory glob. Re-run with the file-suffixed pattern
+before concluding "zero live worktrees" — a bare-glob false-negative would otherwise wrongly
+trigger the trust-the-audit-log fallback in a session where a direct `code-verified` read was
+available all along.
 
-One recurrence's stale reading was later proven stale-in-fact: the checkout still asserted
-`DEFAULTS.memory.commitLearnings` as `true` after the phase that flipped it, while the live tip
-holds `false` — the lag was real, not an audit failure.
+## Collision and naming wrinkles
 
-## Recurrence 4 (2026-07-12, phase "Engine routes + contract surfaces" / task 1.1) — a concrete fix, not just a downgrade
+- **Name collisions:** ANY fixed/reserved worktree name the WAR engine uses per-run — task ids
+  (`p1-1.1`) AND the constant `_refinery` alike — can collide across concurrently-active plans in
+  the same repo, and git resolves every collision with a numeric suffix (`_refinery`, `_refinery2`,
+  `_refinery3`, …). Never trust a bare name lookup under `.git/worktrees/`; always (a) enumerate
+  every entry whose `gitdir` file's physical path contains the phase's own plan-slug (from the
+  spawn prompt), and (b) prefer the merge/`_refinery` worktree's `HEAD` sha, compared directly
+  against the spawn prompt's stated landed-tip sha, as the strongest positive match — a
+  branch-name match is good, a sha match is better (a merge worktree is typically left checked out
+  at the precise merge commit rather than a moving branch ref).
+- **Reaped worktrees:** the technique has a precondition — the worktree must still be on disk.
+  Post-land, Refine reaps task worktrees, so by servitor wrap-up time a plausible task-id match
+  under `.git/worktrees/<task-id>/` may (a) not exist at all, or (b) exist but resolve to an
+  unrelated concurrent plan (never assume presence proves relevance — check `gitdir` every time,
+  even when the task-id string matches exactly).
+- **Nesting:** the task worktree's physical path is not reliably a sibling of `<repo-root>` — it
+  can be nested several levels inside the servitor's own session worktree
+  (`<session-worktree>/.claude/war/wt/<plan-slug>-<date>/<task-id>/`). The
+  `Glob '.git/worktrees/*/gitdir'` sweep still finds it regardless of nesting depth because
+  `gitdir` always holds the full absolute path — read that value rather than guessing a path
+  shape.
+- **Cross-phase reads:** a later phase's task worktree is cut from the frozen phase base which
+  already includes earlier phases' merged commits — a valid single read site for both the trailing
+  phase's own change AND a persistence check on earlier phases' content.
 
-The hazard recurred a fifth time in the exact same session worktree (still on an unrelated
-`claude/survey-corps-*` branch, still lagging by four+ phases). This time a **positive resolution**
-was available instead of just downgrading confidence: `.git/worktrees/` (readable via Glob/Read,
-no Bash needed) lists every live worktree in the repo by name, including the phase's own per-task
-worktree (named after the task id, e.g. `p1-1.1`) and the run-scoped `_refinery` worktree. Each
-one's `HEAD` file names its checked-out branch and its `gitdir` file gives the absolute filesystem
-path the worktree is physically checked out at (typically under
-`<repo-root>/.claude/war-worktrees/<plan-slug>/<task-id>/`, a **session-worktree**-scoped path).
-Reading `HEAD` for the task-id-named worktree, confirming it names the phase's actual working
-branch (from the spawn prompt), and then Read/Grep-ing the referent **at that path** instead of at
-the servitor's own stale cwd gave a true `code-verified` read of the landed code — all four new
-symbols from this phase (`normalizeReportedPaths`, `FILES_CHANGED_RULE`, `held:escalation` routing,
-the wave-loop-invariant comment) were confirmed present there while the servitor's own cwd still
-showed none of them and the OLD (pre-rename) token still present in an unrelated stale file. This
-upgrades step 2's "mismatch downgrades confidence" workaround to a first choice: **before settling
-for `agent-unverified`, check whether the phase's own task worktree is still on disk under
-`.git/worktrees/<task-id>/` and read the referent there.**
+## Fallback ladder when no direct read is possible
 
-## Recurrence 5 (2026-07-12, phase "Engine fidelity + evidence contract" / tasks 1.1+1.2) — technique reused, plus a worktree-name-collision wrinkle
+When no live worktree resolves to the right plan: before falling back to "trust gate-audit,"
+first confirm the landed branch has **any** local ref at all (`Glob .git/worktrees/*/HEAD` for a
+live checkout, then `Grep` `.git/packed-refs` for the branch name, then check
+`.git/refs/heads/<branch>` directly). All-absent is a strong, cheap signal the cwd/main-checkout
+was **never fetched to** this local git — fall back to trusting the audit trail immediately. A
+resolvable **loose** ref with zero live worktrees is the same dead end one Grep later — a ref is
+still not a checkout; don't treat "the branch exists locally" alone as progress toward a direct
+read. The fallback itself: rely on gate-audit confirmations re-verified at the pinned `audit_sha`
+(a stronger claim than a stale-cwd Grep), and record anything else `agent-unverified` with the
+checkout-mismatch evidence inline — never assert a construct missing at the *true* landed tip
+from a lagging view. Ref-presence checks are per-wrap-up, not cacheable across phases even on the
+literal same branch name.
 
-Sixth occurrence, a **new** session worktree this time (`survey-corps-06a1c3`, branch
-`claude/survey-corps-06a1c3` — confirmed via `<repo-root>/.git/worktrees/survey-corps-06a1c3/HEAD`),
-so this is NOT the same stale worktree as Recurrences 1-4 — a fresh instance of the general hazard,
-not a continuation of one session's specific lag. The Recurrence 4 technique (read
-`.git/worktrees/<task-id>/gitdir` for the phase's own task worktree, then Read/Grep the referent
-there) was applied again and again succeeded fully: all seven of the phase's fixed gaps (#798,
-#805, #806, #811, #815, #817, #818) were independently code-verified at
-`<repo-root>/.claude/war-worktrees/2026-07-12-audit-gate-evidence-fidelity/p1-1.1/skills/war/assets/workflow-template.js`
-and `.../p1-1.2/`, while this servitor's own cwd still showed the OLD pre-fix code for every one of
-them (e.g. `spawn('worker')` at the floor-retry site instead of `spawnWorker('fix')`).
+## Frequency signal (19 recurrences, 2026-07-10 → 2026-07-23; narratives compressed 2026-08-02)
 
-**New wrinkle — worktree-name collision:** `.git/worktrees/p1-1.1` existed but pointed at a
-*different, unrelated* concurrently-run plan's task 1.1
-(`.claude/war-worktrees/2026-07-12-war-launch-entry-validation/p1-1.1`) — git had already
-auto-suffixed the name for THIS phase's real task 1.1 to `p1-1.11` (`.claude/war-worktrees/2026-07-12-audit-gate-evidence-fidelity/p1-1.1`,
-confirmed via that entry's `gitdir` file). **Do not assume `.git/worktrees/<task-id>/` is unique per
-task id across the whole repo** — worktree names collide across concurrent plans/runs and git
-resolves it with a numeric suffix; always confirm via `gitdir` (the physical path names the
-plan-slug directory) rather than trusting the worktree-registry name alone, and check `HEAD` for
-the expected working branch too.
-
-## Recurrence 6 (2026-07-15, phase "Anchor the three surfaces" / campaign-state-anchor tasks 1.1-1.3) — the collision now hits a RESERVED name, `_refinery`
-
-Seventh occurrence, in a session worktree named `survey-corps-8cc638` (branch
-`claude/survey-corps-8cc638`) — again not the same worktree as any prior recurrence, and again on a
-branch wholly unrelated to the landed phase (`dev/2026-07-15-campaign-state-anchor`). Confirmed via
-both this worktree's own `.git` gitlink → `<repo-root>/.git/worktrees/survey-corps-8cc638/gitdir`
-(unrelated plan) AND the **main checkout's** detached HEAD (`<repo-root>/.git/HEAD`, sha `0a42e34c…`)
-also predating the landed phase — this time NEITHER the session worktree NOR the main checkout had the fix.
-
-Applying the Recurrence 4/5 technique surfaced a new twist: the run-scoped merge worktree is always
-named `_refinery` (never task-id-suffixed), so **this reserved name collides across concurrent
-plans too**, exactly like the `p1-1.1`-style task-id names in Recurrence 5.
-`<repo-root>/.git/worktrees/_refinery/gitdir` pointed at a *different* concurrently-run plan
-(`2026-07-14-gate-evidence-and-prose-truth`); the campaign-state-anchor phase's real `_refinery`
-worktree had been auto-suffixed to `<repo-root>/.git/worktrees/_refinery3`. Its `HEAD` file held a **detached
-commit sha** (`d3d2f5984abc265362421c32994d5f172e1e1f30`) matching **exactly** the phase's stated
-landed tip (from the spawn prompt) — a stronger positive signal than a branch-name match, since a
-merge worktree is typically left checked out at the precise merge commit rather than a moving branch
-ref. Reading the phase's touched files at that worktree's physical path (from its own `gitdir` file,
-under `<repo-root>/.claude/war-worktrees/<plan-slug>-<suffix>/_refinery/`) confirmed all of the
-phase's landed constructs directly — `code-verified`, not `agent-unverified` — while both this
-servitor's own cwd and the main checkout still showed the pre-phase code.
-
-**Generalized rule (supersedes the task-id-only framing of Recurrence 5):** ANY fixed/reserved
-worktree name the WAR engine uses per-run — task ids (`p1-1.1`) AND the constant `_refinery` alike —
-can collide across concurrently-active plans in the same repo, and git resolves every collision with
-a numeric suffix (`_refinery`, `_refinery2`, `_refinery3`, …). Never trust a bare name lookup under
-`.git/worktrees/`; always (a) enumerate every entry whose `gitdir` file's physical path contains the
-phase's own plan-slug (from the spawn prompt), and (b) prefer the merge/`_refinery` worktree's `HEAD`
-sha, compared directly against the spawn prompt's stated landed-tip sha, as the strongest positive
-match — a branch-name match is good, a sha match is better.
-
-## Recurrence 7 (2026-07-15, campaign-state-anchor/phase-2 task 2.1 wrap-up) — reaped worktree + a second, non-`_refinery` collision instance
-
-At phase-2 wrap-up for plan `campaign-state-anchor` (task 2.1, End-state 8 version-bump), the
-phase's own task worktree no longer existed on disk: a glob for `.claude/war-worktrees/*campaign-
-state-anchor*` under `<repo-root>` returned nothing — Refine/Land had already reaped it by the time
-the servitor ran. `<repo-root>/.git/worktrees/p2-2.1` DID exist under that exact task-id name, but
-its `gitdir`/`HEAD` named an unrelated concurrent plan (`gate-evidence-and-prose-truth`, branch
-`war/2026-07-14-gate-evidence-and-prose-truth/p2-2.1`) — a second, independent instance of
-Recurrence 5's worktree-name-collision wrinkle, this time on a plain per-task name (`p2-2.1`) rather
-than `_refinery`.
-
-**New edge:** the Recurrence 4/5 "read the phase's own task worktree" technique has a
-precondition — the worktree must still be on disk. Post-land, Refine reaps task worktrees, so by
-servitor wrap-up time a plausible task-id match under `.git/worktrees/<task-id>/` may (a) not exist
-at all, or (b) exist but resolve to an unrelated concurrent plan (never assume presence proves
-relevance — check `gitdir` every time, even when the task-id string matches exactly). When no live
-task worktree resolves to the right plan, fall back to Recurrence 3's approach: trust the
-gate-audit's own direct-read confirmation at the pinned confirmed tip (here: `gateEvidence:true`,
-an approved verdict that read the landed blobs directly and named the confirmed SHA) rather than
-asserting anything from the servitor's own stale cwd.
-
-## Recurrence 8 (2026-07-17, phase "Release" / structural-test-integrity task 2.1 wrap-up) — main checkout, no worktree at all, branch not even locally fetched
-
-Eighth occurrence, and a new floor under the whole pattern: this time the servitor's threaded cwd
-was the **main checkout** itself (no `.git` gitlink, `<repo-root>/.git/HEAD` reads
-`ref: refs/heads/master`), not a session or task worktree. `<repo-root>/.git/worktrees/` was
-entirely empty (no live worktrees of any kind), and a Grep of `<repo-root>/.git/packed-refs` for
-the landed branch name (`dev/2026-07-16-structural-test-integrity`) found nothing — the branch has
-**no local ref at all**, packed or loose. This is a stricter version of Recurrence 7's "worktree
-reaped" edge: there the task worktree was gone but a same-named collision worktree still existed to
-mislead a naive lookup; here there is nothing under `.git/worktrees/` to even collide with, and the
-landed branch isn't resolvable locally by name at any path.
-
-The plan's own intent named the concrete version-bump target (`0.14.43` → `0.14.44` across the four
-`version-slots.test.mjs`-locked slots — see [[release-bump-slots-canonical-no-badge]]), giving a
-sharp, checkable value. Reading `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`
-at the main checkout showed `0.14.42` in every slot — **older than even the plan's stated
-pre-bump base** (`0.14.43`), confirming this is stale-checkout lag rather than a legitimate
-alternate value. Per Recurrence 3/7's fallback, the version-bump fact was **not** asserted
-`code-verified` from this reading; it rests on the audit log's own `gate-audit:approve` verdict
-(`gateEvidence:true`, pinned `auditSha: f03b682794599580c87e2e9823182ef4468d4490`) as the trusted
-positive confirmation instead.
-
-**New rule (extends Recurrence 7's fallback precondition):** before falling back to "no live task
-worktree resolves — trust gate-audit," first confirm the landed branch has **any** local ref at
-all (`Glob .git/worktrees/*` for a live checkout, then `Grep` `.git/packed-refs` for the branch
-name, then check `.git/refs/heads/<branch>` directly). All-absent is a stronger, cheaper signal
-than a worktree-name collision that the servitor's cwd/main-checkout is not just behind but was
-**never fetched to** this local git — the D3 read must fall back to trusting the audit trail
-immediately, without wasting a round hunting for a worktree that cannot exist.
-
-## Recurrence 9 (2026-07-16, phase "Retired-token sweep clause, drift guard, glossary term, and lesson note" / learnings-recipe-drift-sweep tasks 1.1-1.3 wrap-up) — loose ref present, still no readable checkout
-
-Ninth occurrence, a variant of Recurrence 8: main checkout again (`<repo-root>/.git/HEAD` →
-`ref: refs/heads/master`), `<repo-root>/.git/worktrees/` again entirely empty. This time the
-landed branch (`dev/2026-07-16-learnings-recipe-drift-sweep`) **was** resolvable — a local **loose**
-ref existed at `<repo-root>/.git/refs/heads/dev/2026-07-16-learnings-recipe-drift-sweep` (not in
-`packed-refs`) — but a resolvable ref is still not a checkout: with no Bash tool and no live
-worktree, there is no path the Read tool can target to see that branch's blobs. The outcome is
-identical to Recurrence 8's fallback despite the ref being present: trust the phase's own
-`gate-audit:approve` verdict (`gateEvidence:true`, pinned `auditSha: c247088d`) rather than assert
-anything `code-verified` from the stale main checkout. **Refinement to Recurrence 8's rule:** "any
-local ref at all" is necessary but not sufficient for a direct read — a loose ref with zero live
-worktrees is the same dead end as no ref, just reached one Grep later; don't spend a round
-concluding "the branch exists locally" and treat that alone as progress toward a direct read.
-
-## Recurrence 11 (2026-07-19, phase "Comment truth at the three landed sites + hermeticity guard + lesson notes" / campaign-anchor-comment-truth task 1.1 wrap-up) — Recurrence 9/10's exact topology, third campaign
-
-Eleventh occurrence, same shape as Recurrences 9-10: main checkout (`<repo-root>/.git/HEAD` →
-`ref: refs/heads/master`), `<repo-root>/.git/worktrees/` entirely empty, but the landed branch
-(`dev/2026-07-16-campaign-anchor-comment-truth`) DID resolve as a local loose ref at
-`<repo-root>/.git/refs/heads/dev/2026-07-16-campaign-anchor-comment-truth`. As Recurrence 9
-established, a resolvable loose ref with zero live worktrees is still a dead end for a direct
-Read — `hooks/inject-campaign-state.sh`'s anchor-block comment at this checkout still read the
-PRE-fix "git absent / not a repo / bare →" enumeration the phase's own task was supposed to
-correct. Per the established fallback, this was **not** asserted as a plan/code mismatch; the
-comment-truth facts rest on the phase's own gate-audit verdict (`verdict: "gate-audit:approve"`,
-`gateEvidence:true`, pinned `gateHeadSha`/`auditSha: 71e7666e...`) instead of this stale cwd.
-
-**No new edge** — this recurrence is recorded only to keep the frequency signal current: three of
-the last four wrap-ups (Recurrences 8-11, spanning 2026-07-17 to 2026-07-19, three different
-campaigns) hit the identical main-checkout/empty-worktrees topology. Treat "main checkout, no live
-worktree" as the **modal** case at wrap-up time, not an edge case — go straight to the loose-ref
-check and gate-audit fallback rather than spending a round hunting for a task/`_refinery`
-worktree that Refine has already reaped.
+- The hazard is **session-stable, not a per-phase fluke**: one session worktree stayed on an
+  unrelated branch across four consecutive phases (Recurrences 1–3); one specific worktree
+  (`war-campaign-resilience-roadmap-33290f`) recurred stale across **seven** wrap-ups spanning
+  five unrelated campaigns (Recurrences 12, 14–19) — the harness reuses one long-lived worktree
+  across many separate `/war` launches. Once a worktree name has been flagged stale here, assume
+  it stays the servitor's cwd — and stays stale — indefinitely; go straight to the `gitdir`-sweep
+  on sight of that name.
+- "Main checkout, no live worktree" is the **modal** topology at wrap-up time (Recurrences 8–11)
+  — go straight to the loose-ref check and gate-audit fallback rather than hunting for a
+  task/`_refinery` worktree Refine has already reaped.
+- The mechanized `Landed tip:` anchor never appeared in the spawn prompts of Recurrences 14–19 —
+  a test/orchestration-harness dispatch path (not the production Lead-side `agent()` dispatch),
+  harness-wide across campaigns. The anchor's *absence* is not proof the fix didn't land; on
+  absence, fall straight back to the `gitdir`-sweep. The fallback techniques above remain
+  operative for that path.
+- The numbered `_refinery` suffix keeps climbing (`_refinery8` by Recurrence 19) — always re-run
+  the sweep fresh per wrap-up rather than guessing the next suffix from the last-seen number.
+- Aside (Recurrence 14): a plan/ADR citing a lower recurrence count than this file's frontmatter
+  is a window-bounded point-in-time citation, not a contradiction to reconcile — don't "correct"
+  the plan-directed number to match the live running total.
 
 ## Related
 
@@ -342,330 +233,16 @@ same staleness family at the ref-sync layer. [[war-launch-worktree-with-working-
 — another worktree/branch-state trap in the same pipeline stage.
 [[audit-log-finding-can-be-stale-by-land-time]] — the negative-finding sibling of the gate-audit
 edge above. [[wave-loop-thunk-catch-prevents-null-result-infinite-redispatch]] and
-[[entry-validation-unconditional-phase-field-check-comment-overclaims-runtime-path]] — the facts
-Recurrence 4's task-worktree technique was used to verify.
+[[entry-validation-unconditional-phase-field-check-comment-overclaims-runtime-path]] — facts
+the task-worktree technique was used to verify.
 [[integrated-tip-authoritative-gate-audit-seat-has-no-gate-log-path-field]],
 [[floor-retry-add-test-package-it-worker-stays-base-tier]],
-[[baseline-debt-dedup-exact-set-not-subset]] — facts Recurrence 5 confirmed RESOLVED using this
+[[baseline-debt-dedup-exact-set-not-subset]] — facts confirmed RESOLVED using this
 same technique.
 [[git-common-dir-anchor-idiom-fail-open-gotchas]],
-[[git-probing-hook-requires-fixtures-outside-any-git-repo]] — facts Recurrence 6 confirmed
+[[git-probing-hook-requires-fixtures-outside-any-git-repo]] — facts confirmed
 `code-verified` using this same technique.
-[[release-bump-slots-canonical-no-badge]] — the version-slot fact Recurrence 8 could not
-`code-verified`-confirm from the stale main checkout.
-
-## Recurrence 10 (2026-07-17, phase "Release" / learnings-recipe-drift-sweep task 2.1 wrap-up) — Recurrence 9's exact branch, a later phase of the same campaign
-
-Tenth occurrence, and the closest repeat yet to Recurrence 9: same main-checkout topology
-(`<repo-root>/.git/HEAD` → `ref: refs/heads/master`, `<repo-root>/.git/worktrees/` entirely
-empty) and the **identical loose ref** already named in Recurrence 9
-(`<repo-root>/.git/refs/heads/dev/2026-07-16-learnings-recipe-drift-sweep`) — this campaign's
-phases 1 and 2 land on the same working branch, so the stale-checkout hazard persisted across a
-phase boundary within one campaign rather than appearing fresh. Reading
-`.claude-plugin/plugin.json`/`marketplace.json` at the main checkout showed `0.14.42` in every
-slot, while the phase's own gate-audit (`gateEvidence:true`, pinned
-`auditSha: 503f3e7586916a4c1ea693e844652ea4f01a4735`) directly `git show`-confirmed all four
-release slots at `0.14.45` at that pinned tip. Per Recurrence 3/7/8/9's fallback, the version-bump
-fact rests on the audit log's `gate-audit:approve` verdict, not on this servitor's own stale read.
-
-**Refinement:** a campaign that lands multiple phases on one shared working branch (rather than a
-fresh per-phase branch) does not make the loose-ref check any more reliable between phases — the
-main checkout can still be arbitrarily behind that branch's latest tip at each wrap-up. Treat
-"I already confirmed this exact ref exists, last phase" as **zero** evidence about the current
-phase's content; the ref-presence check is per-wrap-up, not cacheable across phases even on the
-literal same branch name.
-
-## Recurrence 12 (2026-07-22, phase "Guard grammar + taught contract + self-diagnosing error path" /
-auditor-guard-ergonomics tasks 1.1-1.2 wrap-up) — the servitor's OWN cwd is itself a linked
-worktree this time, and a bare `Glob('.git/worktrees/*')` (no trailing filename) silently returns
-zero entries even though 17 exist
-
-Twelfth occurrence, a new topology variant: this time the servitor's threaded cwd
-(`<repo-root>/.claude/worktrees/war-campaign-resilience-roadmap-33290f`) was itself a **linked
-worktree** (confirmed via its own `.git` file: `gitdir:
-<repo-root>/.git/worktrees/war-campaign-resilience-roadmap-33290f`), on an unrelated branch
-(`claude/war-campaign-resilience-roadmap-33290f`) — not the main checkout (Recurrences 8-11) and
-not a reaped/absent task worktree (Recurrence 7). Reading `hooks/validate-auditor-git.sh` at this
-cwd directly confirmed staleness: the char allowlist still read `[A-Za-z0-9 ./_=:,@^-]`, missing
-the `~`/`%` this phase's task 1.1 was supposed to add, and `skills/war/assets/workflow-template.test.mjs`
-still carried the pre-fix `%-format`/`@{}` reflog-avoidance test task 1.2 was supposed to retitle.
-
-**New wrinkle — a bare `Glob('.git/worktrees/*')` pattern returns nothing, and reads as "no live
-worktrees" (Recurrence 8/9/10's fallback trigger) when 17 entries actually exist.** Glob matches
-*files*, not bare directory names — `.git/worktrees/<name>` is a directory, so the pattern must
-target a file one level inside it (`'.git/worktrees/*/HEAD'` or `'.git/worktrees/*/gitdir'`), never
-the bare directory glob. Retrying with `'.git/worktrees/*/HEAD'` surfaced all 17 live worktrees,
-including two whose `gitdir` resolved to this exact phase's plan-slug
-(`.claude/war/wt/2026-07-22-auditor-guard-ergonomics-2026-07-22/p1-1.1` and `/p1-1.2`, git-suffixed
-to `p1-1.11`/`p1-1.21` per Recurrence 5's name-collision wrinkle) and one resolving to its
-`_refinery1` (same plan-slug, `/_refinery`). Reading the phase's touched files at those physical
-paths gave a true `code-verified` read of the landed tip — the "mirrored verbatim" phrase in
-`agents/war-auditor.md` (Task 1.2 Nit), the exact branch-deny message text (Task 1.1 Nit), and the
-new D3 `REGISTRY` row for the guard contract were all confirmed present there, while this
-servitor's own cwd still showed none of them.
-
-**Generalized rule (extends Recurrence 4/5's technique):** before concluding "zero live
-worktrees" from a `Glob` of `.git/worktrees/*`, re-run with a file-suffixed pattern
-(`*/HEAD` or `*/gitdir`) — a bare directory-glob false-negative would otherwise wrongly trigger the
-Recurrence 8-10 "trust the audit log, no direct read possible" fallback in a session where a direct
-`code-verified` read was actually available all along.
-
-Related: same family as Recurrences 4-7 (task/`_refinery` worktree lookup via `gitdir`), now with
-the added precondition that the servitor's own cwd being a linked worktree (rather than main
-checkout) does not exempt it from the lag hazard, and the Glob-pattern gotcha above.
-
-## Recurrence 13 (2026-07-22, phase "Release" / lessons-learned-seed task 3.1 wrap-up) — task worktree nested INSIDE the servitor's own session worktree, plus a `.claude/war/wt/` naming-scheme instance
-
-Thirteenth occurrence. Spawn prompt named the landed branch as
-`dev/2026-07-22-lessons-learned-seed`; the servitor's threaded cwd
-(`<repo-root>/.claude/worktrees/sharp-perlman-39f070`, itself a linked worktree per Recurrence
-12) was on an unrelated branch (`claude/2026-campaign-lessons-learned-020ff0`). Reading
-`.claude-plugin/plugin.json`/`marketplace.json`/`README.md ## Status` at that cwd showed
-`0.14.48` in every slot with release-notes prose describing a **different, earlier** feature
-(`/lessons-learned tighten`) — not the seed-corpus notes task 3.1's plan slice specified, and
-not even the plan's stated pre-bump base. Per Recurrence 8's rule, this was flagged as
-stale-checkout lag, not a plan/code mismatch.
-
-Applying the Recurrence 4/5/12 technique (`Glob '.git/worktrees/*/gitdir'` and `*/HEAD`)
-surfaced `<repo-root>/.git/worktrees/p3-3.1`, whose `gitdir` resolved to:
-`<repo-root>/.claude/worktrees/sharp-perlman-39f070/.claude/war/wt/2026-07-22-lessons-learned-seed-2026-07-22/p3-3.1/.git`
-— **nested inside the servitor's own session-worktree directory tree**, not a sibling under
-`<repo-root>/.claude/war-worktrees/` (Recurrences 4-7's convention) or a bare
-`.claude/war/wt/<plan-slug>-<date>/` off the repo root (Recurrence 12's convention at a
-different session). Reading the four version slots at that nested path confirmed `0.14.49` with
-the correct seed-corpus release-notes text verbatim matching the plan's task 3.1 slice —
-`code-verified`, while the servitor's own cwd still showed the stale `0.14.48`/tighten-notes
-pair.
-
-**New wrinkle (extends Recurrence 12's naming-scheme note):** the task worktree's physical path
-is not reliably a sibling of `<repo-root>` — it can be nested several levels inside the
-servitor's own session worktree (`<session-worktree>/.claude/war/wt/<plan-slug>-<date>/<task-id>/`).
-Never assume the task-worktree search is scoped to paths directly under `<repo-root>`; the
-`Glob '.git/worktrees/*/gitdir'` sweep (Recurrence 4/5/12 technique) still finds it regardless of
-nesting depth because `gitdir` always holds the full absolute path — read that value rather than
-guessing a path shape from prior recurrences' examples.
-
-Related (Recurrence 13): [[release-bump-slots-canonical-no-badge]] — the version-slot fact
-Recurrence 13 confirmed `code-verified` (0.14.48→0.14.49) using the nested task-worktree
-technique above; same related set as the "## Related" section earlier in this file otherwise.
-
-## Recurrence 14 (2026-07-22, phase "Thread the anchor + retire the premise" /
-`servitor-wrapup-landed-tip` task 1.1-1.2 wrap-up) — the mechanized fix landed, but THIS wrap-up's
-own spawn prompt still lacked the new anchor, and the old worktree-hunt technique was still needed
-
-Fourteenth occurrence, and a genuinely reflexive one: this is the wrap-up for the very phase that
-mechanizes this lesson's mitigation (see the "MECHANIZED" section at the top of this file). The
-servitor's threaded cwd (`<repo-root>/.claude/worktrees/war-campaign-resilience-roadmap-33290f`)
-was — again — the EXACT same worktree Recurrence 12 already flagged as stale, still on branch
-`claude/war-campaign-resilience-roadmap-33290f`, not the landed branch
-(`dev/2026-07-22-servitor-wrapup-landed-tip`). Its copy of `skills/war/assets/workflow-template.js`
-showed the OLD, pre-hoist code (no `landedTipAnchor`, no `Landed tip:` prompt line, `tipSha`
-computed only inline inside the handoff block) — an outcome consistent with staleness, not with
-the phase's fix having failed to land.
-
-**This wrap-up's own spawn prompt did not include a `Landed tip:` line** despite the fix being
-confirmed live at the true tip moments later — most likely because this particular invocation runs
-through a test/orchestration harness around the servitor rather than the production Lead-side
-`agent()` dispatch in `workflow-template.js` (the spawn-prompt shape it received matches the
-pre-hoist template almost verbatim). Applying the Recurrence 4/5/12/13 `gitdir`-sweep technique
-(`Glob '.git/worktrees/*/gitdir'`) surfaced `p1-1.13`, `p1-1.23`, and `_refinery3`, all resolving to
-`<repo-root>/.claude/war/wt/2026-07-22-servitor-wrapup-landed-tip-2026-07-22/...` — reading
-`skills/war/assets/workflow-template.js` and `agents/war-servitor.md` at that `_refinery3` path
-confirmed the hoisted `tipSha`/`landedTipAnchor` computation, the `Landed tip:` prompt line, and
-the mirrored Inputs-bullet anchor on the card, all `code-verified`.
-
-**Rule (extends the "Practical upshot" note above):** the presence of a `Landed tip:` line in the
-spawn prompt is now the FIRST-CLASS signal for whether grounding is already handled — but its
-*absence* is not proof the fix didn't land (it may mean this particular servitor invocation isn't
-routed through the production dispatch path). On absence, fall straight back to the Recurrence
-4/5/12/13 `gitdir`-sweep technique exactly as before; the mechanized fix changes the common case,
-not the fallback.
-
-**Aside, unrelated to the worktree hazard:** this same phase's ADR 0029 amendment cites "11
-recurrences (2026-07-10 → 2026-07-19)" — a figure that is explicitly window-bounded and correct
-for that window — while this file's own frontmatter `phase` field independently ran ahead to "+13"
-and now "+14" recurrences by the time of later wrap-ups (including a same-day sibling campaign's
-increment). **Don't read a lower plan-cited count against a higher live frontmatter count as a
-contradiction to reconcile** when the plan's citation names an explicit evidence window — the two
-are different measurements (a point-in-time citation vs. an ever-growing running total) and the
-plan-directed number should not be "corrected" to match.
-
-Related: same family as Recurrences 4-7/12/13 (task/`_refinery` worktree lookup via `gitdir`).
-
-## Recurrence 15 (2026-07-22, phase "Release" / `servitor-wrapup-landed-tip` task 2.1 wrap-up) —
-same session, trailing phase of the mechanizing plan: fix persists cross-phase, harness gap is
-session-wide not phase-specific
-
-Fifteenth occurrence, and a direct sequel to Recurrence 14 within the same session. This wrap-up is
-for task 2.1 (the trailing Release phase) of the very plan (`servitor-wrapup-landed-tip`) whose
-phase 1 mechanized this lesson's own mitigation. Two findings, both confirmatory rather than novel:
-
-1. **This wrap-up's spawn prompt again lacked a `Landed tip:` line** — same as Recurrence 14, but
-   now one phase later in the same plan/session. This rules out "only the mechanizing phase's own
-   wrap-up misses the anchor" as the harness gap's scope: the gap is session/harness-wide (this
-   servitor invocation path, whatever it is, never threads the anchor), not specific to being the
-   phase that introduces the fix.
-2. **The servitor's own cwd (`<repo-root>/.claude/worktrees/war-campaign-resilience-roadmap-33290f`,
-   confirmed via its `.git` gitlink) was — again — the exact same stale worktree flagged in
-   Recurrences 12 and 14**, still on the unrelated branch `claude/war-campaign-resilience-roadmap-33290f`,
-   with neither `landedTipAnchor` nor `Landed tip:` present in its copy of
-   `skills/war/assets/workflow-template.js` or `agents/war-servitor.md`. Applying the Recurrence
-   4/5/12/13 `gitdir`-sweep (`Glob '.git/worktrees/*/gitdir'`) surfaced `p2-2.13` and `_refinery3`,
-   both resolving to `<repo-root>/.claude/war/wt/2026-07-22-servitor-wrapup-landed-tip-2026-07-22/`.
-   Reading `.claude-plugin/plugin.json` at the `_refinery` worktree there confirmed `version:
-   "0.14.51"` (matching the phase's own gate-audit finding, `auditSha: 962ee59`) — `code-verified` —
-   AND confirmed the phase-1 mechanization (`landedTipAnchor`, the `Landed tip:` prompt line at
-   `workflow-template.js` line ~1942) is still live and unregressed one phase later, while this
-   servitor's own cwd showed neither.
-
-**Rule (extends Recurrence 14):** a mechanized fix confirmed live at one phase's true tip should be
-re-confirmed, not assumed persistent, at the next phase's wrap-up — but a stale session-worktree cwd
-recurring identically across multiple phases of the same plan is not independent evidence of
-anything new; it is the same standing hazard Recurrence 2 already established ("treat the signal as
-standing for the rest of the session"). Go straight to the `gitdir`-sweep technique rather than
-re-deriving the staleness diagnosis from scratch each phase.
-
-Related: same family as Recurrences 4-7/12/13/14 (task/`_refinery` worktree lookup via `gitdir`);
-[[release-bump-slots-canonical-no-badge]] — the version-slot fact (0.14.51) this recurrence
-`code-verified`-confirmed via the nested `_refinery` worktree.
-
-## Recurrence 16 (2026-07-23, phase "Release" / `war-memory-hardening` task 2.1 wrap-up) — the
-SAME literal worktree recurs a fourth time, now across a different campaign entirely
-
-Sixteenth occurrence. The servitor's threaded cwd
-(`<repo-root>/.claude/worktrees/war-campaign-resilience-roadmap-33290f`) was — for the fourth
-distinct wrap-up (Recurrences 12, 14, 15, now 16) — the exact same linked worktree, still on
-branch `claude/war-campaign-resilience-roadmap-33290f`. This time the landed phase belongs to a
-wholly different plan/campaign (`war-memory-hardening`, landed on
-`dev/2026-07-22-war-memory-hardening`) than any prior recurrence in this worktree, and the cwd's
-own `.claude-plugin/plugin.json` still read `0.14.48` — behind even this campaign's own pre-bump
-base. **New confirmation:** this specific session worktree is not a per-plan or per-session
-fixture that gets torn down and re-provisioned — it persists as a standing environment across at
-least four unrelated phase wrap-ups spanning multiple different campaigns/plans. Treat "cwd is
-this exact worktree" as an immediate, zero-cost trigger to skip straight to the `gitdir`-sweep
-fallback, without spending a round re-diagnosing staleness from scratch.
-
-This wrap-up's spawn prompt again lacked a `Landed tip:` line (as Recurrences 14/15), now
-confirmed across a *different* campaign than the one that introduced the anchor mechanism —
-extending Recurrence 15's finding ("session/harness-wide, not phase-specific") to "harness-wide
-across campaigns," not merely across phases of one plan.
-
-Applying the Recurrence 4/5/12/13 `gitdir`-sweep (`Glob '.git/worktrees/*/gitdir'`) surfaced
-`p2-2.16` and `_refinery6`, both resolving to
-`<repo-root>/.claude/war/wt/2026-07-22-war-memory-hardening-2026-07-23/`. Reading
-`.claude-plugin/plugin.json` at the `_refinery6` worktree there confirmed `version: "0.14.54"` —
-matching the phase's own gate-audit finding exactly (`auditSha: da67aa1`, all four slots
-lock-step at `0.14.54`) — `code-verified`, while this servitor's own cwd still showed `0.14.48`.
-
-**Rule (extends Recurrence 15):** a specific named session worktree recurring identically across
-wrap-ups for *different, unrelated campaigns* (not just different phases of the same plan) is
-strong evidence the harness reuses one long-lived worktree across many separate `/war` launches
-rather than provisioning fresh per run. Once a worktree name has been flagged stale in this file
-once, assume it stays the servitor's cwd — and stays stale — for an indefinite number of future,
-unrelated wrap-ups; go straight to the `gitdir`-sweep on sight of that name rather than treating
-each recurrence as a fresh diagnosis.
-
-Related: same family as Recurrences 4-7/12/13/14/15 (task/`_refinery` worktree lookup via
-`gitdir`); [[release-bump-slots-canonical-no-badge]] — the version-slot fact (0.14.54) this
-recurrence `code-verified`-confirmed via the nested `_refinery6` worktree.
-
-## Recurrence 17 (2026-07-23, phase "residual-verification subsection, drift pins, lesson
-amendment, glossary" / `aftermath-class1-postdelete-verify` task 1.1-1.2 wrap-up) — the SAME
-recurring worktree, a fifth distinct campaign, spawn prompt still lacks the anchor
-
-Seventeenth occurrence. The servitor's threaded cwd
-(`<repo-root>/.claude/worktrees/war-campaign-resilience-roadmap-33290f`) was — for the **fifth**
-distinct wrap-up (Recurrences 12, 14, 15, 16, now 17) — the exact same linked worktree, still on
-branch `claude/war-campaign-resilience-roadmap-33290f`. Its copy of `skills/aftermath/SKILL.md`
-had no `### Class-1 remote deletes — post-batch residual verification` subsection at all, and its
-`skills/war-machine/war-pipeline-structure.test.sh` had no `has_i` pins on `hold set`/`before
-declaring the run clean` — consistent with staleness, not with the phase's content failing to
-land. This wrap-up's spawn prompt again lacked a `Landed tip:` line (as Recurrences 14/15/16),
-now confirmed for a **fifth** distinct campaign/plan through this same harness path.
-
-Applying the Recurrence 4/5/12/13 `gitdir`-sweep (`Glob '.git/worktrees/*/gitdir'`, grepped for
-the plan slug) surfaced `p1-1.17`, `p1-1.27`, and `_refinery7`, all resolving to
-`<repo-root>/.claude/war/wt/2026-07-22-aftermath-class1-postdelete-verify-2026-07-23/`. Reading
-`skills/aftermath/SKILL.md`, `skills/war-machine/war-pipeline-structure.test.sh`,
-`docs/learnings/aftermath-remote-stranded-differs-from-local-tip-reachability.md`, and
-`CONTEXT.md` at the `_refinery7` worktree confirmed all of the phase's landed content present —
-`code-verified` — while this servitor's own cwd still showed none of it.
-
-**Rule (extends Recurrence 16):** this specific session worktree is now confirmed stale across
-five unrelated campaigns in a row with zero self-correction. Treat "cwd is
-`war-campaign-resilience-roadmap-33290f`" as a standing, permanent trigger — skip any preflight
-read of the cwd itself for D3 purposes and go straight to the `gitdir`-sweep on every future
-wrap-up through this harness path, unless a future spawn prompt is confirmed to carry the
-mechanized `Landed tip:` line.
-
-Related: same family as Recurrences 4-7/12/13/14/15/16 (task/`_refinery` worktree lookup via
-`gitdir`).
-
-## Recurrence 18 (2026-07-23, phase "Release" / `aftermath-class1-postdelete-verify` task 2.1
-wrap-up) — same recurring worktree, trailing Release phase of the exact plan Recurrence 17 just
-confirmed; phase-1 content persists into phase-2's task worktree unregressed
-
-Eighteenth occurrence, a direct sequel to Recurrence 17 within the same campaign. The servitor's
-threaded cwd (`<repo-root>/.claude/worktrees/war-campaign-resilience-roadmap-33290f`) was — for
-the **sixth** distinct wrap-up (Recurrences 12, 14, 15, 16, 17, now 18) — the exact same linked
-worktree, still on branch `claude/war-campaign-resilience-roadmap-33290f`; its
-`.claude-plugin/plugin.json` read `0.14.48`, unchanged from every prior recurrence's reading in
-this worktree. This wrap-up's spawn prompt again lacked a `Landed tip:` line, now confirmed for
-this harness path across a plan's own phase-1→phase-2 boundary as well as across campaigns.
-
-Applying the Recurrence 4/5/12/13 `gitdir`-sweep (`Glob '.git/worktrees/*/gitdir'`) surfaced
-`p2-2.17`, resolving to
-`<repo-root>/.claude/war/wt/2026-07-22-aftermath-class1-postdelete-verify-2026-07-23/p2-2.1/` —
-the phase-2 task worktree for the same plan Recurrence 17 verified phase 1 of. Reading
-`.claude-plugin/plugin.json` there confirmed all four release slots at `0.14.55` (matching the
-phase's own gate-audit finding exactly, `auditSha: cc98956`) and the `README.md ## Status` blurb
-carrying the "post-batch residual verification for Class-1 remote deletes" release notes —
-`code-verified` — while this servitor's own cwd still showed `0.14.48`. This task worktree also
-still carries phase 1's landed content (the SKILL subsection, drift pins, lesson amendment,
-glossary entry Recurrence 17 confirmed) since a task worktree is cut from the frozen phase base
-which for phase 2 already includes phase 1's merged commits — confirming that content persists
-unregressed one phase later, the same cross-phase-persistence pattern Recurrence 15 established.
-
-**Rule (extends Recurrence 17):** the `gitdir`-sweep technique resolves cleanly across a plan's
-own phase boundary too — a later phase's task-worktree name (`p2-2.17` here, git-suffixed per the
-Recurrence 5 collision rule) is just as reliable a target as the phase-1 worktrees Recurrence 17
-used, and its checkout already carries every prior-phase commit, making it a valid single read
-site for both the trailing phase's own change AND a persistence check on earlier phases' content.
-
-Related: same family as Recurrences 4-7/12/13/14/15/16/17 (task/`_refinery` worktree lookup via
-`gitdir`); [[release-bump-slots-canonical-no-badge]] — the version-slot fact (0.14.55) this
-recurrence `code-verified`-confirmed via the `p2-2.17` task worktree.
-
-## Recurrence 19 (2026-07-23, phase "Guard convergence + lesson correction" /
-`cli-main-guard-normalization` tasks 1.1-1.2 wrap-up) — SAME recurring worktree, seventh time,
-gitdir-sweep resolved a numbered `_refinery8`
-
-Nineteenth occurrence. The servitor's threaded cwd
-(`<repo-root>/.claude/worktrees/war-campaign-resilience-roadmap-33290f`) was — for the **seventh**
-distinct wrap-up (Recurrences 12, 14, 15, 16, 17, 18, now 19) — the exact same linked worktree,
-still on branch `claude/war-campaign-resilience-roadmap-33290f`. Its copies of
-`skills/war/assets/war-config.mjs`, `skills/war/assets/stage-workflow.mjs`, and
-`skills/war-campaign/assets/campaign-ledger.mjs` all still read the pre-fix bare-equality guard
-(`fileURLToPath(import.meta.url) === process.argv[1]`, no `realpathSync`) — consistent with
-staleness, not with the phase's fix having failed to land.
-
-Applying the Recurrence 4/5/12/13 `gitdir`-sweep (`Glob '.git/worktrees/*/gitdir'` from
-`<repo-root>`, grepped for the plan slug) surfaced `p1-1.18`/`p1-1.28`/`_refinery8`, all resolving
-to `<repo-root>/.claude/war/wt/2026-07-22-cli-main-guard-normalization-2026-07-23/`. Reading the
-three guard files plus `docs/learnings/cli-main-guard-equality-check-silently-noops-under-relative-invocation.md`
-at the `_refinery8` worktree confirmed all of the phase's landed content present — the
-`realpathSync`-normalized guard at all three sites (named-import bare form in `war-config.mjs`,
-qualified `fs.realpathSync` form in the other two, per the plan's per-file directive — see
-[[byte-convergence-plan-can-mandate-per-file-import-style-variant]]) and the origin lesson's
-`RESOLVED (` description plus mechanism-correction body — all `code-verified`, while this
-servitor's own cwd still showed none of it.
-
-**Rule (extends Recurrence 18):** the numbered `_refinery` suffix keeps climbing (now `_refinery8`)
-as more unrelated phases land through this same harness session — always re-run the `gitdir`-sweep
-fresh per wrap-up rather than guessing the next suffix from the last-seen number; `gitdir`'s
-absolute path is the only reliable signal, and grepping its physical-path segment for the phase's
-own plan slug (from the spawn prompt) is the fastest way to pick the right entry out of 50+
-worktree registrations.
-
-Related: same family as Recurrences 4-7/12/13/14/15/16/17/18 (task/`_refinery` worktree lookup via
-`gitdir`).
+[[release-bump-slots-canonical-no-badge]] — the version-slot facts repeatedly confirmed (or, from
+a stale main checkout, deliberately NOT confirmed) via this technique across the release-phase
+recurrences. [[byte-convergence-plan-can-mandate-per-file-import-style-variant]] — a fact
+Recurrence 19 confirmed `code-verified` via the `_refinery8` worktree.

@@ -78,11 +78,10 @@ a tip that PREDATES the wrapper should still go straight to the SOFT-note dispos
 hunting for lint output in the captured log; on any later tip, grep the log for the wrapper's
 `gate(bash)` banner instead.
 
-**Residual, recorded not fixed (verified still present — found at
-`skills/_shared/war-memory-lint.test.sh` @ dev/2026-07-24-gate-evidence-and-release-integrity,
-2026-07-26):** the wrapper only scans the HOT `docs/learnings/` set (`cmdLint` is non-recursive), so
-`docs/learnings/archive/` is out of scope for both this wrapper and CI, same as before. And the
+**Residual, recorded not fixed:** the
 wrapper's default `TARGET` is absolute, so a lint hit's file/pattern line renders with a home path in
 the captured gate log rather than the CI's repo-relative form — see
 [[d3-locate-cue-paths-must-be-repo-relative-or-placeholder-not-absolute-home-path]] for the general
-rule this collides with. Neither was in scope for #1081's plan slice.
+rule this collides with. Not in scope for #1081's plan slice. (A former second residual — `cmdLint`
+non-recursive, `docs/learnings/archive/` out of scope — was closed by #1135: the lint walk is now
+recursive, so the committed `archive/` subtree is in scope for every lint surface.)

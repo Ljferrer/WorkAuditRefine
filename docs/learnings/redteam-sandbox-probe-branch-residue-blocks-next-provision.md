@@ -55,8 +55,10 @@ Provision, not a resume that re-hits the same foreign ref).
 
 **Why the restore looked complete but wasn't:** the escape guard's own check is a *working-tree*
 diff/dirty-file check (confirms the disposable repo's tracked+untracked file state matches the
-pinned base) — it has no branch-enumeration step, so a clean `git status` after `reset --hard` reads
-as "fully restored" even though new refs survive untouched.
+pinned base) — its ref-enumeration step (`assert-no-repo-escape.sh`) only matches the junk-name
+pattern `refs/heads/redteam-*|*-sandbox-*`, which probe-invented names like `rogue`/`rogue2` slip
+past, so a clean check after `reset --hard` reads as "fully restored" even though new refs survive
+untouched.
 
 **How to apply:** after diagnosing and containing any red-team sandbox escape (any probe that
 touches git state — branches, tags, refs — not just files), run `git branch --list` (scoped to the

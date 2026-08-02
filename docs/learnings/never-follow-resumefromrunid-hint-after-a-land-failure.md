@@ -28,8 +28,9 @@ metadata:
 
 # The harness's generic `resumeFromRunId` hint is the wrong recovery for a land failure — it replays merges + CAS live
 
-**What happened (code-verified — found at `skills/war/SKILL.md`, the "Resume vs. recovery
-relaunch" paragraph and the §4.3 `held:land-failed` root-cause-(c) bullet; verified via the
+**What happened (code-verified — found in the "Resume vs. recovery relaunch" paragraph and the
+§4.3 `held:land-failed` root-cause-(c) bullet, then at `skills/war/SKILL.md` and since evicted
+verbatim into `skills/war/references/resume-and-recovery.md`, their current home; verified via the
 phase's own `_refinery` worktree since the main checkout lagged this phase — see
 [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]]):** the Workflow harness prints an
 unconditional `resumeFromRunId` hint on any interrupted/incomplete run, regardless of *why* the

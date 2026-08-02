@@ -1,8 +1,10 @@
 ---
-name: ""
+name: plan-array-literal-lags-canonical-export
+description: "Plan literals for mirrored constants lag the canonical export; append to live value — drift-guard deepEqual is truth"
 metadata: 
   node_type: memory
   type: project
+  provenance: code-verified
   keywords: [stale spec value, deepEqual, mirrored constant, append not replace, drift test, HARD_ESCALATION_REASONS]
   slug: plan-array-literal-lags-canonical-export
   phase: audit-scheduler-integrity/p1

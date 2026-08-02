@@ -32,8 +32,10 @@ metadata:
 **What happened (code-verified — found at `skills/war/assets/skill-doc-contracts.test.mjs`, the
 D18 test, @ phase drift-guard-and-floor-diagnostic-hardening/1.1, issue #1040):** the D18 test
 originally asserted `merge site`, `land site`, `held:escalation`, `held:land-failed` were each
-present **somewhere** in the extracted SKILL.md environment bullet (a four-entry "Non-vacuous
-companion" presence loop). That loop is satisfied even if the two exhaustion routes are swapped
+present **somewhere** in the extracted environment bullet (a four-entry "Non-vacuous
+companion" presence loop; the bullet lived in `skills/war/SKILL.md` at the time — the
+`gate_failed` routing bullets have since moved verbatim into
+`skills/war/references/resume-and-recovery.md`, which the D18 test now extracts from). That loop is satisfied even if the two exhaustion routes are swapped
 between the two sites — a doc where "merge site" routes to `held:land-failed` and "land site"
 routes to `held:escalation` still greens, because all four literals remain present in the
 bullet, merely paired wrong. Fixed by replacing the loop with paired first-following-route

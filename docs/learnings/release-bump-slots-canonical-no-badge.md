@@ -44,10 +44,10 @@ slots** in lock-step:
 Updating only one `marketplace.json` slot is a silent partial bump (mirrored-value footgun).
 After bumping, `git diff --name-only` should list exactly those three files.
 
-**Live prose nit (still unfixed as of 0.14.6):** the Releasing section's sentence "must update
-ALL three version-of-truth files" undersells the four SLOTS (`marketplace.json` carries two).
-The table below it is correct, so the fix is cosmetic ("three files / four slots") and never
-blocks a release. Verify-cue: grep README for the literal phrase "three version-of-truth files".
+**Resolved:** the old "three version-of-truth files" undersell is fixed — README now reads "all
+four version slots across three files together (`marketplace.json` carries two)" — and
+`skills/war/assets/version-slots.test.mjs` (which postdates this lesson) locks the four slots in
+lock-step and guards the README prose against the undersell regressing.
 
 **Why:** reused plan templates keep emitting the phantom-badge instruction until a plan author
 fixes the template.

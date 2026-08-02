@@ -1,8 +1,10 @@
 ---
-name: ""
+name: redteam-adjudication-is-authoritative-version-source
+description: "Version precedence: task instruction > red-team adjudication > plan literal; check the red-team report before scoring"
 metadata:
   node_type: memory
   type: project
+  provenance: code-verified
   keywords: [version bump precedence, stale plan literal, semver override, task instruction priority, stacked release base, false defect scoring]
   slug: redteam-adjudication-is-authoritative-version-source
   phase: audit-fidelity/p3
@@ -20,15 +22,9 @@ metadata:
 
 # Red-team adjudication is the authoritative version source when it overrides the plan body
 
-## What happened (audit-fidelity Phase 3 / Task 4)
+**What happened (audit-fidelity Phase 3 / Task 4):** the plan drafted "Bump to v0.7.0"; the red-team report (docs/red-team/2026-06-25-audit-fidelity.md, Version adjudication row) adjudicated it down to v0.6.5 over the stacked v0.6.4 base; the task instruction confirmed v0.6.5 and the worker bumped to v0.6.5 — rated plan-faithful. (The plan's Task 4 Step 1 literal has since been patched to v0.6.5; only its "Baseline-drift" note records the v0.7.0 draft.)
 
-The plan body (docs/plans/2026-06-25-audit-fidelity.md, Task 4 Step 1 and commit message) was drafted saying "Bump to v0.7.0". The red-team report (docs/red-team/2026-06-25-audit-fidelity.md, the Version adjudication rows) adjudicated this DOWN to v0.6.5, calling it a patch over the stacked v0.6.4 base. The task instruction (spawn prompt) then confirmed v0.6.5. The worker bumped to v0.6.5. The auditor rated this plan-faithful, not a deviation. (The plan's Task 4 Step 1 literal has since been patched to v0.6.5; only the plan's top-of-file "Baseline-drift + ratification note" still records that it was drafted at v0.7.0.)
-
-## Adjudication chain
-
-Plan body → red-team adjudication → task instruction, each potentially specifying a different version. The priority is: **task instruction > red-team adjudication > plan body literal**. When the red-team report overrides the plan's version, the adjudicated version is what the worker must implement, and the task instruction reflects that adjudication.
-
-## Why it is a Nit, not a defect
+## Why a stale plan literal is a Nit, not a defect
 
 The plan body's stale literal is documentation drift, not a work error. The auditor should:
 1. Locate the red-team report for the same plan slug.

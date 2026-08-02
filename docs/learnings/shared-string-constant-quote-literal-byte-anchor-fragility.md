@@ -39,11 +39,6 @@ metadata:
 
 # A shared test constant that embeds literal quote-mark examples is a latent byte-anchor trap
 
-**Recurrence-on-a-repo-lesson note:** the covering fact lives at
-`docs/learnings/shared-string-constant-quote-literal-byte-anchor-fragility.md` (repo root, not
-servitor-editable). This is the local, same-slug recurrence-update copy (D1); a future Gate-2
-promotion should overwrite the repo file with this content.
-
 **What (audit-calibration-and-graduation/t1 audit finding, disposition: note, no action taken at
 the time):** the COST-CLAIM RULE sentence includes literal double-quoted cost-claim examples —
 `"too slow"`, `"too expensive"`, `"too complex"`. The both-surfaces drift test in

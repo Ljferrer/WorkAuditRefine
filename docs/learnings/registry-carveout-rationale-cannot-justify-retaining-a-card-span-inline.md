@@ -51,8 +51,7 @@ for it regardless), the plan says "candidates" not "must move", and the landed c
 sits well under its placeholder advisory. The defect is purely that the **stated rationale** reached
 for the wrong adjudication row, not that the outcome was wrong.
 
-**Apply to future tasks in this plan (Task 5.1 — worker/servitor cards — repeats this exact
-candidate-triage step):** when a plan-named branch-gated candidate is retained inline instead of
+**How to apply:** when a plan-named branch-gated candidate is retained inline instead of
 evicted, justify it on **tier** (every-invocation doctrine) or an **ADR-0025 mirror-site**
 argument — never on a registry/literal carve-out, which scopes to the workflow-template.js literal
 shrink only, not to card-span eviction decisions.

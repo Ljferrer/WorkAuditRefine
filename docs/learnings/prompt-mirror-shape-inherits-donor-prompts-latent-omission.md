@@ -81,20 +81,9 @@ Related: [[standing-instruction-vs-dispatched-prompt-coverage-split]] (a differe
 coupling — standing `.md` card vs dispatched prompt — same root idea that a copied/mirrored surface
 needs its own completeness check, not just presence).
 
-**PARTIALLY RESOLVED (phase 1 of `2026-07-24-recovery-re-merge-dispatch-coherence`, landed tip
-`43a6dc4e712146a3bdbd8ef3e3c8c7e1d5bb98ba`, verified via the `p1-polish`/`_refinery2` task
-worktrees, `gitdir` resolving under
-`.claude/worktrees/2026-07-24-recovery-re-merge-dispatch-coherence-2026-07-25/`):** the exact
-`submodMergeNote` gap this lesson describes is now closed for the three MERGE-side retry dispatches
-— `submodMergeNote` is appended as the final prompt segment at the floor-retry re-merge
-(`skills/war/assets/workflow-template.js`, the `merge:<taskId>:floor-retry:r<round>` dispatch),
-the `environment-proceed` re-merge (`merge:<taskId>:environment-proceed`), and the
-`baseline-proceed` re-merge (`merge:<taskId>:baseline-proceed`) — confirmed present at all three
-sites at the landed tip. Two sibling omissions in the same family remain OPEN BY DESIGN (explicit
-plan non-goals, not missed) — see the new [[submodule-scoping-gap-survives-in-land-and-polish-dispatch-families]]
-lesson for the live detail: (1) the LAND-side sibling `submodLandNote` still rides only the initial
-`land:phase-<id>` dispatch, never the `land:phase-<id>:environment-proceed` or
-`land:phase-<id>:baseline-proceed` re-land dispatches; (2) the class-exempt phase-close polish
-merge (`merge:p<phaseId>-polish`) has no per-task const in lexical scope to thread any submodule
-note into at all. A Lead war-followup naming both remaining sites was the mandated filing vehicle
-per this phase's plan Notes/deviations section.
+**RESOLVED (verified 2026-08-02 at the live tip):** the entire gap family is closed —
+`submodMergeNote` is threaded at the initial merge and all three retry dispatches (`floor-retry`,
+`environment-proceed`, `baseline-proceed`); the land-side sibling `submodLandNote` now rides all
+three land dispatches (`land:phase-<id>` and both `-proceed` re-lands); and the phase-close polish
+merge runs `assert-no-submodule-mutation.sh` unconditionally. The durable rule above — a mirror
+copies the donor's latent omission, so audit and patch the donor first — is what survives.

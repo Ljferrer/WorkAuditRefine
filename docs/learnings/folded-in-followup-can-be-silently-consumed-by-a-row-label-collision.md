@@ -37,8 +37,12 @@ the deliverable was present, named as specified, and green.
 
 Measured at the landed tip across `skills/**/*.test.mjs`: `0042` → **0** occurrences,
 `trigger is the skeleton` → **0**, `when <trigger>` → **0**, `Doctrine placement` → **0**.
-`git grep -l 0042 -- 'skills/**/*.test.mjs'` returns nothing. The mirror is still hand-synced with
-no suite reading any of it — exactly the condition #1208 existed to end.
+`git grep -l 0042 -- 'skills/**/*.test.mjs'` returned nothing. At that tip the mirror was still
+hand-synced with no suite reading any of it — exactly the condition #1208 existed to end.
+
+**Landed since:** #1208's mirror guard has since landed as the `D29 — ADR 0042 doctrine mirrors …
+(#1208)` row in `skill-doc-contracts.test.mjs` — under the *next free* label, itself confirming
+that row labels are moving targets.
 
 **Why the label is the trap:** a doc-contract suite numbers its rows `D1, D2, …` in landing order,
 so the *next free* label is a moving target. An issue authored at time T that says "write the D28

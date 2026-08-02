@@ -1,6 +1,6 @@
 ---
 name: plan-mandated-test-comment-uniqueness-claim-can-be-code-traceably-false
-description: "A plan can mandate literal test-comment prose asserting an 'only'/uniqueness claim that a code trace of the live function shows is false — it lands uncorrected anyway because the checkable End state is a structural absence-grep, not a content-accuracy check, and the right audit disposition is 'note', not 'absorb', since fixing the wording would deviate from the plan's explicit mandate"
+description: "RESOLVED (live census, 2026-08-02): A plan can mandate literal test-comment prose asserting an 'only'/uniqueness claim that a code trace of the live function shows is false — it lands uncorrected anyway because the checkable End state is a structural absence-grep, not a content-accuracy check, and the right audit disposition is 'note', not 'absorb', since fixing the wording would deviate from the plan's explicit mandate"
 metadata: 
   node_type: memory
   type: project
@@ -70,11 +70,6 @@ plan-mandated inaccuracy is `note` (informational, non-blocking), never `absorb`
 rewording (e.g. naming both push-path silent routes instead of claiming uniqueness) belongs to a
 future doc-truth pass explicitly scoped to the wording, not the landing task.
 
-**Anchors (verify still present before acting):** the T2.9 block comment's invariant sentence in
-`skills/war/assets/provision-worktrees.test.sh` (search `the only SILENT exit-3 route`); the
-post-push readback-mismatch line in `cmd_land_advance`,
-`skills/war/assets/provision-worktrees.sh` (search `[ "$actual" = "$new_sha" ] || exit 3`).
-
 Related: [[plan-mandated-banner-count-can-undercount-additive-drift-pins]] (same family — plan-mandated
 literal prose can go stale/inaccurate by construction; disposition `note`, never a fix demand);
 [[closure-rationale-infeasibility-claim-needs-code-trace-not-assertion]] (same construct family —
@@ -114,6 +109,9 @@ mandated wording is latitude the worker must follow, not a worker defect, and re
 belongs to a future doc-truth pass explicitly scoped to it — not to the task that fixed the
 uniqueness claim.
 
-**Anchors (verify still present before acting):** `skills/war/assets/provision-worktrees.test.sh`,
-search "route identity rests on (b)+(c)+(d) TOGETHER" (the T2.9 case-comment block, immediately
-preceding `PAIR9="$(setup_origin_pair)"`).
+**Resolved in the live census:** the T2.9 case-comment block (immediately preceding
+`PAIR9="$(setup_origin_pair)"` in `skills/war/assets/provision-worktrees.test.sh`) now proves route
+identity in TWO steps — (b)+(d) exclude the LOUD routes; (c)+(e) then discriminate between the two
+silent ones — explicitly naming (c) push-declined and (e) origin-tip-unchanged as the
+discriminators. Both the headline uniqueness falsehood and the non-following-inference wrinkle are
+fixed; both former anchor search strings are gone from the file. The durable rule above stands.
