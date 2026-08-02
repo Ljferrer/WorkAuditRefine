@@ -7,6 +7,24 @@ own 133-lesson corpus is the reference migration.
 The migration is **mechanical (the `migrate` verb) + agent-assisted (retype, keywords backfill, the
 reviewed PR)**. It runs against your live corpus, so read the whole playbook before starting.
 
+**Pre-flight — the opt-in gate (before staging or moving anything).** Migration's endpoint is publishing the `project`-typed set to the committed repo root, which only travels when `memory.commitLearnings` is on. That flag is **opt-in / off by default** (`/war-room` turns it on), so resolve the effective value first — but **`test -f .claude/war/config.json` before invoking the resolver**, which exits non-zero on an **absent** config (the most common state, since `/war-room` is opt-in). **Absent** → **skip** the resolver call entirely; the effective defaults apply, i.e. `memory.commitLearnings: false`. **Present** → run the existing command unchanged — `node ${CLAUDE_PLUGIN_ROOT}/skills/war/assets/war-config.mjs .claude/war/config.json --fill-defaults` — and read `memory.commitLearnings`.
+
+- Already `true` (the operator opted in earlier) → proceed to the playbook.
+- `false` → **ask the operator to opt in now** ("lessons travel with the repo, human-reviewed like code"), then branch on the answer:
+  - **Accept** → write `memory.commitLearnings: true` through the **validator path** — merge the flag into the existing config (or a minimal `{"memory":{"commitLearnings":true}}` when the file is absent) and pipe it through `--stdin --fill-defaults` to a temp file, then `mv` it into place (the never-truncate discipline `/war-room` uses — a validation failure leaves any existing config intact):
+
+    ```bash
+    mkdir -p .claude/war
+    printf '%s' '<config-json-with-commitLearnings-true>' \
+      | node ${CLAUDE_PLUGIN_ROOT}/skills/war/assets/war-config.mjs --stdin --fill-defaults \
+      > .claude/war/config.json.tmp \
+      && mv .claude/war/config.json.tmp .claude/war/config.json \
+      || { echo "validation failed — config NOT written"; rm -f .claude/war/config.json.tmp; }
+    ```
+
+    Then proceed to the playbook.
+  - **Decline** → **abort: "nothing migrated — re-run after opting in."** Nothing is staged, nothing is moved — the store is untouched.
+
 ## What the two roots are
 
 - **Local root** — the un-tracked personal store (today's dir holding `MEMORY.md`). Everything routes

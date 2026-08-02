@@ -168,8 +168,7 @@ and plans within a roadmap (the shared-file-contention table is this rule applie
 ## 4. Handoff & convert
 
 **Pipeline doctrine:** war-strategy **converts**; `/red-team` **validates** plans and never converts — route
-conversion here, ratification there. This skill never authors a spec from scratch — deep from-scratch
-interviewing stays with `grill-with-docs`.
+conversion here, ratification there.
 
 ### Bare invoke — handoff
 
@@ -198,6 +197,7 @@ ship this **HANDOFF DIRECTIVE** with the route — the authoring skill executes 
 
 ## 5. Closing offer
 
-Optionally point at `/survey-corps` — the pipeline's survey step: it inspects open issues, clusters
-them, and synthesizes war-shaped specs into `docs/specs/`, optionally seeded by `ponytail-audit` or
-`ecc:repo-scan` as *optional* seeds, never a hard dependency.
+Optionally point at `/survey-corps` — the pipeline's memories + issues → specs step: it first mines
+qualifying hot memory lessons into issues, then sweeps open issues, clusters them, and synthesizes
+war-shaped specs into `docs/specs/`, optionally seeded by `ponytail-audit` or `ecc:repo-scan` as
+*optional* seeds, never a hard dependency.

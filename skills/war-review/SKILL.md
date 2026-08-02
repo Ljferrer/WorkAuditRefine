@@ -39,9 +39,7 @@ run from it (ADR 0008 ordering is git > issues > ledger, untouched here).
 ## 1. Select the run
 
 The manifest and review file live under the **main checkout's** `.claude/`, never the invoking
-worktree's — a `/war-review` session may run in a per-session worktree that carries its own
-`.claude/`, so a cwd-relative glob would miss the real runs dir. Resolve the anchor from any linked
-worktree via the survey-manifest anchor discipline:
+worktree's — resolve the anchor from any linked worktree via the survey-manifest anchor discipline:
 
 ```bash
 MAIN=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
@@ -51,7 +49,7 @@ RUNS="$MAIN/.claude/war/runs"        # manifests: $RUNS/<runId>.json ; reviews: 
 - **default (bare)**: pick the newest `$RUNS/<runId>.json` (by file mtime; ties broken by the
   `runId` date). None found → report **"no run manifest to review"** and stop (offer `--scavenge`).
 - **`--run <runId>`**: read `$RUNS/<runId>.json`. Missing → say so and list the runIds that do exist.
-- **`--scavenge [<plan-slug>]`**: see § Scavenge below.
+- **`--scavenge [<plan-slug>]`**: read [`references/scavenge.md`](references/scavenge.md).
 
 Parse the manifest as JSON. A present-but-malformed manifest is reported honestly (say which fields
 you could read); you never invent the missing fields.
@@ -78,9 +76,6 @@ JSON** — read them **defensively**:
 - The **manifest** — not the transcripts — supplies dispatch counts by role, task terminal
   statuses, per-phase and run timestamps, `land`, `lessonsWritten`, `issuesFiled`, and — when
   present — the `envelope` token/tool-call totals. These stand even when a transcript is gone.
-
-Do not hardcode a rigid transcript schema. If a future harness renames the usage fields, the
-defensive read degrades to `n/a` instead of crashing — that is the intended failure mode.
 
 ## 3. Tally — the metric set
 
@@ -140,21 +135,7 @@ not proof of *why* it held; do not assert a cause you have not run down.
 
 ## 5. Offer the issue (friction only)
 
-Only when the verdict is **friction found**:
-
-1. **Draft one issue** — title + body carrying the friction rows with their evidence, the `runId`,
-   and the **plugin version** (`version` from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`).
-   Root-cause claims stay hypothesis-labeled per § 4.
-2. **Resolve the target repo** from the installed plugin's own metadata — the `repository` slot of
-   `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`. If that slot is missing or unparseable,
-   **ask the operator for a repo — never guess**.
-3. **Show the drafted issue and the resolved target**, then file **only on explicit confirmation**.
-   No confirmation → nothing is filed.
-4. **gh-preflight before the write.** The issue is an outward write on a repo that is usually *not*
-   the run's target repo. Before filing, run
-   `bash ${CLAUDE_PLUGIN_ROOT}/skills/_shared/gh-preflight.sh "<overrides.ghUser>"` (from the run
-   config's `overrides.ghUser`; empty/unset ⇒ no-op exit 0) so a mid-session account flip never
-   drops the issue onto the wrong account.
+When the verdict is **friction found**, read [`references/offer-issue.md`](references/offer-issue.md).
 
 A **clean** verdict offers no issue.
 
@@ -167,13 +148,4 @@ step maintains; no `.gitignore` change, nothing committed.
 
 ## Scavenge — pre-manifest runs
 
-`--scavenge [<plan-slug>]` reconstructs a run that predates the manifest. There is no manifest to
-read, so mine the transcript artifacts directly:
-
-- Glob the harness transcript artifacts (the same kind of dir a manifest `transcriptDir` points
-  into) for `journal.jsonl` / `agent-*.jsonl`, grouped by plan slug + date. With no `<plan-slug>`,
-  reconstruct the most recent group; with one, that plan's runs.
-- Reconstruct **at minimum the phase count and wall-clock** from artifact timestamps; tokens and
-  tool calls where the transcripts still carry them. Everything unreconstructable → **`n/a`**.
-- Label the **whole report** *scavenged (best-effort, pre-manifest reconstruction)* — attribution is
-  fuzzy by design and the reader must know it. Save it to `$RUNS/<runId>-review.md` like any review.
+When invoked with `--scavenge`, read [`references/scavenge.md`](references/scavenge.md).

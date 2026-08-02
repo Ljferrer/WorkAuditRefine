@@ -20,13 +20,7 @@ You run a **campaign**: a queue of WAR plans executed one at a time, unattended,
 - **Bare resume** re-reads the latest unfinished campaign's ledger + inbox and continues where it stopped.
 - **`add`** only ever appends one file to `inbox/` — it never touches the ledger. Any chat (or a human, or a cron) can drop a plan mid-run; it is picked up at the next plan boundary. The optional `[<ref>]` (default `origin/master`) is consulted **only when the local path is missing** — it lets a plan authored on another branch and PR'd onto master be added to a running campaign.
 
-**Add-resolution protocol** — `add` may run from any chat, in any directory, so resolve carefully:
-
-0. **Anchor to the repo toplevel, never the add-chat cwd.** Resolve the argument to a single repo-relative token `rel` = the argument made relative to `git rev-parse --show-toplevel`, and use `rel` for every git call below. The drop's line-1 absolute is `toplevel/rel`. This closes the foreign-cwd hole: a `path.resolve` against a stray cwd could store a path that never maps onto the ref, whereas `rel` is the one `<repo-relative-path>` token reused verbatim by the materialize step (`git show <ref>:<rel>`).
-1. **Local path exists** → drop as today (`campaign-ledger.mjs add --campaign <dir>`, no `--ref`; line-1 absolute `toplevel/rel`, byte-identical legacy single-line shape). Local always wins; the fallback never fires over a present file.
-2. **Local path missing** → `git fetch origin <branch>` then probe `git cat-file -e <ref>:<rel>`. Present → `campaign-ledger.mjs add --campaign <dir> --ref <ref>` (the two-line drop records the ref as provenance). Absent → **fail loudly at add time**, naming both locations tried (`<toplevel/rel>` on disk and `<ref>:<rel>`) — not at 3am in the Lead's sweep.
-
-The user-facing invocation is *positional* (`add <plan> [<ref>]`); the Lead translates the positional `[<ref>]` into the helper's `--ref <ref>` flag when it shells out to `campaign-ledger.mjs add`. Same ref, two layers.
+When invoked as `/war-campaign add`, read [references/add-resolution.md](references/add-resolution.md).
 
 Passes `--afk --ace` to `/war` by default for every plan in the queue.
 
@@ -44,11 +38,11 @@ Passes `--afk --ace` to `/war` by default for every plan in the queue.
 
 ## State & resume — spec §7.2
 
-- **Anchor at the main checkout, never the invoking worktree.** All campaign state — the ledger, the inbox, and `CAMPAIGN-STATE.md` — lives under `.claude/campaigns/<id>/` at the **main checkout**, never the invoking worktree's `.claude/`. A campaign Lead usually runs from a session git worktree, which is disposable (`/aftermath` reaps it) and carries its own `.claude/`, so a cwd-relative campaign dir would strand the queue where it cannot outlive the session — reopening the compaction-survival gap ([ADR 0016](../../docs/adr/0016-campaign-compaction-survival.md)). Resolve the main checkout from any linked worktree via `git rev-parse --path-format=absolute --git-common-dir` (the main `.git`'s parent) — e.g. `MAIN=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")`, campaign dir `$MAIN/.claude/campaigns/<id>` — and pass that anchored `<dir>` as `--campaign` in **every** `campaign-ledger.mjs` invocation below (`init`/`add`/`sweep`/`next`/`record`). This anchors the *campaign dir*; it coexists with, and is distinct from, the add-resolution protocol's step-0 `git rev-parse --show-toplevel` anchoring, which anchors the *dropped plan's path* token, not the campaign dir.
+- **Anchor at the main checkout, never the invoking worktree.** All campaign state — the ledger, the inbox, and `CAMPAIGN-STATE.md` — lives under `.claude/campaigns/<id>/` at the **main checkout**, never the invoking worktree's `.claude/` (a per-worktree session would strand the queue — the rationale skills/war/SKILL.md's Run-manifest anchor states). Resolve the main checkout from any linked worktree via `git rev-parse --path-format=absolute --git-common-dir` (the main `.git`'s parent) — e.g. `MAIN=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")`, campaign dir `$MAIN/.claude/campaigns/<id>` — and pass that anchored `<dir>` as `--campaign` in **every** `campaign-ledger.mjs` invocation below (`init`/`add`/`sweep`/`next`/`record`). This anchors the *campaign dir*; it coexists with, and is distinct from, the add-resolution protocol's step-0 `git rev-parse --show-toplevel` anchoring, which anchors the *dropped plan's path* token, not the campaign dir.
 - **Campaign ledger** (`.claude/campaigns/<id>/ledger.json`) — the plan queue + per-plan status/branch/PR/SHA/stop-point. Single-writer (only the campaign Lead's `sweep`/`record` touch it); every write atomic.
 - **Inbox** (`.claude/campaigns/<id>/inbox/`) — the multi-writer add path, one file per plan, maildir-style (atomic by construction, no locks). Only `sweep` drains it.
 - **Roadmap** — authoring input + on-demand snapshot (Rev 1), never the live feed. `init` ingests one. *"I'm switching machines"* → render the ledger out as a committable roadmap, then `init` from it on the new machine. Render/ingest beyond `init` is agent prose using the helper's read surface, not helper code.
-- **Resume** re-reads ledger + inbox + `CAMPAIGN-STATE.md` — the real guarantee. Before trusting the ledger, **reconcile it toward git** (`git ls-remote`, `gh pr view`) — the ADR 0008 discipline. A machine switch is just: render ledger → committable roadmap → `init` on the new machine.
+- **Resume** re-reads ledger + inbox + `CAMPAIGN-STATE.md` — the real guarantee. Before trusting the ledger, **reconcile it toward git** (`git ls-remote`, `gh pr view`) — the ADR 0008 discipline.
 
 ### Checkpoint — CAMPAIGN-STATE.md
 

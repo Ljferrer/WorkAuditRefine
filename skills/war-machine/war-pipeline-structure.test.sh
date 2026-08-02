@@ -18,6 +18,7 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 
 SURVEY="$ROOT/skills/survey-corps/SKILL.md"
 MACHINE="$ROOT/skills/war-machine/SKILL.md"
+MACHINE_AFK="$ROOT/skills/war-machine/references/afk-conversion.md"
 AFTERMATH="$ROOT/skills/aftermath/SKILL.md"
 WAR_SKILL="$ROOT/skills/war/SKILL.md"
 SCAFFOLD="$ROOT/skills/red-team/assets/workflow-scaffold.js"
@@ -180,8 +181,10 @@ has   "$WAR_CAMPAIGN" '--git-common-dir'
 has_i "$WAR_CAMPAIGN" 'main checkout'
 
 printf '\n# Criterion 10 — machine predecessor-consistency, skip-and-report, --afk manifest + closing-commit rules\n'
-has "$MACHINE" 'Predecessor-consistency'
-has "$MACHINE" 'skipped and reported'
+# Predecessor-consistency + skip-and-report were evicted (ADR 0042) to references/afk-conversion.md;
+# guards follow their text (ADR 0025), so these two pins read the references file, not SKILL.md.
+has "$MACHINE_AFK" 'Predecessor-consistency'
+has "$MACHINE_AFK" 'skipped and reported'
 has "$MACHINE" '+ no fresh manifest + no explicit paths'
 has "$MACHINE" 'closing commit'
 has "$MACHINE" 'one commit of the pipeline artifacts'

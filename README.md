@@ -185,7 +185,7 @@ Your backlog is raw material. Before the issue sweep, `/survey-corps` mines both
 /survey-corps [--erwin]
 ```
 
-`--erwin` pauses after clustering so you approve the proposed groups before synthesis. Bare invoke is fully autonomous end to end, so the step stays cron-able.
+`--erwin` adds two human gates: one before filing any mined issue (you approve the drafted batch) and one after clustering (you approve the proposed groups before synthesis). Bare invoke is fully autonomous end to end, so the step stays cron-able.
 
 ### Turn specs into plans (`/war-machine`)
 
