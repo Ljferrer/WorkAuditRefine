@@ -7486,7 +7486,7 @@ const LITERAL_REGISTRY = [
   ["${worktreeRoot || '<worktreeRoot>'}/${runId ", 5],
   ["packaging-floor: skipping ${r.task.id} (requ"],
   ["merge:${r.task.id}`, schema: MERGE_RESULT, ."],
-  ["${r.task.id} touches a submodule; WAR is sin"],
+  ["${r.task.id} touches a submodule; undeclared"],
   ["${isNoTest ? 'add-test' : 'package-it'}:${r."],
   ["${floorMr.status}: re-audit did not approve "],
   ["${floorMr.status}:re-audit-failed`, findings"],

@@ -1296,7 +1296,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // submodule-blocked: immediate hard escalate, 0 fix rounds (refuse-all, like env-blocked).
       // ponytail: reuses existing 'escalate' reason (DP3 — no new HARD_ESCALATION_REASONS member, no land-decision.mjs cascade)
       if (mr && mr.status === 'submodule-blocked') {
-        escalated.push({ task: r.task.id, reason: 'escalate', detail: `${r.task.id} touches a submodule; WAR is single-repo as of v0.7.8` })
+        escalated.push({ task: r.task.id, reason: 'escalate', detail: `${r.task.id} touches a submodule; undeclared submodule touches are refused at merge — declared submodule targets route through the submodule router (paired submodule + gitlink-bump tasks)` })
         auditLog.push({ task: r.task.id, verdict: 'submodule-blocked', findings: [], fixRounds: 0 })
         continue
       }
