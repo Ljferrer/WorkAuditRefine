@@ -7,7 +7,7 @@ metadata:
   provenance: code-verified
   promoted: dev/2026-07-24-memory-tooling-hardening@phase-1
   slug: full-gates-green-end-state-soft-without-threaded-gate-log-artifact
-  phase: "red-team-fallback-and-anchor-hygiene/phase-2 (Release, task 2.1) +8 recurrences (latest audit-evidence-precedence/phase-2 task 2.1 phase-2-end-state gate-audit, 2026-07-28)"
+  phase: "red-team-fallback-and-anchor-hygiene/phase-2 (Release, task 2.1) +9 recurrences (latest audit-evidence-precedence/phase-2 task 2.1 phase-2-end-state gate-audit, 2026-07-28)"
   keywords:
     - full gates green
     - gate-log artifact
@@ -41,11 +41,6 @@ metadata:
   originSessionId: e11422bd-1b49-4d13-9840-37a67306b3f5
   modified: 2026-07-28T21:00:12.524Z
 ---
-
-**Local recurrence copy** of the repo-root lesson at `docs/learnings/full-gates-green-end-state-soft-without-threaded-gate-log-artifact.md`
-(same slug) — the repo copy is not directly editable by a servitor (D1), so this file carries the
-original content plus the new Recurrence 8 below; a future Gate-2 promotion of this file overwrites
-the same-slug repo file.
 
 # "Full gates green" as an end-state condition is SOFT, not HARD, without a threaded gate-log artifact
 
@@ -90,57 +85,17 @@ evidence-ceiling cannot-confirm is SOFT, not a hold). [[servitor-verify-on-write
 stale). [[version-slots-no-cross-slot-consistency-test]] (RESOLVED — the lock-step test this
 condition's structural half relies on).
 
-## Recurrence 1 (2026-07-17, campaign learnings-recipe-drift-sweep, phase 2 "Release", task 2.1)
+## Recurrences 1-3, 5, 9 (2026-07-17 → 2026-07-28) — per-task/version-slot shape, freshness only
 
-Identical pattern, a different campaign and a different release: End state 10 required all four
-version slots to bump in lock-step (`0.14.44` -> `0.14.45`), with `version-slots.test.mjs` named as
-the arbiter. The `phase-2-end-state` gate-audit split the condition exactly as this lesson
-prescribes — a HARD-verified structural Nit ("all four slots read `0.14.45` at the pinned SHA via
-`git show`, moved together in the single release commit") plus a second, SOFT Nit explicitly citing
-this lesson's slug by name in its own rationale ("Per ... the recorded lesson
-full-gates-green-end-state-soft-without-threaded-gate-log-artifact, this is a SOFT note, never a
-hold"). Verdict stayed `approve`, `hard: false`, both findings `disposition: note`.
-
-**Confirms:** an auditing seat citing this lesson by name to justify a SOFT (not HARD) disposition
-is the intended reuse — the pattern generalizes across campaigns/releases as designed, and a future
-auditor doing the same split for a version-slot-bump End-state condition without a threaded
-gate-log/`pin_status` artifact should follow the identical two-finding shape (one HARD structural
-Nit, one SOFT execution-evidence Nit) rather than inventing a new resolution each time.
-
-## Recurrence 2 (2026-07-17, campaign aftermath-class1-gate-evidence, phase 2 "Release", task 2.1)
-
-Third occurrence, same two-finding shape again: End state 10 (`0.14.45` -> `0.14.46`,
-`version-slots.test.mjs` named arbiter), `gate-audit:approve`, `hard:false`, both findings
-`disposition:note`. The HARD structural Nit this time also included an explicit "next free patch
-unclaimed" proof (`refs/tags/0.14.46` does not resolve; `git log -S0.14.46 -- plugin.json` returns
-exactly one commit) and a delete-and-trace confirmation that the arbiter test is non-vacuous — both
-are one-off audit-methodology detail for *this* release, not a new durable pattern (no separate
-lesson written for them). No change to the rule; recorded only to keep the occurrence count/date
-current for retrieval confidence.
-
-## Recurrence 3 (2026-07-24, plan `2026-07-24-land-advance-exit-contract-truth`, phase 2 "Release", task 2.1)
-
-Fourth occurrence, same shape again: this phase's End state 1 required all four version slots in
-lock-step at the next free patch above the live integration base (`0.14.57` -> `0.14.58`,
-`version-slots.test.mjs` named as arbiter). The `phase-2-end-state` gate-audit split the condition
-exactly as prescribed — `gate-audit:approve`, `hard:false`, one Nit/`disposition:note` finding
-covering both halves in one write-up this time (content half ruled MET via direct `git show` at the
-pinned `auditSha`; the "green" half explicitly called SOFT/cannot-confirm because "this pass was
-threaded no pin_status token and no gate-log artifact path").
-
-**`code-verified`** at the landed tip `9cd713f560d0953a4664610eef2b7d02ef292171` (read via the
-`_refinery` worktree matching this SHA, gitdir at
-`.claude/worktrees/2026-07-24-land-advance-exit-contract-truth-2026-07-24/_refinery/` — this
-servitor's own cwd was a stale sibling worktree on a different branch, per
-[[servitor-verify-on-write-worktree-can-lag-just-landed-phase]]): `.claude-plugin/plugin.json`
-`version` and `README.md` `## Status` both read `0.14.58`, and
-`skills/war/assets/version-slots.test.mjs` is present at that path — the structural half is
-directly confirmed, not just audit-log-trusted.
-
-**Confirms:** the two-finding (or, as here, combined single-finding-covering-both-halves) SOFT
-split continues to be the correct, non-escalating resolution across a fourth distinct
-plan/campaign — no drift in the pattern, no new lesson warranted, only occurrence-count/date
-freshness.
+Five further occurrences of the same per-task/version-slot `phase-N-end-state` shape, one per
+plan/campaign (learnings-recipe-drift-sweep; aftermath-class1-gate-evidence;
+`2026-07-24-land-advance-exit-contract-truth`; `2026-07-24-runbook-and-standing-record-coherence`;
+`2026-07-28-audit-evidence-precedence` — slot bumps `0.14.45` → `0.14.68`,
+`version-slots.test.mjs` the named arbiter each time). Each seat split the condition exactly as
+prescribed: structural half HARD-verified at the pinned SHA via `git show`, execution half recorded
+SOFT (no stamped `pin_status` token, no captured gate-log artifact path); verdict stayed
+`gate-audit:approve`, `hard:false`, `disposition:note`. No new nuance — recorded for
+occurrence-count/date freshness only.
 
 ## Recurrence 4 (2026-07-24, plan `2026-07-24-runbook-and-standing-record-coherence`, phase-1-integrated-tip gate-audit)
 
@@ -173,30 +128,6 @@ landed tip `3f136c0327713487768aed59f986b665b07f9cb6` — confirmed present in
 `docs/adr/0024-audit-gate-verdicts-integrated-tip-captured-evidence.md` (read via the `_refinery`
 worktree matching that SHA, gitdir physical path containing this plan's slug —
 `.claude/worktrees/2026-07-24-runbook-and-standing-record-coherence-2026-07-24/_refinery/`).
-
-## Recurrence 5 (2026-07-24/25, plan `2026-07-24-runbook-and-standing-record-coherence`, phase 2 "Release", task 2.1) — back to the per-task/version-slot shape, with self-mitigation spelled out
-
-Fifth occurrence, back to the Recurrences 1-3 per-task/version-slot `phase-N-end-state` shape (not
-the integrated-tip variant of Recurrence 4): End state 10 required all four version slots bumped in
-lock-step to the next free patch (`0.14.59`), `version-slots.test.mjs` named as arbiter. This pass
-carried no stamped `pin_status` token and no captured gate-log artifact path, so the commit body's
-"929/929 pass 0 fail, 26 shell suites" claim is unverified evidence — SOFT, never a hold, per the
-standing rule; verdict stayed `gate-audit:approve`, `hard:false`, `disposition:note`.
-
-**What this occurrence adds:** the auditor's own rationale spelled out its mitigation chain in full
-rather than just citing the rule — confirmed the tip with `git rev-parse`, confirmed
-`git status --porcelain` empty in the `_refinery` worktree, and read all four slots directly from
-the pinned blobs (all `0.14.59` bare semver, `## Releasing` section satisfying both the absence key
-and the presence key). `code-verified` at the landed tip `3444016a48a3d97b5beb21fc9700bd7fa788272d`
-(gitdir physical path containing this plan's slug:
-`.claude/worktrees/2026-07-24-runbook-and-standing-record-coherence-2026-07-24/_refinery/`):
-`.claude-plugin/plugin.json` `version`, `.claude-plugin/marketplace.json` `metadata.version` and
-`plugins[0].version`, and the README `## Status` line all read `0.14.59` at that tip, and
-`skills/war/assets/version-slots.test.mjs` is present.
-
-**Confirms:** the SOFT-never-hold disposition for this exact End-state shape now holds across five
-occurrences and two campaigns; the mechanical-half-confirmable / execution-half-SOFT split is
-stable and needs no further pattern refinement, only occurrence-count freshness.
 
 ## Recurrence 6 (2026-07-26, plan `2026-07-24-gate-evidence-and-release-integrity`, phase 2 "Release", task 2.1) — sixth occurrence, End state 11
 
@@ -300,24 +231,3 @@ mapped-file divergence) is the operative test for whether a HEAD-advanced gate-a
 mitigate its way back to HARD (BENIGN-ADVANCE: yes, via committed-tree grounding) or must stay SOFT
 (STALE-MISMATCH: the mapped file itself is what's in question).
 
-## Recurrence 9 (2026-07-28, plan `2026-07-28-audit-evidence-precedence`, phase 2 "Release", task 2.1 phase-2-end-state gate-audit) — ninth occurrence, back to the per-task/version-slot shape
-
-Ninth occurrence, the same per-task/version-slot `phase-N-end-state` shape as Recurrences 1/3/5/6:
-End state 9 required all four release slots bumped in lock-step to the next free patch above the
-live base (`0.14.67` -> `0.14.68`), `version-slots.test.mjs` named as arbiter. The seat split the
-condition exactly as prescribed: content half HARD-verified MET (`git show` at the confirmed
-`auditSha` `9f35c6a9249a5d162e43fd27a59ebeaeacb56a44` — all four slots read `0.14.68`, the 50-commit
-first-parent monotonic-floor window strictly ascending `0.14.19` -> `0.14.68`, README `## Status`
-extraction anchor resolves, `## Releasing` byte-identical across the phase); execution half recorded
-SOFT — "no stamped `pin_status` and no captured gate-log artifact path... the residual 'the suite
-actually ran green' is inference, not gate evidence." Verdict `gate-audit:approve`, `hard:false`,
-`gateEvidence:true`, both findings `disposition:note`.
-
-**Confirms:** the SOFT-never-hold split for this End-state shape now holds across nine occurrences
-and five-plus campaigns; no new nuance, recorded for occurrence-count/date freshness only.
-
-Related: [[deliberately-uncommitted-worker-probe-evidence-is-soft-never-hold]] (same family: an
-evidence-ceiling cannot-confirm is SOFT, not a hold). [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]]
-(how the four release slots were independently re-verified after this servitor's own cwd proved
-stale). [[version-slots-no-cross-slot-consistency-test]] (RESOLVED — the lock-step test this
-condition's structural half relies on).

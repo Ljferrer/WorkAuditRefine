@@ -1,8 +1,10 @@
 ---
-name: ""
+name: drift-guard-pin-for-task-split-intermediate-state
+description: "Sanctioned task-split diverging a mirror: pin drift-guard to current-correct intermediate value + TODO(TaskN)"
 metadata: 
   node_type: memory
   type: project
+  provenance: code-verified
   keywords: [transient divergence, canonical export, inline literal, deepEqual mirror, TODO comment, temporary green gate]
   slug: drift-guard-pin-for-task-split-intermediate-state
   phase: clandiso/phase-2

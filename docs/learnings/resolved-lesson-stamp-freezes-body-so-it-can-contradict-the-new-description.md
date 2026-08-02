@@ -40,8 +40,8 @@ see [[tighten-target-flag-has-three-independent-silent-degradation-paths]]'s sup
 which prescribed exactly the bare-`Number()` shape the real fix avoids), and keeps stale line-number
 anchors, all while the description now says the defect is closed. Both instances observed in
 `memory-tooling-hardening/phase-1`
-(`docs/learnings/tighten-target-flag-has-three-independent-silent-degradation-paths.md`,
-`docs/learnings/die-process-exit-inside-try-skips-finally-cleanup.md`) were correctly audited as
+(`docs/learnings/archive/tighten-target-flag-has-three-independent-silent-degradation-paths.md`,
+`docs/learnings/archive/die-process-exit-inside-try-skips-finally-cleanup.md`) were correctly audited as
 Nit/`disposition:note`, non-blocking, and explicitly NOT treated as worker deviations — the plan's
 own scope-freeze mandated the frozen body, so touching it would have been the deviation.
 
@@ -50,8 +50,8 @@ correction channel, not the body — and it's also the only field the `MEMORY.md
 (truncated at `SUMMARY_CELL_BYTES`), so a description-prefix-first `RESOLVED (...)` marker is what
 stays visible to a future reader scanning the index, even truncated. A servitor or a later
 housekeeping pass is the sanctioned place to reconcile the body, mirroring the existing convention
-already used by prior stamps (e.g. `docs/learnings/cli-main-guard-equality-check-silently-noops-under-relative-invocation.md`,
-`docs/learnings/tighten-plan-target-flag-does-not-lower-fixed-warn-bytes-preflight-stop.md`): append a
+already used by prior stamps (e.g. `docs/learnings/archive/cli-main-guard-equality-check-silently-noops-under-relative-invocation.md`,
+`docs/learnings/archive/tighten-plan-target-flag-does-not-lower-fixed-warn-bytes-preflight-stop.md`): append a
 `## RESOLVED (...)` section below the frozen historical prose rather than editing the historical prose
 in place, and mark any now-wrong embedded prescription as superseded inline.
 

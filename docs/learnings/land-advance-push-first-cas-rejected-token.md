@@ -26,8 +26,6 @@ metadata:
 
 **Exit contract:** 0 = pushed + local CAS ok; 2 = `[rejected]` seen, another run won — reland; 3 = any other failure, an unresolvable HEAD/<new-sha>, or origin != new_sha after push — escalate / land_stale; 6 = wrong-HEAD precheck refusal (invoked from a worktree whose HEAD is not the merge sha) — nothing pushed, local and origin refs untouched, never a reland.
 
-**Spec residual:** `docs/specs/2026-06-25-concurrent-run-land-isolation-design.md` §5.3 still shows the superseded bare-SHA push + `non-fast-forward` classification; the code is authoritative.
-
 **Why:** keying on the wrong token misroutes CAS losses between reland and escalate.
 **How to apply:** wire callers to the 0/2/3/6 contract from the script's header comment; trust only `[rejected]` + exit codes.
 Related: [[phase-land-stale-spurious-cas-recovery]], [[land-local-follower-ref-can-lag-sync-before-next-phase]]

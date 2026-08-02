@@ -34,8 +34,9 @@ spurious `held:escalation` land-halt.
 
 **Distinguisher:** `gateHeadSha === auditSha` → take the gate result at face value. Pin lags →
 confirm `merge-base --is-ancestor`, then hand-verify the disputed construct at the real tip via
-`git show <sha>:<path>` (bracketed `git -C` forms are guard-blocked —
-[[gate-audit-pin-bracket-test-blocked-by-git-guard]]). requiresTest:false/release tasks have no
+`git show <sha>:<path>` (`validate-auditor-git.sh` now peels one read-only global `-C <path>`, so
+`git -C <path> show <sha>:<path>` is permitted —
+[[guard-c-peel-resolves-pin-blocker-but-scoped-to-read-verbs-only]]). requiresTest:false/release tasks have no
 mapped-test HARD path → SOFT (Minor/Nit) at most; for releases hand-verify the four version slots
 ([[release-bump-slots-canonical-no-badge]]).
 

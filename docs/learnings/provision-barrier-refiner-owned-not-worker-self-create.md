@@ -1,8 +1,10 @@
 ---
-name: ""
+name: provision-barrier-refiner-owned-not-worker-self-create
+description: "Worktree provisioning is a refiner-owned Provision barrier before worker fan-out; workers never self-create"
 metadata: 
   node_type: memory
   type: project
+  provenance: code-verified
   keywords: [happens-before ordering, git worktree add, fan-out race, idempotent ensure, shared git state, WAR_WORKTREE export, resume no-op]
   slug: provision-barrier-refiner-owned-not-worker-self-create
   phase: 3
@@ -47,9 +49,11 @@ This is a barrier (a hard happens-before), not just an ordering preference: the 
 
 ## Carry-forward contracts the barrier MUST honor (from Phase 2 coven)
 
-- **ensure-exclude runs FROM THE MAIN CHECKOUT, never inside a task worktree** — it resolves its
-  target repo from cwd (see `[[provision-ensure-exclude-cwd-contract]]`). The barrier prompt pins
-  this explicitly with `${mainCheckout}`.
+- **ensure-exclude runs FROM THE MAIN CHECKOUT, never inside a task worktree** — it no longer
+  resolves its target from cwd: the main checkout is passed explicitly as the optional `<repo-dir>`
+  positional, and the write lands in that repo's git dir regardless of the caller's cwd (see
+  `[[provision-ensure-exclude-cwd-contract]]`). The barrier prompt pins this explicitly with
+  `${mainCheckout}`.
 - **ensure-integration is passed `--owned-file <run-ledger>`** so a resume recognizes its own
   integration branch as owned; a foreign unrecorded branch exits 3 / fails loud
   (see `provision-ownership-ledger-gates-create-not-teardown`).
