@@ -302,5 +302,14 @@ has_i "$AFTERMATH" 'hold set must survive'
 has_i "$AFTERMATH" 'before declaring the run clean'
 has   "$AFTERMATH" ':refs/heads/'
 
+printf '\n# ADR 0030 grep-as-floor — survey-corps Step 4 carries the manual-survey note (second authoring surface)\n'
+# ADR 0030 mandates the grep-as-floor doctrine on BOTH authoring surfaces: war-strategy's copy is
+# pinned by war-strategy-structure.test.sh; this pins the survey-corps Step 4 copy (previously
+# un-pinned — deleting it passed every test; 2026-08-02 minimalism-audit follow-up, PR #1236).
+# Named, not numbered: the original pipeline spec owns the numbered criteria. has_i because the
+# anchor is PROSE (the recorded sentence-case class); it occurs exactly once in the SKILL, inside
+# the Step 4 note, so the whole-file pin discriminates that note alone.
+has_i "$SURVEY" 'manual same-scope title/comment survey'
+
 printf '\n== war-pipeline-structure: %s failure(s) ==\n' "$fails"
 exit $fails
