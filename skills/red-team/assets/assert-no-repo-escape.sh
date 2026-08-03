@@ -133,9 +133,11 @@ done
 [ -n "$repo_dir" ] || die "usage: $PROG --repo <abs-repo-dir> [--snapshot <abs-file> | --baseline <abs-file>]" 2
 
 # Reject .. traversal (universal guard rule; mirrors siblings). Extended to the
-# artifact flags: the containment prefix-compare below is a literal compare, so
-# an ABSOLUTE path carrying '..' could step out of (or into) the repo tree
-# without the compare ever seeing it.
+# artifact flags: the containment compare below resolves the artifact's PARENT
+# physically (pwd -P), so a '..' in the directory portion is normalized away
+# before the compare ever sees it — but a '..' BASENAME, and any path whose
+# parent cannot be resolved, are not covered by that resolution. Refusing '..'
+# outright keeps the rule uniform with --repo and the sibling floors.
 case "$repo_dir" in
   *..*) die "repo argument contains '..'; refusing unsafe path: $repo_dir" 2 ;;
 esac

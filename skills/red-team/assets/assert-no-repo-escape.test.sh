@@ -54,9 +54,10 @@
 #   18. '..' inside an ABSOLUTE --snapshot / --baseline path -> exit 2 (the traversal
 #       refusal, extended to both new flags)
 #   REF-DIFF (check mode with --baseline):
-#   19. identical pre/post ref set + clean tree -> exit 0
+#   19. identical pre/post ref set + clean tree -> exit 0, and the no-baseline stderr
+#       advisory is ABSENT under --baseline
 #   20. #1244 DEMONSTRATED RED (half 1): pattern-slipping `rogue` branch, NO --baseline
-#       -> exit 0 with the stderr advisory present
+#       -> exit 0 with the stderr advisory present exactly once
 #   21. #1244 DEMONSTRATED RED (half 2): same fixture WITH --baseline -> exit 1
 #   22. moved sibling-branch SHA -> exit 1
 #   23. deleted ref -> exit 1
@@ -129,7 +130,8 @@ run_guard_args() {
 
 # run_guard_err <stderr-file> <args...>: like run_guard_args, but the guard's stderr is
 # kept at <stderr-file> for inspection. Both other runners DISCARD all output, so the
-# advisory assertion (case 20) is only possible through this variant.
+# advisory assertions (absent in case 19, present exactly once in case 20) are only
+# possible through this variant.
 run_guard_err() {
   _errf="$1"; shift
   _cwd="$(fresh_cwd)"
@@ -460,15 +462,22 @@ fi
 
 # ---------------------------------------------------------------------------
 # Case 18: '..' inside an ABSOLUTE artifact path -> exit 2, on both new flags.
-# Non-vacuity: these paths are absolute AND resolve outside the repo, so containment
-# alone lets them through — only the extended traversal refusal catches them. Drop
-# either new `case ... *..*` arm from the guard and the matching half flips to 0/2's
-# opposite. (Case 6 pins the same rule on --repo.)
+# Non-vacuity: both paths are absolute AND resolve outside the repo, so containment
+# alone lets them through — only the extended traversal refusal catches them. The
+# --baseline path resolves (via '..') to a REAL snapshot of this very repo: point it
+# at a missing file instead and this half passes for the wrong reason — the
+# missing-baseline die (case 26) supplies the same 2 (case 17's own warning, applied
+# to the sibling flag). Drop either new `case ... *..*` arm from the guard and the
+# matching half flips 2 -> 0: the snapshot half writes its file, the baseline half
+# reads its snapshot and the clean ref-diff passes. (Case 6 pins the same rule on
+# --repo.)
 # ---------------------------------------------------------------------------
 R18="$(setup_repo)"
 _out18="$(fresh_cwd)"
 rc18a="$(run_guard_args --repo "$R18" --snapshot "$_out18/../traversal-snap.txt")"
-rc18b="$(run_guard_args --repo "$R18" --baseline "$_out18/../traversal-base.txt")"
+SNAP18="$(artifact_path base.txt)"
+take_snapshot "$R18" "$SNAP18" "case 18"
+rc18b="$(run_guard_args --repo "$R18" --baseline "$(dirname "$SNAP18")/../$(basename "$(dirname "$SNAP18")")/base.txt")"
 if [ "$rc18a" -eq 2 ] && [ "$rc18b" -eq 2 ]; then
   pass "case 18: '..' in an absolute --snapshot/--baseline path -> exit 2 (both flags)"
 else
@@ -483,15 +492,22 @@ fi
 # Case 19: identical pre/post ref set + clean tree + --baseline -> exit 0. The
 # no-false-positive floor: without this, an always-escaping diff would pass every
 # other ref-diff case in this suite.
+# Also the advisory's NEGATIVE half (case 20 pins the positive): with --baseline
+# passed, the no-baseline stderr advisory must be ABSENT — a regression widening
+# the sole emit site's `[ -z "$baseline_file" ]` guard would otherwise tell a Lead
+# who DID pass a baseline that the ref checks are only a name heuristic.
 # ---------------------------------------------------------------------------
 R19="$(setup_repo)"
 SNAP19="$(artifact_path snap.txt)"
 take_snapshot "$R19" "$SNAP19" "case 19"
-rc19="$(run_guard_args --repo "$R19" --baseline "$SNAP19")"
-if [ "$rc19" -eq 0 ]; then
-  pass "case 19: unchanged ref set + clean tree + --baseline -> exit 0"
-else
+ERR19="$(artifact_path stderr19.txt)"
+rc19="$(run_guard_err "$ERR19" --repo "$R19" --baseline "$SNAP19")"
+if [ "$rc19" -ne 0 ]; then
   fail "case 19: unchanged ref set + --baseline -> expected exit 0, got $rc19"
+elif grep -q 'advisory' "$ERR19"; then
+  fail "case 19: --baseline mode must NOT emit the no-baseline advisory; stderr was: $(cat "$ERR19")"
+else
+  pass "case 19: unchanged ref set + clean tree + --baseline -> exit 0, advisory absent"
 fi
 
 # ---------------------------------------------------------------------------
@@ -517,10 +533,12 @@ if [ "$rc20" -ne 0 ]; then
   fail "case 20: pattern-slipping ref without --baseline -> expected exit 0 (the recorded miss), got $rc20"
 elif ! grep -q 'advisory' "$ERR20"; then
   fail "case 20: no-baseline check mode must emit the stderr advisory; stderr was: $(cat "$ERR20")"
+elif [ "$(grep -c 'advisory' "$ERR20")" -ne 1 ]; then
+  fail "case 20: the advisory must be emitted exactly ONCE; stderr was: $(cat "$ERR20")"
 elif ! grep -q -- '--baseline' "$ERR20"; then
   fail "case 20: the advisory must name the --baseline upgrade; stderr was: $(cat "$ERR20")"
 elif grep -qi 'heuristic' "$ERR20"; then
-  pass "case 20: #1244 repro without --baseline -> exit 0 + advisory (heuristic ceiling + --baseline)"
+  pass "case 20: #1244 repro without --baseline -> exit 0 + advisory once (heuristic ceiling + --baseline)"
 else
   fail "case 20: the advisory must name the heuristic ceiling; stderr was: $(cat "$ERR20")"
 fi
