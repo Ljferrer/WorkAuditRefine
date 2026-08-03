@@ -138,14 +138,32 @@ export function classify(findings) {
   }
 }
 
-// Compute the gate over the currently-OPEN findings (the Lead removes resolved ones
-// during the grill loop). BLOCKED = work remains; loop until it is not BLOCKED.
+// Compute the gate over the currently-OPEN findings. Precedence, highest first:
+//   INCOMPLETE  — a coverage gap; fail-closed and never waivable, it outranks every arm below.
+//   BLOCKED     — at least one blocker/needsDecision the Lead has NOT adjudicated; work remains.
+//   ADJUDICATED — every blocker/needsDecision carries the flag, and there is at least one.
+//   CLEARED-WITH-NOTES — no blocker/needsDecision, minors only.
+//   CLEARED     — nothing open at all.
+// Stamp-vs-remove (the grill loop's two exits): a blocker the Lead re-verified by RE-RUNNING the
+// probe that measured it is REMOVED from the finding set — probe-proven, so CLEARED stays
+// reachable. A blocker that was patched but not re-verified is STAMPED adjudicated: true in the
+// Lead's working copy of the gate input and re-piped, NEVER removed — the report still lists it
+// and the run terminates ADJUDICATED instead of a fake CLEARED reached by deleting findings.
+// The flag is read HERE only: classify() bucketing is untouched, so an adjudicated blocker still
+// appears in `blockers`. Strict === true (the deliverableAbsence/envGap typed-flag pattern) — the
+// gate does NO NLP on finding text. The scan is scoped to the blockers + needsDecision union
+// ONLY; `minors` are never scanned, so an unstamped Minor note never holds the verdict (real
+// reports routinely carry Minor notes and the Lead stamps only blockers/needsDecision). A run
+// with zero blockers and zero needsDecision therefore can never be ADJUDICATED.
 // `coverage` (optional) is the classifyCoverage result. Incomplete coverage is fail-closed:
 // the gate NEVER returns CLEARED while a probe was off-target, dropped, or never ran.
 export function verdict(findings, coverage = null) {
   if (isIncomplete(coverage)) return 'INCOMPLETE'
   const { blockers, needsDecision, minors } = classify(findings)
-  if (blockers.length || needsDecision.length) return 'BLOCKED'
+  // A finding in both buckets appears twice; membership, not count, is what is read here.
+  const open = [...blockers, ...needsDecision]
+  if (open.some(f => f.adjudicated !== true)) return 'BLOCKED'
+  if (open.length) return 'ADJUDICATED'
   return minors.length ? 'CLEARED-WITH-NOTES' : 'CLEARED'
 }
 
@@ -177,6 +195,13 @@ export function summarize(results, coverage = null) {
 // Accepted input shapes: [...probeResults] | { probeResults: [...], ... } | a task-output envelope
 // { result: { probeResults: [...] } } (one .result level, auto-unwrapped; a top-level probeResults
 // wins). Zero probe results -> exit 1, no verdict (a verification that did not run may not pass).
+// The emitted verdict follows verdict()'s precedence above: INCOMPLETE > BLOCKED > ADJUDICATED >
+// CLEARED-WITH-NOTES > CLEARED. To settle a patched-but-not-re-verified blocker the Lead stamps
+// adjudicated: true on that finding in a WORKING COPY of the gate input (never in the persisted
+// task-output file, which is evidence) and re-pipes the copy through --stdin; because a top-level
+// probeResults wins over a .result envelope, the stamped copy is never shadowed by the original.
+// Findings are removed from the input only when a re-run probe proved them resolved — the verdict
+// on stdout is always gate-computed, never hand-written.
 async function main(argv) {
   const args = argv.slice(2)
   let raw

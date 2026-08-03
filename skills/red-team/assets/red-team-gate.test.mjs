@@ -507,3 +507,93 @@ test('D7(b): the two-contract sentence is pinned in BOTH workflow-scaffold.js an
     assert.match(text, /demotes/, `${name} lost the gate-side demotion contract (only pass demotes)`)
   }
 })
+
+// --- Task 1 (#1257): the adjudicated arm — a typed flag read by verdict() ONLY ----------------
+// A blocker the Lead patched and rowed in the report's adjudication table but did NOT re-verify
+// with a re-run probe. It is STAMPED, never removed: it stays in `blockers` so the report still
+// shows it, and only verdict() reads the flag. Mirrors the DA/EG typed-flag suite shape.
+const ADJ = (over = {}) => ({ severity: 'Critical', claim: 'patched at grill time', planRef: 'Task 1', adjudicated: true, ...over })
+// One non-pass probe carrying the given findings — the shape every fixture below shares.
+const openFindings = (...findings) => allFindings([{ probe: 'p', status: 'fail', findings }])
+
+test('adj: every blocker carries the flag → the adjudicated verdict, and classify() still lists them', () => {
+  const findings = openFindings(ADJ(), ADJ({ severity: 'Major', planRef: 'Task 2' }))
+  assert.equal(classify(findings).blockers.length, 2, 'bucketing is unchanged — the report must still show adjudicated blockers')
+  assert.equal(verdict(findings), 'ADJUDICATED')
+})
+
+test('adj: one unadjudicated blocker beside adjudicated ones → BLOCKED', () => {
+  const findings = openFindings(ADJ(), ADJ({ adjudicated: undefined, planRef: 'Task 2' }))
+  assert.equal(verdict(findings), 'BLOCKED')
+})
+
+test('adj: an adjudicated needsDecision settles the gate via the needsDecision bucket', () => {
+  const findings = openFindings(ADJ({ severity: 'Minor', needsDecision: true }))
+  const c = classify(findings)
+  assert.equal(c.blockers.length, 0, 'severity Minor — it is in the union via needsDecision, not blockers')
+  assert.equal(c.needsDecision.length, 1)
+  assert.equal(verdict(findings), 'ADJUDICATED')
+})
+
+test('adj: an UNadjudicated needsDecision holds the gate at BLOCKED even beside adjudicated blockers', () => {
+  const findings = openFindings(ADJ(), { severity: 'Minor', claim: 'open question', planRef: 'Task 3', needsDecision: true })
+  assert.equal(verdict(findings), 'BLOCKED')
+})
+
+test('adj: zero blockers + an ADJUDICATED Minor note → CLEARED-WITH-NOTES, never the adjudicated verdict', () => {
+  // The Minor carries the flag deliberately (red-team adjudication 6): worded WITHOUT it this pin
+  // is vacuous — an implementation that reads the flag over ALL findings instead of the
+  // blockers+needsDecision union passes it, and then a zero-blocker run reports the adjudicated
+  // verdict. With the flag on the Minor, that implementation is red here.
+  const findings = openFindings(ADJ({ severity: 'Minor' }))
+  assert.equal(classify(findings).blockers.length, 0)
+  assert.equal(classify(findings).minors.length, 1)
+  assert.equal(verdict(findings), 'CLEARED-WITH-NOTES')
+})
+
+test('adj: adjudicated blockers + an UNSTAMPED Minor note → still adjudicated (minors are never scanned)', () => {
+  // Red-team adjudication 10: the sibling fixture above is not enough on its own. An
+  // implementation gated on the union but running the unadjudicated scan over the union PLUS the
+  // minors passes every other pin here and the standing suite, while making the arm unreachable in
+  // practice — real reports routinely carry Minor notes and the Lead stamps only
+  // blockers/needsDecision, so one unstamped note would pin the run at BLOCKED forever.
+  const findings = openFindings(ADJ(), { severity: 'Minor', claim: 'unstamped note', planRef: 'Task 9' })
+  assert.equal(classify(findings).minors.length, 1, 'the unstamped note is a live Minor, not swallowed')
+  assert.equal(verdict(findings), 'ADJUDICATED')
+})
+
+test("adj: strict === true — the string 'true' and false are both untagged (delete-and-trace)", () => {
+  assert.equal(verdict(openFindings(ADJ())), 'ADJUDICATED')
+  assert.equal(verdict(openFindings(ADJ({ adjudicated: 'true' }))), 'BLOCKED', "a truthy non-boolean must not settle the gate — the check is === true")
+  assert.equal(verdict(openFindings(ADJ({ adjudicated: false }))), 'BLOCKED')
+  assert.equal(verdict(openFindings(ADJ({ adjudicated: undefined }))), 'BLOCKED', 'the identical Critical without the flag is a genuine open blocker')
+})
+
+test('adj: no flag anywhere → the pre-change verdict table, unchanged', () => {
+  // Deliberately the OLD table: a finding set carrying no flag must land exactly where it lands
+  // today, so the new arm is reachable only by an explicit stamp.
+  assert.equal(verdict([]), 'CLEARED')
+  assert.equal(verdict([F('Minor')]), 'CLEARED-WITH-NOTES')
+  assert.equal(verdict([F('Major')]), 'BLOCKED')
+  assert.equal(verdict([F('Critical')]), 'BLOCKED')
+  assert.equal(verdict([F('Minor', { needsDecision: true })]), 'BLOCKED')
+  const cov = classifyCoverage([onResult('a'), droppedMarker('b')], 2, FP, '/repo')
+  assert.equal(verdict(allFindings(cov.onTarget), cov), 'INCOMPLETE')
+})
+
+test('adj: a coverage gap outranks the adjudicated arm — the SAME finding set settles both ways', () => {
+  const adjudicatedProbe = {
+    probe: 'a', technique: 'analyzed', status: 'fail', read_anchor: anchor(), findings: [ADJ()],
+  }
+  const complete = classifyCoverage([adjudicatedProbe], 1, FP, '/repo')
+  const incomplete = classifyCoverage([adjudicatedProbe, droppedMarker('b')], 2, FP, '/repo')
+  // ONE finding set, piped through verdict() twice. The adjudicated blocker rides an ON-TARGET
+  // probe under both coverage objects — the gap is a second, DROPPED probe — so neither read can
+  // pass vacuously by discarding the blocker as off-target, and the pair reds under any wrong
+  // precedence order (the incomplete read would settle on the adjudicated arm instead).
+  const findings = allFindings(complete.onTarget)
+  assert.equal(classify(findings).blockers.length, 1, 'the adjudicated blocker survives into both reads')
+  assert.deepEqual(allFindings(incomplete.onTarget), findings)
+  assert.equal(verdict(findings, incomplete), 'INCOMPLETE')
+  assert.equal(verdict(findings, complete), 'ADJUDICATED')
+})
