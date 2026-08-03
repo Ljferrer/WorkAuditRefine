@@ -28,7 +28,7 @@ metadata:
     - repo-global branch
     - rogue rogue2
   originSessionId: 0ad881e1-4bbc-43c6-8e45-8597d9cec1cf
-  modified: 2026-07-28T01:08:03.481Z
+  modified: 2026-08-03T09:24:57.064Z
 ---
 
 # A red-team sandbox escape's file restore does not undo the branches the probe created
@@ -55,10 +55,8 @@ Provision, not a resume that re-hits the same foreign ref).
 
 **Why the restore looked complete but wasn't:** the escape guard's own check is a *working-tree*
 diff/dirty-file check (confirms the disposable repo's tracked+untracked file state matches the
-pinned base) — its ref-enumeration step (`assert-no-repo-escape.sh`) only matches the junk-name
-pattern `refs/heads/redteam-*|*-sandbox-*`, which probe-invented names like `rogue`/`rogue2` slip
-past, so a clean check after `reset --hard` reads as "fully restored" even though new refs survive
-untouched.
+pinned base) — it has no branch-enumeration step, so a clean `git status` after `reset --hard` reads
+as "fully restored" even though new refs survive untouched.
 
 **How to apply:** after diagnosing and containing any red-team sandbox escape (any probe that
 touches git state — branches, tags, refs — not just files), run `git branch --list` (scoped to the
@@ -72,3 +70,20 @@ when that discipline slips.
 Related: [[provision-nonidempotent-orphan-integration-branch-blocks-relaunch]] (same failure
 signature — orphan/foreign integration branch blocks Provision — different root cause: a
 non-idempotent provision step there, a red-team sandbox escape here); [[provision-barrier-refiner-owned-not-worker-self-create]].
+
+## Mitigated — phase 2 of `2026-08-02-redteam-doctrine-and-guards` (2026-08-02)
+
+The underlying isolation-idiom hazard this incident traced to is now named and fixed at the
+mechanism level (End state 18 of that phase): `code-verified` at the landed tip
+`06efa2b925caec1fafd1f019e32e32517e114250`, `skills/red-team/assets/workflow-scaffold.js`'s
+SCOPE-LOCK preamble and `skills/red-team/SKILL.md` Step 3 both now prescribe `git clone
+--no-hardlinks` whenever a probe runs `git` at all — the only idiom verified to stay isolated even
+when the target is itself a linked worktree — and name the two unsafe forms explicitly (`cp -R`
+against a linked worktree copies the `.git` pointer file, not a real repo; a bare, non-`--detach`
+`git worktree add` writes a real branch into the target's shared ref store that survives `rm -rf`).
+The escape guard's ref-diff (`--baseline` mode) would now also catch a residual branch left this
+way, on top of the sandbox-idiom fix. This does not retroactively confirm this specific incident's
+resolution (still unconfirmed per the note above) — it confirms the *class* of hazard this incident
+belongs to (a "sandbox" that isn't actually isolated from the real repo's git state) is now a
+documented, guarded pattern rather than a recurrence trap. Full detail:
+[[cp-r-and-bare-worktree-add-do-not-isolate-a-sandbox-from-a-linked-worktree-target]].
