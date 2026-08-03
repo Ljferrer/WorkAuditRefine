@@ -1,12 +1,27 @@
 #!/usr/bin/env bash
-# Tests for assert-no-repo-escape.sh — /red-team post-run sandbox-escape guard.
+# Tests for assert-no-repo-escape.sh — /red-team sandbox-escape guard (both modes).
 #
 # Each case runs from a fresh mktemp cwd (memory relative-path-test-needs-clean-cwd)
-# against a fresh temp git repo. macOS bash 3.2.57 compatible.
+# against a fresh temp git repo. Snapshot/baseline artifacts are ALWAYS created in a
+# separate mktemp dir (artifact_path below), never inside the target repo's working
+# tree — the guard refuses an in-tree artifact (cases 14/15) precisely because such a
+# file would false-trip its own porcelain check. macOS bash 3.2.57 compatible.
 #
 # Exit 0 = all cases passed; non-zero = at least one failed.
 #
+# Residual detection ceilings — mirrors the script's ponytail. No case below can
+# assert these away; they are recorded so a reader does not mistake the suite's green
+# for total coverage:
+#   • b2 origin-side: a probe pushing an INVENTED (non-pattern) ref name to origin
+#     still slips, because the ref-diff half is deliberately local-only.
+#   • Pattern-slipping refs that PREDATE the first baselined run: already present when
+#     the snapshot is taken, so the diff baselines them as legitimate.
+#   • Gitignored leak paths: `git status --porcelain` does not report ignored files, so
+#     such a leak is invisible to check (a), to the snapshot-mode pre-run refusal, and
+#     to the ref-diff alike.
+#
 # Cases:
+#   CHECK MODE — pre-existing behavior (byte-equivalent without --baseline):
 #   1.  clean repo (no origin) -> exit 0
 #   2.  stray working-tree file (porcelain non-empty) -> exit 1
 #   3a. junk LOCAL ref matching refs/heads/redteam-* -> exit 1
@@ -26,6 +41,30 @@
 #   10. CALL-SITE LOCK: every `die "..."` invocation in the guard (definition and
 #       comment lines excluded) passes an explicit exit code — the §4.4 one-time
 #       manual sweep made a permanent standing guard.
+#   SNAPSHOT MODE (--snapshot):
+#   11. clean repo -> exit 0, and the file carries "<refname> <objectname>" lines
+#   12. PRE-RUN REFUSAL (ref arm): a b1-pattern local ref already present -> exit 1,
+#       and NO snapshot file is written (residue is never laundered into a baseline)
+#   13. PRE-RUN REFUSAL (porcelain arm): a stray working-tree file -> exit 1, no file
+#   ARGUMENT / CONTAINMENT LAYER (runs before any check):
+#   14. --snapshot resolving inside the --repo working tree -> exit 2
+#   15. --baseline resolving inside the --repo working tree -> exit 2
+#   16. relative --snapshot path -> exit 2
+#   17. --snapshot combined with --baseline -> exit 2 (usage error)
+#   18. '..' inside an ABSOLUTE --snapshot / --baseline path -> exit 2 (the traversal
+#       refusal, extended to both new flags)
+#   REF-DIFF (check mode with --baseline):
+#   19. identical pre/post ref set + clean tree -> exit 0
+#   20. #1244 DEMONSTRATED RED (half 1): pattern-slipping `rogue` branch, NO --baseline
+#       -> exit 0 with the stderr advisory present
+#   21. #1244 DEMONSTRATED RED (half 2): same fixture WITH --baseline -> exit 1
+#   22. moved sibling-branch SHA -> exit 1
+#   23. deleted ref -> exit 1
+#   24. NAMESPACE EXCLUSION: a refs/remotes/* delta -> exit 0
+#   25. NAMESPACE INCLUSION: a created refs/tags/* ref -> exit 1
+#   26. --baseline pointing at a missing file -> exit 2 (asserted != 1)
+#   27. ORDERING: a missing --baseline on a repo that WOULD escape -> exit 2, not 1
+#       (an infra fault is never preempted by an escape conclusion)
 set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -66,12 +105,47 @@ fresh_cwd() {
   printf '%s\n' "$C"
 }
 
+# artifact_path <name>: an ABSOLUTE path for a snapshot/baseline file, inside a fresh
+# mktemp dir — by construction outside every target repo's working tree, which the
+# guard's containment check requires (cases 14/15 pin the refusal of an in-tree one).
+artifact_path() { printf '%s/%s\n' "$(fresh_cwd)" "$1"; }
+
 # run_guard <repo>: run the guard from a clean cwd; echo the exit code.
 run_guard() {
   _cwd="$(fresh_cwd)"
   _rc=0
   ( cd "$_cwd" && bash "$SCRIPT" --repo "$1" ) >/dev/null 2>&1 || _rc=$?
   printf '%s\n' "$_rc"
+}
+
+# run_guard_args <args...>: run_guard's arbitrary-argument sibling (run_guard is fixed to
+# the --repo-only form the pre-existing cases use). Echoes the exit code; output discarded.
+run_guard_args() {
+  _cwd="$(fresh_cwd)"
+  _rc=0
+  ( cd "$_cwd" && bash "$SCRIPT" "$@" ) >/dev/null 2>&1 || _rc=$?
+  printf '%s\n' "$_rc"
+}
+
+# run_guard_err <stderr-file> <args...>: like run_guard_args, but the guard's stderr is
+# kept at <stderr-file> for inspection. Both other runners DISCARD all output, so the
+# advisory assertion (case 20) is only possible through this variant.
+run_guard_err() {
+  _errf="$1"; shift
+  _cwd="$(fresh_cwd)"
+  _rc=0
+  ( cd "$_cwd" && bash "$SCRIPT" "$@" ) >/dev/null 2>"$_errf" || _rc=$?
+  printf '%s\n' "$_rc"
+}
+
+# take_snapshot <repo> <snap-file> <case-label>: pre-run snapshot for a ref-diff case. A
+# nonzero here is a bad FIXTURE, not the behavior under test, so it is reported against
+# that case rather than silently producing a vacuous baseline.
+take_snapshot() {
+  _snap_rc="$(run_guard_args --repo "$1" --snapshot "$2")"
+  if [ "$_snap_rc" -ne 0 ]; then
+    fail "$3: FIXTURE — pre-run snapshot expected exit 0, got $_snap_rc"
+  fi
 }
 
 # ---------------------------------------------------------------------------
@@ -227,9 +301,10 @@ fi
 # guard script (the die() definition line and comment lines excluded) MUST pass an
 # explicit trailing exit code. Converts the spec §4.4 one-time manual sweep into a
 # permanent guard: a future code-omitting die call — silently taking the ${2:-2}
-# default — is a RED test here, not a diff-review hope. All 9 call sites pass an
-# explicit 2 today. Delete-and-trace: drop the trailing code from any call site and
-# this flips to FAIL.
+# default — is a RED test here, not a diff-review hope. Every call site passes an
+# explicit 2 today; the live count is echoed in the pass line rather than frozen in
+# this comment, so growing the guard never stales the banner. Delete-and-trace: drop
+# the trailing code from any call site and this flips to FAIL.
 # Ceiling: detection strips to the message's closing (last) double-quote and
 # requires a digit after it; exact for this script (messages quote internals with
 # ' and carry no escaped "). An embedded escaped " would need a real parser.
@@ -254,6 +329,328 @@ elif [ -z "$callsite_offenders" ]; then
   pass "case 10: all $callsite_seen die call site(s) pass an explicit exit code"
 else
   fail "case 10: die call site(s) missing an explicit exit code:$callsite_offenders"
+fi
+
+# ===========================================================================
+# SNAPSHOT MODE (--snapshot)
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# Case 11: snapshot mode on a clean repo -> exit 0, and the written file carries
+# "<refname> <objectname>" lines (the ref-diff's whole input; a snapshot of bare
+# refnames would silently make every SHA-move case in this suite undetectable).
+# ---------------------------------------------------------------------------
+R11="$(setup_repo)"
+SNAP11="$(artifact_path snap.txt)"
+rc11="$(run_guard_args --repo "$R11" --snapshot "$SNAP11")"
+if [ "$rc11" -ne 0 ]; then
+  fail "case 11: snapshot on clean repo -> expected exit 0, got $rc11"
+elif [ ! -f "$SNAP11" ]; then
+  fail "case 11: snapshot mode exited 0 but wrote no file at $SNAP11"
+elif grep -qE '^refs/heads/[^ ]+ [0-9a-f]{7,}$' "$SNAP11"; then
+  pass "case 11: snapshot mode -> exit 0, file carries refname+objectname lines"
+else
+  fail "case 11: snapshot file lacks a '<refname> <objectname>' line; content was: $(cat "$SNAP11")"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 12: PRE-RUN REFUSAL (ref arm) — a b1-pattern local ref already present when
+# the snapshot is taken is exit 1: it is a PRIOR run's residue (the #1244 cross-run
+# collision shape), and baselining it would launder it into "legitimate" for the
+# whole run. Also asserts NO file is written — the refusal must not leave a
+# half-trusted baseline behind for a later --baseline invocation to read.
+# ---------------------------------------------------------------------------
+R12="$(setup_repo)"
+git -C "$R12" branch redteam-leftover-from-a-prior-run 2>/dev/null
+SNAP12="$(artifact_path snap.txt)"
+rc12="$(run_guard_args --repo "$R12" --snapshot "$SNAP12")"
+if [ "$rc12" -ne 1 ]; then
+  fail "case 12: snapshot on repo with pre-existing junk ref -> expected exit 1, got $rc12"
+elif [ -f "$SNAP12" ]; then
+  fail "case 12: refused snapshot must write NO baseline file, but $SNAP12 exists"
+else
+  pass "case 12: pre-run refusal (junk ref predates run) -> exit 1, no baseline written"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 13: PRE-RUN REFUSAL (porcelain arm) — a dirty working tree before launch is
+# exit 1 for the same reason: post-run check (a) compares against "clean", so
+# pre-existing dirt must be resolved, never baselined.
+# ---------------------------------------------------------------------------
+R13="$(setup_repo)"
+printf 'pre-existing dirt\n' > "$R13/uncommitted.txt"
+SNAP13="$(artifact_path snap.txt)"
+rc13="$(run_guard_args --repo "$R13" --snapshot "$SNAP13")"
+if [ "$rc13" -ne 1 ]; then
+  fail "case 13: snapshot on dirty repo -> expected exit 1, got $rc13"
+elif [ -f "$SNAP13" ]; then
+  fail "case 13: refused snapshot must write NO baseline file, but $SNAP13 exists"
+else
+  pass "case 13: pre-run refusal (dirty working tree) -> exit 1, no baseline written"
+fi
+
+# ===========================================================================
+# ARGUMENT / CONTAINMENT LAYER (runs before any check)
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# Case 14: a --snapshot path resolving INSIDE the --repo working tree -> exit 2.
+# An in-tree artifact would false-trip the guard's own porcelain check.
+# This case is also the two-sided-normalization pin: `setup_repo` uses mktemp -d,
+# which on macOS returns the /var/folders/... SYMLINK ALIAS of /private/var/folders/...
+# The guard resolves the repo dir AND the artifact's parent with `pwd -P` before the
+# prefix compare; normalize only the artifact side and this exact case goes GREEN-when-
+# it-should-be-2 (physical artifact vs logical repo prefix never matches).
+# ---------------------------------------------------------------------------
+R14="$(setup_repo)"
+rc14="$(run_guard_args --repo "$R14" --snapshot "$R14/in-tree-snap.txt")"
+if [ "$rc14" -eq 2 ]; then
+  pass "case 14: --snapshot inside the repo tree -> exit 2 (both sides resolved physically)"
+else
+  fail "case 14: --snapshot inside the repo tree -> expected exit 2, got $rc14"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 15: a --baseline path resolving INSIDE the --repo working tree -> exit 2.
+# Same containment rule; asserted on the other flag so a one-flag implementation reds.
+# ---------------------------------------------------------------------------
+R15="$(setup_repo)"
+printf 'refs/heads/main 0000000000000000000000000000000000000000\n' > "$R15/in-tree-base.txt"
+git -C "$R15" add in-tree-base.txt >/dev/null 2>&1
+git -C "$R15" commit -qm "in-tree baseline"   # committed, so porcelain stays clean
+rc15="$(run_guard_args --repo "$R15" --baseline "$R15/in-tree-base.txt")"
+if [ "$rc15" -eq 2 ]; then
+  pass "case 15: --baseline inside the repo tree -> exit 2"
+else
+  fail "case 15: --baseline inside the repo tree -> expected exit 2, got $rc15"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 16: a RELATIVE --snapshot path -> exit 2. The guard is invoked from whatever
+# cwd the Lead happens to hold and the Bash tool resets cwd between calls, so a
+# relative artifact path is unresolvable in principle, not merely inconvenient.
+# ---------------------------------------------------------------------------
+R16="$(setup_repo)"
+rc16="$(run_guard_args --repo "$R16" --snapshot "relative-snap.txt")"
+if [ "$rc16" -eq 2 ]; then
+  pass "case 16: relative --snapshot path -> exit 2"
+else
+  fail "case 16: relative --snapshot path -> expected exit 2, got $rc16"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 17: --snapshot combined with --baseline -> exit 2 (usage error). The modes
+# are opposites — snapshot WRITES a baseline, check READS one — so a combined
+# invocation has no coherent meaning and must never silently pick one.
+# Non-vacuity: the --baseline file here is a REAL snapshot, deliberately not a
+# nonexistent path. Point it at a missing file and this case passes for the wrong
+# reason — the missing-baseline die (case 26) supplies the 2, and deleting the
+# exclusivity check entirely leaves the suite green (measured). With a valid
+# baseline, deleting that check makes snapshot mode win and return 0, so this reds.
+# ---------------------------------------------------------------------------
+R17="$(setup_repo)"
+SNAP17="$(artifact_path snap.txt)"
+take_snapshot "$R17" "$SNAP17" "case 17"
+rc17="$(run_guard_args --repo "$R17" --snapshot "$(artifact_path other.txt)" --baseline "$SNAP17")"
+if [ "$rc17" -eq 2 ]; then
+  pass "case 17: --snapshot + --baseline combined -> exit 2 (usage error)"
+else
+  fail "case 17: --snapshot + --baseline combined -> expected exit 2, got $rc17"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 18: '..' inside an ABSOLUTE artifact path -> exit 2, on both new flags.
+# Non-vacuity: these paths are absolute AND resolve outside the repo, so containment
+# alone lets them through — only the extended traversal refusal catches them. Drop
+# either new `case ... *..*` arm from the guard and the matching half flips to 0/2's
+# opposite. (Case 6 pins the same rule on --repo.)
+# ---------------------------------------------------------------------------
+R18="$(setup_repo)"
+_out18="$(fresh_cwd)"
+rc18a="$(run_guard_args --repo "$R18" --snapshot "$_out18/../traversal-snap.txt")"
+rc18b="$(run_guard_args --repo "$R18" --baseline "$_out18/../traversal-base.txt")"
+if [ "$rc18a" -eq 2 ] && [ "$rc18b" -eq 2 ]; then
+  pass "case 18: '..' in an absolute --snapshot/--baseline path -> exit 2 (both flags)"
+else
+  fail "case 18: '..' traversal -> expected exit 2 on both flags, got snapshot=$rc18a baseline=$rc18b"
+fi
+
+# ===========================================================================
+# REF-DIFF (check mode with --baseline)
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# Case 19: identical pre/post ref set + clean tree + --baseline -> exit 0. The
+# no-false-positive floor: without this, an always-escaping diff would pass every
+# other ref-diff case in this suite.
+# ---------------------------------------------------------------------------
+R19="$(setup_repo)"
+SNAP19="$(artifact_path snap.txt)"
+take_snapshot "$R19" "$SNAP19" "case 19"
+rc19="$(run_guard_args --repo "$R19" --baseline "$SNAP19")"
+if [ "$rc19" -eq 0 ]; then
+  pass "case 19: unchanged ref set + clean tree + --baseline -> exit 0"
+else
+  fail "case 19: unchanged ref set + --baseline -> expected exit 0, got $rc19"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 20: #1244 DEMONSTRATED RED, half 1 — a probe-invented, PATTERN-SLIPPING branch
+# (`rogue`) with a clean working tree, checked WITHOUT --baseline: exit 0, plus the
+# stderr advisory.
+#
+# This case IS the recorded #1244 miss. No-baseline check mode is check-equivalent to
+# the pre-ref-diff script — same checks a/b1/b2, same exit codes, same stdout, the lone
+# delta being the advisory asserted here — so this green exit 0 records the old
+# behavior exactly. FIXTURE HISTORY, not a reproduction instruction: no pre-change
+# script is kept and no reader is asked to re-run one. The demonstration is the PAIRING
+# with case 21 — same fixture, --baseline added, exit 1.
+#
+# The advisory assertion is pinned to its two subjects (the heuristic ceiling and the
+# --baseline upgrade) and needs run_guard_err: run_guard/run_guard_args discard output.
+# ---------------------------------------------------------------------------
+R20="$(setup_repo)"
+git -C "$R20" branch rogue 2>/dev/null           # slips refs/heads/redteam-* and *-sandbox-*
+ERR20="$(artifact_path stderr.txt)"
+rc20="$(run_guard_err "$ERR20" --repo "$R20")"
+if [ "$rc20" -ne 0 ]; then
+  fail "case 20: pattern-slipping ref without --baseline -> expected exit 0 (the recorded miss), got $rc20"
+elif ! grep -q 'advisory' "$ERR20"; then
+  fail "case 20: no-baseline check mode must emit the stderr advisory; stderr was: $(cat "$ERR20")"
+elif ! grep -q -- '--baseline' "$ERR20"; then
+  fail "case 20: the advisory must name the --baseline upgrade; stderr was: $(cat "$ERR20")"
+elif grep -qi 'heuristic' "$ERR20"; then
+  pass "case 20: #1244 repro without --baseline -> exit 0 + advisory (heuristic ceiling + --baseline)"
+else
+  fail "case 20: the advisory must name the heuristic ceiling; stderr was: $(cat "$ERR20")"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 21: #1244 DEMONSTRATED RED, half 2 — the SAME fixture as case 20 with
+# --baseline: exit 1. Name-agnostic detection; `rogue` matches no junk pattern, so
+# only the ref-diff can see it.
+# ---------------------------------------------------------------------------
+R21="$(setup_repo)"
+SNAP21="$(artifact_path snap.txt)"
+take_snapshot "$R21" "$SNAP21" "case 21"
+git -C "$R21" branch rogue 2>/dev/null           # the "probe" writes its ref AFTER the snapshot
+rc21="$(run_guard_args --repo "$R21" --baseline "$SNAP21")"
+if [ "$rc21" -eq 1 ]; then
+  pass "case 21: #1244 repro WITH --baseline -> exit 1 (name-agnostic ref-diff)"
+else
+  fail "case 21: #1244 repro with --baseline -> expected exit 1, got $rc21"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 22: a MOVED sibling-branch SHA -> exit 1. Only refs/heads/sibling is
+# repointed (update-ref, no checkout, no commit), so the ref SET is identical and
+# the working tree stays clean: a name-only diff that ignored %(objectname) would
+# report 0 here.
+# ---------------------------------------------------------------------------
+R22="$(setup_repo)"
+printf 'second\n' > "$R22/second.txt"
+git -C "$R22" add second.txt
+git -C "$R22" commit -qm "second"
+git -C "$R22" branch sibling "$(git -C "$R22" rev-parse HEAD~1)" 2>/dev/null
+SNAP22="$(artifact_path snap.txt)"
+take_snapshot "$R22" "$SNAP22" "case 22"
+git -C "$R22" update-ref refs/heads/sibling "$(git -C "$R22" rev-parse HEAD)"
+rc22="$(run_guard_args --repo "$R22" --baseline "$SNAP22")"
+if [ "$rc22" -eq 1 ]; then
+  pass "case 22: moved sibling-branch SHA (same ref set) -> exit 1"
+else
+  fail "case 22: moved sibling-branch SHA -> expected exit 1, got $rc22"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 23: a DELETED ref -> exit 1. The removal direction of the diff; an
+# added-and-moved-only implementation reports 0 here.
+# ---------------------------------------------------------------------------
+R23="$(setup_repo)"
+git -C "$R23" branch doomed 2>/dev/null
+SNAP23="$(artifact_path snap.txt)"
+take_snapshot "$R23" "$SNAP23" "case 23"
+git -C "$R23" update-ref -d refs/heads/doomed
+rc23="$(run_guard_args --repo "$R23" --baseline "$SNAP23")"
+if [ "$rc23" -eq 1 ]; then
+  pass "case 23: deleted ref -> exit 1"
+else
+  fail "case 23: deleted ref -> expected exit 1, got $rc23"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 24: NAMESPACE EXCLUSION — a refs/remotes/* delta -> exit 0.
+# `for-each-ref` also enumerates remote-tracking refs, which move on any background
+# or IDE `git fetch` and are never a probe writing into the repo (origin-side pushes
+# remain the b2 ceiling). Real repos also share one ref store across linked worktrees,
+# so an unscoped diff would turn ordinary concurrent activity into "escape detected"
+# and make CLEARED unreachable. WITHOUT this case the refs/heads|refs/tags filter is
+# deletable with the whole list still green — verified: strip the namespace test from
+# the guard's awk pass and this case alone flips 0 -> 1.
+# ---------------------------------------------------------------------------
+R24="$(setup_repo)"
+SNAP24="$(artifact_path snap.txt)"
+take_snapshot "$R24" "$SNAP24" "case 24"
+git -C "$R24" update-ref refs/remotes/origin/some-other-branch "$(git -C "$R24" rev-parse HEAD)"
+rc24="$(run_guard_args --repo "$R24" --baseline "$SNAP24")"
+if [ "$rc24" -eq 0 ]; then
+  pass "case 24: refs/remotes/* delta -> exit 0 (namespace exclusion is load-bearing)"
+else
+  fail "case 24: refs/remotes/* delta -> expected exit 0, got $rc24 (namespace scoping lost)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 25: NAMESPACE INCLUSION — a created refs/tags/* ref -> exit 1. The paired
+# other half of case 24: scoping the diff must EXCLUDE refs/remotes without also
+# narrowing it to refs/heads only. A probe tagging the target is a real escape.
+# ---------------------------------------------------------------------------
+R25="$(setup_repo)"
+SNAP25="$(artifact_path snap.txt)"
+take_snapshot "$R25" "$SNAP25" "case 25"
+git -C "$R25" tag v-probe-escape 2>/dev/null
+rc25="$(run_guard_args --repo "$R25" --baseline "$SNAP25")"
+if [ "$rc25" -eq 1 ]; then
+  pass "case 25: created refs/tags/* ref -> exit 1 (namespace inclusion)"
+else
+  fail "case 25: created refs/tags/* ref -> expected exit 1, got $rc25 (tags dropped from the diff)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 26: --baseline pointing at a MISSING file -> exit 2, asserted != 1. Infra
+# never collapses into escape, and never into a silent pass.
+# Non-vacuity: the fixture carries a `rogue` branch, so the tempting wrong
+# implementation — treat an absent baseline as an EMPTY one — would report every live
+# ref as "added" and return 1. Only validating the file itself returns 2 here.
+# ---------------------------------------------------------------------------
+R26="$(setup_repo)"
+git -C "$R26" branch rogue 2>/dev/null
+MISSING26="$(artifact_path never-written.txt)"
+rc26="$(run_guard_args --repo "$R26" --baseline "$MISSING26")"
+if [ "$rc26" -eq 2 ]; then
+  pass "case 26: missing --baseline file -> exit 2 (not 1 — infra never becomes escape)"
+else
+  fail "case 26: missing --baseline file -> expected exit 2, got $rc26 (2-vs-1 boundary violated)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 27: ORDERING — an infra fault must never be PREEMPTED by an escape
+# conclusion. This fixture would escape on its own merits (a b1-pattern junk ref
+# fires check (b1) -> 1) AND names a missing --baseline. Because the guard validates
+# the baseline at arg-parse time, ahead of every check, the answer is 2.
+# Non-vacuity: case 26 cannot pin this — its repo has nothing to escape on, so it
+# stays green even if the validation moves down to the ref-diff (where awk's own read
+# failure still yields 2). Move it down and THIS case flips 2 -> 1, because (b1)
+# reaches its escape first. Measured: with the arg-parse validation block deleted the
+# rest of the suite stays green and only this case reds.
+# ---------------------------------------------------------------------------
+R27="$(setup_repo)"
+git -C "$R27" branch redteam-would-escape 2>/dev/null
+MISSING27="$(artifact_path never-written.txt)"
+rc27="$(run_guard_args --repo "$R27" --baseline "$MISSING27")"
+if [ "$rc27" -eq 2 ]; then
+  pass "case 27: missing --baseline outranks a live escape -> exit 2 (infra never preempted)"
+else
+  fail "case 27: missing --baseline + escaping repo -> expected exit 2, got $rc27 (infra preempted by escape)"
 fi
 
 # ---------------------------------------------------------------------------
