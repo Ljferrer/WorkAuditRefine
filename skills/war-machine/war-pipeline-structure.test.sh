@@ -311,5 +311,33 @@ printf '\n# ADR 0030 grep-as-floor — survey-corps Step 4 carries the manual-su
 # the Step 4 note, so the whole-file pin discriminates that note alone.
 has_i "$SURVEY" 'manual same-scope title/comment survey'
 
+printf '\n# Guard-split deps-edge doctrine (ADR 0025 amendment, 2026-08-02) — both plan-authoring surfaces carry it\n'
+# The rule: a drafted task authoring a drift guard over a fact authored by a DIFFERENT task in the
+# same phase must carry a `deps` edge onto that task — sharing a wave is not enough, because every
+# task worktree is cut from one frozen phase base. It is stated on both authoring paths: the
+# /war-machine drafter directive and /war-strategy §3's authoring rule 7 (which /war-machine consumes
+# by reference). Guards follow their text (ADR 0025), so these pins land beside the surfaces they pin
+# and in the same task as the text. Named, not numbered: the original pipeline spec owns the numbered
+# criteria. has_i, never has: both surfaces open the rule with a bold lead-in, so the name token's
+# leading capital is heading position alone — PROSE that a benign sentence-case rewrite must not
+# false-negate (this file reserves case-sensitive has() for flag/token literals that never re-case).
+# The second anchor is genuinely mid-sentence on both surfaces.
+for f in "$MACHINE" "$WAR_STRATEGY"; do
+  has_i "$f" 'guard-split deps-edge'
+  has_i "$f" 'same wave is insufficient'
+done
+# Count-word flip: /war-strategy §3's rule count went from 2 to 3 when rule 7 landed, and §4's
+# gap-review parenthetical counts the same rules. That is a DEFAULT-FLIP, and §3 rule 6 — which lives
+# inside the very subsection being edited — requires the gate to assert the OLD value ABSENT: the
+# presence pins above cannot, and the only pre-existing guard over that subsection,
+# `check '^### Drift-guard coverage'` in war-strategy-structure.test.sh, is a prefix regex matching the
+# retired and current count words identically. Each pattern is assembled at runtime from split
+# fragments so this file is never itself a hit for a repo-wide sweep of the retired phrases
+# ([[coupling-comment-restating-grep-pattern-bytes-self-matches-the-sweep]]).
+retired_count_a='two authoring'
+retired_count_b='two drift-guard'
+lacks "$WAR_STRATEGY" "$retired_count_a rules"
+lacks "$WAR_STRATEGY" "$retired_count_b rules"
+
 printf '\n== war-pipeline-structure: %s failure(s) ==\n' "$fails"
 exit $fails
