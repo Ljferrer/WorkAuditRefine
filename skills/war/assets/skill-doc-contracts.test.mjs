@@ -546,10 +546,15 @@ test('D21 — held:land-failed bullet names both environment arms, never one unc
 // token at all — so it is not a load-bearing fragment with zero test signal (the recorded
 // [[structural-test-blind-spot-narrowing-needs-negative-reference-and-default-deny-census]] class:
 // a fragment with no both-ways proof is a blind spot, not a lock).
-// RESIDUAL, recorded rather than waived: the COMMAND-FORM fragment has no reference isolating it.
-// (a) below lacks BOTH fragments, so deleting the command form from this key alone reds nothing
-// here — measured, not assumed. Closing it needs a fourth reference (range token present, command
-// form absent); a future edit to this key should add that rather than assume the pair is proven.
+// RESIDUAL, recorded rather than waived — TWO fragments have no both-ways proof, not one:
+// (1) the COMMAND-FORM fragment. (a) below lacks BOTH range-arm fragments, so deleting the
+// command form from this key alone reds nothing here — measured, not assumed. Closing it needs a
+// fourth reference (range token present, command form absent).
+// (2) the `git revert` routing arm. All THREE negatives below carry a `git revert` token, so
+// deleting the revert fragment from this key also reds nothing: (a) still fails at the range arm,
+// (b) at the undo arm, (c) at the range token — measured, not assumed. Closing it needs a fifth
+// reference (range probe and undo arm present, revert routing absent).
+// A future edit to this key should add those references rather than assume the arms are proven.
 //
 // The undo arm (#1136): detect-and-refuse alone left the condemned docs commit sitting on the
 // working branch inside the publication worktree — the remedy re-provisioned but never removed it,
