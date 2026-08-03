@@ -1,6 +1,6 @@
 ---
 name: reland-submodule-pr-arm-leaves-stale-landresult-unlike-initial-land
-description: "A re-land's submodule-pr escalation arm records pr_number/pr_remote on the escalated entry but never reassigns the outer landResult (unlike the initial land, where landResult IS the submodule-pr MergeResult) — nothing consumes landResult.pr_number today, but a future ledger-writer reaching for it would silently work on one path and not the other"
+description: "RESOLVED (2026-08-02-war-engine-and-standing-doc-truth/1.2, #1245, landed 2026-08-03): both re-land arms now assign landResult = reLand inside their reLand.status === 'submodule-pr' branches, symmetric with the initial land — the asymmetry this lesson describes is fixed. Body left as-is per the repo's resolved-lesson-stamp convention (see [[resolved-lesson-stamp-freezes-body-so-it-can-contradict-the-new-description]]) — read the description, not the body, for current behavior."
 metadata: 
   node_type: memory
   type: project
@@ -18,6 +18,8 @@ metadata:
     - baseline-proceed re-land
     - pr_number
     - pr_remote
+    - RESOLVED
+    - arm-symmetry pin
   tags: 
     - workflow-template
     - land-phase
@@ -26,7 +28,7 @@ metadata:
     - result-mutation
   created: 2026-07-27
   originSessionId: 0ad881e1-4bbc-43c6-8e45-8597d9cec1cf
-  modified: 2026-07-27T20:39:41.144Z
+  modified: 2026-08-03T16:55:30.982Z
 ---
 
 # A re-land's submodule-pr arm can leave the outer result stale where the initial land wouldn't
