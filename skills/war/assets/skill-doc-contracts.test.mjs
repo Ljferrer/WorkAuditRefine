@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
@@ -605,8 +605,13 @@ test('D22 — SKILL.md Gate-2 flow orders the pre-push staged-file probe, its do
 // ---- Task 2.1 doc-cascade gates (plan 2026-07-26-dispatch-args-and-floor-coverage) ----
 //
 // The ADR 0037 and CONTEXT.md amendments below are deliberately phrased OUT of the spec §4.4
-// four-surface `EMBEDDED_ARGS|ARGS_FALLBACK_ANCHOR` grep, and nothing else in the suite reads them —
-// so without these two rows the doc reword would ship with no mechanical check of any kind. They are
+// four-surface embedded-args token-pair grep — named descriptively and never quoted here, because a
+// comment restating that sweep's own alternation becomes a hit for the sweep it describes and
+// silently forks the count (#1241/#1163; the recorded
+// [[coupling-comment-restating-grep-pattern-bytes-self-matches-the-sweep]] class — this banner WAS
+// that hit, and D30 below is the mechanical census that replaces the hand-run grep). Nothing else in
+// the suite reads them, so without these two rows the doc reword would ship with no mechanical check
+// of any kind. They are
 // PER-MEDIUM, not uniform: an ADR is append-only, so its superseded sentences legitimately stay
 // byte-intact and only NEW-present can discriminate; CONTEXT.md is a living glossary edited in place,
 // so it gets NEW-present AND OLD-absent. Every OLD-absent predicate is sentence-literal-scoped —
@@ -1136,10 +1141,16 @@ test('D29 — ADR 0042 doctrine mirrors (CONTEXT.md glossary terms, CLAUDE.md ho
     "could not locate prompt-surface-budgets.test.mjs's header comment (file start → first " +
       'top-level `import`) — the extraction construct rotted',
   )
-  // Non-vacuous: the header must really reach its Formula sentence.
+  // Non-vacuous: the header must really reach its Formula sentence — anchored on that
+  // sentence's OWN opener bytes, never the bare word. The bare word was satisfiable by any
+  // other mention inside the extracted region, and the coupling comment a few lines above the
+  // formula carried exactly such a mention until this commit paraphrased it to name the
+  // derivation instead — so a truncated extraction, or a deleted formula sentence, could have
+  // matched that mention and left this assert green. (Paraphrased rather than quoted here: a
+  // comment restating retired wording is what false-reds a later retirement sweep.)
   assert.match(
     norm(formula[0]),
-    /Formula/,
+    /Formula \(adjudication D\)/i,
     'the extracted budget-suite header must span its Formula sentence — extraction truncated',
   )
   assertMirror(
@@ -1150,4 +1161,91 @@ test('D29 — ADR 0042 doctrine mirrors (CONTEXT.md glossary terms, CLAUDE.md ho
       [/hard\s*=\s*post-shrink[\s\S]{0,30}1\.25/i, 'the hard↔×1.25 formula binding'],
     ],
   )
+})
+
+// ---- Task 1 non-vacuity census (plan 2026-08-02-structural-test-nonvacuity) ----
+//
+// (D30) The dispatch-args doc-cascade sweep (spec §4.4) named FOUR live surfaces as the complete
+// population carrying the stager's two args-embedding identifiers. Nothing mechanically held that
+// count — the sweep was a hand-run grep — so a fifth surface could appear, or one of the four lose
+// its occurrence, with every suite green. This row is that census, default-deny in BOTH directions
+// (the recorded [[structural-test-blind-spot-narrowing-needs-negative-reference-and-default-deny-census]]
+// class: a superset-only census ships exactly the blind spot it was written to close).
+//
+// SELF-EXCLUDING BY CONSTRUCTION: both identifiers are assembled from split fragments, so this file
+// carries neither contiguously and can never appear in its own result set. That is not decoration —
+// this suite WAS a hit until the Task 2.1 banner above was reworded in this same commit (#1241,
+// #1163). For the same reason the expected paths below are plain path strings, and every comment and
+// failure message here names the sweep descriptively and never quotes its alternation.
+//
+// PER-ALTERNATE, not merely the union: the two identifiers are NOT independently load-bearing at
+// this base. The embedded-args identifier hits all four surfaces; the fallback-anchor identifier
+// hits only the three non-SKILL.md ones (SKILL.md's staging prose cites the first and not the
+// second). A union-only equality is therefore fully satisfiable by the first alternate alone, so a
+// rotted second fragment would narrow this census SILENTLY. Split-fragment construction is what
+// makes that fragment uniquely rot-prone: the literal is by design un-findable by the very sweep it
+// implements, so no repo-wide grep can catch a typo in it either. The per-alternate sets are the
+// only mechanical hold on it.
+//
+// Designed friction: this row intentionally REDs on legitimate growth. A fifth surface carrying
+// either identifier is a correct change that must update the expected list in the SAME diff.
+test('D30 — the dispatch-args identifier sweep hits exactly its four expected surfaces, per alternate and in union (#1241, #1163)', () => {
+  // Split fragments — see the self-exclusion note above. Rotting either half of either token
+  // REDs that alternate's own assert, which is the proof neither half is dead weight.
+  const embeddingToken = 'EMBEDDED' + '_ARGS'
+  const fallbackToken = 'ARGS' + '_FALLBACK_ANCHOR'
+
+  // Repo-relative paths are built during the walk, so they are forward-slashed by construction
+  // and need no separator normalization. Root anchored from HERE, never cwd (see the file header).
+  const walk = (absDir, relPrefix) =>
+    readdirSync(absDir, { withFileTypes: true }).flatMap((entry) => {
+      const abs = join(absDir, entry.name)
+      const rel = `${relPrefix}${entry.name}`
+      if (entry.isDirectory()) return walk(abs, `${rel}/`)
+      return entry.isFile() ? [[rel, abs]] : []
+    })
+  const files = walk(join(HERE, '..', '..', '..', 'skills'), 'skills/')
+  assert.ok(files.length > 0, 'non-vacuity: the skills/ walk discovered no files at all')
+
+  const hits = (token) =>
+    files.filter(([, abs]) => readFileSync(abs, 'utf8').includes(token)).map(([rel]) => rel).sort()
+
+  const EXPECTED_EMBEDDING_SURFACES = [
+    'skills/war/SKILL.md',
+    'skills/war/assets/stage-workflow.mjs',
+    'skills/war/assets/stage-workflow.test.mjs',
+    'skills/war/assets/workflow-template.js',
+  ]
+  // The fallback-anchor identifier is a code-only export: SKILL.md's prose cites the embedding
+  // identifier alone, so this set is the four minus SKILL.md (measured at this task's base).
+  const EXPECTED_FALLBACK_SURFACES = EXPECTED_EMBEDDING_SURFACES.filter(
+    (p) => p !== 'skills/war/SKILL.md',
+  )
+
+  const assertCensus = (label, actual, expected) => {
+    const want = [...expected].sort()
+    const missing = want.filter((p) => !actual.includes(p))
+    const unexpected = actual.filter((p) => !want.includes(p))
+    assert.deepEqual(
+      actual,
+      want,
+      `${label}: the four-surface sweep census drifted — missing ${JSON.stringify(missing)}, ` +
+        `unexpected ${JSON.stringify(unexpected)}. A new surface carrying the identifier is a ` +
+        'correct change that must update this expected list in the SAME diff; a missing surface ' +
+        'means the occurrence was dropped — restore it, or retire the entry deliberately. Never ' +
+        'relax this census to make a drift pass',
+    )
+  }
+
+  assertCensus('embedded-args identifier', hits(embeddingToken), EXPECTED_EMBEDDING_SURFACES)
+  assertCensus('args fallback-anchor identifier', hits(fallbackToken), EXPECTED_FALLBACK_SURFACES)
+
+  const union = files
+    .filter(([, abs]) => {
+      const src = readFileSync(abs, 'utf8')
+      return src.includes(embeddingToken) || src.includes(fallbackToken)
+    })
+    .map(([rel]) => rel)
+    .sort()
+  assertCensus('union of both identifiers', union, EXPECTED_EMBEDDING_SURFACES)
 })
