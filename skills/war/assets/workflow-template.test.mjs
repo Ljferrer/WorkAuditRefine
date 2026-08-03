@@ -7876,6 +7876,18 @@ test('Task 5.1 — worker/servitor card evictions: destination carries the moved
     'war-worker.md: no references/ pointer uses a forbidden ../-prefixed path, at any depth (adjudication O(2))')
   assert.ok(!/\((?:\.\.\/)+[^)]*skills\/war\/references\/[^)]+\)/.test(servitorMd),
     'war-servitor.md: no references/ pointer uses a forbidden ../-prefixed path, at any depth (adjudication O(2))')
+  // Guard-family extension to agents/war-auditor.md (references-pointer-link-truth Task 1.1;
+  // source spec docs/specs/2026-08-02-references-pointer-link-truth-design.md §4.1, adjudication
+  // O(2)): the owner-relative pointer skeleton binds EVERY agent card, not just the two Task 5.1
+  // touched, so the same shape-generic ../-absence pattern applies to the auditor card — its four
+  // auditor-teach.md pointers were ../-prefixed until this pass. Paired with a COUNT-pinned assert
+  // (the refiner-card idiom, not presence-only: a presence match stays green when pointers are
+  // silently dropped). Update duty: a future plan that legitimately adds an Nth auditor-teach.md
+  // pointer — or drops one — updates this count in the same diff as the pointer change.
+  assert.ok(!/\((?:\.\.\/)+[^)]*skills\/war\/references\/[^)]+\)/.test(auditorMd),
+    'war-auditor.md: no references/ pointer uses a forbidden ../-prefixed path, at any depth (adjudication O(2))')
+  assert.equal((auditorMd.match(/\(skills\/war\/references\/auditor-teach\.md\)/g) || []).length, 4,
+    'war-auditor.md carries all four owner-relative trigger pointers to auditor-teach.md')
   // Decisive rules survive inline on the cards (pointer = enrichment, never sole carrier).
   assert.match(workerMd, /merge_sha/, 'war-worker.md keeps the ledger merge_sha authority rule inline')
   assert.match(workerMd, /gitlink-only/, 'war-worker.md keeps the gitlink-only diff rule inline')
