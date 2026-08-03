@@ -70,6 +70,13 @@ const adr0042 = readFileSync(
 )
 const claudeMd = readFileSync(join(HERE, '..', '..', '..', 'CLAUDE.md'), 'utf8')
 const budgetSuiteSrc = readFileSync(join(HERE, 'prompt-surface-budgets.test.mjs'), 'utf8')
+// (D9) The submodule-mutation floor's two surfaces: the refiner card that SHOWS the invocation
+// (fourth root — agents/, alongside skills/, docs/ and the repo root above) and the script that
+// PRINTS its own usage. The basename is a const so this file can build its patterns from it and
+// never spell the retired flag-first byte-run — see the D9 block at the end of this file.
+const FLOOR_SCRIPT = 'assert-no-submodule-mutation.sh'
+const refinerCard = readFileSync(join(HERE, '..', '..', '..', 'agents', 'war-refiner.md'), 'utf8')
+const floorScriptSrc = readFileSync(join(HERE, FLOOR_SCRIPT), 'utf8')
 
 // Strip comment leaders BEFORE whitespace-normalizing, then collapse every whitespace run to one
 // space — the recorded doc-cascade sweep trap ([[repo-doc-sweep-needs-leader-strip-before-whitespace-normalize-before-grep]]):
@@ -518,53 +525,108 @@ test('D21 — held:land-failed bullet names both environment arms, never one unc
 })
 
 // (D22) SKILL.md's Gate-2 post-servitor publication flow must carry the PRE-PUSH STAGED-FILE
-// CHECK — probe, refusal, AND the undo that removes the condemned commit from the working branch —
-// between the `docs(learnings): phase N` commit step and the `ensure-origin` push step
-// (#1083, #1136). Recorded incident: a Gate-2 promotion commit authored in a publication worktree whose
+// CHECK — the unpushed-RANGE probe, the refusal, the undo that removes a condemned tip commit from
+// the working branch, AND the revert routing for a condemned commit that is not the tip — between
+// the `docs(learnings): phase N` commit step and the `ensure-origin` push step
+// (#1083, #1136, #1192). Recorded incident: a Gate-2 promotion commit authored in a publication worktree whose
 // tracked version-slot files were stale swept them into the docs commit and silently reverted a
 // landed release — the lock-step version guard stayed green throughout, because lock-step is not
 // monotonic ([[gate2-commit-from-stale-verify-worktree-can-revert-a-release-bump]]). The staged
 // file *list* is the root-cause probe: the mechanism is a bulk stage of stale tracked files, so it
 // catches every stale-staged path (a stale skill or hook alike), not just the four version slots.
 //
+// The range arm (#1192): the probe formerly inspected the tip commit alone, so a poisoned commit
+// sitting one below the tip reached origin unexamined — on exactly the re-entry shapes the flow's
+// own revert prose contemplates. The live probe enumerates every unpushed commit with its file set,
+// and condemnation is range-scoped. This arm is keyed on TWO fragments — the adjacent
+// `git log --name-only` form AND a later `..HEAD` range token — deliberately NOT on the upstream
+// revision literal: the flow pins ONE deterministic no-upstream fallback spelled with a different
+// left-hand side, and both commands must satisfy the same key without alternation. The RANGE-TOKEN
+// fragment has its own negative reference below — (c), which carries the command form and no range
+// token at all — so it is not a load-bearing fragment with zero test signal (the recorded
+// [[structural-test-blind-spot-narrowing-needs-negative-reference-and-default-deny-census]] class:
+// a fragment with no both-ways proof is a blind spot, not a lock).
+// RESIDUAL, recorded rather than waived — TWO fragments have no both-ways proof, not one:
+// (1) the COMMAND-FORM fragment. (a) below lacks BOTH range-arm fragments, so deleting the
+// command form from this key alone reds nothing here — measured, not assumed. Closing it needs a
+// fourth reference (range token present, command form absent).
+// (2) the `git revert` routing arm. All THREE negatives below carry a `git revert` token, so
+// deleting the revert fragment from this key also reds nothing: (a) still fails at the range arm,
+// (b) at the undo arm, (c) at the range token — measured, not assumed. Closing it needs a fifth
+// reference (range probe and undo arm present, revert routing absent).
+// A future edit to this key should add those references rather than assume the arms are proven.
+//
 // The undo arm (#1136): detect-and-refuse alone left the condemned docs commit sitting on the
 // working branch inside the publication worktree — the remedy re-provisioned but never removed it,
 // leaving a release-reverting commit one `ensure-origin` from origin. The arm is pinned on
 // `reset --hard HEAD~1`, deliberately NOT on bare `reset --hard`: the remedy's own carve-out
 // sentence names the no-`reset --hard` shared-branch doctrine inside this same region, so a bare
-// key would be greened by the doctrine mention alone and the negative reference below would stop
-// discriminating. A bare `revert` key is unusable for the same reason — the incident sentence
-// above already reads "silently reverted a landed release".
+// key would be greened by the doctrine mention alone and negative reference (b) below would stop
+// discriminating. The revert-routing arm is keyed on the `git revert` adjacent form for the same
+// reason — a bare `revert` key is unusable because the incident sentence above already reads
+// "silently reverted a landed release".
 //
-// The key is ONE ORDERED match, never independent presence checks: commit step → `--name-only`
-// probe → do-not-push clause → undo (`reset --hard HEAD~1`) → `ensure-origin` push step. That
-// single regex locks the pairing (probe + refusal + undo) AND the position (after the commit,
-// before the push) at once — dropping any arm, or relocating one outside that span, fails it RED.
+// The key is ONE ORDERED match, never independent presence checks: commit step → range probe →
+// do-not-push clause → undo (`reset --hard HEAD~1`) → revert routing (`git revert`) →
+// `ensure-origin` push step. That single regex locks the pairing (probe + refusal + both undo
+// routes) AND the position (after the commit, before the push) at once — dropping any arm, or
+// relocating one outside that span, fails it RED.
 //
 // Extraction is BY CONSTRUCT — the `**Post-servitor publication (Gate 2` marker to the next `##`
 // heading — never a whole-file scan: `ensure-origin` also appears in Setup step 2 (and, since the
-// prompt-surface eviction, the crash-heal detail and the Checkpoint land recipes carry both tokens
-// in references/setup.md / references/resume-and-recovery.md), so a whole-file key
+// prompt-surface eviction, ONE token each in the two reference files — references/setup.md's
+// crash-heal detail carries `remove-publication-worktree` only, and references/resume-and-recovery.md's
+// Checkpoint land recipes carry `ensure-origin` only), so a whole-file key
 // could be greened by prose outside the flow this row polices. Markup-tolerant on the emphasis
 // spans (D18/D21's idiom): a bold/backtick reshuffle inside a clause must not false-red.
 //
-// ONE ordered key, shared by the live row and its negative reference — the two must never drift.
+// ONE ordered key, shared by the live row and its THREE negative references — all four must never
+// drift apart.
 const D22_ORDERED_SPAN =
-  /docs\(learnings\): phase N[\s\S]*?git show\s+--name-only[\s\S]*?do\s+\*{0,2}not\*{0,2}\s+push[\s\S]*?reset[\s*`]{0,4}--hard[\s*`]{0,4}HEAD~1[\s\S]*?ensure-origin/
-// Unwired negative reference (both-ways proof, zero fixture files — the structural-test
-// blind-spot idiom): the pre-#1136 region shape, probe and refusal intact, undo clause absent,
-// carrying a bare `reset --hard` doctrine mention so the proof also covers the pinning decision
-// above (a bare key would green THIS string). Run through the same ordered key, asserted red.
+  /docs\(learnings\): phase N[\s\S]*?git[\s*`]{0,4}log\s+--name-only[\s\S]*?\.\.HEAD[\s\S]*?do\s+\*{0,2}not\*{0,2}\s+push[\s\S]*?reset[\s*`]{0,4}--hard[\s*`]{0,4}HEAD~1[\s\S]*?git[\s*`]{0,4}revert[\s\S]*?ensure-origin/
+// Unwired negative references (both-ways proof, zero fixture files — the structural-test
+// blind-spot idiom). Each is a hand-written region shape differing from the live one at exactly
+// ONE point, and each is run through the SAME live key and asserted red.
+//
+// (a) The retired pre-#1192 shape: tip-only probe, undo and revert prose intact. Red at the range
+// arm — it carries neither of that arm's two fragments.
+const D22_REGION_HEAD_ONLY_PROBE =
+  '**Post-servitor publication (Gate 2, spec §4.6). ' +
+  '- Commit `docs(learnings): phase N` in the publication worktree, plus the CLAUDE.md pointer duty. ' +
+  '- **Pre-push staged-file check (never skip).** Before pushing, list the docs commit staged file ' +
+  'set — `git show --name-only --format= HEAD` — and confirm every path is under the promotion ' +
+  'destination or is `CLAUDE.md`: **ANY** other path means stale tracked files were staged — do ' +
+  '**not** push. **Undo the condemned commit first**: `git reset --hard HEAD~1`. On any re-entry ' +
+  'shape where `git log` shows the condemned docs commit is not the tip, never rewind — ' +
+  '`git revert` that commit instead; a conflicted revert is `git revert --abort` + escalate. ' +
+  '- Push via `provision-worktrees.sh ensure-origin <working>` (push-first CAS, never force).'
+// (b) The pre-#1136 shape carried forward onto the NEW probe and revert routing: undo clause
+// absent, a bare `reset --hard` doctrine mention present so the proof also covers the pinning
+// decision above (a bare key would green THIS string). Red at the undo arm.
 const D22_REGION_WITHOUT_UNDO =
   '**Post-servitor publication (Gate 2, spec §4.6). ' +
   '- Commit `docs(learnings): phase N` in the publication worktree, plus the CLAUDE.md pointer duty. ' +
-  '- **Pre-push staged-file check (never skip).** Before pushing, list the staged file set — ' +
-  '`git show --name-only --format= HEAD` — and confirm every path is under the promotion ' +
-  'destination: **ANY** other path means stale tracked files were staged — do **not** push; the ' +
-  'refiner never runs `reset --hard` on a shared branch. Run `remove-publication-worktree`, ' +
+  '- **Pre-push staged-file check (never skip).** Before pushing, enumerate every unpushed commit ' +
+  "and its file set — `git log --name-only --format='commit %H' '@{upstream}'..HEAD` — and confirm " +
+  'every path is under the promotion destination: **ANY** other path means stale tracked files ' +
+  'were staged — do **not** push; the refiner never runs `reset --hard` on a shared branch. ' +
+  '`git revert` each condemned commit, then re-probe. Run `remove-publication-worktree`, ' +
   're-provision, and re-commit. ' +
   '- Push via `provision-worktrees.sh ensure-origin <working>` (push-first CAS, never force).'
-test('D22 — SKILL.md Gate-2 flow orders the pre-push staged-file probe, its do-not-push clause and the undo step between commit and push (#1083, #1136)', () => {
+// (c) The tip-only REGRESSION shape: the range arm's first fragment present, its range token gone,
+// everything else live. Without this reference that second fragment would be load-bearing in the
+// key yet droppable with zero test signal — (a) alone cannot prove it, because (a) is missing both.
+const D22_REGION_WITHOUT_RANGE =
+  '**Post-servitor publication (Gate 2, spec §4.6). ' +
+  '- Commit `docs(learnings): phase N` in the publication worktree, plus the CLAUDE.md pointer duty. ' +
+  '- **Pre-push staged-file check (never skip).** Before pushing, list the tip commit file set — ' +
+  "`git log --name-only --format='commit %H' -1 HEAD` — and confirm every path is under the " +
+  'promotion destination: **ANY** other path means stale tracked files were staged — do **not** ' +
+  'push. **Undo the condemned commit first**: `git reset --hard HEAD~1`. When the condemned commit ' +
+  'is not the tip, never rewind — `git revert` that commit instead; a conflicted revert is ' +
+  '`git revert --abort` + escalate. ' +
+  '- Push via `provision-worktrees.sh ensure-origin <working>` (push-first CAS, never force).'
+test('D22 — SKILL.md Gate-2 flow orders the unpushed-range probe, its do-not-push clause, the tip-undo carve-out and the revert routing between commit and push (#1083, #1136, #1192)', () => {
   const region = skillMd.match(/\*\*Post-servitor publication \(Gate 2[\s\S]*?(?=\n## )/)
   assert.ok(
     region,
@@ -582,24 +644,44 @@ test('D22 — SKILL.md Gate-2 flow orders the pre-push staged-file probe, its do
   assert.match(
     region[0],
     D22_ORDERED_SPAN,
-    'the Gate-2 flow must carry the pre-push staged-file check as ONE ordered span — the ' +
-      '`docs(learnings): phase N` commit step, then the `git show --name-only` staged-file probe, ' +
-      'then its do-not-push clause, then the `git reset --hard HEAD~1` undo of the condemned ' +
-      'commit, then the `ensure-origin` push step (#1083, #1136). Every arm is load-bearing: the ' +
-      'probe without the refusal is advice, the refusal without the probe has no trigger, and ' +
-      'refusal without the undo strands the poisoned commit on the working branch one push from ' +
-      'origin. Correct this row to a sanctioned rewording, never drop an arm to make it pass',
+    'the Gate-2 flow must carry the pre-push staged-file check as ONE ordered span — the docs ' +
+      'commit step, then the unpushed-RANGE probe (the whole range, never the tip alone), then ' +
+      'its do-not-push refusal, then the undo carve-out for a condemned tip commit, then the ' +
+      'revert routing for a condemned commit that is not the tip, then the push step (#1083, ' +
+      '#1136, #1192). Every arm is load-bearing: the probe without the refusal is advice, the ' +
+      'refusal without the probe has no trigger, refusal without the undo strands the poisoned ' +
+      'commit on the working branch one push from origin, and a tip-only probe never sees a ' +
+      'poisoned commit below the tip at all. The arm list and the pinning rationale for each are ' +
+      'in the block comment above this row — correct the row to a sanctioned rewording, never ' +
+      'drop an arm to make it pass',
   )
-  // Both-ways proof: the same key must REJECT the pre-#1136 shape (undo absent, bare `reset
-  // --hard` doctrine mention present). Without this, a key that silently stopped discriminating
-  // would still read green above.
-  assert.doesNotMatch(
-    D22_REGION_WITHOUT_UNDO,
-    D22_ORDERED_SPAN,
-    'the D22 ordered key matched a region whose undo clause is absent — the key no longer ' +
-      'discriminates (a bare `reset --hard` mention must not satisfy the undo arm). Tighten the ' +
-      'key, never relax this negative reference',
-  )
+  // Both-ways proof: the same key must REJECT all three near-miss shapes. Without these, a key
+  // that silently stopped discriminating on any one arm would still read green above.
+  for (const [label, negative, why] of [
+    [
+      '(a) retired tip-only probe',
+      D22_REGION_HEAD_ONLY_PROBE,
+      'the range arm no longer discriminates — a region probing only the tip commit satisfies it',
+    ],
+    [
+      '(b) undo clause absent',
+      D22_REGION_WITHOUT_UNDO,
+      'the undo arm no longer discriminates — a bare shared-branch doctrine mention satisfies it',
+    ],
+    [
+      '(c) range token absent',
+      D22_REGION_WITHOUT_RANGE,
+      "the range arm's second fragment no longer discriminates — a probe naming the right command " +
+        'but scoped to the tip satisfies it',
+    ],
+  ]) {
+    assert.doesNotMatch(
+      negative,
+      D22_ORDERED_SPAN,
+      `the D22 ordered key matched negative reference ${label}: ${why}. Tighten the key, never ` +
+        'relax a negative reference to make this pass',
+    )
+  }
 })
 
 // ---- Task 2.1 doc-cascade gates (plan 2026-07-26-dispatch-args-and-floor-coverage) ----
@@ -1248,4 +1330,125 @@ test('D30 — the dispatch-args identifier sweep hits exactly its four expected 
     .map(([rel]) => rel)
     .sort()
   assertCensus('union of both identifiers', union, EXPECTED_EMBEDDING_SURFACES)
+})
+
+// ---- Task 1.4 card↔script usage guard (plan 2026-08-02-war-engine-and-standing-doc-truth) ----
+
+// (D9) The refiner card SHOWS an invocation of the submodule-mutation floor; the script PRINTS its
+// own usage. Nothing held the two in agreement — the card shipped the declared-gitlink flag ahead
+// of both positionals while the script's usage puts it last, so a refiner copying the card's shape
+// verbatim would hand the script a flag where it expects its first positional (#1219). This row is
+// that agreement, and it is a SHAPE agreement, never byte equality: the placeholder names differ
+// by design (the card names the two branches by their WAR roles, the script by its own parameter
+// names), so the shared invariant is the ORDER and the arity — two positionals, then the flag.
+//
+// Extraction is BY CONSTRUCT on both sides and deliberately NARROW on the card: the gitlink-bump
+// sub-bullet, then the one backtick code span inside it that opens with the script token — never
+// the whole bullet and never the whole file. That narrowing is load-bearing, not tidiness: the
+// same bullet legitimately mentions the flag ahead of the positionals in PROSE twice (its
+// "pass …" lead-in and its closing "refused even with …" parenthetical), and the neighbouring
+// sub-bullet shows the sanctioned no-flag form, so a bullet-wide or file-wide order check would be
+// literally false about the CORRECT file and would red on plan-mandated text.
+//
+// Patterns are FRAGMENT-BUILT from the basename const declared at the top of this file, and the
+// negative reference below is interpolated rather than spelled: the retired defect is the script
+// token immediately followed by the flag, so this row must never carry that byte-run contiguously
+// in its source, comments or messages, or it becomes a hit for the very sweep that retired it
+// ([[coupling-comment-restating-grep-pattern-bytes-self-matches-the-sweep]]).
+const DECLARED_FLAG = '--declared'
+// The shape of one invocation string: the placeholders standing ahead of the FIRST flag, and where
+// the declared-gitlink flag sits relative to them. Shared by both surfaces AND by the negative
+// reference, so a reader that stopped discriminating cannot green one surface silently.
+const invocationShape = (text) => {
+  const firstFlagAt = text.search(/--[a-z]/)
+  const head = firstFlagAt < 0 ? text : text.slice(0, firstFlagAt)
+  const leading = [...head.matchAll(/<[A-Za-z][A-Za-z0-9]*>/g)].map((m) => m[0])
+  const declaredAt = text.indexOf(DECLARED_FLAG)
+  const lastLeadingEnd = leading.length
+    ? head.lastIndexOf(leading[leading.length - 1]) + leading[leading.length - 1].length
+    : -1
+  return {
+    leading,
+    declaredPresent: declaredAt >= 0,
+    declaredTrails: leading.length > 0 && declaredAt > lastLeadingEnd,
+  }
+}
+test("D9 — the refiner card's gitlink-bump invocation agrees in shape with the floor script's own usage line (#1219)", () => {
+  const bullet = refinerCard.match(/^ *- For a \*\*gitlink-bump task\*\*[\s\S]*?(?=\n *- )/m)
+  assert.ok(
+    bullet,
+    'could not locate the gitlink-bump sub-bullet in agents/war-refiner.md (its bolded task-type ' +
+      'marker → the next sub-bullet) — the extraction construct rotted',
+  )
+  const shown = bullet[0].match(new RegExp('`(' + FLOOR_SCRIPT.replace(/\./g, '\\.') + '[^`]*)`'))
+  assert.ok(
+    shown,
+    'the gitlink-bump sub-bullet no longer SHOWS a floor invocation in a code span — this row ' +
+      'polices the shape the refiner is shown, so its disappearance is a contract change to ' +
+      'adjudicate, never a pass',
+  )
+  const usage = floorScriptSrc.match(/usage: \$PROG([^"]*)"/)
+  assert.ok(
+    usage,
+    "could not locate the floor script's own usage string — the extraction construct rotted",
+  )
+
+  const card = invocationShape(shown[1])
+  const script = invocationShape(usage[1])
+
+  // Arity is pinned once, on the card, and the script must AGREE with it — a drift on either
+  // surface reds as the disagreement it is. Deltas are interpolated because a custom assertion
+  // message suppresses node:assert's generated diff
+  // ([[assert-deepequal-custom-message-suppresses-diff-interpolate-delta]]).
+  assert.equal(
+    card.leading.length,
+    2,
+    'the card must show exactly two positional placeholders ahead of the first flag; it shows ' +
+      `${card.leading.length} (${JSON.stringify(card.leading)}). Extraction rotted, or the ` +
+      "invocation's argument contract changed and this row must be re-adjudicated",
+  )
+  assert.equal(
+    script.leading.length,
+    card.leading.length,
+    `card↔script arity disagreement: the card shows ${card.leading.length} positional ` +
+      `placeholder(s) ${JSON.stringify(card.leading)} but the script's usage declares ` +
+      `${script.leading.length} ${JSON.stringify(script.leading)} ahead of its first flag. The ` +
+      'two surfaces describe ONE call; whichever moved must bring the other with it in the same diff',
+  )
+  for (const [label, shape] of [
+    ['refiner card invocation', card],
+    ['floor script usage line', script],
+  ]) {
+    assert.ok(
+      shape.declaredPresent,
+      `${label}: the declared-gitlink flag is absent. This row polices where that flag sits, so ` +
+        'its removal is a contract change to adjudicate, never a pass',
+    )
+    assert.ok(
+      shape.declaredTrails,
+      `${label}: the declared-gitlink flag stands ahead of a positional argument. The script ` +
+        'consumes its positionals by position, so a refiner copying this shape hands it a flag ' +
+        'where the first argument belongs (#1219) — both surfaces put that flag last. Never ' +
+        'relax this row to match a surface that drifted',
+    )
+  }
+
+  // Both-ways proof (unwired, interpolated so this file never spells the retired byte-run): the
+  // pre-#1219 card shape led with the flag. Read by the SAME shape reader it must fail both the
+  // arity and the trailing facts — otherwise the reader stopped discriminating and every green
+  // above is vacuous.
+  const retired = invocationShape(`${FLOOR_SCRIPT} ${DECLARED_FLAG} <integrationBranch> <taskBranch>`)
+  assert.equal(
+    retired.leading.length,
+    0,
+    'the shape reader no longer discriminates: it counted ' +
+      `${retired.leading.length} positional placeholder(s) ahead of the first flag in the retired ` +
+      'flag-first shape, which by construction has none. Tighten the reader, never relax this proof',
+  )
+  assert.equal(
+    retired.declaredTrails,
+    false,
+    'the shape reader no longer discriminates: it read the retired flag-first shape as ' +
+      'flag-trailing. Tighten the reader, never relax this proof',
+  )
 })
