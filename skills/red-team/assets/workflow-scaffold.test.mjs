@@ -9,14 +9,14 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const scaffoldPath = join(__dirname, 'workflow-scaffold.js')
 const src = readFileSync(scaffoldPath, 'utf8')
 
-// Sandbox-form patterns, shared by the executed-probe prompt assert above and the two-surface
+// Sandbox-form patterns, shared by the executed-probe prompt assert below and the per-surface
 // sandbox-idiom drift guard at the foot of this file. Split-fragment built, so this file never
 // carries either form contiguously and can never turn up in a repo sweep for them.
 // SANDBOX_REF_WRITING is the negative: a linked-worktree sandbox created WITHOUT the detach flag
 // writes a `refs/heads/<tmp-basename>` into the target that survives `rm -rf` of the sandbox
 // directory, which the post-run ref-diff then reports as an escape on the guard's own workflow.
 const SANDBOX_DETACHED = new RegExp('worktree' + '\\s+add\\s+--detach')
-const SANDBOX_REF_WRITING = new RegExp('worktree' + '\\s+add\\s+(?!--detach\\b)')
+const SANDBOX_REF_WRITING = new RegExp('worktree' + '\\s+add(?!\\s+--detach\\b)')
 
 // Step 2: Compile the scaffold body as an async function with Workflow globals injected.
 // The Workflow harness wraps the file body as an async function; the meta export is replaced
@@ -1137,8 +1137,8 @@ test('SKILL.md Steps 3/4 pin both escape-guard modes: the pre-run snapshot flag 
 
 test('sandbox-idiom drift guard: each surface pins its isolating forms, and the ref-writing form is on neither (End state 18)', () => {
   // PER SURFACE, not one shared literal: the preamble governs a probe's throwaway sandbox while
-  // SKILL.md Step 3 governs the Lead's clean checkout for the --repo argument, and the two are free
-  // to diverge again. Each row owns its own required list.
+  // SKILL.md Step 3 governs the Lead's clean checkout for the --repo argument, and the surfaces are
+  // free to diverge again. Each row owns its own required list.
   const rows = [
     { name: 'assets/workflow-scaffold.js', text: src,
       required: [/git clone --no-hardlinks/, /cp -R/, SANDBOX_DETACHED, /worktree remove --force/] },
