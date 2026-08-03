@@ -200,6 +200,9 @@ export function summarize(results, coverage = null) {
 // adjudicated: true on that finding in a WORKING COPY of the gate input (never in the persisted
 // task-output file, which is evidence) and re-pipes the copy through --stdin; because a top-level
 // probeResults wins over a .result envelope, the stamped copy is never shadowed by the original.
+// The working copy must carry the whole gate input — probeResults (including any dropped markers),
+// fingerprint, expected, and repo. A copy that drops fingerprint/expected turns the coverage layer
+// off entirely, so an INCOMPLETE run would re-pipe as ADJUDICATED.
 // Findings are removed from the input only when a re-run probe proved them resolved — the verdict
 // on stdout is always gate-computed, never hand-written.
 async function main(argv) {
