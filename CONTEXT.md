@@ -867,8 +867,8 @@ the two named producers.
 The gate's fifth, distinct, gate-emitted terminal verdict: every blocker/`needsDecision` is patched and
 carries an adjudication row, but at least one was not re-proven by a probe re-run — a proceed verdict,
 never a `CLEARED` synonym ([ADR 0043](docs/adr/0043-adjudicated-clear-distinct-terminal-verdict.md)).
-Precedence: `INCOMPLETE` > `BLOCKED` > `ADJUDICATED` > `CLEARED-WITH-NOTES` > `CLEARED`; a zero-blocker
-run can never emit it.
+Precedence: `INCOMPLETE` > `BLOCKED` > `ADJUDICATED` > `CLEARED-WITH-NOTES` > `CLEARED`; a run with
+zero blockers/`needsDecision` can never emit it.
 _Avoid_: "CLEARED by adjudication" or other Lead-invented prose — the verdict is emitted by `verdict()`
 alone, never hand-written, and it always means at least one finding stayed probe-unverified.
 

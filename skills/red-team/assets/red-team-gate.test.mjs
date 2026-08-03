@@ -513,7 +513,8 @@ test('D7(b): the two-contract sentence is pinned in BOTH workflow-scaffold.js an
 // with a re-run probe. It is STAMPED, never removed: it stays in `blockers` so the report still
 // shows it, and only verdict() reads the flag. Mirrors the DA/EG typed-flag suite shape.
 const ADJ = (over = {}) => ({ severity: 'Critical', claim: 'patched at grill time', planRef: 'Task 1', adjudicated: true, ...over })
-// One non-pass probe carrying the given findings — the shape every fixture below shares.
+// One non-pass probe carrying the given findings — the shape the fixture cases below share (the
+// back-compat table and the paired-coverage pin build their own inputs).
 const openFindings = (...findings) => allFindings([{ probe: 'p', status: 'fail', findings }])
 
 test('adj: every blocker carries the flag → the adjudicated verdict, and classify() still lists them', () => {
