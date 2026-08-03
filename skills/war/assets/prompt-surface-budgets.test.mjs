@@ -8,7 +8,7 @@
 // advisory constant requires citing the prompt-surface-budgets ADR's justification
 // rule in the commit body.
 // Pinned by skill-doc-contracts.test.mjs's D29 row (ADR 0042 mirror registry) — reword
-// the Formula sentence below and that row in the same commit.
+// the derivation sentence below and that row in the same commit.
 // Formula (adjudication D): advisory = post-shrink measured size × 1.10 rounded up to
 // the KB; hard = post-shrink × 1.25 rounded up to the KB.
 // `references/` files are deliberately unbudgeted (cold storage, like memory
@@ -202,6 +202,102 @@ test('budget census — every agents/*.md is budgeted, every budgeted key is exp
     'FILE_BUDGETS keys must exactly match the expected surface census — a new agent '
       + 'card needs a budget row, and removing a row is a loud failure, never silent',
   );
+});
+
+// --- Per-row derivation-comment guard (ADR 0042 D5 mechanism gap, #1233) ------------
+//
+// D5 mandates that every budget constant carry its derivation. Nothing enforced it: a bare
+// `{ hard, advisory }` row could land above with no comment at all, leaving the number
+// unauditable — no way to tell a measured ratchet from a typed-in guess. This guard binds the
+// shape of the comment block directly above each budgeted subject.
+//
+// CONTAINS, never starts-with. Survey of the live subjects at this task's base: FOUR blocks open
+// with something other than their derivation line — war-setup-scout's adjudication-M note,
+// CONTEXT.md's and CLAUDE.md's adjudication-F preambles, and the prompt-literal sentinel's
+// adjudication-C paragraph. A starts-with shape would RED all four unmodified.
+//
+// The derivation predicate is FUSED and newline-anchored, deliberately:
+//   * Fused (byte count and SHA bound in ONE match) because two independent contains-predicates
+//     would happily pair a byte count on one comment line with a SHA on another. That false
+//     green is latent rather than live — zero cross-line pairings at this base — which is
+//     exactly the sort of hole a mechanical guard exists to foreclose before it opens.
+//   * Parenthetical-tolerant because the sentinel's derivation interposes a block/file-size
+//     aside between the byte count and the SHA. The plain fused shape REDs that one live
+//     subject; this shape passes all ten with zero comment rewrites.
+//   * The `\n` in the negated class is PROPHYLACTIC and no current subject demonstrates it:
+//     JavaScript negated classes match U+000A, so a bare `[^)]*` would let the aside span
+//     comment lines and re-admit the cross-line pairing the fusion just closed. Measured at this
+//     base the two variants agree on all ten subjects (in every live block the byte count is
+//     followed by ` →`, never ` (`, so the optional group is simply skipped, and they RED
+//     together under SHA-stripping rot too). It guards a future shape — an aside opening right
+//     after the byte count and closing on a later line with the SHA after it — not a present one.
+//
+// Multiplier disjunction, not conjunction: CONTEXT.md's row is the known one-arm outlier, showing
+// only the ×1.25 side (its placeholder is retained under ratchet-down, so the advisory arm's
+// computed value is not what the row carries).
+//
+// DISCOVERY FLOOR (default-deny, the sibling census's posture): the row-shape scan does not get to
+// define its own subject set. Reflow one row to a multi-line object literal and it drops silently
+// out of the scan (10 → 9), after which its derivation comment could be deleted with this guard
+// still green — precisely the unauditable-bare-row outcome #1233 exists to prevent. So the
+// discovered key set is asserted equal to the live budget keys plus the one sentinel.
+//
+// Self-exclusion, both subject classes: the sentinel is pinned by its DECLARATION line shape (the
+// identifier also appears at a use site below, which an occurrence scan would double-count), and
+// that shape is assembled from split fragments so this guard's own source carries no
+// declaration-shaped line; the row subject is matched by a regex, never a literal row-shaped
+// byte-run.
+test('per-row derivation guard — every budgeted constant carries its derivation comment (ADR 0042 D5, #1233)', () => {
+  const ownSrc = readFileSync(fileURLToPath(import.meta.url), 'utf8');
+  const lines = ownSrc.split('\n');
+
+  const ROW_SHAPE = /^\s*'([^']+)':\s*\{\s*hard:\s*\d+,\s*advisory:\s*\d+\s*\},?\s*$/;
+  const SENTINEL = 'WORKFLOW_LITERAL' + '_BUDGET';
+  const SENTINEL_DECL = new RegExp('^const ' + SENTINEL + '\\b');
+  const DERIVATION = /post-shrink [\d,]+ B(?: \([^)\n]*\))? @ [0-9a-f]{7}/;
+  const MULTIPLIER = /×1\.25|×1\.10/;
+
+  // Contiguous `//` run immediately above the subject line, leaders stripped, line structure
+  // preserved — the newline anchoring above is meaningless if the block is flattened first.
+  const commentBlockAbove = (idx) => {
+    const block = [];
+    for (let i = idx - 1; i >= 0 && /^\s*\/\//.test(lines[i]); i--) {
+      block.unshift(lines[i].replace(/^\s*\/\/ ?/, ''));
+    }
+    return block.join('\n');
+  };
+
+  const subjects = [];
+  lines.forEach((line, i) => {
+    const row = line.match(ROW_SHAPE);
+    if (row) subjects.push([row[1], commentBlockAbove(i)]);
+    else if (SENTINEL_DECL.test(line)) subjects.push([SENTINEL, commentBlockAbove(i)]);
+  });
+
+  assert.deepEqual(
+    subjects.map(([key]) => key).sort(),
+    [...Object.keys(FILE_BUDGETS), SENTINEL].sort(),
+    'the derivation-guard subject scan did not discover every budgeted constant — a budgeted row '
+      + 'reflowed out of the single-line row shape drops silently out of the guarded set, after '
+      + 'which its derivation could be deleted unnoticed (#1233). Re-shape the row to one line, or '
+      + 'widen this scan in the same commit — never narrow the expected set to match the scan',
+  );
+
+  for (const [key, block] of subjects) {
+    assert.match(
+      block,
+      DERIVATION,
+      `${key}: the comment block directly above it must carry a derivation line binding the `
+        + 'measured post-shrink byte count to the commit it was measured at, on ONE line '
+        + '(ADR 0042 D5) — a budget constant without one is an unauditable number (#1233)',
+    );
+    assert.match(
+      block,
+      MULTIPLIER,
+      `${key}: its derivation comment must show the multiplier the budget was computed with `
+        + '(the hard ×1.25 arm, the advisory ×1.10 arm, or both) — ADR 0042 D5',
+    );
+  }
 });
 
 for (const [relPath, budget] of Object.entries(FILE_BUDGETS)) {
