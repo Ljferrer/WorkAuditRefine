@@ -176,6 +176,26 @@ test('reference link integrity — every markdown link target under agents/ and 
 const RETIRED_CITATION = /\([^)]*(?:SKILL\.md[^)]*co-source-of-truth|co-source-of-truth[^)]*SKILL\.md)[^)]*\)/gi;
 
 test('reference link integrity — the retired SKILL.md co-source-of-truth citation form is absent from both prose roots', () => {
+  // Positive control (non-vacuity): the pattern must still FIRE, in both token orders,
+  // against synthetic literals of the retired form — a negative-only assert would stay
+  // permanently, silently green after a stray escape or renamed token broke the pattern.
+  // Safe from self-match: these literals live in this .mjs and the sweeps read only *.md
+  // (see the self-match note atop this file). Matched through a NON-global copy —
+  // RETIRED_CITATION carries /g/, and RegExp.prototype.test's lastIndex state would leak
+  // across the two controls and into the matchAll scan below (matchAll clones inherit
+  // lastIndex).
+  const CITATION_ONCE = new RegExp(RETIRED_CITATION.source, RETIRED_CITATION.flags.replace('g', ''));
+  for (const control of [
+    '(prompt-surface simplification; see SKILL.md, submodule co-source-of-truth)',
+    '(prompt-surface simplification; see submodule co-source-of-truth, SKILL.md)',
+  ]) {
+    assert.match(
+      control,
+      CITATION_ONCE,
+      `positive control failed — RETIRED_CITATION no longer matches the retired citation form: ${control}`,
+    );
+  }
+
   const hits = [];
   for (const file of SCANNED) {
     for (const m of file.text.matchAll(RETIRED_CITATION)) hits.push(`${file.rel}: ${m[0]}`);
@@ -209,6 +229,14 @@ test('reference link integrity — the re-basing caveat is retired everywhere an
   // reintroduction left an equivalent guard fully green while the retired doctrine was
   // live). The hand grep floor for the same fact is `grep -rin`, never `grep -rn`.
   const RETIRED_REBASING_CAVEAT = /link paths inside the moved blocks/i;
+  // Positive control (non-vacuity): the pattern must still FIRE against a synthetic
+  // literal of the retired caveat — same rationale and self-match safety as the citation
+  // arm's control (no /g/ here, so a direct assert.match is stateless).
+  assert.match(
+    'Relative link paths inside the moved blocks are likewise written relative to X',
+    RETIRED_REBASING_CAVEAT,
+    'positive control failed — RETIRED_REBASING_CAVEAT no longer matches the retired caveat form',
+  );
   const offenders = SCANNED.filter((f) => RETIRED_REBASING_CAVEAT.test(f.text)).map((f) => f.rel);
   assert.deepEqual(
     offenders,
