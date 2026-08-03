@@ -1989,7 +1989,9 @@ if (landDecision === 'landed') {
     // pr_remote readable; this arm dispatches into its own receiver, so without the hand-off the phase
     // would return the STALE first (gate_failed) attempt while the escalation record says submodule-pr.
     // Inert on every other path: the tipSha anchor, the Wrap-up servitor gate and the handoff block are
-    // all status:'landed' / landDecision-gated and read identically before and after.
+    // all status:'landed' / landDecision-gated and read identically before and after. The count-keyed
+    // arm-symmetry pin in workflow-template.test.mjs is the arbiter: a re-land arm added without this
+    // reassignment goes red there.
     if (reLand && reLand.status === 'submodule-pr') {
       landResult = reLand
       escalated.push({ task: `phase-${ph.id}-land`, reason: 'submodule-pr', pr_number: reLand.pr_number, pr_remote: reLand.pr_remote, detail: reLand })
