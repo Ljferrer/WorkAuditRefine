@@ -4641,6 +4641,14 @@ test('pkg §4.2 — retry-merge prompt re-instructs ALL floor invocations (test 
   // assert-no-submodule-mutation.sh (dispatched-vs-standing coverage-split lesson). The submodule arm is a
   // #1114 survey-derived correction: this test's own "ALL floor invocations" claim (and the two adjacent
   // engine comments that word it identically) enumerated two of the three floors the retry now carries.
+  // Non-vacuity (#1246): the test and packaging predicates carry the `run ` verb prefix, and that prefix is
+  // the whole discriminator. A BARE filename regex greens on EITHER arm of the requiresTest /
+  // requiresPackaging ternaries — the run arm and the `skip the assert-…-in-diff.sh check` arm share the
+  // filename byte-run — so it passed even when the floor was being skipped, exercising nothing. The sibling
+  // assert-no-submodule-mutation.sh predicate stays a bare filename regex on purpose: that invocation is
+  // UNCONDITIONAL in the floor-retry prompt, so it has no like-worded skip arm to be confused with. (No
+  // "re-run" wording is pinned by that predicate — it is itself bare and its message is inert prose; the
+  // absent skip arm, not a verb, is what makes it discriminating.)
   let mergeCount = 0
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
@@ -4655,8 +4663,8 @@ test('pkg §4.2 — retry-merge prompt re-instructs ALL floor invocations (test 
   const { calls } = await runPhase(PKG_ARGS(), impl)
   const retry = calls.find(c => /floor-retry/.test(c.opts.label || ''))
   assert.ok(retry, 'a floor-retry merge is dispatched')
-  assert.match(retry.prompt, /assert-test-in-diff\.sh/, 'retry-merge re-instructs the test floor')
-  assert.match(retry.prompt, /assert-packaging-in-diff\.sh/, 'retry-merge re-instructs the packaging floor')
+  assert.match(retry.prompt, /run assert-test-in-diff\.sh/, 'retry-merge re-instructs the test floor')
+  assert.match(retry.prompt, /run assert-packaging-in-diff\.sh/, 'retry-merge re-instructs the packaging floor')
   assert.match(retry.prompt, /assert-no-submodule-mutation\.sh/, 'retry-merge re-instructs the submodule floor (unconditional per war-refiner.md step 6 — "always")')
 })
 
@@ -7116,7 +7124,17 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
   // ADR 0041 ladder rung bodies — card-only by construction: End state 8(ii) forbids these tokens on the
   // dispatched surfaces, so the five-surface row above cannot carry them; assert them on the card alone
   // (the file's existing supplementary-assert idiom, cf. the CWD_IS_TIP_ASSERTING loop below).
-  for (const re of [/Pinned blob/i, /Gate-evidence artifact/i, /advisory corroboration/i, /a claim to verify, never evidence/i]) {
+  // #1246 — the `authority` ladder was the one claim shape with NO rung-body anchor here: the loop's four
+  // PRE-EXISTING regexes covered content-at-pin (rungs 1 and 2), execution (rung 1) and history (rung 2),
+  // so an authority-ladder rung could be deleted from the card with this loop still green. The appended
+  // /Roadmap\/spec literals/i is authority rung 4, completing 4-of-4 claim-shape coverage. Absence census
+  // RE-MEASURED at this task's base (never inherited from the rows above): `Roadmap/spec literals` counts
+  // 0 in skills/war/assets/workflow-template.js — one count that covers auditPrompt() AND all three
+  // gate-audit-family seat sources, because every one of those four dispatched surfaces is built in that
+  // single file — and 1 in agents/war-auditor.md, the authority ladder's rung 4. So the new anchor is
+  // card-only by the same construction as the existing four, and deleting that rung body REDs it.
+  for (const re of [/Pinned blob/i, /Gate-evidence artifact/i, /advisory corroboration/i, /a claim to verify, never evidence/i,
+    /Roadmap\/spec literals/i]) {
     assert.match(auditorMd, re,
       `war-auditor.md carries the spec §4.1 rung body ${re} — card-only by construction: End state 8(ii) forbids these tokens on the dispatched surfaces, so the five-surface row above cannot carry them`)
   }
