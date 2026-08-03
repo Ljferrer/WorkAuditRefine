@@ -23,7 +23,7 @@ WAR advertises a "three-layer resumable source of truth" — GitHub issue labels
 ## Consequences
 
 - `SKILL.md` and `design.md` §6 state the precedence and tag the ledger a lagging view; `schemas.md` notes `merge_sha` is advisory (authoritative only when reachable on the branch). The "three-layer source of truth" framing is corrected to one authority + two durable/advisory records.
-- The reconciliation pre-flight is a **Lead checklist, not enforced code** — its discipline lives in `SKILL.md` prose, with the same erosion risk as any prompt-layer rule. This is accepted deliberately: git's monotonicity is the real safety net; the pre-flight only saves wasted re-work and surfaces the foreign-commit case earlier.
+- The reconciliation pre-flight is a **Lead checklist, not enforced code** — its mechanics (the A/B/C disposition table, the landed-phase check) live in `skills/war/references/resume-and-recovery.md`, while `skills/war/SKILL.md` keeps the trigger pointer plus a summary of the precedence chain, the one-way-repair invariant and the unexplained-commit halt; both are prompt-layer surfaces, with the same erosion risk as any prompt-layer rule. This is accepted deliberately: git's monotonicity is the real safety net; the pre-flight only saves wasted re-work and surfaces the foreign-commit case earlier.
 - Repair is **one-way** — records are rewritten toward git; no step mutates git to match a record. A resuming Lead can therefore never corrupt a branch by reconciling.
 - Class C halts on *any* unclaimed commit, including benign ones (e.g. a human hotfix pushed onto the integration branch). That false-positive cost is preferred over silently absorbing a concurrent run's work.
 
