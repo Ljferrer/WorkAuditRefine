@@ -2,9 +2,11 @@
 
 Verbatim evictions from `agents/war-worker.md` and `agents/war-servitor.md` (prompt-surface
 simplification, Task 5.1; each moved block was byte-identical to its pre-eviction card text
-at eviction time — relative link targets have since been rewritten to resolve from this file,
-this pass). Positional words inside the moved blocks ("below", "above") refer to their original card
-positions. The dispatched worker prompt in `skills/war/assets/workflow-template.js`
+at eviction time and until this pass, apart from the §Servitor confinement ADR link — re-rooted
+at eviction, then restored verbatim by the Task 5.1 polish, and re-rooted again here so it
+resolves from this file, this pass). Positional words inside the moved blocks ("below", "above")
+refer to their original card positions. The dispatched worker prompt in
+`skills/war/assets/workflow-template.js`
 threads the runtime submodule/gitlink-bump context (`TARGET REPO` / `GITLINK-BUMP` clauses) at the
 dispatch site — this file is the standing step-by-step those clauses assume. On a foreign target
 repo no path form resolves this file at all (the plugin is not installed inside it), so the

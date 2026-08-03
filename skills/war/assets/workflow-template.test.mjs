@@ -7888,6 +7888,18 @@ test('Task 5.1 — worker/servitor card evictions: destination carries the moved
     'war-auditor.md: no references/ pointer uses a forbidden ../-prefixed path, at any depth (adjudication O(2))')
   assert.equal((auditorMd.match(/\(skills\/war\/references\/auditor-teach\.md\)/g) || []).length, 4,
     'war-auditor.md carries all four owner-relative trigger pointers to auditor-teach.md')
+  // …and to war-refiner.md, the ORIGINAL instance of this defect (606b72b, named above): the
+  // equivalence class is "agent cards carrying skills/war/references/ pointers", so the card
+  // whose fix started the family must be held by an assert too — otherwise 606b72b can silently
+  // regress. Its three refiner-recovery.md pointers are already owner-relative; its one
+  // ../-prefixed link is an ADR link (`../docs/adr/0001-…`), which correctly resolves from
+  // agents/ and carries no skills/war/references/ segment, so this pattern does not flag it.
+  // agents/war-setup-scout.md is DELIBERATELY excluded from this family (source spec
+  // docs/specs/2026-08-02-references-pointer-link-truth-design.md §9): its two ../-prefixed
+  // links — one of them `](../skills/war/references/schemas.md)` — are pre-identified as
+  // out of scope, so an assert over that card would RED today. Add it here once they are repaired.
+  assert.ok(!/\((?:\.\.\/)+[^)]*skills\/war\/references\/[^)]+\)/.test(refinerMd),
+    'war-refiner.md: no references/ pointer uses a forbidden ../-prefixed path, at any depth (adjudication O(2))')
   // Decisive rules survive inline on the cards (pointer = enrichment, never sole carrier).
   assert.match(workerMd, /merge_sha/, 'war-worker.md keeps the ledger merge_sha authority rule inline')
   assert.match(workerMd, /gitlink-only/, 'war-worker.md keeps the gitlink-only diff rule inline')
