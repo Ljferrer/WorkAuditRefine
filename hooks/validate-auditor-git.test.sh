@@ -293,10 +293,12 @@ expect_deny "C11: git diff HEAD \\ (trailing continuation) → denied (backslash
 # C12: backtick command substitution. Same `jq -nc --arg` encoding as C11, for
 # H5's reason — keep the payload out of every escaping path between here and the
 # hook. A backtick byte is JSON-valid, so auditor_cmd's printf would not corrupt
-# the JSON; the CALL SITE would. Every auditor_cmd call in this file passes its
-# payload double-quoted, and an unescaped backtick there is command substitution
-# in the test's own shell — the case would then assert against a payload nobody
-# wrote. jq --arg takes the bytes verbatim and removes the question.
+# the JSON; the CALL SITE would. Every auditor_cmd call in this file but C5
+# passes its payload double-quoted (C5 single-quotes its $() payload for exactly
+# this reason), and an unescaped backtick in a double-quoted call site is
+# command substitution in the test's own shell — the case would then assert
+# against a payload nobody wrote. jq --arg takes the bytes verbatim and removes
+# the question, keeping C12 uniform with C11 and H5.
 # The single-out-of-allowlist-byte discipline binds C12 as tightly as C11: the
 # backtick is the payload's ONLY out-of-allowlist byte, with no quotes or parens
 # borrowed from H5's neighbouring $() payload; a second residue byte would keep
