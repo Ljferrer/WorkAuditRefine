@@ -170,7 +170,7 @@ test('(g) --force overwrites a pre-existing different-content staged file with a
 })
 
 // ---------------------------------------------------------------------------
-// `--args <file>` embedding (#1134) — cases (h)–(m).
+// `--args <file>` embedding — cases (h)–(m) from #1134, plus the two fail-loud arms (n)–(o) from #1163.
 // ---------------------------------------------------------------------------
 
 // (h) Invalid `--args` (End state 3) — every arm exits non-zero with a named `stage-workflow:` error
@@ -403,6 +403,54 @@ test('(m) a staged script entered with FALSY args clears entry validation via th
   const noArgs = runStager([TEMPLATE, scratch('stage-entry-ctl-'), 'entry-slug', '1'])
   const ctl = await runStagedEntry(readFileSync(noArgs.stdout.trim(), 'utf8'), undefined)
   assert.equal(ctl.phase, null, 'without --args a falsy entry still resolves {} — so the sentinel above is real evidence')
+})
+
+// (n)–(o) The two fail-loud arms of the `--args` path that had NO test at all (#1163). Both are
+// reachable only WITH `--args`: without the flag neither step (2) nor step (3) runs.
+//
+// THROW ORDER, stated because the fixtures are otherwise easy to misread (decoy-fixture-comment
+// lesson): main() substitutes name → description → args fallback via `replaceExactlyOnce`, and ONLY
+// THEN calls `insertArgsPrelude`. So (n)'s fixture dies at the third substitution and never reaches
+// the insertion, while (o)'s fixture must satisfy all three substitutions first in order to reach
+// it. The two stderr shapes are disjoint and each has a single emitter in the stager:
+// `expected exactly one <label> anchor` comes only from `replaceExactlyOnce`, `could not locate the`
+// only from `insertArgsPrelude` — so the matched fragment is itself the proof of which arm fired.
+// Both assertions anchor on that stable fragment ALONE, never the full message bytes (spec §8): a
+// future reword of these errors should RED loudly, but nothing wider is coupled.
+
+// (n) `args fallback` exactly-once arm — the third substitution, count 0. MINIMAL_TEMPLATE already
+// IS the needed shape: both meta anchors, no `: (args || {})` tail. Red: drop the exactly-once check
+// and count 0 becomes a no-op join — the stager then injects an EMBEDDED_ARGS prelude the never-
+// rewritten fallback can never read, and exits 0 on a silently args-less script.
+test('(n) --args on a fixture with no fallback tail exits non-zero at the args-fallback exactly-once throw', () => {
+  const dir = scratch('stage-nofallback-')
+  const tpl = join(dir, 'tpl.js')
+  writeFileSync(tpl, MINIMAL_TEMPLATE)
+  const { status, stderr } = runStager([tpl, dir, 'slug', '1', '--args', writeArgs(dir, { k: 1 })], { expectFail: true })
+  assert.notEqual(status, 0, 'a missing args-fallback anchor must fail loud, never stage a script whose prelude is dead weight')
+  assert.match(stderr, /expected exactly one args fallback anchor/)
+})
+
+// A fixture whose `export const meta` statement opens AND closes on one line, with no column-0 `}`
+// line anywhere else either — `META_STATEMENT` is line-anchored (`^\}$`), so it finds no terminator
+// and does not match. The "anywhere else" half is load-bearing: give the fixture any later column-0
+// `}` line and the regex matches through to THAT line and inserts without throwing. All three
+// anchors are present exactly once, built from the imported constants, so the three substitutions
+// succeed and the insertion is genuinely reached.
+const META_ONE_LINE_TEMPLATE = `export const meta = { ${NAME_ANCHOR}, description: '${DESCRIPTION_ANCHOR}' }
+const A = typeof args === 'string' ? JSON.parse(args) ${ARGS_FALLBACK_ANCHOR}
+`
+
+// (o) `insertArgsPrelude` meta-not-found arm — the last `--args` step. Red: swap the throw for a
+// silent `return text` and the stager writes a staged copy referencing an EMBEDDED_ARGS constant it
+// never declared, exit 0 — a ReferenceError deferred to dispatch time.
+test('(o) --args on a fixture with no column-0 `}` line exits non-zero at the insertArgsPrelude meta-not-found throw', () => {
+  const dir = scratch('stage-nometa-')
+  const tpl = join(dir, 'tpl.js')
+  writeFileSync(tpl, META_ONE_LINE_TEMPLATE)
+  const { status, stderr } = runStager([tpl, dir, 'slug', '1', '--args', writeArgs(dir, { k: 1 })], { expectFail: true })
+  assert.notEqual(status, 0, 'an unlocatable meta statement must fail loud, never stage an undeclared-EMBEDDED_ARGS script')
+  assert.match(stderr, /could not locate the/)
 })
 
 // (guard) Symlink-invocation regression: running the CLI through a symlink must still fire main()
