@@ -146,7 +146,7 @@ dep-wave worker rebases onto the integration tip and sees the merged dep's code;
 same-file collision (same file → same task, waved or not). The same rule scales up: phases within a plan,
 and plans within a roadmap (the shared-file-contention table is this rule applied across plans).
 
-### Drift-guard coverage — two authoring rules
+### Drift-guard coverage — three authoring rules
 
 > **Mechanics (why):** a fact WAR duplicates across surfaces, or asserts in prose about a canonical code
 > construct, rots silently unless a mechanical guard binds it to its canonical source by **extraction +
@@ -164,6 +164,18 @@ and plans within a roadmap (the shared-file-contention table is this rule applie
    the **OLD value absent** across all of them — asserting only the new value present is the recorded failure
    ([[default-flip-must-audit-all-doc-surfaces]]): a stale surface the new-present check never reads sails
    through green.
+7. **Guard-split deps-edge ⇒ the guard task carries a `deps` edge onto the fact.** When file-disjointness
+   (rule 1) forces a drift guard into a **different task** from the one authoring the fact it guards, that
+   guard task MUST carry `deps: [<the fact-authoring task>]` — **same wave is insufficient**, because every
+   task worktree is cut from one **frozen** phase base: a guard that merely shares a wave with its fact is
+   implemented and audited against a base that lacks it, red by construction through no fault of its own
+   diff. The edge encodes a **content** dependency the downstream worker discharges by rebasing onto the
+   integration tip as its first act — *not* the `deps`-to-dodge-a-same-file-collision the heuristics above
+   forbid, because the two tasks are genuinely file-disjoint. Cannot be edged (a cycle) ⇒ merge the tasks or
+   move the guard a phase later; **never ship it unedged**. Canonical record: the 2026-08-02 amendment to
+   [ADR 0025](../../docs/adr/0025-drift-guard-discipline.md); downstream, `/red-team`'s
+   `guard-split-deps-edge` spine probe flags an unedged split as a plan defect (`needsDecision`). Binds every
+   plan authored or converted here, and `/war-machine`'s drafter consumes this subsection by reference.
 
 ## 4. Handoff & convert
 
@@ -182,9 +194,9 @@ ship this **HANDOFF DIRECTIVE** with the route — the authoring skill executes 
 ### With-artifact invoke — review & convert
 
 1. **Gap review** against the templates + the rule (§2, §3): missing sections, same-file collisions,
-   phase-edge violations, one-task-one-repo violations, release placement, **unguarded new mirrors and
-   default-flips lacking an OLD-absent gate** (the two drift-guard rules in §3), and — at roadmap scale —
-   plan count and landing order.
+   phase-edge violations, one-task-one-repo violations, release placement, **unguarded new mirrors,
+   default-flips lacking an OLD-absent gate, and drift guards split from their fact without a `deps` edge**
+   (the three drift-guard rules in §3), and — at roadmap scale — plan count and landing order.
 2. **Gap-driven interview:** one question at a time, **recommendation first** ("I recommend X because Y —
    accept?").
 3. **Structural fixes** applied with the operator's confirmation.

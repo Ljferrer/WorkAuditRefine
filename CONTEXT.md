@@ -799,6 +799,15 @@ prose).
 _Avoid_: freezing a structural count ("differ by exactly one entry", "lists 8 reasons") or a line-number
 reference in narrative prose — it reads authoritative while silently going false.
 
+**Guard-split deps edge**:
+The mandatory `deps` edge a drift-guard task must carry onto the same-phase task that authors the fact
+it guards, when file-disjointness forces the guard into a different task. Same phase and same wave are
+insufficient alone — every task worktree is cut from one frozen phase base at Provision, so an unedged
+guard task is audited against a base that predates the fact it guards, through no fault of its diff
+([ADR 0025 amendment](docs/adr/0025-drift-guard-discipline.md)).
+_Avoid_: treating shared-phase or shared-wave placement as sufficient by itself — only the `deps` edge
+forces the guard task's rebase to include the fact-authoring task's landed content.
+
 ### Red-team plan-vs-state grading (ADR 0032 / ADR 0033)
 
 **Artifact-kind**:
@@ -835,6 +844,15 @@ The hardened `git -C` scope-lock is prevention (Layer 2); this guard is the dete
 _Avoid_: "cleanup", "sandbox jail" — it is detection, not confinement; the agent-type probe jail is a
 recorded non-goal (D6).
 
+**Ref-diff baseline**:
+The pre-run ref-set snapshot `assert-no-repo-escape.sh --snapshot` writes outside the `--repo` working
+tree (the full local `git for-each-ref` set) — the exact half of the post-run `--baseline` check: a
+name-agnostic diff over `refs/heads/`/`refs/tags/` that closes the #1244 pattern-slipping-branch hole a
+name allowlist could not, and that excludes `refs/remotes/*` (which moves on an ordinary `fetch`).
+_Avoid_: conflating it with the unconditional pre-run local-integrity refusal (clean porcelain, no
+junk-pattern ref) — that refusal runs first and blocks baselining pre-existing residue; the baseline
+file is the separate artifact the post-run diff compares against.
+
 **Adjudication**:
 An authoritative resolved ruling threaded to audit seats as an `args.adjudications` row — produced by
 the red-team report's `## Adjudications` block (version literals and grill decisions) **or** by the
@@ -844,6 +862,29 @@ and the adjudication-match confirmation-note rule.
 _Avoid_: "override", "waiver" — a row records a ruling already made and routed; it never waives a gate,
 floor, or backstop (ADR 0017), and a row is **never mined from arbitrary prose** — rows come only from
 the two named producers.
+
+**ADJUDICATED (verdict)**:
+The gate's fifth, distinct, gate-emitted terminal verdict: every blocker/`needsDecision` is patched and
+carries an adjudication row, but at least one was not re-proven by a probe re-run — a proceed verdict,
+never a `CLEARED` synonym ([ADR 0043](docs/adr/0043-adjudicated-clear-distinct-terminal-verdict.md)).
+Precedence: `INCOMPLETE` > `BLOCKED` > `ADJUDICATED` > `CLEARED-WITH-NOTES` > `CLEARED`; a run with
+zero blockers/`needsDecision` can never emit it.
+_Avoid_: "CLEARED by adjudication" or other Lead-invented prose — the verdict is emitted by `verdict()`
+alone, never hand-written, and it always means at least one finding stayed probe-unverified.
+
+**Adjudicated flag**:
+The typed per-finding `adjudicated: true` the Lead stamps on a finding object in the gate-input working
+copy at grill time, then re-pipes through the gate via `--stdin` — the only channel by which adjudication
+reaches `verdict()`.
+_Avoid_: a string `'true'`, a truthy value, or NLP over finding text — the gate reads a strict boolean
+`=== true` on the finding itself, matching the `deliverableAbsence`/`envGap` typed-flag pattern.
+
+**Adjudication provenance marker**:
+The per-row `operator-ratified (<date>)` / `AI-declared` token every row of a report's `## Adjudications`
+block carries (ADR 0014 family) — finer-grained than the heading-level intent marker, because one run
+can mix operator rulings with Lead self-adjudication (`--afk`) inside the same report.
+_Avoid_: a block-level provenance stamp — the marker is per-row precisely because a single report can
+mix operator-ratified and AI-declared rows side by side.
 
 **topology-void**:
 A plan clause anchored on git topology that does not exist under WAR's fast-forward per-task merges (a
