@@ -40,13 +40,13 @@
     },
     {
       "file": "skills/war/assets/workflow-template.js",
-      "line": 390,
+      "line": 1019,
       "title": "7 · Work + Audit, wave by wave",
       "description": "**Situation:** Tasks run in dependency waves (`nextWave()` gates on `succeeded`, with a barrier between waves). Within a wave, every task's Work-then-Audit pipeline runs concurrently.\n\n**Mechanism:** Per task: optional `provisionStep` (repo-derived setup; a failure short-circuits to `env-blocked` and the worker is *never spawned*), then the `war-worker` implements and pushes, then `auditRound` convenes the task's **roster** — one read-only seat per roster entry, each with its own lens and depth. A blocking verdict batches a `FIX_NEEDED` to a *fresh* fix-worker in the *same* worktree, up to `roundLimit` (3).\n\n**Implication:** workers are disposable and stateless — fix-in-place reuse (not a new worktree per attempt) is exactly why ADR 0001 rejects the harness's auto-worktree. **Gotcha:** `env-blocked` is a broken *environment*, not broken *code* — it burns **0** fix rounds, keeps the worktree for inspection, and lets siblings proceed."
     },
     {
       "file": "skills/war/assets/workflow-template.js",
-      "line": 242,
+      "line": 564,
       "title": "8 · The gate predicates",
       "description": "**Situation:** These five one-liners encode WAR's entire audit-gating policy. Tiny surface, large consequence.\n\n**Mechanism:** `blockingOf` = Critical/Major findings (these block); `minorsOf` = Minor/Nit (these become follow-up issues, never block); `allApprove` requires **every** expected seat — the task's full roster — to approve (unanimous on one SHA; even seat counts are legal, nothing votes by majority); `isSplit` detects approve-vs-request_changes disagreement → one rebuttal round; `nextWave` is the DAG scheduler.\n\n**Implication:** severity, not seat-count, is the lever — and unanimity means a single dissenting seat holds the task. The rebuttal-then-escalate loop (≈453–458) is the deadlock breaker: split → one peer-aware re-judge → still split → human tiebreak. **Gotcha:** `autoEscalate` (≈461) **union-widens** a *lone* seat's roster on a Critical or low-confidence finding — toward the seat's own `widen` **nomination** when it supplies a valid one (those catalog lenses at `deep`), falling back to the default roster's lenses (the byte-identical trio-union) when it names none or names an invalid one; `resolveWidenSource` picks the source and the narrator log records it (`nominated` vs `default fallback`). Never duplicates, capped at 5, and a multi-seat roster the human approved is never second-guessed."
     },
@@ -58,7 +58,7 @@
     },
     {
       "file": "skills/war/assets/workflow-template.js",
-      "line": 484,
+      "line": 1161,
       "title": "10 · Refine — the serial merge queue",
       "description": "**Situation:** After a wave's audits resolve, approved tasks merge **serially** — this loop *is* the merge queue.\n\n**Mechanism:** For each approved task, one `war-refiner` seat rebases the task branch onto the current integration tip, re-runs the gate, and merges. Minors are filed, the audit log is appended, and `done`/`succeeded` are updated to release the next wave. A non-`merged` status (gate_failed/conflict/error) routes to `escalated` instead of landing.\n\n**Implication:** serial-by-design is the price of a single git-topology owner — concurrent merges into one integration branch would race. **Gotcha:** the merged-task record uses `integration_sha` (not `working_sha`, which is land-only) — a `ponytail:` comment marks the sentinel; the post-merge gate-audit pass needs the sha the gate actually ran against."
     },
@@ -70,7 +70,7 @@
     },
     {
       "file": "skills/war/assets/workflow-template.js",
-      "line": 835,
+      "line": 1931,
       "title": "12 · Land — push-first compare-and-swap",
       "description": "**Situation:** When a phase has merged work and no hard escalation is open, the refiner lands `integration/phase-N` → the working branch as one `--no-ff` commit.\n\n**Mechanism:** It runs *detached* in `_refinery` at `origin/<working>`, merges, gates, then `land-advance` does a **no-force** push. The remote's non-fast-forward rejection **is** the atomic compare-and-swap against shared truth: on rejection it re-fetches, re-merges, re-gates, retries up to `roundLimit`; exhaustion returns `land_stale` (a topology failure, distinct from a content `conflict`).\n\n**Implication:** correctness under concurrency comes from the *remote* ref being the only shared truth — a local CAS would be insufficient because a second run never moves your local ref. The land decision (≈843–844) holds for the Lead on any hard escalation; otherwise it lands and triggers Wrap-up."
     },
@@ -84,7 +84,7 @@
       "file": "hooks/validate-worktree-scope.sh",
       "line": 55,
       "title": "14 · The confinement hook — scope writes by agent_type",
-      "description": "**Situation:** This PreToolUse hook (on Write/Edit/NotebookEdit) is the defense-in-depth layer beneath the capability allowlists.\n\n**Mechanism:** It branches on `agent_type` from the payload: **auditor** → deny every write; **worker** → allow only if some ancestor dir holds a `.war-task` marker (planted at provisioning); **servitor** → allow only paths under the current user's local project memory root; **refiner / main session / non-WAR** → fail-open. A `..`-traversal guard fires *before* the `case` (line ≈49) so it covers **all** roles, closing the path-escape hole in every branch.\n\n**Implication:** note the honesty — worker confinement is to *a* worktree, not *its own* (sibling-write residual accepted; ADR 0002). And it only covers Write/Edit — the Bash write-path is gated by a separate `warn-bash-write-scope.sh`, while `validate-auditor-git.sh` fail-closed-allowlists the auditor's git to eleven read-only subcommands. Confinement here is layered, not absolute."
+      "description": "**Situation:** This PreToolUse hook (on Write/Edit/NotebookEdit) is the defense-in-depth layer beneath the capability allowlists.\n\n**Mechanism:** It branches on `agent_type` from the payload: **auditor** → deny every write; **worker** → allow only if some ancestor dir holds a `.war-task` marker (planted at provisioning); **servitor** → allow only paths under the current user's local project memory root; **refiner / main session / non-WAR** → fail-open. A `..`-traversal guard fires *before* the `case` (line ≈49) so it covers **all** roles, closing the path-escape hole in every branch.\n\n**Implication:** note the honesty — worker confinement is to *a* worktree, not *its own* (sibling-write residual accepted; ADR 0002). And it only covers Write/Edit — the Bash write-path is gated by a separate `warn-bash-write-scope.sh`, while `validate-auditor-git.sh` fail-closed-allowlists the auditor's git to a read-only subcommand set (write verbs and `git grep` deny). Confinement here is layered, not absolute."
     },
     {
       "file": "docs/adr/0002-scope-by-agent-type.md",
