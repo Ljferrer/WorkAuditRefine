@@ -120,7 +120,7 @@ It interviews you (starting from a **balanced / thorough / economy** preset, the
 
 ### Harden a plan (`/red-team`)
 
-Before you hand a plan to `/war`, attack it. `/red-team <plan-file>` reads the plan, runs a universal spine of adversarial checks plus probes tailored to the plan, and **proves** the plan's claims by running its tests/edits/commands in throwaway sandboxes — never touching your repo. It then grills you on every blocker and patches the plan in place until it is **CLEARED**, leaving a report under `docs/red-team/`.
+Before you hand a plan to `/war`, attack it. `/red-team <plan-file>` reads the plan, runs a universal spine of adversarial checks plus probes tailored to the plan, and **proves** the plan's claims by running its tests/edits/commands in throwaway sandboxes — never touching your repo. It then grills you on every blocker and patches the plan in place until it reaches a proceed verdict — **CLEARED**, or **ADJUDICATED** when a patched blocker was not re-verified by a probe re-run ([ADR 0043](docs/adr/0043-adjudicated-clear-distinct-terminal-verdict.md)) — leaving a report under `docs/red-team/`.
 
 `/red-team` **validates plans; it never converts a spec into one** (war-strategy **converts**, red-team **ratifies** — see [`CONTEXT.md`](CONTEXT.md)). Have a design spec instead of a plan? Bring it to [`/war-strategy`](#author-a-plan-war-strategy) first, then red team the resulting plan.
 
