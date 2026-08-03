@@ -9,6 +9,15 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const scaffoldPath = join(__dirname, 'workflow-scaffold.js')
 const src = readFileSync(scaffoldPath, 'utf8')
 
+// Sandbox-form patterns, shared by the executed-probe prompt assert above and the two-surface
+// sandbox-idiom drift guard at the foot of this file. Split-fragment built, so this file never
+// carries either form contiguously and can never turn up in a repo sweep for them.
+// SANDBOX_REF_WRITING is the negative: a linked-worktree sandbox created WITHOUT the detach flag
+// writes a `refs/heads/<tmp-basename>` into the target that survives `rm -rf` of the sandbox
+// directory, which the post-run ref-diff then reports as an escape on the guard's own workflow.
+const SANDBOX_DETACHED = new RegExp('worktree' + '\\s+add\\s+--detach')
+const SANDBOX_REF_WRITING = new RegExp('worktree' + '\\s+add\\s+(?!--detach\\b)')
+
 // Step 2: Compile the scaffold body as an async function with Workflow globals injected.
 // The Workflow harness wraps the file body as an async function; the meta export is replaced
 // with a const. This mirrors the exact check in the plan.
@@ -232,8 +241,17 @@ test('executed probes are told to work in a COPY of repo; analyzed probes are re
   const a = baseArgs()
   const { prompts } = await runScaffold(a, passResult(a))
   const byLabel = Object.fromEntries(prompts.map(p => [p.opts.label, p.prompt]))
-  assert.match(byLabel['probe:executable-proof'], /cp -R|worktree add/, 'executed probe copies the repo')
-  assert.match(byLabel['probe:executable-proof'], /git -C /, 'executed probe runs git via git -C <sandbox>, not a stateful cd')
+  const ep = byLabel['probe:executable-proof']
+  // TIGHTENED: this assert used to be a permissive alternation that matched the ref-writing sandbox
+  // form and its detached, ref-safe sibling IDENTICALLY, so a revert to the form that writes a
+  // branch into the target left it green while re-arming the false-escape the post-run ref-diff
+  // exists to avoid. Each sanctioned form is now named on its own, and the unsafe one is asserted
+  // ABSENT below (see the sandbox-idiom drift guard at the foot of this file).
+  assert.match(ep, /git clone --no-hardlinks/, 'executed probe clones with --no-hardlinks whenever it runs git (the only linked-worktree-safe copy)')
+  assert.match(ep, /cp -R/, 'executed probe keeps the plain copy form for read/edit-only work')
+  assert.match(ep, SANDBOX_DETACHED, 'the read-only inspection form stays detached')
+  assert.doesNotMatch(ep, SANDBOX_REF_WRITING, 'no ref-writing sandbox form is prescribed to executed probes')
+  assert.match(ep, /git -C /, 'executed probe runs git via git -C <sandbox>, not a stateful cd')
   assert.match(byLabel['probe:claims-vs-reality'], /Restrict every Read/, 'analyzed probe is read-restricted to repo')
 })
 
@@ -1040,4 +1058,156 @@ test('model/effort threading: model-only args (no effort) → only model threade
     assert.equal(o.model, 'haiku', `dispatch '${o.label}' threads the model`)
     assert.ok(!('effort' in o), `dispatch '${o.label}' carries no effort when args omit it`)
   }
+})
+
+// --- Doctrine-surface drift guards (End states 8, 9, 18) ---------------------------------------
+// These guards ride here alongside the prose they cover, rather than in a sibling task: this plan
+// practices the very one-task rule its new guard-split arm enforces, and reaches the scaffold's own
+// preamble through the task's declared deps edge.
+//
+// SELF-EXCLUSION BY CONSTRUCTION: every pattern below is assembled from split fragments, so this
+// file carries no swept phrase contiguously and can never appear in its own census
+// ([[coupling-comment-restating-grep-pattern-bytes-self-matches-the-sweep]]). For the same reason
+// the banners here name each swept phrase descriptively instead of quoting it.
+
+const SKILL_PATH = join(__dirname, '..', 'SKILL.md')
+const LENSES_PATH = join(__dirname, '..', 'references', 'lenses.md')
+const GATE_PATH = join(__dirname, 'red-team-gate.mjs')
+const surface = (p) => readFileSync(p, 'utf8')
+
+// Heading-delimited region: a real section (heading → next `## ` heading), deliberately NOT the
+// fixed ±char window the ff-topology guard above uses. Those probe sections are far longer than any
+// such window, and the SKILL.md count sentence this flip also owns sits thousands of characters
+// ahead of the heading — under a window scope the markdown-normalization clause would be inoperative
+// and reverting that sentence's count word would leave the guard green.
+const headingSection = (text, heading) => {
+  const i = text.indexOf(heading)
+  if (i === -1) return ''
+  const rest = text.slice(i + heading.length)
+  const j = rest.search(/\n## /)
+  return j === -1 ? rest : rest.slice(0, j)
+}
+const PROBE_HEADING = '## Drift-guard spine' + ' probes'
+
+// Markdown-normalized, file-wide: bold markers stripped (the live Step-2 instance splits its count
+// token with them) and whitespace collapsed, so a wrapped or emphasized phrase still matches.
+const mdNormalize = (text) => text.replace(/\*\*/g, '').replace(/\s+/g, ' ')
+
+// A PRECISE phrase-family pattern, never a bare word-boundary count: the old count word also occurs
+// on these surfaces in unrelated senses that this flip does not own and must not disturb, so a
+// bare-word OLD-absent assert would be permanently red rather than a guard.
+const countPhrase = (word) =>
+  new RegExp(word + '\\s+(?:universal\\s+)?(?:doctrine|drift-guard\\s+spine)\\s+probes', 'i')
+const OLD_ARM_COUNT = countPhrase('two')
+const NEW_ARM_COUNT = countPhrase('three')
+
+const ARM_NAMES = ['unguarded-new-' + 'mirror', 'default-flip-old-' + 'absent', 'guard-split-deps-' + 'edge']
+const PROSE_SURFACES = [['SKILL.md', SKILL_PATH], ['references/lenses.md', LENSES_PATH]]
+
+test('drift-guard probe arms: both prose surfaces name all three arms in-section with their clauses, and the stale arm-count phrase is absent file-wide (End state 8)', () => {
+  for (const [name, path] of PROSE_SURFACES) {
+    const text = surface(path)
+    const region = headingSection(text, PROBE_HEADING)
+    assert.ok(region.length > 0, `${name} must carry the drift-guard probe section heading`)
+    // (a) Presence half — section-scoped, so an unrelated mention elsewhere cannot satisfy it.
+    for (const arm of ARM_NAMES) {
+      assert.ok(region.includes(arm), `${name} probe section must name the ${arm} arm`)
+    }
+    assert.match(region, /\bdeps\b/, `${name} probe section must state the deps-edge requirement`)
+    assert.match(region, /same wave/i, `${name} probe section must rule out same-wave-only placement as insufficient`)
+    assert.match(region, /vacuous/i, `${name} probe section must state the vacuity condition`)
+    assert.match(region, /--fast/, `${name} probe section must state the arms survive --fast`)
+    // (b) NEW-count half — the section's own arm count, region-scoped.
+    assert.match(mdNormalize(region), NEW_ARM_COUNT, `${name} probe section must count three arms`)
+    // (c) OLD-count-ABSENT half — FILE-WIDE. This is the default-flip assert: NEW-present alone
+    //     leaves a revert green, and SKILL.md's Step-2 instance lies far outside the section.
+    assert.doesNotMatch(mdNormalize(text), OLD_ARM_COUNT,
+      `${name} still carries a stale arm-count phrase for the drift-guard probes (file-wide, markdown-normalized)`)
+  }
+})
+
+test('SKILL.md Steps 3/4 pin both escape-guard modes: the pre-run snapshot flag and the post-run baseline flag (End state 8)', () => {
+  const text = surface(SKILL_PATH)
+  const m = text.match(/\n3\. [\s\S]*?(?=\n5\. )/)
+  assert.ok(m, 'SKILL.md must carry a numbered Steps 3-4 region terminated by step 5')
+  const region = m[0]
+  assert.match(region, /--snapshot/, 'Step 3 must take the pre-run ref snapshot before launching the Workflow')
+  assert.match(region, /--baseline/, 'Step 4 must run the post-run guard against that snapshot — without it the ref half is only the junk-name heuristic')
+})
+
+test('sandbox-idiom drift guard: each surface pins its isolating forms, and the ref-writing form is on neither (End state 18)', () => {
+  // PER SURFACE, not one shared literal: the preamble governs a probe's throwaway sandbox while
+  // SKILL.md Step 3 governs the Lead's clean checkout for the --repo argument, and the two are free
+  // to diverge again. Each row owns its own required list.
+  const rows = [
+    { name: 'assets/workflow-scaffold.js', text: src,
+      required: [/git clone --no-hardlinks/, /cp -R/, SANDBOX_DETACHED, /worktree remove --force/] },
+    { name: 'SKILL.md', text: surface(SKILL_PATH),
+      required: [/git clone --no-hardlinks/, /cp -R/, SANDBOX_DETACHED, /worktree remove --force/] },
+  ]
+  for (const { name, text, required } of rows) {
+    for (const re of required) {
+      assert.match(text, re, `${name} must prescribe the isolating sandbox form ${re}`)
+    }
+    assert.doesNotMatch(text, SANDBOX_REF_WRITING,
+      `${name} prescribes a sandbox form that writes a branch into the target — it outlives rm -rf of the sandbox and the post-run ref-diff reads it as an escape on the guard's own prescribed workflow`)
+  }
+})
+
+// --- Verdict-enumeration drift guard (End state 9) ---------------------------------------------
+// Extraction + equality, never presence-hope (ADR 0025). The verdict literals are read out of the
+// gate's verdict() function body by NAMED CONSTRUCT, then compared to each documented enumeration.
+//
+// DEFAULT-DENY IN BOTH DIRECTIONS, because a presence loop was defeated independently as follows:
+//   (i)  a behaviour-preserving refactor hoisting the strings to a module-level table empties the
+//        function-scoped slice, and a bare loop then passes with ZERO verdicts checked — hence the
+//        non-empty floor and the exact-set compare (a sixth verdict added to such a table reds).
+//   (ii) plain containment lets the hyphenated compound stand in for its bare prefix. A `\b`
+//        boundary does NOT close that hole either — `-` is a non-word character, so the boundary
+//        matches inside the compound. The fix is DELIMITER-SPLIT TOKEN-SET EQUALITY per surface.
+// Both surfaces are addressed as SINGLE LINES, never their enclosing sections: a section-scoped
+// read is satisfied by a verdict appearing only in an adjacent comment or fenced example.
+const EXPECTED_VERDICTS = ['ADJUDICATED', 'BLOCKED', 'CLEARED', 'CLEARED-WITH-NOTES', 'INCOMPLETE']
+
+test('verdict-enumeration drift guard: verdict()\'s literal set is exact, and each documented verdict line is token-set equal to it (End state 9)', () => {
+  const gate = surface(GATE_PATH)
+  const open = gate.indexOf('export function verdict(')
+  assert.notEqual(open, -1, 'red-team-gate.mjs must export the verdict() construct this guard anchors on')
+  const close = gate.indexOf('\n}', open)
+  assert.notEqual(close, -1, 'the verdict() body must terminate at a column-0 closing brace')
+  const body = gate.slice(open, close)
+  const literals = [...new Set((body.match(/'[^']*'/g) || [])
+    .map(s => s.slice(1, -1))
+    .filter(s => /^[A-Z][A-Z-]+$/.test(s)))]
+
+  // FLOOR first — an empty slice is the failure, not a vacuous pass.
+  assert.ok(literals.length > 0,
+    'no verdict literals inside the verdict() body: the strings were hoisted out of the function, so this guard would otherwise check nothing at all')
+  const found = [...literals].sort()
+  assert.deepEqual(found, EXPECTED_VERDICTS,
+    `verdict() emits ${JSON.stringify(found)} but this guard expects ${JSON.stringify(EXPECTED_VERDICTS)} — widen the documented enumerations and this list in the SAME diff`)
+
+  const lenses = surface(LENSES_PATH)
+
+  // Surface 1 — the enumeration bullet inside the severity section. Delimiter: the middle dot
+  // between entries; the token is the first code span of each chunk, so prose inside an entry's
+  // parenthetical can never inflate the set.
+  const sevBullets = headingSection(lenses, '## Severity & gate')
+    .split('\n').filter(l => l.startsWith('- **Verdict:**'))
+  assert.equal(sevBullets.length, 1, 'the severity section must carry exactly one verdict enumeration bullet')
+  const bulletTokens = [...new Set(sevBullets[0].split('·')
+    .map(chunk => (chunk.match(/`([^`]+)`/) || [])[1])
+    .filter(Boolean))].sort()
+  assert.deepEqual(bulletTokens, EXPECTED_VERDICTS,
+    `the severity verdict bullet enumerates ${JSON.stringify(bulletTokens)}, not ${JSON.stringify(EXPECTED_VERDICTS)}`)
+
+  // Surface 2 — the report template's verdict line. Delimiter: the pipe, up to the trailing dash.
+  const tmplLines = headingSection(lenses, '## Report template')
+    .split('\n').filter(l => /^\*\*Verdict:\*\*/.test(l))
+  assert.equal(tmplLines.length, 1, 'the report template must carry exactly one verdict line')
+  const tmplTokens = [...new Set(tmplLines[0]
+    .replace(/^\*\*Verdict:\*\*/, '').split('—')[0]
+    .split('|').map(s => s.trim()).filter(Boolean))].sort()
+  assert.deepEqual(tmplTokens, EXPECTED_VERDICTS,
+    `the report template verdict line enumerates ${JSON.stringify(tmplTokens)}, not ${JSON.stringify(EXPECTED_VERDICTS)}`)
 })
