@@ -227,13 +227,12 @@ test('budget census — every agents/*.md is budgeted, every budgeted key is exp
 //   * The `\n` in the negated class is PROPHYLACTIC and no current subject demonstrates it:
 //     JavaScript negated classes match U+000A, so a bare `[^)]*` would let the aside span
 //     comment lines and re-admit the cross-line pairing the fusion just closed. Measured at this
-//     base the two variants agree on all ten subjects (in nine of the ten live blocks the byte
-//     count is followed by ` →`, so the optional group is skipped; the sentinel's aside opens
-//     right after the byte count but CLOSES on the same line, so no live subject pairs across
-//     lines — under SHA-stripping rot all ten RED under either variant, the sentinel because
-//     its block carries no later `)` to close a spanning aside). It guards a future shape — an
-//     aside opening right after the byte count and closing on a later line with the SHA after
-//     it — not a present one.
+//     base the two variants agree on all ten subjects (nine of the ten blocks put ` @ <sha>`
+//     directly after the byte count, so the optional group is skipped; the sentinel's aside opens
+//     right after the byte count AND closes on the same comment line, with the SHA after the
+//     close, so both variants match it identically — and under `@ <sha>`-stripping rot all ten
+//     RED under either variant). It guards a future shape — an aside opening right after the
+//     byte count and closing on a later line with the SHA after it — not a present one.
 //
 // Multiplier disjunction, not conjunction: CONTEXT.md's row is the known one-arm outlier, showing
 // only the ×1.25 side (its placeholder is retained under ratchet-down, so the advisory arm's
