@@ -4,8 +4,10 @@
 
 `verdict()` in `skills/red-team/assets/red-team-gate.mjs` knew only four outcomes —
 `CLEARED` / `CLEARED-WITH-NOTES` / `BLOCKED` / `INCOMPLETE` — with no outcome for the operator's
-ratified standing rule (2026-07-28 directive, recorded as
-[[redteam-blocked-is-advisory-once-patched-and-adjudicated]]): once every root finding is patched
+ratified standing rule (2026-07-28 directive, recorded in the Verdict section of
+[`docs/red-team/2026-07-28-prompt-surface-simplification.md`](../red-team/2026-07-28-prompt-surface-simplification.md)
+as the restamped `OPERATOR-ADJUDICATED CLEAR`; local memory lesson
+`redteam-blocked-is-advisory-once-patched-and-adjudicated`): once every root finding is patched
 and carries an adjudication row, a `/red-team` `BLOCKED` verdict is advisory to the Lead and the
 run proceeds to `/war` without a mandatory probe re-run. Lacking a gate-emitted outcome for that
 rule, the Lead had to invent prose — "CLEARED by adjudication" — indistinguishable downstream from
@@ -165,8 +167,9 @@ forward-looking restatement of the rule it left as a one-run ruling.
 - Precedent report (residual-risk record):
   [`docs/red-team/2026-07-26-standing-doc-and-remedy-truth-sweep.md`](../red-team/2026-07-26-standing-doc-and-remedy-truth-sweep.md)
   — adjudication 5 and its "Execution outcome (2026-07-27)" correction.
-- Memory lessons: [[redteam-blocked-is-advisory-once-patched-and-adjudicated]] (the 2026-07-28
-  operator directive, ratified — not mere precedent),
+- Memory lessons: `redteam-blocked-is-advisory-once-patched-and-adjudicated` (local-root lesson —
+  the 2026-07-28 operator directive, ratified, not mere precedent; its in-repo record is the
+  restamped Verdict section of `docs/red-team/2026-07-28-prompt-surface-simplification.md` above),
   [[registry-carveout-rationale-cannot-justify-retaining-a-card-span-inline]] (the carve-out's
   bound), [[guard-task-split-from-mirror-task-needs-deps-edge-same-wave-insufficient]] (the
   same-wave precedent this ADR's residual-risk record cites).
