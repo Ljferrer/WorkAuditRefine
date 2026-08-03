@@ -1984,7 +1984,14 @@ if (landDecision === 'landed') {
     // 2B submodule PR-and-hold, newly reachable from this re-land now that it carries the submodule-phase
     // land note: mirror the initial land's direct-return guard. Without this arm the return would fall to
     // the held:land-failed else, mislabelling the hold AND losing the PR ref the Lead's gh-resume reads.
+    // #1245: the reassignment below completes that mirror. The initial land holds it BY CONSTRUCTION (its
+    // dispatch result IS landResult), so its 2B hold returns the submodule-pr MergeResult with pr_number /
+    // pr_remote readable; this arm dispatches into its own receiver, so without the hand-off the phase
+    // would return the STALE first (gate_failed) attempt while the escalation record says submodule-pr.
+    // Inert on every other path: the tipSha anchor, the Wrap-up servitor gate and the handoff block are
+    // all status:'landed' / landDecision-gated and read identically before and after.
     if (reLand && reLand.status === 'submodule-pr') {
+      landResult = reLand
       escalated.push({ task: `phase-${ph.id}-land`, reason: 'submodule-pr', pr_number: reLand.pr_number, pr_remote: reLand.pr_remote, detail: reLand })
       landDecision = 'held:submodule-pr'
     } else if (reLand && reLand.status === 'landed') {
@@ -2020,7 +2027,9 @@ if (landDecision === 'landed') {
       { agentType: NS + 'war-refiner', phase: 'Land', label: `land:phase-${ph.id}:baseline-proceed`, schema: MERGE_RESULT, ...spawn('refiner') })
     // 2B submodule PR-and-hold, newly reachable from this re-land now that it carries the submodule-phase
     // land note: mirror the initial land's direct-return guard (same rationale as environment-proceed).
+    // #1245: including the reassignment below — same arm-symmetry duty, same inertness on every other path.
     if (reLand && reLand.status === 'submodule-pr') {
+      landResult = reLand
       escalated.push({ task: `phase-${ph.id}-land`, reason: 'submodule-pr', pr_number: reLand.pr_number, pr_remote: reLand.pr_remote, detail: reLand })
       landDecision = 'held:submodule-pr'
     } else if (reLand && reLand.status === 'landed') {
