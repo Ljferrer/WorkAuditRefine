@@ -227,10 +227,13 @@ test('budget census — every agents/*.md is budgeted, every budgeted key is exp
 //   * The `\n` in the negated class is PROPHYLACTIC and no current subject demonstrates it:
 //     JavaScript negated classes match U+000A, so a bare `[^)]*` would let the aside span
 //     comment lines and re-admit the cross-line pairing the fusion just closed. Measured at this
-//     base the two variants agree on all ten subjects (in every live block the byte count is
-//     followed by ` →`, never ` (`, so the optional group is simply skipped, and they RED
-//     together under SHA-stripping rot too). It guards a future shape — an aside opening right
-//     after the byte count and closing on a later line with the SHA after it — not a present one.
+//     base the two variants agree on all ten subjects (in nine of the ten live blocks the byte
+//     count is followed by ` →`, so the optional group is skipped; the sentinel's aside opens
+//     right after the byte count but CLOSES on the same line, so no live subject pairs across
+//     lines — under SHA-stripping rot all ten RED under either variant, the sentinel because
+//     its block carries no later `)` to close a spanning aside). It guards a future shape — an
+//     aside opening right after the byte count and closing on a later line with the SHA after
+//     it — not a present one.
 //
 // Multiplier disjunction, not conjunction: CONTEXT.md's row is the known one-arm outlier, showing
 // only the ×1.25 side (its placeholder is retained under ratchet-down, so the advisory arm's
@@ -274,13 +277,19 @@ test('per-row derivation guard — every budgeted constant carries its derivatio
     else if (SENTINEL_DECL.test(line)) subjects.push([SENTINEL, commentBlockAbove(i)]);
   });
 
+  const discovered = subjects.map(([key]) => key).sort();
+  const expectedKeys = [...Object.keys(FILE_BUDGETS), SENTINEL].sort();
+  const undiscovered = expectedKeys.filter((k) => !discovered.includes(k));
+  const extra = discovered.filter((k) => !expectedKeys.includes(k));
   assert.deepEqual(
-    subjects.map(([key]) => key).sort(),
-    [...Object.keys(FILE_BUDGETS), SENTINEL].sort(),
+    discovered,
+    expectedKeys,
     'the derivation-guard subject scan did not discover every budgeted constant — a budgeted row '
       + 'reflowed out of the single-line row shape drops silently out of the guarded set, after '
-      + 'which its derivation could be deleted unnoticed (#1233). Re-shape the row to one line, or '
-      + 'widen this scan in the same commit — never narrow the expected set to match the scan',
+      + 'which its derivation could be deleted unnoticed: undiscovered '
+      + `${JSON.stringify(undiscovered)}, unexpected ${JSON.stringify(extra)} (#1233). Re-shape `
+      + 'the row to one line, or widen this scan in the same commit — never narrow the expected '
+      + 'set to match the scan',
   );
 
   for (const [key, block] of subjects) {
