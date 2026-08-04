@@ -56,8 +56,10 @@ check_f 'every path backticked & comma-separated; the campaign ledger'
 check_f '  - requiresPackaging: true|false  ← default true'
 check_f '## Deferred validations (backstops)   ← required; ratify in /red-team; surfaced at every land'
 
-# Drift-guard coverage subsection (§3) — pin the block heading plus each rule by its
-# distinctive teeth phrase so a future edit can't silently drop either authoring rule.
+# Drift-guard coverage subsection (§3) — pin the block heading plus the rules whose teeth live
+# here by their distinctive phrase, so a future edit can't silently drop one. Rule 7 (guard-split
+# deps-edge) is pinned in skills/war-machine/war-pipeline-structure.test.sh, which also carries the
+# OLD-absent assert for this subsection's retired rule-count word.
 # Fixed-string, no quote-marks/bold crossing the anchor (byte-anchor-fragility trap).
 check '^### Drift-guard coverage'
 check_f 'unguarded mirror is a plan defect'   # rule (a): new mirror ⇒ registry row same task

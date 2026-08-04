@@ -15,6 +15,12 @@ metadata:
     - PLAN-DEFECT
     - within-phase dependency
     - skill-doc-contracts
+    - guard-split deps-edge
+    - Guard-split deps-edge directive
+    - has_i mid-sentence anchor
+    - war-pipeline-structure.test.sh
+    - three authoring rules
+    - drift-guard spine probe
   provenance: agent-unverified
   slug: guard-task-split-from-mirror-task-needs-deps-edge-same-wave-insufficient
   phase: 1; recurrence 2026-07-28-prompt-surface-simplification/phase-7 (confirmed, held without deps edge)
@@ -25,7 +31,7 @@ metadata:
     - adr-0025
   created: 2026-07-27
   originSessionId: 0ad881e1-4bbc-43c6-8e45-8597d9cec1cf
-  modified: 2026-07-30T00:16:46.186Z
+  modified: 2026-08-03T09:24:43.141Z
 ---
 
 # A guard task split from its mirror-authoring task needs a `deps` edge — "same wave" is not enough
@@ -118,3 +124,35 @@ header (lines 1-13), at phase 7 of `2026-07-28-prompt-surface-simplification`, l
 depends on the plan author independently pinning matching wording on both sides, which a future
 plan revision (reword one slice without the other) could silently break. Don't treat "it held last
 time without a deps edge" as evidence the coordination hazard is safe to leave unaddressed.
+
+## Mechanized — phase 2 of `2026-08-02-redteam-doctrine-and-guards` (2026-08-02): this rule now
+has forcing functions on every plan-authoring path, and this same plan practices its own rule
+
+This lesson's general rule graduated from "recorded, self-enforced by discipline" to "mechanically
+forced": three surfaces now require the `deps` edge, `code-verified` at the landed tip
+`06efa2b925caec1fafd1f019e32e32517e114250` (worktree gitdir physical path containing this plan's
+slug: `<repo-root>/.claude/war-worktrees/2026-08-02-redteam-doctrine-and-guards-2026-08-02/_refinery/`):
+
+- `skills/red-team/SKILL.md`'s new `guard-split-deps-edge` spine probe (a third drift-guard spine
+  probe alongside the two prior universal ones) treats an unedged split as a plan defect —
+  `needsDecision`, never skipped under `--fast` — mirrored verbatim in
+  `skills/red-team/references/lenses.md`.
+- `skills/war-machine/SKILL.md` gained a **Guard-split deps-edge directive** paragraph the drafter
+  must apply, and `skills/war-strategy/SKILL.md` §3 gained authoring rule 7 (the subsection's own
+  "two authoring rules" heading flipped to "three") for the non-machine conversion path.
+- Both prose surfaces are pinned in `skills/war-machine/war-pipeline-structure.test.sh` via
+  `has_i` (case-insensitive, mid-sentence anchors — `guard-split deps-edge` plus `same wave is
+  insufficient` — deliberately not `has()`, since the phrase's only capital exists as a bold
+  heading lead-in and a benign re-casing must not false-red it), plus a dedicated OLD-absent assert
+  that `war-strategy-structure.test.sh`'s "two authoring rules" heading text is gone (a bare
+  presence check on the new "three authoring rules" text cannot, by itself, prove the old count
+  word was actually flipped — the two coexist under a prefix-regex heading guard).
+
+**This plan also practices the rule it lands**, in the very End-state-18 sandbox-idiom mirror
+this same phase introduced: `workflow-scaffold.js`'s preamble half of the isolating-idiom mirror
+rides Task 2 (the guard task), and `SKILL.md` Step 3's half plus the guard itself ride Task 4,
+which carries `deps: [2]` — the deliberate deps-edge instance the plan's own Method section calls
+out by name.
+
+Related: [[cp-r-and-bare-worktree-add-do-not-isolate-a-sandbox-from-a-linked-worktree-target]]
+(the End-state-18 mirror this recurrence's `deps: [2]` edge protects).

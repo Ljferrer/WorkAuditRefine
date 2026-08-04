@@ -16,6 +16,7 @@ metadata:
   related: "[[scope-hook-blind-to-bash-write-path]], [[scope-hook-servitor-pattern-residuals]], [[mirrored-prose-row-parenthetical-inversion]]"
   created: 2026-07-10
   originSessionId: 8c039a7f-0c62-47a8-85f9-10099b5a6caf
+  modified: 2026-08-03T08:24:36.709Z
 ---
 
 # ADR policy-table entries (and status headers) lag mechanism changes when prose is restructured elsewhere
@@ -62,5 +63,13 @@ Referent not verified in this checkout @ phase red-team-plan-vs-state-grading-an
 was not read) — verify the status-header wording before citing it as still-current.
 
 [[mirrored-prose-row-parenthetical-inversion]]
+
+## Related but distinct (2026-08-02-redteam-doctrine-and-guards/1.2)
+
+A sibling rot class, not a third recurrence of this exact rule: an ADR's own forward-looking
+Consequences clause ("a declared backstop, built only if X") can go stale when a **separate, later**
+task/phase discharges X and builds the backstop — rather than mechanism attribution being restructured
+*within the same task* as here. See [[adr-consequences-deferred-backstop-goes-stale-when-later-phase-builds-it]]
+for the concrete instance (ADR 0033's ref-diff-snapshot bullet).
 
 > archived 2026-07-11: resolved — moved to archive

@@ -64,7 +64,7 @@ and at **every plan boundary**. The point of write-ahead is that the brief is al
 
 ## Failure — spec §7.3
 
-**Halt-and-hold** when a plan can't `CLEAR` `/red-team` (truly unresolvable under AFK) or `/war` hard-halts (`audit-blocked`, `conflict`, dead phase, `land_stale`, `held:submodule-pr`): checkpoint → record the stop point → `PushNotification` → stop. Nothing above the failed plan starts; everything below it has already landed as stacked PRs.
+**Halt-and-hold** when a plan can't reach a `/red-team` proceed verdict — `CLEARED`, `CLEARED-WITH-NOTES`, and `ADJUDICATED` all proceed; only a truly-unresolvable `BLOCKED` or `INCOMPLETE` under AFK halts — or `/war` hard-halts (`audit-blocked`, `conflict`, dead phase, `land_stale`, `held:submodule-pr`): checkpoint → record the stop point → `PushNotification` → stop. Nothing above the failed plan starts; everything below it has already landed as stacked PRs.
 
 The final report **always** states the bottom-up merge order — the stacked PRs must be merged in the order they were stacked, lowest first.
 

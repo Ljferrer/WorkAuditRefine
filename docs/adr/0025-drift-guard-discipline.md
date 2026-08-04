@@ -1,6 +1,8 @@
 # Every duplicated or asserted fact carries a mechanical drift-guard to its canonical source
 
-**Status:** accepted (design ratified 2026-07-08; implemented by the spec and plan below)
+**Status:** accepted (design ratified 2026-07-08; implemented by the spec and plan below; amended
+2026-08-02 — a file-disjoint guard/mirror split takes a `deps` edge, not shared-wave placement; see
+the amendment below)
 
 WAR is riddled with facts stated in one surface that live canonically in another and rot silently
 against ground truth because **nothing binds the copy to its source**. The failure is uniform: a green
@@ -104,6 +106,36 @@ byte-identity test; a four-slot lock-step test), not honored by hand.
 - Named residual: mechanical detection of a *missing* registry row is out of scope (the rejected AST
   scanner) — the doctrine's forcing functions are the plan-authoring rule and the red-team probe,
   exercised from this plan onward.
+
+## Amendment (2026-08-02): a file-disjoint guard/mirror split resolves via a `deps` edge, not shared-wave placement
+
+The Decision above requires a mirror and its registry row to land as **one task**. When the guard
+file is already owned by a different task in the same phase — file-disjointness forbids the
+mirror-authoring task from touching it — the resolution is a **`deps` edge from the guard task onto
+the mirror-authoring task**, not "same phase, same wave, so they land together." Same phase and
+same wave are insufficient by themselves: every task worktree in a phase is cut from **one frozen
+phase base** at the Provision barrier, and waves order only *when* workers run, never *what base
+they see* (this repo's `CLAUDE.md`, "Execution architecture"). A guard task that merely shares a
+wave with — but carries no `deps` edge onto — the task authoring the fact it guards implements and
+is audited against a base that does not yet contain that fact: its own new guard row is red by
+construction, through no fault of the guard's diff.
+
+This is not a new escape hatch from the one-task rule: the guard task and the mirror-authoring task
+remain genuinely file-disjoint, so the `deps` edge encodes a **content** dependency the downstream
+task's worker discharges by rebasing onto the integration tip as its first act. It is explicitly
+*not* the forbidden "use `deps`/waves to dodge a same-file collision" this repo's decomposition
+rules warn against.
+
+Three forcing functions now carry the rule onto every plan-authoring path: (1) the `/red-team`
+universal spine probe `guard-split-deps-edge` (`skills/red-team/SKILL.md` and
+`references/lenses.md` §Drift-guard spine probes) flags an unedged split as a plan defect
+(`needsDecision`) at every conversion and every red-team; (2) the `/war-machine`
+**Guard-split deps-edge directive** (`skills/war-machine/SKILL.md`) makes the drafter add the edge
+before red-team ever sees the plan; (3) `/war-strategy` §3's Drift-guard coverage subsection
+carries the same rule as its authoring rule 7 (`skills/war-strategy/SKILL.md`), so a plan authored
+or converted outside `/war-machine` gets the same forcing function. See
+[[guard-task-split-from-mirror-task-needs-deps-edge-same-wave-insufficient]] for the full
+recurrence record this amendment closes.
 
 ## References
 

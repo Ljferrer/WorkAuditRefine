@@ -21,6 +21,19 @@ The plan must also **state the expected integration base** it stacks on and the
 four slots itself). Reference the four slots by the `/war-strategy` §2 next-free-patch convention
 rather than restating a target semver.
 
+**Guard-split deps-edge directive.** When a drafted task authors a **drift guard** over a fact
+authored by a **different task in the same phase**, that guard task MUST carry
+`deps: [<the fact-authoring task>]` — **same wave is insufficient**: every task worktree in a phase
+is cut from one **frozen** phase base, so an unedged guard is implemented and audited against a base
+that lacks the fact it guards, red by construction through no fault of its own diff. The grill agent
+asks it of every drafted phase. Where no edge is possible — it would create a cycle, say — merge
+the two tasks or move the guard a phase later; a split the drafter can neither edge nor resolve is
+raised via the **ADR triad**, never silently shipped. Canonical record: the 2026-08-02 amendment to
+[ADR 0025](../../docs/adr/0025-drift-guard-discipline.md), which `/war-strategy` §3 carries as its
+authoring rule 7 (consumed here by reference, like the templates). Downstream, `/red-team`'s
+`guard-split-deps-edge` spine probe flags an unedged split as a plan defect (`needsDecision`) and
+grills it — adding the edge at drafting time is what keeps that off the campaign's critical path.
+
 ## Invocation
 
 ```
