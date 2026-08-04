@@ -32,6 +32,8 @@ Trigger: the final failed CAS attempt of a land (after `roundLimit` rejected pus
 
 ## Submodule land arms (2A / 2B)
 
+Trigger: a land-phase (or 2A merge) dispatch whose phase's `target repo` is a submodule.
+
 ### Submodule phase — 2A (WAR-owned submodule)
 
 When `target repo` is a submodule **and** the run config declares the submodule as WAR-owned, WAR authors the submodule merge directly (no hold). All cwd below refers to the **submodule checkout** (`<superWorktree>/<submodulePath>/`).

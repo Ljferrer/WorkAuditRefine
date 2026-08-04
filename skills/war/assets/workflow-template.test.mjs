@@ -5280,6 +5280,14 @@ test('#1114 — a RE-LAND returning submodule-pr yields held:submodule-pr with t
     assert.ok(esc, `the ${where} re-land pushes an escalated entry with reason:"submodule-pr"`)
     assert.equal(esc.pr_number, SUBMOD_PR.pr_number, `the ${where} re-land captures pr_number for the Lead's gh-resume`)
     assert.equal(esc.pr_remote, SUBMOD_PR.pr_remote, `the ${where} re-land captures pr_remote for the Lead's gh-resume`)
+    // #1245 — the ONE observable change of the re-land arm-symmetry fix, asserted behaviorally (the D6
+    // pin at the end of this file is the source-shape half). Before it, the phase returned the STALE
+    // first gate_failed attempt here while the escalation said submodule-pr; now it returns the
+    // dispatched re-land result, matching the shape the initial land has by construction.
+    assert.equal(r.out.landResult && r.out.landResult.status, 'submodule-pr',
+      `the ${where} re-land's returned land result IS the dispatched submodule-pr result, never the stale earlier attempt`)
+    assert.equal(r.out.landResult.pr_number, SUBMOD_PR.pr_number,
+      `the ${where} re-land's returned land result carries the PR ref, as the initial land's does`)
   }
 })
 
@@ -7909,4 +7917,111 @@ test('Task 5.1 — worker/servitor card evictions: destination carries the moved
     'war-worker.md keeps the servitor primary-confinement summary inline')
   assert.match(servitorMd, /never move a lesson between hot and `archive\/`/,
     'war-servitor.md keeps the hot/archive temperature prohibition inline')
+})
+
+// ===========================================================================
+// D6 (Task 1.2, #1245) — RE-LAND ARM SYMMETRY
+// ---------------------------------------------------------------------------
+// The initial land holds this property BY CONSTRUCTION: its dispatch result IS the
+// outer land result, so a 2B PR-and-hold there leaves the PR ref readable on the phase
+// return. Each re-land arm instead dispatches into its OWN local receiver, so it must
+// reassign the outer variable by hand inside its 2B guard branch — an arm that only
+// records the escalation leaves the phase returning the stale earlier attempt while the
+// escalation record says otherwise.
+//
+// The key is a COUNT over SHAPE-DISCOVERED arms, never over hardcoded labels: a third
+// re-land flavor carries a third label, so an extraction keyed on today's two literals
+// could not see it and would read 2 === 2 forever no matter how many unmirrored arms
+// were added — structurally vacuous, with none of the non-vacuity this pin is sold on.
+// The discovery keys on the ':<flavor>-proceed' suffix, which by construction excludes
+// the initial land's suffix-less label. Patterns are fragment-built, so this file holds
+// no contiguous copy of a dispatch label or of the assignment it polices, and a future
+// sweep for either cannot self-match on the guard.
+// ---------------------------------------------------------------------------
+const RELAND_LABEL_STEM = String.raw`land:phase-`
+const RELAND_LABEL_PHID = String.raw`\$\{ph\.id\}`
+// ANY '-proceed' flavor — the shape key that makes a mirrored third arm discoverable.
+const RELAND_LABEL_FLAVOR = String.raw`:[a-z][a-z-]*-proceed`
+const RELAND_LABEL_RE = new RegExp(RELAND_LABEL_STEM + RELAND_LABEL_PHID + RELAND_LABEL_FLAVOR, 'g')
+// The arm's 2B guard opener, identifier-GENERIC: the backreference binds one receiver
+// name to itself, so whatever local name a future arm picks is the name its reassignment
+// is then checked against.
+const SUBMOD_GUARD_RE = new RegExp(
+  String.raw`if \(\s*(\w+)\s*&&\s*\1\.status\s*===\s*'submodule-pr'\s*\)\s*\{`)
+const outerAssignRe = (receiver) => new RegExp(String.raw`landResult\s*=\s*` + receiver + String.raw`\b`)
+
+// End of a guard branch = its matching close brace. Template-literal `${…}` spans are
+// themselves brace-balanced, so a plain depth count is exact over these bodies.
+const braceSpan = (text, open) => {
+  let depth = 0
+  for (let i = open; i < text.length; i++) {
+    if (text[i] === '{') depth++
+    else if (text[i] === '}' && --depth === 0) return i + 1
+  }
+  return -1
+}
+
+// Region boundary (explicit): each region runs from its matched dispatch label to the end
+// of that arm's 2B guard branch. `branch` is the guard branch alone — the body the
+// reassignment duty is measured on. Parameterized over `text` (default: the live template)
+// so the both-ways probe below runs the IDENTICAL extraction over a mutated copy.
+const relandSubmodArms = (text = src) =>
+  [...text.matchAll(RELAND_LABEL_RE)].map((m) => {
+    const after = text.slice(m.index)
+    const g = after.match(SUBMOD_GUARD_RE)
+    if (!g) return { label: m[0], guarded: false, region: null, branch: null, receiver: null, assigns: false }
+    const open = g.index + g[0].length - 1
+    const end = braceSpan(after, open)
+    return {
+      label: m[0],
+      guarded: true,
+      region: end === -1 ? null : after.slice(0, end),
+      branch: end === -1 ? null : after.slice(g.index, end),
+      receiver: g[1],
+      assigns: end !== -1 && outerAssignRe(g[1]).test(after.slice(g.index, end)),
+    }
+  })
+
+test('D6 (#1245) — re-land arm symmetry: every re-land 2B guard branch reassigns the outer land result, as the initial land does by construction', () => {
+  const arms = relandSubmodArms()
+  // >= 2 floor: a 0 === 0 or 1 === 1 degenerate green (extraction matching nothing after a
+  // future label rename) is impossible.
+  assert.ok(arms.length >= 2,
+    `re-land dispatch discovery found ${arms.length} arm(s) in the template source; the engine dispatches at least two bounded re-land flavors (the environment-class and the baseline-class retry), so a lower count means the discovery shape stopped tracking the labels and every count keyed on it is degenerate`)
+  const unguarded = arms.filter(a => !a.guarded)
+  assert.equal(unguarded.length, 0,
+    `a re-land arm dispatches with no 2B PR-and-hold guard branch following it, so the hold it takes cannot carry the PR ref: ${unguarded.map(a => a.label).join(', ')}`)
+  const unlocatable = arms.filter(a => a.guarded && a.branch === null)
+  assert.equal(unlocatable.length, 0,
+    `a re-land 2B guard branch never closes — the extraction ran past the end of the template source and its reassignment duty is unmeasured: ${unlocatable.map(a => a.label).join(', ')}`)
+  const missing = arms.filter(a => !a.assigns)
+  assert.equal(missing.length, 0,
+    `re-land arm symmetry broken — ${arms.length - missing.length} of ${arms.length} re-land 2B guard branches reassign the outer land result to their own dispatched re-land result; these do not: ${missing.map(a => a.label).join(', ')}. The initial land is the model: its dispatch result IS the outer land result, so its 2B hold leaves the PR ref readable on the phase return. An arm that records only the escalation returns the stale earlier attempt instead. Every re-land arm owes that reassignment beside its escalation record.`)
+})
+
+test('D6 (#1245) — both ways: a third re-land arm mirrored from a live one WITHOUT the reassignment reds the count (the two-literal extraction this supersedes could not see it at all)', () => {
+  const live = relandSubmodArms()
+  const donor = live[0]
+  assert.ok(donor && donor.region, 'a live re-land arm is available as the mirror donor')
+  assert.ok(donor.assigns,
+    `the mirror donor (${donor.label}) must itself be symmetric, else stripping its reassignment is not a real mutation and this probe proves nothing`)
+  // Mirror the donor's OWN bytes under a third flavor and strip only the reassignment —
+  // the exact regression this pin exists to catch. Fixture text only: it is appended to an
+  // in-memory copy, never wired into a live surface and never written to disk.
+  const thirdLabel = donor.label.replace(/-proceed$/, '-probe-proceed')
+  const strippedRegion = donor.region
+    .split(donor.label).join(thirdLabel)
+    .replace(outerAssignRe(donor.receiver), '/* reassignment omitted (fixture) */')
+  assert.ok(strippedRegion.includes(thirdLabel),
+    'the fixture carries the third flavor, so it is discovered as a SEPARATE arm rather than shadowing the donor')
+  assert.ok(!outerAssignRe(donor.receiver).test(strippedRegion),
+    "the fixture strip actually removed the donor arm's reassignment")
+  const mutated = src + '\n// D6 FIXTURE (never executed): a third re-land arm mirrored from a live one.\n' + strippedRegion + '\n'
+
+  const arms = relandSubmodArms(mutated)
+  assert.equal(arms.length, live.length + 1,
+    `the shape-keyed discovery must SEE the mirrored third arm — expected ${live.length + 1} arms, found ${arms.length} (${arms.map(a => a.label).join(', ')}); an extraction keyed on today's two labels would have found only ${live.length}, which is the vacuity this key supersedes`)
+  const unsym = arms.filter(a => !a.assigns).map(a => a.label)
+  assert.equal(unsym.join('|'), thirdLabel,
+    `exactly the mirrored arm must be reported unsymmetric — expected [${thirdLabel}], got [${unsym.join(', ')}]; if it is empty the live assertion above is vacuous, and if it names a live arm the fixture perturbed a real one`)
 })

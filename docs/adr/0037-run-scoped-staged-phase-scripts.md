@@ -152,6 +152,17 @@ sanctioned surface for both display identity and approved stage injection.**
     whose mirror site is the `const A =` ternary's args-fallback tail in `workflow-template.js`, **not**
     an `export const meta` literal. Same arbiter, wider pair; append-only, so the ratified sentence
     stays byte-intact and this note is the correction channel.
+  - **Correction (2026-08-02, #1240):** the Amendment above has the pair's **direction** inverted. The
+    `const A =` ternary's args-fallback tail in `workflow-template.js` is the **canonical source**; the
+    stager's third exported anchor (`ARGS_FALLBACK_ANCHOR` in `stage-workflow.mjs`) is the
+    **hand-maintained mirror site**, the copy that must be brought back into lock-step whenever that
+    tail changes. That is the *same* direction as the `export const meta` ↔ stager-export pair this
+    bullet's ratified sentence describes — the third anchor widened the pair, it did not reverse it.
+    Derivation: the `COUPLING (ADR 0037, #1134)` comment beside the ternary, which names the stager as
+    the side that mirrors the tail and makes updating the stager the duty a change to the tail
+    triggers. That comment is deliberately **referential** — it describes the coupling without
+    restating the tail — and this note keeps the same discipline. Append-only per this bullet's
+    amendment channel: the Amendment's bytes stay intact and this note is its correction.
 
 ## References
 
