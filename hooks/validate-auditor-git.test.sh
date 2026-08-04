@@ -252,6 +252,61 @@ expect_deny "C7: git log >> /tmp/out → denied (append redirect)" \
 expect_deny "C8: git apply < patch.txt → denied (stdin redirect)" \
   "$(auditor_cmd "git apply < patch.txt")"
 
+# --- C9–C12: widening-proof residue coverage (#1180) -----------------------
+# The four metacharacter families the hook's live CHARACTER ALLOWLIST check (the
+# `LC_ALL=C tr -d` residue extraction) denies today with no case pinning it:
+# glob, braces, backslash continuation, backtick substitution. Groups J and
+# K each argue their char-set widening is safe BECAUSE the group C injection
+# cases stay green — so the floor those arguments lean on had a hole. #1180 is
+# a COVERAGE gap in that floor, not a live guard hole: the four payloads below
+# already deny, and `hooks/validate-auditor-git.sh` is untouched by this block.
+
+# C9: glob * (pathname expansion). ls-files is an allowlisted read verb, so the
+# residue check is the only thing standing between this payload and ALLOW.
+expect_deny "C9: git ls-files *.mjs → denied (glob)" \
+  "$(auditor_cmd "git ls-files *.mjs")"
+
+# C10: braces via the HEAD@{1} reflog form — the exact shape BOTH teach surfaces
+# name as denied (`agents/war-auditor.md`'s guard-contract bullet and the
+# dispatched `auditPrompt()` contract string in workflow-template.js: "Avoid @{}
+# reflog (braces are denied) — use git log -g instead"). @ IS in the char set;
+# { and } are not, and log is an allowlisted verb — so again the residue check
+# is the whole gate.
+expect_deny "C10: git log HEAD@{1} → denied (braces / reflog form)" \
+  "$(auditor_cmd "git log HEAD@{1}")"
+
+# C11: backslash line continuation.
+# CRITICAL: build with `jq -nc --arg`, NOT auditor_cmd — H5's rationale exactly.
+# auditor_cmd's printf '{..."command":"%s"...}' would emit a raw backslash right
+# before the closing quote, i.e. INVALID JSON; the guard's jq read of
+# .agent_type then returns empty, the non-auditor `*) exit 0` pass-through
+# fires, and the deny is VACUOUS (there is no JSON-parse deny to catch it —
+# get() swallows the jq failure). Memory: printf-json-escaping-vacuous-test-case.
+# The trailing backslash is the payload's ONLY out-of-allowlist byte, and there
+# is deliberately NO embedded newline: a newline is itself outside the allowlist
+# and would keep this case red through a backslash-only widening, faking the
+# mutation proof.
+expect_deny "C11: git diff HEAD \\ (trailing continuation) → denied (backslash)" \
+  "$(jq -nc --arg c 'git diff HEAD \' \
+     '{agent_type:"war-auditor",tool_input:{command:$c}}')"
+
+# C12: backtick command substitution. Same `jq -nc --arg` encoding as C11, for
+# H5's reason — keep the payload out of every escaping path between here and the
+# hook. A backtick byte is JSON-valid, so auditor_cmd's printf would not corrupt
+# the JSON; the CALL SITE would. Every auditor_cmd call in this file but C5
+# passes its payload double-quoted (C5 single-quotes its $() payload for exactly
+# this reason), and an unescaped backtick in a double-quoted call site is
+# command substitution in the test's own shell — the case would then assert
+# against a payload nobody wrote. jq --arg takes the bytes verbatim and removes
+# the question, keeping C12 uniform with C11 and H5.
+# The single-out-of-allowlist-byte discipline binds C12 as tightly as C11: the
+# backtick is the payload's ONLY out-of-allowlist byte, with no quotes or parens
+# borrowed from H5's neighbouring $() payload; a second residue byte would keep
+# this case red through a backtick-only widening and fake the proof the same way.
+expect_deny "C12: git log \`whoami\` → denied (backtick substitution)" \
+  "$(jq -nc --arg c 'git log `whoami`' \
+     '{agent_type:"war-auditor",tool_input:{command:$c}}')"
+
 # ---------------------------------------------------------------------------
 # CASE GROUP D: DENY — non-git commands
 # Must exit 2 AND emit "WAR:" on stderr.
