@@ -88,7 +88,11 @@ check '^### Merged plan template'
 check '^### Spec template — the input shape'
 check '^### Roadmap template'
 
-# Self-sufficient entry doctrine (D2) — the out-of-section carriers + §1 recommendation wording
+# Self-sufficient entry doctrine (D2) — each of the three out-of-section carriers pinned
+# new-present (frontmatter description · top-of-file bare-invoke bullet · pre-§1
+# Self-sufficient-entry sentence) + §1 recommendation wording
+check_f 'runs the WAR plan-authoring interview itself'
+check_f '**Bare invoke — run the interview**'
 check_f 'Self-sufficient entry:'
 check_f 'a recommended front door, never a requirement'
 
