@@ -3,11 +3,11 @@
   "profile": "balanced",
   "agents": {
     "worker": {
-      "model": "opus",
-      "effort": "max",
+      "model": "fable",
+      "effort": "xhigh",
       "docs": {
-        "model": "sonnet",
-        "effort": "max"
+        "model": "fable",
+        "effort": "xhigh"
       },
       "fix": {
         "model": "fable",
