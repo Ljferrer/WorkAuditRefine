@@ -6,26 +6,76 @@ only — no implementation detail.
 
 ## Language
 
-### Authoring pipeline (spec → plan)
+### Authoring pipeline (interview → merged plan)
 
-**Design spec** (`docs/specs/`):
-The ratified **decision record** for a change — problem, pivotal constraints, numbered decisions with
-alternatives considered, affected surfaces, test intent. Answers *what changes and why*; carries no
-dispatch structure (no phases, waves, or file-disjointness guarantees). Authored by interview
-(`grill-with-docs`); `/war` cannot execute one.
-_Avoid_: handing a spec to `/red-team` (it validates **plans** and never converts); treating a spec's
-affected-files list as dispatch-ready tasks.
+**Plan** (`docs/plans/`):
+The pipeline's **one execution artifact** — merged and self-contained. Part 1 is the ratified decision
+record (tagged context, pivotal constraints, resolved design tree, the Assumptions ledger, Commander's
+Intent (intent ceiling, plan floor) with tagged End states); Part 2 the decomposed phases and tasks with
+exact file sets, `requiresTest`, `deps`, and target repo, carved by the code-boundary decomposition
+rule. Part 1/Part 2 is prose framing, never heading nesting — Part 2 keeps the exact H2 headings `/war`
+extraction reads. Produced by one interview run to completion
+(`skills/war-strategy/references/plan-interview.md`); hardened by `/red-team`; executed by `/war`.
+_Avoid_: a spec + plan pair as current doctrine (the two-artifact split is retired — the
+authoring-contract ADR); using `/war-strategy` to validate (war-strategy **converts**, red-team
+**ratifies**).
 
-**Implementation plan** (`docs/plans/`):
-The **executable artifact** `/war` consumes — Commander's Intent (intent ceiling, plan floor) plus
-phases and tasks with exact file sets, `requiresTest`, `deps`, and target repo, carved by the
-code-boundary decomposition rule. Produced from a spec by `/war-strategy` (gap review + intent
-echo-back); hardened by `/red-team`. Answers *who does what, in which order, against which files*.
-_Avoid_: authoring one without a ratified spec behind it; using `/war-strategy` to validate
-(war-strategy **converts**, red-team **ratifies**).
+**Spec** (`docs/specs/`):
+A standalone decision record, valid as an **input shape** only — `/survey-corps`' AFK synthesis
+intermediate and externally-brought drafts arrive in it, and `/war-strategy` converts them into the
+merged plan. Answers *what changes and why*; carries no dispatch structure (no phases, waves, or
+file-disjointness guarantees); `/war` cannot execute one.
+_Avoid_: handing a spec to `/red-team` (a merged plan's Part 1 — not a spec — is its source of truth);
+treating a spec as a required predecessor of every plan (the interview produces the merged plan
+directly); treating a spec's affected-files list as dispatch-ready tasks.
 
-The pipeline: `grill-with-docs` authors the spec → `/war-strategy` converts it to a plan →
-`/red-team` validates the plan → `/war` executes it.
+The pipeline: one interview to completion — `/war-strategy` bare invoke, or the recommended Grill Me
+front door when installed — produces the merged plan → `/red-team` validates it → `/war` executes it.
+Legacy spec + plan pairs are grandfathered in place; conversion upgrades a pair into one merged plan on
+request, never retroactively.
+
+**Evidence tag**:
+The per-claim provenance marker every claim of fact in a merged plan (or input-shape spec) carries —
+`(user)` · `(verified: <source> at <base>)` · `[assumed: <default> — if wrong: <consequence>]`;
+issue-derived claims use the source form `(verified: issue #N (<date>))`. Maps onto the
+memory-provenance ladder ([ADR 0007](docs/adr/0007-memory-provenance.md)) — `(user)` ≈ user-confirmed,
+`(verified:)` ≈ code-verified, `[assumed:]` ≈ agent-unverified — with deliberately distinct syntax: the
+tag grades a plan claim, the tier a memory lesson.
+_Avoid_: memory/training as a `(verified:)` source (verify against the live repo, or tag `[assumed:]`);
+an untagged claim of fact (a bug, per the provenance gate).
+
+**Assumptions ledger**:
+The one required `## Assumptions ledger` section in a merged plan's Part 1 — one row per live
+assumption: assumption · basis · blast radius if wrong · check; explicit `None` allowed (the ADR 0017
+required-section vehicle). Conversion and AFK paths carry rows forward or retire each with a stated
+reason. The first target of `/red-team`'s `[assumed]`-first probes.
+_Avoid_: multiple ledgers; retiring a row silently; parking an assumption in prose where no probe reads
+it.
+
+**Done-when**:
+The per-task `Done when: <command>` slot — required iff `requiresTest: true`, and permitted (not
+required) elsewhere — otherwise `None — <basis>`. Its End-state sibling rule: every End state carries
+exactly one tag from the closed set `check:` | `gate:` | `HARD at audit_sha` (observable + judge seat) |
+`backstop:` row.
+_Avoid_: a prose promise where a command belongs; a check that still passes with the feature deleted
+(vacuous — the delete-the-feature probe); minting a fifth End-state tag.
+
+**Decisive slot**:
+One row of the interview doctrine's decisive-slots table: an interview extract hard-linked to where it
+lands in the merged plan and which consumer reads it there (validation criteria → tagged End states;
+constraints → `## Pivotal constraints`; file footprints → per-task `Files:`; assumptions → the ledger;
+new terms → this glossary). The interview's completion bar: an interview with an unfilled decisive slot
+has not finished.
+_Avoid_: treating a slot as an optional heading; filling one in free prose where its consumer never
+reads.
+
+**Executor gate** (authoring):
+The final silent gate before the merged plan file is written: *could `/war` decompose-dispatch this,
+and `/red-team` attack it, with zero operator questions?* A "no" reopens the interview while question
+budget remains; otherwise the residue is default-and-tagged and recorded in the ledger. Runs beside the
+provenance gate (the untagged-claim scan — an untagged claim of fact is a bug).
+_Avoid_: the run-time **gate command** / gate-audit (those gate merges; this gates authoring
+completeness).
 
 ### Worktree provisioning
 
