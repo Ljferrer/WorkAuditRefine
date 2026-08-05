@@ -74,8 +74,8 @@ The final silent gate before the merged plan file is written: *could `/war` deco
 and `/red-team` attack it, with zero operator questions?* A "no" reopens the interview while question
 budget remains; otherwise the residue is default-and-tagged and recorded in the ledger. Runs beside the
 provenance gate (the untagged-claim scan — an untagged claim of fact is a bug).
-_Avoid_: the run-time **gate command** / gate-audit (those gate merges; this gates authoring
-completeness).
+_Avoid_: the run-time **gate command** / gate-audit (those gate merges and lands; this gates
+authoring completeness).
 
 ### Worktree provisioning
 
