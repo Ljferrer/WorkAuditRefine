@@ -1471,8 +1471,9 @@ test("D9 — the refiner card's gitlink-bump invocation agrees in shape with the
 // and the legacy arm (no `Done when:` bullets anywhere ⇒ stages unchanged, byte-identical
 // downstream prompts). Extraction is BY CONSTRUCT: SKILL.md keeps one step/sub-bullet per
 // physical line, so the row takes the single line carrying the `**Done-when intake` bold lead-in
-// (uniqueness asserted) — never a whole-file scan: `Done when:` tokens also appear in other
-// steps' prose and in the war-strategy template this law quotes. Keys are token-anchored
+// (uniqueness asserted) — never a whole-file scan: the sub-bullet itself carries `Done when:`
+// multiple times, and the token is free to recur in future steps' prose — the lead-in line is
+// the stable construct. Keys are token-anchored
 // `\s+`-tolerant forms, never sentence bytes — sanctioned rewording latitude must not false-red;
 // correct a key to the new truth, never drop it to make a reword pass.
 test('D31 — SKILL.md Decompose done-when intake keeps the full-bullet parse clause and the requiresTest-without-Done-when intake-defect rule (F8, Task 1.1)', () => {
