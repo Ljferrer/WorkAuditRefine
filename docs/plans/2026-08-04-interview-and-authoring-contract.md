@@ -165,9 +165,12 @@ committed pins + ADR, waves: [6,7,9] then [8]) → Phase 3 (release).
   flat H2s, Part 2 headings byte-identical to today's, under two adjudicated shape rulings:
   the tail stays TWO separate H2s (`## Notes / conscious deviations`, `## Open decisions`)
   and per-task fields are SEPARATE `- ` bullets (ratified as template law AND an extraction
-  requirement — executed proof, round 3: `extractFiles` ingests ONLY the separate-bullet
+  requirement — executed proof, rounds 3–4: `extractFiles` ingests ONLY the separate-bullet
   form; the compact one-line rendering over-widens the footprint with Plan-slice paths, and
-  yields `[]` → `unparseable footprint` when the Files paths are bare); TWO example docs,
+  with bare Files paths either yields `[]` → `unparseable footprint` (no path-shaped
+  backtick in the bled-in block) or SILENTLY replaces the footprint with the slice paths
+  (any backtick disables the bare-path fallback — the worse, non-fail-loud outcome)); TWO
+  example docs,
   operator-form and AFK-form, per End state 7; spec template
   relabeled input shape with D4 tags + §10 check form; D12 staleness sentence in the
   conventions), §4 (ADR 0042 pointer line, bare-invoke runs the interview, widened HANDOFF
@@ -281,7 +284,15 @@ committed pins + ADR, waves: [6,7,9] then [8]) → Phase 3 (release).
   scratch" and README's "never authors one from scratch") · `authored by interview`
   (CONTEXT.md's Design-spec entry framing) · `converts spec → plan` · `convert a spec into a
   plan` (the README usage-section two-file framings) · `why it's required` · `why war doesn't
-  ship its own` · `interview a spec into a plan` · `author the input plan`. Deliberate
+  ship its own` · `interview a spec into a plan` · `author the input plan` · `without a
+  ratified spec` (CONTEXT.md's Implementation-plan `_Avoid_` line) · `routes you to your
+  installed grilling skill` (README's usage routing clause — deliberately NOT the
+  required-auxiliary link text, which Task 6's own rename removes by construction) ·
+  `nothing else is required` (the section's closing required-framing line). This table is the
+  committed FLOOR, not a proof of exhaustiveness — four probe rounds each surfaced a tail
+  instance, so the rewrite duty is defined by CONSTRUCT (the whole named sections), the
+  anchors only guard known phrasings, and the residual rides End state 5's land-time
+  comment-leader-stripped hand sweep plus post-land red-team coherence. Deliberate
   NON-anchor (recorded so a future sweep doesn't add it blindly): `cannot execute one` — that
   clause stays TRUE of input-shape specs and may legitimately appear in the rewritten
   glossary/README; the retired framing around it is covered by `spec ≠ plan`,
