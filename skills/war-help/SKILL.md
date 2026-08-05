@@ -15,12 +15,12 @@ You print a short orientation card, then stop. You never decompose a plan, spawn
 
 | Command | Does |
 |---|---|
-| `/war-strategy` | author a WAR-shaped spec/plan/roadmap ([`../../README.md`](../../README.md#author-a-plan-war-strategy)) |
+| `/war-strategy` | run the plan-authoring interview — one merged plan, decision record + phases in a single artifact — or convert an existing draft ([`../../README.md`](../../README.md#author-a-plan-war-strategy)) |
 | `/war-room` | configure a run ([`../../README.md`](../../README.md#configure-a-run-war-room)) |
 | `/red-team` | harden a plan before execution ([`../../README.md`](../../README.md#harden-a-plan-red-team)) |
 | `/war` | execute a plan ([`../../README.md`](../../README.md#go-to-war-war)) |
 | `/survey-corps` | sweep open issues into war-shaped specs ([`../../README.md`](../../README.md#turn-issues-into-specs-survey-corps)) |
-| `/war-machine` | convert specs to plans + a roadmap, hand off to the campaign ([`../../README.md`](../../README.md#turn-specs-into-plans-war-machine)) |
+| `/war-machine` | convert specs into merged plans + a roadmap, hand off to the campaign ([`../../README.md`](../../README.md#turn-specs-into-plans-war-machine)) |
 | `/war-campaign` | run a queue of plans unattended — **never auto-invokes** ([`../../README.md`](../../README.md#run-a-campaign-war-campaign)) |
 | `/aftermath` | evidence-gated post-campaign cleanup — **never auto-invokes** ([`../../README.md`](../../README.md#clean-up-aftermath)) |
 | `/lessons-learned` | tidy, tighten, and warm-seed captured memory — `/lessons-learned seed` imports the portable corpus ([`../../README.md`](../../README.md#tidy-the-memory-lessons-learned)) |
