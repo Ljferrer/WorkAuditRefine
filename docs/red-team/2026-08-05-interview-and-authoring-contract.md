@@ -1,150 +1,168 @@
 # Red Team — 2026-08-04-interview-and-authoring-contract (2026-08-05)
-**Verdict:** BLOCKED — **WIP**: all blockers adjudicated by the operator and patched into the
-plan 2026-08-05; re-verification of the affected probes has not yet run, so the pre-patch
-BLOCKED verdict stands until a re-run clears it. No residual open questions.
+**Verdict:** ADJUDICATED — gate-emitted (`red-team-gate.mjs`, ADR 0043): every blocker and
+`needsDecision` across four rounds is patched and carries an adjudication row; the re-run
+executed probes prove their patches; the stamped-not-reverified findings stay listed below
+per stamp-never-remove. No residual open questions. **Rounds: 4** (1 initial + 3
+continuation re-verify).
 
-Run: `wf_15a87d52-a96` · artifactKind: `impl-plan` (reported in-header per Step 2) ·
-repo = the session worktree (not foreign) · agents on `opus`/`high` per `agents.redteam` ·
-provision `[]` (no `.war-provision.json`; structural fallback empty).
+Runs: `wf_15a87d52-a96` (round 1, 11 probes, prior session) · `wf_3b039877-c0d` (round 2,
+full 11-probe re-verify of the patched plan, this session) · `wf_5ed065be-d00` /
+`wf_a0868ccc-8d7` (rounds 3–4, targeted executed-probe re-runs). artifactKind: `impl-plan`.
+repo = the session worktree (not foreign). Probes/confirms on `opus`/`high` per
+`agents.redteam`. provision `[]`. Continuation note: rounds 2–4 ran against the repo's landed
+**0.15.1** red-team assets (gate `ADJUDICATED` verdict, snapshot/baseline escape guard,
+three drift-guard spine probes) — the 0.15.0 plugin-cache skill copy predates them; this
+repo is the plugin, so the in-repo assets are authoritative.
 
 ## Attack surface
 Spine: claims-vs-reality, executable-proof, coverage-vs-source, consistency-placeholders,
 dependency-feasibility, intent-vs-plan. Bespoke: retired-wording-anchors,
 spec-decision-anchors, checks-run-at-base, extraction-compat, default-flip-old-absent.
-Executed in sandbox: executable-proof, checks-run-at-base, extraction-compat,
-default-flip-old-absent. Lead-run: backstop-legitimacy (**pass** — both entries name a
-concrete why-deferred and runner+timing), unguarded-new-mirror (**vacuous pass** — engine
-untouched, no new inline mirror), ff-topology (**not triggered** — token grep + hand-read of
-the evidence prose found no per-task merge-topology anchor).
-Fallback: none — all analyzed probes ran on `Explore`; no sticky pin engaged.
-Coverage: 11/11 expected probes on-target (`read_anchor` validated), 0 off-target, 0 dropped.
+Executed in sandbox (`git clone --no-hardlinks` — linked-worktree-safe): executable-proof,
+checks-run-at-base, extraction-compat, default-flip-old-absent.
+Lead-run: backstop-legitimacy (**pass**, re-run round 2 on the patched entries),
+unguarded-new-mirror (**vacuous pass** — /war engine untouched; Task 5's lenses↔scaffold
+dual-home edit pins in-diff), ff-topology (**not triggered** — no merge-topology anchor),
+**guard-split-deps-edge** (**pass**, run at round 2 — absent from round 1, which predates
+its 0.15.1 landing: Task 8 carries `deps: [6, 7]`; the survey-corps pin was re-homed to
+Task 3 with `deps: [1, 4]` at round 2).
+Coverage: 11/11 on-target every gated round; 0 off-target, 0 dropped. Escape guard:
+snapshot/baseline ref-diff clean (exit 0) after each executed round; round 1's exit-1 was
+provenance-cleared as the Lead's own operator-requested config edit (self-confound gate).
 
-## Executed proof
-- `checks-run-at-base` → **pass**: both structure suites, `plan-literal-lint.test.mjs`, and
-  `version-slots.test.mjs` green at base; lint exits 0 without `--strict`;
-  `grep -c 'question tree' skills/war-machine/SKILL.md` = 1 (retirement is real).
-- `extraction-compat` → the merged-shape plan itself parses on every /war extraction surface
-  (intent heading, Build order, 9 task blocks, backstops) **except** the ambiguity it
-  surfaced: spec §4b's one-line task rendering is not ingestible by `extractFiles`
-  (adjudicated: separate-bullet layout ratified).
-- `default-flip-old-absent` → reproduced the silent-failure class: with CLAUDE.md left stale,
-  **no committed suite goes red** (neither suite reads CLAUDE.md); the End-state-5 grep family
-  does detect the stale surface when actually run (adjudicated: committed pins, new Task 8).
-- `executable-proof` → reproduced the sentence-case false-negative: End state 4's
-  case-sensitive `grep -c` passes against a re-cased reintroduction of the retired doctrine;
-  three of Task 6's five patterns share the defect (patched: case-insensitive mid-sentence
-  anchors throughout).
-- Escape guard: exit 1 on ` M .claude/war/config.json` — routed through the self-confound
-  gate and attributed to the Lead's own operator-requested config edit (worker tiers →
-  fable/xhigh) made mid-run; verified the only working-tree delta. Not a probe escape.
+## Executed proof (highlights, rounds 2–4)
+- `checks-run-at-base` → **pass**: both structure suites, `plan-literal-lint.test.mjs`,
+  `version-slots.test.mjs`, `workflow-scaffold.test.mjs` green at base; lint exit 0 without
+  `--strict`.
+- `executable-proof` round 3 → **pass**: 100/116 slug pairing reproduces at `94ee5b3`; D7
+  guard located in `red-team-gate.test.mjs` and both Task-5 suites green; End-state 5/6/9
+  anchors correctly red-pre-land; `lacks()` case-sensitivity + `has_i()` precedent confirmed.
+- `extraction-compat` rounds 3–4: both fixtures (operator-form = the plan itself; synthesized
+  AFK-form) pass every /war extraction move — one intent heading per ADR 0014 arm, 10 task
+  blocks with full per-field bullet census (incl. tolerated `Done when:`), backstops parse
+  both headings, 10 End states enumerate, Part-1 H2s never leak into phase discovery.
+  Round-3 Major: the round-2 patch's "`extractFiles` ingests both forms" was **refuted by
+  importing the real function** — bullet-form-only; compact form over-widens or (bare paths,
+  no backtick) yields `[]` → `unparseable footprint`; round 4 added the third outcome: a
+  path-shaped backtick in the bled-in block **silently replaces** the footprint (no throw).
+- `default-flip-old-absent` rounds 2–4: reproduced, each round, that the enumerated
+  old-absent anchor table missed live retired-doctrine lines (`never authors` family;
+  `spec ≠ plan` / `authored by interview` / usage-conversion framings; then the CONTEXT.md
+  `_Avoid_` line, the README routing clause whose only anchors Task 6's own rename removes,
+  and the `Nothing else is required` closer) — and that the simulated stale surface passes
+  every committed pin while the hand-run family does detect it. The class is structural:
+  see Adjudications.
 
 ## Findings
-Gate raw counts: 22 blockers · 6 needsDecision · 22 minors, deduped to 12 root defects
-(several lenses caught the same holes).
 
-### Major
-- [Major] war-strategy SKILL.md's retired doctrine (frontmatter `description:`, "Bare invoke —
-  primer + handoff", "Honest boundary … never authors a spec from scratch", lines 3/9/14) sits
-  outside Task 1's §1/§2/§4 scope and matches none of the five enumerated old-absent patterns
-  → the plan could land green while the file still contradicts End state 1. Resolution:
-  Task 1 slice extended to the out-of-section carriers; biting anchors added to the retired
-  set and the war-strategy suite pins.
-- [Major, needsDecision] Task 5's "Part-2-vs-Part-1 coherence probes" are a code literal in
-  `workflow-scaffold.js:221` + `lenses.md:7`, not SKILL prose, while Task 5's Files listed
-  only SKILL.md under an unqualified "engine untouched" constraint. Resolution (Q1 = widen):
-  Task 5 Files gains lenses.md, workflow-scaffold.js, workflow-scaffold.test.mjs;
-  requiresTest true; constraint re-scoped to the /war engine.
-- [Major] End state 6's check (`grep -n 'source of truth'`) already green at base — the
-  delete-the-feature-and-it-still-passes class; Task 5 had no other check. Resolution:
-  re-anchored new-present (`its own source of truth`) + old-absent (``becomes `--spec` if not
-  given``) + the scaffold suite as Done-when.
-- [Major] End state 4 / Task 6 retirement guards case-sensitive; reproduced false-negative on
-  re-cased reintroduction. Resolution: `grep -ci` + mid-sentence anchors; End state 4 mirrored
-  as a committed pin in Task 3's suite.
-- [Major] End state 5 "both ways" grep: no new-present pattern enumerated anywhere; old-absent
-  half vacuous at base on war-help and war-strategy; README carries two same-meaning siblings
-  (line ~12 "interview a spec into a plan", `## Note from Author` blockquote) matched by no
-  pattern. Resolution: Task 6 now owns an authoritative per-surface table, both directions,
-  war-help marked new-present-only, siblings added.
-- [Major] End state 5's CONTEXT.md pattern carried a leading slash (`/grill-with-docs`
-  authors`) that matches nothing in CONTEXT.md; the slash-less form lived only in Task 6,
-  which does not own CONTEXT.md. Resolution: one authoritative slash-less list, cited by
-  Tasks 7/8 and End state 5.
-- [Major, needsDecision] The five-surface old-absent sweep rode entirely on a hand-run grep at
-  land (no committed suite reads CLAUDE.md) — the recorded silent-failure class; ADR 0017
-  forbids prose-only validation. Resolution (Q4 = (a)): new Task 8 lands committed
-  case-insensitive pins for all five surfaces (+ CLAUDE.md handle) in
-  `war-pipeline-structure.test.sh`, deps [6, 7]; ADR → Task 9, release → Task 10.
-- [Major, needsDecision] Task 4 (survey-corps) shipped with no check of any kind — End state
-  5's family never opens the file it edits. Resolution (Q5): Task 8 pins the D4/D11 tagging
-  directive new-present.
-- [Major, needsDecision] Part-2 tail shape ambiguity: spec §4b collapses `## Notes / conscious
-  deviations · Open decisions` into one H2; today's template and this plan carry two separate
-  H2s. Resolution (Q2): two separate H2s ratified; End state 2 pins pin that form; spec
-  rendering noted as superseded shorthand.
-- [Major, needsDecision] Per-task field layout ambiguity: spec §4b renders tasks as one
-  compacted bullet; `extractFiles` ingests only the separate-bullet form. Resolution (Q3):
-  separate-bullet layout ratified in Task 1's slice.
-- [Major] Part 1 not self-contained: D9, D11, D12, D19 cited by task slices but defined
-  nowhere in the plan ("The spec's §3 table governs" delegated the record). Resolution: the
-  four rows inlined into `## Resolved design tree` with provenance tags.
-- [Minor→patched, needsDecision] End state 7 required "both ADR 0014 headings" in one example
-  doc — the headings are either/or alternatives. Resolution (Q6 = (b)): Task 1 ships TWO
-  example docs (operator-form + AFK-form); End state 7 probes each.
+### Round 1 (22 blockers · 6 needsDecision · 22 minors → 12 roots; all patched + operator-adjudicated)
+Recorded in this report's prior revision and the round-1 commit (`e223a23`): out-of-section
+war-strategy doctrine carriers; Task-5 scaffold-vs-prose scope (Q1 widen); End state 6
+green-at-base; case-sensitive retirement guards; End state 5 pattern-table absence; CLAUDE.md
+slash mismatch; hand-grep-only enforcement (Q4 → committed pins, new Task 8); survey-corps
+no-check (Q5); Part-2 tail shape (Q2); per-task field layout (Q3); Part 1 not self-contained;
+example-doc heading arms (Q6); plus eight minors.
 
-### Minor (all patched unless noted)
-- Stale base literal `382dba1` → header re-measured to `94ee5b3` (only this plan + spec landed
-  in between; A3/A5 unaffected).
-- End state 3 enumerated 4 of spec §4f's 5 rules → "untagged factual claim shape in
-  `## Context`" added.
-- Task 7's "lines ~15/27" pointed at the wrong constructs → replaced with by-construct anchors
-  (Design spec / Implementation plan entries + pipeline paragraph).
-- Task 3 lacked D19's carry-forward duty (ledger rows carried/retired with reason) → added.
-- End state 8's check was green pre-bump (lock-step ≠ bump-happened) → version-differs-from-
-  `0.15.1`-base clause added.
-- No End state covered the ADR → End state 9 added (exists at next free number, Status
-  current).
-- End state 2's mutation-red proof left no artifact → done-report recording added (soft
-  evidence by repo precedent).
-- Backstop bullet 2's `why deferred: same · runner: same` would ride verbatim into
-  `handoff.backstops[]` → both fields spelled out.
+### Round 2 (13 blockers · 6 needsDecision · 16 minors → 11 roots; all patched, stamped `adjudicated`)
+99/116 pairing figure irreproducible (→ 100/116 at `94ee5b3`, D12 dated snapshot) · D7
+two-contract guard mislocated in Task 5 (→ `red-team-gate.test.mjs`, second Done-when suite)
+· `lacks()` case-sensitive, no insensitive absence arm (→ explicit `lacks_i()` mandate) ·
+`never authors` family unanchored (→ anchor added) · End-state-5 new-present direction
+uncommitted (→ Task 8 pins both ways on its four suite-owned surfaces; war-strategy rides
+its own suite) · structure-test lock-step violated for Tasks 4/6/7 (→ survey-corps pin
+re-homed to Task 3 `deps: [1, 4]`; constraint restated per ADR 0025) · spec-§8 `judge:`-tag
+mitigation unowned (→ Task 5 extends `backstop-legitimacy.md`) · §4b gap-review rows
+unmapped (→ Task 1 slice) · ES2 mutation-red not individually checkable (→ SOFT-evidence
+split) · Purpose sufficiency gap: Task 4 unclaimed (→ End state 10, AI-declared) ·
+plan-as-fixture shape mismatch (→ all 10 task blocks reformatted to separate bullets) ·
+minors: ES4 non-verbatim quote, ES9 undecidable `Status`, `requiresPackaging` inconsistency,
+base-enumeration staleness, D5 restatement, README anchor-link rot, heading-anchor
+qualifier, spec-§4a `war-memory` literal, delete-the-feature probe unmapped.
+
+### Round 3 (2 roots; patched; extraction claim re-proven at round 4)
+The round-2 patch itself minted a false fact — "`extractFiles` ingests both forms" (an
+analyzed-probe Minor laundered into the plan; refuted by execution) · four retired-gospel
+framings uncovered (`spec ≠ plan`, `authored by interview`, `converts spec → plan`,
+`convert a spec into a plan`); `cannot execute one` recorded as a deliberate NON-anchor
+(stays true of input-shape specs — over-retirement guard) · `lacks_i()` body ambiguity:
+"comment-leader-stripped" named a nonexistent behavior; resolved to mirror `lacks()` via
+`strip_prose` (preserving the `## Status` drop that protects Task 10's own release blurb —
+the release-blurb-trips-its-own-guard class).
+
+### Round 4 (2 Major · 2 Minor; patched, stamped `adjudicated` — per-blocker budget exhausted)
+CONTEXT.md `_Avoid_: authoring one without a ratified spec` unanchored · README routing
+clause unpinned once Task 6's own rename removes its only anchors · `Nothing else is
+required` residual framing · extraction bare-paths clause missing the silent-replacement
+outcome. All four patched (16-anchor table; clause qualified); the enumeration-completeness
+class is closed by adjudication, not a fifth round — see Adjudications.
 
 ## Resolutions applied (grill decisions)
-- Q1 scaffold-vs-prose → **widen Task 5** (operator) → Task 5 Files/slice/Done-when rewritten;
-  Pivotal constraints re-scoped.
-- Q2 Part-2 tail → **two separate H2s** (operator) → Task 1 slice + Notes.
-- Q3 task layout → **separate `- ` bullets** (operator) → Task 1 slice + Notes.
-- Q4 old-absent enforcement → **(a) committed pins** (operator) → new Task 8; renumbering
-  cascade (ADR → 9, release → 10; A2 check, domain-terms ref, Build order waves, README note).
-- Q5 survey-corps check → **agreed** (operator) → folded into Task 8; Task 4 Done-when points
-  at it.
-- Q6 example-doc arms → **(b) second AFK-shaped example** (operator) → Task 1 slice + End
-  state 7.
+Round 1 (operator, 2026-08-05): Q1 widen Task 5 · Q2 two separate tail H2s · Q3 separate
+`- ` bullets · Q4 committed pins (new Task 8) · Q5 survey-corps pin · Q6 two example docs.
+Rounds 2–4 (Lead continuation, per-row provenance below): eleven round-2 roots, two round-3
+roots, four round-4 findings — patch commits `ec38ab0`, `ab0201c`, `4a75914`, plus the
+operator version ruling in `9185a2c`.
 
 ## Adjudications
 <!-- Machine-readable: the WAR Lead reads these rows and threads them into the auditor prompts (auditPrompt() and the gate-audit seats). Version precedence: task instruction > red-team adjudication > plan body literal. -->
+- **Release version = `0.16.0`** (minor — the merged-artifact doctrine change) supersedes the
+  plan's original "next free patch above the live base (≈0.15.2)" and A3; all four slots
+  lock-step; `plan-literal-lint`'s `hardcoded-version: 0.16.0` advisory hit is answered by
+  this row — operator-ratified (2026-08-05).
 - Part-2 tail = TWO separate H2s (`## Notes / conscious deviations`, `## Open decisions`)
-  supersedes spec §4b L145's collapsed single H2 — Task 1 §2 (Q2, 2026-08-05).
-- Per-task fields = SEPARATE `- ` bullets supersedes spec §4b's one-line compact task
-  rendering — Task 1 §2 (Q3, 2026-08-05); `extractFiles` ingests only the bullet form.
-- Task 5 Files = SKILL.md + lenses.md + workflow-scaffold.js + workflow-scaffold.test.mjs
-  supersedes the plan-body `Files: skills/red-team/SKILL.md` sole entry; "engine untouched"
-  binds the /war engine only — Task 5 (Q1, 2026-08-05).
-- Task numbering: gospel-pins task = Task 8 (deps [6, 7]); ADR = Task 9; release = Task 10 —
-  supersedes the pre-patch 8/9 numbering (Q4/Q5, 2026-08-05).
-- Integration base `94ee5b3` supersedes plan-body `382dba1` — header re-measurement
-  (2026-08-05). Version literal: none adjudicated — next free patch resolves from live slots
-  at land time (base recorded 0.15.1).
+  supersedes spec §4b's collapsed single H2 — Task 1 §2 (Q2) — operator-ratified (2026-08-05).
+- Per-task fields = SEPARATE `- ` bullets — operator-ratified (2026-08-05, Q3); rationale
+  corrected at rounds 3–4 by executed proof: an **extraction requirement** (`extractFiles`
+  ingests only the bullet form; compact-form outcomes: over-widened footprint, `[]` →
+  `unparseable footprint`, or silent footprint replacement), superseding round 2's refuted
+  "ingests both forms" analyzed claim — AI-declared.
+- Task 5 Files = SKILL.md + lenses.md + backstop-legitimacy.md + workflow-scaffold.js +
+  workflow-scaffold.test.mjs; Done-when runs workflow-scaffold.test.mjs AND
+  red-team-gate.test.mjs (D7's actual home); "engine untouched" binds the /war engine only —
+  operator-ratified (2026-08-05, Q1) + AI-declared widening (backstop-legitimacy.md gains the
+  `judge:`-tag grading rule, the spec-§8 mitigation's owner).
+- Task numbering: gospel-pins task = Task 8 (`deps: [6, 7]`); ADR = Task 9; release =
+  Task 10 — operator-ratified (2026-08-05, Q4/Q5); survey-corps new-present pin re-homed to
+  Task 3 (`deps: [1, 4]`, ADR 0025 guard-split shape) — AI-declared.
+- Pairing figure = **100/116 `*-design.md` specs paired at `94ee5b3`** (dated snapshot, D12)
+  supersedes the plan's and spec §1's `99/116` (measured 2026-08-04 pre-landing; spec edits
+  out of scope — this row is the superseding record) — AI-declared.
+- Integration base `94ee5b3` supersedes plan-body `382dba1`; the branch's `e223a23`/`7b9224d`
+  are recorded as touching no plan-named surface — AI-declared.
+- End state 10 (survey-corps directive claimed + pinned) added — derives from operator
+  decisions D16 + D11; closes the intent-sufficiency gap — AI-declared.
+- End state 9's decidable form: ADR title line contains `authoring contract`;
+  `**Status:** accepted` (house format; no "current" value exists) — AI-declared.
+- D5 restated: `Done when:` required iff `requiresTest: true`, permitted elsewhere (Task 10
+  carries one voluntarily) — AI-declared.
+- Old-absent anchor table = the committed FLOOR (16 anchors), not an exhaustiveness proof —
+  the rewrite duty binds by construct; residual rides End state 5's land-time
+  comment-leader-stripped hand sweep + post-land coherence; `cannot execute one` is a
+  deliberate NON-anchor (true of input-shape specs — over-retirement guard). Class closed by
+  adjudication after two re-verify rounds (per-blocker budget) — AI-declared.
+- `lacks_i()` body = `strip_prose < "$1" | grep -qiF -e "$2"` (inherits the
+  `## Status`/`## Changelog` drop; comment-leader stripping belongs to the hand sweep only)
+  — AI-declared.
 
 ## Residual risk
-- Re-verification pending (WIP): the patched plan has not been re-probed; affected probes to
-  re-run before CLEARED: claims-vs-reality, executable-proof, coverage-vs-source,
-  consistency-placeholders, dependency-feasibility, intent-vs-plan, retired-wording-anchors,
-  spec-decision-anchors, extraction-compat, default-flip-old-absent (checks-run-at-base passed
-  clean and its subjects are unpatched).
-- The spec file intentionally retains §4b's compact renderings; the plan + this report are the
-  superseding record (spec edits were not in scope).
+- **What ADJUDICATED means here** (stamped, patched, not probe-re-proven): all analyzed-probe
+  findings of rounds 2–4 (per Step 5, analyzed findings close by adjudication) and the
+  round-4 executed findings (per-blocker re-verify budget exhausted after two rounds). The
+  three re-run executed probes are probe-proven (`executable-proof` pass; `extraction-compat`
+  warn/minor-only; `default-flip-old-absent`'s round-3 patch set verified).
+- The anchor-table exhaustiveness class: four rounds, four tails — treat any further instance
+  found at land as expected floor-vs-ceiling residual, not a new defect class; the binding
+  duty is the by-construct section rewrite.
+- `extractFiles`' silent-footprint-replacement arm (compact task rendering + any backticked
+  path in bled-in prose → wrong non-empty footprint, no throw) is a **latent war-campaign
+  hazard beyond this plan's scope** — the merged template's separate-bullet law avoids it;
+  flagged for a follow-up issue.
+- ES2's mutation-red proof remains deliberately-uncommitted done-report evidence — SOFT by
+  repo precedent, never a hold. The spec file intentionally retains §4b's compact renderings
+  and the 99/116 literal; the plan + this report are the superseding record.
 - Deferred validations stand as declared (adoption + interview-length telemetry via
-  `/war-review` at the next campaign wrap-up); backstop-legitimacy passed.
-- End state 2's mutation-red proof remains deliberately uncommitted done-report evidence —
-  gate-audit treats a cannot-confirm as SOFT by repo precedent, never a hold.
+  `/war-review` at the next campaign wrap-up); backstop-legitimacy passed both rounds.
+- Loop-breaker note for the record: rounds 2 and 3 each contained a patch-minted defect
+  (the `extractFiles` "both forms" claim; the round-2 anchor additions' own gaps) — live
+  evidence for the cross-round budget + finding-class taxonomy this campaign's follow-on
+  loop-breaker spec proposes.
