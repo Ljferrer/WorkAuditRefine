@@ -989,6 +989,15 @@ test('coverage-vs-source merged arm: emitted SPINE prompt + lenses.md spine entr
   assert.match(cvs, /Part-1→Part-2 coverage/, 'the SPINE prompt reads Part-1→Part-2 coverage on the merged arm')
   assert.match(cvs, /Otherwise confirm every requirement\/section in the source maps/,
     'the classic source-spec arm is retained (extend, not rewrite)')
+  // (a') behavioral pin — the MERGED configuration itself (sourceSpec === planFile): the spine
+  //     filter drops the lens only on the literal 'none', so a merged run must keep it. Without
+  //     this, a filter narrowed to also drop sourceSpec === planFile would kill the arm with
+  //     every text pin above still green.
+  const merged = await promptsByLabel({ sourceSpec: '/abs/PLAN.md' })
+  assert.ok(merged['probe:coverage-vs-source'],
+    'a merged plan (sourceSpec === planFile) must still run the coverage-vs-source lens — the spine filter drops it only on the literal none')
+  assert.ok(merged['probe:coverage-vs-source'].includes('/abs/PLAN.md'),
+    'the merged-run prompt reads the plan itself as the source of truth')
   // (b) prose home — ±320-char window around every coverage-vs-source mention in lenses.md.
   const lenses = readFileSync(join(__dirname, '..', 'references', 'lenses.md'), 'utf8')
   const lower = lenses.toLowerCase(), regions = []
@@ -1023,6 +1032,19 @@ test('backstop-legitimacy.md carries the judge-tag grading rule (commandable-but
   assert.match(bl, /HARD at audit_sha/, 'the rule names the HARD-at-audit_sha tag form')
   assert.match(bl, /could this have been a `check:` command/i, 'the rule grades commandability')
   assert.match(bl, /needsDecision/, 'commandable-but-judged routes to needsDecision')
+  // Trigger half — the rule is reachable only via SKILL.md Step 2's widened pointer trigger (the
+  // same two-home presence-pair rationale as the coverage-vs-source arm above): ±420-char window
+  // around each 'backstop-legitimacy' mention in SKILL.md, so the trigger and the rule body can
+  // never rot independently.
+  const skill = readFileSync(join(__dirname, '..', 'SKILL.md'), 'utf8')
+  const lower = skill.toLowerCase(), regions = []
+  for (let i = lower.indexOf('backstop-legitimacy'); i !== -1; i = lower.indexOf('backstop-legitimacy', i + 1)) {
+    regions.push(skill.slice(Math.max(0, i - 420), i + 420))
+  }
+  assert.ok(regions.length > 0, 'SKILL.md must reference backstop-legitimacy')
+  const r = regions.join('\n---\n')
+  assert.match(r, /`judge:`/, 'the SKILL.md Step-2 trigger names the judge: tag route')
+  assert.match(r, /HARD at audit_sha/, 'the SKILL.md Step-2 trigger names the HARD-at-audit_sha tag form')
 })
 
 // --- Task 1.1 (#808): CONTRACTS "Gate side" reword standing lock (End state 3) ------------------

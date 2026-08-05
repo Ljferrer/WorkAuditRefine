@@ -18,4 +18,4 @@ A merged plan's tagged End states (and backstop entries) close either with `chec
 - **Commandable-but-judged → `needsDecision`**: recommend converting the entry to a `check:` command, unless the plan names a concrete reason no command can decide it (e.g. the evidence is deliberately-uncommitted done-report evidence, or the observable is a sandbox probe no committed command reproduces).
 - A justified judged entry passes — the grading exists to catch box-ticking (a tag pasted on to skip authoring the command), never to outlaw judgment.
 
-This rule runs whenever the tags appear — including when the backstops section is a literal `None`, since the tags live in the End states too. Findings route the normal plan-patch loop (Steps 4–5), like the checks above.
+This rule runs whenever the tags appear — including when the backstops section is a literal `None`, or absent entirely, since the tags live in the End states too. Findings route the normal plan-patch loop (Steps 4–5), like the checks above.
