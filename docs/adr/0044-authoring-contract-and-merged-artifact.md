@@ -163,8 +163,9 @@ doctrine in-repo.**
   deliberately outside the pin sweep's scope — this ADR quotes the retired wording above as its
   historical record, which is legitimate exactly because decision records are excluded.
 - The first field trial is the implementing plan itself: it was authored in the merged shape one
-  phase before the template ratified that shape, and its red-team run fed two shape rulings
-  (separate-bullet task fields; the two-H2 tail) back into the template as extraction-proven law.
+  phase before the template ratified that shape, and its red-team run fed two shape rulings back
+  into the template as ratified law — the separate-bullet task fields extraction-proven by the
+  executed `extractFiles` probe, the two-H2 tail operator-ratified (2026-08-05, Q2).
 
 ## References
 
