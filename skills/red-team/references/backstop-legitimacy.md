@@ -10,3 +10,12 @@ For **each** entry in the section (a literal `None` is a valid, complete declara
 **AI-declared sections** (heading `## Deferred validations (backstops — AI-declared)`, per ADR 0014 provenance): every entry additionally gets one Minor note flagging it for **explicit operator attention** — an AI drafted this waiver and no human has ratified it (recommend the operator review it at the approval gate, or `/war-strategy <plan>` for the human upgrade path). This fires even when the entry is otherwise legitimate.
 
 Findings route the **normal plan-patch loop** (Steps 4–5): `needsDecision` blocks and is grilled one at a time until the entry is justified/narrowed or removed; the AI-declared Minor is auto-noted.
+
+## `judge:`-tag grading rule (the spec-§8 box-ticking mitigation)
+
+A merged plan's tagged End states (and backstop entries) close with a `check:` command that proves the condition, a `gate:` or `backstop:` tag, or a `judge:` / `HARD at audit_sha` tag — a named seat judging an observable instead of a command proving it. The judged form is legitimate only when no command can decide the condition. For **each** End state or backstop entry carrying a `judge:` or `HARD at audit_sha` tag, grade: **could this have been a `check:` command?** — a deterministic command, test, or grep a gate/floor could run.
+
+- **Commandable-but-judged → `needsDecision`**: recommend converting the entry to a `check:` command, unless the plan names a concrete reason no command can decide it (e.g. the evidence is deliberately-uncommitted done-report evidence, or the observable is a sandbox probe no committed command reproduces).
+- A justified judged entry passes — the grading exists to catch box-ticking (a tag pasted on to skip authoring the command), never to outlaw judgment.
+
+This rule runs whenever the tags appear — including when the backstops section is a literal `None`, or absent entirely, since the tags live in the End states too. Findings route the normal plan-patch loop (Steps 4–5), like the checks above.

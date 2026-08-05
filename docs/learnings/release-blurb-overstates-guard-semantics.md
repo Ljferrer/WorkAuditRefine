@@ -4,11 +4,11 @@ description: "Guard blurb: say 'refuse diffs touching X' not repos"
 metadata:
   node_type: memory
   type: project
-  keywords: [Status section wording, trigger surface, diff vs repo, fail-closed phrasing, submodule refuse, prose nit, operator misinformation, absolute claim vs residual exception, ADR carve-out, fresh-env re-run, unconditional vs conditional emission, near-miss diagnostic, assert-test-in-diff.sh, stderr guard clause, umbrella clause, heterogeneous guard shapes, realpathSync, campaign-ledger, fileURLToPath, No behavior change label, bolded lead-in, colon-scoped enumeration, release headline contradiction, anti-overclaim device, appositive antecedent ambiguity, dangling modifier, itself unchanged, nearest-noun misattachment, D6 verbatim-capture contract, on every error path, seed-pack die try region, mkdtemp scratch leak scope, TOKEN-scoped absence lock, prose-only reintroduction, verifyTier cap exceeded, unconditional prose append, gating-premise mismatch, non-submodule byte identity claim, submodule floor gain, polish merge prompt, floor-retry prompt, submodLandNote, submodMergeNote, every existing non-submodule prompt, issue citation convention, origin issue vs task issue, ADR body vs header qualifier, byte-unchanged body qualifier dropped, ADR Status line amendment, expect_deny_teach pinning granularity, K5 combined substring stated as separate pins, test assertion granularity overclaim, authoring checklist self-violation, checklist item dropped in its own introducing paragraph, D25 cross-ADR mirror, two-site characterization, either-alone overclaim, guard scope word omission, bound every absolute, universal quantifier enumeration gap, version-manifest omitted from outside-dir enumeration, doctrine count vs guard count mismatch]
+  keywords: [Status section wording, trigger surface, diff vs repo, fail-closed phrasing, submodule refuse, prose nit, operator misinformation, absolute claim vs residual exception, ADR carve-out, fresh-env re-run, unconditional vs conditional emission, near-miss diagnostic, assert-test-in-diff.sh, stderr guard clause, umbrella clause, heterogeneous guard shapes, realpathSync, campaign-ledger, fileURLToPath, No behavior change label, bolded lead-in, colon-scoped enumeration, release headline contradiction, anti-overclaim device, appositive antecedent ambiguity, dangling modifier, itself unchanged, nearest-noun misattachment, D6 verbatim-capture contract, on every error path, seed-pack die try region, mkdtemp scratch leak scope, TOKEN-scoped absence lock, prose-only reintroduction, verifyTier cap exceeded, unconditional prose append, gating-premise mismatch, non-submodule byte identity claim, submodule floor gain, polish merge prompt, floor-retry prompt, submodLandNote, submodMergeNote, every existing non-submodule prompt, issue citation convention, origin issue vs task issue, ADR body vs header qualifier, byte-unchanged body qualifier dropped, ADR Status line amendment, expect_deny_teach pinning granularity, K5 combined substring stated as separate pins, test assertion granularity overclaim, authoring checklist self-violation, checklist item dropped in its own introducing paragraph, D25 cross-ADR mirror, two-site characterization, either-alone overclaim, guard scope word omission, bound every absolute, universal quantifier enumeration gap, version-manifest omitted from outside-dir enumeration, doctrine count vs guard count mismatch, engine untouched claim, task diff vs release window scope, unbumped stacked PR, zero engine change, named above enumeration gap, skills touch outside families]
   provenance: code-verified
   promoted: dev/2026-07-28-audit-evidence-precedence@phase-2
   slug: release-blurb-overstates-guard-semantics
-  phase: "submodule-inc1/T4 +11 recurrences (war-campaign-resilience-roadmap/phase-2 Release task 2.1, 2026-07-22; test-floor-target-repo/phase-2 Release task 2.1, 2026-07-22; cli-main-guard-normalization/phase-2 Release task 2.1, 2026-07-23; runbook-and-standing-record-coherence/phase-2 Release task 2.1, 2026-07-24; recovery-re-merge-dispatch-coherence/phase-2 Release task 2.1, 2026-07-24; drift-guard-and-floor-diagnostic-hardening/phase-2 Release task 2.1, 2026-07-24/25; 2026-07-24-memory-tooling-hardening/phase-2 Release task 2.1, 2026-07-26; 2026-07-26-dispatch-args-and-floor-coverage/phase-3 Release task 3.1, 2026-07-26/27; 2026-07-26-auditor-guard-policy-and-mirror-truth/phase-2 Release task 2.1, 2026-07-27; 2026-07-26-standing-doc-and-remedy-truth-sweep/phase-2 Release task 2.1, 2026-07-27; 2026-07-28-audit-evidence-precedence/phase-2 Release task 2.1, 2026-07-28; 2026-08-02-redteam-doctrine-and-guards/phase-2 Release task 2.1, 2026-08-02)"
+  phase: "submodule-inc1/T4 +12 recurrences (war-campaign-resilience-roadmap/phase-2 Release task 2.1, 2026-07-22; test-floor-target-repo/phase-2 Release task 2.1, 2026-07-22; cli-main-guard-normalization/phase-2 Release task 2.1, 2026-07-23; runbook-and-standing-record-coherence/phase-2 Release task 2.1, 2026-07-24; recovery-re-merge-dispatch-coherence/phase-2 Release task 2.1, 2026-07-24; drift-guard-and-floor-diagnostic-hardening/phase-2 Release task 2.1, 2026-07-24/25; 2026-07-24-memory-tooling-hardening/phase-2 Release task 2.1, 2026-07-26; 2026-07-26-dispatch-args-and-floor-coverage/phase-3 Release task 3.1, 2026-07-26/27; 2026-07-26-auditor-guard-policy-and-mirror-truth/phase-2 Release task 2.1, 2026-07-27; 2026-07-26-standing-doc-and-remedy-truth-sweep/phase-2 Release task 2.1, 2026-07-27; 2026-07-28-audit-evidence-precedence/phase-2 Release task 2.1, 2026-07-28; 2026-08-02-redteam-doctrine-and-guards/phase-2 Release task 2.1, 2026-08-02; 2026-08-04-interview-and-authoring-contract/phase-3 Release task 10, 2026-08-05)"
   tags:
     - war
     - release
@@ -24,7 +24,7 @@ metadata:
     - "[[gitmodules-working-tree-read-vs-ref-snapshot]]"
   created: 2026-06-30
   originSessionId: 0e364ee5-f0b3-47f6-a9e4-9bf2dd555733
-  modified: 2026-08-03T09:24:19.458Z
+  modified: 2026-08-05T16:10:31.691Z
 ---
 
 # Release blurb prose overstates guard semantics
@@ -551,3 +551,67 @@ enumeration, explicitly count how many distinct subjects the *opening* clause na
 many items the *following* enumeration actually substantiates — a bolded "0.X.Y" version token at
 the top of the same paragraph is itself a reminder to sanity-check that any "outside `<dir>`, the
 diff is..." enumeration includes the release's own version-slot files.
+
+## Recurrence 13 (2026-08-05, plan `2026-08-04-interview-and-authoring-contract`, phase 3
+"Release", task 10) — an "engine untouched" absolute is true of the task's own diff but false of
+the release window it heads, plus a "sole X named above" enumeration missing one item
+
+An eighteenth and nineteenth instantiation, both flagged on the same `## Status` paragraph.
+`code-verified` — read directly at the `_refinery` worktree whose `HEAD` equals the landed tip
+`3b1287111098120ae5dce1057548cd725bc00005` (gitdir physical path containing this plan's slug:
+`<repo-root>/.claude/war-worktrees/2026-08-04-interview-and-authoring-contract-2026-08-05/2026-08-04-interview-and-authoring-contract-2026-08-05/_refinery/`),
+`README.md` line 361.
+
+**(a) "The extraction bound held — zero `/war` engine change: no file under `skills/war/`,
+`hooks/`, or `agents/` changed" (Minor, disposition `follow-up`) — a new sub-family: task-diff
+scope vs. release-window scope.** Every prior recurrence in this family is about a blurb
+misdescribing its **own diff** (a clause broader/narrower than the guard the same diff ships). This
+one is different in kind: the audited rationale computed the sentence as *true* of this plan's own
+change set (`git diff --stat 94ee5b3..84c8ced` shows no such paths) but *false* of the release the
+blurb heads — the audit's cited `git diff --stat 46d42be..84c8ced -- skills/war hooks agents`
+(46d42be = the 0.15.1 release commit) shows 12 files / 753 insertions under those three paths,
+attributed to two prior PRs that landed on `master` between 0.15.1 and this plan's integration base
+with no version bump of their own, so they ship to consumers under this release's `0.16.0` per the
+README's own caching-contract framing in `## Updating`. **This lesson's own causal aggregate-diff
+claim is not independently re-derived here** — no Bash tool available to this servitor to run
+`git diff --stat` against a historical SHA — so treat the specific PR/file-count figures as the
+audit's own computed rationale, not re-verified fact; only the live blurb text itself (quoted above)
+is directly `code-verified` at the pin. Held Minor rather than Major because the plan's own Pivotal
+constraints and the blurb's own lead-in ("The extraction bound held") name the work-scope reading,
+and the immediately preceding 0.15.1 blurb used the identical plan-scoped framing under the same
+kind of unbumped-predecessor gap (house precedent, not unique to this worker — see
+[[stacked-per-branch-releases-make-main-lag-cumulative]], the mechanism that produces the gap this
+absolute trips on). **Sharper form of the Rule, new axis:** an "X untouched"/"zero change" absolute
+in a `## Status` blurb needs its scope word to bind not just the sentence's own clause-vs-guard
+reach (the 17 prior recurrences) but also **which window** it claims — this plan's diff alone, or
+everything a consumer receives when they bump to the version number the same paragraph opens with.
+When N stacked, unbumped predecessor PRs land on the integration base before this release's own
+bump, "no engine file changed" is a work-scope claim that reads as a release-scope one unless it
+says so ("no `skills/war/`/`hooks/`/`agents/` file changed **by this plan**").
+
+**(b) "the sole `skills/` touch outside the skill families named above" (Nit, `disposition:
+note`) — the same "outside X, the diff is..." enumeration-gap shape as Recurrence 12(a), now on a
+`skills/` subset rather than a whole-repo set.** At the point the clause is read, the blurb has
+named `war-strategy`, `war-machine`, `red-team`, `survey-corps`. `git diff --stat 94ee5b3..84c8ced`
+shows two `skills/` touches outside those families: `skills/war-campaign/assets/campaign-ledger.test.mjs`
+(the claimed sole one) and `skills/war-help/SKILL.md` (+4/-4, two command-table rows) — the latter
+is named only in the *next* sentence's gospel list, one sentence too late for "named above" to be
+literally true. Self-correcting one sentence later, same as Recurrence 3's umbrella clause and
+Recurrence 12's mild end of the family; both auditor passes rated it Nit, not a hold. **Applies-to
+checklist addendum, sharpened again:** an "outside `<dir>`, the sole/only other touch is Y"
+enumeration must be checked against the *whole* diff before publishing, not just the items the
+blurb has already named in prose above the clause — a name appearing later in the same paragraph
+does not retroactively satisfy an "above" scope word.
+
+Both left unfixed at land (`## Status` is the fourth version/release slot; the disposition rule
+refuses `absorb` for anything touching it — (a) is routed `follow-up`, (b) `note`).
+
+**Now 19 recurrences across three overlapping sub-families**: "X is Y too" absolute-overclaim,
+"a guard's discrimination/reach described more broadly than its own code", and (new, this
+recurrence) "task-diff scope vs. release-window scope."
+
+Related: [[stacked-per-branch-releases-make-main-lag-cumulative]] (the unbumped-stacked-PR mechanism
+behind (a)'s gap, previously documented only for auditor version-jump false positives, not blurb
+absolutes); [[gospel-new-present-pin-self-satisfied-by-status-blurb-prose]] (a distinct, sibling
+finding on this same task/paragraph — a structural-test guard-mechanics gap, not a blurb-prose
+overclaim, recorded separately).

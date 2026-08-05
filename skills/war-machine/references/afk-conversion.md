@@ -14,3 +14,9 @@
    with its predecessors (tone, scope, standing constraints); a divergence is **recorded in the
    deviations log, never silently shipped**. A spec that cannot be converted without an operator
    decision is **skipped and reported**, never stalled on.
+
+   **Per-row `AI-declared` markers (D14, ADR 0014):** the heading variants above mark the two
+   whole blocks; every other row or tag the unattended conversion authors on its own — an
+   `## Assumptions ledger` row it carries forward or retires, an End state it synthesizes, a
+   triad survivor it self-adjudicates into the deviations log — carries a per-row `AI-declared`
+   marker inline, so no AI-invented row is ever read as operator-ratified.

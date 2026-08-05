@@ -966,7 +966,7 @@ test('extractFiles handles the house singular **File:** form', () => {
   assert.deepEqual(extractFiles(block), ['src/only.js'])
 })
 
-test('extractFiles handles the spec §6.2 indented "- Files:" list form', () => {
+test('extractFiles handles the bulleted "- Files:" list form (war-strategy §2\'s ratified per-task field shape; spec §6.2)', () => {
   const block = ['- Files: `src/one.js`, `src/two.js`', '']
   assert.deepEqual(extractFiles(block), ['src/one.js', 'src/two.js'])
 })

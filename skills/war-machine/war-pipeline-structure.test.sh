@@ -29,6 +29,7 @@ TEMPLATE="$ROOT/skills/war/assets/workflow-template.js"
 README="$ROOT/README.md"
 PLUGIN="$ROOT/.claude-plugin/plugin.json"
 CONTEXT="$ROOT/CONTEXT.md"
+CLAUDE_MD="$ROOT/CLAUDE.md"
 WAR_HELP="$ROOT/skills/war-help/SKILL.md"
 WAR_STRATEGY="$ROOT/skills/war-strategy/SKILL.md"
 WAR_CAMPAIGN="$ROOT/skills/war-campaign/SKILL.md"
@@ -88,6 +89,21 @@ lacks() { # file  literal
     fails=$((fails + 1))
   else
     printf 'ok - %s lacks :: %s (correct)\n' "$(basename "$1")" "$2"
+  fi
+}
+
+# grep -iF case-INSENSITIVE fixed-string ABSENCE — the -i twin of lacks(); body mirrors lacks()
+# exactly except the -i flag (adjudicated 2026-08-05, interview-and-authoring-contract). For
+# RETIRED PROSE a benign re-casing must not resurrect unseen — the recorded asymmetry class
+# ([[lacks-case-sensitive-vs-has-i-presence-pin-asymmetry]]): a case-sensitive absence pin
+# silently passes on a re-cased reintroduction. Inherits strip_prose's `## Status`/`## Changelog`
+# drop; comment-leader stripping belongs to the hand-run land-time sweep, never this helper.
+lacks_i() { # file  literal
+  if strip_prose < "$1" | grep -qiF -e "$2"; then
+    printf 'not ok - %s UNEXPECTEDLY has :: %s (case-insensitive)\n' "$(basename "$1")" "$2"
+    fails=$((fails + 1))
+  else
+    printf 'ok - %s lacks :: %s (case-insensitive, correct)\n' "$(basename "$1")" "$2"
   fi
 }
 
@@ -338,6 +354,140 @@ retired_count_a='two authoring'
 retired_count_b='two drift-guard'
 lacks "$WAR_STRATEGY" "$retired_count_a rules"
 lacks "$WAR_STRATEGY" "$retired_count_b rules"
+
+printf '\n# Authoring contract (docs/plans/2026-08-04-interview-and-authoring-contract.md, Task 3) — machine merged output + grill charter + AFK per-row provenance + survey-corps claim tagging\n'
+# Named, not numbered: the original pipeline spec owns the numbered criteria. has_i for PROSE
+# anchors (mid-sentence, the sentence-case class); has() only for token literals that never
+# re-case (a file name, the D11 tag form). Every pin below was proven red once against a mutated
+# copy (directive deleted / retired sentence restored, re-cased) — deliberately-uncommitted
+# harness, evidence in the task's done report (End state 2's SOFT half).
+#
+# Merged-output directive (D11 + D19): conversion emits the merged shape — Part 1 decision
+# digest citing the source spec, Part 2 phases; ledger rows carried forward or retired with a
+# stated reason, never silently dropped.
+has_i "$MACHINE" 'decision digest distilled from the source spec'
+has   "$MACHINE" '(verified: issue #N (<date>))'
+has_i "$MACHINE" 'or retired with a stated reason'
+# Grill charter: the grill agent runs plan-interview.md's falsifier probes + provenance scan
+# against the draft; behavioral claims about the repo are proven by sandbox execution, never by
+# analysis alone (the doctrine file names /war-machine's grill agent as its consumer).
+has   "$MACHINE" 'plan-interview.md'
+has_i "$MACHINE" 'falsifier probes'
+has_i "$MACHINE" 'provenance scan'
+has_i "$MACHINE" 'in a throwaway sandbox'
+# Old-absent, ANY casing (End state 4's mirror pin): the training-memory question-tree grill
+# sentence stays retired, and the superseded author-the-war-shaped-plan conversion-doctrine
+# quote stays gone. Each old-absent pin is paired both-ways with its new-present twin (the
+# quoted /war-strategy §4 doctrine now reads "author the merged plan" — pinned below), so
+# deleting the quoting paragraph outright cannot leave the gate silently green. Patterns
+# assembled at runtime from split fragments so this file is never itself a hit for a repo-wide
+# sweep of the retired phrases
+# ([[coupling-comment-restating-grep-pattern-bytes-self-matches-the-sweep]]).
+retired_grill_a='question'
+retired_grill_b='tree'
+lacks_i "$MACHINE" "$retired_grill_a $retired_grill_b"
+retired_convert_a='author the war-shaped'
+retired_convert_b='plan'
+lacks_i "$MACHINE" "$retired_convert_a $retired_convert_b"
+has_i "$MACHINE" 'author the merged plan'
+# lacks_i -i positive control (both-ways, the prose-exclusion self-check precedent above): a
+# RE-CASED fixture must FIRE the case-insensitive composition lacks_i wraps (control green),
+# while the plain case-sensitive grep -qF must MISS it — pinning the -i as load-bearing rather
+# than decorative. Committed because an uncommitted re-cased red-proof is exactly the half that
+# rots unseen ([[old-absent-gate-half-relies-on-unrecorded-hand-grep-fails-silently]]). Fixture
+# assembled from re-cased fragments for the same sweep-hygiene reason as the patterns above.
+recased_grill_a='Question'
+recased_grill_b='Tree'
+recased_fixture="$recased_grill_a $recased_grill_b"
+if printf '%s\n' "$recased_fixture" | strip_prose | grep -qiF -e "$retired_grill_a $retired_grill_b"; then
+  printf 'ok - lacks_i -i control: re-cased fixture caught case-insensitively (correct)\n'
+else
+  printf 'not ok - lacks_i -i control: re-cased fixture NOT caught — the -i composition is broken\n'
+  fails=$((fails + 1))
+fi
+if printf '%s\n' "$recased_fixture" | strip_prose | grep -qF -e "$retired_grill_a $retired_grill_b"; then
+  printf 'not ok - lacks_i -i control: plain grep -qF matched the re-cased fixture — control proves nothing about -i\n'
+  fails=$((fails + 1))
+else
+  printf 'ok - lacks_i -i control: plain grep -qF misses the re-cased fixture — -i is load-bearing (correct)\n'
+fi
+# AFK provenance (D14, ADR 0014): beyond the heading variants, every row/tag the unattended
+# conversion authors itself carries a per-row `AI-declared` marker. Two pins: the body-sentence
+# anchor extended through the marker token (the load-bearing fact — a rewrite that keeps the
+# sentence but renames the marker must go red; the token sits on one physical line), plus the
+# directive's bold lead-in line, which is the only single-line occurrence of the pluralized
+# phrase (the body's copy wraps 'marker' onto the next line, which line-based grep -F cannot
+# match — the [[misattribution-pairing-spanning-two-lines-defeats-line-based-repo-grep]] shape).
+has_i "$MACHINE_AFK" 'carries a per-row `AI-declared`'
+has_i "$MACHINE_AFK" 'per-row `AI-declared` markers'
+# Survey-corps claim tagging (End state 10; ADR 0025 guard-split — this pin's fact is authored
+# by the survey-corps task, deps-edged onto it): the spec-synthesis step tags every synthesized
+# claim per D4/D11.
+has_i "$SURVEY" 'tag every synthesized claim'
+has   "$SURVEY" '(verified: issue #N (<date>))'
+
+printf '\n# Gospel pins (docs/plans/2026-08-04-interview-and-authoring-contract.md, Task 8; End state 5) — committed both-ways sweep of the five doc surfaces\n'
+# Named, not numbered: the original pipeline spec owns the numbered criteria. Adjudicated
+# 2026-08-05 (ADR 0017 — the five-surface gospel sweep may not ride a hand-run grep alone):
+# every Task-6 retired anchor is pinned OLD-ABSENT via lacks_i() on ALL FIVE End-state-5
+# surfaces — README, CLAUDE.md, war-help, CONTEXT.md, war-strategy — and each surface THIS
+# suite owns carries a NEW-present twin (war-strategy's both-ways enforcement — its own
+# retired-wording set and the merged-template heading — lives in
+# war-strategy-structure.test.sh, Task 1). Case-insensitive in BOTH directions: a benign
+# re-casing must neither resurrect retired prose unseen
+# ([[lacks-case-sensitive-vs-has-i-presence-pin-asymmetry]]) nor false-negate a presence pin
+# (the sentence-case class). lacks_i() inherits strip_prose, so Task 10's README `## Status`
+# blurb describing this very doctrine change can never re-trip the guard
+# ([[release-blurb-describing-a-rename-trips-the-renames-own-absence-guard]]); comment-leader
+# stripping belongs to End state 5's hand-run land-time sweep, not these pins. war-help
+# carried nothing to retire (Task 6), so its old-absent pins are keep-green by construction —
+# reintroduction guards only. Pin scope is EXACTLY these five doc surfaces: the suite never
+# greps its own source, docs/plans/, docs/red-team/, or docs/adr/, which legitimately quote
+# the anchors. Patterns assembled at runtime from split fragments so this file is never
+# itself a hit for a repo-wide sweep of the retired phrases
+# ([[coupling-comment-restating-grep-pattern-bytes-self-matches-the-sweep]]). Deliberate
+# NON-anchor per Task 6's table: the spec-stays-non-executable clause (fragments: 'cannot
+# execute' + ' one') stays TRUE of input-shape specs — never add it here blindly.
+gospel01='spec is not';         gospel01="$gospel01 a plan"
+gospel02='spec ≠';              gospel02="$gospel02 plan"
+gospel03='required auxiliary';  gospel03="$gospel03 plugin"
+gospel04='required-auxiliary';  gospel04="$gospel04-plugin"
+gospel05='grill-with-docs` ';   gospel05="${gospel05}authors"
+gospel06='never';               gospel06="$gospel06 authors"
+gospel07='authored by';         gospel07="$gospel07 interview"
+gospel08='converts spec';       gospel08="$gospel08 → plan"
+gospel09='convert a spec';      gospel09="$gospel09 into a plan"
+gospel10="why it's";            gospel10="$gospel10 required"
+gospel11="why war doesn't";     gospel11="$gospel11 ship its own"
+gospel12='interview a spec';    gospel12="$gospel12 into a plan"
+gospel13='author the';          gospel13="$gospel13 input plan"
+gospel14='without a';           gospel14="$gospel14 ratified spec"
+gospel15='routes you to your';  gospel15="$gospel15 installed grilling skill"
+gospel16='nothing else is';     gospel16="$gospel16 required"
+for f in "$README" "$CLAUDE_MD" "$WAR_HELP" "$CONTEXT" "$WAR_STRATEGY"; do
+  lacks_i "$f" "$gospel01"
+  lacks_i "$f" "$gospel02"
+  lacks_i "$f" "$gospel03"
+  lacks_i "$f" "$gospel04"
+  lacks_i "$f" "$gospel05"
+  lacks_i "$f" "$gospel06"
+  lacks_i "$f" "$gospel07"
+  lacks_i "$f" "$gospel08"
+  lacks_i "$f" "$gospel09"
+  lacks_i "$f" "$gospel10"
+  lacks_i "$f" "$gospel11"
+  lacks_i "$f" "$gospel12"
+  lacks_i "$f" "$gospel13"
+  lacks_i "$f" "$gospel14"
+  lacks_i "$f" "$gospel15"
+  lacks_i "$f" "$gospel16"
+done
+# NEW-present twins, one per suite-owned surface (Task 6's table names each anchor; war-help's
+# is the rewritten `/war-strategy` command-table row — the doctrinal row Task 6 updated):
+has_i "$README"    'recommended auxiliary plugin'
+has_i "$CLAUDE_MD" 'one interview, one merged artifact'
+has_i "$WAR_HELP"  'one merged plan, decision record + phases in a single artifact'
+has_i "$CONTEXT"   'input shape'
 
 printf '\n== war-pipeline-structure: %s failure(s) ==\n' "$fails"
 exit $fails

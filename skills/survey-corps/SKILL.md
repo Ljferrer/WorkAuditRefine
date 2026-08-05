@@ -104,6 +104,12 @@ Per group, one agent authors a war-shaped design spec using the `/war-strategy` 
 consumed by reference to `skills/war-strategy/SKILL.md` §2, **never forked**. Written to
 `docs/specs/YYYY-MM-DD-<slug>-design.md`; each spec lists the issue numbers it addresses.
 
+**Tag every synthesized claim — invention must be visible and vetoable.** Every factual claim
+a synthesized spec makes carries an evidence tag per the authoring contract (D4/D11): an
+issue-derived fact carries the `(verified: issue #N (<date>))` source form; anything the
+synthesis invents — a default, an inference, a bridging generalization — carries
+`[assumed: default — if wrong: <consequence>]`.
+
 **Grep is a floor, not a ceiling.** Any token-sweep instruction the spec emits (a "grep `<token>`,
 handle every match" step) is a completeness *floor*, not a *ceiling* — same-meaning siblings encode
 the concept in different words and survive the sweep silently. So every such step the survey writes

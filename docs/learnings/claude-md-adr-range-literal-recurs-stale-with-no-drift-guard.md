@@ -1,12 +1,12 @@
 ---
 name: claude-md-adr-range-literal-recurs-stale-with-no-drift-guard
-description: "CLAUDE.md's hand-maintained 'docs/adr/ (0001-NNNN)' range literal has now gone stale twice (ADR 0042, ADR 0043) with no drift guard binding it — expect and check it on every new ADR landing"
+description: "CLAUDE.md's hand-maintained 'docs/adr/ (0001-NNNN)' range literal has now gone stale THREE times (ADR 0042, 0043, 0044) with no drift guard binding it — the third recurrence finally produced a filed follow-up for a mechanical guard instead of a fourth manual catch"
 metadata: 
   node_type: memory
   type: project
   provenance: code-verified
   slug: claude-md-adr-range-literal-recurs-stale-with-no-drift-guard
-  phase: 2026-08-02-redteam-doctrine-and-guards/1.3+1.6
+  phase: 2026-08-04-interview-and-authoring-contract/2 (task 9 + phase-2-integrated-tip gate-audit + p2-polish)
   keywords: 
     - CLAUDE.md
     - ADR range
@@ -17,6 +17,8 @@ metadata:
     - max-N literal
     - recurring rot
     - docs/adr
+    - doc-contract test
+    - follow-up issue
   tags: 
     - doc-honesty
     - adr
@@ -24,7 +26,7 @@ metadata:
     - recurrence
   created: 2026-08-03
   originSessionId: 4095ea62-efc7-4ed1-8045-8de0cd2f76bb
-  modified: 2026-08-03T08:24:21.145Z
+  modified: 2026-08-05T15:27:40.061Z
 ---
 
 # CLAUDE.md's ADR-range upper bound recurs stale on every new ADR — no test binds it
@@ -61,3 +63,22 @@ stale on every addition to that directory. Once a class like this has recurred *
 doc-cascade sweep that adds a new numbered doc, and consider proposing a mechanical guard (e.g. a
 doc-contract test asserting the literal's upper bound equals `max(readdirSync('docs/adr'))`) instead of
 relying on a third manual catch.
+
+## Third recurrence (ADR 0044, plan `2026-08-04-interview-and-authoring-contract` phase 2)
+
+Confirmed a **third** time, same shape and same root cause (same-phase file-disjointness: Task 9 owns
+only `docs/adr/0044-...md`, Task 6 owns `CLAUDE.md`, so no task in the phase can land both together).
+Verified at the landed tip `955e7c10d98e4c4c4e30d22f0ab7c29209f8ab23` on
+`dev/2026-08-05-2026-08-04-interview-and-authoring-contract` (read via the `_refinery` worktree, whose
+detached HEAD equals the landed tip): CLAUDE.md's "## What this repo is" paragraph correctly reads
+`docs/adr/` (0001–0044) — the phase-close `p2-polish` pass bumped the literal again, a **fourth manual
+catch**, exactly what the rule above warned against relying on.
+
+This time the recurrence was explicitly escalated past another silent manual catch: `p2-polish`'s own
+gate-audit filed the finding as `disposition: follow-up` (not `absorb`) with the rationale "this diff IS
+the third manual catch" and recommended precisely the guard this lesson already names — a
+`skill-doc-contracts.test.mjs`-style assertion binding CLAUDE.md's range upper bound to
+`max(readdirSync('docs/adr'))` parsed from the `00NN-` filename prefix — or alternatively dropping the
+snapshot literal entirely ("`docs/adr/` records the binding decisions", the ADR 0025 mechanism-narrative
+shape, which cannot rot). No such guard has landed as of this phase; the class remains open and due to
+recur a fourth time on the next ADR.
