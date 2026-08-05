@@ -5,12 +5,19 @@ description: Convert design specs into war-shaped implementation plans plus a ca
 
 # /war-machine — specs → plans + roadmap
 
-You convert war-shaped design specs into war-shaped implementation plans, then bind them into a
-campaign roadmap. You rely on `/war-strategy` for the plan + roadmap templates and its
-with-artifact conversion doctrine ("Given a SPEC: author the war-shaped plan into `docs/plans/`
-yourself") — consume [`skills/war-strategy/SKILL.md`](../war-strategy/SKILL.md) §2 and §3 by
-reference, **never fork the templates**. You stop at plans + roadmap: `/war-campaign` is a ~12+
-hour human-launched commitment and is never auto-invoked.
+You convert war-shaped design specs (the input shape) into merged implementation plans, then bind
+them into a campaign roadmap. You rely on `/war-strategy` for the merged plan + roadmap templates
+and its with-artifact conversion doctrine ("Given a SPEC (the input shape): author the merged plan
+into `docs/plans/` yourself") — consume [`skills/war-strategy/SKILL.md`](../war-strategy/SKILL.md)
+§2 and §3 by reference, **never fork the templates**. You stop at plans + roadmap: `/war-campaign`
+is a ~12+ hour human-launched commitment and is never auto-invoked.
+
+**Merged-output directive.** Conversion emits the merged shape — one plan whose Part 1 is the
+decision digest distilled from the source spec (citing the spec path; issue-derived claims keep
+the `(verified: issue #N (<date>))` source form, D11) and whose Part 2 is the decomposed phases,
+per the `/war-strategy` §2 merged plan template. The spec's `## Assumptions ledger` rows are never
+dropped silently: each row is carried forward or retired with a stated reason (D19), in the plan's
+own ledger.
 
 **Release-phase directive.** When a drafted plan carries a trailing release phase, the drafter
 emits the **directive form**, never a resolved `v<semver>` literal: *"bump all four slots to the
@@ -64,10 +71,13 @@ grills it — adding the edge at drafting time is what keeps that off the campai
 One spec at a time — never a batch — so each successive plan's roadmap contention row can see the
 file footprints of the plans already authored (honest contention).
 
-1. **Spawn in parallel:** a **drafter** agent (authors the war-shaped plan from the spec +
-   codebase, per the `/war-strategy` plan template and code-boundary decomposition rule) and an
-   **adversarial grill** agent (asks the full question tree `grill-with-docs` would have asked
-   the operator). **Fresh context per spec** — ten specs never share one bloated window.
+1. **Spawn in parallel:** a **drafter** agent (authors the merged-shape plan from the spec +
+   codebase, per the `/war-strategy` §2 merged plan template and code-boundary decomposition
+   rule) and an **adversarial grill** agent (runs
+   [`plan-interview.md`](../war-strategy/references/plan-interview.md)'s falsifier probes +
+   provenance scan against the draft; any behavioral claim about the repo — what a function
+   ingests, what a command emits — is proven by executing it in a throwaway sandbox, never by
+   analysis alone). **Fresh context per spec** — ten specs never share one bloated window.
 2. The drafter answers the grill's questions from the spec + codebase. Questions that survive
    unresolved are classified by the **ADR triad** — raised to the operator only if **hard to
    reverse**, **surprising without context**, or a **genuine trade-off**. Everything else is
@@ -77,9 +87,10 @@ file footprints of the plans already authored (honest contention).
    echo-back confirm (mandatory, per ADR 0013) plus the triad survivors.
    When invoked with `--afk`, read [references/afk-conversion.md](references/afk-conversion.md).
 4. **Write the plan** to `docs/plans/YYYY-MM-DD-<slug>.md` (**no `-plan` suffix** — matching the
-   entire existing corpus), citing its source spec path near the top — the `docs/specs/…` line
-   `/red-team` step 1 greps for, and the third link in `/aftermath`'s swept-issue evidence
-   chain (issue → spec → plan → PR).
+   entire existing corpus). The Part 1 digest cites the source spec path — provenance for the
+   decision record (a merged plan is its own source of truth for `/red-team` step 1's merged
+   arm; the citation is evidence, not a routing hook) and the third link in `/aftermath`'s
+   swept-issue evidence chain (issue → spec → plan → PR).
 5. **Lint the finalized plan** — run `node skills/war-strategy/assets/plan-literal-lint.mjs <plan>`
    on the plan just written and **surface its advisory hits in the conversion report**: stack-fragile
    literals (`:N-M` locators, `*.test.sh` gate lists, suite counts, release-version literals) and
