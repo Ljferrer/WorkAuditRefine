@@ -4,7 +4,7 @@
 The six universal lenses live in [`../assets/workflow-scaffold.js`](../assets/workflow-scaffold.js) (`SPINE`):
 - **claims-vs-reality** — every concrete claim (file/symbol/signature/line/"before" snippet) checked against the live repo.
 - **executable-proof** — every test/command/edit the plan ships is run in a sandbox; assert it matches the stated "Expected".
-- **coverage-vs-source** — every requirement in the source spec/issue maps to a plan step; unmapped = Major gap.
+- **coverage-vs-source** — every requirement in the source spec/issue maps to a plan step; unmapped = Major gap. Merged arm: when the source IS the plan itself (Part 1 carries the decision record — the plan is its own source of truth; `--spec` defaults to the plan), the lens reads Part-1→Part-2 coverage: every Part-1 requirement/decision maps to a Part-2 phase/task.
 - **consistency-placeholders** — TBD/TODO/vague steps, name/signature drift, contradictions.
 - **dependency-feasibility** — assumed interfaces/deps/tools exist; ordering is sound.
 - **intent-vs-plan** — fires on either intent heading (`## Commander's Intent` or `## AI-Commander's Intent`): each End-state condition individually checkable (else Major) and mapped to ≥1 claiming phase (else Major); collectively sufficient for the Purpose (else Major `needsDecision`). An `## AI-Commander's Intent` block is intent-present and judged identically, plus one Minor note recommending the human upgrade path (`/war-strategy <plan>`); a plan with **neither** heading passes with a Minor note recommending the intent interview — never Major.
