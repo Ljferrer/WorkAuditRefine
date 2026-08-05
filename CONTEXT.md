@@ -10,11 +10,12 @@ only — no implementation detail.
 
 **Plan** (`docs/plans/`):
 The pipeline's **one execution artifact** — merged and self-contained. Part 1 is the ratified decision
-record (tagged context, pivotal constraints, resolved design tree, the Assumptions ledger, Commander's
-Intent (intent ceiling, plan floor) with tagged End states); Part 2 the decomposed phases and tasks with
-exact file sets, `requiresTest`, `deps`, and target repo, carved by the code-boundary decomposition
-rule. Part 1/Part 2 is prose framing, never heading nesting — Part 2 keeps the exact H2 headings `/war`
-extraction reads. Produced by one interview run to completion
+record (tagged context, pivotal constraints, resolved design tree, the Assumptions ledger, non-goals,
+new domain terms · recommended ADRs); Part 2 the Commander's Intent (intent ceiling, plan floor) with
+tagged End states, then the decomposed phases and tasks with exact file sets, `requiresTest`, `deps`,
+and target repo, carved by the code-boundary decomposition rule. Part 1/Part 2 is prose framing, never
+heading nesting — Part 2 keeps the exact H2 headings `/war` extraction reads (`## Commander's Intent`
+among them). Produced by one interview run to completion
 (`skills/war-strategy/references/plan-interview.md`); hardened by `/red-team`; executed by `/war`.
 _Avoid_: a spec + plan pair as current doctrine (the two-artifact split is retired — the
 authoring-contract ADR); using `/war-strategy` to validate (war-strategy **converts**, red-team
