@@ -1452,3 +1452,69 @@ test("D9 — the refiner card's gitlink-bump invocation agrees in shape with the
       'flag-trailing. Tighten the reader, never relax this proof',
   )
 })
+
+// ---- Task 1.1 done-when intake guard (plan 2026-08-05-precision-chain-and-loop-breaker) ----
+
+// (D31) The Decompose step's done-when intake sub-bullet — the authoring contract's done-when law
+// (ADR 0044) made mechanical on the /war side (plan 2026-08-05-precision-chain-and-loop-breaker,
+// Task 1.1; red-team F8 converted End state 1's judge tag into this row, so the guard rides its
+// fact's own task). Two clauses are load-bearing and easy to lose in a reword:
+//   (a) the FULL-BULLET parse — soft-wrapped physical lines joined with single spaces until the
+//       next `- ` bullet or a blank line. The authoring template wraps its bullets, so a
+//       first-line-only parse truncates the staged command mid-token and the truncated command
+//       later red-fails as a spurious done-unmet at merge;
+//   (b) the intake-defect rule — a `requiresTest: true` task without a `Done when:` command is
+//       surfaced at the approval gate on interactive runs and refuses dispatch under --afk; the
+//       Lead never invents an acceptance command.
+// Also pinned: the template's no-command arm (`None — <basis>`) stages `doneWhen: null` — without
+// that arm the intake would stage the literal "None — <basis>" prose as an executable command —
+// and the legacy arm (no `Done when:` bullets anywhere ⇒ stages unchanged, byte-identical
+// downstream prompts). Extraction is BY CONSTRUCT: SKILL.md keeps one step/sub-bullet per
+// physical line, so the row takes the single line carrying the `**Done-when intake` bold lead-in
+// (uniqueness asserted) — never a whole-file scan: `Done when:` tokens also appear in other
+// steps' prose and in the war-strategy template this law quotes. Keys are token-anchored
+// `\s+`-tolerant forms, never sentence bytes — sanctioned rewording latitude must not false-red;
+// correct a key to the new truth, never drop it to make a reword pass.
+test('D31 — SKILL.md Decompose done-when intake keeps the full-bullet parse clause and the requiresTest-without-Done-when intake-defect rule (F8, Task 1.1)', () => {
+  const leadIns = skillMd.split('\n').filter((l) => l.includes('**Done-when intake'))
+  assert.equal(
+    leadIns.length,
+    1,
+    `expected exactly one \`**Done-when intake\` lead-in line in SKILL.md, found ${leadIns.length} — ` +
+      'the extraction construct rotted (sub-bullet moved, duplicated, split across lines, or the ' +
+      'lead-in was reworded)',
+  )
+  const b = norm(leadIns[0])
+  for (const [key, why] of [
+    // the staged field, alongside the sibling per-task fields
+    [/tasks\[\]\.doneWhen/, 'the staged per-task field name tasks[].doneWhen'],
+    [/string\s*\|\s*null/i, 'the doneWhen string|null typing'],
+    [/`requiresTest`\s*\/\s*`deps`/, 'the alongside-requiresTest/deps staging clause'],
+    // (a) the full-bullet parse clause
+    [/full\s+bullet\s+content/i, 'the FULL-bullet parse declaration'],
+    [/joined\s+with\s+single\s+spaces/i, 'the soft-wrap single-space join'],
+    [/next\s+`- `\s+bullet\s+or\s+a\s+blank\s+line/i, 'the parse terminator — next `- ` bullet or a blank line'],
+    [/first-line-only\s+parse/i, 'the first-line-only-parse hazard naming'],
+    [/spurious\s+`?done-unmet`?/i, 'the spurious done-unmet consequence'],
+    // the no-command arm stages null, never an executable "None — <basis>" string
+    [/None — <basis>/, "the template's no-command arm literal"],
+    [/doneWhen:\s*null`?,?\s+exactly\s+like\s+an\s+absent\s+bullet/i, 'the None-stages-null equivalence'],
+    // (b) the intake-defect rule
+    [/requiresTest:\s*true`?\s+task\s+without/i, 'the requiresTest-true-without-Done-when trigger'],
+    [/intake\s+defect/i, 'the intake-defect naming'],
+    [/surface\s+it\s+at\s+the\s+approval\s+gate/i, 'the interactive approval-gate surfacing'],
+    [/--afk/, 'the --afk arm'],
+    [/refuses\s+dispatch/i, 'the afk dispatch refusal'],
+    [/never\s+invents\s+an\s+acceptance\s+command/i, 'the Lead-never-invents floor'],
+    // the legacy arm
+    [/bullets\s+anywhere\s+stages\s+unchanged/i, 'the legacy no-bullets-anywhere unchanged arm'],
+    [/byte-identical/i, 'the legacy byte-identity consequence'],
+  ]) {
+    assert.match(
+      b,
+      key,
+      `the done-when intake sub-bullet must keep ${why} (key ${key}) — correct this row to a ` +
+        'sanctioned rewording, never drop the clause to make a reword pass',
+    )
+  }
+})
