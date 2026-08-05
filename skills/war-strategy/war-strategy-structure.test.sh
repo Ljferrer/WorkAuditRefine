@@ -1,72 +1,126 @@
 #!/usr/bin/env bash
-# Structure test for skills/war-strategy/SKILL.md: locks all five sections, the three
-# inline templates, and the template-internal Commander's Intent block so a future edit
-# can't silently drop one. grep is fence-blind, so template-internal headings are checked
-# as verbatim full lines (the arrow annotation / leading spaces make each match unique to
-# the fence). Plain-bash, no mktemp — bash 3.2-safe. Exit 0 = all present; else non-zero.
+# Structure test for skills/war-strategy/SKILL.md + references/plan-interview.md: locks all
+# five sections, the three inline templates (merged plan / spec input shape / roadmap), the
+# merged-template internals ratified by the 2026-08-04 interview-and-authoring-contract plan
+# (Task 1), the interview doctrine's ratified internals, and — case-insensitive — the ABSENCE
+# of the retired two-template/required-Grill-Me wording. grep is fence-blind, so
+# template-internal headings are checked as verbatim full lines (the arrow annotation /
+# leading spaces make each match unique to the fence). Plain-bash, no mktemp — bash 3.2-safe.
+# Exit 0 = all green; else non-zero.
 set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 SKILL="$HERE/SKILL.md"
+DOCTRINE="$HERE/references/plan-interview.md"
 
 fails=0
-check() { # regex
-  if grep -q "$1" "$SKILL"; then
+# All helpers pass the pattern via `-e` + `--` so anchors that START with `-` (the separate
+# `- ` field bullets are exactly that shape) are never parsed as grep options.
+check() { # regex (vs SKILL.md)
+  if grep -q -e "$1" -- "$SKILL"; then
     printf 'ok - %s\n' "$1"
   else
     printf 'not ok - missing: %s\n' "$1"
     fails=$((fails + 1))
   fi
 }
-check_f() { # fixed string — verbatim line fragments, incl. leading spaces
-  if grep -qF "$1" "$SKILL"; then
+check_f() { # fixed string (vs SKILL.md) — verbatim line fragments, incl. leading spaces
+  if grep -qF -e "$1" -- "$SKILL"; then
     printf 'ok - %s\n' "$1"
   else
     printf 'not ok - missing: %s\n' "$1"
     fails=$((fails + 1))
+  fi
+}
+doc_f() { # fixed string (vs references/plan-interview.md)
+  if grep -qF -e "$1" -- "$DOCTRINE"; then
+    printf 'ok - doctrine :: %s\n' "$1"
+  else
+    printf 'not ok - doctrine missing: %s\n' "$1"
+    fails=$((fails + 1))
+  fi
+}
+# Case-INSENSITIVE fixed-string ABSENCE in SKILL.md — the retired-wording guard. Insensitive
+# because a benign re-case of retired prose must not slip past a case-sensitive absence arm
+# (the recorded lacks()-vs-has_i() asymmetry class). Patterns are assembled at the call site
+# from split fragments so this file is never itself a hit for a repo-wide sweep of the
+# retired phrases ([[coupling-comment-restating-grep-pattern-bytes-self-matches-the-sweep]]).
+lacks_i() { # fixed string (vs SKILL.md)
+  if grep -qiF -e "$1" -- "$SKILL"; then
+    printf 'not ok - SKILL.md UNEXPECTEDLY has :: %s (case-insensitive)\n' "$1"
+    fails=$((fails + 1))
+  else
+    printf 'ok - SKILL.md lacks :: %s (correct, case-insensitive)\n' "$1"
   fi
 }
 
 # All five SKILL.md sections
-check '^## 1. Dependency check'
+check '^## 1. Recommended front door'
 check '^## 2. The three templates'
 check '^## 3. The code-boundary decomposition rule'
-check '^## 4. Handoff & convert'
+check '^## 4. Interview, handoff & convert'
 check '^## 5. Closing offer'
 
-# The three inline templates
-check '^### Spec template'
-check '^### Plan template'
+# The three inline templates (merged plan primary; spec relabeled input shape — D17)
+check '^### Merged plan template'
+check '^### Spec template — the input shape'
 check '^### Roadmap template'
 
-# Template-internal Commander's Intent block (fence-safe: verbatim lines)
+# Self-sufficient entry doctrine (D2) — the out-of-section carriers + §1 recommendation wording
+check_f 'Self-sufficient entry:'
+check_f 'a recommended front door, never a requirement'
+
+# Merged template — Part 1 section set (fence-safe: verbatim lines; annotations make each
+# unique to the merged-template fence where they carry one)
+check_f '## Context — the gap / problem            ← Part 1'
+check_f '## Pivotal constraints'
+check_f '## Resolved design tree                   ← table: decision → resolution → source'
+check_f '## Assumptions ledger                     ← required; assumption · basis · blast radius · check   (or exactly: None)'
+check_f '## Non-goals / deferred'
+check_f '## New domain terms · Recommended ADRs'
+
+# Template-internal Commander's Intent block (fence-safe: verbatim lines) + the D5 closed
+# tag set on the End-state slot (the D18 unified validation criteria)
 check_f "## Commander's Intent              ← operator-authored; intent ceiling, plan floor"
 check_f '  - Purpose: <why'
 check_f '  - Method: <how'
 check_f '  - End state: <numbered list'
+check_f 'HARD at audit_sha (observable + judge seat)'
 
-# Per-task Files line: the backticked-path contract the campaign ledger's extractFiles reads
-# (the producer half of the ingestion contract). Presence-only like every sibling; fragment chosen
-# free of embedded double quotes ([[shared-string-constant-quote-literal-byte-anchor-fragility]]).
+# Per-task field bullets — the SEPARATE `- ` bullet law (ratified template law AND an
+# extraction requirement: extractFiles ingests ONLY the separate-bullet form) + the Done-when
+# slot and its D5 law.
 check_f 'every path backticked & comma-separated; the campaign ledger'
+check_f '- Done when: <command>   ← required iff requiresTest: true'
+check_f '- requiresPackaging: true|false  ← default true'
+check_f 'Per-task fields are SEPARATE'
+check_f 'ingests ONLY the separate-bullet form'
+check_f 'unparseable footprint'
+check_f 'silently replaces'
+check_f 'is required iff `requiresTest: true`'
 
-# Packaging: the per-task requiresPackaging field line AND the required backstop section.
-# Both are fence-blind verbatim lines (arrow annotation makes each unique to the template
-# fence). Delete either from the template and the matching check fails.
-check_f '  - requiresPackaging: true|false  ← default true'
+# The Part-2 tail: TWO separate H2s (adjudicated 2026-08-05, Q2) — template lines + the law
+check_f '## Notes / conscious deviations   (ratify in /red-team)'
+check_f '## Open decisions                 (resolved by /red-team)'
+check_f 'The tail stays TWO separate H2s'
+
+# Required-section vehicle (ADR 0017): backstops line + explicit-None law
 check_f '## Deferred validations (backstops)   ← required; ratify in /red-team; surfaced at every land'
+check_f 'a literal `None` is a valid, complete declaration'
 
-# Drift-guard coverage subsection (§3) — pin the block heading plus the rules whose teeth live
-# here by their distinctive phrase, so a future edit can't silently drop one. Rule 7 (guard-split
-# deps-edge) is pinned in skills/war-machine/war-pipeline-structure.test.sh, which also carries the
-# OLD-absent assert for this subsection's retired rule-count word.
-# Fixed-string, no quote-marks/bold crossing the anchor (byte-anchor-fragility trap).
-check '^### Drift-guard coverage'
-check_f 'unguarded mirror is a plan defect'   # rule (a): new mirror ⇒ registry row same task
-check_f 'OLD value absent'                     # rule (b): default-flip enumerates surfaces, asserts old absent
+# The TWO example docs (End state 7) — operator-form and AFK-form heading pairs (ADR 0014
+# either/or alternatives, one per doc)
+check_f '### Example A — operator-form (merged plan)'
+check_f '### Example B — AFK-form (merged plan)'
+check_f "## AI-Commander's Intent"
+check_f '## Deferred validations (backstops — AI-declared)'
+
+# Spec template input-shape duties: D4 tag annotation + the §10 check form
+check_f '## 1. Context — the gap / problem     ← every claim of fact tagged (evidence tags, D4)'
+check_f 'WHEN <trigger> THE <subject> SHALL <result>'
 
 # "Reference the live artifact, never a stack-fragile literal" convention block (§2) —
-# pin the heading plus each of the six named rules + the defined-but-not-yet-emitted
+# pin the heading plus each of the named rules + the defined-but-not-yet-emitted
 # annotation by a distinctive teeth phrase, so a future edit can't silently drop one.
 # Fixed-string, anchored inside the line (no quote-marks/bold crossing the anchor).
 check '^### Reference the live artifact, never a stack-fragile literal'
@@ -79,9 +133,79 @@ check_f 'defined-but-not-yet-emitted; produced in Task N'    # cross-slice annot
 check_f 'requires a manual same-scope title/comment survey'  # grep-as-floor
 check_f 'The advisory `plan-literal-lint.mjs` (`skills/war-strategy/assets/`)'   # §2 convention block
 check_f 'run `node skills/war-strategy/assets/plan-literal-lint.mjs <plan>`'     # §4 lint-the-authored-plan step
+# D12 staleness sentence (new convention bullet, same block)
+check_f 'literals are dated snapshots at a stated base'
+check_f "re-measure at the task's rebased base"
+
+# Drift-guard coverage subsection (§3) — pin the block heading plus the rules whose teeth live
+# here by their distinctive phrase, so a future edit can't silently drop one. Rule 7 (guard-split
+# deps-edge) is pinned in skills/war-machine/war-pipeline-structure.test.sh, which also carries the
+# OLD-absent assert for this subsection's retired rule-count word.
+# Fixed-string, no quote-marks/bold crossing the anchor (byte-anchor-fragility trap).
+check '^### Drift-guard coverage'
+check_f 'unguarded mirror is a plan defect'   # rule (a): new mirror ⇒ registry row same task
+check_f 'OLD value absent'                     # rule (b): default-flip enumerates surfaces, asserts old absent
+
+# §4 — ADR 0042 pointer (trigger + read shape), bare-invoke-runs-the-interview, widened
+# HANDOFF DIRECTIVE, merged conversion target, the four merged-shape gap rows, D9 binding
+check_f 'When authoring a plan from scratch, read'
+check_f 'read [references/plan-interview.md](references/plan-interview.md)'
+check_f '### Bare invoke — run the interview'
+check_f 'terminating only on one merged plan'
+check_f "only from the operator's answers"
+check_f 'Author into the merged template:'
+check_f 'The conversion target is always the merged shape'
+check_f 'untagged factual claims (D4)'
+check_f 'implicit `## Assumptions ledger`'
+check_f "untagged End states (D5's closed tag set)"
+check_f 'without `Done when:`'
+check_f 'bound by the same question contract'
+
+# Interview doctrine file — presence + its ratified internals (structure-test lock-step:
+# every ratified sentence lands with its pin in the same task)
+if [ -f "$DOCTRINE" ]; then
+  printf 'ok - references/plan-interview.md exists\n'
+else
+  printf 'not ok - references/plan-interview.md is MISSING\n'
+  fails=$((fails + 1))
+fi
+doc_f 'Stage 0 — silent recon'
+doc_f "node skills/_shared/war-memory.mjs query '<slug> plan-authoring' --repo docs/learnings"
+doc_f 'Stage 1 — silent rehearsal + pre-mortem'
+doc_f 'delete-the-feature probe'
+doc_f 'Stage 1b — private full-template draft'
+doc_f 'Stage 2 — the interview'
+doc_f 'one question per turn'
+doc_f 'Qk/14'
+doc_f 'Stage 3 — mid-budget checkpoint'
+doc_f 'Stage 4 — coverage sweep + two echo-backs'
+doc_f 'Stage 5 — two silent gates'
+doc_f 'untagged claim of fact is a bug'
+doc_f 'never a `(verified:)` source'
+doc_f 'zero operator questions'
+doc_f '## The decisive-slots table'
+doc_f '1:N → roadmap rule'
+doc_f 'docs/plans/YYYY-MM-DD-<slug>.md'
+doc_f 'A gap review is a shorter interview, not a different discipline'
+
+# Retired wording — case-insensitive OLD-absent (the self-sufficient-entry flip retired the
+# handoff/required-Grill-Me framing; a returning phrase in ANY casing is a regression).
+# Fragment-split assembly per the coupling-comment lesson (see lacks_i above).
+r1a='never authors'
+r1b=' a spec from scratch'
+lacks_i "$r1a$r1b"
+r2a='hands off to the'
+r2b=' installed authoring skills'
+lacks_i "$r2a$r2b"
+r3a='primer + '
+r3b='handoff'
+lacks_i "$r3a$r3b"
+r4a='dependency '
+r4b='check'
+lacks_i "$r4a$r4b"
 
 # Commander's Intent sits BEFORE ## Build order inside the plan template.
-# Locators anchor to the verbatim arrow-bearing template lines (unique to the plan-template
+# Locators anchor to the verbatim arrow-bearing template lines (unique to the merged-template
 # fence) so a stray earlier bare heading of the same text can't misbind them.
 ci="$(grep -nF "## Commander's Intent              ← operator-authored; intent ceiling, plan floor" "$SKILL" | head -n 1 | cut -d: -f1)"
 bo="$(grep -nF '## Build order (for /war)          ← the phase list, in DAG order' "$SKILL" | head -n 1 | cut -d: -f1)"
