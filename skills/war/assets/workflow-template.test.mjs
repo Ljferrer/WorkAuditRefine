@@ -6835,8 +6835,8 @@ test('#929 subset-row blindness closed — extractLandDecisionLiterals surfaces 
 // GATE COMPOSITION POINT (ADR 0036) — enumerated exactly-once prompt evidence
 // ---------------------------------------------------------------------------
 // The engine normalizes plan.gate ONCE (`if (plan) plan.gate = resolveGate(plan.gate)`, immediately after
-// entry validation), so every one of the ELEVEN gate-bearing dispatch sites interpolates the SAME composed
-// gate. This enumerates all eleven captures by label/dispatchKind — the count IS the anti-vacuity floor: a
+// entry validation), so every one of the FIFTEEN gate-bearing dispatch sites interpolates the SAME composed
+// gate. This enumerates all fifteen captures by label/dispatchKind — the count IS the anti-vacuity floor: a
 // site an existing fixture cannot reach is added, never skipped, so deleting the composition line reds every
 // arm. Anchors ONLY on the discovery-clause token; no assertion enumerates shell suites or states a count.
 const GATE_TOKEN = `-name '*.test.sh'`   // a substring of resolveGate's find clause; absent from every fixed prompt prose
@@ -6864,8 +6864,40 @@ const floorRetryImpl = () => {
     return {}
   }
 }
+// unpackaged → package-it → re-audit(approve) → re-merge(merged): reaches the PACKAGE_IT floor-fix site.
+// The packaging twin of floorRetryImpl (requiresPackaging defaults true — no field needed).
+const pkgFloorRetryImpl = () => {
+  let mergeCount = 0
+  return (prompt, opts) => {
+    const seat = seatOf(opts), label = opts.label || ''
+    if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 1 } }
+    if (seat === 'war-auditor') return { seat: label, lens: label.includes('execution-evidence') ? 'execution-evidence' : 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-refiner' && opts.phase === 'Refine') return (++mergeCount === 1)
+      ? { mode: 'merge-task', status: 'unpackaged' }
+      : { mode: 'merge-task', status: 'merged', gate_output: 'ok', integration_sha: 'deadbeef' }
+    if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+}
+// request_changes once → FIX_NEEDED fix-worker → re-audit(approve): reaches the FIX_NEEDED site.
+// Fresh closure per run so the FIRST audit round of each run blocks.
+const fixNeededImpl = () => {
+  let auditN = 0
+  return (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'deadbeef', tests: { unit: 1 } }
+    if (seat === 'war-auditor') return ++auditN <= 1
+      ? { seat: opts.label, lens: 'correctness', verdict: 'request_changes', confidence: 'high',
+          findings: [{ severity: 'Major', title: 'fix me', file: 'a.js', rationale: 'because' }] }
+      : { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    return defaultImpl(prompt, opts)
+  }
+}
 const SINGLE_TASK = [{ id: 't1', issue: 101, title: 'T', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] }]
-// The eleven gate-bearing dispatch captures, enumerated by label/dispatchKind. Each drives the fixture that
+// The fifteen gate-bearing dispatch captures, enumerated by label/dispatchKind. Each drives the fixture that
 // reaches its site with the given fixture gate and returns the captured prompt.
 const GATE_SITE_CAPTURES = [
   { site: 'worker Gate: line (work:<task>)', find: (c) => c.find(isWorker),
@@ -6893,11 +6925,22 @@ const GATE_SITE_CAPTURES = [
     run: (gate) => runPhase(CLS_ARGS({ plan: planWith(gate) }), clsImpl({ mergeResult: envMergeResult })) },
   { site: 'land:phase-<id>:environment-proceed re-land clause', find: (c) => c.find(x => /^land:phase-\d+:environment-proceed$/.test(x.opts.label || '')),
     run: (gate) => runPhase(CLS_ARGS({ plan: planWith(gate) }), clsImpl({ landResult: envLandResult })) },
+  // The four fix-family prompts (FIX_NEEDED, ADD_TEST, PACKAGE_IT, ace) became gate-bearing when
+  // precision-chain Task 1.3 gave each a `Gate: ${plan.gate}` line (prompt truth, D6) — so they are
+  // ADDED here, never skipped (this array's own doctrine).
+  { site: 'FIX_NEEDED Gate: line (fix:<task>:r<n>)', find: (c) => c.find(x => /^fix:t1:/.test(x.opts.label || '')),
+    run: (gate) => runPhase(PROVISION_ARGS({ plan: planWith(gate), tasks: SINGLE_TASK }), fixNeededImpl()) },
+  { site: 'ADD_TEST Gate: line (add-test:<task>:r<n>)', find: (c) => c.find(isAddTestWorker),
+    run: (gate) => runPhase(PROVISION_ARGS({ plan: planWith(gate), tasks: SINGLE_TASK }), floorRetryImpl()) },
+  { site: 'PACKAGE_IT Gate: line (package-it:<task>:r<n>)', find: (c) => c.find(isPackageItWorker),
+    run: (gate) => runPhase(PROVISION_ARGS({ plan: planWith(gate), tasks: SINGLE_TASK }), pkgFloorRetryImpl()) },
+  { site: 'ace Gate: line (ace:<task>:r<n>)', find: (c) => c.find(isAce),
+    run: (gate) => runPhase(ACE_ARGS({ plan: planWith(gate) }), aceBase()) },
 ]
 
-test('gate composition point (ADR 0036) — the ELEVEN enumerated gate-bearing captures render the discovery token EXACTLY ONCE (plain), idempotently once (pre-composed), and the discovery-only clause (null)', async () => {
-  assert.equal(GATE_SITE_CAPTURES.length, 11,
-    'exactly eleven gate-bearing dispatch sites are enumerated (anti-vacuity floor — a site an existing fixture cannot reach is ADDED, never skipped)')
+test('gate composition point (ADR 0036) — the FIFTEEN enumerated gate-bearing captures render the discovery token EXACTLY ONCE (plain), idempotently once (pre-composed), and the discovery-only clause (null)', async () => {
+  assert.equal(GATE_SITE_CAPTURES.length, 15,
+    'exactly fifteen gate-bearing dispatch sites are enumerated (anti-vacuity floor — a site an existing fixture cannot reach is ADDED, never skipped; the four fix-family sites joined via precision-chain Task 1.3)')
 
   // Arm 1 — plain JS-only fixture gate ⇒ the discovery token appears EXACTLY ONCE per captured prompt.
   for (const cap of GATE_SITE_CAPTURES) {
@@ -6950,6 +6993,109 @@ test('gate composition point (ADR 0036) — plan-less / zero-task phase: the GUA
     'a plan-less zero-task phase resolves cleanly to held:nothing-merged (the if(plan) guard no-op ran) — an unconditional plan.gate= would TypeError into held:workflow-error')
   assert.ok(!calls.some(c => (c.prompt || '').includes(GATE_TOKEN)),
     'no dispatch carries the discovery token — a plan-less zero-task phase reaches no gate-bearing site')
+})
+
+// ===========================================================================
+// DONE-WHEN THREADING (precision-chain Task 1.3) — prompt-registry rows
+// ---------------------------------------------------------------------------
+// task.doneWhen (the plan's per-task `Done when:` acceptance command) rides the five worker-family
+// prompt sites as a `Done when:` line beside Gate:. The rows pin the two contract halves the plan
+// names: (1) any prompt that says keep-the-gate-green carries the gate command (the D6 prompt-truth
+// sweep), and (2) the absent ⇒ '' set-minus identity — a doneWhen-less run's prompts are
+// byte-identical to a doneWhen-bearing run's prompts minus the single inserted clause (legacy
+// byte-identity, End state 9). Fresh task objects per run (dwTask) — never the shared SINGLE_TASK —
+// because these tests byte-compare prompts ACROSS runs.
+const DW_CMD = 'node --test skills/war/assets/task-one.acceptance.test.mjs'
+const dwTask = (over = {}) => ({ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], ...over })
+const DONE_WHEN_SITES = [
+  { site: 'primary worker dispatch (work:<task>)', find: (c) => c.find(isWorker),
+    run: (taskOver) => runPhase(PROVISION_ARGS({ tasks: [dwTask(taskOver)] }), defaultImpl) },
+  { site: 'FIX_NEEDED fix prompt (fix:<task>:r<n>)', find: (c) => c.find(x => /^fix:t1:/.test(x.opts.label || '')),
+    run: (taskOver) => runPhase(PROVISION_ARGS({ tasks: [dwTask(taskOver)] }), fixNeededImpl()) },
+  { site: 'ADD_TEST floor-fix prompt (add-test:<task>:r<n>)', find: (c) => c.find(isAddTestWorker),
+    run: (taskOver) => runPhase(PROVISION_ARGS({ tasks: [dwTask(taskOver)] }), floorRetryImpl()) },
+  { site: 'PACKAGE_IT floor-fix prompt (package-it:<task>:r<n>)', find: (c) => c.find(isPackageItWorker),
+    run: (taskOver) => runPhase(PROVISION_ARGS({ tasks: [dwTask(taskOver)] }), pkgFloorRetryImpl()) },
+  { site: 'ace advisory-polish prompt (ace:<task>:r<n>)', find: (c) => c.find(isAce),
+    run: (taskOver) => runPhase(ACE_ARGS({ tasks: [dwTask(taskOver)] }), aceBase()) },
+]
+
+test("Done when threading (Task 1.3) — all five worker-family sites carry the task's Done when: command beside the Gate: line; the worker card documents the input", async () => {
+  for (const s of DONE_WHEN_SITES) {
+    const { calls } = await s.run({ doneWhen: DW_CMD })
+    const c = s.find(calls)
+    assert.ok(c, `site "${s.site}" reached and captured (presence guard — five sites is the floor)`)
+    assert.ok(c.prompt.includes(`\nDone when: ${DW_CMD}`),
+      `site "${s.site}" carries the task's Done when: command VERBATIM on its own line`)
+    const gateIdx = c.prompt.indexOf('Gate: make gate')
+    assert.ok(gateIdx !== -1, `site "${s.site}" carries the gate command on a Gate: line`)
+    assert.ok(gateIdx < c.prompt.indexOf(`\nDone when: ${DW_CMD}`),
+      `site "${s.site}": the Done when: clause rides directly after the Gate: line`)
+  }
+  // Prompt-surface split (same task): the standing worker card documents the new input.
+  assert.match(workerMd, /`Done when:` acceptance command/,
+    'agents/war-worker.md documents the Done when: input (standing surface, same task as the dispatched line)')
+})
+
+test("Done when threading — absent ⇒ '' (set-minus): each site's doneWhen-less prompt is byte-identical to the doneWhen-bearing prompt minus the single inserted clause (legacy byte-identity, End state 9)", async () => {
+  for (const s of DONE_WHEN_SITES) {
+    const withCalls = (await s.run({ doneWhen: DW_CMD })).calls
+    const withoutCalls = (await s.run({})).calls
+    const wp = s.find(withCalls), wo = s.find(withoutCalls)
+    assert.ok(wp && wo, `site "${s.site}" reached in both arms (presence guard)`)
+    assert.equal(wp.prompt.replace(`\nDone when: ${DW_CMD}`, ''), wo.prompt,
+      `site "${s.site}": set minus the Done when clause is byte-identical to the doneWhen-less prompt (nothing else conditions on the field)`)
+    assert.ok(!wo.prompt.includes('Done when:'),
+      `site "${s.site}": the legacy path carries no Done when residue at all`)
+  }
+  // null and absent are the same legacy arm (the string|null contract): byte-identical prompts.
+  const nullP = DONE_WHEN_SITES[0].find((await DONE_WHEN_SITES[0].run({ doneWhen: null })).calls).prompt
+  const absentP = DONE_WHEN_SITES[0].find((await DONE_WHEN_SITES[0].run({})).calls).prompt
+  assert.equal(nullP, absentP, 'doneWhen:null and doneWhen-absent dispatch byte-identical worker prompts')
+})
+
+test('prompt truth (D6) — every dispatched prompt that says keep-the-gate-green carries the gate command', async () => {
+  // Reach all five keep-green prompt classes (the four fix-family prompts + the phase-close sweep);
+  // the sweep filter keys on the literal "keep the gate" fragment, parenthetical-gate form included.
+  const runs = [
+    await runPhase(PROVISION_ARGS({ tasks: [dwTask()] }), fixNeededImpl()),
+    await runPhase(PROVISION_ARGS({ tasks: [dwTask()] }), floorRetryImpl()),
+    await runPhase(PROVISION_ARGS({ tasks: [dwTask()] }), pkgFloorRetryImpl()),
+    await runPhase(ACE_ARGS({ tasks: [dwTask()] }), aceBase()),
+    await runPhase(SWEEP_ARGS(), sweepBase([queuedAbsorb()])),
+  ]
+  const keepGreen = runs.flatMap(r => r.calls).filter(c => /keep the gate\b/i.test(c.prompt || ''))
+  for (const cls of [/^fix:/, /^add-test:/, /^package-it:/, /^ace:/, /^polish:/]) {
+    assert.ok(keepGreen.some(c => cls.test(c.opts.label || '')),
+      `a keep-the-gate-green prompt of class ${cls} was captured (anti-vacuity floor)`)
+  }
+  for (const c of keepGreen) {
+    assert.ok(c.prompt.includes('make gate'),
+      `prompt "${c.opts.label}" says keep-the-gate-green AND carries the gate command`)
+  }
+})
+
+// A1 (D9) — the RETIRED plan-slice-criteria framing, asserted absent from the standing worker card
+// case-insensitively (the dispatched-prompt half never carried it; the card rewrote it this task).
+// The POSITIVE half — both surfaces carry the claimed-End-state-ids redefinition — is the D3
+// both-surfaces registry's A1 row below.
+const RETIRED_CRITERIA_FRAMING = [/acceptance criteria[\s\S]{0,8}you own/i, /mapped acceptance criteria/i]
+// Unwired negative reference (both-ways proof): the pre-change sentences in the card's OWN real bytes,
+// indexed to the guard each must trip. FIXTURES — never re-introduced into a live surface.
+const RETIRED_CRITERIA_SAMPLES = [
+  ['Inputs bullet (pre-change bytes)', 'the **plan file** and the specific build-order step / acceptance criteria *you own*', 0],
+  ['Do step 2 (pre-change bytes)', 'Implement the task to satisfy its slice of the plan and its mapped acceptance criteria.', 1],
+]
+
+test('A1 (Task 1.3) — the old plan-slice-criteria framing is retired from the worker card, case-insensitively', () => {
+  for (const re of RETIRED_CRITERIA_FRAMING) {
+    assert.doesNotMatch(workerMd, re,
+      `war-worker.md: the retired plan-slice-criteria framing ${re} is absent (A1 — the field is claimed End-state ids now)`)
+  }
+  for (const [label, sample, i] of RETIRED_CRITERIA_SAMPLES) {
+    assert.match(sample, RETIRED_CRITERIA_FRAMING[i],
+      `negative reference (${label}): the retired framing DOES match its guard — the doesNotMatch above is non-vacuous`)
+  }
 })
 
 // ===========================================================================
@@ -7120,8 +7266,17 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
                  ['inline gate-audit end-state seat (src)', gateAuditEndStateSrc]],
       anchors: [/content-at-pin/i, /never the top rung/i, /never evidence/i, /## Evidence precedence/i,
                 /content-at-pin[\s\S]{0,200}\bexecution\b[\s\S]{0,200}\bhistory\b[\s\S]{0,200}\bauthority\b/i] },
+    // precision-chain Task 1.3 (A1/D9): acceptance_criteria_covered redefined as the task's CLAIMED
+    // End-state ids on BOTH worker surfaces — the standing card's Return section and the primary
+    // dispatch's ACCEPTANCE_IDS_RULE sentence. Anchor precondition: every phrase token below was absent
+    // from both surfaces at the pre-change base (the old framing spoke of plan-slice acceptance
+    // criteria — its OLD-absent guard is the RETIRED_CRITERIA_FRAMING test above). Consumer: Task 3.2's
+    // gate-audit cross-check.
+    { name: 'A1 acceptance_criteria_covered redefinition (claimed End-state ids; empty when none; gate-audit cross-checks)',
+      surfaces: [['war-worker.md', workerMd], ['worker prompt', workerP]],
+      anchors: [/acceptance_criteria_covered/, /claimed End-state ids/i, /empty when the task claims none/i, /gate-audit pass cross-checks/i] },
   ]
-  assert.ok(REGISTRY.length >= 14, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, and the evidence-precedence five-surface row (ADR 0041) — floor equals the true row count, no slack (#693)')
+  assert.ok(REGISTRY.length >= 15, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), and the A1 claimed-End-state-ids row (precision-chain Task 1.3) — floor equals the true row count, no slack (#693)')
   for (const row of REGISTRY) {
     for (const [sName, sText] of row.surfaces) {
       for (const re of row.anchors) {

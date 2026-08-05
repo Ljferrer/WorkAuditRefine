@@ -31,7 +31,9 @@ export const meta = {
 //                                     // assert-test-in-diff.sh `--pattern '<value>'` arg at every dispatched
 //                                     // merge-task floor invocation site; null ⇒ bare, byte-identical to today.
 //     tasks: [ { id, issue, title, branch, worktree, deps:[id],
-//                roster:[{ lens, depth? }], planSlice, files:[<repo-relative plan paths>], requiresTest?, requiresPackaging? } ],  // roster: 1–5 distinct-lens audit seats; depth omitted → 'deep'.
+//                roster:[{ lens, depth? }], planSlice, doneWhen?, files:[<repo-relative plan paths>], requiresTest?, requiresPackaging? } ],  // roster: 1–5 distinct-lens audit seats; depth omitted → 'deep'.
+//                                     // doneWhen = the task's `Done when:` acceptance command (string|null; absent/null ⇒ legacy —
+//                                     // doneWhenClause renders '' and every prompt is byte-identical to a doneWhen-less run, End state 9).
 //                                     // requiresTest/requiresPackaging default true; false (Lead-set) skips that pre-merge floor with a logged, never-silent skip.
 //                                     // files = the plan's `Files:` list (plan paths, NOT the worker's diff — the diff doesn't exist at dispatch); an all-*.md task runs its first-pass worker on the docs tier. Absent/empty ⇒ base worker tier (fail-safe).
 //     learningsTarget,                // read-path resolved repo root — the worker self-query `--repo` flag AND
@@ -687,6 +689,23 @@ const workerIntentClause = intent
 // a threaded root the fragment is '' ⇒ the line stays byte-identical to a memory-less run (criterion 10).
 const workerSelfQueryRepoFlag = (typeof learningsTarget === 'string' && learningsTarget) ? ` --repo ${learningsTarget}` : ''
 const WORKER_MEMORY_SELF_QUERY_LINE = pt`\nYou MAY run \`node <plugin>/skills/_shared/war-memory.mjs query '<terms>'${workerSelfQueryRepoFlag}\` mid-task when you hit something unfamiliar — it never writes a lesson, and without a \`--local\` root it appends no query log (the CLI never guesses one from the cwd).\n`
+// Done-when threading (precision-chain D6, Task 1.3 — prompt truth): the task's `Done when:` acceptance
+// command rides every worker-family dispatched prompt — the primary dispatch plus the four fix-family
+// prompts (FIX_NEEDED, ADD_TEST, PACKAGE_IT, ace) — as a `Done when:` line beside the Gate: command, so
+// no prompt says keep-the-gate-green without carrying the commands that define green. Absent/null/empty
+// ⇒ '' (the set-minus pattern): a legacy plan with no `Done when:` bullets dispatches prompts
+// byte-identical to a doneWhen-less run (End state 9). Prompt truth only — the floor that EXECUTES the
+// command at merge is Phase 2's assert-done-when.sh (refiner-side), never this clause.
+const doneWhenClause = task => (task && typeof task.doneWhen === 'string' && task.doneWhen)
+  ? pt`\nDone when: ${task.doneWhen}`
+  : ''
+// A1 redefinition (precision-chain D9): acceptance_criteria_covered is the task's CLAIMED End-state ids
+// — the numbered Commander's Intent End-state conditions the task claims — no longer plan-slice
+// acceptance-criteria prose. ONE canonical rule sentence, mirrored in agents/war-worker.md's Return
+// section (standing surface; the both-surfaces registry test anchors the shared tokens — keep the
+// surfaces in sync in the same commit). Consumer: the post-merge gate-audit pass cross-checks the
+// reported ids (Task 3.2 — defined here, consumed there).
+const ACCEPTANCE_IDS_RULE = "Report acceptance_criteria_covered as the task's claimed End-state ids — the numbered End-state conditions from the plan's Commander's Intent that this task claims to satisfy (empty when the task claims none); the post-merge gate-audit pass cross-checks the field."
 
 // ---- Gate-failure classification (spec §6 / ADR 0019) ----------------------
 // classOf reads the refiner-reported gate_failure_class off a gate_failed MergeResult; an ABSENT or
@@ -1076,9 +1095,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         depClause(task)
         + pt`Implement WAR task ${task.id} in the ALREADY-PROVISIONED worktree at ${task.worktree} (branch ${task.branch}, cut from ${ph.integrationBranch}).\n`
         + pt`The refiner's Provision barrier already created this worktree and its .war-task marker — do NOT create it yourself and do NOT set any worktree env var. cd into ${task.worktree} and work only inside it; commit and push ${task.branch}.\n`
-        + pt`Sub-issue #${task.issue ?? '<unset>'} — ${task.title}\nPlan slice: ${task.planSlice}\nPlan file: ${plan.file}\nGate: ${plan.gate}${workerIntentClause}`
+        + pt`Sub-issue #${task.issue ?? '<unset>'} — ${task.title}\nPlan slice: ${task.planSlice}\nPlan file: ${plan.file}\nGate: ${plan.gate}${doneWhenClause(task)}${workerIntentClause}`
         + WORKER_MEMORY_SELF_QUERY_LINE + workerMemClause(task.id) + provisionClause + workerExtraCtx
-        + '\n' + COMMENT_LAG_RULE + '\n' + PLAN_DEFECT_RULE + '\n' + FILES_CHANGED_RULE,
+        + '\n' + COMMENT_LAG_RULE + '\n' + PLAN_DEFECT_RULE + '\n' + FILES_CHANGED_RULE + '\n' + ACCEPTANCE_IDS_RULE,
         { agentType: NS + 'war-worker', phase: 'Work', label: `work:${task.id}`, schema: WORKER_RESULT, ...spawnWorker(isDocsTask(task) ? 'docs' : null) })
 
       const why = blockedReason(impl); if (why) return { task, verdict: 'escalate', seats: [], expected: 0, blocked: why }
@@ -1114,6 +1133,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         const b = blockingOf(seats)                                // batched FIX_NEEDED → fresh fix-worker
         const fix = await agent(
           pt`FIX_NEEDED for WAR task ${task.id}. Work in the ALREADY-PROVISIONED worktree at ${task.worktree} (branch ${task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
+          // Prompt truth (D6): keep-the-gate-green prompts carry the gate command + the task's
+          // Done when: clause (absent ⇒ '' — legacy byte-identity, End state 9).
+          + pt`Gate: ${plan.gate}${doneWhenClause(task)}\n`
           + pt`Resolve ALL of these blocking findings, keep the gate green, commit and push:\n`
           // pt-tagged prompt-feeding rows (fix prompt, thunk-catch): f.severity is construction-guaranteed (b =
           // blockingOf → Critical/Major only, bare); title/file/rationale are schema-optional → ?? '' absence-tolerant.
@@ -1190,6 +1212,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       if (blockingOf(r.seats).length === 0 && aceable.length && r.task.fixRounds < roundLimit) {
         const ace = await agent(
           pt`ADVISORY POLISH (--ace) for WAR task ${r.task.id}. Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
+          // Prompt truth (D6): keep-the-gate-green prompts carry the gate command + the task's
+          // Done when: clause (absent ⇒ '' — legacy byte-identity, End state 9).
+          + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
           + pt`This task is ALREADY APPROVED. These are auditor-flagged absorb-disposition Minor/Nit findings — apply the smallest mechanical fix for EACH, keep the gate green, and make EXACTLY ONE commit whose message cites each finding's title + rationale:\n`
           // pt-tagged prompt-feeding rows (ace prompt, top-level-catch): f.severity is construction-guaranteed (aceable =
           // minorsOf/absorb → Minor/Nit only, bare); title/file/rationale schema-optional → ?? '' (never a phase-killing throw).
@@ -1322,13 +1347,17 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           const nearMissClause = nearMissDiag
             ? pt`\nNEAR-MISS DIAGNOSTIC (verbatim stderr from the exit 1 assert-test-in-diff.sh run):\n${nearMissDiag}\nReconcile the diff's test files against the ACTIVE pattern named above BEFORE adding anything — the mapped test may already exist under a path that pattern does not match. When it does, a second test is the wrong fix: report blocked naming the mismatch rather than adding a duplicate test.`
             : ''
+          // Prompt truth (D6): both floor-fix prompts carry the gate command + the task's Done when:
+          // clause (absent ⇒ '' — legacy byte-identity, End state 9).
           const fixPrompt = isNoTest
             ? pt`ADD_TEST for WAR task ${r.task.id}. The refiner's merge-task check (assert-test-in-diff.sh) found no test file in the diff. `
               + pt`Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
+              + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
               + pt`Add a mapped test for this task (the test must exercise the slice described in: ${r.task.planSlice}), keep the gate green, commit and push.`
               + nearMissClause
             : pt`PACKAGE_IT for WAR task ${r.task.id}. The refiner's merge-task check (assert-packaging-in-diff.sh) flagged an added/renamed file a Dockerfile's enumerated COPYs miss. `
               + pt`Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
+              + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
               + pt`Resolve it for the slice described in: ${r.task.planSlice}. add the COPY or dockerignore it — never delete the file to satisfy the floor. Keep the gate green, commit and push.`
           const floorFix = await agent(
             fixPrompt + workerMemClause(r.task.id) + provisionClause,
