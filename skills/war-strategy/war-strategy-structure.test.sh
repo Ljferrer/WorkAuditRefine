@@ -4,8 +4,11 @@
 # merged-template internals ratified by the 2026-08-04 interview-and-authoring-contract plan
 # (Task 1), the interview doctrine's ratified internals, and — case-insensitive — the ABSENCE
 # of the retired two-template/required-Grill-Me wording. grep is fence-blind, so
-# template-internal headings are checked as verbatim full lines (the arrow annotation /
-# leading spaces make each match unique to the fence). Plain-bash, no mktemp — bash 3.2-safe.
+# template-internal headings are checked as verbatim full lines: an arrow annotation /
+# leading spaces make an annotated line unique to its fence; bare headings shared across the
+# template + example fences are pinned by exact-line occurrence COUNT (check_n), and
+# example-fence-only headings by exact-whole-line match (check_x — a backticked prose mention
+# of the same bytes never satisfies it). Plain-bash, no mktemp — bash 3.2-safe.
 # Exit 0 = all green; else non-zero.
 set -u
 
@@ -29,6 +32,25 @@ check_f() { # fixed string (vs SKILL.md) — verbatim line fragments, incl. lead
     printf 'ok - %s\n' "$1"
   else
     printf 'not ok - missing: %s\n' "$1"
+    fails=$((fails + 1))
+  fi
+}
+check_x() { # fixed string, EXACT whole line (vs SKILL.md) — matches a fence heading line but
+  # never a backticked prose mention of the same bytes embedded in a longer line
+  if grep -qxF -e "$1" -- "$SKILL"; then
+    printf 'ok - exact line: %s\n' "$1"
+  else
+    printf 'not ok - missing exact line: %s\n' "$1"
+    fails=$((fails + 1))
+  fi
+}
+check_n() { # fixed string, EXACT whole line + required occurrence count (vs SKILL.md) — for
+  # bare headings shared across fences: deleting any one occurrence breaks the count
+  n="$(grep -cxF -e "$1" -- "$SKILL")"
+  if [ "$n" -eq "$2" ]; then
+    printf 'ok - %s exact-line occurrences: %s\n' "$2" "$1"
+  else
+    printf 'not ok - expected %s exact-line occurrences, found %s: %s\n' "$2" "$n" "$1"
     fails=$((fails + 1))
   fi
 }
@@ -71,13 +93,15 @@ check_f 'Self-sufficient entry:'
 check_f 'a recommended front door, never a requirement'
 
 # Merged template — Part 1 section set (fence-safe: verbatim lines; annotations make each
-# unique to the merged-template fence where they carry one)
+# unique to the merged-template fence where they carry one; the bare headings recur verbatim
+# in both example fences, so each is pinned by exact-line count — template + 2 examples = 3
+# — and deleting any one occurrence goes red)
 check_f '## Context — the gap / problem            ← Part 1'
-check_f '## Pivotal constraints'
+check_n '## Pivotal constraints' 3
 check_f '## Resolved design tree                   ← table: decision → resolution → source'
 check_f '## Assumptions ledger                     ← required; assumption · basis · blast radius · check   (or exactly: None)'
-check_f '## Non-goals / deferred'
-check_f '## New domain terms · Recommended ADRs'
+check_n '## Non-goals / deferred' 3
+check_n '## New domain terms · Recommended ADRs' 3
 
 # Template-internal Commander's Intent block (fence-safe: verbatim lines) + the D5 closed
 # tag set on the End-state slot (the D18 unified validation criteria)
@@ -98,6 +122,9 @@ check_f 'ingests ONLY the separate-bullet form'
 check_f 'unparseable footprint'
 check_f 'silently replaces'
 check_f 'is required iff `requiresTest: true`'
+# Template-law item 4 (D4/D5): the End-state tag law + the Part-1 evidence-tag law
+check_f 'Every End state carries one tag'
+check_f 'carries an evidence tag'
 
 # The Part-2 tail: TWO separate H2s (adjudicated 2026-08-05, Q2) — template lines + the law
 check_f '## Notes / conscious deviations   (ratify in /red-team)'
@@ -109,11 +136,13 @@ check_f '## Deferred validations (backstops)   ← required; ratify in /red-team
 check_f 'a literal `None` is a valid, complete declaration'
 
 # The TWO example docs (End state 7) — operator-form and AFK-form heading pairs (ADR 0014
-# either/or alternatives, one per doc)
+# either/or alternatives, one per doc). The AFK pair is exact-whole-line: each heading also
+# appears backticked inside prose, which a substring check_f would match — check_x binds
+# only Example B's fence heading lines.
 check_f '### Example A — operator-form (merged plan)'
 check_f '### Example B — AFK-form (merged plan)'
-check_f "## AI-Commander's Intent"
-check_f '## Deferred validations (backstops — AI-declared)'
+check_x "## AI-Commander's Intent"
+check_x '## Deferred validations (backstops — AI-declared)'
 
 # Spec template input-shape duties: D4 tag annotation + the §10 check form
 check_f '## 1. Context — the gap / problem     ← every claim of fact tagged (evidence tags, D4)'
@@ -204,7 +233,7 @@ r4a='dependency '
 r4b='check'
 lacks_i "$r4a$r4b"
 
-# Commander's Intent sits BEFORE ## Build order inside the plan template.
+# Commander's Intent sits BEFORE ## Build order inside the merged plan template.
 # Locators anchor to the verbatim arrow-bearing template lines (unique to the merged-template
 # fence) so a stray earlier bare heading of the same text can't misbind them.
 ci="$(grep -nF "## Commander's Intent              ← operator-authored; intent ceiling, plan floor" "$SKILL" | head -n 1 | cut -d: -f1)"

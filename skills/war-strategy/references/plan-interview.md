@@ -107,7 +107,7 @@ interview that leaves a row unfilled has not finished:
 | mirrors / default-flips / guard-splits | task carve-outs per the drift-guard rules 5–7 | drift-guard floors · `/red-team` spine probes |
 | assumptions | `## Assumptions ledger` | `/red-team`'s `[assumed]`-first probes |
 | new domain terms | `## New domain terms · Recommended ADRs` | CONTEXT.md glossary |
-| triad-passing choices | ADR recommendations | `docs/adr/` |
+| choices passing the ADR triad (hard to reverse · surprising without context · a genuine trade-off) | ADR recommendations | `docs/adr/` |
 
 ## Evidence + slot law (shared with the template)
 
