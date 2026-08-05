@@ -376,18 +376,49 @@ has_i "$MACHINE" 'provenance scan'
 has_i "$MACHINE" 'in a throwaway sandbox'
 # Old-absent, ANY casing (End state 4's mirror pin): the training-memory question-tree grill
 # sentence stays retired, and the superseded author-the-war-shaped-plan conversion-doctrine
-# quote stays gone (war-strategy §4 now reads "author the merged plan"). Patterns assembled at
-# runtime from split fragments so this file is never itself a hit for a repo-wide sweep of the
-# retired phrases ([[coupling-comment-restating-grep-pattern-bytes-self-matches-the-sweep]]).
+# quote stays gone. Each old-absent pin is paired both-ways with its new-present twin (the
+# quoted /war-strategy §4 doctrine now reads "author the merged plan" — pinned below), so
+# deleting the quoting paragraph outright cannot leave the gate silently green. Patterns
+# assembled at runtime from split fragments so this file is never itself a hit for a repo-wide
+# sweep of the retired phrases
+# ([[coupling-comment-restating-grep-pattern-bytes-self-matches-the-sweep]]).
 retired_grill_a='question'
 retired_grill_b='tree'
 lacks_i "$MACHINE" "$retired_grill_a $retired_grill_b"
 retired_convert_a='author the war-shaped'
 retired_convert_b='plan'
 lacks_i "$MACHINE" "$retired_convert_a $retired_convert_b"
+has_i "$MACHINE" 'author the merged plan'
+# lacks_i -i positive control (both-ways, the prose-exclusion self-check precedent above): a
+# RE-CASED fixture must FIRE the case-insensitive composition lacks_i wraps (control green),
+# while the plain case-sensitive grep -qF must MISS it — pinning the -i as load-bearing rather
+# than decorative. Committed because an uncommitted re-cased red-proof is exactly the half that
+# rots unseen ([[old-absent-gate-half-relies-on-unrecorded-hand-grep-fails-silently]]). Fixture
+# assembled from re-cased fragments for the same sweep-hygiene reason as the patterns above.
+recased_grill_a='Question'
+recased_grill_b='Tree'
+recased_fixture="$recased_grill_a $recased_grill_b"
+if printf '%s\n' "$recased_fixture" | strip_prose | grep -qiF -e "$retired_grill_a $retired_grill_b"; then
+  printf 'ok - lacks_i -i control: re-cased fixture caught case-insensitively (correct)\n'
+else
+  printf 'not ok - lacks_i -i control: re-cased fixture NOT caught — the -i composition is broken\n'
+  fails=$((fails + 1))
+fi
+if printf '%s\n' "$recased_fixture" | strip_prose | grep -qF -e "$retired_grill_a $retired_grill_b"; then
+  printf 'not ok - lacks_i -i control: plain grep -qF matched the re-cased fixture — control proves nothing about -i\n'
+  fails=$((fails + 1))
+else
+  printf 'ok - lacks_i -i control: plain grep -qF misses the re-cased fixture — -i is load-bearing (correct)\n'
+fi
 # AFK provenance (D14, ADR 0014): beyond the heading variants, every row/tag the unattended
-# conversion authors itself carries a per-row AI-declared marker.
-has_i "$MACHINE_AFK" 'carries a per-row'
+# conversion authors itself carries a per-row `AI-declared` marker. Two pins: the body-sentence
+# anchor extended through the marker token (the load-bearing fact — a rewrite that keeps the
+# sentence but renames the marker must go red; the token sits on one physical line), plus the
+# directive's bold lead-in line, which is the only single-line occurrence of the pluralized
+# phrase (the body's copy wraps 'marker' onto the next line, which line-based grep -F cannot
+# match — the [[misattribution-pairing-spanning-two-lines-defeats-line-based-repo-grep]] shape).
+has_i "$MACHINE_AFK" 'carries a per-row `AI-declared`'
+has_i "$MACHINE_AFK" 'per-row `AI-declared` markers'
 # Survey-corps claim tagging (End state 10; ADR 0025 guard-split — this pin's fact is authored
 # by the survey-corps task, deps-edged onto it): the spec-synthesis step tags every synthesized
 # claim per D4/D11.

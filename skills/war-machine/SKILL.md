@@ -1,6 +1,6 @@
 ---
 name: war-machine
-description: Convert design specs into war-shaped implementation plans plus a campaign roadmap — the middle step of the WAR pipeline (survey → machine → campaign → aftermath). Consumes the freshest survey manifest (or explicit spec paths), runs a drafter + adversarial-grill agent pair per spec strictly serially, writes plans to docs/plans/ and a roadmap to docs/roadmaps/, stamps the manifest consumed, and prints the /war-campaign handoff — it never launches the campaign and never red-teams. Use when the user runs /war-machine, wants to turn design specs into implementation plans or a roadmap, or a fresh survey manifest is waiting to be consumed.
+description: Convert design specs into merged implementation plans plus a campaign roadmap — the middle step of the WAR pipeline (survey → machine → campaign → aftermath). Consumes the freshest survey manifest (or explicit spec paths), runs a drafter + adversarial-grill agent pair per spec strictly serially, writes plans to docs/plans/ and a roadmap to docs/roadmaps/, stamps the manifest consumed, and prints the /war-campaign handoff — it never launches the campaign and never red-teams. Use when the user runs /war-machine, wants to turn design specs into implementation plans or a roadmap, or a fresh survey manifest is waiting to be consumed.
 ---
 
 # /war-machine — specs → plans + roadmap
@@ -15,9 +15,10 @@ is a ~12+ hour human-launched commitment and is never auto-invoked.
 **Merged-output directive.** Conversion emits the merged shape — one plan whose Part 1 is the
 decision digest distilled from the source spec (citing the spec path; issue-derived claims keep
 the `(verified: issue #N (<date>))` source form, D11) and whose Part 2 is the decomposed phases,
-per the `/war-strategy` §2 merged plan template. The spec's `## Assumptions ledger` rows are never
-dropped silently: each row is carried forward or retired with a stated reason (D19), in the plan's
-own ledger.
+per the `/war-strategy` §2 merged plan template. The spec's assumption rows — its
+`## Assumptions ledger` where it has one, otherwise its `[assumed: … — if wrong: …]` design-tree
+entries and open-risk notes — are never dropped silently: each is carried forward
+or retired with a stated reason (D19), in the plan's own ledger.
 
 **Release-phase directive.** When a drafted plan carries a trailing release phase, the drafter
 emits the **directive form**, never a resolved `v<semver>` literal: *"bump all four slots to the
