@@ -8,7 +8,7 @@ In this repo the plugin ships at `skills/_shared/`, so that ranked query is `nod
 
 ## What this repo is
 
-WAR (Work · Audit · Refine) — a Claude Code **plugin**; this repo *is* the plugin (`.claude-plugin/plugin.json` + `skills/` + `agents/` + `hooks/`). It orchestrates multi-phase plan execution with worker / auditor / refinery / servitor agents over git worktrees and GitHub issues. There is no application build: developing here means editing skill prose (`skills/*/SKILL.md`), the per-phase Workflow engine (`skills/war/assets/workflow-template.js`), shell hooks/floors, the memory CLI, and their tests. `CONTEXT.md` is the glossary (ubiquitous language); `docs/adr/` (0001–0043) records the binding decisions.
+WAR (Work · Audit · Refine) — a Claude Code **plugin**; this repo *is* the plugin (`.claude-plugin/plugin.json` + `skills/` + `agents/` + `hooks/`). It orchestrates multi-phase plan execution with worker / auditor / refinery / servitor agents over git worktrees and GitHub issues. There is no application build: developing here means editing skill prose (`skills/*/SKILL.md`), the per-phase Workflow engine (`skills/war/assets/workflow-template.js`), shell hooks/floors, the memory CLI, and their tests. `CONTEXT.md` is the glossary (ubiquitous language); `docs/adr/` (0001–0044) records the binding decisions.
 
 ## Commands
 
@@ -79,7 +79,7 @@ New doctrine defaults to a `references/` file plus a trigger pointer on the oper
 ## Known traps
 
 - `docs/learnings/` on a branch/PR not yet merged ⇒ `render-index --local`-only silently drops every `[repo]` row — pass `--repo` whenever the dir exists.
-- Plans and specs share a slug but different suffixes; `/red-team` greps the plan's source-spec line — keep it.
+- LEGACY spec + plan pairs share a slug but different suffixes; `/red-team`'s legacy arm greps such a plan's source-spec line — keep it there. A merged plan's Part 1 is its own source of truth.
 - Findings route by auditor-owned `disposition` (`absorb`/`follow-up`/`note`), orthogonal to severity; `absorb` is never a default. A validation in neither the gate, a floor, nor the backstops section may not be waived in prose — escalate (ADR 0017).
 - Intent is never Lead-invented; the sole synthetic-intent exception is `/war-machine --afk`'s `## AI-Commander's Intent` heading, and any heading-extraction surface must recognize **both** intent headings (ADR 0014).
 - Anchor references by named construct, not line number — line numbers rot across the serial merge queue.
