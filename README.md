@@ -68,7 +68,7 @@ Other plugins run happily alongside WAR — no part of the pipeline depends on t
 
 ## Usage
 
-The command set, in the order you'll run it: **`/war-help`** orients you → **`/war-room`** configures a run → **`/war-strategy`** interviews you to a merged plan (and converts existing drafts) → **`/red-team`** hardens the plan → **`/war`** executes it → **`/war-review`** tallies what the run cost and flags any friction. Scaling up: **`/survey-corps`** turns open issues and hot memories into specs → **`/war-machine`** turns specs into plans + a roadmap → **`/war-campaign`** runs the plans back-to-back unattended → **`/aftermath`** cleans up the debris → **`/lessons-learned`** keeps the accumulated memory honest.
+The command set, in the order you'll run it: **`/war-help`** orients you → **`/war-room`** configures a run → **`/war-strategy`** interviews you to a merged plan (and converts existing drafts) → **`/red-team`** hardens the plan → **`/war`** executes it → **`/war-review`** tallies what the run cost and flags any friction. Scaling up: **`/survey-corps`** turns open issues and hot memories into specs → **`/war-machine`** turns specs into merged plans + a roadmap → **`/war-campaign`** runs the plans back-to-back unattended → **`/aftermath`** cleans up the debris → **`/lessons-learned`** keeps the accumulated memory honest.
 
 ### Get oriented (`/war-help`)
 
@@ -187,7 +187,7 @@ Your backlog is raw material. Before the issue sweep, `/survey-corps` mines both
 
 ### Turn specs into plans (`/war-machine`)
 
-The middle step of the pipeline: `/war-machine` consumes the freshest survey manifest (or the spec paths you pass), runs a drafter + adversarial-grill agent pair per spec strictly serially, writes the implementation plans to `docs/plans/` and a campaign roadmap to `docs/roadmaps/`, and prints the `/war-campaign` handoff — it **never launches the campaign and never red-teams**. It relies on `/war-strategy`'s templates and conversion doctrine rather than forking them.
+The middle step of the pipeline: `/war-machine` consumes the freshest survey manifest (or the spec paths you pass), runs a drafter + adversarial-grill agent pair per spec strictly serially, writes the merged plans to `docs/plans/` and a campaign roadmap to `docs/roadmaps/`, and prints the `/war-campaign` handoff — it **never launches the campaign and never red-teams**. It relies on `/war-strategy`'s templates and conversion doctrine rather than forking them.
 
 ```
 /war-machine [spec-paths…] [--afk]
