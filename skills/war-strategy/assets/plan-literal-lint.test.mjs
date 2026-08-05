@@ -163,7 +163,10 @@ test('SHAPE_RULES: five named rules; each rule text names the merged-template sl
 // ---- untagged-end-state: positive + all four D5 tag arms clean ----
 test('untagged-end-state: flags an untagged numbered End state; every D5 tag arm is clean', () => {
   const mk = (bullet) => ["## Commander's Intent", '- **End state:**', bullet].join('\n');
-  assert.equal(countOf(lint(mk('  1. The doctrine file exists and is discoverable')), 'untagged-end-state'), 1);
+  const hits = lint(mk('  1. The doctrine file exists and is discoverable')).filter((h) => h.pattern === 'untagged-end-state');
+  assert.equal(hits.length, 1);
+  // bulletHead is the reportable match the CLI prints — assert it names the bullet, not ''.
+  assert.match(hits[0].match, /The doctrine file exists/);
   for (const tagged of [
     '  1. The doctrine file exists · check: `bash t.sh`',
     '  2. The suites stay green · gate: the full self-discovered suite',
@@ -205,17 +208,20 @@ test('requires-test-without-done-when: flags a requiresTest task with no Done wh
   assert.equal(countOf(lint(block(['- requiresTest: false', '- deps: []'])), 'requires-test-without-done-when'), 0);
 });
 
-test('requires-test-without-done-when: block ends at the next heading — a covered sibling is not blamed', () => {
+test("requires-test-without-done-when: block ends at the next heading — a later sibling's Done when does not clear an uncovered task", () => {
+  // Uncovered task first, covered sibling after: without the MD_HEADING bound in parsePlanShape,
+  // Task 1's body would run to EOF and swallow Task 2's `Done when:`, yielding 0 hits (RED) —
+  // so the boundary is genuinely discriminated.
   const two = [
-    '### Task 1: Covered',
+    '### Task 1: Uncovered',
+    '- requiresTest: true',
+    '### Task 2: Covered',
     '- requiresTest: true',
     '- Done when: `node --test a.test.mjs`',
-    '### Task 2: Uncovered',
-    '- requiresTest: true',
   ].join('\n');
   const hits = lint(two).filter((h) => h.pattern === 'requires-test-without-done-when');
   assert.equal(hits.length, 1);
-  assert.match(hits[0].match, /Task 2/);
+  assert.match(hits[0].match, /Task 1/);
 });
 
 // ---- missing-assumptions-ledger: positive + negative, plan-shape gated ----
@@ -241,6 +247,9 @@ test('untagged-context-claim: flags an untagged measurement in ## Context; D4-ta
     countOf(lint(mk('- Pairing is 1:1 in 99 of 116 cases [assumed: slug join — if wrong: re-measure].')), 'untagged-context-claim'),
     0
   );
+  // The other two CLAIM_TAG arms — `(user)` and `AI-declared` — are individually load-bearing too.
+  assert.equal(countOf(lint(mk('- Operators hit this in 9 of 10 runs (user).')), 'untagged-context-claim'), 0);
+  assert.equal(countOf(lint(mk('- Pairing is 1:1 in 100 of 116 slugs — AI-declared.')), 'untagged-context-claim'), 0);
   // The same sentence outside ## Context is not scanned (scope guard).
   assert.equal(
     countOf(lint(['## Non-goals / deferred', '- A 57-finding classification measured ~40% false repo facts.'].join('\n')), 'untagged-context-claim'),
@@ -259,9 +268,10 @@ test('untagged-context-claim: the tag may sit on a continuation line of the same
 
 // ---- vague-end-state: positive + out-of-scope negative ----
 test('vague-end-state: flags properly/correctly/coherent inside an End state; clean outside intent', () => {
-  const bad = ["## Commander's Intent", '  1. The pipeline works correctly and renders properly · check: `x`'].join('\n');
+  const bad = ["## Commander's Intent", '  1. The pipeline works correctly, renders properly, and stays coherent · check: `x`'].join('\n');
   const vague = lint(bad).filter((h) => h.pattern === 'vague-end-state');
-  assert.deepEqual(vague.map((h) => h.match), ['correctly', 'properly']);
+  // matchAll order — each of the three §4f vocabulary arms is individually load-bearing.
+  assert.deepEqual(vague.map((h) => h.match), ['correctly', 'properly', 'coherent']);
   // Same vocabulary outside the intent section — not an End state, not flagged.
   assert.equal(countOf(lint('The hook correctly denies writes.'), 'vague-end-state'), 0);
   const observable = ["## Commander's Intent", '  1. `grep -c foo SKILL.md` = 0 · check: `bash t.sh`'].join('\n');
