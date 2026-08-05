@@ -218,7 +218,7 @@ const SPINE = [
   { name: 'executable-proof', kind: 'spine', technique: 'executed',
     prompt: `Read the plan ${planFile}. Extract every runnable artifact it ships (code blocks, test blocks, shell commands with a stated "Expected") into a THROWAWAY temp dir and RUN them. Assert each behaves as the plan claims. This EXPLICITLY includes plan-authored requiresTest:false verification commands — the self-authored grep guards a task ships in lieu of a test: extract each and RUN it against the plan's own stated landing site, then re-run it against a re-cased and re-positioned copy of that site (move the target token to a different line, flip its casing mid-sentence). A guard that passes on the verbatim site but false-negates on the re-cased/re-positioned copy is the recorded sentence-case false-negative class — flag it. The compliant default such a guard must meet: a prose-clause grep guard is case-insensitive (grep -rin, not grep -r) and anchored on a stable mid-sentence token, so casing and line-position drift can't slip a regression past it. NEVER touch ${repo}. Report any mismatch with the real command output as evidence.` },
   { name: 'coverage-vs-source', kind: 'spine', technique: 'analyzed',
-    prompt: `Read the source of truth (${sourceSpec}) and the plan ${planFile}. Confirm every requirement/section in the source maps to a plan task or step. Report unmapped requirements as Major gaps. Read-only.` },
+    prompt: `Read the source of truth (${sourceSpec}) and the plan ${planFile}. MERGED ARM — when the source IS the plan itself (a merged plan whose Part 1 carries the decision record; the plan is its own source of truth, so the Lead defaulted --spec to it): confirm every Part-1 requirement/decision maps to a Part-2 phase/task — Part-1→Part-2 coverage. Otherwise confirm every requirement/section in the source maps to a plan task or step. Report unmapped requirements as Major gaps. Read-only.` },
   { name: 'consistency-placeholders', kind: 'spine', technique: 'analyzed',
     prompt: `Read the plan ${planFile}. Flag TBD/TODO/vague steps, name/signature drift between steps (a symbol called one thing in Task N and another in Task M), and any step that contradicts another. Read-only.` },
   { name: 'dependency-feasibility', kind: 'spine', technique: 'analyzed',
@@ -227,8 +227,9 @@ const SPINE = [
     prompt: `Read the plan ${planFile}. If it has either a "## Commander's Intent" or an "## AI-Commander's Intent" section (Purpose / Method / End state), check: (1) each End-state condition is individually checkable — a concrete predicate you could verify true/false against ${repo} (a vague/unverifiable condition is a Major); (2) each End-state condition maps to at least one phase/task that claims to deliver it (an unclaimed condition is a Major); (3) the End-state conditions are collectively sufficient for the stated Purpose (a sufficiency gap is a Major with needsDecision:true — only the user can settle what the Purpose really requires). An "## AI-Commander's Intent" block IS intent-present and is judged identically to operator intent; additionally return one Minor note recommending the human upgrade path (run /war-strategy ${planFile}). If the plan has NEITHER a "## Commander's Intent" nor an "## AI-Commander's Intent" section, that is a Minor, never a Major: return status:"pass" with a single Minor note recommending the intent interview. Read-only.` },
 ]
 
-// Drop spine lenses that don't apply: no source spec → skip coverage-vs-source; for a
-// plan with NO runnable artifacts the Lead also removes 'executable-proof' here.
+// Drop spine lenses that don't apply: no source spec → skip coverage-vs-source (a merged plan
+// never hits this arm — its Part 1 IS the source of truth, so the Lead defaults sourceSpec to the
+// plan itself); for a plan with NO runnable artifacts the Lead also removes 'executable-proof' here.
 const spine = SPINE.filter(l => !(l.name === 'coverage-vs-source' && sourceSpec === 'none'))
 // ---- BESPOKE PROBES: edit here (or pass via args.probes) for the plan under test ----
 const allProbes = [...spine, ...probes]

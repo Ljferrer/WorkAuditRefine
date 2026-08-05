@@ -973,6 +973,58 @@ test('envGap prose presence pair: provisionDirective + lenses.md both carry envG
   assert.match(r, /red\/fail|Critical\/Major/i, 'lenses envGap region names red/fail (or Critical/Major)')
 })
 
+// --- Task 5 (authoring contract, 2026-08-05): coverage-vs-source merged arm ---------------------
+// A merged plan whose Part 1 carries the decision record is its own source of truth — `--spec`
+// defaults to the plan itself — and the coverage-vs-source lens then reads Part-1→Part-2 coverage.
+// The arm lives in BOTH homes: the scaffold's SPINE prompt (the code literal the probe actually
+// receives) and the lenses.md spine entry — the envGap/ff-topology presence-pair idiom, so neither
+// home can rot the arm alone.
+test('coverage-vs-source merged arm: emitted SPINE prompt + lenses.md spine entry both read Part-1→Part-2 coverage when the source IS the plan (End state 6)', async () => {
+  // (a) code home — the emitted coverage-vs-source probe prompt.
+  const byLabel = await promptsByLabel({})
+  const cvs = byLabel['probe:coverage-vs-source']
+  assert.ok(cvs, 'the coverage-vs-source spine probe must run when sourceSpec is set')
+  assert.match(cvs, /its own source of truth/i, 'the SPINE prompt names the merged plan its own source of truth')
+  assert.match(cvs, /source IS the plan/i, 'the SPINE prompt scopes the merged arm to source-IS-the-plan runs')
+  assert.match(cvs, /Part-1→Part-2 coverage/, 'the SPINE prompt reads Part-1→Part-2 coverage on the merged arm')
+  assert.match(cvs, /Otherwise confirm every requirement\/section in the source maps/,
+    'the classic source-spec arm is retained (extend, not rewrite)')
+  // (b) prose home — ±320-char window around every coverage-vs-source mention in lenses.md.
+  const lenses = readFileSync(join(__dirname, '..', 'references', 'lenses.md'), 'utf8')
+  const lower = lenses.toLowerCase(), regions = []
+  for (let i = lower.indexOf('coverage-vs-source'); i !== -1; i = lower.indexOf('coverage-vs-source', i + 1)) {
+    regions.push(lenses.slice(Math.max(0, i - 320), i + 320))
+  }
+  assert.ok(regions.length > 0, 'lenses.md must name the coverage-vs-source lens')
+  const r = regions.join('\n---\n')
+  assert.match(r, /its own source of truth/i, 'the lenses.md coverage-vs-source region names the merged plan its own source of truth')
+  assert.match(r, /Part-1→Part-2/, 'the lenses.md coverage-vs-source region reads Part-1→Part-2 coverage')
+})
+
+// SKILL.md Step-1 pins encode End state 6's committed check: new-present `its own source of truth`
+// (case-insensitive) and the retired always-a-separate-spec default arm absent. The retired phrase
+// is split-fragment assembled so this file never carries it contiguously (self-exclusion by
+// construction, as the doctrine-surface guards below).
+test('SKILL.md Step 1 merged arm: its-own-source-of-truth present, retired --spec default arm absent (End state 6)', () => {
+  const skill = readFileSync(join(__dirname, '..', 'SKILL.md'), 'utf8')
+  assert.match(skill, /its own source of truth/i, 'SKILL.md must carry the ratified new-present anchor (case-insensitive)')
+  assert.match(skill, /`--spec` defaults to the plan/i, 'SKILL.md Step 1 must state --spec defaults to the plan itself')
+  const retired = ('becomes `--spec` if' + ' not given').toLowerCase()
+  assert.ok(!skill.toLowerCase().includes(retired),
+    'SKILL.md still carries the retired --spec default arm (old-absent, case-insensitive)')
+})
+
+// The judge-tag grading rule (round-2 adjudication, AI-declared): backstop-legitimacy.md owns the
+// spec-§8 box-ticking mitigation — every judge:/HARD-at-audit_sha End state or backstop entry is
+// graded "could this have been a check: command?", and commandable-but-judged routes needsDecision.
+test('backstop-legitimacy.md carries the judge-tag grading rule (commandable-but-judged → needsDecision)', () => {
+  const bl = readFileSync(join(__dirname, '..', 'references', 'backstop-legitimacy.md'), 'utf8')
+  assert.match(bl, /`judge:`/, 'the rule names the judge: tag')
+  assert.match(bl, /HARD at audit_sha/, 'the rule names the HARD-at-audit_sha tag form')
+  assert.match(bl, /could this have been a `check:` command/i, 'the rule grades commandability')
+  assert.match(bl, /needsDecision/, 'commandable-but-judged routes to needsDecision')
+})
+
 // --- Task 1.1 (#808): CONTRACTS "Gate side" reword standing lock (End state 3) ------------------
 // A pass-probe Critical/Major is FILTERED from `blockers`, not "discarded as a non-defect" — it stays
 // in allFindings() and downstream diagnostics. Lock the replacement wording (positive) and the retired
