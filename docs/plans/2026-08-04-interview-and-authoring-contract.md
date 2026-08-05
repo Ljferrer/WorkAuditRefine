@@ -163,9 +163,11 @@ committed pins + ADR, waves: [6,7,9] then [8]) → Phase 3 (release).
   SKILL.md §1 (dependency check → recommendation), §2 (merged plan template per spec §4b —
   flat H2s, Part 2 headings byte-identical to today's, under two adjudicated shape rulings:
   the tail stays TWO separate H2s (`## Notes / conscious deviations`, `## Open decisions`)
-  and per-task fields are SEPARATE `- ` bullets (ratified as the uniform template law; note
-  `extractFiles` ingests both forms — the ruling is for template uniformity, not extraction
-  necessity); TWO example docs, operator-form and AFK-form, per End state 7; spec template
+  and per-task fields are SEPARATE `- ` bullets (ratified as template law AND an extraction
+  requirement — executed proof, round 3: `extractFiles` ingests ONLY the separate-bullet
+  form; the compact one-line rendering over-widens the footprint with Plan-slice paths, and
+  yields `[]` → `unparseable footprint` when the Files paths are bare); TWO example docs,
+  operator-form and AFK-form, per End state 7; spec template
   relabeled input shape with D4 tags + §10 check form; D12 staleness sentence in the
   conventions), §4 (ADR 0042 pointer line, bare-invoke runs the interview, widened HANDOFF
   DIRECTIVE, with-artifact converts into the merged shape — its gap review gaining the four
@@ -271,12 +273,18 @@ committed pins + ADR, waves: [6,7,9] then [8]) → Phase 3 (release).
   cited by Task 7, Task 8, and End state 5; every pattern case-insensitive, swept with
   comment-leader stripping before normalization (anchors sit mid-sentence where the surface
   allows; three sit on heading/bold-lead lines, which line-based grep matches identically).
-  Old-absent anchors: `spec is not a plan` · `required auxiliary plugin` ·
-  `required-auxiliary-plugin` (the hyphenated in-page fragment, README only) ·
-  ``grill-with-docs` authors`` (slash-less — matches both CLAUDE.md and CONTEXT.md
-  occurrences) · `never authors` (covers CLAUDE.md's "never authors a spec from scratch" and
-  README's "never authors one from scratch") · `why it's required` · `why war doesn't ship
-  its own` · `interview a spec into a plan` · `author the input plan`. New-present anchors,
+  Old-absent anchors: `spec is not a plan` · `spec ≠ plan` (README's own gospel headline) ·
+  `required auxiliary plugin` · `required-auxiliary-plugin` (the hyphenated in-page fragment,
+  README only) · ``grill-with-docs` authors`` (slash-less — matches both CLAUDE.md and
+  CONTEXT.md occurrences) · `never authors` (covers CLAUDE.md's "never authors a spec from
+  scratch" and README's "never authors one from scratch") · `authored by interview`
+  (CONTEXT.md's Design-spec entry framing) · `converts spec → plan` · `convert a spec into a
+  plan` (the README usage-section two-file framings) · `why it's required` · `why war doesn't
+  ship its own` · `interview a spec into a plan` · `author the input plan`. Deliberate
+  NON-anchor (recorded so a future sweep doesn't add it blindly): `cannot execute one` — that
+  clause stays TRUE of input-shape specs and may legitimately appear in the rewritten
+  glossary/README; the retired framing around it is covered by `spec ≠ plan`,
+  `authored by interview`, and `spec is not a plan` instead. New-present anchors,
   one per surface: README `recommended auxiliary plugin` · CLAUDE.md `one interview, one
   merged artifact` · war-help the updated command-table row wording · CONTEXT.md `input
   shape` (Task 7's entry) · war-strategy the §2 merged-template heading (Task 1's suite).
@@ -304,9 +312,13 @@ committed pins + ADR, waves: [6,7,9] then [8]) → Phase 3 (release).
 ### Task 8: Gospel pins — committed both-ways enforcement for the doc surfaces
 - Files: `skills/war-machine/war-pipeline-structure.test.sh`
 - Plan slice: adjudicated 2026-08-05 (the five-surface sweep may not ride a hand-run grep
-  alone — ADR 0017): first add a **case-insensitive absence helper `lacks_i()`**
-  (`grep -qiF`, comment-leader-stripped — the existing `lacks()` is case-SENSITIVE and the
-  suite has no insensitive absence arm; `has_i()` is the style precedent) plus a CLAUDE.md
+  alone — ADR 0017): first add a **case-insensitive absence helper `lacks_i()`** whose body
+  mirrors `lacks()` exactly except for the `-i` flag — `strip_prose < "$1" | grep -qiF -e
+  "$2"` — inheriting `strip_prose`'s `## Status`/`## Changelog` section drop (load-bearing:
+  Task 10's Status blurb describes this very rename, the recorded
+  release-blurb-trips-its-own-guard class; comment-leader stripping belongs to the hand-run
+  land-time sweep, not this helper — the existing `lacks()` is case-SENSITIVE and the suite
+  has no insensitive absence arm; `has_i()` is the style precedent) plus a CLAUDE.md
   handle beside the suite's existing README / CONTEXT / war-help / war-strategy handles; then
   land committed `lacks_i()` old-absent pins for every Task-6 retired anchor across all five
   End-state-5 surfaces, AND committed new-present pins for README (`recommended auxiliary
@@ -371,7 +383,9 @@ committed pins + ADR, waves: [6,7,9] then [8]) → Phase 3 (release).
   `references/` doctrine file); Task 9's `docs/` ADR is not packaged.
 - Red-team adjudications (2026-08-05, rounds 1–2) supersede spec §4b's compact renderings and
   spec §1's 99/116 literal: the Part-2 tail is TWO separate H2s; per-task fields are SEPARATE
-  `- ` bullets (uniformity ruling — `extractFiles` ingests both forms); Task 5 widens into
+  `- ` bullets (an extraction requirement — round-3 executed proof: `extractFiles` ingests
+  ONLY the bullet form; a round-2 analyzed claim to the contrary was refuted); Task 5 widens
+  into
   red-team's own scaffold/lenses/references, re-scoping "engine untouched" to the /war
   engine; the pairing figure is 100/116 at `94ee5b3`. Full record:
   `docs/red-team/2026-08-05-interview-and-authoring-contract.md`.
