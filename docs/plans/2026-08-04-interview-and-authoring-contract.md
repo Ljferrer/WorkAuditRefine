@@ -5,8 +5,9 @@ Source of truth: this plan's own decision record below (Part 1), distilled from
 (interviewed + approved 2026-08-04). **This is the first merged-shape plan** — the shape it
 exhibits is the shape Task 1 ratifies. Expected integration base: `master` @ `94ee5b3`
 (0.15.1); the working branch additionally carries the red-team report + run-config commits
-(`e223a23`, `7b9224d`), which touch no plan-named surface. Release resolves the next free
-patch from the live slots at land time.
+(`e223a23`, `7b9224d`), which touch no plan-named surface. Release version: **0.16.0** —
+operator-ratified 2026-08-05, a minor bump for the merged-artifact doctrine change,
+superseding the next-free-patch default.
 
 ## Context — the gap / problem
 
@@ -53,7 +54,7 @@ retires each with stated reason [assumed].
 |----|-----------|-------|----------------------|-------|
 | A1 | `/war` extraction tolerates leading Part-1 H2 sections | extraction greps named headings | intake misparse of merged plans | End state 7's sandbox probe, pre-land |
 | A2 | ADR 0044 is the next free number | `ls docs/adr/` 2026-08-04 | rename at land | re-`ls` at Task 9 start |
-| A3 | Next free patch ≈ 0.15.2 | live slots at 0.15.1 | none — resolved at land per slots law | `version-slots.test.mjs` |
+| A3 | Release version `0.16.0` is free above the `0.15.1` base | operator-ratified 2026-08-05 (minor bump); live slots at 0.15.1 | monotonic-floor red at land | `version-slots.test.mjs` |
 | A4 | `war-pipeline-structure.test.sh` is the pin home for war-machine directives | 0.15.1 precedent (guard-split pins) | pins move to a sibling suite | Task 3 worker verifies at rebase |
 | A5 | No in-flight campaign owns these files | 2026-08-02 campaign landed @ `382dba1` | serial-merge rebase conflicts | ledger check at `/war` launch |
 
@@ -129,10 +130,10 @@ placement reversal (Task 9).
      HARD at audit_sha — analyzed sandbox probe; observable: every extraction grep finds its
      target in each example doc; judge: red-team executed probe pre-land, gate-audit seat
      post-merge.
-  8. Release lands as its own trailing phase with all four slots bumped lock-step to the next
-     free patch · check: `node --test skills/war/assets/version-slots.test.mjs` AND the landed
-     `.claude-plugin/plugin.json` version differs from the recorded `0.15.1` base (lock-step
-     alone is green pre-bump).
+  8. Release lands as its own trailing phase with all four slots bumped lock-step to
+     **`0.16.0`** (operator-ratified 2026-08-05) ·
+     check: `node --test skills/war/assets/version-slots.test.mjs` AND the landed
+     `.claude-plugin/plugin.json` version equals `0.16.0` (lock-step alone is green pre-bump).
   9. The ADR ratifying contract + collapse + placement reversal exists at the next free number
      (A2), its title line contains `authoring contract` (Task 9 mandates it, making this check
      satisfiable by construction), and it carries the house `**Status:** accepted` line ·
@@ -351,8 +352,9 @@ committed pins + ADR, waves: [6,7,9] then [8]) → Phase 3 (release).
 
 ### Task 10: Version bump, four slots lock-step
 - Files: `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `README.md`
-- Plan slice: bump to the next free patch above the live base (A3; non-authoritative literal —
-  resolve at land); README `## Status` replace-in-place blurb summarizing: WAR owns its front
+- Plan slice: bump all four slots to `0.16.0` (operator-ratified 2026-08-05 — a minor bump
+  for the merged-artifact doctrine change; A3; version precedence: red-team adjudication >
+  plan literal); README `## Status` replace-in-place blurb summarizing: WAR owns its front
   door — one interview, one merged artifact, uniform on every path.
 - Done when: `node --test skills/war/assets/version-slots.test.mjs` (carried voluntarily —
   permitted under D5 for a `requiresTest: false` task)
