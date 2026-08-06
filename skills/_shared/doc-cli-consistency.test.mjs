@@ -155,20 +155,10 @@ function skillDocs() {
 // example — input-shape mechanics by definition — while doctrine citations live
 // in prose links and inline code spans, exactly where this rule looks.
 
-// Same-wave split pin (lesson: drift-guard-pin-for-task-split-intermediate-state):
-// plan 2026-08-05 Task 5.1 owns retiring war-campaign/SKILL.md's legacy spec
-// citation; Task 5.4 ships this guard from the same frozen phase base, where that
-// one citation still exists. Splitting exactly these bytes out of that one file
-// before the scan keeps the guard green at the frozen base and leaves it INERT
-// once the retirement lands (the split matches nothing); any other docs/specs
-// citation in that file — including a reworded resurrection — is flagged.
-const WAR_CAMPAIGN_LEGACY = 'Full design: [`../../docs/specs/2026-07-01-war-companion-skills-design.md`](../../docs/specs/2026-07-01-war-companion-skills-design.md) §7.'
-
 // An unbalanced trailing fence leaves the tail UNSTRIPPED — still scanned (fail-closed).
 const stripFences = text => text.replace(/```[\s\S]*?```/g, '')
 
 function specCitations(path, text) {
-  if (path === 'skills/war-campaign/SKILL.md') text = text.split(WAR_CAMPAIGN_LEGACY).join('')
   const out = []
   const stripped = stripFences(text)
   for (const m of stripped.matchAll(/docs\/specs\/(\S*)/gi)) {
@@ -269,8 +259,8 @@ test('spec-posterity carve-outs: input-shape mechanics excluded by pattern; conc
   // (2) an unbalanced trailing fence leaves the tail UNSTRIPPED (fail-closed), still scanned.
   assert.equal(specCitations('FIXTURE', '```\na\n```\nsee docs/specs/2026-01-01-x-design.md here\n```\nb\n```').length, 1, 'prose between two fenced blocks must still be scanned (non-greedy fence strip)')
   assert.equal(specCitations('FIXTURE', 'intro\n```\nunbalanced tail\nper docs/specs/2026-01-01-x-design.md §2').length, 1, 'an unbalanced trailing fence leaves the tail scanned (fail-closed)')
-  // the war-campaign pin is BYTE- and FILE-scoped (see WAR_CAMPAIGN_LEGACY above)
-  assert.deepEqual(specCitations('skills/war-campaign/SKILL.md', `intro. ${WAR_CAMPAIGN_LEGACY} outro.`), [], 'the exact legacy line is tolerated in war-campaign/SKILL.md alone')
-  assert.equal(specCitations('skills/war-campaign/SKILL.md', 'Full design: `docs/specs/2026-07-01-war-companion-skills-design.md` §7.').length, 1, 'a reworded resurrection in the same file is flagged')
-  assert.equal(specCitations('skills/aftermath/SKILL.md', `intro. ${WAR_CAMPAIGN_LEGACY} outro.`).length, 1, 'the same bytes in ANY OTHER file are flagged')
+  // war-campaign/SKILL.md's legacy citation is retired (plan 2026-08-05 Task 5.1) and its
+  // same-wave split pin removed at phase close — the file gets no special treatment, so a
+  // resurrection there (verbatim or reworded) is flagged like any other citation
+  assert.equal(specCitations('skills/war-campaign/SKILL.md', 'Full design: `docs/specs/2026-07-01-war-companion-skills-design.md` §7.').length, 1, 'a resurrection of the retired war-campaign citation is flagged (no split pin remains)')
 })
