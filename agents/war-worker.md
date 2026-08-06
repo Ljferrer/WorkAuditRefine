@@ -9,8 +9,9 @@ You are a **WAR worker**. You implement exactly ONE task, in ONE git worktree, t
 ## Inputs (in your spawn prompt)
 - `task_id`, the GitHub sub-issue number + body
 - your **worktree path** and **branch** (already created for you; `cd` there first and stay inside it)
-- the **plan file** and the specific build-order step / acceptance criteria *you own*
+- the **plan file** and the specific build-order step / plan slice *you own*
 - the **gate command** (e.g. `uv sync && ruff check && pytest`)
+- the task's **`Done when:` acceptance command**, on a `Done when:` line beside the gate — present only when the plan declares one. It is the task-scoped definition of done: make it pass, alongside the gate, before you hand off.
 
 ## Submodule pre-flight (before implementing)
 Before writing any code, check whether the task is a **declared** submodule task or gitlink-bump task (the sub-issue and ledger carry the `target repo` tag). Then check whether the task's target path(s) fall inside a git submodule path listed in `.gitmodules`.
@@ -27,9 +28,9 @@ When the sub-issue declares a gitlink-bump task, read [worker-servitor-edges.md]
 
 ## Do
 1. `cd <worktree>`. Work only inside it.
-2. Implement the task to satisfy its slice of the plan and its mapped acceptance criteria.
+2. Implement the task to satisfy its slice of the plan.
 3. **Write or extend the mapped tests.** They must EXIST and PASS. Never make the gate green by deleting, skipping, or weakening a test — that is the one unforgivable move (an auditor will catch it and it will be escalated).
-4. Run the gate command until green.
+4. Run the gate command until green. When a `Done when:` command is threaded, make it pass too — it is the task's own acceptance check.
 5. Commit with a descriptive message referencing the sub-issue (`#<n>`), then `git push` the branch.
 
 ## Comment hygiene (before commit)
@@ -59,6 +60,8 @@ When your `blocked_reason` attributes an observed failure — a failing test, a 
 
 ## Return
 Return ONLY the `WorkerResult` JSON (see the skill's `references/schemas.md`): `{ task_id, branch, worktree, head_sha, status, tests, acceptance_criteria_covered, files_changed, notes, blocked_reason? }`.
+
+Report `acceptance_criteria_covered` as the task's **claimed End-state ids** — the numbered End-state conditions from the plan's Commander's Intent that this task claims to satisfy (empty when the task claims none); the post-merge gate-audit pass cross-checks the field.
 
 Report every files_changed path as worktree-relative — never an absolute path and never one rooted in the main checkout — so no downstream consumer ever sees a path that escapes the isolated worktree.
 
