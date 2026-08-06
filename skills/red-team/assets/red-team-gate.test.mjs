@@ -598,3 +598,222 @@ test('adj: a coverage gap outranks the adjudicated arm — the SAME finding set 
   assert.equal(verdict(findings, incomplete), 'INCOMPLETE')
   assert.equal(verdict(findings, complete), 'ADJUDICATED')
 })
+
+import { routeUpstream } from './red-team-gate.mjs'
+
+// --- Task 4.1 (loop-breaker): rounds/roundLimit echo + routeUpstream arithmetic ---------------
+// Pure arithmetic over the existing typed buckets. Both arms key on the UNSTAMPED subset
+// (adjudicated !== true, F3), so routeUpstream: true only ever accompanies a BLOCKED verdict.
+
+test('routeUpstream arm 1: rounds >= roundLimit with an unstamped blocker open → true (verdict BLOCKED)', () => {
+  const findings = openFindings(F('Critical'))
+  assert.equal(verdict(findings), 'BLOCKED')
+  assert.equal(routeUpstream(findings, 3, 3), true)
+})
+
+test('routeUpstream arm 2: an unstamped needsDecision at rounds >= 2 routes even BELOW the limit', () => {
+  const findings = openFindings(F('Minor', { needsDecision: true }))
+  assert.equal(routeUpstream(findings, 2, 5), true)
+})
+
+test('routeUpstream arm 2 precision: an unstamped BLOCKER below the limit does NOT route at rounds >= 2', () => {
+  // Arm 2 keys on the needsDecision bucket only — a plain blocker waits for the general limit.
+  assert.equal(routeUpstream(openFindings(F('Critical')), 2, 5), false)
+})
+
+test('routeUpstream false below both thresholds', () => {
+  assert.equal(routeUpstream(openFindings(F('Minor', { needsDecision: true })), 1, 3), false)
+  assert.equal(routeUpstream(openFindings(F('Critical')), 2, 3), false)
+})
+
+test('routeUpstream keys on the UNSTAMPED subset (F3): a stamped-out set never routes at any rounds', () => {
+  const findings = openFindings(ADJ(), ADJ({ severity: 'Minor', needsDecision: true, planRef: 'Task 2' }))
+  assert.equal(verdict(findings), 'ADJUDICATED')
+  assert.equal(routeUpstream(findings, 9, 3), false, 'a stamped-out ADJUDICATED run never routes upstream')
+})
+
+test('routeUpstream: one unstamped needsDecision beside stamped blockers still routes (the subset is per-finding)', () => {
+  const findings = openFindings(ADJ(), { severity: 'Minor', claim: 'open question', planRef: 'Task 3', needsDecision: true })
+  assert.equal(verdict(findings), 'BLOCKED')
+  assert.equal(routeUpstream(findings, 2, 9), true)
+})
+
+test('routeUpstream: absent rounds/roundLimit disable their arms (undefined comparisons are false)', () => {
+  const blocked = openFindings(F('Critical'))
+  assert.equal(routeUpstream(blocked, undefined, undefined), false)
+  assert.equal(routeUpstream(blocked, 9, undefined), false, 'no limit → the limit arm cannot fire')
+  assert.equal(routeUpstream(openFindings(F('Minor', { needsDecision: true })), 2, undefined), true,
+    'the needsDecision arm needs only rounds')
+})
+
+test('routeUpstream: INCOMPLETE outranks — a coverage gap never routes upstream (the invariant holds under every verdict)', () => {
+  // An unstamped Critical rides an ON-TARGET probe; the gap is a second, DROPPED probe. The bare
+  // formula alone would fire here (rounds >= limit, unstamped blocker open) — only the
+  // isIncomplete guard holds routing back, keeping routeUpstream: true ⇒ BLOCKED unconditional.
+  const failProbe = { probe: 'a', technique: 'analyzed', status: 'fail', read_anchor: anchor(), findings: [F('Critical')] }
+  const cov = classifyCoverage([failProbe, droppedMarker('b')], 2, FP, '/repo')
+  const findings = allFindings(cov.onTarget)
+  assert.equal(verdict(findings, cov), 'INCOMPLETE')
+  assert.equal(classify(findings).blockers.length, 1, 'an unstamped blocker IS open — only the coverage gap holds routing back')
+  assert.equal(routeUpstream(findings, 9, 3, cov), false)
+})
+
+test('routeUpstream ⇒ BLOCKED invariant: sweep every verdict arm at rounds far past the limit', () => {
+  const failProbe = { probe: 'a', technique: 'analyzed', status: 'fail', read_anchor: anchor(), findings: [F('Critical')] }
+  const incompleteCov = classifyCoverage([failProbe, droppedMarker('b')], 2, FP, '/repo')
+  const cases = [
+    [[], null],                                                          // CLEARED
+    [openFindings(F('Minor')), null],                                    // CLEARED-WITH-NOTES
+    [openFindings(ADJ()), null],                                         // ADJUDICATED
+    [openFindings(F('Critical')), null],                                 // BLOCKED
+    [openFindings(F('Minor', { needsDecision: true })), null],           // BLOCKED (needsDecision)
+    [allFindings(incompleteCov.onTarget), incompleteCov],                // INCOMPLETE
+  ]
+  let fired = 0
+  for (const [findings, cov] of cases) {
+    if (routeUpstream(findings, 9, 3, cov)) {
+      fired++
+      assert.equal(verdict(findings, cov), 'BLOCKED', 'routeUpstream: true beside a non-BLOCKED verdict')
+    }
+  }
+  // Non-vacuity pin: at rounds 9 of limit 3 exactly the two BLOCKED rows route, so the guarded
+  // assertion above is proven to have executed. A routeUpstream regressed to always-false, or a
+  // table edit that stopped any row from firing, reds HERE instead of passing with a never-run body.
+  assert.equal(fired, 2, 'exactly the two BLOCKED rows route')
+})
+
+// --- CLI: echo, emission, flag parsing, absent-input identity ---
+
+const roundsProbe = (...findings) => ({ probe: 'x', technique: 'analyzed', status: 'fail', findings })
+
+test('CLI: rounds/roundLimit input keys are echoed and routeUpstream emitted (arm 1 fires)', () => {
+  const input = { probeResults: [roundsProbe(F('Critical'))], rounds: 3, roundLimit: 3 }
+  const r = runGate(['--stdin'], JSON.stringify(input))
+  assert.equal(r.status, 0, r.stderr)
+  const out = JSON.parse(r.stdout)
+  assert.equal(out.verdict, 'BLOCKED')
+  assert.equal(out.rounds, 3)
+  assert.equal(out.roundLimit, 3)
+  assert.equal(out.routeUpstream, true)
+})
+
+test('CLI: arm 2 fires below the limit — an unstamped needsDecision at rounds 2 of 5', () => {
+  const input = { probeResults: [roundsProbe(F('Minor', { needsDecision: true }))], rounds: 2, roundLimit: 5 }
+  const out = JSON.parse(runGate(['--stdin'], JSON.stringify(input)).stdout)
+  assert.equal(out.verdict, 'BLOCKED')
+  assert.equal(out.routeUpstream, true)
+})
+
+test('CLI: a stamped-out ADJUDICATED run at rounds >= limit emits routeUpstream: false', () => {
+  const input = { probeResults: [roundsProbe(ADJ())], rounds: 5, roundLimit: 3 }
+  const out = JSON.parse(runGate(['--stdin'], JSON.stringify(input)).stdout)
+  assert.equal(out.verdict, 'ADJUDICATED')
+  assert.equal(out.rounds, 5)
+  assert.equal(out.roundLimit, 3)
+  assert.equal(out.routeUpstream, false)
+})
+
+test('CLI: =-attached flags parse in file mode — the positional scan still finds the results file', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'red-team-gate-rounds-'))
+  const file = path.join(dir, 'results.json')
+  fs.writeFileSync(file, JSON.stringify({ probeResults: [roundsProbe(F('Critical'))] }))
+  const r = runGate(['--rounds=3', '--round-limit=3', file])
+  assert.equal(r.status, 0, r.stderr)
+  const out = JSON.parse(r.stdout)
+  assert.equal(out.verdict, 'BLOCKED')
+  assert.equal(out.rounds, 3)
+  assert.equal(out.roundLimit, 3)
+  assert.equal(out.routeUpstream, true)
+})
+
+test('CLI: a space-separated flag value is refused — the positional scan picks it as the results path', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'red-team-gate-rounds-'))
+  const file = path.join(dir, 'results.json')
+  fs.writeFileSync(file, JSON.stringify({ probeResults: [roundsProbe(F('Critical'))] }))
+  const r = runGate(['--rounds', '3', file])
+  assert.notEqual(r.status, 0)
+  assert.ok(!r.stdout.includes('verdict'), `stdout must carry no verdict, got: ${r.stdout}`)
+})
+
+test('CLI: an =-attached flag overrides the same input key (the re-pipe carries the fresher count)', () => {
+  const input = { probeResults: [roundsProbe(F('Critical'))], rounds: 1, roundLimit: 9 }
+  const out = JSON.parse(runGate(['--stdin', '--rounds=4', '--round-limit=3'], JSON.stringify(input)).stdout)
+  assert.equal(out.rounds, 4)
+  assert.equal(out.roundLimit, 3)
+  assert.equal(out.routeUpstream, true)
+})
+
+test('CLI: coverage is threaded into routeUpstream at the emission site — an INCOMPLETE run emits routeUpstream: false', () => {
+  // Every other CLI fixture is coverage-null, so dropping the coverage argument from main()'s
+  // routeUpstream(...) call would leave them all green while the emitted JSON carried
+  // routeUpstream: true beside verdict: INCOMPLETE — exactly the invariant pinned on the gate's
+  // OUTPUT. This drives the INCOMPLETE-outranks unit fixture through the CLI: the unstamped
+  // Critical rides an on-target probe; the coverage gap is a second, dropped probe.
+  const failProbeWithAnchor = { probe: 'a', technique: 'analyzed', status: 'fail', read_anchor: anchor(), findings: [F('Critical')] }
+  const input = {
+    probeResults: [failProbeWithAnchor, { probe: 'b', dropped: true }],
+    expected: 2, fingerprint: FP, repo: '/repo', rounds: 9, roundLimit: 3,
+  }
+  const r = runGate(['--stdin'], JSON.stringify(input))
+  assert.equal(r.status, 0, r.stderr)
+  const out = JSON.parse(r.stdout)
+  assert.equal(out.verdict, 'INCOMPLETE')
+  assert.equal(out.routeUpstream, false)
+})
+
+test('CLI: rounds/roundLimit input keys ride the .result envelope (the working copy carries the whole gate input)', () => {
+  const envelope = { result: { probeResults: [roundsProbe(F('Critical'))], rounds: 3, roundLimit: 3 } }
+  const out = JSON.parse(runGate(['--stdin'], JSON.stringify(envelope)).stdout)
+  assert.equal(out.rounds, 3)
+  assert.equal(out.routeUpstream, true)
+})
+
+test('CLI: absent-input identity — no rounds inputs ⇒ none of the three keys appear (byte-compat)', () => {
+  const input = { probeResults: [roundsProbe(F('Critical'))] }
+  const r = runGate(['--stdin'], JSON.stringify(input))
+  assert.equal(r.status, 0, r.stderr)
+  const out = JSON.parse(r.stdout)
+  for (const key of ['rounds', 'roundLimit', 'routeUpstream']) {
+    assert.ok(!(key in out), `absent inputs must yield absent outputs — found "${key}" in ${Object.keys(out)}`)
+  }
+  assert.ok(!r.stdout.includes('routeUpstream'))
+})
+
+test('CLI: a non-integer rounds value refuses loudly — never a silent routeUpstream: false', () => {
+  const input = { probeResults: [roundsProbe(F('Critical'))] }
+  for (const args of [['--stdin', '--rounds=abc'], ['--stdin', '--round-limit=1.5']]) {
+    const r = runGate(args, JSON.stringify(input))
+    assert.notEqual(r.status, 0, `${args[1]} must refuse`)
+    assert.match(r.stderr, /not a non-negative integer/)
+    assert.ok(!r.stdout.includes('verdict'), `stdout must carry no verdict, got: ${r.stdout}`)
+  }
+  // Input-KEY rejects across all three conjuncts of the key arm: the typeof check alone
+  // (rounds: 'three') cannot catch a numeric non-integer (roundLimit: 1.5) or a negative
+  // integer (rounds: -1) — deleting the Number.isInteger / < 0 conjuncts reds here.
+  for (const bad of [{ ...input, rounds: 'three' }, { ...input, rounds: -1 }, { ...input, roundLimit: 1.5 }]) {
+    const badKey = runGate(['--stdin'], JSON.stringify(bad))
+    assert.notEqual(badKey.status, 0, `${JSON.stringify(bad.rounds ?? bad.roundLimit)} must refuse`)
+    assert.match(badKey.stderr, /not a non-negative integer/)
+  }
+})
+
+test('CLI: rounds: null is the documented not-supplied pass-through — exit 0, no rounds key emitted', () => {
+  const input = { probeResults: [roundsProbe(F('Critical'))], rounds: null }
+  const r = runGate(['--stdin'], JSON.stringify(input))
+  assert.equal(r.status, 0, r.stderr)
+  const out = JSON.parse(r.stdout)
+  assert.ok(!('rounds' in out), `rounds: null means not-supplied — found "rounds" in ${Object.keys(out)}`)
+})
+
+test('CLI: a --round-limit-only invocation emits roundLimit + routeUpstream while rounds stays absent (the emission disjunct)', () => {
+  // Every other emitting CLI fixture supplies rounds, so the second disjunct of main()'s
+  // emission condition (roundLimit !== undefined) is otherwise unexercised — a roundLimit-only
+  // invocation losing its echo + routeUpstream would go undetected without this pin.
+  const input = { probeResults: [roundsProbe(F('Critical'))] }
+  const r = runGate(['--stdin', '--round-limit=3'], JSON.stringify(input))
+  assert.equal(r.status, 0, r.stderr)
+  const out = JSON.parse(r.stdout)
+  assert.equal(out.roundLimit, 3)
+  assert.equal(out.routeUpstream, false, 'absent rounds disables both arms — routeUpstream is emitted and false')
+  assert.ok(!('rounds' in out), `rounds was never supplied — found "rounds" in ${Object.keys(out)}`)
+})

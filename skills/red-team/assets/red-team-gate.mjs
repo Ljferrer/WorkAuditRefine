@@ -167,6 +167,30 @@ export function verdict(findings, coverage = null) {
   return minors.length ? 'CLEARED-WITH-NOTES' : 'CLEARED'
 }
 
+// --- Loop-breaker (Task 4.1): route-upstream arithmetic -----------------------
+// Pure arithmetic over the existing typed buckets — no NLP, no text classification;
+// verdict computation and ADR 0043 precedence are untouched (`routeUpstream` is a typed
+// gate OUTPUT FIELD, never a sixth verdict). Both arms key on the UNSTAMPED subset
+// (`adjudicated !== true`, F3): the round limit was reached with an unstamped root still
+// open, or an unstamped `needsDecision` persists at rounds >= 2 (chronic
+// under-specification routes to the interview earlier than the general limit). `open` is
+// the gate's existing blockers+needsDecision union. Because each arm requires an
+// unstamped member of that union (needsDecision is a subset of it) and a coverage gap
+// short-circuits to false first, `routeUpstream: true` implies the verdict is exactly
+// BLOCKED — a stamped-out ADJUDICATED run never routes upstream, and an INCOMPLETE run
+// re-runs its probes instead of routing (the coverage gap, not the plan, is what is
+// broken; without the isIncomplete guard the bare formula could ride a non-BLOCKED
+// verdict, breaking the routeUpstream ⇒ BLOCKED invariant).
+// `rounds` / `roundLimit` arrive as integers or undefined — an undefined comparison is
+// false, so an absent roundLimit disables the limit arm and an absent rounds disables both.
+export function routeUpstream(findings, rounds, roundLimit, coverage = null) {
+  if (isIncomplete(coverage)) return false
+  const { blockers, needsDecision } = classify(findings)
+  const open = [...blockers, ...needsDecision]
+  return (rounds >= roundLimit && open.some(f => f.adjudicated !== true))
+    || (rounds >= 2 && needsDecision.some(f => f.adjudicated !== true))
+}
+
 // When `coverage` is supplied, the summary also reports the coverage accounting
 // (expected vs on-target, plus the off-target / dropped probe names).
 export function summarize(results, coverage = null) {
@@ -201,10 +225,35 @@ export function summarize(results, coverage = null) {
 // task-output file, which is evidence) and re-pipes the copy through --stdin; because a top-level
 // probeResults wins over a .result envelope, the stamped copy is never shadowed by the original.
 // The working copy must carry the whole gate input — probeResults (including any dropped markers),
-// fingerprint, expected, and repo. A copy that drops fingerprint/expected turns the coverage layer
-// off entirely, so an INCOMPLETE run would re-pipe as ADJUDICATED.
+// fingerprint, expected, repo, and any rounds/roundLimit input keys. A copy that drops
+// fingerprint/expected turns the coverage layer off entirely, so an INCOMPLETE run would re-pipe
+// as ADJUDICATED.
 // Findings are removed from the input only when a re-run probe proved them resolved — the verdict
 // on stdout is always gate-computed, never hand-written.
+// Loop-breaker inputs (Task 4.1): optional `rounds` / `roundLimit` arrive as top-level input keys
+// or as `=`-attached flags --rounds=<n> / --round-limit=<n> (a flag overrides the key — the Lead's
+// re-pipe carries the fresher count; the file-mode positional scan picks the first non-`--` token
+// as the results path, so space-separated flag values are refused by construction). A supplied
+// value must be a non-negative integer — anything else is a loud refusal, never a silent
+// routeUpstream: false (a typo'd flag must not let a chronic plan keep grinding). Each supplied
+// input is echoed in the output beside `routeUpstream` (see routeUpstream() for the arithmetic);
+// absent inputs ⇒ absent outputs, so a rounds-less invocation's stdout is byte-identical to the
+// pre-rounds shape.
+// Parse one loop-breaker input: the `=`-attached flag (string) wins over the input key
+// (number); undefined/null mean "not supplied". Returns an integer or undefined; any other
+// supplied value refuses loudly via `die` (exit 1, no verdict on stdout).
+function resolveRoundInput(flagRaw, key, label, die) {
+  if (flagRaw !== undefined) {
+    if (!/^\d+$/.test(flagRaw)) die(`--${label}=${flagRaw}: not a non-negative integer\n`)
+    return Number(flagRaw)
+  }
+  if (key === undefined || key === null) return undefined
+  if (typeof key !== 'number' || !Number.isInteger(key) || key < 0) {
+    die(`${label} input key ${JSON.stringify(key)}: not a non-negative integer\n`)
+  }
+  return key
+}
+
 async function main(argv) {
   const args = argv.slice(2)
   let raw
@@ -218,7 +267,7 @@ async function main(argv) {
     })
   } else {
     const path = args.find(a => !a.startsWith('--'))
-    if (!path) { process.stderr.write('usage: red-team-gate.mjs (<results.json> | --stdin)\n'); process.exit(1) }
+    if (!path) { process.stderr.write('usage: red-team-gate.mjs (<results.json> | --stdin) [--rounds=<n>] [--round-limit=<n>]\n'); process.exit(1) }
     const { readFileSync } = await import('node:fs')
     raw = readFileSync(path, 'utf8')
   }
@@ -250,9 +299,24 @@ async function main(argv) {
     : null
   const trusted = coverage ? coverage.onTarget : results
   const findings = allFindings(trusted)
-  process.stdout.write(JSON.stringify(
-    { verdict: verdict(findings, coverage), ...classify(findings), summary: summarize(trusted, coverage) },
-    null, 2) + '\n')
+  // Loop-breaker inputs (see the CLI doc block above): flag > input key; a supplied
+  // non-integer refuses loudly; wholly absent ⇒ the pre-rounds output shape, byte-identical.
+  const die = msg => { process.stderr.write(`red-team-gate: ${msg}`); process.exit(1) }
+  const flagValue = name => {
+    const arg = args.find(a => a.startsWith(`--${name}=`))
+    return arg === undefined ? undefined : arg.slice(name.length + 3)
+  }
+  const rounds = resolveRoundInput(flagValue('rounds'),
+    Array.isArray(parsed) ? undefined : parsed.rounds, 'rounds', die)
+  const roundLimit = resolveRoundInput(flagValue('round-limit'),
+    Array.isArray(parsed) ? undefined : parsed.roundLimit, 'round-limit', die)
+  const out = { verdict: verdict(findings, coverage), ...classify(findings), summary: summarize(trusted, coverage) }
+  if (rounds !== undefined || roundLimit !== undefined) {
+    if (rounds !== undefined) out.rounds = rounds
+    if (roundLimit !== undefined) out.roundLimit = roundLimit
+    out.routeUpstream = routeUpstream(findings, rounds, roundLimit, coverage)
+  }
+  process.stdout.write(JSON.stringify(out, null, 2) + '\n')
 }
 
 import { fileURLToPath } from 'node:url'

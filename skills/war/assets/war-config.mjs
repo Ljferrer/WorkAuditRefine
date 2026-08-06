@@ -44,7 +44,11 @@ export const DEFAULTS = {
     rosterPolicy: 'auto',
     autoEscalate: true,
   },
-  run: { roundLimit: 3, afk: false, ace: true, provision: [], provisionSource: 'none', provisionAuto: true },
+  // run.redteamRoundLimit: /red-team's cumulative grill-round budget (D3) — the red-team gate routes
+  // chronic under-specification upstream when the limit is reached with an unstamped root open. Consumed
+  // by /red-team's fail-open config read, never the phase engine (run.roundLimit is the fix-round budget).
+  // Lives HERE, never inside agents.redteam — that key is a validated { model, effort } tier.
+  run: { roundLimit: 3, redteamRoundLimit: 3, afk: false, ace: true, provision: [], provisionSource: 'none', provisionAuto: true },
   // Compounding-memory retrieval + publication (spec 2026-07-03). retrieval: Lead prefetches
   // per-seat lesson blocks; topK: max lessons per block; commitLearnings: write the repo-root
   // docs/learnings/ lessons (default OFF — a conscious opt-in via /war-room; when on, published
@@ -95,7 +99,7 @@ export const PRESETS = {
       redteam:  { model: 'sonnet', effort: 'max' },
     },
     audit: { rosterPolicy: 'solo' },
-    run: { roundLimit: 2, ace: false },
+    run: { roundLimit: 2, redteamRoundLimit: 2, ace: false },
     // (memory.commitLearnings is no longer pinned — DEFAULTS is now false, so economy inherits off.)
   },
 }
@@ -207,6 +211,7 @@ export function validate(input) {
   if (typeof au.autoEscalate !== 'boolean') errors.push('audit.autoEscalate must be a boolean')
 
   if (!Number.isInteger(c.run.roundLimit) || c.run.roundLimit < 1) errors.push(`run.roundLimit must be an integer >= 1 (got ${JSON.stringify(c.run.roundLimit)})`)
+  if (!Number.isInteger(c.run.redteamRoundLimit) || c.run.redteamRoundLimit < 1) errors.push(`run.redteamRoundLimit must be an integer >= 1 (got ${JSON.stringify(c.run.redteamRoundLimit)})`)
   if (typeof c.run.afk !== 'boolean') errors.push('run.afk must be a boolean')
   if (typeof c.run.ace !== 'boolean') errors.push('run.ace must be a boolean')
   // run.provision is validated by the shared primitive (array of non-empty strings; [] is valid).
