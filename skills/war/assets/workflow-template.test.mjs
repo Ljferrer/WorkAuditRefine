@@ -1,8 +1,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { tmpdir } from 'node:os'
+import { spawnSync } from 'node:child_process'
 import { HARD_ESCALATION_REASONS, KNOWN_LAND_DECISIONS } from './land-decision.mjs'
 import { spawnOpts, validateRoster, widenRoster, resolveWidenSource, resolveGate, ROLES, DEFAULTS } from './war-config.mjs'
 
@@ -4255,7 +4257,9 @@ test('end-state SOFT case (criterion 11): an unverifiable condition (Minor note)
   const a = out.handoff.endState.find(e => e.condition === ES_CONDS[0])
   assert.equal(a && a.status, 'deferred', 'the unverifiable condition is deferred')
   const b = out.handoff.endState.find(e => e.condition === ES_CONDS[1])
-  assert.equal(b && b.status, 'met', 'a claimed condition the seats raised nothing against is met')
+  // D8 (Task 3.2): silence is no longer 'met' — a condition with neither a finding nor an attestation
+  // row from any seat lands 'unverified' (met now requires a positive attestation with evidence).
+  assert.equal(b && b.status, 'unverified', 'a claimed condition no seat attests is unverified, never a silent met')
 })
 
 test('end-state out-of-scope case (criterion 11): a later-phase condition is marked out-of-scope, never a hold', async () => {
@@ -4319,12 +4323,13 @@ test('end-state plan_ref binding (F1 #452): whitespace/case-drifted plan_ref sti
   const a = out.handoff.endState.find(e => e.condition === ES_CONDS[0])
   assert.equal(a && a.status, 'unmet', 'a whitespace/case-drifted plan_ref binds its condition — never a silent met')
   // Anti-vacuous guard: a genuinely different plan_ref must NOT bind — the normalizer catches
-  // near-misses only, not everything.
+  // near-misses only, not everything. Post-D8 the unbound condition lands 'unverified' (no attestation
+  // row in this fixture), proving non-binding without the retired silent-'met' terminal.
   const impl2 = esImpl([{ severity: 'Critical', title: 'unrelated finding', plan_ref: 'condition Z: something else entirely', rationale: 'nope' }])
   const { out: out2 } = await runPhase(ES_ARGS(), impl2)
   assert.ok(out2.handoff, 'handoff emitted (presence guard)')
   const a2 = out2.handoff.endState.find(e => e.condition === ES_CONDS[0])
-  assert.equal(a2 && a2.status, 'met', 'a genuinely non-matching plan_ref does not bind — the condition stays met')
+  assert.equal(a2 && a2.status, 'unverified', 'a genuinely non-matching plan_ref does not bind — the condition derives from its own (absent) evidence, not the stray finding')
 })
 
 test('end-state-only seat (criterion 11 / D7): empty mergedTasksForGateAudit ∧ ≥1 claimed condition → ONE seat, logged', async () => {
@@ -4346,6 +4351,306 @@ test('end-state-only seat: NOT spawned when the phase claims no conditions (D7 s
   ] })
   const { calls } = await runPhase(args, gateAuditImpl)
   assert.ok(!calls.some(c => (c.opts.label || '').includes(':end-state')), 'no End-state-only seat without claims')
+})
+
+// ===========================================================================
+// LAND-BARRIER ENDSTATE-CHECK & ARTIFACT-FIRST GATE-AUDIT (precision-chain Task 3.2 — D2/F5, D7, D8, A1)
+// ---------------------------------------------------------------------------
+// The widened phase.endState rows ({ condition, tag, check } — schemas.md; bare strings normalize to
+// the judgment path, End state 9). check:-tagged rows are EXECUTED once per phase by the refiner's
+// endstate-check dispatch at the integrated tip — after the serial merge queue's last merge, before any
+// gate-audit seat spawns, UNCONDITIONALLY (the mergedTasksForGateAudit-empty arm included) — teeing one
+// tip-SHA-stamped artifact per condition to _refinery/.war/endstate-<phaseId>-<n>.log. The gate-audit
+// pass goes artifact-first: seats grep MergeResult.mappedTests against the captured gate log, read the
+// per-condition artifacts, cross-check the worker-claimed End-state ids (A1), and return one
+// endStateAttestations row per claimed condition; the handoff maps a condition with no attestation row
+// from any seat to 'unverified', never 'met'.
+const ES_CHECK_CMD = 'node --test skills/war/assets/wibble.acceptance.test.mjs'
+const ES_ROWS = [
+  { condition: 'condition A: the wibble suite is green', tag: 'check:', check: ES_CHECK_CMD },
+  { condition: 'condition B: the gate covers the wobble', tag: 'gate:', check: null },
+  'condition C: judged observable holds',   // legacy bare string mixed in — normalizes to the judgment path
+]
+const ES_ROW_ARGS = (over = {}) => PROVISION_ARGS({
+  phase: { id: 3, title: 'P3', integrationBranch: 'integration/wtprov-a/phase-3', workingBranch: 'dev/wtprov-a', endState: ES_ROWS },
+  tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] }],
+  ...over,
+})
+const isEndstateCheck = (c) => c.opts.dispatchKind === 'endstate-check'
+const REFINERY = '/abs/repo/.claude/worktrees/run-2026/_refinery'
+
+test('endstate-check dispatch (End state 6, D2/F5): ONE refiner dispatch at the integrated tip — after the last merge, before any gate-audit seat — executes every claimed check: command, file-threaded, teeing tip-SHA-stamped per-condition artifacts', async () => {
+  const { calls, logs } = await runPhase(ES_ROW_ARGS(), gateAuditImpl)
+  const es = calls.filter(isEndstateCheck)
+  assert.equal(es.length, 1, 'exactly ONE endstate-check dispatch per phase')
+  const c = es[0]
+  assert.equal(seatOf(c.opts), 'war-refiner', 'the dispatch is a refiner (ADR 0002 — auditors are read-only and never run commands)')
+  assert.equal(c.opts.label, 'endstate-check:phase-3', 'the dispatch label is endstate-check:phase-<id>')
+  const p = c.prompt
+  assert.ok(p.includes(`${REFINERY}/.war/endstate-3-1.log`), 'the artifact path carries the endstate-<phaseId>-<n>.log naming under _refinery/.war/')
+  assert.ok(p.includes(`${REFINERY}/.war/endstate-3-1.cmd`), 'the command is file-threaded to a .cmd sibling')
+  assert.ok(p.includes(ES_CHECK_CMD), 'the claimed check: command rides the dispatch verbatim')
+  assert.match(p, /FROM THE FILE/i, 'file-threaded — executed from the file, never interpolated into another script (A3/D11)')
+  assert.match(p, /timeout/i, 'the dispatch names the timeout arm')
+  assert.match(p, /tip_sha/, 'each artifact is stamped with the tip SHA it ran at')
+  assert.match(p, /rev-parse HEAD/, 'the stamp is the integrated tip (rev-parse HEAD)')
+  assert.match(p, /NEVER fails this dispatch/i, 'a red/hung check fails only its own artifact, never the dispatch')
+  assert.ok(!p.includes('endstate-3-2'), 'only check:-tagged rows execute — gate:/judged conditions get no artifact row')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('endstate-check:')), 'the dispatch is log()ged (never silent)')
+  // Ordering: after the serial merge queue, before the gate-audit seats.
+  const esIdx = idx(calls, isEndstateCheck)
+  const mergeIdx = idx(calls, x => seatOf(x.opts) === 'war-refiner' && x.opts.phase === 'Refine' && (x.opts.label || '').startsWith('merge:'))
+  const gaIdx = idx(calls, x => (x.opts.label || '').startsWith('gate-audit:'))
+  assert.ok(mergeIdx !== -1 && gaIdx !== -1, 'merge-task + gate-audit dispatches present (presence guard)')
+  assert.ok(esIdx > mergeIdx, "the dispatch runs AFTER the serial merge queue's merge")
+  assert.ok(esIdx < gaIdx, 'the dispatch runs BEFORE the gate-audit seats spawn')
+})
+
+// Reordered fixture (absorb polish): the sole check:-tagged row is NOT first. The writer
+// (endStateCheckRows: map-then-filter) and the reader (endStateBlock's row builder) derive the
+// artifact number <n> from two INDEPENDENT expressions over the same full endStateRows list — here
+// both must yield n=2. A renumbering refactor of either side (e.g. filter-then-map, which yields
+// n=1 for the sole check row) reds the assertion pair below.
+const ES_ROWS_CHECK_SECOND = [ES_ROWS[1], ES_ROWS[0], ES_ROWS[2]]   // [gate, check, bare]
+
+test('artifact-index binding: a check row NOT first derives the SAME full-list n=2 in the dispatch (writer) AND on seat enumeration row 2 (reader) — reds on any renumbering divergence between the two builders', async () => {
+  const { calls } = await runPhase(ES_ROW_ARGS({
+    phase: { id: 3, title: 'P3', integrationBranch: 'integration/wtprov-a/phase-3', workingBranch: 'dev/wtprov-a', endState: ES_ROWS_CHECK_SECOND },
+  }), gateAuditImpl)
+  const es = calls.find(isEndstateCheck)
+  assert.ok(es, 'endstate-check dispatch present (presence guard)')
+  const p = es.prompt
+  assert.ok(p.includes(`${REFINERY}/.war/endstate-3-2.cmd`), 'writer: the dispatch derives n from the full-list 1-based index — the second-position check row tees endstate-3-2.cmd')
+  assert.ok(p.includes(`${REFINERY}/.war/endstate-3-2.log`), 'writer: …and its endstate-3-2.log artifact')
+  assert.ok(!p.includes('endstate-3-1'), 'writer: filter-then-map would renumber the sole check row to n=1 — the seat would then read a path the dispatch never tees')
+  const seat = gateAuditCalls(calls)[0]
+  assert.ok(seat, 'per-task gate-audit seat present (presence guard)')
+  assert.ok(seat.prompt.includes(`  2. ${ES_ROWS[0].condition} [check:] — executed artifact: ${REFINERY}/.war/endstate-3-2.log`),
+    'reader: the SAME artifact path rides seat enumeration row 2 — the two independent derivations stay bound')
+})
+
+test('endstate-check dispatch is UNCONDITIONAL (D2): the mergedTasksForGateAudit-empty arm still executes its claimed checks, and the End-state-only seat consumes the artifacts', async () => {
+  const args = ES_ROW_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 'Docs task', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], requiresTest: false },
+  ] })
+  const { calls } = await runPhase(args, gateAuditImpl)
+  const esIdx = idx(calls, isEndstateCheck)
+  assert.notEqual(esIdx, -1, 'a requiresTest:false-only phase STILL executes its claimed checks (the empty arm is not a skip)')
+  const seat = calls.find(x => (x.opts.label || '') === 'gate-audit:phase-3:end-state')
+  assert.ok(seat, 'the End-state-only seat spawns (presence guard)')
+  assert.ok(esIdx < calls.indexOf(seat), 'the dispatch precedes the End-state-only seat')
+  assert.ok(seat.prompt.includes(`${REFINERY}/.war/endstate-3-1.log`), 'the End-state-only seat consumes the per-condition artifact (the shared endStateBlock carries the path)')
+})
+
+test('endstate-check dispatch: NOT dispatched for bare-string (judgment-path) claims or a claims-less phase (End state 9 byte-compat)', async () => {
+  const { calls } = await runPhase(ES_ARGS(), gateAuditImpl)   // ES_CONDS are bare strings
+  assert.ok(!calls.some(isEndstateCheck), 'bare-string claims normalize to the judgment path — nothing to execute, no dispatch')
+  const { calls: c2 } = await runPhase(PROVISION_ARGS(), gateAuditImpl)
+  assert.ok(!c2.some(isEndstateCheck), 'a claims-less phase dispatches nothing')
+})
+
+// Recovery Blocker 1 (Pivotal constraint: prompt-surface split — standing card + dispatched prompt,
+// same task): the refiner card must LEARN the endstate-check dispatch flavor it is handed, the way
+// the structurally identical evidence dispatch got its own card section. The dispatch is fail-open,
+// so a refiner declining an unfamiliar dispatch (which has happened before — hence the provision
+// section's never-out-of-mode line) means silent under-verification, never a loud failure. The
+// mirrored duty prose is censused by the 'endstate-check dispatch card twin' both-surfaces registry
+// row; this test pins the card-only structure: the section, the enumeration enrollments, the
+// never-decline line, and the ENDSTATE_CHECK_RESULT return shape (on no standing surface before).
+test('war-refiner.md documents the endstate-check dispatch (recovery Blocker 1): its own card section, Inputs + Return enrollment, the never-decline line, and the ENDSTATE_CHECK_RESULT shape', () => {
+  assert.match(refinerMd, /## Land-barrier endstate-check dispatch/, 'the card carries its own endstate-check section (the evidence-dispatch pattern)')
+  assert.match(refinerMd, /dispatchKind: endstate-check/, 'the section names the stable dispatchKind discriminator')
+  assert.match(refinerMd, /## Land-barrier endstate-check dispatch[\s\S]{0,700}never out-of-mode: do not decline/i, "the section carries the never-decline defensive line (a fail-open dispatch declined is silent under-verification)")
+  assert.match(refinerMd, /- `mode`[^\n]*endstate-check/, 'the ## Inputs mode enumeration names the endstate-check flavor (no longer affirmatively incomplete)')
+  assert.match(refinerMd, /## Return[\s\S]*ENDSTATE_CHECK_RESULT/, 'the ## Return enumeration names ENDSTATE_CHECK_RESULT (it now appears on a standing surface)')
+  assert.match(refinerMd, /\{ artifacts: \[\{ n, path, tip_sha, exit_code \}\] \}/, 'the card carries the exact ENDSTATE_CHECK_RESULT return shape')
+})
+
+test('endStateAttestations requirement lands in the shared endStateBlock (End state 7, D8): the per-task seat and the End-state-only seat carry the attestation contract; the shared const rides exactly the three gate-audit-family sites', async () => {
+  const { calls } = await runPhase(ES_ROW_ARGS(), gateAuditImpl)
+  const perTask = gateAuditCalls(calls)[0]
+  assert.ok(perTask, 'per-task gate-audit seat dispatched (presence guard)')
+  const esOnly = (await runPhase(ES_ROW_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 'Docs task', planSlice: 's', roster: [{ lens: 'correctness' }], requiresTest: false },
+  ] }), gateAuditImpl)).calls.find(x => (x.opts.label || '') === 'gate-audit:phase-3:end-state')
+  assert.ok(esOnly, 'End-state-only seat dispatched (presence guard)')
+  for (const [name, p] of [['per-task seat', perTask.prompt], ['end-state-only seat', esOnly.prompt]]) {
+    assert.match(p, /endStateAttestations/, `${name}: names the positive channel`)
+    assert.match(p, /one row per claimed condition/i, `${name}: one attestation row per claimed condition`)
+    assert.match(p, /never a bare verdict/i, `${name}: status + evidence, never a bare verdict`)
+    assert.match(p, /met \| unmet \| unverified/, `${name}: the attestation status set`)
+    assert.match(p, /as ACTUALLY CAPTURED/i, `${name}: gate:-tagged conditions attest from the gate evidence as actually captured`)
+    assert.ok(p.includes('.war/gate-phase-3.log'), `${name}: names the integrated-tip gate log among the captured gate evidence`)
+    assert.ok(p.includes('[check:]'), `${name}: the check row is tag-annotated in the enumeration`)
+    assert.ok(p.includes(`${REFINERY}/.war/endstate-3-1.log`), `${name}: the check row carries its executed artifact path`)
+    assert.match(p, /lands 'unverified' in the handoff, never 'met'/, `${name}: states the no-attestation ⇒ unverified mapping`)
+  }
+  const sites = (src.match(/\+ endStateBlock \+ intentClause \+ adjudicationClause/g) || []).length
+  assert.equal(sites, 3, 'the shared endStateBlock const rides exactly the three gate-audit-family seats (per-task, integrated-tip, end-state-only) — the attestation requirement reaches all three from ONE const')
+})
+
+test('mappedTests grep (End state 7, D7): a merge returning mappedTests threads the paths + the mechanical grep-the-captured-log instruction into the per-task seat; absent ⇒ no block (fail-open)', async () => {
+  const MAPPED = ['skills/war/assets/wibble.test.mjs', 'skills/war/assets/wobble.test.sh']
+  const withMapped = (prompt, opts) => {
+    if (seatOf(opts) === 'war-refiner' && opts.phase === 'Refine' && (opts.label || '').startsWith('merge:'))
+      return { mode: 'merge-task', status: 'merged', gate_output: 'ok 5 tests passed', integration_sha: 'c0ffee1234', gate_log_path: '/abs/gate.log', mappedTests: MAPPED }
+    return gateAuditImpl(prompt, opts)
+  }
+  const { calls } = await runPhase(PROVISION_ARGS(), withMapped)
+  const ga = gateAuditCalls(calls)
+  assert.ok(ga.length > 0, 'gate-audit seats dispatched (presence guard)')
+  const p = ga[0].prompt
+  assert.match(p, /MAPPED TESTS \(D7/, 'the mapped-tests block is threaded')
+  for (const m of MAPPED) assert.ok(p.includes(m), `the mapped path ${m} rides the seat prompt`)
+  assert.match(p, /Grep EACH mapped path against the CAPTURED gate log/i, 'the grep instruction makes the HARD trigger mechanical against the captured artifact')
+  assert.match(p, /provably-unrun/i, 'the mechanical trigger names the HARD provably-unrun finding')
+  // Round-3 fix-forward adjudication: the HARD trigger is ENUMERATION-CONDITIONAL — computable only
+  // where the captured log names test file paths. An unconditional absent-from-log ⇒ HARD rule
+  // false-holds every .mjs-mapped task (this repo's dominant case): the node half of the gate emits
+  // titles + an aggregate summary only (premise pinned live by the reporter-format test below).
+  assert.match(p, /ONLY when the captured log ENUMERATES test file paths/i, 'the HARD trigger is enumeration-conditional — a zero-hit grep is HARD only where the log names file paths')
+  assert.match(p, /never per-file paths/i, 'the node-reporter titles-only fact is stated to the seat')
+  assert.match(p, /SOFT cannot-confirm, never a hold/i, 'a zero-hit grep against a non-enumerating half degrades SOFT — the fail-safe direction, never a false land-hold')
+  // Fail-open: no mappedTests token on the MergeResult ⇒ no block (the SOFT cannot-confirm posture kept).
+  const { calls: c2 } = await runPhase(PROVISION_ARGS(), gateAuditImpl)
+  assert.ok(!gateAuditCalls(c2)[0].prompt.includes('MAPPED TESTS'), 'no mappedTests ⇒ no block — byte-identical posture')
+})
+
+// Reporter-format premise pin (round-3 fix-forward adjudication): the enumeration-conditional above
+// rests on a factual premise about this repo's own gate output — a piped `node --test` run reports
+// test TITLES plus an aggregate summary and never enumerates test file paths (Lead-verified against a
+// captured gate log: 0 path hits while the file's own tests were green in the same log). Pin the
+// premise LIVE against the actual runner on the current Node, not by fixture prose: generate a real
+// node-format log and grep it exactly the way a seat would. If this test ever reds because the piped
+// reporter began enumerating paths, the premise changed — revisit the enumeration-conditional in
+// mappedTestsLine/authMappedLine and war-auditor.md's checklist bullet (the HARD trigger could widen).
+test('reporter-format premise (D7, round-3): a piped node --test run emits titles + aggregate summary WITHOUT the test file path — a zero-hit grep for a .mjs mapped path proves nothing about whether its suite ran', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'war-node-reporter-premise-'))
+  const mjsMappedPath = join(dir, 'wibble.premise.test.mjs')
+  try {
+    writeFileSync(mjsMappedPath, "import { test } from 'node:test'\nimport assert from 'node:assert'\ntest('premise-pin sentinel title', () => { assert.equal(1, 1) })\n")
+    // Strip the parent runner's NODE_TEST_CONTEXT: the gate invokes node --test TOP-LEVEL (piped), and
+    // an inherited child-v8 context would silence the child's human-format stdout entirely — the probe
+    // must reproduce the gate's own invocation shape, not this suite's runner-child shape.
+    const env = { ...process.env }
+    delete env.NODE_TEST_CONTEXT
+    const run = spawnSync(process.execPath, ['--test', mjsMappedPath], { encoding: 'utf8', env })
+    const log = (run.stdout || '') + (run.stderr || '')
+    assert.equal(run.status, 0, 'the premise fixture suite is green (presence guard — the run below provably executed)')
+    assert.ok(log.includes('premise-pin sentinel title'), 'the piped reporter emits test TITLES — the suite provably ran and is visible in the log')
+    assert.match(log, /tests 1\b/, '…plus the aggregate summary')
+    assert.ok(!log.includes('wibble.premise.test.mjs'),
+      'PREMISE: the piped node reporter does NOT enumerate test file paths — the .mjs mapped-path grep yields zero hits even though the suite provably ran, so absence-from-log is a non-enumerating-half SOFT cannot-confirm, never the HARD trigger')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('authMappedLine twin (D7, round-3): the integrated-tip AUTHORITATIVE seat threads the dep-crossing mapped-path union with the SAME enumeration-conditional HARD trigger as the per-task seat', async () => {
+  // evidenceImpl's PROVISION_ARGS default is intra-dep (t2 deps t1, same repo) and returns
+  // integratedTipGate — wrap its merges to carry mappedTests so authMappedLine renders live.
+  const withMapped = (prompt, opts) => {
+    const r = evidenceImpl(prompt, opts)
+    if (r && r.mode === 'merge-task' && r.status === 'merged') r.mappedTests = ['skills/war/assets/wibble.test.mjs']
+    return r
+  }
+  const { calls } = await runPhase(PROVISION_ARGS(), withMapped)
+  const auth = calls.find(c => isAuditor(c) && /:integrated-tip$/.test(c.opts.label || ''))
+  assert.ok(auth, 'authoritative integrated-tip seat dispatched (presence guard)')
+  const p = auth.prompt
+  assert.match(p, /MAPPED TESTS \(D7/, 'the mapped-tests union block is threaded')
+  assert.ok(p.includes('skills/war/assets/wibble.test.mjs'), "the dep-crossing tasks' mapped path rides the seat prompt")
+  assert.match(p, /CAPTURED integrated-tip gate log/i, 'the grep target is the integrated-tip captured artifact')
+  assert.match(p, /ONLY when the captured log ENUMERATES test file paths/i, 'the twin carries the enumeration-conditional — a per-task-only fix would false-hold through this seat instead')
+  assert.match(p, /SOFT cannot-confirm, never a hold/i, 'the twin degrades SOFT on a non-enumerating half')
+})
+
+test('A1 cross-check (Task 3.2): the worker-claimed End-state ids (acceptance_criteria_covered) reach the per-task gate-audit seat; empty/absent ⇒ no block', async () => {
+  const withIds = (prompt, opts) => seatOf(opts) === 'war-worker'
+    ? { task_id: 't1', status: 'implemented', head_sha: 'deadbeef', tests: {}, acceptance_criteria_covered: ['6', '7'] }
+    : gateAuditImpl(prompt, opts)
+  const { calls } = await runPhase(ES_ROW_ARGS(), withIds)
+  const p = gateAuditCalls(calls)[0].prompt
+  assert.match(p, /WORKER-CLAIMED END-STATE IDS \(A1\)/, 'the claimed-ids block is threaded')
+  assert.ok(p.includes('acceptance_criteria_covered = [6, 7]'), 'the claimed ids ride the prompt verbatim')
+  assert.match(p, /cross-check/i, 'the seat cross-checks the claims against its attestation rows')
+  const { calls: c2 } = await runPhase(ES_ROW_ARGS(), gateAuditImpl)
+  assert.ok(!gateAuditCalls(c2)[0].prompt.includes('WORKER-CLAIMED'), 'no claimed ids ⇒ no block (fail-open)')
+})
+
+test("handoff unverified mapping (End state 7, D8): attested met/unmet drive the handoff; a condition NO seat attests lands 'unverified', never 'met'; a pin-mismatched seat's rows are excluded", async () => {
+  const att = (rows, audit_sha) => (prompt, opts) => {
+    if (seatOf(opts) === 'war-refiner' && opts.phase === 'Refine' && (opts.label || '').startsWith('merge:'))
+      return { mode: 'merge-task', status: 'merged', gate_output: 'ok', integration_sha: 'c0ffee1234' }
+    if ((opts.label || '').startsWith('gate-audit:'))
+      return { seat: opts.label, lens: 'execution-evidence', verdict: 'approve', confidence: 'high', findings: [],
+        endStateAttestations: rows, ...(audit_sha ? { audit_sha } : {}) }
+    return gateAuditImpl(prompt, opts)
+  }
+  const rows = [
+    { condition: ES_ROWS[0].condition, status: 'met', evidence: 'artifact endstate-3-1.log: tip-stamped, suite green' },
+    { condition: ES_ROWS[1].condition, status: 'unmet', evidence: 'captured gate log lacks the wobble suite' },
+    // condition C: NO attestation row from any seat.
+  ]
+  const { out } = await runPhase(ES_ROW_ARGS(), att(rows))
+  assert.equal(out.landDecision, 'landed', 'attestations report — only findings hold the land (two-contract rule)')
+  const st = Object.fromEntries(out.handoff.endState.map(e => [e.condition, e.status]))
+  assert.equal(st[ES_ROWS[0].condition], 'met', 'an attested-met condition (evidence cited) lands met')
+  assert.equal(st[ES_ROWS[1].condition], 'unmet', 'an attested-unmet condition lands unmet')
+  assert.equal(st['condition C: judged observable holds'], 'unverified', "no attestation row from any seat ⇒ 'unverified' — never a silent 'met'")
+  // Pin-mismatch exclusion: the seat judged a DIFFERENT tree — its met row must not land met.
+  const { out: out2 } = await runPhase(ES_ROW_ARGS(), att([
+    { condition: ES_ROWS[0].condition, status: 'met', evidence: 'judged the wrong tree' },
+  ], 'beefbeef1234'))
+  const a2 = out2.handoff.endState.find(e => e.condition === ES_ROWS[0].condition)
+  assert.equal(a2 && a2.status, 'unverified', "a pin-mismatched seat's met attestation is excluded — the condition falls to 'unverified'")
+})
+
+test("handoff endState assembly (Task 3.2): the derivation + assembly comment carry the five-status set, and the ternary chain's terminal arm is 'unverified', never 'met'", () => {
+  const s = src.indexOf('// endState (D8, Task 3.2')
+  const e = src.indexOf('backstops:', s)
+  assert.ok(s !== -1 && e > s, 'the endState assembly block is locatable')
+  const block = src.slice(s, e)
+  assert.match(block, /met \| unmet \| unverified \| deferred \| out-of-scope/, 'the assembly comment names the FIVE-status set')
+  for (const lit of ["'met'", "'unmet'", "'unverified'", "'deferred'", "'out-of-scope'"])
+    assert.ok(block.includes(lit), `the derivation carries ${lit}`)
+  assert.match(block, /: att\.some\(a => a\.status === 'met'\) \? 'met'\s*\n\s*: 'unverified'/,
+    "the terminal arm is 'unverified' — silence can never derive 'met'")
+})
+
+// Task 3.2's doc-claim row (Task 1.2's OLD-absent owner — the war-config.test.mjs schemas-guard
+// pattern): schemas.md's handoff endState row was rewritten in place to the five-status set; the old
+// four-status-only enumeration (unmet directly followed by deferred — no unverified) stays retired.
+const OLD_FOUR_STATUS_ENUM = /"met"\s*\|\s*"unmet"\s*\|\s*"deferred"\s*\|\s*"out-of-scope"/i
+test('doc-claim (Task 3.2): ../references/schemas.md carries the five-status endState enumeration; the old four-status-only enumeration is absent, case-insensitively', () => {
+  const schemasMd = readFileSync(join(here, '../references/schemas.md'), 'utf8')
+  assert.match(schemasMd, /"met"\s*\|\s*"unmet"\s*\|\s*"unverified"\s*\|\s*"deferred"\s*\|\s*"out-of-scope"/i,
+    'the five-status enumeration (with unverified) is present')
+  assert.doesNotMatch(schemasMd, OLD_FOUR_STATUS_ENUM,
+    'the retired four-status-only enumeration is absent from schemas.md')
+  // Unwired negative reference (both-ways proof): the pre-change bytes DO match the guard. FIXTURE —
+  // never re-introduced into a live surface.
+  assert.match('endState: [ { condition, status: "met" | "unmet" | "deferred" | "out-of-scope" } ]', OLD_FOUR_STATUS_ENUM,
+    'negative reference: the retired enumeration matches the guard (the doesNotMatch above is non-vacuous)')
+})
+
+// design.md (Task 3.2): the intent-threading + handoff bullet is artifact-first now; the old
+// judgment-path description (the arrow-chain parenthetical) and the "Design notes: docs/specs/…"
+// citation (spec-posterity rule, F7 / ADR 0046) are retired. Legacy docs/specs files keep the old
+// wording as sanctioned posterity survivors — this guard scans the LIVE design.md only.
+const RETIRED_JUDGMENT_PATH = /provably unmet\s*→\s*HARD;\s*unverifiable\s*→\s*SOFT/i
+test('design.md (Task 3.2): the handoff bullet names the land-barrier dispatch, endStateAttestations, and the unverified mapping; the old judgment-path description and the docs/specs citation are retired', () => {
+  const designMd = readFileSync(join(here, '../references/design.md'), 'utf8')
+  assert.match(designMd, /artifact-first/i, 'the bullet describes artifact-first verification')
+  assert.match(designMd, /land-barrier endstate-check dispatch/i, 'the bullet names the land-barrier endstate-check dispatch')
+  assert.match(designMd, /endStateAttestations/, 'the bullet names the positive attestation channel')
+  assert.match(designMd, /endstate-<phaseId>-<n>\.log/, 'the bullet carries the per-condition artifact naming')
+  assert.match(designMd, /`unverified`, never `met`/, 'the bullet states the no-attestation ⇒ unverified mapping')
+  assert.doesNotMatch(designMd, RETIRED_JUDGMENT_PATH, 'the old judgment-path description is retired, case-insensitively')
+  // Unwired negative reference (both-ways proof): the pre-change bytes DO match the guard. FIXTURE.
+  assert.match('(provably unmet → HARD; unverifiable → SOFT; a condition owned by a later phase', RETIRED_JUDGMENT_PATH,
+    'negative reference: the retired description matches the guard (the doesNotMatch above is non-vacuous)')
+  assert.ok(!/docs\/specs\//i.test(designMd), 'no docs/specs citation survives in design.md (spec-posterity rule, F7 / ADR 0046 — Task 5.4 owns the corpus-wide guard)')
 })
 
 // --- Handoff block (criterion 6) ---
@@ -7352,6 +7657,25 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
   const mergeP = ((await runPhase(PROVISION_ARGS({ tasks: [dwTask({ doneWhen: DU_CMD })] }), defaultImpl)).calls
     .find(isMergeTask) || {}).prompt
   assert.ok(workerP && auditP && servitorP && mergeP, 'worker, regular auditor, servitor, and doneWhen-bearing merge-task prompts all dispatched (presence guard)')
+  // Task 3.2 fixtures: a claims-bearing run (widened endState rows) whose merge returns mappedTests —
+  // the per-task seat prompt then carries BOTH the shared endStateBlock attestation contract and the
+  // mapped-tests grep block; the end-state-only seat (requiresTest:false fixture) carries the shared
+  // endStateBlock too. (The integrated-tip seat concatenates the same endStateBlock const —
+  // source-count-pinned at three sites by the shared-endStateBlock test.)
+  const esMappedImpl = (prompt, opts) => {
+    if (seatOf(opts) === 'war-refiner' && opts.phase === 'Refine' && (opts.label || '').startsWith('merge:'))
+      return { mode: 'merge-task', status: 'merged', gate_output: 'ok', integration_sha: 'c0ffee1234', mappedTests: ['skills/war/assets/wibble.test.mjs'] }
+    return gateAuditImpl(prompt, opts)
+  }
+  const esRunCalls = (await runPhase(ES_ROW_ARGS(), esMappedImpl)).calls
+  const esSeatP = (gateAuditCalls(esRunCalls)[0] || {}).prompt
+  // The endstate-check dispatch prompt from the same claims-bearing run — the recovery Blocker-1
+  // card-twin row censuses it against war-refiner.md.
+  const esCheckP = (esRunCalls.find(isEndstateCheck) || {}).prompt
+  const esOnlyP = ((await runPhase(ES_ROW_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 'Docs task', planSlice: 's', roster: [{ lens: 'correctness' }], requiresTest: false },
+  ] }), gateAuditImpl)).calls.find(x => (x.opts.label || '') === 'gate-audit:phase-3:end-state') || {}).prompt
+  assert.ok(esSeatP && esCheckP && esOnlyP, 'claims-bearing per-task + endstate-check + end-state-only prompts dispatched (presence guard, Task 3.2 rows)')
   // The inline gate-audit seat prompts sit OUTSIDE auditPrompt() — slice them from src by construct.
   const gateAuditExecSrc = sliceSrc('POST-MERGE GATE-AUDIT', 'gate-audit:${taskId}:execution-evidence')
   const gateAuditIntegratedTipSrc = sliceSrc('INTEGRATED-TIP GATE-AUDIT', 'gate-audit:phase-${ph.id}:integrated-tip')
@@ -7470,8 +7794,55 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     { name: 'done-when floor (assert-done-when.sh after the gate; --cmd-file file-threading; exit 1 ⇒ done-unmet, exit 2 ⇒ error, never a collapse)',
       surfaces: [['war-refiner.md', refinerMd], ['merge-task dispatch prompt', mergeP]],
       anchors: [/assert-done-when\.sh/i, /--cmd-file/i, /done-unmet/i, /never 'done-unmet'|not[^]{0,40}done-unmet/i] },
+    // precision-chain Task 3.2 (D8): the artifact-first attestation duty — the standing card's
+    // execution-evidence checklist AND the dispatched shared endStateBlock (live prompts: per-task +
+    // end-state-only seats; the integrated-tip seat concatenates the same const, source-count-pinned).
+    // The artifact-naming anchor is a union — the card writes the placeholder form endstate-<phaseId>-<n>.log,
+    // the dispatched prompts the interpolated endstate-3-1.log; every other token appears verbatim on all
+    // three surfaces, so a per-surface revert reds this row.
+    { name: 'artifact-first End-state attestation (D8, Task 3.2): one endStateAttestations row per claimed condition — status + evidence, never a bare verdict; unattested ⇒ unverified, never met',
+      surfaces: [['war-auditor.md', auditorMd],
+                 ['per-task gate-audit prompt (claims-bearing)', esSeatP],
+                 ['end-state-only seat prompt (claims-bearing)', esOnlyP]],
+      anchors: [/endStateAttestations/, /never a bare verdict/i, /met \| unmet \| unverified/,
+                /endstate-(?:<phaseId>-<n>|\d+-\d+)\.log/i, /unverified[^.]{0,60}never ['`]?met/i] },
+    // precision-chain Task 3.2 (D7): the mechanical mapped-tests grep — the standing card's checklist
+    // bullet AND the dispatched mappedTestsLine (rendered only for a mappedTests-bearing merge; the
+    // esSeatP fixture threads one). The HARD provably-unrun trigger reads the CAPTURED gate log and —
+    // round-3 fix-forward adjudication — fires ONLY where that log ENUMERATES test file paths (the bash
+    // half's per-file headers); the node half reports titles + an aggregate summary only, so a zero-hit
+    // .mjs grep degrades SOFT cannot-confirm, never a false land-hold (premise pinned live by the
+    // reporter-format test above). Every enumeration-conditional anchor below was verified absent from
+    // both surfaces at the pre-change base, so a per-surface revert to the unconditional rule reds this row.
+    { name: 'mechanical mapped-tests grep (D7, Task 3.2 + round-3 enumeration-conditional): grep each MergeResult.mappedTests path against the captured gate log — absent/0-count at a confirmed pin is HARD only where the log enumerates test file paths; a non-enumerating half is SOFT cannot-confirm, never a hold',
+      surfaces: [['war-auditor.md', auditorMd], ['per-task gate-audit prompt (mappedTests-bearing)', esSeatP]],
+      anchors: [/mappedTests/, /grep each/i, /captured gate log/i, /0 executed tests/i, /provably-unrun/i,
+                /ONLY when the captured log ENUMERATES test file paths/i, /aggregate summary/i,
+                /never per-file paths/i, /non-enumerating/i, /SOFT cannot-confirm, never a hold/i] },
+    // Task 3.2 recovery Blocker 1 (the Pivotal prompt-surface-split constraint): the endstate-check
+    // dispatch flavor lands on the refiner's standing card AND the dispatched prompt — a card that
+    // never learned the flavor invites a decline, and the dispatch is fail-open, so a decline is
+    // SILENT under-verification (cf. the provision section's never-out-of-mode line, which exists
+    // because a refiner declining an unfamiliar dispatch has happened before).
+    { name: 'endstate-check dispatch card twin (recovery Blocker 1): file-threaded .cmd execution, load-bearing tip_sha stamp + exit_code line, red-check isolation, fail-open return — standing card + dispatched prompt',
+      surfaces: [['war-refiner.md', refinerMd], ['endstate-check dispatch prompt', esCheckP]],
+      anchors: [/endstate-check/i, /file-threaded/i, /byte-verbatim/i, /tip_sha/, /exit_code/,
+                /load-bearing/i, /never fails this dispatch/i, /red, hung, or timed-out/i, /fail-open/i, /never block/i] },
+    // Task 3.2 recovery Blocker 2 (stale-but-readable artifact): .war/ is git-excluded and
+    // ensure-worktree reuses a present worktree untouched, so a resumeFromRunId replay lands on
+    // prior-run artifact residue — READABLE but stamped with a prior tip. The seat MUST compare the
+    // stamped tip_sha against the confirmed tip and attest 'unverified' on mismatch (the
+    // missing/unreadable rule alone never fires on a stale-but-readable artifact). Pinned on the
+    // card AND the shared endStateBlock (live prompts: per-task + end-state-only seats; the
+    // integrated-tip seat concatenates the same const, source-count-pinned).
+    { name: "stale-artifact tip_sha comparison (recovery Blocker 2): stamped tip_sha mismatching the confirmed tip ⇒ unverified, never met — readable is not sufficient",
+      surfaces: [['war-auditor.md', auditorMd],
+                 ['per-task gate-audit prompt (claims-bearing)', esSeatP],
+                 ['end-state-only seat prompt (claims-bearing)', esOnlyP]],
+      anchors: [/stamped `?tip_sha`?/, /stale-but-readable/i, /mismatch\w* the confirmed tip/i,
+                /stale-but-readable[\s\S]{0,240}unverified/i, /readable is not sufficient/i] },
   ]
-  assert.ok(REGISTRY.length >= 16, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), and the done-when floor row (precision-chain Task 2.3) — floor equals the true row count, no slack (#693)')
+  assert.ok(REGISTRY.length >= 20, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), and the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison) — floor equals the true row count, no slack (#693)')
   for (const row of REGISTRY) {
     for (const [sName, sText] of row.surfaces) {
       for (const re of row.anchors) {
@@ -7859,7 +8230,7 @@ const LITERAL_REGISTRY = [
   ["gate-audit: skipping ${task.id} (requiresTes"],
   ["ace:${r.task.id}:r${r.task.fixRounds + 1}`, "],
   ["failed absorb — ${aceWhy || 'ace worker retu"],
-  ["${worktreeRoot || '<worktreeRoot>'}/${runId ", 5],
+  ["${worktreeRoot || '<worktreeRoot>'}/${runId ", 4],
   ["packaging-floor: skipping ${r.task.id} (requ"],
   ["merge:${r.task.id}`, schema: MERGE_RESULT, ."],
   ["${r.task.id} touches a submodule; undeclared"],
@@ -7873,6 +8244,8 @@ const LITERAL_REGISTRY = [
   ["${r.task.id} touches a submodule (surfaced o", 3],
   ["task never reached the approve branch (verdi"],
   ["Task ${r.task.id}: env-blocked — provision s"],
+  ["endstate-check: dispatching the land-barrier"],
+  ["endstate-check:phase-${ph.id}`, dispatchKind"],
   ["$(git -C ${refineryPath} merge-base ${ph.int"],
   ["evidence:phase-${ph.id}`, dispatchKind: 'evi"],
   ["gate-audit:${taskId}:execution-evidence`, sc"],
