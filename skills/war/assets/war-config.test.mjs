@@ -416,12 +416,17 @@ test('economy preset pins redteamRoundLimit 2', () => {
   const c = presetConfig('economy')
   assert.equal(c.run.redteamRoundLimit, 2)
   assert.equal(validate(c).valid, true)
+  for (const preset of ['balanced', 'thorough']) {
+    assert.equal(presetConfig(preset).run.redteamRoundLimit, 3, `${preset} must inherit redteamRoundLimit 3`)
+  }
 })
 
 test('redteamRoundLimit of 0 rejected with an error naming the key', () => {
   const r = validate({ run: { redteamRoundLimit: 0 } })
   assert.equal(r.valid, false)
   assert.match(r.errors.join('\n'), /run\.redteamRoundLimit/)
+  // Inclusive lower bound: 1 is the smallest valid value the error message advertises.
+  assert.equal(validate({ run: { redteamRoundLimit: 1 } }).valid, true)
 })
 
 test('non-integer redteamRoundLimit rejected', () => {
