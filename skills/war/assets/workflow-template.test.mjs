@@ -4404,6 +4404,29 @@ test('endstate-check dispatch (End state 6, D2/F5): ONE refiner dispatch at the 
   assert.ok(esIdx < gaIdx, 'the dispatch runs BEFORE the gate-audit seats spawn')
 })
 
+// Reordered fixture (absorb polish): the sole check:-tagged row is NOT first. The writer
+// (endStateCheckRows: map-then-filter) and the reader (endStateBlock's row builder) derive the
+// artifact number <n> from two INDEPENDENT expressions over the same full endStateRows list — here
+// both must yield n=2. A renumbering refactor of either side (e.g. filter-then-map, which yields
+// n=1 for the sole check row) reds the assertion pair below.
+const ES_ROWS_CHECK_SECOND = [ES_ROWS[1], ES_ROWS[0], ES_ROWS[2]]   // [gate, check, bare]
+
+test('artifact-index binding: a check row NOT first derives the SAME full-list n=2 in the dispatch (writer) AND on seat enumeration row 2 (reader) — reds on any renumbering divergence between the two builders', async () => {
+  const { calls } = await runPhase(ES_ROW_ARGS({
+    phase: { id: 3, title: 'P3', integrationBranch: 'integration/wtprov-a/phase-3', workingBranch: 'dev/wtprov-a', endState: ES_ROWS_CHECK_SECOND },
+  }), gateAuditImpl)
+  const es = calls.find(isEndstateCheck)
+  assert.ok(es, 'endstate-check dispatch present (presence guard)')
+  const p = es.prompt
+  assert.ok(p.includes(`${REFINERY}/.war/endstate-3-2.cmd`), 'writer: the dispatch derives n from the full-list 1-based index — the second-position check row tees endstate-3-2.cmd')
+  assert.ok(p.includes(`${REFINERY}/.war/endstate-3-2.log`), 'writer: …and its endstate-3-2.log artifact')
+  assert.ok(!p.includes('endstate-3-1'), 'writer: filter-then-map would renumber the sole check row to n=1 — the seat would then read a path the dispatch never tees')
+  const seat = gateAuditCalls(calls)[0]
+  assert.ok(seat, 'per-task gate-audit seat present (presence guard)')
+  assert.ok(seat.prompt.includes(`  2. ${ES_ROWS[0].condition} [check:] — executed artifact: ${REFINERY}/.war/endstate-3-2.log`),
+    'reader: the SAME artifact path rides seat enumeration row 2 — the two independent derivations stay bound')
+})
+
 test('endstate-check dispatch is UNCONDITIONAL (D2): the mergedTasksForGateAudit-empty arm still executes its claimed checks, and the End-state-only seat consumes the artifacts', async () => {
   const args = ES_ROW_ARGS({ tasks: [
     { id: 't1', issue: 101, title: 'Docs task', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], requiresTest: false },
