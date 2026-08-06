@@ -1103,18 +1103,21 @@ else
 fi
 
 # 13b: custom --pattern accumulation across BOTH match arms. Adds pkg/a.test.js
-# (custom-token hit) AND hooks/x.test.sh (union-arm hit) with --pattern
-# '*.test.js' -> exit 0; stdout EXACTLY both paths (hooks/ first, path order).
+# (custom-token hit) AND hooks/x.test.sh (union-arm hit) — plus docs/notes.md,
+# a non-matching decoy — with --pattern '*.test.js' -> exit 0; stdout EXACTLY
+# both matched paths (hooks/ first, path order; the decoy absent by the exact
+# compare, so a whole-changed-list leak on THIS branch goes RED, not just 13a's).
 # Under the old first-hit break the union hit on hooks/x.test.sh ended the
 # file-read while before pkg/a.test.js was ever scanned — this case proves the
 # custom branch (token arm AND union arm) feeds the accumulation too.
 R13b="$(setup_repo)"
 BASE13b="$(git -C "$R13b" rev-parse HEAD)"
 git -C "$R13b" checkout -qb task/multi-match-custom 2>/dev/null
-mkdir -p "$R13b/pkg" "$R13b/hooks"
+mkdir -p "$R13b/pkg" "$R13b/hooks" "$R13b/docs"
 printf 'test\n' > "$R13b/pkg/a.test.js"
 printf 'test\n' > "$R13b/hooks/x.test.sh"
-git -C "$R13b" add pkg/a.test.js hooks/x.test.sh
+printf 'src\n' > "$R13b/docs/notes.md"
+git -C "$R13b" add pkg/a.test.js hooks/x.test.sh docs/notes.md
 git -C "$R13b" commit -qm "add custom-token + union-arm tests"
 TASK13b="$(git -C "$R13b" rev-parse HEAD)"
 git -C "$R13b" checkout -q - 2>/dev/null
