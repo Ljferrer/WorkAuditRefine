@@ -690,9 +690,11 @@ const workerIntentClause = intent
 const workerSelfQueryRepoFlag = (typeof learningsTarget === 'string' && learningsTarget) ? ` --repo ${learningsTarget}` : ''
 const WORKER_MEMORY_SELF_QUERY_LINE = pt`\nYou MAY run \`node <plugin>/skills/_shared/war-memory.mjs query '<terms>'${workerSelfQueryRepoFlag}\` mid-task when you hit something unfamiliar — it never writes a lesson, and without a \`--local\` root it appends no query log (the CLI never guesses one from the cwd).\n`
 // Done-when threading (precision-chain D6, Task 1.3 — prompt truth): the task's `Done when:` acceptance
-// command rides every worker-family dispatched prompt — the primary dispatch plus the four fix-family
-// prompts (FIX_NEEDED, ADD_TEST, PACKAGE_IT, ace) — as a `Done when:` line beside the Gate: command, so
-// no prompt says keep-the-gate-green without carrying the commands that define green. Absent/null/empty
+// command rides the five TASK-SCOPED worker-family dispatched prompts — the primary dispatch plus the
+// four fix-family prompts (FIX_NEEDED, ADD_TEST, PACKAGE_IT, ace) — as a `Done when:` line beside the
+// Gate: command, so no task-scoped prompt says keep-the-gate-green without carrying the commands that
+// define green (the phase-close sweep is phase-scoped, carries no task doneWhen, and already names the
+// gate inline). Absent/null/empty
 // ⇒ '' (the set-minus pattern): a legacy plan with no `Done when:` bullets dispatches prompts
 // byte-identical to a doneWhen-less run (End state 9). Prompt truth only — the floor that EXECUTES the
 // command at merge is Phase 2's assert-done-when.sh (refiner-side), never this clause.

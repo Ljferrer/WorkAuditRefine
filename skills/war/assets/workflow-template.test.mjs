@@ -7048,10 +7048,15 @@ test("Done when threading — absent ⇒ '' (set-minus): each site's doneWhen-le
     assert.ok(!wo.prompt.includes('Done when:'),
       `site "${s.site}": the legacy path carries no Done when residue at all`)
   }
-  // null and absent are the same legacy arm (the string|null contract): byte-identical prompts.
+  // null, absent, and '' are the same legacy arm (the string|null contract; '' via the guard's
+  // truthiness half): byte-identical prompts. The '' arm pins the typeof/empty-string guard —
+  // Task 1.1's Decompose parser produces this field, and a bare `Done when:` bullet is the
+  // plausible way an empty string arrives.
   const nullP = DONE_WHEN_SITES[0].find((await DONE_WHEN_SITES[0].run({ doneWhen: null })).calls).prompt
   const absentP = DONE_WHEN_SITES[0].find((await DONE_WHEN_SITES[0].run({})).calls).prompt
   assert.equal(nullP, absentP, 'doneWhen:null and doneWhen-absent dispatch byte-identical worker prompts')
+  assert.equal(DONE_WHEN_SITES[0].find((await DONE_WHEN_SITES[0].run({ doneWhen: '' })).calls).prompt, absentP,
+    "doneWhen:'' dispatches the byte-identical legacy prompt")
 })
 
 test('prompt truth (D6) — every dispatched prompt that says keep-the-gate-green carries the gate command', async () => {
@@ -7269,7 +7274,9 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     // precision-chain Task 1.3 (A1/D9): acceptance_criteria_covered redefined as the task's CLAIMED
     // End-state ids on BOTH worker surfaces — the standing card's Return section and the primary
     // dispatch's ACCEPTANCE_IDS_RULE sentence. Anchor precondition: every phrase token below was absent
-    // from both surfaces at the pre-change base (the old framing spoke of plan-slice acceptance
+    // from both surfaces at the pre-change base EXCEPT /acceptance_criteria_covered/, which the card's
+    // Return line has always carried (it discriminates a prompt-side revert only); the three phrase
+    // anchors carry the both-ways proof (the old framing spoke of plan-slice acceptance
     // criteria — its OLD-absent guard is the RETIRED_CRITERIA_FRAMING test above). Consumer: Task 3.2's
     // gate-audit cross-check.
     { name: 'A1 acceptance_criteria_covered redefinition (claimed End-state ids; empty when none; gate-audit cross-checks)',
