@@ -2017,11 +2017,13 @@ if (landDecision === 'landed') {
     landDecision = 'held:submodule-pr'
   } else
   // If the land agent returns land_stale (CAS-exhaustion), treat it as a hard escalation.
-  // #236: 'no-test' is structurally UNREACHABLE here — no land-phase prompt emits it (land statuses
-  // are only landed/land_stale/gate_failed/error/submodule-pr, and submodule-pr is short-circuited by
-  // its own direct-return guard above this check). The array is REUSED from the merge-task escalation
-  // path where 'no-test' IS load-bearing, so it is kept intact, not narrowed (the drift-guard in
-  // war-config.test.mjs pins the inline array to the canonical export incl. 'no-test').
+  // #236: 'no-test'/'unpackaged'/'done-unmet' are structurally UNREACHABLE here — no land-phase
+  // prompt emits them (land statuses are only landed/land_stale/gate_failed/error/submodule-pr, and
+  // submodule-pr is short-circuited by its own direct-return guard above this check). The array is
+  // REUSED from the merge-task escalation path where those floor statuses ARE load-bearing, so it is
+  // kept intact, not narrowed. land-decision.test.mjs's MERGE_TASK_FLOOR_ONLY partition pin is the
+  // mechanical arbiter of that set (the drift-guard in war-config.test.mjs pins the inline array to
+  // the canonical export).
   if (landResult && HARD_ESCALATION_REASONS.includes(landResult.status)) {
     escalated.push({ task: `phase-${ph.id}-land`, reason: landResult.status, detail: landResult })
     landDecision = 'held:escalation'
