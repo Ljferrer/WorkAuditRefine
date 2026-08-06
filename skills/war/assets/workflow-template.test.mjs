@@ -4636,11 +4636,17 @@ test('pkg §4.2 — both floors tripped but budget too small: the SECOND floor e
   assert.ok(!out.workflowError, 'the combined loop terminates cleanly — no workflow error')
 })
 
-test('pkg §4.2 — retry-merge prompt re-instructs ALL floor invocations (test + packaging + submodule kept in sync with standing steps)', async () => {
-  // The floor-retry merge prompt must re-instruct assert-test-in-diff.sh, assert-packaging-in-diff.sh AND
-  // assert-no-submodule-mutation.sh (dispatched-vs-standing coverage-split lesson). The submodule arm is a
-  // #1114 survey-derived correction: this test's own "ALL floor invocations" claim (and the two adjacent
-  // engine comments that word it identically) enumerated two of the three floors the retry now carries.
+test("pkg §4.2 — retry-merge prompt re-instructs ALL floor invocations (test + packaging + submodule + done-when kept in sync with standing steps; the done-when arm is asserted by 'done-when floor threading (Task 2.3)' — this fixture is doneWhen-less)", async () => {
+  // The floor-retry merge prompt must re-instruct assert-test-in-diff.sh, assert-packaging-in-diff.sh,
+  // assert-no-submodule-mutation.sh AND — for a doneWhen-bearing task — assert-done-when.sh
+  // (dispatched-vs-standing coverage-split lesson). The enumeration is a twice-applied #1114
+  // survey-derived correction: this test's own "ALL floor invocations" claim (and the two adjacent
+  // engine comments that word it identically — now 'test + packaging + submodule + done-when')
+  // enumerated two of the three floors when the submodule arm joined, and Task 2.3 re-applied the
+  // correction when the done-when floor made it four. The done-when arm is NOT asserted here — this
+  // fixture's task carries no doneWhen, so doneWhenFloorClause renders '' on the retry prompt; its
+  // arbiter is the 'done-when floor threading (Task 2.3)' test, whose doneWhen-bearing fixture drives
+  // the same floor-retry re-merge site and asserts /assert-done-when\.sh/ on it.
   // Non-vacuity (#1246): the test and packaging predicates carry the `run ` verb prefix, and that prefix is
   // the whole discriminator. A BARE filename regex greens on EITHER arm of the requiresTest /
   // requiresPackaging ternaries — the run arm and the `skip the assert-…-in-diff.sh check` arm share the
@@ -5210,9 +5216,10 @@ test('#1114 — the polish merge prompt runs the submodule floor, always BARE (a
     'the polish merge prompt invokes the submodule floor on <integrationBranch> <polishBranch> (delete the append ⇒ no invocation ⇒ RED)')
   assert.ok(!polishMerge.prompt.includes('--declared'),
     'the invocation is BARE — the gitlink-bump relax flag never appears anywhere in the polish prompt')
-  // The reworded skip rationale still skips the two task-field-gated floors (collateral pin, #819/§4.2).
+  // The reworded skip rationale still skips the three task-field-gated floors (collateral pin, #819/§4.2).
   assert.match(polishMerge.prompt, /skip assert-test-in-diff\.sh/, 'the polish merge still skips the test floor')
   assert.match(polishMerge.prompt, /skip the packaging floor assert-packaging-in-diff\.sh/, 'the polish merge still skips the packaging floor')
+  assert.match(polishMerge.prompt, /skip the done-when floor assert-done-when\.sh/, 'the polish merge still skips the done-when floor (Task 2.3)')
 })
 
 test('#1114 — the floor-retry re-merge prompt runs the submodule floor WITH the gitlink-bump --declared conditional (both arms)', async () => {
@@ -7057,8 +7064,14 @@ test("Done when threading — absent ⇒ '' (set-minus): each site's doneWhen-le
     assert.ok(wp && wo, `site "${s.site}" reached in both arms (presence guard)`)
     assert.equal(wp.prompt.replace(`\nDone when: ${DW_CMD}`, ''), wo.prompt,
       `site "${s.site}": set minus the Done when clause is byte-identical to the doneWhen-less prompt (nothing else conditions on the field)`)
-    assert.ok(!wo.prompt.includes('\nDone when:'),
-      `site "${s.site}": the legacy path carries no inserted Done when: clause residue (line-anchored — the clause always opens its own line; MAKE_DONE_PASS's fixed prose names the construct mid-sentence, legitimately)`)
+    // Residue guard, occurrence-count parity (site-agnostic — strictly stronger than the retired
+    // line-anchored !includes('\nDone when:')): the legacy arm carries exactly one fewer 'Done when:'
+    // token than the doneWhen-bearing arm — the inserted clause's own. MAKE_DONE_PASS's two fixed-prose
+    // mentions appear in BOTH arms, so they cancel; any NEW token appearing in one arm only (or
+    // hardcoded mid-sentence into a sibling prompt's conditional prose) breaks the parity.
+    const count = (s2) => s2.split('Done when:').length - 1
+    assert.equal(count(wo.prompt), count(wp.prompt) - 1,
+      `site "${s.site}": the legacy path carries no inserted Done when: clause residue (occurrence parity: doneWhen-less = doneWhen-bearing minus the single inserted token)`)
   }
   // null, absent, and '' are the same legacy arm (the string|null contract; '' via the guard's
   // truthiness half): byte-identical prompts. The '' arm pins the typeof/empty-string guard —
@@ -7191,9 +7204,15 @@ test('done-when floor threading (Task 2.3) — both loop merge prompts run asser
     assert.match(c.prompt, /--cmd-file/, `${name}: the command is file-threaded (--cmd-file, never interpolated into another script)`)
     assert.ok(c.prompt.includes('.war/done-when-t1.cmd'), `${name}: the command file lives under _refinery/.war/`)
     assert.ok(c.prompt.includes(DU_CMD), `${name}: carries the task's Done when: command verbatim`)
-    assert.match(c.prompt, /exit 1[^]{0,160}status: 'done-unmet'/, `${name}: exit 1 routes the done-unmet status`)
-    assert.match(c.prompt, /exit 2[^]{0,160}status: 'error'/, `${name}: exit 2 routes error`)
-    assert.match(c.prompt, /never 'done-unmet'/, `${name}: exit 2 never collapses into the floor status`)
+    // Exit-code asserts run against the EXTRACTED clause, never the whole prompt: the pre-existing
+    // test-floor prose also says "exit 2 … status: 'error'", so a whole-prompt match could stay green
+    // with the done-when clause's own exit-2 branch deleted (the sibling clause-scoping idiom — cf. the
+    // byte-identity test below, which owns this delimiter regex).
+    const clause = c.prompt.match(/ After the gate, run the done-when floor:[^]*?make-this-command-pass loop\./)
+    assert.ok(clause, `${name}: the done-when floor clause is delimited in the merge prompt`)
+    assert.match(clause[0], /exit 1[^]{0,160}status: 'done-unmet'/, `${name}: exit 1 routes the done-unmet status (clause-scoped)`)
+    assert.match(clause[0], /exit 2[^]{0,160}status: 'error'/, `${name}: exit 2 routes error (clause-scoped — the test-floor clause's own exit-2 prose cannot satisfy this)`)
+    assert.match(clause[0], /never 'done-unmet'/, `${name}: exit 2 never collapses into the floor status (clause-scoped)`)
     assert.ok(c.prompt.indexOf('After the gate') > c.prompt.indexOf(`Run the gate`),
       `${name}: the done-when floor runs AFTER the gate instruction`)
   }
@@ -7328,7 +7347,11 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
   const workerP = (calls.find(isWorker) || {}).prompt
   const auditP = (calls.find(c => isAuditor(c) && !(c.opts.label || '').startsWith('gate-audit:')) || {}).prompt
   const servitorP = (calls.find(isServitor) || {}).prompt
-  assert.ok(workerP && auditP && servitorP, 'worker, regular auditor, and servitor prompts all dispatched (presence guard)')
+  // Task 2.3 (done-when floor): the merge-task dispatch carries doneWhenFloorClause only for a
+  // doneWhen-bearing task — capture that prompt from its own fixture run.
+  const mergeP = ((await runPhase(PROVISION_ARGS({ tasks: [dwTask({ doneWhen: DU_CMD })] }), defaultImpl)).calls
+    .find(isMergeTask) || {}).prompt
+  assert.ok(workerP && auditP && servitorP && mergeP, 'worker, regular auditor, servitor, and doneWhen-bearing merge-task prompts all dispatched (presence guard)')
   // The inline gate-audit seat prompts sit OUTSIDE auditPrompt() — slice them from src by construct.
   const gateAuditExecSrc = sliceSrc('POST-MERGE GATE-AUDIT', 'gate-audit:${taskId}:execution-evidence')
   const gateAuditIntegratedTipSrc = sliceSrc('INTEGRATED-TIP GATE-AUDIT', 'gate-audit:phase-${ph.id}:integrated-tip')
@@ -7439,8 +7462,16 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     { name: 'A1 acceptance_criteria_covered redefinition (claimed End-state ids; empty when none; gate-audit cross-checks)',
       surfaces: [['war-worker.md', workerMd], ['worker prompt', workerP]],
       anchors: [/acceptance_criteria_covered/, /claimed End-state ids/i, /empty when the task claims none/i, /gate-audit pass cross-checks/i] },
+    // precision-chain Task 2.3 (ADR 0025): the done-when floor is duplicated across war-refiner.md step 7
+    // and the dispatched merge-task prompts (doneWhenFloorClause) — this row censuses the newest mirror.
+    // The dispatched surface here is the initial merge-task prompt; the floor-retry / environment-proceed /
+    // baseline-proceed siblings append the SAME clause (source-count-pinned at 4 call sites by the
+    // 'done-when floor coverage (Task 2.3)' test).
+    { name: 'done-when floor (assert-done-when.sh after the gate; --cmd-file file-threading; exit 1 ⇒ done-unmet, exit 2 ⇒ error, never a collapse)',
+      surfaces: [['war-refiner.md', refinerMd], ['merge-task dispatch prompt', mergeP]],
+      anchors: [/assert-done-when\.sh/i, /--cmd-file/i, /done-unmet/i, /never 'done-unmet'|not[^]{0,40}done-unmet/i] },
   ]
-  assert.ok(REGISTRY.length >= 15, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), and the A1 claimed-End-state-ids row (precision-chain Task 1.3) — floor equals the true row count, no slack (#693)')
+  assert.ok(REGISTRY.length >= 16, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), and the done-when floor row (precision-chain Task 2.3) — floor equals the true row count, no slack (#693)')
   for (const row of REGISTRY) {
     for (const [sName, sText] of row.surfaces) {
       for (const re of row.anchors) {
