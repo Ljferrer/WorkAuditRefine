@@ -105,9 +105,9 @@ renders **`n/a`**, never a reconstruction.
 
 | Row | Source |
 |---|---|
-| red-team rounds — this plan | the newest `docs/red-team/*-<plan-slug>.md` report's strict-form `**Rounds:** <integer>` line (directly under the Verdict line); on a campaign run, also the campaign ledger's per-plan `redteamRounds` field (`$MAIN/.claude/campaigns/<id>/ledger.json`) — either source alone suffices; both absent → `n/a` |
+| red-team rounds — this plan | the newest (by filename date) `$MAIN/docs/red-team/*-<plan-slug>.md` report's strict-form `**Rounds:** <integer>` line (directly under the Verdict line); on a campaign run, also the campaign ledger's per-plan `redteamRounds` field (`$MAIN/.claude/campaigns/<id>/ledger.json`) — either source alone suffices; when both are present and disagree, the report header wins (it is the newer read) and the delta is stated — both absent → `n/a` |
 | red-team rounds per plan — trend across campaigns | the same two sources swept across `docs/red-team/` reports and prior campaign ledgers, rendered as a per-plan series; state a trend reading only with at least one full campaign of field data behind it — until then the series stands alone, and an empty sweep renders `n/a` |
-| interview length — questions per merged plan | the authoring interview's final status-line question count (`Qk/14`, the question contract in [`../war-strategy/references/plan-interview.md`](../war-strategy/references/plan-interview.md)); no artifact persists it today — `n/a` unless the operator supplies the count |
+| interview length — questions per merged plan | the authoring interview's final status-line question count (`Qk/<budget>` — budget default 14, operator-raisable per D8; the question contract in [`../war-strategy/references/plan-interview.md`](../war-strategy/references/plan-interview.md)); no artifact persists it today — `n/a` unless the operator supplies the count |
 
 Lead with the run header: `runId`, `planPath`, `configProfile`, run wall-clock, and the
 best-effort-harness-read caveat.
