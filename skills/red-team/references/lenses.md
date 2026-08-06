@@ -77,6 +77,8 @@ The **`ff-topology`** row is **mandatory when triggered** and **`--fast`-proof**
 ```markdown
 # Red Team — <plan> (<date>)
 **Verdict:** CLEARED | CLEARED-WITH-NOTES | ADJUDICATED | BLOCKED | INCOMPLETE — <one line>
+**Rounds:** <integer>
+<!-- Cumulative grill sweeps: the Step-1 seed + this run's sweeps. Strict form — the next run's seeding re-reads exactly this line; an integer, nothing else. -->
 
 ## Attack surface
 Spine: <6 lenses>. Bespoke: <probes run>. Executed in sandbox: <which>.
@@ -100,6 +102,13 @@ Fallback: <none | analyzed-agent fallback engaged (sticky pin); probes run on ge
 
 ## Residual risk
 - <minor notes / accepted assumptions>
+
+## Route upstream
+<!-- Only on a route-upstream terminal (gate emitted `routeUpstream: true`); omit otherwise. Full template + doctrine: references/loop-budget.md. -->
+**Regrill:** `/war-strategy <abs plan path>` — run the interview on the agenda below; it patches the plan.
+**Agenda (residual questions):**
+- <the unsettled decision — its non-equivalent resolutions, and what the gate saw>
+**Re-entry:** `/red-team <abs plan path> [--repo <path>]` — after the regrill; the fresh run seeds its cumulative count from this report's `**Rounds:**` line.
 ```
 
 ## Safety
