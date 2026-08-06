@@ -669,11 +669,17 @@ test('routeUpstream ⇒ BLOCKED invariant: sweep every verdict arm at rounds far
     [openFindings(F('Minor', { needsDecision: true })), null],           // BLOCKED (needsDecision)
     [allFindings(incompleteCov.onTarget), incompleteCov],                // INCOMPLETE
   ]
+  let fired = 0
   for (const [findings, cov] of cases) {
     if (routeUpstream(findings, 9, 3, cov)) {
+      fired++
       assert.equal(verdict(findings, cov), 'BLOCKED', 'routeUpstream: true beside a non-BLOCKED verdict')
     }
   }
+  // Non-vacuity pin: at rounds 9 of limit 3 exactly the two BLOCKED rows route, so the guarded
+  // assertion above is proven to have executed. A routeUpstream regressed to always-false, or a
+  // table edit that stopped any row from firing, reds HERE instead of passing with a never-run body.
+  assert.equal(fired, 2, 'exactly the two BLOCKED rows route')
 })
 
 // --- CLI: echo, emission, flag parsing, absent-input identity ---
@@ -737,6 +743,24 @@ test('CLI: an =-attached flag overrides the same input key (the re-pipe carries 
   assert.equal(out.routeUpstream, true)
 })
 
+test('CLI: coverage is threaded into routeUpstream at the emission site — an INCOMPLETE run emits routeUpstream: false', () => {
+  // Every other CLI fixture is coverage-null, so dropping the coverage argument from main()'s
+  // routeUpstream(...) call would leave them all green while the emitted JSON carried
+  // routeUpstream: true beside verdict: INCOMPLETE — exactly the invariant pinned on the gate's
+  // OUTPUT. This drives the INCOMPLETE-outranks unit fixture through the CLI: the unstamped
+  // Critical rides an on-target probe; the coverage gap is a second, dropped probe.
+  const failProbeWithAnchor = { probe: 'a', technique: 'analyzed', status: 'fail', read_anchor: anchor(), findings: [F('Critical')] }
+  const input = {
+    probeResults: [failProbeWithAnchor, { probe: 'b', dropped: true }],
+    expected: 2, fingerprint: FP, repo: '/repo', rounds: 9, roundLimit: 3,
+  }
+  const r = runGate(['--stdin'], JSON.stringify(input))
+  assert.equal(r.status, 0, r.stderr)
+  const out = JSON.parse(r.stdout)
+  assert.equal(out.verdict, 'INCOMPLETE')
+  assert.equal(out.routeUpstream, false)
+})
+
 test('CLI: rounds/roundLimit input keys ride the .result envelope (the working copy carries the whole gate input)', () => {
   const envelope = { result: { probeResults: [roundsProbe(F('Critical'))], rounds: 3, roundLimit: 3 } }
   const out = JSON.parse(runGate(['--stdin'], JSON.stringify(envelope)).stdout)
@@ -763,7 +787,33 @@ test('CLI: a non-integer rounds value refuses loudly — never a silent routeUps
     assert.match(r.stderr, /not a non-negative integer/)
     assert.ok(!r.stdout.includes('verdict'), `stdout must carry no verdict, got: ${r.stdout}`)
   }
-  const badKey = runGate(['--stdin'], JSON.stringify({ ...input, rounds: 'three' }))
-  assert.notEqual(badKey.status, 0)
-  assert.match(badKey.stderr, /not a non-negative integer/)
+  // Input-KEY rejects across all three conjuncts of the key arm: the typeof check alone
+  // (rounds: 'three') cannot catch a numeric non-integer (roundLimit: 1.5) or a negative
+  // integer (rounds: -1) — deleting the Number.isInteger / < 0 conjuncts reds here.
+  for (const bad of [{ ...input, rounds: 'three' }, { ...input, rounds: -1 }, { ...input, roundLimit: 1.5 }]) {
+    const badKey = runGate(['--stdin'], JSON.stringify(bad))
+    assert.notEqual(badKey.status, 0, `${JSON.stringify(bad.rounds ?? bad.roundLimit)} must refuse`)
+    assert.match(badKey.stderr, /not a non-negative integer/)
+  }
+})
+
+test('CLI: rounds: null is the documented not-supplied pass-through — exit 0, no rounds key emitted', () => {
+  const input = { probeResults: [roundsProbe(F('Critical'))], rounds: null }
+  const r = runGate(['--stdin'], JSON.stringify(input))
+  assert.equal(r.status, 0, r.stderr)
+  const out = JSON.parse(r.stdout)
+  assert.ok(!('rounds' in out), `rounds: null means not-supplied — found "rounds" in ${Object.keys(out)}`)
+})
+
+test('CLI: a --round-limit-only invocation emits roundLimit + routeUpstream while rounds stays absent (the emission disjunct)', () => {
+  // Every other emitting CLI fixture supplies rounds, so the second disjunct of main()'s
+  // emission condition (roundLimit !== undefined) is otherwise unexercised — a roundLimit-only
+  // invocation losing its echo + routeUpstream would go undetected without this pin.
+  const input = { probeResults: [roundsProbe(F('Critical'))] }
+  const r = runGate(['--stdin', '--round-limit=3'], JSON.stringify(input))
+  assert.equal(r.status, 0, r.stderr)
+  const out = JSON.parse(r.stdout)
+  assert.equal(out.roundLimit, 3)
+  assert.equal(out.routeUpstream, false, 'absent rounds disables both arms — routeUpstream is emitted and false')
+  assert.ok(!('rounds' in out), `rounds was never supplied — found "rounds" in ${Object.keys(out)}`)
 })
