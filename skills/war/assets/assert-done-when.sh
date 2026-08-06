@@ -40,6 +40,7 @@
 set -euo pipefail
 
 PROG="assert-done-when"
+unset CDPATH # a set CDPATH would redirect a relative-path `cd` and echo the resolved dir to stdout (which belongs to the executed command)
 # Multi-code contract: every callsite passes the exit code EXPLICITLY (the
 # default 2 is belt-and-braces in the safe direction — a forgotten arg can
 # never collapse into the floor status 1).
