@@ -817,8 +817,9 @@ fi
 # Case 12: NEAR-MISS DIAGNOSTIC (spec §10 criteria 1–4). The exit-1 path
 # re-scans the changed-file list against the fixed near-miss set and names the
 # hits on STDERR beside the ACTIVE pattern set. The whole family is about the
-# diagnostic channel: stdout stays the refiner's empty-summary read contract and
-# every exit code is byte-preserved (0/1/2 never conflated, ADR 0006).
+# diagnostic channel: stdout on the exit-1/2 paths stays the refiner's
+# empty-summary read contract (12b's exit-0 stdout is the Case 13 matched-path
+# listing) and every exit code is byte-preserved (0/1/2 never conflated, ADR 0006).
 # NEAR_MARKER is the block's distinctive token — 12a asserts it PRESENT on the
 # exit-1 path and 12d asserts its ABSENCE on the exit-2 die path (both-ways
 # proof; row-scoped marker assert, not a whole-output count).
