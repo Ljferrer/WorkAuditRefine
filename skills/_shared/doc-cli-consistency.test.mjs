@@ -1,4 +1,5 @@
-// Doc/CLI shell-out consistency drift-guard (plan D11, ADR 0025).
+// Doc/CLI shell-out consistency drift-guard (plan D11, ADR 0025) + the
+// spec-posterity citation rule (F7 / ADR 0046) over the same doc corpus.
 //
 // Every CLI verb a SKILL.md phrases for one of the named dispatch modules must
 // resolve to a REAL dispatch case in that module — extraction + equality, not
@@ -127,6 +128,10 @@ function skillDocs() {
     'skills/war-machine/references/afk-conversion.md',
     'skills/war-review/references/offer-issue.md',
     'skills/war-review/references/scavenge.md',
+    // Spec-posterity corpus widening (plan 2026-08-05 Task 5.4, F7 / ADR 0046): the two
+    // retired-citation homes the hand-enumerated list could not previously see.
+    'skills/lessons-learned/references/seeding.md',
+    'skills/war/references/design.md',
   ]
   // Unguarded read: an enumerated destination that vanishes (rename/delete) must throw,
   // never silently narrow the UNION scan (lesson: enumerated-destination-list-existssync-
@@ -136,6 +141,46 @@ function skillDocs() {
   assert.ok(docs.length > 0, 'no skills/*/SKILL.md found — repo root misresolved?')
   return docs
 }
+
+// --- spec-posterity rule (F7 / ADR 0046, plan 2026-08-05 Task 5.4) ---------
+// docs/specs/ files are posterity — never updated, never cited by skill doctrine
+// surfaces or the README; live surfaces cite maintained-truthful homes (ADRs,
+// references/ files, agent cards, code, memories). Input-shape MECHANICS are
+// carved out by pattern, case-insensitively: path-shape examples (placeholder
+// tokens — <slug>, YYYY-MM-DD, a trailing ellipsis), glob patterns (*), and the
+// bare docs/specs/ output-directory mention (survey-corps). Fenced code blocks
+// are stripped first: in this corpus a fence is always a command/template/output
+// example — input-shape mechanics by definition — while doctrine citations live
+// in prose links and inline code spans, exactly where this rule looks.
+
+// Same-wave split pin (lesson: drift-guard-pin-for-task-split-intermediate-state):
+// plan 2026-08-05 Task 5.1 owns retiring war-campaign/SKILL.md's legacy spec
+// citation; Task 5.4 ships this guard from the same frozen phase base, where that
+// one citation still exists. Splitting exactly these bytes out of that one file
+// before the scan keeps the guard green at the frozen base and leaves it INERT
+// once the retirement lands (the split matches nothing); any other docs/specs
+// citation in that file — including a reworded resurrection — is flagged.
+const WAR_CAMPAIGN_LEGACY = 'Full design: [`../../docs/specs/2026-07-01-war-companion-skills-design.md`](../../docs/specs/2026-07-01-war-companion-skills-design.md) §7.'
+
+// An unbalanced trailing fence leaves the tail UNSTRIPPED — still scanned (fail-closed).
+const stripFences = text => text.replace(/```[\s\S]*?```/g, '')
+
+function specCitations(path, text) {
+  if (path === 'skills/war-campaign/SKILL.md') text = text.split(WAR_CAMPAIGN_LEGACY).join('')
+  const out = []
+  for (const m of stripFences(text).matchAll(/docs\/specs\/(\S*)/gi)) {
+    const rest = m[1].replace(/[`"'\)\].,;:]+$/, '') // trim trailing punctuation/markdown
+    if (rest === '') continue          // bare output-directory mention (survey-corps)
+    if (/[<*…]/.test(rest)) continue   // placeholder / glob path-shape
+    if (/yyyy/i.test(rest)) continue   // date-placeholder path-shape
+    out.push({ path, cite: m[0] })
+  }
+  return out
+}
+
+// The verb-rule corpus + README.md — ADR 0046's reach includes the README
+// (the README extension), for this rule only.
+const specRuleCorpus = () => [...skillDocs(), { path: 'README.md', text: src('README.md') }]
 
 function unresolved(docs, cases) {
   const bad = []
@@ -180,4 +225,28 @@ test('delete-and-trace: an injected fake verb fails resolution; real verbs do no
   // no false positive: genuine verbs resolve clean (proves the guard is not vacuous)
   const good = [{ path: 'FIXTURE', text: 'Run `campaign-ledger.mjs sweep`, then `safe-swap.sh recover`.' }]
   assert.deepEqual(unresolved(good, cases), [], 'genuine verbs must resolve to their dispatch cases')
+})
+
+test('spec-posterity (F7 / ADR 0046): no scanned doctrine surface — nor README.md — cites a docs/specs path', () => {
+  const bad = specRuleCorpus().flatMap(({ path, text }) => specCitations(path, text))
+  assert.deepEqual(bad, [], `a live surface cites a docs/specs path (specs are posterity — repoint at the maintained home or delete the pointer):\n${JSON.stringify(bad, null, 2)}`)
+})
+
+test('spec-posterity carve-outs: input-shape mechanics excluded by pattern; concrete citations and the pin scope are not', () => {
+  // concrete citations flagged — markdown-link, inline-code, and mixed-case forms
+  // (the whole link is one whitespace-free run, so it surfaces as one finding)
+  assert.equal(specCitations('FIXTURE', 'See [`docs/specs/2026-01-01-x-design.md`](docs/specs/2026-01-01-x-design.md) §2.').length, 1, 'a markdown-link citation must be flagged')
+  assert.equal(specCitations('FIXTURE', 'per `docs/specs/2026-01-01-x-design.md` §4').length, 1, 'an inline-code citation must be flagged')
+  assert.equal(specCitations('FIXTURE', 'per Docs/Specs/2026-01-01-X-Design.md').length, 1, 'the match is case-insensitive')
+  // carve-outs: bare output dir, globs, placeholders, ellipsis, date placeholder, fenced examples
+  assert.deepEqual(specCitations('FIXTURE', 'synthesizes one spec per group into `docs/specs/` — then verifies.'), [], 'the bare output directory is input-shape mechanics')
+  assert.deepEqual(specCitations('FIXTURE', 'Scan `docs/specs/*.md` and `docs/specs/*-design.md` for orphans.'), [], 'glob patterns are input-shape mechanics')
+  assert.deepEqual(specCitations('FIXTURE', 'named `docs/specs/<name>` or `docs/specs/2026-07-02-<slug>-design.md`'), [], 'placeholder tokens are path-shape examples')
+  assert.deepEqual(specCitations('FIXTURE', 'grep the plan for a `docs/specs/…` or issue link'), [], 'a trailing ellipsis is a path-shape example')
+  assert.deepEqual(specCitations('FIXTURE', 'shaped `docs/specs/YYYY-MM-DD-<slug>-design.md`; and `docs/specs/yyyy-mm-dd-x.md`'), [], 'date placeholders are path-shape examples, case-insensitively')
+  assert.deepEqual(specCitations('FIXTURE', 'Example:\n```\n/war-strategy docs/specs/2026-01-01-real-design.md\n```\nprose after.'), [], 'fenced command/template examples are input-shape mechanics')
+  // the war-campaign pin is BYTE- and FILE-scoped (see WAR_CAMPAIGN_LEGACY above)
+  assert.deepEqual(specCitations('skills/war-campaign/SKILL.md', `intro. ${WAR_CAMPAIGN_LEGACY} outro.`), [], 'the exact legacy line is tolerated in war-campaign/SKILL.md alone')
+  assert.equal(specCitations('skills/war-campaign/SKILL.md', 'Full design: `docs/specs/2026-07-01-war-companion-skills-design.md` §7.').length, 1, 'a reworded resurrection in the same file is flagged')
+  assert.equal(specCitations('skills/aftermath/SKILL.md', `intro. ${WAR_CAMPAIGN_LEGACY} outro.`).length, 1, 'the same bytes in ANY OTHER file are flagged')
 })
