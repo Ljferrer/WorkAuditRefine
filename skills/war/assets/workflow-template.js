@@ -129,7 +129,8 @@ const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties:
   // merge-task only, OPTIONAL (fail-open — absent ⇒ the gate-audit seat keeps its SOFT cannot-confirm
   // path). The gate-audit pass greps these paths against the captured gate log (the mappedTestsLine
   // threaded into the per-task seat, Task 3.2), making the HARD "provably unrun mapped test"
-  // determination mechanical.
+  // determination mechanical — HARD only where the log ENUMERATES test file paths (the round-3
+  // enumeration-conditional; a titles-only node-reporter half degrades SOFT, never a false hold).
   mappedTests: { type: 'array' },
   pr_number: { type: 'number' }, pr_remote: { type: 'string' } } }
 
@@ -1782,12 +1783,17 @@ if (mergedTasksForGateAudit.length > 0) {
     const artifactLine = gateLogPath || '(no gate-log artifact path recorded)'
     // mappedTestsLine (D7, Task 3.2): the floor-matched test paths (MergeResult.mappedTests) make the
     // HARD provably-unrun trigger MECHANICAL — the seat greps each path against the CAPTURED gate log.
+    // Enumeration-conditional (round-3 fix-forward adjudication): absence is HARD only where the log
+    // ENUMERATES test file paths (e.g. the bash half's per-file headers); a piped `node --test` run
+    // reports test titles + an aggregate summary and never per-file paths, so a zero-hit .mjs grep is
+    // SOFT cannot-confirm — never a false land-hold (the reporter-format premise is pinned live by the
+    // test suite's 'reporter-format premise' test).
     // Absent/empty ⇒ '' (byte-identical prompt — the seat keeps today's SOFT cannot-confirm posture).
     const mappedTestsLine = (Array.isArray(mappedTests) && mappedTests.length)
       ? pt`\nMAPPED TESTS (D7 — the mechanical HARD trigger): the test floor matched these test paths in this task's diff (MergeResult.mappedTests):\n`
         // pt-tagged prompt-feeding row builder (mapped-tests → gate-audit prompt): ${p2 ?? ''} absence-tolerant.
         + mappedTests.map(p2 => pt`  - ${p2 ?? ''}`).join('\n') + '\n'
-        + pt`Grep EACH mapped path against the CAPTURED gate log artifact (artifact-first): a mapped test path absent — or present with 0 executed tests — in the captured log at a CONFIRMED/BENIGN-ADVANCE pin is the HARD provably-unrun finding.\n`
+        + pt`Grep EACH mapped path against the CAPTURED gate log artifact (artifact-first). A mapped path absent — or present with 0 executed tests — at a CONFIRMED/BENIGN-ADVANCE pin is the HARD provably-unrun finding ONLY when the captured log ENUMERATES test file paths for that path's suite half (e.g. the bash suite half's per-file \`== gate(bash): <path> ==\` headers; a \`node --test\` run reports test TITLES plus an aggregate summary, never per-file paths). A zero-hit grep against a non-enumerating half (e.g. a .mjs mapped path vs the node-reporter output) proves nothing about that path: SOFT cannot-confirm, never a hold.\n`
       : ''
     // claimedIdsLine (A1, Task 3.2): the worker-claimed End-state ids, cross-checked by this seat
     // against its endStateAttestations rows. Empty/absent — or a claims-less phase — ⇒ '' (byte-identical).
@@ -1888,7 +1894,9 @@ if (mergedTasksForGateAudit.length > 0) {
     // an in-flight refiner returning integratedTipGate without gate_log_path lands SOFT, never an error).
     const authArtifactLine = integratedTip.gate_log_path || '(no gate-log artifact path recorded)'
     // Mapped-tests union (D7, Task 3.2): the dep-crossing tasks' floor-matched paths, grepped against
-    // the integrated-tip gate log the same mechanical way. Empty ⇒ '' (byte-identical prompt).
+    // the integrated-tip gate log the same mechanical way — including the round-3 enumeration-conditional
+    // (mappedTestsLine's twin: absence is HARD only where the log enumerates test file paths; a
+    // non-enumerating half is SOFT). Empty ⇒ '' (byte-identical prompt).
     const authMapped = mergedTasksForGateAudit
       .filter(m => depCrossingIds.has(m.taskId))
       .flatMap(m => Array.isArray(m.mappedTests) ? m.mappedTests : [])
@@ -1896,7 +1904,7 @@ if (mergedTasksForGateAudit.length > 0) {
       ? pt`\nMAPPED TESTS (D7 — the mechanical HARD trigger): the test floor matched these test paths across the dep-crossing tasks' diffs (MergeResult.mappedTests):\n`
         // pt-tagged prompt-feeding row builder (mapped-tests → integrated-tip prompt): ${p2 ?? ''} absence-tolerant.
         + authMapped.map(p2 => pt`  - ${p2 ?? ''}`).join('\n') + '\n'
-        + pt`Grep EACH mapped path against the CAPTURED integrated-tip gate log (artifact-first): a mapped test path absent — or present with 0 executed tests — in the captured log is the HARD provably-unrun finding.\n`
+        + pt`Grep EACH mapped path against the CAPTURED integrated-tip gate log (artifact-first). A mapped path absent — or present with 0 executed tests — is the HARD provably-unrun finding ONLY when the captured log ENUMERATES test file paths for that path's suite half (e.g. the bash suite half's per-file \`== gate(bash): <path> ==\` headers; a \`node --test\` run reports test TITLES plus an aggregate summary, never per-file paths). A zero-hit grep against a non-enumerating half (e.g. a .mjs mapped path vs the node-reporter output) proves nothing about that path: SOFT cannot-confirm, never a hold.\n`
       : ''
     const authVerdict = await agent(
       pt`INTEGRATED-TIP GATE-AUDIT for WAR phase ${ph.id} (lens: execution-evidence — AUTHORITATIVE). `

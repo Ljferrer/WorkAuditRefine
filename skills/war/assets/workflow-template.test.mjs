@@ -1,8 +1,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { tmpdir } from 'node:os'
+import { spawnSync } from 'node:child_process'
 import { HARD_ESCALATION_REASONS, KNOWN_LAND_DECISIONS } from './land-decision.mjs'
 import { spawnOpts, validateRoster, widenRoster, resolveWidenSource, resolveGate, ROLES, DEFAULTS } from './war-config.mjs'
 
@@ -4502,9 +4504,65 @@ test('mappedTests grep (End state 7, D7): a merge returning mappedTests threads 
   for (const m of MAPPED) assert.ok(p.includes(m), `the mapped path ${m} rides the seat prompt`)
   assert.match(p, /Grep EACH mapped path against the CAPTURED gate log/i, 'the grep instruction makes the HARD trigger mechanical against the captured artifact')
   assert.match(p, /provably-unrun/i, 'the mechanical trigger names the HARD provably-unrun finding')
+  // Round-3 fix-forward adjudication: the HARD trigger is ENUMERATION-CONDITIONAL — computable only
+  // where the captured log names test file paths. An unconditional absent-from-log ⇒ HARD rule
+  // false-holds every .mjs-mapped task (this repo's dominant case): the node half of the gate emits
+  // titles + an aggregate summary only (premise pinned live by the reporter-format test below).
+  assert.match(p, /ONLY when the captured log ENUMERATES test file paths/i, 'the HARD trigger is enumeration-conditional — a zero-hit grep is HARD only where the log names file paths')
+  assert.match(p, /never per-file paths/i, 'the node-reporter titles-only fact is stated to the seat')
+  assert.match(p, /SOFT cannot-confirm, never a hold/i, 'a zero-hit grep against a non-enumerating half degrades SOFT — the fail-safe direction, never a false land-hold')
   // Fail-open: no mappedTests token on the MergeResult ⇒ no block (the SOFT cannot-confirm posture kept).
   const { calls: c2 } = await runPhase(PROVISION_ARGS(), gateAuditImpl)
   assert.ok(!gateAuditCalls(c2)[0].prompt.includes('MAPPED TESTS'), 'no mappedTests ⇒ no block — byte-identical posture')
+})
+
+// Reporter-format premise pin (round-3 fix-forward adjudication): the enumeration-conditional above
+// rests on a factual premise about this repo's own gate output — a piped `node --test` run reports
+// test TITLES plus an aggregate summary and never enumerates test file paths (Lead-verified against a
+// captured gate log: 0 path hits while the file's own tests were green in the same log). Pin the
+// premise LIVE against the actual runner on the current Node, not by fixture prose: generate a real
+// node-format log and grep it exactly the way a seat would. If this test ever reds because the piped
+// reporter began enumerating paths, the premise changed — revisit the enumeration-conditional in
+// mappedTestsLine/authMappedLine and war-auditor.md's checklist bullet (the HARD trigger could widen).
+test('reporter-format premise (D7, round-3): a piped node --test run emits titles + aggregate summary WITHOUT the test file path — a zero-hit grep for a .mjs mapped path proves nothing about whether its suite ran', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'war-node-reporter-premise-'))
+  const mjsMappedPath = join(dir, 'wibble.premise.test.mjs')
+  try {
+    writeFileSync(mjsMappedPath, "import { test } from 'node:test'\nimport assert from 'node:assert'\ntest('premise-pin sentinel title', () => { assert.equal(1, 1) })\n")
+    // Strip the parent runner's NODE_TEST_CONTEXT: the gate invokes node --test TOP-LEVEL (piped), and
+    // an inherited child-v8 context would silence the child's human-format stdout entirely — the probe
+    // must reproduce the gate's own invocation shape, not this suite's runner-child shape.
+    const env = { ...process.env }
+    delete env.NODE_TEST_CONTEXT
+    const run = spawnSync(process.execPath, ['--test', mjsMappedPath], { encoding: 'utf8', env })
+    const log = (run.stdout || '') + (run.stderr || '')
+    assert.equal(run.status, 0, 'the premise fixture suite is green (presence guard — the run below provably executed)')
+    assert.ok(log.includes('premise-pin sentinel title'), 'the piped reporter emits test TITLES — the suite provably ran and is visible in the log')
+    assert.match(log, /tests 1\b/, '…plus the aggregate summary')
+    assert.ok(!log.includes('wibble.premise.test.mjs'),
+      'PREMISE: the piped node reporter does NOT enumerate test file paths — the .mjs mapped-path grep yields zero hits even though the suite provably ran, so absence-from-log is a non-enumerating-half SOFT cannot-confirm, never the HARD trigger')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('authMappedLine twin (D7, round-3): the integrated-tip AUTHORITATIVE seat threads the dep-crossing mapped-path union with the SAME enumeration-conditional HARD trigger as the per-task seat', async () => {
+  // evidenceImpl's PROVISION_ARGS default is intra-dep (t2 deps t1, same repo) and returns
+  // integratedTipGate — wrap its merges to carry mappedTests so authMappedLine renders live.
+  const withMapped = (prompt, opts) => {
+    const r = evidenceImpl(prompt, opts)
+    if (r && r.mode === 'merge-task' && r.status === 'merged') r.mappedTests = ['skills/war/assets/wibble.test.mjs']
+    return r
+  }
+  const { calls } = await runPhase(PROVISION_ARGS(), withMapped)
+  const auth = calls.find(c => isAuditor(c) && /:integrated-tip$/.test(c.opts.label || ''))
+  assert.ok(auth, 'authoritative integrated-tip seat dispatched (presence guard)')
+  const p = auth.prompt
+  assert.match(p, /MAPPED TESTS \(D7/, 'the mapped-tests union block is threaded')
+  assert.ok(p.includes('skills/war/assets/wibble.test.mjs'), "the dep-crossing tasks' mapped path rides the seat prompt")
+  assert.match(p, /CAPTURED integrated-tip gate log/i, 'the grep target is the integrated-tip captured artifact')
+  assert.match(p, /ONLY when the captured log ENUMERATES test file paths/i, 'the twin carries the enumeration-conditional — a per-task-only fix would false-hold through this seat instead')
+  assert.match(p, /SOFT cannot-confirm, never a hold/i, 'the twin degrades SOFT on a non-enumerating half')
 })
 
 test('A1 cross-check (Task 3.2): the worker-claimed End-state ids (acceptance_criteria_covered) reach the per-task gate-audit seat; empty/absent ⇒ no block', async () => {
@@ -7750,10 +7808,17 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
                 /endstate-(?:<phaseId>-<n>|\d+-\d+)\.log/i, /unverified[^.]{0,60}never ['`]?met/i] },
     // precision-chain Task 3.2 (D7): the mechanical mapped-tests grep — the standing card's checklist
     // bullet AND the dispatched mappedTestsLine (rendered only for a mappedTests-bearing merge; the
-    // esSeatP fixture threads one). The HARD provably-unrun trigger reads the CAPTURED gate log.
-    { name: 'mechanical mapped-tests grep (D7, Task 3.2): grep each MergeResult.mappedTests path against the captured gate log — absent/0-count at a confirmed pin is the HARD provably-unrun finding',
+    // esSeatP fixture threads one). The HARD provably-unrun trigger reads the CAPTURED gate log and —
+    // round-3 fix-forward adjudication — fires ONLY where that log ENUMERATES test file paths (the bash
+    // half's per-file headers); the node half reports titles + an aggregate summary only, so a zero-hit
+    // .mjs grep degrades SOFT cannot-confirm, never a false land-hold (premise pinned live by the
+    // reporter-format test above). Every enumeration-conditional anchor below was verified absent from
+    // both surfaces at the pre-change base, so a per-surface revert to the unconditional rule reds this row.
+    { name: 'mechanical mapped-tests grep (D7, Task 3.2 + round-3 enumeration-conditional): grep each MergeResult.mappedTests path against the captured gate log — absent/0-count at a confirmed pin is HARD only where the log enumerates test file paths; a non-enumerating half is SOFT cannot-confirm, never a hold',
       surfaces: [['war-auditor.md', auditorMd], ['per-task gate-audit prompt (mappedTests-bearing)', esSeatP]],
-      anchors: [/mappedTests/, /grep each/i, /captured gate log/i, /0 executed tests/i, /provably-unrun/i] },
+      anchors: [/mappedTests/, /grep each/i, /captured gate log/i, /0 executed tests/i, /provably-unrun/i,
+                /ONLY when the captured log ENUMERATES test file paths/i, /aggregate summary/i,
+                /never per-file paths/i, /non-enumerating/i, /SOFT cannot-confirm, never a hold/i] },
     // Task 3.2 recovery Blocker 1 (the Pivotal prompt-surface-split constraint): the endstate-check
     // dispatch flavor lands on the refiner's standing card AND the dispatched prompt — a card that
     // never learned the flavor invites a decline, and the dispatch is fail-open, so a decline is
