@@ -4424,6 +4424,23 @@ test('endstate-check dispatch: NOT dispatched for bare-string (judgment-path) cl
   assert.ok(!c2.some(isEndstateCheck), 'a claims-less phase dispatches nothing')
 })
 
+// Recovery Blocker 1 (Pivotal constraint: prompt-surface split — standing card + dispatched prompt,
+// same task): the refiner card must LEARN the endstate-check dispatch flavor it is handed, the way
+// the structurally identical evidence dispatch got its own card section. The dispatch is fail-open,
+// so a refiner declining an unfamiliar dispatch (which has happened before — hence the provision
+// section's never-out-of-mode line) means silent under-verification, never a loud failure. The
+// mirrored duty prose is censused by the 'endstate-check dispatch card twin' both-surfaces registry
+// row; this test pins the card-only structure: the section, the enumeration enrollments, the
+// never-decline line, and the ENDSTATE_CHECK_RESULT return shape (on no standing surface before).
+test('war-refiner.md documents the endstate-check dispatch (recovery Blocker 1): its own card section, Inputs + Return enrollment, the never-decline line, and the ENDSTATE_CHECK_RESULT shape', () => {
+  assert.match(refinerMd, /## Land-barrier endstate-check dispatch/, 'the card carries its own endstate-check section (the evidence-dispatch pattern)')
+  assert.match(refinerMd, /dispatchKind: endstate-check/, 'the section names the stable dispatchKind discriminator')
+  assert.match(refinerMd, /## Land-barrier endstate-check dispatch[\s\S]{0,700}never out-of-mode: do not decline/i, "the section carries the never-decline defensive line (a fail-open dispatch declined is silent under-verification)")
+  assert.match(refinerMd, /- `mode`[^\n]*endstate-check/, 'the ## Inputs mode enumeration names the endstate-check flavor (no longer affirmatively incomplete)')
+  assert.match(refinerMd, /## Return[\s\S]*ENDSTATE_CHECK_RESULT/, 'the ## Return enumeration names ENDSTATE_CHECK_RESULT (it now appears on a standing surface)')
+  assert.match(refinerMd, /\{ artifacts: \[\{ n, path, tip_sha, exit_code \}\] \}/, 'the card carries the exact ENDSTATE_CHECK_RESULT return shape')
+})
+
 test('endStateAttestations requirement lands in the shared endStateBlock (End state 7, D8): the per-task seat and the End-state-only seat carry the attestation contract; the shared const rides exactly the three gate-audit-family sites', async () => {
   const { calls } = await runPhase(ES_ROW_ARGS(), gateAuditImpl)
   const perTask = gateAuditCalls(calls)[0]
@@ -7569,11 +7586,15 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
       return { mode: 'merge-task', status: 'merged', gate_output: 'ok', integration_sha: 'c0ffee1234', mappedTests: ['skills/war/assets/wibble.test.mjs'] }
     return gateAuditImpl(prompt, opts)
   }
-  const esSeatP = (gateAuditCalls((await runPhase(ES_ROW_ARGS(), esMappedImpl)).calls)[0] || {}).prompt
+  const esRunCalls = (await runPhase(ES_ROW_ARGS(), esMappedImpl)).calls
+  const esSeatP = (gateAuditCalls(esRunCalls)[0] || {}).prompt
+  // The endstate-check dispatch prompt from the same claims-bearing run — the recovery Blocker-1
+  // card-twin row censuses it against war-refiner.md.
+  const esCheckP = (esRunCalls.find(isEndstateCheck) || {}).prompt
   const esOnlyP = ((await runPhase(ES_ROW_ARGS({ tasks: [
     { id: 't1', issue: 101, title: 'Docs task', planSlice: 's', roster: [{ lens: 'correctness' }], requiresTest: false },
   ] }), gateAuditImpl)).calls.find(x => (x.opts.label || '') === 'gate-audit:phase-3:end-state') || {}).prompt
-  assert.ok(esSeatP && esOnlyP, 'claims-bearing per-task + end-state-only gate-audit prompts dispatched (presence guard, Task 3.2 rows)')
+  assert.ok(esSeatP && esCheckP && esOnlyP, 'claims-bearing per-task + endstate-check + end-state-only prompts dispatched (presence guard, Task 3.2 rows)')
   // The inline gate-audit seat prompts sit OUTSIDE auditPrompt() — slice them from src by construct.
   const gateAuditExecSrc = sliceSrc('POST-MERGE GATE-AUDIT', 'gate-audit:${taskId}:execution-evidence')
   const gateAuditIntegratedTipSrc = sliceSrc('INTEGRATED-TIP GATE-AUDIT', 'gate-audit:phase-${ph.id}:integrated-tip')
@@ -7710,8 +7731,30 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     { name: 'mechanical mapped-tests grep (D7, Task 3.2): grep each MergeResult.mappedTests path against the captured gate log — absent/0-count at a confirmed pin is the HARD provably-unrun finding',
       surfaces: [['war-auditor.md', auditorMd], ['per-task gate-audit prompt (mappedTests-bearing)', esSeatP]],
       anchors: [/mappedTests/, /grep each/i, /captured gate log/i, /0 executed tests/i, /provably-unrun/i] },
+    // Task 3.2 recovery Blocker 1 (the Pivotal prompt-surface-split constraint): the endstate-check
+    // dispatch flavor lands on the refiner's standing card AND the dispatched prompt — a card that
+    // never learned the flavor invites a decline, and the dispatch is fail-open, so a decline is
+    // SILENT under-verification (cf. the provision section's never-out-of-mode line, which exists
+    // because a refiner declining an unfamiliar dispatch has happened before).
+    { name: 'endstate-check dispatch card twin (recovery Blocker 1): file-threaded .cmd execution, load-bearing tip_sha stamp + exit_code line, red-check isolation, fail-open return — standing card + dispatched prompt',
+      surfaces: [['war-refiner.md', refinerMd], ['endstate-check dispatch prompt', esCheckP]],
+      anchors: [/endstate-check/i, /file-threaded/i, /byte-verbatim/i, /tip_sha/, /exit_code/,
+                /load-bearing/i, /never fails this dispatch/i, /red, hung, or timed-out/i, /fail-open/i, /never block/i] },
+    // Task 3.2 recovery Blocker 2 (stale-but-readable artifact): .war/ is git-excluded and
+    // ensure-worktree reuses a present worktree untouched, so a resumeFromRunId replay lands on
+    // prior-run artifact residue — READABLE but stamped with a prior tip. The seat MUST compare the
+    // stamped tip_sha against the confirmed tip and attest 'unverified' on mismatch (the
+    // missing/unreadable rule alone never fires on a stale-but-readable artifact). Pinned on the
+    // card AND the shared endStateBlock (live prompts: per-task + end-state-only seats; the
+    // integrated-tip seat concatenates the same const, source-count-pinned).
+    { name: "stale-artifact tip_sha comparison (recovery Blocker 2): stamped tip_sha mismatching the confirmed tip ⇒ unverified, never met — readable is not sufficient",
+      surfaces: [['war-auditor.md', auditorMd],
+                 ['per-task gate-audit prompt (claims-bearing)', esSeatP],
+                 ['end-state-only seat prompt (claims-bearing)', esOnlyP]],
+      anchors: [/stamped `?tip_sha`?/, /stale-but-readable/i, /mismatch\w* the confirmed tip/i,
+                /stale-but-readable[\s\S]{0,240}unverified/i, /readable is not sufficient/i] },
   ]
-  assert.ok(REGISTRY.length >= 18, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), and the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep) — floor equals the true row count, no slack (#693)')
+  assert.ok(REGISTRY.length >= 20, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), and the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison) — floor equals the true row count, no slack (#693)')
   for (const row of REGISTRY) {
     for (const [sName, sText] of row.surfaces) {
       for (const re of row.anchors) {
