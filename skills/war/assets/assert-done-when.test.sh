@@ -46,6 +46,11 @@
 #   17. relative --cmd-file with an unresolvable parent dir -> exit 2.
 #   18. unreadable command file -> exit 2 (distinct from the missing-file arm).
 #   19. mktemp failure (PATH-stubbed) -> exit 2, never the done-unmet route.
+#   20. CDPATH neutralization: CDPATH exported + a RELATIVE worktree arg ->
+#       the command still runs in the REAL worktree (not the same-named decoy
+#       under the CDPATH entry) and stdout stays exactly the command's bytes
+#       (without `unset CDPATH`, bash's cd searches CDPATH first and echoes
+#       the resolved dir onto stdout — both asserts fail).
 #
 # The env-arm greps quote the floor's die literals VERBATIM (embedded $vars
 # included) inside double quotes: the test binds each variable to the runtime
@@ -487,6 +492,46 @@ if [ "$RC" -eq 2 ] \
   pass "case 19: mktemp failure -> exit 2 + message (env error, never the done-unmet route)"
 else
   fail "case 19: mktemp failure -> expected exit 2 + message, got $RC (err: $ERR)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 20: CDPATH neutralization — CDPATH exported + a RELATIVE worktree arg.
+# The invoking cwd holds the REAL git worktree (bare name wt20); the CDPATH
+# entry holds a same-named DECOY dir. The floor's env checks ([ -d ], git -C)
+# are cwd-relative — CDPATH never applies to them — so they pass against the
+# real worktree either way; only the confinement `cd -- "$worktree"` is
+# CDPATH-sensitive. WITHOUT `unset CDPATH`, bash resolves that cd against the
+# CDPATH entry first: the command runs in the decoy (marker lands there — a
+# false-green against the wrong tree) AND cd echoes the resolved dir onto
+# stdout (polluting the evidence artifact case 13 pins) -> the real-marker
+# assert and the exact-OUT assert both fail while RC stays 0.
+# (setup_wt mktemps its own path; this fixture needs a KNOWN bare name inside
+# the invoking cwd, so the repo init is inlined.)
+# ---------------------------------------------------------------------------
+CWD20="$(tmp_dir)"
+WT20="$CWD20/wt20"
+mkdir "$WT20"
+git -C "$WT20" init -q
+git -C "$WT20" config user.email war@test.local
+git -C "$WT20" config user.name "WAR Test"
+git -C "$WT20" config commit.gpgsign false
+printf 'seed\n' > "$WT20/seed.txt"
+git -C "$WT20" add seed.txt
+git -C "$WT20" commit -qm "seed"
+DECOY20="$(tmp_dir)"
+mkdir "$DECOY20/wt20"
+CF20="$(tmp_dir)/green20.cmd"
+printf 'printf ran > cdpath-ran.txt\nprintf DONE-WHEN-CDPATH-TOKEN\n' > "$CF20"
+
+RC=0
+OUT="$( ( cd "$CWD20" && CDPATH="$DECOY20" bash "$SCRIPT" wt20 --cmd-file "$CF20" ) 2>"$CWD20/err.txt" )" || RC=$?
+ERR="$(cat "$CWD20/err.txt" 2>/dev/null)"
+if [ "$RC" -eq 0 ] && [ -f "$WT20/cdpath-ran.txt" ] \
+   && [ ! -f "$DECOY20/wt20/cdpath-ran.txt" ] \
+   && [ "$OUT" = "DONE-WHEN-CDPATH-TOKEN" ]; then
+  pass "case 20: CDPATH set + relative worktree -> ran in the REAL worktree, stdout exactly the command's bytes (CDPATH neutralized)"
+else
+  fail "case 20: CDPATH neutralization -> RC=$RC, real marker: $([ -f "$WT20/cdpath-ran.txt" ] && echo yes || echo no), decoy marker: $([ -f "$DECOY20/wt20/cdpath-ran.txt" ] && echo yes || echo no), OUT=[$OUT] (err: $ERR)"
 fi
 
 # ---------------------------------------------------------------------------
