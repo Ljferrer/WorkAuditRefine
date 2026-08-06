@@ -840,9 +840,14 @@ decision (the route reuses the existing floor-family slots, like `no-test`/`unpa
 The mechanical definition of "mapped test": every test path `assert-test-in-diff.sh` matched in the
 task diff, printed on its exit-0 stdout (one per line — an accumulating scan, never first-hit) and
 captured by the refiner into the MergeResult. The gate-audit seat greps them against the captured
-gate-evidence artifact, so the HARD "provably unrun mapped test" trigger is mechanical, never judged.
+gate-evidence artifact, so the HARD "provably unrun mapped test" trigger is mechanical, never
+judged — HARD only where the captured log ENUMERATES test file paths (the bash half's per-file
+headers); a zero-hit grep against a titles-only `node --test` half is SOFT cannot-confirm, never a
+hold (the round-3 enumeration-conditional).
 _Avoid_: inferring mapped tests from the diff or from prose; treating an empty list on a
-`requiresTest: false` task as a defect (no mapped tests ⇒ the gate-audit HARD path is vacuous there).
+`requiresTest: false` task as a defect (no mapped tests ⇒ the gate-audit HARD path is vacuous
+there); holding on a zero-hit grep against a non-enumerating log half (the pre-narrowing false-hold
+— it proves nothing about that path).
 
 **Backstop** (deferred validation):
 An operator-ratified validation the run's gate will not execute pre-merge — declared in the plan's

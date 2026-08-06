@@ -161,8 +161,11 @@ plan supersedes that judgment-path description for gate-audit End-state checks:
 Decision 6's severity mapping is unchanged — a provably unmet condition is still HARD and holds the
 land — and its second sentence (the `/red-team` `intent-vs-plan` lens) is untouched. What this
 amendment retires is the judgment path as the *verification* mechanism for gate-audit End-state
-checks: verification is by executed artifact and positive attestation, and "anything short of
-provable" now lands as the typed `unverified` status, not a SOFT prose note. Ratified by
+checks: verification is by executed artifact and positive attestation, and a condition NO seat
+attests — including one whose artifact is missing, unreadable, or stale — lands the typed
+`unverified` status instead of being read as `met` by silence. The defect-only findings channel
+keeps its three cases unchanged, including the SOFT cannot-verify note — attestation and findings
+are two channels, and the seat records both. Ratified by
 [the precision-chain & loop-breaker plan](../plans/2026-08-05-precision-chain-and-loop-breaker.md)
 (D2/D8, Tasks 1.2/3.1/3.2; red-team F5/F7, operator-ratified 2026-08-05). This amendment leaves the
 ratified body above — beyond the Status currency line — byte-unchanged.
