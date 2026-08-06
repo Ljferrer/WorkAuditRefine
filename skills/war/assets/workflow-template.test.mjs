@@ -2456,8 +2456,8 @@ test('#1046 schema lock: MERGE_RESULT gains OPTIONAL floor_diagnostic and its st
   assert.ok(enumMatch, 'MERGE_RESULT status enum found')
   assert.deepEqual(
     JSON.parse(enumMatch[1].replace(/'/g, '"')),
-    ['merged', 'landed', 'gate_failed', 'conflict', 'error', 'land_stale', 'no-test', 'unpackaged', 'submodule-blocked', 'submodule-pr'],
-    'the status enum is byte-unchanged — floor_diagnostic adds NO status value, HARD_ESCALATION_REASONS member, or KNOWN_LAND_DECISIONS member (land-decision.mjs and both hand-mirrored enum blocks untouched)')
+    ['merged', 'landed', 'gate_failed', 'conflict', 'error', 'land_stale', 'no-test', 'unpackaged', 'done-unmet', 'submodule-blocked', 'submodule-pr'],
+    'the status enum is exactly the schemas.md union — floor_diagnostic adds NO status value; done-unmet is the sole precision-chain Task 2.3 addition (F2 two-slot precedent), mirrored in HARD_ESCALATION_REASONS via the D2 registry row')
 })
 
 test('#1046 ADD_TEST fixPrompt: a non-empty floor_diagnostic is quoted VERBATIM and instructs reconciling against the ACTIVE pattern; absent ⇒ byte-identical to a diagnostic-less run', async () => {
@@ -3212,15 +3212,15 @@ test('Task 3 — no-enum-leak: no new MERGE_RESULT.status member and no new HARD
   assert.ok(mMatch, 'MERGE_RESULT status enum found')
   const statuses = JSON.parse(mMatch[1].replace(/'/g, '"'))
   assert.deepEqual(statuses.sort(),
-    ['conflict', 'error', 'gate_failed', 'land_stale', 'landed', 'merged', 'no-test', 'unpackaged', 'submodule-blocked', 'submodule-pr'].sort(),
-    'MERGE_RESULT.status enum is the expected set — no ace member leaked in (unpackaged is the packaging-floor outcome)')
-  // HARD_ESCALATION_REASONS inline literal must be exactly the canonical 9 (no ace member).
+    ['conflict', 'error', 'gate_failed', 'land_stale', 'landed', 'merged', 'no-test', 'unpackaged', 'done-unmet', 'submodule-blocked', 'submodule-pr'].sort(),
+    'MERGE_RESULT.status enum is the expected set — no ace member leaked in (unpackaged is the packaging-floor outcome; done-unmet is the done-when-floor outcome, precision-chain Task 2.3)')
+  // HARD_ESCALATION_REASONS inline literal must be exactly the canonical 10 (no ace member).
   const hMatch = src.match(/const\s+HARD_ESCALATION_REASONS\s*=\s*(\[[^\]]+\])/)
   assert.ok(hMatch, 'HARD_ESCALATION_REASONS found')
   const hard = JSON.parse(hMatch[1].replace(/'/g, '"'))
   assert.deepEqual(hard.sort(),
-    ['audit-blocked', 'conflict', 'dep-failed', 'escalate', 'gate-evidence', 'land_stale', 'no-test', 'unpackaged', 'unrunnable-deps'].sort(),
-    'HARD_ESCALATION_REASONS is the expected set — aced is a return attribute, not an escalation reason (unpackaged is a packaging-floor hard reason)')
+    ['audit-blocked', 'conflict', 'dep-failed', 'escalate', 'gate-evidence', 'land_stale', 'no-test', 'unpackaged', 'done-unmet', 'unrunnable-deps'].sort(),
+    'HARD_ESCALATION_REASONS is the expected set — aced is a return attribute, not an escalation reason (unpackaged/done-unmet are merge-task floor hard reasons)')
 })
 
 // ---------------------------------------------------------------------------
@@ -5137,8 +5137,8 @@ const SUBMOD_RETRY_REPO = '/abs/submodule-checkout'
 // already stub (t1), so neither harness needs an edit. requiresTest:true mirrors the plan-pinned
 // floor-retry fixture (in production the test floor is what returns no-test); inside this harness it
 // shapes only the dispatched prompt's requiresTest ternary, never route reachability — the sub-loop is
-// entered on EITHER floor status (no-test OR unpackaged), and runNoTestLoop's first Refine call returns
-// no-test unconditionally.
+// entered on ANY floor status (no-test, unpackaged, or done-unmet), and runNoTestLoop's first Refine
+// call returns no-test unconditionally.
 const submodRetryTask = (over = {}) => ({
   id: 't1', issue: 301, title: 'Submodule task', planSlice: 'submod slice',
   roster: [{ lens: 'correctness' }], taskType: 'submodule',
@@ -6106,7 +6106,7 @@ test('T2.1 criterion 6 (D5) — the gate-audit seat carries the captured-artifac
   // the retired anti-excerpt prose is ABSENT from all population surfaces (both dispatched merge prompts + standing file)
   assert.ok(!src.includes('Do NOT curate or excerpt'),
     'the anti-excerpt prose is gone from ALL workflow-template.js dispatched prompts (replaced by the capture clause)')
-  assert.ok(!refinerMd.includes('curate or excerpt'), 'the anti-excerpt prose is gone from war-refiner.md step 7')
+  assert.ok(!refinerMd.includes('curate or excerpt'), 'the anti-excerpt prose is gone from war-refiner.md (the final merge step)')
   // UNION scan (adjudication I): Task 4.1 evicted card blocks into references/refiner-recovery.md —
   // the OLD-absent key scans the eviction destination too, never a relocated read.
   assert.ok(!refinerRecoveryMd.includes('curate or excerpt'), 'the anti-excerpt prose is absent from refiner-recovery.md (eviction destination)')
@@ -7104,6 +7104,148 @@ test('A1 (Task 1.3) — the old plan-slice-criteria framing is retired from the 
 })
 
 // ===========================================================================
+// DONE-UNMET ROUTE (precision-chain Task 2.3) — the done-when floor, wired
+// ---------------------------------------------------------------------------
+// F2's two-slot precedent: 'done-unmet' joins the MergeResult status enum AND FLOOR_STATUSES (plus both
+// HARD_ESCALATION_REASONS mirrors — the D2 registry row and war-config.test.mjs's inline-mirror guard
+// arbitrate those appends). The tests here pin the WIRING this task adds: the refiner merge-task dispatch
+// runs assert-done-when.sh after the gate (file-threaded --cmd-file, exit 1 ⇒ done-unmet, exit 2 ⇒ error,
+// never a collapse), captures assert-test-in-diff.sh exit-0 stdout into MergeResult.mappedTests (D7), a
+// floor exit 1 routes the bounded make-this-command-pass sub-loop sharing run.roundLimit (the no-test
+// pattern), exhaustion escalates 'done-unmet', and a doneWhen-less legacy task dispatches byte-identical
+// floor-less merge prompts (End state 9).
+const DU_CMD = 'node --test skills/war/assets/task-one.acceptance.test.mjs'
+const isMakePassWorker = (c) => seatOf(c.opts) === 'war-worker' && /make-pass:/.test(c.opts.label || '')
+// done-unmet → make-pass fix → full re-audit(approve) → re-merge. Fresh closure per run (the
+// floorRetryImpl pattern): first Refine call returns done-unmet — every call does under alwaysUnmet,
+// driving budget exhaustion — otherwise the re-merge returns merged.
+function runDoneUnmetLoop({ alwaysUnmet = false, roundLimit } = {}) {
+  let merges = 0
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
+    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'abc', tests: {} }
+    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    if (seat === 'war-refiner' && opts.phase === 'Refine') {
+      merges++
+      return (alwaysUnmet || merges === 1)
+        ? { mode: 'merge-task', status: 'done-unmet' }
+        : { mode: 'merge-task', status: 'merged' }
+    }
+    if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
+    if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
+    return {}
+  }
+  return runPhase(PROVISION_ARGS({ tasks: [dwTask({ doneWhen: DU_CMD })], ...(roundLimit ? { run: { roundLimit } } : {}) }), impl)
+}
+
+test('done-unmet route (Task 2.3) — floor exit 1 routes the bounded make-this-command-pass sub-loop: MAKE_DONE_PASS fix-worker → full re-audit → re-merge → land', async () => {
+  const { out, calls } = await runDoneUnmetLoop()
+  const mp = calls.find(isMakePassWorker)
+  assert.ok(mp, 'a make-pass fix-worker is dispatched on a done-unmet MergeResult (FLOOR_STATUSES gained done-unmet)')
+  assert.match(mp.prompt, /MAKE_DONE_PASS/, 'the fix prompt is the MAKE_DONE_PASS class')
+  assert.match(mp.prompt, /assert-done-when\.sh/, 'the fix prompt names the floor that tripped')
+  assert.ok(mp.prompt.includes(`\nDone when: ${DU_CMD}`), "the fix prompt carries the task's Done when: command (prompt truth, D6)")
+  assert.ok(mp.prompt.includes('Gate: make gate'), 'the fix prompt carries the gate command')
+  assert.match(mp.prompt, /never weaken, skip, or delete/i, 'the fix prompt forbids weakening a test to force the command green')
+  const auditCalls = calls.filter(c => isAuditor(c) && !c.prompt.includes('execution-evidence'))
+  assert.ok(auditCalls.length >= 2, `the full audit panel re-spawns after the make-pass fix (got ${auditCalls.length} auditor calls)`)
+  assert.ok(out.landed.includes('t1'), 't1 lands after done-unmet fix + re-audit + re-merge')
+})
+
+test('done-unmet exhaustion (Task 2.3) — shared run.roundLimit budget spent ⇒ hard escalation {reason:"done-unmet"}, auditLog done-unmet:exhausted, landDecision held:escalation', async () => {
+  const { out } = await runDoneUnmetLoop({ alwaysUnmet: true, roundLimit: 1 })
+  assert.ok(!out.landed.includes('t1'), 't1 must not land when the done-when floor still trips at budget exhaustion')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1' && e.reason === 'done-unmet')
+  assert.ok(esc, 'escalated carries {task:"t1", reason:"done-unmet"} on budget exhaustion')
+  const log = (out.auditLog || []).find(e => e && e.task === 't1' && e.verdict === 'done-unmet:exhausted')
+  assert.ok(log, "auditLog records verdict 'done-unmet:exhausted'")
+  assert.equal(out.landDecision, 'held:escalation', 'done-unmet is a HARD escalation reason — the phase holds')
+})
+
+test('done-when floor threading (Task 2.3) — both loop merge prompts run assert-done-when.sh after the gate: file-threaded --cmd-file under _refinery/.war/, exit 1 ⇒ done-unmet, exit 2 ⇒ error (never a collapse)', async () => {
+  const { calls } = await runDoneUnmetLoop()
+  const merges = calls.filter(isMergeTask)
+  const sites = [
+    ['initial merge', merges.find(c => !/floor-retry/.test(c.opts.label || ''))],
+    ['floor-retry re-merge', merges.find(c => /floor-retry/.test(c.opts.label || ''))],
+  ]
+  for (const [name, c] of sites) {
+    assert.ok(c, `${name} prompt captured`)
+    assert.match(c.prompt, /assert-done-when\.sh/, `${name}: runs the done-when floor`)
+    assert.match(c.prompt, /--cmd-file/, `${name}: the command is file-threaded (--cmd-file, never interpolated into another script)`)
+    assert.ok(c.prompt.includes('.war/done-when-t1.cmd'), `${name}: the command file lives under _refinery/.war/`)
+    assert.ok(c.prompt.includes(DU_CMD), `${name}: carries the task's Done when: command verbatim`)
+    assert.match(c.prompt, /exit 1[^]{0,160}status: 'done-unmet'/, `${name}: exit 1 routes the done-unmet status`)
+    assert.match(c.prompt, /exit 2[^]{0,160}status: 'error'/, `${name}: exit 2 routes error`)
+    assert.match(c.prompt, /never 'done-unmet'/, `${name}: exit 2 never collapses into the floor status`)
+    assert.ok(c.prompt.indexOf('After the gate') > c.prompt.indexOf(`Run the gate`),
+      `${name}: the done-when floor runs AFTER the gate instruction`)
+  }
+})
+
+test("done-when floor legacy byte-identity (End state 9) — a doneWhen-less task's merge prompt is byte-identical to the doneWhen-bearing prompt minus the single floor clause", async () => {
+  const wp = (await runPhase(PROVISION_ARGS({ tasks: [dwTask({ doneWhen: DU_CMD })] }), defaultImpl)).calls.find(isMergeTask).prompt
+  const wo = (await runPhase(PROVISION_ARGS({ tasks: [dwTask()] }), defaultImpl)).calls.find(isMergeTask).prompt
+  const clause = wp.match(/ After the gate, run the done-when floor:[^]*?make-this-command-pass loop\./)
+  assert.ok(clause, 'the done-when floor clause is delimited in the doneWhen-bearing merge prompt')
+  assert.equal(wp.replace(clause[0], ''), wo,
+    'set minus the floor clause ⇒ byte-identical to the doneWhen-less merge prompt (nothing else conditions on the field)')
+  assert.ok(!wo.includes('assert-done-when'), 'the legacy merge prompt carries no done-when floor residue at all')
+})
+
+test('done-when floor coverage (Task 2.3) — the floor clause rides all FOUR merge-task dispatch sites (initial, floor-retry, environment-proceed, baseline-proceed)', () => {
+  const uses = (src.match(/\+ doneWhenFloorClause\(r\.task, refineryPath\)/g) || []).length
+  assert.equal(uses, 4,
+    `doneWhenFloorClause must ride every merge-task dispatch (initial + floor-retry + environment-proceed + baseline-proceed); found ${uses} call sites`)
+  assert.match(src, /const doneWhenFloorClause = \(task, refineryPath\) =>/,
+    'the doneWhenFloorClause helper exists (absent/null/empty doneWhen ⇒ the set-minus empty string)')
+})
+
+test('mappedTests capture (D7, Task 2.3) — EVERY dispatched assert-test-in-diff.sh site instructs exit-0 stdout capture into MergeResult.mappedTests; the schema declares the optional field; war-refiner.md step 4 exit-0 bullet mirrors it', () => {
+  const sites = [...src.matchAll(FLOOR_SITE_RE)]
+  assert.ok(sites.length >= 3, `non-vacuity floor: >= 3 dispatched assert-test-in-diff.sh sites (found ${sites.length})`)
+  sites.forEach((m, i) => {
+    const arm = m[1]
+    const where = `dispatched floor site #${i + 1} of ${sites.length}`
+    assert.match(arm, /exit 0[^]{0,220}mappedTests/i, `${where}: the mappedTests capture is scoped to the exit 0 path`)
+    assert.match(arm, /stdout[^]{0,160}mappedTests|mappedTests[^]{0,160}stdout/i, `${where}: stdout is the capture source`)
+    assert.match(arm, /one per line|ALL matched test paths/i, `${where}: names the one-path-per-line accumulating-scan contract (Task 2.2)`)
+  })
+  // Schema slot: MERGE_RESULT declares mappedTests, OPTIONAL (fail-open — the gate-audit seat keeps SOFT cannot-confirm when absent).
+  const mr = src.match(/const\s+MERGE_RESULT\s*=[^]*?(?=\n\n)/)
+  assert.ok(mr, 'MERGE_RESULT literal found')
+  assert.match(mr[0], /mappedTests:\s*\{\s*type:\s*'array'\s*\}/, "MERGE_RESULT declares mappedTests: { type: 'array' }")
+  assert.ok(!/required:\s*\[[^\]]*mappedTests/.test(mr[0]), 'mappedTests is OPTIONAL — never added to MERGE_RESULT.required')
+  // Standing surface (both-surfaces rule): war-refiner.md step 4's exit-0 bullet carries the same capture.
+  const step4 = refinerMd.match(/\*\*Test-floor check\*\*[^]*?(?=\n\d+\. \*\*Packaging-floor check\*\*)/)
+  assert.ok(step4, 'war-refiner.md carries the **Test-floor check** step')
+  const exit0 = step4[0].match(/\*\*exit 0\*\*[^]*?(?=\n\s*-\s*\*\*exit 1\*\*)/)
+  assert.ok(exit0, "war-refiner.md step 4 carries an **exit 0** bullet")
+  assert.match(exit0[0], /mappedTests/, "war-refiner.md step 4's exit-0 bullet names the mappedTests capture")
+  assert.match(exit0[0], /stdout/i, "war-refiner.md step 4's exit-0 bullet names stdout as the capture source")
+})
+
+test('both surfaces (Task 2.3) — war-refiner.md documents the done-when floor step: assert-done-when.sh, --cmd-file threading, done-unmet on exit 1, exit 2 never collapses; the Return enum gains done-unmet + mappedTests', () => {
+  const step = refinerMd.match(/\*\*Done-when floor check\*\*[^]*?(?=\n\d+\. )/)
+  assert.ok(step, 'war-refiner.md carries a **Done-when floor check** step (numbered-step terminator)')
+  assert.match(step[0], /assert-done-when\.sh/, 'the step names the floor script')
+  assert.match(step[0], /--cmd-file/, 'the step names the file-threading contract')
+  assert.match(step[0], /file-threaded/i, 'the step states the never-interpolated hygiene posture (D11)')
+  assert.match(step[0], /timeout/i, 'the step names the timeout arm (a timeout is exit 1, the done-unmet route)')
+  const exit1 = step[0].match(/\*\*exit 1\*\*[^]*?(?=\n\s*-\s*\*\*exit 2\*\*)/)
+  assert.ok(exit1, 'the step carries an **exit 1** bullet')
+  assert.match(exit1[0], /done-unmet/, 'exit 1 returns status done-unmet')
+  assert.match(exit1[0], /make this command pass|make-this-command-pass/i, 'exit 1 names the bounded make-this-command-pass sub-loop (the no-test pattern)')
+  assert.match(exit1[0], /run\.roundLimit/, 'the sub-loop shares run.roundLimit')
+  const exit2 = step[0].match(/\*\*exit 2\*\*[^]*/)
+  assert.ok(exit2, 'the step carries an **exit 2** bullet')
+  assert.match(exit2[0], /(never|not)[^]{0,80}["'`]?done-unmet/i, 'exit 2 never collapses into the floor status')
+  assert.match(refinerMd, /"unpackaged"` \| `"done-unmet"/, 'the Return merge-task status enum lists done-unmet')
+  assert.match(refinerMd, /mappedTests\?/, 'the Return field list carries the optional mappedTests')
+})
+
+// ===========================================================================
 // D3 — BOTH-SURFACES DIRECTIVE REGISTRY (ADR 0025)
 // ---------------------------------------------------------------------------
 // Each correctness-critical directive duplicated across a standing agents/*.md card and its dispatched
@@ -7675,7 +7817,7 @@ const LITERAL_REGISTRY = [
   ["packaging-floor: skipping ${r.task.id} (requ"],
   ["merge:${r.task.id}`, schema: MERGE_RESULT, ."],
   ["${r.task.id} touches a submodule; undeclared"],
-  ["${isNoTest ? 'add-test' : 'package-it'}:${r."],
+  ["${isNoTest ? 'add-test' : isDoneUnmet ? 'mak"],
   ["${floorMr.status}: re-audit did not approve "],
   ["${floorMr.status}:re-audit-failed`, findings"],
   ["merge:${r.task.id}:floor-retry:r${r.task.fix"],
