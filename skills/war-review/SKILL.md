@@ -98,6 +98,17 @@ mixed-source rule — a mixed envelope/mined total renders `n/a (mixed-source)`,
 | lessons written | manifest `phases[].lessonsWritten` |
 | issues filed | manifest `phases[].issuesFiled` |
 
+**Plan-scoped telemetry** — three ratified rows keyed to the run's *plan* (and any campaign it
+rode), not the manifest; render them once per run, after the table above. The same honesty
+invariant binds every cell: a row whose source is absent, unparseable, or predates its field
+renders **`n/a`**, never a reconstruction.
+
+| Row | Source |
+|---|---|
+| red-team rounds — this plan | the newest `docs/red-team/*-<plan-slug>.md` report's strict-form `**Rounds:** <integer>` line (directly under the Verdict line); on a campaign run, also the campaign ledger's per-plan `redteamRounds` field (`$MAIN/.claude/campaigns/<id>/ledger.json`) — either source alone suffices; both absent → `n/a` |
+| red-team rounds per plan — trend across campaigns | the same two sources swept across `docs/red-team/` reports and prior campaign ledgers, rendered as a per-plan series; state a trend reading only with at least one full campaign of field data behind it — until then the series stands alone, and an empty sweep renders `n/a` |
+| interview length — questions per merged plan | the authoring interview's final status-line question count (`Qk/14`, the question contract in [`../war-strategy/references/plan-interview.md`](../war-strategy/references/plan-interview.md)); no artifact persists it today — `n/a` unless the operator supplies the count |
+
 Lead with the run header: `runId`, `planPath`, `configProfile`, run wall-clock, and the
 best-effort-harness-read caveat.
 
