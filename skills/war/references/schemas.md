@@ -226,8 +226,9 @@ Produced by `/war-room`, consumed by `/war`'s Setup. The schema, defaults, prese
 // Use rosterPolicy:"solo" (economy preset) for cost-sensitive runs — one seat at neighbors depth.
 // Legacy keys covenSize/lenses/covenPolicy FAIL validation with a courtesy error naming the key —
 // run /war-room to regenerate the config (D3: no shims, no accepted-but-ignored keys).
-  run: { roundLimit, afk, ace, provision, provisionSource, provisionAuto },
+  run: { roundLimit, redteamRoundLimit, afk, ace, provision, provisionSource, provisionAuto },
                                              // roundLimit >= 1; afk = default for /war --afk;
+                                             // redteamRoundLimit >= 1 — /red-team's cumulative grill-round budget (default 3; economy preset 2); read fail-open by /red-team, never by the phase engine;
                                              // ace = pre-merge auto-fix of absorb-disposition nits (default true; economy preset false);
                                              // provision = ordered worktree-prep commands ([] = none); provisionSource ∈ explicit|manifest|ci|onboarding|structural|none;
                                              // provisionAuto = let /war-room scout provisioning when no explicit list (default true)

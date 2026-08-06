@@ -104,7 +104,7 @@ Fallback: <none | analyzed-agent fallback engaged (sticky pin); probes run on ge
 - <minor notes / accepted assumptions>
 
 ## Route upstream
-<!-- Only on a route-upstream terminal (gate emitted `routeUpstream: true`); omit otherwise. Full template + doctrine: references/loop-budget.md. -->
+<!-- Only on a route-upstream terminal (gate emitted `routeUpstream: true`); omit otherwise. Doctrine + block template: skills/red-team/references/loop-budget.md. -->
 **Regrill:** `/war-strategy <abs plan path>` — run the interview on the agenda below; it patches the plan.
 **Agenda (residual questions):**
 - <the unsettled decision — its non-equivalent resolutions, and what the gate saw>
