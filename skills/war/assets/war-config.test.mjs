@@ -1132,10 +1132,11 @@ test('drift-guard: inline HARD_ESCALATION_REASONS in workflow-template.js matche
   // dep-failed was the Task 1 (F02) foundation; land_stale pre-existed; Task 4 (F04/R3) added gate-evidence (6 items total).
   // L1 (unify): 'unrunnable-deps' is now in land-decision.mjs too — the inline literal and the
   // canonical export are IDENTICAL (exact equality, no scheduler-local divergence).
-  // M2: 'no-test' added to both mirrors (8 members). Container-packaging: 'unpackaged' added to both mirrors (9 members total).
+  // M2: 'no-test' added to both mirrors (8 members). Container-packaging: 'unpackaged' added to both mirrors (9 members).
+  // Precision-chain Task 2.3: 'done-unmet' added to both mirrors (10 members total).
   //
   // The template has:
-  //   const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps', 'no-test', 'unpackaged']
+  //   const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps', 'no-test', 'unpackaged', 'done-unmet']
   const match = templateText.match(/const\s+HARD_ESCALATION_REASONS\s*=\s*(\[[^\]]+\])/)
   assert.ok(match, 'HARD_ESCALATION_REASONS not found in workflow-template.js')
   // Normalize single-quoted strings to double-quoted for JSON.parse.

@@ -9,7 +9,9 @@
 # exactly what the task branch added relative to the integration base).
 #
 # Exit codes (load-bearing contract):
-#   0 — at least one changed path matches the test pattern (test found in diff)
+#   0 — at least one changed path matches the test pattern (test found in
+#       diff); stdout carries ALL matched test paths, one per line — the
+#       refiner's MergeResult.mappedTests source
 #   1 — no matching test in the diff (the "no-test" route; not an error).
 #       stdout stays the empty summary; stderr MAY carry the near-miss
 #       diagnostic (see NEAR-MISS DIAGNOSTIC below) — advisory, never routed on.
@@ -187,38 +189,45 @@ near_miss() {
   return 1
 }
 
-found=0
+matched_paths=""
 if [ -n "$changed_files" ]; then
   while IFS= read -r f; do
     [ -n "$f" ] || continue
+    file_matched=0
     if [ -n "$custom_pattern" ]; then
       # Custom pattern: space-separated glob set supplied by caller; match each
       # token independently. `set -f` (noglob) keeps IFS word-splitting while
       # suppressing pathname expansion — without it the unquoted
       # `for pat in $custom_pattern` would glob-expand a token like `*.test.js`
-      # against the cwd. Plain `break` (not `break 2`) exits only the `for` so
-      # `set +f` always runs; `[ "$found" = 1 ] && break` ends the file-read while.
+      # against the cwd. Plain `break` exits only the token `for` (one matching
+      # token classifies the file) so `set +f` always runs; the file-read while
+      # never breaks — every changed file is scanned so the accumulation below
+      # collects ALL matched paths, not just the first hit.
       # ponytail: space-separated glob set; each token matched independently.
       set -f
       for pat in $custom_pattern; do
-        case "$f" in $pat) found=1; break ;; esac
+        case "$f" in $pat) file_matched=1; break ;; esac
       done
       set +f
       # UNION the gate's unconditional *.test.sh discovery arm: resolveGate
       # always appends the repo-wide `find . -name '*.test.sh' ...` loop, so a
       # *.test.sh suite satisfies the floor whatever the custom pattern —
-      # floor ⊆ gate survives any --pattern. Only reached when no custom token
-      # matched; `set +f` already restored (match_sh_suite's case globs are
-      # literal, unaffected by noglob either way).
-      if [ "$found" != 1 ] && match_sh_suite "$f"; then
-        found=1
+      # floor ⊆ gate survives any --pattern. Only consulted when no custom
+      # token matched; `set +f` already restored (match_sh_suite's case globs
+      # are literal, unaffected by noglob either way).
+      if [ "$file_matched" != 1 ] && match_sh_suite "$f"; then
+        file_matched=1
       fi
-      [ "$found" = 1 ] && break
     else
       if match_default "$f"; then
-        found=1
-        break
+        file_matched=1
       fi
+    fi
+    # Accumulate EVERY matched path, one per line — the exit-0 stdout listing
+    # the refiner captures into MergeResult.mappedTests.
+    if [ "$file_matched" = 1 ]; then
+      matched_paths="$matched_paths$f
+"
     fi
   done <<EOF
 $changed_files
@@ -228,8 +237,11 @@ fi
 # ---------------------------------------------------------------------------
 # Result
 # ---------------------------------------------------------------------------
-if [ "$found" -eq 1 ]; then
-  # Exit 0: at least one test file was found in the diff.
+if [ -n "$matched_paths" ]; then
+  # Exit 0: at least one test file was found in the diff. Print ALL matched
+  # test paths, one per line, on stdout — the refiner's MergeResult.mappedTests
+  # source.
+  printf '%s' "$matched_paths"
   exit 0
 fi
 

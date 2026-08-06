@@ -52,6 +52,10 @@ test('unrunnable-deps is a hard escalation reason (L1: mirrors unified — a gho
   assert.equal(decideLand({ landed: ['t1'], escalated: [{ reason: 'unrunnable-deps' }] }), 'held:escalation')
   assert.ok(HARD_ESCALATION_REASONS.includes('unrunnable-deps'))
 })
+test('done-unmet is a hard escalation reason (precision-chain D1: a red Done when at merge, budget exhausted, holds the land)', () => {
+  assert.equal(decideLand({ landed: ['t1'], escalated: [{ reason: 'done-unmet' }] }), 'held:escalation')
+  assert.ok(HARD_ESCALATION_REASONS.includes('done-unmet'))
+})
 
 // ---- KNOWN_LAND_DECISIONS drift-guard (#271) ----
 // Binds the 7-member landDecision known-set to one canonical export and freezes agreement
@@ -225,20 +229,21 @@ test('ADR 0005: defectClass tokens are absent from the Workflow-emitted landDeci
 // ---- D8: per-mode HARD_ESCALATION_REASONS reachability drift-guard (#639) ----
 // HARD_ESCALATION_REASONS is ONE array shared by the merge-task AND land-phase modes — canonical in
 // land-decision.mjs, hand-mirrored in workflow-template.js (ADR 0005; never split/narrow — the
-// inline-mirror↔export drift-guard lives in war-config.test.mjs, NOT here). 'no-test'/'unpackaged' are
+// inline-mirror↔export drift-guard lives in war-config.test.mjs, NOT here). 'no-test'/'unpackaged'/'done-unmet' are
 // emitted only by merge-task floor prompts and are inert in the land-phase
 // `HARD_ESCALATION_REASONS.includes(landResult.status)` check — historically guarded by a hand-written
 // unreachability COMMENT one prompt-drift away from a silent hard escalation (spec risk #6). These tests
 // pin that per-mode split mechanically; the hand-written comment at the `.includes(landResult.status)`
 // site STAYS as narration (grill Q7, ratified — this task reads/parses workflow-template.js, never edits it).
 
-// The two reasons a land-phase prompt must NEVER emit (only merge-task floor prompts do); either one
+// The reasons a land-phase prompt must NEVER emit (only merge-task floor prompts do); any one
 // emitted by a land prompt would become a hard escalation reachable via landResult.status.
-const MERGE_TASK_FLOOR_ONLY = ['no-test', 'unpackaged']
+// done-unmet joined via precision-chain Task 2.3 (the done-when floor is merge-task-only, like its siblings).
+const MERGE_TASK_FLOOR_ONLY = ['no-test', 'unpackaged', 'done-unmet']
 // The land-phase-reachable subset (Task 2.1 / spec §4 D8): every hard reason that can drive
 // held:escalation at land-decision time — carried in `escalated[]` from the work/audit/merge phases
 // (escalate/audit-blocked/conflict/dep-failed/gate-evidence/unrunnable-deps) or emitted by the land
-// prompt itself (land_stale). It is exactly HARD_ESCALATION_REASONS minus the two merge-task-floor reasons.
+// prompt itself (land_stale). It is exactly HARD_ESCALATION_REASONS minus the merge-task-floor reasons.
 const LAND_PHASE_REACHABLE = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps']
 
 // The land-dispatch block: from the relandDiscrimination helper (which emits land_stale) through the end
@@ -264,7 +269,7 @@ test('D8: the land phase emits exactly {landed, land_stale, gate_failed, error, 
     'the land-phase-emitted status set drifted — a new land status must be classified for per-mode reachability before this pin is updated')
 })
 
-test('D8: no-test/unpackaged are reachable from merge-task prompts but NOT from any land-phase prompt', () => {
+test('D8: no-test/unpackaged/done-unmet are reachable from merge-task prompts but NOT from any land-phase prompt', () => {
   const { block, outside } = landDispatchSlice()
   for (const r of MERGE_TASK_FLOOR_ONLY) {
     const lit = new RegExp(`status:\\s*(['"])${r}\\1`)
@@ -275,8 +280,8 @@ test('D8: no-test/unpackaged are reachable from merge-task prompts but NOT from 
   }
 })
 
-test('D8: the land-phase-reachable subset is HARD_ESCALATION_REASONS minus the two merge-task-floor reasons', () => {
-  // Partition pin: the shared array is exactly the land-phase-reachable subset ∪ the merge-task-floor pair,
+test('D8: the land-phase-reachable subset is HARD_ESCALATION_REASONS minus the merge-task-floor reasons', () => {
+  // Partition pin: the shared array is exactly the land-phase-reachable subset ∪ the merge-task-floor set,
   // with no third class — a new HARD_ESCALATION_REASONS member fails this until its per-mode reachability
   // is classified into one bucket (this is what "pins the land-phase-reachable subset" means, spec §4 D8).
   assert.deepEqual(uniqSort(HARD_ESCALATION_REASONS), uniqSort([...LAND_PHASE_REACHABLE, ...MERGE_TASK_FLOOR_ONLY]))
