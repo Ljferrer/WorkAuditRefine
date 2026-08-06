@@ -18,6 +18,9 @@ metadata:
     - queue drain
     - ADR 0012
     - gate-audit
+    - duty 3
+    - fix-set comparison
+    - loop-breaker
   tags: 
     - war
     - phase-close
@@ -25,7 +28,7 @@ metadata:
     - audit-findings
   created: 2026-07-28
   originSessionId: 15ea107f-a540-466b-bb69-7ce45fb6e5a4
-  modified: 2026-07-29T03:11:58.131Z
+  modified: 2026-08-06T21:22:19.725Z
 ---
 
 # Phase-close polish revert can silently orphan a subset of absorbed findings
@@ -100,3 +103,41 @@ held phase (`servitorResult: null`), so the exactly-once learnings capture falls
 never self-justifying. Before accepting one — (1) gate the reverted commit; (2) diff the revert
 against still-live text for green-by-deletion; (3) if it stands, re-land it with a real rationale
 naming which findings are being re-opened.
+
+---
+
+## RECURRENCE — phase 4, plan `2026-08-05-precision-chain-and-loop-breaker`, third occurrence,
+## correct outcome but duty 3 still skipped (2026-08-06)
+
+**Third occurrence, code-verified.** A revert (auto-generated body, "This reverts commit
+`3ef9027`…") wholesale-reverted a phase-close ace-polish commit that had applied three
+`absorb`-disposition audit findings on `skills/red-team/SKILL.md` and
+`skills/red-team/references/lenses.md` — two Minor (Step 4's gate-invocation literal lacked the
+`--rounds=<n> --round-limit=<resolved>` flags Step 5 claims "every gate computation" carries) and
+one Nit (a report-template comment's relative `references/loop-budget.md` path resolves from
+neither its own file nor an emitted report). The redo pass (`p4-polish`) re-applied all three
+correctly — verified directly: at the redo tip, Step 4's literal carries the flags and the
+template comment is repo-root-relative — so this instance did **not** repeat phase 5's
+green-by-deletion failure mode; the standing rule's step (1)/(2) checks would have passed.
+
+**What is new this time:** even a **correct** redo still skipped standing-rule duty 3. The redo
+commit's body records no fix-set comparison against the reverted commit and never names the
+revert or which findings were being re-opened — confirmed by reading the actual commit body at
+the redo tip. A downstream seat (the phase's own gate-audit, re-run at the integrated tip) had to
+reconstruct the comparison itself from `git show` on both commits to confirm nothing was lost.
+Three occurrences across three separate phases (3, 5, 4-of-a-later-plan) with the identical
+auto-generated-body signature makes this a structural gap in the phase-close-revert flow, not a
+worker lapse: **nobody enforces duty 3, so it is skipped even when the worker gets the content
+right.** A mechanical check (a follow-up-issue-worthy fix, not yet built) would be: when a
+phase-close/polish commit is reverted, require the *next* commit on that surface to either name
+the revert SHA in its own body or be flagged for a Lead/servitor fix-set diff before the phase's
+absorbed-findings list is trusted.
+
+**Where the underlying findings live (locate-cue, verify before acting):** `skills/red-team/SKILL.md`
+Step 4's gate-invocation literal (Step 5, one line below, states the "every gate computation…
+carries the flags" rule) and the `## Route upstream` template comment in
+`skills/red-team/references/lenses.md`.
+
+**Related:** [[spliced-test-section-orphans-adjacent-explanatory-comment]] — a different #1034-class
+adjacency-rot pattern, unrelated mechanism but same "silent regression a diff-based check would
+catch and a content-only read misses" family.
