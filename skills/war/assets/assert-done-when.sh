@@ -12,8 +12,8 @@
 # NO CHARSET VALIDATION (F6, operator-ratified 2026-08-05): a `Done when:` is
 # operator-ratified, red-teamed plan content in the same trust class as
 # `plan.gate`, which the floor family has always executed unvalidated. The
-# hygiene posture is file-threading + the timeout + execution confined to the
-# task worktree (D11/A3).
+# hygiene posture is file-threading + the timeout + running the command with
+# the task worktree as its cwd (D11/A3).
 #
 # Exit codes (load-bearing contract, mirrors assert-test-in-diff.sh /
 # assert-packaging-in-diff.sh):
@@ -22,7 +22,7 @@
 #       route; not an error). Diagnostic on stderr names which.
 #   2 — git/env error (HARD error; NEVER collapses into the floor status):
 #       usage error, missing/non-git worktree, missing/unreadable/empty
-#       command file, invalid --timeout, `..` path segment.
+#       command file, invalid --timeout, `..` path segment, mktemp failure.
 #
 # TIMEOUT (A3): default 600s, override via --timeout <secs> (positive integer;
 # --timeout is also the test knob). A hung command fails THIS DISPATCH ONLY —
@@ -106,7 +106,7 @@ git -C "$worktree" rev-parse --git-dir >/dev/null 2>&1 \
 case "$cmd_file" in
   /*) cmd_file_abs="$cmd_file" ;;
   *)
-    cmd_dir="$(cd "$(dirname "$cmd_file")" 2>/dev/null && pwd)" \
+    cmd_dir="$(cd -- "$(dirname "$cmd_file")" 2>/dev/null && pwd)" \
       || die "command file '$cmd_file' has no resolvable parent directory" 2
     cmd_file_abs="$cmd_dir/$(basename "$cmd_file")" ;;
 esac
@@ -120,7 +120,8 @@ grep -q '[^[:space:]]' "$cmd_file_abs" \
 # ---------------------------------------------------------------------------
 # Execute the done-when command in the worktree, under the watchdog.
 # ---------------------------------------------------------------------------
-tmpdir="$(mktemp -d 2>/dev/null || mktemp -d -t donewhen)"
+tmpdir="$(mktemp -d 2>/dev/null || mktemp -d -t donewhen)" \
+  || die "could not create a temp dir for the timeout marker" 2
 trap 'rm -rf "$tmpdir"' EXIT
 marker="$tmpdir/timed-out"
 
@@ -129,7 +130,7 @@ printf '%s: running done-when from %s in %s (timeout %ss)\n' \
 
 # exec so the child PID IS the bash interpreting the command file — the
 # watchdog's TERM reaches the command, not a wrapper subshell.
-( cd "$worktree" && exec bash "$cmd_file_abs" ) &
+( cd -- "$worktree" && exec bash "$cmd_file_abs" ) &
 cmd_pid=$!
 
 # Watchdog: poll at 1s granularity; at the budget, write the marker (the

@@ -18,21 +18,39 @@
 #       bounded.
 #   4.  metacharacter command (`&&`, single+double quotes, `=`) runs VERBATIM
 #       (file-threaded, F6 no-charset) -> exit 0 + exact output bytes.
-#   5.  missing worktree dir -> exit 2 (without validation the subshell cd
-#       fails -> a spurious exit-1 done-unmet: the never-collapses law).
-#   6.  worktree exists but is NOT a git worktree -> exit 2 (without the git
-#       check a green command would exit 0 outside any worktree).
-#   7.  missing --cmd-file target -> exit 2 (without the check bash exits 127
-#       -> spurious done-unmet).
-#   8.  whitespace-only command file -> exit 2 (without the check bash runs a
-#       green no-op -> silent skip).
-#   9.  invalid --timeout (`0`, `abc`) -> exit 2 each.
-#   10. --cmd-file flag absent entirely -> exit 2 + usage on stderr.
+#   5.  missing worktree dir -> exit 2 + this arm's own message (without the
+#       -d check the git-worktree check is the independent fallback — still
+#       exit 2 — so the message grep is what pins THIS arm).
+#   6.  worktree exists but is NOT a git worktree -> exit 2 + message (without
+#       the git check a green command would exit 0 outside any worktree).
+#   7.  missing --cmd-file target -> exit 2 + this arm's own message (without
+#       the -f check the -r check is the independent fallback — still exit 2
+#       — so the message grep is what pins THIS arm).
+#   8.  whitespace-only command file -> exit 2 + message (without the check
+#       bash runs a green no-op -> silent skip).
+#   9.  invalid --timeout (`0`, `abc`) -> exit 2 each + each arm's message.
+#   10. --cmd-file flag absent entirely -> exit 2 + the full usage message.
 #   11. `..` segment in the worktree arg -> exit 2 + refusing message (the
 #       path RESOLVES to a valid worktree, so without the guard the run would
 #       be green exit 0 — the guard is what fires).
 #   12. relative --cmd-file resolves against the INVOKING cwd -> exit 0 (without
 #       the pre-cd resolution bash can't find the file after cd -> 127 -> 1).
+#   13. stdout belongs to the executed command: OUT equals the command's own
+#       bytes EXACTLY on the green AND the red path (a floor diagnostic
+#       leaking onto stdout would pollute the refiner's evidence artifact).
+#   14. a command that exits 143 ON ITS OWN is NOT a timeout (marker
+#       precedence): stderr names `exited 143`, never `timed out`.
+#   15. argument guards: trailing --cmd-file / trailing --timeout / unknown
+#       flag / stray positional -> exit 2 each + the exact die literal.
+#   16. `..` segment in the --cmd-file arg -> exit 2 + refusing message.
+#   17. relative --cmd-file with an unresolvable parent dir -> exit 2.
+#   18. unreadable command file -> exit 2 (distinct from the missing-file arm).
+#   19. mktemp failure (PATH-stubbed) -> exit 2, never the done-unmet route.
+#
+# The env-arm greps quote the floor's die literals VERBATIM (embedded $vars
+# included) inside double quotes: the test binds each variable to the runtime
+# value first, so the expanded pattern matches live stderr while the SOURCE
+# line carries the exact literal assert-guard-specificity-in-diff.sh records.
 set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -40,23 +58,20 @@ SCRIPT="$HERE/assert-done-when.sh"
 
 PASS=0
 FAIL=0
-TMPFILES=""
 
 pass() { printf 'ok - %s\n' "$1"; PASS=$((PASS + 1)); }
 fail() { printf 'FAIL - %s\n' "$1" >&2; FAIL=$((FAIL + 1)); }
 
-cleanup() {
-  for d in $TMPFILES; do
-    rm -rf "$d"
-  done
-}
-trap cleanup EXIT
+# ONE root for every fixture: setup_wt/tmp_dir mktemp INSIDE it, so this
+# parent-shell trap reaps everything. (An accumulator var appended inside the
+# helpers would mutate only the $(...) subshell's copy and leak every dir.)
+TMPROOT="$(mktemp -d 2>/dev/null || mktemp -d -t dwtest)"
+trap 'rm -rf "$TMPROOT"' EXIT
 
 # setup_wt: fresh git repo with a seed commit (stands in for a task worktree);
 # echo its path.
 setup_wt() {
-  T="$(mktemp -d 2>/dev/null || mktemp -d -t dwtest)"
-  TMPFILES="$TMPFILES $T"
+  T="$(mktemp -d "$TMPROOT/wt.XXXXXX")"
   git -C "$T" init -q
   git -C "$T" config user.email war@test.local
   git -C "$T" config user.name "WAR Test"
@@ -69,8 +84,7 @@ setup_wt() {
 
 # tmp_dir: plain throwaway dir (for cmd files / clean cwds); echo its path.
 tmp_dir() {
-  D="$(mktemp -d 2>/dev/null || mktemp -d -t dwtest)"
-  TMPFILES="$TMPFILES $D"
+  D="$(mktemp -d "$TMPROOT/d.XXXXXX")"
   printf '%s\n' "$D"
 }
 
@@ -81,8 +95,8 @@ run_floor() {
   rf_wt="$1"; shift
   cwd="$(tmp_dir)"
   RC=0
-  OUT="$( ( cd "$cwd" && bash "$SCRIPT" "$rf_wt" "$@" ) 2>/tmp/dw_err_$$ )" || RC=$?
-  ERR="$(cat /tmp/dw_err_$$ 2>/dev/null)"; rm -f /tmp/dw_err_$$
+  OUT="$( ( cd "$cwd" && bash "$SCRIPT" "$rf_wt" "$@" ) 2>"$cwd/err.txt" )" || RC=$?
+  ERR="$(cat "$cwd/err.txt" 2>/dev/null)"
 }
 
 # ---------------------------------------------------------------------------
@@ -178,17 +192,21 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Case 5: missing worktree dir -> exit 2. WITHOUT validation the subshell cd
-# fails -> exit 1 -> a spurious done-unmet (the never-collapses law broken).
+# Case 5: missing worktree dir -> exit 2 + this arm's own message. WITHOUT the
+# -d check the git-worktree check is an independent fallback (git -C on a
+# missing dir also dies exit 2), so the exit code alone cannot discriminate —
+# the 'is not a directory' grep is what pins THIS arm.
 # ---------------------------------------------------------------------------
 CF5="$(tmp_dir)/green5.cmd"
 printf 'exit 0\n' > "$CF5"
 
-run_floor "/nonexistent-war-worktree-$$" --cmd-file "$CF5"
-if [ "$RC" -eq 2 ]; then
-  pass "case 5: missing worktree -> exit 2 (env error, never the floor status)"
+worktree="/nonexistent-war-worktree-$$"
+run_floor "$worktree" --cmd-file "$CF5"
+if [ "$RC" -eq 2 ] \
+   && printf '%s' "$ERR" | grep -qF "worktree '$worktree' is not a directory"; then
+  pass "case 5: missing worktree -> exit 2 + 'is not a directory' (env error, never the floor status)"
 else
-  fail "case 5: missing worktree -> expected exit 2, got $RC (err: $ERR)"
+  fail "case 5: missing worktree -> expected exit 2 + 'is not a directory', got $RC (err: $ERR)"
 fi
 
 # ---------------------------------------------------------------------------
@@ -199,24 +217,30 @@ NOGIT6="$(tmp_dir)"
 CF6="$(tmp_dir)/green6.cmd"
 printf 'exit 0\n' > "$CF6"
 
-run_floor "$NOGIT6" --cmd-file "$CF6"
-if [ "$RC" -eq 2 ]; then
-  pass "case 6: non-git worktree dir -> exit 2 (git error, not a green run)"
+worktree="$NOGIT6"
+run_floor "$worktree" --cmd-file "$CF6"
+if [ "$RC" -eq 2 ] \
+   && printf '%s' "$ERR" | grep -qF "worktree '$worktree' is not a git worktree"; then
+  pass "case 6: non-git worktree dir -> exit 2 + 'is not a git worktree' (git error, not a green run)"
 else
-  fail "case 6: non-git worktree -> expected exit 2, got $RC (git check missing; err: $ERR)"
+  fail "case 6: non-git worktree -> expected exit 2 + 'is not a git worktree', got $RC (git check missing; err: $ERR)"
 fi
 
 # ---------------------------------------------------------------------------
-# Case 7: missing command file -> exit 2. WITHOUT the check bash exits 127
-# -> spurious exit-1 done-unmet.
+# Case 7: missing command file -> exit 2 + this arm's own message. WITHOUT the
+# -f check the -r check is an independent fallback (a nonexistent path is also
+# unreadable -> still exit 2), so the exit code alone cannot discriminate —
+# the 'does not exist' grep is what pins THIS arm.
 # ---------------------------------------------------------------------------
 WT7="$(setup_wt)"
 
-run_floor "$WT7" --cmd-file "/nonexistent-done-when-$$.cmd"
-if [ "$RC" -eq 2 ]; then
-  pass "case 7: missing command file -> exit 2 (env error, not done-unmet)"
+cmd_file_abs="/nonexistent-done-when-$$.cmd"
+run_floor "$WT7" --cmd-file "$cmd_file_abs"
+if [ "$RC" -eq 2 ] \
+   && printf '%s' "$ERR" | grep -qF "command file '$cmd_file_abs' does not exist"; then
+  pass "case 7: missing command file -> exit 2 + 'does not exist' (env error, not done-unmet)"
 else
-  fail "case 7: missing command file -> expected exit 2, got $RC (err: $ERR)"
+  fail "case 7: missing command file -> expected exit 2 + 'does not exist', got $RC (err: $ERR)"
 fi
 
 # ---------------------------------------------------------------------------
@@ -227,40 +251,50 @@ WT8="$(setup_wt)"
 CF8="$(tmp_dir)/empty.cmd"
 printf '\n  \n' > "$CF8"
 
-run_floor "$WT8" --cmd-file "$CF8"
-if [ "$RC" -eq 2 ]; then
-  pass "case 8: whitespace-only command file -> exit 2 (refuses the vacuous green)"
+cmd_file_abs="$CF8"
+run_floor "$WT8" --cmd-file "$cmd_file_abs"
+if [ "$RC" -eq 2 ] \
+   && printf '%s' "$ERR" | grep -qF "command file '$cmd_file_abs' is empty — refusing a vacuous done-when (threading defect upstream)"; then
+  pass "case 8: whitespace-only command file -> exit 2 + refusing message (refuses the vacuous green)"
 else
-  fail "case 8: whitespace-only command file -> expected exit 2, got $RC (silent skip; err: $ERR)"
+  fail "case 8: whitespace-only command file -> expected exit 2 + refusing message, got $RC (silent skip; err: $ERR)"
 fi
 
 # ---------------------------------------------------------------------------
-# Case 9: invalid --timeout -> exit 2 (both the zero and the non-numeric arm).
+# Case 9: invalid --timeout -> exit 2, each arm pinned by ITS OWN message (the
+# zero arm and the non-numeric arm die through different guards).
 # ---------------------------------------------------------------------------
 WT9="$(setup_wt)"
 CF9="$(tmp_dir)/green9.cmd"
 printf 'exit 0\n' > "$CF9"
 
-run_floor "$WT9" --cmd-file "$CF9" --timeout 0
-RC9A=$RC
-run_floor "$WT9" --cmd-file "$CF9" --timeout abc
-RC9B=$RC
-if [ "$RC9A" -eq 2 ] && [ "$RC9B" -eq 2 ]; then
-  pass "case 9: --timeout 0 and --timeout abc -> exit 2 each"
+timeout_secs=0
+run_floor "$WT9" --cmd-file "$CF9" --timeout "$timeout_secs"
+RC9A=$RC; M9A=0
+printf '%s' "$ERR" | grep -qF -- "--timeout must be >= 1 second, got '$timeout_secs'" && M9A=1
+timeout_secs=abc
+run_floor "$WT9" --cmd-file "$CF9" --timeout "$timeout_secs"
+RC9B=$RC; M9B=0
+printf '%s' "$ERR" | grep -qF -- "--timeout must be a positive integer (seconds), got '$timeout_secs'" && M9B=1
+if [ "$RC9A" -eq 2 ] && [ "$M9A" -eq 1 ] && [ "$RC9B" -eq 2 ] && [ "$M9B" -eq 1 ]; then
+  pass "case 9: --timeout 0 and --timeout abc -> exit 2 each, each arm's own message"
 else
-  fail "case 9: invalid --timeout -> expected exit 2/2, got $RC9A/$RC9B"
+  fail "case 9: invalid --timeout -> expected exit 2/2 + messages, got $RC9A(msg=$M9A)/$RC9B(msg=$M9B)"
 fi
 
 # ---------------------------------------------------------------------------
-# Case 10: --cmd-file absent entirely -> exit 2 + usage on stderr.
+# Case 10: --cmd-file absent entirely -> exit 2 + the FULL usage message on
+# stderr ($PROG bound so the verbatim-literal grep expands to the live name).
 # ---------------------------------------------------------------------------
 WT10="$(setup_wt)"
 
+PROG="assert-done-when"
 run_floor "$WT10"
-if [ "$RC" -eq 2 ] && printf '%s' "$ERR" | grep -qF 'usage:'; then
-  pass "case 10: no --cmd-file -> exit 2 + usage"
+if [ "$RC" -eq 2 ] \
+   && printf '%s' "$ERR" | grep -qF "usage: $PROG <worktree> --cmd-file <f> [--timeout <secs>]"; then
+  pass "case 10: no --cmd-file -> exit 2 + full usage message"
 else
-  fail "case 10: no --cmd-file -> expected exit 2 + usage, got $RC (err: $ERR)"
+  fail "case 10: no --cmd-file -> expected exit 2 + full usage message, got $RC (err: $ERR)"
 fi
 
 # ---------------------------------------------------------------------------
@@ -272,13 +306,15 @@ WT11="$(setup_wt)"
 CF11="$(tmp_dir)/green11.cmd"
 printf 'exit 0\n' > "$CF11"
 
-run_floor "$WT11/../$(basename "$WT11")" --cmd-file "$CF11"
-if [ "$RC" -eq 2 ] && printf '%s' "$ERR" | grep -qF "refusing to use potentially unsafe path"; then
-  pass "case 11: '..' segment in worktree arg -> exit 2 + guard message"
+worktree="$WT11/../$(basename "$WT11")"
+run_floor "$worktree" --cmd-file "$CF11"
+if [ "$RC" -eq 2 ] \
+   && printf '%s' "$ERR" | grep -qF "worktree argument contains a '..' segment; refusing to use potentially unsafe path: $worktree"; then
+  pass "case 11: '..' segment in worktree arg -> exit 2 + full guard message"
 elif [ "$RC" -ne 2 ]; then
   fail "case 11: '..' segment -> expected exit 2, got $RC (guard missing/bypassed; err: $ERR)"
 else
-  fail "case 11: '..' segment exit 2 but guard message absent (err: $ERR)"
+  fail "case 11: '..' segment exit 2 but full guard message absent (err: $ERR)"
 fi
 
 # ---------------------------------------------------------------------------
@@ -291,12 +327,166 @@ CWD12="$(tmp_dir)"
 printf 'printf ok > rel-ran.txt\n' > "$CWD12/rel.cmd"
 
 RC=0
-( cd "$CWD12" && bash "$SCRIPT" "$WT12" --cmd-file rel.cmd ) >/dev/null 2>/tmp/dw_err_$$ || RC=$?
-ERR="$(cat /tmp/dw_err_$$ 2>/dev/null)"; rm -f /tmp/dw_err_$$
+( cd "$CWD12" && bash "$SCRIPT" "$WT12" --cmd-file rel.cmd ) >/dev/null 2>"$CWD12/err.txt" || RC=$?
+ERR="$(cat "$CWD12/err.txt" 2>/dev/null)"
 if [ "$RC" -eq 0 ] && [ -f "$WT12/rel-ran.txt" ]; then
   pass "case 12: relative --cmd-file resolved against invoking cwd -> exit 0, ran in worktree"
 else
   fail "case 12: relative --cmd-file -> RC=$RC, marker in worktree: $([ -f "$WT12/rel-ran.txt" ] && echo yes || echo no) (err: $ERR)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 13: stdout evidence contract — STDOUT belongs to the executed command;
+# the floor's own diagnostics are stderr-only. EXACT equality (not substring)
+# proves the floor contributed zero bytes of its own, on the green path AND on
+# the red path (where the 'exited N' diagnostic must stay off stdout) —
+# otherwise the refiner's captured done-when evidence artifact is polluted.
+# ---------------------------------------------------------------------------
+WT13="$(setup_wt)"
+CF13G="$(tmp_dir)/stdout-green.cmd"
+printf 'printf DONE-WHEN-STDOUT-TOKEN\n' > "$CF13G"
+CF13R="$(tmp_dir)/stdout-red.cmd"
+printf 'printf DONE-WHEN-STDOUT-TOKEN\nexit 3\n' > "$CF13R"
+
+run_floor "$WT13" --cmd-file "$CF13G"
+RC13G=$RC; OUT13G=$OUT
+run_floor "$WT13" --cmd-file "$CF13R"
+RC13R=$RC; OUT13R=$OUT
+if [ "$RC13G" -eq 0 ] && [ "$OUT13G" = "DONE-WHEN-STDOUT-TOKEN" ] \
+   && [ "$RC13R" -eq 1 ] && [ "$OUT13R" = "DONE-WHEN-STDOUT-TOKEN" ]; then
+  pass "case 13: stdout is EXACTLY the command's bytes on green and red paths (floor diagnostics stderr-only)"
+else
+  fail "case 13: stdout contract -> green RC=$RC13G OUT=[$OUT13G], red RC=$RC13R OUT=[$OUT13R]"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 14: marker precedence — a command that exits 143 ON ITS OWN is NOT a
+# timeout. WITHOUT the marker file (an exit-code test instead) this run would
+# be misreported 'timed out' — the negative grep is what pins the precedence.
+# ---------------------------------------------------------------------------
+WT14="$(setup_wt)"
+CF14="$(tmp_dir)/self143.cmd"
+printf 'exit 143\n' > "$CF14"
+
+run_floor "$WT14" --cmd-file "$CF14"
+if [ "$RC" -eq 1 ] \
+   && printf '%s' "$ERR" | grep -qF 'exited 143' \
+   && ! printf '%s' "$ERR" | grep -qF 'timed out'; then
+  pass "case 14: self-exiting 143 -> exit 1 + 'exited 143', NOT reported as a timeout (marker precedence)"
+else
+  fail "case 14: self-exiting 143 -> expected exit 1 + 'exited 143' and no 'timed out', got $RC (err: $ERR)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 15: argument guards -> exit 2 each + the exact die literal. The
+# unknown/positional greps bind $1 via `set --` so the verbatim literal
+# expands to the offending token at runtime.
+# ---------------------------------------------------------------------------
+WT15="$(setup_wt)"
+CF15="$(tmp_dir)/green15.cmd"
+printf 'exit 0\n' > "$CF15"
+
+run_floor "$WT15" --cmd-file
+RC15A=$RC; M15A=0
+printf '%s' "$ERR" | grep -qF -- "--cmd-file requires a path" && M15A=1
+run_floor "$WT15" --cmd-file "$CF15" --timeout
+RC15B=$RC; M15B=0
+printf '%s' "$ERR" | grep -qF -- "--timeout requires a positive integer (seconds)" && M15B=1
+run_floor "$WT15" --cmd-file "$CF15" --bogus
+RC15C=$RC; M15C=0
+set -- '--bogus'
+printf '%s' "$ERR" | grep -qF -- "unknown argument '$1'" && M15C=1
+run_floor "$WT15" --cmd-file "$CF15" stray
+RC15D=$RC; M15D=0
+set -- 'stray'
+printf '%s' "$ERR" | grep -qF "unexpected positional argument '$1'" && M15D=1
+if [ "$RC15A" -eq 2 ] && [ "$M15A" -eq 1 ] \
+   && [ "$RC15B" -eq 2 ] && [ "$M15B" -eq 1 ] \
+   && [ "$RC15C" -eq 2 ] && [ "$M15C" -eq 1 ] \
+   && [ "$RC15D" -eq 2 ] && [ "$M15D" -eq 1 ]; then
+  pass "case 15: trailing --cmd-file / trailing --timeout / unknown flag / stray positional -> exit 2 each + exact literals"
+else
+  fail "case 15: argument guards -> got $RC15A(msg=$M15A)/$RC15B(msg=$M15B)/$RC15C(msg=$M15C)/$RC15D(msg=$M15D)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 16: `..` segment in the --cmd-file arg -> exit 2 + refusing message.
+# LOAD-BEARING like case 11: the path RESOLVES to a real green cmd file, so
+# without the guard this run exits 0 — the guard is what fires.
+# ---------------------------------------------------------------------------
+WT16="$(setup_wt)"
+D16="$(tmp_dir)"
+printf 'exit 0\n' > "$D16/green16.cmd"
+
+cmd_file="$D16/../$(basename "$D16")/green16.cmd"
+run_floor "$WT16" --cmd-file "$cmd_file"
+if [ "$RC" -eq 2 ] \
+   && printf '%s' "$ERR" | grep -qF -- "--cmd-file argument contains a '..' segment; refusing to use potentially unsafe path: $cmd_file"; then
+  pass "case 16: '..' segment in --cmd-file arg -> exit 2 + full guard message"
+else
+  fail "case 16: '..' segment in --cmd-file arg -> expected exit 2 + guard message, got $RC (err: $ERR)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 17: relative --cmd-file whose parent dir does not exist in the invoking
+# cwd -> exit 2 (the pre-cd resolution itself fails; env error, never 127->1).
+# ---------------------------------------------------------------------------
+WT17="$(setup_wt)"
+
+cmd_file="no-such-dir-$$/x.cmd"
+run_floor "$WT17" --cmd-file "$cmd_file"
+if [ "$RC" -eq 2 ] \
+   && printf '%s' "$ERR" | grep -qF "command file '$cmd_file' has no resolvable parent directory"; then
+  pass "case 17: relative --cmd-file with unresolvable parent -> exit 2 + message"
+else
+  fail "case 17: unresolvable parent -> expected exit 2 + message, got $RC (err: $ERR)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 18: unreadable command file -> exit 2 (the -r arm, distinct from case
+# 7's does-not-exist arm). Skipped when the fixture cannot be made unreadable
+# (running as root reads everything).
+# ---------------------------------------------------------------------------
+WT18="$(setup_wt)"
+cmd_file_abs="$(tmp_dir)/noread.cmd"
+printf 'exit 0\n' > "$cmd_file_abs"
+chmod 000 "$cmd_file_abs"
+
+if [ -r "$cmd_file_abs" ]; then
+  pass "case 18: skipped — cannot fixture an unreadable file (running as root)"
+else
+  run_floor "$WT18" --cmd-file "$cmd_file_abs"
+  if [ "$RC" -eq 2 ] \
+     && printf '%s' "$ERR" | grep -qF "command file '$cmd_file_abs' is not readable"; then
+    pass "case 18: unreadable command file -> exit 2 + 'is not readable'"
+  else
+    fail "case 18: unreadable command file -> expected exit 2 + 'is not readable', got $RC (err: $ERR)"
+  fi
+fi
+
+# ---------------------------------------------------------------------------
+# Case 19: mktemp failure -> exit 2, never the done-unmet route (the
+# never-collapses law on the one pre-trap env step). TMPDIR cannot force this
+# on macOS (mktemp falls back to the confstr temp dir), so a PATH stub shadows
+# mktemp with a failing stand-in for the floor invocation only.
+# ---------------------------------------------------------------------------
+WT19="$(setup_wt)"
+CF19="$(tmp_dir)/green19.cmd"
+printf 'exit 0\n' > "$CF19"
+STUB19="$(tmp_dir)"
+printf '#!/bin/sh\nexit 1\n' > "$STUB19/mktemp"
+chmod +x "$STUB19/mktemp"
+CWD19="$(tmp_dir)"
+
+RC=0
+( cd "$CWD19" && PATH="$STUB19:$PATH" bash "$SCRIPT" "$WT19" --cmd-file "$CF19" ) \
+  >/dev/null 2>"$CWD19/err.txt" || RC=$?
+ERR="$(cat "$CWD19/err.txt" 2>/dev/null)"
+if [ "$RC" -eq 2 ] \
+   && printf '%s' "$ERR" | grep -qF "could not create a temp dir for the timeout marker"; then
+  pass "case 19: mktemp failure -> exit 2 + message (env error, never the done-unmet route)"
+else
+  fail "case 19: mktemp failure -> expected exit 2 + message, got $RC (err: $ERR)"
 fi
 
 # ---------------------------------------------------------------------------
