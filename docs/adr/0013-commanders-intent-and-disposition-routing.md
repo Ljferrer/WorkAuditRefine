@@ -2,7 +2,9 @@
 
 **Status:** accepted (2026-07-02 — design ratified in the clean-handoff review; implemented in `skills/war/assets/workflow-template.js` + the worker/auditor standing files by the clean-handoff plan's Phase 1; amended per the two-homes ruling, Decision 2; amended by [ADR-0014 — AI-Commander's Intent](0014-ai-commanders-intent.md) — Decision 2's never-invents rule gains its single sanctioned exception, the `## AI-Commander's Intent` block `/war-machine --afk` authors; coupled — not amended — by
 [ADR-0032](0032-red-team-grades-by-artifact-kind.md) + friction D7 refine the finding-severity model (Decision 4) and
-friction D8 adds the auditor-prompt adjudicationClause (Decision 3), noted inline below)
+friction D8 adds the auditor-prompt adjudicationClause (Decision 3), noted inline below; amended
+2026-08-05 — artifact-first verification and the `unverified` status supersede Decision 6's
+judgment-path description for gate-audit End-state checks; see the amendment below)
 
 WAR's agents had exactly one yardstick: the plan's literal text. The auditor's plan-faithfulness lens judged
 work against the slice ("the plan did not authorize"), severity was the only routing signal (every Minor/Nit
@@ -133,3 +135,34 @@ at the three gate-audit-family prompt sites, and mirrored VERBATIM into `agents/
 same both-surfaces duty as Decision 3. This addendum leaves the ratified body above — including Decision
 3's byte-identical version-precedence sentence — unchanged. See
 [the design spec](../specs/2026-07-22-audit-adjudication-threading-design.md) §4, §6–§7, §10 criteria 5–8.
+
+## Amendment (2026-08-05): artifact-first End-state verification and the `unverified` status
+
+Decision 6 described the gate-audit End-state check as a judgment pass at the confirmed tip —
+"provably unmet → HARD (holds the land); anything short of provable → SOFT note." The precision-chain
+plan supersedes that judgment-path description for gate-audit End-state checks:
+
+- **Execution is refiner-side, artifact-first.** A claimed `check:`-tagged End-state condition is
+  executed by the land-barrier endstate-check dispatch — once per phase at the integrated tip,
+  between serial-merge completion and the gate-audit pass, unconditionally — teeing one artifact per
+  condition (`_refinery/.war/endstate-<phaseId>-<n>.log`), each stamped with the tip SHA it ran at.
+  Auditors stay read-only ([ADR-0002](0002-scope-by-agent-type.md)): seats read the artifacts, never
+  run commands.
+- **Attestation is a positive channel.** Every gate-audit-family seat returns one
+  `endStateAttestations` row per claimed condition — the condition verbatim, status
+  `met` | `unmet` | `unverified`, and the evidence the seat actually read: a `check:`-tagged
+  condition from its teed artifact, a `gate:`-tagged condition from the gate evidence as actually
+  captured, a judged (untagged) condition from named observables at the confirmed tip.
+- **Silence is `unverified`, never `met`.** The handoff End-state status set gains `unverified`: a
+  condition no seat attests — or whose artifact is missing, unreadable, or stale (its stamped tip
+  SHA mismatching the confirmed tip) — lands `unverified`. Whole-pass absence stays all-`deferred`,
+  and findings stay defect-only (attestation rides the rows, never a finding).
+
+Decision 6's severity mapping is unchanged — a provably unmet condition is still HARD and holds the
+land — and its second sentence (the `/red-team` `intent-vs-plan` lens) is untouched. What this
+amendment retires is the judgment path as the *verification* mechanism for gate-audit End-state
+checks: verification is by executed artifact and positive attestation, and "anything short of
+provable" now lands as the typed `unverified` status, not a SOFT prose note. Ratified by
+[the precision-chain & loop-breaker plan](../plans/2026-08-05-precision-chain-and-loop-breaker.md)
+(D2/D8, Tasks 1.2/3.1/3.2; red-team F5/F7, operator-ratified 2026-08-05). This amendment leaves the
+ratified body above — beyond the Status currency line — byte-unchanged.

@@ -572,6 +572,27 @@ this one is land-authoritative ([ADR 0024](docs/adr/0024-audit-gate-verdicts-int
 _Avoid_: treating a per-branch (frozen-base) gate as land-authoritative for a dep-crossing task; expecting
 the extra re-run on a phase with no intra-phase deps (there it is not dispatched — byte-identical to today).
 
+**Land-barrier check**:
+The refiner-executed run of a claimed `check:`-tagged End-state condition — once per phase at the
+integrated tip, between serial-merge completion and the gate-audit pass, unconditionally (it runs in
+the no-merged-tasks arm too, so a `requiresTest: false`-only phase still executes its claimed
+checks). Each condition tees one artifact to `_refinery/.war/endstate-<phaseId>-<n>.log`, stamped
+with the tip SHA it ran at; the gate-audit seats verify from those artifacts — auditors stay
+read-only (ADR 0002), the refiner executes everything.
+_Avoid_: conflating it with the **Integrated-tip gate re-run** (that re-runs the *gate*, and only on
+a phase with intra-phase deps — this executes End-state `check:` commands, every phase); a seat
+executing a check (seats read artifacts, never run commands).
+
+**`unverified`** (End-state status):
+The handoff End-state status for a claimed condition no seat attests — attestation is a POSITIVE
+channel (every gate-audit-family seat returns one `endStateAttestations` row per claimed condition:
+the condition verbatim, status `met` | `unmet` | `unverified`, evidence), so silence maps to
+`unverified`, never `met`. A missing, unreadable, or stale artifact (its stamped tip SHA mismatching
+the confirmed tip) also attests `unverified`. Whole-pass absence stays all-`deferred`; findings stay
+defect-only (attestation rides the rows, never a finding).
+_Avoid_: reading silence as `met` (the failure mode the status exists to close); conflating it with
+`deferred` (the whole-pass-absent status) or `unmet` (an attested, evidenced failure).
+
 **Gate-evidence artifact**:
 The tee'd full gate stdout+stderr file under `_refinery/.war/gate-<taskId>.log`; the `execution-evidence`
 seat's source of per-mapped-test PASS evidence, replacing curated `gate_output` prose. Phase-ephemeral
@@ -804,6 +825,25 @@ it routes a bounded fix-worker (add the `COPY`, or `.dockerignore` it; never del
 a full re-audit, and escalates hard only on budget exhaustion.
 _Avoid_: gate-failed (the suite is green; the *image manifest* lags the diff).
 
+**done-unmet route**:
+The blocking floor route for a red `Done when:` — after the gate, the refiner runs the task's own
+acceptance command in the task worktree via `assert-done-when.sh` (file-threaded via `--cmd-file`,
+never interpolated; timeout-bounded; exit 2 is a git/env error and never collapses into the floor
+status). Exit 1 returns `MergeResult.status: "done-unmet"` and routes a bounded "make this command
+pass" fix sub-loop sharing `run.roundLimit` (the `no-test` pattern); exhaustion escalates via the
+`done-unmet` member of `HARD_ESCALATION_REASONS` — the two-slot widening (result status + escalation
+reason), per ADR 0005 enum discipline.
+_Avoid_: gate-failed (the suite is green; the task's own `Done when:` command is red); a new land
+decision (the route reuses the existing floor-family slots, like `no-test`/`unpackaged`).
+
+**`mappedTests`** (`MergeResult.mappedTests`):
+The mechanical definition of "mapped test": every test path `assert-test-in-diff.sh` matched in the
+task diff, printed on its exit-0 stdout (one per line — an accumulating scan, never first-hit) and
+captured by the refiner into the MergeResult. The gate-audit seat greps them against the captured
+gate-evidence artifact, so the HARD "provably unrun mapped test" trigger is mechanical, never judged.
+_Avoid_: inferring mapped tests from the diff or from prose; treating an empty list on a
+`requiresTest: false` task as a defect (no mapped tests ⇒ the gate-audit HARD path is vacuous there).
+
 **Backstop** (deferred validation):
 An operator-ratified validation the run's gate will not execute pre-merge — declared in the plan's
 required `## Deferred validations (backstops)` section (check · why deferred · external runner;
@@ -952,6 +992,41 @@ not a per-item re-dispatch. The Lead's SKILL.md Step-3 pre-flight can pre-empt i
 the registry).
 _Avoid_: "capability check" — the scaffold fallback is reactive (detect the first dead dispatch, pin,
 re-route), never itself a pre-flight harness query (that is the separate Lead-side Step-3 check).
+
+### Red-team loop budget & route-upstream (ADR 0045)
+
+**Loop budget**:
+The cumulative bound on `/red-team` grill rounds per plan — `run.redteamRoundLimit` (integer ≥ 1,
+default 3, economy preset 2), resolved by Step 3's fail-open config read (absent or invalid ⇒ the
+default 3 — the limit is never unset, config only overrides it). A **round** is one full grill sweep
+over the open blockers/`needsDecision` set, counted cumulatively across invocations via the Rounds
+header seed and threaded into every gate computation as `--rounds=<n> --round-limit=<resolved>`.
+_Avoid_: `run.roundLimit` (the /war retry budget — a different knob); "round" for the per-blocker
+bound (that unit is **re-verify attempts**, ≤ 2 per blocker — never rounds).
+
+**Rounds header**:
+The dedicated report line `**Rounds:** <integer>` directly under the Verdict line — the
+cumulative-round carrier across `/red-team` invocations. Step 1 seeds from it by the strict-form
+rule: glob `docs/red-team/*-<plan-slug>.md`, take the newest by filename date, read its first line
+matching `^\s*[-*]?\s*\*\*Rounds:\*\*\s*(\d+)`. Anything else — absent, non-matching, non-integer,
+every legacy variant — seeds 0: fail-open, clean slate. The Lead reads reports; the gate stays
+integers-only and never parses markdown.
+_Avoid_: NLP-mining a count from report prose; treating a legacy variant (`**Rounds: 4**`, an
+unbolded `Rounds:` line) as a seed — the strict form is the only one read.
+
+**Route-upstream**:
+The loop-breaker exit: a plan that cannot stop churning in verification is routed back to the
+`/war-strategy` interview instead of ground forever. Carried as the typed gate output field
+`routeUpstream: boolean` — pure arithmetic over the unstamped subset (the round limit reached with
+an unstamped root open, or an unstamped `needsDecision` at rounds ≥ 2) — with the pinned invariant
+`routeUpstream: true` ⇒ verdict `BLOCKED` (a stamped-out `ADJUDICATED` run never routes upstream;
+an `INCOMPLETE` run re-runs its probes instead of routing). On a route-upstream terminal the report
+gains the `## Route upstream` block — the residual questions as the regrill agenda plus the exact
+re-entry command — and `/war-campaign`'s step-3 triage halts with `stopPoint:
+redteam-route-upstream`, never skip-and-continue (ADR 0011).
+_Avoid_: a sixth verdict, a `KNOWN_LAND_DECISIONS` member, or Lead-invented prose (ADR 0043
+precedence untouched — the field rides beside the verdict); emitting the field with no rounds
+inputs (absent inputs ⇒ absent outputs).
 
 ### Guard coverage by equivalence class (ADR 0031)
 
