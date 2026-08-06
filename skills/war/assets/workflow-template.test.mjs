@@ -2445,7 +2445,7 @@ test('#1046 floor_diagnostic drift-guard (validation 6, both surfaces): EVERY di
   assert.match(exit1[0], /verbatim/i, "war-refiner.md step 4's exit-1 bullet demands the stderr verbatim")
 })
 
-test('#1046 schema lock: MERGE_RESULT gains OPTIONAL floor_diagnostic and its status enum is unchanged (ADR 0005 — an orthogonal field, never a status value)', () => {
+test('#1046 schema lock: MERGE_RESULT gains OPTIONAL floor_diagnostic — an orthogonal field, never a status value (ADR 0005); the status enum is pinned to the schemas.md union (done-unmet joined via Task 2.3)', () => {
   const mr = src.match(/const\s+MERGE_RESULT\s*=[^]*?(?=\n\n)/)
   assert.ok(mr, 'MERGE_RESULT literal found in workflow-template.js')
   assert.match(mr[0], /floor_diagnostic:\s*\{\s*type:\s*'string'\s*\}/,
@@ -6835,8 +6835,8 @@ test('#929 subset-row blindness closed — extractLandDecisionLiterals surfaces 
 // GATE COMPOSITION POINT (ADR 0036) — enumerated exactly-once prompt evidence
 // ---------------------------------------------------------------------------
 // The engine normalizes plan.gate ONCE (`if (plan) plan.gate = resolveGate(plan.gate)`, immediately after
-// entry validation), so every one of the FIFTEEN gate-bearing dispatch sites interpolates the SAME composed
-// gate. This enumerates all fifteen captures by label/dispatchKind — the count IS the anti-vacuity floor: a
+// entry validation), so every one of the SIXTEEN gate-bearing dispatch sites interpolates the SAME composed
+// gate. This enumerates all sixteen captures by label/dispatchKind — the count IS the anti-vacuity floor: a
 // site an existing fixture cannot reach is added, never skipped, so deleting the composition line reds every
 // arm. Anchors ONLY on the discovery-clause token; no assertion enumerates shell suites or states a count.
 const GATE_TOKEN = `-name '*.test.sh'`   // a substring of resolveGate's find clause; absent from every fixed prompt prose
@@ -6897,7 +6897,7 @@ const fixNeededImpl = () => {
   }
 }
 const SINGLE_TASK = [{ id: 't1', issue: 101, title: 'T', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] }]
-// The fifteen gate-bearing dispatch captures, enumerated by label/dispatchKind. Each drives the fixture that
+// The sixteen gate-bearing dispatch captures, enumerated by label/dispatchKind. Each drives the fixture that
 // reaches its site with the given fixture gate and returns the captured prompt.
 const GATE_SITE_CAPTURES = [
   { site: 'worker Gate: line (work:<task>)', find: (c) => c.find(isWorker),
@@ -6936,11 +6936,16 @@ const GATE_SITE_CAPTURES = [
     run: (gate) => runPhase(PROVISION_ARGS({ plan: planWith(gate), tasks: SINGLE_TASK }), pkgFloorRetryImpl()) },
   { site: 'ace Gate: line (ace:<task>:r<n>)', find: (c) => c.find(isAce),
     run: (gate) => runPhase(ACE_ARGS({ plan: planWith(gate) }), aceBase()) },
+  // MAKE_DONE_PASS (precision-chain Task 2.3) is the fifth fix-family prompt and equally gate-bearing —
+  // it interpolates the same plan.gate Gate: line as its floor-fix siblings — so it is ADDED here,
+  // never skipped (this array's own doctrine). runDoneUnmetLoop is the fixture that reaches it.
+  { site: 'MAKE_DONE_PASS Gate: line (make-pass:<task>:r<n>)', find: (c) => c.find(isMakePassWorker),
+    run: (gate) => runDoneUnmetLoop({ plan: planWith(gate) }) },
 ]
 
-test('gate composition point (ADR 0036) — the FIFTEEN enumerated gate-bearing captures render the discovery token EXACTLY ONCE (plain), idempotently once (pre-composed), and the discovery-only clause (null)', async () => {
-  assert.equal(GATE_SITE_CAPTURES.length, 15,
-    'exactly fifteen gate-bearing dispatch sites are enumerated (anti-vacuity floor — a site an existing fixture cannot reach is ADDED, never skipped; the four fix-family sites joined via precision-chain Task 1.3)')
+test('gate composition point (ADR 0036) — the SIXTEEN enumerated gate-bearing captures render the discovery token EXACTLY ONCE (plain), idempotently once (pre-composed), and the discovery-only clause (null)', async () => {
+  assert.equal(GATE_SITE_CAPTURES.length, 16,
+    'exactly sixteen gate-bearing dispatch sites are enumerated (anti-vacuity floor — a site an existing fixture cannot reach is ADDED, never skipped; the four fix-family sites joined via precision-chain Task 1.3, MAKE_DONE_PASS via Task 2.3)')
 
   // Arm 1 — plain JS-only fixture gate ⇒ the discovery token appears EXACTLY ONCE per captured prompt.
   for (const cap of GATE_SITE_CAPTURES) {
@@ -6998,8 +7003,9 @@ test('gate composition point (ADR 0036) — plan-less / zero-task phase: the GUA
 // ===========================================================================
 // DONE-WHEN THREADING (precision-chain Task 1.3) — prompt-registry rows
 // ---------------------------------------------------------------------------
-// task.doneWhen (the plan's per-task `Done when:` acceptance command) rides the five worker-family
-// prompt sites as a `Done when:` line beside Gate:. The rows pin the two contract halves the plan
+// task.doneWhen (the plan's per-task `Done when:` acceptance command) rides the six worker-family
+// prompt sites (MAKE_DONE_PASS joined via Task 2.3) as a `Done when:` line beside Gate:. The rows pin
+// the two contract halves the plan
 // names: (1) any prompt that says keep-the-gate-green carries the gate command (the D6 prompt-truth
 // sweep), and (2) the absent ⇒ '' set-minus identity — a doneWhen-less run's prompts are
 // byte-identical to a doneWhen-bearing run's prompts minus the single inserted clause (legacy
@@ -7018,13 +7024,19 @@ const DONE_WHEN_SITES = [
     run: (taskOver) => runPhase(PROVISION_ARGS({ tasks: [dwTask(taskOver)] }), pkgFloorRetryImpl()) },
   { site: 'ace advisory-polish prompt (ace:<task>:r<n>)', find: (c) => c.find(isAce),
     run: (taskOver) => runPhase(ACE_ARGS({ tasks: [dwTask(taskOver)] }), aceBase()) },
+  // MAKE_DONE_PASS (Task 2.3) is the fifth fix-family prompt — doneWhenClause rides it like its
+  // siblings, so its row is ADDED, never skipped. (Production only reaches it for a doneWhen-bearing
+  // task — the floor never runs otherwise — but the mock drives the doneWhen-less arm too, proving
+  // the set-minus identity holds even there.)
+  { site: 'MAKE_DONE_PASS floor-fix prompt (make-pass:<task>:r<n>)', find: (c) => c.find(isMakePassWorker),
+    run: (taskOver) => runDoneUnmetLoop({ taskOver }) },
 ]
 
-test("Done when threading (Task 1.3) — all five worker-family sites carry the task's Done when: command beside the Gate: line; the worker card documents the input", async () => {
+test("Done when threading (Task 1.3) — all six worker-family sites carry the task's Done when: command beside the Gate: line; the worker card documents the input", async () => {
   for (const s of DONE_WHEN_SITES) {
     const { calls } = await s.run({ doneWhen: DW_CMD })
     const c = s.find(calls)
-    assert.ok(c, `site "${s.site}" reached and captured (presence guard — five sites is the floor)`)
+    assert.ok(c, `site "${s.site}" reached and captured (presence guard — six sites is the floor)`)
     assert.ok(c.prompt.includes(`\nDone when: ${DW_CMD}`),
       `site "${s.site}" carries the task's Done when: command VERBATIM on its own line`)
     const gateIdx = c.prompt.indexOf('Gate: make gate')
@@ -7045,8 +7057,8 @@ test("Done when threading — absent ⇒ '' (set-minus): each site's doneWhen-le
     assert.ok(wp && wo, `site "${s.site}" reached in both arms (presence guard)`)
     assert.equal(wp.prompt.replace(`\nDone when: ${DW_CMD}`, ''), wo.prompt,
       `site "${s.site}": set minus the Done when clause is byte-identical to the doneWhen-less prompt (nothing else conditions on the field)`)
-    assert.ok(!wo.prompt.includes('Done when:'),
-      `site "${s.site}": the legacy path carries no Done when residue at all`)
+    assert.ok(!wo.prompt.includes('\nDone when:'),
+      `site "${s.site}": the legacy path carries no inserted Done when: clause residue (line-anchored — the clause always opens its own line; MAKE_DONE_PASS's fixed prose names the construct mid-sentence, legitimately)`)
   }
   // null, absent, and '' are the same legacy arm (the string|null contract; '' via the guard's
   // truthiness half): byte-identical prompts. The '' arm pins the typeof/empty-string guard —
@@ -7060,17 +7072,18 @@ test("Done when threading — absent ⇒ '' (set-minus): each site's doneWhen-le
 })
 
 test('prompt truth (D6) — every dispatched prompt that says keep-the-gate-green carries the gate command', async () => {
-  // Reach all five keep-green prompt classes (the four fix-family prompts + the phase-close sweep);
+  // Reach all six keep-green prompt classes (the five fix-family prompts + the phase-close sweep);
   // the sweep filter keys on the literal "keep the gate" fragment, parenthetical-gate form included.
   const runs = [
     await runPhase(PROVISION_ARGS({ tasks: [dwTask()] }), fixNeededImpl()),
     await runPhase(PROVISION_ARGS({ tasks: [dwTask()] }), floorRetryImpl()),
     await runPhase(PROVISION_ARGS({ tasks: [dwTask()] }), pkgFloorRetryImpl()),
+    await runDoneUnmetLoop(),
     await runPhase(ACE_ARGS({ tasks: [dwTask()] }), aceBase()),
     await runPhase(SWEEP_ARGS(), sweepBase([queuedAbsorb()])),
   ]
   const keepGreen = runs.flatMap(r => r.calls).filter(c => /keep the gate\b/i.test(c.prompt || ''))
-  for (const cls of [/^fix:/, /^add-test:/, /^package-it:/, /^ace:/, /^polish:/]) {
+  for (const cls of [/^fix:/, /^add-test:/, /^package-it:/, /^make-pass:/, /^ace:/, /^polish:/]) {
     assert.ok(keepGreen.some(c => cls.test(c.opts.label || '')),
       `a keep-the-gate-green prompt of class ${cls} was captured (anti-vacuity floor)`)
   }
@@ -7118,8 +7131,10 @@ const DU_CMD = 'node --test skills/war/assets/task-one.acceptance.test.mjs'
 const isMakePassWorker = (c) => seatOf(c.opts) === 'war-worker' && /make-pass:/.test(c.opts.label || '')
 // done-unmet → make-pass fix → full re-audit(approve) → re-merge. Fresh closure per run (the
 // floorRetryImpl pattern): first Refine call returns done-unmet — every call does under alwaysUnmet,
-// driving budget exhaustion — otherwise the re-merge returns merged.
-function runDoneUnmetLoop({ alwaysUnmet = false, roundLimit } = {}) {
+// driving budget exhaustion — otherwise the re-merge returns merged. Also the reachability fixture
+// for the MAKE_DONE_PASS rows in GATE_SITE_CAPTURES (via `plan`) and DONE_WHEN_SITES (via `taskOver`)
+// — function declaration, hoisted above both registries.
+function runDoneUnmetLoop({ alwaysUnmet = false, roundLimit, plan, taskOver = { doneWhen: DU_CMD } } = {}) {
   let merges = 0
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
@@ -7136,7 +7151,7 @@ function runDoneUnmetLoop({ alwaysUnmet = false, roundLimit } = {}) {
     if (seat === 'war-servitor') return { phase: 1, target: 't', learnings: [] }
     return {}
   }
-  return runPhase(PROVISION_ARGS({ tasks: [dwTask({ doneWhen: DU_CMD })], ...(roundLimit ? { run: { roundLimit } } : {}) }), impl)
+  return runPhase(PROVISION_ARGS({ tasks: [dwTask(taskOver)], ...(plan ? { plan } : {}), ...(roundLimit ? { run: { roundLimit } } : {}) }), impl)
 }
 
 test('done-unmet route (Task 2.3) — floor exit 1 routes the bounded make-this-command-pass sub-loop: MAKE_DONE_PASS fix-worker → full re-audit → re-merge → land', async () => {

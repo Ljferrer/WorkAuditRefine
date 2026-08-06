@@ -697,8 +697,8 @@ const workerIntentClause = intent
 const workerSelfQueryRepoFlag = (typeof learningsTarget === 'string' && learningsTarget) ? ` --repo ${learningsTarget}` : ''
 const WORKER_MEMORY_SELF_QUERY_LINE = pt`\nYou MAY run \`node <plugin>/skills/_shared/war-memory.mjs query '<terms>'${workerSelfQueryRepoFlag}\` mid-task when you hit something unfamiliar — it never writes a lesson, and without a \`--local\` root it appends no query log (the CLI never guesses one from the cwd).\n`
 // Done-when threading (precision-chain D6, Task 1.3 — prompt truth): the task's `Done when:` acceptance
-// command rides the five TASK-SCOPED worker-family dispatched prompts — the primary dispatch plus the
-// four fix-family prompts (FIX_NEEDED, ADD_TEST, PACKAGE_IT, ace) — as a `Done when:` line beside the
+// command rides the six TASK-SCOPED worker-family dispatched prompts — the primary dispatch plus the
+// five fix-family prompts (FIX_NEEDED, ADD_TEST, PACKAGE_IT, MAKE_DONE_PASS, ace) — as a `Done when:` line beside the
 // Gate: command, so no task-scoped prompt says keep-the-gate-green without carrying the commands that
 // define green (the phase-close sweep is phase-scoped, carries no task doneWhen, and already names the
 // gate inline). Absent/null/empty
@@ -1426,7 +1426,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             break
           }
 
-          // Re-attempt the serial merge — re-instructs ALL floor invocations (test + packaging + submodule).
+          // Re-attempt the serial merge — re-instructs ALL floor invocations (test + packaging + submodule + done-when).
           floorMr = await agent(
             pt`Merge WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
             + reattachClause(refineryPath)
