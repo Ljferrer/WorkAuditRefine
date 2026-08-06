@@ -114,7 +114,9 @@ function skillDocs() {
   // text — a moved shell-out claim stays checked, never silently unscanned. Enumerated eviction
   // destinations only (a shrink task extends this list in the same commit as its move): the
   // pre-existing contract/design references (e.g. skills/war/references/schemas.md) legitimately
-  // name module EXPORTS beside module filenames and are not shell-out prose.
+  // name module EXPORTS beside module filenames and are not shell-out prose — EXCEPT the
+  // spec-posterity additions below, which join this list for the ADR 0046 rule's corpus and
+  // are consequently verb-scanned as well.
   const EVICTION_DESTINATIONS = [
     'skills/war/references/setup.md',
     'skills/war/references/docker-gate.md',
@@ -168,8 +170,14 @@ const stripFences = text => text.replace(/```[\s\S]*?```/g, '')
 function specCitations(path, text) {
   if (path === 'skills/war-campaign/SKILL.md') text = text.split(WAR_CAMPAIGN_LEGACY).join('')
   const out = []
-  for (const m of stripFences(text).matchAll(/docs\/specs\/(\S*)/gi)) {
-    const rest = m[1].replace(/[`"'\)\].,;:]+$/, '') // trim trailing punctuation/markdown
+  const stripped = stripFences(text)
+  for (const m of stripped.matchAll(/docs\/specs\/(\S*)/gi)) {
+    let rest = m[1].replace(/[`"'\)\].,;:]+$/, '') // trim trailing punctuation/markdown
+    // A paired emphasis wrapper (**bold** / _italic_) is decoration, not a glob: strip the
+    // trailing marker run only when the char before the match opens it — anchoring to the
+    // paired leading marker keeps an unpaired trailing glob (docs/specs/2026-*) carved out.
+    const before = stripped[m.index - 1]
+    if (before === '*' || before === '_') rest = rest.replace(/[*_]+$/, '')
     if (rest === '') continue          // bare output-directory mention (survey-corps)
     if (/[<*…]/.test(rest)) continue   // placeholder / glob path-shape
     if (/yyyy/i.test(rest)) continue   // date-placeholder path-shape
@@ -228,6 +236,12 @@ test('delete-and-trace: an injected fake verb fails resolution; real verbs do no
 })
 
 test('spec-posterity (F7 / ADR 0046): no scanned doctrine surface — nor README.md — cites a docs/specs path', () => {
+  // Corpus MEMBERSHIP guard (End state 15): the unguarded readFileSync above fails closed
+  // on file DELETION, but an in-file list edit that drops README.md or a widened
+  // EVICTION_DESTINATIONS entry must go red here, never silently narrow the scan.
+  const corpusPaths = specRuleCorpus().map(d => d.path)
+  for (const rel of ['README.md', 'skills/lessons-learned/references/seeding.md', 'skills/war/references/design.md'])
+    assert.ok(corpusPaths.includes(rel), `spec-posterity corpus must include ${rel} (End state 15)`)
   const bad = specRuleCorpus().flatMap(({ path, text }) => specCitations(path, text))
   assert.deepEqual(bad, [], `a live surface cites a docs/specs path (specs are posterity — repoint at the maintained home or delete the pointer):\n${JSON.stringify(bad, null, 2)}`)
 })
@@ -238,6 +252,11 @@ test('spec-posterity carve-outs: input-shape mechanics excluded by pattern; conc
   assert.equal(specCitations('FIXTURE', 'See [`docs/specs/2026-01-01-x-design.md`](docs/specs/2026-01-01-x-design.md) §2.').length, 1, 'a markdown-link citation must be flagged')
   assert.equal(specCitations('FIXTURE', 'per `docs/specs/2026-01-01-x-design.md` §4').length, 1, 'an inline-code citation must be flagged')
   assert.equal(specCitations('FIXTURE', 'per Docs/Specs/2026-01-01-X-Design.md').length, 1, 'the match is case-insensitive')
+  // emphasis-wrapped citations are decoration, not globs (paired-emphasis trim) — while an
+  // unpaired trailing glob keeps its carve-out
+  assert.equal(specCitations('FIXTURE', 'see **docs/specs/2026-01-01-x-design.md** §3').length, 1, 'a bold-wrapped citation must be flagged, not carved as a glob')
+  assert.equal(specCitations('FIXTURE', 'see _docs/specs/2026-01-01-x-design.md_ §3').length, 1, 'an italic-underscore-wrapped citation must be flagged')
+  assert.deepEqual(specCitations('FIXTURE', 'sweep `docs/specs/2026-*` for that year'), [], 'a date-prefix glob keeps its carve-out (the emphasis trim needs a paired leading marker)')
   // carve-outs: bare output dir, globs, placeholders, ellipsis, date placeholder, fenced examples
   assert.deepEqual(specCitations('FIXTURE', 'synthesizes one spec per group into `docs/specs/` — then verifies.'), [], 'the bare output directory is input-shape mechanics')
   assert.deepEqual(specCitations('FIXTURE', 'Scan `docs/specs/*.md` and `docs/specs/*-design.md` for orphans.'), [], 'glob patterns are input-shape mechanics')
@@ -245,6 +264,11 @@ test('spec-posterity carve-outs: input-shape mechanics excluded by pattern; conc
   assert.deepEqual(specCitations('FIXTURE', 'grep the plan for a `docs/specs/…` or issue link'), [], 'a trailing ellipsis is a path-shape example')
   assert.deepEqual(specCitations('FIXTURE', 'shaped `docs/specs/YYYY-MM-DD-<slug>-design.md`; and `docs/specs/yyyy-mm-dd-x.md`'), [], 'date placeholders are path-shape examples, case-insensitively')
   assert.deepEqual(specCitations('FIXTURE', 'Example:\n```\n/war-strategy docs/specs/2026-01-01-real-design.md\n```\nprose after.'), [], 'fenced command/template examples are input-shape mechanics')
+  // stripFences pins: (1) prose BETWEEN two fenced blocks stays scanned — a greedy
+  // /```[\s\S]*```/ mutant would strip fence-to-fence and blind the guard across the corpus;
+  // (2) an unbalanced trailing fence leaves the tail UNSTRIPPED (fail-closed), still scanned.
+  assert.equal(specCitations('FIXTURE', '```\na\n```\nsee docs/specs/2026-01-01-x-design.md here\n```\nb\n```').length, 1, 'prose between two fenced blocks must still be scanned (non-greedy fence strip)')
+  assert.equal(specCitations('FIXTURE', 'intro\n```\nunbalanced tail\nper docs/specs/2026-01-01-x-design.md §2').length, 1, 'an unbalanced trailing fence leaves the tail scanned (fail-closed)')
   // the war-campaign pin is BYTE- and FILE-scoped (see WAR_CAMPAIGN_LEGACY above)
   assert.deepEqual(specCitations('skills/war-campaign/SKILL.md', `intro. ${WAR_CAMPAIGN_LEGACY} outro.`), [], 'the exact legacy line is tolerated in war-campaign/SKILL.md alone')
   assert.equal(specCitations('skills/war-campaign/SKILL.md', 'Full design: `docs/specs/2026-07-01-war-companion-skills-design.md` §7.').length, 1, 'a reworded resurrection in the same file is flagged')
