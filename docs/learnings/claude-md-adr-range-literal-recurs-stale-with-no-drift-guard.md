@@ -1,12 +1,12 @@
 ---
 name: claude-md-adr-range-literal-recurs-stale-with-no-drift-guard
-description: "CLAUDE.md's hand-maintained 'docs/adr/ (0001-NNNN)' range literal has now gone stale THREE times (ADR 0042, 0043, 0044) with no drift guard binding it — the third recurrence finally produced a filed follow-up for a mechanical guard instead of a fourth manual catch"
+description: "RESOLVED (precision-chain-and-loop-breaker/p5-polish, 2026-08-05): the recurring class is CLOSED — CLAUDE.md's 'docs/adr/ (0001-NNNN)' snapshot literal was retired outright (now 'docs/adr/ records the binding decisions, numbered sequentially — ls docs/adr/ for the current head'), the mechanism-narrative remedy this lesson itself named as the alternative to a fifth manual catch. Body frozen below as the historical record of four recurrences (ADR 0042-0045/0046) before closure."
 metadata: 
   node_type: memory
   type: project
   provenance: code-verified
   slug: claude-md-adr-range-literal-recurs-stale-with-no-drift-guard
-  phase: 2026-08-04-interview-and-authoring-contract/2 (task 9 + phase-2-integrated-tip gate-audit + p2-polish)
+  phase: 2026-08-04-interview-and-authoring-contract/2 (task 9 + phase-2-integrated-tip gate-audit + p2-polish) — RESOLVED at precision-chain-and-loop-breaker/5 (tasks 5.3/5.4 + p5-polish, 2026-08-05)
   keywords: 
     - CLAUDE.md
     - ADR range
@@ -19,6 +19,16 @@ metadata:
     - docs/adr
     - doc-contract test
     - follow-up issue
+    - RESOLVED
+    - literal retired
+    - mechanism-narrative shape
+    - ADR 0025
+    - ls docs/adr for current head
+    - ADR 0045
+    - ADR 0046
+    - p5-polish
+    - fourth recurrence
+    - class closed
   tags: 
     - doc-honesty
     - adr
@@ -26,7 +36,8 @@ metadata:
     - recurrence
   created: 2026-08-03
   originSessionId: 4095ea62-efc7-4ed1-8045-8de0cd2f76bb
-  modified: 2026-08-05T15:27:40.061Z
+  modified: 2026-08-07T00:16:36.383Z
+  promoted: dev/2026-08-05-2026-08-04-interview-and-authoring-contract@phase-2
 ---
 
 # CLAUDE.md's ADR-range upper bound recurs stale on every new ADR — no test binds it
@@ -82,3 +93,29 @@ the third manual catch" and recommended precisely the guard this lesson already 
 snapshot literal entirely ("`docs/adr/` records the binding decisions", the ADR 0025 mechanism-narrative
 shape, which cannot rot). No such guard has landed as of this phase; the class remains open and due to
 recur a fourth time on the next ADR.
+
+## Fourth recurrence and RESOLUTION (phase 5, plan `2026-08-05-precision-chain-and-loop-breaker`)
+
+Recurred a **fourth** time, same root cause: Task 5.3 lands ADR 0045 and Task 5.4 lands ADR 0046 in
+the same phase, neither owns `CLAUDE.md` (file-disjointness), and both gate-audits independently
+flagged the literal as stale (Minor, `disposition: absorb, phaseClose: true`) — six near-duplicate
+findings across the two tasks' multi-seat audits, all pointing at the same sentence.
+
+This time the phase-close `p5-polish` pass took the **alternative remedy this lesson's third
+recurrence already named** instead of a fifth manual re-count: it dropped the snapshot literal
+outright rather than bumping it. Verified at the phase's landed tip (read via the `p5-polish` task
+worktree, `<repo-root>/.claude/war-worktrees/2026-08-05-precision-chain-and-loop-breaker-2026-08-05/p5-polish/CLAUDE.md`,
+one merge-commit behind the confirmed `dev/2026-08-05-precision-chain-and-loop-breaker` landed tip
+`52afa389a1da1f91272ba3a546c1421f5abc7a7c` — see
+[[servitor-verify-on-write-worktree-can-lag-just-landed-phase]] Recurrence 20 for why no live
+worktree sat exactly at that SHA): CLAUDE.md's "## What this repo is" paragraph now reads
+`docs/adr/` records the binding decisions, numbered sequentially — `ls docs/adr/` for the current
+head — the mechanism-narrative shape, unable to go stale on the next ADR because it no longer
+asserts a snapshot count. **This closes the recurring class**: there is no fifth occurrence to watch
+for, because the literal that recurred is gone. If a future editor reintroduces a snapshot
+range/count literal on this paragraph, that is a NEW instance of the general rule ("The durable
+rule" above), not a continuation of this specific literal's four-recurrence history.
+
+The `p5-polish` gate-audit's own findings (read at the same worktree) independently arrived at this
+same observation — flagging that this very lesson file would go stale the moment the closure landed,
+and recommending exactly the RESOLVED-stamp convention applied here.
