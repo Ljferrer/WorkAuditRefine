@@ -1,5 +1,6 @@
 // TDD (RED first) for campaign-ledger.mjs — the deterministic ledger+inbox core behind /war-campaign.
-// node:test + node:fs temp-dir fixtures only, stdlib. See plan Task 3 / spec §7.2.
+// node:test + node:fs temp-dir fixtures only, stdlib. With the helper, the ledger
+// shape's maintained home (specs are posterity, ADR 0046).
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -759,6 +760,43 @@ test('aggregateBackstops returns [] for a campaign where nothing was deferred', 
   assert.deepEqual(aggregateBackstops(campaignDir), [])
 })
 
+// ---- redteamRounds (plan Task 5.1) ----------------------------------------
+// The plan's cumulative /red-team round count (the report's `**Rounds:**` header),
+// recorded by /war-campaign's step-3 proceed arm. Nullable + omit-preserving —
+// the backstops precedent.
+
+test('new plan entries default redteamRounds to null (pre-hardening tolerance)', () => {
+  const dir = tmpDir()
+  const planA = writePlan(dir, 'a.md', PLAN_A)
+  const campaignDir = path.join(dir, 'campaign')
+  const ledger = init(campaignDir, { plans: [planA], mode: 'stack' })
+  assert.equal(ledger.plans[0].redteamRounds, null)
+})
+
+test('record stamps redteamRounds and it round-trips through the persisted ledger', () => {
+  const dir = tmpDir()
+  const planA = writePlan(dir, 'a.md', PLAN_A)
+  const campaignDir = path.join(dir, 'campaign')
+  init(campaignDir, { plans: [planA], mode: 'stack' })
+
+  record(campaignDir, { plan: path.resolve(planA), status: 'landed', redteamRounds: 2 })
+
+  assert.equal(readLedger(campaignDir).plans[0].redteamRounds, 2)
+})
+
+test('record with omitted redteamRounds leaves an already-recorded value UNCHANGED (no undefined-stamp deletion)', () => {
+  const dir = tmpDir()
+  const planA = writePlan(dir, 'a.md', PLAN_A)
+  const campaignDir = path.join(dir, 'campaign')
+  init(campaignDir, { plans: [planA], mode: 'stack' })
+
+  record(campaignDir, { plan: path.resolve(planA), redteamRounds: 3 })
+  // a later update touches only status — redteamRounds must survive
+  record(campaignDir, { plan: path.resolve(planA), status: 'landed' })
+
+  assert.equal(readLedger(campaignDir).plans[0].redteamRounds, 3)
+})
+
 // ---- CLI record parity (#422 items 4+6) ----------------------------------
 // These drive the CLI dispatch case, NOT the exported record() (already correct).
 
@@ -820,6 +858,34 @@ test('CLI record --backstops parses a JSON array and persists it onto the entry'
     '--status', 'landed', '--backstops', JSON.stringify([BACKSTOP_A, BACKSTOP_AI]))
 
   assert.deepEqual(readLedger(campaignDir).plans[0].backstops, [BACKSTOP_A, BACKSTOP_AI])
+})
+
+test('CLI record --redteamRounds coerces to a number and persists it onto the entry (plan Task 5.1)', () => {
+  const dir = tmpDir()
+  const planA = writePlan(dir, 'a.md', PLAN_A)
+  const campaignDir = path.join(dir, 'campaign')
+  init(campaignDir, { plans: [planA], mode: 'stack' })
+
+  cli('record', '--campaign', campaignDir, '--plan', planA,
+    '--status', 'landed', '--redteamRounds', '4')
+
+  // strict equality: the flag arrives as the string '4' and must persist as the number 4
+  assert.equal(readLedger(campaignDir).plans[0].redteamRounds, 4)
+})
+
+test('CLI record with omitted --redteamRounds leaves the existing value UNCHANGED (no undefined-stamp deletion)', () => {
+  const dir = tmpDir()
+  const planA = writePlan(dir, 'a.md', PLAN_A)
+  const campaignDir = path.join(dir, 'campaign')
+  init(campaignDir, { plans: [planA], mode: 'stack' })
+
+  cli('record', '--campaign', campaignDir, '--plan', planA, '--redteamRounds', '2')
+  // second update omits --redteamRounds entirely — the value must survive
+  cli('record', '--campaign', campaignDir, '--plan', planA, '--status', 'landed')
+
+  const entry = readLedger(campaignDir).plans[0]
+  assert.equal(entry.redteamRounds, 2)
+  assert.equal(entry.status, 'landed')
 })
 
 // ---- CLI --campaign anchoring + init dangling-symlink (plan Task 2, End states 4-5) --
@@ -966,7 +1032,7 @@ test('extractFiles handles the house singular **File:** form', () => {
   assert.deepEqual(extractFiles(block), ['src/only.js'])
 })
 
-test('extractFiles handles the bulleted "- Files:" list form (war-strategy §2\'s ratified per-task field shape; spec §6.2)', () => {
+test('extractFiles handles the bulleted "- Files:" list form (war-strategy §2\'s ratified per-task field shape)', () => {
   const block = ['- Files: `src/one.js`, `src/two.js`', '']
   assert.deepEqual(extractFiles(block), ['src/one.js', 'src/two.js'])
 })
@@ -1066,6 +1132,29 @@ test('SKILL.md frontmatter (full block, never single-line grep) carries disable-
   const fm = parseFrontmatter(readSkillMd())
   assert.equal(fm['disable-model-invocation'], 'true')
   assert.equal(fm.name, 'war-campaign')
+})
+
+// ---- step-3 three-arm triage (plan Task 5.1) ------------------------------
+
+test('SKILL.md step 3 is the three-arm triage: retired one-sentence wording absent (case-insensitive), triage tokens present', () => {
+  const text = readSkillMd()
+  // retired: the old one-sentence step 3
+  assert.ok(
+    !/unresolvable\s*(?:→|->)\s*halt-and-hold/i.test(text),
+    'the retired step-3 wording ("Unresolvable → halt-and-hold") must be absent',
+  )
+  // proceed arm: commit + record the round count
+  assert.match(text, /--redteamRounds/)
+  // halt arm: routing trigger, stop-point token, and the regrill-agenda handoff block
+  assert.match(text, /routeUpstream: true/)
+  assert.match(text, /stopPoint: redteam-route-upstream/)
+  assert.match(text, /## Route upstream/)
+})
+
+test('SKILL.md cites no docs/specs/ path (spec-posterity, ADR 0046) and keeps the ADR 0011 branch-model citation', () => {
+  const text = readSkillMd()
+  assert.ok(!/docs\/specs\//i.test(text), 'spec citations are retired — specs are posterity, never updated')
+  assert.match(text, /0011-campaign-stack-and-plow-branch-model\.md/)
 })
 
 test('no external ecc:/strategic-compact invocation anywhere under skills/war-campaign/** except the single bundled-routine mention', () => {

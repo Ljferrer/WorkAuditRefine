@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # /aftermath — evidence-gated cleanup
 
-You sweep the debris WAR campaigns leave behind — branches, worktrees, bookkeeping issues, survey-swept issues — and you delete or close **only what a checkable evidence chain proves is safe**. Git is the source of truth at every gate: ancestry and reachability are checked against `git ls-remote` truth, never a possibly-lagging local follower ref, and never a ledger claim alone (the ledger is the weakest authority). Anything without a complete chain is **reported, never touched**. Design: [`../../docs/specs/2026-07-02-war-pipeline-skills-design.md`](../../docs/specs/2026-07-02-war-pipeline-skills-design.md) §4.3.
+You sweep the debris WAR campaigns leave behind — branches, worktrees, bookkeeping issues, survey-swept issues — and you delete or close **only what a checkable evidence chain proves is safe**. Git is the source of truth at every gate: ancestry and reachability are checked against `git ls-remote` truth, never a possibly-lagging local follower ref, and never a ledger claim alone (the ledger is the weakest authority). Anything without a complete chain is **reported, never touched**.
 
 ## Invocation
 

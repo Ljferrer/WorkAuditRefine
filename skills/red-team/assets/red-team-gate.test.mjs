@@ -817,3 +817,48 @@ test('CLI: a --round-limit-only invocation emits roundLimit + routeUpstream whil
   assert.equal(out.routeUpstream, false, 'absent rounds disables both arms — routeUpstream is emitted and false')
   assert.ok(!('rounds' in out), `rounds was never supplied — found "rounds" in ${Object.keys(out)}`)
 })
+
+// --- Task 5.5 (#1354): loop-doctrine doc-guard rows — the D7(b) lenses.md-pinning precedent ---
+// Phase 4 authored the loop-breaker prose these rows pin (Task 4.2); the rows land a phase later
+// so the guarded prose is already on the frozen base (drift-guard rule 7). All matches are
+// case-insensitive; anchors are quote-free phrases (the recorded anchor-fragility lesson).
+
+const LENSES = fs.readFileSync(path.join(__dirname, '../references/lenses.md'), 'utf8')
+const SKILL = fs.readFileSync(path.join(__dirname, '../SKILL.md'), 'utf8')
+
+test('doc-guard 5.5(a): lenses.md report template — the **Rounds:** <integer> line sits DIRECTLY under the Verdict line', () => {
+  // Paired first-following match, never two presence-anywhere probes: the Verdict and Rounds
+  // lines are correlated tokens — presence-anywhere would stay green with the pair separated or
+  // reordered, and Step 1's seeding re-reads exactly this adjacency (the strict-form rule).
+  assert.match(LENSES, /^\*\*verdict:\*\*[^\n]*\n\*\*rounds:\*\*\s*<integer>\s*$/im,
+    'the dedicated **Rounds:** <integer> line must sit directly under the Verdict line in the report template')
+})
+
+test('doc-guard 5.5(b): lenses.md carries the ## Route upstream section', () => {
+  assert.match(LENSES, /^## route upstream\s*$/im,
+    'the report template lost its ## Route upstream section (loop-budget route-upstream terminal)')
+})
+
+test('doc-guard 5.5(c): SKILL.md carries the ADR 0042 trigger pointer onto references/loop-budget.md', () => {
+  // The pointer shape is fixed (ADR 0042): trigger THEN read — one paired regex, so a pointer
+  // whose trigger clause was dropped (a bare link) or whose target drifted goes red here.
+  assert.match(SKILL, /when the first gate computation returns\s+`?blocked`?,\s*read\s+\[?references\/loop-budget\.md/i,
+    'SKILL.md lost the ADR 0042 trigger pointer (when the first gate computation returns BLOCKED, read references/loop-budget.md)')
+})
+
+test('doc-guard 5.5(d): the retired per-blocker-only ROUNDS accounting wording is absent from SKILL.md Step 5', () => {
+  // Fail-closed extraction: the step-5 list item, from its "5. " line to the "6. " line.
+  const step5 = SKILL.match(/^5\. [\s\S]*?(?=^6\. )/m)?.[0]
+  assert.ok(step5, 'Step 5 must be extractable (a line-anchored "5. " item followed by a "6. " item)')
+  assert.match(step5, /re-verify\s+attempts/i, 'the replacement unit (re-verify attempts) must be present — proves the extraction grabbed the real Step 5')
+  // The retired accounting spent "rounds" as the per-blocker unit ("≤ 2 rounds per blocker",
+  // "same bounded ≤ 2 rounds", "survives 2 re-verify rounds"); Phase 4 renamed that unit to
+  // "re-verify attempts" so "round" carries exactly one meaning in the step (a full grill sweep).
+  for (const [name, re] of [
+    ['rounds per blocker', /rounds\s+per\s+blocker/i],
+    ['re-verify rounds', /re-verify\s+rounds/i],
+    ['<= 2 rounds', /(?:≤|<=)\s*\**2\**\s+rounds\b/i],
+  ]) {
+    assert.ok(!re.test(step5), `retired per-blocker rounds accounting resurfaced in Step 5 (${name})`)
+  }
+})

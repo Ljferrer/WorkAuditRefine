@@ -79,8 +79,8 @@ New to WAR, or just want a refresher? Run the orientation card:
 ```
 
 It prints a one-screen map — what WAR is, the command set, the five roles, how a run flows, and the
-prerequisites — then offers deep-dive links and a handoff to `/war-strategy`. Design notes:
-[`docs/specs/2026-07-01-war-companion-skills-design.md`](docs/specs/2026-07-01-war-companion-skills-design.md#5-war-help--the-orientation-card).
+prerequisites — then offers deep-dive links and a handoff to `/war-strategy`. Doctrine:
+[`skills/war-help/SKILL.md`](skills/war-help/SKILL.md).
 
 ### Configure a run (`/war-room`)
 
@@ -92,7 +92,7 @@ By default WAR runs opus workers on `max` effort and opus auditors on `xhigh`, a
 
 Or invoke it in natural language — e.g. *"To the war room!"*.
 
-It interviews you (starting from a **balanced / thorough / economy** preset, then only the overrides you ask for), validates your choices, and writes `.claude/war/config.json`. `/war` auto-discovers that file on its next run (or pass `--config <path>`). **No config file → today's defaults, unchanged.** Design notes: [`docs/specs/2026-06-18-war-room-design.md`](docs/specs/2026-06-18-war-room-design.md).
+It interviews you (starting from a **balanced / thorough / economy** preset, then only the overrides you ask for), validates your choices, and writes `.claude/war/config.json`. `/war` auto-discovers that file on its next run (or pass `--config <path>`). **No config file → today's defaults, unchanged.** Doctrine: [`skills/war-room/SKILL.md`](skills/war-room/SKILL.md); the config schema's single tested source of truth is [`skills/war/assets/war-config.mjs`](skills/war/assets/war-config.mjs).
 
 **What "today's defaults" actually are.** With no config file WAR runs the built-in `DEFAULTS`: opus workers on `max` effort, opus auditors on `xhigh`, `rosterPolicy: auto` (the Lead composes each task's roster), the pre-merge ace-fix on, and a 3-round fix budget. For **memory** the defaults are `retrieval: true` with `topK: 10` (prefetch the ten most relevant lessons into each seat's prompt) and **`commitLearnings: false`** — distilled `project`-typed lessons stay local to your machine unless you opt in via `/war-room` (see [Tidy the memory](#tidy-the-memory-lessons-learned) for the publication pitch). The three presets move the whole profile at once: **`balanced`** *is* the defaults, **`thorough`** widens rosters and deepens effort (and pumps tokens), and **`economy`** pins the cheaper knobs it always had — sonnet across every role, a solo roster, a 2-round budget, and ace off. `/war-room` only ever asks about the overrides you want *on top of* the chosen preset.
 
@@ -113,8 +113,8 @@ It interviews you (starting from a **balanced / thorough / economy** preset, the
 ```
 
 **Pipeline doctrine:** war-strategy **authors and converts**; `/red-team` **validates** plans and never converts (see
-[`CONTEXT.md`](CONTEXT.md)). Design notes:
-[`docs/specs/2026-07-01-war-companion-skills-design.md`](docs/specs/2026-07-01-war-companion-skills-design.md#6-war-strategy--the-authoring-primer).
+[`CONTEXT.md`](CONTEXT.md)). Doctrine: [`skills/war-strategy/SKILL.md`](skills/war-strategy/SKILL.md) and the
+interview doctrine at [`skills/war-strategy/references/plan-interview.md`](skills/war-strategy/references/plan-interview.md).
 
 ### Harden a plan (`/red-team`)
 
@@ -122,7 +122,7 @@ Before you hand a plan to `/war`, attack it. `/red-team <plan-file>` reads the p
 
 `/red-team` **validates plans; it never converts a spec into one** (war-strategy **converts**, red-team **ratifies** — see [`CONTEXT.md`](CONTEXT.md)). Have a design spec instead of a plan? Bring it to [`/war-strategy`](#author-a-plan-war-strategy) first, then red team the resulting plan.
 
-Or invoke it in natural language — e.g. *"Red team my plan at docs/..."*. Design notes: [`docs/specs/2026-06-18-red-team-design.md`](docs/specs/2026-06-18-red-team-design.md).
+Or invoke it in natural language — e.g. *"Red team my plan at docs/..."*. Doctrine: [`skills/red-team/SKILL.md`](skills/red-team/SKILL.md).
 
 ### Go to war (`/war`)
 
@@ -215,8 +215,8 @@ basing the next plan off fresh `master`.
 plan below the failure has already landed as its own stacked PR, merged **bottom-up**. To ride out overnight
 context compaction, the Lead keeps a write-ahead `CAMPAIGN-STATE.md` resume brief current before each long
 wait, and a campaign-gated `SessionStart(compact|clear|resume)` hook re-injects it into the fresh window so
-the campaign re-anchors where it left off. Design notes:
-[`docs/specs/2026-07-01-war-companion-skills-design.md`](docs/specs/2026-07-01-war-companion-skills-design.md#7-war-campaign--the-hopper).
+the campaign re-anchors where it left off. Doctrine: [`skills/war-campaign/SKILL.md`](skills/war-campaign/SKILL.md);
+the branch model is [ADR 0011](docs/adr/0011-campaign-stack-and-plow-branch-model.md).
 
 ### Clean up (`/aftermath`)
 
