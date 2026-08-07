@@ -6,8 +6,8 @@ metadata:
   type: project
   provenance: code-verified
   slug: servitor-verify-on-write-worktree-can-lag-just-landed-phase
-  phase: guard-floor-and-scope-hook-coverage-completeness/servitor-wrapup +19 recurrences (latest cli-main-guard-normalization/phase-1 tasks 1.1-1.2 wrap-up, 2026-07-23) — MECHANIZED at phase servitor-wrapup-landed-tip (2026-07-22)
-  promoted: dev/2026-07-22-cli-main-guard-normalization@phase-1
+  phase: guard-floor-and-scope-hook-coverage-completeness/servitor-wrapup +20 recurrences (latest precision-chain-and-loop-breaker/phase-5 wrap-up, 2026-08-05) — MECHANIZED at phase servitor-wrapup-landed-tip (2026-07-22)
+  promoted: dev/2026-07-22-aftermath-class1-postdelete-verify@phase-2
   tags:
     - servitor
     - memory-protocol
@@ -15,7 +15,7 @@ metadata:
     - verification
     - process
   created: 2026-07-10
-  updated: 2026-07-23
+  updated: 2026-08-05
   keywords:
     - phase boundary persistence
     - cross-phase gitdir sweep
@@ -78,171 +78,142 @@ metadata:
     - war-memory-hardening
     - cli-main-guard-normalization
     - realpathSync gitdir sweep
+    - refinery worktree resets after land
+    - ort strategy merge tree-identical
+    - first-parent ancestor merge commit
+    - Landed tip line present but sweep still short
+    - _refinery7
+    - p5-polish worktree
+    - reflog HEAD history
+    - dev branch ref matches but no live worktree
   originSessionId: 8c039a7f-0c62-47a8-85f9-10099b5a6caf
-  modified: 2026-07-23T20:42:04.754Z
+  modified: 2026-08-07T00:16:06.428Z
 ---
 
 # A servitor's own worktree checkout can lag the phase it is wrapping up
 
 ## MECHANIZED (phase `servitor-wrapup-landed-tip`, landed 2026-07-22) — read this first
 
-The engine now threads the fix this lesson's 13 prior recurrences argued for. Confirmed
-`code-verified` at the true landed tip (via the `.claude/war/wt/2026-07-22-servitor-wrapup-landed-tip-2026-07-22/_refinery/`
-worktree — this servitor's own cwd was ITSELF stale for this exact wrap-up):
+The engine now threads the grounding this lesson's first 13 recurrences re-derived by hand.
+`skills/war/assets/workflow-template.js` — at the `LANDED-TIP ANCHOR (hoisted; spec D1)` comment
+banner — hoists the `tipSha` computation to run BEFORE the Wrap-up dispatch and derives
+`landedTipAnchor` (falling back to the named placeholder `landed tip unrecorded — ground via the
+gate-audit auditSha entries in your audit-log input`, ADR 0034). The Wrap-up prompt carries a
+`Landed tip: ...` line plus a LANDED-TIP GROUNDING ladder (cwd preflight → `gitdir`-matched
+worktree lookup → ref-check dead-end → gate-audit fallback); `agents/war-servitor.md`'s Inputs
+bullet mirrors both surfaces (see [[standing-instruction-vs-dispatched-prompt-coverage-split]]).
+The premise this lesson corrects ("your working tree IS the committed tip") is retired at both.
 
-- `skills/war/assets/workflow-template.js` (comment `LANDED-TIP ANCHOR (hoisted;
-  spec D1)`) hoists the `tipSha` computation that used to live only inside the handoff block to
-  run BEFORE the Wrap-up dispatch, then derives `landedTipAnchor = tipSha || 'landed tip
-  unrecorded — ground via the gate-audit auditSha entries in your audit-log input'` — a named
-  placeholder pre-resolved before interpolation so the `pt` tag's undefined-guard can never fire
-  (ADR 0034). `handoff.tipSha` itself is byte-identical to the pre-hoist value (moved verbatim).
-- The Wrap-up prompt now carries a `Landed tip: ${landedTipAnchor} on ${ph.workingBranch} (plan
-  slug: ...)` line plus a "LANDED-TIP GROUNDING" clause (a compact four-step ladder: cwd preflight
-  → `gitdir`-matched worktree lookup → ref-check dead-end → gate-audit fallback — i.e. this
-  lesson's own techniques below, now handed to the servitor up front instead of
-  rediscovered per-phase).
-- `agents/war-servitor.md`'s Inputs bullet mirrors the same anchor + ladder (both surfaces landed
-  in the same task per the standing-instruction/dispatched-prompt coverage-split discipline — see
-  [[standing-instruction-vs-dispatched-prompt-coverage-split]]).
-- The premise this lesson exists to correct ("your working tree IS the committed tip") is retired
-  at both surfaces — neither asserts it in any form anymore.
+**First check for future D3 passes:** a `Landed tip:` line in the spawn prompt IS the grounding —
+no worktree hunt needed. Its *absence* is NOT proof the fix regressed (see the live residual
+below); fall straight back to the gitdir sweep.
 
-**Practical upshot for future D3 checks:** before running the worktree-hunt
-technique below, first check whether the spawn prompt itself already carries a `Landed tip:` line
-— when present, that IS the grounding, no worktree hunt needed. The worktree-hunt techniques
-documented below remain the fallback for any invocation whose prompt lacks the
-anchor (a null/unrecorded tip resolves to the named placeholder, which itself directs the
-gate-audit-`auditSha` fallback).
+## The rule
 
-## The durable rule
+The servitor's Read/Grep operate on whatever is physically checked out at its threaded cwd — a
+worktree frozen at provision time (ADR 0001), never re-synced after land. When D3 verify-on-write
+finds a phase-introduced referent absent, do not conclude "the fix didn't land": first weigh
+checkout lag. Never write a plan/code-mismatch memory from a local-checkout absence alone — either
+read the referent at a worktree proven to hold the landed tip, or tag the fact `agent-unverified`
+with an absence note naming this limitation. Positive claims are exposed too, not just absences: a
+gate-audit "verified MET" rationale re-read against a stale checkout is equally suspect. Getting
+this wrong produces a confidently-wrong `code-verified` lesson that misleads future agents.
 
-Origin incident (2026-07-10, phase "guard-floor-and-scope-hook-coverage-completeness" wrap-up):
-every phase-1-introduced referent was absent from the servitor's session-worktree cwd. Root cause:
-the servitor's Read/Grep tools operate on whatever is physically checked out at the threaded cwd —
-a worktree base is frozen at provision time (ADR 0001); nothing in the servitor's own toolset
-re-syncs it after land.
+## Recurrences 1–13 (2026-07-10 → 2026-07-22, compressed)
 
-**The rule:** when D3 verify-on-write reports a referent absent, do **not** immediately conclude
-"the landed tree lacks this" or "the fix wasn't actually applied." First weigh whether the local
-checkout could simply be behind the branch the phase actually landed on. Concretely:
-- Tag the fact `agent-unverified` with an absence-note that names *this* limitation ("referent not
-  found in servitor's cwd @ phase X — cwd may lag the landed branch, verify against
-  `dev/<branch>` before acting"), rather than asserting a negative finding about the landed code.
-- Never write a memory fact claiming a plan/code mismatch ("the fix didn't land") purely from a
-  local-checkout absence — that requires reading the actual landed branch/commit, which the
-  servitor's Read tool cannot target directly (no Bash, no `git checkout`).
-- The trap extends to positive claims, not just absences: a gate-audit's own approved,
-  `gateEvidence:true` "verified MET" rationale can still be read against a stale checkout by the
-  servitor that inherits it — an "approve" verdict never substitutes for the servitor's own D3
-  re-grep of the named construct.
+Thirteen wrap-ups across many sessions and campaigns hit the hazard in every cwd topology: session
+worktree on an unrelated branch (1–5, 12–13), main checkout with zero live worktrees and the landed
+branch never fetched (8) or present only as a loose ref — still unreadable with no Bash and no live
+checkout (9–11), and reaped task worktrees whose registry name now points at a different concurrent
+plan (7). Staleness is session-stable: one HEAD/branch mismatch downgrades every D3 check for the
+rest of the session — don't re-diagnose per phase. When no readable worktree resolves to the phase,
+trust the gate-audit's own pinned-`auditSha`, `gateEvidence:true` confirmation over any stale-cwd
+read. Ref-presence is per-wrap-up evidence only, never cacheable across phases even on the literal
+same branch name. "Main checkout, no live worktree" was the modal wrap-up topology for a stretch —
+check loose refs and fall back to the audit trail without hunting for reaped worktrees.
 
-**Why it matters:** this is the single highest-leverage check before writing any phase-close
-memory that names a specific new symbol/pattern/file from the phase just landed — getting it wrong
-produces a confidently-wrong `code-verified`-tagged lesson that will mislead a future agent
-searching for that referent.
+## The gitdir-sweep fallback (Recurrences 4/5/12/13 technique)
 
-## The gitdir-sweep technique (the fallback when the prompt lacks the anchor)
+`<repo-root>/.git/worktrees/` is readable via Glob/Read with no Bash. Sweep
+`Glob '.git/worktrees/*/gitdir'` (and `*/HEAD`), then pick the entry whose `gitdir` physical path
+contains the phase's own plan slug (from the spawn prompt); Read/Grep referents at that path for a
+true `code-verified` read of the landed tip. `gitdir` holds the full absolute path, so the sweep
+works regardless of nesting — task worktrees have appeared under
+`.claude/war-worktrees/<plan-slug>/`, `.claude/war/wt/<plan-slug>-<date>/`, and nested inside the
+servitor's own session worktree; read the `gitdir` value, never guess a path shape. A `_refinery`
+worktree's detached-HEAD sha matching the spawn prompt's stated landed tip is the strongest
+positive match — better than a branch-name match. A later phase's task worktree carries every
+prior-phase commit (frozen phase base), so it doubles as a persistence check on earlier phases.
 
-`.git/worktrees/` (readable via Glob/Read, no Bash needed) lists every live worktree in the repo
-by name, including the phase's own per-task worktree (named after the task id, e.g. `p1-1.1`) and
-the run-scoped `_refinery` worktree. Each one's `HEAD` file names its checked-out branch and its
-`gitdir` file gives the absolute filesystem path the worktree is physically checked out at.
-Reading `HEAD`/`gitdir` for the phase's own worktree, confirming it matches the phase (see the
-wrinkles below), and then Read/Grep-ing the referent **at that physical path** instead of at the
-servitor's own stale cwd gives a true `code-verified` read of the landed code. Grepping each
-`gitdir`'s physical-path segment for the phase's own plan slug (from the spawn prompt) is the
-fastest way to pick the right entry out of 50+ worktree registrations.
+- **Glob gotcha:** a bare `Glob('.git/worktrees/*')` matches files, not directories — it returns
+  ZERO entries even when dozens exist, falsely triggering the "no live worktrees / trust the audit
+  log" fallback. Always use a file-suffixed pattern (`*/HEAD` or `*/gitdir`).
+- **Name-collision rule:** every per-run worktree name — task ids (`p1-1.1`) and the reserved
+  `_refinery` alike — collides across concurrently-active plans, and git resolves each collision
+  with a numeric suffix (`p1-1.11`, `_refinery8`, climbing per land). Never trust a bare name
+  lookup under `.git/worktrees/`; confirm via `gitdir` (plan slug in the path) and `HEAD`, and
+  re-run the sweep fresh per wrap-up rather than guessing the next suffix.
 
-**Glob gotcha:** a bare `Glob('.git/worktrees/*')` pattern returns nothing and reads as "no live
-worktrees" even when many entries exist — Glob matches *files*, not bare directory names, so the
-pattern must target a file one level inside (`'.git/worktrees/*/HEAD'` or
-`'.git/worktrees/*/gitdir'`), never the bare directory glob. Re-run with the file-suffixed pattern
-before concluding "zero live worktrees" — a bare-glob false-negative would otherwise wrongly
-trigger the trust-the-audit-log fallback in a session where a direct `code-verified` read was
-available all along.
+## Standing trigger + live residual (Recurrences 14–19, 2026-07-22 → 2026-07-23)
 
-## Collision and naming wrinkles
+- **Standing trigger:** the session worktree
+  `<repo-root>/.claude/worktrees/war-campaign-resilience-roadmap-33290f` has been the servitor's
+  cwd for seven wrap-ups across five unrelated campaigns, stale every time with zero
+  self-correction — the harness reuses one long-lived worktree across `/war` launches. On sight of
+  that cwd, skip any preflight read of the cwd for D3 purposes and go straight to the gitdir sweep.
+- **Live residual (why this stays hot despite MECHANIZED):** every wrap-up since the fix landed
+  arrived through a test/orchestration harness whose spawn prompts do NOT carry the `Landed tip:`
+  line — the production Lead-side `agent()` dispatch threads it; this harness path does not,
+  across phases and campaigns alike. The mechanization changes the common case, not the fallback.
+- A plan/ADR citing a lower recurrence count over an explicit evidence window is a point-in-time
+  citation, not a contradiction of this file's higher running total — don't "correct" it.
 
-- **Name collisions:** ANY fixed/reserved worktree name the WAR engine uses per-run — task ids
-  (`p1-1.1`) AND the constant `_refinery` alike — can collide across concurrently-active plans in
-  the same repo, and git resolves every collision with a numeric suffix (`_refinery`, `_refinery2`,
-  `_refinery3`, …). Never trust a bare name lookup under `.git/worktrees/`; always (a) enumerate
-  every entry whose `gitdir` file's physical path contains the phase's own plan-slug (from the
-  spawn prompt), and (b) prefer the merge/`_refinery` worktree's `HEAD` sha, compared directly
-  against the spawn prompt's stated landed-tip sha, as the strongest positive match — a
-  branch-name match is good, a sha match is better (a merge worktree is typically left checked out
-  at the precise merge commit rather than a moving branch ref).
-- **Reaped worktrees:** the technique has a precondition — the worktree must still be on disk.
-  Post-land, Refine reaps task worktrees, so by servitor wrap-up time a plausible task-id match
-  under `.git/worktrees/<task-id>/` may (a) not exist at all, or (b) exist but resolve to an
-  unrelated concurrent plan (never assume presence proves relevance — check `gitdir` every time,
-  even when the task-id string matches exactly).
-- **Nesting:** the task worktree's physical path is not reliably a sibling of `<repo-root>` — it
-  can be nested several levels inside the servitor's own session worktree
-  (`<session-worktree>/.claude/war/wt/<plan-slug>-<date>/<task-id>/`). The
-  `Glob '.git/worktrees/*/gitdir'` sweep still finds it regardless of nesting depth because
-  `gitdir` always holds the full absolute path — read that value rather than guessing a path
-  shape.
-- **Cross-phase reads:** a later phase's task worktree is cut from the frozen phase base which
-  already includes earlier phases' merged commits — a valid single read site for both the trailing
-  phase's own change AND a persistence check on earlier phases' content.
+## Recurrence 20 (precision-chain-and-loop-breaker/phase-5 wrap-up, 2026-08-05) — Landed tip: line WAS present, gitdir sweep still lands one commit short
 
-## Fallback ladder when no direct read is possible
+The mechanized `Landed tip:` line was present and correctly threaded this time (rung 1
+preflight was skippable). The gitdir sweep (`Glob '.git/worktrees/*/gitdir'` matched on the
+plan slug `2026-08-05-precision-chain-and-loop-breaker`) found `p5-polish` and the reserved
+`_refinery7` entries — but **neither had `HEAD` equal to the threaded landed tip** even though
+both are the phase's own worktrees and the sweep found them correctly. Reading `_refinery7`'s
+reflog (`.git/worktrees/_refinery7/logs/HEAD`) explained why: the refinery worktree's HEAD
+*did* pass through the exact landed tip SHA at land time (`checkout: moving from
+origin/dev/<slug> to integration/.../phase-5` immediately followed by `merge
+integration/.../phase-5: Merge made by the 'ort' strategy` landing on the tip SHA) — then, one
+reflog entry later, checked BACK OUT to `integration/.../phase-5` (one merge-commit behind,
+i.e. the phase-close polish commit, not the dev-branch merge commit). This is standard
+refiner behavior (the land step pushes to `dev/<slug>` and then returns the refinery worktree
+to the phase integration branch for the next phase), not a bug — but it means **even when the
+`Landed tip:` line is present and the gitdir sweep succeeds, no live worktree may be
+literally parked at that SHA post-land.** The `dev/<slug>` branch *ref itself* resolved
+correctly to the landed tip (readable via `Read` on `.git/refs/heads/dev/<slug>`), but per the
+Ref-check rung, a ref with no live worktree checked out on it is a dead end for Read (no Bash
+to `git checkout`) — do not treat a matching bare ref as sufficient for `code-verified`.
 
-When no live worktree resolves to the right plan: before falling back to "trust gate-audit,"
-first confirm the landed branch has **any** local ref at all (`Glob .git/worktrees/*/HEAD` for a
-live checkout, then `Grep` `.git/packed-refs` for the branch name, then check
-`.git/refs/heads/<branch>` directly). All-absent is a strong, cheap signal the cwd/main-checkout
-was **never fetched to** this local git — fall back to trusting the audit trail immediately. A
-resolvable **loose** ref with zero live worktrees is the same dead end one Grep later — a ref is
-still not a checkout; don't treat "the branch exists locally" alone as progress toward a direct
-read. The fallback itself: rely on gate-audit confirmations re-verified at the pinned `audit_sha`
-(a stronger claim than a stale-cwd Grep), and record anything else `agent-unverified` with the
-checkout-mismatch evidence inline — never assert a construct missing at the *true* landed tip
-from a lagging view. Ref-presence checks are per-wrap-up, not cacheable across phases even on the
-literal same branch name.
-
-## Frequency signal (19 recurrences, 2026-07-10 → 2026-07-23; narratives compressed 2026-08-02)
-
-- The hazard is **session-stable, not a per-phase fluke**: one session worktree stayed on an
-  unrelated branch across four consecutive phases (Recurrences 1–3); one specific worktree
-  (`war-campaign-resilience-roadmap-33290f`) recurred stale across **seven** wrap-ups spanning
-  five unrelated campaigns (Recurrences 12, 14–19) — the harness reuses one long-lived worktree
-  across many separate `/war` launches. Once a worktree name has been flagged stale here, assume
-  it stays the servitor's cwd — and stays stale — indefinitely; go straight to the `gitdir`-sweep
-  on sight of that name.
-- "Main checkout, no live worktree" is the **modal** topology at wrap-up time (Recurrences 8–11)
-  — go straight to the loose-ref check and gate-audit fallback rather than hunting for a
-  task/`_refinery` worktree Refine has already reaped.
-- The mechanized `Landed tip:` anchor never appeared in the spawn prompts of Recurrences 14–19 —
-  a test/orchestration-harness dispatch path (not the production Lead-side `agent()` dispatch),
-  harness-wide across campaigns. The anchor's *absence* is not proof the fix didn't land; on
-  absence, fall straight back to the `gitdir`-sweep. The fallback techniques above remain
-  operative for that path.
-- The numbered `_refinery` suffix keeps climbing (`_refinery8` by Recurrence 19) — always re-run
-  the sweep fresh per wrap-up rather than guessing the next suffix from the last-seen number.
-- Aside (Recurrence 14): a plan/ADR citing a lower recurrence count than this file's frontmatter
-  is a window-bounded point-in-time citation, not a contradiction to reconcile — don't "correct"
-  the plan-directed number to match the live running total.
+**Resolution used:** treated this as the gate-audit fallback rung (rung 4), but with a
+practical refinement — the nearest live worktree (here `p5-polish`, one merge-commit behind
+the landed tip) is a legitimate read surface for facts NOT touched by the final dev-merge
+commit itself, since a `dev/<slug>` land merge of a phase-integration branch whose first
+parent (the prior `dev/<slug>` tip) is already an ancestor of the second parent (the
+integration branch tip) is tree-identical to the integration tip — the merge commit only adds
+merge metadata, no content diff. Facts were still framed against the pinned `auditSha` values
+in the audit-log input (`gateEvidence: true`) as the authoritative fallback, with the
+`p5-polish` worktree read used only to CONFIRM specific fixes landed in the phase-close polish
+commit itself (content the `auditSha` pin predates).
 
 ## Related
 
-[[audit-worktree-pre-impl-tip-stale-verdict]] — the auditor-side analogue (audit worktree HEAD can
-be stale relative to `audit_sha`). [[land-local-follower-ref-can-lag-sync-before-next-phase]] —
-same staleness family at the ref-sync layer. [[war-launch-worktree-with-working-branch-checked-out-forces-manual-land]]
-— another worktree/branch-state trap in the same pipeline stage.
+[[audit-worktree-pre-impl-tip-stale-verdict]] — the auditor-side analogue.
+[[land-local-follower-ref-can-lag-sync-before-next-phase]] — same staleness family at the ref-sync
+layer. [[war-launch-worktree-with-working-branch-checked-out-forces-manual-land]] — another
+worktree/branch-state trap in the same pipeline stage.
 [[audit-log-finding-can-be-stale-by-land-time]] — the negative-finding sibling of the gate-audit
-edge above. [[wave-loop-thunk-catch-prevents-null-result-infinite-redispatch]] and
-[[entry-validation-unconditional-phase-field-check-comment-overclaims-runtime-path]] — facts
-the task-worktree technique was used to verify.
+edge above. Facts confirmed via the sweep technique:
+[[wave-loop-thunk-catch-prevents-null-result-infinite-redispatch]],
+[[entry-validation-unconditional-phase-field-check-comment-overclaims-runtime-path]],
 [[integrated-tip-authoritative-gate-audit-seat-has-no-gate-log-path-field]],
 [[floor-retry-add-test-package-it-worker-stays-base-tier]],
-[[baseline-debt-dedup-exact-set-not-subset]] — facts confirmed RESOLVED using this
-same technique.
+[[baseline-debt-dedup-exact-set-not-subset]],
 [[git-common-dir-anchor-idiom-fail-open-gotchas]],
-[[git-probing-hook-requires-fixtures-outside-any-git-repo]] — facts confirmed
-`code-verified` using this same technique.
-[[release-bump-slots-canonical-no-badge]] — the version-slot facts repeatedly confirmed (or, from
-a stale main checkout, deliberately NOT confirmed) via this technique across the release-phase
-recurrences. [[byte-convergence-plan-can-mandate-per-file-import-style-variant]] — a fact
-Recurrence 19 confirmed `code-verified` via the `_refinery8` worktree.
+[[git-probing-hook-requires-fixtures-outside-any-git-repo]],
+[[release-bump-slots-canonical-no-badge]],
+[[byte-convergence-plan-can-mandate-per-file-import-style-variant]].

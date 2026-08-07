@@ -74,6 +74,20 @@
 #         .claude/). (ii)/(iii) are row-scoped, never whole-stderr — the
 #         listing prints the path verbatim, so a whole-stderr prefix grep is
 #         vacuous.
+#  13. EXIT-0 MATCHED-PATH EMISSION (the mappedTests source): on exit 0 stdout
+#      carries ALL matched test paths, one per line — the scan accumulates
+#      every match (no first-hit break). Exit-1/2 stdout contracts unchanged
+#      (cases 2b/12a/12f pin the exit-1 empty summary; 12d the die path).
+#      a. default set, multi-match diff (skills .test.mjs + dir .test.sh +
+#         impl.js) -> exit 0, stdout EXACTLY the two matched paths, one per
+#         line (byte compare; a first-hit break under-emits and goes RED)
+#      b. --pattern '*.test.js' + hooks/x.test.sh: custom-token AND union-arm
+#         hits BOTH emitted (the custom branch accumulates too)
+#      c. doc contract: the header's exit-0 line documents matched-path stdout
+#         (NEW-present); the exit-0 contract prose claims no silent/empty
+#         stdout on success (OLD-absent, case-insensitive, SCOPED to the
+#         exit-0 contract only — the exit-1 "empty summary" prose stays,
+#         asserted present whole-file as the scoping contrast)
 set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -718,6 +732,7 @@ fi
 # `<name> exempt: <actual discovery mechanism>`. Survey-derived (directory listing
 # + manual header-comment survey of every script), never a name-prefix grep.
 CLASSIFICATION="$(cat <<'EOF'
+assert-done-when.sh exempt: executes the file-threaded done-when command, no file discovery
 assert-guard-specificity-in-diff.sh parity
 assert-issues-filed.sh exempt: gh/ledger reconciliation, no file discovery
 assert-no-submodule-mutation.sh exempt: git diff --raw gitlink-mode inspection, no file discovery
@@ -802,8 +817,9 @@ fi
 # Case 12: NEAR-MISS DIAGNOSTIC (spec §10 criteria 1–4). The exit-1 path
 # re-scans the changed-file list against the fixed near-miss set and names the
 # hits on STDERR beside the ACTIVE pattern set. The whole family is about the
-# diagnostic channel: stdout stays the refiner's empty-summary read contract and
-# every exit code is byte-preserved (0/1/2 never conflated, ADR 0006).
+# diagnostic channel: stdout on the exit-1/2 paths stays the refiner's
+# empty-summary read contract (12b's exit-0 stdout is the Case 13 matched-path
+# listing) and every exit code is byte-preserved (0/1/2 never conflated, ADR 0006).
 # NEAR_MARKER is the block's distinctive token — 12a asserts it PRESENT on the
 # exit-1 path and 12d asserts its ABSENCE on the exit-2 die path (both-ways
 # proof; row-scoped marker assert, not a whole-output count).
@@ -1033,6 +1049,125 @@ if printf '%s' "$adv12f" | grep -qF -- '--pattern' \
   pass "case 12f: advisory row still names the pattern cause (--pattern / overrides.testPattern)"
 else
   fail "case 12f: advisory row must still name --pattern / overrides.testPattern (advisory row: $adv12f)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 13: EXIT-0 MATCHED-PATH EMISSION (Task 2.2 — the mappedTests source).
+# On exit 0 stdout carries ALL matched test paths, one per line; the refiner
+# captures the listing into MergeResult.mappedTests. The scan accumulates every
+# match, so 13a/13b are EXACT-BYTE listing compares (trailing newline included
+# via the printf-x sentinel) — a regression to a first-hit break under-emits
+# plural matches and goes RED, where a mere substring-presence check would
+# still pass on the single emitted line.
+# memory: weak-test-assertion-passes-without-feature-being-exercised.
+# ---------------------------------------------------------------------------
+
+# 13a: default patterns, multi-match diff. ONE commit adds skills/foo/bar.test.mjs
+# (node glob), dir/baz.test.sh (sh arm), and impl.js (no match) -> exit 0 and
+# stdout EXACTLY the two matched paths in git name-only (path-sorted) order:
+# dir/baz.test.sh first. impl.js absent by the exact compare. Two invocations
+# (12a's idiom): rc from one, stdout captured separately from the other.
+R13a="$(setup_repo)"
+BASE13a="$(git -C "$R13a" rev-parse HEAD)"
+git -C "$R13a" checkout -qb task/multi-match 2>/dev/null
+mkdir -p "$R13a/skills/foo" "$R13a/dir"
+printf 'test\n' > "$R13a/skills/foo/bar.test.mjs"
+printf 'test\n' > "$R13a/dir/baz.test.sh"
+printf 'src\n' > "$R13a/impl.js"
+git -C "$R13a" add skills/foo/bar.test.mjs dir/baz.test.sh impl.js
+git -C "$R13a" commit -qm "add two tests + impl"
+TASK13a="$(git -C "$R13a" rev-parse HEAD)"
+git -C "$R13a" checkout -q - 2>/dev/null
+
+cwd13a="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
+TMPFILES="$TMPFILES $cwd13a"
+rc13a=0
+( cd "$cwd13a" && bash "$SCRIPT" "$BASE13a" "$TASK13a" --repo "$R13a" ) >/dev/null 2>&1 || rc13a=$?
+# printf-x sentinel: command substitution strips trailing newlines, so append a
+# sentinel and peel it — the compare is byte-exact INCLUDING line termination.
+out13a="$( ( cd "$cwd13a" && bash "$SCRIPT" "$BASE13a" "$TASK13a" --repo "$R13a" ) 2>/dev/null; printf x )"
+out13a="${out13a%x}"
+want13a="$(printf 'dir/baz.test.sh\nskills/foo/bar.test.mjs\nx')"
+want13a="${want13a%x}"
+
+if [ "$rc13a" -eq 0 ]; then
+  pass "case 13a: multi-match diff (two tests + impl.js) -> exit 0"
+else
+  fail "case 13a: multi-match diff -> expected exit 0, got $rc13a"
+fi
+
+if [ "$out13a" = "$want13a" ]; then
+  pass "case 13a: stdout is EXACTLY both matched paths, one per line (accumulating scan; impl.js absent)"
+else
+  fail "case 13a: expected stdout 'dir/baz.test.sh\\nskills/foo/bar.test.mjs\\n', got: [$out13a] (first-hit break under-emits, or a non-test path leaked)"
+fi
+
+# 13b: custom --pattern accumulation across BOTH match arms. Adds pkg/a.test.js
+# (custom-token hit) AND hooks/x.test.sh (union-arm hit) — plus docs/notes.md,
+# a non-matching decoy — with --pattern '*.test.js' -> exit 0; stdout EXACTLY
+# both matched paths (hooks/ first, path order; the decoy absent by the exact
+# compare, so a whole-changed-list leak on THIS branch goes RED, not just 13a's).
+# Under the old first-hit break the union hit on hooks/x.test.sh ended the
+# file-read while before pkg/a.test.js was ever scanned — this case proves the
+# custom branch (token arm AND union arm) feeds the accumulation too.
+R13b="$(setup_repo)"
+BASE13b="$(git -C "$R13b" rev-parse HEAD)"
+git -C "$R13b" checkout -qb task/multi-match-custom 2>/dev/null
+mkdir -p "$R13b/pkg" "$R13b/hooks" "$R13b/docs"
+printf 'test\n' > "$R13b/pkg/a.test.js"
+printf 'test\n' > "$R13b/hooks/x.test.sh"
+printf 'src\n' > "$R13b/docs/notes.md"
+git -C "$R13b" add pkg/a.test.js hooks/x.test.sh docs/notes.md
+git -C "$R13b" commit -qm "add custom-token + union-arm tests"
+TASK13b="$(git -C "$R13b" rev-parse HEAD)"
+git -C "$R13b" checkout -q - 2>/dev/null
+
+cwd13b="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"
+TMPFILES="$TMPFILES $cwd13b"
+rc13b=0
+( cd "$cwd13b" && bash "$SCRIPT" "$BASE13b" "$TASK13b" --pattern '*.test.js' --repo "$R13b" ) >/dev/null 2>&1 || rc13b=$?
+out13b="$( ( cd "$cwd13b" && bash "$SCRIPT" "$BASE13b" "$TASK13b" --pattern '*.test.js' --repo "$R13b" ) 2>/dev/null; printf x )"
+out13b="${out13b%x}"
+want13b="$(printf 'hooks/x.test.sh\npkg/a.test.js\nx')"
+want13b="${want13b%x}"
+
+if [ "$rc13b" -eq 0 ] && [ "$out13b" = "$want13b" ]; then
+  pass "case 13b: --pattern '*.test.js' + union arm -> stdout lists BOTH matched paths (custom branch accumulates)"
+else
+  fail "case 13b: expected exit 0 with stdout 'hooks/x.test.sh\\npkg/a.test.js\\n', got exit $rc13b stdout: [$out13b]"
+fi
+
+# 13c: DOC CONTRACT (scoped OLD-absent). The header's exit-0 line must document
+# matched-path stdout (NEW-present), and the exit-0 contract prose — the header
+# row plus the success branch — must no longer claim a silent/empty stdout on
+# success (OLD-absent, case-insensitive). The absence grep is SCOPED to the
+# exit-0 contract only: the exit-1/2 "empty summary" prose stays (the refiner
+# read-contract depends on it) and is asserted PRESENT whole-file as the
+# scoping contrast — proving the scoped grep is discriminating, not a
+# whole-file sweep the retained prose would red. Extractions are fail-closed:
+# a reworded anchor empties hdr0/succ0 and reds the presence halves.
+hdr0="$(sed -n '/^#   0 /,/^#   1 /p' "$SCRIPT" | sed '$d')"
+succ0="$(sed -n '/^if \[ -n "\$matched_paths" \]/,/^fi$/p' "$SCRIPT")"
+exit0_scope="$hdr0
+$succ0"
+
+if printf '%s' "$hdr0" | grep -qiF 'all matched test paths' \
+   && printf '%s' "$hdr0" | grep -qiF 'one per line'; then
+  pass "case 13c: header exit-0 line documents matched-path stdout (ALL matched test paths, one per line)"
+else
+  fail "case 13c: header exit-0 line must document matched-path stdout (row: $hdr0)"
+fi
+
+if [ -n "$succ0" ] && ! printf '%s' "$exit0_scope" | grep -qiE 'silent|empty'; then
+  pass "case 13c: exit-0 contract prose claims no silent/empty stdout on success (OLD-absent, case-insensitive, scoped)"
+else
+  fail "case 13c: exit-0 contract prose claims a silent/empty stdout on success, or the success-branch extraction is empty (scope: $exit0_scope)"
+fi
+
+if grep -qi 'empty summary' "$SCRIPT"; then
+  pass "case 13c: exit-1 'empty summary' prose retained whole-file (refiner read-contract; the scoping contrast)"
+else
+  fail "case 13c: the exit-1 'empty summary' prose vanished — the refiner read-contract text must stay"
 fi
 
 # ---------------------------------------------------------------------------

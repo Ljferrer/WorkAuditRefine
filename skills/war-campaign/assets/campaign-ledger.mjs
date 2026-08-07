@@ -1,12 +1,16 @@
 #!/usr/bin/env node
-// Deterministic campaign-ledger core behind /war-campaign (spec §7.2).
+// Deterministic campaign-ledger core behind /war-campaign — with its test, the
+// ledger shape's maintained home (specs are posterity, ADR 0046).
 // Node stdlib only (node:fs, node:path). Single-writer (the campaign Lead);
 // every ledger write is atomic (temp file in the same dir + rename).
 //
 // Ledger shape: { campaign, created, mode: 'stack'|'wait-for-merge',
-//                 plans: [{ slug, plan, status, branch, pr, sha, stopPoint, files, backstops }] }
+//                 plans: [{ slug, plan, status, branch, pr, sha, stopPoint, files, backstops, redteamRounds }] }
 // `backstops` is each plan's handoff `backstops[]` (schemas.md) — the validations
 // that plan's /war run deferred; null until recorded (in-flight ledgers predate it).
+// `redteamRounds` is the plan's cumulative /red-team round count (the report's
+// `**Rounds:**` header, recorded by the step-3 proceed arm); null until recorded —
+// the same omit-preserving contract as `backstops`.
 // Inbox = <campaignDir>/inbox/ — one file per dropped plan (maildir-style), swept
 // into the ledger at plan boundaries. No git transport for the queue.
 
@@ -196,6 +200,7 @@ function makePlanEntry(planPath, files) {
     stopPoint: null,
     files,
     backstops: null,
+    redteamRounds: null,
   }
 }
 
@@ -407,17 +412,18 @@ export function next(campaignDir) {
   return ledger.plans.find((p) => p.status === 'queued') || null
 }
 
-// record(campaignDir, { plan, status, branch, pr, sha, stopPoint, backstops }) — atomic
-// update of the matching entry (matched by resolved plan path). `backstops` is the
-// plan's handoff `backstops[]`, stamped only when the key is present (hasOwnProperty
-// guard) so an omitted flag never deletes an existing value (#422).
+// record(campaignDir, { plan, status, branch, pr, sha, stopPoint, backstops, redteamRounds })
+// — atomic update of the matching entry (matched by resolved plan path). `backstops` is
+// the plan's handoff `backstops[]`; `redteamRounds` its cumulative /red-team round count.
+// Each is stamped only when the key is present (hasOwnProperty guard) so an omitted flag
+// never deletes an existing value (#422).
 export function record(campaignDir, update) {
   const ledger = readLedgerFile(campaignDir)
   const target = path.resolve(update.plan)
   const entry = ledger.plans.find((p) => p.plan === target)
   if (!entry) throw new Error(`no ledger entry for plan ${target}`)
 
-  for (const key of ['status', 'branch', 'pr', 'sha', 'stopPoint', 'backstops']) {
+  for (const key of ['status', 'branch', 'pr', 'sha', 'stopPoint', 'backstops', 'redteamRounds']) {
     if (Object.prototype.hasOwnProperty.call(update, key)) entry[key] = update[key]
   }
   writeLedgerAtomic(campaignDir, ledger)
@@ -524,6 +530,8 @@ function main() {
         if (Object.prototype.hasOwnProperty.call(args, key)) update[key] = args[key]
       }
       if (Object.prototype.hasOwnProperty.call(args, 'pr')) update.pr = Number(args.pr)
+      // --redteamRounds is the plan's cumulative /red-team round count (integer).
+      if (Object.prototype.hasOwnProperty.call(args, 'redteamRounds')) update.redteamRounds = Number(args.redteamRounds)
       // --backstops is the plan's handoff backstops[] as a JSON array string.
       if (Object.prototype.hasOwnProperty.call(args, 'backstops')) update.backstops = JSON.parse(args.backstops)
       console.log(JSON.stringify(record(campaignDir, update), null, 2))

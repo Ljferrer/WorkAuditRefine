@@ -19,9 +19,13 @@ export const meta = {
 // ---------------------------------------------------------------------------
 // args (passed by the Lead — see ../references/schemas.md):
 //   args may arrive as an object OR a JSON string (auto-parsed at the top of this file).
-//   { phase: { id, title, integrationBranch, workingBranch, epicIssue?, endState?: [condition] },
-//              // endState: the Commander's-Intent End-state conditions THIS phase claims (Lead-mapped);
-//              // checked by the gate-audit pass — conditions owned by a later phase, OR by a deps-chained
+//   { phase: { id, title, integrationBranch, workingBranch, epicIssue?, endState?: [row|condition] },
+//              // endState: the Commander's-Intent End-state conditions THIS phase claims (Lead-mapped),
+//              // widened rows { condition, tag, check } (schemas.md; parsed Lead-side per Task 3.1) — a
+//              // legacy bare-string entry normalizes to { condition, tag: null, check: null }, the
+//              // judgment path (End state 9). check:-tagged rows are EXECUTED once per phase by the
+//              // land-barrier endstate-check dispatch (D2/F5); all rows are verified artifact-first by
+//              // the gate-audit pass — conditions owned by a later phase, OR by a deps-chained
 //              // sibling task of THIS phase not yet landed at the audit's scope, are out-of-scope there,
 //              // never a hold
 //     plan:  { file, gate, testPattern },  // gate = a shell command, run BY agents (this script has no
@@ -31,7 +35,10 @@ export const meta = {
 //                                     // assert-test-in-diff.sh `--pattern '<value>'` arg at every dispatched
 //                                     // merge-task floor invocation site; null ⇒ bare, byte-identical to today.
 //     tasks: [ { id, issue, title, branch, worktree, deps:[id],
-//                roster:[{ lens, depth? }], planSlice, files:[<repo-relative plan paths>], requiresTest?, requiresPackaging? } ],  // roster: 1–5 distinct-lens audit seats; depth omitted → 'deep'.
+//                roster:[{ lens, depth? }], planSlice, doneWhen?, files:[<repo-relative plan paths>], requiresTest?, requiresPackaging? } ],  // roster: 1–5 distinct-lens audit seats; depth omitted → 'deep'.
+//                                     // doneWhen = the task's `Done when:` acceptance command (string|null; absent/null ⇒ legacy —
+//                                     // doneWhenClause AND doneWhenFloorClause render '' — every prompt is byte-identical to a
+//                                     // doneWhen-less run and the assert-done-when.sh floor never runs, End state 9).
 //                                     // requiresTest/requiresPackaging default true; false (Lead-set) skips that pre-merge floor with a logged, never-silent skip.
 //                                     // files = the plan's `Files:` list (plan paths, NOT the worker's diff — the diff doesn't exist at dispatch); an all-*.md task runs its first-pass worker on the docs tier. Absent/empty ⇒ base worker tier (fail-safe).
 //     learningsTarget,                // read-path resolved repo root — the worker self-query `--repo` flag AND
@@ -80,11 +87,20 @@ const AUDIT_VERDICT = { type: 'object', required: ['seat', 'lens', 'verdict', 'f
   tests_verified: { type: 'object' }, confidence: { enum: ['high', 'medium', 'low'] }, escalate_reason: { type: 'string' },
   // widen (D4): optional catalog lenses a lone seat nominates for auto-escalate widening; honored only
   // on the lone-seat trigger (resolveWidenSource validates whole-field), ignored elsewhere. Not required.
-  widen: { type: 'array', items: { type: 'string' } } } }
+  widen: { type: 'array', items: { type: 'string' } },
+  // endStateAttestations (D8, precision-chain Task 3.2): the POSITIVE End-state channel — returned by
+  // the three gate-audit-family seats ONLY (per-task, integrated-tip, end-state-only; the shared
+  // endStateBlock carries the requirement), one row per claimed condition: condition VERBATIM (the
+  // plan_ref key), status met|unmet|unverified, evidence citing what the seat actually READ (the teed
+  // per-condition artifact for a check:-tagged condition, the captured gate log for a gate:-tagged one,
+  // the named observable for a judged one) — never a bare verdict. Ordinary roster seats never carry
+  // it. Findings stay DEFECT-ONLY (the two-contract rule): attestation rides this channel, never a finding.
+  endStateAttestations: { type: 'array', items: { type: 'object', properties: {
+    condition: { type: 'string' }, status: { enum: ['met', 'unmet', 'unverified'] }, evidence: { type: 'string' } } } } } }
 
 const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties: {
   mode: { enum: ['merge-task', 'land-phase'] },
-  status: { enum: ['merged', 'landed', 'gate_failed', 'conflict', 'error', 'land_stale', 'no-test', 'unpackaged', 'submodule-blocked', 'submodule-pr'] },
+  status: { enum: ['merged', 'landed', 'gate_failed', 'conflict', 'error', 'land_stale', 'no-test', 'unpackaged', 'done-unmet', 'submodule-blocked', 'submodule-pr'] },
   branch: { type: 'string' }, integration_sha: { type: 'string' }, working_sha: { type: 'string' },
   conflict_files: { type: 'array' }, gate_output: { type: 'string' },
   // gate_failure_class (spec §6 / ADR 0019): the on-failure classification the refiner returns
@@ -108,6 +124,14 @@ const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties:
   // HARD_ESCALATION_REASONS member, or KNOWN_LAND_DECISIONS member is added or changed (land-decision.mjs
   // and both hand-mirrored enum blocks byte-untouched, ADR 0005).
   floor_diagnostic: { type: 'string' },
+  // mappedTests (precision-chain D7, Task 2.3): ALL test paths assert-test-in-diff.sh matched in the
+  // task diff, captured from its exit-0 stdout (one per line — Task 2.2's accumulating scan).
+  // merge-task only, OPTIONAL (fail-open — absent ⇒ the gate-audit seat keeps its SOFT cannot-confirm
+  // path). The gate-audit pass greps these paths against the captured gate log (the mappedTestsLine
+  // threaded into the per-task seat, Task 3.2), making the HARD "provably unrun mapped test"
+  // determination mechanical — HARD only where the log ENUMERATES test file paths (the round-3
+  // enumeration-conditional; a titles-only node-reporter half degrades SOFT, never a false hold).
+  mappedTests: { type: 'array' },
   pr_number: { type: 'number' }, pr_remote: { type: 'string' } } }
 
 // EVIDENCE_RESULT (D1/D4/D6): the shape of the ONE consolidated post-merge refiner "evidence dispatch"
@@ -126,6 +150,18 @@ const EVIDENCE_RESULT = { type: 'object', properties: {
     pin_evidence: { type: 'string' }, observedHead: { type: 'string' },
     guard_specificity: { enum: ['covered', 'uncovered', 'ERROR'] }, guard_evidence: { type: 'string' } } } },
   integratedTipGate: { type: 'object', properties: { gate_output: { type: 'string' }, tip_sha: { type: 'string' }, gate_log_path: { type: 'string' } } } } }
+
+// ENDSTATE_CHECK_RESULT (D2/F5, precision-chain Task 3.2): the land-barrier endstate-check dispatch's
+// return — ADVISORY only. The gate-audit-family seats verify from the TEED per-condition artifacts at
+// their deterministic paths (.war/endstate-<phaseId>-<n>.log, each stamped with the tip SHA it ran
+// at), never from this return. ALL fields optional (fail-open): a failed/absent dispatch leaves each
+// artifact missing, unreadable, or STALE-BUT-READABLE (.war/ is git-excluded and ensure-worktree
+// reuses a present worktree untouched, so a resume replay lands on prior-run residue), and the seats
+// attest those conditions 'unverified' — a missing/unreadable artifact and a stamped tip_sha that
+// mismatches the confirmed tip both map there; never 'met', never a block.
+const ENDSTATE_CHECK_RESULT = { type: 'object', properties: {
+  artifacts: { type: 'array', items: { type: 'object', properties: {
+    n: { type: 'number' }, path: { type: 'string' }, tip_sha: { type: 'string' }, exit_code: { type: 'number' } } } } } }
 
 // memory_index_updated retired (spec §4.6, D4 deleted): the servitor no longer maintains the index —
 // the Lead runs `render-index` post-servitor (Gate 2). The servitor only writes/updates lesson files.
@@ -165,7 +201,7 @@ const aced = []
 // Phase-close queue (ADR 0012): absorb findings the per-task ace cannot reach (phaseClose:true or a
 // release-slot filename) — drained by the phase-close coherence sweep at the integrated tip.
 const phaseCloseQueue = []
-const mergedTasksForGateAudit = []   // collect {taskId, gateOutput, acceptanceCriteria, gateHeadSha, preMergeTip, baselineDebt?} for post-merge gate-audit pass (F04 R3)
+const mergedTasksForGateAudit = []   // collect {taskId, gateOutput, acceptanceCriteria, gateHeadSha, gateLogPath, preMergeTip, mappedTests?, claimedEndStateIds?, baselineDebt?} for post-merge gate-audit pass (F04 R3)
 // #806: the last REAL integration_sha any landMerged() call recorded (incl. requiresTest:false tasks,
 // which never enter mergedTasksForGateAudit). Each gate-audit entry stamps the tracker's value from
 // BEFORE its own task's update — its true immediate predecessor tip in serial merge order — so a
@@ -328,11 +364,22 @@ const workerMemClause = taskId => memClause((memoryByTask[taskId] || {}).worker)
 const auditorMemClause = (taskId, lens) => memClause(((memoryByTask[taskId] || {}).seats || {})[lens])
 const servitorMemClause = () => memClause(memory.servitor)
 // Phase-scoped End-state claims (ADR 0013): the intent's numbered End-state conditions THIS phase
-// claims (Lead-mapped). Verified by the gate-audit pass; a condition owned by a LATER phase — or by a
-// deps-chained sibling task of THIS phase not yet landed at the audit's scope — is out-of-scope there,
-// never a hold.
-const endStateClaims = Array.isArray(ph && ph.endState)
-  ? ph.endState.filter(c => typeof c === 'string' && c) : []
+// claims (Lead-mapped), as the WIDENED rows { condition, tag, check } (schemas.md; Lead-parsed per
+// Task 3.1). A legacy bare-string entry normalizes to { condition, tag: null, check: null } — the
+// judgment path (End state 9) — so consumers never see a raw string. check:-tagged rows are EXECUTED
+// once per phase by the land-barrier endstate-check dispatch (D2/F5, below); every row is verified
+// artifact-first by the gate-audit pass; a condition owned by a LATER phase — or by a deps-chained
+// sibling task of THIS phase not yet landed at the audit's scope — is out-of-scope there, never a hold.
+const endStateRows = Array.isArray(ph && ph.endState)
+  ? ph.endState
+      .map(c => (typeof c === 'string' ? { condition: c, tag: null, check: null } : c))
+      .filter(r => r && typeof r === 'object' && !Array.isArray(r) && typeof r.condition === 'string' && r.condition)
+      .map(r => ({ condition: r.condition, tag: (typeof r.tag === 'string' && r.tag) ? r.tag : null,
+        check: (typeof r.check === 'string' && r.check) ? r.check : null }))
+  : []
+// endStateClaims: the verbatim condition texts — the prompt-enumeration + handoff key set (row order
+// is claim order; a row's 1-based index is its artifact number <n>).
+const endStateClaims = endStateRows.map(r => r.condition)
 // Repo-derived provisioning (Part B). The Lead resolves run.provision from war-config.mjs
 // (resolveProvision: explicit list verbatim, else scouted) and threads it here. This is a MIRROR of
 // war-config.mjs's run.provision/run.provisionSource reads — that module is the tested source of
@@ -466,7 +513,7 @@ const defaultRoster = (Array.isArray(audit.roster) ? audit.roster : []).map(s =>
 //       class is UNCONDITIONAL — a DEFENSIVE FAIL-FAST that names every absent phase field HERE at entry
 //       (→ held:workflow-error via the catch) instead of throwing opaquely deep inside pt-tagged prompt
 //       construction. Guarded access only (`ph` nullish ⇒ all three named); no earlier ph-field deref can
-//       pre-empt this message (phaseId uses `ph?.id`, endStateClaims guards `ph && ph.endState`,
+//       pre-empt this message (phaseId uses `ph?.id`, endStateRows guards `ph && ph.endState`,
 //       taskBranch/taskWorktree are lazy arrows evaluated after validation).
 // The `(or supply explicit branch/worktree per task)` suffix is appended ONLY when a derivation-class
 // problem fired — it is a lie for the phase-field class (an explicit branch/worktree cannot supply a
@@ -687,6 +734,36 @@ const workerIntentClause = intent
 // a threaded root the fragment is '' ⇒ the line stays byte-identical to a memory-less run (criterion 10).
 const workerSelfQueryRepoFlag = (typeof learningsTarget === 'string' && learningsTarget) ? ` --repo ${learningsTarget}` : ''
 const WORKER_MEMORY_SELF_QUERY_LINE = pt`\nYou MAY run \`node <plugin>/skills/_shared/war-memory.mjs query '<terms>'${workerSelfQueryRepoFlag}\` mid-task when you hit something unfamiliar — it never writes a lesson, and without a \`--local\` root it appends no query log (the CLI never guesses one from the cwd).\n`
+// Done-when threading (precision-chain D6, Task 1.3 — prompt truth): the task's `Done when:` acceptance
+// command rides the six TASK-SCOPED worker-family dispatched prompts — the primary dispatch plus the
+// five fix-family prompts (FIX_NEEDED, ADD_TEST, PACKAGE_IT, MAKE_DONE_PASS, ace) — as a `Done when:` line beside the
+// Gate: command, so no task-scoped prompt says keep-the-gate-green without carrying the commands that
+// define green (the phase-close sweep is phase-scoped, carries no task doneWhen, and already names the
+// gate inline). Absent/null/empty
+// ⇒ '' (the set-minus pattern): a legacy plan with no `Done when:` bullets dispatches prompts
+// byte-identical to a doneWhen-less run (End state 9). Prompt truth only — the floor that EXECUTES the
+// command at merge is the assert-done-when.sh floor (refiner-side; doneWhenFloorClause below), never this clause.
+const doneWhenClause = task => (task && typeof task.doneWhen === 'string' && task.doneWhen)
+  ? pt`\nDone when: ${task.doneWhen}`
+  : ''
+// Done-when floor (precision-chain D1/D11, Task 2.3 — the done-unmet route): the refiner EXECUTES the
+// task's `Done when:` acceptance command at merge via assert-done-when.sh — file-threaded (--cmd-file,
+// executed from the file, never interpolated into another script), in the task worktree, AFTER the gate.
+// Exit 1 is the done-unmet route (a red command or a timeout) and routes the bounded make-this-command-pass
+// fix sub-loop; exit 2 is a git/env error and NEVER collapses into the floor status. Absent/null/empty
+// doneWhen ⇒ '' (the set-minus pattern) — a legacy task dispatches byte-identical merge prompts and the
+// floor never runs (End state 9). Rides every merge-task dispatch (initial, floor-retry re-merge,
+// environment-proceed, baseline-proceed), keeping the dispatched prompts in sync with war-refiner.md.
+const doneWhenFloorClause = (task, refineryPath) => (task && typeof task.doneWhen === 'string' && task.doneWhen)
+  ? pt` After the gate, run the done-when floor: write the task's Done when: acceptance command — BYTE-VERBATIM, exactly: ${task.doneWhen} — to ${refineryPath}/.war/done-when-${task.id}.cmd (ensure .war/ is git-excluded inside _refinery, the step you already do for the gate log), then run assert-done-when.sh ${task.worktree} --cmd-file ${refineryPath}/.war/done-when-${task.id}.cmd (file-threaded — never interpolate the command into another script). Branch on the exit code: exit 0 → the acceptance command is green; continue. exit 1 (the command exited red or timed out) → return { mode: 'merge-task', status: 'done-unmet' } — do NOT merge. exit 2 (a git/env error — bad worktree, missing/unreadable command file) → return { mode: 'merge-task', status: 'error' }, never 'done-unmet' — a transient git/env error must not spin a pointless make-this-command-pass loop.`
+  : ''
+// A1 redefinition (precision-chain D9): acceptance_criteria_covered is the task's CLAIMED End-state ids
+// — the numbered Commander's Intent End-state conditions the task claims — no longer plan-slice
+// acceptance-criteria prose. ONE canonical rule sentence, mirrored in agents/war-worker.md's Return
+// section (standing surface; the both-surfaces registry test anchors the shared tokens — keep the
+// surfaces in sync in the same commit). Consumer: the post-merge gate-audit pass cross-checks the
+// reported ids (Task 3.2 — defined here, consumed there).
+const ACCEPTANCE_IDS_RULE = "Report acceptance_criteria_covered as the task's claimed End-state ids — the numbered End-state conditions from the plan's Commander's Intent that this task claims to satisfy (empty when the task claims none); the post-merge gate-audit pass cross-checks the field."
 
 // ---- Gate-failure classification (spec §6 / ADR 0019) ----------------------
 // classOf reads the refiner-reported gate_failure_class off a gate_failed MergeResult; an ABSENT or
@@ -750,8 +827,8 @@ const classificationClause = (refineryP, baseDesc) =>
 // merge-task prompts whose evidence contract REQUIRES the captured fully-green gate for the post-merge
 // gate-audit (ADR 0024). Never enumerate those sites here: the captureUses drift guard in
 // workflow-template.test.mjs is the arbiter of the site list. Deliberately NOT every merge-task prompt —
-// a prompt with a different evidence contract carries no clause (both-surfaces rule; agents/war-refiner.md
-// step 7 is the standing mirror, same commit). It STRUCTURALLY REPLACES the retired anti-excerpt prose: the
+// a prompt with a different evidence contract carries no clause (both-surfaces rule; agents/war-refiner.md's
+// final merge step (step 8) is the standing mirror, same commit). It STRUCTURALLY REPLACES the retired anti-excerpt prose: the
 // refiner tees the FULL step-2 gate stdout+stderr to an absolute artifact file and returns its path, so
 // the gate-audit seat's HARD provably-unrun determination reads the CAPTURED file, never a possibly-
 // curated inline paste. .war/ is git-excluded inside _refinery so the clean-surface posture holds.
@@ -1076,13 +1153,17 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         depClause(task)
         + pt`Implement WAR task ${task.id} in the ALREADY-PROVISIONED worktree at ${task.worktree} (branch ${task.branch}, cut from ${ph.integrationBranch}).\n`
         + pt`The refiner's Provision barrier already created this worktree and its .war-task marker — do NOT create it yourself and do NOT set any worktree env var. cd into ${task.worktree} and work only inside it; commit and push ${task.branch}.\n`
-        + pt`Sub-issue #${task.issue ?? '<unset>'} — ${task.title}\nPlan slice: ${task.planSlice}\nPlan file: ${plan.file}\nGate: ${plan.gate}${workerIntentClause}`
+        + pt`Sub-issue #${task.issue ?? '<unset>'} — ${task.title}\nPlan slice: ${task.planSlice}\nPlan file: ${plan.file}\nGate: ${plan.gate}${doneWhenClause(task)}${workerIntentClause}`
         + WORKER_MEMORY_SELF_QUERY_LINE + workerMemClause(task.id) + provisionClause + workerExtraCtx
-        + '\n' + COMMENT_LAG_RULE + '\n' + PLAN_DEFECT_RULE + '\n' + FILES_CHANGED_RULE,
+        + '\n' + COMMENT_LAG_RULE + '\n' + PLAN_DEFECT_RULE + '\n' + FILES_CHANGED_RULE + '\n' + ACCEPTANCE_IDS_RULE,
         { agentType: NS + 'war-worker', phase: 'Work', label: `work:${task.id}`, schema: WORKER_RESULT, ...spawnWorker(isDocsTask(task) ? 'docs' : null) })
 
       const why = blockedReason(impl); if (why) return { task, verdict: 'escalate', seats: [], expected: 0, blocked: why }
       impl.files_changed = normalizeReportedPaths(impl.files_changed, task.worktree, task.id)   // path contract (this spec): normalize main-rooted, escalate any other absolute
+      // A1 (Task 3.2): stamp the worker's claimed End-state ids (acceptance_criteria_covered — the
+      // A1 redefinition) on the task; landMerged threads them into the gate-audit entry, where the
+      // per-task seat cross-checks them against its endStateAttestations rows. Absent/malformed ⇒ null.
+      task.claimedEndStateIds = Array.isArray(impl.acceptance_criteria_covered) ? impl.acceptance_criteria_covered : null
 
       let round = 0, verdict = null, seats = [], expected = 0, blocked = null
       const workerTests = impl && impl.tests ? impl.tests : null
@@ -1114,6 +1195,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         const b = blockingOf(seats)                                // batched FIX_NEEDED → fresh fix-worker
         const fix = await agent(
           pt`FIX_NEEDED for WAR task ${task.id}. Work in the ALREADY-PROVISIONED worktree at ${task.worktree} (branch ${task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
+          // Prompt truth (D6): keep-the-gate-green prompts carry the gate command + the task's
+          // Done when: clause (absent ⇒ '' — legacy byte-identity, End state 9).
+          + pt`Gate: ${plan.gate}${doneWhenClause(task)}\n`
           + pt`Resolve ALL of these blocking findings, keep the gate green, commit and push:\n`
           // pt-tagged prompt-feeding rows (fix prompt, thunk-catch): f.severity is construction-guaranteed (b =
           // blockingOf → Critical/Major only, bare); title/file/rationale are schema-optional → ?? '' absence-tolerant.
@@ -1152,6 +1236,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     } else {
       mergedTasksForGateAudit.push({ taskId: task.id, gateOutput: mr.gate_output, acceptanceCriteria: task.planSlice,
         gateHeadSha: pinOrSentinel(mr.integration_sha), gateLogPath: mr.gate_log_path, preMergeTip: predTip,
+        // mappedTests (D7, Task 3.2) + claimedEndStateIds (A1): both OPTIONAL, omitted when absent/empty
+        // (fail-open — the seat prompt is byte-identical to today without them).
+        ...(Array.isArray(mr.mappedTests) && mr.mappedTests.length ? { mappedTests: mr.mappedTests } : {}),
+        ...(Array.isArray(task.claimedEndStateIds) && task.claimedEndStateIds.length ? { claimedEndStateIds: task.claimedEndStateIds } : {}),
         ...(Array.isArray(taskDebt) && taskDebt.length ? { baselineDebt: taskDebt } : {}) })
     }
     // Update the tracker AFTER capturing predTip, and ONLY on a real integration_sha (isSha === the
@@ -1190,6 +1278,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       if (blockingOf(r.seats).length === 0 && aceable.length && r.task.fixRounds < roundLimit) {
         const ace = await agent(
           pt`ADVISORY POLISH (--ace) for WAR task ${r.task.id}. Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
+          // Prompt truth (D6): keep-the-gate-green prompts carry the gate command + the task's
+          // Done when: clause (absent ⇒ '' — legacy byte-identity, End state 9).
+          + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
           + pt`This task is ALREADY APPROVED. These are auditor-flagged absorb-disposition Minor/Nit findings — apply the smallest mechanical fix for EACH, keep the gate green, and make EXACTLY ONE commit whose message cites each finding's title + rationale:\n`
           // pt-tagged prompt-feeding rows (ace prompt, top-level-catch): f.severity is construction-guaranteed (aceable =
           // minorsOf/absorb → Minor/Nit only, bare); title/file/rationale schema-optional → ?? '' (never a phase-killing throw).
@@ -1285,11 +1376,12 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + pt`Also populate integration_sha with the rebased integration tip the gate ran against, so the gate-audit pass can confirm the gate ran at the integration tip.`
         + pt` Before the _refinery merge step (b), run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${r.task.branch}${r.task.taskType === 'gitlink-bump' && r.task.declared ? ' --declared' : ''} (REGARDLESS of requiresTest — a submodule touch is refused whether or not the task needs a test; the relax-flag is only threaded for a declared gitlink-bump task). Exit 1 → return { mode: 'merge-task', status: 'submodule-blocked' } — do NOT merge. Exit 2 → return { mode: 'merge-task', status: 'error' }.`
         + (requiresTest
-          ? pt` Also before step (b), run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${testPatternArg} to verify the task diff contains at least one test file. Branch on the exit code: exit 1 (no test in the diff) → return { mode: 'merge-task', status: 'no-test' } — do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'no-test' — a transient bad-ref must not spin a pointless add-test loop. On that exit 1 path ONLY, ALSO capture the script's stderr VERBATIM (the near-miss diagnostic) into floor_diagnostic alongside status:'no-test' — never edited, never summarised; empty/absent stderr ⇒ omit floor_diagnostic. It is fail-open advisory context, never a routing input.`
+          ? pt` Also before step (b), run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${testPatternArg} to verify the task diff contains at least one test file. Branch on the exit code: exit 1 (no test in the diff) → return { mode: 'merge-task', status: 'no-test' } — do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'no-test' — a transient bad-ref must not spin a pointless add-test loop. On that exit 1 path ONLY, ALSO capture the script's stderr VERBATIM (the near-miss diagnostic) into floor_diagnostic alongside status:'no-test' — never edited, never summarised; empty/absent stderr ⇒ omit floor_diagnostic. It is fail-open advisory context, never a routing input. On exit 0, capture the script's stdout — ALL matched test paths, one per line — into mappedTests (an array of those paths) on the returned MergeResult; the gate-audit pass greps them against the captured gate log (D7).`
           : pt` requiresTest:false — skip the assert-test-in-diff.sh check and proceed directly to the rebase+merge.`)
         + (requiresPackaging
           ? pt` Also before step (b), run assert-packaging-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${advisePackagingVacuous ? ' --advise-vacuous' : ''} to verify the task diff adds no file a Dockerfile's enumerated COPYs miss. Branch on the exit code: exit 1 (a flagged file → Dockerfile pair) → return { mode: 'merge-task', status: 'unpackaged' } — do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'unpackaged' — a transient bad-ref must not spin a pointless package-it loop.${advisePackagingVacuous ? ' The --advise-vacuous flag may print one informational advisory line on stderr when the packaging run is structurally vacuous under the ADR-0017-ratified scope — exit 0 still means PROCEED; never treat the advisory as an error or report it as a finding.' : ''}`
           : pt` requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`)
+        + doneWhenFloorClause(r.task, refineryPath)
         + submodMergeNote,
         { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}`, schema: MERGE_RESULT, ...spawn('refiner') })
 
@@ -1301,43 +1393,55 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         continue
       }
 
-      // Combined floor-retry sub-loop: bounded fix-worker + full re-audit on EITHER floor status
-      // (no-test OR unpackaged). NOT a blind copy of the old no-test-only loop — a retry merge here
-      // hard-escalated any unexpected status verbatim, so a task tripping BOTH floors (adds a source
-      // file with no test AND no COPY) would clear one and hard-escalate on the other, never getting
-      // its bounded fix (spec §4.2). One loop, both floors, shared budget, until both pass or exhaust.
-      // Every dispatched retry-merge re-instructs ALL floor invocations (test + packaging + submodule),
-      // keeping the dispatched prompts in sync with the standing war-refiner.md steps.
-      // ponytail: requiresTest:false / requiresPackaging:false tasks never enter (that floor's status is never returned)
-      const FLOOR_STATUSES = ['no-test', 'unpackaged']
+      // Combined floor-retry sub-loop: bounded fix-worker + full re-audit on ANY floor status
+      // (no-test, unpackaged, OR done-unmet). NOT a blind copy of the old no-test-only loop — a retry
+      // merge here hard-escalated any unexpected status verbatim, so a task tripping SEVERAL floors
+      // (adds a source file with no test AND no COPY) would clear one and hard-escalate on the other,
+      // never getting its bounded fix (spec §4.2). One loop, all floors, shared budget, until all pass
+      // or exhaust. done-unmet (precision-chain D1, Task 2.3) routes the make-this-command-pass fix —
+      // the no-test pattern; exhaustion escalates reason 'done-unmet' via the generic tail below.
+      // Every dispatched retry-merge re-instructs ALL floor invocations (test + packaging + submodule
+      // + done-when), keeping the dispatched prompts in sync with the standing war-refiner.md steps.
+      // ponytail: requiresTest:false / requiresPackaging:false / doneWhen-less tasks never enter (that floor's status is never returned)
+      const FLOOR_STATUSES = ['no-test', 'unpackaged', 'done-unmet']
       if (mr && FLOOR_STATUSES.includes(mr.status)) {
         let floorMr = mr
         let reAuditFailed = false
         while (floorMr && FLOOR_STATUSES.includes(floorMr.status) && r.task.fixRounds < roundLimit) {
           // Dispatch a fix-worker keyed to the CURRENT tripped floor, in the SAME worktree.
           const isNoTest = floorMr.status === 'no-test'
+          const isDoneUnmet = floorMr.status === 'done-unmet'
           // Near-miss diagnostic (D6): present ⇒ one appended pt-tagged paragraph quoting it VERBATIM;
           // absent ⇒ '' so the ADD_TEST prompt is byte-identical to a diagnostic-less run (set-minus).
           const nearMissDiag = floorDiagOf(floorMr)
           const nearMissClause = nearMissDiag
             ? pt`\nNEAR-MISS DIAGNOSTIC (verbatim stderr from the exit 1 assert-test-in-diff.sh run):\n${nearMissDiag}\nReconcile the diff's test files against the ACTIVE pattern named above BEFORE adding anything — the mapped test may already exist under a path that pattern does not match. When it does, a second test is the wrong fix: report blocked naming the mismatch rather than adding a duplicate test.`
             : ''
+          // Prompt truth (D6): all floor-fix prompts carry the gate command + the task's Done when:
+          // clause (absent ⇒ '' — legacy byte-identity, End state 9).
           const fixPrompt = isNoTest
             ? pt`ADD_TEST for WAR task ${r.task.id}. The refiner's merge-task check (assert-test-in-diff.sh) found no test file in the diff. `
               + pt`Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
+              + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
               + pt`Add a mapped test for this task (the test must exercise the slice described in: ${r.task.planSlice}), keep the gate green, commit and push.`
               + nearMissClause
+            : isDoneUnmet
+            ? pt`MAKE_DONE_PASS for WAR task ${r.task.id}. The refiner's merge-task check (assert-done-when.sh) ran the task's own Done when: acceptance command and it exited red (or timed out). `
+              + pt`Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
+              + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
+              + pt`Make this command pass: fix the implementation for the slice described in: ${r.task.planSlice} until the Done when: command above exits 0 — never weaken, skip, or delete a test to force it green. Keep the gate green, commit and push.`
             : pt`PACKAGE_IT for WAR task ${r.task.id}. The refiner's merge-task check (assert-packaging-in-diff.sh) flagged an added/renamed file a Dockerfile's enumerated COPYs miss. `
               + pt`Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
+              + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
               + pt`Resolve it for the slice described in: ${r.task.planSlice}. add the COPY or dockerignore it — never delete the file to satisfy the floor. Keep the gate green, commit and push.`
           const floorFix = await agent(
             fixPrompt + workerMemClause(r.task.id) + provisionClause,
-            // #817: spawnWorker('fix') makes the add-test/package-it floor retry tier-aware, uniform with
+            // #817: spawnWorker('fix') makes the add-test/package-it/make-pass floor retry tier-aware, uniform with
             // the fix:/ace: fix-follow-up classes (absent agents.worker.fix ⇒ inherit-base — byte-identical).
-            { agentType: NS + 'war-worker', phase: 'Audit', label: `${isNoTest ? 'add-test' : 'package-it'}:${r.task.id}:r${r.task.fixRounds + 1}`, schema: WORKER_RESULT, ...spawnWorker('fix') })
+            { agentType: NS + 'war-worker', phase: 'Audit', label: `${isNoTest ? 'add-test' : isDoneUnmet ? 'make-pass' : 'package-it'}:${r.task.id}:r${r.task.fixRounds + 1}`, schema: WORKER_RESULT, ...spawnWorker('fix') })
           // Floor-specific verdict tokens: no-test keeps its historical strings (regression guard #268);
-          // unpackaged uses the parallel package-it form. status ('no-test'|'unpackaged') prefixes both.
-          const blockedVerdict = isNoTest ? 'no-test:add-test-blocked' : 'unpackaged:package-it-blocked'
+          // unpackaged/done-unmet use the parallel forms. status ('no-test'|'unpackaged'|'done-unmet') prefixes all three.
+          const blockedVerdict = isNoTest ? 'no-test:add-test-blocked' : isDoneUnmet ? 'done-unmet:make-pass-blocked' : 'unpackaged:package-it-blocked'
           const floorFixWhy = blockedReason(floorFix)
           if (floorFixWhy) {
             // Blocked floor fix-worker (worker-authored blocked text) — escalate and break the
@@ -1368,7 +1472,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             break
           }
 
-          // Re-attempt the serial merge — re-instructs ALL floor invocations (test + packaging + submodule).
+          // Re-attempt the serial merge — re-instructs ALL floor invocations (test + packaging + submodule + done-when).
           floorMr = await agent(
             pt`Merge WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
             + reattachClause(refineryPath)
@@ -1384,17 +1488,18 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             + baselineDebtClause()
             + pt`Before the _refinery merge step (b), re-run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${r.task.branch}${r.task.taskType === 'gitlink-bump' && r.task.declared ? ' --declared' : ''} — the floor fix-worker pushed new commits, so the check runs afresh REGARDLESS of requiresTest (the relax-flag is only threaded for a declared gitlink-bump task). Exit 1 → return { mode: 'merge-task', status: 'submodule-blocked' }, do NOT merge; exit 2 → return { mode: 'merge-task', status: 'error' }. `
             + (requiresTest
-              ? pt`Before the _refinery merge step (b), run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${testPatternArg} to verify the task diff now contains at least one test file. Branch on the exit code: exit 1 (no test in the diff) → return { mode: 'merge-task', status: 'no-test' }, do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'no-test' — a transient bad-ref must not spin a pointless add-test loop. On that exit 1 path ONLY, ALSO capture the script's stderr VERBATIM (the near-miss diagnostic) into floor_diagnostic alongside status:'no-test' — never edited, never summarised; empty/absent stderr ⇒ omit floor_diagnostic. It is fail-open advisory context, never a routing input. `
+              ? pt`Before the _refinery merge step (b), run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${testPatternArg} to verify the task diff now contains at least one test file. Branch on the exit code: exit 1 (no test in the diff) → return { mode: 'merge-task', status: 'no-test' }, do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'no-test' — a transient bad-ref must not spin a pointless add-test loop. On that exit 1 path ONLY, ALSO capture the script's stderr VERBATIM (the near-miss diagnostic) into floor_diagnostic alongside status:'no-test' — never edited, never summarised; empty/absent stderr ⇒ omit floor_diagnostic. It is fail-open advisory context, never a routing input. On exit 0, capture the script's stdout — ALL matched test paths, one per line — into mappedTests (an array of those paths) on the returned MergeResult; the gate-audit pass greps them against the captured gate log (D7). `
               : pt`requiresTest:false — skip the assert-test-in-diff.sh check. `)
             + (requiresPackaging
               ? pt`Also before step (b), run assert-packaging-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${advisePackagingVacuous ? ' --advise-vacuous' : ''} to verify the task diff now adds no file a Dockerfile's enumerated COPYs miss. Branch on the exit code: exit 1 (a flagged file → Dockerfile pair) → return { mode: 'merge-task', status: 'unpackaged' }, do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'unpackaged' — a transient bad-ref must not spin a pointless package-it loop.${advisePackagingVacuous ? ' The --advise-vacuous flag may print one informational advisory line on stderr when the packaging run is structurally vacuous under the ADR-0017-ratified scope — exit 0 still means PROCEED; never treat the advisory as an error or report it as a finding.' : ''}`
               : pt`requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`)
+            + doneWhenFloorClause(r.task, refineryPath)
             + submodMergeNote,
             { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:floor-retry:r${r.task.fixRounds}`, schema: MERGE_RESULT, ...spawn('refiner') })
         }
 
         if (!reAuditFailed && floorMr && FLOOR_STATUSES.includes(floorMr.status)) {
-          // Budget exhausted — hard escalation with reason = whichever floor is still tripping (both HARD).
+          // Budget exhausted — hard escalation with reason = whichever floor is still tripping (all HARD).
           // The LAST result's near-miss diagnostic rides both entries as `detail` when present (a
           // string-valued detail is legal — this key is already shape-heterogeneous per route: the
           // merge-failure route below pushes the whole MergeResult object). Absent ⇒ no `detail` key at
@@ -1460,11 +1565,12 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             + pt`  (c) On a fully green gate, MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), git merge ${r.task.branch}, push, return { mode: 'merge-task', status: 'merged', integration_sha: <tip> } — populate integration_sha with the rebased integration tip the gate ran against, so the gate-audit pass can confirm the gate ran at the integration tip.`
             + pt` Before the merge, run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${r.task.branch}${r.task.taskType === 'gitlink-bump' && r.task.declared ? ' --declared' : ''} (exit 1 → submodule-blocked; exit 2 → error).`
             + (requiresTest
-              ? pt` Also run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${testPatternArg} (exit 1 → no-test; exit 2 → error). On that exit 1 path ONLY, ALSO capture the script's stderr VERBATIM (the near-miss diagnostic) into floor_diagnostic alongside status:'no-test' — never edited, never summarised; empty/absent stderr ⇒ omit floor_diagnostic. It is fail-open advisory context, never a routing input.`
+              ? pt` Also run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${testPatternArg} (exit 1 → no-test; exit 2 → error; exit 0 → capture the script's stdout — ALL matched test paths, one per line — into mappedTests on the returned MergeResult). On that exit 1 path ONLY, ALSO capture the script's stderr VERBATIM (the near-miss diagnostic) into floor_diagnostic alongside status:'no-test' — never edited, never summarised; empty/absent stderr ⇒ omit floor_diagnostic. It is fail-open advisory context, never a routing input.`
               : pt` requiresTest:false — skip the assert-test-in-diff.sh check.`)
             + (requiresPackaging
               ? pt` Also run assert-packaging-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${advisePackagingVacuous ? ' --advise-vacuous' : ''} (exit 1 → unpackaged; exit 2 → error).${advisePackagingVacuous ? ' The --advise-vacuous flag may print one informational advisory line on stderr (structurally-vacuous packaging run under the ADR-0017-ratified scope) — exit 0 still means PROCEED, never a finding.' : ''}`
               : pt` requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`)
+            + doneWhenFloorClause(r.task, refineryPath)
             + submodMergeNote,
             { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:environment-proceed`, schema: MERGE_RESULT, ...spawn('refiner') })
           if (ep && ep.status === 'merged') landMerged(r.task, ep)
@@ -1488,11 +1594,12 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             + pt`  (c) If the ONLY failures are the pre-existing baseline set, MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), git merge ${r.task.branch}, push, return { mode: 'merge-task', status: 'merged', integration_sha: <tip> }.`
             + pt` Before the merge, run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${r.task.branch}${r.task.taskType === 'gitlink-bump' && r.task.declared ? ' --declared' : ''} (exit 1 → submodule-blocked; exit 2 → error).`
             + (requiresTest
-              ? pt` Also run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${testPatternArg} (exit 1 → no-test; exit 2 → error). On that exit 1 path ONLY, ALSO capture the script's stderr VERBATIM (the near-miss diagnostic) into floor_diagnostic alongside status:'no-test' — never edited, never summarised; empty/absent stderr ⇒ omit floor_diagnostic. It is fail-open advisory context, never a routing input.`
+              ? pt` Also run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${testPatternArg} (exit 1 → no-test; exit 2 → error; exit 0 → capture the script's stdout — ALL matched test paths, one per line — into mappedTests on the returned MergeResult). On that exit 1 path ONLY, ALSO capture the script's stderr VERBATIM (the near-miss diagnostic) into floor_diagnostic alongside status:'no-test' — never edited, never summarised; empty/absent stderr ⇒ omit floor_diagnostic. It is fail-open advisory context, never a routing input.`
               : pt` requiresTest:false — skip the assert-test-in-diff.sh check.`)
             + (requiresPackaging
               ? pt` Also run assert-packaging-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${advisePackagingVacuous ? ' --advise-vacuous' : ''} (exit 1 → unpackaged; exit 2 → error).${advisePackagingVacuous ? ' The --advise-vacuous flag may print one informational advisory line on stderr (structurally-vacuous packaging run under the ADR-0017-ratified scope) — exit 0 still means PROCEED, never a finding.' : ''}`
               : pt` requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`)
+            + doneWhenFloorClause(r.task, refineryPath)
             + submodMergeNote,
             { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:baseline-proceed`, schema: MERGE_RESULT, ...spawn('refiner') })
           if (bp && bp.status === 'merged') landMerged(r.task, bp, (mr.gate_failing_ids || []))
@@ -1537,7 +1644,51 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
 // task to close the "auditor can't verify PASS" gap with real execution evidence (not just integrity-by-reading).
 // Default outcome: SOFT note (does not hold the land). Hard only if a mapped test is provably unrun
 // (present in diff but absent / 0-count in gate_output) — Open decision #1 (resolved: operationally defined).
-// End-state check (ADR 0013, phase-scoped): rides this pass when it runs. Empty when the phase
+// refineryPath (hoisted, Task 3.2): ONE shared _refinery path for the land barrier — the endstate-check
+// dispatch, the shared endStateBlock's artifact/gate-log paths, and both gate-audit arms below reuse it
+// (already checked out on ph.integrationBranch at the integration tip after the serial merge queue and
+// before Land/teardown; the merge loop's own block-scoped refineryPath is out of scope here).
+const refineryPath = `${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/_refinery`
+
+// ---- LAND-BARRIER ENDSTATE-CHECK DISPATCH (D2/F5, precision-chain Task 3.2) ----
+// Runs ONCE per phase at the INTEGRATED TIP: after the serial merge queue's last merge, BEFORE any
+// gate-audit seat spawns. UNCONDITIONAL on merge outcomes — it runs in the mergedTasksForGateAudit-empty
+// arm too (a requiresTest:false-only phase still executes its claimed checks; the end-state-only seat
+// consumes the artifacts). Refiner-executed (ADR 0002 — auditors are read-only: seats READ the teed
+// artifacts, never run commands). Command hygiene per A3/D11: file-threaded (each check command is
+// executed FROM its .cmd file, never interpolated into another script), a timeout, execution confined
+// to the integrated-tip checkout; a red/hung check fails only its own artifact — never this dispatch,
+// never the (already finished) merge queue. One artifact per claimed check:-tagged condition at
+// <refineryPath>/.war/endstate-<phaseId>-<n>.log (n = the condition's 1-based claim number), each
+// stamped with the tip SHA it ran at. FAIL-OPEN: a failed/absent dispatch and a missing, unreadable,
+// or STALE artifact (stamped tip_sha mismatching the confirmed tip — prior-run .war/ residue a resume
+// replay lands on) all mean the seats attest 'unverified' — never 'met', never a block. Skipped (no
+// dispatch) when no claimed row carries a
+// check command — a claims-less or judgment-only phase dispatches nothing (byte-compat, End state 9).
+const endStateCheckRows = endStateRows
+  .map((r, i) => ({ n: i + 1, check: r.check }))
+  .filter(r => r.check)
+if (endStateCheckRows.length > 0) {
+  log(`endstate-check: dispatching the land-barrier check — ${endStateCheckRows.length} claimed check:-tagged End-state condition(s) execute ONCE at the integrated tip, before any gate-audit seat spawns (D2/F5).`)
+  await agent(
+    pt`ENDSTATE-CHECK DISPATCH for WAR phase ${ph.id} (the land-barrier check; you are the refiner). `
+    + pt`cwd = ${refineryPath} (the _refinery worktree, on ${ph.integrationBranch} at the FINAL integration tip after the serial merge queue). `
+    + pt`Execute EVERY claimed check:-tagged End-state condition's command below ONCE at this tip. Do NOT merge, push, rebase, or edit tracked files — the gate-audit seats verify from the artifacts you tee (they are read-only and never run commands, ADR 0002).\n`
+    + pt`First ensure .war/ is git-excluded inside _refinery — append the line \`.war/\` (once) to the path printed by \`git -C ${refineryPath} rev-parse --git-path info/exclude\`.\n`
+    + pt`For EACH condition row below: write the command BYTE-VERBATIM to its .cmd file and execute it FROM THE FILE (file-threaded — never interpolate it into another script; A3/D11 hygiene), under a timeout, teeing its FULL stdout+stderr to its .log artifact. STAMP each artifact with the tip SHA it ran at: the FIRST line is \`tip_sha: <output of git -C ${refineryPath} rev-parse HEAD>\`, then the command's captured output, then a final \`exit_code: <code>\` line. The tip_sha stamp is LOAD-BEARING: the seats compare it against the confirmed tip and attest a stale (mismatched) artifact 'unverified'. A red, hung, or timed-out command still gets its artifact (whatever it produced, plus its exit/timeout note) — record it and MOVE ON to the next condition; a failing check NEVER fails this dispatch.\n`
+    // pt-tagged prompt-feeding row builder (endstate-check dispatch, top-level-catch): r.n is a derived
+    // map index (always defined), r.check is filter-guaranteed non-empty.
+    + endStateCheckRows.map(r => pt`  - ${r.n} · cmd-file: ${refineryPath}/.war/endstate-${ph.id}-${r.n}.cmd · artifact: ${refineryPath}/.war/endstate-${ph.id}-${r.n}.log · command: ${r.check}`).join('\n') + '\n'
+    + pt`Return { artifacts: [{ n, path, tip_sha, exit_code }] } — one row per condition. On any failure return what you have — a partial/empty result is FAIL-OPEN (the seats read the teed artifacts at the enumerated paths and attest anything unreadable — or stale, its stamped tip_sha mismatching the confirmed tip — 'unverified', never 'met'); never block.`,
+    { agentType: NS + 'war-refiner', phase: 'Refine', label: `endstate-check:phase-${ph.id}`, dispatchKind: 'endstate-check', schema: ENDSTATE_CHECK_RESULT, ...spawn('refiner') })
+}
+
+// End-state check (ADR 0013, phase-scoped): rides the gate-audit pass when it runs. TWO channels per
+// claimed condition (D8, Task 3.2): findings stay DEFECT-ONLY (the three cases below), and the seat
+// ALSO returns one POSITIVE endStateAttestations row per condition — artifact-first (the teed
+// per-condition artifacts for check:-tagged rows, the captured gate logs for gate:-tagged rows, named
+// observables for judged rows). Shared const: all three gate-audit-family seats (per-task,
+// integrated-tip, end-state-only) concatenate it, so all three return rows. Empty when the phase
 // claims no conditions — the gate-audit prompt stays byte-identical to today (criterion 10).
 const endStateBlock = endStateClaims.length
   ? pt`\nEND-STATE CHECK (phase-scoped): this phase claims the Commander's-Intent End-state condition(s) below. Three cases, mirroring the provably-unrun/SOFT split: `
@@ -1549,14 +1700,13 @@ const endStateBlock = endStateClaims.length
     // plan-less claims-bearing phase, and `pt` throws on an undefined value by contract.
     + pt`(3) a condition owned by a LATER phase — or by a deps-chained sibling task of THIS phase not yet landed at your audit's scope (map each numbered condition to the task slice that owns it before scoring — read the plan at ${(plan && plan.file) ?? '<unset>'} in the checked-out tree for the per-task Plan slice and deps edges) — is out-of-scope for THIS audit — record a Nit finding whose title contains "out-of-scope", NEVER a hold. `
     + pt`Set plan_ref on EVERY End-state finding to the condition text VERBATIM (the handoff block keys endState statuses on it).\n`
-    // pt-tagged prompt-feeding row builder (endStateBlock → gate-audit prompt, top-level-catch): ${c ?? ''} absence-tolerant.
-    + endStateClaims.map((c, i) => pt`  ${i + 1}. ${c ?? ''}`).join('\n') + '\n'
+    + pt`ATTESTATION (D8 — the positive channel, artifact-first): ALSO return endStateAttestations — one row per claimed condition below, { condition (the text VERBATIM), status: met | unmet | unverified, evidence } — status PLUS the evidence you actually read, never a bare verdict. A check:-tagged condition has an EXECUTED artifact at the path listed beside it (teed by the land-barrier endstate-check dispatch, its first line the tip SHA it ran at) — Read the artifact, COMPARE its stamped tip_sha against the confirmed tip, and attest from it; a missing/unreadable artifact — and equally a STALE-BUT-READABLE one, its stamped tip_sha mismatching the confirmed tip (prior-run .war/ residue a resume replay lands on) — is status 'unverified', never 'met'; readable is not sufficient. A gate:-tagged condition attests from the gate evidence as ACTUALLY CAPTURED — the per-task gate logs (${refineryPath}/.war/gate-<taskId>.log) plus the integrated-tip gate log (${refineryPath}/.war/gate-phase-${ph.id}.log) when one was produced — never from prose; with no captured gate evidence, attest 'unverified'. A judged (untagged) condition attests from named observables at the confirmed tip. Cross-check any worker-claimed End-state ids threaded on this prompt (A1) against your rows. Findings stay defect-only — attestation rides endStateAttestations, never a finding; a condition NO seat attests lands 'unverified' in the handoff, never 'met'.\n`
+    // pt-tagged prompt-feeding row builder (endStateBlock → gate-audit prompt, top-level-catch): every
+    // interpolation is guarded — r.condition is filter-guaranteed non-empty, tag/check normalize to
+    // null and render behind ternaries, ph.id rides the same pt contract as the seat prompts.
+    + endStateRows.map((r, i) => pt`  ${i + 1}. ${r.condition}${r.tag ? pt` [${r.tag}]` : ''}${r.check ? pt` — executed artifact: ${refineryPath}/.war/endstate-${ph.id}-${i + 1}.log` : ''}`).join('\n') + '\n'
   : ''
 if (mergedTasksForGateAudit.length > 0) {
-  const refineryPath = `${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/_refinery`
-  // ponytail: reuse the _refinery worktree — already checked out on ph.integrationBranch at the integration tip
-  //           after the serial merge queue and before Land/teardown; loop-scoped :308 refineryPath is out of scope here
-
   // ---- D1/D4/D6 — ONE consolidated post-merge evidence dispatch (refiner, in _refinery) ----
   // dispatchKind: 'evidence' (stable discriminator — the evidence dispatch plan 2 added, tagged for parity).
   // Stamps per merged task: the gate-pin-status.sh proof (pin_status + observedHead = the _refinery tip the
@@ -1617,7 +1767,7 @@ if (mergedTasksForGateAudit.length > 0) {
   // under BENIGN-ADVANCE the observed tip legitimately differs from gateHeadSha, so checking
   // seat-vs-gateHeadSha would demote exactly the benign case. Absent (evidence dispatch failed/produced no
   // token) ⇒ fall back to gateHeadSha (fail-open — today's behavior).
-  await parallel(mergedTasksForGateAudit.map(({ taskId, gateOutput, acceptanceCriteria, gateHeadSha, observedHead, gateLogPath, pinStatus, pinEvidence, guardSpecificity, guardEvidence, baselineDebt: taskDebt }) => async () => {
+  await parallel(mergedTasksForGateAudit.map(({ taskId, gateOutput, acceptanceCriteria, gateHeadSha, observedHead, gateLogPath, pinStatus, pinEvidence, guardSpecificity, guardEvidence, mappedTests, claimedEndStateIds, baselineDebt: taskDebt }) => async () => {
     // Baseline-debt line (spec §6 / ADR 0019): a baseline-merged task carries its classified failing
     // identifiers so a pre-existing base failure in the gate output is NOT read as a provably-unrun
     // mapped test (which would fake a HARD hold). Empty/absent debt ⇒ '' ⇒ byte-identical prompt.
@@ -1631,6 +1781,25 @@ if (mergedTasksForGateAudit.length > 0) {
       ? pt`${pinStatus}${pinEvidence ? pt` (cited evidence: ${pinEvidence})` : ''}`
       : '(no pin-status token — the evidence dispatch produced none)'
     const artifactLine = gateLogPath || '(no gate-log artifact path recorded)'
+    // mappedTestsLine (D7, Task 3.2): the floor-matched test paths (MergeResult.mappedTests) make the
+    // HARD provably-unrun trigger MECHANICAL — the seat greps each path against the CAPTURED gate log.
+    // Enumeration-conditional (round-3 fix-forward adjudication): absence is HARD only where the log
+    // ENUMERATES test file paths (e.g. the bash half's per-file headers); a piped `node --test` run
+    // reports test titles + an aggregate summary and never per-file paths, so a zero-hit .mjs grep is
+    // SOFT cannot-confirm — never a false land-hold (the reporter-format premise is pinned live by the
+    // test suite's 'reporter-format premise' test).
+    // Absent/empty ⇒ '' (byte-identical prompt — the seat keeps today's SOFT cannot-confirm posture).
+    const mappedTestsLine = (Array.isArray(mappedTests) && mappedTests.length)
+      ? pt`\nMAPPED TESTS (D7 — the mechanical HARD trigger): the test floor matched these test paths in this task's diff (MergeResult.mappedTests):\n`
+        // pt-tagged prompt-feeding row builder (mapped-tests → gate-audit prompt): ${p2 ?? ''} absence-tolerant.
+        + mappedTests.map(p2 => pt`  - ${p2 ?? ''}`).join('\n') + '\n'
+        + pt`Grep EACH mapped path against the CAPTURED gate log artifact (artifact-first). A mapped path absent — or present with 0 executed tests — at a CONFIRMED/BENIGN-ADVANCE pin is the HARD provably-unrun finding ONLY when the captured log ENUMERATES test file paths for that path's suite half (e.g. the bash suite half's per-file \`== gate(bash): <path> ==\` headers; a \`node --test\` run reports test TITLES plus an aggregate summary, never per-file paths). A zero-hit grep against a non-enumerating half (e.g. a .mjs mapped path vs the node-reporter output) proves nothing about that path: SOFT cannot-confirm, never a hold.\n`
+      : ''
+    // claimedIdsLine (A1, Task 3.2): the worker-claimed End-state ids, cross-checked by this seat
+    // against its endStateAttestations rows. Empty/absent — or a claims-less phase — ⇒ '' (byte-identical).
+    const claimedIdsLine = (endStateClaims.length && Array.isArray(claimedEndStateIds) && claimedEndStateIds.length)
+      ? pt`\nWORKER-CLAIMED END-STATE IDS (A1): the worker reported acceptance_criteria_covered = [${claimedEndStateIds.join(', ')}] — cross-check these claimed ids against your endStateAttestations rows: a claimed condition your evidence cannot support is attested honestly (unmet/unverified, never met-by-claim), and a substantive claim-vs-evidence mismatch is a finding (severity yours).\n`
+      : ''
     const guardLine = guardSpecificity
       // nested pt-tagged interior (first-class census entry): ${guardEvidence} is ternary-guarded.
       ? pt`\nGUARD SPECIFICITY (stamped by the same evidence dispatch): ${guardSpecificity}${guardEvidence ? pt` — ${guardEvidence}` : ''}. An 'uncovered' token means a new die/stderr guard was added whose exact stderr message NO same-diff test asserts — emit a test-fidelity finding citing the guard message (severity/disposition are yours, ADR 0013). 'covered' / 'ERROR' / absent ⇒ no guard finding on this axis.\n`
@@ -1645,6 +1814,7 @@ if (mergedTasksForGateAudit.length > 0) {
       + pt`STALE-MISMATCH / ERROR / an absent pin-status token ⇒ you CANNOT confirm the executed gate output corresponds to the current integration tip: record a SOFT note, never a HARD finding (the stale-tip defusing rule). The SOFT note MUST state: the observed HEAD sha (or "rev-parse failed"), the expected gate-HEAD sha ${gateHeadSha}, and the reason — "gate-audit worktree not at the integration tip — execution evidence unreliable, downgraded to SOFT, not a land-halt".\n`
       + pt`In ANY cannot-confirm / STALE-MISMATCH / ERROR case KEEP verdict at 'approve' or 'request_changes' WITH the SOFT note — NEVER 'escalate' (escalate is reserved for a plan that is wrong or underspecified; a finding-less escalate is treated as a HARD hold, so it must never be used to signal a stale/unconfirmable tip).\n`
       + pt`GATE LOG ARTIFACT: read the FULL captured gate log at ${artifactLine} (read-only Read) — this captured file, NOT the inline gate output below, is the AUTHORITATIVE execution evidence for a HARD provably-unrun determination. A MISSING artifact (no path, or the file cannot be read) ⇒ SOFT cannot-confirm for the HARD path (never a HARD finding); the inline gate output stays readable as NON-AUTHORITATIVE context.\n`
+      + mappedTestsLine
       + guardLine
       + pt`If the pin is CONFIRMED/BENIGN-ADVANCE, confirm the mapped acceptance-criteria test is present in the files at that tip `
       + pt`(read-only git / Read in ${refineryPath}), not merely inferred from the gate output text; record a `
@@ -1653,6 +1823,7 @@ if (mergedTasksForGateAudit.length > 0) {
       + debtLine
       + pt`Acceptance criteria / plan slice: ${acceptanceCriteria || '(see plan file)'}\n`
       + pt`Executed gate output (NON-AUTHORITATIVE context — the captured artifact above is authoritative for the HARD path):\n${gateOutput || '(no gate output recorded)'}\n`
+      + claimedIdsLine
       // adjudicationClause rides this seat directly (Task 1.1): a gate-time ruling reaches the gate-audit
       // pass, so a pre-adjudicated delta is a confirmation note here too. Empty set ⇒ '' ⇒ byte-identical.
       + endStateBlock + intentClause + adjudicationClause
@@ -1688,7 +1859,11 @@ if (mergedTasksForGateAudit.length > 0) {
       // Distinguish hard vs soft (and pin-mismatch) in the auditLog so the Lead can adjudicate even if held.
       // A mismatch entry is the SOFT absence-note (task, seat, both SHAs: auditSha vs expectedPin).
       auditLog.push({ task: taskId, verdict: `gate-audit:${gateAuditVerdict.verdict}`, findings, gateEvidence: true, hard: isHardGateEvidence,
-        ...(mismatch ? { pinMismatch: true, expectedPin: pin } : {}), gateHeadSha, auditSha: gateAuditVerdict.audit_sha })
+        ...(mismatch ? { pinMismatch: true, expectedPin: pin } : {}), gateHeadSha, auditSha: gateAuditVerdict.audit_sha,
+        // endStateAttestations (D8, Task 3.2): the seat's positive-channel rows ride the log entry —
+        // the handoff derivation consumes them (a pin-mismatched entry's rows are EXCLUDED there: the
+        // seat judged a different tree, so its conditions fall to 'unverified', never a silent 'met').
+        ...(Array.isArray(gateAuditVerdict.endStateAttestations) ? { endStateAttestations: gateAuditVerdict.endStateAttestations } : {}) })
       if (isHardGateEvidence) {
         // HARD: a provably-unrun mapped test OR a finding-less escalate → push gate-evidence to escalated so the land is held.
         escalated.push({ task: taskId, reason: 'gate-evidence', detail: gateAuditVerdict })
@@ -1718,11 +1893,25 @@ if (mergedTasksForGateAudit.length > 0) {
     // (mirroring the per-task GATE LOG ARTIFACT clause); an absent path ⇒ SOFT cannot-confirm (fail-open —
     // an in-flight refiner returning integratedTipGate without gate_log_path lands SOFT, never an error).
     const authArtifactLine = integratedTip.gate_log_path || '(no gate-log artifact path recorded)'
+    // Mapped-tests union (D7, Task 3.2): the dep-crossing tasks' floor-matched paths, grepped against
+    // the integrated-tip gate log the same mechanical way — including the round-3 enumeration-conditional
+    // (mappedTestsLine's twin: absence is HARD only where the log enumerates test file paths; a
+    // non-enumerating half is SOFT). Empty ⇒ '' (byte-identical prompt).
+    const authMapped = mergedTasksForGateAudit
+      .filter(m => depCrossingIds.has(m.taskId))
+      .flatMap(m => Array.isArray(m.mappedTests) ? m.mappedTests : [])
+    const authMappedLine = authMapped.length
+      ? pt`\nMAPPED TESTS (D7 — the mechanical HARD trigger): the test floor matched these test paths across the dep-crossing tasks' diffs (MergeResult.mappedTests):\n`
+        // pt-tagged prompt-feeding row builder (mapped-tests → integrated-tip prompt): ${p2 ?? ''} absence-tolerant.
+        + authMapped.map(p2 => pt`  - ${p2 ?? ''}`).join('\n') + '\n'
+        + pt`Grep EACH mapped path against the CAPTURED integrated-tip gate log (artifact-first). A mapped path absent — or present with 0 executed tests — is the HARD provably-unrun finding ONLY when the captured log ENUMERATES test file paths for that path's suite half (e.g. the bash suite half's per-file \`== gate(bash): <path> ==\` headers; a \`node --test\` run reports test TITLES plus an aggregate summary, never per-file paths). A zero-hit grep against a non-enumerating half (e.g. a .mjs mapped path vs the node-reporter output) proves nothing about that path: SOFT cannot-confirm, never a hold.\n`
+      : ''
     const authVerdict = await agent(
       pt`INTEGRATED-TIP GATE-AUDIT for WAR phase ${ph.id} (lens: execution-evidence — AUTHORITATIVE). `
       + pt`You are a READ-ONLY auditor with read-only git. The phase integration branch is checked out at ${refineryPath} at the FINAL integration tip ${integratedTip.tip_sha || '(tip sha unrecorded)'}, and the FULL gate was re-run there after the serial merge queue — this integrated-tip run is LAND-AUTHORITATIVE over the per-branch gates for the intra-phase dep tasks (their branches were gated before their dep's content landed).\n`
       + pt`Judge the union of the dep-crossing tasks' mapped acceptance criteria against this integrated-tip evidence. Record a HARD gate-evidence finding (Critical/Major) ONLY when a mapped test is provably unrun at this tip; a cannot-confirm is SOFT, never a hold; NEVER 'escalate' for a stale/unconfirmable tip (escalate is reserved for a wrong/underspecified plan).\n`
       + pt`GATE LOG ARTIFACT: read the FULL captured integrated-tip gate log at ${authArtifactLine} (read-only Read) — this captured file, NOT the inline gate output below, is the AUTHORITATIVE execution evidence for a HARD provably-unrun determination. A MISSING artifact (no path, or the file cannot be read) ⇒ SOFT cannot-confirm for the HARD path (never a HARD finding); the inline gate output stays readable as NON-AUTHORITATIVE context.\n`
+      + authMappedLine
       + pt`Return the sha you reviewed as audit_sha (it should equal ${integratedTip.tip_sha || 'the integration tip'}).\n`
       + pt`Dep-crossing tasks' acceptance criteria:\n${authCriteria}\n`
       + pt`Integrated-tip gate output (NON-AUTHORITATIVE context — the captured artifact above is authoritative for the HARD path):\n${integratedTip.gate_output}\n`
@@ -1738,7 +1927,9 @@ if (mergedTasksForGateAudit.length > 0) {
       const findings = authVerdict.findings || []
       // Same gate-evidence lane as the end-state seat: severity OR the D8 verdict disjunct gates HARD.
       const isHard = authVerdict.verdict === 'escalate' || findings.some(f => f.severity === 'Critical' || f.severity === 'Major')
-      auditLog.push({ task: `phase-${ph.id}-integrated-tip`, verdict: `gate-audit:${authVerdict.verdict}`, findings, gateEvidence: true, hard: isHard, authoritative: true, auditSha: authVerdict.audit_sha })
+      auditLog.push({ task: `phase-${ph.id}-integrated-tip`, verdict: `gate-audit:${authVerdict.verdict}`, findings, gateEvidence: true, hard: isHard, authoritative: true, auditSha: authVerdict.audit_sha,
+        // endStateAttestations (D8, Task 3.2) — no pin demotion on this seat (it judges the CONFIRMED final tip).
+        ...(Array.isArray(authVerdict.endStateAttestations) ? { endStateAttestations: authVerdict.endStateAttestations } : {}) })
       if (isHard) escalated.push({ task: `phase-${ph.id}-integrated-tip`, reason: 'gate-evidence', detail: authVerdict })
     }
   }
@@ -1747,7 +1938,6 @@ if (mergedTasksForGateAudit.length > 0) {
   // End-state conditions — spawn ONE End-state-only seat at the confirmed tip, so a docs-only
   // phase cannot skip its own claimed conditions. The per-task pass's cost saving stands.
   log(`gate-audit: mergedTasksForGateAudit is empty but this phase claims ${endStateClaims.length} End-state condition(s) — spawning ONE End-state-only seat at the confirmed tip (D7 cost saving preserved for the per-task pass).`)
-  const refineryPath = `${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/_refinery`
   const esVerdict = await agent(
     pt`END-STATE-ONLY GATE-AUDIT for WAR phase ${ph.id} (lens: execution-evidence). `
     + pt`You are a READ-ONLY auditor with read-only git. The phase integration branch is checked out at `
@@ -1769,7 +1959,10 @@ if (mergedTasksForGateAudit.length > 0) {
     // EXEMPT from the D2 pin-equality demotion — no evidence dispatch supplies its observed tip, so fail-open
     // (no pin, no demotion). Its own prompt already SOFT-downgrades a tip it cannot confirm.
     const isHard = esVerdict.verdict === 'escalate' || findings.some(f => f.severity === 'Critical' || f.severity === 'Major')
-    auditLog.push({ task: `phase-${ph.id}-end-state`, verdict: `gate-audit:${esVerdict.verdict}`, findings, gateEvidence: true, hard: isHard, auditSha: esVerdict.audit_sha })
+    auditLog.push({ task: `phase-${ph.id}-end-state`, verdict: `gate-audit:${esVerdict.verdict}`, findings, gateEvidence: true, hard: isHard, auditSha: esVerdict.audit_sha,
+      // endStateAttestations (D8, Task 3.2) — this seat consumes the land-barrier artifacts too (the
+      // requiresTest:false-only arm); no pin demotion (its prompt already SOFT-downgrades an unconfirmed tip).
+      ...(Array.isArray(esVerdict.endStateAttestations) ? { endStateAttestations: esVerdict.endStateAttestations } : {}) })
     if (isHard) escalated.push({ task: `phase-${ph.id}-end-state`, reason: 'gate-evidence', detail: esVerdict })
   }
 }
@@ -1794,7 +1987,7 @@ for (const t of tasks) {
 // and the catch block's held:workflow-error); all 6 ⊆ the KNOWN_LAND_DECISIONS export.
 // HARD_ESCALATION_REASONS mirrors land-decision.mjs export — the Workflow sandbox can't import. Keep in sync.
 let landResult = null
-const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps', 'no-test', 'unpackaged']
+const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps', 'no-test', 'unpackaged', 'done-unmet']
 const hardEscalation = escalated.some(e => HARD_ESCALATION_REASONS.includes(e && e.reason))
 let landDecision = (landed.length && !hardEscalation) ? 'landed'
   : hardEscalation ? 'held:escalation'
@@ -1886,7 +2079,7 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
         + reattachClause(refineryLandPath)
         + pt`  (a) REBASE in the POLISH worktree: git -C ${polishWorktree} rebase ${ph.integrationBranch} (the branch was cut at the integrated tip, so this is normally a no-op).\n`
         + pt`  (b) MERGE in _refinery: cd ${refineryLandPath} (on ${ph.integrationBranch}), then git merge ${polishBranch} (fast-forward merge). Push.\n`
-        + pt`Run the gate (${plan.gate}) after the rebase in the polish worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)). The polish commit is a coherence sweep, not a mapped-test task — skip assert-test-in-diff.sh AND skip the packaging floor assert-packaging-in-diff.sh: those two are task-field-gated and a coherence sweep has no task fields to consult. The submodule floor is NOT among the skips — it is unconditional, consults no task fields, and still runs (invocation below). This sweep is class-exempt — on gate failure return gate_failed (no classification); the Workflow fail-open DISCARDS. On conflict return conflict; never force.`
+        + pt`Run the gate (${plan.gate}) after the rebase in the polish worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)). The polish commit is a coherence sweep, not a mapped-test task — skip assert-test-in-diff.sh AND skip the packaging floor assert-packaging-in-diff.sh AND skip the done-when floor assert-done-when.sh: those three are task-field-gated and a coherence sweep has no task fields to consult. The submodule floor is NOT among the skips — it is unconditional, consults no task fields, and still runs (invocation below). This sweep is class-exempt — on gate failure return gate_failed (no classification); the Workflow fail-open DISCARDS. On conflict return conflict; never force.`
         + pt` Before the _refinery merge step (b), run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${polishBranch} — always BARE: a coherence sweep is never a declared gitlink bump, so the relax-flag is never threaded here. Exit 1 → return { mode: 'merge-task', status: 'submodule-blocked' }, do NOT merge; exit 2 → return { mode: 'merge-task', status: 'error' }.`,
         { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:p${ph.id}-polish`, schema: MERGE_RESULT, ...spawn('refiner') })
     }
@@ -1956,11 +2149,13 @@ if (landDecision === 'landed') {
     landDecision = 'held:submodule-pr'
   } else
   // If the land agent returns land_stale (CAS-exhaustion), treat it as a hard escalation.
-  // #236: 'no-test' is structurally UNREACHABLE here — no land-phase prompt emits it (land statuses
-  // are only landed/land_stale/gate_failed/error/submodule-pr, and submodule-pr is short-circuited by
-  // its own direct-return guard above this check). The array is REUSED from the merge-task escalation
-  // path where 'no-test' IS load-bearing, so it is kept intact, not narrowed (the drift-guard in
-  // war-config.test.mjs pins the inline array to the canonical export incl. 'no-test').
+  // #236: 'no-test'/'unpackaged'/'done-unmet' are structurally UNREACHABLE here — no land-phase
+  // prompt emits them (land statuses are only landed/land_stale/gate_failed/error/submodule-pr, and
+  // submodule-pr is short-circuited by its own direct-return guard above this check). The array is
+  // REUSED from the merge-task escalation path where those floor statuses ARE load-bearing, so it is
+  // kept intact, not narrowed. land-decision.test.mjs's MERGE_TASK_FLOOR_ONLY partition pin is the
+  // mechanical arbiter of that set (the drift-guard in war-config.test.mjs pins the inline array to
+  // the canonical export).
   if (landResult && HARD_ESCALATION_REASONS.includes(landResult.status)) {
     escalated.push({ task: `phase-${ph.id}-land`, reason: landResult.status, detail: landResult })
     landDecision = 'held:escalation'
@@ -2153,10 +2348,19 @@ if (landDecision === 'landed' || landDecision === 'held:escalation') {
   // absorbed: aced provenance grouped by commit sha → [{ sha, findings: [title] }].
   const bySha = {}
   for (const a of aced) (bySha[a.sha] = bySha[a.sha] || []).push(a.finding && a.finding.title)
-  // endState: statuses keyed on the gate-audit seats' plan_ref (VERBATIM condition text). No
-  // gate-audit ran ⇒ nothing verified ⇒ every claim is 'deferred', never a silent 'met'.
-  const gateFindings = auditLog.filter(e => e && e.gateEvidence).flatMap(e => e.findings || [])
-  const gateAuditRan = auditLog.some(e => e && e.gateEvidence)
+  // endState (D8, Task 3.2 — the FIVE-status set met | unmet | unverified | deferred | out-of-scope):
+  // statuses keyed on the VERBATIM condition text, derived from TWO channels. Findings stay defect-only
+  // (plan_ref-keyed; severity drives unmet/out-of-scope/deferred exactly as before) and rule first — a
+  // Critical/Major can never be laundered by a met attestation. Then the POSITIVE endStateAttestations
+  // channel: attested unmet > attested met > 'unverified'. A condition with NO attestation row from any
+  // seat is 'unverified', NEVER a silent 'met'; a pin-mismatched per-task entry's rows are excluded
+  // (the seat judged a different tree — its conditions fall to 'unverified'). Whole-pass absence stays
+  // all-'deferred': no gate-audit ran ⇒ nothing verified ⇒ every claim is 'deferred', never a silent 'met'.
+  const gateEntries = auditLog.filter(e => e && e.gateEvidence)
+  const gateFindings = gateEntries.flatMap(e => e.findings || [])
+  const gateAttestations = gateEntries.filter(e => !e.pinMismatch)
+    .flatMap(e => Array.isArray(e.endStateAttestations) ? e.endStateAttestations : [])
+  const gateAuditRan = gateEntries.length > 0
   // Binding is whitespace/case-insensitive (#452): seats are told VERBATIM, but a plan_ref that
   // drifts only in whitespace/case must still bind its condition — never a silent 'met'.
   const normRef = s => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase()
@@ -2169,10 +2373,16 @@ if (landDecision === 'landed' || landDecision === 'held:escalation') {
     endState: endStateClaims.map(condition => {
       if (!gateAuditRan) return { condition, status: 'deferred' }
       const rel = gateFindings.filter(f => f && normRef(f.plan_ref) === normRef(condition))
+      const att = gateAttestations.filter(a => a && normRef(a.condition) === normRef(condition))
+      // Five-status ternary chain (D8): finding arms first (severity is evaluated BEFORE the
+      // out-of-scope title/rationale arm, #1082), then the attestation arms; the terminal arm is
+      // 'unverified' — no attestation row from any seat maps there, never to 'met'.
       const status = rel.some(f => f.severity === 'Critical' || f.severity === 'Major') ? 'unmet'
         : rel.some(f => /out-of-scope/i.test(`${f.title || ''} ${f.rationale || ''}`)) ? 'out-of-scope'
         : rel.length ? 'deferred'
-        : 'met'
+        : att.some(a => a.status === 'unmet') ? 'unmet'
+        : att.some(a => a.status === 'met') ? 'met'
+        : 'unverified'
       return { condition, status }
     }),
     // backstops (spec §4.4 + §6): the Lead-normalized args.backstops entries pass through UNTOUCHED;

@@ -1,7 +1,8 @@
 # Seeding — warm-seed a repo, nominate lessons, ingest contributions
 
-Mechanics for the three seed-corpus mechanisms `/lessons-learned` hosts, per
-`docs/specs/2026-07-22-lessons-learned-seed-design.md` §4: **`## Seed`** (the `seed` mode —
+Mechanics for the three seed-corpus mechanisms `/lessons-learned` hosts (the seed corpus's
+shape is ratified by [ADR 0039](../../../docs/adr/0039-seed-set-capped-manifest-mirrored-tarball.md)):
+**`## Seed`** (the `seed` mode —
 warm-seed the current repo's memory from the plugin-shipped portable corpus at
 `docs/seed/`), **`## Nominate`** (an extension of the bare housekeeping pass — propose portable
 lessons back into the corpus), and **`## Ingest`** (WAR-repo-only — sweep contributed

@@ -1452,3 +1452,117 @@ test("D9 — the refiner card's gitlink-bump invocation agrees in shape with the
       'flag-trailing. Tighten the reader, never relax this proof',
   )
 })
+
+// ---- Task 1.1 done-when intake guard (plan 2026-08-05-precision-chain-and-loop-breaker) ----
+
+// (D31) The Decompose step's done-when intake sub-bullet — the authoring contract's done-when law
+// (ADR 0044) made mechanical on the /war side (plan 2026-08-05-precision-chain-and-loop-breaker,
+// Task 1.1; red-team F8 converted End state 1's judge tag into this row, so the guard rides its
+// fact's own task). Two clauses are load-bearing and easy to lose in a reword:
+//   (a) the FULL-BULLET parse — soft-wrapped physical lines joined with single spaces until the
+//       next `- ` bullet or a blank line. The authoring template wraps its bullets, so a
+//       first-line-only parse truncates the staged command mid-token and the truncated command
+//       later red-fails as a spurious done-unmet at merge;
+//   (b) the intake-defect rule — a `requiresTest: true` task without a `Done when:` command is
+//       surfaced at the approval gate on interactive runs and refuses dispatch under --afk; the
+//       Lead never invents an acceptance command.
+// Also pinned: the template's no-command arm (`None — <basis>`) stages `doneWhen: null` — without
+// that arm the intake would stage the literal "None — <basis>" prose as an executable command —
+// and the legacy arm (no `Done when:` bullets anywhere ⇒ stages unchanged, byte-identical
+// downstream prompts). Extraction is BY CONSTRUCT and SECTION-ANCHORED (D22's region idiom): the
+// `## Decompose + approve` region (heading → next `## ` heading) is extracted first — so the
+// sub-bullet relocating out of the Decompose gate, where the Lead's procedure would no longer
+// carry the intake step, reds the region filter instead of greening on a whole-file hit — and
+// within it SKILL.md keeps one step/sub-bullet per physical line, so the row takes the single
+// line carrying the `**Done-when intake` bold lead-in (uniqueness asserted): the sub-bullet
+// itself carries `Done when:` multiple times, and the token is free to recur in future steps'
+// prose — the lead-in line is the stable construct. Keys are token-anchored
+// `\s+`-tolerant forms, never sentence bytes — sanctioned rewording latitude must not false-red;
+// correct a key to the new truth, never drop it to make a reword pass.
+//
+// The two intake-defect ROUTING arms are PAIRED bounded-gap keys, never presence-anywhere
+// (#1040, D18's in-file precedent;
+// [[multi-token-presence-loop-needs-paired-first-following-match-to-catch-a-swap]]): independent
+// presence keys over the same bullet green a reword with the two behaviors SWAPPED ("interactive
+// runs refuse dispatch; under `--afk` surface it at the approval gate") — an inversion of the
+// exact routing the plan slice names, and an --afk approval gate does not exist. Each key binds
+// its trigger token to its own arm's behavior within a bounded live-byte-sized gap. Neither key
+// alone catches every swap shape — the PAIR does: a swap keeping the live interactive-first
+// order leaves no dispatch refusal after `--afk` (the afk key reds), and one leading with the
+// `--afk` arm puts `approval gate` before `interactive` (the interactive key reds). Shared by
+// the live row and the swapped negative reference below — the uses must never drift apart.
+const D31_INTERACTIVE_ARM = /interactive[\s\S]{0,80}approval\s+gate/i
+const D31_AFK_ARM = /--afk[\s\S]{0,120}refuses\s+dispatch/i
+// Unwired negative reference (both-ways proof, zero fixture files — D22/D9's idiom): a
+// hand-written copy of the intake-defect prose with the two routing arms swapped, each behavior
+// keeping its own aside so BOTH discriminating tokens (`refuses dispatch`, `approval gate`)
+// stay present and only the routing inverts. Both paired keys must red on it: the interactive
+// key's bounded gap cannot reach across the transplanted refusal clause, and no dispatch
+// refusal follows `--afk` at all. SKILL.md itself is never edited to prove a guard.
+const D31_ARMS_SWAPPED =
+  'A `requiresTest: true` task without a `Done when:` command is an **intake defect**: on ' +
+  'interactive runs the Lead **refuses dispatch** (a hard stop — no teammate launches, and the ' +
+  'Lead never invents an acceptance command); under `--afk` it **surfaces the defect at the ' +
+  'approval gate** (the operator supplies the command or re-rules `requiresTest`).'
+test('D31 — SKILL.md Decompose done-when intake keeps the full-bullet parse clause and the requiresTest-without-Done-when intake-defect rule (F8, Task 1.1)', () => {
+  const decompose = skillMd.match(/^## Decompose \+ approve[\s\S]*?(?=\n## )/m)
+  assert.ok(
+    decompose,
+    'could not locate the `## Decompose + approve` region in SKILL.md (heading → next `## ` ' +
+      'heading) — the D31 extraction construct rotted',
+  )
+  const leadIns = decompose[0].split('\n').filter((l) => l.includes('**Done-when intake'))
+  assert.equal(
+    leadIns.length,
+    1,
+    'expected exactly one `**Done-when intake` lead-in line in the Decompose + approve region, ' +
+      `found ${leadIns.length} — the extraction construct rotted (sub-bullet moved out of the ` +
+      'Decompose gate, duplicated, split across lines, or the lead-in was reworded)',
+  )
+  const b = norm(leadIns[0])
+  for (const [key, why] of [
+    // the staged field, alongside the sibling per-task fields
+    [/tasks\[\]\.doneWhen/, 'the staged per-task field name tasks[].doneWhen'],
+    [/string\s*\|\s*null/i, 'the doneWhen string|null typing'],
+    [/`requiresTest`\s*\/\s*`deps`/, 'the alongside-requiresTest/deps staging clause'],
+    // (a) the full-bullet parse clause
+    [/full\s+bullet\s+content/i, 'the FULL-bullet parse declaration'],
+    [/joined\s+with\s+single\s+spaces/i, 'the soft-wrap single-space join'],
+    [/next\s+`- `\s+bullet\s+or\s+a\s+blank\s+line/i, 'the parse terminator — next `- ` bullet or a blank line'],
+    [/first-line-only\s+parse/i, 'the first-line-only-parse hazard naming'],
+    [/spurious\s+`?done-unmet`?/i, 'the spurious done-unmet consequence'],
+    // the no-command arm stages null, never an executable "None — <basis>" string
+    [/None — <basis>/, "the template's no-command arm literal"],
+    [/doneWhen:\s*null`?,?\s+exactly\s+like\s+an\s+absent\s+bullet/i, 'the None-stages-null equivalence'],
+    // (b) the intake-defect rule — the two routing arms PAIRED, never presence-anywhere (#1040)
+    [/requiresTest:\s*true`?\s+task\s+without/i, 'the requiresTest-true-without-Done-when trigger'],
+    [/intake\s+defect/i, 'the intake-defect naming'],
+    [D31_INTERACTIVE_ARM, 'the interactive arm routes to the approval gate'],
+    [D31_AFK_ARM, 'the --afk arm routes to dispatch refusal'],
+    [/never\s+invents\s+an\s+acceptance\s+command/i, 'the Lead-never-invents floor'],
+    // the legacy arm
+    [/bullets\s+anywhere\s+stages\s+unchanged/i, 'the legacy no-bullets-anywhere unchanged arm'],
+    [/byte-identical/i, 'the legacy byte-identity consequence'],
+  ]) {
+    assert.match(
+      b,
+      key,
+      `the done-when intake sub-bullet must keep ${why} (key ${key}) — correct this row to a ` +
+        'sanctioned rewording, never drop the clause to make a reword pass',
+    )
+  }
+  // Both-ways proof: the paired arm keys must REJECT the arms-swapped shape — without this, a
+  // key that silently stopped discriminating (a widened gap, a dropped trigger token) would
+  // still read green above.
+  for (const [key, why] of [
+    [D31_INTERACTIVE_ARM, 'a bullet routing the interactive arm to dispatch refusal satisfies it'],
+    [D31_AFK_ARM, 'a bullet routing the --afk arm to the approval gate satisfies it'],
+  ]) {
+    assert.doesNotMatch(
+      norm(D31_ARMS_SWAPPED),
+      key,
+      `the D31 paired arm key ${key} matched the arms-swapped negative reference: ${why}. ` +
+        'Tighten the key, never relax the negative reference to make this pass',
+    )
+  }
+})

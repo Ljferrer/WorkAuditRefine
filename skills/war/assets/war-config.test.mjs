@@ -402,6 +402,49 @@ test('roundLimit below 1 rejected', () => {
   assert.equal(validate({ run: { roundLimit: 0 } }).valid, false)
 })
 
+// --- run.redteamRoundLimit (/red-team cumulative grill-round budget, D3) ------
+// A run-block sibling of roundLimit consumed by /red-team's fail-open config read,
+// never the phase engine. Never inside agents.redteam (a { model, effort } tier).
+
+test('redteamRoundLimit defaults to 3 and validates', () => {
+  const c = fillDefaults({})
+  assert.equal(c.run.redteamRoundLimit, 3)
+  assert.equal(validate({}).valid, true)
+})
+
+test('economy preset pins redteamRoundLimit 2', () => {
+  const c = presetConfig('economy')
+  assert.equal(c.run.redteamRoundLimit, 2)
+  assert.equal(validate(c).valid, true)
+  for (const preset of ['balanced', 'thorough']) {
+    assert.equal(presetConfig(preset).run.redteamRoundLimit, 3, `${preset} must inherit redteamRoundLimit 3`)
+  }
+})
+
+test('redteamRoundLimit of 0 rejected with an error naming the key', () => {
+  const r = validate({ run: { redteamRoundLimit: 0 } })
+  assert.equal(r.valid, false)
+  assert.match(r.errors.join('\n'), /run\.redteamRoundLimit/)
+  // Inclusive lower bound: 1 is the smallest valid value the error message advertises.
+  assert.equal(validate({ run: { redteamRoundLimit: 1 } }).valid, true)
+})
+
+test('non-integer redteamRoundLimit rejected', () => {
+  for (const bad of [1.5, '3', null, true]) {
+    const r = validate({ run: { redteamRoundLimit: bad } })
+    assert.equal(r.valid, false, `redteamRoundLimit ${JSON.stringify(bad)} must be rejected`)
+    assert.match(r.errors.join('\n'), /run\.redteamRoundLimit/)
+  }
+})
+
+test('redteamRoundLimit never lives inside agents.redteam (tier stays { model, effort })', () => {
+  // Delete-the-feature: if the knob were accepted as a tier sub-key, validateAgentTier's
+  // unknown-sub-key rejection would not fire — this pins the plan's "never inside agents.redteam".
+  const r = validate({ agents: { redteam: { model: 'opus', effort: 'max', redteamRoundLimit: 3 } } })
+  assert.equal(r.valid, false)
+  assert.match(r.errors.join('\n'), /agents\.redteam\.redteamRoundLimit/)
+})
+
 // --- run.provision / provisionSource / provisionAuto (Part B) ----------------
 
 test('provision defaults: empty list, source none, auto true', () => {
@@ -1132,10 +1175,11 @@ test('drift-guard: inline HARD_ESCALATION_REASONS in workflow-template.js matche
   // dep-failed was the Task 1 (F02) foundation; land_stale pre-existed; Task 4 (F04/R3) added gate-evidence (6 items total).
   // L1 (unify): 'unrunnable-deps' is now in land-decision.mjs too — the inline literal and the
   // canonical export are IDENTICAL (exact equality, no scheduler-local divergence).
-  // M2: 'no-test' added to both mirrors (8 members). Container-packaging: 'unpackaged' added to both mirrors (9 members total).
+  // M2: 'no-test' added to both mirrors (8 members). Container-packaging: 'unpackaged' added to both mirrors (9 members).
+  // Precision-chain Task 2.3: 'done-unmet' added to both mirrors (10 members total).
   //
   // The template has:
-  //   const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps', 'no-test', 'unpackaged']
+  //   const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps', 'no-test', 'unpackaged', 'done-unmet']
   const match = templateText.match(/const\s+HARD_ESCALATION_REASONS\s*=\s*(\[[^\]]+\])/)
   assert.ok(match, 'HARD_ESCALATION_REASONS not found in workflow-template.js')
   // Normalize single-quoted strings to double-quoted for JSON.parse.
