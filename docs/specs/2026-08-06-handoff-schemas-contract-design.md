@@ -1,6 +1,6 @@
 # Handoff/followUp mechanization and schemas.md return-contract truth
 
-Issues: #1331, #1333, #1289
+Issues: #1331, #1333, #1289, #1380
 
 The run-contract layer stops lying and stops leaning on Lead vigilance: the Workflow itself files
 `disposition: follow-up` findings as `war-followup` issues and stamps the numbers into
@@ -9,6 +9,11 @@ timestamps become mandated real clock reads, and `skills/war/references/schemas.
 the `landResult` held-path row, the `acceptance_criteria_covered` id form and join key, the D4/D5 tag-family
 conflation, the gate-audit trio naming fork, the undefined "two-contract rule" label, and every stale
 "defined-but-not-yet-emitted" parenthetical describing landed precision-chain work as future.
+
+Folded in 2026-08-12 by operator direction: #1380 — the same genus of `/war-review`-filed run friction as
+this group's anchor #1331 — hardens the working/task branch topology `resolve-working-branch` owns
+against leaf-ref collisions (`refs/heads/dev` blocking `dev/<date>-<slug>`; a leaf `war/<planSlug>`
+blocking every task branch).
 
 ## 1. Context — the gap / problem
 
@@ -88,6 +93,34 @@ read of the land-routing region of `skills/war/assets/workflow-template.js`). Th
 wording ("null only when no land was dispatched") misses the dead-dispatch null — a survey-derived
 refinement (verified: issue #1289 (2026-08-06) + live read of the terminal-else comment).
 
+**#1380 — `resolve-working-branch` cannot cut its dedicated branch when the landing branch is named
+`dev`.** In the 0.17.0 run `extraction-suite-gateway-laguna`, Setup step 2 failed hard and
+deterministically: the launch-worktree collision path engaged and the dedicated-branch cut died with
+`fatal: cannot lock ref 'refs/heads/dev/2026-08-11-extraction-suite-gateway-laguna': 'refs/heads/dev'
+exists; cannot create 'refs/heads/dev/2026-08-11-extraction-suite-gateway-laguna'` — the Lead could not
+proceed without cutting the working branch by hand (verified: issue #1380 (2026-08-11)). The live
+construct: the collision arm of `cmd_resolve_working_branch` in
+`skills/war/assets/provision-worktrees.sh` composes `resolved="dev/$date-$slug"` and probes nothing
+about `refs/heads/dev` first — the naming convention assumes `dev` is a namespace, but a repo whose
+landing branch is literally `dev` (the single most likely name to be occupied) makes it a leaf ref
+(verified: live read 2026-08-12, anchored by the `resolved="dev/$date-$slug"` assignment). Git
+mechanism, reproduced in a throwaway temp repo on git 2.50.1 (Apple Git-155) — the issue's own git
+version: with a leaf branch `dev` present, `git branch dev/2026-08-11-<slug>` dies with exactly that
+fatal (exit 128); `git show-ref --verify refs/heads/dev` exits 0 precisely when the leaf exists and
+fails (`not a valid ref`) when `dev/` is a ref directory, so the probe discriminates leaf from
+namespace with no false positive; deleting the leaf makes the identical cut succeed (verified: temp-repo
+probe 2026-08-12). **Second surface, one keystroke away:** `workflow-template.js` derives every task
+branch as `war/${planSlug}/p<N>-<id>` (the `taskBranch` arrow) and the phase-close polish branch as
+`war/${planSlug}/p<N>-polish` (the `polishBranch` const), so a `planSlug` for which
+`refs/heads/war/<planSlug>` already exists as a leaf ref — e.g. a Lead who reasonably sets `planSlug` so
+that `war/<planSlug>` matches a `war/<date>-<slug>`-shaped working branch — makes every one of those
+cuts die identically (verified: issue #1380 (2026-08-11) + temp-repo probe 2026-08-12 — a leaf
+`war/2026-08-11-<slug>` blocks `war/2026-08-11-<slug>/p1-t1`, while the date-less slug cuts fine and a
+flat sibling `war-<date>-<slug>` coexists with the `war/` ref directory). Nothing validates `planSlug`
+cuttability today: the Workflow's entry validation (the missing-trio block) is sandboxed pure JS with no
+shell (§2), so the first failure is the first `git branch` at a mid-phase Provision barrier (verified:
+live read of the entry-validation block, 2026-08-12).
+
 ## 2. Pivotal constraints
 
 - **The Workflow sandbox has no shell and cannot import** — issue filing must ride a dispatched agent.
@@ -131,6 +164,13 @@ refinement (verified: issue #1289 (2026-08-06) + live read of the terminal-else 
 | D9 | `landResult` row (issue #1289) | Rewrite to the three-case truth: the dispatched land/re-land MergeResult — initial land and both re-land arms assign it, so `pr_number`/`pr_remote` are readable on `held:submodule-pr`, and `held:land-failed` carries the failing MergeResult; null only when no land was dispatched (pre-land holds) or the land dispatch died returning nothing. |
 | D10 | Manifest timestamps (F3) | A real-clock-read mandate on both surfaces: `schemas.md`'s Run-manifest section and `skills/war/SKILL.md` § Run manifest — every `startedAt`/`endedAt` is a clock read captured at the stamped boundary (e.g. `date -u +%Y-%m-%dT%H:%M:%SZ` at stamp time), never a placeholder or copied literal. [assumed: additionally, `/war-review` treats an all-identical timestamp set as degenerate and renders wall-clock `n/a` with a note — an inference beyond F3's "schema-side note" ask; if wrong: drop the `/war-review` render guard, keep the two doc mandates] |
 | D11 | Stale precision-chain parentheticals (finding 2 + sweep) | Retire every future-tense marker/parenthetical for landed precision-chain work in `schemas.md`: rewrite the 5 "defined-but-not-yet-emitted" instances and the 2 future-tense parentheticals to landed past-tense provenance (keep the plan/task citation, e.g. "produced by Task 3.2, landed 0.17.0"), citing #1333. Grep is the floor; the manual survey duty (§4) is the ceiling. |
+| D12 | #1380 working-branch collision name | Sanitize the derived name before cutting: the collision arm probes each ancestor segment of `dev/<date>-<slug>` (exactly one — `git show-ref --verify --quiet refs/heads/dev`) and on a leaf-ref hit falls back to the flat name **`war-<date>-<slug>`** — slashless, so no segment of it can be blocked, and a sibling of (never inside) the `war/` task-branch ref directory (temp-repo-verified coexistence, §1). The existing absent/owned/foreign ladder then applies to the fallback unchanged (ADR 0003). [assumed: the owned-reuse check consults both candidate names before any fresh cut, so a blocking leaf deleted mid-run cannot make a resume re-derive a different name — if wrong: probe-order determinism alone decides and the RWB.d-style reuse stays single-candidate] (issue #1380 fix 1) |
+| D13 | #1380 actionable cut failure | When the `git branch` cut still dies and the captured stderr matches `cannot lock ref`, the die keeps git's own stderr (the existing `_tmp_err` idiom) and APPENDS the diagnosis and remedy: the blocking leaf ref by name, and "pass an explicit `--working <branch>`". One fallback (D12), then fail loud — never a silent retry loop. (issue #1380 fix 3) |
+| D14 | #1380 planSlug cuttability at Setup | Validated inside `cmd_resolve_working_branch` itself — it already receives `<slug>` at Setup step 2, before any Workflow launch: probe leaf refs at `refs/heads/war` (impossible-by-convention, but one cheap show-ref) and `refs/heads/war/<slug>`; either present ⇒ die naming the leaf and the remedy (pick a different plan slug, or delete/rename the leaf) — the second surface fails at Setup, not at the first mid-phase `git branch`. Covers `taskBranch` and `polishBranch` (same `war/<planSlug>/` namespace). NOT in `workflow-template.js`: the sandbox has no shell (§2), so the probe rides the tested git-topology owner the Lead already invokes at Setup. (issue #1380 fix 4) |
+| D15 | #1380 rejected alternative | A collision-proofed sub-namespace (e.g. `refs/heads/war/run/<date>-<slug>`) is REJECTED: a naming-convention migration touching the teardown/reclaim regexes (the `refs/heads/war/$slug/p$num-` prefix in teardown-phase, the `war/*/p*-t*` reclaim glob) and every doc surface naming the convention — disproportionate to a defect three local probes close, and still collidable in principle. (issue #1380 fix 2, rejected) |
+
+D12–D15 selection: [assumed: the minimal-diff composite (issue #1380's fixes 1+3+4) closes the report —
+if wrong: the namespace migration (fix 2) is the follow-up, not a widening of this group].
 
 ## 4. Mechanics
 
@@ -182,6 +222,10 @@ sentence (mirror of `ACCEPTANCE_IDS_RULE`; the doc-contract anchors keep matchin
 - § Per phase: thread `overrides.ghUser` into the Workflow args as `args.ghUser`.
 - § Checkpoint: the D4 follow-up floor bullet; the phase-report handoff rendering already lists
   "follow-ups filed (issue + why-not-absorbable)" and needs no change.
+- § Setup step 2 (#1380): the resolve-working-branch sentence gains the delta — the resolved branch may
+  be the flat `war-<date>-<slug>` fallback (leaf-`dev` collision, D12), and the subcommand now validates
+  `war/<planSlug>` cuttability, dying actionably (different slug, or `--working`) before any phase
+  launches (D14). Same file, different region from the bullets above — see §8 contention.
 
 **`skills/war-review/SKILL.md`** — § 4 gains the D8 "unfiled follow-ups" signal class; § 3's wall-clock
 rendering gains the D10 degenerate-timestamp `n/a` guard.
@@ -192,6 +236,30 @@ rendering gains the D10 degenerate-timestamp `n/a` guard.
 - New coverage: fail-open (dead filing dispatch ⇒ `issue: null`, `landDecision` unchanged); no dispatch
   when `minorsFiled` is empty; dispatch fires on `held:escalation` too; ordinal mismatch rows ignored.
 - The A1 anchors and the endStateBlock-sites pin stay green (message text may adopt D6's naming).
+
+**`skills/war/assets/provision-worktrees.sh`** (issue #1380 — file-disjoint from every other strand in
+this group):
+- `cmd_resolve_working_branch`, D14 first: after arg validation, on BOTH paths (collision and
+  no-collision — task branches are cut regardless of which path echoes), probe
+  `git show-ref --verify --quiet refs/heads/war` and `refs/heads/war/$slug`; a leaf hit dies naming the
+  leaf and the remedy.
+- D12: on the collision arm, the same probe form against `refs/heads/dev` before composing `resolved`; a
+  hit swaps the derived name to `war-<date>-<slug>`, and the existing exists/owned/foreign ladder runs
+  unchanged on the fallback.
+- D13: the cut-failure die keeps the `_tmp_err` capture and, when the captured stderr matches
+  `cannot lock ref`, appends the blocking-leaf diagnosis and the `--working` remedy.
+- New dies exit via the plain `die` path (exit 1); `EX_FOREIGN` (3) keeps its ADR 0003 meaning,
+  unwidened. Placement decided from the code: fix 4 does NOT land in `workflow-template.js` — its entry
+  validation is sandboxed pure JS with no shell, and `cmd_resolve_working_branch` already receives
+  `<slug>` at Setup step 2, before any task dispatch (D14).
+
+**`skills/war/assets/provision-worktrees.test.sh`** — new cases beside the existing RWB block:
+leaf-`dev` collision ⇒ the flat fallback is echoed, created at the desired tip, checked out nowhere,
+ownership recorded (the RWB.a assertion set against the fallback name); planSlug validation ⇒ a fixture
+repo with leaf `war/<slug>` makes resolve-working-branch die non-zero with the leaf named in stderr;
+fallback resume-reuse ⇒ a second call returns the same flat branch and never re-cuts (the RWB.d shape);
+control ⇒ leaf `dev` present but `<desired>` checked out nowhere still echoes `<desired>` unchanged (the
+`dev` probe fires only where a cut would happen).
 
 **Mandatory manual same-scope survey (grep is a floor, not a ceiling).** For every retirement/harmonization
 sweep above — `defined-but-not-yet-emitted`, `null until the Lead files it`, `D5 evidence tag`, the trio
@@ -210,11 +278,13 @@ flipped assertions.
 |---|---|
 | `skills/war/assets/workflow-template.js` | file-followups dispatch + schema + stamping; `args.ghUser`; comment alignments (D6/D7/D5) |
 | `skills/war/references/schemas.md` | followUps/landResult/minorsFiled row rewrites; D5 id form + join; D6/D7; "D5 End-state tag"; D11 marker retirement; manifest clock mandate; `ghUser` arg row |
-| `skills/war/SKILL.md` | step-1 tag-family mirror fix; manifest clock mandate; `ghUser` threading; Checkpoint follow-up floor |
+| `skills/war/SKILL.md` | step-1 tag-family mirror fix; manifest clock mandate; `ghUser` threading; Checkpoint follow-up floor; Setup step-2 resolve-working-branch delta (#1380) |
 | `skills/war-review/SKILL.md` | "unfiled follow-ups" signal class; degenerate-timestamp `n/a` guard |
 | `agents/war-refiner.md` | `file-followups` dispatch flavor + return contract (footprint delta — required by the prompt-surface split) |
 | `agents/war-worker.md` | `acceptance_criteria_covered` id-form mirror (footprint delta, one sentence) |
 | `skills/war/assets/workflow-template.test.mjs` | null-pin flip + new filing coverage (footprint delta — the engine change's guard) |
+| `skills/war/assets/provision-worktrees.sh` | #1380: D12 flat-fallback sanitize + D13 actionable cut-failure die + D14 planSlug cuttability probes in `cmd_resolve_working_branch` (footprint delta) |
+| `skills/war/assets/provision-worktrees.test.sh` | #1380: leaf-`dev` fallback, planSlug-validation die, fallback resume-reuse, no-collision control cases (footprint delta — the script change's guard) |
 
 ## 6. New domain terms (CONTEXT.md)
 
@@ -247,6 +317,15 @@ policy); ADR 0005/0017/0026 are conformed to, not amended.
 - **Retirement-grep false-red caution:** D6's canonical form contains the substring "per-task" — §10's
   checks assert the canonical enumeration's presence at named sites rather than blanket absence of the
   old member names; all greps are file-scoped (this spec file itself carries the retired tokens).
+- **#1380 teardown compatibility:** the fix arms rename only the WORKING-branch fallback; task branches
+  stay `war/<planSlug>/p<N>-<id>`, so teardown-phase's `refs/heads/war/$slug/p$num-` prefix match and
+  ensure-worktree's `war/*/p*-t*` reclaim glob keep matching whatever names are cut. The flat fallback
+  carries no `/` and never enters the `war/` ref directory (temp-repo-verified coexistence, §1) — no
+  teardown or reclaim regex changes.
+- **#1380 contention:** `provision-worktrees.sh` + its test are file-disjoint from every other strand in
+  this group; the only shared file is `skills/war/SKILL.md`, where the Setup step-2 sentence is
+  region-disjoint from the step-1/manifest/per-phase/Checkpoint edits above but same-file — one task or
+  serial waves, never parallel (the code-boundary rule).
 
 ## 9. Non-goals / deferred
 
@@ -261,6 +340,8 @@ policy); ADR 0005/0017/0026 are conformed to, not amended.
   filing of already-routed `follow-up` findings is mechanized.
 - **No CONTEXT.md edit, no new ADR** (§6, §7).
 - **No `/war-review --scavenge` changes** — the new signal class applies to manifest-era runs.
+- **No collision-proofed sub-namespace migration** (issue #1380's fix 2) — rejected at D15; the branch
+  naming conventions (`dev/<date>-<slug>` first choice, `war/<planSlug>/p<N>-<id>` tasks) are unchanged.
 
 ## 10. Validation criteria
 
@@ -308,3 +389,27 @@ policy); ADR 0005/0017/0026 are conformed to, not amended.
     check: `! grep -in 'defined-but-not-yet-emitted' skills/war/references/schemas.md && ! grep -n 'cross-check lands with Task 3.2' skills/war/references/schemas.md` — then the §4 manual survey for un-tokened future-tense stragglers
 15. WHEN the full suite runs THE gate SHALL stay green ·
     check: `node --test 'skills/**/*.test.mjs'`
+16. WHEN the desired working branch is checked out in some worktree AND a leaf branch `dev` exists THE
+    `resolve-working-branch` SHALL echo the flat fallback `war-<date>-<slug>`, created at the desired
+    tip, checked out nowhere, with ownership recorded ·
+    check: `bash skills/war/assets/provision-worktrees.test.sh` (the new leaf-`dev` collision fixture —
+    a temp repo cutting branch `dev` before the call, per §1's reproduced mechanism)
+17. WHEN `refs/heads/war/<planSlug>` (or `refs/heads/war`) exists as a leaf ref THE
+    `resolve-working-branch` SHALL exit non-zero before any task dispatch, naming the blocking leaf and
+    the remedy ·
+    check: `bash skills/war/assets/provision-worktrees.test.sh` (the new planSlug-validation fixture — a
+    temp repo with leaf `war/<slug>`)
+18. WHEN a dedicated-branch cut still dies with `cannot lock ref` THE die SHALL retain git's own stderr
+    and name the blocking leaf ref plus the `--working` remedy ·
+    check: `bash skills/war/assets/provision-worktrees.test.sh` (the new actionable-die assertion) and
+    `grep -n -e '--working' skills/war/assets/provision-worktrees.sh` — then the §4 manual same-scope
+    survey of the script's comment header and die sites
+19. WHEN a run that fell back to `war-<date>-<slug>` resumes THE second call SHALL return the same flat
+    branch and never re-cut it ·
+    check: `bash skills/war/assets/provision-worktrees.test.sh` (the new fallback resume-reuse case)
+20. WHEN the flat fallback is in use THE teardown surfaces SHALL keep matching task branches — the
+    teardown-phase prefix and reclaim-glob literals are byte-unchanged ·
+    check: `grep -Fn 'refs/heads/war/$slug/p$num-' skills/war/assets/provision-worktrees.sh` and
+    `grep -Fn 'war/*/p*-t*' skills/war/assets/provision-worktrees.sh` (grep -F mandatory — the patterns
+    carry `$` and glob metacharacters) — then the §4 manual same-scope survey of the teardown case
+    comments in `provision-worktrees.test.sh`
