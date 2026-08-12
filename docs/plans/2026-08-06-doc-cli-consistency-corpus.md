@@ -490,7 +490,7 @@ plan's Part 1, defined-but-not-yet-emitted) → Phase 2 (release).
    re-census the task runs anyway (D10). A plain-`/war` run at a pre-plan-5 base is therefore fully
    green with a 22-file census and no `glossary-cold.md` row; the `dependsOn` edge stays on the roadmap
    for ADR 0011 spine order and the Context-9 budget sequencing. **Reverse-order residual (designed
-   friction, surfaced at the volley for ratification):** if this plan lands first standalone and plan 5
+   friction — operator-ratified at the /war-machine volley, 2026-08-11):** if this plan lands first standalone and plan 5
    lands later, plan 5's own land goes census-RED on the then-unplaced `glossary-cold.md` — and plan 5's
    committed text carries no placement duty (it predates this census). That red is the census working
    as designed: the failure message names the path and the placement duty, and the remedy is one line —
