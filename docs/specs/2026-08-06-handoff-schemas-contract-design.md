@@ -1,6 +1,6 @@
 # Handoff/followUp mechanization and schemas.md return-contract truth
 
-Issues: #1331, #1333, #1289, #1380
+Issues: #1331, #1333, #1289, #1380, #1381
 
 The run-contract layer stops lying and stops leaning on Lead vigilance: the Workflow itself files
 `disposition: follow-up` findings as `war-followup` issues and stamps the numbers into
@@ -14,6 +14,13 @@ Folded in 2026-08-12 by operator direction: #1380 — the same genus of `/war-re
 this group's anchor #1331 — hardens the working/task branch topology `resolve-working-branch` owns
 against leaf-ref collisions (`refs/heads/dev` blocking `dev/<date>-<slug>`; a leaf `war/<planSlug>`
 blocking every task branch).
+
+Also folded in 2026-08-12 by operator direction: #1381 — worktree-environment integrity on the same
+provisioning surface: a worker killed mid-flight can leave its task worktree's submodule index corrupted
+(every file staged for deletion, gitlink SHA unchanged), and `ensure-worktree`'s deliberate
+NEVER-RESET-ON-REUSE policy hands that tree to the next worker generation with no hygiene assertion — the
+next worker burns its bounded fix rounds on a phantom code failure while `ENV_OUTCOME` reads `{ok:true}`.
+(AI-declared)
 
 ## 1. Context — the gap / problem
 
@@ -121,6 +128,68 @@ cuttability today: the Workflow's entry validation (the missing-trio block) is s
 shell (§2), so the first failure is the first `git branch` at a mid-phase Provision barrier (verified:
 live read of the entry-validation block, 2026-08-12).
 
+**#1381 — a killed worker's worktree passes to the next generation corrupted and unexamined.** In the
+0.17.0 run `2026-08-12-handwritten-date-flagging` (target `Sequoia-Port/AutoIndex`, a superproject with
+two submodules), an operator cancel at launch 1 plus a session usage-limit kill at launch 2 left exactly
+the two worktrees whose second-generation worker was killed with the entire `auto_index/stacks/assets`
+submodule staged for deletion (13 `D ` paths; ` M <submodule>` in the superproject; submodule HEAD
+unchanged at the recorded SHA), while the completed-worker and never-dispatched worktrees stayed clean.
+The resolved gate — whose first command is `git submodule update --init --recursive` — could not have
+passed in either corrupted worktree (eight of the deleted paths are Python modules the target's CDK
+stacks import), so the phase burned its bounded fix rounds on a phantom and escalated as a code problem
+(`gate_failed` → `audit-blocked` → `held:escalation`) with the provision `ENV_OUTCOME` `{ok:true}` and no
+environmental signal anywhere in the run; the manual repair that worked, run from the worktree root, was
+`git submodule update --init --force <path>` (verified: issue #1381 (2026-08-12); AI-declared).
+
+**Mechanism (reading A) REPRODUCED (verified: probe 2026-08-12; AI-declared).** In a throwaway
+superproject+submodule fixture (12,000-file submodule; git 2.50.1 (Apple Git-155), macOS), SIGKILLing the
+process group of `git submodule update --init --force <path>` ~500 ms into a (re)populate checkout
+reproduced the incident's exact shape on the FIRST attempt on both populate paths tried (fresh-clone
+populate, and deinit-cached repopulate): every tracked file staged for deletion (12,000 `D ` rows), a
+handful of partially-written `??` files, ` M <path>` in the superproject, submodule HEAD unchanged — plus
+one refinement the issue did not state: the kill also leaves a stale submodule `index.lock`, which makes
+the `--force`-bearing repair command die `fatal: Unable to create ... index.lock: File exists`
+(exit 128) until it is removed; the gate's own first command — plain
+`git submodule update --init --recursive`, without `--force` — exits 0 silently over the corruption
+(the submodule HEAD already equals the gitlink, so the checkout short-circuits and the lock is never
+touched; every staged deletion remains), so no gate step ever surfaces the lock and the gate fails only
+later, on the deleted-module imports (re-verified twice at re-grill, 2026-08-12; AI-declared). The
+corrupting window is the (re)populate checkout, whose
+pre-state index is empty: a clean fully-populated submodule survived nine process-group kills at
+100–550 ms unscathed (the terminal index rewrite is lockfile-atomic), and a kill mid `--force`-restore of
+a dirty populated tree leaves unstaged ` M` rows, never staged deletions. Which generation's kill landed
+in a populate window in the incident itself remains inferred — the issue's own hypothesis-with-falsifier
+framing for the causal step stands — but the mechanism is now established, and the fix design below is
+correct under both readings (A interrupted-checkout, B overlapping-generations). (AI-declared)
+
+**Repair safety VERIFIED (verified: probe 2026-08-12; AI-declared).** In the corrupted fixture, with the
+gitlink SHA unchanged and superproject WIP present (a tracked modification + two untracked files),
+removing the stale `index.lock` and running `git submodule update --init --force <path>` exited 0,
+restored the submodule to fully clean, left the superproject index empty (nothing staged), and preserved
+every WIP byte. Detection nuance from the same probe: `git submodule status <path>` shows NO marker in
+the corrupted state (the SHA matches), so detection must ride `git status --porcelain -- <path>` in the
+superproject (the ` M <path>` row) or a non-empty `git -C <path> status --porcelain`. (AI-declared)
+
+**The live constructs (verified: live read 2026-08-12; AI-declared).** `cmd_ensure_worktree`'s REUSE
+branch in `skills/war/assets/provision-worktrees.sh` (policy comment: "Already a registered worktree, dir
+present -> REUSE untouched (only make sure the `.war-task` marker is there)") verifies the checkout is on
+`<branch>`, writes the marker, and returns — no assertion that the reused tree is in a usable state
+exists today (anchored by the reuse branch's `write_marker`-then-return sequence). The `ENV_OUTCOME`
+block in `skills/war/references/schemas.md` enumerates
+`ok/taskId/failedCommand/exitCode/stderrTail/provisionSource/preMerged/staleRemote` — no hygiene member;
+the engine's `ENV_OUTCOME` schema literal in `skills/war/assets/workflow-template.js` requires only `ok`
+and carries no `additionalProperties: false`, so an additive field passes StructuredOutput validation
+mechanically. `skills/war/references/resume-and-recovery.md` has no worktree-hygiene step: greps for
+`hygien|dirty|zombie|concurrent|submodule` hit only submodule-router pointers, concurrent-push prose (the
+class-C row), and the "Manual-land hygiene" follower-sync bullet — none is a pre-re-dispatch worktree
+check. (AI-declared)
+
+**Triage note — not a gitlink bump.** The corrupted state's superproject diff reads `-Subproject commit
+<sha> / +Subproject commit <sha>-dirty`: an unchanged SHA cannot be staged as a gitlink bump, so the
+single-repo-refiner gitlink guard (`skills/war/assets/assert-no-submodule-mutation.sh`, mode-160000
+detection on the staged diff) is not the protection here and never fires (verified: issue #1381
+(2026-08-12) + probe 2026-08-12 — nothing was staged in the superproject at any point; AI-declared).
+
 ## 2. Pivotal constraints
 
 - **The Workflow sandbox has no shell and cannot import** — issue filing must ride a dispatched agent.
@@ -168,9 +237,17 @@ live read of the entry-validation block, 2026-08-12).
 | D13 | #1380 actionable cut failure | When the `git branch` cut still dies and the captured stderr matches `cannot lock ref`, the die keeps git's own stderr (the existing `_tmp_err` idiom) and APPENDS the diagnosis and remedy: the blocking leaf ref by name, and "pass an explicit `--working <branch>`". One fallback (D12), then fail loud — never a silent retry loop. (issue #1380 fix 3) |
 | D14 | #1380 planSlug cuttability at Setup | Validated inside `cmd_resolve_working_branch` itself — it already receives `<slug>` at Setup step 2, before any Workflow launch: probe leaf refs at `refs/heads/war` (impossible-by-convention, but one cheap show-ref) and `refs/heads/war/<slug>`; either present ⇒ die naming the leaf and the remedy (pick a different plan slug, or delete/rename the leaf) — the second surface fails at Setup, not at the first mid-phase `git branch`. Covers `taskBranch` and `polishBranch` (same `war/<planSlug>/` namespace). NOT in `workflow-template.js`: the sandbox has no shell (§2), so the probe rides the tested git-topology owner the Lead already invokes at Setup. (issue #1380 fix 4) |
 | D15 | #1380 rejected alternative | A collision-proofed sub-namespace (e.g. `refs/heads/war/run/<date>-<slug>`) is REJECTED: a naming-convention migration touching the teardown/reclaim regexes (the `refs/heads/war/$slug/p$num-` prefix in teardown-phase, the `war/*/p*-t*` reclaim glob) and every doc surface naming the convention — disproportionate to a defect three local probes close, and still collidable in principle. (issue #1380 fix 2, rejected) |
+| D16 | #1381 reuse-path hygiene assertion (fix 1) | In `cmd_ensure_worktree`'s REUSE branch, after ensuring the `.war-task` marker: for each declared submodule whose status is dirty AND whose checked-out HEAD matches the superproject's recorded gitlink SHA — detection rides `git status --porcelain -- <path>` in the superproject, because `git submodule status` shows no marker in the corrupted state (probe, §1) — remove a stale submodule `index.lock` (the probe-verified repair blocker) and run `git submodule update --init --force <path>`: a safe restore, since the SHA is unchanged no gitlink bump can result, and by the plan-scope contract no submodule work should exist in a superproject-only run. It never touches superproject tracked files or untracked deliverables (the WIP-preservation invariant — NEVER-RESET-ON-REUSE keeps its meaning); a dirty submodule whose SHA does NOT match the recorded value is detected and reported, never auto-repaired. Every repair/detection is reported via a `WORKTREE_HYGIENE` marker line the provision barrier captures (the existing `STALE_REMOTE` marker-capture idiom), never silent; a repair that itself fails is likewise reported (`detected` + the failure detail) and the reuse still returns 0 — visibility via D17 is the backstop, per the issue's fix-2 framing. (issue #1381 fix 1, probe-refined) (AI-declared) |
+| D17 | #1381 `ENV_OUTCOME.worktreeHygiene` (fix 2) | New OPTIONAL array on the env-outcome — `[{ task, path, action: "repaired"\|"detected", detail }]` — carried on an `ok: true` barrier return beside `staleRemote` (same marker-capture idiom), documented in `schemas.md`'s ENV_OUTCOME block, added to the engine's `ENV_OUTCOME` schema literal, and surfaced by the Lead in the phase report. Fail-open and additive: no routing change, never a hold, absent means nothing found (the engine literal already lacks `additionalProperties: false`, so the field passes validation mechanically — §1). (issue #1381 fix 2) (AI-declared) |
+| D18 | #1381 runbook step (fix 3) | `resume-and-recovery.md`'s `### Recovery relaunch` **Shared mechanics (both entry points)** list gains a **Worktree hygiene** bullet: before re-dispatch, for each reused task worktree whose prior generation errored or was cancelled, check submodule status and unexpected staged deletions; with the gitlink SHA matching the recorded value, remove a stale submodule `index.lock` and run `git submodule update --init --force <path>`; record what was repaired. The held-partial-phase runbook composes it unchanged via its existing "composes the tools above" sentence. (issue #1381 fix 3 — the incident's manual repair, mechanized as doctrine) (AI-declared) |
+| D19 | #1381 generation fence (fix 4) | REJECTED for this group — a per-worktree lease/generation stamp in `.war-task` needs process containment to be meaningful and belongs with #1365 (the same survives-a-kill family); split to its own issue per the report's own sequencing. No `.war-task` schema change in this group. (issue #1381 fix 4, deferred) (AI-declared) |
 
 D12–D15 selection: [assumed: the minimal-diff composite (issue #1380's fixes 1+3+4) closes the report —
 if wrong: the namespace migration (fix 2) is the follow-up, not a widening of this group].
+
+D16–D19 selection: [assumed: issue #1381's fixes 1–3, sequenced 1→2→3, close the report — if wrong:
+fix 4 (the generation fence) is the follow-up, split out with #1365, never a widening of this group]
+(AI-declared).
 
 ## 4. Mechanics
 
@@ -193,10 +270,17 @@ onto its result):
   the adjudicationClause comment's trio enumeration both adopt D6's canonical form; the schema comment's
   "(the two-contract rule)" adopts D7's expansion; `ACCEPTANCE_IDS_RULE` gains D5's id-form + join
   sentence (anchors preserved).
+- #1381 (D17): the `ENV_OUTCOME` schema literal gains the optional `worktreeHygiene: { type: 'array' }`
+  property, and the provision-barrier dispatch prompt names the `WORKTREE_HYGIENE` marker-capture beside
+  the existing `STALE_REMOTE` carve-out — same commit as the `agents/war-refiner.md` mirror (the
+  prompt-surface split rule, §2). (AI-declared)
 
 **`agents/war-refiner.md`** — the dispatch-kind enumeration and the Return section gain the
 `file-followups` flavor (same commit as the prompt): never out-of-mode, fail-open evidence return, never
-a `MergeResult`; dedup-first; preflight-first.
+a `MergeResult`; dedup-first; preflight-first. #1381 (D17): the provision-barrier step's
+classify-and-continue carve-out and the "Return shape (all three)" line gain the `worktreeHygiene` array
+(`WORKTREE_HYGIENE` marker capture, mirroring `staleRemote`'s form) — same commit as the dispatched
+prompt. (AI-declared)
 
 **`agents/war-worker.md`** — the `acceptance_criteria_covered` reporting line gains D5's id-form + join
 sentence (mirror of `ACCEPTANCE_IDS_RULE`; the doc-contract anchors keep matching).
@@ -214,6 +298,10 @@ sentence (mirror of `ACCEPTANCE_IDS_RULE`; the doc-contract anchors keep matchin
   floor then has the Lead file before the DAG advances"; `minorsFiled` row comment notes the stamping.
 - Run-manifest section: D10's real-clock-read mandate sentence.
 - Workflow per-phase args contract: the new optional `ghUser` arg documented beside `agentPrefix`.
+- ENV_OUTCOME block (#1381, D17): a `worktreeHygiene?` row in the jsonc shape plus one defining bullet —
+  optional, barrier `ok: true` only, `[{ task, path, action: "repaired"|"detected", detail }]` captured
+  from `WORKTREE_HYGIENE` marker lines on the reuse path; fail-open, no routing change, absent means
+  nothing found. (AI-declared)
 
 **`skills/war/SKILL.md`**:
 - Step 1 (Decompose): the mirrored "D5 evidence tag" → "D5 End-state tag" (same commit as the
@@ -252,6 +340,15 @@ this group):
   unwidened. Placement decided from the code: fix 4 does NOT land in `workflow-template.js` — its entry
   validation is sandboxed pure JS with no shell, and `cmd_resolve_working_branch` already receives
   `<slug>` at Setup step 2, before any task dispatch (D14).
+- #1381 (D16 — `cmd_ensure_worktree`, a different function from the D12–D14 arms above): in the REUSE
+  branch, after `write_marker`, enumerate the worktree's declared submodules (`.gitmodules` paths); for
+  each, when `git -C "$path" status --porcelain -- <sub>` is non-empty AND the submodule's checked-out
+  HEAD equals the SHA in `git -C "$path" ls-tree HEAD <sub>`: remove a stale submodule `index.lock` if
+  present, run `git -C "$path" submodule update --init --force <sub>`, and emit one `WORKTREE_HYGIENE`
+  marker line per action (`repaired`, or `detected` for a SHA-mismatch / failed repair) for the barrier
+  to capture. Exit discipline unchanged: hygiene is fail-open — the reuse path never gains a new die, and
+  a failed repair reports and returns 0 (D16). Superproject tracked files and untracked entries are never
+  touched. (AI-declared)
 
 **`skills/war/assets/provision-worktrees.test.sh`** — new cases beside the existing RWB block:
 leaf-`dev` collision ⇒ the flat fallback is echoed, created at the desired tip, checked out nowhere,
@@ -259,7 +356,23 @@ ownership recorded (the RWB.a assertion set against the fallback name); planSlug
 repo with leaf `war/<slug>` makes resolve-working-branch die non-zero with the leaf named in stderr;
 fallback resume-reuse ⇒ a second call returns the same flat branch and never re-cuts (the RWB.d shape);
 control ⇒ leaf `dev` present but `<desired>` checked out nowhere still echoes `<desired>` unchanged (the
-`dev` probe fires only where a cut would happen).
+`dev` probe fires only where a cut would happen). #1381 (D16) hygiene cases beside the ensure-worktree
+block: (a) hygiene-repair — a superproject+submodule fixture whose submodule index is emptied
+deterministically (`git -C <sub> read-tree --empty` + a dropped `index.lock`, state-equivalent to §1's
+reproduced killed-populate state on every surface the hygiene arm reads — the killed state's submodule
+worktree is nearly empty while this fixture keeps files on disk, a dimension nothing the arm or its
+tests consults) is reused via `ensure-worktree` ⇒ the submodule ends clean and a
+`WORKTREE_HYGIENE repaired` marker is emitted; (b) WIP-preservation — a superproject tracked
+modification plus two untracked files ride the same fixture and survive the reuse byte-for-byte with
+nothing staged; (c) SHA-mismatch control — a submodule checked out at a different HEAD is `detected`
+only, its tree untouched; (d) clean control — a clean reuse emits no marker. (AI-declared)
+
+**`skills/war/references/resume-and-recovery.md`** (#1381, D18) — the `### Recovery relaunch`
+**Shared mechanics (both entry points)** list gains the **Worktree hygiene** bullet: before re-dispatch,
+for each reused task worktree whose prior generation errored or was cancelled, check submodule status and
+unexpected staged deletions; with the gitlink SHA matching the recorded value, remove a stale submodule
+`index.lock` and run `git submodule update --init --force <path>`; record what was repaired. No other
+section of the file changes. (AI-declared)
 
 **Mandatory manual same-scope survey (grep is a floor, not a ceiling).** For every retirement/harmonization
 sweep above — `defined-but-not-yet-emitted`, `null until the Lead files it`, `D5 evidence tag`, the trio
@@ -276,15 +389,16 @@ flipped assertions.
 
 | File | Change |
 |---|---|
-| `skills/war/assets/workflow-template.js` | file-followups dispatch + schema + stamping; `args.ghUser`; comment alignments (D6/D7/D5) |
-| `skills/war/references/schemas.md` | followUps/landResult/minorsFiled row rewrites; D5 id form + join; D6/D7; "D5 End-state tag"; D11 marker retirement; manifest clock mandate; `ghUser` arg row |
+| `skills/war/assets/workflow-template.js` | file-followups dispatch + schema + stamping; `args.ghUser`; comment alignments (D6/D7/D5); #1381: `ENV_OUTCOME` literal + provision prompt gain `worktreeHygiene` (D17) (AI-declared) |
+| `skills/war/references/schemas.md` | followUps/landResult/minorsFiled row rewrites; D5 id form + join; D6/D7; "D5 End-state tag"; D11 marker retirement; manifest clock mandate; `ghUser` arg row; #1381: ENV_OUTCOME `worktreeHygiene` row (D17) (AI-declared) |
 | `skills/war/SKILL.md` | step-1 tag-family mirror fix; manifest clock mandate; `ghUser` threading; Checkpoint follow-up floor; Setup step-2 resolve-working-branch delta (#1380) |
 | `skills/war-review/SKILL.md` | "unfiled follow-ups" signal class; degenerate-timestamp `n/a` guard |
-| `agents/war-refiner.md` | `file-followups` dispatch flavor + return contract (footprint delta — required by the prompt-surface split) |
+| `agents/war-refiner.md` | `file-followups` dispatch flavor + return contract (footprint delta — required by the prompt-surface split); #1381: `worktreeHygiene` in the provision carve-out + return shape (D17 mirror) (AI-declared) |
 | `agents/war-worker.md` | `acceptance_criteria_covered` id-form mirror (footprint delta, one sentence) |
 | `skills/war/assets/workflow-template.test.mjs` | null-pin flip + new filing coverage (footprint delta — the engine change's guard) |
-| `skills/war/assets/provision-worktrees.sh` | #1380: D12 flat-fallback sanitize + D13 actionable cut-failure die + D14 planSlug cuttability probes in `cmd_resolve_working_branch` (footprint delta) |
-| `skills/war/assets/provision-worktrees.test.sh` | #1380: leaf-`dev` fallback, planSlug-validation die, fallback resume-reuse, no-collision control cases (footprint delta — the script change's guard) |
+| `skills/war/assets/provision-worktrees.sh` | #1380: D12 flat-fallback sanitize + D13 actionable cut-failure die + D14 planSlug cuttability probes in `cmd_resolve_working_branch` (footprint delta); #1381: D16 reuse-path hygiene assertion in `cmd_ensure_worktree` (AI-declared) |
+| `skills/war/assets/provision-worktrees.test.sh` | #1380: leaf-`dev` fallback, planSlug-validation die, fallback resume-reuse, no-collision control cases (footprint delta — the script change's guard); #1381: hygiene-repair, WIP-preservation, SHA-mismatch and clean controls (AI-declared) |
+| `skills/war/references/resume-and-recovery.md` | #1381: D18 Worktree-hygiene bullet in `### Recovery relaunch` Shared mechanics (AI-declared) |
 
 ## 6. New domain terms (CONTEXT.md)
 
@@ -326,6 +440,21 @@ policy); ADR 0005/0017/0026 are conformed to, not amended.
   this group; the only shared file is `skills/war/SKILL.md`, where the Setup step-2 sentence is
   region-disjoint from the step-1/manifest/per-phase/Checkpoint edits above but same-file — one task or
   serial waves, never parallel (the code-boundary rule).
+- **#1381 contention (same files as existing strands, different regions):** D16 lives in
+  `cmd_ensure_worktree` while the #1380 arms live in `cmd_resolve_working_branch` — same
+  `provision-worktrees.sh` and same test file, so the two strands are one task or serial waves, never
+  parallel (the existing #1380 tension note extends to this pair). D17's engine touch (the `ENV_OUTCOME`
+  literal + provision-barrier prompt) lands in `workflow-template.js` — region-disjoint from the
+  file-followups dispatch strand but same-file, same discipline; its `agents/war-refiner.md` mirror rides
+  the same commit as the prompt (the prompt-surface split), and that card is also touched by the
+  file-followups strand — contention-check at plan time. `schemas.md`'s ENV_OUTCOME row joins the
+  carve-it-as-one-task rule above. (AI-declared)
+- **#1381 residuals:** clearing a stale submodule `index.lock` assumes no live holder — sound at the
+  provision barrier and at a recovery relaunch (workers are dispatched only after both), while a zombie
+  writer surviving its kill is exactly reading (B) / #1365 territory, deferred with fix 4 (D19). A repair
+  that itself fails stays fail-open (reported via D17, reuse returns 0) — routing it to `env-blocked` via
+  a `STALE_REMOTE`-style classify-and-continue carve-out was considered and deferred with D19 rather than
+  widening the barrier's routing in this group. (AI-declared)
 
 ## 9. Non-goals / deferred
 
@@ -342,6 +471,10 @@ policy); ADR 0005/0017/0026 are conformed to, not amended.
 - **No `/war-review --scavenge` changes** — the new signal class applies to manifest-era runs.
 - **No collision-proofed sub-namespace migration** (issue #1380's fix 2) — rejected at D15; the branch
   naming conventions (`dev/<date>-<slug>` first choice, `war/<planSlug>/p<N>-<id>` tasks) are unchanged.
+- **No generation fence / worktree lease** (issue #1381's fix 4) — rejected at D19 for this group; split
+  to its own issue cross-linking #1365 (the same survives-a-kill family). `.war-task`'s content and the
+  barrier's `ok`/`env-blocked` routing are unchanged; `worktreeHygiene` is visibility, never a hold.
+  (AI-declared)
 
 ## 10. Validation criteria
 
@@ -413,3 +546,34 @@ policy); ADR 0005/0017/0026 are conformed to, not amended.
     `grep -Fn 'war/*/p*-t*' skills/war/assets/provision-worktrees.sh` (grep -F mandatory — the patterns
     carry `$` and glob metacharacters) — then the §4 manual same-scope survey of the teardown case
     comments in `provision-worktrees.test.sh`
+21. WHEN `ensure-worktree` reuses a registered, present worktree whose declared submodule is dirty while
+    its checked-out HEAD matches the recorded gitlink SHA THE reuse SHALL repair it via
+    `git submodule update --init --force <path>` (removing a stale submodule `index.lock` first — the
+    probe-verified repair blocker, §1) and emit a `WORKTREE_HYGIENE` marker line, never silently ·
+    check: `bash skills/war/assets/provision-worktrees.test.sh` (the new hygiene-repair fixture — the
+    submodule index emptied deterministically via `git read-tree --empty` + a dropped `index.lock`,
+    state-equivalent to §1's reproduced killed-populate state on every surface the hygiene arm reads
+    (the killed state's worktree is nearly empty; this fixture keeps files on disk — a dimension
+    nothing consulted reads); asserts post-reuse submodule clean + the
+    marker present) and `grep -c 'WORKTREE_HYGIENE' skills/war/assets/provision-worktrees.sh` (base
+    count today: 0; post-land: ≥ 1) (AI-declared)
+22. WHEN the reuse-path hygiene repair runs THE superproject WIP SHALL survive byte-for-byte — tracked
+    modifications and untracked files untouched, nothing staged in the superproject (the probe-verified
+    repair-safety property, §1) ·
+    check: `bash skills/war/assets/provision-worktrees.test.sh` (the WIP-preservation assertions inside
+    the same hygiene fixture: a tracked modification + two untracked files persist unchanged and
+    `git diff --cached --name-only` stays empty; plus the SHA-mismatch control — a submodule at a
+    different HEAD is `detected` only, its tree untouched) (AI-declared)
+23. WHEN the ENV_OUTCOME contract is read on any of its three surfaces THE `worktreeHygiene` field SHALL
+    be enumerated as an optional fail-open array of repaired/detected findings ·
+    check: `grep -c 'worktreeHygiene' skills/war/references/schemas.md skills/war/assets/workflow-template.js agents/war-refiner.md`
+    (base counts today: 0, 0, 0; post-land: ≥ 1 in each of the three files — file-scoped: this spec and
+    its plan also carry the token) (AI-declared)
+24. WHEN the Recovery-relaunch shared mechanics are read THE Worktree-hygiene step SHALL appear (check
+    submodule status and staged deletions before re-dispatch; gitlink-SHA-matched force-update repair;
+    record what was repaired) ·
+    check: `grep -c 'Worktree hygiene' skills/war/references/resume-and-recovery.md` (base count today:
+    0 — the file's only current "hygiene" hit is the "Manual-land hygiene" follower-sync bullet;
+    post-land: ≥ 1) — then the mandatory §4 manual same-scope survey of the file's other recovery entry
+    points (the held-partial-phase runbook steps and the `env-blocked` bullet) for missing
+    cross-references the grep cannot see (AI-declared)
