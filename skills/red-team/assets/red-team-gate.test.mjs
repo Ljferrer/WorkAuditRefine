@@ -830,7 +830,7 @@ test('CLI: a --round-limit-only invocation emits roundLimit + routeUpstream whil
 test('CLI: --stdin --rounds 3 (space-separated value) refuses loudly — the #1378/F1 production-path repro (End state 1a)', () => {
   const input = { probeResults: [roundsProbe(F('Critical'))] }
   const r = runGate(['--stdin', '--rounds', '3'], JSON.stringify(input))
-  assert.notEqual(r.status, 0)
+  assert.equal(r.status, 1, r.stderr)
   assert.match(r.stderr, /unknown argument/, 'the stdin-mode silent drop is closed — the refusal is loud')
   assert.ok(r.stderr.includes('--rounds'), `stderr must name the offending token, got: ${r.stderr}`)
   assert.match(r.stderr, /--rounds=<n>/, 'stderr must name the accepted =-attached forms')
@@ -842,16 +842,17 @@ test('CLI: the discriminating bare-token row — --stdin plus a bare token and N
   // arm refuses --rounds first and shadows the bare arm entirely (/red-team round 1, R1).
   const input = { probeResults: [roundsProbe(F('Critical'))] }
   const r = runGate(['--stdin', 'results.json'], JSON.stringify(input))
-  assert.notEqual(r.status, 0)
+  assert.equal(r.status, 1, r.stderr)
   assert.match(r.stderr, /unknown argument/, 'stdin mode consumes no positionals — a bare token must refuse')
   assert.ok(r.stderr.includes('results.json'), `stderr must name the offending token, got: ${r.stderr}`)
+  assert.match(r.stderr, /--rounds=<n>/, 'stderr must name the accepted =-attached forms')
   assert.ok(!r.stdout.includes('verdict'), `stdout must carry no verdict, got: ${r.stdout}`)
 })
 
 test('CLI: a typo\'d flag NAME refuses in every mode — default-deny over every -- token outside the known set (End state 2)', () => {
   const input = { probeResults: [roundsProbe(F('Critical'))] }
   const r = runGate(['--stdin', '--round=3'], JSON.stringify(input))
-  assert.notEqual(r.status, 0)
+  assert.equal(r.status, 1, r.stderr)
   assert.match(r.stderr, /unknown argument/, 'a typo\'d NAME refuses via the default-deny check, not the VALUE channel')
   assert.ok(r.stderr.includes('--round=3'), `stderr must name the offending token, got: ${r.stderr}`)
   assert.ok(!r.stdout.includes('verdict'), `stdout must carry no verdict, got: ${r.stdout}`)
@@ -860,7 +861,7 @@ test('CLI: a typo\'d flag NAME refuses in every mode — default-deny over every
   const file = path.join(dir, 'results.json')
   fs.writeFileSync(file, JSON.stringify(input))
   const r2 = runGate(['--round=3', file])
-  assert.notEqual(r2.status, 0)
+  assert.equal(r2.status, 1, r2.stderr)
   assert.match(r2.stderr, /unknown argument/, 'the same check covers file mode')
   assert.ok(!r2.stdout.includes('verdict'), `stdout must carry no verdict, got: ${r2.stdout}`)
 })
