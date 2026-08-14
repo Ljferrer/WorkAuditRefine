@@ -609,6 +609,10 @@ test('routeUpstream arm 1: rounds >= roundLimit with an unstamped blocker open �
   const findings = openFindings(F('Critical'))
   assert.equal(verdict(findings), 'BLOCKED')
   assert.equal(routeUpstream(findings, 3, 3), true)
+  // D6 (#1347 F4): discriminate the union at rounds 1 / roundLimit 1, where arm 2 (rounds >= 2)
+  // cannot mask a blockers-only mutation of `open`.
+  assert.equal(routeUpstream(openFindings(F('Minor', { needsDecision: true })), 1, 1), true,
+    'arm 1 keys on the blockers+needsDecision UNION — a needsDecision-only open set must route at rounds 1 / roundLimit 1')
 })
 
 test('routeUpstream arm 2: an unstamped needsDecision at rounds >= 2 routes even BELOW the limit', () => {
@@ -726,12 +730,15 @@ test('CLI: =-attached flags parse in file mode — the positional scan still fin
   assert.equal(out.routeUpstream, true)
 })
 
-test('CLI: a space-separated flag value is refused — the positional scan picks it as the results path', () => {
+test('CLI: a space-separated flag value in file mode is refused by the explicit default-deny check (D10)', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'red-team-gate-rounds-'))
   const file = path.join(dir, 'results.json')
   fs.writeFileSync(file, JSON.stringify({ probeResults: [roundsProbe(F('Critical'))] }))
   const r = runGate(['--rounds', '3', file])
   assert.notEqual(r.status, 0)
+  assert.match(r.stderr, /unknown argument/, 'the explicit check must name the refusal (the NAME channel, distinct from the VALUE channel)')
+  assert.ok(r.stderr.includes('--rounds'), `stderr must name the offending token, got: ${r.stderr}`)
+  assert.match(r.stderr, /--rounds=<n>/, 'stderr must name the accepted =-attached forms')
   assert.ok(!r.stdout.includes('verdict'), `stdout must carry no verdict, got: ${r.stdout}`)
 })
 
@@ -818,6 +825,69 @@ test('CLI: a --round-limit-only invocation emits roundLimit + routeUpstream whil
   assert.ok(!('rounds' in out), `rounds was never supplied — found "rounds" in ${Object.keys(out)}`)
 })
 
+// --- Task 1.2 (#1378/#1347): the default-deny argument check — loud refusal on every argv path ---
+
+test('CLI: --stdin --rounds 3 (space-separated value) refuses loudly — the #1378/F1 production-path repro (End state 1a)', () => {
+  const input = { probeResults: [roundsProbe(F('Critical'))] }
+  const r = runGate(['--stdin', '--rounds', '3'], JSON.stringify(input))
+  assert.notEqual(r.status, 0)
+  assert.match(r.stderr, /unknown argument/, 'the stdin-mode silent drop is closed — the refusal is loud')
+  assert.ok(r.stderr.includes('--rounds'), `stderr must name the offending token, got: ${r.stderr}`)
+  assert.match(r.stderr, /--rounds=<n>/, 'stderr must name the accepted =-attached forms')
+  assert.ok(!r.stdout.includes('verdict'), `stdout must carry no verdict, got: ${r.stdout}`)
+})
+
+test('CLI: the discriminating bare-token row — --stdin plus a bare token and NO unknown -- token refuses (End state 1b)', () => {
+  // This row, not the --rounds 3 one, proves the stdin bare-token arm exists: in 1a the --token
+  // arm refuses --rounds first and shadows the bare arm entirely (/red-team round 1, R1).
+  const input = { probeResults: [roundsProbe(F('Critical'))] }
+  const r = runGate(['--stdin', 'results.json'], JSON.stringify(input))
+  assert.notEqual(r.status, 0)
+  assert.match(r.stderr, /unknown argument/, 'stdin mode consumes no positionals — a bare token must refuse')
+  assert.ok(r.stderr.includes('results.json'), `stderr must name the offending token, got: ${r.stderr}`)
+  assert.ok(!r.stdout.includes('verdict'), `stdout must carry no verdict, got: ${r.stdout}`)
+})
+
+test('CLI: a typo\'d flag NAME refuses in every mode — default-deny over every -- token outside the known set (End state 2)', () => {
+  const input = { probeResults: [roundsProbe(F('Critical'))] }
+  const r = runGate(['--stdin', '--round=3'], JSON.stringify(input))
+  assert.notEqual(r.status, 0)
+  assert.match(r.stderr, /unknown argument/, 'a typo\'d NAME refuses via the default-deny check, not the VALUE channel')
+  assert.ok(r.stderr.includes('--round=3'), `stderr must name the offending token, got: ${r.stderr}`)
+  assert.ok(!r.stdout.includes('verdict'), `stdout must carry no verdict, got: ${r.stdout}`)
+  // File mode, same typo'd name ahead of a real results file — refused before the file is read.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'red-team-gate-rounds-'))
+  const file = path.join(dir, 'results.json')
+  fs.writeFileSync(file, JSON.stringify(input))
+  const r2 = runGate(['--round=3', file])
+  assert.notEqual(r2.status, 0)
+  assert.match(r2.stderr, /unknown argument/, 'the same check covers file mode')
+  assert.ok(!r2.stdout.includes('verdict'), `stdout must carry no verdict, got: ${r2.stdout}`)
+})
+
+test('CLI: the FLAG zero form — --stdin --rounds=0 rounds-only exits 0, echoes rounds: 0, emits routeUpstream: false (End state 3a)', () => {
+  // D5: 0 is a supplied value, not not-supplied. Rounds-only, so this also exercises the FIRST
+  // emission disjunct (rounds !== undefined) with a falsy-but-supplied value.
+  const input = { probeResults: [roundsProbe(F('Critical'))] }
+  const r = runGate(['--stdin', '--rounds=0'], JSON.stringify(input))
+  assert.equal(r.status, 0, r.stderr)
+  const out = JSON.parse(r.stdout)
+  assert.equal(out.rounds, 0, 'rounds: 0 must be echoed — 0 is a supplied value')
+  assert.equal(out.routeUpstream, false)
+  assert.ok(!('roundLimit' in out), `roundLimit was never supplied — found "roundLimit" in ${Object.keys(out)}`)
+})
+
+test('CLI: the input-KEY zero form — a --stdin payload with top-level rounds: 0 and no flag exits 0, echoes rounds: 0 (End state 3b)', () => {
+  // The only shape that reaches resolveRoundInput's KEY arm with 0: the flag form returns from the
+  // flag arm first, so only this row reds under an if (!key) mutation of the key arm (D5/R2).
+  const input = { probeResults: [roundsProbe(F('Critical'))], rounds: 0 }
+  const r = runGate(['--stdin'], JSON.stringify(input))
+  assert.equal(r.status, 0, r.stderr)
+  const out = JSON.parse(r.stdout)
+  assert.equal(out.rounds, 0, 'rounds: 0 via the input key must resolve as supplied, never as not-supplied')
+  assert.equal(out.routeUpstream, false)
+})
+
 // --- Task 5.5 (#1354): loop-doctrine doc-guard rows — the D7(b) lenses.md-pinning precedent ---
 // Phase 4 authored the loop-breaker prose these rows pin (Task 4.2); the rows land a phase later
 // so the guarded prose is already on the frozen base (drift-guard rule 7). All matches are
@@ -825,6 +895,9 @@ test('CLI: a --round-limit-only invocation emits roundLimit + routeUpstream whil
 
 const LENSES = fs.readFileSync(path.join(__dirname, '../references/lenses.md'), 'utf8')
 const SKILL = fs.readFileSync(path.join(__dirname, '../SKILL.md'), 'utf8')
+const LOOP_BUDGET = fs.readFileSync(path.join(__dirname, '../references/loop-budget.md'), 'utf8')
+const MODULE_SRC = fs.readFileSync(GATE, 'utf8')
+const SUITE_SRC = fs.readFileSync(path.join(__dirname, 'red-team-gate.test.mjs'), 'utf8')
 
 test('doc-guard 5.5(a): lenses.md report template — the **Rounds:** <integer> line sits DIRECTLY under the Verdict line', () => {
   // Paired first-following match, never two presence-anywhere probes: the Verdict and Rounds
@@ -860,5 +933,42 @@ test('doc-guard 5.5(d): the retired per-blocker-only ROUNDS accounting wording i
     ['<= 2 rounds', /(?:≤|<=)\s*\**2\**\s+rounds\b/i],
   ]) {
     assert.ok(!re.test(step5), `retired per-blocker rounds accounting resurfaced in Step 5 (${name})`)
+  }
+})
+
+// --- Task 1.2 (#1366, D8): blank-line guard rows — the Route-upstream **Re-entry:** line must not
+// lazy-continue into the agenda bullet. Quote-free regex anchors keyed on the Re-entry token and a
+// preceding empty line, tolerant of the line's tail text (doctrine may reword it).
+
+test('doc-guard D8: lenses.md — the **Re-entry:** line is preceded by a blank line (#1366)', () => {
+  assert.match(LENSES, /\n[ \t]*\n\*\*re-entry:\*\*/i,
+    'lenses.md lost the blank line before its Re-entry line — CommonMark lazy continuation nests it into the agenda bullet')
+})
+
+test('doc-guard D8: loop-budget.md — the **Re-entry:** line is preceded by a blank line (#1366, fenced block template)', () => {
+  assert.match(LOOP_BUDGET, /\n[ \t]*\n\*\*re-entry:\*\*/i,
+    'loop-budget.md lost the blank line before its Re-entry line — CommonMark lazy continuation nests it into the agenda bullet')
+})
+
+// --- Task 1.2 (D8b): retired-wording guard — the OLD-absent half of End state 6, mechanically
+// pinned after land (mirrors 5.5(d)'s fail-closed extract-then-assert-absent shape).
+
+test('doc-guard D8b: the retired refusal-mechanism wording stays absent from the module AND this suite (fail-closed)', () => {
+  // NEW-present anchor FIRST: if the module read failed or the D4 rewrite never landed, this reds
+  // instead of the absence checks below vacuously passing.
+  assert.match(MODULE_SRC, /default-deny argument check/i,
+    'red-team-gate.mjs lost the every-mode default-deny prose (the D4 doc-block rewrite)')
+  // Each retired needle is built at runtime from split fragments so this row never self-matches —
+  // the contiguous literal appears nowhere in this file, and End state 6's own two-token grep
+  // returns zero hits over it (/red-team round 1, R4+R5). Matching is case-insensitive (R14).
+  const needles = [
+    ['refused by', 'construction'].join(' '),
+    ['positional scan picks it', 'as the results path'].join(' '),
+  ]
+  for (const [name, text] of [['red-team-gate.mjs', MODULE_SRC], ['red-team-gate.test.mjs', SUITE_SRC]]) {
+    const lower = text.toLowerCase()
+    for (const needle of needles) {
+      assert.ok(!lower.includes(needle), `${name} re-introduced retired mechanism wording: ${needle}`)
+    }
   }
 })
