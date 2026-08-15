@@ -993,12 +993,15 @@ test('doc-guard D11: the retired escape-guard exit-contract wording stays absent
     'SKILL.md Step 4 lost the exit-1-scoped triage opener (On exit 1, diagnose)')
   assert.match(LENSES, /unreadable or zero-byte baseline/i,
     'lenses.md escape-guard bullet lost the widened exit-2 contract enumeration (unreadable or zero-byte baseline)')
+  assert.match(LENSES, /an exit 1 routes the verdict/i,
+    'lenses.md escape-guard bullet lost the exit-1-scoped routing clause')
   // Each retired needle is built at runtime from split fragments — this row sits inside End
   // state 9's own `grep -rin` scope over skills/red-team/, so a contiguous literal here would
   // self-match and permanently false-red that check. Matching is case-insensitive (R1).
   const needles = [
     ['unreadable', 'baseline'].join(' '),
     ['On a nonzero exit,', 'diagnose'].join(' '),
+    ['A nonzero result routes', 'the verdict'].join(' '),
   ].map((n) => n.toLowerCase())
   for (const [name, text] of [['SKILL.md', SKILL], ['references/lenses.md', LENSES]]) {
     const lower = text.toLowerCase()
