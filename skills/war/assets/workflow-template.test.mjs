@@ -7369,14 +7369,18 @@ test("Done when threading — absent ⇒ '' (set-minus): each site's doneWhen-le
     assert.ok(wp && wo, `site "${s.site}" reached in both arms (presence guard)`)
     assert.equal(wp.prompt.replace(`\nDone when: ${DW_CMD}`, ''), wo.prompt,
       `site "${s.site}": set minus the Done when clause is byte-identical to the doneWhen-less prompt (nothing else conditions on the field)`)
-    // Residue guard, occurrence-count parity (site-agnostic — strictly stronger than the retired
-    // line-anchored !includes('\nDone when:')): the legacy arm carries exactly one fewer 'Done when:'
-    // token than the doneWhen-bearing arm — the inserted clause's own. MAKE_DONE_PASS's two fixed-prose
-    // mentions appear in BOTH arms, so they cancel; any NEW token appearing in one arm only (or
-    // hardcoded mid-sentence into a sibling prompt's conditional prose) breaks the parity.
+    // Residue guard, two COMPLEMENTARY halves (D8 — neither subsumes the other): (1) occurrence-count
+    // parity (site-agnostic) — the legacy arm carries exactly one fewer 'Done when:' token than the
+    // doneWhen-bearing arm (the inserted clause's own); parity catches an asymmetric or vanished
+    // clause. MAKE_DONE_PASS's two fixed-prose mentions appear in BOTH arms, so they cancel; any NEW
+    // token appearing in one arm only breaks the parity. (2) line-anchored absolute absence — a
+    // line-form '\nDone when:' token hardcoded into fixed prose present in BOTH arms cancels in the
+    // parity count, and only the line-anchored !includes below catches that case.
     const count = (s2) => s2.split('Done when:').length - 1
     assert.equal(count(wo.prompt), count(wp.prompt) - 1,
       `site "${s.site}": the legacy path carries no inserted Done when: clause residue (occurrence parity: doneWhen-less = doneWhen-bearing minus the single inserted token)`)
+    assert.ok(!wo.prompt.includes('\nDone when:'),
+      `site "${s.site}": the doneWhen-less prompt carries NO line-anchored Done when: token at all (absolute absence — the hardcoded-in-both-arms case parity cancels)`)
   }
   // null, absent, and '' are the same legacy arm (the string|null contract; '' via the guard's
   // truthiness half): byte-identical prompts. The '' arm pins the typeof/empty-string guard —
@@ -7444,7 +7448,10 @@ test('A1 (Task 1.3) — the old plan-slice-criteria framing is retired from the 
 // never a collapse), captures assert-test-in-diff.sh exit-0 stdout into MergeResult.mappedTests (D7), a
 // floor exit 1 routes the bounded make-this-command-pass sub-loop sharing run.roundLimit (the no-test
 // pattern), exhaustion escalates 'done-unmet', and a doneWhen-less legacy task dispatches byte-identical
-// floor-less merge prompts (End state 9).
+// floor-less merge prompts (End state 9). done-when-floor-wiring Task 1.1 grew the section: the clause's
+// evidence capture (tee target + exit-1 done_when_log_path + the D14 exit-status-preservation shape),
+// the MAKE_DONE_PASS evidence-path set-minus pair (D5), the exhaustion-detail carry/omit pair (D6), and
+// the baseline-proceed precedence fixture (D7 — a red done-when is never proceeded over as baseline debt).
 const DU_CMD = 'node --test skills/war/assets/task-one.acceptance.test.mjs'
 const isMakePassWorker = (c) => seatOf(c.opts) === 'war-worker' && /make-pass:/.test(c.opts.label || '')
 // done-unmet → make-pass fix → full re-audit(approve) → re-merge. Fresh closure per run (the
@@ -7452,7 +7459,7 @@ const isMakePassWorker = (c) => seatOf(c.opts) === 'war-worker' && /make-pass:/.
 // driving budget exhaustion — otherwise the re-merge returns merged. Also the reachability fixture
 // for the MAKE_DONE_PASS rows in GATE_SITE_CAPTURES (via `plan`) and DONE_WHEN_SITES (via `taskOver`)
 // — function declaration, hoisted above both registries.
-function runDoneUnmetLoop({ alwaysUnmet = false, roundLimit, plan, taskOver = { doneWhen: DU_CMD } } = {}) {
+function runDoneUnmetLoop({ alwaysUnmet = false, roundLimit, plan, taskOver = { doneWhen: DU_CMD }, doneWhenLogPath } = {}) {
   let merges = 0
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
@@ -7461,8 +7468,10 @@ function runDoneUnmetLoop({ alwaysUnmet = false, roundLimit, plan, taskOver = { 
     if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
     if (seat === 'war-refiner' && opts.phase === 'Refine') {
       merges++
+      // doneWhenLogPath (Task 1.1): when set, every done-unmet result carries the teed evidence
+      // artifact's path — the presence arm of the D5/D6 set-minus pairs; absent ⇒ the field is omitted.
       return (alwaysUnmet || merges === 1)
-        ? { mode: 'merge-task', status: 'done-unmet' }
+        ? { mode: 'merge-task', status: 'done-unmet', ...(doneWhenLogPath ? { done_when_log_path: doneWhenLogPath } : {}) }
         : { mode: 'merge-task', status: 'merged' }
     }
     if (seat === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'landed' }
@@ -7496,6 +7505,42 @@ test('done-unmet exhaustion (Task 2.3) — shared run.roundLimit budget spent �
   assert.equal(out.landDecision, 'held:escalation', 'done-unmet is a HARD escalation reason — the phase holds')
 })
 
+// The done-when evidence artifact path a doneWhenLogPath-bearing fixture threads (the presence arm of
+// the D5/D6 set-minus pairs below) — shaped like the real _refinery-scoped teed path.
+const DU_LOG = '/abs/repo/.claude/worktrees/run-1/_refinery/.war/done-when-t1.log'
+
+test('MAKE_DONE_PASS evidence path (D5, Task 1.1) — the fix prompt names the captured artifact path when the floor result carries done_when_log_path, and is byte-identical when absent (set-minus)', async () => {
+  const wp = (await runDoneUnmetLoop({ doneWhenLogPath: DU_LOG })).calls.find(isMakePassWorker)
+  const wo = (await runDoneUnmetLoop()).calls.find(isMakePassWorker)
+  assert.ok(wp && wo, 'make-pass fix prompts captured in both arms (presence guard)')
+  const clause = `\nThe red run's full output is captured at ${DU_LOG}; read it before re-running.`
+  assert.ok(wp.prompt.includes(clause),
+    'the fix prompt names the captured artifact PATH (not the content — the fix-worker reads the file)')
+  assert.equal(wp.prompt.replace(clause, ''), wo.prompt,
+    'set minus the evidence clause ⇒ byte-identical to the artifact-less MAKE_DONE_PASS prompt (the doneWhenLogOf normalizer conditions on NOTHING else)')
+  assert.ok(!wo.prompt.includes('captured at'),
+    'the artifact-less fix prompt carries no evidence-clause residue at all')
+})
+
+test("done-unmet exhaustion detail (D6, Task 1.1) — the escalation and auditLog entries carry the LAST floor result's done_when_log_path when present, and are shape-identical when absent", async () => {
+  const withLog = (await runDoneUnmetLoop({ alwaysUnmet: true, roundLimit: 1, doneWhenLogPath: DU_LOG })).out
+  const esc = (withLog.escalated || []).find(e => e && e.task === 't1' && e.reason === 'done-unmet')
+  const log = (withLog.auditLog || []).find(e => e && e.task === 't1' && e.verdict === 'done-unmet:exhausted')
+  assert.ok(esc && log, 'exhaustion entries present in the artifact-bearing arm (presence guard)')
+  assert.equal(esc.done_when_log_path, DU_LOG, "the escalation entry carries the last floor result's done_when_log_path")
+  assert.equal(log.done_when_log_path, DU_LOG, "the auditLog entry carries the last floor result's done_when_log_path")
+  const without = (await runDoneUnmetLoop({ alwaysUnmet: true, roundLimit: 1 })).out
+  const esc2 = (without.escalated || []).find(e => e && e.task === 't1' && e.reason === 'done-unmet')
+  const log2 = (without.auditLog || []).find(e => e && e.task === 't1' && e.verdict === 'done-unmet:exhausted')
+  assert.ok(esc2 && log2, 'exhaustion entries present in the artifact-less arm (presence guard)')
+  // Shape-identical when absent (the exhaustedDiag pattern): the artifact-bearing entry grows ONLY the
+  // done_when_log_path key; the artifact-less entry carries NO such key at all.
+  assert.deepEqual(Object.keys(esc).filter(k => k !== 'done_when_log_path'), Object.keys(esc2))
+  assert.deepEqual(Object.keys(log).filter(k => k !== 'done_when_log_path'), Object.keys(log2))
+  assert.ok(!('done_when_log_path' in esc2) && !('done_when_log_path' in log2),
+    'absent field ⇒ neither exhaustion entry grows a done_when_log_path key')
+})
+
 test('done-when floor threading (Task 2.3) — both loop merge prompts run assert-done-when.sh after the gate: file-threaded --cmd-file under _refinery/.war/, exit 1 ⇒ done-unmet, exit 2 ⇒ error (never a collapse)', async () => {
   const { calls } = await runDoneUnmetLoop()
   const merges = calls.filter(isMergeTask)
@@ -7518,6 +7563,18 @@ test('done-when floor threading (Task 2.3) — both loop merge prompts run asser
     assert.match(clause[0], /exit 1[^]{0,160}status: 'done-unmet'/, `${name}: exit 1 routes the done-unmet status (clause-scoped)`)
     assert.match(clause[0], /exit 2[^]{0,160}status: 'error'/, `${name}: exit 2 routes error (clause-scoped — the test-floor clause's own exit-2 prose cannot satisfy this)`)
     assert.match(clause[0], /never 'done-unmet'/, `${name}: exit 2 never collapses into the floor status (clause-scoped)`)
+    // Evidence capture (done-when-floor-wiring Task 1.1): the clause tees the floor run to the .war/
+    // evidence artifact, returns its path on the exit-1 branch, and preserves the FLOOR's own exit
+    // status across the tee (D14/R2 — a naive `… 2>&1 | tee` reads tee's 0 for a red AND an exit-2
+    // floor, so a status-swallowing tee would silently merge a task whose acceptance command failed).
+    assert.ok(clause[0].includes('.war/done-when-t1.log'),
+      `${name}: the tee target is the _refinery/.war/ done-when evidence artifact (clause-scoped)`)
+    assert.match(clause[0], /status: 'done-unmet', done_when_log_path/,
+      `${name}: exit 1 returns done_when_log_path alongside status 'done-unmet' (clause-scoped)`)
+    assert.ok(/PIPESTATUS/.test(clause[0]) || /> [^\n]*2>&1[^]{0,160}\$\?/.test(clause[0]),
+      `${name}: the clause carries the D14 exit-status-preservation shape (redirect-then-read $? or PIPESTATUS[0]) — a status-swallowing tee cannot land silently (R2)`)
+    assert.ok(c.prompt.includes('Run the gate'),
+      `${name}: the gate instruction anchor is present (D9 — a reword cannot turn the ordering comparison below vacuous via indexOf -1)`)
     assert.ok(c.prompt.indexOf('After the gate') > c.prompt.indexOf(`Run the gate`),
       `${name}: the done-when floor runs AFTER the gate instruction`)
   }
@@ -7541,6 +7598,22 @@ test('done-when floor coverage (Task 2.3) — the floor clause rides all FOUR me
     'the doneWhenFloorClause helper exists (absent/null/empty doneWhen ⇒ the set-minus empty string)')
 })
 
+test("baseline-proceed precedence (D7, #1340 finding 10) — a baseline-classified first merge whose baseline-proceed returns done-unmet escalates HARD with ZERO fix rounds: reason 'done-unmet', no make-pass worker, held:escalation — a red done-when is never proceeded over as baseline debt", async () => {
+  const { out, calls } = await runPhase(
+    CLS_ARGS({ tasks: [{ id: 't1', issue: 301, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], doneWhen: DU_CMD }] }),
+    (prompt, opts) => /^merge:t1:baseline-proceed$/.test(opts.label || '')
+      ? { mode: 'merge-task', status: 'done-unmet' }
+      : clsImpl({ mergeResult: () => ({ mode: 'merge-task', status: 'gate_failed', gate_failure_class: 'baseline', gate_failing_ids: ['pytest:test_legacy'], gate_base_sha: 'base9999', gate_output: 'base RED with the same id — pre-existing' }) })(prompt, opts))
+  assert.ok(!out.landed.includes('t1'),
+    'the task must NOT land when its baseline-proceed returns done-unmet (the floor overrides the carve-out — D7)')
+  const esc = (out.escalated || []).find(e => e && e.task === 't1' && e.reason === 'done-unmet')
+  assert.ok(esc, "the escalation carries reason: 'done-unmet' (the HARD floor reason — never a waived baseline)")
+  assert.ok(!calls.some(isMakePassWorker),
+    'NO make-pass fix-worker is dispatched — the FLOOR_STATUSES sub-loop is entered only from the initial merge result, so a proceed-dispatch floor status escalates with zero fix rounds')
+  assert.equal(out.landDecision, 'held:escalation',
+    "done-unmet is a HARD escalation reason — the phase holds ('held:escalation') rather than landing the task as baseline debt")
+})
+
 test('mappedTests capture (D7, Task 2.3) — EVERY dispatched assert-test-in-diff.sh site instructs exit-0 stdout capture into MergeResult.mappedTests; the schema declares the optional field; war-refiner.md step 4 exit-0 bullet mirrors it', () => {
   const sites = [...src.matchAll(FLOOR_SITE_RE)]
   assert.ok(sites.length >= 3, `non-vacuity floor: >= 3 dispatched assert-test-in-diff.sh sites (found ${sites.length})`)
@@ -7556,6 +7629,10 @@ test('mappedTests capture (D7, Task 2.3) — EVERY dispatched assert-test-in-dif
   assert.ok(mr, 'MERGE_RESULT literal found')
   assert.match(mr[0], /mappedTests:\s*\{\s*type:\s*'array'\s*\}/, "MERGE_RESULT declares mappedTests: { type: 'array' }")
   assert.ok(!/required:\s*\[[^\]]*mappedTests/.test(mr[0]), 'mappedTests is OPTIONAL — never added to MERGE_RESULT.required')
+  // Sibling slot (done-when-floor-wiring, plan item (b)): MERGE_RESULT declares done_when_log_path, OPTIONAL —
+  // the schema is the refiner subagent's output contract; an undeclared property is the silent-strip path.
+  assert.match(mr[0], /done_when_log_path:\s*\{\s*type:\s*'string'\s*\}/, "MERGE_RESULT declares done_when_log_path: { type: 'string' }")
+  assert.ok(!/required:\s*\[[^\]]*done_when_log_path/.test(mr[0]), 'done_when_log_path is OPTIONAL — never added to MERGE_RESULT.required')
   // Standing surface (both-surfaces rule): war-refiner.md step 4's exit-0 bullet carries the same capture.
   const step4 = refinerMd.match(/\*\*Test-floor check\*\*[^]*?(?=\n\d+\. \*\*Packaging-floor check\*\*)/)
   assert.ok(step4, 'war-refiner.md carries the **Test-floor check** step')
@@ -7790,10 +7867,15 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     // and the dispatched merge-task prompts (doneWhenFloorClause) — this row censuses the newest mirror.
     // The dispatched surface here is the initial merge-task prompt; the floor-retry / environment-proceed /
     // baseline-proceed siblings append the SAME clause (source-count-pinned at 4 call sites by the
-    // 'done-when floor coverage (Task 2.3)' test).
-    { name: 'done-when floor (assert-done-when.sh after the gate; --cmd-file file-threading; exit 1 ⇒ done-unmet, exit 2 ⇒ error, never a collapse)',
+    // 'done-when floor coverage (Task 2.3)' test). done-when-floor-wiring Task 1.1 (D13) GREW the
+    // directive in place — evidence capture (done_when_log_path) + the D7 baseline-proceed precedence —
+    // so the EXISTING row's anchor array gains those two tokens (no new row, row-count floor untouched);
+    // the precedence token had zero hits on either surface at the pre-change base, so it mechanically
+    // pins the D7 sentence and cannot pass on pre-existing baseline-proceed prose (End state 8).
+    { name: 'done-when floor (assert-done-when.sh after the gate; --cmd-file file-threading; exit 1 ⇒ done-unmet + done_when_log_path, exit 2 ⇒ error, never a collapse; a red done-when is never baseline debt)',
       surfaces: [['war-refiner.md', refinerMd], ['merge-task dispatch prompt', mergeP]],
-      anchors: [/assert-done-when\.sh/i, /--cmd-file/i, /done-unmet/i, /never 'done-unmet'|not[^]{0,40}done-unmet/i] },
+      anchors: [/assert-done-when\.sh/i, /--cmd-file/i, /done-unmet/i, /never 'done-unmet'|not[^]{0,40}done-unmet/i,
+                /done_when_log_path/i, /never proceeded over as baseline debt/i] },
     // precision-chain Task 3.2 (D8): the artifact-first attestation duty — the standing card's
     // execution-evidence checklist AND the dispatched shared endStateBlock (live prompts: per-task +
     // end-state-only seats; the integrated-tip seat concatenates the same const, source-count-pinned).
