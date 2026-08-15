@@ -122,7 +122,7 @@ docs-only and touch none of these surfaces).
 | D4 | Control routing | The committed `-i` control's re-cased-fixture half pipes the fixture into `_hit_i` (stdin), so dropping the helper's `-i` reds a committed assertion; the plain-grep half pipes into `_hit`, binding the `-i` as the sole delta between the two inner predicates | spec D4; (verified: issue #1310 (2026-08-06)); second-half routing is A1 |
 | D5 | Presence variant | New `has_i_stripped()` (the lesson's recorded name): existence guard + `_hit_i "$2" < "$1"`, presence polarity, ok/not-ok lines labeled `(case-insensitive, prose-stripped)`; opt-in per pin, never a wholesale `has_i` replacement | spec D5; (verified: issue #1371 and the lesson's fix option (b), 2026-08-06) |
 | D6 | Pin migration scope | Exactly the NEW-present twins that pair with `lacks_i` old-absent pins on the same surface: the four gospel twins (README `recommended auxiliary plugin`, CLAUDE.md `one interview, one merged artifact`, war-help `one merged plan, decision record + phases in a single artifact`, CONTEXT `input shape`) plus the machine `author the merged plan` twin — five pins, all with ≥1 stripped hit at the conversion base | spec D6 (carried [assumed] scope → A3) |
-| D7 | Committed controls | Two committed self-checks join the file's control precedent (the prose-exclusion and `-i` control blocks): (a) the guard fires on a nonexistent path — the helper invoked via command substitution so the probe's own `fails` increment dies in the subshell, then the captured output is asserted to carry the `MISSING FILE` marker; (b) the guard passes a real file (captured output carries the normal ok line, no marker). **Both controls invoke `lacks_i` specifically** — pinned, not executor latitude, so the probes can never perturb End state 5's `has_i_stripped` call-site count. Plus the D4-routed `-i` control | spec D7 (carried [assumed] house-convention basis → A4); probe-helper pin is a grill patch (F6), logged for /red-team |
+| D7 | Committed controls | Two committed self-checks join the file's control precedent (the prose-exclusion and `-i` control blocks): (a) the guard fires on a nonexistent path — the helper invoked via command substitution so the probe's own `fails` increment dies in the subshell, then the captured output is asserted to carry the `MISSING FILE` marker; (b) the guard passes a real file (captured output carries the normal ok line, no marker). **Both controls invoke `lacks_i` specifically, and control (b)'s real-file argument is pinned to `"$AFTERMATH"`** — neither is executor latitude, so the probes can never perturb End state 5's `has_i_stripped` call-site count *nor* End state 4's `lacks_i "$WAR_STRATEGY"` count (the arg pin is red-team round 1: `$WAR_STRATEGY` was a legal executor choice that would have red a correct refactor at 3 ≠ 2) | spec D7 (carried [assumed] house-convention basis → A4); probe-helper pin is a grill patch (F6); real-file arg pin is red-team round 1 |
 | D8 | Fixture routing | The rename prose-exclusion self-check's two inline `printf \| strip_prose \| grep` pipelines also route through `_hit` (polarity per check unchanged: prose ignored / structural caught), leaving zero inline copies of the stripped-scan composition outside the two inner predicates | spec D8 (carried [assumed] hygiene default → A5) |
 | D9 | Lesson stamp | `docs/learnings/archive/gospel-new-present-pin-self-satisfied-by-status-blurb-prose.md` `description:` frontmatter value gains a `MITIGATED (shell-pin-helpers/1.1, #1371): ` prefix — the batch's escape-guard stamp shape (fixing task + issue; no land-date token, which is unknowable at worker time); body, keywords, and relates untouched. The stamp travels **in the fixing task** (stamp honesty — see D10) | spec D9, stamp shape + placement per the escape-guard batch precedent (grill patch F10, logged for /red-team); (verified: repo resolved-lesson-stamp convention — description prefix, body stays present-tense) |
 | D10 | Task decomposition | One task in Phase 1 — the helper-refactor diff (all four issues) plus the file-disjoint lesson stamp folded into it — and the standard trailing release phase. The fold is the batch's stamp-honesty precedent (escape-guard D9): a stamp in a parallel dependency-free task can merge while the fixing task escalates, leaving the lesson claiming a mitigation that never landed; folding removes the hazard with zero parallelism lost. No deps edges, and no drift guard is split from its fact (rule 7 not triggered — Note 1) | conversion judgment revised per grill patch F10, logged for /red-team; war-strategy §3 |
@@ -175,7 +175,11 @@ triad-passing decision (spec §7).
 ## Commander's Intent
 
 - **Purpose:** the pipeline's structural pin suite can no longer lie in any of its four recorded ways — a
-  deleted pinned surface reds every absence pin against it instead of passing vacuously; the `-i` in the
+  deleted pinned surface reds every **`strip_prose`-reading** absence pin against it (`lacks`, `lacks_i`,
+  and the new `has_i_stripped`) instead of passing vacuously — `fm_lacks_key()` reads its target through
+  `frontmatter()`, not `strip_prose()`, and stays a stated Non-goal, so it is deliberately **outside**
+  this Purpose (red-team round 1: an unqualified "every absence pin" contradicted the Non-goals section
+  on the same scope); the `-i` in the
   case-insensitive absence path is bound by a committed assertion instead of an inline look-alike; a
   sentence-case revert of retired count prose is caught; and a NEW-present twin proves its target section
   landed the phrasing, immune to a README Status blurb quoting it — with the suite still green
@@ -208,34 +212,72 @@ triad-passing decision (spec §7).
      assertion ·
      check: `grep -Fc -e '"$recased_fixture" | _hit_i "' skills/war-machine/war-pipeline-structure.test.sh`
      → `1` and `grep -Fc -e '"$recased_fixture" | _hit "' skills/war-machine/war-pipeline-structure.test.sh`
-     → `1` (or the equivalent pipe-into-helper lines located by construct in the control block, if the
-     worker's exact bytes differ); the sed-mutation red-proof is a backstop row.
+     → `1`. **The prior "or the equivalent lines located by construct, if the worker's exact bytes
+     differ" hedge is retired** (red-team round 1): a check that pre-waives its own numeric expectation
+     in prose is not a mechanical gate — any byte deviation self-certifies as "equivalent". A faithful
+     implementation of Task 1.1's own mandated line was measured to produce exactly `1` and `1`, so the
+     numbers stand as written; a worker whose bytes differ must change the bytes, not the check. The
+     sed-mutation red-proof is a backstop row.
   4. The count-flip retirement asserts are case-insensitive ·
      check: `grep -Fc -e 'lacks_i "$WAR_STRATEGY"' skills/war-machine/war-pipeline-structure.test.sh`
      → `2` and `grep -Fc -e 'lacks "$WAR_STRATEGY"' skills/war-machine/war-pipeline-structure.test.sh`
      → `0`.
   5. `has_i_stripped()` exists (guard + `_hit_i "$2" < "$1"`, `(case-insensitive, prose-stripped)`
      labels) and exactly the five D6 twin pins route through it, each still finding ≥1 stripped hit ·
-     check: `grep -Fc -e 'has_i_stripped "' skills/war-machine/war-pipeline-structure.test.sh` → `5`
-     call-site hits (dated expectation; re-count with the census at the rebased base; the D7 guard
-     controls invoke `lacks_i` — pinned — so no probe adds a sixth hit) and the suite run of End
+     check — **identity-scoped, not count-only** (red-team round 1: a bare whole-file count catches a
+     SHORT migration but not a SUBSTITUTION — migrating four D6 twins plus one non-D6 `has_i` pin holds
+     the count at exactly 5 while leaving an enumerated twin un-migrated, and an old-absent `has_i "`
+     count cannot discriminate either: it measures 14 in both the correct and the substituted build):
+     each of these five returns `1` —
+     `grep -Fc -e 'has_i_stripped "$README"'`, `grep -Fc -e 'has_i_stripped "$CLAUDE_MD"'`,
+     `grep -Fc -e 'has_i_stripped "$WAR_HELP"'`, `grep -Fc -e 'has_i_stripped "$CONTEXT"'`, and
+     `grep -Fc -e 'has_i_stripped "$MACHINE" '\''author the merged plan'\'''` (the `$MACHINE` pin is
+     literal-qualified — that surface carries other pins) — **with**
+     `grep -Fc -e 'has_i_stripped "' skills/war-machine/war-pipeline-structure.test.sh` → `5` retained as
+     the no-extras cap (dated expectation; re-count with the census at the rebased base; the D7 guard
+     controls invoke `lacks_i` — pinned — so no probe adds a sixth hit). A header comment for
+     `has_i_stripped()` must not itself match `has_i_stripped "` or it inflates the cap — the existing
+     `has() { # file  literal` inline-comment convention already avoids this. Plus the suite run of End
      state 1 green; the Status-blurb-only scratch-README red-proof is a backstop row.
   6. The spec-survey comment stragglers are resolved: the `lacks_i()` header no longer claims its body
      "mirrors lacks() exactly except the -i flag" and the `-i` control banner names `_hit_i` instead of
      "the case-insensitive composition lacks_i wraps"; survey items 3–5 (gospel-block comment, rename-loop
      case boundary, file-top exit-contract comment) re-verified still-true ·
-     check: `grep -Fc -e 'body mirrors lacks()' skills/war-machine/war-pipeline-structure.test.sh`
-     → `0` and `grep -Fc -e 'composition lacks_i wraps' skills/war-machine/war-pipeline-structure.test.sh`
-     → `0`. (The retired sentence wraps across two comment lines at the base — "body mirrors lacks()" /
+     check — **case-insensitive** (`-Fic`, red-team round 1: a case-SENSITIVE retirement grep over PROSE
+     is the very sentence-case false-negative class D3 migrates the suite's own count asserts to fix;
+     reproduced — a sentence-cased "Body mirrors lacks() …" scores 0 under `-Fc` and 1 under `-Fic`):
+     `grep -Fic -e 'body mirrors lacks()' skills/war-machine/war-pipeline-structure.test.sh`
+     → `0` and `grep -Fic -e 'composition lacks_i wraps' skills/war-machine/war-pipeline-structure.test.sh`
+     → `0`. **Paired both-ways with a NEW-present twin** (red-team round 1: OLD-absent alone is
+     self-satisfied by deleting the comment block outright — precisely the both-ways pairing this
+     suite's own gospel-block comment mandates, so the plan must hold itself to it):
+     `grep -c '^#.*_hit_i' skills/war-machine/war-pipeline-structure.test.sh` ≥ `2` — **comment lines**
+     naming the predicate (the rewritten `lacks_i()` header and the rewritten `-i` control banner).
+     The comment-anchored form is load-bearing and a bare `_hit_i` token count is **not** an acceptable
+     substitute: delete-the-feature traced (base 0 — non-vacuous; correct build 2; **both comments
+     deleted → comment-line form 0 = reds, bare-token form 4 = passes vacuously**). Which of the two
+     rewritten comments is which stays hand-verified in the survey below — the count proves two comment
+     lines name it, not which ones. Keep the **full** phrases in the
+     OLD-absent halves — a shortened anchor (`lacks_i wraps`) false-reds on a correctly
+     rewritten banner (verified: the full phrase scores 0 there, the short anchor 1). (The retired
+     sentence wraps across two comment lines at the base — "body mirrors lacks()" /
      "exactly except the -i flag" — so the check pins the single-line first half, the
      line-based-grep-vs-wrapped-phrase class the suite itself documents; both greps measured 1 at
-     conversion, expect 0 post-rewrite.) **Mandatory manual same-scope survey (grep is a floor):** hand-scan the file's comments,
+     conversion, expect 0 post-rewrite.) **Stated coverage ceiling:** no single-line fixed-string grep can
+     catch a retired phrase *re-wrapped at a different column* — and this task's deliverable IS a comment
+     rewrite, so that vector is live. The mandatory manual same-scope survey below is the **sole**
+     coverage for a rewrapped restatement; it is therefore not optional polish here. **Mandatory manual same-scope survey (grep is a floor):** hand-scan the file's comments,
      block banners, and printf labels end-to-end at the rebased base; list each straggler beyond the
      spec's five as a survey-derived correction (backstop row).
   7. Suite-flip honesty: the suite exits 0 at the integrated tip, matching the measured base result —
      zero pin flips; any census drift at the rebased base was stop-and-reported per D11, never silently
      adapted ·
-     check: `bash skills/war-machine/war-pipeline-structure.test.sh; echo $?` → `0`.
+     check: `bash skills/war-machine/war-pipeline-structure.test.sh; echo $?` → `0`, **plus the
+     exit-contract structural pin** `grep -Fc -e 'exit $fails' skills/war-machine/war-pipeline-structure.test.sh`
+     → `1` (red-team round 1: a green run exits 0 identically whether `exit $fails` is preserved or
+     replaced by a boolean `exit 0`/`exit 1`, so the suite-green check alone cannot discriminate the
+     "exit N = N failed assertions" contract this plan's constraints declare preserved; the literal pin
+     can — measured 1 at the base, line 493).
   8. The #1371 lesson description opens with the MITIGATED prefix in the escape-guard stamp shape ·
      check: `grep -Fc -e 'MITIGATED (shell-pin-helpers/1.1, #1371' docs/learnings/archive/gospel-new-present-pin-self-satisfied-by-status-blurb-prose.md`
      → `1` (the stamp convention deliberately leaves the body present-tense — hand-verify the diff stays
@@ -292,8 +334,13 @@ every construct the task edits exists at the frozen phase base.
   executor latitude, so the controls never perturb End state 5's `has_i_stripped` call-site count):
   (a) invoke `lacks_i` against a nonexistent path via command substitution (the probe's `fails`
   increment dies in the subshell) and assert the captured output carries the `MISSING FILE` marker;
-  (b) invoke `lacks_i` against a real file and assert the marker is absent / the normal ok line
-  present; both bash-3.2 `case`-pattern asserts, each incrementing the real `fails` on failure.
+  (b) invoke `lacks_i` against a real file — **the real-file argument is pinned to `"$AFTERMATH"`**, a
+  surface no exact-count End state greps (red-team round 1: leaving it to executor latitude let a probe
+  legally pick `"$WAR_STRATEGY"`, which would make End state 4's whole-file count of
+  `lacks_i "$WAR_STRATEGY"` return 3 instead of 2 and red a correct refactor — the same
+  probe-perturbs-an-exact-count hazard D7 already pins the *helper* to avoid) — and assert the marker is
+  absent / the normal ok line present; both bash-3.2 `case`-pattern asserts, each incrementing the real
+  `fails` on failure.
   **Comment currency (spec §4d)** — rewrite the `lacks_i()` header sentence ("body mirrors lacks()
   exactly except the -i flag" — false post-refactor) to name the inner predicate; update the `-i`
   control banner to name `_hit_i`; re-verify items 3–5 (the gospel-block "lacks_i() inherits
