@@ -85,3 +85,5 @@ under-attribution class where the *fix itself* got a canonical-source/mirror-sit
 backwards; this lesson is about the *count claim never being touched at all*, a step earlier in the
 same family. Both trace to the ADR 0025 doc-cascade discipline of re-deriving attribution from the
 live artifact rather than trusting either surface's prose.
+
+> archived 2026-08-15: resolved — moved to archive

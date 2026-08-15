@@ -80,3 +80,5 @@ that the staged `doneWhen` value excludes the `Done when:` key prefix itself, el
 staged string renders as a bogus shell command (`assert-done-when.sh` would run
 `Done when: node --test ...` verbatim) — a reminder that "extend the line span" and
 "define the value boundary" are two separate authoring-doc precision duties.
+
+> archived 2026-08-15: resolved — moved to archive

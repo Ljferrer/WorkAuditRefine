@@ -70,3 +70,5 @@ the new condition's premise without satisfying its intent.
 
 See also [[old-absent-gate-half-relies-on-unrecorded-hand-grep-fails-silently]] for the sibling
 NEW-present/OLD-absent doc-gate asymmetry pattern.
+
+> archived 2026-08-15: resolved — moved to archive

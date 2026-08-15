@@ -70,3 +70,5 @@ pin is what turns "deleted the whole file" from a silent vacuous pass into a har
 [[old-absent-gate-half-relies-on-unrecorded-hand-grep-fails-silently]],
 [[lacks-case-sensitive-vs-has-i-presence-pin-asymmetry]],
 [[weak-test-assertion-passes-without-feature-being-exercised]]
+
+> archived 2026-08-15: resolved — moved to archive

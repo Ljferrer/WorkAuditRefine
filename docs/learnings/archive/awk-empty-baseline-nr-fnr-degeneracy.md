@@ -69,3 +69,5 @@ Any two-file awk diff/join guarded by `NR==FNR` must validate the **first** oper
 degenerates whenever the first file has zero records, and the failure mode is a **wrong-direction**
 result (everything looks new/removed), not a crash, so it is easy to miss in review and easy for a
 truncated-write infra fault (a failed snapshot write, a `mktemp` never populated) to trigger silently.
+
+> archived 2026-08-15: resolved — moved to archive

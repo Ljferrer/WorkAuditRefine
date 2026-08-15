@@ -63,3 +63,5 @@ loop over the extracted verdict set was independently defeated two ways: a behav
 refactor emptied the function-scoped slice, and a plain containment check let
 `CLEARED-WITH-NOTES` satisfy a standalone-`CLEARED` presence check — this file's hyphen trap is the
 second of those two defeats, in isolation). [[weak-test-assertion-passes-without-feature-being-exercised]].
+
+> archived 2026-08-15: resolved — moved to archive

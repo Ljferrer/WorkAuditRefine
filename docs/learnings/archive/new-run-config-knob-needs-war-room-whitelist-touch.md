@@ -70,3 +70,5 @@ rather than letting successive audit rounds re-discover the same gap. A `git log
 sweep across `skills/war-room/`, `skills/war/references/schemas.md`, and the consuming skill's
 doc — not just `war-config.mjs` and its test — is the cheap check that would have caught this
 before the first audit round, not the third.
+
+> archived 2026-08-15: resolved — moved to archive

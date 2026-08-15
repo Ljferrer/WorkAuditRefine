@@ -96,3 +96,5 @@ Related: [[structural-test-blind-spot-narrowing-needs-negative-reference-and-def
 presence-anywhere gap, but for location/occurrence-count discrimination rather than
 correlated-pairing discrimination — the two gaps are distinct failure modes of the same "presence
 somewhere isn't enough" family).
+
+> archived 2026-08-15: resolved — moved to archive

@@ -56,3 +56,5 @@ seat did.
 
 See also [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]] for the parallel
 lag pattern on the servitor's own D3 verify-on-write checkout.
+
+> archived 2026-08-15: resolved — moved to archive

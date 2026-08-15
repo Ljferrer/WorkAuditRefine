@@ -119,3 +119,5 @@ rule" above), not a continuation of this specific literal's four-recurrence hist
 The `p5-polish` gate-audit's own findings (read at the same worktree) independently arrived at this
 same observation — flagging that this very lesson file would go stale the moment the closure landed,
 and recommending exactly the RESOLVED-stamp convention applied here.
+
+> archived 2026-08-15: resolved — moved to archive

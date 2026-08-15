@@ -87,3 +87,5 @@ merely *uncorrectable* by construction of a different HARD end state);
 [[absorb-fix-for-attribution-finding-can-itself-invert-mirror-direction]] (same "an absorb-fix for
 a false-fact finding can itself be wrong" class — there it landed wrong and stayed wrong; here a
 third pass finally re-measured correctly).
+
+> archived 2026-08-15: resolved — moved to archive
