@@ -4,6 +4,7 @@ description: "RESOLVED (red-team-gate-cli/1.2, #1378, #1347, #1366): red-team-ga
 metadata: 
   node_type: memory
   type: project
+  promoted: dev/2026-08-06-red-team-gate-cli@phase-1
   provenance: code-verified
   slug: stdin-mode-cli-parser-silently-drops-space-separated-flag-with-no-positional-fallback
   phase: "precision-chain-and-loop-breaker/4.1 (original); RESOLVED by red-team-gate-cli/1.2, landed dev/2026-08-06-red-team-gate-cli @ 765d00f378fc6a6bc04f23ec5b747ab11062aee7"
@@ -19,6 +20,10 @@ metadata:
     - loop-breaker
     - RESOLVED
     - default-deny argument check
+    - RESOLVED section self-contradiction
+    - mode inversion
+    - wrong mode named in fix appendix
+    - stdin mode zero bare tokens
   tags: 
     - war
     - red-team
@@ -26,7 +31,7 @@ metadata:
     - gotcha
   created: 2026-08-06
   originSessionId: 428f1fab-f385-493a-952d-9509fdac5e10
-  modified: 2026-08-15T00:53:09.580Z
+  modified: 2026-08-15T01:50:54.443Z
 ---
 
 # stdin-mode CLI parsers can silently drop a space-separated flag that file-mode refuses loudly
@@ -79,7 +84,10 @@ Verified at landed tip `765d00f378fc6a6bc04f23ec5b747ab11062aee7`
 of mode selection and the stdin/file read, that walks every argv token and `die()`s (exit 1, a
 `unknown argument <token> — accepted forms: …` stderr diagnostic naming the offending token and
 the accepted `=`-attached forms) on anything not `--stdin`, a `--rounds=`/`--round-limit=`
-`=`-attached flag, or (in `--stdin` mode) the sole recognized bare token. This closes the gap
+`=`-attached flag, or — in `--stdin` mode — **any** bare token at all (`--stdin` mode takes no
+positional arguments whatsoever; the bare-token allowance belongs to FILE mode only, where the
+first bare token is the positional results path and any surplus bare token there stays ignored,
+deliberate). This closes the gap
 option (a) from "How to apply" above chose explicitly: one check that runs in every mode, rather
 than scoping the doc/test titles narrower. `skills/red-team/assets/red-team-gate.test.mjs` carries
 new rows for both the space-separated-value shape and the discriminating bare-token shape in
@@ -87,3 +95,16 @@ new rows for both the space-separated-value shape and the discriminating bare-to
 tip). The historical prose above still documents the general pattern — the same asymmetric-safety
 shape can recur in any CLI adding a second input mode without threading the same default-deny
 check through it.
+
+**Correction (red-team-gate-cli/phase-2 close, 2026-08-14):** this RESOLVED section originally read
+"or (in `--stdin` mode) the sole recognized bare token," which names the wrong mode — `--stdin`
+mode accepts **zero** bare tokens (the `else if (stdinMode)` arm dies on every one); the "sole bare
+token" it described is file mode's positional results path. Flagged by the phase-2 `p2-polish` task
+audit (Minor, `disposition: absorb`, `phaseClose: true`) against the repo-root copy of this same
+lesson (`docs/learnings/stdin-mode-cli-parser-silently-drops-space-separated-flag-with-no-positional-fallback.md`)
+and confirmed still present, uncorrected, in the repo file at the landed tip `8064a3c603bffd462ea616f877954bfe0bf332f2`
+(`_refinery8` worktree, `HEAD` byte-equal to that tip) — the repo copy is not directly editable by a
+servitor (D1), so the fix lands here; a future Gate-2 promotion overwrites the same-slug repo file.
+The frontmatter `description` line above was already correct (it reads "a bare non-flag token" with
+no mode qualifier); only the appended `## RESOLVED` section's own prose had inverted the rule — a
+concrete instance of [[resolved-section-fix-append-can-itself-misstate-which-mode-a-rule-applies-to]].
