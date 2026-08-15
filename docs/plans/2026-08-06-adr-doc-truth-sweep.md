@@ -3,15 +3,19 @@
 Converted by `/war-machine --afk` from
 [docs/specs/2026-08-06-adr-doc-truth-sweep-design.md](../specs/2026-08-06-adr-doc-truth-sweep-design.md)
 (Part 1 is its decision digest; every spec assumption is carried into the ledger or retired with a stated
-reason). Issues addressed: #1363, #1305, #1266, #1290, #1291, #1292, #1253, #1330, #1317. Issue → task
+reason). Issues addressed: #1363, #1305, #1266, #1290, #1291, #1292, #1253, #1330, #1317, and —
+folded 2026-08-15 by operator direction (campaign-era doc-truth follow-ups from landed plan 2, both
+in this sweep's exact family) — #1398 and #1399. Issue → task
 mapping: #1363 + #1305 (same defect, two filings) → Task 1.1 (ADR 0030 amendment + the mined lesson's
 stamp); #1266 → Task 1.1 (ADR 0033 + ADR 0025 correction notes); #1290 → Task 1.2 (ADR 0008 pointer
 repair + whole-file survey); #1291 → Task 1.3 (`ARGS_FALLBACK_ANCHOR` comment); #1292 → Task 1.4 (tour
 re-derivation + tour-narrative sweep); #1253 → Task 1.5 (C11/H5 comment truth + archived-memory scope
 note); #1330 + #1317 → Task 1.6 (README retro-compression, `CHANGELOG.md`, checklist item,
 `strip_prose()` resolution comment), with #1317's durable checklist item self-applied by Task 2.1's own
-release blurb. `/war` files its own epic + task issues regardless (war-execution-must-file-issues);
-closing the nine source issues is Lead checkpoint work at phase close
+release blurb; #1398 → Task 1.1 (the ADR 0033 correction note's Decision-2 half — exit-2 set + check
+(c)); #1399 → Task 1.7 (the awk-degeneracy lesson's appended correction note). `/war` files its own
+epic + task issues regardless (war-execution-must-file-issues);
+closing the eleven source issues is Lead checkpoint work at phase close
 (war-checkpoint-must-close-task-issues), never assumed from the epic close.
 
 ## Context — the gap / problem
@@ -151,8 +155,9 @@ plan — the batch's terminal sink — lags the drafting base by up to thirteen 
   stays green (gate discovery via `resolveGate` in `war-config.mjs`, never an enumerated suite list).
 - **The tour file is JSON** — `.tours/architect-war-system.tour` must re-parse after every edit;
   construct names stay primary, line numbers advisory with the `≈` hedge kept.
-- **Redaction lint stays green**: both `docs/learnings/` edits (the archive scope note, the lesson
-  stamp) ride the fail-closed lint, which runs in-gate via its discovered shell-test wrapper.
+- **Redaction lint stays green**: all three `docs/learnings/` edits (the archive scope note, the
+  lesson stamp, Task 1.7's appended correction section) ride the fail-closed lint, which runs
+  in-gate via its discovered shell-test wrapper.
 - **Platform law** (batch-refined wording): every committed check whose pattern is a LITERAL — above
   all one carrying mid-pattern metacharacters — runs `grep -F`; deliberate regexes (the `#L[0-9]+`
   rot scan, `fails? loud`) stay regexes and cannot ride `-F`. Execute-your-literals: run each check as
@@ -268,8 +273,11 @@ at conversion (Note 5).
      (`-F` per the platform law — the pattern carries parentheses); the byte-unchanged claim is
      hand-verified in the diff (survey note, SOFT). (AI-declared)
   3. ADR 0033's correction note records the `--baseline` ref-diff as built and the porcelain half as
-     exact only for tracked and untracked-but-not-ignored paths, per the guard's own header · check:
-     `grep -q 'baseline' docs/adr/0033-executed-probes-behind-escape-guard.md`. (AI-declared)
+     exact only for tracked and untracked-but-not-ignored paths, per the guard's own header — and
+     *(amendment 2026-08-15, #1398)* corrects Decision 2's two under-descriptions: the exit-2
+     parenthetical widened to the full set (git / usage / containment / unreadable / zero-byte
+     baseline) and check (c) added to the a/b enumeration · check:
+     `grep -q 'baseline' docs/adr/0033-executed-probes-behind-escape-guard.md && grep -qi 'zero-byte' docs/adr/0033-executed-probes-behind-escape-guard.md`. (AI-declared)
   4. ADR 0025's correction note records the six-term `CONTEXT.md` subsection and names its forcing
      2026-08-02 amendment, count restated as owned by the live subsection · check:
      `grep -qi 'six term' docs/adr/0025-drift-guard-discipline.md`. (AI-declared)
@@ -324,8 +332,8 @@ at conversion (Note 5).
       hand-scan; ADR 0030's ratified "six rules" bullet is append-only posterity, never a sweep
       target) · check: `! grep -rn 'seven-item' README.md CLAUDE.md CONTEXT.md skills/` + survey
       note. (AI-declared)
-  20. Every task's landing commit cites its mapped issues (#1363/#1305, #1266, #1290, #1291, #1292,
-      #1253, #1330/#1317) · HARD at audit_sha (git log between the phase base and tip;
+  20. Every task's landing commit cites its mapped issues (#1363/#1305, #1266/#1398, #1290, #1291,
+      #1292, #1253, #1330/#1317, #1399) · HARD at audit_sha (git log between the phase base and tip;
       execution-evidence seat). (AI-declared)
   21. The full gates are green at the integrated tip (redaction lint included) · gate: the
       self-discovery gate (`resolveGate` in `war-config.mjs`) — `node --test 'skills/**/*.test.mjs'`
@@ -335,10 +343,16 @@ at conversion (Note 5).
       its own new item); the release's own CHANGELOG entry is appended and the Status link line
       survives the blurb replacement · check: `node --test skills/war/assets/version-slots.test.mjs`
       plus End state 16's grep re-run. (AI-declared)
+  23. *(amendment 2026-08-15, #1399)* The awk-degeneracy lesson carries the appended dated
+      correction section stating the true mechanism (`base[]` fills from the live dump; `live[]`
+      stays empty), pre-existing body bytes unchanged above it, redaction lint green ·
+      check: `grep -qi 'live dump' docs/learnings/awk-empty-baseline-nr-fnr-degeneracy.md && grep -qF 'Correction (2026-08-15' docs/learnings/awk-empty-baseline-nr-fnr-degeneracy.md`
+      (byte-unchanged-above claim hand-verified in the diff, SOFT).
 
 ## Build order (for /war)
 
-Phase 1 (Tasks 1.1–1.6, one wave, file-disjoint) → Phase 2 (release).
+Phase 1 (Tasks 1.1–1.7, one wave, file-disjoint — Task 1.7, amendment 2026-08-15, owns only the awk
+lesson file, which no sibling touches) → Phase 2 (release).
 
 No deps edges anywhere: no task consumes another's output, no mechanical guard is authored in this
 plan, so rule 7 (guard-split deps-edge) never triggers (Note 1). Every construct each task edits
@@ -346,7 +360,7 @@ exists at the frozen phase base.
 
 ## Phase 1 — The doc-truth sweep
 
-### Task 1.1: ADR amendment/correction notes + lesson stamp (#1363, #1305, #1266)
+### Task 1.1: ADR amendment/correction notes + lesson stamp (#1363, #1305, #1266, #1398)
 
 - Files: `docs/adr/0030-live-artifacts-over-stack-fragile-literals.md`, `docs/adr/0033-executed-probes-behind-escape-guard.md`, `docs/adr/0025-drift-guard-discipline.md`, `docs/learnings/adr-consequences-member-count-goes-stale-when-a-same-plan-task-adds-a-rule-to-the-block-it-counts.md`
 - Plan slice: **Witness census (record, never halt)** — at the rebased dispatch base, re-count and
@@ -362,7 +376,15 @@ exists at the frozen phase base.
   note: the ref-diff upgrade path **was built** (`assert-no-repo-escape.sh` `--baseline` mode; check
   (c) is the exact ref-diff scoped to heads+tags), and the porcelain half is exact only for tracked
   and untracked-but-not-ignored paths, per the guard's own header (re-verify both header phrases at
-  the rebased base — plan 2's landed edits widen adjacent sentences). **ADR 0025** — append a dated
+  the rebased base — plan 2's landed edits widen adjacent sentences). *(amendment 2026-08-15,
+  #1398)* The same ADR 0033 note also corrects Decision 2's two under-descriptions: the
+  exit-contract parenthetical's "2 = git error" is widened to the full exit-2 set (git / usage /
+  containment `..` / unreadable baseline / zero-byte baseline — the last landed by plan 2), and
+  check (c) is added to Decision 2's a/b enumeration (verify the live set against the guard's own
+  header at the rebased base — the guard is the truth source, the note restates it). One note, one
+  Correction heading — the three ADR 0033 corrections (#1266's ponytail + #1398's two) travel
+  together, per the ADR 0037 Correction-note shape with pre-existing body bytes unchanged.
+  **ADR 0025** — append a dated
   correction note: the `CONTEXT.md` `### Drift-guard discipline` subsection now defines **six**
   terms, the sixth (**Guard-split deps edge**) forced by this ADR's own Amendment (2026-08-02);
   count restated as owned by the live subsection. All three: pre-existing body bytes byte-unchanged
@@ -370,8 +392,8 @@ exists at the frozen phase base.
   updated (the sanctioned exemption); ADR 0044 is read-only reference (retired assumption 1).
   **Lesson stamp (D18)** — prefix the mined lesson's `description:` frontmatter value with
   `RESOLVED (adr-doc-truth-sweep/1.1, #1363): `; body, `metadata.keywords`, every other key
-  byte-untouched; redaction lint stays green. Commits cite #1363, #1305, #1266.
-- Done when: `grep -qi 'dated snapshot' docs/adr/0030-live-artifacts-over-stack-fragile-literals.md && grep -q 'baseline' docs/adr/0033-executed-probes-behind-escape-guard.md && grep -qi 'six term' docs/adr/0025-drift-guard-discipline.md`
+  byte-untouched; redaction lint stays green. Commits cite #1363, #1305, #1266, #1398.
+- Done when: `grep -qi 'dated snapshot' docs/adr/0030-live-artifacts-over-stack-fragile-literals.md && grep -q 'baseline' docs/adr/0033-executed-probes-behind-escape-guard.md && grep -qi 'zero-byte' docs/adr/0033-executed-probes-behind-escape-guard.md && grep -qi 'six term' docs/adr/0025-drift-guard-discipline.md`
 - requiresTest: false
 - requiresPackaging: false
 - deps: []
@@ -517,6 +539,28 @@ exists at the frozen phase base.
 - deps: []
 - target repo: superproject
 
+### Task 1.7: awk-degeneracy lesson — appended correction of the inverted mechanism sentence (#1399; folded 2026-08-15)
+
+- Files: `docs/learnings/awk-empty-baseline-nr-fnr-degeneracy.md`
+- Plan slice: the lesson's "Concrete instance" mechanism sentence states the degeneracy backwards —
+  it claims the awk pass "loads nothing into `base[]`", when with a zero-byte first operand `NR`
+  never diverges from `FNR`, so **every stdin record takes the loader branch: `base[]` fills from
+  the LIVE dump and `live[]` stays empty**, and the `END` block walks a fully populated `base[]`
+  reporting every live ref as `removed:` (#1399's reproduction: `base=2, live=0`; if `base[]` really
+  stayed empty the guard would exit 0, the opposite of the exit 1 the lesson correctly concludes).
+  The lesson's durable rule and its "How to apply" alternative are correct and untouched. Fix
+  channel: an **appended dated `## Correction (2026-08-15, #1399)` section** stating the corrected
+  mechanism — never an in-place body edit: plan 2's D8/A2 byte-froze the body, and the repo's own
+  `resolved-section-fix-append-can-itself-misstate-which-mode-a-rule-applies-to` lesson governs this
+  exact channel (state the corrected direction plainly; do not re-describe the wrong one beyond
+  naming the inverted sentence). Pre-existing bytes above the appended section unchanged; the
+  ADR 0043/0016 dated-note convention. Redaction lint stays green. Commit cites #1399.
+- Done when: `grep -qi 'live dump' docs/learnings/awk-empty-baseline-nr-fnr-degeneracy.md && grep -qF 'Correction (2026-08-15' docs/learnings/awk-empty-baseline-nr-fnr-degeneracy.md`
+- requiresTest: false
+- requiresPackaging: false
+- deps: []
+- target repo: superproject
+
 ## Phase 2 — Release
 
 ### Task 2.1: Version slots, lock-step (+ CHANGELOG head entry)
@@ -572,19 +616,27 @@ exists at the frozen phase base.
 - ADR 0046's reach over `CHANGELOG.md` (A1) · why deferred: the plan complies unconditionally, so
   the reading is never load-bearing here · runner: /red-team ratifies the ledger row; the
   doc-cli-consistency corpus owners decide any future enumeration.
+- *(amendment 2026-08-15)* End state 23's bytes-unchanged-above-the-appended-section half, and the
+  ADR 0033 note's live-set re-verify (the exit-2 enumeration restated from the guard's own header at
+  the rebased base, not from #1398's snapshot) · why deferred: diff-shape and rebased-base hand-reads ·
+  runner: Tasks 1.7 and 1.1's workers state them in their done reports; gate-audit reads them SOFT.
 
 ## Notes / conscious deviations
 
 1. **Rule 7 (guard-split deps-edge) is not triggered.** This plan authors no mechanical guard at
    all — it is a doc/comment truth sweep whose arbiters (version-slots, stage-workflow,
    pipeline-structure, auditor-guard suites, the redaction lint) all pre-exist and stay unchanged.
-   Phase 1's six tasks are mutually file-disjoint with no content dependencies; one wave, no deps.
+   Phase 1's seven tasks are mutually file-disjoint with no content dependencies; one wave, no deps.
 2. **Predecessor-consistency check (recorded).** All thirteen committed 2026-08-06 plans' `- Files:`
    lines were read at conversion. None touches this plan's Phase 1 footprint files (the four ADRs,
    the tour, `hooks/validate-auditor-git.test.sh`, `stage-workflow.mjs`, the archive lesson,
    `CHANGELOG.md`) except: **plan 4** owns `skills/war-machine/war-pipeline-structure.test.sh`
-   (this plan adds one comment sentence after plan 4's refactor lands — witnessed in Task 1.6) and
-   every plan's release task owns `README.md`'s Status blurb (Note 3). Read-side couplings verified
+   (this plan adds one comment sentence after plan 4's refactor lands — witnessed in Task 1.6);
+   every plan's release task owns `README.md`'s Status blurb (Note 3); and *(re-census 2026-08-15)*
+   the gate-audit-finding-routing plan's own 2026-08-15 amendment (its Task 2.2, #1412) now adds a
+   message-content case to `hooks/validate-auditor-git.test.sh` — it lands spine-earlier, so Task
+   1.5 edits comment truth on top of the landed suite (additive, construct-disjoint: Task 1.5
+   touches C11/H5 rationale comments, not the new denial-diagnostics case). Read-side couplings verified
    against the committed plan texts: plan 11 pins the war-strategy SKILL §2 block byte-unchanged
    (my ADR 0030 note's subject); plan 12 edits war SKILL.md's Gate-2 bullet, and plan 13's pointer
    work lands a trigger-pointer bullet **inside** the Invariants section itself — but at clause
@@ -653,6 +705,18 @@ exists at the frozen phase base.
    defects reproduced live, `expect_deny`'s fail-loud trace proven in sandbox, and a mocked landed
    state ran the End-state checks green including `version-slots.test.mjs` against the planned
    README shape.
+10. **Amendment (2026-08-15, operator-directed): #1398 and #1399 folded.** Both are plan-2
+    phase-close follow-ups in this sweep's exact family. #1398 extends the ADR 0033 correction note
+    Task 1.1 already appends (one note carries #1266's ponytail correction and #1398's two
+    Decision-2 corrections — same Correction-note channel, same file, no new task). #1399 becomes
+    file-disjoint Task 1.7 — the lesson-body inversion cannot ride a description stamp (plan 2's
+    D8/A2 byte-freeze is exactly why the wrong sentence survived), so the sanctioned appended
+    dated-correction channel applies. Amendment surfaces: header issue map, Task 1.1 slice + Done
+    when, Task 1.7, End states 3/20/23, the redaction-lint constraint (three learnings edits),
+    build order + Note 1 (seven tasks), Note 2's re-census (the gate-audit-finding-routing
+    amendment's new `validate-auditor-git.test.sh` case, spine-earlier). Not folded here: #1396 and
+    #1397 (escape-guard mechanics, not doc truth — they stay open for their own round). Logged for
+    this plan's /red-team pass.
 
 ## Open decisions
 

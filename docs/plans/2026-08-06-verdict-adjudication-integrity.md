@@ -3,12 +3,15 @@
 Converted by `/war-machine` from [docs/specs/2026-08-06-verdict-adjudication-integrity-design.md](../specs/2026-08-06-verdict-adjudication-integrity-design.md)
 (Part 1 is its decision digest; every spec assumption is carried into the ledger or retired with a stated
 reason; spec citations are provenance-only — this plan's Part 1 alone carries every decision, constraint,
-and mechanic the run needs). Issues addressed: #1264, #1265, #1267, #1357. Issue → task mapping:
+and mechanic the run needs). Issues addressed: #1264, #1265, #1267, #1357, and #1386 (folded
+2026-08-15 by operator direction — campaign-era follow-up from landed plan 1, whose
+`red-team-gate.mjs` family this plan already owns). Issue → task mapping:
 #1264 → Task 1.5 (doctrine backstop) + Task 1.6 (strip + pins); #1265 item 1 → Task 1.3 (`CLAUDE.md`),
 item 2 → Task 1.1 (`CONTEXT.md` escape-guard), item 3 → Task 1.4 (gate header comment);
 #1267 (+ the survey-derived third surface) → Task 1.6 (guard extensions); #1357 findings 1/5 → Task 1.1,
-findings 2/4/7 → Task 1.2, findings 3/6 already fixed at the live tip — citation-only closure. `/war`
-files its own epic + task issues regardless (war-execution-must-file-issues); closing the four source
+findings 2/4/7 → Task 1.2, findings 3/6 already fixed at the live tip — citation-only closure;
+#1386 → Task 1.7 (delta-interpolated zero-form assert messages). `/war`
+files its own epic + task issues regardless (war-execution-must-file-issues); closing the five source
 issues is Lead checkpoint work at phase close (war-checkpoint-must-close-task-issues), never assumed from
 the epic close.
 
@@ -334,17 +337,25 @@ WAR construct is introduced (the cold home is a file, not a term). No ADR (Non-g
       'skills/**/*.test.mjs'`, the documented hooks/skills shell-test loop, and the redaction-lint
       wrapper all pass.
   13. Each landing commit cites its issue(s) — #1264 for Tasks 1.5/1.6, #1265 for Tasks 1.1/1.3/1.4,
-      #1267 for Task 1.6, #1357 for Tasks 1.1/1.2; the citation-only closures (#1357 findings 3/6)
-      are cited in the phase-close checkpoint notes, no code change ·
+      #1267 for Task 1.6, #1357 for Tasks 1.1/1.2, #1386 for Task 1.7; the citation-only closures
+      (#1357 findings 3/6) are cited in the phase-close checkpoint notes, no code change ·
       HARD at audit_sha (git log between the phase base and the tip; execution-evidence seat).
   14. Release: all four version slots move lock-step to the next free patch above the live integration
       base at land time ·
       check: `node --test skills/war/assets/version-slots.test.mjs` (lock-step + monotonic floor; the
       bump's presence is judged at audit_sha — the suite cannot fail on a wholly absent release).
+  15. *(amendment 2026-08-15, #1386)* Both zero-form `out.rounds` assertion messages in
+      `red-team-gate.test.mjs` interpolate the observed value; the assertion predicates are
+      byte-unchanged ·
+      check: `node --test skills/red-team/assets/red-team-gate.test.mjs` green, and the two
+      zero-form rows' message arguments are template literals carrying `out.rounds`
+      (hand-verified in the diff — messages only, no predicate change).
 
 ## Build order (for /war)
 
-Phase 1 (wave 1 = Tasks 1.1, 1.2, 1.3, 1.4, 1.5; wave 2 = Task 1.6 `deps: [1.1]`) → Phase 2 (release).
+Phase 1 (wave 1 = Tasks 1.1, 1.2, 1.3, 1.4, 1.5, 1.7; wave 2 = Task 1.6 `deps: [1.1]`) → Phase 2
+(release). Task 1.7 (amendment 2026-08-15) is file-disjoint from every sibling — no plan task
+touches `red-team-gate.test.mjs` — and dependency-free.
 
 The wave edge is rule 7's guard-split case, never a collision dodge: Task 1.1/1.6 file sets are
 disjoint, and Task 1.6's D8 guard surface is a line in Task 1.1's file — at the frozen phase base the
@@ -532,6 +543,26 @@ constructs exist at the frozen base, which already carries both landed predecess
 - deps: [1.1]
 - target repo: superproject
 
+### Task 1.7: Zero-form assert messages interpolate the observed delta (#1386; folded 2026-08-15)
+
+- Files: `skills/red-team/assets/red-team-gate.test.mjs`
+- Plan slice: the two End-state-3 zero-form rows (locate by construct: the assertions checking
+  `out.rounds` echoes a supplied `0` — near-duplicate `assert.equal(out.rounds, 0, '<fixed string>')`
+  calls; #1386 cites ~876/~888 as rotting line hints only) each pass a fixed-string message, which
+  per the code-verified lesson `assert-deepequal-custom-message-suppresses-diff-interpolate-delta`
+  suppresses node:assert's generated actual/expected diff. Interpolate the observed value into both
+  messages — the issue's prescribed shape:
+  `` rounds: 0 must be echoed — 0 is a supplied value, got ${JSON.stringify(out.rounds)} (keys: ${Object.keys(out)}) ``
+  (or the file's nearest existing delta-interpolation idiom, e.g. the roundLimit row's — in-file
+  consistency is the point). **Not a nonvacuity gap** (#1386 traced both rows red in both
+  directions); this is diagnostics-quality only — assertion *predicates* byte-unchanged, messages
+  only. Suite stays green. Commit cites #1386.
+- Done when: `node --test skills/red-team/assets/red-team-gate.test.mjs`
+- requiresTest: true
+- requiresPackaging: false
+- deps: []
+- target repo: superproject
+
 ## Phase 2 — Release
 
 ### Task 2.1: Version slots, lock-step
@@ -579,6 +610,9 @@ constructs exist at the frozen base, which already carries both landed predecess
 - The predecessor witnesses (A5) on a standalone run · why deferred: a campaign run discharges them by
   spine order; only a plain-`/war` run can encounter the missing-predecessor state · runner: Tasks 1.3
   and 1.4 run their witness greps as their first post-rebase act and halt-and-report on a miss.
+- *(amendment 2026-08-15)* End state 15's messages-only half (assertion predicates byte-unchanged) ·
+  why deferred: a diff-shape property, not a mechanical gate member · runner: Task 1.7's worker
+  states it in the done report; the refiner eyeballs the diff at merge; gate-audit reads it SOFT.
 
 ## Notes / conscious deviations
 
@@ -638,6 +672,13 @@ constructs exist at the frozen base, which already carries both landed predecess
    war-followup #1357 with its auditor-verbatim findings; the spec's three flagged [assumed] design
    calls are carried as A1/A2/A3 with their fallbacks intact; conversion-time judgments (D15, D16,
    D17, A4–A7, Notes 1–5) are logged for /red-team ratification.
+9. **Amendment (2026-08-15, operator-directed): #1386 folded as Task 1.7.** The campaign-era
+   follow-up from landed plan 1 (`red-team-gate-cli`, epic #1382) is mechanical, test-file-only, and
+   family-resident: this plan already owns the gate CLI family (Task 1.4 edits
+   `red-team-gate.mjs`), and no plan 4–14 task touches `red-team-gate.test.mjs`, so the fold adds
+   zero contention. Amendment surfaces: header issue map, Task 1.7, End states 13/15, build order.
+   Logged for this plan's /red-team pass (which runs after the amendment and validates it like any
+   other Part 2 content).
 
 ## Open decisions
 
