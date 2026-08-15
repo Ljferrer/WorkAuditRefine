@@ -37,7 +37,8 @@
 #       the pre-cd resolution bash can't find the file after cd -> 127 -> 1).
 #   13. stdout belongs to the executed command: OUT equals the command's own
 #       bytes EXACTLY on the green AND the red path (a floor diagnostic
-#       leaking onto stdout would pollute the refiner's evidence artifact).
+#       leaking onto stdout would masquerade as command output inside the
+#       teed done-when-<taskId>.log artifact the refiner captures).
 #   14. a command that exits 143 ON ITS OWN is NOT a timeout (marker
 #       precedence): stderr names `exited 143`, never `timed out`.
 #   15. argument guards: trailing --cmd-file / trailing --timeout / unknown
@@ -51,6 +52,11 @@
 #       under the CDPATH entry) and stdout stays exactly the command's bytes
 #       (without `unset CDPATH`, bash's cd searches CDPATH first and echoes
 #       the resolved dir onto stdout — both asserts fail).
+#   21. grandchild containment (group kill): `sleep 60 & wait` + --timeout 1
+#       -> exit 1 + the timed-out diagnostic AND the command-substitution
+#       stdout capture returns within the 15s wall bound (without the group
+#       kill the orphaned sleep survives the single-PID kill, holds the
+#       inherited stdout fd, and the capture blocks until it dies).
 #
 # The env-arm greps quote the floor's die literals VERBATIM (embedded $vars
 # included) inside double quotes: the test binds each variable to the runtime
@@ -148,8 +154,9 @@ fi
 # ---------------------------------------------------------------------------
 # Case 3: timeout arm (A3) — a hung command + --timeout 1 -> exit 1 (the
 # done-unmet route, NOT exit 2, NOT a hang), stderr names the timeout.
-# The hang is a pure-bash loop with 1s sleeps so TERM lands promptly and any
-# straggler child dies within 1s. WITHOUT the watchdog this case never
+# The hang is a pure-bash loop with 1s sleeps so TERM lands promptly, and
+# the watchdog's group kill reaps the in-flight `sleep 1` with it (case 21
+# pins the long-lived-grandchild class). WITHOUT the watchdog this case never
 # returns — the suite reddens by hanging, and the wall-clock bound keeps the
 # diagnostic sharp when it does return.
 # ---------------------------------------------------------------------------
@@ -345,7 +352,9 @@ fi
 # the floor's own diagnostics are stderr-only. EXACT equality (not substring)
 # proves the floor contributed zero bytes of its own, on the green path AND on
 # the red path (where the 'exited N' diagnostic must stay off stdout) —
-# otherwise the refiner's captured done-when evidence artifact is polluted.
+# otherwise the floor's own noise masquerades as command output inside the
+# teed done-when-<taskId>.log artifact the refiner captures (reading the
+# floor's OWN exit status across that tee, done-when-floor-wiring D14).
 # ---------------------------------------------------------------------------
 WT13="$(setup_wt)"
 CF13G="$(tmp_dir)/stdout-green.cmd"
@@ -503,7 +512,8 @@ fi
 # CDPATH-sensitive. WITHOUT `unset CDPATH`, bash resolves that cd against the
 # CDPATH entry first: the command runs in the decoy (marker lands there — a
 # false-green against the wrong tree) AND cd echoes the resolved dir onto
-# stdout (polluting the evidence artifact case 13 pins) -> the real-marker
+# stdout (masquerading as command output inside the teed done-when-<taskId>.log
+# artifact whose stdout half case 13 pins) -> the real-marker
 # assert and the exact-OUT assert both fail while RC stays 0.
 # (setup_wt mktemps its own path; this fixture needs a KNOWN bare name inside
 # the invoking cwd, so the repo init is inlined.)
@@ -532,6 +542,42 @@ if [ "$RC" -eq 0 ] && [ -f "$WT20/cdpath-ran.txt" ] \
   pass "case 20: CDPATH set + relative worktree -> ran in the REAL worktree, stdout exactly the command's bytes (CDPATH neutralized)"
 else
   fail "case 20: CDPATH neutralization -> RC=$RC, real marker: $([ -f "$WT20/cdpath-ran.txt" ] && echo yes || echo no), decoy marker: $([ -f "$DECOY20/wt20/cdpath-ran.txt" ] && echo yes || echo no), OUT=[$OUT] (err: $ERR)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 21: grandchild containment (the group kill) — the command backgrounds a
+# long-lived grandchild (`sleep 60 & wait`) and times out under --timeout 1.
+# Assert (a): floor exit 1 + the timed-out diagnostic (the done-unmet route).
+# Assert (b): run_floor's command-substitution stdout capture RETURNS within
+# the suite's 15s wall-clock idiom. DELETE-THE-FEATURE (traced pre-commit,
+# recorded in the task's done report): with the group kill reverted to the
+# single-PID form, the watchdog signals only $cmd_pid — the orphaned sleep
+# survives TERM and KILL, keeps holding the inherited stdout fd, and the
+# command substitution blocks reading until it dies (~60s) -> assert (b)
+# reds, proving the fixture is load-bearing. Containment ceiling (the floor
+# header's residual note): a grandchild that escapes into a NEW
+# session/process group (true daemonization) is beyond the group kill on
+# bash 3.2 (no setsid) — this case pins the reachable class only.
+# ---------------------------------------------------------------------------
+WT21="$(setup_wt)"
+CF21="$(tmp_dir)/grandchild.cmd"
+printf 'sleep 60 & wait\n' > "$CF21"
+
+T21_START="$(date +%s)"
+run_floor "$WT21" --cmd-file "$CF21" --timeout 1
+T21_END="$(date +%s)"
+T21_ELAPSED=$((T21_END - T21_START))
+if [ "$RC" -eq 1 ] \
+   && printf '%s' "$ERR" | grep -qF 'timed out after 1s' \
+   && printf '%s' "$ERR" | grep -qF 'done-unmet' \
+   && [ "$T21_ELAPSED" -le 15 ]; then
+  pass "case 21: grandchild (sleep 60 & wait) + --timeout 1 -> exit 1 + timed-out diagnostic, capture returned in ${T21_ELAPSED}s (group kill reaped the orphan)"
+elif [ "$RC" -ne 1 ]; then
+  fail "case 21: grandchild timeout -> expected exit 1, got $RC after ${T21_ELAPSED}s (err: $ERR)"
+elif [ "$T21_ELAPSED" -gt 15 ]; then
+  fail "case 21: exit 1 but the capture took ${T21_ELAPSED}s — the orphaned grandchild held the inherited stdout fd (group kill missing/ineffective)"
+else
+  fail "case 21: grandchild timeout exit 1 but diagnostic wrong (err: $ERR)"
 fi
 
 # ---------------------------------------------------------------------------
