@@ -76,8 +76,10 @@ touch none of these surfaces). Three defects/decisions resolve against that sing
   `.result`, zero-probe tokens) and `lenses.md`'s Verdict/Rounds adjacency + `## Route upstream` heading.
   The rewrite must keep every one present and green.
 - **ADR 0043's decision is ratified, not re-litigated.** The ADR implements the 2026-07-28 operator
-  directive; the correction touches the Context over-claim only — all other body text byte-unchanged,
-  the Status header line included.
+  directive. **Every pre-existing body byte stays unchanged — the Context sentence included** (D5 as
+  reversed at /red-team round 1 R6: the correction is an APPENDED dated note, so nothing in the existing
+  body is rewritten at all). The `**Status:**` currency line is the one sanctioned exception and may be
+  updated — the recorded carve-out to a byte-unchanged-body mandate.
 - **Ceiling-3 header text stays byte-identical.** The #1369 resolution is a ratified deferral, not a
   behavior change — the ponytail paragraph that documents it is not reworded.
 - **Suite conventions.** macOS bash 3.2.57, cwd-independent, fresh mktemp fixtures via the existing
@@ -100,11 +102,12 @@ touch none of these surfaces). Three defects/decisions resolve against that sing
 | D2 | Rekey the awk loader instead (`FNR==NR && FILENAME==ARGV[1]`)? | **Rejected.** It fixes the degeneracy's direction but silently *accepts* the empty baseline as "no refs at baseline", reporting every live ref `added:` — still exit 1. An empty baseline is always an infra artifact (D3), so acceptance is wrong in principle, not just in direction. The awk pass keeps its bare `NR==FNR` key — with `-s` guaranteeing a non-empty first file the idiom is safe, and layering a second fix would obscure which one is load-bearing | spec §3 row 2 + §8 |
 | D3 | Can a legitimate baseline be zero bytes? | No. Snapshot mode writes via `printf '%s\n' "$snap_out"` — even an empty ref set yields a one-byte file (the trailing newline). `-s` rejects only files no snapshot-mode run can produce: truncated/failed writes or foreign artifacts | (verified: the snapshot-write construct in the guard, live tree at `6fff2ee`, 2026-08-06) |
 | D4 | Step-4 triage shape | Enter the delta triage on **exit 1** specifically; add a one-line exit-2 arm adjacent to the two provenance arms: fix the named git/infra fault and re-run the guard — exit 2 is neither clean nor an escape, and the gate is never piped while the guard is unsettled. Quarantine-on-nonzero (the guard header's "never CLEARED until the state is clean") is unchanged: both nonzero codes forbid `CLEARED` until settled. The existing "Once the guard is settled (exit 0, or exit 1 …)" sentence stays as written — an exit 2 resolves by re-run into 0 or 1, never by settlement | spec §3 row 4; (verified: issue #1268 (2026-08-06)) |
-| D5 | ADR 0043 correction shape | Surgical **in-place** Context edit: drop the over-claim so the sentence reads "the removal mechanic Step 5 offered for closing a blocker (the grill loop …)" — the argument (nothing stopped removal being applied to a merely-patched finding) intact; every other body byte unchanged. In-place, not a dated amendment/correction note: the corpus reserves appended notes for decision changes and true-then-stale claims (ADR 0025/0029 amendments; the sibling adr-doc-truth-sweep group's ADR 0033 correction note), while this sentence was false when written and contradicts the same ADR's own Decision 3; #1268 frames it as a one-to-two-line prose correction (A5) | spec §3 row 5; conversion judgment, logged for /red-team |
+| D5 | ADR 0043 correction shape | **REVERSED at /red-team round 1 (R6) — an APPENDED dated correction note, not an in-place edit.** The conversion-time argument was that the corpus reserves appended notes for decision changes and true-then-stale claims while repairing false-when-written claims in place. **A corpus survey falsifies that split**: `docs/adr/0016-campaign-compaction-survival.md`'s `## Amendment (2026-07-19): a bare layout is a probe success, not a fail-open case` opens "The Decision half of the 2026-07-15 amendment above is **corrected** here for the **bare** case" and states "This amendment changes only the *description* of which cases engage fail-open; no decision and no code change" — i.e. a description that was **wrong when written**, repaired by an APPENDED note. `docs/adr/0019` and `docs/adr/0023` carry the same shape. The corpus does not split the channel on when the claim became false; it appends. Resolution: append `## Correction (2026-08-15, #1268)` to ADR 0043 stating that Step 5 also offered a probe re-run, so "the *only* mechanic" over-claims and the ADR's own Decision 3 two-arm re-verify trigger depends on that second mechanic. **The Context sentence's bytes stay intact** — which also satisfies this plan's own pivotal constraint ("all other body text byte-unchanged") more conservatively than an in-place rewrite | spec §3 row 5; **/red-team round 1 R6, corpus-measured** |
 | D6 | #1369 disposition | Ceiling ratified as **deferred** — no `--ignored` widening. Action taken: pin the current behavior with a new suite case (gitignored stray file, refs unchanged → exit 0), so any future widening must consciously flip a red case. This delivers the back-compat-pin half of the prerequisites the ceiling text names (A1) | spec §3 row 6 |
 | D7 | Zero-byte suite case shape | Mirrors case 26's non-vacuity: the fixture carries a `rogue` branch so the degeneracy path would return 1; assert exit 2, explicitly `!= 1` | spec §3 row 7 |
 | D8 | Lesson closure | `docs/learnings/awk-empty-baseline-nr-fnr-degeneracy.md` gets the repo's RESOLVED description-prefix stamp naming this plan's fixing task and #1263; body and keywords untouched per the stamp convention — the stamp deliberately freezes the body's present-tense defect description (A2) | spec §3 row 8 |
 | D9 | Task decomposition | Three file-disjoint tasks in Phase 1 — Task 1.1 guard + suite + lesson stamp; Task 1.2 `SKILL.md` + `lenses.md` (same drift, same commit rationale) with `deps: [1.1]` (a content edge — see Notes 4–5); Task 1.3 the ADR — plus the standard trailing release phase. The lesson stamp travels with the fix rather than as a fourth prose task: the stamp is honest only once the `-s` check exists, and folding removes a deps edge with no parallelism lost | spec §5 carving hint; conversion judgment, logged for /red-team |
+| D11 | Guard the retired wording mechanically? | **Yes — one fail-closed doc-guard row, added at /red-team round 1 (R3/R4).** An executed probe implemented Tasks 1.1+1.2, re-introduced `unreadable baseline` into the `lenses.md` bullet, and **all three** task gates stayed GREEN — the OLD-absent half had no mechanical enforcement anywhere (not in a Done-when, not in a discovered `*.test.sh`/`*.test.mjs`, not in a merge floor). The row lands in `skills/red-team/assets/red-team-gate.test.mjs` — **already run by End state 6, so no new runner** — mirroring the shape plan `2026-08-06-red-team-gate-cli` landed as its D8b (present in this plan's base at `1655b98`): assert the NEW-present anchors **first** (the widened `unreadable or zero-byte baseline`, and `On exit 1, diagnose`) so a failed extraction reds instead of vacuously passing, then assert each retired needle absent from `SKILL.md` and `lenses.md`. **Self-match hazard, mandatory mitigation:** the row lives under `skills/red-team/`, which is exactly End state 9's grep scope, so each needle is **built at runtime from split fragments** (e.g. `['unreadable', 'baseline'].join(' ')`, `['On a nonzero exit,', 'diagnose'].join(' ')`) — the contiguous literals must appear nowhere in the suite source. Matching is **case-insensitive** (R1). Ownership: Task 1.2, whose `deps: [1.1]` already covers the guard-header fact Task 1.1 authors | **/red-team round 1 R3+R4**; sibling D8b precedent |
 | D10 | Sweep scoping | The spec's doc-consistency sweeps (`grep -rn 'unreadable baseline' skills/ docs/`; the full-phrase retired-opener grep) are kept as the handling floor, but the mechanical OLD-absent assertions are scoped to live `skills/red-team/` surfaces — the `docs/` hits are posterity survivors (the 2026-08-02 plan, this plan + its spec), enumerated and never retro-edited. An unscoped zero-hit assertion would false-red on this very plan document (backstop-retirement-grep-false-reds class) | spec §4 + §8; conversion measurement at `6fff2ee` |
 
 ## Assumptions ledger
@@ -115,7 +118,7 @@ touch none of these surfaces). Three defects/decisions resolve against that sing
 | A2 | The repo's standard RESOLVED description-prefix stamp convention applies to the lesson | spec §3 row 8 (carried [assumed] row); corpus precedent (e.g. the cmdQuery lesson's `RESOLVED (<plan>/<task>, #<issue>):` shape) | skip the stamp; the fix stands on its own | End state 10's grep + the redaction lint; ratify in /red-team |
 | A3 | Spec + pinned suite case suffice as the #1369 deferral's decision record — no new ADR | spec §7 (carried [assumed] row); conversion affirms: below ADR weight, consistent with the corpus documenting detection ceilings in the guard header + suite, not ADRs | promote the deferral to a short ADR in a later pass | ratify in /red-team |
 | A4 | No sibling plan must LAND first for this plan's work to be correct — but the footprint is **not** wholly owned across the 2026-08-06 campaign | conversion-time measurement at `6fff2ee`: `lenses.md` is shared with plan `2026-08-06-red-team-gate-cli` (its Task 1.1 edits the `## Route upstream` template and its Task 1.2's doc-guard rows read `lenses.md`) and with sibling spec `2026-08-06-verdict-adjudication-integrity-design.md` (the severity `- **Verdict:**` bullet + report-template comment; that spec declares `dependsOn: red-team-gate-cli` and `done-when-floor-wiring` — no edge onto this group). This spec declares **no** dependsOn (§8, verified against the spec text; the survey manifest itself is not present in this worktree — the spec's statement of its machine hint is the source). All three plans touch **disjoint constructs** of `lenses.md`; no content dependency runs in either direction | serial-merge rebase conflicts across plans if landed unserialised — ADR 0011 stack-and-plow serializes; wrong-order landing costs only a trivial rebase, never correctness | roadmap: a `## Shared-file contention` row for `lenses.md` (three plans), **no** dependency-spine edge; /war-campaign's sweep contention check re-verifies |
-| A5 | In-place Context correction (not a dated amendment note) is the right convention arm for ADR 0043 | D5's false-when-written vs true-then-stale distinction; #1268's "one-to-two-line prose corrections" framing | /red-team converts it to an appended dated correction note (ADR 0037/0033 precedent channel) | ratify in /red-team |
+| A5 | ~~In-place Context correction (not a dated amendment note) is the right convention arm for ADR 0043~~ — **REFUTED at /red-team round 1 (R6)**; the blast-radius column below is exactly what happened | D5's false-when-written vs true-then-stale distinction; #1268's "one-to-two-line prose corrections" framing | *(realised)* /red-team converted it to an appended dated correction note — the corpus survey found ADR 0016's `## Amendment (2026-07-19)` correcting a description that was wrong when written, plus the same shape in 0019/0023, so the assumed split does not exist | **discharged — D5 now mandates the appended note; Task 1.3 and End state 7 rewritten to match** |
 
 ## Non-goals / deferred
 
@@ -154,7 +157,7 @@ deferral's record is this plan + the pinned suite case, below ADR weight (A3).
 - **End state:**
   1. A zero-byte `--baseline` file exits 2 (never 1), naming the empty baseline as an infra error, and the
      check is one `-s` test in the baseline validation block
-     (`grep -n -- '-s "$baseline_file"' skills/red-team/assets/assert-no-repo-escape.sh` — one hit) ·
+     (`grep -nF -- '-s "$baseline_file"' skills/red-team/assets/assert-no-repo-escape.sh` — one hit; **`-F` is mandatory** — /red-team round 1 measured the unescaped `$` being treated as a mid-pattern anchor by the `grep` shim actually in scope in this environment, returning NO match against the correctly-landed line and reading End state 1 as unmet) ·
      check: `bash skills/red-team/assets/assert-no-repo-escape.test.sh`.
   2. The zero-byte fixture also carries an escape-worthy `rogue` branch and still exits 2 — infra is never
      preempted (the case-27 rule, extended); the case asserts `rc != 1` explicitly ·
@@ -166,9 +169,16 @@ deferral's record is this plan + the pinned suite case, below ADR weight (A3).
   4. The guard's ceiling-3 ponytail paragraph is byte-identical before and after ·
      check: `grep -c 'gitignored-leak-paths backstop, not taken here' skills/red-team/assets/assert-no-repo-escape.sh`
      returns 1.
-  5. Step 4 scopes the delta triage to exit 1 and carries the exit-2 arm ·
-     check: `grep -c 'On a nonzero exit, diagnose' skills/red-team/SKILL.md` returns 0,
-     `grep -c 'On exit 1, diagnose' skills/red-team/SKILL.md` returns 1, and a
+  5. Step 4 scopes the delta triage to exit 1 and carries the exit-2 arm, **and `lenses.md`'s
+     escape-guard bullet gets the same routing rescope** (/red-team round 1 R2 — the Purpose says *every*
+     live prose surface routes each exit code, and `lenses.md` is one of this plan's own named carriers) ·
+     check — **every retirement grep is case-INSENSITIVE**, mandatory, not stylistic (R1: an executed probe
+     showed all three case-sensitive forms returning the PASS value on copies where the retired wording was
+     merely re-cased mid-sentence):
+     `grep -cin 'nonzero exit, diagnose' skills/red-team/SKILL.md` returns 0,
+     `grep -cin 'exit 1, diagnose' skills/red-team/SKILL.md` returns 1,
+     `grep -cin 'A nonzero result routes the verdict' skills/red-team/references/lenses.md` returns 0,
+     and the bullet's replacement exit-1-scoped wording is present, and a
      `grep -n 'exit 2' skills/red-team/SKILL.md` hit lands inside Step 4's new arm (hand-verified location —
      Step 3's pre-existing lowercase `exit 2` hits are its unrelated snapshot-refusal prose and stay).
      **Mandatory manual same-scope survey (grep is a floor):** hand-scan `skills/red-team/SKILL.md` for
@@ -179,23 +189,40 @@ deferral's record is this plan + the pinned suite case, below ADR weight (A3).
      every `red-team-gate.test.mjs` doc-guard row (the Step-4 pipe-sentence lock; the `lenses.md`
      Verdict/Rounds adjacency and `## Route upstream` heading) stays green ·
      check: `bash skills/red-team/diagnosis-preflight.test.sh && node --test skills/red-team/assets/red-team-gate.test.mjs`.
-  7. ADR 0043's Context carries no exclusivity over-claim and the sentence's argument is intact ·
-     check: `grep -cF '*only* mechanic' docs/adr/0043-adjudicated-clear-distinct-terminal-verdict.md`
-     returns 0 and `grep -cF 'removes resolved findings' docs/adr/0043-adjudicated-clear-distinct-terminal-verdict.md`
-     returns 1. **Mandatory manual same-scope survey:** hand-scan the ADR for same-meaning reworded
-     siblings; list stragglers as survey-derived corrections. Survey at `6fff2ee`: the `*only* mechanic`
-     hit is unique in the file.
+  7. ADR 0043 carries an **appended dated correction note** that retires the Context exclusivity
+     over-claim, with the Context paragraph's own bytes intact (D5, reversed at /red-team round 1 R6) ·
+     check: `grep -c '^## Correction (2026-08-15, #1268)' docs/adr/0043-adjudicated-clear-distinct-terminal-verdict.md`
+     returns 1; the note names the **probe re-run** as the second mechanic
+     (`grep -ci 'probe re-run' docs/adr/0043-adjudicated-clear-distinct-terminal-verdict.md` ≥ 1); and the
+     original sentence is **still present, unedited** —
+     `grep -ciF '*only* mechanic' docs/adr/0043-adjudicated-clear-distinct-terminal-verdict.md` returns **1**
+     (NOT 0 — the appended-note arm deliberately preserves it; a 0 here means someone edited the Context
+     in place against D5). `grep -ciF 'removes resolved findings' …` still returns 1.
+     **Mandatory manual same-scope survey:** hand-scan the ADR for same-meaning reworded siblings the
+     tokens miss; list stragglers as survey-derived corrections. Survey at `6fff2ee`, re-verified at
+     `1655b98`: the `*only* mechanic` hit is unique in the file.
   8. Every live surface restating the baseline arm of the exit contract enumerates the zero-byte case ·
      check: `grep -rln 'zero-byte' skills/red-team/assets/assert-no-repo-escape.sh skills/red-team/SKILL.md skills/red-team/references/lenses.md`
      lists all three files. **Mandatory manual same-scope survey:** hand-scan the guard's full header
      comment, the suite's top-of-file banner and residual-ceilings block, Step 4's neighboring prose, and
      the `lenses.md` escape-guard bullet's surrounding lens list; list each straggler as a survey-derived
      correction (this spec's own authoring survey already produced one — the `lenses.md` bullet itself).
-  9. The retired contract wording is gone from live red-team surfaces ·
-     check: `grep -rn 'unreadable baseline' skills/red-team/` — zero hits (the widened form "unreadable or
-     zero-byte baseline" does not contain the retired bigram), dated snapshot re-measured at the task's
-     rebased base. The spec's wider `skills/ docs/` sweep is the handling floor: every `docs/` hit is a
-     posterity survivor (the landed 2026-08-02 plan, this plan + its source spec) —
+  9. The retired contract wording is gone from live red-team surfaces, **mechanically guarded, not only
+     hand-grepped** (/red-team round 1 R3+R4) ·
+     check: `grep -rin 'unreadable baseline' skills/red-team/` — zero hits (**`-i` mandatory**, R1: the
+     case-sensitive form passes on a merely re-cased carrier; the widened form "unreadable or zero-byte
+     baseline" does not contain the retired bigram), dated snapshot re-measured at the task's rebased base ·
+     **and** gate: the new D11 retired-wording doc-guard row in
+     `skills/red-team/assets/red-team-gate.test.mjs` reds if either retired wording returns to
+     `SKILL.md` or `lenses.md` (`node --test skills/red-team/assets/red-team-gate.test.mjs`).
+     **Line-wrap hazard, stated (R1):** the ADR is hard-wrapped at ~132 cols and the guard's header comment
+     block at ~85 — and Task 1.1 *lengthens* two header lines, forcing a re-wrap. A phrase split across a
+     newline defeats any line-based grep, `-i` included. For those two carriers the survey half additionally
+     strips comment leaders (`#`), joins lines, and normalizes whitespace **before** matching (the recorded
+     leader-strip-before-normalize-before-grep lesson).
+     The spec's wider `skills/ docs/` sweep is the handling floor: every `docs/` hit is a
+     posterity survivor (the landed 2026-08-02 plan, this plan + its source spec, and — new since the
+     plan's base — plan 1's landed red-team report if it carries either token) —
      enumerated in the done report, never retro-edited (D10). **Mandatory manual same-scope survey:**
      hand-scan the four live carriers' enclosing scopes for reworded restatements the token misses.
   10. The lesson's frontmatter `description` opens with the RESOLVED prefix naming Task 1.1 and #1263;
@@ -208,10 +235,19 @@ deferral's record is this plan + the pinned suite case, below ADR weight (A3).
   12. Each landing commit cites its issue(s) — #1263 + #1369 for Task 1.1, #1268 (and #1263 for the
       cascade widenings) for Task 1.2, #1268 for Task 1.3 ·
       HARD at audit_sha (git log between the phase base and the tip; execution-evidence seat).
+      **Why judged and not `check:`** (/red-team round 1, R8): the `<phase-base>..<tip>` range does
+      not exist at any task's pre-merge gate, so no gate- or floor-runnable command can decide this
+      when a task is gated; the range first exists post-merge, which is exactly where the
+      execution-evidence seat reads it. The seat's observable IS a `git log --grep` over that range.
   13. Release: all four version slots move lock-step to the next free patch above the live integration
       base at land time ·
-      check: `node --test skills/war/assets/version-slots.test.mjs` (lock-step + monotonic floor; the
-      bump's presence is judged at audit_sha — the suite cannot fail on a wholly absent release).
+      check: `node --test skills/war/assets/version-slots.test.mjs` — this proves **only** the two
+      decidable halves: the four slots agree lock-step, and the monotonic floor holds. **Both**
+      remaining halves are judged at audit_sha by the execution-evidence seat (/red-team round 1, R9 —
+      the original parenthetical seated only the first): (i) that a bump landed **at all** (the suite
+      passes on a wholly absent release), and (ii) that the landed version is the **next free patch**
+      above the live integration base (any coherent higher version — a skipped patch, a minor —
+      passes the suite just as well).
 
 ## Build order (for /war)
 
@@ -264,7 +300,7 @@ integration tip as its first act (Notes 4–5). Task 1.3 is file-disjoint from b
 
 ### Task 1.2: Step-4 exit-1 scoping + exit-2 arm; the `lenses.md` bullet cascade
 
-- Files: `skills/red-team/SKILL.md`, `skills/red-team/references/lenses.md`
+- Files: `skills/red-team/SKILL.md`, `skills/red-team/references/lenses.md`, `skills/red-team/assets/red-team-gate.test.mjs`
 - Plan slice: **SKILL.md Step 4** — the opening bold clause becomes
   "**On exit 1, diagnose every delta by action-provenance FIRST**" (rest of the sentence unchanged). Add
   the one-line exit-2 arm adjacent to the two provenance arms: on exit 2 there is no delta to triage — fix
@@ -281,10 +317,18 @@ integration tip as its first act (Notes 4–5). Task 1.3 is file-disjoint from b
   (an exit 2 is fixed and the guard re-run), keeping the quarantine framing code-agnostic — both nonzero
   codes forbid `CLEARED` until the guard is settled — and keeping the bullet's `self-confound` term (a
   diagnosis-preflight anchor). Touch nothing else in the file: the `## Route upstream` template, the
-  Verdict/Rounds region, and every other construct are sibling plans' surfaces (A4). Run End state 9's
-  sweep + mandatory manual survey and End state 5's grep pair + survey; record outcomes in the done
+  Verdict/Rounds region, and every other construct are sibling plans' surfaces (A4). **red-team-gate.test.mjs
+  (D11, added at /red-team round 1)** — add ONE fail-closed retired-wording doc-guard row beside the
+  existing 5.5 family and plan 1's landed D8b row: assert the NEW-present anchors first (the widened
+  `unreadable or zero-byte baseline`, and `On exit 1, diagnose`) so a failed extraction reds rather than
+  vacuously passing, then assert both retired needles absent, **case-insensitively**, from `SKILL.md` and
+  `lenses.md`. **Each needle MUST be built at runtime from split fragments** (e.g.
+  `['unreadable', 'baseline'].join(' ')`) — the row sits inside End state 9's own grep scope, so a literal
+  spelling would self-match and permanently false-red that check. Verify after writing it that End state 9's
+  `grep -rin 'unreadable baseline' skills/red-team/` still returns **zero** with the row present. Run End
+  state 9's sweep + mandatory manual survey and End state 5's grep set + survey; record outcomes in the done
   report even when zero stragglers. Commit cites #1268 and #1263.
-- Done when: `bash skills/red-team/diagnosis-preflight.test.sh`
+- Done when: `bash skills/red-team/diagnosis-preflight.test.sh && node --test skills/red-team/assets/red-team-gate.test.mjs`
 - requiresTest: false
 - requiresPackaging: false
 - deps: [1.1]
@@ -293,15 +337,22 @@ integration tip as its first act (Notes 4–5). Task 1.3 is file-disjoint from b
 ### Task 1.3: ADR 0043 Context over-claim correction
 
 - Files: `docs/adr/0043-adjudicated-clear-distinct-terminal-verdict.md`
-- Plan slice: in the Context paragraph, replace the "the *only* mechanic Step 5 offered" phrasing with the
-  non-exclusive form — the sentence reads "the removal mechanic Step 5 offered for closing a blocker (the
-  grill loop …)" — keeping the argument intact (nothing stopped removal being applied to a merely-patched
-  finding). Every other body byte unchanged, the Status header line included: this is an in-place
-  correction of a false-when-written claim, not a dated amendment note (D5/A5, logged for /red-team
-  ratification). Run End state 7's grep pair + mandatory manual survey; record the outcome in the done
+- Plan slice: **APPEND** a dated correction note — heading exactly
+  `## Correction (2026-08-15, #1268)` — at the end of the ADR body, in the shape ADR 0016's
+  `## Amendment (2026-07-19)` establishes. It states: the Context paragraph's "the *only* mechanic Step 5
+  offered for closing a blocker (the grill loop …)" over-claims, because Step 5 also offered a **probe
+  re-run** — the very mechanic this ADR's own Decision 3 two-arm re-verify trigger depends on; the
+  paragraph's argument is otherwise unaffected (nothing stopped removal being applied to a merely-patched
+  finding). **The Context sentence's own bytes are NOT edited** — every pre-existing body byte stays
+  exactly as shipped, which honors this plan's pivotal "all other body text byte-unchanged" constraint
+  more conservatively than the originally-planned in-place rewrite. The **`**Status:**` currency line MAY
+  be updated** — the recorded exception to a byte-unchanged-body mandate. **This reverses D5/A5**: a
+  /red-team round-1 corpus survey found the assumed in-place-for-false-when-written convention does not
+  exist (ADR 0016's appended amendment corrects a description that was wrong when written; 0019 and 0023
+  share the shape). Run End state 7's checks + mandatory manual survey; record the outcome in the done
   report. Commit cites #1268.
 - Done when: None — prose-only ADR correction with no mechanical suite mapped; the worker's manual check
-  is End state 7's grep pair + survey.
+  is End state 7's check pair + survey.
 - requiresTest: false
 - requiresPackaging: false
 - deps: []
@@ -333,11 +384,18 @@ integration tip as its first act (Notes 4–5). Task 1.3 is file-disjoint from b
 
 ## Deferred validations (backstops)
 
-- The manual same-scope survey halves of End states 5, 7, 8, and 9 · why deferred: a hand-scan cannot be a
-  mechanical gate member; done-report-only evidence, which gate-audit reads as SOFT and never a hold
-  (deliberately-uncommitted-probe lesson class) · runner: the owning task's worker (1.2 for End states 5/8/9's
-  SKILL.md/lenses scopes, 1.1 for End state 8's guard/suite scopes, 1.3 for End state 7) records each
-  outcome — mandatory statement even when "zero stragglers"; the Lead re-runs all four greps at phase close.
+- The manual same-scope survey halves of End states 5, 7, 8, and 9 — **narrowed at /red-team round 1 (R4)
+  to wording the tokens cannot catch.** The mechanical OLD-absent half is no longer deferred: D11 puts it in
+  `red-team-gate.test.mjs`, which End state 6 already runs, so a retired wording returning to `SKILL.md` or
+  `lenses.md` now reds a committed test rather than relying on a hand-run grep · why deferred: a free-form
+  hand-scan for *unforeseen rewordings* cannot be reduced to a mechanical gate member; done-report-only
+  evidence, which gate-audit reads as SOFT and never a hold (deliberately-uncommitted-probe lesson class) ·
+  runner: the owning task's worker records each outcome — mandatory statement even when "zero stragglers" —
+  **1.2** for End states 5/9's `SKILL.md` + `lenses.md` scopes, **1.1** for End state 8's *and End state 9's*
+  guard/suite scopes (**R7**: the guard header is a Task 1.1 file, and the previous map left its survey half
+  with no runner — Task 1.2 cannot survey a file it does not open), **1.3** for End state 7. The Lead re-runs
+  all four greps at phase close, in their case-insensitive forms, plus the leader-strip/normalize pass over
+  the two hard-wrapped carriers.
 - The zero-byte case's pre-fix demonstrated red (drop the `-s` check → the case reds at exit 1 with the
   inverted removed-every-ref message) · why deferred: a delete-and-trace mutation run is uncommittable by
   design — the committed case with its `rogue`-branch fixture is the standing non-vacuity guard (D7) ·
@@ -346,17 +404,30 @@ integration tip as its first act (Notes 4–5). Task 1.3 is file-disjoint from b
 - The gitignored-leak detection ceiling itself (issue #1369) · why deferred: a ratified deferral, not a
   validation this plan can run — the pinned suite case delivers the back-compat-pin half; the remaining
   prerequisite (a ruling on legitimately-ignored directories) is future-spec work, and any `--ignored`
-  widening's first act is consciously flipping the pin case red · runner: none mechanical here — the guard
-  header and suite banner document the ceiling; a field leak recurrence files an issue.
+  widening's first act is consciously flipping the pin case red · runner: **a successor issue, filed at
+  phase close, is the accountable owner** (added at /red-team round 1, **R5**). This row is a deferred
+  *feature*, not a deferred validation, so without a tracked handle it would be undischargeable — and
+  closing #1369 at phase close, as this plan does, would otherwise **orphan** the ceiling with no successor
+  artifact while still occupying the backstop ledger that every phase report, the final PR body and the
+  campaign ledger render. **Duty:** at phase close the Lead files one `war-followup` issue covering the
+  `--ignored` widening plus the legitimately-ignored-directories ruling, cross-referencing #1369 and the
+  pinned suite case, **before** closing #1369; a demonstrated ignored-path escape reopens it. The guard
+  header and suite banner remain the documentation of record.
 
 ## Notes / conscious deviations
 
-1. **The ADR 0043 fix is an in-place Context correction, not a dated amendment note** (D5/A5). The corpus
-   convention splits by claim class: appended `## Amendment`/correction notes record decision changes and
-   claims that were true when written and went stale (ADR 0025/0029/0037; the sibling adr-doc-truth-sweep
-   group's planned ADR 0033 note), while this sentence over-claimed at authoring time and contradicts the
-   same ADR's own Decision 3 mechanics; issue #1268 frames both fixes as one-to-two-line prose
-   corrections. Logged for /red-team ratification.
+1. **REVERSED at /red-team round 1 (R6): the ADR 0043 fix is an APPENDED dated correction note, not an
+   in-place Context edit** (D5/A5). The conversion-time argument claimed the corpus splits by claim class —
+   appended notes for decision changes and true-then-stale claims, in-place repair for claims that were
+   false when written. **A corpus survey falsified that split.** `docs/adr/0016-campaign-compaction-survival.md`
+   carries `## Amendment (2026-07-19): a bare layout is a probe success, not a fail-open case`, which opens
+   "The Decision half of the 2026-07-15 amendment above is **corrected** here" and adds "This amendment
+   changes only the *description* of which cases engage fail-open; no decision and no code change" — a
+   description that was **wrong when written**, repaired by an appended note. `docs/adr/0019` and
+   `docs/adr/0023` carry the same shape. The corpus appends regardless of when the claim became false.
+   The appended arm is also strictly more conservative here: it leaves the Context paragraph byte-identical,
+   which is what this plan's own pivotal constraint asks for. Issue #1268's "one-to-two-line prose
+   corrections" framing describes the SIZE of the fix, not its channel.
 2. **The OLD-absent checks are scoped to live `skills/red-team/` surfaces; the spec's `skills/ docs/`
    sweep scope survives as the handling floor** (D10). Measured at `6fff2ee`: the live carriers of
    `unreadable baseline` are the guard header (two sites), the Step-4 parenthetical, and the `lenses.md`

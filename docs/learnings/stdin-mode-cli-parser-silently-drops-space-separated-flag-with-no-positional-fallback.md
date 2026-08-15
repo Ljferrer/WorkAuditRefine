@@ -1,13 +1,13 @@
 ---
 name: stdin-mode-cli-parser-silently-drops-space-separated-flag-with-no-positional-fallback
-description: "RESOLVED (red-team-gate-cli/1.2, #1378, #1347, #1366): red-team-gate.mjs now runs a default-deny argument check at the top of main(), ahead of mode selection, that refuses every unknown `--` token (and, in --stdin mode, a bare non-flag token) with exit 1 and a stderr diagnostic — the asymmetric-safety gap this lesson documents (file mode refused loudly by an unrelated positional-arg accident; --stdin mode silently dropped the same typo) is closed in both modes. Historical prose below is frozen per the repo's RESOLVED-stamp convention; see the appended ## RESOLVED section for the fix."
+description: "RESOLVED (red-team-gate-cli/1.2, #1378, #1347, #1366) — body rewritten to current behavior 2026-08-15: red-team-gate.mjs's main() opens with a default-deny argv loop, ahead of mode selection and the stdin read, that refuses every unknown `--` token in BOTH modes and, in --stdin mode, every bare token (exit 1, stderr diagnostic, nothing on stdout). The durable lesson is the general shape: a CLI with two input-source modes can enforce an argv guarantee in one mode only by accident of that mode's positional handling, so the guarantee silently does not hold in the other. Two live carve-outs remain by decision — file mode still ignores surplus bare tokens, and the check covers the argv channel only, not top-level input keys."
 metadata: 
   node_type: memory
   type: project
-  promoted: dev/2026-08-06-red-team-gate-cli@phase-1
+  promoted: dev/2026-08-06-red-team-gate-cli@phase-2
   provenance: code-verified
   slug: stdin-mode-cli-parser-silently-drops-space-separated-flag-with-no-positional-fallback
-  phase: "precision-chain-and-loop-breaker/4.1 (original); RESOLVED by red-team-gate-cli/1.2, landed dev/2026-08-06-red-team-gate-cli @ 765d00f378fc6a6bc04f23ec5b747ab11062aee7"
+  phase: "precision-chain-and-loop-breaker/4.1 (original defect); RESOLVED by red-team-gate-cli/1.2; body rewritten to current behavior at operator direction 2026-08-15, verified against dev/2026-08-06-red-team-gate-cli @ 1655b98c6c22be7490cc48809b509d3aeaabd16c"
   keywords: 
     - stdin mode
     - flag parsing
@@ -20,9 +20,8 @@ metadata:
     - loop-breaker
     - RESOLVED
     - default-deny argument check
-    - RESOLVED section self-contradiction
-    - mode inversion
-    - wrong mode named in fix appendix
+    - asymmetric safety across input modes
+    - argv channel vs input keys
     - stdin mode zero bare tokens
   tags: 
     - war
@@ -31,80 +30,81 @@ metadata:
     - gotcha
   created: 2026-08-06
   originSessionId: 428f1fab-f385-493a-952d-9509fdac5e10
-  modified: 2026-08-15T01:50:54.443Z
+  modified: 2026-08-15T03:02:26.443Z
 ---
 
-# stdin-mode CLI parsers can silently drop a space-separated flag that file-mode refuses loudly
+# stdin-mode CLI parsers can silently drop a space-separated flag that file-mode refuses only by accident
 
-## The pattern
+## The durable pattern
 
-A CLI supporting two input modes — a positional file-path argument, and a `--stdin` flag that
-reads from stdin instead — can end up with **asymmetric safety** for the exact same operator
-typo. `skills/red-team/assets/red-team-gate.mjs`'s `main()` only supports `=`-attached flag
-values (`--rounds=3`); a space-separated form (`--rounds 3`) is not itself parsed:
+A CLI supporting two input-source modes — a positional file-path argument, and a `--stdin` flag that
+reads from stdin instead — can end up with **asymmetric safety** for the exact same operator typo.
+The guarantee "malformed flags are refused" gets enforced in one mode only as a *side effect* of that
+mode's positional-argument handling, and therefore does not hold at all in the mode that has no
+positional scan. A test proving the refusal in the first mode reads as a general guarantee and is not.
 
-- **File mode**: `args.find(a => !a.startsWith('--'))` picks the bare `3` as the positional
-  results-file path, `readFileSync('3')` throws ENOENT, and the process exits non-zero with no
-  verdict on stdout — a loud (if accidental) refusal, and the mapped test the plan mandated
-  (`Task 4.1 test row "=-attached flag parsing in file mode"`) pins exactly this outcome.
-- **`--stdin` mode**: there is no positional scan to catch the stray `3` token. `flagValue()`
-  (verify still present before acting — found at
-  `skills/red-team/assets/red-team-gate.mjs`, the closure inside `main()` reading
-  `args.find(a => a.startsWith(`--${name}=`))`) simply finds no `--rounds=` match, so `rounds`
-  resolves to `undefined`. Because the emission gate is `rounds !== undefined || roundLimit !==
-  undefined`, the whole feature this flag drives (here: `routeUpstream`) is silently omitted from
-  the output — not defaulted, not erred, just absent, indistinguishable from "the flag was never
-  passed at all."
+This is worth checking in any CLI that grows a second input mode after its argument handling was
+written for the first.
 
-`--stdin` is exactly the mode this repo's own doc surfaces prescribe for the re-pipe path
-(`skills/red-team/SKILL.md` Steps 4–5), so the mode with the weaker accidental safety net is also
-the one actually used in production.
+## Current behavior in this repo (verified at `1655b98`, v0.17.1)
 
-## Why it's easy to miss
+`skills/red-team/assets/red-team-gate.mjs`'s `main()` opens with a **default-deny argv loop** that
+runs *before* mode selection and before the stdin read, so a malformed invocation fails fast without
+consuming the pipe:
 
-The file-mode refusal test genuinely passes and genuinely proves "space-separated flags are
-refused" — but only because of an *unrelated* mechanism (the positional-arg fallback), not
-because the flag parser itself validates its input shape. A reviewer skimming test titles sees
-"space-separated flag value is refused" and reasonably assumes the guarantee holds everywhere the
-flag is documented to work. It does not hold in the mode that lacks a positional fallback.
+- Any `--` token outside `{--stdin, --rounds=<n>, --round-limit=<n>}` refuses in **both** modes.
+- In `--stdin` mode, **any** bare (non-`--`) token also refuses — stdin mode consumes no positionals.
+- Refusal contract: `die` writes the diagnostic to stderr and exits **1**, with nothing on stdout.
+  The message names the offending token and the accepted `=`-attached forms.
+
+Two carve-outs are live **by decision**, not oversight:
+
+1. **File mode still ignores surplus bare tokens.** The positional scan
+   (`args.find(a => !a.startsWith('--'))`) is only the path-picking mechanism: the first non-`--`
+   token is the results path and any further bare token is dropped. Recorded as a non-goal.
+2. **The check covers the argv channel only.** `rounds`/`roundLimit` may also arrive as top-level
+   keys in the JSON payload, and a typo'd *key* there still resolves `undefined` and silently omits
+   `routeUpstream`. This is an explicit Non-goal — the payload is the red-team Workflow's return
+   object, whose top-level key space is open by construction, so a default-deny over keys would be
+   wrong.
+
+## What the defect actually was (historical, corrected)
+
+Before the fix, `main()` parsed flag values only in their `=`-attached form via the `flagValue`
+closure, and nothing validated unknown tokens:
+
+- **`--stdin` mode** had no positional scan to catch a stray token. `--rounds 3` left `rounds`
+  resolving to `undefined`, and because the emission condition was
+  `rounds !== undefined || roundLimit !== undefined`, `routeUpstream` was silently omitted from the
+  output — not defaulted, not erred, just absent and indistinguishable from the flag never being
+  passed. `--stdin` is the mode this repo's own doc surfaces prescribe for the re-pipe path, so the
+  weaker net sat on the production path.
+- **File mode's "loud refusal" was weaker than originally recorded.** This lesson previously stated
+  that file mode refused the same typo because `args.find` picked the bare `3` as the results path
+  and `readFileSync('3')` threw ENOENT. That holds **only when the stray value precedes the path**.
+  In the order the CLI's own usage line documents (`red-team-gate.mjs <results.json> --rounds 3`),
+  `args.find` binds the real path, the trailing `3` is dropped, and the run exits **0** with empty
+  stderr and no `routeUpstream`. Established by an executed red-team probe at `8ac52d0`; the earlier
+  account overstated the accidental net.
 
 ## How to apply
 
-When a CLI supports more than one input-source mode (file / stdin / env, etc.), check whether a
-given argv-validation guarantee is actually enforced by the flag parser itself, or is an
-accidental side effect of a *different* mode's positional-argument handling. If it's the latter,
-either (a) add an explicit unknown-bare-token check that runs in every mode, or (b) name the
-guarantee's actual scope in the doc/test title (e.g. "refused in file mode" rather than the
-unqualified "refused") so a reader does not generalize past what was actually tested.
+When a CLI supports more than one input-source mode (file / stdin / env, …), check whether a given
+argv-validation guarantee is enforced by the argument parser itself or is an accidental side effect
+of one mode's positional handling. If it is the latter, either (a) add an explicit default-deny
+unknown-token check that runs in **every** mode — the option taken here — or (b) name the
+guarantee's real scope in the doc and test titles ("refused in file mode", not an unqualified
+"refused") so no reader generalizes past what was actually tested. And when you take (a), state
+which *channels* it covers: an argv-only check leaves any parallel input channel (env vars, payload
+keys) exactly as silent as before, which is fine as a decision and dangerous as an assumption.
 
-## RESOLVED (red-team-gate-cli/1.2, #1378, #1347, #1366)
+## Provenance of this rewrite
 
-Verified at landed tip `765d00f378fc6a6bc04f23ec5b747ab11062aee7`
-(`skills/red-team/assets/red-team-gate.mjs`): `main()` now opens with a default-deny loop, ahead
-of mode selection and the stdin/file read, that walks every argv token and `die()`s (exit 1, a
-`unknown argument <token> — accepted forms: …` stderr diagnostic naming the offending token and
-the accepted `=`-attached forms) on anything not `--stdin`, a `--rounds=`/`--round-limit=`
-`=`-attached flag, or — in `--stdin` mode — **any** bare token at all (`--stdin` mode takes no
-positional arguments whatsoever; the bare-token allowance belongs to FILE mode only, where the
-first bare token is the positional results path and any surplus bare token there stays ignored,
-deliberate). This closes the gap
-option (a) from "How to apply" above chose explicitly: one check that runs in every mode, rather
-than scoping the doc/test titles narrower. `skills/red-team/assets/red-team-gate.test.mjs` carries
-new rows for both the space-separated-value shape and the discriminating bare-token shape in
-`--stdin` mode (`node --test skills/red-team/assets/red-team-gate.test.mjs`, 109/109 green at the
-tip). The historical prose above still documents the general pattern — the same asymmetric-safety
-shape can recur in any CLI adding a second input mode without threading the same default-deny
-check through it.
-
-**Correction (red-team-gate-cli/phase-2 close, 2026-08-14):** this RESOLVED section originally read
-"or (in `--stdin` mode) the sole recognized bare token," which names the wrong mode — `--stdin`
-mode accepts **zero** bare tokens (the `else if (stdinMode)` arm dies on every one); the "sole bare
-token" it described is file mode's positional results path. Flagged by the phase-2 `p2-polish` task
-audit (Minor, `disposition: absorb`, `phaseClose: true`) against the repo-root copy of this same
-lesson (`docs/learnings/stdin-mode-cli-parser-silently-drops-space-separated-flag-with-no-positional-fallback.md`)
-and confirmed still present, uncorrected, in the repo file at the landed tip `8064a3c603bffd462ea616f877954bfe0bf332f2`
-(`_refinery8` worktree, `HEAD` byte-equal to that tip) — the repo copy is not directly editable by a
-servitor (D1), so the fix lands here; a future Gate-2 promotion overwrites the same-slug repo file.
-The frontmatter `description` line above was already correct (it reads "a bare non-flag token" with
-no mode qualifier); only the appended `## RESOLVED` section's own prose had inverted the rule — a
-concrete instance of [[resolved-section-fix-append-can-itself-misstate-which-mode-a-rule-applies-to]].
+The specific claims above were re-derived from the landed module rather than carried forward. Two
+prior corrections are folded in and no longer maintained as separate appendices: the RESOLVED
+section had inverted which mode allows a bare token (stdin allows none; the single-bare-token
+allowance is file mode's), and the historical file-mode account overstated the accidental refusal as
+order-independent. Rewritten at operator direction — current behavior is the truth, superseding the
+repo's freeze-the-body RESOLVED-stamp convention for this file
+([[resolved-lesson-stamp-freezes-body-so-it-can-contradict-the-new-description]],
+[[resolved-section-fix-append-can-itself-misstate-which-mode-a-rule-applies-to]]).
