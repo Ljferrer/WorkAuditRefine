@@ -18,8 +18,19 @@ One floor family, one cluster of residuals. The done-unmet route shipped in 0.17
 (`doneWhenFloorClause`) and `agents/war-refiner.md` step 7 (verified: issue #1360 (2026-08-06); all three
 constructs re-read in the live tree at `6fff2ee`) — and every defect below sits on it. Source spec:
 `docs/specs/2026-08-06-done-when-floor-wiring-design.md`. Snapshot base for every measured claim: the repo
-tip at `6fff2ee` (2026-08-06); conversion-time re-measurements below are at the same base (the session
-worktree's spec-batch and checkpoint commits are docs-only and touch none of these surfaces).
+tip at `6fff2ee` (2026-08-06); conversion-time re-measurements below are at the same base. **Corrected
+at /red-team round 1 (R4):** the original parenthetical claimed the intervening commits were
+"docs-only and touch none of these surfaces" — false on both halves. Re-measured at this plan's real
+stacked base `924582e`: ten non-docs files changed since `6fff2ee`, including real code
+(`dbcd793 fix(red-team): zero-byte --baseline is infra (exit 2)`) and two full releases, so the
+release-slot family has advanced **0.17.0 → 0.17.2** and `README.md` + both `.claude-plugin/*.json`
+— Task 2.1's verbatim `Files:` list — are among the changed set. **Every PHASE-1 surface this plan
+edits is byte-unchanged** between `6fff2ee` and the stacked base (`workflow-template.js`,
+`workflow-template.test.mjs`, `agents/war-refiner.md`, `schemas.md`, `CLAUDE.md`,
+`assert-done-when.sh`, `assert-done-when.test.sh`, `assert-test-in-diff.test.sh`), and every cited
+anchor re-verified verbatim there — so no Phase-1 rework is implied. Task 2.1 is unaffected by
+construction: it resolves the next free patch from the live slots at land time and treats every
+version literal as non-authoritative.
 
 1. **The watchdog kills the direct PID only — a backgrounded grandchild survives TERM and KILL** (verified:
    issue #1365 (2026-08-06); verified: issue #1338 (2026-08-06), finding 1; re-confirmed at `6fff2ee`). The
@@ -151,6 +162,7 @@ worktree's spec-batch and checkpoint commits are docs-only and touch none of the
 | D10 | CLAUDE.md surfaces | Add `done-unmet` to the Enum-discipline named-route parenthetical; add `assert-done-when.sh` to the Guard-architecture merge-path floor list with a discovery-exempt parenthetical scoping the `resolveGate` mirror clause to the diff-discovery floors. The per-phase pipeline sentence does not enumerate floors and stays untouched | spec §3 row 10; (verified: issue #1360 (2026-08-06)) |
 | D11 | Test-floor header prose (#1339) | Apply the two auditor-suggested rewordings verbatim-in-substance: scope the case-12 sentence to the exit-1/2 stdout contracts; reword the case-13 banner to "12d pins the die path's exit code and stderr (the exit-2 stdout channel carries no printf and is not separately asserted)" | spec §3 row 11; (verified: issue #1339 (2026-08-06)) |
 | D12 | Task decomposition | Four file-disjoint tasks in Phase 1 — Task 1.1 the engine cluster (`workflow-template.js` + its suite + `war-refiner.md` + `schemas.md`, forced together by the both-surfaces law, the return-contract enumeration duty, and the same-file rule); Task 1.2 `CLAUDE.md`; Task 1.3 the test floor's suite header; Task 1.4 the floor + its suite with `deps: [1.1]` (a content edge — the rewritten header describes the capture contract 1.1 authors; Note 2) — plus the standard trailing release phase | conversion judgment, logged for /red-team; war-strategy §3 |
+| D14 | **Exit-status preservation across the tee (added at /red-team round 1, R2)** | The tee instruction MUST also say how the floor's OWN exit status is read, and every surface that carries the tee carries it. The naive rendering of "run the floor with its output teed to `<log>`" is `assert-done-when.sh … 2>&1 \| tee <log>`, whose `$?` is **tee's** status, not the floor's — red-team-executed at this base: `bash -c 'exit 1' 2>&1 \| tee /dev/null; echo $?` → `0` and `bash -c 'exit 2' 2>&1 \| tee /dev/null; echo $?` → `0`. Because `doneWhenFloorClause` routes on **nothing but** that code (exit 0 → continue; exit 1 → `done-unmet`, do NOT merge; exit 2 → `error`, never `done-unmet`), a status-swallowing tee silently collapses BOTH failure codes into success — i.e. it MERGES a task whose acceptance command failed, and it breaks the Pivotal "Frozen exit-code contract: … exit 2 never collapses into the floor status" in the very commit that claims to honour it. Resolution: the clause and the card instruct the redirect-then-read shape — run `assert-done-when.sh … > <log> 2>&1` and read `$?`, or if piping to `tee`, read `${PIPESTATUS[0]}` — and **branch on that captured code, never on the pipeline's status**. Pinned clause-scoped by a Task 1.1(h) assert. The plan's cited `gate_log_path` precedent is explicitly NOT a counter-example (verified at this base): `gateCaptureClause` tees on the already-decided success path and nothing branches on a numeric exit there; the true in-repo precedent is the endstate-check dispatch, which already instructs a final `exit_code: <code>` line for exactly this reason | /red-team round 1 R2, executed |
 | D13 | D3 registry row growth | The capture + precedence prose extends the **existing** done-when floor directive — no new registry row, row-count floor untouched; the existing row's anchor array gains two tokens, `/done_when_log_path/i` and `/never proceeded over as baseline debt/i` (both present on both surfaces after 1.1; the precedence token has zero hits on either surface at `6fff2ee`, so the row mechanically pins the D7 sentence and cannot pass on pre-existing `baseline-proceed` prose) — the grown directive stays censused (the finding-4 canonicality concern, applied forward) | conversion judgment, logged for /red-team |
 
 ## Assumptions ledger
@@ -201,7 +213,9 @@ field documented in `skills/war/references/schemas.md` (A4). No ADR by default (
   matches what its cases actually capture.
 - **Method:** `set -m` around the background launch with group-first kills and a single-PID fallback (bash
   3.2, no `setsid` — the new-session daemon stays the named residual); wire the capture as
-  `gate_log_path`'s sibling — a `_refinery`-scoped `.war/done-when-<taskId>.log` tee plus an optional
+  `gate_log_path`'s sibling — a `_refinery`-scoped `.war/done-when-<taskId>.log` tee that **preserves
+  the floor's own exit status across it** (D14: redirect-then-read `$?`, or `${PIPESTATUS[0]}` when
+  piping — branch on the captured code, never the pipeline's), plus an optional
   merge-task `MergeResult.done_when_log_path`, never a `floor_diagnostic` widening — threading the path,
   not the content, into MAKE_DONE_PASS and the exhaustion tail, with all three return-contract doc
   surfaces moving in the same commit; one precedence sentence per surface plus the baseline-proceed
@@ -227,7 +241,14 @@ field documented in `skills/war/references/schemas.md` (A4). No ADR by default (
      included).
   3. The header residual note no longer claims the survivor is brief and names the true survivor class (a
      grandchild escaped into a new session/process group) ·
-     check: `grep -c 'briefly outlive' skills/war/assets/assert-done-when.sh` returns 0. **Mandatory
+     check: `grep -ci 'briefly outlive' skills/war/assets/assert-done-when.sh` returns 0 **and** the
+     wrap-tolerant companion returns 0:
+     `sed 's/^[[:space:]]*[#/]*[[:space:]]*//' skills/war/assets/assert-done-when.sh | tr '\n' ' ' | tr -s ' ' | grep -ci 'briefly outlive'`.
+     `-i` and the wrap-tolerant companion are BOTH load-bearing (/red-team round 1, R1): the file is
+     hard-wrapped prose this very task rewrites, so a reflow that sentence-initial-capitalizes the
+     phrase, or splits it across a line boundary, false-greens a case-sensitive single-line grep while
+     the retired claim is still live on the named surface. Measured at the base: each form returns
+     exactly 1, so neither false-reds. **Mandatory
      manual same-scope survey (grep is a floor):** hand-scan the floor's and suite's same-scope headers,
      case-list titles, and comments for reworded restatements of the old residual/capture claims; list
      each straggler as a survey-derived correction. Survey at `6fff2ee` (dated snapshot): three
@@ -240,7 +261,10 @@ field documented in `skills/war/references/schemas.md` (A4). No ADR by default (
      check: `grep -rln 'done_when_log_path' skills/war/assets/workflow-template.js agents/war-refiner.md
      skills/war/references/schemas.md skills/war/assets/assert-done-when.sh` lists all four files.
   5. The dispatched clause instructs the tee (combined stdout+stderr to
-     `<_refinery>/.war/done-when-<taskId>.log`) and the exit-1 `done_when_log_path` return, pinned
+     `<_refinery>/.war/done-when-<taskId>.log`), **preserves the floor's own exit status across it**
+     (the D14 redirect-then-read `$?` / `${PIPESTATUS[0]}` shape, branching on the captured code and
+     never on the pipeline's — pinned by a clause-scoped assert in Task 1.1(h)), and the exit-1
+     `done_when_log_path` return, pinned
      clause-scoped (the existing extraction idiom), and the legacy byte-identity and set-minus tests stay
      green — clause growth stayed inside the delimited span (or both owning regexes moved in the same
      commit) ·
@@ -263,7 +287,11 @@ field documented in `skills/war/references/schemas.md` (A4). No ADR by default (
      inside step 7's done-when bullet (hand-verified placement — registered as a backstop row).
   9. The residue guard asserts line-anchored absence beside occurrence parity and no longer claims strict
      strength ·
-     check: `grep -c 'strictly stronger' skills/war/assets/workflow-template.test.mjs` returns 0.
+     check: `grep -ci 'strictly stronger' skills/war/assets/workflow-template.test.mjs` returns 0
+     **and** the wrap-tolerant companion returns 0:
+     `sed 's/^[[:space:]]*[#/]*[[:space:]]*//' skills/war/assets/workflow-template.test.mjs | tr '\n' ' ' | tr -s ' ' | grep -ci 'strictly stronger'`
+     (R1 — the residue-guard comment block is wrapped at ~106 cols; measured 1 at the base in both
+     forms).
      **Mandatory manual same-scope survey:** hand-scan the suite's same-scope tests/comments for
      same-meaning reworded siblings the grep misses; list each straggler as a survey-derived correction.
   10. The `Run the gate` anchor is presence-asserted immediately before the ordering comparison ·
@@ -282,8 +310,13 @@ field documented in `skills/war/references/schemas.md` (A4). No ADR by default (
       `6fff2ee` and does not enumerate — it stays untouched).
   12. The test floor suite's case-12 header entry is scoped and the case-13 banner matches 12d's real
       capture ·
-      check: `grep -c 'Exit codes and stdout are untouched' skills/war/assets/assert-test-in-diff.test.sh`
-      returns 0. **Mandatory manual same-scope survey:** hand-scan the suite's header Cases list and
+      check: `grep -ci 'stdout are untouched' skills/war/assets/assert-test-in-diff.test.sh` returns 0
+      **and** the wrap-tolerant companion returns 0:
+      `sed 's/^[[:space:]]*[#/]*[[:space:]]*//' skills/war/assets/assert-test-in-diff.test.sh | tr '\n' ' ' | tr -s ' ' | grep -ci 'stdout are untouched'`.
+      The needle is deliberately the SHORTER `stdout are untouched`, not the full sentence: the
+      plan-mandated replacement reads "Exit codes are untouched and the exit-1/2 stdout contracts are
+      byte-preserved", so the short needle survives the rewrite and still discriminates the retired
+      claim (R1; measured 1 at the base in both forms). **Mandatory manual same-scope survey:** hand-scan the suite's header Cases list and
       banners for same-meaning reworded siblings; list each straggler as a survey-derived correction.
   13. The full gates are green at the integrated tip ·
       gate: the self-discovery gate (`resolveGate` in `war-config.mjs`) — `node --test
@@ -298,8 +331,13 @@ field documented in `skills/war/references/schemas.md` (A4). No ADR by default (
       discovered member).
   16. Release: all four version slots move lock-step to the next free patch above the live integration
       base at land time ·
-      check: `node --test skills/war/assets/version-slots.test.mjs` (lock-step + monotonic floor; the
-      bump's presence is judged at audit_sha — the suite cannot fail on a wholly absent release).
+      check: `node --test skills/war/assets/version-slots.test.mjs` — this proves **only** the two
+      decidable halves: the four slots agree lock-step, and the monotonic floor holds. **Both** of the
+      remaining halves are judged at audit_sha by the execution-evidence seat (/red-team round 1, R3 —
+      the original parenthetical seated only the first): (i) that a bump landed **at all** (the suite
+      passes on a wholly absent release — `cmpSemver(current, max) >= 0` is satisfied by an unchanged
+      version), and (ii) that the landed version is the **next free patch** above the live integration
+      base (any coherent higher version — a skipped patch, a minor — passes the suite just as well).
 
 ## Build order (for /war)
 
@@ -323,8 +361,12 @@ capture shape — all exist at the frozen base).
   if any addition must move the terminal sentence, update the extraction regex in BOTH owning tests in
   the same commit): a tee instruction — run the floor with its combined stdout+stderr teed to
   `<refinery>/.war/done-when-<taskId>.log` (the `.war/` git-exclude step is already instructed for the
-  cmd file); on the exit-1 branch, return the artifact's ABSOLUTE path in `done_when_log_path` alongside
-  `status: 'done-unmet'`; and one precedence sentence — the floor is fail-closed on **every** merge-task
+  cmd file) **and read the FLOOR's own exit status, never the tee pipeline's** — run
+  `assert-done-when.sh … > <log> 2>&1` and read `$?`, or if piping to `tee`, read `${PIPESTATUS[0]}`,
+  then branch on that captured code (D14; the naive `… 2>&1 | tee <log>` yields 0 for a red **and** an
+  exit-2 floor, silently merging a task whose acceptance command failed and collapsing the frozen
+  exit-2 contract); on the exit-1 branch, return the artifact's ABSOLUTE path in `done_when_log_path`
+  alongside `status: 'done-unmet'`; and one precedence sentence — the floor is fail-closed on **every** merge-task
   dispatch, including a baseline-proceed: a red done-when is **never proceeded over as baseline debt**
   (D7; the bolded phrase is the D13 shared-token anchor — carry it byte-identically on both surfaces).
   (b) `MERGE_RESULT` schema: add optional `done_when_log_path: { type: 'string' }` with a comment block
@@ -338,7 +380,9 @@ capture shape — all exist at the frozen base).
   exhaustion tail: the escalation entry and `auditLog` entry carry the last floor result's
   `done_when_log_path` when present, shape-identical when absent (the `exhaustedDiag` pattern; D6).
   **Standing card (`agents/war-refiner.md`)** — (e) step 7: add the tee + `done_when_log_path` return
-  duty to the **exit 1** bullet and the baseline-proceed precedence sentence (both mirroring the
+  duty to the **exit 1** bullet — carrying the same D14 exit-status-preservation wording as the
+  dispatched clause (read the floor's own `$?` / `${PIPESTATUS[0]}`, never the tee's) — and the
+  baseline-proceed precedence sentence (both mirroring the
   dispatched prose — same commit; the card's precedence sentence carries the D13 shared-token phrase
   `never proceeded over as baseline debt` verbatim), keeping the numbered-step terminator and the
   `**exit 1**` / `**exit 2**` bullet order intact (the 'both surfaces (Task 2.3)' extraction regexes key
@@ -355,7 +399,9 @@ capture shape — all exist at the frozen base).
   never assume). (h) 'done-when floor threading (Task 2.3)': add
   `assert.ok(c.prompt.includes('Run the gate'), …the gate instruction anchor is present…)` immediately
   before the ordering comparison (D9); extend the clause-scoped asserts to pin the tee target
-  (`.war/done-when-t1.log`) and the exit-1 `done_when_log_path` instruction. (i) new fixture (finding-10
+  (`.war/done-when-t1.log`), the exit-1 `done_when_log_path` instruction, and the **D14
+  exit-status-preservation token** (assert the clause carries `PIPESTATUS` or the redirect-then-read
+  `$?` shape, so a status-swallowing tee cannot silently land — R2). (i) new fixture (finding-10
   pin): baseline-classified first merge result → baseline-proceed returns `status: 'done-unmet'` →
   assert the escalation carries `reason: 'done-unmet'`, no `make-pass:` worker was dispatched (zero fix
   rounds), and `landDecision === 'held:escalation'`. (j) new/extended asserts: the MAKE_DONE_PASS prompt
@@ -422,10 +468,12 @@ capture shape — all exist at the frozen base).
   (a grandchild escaped into a new session/process group — true daemonization), dropping "may briefly
   outlive"; (b) the STDOUT paragraph is reworded to the **built** capture contract (stdout belongs to
   the executed command; the refiner tees the run to the done-when evidence artifact
-  `<_refinery>/.war/done-when-<taskId>.log` and returns its path on exit 1 in `done_when_log_path` —
+  `<_refinery>/.war/done-when-<taskId>.log`, reads the floor's OWN exit status across that tee (D14),
+  and returns the artifact's path on exit 1 in `done_when_log_path` —
   true at this task's rebased base because Task 1.1 landed first, the deps edge). Sweep step: grep
-  `briefly outlive` and `evidence artifact` across both files and update every hit — **grep is a floor,
-  not a ceiling**: run End state 3's mandatory manual survey (measured candidates at `6fff2ee`, dated
+  **case-insensitively** (`grep -rin`, R1) for `briefly outlive` and `evidence artifact` across both
+  files, plus the wrap-tolerant companion form End state 3 names, and update every hit — **grep is a
+  floor, not a ceiling**: run End state 3's mandatory manual survey (measured candidates at `6fff2ee`, dated
   snapshot: the suite's stdout-contract header note, the case-13 comment, and the case-20 comment — all
   three restate the old capture claim); list each straggler as a survey-derived correction. **Suite** — new numbered case (grandchild survival, delete-the-feature shape): a command
   file that runs `sleep 60 & wait` under `--timeout 1`; assert (a) floor exit 1 with the timed-out
