@@ -979,3 +979,34 @@ test('doc-guard D8b: the retired refusal-mechanism wording stays absent from the
     }
   }
 })
+
+// --- escape-guard-exit-contract Task 1.2 (D11, #1268): retired exit-contract wording guard — the
+// mechanical half of that plan's End state 9, beside the 5.5 family and the D8b row above (same
+// fail-closed NEW-present-then-OLD-absent shape).
+
+test('doc-guard D11: the retired escape-guard exit-contract wording stays absent from SKILL.md and lenses.md (fail-closed)', () => {
+  // NEW-present anchors FIRST: if either read failed or the Task-1.2 widening/rescope never
+  // landed, this reds instead of the absence checks below vacuously passing.
+  assert.match(SKILL, /unreadable or zero-byte baseline/i,
+    'SKILL.md Step 4 lost the widened exit-2 contract enumeration (unreadable or zero-byte baseline)')
+  assert.match(SKILL, /on exit 1, diagnose/i,
+    'SKILL.md Step 4 lost the exit-1-scoped triage opener (On exit 1, diagnose)')
+  assert.match(LENSES, /unreadable or zero-byte baseline/i,
+    'lenses.md escape-guard bullet lost the widened exit-2 contract enumeration (unreadable or zero-byte baseline)')
+  assert.match(LENSES, /an exit 1 routes the verdict/i,
+    'lenses.md escape-guard bullet lost the exit-1-scoped routing clause')
+  // Each retired needle is built at runtime from split fragments — this row sits inside End
+  // state 9's own `grep -rin` scope over skills/red-team/, so a contiguous literal here would
+  // self-match and permanently false-red that check. Matching is case-insensitive (R1).
+  const needles = [
+    ['unreadable', 'baseline'].join(' '),
+    ['On a nonzero exit,', 'diagnose'].join(' '),
+    ['A nonzero result routes', 'the verdict'].join(' '),
+  ].map((n) => n.toLowerCase())
+  for (const [name, text] of [['SKILL.md', SKILL], ['references/lenses.md', LENSES]]) {
+    const lower = text.toLowerCase()
+    for (const needle of needles) {
+      assert.ok(!lower.includes(needle), `${name} re-introduced retired exit-contract wording: ${needle}`)
+    }
+  }
+})

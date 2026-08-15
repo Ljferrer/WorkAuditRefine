@@ -18,7 +18,8 @@
 #     the snapshot is taken, so the diff baselines them as legitimate.
 #   • Gitignored leak paths: `git status --porcelain` does not report ignored files, so
 #     such a leak is invisible to check (a), to the snapshot-mode pre-run refusal, and
-#     to the ref-diff alike.
+#     to the ref-diff alike — pinned by the gitignored-ceiling case as a documented
+#     false negative.
 #
 # Cases:
 #   CHECK MODE — pre-existing behavior (byte-equivalent without --baseline):
@@ -66,6 +67,10 @@
 #   26. --baseline pointing at a missing file -> exit 2 (asserted != 1)
 #   27. ORDERING: a missing --baseline on a repo that WOULD escape -> exit 2, not 1
 #       (an infra fault is never preempted by an escape conclusion)
+#   28. zero-byte --baseline file -> exit 2, asserted explicitly != 1 — the awk
+#       NR==FNR degeneracy pin, case 26's missing-file sibling
+#   29. gitignored-path leak with --baseline -> exit 0 — ponytail ceiling 3,
+#       pinned as a DOCUMENTED FALSE NEGATIVE (#1369's back-compat pin)
 set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -659,7 +664,9 @@ fi
 # stays green even if the validation moves down to the ref-diff (where awk's own read
 # failure still yields 2). Move it down and THIS case flips 2 -> 1, because (b1)
 # reaches its escape first. Measured: with the arg-parse validation block deleted the
-# rest of the suite stays green and only this case reds.
+# rest of the suite stays green and only this case and case 28 red (case 28 for the
+# zero-byte arm: awk opens the empty file, base[] stays empty, exit 1 against an
+# expected 2).
 # ---------------------------------------------------------------------------
 R27="$(setup_repo)"
 git -C "$R27" branch redteam-would-escape 2>/dev/null
@@ -669,6 +676,66 @@ if [ "$rc27" -eq 2 ]; then
   pass "case 27: missing --baseline outranks a live escape -> exit 2 (infra never preempted)"
 else
   fail "case 27: missing --baseline + escaping repo -> expected exit 2, got $rc27 (infra preempted by escape)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 28: a ZERO-BYTE --baseline file -> exit 2, asserted explicitly != 1. Case
+# 26's missing-file sibling: this file exists, is a regular file, and is readable,
+# so only the guard's `-s` (non-empty) check can refuse it. A zero-byte FIRST
+# operand defeats the awk NR==FNR two-file idiom: NR never diverges from FNR, the
+# loader branch fires for every stdin record too, base[] stays empty, and the END
+# block reports every live ref as "removed" — the inverted removed-every-ref
+# verdict. Non-vacuity: the fixture carries a `rogue` branch, so the degeneracy
+# has refs to invert. Delete-and-trace: drop the `-s` check from the guard and
+# this case reds at exit 1 with that inverted removed-every-ref message (a
+# truncated-write infra fault laundered into an escape).
+# ---------------------------------------------------------------------------
+R28="$(setup_repo)"
+git -C "$R28" branch rogue 2>/dev/null
+EMPTY28="$(artifact_path zero-byte-baseline.txt)"
+: > "$EMPTY28"                       # exists, regular, readable — and zero bytes
+ERR28="$(artifact_path stderr28.txt)"
+rc28="$(run_guard_err "$ERR28" --repo "$R28" --baseline "$EMPTY28")"
+if [ "$rc28" -eq 2 ]; then
+  if grep -qF -- 'zero bytes (a truncated or failed snapshot write' "$ERR28"; then
+    pass "case 28: zero-byte --baseline file -> exit 2 naming the zero-byte baseline (not 1 — infra never becomes escape)"
+  else
+    fail "case 28: exit 2 but stderr does not carry the -s die's 'zero bytes' message (another exit-2 die supplied the 2?); stderr was: $(cat "$ERR28")"
+  fi
+elif [ "$rc28" -eq 1 ]; then
+  fail "case 28: zero-byte --baseline file -> got 1 (NR==FNR degeneracy: infra collapsed into escape)"
+else
+  fail "case 28: zero-byte --baseline file -> expected exit 2, got $rc28"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 29: GITIGNORED-PATH LEAK -> exit 0 — ponytail ceiling 3, pinned as a
+# DOCUMENTED FALSE NEGATIVE (#1369's back-compat pin). `git status --porcelain`
+# does not report ignored files, so a probe write landing only under a gitignored
+# pattern, with no ref change, is invisible to check (a), to the snapshot-mode
+# pre-run refusal, and to the ref-diff alike. This case does NOT assert the leak
+# is caught — it pins today's blind spot so any future `--ignored` widening
+# announces itself: flipping this case red is the deliberate FIRST ACT of that
+# widening, alongside its ruling on legitimately-ignored dirs. FIXTURE-ORDERING
+# TRAP: the .gitignore is committed BEFORE the snapshot — left untracked, it
+# would fire the snapshot-mode pre-run porcelain refusal and never reach the pin.
+# ---------------------------------------------------------------------------
+R29="$(setup_repo)"
+printf '*.log\n' > "$R29/.gitignore"
+git -C "$R29" add .gitignore
+git -C "$R29" commit -qm "ignore logs"          # committed BEFORE the snapshot
+SNAP29="$(artifact_path snap.txt)"
+take_snapshot "$R29" "$SNAP29" "case 29"
+printf 'probe leak\n' > "$R29/probe-residue.log"  # lands only under the ignored pattern
+# Non-vacuity (coded, not just prose): without the leak actually written AND actually
+# ignored, this case degenerates into case 19's clean-repo green and pins nothing.
+[ -f "$R29/probe-residue.log" ] || fail "case 29: FIXTURE — leak file was not written"
+git -C "$R29" check-ignore -q probe-residue.log || fail "case 29: FIXTURE — the leak path is not ignored"
+rc29="$(run_guard_args --repo "$R29" --baseline "$SNAP29")"
+if [ "$rc29" -eq 0 ]; then
+  pass "case 29: gitignored-path leak -> exit 0 (ceiling 3 pinned as documented false negative)"
+else
+  fail "case 29: gitignored-path leak -> expected exit 0 (the pinned ceiling), got $rc29"
 fi
 
 # ---------------------------------------------------------------------------
