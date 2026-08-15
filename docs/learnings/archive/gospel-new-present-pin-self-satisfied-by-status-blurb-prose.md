@@ -1,6 +1,6 @@
 ---
 name: gospel-new-present-pin-self-satisfied-by-status-blurb-prose
-description: "A README `## Status` blurb narrating a doc rename can itself independently satisfy that rename's structural-test NEW-present pin, because the presence helper (has/has_i) greps the raw file while the absence helper (lacks/lacks_i) strips the Status section first"
+description: "MITIGATED (shell-pin-helpers/1.1, #1371): A README `## Status` blurb narrating a doc rename can itself independently satisfy that rename's structural-test NEW-present pin, because the presence helper (has/has_i) greps the raw file while the absence helper (lacks/lacks_i) strips the Status section first"
 metadata: 
   node_type: memory
   type: project

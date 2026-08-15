@@ -185,7 +185,7 @@ live falsehood at the current tip.
 | D8 | Agent cards in the verb scan | No — posterity scan only (`agents/war-worker.md`'s `query` would resolve green, probe-verified, but the verb rule's corpus stays as-is this change) | spec §3 D8 (carried [assumed] row → A2) |
 | D9 | Exclusion-list contents at land | The seven unenumerated references files of Context 3, each with a one-line reason comment: `schemas.md` = the probe-verified export-naming false red (resolveGate); the other six = no shell-out prose for the scanned modules (probe-verified zero claimed verbs at conversion). Dated snapshot — land-time re-census per constraint 10 | spec §3 D9; (verified: probe census at conversion 2026-08-12) |
 | D10 | glossary-cold.md placement (post-plan-5 base) | Into `VERB_SCAN_EXCLUSIONS`, reason: evicted `CONTEXT.md` glossary bodies — incident/recovery doctrine, no shell-out prose for the scanned modules (conversion probe, Context 9). The worker re-verifies at its rebased base: if the landed bodies do phrase a scanned module's command, place in `EVICTION_DESTINATIONS` instead and say so in the done report. At a pre-plan-5 base (standalone run) the file does not exist and the scan-derived census correctly omits it | conversion judgment (Context 9), logged for /red-team |
-| D11 | Lesson stamp (#1368's mined lesson) | Fold into Task 1.1 (the batch fold-into-fixing-task precedent, operator-mandated — a conscious deviation from the spec's "servitor housekeeping" non-goal, Note 1): prefix the `description` of `docs/learnings/enumerated-destination-list-existssync-guard-fail-open-vs-sibling-fail-closed.md` with `RESOLVED (doc-cli-consistency-corpus/1.1, #1368): …` — body/keywords otherwise untouched per the resolved-lesson-stamp convention; redaction lint must stay green | operator batch directive; A6 |
+| D11 | Lesson stamp (#1368's mined lesson) | Fold into Task 1.1 (the batch fold-into-fixing-task precedent, operator-mandated — a conscious deviation from the spec's "servitor housekeeping" non-goal, Note 1): prefix the `description` of `docs/learnings/archive/enumerated-destination-list-existssync-guard-fail-open-vs-sibling-fail-closed.md` with `RESOLVED (doc-cli-consistency-corpus/1.1, #1368): …` — body/keywords otherwise untouched per the resolved-lesson-stamp convention; redaction lint must stay green | operator batch directive; A6 |
 | D12 | Task decomposition | Three file-disjoint wave-1 tasks in Phase 1 — Task 1.1 the suite + lesson stamp (one file carries #1368 + #1306 + findings 1/7/9/10: the same-file rule forbids splitting); Task 1.2 `CONTEXT.md`; Task 1.3 ADR 0046 — plus the standard trailing release phase. No deps edges: no mechanical guard here reads a sibling task's file (the suite scans neither `CONTEXT.md` nor `docs/adr/`, verified at conversion), so rule 7 does not bind; the ADR/glossary prose describing Task 1.1's mechanics is authored from this plan's Part 1 (defined-but-not-yet-emitted; produced in Task 1.1 — the plan-5 Task-1.5 precedent), not from the landed diff | conversion judgment; war-strategy §3 |
 | D13 | Census asymmetry is stated intent | The census test's comment states the deletion asymmetry: a deleted references file silently leaves the scan-derived posterity corpus (a deleted file is no live surface — by design), while deletion of an enumerated verb-list entry still throws via unguarded `readFileSync` **and** reds the census — so the asymmetry reads as intent, not oversight | spec §8 |
 
@@ -297,7 +297,7 @@ No new ADR — amend ADR 0046 per D7 (A3).
      list stragglers as survey-derived corrections.
   10. The mined lesson is stamped RESOLVED citing #1368, and the redaction lint passes over
       `docs/learnings/` ·
-      check: `grep -cF 'RESOLVED' docs/learnings/enumerated-destination-list-existssync-guard-fail-open-vs-sibling-fail-closed.md`
+      check: `grep -cF 'RESOLVED' docs/learnings/archive/enumerated-destination-list-existssync-guard-fail-open-vs-sibling-fail-closed.md`
       ≥ 1 and `node skills/_shared/war-memory.mjs lint docs/learnings/`.
   11. The pre-widen sweep is recorded: `grep -rF 'docs/specs'` over the 13 newly scanned surfaces returns
       zero hits (zero at conversion), and the mandatory manual same-scope hand-scan of the 13 files'
@@ -326,7 +326,7 @@ plan's Part 1, defined-but-not-yet-emitted) → Phase 2 (release).
 
 ### Task 1.1: The suite — posterity corpus, partition census, sentinels, +1 row, carve-out fix, lesson stamp (#1368, #1306; #1358 findings 1/7/9/10)
 
-- Files: `skills/_shared/doc-cli-consistency.test.mjs`, `docs/learnings/enumerated-destination-list-existssync-guard-fail-open-vs-sibling-fail-closed.md`
+- Files: `skills/_shared/doc-cli-consistency.test.mjs`, `docs/learnings/archive/enumerated-destination-list-existssync-guard-fail-open-vs-sibling-fail-closed.md`
 - Plan slice: **Re-census first (constraint 10 / A7)** — re-run the references-file census at the
   dispatch base (`ls skills/*/references/*.md`); at a post-plan-5 base it includes
   `skills/war/references/glossary-cold.md` (D10); place every file not in the conversion snapshot with a

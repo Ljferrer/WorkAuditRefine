@@ -74,7 +74,7 @@ discoverability gap in the sole sanctioned config interview. Every claim re-veri
    test is what makes the bare-flag `true` refuse), and `resolveRoundInput` in
    `skills/red-team/assets/red-team-gate.mjs` already refuses non-`/^\d+$/` round inputs (both
    re-verified at `6fff2ee`). The lesson
-   `docs/learnings/cli-parseargs-valueless-flag-coerces-to-number-true-is-one.md` records the class
+   `docs/learnings/archive/cli-parseargs-valueless-flag-coerces-to-number-true-is-one.md` records the class
    and names this exact instance — stamped RESOLVED by the fixing task (A6, the batch's
    fold-into-fixing-task precedent).
 3. **Sole-writer comment lag — three sites, not two** (verified: issue #1355 (2026-08-06), findings
@@ -131,7 +131,7 @@ discoverability gap in the sole sanctioned config interview. Every claim re-veri
    unadjudicated open finding **or** from `rounds >= 2` with an unadjudicated `needsDecision`
    finding (chronic under-specification routes to the interview earlier than the general limit), and
    never while coverage is incomplete (the `isIncomplete` short-circuit). The lesson
-   `docs/learnings/new-run-config-knob-needs-war-room-whitelist-touch.md` records this exact gap —
+   `docs/learnings/archive/new-run-config-knob-needs-war-room-whitelist-touch.md` records this exact gap —
    stamped RESOLVED by the fixing task (A6).
 7. **Already fixed — no work**: issue #1348 finding 1 (schemas.md Run-config block missing
    `redteamRoundLimit`) landed in `0f12ae2` — the `run: { … }` enumeration and its comment run carry
@@ -337,8 +337,8 @@ recorded in the `cli-parseargs-valueless-flag-coerces-to-number-true-is-one` les
       `node --test skills/war-campaign/assets/campaign-ledger.test.mjs`.
   12. Both companion lessons carry the RESOLVED stamp with bodies untouched ·
       check: `grep -cF 'RESOLVED'
-      docs/learnings/cli-parseargs-valueless-flag-coerces-to-number-true-is-one.md` ≥ 1 and
-      `grep -cF 'RESOLVED' docs/learnings/new-run-config-knob-needs-war-room-whitelist-touch.md` ≥ 1.
+      docs/learnings/archive/cli-parseargs-valueless-flag-coerces-to-number-true-is-one.md` ≥ 1 and
+      `grep -cF 'RESOLVED' docs/learnings/archive/new-run-config-knob-needs-war-room-whitelist-touch.md` ≥ 1.
   13. The full gates are green at the integrated tip — including `hooks/inject-campaign-state.test.sh`
       (the `is_active` gate's own suite: the sweep guard must not change its
       all-landed-stays-silent behavior) ·
@@ -371,7 +371,7 @@ constraint 4, so no ordering is needed in either direction.
 
 ### Task 1.1: campaign-ledger sweep guard + CLI refusal + maintained-home truth (#1355 findings 1/2/3-guard/4, #1367)
 
-- Files: `skills/war-campaign/assets/campaign-ledger.mjs`, `skills/war-campaign/assets/campaign-ledger.test.mjs`, `docs/learnings/cli-parseargs-valueless-flag-coerces-to-number-true-is-one.md`
+- Files: `skills/war-campaign/assets/campaign-ledger.mjs`, `skills/war-campaign/assets/campaign-ledger.test.mjs`, `docs/learnings/archive/cli-parseargs-valueless-flag-coerces-to-number-true-is-one.md`
 - Plan slice: **Shape comment (D8)** — in the `redteamRounds` clause of the top-of-file
   "Ledger shape:" comment, replace "recorded by the step-3 proceed arm" with "recorded by every arm
   of /war-campaign's step-3 triage". **`sweep()` idempotence guard (D2/D3/D4/D5)** — before the
@@ -478,7 +478,7 @@ constraint 4, so no ordering is needed in either direction.
 
 ### Task 1.4: war-room discoverability — step-2 whitelist + economy blurb (#1376, #1348 finding 2)
 
-- Files: `skills/war-room/SKILL.md`, `docs/learnings/new-run-config-knob-needs-war-room-whitelist-touch.md`
+- Files: `skills/war-room/SKILL.md`, `docs/learnings/archive/new-run-config-knob-needs-war-room-whitelist-touch.md`
 - Plan slice: **Step-2 run bullet (D15)** — extend the existing bullet (`run.roundLimit` (integer
   ≥ 1); `run.afk` (bool); `run.ace` (bool …)) with: `run.redteamRoundLimit` (integer ≥ 1; default 3,
   the economy preset pins 2) — `/red-team`'s cumulative grill-round budget, read fail-open by

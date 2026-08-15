@@ -4,11 +4,11 @@ description: "Guard blurb: say 'refuse diffs touching X' not repos"
 metadata:
   node_type: memory
   type: project
-  keywords: [Status section wording, trigger surface, diff vs repo, fail-closed phrasing, submodule refuse, prose nit, operator misinformation, absolute claim vs residual exception, ADR carve-out, fresh-env re-run, unconditional vs conditional emission, near-miss diagnostic, assert-test-in-diff.sh, stderr guard clause, umbrella clause, heterogeneous guard shapes, realpathSync, campaign-ledger, fileURLToPath, No behavior change label, bolded lead-in, colon-scoped enumeration, release headline contradiction, anti-overclaim device, appositive antecedent ambiguity, dangling modifier, itself unchanged, nearest-noun misattachment, D6 verbatim-capture contract, on every error path, seed-pack die try region, mkdtemp scratch leak scope, TOKEN-scoped absence lock, prose-only reintroduction, verifyTier cap exceeded, unconditional prose append, gating-premise mismatch, non-submodule byte identity claim, submodule floor gain, polish merge prompt, floor-retry prompt, submodLandNote, submodMergeNote, every existing non-submodule prompt, issue citation convention, origin issue vs task issue, ADR body vs header qualifier, byte-unchanged body qualifier dropped, ADR Status line amendment, expect_deny_teach pinning granularity, K5 combined substring stated as separate pins, test assertion granularity overclaim, authoring checklist self-violation, checklist item dropped in its own introducing paragraph, D25 cross-ADR mirror, two-site characterization, either-alone overclaim, guard scope word omission, bound every absolute, universal quantifier enumeration gap, version-manifest omitted from outside-dir enumeration, doctrine count vs guard count mismatch, engine untouched claim, task diff vs release window scope, unbumped stacked PR, zero engine change, named above enumeration gap, skills touch outside families, previously-valid vs currently-valid, boilerplate closing sentence drift, stock release phrase word swap, headline vs body scope mismatch, malformed argv every mode, file mode bare token carve-out, worktree name collision resolved via numeric suffix, unbounded absolute inherited from source comment, namespace-scoped ref-diff refs/heads refs/tags, every live ref vs every live heads/tags ref, escape-worthy fixture misattribution, wrong case cited as the escaping fixture, faithful mirror of suite banner still overstates scope, watchdog group kill fd survivor, unbounded claim repaired two sentences later same bullet, discrimination ceiling banner dropped, quoted test case number without its own scope caveat, done-when floor wiring, TERM-ignoring descendant residual]
+  keywords: [Status section wording, trigger surface, diff vs repo, fail-closed phrasing, submodule refuse, prose nit, operator misinformation, absolute claim vs residual exception, ADR carve-out, fresh-env re-run, unconditional vs conditional emission, near-miss diagnostic, assert-test-in-diff.sh, stderr guard clause, umbrella clause, heterogeneous guard shapes, realpathSync, campaign-ledger, fileURLToPath, No behavior change label, bolded lead-in, colon-scoped enumeration, release headline contradiction, anti-overclaim device, appositive antecedent ambiguity, dangling modifier, itself unchanged, nearest-noun misattachment, D6 verbatim-capture contract, on every error path, seed-pack die try region, mkdtemp scratch leak scope, TOKEN-scoped absence lock, prose-only reintroduction, verifyTier cap exceeded, unconditional prose append, gating-premise mismatch, non-submodule byte identity claim, submodule floor gain, polish merge prompt, floor-retry prompt, submodLandNote, submodMergeNote, every existing non-submodule prompt, issue citation convention, origin issue vs task issue, ADR body vs header qualifier, byte-unchanged body qualifier dropped, ADR Status line amendment, expect_deny_teach pinning granularity, K5 combined substring stated as separate pins, test assertion granularity overclaim, authoring checklist self-violation, checklist item dropped in its own introducing paragraph, D25 cross-ADR mirror, two-site characterization, either-alone overclaim, guard scope word omission, bound every absolute, universal quantifier enumeration gap, version-manifest omitted from outside-dir enumeration, doctrine count vs guard count mismatch, engine untouched claim, task diff vs release window scope, unbumped stacked PR, zero engine change, named above enumeration gap, skills touch outside families, previously-valid vs currently-valid, boilerplate closing sentence drift, stock release phrase word swap, headline vs body scope mismatch, malformed argv every mode, file mode bare token carve-out, worktree name collision resolved via numeric suffix, unbounded absolute inherited from source comment, namespace-scoped ref-diff refs/heads refs/tags, every live ref vs every live heads/tags ref, escape-worthy fixture misattribution, wrong case cited as the escaping fixture, faithful mirror of suite banner still overstates scope, watchdog group kill fd survivor, unbounded claim repaired two sentences later same bullet, discrimination ceiling banner dropped, quoted test case number without its own scope caveat, done-when floor wiring, TERM-ignoring descendant residual, hand-duplicated guard not shared, lacks_i lacks has_i_stripped, existence guard controls #1362, pin the guard both ways, shell-pin-helpers]
   provenance: code-verified
   promoted: dev/2026-08-06-red-team-gate-cli@phase-2
   slug: release-blurb-overstates-guard-semantics
-  phase: "submodule-inc1/T4 +14 recurrences (war-campaign-resilience-roadmap/phase-2 Release task 2.1, 2026-07-22; test-floor-target-repo/phase-2 Release task 2.1, 2026-07-22; cli-main-guard-normalization/phase-2 Release task 2.1, 2026-07-23; runbook-and-standing-record-coherence/phase-2 Release task 2.1, 2026-07-24; recovery-re-merge-dispatch-coherence/phase-2 Release task 2.1, 2026-07-24; drift-guard-and-floor-diagnostic-hardening/phase-2 Release task 2.1, 2026-07-24/25; 2026-07-24-memory-tooling-hardening/phase-2 Release task 2.1, 2026-07-26; 2026-07-26-dispatch-args-and-floor-coverage/phase-3 Release task 3.1, 2026-07-26/27; 2026-07-26-auditor-guard-policy-and-mirror-truth/phase-2 Release task 2.1, 2026-07-27; 2026-07-26-standing-doc-and-remedy-truth-sweep/phase-2 Release task 2.1, 2026-07-27; 2026-07-28-audit-evidence-precedence/phase-2 Release task 2.1, 2026-07-28; 2026-08-02-redteam-doctrine-and-guards/phase-2 Release task 2.1, 2026-08-02; 2026-08-04-interview-and-authoring-contract/phase-3 Release task 10, 2026-08-05; 2026-08-06-red-team-gate-cli/phase-2 Release task 2.1, 2026-08-06/14; 2026-08-06-escape-guard-exit-contract/phase-2 Release task 2.1, 2026-08-15; 2026-08-06-done-when-floor-wiring/phase-2 Release task 2.1, 2026-08-15)"
+  phase: "submodule-inc1/T4 +15 recurrences (war-campaign-resilience-roadmap/phase-2 Release task 2.1, 2026-07-22; test-floor-target-repo/phase-2 Release task 2.1, 2026-07-22; cli-main-guard-normalization/phase-2 Release task 2.1, 2026-07-23; runbook-and-standing-record-coherence/phase-2 Release task 2.1, 2026-07-24; recovery-re-merge-dispatch-coherence/phase-2 Release task 2.1, 2026-07-24; drift-guard-and-floor-diagnostic-hardening/phase-2 Release task 2.1, 2026-07-24/25; 2026-07-24-memory-tooling-hardening/phase-2 Release task 2.1, 2026-07-26; 2026-07-26-dispatch-args-and-floor-coverage/phase-3 Release task 3.1, 2026-07-26/27; 2026-07-26-auditor-guard-policy-and-mirror-truth/phase-2 Release task 2.1, 2026-07-27; 2026-07-26-standing-doc-and-remedy-truth-sweep/phase-2 Release task 2.1, 2026-07-27; 2026-07-28-audit-evidence-precedence/phase-2 Release task 2.1, 2026-07-28; 2026-08-02-redteam-doctrine-and-guards/phase-2 Release task 2.1, 2026-08-02; 2026-08-04-interview-and-authoring-contract/phase-3 Release task 10, 2026-08-05; 2026-08-06-red-team-gate-cli/phase-2 Release task 2.1, 2026-08-06/14; 2026-08-06-escape-guard-exit-contract/phase-2 Release task 2.1, 2026-08-15; 2026-08-06-done-when-floor-wiring/phase-2 Release task 2.1, 2026-08-15; 2026-08-06-shell-pin-helpers/phase-2 Release task 2.1, 2026-08-15)"
   tags:
     - war
     - release
@@ -24,7 +24,7 @@ metadata:
     - "[[gitmodules-working-tree-read-vs-ref-snapshot]]"
   created: 2026-06-30
   originSessionId: 0e364ee5-f0b3-47f6-a9e4-9bf2dd555733
-  modified: 2026-08-15T12:22:13.261Z
+  modified: 2026-08-15T21:28:16.016Z
 ---
 
 # Release blurb prose overstates guard semantics
@@ -793,3 +793,60 @@ Related: [[awk-empty-baseline-nr-fnr-degeneracy]] (unrelated family, this phase'
 [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]] (worktree-lookup path used to ground
 this recurrence's D3 read, `_refinery11` resolved by gitdir physical path over the ambiguous bare
 entry name shared with a different concurrent plan's `p2-2.1`/`_refinery`).
+
+## Recurrence 17 (2026-08-15, plan `2026-08-06-shell-pin-helpers`, phase 2 "Release", task 2.1) —
+"Two committed controls pin the guard both ways" drops the exact scope word the suite's own comment
+declares: the controls exercise only one of three hand-duplicated guard copies
+
+A twenty-sixth instantiation, flagged independently by two auditor seats on the identical `## Status`
+bullet clause. `code-verified` — read directly at the `p2-2.17` task worktree whose `HEAD`
+(`496ed1a8a8f211e82c9a0c1c836e3182dfe90330`) is the gate-audit `auditSha`, content-equal to the landed
+tip `71ed15b21bc48092ffad961ed54e3d66fbb4acd0` for this bullet (the release-bump commit between them
+replaces only the `**0.17.4**` headline sentence, not this bullet's body — gitdir physical path
+containing this plan's slug:
+`<repo-root>/.claude/war-worktrees/2026-08-06-shell-pin-helpers-2026-08-15/2026-08-06-shell-pin-helpers-2026-08-15/p2-2.1/`),
+`README.md` line 363, the "Absence-pin existence guard (`MISSING FILE`)" bullet.
+
+**"Two committed controls pin the guard both ways" is true only through `lacks_i()`, but the bullet's
+opening clause already named the guard as present in all three `strip_prose`-reading helpers.** The
+bullet's first sentence names `lacks()`, `lacks_i()`, and `has_i_stripped()` as each independently
+opening with the `[ -f ]` guard — accurate; the guard block is hand-duplicated into all three bodies
+(`skills/war-machine/war-pipeline-structure.test.sh`, verified at the pin: each of the three helper
+bodies repeats the identical `if [ ! -f "$1" ]; then printf 'not ok - %s MISSING FILE...'; fails=$((fails+1));
+return; fi` block). The bullet then says "Two committed controls pin the guard both ways" — but the
+suite's own control-block comment states the opposite scope explicitly: `# Existence-guard controls
+(#1362) ...` followed by "Both controls invoke lacks_i SPECIFICALLY" (both the missing-path and
+real-file probes call `lacks_i` alone, lines ~312-342 at the pin). Because the guard is duplicated
+rather than shared, no committed assertion exercises the guard copy inside `lacks()` or
+`has_i_stripped()` — deleting either of those two copies reds nothing. **New sub-mechanism for the
+family:** the prior 25 recurrences are all about a *single* mechanism described with an overbroad
+clause; here the mechanism is genuinely **triplicated** (not shared code), and the blurb's "pin the
+guard both ways" reads as pinning the mechanism generally when only one of the three copies is under
+committed test — the closest sibling is Recurrence 15(a)'s "faithful mirror of a source banner
+comment," except here the *blurb itself* (not an inherited banner) drops the scope word its own
+cited suite comment states two lines above the control block, in the same file.
+
+Both `disposition: note`, Nit, non-blocking, not fixed before land (`fixRounds: 0`) — flagged
+identically by two auditor seats in the same audit round (a repeat-seat pattern this family has seen
+before, e.g. Recurrence 16(a)'s four seats on one clause); `## Status` is a release slot outside task
+2.1's `Files:` list to touch incidentally, and the disposition rule refuses `absorb` for anything
+touching a version/release slot.
+
+**Sharper form of the Rule for this instance:** when a guard mechanism exists as multiple
+hand-duplicated copies (not a single shared function) and only one copy is committed-tested, "the
+guard is pinned" or "controls pin the guard" is a claim about the *tested copy*, not the *mechanism* —
+name the specific function the controls invoke ("pin the guard both ways through `lacks_i()`") rather
+than the general clause, exactly as the suite's own adjacent comment already does two lines above the
+blurb's paraphrase.
+
+**Now 26 recurrences across four overlapping sub-families** (unchanged families; this is a fresh
+instance of "a guard's discrimination/reach described more broadly than its own code," now
+specialized to hand-duplicated, not-actually-shared implementations). Applies-to checklist addendum:
+before writing "the guard"/"the mechanism" is pinned/covered, check whether the underlying code is one
+shared function or several hand-duplicated copies — a control exercising one copy does not pin the
+others, even when they are byte-identical at the point the blurb is drafted.
+
+Related: [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]] (worktree-lookup path used to
+ground this recurrence's D3 read — the task worktree's own branch never advanced to the release-bump
+commit, since that commit was made directly on `dev/2026-08-06-shell-pin-helpers` during Refine's land
+step, not on any task/integration branch this servitor's cwd or worktree enumeration could reach).
