@@ -77,33 +77,77 @@ strip_prose() {
   '
 }
 
-# grep -F fixed-string ABSENCE in a file (inverse of has()), scanning the file with release/
-# changelog prose stripped (strip_prose) so a blurb describing the rename never re-trips it. Used
+# Inner stdin predicates — the single seat for the stripped scan: read stdin, drop the release/
+# changelog prose regions, then fixed-string match. The second is the case-insensitive twin of
+# the first; their sole delta is the -i flag, and the committed -i control below binds that delta.
+# Every stripped-scan helper and committed fixture control composes one of these two — never an
+# inline copy (sweep hygiene: this header names the pieces, not the assembled pipeline).
+_hit()   { strip_prose | grep -qF  -e "$1"; }
+_hit_i() { strip_prose | grep -qiF -e "$1"; }
+
+# Fixed-string ABSENCE in a file (inverse of has()) — [ -f ] existence guard, then the
+# case-sensitive inner predicate _hit over the file (release/changelog prose regions dropped
+# before scanning, so a blurb describing the rename never re-trips it). A missing target file is
+# a hard MISSING FILE failure, never a vacuous pass on empty input
+# ([[absence-check-passes-vacuously-on-missing-target-file-needs-paired-positive-assert]]). Used
 # by the rename criterion to prove old skill-name tokens are gone from an EXPLICITLY ENUMERATED
 # file list — never a repo-root recursive grep ([[absence-guard-search-root-must-anchor-to-subtree]]).
 # This test file is deliberately NOT in that list: its own assertion args legitimately name the
 # old tokens.
 lacks() { # file  literal
-  if strip_prose < "$1" | grep -qF -e "$2"; then
+  if [ ! -f "$1" ]; then
+    printf 'not ok - %s MISSING FILE :: %s\n' "$(basename "$1")" "$2"
+    fails=$((fails + 1))
+    return
+  fi
+  if ! _hit "$2" < "$1"; then
+    printf 'ok - %s lacks :: %s (correct)\n' "$(basename "$1")" "$2"
+  else
     printf 'not ok - %s UNEXPECTEDLY has :: %s\n' "$(basename "$1")" "$2"
     fails=$((fails + 1))
-  else
-    printf 'ok - %s lacks :: %s (correct)\n' "$(basename "$1")" "$2"
   fi
 }
 
-# grep -iF case-INSENSITIVE fixed-string ABSENCE — the -i twin of lacks(); body mirrors lacks()
-# exactly except the -i flag (adjudicated 2026-08-05, interview-and-authoring-contract). For
-# RETIRED PROSE a benign re-casing must not resurrect unseen — the recorded asymmetry class
+# Case-INSENSITIVE fixed-string ABSENCE — the -i twin of lacks(): the same [ -f ] existence
+# guard, then the case-insensitive inner predicate _hit_i over the file (adjudicated 2026-08-05,
+# interview-and-authoring-contract). For RETIRED PROSE a benign re-casing must not resurrect
+# unseen — the recorded asymmetry class
 # ([[lacks-case-sensitive-vs-has-i-presence-pin-asymmetry]]): a case-sensitive absence pin
 # silently passes on a re-cased reintroduction. Inherits strip_prose's `## Status`/`## Changelog`
 # drop; comment-leader stripping belongs to the hand-run land-time sweep, never this helper.
 lacks_i() { # file  literal
-  if strip_prose < "$1" | grep -qiF -e "$2"; then
+  if [ ! -f "$1" ]; then
+    printf 'not ok - %s MISSING FILE :: %s\n' "$(basename "$1")" "$2"
+    fails=$((fails + 1))
+    return
+  fi
+  if ! _hit_i "$2" < "$1"; then
+    printf 'ok - %s lacks :: %s (case-insensitive, correct)\n' "$(basename "$1")" "$2"
+  else
     printf 'not ok - %s UNEXPECTEDLY has :: %s (case-insensitive)\n' "$(basename "$1")" "$2"
     fails=$((fails + 1))
+  fi
+}
+
+# Case-INSENSITIVE fixed-string PRESENCE with the release/changelog prose regions dropped before
+# scanning — the presence-polarity mirror of lacks_i(): the same [ -f ] existence guard, then the
+# same case-insensitive inner predicate over the file. For NEW-present pins that must prove the
+# TARGET SECTION landed the phrasing: a raw-file has_i() is independently satisfiable by a README
+# `## Status` blurb narrating the very change being pinned
+# ([[gospel-new-present-pin-self-satisfied-by-status-blurb-prose]], #1371) — this variant is
+# immune, because the blurb region is gone before the scan. Opt-in per pin, never a wholesale
+# has_i() replacement: most presence pins legitimately accept a hit anywhere in the raw file.
+has_i_stripped() { # file  literal
+  if [ ! -f "$1" ]; then
+    printf 'not ok - %s MISSING FILE :: %s\n' "$(basename "$1")" "$2"
+    fails=$((fails + 1))
+    return
+  fi
+  if _hit_i "$2" < "$1"; then
+    printf 'ok - %s :: %s (case-insensitive, prose-stripped)\n' "$(basename "$1")" "$2"
   else
-    printf 'ok - %s lacks :: %s (case-insensitive, correct)\n' "$(basename "$1")" "$2"
+    printf 'not ok - %s MISSING :: %s (case-insensitive, prose-stripped)\n' "$(basename "$1")" "$2"
+    fails=$((fails + 1))
   fi
 }
 
@@ -244,7 +288,7 @@ prose_fixture='## Status
 ## Real content
 
 name: survey-corps'
-if printf '%s\n' "$prose_fixture" | strip_prose | grep -qF -e 'war-survey-corps'; then
+if printf '%s\n' "$prose_fixture" | _hit 'war-survey-corps'; then
   printf 'not ok - PROSE mention of war-survey-corps in ## Status/## Changelog tripped the guard\n'
   fails=$((fails + 1))
 else
@@ -258,12 +302,44 @@ struct_fixture='## Status
 ## Real content
 
 ./skills/war-survey-corps'
-if printf '%s\n' "$struct_fixture" | strip_prose | grep -qF -e 'war-survey-corps'; then
+if printf '%s\n' "$struct_fixture" | _hit 'war-survey-corps'; then
   printf 'ok - STRUCTURAL war-survey-corps reintroduction outside prose still caught (correct)\n'
 else
   printf 'not ok - STRUCTURAL war-survey-corps reintroduction was swallowed by strip_prose\n'
   fails=$((fails + 1))
 fi
+
+printf '\n# Existence-guard controls (#1362) — a missing scan target is a hard MISSING FILE failure, never a vacuous pass\n'
+# Both controls invoke lacks_i SPECIFICALLY, and the real-file target is pinned to "$AFTERMATH"
+# (a surface no exact-count End state greps) — neither the probe helper nor its argument is
+# executor latitude, so the controls never perturb an exact call-site count elsewhere in this
+# suite. Each probe runs in a command substitution: its own `fails` increment dies in the
+# subshell; only the case-pattern asserts below touch the real counter. bash-3.2 `case`, no
+# mktemp — the nonexistent path is never created.
+guard_missing_out="$(lacks_i "$ROOT/skills/war-machine/no-such-guard-probe-target.md" 'existence-guard probe literal')"
+case "$guard_missing_out" in
+  *'MISSING FILE'*)
+    printf 'ok - existence-guard control: lacks_i on a nonexistent path emits the MISSING FILE marker (correct)\n'
+    ;;
+  *)
+    printf 'not ok - existence-guard control: lacks_i on a nonexistent path did NOT emit the MISSING FILE marker\n'
+    fails=$((fails + 1))
+    ;;
+esac
+guard_real_out="$(lacks_i "$AFTERMATH" 'existence-guard control token this surface never carries')"
+case "$guard_real_out" in
+  *'MISSING FILE'*)
+    printf 'not ok - existence-guard control: lacks_i on a real file emitted the MISSING FILE marker\n'
+    fails=$((fails + 1))
+    ;;
+  *'lacks ::'*'(case-insensitive, correct)'*)
+    printf 'ok - existence-guard control: lacks_i on a real file scans normally, no marker (correct)\n'
+    ;;
+  *)
+    printf 'not ok - existence-guard control: lacks_i on a real file produced neither the marker nor the normal ok line\n'
+    fails=$((fails + 1))
+    ;;
+esac
 
 printf '\n# Class-1 gate evidence (docs/specs/2026-07-16-aftermath-class1-gate-evidence-design.md) — per-ref gate clause, git-cherry row evidence, unset-upstream recovery\n'
 # Named, not numbered: the original pipeline spec owns criteria 2/3/4/9/10 and a bare number here
@@ -349,11 +425,12 @@ done
 # `check '^### Drift-guard coverage'` in war-strategy-structure.test.sh, is a prefix regex matching the
 # retired and current count words identically. Each pattern is assembled at runtime from split
 # fragments so this file is never itself a hit for a repo-wide sweep of the retired phrases
-# ([[coupling-comment-restating-grep-pattern-bytes-self-matches-the-sweep]]).
+# ([[coupling-comment-restating-grep-pattern-bytes-self-matches-the-sweep]]). Case-insensitive
+# (#1374): retired PROSE — a sentence-cased revert of a count phrase must not resurrect unseen.
 retired_count_a='two authoring'
 retired_count_b='two drift-guard'
-lacks "$WAR_STRATEGY" "$retired_count_a rules"
-lacks "$WAR_STRATEGY" "$retired_count_b rules"
+lacks_i "$WAR_STRATEGY" "$retired_count_a rules"
+lacks_i "$WAR_STRATEGY" "$retired_count_b rules"
 
 printf '\n# Authoring contract (docs/plans/2026-08-04-interview-and-authoring-contract.md, Task 3) — machine merged output + grill charter + AFK per-row provenance + survey-corps claim tagging\n'
 # Named, not numbered: the original pipeline spec owns the numbered criteria. has_i for PROSE
@@ -389,27 +466,28 @@ lacks_i "$MACHINE" "$retired_grill_a $retired_grill_b"
 retired_convert_a='author the war-shaped'
 retired_convert_b='plan'
 lacks_i "$MACHINE" "$retired_convert_a $retired_convert_b"
-has_i "$MACHINE" 'author the merged plan'
+has_i_stripped "$MACHINE" 'author the merged plan'
 # lacks_i -i positive control (both-ways, the prose-exclusion self-check precedent above): a
-# RE-CASED fixture must FIRE the case-insensitive composition lacks_i wraps (control green),
-# while the plain case-sensitive grep -qF must MISS it — pinning the -i as load-bearing rather
-# than decorative. Committed because an uncommitted re-cased red-proof is exactly the half that
+# RE-CASED fixture must FIRE _hit_i, the case-insensitive inner predicate lacks_i composes
+# (control green), while its case-sensitive twin must MISS it — pinning the -i as load-bearing
+# rather than decorative, bound at the shared predicate every case-insensitive stripped scan
+# routes through. Committed because an uncommitted re-cased red-proof is exactly the half that
 # rots unseen ([[old-absent-gate-half-relies-on-unrecorded-hand-grep-fails-silently]]). Fixture
 # assembled from re-cased fragments for the same sweep-hygiene reason as the patterns above.
 recased_grill_a='Question'
 recased_grill_b='Tree'
 recased_fixture="$recased_grill_a $recased_grill_b"
-if printf '%s\n' "$recased_fixture" | strip_prose | grep -qiF -e "$retired_grill_a $retired_grill_b"; then
+if printf '%s\n' "$recased_fixture" | _hit_i "$retired_grill_a $retired_grill_b"; then
   printf 'ok - lacks_i -i control: re-cased fixture caught case-insensitively (correct)\n'
 else
-  printf 'not ok - lacks_i -i control: re-cased fixture NOT caught — the -i composition is broken\n'
+  printf 'not ok - lacks_i -i control: re-cased fixture NOT caught — the -i inner predicate is broken\n'
   fails=$((fails + 1))
 fi
-if printf '%s\n' "$recased_fixture" | strip_prose | grep -qF -e "$retired_grill_a $retired_grill_b"; then
-  printf 'not ok - lacks_i -i control: plain grep -qF matched the re-cased fixture — control proves nothing about -i\n'
+if printf '%s\n' "$recased_fixture" | _hit "$retired_grill_a $retired_grill_b"; then
+  printf 'not ok - lacks_i -i control: case-sensitive _hit matched the re-cased fixture — control proves nothing about -i\n'
   fails=$((fails + 1))
 else
-  printf 'ok - lacks_i -i control: plain grep -qF misses the re-cased fixture — -i is load-bearing (correct)\n'
+  printf 'ok - lacks_i -i control: case-sensitive _hit misses the re-cased fixture — -i is load-bearing (correct)\n'
 fi
 # AFK provenance (D14, ADR 0014): beyond the heading variants, every row/tag the unattended
 # conversion authors itself carries a per-row `AI-declared` marker. Two pins: the body-sentence
@@ -483,11 +561,14 @@ for f in "$README" "$CLAUDE_MD" "$WAR_HELP" "$CONTEXT" "$WAR_STRATEGY"; do
   lacks_i "$f" "$gospel16"
 done
 # NEW-present twins, one per suite-owned surface (Task 6's table names each anchor; war-help's
-# is the rewritten `/war-strategy` command-table row — the doctrinal row Task 6 updated):
-has_i "$README"    'recommended auxiliary plugin'
-has_i "$CLAUDE_MD" 'one interview, one merged artifact'
-has_i "$WAR_HELP"  'one merged plan, decision record + phases in a single artifact'
-has_i "$CONTEXT"   'input shape'
+# is the rewritten `/war-strategy` command-table row — the doctrinal row Task 6 updated).
+# Prose-stripped presence (#1371): each twin must prove its TARGET SECTION landed the phrasing,
+# so a README `## Status` blurb quoting the anchor can never self-satisfy the pin
+# ([[gospel-new-present-pin-self-satisfied-by-status-blurb-prose]]):
+has_i_stripped "$README"    'recommended auxiliary plugin'
+has_i_stripped "$CLAUDE_MD" 'one interview, one merged artifact'
+has_i_stripped "$WAR_HELP"  'one merged plan, decision record + phases in a single artifact'
+has_i_stripped "$CONTEXT"   'input shape'
 
 printf '\n== war-pipeline-structure: %s failure(s) ==\n' "$fails"
 exit $fails
