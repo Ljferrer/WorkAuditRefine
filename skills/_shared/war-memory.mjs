@@ -455,7 +455,14 @@ export function inboundCiters(records, slug, { hotOnly = false } = {}) {
 // and an UNDATED lesson (no VALID, non-future date token anywhere) is PROTECTED, treated as
 // within-window.
 // ---------------------------------------------------------------------------
-export const TIGHTEN_YOUNG_DAYS = 14;
+// 8 (was 14; changed 2026-08-15). An active campaign re-stamps a large fraction of the corpus, so
+// a 14-day window floored EVERY candidate right after a run: measured on the live corpus, 0 of 178
+// hot lessons were eligible while the projection sat 1,301 B ABOVE HARD_BYTES — the lever was
+// exhausted exactly when it was needed. 8 is the knee: 7..4 unlock the identical set, so it is the
+// least weakening that recovers all the available headroom. Lowering by N is equivalent to waiting
+// N days, so this trades ~6 days of settling for usable eviction and still gives a lesson over a
+// week to accrue query hits before it can ever be evicted.
+export const TIGHTEN_YOUNG_DAYS = 8;
 const DAY_MS = 86_400_000;
 // How far past `now` a date token may still be read as real (#989). 48 h — comfortably above the
 // ≤ ~26 h worst-case UTC-midnight-vs-local-date skew, far below any abuse horizon. Module-private:
