@@ -29,10 +29,12 @@
 # exit 1, the done-unmet route — never the merge queue. Enforced by a 1s-poll
 # watchdog (macOS has no coreutils `timeout`): TERM at the budget, KILL 2s
 # later as insurance, each delivered to the command's own process group
-# (`set -m` around the launch) with a single-PID fallback. Residual: the one
-# survivor class is a grandchild that escaped into a NEW session/process
-# group (true daemonization) — bash 3.2 has no setsid to reach it; it cannot
-# change the exit code.
+# (`set -m` around the launch) with a single-PID fallback. Residual: the
+# group kill cannot reach a grandchild that escaped into a NEW
+# session/process group (true daemonization) — bash 3.2 has no setsid;
+# neither that nor the watchdog's own in-flight `sleep` can change the exit
+# code, though either can hold an inherited stdout fd briefly after the
+# floor exits.
 #
 # STDOUT belongs to the executed command — the refiner tees the floor run's
 # combined stdout+stderr to the done-when evidence artifact

@@ -56,7 +56,9 @@
 #       -> exit 1 + the timed-out diagnostic AND the command-substitution
 #       stdout capture returns within the 15s wall bound (without the group
 #       kill the orphaned sleep survives the single-PID kill, holds the
-#       inherited stdout fd, and the capture blocks until it dies).
+#       inherited stdout fd, and the capture blocks until it dies); stdout
+#       stays byte-empty — the timeout path is the only one where a
+#       `set -m` job notice could leak, so it carries case 13's stdout pin.
 #
 # The env-arm greps quote the floor's die literals VERBATIM (embedded $vars
 # included) inside double quotes: the test binds each variable to the runtime
@@ -549,7 +551,11 @@ fi
 # long-lived grandchild (`sleep 60 & wait`) and times out under --timeout 1.
 # Assert (a): floor exit 1 + the timed-out diagnostic (the done-unmet route).
 # Assert (b): run_floor's command-substitution stdout capture RETURNS within
-# the suite's 15s wall-clock idiom. DELETE-THE-FEATURE (traced pre-commit,
+# the suite's 15s wall-clock idiom. Assert (c): stdout stays byte-empty —
+# the timeout path is the only path where a `set -m` job-status notice can
+# materialize (a job is signalled only here; bash writes job notices to
+# stderr, and this assert keeps the channel byte-watched, matching case 13's
+# green/red stdout pin). DELETE-THE-FEATURE (traced pre-commit,
 # recorded in the task's done report): with the group kill reverted to the
 # single-PID form, the watchdog signals only $cmd_pid — the orphaned sleep
 # survives TERM and KILL, keeps holding the inherited stdout fd, and the
@@ -570,12 +576,15 @@ T21_ELAPSED=$((T21_END - T21_START))
 if [ "$RC" -eq 1 ] \
    && printf '%s' "$ERR" | grep -qF 'timed out after 1s' \
    && printf '%s' "$ERR" | grep -qF 'done-unmet' \
-   && [ "$T21_ELAPSED" -le 15 ]; then
-  pass "case 21: grandchild (sleep 60 & wait) + --timeout 1 -> exit 1 + timed-out diagnostic, capture returned in ${T21_ELAPSED}s (group kill reaped the orphan)"
+   && [ "$T21_ELAPSED" -le 15 ] \
+   && [ -z "$OUT" ]; then
+  pass "case 21: grandchild (sleep 60 & wait) + --timeout 1 -> exit 1 + timed-out diagnostic, empty stdout, capture returned in ${T21_ELAPSED}s (group kill reaped the orphan)"
 elif [ "$RC" -ne 1 ]; then
   fail "case 21: grandchild timeout -> expected exit 1, got $RC after ${T21_ELAPSED}s (err: $ERR)"
 elif [ "$T21_ELAPSED" -gt 15 ]; then
   fail "case 21: exit 1 but the capture took ${T21_ELAPSED}s — the orphaned grandchild held the inherited stdout fd (group kill missing/ineffective)"
+elif [ -n "$OUT" ]; then
+  fail "case 21: stdout was not empty — a set -m job notice leaked onto the command's stdout channel (OUT=[$OUT])"
 else
   fail "case 21: grandchild timeout exit 1 but diagnostic wrong (err: $ERR)"
 fi
