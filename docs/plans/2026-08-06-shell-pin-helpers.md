@@ -224,7 +224,10 @@ triad-passing decision (spec §7).
      → `0`.
   5. `has_i_stripped()` exists (guard + `_hit_i "$2" < "$1"`, `(case-insensitive, prose-stripped)`
      labels) and exactly the five D6 twin pins route through it, each still finding ≥1 stripped hit ·
-     check — **identity-scoped, not count-only** (red-team round 1: a bare whole-file count catches a
+     check: `f=skills/war-machine/war-pipeline-structure.test.sh; [ "$(grep -Fc -e "has_i_stripped \"\$README\"" $f)" = 1 ] && [ "$(grep -Fc -e "has_i_stripped \"\$CLAUDE_MD\"" $f)" = 1 ] && [ "$(grep -Fc -e "has_i_stripped \"\$WAR_HELP\"" $f)" = 1 ] && [ "$(grep -Fc -e "has_i_stripped \"\$CONTEXT\"" $f)" = 1 ] && [ "$(grep -Fc -e "has_i_stripped \"\$MACHINE\" 'author the merged plan'" $f)" = 1 ] && [ "$(grep -Fc -e 'has_i_stripped "' $f)" = 5 ]` — one command, because the land-barrier endstate dispatch runs
+     exactly ONE command per End-state row; it asserts all five identity greps AND the
+     no-extras cap together (verified both ways: exit 1 at the base, exit 0 on a correct
+     migration). **Identity-scoped, not count-only** (red-team round 1: a bare whole-file count catches a
      SHORT migration but not a SUBSTITUTION — migrating four D6 twins plus one non-D6 `has_i` pin holds
      the count at exactly 5 while leaving an enumerated twin un-migrated, and an old-absent `has_i "`
      count cannot discriminate either: it measures 14 in both the correct and the substituted build):
@@ -243,7 +246,9 @@ triad-passing decision (spec §7).
      "mirrors lacks() exactly except the -i flag" and the `-i` control banner names `_hit_i` instead of
      "the case-insensitive composition lacks_i wraps"; survey items 3–5 (gospel-block comment, rename-loop
      case boundary, file-top exit-contract comment) re-verified still-true ·
-     check — **case-insensitive** (`-Fic`, red-team round 1: a case-SENSITIVE retirement grep over PROSE
+     check: `f=skills/war-machine/war-pipeline-structure.test.sh; [ "$(grep -Fic -e "body mirrors lacks()" $f)" = 0 ] && [ "$(grep -Fic -e "composition lacks_i wraps" $f)" = 0 ] && [ "$(grep -c "^#.*_hit_i" $f)" -ge 2 ]` — one command per row, as above; it asserts both OLD-absent
+     halves AND the NEW-present comment-anchored twin together (verified both ways: exit 1
+     at the base, exit 0 on a correct migration). **Case-insensitive** (`-Fic`, red-team round 1: a case-SENSITIVE retirement grep over PROSE
      is the very sentence-case false-negative class D3 migrates the suite's own count asserts to fix;
      reproduced — a sentence-cased "Body mirrors lacks() …" scores 0 under `-Fc` and 1 under `-Fic`):
      `grep -Fic -e 'body mirrors lacks()' skills/war-machine/war-pipeline-structure.test.sh`
