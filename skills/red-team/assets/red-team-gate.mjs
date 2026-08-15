@@ -232,13 +232,16 @@ export function summarize(results, coverage = null) {
 // on stdout is always gate-computed, never hand-written.
 // Loop-breaker inputs (Task 4.1): optional `rounds` / `roundLimit` arrive as top-level input keys
 // or as `=`-attached flags --rounds=<n> / --round-limit=<n> (a flag overrides the key — the Lead's
-// re-pipe carries the fresher count; the file-mode positional scan picks the first non-`--` token
-// as the results path, so space-separated flag values are refused by construction). A supplied
-// value must be a non-negative integer — anything else is a loud refusal, never a silent
-// routeUpstream: false (a typo'd flag must not let a chronic plan keep grinding). Each supplied
-// input is echoed in the output beside `routeUpstream` (see routeUpstream() for the arithmetic);
-// absent inputs ⇒ absent outputs, so a rounds-less invocation's stdout is byte-identical to the
-// pre-rounds shape.
+// re-pipe carries the fresher count). A default-deny argument check at the top of main() refuses,
+// in every mode, any `--` token outside the known set {--stdin, --rounds=<n>, --round-limit=<n>} —
+// so a space-separated flag value (--rounds 3) and a typo'd flag name both refuse loudly — and in
+// --stdin mode it also refuses any bare token (stdin mode consumes no positionals). The file-mode
+// positional scan is only the path-picking mechanism: the first non-`--` token is the results
+// path. A supplied value must be a non-negative integer — anything else is a loud refusal, never
+// a silent routeUpstream: false (a typo'd flag must not let a chronic plan keep grinding). Each
+// supplied input is echoed in the output beside `routeUpstream` (see routeUpstream() for the
+// arithmetic); absent inputs ⇒ absent outputs, so a rounds-less invocation's stdout is
+// byte-identical to the pre-rounds shape.
 // Parse one loop-breaker input: the `=`-attached flag (string) wins over the input key
 // (number); undefined/null mean "not supplied". Returns an integer or undefined; any other
 // supplied value refuses loudly via `die` (exit 1, no verdict on stdout).
@@ -256,8 +259,27 @@ function resolveRoundInput(flagRaw, key, label, die) {
 
 async function main(argv) {
   const args = argv.slice(2)
+  // The shared loud-refusal contract: diagnostic on stderr, exit 1, nothing on stdout. Declared
+  // ahead of the default-deny check (D3) and threaded into resolveRoundInput further down.
+  const die = msg => { process.stderr.write(`red-team-gate: ${msg}`); process.exit(1) }
+  // Default-deny argument check (every mode, argv channel only): any `--` token outside the known
+  // set {--stdin, --rounds=<n>, --round-limit=<n>} refuses loudly, and in --stdin mode any bare
+  // token refuses too (stdin mode consumes no positionals). Runs ahead of mode selection and the
+  // stdin read, so a malformed invocation fails fast without consuming the pipe. In file mode the
+  // positional scan below is only the path-picking mechanism (first non-`--` token = results path);
+  // surplus bare tokens there stay ignored (A3, deliberate).
+  const stdinMode = args.includes('--stdin')
+  for (const t of args) {
+    if (t.startsWith('--')) {
+      if (t !== '--stdin' && !t.startsWith('--rounds=') && !t.startsWith('--round-limit=')) {
+        die(`unknown argument ${t} — accepted forms: --stdin, --rounds=<n>, --round-limit=<n>\n`)
+      }
+    } else if (stdinMode) {
+      die(`unknown argument ${t} — --stdin mode takes no positional arguments; accepted forms: --stdin, --rounds=<n>, --round-limit=<n>\n`)
+    }
+  }
   let raw
-  if (args.includes('--stdin')) {
+  if (stdinMode) {
     raw = await new Promise((res, rej) => {
       let d = ''
       process.stdin.setEncoding('utf8')
@@ -301,7 +323,6 @@ async function main(argv) {
   const findings = allFindings(trusted)
   // Loop-breaker inputs (see the CLI doc block above): flag > input key; a supplied
   // non-integer refuses loudly; wholly absent ⇒ the pre-rounds output shape, byte-identical.
-  const die = msg => { process.stderr.write(`red-team-gate: ${msg}`); process.exit(1) }
   const flagValue = name => {
     const arg = args.find(a => a.startsWith(`--${name}=`))
     return arg === undefined ? undefined : arg.slice(name.length + 3)
