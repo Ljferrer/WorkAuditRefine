@@ -665,8 +665,8 @@ fi
 # failure still yields 2). Move it down and THIS case flips 2 -> 1, because (b1)
 # reaches its escape first. Measured: with the arg-parse validation block deleted the
 # rest of the suite stays green and only this case and case 28 red (case 28 for the
-# zero-byte arm: awk opens the empty file, base[] stays empty, exit 1 against an
-# expected 2).
+# zero-byte arm: awk opens the empty file, every live ref lands in base[] while
+# live[] stays empty, exit 1 against an expected 2).
 # ---------------------------------------------------------------------------
 R27="$(setup_repo)"
 git -C "$R27" branch redteam-would-escape 2>/dev/null
@@ -683,9 +683,9 @@ fi
 # 26's missing-file sibling: this file exists, is a regular file, and is readable,
 # so only the guard's `-s` (non-empty) check can refuse it. A zero-byte FIRST
 # operand defeats the awk NR==FNR two-file idiom: NR never diverges from FNR, the
-# loader branch fires for every stdin record too, base[] stays empty, and the END
-# block reports every live ref as "removed" — the inverted removed-every-ref
-# verdict. Non-vacuity: the fixture carries a `rogue` branch, so the degeneracy
+# loader branch fires for every stdin record too, so base[] is loaded from the LIVE
+# dump while live[] stays empty, and the END block reports every live ref as
+# "removed" — the inverted removed-every-ref verdict. Non-vacuity: the fixture carries a `rogue` branch, so the degeneracy
 # has refs to invert. Delete-and-trace: drop the `-s` check from the guard and
 # this case reds at exit 1 with that inverted removed-every-ref message (a
 # truncated-write infra fault laundered into an escape).
