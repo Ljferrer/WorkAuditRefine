@@ -664,7 +664,9 @@ fi
 # stays green even if the validation moves down to the ref-diff (where awk's own read
 # failure still yields 2). Move it down and THIS case flips 2 -> 1, because (b1)
 # reaches its escape first. Measured: with the arg-parse validation block deleted the
-# rest of the suite stays green and only this case reds.
+# rest of the suite stays green and only this case and case 28 red (case 28 for the
+# zero-byte arm: awk opens the empty file, base[] stays empty, exit 1 against an
+# expected 2).
 # ---------------------------------------------------------------------------
 R27="$(setup_repo)"
 git -C "$R27" branch redteam-would-escape 2>/dev/null
@@ -692,9 +694,14 @@ R28="$(setup_repo)"
 git -C "$R28" branch rogue 2>/dev/null
 EMPTY28="$(artifact_path zero-byte-baseline.txt)"
 : > "$EMPTY28"                       # exists, regular, readable — and zero bytes
-rc28="$(run_guard_args --repo "$R28" --baseline "$EMPTY28")"
+ERR28="$(artifact_path stderr28.txt)"
+rc28="$(run_guard_err "$ERR28" --repo "$R28" --baseline "$EMPTY28")"
 if [ "$rc28" -eq 2 ]; then
-  pass "case 28: zero-byte --baseline file -> exit 2 (not 1 — infra never becomes escape)"
+  if grep -qF -- 'zero bytes (a truncated or failed snapshot write' "$ERR28"; then
+    pass "case 28: zero-byte --baseline file -> exit 2 naming the zero-byte baseline (not 1 — infra never becomes escape)"
+  else
+    fail "case 28: exit 2 but stderr does not carry the -s die's 'zero bytes' message (another exit-2 die supplied the 2?); stderr was: $(cat "$ERR28")"
+  fi
 elif [ "$rc28" -eq 1 ]; then
   fail "case 28: zero-byte --baseline file -> got 1 (NR==FNR degeneracy: infra collapsed into escape)"
 else
@@ -720,6 +727,10 @@ git -C "$R29" commit -qm "ignore logs"          # committed BEFORE the snapshot
 SNAP29="$(artifact_path snap.txt)"
 take_snapshot "$R29" "$SNAP29" "case 29"
 printf 'probe leak\n' > "$R29/probe-residue.log"  # lands only under the ignored pattern
+# Non-vacuity (coded, not just prose): without the leak actually written AND actually
+# ignored, this case degenerates into case 19's clean-repo green and pins nothing.
+[ -f "$R29/probe-residue.log" ] || fail "case 29: FIXTURE — leak file was not written"
+git -C "$R29" check-ignore -q probe-residue.log || fail "case 29: FIXTURE — the leak path is not ignored"
 rc29="$(run_guard_args --repo "$R29" --baseline "$SNAP29")"
 if [ "$rc29" -eq 0 ]; then
   pass "case 29: gitignored-path leak -> exit 0 (ceiling 3 pinned as documented false negative)"
