@@ -434,8 +434,9 @@ lacks_i "$WAR_STRATEGY" "$retired_count_b rules"
 
 printf '\n# Authoring contract (docs/plans/2026-08-04-interview-and-authoring-contract.md, Task 3) — machine merged output + grill charter + AFK per-row provenance + survey-corps claim tagging\n'
 # Named, not numbered: the original pipeline spec owns the numbered criteria. has_i for PROSE
-# anchors (mid-sentence, the sentence-case class); has() only for token literals that never
-# re-case (a file name, the D11 tag form). Every pin below was proven red once against a mutated
+# anchors (mid-sentence, the sentence-case class), has_i_stripped for the prose-stripped
+# retirement twin; has() only for token literals that never re-case (a file name, the D11 tag
+# form). Every pin below was proven red once against a mutated
 # copy (directive deleted / retired sentence restored, re-cased) — deliberately-uncommitted
 # harness, evidence in the task's done report (End state 2's SOFT half).
 #
