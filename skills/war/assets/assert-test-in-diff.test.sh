@@ -57,7 +57,9 @@
 #  12. NEAR-MISS DIAGNOSTIC (spec §10 criteria 1–4): on the EXIT-1 path only, the
 #      changed-file list is re-scanned against the fixed set (*.test.*, *.spec.*,
 #      *_test.*, basename test_*) and any hit is named on STDERR next to the
-#      ACTIVE pattern set. Exit codes and stdout are untouched.
+#      ACTIVE pattern set. Exit codes are untouched and the exit-1/2 stdout
+#      contracts are byte-preserved (12b's exit-0 stdout is the Case 13
+#      matched-path listing).
 #      a. runner/x.test.mjs BARE -> exit 1, stderr names BOTH defaults and lists
 #         the path, stdout BYTE-EMPTY (the refiner's read contract)
 #      b. same fixture + --pattern '*.test.mjs' -> exit 0, stderr EMPTY (no
@@ -77,7 +79,9 @@
 #  13. EXIT-0 MATCHED-PATH EMISSION (the mappedTests source): on exit 0 stdout
 #      carries ALL matched test paths, one per line — the scan accumulates
 #      every match (no first-hit break). Exit-1/2 stdout contracts unchanged
-#      (cases 2b/12a/12f pin the exit-1 empty summary; 12d the die path).
+#      (cases 2b/12a/12f pin the exit-1 empty summary; 12d pins the die path's
+#      exit code and stderr (the exit-2 stdout channel carries no printf and
+#      is not separately asserted)).
 #      a. default set, multi-match diff (skills .test.mjs + dir .test.sh +
 #         impl.js) -> exit 0, stdout EXACTLY the two matched paths, one per
 #         line (byte compare; a first-hit break under-emits and goes RED)

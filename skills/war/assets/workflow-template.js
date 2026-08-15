@@ -132,6 +132,16 @@ const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties:
   // determination mechanical — HARD only where the log ENUMERATES test file paths (the round-3
   // enumeration-conditional; a titles-only node-reporter half degrades SOFT, never a false hold).
   mappedTests: { type: 'array' },
+  // done_when_log_path (done-when-floor-wiring D3/D4): the ABSOLUTE path of the .war/done-when-<taskId>.log
+  // artifact the merge-task tees the done-when floor's combined stdout+stderr to — gate_log_path's
+  // done-when sibling, read with the floor's own exit status preserved across the tee (D14). merge-task
+  // only, OPTIONAL, returned on the floor's exit-1 (done-unmet) branch. FAIL-OPEN ADVISORY: its only
+  // consumers are the MAKE_DONE_PASS fix prompt (which names the path — the fix-worker reads the file)
+  // and the done-unmet exhaustion detail, and it is NEVER routed on — absent ⇒ every consumer is
+  // byte-/shape-identical to an artifact-less run. Orthogonal to status exactly like gate_failure_class —
+  // NO status enum value, HARD_ESCALATION_REASONS member, or KNOWN_LAND_DECISIONS member is added or
+  // changed (land-decision.mjs and both hand-mirrored enum blocks byte-untouched, ADR 0005).
+  done_when_log_path: { type: 'string' },
   pr_number: { type: 'number' }, pr_remote: { type: 'string' } } }
 
 // EVIDENCE_RESULT (D1/D4/D6): the shape of the ONE consolidated post-merge refiner "evidence dispatch"
@@ -749,13 +759,19 @@ const doneWhenClause = task => (task && typeof task.doneWhen === 'string' && tas
 // Done-when floor (precision-chain D1/D11, Task 2.3 — the done-unmet route): the refiner EXECUTES the
 // task's `Done when:` acceptance command at merge via assert-done-when.sh — file-threaded (--cmd-file,
 // executed from the file, never interpolated into another script), in the task worktree, AFTER the gate.
-// Exit 1 is the done-unmet route (a red command or a timeout) and routes the bounded make-this-command-pass
-// fix sub-loop; exit 2 is a git/env error and NEVER collapses into the floor status. Absent/null/empty
+// The run is teed to the .war/done-when-<taskId>.log evidence artifact with the FLOOR's own exit status
+// read across the capture (done-when-floor-wiring D3/D14: redirect-then-read $?, or ${PIPESTATUS[0]}
+// when piping — never the tee pipeline's status), and exit 1 returns the artifact's ABSOLUTE path in
+// done_when_log_path alongside the status. Exit 1 is the done-unmet route (a red command or a timeout)
+// and routes the bounded make-this-command-pass fix sub-loop; exit 2 is a git/env error and NEVER
+// collapses into the floor status. The clause also pins the D7 precedence: the floor is fail-closed on
+// every merge-task dispatch, a baseline-proceed included — a red done-when never rides the baseline
+// carve-out. Absent/null/empty
 // doneWhen ⇒ '' (the set-minus pattern) — a legacy task dispatches byte-identical merge prompts and the
 // floor never runs (End state 9). Rides every merge-task dispatch (initial, floor-retry re-merge,
 // environment-proceed, baseline-proceed), keeping the dispatched prompts in sync with war-refiner.md.
 const doneWhenFloorClause = (task, refineryPath) => (task && typeof task.doneWhen === 'string' && task.doneWhen)
-  ? pt` After the gate, run the done-when floor: write the task's Done when: acceptance command — BYTE-VERBATIM, exactly: ${task.doneWhen} — to ${refineryPath}/.war/done-when-${task.id}.cmd (ensure .war/ is git-excluded inside _refinery, the step you already do for the gate log), then run assert-done-when.sh ${task.worktree} --cmd-file ${refineryPath}/.war/done-when-${task.id}.cmd (file-threaded — never interpolate the command into another script). Branch on the exit code: exit 0 → the acceptance command is green; continue. exit 1 (the command exited red or timed out) → return { mode: 'merge-task', status: 'done-unmet' } — do NOT merge. exit 2 (a git/env error — bad worktree, missing/unreadable command file) → return { mode: 'merge-task', status: 'error' }, never 'done-unmet' — a transient git/env error must not spin a pointless make-this-command-pass loop.`
+  ? pt` After the gate, run the done-when floor: write the task's Done when: acceptance command — BYTE-VERBATIM, exactly: ${task.doneWhen} — to ${refineryPath}/.war/done-when-${task.id}.cmd (ensure .war/ is git-excluded inside _refinery, the step you already do for the gate log), then run assert-done-when.sh ${task.worktree} --cmd-file ${refineryPath}/.war/done-when-${task.id}.cmd (file-threaded — never interpolate the command into another script) with its combined stdout+stderr teed to the evidence artifact ${refineryPath}/.war/done-when-${task.id}.log, reading the FLOOR's OWN exit status across that capture (D14): run \`assert-done-when.sh … > ${refineryPath}/.war/done-when-${task.id}.log 2>&1\` and read \`$?\`, or if piping to tee, read \`\${PIPESTATUS[0]}\` — never the tee pipeline's status (a naive \`… 2>&1 | tee\` reports tee's 0 for a red AND an exit-2 floor). Branch on that captured code: exit 0 → the acceptance command is green; continue. exit 1 (the command exited red or timed out) → return { mode: 'merge-task', status: 'done-unmet', done_when_log_path: ${refineryPath}/.war/done-when-${task.id}.log } — the teed artifact's ABSOLUTE path rides the return; do NOT merge. The floor is fail-closed on EVERY merge-task dispatch, including a baseline-proceed: a red done-when is never proceeded over as baseline debt. exit 2 (a git/env error — bad worktree, missing/unreadable command file) → return { mode: 'merge-task', status: 'error' }, never 'done-unmet' — a transient git/env error must not spin a pointless make-this-command-pass loop.`
   : ''
 // A1 redefinition (precision-chain D9): acceptance_criteria_covered is the task's CLAIMED End-state ids
 // — the numbered Commander's Intent End-state conditions the task claims — no longer plan-slice
@@ -777,6 +793,13 @@ const classOf = mr => (mr && (mr.gate_failure_class === 'baseline' || mr.gate_fa
 // its only consumers are the ADD_TEST fix prompt and the floor-exhaustion detail, and null ⇒ both are
 // byte-/shape-identical to a diagnostic-less run. Never routed on, never a status.
 const floorDiagOf = mr => (mr && typeof mr.floor_diagnostic === 'string' && mr.floor_diagnostic) ? mr.floor_diagnostic : null
+// doneWhenLogOf (done-when-floor-wiring D5): the optional MERGE_RESULT.done_when_log_path (the done-when
+// floor's teed evidence artifact — its ABSOLUTE path), normalized to null unless it is a NON-EMPTY
+// string. floorDiagOf's done-when sibling, conditioned ONLY on the floor result's field. Fail-open
+// advisory: its only consumers are the MAKE_DONE_PASS fix prompt (which names the PATH, never the
+// content — the fix-worker reads the file) and the done-unmet exhaustion detail, and null ⇒ both are
+// byte-/shape-identical to an artifact-less run. Never routed on, never a status.
+const doneWhenLogOf = mr => (mr && typeof mr.done_when_log_path === 'string' && mr.done_when_log_path) ? mr.done_when_log_path : null
 const debtIds = ids => (Array.isArray(ids) ? ids : (ids ? [ids] : [])).map(String)
 // recordBaselineDebt: dedup by SUBSET-CONTAINMENT with an EMPTY-set carve-out (#798). A NON-EMPTY
 // id-set that is a subset (⊆) of some existing entry's ids at the SAME base sha is a no-op — already
@@ -1417,6 +1440,14 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           const nearMissClause = nearMissDiag
             ? pt`\nNEAR-MISS DIAGNOSTIC (verbatim stderr from the exit 1 assert-test-in-diff.sh run):\n${nearMissDiag}\nReconcile the diff's test files against the ACTIVE pattern named above BEFORE adding anything — the mapped test may already exist under a path that pattern does not match. When it does, a second test is the wrong fix: report blocked naming the mismatch rather than adding a duplicate test.`
             : ''
+          // Done-when evidence (done-when-floor-wiring D5): present ⇒ ONE appended sentence naming the
+          // captured artifact PATH (never the content — bounded prompt size; the fix-worker reads the
+          // file); absent ⇒ '' so the MAKE_DONE_PASS prompt is byte-identical to an artifact-less run
+          // (set-minus purity — the doneWhenLogOf normalizer conditions on nothing else).
+          const doneWhenLog = doneWhenLogOf(floorMr)
+          const doneWhenLogClause = doneWhenLog
+            ? pt`\nThe red run's full output is captured at ${doneWhenLog}; read it before re-running.`
+            : ''
           // Prompt truth (D6): all floor-fix prompts carry the gate command + the task's Done when:
           // clause (absent ⇒ '' — legacy byte-identity, End state 9).
           const fixPrompt = isNoTest
@@ -1430,6 +1461,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
               + pt`Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
               + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
               + pt`Make this command pass: fix the implementation for the slice described in: ${r.task.planSlice} until the Done when: command above exits 0 — never weaken, skip, or delete a test to force it green. Keep the gate green, commit and push.`
+              + doneWhenLogClause
             : pt`PACKAGE_IT for WAR task ${r.task.id}. The refiner's merge-task check (assert-packaging-in-diff.sh) flagged an added/renamed file a Dockerfile's enumerated COPYs miss. `
               + pt`Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
               + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
@@ -1503,10 +1535,13 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           // The LAST result's near-miss diagnostic rides both entries as `detail` when present (a
           // string-valued detail is legal — this key is already shape-heterogeneous per route: the
           // merge-failure route below pushes the whole MergeResult object). Absent ⇒ no `detail` key at
-          // all, so both entries are shape-identical to a diagnostic-less run.
+          // all, so both entries are shape-identical to a diagnostic-less run. The LAST result's
+          // done_when_log_path rides both entries the same way (the exhaustedDiag pattern —
+          // done-when-floor-wiring D6): present ⇒ a done_when_log_path key, absent ⇒ none.
           const exhaustedDiag = floorDiagOf(floorMr)
-          escalated.push({ task: r.task.id, reason: floorMr.status, fixRounds: r.task.fixRounds, ...(exhaustedDiag ? { detail: exhaustedDiag } : {}) })
-          auditLog.push({ task: r.task.id, verdict: `${floorMr.status}:exhausted`, fixRounds: r.task.fixRounds, findings: [], ...(exhaustedDiag ? { detail: exhaustedDiag } : {}) })
+          const exhaustedDoneWhenLog = doneWhenLogOf(floorMr)
+          escalated.push({ task: r.task.id, reason: floorMr.status, fixRounds: r.task.fixRounds, ...(exhaustedDiag ? { detail: exhaustedDiag } : {}), ...(exhaustedDoneWhenLog ? { done_when_log_path: exhaustedDoneWhenLog } : {}) })
+          auditLog.push({ task: r.task.id, verdict: `${floorMr.status}:exhausted`, fixRounds: r.task.fixRounds, findings: [], ...(exhaustedDiag ? { detail: exhaustedDiag } : {}), ...(exhaustedDoneWhenLog ? { done_when_log_path: exhaustedDoneWhenLog } : {}) })
           continue
         }
 

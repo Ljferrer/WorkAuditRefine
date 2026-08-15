@@ -28,12 +28,26 @@
 # --timeout is also the test knob). A hung command fails THIS DISPATCH ONLY —
 # exit 1, the done-unmet route — never the merge queue. Enforced by a 1s-poll
 # watchdog (macOS has no coreutils `timeout`): TERM at the budget, KILL 2s
-# later as insurance. Residual: a child the command spawned (e.g. an in-flight
-# `sleep`) may briefly outlive the kill; it cannot change the exit code.
+# later as insurance, each delivered to the command's own process group
+# (`set -m` around the launch) with a single-PID fallback. Residual: the
+# group kill cannot reach a grandchild that escaped into a NEW
+# session/process group (true daemonization) — bash 3.2 has no setsid; and
+# the KILL insurance only fires while the watchdog is still alive — when
+# the group TERM kills the direct command itself, the parent's `wait`
+# returns and it TERMs the watchdog mid-`sleep 2`, before the KILL line
+# runs, so a TERM-ignoring descendant that never left the command's group
+# can outlive the teardown. Neither survivor, nor the watchdog's own
+# in-flight `sleep`, can change the exit code, though each can hold an
+# inherited stdout fd after the floor exits (the `sleep` for at most ~2s,
+# a survivor for its lifetime).
 #
-# STDOUT belongs to the executed command — the refiner captures it as the
-# done-when evidence artifact. This floor writes its own diagnostics to
-# stderr only, prefixed "assert-done-when:".
+# STDOUT belongs to the executed command — the refiner tees the floor run's
+# combined stdout+stderr to the done-when evidence artifact
+# <_refinery>/.war/done-when-<taskId>.log, reads the floor's OWN exit status
+# across that tee (done-when-floor-wiring D14: redirect-then-read `$?`, or
+# `${PIPESTATUS[0]}` when piping — never the tee pipeline's status), and on
+# exit 1 returns the artifact's path in `done_when_log_path`. This floor
+# writes its own diagnostics to stderr only, prefixed "assert-done-when:".
 #
 # macOS bash 3.2.57 compatible (no globstar, no associative arrays, no ${,,}).
 # Style mirrors assert-test-in-diff.sh / assert-packaging-in-diff.sh.
@@ -130,13 +144,21 @@ printf '%s: running done-when from %s in %s (timeout %ss)\n' \
   "$PROG" "$cmd_file_abs" "$worktree" "$timeout_secs" >&2
 
 # exec so the child PID IS the bash interpreting the command file — the
-# watchdog's TERM reaches the command, not a wrapper subshell.
+# watchdog's TERM reaches the command, not a wrapper subshell. `set -m`
+# around the launch gives the command tree its OWN process group (pgid
+# $cmd_pid), so the watchdog's group kill reaches backgrounded grandchildren
+# too; the watchdog subshell launches after `set +m` and stays in the
+# script's own group.
+set -m
 ( cd -- "$worktree" && exec bash "$cmd_file_abs" ) &
 cmd_pid=$!
+set +m
 
 # Watchdog: poll at 1s granularity; at the budget, write the marker (the
 # timeout signal the parent reads — a command exiting 143 on its own is NOT
-# a timeout), then TERM, then KILL 2s later for a TERM-trapping command.
+# a timeout), then TERM, then KILL 2s later for a TERM-trapping command —
+# each group-first (-"$cmd_pid" signals every process in the command's
+# group) with the single-PID form as fallback.
 (
   waited=0
   while [ "$waited" -lt "$timeout_secs" ]; do
@@ -145,9 +167,9 @@ cmd_pid=$!
     waited=$((waited + 1))
   done
   : > "$marker"
-  kill -TERM "$cmd_pid" 2>/dev/null || true
+  kill -TERM -"$cmd_pid" 2>/dev/null || kill -TERM "$cmd_pid" 2>/dev/null || true
   sleep 2
-  kill -KILL "$cmd_pid" 2>/dev/null || true
+  kill -KILL -"$cmd_pid" 2>/dev/null || kill -KILL "$cmd_pid" 2>/dev/null || true
 ) &
 watchdog_pid=$!
 
