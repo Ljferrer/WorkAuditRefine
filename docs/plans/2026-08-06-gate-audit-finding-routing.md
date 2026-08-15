@@ -131,6 +131,25 @@ construct-level collision census is Note 1.
     (#1372's defects). Both stamped RESOLVED in the fixing task (the batch's fold-into-fixing-task
     precedent; D12).
 
+11. **Amendment base census** (*amendment 2026-08-15*; measured at the live campaign base `7a3eb2a`,
+    the tip after this campaign's plans 1–4 landed — the amendment's own Part-1 authorization for
+    Phase 2, and the zero-hit-token discipline of Context 7 applied to the amendment's pins).
+    Defect facts: `agents/war-auditor.md` line 145's `## Return` shape and
+    `skills/war/references/schemas.md` line 59 both still declare **`escalate_reason?`** — the
+    optional form (1 hit each); `metacharacter` is 0 in `agents/war-auditor.md` and 0 in
+    `skills/war/assets/workflow-template.js`, while `hooks/validate-auditor-git.sh` carries it
+    **twice — in the file header comment only, never in the deny message** (the line-85
+    `forbidden character(s)` denial names `&&`/`;` chains and the Read/Grep/Glob remedy, exactly
+    #1412's complaint). Pin-token census (all measured 0, therefore mechanical by construction):
+    `required when` (both prose surfaces), `however severe` (both auditor surfaces),
+    `governed by the MAPPED TESTS block above` and `timeout: 60_000` and `run.error`
+    (`workflow-template.js` / its suite). **Rejected pin candidates** (pre-existing, so vacuous —
+    the trap Context 7 exists to avoid): `escalate_reason` alone scores 1 on **all three** surfaces;
+    `by construction` scores 1 in `workflow-template.js` (an unrelated drift-guard comment at line
+    237) and twice in this plan's own Part-1 prose; a bare `timeout` scores 3 in
+    `workflow-template.test.mjs`, none inside the target test. Every amendment End state (15–17) and
+    the sharpened End states 3/7/8 are keyed to the zero-hit column, never the pre-existing one.
+
 ## Pivotal constraints
 
 - **Stacking (binding)**: predecessor plan `2026-08-06-done-when-floor-wiring` lands first — it rewrites
@@ -156,8 +175,14 @@ construct-level collision census is Note 1.
   keyed to its exact output — this plan changes **no `resolveGate` output byte** (A2 carries the
   fallback).
 - **Registry growth discipline.** The D3 registry grows by row/anchor with an exact floor count ("floor
-  equals the true row count, no slack") — this plan extends **existing** rows' anchor arrays only; the
-  floor-count assertion message is untouched (the census trap). The #931 template-literal census: any
+  equals the true row count, no slack") — **Phase 1** extends **existing** rows' anchor arrays only,
+  leaving the floor-count assertion message untouched (the census trap). **Phase 2's Task 2.1 is the
+  sanctioned exception** (*amendment 2026-08-15*): it introduces three genuinely new both-surfaces
+  directives (the required-when-escalate contract, the by-construction discriminator, the
+  search-tooling sentence), so it **adds one new registry row binding them across the standing card
+  and the dispatched prompt, and updates the floor count and its enumerating message in the same
+  task** — guard travels with fact, and "floor equals the true row count" is preserved by moving
+  both together, never by leaving a new row uncounted. The #931 template-literal census: any
   new template literal in `workflow-template.js` is `pt`-tagged or registered; the truncation clause
   lengthens two already-`pt`-tagged literals (keep the tags), and the routing code introduces no new
   untagged literal.
@@ -210,15 +235,18 @@ construct-level collision census is Note 1.
 | A3 | The D9 coupling note can be written without self-matching any swept census grep | spec §3 D9 (carried [assumed] row); the coupling-comment-restating-grep-pattern lesson | a future exactly-N-surfaces census double-counts the comment | Task 1.2's worker states in the done report which census patterns were checked against the note's text |
 | A4 | The two glossary terms earn CONTEXT.md rows | spec §6 (carried [assumed] rows); both name distinctions this plan's code and tests keep apart | drop the row(s) — plan prose defines them locally; `CONTEXT.md` leaves the footprint | operator veto at /red-team; End state 9 |
 | A5 | Predecessor plan 3 has LANDED before any Task 1.1 dispatch | the spec's § Open risks ordering declaration + plan 3's Note 6 (this plan named as its downstream); the survey manifest's machine hint is not present in this worktree — the two committed artifacts are the source; the roadmap sequences plan 3 ahead (ADR 0011) | Task 1.1 edits collide with plan 3's rewrites or land against stale shapes | D10 witnesses at the rebased base; miss ⇒ halt-and-report (backstop row) |
-| A6 | No ADR change — the ladder's existing "never drop silently" prose plus the code fix suffices | spec §7 (carried [assumed] row) | a one-paragraph clarifying amendment to `docs/adr/0013-commanders-intent-and-disposition-routing.md` recording that the contract covers sweep-raised findings (amendment rule: pre-existing body byte-unchanged apart from the Status currency line) | ratify in /red-team |
+| A6 | No ADR change — the ladder's existing "never drop silently" prose plus the code fix suffices | spec §7 (carried [assumed] row) | a future reader reads ADR 0013's contract as not covering sweep-raised findings and re-opens #1377's question | RATIFIED at this plan's /red-team (2026-08-15): no ADR change now; a recurrence files the one-paragraph clarifying amendment to `docs/adr/0013-…` (amendment rule: pre-existing body byte-unchanged apart from the Status currency line) |
 | A7 | The CONTEXT.md additions stay a warning-only budget event | Context 8: 114,449 B at `6fff2ee` (already above the 111,616 B advisory; hard 126,976 B is not approachable at ≤ ~450 B); advisory = logged warning, never a failure (the budget suite's stated semantics); Note 6's roadmap hint (this plan before plan 5) keeps the rows inside plan 5's re-measured shrink base | tighten the rows' wording, or A4's drop fallback | End state 9's budget-suite run |
+| A8 | *(amendment 2026-08-15)* The `agent()` schema layer re-prompts on a non-conforming return rather than dropping the dispatch — so the required-when-escalate conditional enforces by retry, never by a dropped seat or a new hold path | the layer's documented conform-or-retry contract; consistent with every existing schema-bearing dispatch in `workflow-template.js` | an escalate-without-reason verdict nulls its seat → the wave-loop's bounded re-dispatch (never an unbounded hold); if observed, that IS the layer-ignores/drops state and Task 2.1(a)'s fallback arm lands instead | Task 2.1's enforcement probe (backstop row) records the observed behavior and which arm landed |
 
 ## Non-goals / deferred
 
 - **No change to `resolveGate`'s composed gate string or its fail-fast `|| exit 1` semantics** (A2); a
   continue-on-red aggregate-failure gate is out of scope.
 - **No change to unanimity, severity gating, or the HARD escalation lanes** (`isHardGateEvidence`,
-  `escalated`, `HARD_ESCALATION_REASONS`); the fixes are routing and evidence-interpretation only.
+  `escalated`, `HARD_ESCALATION_REASONS`); the Phase-1 fixes are routing and evidence-interpretation
+  only, and Phase 2 (*amendment 2026-08-15*) additionally tightens the verdict *intake contract* and
+  seat doctrine — never the lanes.
 - **No widening of the HARD trigger to the node (non-enumerating) half** — the reporter-format premise
   test's revisit comment remains the tripwire.
 - *(amendment 2026-08-15)* **#1410 fix 3 (Lead-side auto-routing of remedied escalations into a fix
@@ -246,7 +274,10 @@ carries the fallback).
 ## Commander's Intent
 
 - **Purpose:** nothing the phase-close sweep's own re-audit raises can drop silently — the demotion
-  ladder's "never drop silently" promise extends to sweep-raised findings on every arm; the gate-audit
+  ladder's "never drop silently" promise extends to sweep-raised findings on every arm (Minor/Nit
+  route by disposition through the ladder; Critical/Major keep today's visibility — they block
+  re-approval on the merged arm and ride the `polish-rejected`/`polish-discarded` `auditLog` entries
+  on the terminal arms, which this plan's discard-arm test newly pins); the gate-audit
   seat has exactly one governing instruction on the one path where HARD can fire, and every seat
   surface instructs that a truncated (early-aborted) gate log must not mint a false HARD land-hold —
   an instruction-side guard (seat doctrine, not a mechanical detector), its residual recurrence
@@ -283,7 +314,11 @@ carries the fallback).
      present-but-unrun path: the conjunctive clause is scoped to the MISSING-test case and defers by
      name to the MAPPED TESTS block ·
      check: `grep -c "genuinely absent AT THE CONFIRMED INTEGRATION TIP" skills/war/assets/workflow-template.js`
-     returns 1 and the enclosing sentence names the deferral (hand-verified placement). **Mandatory
+     returns 1 (the preservation pin — unchanged by design) AND
+     `grep -Fc 'governed by the MAPPED TESTS block above' skills/war/assets/workflow-template.js`
+     ≥ 1 (the landing pin — 0 at the base, Context 11: the count-1 grep alone cannot distinguish the
+     rescoped clause from the unrescoped one), and the enclosing sentence names the deferral
+     (hand-verified placement). **Mandatory
      manual same-scope survey (grep is a floor):** hand-scan the gate-audit prompt region of
      `workflow-template.js`, the D7/attestation test titles and comments in
      `workflow-template.test.mjs`, and the `agents/war-auditor.md` checklist for prose restating the
@@ -306,12 +341,17 @@ carries the fallback).
      check: `node --test skills/war/assets/workflow-template.test.mjs`.
   7. A premise probe that fails to spawn or wedges fails loudly, bounded, with the delta in the
      message ·
-     check: `grep -n "run.error" skills/war/assets/workflow-template.test.mjs` and
-     `grep -n "timeout" skills/war/assets/workflow-template.test.mjs` hit inside the
-     'reporter-format premise' test; the suite is green.
+     check: `grep -c 'run.error' skills/war/assets/workflow-template.test.mjs` ≥ 1 (0 at the base)
+     and `grep -Fc 'timeout: 60_000' skills/war/assets/workflow-template.test.mjs` ≥ 1 (the exact
+     option literal — 0 at the base, Context 11; a bare `timeout` grep has 3 pre-existing hits
+     elsewhere in the file and proves nothing), both hits inside the 'reporter-format premise' test
+     (hand-verified placement); the suite is green.
   8. The § `--afk` sanity floor block states the narrowed reality and the operative guard, and the
      file header carries the in-place-amendment caveat ·
-     check: `grep -Fc 'caught downstream' skills/war/references/setup.md` returns 0 (D13 tightening);
+     check: `grep -Fci 'caught downstream' skills/war/references/setup.md` returns 0 (D13
+     tightening; **case-insensitive** — a case-sensitive retirement grep false-passes on a
+     sentence-initial "Caught downstream", the recorded
+     retirement-grep-must-be-case-insensitive lesson, evasion re-proved at this plan's red-team);
      header grep shows the amended caveat. **Mandatory manual same-scope survey:** hand-scan
      `skills/war/SKILL.md`'s Setup steps and `setup.md`'s sibling blocks for prose restating the
      retired unqualified backstop; list each straggler as a survey-derived correction.
@@ -332,32 +372,51 @@ carries the fallback).
   12. The redaction lint stays green over the lesson stamps ·
       gate: the self-discovery gate (the war-memory lint wrapper is a discovered member).
   13. Each landing commit cites its issue(s) — #1377 for Task 1.1's routing items, #1372 + #1343 for
-      Task 1.1's seat-prompt/suite items and Task 1.2, #1343 for Task 1.3, #1410 + #1412 for Task
-      2.1, #1412 for Task 2.2 (the per-finding close conditions require the citation) ·
-      HARD at audit_sha (git log between the phase base and the tip; execution-evidence seat).
+      Task 1.1's seat-prompt/suite items and Task 1.2, #1343 for Task 1.3, #1377 + #1372 for Task
+      1.4, #1410 + #1412 for Task 2.1, #1412 for Task 2.2, and the release commit (Task 3.1) cites
+      the plan (the per-finding close conditions require the citation) ·
+      check (mechanical floor, phase close): `git log --format=%s <phase-base>..<tip> | grep -vc
+      '#[0-9]'` = 0 — every landing commit cites some issue; judge: the Lead at phase close maps
+      each commit to its correct issue over the full `<phase-base>..<tip>` range (per the recorded
+      each-commit-cites-its-issue lesson this condition is judged over the phase range, never gated
+      per-commit at a task's audit_sha — the range does not exist at any single task's branch tip,
+      and per-issue mapping is judgment no command decides).
   14. Release: all four version slots move lock-step to the next free patch above the live integration
       base at land time ·
-      check: `node --test skills/war/assets/version-slots.test.mjs` (lock-step + monotonic floor; the
-      bump's presence is judged at audit_sha).
+      check: `node --test skills/war/assets/version-slots.test.mjs` (lock-step across all four slots
+      + the monotonic floor — this is the *whole* mechanical condition: the floor proves the bump is
+      ≥ the live base, and lock-step proves no slot lagged); judge: the "next **free** patch" half
+      (i.e. exactly one above, not a skip) is Lead-checked at land against `git ls-remote --tags` /
+      the landed slots — no committed command can decide it, because the free patch is a property of
+      the remote at land time, not of the diff.
   15. *(amendment 2026-08-15, #1410)* An `escalate` verdict without a non-empty `escalate_reason` is
       rejected at intake (schema conditional, or the recorded fallback arm), and the
       required-when-escalate contract is stated on all three prose surfaces — the war-auditor.md
       verdict list + Return shape, the dispatched auditor prompt, and the schemas.md AuditVerdict
       row ·
-      check: `node --test skills/war/assets/workflow-template.test.mjs` (the intake-rejection row) and
-      `grep -c 'escalate_reason' agents/war-auditor.md skills/war/references/schemas.md` ≥ 1 in each.
+      check: `node --test skills/war/assets/workflow-template.test.mjs` (the intake-contract row —
+      it pins whichever enforcement arm landed, per the backstop probe); OLD-absent:
+      `grep -Fc 'escalate_reason?' agents/war-auditor.md skills/war/references/schemas.md` = 0 in
+      each (the optional-marker form is retired — 1 in each at the amendment base, Context 11);
+      NEW-present: `grep -Fci 'required when' agents/war-auditor.md skills/war/references/schemas.md`
+      ≥ 1 in each (0 in each at the amendment base — non-vacuous by construction).
   16. *(amendment 2026-08-15, #1410)* The by-construction discriminator — a blocking finding with a
       concrete in-file `suggested_fix` needing no new plan decision is `request_changes`, however
       severe — is live on both auditor surfaces (standing card + dispatched prompt), same commit ·
-      check: `grep -Fc 'by construction' agents/war-auditor.md` ≥ 1 and
-      `grep -Fc 'by construction' skills/war/assets/workflow-template.js` ≥ 1 (re-measure at the
-      rebased base and record; suite pin rides End state 15's test file).
+      check: `grep -Fc 'however severe' agents/war-auditor.md` ≥ 1 and
+      `grep -Fc 'however severe' skills/war/assets/workflow-template.js` ≥ 1 (0 on both surfaces at
+      the amendment base, Context 11 — the earlier `by construction` candidate token pre-exists in
+      an unrelated `workflow-template.js` comment and is not a pin; suite pin rides End state 15's
+      test file).
   17. *(amendment 2026-08-15, #1412)* A metacharacter-refused search denial names the rule that fired
       (glob/alternation metacharacters, with the Grep-tool remedy), the guard's allowlist and deny
-      decisions are byte-unchanged, and the standing auditor card carries the search-tooling
-      sentence ·
-      check: `bash hooks/validate-auditor-git.test.sh` (the new message-content case) and
-      `grep -ci 'metacharacter' agents/war-auditor.md` ≥ 1.
+      decisions are byte-unchanged, and the search-tooling sentence is live on both auditor prose
+      surfaces (the standing card, Task 2.1(c); the dispatched prompt, same task — the guard-message
+      half is Task 2.2's) ·
+      check: `bash hooks/validate-auditor-git.test.sh` (the new message-content case);
+      `grep -ci 'metacharacter' agents/war-auditor.md` ≥ 1 and
+      `grep -ci 'metacharacter' skills/war/assets/workflow-template.js` ≥ 1 (both 0 at the
+      amendment base, Context 11).
 
 ## Build order (for /war)
 
@@ -399,7 +458,10 @@ base and are untouched by predecessor plan 3).
   `mappedTestsLine`/`guardLine` narrows to "…record a HARD gate-evidence finding for a MISSING mapped
   test ONLY when it is genuinely absent AT THE CONFIRMED INTEGRATION TIP and the captured artifact
   confirms it did not run (the present-but-unrun path is governed by the MAPPED TESTS block above)" —
-  keep the phrase `genuinely absent AT THE CONFIRMED INTEGRATION TIP` (End state 3's count stays 1),
+  the live clause spans **three concatenated `pt` literals** (the quoted sentence is their rendered
+  concatenation — edit within the literals, keep the tags); keep the phrase
+  `genuinely absent AT THE CONFIRMED INTEGRATION TIP` (End state 3's count stays 1; the deferral
+  parenthetical is End state 3's zero-at-base landing pin, Context 11),
   and add the one clarifying word keeping the missing+non-enumerating quadrant SOFT: the
   artifact-confirms leg is satisfiable only on an **enumerating** half (a missing `.mjs` mapped path's
   absence is still SOFT cannot-confirm — the #1343 finding-2 brush).
@@ -478,7 +540,8 @@ base and are untouched by predecessor plan 3).
   `node …*.sh` invocation shape, no retired scope-hook-glob clause, no `docs/learnings/*` literal, no
   `docs/learnings/phase-<N>.md` aggregate-file shape (the same sweep's second key), no `_polish` token
   (trivially satisfied; state it in the done report). Sweep step: grep
-  `caught downstream` repo-wide and handle every live-surface match — then run End state 8's mandatory
+  `caught downstream` repo-wide **case-insensitively** (`grep -ri`, matching End state 8's `-Fci`
+  check) and handle every live-surface match — then run End state 8's mandatory
   manual survey and record the outcome even when zero stragglers. Commit cites #1343 (finding 1's close
   condition).
 - Done when: None — prose-only reference-doc edit; the mechanical pins are End state 8's greps (the
@@ -511,9 +574,10 @@ base and are untouched by predecessor plan 3).
 
 ## Phase 2 — Auditor verdict-boundary + guard diagnostics (amendment 2026-08-15: #1410, #1412)
 
-A separate phase, not new Phase-1 tasks, because both additions edit files Task 1.1 owns
+A separate phase, not new Phase-1 tasks, because Task 2.1 edits three files Task 1.1 owns
 (`agents/war-auditor.md`, `workflow-template.js` + suite) — same-file work lands in a later phase,
-never as a deps-edge dodge (code-boundary rule 1). Phase base: the tip after Phase 1 lands.
+never as a deps-edge dodge (code-boundary rule 1). Task 2.2's hook pair is file-disjoint from
+everything but rides the same amendment phase. Phase base: the tip after Phase 1 lands.
 
 ### Task 2.1: Escalate-boundary contract — required reason, the by-construction discriminator, search-tooling sentence (#1410 fixes 1+2, #1412 fix 3)
 
@@ -525,11 +589,24 @@ never as a deps-edge dodge (code-boundary rule 1). Phase base: the tip after Pha
   declaration; `escalate_reason` is an optional `{ type: 'string' }` property today) with a JSON-Schema
   conditional making a non-empty `escalate_reason` required exactly when `verdict` is `escalate`
   (`if`/`then` or an equivalent `anyOf` — whatever the schema-validation layer the `agent()` `schema:`
-  option uses actually enforces; the worker verifies enforcement empirically, and if the layer ignores
-  the conditional, falls back to a prompt-side MUST plus a Lead-side observable, recording which arm
-  landed). Mirror the contract into the three prose surfaces in the same diff (both-surfaces law):
+  option uses actually enforces; the worker verifies enforcement empirically and records which arm
+  landed). **Enforcement semantics, both arms fully specified:** the intended enforcement point is
+  the schema layer's own conform-or-retry loop — a non-conforming return re-prompts the seat until
+  it supplies the reason; it never drops a seat and never holds a land, so no new hold path (A8). If
+  the probe shows the layer *ignores* the conditional (or drops rather than re-prompts), the
+  **fallback arm** is exactly: (1) a MUST sentence on both prompt surfaces — the dispatched auditor
+  prompt and the war-auditor.md verdict list — "an `escalate` verdict MUST carry a non-empty
+  `escalate_reason` naming the missing plan decision"; plus (2) the suite's intake-contract row
+  re-pointed at that sentence (the pinned MUST text on both surfaces *is* the Lead-side observable —
+  no engine edit). End state 15 holds under either arm: its OLD-absent/NEW-present greps pin the
+  prose surfaces, which land under both arms, and its suite row pins whichever enforcement
+  observable the probe recorded. Mirror the contract into the three prose surfaces in the same diff
+  (both-surfaces law):
   the `agents/war-auditor.md` verdict list and `## Return` shape line (`escalate_reason?` →
-  required-when-escalate), the dispatched auditor prompt in `workflow-template.js`, and the
+  required-when-escalate — the surfaces retire the `escalate_reason?` optional marker and state the
+  contract with the exact phrase "required when `verdict` is `escalate`", the literal End state 15's
+  NEW-present grep pins; a hyphenated "required-when-escalate" alone does not satisfy the `-F`
+  space-separated pin), the dispatched auditor prompt in `workflow-template.js`, and the
   `schemas.md` AuditVerdict row. **(b) the discriminator** (#1410 fix 2): at the war-auditor.md
   verdict list's `escalate` bullet (the "**only** when the work reveals the PLAN itself is wrong or
   underspecified…" sentence), append the by-construction test: *a blocking finding whose
@@ -539,10 +616,16 @@ never as a deps-edge dodge (code-boundary rule 1). Phase base: the tip after Pha
   commit). **(c) search-tooling sentence** (#1412 fix 3): in war-auditor.md's Bash/tooling guidance,
   state plainly: *search with the Grep/Glob tools, never shell `grep`/`git grep` — the git guard
   refuses glob/alternation metacharacters (`*`, `\|`), not just command chains*; mirror into the
-  dispatched prompt. **Tests:** suite rows pinning (i) the schema conditional (an escalate verdict
-  without `escalate_reason` is rejected by the validation layer, or the recorded fallback observable),
-  (ii) the discriminator token on both surfaces (`grep`-style presence pins with non-vacuous
-  zero-at-base tokens, e.g. `by construction`), (iii) the search-tooling sentence on both surfaces.
+  dispatched prompt. **Tests:** (i) the intake-contract suite row (an escalate verdict without
+  `escalate_reason` is rejected by the validation layer, or the recorded fallback observable —
+  whichever arm the probe recorded); (ii) **one new D3 registry row** binding the three new
+  directives (required-when-escalate, the discriminator, the search-tooling sentence) across both
+  auditor surfaces, with the floor count and its enumerating message updated in this same task (the
+  Pivotal constraint's sanctioned Phase-2 exception — ad-hoc presence pins are not drift guards);
+  anchor regexes use the Context-11 zero-hit tokens (`required when`, `however severe`,
+  `metacharacter`), never `by construction` (pre-existing in an unrelated comment at base,
+  Context 11) or bare `escalate_reason` (1 hit on all three surfaces at base); (iii) the
+  search-tooling sentence pinned on both surfaces via the same row.
   **No engine behavior change**: unanimity, severity gating, and the HARD escalation lanes
   (`HARD_ESCALATION_REASONS`) are byte-untouched — this task changes the verdict *intake contract*
   and seat doctrine only (the Phase-1 Non-goal stands). Commits cite #1410 (a, b) and #1412 (c).
@@ -559,8 +642,11 @@ never as a deps-edge dodge (code-boundary rule 1). Phase base: the tip after Pha
   `[ -n "$residue" ] && deny "command contains forbidden character(s): …"` line) frames its remedy
   as "split && / ; chains…", which does not describe what seats actually type (`--include=*.py`,
   `git grep 'a\|b'` — 191 denials in one run, #1412). Extend the message so the rule that fired is
-  named: keep the offending-character echo and the one-bare-git-command sentence, and add the
-  metacharacter clause — *glob/alternation/expansion metacharacters are refused outright; search with
+  named: keep the offending-character echo, the one-bare-git-command sentence, **and the existing
+  Read/Grep/Glob remedy clause the message already carries** (Context 11 — the live message ends
+  "…filter and search output with the Read/Grep/Glob tools"; the gap is that no clause names the
+  *metacharacter rule* as what fired), and add the metacharacter clause — *glob/alternation/expansion
+  metacharacters are refused outright; search with
   the Grep tool (`glob:`/`type:` filters) instead of shell `grep`/`git grep`*. **The allowlist and
   every deny decision are byte-unchanged** — exit codes, verb set, and which commands deny are
   untouched (ADR 0002 capability-first confinement; #1412 fix 2's verb widening is deliberately not
@@ -621,20 +707,29 @@ never as a deps-edge dodge (code-boundary rule 1). Phase base: the tip after Pha
   alphabetically-early red suite, then a gate-audit seat reading the truncated artifact) · why
   deferred: requires a real red-gate baseline-proceed run — uncommittable as a unit test of the seat's
   judgment; the clause on three surfaces, the D3 anchors, and the banner pins are the standing guards ·
-  runner: none mechanical — a recurrence files an issue citing #1372.
-- The `war-config.mjs` diff-is-comment-only proof · why deferred: "no output byte changed" is proven
-  mechanically by the untouched idempotence trio + D2 mirror row (gate members, End state 11), but the
-  comment-only property of the diff itself is a refine-time hand-read · runner: Task 1.2's worker
-  states it in the done report; the refiner eyeballs the diff at merge; gate-audit reads it SOFT.
+  runner: the Lead of the first future `/war` phase whose gate log shows a baseline-proceed with an
+  early red suite — on observing a gate-audit seat mint (or correctly withhold) HARD against that
+  truncated artifact, the Lead records the outcome and, on a false HARD, files a war-followup issue
+  citing #1372 · timing: first live recurrence of the scenario.
+- The `war-config.mjs` diff-is-comment-only proof · why deferred: the property that matters — zero
+  output-byte change — IS proven mechanically by the untouched idempotence trio + D2 mirror row
+  (gate members, End state 11); the residual hand-read covers only the *shape* of the diff
+  (comment-only classification is language-aware — no committed one-liner decides "this changed line
+  is a comment" without parsing), so no cheaper pre-merge proxy is being skipped · runner: Task 1.2's
+  worker states it in the done report; the refiner eyeballs the diff at merge; gate-audit reads it
+  SOFT.
 - *(amendment 2026-08-15)* Task 2.1(a)'s schema-conditional enforcement probe — whether the `agent()`
   schema-validation layer actually enforces the required-when-escalate conditional, or the recorded
   prompt-side fallback arm landed instead · why deferred: the layer's behavior is empirical, outside
   this repo's code · runner: Task 2.1's worker runs the probe and records which arm landed in the
   done report; the suite row pins whichever observable landed; gate-audit reads the probe SOFT.
 - *(amendment 2026-08-15)* End state 17's allowlist-byte-unchanged half (deny decisions unmoved,
-  message text only) · why deferred: a diff-shape property · runner: Task 2.2's worker states it in
-  the done report; the refiner eyeballs the diff at merge; the existing guard suite's deny cases are
-  the mechanical floor.
+  message text only) · why deferred: the deny-*decision* half is already commanded — the existing
+  guard suite's deny cases (exit codes + which commands deny) are the mechanical floor and run as a
+  gate member via `bash hooks/validate-auditor-git.test.sh`; the residual hand-read covers only the
+  message-text-only *shape* of the diff (same language-aware classification as the `war-config.mjs`
+  bullet above — no cheaper pre-merge proxy is being skipped) · runner: Task 2.2's worker states it
+  in the done report; the refiner eyeballs the diff at merge.
 
 ## Notes / conscious deviations
 
@@ -693,11 +788,14 @@ never as a deps-edge dodge (code-boundary rule 1). Phase base: the tip after Pha
    `handoff-schemas-contract`, and {plan 3, this plan} → `structural-pin-extractors` as
    dependency-spine edges, not merely contention rows.
 8. **Posterity survivors.** Historical artifacts keep the retired wordings and are never retro-edited
-   (ADR 0046 posture): issues #1372/#1343's verbatim finding quotes, the two lesson bodies (their
-   present-tense defect prose survives the RESOLVED stamp by the repo's stamp convention), the landed
-   2026-08-05 precision-chain plan and its red-team report, and
-   `docs/plans/2026-07-07-target-repo-agnostic-execution.md` (one old-wording hit, verified at
-   conversion) all carry the old conjunctive clause and the "caught downstream" sentence. Every OLD-absent check here is scoped to the single live surface its
+   (ADR 0046 posture). Corrected per-token census (re-measured at the amendment base, replacing the
+   conversion-time conflated list): "caught downstream" survives in
+   `docs/plans/2026-07-07-target-repo-agnostic-execution.md`, this plan's own source spec
+   `docs/specs/2026-08-06-gate-audit-finding-routing-design.md` (three hits), and this plan's own
+   quotations; the old conjunctive clause survives in the
+   `hard-trigger-narrowing-…` lesson body (present-tense defect prose survives the RESOLVED stamp
+   by the repo's stamp convention), `docs/plans/2026-06-27-gate-audit-execution-evidence-…`, the
+   source spec, and this plan; issues #1372/#1343 keep their verbatim finding quotes. Every OLD-absent check here is scoped to the single live surface its
    End state names — the engine prompt (End state 3), `setup.md` (End state 8).
 9. **Intent provenance.** Part 1 and the intent block are distilled from the ratified source spec —
    itself synthesized from the code-verified lesson issues #1377/#1372 and the war-followup issue
@@ -709,7 +807,9 @@ never as a deps-edge dodge (code-boundary rule 1). Phase base: the tip after Pha
     the dispatched auditor prompt. A new phase (not new Phase-1 tasks) because Task 2.1's file set
     intersects Task 1.1's; a phase edge is the sanctioned same-file serialization. Deliberately
     deferred halves recorded in Non-goals (#1410 fix 3, #1412 fix 2). Amendment surfaces: header
-    issue map, Phase 2 (Tasks 2.1/2.2), End states 13/15–17, build order, release blurb list,
+    issue map, **Part 1 (Context 11's base census + the A8 ledger row + the registry-discipline
+    Phase-2 exception — added at this plan's red-team, 2026-08-15)**, Phase 2 (Tasks 2.1/2.2), End
+    states 13/15–17, build order, release blurb list,
     Non-goals. Cross-plan: Task 2.1 adds one row to `skills/war/references/schemas.md`, which plan 9
     (spine-later) rewrites — plan 9's workers rebase onto this landed row (stack-and-plow, roadmap
     contention table updated in the same amendment commit). Logged for this plan's /red-team pass.
