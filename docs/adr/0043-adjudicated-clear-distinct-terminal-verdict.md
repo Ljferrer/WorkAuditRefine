@@ -180,7 +180,7 @@ forward-looking restatement of the rule it left as a one-run ruling.
 The Context paragraph above over-claims Step 5's mechanics: it presents the grill loop as the sole
 mechanic Step 5 offered for closing a blocker. Step 5 as it stood when this ADR was written
 (`skills/red-team/SKILL.md` before this ADR's implementation landed — revision `8e065b7`) also
-offered a **probe re-run** — "re-run only the affected probe to confirm it is resolved" — the very
+offered a **probe re-run** — "re-run **only the affected probe** to confirm it is resolved" — the very
 mechanic this ADR's own Decision 3 two-arm re-verify trigger depends on. The paragraph's argument is
 otherwise unaffected: nothing stopped removal-as-resolution from being applied to a finding that was
 merely **patched**, never re-proven, which is exactly the fake clear this ADR closes. The Context
