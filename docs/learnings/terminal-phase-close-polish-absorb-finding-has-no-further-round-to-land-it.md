@@ -5,6 +5,7 @@ metadata:
   node_type: memory
   type: project
   provenance: code-verified
+  promoted: dev/2026-08-05-precision-chain-and-loop-breaker@phase-6
   slug: terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it
   phase: 2026-08-05-precision-chain-and-loop-breaker/6.1
   keywords: 
@@ -18,6 +19,10 @@ metadata:
     - done-unmet
     - queue drain
     - last round
+    - autoFixable not applied
+    - recurring finding not fixed
+    - escape guard header
+    - assert-no-repo-escape.sh
   tags: 
     - war
     - phase-close
@@ -25,7 +30,7 @@ metadata:
     - audit-findings
   created: 2026-08-06
   originSessionId: 428f1fab-f385-493a-952d-9509fdac5e10
-  modified: 2026-08-07T01:36:41.494Z
+  modified: 2026-08-15T06:41:50.735Z
 ---
 
 # A terminal phase-close polish task's own absorb finding can ship unfixed
@@ -75,3 +80,38 @@ section — the "Enum discipline: ..." paragraph (named-route parenthetical) and
 architecture (hooks/)" paragraph (merge-path floor list); canonical source of the `done-unmet`
 route is `skills/war/assets/land-decision.mjs`'s `HARD_ESCALATION_REASONS` export (confirmed
 present there at the same pin).
+
+## Recurrence — `2026-08-06-escape-guard-exit-contract`/p1-polish (landed `dev/2026-08-06-escape-guard-exit-contract` @ `a9f238c00928b369f11621cd46b2922a95e54172`, 2026-08-15)
+
+Independently confirms the pattern with a sharper twist: the finding was raised **three separate
+times** — task 1.1's own audit, that same task's post-merge gate-audit (`disposition: absorb,
+phaseClose: true`), and then *again*, worded near-identically by multiple auditor seats, inside
+`p1-polish`'s own audit of the polish diff itself — and it **still shipped unfixed**. The finding:
+`skills/red-team/assets/assert-no-repo-escape.sh`'s header comment (near the top, immediately
+after the "DETECTION authority (Layer-2/3 doctrine, ADR 0033)" clause) reads "A nonzero result
+quarantines the verdict through the self-confound gate — never CLEARED — until the state is
+clean." — a routing claim the phase deliberately narrowed everywhere else: `SKILL.md` Step 4 now
+reads "**On exit 1**, diagnose every delta by action-provenance FIRST" plus a new "**On exit 2** —
+there is no delta to triage" arm, and `skills/red-team/references/lenses.md`'s escape-guard bullet
+was rescoped the same way. Every one of the (at least) three audit passes marked this
+`disposition: absorb, phaseClose: true, autoFixable: true` — the standard "polish will pick this
+up" signal.
+
+**Verified directly at the landed tip** (read via the run-scoped `_refinery` worktree,
+`<repo-root>/.claude/war-worktrees/2026-08-06-escape-guard-exit-contract-2026-08-15/2026-08-06-escape-guard-exit-contract-2026-08-15/_refinery/`):
+`skills/red-team/assets/assert-no-repo-escape.sh` line 12 still reads the pre-rescope sentence
+verbatim, byte-for-byte, unchanged from before the phase. `p1-polish` — this phase's terminal
+phase-close round — never applied the fix despite the finding being `autoFixable: true` and
+recurring in its own audit output.
+
+**Sharpens the pattern:** it is not enough to check whether a polish-diff-own finding got a fix —
+here the *same* substantive finding was raised **before** the terminal polish task ran (queued
+from an earlier task's gate-audit) *and* resurfaced inside the terminal polish task's own audit,
+and it still went unfixed both times. `autoFixable: true` and repeated recurrence across audit
+passes are not evidence a fix landed — only reading the file at the landed tip is. A servitor or
+Lead closing out a phase with a `p1-polish`/terminal-round step should specifically re-grep every
+`phaseClose: true` finding queued against that round, not just trust the disposition tag once.
+
+**Locate-cue (verify still present before acting):**
+`skills/red-team/assets/assert-no-repo-escape.sh`, the header comment block, the sentence
+beginning "A nonzero result quarantines the verdict through the self-confound gate".
