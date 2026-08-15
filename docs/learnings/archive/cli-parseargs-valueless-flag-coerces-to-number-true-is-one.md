@@ -79,3 +79,5 @@ declared numeric for a bare `Number(args.<flag>)` with no `/^\d+$/`-or-equivalen
 Flag it Minor/follow-up (not a hold) when the flag is display-only telemetry with a downstream
 n/a-never-fabricated honesty invariant already in place — the fabricated value is wrong but bounded
 to a diagnostic row, not a control-flow decision.
+
+> archived 2026-08-15: resolved — moved to archive

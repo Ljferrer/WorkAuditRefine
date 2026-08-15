@@ -88,3 +88,5 @@ the two sides of a comparison is a silent, environment-dependent false result.
 Related: [[cp-r-and-bare-worktree-add-do-not-isolate-a-sandbox-from-a-linked-worktree-target]] (the
 sandbox-idiom fix this same guard's ref-diff made necessary — the old sanctioned idiom would have
 tripped this very guard).
+
+> archived 2026-08-15: resolved — moved to archive

@@ -101,3 +101,5 @@ over that corpus covers the whole corpus." The fix this lesson's earlier recurre
 (a dedicated presence check per enumerated member, or read-unguarded) generalizes to: assert
 membership over the **full** known-list, not a convenience subset, or the assert only proves
 narrower than its own prose claims.
+
+> archived 2026-08-15: resolved — moved to archive

@@ -156,3 +156,5 @@ out by name.
 
 Related: [[cp-r-and-bare-worktree-add-do-not-isolate-a-sandbox-from-a-linked-worktree-target]]
 (the End-state-18 mirror this recurrence's `deps: [2]` edge protects).
+
+> archived 2026-08-15: resolved — moved to archive

@@ -68,3 +68,5 @@ Related: [[structural-test-blind-spot-narrowing-needs-negative-reference-and-def
 (same family — default-deny census construction); [[weak-test-assertion-passes-without-feature-being-exercised]]
 (adjacent but distinct: that lesson is about an assert that never fires under mutation at all,
 this one is about an assert that fires correctly but can't say why).
+
+> archived 2026-08-15: resolved — moved to archive

@@ -67,3 +67,5 @@ captures it under a *new* local name, check whether every field the initial path
 shared variable is also propagated to the shared variable on the retry path — not just pushed onto
 a side list (`escalated`, a log entry, etc.). A field present only on the retry's *local* result
 object is invisible to any consumer that reads the shared/outer name.
+
+> archived 2026-08-15: resolved — moved to archive

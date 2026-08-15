@@ -69,3 +69,5 @@ backstop, built only if `<condition>`" — and that condition just fired — che
 dated, append-only amendment recording the backstop was discharged, **even when the plan forbids
 editing that ADR in-task**. File the follow-up immediately rather than trusting the next doc-cascade
 token-sweep to catch it: a token-presence grep cannot see a tense mismatch, only a missing/wrong token.
+
+> archived 2026-08-15: resolved — moved to archive

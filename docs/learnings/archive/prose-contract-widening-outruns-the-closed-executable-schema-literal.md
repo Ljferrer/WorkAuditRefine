@@ -92,3 +92,5 @@ sibling prose-vs-prose contract gap inside schemas.md itself, not prose-vs-execu
 [[template-defers-runtime-values-to-agent-via-literal-placeholder]] (a different
 workflow-template.js authoring constraint — no shell, agent-resolved placeholders — worth
 knowing when touching the same file's schema consts).
+
+> archived 2026-08-15: resolved — moved to archive

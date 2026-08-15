@@ -87,3 +87,5 @@ resolution (still unconfirmed per the note above) — it confirms the *class* of
 belongs to (a "sandbox" that isn't actually isolated from the real repo's git state) is now a
 documented, guarded pattern rather than a recurrence trap. Full detail:
 [[cp-r-and-bare-worktree-add-do-not-isolate-a-sandbox-from-a-linked-worktree-target]].
+
+> archived 2026-08-15: resolved — moved to archive

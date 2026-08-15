@@ -1097,7 +1097,10 @@ test('floor: a lesson within TIGHTEN_YOUNG_DAYS is never eligible; older is elig
   const old = new Date(NOW.getTime() - (TIGHTEN_YOUNG_DAYS + 1) * 86400000).toISOString().slice(0, 10);
   const recs = [rec('too-young', { effectiveDate: young }), rec('old-enough', { effectiveDate: old })];
   const elig = evictedSlugs(recs);
-  assert.ok(!elig.includes('too-young'), 'a <14-day lesson is floored'); // reds if the young floor is removed
+  // The message deliberately restates NO literal: the fixture dates above are derived from
+  // TIGHTEN_YOUNG_DAYS, so a retune cannot leave this text false. (It read "<14-day" until the
+  // 2026-08-15 retune to 8 — the literal was stale the moment the constant moved.)
+  assert.ok(!elig.includes('too-young'), 'a lesson inside the young window is floored'); // reds if the young floor is removed
   assert.ok(elig.includes('old-enough'));
 });
 

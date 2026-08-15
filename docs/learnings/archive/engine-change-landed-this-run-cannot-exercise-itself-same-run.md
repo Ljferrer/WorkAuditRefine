@@ -72,3 +72,5 @@ If a claimed End state cites a `check:` artifact that a phase's OWN plan just in
 teeing-mechanism for, verify whether that mechanism's dispatch code landed in an EARLIER phase of
 the same run (in which case it should be live) or in the run's OWN active phase-set (in which case
 it cannot be live until reload) before treating an absent artifact as a defect.
+
+> archived 2026-08-15: resolved — moved to archive

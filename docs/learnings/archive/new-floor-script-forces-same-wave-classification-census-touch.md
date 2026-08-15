@@ -51,3 +51,5 @@ sibling task that owns `assert-test-in-diff.test.sh` in that wave, rather than l
 census-row edit as an undeclared same-wave collision. See also
 [[coupling-comment-restating-grep-pattern-bytes-self-matches-the-sweep]] for a related
 census/self-matching gotcha in the same file family.
+
+> archived 2026-08-15: resolved — moved to archive

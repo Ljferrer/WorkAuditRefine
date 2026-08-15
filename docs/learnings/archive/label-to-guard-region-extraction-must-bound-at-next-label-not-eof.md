@@ -58,3 +58,5 @@ upstream instance that has none of its own — the exact blind-spot class
 here recurring in the *region-boundary* dimension rather than the token-matching dimension. A
 fixture arm carrying no guard at all, inserted before a guarded arm, is the discriminating negative
 reference this class of pin needs but frequently lacks.
+
+> archived 2026-08-15: resolved — moved to archive

@@ -47,3 +47,5 @@ concrete exploit is gated on the caller passing a **relative** path — an absol
 calling convention (as this engine's own `${task.worktree}` wiring uses) makes the gap
 unreachable in practice, but the defense-in-depth cost is one line and should not be
 skipped just because today's caller happens to pass absolute paths.
+
+> archived 2026-08-15: resolved — moved to archive

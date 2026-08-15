@@ -48,3 +48,5 @@ not a bug to fix. If a plan wants stronger per-statement checking, that needs a 
 mechanism (e.g. a mutation-floor or explicit red/green backstop), not `-e` on the
 file-exec. Worth field-data attention if `Done when:` compound-command masking ever causes
 a real false-green in production.
+
+> archived 2026-08-15: resolved — moved to archive

@@ -61,3 +61,5 @@ the more correct implementation.
 **Cross-links:** [[prepush-condemnation-check-must-scope-full-unpushed-range-not-head-only]] and
 [[git-revert-on-widened-unpushed-range-needs-neutralized-pair-exemption]] — the same Gate-2 undo
 routing, same phase, adjacent defects.
+
+> archived 2026-08-15: resolved — moved to archive

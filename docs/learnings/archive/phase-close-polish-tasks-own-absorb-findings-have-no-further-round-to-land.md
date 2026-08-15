@@ -81,3 +81,5 @@ as a follow-up issue, the same way an out-of-Files straggler is routed.
 **Related:** [[phase-close-polish-revert-can-silently-orphan-a-subset-of-absorbed-findings]] —
 a different mechanism (a revert-then-redo losing track of what the reverted commit fixed); this
 lesson is about absorb findings that were **never routed to a fix at all**, no revert involved.
+
+> archived 2026-08-15: resolved — moved to archive

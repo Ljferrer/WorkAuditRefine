@@ -98,3 +98,5 @@ in the same file — case-sensitivity, not prose-stripping); the release-blurb-n
 class is generically covered as an aside in [[release-blurb-overstates-guard-semantics]]'s Task 8
 gospel-pin family, but this presence-direction mechanism deserved its own entry since it is the
 structural mirror-image of the already-resolved absence-direction guard.
+
+> archived 2026-08-15: resolved — moved to archive
