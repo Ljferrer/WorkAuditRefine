@@ -7629,6 +7629,10 @@ test('mappedTests capture (D7, Task 2.3) — EVERY dispatched assert-test-in-dif
   assert.ok(mr, 'MERGE_RESULT literal found')
   assert.match(mr[0], /mappedTests:\s*\{\s*type:\s*'array'\s*\}/, "MERGE_RESULT declares mappedTests: { type: 'array' }")
   assert.ok(!/required:\s*\[[^\]]*mappedTests/.test(mr[0]), 'mappedTests is OPTIONAL — never added to MERGE_RESULT.required')
+  // Sibling slot (done-when-floor-wiring, plan item (b)): MERGE_RESULT declares done_when_log_path, OPTIONAL —
+  // the schema is the refiner subagent's output contract; an undeclared property is the silent-strip path.
+  assert.match(mr[0], /done_when_log_path:\s*\{\s*type:\s*'string'\s*\}/, "MERGE_RESULT declares done_when_log_path: { type: 'string' }")
+  assert.ok(!/required:\s*\[[^\]]*done_when_log_path/.test(mr[0]), 'done_when_log_path is OPTIONAL — never added to MERGE_RESULT.required')
   // Standing surface (both-surfaces rule): war-refiner.md step 4's exit-0 bullet carries the same capture.
   const step4 = refinerMd.match(/\*\*Test-floor check\*\*[^]*?(?=\n\d+\. \*\*Packaging-floor check\*\*)/)
   assert.ok(step4, 'war-refiner.md carries the **Test-floor check** step')
