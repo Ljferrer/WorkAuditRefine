@@ -4160,6 +4160,70 @@ test('phase-close sweep discard (criterion 5): a rejected polish is DISCARDED �
   assert.ok(discardEntry && discardEntry.branch === 'war/wtprov-a/p3-polish', 'the polish branch name is recorded (reaping is a human act)')
 })
 
+// Sweep-raised finding routing (End states 1+2, #1377): the re-audit panel's OWN Minor/Nit findings
+// (raised against the polish diff itself) route through the disposition ladder at both terminal arms.
+// Delete-the-feature trace (recorded per the plan's check): with the two routing loops removed from
+// workflow-template.js's merged/discard arms, sweepMinors is never consumed — the absorb finding never
+// reaches demote(), so the 'Disposition demotion' log assert fails; minorsFiled never receives either
+// sweep-raised finding, so the minorsFiled and handoff.followUps asserts fail; only the aced-is-queue-
+// only invariant would stay green, and it cannot green the tests alone.
+test('sweep-raised finding routing (End state 1, #1377): a MERGED sweep re-audit Minor/absorb demotes through the ladder (terminal-round reason) to minorsFiled + followUps; disposition:follow-up files WITHOUT demotion; aced carries only the queued findings', async () => {
+  const sweepAbsorb = { severity: 'Minor', title: 'sweep-raised absorb', file: 'docs/y.md', rationale: 'introduced by the polish diff', disposition: 'absorb' }
+  const sweepFollowUp = { severity: 'Minor', title: 'sweep-raised follow-up', file: 'docs/z.md', rationale: 'substantive work', disposition: 'follow-up' }
+  const sweepNote = { severity: 'Nit', title: 'sweep-raised note', file: 'docs/w.md', rationale: 'informational', disposition: 'note' }
+  const impl = buildSeqImpl(
+    { 'audit:p3-polish:correctness': [approveWith('audit:p3-polish:correctness', [sweepAbsorb, sweepFollowUp, sweepNote])] },
+    sweepBase([queuedAbsorb()]))
+  const { out, logs } = await runPhase(SWEEP_ARGS(), impl)
+  assert.equal(out.handoff.polish, 'merged', 'the sweep merged (presence guard — an approve verdict with Minor/Nit findings still re-approves)')
+  // absorb → demote(…, 'follow-up', …): the ladder is the vehicle, the reason names the terminal round.
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('Disposition demotion') && l.includes('sweep-raised absorb') && l.includes('terminal fix round')),
+    "the sweep-raised absorb takes the LOGGED demotion naming the sweep as the phase's terminal fix round (never dropped silently)")
+  const filedAbsorb = (out.minorsFiled || []).find(m => m && m.title === 'sweep-raised absorb')
+  assert.ok(filedAbsorb && filedAbsorb.task === 'p3-polish', 'the demoted absorb lands in minorsFiled, task-stamped with the polish pseudo-task id')
+  // follow-up → filed directly, no demotion log line for it.
+  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'sweep-raised follow-up'), 'a disposition:follow-up sweep finding files to minorsFiled')
+  assert.ok(!logs.some(l => typeof l === 'string' && l.includes('Disposition demotion') && l.includes('sweep-raised follow-up')),
+    'the follow-up finding routes WITHOUT a demotion (it is already at its durable disposition)')
+  // note → notes.
+  assert.ok((out.notes || []).some(n => n && n.title === 'sweep-raised note'), 'a disposition:note sweep finding routes to notes')
+  // handoff observable: followUps derive from minorsFiled.
+  assert.ok((out.handoff.followUps || []).some(fu => fu && /sweep-raised absorb/.test(fu.reason || '')), 'the handoff followUps observable carries the demoted absorb')
+  assert.ok((out.handoff.followUps || []).some(fu => fu && /sweep-raised follow-up/.test(fu.reason || '')), 'the handoff followUps observable carries the filed follow-up')
+  // Invariant: aced carries ONLY the queued findings absorbed at the polish sha — nothing sweep-raised.
+  assert.equal((out.aced || []).length, 1, 'aced carries exactly the one queued finding')
+  assert.equal(out.aced[0].finding.title, 'dangling link', 'aced is queue-only — the queued finding, absorbed at the polish sha')
+  assert.ok(!(out.aced || []).some(a => a && a.finding && /^sweep-raised/.test(a.finding.title || '')), 'nothing sweep-raised rides aced')
+  assert.ok(!(out.handoff.absorbed || []).some(a => (a.findings || []).some(t => /^sweep-raised/.test(t))), 'nothing sweep-raised rides the handoff absorbed observable')
+})
+
+test("sweep-raised finding routing — discard arm (End state 2, #1377): a rejected sweep routes its re-audit Minor/Nits through the same ladder with the unmerged-branch reason; the polish-rejected auditLog entry pins verdict + findings payload", async () => {
+  const sweepAbsorb = { severity: 'Minor', title: 'sweep-raised absorb', file: 'docs/y.md', rationale: 'introduced by the polish diff', disposition: 'absorb' }
+  const impl = buildSeqImpl(
+    { 'audit:p3-polish:correctness': [{ seat: 'p', lens: 'correctness', verdict: 'request_changes', confidence: 'high', findings: [sweepAbsorb] }] },
+    sweepBase([queuedAbsorb()]))
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS(), impl)
+  assert.ok(!calls.some(c => (c.opts.label || '') === 'merge:p3-polish'), 'the rejected polish is never merged (presence guard)')
+  assert.equal(out.handoff.polish, 'discarded', 'the sweep discards (presence guard)')
+  assert.equal(out.landDecision, 'landed', 'the phase still lands on the pre-polish tip — routing is filing, never a new hold path')
+  // The sweep-raised absorb demotes with the discard-arm reason (the polish branch never merged).
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('Disposition demotion') && l.includes('sweep-raised absorb') && l.includes('never merged')),
+    'the discard-arm demotion is log()ged with the unmerged-branch reason')
+  const filed = (out.minorsFiled || []).find(m => m && m.title === 'sweep-raised absorb')
+  assert.ok(filed && filed.task === 'p3-polish', 'the sweep-raised absorb lands in minorsFiled, task-stamped with the polish pseudo-task id')
+  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'dangling link'), 'the queued finding still demotes to follow-up (the queue arm is untouched)')
+  assert.ok(!(out.aced || []).length, 'nothing is aced on the discard arm')
+  // polish-rejected auditLog entry shape (P2 conversion-verified gap — zero pre-existing asserts at base):
+  // the verdict literal plus the findings payload ride the entry, so Critical/Major (and any Minor/Nit)
+  // sweep-raised findings keep their auditLog visibility on the terminal arm.
+  const rejected = (out.auditLog || []).find(e => e && e.verdict === 'polish-rejected')
+  assert.ok(rejected, "the 'polish-rejected' auditLog entry is recorded")
+  assert.equal(rejected.task, 'p3-polish', 'the entry is keyed to the polish pseudo-task')
+  assert.ok((rejected.findings || []).some(f => f && f.title === 'sweep-raised absorb'), "the entry carries the panel's findings payload")
+  assert.equal(rejected.requested, 1, 'the entry records the requested seat count')
+  assert.equal(rejected.returned, 1, 'the entry records the returned seat count')
+})
+
 test('phase-close sweep: a held phase never dispatches the sweep — queue drains to follow-up; handoff degrades with polish:skipped', async () => {
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)

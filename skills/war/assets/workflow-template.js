@@ -2096,9 +2096,20 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
     // 3. Full auditRound panel re-audit at the polish SHA — same unanimity rules as any task.
     const sweepWhy = blockedReason(sweep)
     let sweepApproved = false
+    // Sweep-raised finding routing (D1/D2, #1377): the re-audit panel's Minor/Nit findings, hoisted
+    // out of the `if (!sweepWhy)` block (pSeats is block-scoped there) so BOTH terminal arms below
+    // can route them through the disposition ladder — nothing sweep-raised may enter `aced`,
+    // `aceable`, or `phaseCloseQueue` (the sweep is the phase's terminal fix round; there is no later
+    // round to land an absorb). Critical/Major keep today's visibility: they block re-approval and
+    // ride the `polish-rejected`/`polish-discarded` auditLog entries. Vacuous arms: blocked (sweepWhy
+    // — no panel convened), skipped (invalid roster / failed provisioning — the sweep never
+    // dispatched), and held (the held-phase drain above) never reach these arms with a convened
+    // panel, so no sweep-raised findings exist there and this stays empty.
+    let sweepMinors = []
     if (!sweepWhy) {
       const { seats: pSeats, expected: pExpected } = await auditRound(polishTask, null, sweep && sweep.tests ? sweep.tests : null, sweep && sweep.head_sha)
       sweepApproved = allApprove(pSeats, pExpected) && blockingOf(pSeats).length === 0
+      sweepMinors = minorsOf(pSeats).map(f => ({ task: polishTask.id, ...f }))
       auditLog.push({ task: polishTask.id, verdict: sweepApproved ? 'approve' : 'polish-rejected', findings: pSeats.flatMap(s => s.findings || []), requested: pExpected, returned: pSeats.length })
     }
     // 4. Re-approved → the refiner merges the polish branch at the serial merge queue's tail; the
@@ -2123,6 +2134,14 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
       const polishSha = (typeof sweep.head_sha === 'string' && sweep.head_sha) ? sweep.head_sha : '(polish sha unrecorded)'
       log(`phase-close sweep MERGED at ${polishSha} — the land proceeds on the polished tip; ${phaseCloseQueue.length} queued finding(s) absorbed.`)
       for (const f of phaseCloseQueue.splice(0)) aced.push({ task: f.task, finding: f, sha: polishSha })
+      // Merged-arm routing (#1377): sweep-raised Minor/Nits route by disposition — an absorb (incl.
+      // fileless) demotes because the sweep is the phase's terminal fix round; absorb has no later round.
+      for (const f of sweepMinors) {
+        const d = dispositionOf(f)
+        if (d === 'follow-up') minorsFiled.push(f)
+        else if (d === 'note') notes.push(f)
+        else demote(f, 'follow-up', "sweep-raised absorb — the phase-close sweep is the phase's terminal fix round; absorb has no later round to land")
+      }
     } else {
       // DISCARD: the polish branch + _polish worktree are LEFT IN PLACE (never-lose-unmerged-commits;
       // reaping is a human act). The queue demotes to follow-up; the pre-polish tip lands exactly as
@@ -2131,6 +2150,15 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
       log(`phase-close sweep DISCARDED (${sweepWhy || (sweepApproved ? `polish merge returned ${pmr && pmr.status || 'no result'}` : 'the panel did not re-approve')}) — polish branch ${polishBranch} and worktree ${polishWorktree} left in place; queue demotes to follow-up.`)
       auditLog.push({ task: polishTask.id, verdict: 'polish-discarded', branch: polishBranch, findings: [], blocked: sweepWhy || null })
       for (const f of phaseCloseQueue.splice(0)) demote(f, 'follow-up', 'phase-close sweep discarded — the polish branch never merged; the pre-polish tip lands')
+      // Discard-arm routing (#1377): sweep-raised Minor/Nits route through the same ladder — an
+      // absorb demotes because the polish branch never merged (nothing to absorb into). A blocked
+      // sweep (sweepWhy) reaches here with NO panel convened, so sweepMinors is empty — vacuous.
+      for (const f of sweepMinors) {
+        const d = dispositionOf(f)
+        if (d === 'follow-up') minorsFiled.push(f)
+        else if (d === 'note') notes.push(f)
+        else demote(f, 'follow-up', 'sweep-raised absorb — the phase-close sweep was discarded; the polish branch never merged')
+      }
     }
     }
   }

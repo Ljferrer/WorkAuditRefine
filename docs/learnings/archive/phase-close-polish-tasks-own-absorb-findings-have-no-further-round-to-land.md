@@ -1,6 +1,6 @@
 ---
 name: phase-close-polish-tasks-own-absorb-findings-have-no-further-round-to-land
-description: "A phase-close polish task's own post-hoc audit can surface Minor/absorb findings about defects the polish diff itself introduced (a false justifying comment, a cosmetic reflow); since Minor/absorb never blocks approval and polish IS the terminal phase-close mechanism, those findings have no subsequent round to drain them and can land unfixed — verify a polish-task absorb finding actually landed, never assume disposition:absorb guarantees a fix within the same phase"
+description: "RESOLVED (gate-audit-finding-routing, #1377/#1372, 2026-08-15) — A phase-close polish task's own post-hoc audit can surface Minor/absorb findings about defects the polish diff itself introduced (a false justifying comment, a cosmetic reflow); since Minor/absorb never blocks approval and polish IS the terminal phase-close mechanism, those findings have no subsequent round to drain them and can land unfixed — verify a polish-task absorb finding actually landed, never assume disposition:absorb guarantees a fix within the same phase"
 metadata: 
   node_type: memory
   type: project
