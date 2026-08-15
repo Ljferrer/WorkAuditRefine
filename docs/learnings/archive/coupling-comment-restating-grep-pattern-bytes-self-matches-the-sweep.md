@@ -88,3 +88,5 @@ construct, avoid the guard's own non-vacuity/truncation token too — not just i
 pattern bytes. Either paraphrase ("reword the derivation sentence below") or, if the literal is
 unavoidable, tighten the assert to a longer, more specific phrase the coupling comment is unlikely
 to also contain (e.g. `/Formula \(adjudication D\)/i` instead of bare `/Formula/`).
+
+> archived 2026-08-15: resolved — moved to archive

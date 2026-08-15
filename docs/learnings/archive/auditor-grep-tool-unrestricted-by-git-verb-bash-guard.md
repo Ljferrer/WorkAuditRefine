@@ -60,3 +60,5 @@ grep` to it (H3/verb-set discipline is unrelated and untouched) — it only corr
 auditor should reach for when it wants a repo-wide text sweep. See
 [[scope-guard-needs-agent-type]] and [[guard-c-peel-resolves-pin-blocker-but-scoped-to-read-verbs-only]]
 for the git-verb guard's own (unrelated, narrower) scope decisions.
+
+> archived 2026-08-15: resolved — moved to archive

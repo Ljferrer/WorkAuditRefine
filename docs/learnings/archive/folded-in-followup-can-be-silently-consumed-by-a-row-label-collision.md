@@ -62,3 +62,5 @@ made the collision invisible.
 **Related:** [[worker-applying-one-red-team-adjudication-row-can-miss-a-sibling-in-the-same-file]]
 — same family (a correctly-applied row masking a missed sibling), but that one is per-row inside a
 diff; this one is a *label* aliasing two different subjects across two different plans.
+
+> archived 2026-08-15: resolved — moved to archive

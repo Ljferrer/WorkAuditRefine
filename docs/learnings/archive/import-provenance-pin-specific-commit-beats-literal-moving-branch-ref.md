@@ -56,3 +56,5 @@ produces the stated invariants" — check the candidate commit's artifact agains
 fingerprint (byte counts, member counts, content hashes) rather than demanding the literal moving
 label be reproduced, and don't flag the SHA substitution as a plan-faithfulness violation once the
 fingerprint confirms the candidate.
+
+> archived 2026-08-15: resolved — moved to archive

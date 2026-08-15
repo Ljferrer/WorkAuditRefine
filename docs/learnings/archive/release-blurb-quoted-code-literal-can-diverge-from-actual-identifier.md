@@ -89,3 +89,5 @@ land — `## Status` is a release slot.
 in release prose, quote through the actual close position — if the bold run continues past the
 "headline" phrase into a parenthetical or qualifier, either quote the whole run or quote only the
 open prefix (no closing `**`) the way a drift guard anchoring on that construct already does.
+
+> archived 2026-08-15: resolved — moved to archive

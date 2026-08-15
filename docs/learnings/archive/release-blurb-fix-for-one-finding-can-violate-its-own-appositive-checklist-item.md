@@ -72,3 +72,5 @@ suggestion was not applied before land.
 - If a checklist item exists specifically to catch this class (as README's item 6 does here),
   re-run it as an explicit check against the **post-fix** sentence, not just against the original
   draft — a fix for one checklist violation can introduce another.
+
+> archived 2026-08-15: resolved — moved to archive

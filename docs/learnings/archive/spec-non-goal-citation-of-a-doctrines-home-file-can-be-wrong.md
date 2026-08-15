@@ -66,3 +66,5 @@ standing-doc sentence overclaims what a backing mechanism actually enforces.
 [[spec-context-band-statement-of-drift-survives-code-changes-uncorrected]] (repo) — a related but
 distinct spec-provenance-rot pattern (a spec's dated Context statement going stale, not a citation
 being wrong at authoring time).
+
+> archived 2026-08-15: resolved — moved to archive

@@ -55,3 +55,5 @@ for the wrong adjudication row, not that the outcome was wrong.
 evicted, justify it on **tier** (every-invocation doctrine) or an **ADR-0025 mirror-site**
 argument — never on a registry/literal carve-out, which scopes to the workflow-template.js literal
 shrink only, not to card-span eviction decisions.
+
+> archived 2026-08-15: resolved — moved to archive

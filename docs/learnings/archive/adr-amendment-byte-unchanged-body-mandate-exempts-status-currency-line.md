@@ -65,3 +65,5 @@ and `## Amendment (2026-07-26)` sections exist, and precedent commit `c0f2f0d` r
 [[resolved-lesson-stamp-freezes-body-so-it-can-contradict-the-new-description]] — a different ADR/lesson
 edit convention where an update channel (a description prefix) is deliberately narrower than "the
 whole file," same family of "which part of a dated record actually moves on update."
+
+> archived 2026-08-15: resolved — moved to archive

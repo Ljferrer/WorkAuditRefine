@@ -80,3 +80,5 @@ sentence ("Your dispatched merge/land prompt threads the submodule targetRepo/ta
 for future eviction pointers:** when a pointer gates content that also survives some other way
 (a dispatched-prompt mirror, a Lead-owned resolution upstream), say so in the pointer's own
 prose — don't leave the survival implicit, even when it's true.
+
+> archived 2026-08-15: resolved — moved to archive

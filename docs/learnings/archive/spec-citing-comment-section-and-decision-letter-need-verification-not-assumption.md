@@ -71,3 +71,5 @@ task worktree under `.git/worktrees/*` matched this plan's slug at the threaded 
 to a different plan, `2026-07-26-dispatch-args-and-floor-coverage`. Recorded as a pattern only,
 per the finding-match discipline; never cite the original `hooks/validate-auditor-git.test.sh`
 lines as a current instance.
+
+> archived 2026-08-15: resolved — moved to archive

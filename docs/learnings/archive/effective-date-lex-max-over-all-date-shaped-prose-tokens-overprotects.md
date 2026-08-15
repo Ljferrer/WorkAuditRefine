@@ -86,3 +86,5 @@ date keys — remains the durable pattern; only the failure mode changed, from *
 over-protection to a *bounded* (48 h) one. And a day-overflow token such as `2026-02-31` still
 survives the UTC round-trip (it rolls over to early March) — a bounded residual accepted by
 design in the fix.
+
+> archived 2026-08-15: resolved — moved to archive

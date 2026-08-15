@@ -77,3 +77,5 @@ Related: [[audit-worktree-pre-impl-tip-stale-verdict]] (the adjacent single-Lead
 worktree view producing a false verdict, without the destructive branch-deletion step);
 [[held-escalation-lead-manual-completion]] (the Lead-manual-completion path this incident's
 resolution echoes — hand-driving a phase to completion after a HARD escalation).
+
+> archived 2026-08-15: resolved — moved to archive

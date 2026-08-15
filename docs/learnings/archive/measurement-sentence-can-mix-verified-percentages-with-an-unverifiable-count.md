@@ -58,3 +58,5 @@ Related: [[bounded-window-measurement-comment-self-invalidates-when-its-own-rele
 falsifies by entering the window — this lesson is the sibling case where the count was wrong from
 the start, not invalidated later); [[release-blurb-headline-count-word-can-mismatch-its-own-enumeration]]
 (another count-vs-content mismatch, in release prose rather than a design spec).
+
+> archived 2026-08-15: resolved — moved to archive

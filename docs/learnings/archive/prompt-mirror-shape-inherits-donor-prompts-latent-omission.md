@@ -87,3 +87,5 @@ needs its own completeness check, not just presence).
 three land dispatches (`land:phase-<id>` and both `-proceed` re-lands); and the phase-close polish
 merge runs `assert-no-submodule-mutation.sh` unconditionally. The durable rule above — a mirror
 copies the donor's latent omission, so audit and patch the donor first — is what survives.
+
+> archived 2026-08-15: resolved — moved to archive

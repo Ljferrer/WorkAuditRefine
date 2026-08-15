@@ -94,3 +94,5 @@ requirement, and the worker/auditor's job is to resolve toward substance over li
 
 Related: [[weak-test-assertion-passes-without-feature-being-exercised]] (the five-surface
 registry row from Instance 1 has its own residual coverage gap, recorded separately).
+
+> archived 2026-08-15: resolved — moved to archive
