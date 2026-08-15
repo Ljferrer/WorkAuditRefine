@@ -9,8 +9,10 @@
 # redteam-executed-probe-cwd-reset-hits-real-remote). The hardened
 # `git -C <sandbox>` scope-lock in the executed probe preamble is the PREVENTION
 # layer; this guard is the DETECTION authority (Layer-2/3 doctrine, ADR 0033).
-# A nonzero result quarantines the verdict through the self-confound gate —
-# never CLEARED — until the state is clean.
+# Both nonzero results forbid CLEARED until the guard is settled, but they route
+# differently (SKILL.md Step 4): exit 1 routes the verdict through the
+# self-confound gate, action-provenance first; exit 2 carries no delta to triage
+# — fix the named git/infra fault and re-run the guard.
 #
 # Usage:
 #   assert-no-repo-escape.sh --repo <abs-repo-dir> --snapshot <abs-file>   # pre-run
