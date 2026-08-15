@@ -7,7 +7,7 @@ metadata:
   provenance: code-verified
   promoted: dev/2026-07-28-audit-evidence-precedence@phase-2
   slug: full-gates-green-end-state-soft-without-threaded-gate-log-artifact
-  phase: "red-team-fallback-and-anchor-hygiene/phase-2 (Release, task 2.1) +9 recurrences (latest 2026-08-04-interview-and-authoring-contract/phase-1 tasks 1/2/3/5 gate-audits, 2026-08-05 — densest single-phase cluster, 4/5 dispatches)"
+  phase: "red-team-fallback-and-anchor-hygiene/phase-2 (Release, task 2.1) +10 recurrences (latest 2026-08-06-shell-pin-helpers/phase-1 task 1.1, 2026-08-15 — first phase-close-polish-timing sub-shape)"
   keywords:
     - full gates green
     - gate-log artifact
@@ -33,6 +33,10 @@ metadata:
     - gate-pin-status.sh
     - unstamped dispatch
     - recurring unfixed gap
+    - phase-close polish commit
+    - --ace polish
+    - gate captured pre-polish
+    - per-task gate log vs integrated-tip gate log
   tags:
     - audit-pipeline
     - gate-audit
@@ -42,7 +46,7 @@ metadata:
   created: 2026-07-15
   updated: 2026-08-05
   originSessionId: e11422bd-1b49-4d13-9840-37a67306b3f5
-  modified: 2026-08-05T12:37:55.124Z
+  modified: 2026-08-15T20:49:11.895Z
 ---
 
 **Local recurrence copy** of the repo-root lesson at `docs/learnings/full-gates-green-end-state-soft-without-threaded-gate-log-artifact.md`
@@ -340,8 +344,57 @@ stamp. This is the kind of persistent, cheap, repeatedly-recommended fix a Lead 
 consider escalating out of the recurring-Nit lane into an actual task, rather than continuing to
 accrue SOFT notes indefinitely.
 
+## Recurrence 11 (2026-08-15, plan `2026-08-06-shell-pin-helpers`, phase 1, task 1.1 gate-audit) — eleventh occurrence, new sub-shape: gate captured BEFORE a phase-close polish commit, not merely missing a `pin_status` token
+
+Eleventh occurrence, and a genuinely new timing sub-shape distinct from Recurrences 1-10 (all of
+which are about a *missing artifact/token* at an otherwise up-to-date tip). Here the plan's End
+state 9 ("The full gates are green at the integrated tip, the redaction lint included") **was**
+threaded a captured gate-log artifact (`_refinery/.war/gate-1.1.log`) and the seat did use it —
+`gate-audit:approve`, `hard:false`, `gateEvidence:true`, `disposition:note` — but the artifact was
+captured in task worktree `p1-1.1` over the pre-polish tree (commit `530f9eb`), and a phase-close
+`--ace` polish commit (`fd72bb4`, three comment-only lines in
+`skills/war-machine/war-pipeline-structure.test.sh`) landed **afterward** with no
+`gate-phase-1.log` (integrated-tip full-gate re-run) ever produced. `code-verified` at the landed
+tip `44acfe217621a1aa06583d2f83c3ee26d735bfc7` (read via the `_refinery` worktree matching that
+SHA, gitdir physical path containing this plan's slug:
+`<repo-root>/.claude/war-worktrees/2026-08-06-shell-pin-helpers-2026-08-15/2026-08-06-shell-pin-helpers-2026-08-15/_refinery/`):
+`.war/gate-1.1.log` exists (per-task gate, its captured
+`scout-manifest-surface.test.sh` lines are `p1-1.1`-scoped); no `gate-phase-1.log` or any
+post-`fd72bb4` full-gate artifact exists in that worktree's `.war/` directory.
+
+**What this occurrence adds:** the seat's own mitigation was narrower than Recurrence 4's
+integrated-tip spot-verify and Recurrence 6's assertion-outcome reconstruction — it did not
+re-derive the *missing* full-gate run at all, and instead corroborated only that the **specific
+file the polish commit touched** was re-verified green post-polish, via two other threaded
+artifacts that happen to cover it: `endstate-1-1.log` and `endstate-1-7.log` both stamp `tip_sha
+fd72bb4...` (the confirmed tip) and both re-run
+`skills/war-machine/war-pipeline-structure.test.sh` itself to `0 failure(s)` / exit 0. This is a
+**narrower, file-scoped** mitigation, not a full-suite one — it proves the one file the polish
+touched didn't break, but says nothing about the ~1129 Node tests or the other 27 shell suites at
+the post-polish tip. The seat recorded this honestly (SOFT/note) rather than treating the
+pre-polish `gate-1.1.log`'s "1129 pass / 0 fail, 28 shell suites green" as if it covered the
+post-polish tip.
+
+**New nuance over Recurrences 1-10:** a captured gate-log artifact with a real evidence trail is
+not automatically full-tip evidence — check **which tree it ran over** (its own tip_sha /
+scout-manifest lines) against the plan's actually-landed tip before trusting a "gates are green at
+land" End state as confirmed-by-artifact. A phase-close polish commit landing after the per-task
+gate captured its evidence is exactly the shape where this gap recurs (per
+[[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]] — polish commits
+are, by construction, the last thing to land in a phase, so there is structurally no further round
+to re-run a full gate over them unless the refiner does so deliberately).
+
+**Confirms:** the SOFT-never-hold disposition holds across eleven occurrences; **new
+recommendation for future refiner/Lead attention** (not yet fixed, per Recurrence 10's same
+"recurring unfixed gap" framing): a phase-close polish commit that touches non-comment/non-trivial
+code should trigger a fresh `gate-phase-<n>.log` capture at the post-polish tip rather than relying
+on the pre-polish per-task gate — this specific instance was low-risk (the polish diff was
+three comment lines, re-verified green by two other artifacts), but the same shape on a
+behavior-touching polish commit would leave "full gates green" resting entirely on inference.
+
 Related: [[deliberately-uncommitted-worker-probe-evidence-is-soft-never-hold]] (same family: an
 evidence-ceiling cannot-confirm is SOFT, not a hold). [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]]
 (how the four release slots were independently re-verified after this servitor's own cwd proved
 stale). [[version-slots-no-cross-slot-consistency-test]] (RESOLVED — the lock-step test this
-condition's structural half relies on).
+condition's structural half relies on). [[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]]
+(why a phase-close polish commit structurally has no next round to re-gate itself).
