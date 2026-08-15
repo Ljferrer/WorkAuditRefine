@@ -864,6 +864,12 @@ test('CLI: a typo\'d flag NAME refuses in every mode — default-deny over every
   assert.equal(r2.status, 1, r2.stderr)
   assert.match(r2.stderr, /unknown argument/, 'the same check covers file mode')
   assert.ok(!r2.stdout.includes('verdict'), `stdout must carry no verdict, got: ${r2.stdout}`)
+  // Same typo'd name at a NONEXISTENT path — this arm is what pins D3's before-the-read placement:
+  // with the check relocated below readFileSync, the read throws ENOENT and the stderr match reds.
+  const r3 = runGate(['--round=3', path.join(dir, 'nope.json')])
+  assert.equal(r3.status, 1, r3.stderr)
+  assert.match(r3.stderr, /unknown argument/, 'the check must precede the file read — an ENOENT stack here means it moved below readFileSync')
+  assert.ok(!r3.stdout.includes('verdict'), `stdout must carry no verdict, got: ${r3.stdout}`)
 })
 
 test('CLI: the FLAG zero form — --stdin --rounds=0 rounds-only exits 0, echoes rounds: 0, emits routeUpstream: false (End state 3a)', () => {
