@@ -143,10 +143,10 @@ construct-level collision census is Note 1.
     every sibling is the sanctioned stacked-release pattern, not contention.
 11. **Lesson-stamp check** (verified at conversion): the survey mined both companion lessons into
     this group's issues — issue #1373 carries the `Lesson:` line naming
-    `docs/learnings/label-to-guard-region-extraction-must-bound-at-next-label-not-eof.md`
+    `docs/learnings/archive/label-to-guard-region-extraction-must-bound-at-next-label-not-eof.md`
     (unstamped; its description and keywords name the exact `relandSubmodArms` defect this plan
     fixes) and issue #1375 carries the `Lesson:` line naming
-    `docs/learnings/multi-token-presence-loop-needs-paired-first-following-match-to-catch-a-swap.md`
+    `docs/learnings/archive/multi-token-presence-loop-needs-paired-first-following-match-to-catch-a-swap.md`
     (a standing test-authoring class rule, cited as a live `[[wikilink]]` by the D31 block comment
     itself). D14: the first is RESOLVED-stamped in the fixing task; the second is deliberately NOT
     stamped (A6). The `reland-submodule-pr-arm-leaves-stale-landresult…` lesson is already
@@ -357,7 +357,7 @@ None (see Non-goals — existing terms and ADR 0025 cover the rest).
   13. The label-to-guard-region lesson is stamped RESOLVED with this plan's slug and issues, body
       otherwise untouched; the multi-token lesson is untouched ·
       check: `grep -l 'RESOLVED (structural-pin-extractors'
-      docs/learnings/label-to-guard-region-extraction-must-bound-at-next-label-not-eof.md` lists
+      docs/learnings/archive/label-to-guard-region-extraction-must-bound-at-next-label-not-eof.md` lists
       the file. (AI-declared)
   14. Each landing commit cites its issue(s) — #1373 + #1286 for Task 1.1's D6 items, #1334 for
       Task 1.1's threading items, #1375 + #1332 for Task 1.2's D31/SKILL.md items, #1252 for the
@@ -385,7 +385,7 @@ enforced by Task 1.1's D12 witnesses, not by intra-plan structure.
 
 ### Task 1.1: Engine-suite unit — D6 bounding + comments + fixture, done-when floor/typeof/census/adjacency, lesson stamp
 
-- Files: `skills/war/assets/workflow-template.test.mjs`, `docs/learnings/label-to-guard-region-extraction-must-bound-at-next-label-not-eof.md`
+- Files: `skills/war/assets/workflow-template.test.mjs`, `docs/learnings/archive/label-to-guard-region-extraction-must-bound-at-next-label-not-eof.md`
 - Plan slice: **Witness first (D12/A4)** — after the standard rebase onto the integration tip,
   verify `grep -c 'done_when_log_path' skills/war/assets/workflow-template.js` ≥ 1 AND
   `grep -c 'strictly stronger' skills/war/assets/workflow-template.test.mjs` = 0 (plan 3's End

@@ -125,9 +125,9 @@ construct-level collision census is Note 1.
    Both edges belong on the roadmap's dependency spine (Note 7).
 10. Companion lessons already recorded and both resolved by this plan (verified: present in the live
     tree at `6fff2ee`):
-    `docs/learnings/phase-close-polish-tasks-own-absorb-findings-have-no-further-round-to-land.md`
+    `docs/learnings/archive/phase-close-polish-tasks-own-absorb-findings-have-no-further-round-to-land.md`
     (#1377's defect) and
-    `docs/learnings/hard-trigger-narrowing-leaves-contradictory-clause-and-early-abort-truncation-residual.md`
+    `docs/learnings/archive/hard-trigger-narrowing-leaves-contradictory-clause-and-early-abort-truncation-residual.md`
     (#1372's defects). Both stamped RESOLVED in the fixing task (the batch's fold-into-fixing-task
     precedent; D12).
 
@@ -322,8 +322,8 @@ carries the fallback).
   10. Both companion lessons are stamped RESOLVED with this plan's slug and issues, bodies otherwise
       untouched ·
       check: `grep -l 'RESOLVED (gate-audit-finding-routing'
-      docs/learnings/phase-close-polish-tasks-own-absorb-findings-have-no-further-round-to-land.md
-      docs/learnings/hard-trigger-narrowing-leaves-contradictory-clause-and-early-abort-truncation-residual.md`
+      docs/learnings/archive/phase-close-polish-tasks-own-absorb-findings-have-no-further-round-to-land.md
+      docs/learnings/archive/hard-trigger-narrowing-leaves-contradictory-clause-and-early-abort-truncation-residual.md`
       lists both files.
   11. The full gates are green at the integrated tip with `resolveGate`'s output bytes unchanged — the
       idempotence trio and the D2 mirror-registry row pass untouched ·
@@ -377,7 +377,7 @@ base and are untouched by predecessor plan 3).
 
 ### Task 1.1: Engine cluster — sweep-close routing, seat-prompt reconciliation, suite guards, card twin, lesson stamps
 
-- Files: `skills/war/assets/workflow-template.js`, `skills/war/assets/workflow-template.test.mjs`, `agents/war-auditor.md`, `docs/learnings/phase-close-polish-tasks-own-absorb-findings-have-no-further-round-to-land.md`, `docs/learnings/hard-trigger-narrowing-leaves-contradictory-clause-and-early-abort-truncation-residual.md`
+- Files: `skills/war/assets/workflow-template.js`, `skills/war/assets/workflow-template.test.mjs`, `agents/war-auditor.md`, `docs/learnings/archive/phase-close-polish-tasks-own-absorb-findings-have-no-further-round-to-land.md`, `docs/learnings/archive/hard-trigger-narrowing-leaves-contradictory-clause-and-early-abort-truncation-residual.md`
 - Plan slice: **Witness first (D10/A5)** — after the standard rebase onto the integration tip, verify
   `grep -c 'done_when_log_path' skills/war/assets/workflow-template.js` ≥ 1 AND
   `grep -c 'strictly stronger' skills/war/assets/workflow-template.test.mjs` = 0 (predecessor plan 3's

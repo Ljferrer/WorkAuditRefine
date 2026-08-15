@@ -51,7 +51,7 @@ docs-only and touch none of these surfaces).
    blurb quoting or closely paraphrasing a pinned literal therefore satisfies a NEW-present pin by itself,
    degrading the pin from "the target section landed the phrasing" to "the phrasing appears anywhere in
    the file". The recorded instance and the `has_i_stripped` fix option live in
-   `docs/learnings/gospel-new-present-pin-self-satisfied-by-status-blurb-prose.md` (verified: lesson
+   `docs/learnings/archive/gospel-new-present-pin-self-satisfied-by-status-blurb-prose.md` (verified: lesson
    frontmatter re-read at conversion). At the conversion base the recorded README pin (`recommended
    auxiliary plugin`) has exactly 2 case-insensitive hits, both structural and both surviving
    `strip_prose` — the lesson's 4-hit instance including a Status-blurb hit is a dated snapshot at the
@@ -124,7 +124,7 @@ docs-only and touch none of these surfaces).
 | D6 | Pin migration scope | Exactly the NEW-present twins that pair with `lacks_i` old-absent pins on the same surface: the four gospel twins (README `recommended auxiliary plugin`, CLAUDE.md `one interview, one merged artifact`, war-help `one merged plan, decision record + phases in a single artifact`, CONTEXT `input shape`) plus the machine `author the merged plan` twin — five pins, all with ≥1 stripped hit at the conversion base | spec D6 (carried [assumed] scope → A3) |
 | D7 | Committed controls | Two committed self-checks join the file's control precedent (the prose-exclusion and `-i` control blocks): (a) the guard fires on a nonexistent path — the helper invoked via command substitution so the probe's own `fails` increment dies in the subshell, then the captured output is asserted to carry the `MISSING FILE` marker; (b) the guard passes a real file (captured output carries the normal ok line, no marker). **Both controls invoke `lacks_i` specifically** — pinned, not executor latitude, so the probes can never perturb End state 5's `has_i_stripped` call-site count. Plus the D4-routed `-i` control | spec D7 (carried [assumed] house-convention basis → A4); probe-helper pin is a grill patch (F6), logged for /red-team |
 | D8 | Fixture routing | The rename prose-exclusion self-check's two inline `printf \| strip_prose \| grep` pipelines also route through `_hit` (polarity per check unchanged: prose ignored / structural caught), leaving zero inline copies of the stripped-scan composition outside the two inner predicates | spec D8 (carried [assumed] hygiene default → A5) |
-| D9 | Lesson stamp | `docs/learnings/gospel-new-present-pin-self-satisfied-by-status-blurb-prose.md` `description:` frontmatter value gains a `MITIGATED (shell-pin-helpers/1.1, #1371): ` prefix — the batch's escape-guard stamp shape (fixing task + issue; no land-date token, which is unknowable at worker time); body, keywords, and relates untouched. The stamp travels **in the fixing task** (stamp honesty — see D10) | spec D9, stamp shape + placement per the escape-guard batch precedent (grill patch F10, logged for /red-team); (verified: repo resolved-lesson-stamp convention — description prefix, body stays present-tense) |
+| D9 | Lesson stamp | `docs/learnings/archive/gospel-new-present-pin-self-satisfied-by-status-blurb-prose.md` `description:` frontmatter value gains a `MITIGATED (shell-pin-helpers/1.1, #1371): ` prefix — the batch's escape-guard stamp shape (fixing task + issue; no land-date token, which is unknowable at worker time); body, keywords, and relates untouched. The stamp travels **in the fixing task** (stamp honesty — see D10) | spec D9, stamp shape + placement per the escape-guard batch precedent (grill patch F10, logged for /red-team); (verified: repo resolved-lesson-stamp convention — description prefix, body stays present-tense) |
 | D10 | Task decomposition | One task in Phase 1 — the helper-refactor diff (all four issues) plus the file-disjoint lesson stamp folded into it — and the standard trailing release phase. The fold is the batch's stamp-honesty precedent (escape-guard D9): a stamp in a parallel dependency-free task can merge while the fixing task escalates, leaving the lesson claiming a mitigation that never landed; folding removes the hazard with zero parallelism lost. No deps edges, and no drift guard is split from its fact (rule 7 not triggered — Note 1) | conversion judgment revised per grill patch F10, logged for /red-team; war-strategy §3 |
 | D11 | Suite-flip protocol | Expected suite result: exit 0 at base (measured) and exit 0 post-change (census, Context 5). The worker re-runs the census at its rebased dispatch base BEFORE migrating — (a) the two retired count phrases case-insensitive in the war-strategy SKILL (expect 0), (b) the five twins' stripped-hit counts (expect ≥1 each), (c) the full suite (expect exit 0). A changed count is stop-and-report, never a silent adaptation; a twin at stripped=0 is #1371's class live — fix the target surface's section wording, never downgrade the pin | spec §8 staleness rule, sharpened at conversion |
 | D12 | No unwired negative-reference helper | The structural-test blind-spot doctrine's unwired-negative-reference prescription is not invoked by this spec; the both-ways burden is carried by the committed controls instead — D7's fire/pass pair and D4's catch/miss pair are live negative references, and every altered assertion carries a temp-break Red-proof | conversion judgment (deviation from the drafter caution, reason in Note 2), logged for /red-team |
@@ -237,7 +237,7 @@ triad-passing decision (spec §7).
      adapted ·
      check: `bash skills/war-machine/war-pipeline-structure.test.sh; echo $?` → `0`.
   8. The #1371 lesson description opens with the MITIGATED prefix in the escape-guard stamp shape ·
-     check: `grep -Fc -e 'MITIGATED (shell-pin-helpers/1.1, #1371' docs/learnings/gospel-new-present-pin-self-satisfied-by-status-blurb-prose.md`
+     check: `grep -Fc -e 'MITIGATED (shell-pin-helpers/1.1, #1371' docs/learnings/archive/gospel-new-present-pin-self-satisfied-by-status-blurb-prose.md`
      → `1` (the stamp convention deliberately leaves the body present-tense — hand-verify the diff stays
      description-only).
   9. The full gates are green at the integrated tip, the redaction lint included ·
@@ -265,7 +265,7 @@ every construct the task edits exists at the frozen phase base.
 
 ### Task 1.1: The helper-refactor diff + lesson stamp (#1362, #1310, #1374, #1371)
 
-- Files: `skills/war-machine/war-pipeline-structure.test.sh`, `docs/learnings/gospel-new-present-pin-self-satisfied-by-status-blurb-prose.md`
+- Files: `skills/war-machine/war-pipeline-structure.test.sh`, `docs/learnings/archive/gospel-new-present-pin-self-satisfied-by-status-blurb-prose.md`
 - Plan slice: **Pre-flight census (D11)** — at the rebased dispatch base, re-run and record in the done
   report: (a) `grep -ciF` of `two authoring rules` and `two drift-guard rules` in
   `skills/war-strategy/SKILL.md` (expect 0 each); (b) the five D6 twins' post-`strip_prose` hit counts
@@ -307,7 +307,7 @@ every construct the task edits exists at the frozen phase base.
   SKILL copy (scratch suite copy pointing at it) → the migrated asserts red; (4) a scratch README
   carrying `recommended auxiliary plugin` solely under `## Status` → the `has_i_stripped` pin reds.
   **Lesson stamp (D9)** — prefix the `description:` frontmatter value of
-  `docs/learnings/gospel-new-present-pin-self-satisfied-by-status-blurb-prose.md` with
+  `docs/learnings/archive/gospel-new-present-pin-self-satisfied-by-status-blurb-prose.md` with
   `MITIGATED (shell-pin-helpers/1.1, #1371): ` (the escape-guard stamp shape — fixing task + issue, no
   land-date token); body, `metadata.keywords`, and every other frontmatter key byte-untouched (the
   repo's resolved-lesson-stamp convention deliberately leaves the body present-tense); the redaction

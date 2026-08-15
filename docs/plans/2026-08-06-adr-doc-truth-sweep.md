@@ -37,7 +37,7 @@ plan — the batch's terminal sink — lags the drafting base by up to thirteen 
    embedded prose inside its evidence-tag material (its lines re-read at conversion state the same
    dated-snapshot semantics the planned note states — no contradiction), so ADR 0030, the block's owner,
    is the right home. #1363's mined source lesson
-   `docs/learnings/adr-consequences-member-count-goes-stale-when-a-same-plan-task-adds-a-rule-to-the-block-it-counts.md`
+   `docs/learnings/archive/adr-consequences-member-count-goes-stale-when-a-same-plan-task-adds-a-rule-to-the-block-it-counts.md`
    exists at the base (conversion ls) and is stamped by the fixing task.
 2. **Two ADR bullets became false code-facts** (verified: issue #1266 (2026-08-06); re-confirmed at
    conversion). (a) ADR 0033's Consequences still records the ref-diff as unbuilt ("`ponytail:` a full
@@ -193,7 +193,7 @@ plan — the batch's terminal sink — lags the drafting base by up to thirteen 
 | D15 | strip_prose × CHANGELOG.md | **No guard change.** Record the resolution in one sentence beside `strip_prose()` — the absence scans read an explicitly enumerated file list that excludes `CHANGELOG.md` by design; a future guard that enumerates it must decide its own strip rule — worded without the composition literal (Pivotal constraints) | spec D15 |
 | D16 | Version bump | **Release phase appended** — the spec's "no bump" row is retired via its own if-wrong arm: this plan lands as its own consumer-visible PR (new `CHANGELOG.md`, README structure), the batch ships every sibling with a release phase, and shipping *this* plan unbumped would re-enact the exact unbumped-landing defect its own 0.16.0 correction records (#1317). Next free patch above the live base at land time | conversion judgment (deviation from spec D-row, reason here; logged for /red-team) |
 | D17 | Release-phase CHANGELOG duty | Task 2.1 appends its own release's `CHANGELOG.md` entry (introducing the file already stale at its own release would be self-refuting); future releases stay unguarded — accepted residual per D13 | conversion judgment (AI-declared), logged for /red-team |
-| D18 | Lesson stamp | `docs/learnings/adr-consequences-member-count-goes-stale-when-a-same-plan-task-adds-a-rule-to-the-block-it-counts.md` `description:` gains a `RESOLVED (adr-doc-truth-sweep/1.1, #1363): ` prefix (batch stamp shape: fixing task + issue, no land-date token); body/keywords untouched. Stamp travels in the fixing task (stamp honesty). #1266's sibling lesson stays unstamped (Non-goals) | conversion judgment per batch precedent (AI-declared), logged for /red-team |
+| D18 | Lesson stamp | `docs/learnings/archive/adr-consequences-member-count-goes-stale-when-a-same-plan-task-adds-a-rule-to-the-block-it-counts.md` `description:` gains a `RESOLVED (adr-doc-truth-sweep/1.1, #1363): ` prefix (batch stamp shape: fixing task + issue, no land-date token); body/keywords untouched. Stamp travels in the fixing task (stamp honesty). #1266's sibling lesson stays unstamped (Non-goals) | conversion judgment per batch precedent (AI-declared), logged for /red-team |
 | D19 | Task decomposition | Six file-disjoint parallel tasks in Phase 1 (one wave, no deps edges — no task consumes another's output; no mechanical guard is authored anywhere, so rule 7 never triggers) + the trailing release phase | conversion judgment; war-strategy §3 |
 
 ## Assumptions ledger
@@ -307,7 +307,7 @@ at conversion (Note 5).
   12. The archived memory's scope note bounds the vacuity claim to bail-out-satisfying assertions ·
       check: `grep -qi 'deny-asserting' docs/learnings/archive/printf-json-escaping-vacuous-test-case.md`. (AI-declared)
   13. #1363's mined lesson opens with the RESOLVED stamp · check:
-      `grep -Fc -e 'RESOLVED (adr-doc-truth-sweep/1.1, #1363' docs/learnings/adr-consequences-member-count-goes-stale-when-a-same-plan-task-adds-a-rule-to-the-block-it-counts.md`
+      `grep -Fc -e 'RESOLVED (adr-doc-truth-sweep/1.1, #1363' docs/learnings/archive/adr-consequences-member-count-goes-stale-when-a-same-plan-task-adds-a-rule-to-the-block-it-counts.md`
       → `1` (description-only diff, hand-verified). (AI-declared)
   14. The redaction lint passes over the learnings tree · check:
       `node skills/_shared/war-memory.mjs lint docs/learnings/`. (AI-declared)
@@ -346,7 +346,7 @@ at conversion (Note 5).
   23. *(amendment 2026-08-15, #1399)* The awk-degeneracy lesson carries the appended dated
       correction section stating the true mechanism (`base[]` fills from the live dump; `live[]`
       stays empty), pre-existing body bytes unchanged above it, redaction lint green ·
-      check: `grep -qi 'live dump' docs/learnings/awk-empty-baseline-nr-fnr-degeneracy.md && grep -qF 'Correction (2026-08-15' docs/learnings/awk-empty-baseline-nr-fnr-degeneracy.md`
+      check: `grep -qi 'live dump' docs/learnings/archive/awk-empty-baseline-nr-fnr-degeneracy.md && grep -qF 'Correction (2026-08-15' docs/learnings/archive/awk-empty-baseline-nr-fnr-degeneracy.md`
       (byte-unchanged-above claim hand-verified in the diff, SOFT).
 
 ## Build order (for /war)
@@ -362,7 +362,7 @@ exists at the frozen phase base.
 
 ### Task 1.1: ADR amendment/correction notes + lesson stamp (#1363, #1305, #1266, #1398)
 
-- Files: `docs/adr/0030-live-artifacts-over-stack-fragile-literals.md`, `docs/adr/0033-executed-probes-behind-escape-guard.md`, `docs/adr/0025-drift-guard-discipline.md`, `docs/learnings/adr-consequences-member-count-goes-stale-when-a-same-plan-task-adds-a-rule-to-the-block-it-counts.md`
+- Files: `docs/adr/0030-live-artifacts-over-stack-fragile-literals.md`, `docs/adr/0033-executed-probes-behind-escape-guard.md`, `docs/adr/0025-drift-guard-discipline.md`, `docs/learnings/archive/adr-consequences-member-count-goes-stale-when-a-same-plan-task-adds-a-rule-to-the-block-it-counts.md`
 - Plan slice: **Witness census (record, never halt)** — at the rebased dispatch base, re-count and
   record in the done report: the `skills/war-strategy/SKILL.md` §2 "Reference the live artifact"
   block's bullet count (8 at `6fff2ee`; plan 11 declares the file byte-unchanged) and the
@@ -541,7 +541,7 @@ exists at the frozen phase base.
 
 ### Task 1.7: awk-degeneracy lesson — appended correction of the inverted mechanism sentence (#1399; folded 2026-08-15)
 
-- Files: `docs/learnings/awk-empty-baseline-nr-fnr-degeneracy.md`
+- Files: `docs/learnings/archive/awk-empty-baseline-nr-fnr-degeneracy.md`
 - Plan slice: the lesson's "Concrete instance" mechanism sentence states the degeneracy backwards —
   it claims the awk pass "loads nothing into `base[]`", when with a zero-byte first operand `NR`
   never diverges from `FNR`, so **every stdin record takes the loader branch: `base[]` fills from
@@ -555,7 +555,7 @@ exists at the frozen phase base.
   exact channel (state the corrected direction plainly; do not re-describe the wrong one beyond
   naming the inverted sentence). Pre-existing bytes above the appended section unchanged; the
   ADR 0043/0016 dated-note convention. Redaction lint stays green. Commit cites #1399.
-- Done when: `grep -qi 'live dump' docs/learnings/awk-empty-baseline-nr-fnr-degeneracy.md && grep -qF 'Correction (2026-08-15' docs/learnings/awk-empty-baseline-nr-fnr-degeneracy.md`
+- Done when: `grep -qi 'live dump' docs/learnings/archive/awk-empty-baseline-nr-fnr-degeneracy.md && grep -qF 'Correction (2026-08-15' docs/learnings/archive/awk-empty-baseline-nr-fnr-degeneracy.md`
 - requiresTest: false
 - requiresPackaging: false
 - deps: []

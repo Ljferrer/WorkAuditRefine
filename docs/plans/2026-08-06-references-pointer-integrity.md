@@ -139,7 +139,7 @@ Source spec: `docs/specs/2026-08-06-references-pointer-integrity-design.md` (con
 | C1 | Task carve (conversion) | Spec §4.1/§4.2 name separate workers for cards vs guard file; this plan merges them into ONE task — the pivotal constraint (guard travels with the fact) plus rule 1 (counts + cards flip atomically w.r.t. the serial-merge gate) bind them; no guard-split remains, so rule 7 is not in play |
 | C2 | Deps edges (conversion) | Content edges only: cards task after the resolver task (Arm 1 must accept the anchored form before any card carries it — otherwise the dead-link sweep reds at the cards task's merge gate); header re-truth after the cards task (its re-truthed sentence is false until the anchored pointers land). Neither dodges a same-file collision |
 | C3 | Arm-1 comment wording (conversion) | Worded against resolver tolerance (file-relative, repo-root-relative, and anchored all resolve; shape enforcement is per-card in `workflow-template.test.mjs`) so the comment is true at every intermediate serial-merge state — a tightening of the spec's "re-truth" |
-| C4 | Lesson stamp (conversion) | #1364's mined lesson `docs/learnings/agent-card-reference-pointer-is-repo-relative-and-wont-resolve-against-a-foreign-target-repo.md` is stamped `RESOLVED (references-pointer-integrity, #1364, <land date>)` in the fixing task, body/keywords untouched (batch precedent, plan 10 D14) |
+| C4 | Lesson stamp (conversion) | #1364's mined lesson `docs/learnings/archive/agent-card-reference-pointer-is-repo-relative-and-wont-resolve-against-a-foreign-target-repo.md` is stamped `RESOLVED (references-pointer-integrity, #1364, <land date>)` in the fixing task, body/keywords untouched (batch precedent, plan 10 D14) |
 | C5 | ADR number (conversion) | `0047` at conversion (head is `0046`); resolve the next free number at land time — the number literal is non-authoritative, same law as version literals. Wave-1 in-suite comment citations reference the ADR by slug/title (`agent-card-pointer-skeleton-plugin-root-anchored`), never by number — Task 1.1 shares the frozen base with Task 1.5, where no number is knowable (AI-declared) |
 | C6 | D3 line pin (conversion) | The resolution line's wording latitude is bounded: it must contain the literal fragment `strip the ${CLAUDE_PLUGIN_ROOT}/ prefix`, state both guard conditions (placeholder unexpanded AND repo under review is the plugin itself), and carry no `](skills/` byte sequence |
 
@@ -291,7 +291,7 @@ Source spec: `docs/specs/2026-08-06-references-pointer-integrity-design.md` (con
       `grep -Fc 'Plugin-root-anchored' CONTEXT.md` ≥ 1 (0 at base). (AI-declared)
   15. The mined lesson is stamped RESOLVED, body/keywords otherwise untouched, and the redaction
       lint stays green · check: `grep -Fc 'RESOLVED (references-pointer-integrity'
-      docs/learnings/agent-card-reference-pointer-is-repo-relative-and-wont-resolve-against-a-foreign-target-repo.md`
+      docs/learnings/archive/agent-card-reference-pointer-is-repo-relative-and-wont-resolve-against-a-foreign-target-repo.md`
       = 1 (0 at base) · gate: the self-discovery gate (the war-memory lint wrapper is a
       discovered member). (AI-declared)
   16. No budgeted surface crosses its hard line; every touched budgeted surface's size is
@@ -391,7 +391,7 @@ halt-on-miss witnesses, not by intra-plan structure.
 
 ### Task 1.2: Card normalization + pointer-shape guard family — one atomic diff (#1364 + #1278 + #1276-comment + lesson stamp)
 
-- Files: `agents/war-auditor.md`, `agents/war-worker.md`, `agents/war-refiner.md`, `agents/war-servitor.md`, `agents/war-setup-scout.md`, `skills/war/assets/workflow-template.test.mjs`, `docs/learnings/agent-card-reference-pointer-is-repo-relative-and-wont-resolve-against-a-foreign-target-repo.md`
+- Files: `agents/war-auditor.md`, `agents/war-worker.md`, `agents/war-refiner.md`, `agents/war-servitor.md`, `agents/war-setup-scout.md`, `skills/war/assets/workflow-template.test.mjs`, `docs/learnings/archive/agent-card-reference-pointer-is-repo-relative-and-wont-resolve-against-a-foreign-target-repo.md`
 - Plan slice: **Witness first (halt-on-miss)** — after the standard rebase onto the integration
   tip (which carries Task 1.1 via the deps edge), verify
   `grep -c 'done_when_log_path' agents/war-refiner.md` ≥ 1 (plan 3's Return row) AND
