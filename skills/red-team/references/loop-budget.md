@@ -26,6 +26,7 @@ On a route-upstream terminal, Step 6 appends this block to the report — the re
 **Regrill:** `/war-strategy <abs plan path>` — run the interview on the agenda below; it patches the plan.
 **Agenda (residual questions):**
 - <the unsettled decision — its non-equivalent resolutions, and what the gate saw>
+
 **Re-entry:** `/red-team <abs plan path> [--repo <path>]` — after the regrill; the fresh run seeds its cumulative count from this report's `**Rounds:**` line.
 ```
 

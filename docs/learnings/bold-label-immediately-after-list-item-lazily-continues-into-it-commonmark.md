@@ -1,12 +1,12 @@
 ---
 name: bold-label-immediately-after-list-item-lazily-continues-into-it-commonmark
-description: "A **Bold Label:** line placed directly beneath a Markdown list item with no blank line between them renders inside that list item per CommonMark lazy continuation, not as its own paragraph/line — cosmetic in a plain-text/substring reader but breaks structured rendering of handoff/report templates that get copied verbatim into other documents"
+description: "A **Bold Label:** line placed directly beneath a Markdown list item with no blank line between them renders inside that list item per CommonMark lazy continuation, not as its own paragraph/line — cosmetic in a plain-text/substring reader but breaks structured rendering of handoff/report templates that get copied verbatim into other documents. The general pattern is still live (recur-prone in any similarly-shaped template); the specific instance cited below (skills/red-team/references/lenses.md and loop-budget.md's Route-upstream **Re-entry:** line) was fixed by red-team-gate-cli/1.1 — see the appended ## Update section."
 metadata: 
   node_type: memory
   type: project
   provenance: code-verified
   slug: bold-label-immediately-after-list-item-lazily-continues-into-it-commonmark
-  phase: precision-chain-and-loop-breaker/4.2
+  phase: "precision-chain-and-loop-breaker/4.2 (original); confirmed-instance fixed by red-team-gate-cli/1.1, landed dev/2026-08-06-red-team-gate-cli @ 765d00f378fc6a6bc04f23ec5b747ab11062aee7"
   keywords: 
     - commonmark
     - lazy continuation
@@ -15,6 +15,8 @@ metadata:
     - blank line
     - report template
     - rendering gotcha
+    - re-entry
+    - route upstream
   tags: 
     - war
     - markdown
@@ -22,7 +24,7 @@ metadata:
     - gotcha
   created: 2026-08-06
   originSessionId: 428f1fab-f385-493a-952d-9509fdac5e10
-  modified: 2026-08-06T21:23:10.740Z
+  modified: 2026-08-15T00:53:28.167Z
 ---
 
 # A bold label line right after a Markdown list item lazily continues into that item (CommonMark)
@@ -35,12 +37,12 @@ the new line is itself formatted to look like its own standalone element (e.g. `
 text`). Visually, in raw source, the two lines look distinct; rendered, the second line nests
 inside the preceding bullet instead of appearing as a sibling block.
 
-Confirmed instance (verify still present before acting — found at
-`skills/red-team/references/lenses.md`, the `## Route upstream` report-template block): the
-`**Re-entry:** ...` line sits directly beneath the `- <the unsettled decision...>` agenda bullet
-with no blank line, so it lazily continues into that bullet rather than rendering as its own
-line. The same shape is duplicated byte-for-byte in the fenced template inside
-`skills/red-team/references/loop-budget.md`.
+Confirmed instance (historical — fixed as of red-team-gate-cli/1.1, see ## Update below; kept
+verbatim for the pattern illustration): the `**Re-entry:** ...` line sat directly beneath the
+`- <the unsettled decision...>` agenda bullet with no blank line, so it lazily continued into that
+bullet rather than rendering as its own line, in `skills/red-team/references/lenses.md`'s `##
+Route upstream` report-template block. The same shape was duplicated byte-for-byte in the fenced
+template inside `skills/red-team/references/loop-budget.md`.
 
 ## Why it matters here specifically
 
@@ -58,3 +60,16 @@ This is especially worth a deliberate check on any block that is a copy/paste te
 for another document (report templates, handoff blocks, CAMPAIGN-STATE.md sections) — a rendering
 defect there propagates to every future copy, and a repo's own drift-guard tests (which typically
 assert presence/content substrings) will not catch missing blank lines.
+
+## Update (red-team-gate-cli/1.1, #1366)
+
+Verified at landed tip `765d00f378fc6a6bc04f23ec5b747ab11062aee7`: both
+`skills/red-team/references/lenses.md` and `skills/red-team/references/loop-budget.md` now carry
+a blank line before `**Re-entry:**` (the confirmed instance above is fixed), and two doc-guard
+rows in `skills/red-team/assets/red-team-gate.test.mjs` (`assert.match(TEXT,
+/\n[ \t]*\n\*\*re-entry:\*\*/i)`) red if either file's blank line is ever dropped again. The
+general CommonMark lazy-continuation pattern documented above remains live guidance for any other
+similarly-shaped list-item + bold-label template in this repo — see also
+[[multi-token-presence-loop-needs-paired-first-following-match-to-catch-a-swap]] for a related
+caution: a whole-file presence-anywhere blank-line guard (as landed here) is non-vacuous only
+while each file carries exactly one `**Re-entry:**` occurrence — verified true at this tip.

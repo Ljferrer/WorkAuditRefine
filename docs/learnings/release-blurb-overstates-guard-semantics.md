@@ -4,11 +4,11 @@ description: "Guard blurb: say 'refuse diffs touching X' not repos"
 metadata:
   node_type: memory
   type: project
-  keywords: [Status section wording, trigger surface, diff vs repo, fail-closed phrasing, submodule refuse, prose nit, operator misinformation, absolute claim vs residual exception, ADR carve-out, fresh-env re-run, unconditional vs conditional emission, near-miss diagnostic, assert-test-in-diff.sh, stderr guard clause, umbrella clause, heterogeneous guard shapes, realpathSync, campaign-ledger, fileURLToPath, No behavior change label, bolded lead-in, colon-scoped enumeration, release headline contradiction, anti-overclaim device, appositive antecedent ambiguity, dangling modifier, itself unchanged, nearest-noun misattachment, D6 verbatim-capture contract, on every error path, seed-pack die try region, mkdtemp scratch leak scope, TOKEN-scoped absence lock, prose-only reintroduction, verifyTier cap exceeded, unconditional prose append, gating-premise mismatch, non-submodule byte identity claim, submodule floor gain, polish merge prompt, floor-retry prompt, submodLandNote, submodMergeNote, every existing non-submodule prompt, issue citation convention, origin issue vs task issue, ADR body vs header qualifier, byte-unchanged body qualifier dropped, ADR Status line amendment, expect_deny_teach pinning granularity, K5 combined substring stated as separate pins, test assertion granularity overclaim, authoring checklist self-violation, checklist item dropped in its own introducing paragraph, D25 cross-ADR mirror, two-site characterization, either-alone overclaim, guard scope word omission, bound every absolute, universal quantifier enumeration gap, version-manifest omitted from outside-dir enumeration, doctrine count vs guard count mismatch, engine untouched claim, task diff vs release window scope, unbumped stacked PR, zero engine change, named above enumeration gap, skills touch outside families]
+  keywords: [Status section wording, trigger surface, diff vs repo, fail-closed phrasing, submodule refuse, prose nit, operator misinformation, absolute claim vs residual exception, ADR carve-out, fresh-env re-run, unconditional vs conditional emission, near-miss diagnostic, assert-test-in-diff.sh, stderr guard clause, umbrella clause, heterogeneous guard shapes, realpathSync, campaign-ledger, fileURLToPath, No behavior change label, bolded lead-in, colon-scoped enumeration, release headline contradiction, anti-overclaim device, appositive antecedent ambiguity, dangling modifier, itself unchanged, nearest-noun misattachment, D6 verbatim-capture contract, on every error path, seed-pack die try region, mkdtemp scratch leak scope, TOKEN-scoped absence lock, prose-only reintroduction, verifyTier cap exceeded, unconditional prose append, gating-premise mismatch, non-submodule byte identity claim, submodule floor gain, polish merge prompt, floor-retry prompt, submodLandNote, submodMergeNote, every existing non-submodule prompt, issue citation convention, origin issue vs task issue, ADR body vs header qualifier, byte-unchanged body qualifier dropped, ADR Status line amendment, expect_deny_teach pinning granularity, K5 combined substring stated as separate pins, test assertion granularity overclaim, authoring checklist self-violation, checklist item dropped in its own introducing paragraph, D25 cross-ADR mirror, two-site characterization, either-alone overclaim, guard scope word omission, bound every absolute, universal quantifier enumeration gap, version-manifest omitted from outside-dir enumeration, doctrine count vs guard count mismatch, engine untouched claim, task diff vs release window scope, unbumped stacked PR, zero engine change, named above enumeration gap, skills touch outside families, previously-valid vs currently-valid, boilerplate closing sentence drift, stock release phrase word swap, headline vs body scope mismatch, malformed argv every mode, file mode bare token carve-out, worktree name collision resolved via numeric suffix]
   provenance: code-verified
   promoted: dev/2026-07-28-audit-evidence-precedence@phase-2
   slug: release-blurb-overstates-guard-semantics
-  phase: "submodule-inc1/T4 +12 recurrences (war-campaign-resilience-roadmap/phase-2 Release task 2.1, 2026-07-22; test-floor-target-repo/phase-2 Release task 2.1, 2026-07-22; cli-main-guard-normalization/phase-2 Release task 2.1, 2026-07-23; runbook-and-standing-record-coherence/phase-2 Release task 2.1, 2026-07-24; recovery-re-merge-dispatch-coherence/phase-2 Release task 2.1, 2026-07-24; drift-guard-and-floor-diagnostic-hardening/phase-2 Release task 2.1, 2026-07-24/25; 2026-07-24-memory-tooling-hardening/phase-2 Release task 2.1, 2026-07-26; 2026-07-26-dispatch-args-and-floor-coverage/phase-3 Release task 3.1, 2026-07-26/27; 2026-07-26-auditor-guard-policy-and-mirror-truth/phase-2 Release task 2.1, 2026-07-27; 2026-07-26-standing-doc-and-remedy-truth-sweep/phase-2 Release task 2.1, 2026-07-27; 2026-07-28-audit-evidence-precedence/phase-2 Release task 2.1, 2026-07-28; 2026-08-02-redteam-doctrine-and-guards/phase-2 Release task 2.1, 2026-08-02; 2026-08-04-interview-and-authoring-contract/phase-3 Release task 10, 2026-08-05)"
+  phase: "submodule-inc1/T4 +12 recurrences (war-campaign-resilience-roadmap/phase-2 Release task 2.1, 2026-07-22; test-floor-target-repo/phase-2 Release task 2.1, 2026-07-22; cli-main-guard-normalization/phase-2 Release task 2.1, 2026-07-23; runbook-and-standing-record-coherence/phase-2 Release task 2.1, 2026-07-24; recovery-re-merge-dispatch-coherence/phase-2 Release task 2.1, 2026-07-24; drift-guard-and-floor-diagnostic-hardening/phase-2 Release task 2.1, 2026-07-24/25; 2026-07-24-memory-tooling-hardening/phase-2 Release task 2.1, 2026-07-26; 2026-07-26-dispatch-args-and-floor-coverage/phase-3 Release task 3.1, 2026-07-26/27; 2026-07-26-auditor-guard-policy-and-mirror-truth/phase-2 Release task 2.1, 2026-07-27; 2026-07-26-standing-doc-and-remedy-truth-sweep/phase-2 Release task 2.1, 2026-07-27; 2026-07-28-audit-evidence-precedence/phase-2 Release task 2.1, 2026-07-28; 2026-08-02-redteam-doctrine-and-guards/phase-2 Release task 2.1, 2026-08-02; 2026-08-04-interview-and-authoring-contract/phase-3 Release task 10, 2026-08-05; 2026-08-06-red-team-gate-cli/phase-2 Release task 2.1, 2026-08-06/14)"
   tags:
     - war
     - release
@@ -24,7 +24,7 @@ metadata:
     - "[[gitmodules-working-tree-read-vs-ref-snapshot]]"
   created: 2026-06-30
   originSessionId: 0e364ee5-f0b3-47f6-a9e4-9bf2dd555733
-  modified: 2026-08-05T16:10:31.691Z
+  modified: 2026-08-15T01:51:37.025Z
 ---
 
 # Release blurb prose overstates guard semantics
@@ -615,3 +615,58 @@ behind (a)'s gap, previously documented only for auditor version-jump false posi
 absolutes); [[gospel-new-present-pin-self-satisfied-by-status-blurb-prose]] (a distinct, sibling
 finding on this same task/paragraph — a structural-test guard-mechanics gap, not a blurb-prose
 overclaim, recorded separately).
+
+## Recurrence 14 (2026-08-06, plan `2026-08-06-red-team-gate-cli`, phase 2 "Release", task 2.1) —
+one instance fixed at phase-close (a boilerplate scope word swapped, self-contradicting the same
+bullet's first sentence), one left live (a headline absolute one channel wider than its own very
+next bullet already discloses)
+
+A twentieth and twenty-first instantiation on the same `## Status` paragraph, with different
+outcomes. `code-verified` — read directly at the `_refinery8` worktree whose `HEAD` is byte-equal
+to the landed tip `8064a3c603bffd462ea616f877954bfe0bf332f2` (gitdir physical path containing this
+plan's slug: `<repo-root>/.claude/war-worktrees/2026-08-06-red-team-gate-cli-2026-08-14/2026-08-06-red-team-gate-cli-2026-08-14/_refinery/`
+— the collision-prone bare name `p2-2.1`/`_refinery` resolved to an unrelated concurrent plan
+(`2026-07-28-audit-evidence-precedence`) and had to be discarded in favor of the numerically
+suffixed entry per [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]]'s name-collision
+rule), `README.md` lines 361/363.
+
+**(a) "No previously-valid invocation's output changed by a byte" contradicted the same bullet's
+own first sentence, and was FIXED before land (Minor, `disposition: absorb`, `phaseClose: true`).**
+The bullet's closing sentence used the stock boilerplate word "previously" where the plan's own
+Method/End-state-7 literal is "currently" ("no currently-valid invocation changes output by a
+byte"). Read plainly, "previously-valid" is false for this very release: three invocation shapes
+(`--stdin --rounds 3`; `['--stdin','results.json']`; `--round=3`) that exited 0 with a verdict
+**before** this release now exit 1 — that is exactly the release's own headline change, so
+"previously-valid" describes the pre-change acceptance set, not the post-change one the sentence
+means to scope. Confirmed fixed at the landed tip: `README.md` line 363 reads "No **currently**-valid
+invocation's output changed by a byte." This is a new sub-instance of the family distinct from
+Recurrences 1–13: not a clause overstating a guard's *reach*, but a stock closing boilerplate phrase
+("No previously-valid invocation...") used out of habit where the plan's own scoping term differs by
+one word — check the literal word the plan mandates (Commander's Intent / End state), not just the
+sentence's shape, before reusing a prior release's boilerplate closing clause.
+
+**(b) The headline "the gate CLI refuses malformed argv loudly in every mode" is one channel wider
+than the implementation — left unfixed (Nit, `disposition: note`).** `main()`'s default-deny loop
+(`skills/red-team/assets/red-team-gate.mjs`) refuses every unknown `--` token in both modes, but in
+FILE mode a surplus **bare** token is still silently ignored by design (`const path = args.find(a
+=> !a.startsWith('--'))` picks the first bare token as the results path; any further bare token is
+never inspected) — so `red-team-gate.mjs results.json stray.json` is malformed argv that emits a
+verdict normally. The very next bullet in the same paragraph states this exact carve-out ("surplus
+bare tokens there staying ignored (deliberate)"), so a reader of the full paragraph is not misled —
+headline-vs-body, not a paragraph-internal contradiction. Same shape as Recurrence 12(b)'s
+universal-quantifier-vs-N-1-items and Recurrence 13(a)'s scope-word-on-an-absolute: an unqualified
+"every mode" in the bolded headline the checklist item 1 ("Bound every absolute") exists to catch,
+one line above the very bullet that already bounds it correctly. Not absorbable — the fix edits the
+`## Status` release-slot paragraph, which the disposition rule excludes fail-closed; left unfixed at
+land, still live at the tip above (verify still present before acting).
+
+**Now 21 recurrences.** Confirms both halves of the established Rule keep recurring independently
+in the same release cycle: a boilerplate word can drift from the plan's own literal (new
+sub-mechanism), and a headline absolute can outrun a scope its own next sentence already states
+correctly (Recurrence 12(b)/13(a)'s family). Applies-to checklist addendum: when reusing a prior
+release's stock closing sentence ("No previously-valid invocation..."), diff it against *this*
+plan's own Method/End-state wording word-for-word — don't assume the boilerplate travels unchanged
+release to release.
+
+Related: [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]] (the worktree-lookup
+name-collision this recurrence's own grounding hit and resolved via the numeric-suffix rule).

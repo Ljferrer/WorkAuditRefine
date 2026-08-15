@@ -2,6 +2,7 @@
 name: resolved-lesson-stamp-freezes-body-so-it-can-contradict-the-new-description
 description: "The repo's 'prefix description with RESOLVED (...), body/keywords otherwise untouched' lesson-stamp convention deliberately leaves the body's present-tense defect narrative and any embedded fix-prescription un-updated — a future reader of the body alone can get stale or actively wrong guidance unless they read the description first; the correction channel is the description, not the body"
 metadata: 
+  promoted: dev/2026-07-24-memory-tooling-hardening@phase-1
   node_type: memory
   type: project
   provenance: agent-unverified
@@ -24,7 +25,7 @@ metadata:
     - lesson-hygiene
     - process-pattern
   created: 2026-07-26
-  modified: 2026-07-27T03:53:09.919Z
+  modified: 2026-08-15T01:52:12.513Z
   originSessionId: 8e038db9-6931-4633-b7d8-6d7977473ca5
 ---
 
@@ -40,8 +41,8 @@ see [[tighten-target-flag-has-three-independent-silent-degradation-paths]]'s sup
 which prescribed exactly the bare-`Number()` shape the real fix avoids), and keeps stale line-number
 anchors, all while the description now says the defect is closed. Both instances observed in
 `memory-tooling-hardening/phase-1`
-(`docs/learnings/archive/tighten-target-flag-has-three-independent-silent-degradation-paths.md`,
-`docs/learnings/archive/die-process-exit-inside-try-skips-finally-cleanup.md`) were correctly audited as
+(`docs/learnings/tighten-target-flag-has-three-independent-silent-degradation-paths.md`,
+`docs/learnings/die-process-exit-inside-try-skips-finally-cleanup.md`) were correctly audited as
 Nit/`disposition:note`, non-blocking, and explicitly NOT treated as worker deviations — the plan's
 own scope-freeze mandated the frozen body, so touching it would have been the deviation.
 
@@ -50,8 +51,8 @@ correction channel, not the body — and it's also the only field the `MEMORY.md
 (truncated at `SUMMARY_CELL_BYTES`), so a description-prefix-first `RESOLVED (...)` marker is what
 stays visible to a future reader scanning the index, even truncated. A servitor or a later
 housekeeping pass is the sanctioned place to reconcile the body, mirroring the existing convention
-already used by prior stamps (e.g. `docs/learnings/archive/cli-main-guard-equality-check-silently-noops-under-relative-invocation.md`,
-`docs/learnings/archive/tighten-plan-target-flag-does-not-lower-fixed-warn-bytes-preflight-stop.md`): append a
+already used by prior stamps (e.g. `docs/learnings/cli-main-guard-equality-check-silently-noops-under-relative-invocation.md`,
+`docs/learnings/tighten-plan-target-flag-does-not-lower-fixed-warn-bytes-preflight-stop.md`): append a
 `## RESOLVED (...)` section below the frozen historical prose rather than editing the historical prose
 in place, and mark any now-wrong embedded prescription as superseded inline.
 
@@ -71,3 +72,8 @@ in place, and mark any now-wrong embedded prescription as superseded inline.
 Related: [[tighten-target-flag-has-three-independent-silent-degradation-paths]],
 [[die-process-exit-inside-try-skips-finally-cleanup]] (both instances this pattern was observed in,
 and both now carry the `## RESOLVED` correction this lesson recommends).
+[[resolved-section-fix-append-can-itself-misstate-which-mode-a-rule-applies-to]] (2026-08-14,
+red-team-gate-cli phase-2 close) sharpens step 2 above: the appended `## RESOLVED` section itself is
+not self-verifying — it can misstate the fix (there: which mode a rule applies to) and survive an
+approve-verdict audit into the landed repo file, so "append the correction" is necessary but not
+sufficient without re-deriving the claim from the actual code.
