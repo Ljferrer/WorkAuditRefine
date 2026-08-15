@@ -62,3 +62,5 @@ the report prose linearly — a single read-through is exactly the failure mode 
 
 Related: [[plan-mandated-test-comment-uniqueness-claim-can-be-code-traceably-false]] (same family:
 a claim that reads fine on skim but is falsifiable by construct-level trace).
+
+> archived 2026-08-15: resolved — moved to archive

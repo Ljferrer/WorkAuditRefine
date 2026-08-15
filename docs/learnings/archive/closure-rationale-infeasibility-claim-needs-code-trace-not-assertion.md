@@ -97,3 +97,5 @@ closing the follow-up debt without touching the guard.
 **The general pattern stays the durable part of this lesson** — "verify infeasibility claims by
 tracing the code path, don't accept the assertion" applies to any future closure rationale, not just
 this one arm. This RESOLVED note closes only the specific follow-up debt item this gap generated.
+
+> archived 2026-08-15: resolved — moved to archive

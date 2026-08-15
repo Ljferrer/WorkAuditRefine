@@ -67,3 +67,5 @@ not the ambient list/heading structure it used to sit inside. When eviction brea
 Related: [[verbatim-doc-move-breaks-relative-links-authored-for-old-location]] (same eviction
 mechanism, a different byte-preserved-but-context-broken failure mode — relative links instead of
 list/heading structure).
+
+> archived 2026-08-15: resolved — moved to archive

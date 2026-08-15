@@ -72,3 +72,5 @@ same "a naive repo grep is not a reliable doc-cascade oracle" family.
 
 [[plan-survey-token-sweep-misses-untagged-siblings]] — a different sweep-completeness gap (missing
 files, not missing matches within a file).
+
+> archived 2026-08-15: resolved — moved to archive

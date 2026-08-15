@@ -76,3 +76,5 @@ own list missed.
 Related: [[plan-survey-token-sweep-misses-untagged-siblings]] (same family — a plan's literal-sweep
 instruction is a floor for the *mechanical* step, not a completeness guarantee; there the miss was a
 differently-worded sibling, here it is a same-worded hit outside a hand-enumerated allowlist).
+
+> archived 2026-08-15: resolved — moved to archive

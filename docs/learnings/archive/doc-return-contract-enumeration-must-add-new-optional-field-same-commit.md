@@ -59,3 +59,5 @@ single-grep check; the cost of missing it is a silently-dropped field on every f
 the same doc-cascade risk — standing `.md` vs. dispatched prompt string, rather than two sections
 of one file). [[source-comment-lags-emitted-prompt-after-rewrite]] — same family, comment vs.
 code rather than doc-section vs. doc-section.
+
+> archived 2026-08-15: resolved — moved to archive

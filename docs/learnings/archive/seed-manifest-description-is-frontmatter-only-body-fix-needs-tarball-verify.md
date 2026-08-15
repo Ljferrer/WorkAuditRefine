@@ -67,3 +67,5 @@ packed contents, opaque to a manifest-only grep).
 Related: [[seeding-md-seed-local-render-block-omits-conditional-repo-flag]] (a different seed/local
 projection gap in the same subsystem family — both are instances of "the projection is not the
 source of truth, verify against the underlying artifact").
+
+> archived 2026-08-15: resolved — moved to archive

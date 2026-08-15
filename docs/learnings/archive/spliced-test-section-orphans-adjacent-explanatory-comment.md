@@ -54,3 +54,5 @@ own test, or move the comment down with its test — never let the insertion sil
 comment and the construct it explains. Worth a dedicated hand-scan pass whenever a plan slice's
 "Known collateral pin" already calls out one comment reword for the same rot class in the same
 file — a second, unmentioned comment in that file is a common sibling casualty.
+
+> archived 2026-08-15: resolved — moved to archive

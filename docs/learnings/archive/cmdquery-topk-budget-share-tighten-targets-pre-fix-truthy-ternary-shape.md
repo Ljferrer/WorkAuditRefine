@@ -90,3 +90,5 @@ the unchanged-path cases built from the imported `DEFAULT_TOP_K`/`DEFAULT_BUDGET
 
 Related: [[tighten-target-flag-has-three-independent-silent-degradation-paths]] — its own
 "Extended to siblings" paragraph now records this fix in past tense.
+
+> archived 2026-08-15: resolved — moved to archive

@@ -68,3 +68,5 @@ as this phase did) or put the guard in a sibling non-`*.test.sh` file instead.
 
 [[audit-gate-anti-cheat-spine-pin-equality-benign-advance-verdict-hard]] — a different floor/gate
 anti-cheat mechanism, same family of "the floor classifies by shape, not by intent."
+
+> archived 2026-08-15: resolved — moved to archive

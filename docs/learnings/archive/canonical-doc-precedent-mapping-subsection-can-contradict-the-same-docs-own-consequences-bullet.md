@@ -132,3 +132,5 @@ Related: [[release-blurb-overstates-guard-semantics]] and
 prose-precision families — this recurrence is the same "absolute claim vs. a documented residual
 exception" failure mode Recurrence 1 of `release-blurb-overstates-guard-semantics` already names,
 here applied to a doctrine-mapping absolute rather than a guard-behavior absolute).
+
+> archived 2026-08-15: resolved — moved to archive
