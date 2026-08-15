@@ -59,6 +59,13 @@
 #       inherited stdout fd, and the capture blocks until it dies); stdout
 #       stays byte-empty — the timeout path is the only one where a
 #       `set -m` job notice could leak, so it carries case 13's stdout pin.
+#   22. stdin is /dev/null: a command that reads stdin (`cat`) exits 0 promptly
+#       instead of burning the budget. Load-bearing under case 21's `set -m`:
+#       bash gives an async command /dev/null on stdin only while job control
+#       is NOT in effect, so the group-kill change silently removed that
+#       guarantee until the launch got an explicit `< /dev/null`. Without it
+#       `cat` inherits the floor's stdin, never sees EOF, and times out into a
+#       false `done-unmet`.
 #
 # The env-arm greps quote the floor's die literals VERBATIM (embedded $vars
 # included) inside double quotes: the test binds each variable to the runtime
@@ -587,6 +594,45 @@ elif [ -n "$OUT" ]; then
   fail "case 21: stdout was not empty — a set -m job notice leaked onto the command's stdout channel (OUT=[$OUT])"
 else
   fail "case 21: grandchild timeout exit 1 but diagnostic wrong (err: $ERR)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 22: stdin is /dev/null — the acceptance command gets immediate EOF and
+# must NOT block. This pins the explicit `< /dev/null` at the launch, which is
+# load-bearing UNDER `set -m`: bash redirects an asynchronous command's stdin
+# from /dev/null only while job control is NOT in effect, so the case-21 group
+# kill (`set -m`) silently removed that guarantee. A stdin-reading acceptance
+# command would then inherit the floor's stdin, block to the full budget, and
+# be reported as a false `done-unmet` — fail-closed, but a 600s lie that spins
+# run.roundLimit make-this-command-pass rounds against a command that was never
+# red. DELETE-THE-FEATURE: drop the `< /dev/null` from the launch and this case
+# reds — `cat` inherits the suite's stdin, never sees EOF, and burns the whole
+# --timeout budget to exit 1 instead of exiting 0 promptly. Measured both ways
+# (2026-08-15): mutated + a held-open fifo on the suite's stdin -> exit 1 after
+# 8s; redirect restored -> exit 0 in 1s.
+#
+# DISCRIMINATION CEILING, stated so this pin is not over-trusted: the case can
+# only red when the SUITE's own stdin does not EOF. Under a stdin that is
+# already /dev/null or closed (a bare CI shell), `cat` sees EOF either way and
+# the case passes even with the redirect deleted. It is a real pin in an
+# interactive or fd-inheriting context and a vacuous one otherwise — which is
+# exactly why the redirect is written explicitly at the launch instead of being
+# left to the ambient job-control default.
+# ---------------------------------------------------------------------------
+WT22="$(setup_wt)"
+CF22="$(tmp_dir)/reads-stdin.cmd"
+printf 'cat\n' > "$CF22"
+
+T22_START="$(date +%s)"
+run_floor "$WT22" --cmd-file "$CF22" --timeout 5
+T22_END="$(date +%s)"
+T22_ELAPSED=$((T22_END - T22_START))
+if [ "$RC" -eq 0 ] && [ "$T22_ELAPSED" -le 3 ]; then
+  pass "case 22: a stdin-reading command (cat) gets /dev/null -> exit 0 in ${T22_ELAPSED}s (stdin EOF guaranteed under set -m)"
+elif [ "$RC" -ne 0 ]; then
+  fail "case 22: expected exit 0 (cat sees immediate EOF), got $RC after ${T22_ELAPSED}s — stdin is not /dev/null under set -m (err: $ERR)"
+else
+  fail "case 22: exit 0 but took ${T22_ELAPSED}s — cat blocked on an inherited stdin instead of seeing EOF"
 fi
 
 # ---------------------------------------------------------------------------

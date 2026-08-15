@@ -149,8 +149,17 @@ printf '%s: running done-when from %s in %s (timeout %ss)\n' \
 # $cmd_pid), so the watchdog's group kill reaches backgrounded grandchildren
 # too; the watchdog subshell launches after `set +m` and stays in the
 # script's own group.
+#
+# STDIN is redirected from /dev/null EXPLICITLY, and that is load-bearing under
+# `set -m`: bash gives an asynchronous command /dev/null on stdin only while job
+# control is NOT in effect. Without this redirect the `set -m` above would hand
+# the acceptance command the floor's inherited stdin — so a command that reads
+# stdin would block to the full budget and be reported as a false `done-unmet`
+# (and, with a controlling terminal, would take SIGTTIN in its new background
+# group). The redirect restores the pre-job-control guarantee and is
+# job-control-independent. Case 22 pins it.
 set -m
-( cd -- "$worktree" && exec bash "$cmd_file_abs" ) &
+( cd -- "$worktree" && exec bash "$cmd_file_abs" ) < /dev/null &
 cmd_pid=$!
 set +m
 
