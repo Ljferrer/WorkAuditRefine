@@ -1,12 +1,12 @@
 ---
 name: stdin-mode-cli-parser-silently-drops-space-separated-flag-with-no-positional-fallback
-description: "A CLI that accepts both a file-path positional arg and a --stdin mode can be loudly-refusing on a typo'd space-separated flag in file mode (the positional scan grabs the bad value and the file read throws) while silently dropping the same typo in --stdin mode (no positional scan exists to catch it) — the two modes give asymmetric safety for byte-identical operator error"
+description: "RESOLVED (red-team-gate-cli/1.2, #1378, #1347, #1366): red-team-gate.mjs now runs a default-deny argument check at the top of main(), ahead of mode selection, that refuses every unknown `--` token (and, in --stdin mode, a bare non-flag token) with exit 1 and a stderr diagnostic — the asymmetric-safety gap this lesson documents (file mode refused loudly by an unrelated positional-arg accident; --stdin mode silently dropped the same typo) is closed in both modes. Historical prose below is frozen per the repo's RESOLVED-stamp convention; see the appended ## RESOLVED section for the fix."
 metadata: 
   node_type: memory
   type: project
   provenance: code-verified
   slug: stdin-mode-cli-parser-silently-drops-space-separated-flag-with-no-positional-fallback
-  phase: precision-chain-and-loop-breaker/4.1
+  phase: "precision-chain-and-loop-breaker/4.1 (original); RESOLVED by red-team-gate-cli/1.2, landed dev/2026-08-06-red-team-gate-cli @ 765d00f378fc6a6bc04f23ec5b747ab11062aee7"
   keywords: 
     - stdin mode
     - flag parsing
@@ -17,6 +17,8 @@ metadata:
     - red-team-gate
     - flagValue
     - loop-breaker
+    - RESOLVED
+    - default-deny argument check
   tags: 
     - war
     - red-team
@@ -24,7 +26,7 @@ metadata:
     - gotcha
   created: 2026-08-06
   originSessionId: 428f1fab-f385-493a-952d-9509fdac5e10
-  modified: 2026-08-06T21:22:37.364Z
+  modified: 2026-08-15T00:53:09.580Z
 ---
 
 # stdin-mode CLI parsers can silently drop a space-separated flag that file-mode refuses loudly
@@ -69,3 +71,19 @@ accidental side effect of a *different* mode's positional-argument handling. If 
 either (a) add an explicit unknown-bare-token check that runs in every mode, or (b) name the
 guarantee's actual scope in the doc/test title (e.g. "refused in file mode" rather than the
 unqualified "refused") so a reader does not generalize past what was actually tested.
+
+## RESOLVED (red-team-gate-cli/1.2, #1378, #1347, #1366)
+
+Verified at landed tip `765d00f378fc6a6bc04f23ec5b747ab11062aee7`
+(`skills/red-team/assets/red-team-gate.mjs`): `main()` now opens with a default-deny loop, ahead
+of mode selection and the stdin/file read, that walks every argv token and `die()`s (exit 1, a
+`unknown argument <token> — accepted forms: …` stderr diagnostic naming the offending token and
+the accepted `=`-attached forms) on anything not `--stdin`, a `--rounds=`/`--round-limit=`
+`=`-attached flag, or (in `--stdin` mode) the sole recognized bare token. This closes the gap
+option (a) from "How to apply" above chose explicitly: one check that runs in every mode, rather
+than scoping the doc/test titles narrower. `skills/red-team/assets/red-team-gate.test.mjs` carries
+new rows for both the space-separated-value shape and the discriminating bare-token shape in
+`--stdin` mode (`node --test skills/red-team/assets/red-team-gate.test.mjs`, 109/109 green at the
+tip). The historical prose above still documents the general pattern — the same asymmetric-safety
+shape can recur in any CLI adding a second input mode without threading the same default-deny
+check through it.
