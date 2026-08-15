@@ -31,10 +31,15 @@
 # later as insurance, each delivered to the command's own process group
 # (`set -m` around the launch) with a single-PID fallback. Residual: the
 # group kill cannot reach a grandchild that escaped into a NEW
-# session/process group (true daemonization) — bash 3.2 has no setsid;
-# neither that nor the watchdog's own in-flight `sleep` can change the exit
-# code, though either can hold an inherited stdout fd briefly after the
-# floor exits.
+# session/process group (true daemonization) — bash 3.2 has no setsid; and
+# the KILL insurance only fires while the watchdog is still alive — when
+# the group TERM kills the direct command itself, the parent's `wait`
+# returns and it TERMs the watchdog mid-`sleep 2`, before the KILL line
+# runs, so a TERM-ignoring descendant that never left the command's group
+# can outlive the teardown. Neither survivor, nor the watchdog's own
+# in-flight `sleep`, can change the exit code, though each can hold an
+# inherited stdout fd after the floor exits (the `sleep` for at most ~2s,
+# a survivor for its lifetime).
 #
 # STDOUT belongs to the executed command — the refiner tees the floor run's
 # combined stdout+stderr to the done-when evidence artifact
