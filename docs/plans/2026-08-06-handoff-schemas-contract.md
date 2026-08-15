@@ -7,7 +7,9 @@ mechanic). Issues addressed: #1331, #1333, #1289, #1380, #1381 (#1380 folded int
 operator direction, 2026-08-12; #1381 folded 2026-08-12 with spec-side AI-declared markers, mirrored
 here), and — folded 2026-08-15 by operator direction as the Phase-2 amendment (campaign-era
 engine-truth findings, all in this plan's `workflow-template.js`/`schemas.md`/`SKILL.md` family) —
-#1395, #1408, #1411, #1413. Issue → task mapping: #1331 F1 → Task 1.1 (the file-followups dispatch, D1–D3) +
+#1395, #1408, #1411, #1413, plus #1430 (folded 2026-08-15 in the same family: it lands on the
+**same two constructs** as #1413 and #1411 — the Workflow entry-validation block and the wave-thunk
+catch's failure classification). Issue → task mapping: #1331 F1 → Task 1.1 (the file-followups dispatch, D1–D3) +
 Task 1.3 (the D4 Checkpoint floor) + Task 1.4 (the D8 signal class); #1331 F3 → Task 1.3 (the D10
 clock-read mandate, both surfaces) + Task 1.4 (the degenerate-timestamp `n/a` guard); #1331 F2/F4 →
 no task — already addressed (PR #1320; the live auditor card), cite on close; #1333 findings 1+3 →
@@ -19,8 +21,9 @@ comment) + Task 1.3 (the in-place expansion) per D7; #1289 → Task 1.3 (D9); #1
 + Task 1.1 (D20 ENV_OUTCOME/prompt/card widening) + Task 1.3 (the schemas.md `worktreeHygiene` row)
 (AI-declared); #1395 fixes 1+2 → Task 2.1 items (a)/(b) (fix 3 deferred — Non-goals); #1411 →
 Task 2.1 item (c); #1413 → Task 2.1 item (d); #1408 → Task 2.1 item (e) (the SKILL.md JSONL doc) +
-Task 2.2 (the CLI's friendly parse failure). `/war` files its own epic + task issues regardless
-(war-execution-must-file-issues); closing the nine source issues is Lead checkpoint work at phase close
+Task 2.2 (the CLI's friendly parse failure); #1430 fixes 1–3 → Task 2.1 item (f) (fix 4 deferred —
+Non-goals). `/war` files its own epic + task issues regardless
+(war-execution-must-file-issues); closing the ten source issues is Lead checkpoint work at phase close
 (war-checkpoint-must-close-task-issues) — #1333's per-finding close conditions require each correcting
 commit to cite the issue (End state 25).
 
@@ -376,6 +379,14 @@ construct-level collision census is Note 1.
   fixes 1+2 are #1395's independently-landable correctness half (its own text: "1 alone converts a
   false negative into an honest 'unverified'"); the corroboration pass is defense in depth over a
   contradiction the fixed attestation no longer produces. Revisit on recurrence.
+- *(amendment 2026-08-15)* **#1430 fix 4 (skipping the land-barrier endstate-check when nothing
+  merged) NOT taken** — deliberately rejected, not deferred. The unconditional arm is load-bearing
+  by design: a `requiresTest:false`-only phase legitimately merges nothing yet must still execute
+  its claimed `check:` conditions, and this plan's own Task 2.1(a) **depends** on that arm running
+  (it prepends `run.provision` to it). Item (f)(i) removes the *cause* instead — a phase that never
+  started is refused at entry, so the wasted-check state stops being reachable by this route. A
+  future "zero tasks even succeeded" guard would need its own adjudication against the
+  `requiresTest:false` case and is not claimed here.
 - **No engine change to the disposition/demotion ladder** — routing semantics are untouched; only the
   filing of already-routed `follow-up` findings is mechanized. Filing is never retried in-loop; gh
   failure modes (preflight exit 2/3, rate limits, network) all resolve to unfiled entries the
@@ -581,6 +592,21 @@ None (see Non-goals — the open Dispatch-kind list absorbs `file-followups`; no
       message (line number named, no raw stack trace), valid-input behavior byte-unchanged ·
       check: `grep -c 'JSONL' skills/war/SKILL.md` ≥ 1 and
       `node --test skills/_shared/war-memory.test.mjs` (the malformed-file and valid-file rows).
+  32. *(amendment 2026-08-15, #1430)* A launch whose args omit `plan.file` is refused **at entry,
+      with zero agent spawns**, by a problem class distinct from the derivation-trio class — and the
+      trio class's message is byte-unchanged (its exact-equality fixture and prose census row stay
+      green) ·
+      check: `grep -Fc 'requires plan.file' skills/war/assets/workflow-template.js` ≥ 1 (0 at the
+      amendment base, Note 14) AND `grep -Fc 'Plan file: ${plan.file}'
+      skills/war/assets/workflow-template.js` = 0 (the OLD un-defaulted form is retired — 2 at the
+      amendment base) AND `node --test skills/war/assets/workflow-template.test.mjs` (the
+      missing-`plan.file`-refused-with-zero-spawns row).
+  33. *(amendment 2026-08-15, #1430)* A `pt` prompt-build throw classifies as `held:workflow-error`
+      naming the missing input, while every other engine error still yields today's per-task
+      `escalate` — the wave-loop invariant (one collected result per dispatched task, never a
+      re-entry) is preserved ·
+      check: `node --test skills/war/assets/workflow-template.test.mjs` (the `pt`-throw row AND the
+      non-`pt` engine-error row — the both-ways proof that exactly one class was narrowed).
 
 ## Build order (for /war)
 
@@ -872,17 +898,19 @@ untouched by the predecessors).
 - deps: []
 - target repo: superproject
 
-## Phase 2 — Engine truth hardening (amendment 2026-08-15: #1395, #1408, #1411, #1413)
+## Phase 2 — Engine truth hardening (amendment 2026-08-15: #1395, #1408, #1411, #1413, #1430)
 
 A separate phase, not new Phase-1 tasks, because the engine cluster below edits four files Phase 1
 owns (`workflow-template.js` + suite via Task 1.1; `schemas.md` + `skills/war/SKILL.md` via Task
 1.3) — same-file work lands in a later phase, never as a deps-edge dodge (code-boundary rule 1).
-Phase base: the tip after Phase 1 lands. All four issues are observed-live findings from runs
+Phase base: the tip after Phase 1 lands. All five issues are observed-live findings from runs
 `2026-08-12-handwritten-date-flagging` (#1395/#1408/#1411, plugin 0.17.0, submodule-bearing target)
-and campaign `2026-08-06-survey-batch` plan 3 (#1413, plugin 0.17.x) — each issue body carries the
-artifact-level evidence; treat those bodies as this phase's extended Context.
+and campaign `2026-08-06-survey-batch` — plan 3 (#1413, plugin 0.17.x) and plan 5 phase 1 (#1430,
+plugin 0.17.4) — each issue body carries the artifact-level evidence; treat those bodies as this
+phase's extended Context. #1413 and #1430 are deliberately **one task**: both harden the same entry
+validation block, and #1430's (iii) reuses #1411's cause-propagation in the same wave-thunk catch.
 
-### Task 2.1: Engine cluster — endstate environment truth (#1395), infra-death classification (#1411), args provenance floor (#1413), prefetch JSONL doc (#1408)
+### Task 2.1: Engine cluster — endstate environment truth (#1395), infra-death classification (#1411), args provenance floor (#1413), prefetch JSONL doc (#1408), required-input entry validation (#1430)
 
 - Files: `skills/war/assets/workflow-template.js`, `skills/war/assets/workflow-template.test.mjs`,
   `skills/war/assets/land-decision.mjs`, `skills/war/references/schemas.md`, `skills/war/SKILL.md`
@@ -924,12 +952,33 @@ artifact-level evidence; treat those bodies as this phase's extended Context.
   "Prefetch prior lessons" paragraph, state the `--queries <file>` format inline at the flag's first
   mention: JSONL, one `{"label":…,"text":…,"seat"?:…,"topK"?:…,"budget"?:…}` object per line (a
   plain-text line-per-query file dies at `JSON.parse` — Task 2.2 makes that death friendly).
+  **(f) required-input entry validation + prompt-build error discrimination** (#1430 fixes 1–3;
+  Note 14 carries the base census and the byte-exact coupling): (i) add `plan.file` to the entry
+  validation as its **own ungated problem class** — beside `missingPhaseFields`, never inside the
+  `missingTrio` class (that one is gated behind `tasks.some(t => !t.branch || !t.worktree)`, and
+  `plan.file` is required regardless), pushing a distinct message carrying the zero-at-base literal
+  `requires plan.file`; the trio message stays **byte-unchanged** and every existing entry-validation
+  fixture that omits `plan.file` gains it (or its expected literal is updated) **in this same diff**,
+  so the exact-equality aggregate-message assert and the prose census row stay green. (ii) give the
+  two undefended worker-prompt sites the same `?? '<unset>'` default the gate-audit site already
+  carries (defense in depth — (i) should make it unreachable; retires the OLD token
+  `Plan file: ${plan.file}`, 2 at base → 0). (iii) in the wave-thunk catch, **discriminate a
+  prompt-build throw from a task-level engine error**: a `pt` undefined-interpolation throw is an
+  args defect, not a task escalation — surface it as `held:workflow-error` naming the missing input
+  (reusing (c)'s cause-propagation), so the phase halts loudly instead of draining every task to
+  `escalate` and falling through to an empty wave. Scope discipline: (iii) narrows **only** the
+  `pt`-throw class; every other engine error keeps today's per-task `escalate` (the #742 wave-loop
+  invariant — a task must still terminate in exactly one collected result, never re-enter the wave).
   **Tests:** suite rows for (a) provision-before-checks ordering, (b) an environment-red fixture
   attesting `unverified` never `unmet`, (c) the enum drift-guard extension + a dead-seat fixture
   whose `blocked` carries the cause + an env-died-only phase not classifying as a hard escalation,
   (d) a leak fixture (plan-A slug with plan-B intent/backstops — #1413's observed shape) refused at
-  entry, and an own-token pass fixture accepted. Commits cite #1395 (a/b), #1411 (c), #1413 (d),
-  #1408 (e).
+  entry, and an own-token pass fixture accepted, (f) a launch fixture omitting `plan.file` refused at
+  entry naming it **with zero agent spawns** (the observed failure spawned Provision first) + a
+  `pt`-throw fixture classifying `held:workflow-error` rather than per-task `escalate` + a
+  non-`pt` engine-error fixture still yielding per-task `escalate` (the both-ways proof that (iii)
+  narrowed exactly one class). Commits cite #1395 (a/b), #1411 (c), #1413 (d),
+  #1408 (e), #1430 (f).
 - Done when: `node --test skills/war/assets/workflow-template.test.mjs`
 - requiresTest: true
 - requiresPackaging: false
@@ -1136,6 +1185,34 @@ artifact-level evidence; treat those bodies as this phase's extended Context.
     any other 2026-08-06 plan, zero contention). Amendment surfaces: header issue map, Phase 2, End
     states 25/27–31, build order, release blurb list, Non-goals, roadmap row + contention table
     (same amendment commit).
+14. **Amendment (2026-08-15, operator-directed): #1430 folded into Phase 2 Task 2.1 as item (f).**
+    Observed live in campaign `2026-08-06-survey-batch` plan 5 phase 1 (plugin 0.17.4): a launch
+    whose args omitted `plan.file` dispatched **zero workers** — `pt` threw on the un-defaulted
+    `${plan.file}` inside the wave thunk's whole-body catch, which rendered the args defect as a
+    per-task `escalate`; every wave-1 task went `done`-not-`succeeded`, the dep-blocked task went
+    `dep-failed`, `nextWave()` emptied, and the phase fell through to the land barrier and spent the
+    full endstate-check budget against an unchanged base. It folds here rather than standing alone
+    because it lands on the **same two constructs Task 2.1 already opens**: #1413's entry-validation
+    block (d) and #1411's failure-classification work in the wave-thunk catch (c) — a separate plan
+    would be same-file contention for no added coverage.
+    **Base census (measured at `6fff2ee`+`6e17335`, plan 5's phase base — re-measure at the rebased
+    base and record):** the entry-validation block carries **two** problem classes, one *gated*
+    behind `tasks.some(t => !t.branch || !t.worktree)` (the `missingTrio` derivation class) and one
+    *ungated* (`missingPhaseFields`) — `plan.file` belongs to the **ungated** family, since every
+    worker prompt needs it whether or not tasks carry explicit branch/worktree. `plan.file` is
+    interpolated **un-defaulted at two worker-prompt sites** and defended at the gate-audit site with
+    `${(plan && plan.file) ?? '<unset>'}`, whose adjacent comment already records that a bare
+    `${plan.file}` "would throw phase-wide (held:workflow-error)" — the hazard is known and
+    half-fixed in the live tree. Zero-at-base pin tokens: `requires plan.file` (0 in both
+    `workflow-template.js` and its suite). OLD-absent token: `Plan file: ${plan.file}` (**2** at
+    base — the two undefended sites). **Coupling the fix must respect:** the suite pins the trio
+    message *byte-exactly* in two places (an exact-equality aggregate-message fixture and a prose
+    census row), so item (f) adds `plan.file` as its **own** problem class and leaves the trio
+    message byte-unchanged; any fixture whose args omit `plan.file` must gain it (or its expected
+    literal must be updated) **in the same diff**, or the new class silently perturbs that
+    exact-equality assert. Amendment surfaces: header issue map, this note, Phase 2 preamble, Task
+    2.1 (item (f) + Tests + commit citations), End states 32–33, Non-goals (#1430 fix 4), roadmap
+    issue chain (same amendment commit).
 
 ## Open decisions
 
