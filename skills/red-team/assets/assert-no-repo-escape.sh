@@ -9,8 +9,10 @@
 # redteam-executed-probe-cwd-reset-hits-real-remote). The hardened
 # `git -C <sandbox>` scope-lock in the executed probe preamble is the PREVENTION
 # layer; this guard is the DETECTION authority (Layer-2/3 doctrine, ADR 0033).
-# A nonzero result quarantines the verdict through the self-confound gate —
-# never CLEARED — until the state is clean.
+# Both nonzero results forbid CLEARED until the guard is settled, but they route
+# differently (SKILL.md Step 4): exit 1 routes the verdict through the
+# self-confound gate, action-provenance first; exit 2 carries no delta to triage
+# — fix the named git/infra fault and re-run the guard.
 #
 # Usage:
 #   assert-no-repo-escape.sh --repo <abs-repo-dir> --snapshot <abs-file>   # pre-run
@@ -52,9 +54,10 @@
 #       on any background or IDE `git fetch` and is never a probe writing into
 #       the repo, and this repo's linked worktrees share one ref store — an
 #       unscoped diff would turn ordinary concurrent activity into "escape
-#       detected". A missing or unreadable baseline file is 2 (validated at
-#       arg-parse time, so an infra fault can never be preempted by, or collapse
-#       into, an escape conclusion), never 1 and never a silent pass.
+#       detected". A missing, unreadable, or zero-byte baseline file is 2
+#       (validated at arg-parse time, so an infra fault can never be preempted
+#       by, or collapse into, an escape conclusion), never 1 and never a silent
+#       pass.
 #   Without --baseline, check mode is byte-equivalent to the pre-ref-diff script
 #   in exit codes, stdout, and check behavior; the only delta is exactly one
 #   stderr advisory naming the heuristic ceiling and the --baseline upgrade.
@@ -90,9 +93,9 @@
 #   0 — clean (no stray files, no junk ref, no ref delta) / snapshot written
 #   1 — escape detected (stray working-tree file OR junk sandbox ref OR a ref
 #       added/removed/moved vs the baseline) / snapshot-mode pre-run residue
-#   2 — git error / non-repo / usage or containment error / unreadable baseline —
-#       a NON-clean, NON-escape signal the caller must never collapse into 1 or
-#       treat as a pass.
+#   2 — git error / non-repo / usage or containment error / unreadable or
+#       zero-byte baseline — a NON-clean, NON-escape signal the caller must
+#       never collapse into 1 or treat as a pass.
 #
 # macOS bash 3.2.57 compatible (no globstar, no associative arrays, no ${,,}).
 set -euo pipefail
@@ -181,14 +184,15 @@ assert_artifact_outside() {
 [ -z "$snapshot_file" ] || assert_artifact_outside "--snapshot" "$snapshot_file"
 [ -z "$baseline_file" ] || assert_artifact_outside "--baseline" "$baseline_file"
 
-# Baseline readability is validated HERE, at arg-parse time, deliberately ahead
-# of every check: an infra fault (2) must never be preempted by — or collapse
-# into — an escape conclusion (1). Checks a/b1/b2 still run unchanged below as
-# the unconditional floor.
+# Baseline readability and non-emptiness are validated HERE, at arg-parse time,
+# deliberately ahead of every check: an infra fault (2) must never be preempted
+# by — or collapse into — an escape conclusion (1). Checks a/b1/b2 still run
+# unchanged below as the unconditional floor.
 if [ -n "$baseline_file" ]; then
   [ -e "$baseline_file" ] || die "--baseline file does not exist (infra error, never a pass): $baseline_file" 2
   [ -f "$baseline_file" ] || die "--baseline path is not a regular file: $baseline_file" 2
   [ -r "$baseline_file" ] || die "--baseline file is not readable: $baseline_file" 2
+  [ -s "$baseline_file" ] || die "--baseline file is zero bytes (a truncated or failed snapshot write — infra error, never a pass): $baseline_file" 2
 fi
 
 # ---------------------------------------------------------------------------
