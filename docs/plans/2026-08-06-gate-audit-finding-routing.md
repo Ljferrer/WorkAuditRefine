@@ -2,13 +2,18 @@
 
 Converted by `/war-machine` from [docs/specs/2026-08-06-gate-audit-finding-routing-design.md](../specs/2026-08-06-gate-audit-finding-routing-design.md)
 (Part 1 is its decision digest; every spec assumption is carried into the ledger or retired with a stated
-reason). Issues addressed: #1377, #1372, #1343. Issue → task mapping: #1377 → Task 1.1 item (a) (sweep-close
+reason). Issues addressed: #1377, #1372, #1343, and — folded 2026-08-15 by operator direction
+(campaign-era auditor-behavior findings from run `2026-08-12-handwritten-date-flagging`, squarely this
+plan's `war-auditor.md`/`workflow-template.js` family) — #1410 and #1412. Issue → task mapping: #1377 → Task 1.1 item (a) (sweep-close
 routing, both arms); #1372 → Task 1.1 items (b)/(c) + Task 1.2 (the resolveGate coupling note); #1343
 finding 1 → Task 1.3, finding 2 → Task 1.1 item (b), finding 3 → Task 1.1 item (c) + Task 1.2, findings
-4 and 6 → Task 1.1 item (g), finding 5 → Task 1.2 (producer pin) + Task 1.1 item (h) (consumer coupling).
-`/war` files its own epic + task issues regardless (war-execution-must-file-issues); closing the three
-source issues is Lead checkpoint work at phase close (war-checkpoint-must-close-task-issues) — #1343's
-per-finding close conditions require each correcting commit to cite the issue (End state 13).
+4 and 6 → Task 1.1 item (g), finding 5 → Task 1.2 (producer pin) + Task 1.1 item (h) (consumer coupling);
+#1410 fixes 1+2 → Task 2.1 (escalate_reason-required contract + the `request_changes`-by-construction
+discriminator, both surfaces; fix 3 deferred — Non-goals); #1412 fix 3 → Task 2.1 (the standing
+search-tooling sentence), fix 1 → Task 2.2 (the metacharacter denial diagnostics; fix 2 deferred —
+Non-goals). `/war` files its own epic + task issues regardless (war-execution-must-file-issues); closing
+the five source issues is Lead checkpoint work at phase close (war-checkpoint-must-close-task-issues) —
+#1343's per-finding close conditions require each correcting commit to cite the issue (End state 13).
 
 ## Context — the gap / problem
 
@@ -216,6 +221,12 @@ construct-level collision census is Note 1.
   `escalated`, `HARD_ESCALATION_REASONS`); the fixes are routing and evidence-interpretation only.
 - **No widening of the HARD trigger to the node (non-enumerating) half** — the reporter-format premise
   test's revisit comment remains the tripwire.
+- *(amendment 2026-08-15)* **#1410 fix 3 (Lead-side auto-routing of remedied escalations into a fix
+  round) deferred** — it changes the hold path itself; #1410's own text calls fixes 1+2 "the real
+  fix". Revisit only if escalate-with-remedies recurs after the contract lands.
+- *(amendment 2026-08-15)* **#1412 fix 2 (admitting `git grep`/`grep -rn` search shapes) deferred** —
+  a capability widening of the fail-closed allowlist (ADR 0002), needing its own adjudication; the
+  verb set stays byte-unchanged (the `-C` peel precedent: diagnostics improved, allowlist unwidened).
 - **No new sweep round or fix budget for sweep-raised findings** — they file as follow-up, never fixed
   in-run.
 - **No `phaseCloseQueue` semantics change** — the queue's arms (aced-on-merge, demote-on-everything-else)
@@ -321,17 +332,39 @@ carries the fallback).
   12. The redaction lint stays green over the lesson stamps ·
       gate: the self-discovery gate (the war-memory lint wrapper is a discovered member).
   13. Each landing commit cites its issue(s) — #1377 for Task 1.1's routing items, #1372 + #1343 for
-      Task 1.1's seat-prompt/suite items and Task 1.2, #1343 for Task 1.3 (the per-finding close
-      conditions require the citation) ·
+      Task 1.1's seat-prompt/suite items and Task 1.2, #1343 for Task 1.3, #1410 + #1412 for Task
+      2.1, #1412 for Task 2.2 (the per-finding close conditions require the citation) ·
       HARD at audit_sha (git log between the phase base and the tip; execution-evidence seat).
   14. Release: all four version slots move lock-step to the next free patch above the live integration
       base at land time ·
       check: `node --test skills/war/assets/version-slots.test.mjs` (lock-step + monotonic floor; the
       bump's presence is judged at audit_sha).
+  15. *(amendment 2026-08-15, #1410)* An `escalate` verdict without a non-empty `escalate_reason` is
+      rejected at intake (schema conditional, or the recorded fallback arm), and the
+      required-when-escalate contract is stated on all three prose surfaces — the war-auditor.md
+      verdict list + Return shape, the dispatched auditor prompt, and the schemas.md AuditVerdict
+      row ·
+      check: `node --test skills/war/assets/workflow-template.test.mjs` (the intake-rejection row) and
+      `grep -c 'escalate_reason' agents/war-auditor.md skills/war/references/schemas.md` ≥ 1 in each.
+  16. *(amendment 2026-08-15, #1410)* The by-construction discriminator — a blocking finding with a
+      concrete in-file `suggested_fix` needing no new plan decision is `request_changes`, however
+      severe — is live on both auditor surfaces (standing card + dispatched prompt), same commit ·
+      check: `grep -Fc 'by construction' agents/war-auditor.md` ≥ 1 and
+      `grep -Fc 'by construction' skills/war/assets/workflow-template.js` ≥ 1 (re-measure at the
+      rebased base and record; suite pin rides End state 15's test file).
+  17. *(amendment 2026-08-15, #1412)* A metacharacter-refused search denial names the rule that fired
+      (glob/alternation metacharacters, with the Grep-tool remedy), the guard's allowlist and deny
+      decisions are byte-unchanged, and the standing auditor card carries the search-tooling
+      sentence ·
+      check: `bash hooks/validate-auditor-git.test.sh` (the new message-content case) and
+      `grep -ci 'metacharacter' agents/war-auditor.md` ≥ 1.
 
 ## Build order (for /war)
 
-Phase 1 (wave 1 = Tasks 1.1, 1.3, 1.4; wave 2 = Task 1.2 `deps: [1.1]`) → Phase 2 (release).
+Phase 1 (wave 1 = Tasks 1.1, 1.3, 1.4; wave 2 = Task 1.2 `deps: [1.1]`) → Phase 2 (amendment
+2026-08-15 — auditor verdict-boundary + guard diagnostics; wave 1 = Tasks 2.1, 2.2, file-disjoint) →
+Phase 3 (release). Phase 2 is a phase, not more Phase-1 tasks, because Task 2.1 edits three files
+Task 1.1 owns — a phase edge, never a same-file deps dodge.
 
 The 1.2 → 1.1 wave edge is a content edge, never a collision dodge (the file sets are disjoint): Task
 1.2's D9 coupling note names the seat prompts' truncation clause, which Task 1.1 authors — at the frozen
@@ -476,9 +509,76 @@ base and are untouched by predecessor plan 3).
 - deps: []
 - target repo: superproject
 
-## Phase 2 — Release
+## Phase 2 — Auditor verdict-boundary + guard diagnostics (amendment 2026-08-15: #1410, #1412)
 
-### Task 2.1: Version slots, lock-step
+A separate phase, not new Phase-1 tasks, because both additions edit files Task 1.1 owns
+(`agents/war-auditor.md`, `workflow-template.js` + suite) — same-file work lands in a later phase,
+never as a deps-edge dodge (code-boundary rule 1). Phase base: the tip after Phase 1 lands.
+
+### Task 2.1: Escalate-boundary contract — required reason, the by-construction discriminator, search-tooling sentence (#1410 fixes 1+2, #1412 fix 3)
+
+- Files: `agents/war-auditor.md`, `skills/war/assets/workflow-template.js`,
+  `skills/war/assets/workflow-template.test.mjs`, `skills/war/references/schemas.md`
+- Plan slice: **(a) `escalate_reason` required when `verdict == "escalate"`** (#1410 fix 1 — the
+  smallest change with the most leverage): extend the `AUDIT_VERDICT` schema const in
+  `workflow-template.js` (locate by construct — the `const AUDIT_VERDICT = { type: 'object', … }`
+  declaration; `escalate_reason` is an optional `{ type: 'string' }` property today) with a JSON-Schema
+  conditional making a non-empty `escalate_reason` required exactly when `verdict` is `escalate`
+  (`if`/`then` or an equivalent `anyOf` — whatever the schema-validation layer the `agent()` `schema:`
+  option uses actually enforces; the worker verifies enforcement empirically, and if the layer ignores
+  the conditional, falls back to a prompt-side MUST plus a Lead-side observable, recording which arm
+  landed). Mirror the contract into the three prose surfaces in the same diff (both-surfaces law):
+  the `agents/war-auditor.md` verdict list and `## Return` shape line (`escalate_reason?` →
+  required-when-escalate), the dispatched auditor prompt in `workflow-template.js`, and the
+  `schemas.md` AuditVerdict row. **(b) the discriminator** (#1410 fix 2): at the war-auditor.md
+  verdict list's `escalate` bullet (the "**only** when the work reveals the PLAN itself is wrong or
+  underspecified…" sentence), append the by-construction test: *a blocking finding whose
+  `suggested_fix` is a concrete in-file edit needing no new plan decision is `request_changes` by
+  construction, however severe — if you cannot name the missing plan decision in `escalate_reason`,
+  you are looking at a fixable bug.* Mirror the sentence into the dispatched auditor prompt (same
+  commit). **(c) search-tooling sentence** (#1412 fix 3): in war-auditor.md's Bash/tooling guidance,
+  state plainly: *search with the Grep/Glob tools, never shell `grep`/`git grep` — the git guard
+  refuses glob/alternation metacharacters (`*`, `\|`), not just command chains*; mirror into the
+  dispatched prompt. **Tests:** suite rows pinning (i) the schema conditional (an escalate verdict
+  without `escalate_reason` is rejected by the validation layer, or the recorded fallback observable),
+  (ii) the discriminator token on both surfaces (`grep`-style presence pins with non-vacuous
+  zero-at-base tokens, e.g. `by construction`), (iii) the search-tooling sentence on both surfaces.
+  **No engine behavior change**: unanimity, severity gating, and the HARD escalation lanes
+  (`HARD_ESCALATION_REASONS`) are byte-untouched — this task changes the verdict *intake contract*
+  and seat doctrine only (the Phase-1 Non-goal stands). Commits cite #1410 (a, b) and #1412 (c).
+- Done when: `node --test skills/war/assets/workflow-template.test.mjs`
+- requiresTest: true
+- requiresPackaging: false
+- deps: []
+- target repo: superproject
+
+### Task 2.2: Auditor git-guard denial diagnostics name the rule that fired (#1412 fix 1)
+
+- Files: `hooks/validate-auditor-git.sh`, `hooks/validate-auditor-git.test.sh`
+- Plan slice: the forbidden-character denial (locate by construct: the
+  `[ -n "$residue" ] && deny "command contains forbidden character(s): …"` line) frames its remedy
+  as "split && / ; chains…", which does not describe what seats actually type (`--include=*.py`,
+  `git grep 'a\|b'` — 191 denials in one run, #1412). Extend the message so the rule that fired is
+  named: keep the offending-character echo and the one-bare-git-command sentence, and add the
+  metacharacter clause — *glob/alternation/expansion metacharacters are refused outright; search with
+  the Grep tool (`glob:`/`type:` filters) instead of shell `grep`/`git grep`*. **The allowlist and
+  every deny decision are byte-unchanged** — exit codes, verb set, and which commands deny are
+  untouched (ADR 0002 capability-first confinement; #1412 fix 2's verb widening is deliberately not
+  taken — Non-goals); this is message text only. Test: a new case asserting a representative denied
+  search (`git grep` with `\|`) still exits 2 AND the denial message names the metacharacter rule
+  (message-content assert, not just exit code — the guard-specificity lesson); existing cases green.
+  Note (cross-plan): plan 14's Task 1.5 also edits `hooks/validate-auditor-git.test.sh`
+  (comment-truth only) and lands after this plan by spine order — additive case, no collision at
+  this plan's base. Commit cites #1412.
+- Done when: `bash hooks/validate-auditor-git.test.sh`
+- requiresTest: true
+- requiresPackaging: false
+- deps: []
+- target repo: superproject
+
+## Phase 3 — Release
+
+### Task 3.1: Version slots, lock-step
 
 - Files: `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `README.md`
 - Plan slice: bump all four slots together — `plugin.json` `version`, `marketplace.json`
@@ -491,8 +591,9 @@ base and are untouched by predecessor plan 3).
   before plan 3 — the D10 witnesses halt-and-report a missing predecessor (never a downshift); on a
   witnessed plain-`/war` run, resolve the next free patch from the four slots themselves. The Status
   blurb names: sweep-raised findings now routed through the disposition ladder (never dropped), the
-  reconciled D7 HARD instruction, the truncated-gate-log SOFT rule, and the pinned
-  `== gate(bash): ` banner premise — quoting only identifiers that exist in the landed diff
+  reconciled D7 HARD instruction, the truncated-gate-log SOFT rule, the pinned
+  `== gate(bash): ` banner premise, the escalate_reason-required verdict contract, and the
+  metacharacter-naming guard denial diagnostics — quoting only identifiers that exist in the landed diff
   (release-blurb lessons: count words match the enumeration; quoted literals byte-match landed
   identifiers; guard semantics stated no wider than the implementation — the truncation rule is seat
   doctrine, not an engine detector).
@@ -525,6 +626,15 @@ base and are untouched by predecessor plan 3).
   mechanically by the untouched idempotence trio + D2 mirror row (gate members, End state 11), but the
   comment-only property of the diff itself is a refine-time hand-read · runner: Task 1.2's worker
   states it in the done report; the refiner eyeballs the diff at merge; gate-audit reads it SOFT.
+- *(amendment 2026-08-15)* Task 2.1(a)'s schema-conditional enforcement probe — whether the `agent()`
+  schema-validation layer actually enforces the required-when-escalate conditional, or the recorded
+  prompt-side fallback arm landed instead · why deferred: the layer's behavior is empirical, outside
+  this repo's code · runner: Task 2.1's worker runs the probe and records which arm landed in the
+  done report; the suite row pins whichever observable landed; gate-audit reads the probe SOFT.
+- *(amendment 2026-08-15)* End state 17's allowlist-byte-unchanged half (deny decisions unmoved,
+  message text only) · why deferred: a diff-shape property · runner: Task 2.2's worker states it in
+  the done report; the refiner eyeballs the diff at merge; the existing guard suite's deny cases are
+  the mechanical floor.
 
 ## Notes / conscious deviations
 
@@ -593,6 +703,16 @@ base and are untouched by predecessor plan 3).
    itself synthesized from the code-verified lesson issues #1377/#1372 and the war-followup issue
    #1343; the spec's flagged [assumed] rows are carried as A1–A4/A6 with their fallbacks intact;
    conversion-time judgments (D10–D14, Notes 1–7) are logged for /red-team ratification.
+10. **Amendment (2026-08-15, operator-directed): #1410 and #1412 folded as Phase 2.** Both are
+    campaign-era auditor-behavior findings from run `2026-08-12-handwritten-date-flagging` (plugin
+    0.17.0) landing squarely in this plan's family — `agents/war-auditor.md` verdict doctrine and
+    the dispatched auditor prompt. A new phase (not new Phase-1 tasks) because Task 2.1's file set
+    intersects Task 1.1's; a phase edge is the sanctioned same-file serialization. Deliberately
+    deferred halves recorded in Non-goals (#1410 fix 3, #1412 fix 2). Amendment surfaces: header
+    issue map, Phase 2 (Tasks 2.1/2.2), End states 13/15–17, build order, release blurb list,
+    Non-goals. Cross-plan: Task 2.1 adds one row to `skills/war/references/schemas.md`, which plan 9
+    (spine-later) rewrites — plan 9's workers rebase onto this landed row (stack-and-plow, roadmap
+    contention table updated in the same amendment commit). Logged for this plan's /red-team pass.
 
 ## Open decisions
 

@@ -5,7 +5,9 @@ Converted by `/war-machine --afk` from [docs/specs/2026-08-06-handoff-schemas-co
 reason; spec citations are provenance-only — Part 1 alone carries every decision, constraint, and
 mechanic). Issues addressed: #1331, #1333, #1289, #1380, #1381 (#1380 folded into the source spec by
 operator direction, 2026-08-12; #1381 folded 2026-08-12 with spec-side AI-declared markers, mirrored
-here). Issue → task mapping: #1331 F1 → Task 1.1 (the file-followups dispatch, D1–D3) +
+here), and — folded 2026-08-15 by operator direction as the Phase-2 amendment (campaign-era
+engine-truth findings, all in this plan's `workflow-template.js`/`schemas.md`/`SKILL.md` family) —
+#1395, #1408, #1411, #1413. Issue → task mapping: #1331 F1 → Task 1.1 (the file-followups dispatch, D1–D3) +
 Task 1.3 (the D4 Checkpoint floor) + Task 1.4 (the D8 signal class); #1331 F3 → Task 1.3 (the D10
 clock-read mandate, both surfaces) + Task 1.4 (the degenerate-timestamp `n/a` guard); #1331 F2/F4 →
 no task — already addressed (PR #1320; the live auditor card), cite on close; #1333 findings 1+3 →
@@ -15,8 +17,10 @@ template trio comments) + Task 1.3 (both schemas.md sites) per D6; finding 6 →
 comment) + Task 1.3 (the in-place expansion) per D7; #1289 → Task 1.3 (D9); #1380 → Task 1.2 (D12–D14)
 + Task 1.3 (the Setup step-2 sentence); #1381 → Task 1.2 (D19 hygiene assertion + D21 runbook bullet)
 + Task 1.1 (D20 ENV_OUTCOME/prompt/card widening) + Task 1.3 (the schemas.md `worktreeHygiene` row)
-(AI-declared). `/war` files its own epic + task issues regardless (war-execution-must-file-issues);
-closing the five source issues is Lead checkpoint work at phase close
+(AI-declared); #1395 fixes 1+2 → Task 2.1 items (a)/(b) (fix 3 deferred — Non-goals); #1411 →
+Task 2.1 item (c); #1413 → Task 2.1 item (d); #1408 → Task 2.1 item (e) (the SKILL.md JSONL doc) +
+Task 2.2 (the CLI's friendly parse failure). `/war` files its own epic + task issues regardless
+(war-execution-must-file-issues); closing the nine source issues is Lead checkpoint work at phase close
 (war-checkpoint-must-close-task-issues) — #1333's per-finding close conditions require each correcting
 commit to cite the issue (End state 25).
 
@@ -368,6 +372,10 @@ construct-level collision census is Note 1.
 - **No `id` member on `phase.endState` rows** (finding 3's alternative arm): D5 fixes the join by
   defining the ordinal→condition mapping in prose; widening the row shape would touch the Lead staging
   path, the bare-string normalization, and the endstate-check dispatch for no added mechanical check.
+- *(amendment 2026-08-15)* **#1395 fix 3 (the endstate-vs-gate-log corroboration pass) deferred** —
+  fixes 1+2 are #1395's independently-landable correctness half (its own text: "1 alone converts a
+  false negative into an honest 'unverified'"); the corroboration pass is defense in depth over a
+  contradiction the fixed attestation no longer produces. Revisit on recurrence.
 - **No engine change to the disposition/demotion ladder** — routing semantics are untouched; only the
   filing of already-routed `follow-up` findings is mechanized. Filing is never retried in-loop; gh
   failure modes (preflight exit 2/3, rate limits, network) all resolve to unfiled entries the
@@ -535,17 +543,51 @@ None (see Non-goals — the open Dispatch-kind list absorbs `file-followups`; no
   25. Each landing commit cites its issue(s) — #1331 for the filing/floor/signal/clock work, #1333 for
       the contract-truth rows and comment alignments, #1289 for the landResult row, #1380 for the
       resolve-working-branch arms and the Setup step-2 sentence, #1381 for the hygiene
-      assertion/ENV_OUTCOME widening/runbook bullet (the per-finding close conditions require the
+      assertion/ENV_OUTCOME widening/runbook bullet, #1395/#1411/#1413/#1408 for Task 2.1's items
+      (a–b)/(c)/(d)/(e) and #1408 for Task 2.2 (the per-finding close conditions require the
       citation) ·
       HARD at audit_sha (git log between the phase base and the tip; execution-evidence seat).
   26. Release: all four version slots move lock-step to the next free patch above the live integration
       base at land time ·
       check: `node --test skills/war/assets/version-slots.test.mjs` (lock-step + monotonic floor; the
       bump's presence is judged at audit_sha).
+  27. *(amendment 2026-08-15, #1395)* The land-barrier endstate checks run with the phase's
+      `run.provision` steps applied in `_refinery` before any `check:` command, fail-open ·
+      check: `node --test skills/war/assets/workflow-template.test.mjs` (the provision-before-checks
+      ordering row).
+  28. *(amendment 2026-08-15, #1395)* An endstate artifact that is present, readable, and correctly
+      tip-stamped but red for environmental reasons attests `unverified`, never `unmet`, on both the
+      engine contract and the `schemas.md` row ·
+      check: the suite's environment-red fixture row, and
+      `grep -ci 'environment' skills/war/references/schemas.md` ≥ 1 within the
+      `endStateAttestations` row (hand-verified placement — grep is a floor).
+  29. *(amendment 2026-08-15, #1411)* A post-spawn API/quota/transport death carries its cause in
+      `blocked`, classifies as `env-died` (canonical in `land-decision.mjs`, hand-mirrored in
+      `workflow-template.js`, drift-guard extended in the same diff), and is absent from
+      `HARD_ESCALATION_REASONS` — a phase whose only unmerged tasks are infra deaths is surfaced
+      retryable under `--afk`, never a hard escalation ·
+      check: `node --test skills/war/assets/workflow-template.test.mjs` (the drift-guard + dead-seat
+      + env-died-only-phase rows) and
+      `grep -c 'env-died' skills/war/assets/land-decision.mjs skills/war/assets/workflow-template.js`
+      ≥ 1 in each, with `env-died` absent from the `HARD_ESCALATION_REASONS` literal in both copies.
+  30. *(amendment 2026-08-15, #1413)* Entry validation refuses, before any agent spawns, an assembled
+      `intent`/`backstops`/`adjudications` that names a foreign `docs/plans/<slug>.md` or contains
+      none of the run's own plan-slug tokens — the plan-3 leak shape (13 × `escape`, 0 ×
+      `done-when`) is a reproduced refusal fixture ·
+      check: `node --test skills/war/assets/workflow-template.test.mjs` (the leak-refused and
+      own-token-accepted rows).
+  31. *(amendment 2026-08-15, #1408)* The `--queries` JSONL contract is stated at the flag's first
+      mention in `skills/war/SKILL.md`, and a non-JSONL queries file dies with the single-line format
+      message (line number named, no raw stack trace), valid-input behavior byte-unchanged ·
+      check: `grep -c 'JSONL' skills/war/SKILL.md` ≥ 1 and
+      `node --test skills/_shared/war-memory.test.mjs` (the malformed-file and valid-file rows).
 
 ## Build order (for /war)
 
-Phase 1 (wave 1 = Tasks 1.1, 1.2, 1.4; wave 2 = Task 1.3 `deps: [1.1, 1.2]`) → Phase 2 (release).
+Phase 1 (wave 1 = Tasks 1.1, 1.2, 1.4; wave 2 = Task 1.3 `deps: [1.1, 1.2]`) → Phase 2 (amendment
+2026-08-15 — engine truth hardening; wave 1 = Tasks 2.1, 2.2, file-disjoint) → Phase 3 (release).
+Phase 2 is a phase, not more Phase-1 tasks, because Task 2.1 edits four files Tasks 1.1/1.3 own — a
+phase edge, never a same-file deps dodge.
 
 The 1.3 → {1.1, 1.2} wave edges are content edges, never collision dodges (the file sets are
 disjoint): Task 1.3's rewritten rows name the `file-followups` dispatch, `args.ghUser`, and the
@@ -830,9 +872,90 @@ untouched by the predecessors).
 - deps: []
 - target repo: superproject
 
-## Phase 2 — Release
+## Phase 2 — Engine truth hardening (amendment 2026-08-15: #1395, #1408, #1411, #1413)
 
-### Task 2.1: Version slots, lock-step
+A separate phase, not new Phase-1 tasks, because the engine cluster below edits four files Phase 1
+owns (`workflow-template.js` + suite via Task 1.1; `schemas.md` + `skills/war/SKILL.md` via Task
+1.3) — same-file work lands in a later phase, never as a deps-edge dodge (code-boundary rule 1).
+Phase base: the tip after Phase 1 lands. All four issues are observed-live findings from runs
+`2026-08-12-handwritten-date-flagging` (#1395/#1408/#1411, plugin 0.17.0, submodule-bearing target)
+and campaign `2026-08-06-survey-batch` plan 3 (#1413, plugin 0.17.x) — each issue body carries the
+artifact-level evidence; treat those bodies as this phase's extended Context.
+
+### Task 2.1: Engine cluster — endstate environment truth (#1395), infra-death classification (#1411), args provenance floor (#1413), prefetch JSONL doc (#1408)
+
+- Files: `skills/war/assets/workflow-template.js`, `skills/war/assets/workflow-template.test.mjs`,
+  `skills/war/assets/land-decision.mjs`, `skills/war/references/schemas.md`, `skills/war/SKILL.md`
+- Plan slice: **Witness first** — after the standard rebase, verify
+  `grep -c 'file-followups' skills/war/assets/workflow-template.js` ≥ 1 (Phase 1 landed); a miss ⇒
+  halt and report. **(a) endstate environment prep** (#1395 fix 2): at land-barrier entry in
+  `workflow-template.js` — locate by construct: the endstate-check dispatch region (the
+  `ENDSTATE_CHECK_RESULT` consumer sequenced "ONCE at the integrated tip, before any gate-audit seat
+  spawns") — run the phase's `run.provision` steps in `_refinery` (or instruct the dispatched agent
+  to, matching how provision steps execute elsewhere) BEFORE any `check:` command executes; fail-open
+  (a provision red logs into the endstate artifact preamble and the checks still run — no new hold
+  path). **(b) environment-failure attestation** (#1395 fix 1): extend the attestation contract —
+  locate by construct: the contract comment defining `unverified` for a missing/unreadable/stale
+  artifact — so `unverified` also covers an artifact that is present, readable, and correctly
+  tip-stamped but whose red is environmental (setup/collection/import failure: `ModuleNotFoundError`,
+  pytest setup `ERROR`, usage/collection exit codes) rather than an evaluated-false condition; the
+  dispatched endstate prompt instructs the classification; a met condition must never be attested
+  `unmet` for want of environment prep. Mirror into the `schemas.md` `endStateAttestations` row.
+  **(c) infra-death classification** (#1411 fixes 1–3): where a dead seat currently yields
+  `reason: 'escalate'` with `blocked: "worker returned no result"`, (i) propagate the harness
+  failure cause into `blocked` (e.g. `worker died: session limit (resets …)`) when the thunk-catch
+  can see it; (ii) introduce the terminal classification `env-died` for a post-spawn
+  API/quota/transport death, canonical beside the existing enums in `land-decision.mjs` with the
+  hand-mirrored copy in `workflow-template.js` and the drift-guard test updated **in the same diff**
+  (the CLAUDE.md enum discipline; the shared-enum-widening lesson — verify #236's guard census and
+  extend it, never bypass); (iii) `env-died` is **never** added to `HARD_ESCALATION_REASONS` — a
+  phase whose only unmerged tasks are infra deaths surfaces under `--afk` as a retryable
+  interruption (resume after reset), not a hard escalation (ADR 0005's `held:workflow-error`
+  precedent: infra classes stay soft). **(d) args provenance floor** (#1413): a fail-closed
+  coherence assert at Workflow entry validation (beside the existing shape checks, before any agent
+  spawns): derive distinctive tokens from `planSlug`/`plan.file` (the slug's non-date words) and
+  refuse when the assembled `intent` contains none of them; refuse when `intent`, `backstops`, or
+  `adjudications` names a `docs/plans/<slug>.md`-shaped identifier differing from `plan.file`; apply
+  the own-token floor to `backstops` and `adjudications` only when they are non-null (they have no
+  seat-side recovery path — #1413's worse half). Refusal is at-entry (`held:workflow-error` family —
+  the run never starts; per #1413, refuse not warn, since a leaked run starts clean and stays
+  green). Document the floor in `schemas.md`'s args-contract section and `skills/war/SKILL.md`'s
+  launch paragraph (one sentence each). **(e) prefetch JSONL doc** (#1408): in `skills/war/SKILL.md`'s
+  "Prefetch prior lessons" paragraph, state the `--queries <file>` format inline at the flag's first
+  mention: JSONL, one `{"label":…,"text":…,"seat"?:…,"topK"?:…,"budget"?:…}` object per line (a
+  plain-text line-per-query file dies at `JSON.parse` — Task 2.2 makes that death friendly).
+  **Tests:** suite rows for (a) provision-before-checks ordering, (b) an environment-red fixture
+  attesting `unverified` never `unmet`, (c) the enum drift-guard extension + a dead-seat fixture
+  whose `blocked` carries the cause + an env-died-only phase not classifying as a hard escalation,
+  (d) a leak fixture (plan-A slug with plan-B intent/backstops — #1413's observed shape) refused at
+  entry, and an own-token pass fixture accepted. Commits cite #1395 (a/b), #1411 (c), #1413 (d),
+  #1408 (e).
+- Done when: `node --test skills/war/assets/workflow-template.test.mjs`
+- requiresTest: true
+- requiresPackaging: false
+- deps: []
+- target repo: superproject
+
+### Task 2.2: war-memory `--queries` dies friendly on non-JSONL input (#1408)
+
+- Files: `skills/_shared/war-memory.mjs`, `skills/_shared/war-memory.test.mjs`
+- Plan slice: in `cmdQueriesBatch` (locate by construct — the per-line `JSON.parse(line)` in the
+  `--queries` reader), wrap the parse so a malformed line dies with a **single-line** message naming
+  the required shape and the offending line number — e.g.
+  `war-memory: --queries requires JSONL ({"label":…,"text":…} per line); line N is not JSON` —
+  exit 1, no raw stack trace (today the natural plain-text file dies on a bare `SyntaxError`
+  traceback, #1408's reproduced failure). Query semantics for valid JSONL byte-unchanged. Test: a
+  plain-text queries file exits 1 with the format message and no `at JSON.parse` frame; a valid
+  JSONL file still returns labeled blocks. Commit cites #1408.
+- Done when: `node --test skills/_shared/war-memory.test.mjs`
+- requiresTest: true
+- requiresPackaging: false
+- deps: []
+- target repo: superproject
+
+## Phase 3 — Release
+
+### Task 3.1: Version slots, lock-step
 
 - Files: `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `README.md`
 - Plan slice: bump all four slots together — `plugin.json` `version`, `marketplace.json`
@@ -850,8 +973,11 @@ untouched by the predecessors).
   the schemas.md return-contract truth sweep (landResult, id form + join, tag family, trio naming,
   two-contract expansion, marker retirement), `resolve-working-branch`'s leaf-ref hardening (flat
   `war-<date>-<slug>` fallback, actionable cannot-lock die, Setup-time `war/<planSlug>` validation),
-  and the `ensure-worktree` reuse-path hygiene (porcelain-detected, SHA-guarded submodule repair
-  surfaced in `ENV_OUTCOME.worktreeHygiene`) — quoting only identifiers that exist in the landed
+  the `ensure-worktree` reuse-path hygiene (porcelain-detected, SHA-guarded submodule repair
+  surfaced in `ENV_OUTCOME.worktreeHygiene`), and the Phase-2 engine-truth set (endstate checks run
+  environment-prepared with an environment-red attesting `unverified` never `unmet`; post-spawn
+  infra death classified `env-died`, retryable under `--afk`; the fail-closed args provenance floor;
+  the `--queries` JSONL contract documented + friendly parse failure) — quoting only identifiers that exist in the landed
   diff (release-blurb lessons: count words match the enumeration; quoted literals byte-match landed
   identifiers; guard semantics stated no wider than the implementation — filing and hygiene are
   fail-open detection/repair, never a hold or a gate).
@@ -897,6 +1023,16 @@ untouched by the predecessors).
   byte-equivalent state deterministically (A10, `read-tree --empty` + dropped lock); the probe run at
   spec time established the real mechanism (AI-declared) · runner: none mechanical — a field
   recurrence that the deterministic fixture's shape does not match files an issue citing #1381.
+- *(amendment 2026-08-15)* End state 28's placement half (the environment clause sits inside the
+  `endStateAttestations` row, not merely somewhere in `schemas.md`) and End state 30's live
+  refusal-message quality (the entry refusal names which arg failed and why) · why deferred:
+  hand-reads over prose placement and message ergonomics — the greps and suite rows are the
+  mechanical floors · runner: Task 2.1's worker states both in the done report; gate-audit reads
+  them SOFT.
+- *(amendment 2026-08-15)* #1395's field shape end-to-end (a real submodule-bearing target whose
+  gate carries setup, run to the land barrier) · why deferred: requires a live foreign-repo run —
+  uncommittable as a unit fixture; the ordering row and environment-red fixture are the standing
+  guards · runner: none mechanical — a recurrence files an issue citing #1395.
 
 ## Notes / conscious deviations
 
@@ -987,6 +1123,19 @@ untouched by the predecessors).
     assumption, End state (21–24), task item, and backstop row carries an inline AI-declared marker,
     mirroring the spec's own fold markers — the strand entered the spec after the operator's last
     attended checkpoint and is ratified only by /red-team.
+13. **Amendment (2026-08-15, operator-directed): #1395, #1408, #1411, #1413 folded as Phase 2.**
+    All four are observed-live engine-truth findings landing in this plan's exact family
+    (`workflow-template.js` contracts, `schemas.md`, `skills/war/SKILL.md`, the args/attestation
+    surfaces); their issue bodies carry artifact-level evidence and serve as extended Context. A new
+    phase because Task 2.1's file set intersects Tasks 1.1 and 1.3 — a phase edge, never a same-file
+    deps dodge. Design calls made here and logged for /red-team: (i) #1395 lands fixes 1+2 (fix 3
+    deferred, Non-goals); (ii) #1411's `env-died` follows the two-copy enum discipline and stays out
+    of `HARD_ESCALATION_REASONS` (the ADR 0005 infra-stays-soft precedent); (iii) #1413's floor is
+    refuse-at-entry, never warn (its observed failure mode starts clean and stays green); (iv) #1408
+    splits doc (Task 2.1e, this plan's SKILL.md) from CLI (`war-memory.mjs`, Task 2.2 — unowned by
+    any other 2026-08-06 plan, zero contention). Amendment surfaces: header issue map, Phase 2, End
+    states 25/27–31, build order, release blurb list, Non-goals, roadmap row + contention table
+    (same amendment commit).
 
 ## Open decisions
 
