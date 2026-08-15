@@ -4575,9 +4575,27 @@ test('mappedTests grep (End state 7, D7): a merge returning mappedTests threads 
   assert.match(p, /ONLY when the captured log ENUMERATES test file paths/i, 'the HARD trigger is enumeration-conditional — a zero-hit grep is HARD only where the log names file paths')
   assert.match(p, /never per-file paths/i, 'the node-reporter titles-only fact is stated to the seat')
   assert.match(p, /SOFT cannot-confirm, never a hold/i, 'a zero-hit grep against a non-enumerating half degrades SOFT — the fail-safe direction, never a false land-hold')
+  // Truncation clause (D4, #1343-3): an early-aborted bash half (the discovery loop's || exit 1 exits
+  // on the first red suite) leaves an enumerating-LOOKING log that is truncated — a mapped path after
+  // the abort point must degrade SOFT, never mint a false HARD land-hold.
+  assert.match(p, /ABORTED/, 'the truncation clause names the early-aborted bash half')
+  assert.match(p, /truncated/i, 'the truncation clause states the log is truncated, not non-enumerating')
+  assert.match(p, /after the abort point/i, 'a mapped path after the abort point is SOFT cannot-confirm, never HARD')
+  // Consumer-side banner coupling (D6, #1343-5): the per-file banner literal the seats grep for is
+  // pinned against resolveGate's LIVE output (the producer) AND on both seat surfaces here — so the
+  // seat-facing literal cannot drift from what the gate actually prints.
+  const BANNER = '== gate(bash): '
+  const live = resolveGate('node --test x')
+  assert.ok(live.includes(BANNER), "resolveGate's live output carries the per-file banner literal (producer side)")
+  assert.ok(live.includes('%s'), "resolveGate's live output interpolates the per-file path (%s) into the banner")
+  assert.ok(p.includes(BANNER), 'the per-task seat prompt carries the matching banner literal')
+  assert.ok(auditorMd.includes(BANNER), 'agents/war-auditor.md carries the matching banner literal (standing card)')
   // Fail-open: no mappedTests token on the MergeResult ⇒ no block (the SOFT cannot-confirm posture kept).
+  // The absence probe keys on the BLOCK HEADER literal: the rescoped conjunctive clause (D3, #1372)
+  // defers to the MAPPED TESTS block BY NAME in every per-task prompt, so a bare 'MAPPED TESTS'
+  // substring probe would false-trip on the deferral parenthetical, not the threaded block.
   const { calls: c2 } = await runPhase(PROVISION_ARGS(), gateAuditImpl)
-  assert.ok(!gateAuditCalls(c2)[0].prompt.includes('MAPPED TESTS'), 'no mappedTests ⇒ no block — byte-identical posture')
+  assert.ok(!gateAuditCalls(c2)[0].prompt.includes('MAPPED TESTS (D7'), "no mappedTests ⇒ no threaded block — the SOFT cannot-confirm posture kept")
 })
 
 // Reporter-format premise pin (round-3 fix-forward adjudication): the enumeration-conditional above
@@ -4598,9 +4616,13 @@ test('reporter-format premise (D7, round-3): a piped node --test run emits title
     // must reproduce the gate's own invocation shape, not this suite's runner-child shape.
     const env = { ...process.env }
     delete env.NODE_TEST_CONTEXT
-    const run = spawnSync(process.execPath, ['--test', mjsMappedPath], { encoding: 'utf8', env })
+    // D7 premise-probe hardening (#1343-4/6): bounded (timeout) and loud on env trouble — a spawn
+    // failure or a wedged child (run.error: ENOENT, ETIMEDOUT kill, …) is its OWN named condition,
+    // never allowed to impersonate a reporter-format premise change via a bare status assert.
+    const run = spawnSync(process.execPath, ['--test', mjsMappedPath], { encoding: 'utf8', env, timeout: 60_000 })
     const log = (run.stdout || '') + (run.stderr || '')
-    assert.equal(run.status, 0, 'the premise fixture suite is green (presence guard — the run below provably executed)')
+    assert.ok(!run.error, `premise probe failed to spawn or wedged — a spawn/env failure, NOT a premise change: ${run.error}`)
+    assert.equal(run.status, 0, `the premise fixture suite is green (presence guard — the run below provably executed); got status ${run.status}, stderr tail: ${(run.stderr || '').slice(-200)}`)
     assert.ok(log.includes('premise-pin sentinel title'), 'the piped reporter emits test TITLES — the suite provably ran and is visible in the log')
     assert.match(log, /tests 1\b/, '…plus the aggregate summary')
     assert.ok(!log.includes('wibble.premise.test.mjs'),
@@ -4627,6 +4649,11 @@ test('authMappedLine twin (D7, round-3): the integrated-tip AUTHORITATIVE seat t
   assert.match(p, /CAPTURED integrated-tip gate log/i, 'the grep target is the integrated-tip captured artifact')
   assert.match(p, /ONLY when the captured log ENUMERATES test file paths/i, 'the twin carries the enumeration-conditional — a per-task-only fix would false-hold through this seat instead')
   assert.match(p, /SOFT cannot-confirm, never a hold/i, 'the twin degrades SOFT on a non-enumerating half')
+  // Truncation clause (D4, #1343-3) — the twin carries it too: a per-task-only clause would let a
+  // truncated (early-aborted) integrated-tip log mint the false HARD through this seat instead.
+  assert.match(p, /ABORTED/, 'the twin names the early-aborted bash half')
+  assert.match(p, /truncated/i, 'the twin states the truncated-log condition')
+  assert.match(p, /after the abort point/i, 'the twin degrades a post-abort mapped path SOFT, never HARD')
 })
 
 test('A1 cross-check (Task 3.2): the worker-claimed End-state ids (acceptance_criteria_covered) reach the per-task gate-audit seat; empty/absent ⇒ no block', async () => {
@@ -7960,11 +7987,17 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     // .mjs grep degrades SOFT cannot-confirm, never a false land-hold (premise pinned live by the
     // reporter-format test above). Every enumeration-conditional anchor below was verified absent from
     // both surfaces at the pre-change base, so a per-surface revert to the unconditional rule reds this row.
+    // gate-audit-finding-routing Task 1.1 (D4/D5, #1343-3): the row GREW the three truncation anchors
+    // (no new row; the floor-count assertion message below is untouched) — an early-ABORTED bash half
+    // (the discovery loop exits on the first red suite) leaves a truncated log, and a mapped path after
+    // the abort point is SOFT cannot-confirm, never HARD. All three tokens were zero-hit on both
+    // anchored surfaces at this task's base (Context 7), so a per-surface revert of the clause reds this row.
     { name: 'mechanical mapped-tests grep (D7, Task 3.2 + round-3 enumeration-conditional): grep each MergeResult.mappedTests path against the captured gate log — absent/0-count at a confirmed pin is HARD only where the log enumerates test file paths; a non-enumerating half is SOFT cannot-confirm, never a hold',
       surfaces: [['war-auditor.md', auditorMd], ['per-task gate-audit prompt (mappedTests-bearing)', esSeatP]],
       anchors: [/mappedTests/, /grep each/i, /captured gate log/i, /0 executed tests/i, /provably-unrun/i,
                 /ONLY when the captured log ENUMERATES test file paths/i, /aggregate summary/i,
-                /never per-file paths/i, /non-enumerating/i, /SOFT cannot-confirm, never a hold/i] },
+                /never per-file paths/i, /non-enumerating/i, /SOFT cannot-confirm, never a hold/i,
+                /ABORTED/, /truncated/i, /after the abort point/i] },
     // Task 3.2 recovery Blocker 1 (the Pivotal prompt-surface-split constraint): the endstate-check
     // dispatch flavor lands on the refiner's standing card AND the dispatched prompt — a card that
     // never learned the flavor invites a decline, and the dispatch is fail-open, so a decline is

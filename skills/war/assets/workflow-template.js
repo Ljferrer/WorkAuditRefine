@@ -1828,7 +1828,7 @@ if (mergedTasksForGateAudit.length > 0) {
       ? pt`\nMAPPED TESTS (D7 — the mechanical HARD trigger): the test floor matched these test paths in this task's diff (MergeResult.mappedTests):\n`
         // pt-tagged prompt-feeding row builder (mapped-tests → gate-audit prompt): ${p2 ?? ''} absence-tolerant.
         + mappedTests.map(p2 => pt`  - ${p2 ?? ''}`).join('\n') + '\n'
-        + pt`Grep EACH mapped path against the CAPTURED gate log artifact (artifact-first). A mapped path absent — or present with 0 executed tests — at a CONFIRMED/BENIGN-ADVANCE pin is the HARD provably-unrun finding ONLY when the captured log ENUMERATES test file paths for that path's suite half (e.g. the bash suite half's per-file \`== gate(bash): <path> ==\` headers; a \`node --test\` run reports test TITLES plus an aggregate summary, never per-file paths). A zero-hit grep against a non-enumerating half (e.g. a .mjs mapped path vs the node-reporter output) proves nothing about that path: SOFT cannot-confirm, never a hold.\n`
+        + pt`Grep EACH mapped path against the CAPTURED gate log artifact (artifact-first). A mapped path absent — or present with 0 executed tests — at a CONFIRMED/BENIGN-ADVANCE pin is the HARD provably-unrun finding ONLY when the captured log ENUMERATES test file paths for that path's suite half (e.g. the bash suite half's per-file \`== gate(bash): <path> ==\` headers; a \`node --test\` run reports test TITLES plus an aggregate summary, never per-file paths). A zero-hit grep against a non-enumerating half (e.g. a .mjs mapped path vs the node-reporter output) proves nothing about that path: SOFT cannot-confirm, never a hold. A captured log whose bash half ABORTED (the discovery loop exits on the first red suite — a red suite's header with no later headers after it) is truncated: a mapped path after the abort point is SOFT cannot-confirm, never HARD.\n`
       : ''
     // claimedIdsLine (A1, Task 3.2): the worker-claimed End-state ids, cross-checked by this seat
     // against its endStateAttestations rows. Empty/absent — or a claims-less phase — ⇒ '' (byte-identical).
@@ -1853,7 +1853,7 @@ if (mergedTasksForGateAudit.length > 0) {
       + guardLine
       + pt`If the pin is CONFIRMED/BENIGN-ADVANCE, confirm the mapped acceptance-criteria test is present in the files at that tip `
       + pt`(read-only git / Read in ${refineryPath}), not merely inferred from the gate output text; record a `
-      + pt`HARD gate-evidence finding ONLY when the mapped test is genuinely absent AT THE CONFIRMED INTEGRATION TIP and the captured artifact confirms it did not run.\n`
+      + pt`HARD gate-evidence finding for a MISSING mapped test ONLY when it is genuinely absent AT THE CONFIRMED INTEGRATION TIP and the captured artifact confirms on an ENUMERATING half that it did not run (the present-but-unrun path is governed by the MAPPED TESTS block above).\n`
       + pt`Return the sha you actually reviewed as audit_sha (it should equal the observed tip ${observedHead || gateHeadSha}); the Lead compares it to the dispatched pin — a differing well-formed sha demotes your findings to SOFT (you judged a different tree).\n`
       + debtLine
       + pt`Acceptance criteria / plan slice: ${acceptanceCriteria || '(see plan file)'}\n`
@@ -1869,8 +1869,10 @@ if (mergedTasksForGateAudit.length > 0) {
       { agentType: NS + 'war-auditor', phase: 'Audit',
         label: `gate-audit:${taskId}:execution-evidence`, schema: AUDIT_VERDICT, ...spawn('auditor') })
     // gate-evidence findings are SOFT (do not hold the land) UNLESS a mapped test is provably unrun (hard).
-    // Hard case: the auditor records a Critical or Major finding on the execution-evidence lens, indicating
-    // a mapped acceptance-criteria test present in the pre-merge diff is absent/0-count in the gate output.
+    // Hard case: the auditor records a Critical or Major finding on the execution-evidence lens per its
+    // governing instruction for the path (survey-derived correction, #1372): the MAPPED TESTS block governs
+    // present-but-unrun (enumeration-conditional, truncation-aware); the conjunctive clause governs a
+    // MISSING mapped test (genuinely absent at the confirmed tip, artifact-confirmed on an enumerating half).
     // Per Open decision #1 (resolved: operationally defined) — severity Critical/Major signals provably-unrun.
     if (gateAuditVerdict) {
       const rawFindings = gateAuditVerdict.findings || []
@@ -1939,7 +1941,7 @@ if (mergedTasksForGateAudit.length > 0) {
       ? pt`\nMAPPED TESTS (D7 — the mechanical HARD trigger): the test floor matched these test paths across the dep-crossing tasks' diffs (MergeResult.mappedTests):\n`
         // pt-tagged prompt-feeding row builder (mapped-tests → integrated-tip prompt): ${p2 ?? ''} absence-tolerant.
         + authMapped.map(p2 => pt`  - ${p2 ?? ''}`).join('\n') + '\n'
-        + pt`Grep EACH mapped path against the CAPTURED integrated-tip gate log (artifact-first). A mapped path absent — or present with 0 executed tests — is the HARD provably-unrun finding ONLY when the captured log ENUMERATES test file paths for that path's suite half (e.g. the bash suite half's per-file \`== gate(bash): <path> ==\` headers; a \`node --test\` run reports test TITLES plus an aggregate summary, never per-file paths). A zero-hit grep against a non-enumerating half (e.g. a .mjs mapped path vs the node-reporter output) proves nothing about that path: SOFT cannot-confirm, never a hold.\n`
+        + pt`Grep EACH mapped path against the CAPTURED integrated-tip gate log (artifact-first). A mapped path absent — or present with 0 executed tests — is the HARD provably-unrun finding ONLY when the captured log ENUMERATES test file paths for that path's suite half (e.g. the bash suite half's per-file \`== gate(bash): <path> ==\` headers; a \`node --test\` run reports test TITLES plus an aggregate summary, never per-file paths). A zero-hit grep against a non-enumerating half (e.g. a .mjs mapped path vs the node-reporter output) proves nothing about that path: SOFT cannot-confirm, never a hold. A captured log whose bash half ABORTED (the discovery loop exits on the first red suite — a red suite's header with no later headers after it) is truncated: a mapped path after the abort point is SOFT cannot-confirm, never HARD.\n`
       : ''
     const authVerdict = await agent(
       pt`INTEGRATED-TIP GATE-AUDIT for WAR phase ${ph.id} (lens: execution-evidence — AUTHORITATIVE). `
