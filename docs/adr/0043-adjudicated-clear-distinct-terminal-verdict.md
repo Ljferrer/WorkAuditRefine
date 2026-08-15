@@ -1,6 +1,6 @@
 # ADJUDICATED is a distinct, gate-emitted terminal verdict — findings are stamped, never removed
 
-**Status:** accepted (design ratified 2026-08-02; implemented by the spec and plan below)
+**Status:** accepted (design ratified 2026-08-02; implemented by the spec and plan below; corrected 2026-08-15 — the Context paragraph's Step-5 exclusivity claim over-claims, a probe re-run was also offered; see the correction below)
 
 `verdict()` in `skills/red-team/assets/red-team-gate.mjs` knew only four outcomes —
 `CLEARED` / `CLEARED-WITH-NOTES` / `BLOCKED` / `INCOMPLETE` — with no outcome for the operator's
@@ -174,3 +174,15 @@ forward-looking restatement of the rule it left as a one-run ruling.
   bound), [[guard-task-split-from-mirror-task-needs-deps-edge-same-wave-insufficient]] (the
   same-wave precedent this ADR's residual-risk record cites).
 - Originating issue: #1207 (`ADJUDICATED` verdict); related: #1224 (carve-out granularity).
+
+## Correction (2026-08-15, #1268)
+
+The Context paragraph above over-claims Step 5's mechanics: it presents the grill loop as the sole
+mechanic Step 5 offered for closing a blocker. Step 5 as it stood when this ADR was written
+(`skills/red-team/SKILL.md` before this ADR's implementation landed — revision `8e065b7`) also
+offered a **probe re-run** — "re-run only the affected probe to confirm it is resolved" — the very
+mechanic this ADR's own Decision 3 two-arm re-verify trigger depends on. The paragraph's argument is
+otherwise unaffected: nothing stopped removal-as-resolution from being applied to a finding that was
+merely **patched**, never re-proven, which is exactly the fake clear this ADR closes. The Context
+paragraph's prose is left **byte-unchanged** as a point-in-time record; this correction note carries
+the fix.
