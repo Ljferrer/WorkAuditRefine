@@ -879,7 +879,7 @@ test('CLI: the FLAG zero form — --stdin --rounds=0 rounds-only exits 0, echoes
   const r = runGate(['--stdin', '--rounds=0'], JSON.stringify(input))
   assert.equal(r.status, 0, r.stderr)
   const out = JSON.parse(r.stdout)
-  assert.equal(out.rounds, 0, 'rounds: 0 must be echoed — 0 is a supplied value')
+  assert.equal(out.rounds, 0, `rounds: 0 must be echoed — 0 is a supplied value, got ${JSON.stringify(out.rounds)} (keys: ${Object.keys(out)})`)
   assert.equal(out.routeUpstream, false)
   assert.ok(!('roundLimit' in out), `roundLimit was never supplied — found "roundLimit" in ${Object.keys(out)}`)
 })
@@ -891,7 +891,7 @@ test('CLI: the input-KEY zero form — a --stdin payload with top-level rounds: 
   const r = runGate(['--stdin'], JSON.stringify(input))
   assert.equal(r.status, 0, r.stderr)
   const out = JSON.parse(r.stdout)
-  assert.equal(out.rounds, 0, 'rounds: 0 via the input key must resolve as supplied, never as not-supplied')
+  assert.equal(out.rounds, 0, `rounds: 0 via the input key must resolve as supplied, never as not-supplied, got ${JSON.stringify(out.rounds)} (keys: ${Object.keys(out)})`)
   assert.equal(out.routeUpstream, false)
 })
 
