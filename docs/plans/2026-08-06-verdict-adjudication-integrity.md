@@ -387,10 +387,19 @@ WAR construct is introduced (the cold home is a file, not a term). No ADR (Non-g
       gate: the self-discovery gate (`resolveGate` in `war-config.mjs`) — `node --test
       'skills/**/*.test.mjs'`, the documented hooks/skills shell-test loop, and the redaction-lint
       wrapper all pass.
-  13. Each landing commit cites its issue(s) — #1264 for Tasks 1.5/1.6, #1265 for Tasks 1.1/1.3/1.4,
-      #1267 for Task 1.6, #1357 for Tasks 1.1/1.2, #1386 for Task 1.7; the citation-only closures
-      (#1357 findings 3/6) are cited in the phase-close checkpoint notes, no code change ·
-      HARD at audit_sha (git log between the phase base and the tip; execution-evidence seat).
+  13. **Every source issue is cited by at least one commit in the phase range** `<phase-base>..<tip>`
+      — #1264 (Tasks 1.5/1.6), #1265 (Tasks 1.1/1.3/1.4), #1267 (Task 1.6), #1357 (Tasks 1.1/1.2),
+      #1386 (Task 1.7); the citation-only closures (#1357 findings 3/6) are cited in the phase-close
+      checkpoint notes, no code change ·
+      HARD at audit_sha, judged **range-level** by the execution-evidence seat via
+      `git log --grep=<issue> <phase-base>..<tip>` — **not per commit**.
+      **This is deliberately not a per-commit mandate** (reworded 2026-08-16 after the Lead misread
+      the earlier "each landing commit cites its issue(s)" phrasing and escalated a non-failure).
+      Two commit classes cite no issue *by construction* and are compliant: the engine-authored
+      **phase-merge** commit and the **phase-close polish** commit. The range the condition needs
+      does not exist at any task's pre-merge gate — it first exists post-merge — so this can never be
+      a `gate:` member. See the ratified lesson
+      `each-commit-cites-its-issue-endstates-are-judged-over-the-full-phase-range-not-gated-per-commit`.
   14. Release: all four version slots move lock-step to the next free patch above the live integration
       base at land time ·
       check: `node --test skills/war/assets/version-slots.test.mjs` (lock-step + monotonic floor; the
