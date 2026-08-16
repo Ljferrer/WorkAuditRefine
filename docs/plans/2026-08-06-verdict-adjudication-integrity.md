@@ -347,9 +347,17 @@ WAR construct is introduced (the cold home is a file, not a term). No ADR (Non-g
      = 0 (`-F`: apostrophe- and non-ASCII-bearing patterns, constraint 10; `-i`: the OLD-absent half
      must not be evadable by sentence-initial recapitalization — the recorded
      `retirement-grep-for-prose-needle-must-be-case-insensitive-or-sentence-initial-capitalization-evades-it`
-     lesson). **NEW-present half (an absence-only pair passes on a deleted clause):**
-     `tr '\n' ' ' < docs/adr/0045-red-team-loop-budget-and-route-upstream.md | grep -ciF "/red-team"`
-     ≥ 2 — the two rewritten clauses must actually name their real home, not merely drop the wrong one. **Mandatory manual same-scope survey:**
+     lesson). **NEW-present half (an absence-only pair passes on a deleted clause)** — pin the two
+     rewritten clauses by their own distinctive wording, each **0 at base** and 1 after:
+     `tr '\n' ' ' < docs/adr/0045-red-team-loop-budget-and-route-upstream.md | grep -oiF "/red-team's Step 5" | wc -l`
+     ≥ 1 **and**
+     `tr '\n' ' ' < docs/adr/0045-red-team-loop-budget-and-route-upstream.md | grep -oiF "/red-team Step 5's" | wc -l`
+     ≥ 1.
+     **`grep -o … | wc -l`, never `grep -c`, on a line-joined stream** — `tr` collapses the file to a
+     single line and `grep -c` counts matching *lines*, so any `-c` presence threshold above 1 is
+     **permanently unreachable**, red even after the work lands. (A bare `/red-team` count would also
+     be vacuous here: the file already carries 11 occurrences at base. Absence halves are unaffected —
+     `grep -c … = 0` is correct on a joined stream, since zero matching lines is still zero.) **Mandatory manual same-scope survey:**
      hand-scan every remaining ADR-0043 citation in the file (seven space-form hits at `6fff2ee`,
      dated snapshot — Context, Decision bullets, Consequences, References — **plus** the two
      hyphenated `pre-ADR-0043` mentions the space-form grep misses) for sibling misattributions; the

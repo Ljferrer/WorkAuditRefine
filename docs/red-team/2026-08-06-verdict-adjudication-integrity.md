@@ -118,9 +118,25 @@ rule 7 is satisfied by construction.
 | 1 | D14 strike list = **five primaries** (adds **Orphan adoption**, promotes **Near-miss diagnostic**) | the three-entry list + reserve | AI-declared (2026-08-16) — stays inside D14's preferred arm; the operator-gated fallback arm is **not** elected |
 | 2 | A3 spans 1,401 / 1,052 / 696 / 987 / 728; net 4,290 B vs 3,563 B need | "≈1,412 + ≈1,377 + ≈1,683 … frees ≈4.2 KB against ≈3.0 KB" | AI-declared (2026-08-16), Lead-re-measured at `a489067` |
 | 3 | `CONTEXT.md` base = 114,982 B, overage 3,366 B | 114,449 B / 2,833 B "expected unchanged" | AI-declared (2026-08-16) |
-| 4 | ES8 greps line-joined + case-insensitive + NEW-present half | single-line `grep -cF` pair | AI-declared (2026-08-16) |
+| 4 | ES8 greps line-joined + case-insensitive + NEW-present half pinned by `grep -oiF … \| wc -l` on the two rewritten clauses | single-line `grep -cF` pair | AI-declared (2026-08-16); **self-corrected at launch** — see note below |
 | 5 | ES1/2/7 gain base-red grep floors | suite-run-only checks | AI-declared (2026-08-16) |
 | 6 | D18 / ES16 pointer-pair guard in Task 1.1 | no guard | AI-declared (2026-08-16), ADR 0025 |
+
+## Post-report correction — the Lead's own ES8 patch was defective (2026-08-16, pre-launch)
+
+Executing every End-state `check:` at base before wiring it into the launch args caught a defect in
+**this pass's own root-3 patch**. The NEW-present half was written
+`tr '\n' ' ' … | grep -ciF "/red-team"` ≥ 2. Two things were wrong at once: `/red-team` already
+occurs **11 times** at base (vacuous as a presence signal), and — the worse half — `tr` collapses the
+file to a **single line**, so `grep -c` (which counts matching *lines*, not occurrences) can never
+exceed 1. The threshold `≥ 2` was therefore **permanently unreachable**: red at base *and* red after
+the work landed, a gate that could never go green.
+
+Corrected to pin the two rewritten clauses by their own distinctive wording, counting **occurrences**
+(`grep -oiF … | wc -l`) rather than lines: `"/red-team's Step 5"` ≥ 1 and `"/red-team Step 5's"` ≥ 1 —
+both verified **0 at base** and 1 each after the rewrite. Absence halves are unaffected (`grep -c` = 0
+is still correct on a joined stream). This is the same defect class the pass flagged as root 4, found
+in the pass's own output — which is why every check is executed at base rather than reasoned about.
 
 ## Residual risk (26 minors, auto-noted)
 
