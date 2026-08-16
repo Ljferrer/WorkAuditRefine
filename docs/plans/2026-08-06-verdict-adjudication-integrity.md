@@ -348,11 +348,16 @@ WAR construct is introduced (the cold home is a file, not a term). No ADR (Non-g
      must not be evadable by sentence-initial recapitalization — the recorded
      `retirement-grep-for-prose-needle-must-be-case-insensitive-or-sentence-initial-capitalization-evades-it`
      lesson). **NEW-present half (an absence-only pair passes on a deleted clause)** — pin the two
-     rewritten clauses by their own distinctive wording, each **0 at base** and 1 after:
-     `tr '\n' ' ' < docs/adr/0045-red-team-loop-budget-and-route-upstream.md | grep -oiF "/red-team's Step 5" | wc -l`
+     rewritten clauses by their own distinctive wording, each **0 at base** and 1 after —
+     **needles include D11's backticks, because the prescribed wording carries them**
+     (``the per-blocker bound `/red-team`'s Step 5 already imposed``):
+     ``tr '\n' ' ' < docs/adr/0045-red-team-loop-budget-and-route-upstream.md | grep -oiF "`/red-team`'s Step 5" | wc -l``
      ≥ 1 **and**
-     `tr '\n' ' ' < docs/adr/0045-red-team-loop-budget-and-route-upstream.md | grep -oiF "/red-team Step 5's" | wc -l`
-     ≥ 1.
+     ``tr '\n' ' ' < docs/adr/0045-red-team-loop-budget-and-route-upstream.md | grep -oiF "`/red-team` Step 5's" | wc -l``
+     ≥ 1. Build the needle from **D11's own byte string**, never from a paraphrase of it — a
+     backtick-stripped needle reads 0 against correctly-landed work and false-reds the End state
+     (this check was authored wrong three times: reflow-blind single-line `grep -cF`, then `grep -c`
+     on a `tr`-joined stream, then a paraphrased needle).
      **`grep -o … | wc -l`, never `grep -c`, on a line-joined stream** — `tr` collapses the file to a
      single line and `grep -c` counts matching *lines*, so any `-c` presence threshold above 1 is
      **permanently unreachable**, red even after the work lands. (A bare `/red-team` count would also
