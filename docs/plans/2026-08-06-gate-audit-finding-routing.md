@@ -375,8 +375,11 @@ carries the fallback).
       Task 1.1's seat-prompt/suite items and Task 1.2, #1343 for Task 1.3, #1377 + #1372 for Task
       1.4, #1410 + #1412 for Task 2.1, #1412 for Task 2.2, and the release commit (Task 3.1) cites
       the plan (the per-finding close conditions require the citation) ·
-      check (mechanical floor, phase close): `git log --format=%s <phase-base>..<tip> | grep -vc
-      '#[0-9]'` = 0 — every landing commit cites some issue; judge: the Lead at phase close maps
+      check (mechanical floor, phase close): `git log --no-merges --format=%s <phase-base>..<tip> |
+      grep -vc '#[0-9]'` = 0 — every landing commit cites some issue. **`--no-merges` is
+      load-bearing** (phase-1 field correction, 2026-08-15): the engine's own phase-merge commit
+      (`Merge phase-N: integration/… into <working>`) is refiner-generated and cites no issue by
+      construction, so a merge-inclusive floor false-reds every correct phase. Judge: the Lead at phase close maps
       each commit to its correct issue over the full `<phase-base>..<tip>` range (per the recorded
       each-commit-cites-its-issue lesson this condition is judged over the phase range, never gated
       per-commit at a task's audit_sha — the range does not exist at any single task's branch tip,
@@ -403,20 +406,28 @@ carries the fallback).
   16. *(amendment 2026-08-15, #1410)* The by-construction discriminator — a blocking finding with a
       concrete in-file `suggested_fix` needing no new plan decision is `request_changes`, however
       severe — is live on both auditor surfaces (standing card + dispatched prompt), same commit ·
-      check: `grep -Fc 'however severe' agents/war-auditor.md` ≥ 1 and
+      check: `node --test skills/war/assets/workflow-template.test.mjs` — **the D3 both-surfaces
+      registry row is the authoritative observable**: its anchors match the token against the
+      *rendered* `auditPrompt()` output, so reverting the emitted `pt` clause reds the suite.
+      Floor only (never the sole evidence): `grep -Fc 'however severe' agents/war-auditor.md` ≥ 1 and
       `grep -Fc 'however severe' skills/war/assets/workflow-template.js` ≥ 1 (0 on both surfaces at
       the amendment base, Context 11 — the earlier `by construction` candidate token pre-exists in
-      an unrelated `workflow-template.js` comment and is not a pin; suite pin rides End state 15's
-      test file).
+      an unrelated `workflow-template.js` comment and is not a pin). **Field correction
+      (phase 2, 2026-08-15):** the required coupling comments legitimately carry the same literals,
+      so the file-level grep alone can no longer discriminate an emitted-clause revert — attest from
+      the registry row.
   17. *(amendment 2026-08-15, #1412)* A metacharacter-refused search denial names the rule that fired
       (glob/alternation metacharacters, with the Grep-tool remedy), the guard's allowlist and deny
       decisions are byte-unchanged, and the search-tooling sentence is live on both auditor prose
       surfaces (the standing card, Task 2.1(c); the dispatched prompt, same task — the guard-message
       half is Task 2.2's) ·
-      check: `bash hooks/validate-auditor-git.test.sh` (the new message-content case);
+      check: `bash hooks/validate-auditor-git.test.sh` (the new message-content case) and
+      `node --test skills/war/assets/workflow-template.test.mjs` (the D3 registry row's
+      `metacharacter` anchor over the *rendered* prompt — the authoritative observable for the
+      prompt half, per End state 16's field correction). Floor only:
       `grep -ci 'metacharacter' agents/war-auditor.md` ≥ 1 and
       `grep -ci 'metacharacter' skills/war/assets/workflow-template.js` ≥ 1 (both 0 at the
-      amendment base, Context 11).
+      amendment base, Context 11; the coupling comments now also carry the literal).
 
 ## Build order (for /war)
 

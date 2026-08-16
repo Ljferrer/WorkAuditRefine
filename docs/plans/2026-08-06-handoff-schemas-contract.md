@@ -969,16 +969,35 @@ validation block, and #1430's (iii) reuses #1411's cause-propagation in the same
   `escalate` and falling through to an empty wave. Scope discipline: (iii) narrows **only** the
   `pt`-throw class; every other engine error keeps today's per-task `escalate` (the #742 wave-loop
   invariant — a task must still terminate in exactly one collected result, never re-enter the wave).
+  **(g) `escalate_reason` enforcement-claim truth fix** (*amendment 2026-08-15, plan-5 phase-2 field
+  finding; #1410 follow-through*): plan 5's Task 2.1 landed an `escalate_reason` bullet whose
+  absolute is false as stated — it says the schema layer re-prompts a non-conforming seat
+  "…never a dropped seat, never a land hold", while the bullet **immediately above it** (the
+  `severity`-required bullet, the *same* conform-or-retry loop) correctly says "persistent failure
+  falls into the existing dropped-seat → audit-blocked lane" — and that lane is live
+  (`verdict = 'audit-blocked'` on `seats.length < expected`, two sites in `workflow-template.js`).
+  Reword to the accurate claim, which is A8's: the retry loop is the enforcement point, a persistent
+  failure falls into the **existing** dropped-seat → audit-blocked lane, so there is **no NEW hold
+  path** (a reason-less `escalate` already held as `held:escalation` — the outcome class is
+  unchanged). The same absolute is mirrored in `workflow-template.js`'s coupling comment beside the
+  `AUDIT_VERDICT` literal (locate by construct, never by line), so both surfaces move in **this one
+  diff** — which is why (g) rides Task 2.1 (it owns `schemas.md` *and* `workflow-template.js`) and
+  not Task 1.3's schemas.md truth pass, whose footprint would have collided with Task 1.1 on
+  `workflow-template.js`. Retire the phrase `never a dropped seat` (measured **3** hits at plan 5's
+  phase-2 landed tip `0602094`; re-measure at the rebased base and record). Verified firsthand at
+  that tip, and consistent with the seat's own note (auditor disposition `note`; the servitor
+  captured the lesson).
   **Tests:** suite rows for (a) provision-before-checks ordering, (b) an environment-red fixture
   attesting `unverified` never `unmet`, (c) the enum drift-guard extension + a dead-seat fixture
   whose `blocked` carries the cause + an env-died-only phase not classifying as a hard escalation,
   (d) a leak fixture (plan-A slug with plan-B intent/backstops — #1413's observed shape) refused at
-  entry, and an own-token pass fixture accepted, (f) a launch fixture omitting `plan.file` refused at
+  entry, and an own-token pass fixture accepted, (g) an OLD-absent assert that `never a dropped seat` is gone from both surfaces plus a
+  NEW-present assert on the accurate no-NEW-hold-path wording, and (f) a launch fixture omitting `plan.file` refused at
   entry naming it **with zero agent spawns** (the observed failure spawned Provision first) + a
   `pt`-throw fixture classifying `held:workflow-error` rather than per-task `escalate` + a
   non-`pt` engine-error fixture still yielding per-task `escalate` (the both-ways proof that (iii)
   narrowed exactly one class). Commits cite #1395 (a/b), #1411 (c), #1413 (d),
-  #1408 (e), #1430 (f).
+  #1408 (e), #1430 (f), #1410 (g).
 - Done when: `node --test skills/war/assets/workflow-template.test.mjs`
 - requiresTest: true
 - requiresPackaging: false
