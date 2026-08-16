@@ -460,10 +460,15 @@ constructs exist at the frozen base, which already carries both landed predecess
   5/10/11's greps + hand-scans and record outcomes in the done report even when zero stragglers.
   Commits cite #1265 and #1357.
 - Done when: `[ "$(wc -c < CONTEXT.md)" -le 111616 ]`
-- requiresTest: false
+- requiresTest: true
 - requiresPackaging: false
 - deps: []
 - target repo: superproject
+
+  *(`requiresTest` flipped `false` → `true` by the /red-team pass, 2026-08-16: D18 makes this task
+  author a real test — the D30 pointer-pair row in `skills/war/assets/skill-doc-contracts.test.mjs` —
+  so the refiner's `assert-test-in-diff.sh` floor is satisfiable and now genuinely enforcing. It was
+  correctly `false` when the task was docs-only.)*
 
 ### Task 1.2: ADR 0045 attribution + census truth (#1357 findings 2/4/7)
 
