@@ -208,14 +208,18 @@ test('reference link integrity — the retired SKILL.md co-source-of-truth citat
 });
 
 // --- Arm 3: header truth --------------------------------------------------------------
-// The four references/ files whose eviction headers this pass re-qualified. Read by direct
-// readFileSync and NOT filtered out of the scan results: fail-closed, so a rename throws
-// ENOENT loudly instead of narrowing the check to whatever files still happen to match.
+// The eviction-destination references/ files whose headers must carry the qualified
+// byte-identity claim: the four this pass re-qualified, plus glossary-cold.md — the
+// CONTEXT.md eviction destination that joined later (every new eviction destination joins
+// this list on creation; UNION-extension precedent). Read by direct readFileSync and NOT
+// filtered out of the scan results: fail-closed, so a rename throws ENOENT loudly instead
+// of narrowing the check to whatever files still happen to match.
 const QUALIFIED_HEADERS = [
   'resume-and-recovery.md',
   'submodule-flows.md',
   'worker-servitor-edges.md',
   'auditor-teach.md',
+  'glossary-cold.md',
 ];
 
 test('reference link integrity — the re-basing caveat is retired everywhere and every re-qualified header says "at eviction time"', () => {

@@ -1658,6 +1658,10 @@ test('doc-contract: no stale `_polish` token in the swept doc surfaces (rename t
     'skills/war/references/docker-gate.md',
     'skills/war/references/submodule-flows.md',
     'skills/war/references/resume-and-recovery.md',
+    // UNION extension (verdict-adjudication-integrity D14 eviction, #1265/#1357): the CONTEXT.md
+    // glossary-eviction destination joins the same anchored list, so a future retirement sweep
+    // cannot silently skip the cold home.
+    'skills/war/references/glossary-cold.md',
   ]
   for (const relPath of sweptSurfaces) {
     const text = readDoc(relPath)

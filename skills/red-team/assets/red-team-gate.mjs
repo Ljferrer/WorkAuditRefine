@@ -156,7 +156,8 @@ export function classify(findings) {
 // reports routinely carry Minor notes and the Lead stamps only blockers/needsDecision). A run
 // with zero blockers and zero needsDecision therefore can never be ADJUDICATED.
 // `coverage` (optional) is the classifyCoverage result. Incomplete coverage is fail-closed:
-// the gate NEVER returns CLEARED while a probe was off-target, dropped, or never ran.
+// with incomplete coverage the gate returns INCOMPLETE and nothing else — never CLEARED,
+// CLEARED-WITH-NOTES, or ADJUDICATED — while a probe was off-target, dropped, or never ran.
 export function verdict(findings, coverage = null) {
   if (isIncomplete(coverage)) return 'INCOMPLETE'
   const { blockers, needsDecision, minors } = classify(findings)
