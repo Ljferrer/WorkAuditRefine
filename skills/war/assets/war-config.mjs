@@ -355,6 +355,12 @@ const GATE_DISCOVERY_TOKEN = `-name '*.test.sh'`
 // sorted and executed in order; any non-zero exit aborts immediately (|| exit 1).
 // The .claude/ exclusion keeps a repo-root gate run from executing the ~100 stale duplicate
 // suites under .claude/worktrees/ (WAR's own task worktrees).
+// COUPLING (D9, #1372/#1343): the `|| exit 1` abort is load-bearing beyond gate semantics — a red
+// bash suite stops the discovery loop, so suites after the abort point print no per-file banner and
+// the captured gate log's bash half is truncated. The gate-audit seat prompts' truncation clause
+// (mappedTestsLine/authMappedLine in workflow-template.js, plus the agents/war-auditor.md D7 bullet)
+// depends on exactly this fail-fast shape to read a post-abort zero-hit grep as soft
+// cannot-confirm rather than a provably-unrun hold. Change one, revisit the other.
 // Empty/null/falsy declaredGate → the discovery clause ALONE (no leading &&).
 // IDEMPOTENT: a declaredGate that ALREADY carries the discovery clause (detected via
 // GATE_DISCOVERY_TOKEN) is returned UNCHANGED, so resolveGate(resolveGate(g)) === resolveGate(g).

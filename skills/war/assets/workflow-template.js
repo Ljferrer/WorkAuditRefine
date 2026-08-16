@@ -630,7 +630,8 @@ const dispositionOf = f =>
 // Terminal-disposition demotion ladder (ADR 0013): demote one step toward durability, never drop
 // silently — EVERY demotion is log()ged. Arms: failed absorb → follow-up; non-approve-branch
 // findings → follow-up (filed with the escalation); held-phase phaseCloseQueue → follow-up;
-// fileless absorb → severity default.
+// fileless absorb → severity default; sweep-raised absorb at either terminal sweep arm →
+// follow-up (the sweep is the phase's terminal fix round).
 const demote = (f, to, why) => {
   log(`Disposition demotion: [${f.severity}] "${f.title}" (task ${f.task}) → ${to} — ${why}.`)
   ;(to === 'note' ? notes : minorsFiled).push(f)
@@ -1828,7 +1829,7 @@ if (mergedTasksForGateAudit.length > 0) {
       ? pt`\nMAPPED TESTS (D7 — the mechanical HARD trigger): the test floor matched these test paths in this task's diff (MergeResult.mappedTests):\n`
         // pt-tagged prompt-feeding row builder (mapped-tests → gate-audit prompt): ${p2 ?? ''} absence-tolerant.
         + mappedTests.map(p2 => pt`  - ${p2 ?? ''}`).join('\n') + '\n'
-        + pt`Grep EACH mapped path against the CAPTURED gate log artifact (artifact-first). A mapped path absent — or present with 0 executed tests — at a CONFIRMED/BENIGN-ADVANCE pin is the HARD provably-unrun finding ONLY when the captured log ENUMERATES test file paths for that path's suite half (e.g. the bash suite half's per-file \`== gate(bash): <path> ==\` headers; a \`node --test\` run reports test TITLES plus an aggregate summary, never per-file paths). A zero-hit grep against a non-enumerating half (e.g. a .mjs mapped path vs the node-reporter output) proves nothing about that path: SOFT cannot-confirm, never a hold.\n`
+        + pt`Grep EACH mapped path against the CAPTURED gate log artifact (artifact-first). A mapped path absent — or present with 0 executed tests — at a CONFIRMED/BENIGN-ADVANCE pin is the HARD provably-unrun finding ONLY when the captured log ENUMERATES test file paths for that path's suite half (e.g. the bash suite half's per-file \`== gate(bash): <path> ==\` headers; a \`node --test\` run reports test TITLES plus an aggregate summary, never per-file paths). A zero-hit grep against a non-enumerating half (e.g. a .mjs mapped path vs the node-reporter output) proves nothing about that path: SOFT cannot-confirm, never a hold. A captured log whose bash half ABORTED (the discovery loop exits on the first red suite — a red suite's header with no later headers after it) is truncated: a mapped path after the abort point is SOFT cannot-confirm, never HARD.\n`
       : ''
     // claimedIdsLine (A1, Task 3.2): the worker-claimed End-state ids, cross-checked by this seat
     // against its endStateAttestations rows. Empty/absent — or a claims-less phase — ⇒ '' (byte-identical).
@@ -1853,7 +1854,7 @@ if (mergedTasksForGateAudit.length > 0) {
       + guardLine
       + pt`If the pin is CONFIRMED/BENIGN-ADVANCE, confirm the mapped acceptance-criteria test is present in the files at that tip `
       + pt`(read-only git / Read in ${refineryPath}), not merely inferred from the gate output text; record a `
-      + pt`HARD gate-evidence finding ONLY when the mapped test is genuinely absent AT THE CONFIRMED INTEGRATION TIP and the captured artifact confirms it did not run.\n`
+      + pt`HARD gate-evidence finding for a MISSING mapped test ONLY when it is genuinely absent AT THE CONFIRMED INTEGRATION TIP and the captured artifact confirms on an ENUMERATING half that it did not run (the present-but-unrun path is governed by the MAPPED TESTS block above).\n`
       + pt`Return the sha you actually reviewed as audit_sha (it should equal the observed tip ${observedHead || gateHeadSha}); the Lead compares it to the dispatched pin — a differing well-formed sha demotes your findings to SOFT (you judged a different tree).\n`
       + debtLine
       + pt`Acceptance criteria / plan slice: ${acceptanceCriteria || '(see plan file)'}\n`
@@ -1869,8 +1870,10 @@ if (mergedTasksForGateAudit.length > 0) {
       { agentType: NS + 'war-auditor', phase: 'Audit',
         label: `gate-audit:${taskId}:execution-evidence`, schema: AUDIT_VERDICT, ...spawn('auditor') })
     // gate-evidence findings are SOFT (do not hold the land) UNLESS a mapped test is provably unrun (hard).
-    // Hard case: the auditor records a Critical or Major finding on the execution-evidence lens, indicating
-    // a mapped acceptance-criteria test present in the pre-merge diff is absent/0-count in the gate output.
+    // Hard case: the auditor records a Critical or Major finding on the execution-evidence lens per its
+    // governing instruction for the path (survey-derived correction, #1372): the MAPPED TESTS block governs
+    // present-but-unrun (enumeration-conditional, truncation-aware); the conjunctive clause governs a
+    // MISSING mapped test (genuinely absent at the confirmed tip, artifact-confirmed on an enumerating half).
     // Per Open decision #1 (resolved: operationally defined) — severity Critical/Major signals provably-unrun.
     if (gateAuditVerdict) {
       const rawFindings = gateAuditVerdict.findings || []
@@ -1939,7 +1942,7 @@ if (mergedTasksForGateAudit.length > 0) {
       ? pt`\nMAPPED TESTS (D7 — the mechanical HARD trigger): the test floor matched these test paths across the dep-crossing tasks' diffs (MergeResult.mappedTests):\n`
         // pt-tagged prompt-feeding row builder (mapped-tests → integrated-tip prompt): ${p2 ?? ''} absence-tolerant.
         + authMapped.map(p2 => pt`  - ${p2 ?? ''}`).join('\n') + '\n'
-        + pt`Grep EACH mapped path against the CAPTURED integrated-tip gate log (artifact-first). A mapped path absent — or present with 0 executed tests — is the HARD provably-unrun finding ONLY when the captured log ENUMERATES test file paths for that path's suite half (e.g. the bash suite half's per-file \`== gate(bash): <path> ==\` headers; a \`node --test\` run reports test TITLES plus an aggregate summary, never per-file paths). A zero-hit grep against a non-enumerating half (e.g. a .mjs mapped path vs the node-reporter output) proves nothing about that path: SOFT cannot-confirm, never a hold.\n`
+        + pt`Grep EACH mapped path against the CAPTURED integrated-tip gate log (artifact-first). A mapped path absent — or present with 0 executed tests — is the HARD provably-unrun finding ONLY when the captured log ENUMERATES test file paths for that path's suite half (e.g. the bash suite half's per-file \`== gate(bash): <path> ==\` headers; a \`node --test\` run reports test TITLES plus an aggregate summary, never per-file paths). A zero-hit grep against a non-enumerating half (e.g. a .mjs mapped path vs the node-reporter output) proves nothing about that path: SOFT cannot-confirm, never a hold. A captured log whose bash half ABORTED (the discovery loop exits on the first red suite — a red suite's header with no later headers after it) is truncated: a mapped path after the abort point is SOFT cannot-confirm, never HARD.\n`
       : ''
     const authVerdict = await agent(
       pt`INTEGRATED-TIP GATE-AUDIT for WAR phase ${ph.id} (lens: execution-evidence — AUTHORITATIVE). `
@@ -2096,9 +2099,20 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
     // 3. Full auditRound panel re-audit at the polish SHA — same unanimity rules as any task.
     const sweepWhy = blockedReason(sweep)
     let sweepApproved = false
+    // Sweep-raised finding routing (D1/D2, #1377): the re-audit panel's Minor/Nit findings, hoisted
+    // out of the `if (!sweepWhy)` block (pSeats is block-scoped there) so BOTH terminal arms below
+    // can route them through the disposition ladder — nothing sweep-raised may enter `aced`,
+    // `aceable`, or `phaseCloseQueue` (the sweep is the phase's terminal fix round; there is no later
+    // round to land an absorb). Critical/Major keep today's visibility: they block re-approval and
+    // ride the `polish-rejected`/`polish-discarded` auditLog entries. Vacuous arms: blocked (sweepWhy
+    // — no panel convened), skipped (invalid roster / failed provisioning — the sweep never
+    // dispatched), and held (the held-phase drain above) never reach these arms with a convened
+    // panel, so no sweep-raised findings exist there and this stays empty.
+    let sweepMinors = []
     if (!sweepWhy) {
       const { seats: pSeats, expected: pExpected } = await auditRound(polishTask, null, sweep && sweep.tests ? sweep.tests : null, sweep && sweep.head_sha)
       sweepApproved = allApprove(pSeats, pExpected) && blockingOf(pSeats).length === 0
+      sweepMinors = minorsOf(pSeats).map(f => ({ task: polishTask.id, ...f }))
       auditLog.push({ task: polishTask.id, verdict: sweepApproved ? 'approve' : 'polish-rejected', findings: pSeats.flatMap(s => s.findings || []), requested: pExpected, returned: pSeats.length })
     }
     // 4. Re-approved → the refiner merges the polish branch at the serial merge queue's tail; the
@@ -2123,6 +2137,14 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
       const polishSha = (typeof sweep.head_sha === 'string' && sweep.head_sha) ? sweep.head_sha : '(polish sha unrecorded)'
       log(`phase-close sweep MERGED at ${polishSha} — the land proceeds on the polished tip; ${phaseCloseQueue.length} queued finding(s) absorbed.`)
       for (const f of phaseCloseQueue.splice(0)) aced.push({ task: f.task, finding: f, sha: polishSha })
+      // Merged-arm routing (#1377): sweep-raised Minor/Nits route by disposition — an absorb (incl.
+      // fileless) demotes because the sweep is the phase's terminal fix round; absorb has no later round.
+      for (const f of sweepMinors) {
+        const d = dispositionOf(f)
+        if (d === 'follow-up') minorsFiled.push(f)
+        else if (d === 'note') notes.push(f)
+        else demote(f, 'follow-up', "sweep-raised absorb — the phase-close sweep is the phase's terminal fix round; absorb has no later round to land")
+      }
     } else {
       // DISCARD: the polish branch + _polish worktree are LEFT IN PLACE (never-lose-unmerged-commits;
       // reaping is a human act). The queue demotes to follow-up; the pre-polish tip lands exactly as
@@ -2131,6 +2153,15 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
       log(`phase-close sweep DISCARDED (${sweepWhy || (sweepApproved ? `polish merge returned ${pmr && pmr.status || 'no result'}` : 'the panel did not re-approve')}) — polish branch ${polishBranch} and worktree ${polishWorktree} left in place; queue demotes to follow-up.`)
       auditLog.push({ task: polishTask.id, verdict: 'polish-discarded', branch: polishBranch, findings: [], blocked: sweepWhy || null })
       for (const f of phaseCloseQueue.splice(0)) demote(f, 'follow-up', 'phase-close sweep discarded — the polish branch never merged; the pre-polish tip lands')
+      // Discard-arm routing (#1377): sweep-raised Minor/Nits route through the same ladder — an
+      // absorb demotes because the polish branch never merged (nothing to absorb into). A blocked
+      // sweep (sweepWhy) reaches here with NO panel convened, so sweepMinors is empty — vacuous.
+      for (const f of sweepMinors) {
+        const d = dispositionOf(f)
+        if (d === 'follow-up') minorsFiled.push(f)
+        else if (d === 'note') notes.push(f)
+        else demote(f, 'follow-up', 'sweep-raised absorb — the phase-close sweep was discarded; the polish branch never merged')
+      }
     }
     }
   }
