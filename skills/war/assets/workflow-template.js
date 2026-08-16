@@ -630,7 +630,8 @@ const dispositionOf = f =>
 // Terminal-disposition demotion ladder (ADR 0013): demote one step toward durability, never drop
 // silently — EVERY demotion is log()ged. Arms: failed absorb → follow-up; non-approve-branch
 // findings → follow-up (filed with the escalation); held-phase phaseCloseQueue → follow-up;
-// fileless absorb → severity default.
+// fileless absorb → severity default; sweep-raised absorb at either terminal sweep arm →
+// follow-up (the sweep is the phase's terminal fix round).
 const demote = (f, to, why) => {
   log(`Disposition demotion: [${f.severity}] "${f.title}" (task ${f.task}) → ${to} — ${why}.`)
   ;(to === 'note' ? notes : minorsFiled).push(f)
