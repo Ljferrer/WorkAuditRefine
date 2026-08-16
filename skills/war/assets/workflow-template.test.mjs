@@ -4581,6 +4581,12 @@ test('mappedTests grep (End state 7, D7): a merge returning mappedTests threads 
   assert.match(p, /ABORTED/, 'the truncation clause names the early-aborted bash half')
   assert.match(p, /truncated/i, 'the truncation clause states the log is truncated, not non-enumerating')
   assert.match(p, /after the abort point/i, 'a mapped path after the abort point is SOFT cannot-confirm, never HARD')
+  // Rescoped conjunctive clause (D3, #1372): a standing pin — a revert to the old unconditional
+  // sentence (the contradiction #1372 exists to close) must red HERE, not only in this phase's
+  // one-shot endstate-check greps. Single-surface by construction: the standing card carries no
+  // conjunctive twin (plan Context 2), so this per-task-prompt presence assert is the whole guard.
+  assert.match(p, /HARD gate-evidence finding for a MISSING mapped test/, 'the conjunctive clause is scoped to the MISSING-test case')
+  assert.ok(p.includes('governed by the MAPPED TESTS block above'), 'and defers the present-but-unrun path to the MAPPED TESTS block by name')
   // Consumer-side banner coupling (D6, #1343-5): the per-file banner literal the seats grep for is
   // pinned against resolveGate's LIVE output (the producer) AND on both seat surfaces here — so the
   // seat-facing literal cannot drift from what the gate actually prints.
