@@ -718,6 +718,16 @@ place; queue demotes to follow-up) and the pre-polish tip lands exactly as it wo
 improve the tip; a discarded sweep recomputes nothing.
 _Avoid_: cleanup phase; ad-hoc seam hunting; treating a discard as a failure that holds the land.
 
+**sweep-raised finding**:
+A finding the phase-close re-audit panel raises against the polish commit itself, not a queued
+`phaseCloseQueue` finding the sweep drains; Minor/Nit route by disposition at sweep close
+(Critical/Major keep today's blocking visibility), never aced, never re-queued.
+
+**truncated gate log**:
+A captured gate log whose bash half aborted at the first red suite (some per-file headers, not
+all discovered suites); the D7 enumeration-conditional treats post-abort mapped paths as SOFT
+cannot-confirm, never HARD.
+
 **Retired-token sweep**:
 A Lead-run, judgment-triggered check at every landed phase close (manual completions via the §4.3
 escalation-completion recipe included) — never plan-declared, judged from the **mandatory**
