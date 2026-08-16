@@ -3583,6 +3583,45 @@ test('AUDIT_VERDICT tightening: finding items require severity; disposition/phas
   assert.match(src, /autoFixable is DEPRECATED/, 'the deprecation is documented at the schema literal')
 })
 
+// ---------------------------------------------------------------------------
+// Phase 2 Task 2.1 (#1410 fix 1) — the escalate-boundary INTAKE contract. Enforcement arm recorded
+// by the worker probe (2026-08-15, code-read of the running agent({schema}) layer, harness v2.1.228):
+// the layer Ajv-compiles the FULL dispatched schema (allErrors) and a non-conforming StructuredOutput
+// return throws a schema-mismatch that re-prompts the seat (bounded conform-or-retry) — so the
+// AUDIT_VERDICT if/then conditional IS the validation-layer observable: an escalate verdict without a
+// non-empty escalate_reason is rejected at intake and re-prompted. The layer's strict-schema deriver
+// (keyword allowlist, no if/then) already fell back to non-strict on this schema (tests_verified has
+// no properties), so the conditional adds no strict-mode regression, never drops a seat, and adds no
+// hold path (A8).
+// ---------------------------------------------------------------------------
+
+test('Task 2.1 intake contract (#1410): the dispatched AUDIT_VERDICT carries the required-when-escalate if/then conditional — an escalate verdict without a non-empty escalate_reason is schema-rejected', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const aud = calls.find(c => isAuditor(c) && (c.opts.label || '').startsWith('audit:'))
+  assert.ok(aud && aud.opts.schema, 'a roster audit dispatch carries a schema (presence guard)')
+  const s = aud.opts.schema
+  assert.equal(s.if && s.if.properties && s.if.properties.verdict && s.if.properties.verdict.const, 'escalate',
+    "the if arm triggers exactly on verdict 'escalate'")
+  assert.deepEqual(s.if.required, ['verdict'], 'the if arm requires verdict present (no vacuous trigger)')
+  assert.deepEqual(s.then && s.then.required, ['escalate_reason'], 'the then arm makes escalate_reason required')
+  assert.equal(s.then.properties.escalate_reason.minLength, 1, 'non-empty: minLength 1 in the then arm')
+  assert.equal(s.properties.escalate_reason.type, 'string',
+    'escalate_reason stays a declared top-level string property (optional outside the escalate arm)')
+  // The same constant rides every dispatch site — the roster seats and the three gate-audit-family
+  // seats all pass `schema: AUDIT_VERDICT`, so the conditional reaches all of them.
+  assert.ok((src.match(/schema: AUDIT_VERDICT/g) || []).length >= 4,
+    'all four AUDIT_VERDICT dispatch sites (roster + three gate-audit-family seats) share the constant')
+  assert.match(src, /if: \{ properties: \{ verdict: \{ const: 'escalate' \} \}, required: \['verdict'\] \}/,
+    'the conditional lives inside the AUDIT_VERDICT literal (source pin)')
+})
+
+test('Task 2.1 (#1410): required-when-escalate is stated on the prose surfaces; the escalate_reason? optional marker is retired (End state 15 greps, encoded)', () => {
+  for (const [name, text] of [['war-auditor.md', auditorMd], ['references/schemas.md', schemasMd]]) {
+    assert.match(text, /required when/i, `${name} states the required-when-escalate contract (NEW-present)`)
+    assert.ok(!text.includes('escalate_reason?'), `${name} no longer carries the escalate_reason? optional marker (OLD-absent)`)
+  }
+})
+
 test('aceEligible (criterion 1): regex is exactly the two version-slot JSONs and the f.file truthiness guard is KEPT', () => {
   assert.ok(src.includes('const aceEligible = f => f.file && !/(?:plugin\\.json|marketplace\\.json)$/.test(f.file)'),
     'aceEligible keeps the f.file guard and narrows the regex to plugin.json|marketplace.json')
@@ -8026,8 +8065,22 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
                  ['end-state-only seat prompt (claims-bearing)', esOnlyP]],
       anchors: [/stamped `?tip_sha`?/, /stale-but-readable/i, /mismatch\w* the confirmed tip/i,
                 /stale-but-readable[\s\S]{0,240}unverified/i, /readable is not sufficient/i] },
+    // gate-audit-finding-routing Task 2.1 (#1410 fixes 1+2, #1412 fix 3): the escalate-boundary
+    // contract — a non-empty escalate_reason required when verdict is escalate (intake side: the
+    // AUDIT_VERDICT if/then conditional; enforcement arm recorded at that literal and by the intake-
+    // contract test above), the by-construction discriminator (a blocking finding with a concrete
+    // in-file suggested_fix needing no new plan decision is request_changes, however severe), and the
+    // search-tooling rule (Grep/Glob tools, never shell grep/git grep — the guard refuses
+    // glob/alternation metacharacters). Anchor precondition (Context 11, re-measured at this task's
+    // base): `required when`, `however severe`, and `metacharacter` each count 0 on BOTH surfaces, so
+    // a per-surface revert of any of the three sentences reds this row; `by construction`
+    // (pre-existing in an unrelated workflow-template.js comment) and bare `escalate_reason` (1 hit
+    // on all three prose surfaces at base) are rejected pins.
+    { name: 'escalate-boundary contract (Task 2.1): required-when-escalate reason + by-construction discriminator + Grep-tool search rule — standing card + auditPrompt()',
+      surfaces: [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]],
+      anchors: [/required when/i, /however severe/i, /metacharacter/i] },
   ]
-  assert.ok(REGISTRY.length >= 20, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), and the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison) — floor equals the true row count, no slack (#693)')
+  assert.ok(REGISTRY.length >= 21, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison), and the Task 2.1 escalate-boundary contract row (gate-audit-finding-routing Phase 2: required-when-escalate + discriminator + search-tooling) — floor equals the true row count, no slack (#693)')
   for (const row of REGISTRY) {
     for (const [sName, sText] of row.surfaces) {
       for (const re of row.anchors) {

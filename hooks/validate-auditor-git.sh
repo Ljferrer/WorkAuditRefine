@@ -80,9 +80,15 @@ deny() {
 # NOTE: We do NOT put a literal newline in the allowlist string — bash 3.2
 # strips trailing newlines from $(...) so the pattern would be empty.
 # Instead, newline is implicitly denied because it is NOT in the allowlist.
+#
+# The deny message NAMES the metacharacter rule that fired (#1412 fix 1): the
+# dominant real denial shape is a seat typing a genuine search (git grep 'a\|b',
+# --include=*.py), not a && / ; chain, so the split-the-chain remedy alone
+# misdescribes what happened. Message text only — the decision, exit code, and
+# routing (char check first, before any verb parsing) are byte-unchanged.
 # ---------------------------------------------------------------------------
 residue="$(printf '%s' "$cmd" | LC_ALL=C tr -d 'A-Za-z0-9 ./_=:,@^~%+-')"
-[ -n "$residue" ] && deny "command contains forbidden character(s): $(printf '%s' "$residue" | LC_ALL=C tr -d $'\n' | head -c 20) — the guard admits one bare git command per Bash call: split && / ; chains and continuations into separate calls; filter and search output with the Read/Grep/Glob tools"
+[ -n "$residue" ] && deny "command contains forbidden character(s): $(printf '%s' "$residue" | LC_ALL=C tr -d $'\n' | head -c 20) — the metacharacter rule fired: glob/alternation/expansion metacharacters are refused outright; search with the Grep tool (glob:/type: filters) instead of shell grep/git grep — the guard admits one bare git command per Bash call: split && / ; chains and continuations into separate calls; filter and search output with the Read/Grep/Glob tools"
 
 # ---------------------------------------------------------------------------
 # At this point, the command contains only [A-Za-z0-9 ./_=:,@^~%+-].

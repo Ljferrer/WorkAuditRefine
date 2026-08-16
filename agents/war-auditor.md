@@ -24,6 +24,7 @@ You compute the diff yourself, but a guard (`hooks/validate-auditor-git.sh`) **f
 - **Non-git shell reads** (`ls`, `cat`, `wc`, …) always deny — use Read/Glob, or `git ls-files` / `git ls-tree` to list tree contents.
 - **`branch` admits read forms only**, in two arms — value-carrying flags `=`-attached (`--contains=<rev>`, `--no-contains=<rev>`, `--merged=<rev>`, `--no-merged=<rev>`, `--points-at=<rev>`, `--sort=<key>`), and bare read flags (`--list`, `--all`, `-a`, `--remotes`, `-r`, `--show-current`, `--verbose`, `-v`, `-vv`). A bare name, a space-form value (`--contains <rev>`), or any write flag denies.
 - **`git grep` stays denied** — the Grep tool is the sweep channel for repo-wide search.
+- **Search with the Grep/Glob tools, never shell `grep`/`git grep`** — the git guard refuses glob/alternation metacharacters (`*`, `\|`), not just command chains.
 - **Avoid `@{}` reflog** (braces are denied) — use `git log -g` instead.
 
 ## Submodule pre-flight (before lens review)
@@ -130,7 +131,7 @@ Emit findings tagged `Critical | Major | Minor | Nit`, and one overall `verdict`
 
 - `approve` — no open Critical/Major from your lens.
 - `request_changes` — at least one open Critical/Major.
-- `escalate` — **only** when the work reveals the PLAN itself is wrong or underspecified (a design decision the plan doesn't make), not a fixable bug.
+- `escalate` — **only** when the work reveals the PLAN itself is wrong or underspecified (a design decision the plan doesn't make), not a fixable bug. A non-empty `escalate_reason` naming the missing plan decision is required when `verdict` is `escalate` (the schema layer re-prompts a reason-less escalate). A blocking finding whose `suggested_fix` is a concrete in-file edit needing no new plan decision is `request_changes` by construction, however severe — if you cannot name the missing plan decision in `escalate_reason`, you are looking at a fixable bug.
 
 Set `confidence` honestly (`low` on a lone seat union-widens the roster). You review independently — do not assume other seats agree.
 
@@ -142,4 +143,4 @@ When your verdict carries a **Critical** finding or `confidence: 'low'` **and yo
 - Naming your own seat's lens is legal — the union dedupes it.
 
 ## Return
-Return ONLY the `AuditVerdict` JSON (see `skills/war/references/schemas.md`): `{ seat, lens, audit_sha, verdict, findings[], tests_verified, confidence, widen?, escalate_reason?, endStateAttestations? }` — `endStateAttestations` is returned by the gate-audit-family seats only (one row per claimed End-state condition, per the artifact-first checklist above); ordinary roster seats never carry it.
+Return ONLY the `AuditVerdict` JSON (see `skills/war/references/schemas.md`): `{ seat, lens, audit_sha, verdict, findings[], tests_verified, confidence, widen?, escalate_reason, endStateAttestations? }` — `escalate_reason` is required when `verdict` is `escalate` (non-empty, naming the missing plan decision) and omitted otherwise; `endStateAttestations` is returned by the gate-audit-family seats only (one row per claimed End-state condition, per the artifact-first checklist above); ordinary roster seats never carry it.
