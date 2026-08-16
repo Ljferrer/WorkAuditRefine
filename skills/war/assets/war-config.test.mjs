@@ -1108,6 +1108,15 @@ test('resolveGate: includes printf banner for each suite', () => {
   const result = resolveGate('node --test x')
   assert.ok(result.includes('printf'), `expected printf banner in result, got: ${result}`)
   assert.ok(result.includes('gate(bash)'), `expected gate(bash) label in result, got: ${result}`)
+  // Producer pin (D6, #1343-5): the full banner shape — exact label literal, %s path interpolation,
+  // and the "$f" argument — so bare printf/gate(bash) substring survival can no longer mask an
+  // emptied banner (the premise the gate-audit HARD provably-unrun arm rests on).
+  assert.ok(result.includes('== gate(bash): '), `expected the '== gate(bash): ' banner label literal in result, got: ${result}`)
+  assert.ok(result.includes('%s'), `expected %s per-file path interpolation in the banner, got: ${result}`)
+  assert.ok(result.includes('"$f"'), `expected "$f" path argument in result, got: ${result}`)
+  // Adjacency pin: "$f" must be the banner printf's OWN argument (format-string closing quote
+  // followed by "$f"), not merely satisfied by the later `bash "$f"` invocation.
+  assert.ok(result.includes(`==\\n' "$f"`), `expected the banner format string to be fed "$f" as its printf argument, got: ${result}`)
 })
 
 // Idempotence trio (ADR 0036): the engine now composes plan.gate AND the Lead still pre-resolves via
