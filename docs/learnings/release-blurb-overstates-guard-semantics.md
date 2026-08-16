@@ -4,11 +4,11 @@ description: "Guard blurb: say 'refuse diffs touching X' not repos"
 metadata:
   node_type: memory
   type: project
-  keywords: [Status section wording, trigger surface, diff vs repo, fail-closed phrasing, submodule refuse, prose nit, operator misinformation, absolute claim vs residual exception, ADR carve-out, fresh-env re-run, unconditional vs conditional emission, near-miss diagnostic, assert-test-in-diff.sh, stderr guard clause, umbrella clause, heterogeneous guard shapes, realpathSync, campaign-ledger, fileURLToPath, No behavior change label, bolded lead-in, colon-scoped enumeration, release headline contradiction, anti-overclaim device, appositive antecedent ambiguity, dangling modifier, itself unchanged, nearest-noun misattachment, D6 verbatim-capture contract, on every error path, seed-pack die try region, mkdtemp scratch leak scope, TOKEN-scoped absence lock, prose-only reintroduction, verifyTier cap exceeded, unconditional prose append, gating-premise mismatch, non-submodule byte identity claim, submodule floor gain, polish merge prompt, floor-retry prompt, submodLandNote, submodMergeNote, every existing non-submodule prompt, issue citation convention, origin issue vs task issue, ADR body vs header qualifier, byte-unchanged body qualifier dropped, ADR Status line amendment, expect_deny_teach pinning granularity, K5 combined substring stated as separate pins, test assertion granularity overclaim, authoring checklist self-violation, checklist item dropped in its own introducing paragraph, D25 cross-ADR mirror, two-site characterization, either-alone overclaim, guard scope word omission, bound every absolute, universal quantifier enumeration gap, version-manifest omitted from outside-dir enumeration, doctrine count vs guard count mismatch, engine untouched claim, task diff vs release window scope, unbumped stacked PR, zero engine change, named above enumeration gap, skills touch outside families, previously-valid vs currently-valid, boilerplate closing sentence drift, stock release phrase word swap, headline vs body scope mismatch, malformed argv every mode, file mode bare token carve-out, worktree name collision resolved via numeric suffix, unbounded absolute inherited from source comment, namespace-scoped ref-diff refs/heads refs/tags, every live ref vs every live heads/tags ref, escape-worthy fixture misattribution, wrong case cited as the escaping fixture, faithful mirror of suite banner still overstates scope, watchdog group kill fd survivor, unbounded claim repaired two sentences later same bullet, discrimination ceiling banner dropped, quoted test case number without its own scope caveat, done-when floor wiring, TERM-ignoring descendant residual, hand-duplicated guard not shared, lacks_i lacks has_i_stripped, existence guard controls #1362, pin the guard both ways, shell-pin-helpers]
+  keywords: [Status section wording, trigger surface, diff vs repo, fail-closed phrasing, submodule refuse, prose nit, operator misinformation, absolute claim vs residual exception, ADR carve-out, fresh-env re-run, unconditional vs conditional emission, near-miss diagnostic, assert-test-in-diff.sh, stderr guard clause, umbrella clause, heterogeneous guard shapes, realpathSync, campaign-ledger, fileURLToPath, No behavior change label, bolded lead-in, colon-scoped enumeration, release headline contradiction, anti-overclaim device, appositive antecedent ambiguity, dangling modifier, itself unchanged, nearest-noun misattachment, D6 verbatim-capture contract, on every error path, seed-pack die try region, mkdtemp scratch leak scope, TOKEN-scoped absence lock, prose-only reintroduction, verifyTier cap exceeded, unconditional prose append, gating-premise mismatch, non-submodule byte identity claim, submodule floor gain, polish merge prompt, floor-retry prompt, submodLandNote, submodMergeNote, every existing non-submodule prompt, issue citation convention, origin issue vs task issue, ADR body vs header qualifier, byte-unchanged body qualifier dropped, ADR Status line amendment, expect_deny_teach pinning granularity, K5 combined substring stated as separate pins, test assertion granularity overclaim, authoring checklist self-violation, checklist item dropped in its own introducing paragraph, D25 cross-ADR mirror, two-site characterization, either-alone overclaim, guard scope word omission, bound every absolute, universal quantifier enumeration gap, version-manifest omitted from outside-dir enumeration, doctrine count vs guard count mismatch, engine untouched claim, task diff vs release window scope, unbumped stacked PR, zero engine change, named above enumeration gap, skills touch outside families, previously-valid vs currently-valid, boilerplate closing sentence drift, stock release phrase word swap, headline vs body scope mismatch, malformed argv every mode, file mode bare token carve-out, worktree name collision resolved via numeric suffix, unbounded absolute inherited from source comment, namespace-scoped ref-diff refs/heads refs/tags, every live ref vs every live heads/tags ref, escape-worthy fixture misattribution, wrong case cited as the escaping fixture, faithful mirror of suite banner still overstates scope, watchdog group kill fd survivor, unbounded claim repaired two sentences later same bullet, discrimination ceiling banner dropped, quoted test case number without its own scope caveat, done-when floor wiring, TERM-ignoring descendant residual, hand-duplicated guard not shared, lacks_i lacks has_i_stripped, existence guard controls #1362, pin the guard both ways, shell-pin-helpers, character allowlist residue check, forbidden character deny message, metacharacter rule fired, guard-message-overclaim-inherited-into-blurb, static-guard-deny-message]
   provenance: code-verified
   promoted: dev/2026-08-06-red-team-gate-cli@phase-2
   slug: release-blurb-overstates-guard-semantics
-  phase: "submodule-inc1/T4 +15 recurrences (war-campaign-resilience-roadmap/phase-2 Release task 2.1, 2026-07-22; test-floor-target-repo/phase-2 Release task 2.1, 2026-07-22; cli-main-guard-normalization/phase-2 Release task 2.1, 2026-07-23; runbook-and-standing-record-coherence/phase-2 Release task 2.1, 2026-07-24; recovery-re-merge-dispatch-coherence/phase-2 Release task 2.1, 2026-07-24; drift-guard-and-floor-diagnostic-hardening/phase-2 Release task 2.1, 2026-07-24/25; 2026-07-24-memory-tooling-hardening/phase-2 Release task 2.1, 2026-07-26; 2026-07-26-dispatch-args-and-floor-coverage/phase-3 Release task 3.1, 2026-07-26/27; 2026-07-26-auditor-guard-policy-and-mirror-truth/phase-2 Release task 2.1, 2026-07-27; 2026-07-26-standing-doc-and-remedy-truth-sweep/phase-2 Release task 2.1, 2026-07-27; 2026-07-28-audit-evidence-precedence/phase-2 Release task 2.1, 2026-07-28; 2026-08-02-redteam-doctrine-and-guards/phase-2 Release task 2.1, 2026-08-02; 2026-08-04-interview-and-authoring-contract/phase-3 Release task 10, 2026-08-05; 2026-08-06-red-team-gate-cli/phase-2 Release task 2.1, 2026-08-06/14; 2026-08-06-escape-guard-exit-contract/phase-2 Release task 2.1, 2026-08-15; 2026-08-06-done-when-floor-wiring/phase-2 Release task 2.1, 2026-08-15; 2026-08-06-shell-pin-helpers/phase-2 Release task 2.1, 2026-08-15)"
+  phase: "submodule-inc1/T4 +18 recurrences (war-campaign-resilience-roadmap/phase-2 Release task 2.1, 2026-07-22; test-floor-target-repo/phase-2 Release task 2.1, 2026-07-22; cli-main-guard-normalization/phase-2 Release task 2.1, 2026-07-23; runbook-and-standing-record-coherence/phase-2 Release task 2.1, 2026-07-24; recovery-re-merge-dispatch-coherence/phase-2 Release task 2.1, 2026-07-24; drift-guard-and-floor-diagnostic-hardening/phase-2 Release task 2.1, 2026-07-24/25; 2026-07-24-memory-tooling-hardening/phase-2 Release task 2.1, 2026-07-26; 2026-07-26-dispatch-args-and-floor-coverage/phase-3 Release task 3.1, 2026-07-26/27; 2026-07-26-auditor-guard-policy-and-mirror-truth/phase-2 Release task 2.1, 2026-07-27; 2026-07-26-standing-doc-and-remedy-truth-sweep/phase-2 Release task 2.1, 2026-07-27; 2026-07-28-audit-evidence-precedence/phase-2 Release task 2.1, 2026-07-28; 2026-08-02-redteam-doctrine-and-guards/phase-2 Release task 2.1, 2026-08-02; 2026-08-04-interview-and-authoring-contract/phase-3 Release task 10, 2026-08-05; 2026-08-06-red-team-gate-cli/phase-2 Release task 2.1, 2026-08-06/14; 2026-08-06-escape-guard-exit-contract/phase-2 Release task 2.1, 2026-08-15; 2026-08-06-done-when-floor-wiring/phase-2 Release task 2.1, 2026-08-15; 2026-08-06-shell-pin-helpers/phase-2 Release task 2.1, 2026-08-15; 2026-08-06-gate-audit-finding-routing/phase-3 Release task 3.1, 2026-08-15)"
   tags:
     - war
     - release
@@ -22,9 +22,10 @@ metadata:
     - "[[release-status-is-replace-slot-not-empty-field]]"
     - "[[release-bump-slots-canonical-no-badge]]"
     - "[[gitmodules-working-tree-read-vs-ref-snapshot]]"
+    - "[[static-guard-deny-message-misnames-which-rule-fired-for-shared-char-class]]"
   created: 2026-06-30
   originSessionId: 0e364ee5-f0b3-47f6-a9e4-9bf2dd555733
-  modified: 2026-08-15T21:28:16.016Z
+  modified: 2026-08-16T00:00:00.000Z
 ---
 
 # Release blurb prose overstates guard semantics
@@ -850,3 +851,72 @@ Related: [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]] (worktr
 ground this recurrence's D3 read — the task worktree's own branch never advanced to the release-bump
 commit, since that commit was made directly on `dev/2026-08-06-shell-pin-helpers` during Refine's land
 step, not on any task/integration branch this servitor's cwd or worktree enumeration could reach).
+
+## Recurrence 18 (2026-08-15, plan `2026-08-06-gate-audit-finding-routing`, phase 3 "Release", task
+3.1) — a blurb clause inherits the exact rule-attribution overclaim already carried by the guard's
+own deny message, one level removed from the guard code itself
+
+A twenty-seventh instantiation, `disposition: follow-up`, Minor. `code-verified` — read directly at
+the `_refinery13` worktree whose `HEAD` is byte-equal to the landed tip
+`3843440a5e0f85e4a3efd4b01b5b2f48e5f02e99` (gitdir physical path containing this plan's slug:
+`<repo-root>/.claude/war-worktrees/2026-08-06-gate-audit-finding-routing-2026-08-15/_refinery/`),
+`README.md` line 368.
+
+**"…the deny message now names the rule that fired (glob/alternation/expansion metacharacters are
+refused outright)" is true only when the offending byte genuinely is a glob/alternation/expansion
+metacharacter — but the check the message describes is a single character-ALLOWLIST residue test
+that fires for ANY out-of-allowlist byte.** At the pin, `hooks/validate-auditor-git.sh` lines 90-91
+extract `residue` via `LC_ALL=C tr -d 'A-Za-z0-9 ./_=:,@^~%+-'` and, when non-empty, emits ONE static
+deny message ending "the metacharacter rule fired: glob/alternation/expansion metacharacters are
+refused outright…" for every residue — a `&&`/`;` chain operator, a stray `#`, a tab, or a non-ASCII
+byte all trigger the identical message, so a seat denied for a pure chain operator reads "the
+metacharacter rule fired" exactly as if a glob had fired. The plan's own End state 17 scopes the
+claim correctly ("a metacharacter-refused search denial names the rule that fired"), but the blurb's
+prose widens the trigger clause to "when the auditor git guard's forbidden-character check fires" —
+i.e. every denial the check produces, not only the metacharacter-caused ones.
+
+**New sub-mechanism for the family, and the first case where a blurb inherits an overclaim from its
+own guard's *deny message* rather than a test's banner or a design doc's amendment paragraph.**
+This exact over-attribution is *already* recorded, `code-verified`, one layer down, in this same
+campaign's sibling lesson [[static-guard-deny-message-misnames-which-rule-fired-for-shared-char-class]]
+(landed at Task 2.2, `phase: 2026-08-06-gate-audit-finding-routing/2.2`) — that lesson documents the
+guard *message itself* over-attributing which rule fired for a shared allowlist-residue check. This
+recurrence shows the identical over-attribution propagating one level further up the documentation
+chain: the release blurb's own paraphrase of that message reproduces the same imprecision, because
+the blurb author (correctly) trusted the message text as blurb-ready prose without re-checking it
+against the underlying check's actual trigger set — the same discipline gap Recurrence 15(a) named
+for copying a test banner's wording, now extended to copying a guard's own runtime deny string.
+
+Not a security defect, not a hold: no deny decision, exit code, char set, or verb allowlist moved;
+only the diagnostic-and-blurb text over-attributes precision it doesn't have. Both auditor seats
+(task-level and the phase-close gate-audit) that reviewed this bullet left it Minor/`follow-up`
+(one severity step above this family's default Nit, matching Recurrence 8's precedent for a false
+claim sitting in the same clause a plan End state scopes correctly) rather than `absorb` — `##
+Status` is a release-slot paragraph outside a normal task's `Files:` list to touch incidentally, and
+the disposition rule refuses `absorb` for anything touching a version/release slot. Not fixed before
+land (`fixRounds: 0`); suggested fix on record: drop the "that fired" attribution, or restore the
+plan's own scope word ("when the guard's forbidden-character check refuses a search-shaped command,
+the deny message now names the metacharacter rule…").
+
+**Sharper form of the Rule for this instance:** when a release blurb paraphrases a guard's own deny
+message (not a test banner, not a design doc) as blurb-ready prose, the message's own precision gap
+is not blurb-safe just because it is the artifact's own wording — re-derive the message's *actual*
+trigger set from the check's code (here: a character-allowlist residue test, not a metacharacter
+detector) before repeating its rule-attribution clause, exactly as Recurrence 15(a) requires for a
+test banner's wording and Recurrence 9's addendum requires for an ADR/test paraphrase. A guard
+message and a release blurb can carry the *identical* over-attribution independently authored in two
+different tasks of the same plan, because each author trusted the nearest artifact's prose rather
+than the underlying check's code.
+
+**Now 27 recurrences across four overlapping sub-families**, plus this recurrence's new
+"message-to-blurb inheritance" sub-instance of the "inherited absolute" family Recurrence 15
+established. Applies-to checklist addendum: before publishing a blurb clause paraphrasing a guard's
+*own* deny/log message, trace the message back to the check's actual code condition (allowlist vs.
+denylist framing, shared-message-many-causes vs. per-cause branching) rather than treating the
+message's existing wording as already precise.
+
+Related: [[static-guard-deny-message-misnames-which-rule-fired-for-shared-char-class]] (the sibling
+lesson documenting the same over-attribution one layer down, in the guard's own message rather than
+the release blurb describing it); [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]]
+(worktree-lookup path used to ground this recurrence's D3 read — `_refinery13` resolved by gitdir
+physical path over several similarly-numbered sibling worktree entries for this same plan slug).

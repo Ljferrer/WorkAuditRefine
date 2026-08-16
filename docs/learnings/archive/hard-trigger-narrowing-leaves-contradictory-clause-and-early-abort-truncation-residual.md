@@ -1,6 +1,6 @@
 ---
 name: hard-trigger-narrowing-leaves-contradictory-clause-and-early-abort-truncation-residual
-description: "Narrowing a mechanical HARD anti-cheat trigger via an adjudication note can leave a nearby unchanged clause contradicting the new rule, and the log format the new rule tests can itself be truncated by an early-abort discovery loop"
+description: "RESOLVED (gate-audit-finding-routing, #1377/#1372, 2026-08-15) — Narrowing a mechanical HARD anti-cheat trigger via an adjudication note can leave a nearby unchanged clause contradicting the new rule, and the log format the new rule tests can itself be truncated by an early-abort discovery loop"
 metadata: 
   node_type: memory
   type: project

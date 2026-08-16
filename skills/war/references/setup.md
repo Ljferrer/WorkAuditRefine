@@ -1,7 +1,8 @@
 # /war Setup — branch-gated procedures
 
 Verbatim evictions from `skills/war/SKILL.md` (prompt-surface simplification, spec §4.3; the moved
-blocks below are byte-identical to their pre-eviction SKILL.md text). Each block is read on the
+blocks below are byte-identical to their pre-eviction SKILL.md text, except where a block carries a
+noted in-place amendment — currently the § `--afk` sanity floor block). Each block is read on the
 trigger named at its eviction site; the surrounding Setup / launch steps stay in the SKILL. Positional
 words inside the moved blocks ("above", "below") refer to their original SKILL.md positions.
 
@@ -16,7 +17,10 @@ checked out anywhere unexpected.
 
 Trigger: an `--afk` run is about to take the proposed test-floor glob set.
 
-     - **`--afk` sanity floor.** Take the proposal only if **each token matches ≥ 1 existing repo file** (the same `Glob` sample); otherwise fall back to `null` with a ledger note that records the **rejected proposal verbatim** (the full proposed token set) plus its **zero-match tokens** (which tokens matched no file) — this pending-proposal record is exactly what the per-phase launch re-check (below) reads, and adopts once every token matches and the value re-passes the validator's `overrides.testPattern` check. The residual — an over-wide but file-matching pattern that admits a test the gate ignores — is **caught downstream** by the post-merge gate-audit **`execution-evidence`** pass: a mapped test provably unrun at the confirmed tip is a **HARD** finding.
+*In-place amendment (2026-08-15, #1343 finding 1): the residual backstop sentence below was narrowed —
+this block is no longer byte-identical to its pre-eviction SKILL.md text (see the header caveat).*
+
+     - **`--afk` sanity floor.** Take the proposal only if **each token matches ≥ 1 existing repo file** (the same `Glob` sample); otherwise fall back to `null` with a ledger note that records the **rejected proposal verbatim** (the full proposed token set) plus its **zero-match tokens** (which tokens matched no file) — this pending-proposal record is exactly what the per-phase launch re-check (below) reads, and adopts once every token matches and the value re-passes the validator's `overrides.testPattern` check. The residual — an over-wide but file-matching pattern that admits a test the gate ignores — has only a narrowed downstream backstop: the post-merge gate-audit **`execution-evidence`** **HARD** catch holds only where the captured gate log enumerates test file paths (the `.test.sh` half); for a pattern admitting a non-`.test.sh` file the gate ignores, the mapped-path grep is **SOFT** cannot-confirm — so the **≥ 1-file sanity floor** plus the **floor ⊆ gate** discipline is the operative guard.
 
 ## Per-phase pending-proposal re-check (phase launch)
 

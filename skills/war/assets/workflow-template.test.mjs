@@ -3583,6 +3583,45 @@ test('AUDIT_VERDICT tightening: finding items require severity; disposition/phas
   assert.match(src, /autoFixable is DEPRECATED/, 'the deprecation is documented at the schema literal')
 })
 
+// ---------------------------------------------------------------------------
+// Phase 2 Task 2.1 (#1410 fix 1) — the escalate-boundary INTAKE contract. Enforcement arm recorded
+// by the worker probe (2026-08-15, code-read of the running agent({schema}) layer, harness v2.1.228):
+// the layer Ajv-compiles the FULL dispatched schema (allErrors) and a non-conforming StructuredOutput
+// return throws a schema-mismatch that re-prompts the seat (bounded conform-or-retry) — so the
+// AUDIT_VERDICT if/then conditional IS the validation-layer observable: an escalate verdict without a
+// non-empty escalate_reason is rejected at intake and re-prompted. The layer's strict-schema deriver
+// (keyword allowlist, no if/then) already fell back to non-strict on this schema (tests_verified has
+// no properties), so the conditional adds no strict-mode regression, never drops a seat, and adds no
+// hold path (A8).
+// ---------------------------------------------------------------------------
+
+test('Task 2.1 intake contract (#1410): the dispatched AUDIT_VERDICT carries the required-when-escalate if/then conditional — an escalate verdict without a non-empty escalate_reason is schema-rejected', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const aud = calls.find(c => isAuditor(c) && (c.opts.label || '').startsWith('audit:'))
+  assert.ok(aud && aud.opts.schema, 'a roster audit dispatch carries a schema (presence guard)')
+  const s = aud.opts.schema
+  assert.equal(s.if && s.if.properties && s.if.properties.verdict && s.if.properties.verdict.const, 'escalate',
+    "the if arm triggers exactly on verdict 'escalate'")
+  assert.deepEqual(s.if.required, ['verdict'], 'the if arm requires verdict present (no vacuous trigger)')
+  assert.deepEqual(s.then && s.then.required, ['escalate_reason'], 'the then arm makes escalate_reason required')
+  assert.equal(s.then.properties.escalate_reason.minLength, 1, 'non-empty: minLength 1 in the then arm')
+  assert.equal(s.properties.escalate_reason.type, 'string',
+    'escalate_reason stays a declared top-level string property (optional outside the escalate arm)')
+  // The same constant rides every dispatch site — the roster seats and the three gate-audit-family
+  // seats all pass `schema: AUDIT_VERDICT`, so the conditional reaches all of them.
+  assert.ok((src.match(/schema: AUDIT_VERDICT/g) || []).length >= 4,
+    'all four AUDIT_VERDICT dispatch sites (roster + three gate-audit-family seats) share the constant')
+  assert.match(src, /if: \{ properties: \{ verdict: \{ const: 'escalate' \} \}, required: \['verdict'\] \}/,
+    'the conditional lives inside the AUDIT_VERDICT literal (source pin)')
+})
+
+test('Task 2.1 (#1410): required-when-escalate is stated on the prose surfaces; the escalate_reason? optional marker is retired (End state 15 greps, encoded)', () => {
+  for (const [name, text] of [['war-auditor.md', auditorMd], ['references/schemas.md', schemasMd]]) {
+    assert.match(text, /required when/i, `${name} states the required-when-escalate contract (NEW-present)`)
+    assert.ok(!text.includes('escalate_reason?'), `${name} no longer carries the escalate_reason? optional marker (OLD-absent)`)
+  }
+})
+
 test('aceEligible (criterion 1): regex is exactly the two version-slot JSONs and the f.file truthiness guard is KEPT', () => {
   assert.ok(src.includes('const aceEligible = f => f.file && !/(?:plugin\\.json|marketplace\\.json)$/.test(f.file)'),
     'aceEligible keeps the f.file guard and narrows the regex to plugin.json|marketplace.json')
@@ -4160,6 +4199,70 @@ test('phase-close sweep discard (criterion 5): a rejected polish is DISCARDED �
   assert.ok(discardEntry && discardEntry.branch === 'war/wtprov-a/p3-polish', 'the polish branch name is recorded (reaping is a human act)')
 })
 
+// Sweep-raised finding routing (End states 1+2, #1377): the re-audit panel's OWN Minor/Nit findings
+// (raised against the polish diff itself) route through the disposition ladder at both terminal arms.
+// Delete-the-feature trace (recorded per the plan's check): with the two routing loops removed from
+// workflow-template.js's merged/discard arms, sweepMinors is never consumed — the absorb finding never
+// reaches demote(), so the 'Disposition demotion' log assert fails; minorsFiled never receives either
+// sweep-raised finding, so the minorsFiled and handoff.followUps asserts fail; only the aced-is-queue-
+// only invariant would stay green, and it cannot green the tests alone.
+test('sweep-raised finding routing (End state 1, #1377): a MERGED sweep re-audit Minor/absorb demotes through the ladder (terminal-round reason) to minorsFiled + followUps; disposition:follow-up files WITHOUT demotion; aced carries only the queued findings', async () => {
+  const sweepAbsorb = { severity: 'Minor', title: 'sweep-raised absorb', file: 'docs/y.md', rationale: 'introduced by the polish diff', disposition: 'absorb' }
+  const sweepFollowUp = { severity: 'Minor', title: 'sweep-raised follow-up', file: 'docs/z.md', rationale: 'substantive work', disposition: 'follow-up' }
+  const sweepNote = { severity: 'Nit', title: 'sweep-raised note', file: 'docs/w.md', rationale: 'informational', disposition: 'note' }
+  const impl = buildSeqImpl(
+    { 'audit:p3-polish:correctness': [approveWith('audit:p3-polish:correctness', [sweepAbsorb, sweepFollowUp, sweepNote])] },
+    sweepBase([queuedAbsorb()]))
+  const { out, logs } = await runPhase(SWEEP_ARGS(), impl)
+  assert.equal(out.handoff.polish, 'merged', 'the sweep merged (presence guard — an approve verdict with Minor/Nit findings still re-approves)')
+  // absorb → demote(…, 'follow-up', …): the ladder is the vehicle, the reason names the terminal round.
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('Disposition demotion') && l.includes('sweep-raised absorb') && l.includes('terminal fix round')),
+    "the sweep-raised absorb takes the LOGGED demotion naming the sweep as the phase's terminal fix round (never dropped silently)")
+  const filedAbsorb = (out.minorsFiled || []).find(m => m && m.title === 'sweep-raised absorb')
+  assert.ok(filedAbsorb && filedAbsorb.task === 'p3-polish', 'the demoted absorb lands in minorsFiled, task-stamped with the polish pseudo-task id')
+  // follow-up → filed directly, no demotion log line for it.
+  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'sweep-raised follow-up'), 'a disposition:follow-up sweep finding files to minorsFiled')
+  assert.ok(!logs.some(l => typeof l === 'string' && l.includes('Disposition demotion') && l.includes('sweep-raised follow-up')),
+    'the follow-up finding routes WITHOUT a demotion (it is already at its durable disposition)')
+  // note → notes.
+  assert.ok((out.notes || []).some(n => n && n.title === 'sweep-raised note'), 'a disposition:note sweep finding routes to notes')
+  // handoff observable: followUps derive from minorsFiled.
+  assert.ok((out.handoff.followUps || []).some(fu => fu && /sweep-raised absorb/.test(fu.reason || '')), 'the handoff followUps observable carries the demoted absorb')
+  assert.ok((out.handoff.followUps || []).some(fu => fu && /sweep-raised follow-up/.test(fu.reason || '')), 'the handoff followUps observable carries the filed follow-up')
+  // Invariant: aced carries ONLY the queued findings absorbed at the polish sha — nothing sweep-raised.
+  assert.equal((out.aced || []).length, 1, 'aced carries exactly the one queued finding')
+  assert.equal(out.aced[0].finding.title, 'dangling link', 'aced is queue-only — the queued finding, absorbed at the polish sha')
+  assert.ok(!(out.aced || []).some(a => a && a.finding && /^sweep-raised/.test(a.finding.title || '')), 'nothing sweep-raised rides aced')
+  assert.ok(!(out.handoff.absorbed || []).some(a => (a.findings || []).some(t => /^sweep-raised/.test(t))), 'nothing sweep-raised rides the handoff absorbed observable')
+})
+
+test("sweep-raised finding routing — discard arm (End state 2, #1377): a rejected sweep routes its re-audit Minor/Nits through the same ladder with the unmerged-branch reason; the polish-rejected auditLog entry pins verdict + findings payload", async () => {
+  const sweepAbsorb = { severity: 'Minor', title: 'sweep-raised absorb', file: 'docs/y.md', rationale: 'introduced by the polish diff', disposition: 'absorb' }
+  const impl = buildSeqImpl(
+    { 'audit:p3-polish:correctness': [{ seat: 'p', lens: 'correctness', verdict: 'request_changes', confidence: 'high', findings: [sweepAbsorb] }] },
+    sweepBase([queuedAbsorb()]))
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS(), impl)
+  assert.ok(!calls.some(c => (c.opts.label || '') === 'merge:p3-polish'), 'the rejected polish is never merged (presence guard)')
+  assert.equal(out.handoff.polish, 'discarded', 'the sweep discards (presence guard)')
+  assert.equal(out.landDecision, 'landed', 'the phase still lands on the pre-polish tip — routing is filing, never a new hold path')
+  // The sweep-raised absorb demotes with the discard-arm reason (the polish branch never merged).
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('Disposition demotion') && l.includes('sweep-raised absorb') && l.includes('never merged')),
+    'the discard-arm demotion is log()ged with the unmerged-branch reason')
+  const filed = (out.minorsFiled || []).find(m => m && m.title === 'sweep-raised absorb')
+  assert.ok(filed && filed.task === 'p3-polish', 'the sweep-raised absorb lands in minorsFiled, task-stamped with the polish pseudo-task id')
+  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'dangling link'), 'the queued finding still demotes to follow-up (the queue arm is untouched)')
+  assert.ok(!(out.aced || []).length, 'nothing is aced on the discard arm')
+  // polish-rejected auditLog entry shape (P2 conversion-verified gap — zero pre-existing asserts at base):
+  // the verdict literal plus the findings payload ride the entry, so Critical/Major (and any Minor/Nit)
+  // sweep-raised findings keep their auditLog visibility on the terminal arm.
+  const rejected = (out.auditLog || []).find(e => e && e.verdict === 'polish-rejected')
+  assert.ok(rejected, "the 'polish-rejected' auditLog entry is recorded")
+  assert.equal(rejected.task, 'p3-polish', 'the entry is keyed to the polish pseudo-task')
+  assert.ok((rejected.findings || []).some(f => f && f.title === 'sweep-raised absorb'), "the entry carries the panel's findings payload")
+  assert.equal(rejected.requested, 1, 'the entry records the requested seat count')
+  assert.equal(rejected.returned, 1, 'the entry records the returned seat count')
+})
+
 test('phase-close sweep: a held phase never dispatches the sweep — queue drains to follow-up; handoff degrades with polish:skipped', async () => {
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
@@ -4511,9 +4614,33 @@ test('mappedTests grep (End state 7, D7): a merge returning mappedTests threads 
   assert.match(p, /ONLY when the captured log ENUMERATES test file paths/i, 'the HARD trigger is enumeration-conditional — a zero-hit grep is HARD only where the log names file paths')
   assert.match(p, /never per-file paths/i, 'the node-reporter titles-only fact is stated to the seat')
   assert.match(p, /SOFT cannot-confirm, never a hold/i, 'a zero-hit grep against a non-enumerating half degrades SOFT — the fail-safe direction, never a false land-hold')
+  // Truncation clause (D4, #1343-3): an early-aborted bash half (the discovery loop's || exit 1 exits
+  // on the first red suite) leaves an enumerating-LOOKING log that is truncated — a mapped path after
+  // the abort point must degrade SOFT, never mint a false HARD land-hold.
+  assert.match(p, /ABORTED/, 'the truncation clause names the early-aborted bash half')
+  assert.match(p, /truncated/i, 'the truncation clause states the log is truncated, not non-enumerating')
+  assert.match(p, /after the abort point/i, 'a mapped path after the abort point is SOFT cannot-confirm, never HARD')
+  // Rescoped conjunctive clause (D3, #1372): a standing pin — a revert to the old unconditional
+  // sentence (the contradiction #1372 exists to close) must red HERE, not only in this phase's
+  // one-shot endstate-check greps. Single-surface by construction: the standing card carries no
+  // conjunctive twin (plan Context 2), so this per-task-prompt presence assert is the whole guard.
+  assert.match(p, /HARD gate-evidence finding for a MISSING mapped test/, 'the conjunctive clause is scoped to the MISSING-test case')
+  assert.ok(p.includes('governed by the MAPPED TESTS block above'), 'and defers the present-but-unrun path to the MAPPED TESTS block by name')
+  // Consumer-side banner coupling (D6, #1343-5): the per-file banner literal the seats grep for is
+  // pinned against resolveGate's LIVE output (the producer) AND on both seat surfaces here — so the
+  // seat-facing literal cannot drift from what the gate actually prints.
+  const BANNER = '== gate(bash): '
+  const live = resolveGate('node --test x')
+  assert.ok(live.includes(BANNER), "resolveGate's live output carries the per-file banner literal (producer side)")
+  assert.ok(live.includes('%s'), "resolveGate's live output interpolates the per-file path (%s) into the banner")
+  assert.ok(p.includes(BANNER), 'the per-task seat prompt carries the matching banner literal')
+  assert.ok(auditorMd.includes(BANNER), 'agents/war-auditor.md carries the matching banner literal (standing card)')
   // Fail-open: no mappedTests token on the MergeResult ⇒ no block (the SOFT cannot-confirm posture kept).
+  // The absence probe keys on the BLOCK HEADER literal: the rescoped conjunctive clause (D3, #1372)
+  // defers to the MAPPED TESTS block BY NAME in every per-task prompt, so a bare 'MAPPED TESTS'
+  // substring probe would false-trip on the deferral parenthetical, not the threaded block.
   const { calls: c2 } = await runPhase(PROVISION_ARGS(), gateAuditImpl)
-  assert.ok(!gateAuditCalls(c2)[0].prompt.includes('MAPPED TESTS'), 'no mappedTests ⇒ no block — byte-identical posture')
+  assert.ok(!gateAuditCalls(c2)[0].prompt.includes('MAPPED TESTS (D7'), "no mappedTests ⇒ no threaded block — the SOFT cannot-confirm posture kept")
 })
 
 // Reporter-format premise pin (round-3 fix-forward adjudication): the enumeration-conditional above
@@ -4534,9 +4661,13 @@ test('reporter-format premise (D7, round-3): a piped node --test run emits title
     // must reproduce the gate's own invocation shape, not this suite's runner-child shape.
     const env = { ...process.env }
     delete env.NODE_TEST_CONTEXT
-    const run = spawnSync(process.execPath, ['--test', mjsMappedPath], { encoding: 'utf8', env })
+    // D7 premise-probe hardening (#1343-4/6): bounded (timeout) and loud on env trouble — a spawn
+    // failure or a wedged child (run.error: ENOENT, ETIMEDOUT kill, …) is its OWN named condition,
+    // never allowed to impersonate a reporter-format premise change via a bare status assert.
+    const run = spawnSync(process.execPath, ['--test', mjsMappedPath], { encoding: 'utf8', env, timeout: 60_000 })
     const log = (run.stdout || '') + (run.stderr || '')
-    assert.equal(run.status, 0, 'the premise fixture suite is green (presence guard — the run below provably executed)')
+    assert.ok(!run.error, `premise probe failed to spawn or wedged — a spawn/env failure, NOT a premise change: ${run.error}`)
+    assert.equal(run.status, 0, `the premise fixture suite is green (presence guard — the run below provably executed); got status ${run.status}, stderr tail: ${(run.stderr || '').slice(-200)}`)
     assert.ok(log.includes('premise-pin sentinel title'), 'the piped reporter emits test TITLES — the suite provably ran and is visible in the log')
     assert.match(log, /tests 1\b/, '…plus the aggregate summary')
     assert.ok(!log.includes('wibble.premise.test.mjs'),
@@ -4563,6 +4694,11 @@ test('authMappedLine twin (D7, round-3): the integrated-tip AUTHORITATIVE seat t
   assert.match(p, /CAPTURED integrated-tip gate log/i, 'the grep target is the integrated-tip captured artifact')
   assert.match(p, /ONLY when the captured log ENUMERATES test file paths/i, 'the twin carries the enumeration-conditional — a per-task-only fix would false-hold through this seat instead')
   assert.match(p, /SOFT cannot-confirm, never a hold/i, 'the twin degrades SOFT on a non-enumerating half')
+  // Truncation clause (D4, #1343-3) — the twin carries it too: a per-task-only clause would let a
+  // truncated (early-aborted) integrated-tip log mint the false HARD through this seat instead.
+  assert.match(p, /ABORTED/, 'the twin names the early-aborted bash half')
+  assert.match(p, /truncated/i, 'the twin states the truncated-log condition')
+  assert.match(p, /after the abort point/i, 'the twin degrades a post-abort mapped path SOFT, never HARD')
 })
 
 test('A1 cross-check (Task 3.2): the worker-claimed End-state ids (acceptance_criteria_covered) reach the per-task gate-audit seat; empty/absent ⇒ no block', async () => {
@@ -7896,11 +8032,17 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     // .mjs grep degrades SOFT cannot-confirm, never a false land-hold (premise pinned live by the
     // reporter-format test above). Every enumeration-conditional anchor below was verified absent from
     // both surfaces at the pre-change base, so a per-surface revert to the unconditional rule reds this row.
+    // gate-audit-finding-routing Task 1.1 (D4/D5, #1343-3): the row GREW the three truncation anchors
+    // (no new row; the floor-count assertion message below is untouched) — an early-ABORTED bash half
+    // (the discovery loop exits on the first red suite) leaves a truncated log, and a mapped path after
+    // the abort point is SOFT cannot-confirm, never HARD. All three tokens were zero-hit on both
+    // anchored surfaces at this task's base (Context 7), so a per-surface revert of the clause reds this row.
     { name: 'mechanical mapped-tests grep (D7, Task 3.2 + round-3 enumeration-conditional): grep each MergeResult.mappedTests path against the captured gate log — absent/0-count at a confirmed pin is HARD only where the log enumerates test file paths; a non-enumerating half is SOFT cannot-confirm, never a hold',
       surfaces: [['war-auditor.md', auditorMd], ['per-task gate-audit prompt (mappedTests-bearing)', esSeatP]],
       anchors: [/mappedTests/, /grep each/i, /captured gate log/i, /0 executed tests/i, /provably-unrun/i,
                 /ONLY when the captured log ENUMERATES test file paths/i, /aggregate summary/i,
-                /never per-file paths/i, /non-enumerating/i, /SOFT cannot-confirm, never a hold/i] },
+                /never per-file paths/i, /non-enumerating/i, /SOFT cannot-confirm, never a hold/i,
+                /ABORTED/, /truncated/i, /after the abort point/i] },
     // Task 3.2 recovery Blocker 1 (the Pivotal prompt-surface-split constraint): the endstate-check
     // dispatch flavor lands on the refiner's standing card AND the dispatched prompt — a card that
     // never learned the flavor invites a decline, and the dispatch is fail-open, so a decline is
@@ -7923,8 +8065,22 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
                  ['end-state-only seat prompt (claims-bearing)', esOnlyP]],
       anchors: [/stamped `?tip_sha`?/, /stale-but-readable/i, /mismatch\w* the confirmed tip/i,
                 /stale-but-readable[\s\S]{0,240}unverified/i, /readable is not sufficient/i] },
+    // gate-audit-finding-routing Task 2.1 (#1410 fixes 1+2, #1412 fix 3): the escalate-boundary
+    // contract — a non-empty escalate_reason required when verdict is escalate (intake side: the
+    // AUDIT_VERDICT if/then conditional; enforcement arm recorded at that literal and by the intake-
+    // contract test above), the by-construction discriminator (a blocking finding with a concrete
+    // in-file suggested_fix needing no new plan decision is request_changes, however severe), and the
+    // search-tooling rule (Grep/Glob tools, never shell grep/git grep — the guard refuses
+    // glob/alternation metacharacters). Anchor precondition (Context 11, re-measured at this task's
+    // base): `required when`, `however severe`, and `metacharacter` each count 0 on BOTH surfaces, so
+    // a per-surface revert of any of the three sentences reds this row; `by construction`
+    // (pre-existing in an unrelated workflow-template.js comment) and bare `escalate_reason` (1 hit
+    // on all three prose surfaces at base) are rejected pins.
+    { name: 'escalate-boundary contract (Task 2.1): required-when-escalate reason + by-construction discriminator + Grep-tool search rule — standing card + auditPrompt()',
+      surfaces: [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]],
+      anchors: [/required when/i, /however severe/i, /metacharacter/i] },
   ]
-  assert.ok(REGISTRY.length >= 20, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), and the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison) — floor equals the true row count, no slack (#693)')
+  assert.ok(REGISTRY.length >= 21, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison), and the Task 2.1 escalate-boundary contract row (gate-audit-finding-routing Phase 2: required-when-escalate + discriminator + search-tooling) — floor equals the true row count, no slack (#693)')
   for (const row of REGISTRY) {
     for (const [sName, sText] of row.surfaces) {
       for (const re of row.anchors) {

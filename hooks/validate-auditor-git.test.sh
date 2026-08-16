@@ -79,8 +79,10 @@ expect_deny() {
 # Asserts: exit 2 AND "WAR:" marker AND <substr> present on stderr.
 # The extra <substr> check is the 2026-07-22 spec's D6 micro-teach assertion — the deny message
 # must name the sanctioned alternative (Read/Grep/Glob, the Grep tool, the
-# =-attached branch read-flag form, or — since the 2026-07-26 spec's D3 — the
-# one-bare-git-command-per-Bash-call form at the forbidden-char deny). Substr
+# =-attached branch read-flag form, since the 2026-07-26 spec's D3 the
+# one-bare-git-command-per-Bash-call form at the forbidden-char deny, or — since
+# #1412 fix 1 — the metacharacter-rule naming + Grep-tool-filters remedy at that
+# same deny). Substr
 # matched literally via a quoted case pattern: "$3" is quoted, so even a substr
 # carrying glob-special chars (e.g. the parens in "character(s)") matches
 # literally, and the payloads themselves are never used as patterns.
@@ -679,6 +681,42 @@ expect_deny_teach "K7: git diff HEAD && git log → denied + Read/Grep/Glob teac
 # argument K7 records, applied to the one element K7 left unpinned).
 expect_deny_teach "K8: git diff HEAD && git log → denied + split-the-chain teach element" \
   "$(auditor_cmd "git diff HEAD && git log")" "split && / ; chains"
+
+# ---------------------------------------------------------------------------
+# CASE GROUP L: forbidden-char deny NAMES THE RULE THAT FIRED (#1412 fix 1)
+# The 191-denial run behind #1412 was seats typing real searches (git grep
+# 'a\|b', --include=*.py), for which the split-the-chain framing K8 pins does
+# not describe what was typed. The message now also names the metacharacter
+# rule — glob/alternation/expansion metacharacters are refused outright — with
+# the Grep-tool (glob:/type: filters) remedy. Message text ONLY: the deny
+# DECISION is byte-unchanged (exit 2, char check still fires first, verb set
+# untouched — #1412 fix 2's grep-verb widening is deliberately NOT taken, cf.
+# G6), and K5–K8 stay green on their frozen substrings.
+# L1/L2 assert on a representative denied search: git grep with an alternation
+# \| — the exact #1412 shape. Routing-pinned like K5–K8: the char check is the
+# first check after the empty-command guard, so this payload can only exit at
+# the forbidden-char deny site (never at G6's unlisted-verb site — the \| and
+# quotes deny before the verb is ever parsed). Built with jq -nc --arg (C11's
+# rationale: \| is an invalid JSON escape, so auditor_cmd's printf would emit
+# unparseable JSON, the guard's jq read of .agent_type would return empty, and
+# the deny would be VACUOUS via the non-auditor pass-through).
+# ---------------------------------------------------------------------------
+
+# L1: the rule that fired is NAMED on stderr (message-content assert, not just
+# exit code — the guard-specificity lesson).
+expect_deny_teach "L1: git grep 'a\\|b' → denied + metacharacter rule named" \
+  "$(jq -nc --arg c "git grep 'a\\|b'" \
+     '{agent_type:"war-auditor",tool_input:{command:$c}}')" \
+  "glob/alternation/expansion metacharacters are refused outright"
+
+# L2: the rule clause carries its own remedy — the Grep tool's glob:/type:
+# filters instead of shell grep/git grep. Pinned separately: without this pin
+# the remedy half could be trimmed and L1 stays green (the same trimming
+# argument K7/K8 record, applied to the new clause's two halves).
+expect_deny_teach "L2: git grep 'a\\|b' → denied + Grep-tool filters remedy" \
+  "$(jq -nc --arg c "git grep 'a\\|b'" \
+     '{agent_type:"war-auditor",tool_input:{command:$c}}')" \
+  "Grep tool (glob:/type: filters) instead of shell grep/git grep"
 
 # ---------------------------------------------------------------------------
 # Summary

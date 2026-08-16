@@ -3,11 +3,16 @@
 Converted by `/war-machine --afk` from [docs/specs/2026-08-06-war-strategy-mirror-guards-design.md](../specs/2026-08-06-war-strategy-mirror-guards-design.md)
 (Part 1 is its decision digest; every spec assumption is carried into the ledger or retired with a stated
 reason; spec citations are provenance-only — Part 1 alone carries every decision, constraint, and
-mechanic). Issues addressed: #1307, #1308, #1309. Issue → task mapping: #1307 → Task 1.1 (two
+mechanic). Issues addressed: #1307, #1308, #1309, and — folded 2026-08-15 by operator direction as
+the Phase-2 amendment (an operator-reported latitude-doctrine gap landing squarely on this plan's
+authoring-surface family) — #1431. Issue → task mapping: #1307 → Task 1.1 (two
 doctrine-ward convergence edits + the doctrine-side presence pin + the five-atom mirror-equality block);
 #1308 → Task 1.1 (the four both-ways `lacks_i` positive controls — same file as #1307's guards, so one
-task by decomposition rule 1); #1309 → Task 1.2 (the §2 step-1 grill-charter reword). `/war` files its
-own epic + task issues regardless (war-execution-must-file-issues); closing the three source issues is
+task by decomposition rule 1); #1309 → Task 1.2 (the §2 step-1 grill-charter reword); #1431 changes
+1–3 → Task 2.1 (the authoring surfaces: template sub-bullets + Examples, the interview beat, the
+war-machine drafter duty), change 4 → Task 2.2 (the runtime mirror: worker/auditor cards + dispatched
+prompts + the ADR 0013 §3 amendment), change 5 deferred (Non-goals). `/war` files its
+own epic + task issues regardless (war-execution-must-file-issues); closing the four source issues is
 Lead checkpoint work at phase close (war-checkpoint-must-close-task-issues), never assumed from the
 epic close.
 
@@ -100,6 +105,28 @@ re-measure at the task's rebased base (D12).
    byte-unchanged**, listed in Task 1.1's footprint for honesty only (spec §5). Every committed
    `check_f` anchor over §2 stays green by construction.
 
+9. **The latitude ceiling is never authored above the floor** (*amendment 2026-08-15*; verified:
+   issue #1431 (2026-08-15), operator report + construct census at the amendment base `9e1c613`).
+   The **runtime** half of ADR 0013's latitude doctrine exists and is live: `agents/war-worker.md`'s
+   intent block ("intent-consistent deviation is in-band — note it in your result", the ceiling/floor
+   sentence), `agents/war-auditor.md`'s **Latitude rule** bullet ("only deviations that contradict
+   the intent or the slice block"), and the dispatched twin (`workerIntentClause` in
+   `workflow-template.js` mirrors the worker card's sentence — the both-surfaces pair is live).
+   The **authoring** half does not: nothing in `skills/war-strategy/SKILL.md` §2 (template or
+   Examples A/B), `references/plan-interview.md`, or `skills/war-machine/SKILL.md`'s drafter charter
+   ever produces an intent *wider than the slices* — the interview pins concrete mechanisms into
+   Method/End states, the ceiling sits flush on the floor, and a mid-implementation mechanism
+   substitution then *contradicts the slice as written*, so the auditor's own rule blocks it and the
+   run routes a follow-up issue instead of fixing the complication in-band (the operator-observed
+   failure). Field-tested counter-shape (a hand-widened interview, 2026-08-15, private repo): a
+   `Mechanism latitude:` clause enumerating implementer's-choice mechanisms with the sentence
+   "substituting these while the End states and binding guardrails hold is not a plan deviation and
+   warrants no issue", plus a short `Binding guardrails:` list as the real floor. **Zero-hit token
+   census** (measured at `9e1c613`, all mechanical pins by construction): `mechanism latitude` (-i),
+   `binding guardrails` (-i), and `warrants no issue` (-F) are each **0** in all six surfaces —
+   `war-strategy/SKILL.md`, `plan-interview.md`, `war-machine/SKILL.md`, `war-worker.md`,
+   `war-auditor.md`, `workflow-template.js`.
+
 ## Pivotal constraints
 
 - **Structure-test lock-step**: every prose edit and the pin/guard that binds it land in the same task —
@@ -109,11 +136,17 @@ re-measure at the task's rebased base (D12).
   `check_f` fragments (`Every End state carries one tag`, `carries an evidence tag`,
   `is required iff \`requiresTest: true\``, both halves of the D12 sentence); the doctrine's law section
   is unpinned today, so its wording moves to match the canonical side without breaking any committed
-  anchor. **Reflexive corollary (AI-declared)**: `skills/war-strategy/SKILL.md` is byte-unchanged by
-  this plan — the merged-plan template regions this very conversion consumed (§2 fences, Template law,
-  §3 rules) may not move. A worker who believes an extraction anchor requires a SKILL.md edit
-  stop-and-reports (escalation), never exercises latitude: the rest of the batch's drafters consumed
-  those same bytes.
+  anchor. **Reflexive corollary (AI-declared), scoped to Phase 1**: `skills/war-strategy/SKILL.md`
+  is byte-unchanged by **Phase 1** — the merged-plan template regions this very conversion consumed
+  (§2 fences, Template law, §3 rules) may not move under Phase 1's convergence work. A Phase-1
+  worker who believes an extraction anchor requires a SKILL.md edit stop-and-reports (escalation),
+  never exercises latitude: the rest of the batch's drafters consumed those same bytes.
+  **Sanctioned Phase-2 exception** (*amendment 2026-08-15, #1431*): Task 2.1 edits SKILL.md §2
+  **additively only** — new optional sub-bullets under the `## Commander's Intent` template block
+  and new modeled lines in Examples A/B; no existing pinned region moves, so every committed
+  `check_f` anchor and every Phase-1 mirror-equality/presence guard stays green by construction
+  (the additions land AFTER Phase 1's guards, on the post-Phase-1 base, and the same task grows the
+  structure test's pins for the new bullets — the lock-step convention).
 - **Sibling-suite pins constrain the 1309 reword**: `skills/war-machine/war-pipeline-structure.test.sh`
   pins the grill charter by the exact substrings `plan-interview.md` (case-sensitive), `falsifier
   probes`, `provenance scan`, and `in a throwaway sandbox` (case-insensitive), and keeps two retired
@@ -191,10 +224,20 @@ fallbacks intact; no spec assumption was upgraded or dropped at conversion. (AI-
 
 - **No pointer-collapse** of the doctrine's Evidence + slot law section (rejected alternative, A1):
   both reading surfaces stay standalone.
-- **No edit to `skills/war-machine/war-pipeline-structure.test.sh`** — sibling-owned
-  (shell-pin-helpers); this plan only runs it as read-only validation.
-- **No edit to `skills/war-strategy/SKILL.md`** — canonical side, byte-unchanged (reflexive
-  constraint); listed in Task 1.1's footprint for honesty only.
+- **No Phase-1 edit to `skills/war-machine/war-pipeline-structure.test.sh`** — sibling-owned at
+  authoring time (shell-pin-helpers); Phase 1 only runs it as read-only validation. *(amendment
+  2026-08-15)*: plan 4 has **landed**, so the file is no longer contended — Phase 2's Task 2.1 adds
+  the machine-SKILL latitude twin pin there (the lock-step convention), the scoped exception to this
+  bullet.
+- **No Phase-1 edit to `skills/war-strategy/SKILL.md`** — canonical side, byte-unchanged under Phase
+  1 (reflexive constraint, now scoped in Pivotal); listed in Task 1.1's footprint for honesty only.
+  Phase 2's Task 2.1 carries the sanctioned additive exception.
+- *(amendment 2026-08-15)* **#1431 change 5 (a `/red-team` probe for an over-wide latitude clause
+  that swallows an End state) deferred** — the template text itself now carries the ADR 0017 bound
+  (the clause never waives a check, gate, or backstop), and `/red-team`'s existing
+  backstop-legitimacy + intent-vs-plan lenses already grade End-state sufficiency; a dedicated probe
+  earns its slot only if a landed latitude clause is ever observed swallowing a check. Revisit on
+  first observed instance.
 - **No semantic change** to D4/D5/D11/D12/D14, the closed End-state tag set, or the grill's duties —
   wording plumbing and guards only.
 - **No `lacks_i` haystack refactor** (A4's fallback; reversible by veto without touching the control
@@ -277,14 +320,48 @@ adds mechanisms under it, no triad-passing decision (spec §7).
   12. Release: all four version slots move lock-step to the next free patch above the live integration
       base at land time ·
       check: `node --test skills/war/assets/version-slots.test.mjs`. (AI-declared)
+  13. *(amendment 2026-08-15, #1431)* The merged-plan template's `## Commander's Intent` block offers
+      the two optional sub-bullets, modeled in both Examples, and the template text itself states the
+      ADR 0017 bound (the clause never waives a check, gate, or backstop) ·
+      check: `grep -ci 'mechanism latitude' skills/war-strategy/SKILL.md` ≥ 3 (template + two
+      Examples; 0 at the amendment base, Context 9) and
+      `grep -Fc 'warrants no issue' skills/war-strategy/SKILL.md` ≥ 1 (0 at base);
+      `bash skills/war-strategy/war-strategy-structure.test.sh` (the new pins).
+  14. *(amendment 2026-08-15, #1431)* The interview carries the latitude beat as a decisive slot
+      after End-state drafting, with the flush-ceiling plan smell named, and the war-machine drafter
+      duty carries the same two sub-bullets ·
+      check: `grep -ci 'mechanism latitude' skills/war-strategy/references/plan-interview.md` ≥ 1 and
+      `grep -ci 'mechanism latitude' skills/war-machine/SKILL.md` ≥ 1 (both 0 at base);
+      `bash skills/war-machine/war-pipeline-structure.test.sh` (the machine-SKILL twin pin).
+  15. *(amendment 2026-08-15, #1431)* Both runtime seat surfaces read a threaded latitude clause as
+      licensing in-band mechanism substitution — worker card + auditor Latitude rule, each mirrored
+      into its dispatched prompt in the same commit — and absent a clause every surface reads
+      byte-identically to today ·
+      check: `grep -ci 'mechanism latitude' agents/war-worker.md agents/war-auditor.md
+      skills/war/assets/workflow-template.js` ≥ 1 in each (all 0 at base, Context 9) and
+      `node --test skills/war/assets/workflow-template.test.mjs` (the grown registry anchors; their
+      delete-the-feature trace is the clause-less byte-identity invariant).
+  16. *(amendment 2026-08-15, #1431)* ADR 0013 §3 records the latitude-clause reading via the
+      amendment convention (pre-existing body byte-unchanged apart from the appended section and the
+      Status line) ·
+      check: `grep -ci 'mechanism latitude' docs/adr/0013-commanders-intent-and-disposition-routing.md`
+      ≥ 1 (0 at base).
 
 ## Build order (for /war)
 
-Phase 1 (Task 1.1 ∥ Task 1.2 — file-disjoint, both wave 1, no deps edges) → Phase 2 (release).
+Phase 1 (Task 1.1 ∥ Task 1.2 — file-disjoint, both wave 1, no deps edges) → Phase 2 (amendment
+2026-08-15, #1431 — latitude authoring + runtime mirror; wave 1 = Tasks 2.1, 2.2, file-disjoint) →
+Phase 3 (release). Phase 2 is a phase, not more Phase-1 tasks, because Task 2.1 edits the two files
+Task 1.1 owns (`plan-interview.md` + the structure test) and the SKILL.md file Phase 1 freezes — a
+phase edge, never a same-file deps dodge; its base is the tip after Phase 1's guards land, so the
+new pins are authored against the converged, guarded doctrine.
 
 Rule 7 is not triggered: every guard Task 1.1 authors travels in the same task and file family as the
 fact it guards (doctrine wording + suite guard, lock-step); Task 1.2 authors prose only, no guard — the
 pins over its region are pre-existing and sibling-owned, not authored here. (AI-declared)
+Phase 2 keeps the same discipline: Task 2.1's template additions and their structure-test pins are one
+task; Task 2.2's runtime clauses and their `workflow-template.test.mjs` registry anchors are one task;
+the two are file-disjoint (authoring surfaces vs runtime surfaces), so no deps edge and no guard split.
 
 ## Phase 1 — Mirror equality + positive controls + grill choreography
 
@@ -383,9 +460,89 @@ pins over its region are pre-existing and sibling-owned, not authored here. (AI-
 - deps: []
 - target repo: superproject
 
-## Phase 2 — Release
+## Phase 2 — Latitude authoring + runtime mirror (amendment 2026-08-15: #1431)
 
-### Task 2.1: Version slots, lock-step
+The operator-reported gap (Context 9): the runtime latitude doctrine is live but the authoring
+surfaces never produce an intent wider than the slices, so forced mechanism substitutions route out
+as follow-up issues instead of being fixed in-band. Phase base: the tip after Phase 1 lands (the
+converged, guarded doctrine). #1431's issue body carries the field-tested clause shapes; treat it as
+extended Context.
+
+### Task 2.1: Authoring surfaces — template sub-bullets, interview beat, drafter duty (#1431 changes 1–3)
+
+- Files: `skills/war-strategy/SKILL.md`, `skills/war-strategy/references/plan-interview.md`,
+  `skills/war-strategy/war-strategy-structure.test.sh`, `skills/war-machine/SKILL.md`,
+  `skills/war-machine/war-pipeline-structure.test.sh`
+- Plan slice: **Witness first** — after the standard rebase, verify Phase 1 landed:
+  `bash skills/war-strategy/war-strategy-structure.test.sh` exits 0 AND the suite contains the
+  Phase-1 mirror-equality block (grep the suite for its Task-1.1 banner); a miss ⇒ halt and report.
+  **(a) template sub-bullets** (change 1): in `skills/war-strategy/SKILL.md` §2's merged-plan
+  template, add two **optional-but-recommended** sub-bullets under the `## Commander's Intent` block
+  — `Mechanism latitude:` (enumerate which mechanisms named in Method are implementer's choice,
+  closing with the sentence *"substituting any of these mechanisms while the End states and binding
+  guardrails hold is not a plan deviation and warrants no issue"*) and `Binding guardrails:` (the
+  short list of things that genuinely must not change — contracts, repo boundaries, cost/safety
+  invariants — **the real floor**). The template text itself states the ADR 0017 bound: *the
+  latitude clause never waives a check, gate, or backstop — End states pin outcomes, never
+  mechanisms, and each stays checkable via its D5 tag.* Model both sub-bullets in Example A, and in
+  Example B with `AI-declared` markers (ADR 0014). **Additive only** — no existing template line
+  moves (the Pivotal constraint's sanctioned exception). **(b) interview beat** (change 2): in
+  `references/plan-interview.md`, add a decisive slot after the End states are drafted: *"Which
+  mechanisms named in Method are implementer's choice? What is the actual floor?"* — default
+  posture: mechanisms named in Method are reference realizations unless promoted into the
+  guardrails list; and add the falsifier-probe arm: an intent whose ceiling sits flush on the slice
+  floor is a plan smell the interviewer names. **(c) drafter duty** (change 3): in
+  `skills/war-machine/SKILL.md` §2, the drafter's `## AI-Commander's Intent` authoring duty gains
+  the same two sub-bullets (AI-declared markers per ADR 0014). Pin safety: the sentence introduces
+  none of the sibling-suite's pinned or retired fragments (the `retired_grill_*`/`retired_convert_*`
+  families; state the check in the done report). **Structure-test pins, same task (lock-step):**
+  `war-strategy-structure.test.sh` gains presence pins for both sub-bullet labels + the
+  warrants-no-issue sentence on the SKILL side (all zero-at-base, Context 9's census);
+  `war-pipeline-structure.test.sh` gains the machine-SKILL twin pin (`Mechanism latitude` present in
+  the drafter charter region). Commits cite #1431.
+- Done when: `bash skills/war-strategy/war-strategy-structure.test.sh && bash skills/war-machine/war-pipeline-structure.test.sh`
+- requiresTest: true
+- requiresPackaging: false
+- deps: []
+- target repo: superproject
+
+### Task 2.2: Runtime mirror — latitude-clause reading on both seat surfaces + ADR 0013 §3 (#1431 change 4)
+
+- Files: `agents/war-worker.md`, `agents/war-auditor.md`, `skills/war/assets/workflow-template.js`,
+  `skills/war/assets/workflow-template.test.mjs`, `docs/adr/0013-commanders-intent-and-disposition-routing.md`
+- Plan slice: **(a) worker card** (`agents/war-worker.md`, the intent block at the "intent-consistent
+  deviation is in-band" sentence): append the latitude-clause arm — *when the threaded intent
+  carries an explicit `Mechanism latitude:` clause, a mechanism substitution that satisfies the
+  binding guardrails and the End states is in-band work, not a deviation to note for adjudication
+  and never a follow-up issue; note the substitution in your result like any other in-band call.*
+  **(b) auditor card** (`agents/war-auditor.md`, the **Latitude rule** bullet): append — *when the
+  threaded intent carries an explicit `Mechanism latitude:` clause, read "contradicts the slice"
+  against the binding guardrails, not against every pinned mechanism literal in the slice: a
+  substitution inside the enumerated latitude that holds the guardrails and End states is APPROVE,
+  never a plan-faithfulness finding; a substitution that breaches a guardrail or an End state blocks
+  exactly as before.* **(c) dispatched twins** (`workflow-template.js`, both-surfaces law, same
+  commit): mirror (a) into `workerIntentClause` and (b) into the auditor prompt's intent threading —
+  locate by construct, keep the `pt` tags. **(d) suite anchors** (`workflow-template.test.mjs`): grow
+  the D3 both-surfaces directive registry row that anchors the intent threading with the new
+  zero-at-base regexes (`/mechanism latitude/i`, `/binding guardrails/i`) on both surfaces — an
+  existing row's anchor arrays, or a new row with the floor count + enumerating message moved in
+  this same task if no existing row fits (state which arm landed in the done report). **(e) ADR
+  0013 §3 amendment**: append the clarifying paragraph recording the latitude-clause reading
+  (authored intent may enumerate implementer's-choice mechanisms; the guardrails list is the
+  blocking floor; the clause never waives a check, gate, or backstop — ADR 0017) — amendment rule:
+  pre-existing body byte-unchanged apart from the appended section and the Status currency line.
+  Fail-open discipline throughout: absent a latitude clause, every surface reads byte-identically to
+  today (the clause is conditional — no behavior change for clause-less intents; that invariant is
+  the (d) anchors' delete-the-feature trace). Commits cite #1431.
+- Done when: `node --test skills/war/assets/workflow-template.test.mjs`
+- requiresTest: true
+- requiresPackaging: false
+- deps: []
+- target repo: superproject
+
+## Phase 3 — Release
+
+### Task 3.1: Version slots, lock-step
 
 - Files: `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `README.md`
 - Plan slice: bump all four slots together — `plugin.json` `version`, `marketplace.json`
@@ -439,6 +596,14 @@ pins over its region are pre-existing and sibling-owned, not authored here. (AI-
   stop-and-report on drift · why deferred: conversion-time counts are dated snapshots at `6fff2ee`;
   the binding measurement is at the task's real base · runner: the workers, pre-edit, recorded in the
   done reports. (AI-declared)
+- *(amendment 2026-08-15, #1431)* The latitude doctrine exercised end-to-end — a live run whose plan
+  carries a `Mechanism latitude:` clause, a worker hitting a forced substitution inside it, and the
+  audit approving it in-band with no follow-up issue filed · why deferred: uncommittable as a test —
+  it requires a real plan authored through the amended interview and a real mid-implementation
+  complication; the committed pins (End states 13–16) guard the doctrine text, not the behavior ·
+  runner: the Lead of the first `/war` run whose plan carries the clause records the outcome (in-band
+  substitution vs routed issue) in that run's phase report; a routed issue that the clause should
+  have covered re-opens #1431. (AI-declared)
 
 ## Notes / conscious deviations
 
@@ -481,7 +646,7 @@ pins over its region are pre-existing and sibling-owned, not authored here. (AI-
    surface's marker now reds. (AI-declared)
 6. **Release phase added against the spec's "no release implied" note** (D14): every committed
    2026-08-06 plan carries the trailing directive-form release phase; the spec's note is read as
-   "don't hardcode a version", which the directive form satisfies. The alternative (no Phase 2) would
+   "don't hardcode a version", which the directive form satisfies. The alternative (no release phase) would
    make this the batch's only slotless plan and push its slot bump into a sibling. (AI-declared)
 7. **Grill choreography vs the operator's sanctioned parallel-pair waiver.** The local memory records
    an operator waiver of `/war-machine`'s strictly-serial per-spec rule (parallel drafter+grill
@@ -499,6 +664,24 @@ pins over its region are pre-existing and sibling-owned, not authored here. (AI-
    judgments (D6 extraction idiom, D12 banner currency, D13 witness downgrade, D14 release phase,
    A7/A8) are neither hard to reverse nor genuine trade-offs — all are logged above for `/red-team`
    ratification. (AI-declared)
+10. **Amendment (2026-08-15, operator-directed): #1431 folded as Phase 2; release renumbered Phase 3.**
+    An operator-reported latitude-doctrine gap (Context 9 carries the construct census at `9e1c613`).
+    Design calls made here and logged for /red-team: (i) the whole issue lands in **one plan** —
+    splitting authoring (this plan) from runtime (a `workflow-template.js`-owning sibling) would open
+    a half-landed window in exactly the direction the issue warns about, and the runtime clauses are
+    the both-surfaces mirror duty of the authoring change; (ii) **contention safety is spine order**:
+    Task 2.2's files are owned by spine-earlier plans — `agents/war-auditor.md` (plan 5, Phase 2),
+    `agents/war-worker.md` (plan 9 Task 1.1), `workflow-template.js` + suite (plans 9/10) — all of
+    which land before this plan (position 11), so Task 2.2 authors against their landed shapes
+    (stack-and-plow; the roadmap contention table gains the rows in the same amendment commit);
+    (iii) the Phase-1 SKILL.md byte-freeze is **scoped, not repealed** — Phase 2's exception is
+    additive-only with the committed anchors green by construction; (iv) #1431 change 5 is deferred
+    with a named revisit trigger (Non-goals) — the ADR 0017 bound rides the template text instead;
+    (v) all pins are the Context-9 zero-at-base tokens — no `escalate_reason`-class vacuity (the
+    plan-5 red-team's dominant finding family). Amendment surfaces: header issue map, Context 9,
+    the scoped Pivotal constraint, Phase 2 (Tasks 2.1/2.2), End states 13–16, build order, the two
+    scoped Non-goals + the change-5 deferral, the live-run backstop row, this note, roadmap row +
+    issue chain + contention table (same amendment commit).
 
 ## Open decisions
 
