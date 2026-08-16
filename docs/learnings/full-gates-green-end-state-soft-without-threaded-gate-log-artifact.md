@@ -5,9 +5,9 @@ metadata:
   node_type: memory
   type: project
   provenance: code-verified
-  promoted: dev/2026-07-28-audit-evidence-precedence@phase-2
+  promoted: dev/2026-08-06-shell-pin-helpers@phase-1
   slug: full-gates-green-end-state-soft-without-threaded-gate-log-artifact
-  phase: "red-team-fallback-and-anchor-hygiene/phase-2 (Release, task 2.1) +10 recurrences (latest 2026-08-06-shell-pin-helpers/phase-1 task 1.1, 2026-08-15 — first phase-close-polish-timing sub-shape)"
+  phase: "red-team-fallback-and-anchor-hygiene/phase-2 (Release, task 2.1) +12 recurrences (latest 2026-08-06-gate-audit-finding-routing/phase-1 phase-1-integrated-tip gate-audit, 2026-08-15 — first present-but-uncapped-artifact sub-shape)"
   keywords:
     - full gates green
     - gate-log artifact
@@ -37,6 +37,9 @@ metadata:
     - --ace polish
     - gate captured pre-polish
     - per-task gate log vs integrated-tip gate log
+    - GATE_EXIT terminal stamp
+    - gate-phase-N.log
+    - absence-of-failure inference vs stamped exit code
   tags:
     - audit-pipeline
     - gate-audit
@@ -46,7 +49,7 @@ metadata:
   created: 2026-07-15
   updated: 2026-08-05
   originSessionId: e11422bd-1b49-4d13-9840-37a67306b3f5
-  modified: 2026-08-15T20:49:11.895Z
+  modified: 2026-08-16T01:45:56.213Z
 ---
 
 **Local recurrence copy** of the repo-root lesson at `docs/learnings/full-gates-green-end-state-soft-without-threaded-gate-log-artifact.md`
@@ -391,6 +394,39 @@ code should trigger a fresh `gate-phase-<n>.log` capture at the post-polish tip 
 on the pre-polish per-task gate — this specific instance was low-risk (the polish diff was
 three comment lines, re-verified green by two other artifacts), but the same shape on a
 behavior-touching polish commit would leave "full gates green" resting entirely on inference.
+
+## Recurrence 12 (2026-08-15, plan `2026-08-06-gate-audit-finding-routing`, phase 1, `phase-1-integrated-tip` gate-audit) — twelfth occurrence, new sub-shape: an authoritative, USED artifact still lacks a terminal exit-code stamp
+
+Twelfth occurrence, and a third distinct timing/format sub-shape (after Recurrence 4's missing-token
+promotion path and Recurrence 11's pre-polish-tip mismatch): here the integrated-tip seat **was**
+threaded a full captured gate-log artifact (`_refinery/.war/gate-phase-1.log`, 2,522 lines) and
+**did** treat it as authoritative — `gate-audit:approve`, `hard:false`, `gateEvidence:true` — reading
+the node-half aggregate (`pass 1131 / fail 0`) and the bash-half per-file `== gate(bash): <path> ==`
+headers straight through the final discovered suite. The gap: the artifact itself carries **no
+terminal exit-code stamp** (no `GATE_EXIT: <n>` or equivalent line) the way every sibling
+`.war/endstate-<phaseId>-<n>.log` artifact does (each of which ends with an explicit `exit_code: <n>`
+line, per [[endstate-check-dispatch-captures-only-one-command-per-condition-row]]'s dispatch). The
+seat therefore had to *infer* greenness from the absence of `not ok`/red-suite markers plus the
+presence of the final suite's header, rather than reading a stamped exit code — an inference that
+held cleanly here (no defect resulted) but is one step weaker than the endstate-check artifacts'
+explicit stamp. `code-verified` at the landed tip `20816fd0412788ba11412356f5471f6b1447d682`
+(gitdir physical path containing this plan's slug:
+`<repo-root>/.claude/war-worktrees/2026-08-06-gate-audit-finding-routing-2026-08-15/_refinery/`):
+`.war/gate-phase-1.log` ends at its final suite's `All 10 checks passed` line with no trailing
+exit-code token.
+
+**New nuance over Recurrences 1-11:** "artifact present and used" is not the ceiling of this
+lesson's family — even a present, authoritative, correctly-read gate-log artifact can still force
+the reading seat into an absence-of-failure inference rather than a stamped-exit-code confirmation,
+because the refiner's gate tee (unlike the endstate-check dispatch) does not append a terminal
+exit marker. Recorded by the auditing seat as a Nit/note for the servitor feed, not a defect —
+**recommended fix, still unactioned:** when the refiner's gate tee is next touched, append a
+terminal `GATE_EXIT: <code>` line the way `endstate-check:phase-<id>` already does, removing this
+one inference step.
+
+**Confirms:** the SOFT-cannot-confirm-without-full-evidence family (Recurrences 1-11) and this new
+present-but-uncapped-artifact sub-shape (Recurrence 12) are siblings, not the same shape — track
+both when searching this lesson for "is a gate-log artifact actually sufficient evidence" questions.
 
 Related: [[deliberately-uncommitted-worker-probe-evidence-is-soft-never-hold]] (same family: an
 evidence-ceiling cannot-confirm is SOFT, not a hold). [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]]

@@ -28,7 +28,7 @@ metadata:
     - audit-scope
   created: 2026-07-23
   originSessionId: 8e99f0a3-aecc-4068-9cd8-79868840feb7
-  modified: 2026-07-26T22:54:41.239Z
+  modified: 2026-08-16T01:45:24.260Z
 ---
 
 # A gate-audit scoped to task N must not hold on an End state owned by task N+1's `deps`-chained slice
@@ -80,6 +80,32 @@ ran pinned at its own `audit_sha`, before sibling tasks in the *same wave* had l
 exemption fires for plain parallel siblings too, not only for a task carrying an explicit `deps:`
 edge on the owner. Read "deps-chained sibling" as "any sibling task in this phase, dep-edge or not,
 not yet landed at this audit's pinned sha."
+
+## Recurrence 20 (2026-08-15, plan `2026-08-06-gate-audit-finding-routing`, phase 1) — four independent audit seats, one unmerged sibling, same rule applied cleanly
+
+Twelfth-plus occurrence, and the first time this exact rule fired **four separate times in one
+phase** across four *different seat shapes*, not just four different tasks: task 1.1's own
+gate-audit, task 1.2's own gate-audit, the terminal `phase-1-integrated-tip` gate-audit
+(`authoritative: true`), and the `p1-polish` phase-close-sweep re-audit. Task 1.4
+(`CONTEXT.md` glossary rows, End state 9) rebased and committed its two commits
+(`4ab4aac`/`cb41907`) on a sibling branch `war/2026-08-06-gate-audit-finding-routing/p1-1.4` but
+never merged into the phase's integration branch before every other task landed — every one of
+the four seats independently ran the plan's `check:` grep for End state 9, observed `exit_code: 1`
+(or the CONTEXT.md tokens absent), traced ownership via `git log --name-only`/`git log -S` back to
+Task 1.4's plan slice, and scored it a Nit/Minor `disposition: note`, never a hold — exactly the
+rule this lesson encodes, including the terminal `phase-1-integrated-tip` seat, which explicitly
+attested the condition `status: "unmet"` (not `"met"`) while still keeping the overall verdict
+`gate-audit:approve`/`hard: false`.
+
+**Confirms, with a new edge:** the rule holds even at the **terminal, authoritative** integrated-tip
+seat — the one seat whose attestations feed the phase's `handoff` block directly — and even inside
+a **phase-close polish** re-audit (a seat type this lesson's prior recurrences never exercised).
+`code-verified` at the landed tip `20816fd0412788ba11412356f5471f6b1447d682`
+(gitdir physical path containing this plan's slug:
+`<repo-root>/.claude/war-worktrees/2026-08-06-gate-audit-finding-routing-2026-08-15/_refinery/`):
+`git log -Ssweep-raised -- CONTEXT.md` over history reachable from the landed tip returns no
+commit — the two glossary rows genuinely never landed in this phase's range, matching every seat's
+independent finding.
 
 ## Related
 
