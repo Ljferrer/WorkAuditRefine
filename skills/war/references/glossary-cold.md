@@ -4,9 +4,10 @@ The unbudgeted cold home (ADR 0042: `references/` files carry no byte budget) fo
 `CONTEXT.md` glossary bodies. Each body below moved here byte-identical from `CONTEXT.md` under an
 additive per-term heading — only repo-root-relative links re-anchor for this file's depth — and the
 glossary keeps the `**Term**:` heading plus one fixed-shape trigger pointer
-(`when <trigger>, read skills/war/references/glossary-cold.md`). Temperature is location: these are
-incident-only recovery entries, cold but still authoritative — never delete a body; evict more the
-same way.
+(`when <trigger>, read skills/war/references/glossary-cold.md`). Prose temperature is branch
+frequency (ADR 0042): these are incident-only recovery entries, cold but still authoritative —
+never delete a body; evict more the same way. Bold glossary cross-references inside the moved
+bodies (**Empty-orphan reclaim**, **Dead phase**) resolve in `CONTEXT.md`, their original home.
 
 ## provision base divergence
 
