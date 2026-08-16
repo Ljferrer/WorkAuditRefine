@@ -11,7 +11,7 @@ under-specification back to the interview: a plan that could not stop churning i
 had nowhere to go but another sweep. `/war-campaign`'s step 3 hid the gap behind one undefined
 word ("Unresolvable → halt-and-hold"). The round census behind the calibration: across the 12
 newest reports (2026-07-26 →) the median is 2 invocation-rounds; the 7-round outlier
-(`2026-07-24-runbook-and-standing-record-coherence`) had rounds 2 and 4 entirely patch-induced —
+(`2026-07-24-runbook-and-standing-record-coherence`, just outside that window) had rounds 2 and 4 entirely patch-induced —
 pre-ADR-0043 behavior the stamping mechanic already retired. This ADR ratifies the loop-budget +
 route-upstream contract. Full mechanics:
 [the precision-chain & loop-breaker plan](../plans/2026-08-05-precision-chain-and-loop-breaker.md)
@@ -26,7 +26,7 @@ verdict.**
 
 1. **The rounds unit.** A **round** is one full grill sweep — one pass through the open
    blockers/`needsDecision` set. That is the only unit "round" carries; the per-blocker bound
-   ADR 0043's Step 5 already imposed is counted in **re-verify attempts (≤ 2 per blocker)**, a
+   `/red-team`'s Step 5 already imposed is counted in **re-verify attempts (≤ 2 per blocker)**, a
    deliberately distinct term so the two bounds can never be conflated. Rounds count
    cumulatively across `/red-team` invocations of the same plan: the churn the loop-breaker
    exists to stop spans runs, and a counter that resets per invocation cannot see it.
@@ -108,8 +108,8 @@ verdict.**
 - **NLP / text classification of churn (rejected).** Violates the gate's pure/typed posture
   (the `deliverableAbsence`/`envGap`/`adjudicated` typed-flag lineage): the arithmetic reads
   typed buckets and a strict `adjudicated === true` stamp, nothing parses finding prose.
-- **Per-blocker-only accounting as the budget (rejected).** ADR 0043's ≤ 2 re-verify attempts
-  bounds one blocker in one run; the observed failure mode (the 7-round outlier) spans
+- **Per-blocker-only accounting as the budget (rejected).** `/red-team` Step 5's ≤ 2 re-verify
+  attempts bounds one blocker in one run; the observed failure mode (the 7-round outlier) spans
   invocations and findings. Only a cumulative per-plan counter sees it, which is why the unit
   is the full grill sweep and the seed crosses runs.
 - **Gate-side report parsing for the seed (rejected).** The gate takes integers and emits
