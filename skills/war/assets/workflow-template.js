@@ -96,7 +96,19 @@ const AUDIT_VERDICT = { type: 'object', required: ['seat', 'lens', 'verdict', 'f
   // the named observable for a judged one) — never a bare verdict. Ordinary roster seats never carry
   // it. Findings stay DEFECT-ONLY (the two-contract rule): attestation rides this channel, never a finding.
   endStateAttestations: { type: 'array', items: { type: 'object', properties: {
-    condition: { type: 'string' }, status: { enum: ['met', 'unmet', 'unverified'] }, evidence: { type: 'string' } } } } } }
+    condition: { type: 'string' }, status: { enum: ['met', 'unmet', 'unverified'] }, evidence: { type: 'string' } } } } },
+  // ESCALATE-BOUNDARY intake contract (gate-audit-finding-routing Task 2.1, #1410 fix 1): a non-empty
+  // escalate_reason is required when verdict is escalate — the if/then conditional below. Enforcement
+  // arm RECORDED by the Task 2.1 worker probe (2026-08-15, code-read of the running agent({schema})
+  // layer, harness v2.1.228): the layer Ajv-compiles this FULL schema (allErrors) and a non-conforming
+  // StructuredOutput return throws a schema-mismatch that re-prompts the seat (bounded conform-or-retry)
+  // — so the conditional IS enforced at intake. The layer's separate strict-schema deriver (keyword
+  // allowlist, no if/then) already falls back to non-strict on this schema today (tests_verified has no
+  // properties), so the retry loop was and stays the enforcement point: never a dropped seat, never a
+  // land hold — no new hold path (A8). Prose mirrors (same commit): agents/war-auditor.md verdict list
+  // + Return shape, the dispatched auditPrompt ESCALATE-BOUNDARY clause, the schemas.md AuditVerdict row.
+  if: { properties: { verdict: { const: 'escalate' } }, required: ['verdict'] },
+  then: { properties: { escalate_reason: { type: 'string', minLength: 1 } }, required: ['escalate_reason'] } }
 
 const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties: {
   mode: { enum: ['merge-task', 'land-phase'] },
@@ -887,6 +899,12 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin) {
     // string and asserts every flag token it lists onto BOTH mirror surfaces — the hook string is
     // canonical, these mirrors are followers, so a hook-side flag change REDs the mirrors.
     + pt`READ-ONLY GIT GUARD CONTRACT: run one bare git command per Bash call from the read-verb allowlist (diff, log, show, merge-base, rev-parse, status, ls-files, ls-tree, cat-file, blame, branch) — no pipes, chaining, redirects, quotes, globs, braces, or substitution: compose nothing, and filter or search the output with the Read/Grep/Glob tools instead. Non-git shell reads (ls, cat, wc, …) always deny — use Read/Glob, or git ls-files / git ls-tree to list tree contents. branch admits read forms only, in two arms: value-carrying flags =-attached (--contains=<rev>, --no-contains=<rev>, --merged=<rev>, --no-merged=<rev>, --points-at=<rev>, --sort=<key>), and bare read flags (--list, --all, -a, --remotes, -r, --show-current, --verbose, -v, -vv); a bare name, a space-form value (--contains <rev>), or any write flag denies. git grep stays denied — the Grep tool is the sweep channel. Avoid @{} reflog (braces are denied) — use git log -g instead.\n`
+    // SEARCH-TOOLING RULE (gate-audit-finding-routing Task 2.1(c), #1412 fix 3) — mirrored as a bullet
+    // in the "## Read-only git guard contract" section of agents/war-auditor.md (same commit); the D3
+    // both-surfaces registry row anchors the zero-hit `metacharacter` token on BOTH auditor surfaces.
+    // Seat doctrine only — the guard-message half (the denial naming the rule that fired) is Task 2.2's,
+    // in hooks/validate-auditor-git.sh; the guard's allowlist and deny decisions are byte-unchanged.
+    + pt`SEARCH-TOOLING RULE: search with the Grep/Glob tools, never shell grep or git grep — the git guard refuses glob/alternation metacharacters (*, \\|), not just command chains.\n`
     + pt`Then read candidate files under ${task.worktree}/ for neighbor/deep context.\n`
     + pt`Verify the mapped acceptance-criteria tests EXIST and are not weakened or skipped (anti-cheat: catch "green by deletion" and test-integrity erosion). You cannot execute the gate — the refiner runs the gate. Your job is to confirm tests exist in the diff and are uncompromised.`
     // Latitude + disposition + calibration + cost-claim rules (ADR 0013) — mirrored VERBATIM in
@@ -894,6 +912,13 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin) {
     // shared sentences on both.
     + pt`\nLATITUDE RULE: the plan slice is the floor, the Commander's Intent is the ceiling — intent-consistent work beyond the literal slice is APPROVE (judge it on its own correctness), never a plan-faithfulness violation; only deviations that contradict the intent or the slice block. No intent threaded means judge against the plan slice alone, as before.`
     + pt`\nDISPOSITION RULE: every Minor/Nit finding carries a disposition — absorb (mechanical, intent-consistent, safe to fix this phase; set phaseClose:true when the fix needs the integrated tip or touches a shared/slot-adjacent file), follow-up (substantive work beyond this phase — MUST state why it is not absorbable), or note (informational; phase report + servitor feed, never an issue). Omitted disposition defaults: Minor becomes follow-up, Nit becomes note; absorb is never a default.`
+    // ESCALATE-BOUNDARY CONTRACT (gate-audit-finding-routing Task 2.1(a)+(b), #1410 fixes 1+2) —
+    // mirrored on agents/war-auditor.md (the verdict list's escalate bullet + the Return shape line)
+    // and in the schemas.md AuditVerdict row (same commit); the D3 both-surfaces registry row anchors
+    // the zero-hit tokens (required when / however severe) on BOTH auditor surfaces. The intake side
+    // is the AUDIT_VERDICT if/then conditional above (enforcement arm recorded at that literal): the
+    // schema layer re-prompts a reason-less escalate — never a dropped seat, never a land hold (A8).
+    + pt`\nESCALATE-BOUNDARY CONTRACT: a non-empty \`escalate_reason\` naming the missing plan decision is required when \`verdict\` is \`escalate\` (the schema layer re-prompts a reason-less escalate). A blocking finding whose \`suggested_fix\` is a concrete in-file edit needing no new plan decision is \`request_changes\` by construction, however severe — if you cannot name the missing plan decision in \`escalate_reason\`, you are looking at a fixable bug.`
     + pt`\nCALIBRATION RULE: judge on evidence only — never soften, downgrade, or drop a finding because peers disagreed or because a fix was attempted; downgrade only with a stated reason grounded in the current diff. The pull to soften peaks right after your own finding is challenged — that is the highest-risk moment.`
     // #811 BYTE-COUPLED SURFACE (JS comment — NOT emitted into the prompt): this quote-bearing COST-CLAIM
     // RULE literal is byte-identical to agents/war-auditor.md's Cost-claim rule line AND the test's
