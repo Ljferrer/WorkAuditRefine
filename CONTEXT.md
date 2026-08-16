@@ -720,8 +720,8 @@ _Avoid_: cleanup phase; ad-hoc seam hunting; treating a discard as a failure tha
 
 **sweep-raised finding**:
 A finding the phase-close re-audit panel raises against the polish commit itself, not a queued
-`phaseCloseQueue` finding the sweep drains; routed by disposition at sweep close, never aced,
-never re-queued.
+`phaseCloseQueue` finding the sweep drains; Minor/Nit route by disposition at sweep close
+(Critical/Major keep today's blocking visibility), never aced, never re-queued.
 
 **truncated gate log**:
 A captured gate log whose bash half aborted at the first red suite (some per-file headers, not
