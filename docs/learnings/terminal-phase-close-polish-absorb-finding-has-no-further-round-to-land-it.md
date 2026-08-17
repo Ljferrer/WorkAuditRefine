@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   provenance: code-verified
-  promoted: dev/2026-08-06-verdict-adjudication-integrity@phase-1
+  promoted: dev/2026-08-06-handoff-schemas-contract@phase-2
   slug: terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it
   phase: 2026-08-05-precision-chain-and-loop-breaker/6.1
   keywords: 
@@ -30,6 +30,10 @@ metadata:
     - polish-rejected
     - polish-discarded
     - env-died schemas.md gap
+    - Homes list
+    - Status blurb
+    - note disposition
+    - mitigation not learned
   tags: 
     - war
     - phase-close
@@ -37,7 +41,7 @@ metadata:
     - audit-findings
   created: 2026-08-06
   originSessionId: 428f1fab-f385-493a-952d-9509fdac5e10
-  modified: 2026-08-17T15:24:23.376Z
+  modified: 2026-08-17T17:06:54.300Z
 ---
 
 # A terminal phase-close polish task's own absorb finding can ship unfixed
@@ -177,3 +181,37 @@ polish-diff-own finding, rather than trusting a prior recurrence's correct routi
 phase 2 of `2026-08-06-handoff-schemas-contract`); see
 [[phase-close-polish-revert-can-silently-orphan-a-subset-of-absorbed-findings]] for the underlying
 file-level finding this routing decision concerns.
+
+## Recurrence — mitigation reapplied at `note` disposition, 3x in one round, `2026-08-06-handoff-schemas-contract`/p3-polish (landed `dev/2026-08-06-handoff-schemas-contract` @ `432d9d361f6ebe3c850048bd137250c7744d68a6`, 2026-08-17)
+
+**Code-verified** via the `_refinery` worktree matching the landed tip (gitdir physical path
+containing this plan's slug:
+`<repo-root>/.claude/war-worktrees/2026-08-06-handoff-schemas-contract-2026-08-17/_refinery/`):
+`README.md` lines 363, 364, 366, 367 read exactly as the findings below describe.
+
+`p3-polish` — this phase's terminal phase-close round — correctly absorbed its one queued finding
+(adding `schemas.md` to the `#1381` bullet's Homes list, `README.md:366` — confirmed present at the
+landed tip). Its own gate-audit then surfaced **three** fresh findings of the identical defect class
+(a Status-blurb bullet's `Homes:`/`Home:` list omitting a surface the bullet's own prose names) on
+sibling bullets at lines 363, 364, and 367 — and this time **every one of the three was routed
+`disposition: note`, not `absorb`**, with each rationale explicitly citing this lesson's
+terminal-round-has-no-further-round argument (two also add: the omissions pre-date this diff, so
+they are survey stragglers outside the plan's mandated scope, not a worker-introduced defect).
+
+**This is the mitigation working as intended, at a new density.** The prior positive-confirmation
+recurrence above (`2026-08-06-verdict-adjudication-integrity`/p1-polish) showed the mitigation firing
+once, routed `follow-up`. This occurrence shows it firing three times in one audit round, routed
+`note` instead — a second sanctioned terminal-round disposition, not only `follow-up`. **Read
+together with the immediately preceding recurrence (`p2-polish`, mitigation NOT applied)**, the
+pattern's reliability is confirmed to be per-seat/per-run, not learned: two consecutive phases of the
+*same plan* (`2026-08-06-handoff-schemas-contract`, phases 2 and 3) landed opposite outcomes —
+phase 2's polish audit used the original unmitigated `absorb` routing (finding shipped orphaned),
+phase 3's used the mitigated `note`/`follow-up` routing correctly, three times over. A servitor/Lead
+should keep re-surfacing this lesson's citation at every terminal-polish dispatch; do not assume a
+fix within one phase of a plan generalizes to that same plan's next phase.
+
+**Locate-cue:** none — process/disposition evidence from the audit log itself (task `p3-polish`,
+phase 3 of `2026-08-06-handoff-schemas-contract`); the three findings' own file citations
+(`README.md:363`, `364`, `367`) are confirmed at the landed tip above. Related:
+[[readme-status-blurb-homes-list-is-editorial-not-exhaustive]] (the substantive defect class these
+three `note` findings share).
