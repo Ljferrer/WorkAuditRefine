@@ -2478,14 +2478,18 @@ if (landResult && landResult.status === 'landed' && memoryLocalRoot) {
 // exact-title match reuses the existing issue number, never a duplicate.
 if ((landDecision === 'landed' || landDecision === 'held:escalation') && minorsFiled.length > 0) {
   // Agent-resolved '${CLAUDE_PLUGIN_ROOT}' literal idiom (the provision barrier's SCRIPT const
-  // precedent): single-quoted here, resolved by the dispatched refiner's shell — never by this sandbox.
+  // precedent): the single quotes on this line are JS STRING DELIMITERS — they are what keep the
+  // ${...} literal out of the #931 untagged-backtick census, and they are never part of the string's
+  // value. The prompt line below interpolates the path BARE (the canonical SKILL.md form) so the
+  // dispatched refiner's shell expands $CLAUDE_PLUGIN_ROOT — emitting POSIX single quotes around the
+  // path would suppress that expansion and 127 the preflight on a literal filename.
   const PREFLIGHT = '${CLAUDE_PLUGIN_ROOT}/skills/_shared/gh-preflight.sh'
   let filingOut = null
   try {
     filingOut = await agent(
       pt`FILE-FOLLOWUPS DISPATCH for WAR phase ${ph.id} (you are the refiner; this is a gh-write batch — no merge, no push, never touch git state). `
       + pt`The follow-up-disposition audit findings below survived this phase unabsorbed; file each as a GitHub issue so nothing drops silently (ADR 0013).\n`
-      + pt`FIRST the account preflight (ADR 0026): run '${PREFLIGHT}' "${ghUser}" — an empty-string arg is its documented no-op (exit 0). On exit 2 (tooling error) or exit 3 (account mismatch): return what you have and file NOTHING.\n`
+      + pt`FIRST the account preflight (ADR 0026): run ${PREFLIGHT} "${ghUser}" — an empty-string arg is its documented no-op (exit 0). On exit 2 (tooling error) or exit 3 (account mismatch): return what you have and file NOTHING.\n`
       + pt`THEN dedup (D3): run \`gh issue list --label war-followup --state open\` once; a row below whose title EXACTLY matches an open issue's title is already filed — reuse that existing issue number instead of filing a duplicate.\n`
       + pt`THEN file one \`war-followup\`-labelled issue per row below, in order — title from the row's title; body carrying the why-not-absorbable reason and the task id${ph.epicIssue ? pt`, and a reference to the phase epic #${ph.epicIssue}` : ''}.\n`
       // pt-tagged prompt-feeding row builder (file-followups dispatch): title/rationale are
