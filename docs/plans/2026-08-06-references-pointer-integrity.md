@@ -305,10 +305,10 @@ Source spec: `docs/specs/2026-08-06-references-pointer-integrity-design.md` (con
       `CONTEXT.md`, and the stamped lesson · gate: the self-discovery gate (`resolveGate` in
       `war-config.mjs`) — `node --test 'skills/**/*.test.mjs'` and the documented hooks/skills
       shell-test loop both exit 0; the footprint judged at audit_sha. (AI-declared)
-  18. Each landing commit cites its issue(s) — #1364 + #1278 for the card flip and family
+  18. Every plan-tracked issue is cited by at least one commit in the phase range `<phase-base>..<tip>` — #1364 + #1278 for the card flip and family
       extension, #1276 for the comment correction and header re-truth, #1275 + #1277 for the
       sweep hardening, #1279 for the trigger pointer · HARD at audit_sha (git log between the
-      phase base and the tip; execution-evidence seat). (AI-declared)
+      phase base and the tip; execution-evidence seat). **Range-level, not per commit** — judged by the execution-evidence seat via `git log --grep=<issue> <phase-base>..<tip>`; the engine-authored **phase-merge** commit and the **phase-close polish** commit cite no issue *by construction* and are compliant. The range does not exist at any task's pre-merge gate, so this can never be a `gate:` member. Ratified lesson: `each-commit-cites-its-issue-endstates-are-judged-over-the-full-phase-range-not-gated-per-commit`. *(Normalized 2026-08-16 by the campaign-wide sweep — the original per-commit phrasing caused a false escalation in plan 6 and was corrected again in plan 7.)* (AI-declared)
   19. Release: all four version slots move lock-step to the next free patch above the live
       integration base at land time · check:
       `node --test skills/war/assets/version-slots.test.mjs` (lock-step + monotonic floor; the

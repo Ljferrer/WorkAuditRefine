@@ -359,10 +359,10 @@ None (see Non-goals — existing terms and ADR 0025 cover the rest).
       check: `grep -l 'RESOLVED (structural-pin-extractors'
       docs/learnings/archive/label-to-guard-region-extraction-must-bound-at-next-label-not-eof.md` lists
       the file. (AI-declared)
-  14. Each landing commit cites its issue(s) — #1373 + #1286 for Task 1.1's D6 items, #1334 for
+  14. Every plan-tracked issue is cited by at least one commit in the phase range `<phase-base>..<tip>` — #1373 + #1286 for Task 1.1's D6 items, #1334 for
       Task 1.1's threading items, #1375 + #1332 for Task 1.2's D31/SKILL.md items, #1252 for the
       banner rewrap (the per-finding close conditions require the citation) ·
-      HARD at audit_sha (git log between the phase base and the tip; execution-evidence seat).
+      HARD at audit_sha (git log between the phase base and the tip; execution-evidence seat). **Range-level, not per commit** — judged by the execution-evidence seat via `git log --grep=<issue> <phase-base>..<tip>`; the engine-authored **phase-merge** commit and the **phase-close polish** commit cite no issue *by construction* and are compliant. The range does not exist at any task's pre-merge gate, so this can never be a `gate:` member. Ratified lesson: `each-commit-cites-its-issue-endstates-are-judged-over-the-full-phase-range-not-gated-per-commit`. *(Normalized 2026-08-16 by the campaign-wide sweep — the original per-commit phrasing caused a false escalation in plan 6 and was corrected again in plan 7.)*
       (AI-declared)
   15. The redaction lint stays green over the lesson stamp ·
       gate: the self-discovery gate (the war-memory lint wrapper is a discovered member).
