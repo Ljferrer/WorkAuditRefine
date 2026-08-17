@@ -1,7 +1,8 @@
 # Specs are posterity; live surfaces cite maintained homes
 
 **Status:** accepted (operator-ratified F7 + README extension, 2026-08-05; ratified and
-guarded by [the plan](../plans/2026-08-05-precision-chain-and-loop-breaker.md), Task 5.4)
+guarded by [the plan](../plans/2026-08-05-precision-chain-and-loop-breaker.md), Task 5.4);
+amended 2026-08-16 (guard-corpus decoupling + Spec-truth-guard supersession row)
 
 A design spec (`docs/specs/`) is an *input shape*: it exists to be consumed — by
 `/war-strategy` conversion into a merged plan, or as the decision digest a merged plan's
@@ -36,10 +37,14 @@ surfaces or by `README.md`. Live surfaces cite only maintained-truthful homes: A
   a bare path), and fenced command/template examples all stay. The carve-outs are
   pattern-matched, case-insensitively.
 - **The guard.** `skills/_shared/doc-cli-consistency.test.mjs` asserts no file in its
-  scanned corpus cites a concrete `docs/specs/` path, with the carve-outs above; its
-  corpus is widened to the retired-citation homes the hand-enumerated list could not see
-  (`skills/lessons-learned/references/seeding.md`, `skills/war/references/design.md`)
-  and — for this rule — `README.md`.
+  scanned corpus cites a concrete `docs/specs/` path, with the carve-outs above; the
+  spec-posterity rule sweeps the directory-scanned posterity corpus (every
+  `skills/*/SKILL.md`, every `skills/*/references/*.md`, every `agents/*.md`, plus
+  `README.md`), while the verb rule keeps its readdir-derived `skills/*/SKILL.md` scan
+  plus its enumerated `EVICTION_DESTINATIONS` list, whose `skills/*/references/*.md`
+  membership is bound by the default-deny placement census against
+  `VERB_SCAN_EXCLUSIONS` — both constructs maintained in the suite itself
+  *(corpus description amended 2026-08-16; the two rules' corpora are decoupled)*.
 - **Code comments and ADRs are out of scope.** A code comment citing the spec it
   implemented is provenance, not doctrine a reader is told to trust as current; ADRs are
   themselves records and may cite the spec that motivated them. The rule binds the
@@ -69,3 +74,11 @@ surfaces or by `README.md`. Live surfaces cite only maintained-truthful homes: A
   those homes rather than at frozen specs.
 - [ADR 0025](0025-drift-guard-discipline.md) — the citation rule ships with its own
   drift guard, per the standing discipline.
+- [ADR 0036](0036-gate-self-discovery-composition-engine-owned.md) — the ADR 0036-era
+  **Spec-truth guard** glossary mechanism (per-claim `skill-doc-contracts.test.mjs` rows
+  locking `docs/specs/` code-fact sentences to current mechanics) was emitted as rows
+  D15–D17 (locking #804/#887-corrected spec sentences) and is not extended going
+  forward: this ADR's posterity rule supersedes it for all future spec claims — its
+  growth premise (landed specs track reality) is the exact posture this ADR rejects,
+  and the existing rows stay green as historical locks on now-frozen text; the
+  `CONTEXT.md` entry carries the supersession note.
