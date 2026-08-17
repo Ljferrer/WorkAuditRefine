@@ -693,12 +693,11 @@ test('D22 — SKILL.md Gate-2 flow orders the unpushed-range probe, its do-not-p
 // [[coupling-comment-restating-grep-pattern-bytes-self-matches-the-sweep]] class — this banner WAS
 // that hit, and D30 below is the mechanical census that replaces the hand-run grep). Nothing else in
 // the suite reads them, so without these two rows the doc reword would ship with no mechanical check
-// of any kind. They are
-// PER-MEDIUM, not uniform: an ADR is append-only, so its superseded sentences legitimately stay
-// byte-intact and only NEW-present can discriminate; CONTEXT.md is a living glossary edited in place,
-// so it gets NEW-present AND OLD-absent. Every OLD-absent predicate is sentence-literal-scoped —
-// never a bare `two` word test (decision 2's "two pure, independently-tested exports" sentence is
-// still true and must not trip it).
+// of any kind. They are PER-MEDIUM, not uniform: an ADR is append-only, so its superseded
+// sentences legitimately stay byte-intact and only NEW-present can discriminate; CONTEXT.md is a
+// living glossary edited in place, so it gets NEW-present AND OLD-absent. Every OLD-absent
+// predicate is sentence-literal-scoped — never a bare `two` word test (decision 2's
+// "two pure, independently-tested exports" sentence is still true and must not trip it).
 
 // (D23) ADR 0037 decision 2 carries TWO `two`-scoped sentences — the substitution sentence ("replaces
 // exactly once each of the two `export const meta` anchor literals") AND the exports sentence ("the
