@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   provenance: code-verified
-  promoted: dev/2026-08-05-precision-chain-and-loop-breaker@phase-6
+  promoted: dev/2026-08-06-verdict-adjudication-integrity@phase-1
   slug: terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it
   phase: 2026-08-05-precision-chain-and-loop-breaker/6.1
   keywords: 
@@ -26,6 +26,10 @@ metadata:
     - disposition follow-up not absorb
     - mitigation confirmed
     - terminal polish disposition routing
+    - mitigation not applied
+    - polish-rejected
+    - polish-discarded
+    - env-died schemas.md gap
   tags: 
     - war
     - phase-close
@@ -33,7 +37,7 @@ metadata:
     - audit-findings
   created: 2026-08-06
   originSessionId: 428f1fab-f385-493a-952d-9509fdac5e10
-  modified: 2026-08-16T08:22:45.031Z
+  modified: 2026-08-17T15:24:23.376Z
 ---
 
 # A terminal phase-close polish task's own absorb finding can ship unfixed
@@ -137,3 +141,39 @@ own-diff finding is the correct, load-bearing move — not merely defensible rea
 
 **Locate-cue:** none — this recurrence is process/disposition evidence from the audit log itself, not a
 file referent (the finding's own text, task `p1-polish`, phase 1 of the named plan).
+
+## Recurrence — mitigation NOT applied, `2026-08-06-handoff-schemas-contract`/p2-polish, reverts to
+## the original (pre-mitigation) `absorb` routing (2026-08-17)
+
+**Code-verified** via the phase-2 gate-audit/audit log, `auditSha`/`gateHeadSha`
+`71ddc088fb558add6d92aab1ec4ec773b9881cd8` (`gateEvidence: true`); commit-graph facts confirmed by
+direct `.git/refs`/`.git/logs/refs` reads (see the sibling recurrence's checkout-topology note in
+[[phase-close-polish-revert-can-silently-orphan-a-subset-of-absorbed-findings]] for why the final
+file content at the true landed tip `43d757d3464d6f248a4c1e9f4a5f37de8fba37a7` was not independently
+re-confirmed).
+
+`p2-polish` — this phase's terminal phase-close round — had its own diff audited, and that audit
+raised a fresh **Major**, `disposition: absorb, phaseClose: true` finding on the polish diff itself
+(the reverted `env-died` schemas.md fix, see the sibling lesson above for the full mechanism). Unlike
+the `2026-08-06-verdict-adjudication-integrity`/p1-polish recurrence directly above — where the
+auditor correctly cited this lesson and routed `disposition: follow-up` because "this IS the
+phase-close polish task, so a fresh absorb finding on its own diff has no further round to land it"
+— **this run's auditor used the original, unmitigated `absorb`/`phaseClose: true` routing**, with no
+citation of this lesson anywhere in the finding. The task's terminal verdict was `polish-rejected`
+(the diff carrying that finding did not merge) followed by a second recorded outcome
+`verdict: polish-discarded` with empty findings — i.e. no further round ever consumed the `absorb`
+disposition, reproducing the ORIGINAL defect shape (finding ships with nowhere to land), not the
+mitigated one.
+
+**Sharpens the pattern further:** the mitigation (citing this lesson to justify `follow-up` over
+`absorb` on a terminal polish task's own-diff finding) is **not a durable fix baked into any
+auditor's standing behavior** — it appeared once (the `verdict-adjudication-integrity` recurrence)
+and then did not recur on the very next terminal-polish-own-diff finding this lesson's own memory
+history captures. A servitor/Lead should not assume the mitigation "sticks" across runs; re-surface
+this lesson's citation explicitly whenever a terminal polish task's gate-audit is about to route a
+polish-diff-own finding, rather than trusting a prior recurrence's correct routing to generalize.
+
+**Locate-cue:** none — process/disposition evidence from the audit log itself (task `p2-polish`,
+phase 2 of `2026-08-06-handoff-schemas-contract`); see
+[[phase-close-polish-revert-can-silently-orphan-a-subset-of-absorbed-findings]] for the underlying
+file-level finding this routing decision concerns.
