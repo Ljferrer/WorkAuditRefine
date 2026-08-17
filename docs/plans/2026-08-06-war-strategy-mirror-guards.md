@@ -273,6 +273,22 @@ adds mechanisms under it, no triad-passing decision (spec §7).
   SKILL's grill charter to derive-at-spawn / apply-at-step-2 while byte-preserving the four sibling
   pin substrings and the sandbox clause; prove every new guard red once against a scratch mutation
   with verbatim capture; release rides its own trailing phase in directive form. (AI-declared)
+- **Mechanism latitude** *(amendment 2026-08-17, #1431)*: the mechanisms Method names are reference
+  realizations, implementer's choice — the mirror-equality block's extraction implementation
+  (awk/sed vs a node one-liner), the whitespace-normalization method, the keyword-projection
+  mechanics for the tag set, the assembly method of the re-cased fixtures, the scratch-mutation
+  drill mechanics (mutation site and scratch-copy technique), where in each suite file the new
+  blocks land, and — in Phase 2 — the exact wording of the template sub-bullets, interview beat,
+  and seat-prompt clauses beyond the pinned fragments the End-state checks name. Substituting any
+  of these mechanisms while the End states and binding guardrails hold is not a plan deviation and
+  warrants no issue. This clause never waives a check, gate, or backstop (ADR 0017) — End states
+  pin outcomes, and each stays checkable as written. (AI-declared)
+- **Binding guardrails** *(amendment 2026-08-17, #1431)*: zero semantic change to the doctrine law
+  text (D4/D5 converge to the canonical SKILL.md §2 bytes) · template edits additive-only — no
+  existing template line moves · the four sibling pin substrings and the sandbox clause stay
+  byte-preserved · both-surfaces changes (standing card + dispatched prompt) land in the same
+  commit · every new guard is demonstrated-RED once with verbatim capture · absent a latitude
+  clause every runtime surface reads byte-identically to today. (AI-declared)
 - **End state:** (spec §10 criteria 1–10 mapped 1:1 with their survey notes kept, plus 11–12 for
   gates and release)
   1. The war-strategy structure suite exits 0 at the integrated tip ·

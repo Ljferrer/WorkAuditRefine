@@ -256,6 +256,23 @@ None (see Non-goals).
   as a dated snapshot, through a normal worker task with a `deps` content edge; author everything
   against the post-predecessor shapes with halt-on-miss witnesses; every negative reference and
   scratch mutation demonstrated-RED and recorded. (AI-declared)
+- **Mechanism latitude** *(amendment 2026-08-17, #1431)*: the mechanisms Method names are reference
+  realizations, implementer's choice — the regex-arm internals of the extended `D22_ORDERED_SPAN`
+  (arm construction and quantifier bounds), the construction internals of the new and updated
+  negative references (how each fixture is assembled so it differs at exactly its designated
+  point), the one-shot offset-probe mechanics behind End state 4's development drill, and the
+  wording of the fetch-refresh sentence-pair and the lesson's rewritten bullet beyond the pinned
+  needles the End-state checks name. Substituting any of these mechanisms while the End states and
+  binding guardrails hold is not a plan deviation and warrants no issue. This clause never waives a
+  check, gate, or backstop (ADR 0017) — End states pin outcomes, and each stays checkable as
+  written. (AI-declared)
+- **Binding guardrails** *(amendment 2026-08-17, #1431)*: the fetch refresh is ordered strictly
+  before the range probe and carries a fail-closed non-zero-exit arm (no probe, no push, escalate)
+  · the neutralized-pair exemption semantics (`This reverts commit` body token) are preserved ·
+  the terminal arm anchors on the real push invocation under bounded-region discipline, never a
+  prose mention · the lesson file changes only in its Mitigation layer-2 bullet — frontmatter,
+  keywords, and every other section byte-untouched · every negative reference is demonstrated-RED
+  and recorded. (AI-declared)
 - **End state:**
   1. The Gate-2 pre-push staged-file check orders a `git fetch origin <working>` refresh — with a
      fail-closed non-zero-exit arm (do not probe, do not push; escalate, worktree left in place) —
