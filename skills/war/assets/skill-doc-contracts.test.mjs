@@ -1651,6 +1651,12 @@ test('D31 — SKILL.md Decompose done-when intake keeps the full-bullet parse cl
       /text\s+AFTER\s+the\s+`?Done when:`?\s+key/i,
       'the value-boundary clause — the text AFTER the `Done when:` key, never the key itself',
     ],
+    // the backtick-stripping boundary — the command is the code-span text, markup stripped;
+    // this key lands in the same commit as its SKILL.md clause (#1332)
+    [
+      /backticks\s+are\s+markup,\s+stripped/i,
+      'the backtick-stripping clause — the command is the code-span text, backticks stripped',
+    ],
     // legacy precedence — the legacy arm gates the intake-defect rule off (#1332)
     [
       /intake-defect\s+rule\s+does\s+not\s+fire/i,
