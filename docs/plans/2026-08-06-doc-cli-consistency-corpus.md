@@ -180,14 +180,15 @@ live falsehood at the current tip.
 | D3 | SKILL.md floor (finding 7) | Sentinel membership asserts, not a count literal: the posterity corpus must include one readdir-derived SKILL.md path (`skills/war/SKILL.md`), one agent card (`agents/war-worker.md`), `skills/war-strategy/references/plan-interview.md`, and `README.md` | spec §3 D3 (carried [assumed] row → A1) |
 | D4 | plan-interview.md placement (#1306) | Into `EVICTION_DESTINATIONS` (verb-scanned; `query` probe-resolves at conversion), not the exclusion list — the file's whole exposure is its CLI command; a comment cites #1306 | spec §3 D4; (verified: probe at conversion 2026-08-12) |
 | D5 | Composite-emphasis fix (finding 9) | Apply the `[<*…]` and `yyyy` carve-out tests to the **path segment only** — after the existing trailing-punctuation trim, truncate the captured run at the first backtick, `]`, or `)` delimiter, then run the existing conditional paired-emphasis peel (constraint 7's order) — and add fixtures: composite bold+code must yield exactly 1, bold-link composite must yield ≥ 1, each new fixture's assertion message carrying the literal `must be flagged` (the suite's message convention — End state 3's growth grep counts exactly that literal) | spec §3 D5; (verified: 0/0/1 probe reproduction at conversion 2026-08-12) |
-| D6 | `CONTEXT.md` Spec-truth guard entry (finding 4) | Supersede in place: a dated supersession note **as the first body line of the entry** (immediately after the `**Spec-truth guard**:` heading line, so End state 8's `-A8` grep window reads it) — the slice was never emitted and ADR 0046's posterity rule retires its premise — keeping the entry below it for archaeology; no deletion | spec §3 D6 (+ D13 placement, conversion judgment) |
-| D7 | ADR 0046 amendment | One appended row in `## Relationship to prior ADRs` retiring the ADR 0036-era Spec-truth-guard glossary mechanism (never emitted; superseded by the posterity rule); the "The guard." Decision bullet's corpus description updated in place to the decoupled scan (posterity corpus directory-scanned; verb corpus enumerated + placement census) with a dated parenthetical; Status line notes the amendment date. All other pre-existing body text byte-unchanged (constraint 4). OLD-absent: the bullet's retired sentence fragment `hand-enumerated list could not see` gone (1 hit at conversion → 0) | spec §3 D7 + amendment-discipline precedent |
+| D6 | `CONTEXT.md` Spec-truth guard entry (finding 4) | Supersede in place: a dated supersession note **as the first body line of the entry** — **worded to the TRUTH at the current base, which the conversion-time "never emitted" claim is NOT** *(corrected by the /red-team pass, 2026-08-16: `skill-doc-contracts.test.mjs` line 27 reads "Spec-truth guards (D15–D17) read the ratified design specs directly" and rows D15/D16/D17 are LIVE, reading `docs/specs/` files; #1358 finding 4's `git log -S` verification was taken at pin `5c2e7b3`, before those rows landed via the #804/#887 prose-drift waves)*. **Wording duty: the words "superseded" and "ADR 0046" sit on the SAME physical line of the note** (End state 8's check greps a single line; a soft-wrap between them false-reds correct work — the plan-6 ES8 backtick class). The note states: the mechanism **was emitted as rows D15–D17** (locking prose-drift-**corrected** spec sentences), and is **not extended going forward** — ADR 0046's posterity rule supersedes the entry's growth premise ("only a guarded claim is drift-proof" inverts to "specs are frozen, so locked sentences cannot rot"); the existing rows stay as historical locks. The entry's "defined-but-not-yet-emitted" sentence is the stale claim being corrected. Entry kept below the note for archaeology; no deletion | spec §3 D6, /red-team-corrected 2026-08-16 |
+| D7 | ADR 0046 amendment | One appended row in `## Relationship to prior ADRs` recording the ADR 0036-era Spec-truth-guard glossary mechanism as **emitted (rows D15–D17 in `skill-doc-contracts.test.mjs`, locking #804/#887-corrected spec sentences) and not extended going forward** — superseded by the posterity rule for all future spec claims *(the conversion-time "never emitted" wording is false at the current base and must not be authored — /red-team 2026-08-16)*; the "The guard." Decision bullet's corpus description updated in place to the decoupled scan (posterity corpus directory-scanned; verb corpus enumerated + placement census) with a dated parenthetical; Status line notes the amendment date. All other pre-existing body text byte-unchanged (constraint 4). OLD-absent: the bullet's retired sentence fragment `hand-enumerated list could not see` gone (1 hit at conversion → 0) | spec §3 D7 + amendment-discipline precedent |
 | D8 | Agent cards in the verb scan | No — posterity scan only (`agents/war-worker.md`'s `query` would resolve green, probe-verified, but the verb rule's corpus stays as-is this change) | spec §3 D8 (carried [assumed] row → A2) |
 | D9 | Exclusion-list contents at land | The seven unenumerated references files of Context 3, each with a one-line reason comment: `schemas.md` = the probe-verified export-naming false red (resolveGate); the other six = no shell-out prose for the scanned modules (probe-verified zero claimed verbs at conversion). Dated snapshot — land-time re-census per constraint 10 | spec §3 D9; (verified: probe census at conversion 2026-08-12) |
 | D10 | glossary-cold.md placement (post-plan-5 base) | Into `VERB_SCAN_EXCLUSIONS`, reason: evicted `CONTEXT.md` glossary bodies — incident/recovery doctrine, no shell-out prose for the scanned modules (conversion probe, Context 9). The worker re-verifies at its rebased base: if the landed bodies do phrase a scanned module's command, place in `EVICTION_DESTINATIONS` instead and say so in the done report. At a pre-plan-5 base (standalone run) the file does not exist and the scan-derived census correctly omits it | conversion judgment (Context 9), logged for /red-team |
 | D11 | Lesson stamp (#1368's mined lesson) | Fold into Task 1.1 (the batch fold-into-fixing-task precedent, operator-mandated — a conscious deviation from the spec's "servitor housekeeping" non-goal, Note 1): prefix the `description` of `docs/learnings/archive/enumerated-destination-list-existssync-guard-fail-open-vs-sibling-fail-closed.md` with `RESOLVED (doc-cli-consistency-corpus/1.1, #1368): …` — body/keywords otherwise untouched per the resolved-lesson-stamp convention; redaction lint must stay green | operator batch directive; A6 |
 | D12 | Task decomposition | Three file-disjoint wave-1 tasks in Phase 1 — Task 1.1 the suite + lesson stamp (one file carries #1368 + #1306 + findings 1/7/9/10: the same-file rule forbids splitting); Task 1.2 `CONTEXT.md`; Task 1.3 ADR 0046 — plus the standard trailing release phase. No deps edges: no mechanical guard here reads a sibling task's file (the suite scans neither `CONTEXT.md` nor `docs/adr/`, verified at conversion), so rule 7 does not bind; the ADR/glossary prose describing Task 1.1's mechanics is authored from this plan's Part 1 (defined-but-not-yet-emitted; produced in Task 1.1 — the plan-5 Task-1.5 precedent), not from the landed diff | conversion judgment; war-strategy §3 |
 | D13 | Census asymmetry is stated intent | The census test's comment states the deletion asymmetry: a deleted references file silently leaves the scan-derived posterity corpus (a deleted file is no live surface — by design), while deletion of an enumerated verb-list entry still throws via unguarded `readFileSync` **and** reds the census — so the asymmetry reads as intent, not oversight | spec §8 |
+| D14 | Doc-prose mirror discipline (/red-team, 2026-08-16; roots 19/20) | Task 1.2's two CONTEXT.md corpus terms and Task 1.3's ADR 0046 guard-bullet rewrite **name constructs, never restate mechanics**: cite `EVICTION_DESTINATIONS` / `VERB_SCAN_EXCLUSIONS` / the census by construct name with `skills/_shared/doc-cli-consistency.test.mjs` as the maintained home (the plan-7 `makePlanEntry` precedent; ADR 0046's own citing idiom) — prose that never restates mechanics cannot drift from them, which is why no new mirror-guard row is needed. Hedge for the same-wave identifier copy: both doc workers write the identifiers as named constructs and the Lead re-greps the landed names at the phase checkpoint before closing #1358 — a mismatch is a checkpoint fix, never a silent rot | /red-team 2026-08-16; ADR 0025 |
 
 ## Assumptions ledger
 
@@ -206,8 +207,15 @@ live falsehood at the current tip.
 - **No blanket markdown/AST parser** over doc surfaces — ADR 0046's rejected ceiling stands; the
   posterity rule stays a regex sweep with pattern carve-outs.
 - **Verb-scanning `agents/*.md`** — deferred (D8/A2).
-- **`skill-doc-contracts.test.mjs` untouched**: the Spec-truth-guard slice was never emitted, so there are
-  no rows to remove (verified: issue #1358 finding 4 (2026-08-06)); the supersession is doc-only.
+- **`skill-doc-contracts.test.mjs` untouched — but for the OPPOSITE reason the conversion recorded.**
+  The /red-team pass (2026-08-16) proved the Spec-truth-guard slice **WAS emitted**: rows D15–D17 are
+  live in `skill-doc-contracts.test.mjs` (its line-27 comment names them "Spec-truth guards"), reading
+  `docs/specs/` files directly. #1358 finding 4's "never built" verification was pinned at `5c2e7b3`,
+  before those rows landed. The file stays untouched because the rows are **green and harmless under
+  ADR 0046** — they lock prose-drift-corrected sentences in now-frozen specs, so the locked text cannot
+  rot — not because there is nothing to remove. The supersession is doc-only and must state this truth;
+  authoring "never emitted" into CONTEXT.md or the ADR would put a false code-fact on two doctrine
+  surfaces in a plan whose stated purpose is doctrine coherence.
 - **#1358 findings 2/3/5/6/8** — fixed at `2ba7f0a` (re-verified at conversion, header paragraph);
   citation-only closure at the checkpoint, no work here.
 - **No edit to `skills/war-strategy/references/plan-interview.md`** — it enters both scans as-is; its
@@ -238,7 +246,7 @@ No new ADR — amend ADR 0046 per D7 (A3).
   in-file edit can silently narrow it; every `skills/*/references/*.md` file is a conscious, reasoned
   member of the verb scan or a reasoned exclusion, and an unplaced newcomer is red by default; the
   composite-emphasis escapes are closed with the legitimate carve-outs intact; the doctrine record is
-  coherent — the never-emitted Spec-truth-guard glossary mechanism is recorded superseded, and ADR 0046
+  coherent — the Spec-truth-guard glossary mechanism is recorded as emitted-then-frozen (D15–D17 live; not extended going forward), and ADR 0046
   describes the corpus its guard actually scans.
 - **Method:** decouple the two corpora in `skills/_shared/doc-cli-consistency.test.mjs` — the verb rule
   keeps its enumerated list (plus `plan-interview.md`, whose `query` command probe-resolves today), the
@@ -254,33 +262,55 @@ No new ADR — amend ADR 0046 per D7 (A3).
   mined lesson RESOLVED in the fixing task; land after plan 5 on the campaign path with a land-time
   re-census placing `glossary-cold.md`, and re-census identically on any base standalone.
 - **End state:**
-  1. The doc-cli-consistency suite passes at the landed tip ·
-     check: `node --test skills/_shared/doc-cli-consistency.test.mjs`.
+  1. The doc-cli-consistency suite passes at the landed tip, **and the census + exclusion list exist as
+     committed constructs** (/red-team: no End state carried a tip-runnable pin for the census itself —
+     the mutation probes are done-report-only SOFT evidence, so a worker who skipped the census entirely
+     left every mechanical check green) ·
+     check: `node --test skills/_shared/doc-cli-consistency.test.mjs && grep -qF 'VERB_SCAN_EXCLUSIONS' skills/_shared/doc-cli-consistency.test.mjs && grep -q 'deepEqual' skills/_shared/doc-cli-consistency.test.mjs`.
   2. Deleting any single `EVICTION_DESTINATIONS` entry in a throwaway worktree reds the partition
      census, and an unplaced probe file `skills/war/references/zz-census-probe.md` reds it naming that
      path · check: two mutation probes — remove one entry, run the suite, expect nonzero exit; create
      the probe file, run the suite, expect nonzero exit with the path in the message (uncommittable
      runs — done-report evidence, backstop row).
   3. `specCitations` on a bold-wrapped code-span citation returns exactly one finding, and the bold-link
-     composite returns at least one · check: `grep -c 'must be flagged'
-     skills/_shared/doc-cli-consistency.test.mjs` grows by the two D5 fixtures (8 → 10, dated snapshot at
-     conversion), and the suite passes · manual same-scope survey: hand-scan the suite's same-scope
+     composite returns at least one · check (**behavior pins, not a line count** — /red-team-proven: the 8 → 10 count false-greens on
+     two COMMENT lines with the transform reverted, and its verbatim command exits 0 at base either
+     way): `node --test skills/_shared/doc-cli-consistency.test.mjs && [ "$(grep -cF 'must be flagged' skills/_shared/doc-cli-consistency.test.mjs)" -ge 10 ] && grep -qF 'bold' skills/_shared/doc-cli-consistency.test.mjs`
+     — the load-bearing halves are the suite run (the new fixtures execute inside it) and the fixture
+     presence; the count is retained only as a floor · manual same-scope survey: hand-scan the suite's same-scope
      tests/comments for same-meaning reworded siblings the grep misses; list each straggler as a
      survey-derived correction.
   4. Every pre-existing legitimate carve-out fixture stays green with its fixture lines byte-unchanged ·
-     check: `git diff` over the carve-outs test shows additions only among fixtures; suite passes.
+     check (the conversion-time bare `git diff` runs in a CLEAN worktree at the tip — it prints nothing
+     and exits 0 no matter what landed, /red-team-proven): mechanical half
+     `node --test skills/_shared/doc-cli-consistency.test.mjs` — every pre-existing fixture executes in
+     the suite, so a flipped fixture reds it; the byte-unchanged half is judged at phase close from
+     `git diff <phase-base>..<tip> -- skills/_shared/doc-cli-consistency.test.mjs`
+     (execution-evidence seat; additions-only among fixtures).
   5. The posterity corpus includes a readdir-derived SKILL.md path, `agents/war-worker.md`,
-     `skills/war-strategy/references/plan-interview.md`, and `README.md` (the D3 sentinels) ·
-     check: `grep -n 'agents/war-worker.md' skills/_shared/doc-cli-consistency.test.mjs` · manual
+     `skills/war-strategy/references/plan-interview.md`, and `README.md` (the D3 sentinels) — **and the
+     SKILL.md and agent-card slices are provably DERIVED, not hand-enumerated**: the suite asserts each
+     slice `deepEqual` its own `readdirSync` result (the D2 census idiom applied to the other two
+     families; /red-team-proven the four membership sentinels alone cannot distinguish a readdir from a
+     hardcoded array containing those four paths) ·
+     check: `grep -qF 'agents/war-worker.md' skills/_shared/doc-cli-consistency.test.mjs && [ "$(grep -c 'readdirSync' skills/_shared/doc-cli-consistency.test.mjs)" -ge 2 ]` · manual
      same-scope survey: hand-scan the suite's same-scope tests/comments for same-meaning reworded
      siblings the grep misses; list stragglers as survey-derived corrections.
-  6. `EVICTION_DESTINATIONS` contains `skills/war-strategy/references/plan-interview.md` ·
-     check: `grep -n 'plan-interview.md' skills/_shared/doc-cli-consistency.test.mjs` · manual same-scope
+  6. `EVICTION_DESTINATIONS` contains `skills/war-strategy/references/plan-interview.md` — **bound by a
+     positive suite assert** (`EVICTION_DESTINATIONS.includes('skills/war-strategy/references/plan-interview.md')`,
+     comment citing #1306, inside the census test), because /red-team proved the bare grep cannot
+     discriminate WHICH list the path landed in — placing it in `VERB_SCAN_EXCLUSIONS` instead
+     satisfies the census, the suite, AND the grep while defeating #1306's whole point ·
+     check: `node --test skills/_shared/doc-cli-consistency.test.mjs && grep -qF "EVICTION_DESTINATIONS.includes('skills/war-strategy/references/plan-interview.md')" skills/_shared/doc-cli-consistency.test.mjs` · manual same-scope
      survey: hand-scan the suite's same-scope tests/comments for same-meaning reworded siblings the grep
      misses; list stragglers as survey-derived corrections.
   7. Renaming the `query` verb inside `war-memory.mjs`'s `VERBS` object in a throwaway worktree makes the
      verb rule flag `plan-interview.md`'s recon command as unresolved · check: mutation probe — rename
-     the verb, run the suite, expect nonzero exit (uncommittable — done-report evidence, backstop row).
+     the verb, run the suite, and record IN THE DONE REPORT the failing assertion's OUTPUT naming
+     `skills/war-strategy/references/plan-interview.md` (the evidence is the FLAG, not the exit code:
+     /red-team proved the suite's first test — the hardcoded fail-closed verb-sanity list — reds on the
+     rename BEFORE the verb rule runs, so a bare nonzero exit proves the sanity check fired, not that
+     the verb rule flagged this file) (uncommittable — done-report evidence, backstop row).
   8. `CONTEXT.md`'s Spec-truth guard entry opens with a dated supersession note naming ADR 0046 and the
      never-emitted status, and the file stays inside its hard budget ·
      check: `grep -A8 'Spec-truth guard' CONTEXT.md | grep -c '0046'` ≥ 1 and
@@ -297,8 +327,8 @@ No new ADR — amend ADR 0046 per D7 (A3).
      list stragglers as survey-derived corrections.
   10. The mined lesson is stamped RESOLVED citing #1368, and the redaction lint passes over
       `docs/learnings/` ·
-      check: `grep -cF 'RESOLVED' docs/learnings/archive/enumerated-destination-list-existssync-guard-fail-open-vs-sibling-fail-closed.md`
-      ≥ 1 and `node skills/_shared/war-memory.mjs lint docs/learnings/`.
+      check (**ONE fused command**):
+      `[ "$(grep -cF 'RESOLVED' docs/learnings/archive/enumerated-destination-list-existssync-guard-fail-open-vs-sibling-fail-closed.md)" -ge 1 ] && node skills/_shared/war-memory.mjs lint docs/learnings/`.
   11. The pre-widen sweep is recorded: `grep -rF 'docs/specs'` over the 13 newly scanned surfaces returns
       zero hits (zero at conversion), and the mandatory manual same-scope hand-scan of the 13 files'
       headings/comments/prose for decorated or reworded spec references is run and its outcome recorded
@@ -337,7 +367,7 @@ plan's Part 1, defined-but-not-yet-emitted) → Phase 2 (release).
   vanishes between scan and read throws); redefine `specRuleCorpus` onto it (or retire it in its favor);
   **replace** the three-path membership loop with the D3 sentinel asserts (`skills/war/SKILL.md`,
   `agents/war-worker.md`, `skills/war-strategy/references/plan-interview.md`, `README.md`). **Partition
-  census (D2/D13)** — new census test: derive the references-file set from the same directory scan;
+  census (D2/D13)** — new census test (**first hoisting `EVICTION_DESTINATIONS` — currently a `const` INSIDE `skillDocs()` — to module scope** alongside the new `VERB_SCAN_EXCLUSIONS`, with `skillDocs()` reading the hoisted constant; a sibling `test()` block referencing it un-hoisted throws `ReferenceError` — /red-team-verified): derive the references-file set from the same directory scan;
   assert `deepEqual` of its sorted form against the sorted union of `EVICTION_DESTINATIONS` and the new
   `VERB_SCAN_EXCLUSIONS`; assert the two constants disjoint; the failure message names the
   unplaced/removed path and says which list to extend and why (census friction is the point); the test
@@ -510,7 +540,7 @@ plan's Part 1, defined-but-not-yet-emitted) → Phase 2 (release).
    banner test — disjoint constructs, per their own contention notes); this plan does NOT touch it — but
    its `_polish` sweep enumerates `CONTEXT.md`, hence Task 1.2's no-swept-token duty (constraint 5). `docs/adr/0046-*`: this plan is its only owner across the batch
    (verified: seven committed plans' `- Files:` lines; `adr-doc-truth-sweep`'s surface list names ADRs
-   0030/0033/0025/0008/0044 — not 0046). The trailing release-slot overlap with every sibling is the
+   0030/0033/0025/0008 — not 0046; 0044 is read-only reference there, not in its `Files:` (/red-team-corrected enumeration). The trailing release-slot overlap with every sibling is the
    sanctioned stacked-release pattern, not contention.
 5. **Posterity survivors.** Historical artifacts keep old wordings and are never retro-edited (ADR 0046
    posture — the very rule this plan hardens): the source issues' verbatim finding quotes, the source
