@@ -221,6 +221,22 @@ Source spec: `docs/specs/2026-08-06-references-pointer-integrity-design.md` (con
   no intermediate serial-merge state is false; author every shared-file edit against the
   post-predecessor shapes with halt-on-miss witnesses; record every mutation drill; keep every
   budgeted surface under its hard line and cite ADR 0042 on any advisory trip. (AI-declared)
+- **Mechanism latitude** *(amendment 2026-08-17, #1431)*: the mechanisms Method names are reference
+  realizations, implementer's choice — the whitespace-tolerant retirement patterns' construction
+  (the `\s+` shapes and their composition), `headerRegion`'s fail-closed implementation internals,
+  the mutation-probe mechanics (throwaway-copy technique and mutation sites), the wording of the
+  per-card D3 resolution line and the CONTEXT.md term entry beyond the pinned fragments the
+  End-state checks name, where in each suite file the new arms land, and the new ADR's number
+  (resolved as next-free at land, per the plan's own rule). Substituting any of these mechanisms
+  while the End states and binding guardrails hold is not a plan deviation and warrants no issue.
+  This clause never waives a check, gate, or backstop (ADR 0017) — End states pin outcomes, and
+  each stays checkable as written. (AI-declared)
+- **Binding guardrails** *(amendment 2026-08-17, #1431)*: the anchored family is count-complete per
+  card and the OLD shape mechanically extinct (End states 1–2, 5) · guard travels with the fact —
+  the card flip and its shape asserts land in one diff · no budgeted surface crosses its hard
+  line, and any advisory trip cites ADR 0042 in the commit body · the `worker-servitor-edges.md`
+  re-truth stays behind its `deps` content edge so no intermediate serial-merge state is false ·
+  every mutation drill is demonstrated-RED and recorded. (AI-declared)
 - **End state:**
   1. The five agent cards carry no bare or `../`-prefixed `skills/`-targeting link target ·
      check: `grep -nE '\]\((\.\./)*skills/' agents/*.md` → 0 hits (13 at the conversion base) —
