@@ -40,10 +40,13 @@
 #   .claude/ does not show as untracked in the parent `git status` (probe E2).
 # - ensure-worktree is idempotent "ensure" with CONSERVATIVE heal (D4/D7): create
 #   fresh on the integration tip with a .war-task marker; reuse a present worktree
-#   untouched (never reset a branch that may carry un-merged commits); prune +
-#   recreate only when the registry is stale (dir gone) — recreation re-checks-out
-#   the existing branch, so its commits, which live in the ref, are never lost;
-#   and FAIL LOUD (never delete) on an unregistered dir that already holds files.
+#   untouched at the superproject level (never reset a branch that may carry
+#   un-merged commits) — declared submodules are examined on reuse and a
+#   corrupted checkout may be restored at its unchanged recorded SHA (#1381,
+#   reuse_hygiene); prune + recreate only when the registry is stale (dir gone)
+#   — recreation re-checks-out the existing branch, so its commits, which live
+#   in the ref, are never lost; and FAIL LOUD (never delete) on an unregistered
+#   dir that already holds files.
 # - teardown is STRICTLY RUN-SCOPED (D9): the refiner supplies the current run's
 #   ledger dir (<repo-root>/.claude/teams/<run-id>) via --run-dir, and teardown
 #   only ever removes a worktree whose path is INSIDE that dir. A sibling worktree
@@ -526,7 +529,11 @@ dir_is_empty() {
 # present worktree. The heal cases are:
 #   * Already a registered worktree, dir present  -> REUSE untouched (only make
 #     sure the .war-task marker is there). Never reset <branch>; un-merged
-#     commits survive because we never touch them.
+#     commits survive because we never touch them. Declared submodules are
+#     EXAMINED-BUT-UNTOUCHED at the superproject level (#1381, D19): reuse-path
+#     hygiene may restore a corrupted submodule checkout at its unchanged
+#     recorded gitlink SHA (see reuse_hygiene below) — never a superproject
+#     tracked file or untracked entry, and never a new die (fail-open).
 #   * Registered but the dir is gone (stale registry) -> prune + recreate on
 #     the existing <branch>. Commits live in the ref (never deleted by prune/
 #     remove), so nothing is lost. Only safe because the dir is gone — there is
@@ -579,6 +586,12 @@ cmd_ensure_worktree() {
       # Touch nothing but the marker (idempotent). Crucially we do NOT move/reset
       # <branch>, so un-merged commits survive.
       write_marker "$path" "$branch"
+      # Reuse-path hygiene (#1381, D19): declared submodules are examined-but-
+      # untouched at the superproject level — a corrupted submodule checkout may
+      # be restored at its unchanged recorded SHA; anything that could be real
+      # work is only ever reported. Fail-open: never changes this path's exit
+      # code or its stdout contract (markers go to stderr).
+      reuse_hygiene "$path" || true
       printf '%s\n' "$path"
       return 0
     fi
@@ -680,6 +693,128 @@ stale_remote_probe() {
   # die with the two-direction operator diagnostic + the restore command.
   printf 'STALE_REMOTE branch=%s remoteSha=%s frozenTip=%s\n' "$sr_branch" "$sr_remote_sha" "$sr_tip" >&2
   die "ensure-worktree: origin has '$sr_branch' at $sr_remote_sha, which is NOT an ancestor of the frozen integration tip $sr_tip — a STALE PRIOR ATTEMPT (an unmerged remote task branch left by a prior run whose local state was torn down). No ref or worktree was created. Reconcile one of two ways: (a) ADOPT the remote as the real work — 'git branch $sr_branch $sr_remote_sha' then relaunch (the existing-branch reuse path checks it out as-is); or (b) on a SANCTIONED recovery relaunch where the remote is a superseded attempt, pass --reclaim-stale-remote to delete it. Reversible until remote GC: git push origin $sr_remote_sha:refs/heads/$sr_branch" "$EX_STALE_REMOTE"
+}
+
+# hygiene_marker <sub-path> <action> <detail> : the machine-readable reuse-path
+# hygiene marker (#1381, the STALE_REMOTE precedent in this file: the provision
+# barrier keys on the token and the key=value payload, never an exit code).
+# action is "repaired" or "detected"; values stay space-free so the payload
+# splits cleanly on key=value boundaries.
+hygiene_marker() {
+  printf 'WORKTREE_HYGIENE path=%s action=%s detail=%s\n' "$1" "$2" "$3" >&2
+}
+
+# reuse_hygiene <worktree-path> : REUSE-path submodule hygiene (#1381, D19). A
+# worker killed mid-populate leaves a reused worktree's submodule with an
+# emptied index (every tracked file staged for deletion) and typically a stale
+# index.lock; handing that state silently to the next worker generation makes
+# the fresh worker inherit the corruption. On the reuse path only, examine each
+# DECLARED submodule (.gitmodules paths) and repair-or-report per
+# reuse_hygiene_one below. FAIL-OPEN throughout: never a die, never a non-zero
+# return — the reuse path's exit discipline is unchanged, and superproject
+# tracked files and untracked entries are never touched (the WIP-preservation
+# invariant).
+reuse_hygiene() {
+  rh_wt="$1"
+  [ -f "$rh_wt/.gitmodules" ] || return 0
+  rh_subs="$( { git config -f "$rh_wt/.gitmodules" --get-regexp '^submodule\..*\.path$' 2>/dev/null || true; } | awk '{ $1=""; sub(/^ /, ""); print }')"
+  [ -n "$rh_subs" ] || return 0
+  while IFS= read -r rh_sub; do
+    [ -n "$rh_sub" ] || continue
+    reuse_hygiene_one "$rh_wt" "$rh_sub" || true
+  done <<EOF
+$rh_subs
+EOF
+  return 0
+}
+
+# reuse_hygiene_one <worktree-path> <sub-path> : examine ONE declared submodule
+# on the reuse path. Detection rides superproject-side porcelain (`git status
+# --porcelain -- <sub>`) because `git submodule status` shows NO marker in the
+# corrupted state (the probe-verified signal). Classification:
+#   * clean -> silent (no marker line).
+#   * checked-out HEAD != the recorded gitlink SHA -> `detected` only; the tree
+#     is NEVER touched (could be real submodule work — the relaunching Lead
+#     adjudicates, never --force).
+#   * HEAD == gitlink SHA AND the dirt is the CORRUPTION SIGNATURE — porcelain
+#     is staged deletions only, allowing untracked entries that mirror those
+#     staged deletions (the emptied-index shape keeps files on disk; the
+#     reproduced killed-populate state leaves them absent — both classify the
+#     same because nothing here reads the worktree population, A10) — ->
+#     REPAIR: remove a stale submodule index.lock if present (the probe-
+#     verified repair blocker), then `git submodule update --init --force`.
+#     The SHA is unchanged, so no gitlink bump can result. A clean result emits
+#     `repaired`; a still-dirty or failed update emits `detected`
+#     (repair-failed) and still returns 0.
+#   * anything else (real edits, foreign untracked files — even beside a stale
+#     index.lock) -> `detected` only, tree untouched: dirt that mimics real
+#     work is handed to the Lead, never to --force (the red-team-narrowed
+#     detector, D19).
+reuse_hygiene_one() {
+  h_wt="$1"; h_sub="$2"
+  [ -d "$h_wt/$h_sub" ] || return 0
+  h_dirt="$(git -C "$h_wt" status --porcelain -- "$h_sub" 2>/dev/null || true)"
+  [ -n "$h_dirt" ] || return 0
+
+  h_gitlink="$( { git -C "$h_wt" ls-tree HEAD -- "$h_sub" 2>/dev/null || true; } | awk '{print $3}')"
+  h_head="$(git -C "$h_wt/$h_sub" rev-parse HEAD 2>/dev/null || true)"
+  if [ -z "$h_gitlink" ] || [ -z "$h_head" ]; then
+    hygiene_marker "$h_sub" detected unreadable-state
+    return 0
+  fi
+  if [ "$h_head" != "$h_gitlink" ]; then
+    hygiene_marker "$h_sub" detected sha-mismatch
+    return 0
+  fi
+
+  # SHA matched + dirty: classify against the corruption signature.
+  h_gd="$(git -C "$h_wt/$h_sub" rev-parse --git-dir 2>/dev/null || true)"
+  case "$h_gd" in ''|/*) ;; *) h_gd="$h_wt/$h_sub/$h_gd" ;; esac   # anchor relative
+  h_lock=""
+  if [ -n "$h_gd" ] && [ -f "$h_gd/index.lock" ]; then h_lock=1; fi
+  h_staged_del="$(git -C "$h_wt/$h_sub" diff --cached --name-only --diff-filter=D 2>/dev/null || true)"
+  h_subdirt="$(git -C "$h_wt/$h_sub" status --porcelain 2>/dev/null || true)"
+
+  h_shape=1
+  [ -n "$h_staged_del" ] || h_shape=0
+  if [ "$h_shape" -eq 1 ]; then
+    # Every porcelain line must be a staged deletion, or an untracked entry
+    # whose path is among the staged deletions (the files-on-disk variant of
+    # the emptied-index shape). Anything else is potentially real work.
+    while IFS= read -r h_line; do
+      [ -n "$h_line" ] || continue
+      case "$h_line" in
+        "D  "*) ;;
+        "?? "*)
+          printf '%s\n' "$h_staged_del" | grep -Fxq -- "${h_line:3}" || h_shape=0 ;;
+        *) h_shape=0 ;;
+      esac
+    done <<EOF
+$h_subdirt
+EOF
+  fi
+
+  if [ "$h_shape" -ne 1 ]; then
+    if [ -n "$h_lock" ]; then
+      hygiene_marker "$h_sub" detected unrecognized-dirt+stale-index.lock
+    else
+      hygiene_marker "$h_sub" detected unrecognized-dirt
+    fi
+    return 0
+  fi
+
+  h_detail="staged-deletions"
+  if [ -n "$h_lock" ]; then
+    rm -f "$h_gd/index.lock" 2>/dev/null || true
+    h_detail="staged-deletions+stale-index.lock"
+  fi
+  if git -C "$h_wt" submodule update --init --force -- "$h_sub" >/dev/null 2>&1 \
+     && [ -z "$(git -C "$h_wt" status --porcelain -- "$h_sub" 2>/dev/null)" ]; then
+    hygiene_marker "$h_sub" repaired "$h_detail"
+  else
+    hygiene_marker "$h_sub" detected "repair-failed:$h_detail"
+  fi
+  return 0
 }
 
 # --- run-scoping ------------------------------------------------------------

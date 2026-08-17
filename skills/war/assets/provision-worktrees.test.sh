@@ -13,7 +13,9 @@
 # Subcommands exercised (plan 2026-08-06 Task 1.2, #1380): resolve-working-branch
 # leaf-ref arms (RWB.f-RWB.j: leaf-dev flat fallback, planSlug validation,
 # actionable cut-failure die, fallback resume-reuse, no-collision control).
-# Ownership seam: the run tells the script which refs it owns via --owned-file
+# Subcommands exercised (plan 2026-08-06 Task 1.2, #1381): ensure-worktree
+# reuse-path submodule hygiene (HYG.j-HYG.n: corruption repair + WIP
+# preservation, SHA-mismatch control, clean control, real-edits control).# Ownership seam: the run tells the script which refs it owns via --owned-file
 # <path> (a newline-delimited ledger the script reads AND appends to when it
 # creates a branch) and/or repeatable --owned <ref>. Both are pure-bash
 # testable. A branch that exists but is NOT recorded as ours is a foreign
@@ -322,6 +324,141 @@ expect "branch-mismatch: .war-task marker does NOT claim branch B" \
   "no" "$(grep -qx 'branch=war/myplan/p2-task1' "$WT6/.war-task" 2>/dev/null && echo yes || echo no)"
 expect "branch-mismatch: .war-task marker still names branch A" \
   "yes" "$(grep -qx 'branch=war/myplan/p1-task1' "$WT6/.war-task" 2>/dev/null && echo yes || echo no)"
+
+# ===========================================================================
+# Plan 2026-08-06 Task 1.2 (#1381, D19): ensure-worktree REUSE-path submodule
+# hygiene. Each case builds its own throwaway superproject+submodule fixture
+# (never a shared one — the redteam-sandbox-residue lesson) via hyg_fixture.
+# protocol.file.allow=always is FIXTURE-BUILD-ONLY (the submodule clone from a
+# file-path source); the hygiene repair itself re-checks-out an already-cloned
+# submodule and needs no protocol override.
+# ===========================================================================
+
+# hyg_fixture -> echoes "REPO WT": a superproject repo with ONE declared
+# submodule `sub` (two tracked files), a task branch, and a POPULATED, clean
+# task worktree on that branch (provisioned via the script, so the next
+# ensure-worktree call takes the REUSE path).
+hyg_fixture() {
+  hs="$(mktemp -d 2>/dev/null || mktemp -d -t warhysub)"; REPOS="$REPOS $hs"
+  git -C "$hs" init -q
+  git -C "$hs" config user.email war@test.local
+  git -C "$hs" config user.name "WAR Test"
+  git -C "$hs" config commit.gpgsign false
+  printf 'one\n' > "$hs/a.txt"; printf 'two\n' > "$hs/b.txt"
+  git -C "$hs" add -A; git -C "$hs" commit -qm subseed
+  hr="$(new_repo)"
+  git -C "$hr" -c protocol.file.allow=always submodule add -q "$hs" sub >/dev/null 2>&1
+  git -C "$hr" commit -qm "declare submodule"
+  git -C "$hr" branch war/myplan/p2-t3 HEAD
+  hw="$(new_wt_path)"
+  ( cd "$hr" && bash "$SCRIPT" ensure-worktree "$hw" war/myplan/p2-t3 "$(git -C "$hr" rev-parse HEAD)" ) >/dev/null 2>&1
+  git -C "$hw" -c protocol.file.allow=always submodule update --init sub >/dev/null 2>&1
+  echo "$hr $hw"
+}
+
+# ---------------------------------------------------------------------------
+# Case (HYG.j / 1.2(j)) HYGIENE-REPAIR (End state 21) + (HYG.k / 1.2(k))
+# WIP-PRESERVATION (End state 22) — one fixture, per the plan: the submodule
+# index is emptied deterministically (`git read-tree --empty` + a dropped
+# index.lock — A10: state-equivalent to the reproduced killed-populate state on
+# every surface the hygiene arm reads; files stay on disk, a dimension nothing
+# consulted reads), and superproject WIP (a tracked modification + two
+# untracked files) rides the same reuse. The reuse must repair the submodule
+# (clean, HEAD still at the recorded gitlink SHA), emit a WORKTREE_HYGIENE
+# `repaired` marker on stderr, and leave the WIP byte-for-byte with nothing
+# staged. Die/marker text captured via the T2.3/T2.6 inline idiom.
+# ---------------------------------------------------------------------------
+FXH_J="$(hyg_fixture)"; RH_J="${FXH_J%% *}"; WTH_J="${FXH_J##* }"
+TIPH_J="$(git -C "$RH_J" rev-parse war/myplan/p2-t3)"
+GITLINK_J="$(git -C "$WTH_J" ls-tree HEAD -- sub | awk '{print $3}')"
+expect "HYG.j setup: submodule populated and clean" \
+  "clean" "$([ -z "$(git -C "$WTH_J" status --porcelain -- sub 2>/dev/null)" ] && echo clean || echo dirty)"
+# Corrupt: empty the submodule index + drop a stale index.lock.
+git -C "$WTH_J/sub" read-tree --empty
+SUBGD_J="$(git -C "$WTH_J/sub" rev-parse --git-dir)"
+touch "$SUBGD_J/index.lock"
+expect "HYG.j setup: corruption visible in superproject porcelain" \
+  "dirty" "$([ -n "$(git -C "$WTH_J" status --porcelain -- sub 2>/dev/null)" ] && echo dirty || echo clean)"
+# WIP rides the same fixture (HYG.k): tracked modification + two untracked files.
+printf 'tracked-wip\n' >> "$WTH_J/seed.txt"
+printf 'untracked-one\n' > "$WTH_J/wip1.txt"
+printf 'untracked-two\n' > "$WTH_J/wip2.txt"
+SEED_J="$(cat "$WTH_J/seed.txt")"
+OUT_HJ="$( ( cd "$RH_J" && bash "$SCRIPT" ensure-worktree "$WTH_J" war/myplan/p2-t3 "$TIPH_J" ) 2>&1 )"; C_HJ=$?
+expect "HYG.j: reuse over the corrupted submodule exits 0 (fail-open, no new die)" \
+  "0" "$C_HJ"
+expect "HYG.j: a WORKTREE_HYGIENE repaired marker is emitted" \
+  "yes" "$(printf '%s' "$OUT_HJ" | grep -Fq 'WORKTREE_HYGIENE path=sub action=repaired' && echo yes || echo no)"
+expect "HYG.j: submodule ends clean in superproject porcelain" \
+  "clean" "$([ -z "$(git -C "$WTH_J" status --porcelain -- sub 2>/dev/null)" ] && echo clean || echo dirty)"
+expect "HYG.j: submodule porcelain itself is clean (index restored)" \
+  "clean" "$([ -z "$(git -C "$WTH_J/sub" status --porcelain 2>/dev/null)" ] && echo clean || echo dirty)"
+expect "HYG.j: submodule HEAD still at the recorded gitlink SHA (no bump possible)" \
+  "$GITLINK_J" "$(git -C "$WTH_J/sub" rev-parse HEAD 2>/dev/null)"
+expect "HYG.j: submodule tracked file restored" \
+  "one" "$(cat "$WTH_J/sub/a.txt" 2>/dev/null)"
+expect "HYG.k: superproject tracked modification survives byte-for-byte" \
+  "$SEED_J" "$(cat "$WTH_J/seed.txt" 2>/dev/null)"
+expect "HYG.k: untracked WIP file 1 survives byte-for-byte" \
+  "untracked-one" "$(cat "$WTH_J/wip1.txt" 2>/dev/null)"
+expect "HYG.k: untracked WIP file 2 survives byte-for-byte" \
+  "untracked-two" "$(cat "$WTH_J/wip2.txt" 2>/dev/null)"
+expect "HYG.k: nothing staged in the superproject (git diff --cached empty)" \
+  "" "$(git -C "$WTH_J" diff --cached --name-only 2>/dev/null)"
+
+# ---------------------------------------------------------------------------
+# Case (HYG.l / 1.2(l)) SHA-MISMATCH CONTROL (End state 22's control arm): a
+# submodule checked out at a DIFFERENT HEAD than the recorded gitlink SHA is
+# `detected` only — its tree untouched, never force-restored (could be real
+# submodule work; the relaunching Lead adjudicates).
+# ---------------------------------------------------------------------------
+FXH_L="$(hyg_fixture)"; RH_L="${FXH_L%% *}"; WTH_L="${FXH_L##* }"
+TIPH_L="$(git -C "$RH_L" rev-parse war/myplan/p2-t3)"
+git -C "$WTH_L/sub" config user.email war@test.local
+git -C "$WTH_L/sub" config user.name "WAR Test"
+git -C "$WTH_L/sub" config commit.gpgsign false
+printf 'advanced\n' >> "$WTH_L/sub/a.txt"
+git -C "$WTH_L/sub" add -A
+git -C "$WTH_L/sub" commit -qm "sub advanced past the gitlink"
+SUBHEAD_L="$(git -C "$WTH_L/sub" rev-parse HEAD)"
+OUT_HL="$( ( cd "$RH_L" && bash "$SCRIPT" ensure-worktree "$WTH_L" war/myplan/p2-t3 "$TIPH_L" ) 2>&1 )"; C_HL=$?
+expect "HYG.l: reuse over a SHA-mismatched submodule exits 0" "0" "$C_HL"
+expect "HYG.l: marker is detected (sha-mismatch), never repaired" \
+  "yes" "$(printf '%s' "$OUT_HL" | grep -Fq 'WORKTREE_HYGIENE path=sub action=detected detail=sha-mismatch' && echo yes || echo no)"
+expect "HYG.l: no repaired marker emitted" \
+  "no" "$(printf '%s' "$OUT_HL" | grep -Fq 'action=repaired' && echo yes || echo no)"
+expect "HYG.l: submodule HEAD untouched (still the advanced commit)" \
+  "$SUBHEAD_L" "$(git -C "$WTH_L/sub" rev-parse HEAD 2>/dev/null)"
+
+# ---------------------------------------------------------------------------
+# Case (HYG.m / 1.2(m)) CLEAN CONTROL: a clean reuse emits NO marker.
+# ---------------------------------------------------------------------------
+FXH_M="$(hyg_fixture)"; RH_M="${FXH_M%% *}"; WTH_M="${FXH_M##* }"
+TIPH_M="$(git -C "$RH_M" rev-parse war/myplan/p2-t3)"
+OUT_HM="$( ( cd "$RH_M" && bash "$SCRIPT" ensure-worktree "$WTH_M" war/myplan/p2-t3 "$TIPH_M" ) 2>&1 )"; C_HM=$?
+expect "HYG.m: clean reuse exits 0" "0" "$C_HM"
+expect "HYG.m: clean reuse emits no WORKTREE_HYGIENE marker" \
+  "no" "$(printf '%s' "$OUT_HM" | grep -Fq 'WORKTREE_HYGIENE' && echo yes || echo no)"
+
+# ---------------------------------------------------------------------------
+# Case (HYG.n) REAL-EDITS CONTROL (the red-team-narrowed detector, D19): an
+# UNSTAGED modification in the submodule at the MATCHED gitlink SHA is
+# indistinguishable from a submodule-content worker's legitimate uncommitted
+# work — the repair arm must NOT fire (--force would destroy it): `detected`
+# only, the edit survives byte-for-byte.
+# ---------------------------------------------------------------------------
+FXH_N="$(hyg_fixture)"; RH_N="${FXH_N%% *}"; WTH_N="${FXH_N##* }"
+TIPH_N="$(git -C "$RH_N" rev-parse war/myplan/p2-t3)"
+printf 'real-edit\n' >> "$WTH_N/sub/a.txt"
+EDIT_N="$(cat "$WTH_N/sub/a.txt")"
+OUT_HN="$( ( cd "$RH_N" && bash "$SCRIPT" ensure-worktree "$WTH_N" war/myplan/p2-t3 "$TIPH_N" ) 2>&1 )"; C_HN=$?
+expect "HYG.n: reuse over real submodule edits exits 0" "0" "$C_HN"
+expect "HYG.n: real edits are detected, never repaired" \
+  "yes" "$(printf '%s' "$OUT_HN" | grep -Fq 'WORKTREE_HYGIENE path=sub action=detected' && echo yes || echo no)"
+expect "HYG.n: no repaired marker emitted (the --force arm did not fire)" \
+  "no" "$(printf '%s' "$OUT_HN" | grep -Fq 'action=repaired' && echo yes || echo no)"
+expect "HYG.n: the unstaged edit survives byte-for-byte" \
+  "$EDIT_N" "$(cat "$WTH_N/sub/a.txt" 2>/dev/null)"
 
 # ===========================================================================
 # Task 4: teardown-task / teardown-phase / prune  (all strictly RUN-SCOPED).
