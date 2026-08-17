@@ -208,17 +208,22 @@ const SERVITOR_RESULT = { type: 'object', required: ['phase', 'target', 'learnin
 // task worktree: ok:true when every step exits 0; otherwise the env-blocked task-outcome shape from
 // ../references/schemas.md ({ taskId, failedCommand, exitCode, stderrTail, provisionSource }) for the
 // FIRST failing step. NOT a WorkerResult — no worker ran. The barrier skips the worker on ok:false.
-// The provision-BARRIER return (dispatchKind 'provision-barrier') additionally carries two OPTIONAL
-// arrays (recovery mechanics, spec §4.2/§4.4): preMerged — task ids whose local branch is an ancestor
-// of the frozen integration tip (already-integrated on an adopted branch; the derive-and-skip step,
-// armed only under args.recovery.sanctioned); staleRemote — per-task stale-remote classifications
-// ({ task, remoteSha, frozenTip }) captured from an ensure-worktree exit carrying the STALE_REMOTE
-// marker (always-on classification, never recovery-gated). Both absent on a plain non-recovery barrier.
+// The provision-BARRIER return (dispatchKind 'provision-barrier') additionally carries three OPTIONAL
+// arrays: preMerged — task ids whose local branch is an ancestor of the frozen integration tip
+// (already-integrated on an adopted branch; the derive-and-skip step, armed only under
+// args.recovery.sanctioned — recovery mechanics, spec §4.2/§4.4); staleRemote — per-task stale-remote
+// classifications ({ task, remoteSha, frozenTip }) captured from an ensure-worktree exit carrying the
+// STALE_REMOTE marker (always-on classification, never recovery-gated); worktreeHygiene (D20, #1381) —
+// reuse-path hygiene findings ([{ task, path, action: "repaired"|"detected", detail }]) captured from
+// WORKTREE_HYGIENE marker lines an ensure-worktree REUSE emits (the STALE_REMOTE marker-capture idiom),
+// carried on an ok: true return beside staleRemote. worktreeHygiene is visibility only, fail-open: ONE
+// log() summary line when non-empty, no auditLog entry, no routing change, never a hold — the barrier
+// never halts on it. All three absent on a plain barrier with nothing to report.
 const ENV_OUTCOME = { type: 'object', required: ['ok'], properties: {
   ok: { type: 'boolean' },
   taskId: { type: 'string' }, failedCommand: { type: 'string' }, exitCode: { type: 'number' },
   stderrTail: { type: 'string' }, provisionSource: { type: 'string' },
-  preMerged: { type: 'array' }, staleRemote: { type: 'array' } } }
+  preMerged: { type: 'array' }, staleRemote: { type: 'array' }, worktreeHygiene: { type: 'array' } } }
 
 const done = new Set()
 const succeeded = new Set()
@@ -1077,6 +1082,11 @@ if (tasks.length) {
   // its own direct-invocation contract, Task 1). This is the ONLY delta between a recovery-absent
   // barrier prompt and today.
   const staleRemoteClause = pt`STALE-REMOTE CLASSIFICATION (per task, always-on): if a task's ensure-worktree exits NON-ZERO and its output carries the \`STALE_REMOTE\` marker line, do NOT halt the barrier — capture { task: "<that task's id>", remoteSha: "<the marker's remote SHA>", frozenTip: "$TIP" } into a \`staleRemote\` array on the env-outcome and CONTINUE provisioning the remaining tasks. The marker token is the key, never the numeric exit code. Any OTHER non-zero ensure-worktree exit — one WITHOUT the marker — remains a barrier failure exactly as the fail-loud rule above.\n`
+  // Reuse-path hygiene capture (D20, #1381) — always-on, visibility only. The barrier keys on the
+  // WORKTREE_HYGIENE marker TOKEN emitted by ensure-worktree's reuse path (the STALE_REMOTE
+  // marker-capture idiom); the captured array rides the ok: true return and NEVER halts the barrier,
+  // reorders tasks, or changes routing.
+  const worktreeHygieneClause = pt`WORKTREE-HYGIENE CAPTURE (per task, always-on): an ensure-worktree REUSE may emit \`WORKTREE_HYGIENE\` marker lines (a repaired or detected dirty-submodule state on a reused worktree). Capture each as { task: "<that task's id>", path: "<the marker's submodule path>", action: "repaired"|"detected", detail: "<the marker's detail>" } into a \`worktreeHygiene\` array on the ok: true env-outcome, beside \`staleRemote\` — the markers ride a zero exit: visibility only, never halt the barrier on them and never skip or reorder tasks.\n`
   // Recovery-gated derive-and-skip (§4.2) — DORMANT unless args.recovery.sanctioned. When armed, a task
   // whose local branch is already an ancestor of the frozen tip is reported preMerged and its
   // ensure-worktree is SKIPPED. Deriving before cutting means a fresh cut can never pollute the ancestry
@@ -1105,13 +1115,14 @@ if (tasks.length) {
   // dispatchKind: 'provision-barrier' (DISTINCT from the per-task 'provision-run' — mocks/isProvision key on it).
   const barrierOut = await agent(
     pt`Provision the worktree topology for WAR phase ${ph.id} "${ph.title}" by running ${SCRIPT}. `
-    + pt`Do NOT free-author git; only run these subcommands, fail loud on ANY non-zero exit — do NOT special-case a numeric code (a foreign integration branch exits 3; a diverged local/origin base halts with its own distinct non-zero exit) — with ONE marker-keyed carve-out: a per-task worktree-creation exit whose output carries the \`STALE_REMOTE\` marker line is CLASSIFIED per task (step 3's classify-and-continue clause) and does NOT halt the barrier; the marker token is the key, never the numeric code. Return the env-outcome JSON: \`{ ok: true }\` when every subcommand exited 0 (optionally carrying the step-3 \`preMerged\` / \`staleRemote\` arrays); on the FIRST non-zero exit WITHOUT the STALE_REMOTE marker return \`{ ok: false, failedCommand: "<the exact provision-worktrees.sh subcommand line>", exitCode: <code>, stderrTail: "<tail of its stderr — the script's die text>" }\`.\n`
+    + pt`Do NOT free-author git; only run these subcommands, fail loud on ANY non-zero exit — do NOT special-case a numeric code (a foreign integration branch exits 3; a diverged local/origin base halts with its own distinct non-zero exit) — with ONE marker-keyed carve-out: a per-task worktree-creation exit whose output carries the \`STALE_REMOTE\` marker line is CLASSIFIED per task (step 3's classify-and-continue clause) and does NOT halt the barrier; the marker token is the key, never the numeric code. Return the env-outcome JSON: \`{ ok: true }\` when every subcommand exited 0 (optionally carrying the step-3 \`preMerged\` / \`staleRemote\` / \`worktreeHygiene\` arrays); on the FIRST non-zero exit WITHOUT the STALE_REMOTE marker return \`{ ok: false, failedCommand: "<the exact provision-worktrees.sh subcommand line>", exitCode: <code>, stderrTail: "<tail of its stderr — the script's die text>" }\`.\n`
     + pt`1. FROM THE MAIN CHECKOUT (${mainCheckout || 'the main repo checkout — your current working directory'}, NOT a task worktree): `
     + pt`provision-worktrees.sh ensure-exclude ${mainCheckout || '<mainCheckout>'} — pass the main checkout EXPLICITLY as the target repo (the optional <repo-dir> positional); ensure-exclude then writes the exclude into that repo's git dir regardless of your cwd. This excludes \`.claude/\` in the parent checkout so the nested task worktrees do not surface as untracked there (probe E2).\n`
     + pt`2. provision-worktrees.sh ensure-integration ${planSlug || '<plan-slug>'} ${ph.id} ${ph.workingBranch}${owned} — reuse the plan-namespaced integration branch ${ph.integrationBranch} if it is already ours (the --owned-file ledger); else DERIVE the cut base against origin (ADR 0008): the script fetches origin/${ph.workingBranch} and reconciles the local ${ph.workingBranch} — equal or ahead → cut from local; behind → cut from the ORIGIN tip plus a guarded follower fast-forward (skipped with a warning when ${ph.workingBranch} is checked out in a worktree); a fetch failure or missing origin → cut from local with a stderr warning (today's offline behavior). DIVERGED (neither SHA an ancestor of the other) is a HALT: the script dies non-zero carrying BOTH SHAs and the two repair directions, and creates no branch. On that die — or ANY non-zero exit — return the \`{ ok: false, … }\` env-outcome carrying the die text in \`stderrTail\` and STOP: never pick a side, never retry with a different base. The phase never starts; I surface the die message like today's foreign-branch halt.\n`
     + pt`3. Capture the resulting integration tip (TIP="$(git rev-parse ${ph.integrationBranch})"), then for EACH task run ensure-worktree at the integration tip captured in step 3 (idempotent; reuse if present, conservative heal if the dir went missing):\n${ensures}\n`
     + deriveSkipClause
     + staleRemoteClause
+    + worktreeHygieneClause
     + pt`Each ensure-worktree creates the worktree on its plan-namespaced branch off the integration tip and drops a .war-task marker. After this barrier every task worktree exists and the workers can run.\n`
     + pt`4. provision-worktrees.sh ensure-refinery-worktree ${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/_refinery ${ph.integrationBranch} — create (or re-attach) the Refinery's dedicated worktree on the integration branch. The Refinery performs every merge in this run-scoped worktree, never the Lead's main checkout.`
     + submodNote,
@@ -1155,6 +1166,18 @@ if (tasks.length) {
     escalated.push({ task: sr.task, reason: 'env-blocked', staleRemote: true, remoteSha, frozenTip, diagnostic })
     auditLog.push({ task: sr.task, verdict: 'env-blocked:stale-remote', findings: [], requested: 0, returned: 0, blocked: diagnostic })
     log(`Task ${sr.task}: env-blocked — stale remote task branch ${br} (${remoteSha}) is not an ancestor of the frozen tip ${frozenTip}. Worker not spawned; siblings proceed. Recover by adopt-or-reclaim + relaunch.`)
+  }
+  // ---- D20 (#1381) Lead-visibility carrier: reuse-path worktree hygiene ----
+  // The barrier captured WORKTREE_HYGIENE marker lines into the optional worktreeHygiene array
+  // ([{ task, path, action: "repaired"|"detected", detail }]). Visibility only, fail-open by design:
+  // ONE census-safe (concatenation-built) run-log summary line when non-empty — no auditLog entry,
+  // no routing change, never a hold; schemas.md's ENV_OUTCOME bullet carries the Lead's phase-report duty.
+  const hygieneRows = Array.isArray(barrierOut.worktreeHygiene) ? barrierOut.worktreeHygiene : []
+  if (hygieneRows.length > 0) {
+    log('worktree hygiene (D20, #1381): ' + hygieneRows.map(h =>
+      ((h && h.action) || 'detected') + ' ' + ((h && h.path) || '<path>') + ' (task ' + ((h && h.task) || '<task>') + ')'
+      + ((h && h.detail) ? ' — ' + h.detail : '')).join('; ')
+      + ' — visibility only; no routing change, the barrier never halts on it.')
   }
 }
 

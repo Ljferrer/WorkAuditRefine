@@ -8761,6 +8761,27 @@ test('recovery staleRemote (end-state 22): a mocked barrier staleRemote entry �
   assert.ok(out.handoff, 'handoff emitted on held:escalation (the classification is handed off to the Lead)')
 })
 
+test('worktreeHygiene capture (D20, #1381): a mocked barrier worktreeHygiene array → ONE run-log summary line; visibility only — no auditLog entry, no routing change, workers dispatch, the phase lands', async () => {
+  const rows = [
+    { task: 't1', path: 'vendor/lib', action: 'repaired', detail: 'stale index.lock removed; submodule force-updated at the recorded gitlink SHA' },
+    { task: 't2', path: 'vendor/lib', action: 'detected', detail: 'dirty submodule at a non-matching SHA — not auto-repaired' },
+  ]
+  const { out, calls, logs } = await runPhase(PROVISION_ARGS(), barrierEnv({ ok: true, worktreeHygiene: rows }))
+  const hygieneLogs = logs.filter(l => typeof l === 'string' && l.startsWith('worktree hygiene (D20'))
+  assert.equal(hygieneLogs.length, 1, 'exactly ONE census-safe run-log summary line (the Lead-visibility carrier)')
+  assert.match(hygieneLogs[0], /repaired vendor\/lib \(task t1\)/, 'the line names the repaired path + task')
+  assert.match(hygieneLogs[0], /detected vendor\/lib \(task t2\)/, 'the line names the detected path + task')
+  // Fail-open, visibility only: no auditLog entry, no escalation, both workers dispatch, the phase lands.
+  assert.ok(!(out.auditLog || []).some(e => e && /hygiene/i.test(String(e.verdict || ''))), 'no auditLog entry for hygiene findings')
+  assert.ok(!(out.escalated || []).some(e => e && /hygiene/i.test(String(e.reason || ''))), 'no escalation — never a hold')
+  assert.ok(calls.some(c => (c.opts.label || '') === 'work:t1') && calls.some(c => (c.opts.label || '') === 'work:t2'),
+    'both workers dispatch — the capture never blocks or reorders tasks')
+  assert.equal(out.landDecision, 'landed', 'no routing change — the phase lands')
+  // Absent/empty array ⇒ no summary line (the non-empty gate).
+  const { logs: quietLogs } = await runPhase(PROVISION_ARGS(), barrierEnv({ ok: true }))
+  assert.ok(!quietLogs.some(l => typeof l === 'string' && l.startsWith('worktree hygiene (D20')), 'no line when the array is absent')
+})
+
 test('defectClass (criterion 12, wave-collector site): a worker blocked_reason prefixed PLAN-DEFECT: → escalation record defectClass:plan; sentinel kept inside blocked_reason; reason unchanged', async () => {
   const impl = (prompt, opts) =>
     (seatOf(opts) === 'war-worker' && opts.phase === 'Work')
@@ -8872,6 +8893,24 @@ test('both-surfaces (criterion/end-state 22): the STALE_REMOTE classify-and-cont
     // delete-the-feature: strip the carve-out's distinctive shared phrase (global) → the anchor reds.
     const mutated = text.replace(/marker token is the key, never the numeric/gi, 'REMOVED')
     assert.doesNotMatch(mutated, /marker token is the key, never the numeric/i, `${name}: removing the carve-out phrase reds the anchor (non-vacuous)`)
+  }
+})
+
+// D20 (#1381), modelled on the STALE_REMOTE row above: the WORKTREE_HYGIENE capture is a deliberate
+// cross-task literal coupling (the plan's D20 row is the canonical source of the marker token and the
+// "repaired"|"detected" value set) — a presence grep is not a drift guard (ADR 0025), so both surfaces
+// pin the token skeleton and a delete-the-feature per surface proves the anchors non-vacuous.
+test('both-surfaces (D20, #1381): the WORKTREE_HYGIENE capture is on agents/war-refiner.md AND the dispatched barrier prompt; delete-the-feature per surface', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const barrier = calls.find(isProvision)
+  assert.ok(barrier, 'the barrier was dispatched (presence guard)')
+  const ANCHORS = [/WORKTREE_HYGIENE/, /worktreeHygiene/, /"repaired"\|"detected"/, /markers ride a zero exit/i]
+  const surfaces = [['war-refiner.md', refinerMd], ['dispatched barrier prompt', barrier.prompt]]
+  for (const [name, text] of surfaces) {
+    for (const re of ANCHORS) assert.match(text, re, `${name} carries the WORKTREE_HYGIENE capture anchor ${re}`)
+    // delete-the-feature: strip the capture's distinctive shared phrase (global) → the anchor reds.
+    const mutated = text.replace(/markers ride a zero exit/gi, 'REMOVED')
+    assert.doesNotMatch(mutated, /markers ride a zero exit/i, `${name}: removing the capture phrase reds the anchor (non-vacuous)`)
   }
 })
 
