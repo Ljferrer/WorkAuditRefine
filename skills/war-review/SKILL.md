@@ -109,8 +109,8 @@ renders **`n/a`**, never a reconstruction.
 | red-team rounds per plan — trend across campaigns | the same two sources swept across `$MAIN/docs/red-team/` reports and the campaign ledgers under `$MAIN/.claude/campaigns/*/ledger.json`, rendered as a per-plan series; state a trend reading only with at least one full campaign of field data behind it — until then the series stands alone, and an empty sweep renders `n/a` |
 | interview length — questions per merged plan | the authoring interview's final status-line question count (`Qk/<budget>` — budget default 14, operator-raisable per D8; the question contract in [`../war-strategy/references/plan-interview.md`](../war-strategy/references/plan-interview.md)); no artifact persists it today — `n/a` unless the operator supplies the count |
 
-Lead with the run header: `runId`, `planPath`, `configProfile`, run wall-clock, and the
-best-effort-harness-read caveat.
+Lead with the run header: `runId`, `planPath`, `configProfile`, run wall-clock (`n/a` when the
+degenerate-timestamp guard above fires), and the best-effort-harness-read caveat.
 
 ## 4. Friction — WAR-self-inflicted signals
 
