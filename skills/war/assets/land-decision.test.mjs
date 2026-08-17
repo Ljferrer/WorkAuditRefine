@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import { decideLand, HARD_ESCALATION_REASONS, KNOWN_LAND_DECISIONS } from './land-decision.mjs'
+import { decideLand, HARD_ESCALATION_REASONS, KNOWN_LAND_DECISIONS, SOFT_ENV_REASONS } from './land-decision.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const readAsset = (rel) => readFileSync(join(HERE, rel), 'utf8')
@@ -55,6 +55,22 @@ test('unrunnable-deps is a hard escalation reason (L1: mirrors unified — a gho
 test('done-unmet is a hard escalation reason (precision-chain D1: a red Done when at merge, budget exhausted, holds the land)', () => {
   assert.equal(decideLand({ landed: ['t1'], escalated: [{ reason: 'done-unmet' }] }), 'held:escalation')
   assert.ok(HARD_ESCALATION_REASONS.includes('done-unmet'))
+})
+
+// ---- SOFT_ENV_REASONS (#1411, Task 2.1(c)(ii)) — the #236/#639 census discipline, extended ----
+// The soft environment pair is a new canonical export beside the two existing enums: task-level
+// reasons, never landDecision values, never HARD members (ADR 0005's infra-stays-soft line). The
+// inline hand-mirror lives in workflow-template.js; the D2 mirror registry there deepEquals the pair.
+test('#1411 SOFT_ENV_REASONS: env-blocked + env-died are the soft pair — disjoint from HARD_ESCALATION_REASONS and from the landDecision known set', () => {
+  assert.deepEqual(SOFT_ENV_REASONS, ['env-blocked', 'env-died'], 'the canonical pair, in order')
+  for (const r of SOFT_ENV_REASONS) {
+    assert.ok(!HARD_ESCALATION_REASONS.includes(r), `${r} must never be a HARD_ESCALATION_REASONS member (ADR 0005 infra-stays-soft)`)
+    assert.ok(!KNOWN_LAND_DECISIONS.includes(r), `${r} is a task-level reason, never a landDecision value`)
+  }
+})
+test('#1411 decideLand: an env-died escalation is SOFT — the phase LANDS minus the dead task; nothing merged reads held:nothing-merged', () => {
+  assert.equal(decideLand({ landed: ['t2'], escalated: [{ task: 't1', reason: 'env-died' }] }), 'landed')
+  assert.equal(decideLand({ landed: [], escalated: [{ task: 't1', reason: 'env-died' }] }), 'held:nothing-merged')
 })
 
 // ---- KNOWN_LAND_DECISIONS drift-guard (#271) ----

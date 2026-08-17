@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
-import { HARD_ESCALATION_REASONS, KNOWN_LAND_DECISIONS } from './land-decision.mjs'
+import { HARD_ESCALATION_REASONS, KNOWN_LAND_DECISIONS, SOFT_ENV_REASONS } from './land-decision.mjs'
 import { spawnOpts, validateRoster, widenRoster, resolveWidenSource, resolveGate, ROLES, DEFAULTS } from './war-config.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -3932,7 +3932,8 @@ test('intent absent (criterion 10): no intent block anywhere; intent:null and in
 })
 
 test('intent present: threaded into worker, auditor, ace, gate-audit and servitor prompts; handoff.intentPresent true', async () => {
-  const INTENT = 'Purpose: ship the wibble.\nEnd state: 1. wibble shipped.'
+  // The trailing (plan wtprov-a) token satisfies the #1413 own-token provenance floor (Task 2.1(d)).
+  const INTENT = 'Purpose: ship the wibble.\nEnd state: 1. wibble shipped. (plan wtprov-a)'
   const impl = buildSeqImpl(
     { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [nit({ title: 'intent nit' })]),
                                approveWith('audit:t1:correctness', [])] },
@@ -4285,10 +4286,11 @@ test('phase-close sweep: an empty queue skips the sweep entirely — polish:skip
 })
 
 test('phase-close sweep: the sweep dispatch carries the intent when present', async () => {
-  const { calls } = await runPhase(SWEEP_ARGS({ intent: 'Purpose: wibble.' }), sweepBase([queuedAbsorb()]))
+  // The wtprov token satisfies the #1413 own-token provenance floor (Task 2.1(d)).
+  const { calls } = await runPhase(SWEEP_ARGS({ intent: 'Purpose: wibble the wtprov.' }), sweepBase([queuedAbsorb()]))
   const pw = calls.find(c => (c.opts.label || '') === 'polish:phase-3')
   assert.ok(pw, 'sweep worker dispatched (presence guard)')
-  assert.ok(pw.prompt.includes('Purpose: wibble.'), 'the sweep prompt carries the intent')
+  assert.ok(pw.prompt.includes('Purpose: wibble the wtprov.'), 'the sweep prompt carries the intent')
 })
 
 // --- End-state check (criterion 11) ---
@@ -4396,7 +4398,8 @@ test('end-state derivation arm order (#1082): a Critical finding merely MENTIONI
 
 test('endStateBlock guarded plan.file (#1082): a plan-less phase that CLAIMS End-state conditions still dispatches (never held:workflow-error)', async () => {
   // `endStateBlock` is built at TOP-LEVEL scope (outside the work thunk) whenever endStateClaims is
-  // non-empty, `plan` is destructured with no default and is never entry-validated, and `pt` throws on an
+  // non-empty, `plan` is entry-validated only on a TASKS-BEARING launch (#1430 — this zero-task
+  // shape stays a ratified legal launch), and `pt` throws on an
   // undefined interpolated value BY CONTRACT — so a bare ${plan.file} in case (3) would throw phase-wide
   // into held:workflow-error on this reachable state. The sibling `gate composition point (ADR 0036) —
   // plan-less / zero-task phase` test carries NO endState key, so it cannot see this route: the
@@ -5304,8 +5307,9 @@ test('pkg #819 — source-level: all four dispatched packaging-floor invocations
 })
 
 test('pkg §4.4 — args.backstops passes through UNTOUCHED into handoff.backstops[] on a landed phase', async () => {
+  // The wtprov token in a `why` satisfies the #1413 own-token provenance floor (Task 2.1(d)).
   const BACKSTOPS = [
-    { check: 'docker build -f app/Dockerfile app', why: 'no daemon at setup', runner: 'CI', source: 'auto' },
+    { check: 'docker build -f app/Dockerfile app', why: 'no daemon at setup (wtprov)', runner: 'CI', source: 'auto' },
     { check: 'integration smoke', why: 'out of scope', runner: 'nightly', source: 'plan', aiDeclared: true },
   ]
   const { out } = await runPhase(PKG_ARGS({ backstops: BACKSTOPS }), defaultImpl)
@@ -5316,7 +5320,7 @@ test('pkg §4.4 — args.backstops passes through UNTOUCHED into handoff.backsto
 })
 
 test('pkg §4.4 — args.backstops also rides handoff on held:escalation (degraded phase still hands off the debt map)', async () => {
-  const BACKSTOPS = [{ check: 'docker build', why: 'daemon unavailable at setup', runner: 'CI', source: 'auto' }]
+  const BACKSTOPS = [{ check: 'docker build', why: 'daemon unavailable at setup (wtprov)', runner: 'CI', source: 'auto' }]
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
     if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
@@ -6690,7 +6694,8 @@ test('T2.1 criterion 4 (D3) — the release-baseline / stacked-lag clause is on 
 // adjudications are threaded + war-auditor.md standing card), anchored on a STABLE mid-sentence phrase
 // (never a quote-bearing byte literal — the recorded anchor-fragility lesson).
 test('Task 1.5 — the version-precedence adjudication clause is on BOTH surfaces (threaded auditPrompt + war-auditor.md), mid-sentence anchors', async () => {
-  const adj = [{ adjudicated: '0.14.18', supersedes: '0.14.14' }, 'a bare preformatted adjudication row']
+  // The (wtprov) suffix satisfies the #1413 own-token provenance floor; the substring asserts below still match.
+  const adj = [{ adjudicated: '0.14.18', supersedes: '0.14.14' }, 'a bare preformatted adjudication row (wtprov)']
   const { calls } = await runPhase(PROVISION_ARGS({ adjudications: adj }), defaultImpl)
   const wa = calls.find(c => isAuditor(c) && !c.prompt.includes('execution-evidence'))
   assert.ok(wa, 'a work-wave audit seat was dispatched')
@@ -6733,7 +6738,7 @@ test('Task 1.5 back-compat — empty/absent adjudications ⇒ NO version-precede
     'an empty adjudications array yields a byte-identical prompt to the arg-absent run')
   // Delete-and-trace: with adjudications threaded, the same seat DOES carry the clause (proves the
   // control is meaningful, not vacuously passing because the clause never emits).
-  const { calls: threaded } = await runPhase(PROVISION_ARGS({ adjudications: ['x'] }), defaultImpl)
+  const { calls: threaded } = await runPhase(PROVISION_ARGS({ adjudications: ['x (wtprov)'] }), defaultImpl)
   assert.ok(seatP(threaded).includes('VERSION-PRECEDENCE RULE'),
     'threading a non-empty adjudications array DOES emit the clause (delete-and-trace)')
 })
@@ -6745,7 +6750,7 @@ test('Task 1.5 back-compat — empty/absent adjudications ⇒ NO version-precede
 test('Task 1.1 — a threaded gate-audit-family prompt carries the adjudication clause (end-state-only seat); unthreaded carries none', async () => {
   const esSeatP = (calls) => (calls.find(c => (c.opts.label || '') === 'gate-audit:phase-3:end-state') || {}).prompt
   const docsTask = [{ id: 't1', issue: 101, title: 'Docs task', planSlice: 'slice 1', roster: [{ lens: 'correctness' }], requiresTest: false }]
-  const { calls: threaded } = await runPhase(ES_ARGS({ tasks: docsTask, adjudications: ['a bare gate-time scope row'] }), gateAuditImpl)
+  const { calls: threaded } = await runPhase(ES_ARGS({ tasks: docsTask, adjudications: ['a bare gate-time scope row (wtprov)'] }), gateAuditImpl)
   const pt = esSeatP(threaded)
   assert.ok(pt, 'the end-state-only gate-audit seat was dispatched (threaded run)')
   assert.ok(pt.includes('task instruction > red-team adjudication > plan body literal'),
@@ -7216,6 +7221,12 @@ test('D2 mirror registry — every inline sandbox mirror in workflow-template.js
     { name: 'HARD_ESCALATION_REASONS', mode: 'deepEqual',
       canonical: HARD_ESCALATION_REASONS,
       extractInline: () => parseInlineArray(/const\s+HARD_ESCALATION_REASONS\s*=\s*(\[[^\]]+\])/) },
+    // SOFT_ENV_REASONS (#1411, Task 2.1(c)(ii)): the soft environment pair (env-blocked, env-died),
+    // canonical in land-decision.mjs, hand-mirrored beside the HARD mirror — extended here in the
+    // same diff (the shared-enum-widening / #236 census discipline).
+    { name: 'SOFT_ENV_REASONS', mode: 'deepEqual',
+      canonical: SOFT_ENV_REASONS,
+      extractInline: () => parseInlineArray(/const\s+SOFT_ENV_REASONS\s*=\s*(\[[^\]]+\])/) },
     { name: 'landDecision known set', mode: 'subset',
       canonical: KNOWN_LAND_DECISIONS,
       extractInline: extractLandDecisionLiterals },
@@ -7251,7 +7262,7 @@ test('D2 mirror registry — every inline sandbox mirror in workflow-template.js
       inline: ([g]) => inlineHelpers().resolveGate(g),
       canonical: ([g]) => resolveGate(g) },
   ]
-  assert.ok(MIRROR_REGISTRY.length >= 8, 'the mirror registry lists at least the eight required rows (HARD_ESCALATION_REASONS, landDecision, the four roster helpers, the worker-tier-defaults row, and the resolveGate gate-composition row)')
+  assert.ok(MIRROR_REGISTRY.length >= 9, 'the mirror registry lists at least the nine required rows (HARD_ESCALATION_REASONS, SOFT_ENV_REASONS, landDecision, the four roster helpers, the worker-tier-defaults row, and the resolveGate gate-composition row)')
   for (const row of MIRROR_REGISTRY) {
     if (row.mode === 'deepEqual') {
       const inline = row.extractInline()
@@ -7506,7 +7517,8 @@ test('gate composition point (ADR 0036) — the SIXTEEN enumerated gate-bearing 
 })
 
 test('gate composition point (ADR 0036) — plan-less / zero-task phase: the GUARDED normalization is a no-op (clean held:nothing-merged, never held:workflow-error)', async () => {
-  // `plan` is destructured with no default and is never entry-validated, so the `if (plan)` guard MUST
+  // `plan` is entry-validated only on a TASKS-BEARING launch (#1430 — this zero-task shape stays a
+  // ratified legal launch), so the `if (plan)` guard MUST
   // make an absent plan a NO-OP. An unconditional `plan.gate = resolveGate(plan.gate)` would TypeError here
   // → the catch converts it to held:workflow-error; this arm proves the null-safe-by-mandate boundary
   // (distinct from a null plan.gate, which composes to the discovery-only clause). A plan-less zero-task
@@ -9100,4 +9112,184 @@ test('D6 (#1245) — both ways: a third re-land arm mirrored from a live one WIT
   const unsym = arms.filter(a => !a.assigns).map(a => a.label)
   assert.equal(unsym.join('|'), thirdLabel,
     `exactly the mirrored arm must be reported unsymmetric — expected [${thirdLabel}], got [${unsym.join(', ')}]; if it is empty the live assertion above is vacuous, and if it names a live arm the fixture perturbed a real one`)
+})
+
+// ===========================================================================
+// Phase 2 Task 2.1 — engine truth hardening (#1395 a/b, #1411 c, #1413 d, #1430 f, #1410 g)
+// ---------------------------------------------------------------------------
+
+// (a) #1395 fix 2 — provision-before-checks: the land-barrier endstate-check dispatch applies the
+// phase's run.provision steps in _refinery BEFORE any check: command, fail-open (a red provision
+// step records into the artifact preamble and every check still runs — no new hold path); a
+// provision-less run dispatches a clause-free prompt (set-minus byte-compat).
+test('Task 2.1(a) #1395 — endstate-check dispatch instructs provision-before-checks in _refinery BEFORE any check command, fail-open; provision-less prompt is clause-free', async () => {
+  const PROV = ['pnpm install --frozen-lockfile']
+  const { calls } = await runPhase(ES_ROW_ARGS({ run: { provision: PROV, provisionSource: 'ci' } }), gateAuditImpl)
+  const es = calls.find(isEndstateCheck)
+  assert.ok(es, 'endstate-check dispatch present (presence guard)')
+  const p = es.prompt
+  assert.match(p, /provision-before-checks/, 'the dispatch carries the provision-before-checks clause (#1395)')
+  assert.ok(p.includes(PROV[0]), 'the pinned provision list rides the dispatch verbatim')
+  const provIdx = p.indexOf('provision-before-checks')
+  const cmdIdx = p.indexOf(`${REFINERY}/.war/endstate-3-1.cmd`)
+  assert.ok(provIdx !== -1 && cmdIdx !== -1 && provIdx < cmdIdx,
+    'the provision steps are instructed BEFORE the first check-command row (provision-before-checks ordering)')
+  assert.match(p, /provision_red/, 'a red provision step is recorded into the artifact preamble (the provision_red line)')
+  assert.match(p, /never fails this dispatch and never holds the land/i, 'fail-open — a provision red never fails the dispatch, never a new hold path')
+  const { calls: c2 } = await runPhase(ES_ROW_ARGS(), gateAuditImpl)
+  assert.ok(!c2.find(isEndstateCheck).prompt.includes('provision-before-checks'),
+    'a provision-less run dispatches a clause-free prompt (set-minus byte-compat)')
+})
+
+// (b) #1395 fix 1 — environment-red attestation: the shared endStateBlock instructs the seats that
+// an artifact present, readable, and correctly tip-stamped but red for ENVIRONMENTAL reasons attests
+// 'unverified', never 'unmet'; and an attested-unverified env-red condition derives 'unverified' in
+// the handoff (the engine never converts it to unmet).
+test('Task 2.1(b) #1395 — the endStateBlock carries the environmental-red classification (unverified, never unmet); an env-red attestation derives unverified in the handoff', async () => {
+  const impl = (prompt, opts) => {
+    if ((opts.label || '').startsWith('gate-audit:')) {
+      return { seat: opts.label, lens: 'execution-evidence', verdict: 'approve', confidence: 'high', findings: [],
+        endStateAttestations: [{ condition: ES_ROWS[0].condition, status: 'unverified',
+          evidence: 'artifact present, readable, correctly tip-stamped; red is environmental — ModuleNotFoundError: No module named wibble (setup failure, not an evaluated-false condition)' }] }
+    }
+    return gateAuditImpl(prompt, opts)
+  }
+  const { out, calls } = await runPhase(ES_ROW_ARGS(), impl)
+  const seatP = gateAuditCalls(calls)[0].prompt
+  assert.match(seatP, /RED for ENVIRONMENTAL reasons/, 'the shared endStateBlock names the environmental-red class')
+  assert.match(seatP, /ModuleNotFoundError/, 'the classification names the observed environment-red shapes (import/setup/collection failures)')
+  assert.ok(seatP.includes("attests 'unverified', NEVER 'unmet'"), "the instruction is explicit: 'unverified', NEVER 'unmet'")
+  assert.ok(out.handoff, 'handoff emitted (presence guard)')
+  const row = out.handoff.endState.find(e => e.condition === ES_ROWS[0].condition)
+  assert.equal(row && row.status, 'unverified', 'an environment-red attestation lands unverified in the handoff — never unmet')
+})
+
+// (c) #1411 — infra-death classification: a post-spawn API/quota/transport death classifies
+// 'env-died' (SOFT — the env-blocked sibling) with the harness cause propagated into blocked; the
+// phase LANDS minus the dead task; an env-died-only phase is never a hard escalation.
+test('Task 2.1(c) #1411 — a post-spawn infra death classifies env-died with the harness cause in blocked; the phase LANDS minus the dead task', async () => {
+  const impl = (prompt, opts) => {
+    if ((opts.label || '') === 'work:tDead') throw new Error('API error: session limit reached (resets 6pm)')
+    return defaultImpl(prompt, opts)
+  }
+  const args = PROVISION_ARGS({ tasks: [
+    { id: 'tDead', issue: 1, title: 'dies post-spawn', planSlice: 's', roster: [{ lens: 'correctness' }] },
+    { id: 'tLive', issue: 2, title: 'merges', planSlice: 's', roster: [{ lens: 'correctness' }] },
+  ] })
+  const { out, logs } = await runPhase(args, impl)
+  const esc = (out.escalated || []).find(e => e && e.task === 'tDead')
+  assert.ok(esc, 'the dead task escalates (presence guard)')
+  assert.equal(esc.reason, 'env-died', 'the classification is env-died, not the generic escalate')
+  assert.match(String(esc.blocked), /^worker died: /, 'blocked carries the worker-died prefix (#1411 fix 1 — cause propagation)')
+  assert.match(String(esc.blocked), /session limit/, 'the harness failure cause is propagated verbatim')
+  assert.equal(out.landDecision, 'landed', 'env-died is SOFT (a SOFT_ENV_REASONS member) — the phase LANDS minus the dead task')
+  assert.ok(out.landed.includes('tLive') && !out.landed.includes('tDead'), 'the sibling lands; the dead task does not')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('env-died')), 'the classification is log()ged (never silent)')
+})
+
+test('Task 2.1(c) #1411 — an env-died-only phase (nothing merged) reads held:nothing-merged, never held:escalation', async () => {
+  const impl = (prompt, opts) => {
+    if (seatOf(opts) === 'war-worker' && opts.phase === 'Work') throw new Error('fetch failed: 529 overloaded (transport error)')
+    return defaultImpl(prompt, opts)
+  }
+  const args = PROVISION_ARGS({ tasks: [
+    { id: 't1', issue: 1, title: 'a', planSlice: 's', roster: [{ lens: 'correctness' }] },
+  ] })
+  const { out } = await runPhase(args, impl)
+  assert.equal(out.landDecision, 'held:nothing-merged', 'infra deaths are never a hard escalation — nothing merged reads held:nothing-merged')
+  assert.ok((out.escalated || []).length > 0 && out.escalated.every(e => e.reason === 'env-died'), 'every escalation is env-died')
+})
+
+// (c)(ii) drift-guard extension: SOFT_ENV_REASONS is canonical in land-decision.mjs, hand-mirrored in
+// workflow-template.js (the D2 registry row deepEquals them); env-died is ABSENT from both
+// HARD_ESCALATION_REASONS copies (ADR 0005's infra-stays-soft line, End state 29's hand-verify made mechanical).
+test('Task 2.1(c)(ii) #1411 — SOFT_ENV_REASONS pins the pair in both copies; env-died is absent from both HARD_ESCALATION_REASONS literals', () => {
+  assert.deepEqual(SOFT_ENV_REASONS, ['env-blocked', 'env-died'], 'canonical SOFT_ENV_REASONS pins the pair')
+  const inlineSoft = src.match(/const\s+SOFT_ENV_REASONS\s*=\s*(\[[^\]]+\])/)
+  assert.ok(inlineSoft, 'inline SOFT_ENV_REASONS mirror present in workflow-template.js')
+  assert.deepEqual(JSON.parse(inlineSoft[1].replace(/'/g, '"')), SOFT_ENV_REASONS, 'the inline mirror equals the canonical export')
+  assert.ok(!HARD_ESCALATION_REASONS.includes('env-died'), 'env-died is NEVER a HARD_ESCALATION_REASONS member (canonical copy)')
+  const inlineHard = src.match(/const\s+HARD_ESCALATION_REASONS\s*=\s*(\[[^\]]+\])/)
+  assert.ok(inlineHard, 'inline HARD_ESCALATION_REASONS mirror present (anchor guard)')
+  assert.ok(!JSON.parse(inlineHard[1].replace(/'/g, '"')).includes('env-died'), 'env-died is NEVER in the inline HARD_ESCALATION_REASONS mirror')
+})
+
+// (d) #1413 — args provenance floor: refuse at entry, fail-closed, zero agent spawns.
+test('Task 2.1(d) #1413 — a foreign-plan intent is refused at entry (foreign docs/plans identifier), zero agent spawns; a token-less intent fails the own-token floor', async () => {
+  // The plan-3 leak shape: a plan-A launch (slug wtprov-a) carrying plan-B's intent (13 × escape, 0 × done-when).
+  const leakIntent = 'Purpose: the escape-guard exit contract holds.\nEnd state: 1. docs/plans/2026-08-06-escape-guard-exit-contract.md fully landed.'
+  const { out, agentCalls } = await runCounting(PROVISION_ARGS({ intent: leakIntent }))
+  assert.equal(out.landDecision, 'held:workflow-error', 'the leak is refused at entry')
+  assert.match(out.workflowError.message, /foreign docs\/plans/, 'the refusal names the foreign docs/plans identifier class')
+  assert.match(out.workflowError.message, /escape-guard-exit-contract\.md/, 'the refusal cites the foreign identifier itself')
+  assert.equal(agentCalls, 0, 'zero agents dispatched — the floor is at entry (#1413: refuse, never warn)')
+  const { out: o2, agentCalls: a2 } = await runCounting(PROVISION_ARGS({ intent: 'Purpose: ship the completely unrelated gizmo.' }))
+  assert.equal(o2.landDecision, 'held:workflow-error', 'a token-less intent is refused')
+  assert.match(o2.workflowError.message, /plan-slug tokens/, 'the refusal names the own-token floor')
+  assert.equal(a2, 0)
+})
+
+test('Task 2.1(d) #1413 — own-token intent accepted; intent-less launch stays legal; backstops/adjudications floors fire only when the arg is present and non-empty', async () => {
+  const { out } = await runPhase(PROVISION_ARGS({ intent: 'Purpose: ship the wtprov contract.\nEnd state: 1. shipped.' }), defaultImpl)
+  assert.equal(out.landDecision, 'landed', 'an own-token intent passes the floor and the phase runs')
+  const { out: o2 } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  assert.equal(o2.landDecision, 'landed', 'an intent-less launch stays legal (the floor applies only when the arg is present)')
+  const badBackstops = [{ check: 'run the leftover sweep', why: 'carried from docs/plans/2026-08-06-escape-guard-exit-contract.md', runner: 'CI', source: 'plan' }]
+  const { out: o3, agentCalls } = await runCounting(PROVISION_ARGS({ backstops: badBackstops }))
+  assert.equal(o3.landDecision, 'held:workflow-error', 'a backstops entry naming a foreign docs/plans identifier is refused at entry')
+  assert.match(o3.workflowError.message, /args\.backstops/, 'the refusal names which arg leaked')
+  assert.equal(agentCalls, 0)
+  const { out: o4 } = await runCounting(PROVISION_ARGS({ adjudications: ['adopt 0.18.2 over the body literal'] }))
+  assert.equal(o4.landDecision, 'held:workflow-error', 'a token-less adjudications set fails the own-token floor')
+  assert.match(o4.workflowError.message, /args\.adjudications/, 'the refusal names which arg leaked')
+})
+
+// (f)(i) #1430 — required-input entry validation: plan.file is its own tasks-gated problem class.
+test('Task 2.1(f)(i) #1430 — a tasks-bearing launch omitting plan.file is refused at entry naming it (distinct class, ZERO agent spawns); a plan without .file refuses identically', async () => {
+  const base = { phase: { id: 1, title: 'P1', integrationBranch: 'integration/x/phase-1', workingBranch: 'dev/x' },
+    planSlug: 'x', runId: 'r', worktreeRoot: '/abs', tasks: EXPLICIT_TASK, learningsTarget: null }  // NO plan key
+  const { out, agentCalls } = await runCounting(base)
+  assert.equal(out.landDecision, 'held:workflow-error', 'refused at entry')
+  assert.match(out.workflowError.message, /requires plan\.file/, 'the distinct plan.file class names itself (#1430)')
+  assert.ok(!/requires top-level/.test(out.workflowError.message), 'the trio class stays silent — distinct classes, the trio message byte-untouched')
+  assert.equal(agentCalls, 0, 'ZERO agent spawns — the observed incident spawned Provision first (#1430)')
+  const { out: o2, agentCalls: a2 } = await runCounting({ ...base, plan: { gate: 'true' } })
+  assert.match(o2.workflowError.message, /requires plan\.file/, 'a plan object without .file is the same refusal')
+  assert.equal(a2, 0)
+})
+
+// (f)(iii) #1430 (RESCOPED by /red-team 2026-08-16) — the pt-throw class gains an APPENDED diagnostic
+// hint only; classification stays the per-task escalate (criterion 3's titled in-thunk contract,
+// green unmodified above). Both-ways: a non-pt engine error carries no hint.
+test('Task 2.1(f)(iii) #1430 — a pt prompt-build throw inside the thunk carries the args-defect hint (classification byte-unchanged); a non-pt engine error carries no hint (both-ways)', async () => {
+  const args = PROVISION_ARGS({ tasks: [
+    { id: 't1', issue: 101, planSlice: 'slice 1', roster: [{ lens: 'correctness' }],
+      branch: 'war/wtprov-a/p3-t1', worktree: '/abs/repo/.claude/worktrees/run-2026/p3-t1' }, // title OMITTED → pt throws at prompt build
+  ] })
+  const { out } = await runPhase(args, defaultImpl)
+  const esc = (out.escalated || []).find(e => e && e.task === 't1')
+  assert.ok(esc && esc.reason === 'escalate', 'classification byte-unchanged: a pt throw is still a per-task escalate (criterion 3)')
+  assert.ok(String(esc.blocked).includes('entry validation should have refused it'), 'the escalate result CARRIES the diagnostic hint (#1430 fix 3, rescoped)')
+  const impl = (prompt, opts) => (seatOf(opts) === 'war-worker' && opts.phase === 'Work')
+    ? { task_id: 't1', status: 'implemented', head_sha: 'deadbeef', tests: {}, files_changed: ['/etc/passwd'] }
+    : defaultImpl(prompt, opts)
+  const { out: o2 } = await runPhase(PROVISION_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 't', planSlice: 's', roster: [{ lens: 'correctness' }] },
+  ] }), impl)
+  const esc2 = (o2.escalated || []).find(e => e && e.task === 't1')
+  assert.ok(esc2 && esc2.reason === 'escalate', "a non-pt engine error keeps today's per-task escalate (the #742 wave-loop invariant)")
+  assert.ok(!String(esc2.blocked).includes('entry validation should have refused it'), 'no hint on a non-pt engine error — exactly one class gained the hint')
+})
+
+// (g) #1410 — the escalate_reason enforcement-claim truth fix across all three sites (schemas.md +
+// the AUDIT_VERDICT literal comment + the ESCALATE-BOUNDARY coupling comment).
+test('Task 2.1(g) #1410 — `never a dropped seat` retired from both surfaces; the existing-lane / no-NEW-hold-path wording present on both', () => {
+  assert.ok(!src.includes('never a dropped seat'), 'workflow-template.js: the retired absolute is gone from BOTH comment constructs (OLD-absent)')
+  assert.ok(!schemasMd.includes('never a dropped seat'), 'schemas.md: the retired absolute is gone (OLD-absent)')
+  assert.ok((src.match(/dropped-seat → audit-blocked lane/g) || []).length >= 2,
+    'workflow-template.js: both comment constructs carry the accurate existing-lane wording (NEW-present)')
+  assert.match(src, /no NEW hold path/, 'workflow-template.js: the no-NEW-hold-path claim is present')
+  assert.ok((schemasMd.match(/dropped-seat → audit-blocked lane/g) || []).length >= 2,
+    'schemas.md: the escalate_reason bullet joins the severity bullet on the existing dropped-seat → audit-blocked lane (NEW-present)')
+  assert.match(schemasMd, /no NEW hold path/, 'schemas.md: the no-NEW-hold-path claim is present')
 })
