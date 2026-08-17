@@ -1597,6 +1597,27 @@ cmd_remove_publication_worktree() {
   git worktree prune >/dev/null 2>&1 || true
 }
 
+# blocking_leaf_for <ref> : best-effort diagnosis for a "cannot lock ref" cut
+# failure — echo the ref that blocks <ref> in the refs/heads namespace: the
+# first ancestor-segment prefix that exists as a leaf branch (blocks from
+# above), else the first child ref that makes <ref> a ref directory (blocks
+# from below). Echoes nothing when no blocker can be identified.
+blocking_leaf_for() {
+  bl_target="$1"
+  bl_prefix=""
+  bl_rest="$bl_target"
+  while [ "${bl_rest#*/}" != "$bl_rest" ]; do
+    bl_seg="${bl_rest%%/*}"
+    bl_rest="${bl_rest#*/}"
+    bl_prefix="${bl_prefix:+$bl_prefix/}$bl_seg"
+    if branch_exists "$bl_prefix"; then
+      printf '%s\n' "$bl_prefix"
+      return 0
+    fi
+  done
+  git for-each-ref --format='%(refname:short)' "refs/heads/$bl_target/" 2>/dev/null | head -n 1
+}
+
 # --- subcommand: resolve-working-branch -------------------------------------
 # resolve-working-branch <desired> <slug> <date> [--owned-file PATH] [--owned REF]...
 #
@@ -1632,28 +1653,6 @@ cmd_remove_publication_worktree() {
 #   - Present AND ours (resume, either candidate) -> reuse as-is, never re-cut.
 #   - Present but NOT ours (foreign pre-existing name) -> FAIL LOUD (exit 3).
 # Never checks out the dedicated branch anywhere; `git branch` only creates the ref.
-
-# blocking_leaf_for <ref> : best-effort diagnosis for a "cannot lock ref" cut
-# failure — echo the ref that blocks <ref> in the refs/heads namespace: the
-# first ancestor-segment prefix that exists as a leaf branch (blocks from
-# above), else the first child ref that makes <ref> a ref directory (blocks
-# from below). Echoes nothing when no blocker can be identified.
-blocking_leaf_for() {
-  bl_target="$1"
-  bl_prefix=""
-  bl_rest="$bl_target"
-  while [ "${bl_rest#*/}" != "$bl_rest" ]; do
-    bl_seg="${bl_rest%%/*}"
-    bl_rest="${bl_rest#*/}"
-    bl_prefix="${bl_prefix:+$bl_prefix/}$bl_seg"
-    if branch_exists "$bl_prefix"; then
-      printf '%s\n' "$bl_prefix"
-      return 0
-    fi
-  done
-  git for-each-ref --format='%(refname:short)' "refs/heads/$bl_target/" 2>/dev/null | head -n 1
-}
-
 cmd_resolve_working_branch() {
   [ $# -ge 3 ] || die "usage: resolve-working-branch <desired> <slug> <date> [--owned-file PATH] [--owned REF]..."
   desired="$1"; slug="$2"; date="$3"; shift 3

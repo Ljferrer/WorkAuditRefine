@@ -11,11 +11,13 @@
 # Subcommands exercised (Task 2): ensure-integration, ensure-exclude.
 # Subcommands exercised (Task 3): ensure-worktree.
 # Subcommands exercised (plan 2026-08-06 Task 1.2, #1380): resolve-working-branch
-# leaf-ref arms (RWB.f-RWB.j: leaf-dev flat fallback, planSlug validation,
-# actionable cut-failure die, fallback resume-reuse, no-collision control).
+# leaf-ref arms (RWB.f-RWB.k: leaf-dev flat fallback, planSlug validation,
+# actionable cut-failure die, fallback resume-reuse, no-collision control,
+# widened-reuse discriminator).
 # Subcommands exercised (plan 2026-08-06 Task 1.2, #1381): ensure-worktree
 # reuse-path submodule hygiene (HYG.j-HYG.n: corruption repair + WIP
-# preservation, SHA-mismatch control, clean control, real-edits control).# Ownership seam: the run tells the script which refs it owns via --owned-file
+# preservation, SHA-mismatch control, clean control, real-edits control).
+# Ownership seam: the run tells the script which refs it owns via --owned-file
 # <path> (a newline-delimited ledger the script reads AND appends to when it
 # creates a branch) and/or repeatable --owned <ref>. Both are pure-bash
 # testable. A branch that exists but is NOT recorded as ours is a foreign
@@ -2307,9 +2309,10 @@ expect "RWB.f: the nested derived name was NOT created" \
 # fixture repo with a leaf branch `war/<slug>` blocks the task-branch namespace,
 # so resolve-working-branch must die at Setup — BEFORE any task dispatch could
 # hit the block mid-phase — naming the leaf in stderr. Die text captured via the
-# T2.3/T2.6 inline idiom (run_in echoes only the exit code). The no-collision
-# shape proves the probe fires on BOTH paths. Exit is pinned to 1 (the plain-die
-# default): this is a namespace/argument problem, deliberately NOT EX_FOREIGN(3).
+# T2.3/T2.6 inline idiom (run_in echoes only the exit code). The probe precedes
+# the branch_checked_out_anywhere collision fork, so this one no-collision shape
+# suffices for both paths. Exit is pinned to 1 (the plain-die default): this is
+# a namespace/argument problem, deliberately NOT EX_FOREIGN(3).
 RWB_G="$(new_repo)"
 git -C "$RWB_G" branch war/myplan          # leaf at war/<slug>
 git -C "$RWB_G" branch landing HEAD
@@ -2375,6 +2378,27 @@ expect "RWB.j: leaf dev + NO collision still echoes <desired> unchanged" \
   "landing" "$RESOLVED_J"
 expect "RWB.j: no fallback branch created (probe fires only where a cut would happen)" \
   "1" "$(git -C "$RWB_J" rev-parse --verify -q war-2026-07-06-myplan >/dev/null 2>&1; echo $?)"
+
+# --- Case (RWB.k / 1.2(h)) WIDENED-REUSE DISCRIMINATOR (End state 19, #1380
+# A3): the blocking leaf `dev` is DELETED mid-run after the fallback cut, so on
+# resume the freshly-derived candidate is the NESTED name again — only the
+# widened BOTH-candidate reuse arm can find the recorded flat branch. A
+# single-candidate reuse check (the pre-A3 shape) would re-cut
+# dev/<date>-<slug> here; RWB.i keeps the leaf in place and cannot see that
+# regression. ---
+RWB_K="$(new_repo)"
+DESIRED_K="$(git -C "$RWB_K" symbolic-ref --short HEAD)"
+git -C "$RWB_K" branch dev
+OWN_K="$RWB_K/owned.txt"; : > "$OWN_K"
+RESOLVED_K1="$(run_out "$RWB_K" resolve-working-branch "$DESIRED_K" myplan 2026-07-06 --owned-file "$OWN_K")"
+expect "RWB.k: first resolve fell back to the FLAT name (fixture precondition)" \
+  "war-2026-07-06-myplan" "$RESOLVED_K1"
+git -C "$RWB_K" branch -D dev >/dev/null 2>&1
+RESOLVED_K2="$(run_out "$RWB_K" resolve-working-branch "$DESIRED_K" myplan 2026-07-06 --owned-file "$OWN_K")"
+expect "RWB.k: leaf dev deleted mid-run — resume still returns the recorded FLAT name" \
+  "war-2026-07-06-myplan" "$RESOLVED_K2"
+expect "RWB.k: no nested dev/<date>-<slug> ref was cut on resume" \
+  "1" "$(git -C "$RWB_K" rev-parse --verify -q dev/2026-07-06-myplan >/dev/null 2>&1; echo $?)"
 
 # ===========================================================================
 # Task 2 (target-repo-agnostic): ensure-integration reconciles the local <base>
