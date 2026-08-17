@@ -90,7 +90,7 @@ mixed-source rule — a mixed envelope/mined total renders `n/a (mixed-source)`,
 | total tool calls | manifest `phases[].envelope`, else mined (transcripts) |
 | total tokens | manifest `phases[].envelope`, else mined (transcripts) |
 | token split — input / output / cache | mined (transcripts), `n/a` when unsourceable |
-| wall-clock — total and per phase | manifest `startedAt`/`endedAt` (run) + `phases[].startedAt`/`endedAt` |
+| wall-clock — total and per phase | manifest `startedAt`/`endedAt` (run) + `phases[].startedAt`/`endedAt`; an all-identical `startedAt`/`endedAt` set is degenerate — render wall-clock **`n/a`** with a note, never a plausible-looking duration |
 | audit rounds used vs limit | manifest `phases[].dispatches.fixRounds` vs `run.roundLimit` (from `$MAIN/.claude/war/config.json`; `n/a` if absent) |
 | findings by severity and disposition | manifest / handoff if present, else `n/a` |
 | tasks by terminal status | manifest `phases[].tasks` |
@@ -136,6 +136,10 @@ string, its phase, and its task (where task-scoped):
   null and starts no later phase, so the signal stays silent there — that death already surfaces
   through the `held:*` / dropped-return signal classes above; this one fires only when a Lead
   demonstrably outlived the phase and still skipped the close stamp.
+- **unfiled follow-ups** — any `handoff.followUps[]` entry with `issue: null` on a handoff-emitting
+  phase (`landed` / `held:escalation`). Source the entries from the mined workflow-return record in
+  the transcripts, else the run ledger's phase `handoff` field when discoverable; unsourceable ⇒ no
+  row, never fabricated (this section's standing honesty rule).
 
 Close with the **verdict line**: **clean** (no signals) or **friction found (N signals)**.
 
