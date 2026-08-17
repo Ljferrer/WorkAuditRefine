@@ -1397,10 +1397,11 @@ cmd_sync_follower() {
 # ensure-refinery-worktree <path> <integration-branch>
 #
 # Ensure+re-attach for the Refinery's run-scoped worktree (_refinery). This is
-# distinct from ensure-worktree's pure no-op reuse: when the worktree is present
-# but HEAD is detached or on a different branch, and the tree is CLEAN (no
-# tracked-file modifications), we re-attach via `git -C <path> switch`. A dirty
-# tree (tracked-file modifications) always FAIL LOUD — never reset, never destroy
+# distinct from ensure-worktree's reuse (marker + examine-but-untouched submodule
+# hygiene, see reuse_hygiene): when the worktree is present but HEAD is detached
+# or on a different branch, and the tree is CLEAN (no tracked-file
+# modifications), we re-attach via `git -C <path> switch`. A dirty tree
+# (tracked-file modifications) always FAIL LOUD — never reset, never destroy
 # work. Untracked files (e.g. the .war-task marker) do not count as dirty.
 #
 # Behaviors:

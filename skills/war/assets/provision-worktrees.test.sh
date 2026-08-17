@@ -631,7 +631,8 @@ expect "teardown-phase (run-mine) does not touch the other run's worktree" \
 # ===========================================================================
 # Task 1 (clandiso): ensure-refinery-worktree <path> <integration-branch>
 #
-# Behavior (ensure + re-attach, distinct from ensure-worktree's pure no-op reuse):
+# Behavior (ensure + re-attach, distinct from ensure-worktree's reuse: marker +
+# examine-but-untouched submodule hygiene):
 #   (a) Not registered / empty dir -> `git worktree add <path> <integration-branch>` + .war-task
 #   (b) Registered + present + HEAD on the integration branch -> reuse untouched (marker only)
 #   (c) Registered + present + HEAD detached or on a different branch AND tree CLEAN ->
