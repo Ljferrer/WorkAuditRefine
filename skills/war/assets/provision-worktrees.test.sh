@@ -10,6 +10,9 @@
 #
 # Subcommands exercised (Task 2): ensure-integration, ensure-exclude.
 # Subcommands exercised (Task 3): ensure-worktree.
+# Subcommands exercised (plan 2026-08-06 Task 1.2, #1380): resolve-working-branch
+# leaf-ref arms (RWB.f-RWB.j: leaf-dev flat fallback, planSlug validation,
+# actionable cut-failure die, fallback resume-reuse, no-collision control).
 # Ownership seam: the run tells the script which refs it owns via --owned-file
 # <path> (a newline-delimited ledger the script reads AND appends to when it
 # creates a branch) and/or repeatable --owned <ref>. Both are pure-bash
@@ -2138,6 +2141,103 @@ expect "RWB.e: ensure-origin failure die RETAINS the never-force guidance" \
   "1" "$(printf '%s' "$OUT_EO" | grep -c 'refusing to force')"
 expect "RWB.e: ensure-origin failure die APPENDS git's own stderr (a known family fragment)" \
   "yes" "$(printf '%s' "$OUT_EO" | grep -Eiq 'does not appear to be a git repository|could not read from remote repository' && echo yes || echo no)"
+
+# --- Case (RWB.f / 1.2(e)) LEAF-`dev` COLLISION (End state 16, #1380 D12): the
+# desired branch is checked out (collision path engaged) AND a leaf branch `dev`
+# exists, blocking the nested derived name's namespace. resolve-working-branch
+# must fall back ONCE to the flat fallback name: echoed, created at the desired
+# tip, checked out NOWHERE, ownership recorded (the RWB.a assertion set against
+# the fallback name). Throwaway temp repo, never a shared fixture (the
+# redteam-sandbox-residue lesson). ---
+RWB_F="$(new_repo)"
+DESIRED_F="$(git -C "$RWB_F" symbolic-ref --short HEAD)"    # checked out in main
+TIP_F="$(git -C "$RWB_F" rev-parse HEAD)"
+git -C "$RWB_F" branch dev                                  # the blocking leaf
+OWN_F="$RWB_F/owned.txt"; : > "$OWN_F"
+RESOLVED_F="$(run_out "$RWB_F" resolve-working-branch "$DESIRED_F" myplan 2026-07-06 --owned-file "$OWN_F")"
+expect "RWB.f: leaf-dev collision echoes the FLAT fallback" \
+  "war-2026-07-06-myplan" "$RESOLVED_F"
+expect "RWB.f: flat fallback created at the desired tip" \
+  "$TIP_F" "$(git -C "$RWB_F" rev-parse war-2026-07-06-myplan 2>/dev/null)"
+expect "RWB.f: flat fallback is checked out NOWHERE" \
+  "no" "$(checked_out_anywhere "$RWB_F" war-2026-07-06-myplan)"
+expect "RWB.f: flat-fallback ownership recorded in the ledger" \
+  "0" "$(grep -Fxq -- war-2026-07-06-myplan "$OWN_F"; echo $?)"
+expect "RWB.f: the nested derived name was NOT created" \
+  "1" "$(git -C "$RWB_F" rev-parse --verify -q dev/2026-07-06-myplan >/dev/null 2>&1; echo $?)"
+
+# --- Case (RWB.g / 1.2(f)) planSlug VALIDATION (End state 17, #1380 D14): a
+# fixture repo with a leaf branch `war/<slug>` blocks the task-branch namespace,
+# so resolve-working-branch must die at Setup — BEFORE any task dispatch could
+# hit the block mid-phase — naming the leaf in stderr. Die text captured via the
+# T2.3/T2.6 inline idiom (run_in echoes only the exit code). The no-collision
+# shape proves the probe fires on BOTH paths. Exit is pinned to 1 (the plain-die
+# default): this is a namespace/argument problem, deliberately NOT EX_FOREIGN(3).
+RWB_G="$(new_repo)"
+git -C "$RWB_G" branch war/myplan          # leaf at war/<slug>
+git -C "$RWB_G" branch landing HEAD
+git -C "$RWB_G" checkout -q --detach HEAD  # <desired> checked out nowhere
+OUT_G="$( ( cd "$RWB_G" && bash "$SCRIPT" resolve-working-branch landing myplan 2026-07-06 ) 2>&1 )"; C_G=$?
+expect "RWB.g: leaf war/<slug> dies with the plain-die exit 1 (never EX_FOREIGN)" \
+  "1" "$C_G"
+expect "RWB.g: the die names the blocking leaf" \
+  "match" "$(printf '%s' "$OUT_G" | grep -Fq 'war/myplan' && echo match || echo nomatch)"
+expect "RWB.g: the die names the remedy (a different plan slug)" \
+  "match" "$(printf '%s' "$OUT_G" | grep -qi 'different plan slug' && echo match || echo nomatch)"
+expect "RWB.g: no branch was echoed on stdout (died before either echo)" \
+  "" "$(run_out "$RWB_G" resolve-working-branch landing myplan 2026-07-06)"
+
+# --- Case (RWB.h / 1.2(g)) ACTIONABLE CUT-FAILURE DIE (End state 18, #1380
+# D13): block the NESTED derived name from BELOW — a child ref makes it a ref
+# DIRECTORY, which the D12 ancestor-segment probe (leaf `dev` only) cannot see —
+# so the cut itself dies "cannot lock ref", exercising the D13 arm. The die must
+# RETAIN a known git-stderr fragment AND name the `--working` remedy plus the
+# blocking ref. Fragment DISJUNCTION per the RWB.e precedent: on a future
+# git-wording miss EXTEND the fragment list, never weaken. ---
+RWB_H="$(new_repo)"
+DESIRED_H="$(git -C "$RWB_H" symbolic-ref --short HEAD)"   # collision engaged
+git -C "$RWB_H" branch dev/2026-07-06-myplan/blocker
+OUT_H="$( ( cd "$RWB_H" && bash "$SCRIPT" resolve-working-branch "$DESIRED_H" myplan 2026-07-06 ) 2>&1 )"; C_H=$?
+expect "RWB.h: blocked cut exits non-zero (one fallback, then fail loud)" \
+  "nonzero" "$([ "$C_H" -ne 0 ] && echo nonzero || echo zero)"
+expect "RWB.h: die RETAINS a known git-stderr fragment" \
+  "yes" "$(printf '%s' "$OUT_H" | grep -Eiq 'cannot lock ref|exists; cannot create' && echo yes || echo no)"
+expect "RWB.h: die names the --working remedy" \
+  "yes" "$(printf '%s' "$OUT_H" | grep -Fq -- '--working' && echo yes || echo no)"
+expect "RWB.h: die names the blocking ref by name" \
+  "yes" "$(printf '%s' "$OUT_H" | grep -Fq 'dev/2026-07-06-myplan/blocker' && echo yes || echo no)"
+
+# --- Case (RWB.i / 1.2(h)) FALLBACK RESUME-REUSE (End state 19, #1380 A3): a
+# run that fell back to the flat name resumes — the second call with the same
+# recorded owned-file returns the SAME flat branch and never re-cuts, even after
+# the desired tip advances (the RWB.d shape against the fallback name). ---
+RWB_I="$(new_repo)"
+DESIRED_I="$(git -C "$RWB_I" symbolic-ref --short HEAD)"
+git -C "$RWB_I" branch dev
+OWN_I="$RWB_I/owned.txt"; : > "$OWN_I"
+RESOLVED_I1="$(run_out "$RWB_I" resolve-working-branch "$DESIRED_I" myplan 2026-07-06 --owned-file "$OWN_I")"
+FLAT_TIP_I1="$(git -C "$RWB_I" rev-parse war-2026-07-06-myplan 2>/dev/null)"
+printf 'more\n' > "$RWB_I/more.txt"; git -C "$RWB_I" add -A; git -C "$RWB_I" commit -qm advance
+code_rwbi="$(run_in "$RWB_I" resolve-working-branch "$DESIRED_I" myplan 2026-07-06 --owned-file "$OWN_I")"
+expect "RWB.i: fallback resume call exits 0 (reuse, not error)" 0 "$code_rwbi"
+RESOLVED_I2="$(run_out "$RWB_I" resolve-working-branch "$DESIRED_I" myplan 2026-07-06 --owned-file "$OWN_I")"
+expect "RWB.i: resume returns the SAME flat branch" \
+  "$RESOLVED_I1" "$RESOLVED_I2"
+expect "RWB.i: flat branch did NOT move (never re-cut)" \
+  "$FLAT_TIP_I1" "$(git -C "$RWB_I" rev-parse war-2026-07-06-myplan 2>/dev/null)"
+
+# --- Case (RWB.j / 1.2(i)) CONTROL: leaf `dev` present but <desired> checked
+# out NOWHERE — the no-collision path still echoes <desired> unchanged and cuts
+# nothing. The `dev` probe fires only where a cut would happen. ---
+RWB_J="$(new_repo)"
+git -C "$RWB_J" branch dev
+git -C "$RWB_J" branch landing HEAD
+git -C "$RWB_J" checkout -q --detach HEAD
+RESOLVED_J="$(run_out "$RWB_J" resolve-working-branch landing myplan 2026-07-06)"
+expect "RWB.j: leaf dev + NO collision still echoes <desired> unchanged" \
+  "landing" "$RESOLVED_J"
+expect "RWB.j: no fallback branch created (probe fires only where a cut would happen)" \
+  "1" "$(git -C "$RWB_J" rev-parse --verify -q war-2026-07-06-myplan >/dev/null 2>&1; echo $?)"
 
 # ===========================================================================
 # Task 2 (target-repo-agnostic): ensure-integration reconciles the local <base>

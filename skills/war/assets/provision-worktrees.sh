@@ -1469,14 +1469,56 @@ cmd_remove_publication_worktree() {
 # worktree, echo it unchanged (byte-identical to today's default — zero behavior
 # change for the common case). If <desired> IS checked out somewhere (the
 # launch-worktree collision), a push to it would be rejected as un-advanceable,
-# so instead resolve a DEDICATED working branch dev/<date>-<slug> created at
-# <desired>'s tip, checked out nowhere, and echo that.
+# so instead resolve a DEDICATED working branch created at <desired>'s tip,
+# checked out nowhere, and echo that. The derived name is dev/<date>-<slug>;
+# when a leaf branch `dev` blocks that namespace (a ref file/directory conflict
+# would make the nested cut die "cannot lock ref" mid-Setup), the derivation
+# falls back ONCE to the flat, slashless war-<date>-<slug> (#1380, D12) — no
+# segment of a slashless name can be blocked, and it is a sibling of (never
+# inside) the war/ task-branch ref directory. One fallback, then fail loud
+# (D13): a cut that still dies keeps git's own stderr and appends the
+# blocking-ref diagnosis plus the `--working <branch>` remedy.
 #
-# Ownership seam (ADR 0003), same inputs as the other subcommands:
+# planSlug cuttability (D14, #1380): before EITHER path echoes, probe leaf
+# branches at refs/heads/war and refs/heads/war/<slug> — task branches live
+# under war/<slug>/ and are cut regardless of which path echoes, so a leaf at
+# either ref would kill the first mid-phase task-branch cut, not Setup. The
+# probe validates the <slug> argument the Lead passes — the same slug that
+# seeds planSlug/runId by convention — and dies plain (exit 1, never
+# EX_FOREIGN: a namespace/argument problem, not a foreign-ownership one),
+# naming the blocking leaf and the remedy.
+#
+# Ownership seam (ADR 0003), same inputs as the other subcommands. The
+# absent/owned/foreign ladder runs on the SANITIZED (post-fallback) candidate,
+# and the REUSE arm is consciously widened (A3): it consults BOTH candidate
+# names — an owned nested or flat branch from a prior attempt is reused as-is,
+# so a mid-run leaf deletion cannot re-derive a different name on resume.
 #   - Absent dedicated branch -> create at <desired> tip, record as owned.
-#   - Present AND ours (resume) -> reuse as-is, never re-cut.
+#   - Present AND ours (resume, either candidate) -> reuse as-is, never re-cut.
 #   - Present but NOT ours (foreign pre-existing name) -> FAIL LOUD (exit 3).
 # Never checks out the dedicated branch anywhere; `git branch` only creates the ref.
+
+# blocking_leaf_for <ref> : best-effort diagnosis for a "cannot lock ref" cut
+# failure — echo the ref that blocks <ref> in the refs/heads namespace: the
+# first ancestor-segment prefix that exists as a leaf branch (blocks from
+# above), else the first child ref that makes <ref> a ref directory (blocks
+# from below). Echoes nothing when no blocker can be identified.
+blocking_leaf_for() {
+  bl_target="$1"
+  bl_prefix=""
+  bl_rest="$bl_target"
+  while [ "${bl_rest#*/}" != "$bl_rest" ]; do
+    bl_seg="${bl_rest%%/*}"
+    bl_rest="${bl_rest#*/}"
+    bl_prefix="${bl_prefix:+$bl_prefix/}$bl_seg"
+    if branch_exists "$bl_prefix"; then
+      printf '%s\n' "$bl_prefix"
+      return 0
+    fi
+  done
+  git for-each-ref --format='%(refname:short)' "refs/heads/$bl_target/" 2>/dev/null | head -n 1
+}
+
 cmd_resolve_working_branch() {
   [ $# -ge 3 ] || die "usage: resolve-working-branch <desired> <slug> <date> [--owned-file PATH] [--owned REF]..."
   desired="$1"; slug="$2"; date="$3"; shift 3
@@ -1500,6 +1542,17 @@ cmd_resolve_working_branch() {
 
   git_dir >/dev/null
 
+  # D14 (#1380): planSlug cuttability — probed on BOTH paths, before either
+  # echo (task branches are cut under war/<slug>/ regardless of which path
+  # echoes). A leaf at refs/heads/war is impossible-by-convention, but one
+  # show-ref is cheap; either leaf would kill every later task-branch cut with
+  # "cannot lock ref" mid-phase, so fail at Setup instead.
+  for wleaf in war "war/$slug"; do
+    if branch_exists "$wleaf"; then
+      die "resolve-working-branch: a leaf branch '$wleaf' exists at refs/heads/$wleaf and blocks the war/$slug/... task-branch namespace — every task-branch cut this run makes would die ('cannot lock ref'). Remedy: pick a different plan slug, or delete/rename the leaf branch '$wleaf'."
+    fi
+  done
+
   # No collision -> the desired branch is landable as-is. Echo it unchanged.
   if ! branch_checked_out_anywhere "$desired"; then
     printf '%s\n' "$desired"
@@ -1508,22 +1561,54 @@ cmd_resolve_working_branch() {
 
   # Collision: resolve a dedicated working branch, created at the desired tip.
   load_owned_file "$owned_file"
-  resolved="dev/$date-$slug"
 
-  if branch_exists "$resolved"; then
-    if owned_has "$resolved"; then
-      # Legitimate resume: reuse as-is. NEVER re-cut or move it.
-      printf '%s\n' "$resolved"
+  # WIDENED REUSE (A3, #1380): consult BOTH candidate names — the nested
+  # derived name and its flat fallback — before any fresh cut. An owned
+  # candidate from a prior attempt is a legitimate resume: reuse as-is, NEVER
+  # re-cut or move it, so deleting the blocking leaf mid-run cannot make a
+  # resume re-derive a DIFFERENT name. Foreign is judged below on the derived
+  # candidate only (per-arm semantics unchanged).
+  for wcand in "dev/$date-$slug" "war-$date-$slug"; do
+    if branch_exists "$wcand" && owned_has "$wcand"; then
+      printf '%s\n' "$wcand"
       return 0
     fi
+  done
+
+  # D12 (#1380): probe the derived name's single ancestor segment. A leaf
+  # branch `dev` makes the nested cut die "cannot lock ref", so fall back ONCE
+  # to the flat, slashless name.
+  if branch_exists dev; then
+    # COUPLING: a downstream plan-witness grep pins the exact unbraced variable
+    # spelling of the assignment on the next line — keep it byte-identical.
+    # (This comment deliberately does not restate the token: a comment carrying
+    # it would satisfy the witness without the code.)
+    resolved="war-$date-$slug"
+  else
+    resolved="dev/$date-$slug"
+  fi
+
+  if branch_exists "$resolved"; then
     die "resolve-working-branch: dedicated branch '$resolved' already exists and is not owned by this run; refusing to reuse or overwrite it (see ADR 0003). Delete the stale ref or adopt it with record-as-owned." "$EX_FOREIGN"
   fi
 
   # Absent -> create at the desired branch's tip (checked out nowhere), then
   # record ownership. Capture git stderr so a bad <desired> surfaces its diagnostic.
   _tmp_err="$(mktemp 2>/dev/null || mktemp -t warwbranch)"
-  git branch "$resolved" "$desired" >/dev/null 2>"$_tmp_err" \
-    || { _git_branch_err="$(cat "$_tmp_err")"; rm -f "$_tmp_err"; die "resolve-working-branch: failed to create dedicated branch '$resolved' at '$desired' tip: $_git_branch_err"; }
+  if ! git branch "$resolved" "$desired" >/dev/null 2>"$_tmp_err"; then
+    _git_branch_err="$(cat "$_tmp_err")"; rm -f "$_tmp_err"
+    _lock_hint=""
+    case "$_git_branch_err" in
+      *"cannot lock ref"*)
+        # D13 (#1380): a namespace block survived the D12 fallback (a child ref
+        # below the derived name, or a leaf that raced in after the probe). ONE
+        # fallback was the budget — diagnose and fail loud, never a retry loop.
+        _wblock="$(blocking_leaf_for "$resolved" || true)"
+        _lock_hint=" DIAGNOSIS: a ref blocks '$resolved' in the refs/heads namespace${_wblock:+ — the blocking ref is '$_wblock'}. Remedy: pass an explicit --working <branch> to /war, or delete/rename the blocking ref."
+        ;;
+    esac
+    die "resolve-working-branch: failed to create dedicated branch '$resolved' at '$desired' tip: $_git_branch_err$_lock_hint"
+  fi
   rm -f "$_tmp_err"
   record_owned_file "$owned_file" "$resolved"
   printf '%s\n' "$resolved"
