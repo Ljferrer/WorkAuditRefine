@@ -14,6 +14,9 @@ metadata:
     - evidence capture gap
     - two-command condition
     - workflow-template.js
+    - empty stdout exit 0
+    - systemic pattern
+    - doc-cli-consistency-corpus
   provenance: code-verified
   slug: endstate-check-dispatch-captures-only-one-command-per-condition-row
   phase: 2026-08-06-done-when-floor-wiring/1.4
@@ -25,7 +28,7 @@ metadata:
   relates:
     - "[[endstate-check-fixed-context-window-undercaptures-growing-enumerated-block]]"
   created: 2026-08-15
-  modified: 2026-08-16T02:54:25.209Z
+  modified: 2026-08-17T05:52:07.269Z
   originSessionId: 8bae67aa-acfa-461e-acc9-278fc79ba6c1
 ---
 
@@ -105,3 +108,26 @@ artifact is silent), treat the artifact as **non-substantiating** and fall back 
 content-at-pin read, exactly as for the multi-command gap above. This risk is highest for
 `check:` fields that are shell pipelines/compound expressions rather than a single bare command
 or `node --test` invocation.
+
+## Third instance — confirmed systemic across three separate phases/plans
+
+Phase 1 of `2026-08-06-doc-cli-consistency-corpus` (landed tip
+`c809b77fee45630b19b195bf80f13743168a7857` on `dev/2026-08-06-doc-cli-consistency-corpus`; the
+gate-audit's own `auditSha` was `32e1b4b774d88f95949826df9fd6247fa05acce1`) shows the identical
+shape a third time: `.war/endstate-1-5.log` (End state 5, a `grep -n` check) and
+`.war/endstate-1-9.log` (End state 9, a two-`grep -c` compound check) both read exactly
+`tip_sha: 32e1b4b774d88f95949826df9fd6247fa05acce1` / `exit_code: 0` with **no output body** —
+code-verified by direct Read of both files in the `_refinery` worktree at the landed tip
+(`.claude/war-worktrees/2026-08-06-doc-cli-consistency-corpus-2026-08-16/_refinery/.war/endstate-1-5.log`
+and `endstate-1-9.log`, repo-relative: `skills/_shared/doc-cli-consistency.test.mjs` is condition
+5's subject, `docs/adr/0046-specs-are-posterity-skills-cite-maintained-surfaces.md` is condition
+9's). The gate-audit seat correctly treated both as non-substantiating and re-grounded on
+`git show <sha>:<path>` before attesting "met", exactly per the durable rule above — the
+condition verdicts were still correct, only the artifact's self-sufficiency was not.
+
+Three independent phases (`2026-08-06-gate-audit-finding-routing`, and now
+`2026-08-06-doc-cli-consistency-corpus`) reproducing the exact same empty-stdout-despite-exit-0
+shape confirms this is a **systemic property of the endstate-check dispatch for grep-based
+conditions**, not a one-off fluke — treat "artifact present, exit 0, empty body" as the expected
+shape for a grep/pipeline-style check in this engine version, and always re-ground on the pinned
+blob rather than treating the empty artifact as a gap unique to one run.
