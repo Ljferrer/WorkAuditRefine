@@ -103,7 +103,8 @@ construct-level collision census is Note 1.
    `DONE_WHEN_SITES` rows and the presence-guard message already reads "six sites is the floor";
    the six space-form `keep the gate` occurrences in `skills/war/assets/workflow-template.js` are
    the FIX_NEEDED, ace, ADD_TEST, MAKE_DONE_PASS, and PACKAGE_IT prompts plus the phase-close
-   sweep's parenthetical form (`grep -ioc` = 6), and the three hyphenated `keep-the-gate-green`
+   sweep's parenthetical form (`grep -io 'keep the gate' … | wc -l` = 6 — occurrence semantics;
+   `grep -c` counts lines and is not the measure), and the three hyphenated `keep-the-gate-green`
    mentions are comments — the only near-misses; the live D31 array holds **17** keys (counted at
    conversion); #1252's line-614 citation is stale — anchored here by construct only. Conversion
    addition: the `GATE_SITE_CAPTURES` floor now reads a higher count than #1334's quoted "15" —
@@ -126,20 +127,29 @@ construct-level collision census is Note 1.
    Test-file fixture/comment additions carry **no** census duty, and this plan's D6 fixtures build
    their labels at runtime from live arms (the existing `-probe-proceed` fixture's idiom), adding
    no new contiguous label copy to the file's bytes (AI-declared).
-10. **Downstream spine + sibling contention** (verified: spec texts + committed plan `- Files:`
-    lines, read at conversion). The unconverted
-    `docs/specs/2026-08-06-gate2-publication-guard-design.md` § Open risks declares it lands
-    **after** this group and `handoff-schemas-contract` — "all three touch `skills/war/SKILL.md`,
+10. **Downstream spine + sibling contention** (measured at conversion; census corrected at
+    /red-team, 2026-08-17). The **committed** `docs/plans/2026-08-06-gate2-publication-guard.md`
+    (its Task `- Files:` line names both `skills/war/SKILL.md` and
+    `skills/war/assets/skill-doc-contracts.test.mjs`) declares itself downstream of this group,
+    matching its source spec's § Open risks — "all three touch `skills/war/SKILL.md`,
     `skills/war/assets/skill-doc-contracts.test.mjs`" (verbatim) — a real declared edge with this
-    plan as upstream. Region check at conversion: gate2's D22 family (the Gate-2 ordered-span
+    plan as upstream. Region check: gate2's D22 family (the Gate-2 ordered-span
     block) sits well above the Task 2.1 doc-cascade banner this plan rewraps and far above the
     D31 block at the file tail — region-disjoint, though the banner is adjacent to the D22 block's
     end; gate2 re-measures at its own conversion regardless. `skills/war/SKILL.md` is shared with
     committed plan 9 (its Task 1.3 regions: Setup step 2, Decompose step 1, § Run manifest,
     § Per phase, § Checkpoint) — this plan's region is Decompose step 3's Done-when intake
     sub-bullet: region-disjoint (A5). `workflow-template.test.mjs` is shared with plans 3, 6, and
-    9 (Note 1's construct census). No committed plan touches `skill-doc-contracts.test.mjs`
-    (verified: the nine committed plans' `- Files:` lines). The trailing release-slot overlap with
+    9 (Note 1's construct census). `skill-doc-contracts.test.mjs` has one **landed upstream**
+    editor: plan 5 (`2026-08-06-verdict-adjudication-integrity`, its D18 row) added the D32
+    pointer-pair block — live at the stacked base (the `test('D32 — evicted CONTEXT.md glossary
+    entries keep trigger pointers…')` block, ~L1250–1330), construct-disjoint from both the
+    Task 2.1 banner (~L687–701) and the D31 block (file tail); the roadmap's contention row for
+    this file already reads `5 (red-team pass), 10, 12`. The original conversion census ("no
+    committed plan touches this file; nine committed plans") predated plan 5's D18 hardening and
+    gate2's conversion and was false at the stacked base — corrected here; the operative
+    conclusions (regions disjoint, this plan upstream of gate2) were re-verified and stand. The
+    trailing release-slot overlap with
     every sibling is the sanctioned stacked-release pattern, not contention.
 11. **Lesson-stamp check** (verified at conversion): the survey mined both companion lessons into
     this group's issues — issue #1373 carries the `Lesson:` line naming
@@ -203,8 +213,12 @@ construct-level collision census is Note 1.
   label literal enters the file (Context 9).
 - **Doc-corpus pin safety**: the Task 1.2 SKILL.md delta introduces no `ensure-origin` token (the
   gate2 sibling's census) and phrases no CLI verb for the four `doc-cli-consistency.test.mjs`
-  modules; `skills/war/SKILL.md` sits under a warning-only advisory byte budget — keep the added
-  clause tight and re-measure `wc -c` at the rebased base (AI-declared).
+  modules. Budget truth (measured at /red-team, 2026-08-17): `skills/war/SKILL.md` is **already
+  above its advisory line at the stacked base** — 65,123 B vs advisory 64,512 B — so the budget
+  suite's WARN fires before any work and is *expected*; the binding limit is the **hard line,
+  73,728 B** (~8.6 KB headroom). The worker keeps the added clause tight, re-measures `wc -c` at
+  the rebased base and records it, neither halts on the pre-existing WARN nor attempts a shrink
+  pass (a shrink is out of scope — Non-goals) (AI-declared).
 - **Release discipline**: the version bump is its own trailing phase; version literals in this
   plan and the source spec are non-authoritative.
 
@@ -217,13 +231,13 @@ construct-level collision census is Note 1.
 | D3 | D6 header whole-file claim | **Scope, never delete**: reword to claim only that the guard's own patterns are fragment-built, naming the `LITERAL_REGISTRY` census rows (by construct, never quoting label bytes — a quoted label would be a new contiguous copy) as the file's known contiguous label copies. [assumed: scoping over deletion, to keep the self-match rationale readable — if wrong, deletion is strictly safer and loses only prose → A1] | spec §3 "D6 header whole-file claim" (carried [assumed] row) |
 | D4 | `DONE_WHEN_SITES` length floor | `assert.equal(DONE_WHEN_SITES.length, 6, …)` as the first statement of the first Done-when threading test, mirroring the `GATE_SITE_CAPTURES` anti-vacuity idiom — six, not the issues' five (Context 7); message naming the purpose ("a site is ADDED, never skipped"). | spec §3 "DONE_WHEN_SITES length floor"; (verified: issue #1334 (2026-08-06)) |
 | D5 | typeof half of `doneWhenClause` | Add a non-string arm beside the null/absent/`''` asserts: `DONE_WHEN_SITES[0].run({ doneWhen: 5 })` dispatches the byte-identical legacy prompt — reds if the `typeof` conjunct is deleted. Narrow the comment: the `''` arm pins the truthiness half, the non-string arm pins the typeof half. | spec §3 "typeof half"; (verified: issue #1334 finding 1 (2026-08-06)) |
-| D6 | Keep-green universality census | Default-deny space-form count over the template source in the same sweep test: case-insensitive occurrences of `keep the gate` in `src` equal the pinned count (6 @ `6fff2ee`; re-measured at task time), message directing a new keep-green prompt into the D6 sweep. Scans `src` only; the space/hyphen split keeps the engine's comments out. | spec §3 "Keep-green universality census"; (verified: issue #1334 finding 4 (2026-08-06)) |
+| D6 | Keep-green universality census | Default-deny space-form count over the template source in the same sweep test: case-insensitive occurrences of `keep the gate` in `src` equal the pinned count (6 @ `6fff2ee`; re-measured at task time **in occurrence semantics** — `grep -io 'keep the gate' … \| wc -l`, never `grep -c`, which counts lines and undercounts two hits on one line), message directing a new keep-green prompt into the D6 sweep. Scans `src` only; the space/hyphen split keeps the engine's comments out. The census's own demonstrated-RED (scratch-append a space-form keep-green line to a template copy → census red → restore) is recorded in the done report like every other new guard's (/red-team 2026-08-17 — the census previously lacked one). | spec §3 "Keep-green universality census"; (verified: issue #1334 finding 4 (2026-08-06)) |
 | D7 | Gate:/Done when: adjacency | Replace the index-precedence assert with a concatenation assert — the prompt contains the `Gate:` line composed via `resolveGate` (already imported in this file) directly followed by `\nDone when: ` + the command — making the "rides directly after" message true. True at every site today: all six sites render `Gate: ${plan.gate}${doneWhenClause(task)}` (Context 3). | spec §3 "Gate:/Done when: adjacency"; (verified: issue #1334 finding 5 (2026-08-06)) |
 | D8 | D31 collision hardening | Tighten both arm keys to negated-scan gaps that refuse to cross the other arm's trigger token, add a `D31_ARMS_COLLIDED` inverted-routing negative reference under `doesNotMatch` beside the retained `D31_ARMS_SWAPPED` in the existing both-ways loop, and correct the block comment's "catches every swap shape" claim to enumerate what the pair provably rejects (the two fixture shapes) and the negated-gap mechanism. A fixture alone cannot land first — it is matched by the untightened keys by construction (the demonstrated-RED, recorded in the done report). Binding observables per D15. | spec §3 "D31 collision hardening"; (verified: issue #1375 (2026-08-06)) |
 | D9 | D31 new keys | Append three keys: the value-boundary clause (`` /text\s+AFTER\s+the\s+`?Done when:`?\s+key/i ``) and the legacy precedence clause (`/intake-defect\s+rule\s+does\s+not\s+fire/i`) — both match the live lead-in line today (Context 5) — and the backtick-stripping clause key, landing with its SKILL.md clause in the same commit (D10). Update the block comment's rule (b) to carry the legacy gating. | spec §3 "D31 new keys"; (verified: issue #1332 (2026-08-06)) |
 | D10 | SKILL.md backtick clause | Extend the existing value-boundary clause in place on the `**Done-when intake` lead-in line: the staged command is the text inside its code span — backticks are markup, stripped exactly as the `Files:` list's are (#1332 finding 1's shape). Purely additive; the insertion sits between two keyed clauses and inside no bounded gap (verified feasible at conversion) — every existing D31 key must still match, proven by the before/after suite run. | spec §3 "SKILL.md backtick clause" |
 | D11 | Task 2.1 banner orphan | Comment-only rewrap so the sentence reads continuously into `PER-MEDIUM, not uniform: …`; hand-scan the same banner block for any other reflow orphan (nothing mechanical reads this banner — the survey is the only check). | spec §3 "Task 2.1 banner orphan"; (verified: issue #1252 (2026-08-06)) |
-| D12 | Predecessor witness protocol | Task 1.1's worker, first act after the standard rebase: `grep -c 'done_when_log_path' skills/war/assets/workflow-template.js` ≥ 1 AND `grep -c 'strictly stronger' skills/war/assets/workflow-template.test.mjs` = 0 (plan 3's End states 4/9; the second is 1 at `6fff2ee`, so it cannot pass at the un-landed base — and it proves the rewrite of the very set-minus test this task edits) AND `grep -Fc 'ABORTED' skills/war/assets/workflow-template.js` ≥ 1 (plan 6's End state 4; 0 at the base). Any miss ⇒ halt and report, never improvise. Task 1.2 needs no witness — its file family is untouched by the binding predecessors (Context 10). (AI-declared) | conversion judgment (plan 6's D10 / plan 9's D16 witness shape), logged for /red-team |
+| D12 | Predecessor witness protocol | Task 1.1's worker, first act after the standard rebase: `grep -c 'done_when_log_path' skills/war/assets/workflow-template.js` ≥ 1 AND `grep -c 'strictly stronger' skills/war/assets/workflow-template.test.mjs` = 0 (plan 3's End states 4/9; the second is 1 at `6fff2ee`, so it cannot pass at the un-landed base — and it proves the rewrite of the very set-minus test this task edits) AND `grep -Fc 'ABORTED' skills/war/assets/workflow-template.js` ≥ 1 (plan 6's End state 4; 0 at the base). Any miss ⇒ halt and report, never improvise. Task 1.2 runs ONE cheap witness — `grep -Fc 'glossary-cold.md' skills/war/assets/skill-doc-contracts.test.mjs` ≥ 1 (8 at the stacked base) — proving plan 5's landed D32 block is present beneath it (the file's one landed upstream editor, Context 10); its regions are construct-disjoint so a pass needs no further action, and a miss ⇒ halt and report. (AI-declared; witness added at /red-team 2026-08-17) | conversion judgment (plan 6's D10 / plan 9's D16 witness shape), logged for /red-team |
 | D13 | Task decomposition | Two file-disjoint tasks in Phase 1, both wave 1, no deps — Task 1.1 unit A (`workflow-template.test.mjs` + the lesson stamp rider; #1373/#1286/#1334) and Task 1.2 unit B (`skill-doc-contracts.test.mjs` + `skills/war/SKILL.md`; #1375/#1332/#1252 — one task despite two files: the SKILL.md clause and its D31 key are same-commit lock-step, and the D31 edits collide in one file) — plus the standard trailing release phase. No drift guard is split from its fact (rule 7 not in play — each task's guards travel with the text they pin). (AI-declared) | spec §8 task-carving hint + conversion judgment, logged for /red-team; war-strategy §3 |
 | D14 | Lesson stamps | The `label-to-guard-region-extraction-must-bound-at-next-label-not-eof` lesson is stamped in Task 1.1: prefix its `description` with `RESOLVED (structural-pin-extractors, #1373/#1286, <land date>)`, body/keywords otherwise untouched (the repo's lesson-stamp convention; the stamped body legitimately keeps present-tense defect prose). The `multi-token-presence-loop…` lesson is NOT stamped — it records a standing test-authoring class rule, cited as a live wikilink by the D31 block comment this plan edits; #1375's fix applies the rule, it does not retire it (A6). The redaction lint gates the edit (a discovered gate member). (AI-declared) | conversion judgment (batch fold-into-fixing-task precedent), logged for /red-team |
 | D15 | D31 tightening refinement (binding observables) | The tightened keys and the collided fixture are co-designed under three hard observables: (1) both keys still match the live lead-in line unmodified; (2) both keys sit under `doesNotMatch` for BOTH negative references (`D31_ARMS_SWAPPED` retained + `D31_ARMS_COLLIDED` new); (3) against the untightened keys the collided fixture is matched (the demonstrated-RED proving the tightening is load-bearing). Conversion trace: the bare negated gap (`(?:(?!--afk)[\s\S]){0,80}`) leaves the interactive key matching a collided fixture at its second `interactive` token occurrence — anchor the interactive trigger to its live token form (`interactive\s+runs`, 1 hit in the live line) in addition to the negated gap; the afk key's negated gap (`(?:(?!interactive)[\s\S]){0,120}`) suffices for its side. Exact regexes are worker latitude bounded by the three observables. (AI-declared) | conversion trace over the live line + the #1375 lesson's prescribed fix, logged for /red-team |
@@ -295,16 +309,29 @@ None (see Non-goals — existing terms and ADR 0025 cover the rest).
      check: `node --test skills/war/assets/workflow-template.test.mjs` (the new negative
      reference green; the EOF-revert scratch red recorded in the done report). (AI-declared)
   2. `relandSubmodArms`' per-arm guard search is right-bounded at the next label match (EOF only
-     for the last arm) and no unbounded slice remains ·
+     for the last arm), no unbounded slice remains, and the "Region boundary (explicit)" comment
+     states the new bound (its retired guard-branch-end claim gone) ·
      check: `grep -Fc 'slice(m.index)' skills/war/assets/workflow-template.test.mjs` returns 0
-     (1 at the base — D16); then hand-scan the extractor and its region/header comment block for
-     prose restating the EOF shape and list each straggler as a survey-derived correction.
-     (AI-declared)
+     (1 at the base — D16) && `grep -Fc 'matched dispatch label to the end'
+     skills/war/assets/workflow-template.test.mjs` returns 0 (1 at the base — the retired comment
+     claim's single-line anchor; the sibling `2B guard branch` literal is deliberately NOT the
+     anchor — it also appears in an unretired gloss) && `grep -Fc 'to the next label match'
+     skills/war/assets/workflow-template.test.mjs` returns ≥ 1 (0 at the base — Task 1.1 (b)
+     mandates the corrected comment carry that phrase); then hand-scan the extractor and its
+     region/header comment block for prose restating the EOF shape **or the guard-branch-end
+     shape** and list each straggler as a survey-derived correction. (AI-declared; comment halves
+     added at /red-team 2026-08-17)
   3. The D6 header's self-match claim is scoped to the guard's fragment-built patterns, naming
-     the `LITERAL_REGISTRY` rows (by construct) as the file's contiguous label copies ·
-     check: `grep -c 'no contiguous copy of a dispatch label'
-     skills/war/assets/workflow-template.test.mjs` returns 0 (1 at the base); same-scope
-     hand-scan per End state 2's note. (AI-declared)
+     the `LITERAL_REGISTRY` rows (by construct) as the file's known contiguous label copies ·
+     check: `tr '\n' ' ' < skills/war/assets/workflow-template.test.mjs | grep -oic 'copy of a dispatch label'`
+     returns 0 (1 at the base; wrap- and case-tolerant — the original
+     single-line case-sensitive grep false-passed on a re-cased or re-wrapped survivor, and the
+     needle does not occur in D3's sanctioned reword) &&
+     `grep -Fc 'known contiguous label copies' skills/war/assets/workflow-template.test.mjs`
+     returns ≥ 1 (0 at the base — the
+     positive half that distinguishes D3's scoping from A1's deletion fallback; Task 1.1 (d)
+     mandates the reworded sentence carry D3's phrase); same-scope hand-scan per End state 2's
+     note. (AI-declared; check hardened at /red-team 2026-08-17)
   4. Deleting a `DONE_WHEN_SITES` row fails the first Done-when threading test on its length
      floor before any per-site assert runs ·
      check: `grep -n 'DONE_WHEN_SITES.length' skills/war/assets/workflow-template.test.mjs`
@@ -316,10 +343,17 @@ None (see Non-goals — existing terms and ADR 0025 cover the rest).
      scratch-mutation red recorded in the done report. (AI-declared)
   6. A keep-the-gate-green prompt added to `skills/war/assets/workflow-template.js` at a dispatch
      site no sweep fixture reaches fails the census, directing the author into the D6 sweep ·
-     check: `grep -ioc 'keep the gate' skills/war/assets/workflow-template.js` equals the pinned
-     count (6 @ `6fff2ee`; re-measured at task time); then hand-scan the template source's
-     comments for space-form stragglers (the three hyphenated mentions are the known non-hits)
-     and list any as a survey-derived correction. (AI-declared)
+     check: `grep -Fc 'must join the D6 sweep' skills/war/assets/workflow-template.test.mjs`
+     returns ≥ 1 (0 at the base — the census assert's own mandated message literal, pinned on the
+     deliverable's surface; the original source-side grep was invariant to whether the census was
+     ever written, since Task 1.1 adds no `workflow-template.js` byte) — with the pin VALUE
+     re-measured in occurrence semantics: `grep -io 'keep the gate'
+     skills/war/assets/workflow-template.js | wc -l` equals the pinned count (6 @ `6fff2ee`;
+     re-measured at task time; `grep -c` counts lines, not occurrences, and is never the
+     measure); the census's scratch-append demonstrated-RED recorded in the done report; then
+     hand-scan the template source's comments for space-form stragglers (the three hyphenated
+     mentions are the known non-hits) and list any as a survey-derived correction. (AI-declared;
+     check retargeted at /red-team 2026-08-17)
   7. At every worker-family site the `Done when:` clause is directly concatenated after the
      `Gate:` line — the threading test composes the expected bytes via `resolveGate` and asserts
      the concatenation ·
@@ -327,15 +361,26 @@ None (see Non-goals — existing terms and ADR 0025 cover the rest).
      scratch-move-the-clause red recorded in the done report. (AI-declared)
   8. A reword that swallows the other arm's trigger token inside one D31 key's gap with the
      routing inverted is rejected by the pair: `D31_ARMS_COLLIDED` and `D31_ARMS_SWAPPED` both
-     sit under `doesNotMatch` for both keys, and both keys still match the live lead-in line ·
-     check: `node --test skills/war/assets/skill-doc-contracts.test.mjs`; the
+     sit under `doesNotMatch` for both keys, both keys still match the live lead-in line, and the
+     block comment's retired "catches every swap shape" claim is gone ·
+     check: `node --test skills/war/assets/skill-doc-contracts.test.mjs` &&
+     `grep -Fc 'catches every swap shape' skills/war/assets/skill-doc-contracts.test.mjs`
+     returns 0 (1 at the base — the retired claim's OLD-absent pin, mirroring End state 3's
+     discipline; a suite run never reads a comment); the
      untightened-keys-match-the-collided-fixture demonstrated-RED recorded in the done report
-     (D15 observable 3). (AI-declared)
+     (D15 observable 3). (AI-declared; comment half added at /red-team 2026-08-17)
   9. Dropping the value-boundary, legacy-precedence, or backtick-stripping clause from the
-     `**Done-when intake` sub-bullet fails the D31 row on that clause's key ·
+     `**Done-when intake` sub-bullet fails the D31 row on that clause's key, and the block
+     comment's rule (b) carries the legacy gating (its unqualified form retired) ·
      check: the D31 key array carries the three new keys (grep each pattern in
-     `skills/war/assets/skill-doc-contracts.test.mjs`); each scratch clause-delete red recorded
-     in the done report. (AI-declared)
+     `skills/war/assets/skill-doc-contracts.test.mjs`) &&
+     `grep -Fc 'surfaced at the approval gate on interactive runs and refuses dispatch under --afk' skills/war/assets/skill-doc-contracts.test.mjs`
+     returns 0 (1 at the base — the unqualified rule (b) sentence's single-line anchor) &&
+     `grep -Fc 'Legacy arm (checked first)' skills/war/assets/skill-doc-contracts.test.mjs`
+     returns ≥ 1 (0 at the base — Task 1.2 (b) mandates the updated rule (b) carry the literal
+     `Legacy arm (checked first)`, mirroring the live SKILL.md wording); each scratch
+     clause-delete red recorded in the done report. (AI-declared; rule (b) halves added at
+     /red-team 2026-08-17)
   10. Decompose stages a backticked `Done when:` command as the text inside its code span —
       backticks stripped, stated on the lead-in line, its key landing in the same commit ·
       check: `grep -n 'backticks' skills/war/SKILL.md` hits the Done-when intake lead-in line
@@ -403,7 +448,9 @@ enforced by Task 1.1's D12 witnesses, not by intra-plan structure.
   retains its guard in its own region — never assume, re-prove at the rebased base). (b) region
   comment correction: the "Region boundary (explicit)" comment restates the now-true bound (label
   → next label, EOF for the last arm) instead of the guard-branch-end claim the code never
-  implemented. (c) guardless-arm negative reference (D2): a new test (or a new arm of the
+  implemented — the corrected comment **carries the literal `to the next label match`** and no
+  longer contains `matched dispatch label to the end` (End state 2's comment halves, pinned).
+  (c) guardless-arm negative reference (D2): a new test (or a new arm of the
   both-ways test) splices a fixture arm — a discoverable `-proceed` flavor distinct from both
   live arms and from `-probe-proceed`, its label derived at runtime from a live arm's label
   (fixture-flavor hygiene; no contiguous label literal enters the file, Context 9) with **no**
@@ -413,8 +460,11 @@ enforced by Task 1.1's D12 witnesses, not by intra-plan structure.
   borrow) → red; record the trace in the done report and the test banner. (d) header-comment
   scoping (D3/A1): reword the whole-file self-match sentence to claim only that the guard's own
   patterns are fragment-built, naming the `LITERAL_REGISTRY` rows by construct (never quoting a
-  label byte) as the file's known contiguous label copies. Straggler sweep: grep
-  `no contiguous copy of a dispatch label` in this file (→ 0) — then hand-scan the full D6
+  label byte) as the file's known contiguous label copies — the reworded sentence **carries the
+  literal `known contiguous label copies`** (End state 3's positive half; it distinguishes the
+  scoping from A1's deletion fallback). Straggler sweep (wrap- and case-tolerant — End state 3's
+  hardened form): `tr '\n' ' ' < skills/war/assets/workflow-template.test.mjs | grep -oic 'copy of a dispatch label'`
+  (→ 0) — then hand-scan the full D6
   header/region comment block for any other sentence restating the whole-file claim in different
   bytes; list each as a survey-derived correction (End states 2/3's ceiling).
   **Done-when threading block** — (e) `DONE_WHEN_SITES` floor (D4, #1334-2/3):
@@ -429,10 +479,14 @@ enforced by Task 1.1's D12 witnesses, not by intra-plan structure.
   Demonstrated-RED: scratch-delete the `typeof` conjunct from `doneWhenClause` in a template
   copy → suite red → restore (done report). (g) keep-green census (D6, #1334-4): appended inside
   the D6 prompt-truth sweep test — case-insensitive space-form count of `keep the gate` over
-  `src` equals the re-measured pin (6 at `6fff2ee`), message: "a new keep-the-gate-green prompt
-  must join the D6 sweep above". Authoring note: the count was measured by grep then confirmed
+  `src` equals the re-measured pin (6 at `6fff2ee`), message carrying the **literal**
+  "a new keep-the-gate-green prompt must join the D6 sweep above" (End state 6 pins
+  `must join the D6 sweep` on this file). Authoring note: the pin value is measured in
+  **occurrence semantics** — `grep -io 'keep the gate' skills/war/assets/workflow-template.js | wc -l`
+  (never `grep -c`, which counts lines) — then confirmed
   by the same-scope manual survey (the three hyphenated comment mentions are the only
-  near-misses) — repeat both steps when re-pinning at task time. (h) adjacency (D7, #1334-5): in
+  near-misses) — repeat both steps when re-pinning at task time. Demonstrated-RED: scratch-append
+  a space-form keep-green line to a template copy → census red → restore (done report). (h) adjacency (D7, #1334-5): in
   the first threading test, replace the index-precedence pair with the concatenation assert —
   compose the expected bytes via `resolveGate` (imported at the top of this file) and assert
   `c.prompt.includes('Gate: ' + resolveGate(<the fixture gate>) + '\nDone when: ' + DW_CMD)`;
@@ -456,10 +510,14 @@ enforced by Task 1.1's D12 witnesses, not by intra-plan structure.
 ### Task 1.2: D31 key family — collision hardening, three new keys, backtick clause, banner rewrap
 
 - Files: `skills/war/assets/skill-doc-contracts.test.mjs`, `skills/war/SKILL.md`
-- Plan slice: base-resident constructs — no committed 2026-08-06 plan touches
-  `skill-doc-contracts.test.mjs`, and the `skills/war/SKILL.md` region (Decompose step 3's
-  `**Done-when intake` sub-bullet) is disjoint from committed plan 9's regions (A5); no witness
-  needed, but re-read both files at the rebased base before editing.
+- Plan slice: **Witness first (D12, corrected census)** — after the standard rebase, verify
+  `grep -Fc 'glossary-cold.md' skills/war/assets/skill-doc-contracts.test.mjs` ≥ 1 (8 at the
+  stacked base) — plan 5's landed D32 block, the file's one landed upstream editor
+  (Context 10); a miss ⇒ halt and report. Its D32 region (~L1250–1330) is construct-disjoint
+  from every region this task edits (the Task 2.1 banner ~L687–701, the D31 block at the file
+  tail), and the `skills/war/SKILL.md` region (Decompose step 3's
+  `**Done-when intake` sub-bullet) is disjoint from committed plan 9's regions (A5);
+  re-read both files at the rebased base before editing.
   **D31 hardening (`skill-doc-contracts.test.mjs`)** — (a) collision hardening (D8/D15, #1375):
   tighten `D31_INTERACTIVE_ARM` and `D31_AFK_ARM` to negated-scan gaps that refuse to cross the
   other arm's trigger token, anchoring the interactive trigger to its live token form
@@ -472,7 +530,9 @@ enforced by Task 1.1's D12 witnesses, not by intra-plan structure.
   observables (D15): both keys match the live lead-in line unmodified; both keys reject both
   fixtures; the untightened keys match the collided fixture (demonstrated-RED in the done
   report — proves fixture and tightening land together). Correct the block comment: no "catches
-  every swap shape" claim survives — it names the two provably-rejected shapes and the
+  every swap shape" claim survives (End state 8 pins it OLD-absent:
+  `grep -Fc 'catches every swap shape'` → 0 in this file) — it names the two provably-rejected
+  shapes and the
   negated-gap + live-token-anchor mechanism. (b) three new keys + rule (b) currency (D9,
   #1332-2/3): append to the D31 key array — the value-boundary key
   (`` /text\s+AFTER\s+the\s+`?Done when:`?\s+key/i ``) and the legacy-precedence key
@@ -480,8 +540,10 @@ enforced by Task 1.1's D12 witnesses, not by intra-plan structure.
   suite to prove it before any SKILL.md edit), plus the backtick-stripping key (a
   token-anchored `\s+`-tolerant form over the new clause's tokens, e.g. matching
   "backticks are markup, stripped") landing in the **same commit** as its clause (c); update the
-  block comment's rule (b) sentence to carry the now-live legacy gating ("Legacy arm (checked
-  first): … the intake-defect rule does not fire"). **SKILL.md clause (D10, #1332-1)** — (c)
+  block comment's rule (b) sentence to carry the now-live legacy gating — the updated sentence
+  **carries the literal `Legacy arm (checked first)`** and the unqualified single-line form
+  (`surfaced at the approval gate on interactive runs and refuses dispatch under --afk`) is gone
+  (End state 9's rule (b) halves). **SKILL.md clause (D10, #1332-1)** — (c)
   extend the value-boundary clause in place on the `**Done-when intake` lead-in line: "— the
   bullet's text AFTER the `Done when:` key, never the key itself, and the command inside its
   code span (backticks are markup, stripped exactly as the `Files:` list's are)". Purely
@@ -489,8 +551,10 @@ enforced by Task 1.1's D12 witnesses, not by intra-plan structure.
   suite before and after: all 17 pre-existing keys (re-measured at the rebased base, A2) match
   both the pre- and post-extension line — record both runs in the done report. Pin safety: the
   delta introduces no `ensure-origin` token, no CLI-verb phrasing for the four
-  doc-cli-consistency modules, and stays tight under the file's warning-only advisory budget
-  (re-measure `wc -c skills/war/SKILL.md` at the rebased base, record it). **Banner rewrap
+  doc-cli-consistency modules, and stays well under the file's **hard** budget line (73,728 B;
+  the advisory 64,512 B is already tripped at the base — 65,123 B — its WARN is expected and is
+  neither a halt nor a shrink mandate; re-measure `wc -c skills/war/SKILL.md` at the rebased
+  base, record it). **Banner rewrap
   (D11, #1252)** — (d) comment-only rewrap of the Task 2.1 doc-cascade banner so the sentence
   reads continuously into `PER-MEDIUM, not uniform: …`; then hand-scan the same banner block
   for any other reflow orphan (a line ending mid-clause) — nothing mechanical reads this
@@ -543,13 +607,17 @@ enforced by Task 1.1's D12 witnesses, not by intra-plan structure.
   re-runs the paired greps at phase close.
 - The predecessor witnesses (D12/A4) on a standalone run · why deferred: a campaign run
   discharges them by spine order; only a plain-`/war` run can encounter the missing-predecessor
-  state · runner: Task 1.1 runs the three greps as its first post-rebase act and halt-and-reports
+  state · runner: Task 1.1 runs its three greps (and Task 1.2 its plan-5 witness) as the first
+  post-rebase act and halt-and-reports
   on a miss — the standalone fallback is halt, never improvisation.
-- The five demonstrated-RED scratch mutations (End state 1's EOF-revert, End state 4's
-  row-delete, End state 5's typeof-delete, End state 7's clause-move, End state 8's
-  untightened-keys-vs-collided-fixture) · why deferred: delete-and-trace mutation runs are
+- The nine demonstrated-RED scratch mutations (End state 1's EOF-revert, End state 4's
+  row-delete, End state 5's typeof-delete, End state 6's census scratch-append, End state 7's
+  clause-move, End state 8's
+  untightened-keys-vs-collided-fixture, and End state 9's three clause-deletes — value-boundary,
+  legacy-precedence, backtick-stripping) · why deferred: delete-and-trace mutation runs are
   uncommittable by design — the committed fixtures/floors/asserts are the standing non-vacuity
-  guards · runner: each owning task's worker runs them locally and records the reds verbatim in
+  guards · runner: each owning task's worker (1.1 for End states 1/4/5/6/7, 1.2 for End states
+  8/9) runs them locally and records the reds verbatim in
   the done report; gate-audit reads them SOFT.
 - Task 1.2's before/after D31 key-match runs (all pre-existing keys match the lead-in line before
   and after the clause extension) · why deferred: the "before" half is a pre-change suite run,
@@ -635,7 +703,7 @@ enforced by Task 1.1's D12 witnesses, not by intra-plan structure.
    distilled from the ratified source spec — itself synthesized from the code-verified lesson
    issues #1373/#1375, the war-followup issues #1334/#1332, the auditor-reproduced #1286, and
    the cosmetic #1252; the spec's flagged [assumed] rows are carried as A1–A3 with fallbacks
-   intact; conversion-time judgments (D12–D16, A4–A7, Notes 1–7) are logged for /red-team
+   intact; conversion-time judgments (D12–D16, A4–A7, Notes 1–9) are logged for /red-team
    re-verification. **Predecessor-consistency check** (afk-conversion doctrine): committed plans
    1–8 carry the operator-form intent heading; plan 9 is the batch's first AI-form block and
    this plan is the second — tone, scope discipline, and the standing constraints (fail-closed
