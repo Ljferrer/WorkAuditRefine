@@ -1,6 +1,6 @@
 ---
 name: schemas-escalate-reason-never-dropped-contradicts-severity-dropped-seat-lane
-description: "A doc bullet asserting an external-harness enforcement claim in absolute terms ('never a dropped seat') can directly contradict its own sibling bullet describing the same retry-exhaustion lane in the same file — rung-3 execution evidence (SOFT, unverifiable in-repo) should be phrased as 'adds no NEW hold path', not an unqualified absolute."
+description: "Absolute external-harness doc claim can contradict its sibling bullet; phrase as 'adds no NEW hold path'"
 metadata: 
   node_type: memory
   type: project

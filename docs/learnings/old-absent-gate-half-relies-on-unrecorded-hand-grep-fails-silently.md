@@ -1,6 +1,6 @@
 ---
 name: old-absent-gate-half-relies-on-unrecorded-hand-grep-fails-silently
-description: "A per-medium doc-consistency gate asserting both NEW-present (new wording landed) and OLD-absent (retired wording is gone from live surfaces) is only as strong as its weakest half — when OLD-absent is certified by an ad hoc, uncommitted manual grep rather than a committed assertion, that half is exactly the one that silently returns a false pass. End state 8 of war-memory-cli-correctness/phase-1 shipped NEW-present real but OLD-absent false, leaving 3 `inbound refs` stragglers on live skills/ surfaces; caught only at post-merge gate-audit."
+description: "An OLD-absent gate half certified by an uncommitted hand grep silently false-passes; commit the assertion"
 metadata: 
   node_type: memory
   type: project

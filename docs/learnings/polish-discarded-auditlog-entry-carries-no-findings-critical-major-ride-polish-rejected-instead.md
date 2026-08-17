@@ -1,6 +1,6 @@
 ---
 name: polish-discarded-auditlog-entry-carries-no-findings-critical-major-ride-polish-rejected-instead
-description: "The phase-close sweep's discard-arm `auditLog.push({ verdict: 'polish-discarded', ... })` entry always carries `findings: []` — sweep-raised Critical/Major on a re-audited-but-not-reapproved discard ride the earlier `polish-rejected` entry's `findings` array instead, never the `polish-discarded` entry itself."
+description: "polish-discarded auditLog entries always carry findings: []; Critical/Major ride polish-rejected instead"
 metadata: 
   node_type: memory
   type: project

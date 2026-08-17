@@ -1,6 +1,6 @@
 ---
 name: shared-string-constant-quote-literal-byte-anchor-fragility
-description: "Byte-identity test on a quote-bearing string breaks on quote lint — now MITIGATED (#811, 2026-07-12): coupling comments added at both source surfaces"
+description: "MITIGATED (#811): byte-identity test on a quote-bearing string breaks on one-surface quote lint"
 metadata: 
   node_type: memory
   type: project

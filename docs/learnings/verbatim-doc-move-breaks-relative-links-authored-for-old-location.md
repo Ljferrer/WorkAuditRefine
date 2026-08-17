@@ -1,6 +1,6 @@
 ---
 name: verbatim-doc-move-breaks-relative-links-authored-for-old-location
-description: "A byte-identical verbatim move of a doc block into a deeper references/ directory silently breaks every relative link/citation the block carries, because they were authored relative to the OLD file's location — fix with a header caveat, never a link rewrite, when byte-identity is mandated"
+description: "Verbatim doc moves break relative links authored for the old location; fix with a header caveat, not a rewrite"
 metadata: 
   node_type: memory
   type: project

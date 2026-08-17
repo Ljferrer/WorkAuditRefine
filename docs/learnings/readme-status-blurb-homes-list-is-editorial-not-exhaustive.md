@@ -1,6 +1,6 @@
 ---
 name: readme-status-blurb-homes-list-is-editorial-not-exhaustive
-description: "A README ## Status-blurb bullet's Homes:/Home: list can omit a surface the bullet's own prose names — the authoring checklist states no exhaustiveness rule, so this is calibrated disposition:note (informational), not absorb, especially once the phase is at its terminal polish round"
+description: "Status-blurb Homes: lists are editorial, not exhaustive; an omitted prose-named surface is note, not absorb"
 metadata: 
   node_type: memory
   type: project

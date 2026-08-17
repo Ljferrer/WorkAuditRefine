@@ -1,6 +1,6 @@
 ---
 name: aftermath-remote-stranded-differs-from-local-tip-reachability
-description: "ENCODED (aftermath-class1-gate-evidence): a remote-tip-stranded branch is usually local-tip-reachable — test the SHA you delete; git cherry proves patch-equivalence"
+description: "ENCODED: a remote-tip-stranded branch is usually local-tip-reachable; test the SHA you delete, git cherry proves patch-equivalence"
 metadata: 
   node_type: memory
   type: project

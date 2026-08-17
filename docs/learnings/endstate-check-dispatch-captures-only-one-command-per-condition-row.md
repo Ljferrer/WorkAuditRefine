@@ -1,6 +1,6 @@
 ---
 name: endstate-check-dispatch-captures-only-one-command-per-condition-row
-description: "The land-barrier endstate-check dispatch runs and artifacts exactly ONE command per End-state condition row (.war/endstate-<phaseId>-<n>.log) — when a plan's End-state `check:` field actually names TWO mandatory commands (e.g. 'grep A returns X, AND grep B returns Y'), only one half gets a captured artifact; the second half's evidence is silently unrecorded and falls back to the auditor's own unrecorded manual re-verification."
+description: "Endstate-check dispatch artifacts one command per condition row — a two-command `check:`'s second half goes unrecorded"
 metadata: 
   node_type: memory
   type: project

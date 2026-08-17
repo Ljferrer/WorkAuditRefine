@@ -1,6 +1,6 @@
 ---
 name: reuse-hygiene-corruption-signature-can-force-restore-uncommitted-git-rm
-description: "provision-worktrees.sh's reuse-path submodule-hygiene repair (D19) classifies purely on porcelain SHAPE (staged deletions at a matching gitlink SHA) — a submodule worker's own uncommitted `git rm <file>` produces the identical shape and gets silently force-restored by `git submodule update --init --force`, undoing real intentional work."
+description: "D19 reuse hygiene repair keys on porcelain shape; an uncommitted `git rm` matches and gets force-restored"
 metadata: 
   node_type: memory
   type: project

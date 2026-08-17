@@ -1,6 +1,6 @@
 ---
 name: source-comment-lags-emitted-prompt-after-rewrite
-description: "Comments lag rewritten code; grep old terms same diff. RECURRENCE: fixing a stale 'this is the ONLY delta' comment by naming the new addition in a closed enumeration ('this AND X are the always-on deltas') recreates the same trap for the NEXT addition — prefer open/non-exhaustive wording."
+description: "Comments lag rewritten code; grep old terms same diff — closed-enumeration fixes recreate the trap."
 metadata:
   node_type: memory
   slug: source-comment-lags-emitted-prompt-after-rewrite

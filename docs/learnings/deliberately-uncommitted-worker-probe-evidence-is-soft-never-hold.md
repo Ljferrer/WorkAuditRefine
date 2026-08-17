@@ -1,6 +1,6 @@
 ---
 name: deliberately-uncommitted-worker-probe-evidence-is-soft-never-hold
-description: "A plan may validate an End state via an in-task worker probe (done-report evidence only); gate-audit treats the resulting cannot-confirm as SOFT, never a hold"
+description: "Worker-probe (done-report-only) End-state evidence: gate-audit treats cannot-confirm as SOFT, never a hold"
 metadata: 
   node_type: memory
   type: project

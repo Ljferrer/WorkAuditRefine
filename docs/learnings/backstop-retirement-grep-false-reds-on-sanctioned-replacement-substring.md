@@ -1,6 +1,6 @@
 ---
 name: backstop-retirement-grep-false-reds-on-sanctioned-replacement-substring
-description: "A plan's Deferred-validations backstop bullet mandating a zero-hit retirement grep for retired wording can false-red on correctly-landed work when the plan's own sanctioned replacement text is a superset disjunction that legitimately retains a substring of the retired phrase"
+description: "Zero-hit retirement grep false-reds when sanctioned replacement text retains a substring of the retired phrase"
 metadata: 
   node_type: memory
   type: project

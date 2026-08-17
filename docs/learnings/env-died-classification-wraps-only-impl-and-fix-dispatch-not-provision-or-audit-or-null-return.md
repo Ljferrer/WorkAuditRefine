@@ -1,6 +1,6 @@
 ---
 name: env-died-classification-wraps-only-impl-and-fix-dispatch-not-provision-or-audit-or-null-return
-description: "#1411's env-died soft-escalation classification (workflow-template.js dispatchAgent / infraDeathCause) wraps exactly two dispatch sites — the impl worker dispatch and the fix-round dispatch — and only fires on a THROWN agent() call; provisionStep's dispatch, audit-seat dispatches (routed through parallel, NULLed into a dropped seat -> audit-blocked), and a null (non-throwing) agent() return all still classify HARD, which is the exact shape #1411's own motivating incident (blocked:\"worker returned no result\") actually had"
+description: "env-died soft class (#1411) wraps only thrown impl/fix dispatches; provision, audit-seat, null return stay HARD"
 metadata: 
   node_type: memory
   type: project

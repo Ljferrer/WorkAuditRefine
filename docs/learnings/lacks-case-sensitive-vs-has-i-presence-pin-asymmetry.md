@@ -1,6 +1,6 @@
 ---
 name: lacks-case-sensitive-vs-has-i-presence-pin-asymmetry
-description: "A shell structural test's case-insensitive has_i() presence pin paired with a case-sensitive lacks() OLD-absent assert is asymmetric — the absence half silently passes on a benign re-case of the guarded prose"
+description: "has_i presence pin is case-insensitive but lacks() absence assert is not; a benign re-case evades it"
 metadata: 
   node_type: memory
   type: project

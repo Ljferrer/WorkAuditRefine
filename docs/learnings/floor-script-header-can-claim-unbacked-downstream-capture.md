@@ -1,6 +1,6 @@
 ---
 name: floor-script-header-can-claim-unbacked-downstream-capture
-description: "A floor script's own header can assert a downstream integration behavior ('the refiner captures my stdout as an evidence artifact') that the wiring task never implements — verify the claimed consumer actually exists, don't trust the header prose. RESOLVED (2026-08-06-done-when-floor-wiring/1.1, #1370/#1340): the wiring now exists — see appended section."
+description: "RESOLVED (#1370): a floor script's header can claim a downstream capture no wiring task implements — verify the consumer exists"
 metadata:
   node_type: memory
   type: project

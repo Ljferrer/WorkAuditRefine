@@ -1,6 +1,6 @@
 ---
 name: prepush-condemnation-check-must-scope-full-unpushed-range-not-head-only
-description: "A pre-push safety probe scoped to HEAD alone leaves a crash-window gap: a poisoned commit at HEAD~1 (from a prior interrupted pass) reaches origin untouched because only the tip is inspected — the fix is to enumerate the whole unpushed range ('@{upstream}'..HEAD, or a deterministic origin/<branch> fallback) and condemn any commit in it, not just the tip"
+description: "Pre-push condemnation must scan the full unpushed range, not HEAD only — poisoned HEAD~1 reaches origin"
 metadata: 
   node_type: memory
   type: project

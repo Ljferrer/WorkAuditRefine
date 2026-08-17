@@ -1,6 +1,6 @@
 ---
 name: wave-loop-thunk-catch-prevents-null-result-infinite-redispatch
-description: "Wave-loop task thunks must try/catch to verdict:'escalate' — an uncaught engine throw NULLs via parallel, drops via filter(Boolean), re-dispatches every wave"
+description: "Wave-loop thunks must try/catch to verdict 'escalate'; an uncaught throw NULLs, drops, re-dispatches every wave"
 metadata: 
   node_type: memory
   type: project

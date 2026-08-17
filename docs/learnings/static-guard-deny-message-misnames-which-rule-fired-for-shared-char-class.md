@@ -1,6 +1,6 @@
 ---
 name: static-guard-deny-message-misnames-which-rule-fired-for-shared-char-class
-description: "A single static deny message extended with a NEW named-failure-mode clause (e.g. 'the metacharacter rule fired') still fires for every denial sharing the same underlying check (a character-allowlist residue test) — including denial causes the new clause doesn't describe (a chain operator, a stray '#', a tab, non-ASCII) — over-attributing the specific rule that fired without changing any deny decision."
+description: "A static deny message naming one rule fires for every denial sharing its check — over-attributes the cause."
 metadata: 
   node_type: memory
   type: project

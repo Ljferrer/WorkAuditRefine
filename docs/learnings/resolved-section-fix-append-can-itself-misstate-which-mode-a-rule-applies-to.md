@@ -1,6 +1,6 @@
 ---
 name: resolved-section-fix-append-can-itself-misstate-which-mode-a-rule-applies-to
-description: "A lesson's own sanctioned fix channel — the appended `## RESOLVED (...)` section this repo's lesson-stamp convention uses to correct a stamped lesson without touching the frozen historical body — is not self-verifying: it can itself state a mode/scope inversion the underlying code contradicts, surviving an approve-verdict audit into the landed repo file"
+description: "An appended ## RESOLVED fix section is not self-verifying; it can misstate which mode a rule applies to"
 metadata:
   node_type: memory
   type: project

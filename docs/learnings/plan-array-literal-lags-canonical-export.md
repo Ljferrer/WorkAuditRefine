@@ -1,6 +1,6 @@
 ---
 name: plan-array-literal-lags-canonical-export
-description: "Plan literals for mirrored constants lag the canonical export; append to live value — drift-guard deepEqual is truth"
+description: "Mirrored-constant plan literals lag the canonical export; append to live value; deepEqual drift-guard is truth"
 metadata: 
   node_type: memory
   type: project

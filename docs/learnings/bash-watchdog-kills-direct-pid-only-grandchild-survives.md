@@ -1,6 +1,6 @@
 ---
 name: bash-watchdog-kills-direct-pid-only-grandchild-survives
-description: "A bash timeout watchdog that signals only $cmd_pid (no setsid/process group, bash 3.2 constraint) never reaches a backgrounded grandchild — exit code stays correct but the grandchild survives indefinitely. RESOLVED (2026-08-06-done-when-floor-wiring/1.4, #1365/#1338): group-form kill under `set -m` now reaches same-group grandchildren; residual narrowed to two documented ceilings — see appended section."
+description: "RESOLVED (#1365): kill of $cmd_pid alone never reaches a backgrounded grandchild; group kill under set -m does"
 metadata:
   node_type: memory
   type: project

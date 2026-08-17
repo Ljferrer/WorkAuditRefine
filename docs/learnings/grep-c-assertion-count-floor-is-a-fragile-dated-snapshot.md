@@ -1,6 +1,6 @@
 ---
 name: grep-c-assertion-count-floor-is-a-fragile-dated-snapshot
-description: "A plan End-state's grep -c count floor over an assertion-message literal (e.g. 'grep -cF <phrase> file >= N') is a dated snapshot computed against an assumed base line count at conversion time — it can undercount the real base (making the floor look unreachable when the diff is correct) or overcount it (making a shortfall look like a missed floor when a fix round already restored it), and grep -c counts ALL matching lines including comments that share the phrase, not just the target assertion messages"
+description: "A grep -c End-state count floor is a dated snapshot — base can be miscounted both ways, and comments match too"
 metadata: 
   node_type: memory
   type: project

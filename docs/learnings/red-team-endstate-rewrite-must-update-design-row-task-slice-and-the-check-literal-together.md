@@ -1,6 +1,6 @@
 ---
 name: red-team-endstate-rewrite-must-update-design-row-task-slice-and-the-check-literal-together
-description: "Rewriting an End state during /red-team hardening without ALSO updating its design-tree row, the owning task's plan slice, and the End state's own `check:` literal creates a cross-rung contradiction (ADR 0041): the worker implements the design row faithfully, the stale check certifies the wrong outcome as green, and the miss only surfaces post-merge at gate-audit as a held:escalation"
+description: "/red-team End-state rewrites must update design row, task slice, and check: literal together"
 metadata:
   node_type: memory
   type: project

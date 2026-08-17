@@ -1,6 +1,6 @@
 ---
 name: auditor-seat-can-lack-grep-glob-tools-leaving-no-search-channel
-description: "An auditor card can declare tools: Read, Grep, Glob, Bash, and both the guard denial and doctrine point a denied seat at 'the Grep/Glob tools' as the remedy for a metacharacter-refused shell grep — but a live seat session can have NO Grep/Glob tool provisioned at all, while shell grep/git grep are guard-denied, leaving zero search channel besides git log -S/-G, git blame -L, and whole-file Read."
+description: "A live auditor seat may have no Grep/Glob tool while shell grep is guard-denied, leaving no search channel"
 metadata: 
   node_type: memory
   type: project

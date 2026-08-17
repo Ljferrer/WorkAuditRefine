@@ -1,6 +1,6 @@
 ---
 name: resolved-lesson-stamp-freezes-body-so-it-can-contradict-the-new-description
-description: "The repo's 'prefix description with RESOLVED (...), body/keywords otherwise untouched' lesson-stamp convention deliberately leaves the body's present-tense defect narrative and any embedded fix-prescription un-updated — a future reader of the body alone can get stale or actively wrong guidance unless they read the description first; the correction channel is the description, not the body"
+description: "The RESOLVED description-stamp convention freezes the lesson body, which can contradict the new description"
 metadata: 
   promoted: dev/2026-07-24-memory-tooling-hardening@phase-1
   node_type: memory
