@@ -7,7 +7,7 @@ mechanic). Issues addressed: #1331, #1333, #1289, #1380, #1381 (#1380 folded int
 operator direction, 2026-08-12; #1381 folded 2026-08-12 with spec-side AI-declared markers, mirrored
 here), and — folded 2026-08-15 by operator direction as the Phase-2 amendment (campaign-era
 engine-truth findings, all in this plan's `workflow-template.js`/`schemas.md`/`SKILL.md` family) —
-#1395, #1408, #1411, #1413, plus #1430 (folded 2026-08-15 in the same family: it lands on the
+#1395, #1408, #1410 (→ Task 2.1 item (g), the `escalate_reason` enforcement-claim truth fix — added to this map by /red-team 2026-08-16; it was an orphan deliverable named nowhere in Part 1), #1411, #1413, plus #1430 (folded 2026-08-15 in the same family: it lands on the
 **same two constructs** as #1413 and #1411 — the Workflow entry-validation block and the wave-thunk
 catch's failure classification). Issue → task mapping: #1331 F1 → Task 1.1 (the file-followups dispatch, D1–D3) +
 Task 1.3 (the D4 Checkpoint floor) + Task 1.4 (the D8 signal class); #1331 F3 → Task 1.3 (the D10
@@ -273,10 +273,15 @@ construct-level collision census is Note 1.
   (`agents/war-refiner.md`) and the string-built prompt in `workflow-template.js` to change in the same
   commit; the D5 id-form sentence lands on `ACCEPTANCE_IDS_RULE` and `agents/war-worker.md` in the same
   commit (the existing A1 doc-contract registry row binds them). They drift silently otherwise.
-- **Fail-open, never a hold**: filing is detection/routing machinery (ADR 0017-consistent); a dead or
-  partial filing dispatch must never block a land or add a `held:*`. No new task status, no
-  `HARD_ESCALATION_REASONS` or `KNOWN_LAND_DECISIONS` member (ADR 0005; `land-decision.mjs` untouched;
-  both hand-mirrored enum blocks byte-untouched).
+- **Fail-open, never a hold — SCOPED TO PHASE 1** (/red-team 2026-08-16: this bullet predates the
+  2026-08-15 amendment and, unscoped, contradicts Phase 2's own Files list): the Phase-1 filing
+  machinery is detection/routing (ADR 0017-consistent); a dead or partial filing dispatch must never
+  block a land or add a `held:*`; Phase 1 adds no task status and no `HARD_ESCALATION_REASONS` or
+  `KNOWN_LAND_DECISIONS` member, and `land-decision.mjs` is untouched **by Phase 1**. **Phase-2
+  carve-out:** Task 2.1(c)(ii) adds `env-died` to `land-decision.mjs` as a member of a **new exported
+  `SOFT_ENV_REASONS` constant** (see the corrected (c)(ii)) — never to either existing enum; both
+  existing hand-mirrored enum blocks stay byte-untouched and ADR 0005's line (`held:workflow-error`
+  never enters `HARD_ESCALATION_REASONS`) is not approached.
 - **Every gh write batch is preflighted** (ADR 0026): the filing dispatch runs `gh-preflight.sh
   "<expected-account>"` first; the expected account reaches the Workflow as a new optional arg threaded
   from `overrides.ghUser`; empty string is the script's documented no-op — no account handle is ever
@@ -303,7 +308,7 @@ construct-level collision census is Note 1.
   `git status --porcelain` (the probe proved `git submodule status` shows no marker in the corrupted
   state); every action is a `WORKTREE_HYGIENE` marker line the barrier captures (the `STALE_REMOTE`
   marker-capture idiom) — never silent, never a hold, no `env-blocked` routing change.
-- **Prompt-surface budgets** (AI-declared): `agents/war-refiner.md` measures 32,368 B at conversion —
+- **Prompt-surface budgets** (AI-declared; **re-measured by /red-team at the live tip 2026-08-16: 33,345 B, headroom to the 34,816 B hard ceiling = 1,471 B ≈ 1.4 KB — the conversion figure below is retired**). **A THIRD hard budget the conversion missed governs exactly what Tasks 1.1/2.1 add: `WORKFLOW_LITERAL_BUDGET` in `prompt-surface-budgets.test.mjs` (hard 62,464 B / advisory 55,296 B) measures `workflow-template.js`'s top-level template-literal share — ≈58.3 KB at the probe's measurement, ≈4.1 KB of hard headroom for BOTH tasks' new dispatched-prompt prose combined. Both tasks carry a re-measure duty (`node --test skills/war/assets/prompt-surface-budgets.test.mjs` pre-commit) and the same relocation fallback as the card (below).** `agents/war-refiner.md` measured 32,368 B at conversion —
   **already above its 30,720 B advisory**, with the 34,816 B hard ceiling ≈ 2.4 KB away (less after
   predecessor plan 3's card additions land) — every card addition here stays tight and Task 1.1
   re-measures at the rebased base; `skills/war/SKILL.md` measures 63,197 B against its 64,512 B
@@ -346,8 +351,8 @@ construct-level collision census is Note 1.
 | D16 | Predecessor witness protocol | Task 1.1's worker, first act after the standard rebase: `grep -c 'done_when_log_path' skills/war/assets/workflow-template.js` ≥ 1 (plan 3's End state 4) AND `grep -Fc 'ABORTED' skills/war/assets/workflow-template.js` ≥ 1 (plan 6's End state 4; both 0 at the conversion base, so neither passes vacuously). Task 1.3's witnesses: `grep -c 'file-followups' skills/war/assets/workflow-template.js` ≥ 1 (Task 1.1 merged — the deps edge's content), `grep -Fc 'war-$date-$slug' skills/war/assets/provision-worktrees.sh` ≥ 1 (Task 1.2 merged), and `grep -c 'done_when_log_path' skills/war/references/schemas.md` ≥ 1 (plan 3's schemas row — the MergeResult-entries neighborhood is post-predecessor). Any miss ⇒ halt and report, never improvise. | conversion judgment (plan 6's D10 witness shape), logged for /red-team |
 | D17 | Task decomposition | Four tasks in Phase 1 — Task 1.1 the engine cluster (`workflow-template.js` + its suite + both agent-card mirrors; forced by the same-file rule, the prompt-surface split, and the A1 mirror law); Task 1.2 the #1380 provision pair (file-disjoint from every other strand; unedged, schedulable early); Task 1.3 the contract-doc truth pass (`schemas.md` + `skills/war/SKILL.md` — one task: the finding-4 fix is a stated mirror across both files, same commit, and each file is touched by multiple strands — same-file rule), `deps: [1.1, 1.2]` (content edges: the rewritten rows name the file-followups dispatch/`ghUser` arg 1.1 authors and the flat fallback/planSlug probe 1.2 authors — dangling forward references at the frozen base); Task 1.4 `skills/war-review/SKILL.md` — plus the standard trailing release phase. No drift guard is split from its fact (rule 7 not in play: each task carries its own tests/pins). | conversion judgment, logged for /red-team; war-strategy §3 |
 | D18 | Mock/fixture compatibility | The dispatch options mirror the endstate-check idiom (`agentType: NS + 'war-refiner'`, `label: 'file-followups:phase-<id>'`, `dispatchKind: 'file-followups'`, `schema: FOLLOWUP_FILING_RESULT`, `spawn('refiner')`); test mocks key on `dispatchKind`, and any fixture whose generic refiner mock answers with a non-conforming shape resolves through D2's fail-open (issues stay null, nothing else changes) — the post-predecessor suite (incl. plan 6's sweep-routing test asserting the `followUps` observable) stays green without weakening any predecessor assertion. | conversion judgment, logged for /red-team |
-| D19 | #1381 reuse-path hygiene assertion (fix 1) | In `cmd_ensure_worktree`'s REUSE branch, after ensuring the `.war-task` marker: enumerate the worktree's declared submodules (`.gitmodules` paths); for each whose status is dirty AND whose checked-out HEAD matches the superproject's recorded gitlink SHA (`git -C "$path" ls-tree HEAD <sub>`) — detection rides `git status --porcelain -- <path>` in the superproject, because `git submodule status` shows no marker in the corrupted state (Context 13's probe) — remove a stale submodule `index.lock` (the probe-verified repair blocker) and run `git submodule update --init --force <path>`: a safe restore — the SHA is unchanged so no gitlink bump can result, and by the plan-scope contract no submodule work should exist in a superproject-only run. Never touches superproject tracked files or untracked deliverables (the WIP-preservation invariant); a dirty submodule at a non-matching SHA is `detected` and reported, never auto-repaired. Every repair/detection emits a `WORKTREE_HYGIENE` marker line the provision barrier captures (the `STALE_REMOTE` idiom), never silent; a failed repair is likewise reported (`detected` + the failure detail) and the reuse still returns 0 — D20's visibility is the backstop. (AI-declared) | spec §3 D16; issue #1381 fix 1, probe-refined |
-| D20 | #1381 `ENV_OUTCOME.worktreeHygiene` (fix 2) | New OPTIONAL array on the env-outcome — `[{ task, path, action: "repaired"\|"detected", detail }]` — carried on an `ok: true` barrier return beside `staleRemote` (same marker-capture idiom), documented in `schemas.md`'s ENV_OUTCOME block, added to the engine's `ENV_OUTCOME` schema literal, mirrored on the refiner card's provision carve-out + return-shape line, and surfaced via ONE census-safe Workflow `log()` line when non-empty (the mechanical run-log carrier — nothing else consumes the array on `ok: true`) plus the schemas.md bullet's Lead phase-report duty. Fail-open and additive: no routing change, no `auditLog` entry, never a hold, absent means nothing found — the engine literal already lacks `additionalProperties: false`, so the field passes validation mechanically (Context 13). (AI-declared) | spec §3 D17; issue #1381 fix 2 |
+| D19 | #1381 reuse-path hygiene assertion (fix 1) | In `cmd_ensure_worktree`'s REUSE branch, after ensuring the `.war-task` marker: enumerate the worktree's declared submodules (`.gitmodules` paths); for each whose status is dirty AND whose checked-out HEAD matches the superproject's recorded gitlink SHA (`git -C "$path" ls-tree HEAD <sub>`) — detection rides `git status --porcelain -- <path>` in the superproject, because `git submodule status` shows no marker in the corrupted state (Context 13's probe) — remove a stale submodule `index.lock` (the probe-verified repair blocker) and run `git submodule update --init --force <path>`: a safe restore — the SHA is unchanged so no gitlink bump can result, and by the plan-scope contract no submodule work should exist in a superproject-only run. Never touches superproject tracked files or untracked deliverables (the WIP-preservation invariant); a dirty submodule at a non-matching SHA is `detected` and reported, never auto-repaired. Every repair/detection emits a `WORKTREE_HYGIENE` marker line the provision barrier captures (the `STALE_REMOTE` idiom), never silent; a failed repair is likewise reported (`detected` + the failure detail) and the reuse still returns 0 — D20's visibility is the backstop. (AI-declared) | spec §3 D16; issue #1381 fix 1, probe-refined | **Detector narrowed by /red-team (2026-08-16): "dirty + SHA-matched" is indistinguishable from a submodule-content worker's LEGITIMATE uncommitted work, and `--force` destroys it.** The repair arm fires only on the **corruption signature**: the porcelain dirt is **staged deletions only** (`git -C <wt> diff --cached --name-only --diff-filter=D -- <sub>` non-empty AND `git -C <wt>/<sub> status --porcelain` shows no unstaged modifications/untracked files beyond the emptied-index shape) or a stale submodule `index.lock` exists — the killed-populate residue. Anything else (real edits, untracked files in the submodule) is `detected`-only: marker emitted, tree untouched, worker proceeds and the audit judges. The residual — a corrupted state that mimics real edits — is accepted and documented in the runbook bullet: `detected` hands the call to the relaunching Lead, never to `--force`.
+| D20 | #1381 `ENV_OUTCOME.worktreeHygiene` (fix 2) | New OPTIONAL array on the env-outcome — `[{ task, path, action: "repaired"\|"detected", detail }]` — carried on an `ok: true` barrier return beside `staleRemote` (same marker-capture idiom), documented in `schemas.md`'s ENV_OUTCOME block, added to the engine's `ENV_OUTCOME` schema literal, mirrored on the refiner card's provision carve-out + return-shape line, and surfaced via ONE census-safe Workflow `log()` line when non-empty (the mechanical run-log carrier — nothing else consumes the array on `ok: true`) plus the schemas.md bullet's Lead phase-report duty. Fail-open and additive: no routing change, no `auditLog` entry, never a hold, absent means nothing found — the engine literal already lacks `additionalProperties: false`, so the field passes validation mechanically (Context 13). (AI-declared) | spec §3 D17; issue #1381 fix 2 | **Cross-task literal discipline (/red-team 2026-08-16):** the marker token `WORKTREE_HYGIENE` and the `action: "repaired"|"detected"` value set are **plan-defined literals (this row is the canonical source)** — Task 1.2's emitter and Task 1.1's schema/capture/card surfaces each copy them from HERE, never from each other's diffs (the plan-8 D2-census precedent for same-wave shared literals), and ES23's fused check pins all three engine/doc surfaces at the integrated tip. Task 1.1 additionally adds a `WORKTREE_HYGIENE` both-surfaces registry row (card + dispatched barrier prompt) modelled on the STALE_REMOTE row — a presence grep is not a drift guard (ADR 0025).
 | D21 | #1381 runbook step (fix 3) | `resume-and-recovery.md`'s `### Recovery relaunch` **Shared mechanics (both entry points)** list gains a **Worktree hygiene** bullet: before re-dispatch, for each reused task worktree whose prior generation errored or was cancelled, check submodule status and unexpected staged deletions; with the gitlink SHA matching the recorded value, remove a stale submodule `index.lock` and run `git submodule update --init --force <path>`; record what was repaired. The held-partial-phase runbook composes it unchanged via its existing "composes the tools above" sentence; no other section of the file changes. (AI-declared) | spec §3 D18; issue #1381 fix 3 — the incident's manual repair, mechanized as doctrine |
 | D22 | #1381 generation fence (fix 4) | REJECTED for this group — a per-worktree lease/generation stamp in `.war-task` needs process containment to be meaningful and belongs with the #1365 survives-a-kill family; split per the report's own sequencing. No `.war-task` schema change in this group. (AI-declared) | spec §3 D19; issue #1381 fix 4, deferred |
 
@@ -423,6 +428,15 @@ None (see Non-goals — the open Dispatch-kind list absorbs `file-followups`; no
   killed worker's corrupted worktree is repaired-or-reported at reuse instead of being handed silently
   to the next generation: hygiene on `ensure-worktree`'s reuse path, visible in
   `ENV_OUTCOME.worktreeHygiene`, mirrored as recovery doctrine, with WIP preserved byte-for-byte.
+  **And (the 2026-08-15 Phase-2 amendment, anchored here by /red-team 2026-08-16 — Purpose predated
+  it):** the engine's own truth surfaces harden — land-barrier endstate checks run with the phase's
+  real environment and an environmentally-red artifact attests `unverified` never `unmet` (#1395); a
+  post-spawn infra death is classified `env-died` (soft, the `env-blocked` sibling — the phase lands
+  minus the dead task, recorded for recovery relaunch, #1411); the launch args carry a fail-closed
+  provenance floor and required-input entry validation so a malformed launch is refused **before any
+  agent spawns** — the exact incident class this campaign hit live (#1413/#1430); the `--queries`
+  JSONL contract is stated at its first use and dies friendly on non-JSONL input (#1408); and the
+  `escalate_reason` enforcement claim tells the truth on both mirrored surfaces (#1410).
 - **Method:** one refiner `file-followups` dispatch (preflight-first, dedup-first, fail-open, ordinal
   result shape) between the land decision and the handoff assembly, its card flavor and prompt landing
   in the same commit; thread `args.ghUser` from `overrides.ghUser`; flip the null-pin test and add
@@ -443,17 +457,23 @@ None (see Non-goals — the open Dispatch-kind list absorbs `file-followups`; no
   1. When a phase with ≥ 1 `follow-up`-routed finding reaches a handoff-emitting outcome, the Workflow
      dispatches one `file-followups:phase-<id>` refiner step and stamps returned issue numbers so
      `handoff.followUps[]` entries carry non-null `issue` ·
-     check: `node --test skills/war/assets/workflow-template.test.mjs` (the flipped null-pin test +
-     the new stamping test).
+     check: `grep -qF 'file-followups' skills/war/assets/workflow-template.js && node --test skills/war/assets/workflow-template.test.mjs`
+     (the dispatch literal reads 0 at base — the discriminating half; the flipped null-pin test + the
+     new stamping test).
   2. When the filing dispatch dies, returns partial/non-conforming rows, or the preflight fails, the
      Workflow leaves unmatched entries `issue: null` and keeps `landDecision` unchanged — fail-open,
      never a hold ·
-     check: `node --test skills/war/assets/workflow-template.test.mjs` (the new fail-open test).
+     check: `grep -qF 'file-followups' skills/war/assets/workflow-template.js && node --test skills/war/assets/workflow-template.test.mjs`
+     (same discriminating literal; the new fail-open test).
   3. When `minorsFiled` is empty, the Workflow dispatches no filing step ·
-     check: `node --test skills/war/assets/workflow-template.test.mjs` (the new no-dispatch test; a
-     companion assertion drives the `held:escalation` arm — the dispatch fires there too).
-  4. The refiner card enumerates the `file-followups` flavor with its return shape ·
-     check: `grep -n 'file-followups' agents/war-refiner.md`.
+     check: `grep -qF 'file-followups' skills/war/assets/workflow-template.js && node --test skills/war/assets/workflow-template.test.mjs`
+     (same discriminating literal; the new no-dispatch test; a companion assertion drives the
+     `held:escalation` arm — the dispatch fires there too).
+  4. The refiner card enumerates the `file-followups` flavor with its return shape, **and the card
+     text is bound to the dispatched prompt by a D3 doc-claim registry row** (the
+     standing-vs-dispatched split; a presence grep is explicitly NOT a drift guard, ADR 0025) ·
+     check: `grep -qF 'file-followups' agents/war-refiner.md && grep -qF 'file-followups' skills/war/assets/workflow-template.js && node --test skills/war/assets/workflow-template.test.mjs`
+     (both surfaces + the new registry row, modelled on the endstate-check dispatch card twin).
   5. schemas.md's followUps row no longer claims the Lead-files-it null and names the filing dispatch +
      Checkpoint floor ·
      check: `! grep -n 'null until the Lead files it' skills/war/references/schemas.md && grep -n
@@ -496,29 +516,32 @@ None (see Non-goals — the open Dispatch-kind list absorbs `file-followups`; no
   16. When the desired working branch is checked out in some worktree AND a leaf branch `dev` exists,
       `resolve-working-branch` echoes the flat fallback `war-<date>-<slug>`, created at the desired
       tip, checked out nowhere, with ownership recorded ·
-      check: `bash skills/war/assets/provision-worktrees.test.sh` (the new leaf-`dev` collision
-      fixture — a temp repo cutting branch `dev` before the call, per Context 7's reproduced
-      mechanism; the RWB.a assertion set against the fallback name).
+      check: `grep -qF 'war-<date>-<slug>' skills/war/assets/provision-worktrees.sh && bash skills/war/assets/provision-worktrees.test.sh`
+      (the fallback-name literal reads 0 at base; the new leaf-`dev` collision fixture — a temp repo
+      cutting branch `dev` before the call, per Context 7's reproduced mechanism; the RWB.a
+      assertion set against the fallback name).
   17. When `refs/heads/war/<planSlug>` (or `refs/heads/war`) exists as a leaf ref,
       `resolve-working-branch` exits non-zero before any task dispatch, naming the blocking leaf and
       the remedy ·
-      check: `bash skills/war/assets/provision-worktrees.test.sh` (the new planSlug-validation
-      fixture — a temp repo with leaf `war/<slug>`).
+      check: `grep -qF 'war-<date>-<slug>' skills/war/assets/provision-worktrees.sh && bash skills/war/assets/provision-worktrees.test.sh`
+      (same base-red literal; the new planSlug-validation fixture — a temp repo with leaf
+      `war/<slug>`).
   18. When a dedicated-branch cut still dies with `cannot lock ref`, the die retains git's own stderr
       and names the blocking leaf ref plus the `--working` remedy ·
-      check: `bash skills/war/assets/provision-worktrees.test.sh` (the new actionable-die assertion)
-      and `grep -n -e '--working' skills/war/assets/provision-worktrees.sh` (0 at the base) — then the
-      mandatory manual same-scope survey of the script's comment header and die sites.
+      check (**ONE fused command** — the land-barrier dispatch captures exactly one command per row):
+      `grep -qe '--working' skills/war/assets/provision-worktrees.sh && bash skills/war/assets/provision-worktrees.test.sh`
+      (the remedy literal reads 0 at base) — then the mandatory manual same-scope survey of the
+      script's comment header and die sites (backstop).
   19. When a run that fell back to `war-<date>-<slug>` resumes, the second call returns the same flat
       branch and never re-cuts it ·
-      check: `bash skills/war/assets/provision-worktrees.test.sh` (the new fallback resume-reuse
-      case, RWB.d shape).
+      check: `grep -qF 'war-<date>-<slug>' skills/war/assets/provision-worktrees.sh && bash skills/war/assets/provision-worktrees.test.sh`
+      (same base-red literal; the new fallback resume-reuse case, RWB.d shape).
   20. With the flat fallback in use, the teardown surfaces keep matching task branches — the
       teardown-phase prefix and reclaim-glob literals are byte-unchanged ·
-      check: `grep -Fn 'refs/heads/war/$slug/p$num-' skills/war/assets/provision-worktrees.sh` and
-      `grep -Fn 'war/*/p*-t*' skills/war/assets/provision-worktrees.sh` (grep -F mandatory — the
-      patterns carry `$` and glob metacharacters) — then the mandatory manual same-scope survey of the
-      teardown case comments in `provision-worktrees.test.sh`.
+      check (**ONE fused command**; `-F` mandatory — the patterns carry `$` and glob metacharacters):
+      `grep -qF 'refs/heads/war/$slug/p$num-' skills/war/assets/provision-worktrees.sh && grep -qF 'war/*/p*-t*' skills/war/assets/provision-worktrees.sh`
+      — then the mandatory manual same-scope survey of the teardown case comments in
+      `provision-worktrees.test.sh` (backstop).
   21. When `ensure-worktree` reuses a registered, present worktree whose declared submodule is dirty
       while its checked-out HEAD matches the recorded gitlink SHA, the reuse repairs it via
       `git submodule update --init --force <path>` (removing a stale submodule `index.lock` first —
@@ -529,20 +552,22 @@ None (see Non-goals — the open Dispatch-kind list absorbs `file-followups`; no
       `index.lock`, state-equivalent to the reproduced killed-populate state on every surface the
       hygiene arm reads (A10 — the fixture keeps files on disk where the killed state's tree is
       nearly empty; nothing consulted reads that dimension); asserts post-reuse submodule clean + the
-      marker present) and `grep -c 'WORKTREE_HYGIENE'
-      skills/war/assets/provision-worktrees.sh` (base count 0; post-land ≥ 1). (AI-declared)
+      marker present) — fused as **ONE command**:
+      `grep -qF 'WORKTREE_HYGIENE' skills/war/assets/provision-worktrees.sh && bash skills/war/assets/provision-worktrees.test.sh`
+      (the marker literal reads 0 at base). (AI-declared)
   22. When the reuse-path hygiene repair runs, the superproject WIP survives byte-for-byte — tracked
       modifications and untracked files untouched, nothing staged in the superproject (the
       probe-verified repair-safety property, Context 13) ·
-      check: `bash skills/war/assets/provision-worktrees.test.sh` (the WIP-preservation assertions
+      check: `grep -qF 'WORKTREE_HYGIENE' skills/war/assets/provision-worktrees.sh && bash skills/war/assets/provision-worktrees.test.sh`
+      (the WIP-preservation assertions
       inside the same hygiene fixture: a tracked modification + two untracked files persist unchanged
       and `git diff --cached --name-only` stays empty; plus the SHA-mismatch control — a submodule at
       a different HEAD is `detected` only, its tree untouched). (AI-declared)
   23. The ENV_OUTCOME contract enumerates `worktreeHygiene` as an optional fail-open array of
       repaired/detected findings on all three surfaces ·
-      check: `grep -c 'worktreeHygiene' skills/war/references/schemas.md
-      skills/war/assets/workflow-template.js agents/war-refiner.md` (base counts 0, 0, 0; post-land
-      ≥ 1 in each — file-scoped: the spec and this plan also carry the token). (AI-declared)
+      check (**ONE fused command** — per-file `grep -q` chained, so one exit code carries all three
+      surfaces; base counts 0/0/0):
+      `grep -qF 'worktreeHygiene' skills/war/references/schemas.md && grep -qF 'worktreeHygiene' skills/war/assets/workflow-template.js && grep -qF 'worktreeHygiene' agents/war-refiner.md`. (AI-declared)
   24. The Recovery-relaunch shared mechanics carry the Worktree-hygiene step (check submodule status
       and staged deletions before re-dispatch; gitlink-SHA-matched force-update repair; record what
       was repaired) ·
@@ -551,7 +576,7 @@ None (see Non-goals — the open Dispatch-kind list absorbs `file-followups`; no
       post-land ≥ 1) — then the mandatory manual same-scope survey of the file's other recovery entry
       points (the held-partial-phase runbook steps and the `env-blocked` bullet) for missing
       cross-references the grep cannot see. (AI-declared)
-  25. Every plan-tracked issue is cited by at least one commit in the phase range `<phase-base>..<tip>` — #1331 for the filing/floor/signal/clock work, #1333 for
+  25. Every plan-tracked issue is cited by at least one commit in the phase range `<phase-base>..<tip>` — #1331 for the filing/floor/signal/clock work, #1410 for Task 2.1(g), #1333 for
       the contract-truth rows and comment alignments, #1289 for the landResult row, #1380 for the
       resolve-working-branch arms and the Setup step-2 sentence, #1381 for the hygiene
       assertion/ENV_OUTCOME widening/runbook bullet, #1395/#1411/#1413/#1408 for Task 2.1's items
@@ -564,49 +589,87 @@ None (see Non-goals — the open Dispatch-kind list absorbs `file-followups`; no
       bump's presence is judged at audit_sha).
   27. *(amendment 2026-08-15, #1395)* The land-barrier endstate checks run with the phase's
       `run.provision` steps applied in `_refinery` before any `check:` command, fail-open ·
-      check: `node --test skills/war/assets/workflow-template.test.mjs` (the provision-before-checks
-      ordering row).
+      check: `grep -qF 'provision-before-checks' skills/war/assets/workflow-template.js && node --test skills/war/assets/workflow-template.test.mjs`
+      — the implementation MUST carry the plan-defined comment/log literal `provision-before-checks`
+      at the endstate-dispatch provision application (0 at base; the first-draft floor
+      `run.provision` was vacuous — that token pre-exists in the template's provision-step reader),
+      plus the ordering row in the suite.
   28. *(amendment 2026-08-15, #1395)* An endstate artifact that is present, readable, and correctly
       tip-stamped but red for environmental reasons attests `unverified`, never `unmet`, on both the
       engine contract and the `schemas.md` row ·
-      check: the suite's environment-red fixture row, and
-      `grep -ci 'environment' skills/war/references/schemas.md` ≥ 1 within the
-      `endStateAttestations` row (hand-verified placement — grep is a floor).
-  29. *(amendment 2026-08-15, #1411)* A post-spawn API/quota/transport death carries its cause in
-      `blocked`, classifies as `env-died` (canonical in `land-decision.mjs`, hand-mirrored in
-      `workflow-template.js`, drift-guard extended in the same diff), and is absent from
-      `HARD_ESCALATION_REASONS` — a phase whose only unmerged tasks are infra deaths is surfaced
-      retryable under `--afk`, never a hard escalation ·
-      check: `node --test skills/war/assets/workflow-template.test.mjs` (the drift-guard + dead-seat
-      + env-died-only-phase rows) and
-      `grep -c 'env-died' skills/war/assets/land-decision.mjs skills/war/assets/workflow-template.js`
-      ≥ 1 in each, with `env-died` absent from the `HARD_ESCALATION_REASONS` literal in both copies.
+      check (**ONE fused command**; the original `grep -ci 'environment'` was VACUOUS — schemas.md
+      carries three case-insensitive hits at base, none in the row; `environmental` reads 0 at base):
+      `grep -qF 'environmental' skills/war/references/schemas.md && node --test skills/war/assets/workflow-template.test.mjs`
+      (the environment-red fixture row; hand-verify the token landed inside the
+      `endStateAttestations` row — grep is a floor).
+  29. *(amendment 2026-08-15, #1411; corrected by /red-team 2026-08-16)* A post-spawn
+      API/quota/transport death carries its cause in `blocked` and classifies as `env-died`, a member
+      of the **new exported `SOFT_ENV_REASONS = ['env-blocked', 'env-died']`** in `land-decision.mjs`
+      (hand-mirrored in `workflow-template.js`, drift-guard extended in the same diff), absent from
+      `HARD_ESCALATION_REASONS` — **soft means the phase LANDS minus the dead task (the ratified
+      `env-blocked` precedent), with the task recorded in the handoff for the Recovery-relaunch
+      re-run**; never a hard escalation, and never read as "the phase did not land" ·
+      check (**ONE fused command**; `SOFT_ENV_REASONS` and `env-died` both read 0 at base):
+      `grep -qF 'SOFT_ENV_REASONS' skills/war/assets/land-decision.mjs && grep -qF 'env-died' skills/war/assets/land-decision.mjs && grep -qF 'SOFT_ENV_REASONS' skills/war/assets/workflow-template.js && node --test skills/war/assets/workflow-template.test.mjs`
+      (the drift-guard + dead-seat + env-died-only-phase-LANDS rows; hand-verify `env-died` absent
+      from both `HARD_ESCALATION_REASONS` literals — grep is a floor).
   30. *(amendment 2026-08-15, #1413)* Entry validation refuses, before any agent spawns, an assembled
       `intent`/`backstops`/`adjudications` that names a foreign `docs/plans/<slug>.md` or contains
-      none of the run's own plan-slug tokens — the plan-3 leak shape (13 × `escape`, 0 ×
-      `done-when`) is a reproduced refusal fixture ·
-      check: `node --test skills/war/assets/workflow-template.test.mjs` (the leak-refused and
-      own-token-accepted rows).
+      none of the run's own plan-slug tokens — **each floor applying only when its arg is present and
+      non-null** (/red-team 2026-08-16: `intent` is an explicitly OPTIONAL arg with a ratified
+      absent-⇒-byte-identical-prompts contract, criterion-pinned; an unconditional own-token floor
+      would refuse every legal intent-less run) — the plan-3 leak shape (13 × `escape`, 0 ×
+      `done-when`) is a reproduced refusal fixture, and an intent-less launch stays legal ·
+      check: `grep -qF 'foreign docs/plans' skills/war/assets/workflow-template.js && node --test skills/war/assets/workflow-template.test.mjs`
+      (the provenance-floor literal reads 0 at base — the discriminating half; the leak-refused,
+      own-token-accepted, AND intent-less-accepted rows).
   31. *(amendment 2026-08-15, #1408)* The `--queries` JSONL contract is stated at the flag's first
       mention in `skills/war/SKILL.md`, and a non-JSONL queries file dies with the single-line format
       message (line number named, no raw stack trace), valid-input behavior byte-unchanged ·
-      check: `grep -c 'JSONL' skills/war/SKILL.md` ≥ 1 and
-      `node --test skills/_shared/war-memory.test.mjs` (the malformed-file and valid-file rows).
+      check (**ONE fused command**):
+      `grep -q 'JSONL' skills/war/SKILL.md && node --test skills/_shared/war-memory.test.mjs`
+      (the malformed-file and valid-file rows).
   32. *(amendment 2026-08-15, #1430)* A launch whose args omit `plan.file` is refused **at entry,
       with zero agent spawns**, by a problem class distinct from the derivation-trio class — and the
       trio class's message is byte-unchanged (its exact-equality fixture and prose census row stay
       green) ·
-      check: `grep -Fc 'requires plan.file' skills/war/assets/workflow-template.js` ≥ 1 (0 at the
-      amendment base, Note 14) AND `grep -Fc 'Plan file: ${plan.file}'
-      skills/war/assets/workflow-template.js` = 0 (the OLD un-defaulted form is retired — 2 at the
-      amendment base) AND `node --test skills/war/assets/workflow-template.test.mjs` (the
-      missing-`plan.file`-refused-with-zero-spawns row).
-  33. *(amendment 2026-08-15, #1430)* A `pt` prompt-build throw classifies as `held:workflow-error`
-      naming the missing input, while every other engine error still yields today's per-task
-      `escalate` — the wave-loop invariant (one collected result per dispatched task, never a
-      re-entry) is preserved ·
-      check: `node --test skills/war/assets/workflow-template.test.mjs` (the `pt`-throw row AND the
-      non-`pt` engine-error row — the both-ways proof that exactly one class was narrowed).
+      check (**ONE fused command**; the presence literal reads 0 at base, the OLD form 2):
+      `grep -qF 'requires plan.file' skills/war/assets/workflow-template.js && ! grep -qF 'Plan file: ${plan.file}' skills/war/assets/workflow-template.js && node --test skills/war/assets/workflow-template.test.mjs`
+      (the missing-`plan.file`-refused-with-zero-spawns row + the two plan-less fixtures green
+      unmodified).
+  33. *(amendment 2026-08-15, #1430; RESCOPED by /red-team 2026-08-16)* The pt-throw
+      **reclassification is DROPPED**: the live suite pins the opposite as a deliberate titled
+      contract (`criterion 3 — a pt-tagged prompt interpolating an undefined VALUE INSIDE the work
+      thunk escalates the task`), and `held:workflow-error` has exactly one producer (the top-level
+      catch) which a wave thunk cannot reach — the live `parallel` NULLS a rejected thunk, so a
+      rethrow silently drops the task (the wave-loop-thunk-catch lesson). The incident class this
+      End state existed for (a missing required launch arg) is closed **at the front door instead**:
+      End state 32's entry validation refuses it before any agent spawns, making the in-thunk
+      pt-throw for that class unreachable. What remains here: the wave-thunk catch APPENDS a
+      diagnostic hint to the escalate result (`if this interpolation names a launch arg, entry
+      validation should have refused it — check the args file`) — **classification byte-unchanged**,
+      criterion 3's contract intact ·
+      check: `node --test skills/war/assets/workflow-template.test.mjs && grep -qF 'entry validation should have refused it' skills/war/assets/workflow-template.js`
+      (the hint literal reads 0 at base — the discriminating half; criterion 3's row must stay green
+      unmodified).
+
+  34. *(added by /red-team 2026-08-16 — item (g) had NO End state)* The `escalate_reason`
+      enforcement claim tells the truth on all three sites: the retired absolute `never a dropped
+      seat` is gone from `schemas.md` AND both `workflow-template.js` comment constructs, replaced by
+      the accurate no-NEW-hold-path wording ·
+      check: `! grep -qF 'never a dropped seat' skills/war/references/schemas.md && ! grep -qF 'never a dropped seat' skills/war/assets/workflow-template.js && node --test skills/war/assets/workflow-template.test.mjs`
+      (base counts 1 + 2 — the OLD-absent halves are the discriminating proof; (g)'s new test rows
+      ride the suite).
+  35. *(added by /red-team 2026-08-16 — the ghUser threading had NO End state)* The gh-account
+      preflight threading is pinned on all three surfaces — the SKILL's per-phase gh-write batch, the
+      schemas row, and the template's filing-dispatch preflight ·
+      check: `grep -qF 'ghUser' skills/war/assets/workflow-template.js && grep -q 'ghUser' skills/war/references/schemas.md && grep -q 'ghUser' skills/war/SKILL.md`
+      (the template count reads 0 at base — the discriminating half; the SKILL/schemas hits
+      hand-verified to sit in the § Per phase / filing rows, grep is a floor).
+  36. *(added by /red-team 2026-08-16 — A2's deliverable had NO End state; this ratifies A2)* The
+      `/war-review` rounds row carries the degenerate-timestamp `n/a` guard ·
+      check: `grep -qi 'degenerate' skills/war-review/SKILL.md`
+      (0 at base; hand-verify placement in the rounds row — grep is a floor).
 
 ## Build order (for /war)
 
@@ -694,7 +757,7 @@ untouched by the predecessors).
   this task (single-task per the same-file rule): the D20 mirror also lands here — the
   provision-barrier flavor's carve-out sentence and the "Return shape (all three)" line gain the
   optional `worktreeHygiene` array (same commit as the prompt change). Budget awareness
-  (AI-declared): the card measures 32,368 B at conversion — **already above its 30,720 B advisory**,
+  (AI-declared; **re-measured 33,345 B at the live tip — only ≈1.4 KB of hard headroom for this task's FIVE card additions**; **fallback the worker may take without escalating**: relocate the new file-followups contract prose to a `skills/war/references/` file behind a fixed-shape trigger pointer on the card — the ADR 0042 hot/cold law; the pointer + the registry row keep the coupling checkable): the card measured 32,368 B at conversion — already above its 30,720 B advisory,
   hard ceiling 34,816 B (≈ 2.4 KB of headroom, less after plan 3's card additions land) — keep both
   new spans tight, re-measure `wc -c agents/war-refiner.md` at the rebased base, and run
   `node --test skills/war/assets/prompt-surface-budgets.test.mjs` (over-hard is red; record the
@@ -932,14 +995,22 @@ validation block, and #1430's (iii) reuses #1411's cause-propagation in the same
   **(c) infra-death classification** (#1411 fixes 1–3): where a dead seat currently yields
   `reason: 'escalate'` with `blocked: "worker returned no result"`, (i) propagate the harness
   failure cause into `blocked` (e.g. `worker died: session limit (resets …)`) when the thunk-catch
-  can see it; (ii) introduce the terminal classification `env-died` for a post-spawn
-  API/quota/transport death, canonical beside the existing enums in `land-decision.mjs` with the
-  hand-mirrored copy in `workflow-template.js` and the drift-guard test updated **in the same diff**
-  (the CLAUDE.md enum discipline; the shared-enum-widening lesson — verify #236's guard census and
-  extend it, never bypass); (iii) `env-died` is **never** added to `HARD_ESCALATION_REASONS` — a
-  phase whose only unmerged tasks are infra deaths surfaces under `--afk` as a retryable
-  interruption (resume after reset), not a hard escalation (ADR 0005's `held:workflow-error`
-  precedent: infra classes stay soft). **(d) args provenance floor** (#1413): a fail-closed
+  can see it; (ii) introduce the task-level classification `env-died` for a post-spawn
+  API/quota/transport death. **Corrected by /red-team (2026-08-16) — the original "canonical beside
+  the existing enums" was incoherent: `land-decision.mjs` exports exactly two arrays
+  (`HARD_ESCALATION_REASONS`, `KNOWN_LAND_DECISIONS`) and `env-died` belongs in NEITHER (it is a
+  task-level `reason`, not a landDecision).** Canonical home: a **new exported
+  `SOFT_ENV_REASONS = ['env-blocked', 'env-died']`** in `land-decision.mjs`, with the hand-mirrored
+  copy in `workflow-template.js` and the drift-guard test extended to pin the new pair **in the same
+  diff** (the CLAUDE.md enum discipline; the shared-enum-widening lesson — verify #236's guard
+  census and extend it, never bypass); (iii) `env-died` is **never** added to
+  `HARD_ESCALATION_REASONS` (ADR 0005's line is not approached) — and the plan states the SOFT
+  semantics honestly, **verified against `decideLand` at the base**: a soft escalation means the
+  phase **LANDS minus the dead task** (exactly the ratified `env-blocked` precedent — "worker
+  unspawned/dead, siblings proceed, never a phase halt"), with the dead task recorded in the
+  `handoff`/phase report and **re-run via the Recovery-relaunch entry point (the held-partial-phase
+  runbook)** — the recorded recovery path, named here so "retryable" can never be read as "the phase
+  did not land". A phase where **nothing** merged still reads `held:nothing-merged` by construction. **(d) args provenance floor** (#1413): a fail-closed
   coherence assert at Workflow entry validation (beside the existing shape checks, before any agent
   spawns): derive distinctive tokens from `planSlug`/`plan.file` (the slug's non-date words) and
   refuse when the assembled `intent` contains none of them; refuse when `intent`, `backstops`, or
@@ -954,21 +1025,28 @@ validation block, and #1430's (iii) reuses #1411's cause-propagation in the same
   plain-text line-per-query file dies at `JSON.parse` — Task 2.2 makes that death friendly).
   **(f) required-input entry validation + prompt-build error discrimination** (#1430 fixes 1–3;
   Note 14 carries the base census and the byte-exact coupling): (i) add `plan.file` to the entry
-  validation as its **own ungated problem class** — beside `missingPhaseFields`, never inside the
-  `missingTrio` class (that one is gated behind `tasks.some(t => !t.branch || !t.worktree)`, and
-  `plan.file` is required regardless), pushing a distinct message carrying the zero-at-base literal
-  `requires plan.file`; the trio message stays **byte-unchanged** and every existing entry-validation
-  fixture that omits `plan.file` gains it (or its expected literal is updated) **in this same diff**,
-  so the exact-equality aggregate-message assert and the prose census row stay green. (ii) give the
+  validation as its own problem class — beside `missingPhaseFields`, never inside the `missingTrio`
+  class — **gated behind `(tasks || []).length > 0`** *(corrected by /red-team 2026-08-16: the
+  original "ungated" wording reds two committed tests that pin an ABSENT `plan` object as a
+  deliberately-supported zero-task launch shape; gating on a non-empty task list preserves both
+  ratified plan-less contracts while still refusing every real dispatching launch that omits
+  `plan.file` — including the observed incident, which had 7 tasks)*, pushing a distinct message
+  carrying the zero-at-base literal `requires plan.file`; the trio message stays **byte-unchanged**,
+  the two plan-less fixtures stay green **unmodified**, and every existing entry-validation fixture
+  that omits `plan.file` while carrying tasks gains it (or its expected literal is updated) **in
+  this same diff**, so the exact-equality aggregate-message assert and the prose census row stay
+  green. (ii) give the
   two undefended worker-prompt sites the same `?? '<unset>'` default the gate-audit site already
   carries (defense in depth — (i) should make it unreachable; retires the OLD token
-  `Plan file: ${plan.file}`, 2 at base → 0). (iii) in the wave-thunk catch, **discriminate a
-  prompt-build throw from a task-level engine error**: a `pt` undefined-interpolation throw is an
-  args defect, not a task escalation — surface it as `held:workflow-error` naming the missing input
-  (reusing (c)'s cause-propagation), so the phase halts loudly instead of draining every task to
-  `escalate` and falling through to an empty wave. Scope discipline: (iii) narrows **only** the
-  `pt`-throw class; every other engine error keeps today's per-task `escalate` (the #742 wave-loop
-  invariant — a task must still terminate in exactly one collected result, never re-enter the wave).
+  `Plan file: ${plan.file}`, 2 at base → 0). (iii) **RESCOPED by /red-team (2026-08-16) — the reclassification is dropped.** The live suite
+  pins the in-thunk pt-throw contract by title (`criterion 3 — … escalates the task`), and
+  `held:workflow-error`'s only producer is the top-level catch, which a thunk cannot reach (the live
+  `parallel` NULLS a rejected thunk — the wave-loop-thunk-catch lesson; a rethrow silently DROPS the
+  task). The incident class is closed at the front door by (i) instead. What (iii) now does: the
+  wave-thunk catch **appends a diagnostic hint** to the escalate result when the throw is a `pt`
+  undefined-interpolation — `if this interpolation names a launch arg, entry validation should have
+  refused it — check the args file` — classification **byte-unchanged**, criterion 3's row green
+  unmodified, the #742 wave-loop invariant untouched.
   **(g) `escalate_reason` enforcement-claim truth fix** (*amendment 2026-08-15, plan-5 phase-2 field
   finding; #1410 follow-through*): plan 5's Task 2.1 landed an `escalate_reason` bullet whose
   absolute is false as stated — it says the schema layer re-prompts a non-conforming seat
@@ -979,9 +1057,11 @@ validation block, and #1430's (iii) reuses #1411's cause-propagation in the same
   Reword to the accurate claim, which is A8's: the retry loop is the enforcement point, a persistent
   failure falls into the **existing** dropped-seat → audit-blocked lane, so there is **no NEW hold
   path** (a reason-less `escalate` already held as `held:escalation` — the outcome class is
-  unchanged). The same absolute is mirrored in `workflow-template.js`'s coupling comment beside the
-  `AUDIT_VERDICT` literal (locate by construct, never by line), so both surfaces move in **this one
-  diff** — which is why (g) rides Task 2.1 (it owns `schemas.md` *and* `workflow-template.js`) and
+  unchanged). The same absolute is mirrored at **two** `workflow-template.js` comment constructs —
+  the comment beside the `AUDIT_VERDICT` literal AND the ESCALATE-BOUNDARY coupling comment beside
+  the dispatched auditPrompt clause (/red-team 2026-08-16: a worker locating only the first leaves
+  the second live and reds (g)'s own OLD-absent assert; the measured 3 hits = 1 schemas.md + these
+  2) — so all **three** sites move in **this one diff** — which is why (g) rides Task 2.1 (it owns `schemas.md` *and* `workflow-template.js`) and
   not Task 1.3's schemas.md truth pass, whose footprint would have collided with Task 1.1 on
   `workflow-template.js`. Retire the phrase `never a dropped seat` (measured **3** hits at plan 5's
   phase-2 landed tip `0602094`; re-measure at the rebased base and record). Verified firsthand at
@@ -994,7 +1074,8 @@ validation block, and #1430's (iii) reuses #1411's cause-propagation in the same
   entry, and an own-token pass fixture accepted, (g) an OLD-absent assert that `never a dropped seat` is gone from both surfaces plus a
   NEW-present assert on the accurate no-NEW-hold-path wording, and (f) a launch fixture omitting `plan.file` refused at
   entry naming it **with zero agent spawns** (the observed failure spawned Provision first) + a
-  `pt`-throw fixture classifying `held:workflow-error` rather than per-task `escalate` + a
+  `pt`-throw fixture asserting the escalate result CARRIES the diagnostic hint (classification
+  byte-unchanged — criterion 3's row green unmodified) + a
   non-`pt` engine-error fixture still yielding per-task `escalate` (the both-ways proof that (iii)
   narrowed exactly one class). Commits cite #1395 (a/b), #1411 (c), #1413 (d),
   #1408 (e), #1430 (f), #1410 (g).
@@ -1056,6 +1137,16 @@ validation block, and #1430's (iii) reuses #1411's cause-propagation in the same
 - target repo: superproject
 
 ## Deferred validations (backstops — AI-declared)
+- *(added by /red-team 2026-08-16)* Task 1.1's straggler sweep over the retired wordings — including
+  the SECOND live carriers the End-state greps do not name (`the two-contract rule` also lives in
+  `workflow-template.js`; hand-adjudicate the D7 test-narration exemption) · why deferred: a
+  hand-adjudicated sweep cannot be a mechanical gate member · runner: Task 1.1/1.3's workers record
+  each straggler (mandatory even when zero); the Lead re-greps at phase close.
+- *(added by /red-team 2026-08-16)* The A1 registry-row anchor growth: the redefined
+  `acceptance_criteria_covered` D5-tag sentence must add a 0-at-base token to the A1 both-surfaces
+  row's anchor array (the existing anchors bind the OLD framing and stay green without the new
+  sentence) · why deferred: the token is chosen at authoring time from the landed sentence · runner:
+  Task 1.1's worker records the chosen token + both base counts; gate-audit re-greps.
 
 - The manual same-scope survey halves of End states 10, 12, 14, 18, 20, and 24 and the Task 1.3/1.4
   straggler sweeps · why deferred: a hand-scan cannot be a mechanical gate member; done-report-only
