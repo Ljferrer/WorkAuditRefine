@@ -5,7 +5,9 @@
 // EVICTION_DESTINATIONS; the spec-posterity rule sweeps the directory-scanned
 // posterity corpus (every SKILL.md, every skills/*/references/*.md, every
 // agents/*.md card, plus README.md). The placement census test binds the
-// references-file partition between the verb-side lists (D2).
+// references-file partition between the verb-side lists (D2) AND each
+// exclusion's stated reason (red-team adjudication 6: claimedVerbs empty per
+// entry, schemas.md carve-out excepted).
 //
 // Every CLI verb a SKILL.md phrases for one of the named dispatch modules must
 // resolve to a REAL dispatch case in that module — extraction + equality, not
@@ -312,6 +314,22 @@ test('verb-scan placement census (D2): every skills/*/references/*.md file is co
   // recon command stays checked against the live dispatch.
   assert.ok(EVICTION_DESTINATIONS.includes('skills/war-strategy/references/plan-interview.md'),
     'plan-interview.md must be verb-scanned (EVICTION_DESTINATIONS), not reason-excluded (#1306)')
+  // ADR 0025 (/red-team adjudication 6): an exclusion's REASON is a checked property, not
+  // prose — CLI command prose added to an excluded file reds here instead of rotting
+  // unscanned. schemas.md is the single documented carve-out: it names war-config.mjs
+  // beside its EXPORT `resolveGate` (probe-verified guaranteed false red — see its reason
+  // comment in VERB_SCAN_EXCLUSIONS).
+  const CARVE_OUT = 'skills/war/references/schemas.md'
+  const rotted = []
+  for (const rel of VERB_SCAN_EXCLUSIONS) {
+    if (rel === CARVE_OUT) continue
+    const text = src(rel)
+    for (const mod of Object.keys(MODULES))
+      for (const verb of claimedVerbs(text, mod)) rotted.push({ path: rel, mod, verb })
+  }
+  assert.deepEqual(rotted, [], 'an excluded references file now phrases a scanned module\'s'
+    + ' CLI command — its exclusion reason ("no shell-out prose for the scanned modules")'
+    + ` has rotted: move it to EVICTION_DESTINATIONS:\n${JSON.stringify(rotted, null, 2)}`)
 })
 
 test('spec-posterity (F7 / ADR 0046): no scanned doctrine surface — nor README.md — cites a docs/specs path', () => {
