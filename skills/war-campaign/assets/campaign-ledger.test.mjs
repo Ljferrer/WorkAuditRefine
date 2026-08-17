@@ -611,7 +611,7 @@ test('sweep of a drop whose line-1 path does not exist throws ENOENT (fail-loud 
   assert.throws(() => sweep(campaignDir), /ENOENT|no such file/)
 })
 
-// ---- sweep idempotence guard (#1355 findings 1/2) --------------------------
+// ---- sweep idempotence guard (#1355 finding 3) -----------------------------
 // The halt/regrill/re-add loop must never mint an undrainable duplicate: a drop
 // whose resolved plan path already has ANY entry — in the ledger (a `landed`
 // entry ALSO blocks the append, D2) or accepted earlier in the SAME sweep —

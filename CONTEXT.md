@@ -1521,7 +1521,9 @@ _Avoid_: putting an auxiliary table before it (silently mis-ingested); assuming 
 
 **Campaign ledger**:
 The uncommitted per-run state of a campaign at `.claude/campaigns/<id>/ledger.json` — the plan queue
-plus per-plan outcome (status, branch, PR#, landed SHA, stop point). **Single-writer** (the campaign
+plus per-plan outcome — the entry shape's maintained home is `makePlanEntry` in `campaign-ledger.mjs`
+(ADR 0046), cited rather than re-enumerated here so the field set cannot rot on this surface
+(ADR 0025). **Single-writer** (the campaign
 Lead), written atomically (temp file + rename), owned by `campaign-ledger.mjs`. The resume source: a
 re-invoked campaign re-reads ledger + **Inbox** and continues; on resume the Lead reconciles the ledger
 *toward git* (`git ls-remote`, `gh pr view`) before trusting it.
@@ -1533,7 +1535,7 @@ The multi-writer add path of a campaign: `.claude/campaigns/<id>/inbox/`, one fi
 the **Hopper** sweeps the inbox at every plan boundary, runs the shared-file contention check against
 the remaining queue, and inserts in dependency-safe order.
 _Avoid_: writing the queue directly from a second chat (single-writer ledger); using git as the add
-transport (the conflict surface the inbox exists to remove).
+transport (the conflict surface the inbox exists to remove). A drop whose resolved plan path already has a ledger entry — **any** status, `landed` included — is **not** queued a second time: `sweep` refreshes that entry's `files` and reports it under `skipped`, so a re-add can never mint an undrainable duplicate.
 
 **Hopper**:
 The autonomous loop that executes a campaign — one chat running `/red-team <plan>` then
