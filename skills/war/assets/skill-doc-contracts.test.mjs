@@ -1564,19 +1564,24 @@ test("D9 — the refiner card's gitlink-bump invocation agrees in shape with the
 // `\s+`-tolerant forms, never sentence bytes — sanctioned rewording latitude must not false-red;
 // correct a key to the new truth, never drop it to make a reword pass.
 //
-// The two intake-defect ROUTING arms are PAIRED bounded-gap keys, never presence-anywhere
+// The two intake-defect ROUTING arms are PAIRED keys, never presence-anywhere
 // (#1040, D18's in-file precedent;
 // [[multi-token-presence-loop-needs-paired-first-following-match-to-catch-a-swap]]): independent
 // presence keys over the same bullet green a reword with the two behaviors SWAPPED ("interactive
 // runs refuse dispatch; under `--afk` surface it at the approval gate") — an inversion of the
 // exact routing the plan slice names, and an --afk approval gate does not exist. Each key binds
-// its trigger token to its own arm's behavior within a bounded live-byte-sized gap. Neither key
-// alone catches every swap shape — the PAIR does: a swap keeping the live interactive-first
-// order leaves no dispatch refusal after `--afk` (the afk key reds), and one leading with the
-// `--afk` arm puts `approval gate` before `interactive` (the interactive key reds). Shared by
-// the live row and the swapped negative reference below — the uses must never drift apart.
-const D31_INTERACTIVE_ARM = /interactive[\s\S]{0,80}approval\s+gate/i
-const D31_AFK_ARM = /--afk[\s\S]{0,120}refuses\s+dispatch/i
+// its trigger token to its own arm's behavior through a bounded NEGATED-SCAN gap that refuses to
+// cross the other arm's trigger token, and the interactive trigger is anchored to its live token
+// form (`interactive runs`, never bare `interactive`) — a bare trigger with the negated gap
+// alone re-matches a collided reword at a second `interactive` token occurrence
+// ("interactive-style", #1375). Two inverted-routing shapes are provably rejected by the
+// negative references below: the arms-SWAPPED reword (each behavior keeping its own aside, only
+// the routing inverted) and the arms-COLLIDED reword (#1375's shape — the `--afk` arm routed
+// through an interactive-style review to the approval gate while interactive runs get the
+// refusal, the other arm's trigger token sitting inside one key's gap). Shared by the live row
+// and both negative references below — the uses must never drift apart.
+const D31_INTERACTIVE_ARM = /interactive\s+runs(?:(?!--afk)[\s\S]){0,80}approval\s+gate/i
+const D31_AFK_ARM = /--afk(?:(?!interactive)[\s\S]){0,120}refuses\s+dispatch/i
 // Unwired negative reference (both-ways proof, zero fixture files — D22/D9's idiom): a
 // hand-written copy of the intake-defect prose with the two routing arms swapped, each behavior
 // keeping its own aside so BOTH discriminating tokens (`refuses dispatch`, `approval gate`)
@@ -1588,6 +1593,18 @@ const D31_ARMS_SWAPPED =
   'interactive runs the Lead **refuses dispatch** (a hard stop — no teammate launches, and the ' +
   'Lead never invents an acceptance command); under `--afk` it **surfaces the defect at the ' +
   'approval gate** (the operator supplies the command or re-rules `requiresTest`).'
+// Second unwired negative reference — the arms-COLLIDED reword (#1375): inverted routing hidden
+// by a cross-key token collision, the other arm's trigger token placed INSIDE one key's gap. The
+// `--afk` arm rides an "interactive-style" review to the approval gate while interactive runs
+// get the refusal. The untightened keys both matched this shape (the interactive key at the
+// "interactive-style" token occurrence, the afk key scanning straight across it) — the fixture
+// and the tightened keys land together. Both tightened keys must red on it: `interactive-style`
+// is not the live `interactive runs` trigger form, and the afk key's negated gap refuses to
+// cross the `interactive` token. SKILL.md itself is never edited to prove a guard.
+const D31_ARMS_COLLIDED =
+  'A `requiresTest: true` task without a `Done when:` command is an **intake defect**: under ' +
+  '`--afk` it rides an interactive-style review to the **approval gate**; interactive runs get ' +
+  'the refusal — the Lead **refuses dispatch** and never invents an acceptance command.'
 test('D31 — SKILL.md Decompose done-when intake keeps the full-bullet parse clause and the requiresTest-without-Done-when intake-defect rule (F8, Task 1.1)', () => {
   const decompose = skillMd.match(/^## Decompose \+ approve[\s\S]*?(?=\n## )/m)
   assert.ok(
@@ -1635,18 +1652,26 @@ test('D31 — SKILL.md Decompose done-when intake keeps the full-bullet parse cl
         'sanctioned rewording, never drop the clause to make a reword pass',
     )
   }
-  // Both-ways proof: the paired arm keys must REJECT the arms-swapped shape — without this, a
-  // key that silently stopped discriminating (a widened gap, a dropped trigger token) would
-  // still read green above.
-  for (const [key, why] of [
-    [D31_INTERACTIVE_ARM, 'a bullet routing the interactive arm to dispatch refusal satisfies it'],
-    [D31_AFK_ARM, 'a bullet routing the --afk arm to the approval gate satisfies it'],
+  // Both-ways proof: the paired arm keys must REJECT both inverted-routing shapes — without
+  // this, a key that silently stopped discriminating (a widened gap, a dropped trigger token, a
+  // de-anchored trigger) would still read green above.
+  for (const [negName, negative] of [
+    ['arms-swapped', D31_ARMS_SWAPPED],
+    ['arms-collided (#1375)', D31_ARMS_COLLIDED],
   ]) {
-    assert.doesNotMatch(
-      norm(D31_ARMS_SWAPPED),
-      key,
-      `the D31 paired arm key ${key} matched the arms-swapped negative reference: ${why}. ` +
-        'Tighten the key, never relax the negative reference to make this pass',
-    )
+    for (const [key, why] of [
+      [
+        D31_INTERACTIVE_ARM,
+        'a bullet not routing interactive runs to the approval gate satisfies it',
+      ],
+      [D31_AFK_ARM, 'a bullet not routing the --afk arm to dispatch refusal satisfies it'],
+    ]) {
+      assert.doesNotMatch(
+        norm(negative),
+        key,
+        `the D31 paired arm key ${key} matched the ${negName} negative reference: ${why}. ` +
+          'Tighten the key, never relax the negative reference to make this pass',
+      )
+    }
   }
 })
