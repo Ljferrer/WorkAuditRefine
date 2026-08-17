@@ -1,6 +1,6 @@
 ---
 name: gate-artifact-never-includes-war-memory-lint
-description: "MITIGATED (#1081): lint was CI-only — every End state citing it read SOFT from gate evidence; the discovered wrapper war-memory-lint.test.sh now runs it inside every gate"
+description: "MITIGATED (#1081): lint was CI-only, End states read SOFT; a discovered wrapper now runs it in every gate"
 metadata:
   node_type: memory
   type: project

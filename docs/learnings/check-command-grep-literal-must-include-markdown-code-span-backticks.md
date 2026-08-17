@@ -1,6 +1,6 @@
 ---
 name: check-command-grep-literal-must-include-markdown-code-span-backticks
-description: "A plan's `check:` NEW-present grep pattern built with `grep -oiF` against a fixed-string literal (e.g. \"/red-team's Step 5\") can be permanently unreachable even when the landed prose is 100% correct, if the landed Markdown wraps the matched term in a code span — the literal backtick sits mid-string and the -F literal omits it, so the count is 0 forever"
+description: "A grep -F check literal must include Markdown code-span backticks or the pin is permanently unreachable"
 metadata: 
   node_type: memory
   type: project

@@ -1,6 +1,6 @@
 ---
 name: within-phase-dep-gate-must-rerun-on-integrated-tip
-description: "RESOLVED (integratedTipGate): gate re-runs at integrated tip; covers same-repo deps only — rule holds for manual gating"
+description: "RESOLVED: gate re-runs at integrated tip; covers same-repo deps only — rule holds for manual gating"
 metadata: 
   node_type: memory
   type: project

@@ -1,6 +1,6 @@
 ---
 name: cp-r-and-bare-worktree-add-do-not-isolate-a-sandbox-from-a-linked-worktree-target
-description: "Neither `cp -R <repo> <tmp>` nor a bare `git worktree add <tmp>` truly isolates a throwaway sandbox when `<repo>` is itself a linked git worktree — `git clone --no-hardlinks` is the form that stays isolated, but it carries committed state only"
+description: "`cp -R` and bare `git worktree add` don't isolate a sandbox from a linked worktree — only `git clone --no-hardlinks` does"
 metadata: 
   node_type: memory
   type: project

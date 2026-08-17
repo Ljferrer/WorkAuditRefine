@@ -1,6 +1,6 @@
 ---
 name: git-common-dir-anchor-idiom-fail-open-gotchas
-description: "The ratified `git rev-parse --path-format=absolute --git-common-dir` main-checkout anchor idiom: two fail-open correctness gotchas"
+description: "The `git rev-parse --git-common-dir` main-checkout anchor idiom: two fail-open correctness gotchas"
 metadata: 
   node_type: memory
   type: project

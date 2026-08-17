@@ -1,6 +1,6 @@
 ---
 name: stdin-mode-cli-parser-silently-drops-space-separated-flag-with-no-positional-fallback
-description: "RESOLVED (red-team-gate-cli/1.2, #1378, #1347, #1366) — body rewritten to current behavior 2026-08-15: red-team-gate.mjs's main() opens with a default-deny argv loop, ahead of mode selection and the stdin read, that refuses every unknown `--` token in BOTH modes and, in --stdin mode, every bare token (exit 1, stderr diagnostic, nothing on stdout). The durable lesson is the general shape: a CLI with two input-source modes can enforce an argv guarantee in one mode only by accident of that mode's positional handling, so the guarantee silently does not hold in the other. Two live carve-outs remain by decision — file mode still ignores surplus bare tokens, and the check covers the argv channel only, not top-level input keys."
+description: "RESOLVED (#1378): a two-input-mode CLI can enforce an argv guarantee in one mode only, by accident."
 metadata: 
   node_type: memory
   type: project
@@ -108,3 +108,5 @@ order-independent. Rewritten at operator direction — current behavior is the t
 repo's freeze-the-body RESOLVED-stamp convention for this file
 ([[resolved-lesson-stamp-freezes-body-so-it-can-contradict-the-new-description]],
 [[resolved-section-fix-append-can-itself-misstate-which-mode-a-rule-applies-to]]).
+
+> archived 2026-08-17: resolved — moved to archive

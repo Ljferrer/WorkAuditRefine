@@ -1,6 +1,6 @@
 ---
 name: delimiter-truncation-before-empty-result-carve-out-widens-false-negative-surface
-description: "In a citation/reference scanner, truncating a captured path run at the first closing delimiter (backtick / ] / )) BEFORE running an existing 'empty result = bare-directory mention, carve it out' check can conflate a truncation artifact (the delimiter sat immediately after the prefix) with a genuine bare mention — silently widening the carve-out's false-negative surface for citations shaped like [`docs/specs/`](docs/specs/concrete-file.md) where the link TEXT is a bare directory but the link TARGET is a concrete, citable file"
+description: "Truncating at the closing delimiter before the bare-mention carve-out silently widens the scanner's false-negative surface"
 metadata: 
   node_type: memory
   type: project

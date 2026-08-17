@@ -1,6 +1,6 @@
 ---
 name: release-blurb-headline-count-word-can-mismatch-its-own-enumeration
-description: "A release blurb's opening count word ('a truth sweep across eight drifts') can outrun the count of items its own following sentences actually enumerate — one landed drift can have no describing sentence at all"
+description: "A release blurb's headline count word can outrun its own enumeration; count items before landing"
 metadata: 
   node_type: memory
   type: project

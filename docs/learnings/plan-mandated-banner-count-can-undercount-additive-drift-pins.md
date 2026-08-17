@@ -1,6 +1,6 @@
 ---
 name: plan-mandated-banner-count-can-undercount-additive-drift-pins
-description: "A structural-test block banner's literal count ('Four checks...') can legitimately undercount its own block after a later plan appends more pins, when the plan explicitly mandates the banner stay byte-untouched — self-documented by an adjacent sub-comment, not count-drift"
+description: "Plan-mandated byte-untouched banner counts can legitimately undercount pins a later plan appends"
 metadata: 
   node_type: memory
   type: project

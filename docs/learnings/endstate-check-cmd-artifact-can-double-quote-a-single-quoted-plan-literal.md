@@ -1,6 +1,6 @@
 ---
 name: endstate-check-cmd-artifact-can-double-quote-a-single-quoted-plan-literal
-description: "A plan's check: row can single-quote a grep pattern containing a literal ${...}-shaped JS-template-literal token (e.g. 'Plan file: ${plan.file}'), yet the land-barrier endstate-check dispatch's generated .cmd artifact can still emit it DOUBLE-quoted — bash then attempts parameter expansion of ${plan.file} (not a legal bash identifier, being dotted) and dies 'bad substitution', permanently unrunnable"
+description: "An endstate-check .cmd artifact can double-quote a single-quoted `${...}` plan literal — bash dies 'bad substitution'"
 metadata: 
   node_type: memory
   type: project

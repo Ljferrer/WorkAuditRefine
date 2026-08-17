@@ -1,6 +1,6 @@
 ---
 name: endstate-check-dispatch-numbers-rows-positionally-not-by-plan-id
-description: "The END-STATE CHECK dispatch block in workflow-template.js numbers every claimed condition by its ARRAY POSITION (`${i + 1}`) inside the phase's own `ph.endState` list — there is no id field carried through — so when a phase's endState array is authored as a subset of the plan's full numbered End-state list (a later phase or a deps-chained sibling owns a middle condition), the dispatched numbering silently diverges from the plan's own numbering, and a worker's `acceptance_criteria_covered` index can point at a different condition under the two schemes"
+description: "Endstate-check dispatch numbers conditions by array position, not plan id — subset phases silently diverge from plan numbering"
 metadata: 
   node_type: memory
   type: project

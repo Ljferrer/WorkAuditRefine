@@ -1,6 +1,6 @@
 ---
 name: git-revert-on-widened-unpushed-range-needs-neutralized-pair-exemption
-description: "Widening a pre-push condemnation check from HEAD-only to the full unpushed range breaks a naive 'git revert the condemned commit, then re-probe' undo loop: revert does not remove the condemned commit from the range, it appends a second commit touching the same escaping paths, so both are condemned on re-probe forever — the fix is an explicit exemption for a revert/reverted pair, linked via git's own 'This reverts commit <sha>.' body token"
+description: "Range-scoped condemnation + naive git revert loops forever; exempt revert/reverted pairs via the 'This reverts commit' body token"
 metadata: 
   node_type: memory
   type: project

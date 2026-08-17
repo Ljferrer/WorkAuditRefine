@@ -1,6 +1,6 @@
 ---
 name: phase-close-polish-revert-can-silently-orphan-a-subset-of-absorbed-findings
-description: "A phase-close polish commit that absorbs N queued findings can be reverted wholesale with no recorded rationale; the next polish pass re-derives its queue from the then-current open findings, not from what the reverted commit fixed — it can drain a DIFFERENT subset and permanently orphan the rest unless someone diffs the revert against the redo"
+description: "Reverting a phase-close polish commit can permanently orphan a subset of its absorbed findings"
 metadata: 
   node_type: memory
   type: project

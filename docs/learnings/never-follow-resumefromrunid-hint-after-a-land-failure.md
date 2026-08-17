@@ -1,6 +1,6 @@
 ---
 name: never-follow-resumefromrunid-hint-after-a-land-failure
-description: "After held:land-failed the generic resumeFromRunId hint is exactly wrong — replaying the journal re-runs the already-green gate and push-first CAS live"
+description: "After held:land-failed the resumeFromRunId hint is wrong: replay re-runs the green gate and CAS push live"
 metadata: 
   node_type: memory
   type: project

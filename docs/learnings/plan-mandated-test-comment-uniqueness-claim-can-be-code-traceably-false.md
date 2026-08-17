@@ -1,6 +1,6 @@
 ---
 name: plan-mandated-test-comment-uniqueness-claim-can-be-code-traceably-false
-description: "RESOLVED (live census, 2026-08-02): A plan can mandate literal test-comment prose asserting an 'only'/uniqueness claim that a code trace of the live function shows is false — it lands uncorrected anyway because the checkable End state is a structural absence-grep, not a content-accuracy check, and the right audit disposition is 'note', not 'absorb', since fixing the wording would deviate from the plan's explicit mandate"
+description: "RESOLVED: plan-mandated uniqueness prose can be code-traceably false; disposition is note, not absorb"
 metadata: 
   node_type: memory
   type: project

@@ -1,6 +1,6 @@
 ---
 name: bold-label-immediately-after-list-item-lazily-continues-into-it-commonmark
-description: "A **Bold Label:** line placed directly beneath a Markdown list item with no blank line between them renders inside that list item per CommonMark lazy continuation, not as its own paragraph/line — cosmetic in a plain-text/substring reader but breaks structured rendering of handoff/report templates that get copied verbatim into other documents. The general pattern is still live (recur-prone in any similarly-shaped template); the specific instance cited below (skills/red-team/references/lenses.md and loop-budget.md's Route-upstream **Re-entry:** line) was fixed by red-team-gate-cli/1.1 — see the appended ## Update section."
+description: "A bold-label line right under a list item with no blank line renders inside it per CommonMark lazy continuation"
 metadata: 
   node_type: memory
   type: project

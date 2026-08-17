@@ -1,6 +1,6 @@
 ---
 name: terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it
-description: "A phase-close polish task's OWN gate-audit can surface a fresh absorb+phaseClose:true finding on the polish diff itself — but if that polish task is the phase's last round (e.g. a release/final phase), there is no subsequent polish pass to drain the queue, and the finding ships unfixed at land"
+description: "A last-round polish gate-audit absorb finding has no further pass to drain it; it ships unfixed at land."
 metadata: 
   node_type: memory
   type: project

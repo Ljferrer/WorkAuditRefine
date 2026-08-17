@@ -1,6 +1,6 @@
 ---
 name: plan-mandated-unconditional-prompt-clause-can-dangle-reference-a-conditionally-rendered-block
-description: "A plan End state's literal-grep landing pin can force an auditor-facing prompt clause to be emitted unconditionally even though the block it names by name only renders on some prompt variants — accepted as a fail-open residual, not a defect, when the seat's other instructions already default SOFT"
+description: "Literal-grep pin can force an unconditional clause naming a conditionally-rendered block; fail-open residual"
 metadata:
   type: project
   provenance: code-verified

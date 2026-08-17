@@ -1,6 +1,6 @@
 ---
 name: structural-test-blind-spot-narrowing-needs-negative-reference-and-default-deny-census
-description: "Harden text-based structural tests: keep one unwired negative-reference helper for both-ways proof; close residual gaps with a default-deny exact-multiset census"
+description: "Structural tests need an unwired negative-reference helper and a default-deny exact-multiset census."
 metadata: 
   node_type: memory
   type: project

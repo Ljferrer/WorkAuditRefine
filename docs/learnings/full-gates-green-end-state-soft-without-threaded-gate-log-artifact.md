@@ -1,6 +1,6 @@
 ---
 name: full-gates-green-end-state-soft-without-threaded-gate-log-artifact
-description: "A full-gates-green-at-land End state is SOFT at audit time without a threaded gate-log artifact/pin_status token — gate evidence capture is the refiner's job"
+description: "Full-gates-green End state is SOFT without a threaded gate-log/pin_status artifact; gate evidence is refiner-owned"
 metadata:
   node_type: memory
   type: project

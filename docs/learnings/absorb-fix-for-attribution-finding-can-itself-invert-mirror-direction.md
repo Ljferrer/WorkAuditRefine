@@ -1,6 +1,6 @@
 ---
 name: absorb-fix-for-attribution-finding-can-itself-invert-mirror-direction
-description: "A phase-close absorb-fix for a doc finding can itself carry a fresh defect (mirror direction backwards; or, confirmed a second time, an over-narrowed qualifier) that a new gate-audit finding correctly flags — and the fail-open coherence sweep lets it land uncorrected anyway"
+description: "A phase-close absorb-fix for a doc finding can itself carry a fresh defect the fail-open sweep lands uncorrected"
 metadata: 
   node_type: memory
   type: project

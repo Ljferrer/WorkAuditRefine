@@ -1,6 +1,6 @@
 ---
 name: each-commit-cites-its-issue-endstates-are-judged-over-the-full-phase-range-not-gated-per-commit
-description: "A plan End state phrased 'each landing commit cites its issue(s)' cannot be a gate: member (the <phase-base>..<tip> range it needs doesn't exist at any task's pre-merge gate — it first exists post-merge) and is judged by the post-merge execution-evidence seat via a range-level `git log --grep=<issue>` over the whole phase, not a per-commit literal check. A phase-close/polish commit that cites no issue at all is therefore still condition-compliant as long as some commit in the range cites it — do not read the End state as a per-commit mandate."
+description: "'Each commit cites its issue' is judged range-level post-merge via `git log --grep`, never gated per commit"
 metadata: 
   node_type: memory
   type: project

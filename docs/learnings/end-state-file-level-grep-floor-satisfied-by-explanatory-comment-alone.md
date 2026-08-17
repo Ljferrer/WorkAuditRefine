@@ -1,6 +1,6 @@
 ---
 name: end-state-file-level-grep-floor-satisfied-by-explanatory-comment-alone
-description: "A plan End-state's file-level grep floor over a source file (grep -Fc 'phrase' file.js >= 1) can stay green even after the EMITTED prompt clause it's meant to pin is reverted, when a nearby drift-guard/coupling COMMENT in the same file independently contains the same literal token — cite the mechanically-pinning rendered-output test row as the real observable, treat the raw grep as a floor only."
+description: "A file-level grep End-state floor can stay green via a coupling comment alone after the pinned clause is reverted"
 metadata: 
   node_type: memory
   type: project

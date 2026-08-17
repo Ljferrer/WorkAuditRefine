@@ -1,6 +1,6 @@
 ---
 name: own-token-provenance-floor-vacuous-or-false-refusal-both-directions
-description: "workflow-template.js's #1413 own-token args-provenance floor (refuses a launch at entry, held:workflow-error, zero spawns, when intent/backstops/adjudications carry none of the run's plan-slug tokens) is mis-calibrated in both directions: JSON.stringify(row) exposes schema KEY names (\"check\",\"why\",\"source\":\"plan\") a foreign row can vacuously match, while a legitimate generic backstop/adjudication row or a foreign-plan CITATION can carry zero real slug tokens and be falsely refused — both landed, adjudicated, unfixed this phase (follow-up)"
+description: "#1413 own-token provenance floor errs both ways: schema keys match vacuously, generic rows falsely refused"
 metadata: 
   node_type: memory
   type: project

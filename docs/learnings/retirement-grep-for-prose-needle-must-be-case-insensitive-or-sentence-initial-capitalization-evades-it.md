@@ -1,6 +1,6 @@
 ---
 name: retirement-grep-for-prose-needle-must-be-case-insensitive-or-sentence-initial-capitalization-evades-it
-description: "A grep-based retirement floor for a retired prose phrase (asserting the old wording is gone from live surfaces) that matches case-sensitively can false-pass when the same retired clause is re-authored sentence-initially — the first word gets capitalized ('Refused by construction: …' vs 'refused by construction'), which a case-sensitive literal/regex silently misses. red-team-gate-cli/1.2's End states 6 and 8 both mandate -i on the shell grep and case-insensitive matching in the mirrored test-suite guard row after a red-team round-1 probe reproduced the false negative."
+description: "Case-sensitive retirement greps miss sentence-initial capitalization of retired prose; use grep -i"
 metadata: 
   node_type: memory
   type: project
