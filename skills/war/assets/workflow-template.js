@@ -107,8 +107,10 @@ const AUDIT_VERDICT = { type: 'object', required: ['seat', 'lens', 'verdict', 'f
   // StructuredOutput return throws a schema-mismatch that re-prompts the seat (bounded conform-or-retry)
   // — so the conditional IS enforced at intake. The layer's separate strict-schema deriver (keyword
   // allowlist, no if/then) already falls back to non-strict on this schema today (tests_verified has no
-  // properties), so the retry loop was and stays the enforcement point: never a dropped seat, never a
-  // land hold — no new hold path (A8). Prose mirrors (same commit): agents/war-auditor.md verdict list
+  // properties), so the retry loop was and stays the enforcement point: a persistently non-conforming
+  // seat falls into the existing dropped-seat → audit-blocked lane (seats.length < expected), so there
+  // is no NEW hold path (A8, #1410) — a reason-less escalate already held as held:escalation; the
+  // outcome class is unchanged. Prose mirrors (same commit): agents/war-auditor.md verdict list
   // + Return shape, the dispatched auditPrompt ESCALATE-BOUNDARY clause, the schemas.md AuditVerdict row.
   if: { properties: { verdict: { const: 'escalate' } }, required: ['verdict'] },
   then: { properties: { escalate_reason: { type: 'string', minLength: 1 } }, required: ['escalate_reason'] } }
@@ -183,7 +185,11 @@ const EVIDENCE_RESULT = { type: 'object', properties: {
 // artifact missing, unreadable, or STALE-BUT-READABLE (.war/ is git-excluded and ensure-worktree
 // reuses a present worktree untouched, so a resume replay lands on prior-run residue), and the seats
 // attest those conditions 'unverified' — a missing/unreadable artifact and a stamped tip_sha that
-// mismatches the confirmed tip both map there; never 'met', never a block.
+// mismatches the confirmed tip both map there; never 'met', never a block. So does an artifact that
+// is present, readable, and correctly tip-stamped but whose red is ENVIRONMENTAL (#1395 — a
+// setup/collection/import failure: ModuleNotFoundError, pytest setup ERROR, usage/collection exit
+// codes — rather than an evaluated-false condition): it attests 'unverified', NEVER 'unmet' — a met
+// condition is never attested unmet for want of environment prep.
 const ENDSTATE_CHECK_RESULT = { type: 'object', properties: {
   artifacts: { type: 'array', items: { type: 'object', properties: {
     n: { type: 'number' }, path: { type: 'string' }, tip_sha: { type: 'string' }, exit_code: { type: 'number' } } } } } }
@@ -541,11 +547,11 @@ const defaultRoster = (Array.isArray(audit.roster) ? audit.roster : []).map(s =>
   (s && typeof s === 'object' && !Array.isArray(s) && s.depth === undefined) ? { ...s, depth: 'deep' } : s)
 
 
-// Entry validation (H, widened per operator decision 4 + #740). TWO problem classes feed ONE hoisted
-// `problems` aggregation and a SINGLE throw here, at the top of the try{} body — before any pt-tagged
-// interpolation and before git is touched — so a missing input dies at ENTRY with every absent key
-// named (→ held:workflow-error via the catch, git untouched), not opaquely deep inside prompt
-// construction (#586, #740).
+// Entry validation (H, widened per operator decision 4 + #740; plan.file class added by #1430).
+// THREE problem classes feed ONE hoisted `problems` aggregation and a SINGLE throw here, at the top
+// of the try{} body — before any pt-tagged interpolation and before git is touched — so a missing
+// input dies at ENTRY with every absent key named (→ held:workflow-error via the catch, git
+// untouched), not opaquely deep inside prompt construction (#586, #740, #1430).
 //   (1) DERIVATION class — the missing-trio-keys list + a missing phase.id (the silent `pundefined-`
 //       branch/worktree derivation class). Consumed ONLY when a task lacks an explicit branch/worktree,
 //       so it is guarded by that `some(...)` check: zero tasks / all-explicit ⇒ this class vacuously
@@ -574,15 +580,66 @@ if ((tasks || []).some(t => !t.branch || !t.worktree)) {
 const missingPhaseFields = [['title', ph == null ? undefined : ph.title], ['workingBranch', ph == null ? undefined : ph.workingBranch], ['integrationBranch', ph == null ? undefined : ph.integrationBranch]]
   .filter(([, v]) => v == null || v === '').map(([k]) => k)
 if (missingPhaseFields.length) problems.push(`workflow-template: requires phase { title, workingBranch, integrationBranch } — missing: [${missingPhaseFields.join(', ')}]`)
+//   (3) PLAN-FILE class (#1430) — plan.file, its OWN problem class (never inside missingTrio: that
+//       class is gated behind a derivation-needing task, while every dispatched worker/fix prompt
+//       interpolates plan.file regardless of explicit paths). Gated behind a NON-EMPTY task list
+//       (/red-team 2026-08-16): the two ratified plan-less zero-task launch shapes (the
+//       gate-composition no-op and the claims-bearing endStateBlock) stay legal — a phase that
+//       dispatches no worker needs no plan file. The trio and phase-field messages above stay
+//       byte-unchanged (the exact-equality aggregate fixture + the LITERAL_REGISTRY census row pin
+//       them); this push is a plain string, so the census is untouched. The observed incident (plan 5
+//       phase 1) spawned Provision first and drained every task to escalate — this refusal is
+//       at-entry, zero agent spawns.
+if ((tasks || []).length > 0 && !(plan && typeof plan.file === 'string' && plan.file)) {
+  problems.push('workflow-template: requires plan.file — the launch carries tasks but no plan.file (every worker/fix prompt interpolates it); thread plan: { file: "docs/plans/<slug>.md" } (#1430)')
+}
 if (problems.length) throw new Error(`${problems.join('; ')}${derivationProblem ? ' (or supply explicit branch/worktree per task)' : ''}`)
+
+// ---- Args provenance floor (#1413) — fail-closed, at entry, before any agent spawns ----
+// A dispatched seat can recover from a wrong plan slice by reading the plan file; the assembled
+// intent/backstops/adjudications have NO seat-side recovery path — a cross-plan leak (the plan-3
+// incident: a plan-A launch carrying plan-B's intent, 13 × escape / 0 × done-when) starts clean and
+// stays green. So refuse at entry (held:workflow-error via the catch): (1) an arg naming a
+// docs/plans/<slug>.md identifier differing from plan.file is foreign; (2) an arg containing NONE of
+// the run's own plan-slug tokens (the slug's non-date words, from planSlug + the plan.file basename)
+// fails the own-token floor. Each floor applies ONLY when its arg is present and non-empty (an
+// intent-less launch stays legal — the ratified absent-⇒-byte-identical contract), the foreign check
+// only when plan.file is present, and the own-token floor is skipped when no distinctive token is
+// derivable (fail-open, never a guessed refusal). Messages are concatenation-built (census-safe —
+// the #931 LITERAL_REGISTRY stays byte-unchanged).
+{
+  const provenanceProblems = []
+  const ownTokens = [...new Set([planSlug, (plan && typeof plan.file === 'string') ? plan.file.replace(/^.*\//, '').replace(/\.md$/i, '') : null]
+    .filter(Boolean)
+    .flatMap(s => String(s).toLowerCase().split(/[^a-z0-9]+/))
+    .filter(w => w.length >= 3 && !/^\d+$/.test(w)))]
+  const ownPlanBase = (plan && typeof plan.file === 'string' && plan.file) ? plan.file.replace(/^.*\//, '').toLowerCase() : null
+  const provenanceSurfaces = [
+    ['intent', intent],
+    ['backstops', (Array.isArray(backstops) && backstops.length) ? JSON.stringify(backstops) : null],
+    ['adjudications', adjudications.length ? JSON.stringify(adjudications) : null],
+  ]
+  for (const [argName, argText] of provenanceSurfaces) {
+    if (typeof argText !== 'string' || !argText) continue
+    const planIds = argText.match(/docs\/plans\/[A-Za-z0-9._/-]+\.md/g) || []
+    const foreignIds = ownPlanBase ? planIds.filter(id => id.replace(/^.*\//, '').toLowerCase() !== ownPlanBase) : []
+    if (foreignIds.length) {
+      provenanceProblems.push('workflow-template: args.' + argName + ' names a foreign docs/plans identifier (' + foreignIds[0] + ') differing from plan.file — a cross-plan args leak; refused at entry (#1413)')
+    } else if (ownTokens.length && !ownTokens.some(t => argText.toLowerCase().includes(t))) {
+      provenanceProblems.push('workflow-template: args.' + argName + " contains none of the run's own plan-slug tokens [" + ownTokens.join(', ') + '] — a cross-plan args leak; refused at entry (#1413)')
+    }
+  }
+  if (provenanceProblems.length) throw new Error(provenanceProblems.join('; '))
+}
 
 // GATE COMPOSITION POINT (engine-owned, ADR 0036): normalize plan.gate ONCE here, immediately after entry
 // validation and before ANY gate-bearing dispatch site interpolates ${plan.gate}. resolveGate is
 // idempotent, so this composes harmlessly even when the Lead already pre-resolved via --resolve-gate (the belt;
 // this engine normalization is the suspenders — a missed pre-resolution can no longer ship a shell-blind gate).
-// GUARDED: `plan` is destructured with no default and is NEVER entry-validated, so an absent plan (a plan-less
-// zero-task phase) is a NO-OP here — distinct from a null/absent plan.gate, which composes to the discovery-only
-// clause. An unconditional plan.gate= would TypeError into held:workflow-error on that reachable state.
+// GUARDED: `plan` is entry-validated ONLY on a tasks-bearing launch (#1430's plan.file class), so an absent
+// plan on a plan-less ZERO-TASK phase is still a reachable state and a NO-OP here — distinct from a null/absent
+// plan.gate, which composes to the discovery-only clause. An unconditional plan.gate= would TypeError into
+// held:workflow-error on that reachable state.
 if (plan) plan.gate = resolveGate(plan.gate)
 
 for (const t of (tasks || [])) {
@@ -683,6 +740,37 @@ const isSplit    = seats => seats.some(s => s.verdict === 'approve') && seats.so
 // ponytail: applied at the worker-dispatch sites in T2 (not dead code — defined-but-not-yet-emitted-plan-slice-pattern)
 const blockedReason = r => !r ? 'worker returned no result'
   : (r.status === 'blocked' ? (r.blocked_reason || 'worker returned no result') : null)
+// Infra-death classification (#1411): a POST-SPAWN harness death (API/quota/transport — the seat
+// spawned, then the harness died out from under it) is an environment event, not a code defect. The
+// classification is scoped STRUCTURALLY, never by message text alone (relaunch fix): dispatchAgent
+// wraps the wave thunk's direct agent() dispatches in their OWN try/catch and TAGS a throw that
+// crossed the dispatch boundary; infraDeathCause classifies 'env-died' (a SOFT_ENV_REASONS member
+// beside env-blocked — the mirror at the land decision) ONLY for a TAGGED throw whose message
+// matches this pattern set, propagating the harness cause verbatim into `blocked`
+// ('worker died: <cause>'). An error thrown anywhere ELSE in the thunk — a pt prompt build,
+// normalizeReportedPaths, the auditRound collection — keeps its HARD class REGARDLESS of message
+// content: an engine-authored throw that EMBEDS worker-supplied text (a task title, a reported path
+// containing e.g. "quota"/"rate limit"/"overloaded") must never be laundered into SOFT env-died,
+// which would flip a hard escalation into lands-minus-task. Heuristic by construction WITHIN the
+// dispatch layer: an unmatched dispatch-layer death keeps today's generic 'escalate' (fail-safe — a
+// false negative lands in the LOUDER class, never a lost task). A null agent() return with no throw
+// stays 'worker returned no result' — no cause is visible there to propagate. (The prompt arguments
+// are evaluated BEFORE dispatchAgent is entered, so a pt undefined-interpolation throw stays
+// untagged by construction.)
+const INFRA_DEATH_RE = /session limit|rate limit|quota|overloaded|529|econnreset|econnrefused|etimedout|socket hang up|api connection|transport error/i
+const dispatchAgent = async (prompt, opts) => {
+  try { return await agent(prompt, opts) }
+  catch (err) {
+    const e = err instanceof Error ? err : new Error(String(err))
+    e.warDispatchDeath = true   // structural provenance: the throw originated at the agent() dispatch layer
+    throw e
+  }
+}
+const infraDeathCause = err => {
+  if (!err || err.warDispatchDeath !== true) return null   // structural scope: dispatch-layer throws only
+  const m = String(err.message || err || '')
+  return INFRA_DEATH_RE.test(m) ? m : null
+}
 // Reported-path normalize-or-throw (this spec: launch-entry-validation; provenance: the former path
 // contract at spec §9 / criterion 10). General workflow agents are unconfined by design — the confined
 // war-worker main-checkout write is already scope-hook-denied, so a main-rooted files_changed entry is a
@@ -908,7 +996,10 @@ const pinMismatch = (auditSha, pin) => {
 
 function auditPrompt(task, lens, depth, peers, workerTests, pin) {
   let p = pt`Audit WAR task ${task.id} through the "${lens}" lens at depth ${depth}.\n`
-    + pt`Sub-issue #${task.issue ?? '<unset>'}. Plan slice: ${task.planSlice}. Plan file: ${plan.file}.\n`
+    // ${(plan && plan.file) ?? '<unset>'} (#1430 defense-in-depth): the entry-validation plan.file
+    // class makes an undefined here unreachable on a tasks-bearing launch; the guard matches the
+    // gate-audit site's form so a bare ${plan.file} pt-throw can never recur at this site.
+    + pt`Sub-issue #${task.issue ?? '<unset>'}. Plan slice: ${task.planSlice}. Plan file: ${(plan && plan.file) ?? '<unset>'}.\n`
     + pt`Run \`git diff ${ph.integrationBranch}...${task.branch}\` (three-dot = merge-base..head = exactly what this task added) for the authoritative change set; re-run it each round (a fix-worker may have pushed). `
     // READ-ONLY GIT GUARD CONTRACT (D5, spec §5) — mirrored as the "## Read-only git guard contract"
     // section in agents/war-auditor.md (same commit); the D3 both-surfaces registry row anchors the
@@ -939,7 +1030,8 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin) {
     // and in the schemas.md AuditVerdict row (same commit); the D3 both-surfaces registry row anchors
     // the zero-hit tokens (required when / however severe) on BOTH auditor surfaces. The intake side
     // is the AUDIT_VERDICT if/then conditional above (enforcement arm recorded at that literal): the
-    // schema layer re-prompts a reason-less escalate — never a dropped seat, never a land hold (A8).
+    // schema layer re-prompts a reason-less escalate; a persistently non-conforming seat falls into
+    // the existing dropped-seat → audit-blocked lane — no NEW hold path (A8, #1410).
     + pt`\nESCALATE-BOUNDARY CONTRACT: a non-empty \`escalate_reason\` naming the missing plan decision is required when \`verdict\` is \`escalate\` (the schema layer re-prompts a reason-less escalate). A blocking finding whose \`suggested_fix\` is a concrete in-file edit needing no new plan decision is \`request_changes\` by construction, however severe — if you cannot name the missing plan decision in \`escalate_reason\`, you are looking at a fixable bug.`
     + pt`\nCALIBRATION RULE: judge on evidence only — never soften, downgrade, or drop a finding because peers disagreed or because a fix was attempted; downgrade only with a stated reason grounded in the current diff. The pull to soften peaks right after your own finding is challenged — that is the highest-risk moment.`
     // #811 BYTE-COUPLED SURFACE (JS comment — NOT emitted into the prompt): this quote-bearing COST-CLAIM
@@ -1238,11 +1330,13 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           + pt`Dep submodule task landed SHA: ${depSha}. Submodule path: ${submodPath}. `
           + pt`Run: git -C ${mainCheckout || '<superproject>'} add ${submodPath} — stage the submodule at the dep SHA, then commit the bump.`
       }
-      const impl = await agent(
+      const impl = await dispatchAgent(
         depClause(task)
         + pt`Implement WAR task ${task.id} in the ALREADY-PROVISIONED worktree at ${task.worktree} (branch ${task.branch}, cut from ${ph.integrationBranch}).\n`
         + pt`The refiner's Provision barrier already created this worktree and its .war-task marker — do NOT create it yourself and do NOT set any worktree env var. cd into ${task.worktree} and work only inside it; commit and push ${task.branch}.\n`
-        + pt`Sub-issue #${task.issue ?? '<unset>'} — ${task.title}\nPlan slice: ${task.planSlice}\nPlan file: ${plan.file}\nGate: ${plan.gate}${doneWhenClause(task)}${workerIntentClause}`
+        // ${(plan && plan.file) ?? '<unset>'} (#1430 defense-in-depth — the second of the two
+        // formerly-undefended sites; see the auditPrompt site's comment for the rationale).
+        + pt`Sub-issue #${task.issue ?? '<unset>'} — ${task.title}\nPlan slice: ${task.planSlice}\nPlan file: ${(plan && plan.file) ?? '<unset>'}\nGate: ${plan.gate}${doneWhenClause(task)}${workerIntentClause}`
         + WORKER_MEMORY_SELF_QUERY_LINE + workerMemClause(task.id) + provisionClause + workerExtraCtx
         + '\n' + COMMENT_LAG_RULE + '\n' + PLAN_DEFECT_RULE + '\n' + FILES_CHANGED_RULE + '\n' + ACCEPTANCE_IDS_RULE,
         { agentType: NS + 'war-worker', phase: 'Work', label: `work:${task.id}`, schema: WORKER_RESULT, ...spawnWorker(isDocsTask(task) ? 'docs' : null) })
@@ -1282,7 +1376,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         }
 
         const b = blockingOf(seats)                                // batched FIX_NEEDED → fresh fix-worker
-        const fix = await agent(
+        const fix = await dispatchAgent(
           pt`FIX_NEEDED for WAR task ${task.id}. Work in the ALREADY-PROVISIONED worktree at ${task.worktree} (branch ${task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
           // Prompt truth (D6): keep-the-gate-green prompts carry the gate command + the task's
           // Done when: clause (absent ⇒ '' — legacy byte-identity, End state 9).
@@ -1301,7 +1395,21 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       return { task, verdict, seats, expected, round, blocked }
     } catch (err) {
       // The caught engine error is the ONLY evidence trail — carried verbatim, uncurated, in blocked.
-      return { task, verdict: 'escalate', seats: [], expected: 0, blocked: `engine error during work/audit: ${err.message}` }
+      // (#1411, structurally scoped — relaunch fix) A post-spawn API/quota/transport death classifies
+      // 'env-died' (SOFT — the env-blocked sibling) ONLY when the throw is TAGGED as originating at
+      // the agent() dispatch layer (dispatchAgent); the harness cause propagates verbatim. Every
+      // OTHER engine error keeps today's HARD 'escalate' regardless of message content — an
+      // engine-authored throw embedding worker-supplied infra words is never laundered SOFT.
+      // (#1430 (iii), rescoped by /red-team 2026-08-16) A pt undefined-interpolation
+      // throw gets an APPENDED diagnostic hint only — classification byte-unchanged (criterion 3's
+      // in-thunk contract; a rethrow would be NULLed by `parallel` and silently drop the task, the
+      // #742 wave-loop invariant). Hint + cause strings are concatenation-built (census-safe).
+      const infraCause = infraDeathCause(err)
+      if (infraCause) return { task, verdict: 'env-died', seats: [], expected: 0, blocked: 'worker died: ' + infraCause }
+      const ptHint = String((err && err.message) || '').includes('undefined interpolation after')
+        ? ' — if this interpolation names a launch arg, entry validation should have refused it — check the args file'
+        : ''
+      return { task, verdict: 'escalate', seats: [], expected: 0, blocked: `engine error during work/audit: ${err.message}` + ptHint }
     }
   }))
 
@@ -1730,6 +1838,13 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // escalation: NOT in HARD_ESCALATION_REASONS, so the phase still lands whatever else passed.
         log(`Task ${r.task.id}: env-blocked — provision step "${r.envOutcome.failedCommand}" exited ${r.envOutcome.exitCode}. Worktree kept; worker not spawned.`)
         escalated.push({ task: r.task.id, reason: 'env-blocked', outcome: r.envOutcome })
+      } else if (r.verdict === 'env-died') {
+        // (#1411) Post-spawn infra death — SOFT (a SOFT_ENV_REASONS member, the env-blocked sibling):
+        // siblings proceed and the phase lands minus this task; the escalation record carries the
+        // harness cause for the Recovery-relaunch re-run. Never a hard escalation (ADR 0005's
+        // infra-stays-soft precedent). Log is concatenation-built (census-safe).
+        log('Task ' + r.task.id + ': env-died — ' + (r.blocked || 'post-spawn harness death') + '. Soft: siblings proceed; the phase lands minus this task; re-run it via the Recovery-relaunch runbook after the environment resets.')
+        escalated.push({ task: r.task.id, reason: 'env-died', blocked: r.blocked })
       } else {
         // Wave-collector escalation (worker-authored blocked text: the initial worker's why or a
         // blocked audit-round fix-worker's reason). defectClassOf tags defectClass:'plan' iff the
@@ -1770,12 +1885,30 @@ const endStateCheckRows = endStateRows
   .map((r, i) => ({ n: i + 1, check: r.check }))
   .filter(r => r.check)
 if (endStateCheckRows.length > 0) {
+  // provision-before-checks (#1395 fix 2): the run.provision steps provisioned the TASK worktrees,
+  // never _refinery — so a check needing that environment (installed deps, a built venv) reds
+  // ENVIRONMENTALLY at the land barrier and the seats then read a MET condition as red. The
+  // dispatched refiner applies the same pinned list in _refinery FIRST, fail-open: a red step is
+  // recorded into each artifact's preamble and every check still runs — no new hold path. The steps
+  // run in the SHARED _refinery worktree, so the clause carries a cleanliness contract (relaunch
+  // fix): tracked files a step mutates are restored before any check runs — the land dispatch merges
+  // and checks out in this same worktree, and the do-NOT-edit-tracked-files rule above must hold at
+  // the end of provisioning too. Empty
+  // provision list ⇒ '' (set-minus: the dispatched prompt is byte-identical to a provision-less run).
+  const endstateProvisionClause = provisionList.length
+    ? pt`provision-before-checks (#1395, fail-open): FIRST run the phase's provision steps IN ORDER inside ${refineryPath} (the same pinned list the task worktrees got; source: ${provisionSource}):\n`
+      // pt-tagged prompt-feeding row builder: ${c ?? '<step>'} absence-tolerant (the provisionClause precedent).
+      + provisionList.map((c, i) => pt`  ${i + 1}. ${c ?? '<step>'}`).join('\n') + pt`\n`
+      + pt`A provision step exiting non-zero NEVER blocks: record it as a \`provision_red: <step> (exit <code>)\` line in each artifact's preamble (after the tip_sha line) and STILL run every check below — a provision failure never fails this dispatch and never holds the land.\n`
+      + pt`Provision steps must leave the worktree CLEAN before any check runs: restore tracked files via \`git -C ${refineryPath} checkout -- .\` after any step that mutates them (untracked build output is fine) — the land dispatch merges and checks out in this SAME shared _refinery worktree, so the do-NOT-edit-tracked-files rule above holds at the end of provisioning too.\n`
+    : ''
   log(`endstate-check: dispatching the land-barrier check — ${endStateCheckRows.length} claimed check:-tagged End-state condition(s) execute ONCE at the integrated tip, before any gate-audit seat spawns (D2/F5).`)
   await agent(
     pt`ENDSTATE-CHECK DISPATCH for WAR phase ${ph.id} (the land-barrier check; you are the refiner). `
     + pt`cwd = ${refineryPath} (the _refinery worktree, on ${ph.integrationBranch} at the FINAL integration tip after the serial merge queue). `
     + pt`Execute EVERY claimed check:-tagged End-state condition's command below ONCE at this tip. Do NOT merge, push, rebase, or edit tracked files — the gate-audit seats verify from the artifacts you tee (they are read-only and never run commands, ADR 0002).\n`
     + pt`First ensure .war/ is git-excluded inside _refinery — append the line \`.war/\` (once) to the path printed by \`git -C ${refineryPath} rev-parse --git-path info/exclude\`.\n`
+    + endstateProvisionClause
     + pt`For EACH condition row below: write the command BYTE-VERBATIM to its .cmd file and execute it FROM THE FILE (file-threaded — never interpolate it into another script; A3/D11 hygiene), under a timeout, teeing its FULL stdout+stderr to its .log artifact. STAMP each artifact with the tip SHA it ran at: the FIRST line is \`tip_sha: <output of git -C ${refineryPath} rev-parse HEAD>\`, then the command's captured output, then a final \`exit_code: <code>\` line. The tip_sha stamp is LOAD-BEARING: the seats compare it against the confirmed tip and attest a stale (mismatched) artifact 'unverified'. A red, hung, or timed-out command still gets its artifact (whatever it produced, plus its exit/timeout note) — record it and MOVE ON to the next condition; a failing check NEVER fails this dispatch.\n`
     // pt-tagged prompt-feeding row builder (endstate-check dispatch, top-level-catch): r.n is a derived
     // map index (always defined), r.check is filter-guaranteed non-empty.
@@ -1795,13 +1928,13 @@ const endStateBlock = endStateClaims.length
   ? pt`\nEND-STATE CHECK (phase-scoped): this phase claims the Commander's-Intent End-state condition(s) below. Three cases, mirroring the provably-unrun/SOFT split: `
     + pt`(1) a condition provably UNMET by the landed content at the CONFIRMED integration tip is HARD — record a Critical/Major finding (gate-evidence lane, holds the land); `
     + pt`(2) a condition you cannot verify, or a tip you cannot confirm, is a SOFT note (Minor/Nit), never a hold; `
-    // GUARDED interpolation is MANDATORY here: `plan` is destructured with no default and is never
-    // entry-validated, and this const is built at TOP-LEVEL scope (outside the work thunk) whenever the
+    // GUARDED interpolation is MANDATORY here: `plan` is entry-validated only on a tasks-bearing
+    // launch (#1430), and this const is built at TOP-LEVEL scope (outside the work thunk) whenever the
     // phase claims conditions — a bare ${plan.file} would throw phase-wide (held:workflow-error) on a
-    // plan-less claims-bearing phase, and `pt` throws on an undefined value by contract.
+    // plan-less ZERO-TASK claims-bearing phase (still legal), and `pt` throws on an undefined value by contract.
     + pt`(3) a condition owned by a LATER phase — or by a deps-chained sibling task of THIS phase not yet landed at your audit's scope (map each numbered condition to the task slice that owns it before scoring — read the plan at ${(plan && plan.file) ?? '<unset>'} in the checked-out tree for the per-task Plan slice and deps edges) — is out-of-scope for THIS audit — record a Nit finding whose title contains "out-of-scope", NEVER a hold. `
     + pt`Set plan_ref on EVERY End-state finding to the condition text VERBATIM (the handoff block keys endState statuses on it).\n`
-    + pt`ATTESTATION (D8 — the positive channel, artifact-first): ALSO return endStateAttestations — one row per claimed condition below, { condition (the text VERBATIM), status: met | unmet | unverified, evidence } — status PLUS the evidence you actually read, never a bare verdict. A check:-tagged condition has an EXECUTED artifact at the path listed beside it (teed by the land-barrier endstate-check dispatch, its first line the tip SHA it ran at) — Read the artifact, COMPARE its stamped tip_sha against the confirmed tip, and attest from it; a missing/unreadable artifact — and equally a STALE-BUT-READABLE one, its stamped tip_sha mismatching the confirmed tip (prior-run .war/ residue a resume replay lands on) — is status 'unverified', never 'met'; readable is not sufficient. A gate:-tagged condition attests from the gate evidence as ACTUALLY CAPTURED — the per-task gate logs (${refineryPath}/.war/gate-<taskId>.log) plus the integrated-tip gate log (${refineryPath}/.war/gate-phase-${ph.id}.log) when one was produced — never from prose; with no captured gate evidence, attest 'unverified'. A judged (untagged) condition attests from named observables at the confirmed tip. Cross-check any worker-claimed End-state ids threaded on this prompt (A1) against your rows. Findings stay defect-only — attestation rides endStateAttestations, never a finding; a condition NO seat attests lands 'unverified' in the handoff, never 'met'.\n`
+    + pt`ATTESTATION (D8 — the positive channel, artifact-first): ALSO return endStateAttestations — one row per claimed condition below, { condition (the text VERBATIM), status: met | unmet | unverified, evidence } — status PLUS the evidence you actually read, never a bare verdict. A check:-tagged condition has an EXECUTED artifact at the path listed beside it (teed by the land-barrier endstate-check dispatch, its first line the tip SHA it ran at) — Read the artifact, COMPARE its stamped tip_sha against the confirmed tip, and attest from it; a missing/unreadable artifact — and equally a STALE-BUT-READABLE one, its stamped tip_sha mismatching the confirmed tip (prior-run .war/ residue a resume replay lands on) — is status 'unverified', never 'met'; readable is not sufficient. An artifact that is present, readable, and correctly tip-stamped but RED for ENVIRONMENTAL reasons — a setup/collection/import failure (ModuleNotFoundError, pytest setup ERROR, usage/collection exit codes) rather than the condition evaluating false — attests 'unverified', NEVER 'unmet': a met condition is never attested unmet for want of environment prep (#1395). A gate:-tagged condition attests from the gate evidence as ACTUALLY CAPTURED — the per-task gate logs (${refineryPath}/.war/gate-<taskId>.log) plus the integrated-tip gate log (${refineryPath}/.war/gate-phase-${ph.id}.log) when one was produced — never from prose; with no captured gate evidence, attest 'unverified'. A judged (untagged) condition attests from named observables at the confirmed tip. Cross-check any worker-claimed End-state ids threaded on this prompt (A1) against your rows. Findings stay defect-only — attestation rides endStateAttestations, never a finding; a condition NO seat attests lands 'unverified' in the handoff, never 'met'.\n`
     // pt-tagged prompt-feeding row builder (endStateBlock → gate-audit prompt, top-level-catch): every
     // interpolation is guarded — r.condition is filter-guaranteed non-empty, tag/check normalize to
     // null and render behind ternaries, ph.id rides the same pt contract as the seat prompts.
@@ -2091,10 +2224,27 @@ for (const t of tasks) {
 // HARD_ESCALATION_REASONS mirrors land-decision.mjs export — the Workflow sandbox can't import. Keep in sync.
 let landResult = null
 const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps', 'no-test', 'unpackaged', 'done-unmet']
+// SOFT_ENV_REASONS mirrors land-decision.mjs export — the Workflow sandbox can't import. Keep in sync.
+// The soft environment family (#1411): env-blocked (provision failure — worker never spawned) and
+// env-died (post-spawn API/quota/transport death). NEVER members of HARD_ESCALATION_REASONS
+// (ADR 0005's infra-stays-soft precedent): the phase lands minus those tasks — a retryable
+// interruption for the Recovery-relaunch runbook, never a hard escalation; a phase where nothing
+// merged still reads held:nothing-merged by construction.
+const SOFT_ENV_REASONS = ['env-blocked', 'env-died']
 const hardEscalation = escalated.some(e => HARD_ESCALATION_REASONS.includes(e && e.reason))
 let landDecision = (landed.length && !hardEscalation) ? 'landed'
   : hardEscalation ? 'held:escalation'
   : 'held:nothing-merged'
+// Retryable-interruption visibility (#1411): when every escalation is soft-environment, say so —
+// concatenation-built (census-safe), never a routing change (the landDecision above is already computed).
+{
+  const softEnvEscalated = escalated.filter(e => e && SOFT_ENV_REASONS.includes(e.reason))
+  if (softEnvEscalated.length > 0 && !hardEscalation) {
+    log('Phase ' + ph.id + ': ' + softEnvEscalated.length + ' soft environment escalation(s) [' + softEnvEscalated.map(e => e.reason + ':' + e.task).join(', ') + '] — a retryable interruption, never a hard escalation: '
+      + (landed.length ? 'the phase lands minus those tasks' : 'nothing merged — held:nothing-merged')
+      + '; re-run them via the Recovery-relaunch runbook after the environment resets.')
+  }
+}
 const refineryLandPath = `${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/_refinery`
 
 // ---- PHASE-CLOSE COHERENCE SWEEP (ADR 0012) — after the land decision is computed, before the ----

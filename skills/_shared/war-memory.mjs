@@ -757,10 +757,21 @@ function cmdQueriesBatch(argv) {
   const file = argv.queries;
   const records = walkCorpus(roots);
   const db = buildIndex(records);
-  const lines = fs.readFileSync(file, 'utf8').split('\n').filter((l) => l.trim());
+  const lines = fs.readFileSync(file, 'utf8').split('\n');
   const blocks = [];
-  for (const line of lines) {
-    const spec = JSON.parse(line);
+  for (let n = 0; n < lines.length; n++) {
+    const line = lines[n];
+    if (!line.trim()) continue; // blank lines skipped as before; n stays file-true for the die below
+    let spec;
+    try {
+      spec = JSON.parse(line);
+    } catch {
+      // #1408: a plain-text line-per-query file used to die on a bare SyntaxError traceback.
+      process.stderr.write(
+        `war-memory: --queries requires JSONL ({"label":…,"text":…} per line); line ${n + 1} is not JSON\n`
+      );
+      process.exit(1);
+    }
     const ranked = rankRecords(db, records, spec.text);
     const selected = selectForBudget(ranked, {
       topK: spec.topK ?? DEFAULT_TOP_K,

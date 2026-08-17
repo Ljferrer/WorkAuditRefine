@@ -10,7 +10,7 @@ import {
   fillDefaults, presetConfig, agentMatrix, workerTierMatrix, validate, spawnOpts,
   validateRoster, widenRoster, resolveWidenSource, resolveProvision, resolveGate,
 } from './war-config.mjs'
-import { HARD_ESCALATION_REASONS, decideLand } from './land-decision.mjs'
+import { HARD_ESCALATION_REASONS, SOFT_ENV_REASONS, decideLand } from './land-decision.mjs'
 
 // Helper: read workflow-template.js as text relative to this test file.
 const __dir = dirname(fileURLToPath(import.meta.url))
@@ -2137,6 +2137,16 @@ test('drift-guard(F07): inline HARD_ESCALATION_REASONS equals the canonical expo
     'inline HARD_ESCALATION_REASONS must equal the canonical export exactly (no divergence)')
 })
 
+test('drift-guard(F07): inline SOFT_ENV_REASONS equals the canonical export exactly (#1411 soft env pair)', () => {
+  // Task 2.1(c)(ii): the soft env/infra pair (env-blocked, env-died) is canonical in land-decision.mjs
+  // with a hand-mirrored inline copy beside the HARD mirror. Exact equality, order-insensitive.
+  const softMatch = templateText.match(/const\s+SOFT_ENV_REASONS\s*=\s*(\[[^\]]+\])/)
+  assert.ok(softMatch, 'SOFT_ENV_REASONS not found in workflow-template.js')
+  const inlineSoft = JSON.parse(softMatch[1].replace(/'/g, '"'))
+  assert.deepEqual([...inlineSoft].sort(), [...SOFT_ENV_REASONS].sort(),
+    'inline SOFT_ENV_REASONS must equal the canonical export exactly (no divergence)')
+})
+
 // ---------------------------------------------------------------------------
 // Classifying meta-guard (D3): every Keep-in-sync/Mirror-of marker is accounted for
 // ---------------------------------------------------------------------------
@@ -2144,6 +2154,7 @@ test('drift-guard(F07): inline HARD_ESCALATION_REASONS equals the canonical expo
 //   the combined spawnOpts/validateRoster/widenRoster marker → logic-mirror (1 marker, 3 drift-test families)
 //   the landDecision marker → logic-mirror covering landDecision (decideLand)
 //   the HARD_ESCALATION_REASONS marker → logic-mirror (same decideLand block)
+//   the SOFT_ENV_REASONS marker (#1411) → logic-mirror (its own inline-equality drift test)
 //   the run.provision data-mirror marker → data-mirror (field names) — allowlisted, no behavioral test
 // A marker not in either registry → test fails.
 
@@ -2170,6 +2181,10 @@ test('meta-guard(F07): all Keep-in-sync/Mirror-of markers in workflow-template.j
     // Marker: "HARD_ESCALATION_REASONS mirrors land-decision.mjs export … Keep in sync"
     // → covered by the same decideLand drift tests
     ['HARD_ESCALATION_REASONS mirrors', ['drift-guard(F07): inline HARD_ESCALATION_REASONS + decideLand', 'drift-guard(F07): inline decideLand']],
+    // Marker (#1411): "SOFT_ENV_REASONS mirrors land-decision.mjs export … Keep in sync"
+    // → covered by its own inline-equality drift test (the D2 registry row in
+    // workflow-template.test.mjs deepEquals the pair independently).
+    ['SOFT_ENV_REASONS mirrors', ['drift-guard(F07): inline SOFT_ENV_REASONS']],
   ])
 
   // DATA mirrors → allowlisted (field names, no canonical function to behavioral-test).
@@ -2255,13 +2270,13 @@ test('meta-guard(F07): all Keep-in-sync/Mirror-of markers in workflow-template.j
     "DATA_MIRROR_ALLOWLIST must contain the anchored entry 'This is a MIRROR of'")
 })
 
-test('meta-guard(F07): sanity — exactly 4 Keep-in-sync/Mirror-of markers exist (run.provision data mirror; spawnOpts/validateRoster/widenRoster; landDecision; HARD_ESCALATION_REASONS)', () => {
+test('meta-guard(F07): sanity — exactly 5 Keep-in-sync/Mirror-of markers exist (run.provision data mirror; spawnOpts/validateRoster/widenRoster; landDecision; HARD_ESCALATION_REASONS; SOFT_ENV_REASONS)', () => {
   // This test guards against silent marker addition (a new mirror that skips the registry).
   // Anchored by construct, not line number. If you add a new mirror, update BOTH the
   // registry/allowlist above AND bump this count.
   const count = templateText.split('\n').filter(line => /Keep in sync|Mirror of|MIRROR of/i.test(line)).length
-  assert.equal(count, 4,
-    `Expected exactly 4 Keep-in-sync/Mirror-of marker lines in workflow-template.js, found ${count}.\n` +
+  assert.equal(count, 5,
+    `Expected exactly 5 Keep-in-sync/Mirror-of marker lines in workflow-template.js, found ${count}.\n` +
     `If you added a new mirror, register it in the LOGIC_MIRROR_REGISTRY or DATA_MIRROR_ALLOWLIST and bump this count.`
   )
 })

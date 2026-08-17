@@ -21,6 +21,20 @@
 // permanently, so "completing" the sentinel feature into an enum here fails loud.
 export const HARD_ESCALATION_REASONS = ['escalate', 'audit-blocked', 'conflict', 'land_stale', 'dep-failed', 'gate-evidence', 'unrunnable-deps', 'no-test', 'unpackaged', 'done-unmet']
 
+// SOFT_ENV_REASONS (#1411): the soft env/infra family of per-task escalation reasons —
+// 'env-blocked' (a run.provision step failed: the worker was never spawned) and 'env-died' (a
+// post-spawn API/quota/transport death: the seat spawned, then the harness died under it — the
+// observed classes: session/rate limits, quota exhaustion, 529/overloaded, connection resets).
+// (Worded "env", never the full word: the #598 isolation guard pins this file free of the
+// gate-failure-classification vocabulary.) MIRRORED inline in ./workflow-template.js (the Workflow
+// sandbox can't import) — keep in sync; the D2 mirror-registry row in workflow-template.test.mjs is
+// the drift guard. Task-level `reason` values only: NEVER members of HARD_ESCALATION_REASONS
+// (ADR 0005's infra-stays-soft precedent — held:workflow-error never entered it either) and NEVER
+// landDecision values. Soft means the phase LANDS minus the dead/blocked task (decideLand:
+// landed.length && !hard ⇒ 'landed'), the task recorded in the return for the Recovery-relaunch
+// re-run; a phase where nothing merged still reads 'held:nothing-merged'.
+export const SOFT_ENV_REASONS = ['env-blocked', 'env-died']
+
 // The canonical landDecision known-set — the SINGLE source of truth for every phase-land outcome.
 // SUPERSET of two smaller sets it must contain: decideLand's 3 in-flow outputs
 // ('landed' | 'held:escalation' | 'held:nothing-merged') and the Workflow's 6 emitted values (the
