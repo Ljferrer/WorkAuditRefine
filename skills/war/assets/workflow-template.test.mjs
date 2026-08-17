@@ -4791,35 +4791,99 @@ test('design.md (Task 3.2): the handoff bullet names the land-barrier dispatch, 
 
 // --- Handoff block (criterion 6) ---
 
+// Shared criterion-6 fixture impl: one landed task with a follow-up-routed Minor + a note Nit.
+// filingResult drives the file-followups mock (keyed on the STABLE dispatchKind discriminator,
+// never the label prefix — spec criterion 8): a { filed } shape stamps; null simulates a DEAD
+// filing dispatch; the phase-'Land' fallback below answers it with a non-conforming MergeResult
+// when no filingResult branch is given (the D18 fail-open path generic fixtures ride).
+const handoffMinorF = { severity: 'Minor', title: 'needs new tests', rationale: 'thin wiring', file: 'x.js' }
+const handoffImpl = (filingResult) => (prompt, opts) => {
+  const seat = seatOf(opts)
+  if (seat === 'war-refiner' && opts.dispatchKind === 'file-followups') return filingResult
+  if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
+  if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'deadbeef' }
+  if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve',
+    findings: (opts.label || '').startsWith('gate-audit:') ? [] : [handoffMinorF, { severity: 'Nit', title: 'honest comment', rationale: 'covers invariant', file: 'y.js' }], confidence: 'high' }
+  if (seat === 'war-refiner') return opts.phase === 'Land'
+    ? { mode: 'land-phase', status: 'landed', working_sha: 'abc1234def' }
+    : { mode: 'merge-task', status: 'merged', integration_sha: 'beefcafe12' }
+  if (seat === 'war-servitor') return { phase: 3, target: 't', learnings: [] }
+  return {}
+}
+const HANDOFF_ARGS = () => PROVISION_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'T', planSlice: 's', roster: [{ lens: 'correctness' }] }] })
+
+// FLIPPED null-pin (End state 1, #1331): the Workflow now files follow-ups itself and stamps the
+// returned issue numbers — the old "issue is null until the Lead files it" framing is retired.
+// Delete-the-feature trace (recorded per the plan's check): with the stamping loop removed from
+// workflow-template.js's FILE-FOLLOWUPS DISPATCH block (the `minorsFiled[row.n - 1].issue = row.issue`
+// assignment), the filing mock's { filed: [{ n: 1, issue: 1234 }] } return is never applied, the
+// handoff mapping's `issue: m.issue ?? null` renders null, and the deepEqual below fails with
+// `issue: null !== 1234` — the flipped assertion cannot pass without the stamping.
 test('handoff block (criterion 6): a landed phase emits { tipSha, polish, absorbed, followUps, notes, endState, intentPresent }', async () => {
-  const minorF = { severity: 'Minor', title: 'needs new tests', rationale: 'thin wiring', file: 'x.js' }
-  const nitF = { severity: 'Nit', title: 'honest comment', rationale: 'covers invariant', file: 'y.js' }
-  const impl = (prompt, opts) => {
-    const seat = seatOf(opts)
-    if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
-    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'deadbeef' }
-    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve',
-      findings: (opts.label || '').startsWith('gate-audit:') ? [] : [minorF, nitF], confidence: 'high' }
-    if (seat === 'war-refiner') return opts.phase === 'Land'
-      ? { mode: 'land-phase', status: 'landed', working_sha: 'abc1234def' }
-      : { mode: 'merge-task', status: 'merged', integration_sha: 'beefcafe12' }
-    if (seat === 'war-servitor') return { phase: 3, target: 't', learnings: [] }
-    return {}
-  }
-  const args = PROVISION_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'T', planSlice: 's', roster: [{ lens: 'correctness' }] }] })
-  const { out } = await runPhase(args, impl)
+  const { out } = await runPhase(HANDOFF_ARGS(), handoffImpl({ filed: [{ n: 1, issue: 1234 }] }))
   assert.equal(out.landDecision, 'landed')
   const h = out.handoff
   assert.ok(h, 'handoff present on landed')
   assert.equal(h.tipSha, 'abc1234def', 'tipSha is the landed working sha')
   assert.equal(h.polish, 'skipped', 'no queue → polish skipped')
   assert.deepEqual(h.absorbed, [], 'nothing absorbed')
-  assert.deepEqual(h.followUps, [{ issue: null, reason: 'needs new tests — thin wiring' }],
-    'followUps carry { issue, reason } — issue is null until the Lead files it')
+  assert.deepEqual(h.followUps, [{ issue: 1234, reason: 'needs new tests — thin wiring' }],
+    'followUps carry { issue, reason } — the file-followups dispatch stamped the filed issue number (D2)')
   assert.deepEqual(h.notes, [{ task: 't1', title: 'honest comment' }], 'notes carry { task, title }')
   assert.deepEqual(h.endState, [], 'no claims → empty endState')
   assert.equal(h.intentPresent, false, 'intentPresent false without args.intent')
   assert.ok(Array.isArray(out.notes) && out.notes.length === 1, 'the notes array also rides the return top-level')
+})
+
+test('file-followups fail-open (End state 2): a DEAD filing dispatch leaves every followUps issue null, landDecision unchanged, ONE log line — never a hold', async () => {
+  const { out, logs } = await runPhase(HANDOFF_ARGS(), handoffImpl(null))
+  assert.equal(out.landDecision, 'landed', 'landDecision untouched by the dead filing dispatch')
+  assert.deepEqual(out.handoff.followUps, [{ issue: null, reason: 'needs new tests — thin wiring' }],
+    'every unmatched followUps entry stays issue: null (fail-open — the Checkpoint floor is the catch)')
+  assert.equal(logs.filter(l => typeof l === 'string' && l.startsWith('file-followups:')).length, 1,
+    'exactly ONE fail-open log line for the dead/non-conforming filing dispatch')
+})
+
+test('file-followups no-dispatch (End state 3): an empty minorsFiled dispatches no filing step', async () => {
+  const { calls, out } = await runPhase(PROVISION_ARGS(), defaultImpl)   // zero findings → minorsFiled empty
+  assert.equal(out.landDecision, 'landed', 'presence guard: the phase landed')
+  assert.ok(!calls.some(c => c.opts.dispatchKind === 'file-followups' || /^file-followups:/.test(c.opts.label || '')),
+    'no file-followups-labelled call when minorsFiled is empty')
+})
+
+test('file-followups on held:escalation (End state 3 companion): the dispatch fires on the degraded handoff path and stamps there too', async () => {
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.dispatchKind === 'file-followups') return { filed: [{ n: 1, issue: 4321 }] }
+    if (seat === 'war-auditor' && (opts.label || '').startsWith('audit:t2'))
+      return { seat: opts.label, lens: 'correctness', verdict: 'escalate', escalate_reason: 'plan ambiguity', findings: [], confidence: 'high' }
+    return handoffImpl(undefined)(prompt, opts)
+  }
+  const args = PROVISION_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 'T1', planSlice: 's', roster: [{ lens: 'correctness' }] },
+    { id: 't2', issue: 102, title: 'T2', planSlice: 's', roster: [{ lens: 'correctness' }] },
+  ] })
+  const { out, calls } = await runPhase(args, impl)
+  assert.equal(out.landDecision, 'held:escalation', 'presence guard: the degraded handoff-emitting path')
+  assert.ok(calls.some(c => c.opts.dispatchKind === 'file-followups'), 'the filing dispatch fires on held:escalation too')
+  assert.equal(out.handoff.followUps[0].issue, 4321, 'the stamped issue number rides the degraded handoff as well')
+})
+
+test('file-followups ordinal mismatch: out-of-range / non-integer n and non-numeric issue rows are ignored; in-range rows still stamp', async () => {
+  const secondF = { severity: 'Minor', title: 'stale count', rationale: 'lagging comment', file: 'z.js' }
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.dispatchKind === 'file-followups')
+      return { filed: [{ n: 99, issue: 777 }, { n: 0, issue: 666 }, { n: 1.5, issue: 555 }, { n: 1, issue: 'not-a-number' }, { n: 2, issue: 888 }] }
+    if (seat === 'war-auditor' && !(opts.label || '').startsWith('gate-audit:'))
+      return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [handoffMinorF, secondF], confidence: 'high' }
+    return handoffImpl(undefined)(prompt, opts)
+  }
+  const { out } = await runPhase(HANDOFF_ARGS(), impl)
+  assert.equal(out.landDecision, 'landed', 'presence guard')
+  assert.equal(out.handoff.followUps.length, 2, 'both follow-up findings ride the handoff')
+  assert.equal(out.handoff.followUps[0].issue, null, 'the entry matched only by ignored rows (out-of-range/non-integer n, non-numeric issue) stays null')
+  assert.equal(out.handoff.followUps[1].issue, 888, 'the in-range row still stamps — partial conformance is honored row-by-row')
 })
 
 test('handoff OMITTED on held:workflow-error (infra death — no trustworthy return to render)', async () => {

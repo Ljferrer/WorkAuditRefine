@@ -52,6 +52,8 @@ export const meta = {
 //                                     // blocks (spec §4.5), threaded like intent; concatenated at the worker/
 //                                     // auditor/fix-worker/add-test/servitor sites. Empty/absent ⇒ byte-identical.
 //     agentPrefix,                    // optional namespace prefix for agent types (default: 'work-audit-refine:')
+//     ghUser,                         // optional expected gh account for the file-followups preflight (from
+//                                     // overrides.ghUser; string, default '' — gh-preflight.sh's documented no-op)
 //     agents: { worker|auditor|refiner|servitor: { model, effort } },  // from .claude/war/config.json (resolved by the Lead); defaults below.
 //                                     // worker may also carry { docs?, fix? } { model, effort } sub-tiers: docs = the all-*.md first-pass tier (sonnet default), fix = the fix-round + --ace tier (absent ⇒ inherit worker).
 //     audit:  { roster, rosterPolicy, autoEscalate },                  // rosterPolicy 'auto' = Lead composes each task.roster from the catalog (Lead-side); audit.roster is the widening FALLBACK roster (auditor-nominated-or-default, D4); autoEscalate used here
@@ -185,6 +187,16 @@ const ENDSTATE_CHECK_RESULT = { type: 'object', properties: {
   artifacts: { type: 'array', items: { type: 'object', properties: {
     n: { type: 'number' }, path: { type: 'string' }, tip_sha: { type: 'string' }, exit_code: { type: 'number' } } } } } }
 
+// FOLLOWUP_FILING_RESULT (D1/D2, #1331): the file-followups dispatch's return — ADVISORY only. The
+// Workflow stamps minorsFiled[n-1].issue from each returned row carrying an in-range 1-based n AND a
+// numeric issue; out-of-range/non-numeric/absent rows are ignored. ALL fields optional (fail-open,
+// the ENDSTATE_CHECK_RESULT framing): a dead/absent dispatch, a failed preflight, or a non-conforming
+// return leaves every handoff.followUps[] issue null — one log() line, landDecision untouched, never
+// a hold; the Checkpoint floor (skills/war/SKILL.md § Checkpoint) is the catch (D2).
+const FOLLOWUP_FILING_RESULT = { type: 'object', properties: {
+  filed: { type: 'array', items: { type: 'object', properties: {
+    n: { type: 'number' }, issue: {} } } } } }
+
 // memory_index_updated retired (spec §4.6, D4 deleted): the servitor no longer maintains the index —
 // the Lead runs `render-index` post-servitor (Gate 2). The servitor only writes/updates lesson files.
 const SERVITOR_RESULT = { type: 'object', required: ['phase', 'target', 'learnings'], properties: {
@@ -302,6 +314,10 @@ const { phase: ph, plan, tasks, learningsTarget, agents = {}, audit = {}, run = 
 // before ph is assigned — never a secondary TypeError dereferencing an unassigned ph.
 phaseId = ph?.id ?? null
 const NS = A.agentPrefix ?? 'work-audit-refine:'
+// ghUser (#1331, ADR 0026): the expected gh account the file-followups dispatch preflights against —
+// threaded by the Lead from overrides.ghUser. Default '' is gh-preflight.sh's documented no-op
+// (exit 0, gh never invoked), so an unconfigured run pays nothing and no handle rides committed prose.
+const ghUser = (typeof A.ghUser === 'string') ? A.ghUser : ''
 const roundLimit = run.roundLimit ?? 3
 // Commander's Intent (ADR 0013): extracted VERBATIM by the Lead from the plan's `## Commander's
 // Intent` or `## AI-Commander's Intent` section (either heading) and threaded as args.intent
@@ -2424,6 +2440,53 @@ if (landResult && landResult.status === 'landed' && memoryLocalRoot) {
     { agentType: NS + 'war-servitor', phase: 'Wrap-up', label: `wrap-up:phase-${ph.id}`, schema: SERVITOR_RESULT, ...spawn('servitor') })
 } else if (landResult && landResult.status === 'landed' && !memoryLocalRoot) {
   log(`Phase ${ph.id} landed but no memoryLocalRoot was threaded (memory disabled / legacy args) — Wrap-up skipped; no servitor dispatched.`)
+}
+
+// ---- FILE-FOLLOWUPS DISPATCH (D1/D2/D3, #1331) — the Workflow files its own follow-up-routed
+// findings. Fires on BOTH handoff-emitting paths (landed AND held:escalation), only when minorsFiled
+// is non-empty; placed AFTER the land decision resolves and BEFORE the handoff assembly so the
+// stamped issue numbers reach the assembly's `issue: m.issue ?? null` mapping (the assembly itself
+// is byte-unchanged). Refiner-executed — the Bash-capable seat that already performs gh writes; the
+// options mirror the endstate-check dispatch idiom (D18). FAIL-OPEN (D2): a dead/thrown dispatch, a
+// failed preflight, or a non-conforming return leaves unmatched entries issue: null with ONE log()
+// line — landDecision untouched, never a hold; the Checkpoint floor (skills/war/SKILL.md
+// § Checkpoint) is the catch. Dedup-first (D3) makes a resume/relaunch re-dispatch safe: an
+// exact-title match reuses the existing issue number, never a duplicate.
+if ((landDecision === 'landed' || landDecision === 'held:escalation') && minorsFiled.length > 0) {
+  // Agent-resolved '${CLAUDE_PLUGIN_ROOT}' literal idiom (the provision barrier's SCRIPT const
+  // precedent): single-quoted here, resolved by the dispatched refiner's shell — never by this sandbox.
+  const PREFLIGHT = '${CLAUDE_PLUGIN_ROOT}/skills/_shared/gh-preflight.sh'
+  let filingOut = null
+  try {
+    filingOut = await agent(
+      pt`FILE-FOLLOWUPS DISPATCH for WAR phase ${ph.id} (you are the refiner; this is a gh-write batch — no merge, no push, never touch git state). `
+      + pt`The follow-up-disposition audit findings below survived this phase unabsorbed; file each as a GitHub issue so nothing drops silently (ADR 0013).\n`
+      + pt`FIRST the account preflight (ADR 0026): run '${PREFLIGHT}' "${ghUser}" — an empty-string arg is its documented no-op (exit 0). On exit 2 (tooling error) or exit 3 (account mismatch): return what you have and file NOTHING.\n`
+      + pt`THEN dedup (D3): run \`gh issue list --label war-followup --state open\` once; a row below whose title EXACTLY matches an open issue's title is already filed — reuse that existing issue number instead of filing a duplicate.\n`
+      + pt`THEN file one \`war-followup\`-labelled issue per row below, in order — title from the row's title; body carrying the why-not-absorbable reason and the task id${ph.epicIssue ? pt`, and a reference to the phase epic #${ph.epicIssue}` : ''}.\n`
+      // pt-tagged prompt-feeding row builder (file-followups dispatch): title/rationale are
+      // schema-optional and task is routing-stamped → ?? defaults (never a phase-killing throw here).
+      + minorsFiled.map((m, i) => pt`  ${i + 1}. [task ${m.task ?? '<task>'}] ${m.title ?? '(untitled finding)'} — why not absorbable: ${m.rationale ?? '(no rationale recorded)'}`).join('\n') + '\n'
+      + pt`Return ONLY { filed: [{ n, issue }] } — n the row's 1-based ordinal above, issue the filed-or-reused issue number (null when unfiled). A partial/empty result is FAIL-OPEN: unmatched entries stay issue: null in the handoff and the Checkpoint floor catches them; never block.`,
+      { agentType: NS + 'war-refiner', phase: 'Land', label: 'file-followups:phase-' + ph.id, dispatchKind: 'file-followups', schema: FOLLOWUP_FILING_RESULT, ...spawn('refiner') })
+  } catch (err) {
+    // Fail-open (D2): a THROWN filing dispatch must never convert a resolved land decision into
+    // held:workflow-error — fall to the same dead-dispatch path as a null return (one log() below).
+    filingOut = null
+  }
+  // Stamping (D2): each returned row with an in-range integer n AND a numeric issue stamps
+  // minorsFiled[n-1].issue; out-of-range/non-numeric/absent rows are ignored. The handoff assembly's
+  // `issue: m.issue ?? null` (byte-unchanged below) then renders the stamped values.
+  const filedRows = (filingOut && Array.isArray(filingOut.filed)) ? filingOut.filed : null
+  if (filedRows) {
+    for (const row of filedRows) {
+      if (!row || typeof row !== 'object' || !Number.isInteger(row.n)) continue
+      if (row.n < 1 || row.n > minorsFiled.length || typeof row.issue !== 'number') continue
+      minorsFiled[row.n - 1].issue = row.issue
+    }
+  } else {
+    log('file-followups: dead dispatch or non-conforming return — every unmatched handoff.followUps entry stays issue: null (fail-open, D2; the Checkpoint floor is the catch); landDecision untouched.')
+  }
 }
 
 // ---- HANDOFF BLOCK (ADR 0013) — the machine-readable debt map the next phase's decompose reads.
