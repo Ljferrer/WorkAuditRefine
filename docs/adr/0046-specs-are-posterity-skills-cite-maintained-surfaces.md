@@ -40,8 +40,9 @@ surfaces or by `README.md`. Live surfaces cite only maintained-truthful homes: A
   scanned corpus cites a concrete `docs/specs/` path, with the carve-outs above; the
   spec-posterity rule sweeps the directory-scanned posterity corpus (every
   `skills/*/SKILL.md`, every `skills/*/references/*.md`, every `agents/*.md`, plus
-  `README.md`), while the verb rule keeps its enumerated corpus
-  (`EVICTION_DESTINATIONS`) bound by the default-deny placement census over
+  `README.md`), while the verb rule keeps its readdir-derived `skills/*/SKILL.md` scan
+  plus its enumerated `EVICTION_DESTINATIONS` list, whose `skills/*/references/*.md`
+  membership is bound by the default-deny placement census against
   `VERB_SCAN_EXCLUSIONS` — both constructs maintained in the suite itself
   *(corpus description amended 2026-08-16; the two rules' corpora are decoupled)*.
 - **Code comments and ADRs are out of scope.** A code comment citing the spec it
