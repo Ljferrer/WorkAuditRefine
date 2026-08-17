@@ -4589,7 +4589,7 @@ test('endStateAttestations requirement lands in the shared endStateBlock (End st
     assert.match(p, /lands 'unverified' in the handoff, never 'met'/, `${name}: states the no-attestation ⇒ unverified mapping`)
   }
   const sites = (src.match(/\+ endStateBlock \+ intentClause \+ adjudicationClause/g) || []).length
-  assert.equal(sites, 3, 'the shared endStateBlock const rides exactly the three gate-audit-family seats (per-task, integrated-tip, end-state-only) — the attestation requirement reaches all three from ONE const')
+  assert.equal(sites, 3, 'the shared endStateBlock const rides exactly the three gate-audit-family seats (per-task (post-merge), integrated-tip, end-state-only) — the attestation requirement reaches all three from ONE const')
 })
 
 test('mappedTests grep (End state 7, D7): a merge returning mappedTests threads the paths + the mechanical grep-the-captured-log instruction into the per-task seat; absent ⇒ no block (fail-open)', async () => {
@@ -8033,7 +8033,7 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
       anchors: [/environment-proceed/i, /exactly one re-run/i, /fully green/i, /never a proceed-over/i] },
     // audit-evidence-precedence Task 1.2 (ADR 0041): full four claim-shape ladders on the standing card,
     // identical token skeleton on ALL FOUR dispatched surfaces — auditPrompt() plus the three
-    // gate-audit-family seats (post-merge / integrated-tip / end-state), which sit outside auditPrompt()
+    // gate-audit-family seats (per-task (post-merge) / integrated-tip / end-state), which sit outside auditPrompt()
     // and inherit nothing from it. Anchor precondition (measured at the pre-change base): `content-at-pin`,
     // `never the top rung`, and `never evidence` were each verified ABSENT (0 occurrences) on BOTH
     // agents/war-auditor.md and workflow-template.js, so each alone discriminates a one-sided revert.

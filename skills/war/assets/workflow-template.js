@@ -91,12 +91,13 @@ const AUDIT_VERDICT = { type: 'object', required: ['seat', 'lens', 'verdict', 'f
   // on the lone-seat trigger (resolveWidenSource validates whole-field), ignored elsewhere. Not required.
   widen: { type: 'array', items: { type: 'string' } },
   // endStateAttestations (D8, precision-chain Task 3.2): the POSITIVE End-state channel — returned by
-  // the three gate-audit-family seats ONLY (per-task, integrated-tip, end-state-only; the shared
-  // endStateBlock carries the requirement), one row per claimed condition: condition VERBATIM (the
+  // the three gate-audit-family seats ONLY (per-task (post-merge), integrated-tip, end-state-only;
+  // the shared endStateBlock carries the requirement), one row per claimed condition: condition VERBATIM (the
   // plan_ref key), status met|unmet|unverified, evidence citing what the seat actually READ (the teed
   // per-condition artifact for a check:-tagged condition, the captured gate log for a gate:-tagged one,
   // the named observable for a judged one) — never a bare verdict. Ordinary roster seats never carry
-  // it. Findings stay DEFECT-ONLY (the two-contract rule): attestation rides this channel, never a finding.
+  // it. Findings stay DEFECT-ONLY (findings carry defects; attestation rides endStateAttestations — two
+  // separate contracts): a status claim never rides a finding.
   endStateAttestations: { type: 'array', items: { type: 'object', properties: {
     condition: { type: 'string' }, status: { enum: ['met', 'unmet', 'unverified'] }, evidence: { type: 'string' } } } } },
   // ESCALATE-BOUNDARY intake contract (gate-audit-finding-routing Task 2.1, #1410 fix 1): a non-empty
@@ -374,7 +375,7 @@ const intentClause = intent
 // no-adjudication run (back-compat, spec constraint 4). The clause carries TWO rules — version
 // precedence (task instruction > red-team adjudication > plan body literal) and adjudication-match
 // (a matching finding is a confirmation note, never an escalation) — and is emitted at the roster-seat
-// auditPrompt AND at the three gate-audit-family seats (post-merge, integrated-tip, end-state-only).
+// auditPrompt AND at the three gate-audit-family seats (per-task (post-merge), integrated-tip, end-state-only).
 // Both sentence bodies are mirrored VERBATIM in agents/war-auditor.md (the both-surfaces drift test
 // asserts both surfaces).
 const adjudications = Array.isArray(A.adjudications)
@@ -808,7 +809,7 @@ const doneWhenFloorClause = (task, refineryPath) => (task && typeof task.doneWhe
 // section (standing surface; the both-surfaces registry test anchors the shared tokens — keep the
 // surfaces in sync in the same commit). Consumer: the post-merge gate-audit pass cross-checks the
 // reported ids (Task 3.2 — defined here, consumed there).
-const ACCEPTANCE_IDS_RULE = "Report acceptance_criteria_covered as the task's claimed End-state ids — the numbered End-state conditions from the plan's Commander's Intent that this task claims to satisfy (empty when the task claims none); the post-merge gate-audit pass cross-checks the field."
+const ACCEPTANCE_IDS_RULE = "Report acceptance_criteria_covered as the task's claimed End-state ids — the numbered End-state conditions from the plan's Commander's Intent that this task claims to satisfy (empty when the task claims none). Each id is the condition's 1-based ordinal in the intent's numbered End-state list, rendered as a string (\"7\"), resolving to that condition's verbatim text (the plan_ref / endStateAttestations.condition key); the post-merge gate-audit pass cross-checks the field."
 
 // ---- Gate-failure classification (spec §6 / ADR 0019) ----------------------
 // classOf reads the refiner-reported gate_failure_class off a gate_failed MergeResult; an ABSENT or
@@ -1764,7 +1765,7 @@ if (endStateCheckRows.length > 0) {
 // claimed condition (D8, Task 3.2): findings stay DEFECT-ONLY (the three cases below), and the seat
 // ALSO returns one POSITIVE endStateAttestations row per condition — artifact-first (the teed
 // per-condition artifacts for check:-tagged rows, the captured gate logs for gate:-tagged rows, named
-// observables for judged rows). Shared const: all three gate-audit-family seats (per-task,
+// observables for judged rows). Shared const: all three gate-audit-family seats (per-task (post-merge),
 // integrated-tip, end-state-only) concatenate it, so all three return rows. Empty when the phase
 // claims no conditions — the gate-audit prompt stays byte-identical to today (criterion 10).
 const endStateBlock = endStateClaims.length
