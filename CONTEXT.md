@@ -1146,13 +1146,14 @@ drift-proof.
 **Posterity corpus**:
 The directory-scanned live-surface set the ADR 0046 citation rule sweeps — every `skills/*/SKILL.md`,
 every `skills/*/references/*.md`, every `agents/*.md`, plus `README.md` — derived from the tree,
-never from an editable in-file list.
+never from an editable in-file list; maintained by `posterityCorpus()` in
+`skills/_shared/doc-cli-consistency.test.mjs`.
 _Avoid_: conflating it with the verb-rule corpus (enumerated, deliberately narrower).
 
 **Verb-scan placement census**:
 The default-deny partition assert making every `skills/*/references/*.md` file either verb-scanned
 (`EVICTION_DESTINATIONS`) or reason-excluded (`VERB_SCAN_EXCLUSIONS`); a new references file is red
-until consciously placed.
+until consciously placed; both lists live in `skills/_shared/doc-cli-consistency.test.mjs`.
 _Avoid_: "exclusion" as suppression — an excluded entry carries a stated reason and is still
 posterity-scanned.
 
