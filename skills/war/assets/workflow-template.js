@@ -1878,7 +1878,11 @@ const refineryPath = `${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/
 // <refineryPath>/.war/endstate-<phaseId>-<n>.log (n = the condition's 1-based claim number), each
 // stamped with the tip SHA it ran at. FAIL-OPEN: a failed/absent dispatch and a missing, unreadable,
 // or STALE artifact (stamped tip_sha mismatching the confirmed tip — prior-run .war/ residue a resume
-// replay lands on) all mean the seats attest 'unverified' — never 'met', never a block. Skipped (no
+// replay lands on) all mean the seats attest 'unverified' — never 'met', never a block; so does an
+// artifact that is present, readable, and correctly tip-stamped but whose red is ENVIRONMENTAL
+// (#1395 — a setup/collection/import failure: ModuleNotFoundError, pytest setup ERROR,
+// usage/collection exit codes — rather than an evaluated-false condition): 'unverified', NEVER
+// 'unmet'. Skipped (no
 // dispatch) when no claimed row carries a
 // check command — a claims-less or judgment-only phase dispatches nothing (byte-compat, End state 9).
 const endStateCheckRows = endStateRows
