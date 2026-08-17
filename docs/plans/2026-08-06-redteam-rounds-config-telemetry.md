@@ -218,7 +218,7 @@ discoverability gap in the sole sanctioned config interview. Every claim re-veri
 | D8 | Shape comment + test banner + third comment wording | Shape comment and section banner: "recorded by the step-3 proceed arm" → "recorded by every arm of /war-campaign's step-3 triage" (the auditor's verbatim suggestion, matching step 5). The survey-derived third site (the structure test's presence-pin comment) rewords to name the every-arm contract without the retired phrase (sanctioned replacement, e.g. "round-count flag: stamped by every arm of the step-3 triage") | spec §3 + Context 3 |
 | D9 | Wrap-up hardening-row parenthetical | "(`n/a` when null" → "(`n/a` when null or absent", matching the aggregateBackstops paragraph's wording | spec §3 |
 | D10 | Arm (c) re-enumeration | Add the stamp explicitly: "…halt-and-hold, `stopPoint: redteam-route-upstream`, stamping `--redteamRounds <n>` in the same `record` call as `--stopPoint`, regrill command + agenda in CAMPAIGN-STATE.md…" — the "as `--stopPoint`" referent is the grill's N3 correction: arm (c)'s line names no `record` call of its own, so the spec's bare "in the same `record` call" dangled | spec §3, referent pinned |
-| D11 | State & resume ledger bullet | Extend to "…status/branch/PR/SHA/stop-point/backstops/red-team rounds" and point at the helper header as the shape's maintained home | spec §3 |
+| D11 | State & resume ledger bullet | **Cite `makePlanEntry` in `campaign-ledger.mjs` as the entry shape's maintained home (ADR 0046) and DROP the field enumeration entirely.** *(Corrected 2026-08-16 by the Lead's escalation-completion fix. The original — "Extend to '…status/branch/PR/SHA/stop-point/backstops/red-team rounds' and point at the helper header" — directly contradicted the /red-team pass's rewritten End state 7, which forbids the re-enumeration as an unguarded prose mirror (ADR 0025). **The contradiction was the Lead's**: End state 7 was rewritten without updating this row or End state 7's own `check:` literal, so the worker faithfully implemented this row and two independent gate-audit seats caught End state 7 provably unmet at the phase tip. Extending an unguarded mirror by two more fields is exactly what ADR 0025 forbids; citing the maintained home is the sanctioned escape that needs no guard.)* | spec §3; /red-team 2026-08-16; ADR 0025/0046 |
 | D12 | `/war-review` row-1 selection rule | Name it in the cell: the ledger under `$MAIN/.claude/campaigns/*/ledger.json` whose `plans[].slug` equals the manifest `planPath`'s basename sans extension — **never the newest campaign** (no manifest field records the campaign); no match → that source is absent (`n/a`). The row's existing report-header-wins and both-absent → `n/a` clauses stay | spec §3; (verified: issue #1356 (2026-08-06), findings 1+4) |
 | D13 | Multiple campaigns match the slug | Disambiguate by `plans[].plan` equal to the `$MAIN`-resolved manifest `planPath`; still ambiguous → `n/a` with the ambiguity stated | spec §3 (carried [assumed] row → A4) |
 | D14 | Row-2 sweep anchoring | Write the swept roots as `$MAIN/docs/red-team/` and `$MAIN/.claude/campaigns/*/ledger.json`, matching row 1's anchored siblings | spec §3; (verified: issue #1356 (2026-08-06), findings 2+3) |
@@ -334,7 +334,10 @@ recorded in the `cli-parseargs-valueless-flag-coerces-to-number-true-is-one` les
      maintained home (ADR 0046) rather than re-enumerating its field set** — the enumeration is an
      unguarded prose mirror that this plan would otherwise grow by two fields with nothing binding it
      (/red-team pass, 2026-08-16; ADR 0025). Citing the maintained home is the escape that needs no guard ·
-     check: `grep -n 'stop-point/backstops/red-team rounds' skills/war-campaign/SKILL.md`.
+     check: `[ "$(grep -c 'makePlanEntry' skills/war-campaign/SKILL.md)" -ge 1 ] && [ "$(grep -c 'stop-point/backstops/red-team rounds' skills/war-campaign/SKILL.md)" -eq 0 ]`
+     — **both halves**: the citation present AND the enumeration gone. *(The original check was
+     `grep -n 'stop-point/backstops/red-team rounds'`, which the enumeration form SATISFIES — it was
+     left stale when the condition was rewritten, so the check actively certified the wrong outcome.)*
   8. `/war-room` step 2 and the economy blurb both carry `run.redteamRoundLimit` ·
      check: `grep -c redteamRoundLimit skills/war-room/SKILL.md` ≥ 2 (0 at the `6fff2ee` base), one
      hit in the step-1 economy line and one in the step-2 run bullet.
@@ -473,9 +476,14 @@ constraint 4, so no ordering is needed in either direction.
   `stopPoint: redteam-route-upstream`, stamping `--redteamRounds <n>` in the same `record` call as
   `--stopPoint`, regrill command + agenda in CAMPAIGN-STATE.md…" (the "as `--stopPoint`" referent is
   binding — arm (c)'s line names no `record` call of its own, D10). **Wrap-up hardening row (D9)** — "(`n/a` when
-  null" → "(`n/a` when null or absent". **State & resume ledger bullet (D11)** — extend the
-  enumeration to "…status/branch/PR/SHA/stop-point/backstops/red-team rounds" and name the helper
-  header (`campaign-ledger.mjs` + its test, ADR 0046) as the shape's maintained home.
+  null" → "(`n/a` when null or absent". **State & resume ledger bullet (D11, corrected 2026-08-16)** — **DROP the
+  field enumeration entirely and cite the construct**: name `makePlanEntry` in
+  `campaign-ledger.mjs` as the entry shape's maintained home (ADR 0046), so the field set cannot rot
+  on this surface (ADR 0025). *(This bullet previously read "extend the enumeration to
+  '…status/branch/PR/SHA/stop-point/backstops/red-team rounds' and name the helper header" — the
+  wording End state 7 forbids. The worker implemented it faithfully and two gate-audit seats caught
+  End state 7 unmet; the contradiction was the Lead's, introduced when End state 7 was rewritten
+  without updating D11, this slice, or End state 7's own check literal.)*
   **Guard-compatibility duty (constraint 8, binding):** the arm-(a) line and its enumeration segment
   are byte-untouched; each arm edit stays on its arm's single physical line; the `**(b) Route
   upstream**` line keeps `` `BLOCKED` `` as a code span and the ``**(c) Persistent `INCOMPLETE`**``
