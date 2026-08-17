@@ -298,8 +298,8 @@ test('verb-scan placement census (D2): every skills/*/references/*.md file is co
   // Deletion asymmetry (D13), stated as intent: a DELETED references file simply leaves the
   // scan-derived posterity corpus (a deleted file is no live surface — by design), while an
   // enumerated verb-list member still fails loud both ways — deleting the FILE throws via
-  // skillDocs()'s unguarded readFileSync, and deleting its in-file ROW reds this census as a
-  // stale row.
+  // skillDocs()'s unguarded readFileSync and reds this census as a STALE ROW, and deleting
+  // its in-file ROW reds this census as an UNPLACED path.
   const overlap = EVICTION_DESTINATIONS.filter(p => VERB_SCAN_EXCLUSIONS.includes(p))
   assert.deepEqual(overlap, [], `a references file is verb-scanned or reason-excluded, never both — remove it from one list: ${JSON.stringify(overlap)}`)
   const scanned = referencesFiles()
@@ -341,7 +341,8 @@ test('spec-posterity (F7 / ADR 0046): no scanned doctrine surface — nor README
   for (const rel of ['skills/war/SKILL.md', 'agents/war-worker.md', 'skills/war-strategy/references/plan-interview.md', 'README.md'])
     assert.ok(corpusPaths.includes(rel), `posterity corpus must include ${rel} (D3 sentinel)`)
   // The SKILL.md and agent-card slices must each deepEqual a fresh readdirSync of their
-  // family (the census idiom applied here): four sentinels alone cannot tell a readdir-derived
+  // family, and the references slice must deepEqual referencesFiles() (the census-bound scan)
+  // — the census idiom applied here: four sentinels alone cannot tell a readdir-derived
   // corpus from a hardcoded array that happens to contain those four paths.
   assert.deepEqual(
     corpusPaths.filter(p => p.endsWith('/SKILL.md')).sort(),
@@ -353,6 +354,10 @@ test('spec-posterity (F7 / ADR 0046): no scanned doctrine surface — nor README
     corpusPaths.filter(p => p.startsWith('agents/')).sort(),
     readdirSync(join(REPO, 'agents')).filter(f => f.endsWith('.md')).map(f => `agents/${f}`).sort(),
     'the posterity corpus agent-card slice must be readdir-derived, not hand-kept')
+  assert.deepEqual(
+    corpusPaths.filter(p => p.includes('/references/')).sort(),
+    referencesFiles(),
+    'the posterity corpus references slice must be readdir-derived, not hand-kept')
   const bad = corpus.flatMap(({ path, text }) => specCitations(path, text))
   assert.deepEqual(bad, [], `a live surface cites a docs/specs path (specs are posterity — repoint at the maintained home or delete the pointer):\n${JSON.stringify(bad, null, 2)}`)
 })
