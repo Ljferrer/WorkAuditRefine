@@ -159,39 +159,13 @@ _Avoid_: "one task per phase" (over-serializes — the rule is disjoint-and-inde
 intra-phase `deps` for code visibility or to dodge a same-file collision (neither works).
 
 **provision base divergence**:
-The local working-branch ref and `origin/<working>` are **neither equal nor ancestor-related** when
-`cmd_ensure_integration` cuts a phase's integration branch. A **fail-loud halt** — the script dies
-non-zero carrying both SHAs and the two repair directions, cuts no branch, and the phase never starts —
-never a silent pick of one side (ADR 0008: repair toward git). Equal / behind / ahead resolve
-automatically (cut at the origin tip when behind, with a guarded follower fast-forward); only true
-divergence halts.
-_Avoid_: silently picking local or origin; conflating it with a fetch failure / no-origin (which falls
-back to today's local cut with a warning).
+when `cmd_ensure_integration` halts on divergence, read skills/war/references/glossary-cold.md
 
 **Orphan adoption** (`record-as-owned`):
-Repairing the owned-file ledger *toward git* so a non-empty partial-phase integration branch — real
-merged commits left by a held/escalated run whose local state was torn down — becomes a legitimate
-resume target. The `record-as-owned` subcommand proves the branch strictly descends the frozen base,
-prints its ahead-commits for the Lead to map to merged tasks
-([ADR 0008](docs/adr/0008-git-is-the-resume-source-of-truth.md) — an unexplained commit halts), and
-appends the ref to the run's owned-file ledger, **moving no ref**. The ADR 0008-conformant opposite of
-reclaim-deletion — **Empty-orphan reclaim** *deletes* a branch proven empty; adoption *keeps* one proven
-non-empty — and the tooled, proof-carrying form of a recovery relaunch's owned-file continuity.
-_Avoid_: resetting or moving the branch (adoption records toward git, never mutates it); conflating it
-with empty-orphan reclaim (opposite direction — keep vs delete).
+when a torn-down run leaves a non-empty partial-phase integration branch, read skills/war/references/glossary-cold.md
 
 **Stale prior attempt**:
-An unmerged remote `war/<slug>/pN-tK` task branch whose tip is **not an ancestor** of the frozen phase
-base's integration tip — left by a prior run whose local state was torn down, so it never merged and
-shares only an older base. It blocks the identically-named relaunch push (a non-fast-forward rejection);
-at the Provision barrier the fresh-cut stale-remote probe catches it (the `STALE_REMOTE` marker) and
-classifies it as a per-task **`env-blocked`** outcome — the worker is never spawned, **siblings
-proceed**, never a phase halt. Reconciled only by Lead-sanctioned remote deletion
-(`--reclaim-stale-remote`, proof-gated, prints its restore command) or by adopting the remote tip —
-**never** a force-push. A remote tip that *is* an ancestor of the frozen tip is already-integrated work
-that warns and proceeds, not a stale prior attempt.
-_Avoid_: SHA inequality as the test (ancestry is — an already-merged remote is not stale); force-pushing
-over it; treating it as a phase halt (it is per-task `env-blocked`).
+when a relaunch push is rejected non-fast-forward, read skills/war/references/glossary-cold.md
 
 ### Repo-derived provisioning (Part B)
 
@@ -481,21 +455,7 @@ _Avoid_: a bespoke escalation-completion script (the resolved gate is a runtime 
 can't own); a manual `git push` / `--force-with-lease` land that bypasses the guard and follower sync.
 
 **Dead-agent land failure**:
-A `held:land-failed` root cause where the `land:phase-<N>` dispatch itself never produced a
-trustworthy `MergeResult` — it died (returned `null`; the observed class: a transient API error, 0
-tokens, `land-advance` never ran) or returned a status the primary land routing chain's arms do not
-recognize. A terminal `else` on that chain, mirroring the baseline-proceed re-land's existing
-`reLand ? reLand.status : 'error'` fallback idiom, pushes one escalated `phase-<N>-land` entry
-(`reason:'error'`, `detail: landResult` — `null` on a dead dispatch) and sets
-`landDecision = 'held:land-failed'`: a **reused** enum member, no `land-decision.mjs` change
-([ADR 0005](docs/adr/0005-dead-phase-halts-the-dag.md) enum discipline). Distinct from a **Dead
-phase**: the *Workflow itself* completed normally (`status: completed`, `handoff` present) — only its
-land *sub-dispatch* produced no usable result. A land dispatch that *throws* instead routes
-`held:workflow-error` via the top-level catch; the two constructs partition the failure space.
-_Avoid_: conflating with **Dead phase** (there the whole Workflow never completed); treating the
-printed `resumeFromRunId` hint as the recovery — it replays the run's journal live, re-running
-already-merged `merge:*` agents' gate + push-first CAS, which is exactly wrong when the integration
-tip is already complete and green.
+when a land dispatch returns null or an unrecognized status, read skills/war/references/glossary-cold.md
 
 ### Audit
 
@@ -579,9 +539,9 @@ the no-merged-tasks arm too, so a `requiresTest: false`-only phase still execute
 checks). Each condition tees one artifact to `_refinery/.war/endstate-<phaseId>-<n>.log`, stamped
 with the tip SHA it ran at; the gate-audit seats verify from those artifacts — auditors stay
 read-only (ADR 0002), the refiner executes everything.
-_Avoid_: conflating it with the **Integrated-tip gate re-run** (that re-runs the *gate*, and only on
-a phase with intra-phase deps — this executes End-state `check:` commands, every phase); a seat
-executing a check (seats read artifacts, never run commands).
+_Avoid_: conflating it with the **Integrated-tip gate re-run** (that re-runs the *gate*, and only on a
+phase with intra-phase deps — this executes End-state `check:` commands, on every phase that claims one);
+a seat executing a check (seats read artifacts, never run commands).
 
 **`unverified`** (End-state status):
 The handoff End-state status for a claimed condition no seat attests — attestation is a POSITIVE
@@ -793,13 +753,7 @@ re-check time (the pending proposal is the only adoptable value); reading the le
 authority (git > labels > ledger).
 
 **Near-miss diagnostic**:
-The advisory stderr block `assert-test-in-diff.sh` emits on exit 1 when the diff contains test-shaped
-files the **active** pattern set does not match — it names the active set and each near-miss path so
-the `no-test` route says "your pattern missed these" instead of "add a test". Never affects the exit
-code; carried to the add-test worker and the exhaustion escalation as `MergeResult.floor_diagnostic`.
-_Avoid_: routing on it (fail-open advisory — absent ⇒ every consumer byte-identical); calling it a
-floor failure reason (`no-test` is the reason; this is context on it); conflating the near-miss set
-with the active pattern set (the scan is a fixed documented shape list, not the matcher).
+when a `no-test` result carries a `floor_diagnostic`, read skills/war/references/glossary-cold.md
 
 **`requiresTest`** (task field):
 Whether a task must change a test file to be mergeable. Defaults `true`; the Lead sets it `false` at
@@ -945,7 +899,8 @@ completion and reports the broken environment as a note).
 **Sandbox-escape guard**:
 The deterministic post-run check (`assert-no-repo-escape.sh`, floor exit contract 0/1/2) that no executed
 probe mutated the real repo working tree or pushed a junk remote ref. Runs between the Workflow return and
-the gate; a positive result routes the verdict through the self-confound gate (ADR 0020), never `CLEARED`.
+the gate; a positive result routes the verdict through the self-confound gate (ADR 0020), never `CLEARED`
+until the state is clean (a provenance-cleared foreign delta is clean state and does not block `CLEARED`).
 The hardened `git -C` scope-lock is prevention (Layer 2); this guard is the detection authority (Layer 3).
 _Avoid_: "cleanup", "sandbox jail" — it is detection, not confinement; the agent-type probe jail is a
 recorded non-goal (D6).

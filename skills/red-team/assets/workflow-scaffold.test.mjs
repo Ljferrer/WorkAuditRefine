@@ -148,22 +148,23 @@ test('scaffold structure OK — scopeLock is a declared, invoked constant (survi
 })
 
 // --- Task 1.2 (#929): scaffold block-comment census ---------------------------------------------
-// This file has TWO POSITIVE "survives comment stripping" asserts — 'adversarial-confirm ...
-// survives comment stripping' and 'scopeLock ... survives comment stripping' (both above). Each
+// This file has THREE POSITIVE "survives comment stripping" asserts — 'adversarial-confirm ...
+// survives comment stripping' and 'scopeLock ... survives comment stripping' (both above), plus the
+// Layer-4 adjudicated-strip pin (D4a, in the Task 1.6 section at the foot of this file). Each
 // strips comments and then requires its token to SURVIVE in the executable remainder, and each
 // DELIBERATELY keeps the two-step strip (line comments THEN block comments). Narrowing them to
 // line-comment-only would FALSE-PASS the day a future block comment carried `adversarial-confirm` /
-// `scopeLock` prose after the real declaration was deleted: the token would survive inside the
-// un-stripped block comment and the assert would stay green with no executable declaration behind
-// it. The block pass is what makes those two asserts sound — so this file does NOT narrow them
-// (unlike the three narrowed sites in workflow-template.test.mjs, whose asserts are negative /
-// extractive and do not need the block pass).
+// `scopeLock` / `adjudicated` prose after the real declaration was deleted: the token would survive
+// inside the un-stripped block comment and the assert would stay green with no executable
+// declaration behind it. The block pass is what makes those asserts sound — so this file does NOT
+// narrow them (unlike the three narrowed sites in workflow-template.test.mjs, whose asserts are
+// negative / extractive and do not need the block pass).
 //
 // THIS census is what keeps the two-step strip sound. blockCommentSpans(text) DELIBERATELY
 // reproduces the naive idiom (its SUBJECT is that idiom's behavior — every /* ... */-shaped span it
 // sees; a string-aware scan would see none of the glob-literal fakes that idiom trips on elsewhere).
-// It is the only sanctioned census idiom for comment-ignoring structural tests in this file (the two
-// survives-stripping asserts are the only other sanctioned block-strip uses). It goes red the moment
+// It is the only sanctioned census idiom for comment-ignoring structural tests in this file (the
+// three survives-stripping asserts are the only other sanctioned block-strip uses). It goes red the moment
 // the block-comment population changes, so a new block comment can never silently start carrying an
 // asserted token. workflow-scaffold.js has no /*-bearing string literals while this census holds
 // (measured: exactly the two real spans, no fakes — this file has no resolveGate-style glob
@@ -193,9 +194,9 @@ test('scaffold block-comment census: exactly the two real block comments (dead d
   const spans = blockCommentSpans(src)
   assert.deepEqual(spans.map(spanHeadTail), SCAFFOLD_BLOCK_COMMENTS,
     'workflow-scaffold.js block-comment population changed (a /* ... */ span added, removed, or merged). ' +
-    'BEFORE updating this expectation, re-check the two survives-stripping asserts (adversarial-confirm, ' +
-    'scopeLock): no block comment may carry that asserted prose after its real declaration, or the block ' +
-    'pass false-passes. Offending span heads: ' + JSON.stringify(spans.map(s => s.slice(0, SPAN_FRAG))))
+    'BEFORE updating this expectation, re-check the three survives-stripping asserts (adversarial-confirm, ' +
+    'scopeLock, the D4a adjudicated-strip pin): no block comment may carry that asserted prose after its ' +
+    'real declaration, or the block pass false-passes. Offending span heads: ' + JSON.stringify(spans.map(s => s.slice(0, SPAN_FRAG))))
   for (const span of spans) {
     assert.ok(!span.includes('`'),
       'block comment must be backtick-free (census coupling with scanTemplateLiterals): ' + span)
@@ -1147,6 +1148,8 @@ test('model/effort threading: model-only args (no effort) → only model threade
 const SKILL_PATH = join(__dirname, '..', 'SKILL.md')
 const LENSES_PATH = join(__dirname, '..', 'references', 'lenses.md')
 const GATE_PATH = join(__dirname, 'red-team-gate.mjs')
+const CONTEXT_PATH = join(__dirname, '..', '..', '..', 'CONTEXT.md')
+const CAMPAIGN_PATH = join(__dirname, '..', '..', 'war-campaign', 'SKILL.md')
 const surface = (p) => readFileSync(p, 'utf8')
 
 // Heading-delimited region: a real section (heading → next `## ` heading), deliberately NOT the
@@ -1230,7 +1233,18 @@ test('sandbox-idiom drift guard: each surface pins its isolating forms, and the 
 
 // --- Verdict-enumeration drift guard (End state 9) ---------------------------------------------
 // Extraction + equality, never presence-hope (ADR 0025). The verdict literals are read out of the
-// gate's verdict() function body by NAMED CONSTRUCT, then compared to each documented enumeration.
+// gate's verdict() function body by NAMED CONSTRUCT, then compared to each documented enumeration —
+// five surfaces, each with a named compare mode:
+//   1. lenses.md severity-section verdict bullet — delimiter-split token-SET equality;
+//   2. lenses.md report-template verdict line — delimiter-split token-SET equality;
+//   3. CONTEXT.md ADJUDICATED-(verdict)-entry precedence chain — ORDERED-SEQUENCE equality against
+//      the pre-sort literals array (verdict()'s body-appearance order IS the precedence order, so
+//      the chain's order is semantic — a set compare would pass a reordering);
+//   4. war-campaign SKILL.md step-3 triage arms — DERIVED-SUBSET set equality on the proceed arm's
+//      enumeration segment (proceed = EXPECTED_VERDICTS minus the two non-proceed verdicts —
+//      derived, never a second hand-list) plus the three-arm PARTITION (each non-proceed verdict
+//      placed as a code span on its own single triage line);
+//   5. lenses.md INCOMPLETE-verdict spine bullet — pipe-split token-SET equality.
 //
 // DEFAULT-DENY IN BOTH DIRECTIONS, because a presence loop was defeated independently as follows:
 //   (i)  a behaviour-preserving refactor hoisting the strings to a module-level table empties the
@@ -1239,11 +1253,14 @@ test('sandbox-idiom drift guard: each surface pins its isolating forms, and the 
 //   (ii) plain containment lets the hyphenated compound stand in for its bare prefix. A `\b`
 //        boundary does NOT close that hole either — `-` is a non-word character, so the boundary
 //        matches inside the compound. The fix is DELIMITER-SPLIT TOKEN-SET EQUALITY per surface.
-// Both surfaces are addressed as SINGLE LINES, never their enclosing sections: a section-scoped
-// read is satisfied by a verdict appearing only in an adjacent comment or fenced example.
+// All five surfaces are addressed as SINGLE LINES, never their enclosing sections: a section-scoped
+// read is satisfied by a verdict appearing only in an adjacent comment or fenced example. Surface
+// 4's read is additionally scoped SHORT of its whole line: that line also carries the blocking
+// verdict in its trailing routing-invariant clause and the top proceed verdict a second time in a
+// parenthetical, so a whole-line read would false-pass both drifts.
 const EXPECTED_VERDICTS = ['ADJUDICATED', 'BLOCKED', 'CLEARED', 'CLEARED-WITH-NOTES', 'INCOMPLETE']
 
-test('verdict-enumeration drift guard: verdict()\'s literal set is exact, and each documented verdict line is token-set equal to it (End state 9)', () => {
+test('verdict-enumeration drift guard: verdict()\'s literal set is exact and all five documented surfaces match it — token-set (lenses severity bullet, report-template line, spine bullet), ordered-sequence (CONTEXT.md precedence chain), derived-subset + partition (war-campaign triage arms) (End state 9)', () => {
   const gate = surface(GATE_PATH)
   const open = gate.indexOf('export function verdict(')
   assert.notEqual(open, -1, 'red-team-gate.mjs must export the verdict() construct this guard anchors on')
@@ -1284,4 +1301,143 @@ test('verdict-enumeration drift guard: verdict()\'s literal set is exact, and ea
     .split('|').map(s => s.trim()).filter(Boolean))].sort()
   assert.deepEqual(tmplTokens, EXPECTED_VERDICTS,
     `the report template verdict line enumerates ${JSON.stringify(tmplTokens)}, not ${JSON.stringify(EXPECTED_VERDICTS)}`)
+
+  // Surface 3 — CONTEXT.md's ADJUDICATED (verdict) glossary entry: its precedence chain, compared
+  // as an ORDERED SEQUENCE against the pre-sort literals array (verdict()'s body-appearance order
+  // IS the precedence order). Entry sliced by the skill-doc-contracts D19 idiom — bolded term
+  // heading with next-bolded-term lookahead — never a whole-file read.
+  const ctx = surface(CONTEXT_PATH)
+  const entry = ctx.match(/^\*\*ADJUDICATED \(verdict\)\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:)/m)
+  assert.ok(entry,
+    'could not locate the ADJUDICATED (verdict) glossary entry in CONTEXT.md (bolded term → next bolded term) — the extraction construct rotted')
+  const precLines = entry[0].split('\n').filter(l => l.startsWith('Precedence:'))
+  assert.equal(precLines.length, 1,
+    'the ADJUDICATED (verdict) entry must carry exactly one Precedence: line')
+  const chainTokens = [...precLines[0].split(';')[0].matchAll(/`([^`]+)`/g)].map(m => m[1])
+  assert.deepEqual(chainTokens, literals,
+    `the CONTEXT.md precedence chain reads ${JSON.stringify(chainTokens)} but verdict()'s body-appearance (= precedence) order is ${JSON.stringify(literals)} — ordered compare: a reordering is a defect even at equal membership`)
+
+  // Surface 4 — war-campaign SKILL.md step-3 triage: the proceed arm's enumeration SEGMENT (marker
+  // → first following parenthesis; the whole line also carries the blocking verdict in its
+  // routing-invariant tail and the top proceed verdict a second time in a parenthetical, so a
+  // whole-line read would false-pass), compared against the proceed subset DERIVED from
+  // EXPECTED_VERDICTS — never a second hand-list; then the PARTITION: each non-proceed verdict
+  // must sit as a code span on its own single triage line.
+  const campaign = surface(CAMPAIGN_PATH)
+  const codeSpans = (text) => [...text.matchAll(/`([^`]+)`/g)].map(m => m[1])
+  const NON_PROCEED = ['BLOCKED', 'INCOMPLETE']
+  const proceedLines = campaign.split('\n').filter(l => l.includes('**(a) Proceed**'))
+  assert.equal(proceedLines.length, 1,
+    'war-campaign SKILL.md must carry exactly one (a) Proceed triage line')
+  const seg = proceedLines[0].split('**(a) Proceed**')[1]
+  const parenAt = seg.indexOf('(')
+  assert.notEqual(parenAt, -1,
+    'the (a) Proceed line must carry the parenthetical that terminates its enumeration segment — the segment scoping rotted')
+  const proceedTokens = [...new Set(codeSpans(seg.slice(0, parenAt)))].sort()
+  const proceedExpected = EXPECTED_VERDICTS.filter(v => !NON_PROCEED.includes(v))
+  assert.deepEqual(proceedTokens, proceedExpected,
+    `the (a) Proceed enumeration segment carries ${JSON.stringify(proceedTokens)}, not the proceed subset ${JSON.stringify(proceedExpected)} derived from verdict()'s set`)
+  const routeLines = campaign.split('\n').filter(l => l.includes('**(b) Route upstream**'))
+  assert.equal(routeLines.length, 1,
+    'war-campaign SKILL.md must carry exactly one (b) Route upstream triage line')
+  assert.ok(codeSpans(routeLines[0]).includes('BLOCKED'),
+    'the (b) Route upstream arm must carry the blocking verdict as a code span — the partition places every non-proceed verdict in a named arm')
+  const persistLines = campaign.split('\n').filter(l => l.includes('**(c) Persistent `INCOMPLETE`**'))
+  assert.equal(persistLines.length, 1,
+    'war-campaign SKILL.md must carry exactly one (c) Persistent triage line')
+  assert.ok(codeSpans(persistLines[0]).includes('INCOMPLETE'),
+    'the (c) Persistent arm must carry the coverage verdict as a code span — the partition places every non-proceed verdict in a named arm')
+
+  // Surface 5 — lenses.md's INCOMPLETE-verdict spine bullet: its single pipe-bearing backtick span
+  // is the enumeration; pipe-split token-set equality (the report-template surface's idiom).
+  const spineBullets = lenses.split('\n').filter(l => l.startsWith('- **`INCOMPLETE` verdict**'))
+  assert.equal(spineBullets.length, 1,
+    'lenses.md must carry exactly one INCOMPLETE-verdict spine bullet')
+  const pipeSpans = codeSpans(spineBullets[0]).filter(s => s.includes('|'))
+  assert.equal(pipeSpans.length, 1,
+    'the spine bullet must carry exactly one pipe-bearing backtick span (its enumeration) — zero means the enumeration moved, two means a second list crept in')
+  const spineTokens = [...new Set(pipeSpans[0].split('|').map(s => s.trim()).filter(Boolean))].sort()
+  assert.deepEqual(spineTokens, EXPECTED_VERDICTS,
+    `the spine bullet's enumeration is ${JSON.stringify(spineTokens)}, not ${JSON.stringify(EXPECTED_VERDICTS)}`)
+})
+
+// --- Task 1.6 (#1264): adjudicated provenance — the Lead-only stamp is probe-proof --------------
+// ADR 0043: the Lead stamps a finding post-run, in the Lead's working copy of the gate input, and
+// re-pipes it through the gate's --stdin channel — the gate cannot distinguish actors at read time,
+// so provenance is enforced at the scaffold's probe-collection boundary (Layer 4), the only layer
+// where every finding is probe-authored by construction. Two source-scan pins over the suite's
+// module-level `src` read (D4a strip-present, D4b schema-posture both-ways), plus one behavioral
+// proof through the compiled scaffold.
+
+test('adjudicated strip pin (D4a): the Layer-4 collection loop performs the strip in EXECUTABLE code (End state 1)', () => {
+  const start = src.indexOf('const probeResults = []')
+  assert.notEqual(start, -1, 'the Layer-4 collection anchor must be present — the probe-collection construct rotted')
+  const end = src.indexOf('return { plan: planFile', start)
+  assert.notEqual(end, -1, 'the scaffold return construct must terminate the collection slice')
+  const slice = src.slice(start, end)
+  // Two-step comment strip (line THEN block — the census above keeps this sound): an explanatory
+  // comment alone must never satisfy this pin.
+  const code = slice.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
+  assert.match(code, /\badjudicated\b/,
+    'the collection loop must strip the Lead-only stamp from every collected finding in executable code — a probe has no legitimate path to the stamp (ADR 0043), and a comment naming the contract is not enforcement')
+})
+
+test('FINDINGS schema posture pin (D4b): findings.items declares no adjudicated key AND the deliberate-absence comment stands (End state 2)', () => {
+  const start = src.indexOf('const FINDINGS = ')
+  assert.notEqual(start, -1, 'the FINDINGS schema literal must be present')
+  const end = src.indexOf('const CONFIRM = ', start)
+  assert.notEqual(end, -1, 'the CONFIRM literal must terminate the FINDINGS slice')
+  const slice = src.slice(start, end)
+  // Absence half — line-anchored on the declared-key shape (name-colon). The deliberate-absence
+  // comment avoids that shape by design (plan constraint 11), so it can neither satisfy nor trip
+  // this half.
+  for (const [i, line] of slice.split('\n').entries()) {
+    assert.doesNotMatch(line, /adjudicated\s*:/,
+      `FINDINGS slice line ${i + 1} declares the Lead-only stamp as a schema key — declaring it would ship the key name in every probe's dispatched schema (D2); a declaring diff must consciously retire this pin`)
+  }
+  // Presence half — default-deny both directions: the absence must read as a decision, not an
+  // accident, so the comment recording it must stand inside the literal.
+  const comments = slice.split('\n').filter(l => l.trimStart().startsWith('//')).join('\n')
+  assert.match(comments, /DELIBERATELY not declared/,
+    'the FINDINGS literal must carry the deliberate-absence comment recording the schema posture (D2)')
+  assert.match(comments, /\badjudicated\b/,
+    'the deliberate-absence comment must name the undeclared flag, so a future declarer meets the contract rather than a bare warning')
+})
+
+test('adjudicated provenance (behavioral): a probe-minted stamp is stripped from every collected finding; markers and the confirm reality suffix are untouched (End state 1)', async () => {
+  const a = baseArgs()
+  const nameOf = (label) => label.replace(/^probe:/, '')
+  const { out } = await runScaffold(a, (_, opts) => {
+    if (opts.phase === 'Confirm') return { reproduced: false, note: 'not reproducible' }
+    if (opts.label === 'probe:executable-proof') return null   // dies on both passes → dropped marker
+    const base = { probe: nameOf(opts.label), kind: 'spine', technique: 'analyzed', status: 'pass',
+      read_anchor: anchorOf(a), findings: [] }
+    if (opts.label === 'probe:claims-vs-reality') {
+      return { ...base, findings: [{ severity: 'Minor', claim: 'c', reality: 'r', adjudicated: true }] }
+    }
+    if (opts.label === 'probe:consistency-placeholders') {
+      return { ...base, status: 'fail', findings: [{ severity: 'Major', claim: 'c2', reality: 'r2', adjudicated: true }] }
+    }
+    return base
+  })
+  for (const r of out.probeResults) {
+    for (const f of (r && r.findings) || []) {
+      assert.ok(!('adjudicated' in f),
+        `probe ${r.probe}: a probe-minted stamp must be stripped at the collection boundary — a probe has no legitimate path to the Lead's stamp`)
+    }
+  }
+  // One key only: the stripped finding keeps every declared key byte-identically.
+  const cvr = out.probeResults.find(r => r && r.probe === 'claims-vs-reality')
+  assert.ok(cvr, 'the pass-status probe yields a collected result')
+  assert.deepEqual(cvr.findings, [{ severity: 'Minor', claim: 'c', reality: 'r' }],
+    'the strip removes exactly the one key — every declared key survives byte-identically')
+  // The confirm-stage reality suffix (a declared key, written before the collection boundary) is untouched.
+  const cp = out.probeResults.find(r => r && r.probe === 'consistency-placeholders')
+  assert.ok(cp, 'the downgraded probe yields a collected result')
+  assert.deepEqual(cp.findings,
+    [{ severity: 'Minor', claim: 'c2', reality: 'r2 [unreproduced — downgraded by adversarial-confirm: not reproducible]' }],
+    'the confirm-stage downgrade suffix rides through the strip untouched')
+  // The result-level dropped:true coverage marker is untouched (blast radius is the one key).
+  assert.ok(out.probeResults.some(r => r && r.dropped === true && r.probe === 'executable-proof'),
+    'the dropped:true coverage marker survives the collection boundary unchanged')
 })

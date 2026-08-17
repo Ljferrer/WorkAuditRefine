@@ -1245,6 +1245,90 @@ test('D29 — ADR 0042 doctrine mirrors (CONTEXT.md glossary terms, CLAUDE.md ho
   )
 })
 
+// (D32) EVICTED-GLOSSARY POINTER PAIRS — the verdict-adjudication-integrity plan's D14 eviction
+// (#1265, #1357; its decision tree labels this guard "D30", a label this file had already spent on
+// the dispatch-args census below, so the row lands as D32) moved five cold recovery-entry bodies
+// out of CONTEXT.md into the unbudgeted cold home references/glossary-cold.md, leaving per-term
+// `when <trigger>, read …` pointers. Modelled on D28: each residue is a hand-copied cross-file
+// fact (the destination path plus the per-term heading it must resolve to) with no other guard —
+// a renamed or dropped destination heading must red here while CONTEXT.md still promises it, and
+// a residue that loses its trigger clause or destination path must red too (a pointer without a
+// trigger is a defect, ADR 0042). Extraction is BY CONSTRUCT (D28's idiom): CONTEXT.md bolded
+// term → next bolded term or `###` heading; glossary-cold.md `##` term heading → next `##` or
+// EOF — never line numbers; exactly-one-match per surface, and each cold body must span its
+// `_Avoid_` line (D26's non-vacuity floor — a gutted or truncated body reds, not just a missing
+// heading).
+test('D32 — evicted CONTEXT.md glossary entries keep trigger pointers, and glossary-cold.md carries each term body (#1265, #1357)', () => {
+  const glossaryColdMd = readFileSync(join(HERE, '..', 'references', 'glossary-cold.md'), 'utf8')
+  // Each row pins the term (CONTEXT.md bold heading) AND the exact cold-home heading line — a
+  // trailing-tolerance wildcard after the term would stay green on an appended rename
+  // (`## Stale prior attempts (renamed)` matched a `[^\n]*`-suffixed draft of this row).
+  for (const [term, coldHeading] of [
+    ['provision base divergence', '## provision base divergence'],
+    ['Orphan adoption', '## Orphan adoption (`record-as-owned`)'],
+    ['Stale prior attempt', '## Stale prior attempt'],
+    ['Dead-agent land failure', '## Dead-agent land failure'],
+    ['Near-miss diagnostic', '## Near-miss diagnostic'],
+  ]) {
+    // Mirror D26's idiom: escape the term before building the pattern.
+    const t = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    // --- (a) CONTEXT.md residue: heading survives, with trigger clause + literal destination ---
+    const residues = [
+      ...contextMd.matchAll(
+        new RegExp(`^\\*\\*${t}\\*\\*[\\s\\S]*?(?=\\n\\*\\*[^\\n*]+\\*\\*|\\n### )`, 'gm'),
+      ),
+    ]
+    assert.equal(
+      residues.length,
+      1,
+      `expected exactly one \`**${term}**\` glossary entry in CONTEXT.md (bolded term → next ` +
+        `bolded term or \`###\` heading), found ${residues.length} — the extraction construct ` +
+        'rotted or the residue was dropped',
+    )
+    const residue = norm(residues[0][0])
+    assert.match(
+      residue,
+      /\bwhen\s+\S[\s\S]*?,\s*read\s/i,
+      `the CONTEXT.md \`${term}\` residue must keep its \`when <trigger>, read …\` clause — a ` +
+        'pointer without a trigger is a defect (ADR 0042); restore the trigger, never bare-link',
+    )
+    assert.match(
+      residue,
+      /skills\/war\/references\/glossary-cold\.md/,
+      `the CONTEXT.md \`${term}\` residue must keep the literal glossary-cold.md destination ` +
+        'path — re-anchor BOTH surfaces together on any re-home',
+    )
+    // --- (b) cold-home destination: exactly one per-term heading with a non-empty body ---
+    // The heading line is matched as an exact literal (no trailing tolerance — see above).
+    // Terminator is next `##` heading or TRUE end-of-input (`(?![\s\S])` — under the `m` flag a
+    // bare `$` matches every line end, which would truncate each body to the empty string).
+    const h = coldHeading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const dests = [
+      ...glossaryColdMd.matchAll(
+        new RegExp(`^${h}\\n([\\s\\S]*?)(?=\\n## |(?![\\s\\S]))`, 'gm'),
+      ),
+    ]
+    assert.equal(
+      dests.length,
+      1,
+      `expected exactly one \`${coldHeading}\` heading in references/glossary-cold.md, found ` +
+        `${dests.length} — CONTEXT.md's trigger pointer now dangles; re-anchor BOTH surfaces together`,
+    )
+    const destBody = norm(dests[0][1])
+    assert.ok(
+      destBody.trim().length > 0,
+      `the glossary-cold.md \`${term}\` body is empty — the evicted doctrine's sole operative ` +
+        'home was gutted; restore the byte-identical body',
+    )
+    assert.match(
+      destBody,
+      /_Avoid_/,
+      `the glossary-cold.md \`${term}\` body must span its \`_Avoid_\` line — extraction ` +
+        'truncated or the moved body lost its tail',
+    )
+  }
+})
+
 // ---- Task 1 non-vacuity census (plan 2026-08-02-structural-test-nonvacuity) ----
 //
 // (D30) The dispatch-args doc-cascade sweep (spec §4.4) named FOUR live surfaces as the complete

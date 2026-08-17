@@ -23,6 +23,9 @@ metadata:
     - recurring finding not fixed
     - escape guard header
     - assert-no-repo-escape.sh
+    - disposition follow-up not absorb
+    - mitigation confirmed
+    - terminal polish disposition routing
   tags: 
     - war
     - phase-close
@@ -30,7 +33,7 @@ metadata:
     - audit-findings
   created: 2026-08-06
   originSessionId: 428f1fab-f385-493a-952d-9509fdac5e10
-  modified: 2026-08-15T06:41:50.735Z
+  modified: 2026-08-16T08:22:45.031Z
 ---
 
 # A terminal phase-close polish task's own absorb finding can ship unfixed
@@ -115,3 +118,22 @@ Lead closing out a phase with a `p1-polish`/terminal-round step should specifica
 **Locate-cue (verify still present before acting):**
 `skills/red-team/assets/assert-no-repo-escape.sh`, the header comment block, the sentence
 beginning "A nonzero result quarantines the verdict through the self-confound gate".
+
+## Recurrence — mitigation confirmed, `2026-08-06-verdict-adjudication-integrity`/p1-polish (landed `dev/2026-08-06-verdict-adjudication-integrity` @ `10ab150911e7425e16d0944931129593e1410e1`, 2026-08-16)
+
+This run's `p1-polish` gate-audit surfaced a fresh Minor finding on the polish task's own diff (a
+`QUALIFIED_HEADERS` comment in `skills/war/assets/reference-link-integrity.test.mjs` overclaiming
+completeness) — and, unlike the two prior recurrences above, the auditor **routed it
+`disposition: follow-up`, not `absorb`**, with the rationale stated inline: "Not absorbable in this
+phase: this IS the phase-close polish task, so a fresh absorb finding on its own diff has no further
+round to land it (see the code-verified terminal-polish lesson)." The finding correctly shipped as an
+open follow-up rather than a silently-orphaned `absorb`.
+
+**This is the pattern's mitigation working as intended**, not a new instance of the defect: the
+"Pattern to watch for" guidance above (check whether the polish task is the phase's terminal round
+before trusting `absorb`) was explicitly applied at review time. Recorded so future seats have positive
+confirmation that citing this lesson to justify `follow-up` over `absorb` on a terminal polish task's
+own-diff finding is the correct, load-bearing move — not merely defensible reasoning.
+
+**Locate-cue:** none — this recurrence is process/disposition evidence from the audit log itself, not a
+file referent (the finding's own text, task `p1-polish`, phase 1 of the named plan).

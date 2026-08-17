@@ -51,6 +51,14 @@ const FINDINGS = { type: 'object', required: ['probe', 'kind', 'technique', 'sta
     // demotes an envGap finding to an informational Minor note, never a blocker (red-team-gate.mjs
     // classify()) — a broken environment is not a broken plan.
     envGap: { type: 'boolean' },
+    // The per-finding Lead stamp (the `adjudicated` flag, ADR 0043) is DELIBERATELY not declared
+    // here: declaring it would ship the key name in every probe's dispatched schema, advertising the
+    // exact channel being closed. The Lead stamps it post-run in its working copy of the gate input
+    // and re-pipes via --stdin — a probe has no legitimate path to it, and the Layer-4 collection
+    // loop below strips the key from every collected finding. JS comments never reach the dispatched
+    // JSON; the absence is deliberate — a declaring diff must consciously red the suite's
+    // schema-posture pin. Mirrors the references/lenses.md finding-schema stance: Lead-stamped at
+    // grill time, never probe-set.
     claim: { type: 'string' }, reality: { type: 'string' }, evidence: { type: 'string' },
     fix: { type: 'string' }, planRef: { type: 'string' } } } } } }
 
@@ -343,6 +351,18 @@ for (let i = 0; i < allProbes.length; i++) {
     log(`Probe ${allProbes[i].name} returned no result — retrying once.`)
     const retried = await pipeline([allProbes[i]], runProbe, confirmStage)
     r = retried[0]
+  }
+  // Provenance strip (ADR 0043): the `adjudicated` stamp is Lead-applied post-run only, in the
+  // Lead's working copy of the gate input — a probe has no legitimate path to it, so the key is
+  // deleted from every finding of every collected result at this single site right before the push
+  // (first-pass and retried results alike). One key only: findings without it pass by reference,
+  // the dropped:true markers and the confirm-stage reality suffix (a declared key) are untouched.
+  if (r && Array.isArray(r.findings)) {
+    r = { ...r, findings: r.findings.map(f => {
+      if (!f || typeof f !== 'object' || !('adjudicated' in f)) return f
+      const { adjudicated, ...keep } = f
+      return keep
+    }) }
   }
   probeResults.push(r || { probe: allProbes[i].name, dropped: true })
 }

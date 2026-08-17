@@ -5,9 +5,9 @@ metadata:
   node_type: memory
   type: project
   provenance: code-verified
-  promoted: dev/2026-08-06-shell-pin-helpers@phase-1
+  promoted: dev/2026-08-06-gate-audit-finding-routing@phase-1
   slug: full-gates-green-end-state-soft-without-threaded-gate-log-artifact
-  phase: "red-team-fallback-and-anchor-hygiene/phase-2 (Release, task 2.1) +12 recurrences (latest 2026-08-06-gate-audit-finding-routing/phase-1 phase-1-integrated-tip gate-audit, 2026-08-15 — first present-but-uncapped-artifact sub-shape)"
+  phase: "red-team-fallback-and-anchor-hygiene/phase-2 (Release, task 2.1) +13 recurrences (latest 2026-08-06-verdict-adjudication-integrity/phase-2 Release task 2.1 phase-2-end-state gate-audit, 2026-08-16 — first met-via-corroboration sub-shape, no SOFT default)"
   keywords:
     - full gates green
     - gate-log artifact
@@ -40,6 +40,10 @@ metadata:
     - GATE_EXIT terminal stamp
     - gate-phase-N.log
     - absence-of-failure inference vs stamped exit code
+    - met via corroboration
+    - branch-tip SHA equality
+    - second corroborating artifact
+    - tip-correspondence without stamp
   tags:
     - audit-pipeline
     - gate-audit
@@ -49,7 +53,7 @@ metadata:
   created: 2026-07-15
   updated: 2026-08-05
   originSessionId: e11422bd-1b49-4d13-9840-37a67306b3f5
-  modified: 2026-08-16T01:45:56.213Z
+  modified: 2026-08-16T23:56:04.958Z
 ---
 
 **Local recurrence copy** of the repo-root lesson at `docs/learnings/full-gates-green-end-state-soft-without-threaded-gate-log-artifact.md`
@@ -434,3 +438,45 @@ evidence-ceiling cannot-confirm is SOFT, not a hold). [[servitor-verify-on-write
 stale). [[version-slots-no-cross-slot-consistency-test]] (RESOLVED — the lock-step test this
 condition's structural half relies on). [[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]]
 (why a phase-close polish commit structurally has no next round to re-gate itself).
+
+## Recurrence 13 (2026-08-16, plan `2026-08-06-verdict-adjudication-integrity`, phase 2 "Release",
+task 2.1 `phase-2-end-state` gate-audit) — a fourth sub-shape: no in-file `tip_sha` stamp, but the
+seat still attested `met` by cross-checking the log's own worktree path against a live branch-tip
+SHA, rather than falling back to SOFT
+
+Thirteenth occurrence, and the first where the artifact-absence gap (no in-file tip-correspondence
+token) did **not** force a SOFT/cannot-confirm outcome. The "full gates green" condition's evidence
+was the per-task `.war/gate-2.1.log` (2,529 lines; no integrated-tip `gate-phase-2.log` was
+produced) — `code-verified` at the gate-audit's own pinned `auditSha`
+`7377ea7deda56abc498562ad036cae56c5c8b04d`. The seat's own attestation honestly records the gap:
+"gate-2.1.log carries no in-file tip_sha stamp and no `pin_status` token was threaded this pass" —
+matching every prior recurrence's shape exactly. What differs: instead of defaulting to SOFT on that
+gap, the seat independently re-derived tip-correspondence via read-only git — `git rev-parse
+war/2026-08-06-verdict-adjudication-integrity/p2-2.1` equals the confirmed integration HEAD, **and**
+the log's own paths are rooted in the matching `.../p2-2.1` worktree — then corroborated with a
+second, independently tip-stamped artifact (`endstate-2-1.log`, which re-ran `version-slots.test.mjs`
+green at the same SHA) before attesting `met`.
+
+**New nuance over Recurrence 12:** Recurrence 12 showed a present-but-uncapped artifact still forces
+an *inference* (absence of `not ok` markers) rather than a stamped confirmation, but did not need a
+second corroborating artifact because the artifact's own worktree path already matched the
+confirmed tip unambiguously. This recurrence goes one step further: the seat explicitly reached for
+a **second, independently-stamped artifact** (`endstate-2-1.log`'s own `tip_sha:` line) to
+corroborate the ungapped gate log — i.e., "no threaded gate-log tip stamp" is survivable, not
+automatically SOFT, when (a) branch-ref-to-worktree-path correspondence is confirmed by read-only
+git, **and** (b) a sibling artifact from the same audit round independently stamps the same tip.
+Absent either corroborating leg, the established Recurrences 1-11 default (SOFT) should still hold
+— this is not a general license to skip the tip-stamp requirement, only a documented instance of how
+a seat can honestly earn `met` without one.
+
+**Applies-to checklist for a future gate-audit seat facing this same gap:** before defaulting to
+SOFT on a missing `tip_sha`/`pin_status` token, check whether (1) the log artifact's own file paths
+are rooted in a worktree whose branch ref you can independently `git rev-parse` against the
+confirmed tip, and (2) a second, independently-stamped artifact from the same audit round re-runs
+at least one of the same assertions at that tip — if both hold, `met` with the corroboration
+explicitly recorded in the evidence field is defensible; if either is missing, SOFT remains the
+correct default per Recurrences 1-11.
+
+Related: [[endstate-check-dispatch-captures-only-one-command-per-condition-row]] (the
+`endstate-2-1.log` artifact's own `tip_sha:`-stamped format this recurrence leaned on for the second
+corroborating leg).

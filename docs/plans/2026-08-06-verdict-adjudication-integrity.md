@@ -95,9 +95,18 @@ Four defect families, all orbiting the ADJUDICATED verdict contract (ADR 0043) t
    ADR 0042 advisory line of 111,616 B (`FILE_BUDGETS` in
    `skills/war/assets/prompt-surface-budgets.test.mjs`: hard 126,976 / advisory 111,616; `checkBudget`
    asserts hard-only and WARNs above advisory — the suite stays green but per ADR 0042 the crossing is
-   the defined shrink-pass signal). No predecessor plan touches `CONTEXT.md` (verified against all
-   four committed 2026-08-06 plans' `Files:` lists), so 114,449 B is expected unchanged at this plan's
-   base. (ii) `docs/adr/0045-red-team-loop-budget-and-route-upstream.md` twice attributes the ≤ 2
+   the defined shrink-pass signal). **Corrected by the /red-team pass (2026-08-16): the conversion-time
+   prediction "no predecessor plan touches `CONTEXT.md` … so 114,449 B is expected unchanged at this
+   plan's base" is FALSIFIED and retired.** It rested on a scan of only four committed 2026-08-06 plans
+   when `docs/plans/` carries fourteen, and it scoped "predecessor" to `dependsOn` edges rather than to
+   every plan sequenced ahead on the campaign spine. The sibling `2026-08-06-gate-audit-finding-routing`
+   declares `Files: CONTEXT.md`, runs ahead of this plan, and has landed (merge `a489067`), adding two
+   glossary rows: `CONTEXT.md` measures **114,982 B** at the campaign base — **+533 B**, so the overage
+   is **3,366 B, not 2,833 B**. The advisory/hard constants are unchanged (111,616 / 126,976). Every
+   byte figure in this plan is therefore stated at `a489067` and re-measured again at the task's rebased
+   base; the standing rule for the rest of this campaign is that the `Files:` scan covers **every plan
+   sequenced ahead**, not just declared predecessors. (ii)
+   `docs/adr/0045-red-team-loop-budget-and-route-upstream.md` twice attributes the ≤ 2
    per-blocker re-verify bound to ADR 0043 — the **rounds unit** decision bullet reads "the
    per-blocker bound ADR 0043's Step 5 already imposed", and the **Per-blocker-only accounting
    (rejected)** alternative reads "ADR 0043's ≤ 2 re-verify attempts bounds one blocker in one run" —
@@ -202,10 +211,11 @@ Four defect families, all orbiting the ADJUDICATED verdict contract (ADR 0043) t
 | D11 | ADR 0045 attribution fix | In-place, the auditor's exact wording: the rounds-unit bullet's clause becomes "the per-blocker bound `/red-team`'s Step 5 already imposed"; the rejected-alternative bullet opens "`/red-team` Step 5's ≤ 2 re-verify attempts bounds one blocker in one run". No other bytes move | spec §3 D11; (verified: issue #1357 (2026-08-06), finding 2) |
 | D12 | ADR 0045 census qualifier | Insert the plan's own disambiguator into the census parenthetical: "the 7-round outlier (`2026-07-24-runbook-and-standing-record-coherence`, just outside that window)". Additive, single parenthetical | spec §3 D12; (verified: issue #1357 (2026-08-06), findings 4/7) |
 | D13 | Land-barrier `_Avoid_` fix | The auditor's suggestion, in the live-named **Land-barrier check** entry: "this executes End-state `check:` commands, on every phase that claims one" | spec §3 D13; Note 1 |
-| D14 | `CONTEXT.md` budget remedy | **Preferred arm: eviction pass** — move the coldest glossary-entry bodies byte-identical to the cold home (D15), leaving each term heading + a fixed-shape trigger pointer, until `CONTEXT.md` ≤ 111,616 B including this plan's additions. Named candidates (A3, operator-vetoable): **Dead-agent land failure**, **Stale prior attempt**, **provision base divergence** (reserve: **Near-miss diagnostic**). The **ADJUDICATED (verdict)** entry is hot and guard-read (D8) — never a candidate; likewise excluded, per the full pin census (Note 2): the D19-pinned **Adjudication** entry, the D24-pinned **Staged phase script** entry, the D26-pinned `### Audit` terms, the two D28 pointer-pair entries (**`held:submodule-pr`**, **recovery relaunch** — a veto redirect reaching for **recovery relaunch** would red D28), and the **Advisory line** / **Tighten pass** entries needled by `lessons-learned-doc-contract.test.mjs`. **Fallback arm (operator-gated): ADR-0042-justified re-derivation** recorded in the commit body plus the re-derived constants landing in `prompt-surface-budgets.test.mjs` in the same diff — never a silent constant raise | spec §3 D14; A3/A4 |
+| D14 | `CONTEXT.md` budget remedy | **Preferred arm: eviction pass** — move the coldest glossary-entry bodies byte-identical to the cold home (D15), leaving each term heading + a fixed-shape trigger pointer, until `CONTEXT.md` ≤ 111,616 B including this plan's additions. Named candidates (A3, operator-vetoable), **all five primary** — the three-entry list this row carried before the /red-team pass falls 757 B SHORT and is retired: **Dead-agent land failure**, **Stale prior attempt**, **provision base divergence**, **Orphan adoption** (`record-as-owned`), **Near-miss diagnostic**. The **ADJUDICATED (verdict)** entry is hot and guard-read (D8) — never a candidate; likewise excluded, per the full pin census (Note 2): the D19-pinned **Adjudication** entry, the D24-pinned **Staged phase script** entry, the D26-pinned `### Audit` terms, the two D28 pointer-pair entries (**`held:submodule-pr`**, **recovery relaunch** — a veto redirect reaching for **recovery relaunch** would red D28), the **Advisory line** / **Tighten pass** entries needled by `lessons-learned-doc-contract.test.mjs`, and — added by the /red-team pass, missing from the pre-pass census — the **D29-pinned trio `Surface budget` / `Prose temperature` / `Trigger pointer`** (the `### Prompt-surface budgets` ADR-0042 mirror block, #1208), each read by construct and required to span its `_Avoid_` line. **Fallback arm (operator-gated): ADR-0042-justified re-derivation** recorded in the commit body plus the re-derived constants landing in `prompt-surface-budgets.test.mjs` in the same diff — never a silent constant raise | spec §3 D14; A3/A4 |
 | D15 | Eviction destination | One new cold home `skills/war/references/glossary-cold.md` — all three candidates are war-execution incident/recovery doctrine, `skills/war/references/` is the existing cold store for war doctrine (`resume-and-recovery.md` precedent), and `references/` is unbudgeted (ADR 0042). Each moved body lands byte-identical under an additive per-term heading (the recorded byte-identical-eviction lesson: the block's own bytes govern, the surrounding outline may gain a heading); repo-root-relative links inside moved bodies re-anchor for the new depth (the verbatim-move lesson) | conversion judgment (A4), logged for /red-team |
 | D16 | Task decomposition | Six file-disjoint tasks in Phase 1 — Task 1.1 `CONTEXT.md` + cold home + the `war-config.test.mjs` sweep-list row (the eviction destination joins the enumerated `_polish` OLD-absent list per the UNION-extension precedent — same task as the file it guards); Task 1.2 the ADR; Task 1.3 `CLAUDE.md`; Task 1.4 the gate comment; Task 1.5 the skill doctrine clause; Task 1.6 scaffold + suite with `deps: [1.1]` (rule 7: the D8 guard pins a line in Task 1.1's file — same wave is insufficient at the frozen phase base, and the guard's surface read must be against the post-eviction file) — plus the standard trailing release phase | conversion judgment; war-strategy §3 rule 7 |
 | D17 | Guard banner/title currency | The guard block's banner ("Both surfaces are addressed as SINGLE LINES") and the test title's "each documented verdict line is token-set equal" both go stale at five surfaces and two compare modes — both are updated in the same diff to enumerate five surfaces and name the per-surface compare (set vs ordered-sequence vs subset+partition); the banner-undercount lesson | conversion judgment, logged for /red-team |
+| D18 | Pointer-pair drift guard for the evicted entries | **New D30 row in `skills/war/assets/skill-doc-contracts.test.mjs`**, modelled on the existing D28 pointer-pair test. Each eviction creates a hand-copied cross-file fact (the `CONTEXT.md` residue's destination path + the per-term heading it promises in `glossary-cold.md`) with no guard in the pre-pass plan — the exact ADR 0025 class. Per evicted term, both halves are asserted: the `CONTEXT.md` residue keeps a trigger clause **and** the literal destination path; `glossary-cold.md` carries that term's heading **and** a non-empty body. Rides in **Task 1.1**, the same task that authors the fact (no `deps` edge needed). Rejected: leaving the pairs unguarded on the "green by construction" argument — that argument covers the `_polish` sweep, not heading/path drift | /red-team `unguarded-new-mirror`, 2026-08-16; ADR 0025 |
 
 ## Assumptions ledger
 
@@ -213,7 +223,8 @@ Four defect families, all orbiting the ADJUDICATED verdict contract (ADR 0043) t
 |----|-----------|-------|----------------------|-------|
 | A1 | D5's exact compression is the wanted wording | spec §3 D5 (carried [assumed] row) | the plan interview / operator picks different bytes — the binding contract is the OLD-absent + ADJUDICATED-present checks (End state 4), not the byte string | End state 4's greps; ratify in /red-team |
 | A2 | The D9 partition proof (subset compare + per-arm placement asserts) is wanted — invention beyond #1267's literal two-surface ask | spec §3 D9 (carried [assumed] row); constraint 8 makes the plain whole-line compare wrong, and the subset compare alone would let a sixth verdict land unplaced | drop to the subset compare alone and record the narrowing in the task's done report | End state 7's fail-first mutation traces; ratify in /red-team |
-| A3 | Eviction-target selection: coldest = the named incident-only recovery entries (≈1,412 B + ≈1,377 B + ≈1,683 B bodies at `6fff2ee`, approx — entry census; zero test pins and zero cross-file name references except two comment mentions of the reserve candidate) frees ≈4.2 KB net against a ≈3.0 KB need (2,833 B overage + this plan's additions) | conversion cold-scan at `6fff2ee` (dated snapshot; re-measure at the task's rebased base) | operator redirects the strike list at the veto, or elects the D14 fallback arm | strike list operator-ratified at the /war-machine volley (2026-08-11); End state 11's byte check re-verifies at the rebased base |
+| A3 | Eviction-target selection: coldest = the named incident-only recovery entries. **Figures re-measured at the campaign base `a489067` by the /red-team pass (2026-08-16); the conversion-time figures were wrong and are retired.** Measured entry spans (heading→next-entry-heading, stopping at the next `**Term**:`-shaped line OR the next `##`/`###` heading): **Dead-agent land failure** 1,401 B, **Stale prior attempt** 1,052 B, **provision base divergence** 696 B, **Orphan adoption** 987 B, **Near-miss diagnostic** 728 B. Net removable per entry (span minus the retained `**Term**:` heading, minus one ≈85 B pointer line, minus the trailing blank): 1,286 + 941 + 579 + 860 + 616 = **4,290 B**, against a **3,563 B need** (3,366 B overage at the campaign base + ≈175 B for D6's qualifier/parenthetical + 22 B for D13) — **727 B of margin**. All five entries carry zero test pins (**Orphan adoption** re-verified: the `record-as-owned` pin in `skill-doc-contracts.test.mjs` D28 reads `references/resume-and-recovery.md`'s Recovery-relaunch section, never the CONTEXT.md entry) | /red-team re-measurement at `a489067` (2026-08-16), superseding the conversion cold-scan at `6fff2ee`; re-measure again at the task's rebased base | operator redirects the strike list at the veto, or elects the D14 fallback arm | End state 11's byte check re-verifies at the rebased base; a residual shortfall pulls a further unpinned cold entry before the operator-gated fallback arm |
+| A3-note | **Why the conversion-time census was wrong** (recorded so the error is not re-derived): its entry slice terminated only on the next `**`-opening line, so it (a) ran past **provision base divergence**'s real terminator and swallowed the adjacent **Orphan adoption** entry (695 + 987 ≈ the claimed 1,683), and (b) truncated **Stale prior attempt** early at a mid-body `**never**` bold span. The conversion figures ≈1,412/≈1,377/≈1,683 and "frees ≈4.2 KB" are retired; on the corrected slice the original three-entry list frees only 2,806 B net and lands `CONTEXT.md` **757 B OVER** the advisory line — the reserve alone does not rescue it (116 B over), which is why D14's strike list is widened to five primaries | /red-team `budget-math` + Lead re-measurement, 2026-08-16 | n/a — this row is a recorded correction, not a live assumption | n/a |
 | A4 | `skills/war/references/glossary-cold.md` is the right cold home | D15's reasoning (war-scoped candidates, existing cold store, unbudgeted) | operator renames the destination at the veto; the pointer shape and byte-identity rules are unchanged | destination operator-ratified at the /war-machine volley (2026-08-11); /red-team re-verifies mechanics only |
 | A5 | Both predecessor plans have LANDED before any task of this plan dispatches | the spec header's `dependsOn` declaration (`red-team-gate-cli`, `done-when-floor-wiring`), corroborated by both sibling-spec texts at `6fff2ee` (the 2026-08-06 survey manifest is not present in this worktree — the spec's statement of the machine hint is the source); both plans committed in `docs/plans/` and sequenced ahead in the roadmap spine (ADR 0011) | authored-against-post-predecessor edits collide with the predecessors' rewrites or land against stale shapes | per-task witnesses at the rebased base — Task 1.3: `grep -c 'done-unmet' CLAUDE.md` ≥ 1 (plan 3's End state 11); Task 1.4: `grep -c 'refused by construction' skills/red-team/assets/red-team-gate.mjs` = 0 (plan 1's End state 6); witness fails ⇒ halt and report the missing predecessor, never improvise |
 | A6 | The `CLAUDE.md` D5 edit fits under the budget suite's advisory line at the post-plan-3 base | measured 13,523 B at `6fff2ee` + plan 3's ≲200 B expected delta + ≈90 B here ≈ 13.8 KB vs advisory 14,336 B | tighten the added wording (the hard 16,384 B line is not approachable) | End state 4's budget-suite run |
@@ -275,10 +286,18 @@ WAR construct is introduced (the cold home is a file, not a term). No ADR (Non-g
      loop — no finding in the assembled `probeResults` carries it — and the D4(a) source-scan pin
      holds (fail-first: the pin is red against the pre-fix source; the trace is done-report evidence,
      backstop row) ·
-     check: `node --test skills/red-team/assets/workflow-scaffold.test.mjs`.
+     check: `node --test skills/red-team/assets/workflow-scaffold.test.mjs` **plus the base-red floor**
+     `grep -c 'adjudicated' skills/red-team/assets/workflow-scaffold.js` ≥ 2 (the strip site and the
+     D2 deliberate-absence comment; the file carries **zero** hits at the base, so the suite run alone
+     cannot distinguish "Task 1.6 landed" from "Task 1.6 was skipped" — the suite is green at base and
+     every new pin is an addition to it).
   2. The `FINDINGS` schema literal still does not declare `adjudicated` and carries the
      deliberate-absence comment — a future declaring diff must consciously red the D4(b) pin ·
-     check: `node --test skills/red-team/assets/workflow-scaffold.test.mjs`.
+     check: `node --test skills/red-team/assets/workflow-scaffold.test.mjs` **plus the base-red floor**
+     `grep -c 'deliberate' skills/red-team/assets/workflow-scaffold.js` ≥ 1. Note this End state's
+     first half is **near-tautological at base** — the literal already declares no `adjudicated` key —
+     so the deliberate-absence comment is the only half that new work can move, and it is the half the
+     floor pins.
   3. The stamping-mechanic paragraph carries the provenance backstop (an already-stamped finding in
      the Workflow return / persisted task output is impossible by construction and is treated as
      unstamped and investigated), and every standing doc-guard row on the skill stays green ·
@@ -308,13 +327,42 @@ WAR construct is introduced (the cold home is a file, not a term). No ADR (Non-g
   7. All five documented enumerations (the two lenses.md originals + the D8/D9/D10 surfaces) are
      guard-bound: any drift from `verdict()`'s literal set — or a sixth verdict — reds the extended
      End-state-9 guard, whose banner and title enumerate the five surfaces and their compare modes ·
-     check: `node --test skills/red-team/assets/workflow-scaffold.test.mjs`; fail-first proof: a
-     one-token mutation of each NEW surface (scratch copy) reds its assertion — the three traces are
-     done-report evidence (backstop row).
+     check: `node --test skills/red-team/assets/workflow-scaffold.test.mjs` **plus the base-red floors**
+     (the suite is green at base and all three surfaces are additions to it, so the suite run alone
+     cannot detect their absence) — over `skills/red-team/assets/workflow-scaffold.test.mjs`:
+     `grep -c 'CONTEXT_PATH' … ` ≥ 1, `grep -c 'CAMPAIGN_PATH' …` ≥ 1, `grep -cF 'Precedence:' …` ≥ 1,
+     `grep -cF '(a) Proceed' …` ≥ 1, and `grep -cF 'five surfaces' …` ≥ 1 (the D17 banner/title
+     currency update); each reads **0** at the base. Fail-first proof: a one-token mutation of each
+     NEW surface (scratch copy) reds its assertion — the three traces are done-report evidence
+     (backstop row).
   8. ADR 0045 attributes the ≤ 2 per-blocker bound to `/red-team`'s Step 5 and never to ADR 0043 ·
-     check: `grep -cF "ADR 0043's Step 5" docs/adr/0045-red-team-loop-budget-and-route-upstream.md`
-     = 0 and `grep -cF "ADR 0043's ≤ 2" docs/adr/0045-red-team-loop-budget-and-route-upstream.md`
-     = 0 (`-F`: apostrophe-bearing patterns, constraint 10). **Mandatory manual same-scope survey:**
+     check (**line-joined and case-insensitive — a single-line `grep -cF` false-negates here**: the
+     live clause already straddles a line boundary, `…the per-blocker bound` ending line 28 and
+     `ADR 0043's Step 5 already imposed…` opening line 29, and Task 1.2 rewrites exactly that clause,
+     so any reflow that moves the wrap leaves the misattribution intact while a single-line absence
+     grep returns 0):
+     `tr '\n' ' ' < docs/adr/0045-red-team-loop-budget-and-route-upstream.md | grep -ciF "ADR 0043's Step 5"`
+     = 0 and
+     `tr '\n' ' ' < docs/adr/0045-red-team-loop-budget-and-route-upstream.md | grep -ciF "ADR 0043's ≤ 2"`
+     = 0 (`-F`: apostrophe- and non-ASCII-bearing patterns, constraint 10; `-i`: the OLD-absent half
+     must not be evadable by sentence-initial recapitalization — the recorded
+     `retirement-grep-for-prose-needle-must-be-case-insensitive-or-sentence-initial-capitalization-evades-it`
+     lesson). **NEW-present half (an absence-only pair passes on a deleted clause)** — pin the two
+     rewritten clauses by their own distinctive wording, each **0 at base** and 1 after —
+     **needles include D11's backticks, because the prescribed wording carries them**
+     (``the per-blocker bound `/red-team`'s Step 5 already imposed``):
+     ``tr '\n' ' ' < docs/adr/0045-red-team-loop-budget-and-route-upstream.md | grep -oiF "`/red-team`'s Step 5" | wc -l``
+     ≥ 1 **and**
+     ``tr '\n' ' ' < docs/adr/0045-red-team-loop-budget-and-route-upstream.md | grep -oiF "`/red-team` Step 5's" | wc -l``
+     ≥ 1. Build the needle from **D11's own byte string**, never from a paraphrase of it — a
+     backtick-stripped needle reads 0 against correctly-landed work and false-reds the End state
+     (this check was authored wrong three times: reflow-blind single-line `grep -cF`, then `grep -c`
+     on a `tr`-joined stream, then a paraphrased needle).
+     **`grep -o … | wc -l`, never `grep -c`, on a line-joined stream** — `tr` collapses the file to a
+     single line and `grep -c` counts matching *lines*, so any `-c` presence threshold above 1 is
+     **permanently unreachable**, red even after the work lands. (A bare `/red-team` count would also
+     be vacuous here: the file already carries 11 occurrences at base. Absence halves are unaffected —
+     `grep -c … = 0` is correct on a joined stream, since zero matching lines is still zero.) **Mandatory manual same-scope survey:**
      hand-scan every remaining ADR-0043 citation in the file (seven space-form hits at `6fff2ee`,
      dated snapshot — Context, Decision bullets, Consequences, References — **plus** the two
      hyphenated `pre-ADR-0043` mentions the space-form grep misses) for sibling misattributions; the
@@ -331,15 +379,27 @@ WAR construct is introduced (the cold home is a file, not a term). No ADR (Non-g
       check: `[ "$(wc -c < CONTEXT.md)" -le 111616 ]` and the budget suite's run log carries no
       `CONTEXT.md` WARN — or, on the operator-gated D14 fallback arm, the commit body carries the
       ADR-0042 justification and the re-derived constants land in
-      `skills/war/assets/prompt-surface-budgets.test.mjs` in the same diff.
+      `skills/war/assets/prompt-surface-budgets.test.mjs` in the same diff. **The strike list is the
+      five D14 primaries** (A3, re-measured 2026-08-16): the pre-pass three-entry list frees only
+      2,806 B net and lands 757 B OVER — it is retired and must not be re-derived. All five free
+      4,290 B net against a 3,563 B need (727 B margin).
   12. The full gates are green at the integrated tip ·
       gate: the self-discovery gate (`resolveGate` in `war-config.mjs`) — `node --test
       'skills/**/*.test.mjs'`, the documented hooks/skills shell-test loop, and the redaction-lint
       wrapper all pass.
-  13. Each landing commit cites its issue(s) — #1264 for Tasks 1.5/1.6, #1265 for Tasks 1.1/1.3/1.4,
-      #1267 for Task 1.6, #1357 for Tasks 1.1/1.2, #1386 for Task 1.7; the citation-only closures
-      (#1357 findings 3/6) are cited in the phase-close checkpoint notes, no code change ·
-      HARD at audit_sha (git log between the phase base and the tip; execution-evidence seat).
+  13. **Every source issue is cited by at least one commit in the phase range** `<phase-base>..<tip>`
+      — #1264 (Tasks 1.5/1.6), #1265 (Tasks 1.1/1.3/1.4), #1267 (Task 1.6), #1357 (Tasks 1.1/1.2),
+      #1386 (Task 1.7); the citation-only closures (#1357 findings 3/6) are cited in the phase-close
+      checkpoint notes, no code change ·
+      HARD at audit_sha, judged **range-level** by the execution-evidence seat via
+      `git log --grep=<issue> <phase-base>..<tip>` — **not per commit**.
+      **This is deliberately not a per-commit mandate** (reworded 2026-08-16 after the Lead misread
+      the earlier "each landing commit cites its issue(s)" phrasing and escalated a non-failure).
+      Two commit classes cite no issue *by construction* and are compliant: the engine-authored
+      **phase-merge** commit and the **phase-close polish** commit. The range the condition needs
+      does not exist at any task's pre-merge gate — it first exists post-merge — so this can never be
+      a `gate:` member. See the ratified lesson
+      `each-commit-cites-its-issue-endstates-are-judged-over-the-full-phase-range-not-gated-per-commit`.
   14. Release: all four version slots move lock-step to the next free patch above the live integration
       base at land time ·
       check: `node --test skills/war/assets/version-slots.test.mjs` (lock-step + monotonic floor; the
@@ -350,6 +410,13 @@ WAR construct is introduced (the cold home is a file, not a term). No ADR (Non-g
       check: `node --test skills/red-team/assets/red-team-gate.test.mjs` green, and the two
       zero-form rows' message arguments are template literals carrying `out.rounds`
       (hand-verified in the diff — messages only, no predicate change).
+  16. *(added by the /red-team pass, 2026-08-16 — D18)* Every evicted glossary term is pointer-pair
+      guarded: for each, the `CONTEXT.md` residue keeps a trigger clause and the literal
+      `skills/war/references/glossary-cold.md` destination path, and the cold home carries that term's
+      heading with a non-empty body — a renamed or dropped destination heading reds ·
+      check: `node --test skills/war/assets/skill-doc-contracts.test.mjs` **plus the base-red floor**
+      `grep -cF 'glossary-cold.md' skills/war/assets/skill-doc-contracts.test.mjs` ≥ 1 (the file
+      carries zero hits at the base, so the suite run alone cannot detect a skipped D30 row).
 
 ## Build order (for /war)
 
@@ -369,7 +436,7 @@ constructs exist at the frozen base, which already carries both landed predecess
 
 ### Task 1.1: CONTEXT.md truth + eviction to the cold home (#1265 item 2; #1357 findings 1/5)
 
-- Files: `CONTEXT.md`, `skills/war/references/glossary-cold.md`, `skills/war/assets/war-config.test.mjs`
+- Files: `CONTEXT.md`, `skills/war/references/glossary-cold.md`, `skills/war/assets/war-config.test.mjs`, `skills/war/assets/skill-doc-contracts.test.mjs`
 - Plan slice: **Escape-guard qualifier (D6)** — in the **Sandbox-escape guard** glossary entry, extend
   the sentence "routes the verdict through the self-confound gate (ADR 0020), never `CLEARED`" with the
   ADR 0033 twin's qualifier "until the state is clean" and one brief parenthetical naming the
@@ -395,17 +462,35 @@ constructs exist at the frozen base, which already carries both landed predecess
   `war-config.test.mjs`'s `_polish` OLD-absent test — the eviction destination joins the anchored
   file list exactly as the prior SKILL.md eviction destinations did, so a future retirement sweep
   cannot silently skip the cold home (the enumerated-destination fail-open lesson); green by
-  construction at land (the moved bodies come from a swept-green `CONTEXT.md`). Re-measure the byte
+  construction at land (the moved bodies come from a swept-green `CONTEXT.md`).
+  **Pointer-pair drift guard (D18, added by the /red-team pass — ADR 0025: the guard ships in the same
+  task as the fact it guards, which is this one):** each retained `**Term**:` heading + trigger pointer
+  is a hand-copied cross-file fact (destination path plus the per-term heading it must resolve to), and
+  a body move with no pin lets the destination heading be renamed or dropped while `CONTEXT.md` still
+  promises it. Add a **D30 row** to `skills/war/assets/skill-doc-contracts.test.mjs` modelled
+  byte-for-byte on the existing **D28** pointer-pair test (`'D28 — CONTEXT.md compressed glossary
+  entries keep definition + trigger pointer, and each destination carries the delegated doctrine
+  (#1228)'`) — the established idiom for exactly this construct. Per evicted term, assert **both**
+  halves: (a) the `CONTEXT.md` residue still carries a trigger clause **and** the literal destination
+  path `skills/war/references/glossary-cold.md`; (b) `glossary-cold.md` carries that term's heading
+  **and** a non-empty body under it. Extract by construct (heading match + next-heading lookahead),
+  never by line number, and assert exactly-one-match per surface with a non-empty floor — a renamed
+  destination heading must red, not silently pass. Re-measure the byte
   math at the rebased base (A3 figures are a dated `6fff2ee` snapshot); target
   `wc -c CONTEXT.md` ≤ 111,616 **including this task's additions**; a shortfall pulls the reserve
   candidate, and the operator veto / D14 fallback arm is the redirect (backstop row). Run End states
   5/10/11's greps + hand-scans and record outcomes in the done report even when zero stragglers.
   Commits cite #1265 and #1357.
 - Done when: `[ "$(wc -c < CONTEXT.md)" -le 111616 ]`
-- requiresTest: false
+- requiresTest: true
 - requiresPackaging: false
 - deps: []
 - target repo: superproject
+
+  *(`requiresTest` flipped `false` → `true` by the /red-team pass, 2026-08-16: D18 makes this task
+  author a real test — the D30 pointer-pair row in `skills/war/assets/skill-doc-contracts.test.mjs` —
+  so the refiner's `assert-test-in-diff.sh` floor is satisfiable and now genuinely enforcing. It was
+  correctly `false` when the task was docs-only.)*
 
 ### Task 1.2: ADR 0045 attribution + census truth (#1357 findings 2/4/7)
 
@@ -620,21 +705,33 @@ constructs exist at the frozen base, which already carries both landed predecess
    endstate-check dispatch"; the live glossary heading at `6fff2ee` is **Land-barrier check**. The
    plan anchors by the live construct (anchor-by-named-construct rule); the fix's content is
    unchanged. Logged for /red-team ratification.
-2. **Eviction candidate selection and pin census (A3/D14).** The full census of CONTEXT.md-reading
-   suites at `6fff2ee`: `skill-doc-contracts.test.mjs` entry-pins **Adjudication** (D19),
-   **Staged phase script** (D24, #1134), the `### Audit` terms (D26), and the two D28 pointer-pair
-   entries **`held:submodule-pr`** and **recovery relaunch** (#1228);
+2. **Eviction candidate selection and pin census (A3/D14).** *(census corrected by the /red-team pass,
+   2026-08-16 — the pre-pass version was incomplete in one arm and wrong in another; both corrections
+   are recorded here rather than silently applied.)* The census of CONTEXT.md-reading suites at the
+   campaign base `a489067`: `skill-doc-contracts.test.mjs` entry-pins **Adjudication** (D19),
+   **Staged phase script** (D24, #1134), the `### Audit` terms (D26), the two D28 pointer-pair
+   entries **`held:submodule-pr`** and **recovery relaunch** (#1228), **and — omitted from the
+   pre-pass census — the D29-pinned trio `Surface budget` / `Prose temperature` / `Trigger pointer`**
+   (the `### Prompt-surface budgets` ADR-0042 mirror block, #1208; the D29 test reads each by
+   construct and requires it to span its `_Avoid_` line);
    `skills/lessons-learned/lessons-learned-doc-contract.test.mjs` carries OLD-absent needles on the
    **Advisory line** and **Tighten pass** entries (surfaces 7–8); `war-config.test.mjs` sweeps
    `CONTEXT.md` in its enumerated `_polish` OLD-absent list; the pipeline-structure suite pins the
-   gospel fragments and `input shape`; the budget suite pins bytes, not entries. The three named
-   candidates and the reserve were re-verified against this full census — all genuinely unpinned —
-   and they are incident-only recovery doctrine (temperature = branch frequency, not size),
-   cross-referenced by name nowhere in `skills/`/`agents/`/`hooks/` except the reserve candidate
-   (**Near-miss diagnostic**), named in two code comments, which the kept heading + pointer still
-   resolves. Every D14-excluded entry above is a forbidden veto-redirect target (a redirect reaching
-   for **recovery relaunch** would red D28). Sizes are approximate entry-census figures
-   (heading-to-heading), re-measured at the task's rebased base.
+   gospel fragments and `input shape`; the budget suite pins bytes, not entries. All **five** named
+   candidates (D14, as widened) were re-verified against this corrected census — all genuinely
+   unpinned. **Orphan adoption** specifically: the `record-as-owned` regex in `skill-doc-contracts`
+   D28 reads `references/resume-and-recovery.md`'s `### Recovery relaunch` section, **never** the
+   CONTEXT.md entry, so evicting that entry's body cannot red it.
+   **Correction — the "zero cross-file name references" half was false:** `stale prior attempt` is
+   named on ~14 lines under `skills/` (including `provision-worktrees.sh` and
+   `workflow-template.js`'s `STALE_PRIOR_ATTEMPT_RULE`) and `near-miss diagnostic` on ~21 (including
+   `skills/war/references/schemas.md` prose, not merely "two code comments"). This does **not** change
+   the conclusion — eviction keeps each `**Term**:` heading plus a triggered pointer, so every one of
+   those references still resolves — but the census must not be read as asserting the names are
+   unused. Temperature here is branch frequency (incident-only recovery doctrine), never size or
+   reference count. Every D14-excluded entry above is a forbidden veto-redirect target (a redirect
+   reaching for **recovery relaunch** would red D28; one reaching for any of the D29 trio would red
+   D29). Sizes are measured entry spans at `a489067` (A3), re-measured at the task's rebased base.
 3. **The 1.6 → 1.1 deps edge is rule 7's guard-split case**: the D8 guard (Task 1.6's file) pins a
    line in `CONTEXT.md` (Task 1.1's file). The pinned **ADJUDICATED (verdict)** entry is excluded
    from eviction by D14, so the guard would in fact be green at the frozen base — but the edge makes
@@ -652,6 +749,14 @@ constructs exist at the frozen base, which already carries both landed predecess
    plan) and `lenses.md` (plans 1, 2 + this plan's guard-read); the D6 parenthetical names the
    foreign-delta carve-out conceptually rather than quoting plan-2-owned bytes so no cross-plan byte
    coupling exists.
+   **New contention introduced by the /red-team pass (2026-08-16):** D18 adds
+   `skills/war/assets/skill-doc-contracts.test.mjs` to Task 1.1's `Files:`. Two campaign plans
+   sequenced **after** this one also own that file — `structural-pin-extractors` (its Task 1.x
+   `Files:` pairs it with `skills/war/SKILL.md`) and `gate2-publication-guard` (same pairing). Because
+   this plan lands first, both rebase onto the D30 row rather than the reverse; the additive
+   row-per-contract shape of that suite makes the rebase mechanical. No plan **ahead** of this one
+   touches the file, so Task 1.1 is authored against a stable shape. The roadmap must gain a
+   `## Shared-file contention` row for `skill-doc-contracts.test.mjs` naming this plan plus those two.
 5. **Downstream spine edges** (Context 6): `doc-cli-consistency-corpus` and
    `redteam-rounds-config-telemetry` both declare `dependsOn` onto this group — the former shares
    `CONTEXT.md`, the latter edits `skills/war-campaign/SKILL.md`, a file this plan only guard-reads
