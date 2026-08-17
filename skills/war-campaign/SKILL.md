@@ -18,7 +18,7 @@ You run a **campaign**: a queue of WAR plans executed one at a time, unattended,
 
 - **Start** seeds the ledger via `campaign-ledger.mjs init --campaign <dir>` (`<dir>` anchored at the main checkout, see State & resume) from an explicit plan-file list or a roadmap file. Default mode is `stack` (each plan's branch is cut from the previous plan's tip); `--wait-for-merge` waits for the prior PR to merge and rebases off fresh `origin/master` instead.
 - **Bare resume** re-reads the latest unfinished campaign's ledger + inbox and continues where it stopped.
-- **`add`** only ever appends one file to `inbox/` — it never touches the ledger. Any chat (or a human, or a cron) can drop a plan mid-run; it is picked up at the next plan boundary. The optional `[<ref>]` (default `origin/master`) is consulted **only when the local path is missing** — it lets a plan authored on another branch and PR'd onto master be added to a running campaign.
+- **`add`** only ever appends one file to `inbox/` — it never touches the ledger. Any chat (or a human, or a cron) can drop a plan mid-run; it is picked up at the next plan boundary (a drop for a plan already in the ledger refreshes that entry instead of queueing a second one — see step 1). The optional `[<ref>]` (default `origin/master`) is consulted **only when the local path is missing** — it lets a plan authored on another branch and PR'd onto master be added to a running campaign.
 
 When invoked as `/war-campaign add`, read [references/add-resolution.md](references/add-resolution.md).
 
