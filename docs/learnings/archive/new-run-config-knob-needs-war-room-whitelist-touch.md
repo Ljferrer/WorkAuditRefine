@@ -1,6 +1,6 @@
 ---
 name: new-run-config-knob-needs-war-room-whitelist-touch
-description: "A new run.* config key added to war-config.mjs (DEFAULTS + PRESETS + validate()) has FOUR doc-cascade homes, not one — the canonical export, schemas.md's field reference, the consuming skill's doc, and /war-room's step-2 interview whitelist — and the last one is the surface most likely to be missed: it survived three separate audit rounds unfixed in one phase because nothing tests it and the config still validates/resolves cleanly without it"
+description: "RESOLVED (redteam-rounds-config-telemetry Task 1.4, #1376): A new run.* config key added to war-config.mjs (DEFAULTS + PRESETS + validate()) has FOUR doc-cascade homes, not one — the canonical export, schemas.md's field reference, the consuming skill's doc, and /war-room's step-2 interview whitelist — and the last one is the surface most likely to be missed: it survived three separate audit rounds unfixed in one phase because nothing tests it and the config still validates/resolves cleanly without it"
 metadata: 
   node_type: memory
   type: project
