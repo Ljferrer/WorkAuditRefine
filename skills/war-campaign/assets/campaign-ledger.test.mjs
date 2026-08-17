@@ -45,6 +45,13 @@ const PLAN_A = `# Plan A
 **Files:** \`src/a.js\`, \`src/b.js\`.
 `
 
+// PLAN_A after a regrill widened its footprint — the sweep-dedupe refresh
+// fixture (shares src/a.js with PLAN_A so a self-collision would be visible).
+const PLAN_A_REVISED = `# Plan A (revised)
+
+**Files:** \`src/a.js\`, \`src/d.js\`.
+`
+
 const PLAN_B_OVERLAP_A = `# Plan B
 
 **Files:** \`src/b.js\`, \`src/c.js\`.
@@ -604,6 +611,85 @@ test('sweep of a drop whose line-1 path does not exist throws ENOENT (fail-loud 
   assert.throws(() => sweep(campaignDir), /ENOENT|no such file/)
 })
 
+// ---- sweep idempotence guard (#1355 findings 1/2) --------------------------
+// The halt/regrill/re-add loop must never mint an undrainable duplicate: a drop
+// whose resolved plan path already has a non-`landed` entry — in the ledger or
+// accepted earlier in the SAME sweep — refreshes that entry's `files` and is
+// reported under `skipped: [{ plan, reason: 'refreshed' }]`; a `landed`-only
+// match appends a fresh queued entry.
+
+test('sweep idempotence: a re-dropped plan with a non-landed (halt-state) entry refreshes files, appends nothing, reports skipped', () => {
+  const dir = tmpDir()
+  const planA = writePlan(dir, 'a.md', PLAN_A) // src/a.js, src/b.js
+  const campaignDir = path.join(dir, 'campaign')
+  init(campaignDir, { plans: [planA], mode: 'stack' })
+
+  // halt-state the entry: record a stopPoint; status stays 'queued'
+  record(campaignDir, { plan: path.resolve(planA), stopPoint: 'redteam-route-upstream' })
+
+  // the regrill changed the plan's footprint before the re-drop — proves the
+  // refresh re-stamps `files` from the FRESH extraction, not the stale copy
+  writePlan(dir, 'a.md', PLAN_A_REVISED) // src/a.js, src/d.js
+  addToInbox(campaignDir, planA)
+  const result = sweep(campaignDir)
+
+  const ledger = readLedger(campaignDir)
+  assert.equal(ledger.plans.length, 1, 'no duplicate entry appended')
+  assert.deepEqual(ledger.plans[0].files, ['src/a.js', 'src/d.js'], 'files re-stamped from the fresh extraction')
+  assert.equal(ledger.plans[0].status, 'queued', 'the entry itself is untouched beyond files')
+  assert.equal(ledger.plans[0].stopPoint, 'redteam-route-upstream')
+  assert.deepEqual(result.skipped, [{ plan: path.resolve(planA), reason: 'refreshed' }])
+  assert.deepEqual(result.added, [])
+  // contention seeds from POST-refresh footprints: the refreshed footprint
+  // (still carrying src/a.js) never self-collides with its own prior copy
+  assert.deepEqual(result.overlaps, [])
+  assert.deepEqual(fs.readdirSync(path.join(campaignDir, 'inbox')), [], 'the duplicate drop is consumed like any swept drop')
+})
+
+test('sweep idempotence: a same-sweep double drop of one plan yields one entry (the earlier-accepted arm)', () => {
+  const dir = tmpDir()
+  const planA = writePlan(dir, 'a.md', PLAN_A)
+  const campaignDir = path.join(dir, 'campaign')
+  init(campaignDir, { plans: [], mode: 'stack' })
+
+  addToInbox(campaignDir, planA, { filename: '0001-a.plan' })
+  addToInbox(campaignDir, planA, { filename: '0002-a.plan' })
+  const result = sweep(campaignDir)
+
+  const ledger = readLedger(campaignDir)
+  assert.equal(ledger.plans.length, 1, 'two same-sweep drops of one plan yield one entry')
+  assert.equal(ledger.plans[0].plan, path.resolve(planA))
+  assert.deepEqual(result.added, [path.resolve(planA)])
+  assert.deepEqual(result.skipped, [{ plan: path.resolve(planA), reason: 'refreshed' }])
+  assert.deepEqual(fs.readdirSync(path.join(campaignDir, 'inbox')), [], 'both drops consumed')
+})
+
+test('sweep idempotence: a re-drop of a plan whose only entry is landed appends a fresh queued entry (non-landed duplicates only)', () => {
+  const dir = tmpDir()
+  const planA = writePlan(dir, 'a.md', PLAN_A)
+  const campaignDir = path.join(dir, 'campaign')
+  init(campaignDir, { plans: [planA], mode: 'stack' })
+  record(campaignDir, { plan: path.resolve(planA), status: 'landed' })
+
+  addToInbox(campaignDir, planA)
+  const result = sweep(campaignDir)
+
+  const ledger = readLedger(campaignDir)
+  assert.equal(ledger.plans.length, 2, 'a landed entry never blocks a fresh append')
+  assert.equal(ledger.plans[0].status, 'landed')
+  assert.equal(ledger.plans[1].status, 'queued')
+  assert.equal(ledger.plans[1].plan, path.resolve(planA))
+  assert.deepEqual(result.added, [path.resolve(planA)])
+  assert.deepEqual(result.skipped, [])
+})
+
+test('sweep with an empty inbox carries skipped: [] on the early-return site (shape consistency)', () => {
+  const dir = tmpDir()
+  const campaignDir = path.join(dir, 'campaign')
+  init(campaignDir, { plans: [], mode: 'stack' })
+  assert.deepEqual(sweep(campaignDir), { added: [], overlaps: [], skipped: [] })
+})
+
 // ---- next / record ------------------------------------------------------
 
 test('next returns the first queued plan', () => {
@@ -762,8 +848,8 @@ test('aggregateBackstops returns [] for a campaign where nothing was deferred', 
 
 // ---- redteamRounds (plan Task 5.1) ----------------------------------------
 // The plan's cumulative /red-team round count (the report's `**Rounds:**` header),
-// recorded by /war-campaign's step-3 proceed arm. Nullable + omit-preserving —
-// the backstops precedent.
+// recorded by every arm of /war-campaign's step-3 triage. Nullable +
+// omit-preserving — the backstops precedent.
 
 test('new plan entries default redteamRounds to null (pre-hardening tolerance)', () => {
   const dir = tmpDir()
@@ -887,6 +973,47 @@ test('CLI record with omitted --redteamRounds leaves the existing value UNCHANGE
   assert.equal(entry.redteamRounds, 2)
   assert.equal(entry.status, 'landed')
 })
+
+// ---- CLI numeric-flag refusal: --redteamRounds + --pr (#1367, A3) ----------
+// A bare flag (parseArgs maps a valueless flag to boolean true — Number(true)
+// === 1 would fabricate a plausible-looking count) or a non-numeric token must
+// be refused LOUDLY: non-zero exit, one stderr line naming the flag and
+// rendering the offending token, BEFORE any record() call — so a refused
+// invocation leaves the ledger byte-identical. (Unguarded, the non-numeric
+// shape exits clean and stamps NaN, serialized as null by JSON.stringify.)
+
+function cliRefusal(...args) {
+  try {
+    execFileSync(process.execPath, [CLI, ...args], { encoding: 'utf8' })
+    return { status: 0, stderr: '' }
+  } catch (err) {
+    return { status: err.status, stderr: String(err.stderr || '') }
+  }
+}
+
+for (const flag of ['redteamRounds', 'pr']) {
+  for (const c of [
+    { label: 'bare-trailing', extra: [`--${flag}`], token: 'true' },
+    { label: 'bare-mid-argv', extra: [`--${flag}`, '--status', 'landed'], token: 'true' },
+    { label: 'non-numeric', extra: [`--${flag}`, 'abc'], token: 'abc' },
+  ]) {
+    test(`CLI record --${flag} ${c.label} is refused: non-zero exit, stderr names the flag + token, ledger byte-identical`, () => {
+      const dir = tmpDir()
+      const planA = writePlan(dir, 'a.md', PLAN_A)
+      const campaignDir = path.join(dir, 'campaign')
+      init(campaignDir, { plans: [planA], mode: 'stack' })
+      const before = fs.readFileSync(path.join(campaignDir, 'ledger.json'), 'utf8')
+
+      const { status, stderr } = cliRefusal('record', '--campaign', campaignDir, '--plan', planA, ...c.extra)
+
+      assert.notEqual(status, 0, 'must exit non-zero — never a silent stamp')
+      assert.match(stderr, new RegExp(`--${flag}`), 'stderr must name the offending flag')
+      assert.ok(stderr.includes(`'${c.token}'`), `stderr must render the offending token; got: ${stderr}`)
+      const after = fs.readFileSync(path.join(campaignDir, 'ledger.json'), 'utf8')
+      assert.equal(after, before, 'a refused invocation leaves the ledger byte-identical')
+    })
+  }
+}
 
 // ---- CLI --campaign anchoring + init dangling-symlink (plan Task 2, End states 4-5) --
 // A relative --campaign must anchor at the MAIN checkout (git rev-parse
@@ -1143,7 +1270,7 @@ test('SKILL.md step 3 is the three-arm triage: retired one-sentence wording abse
     !/unresolvable\s*(?:→|->)\s*halt-and-hold/i.test(text),
     'the retired step-3 wording ("Unresolvable → halt-and-hold") must be absent',
   )
-  // proceed arm: commit + record the round count
+  // round-count flag: stamped by every arm of the step-3 triage
   assert.match(text, /--redteamRounds/)
   // halt arm: routing trigger, stop-point token, and the regrill-agenda handoff block
   assert.match(text, /routeUpstream: true/)

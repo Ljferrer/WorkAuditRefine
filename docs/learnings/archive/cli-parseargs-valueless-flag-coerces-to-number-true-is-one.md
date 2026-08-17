@@ -1,6 +1,6 @@
 ---
 name: cli-parseargs-valueless-flag-coerces-to-number-true-is-one
-description: "A hand-rolled CLI parseArgs that maps a trailing valueless flag to boolean `true` silently produces `Number(true) === 1` when a numeric-flag consumer wraps the raw value in `Number(...)` with no shape validation — a plausible-looking wrong value instead of a loud refusal; the repo already has a ratified stronger pattern (three-way typeof-gated refusal, war-memory.mjs) that new numeric CLI flags should copy instead of mirroring the older bare-Number() precedent"
+description: "RESOLVED (redteam-rounds-config-telemetry Task 1.1, #1367): A hand-rolled CLI parseArgs that maps a trailing valueless flag to boolean `true` silently produces `Number(true) === 1` when a numeric-flag consumer wraps the raw value in `Number(...)` with no shape validation — a plausible-looking wrong value instead of a loud refusal; the repo already has a ratified stronger pattern (three-way typeof-gated refusal, war-memory.mjs) that new numeric CLI flags should copy instead of mirroring the older bare-Number() precedent"
 metadata: 
   node_type: memory
   type: project
