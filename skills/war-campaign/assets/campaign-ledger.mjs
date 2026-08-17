@@ -364,7 +364,9 @@ export function addToInbox(campaignDir, planPath, opts = {}) {
 
 // sweep(campaignDir) — move inbox entries into the queue in dependency-safe
 // (deterministic: inbox filename) order, contention-checking against the
-// existing queue + each other; deletes consumed inbox files. Returns
+// existing queue + each other; a drop whose resolved plan path already has an
+// entry is skipped (its `files` refreshed) instead of appended; deletes
+// consumed inbox files. Returns
 // { added: [...plans], overlaps: [{ paths, plan }], skipped: [{ plan, reason }] }
 // for reporting.
 export function sweep(campaignDir) {
