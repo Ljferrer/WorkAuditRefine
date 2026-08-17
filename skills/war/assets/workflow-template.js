@@ -1079,8 +1079,8 @@ if (tasks.length) {
   // Always-on stale-remote classification (§4.4) — present regardless of args.recovery (the probe is
   // DEFAULT behavior, not recovery machinery — end states 10/22). The barrier keys on the STALE_REMOTE
   // marker TOKEN, never the numeric exit code (live-artifact rule; the script's dedicated exit code is
-  // its own direct-invocation contract, Task 1). This is the ONLY delta between a recovery-absent
-  // barrier prompt and today.
+  // its own direct-invocation contract, Task 1). This and the WORKTREE_HYGIENE capture clause below
+  // are the always-on deltas between a recovery-absent barrier prompt and today.
   const staleRemoteClause = pt`STALE-REMOTE CLASSIFICATION (per task, always-on): if a task's ensure-worktree exits NON-ZERO and its output carries the \`STALE_REMOTE\` marker line, do NOT halt the barrier — capture { task: "<that task's id>", remoteSha: "<the marker's remote SHA>", frozenTip: "$TIP" } into a \`staleRemote\` array on the env-outcome and CONTINUE provisioning the remaining tasks. The marker token is the key, never the numeric exit code. Any OTHER non-zero ensure-worktree exit — one WITHOUT the marker — remains a barrier failure exactly as the fail-loud rule above.\n`
   // Reuse-path hygiene capture (D20, #1381) — always-on, visibility only. The barrier keys on the
   // WORKTREE_HYGIENE marker TOKEN emitted by ensure-worktree's reuse path (the STALE_REMOTE
@@ -2494,7 +2494,10 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation') && minorsF
       + pt`THEN file one \`war-followup\`-labelled issue per row below, in order — title from the row's title; body carrying the why-not-absorbable reason and the task id${ph.epicIssue ? pt`, and a reference to the phase epic #${ph.epicIssue}` : ''}.\n`
       // pt-tagged prompt-feeding row builder (file-followups dispatch): title/rationale are
       // schema-optional and task is routing-stamped → ?? defaults (never a phase-killing throw here).
-      + minorsFiled.map((m, i) => pt`  ${i + 1}. [task ${m.task ?? '<task>'}] ${m.title ?? '(untitled finding)'} — why not absorbable: ${m.rationale ?? '(no rationale recorded)'}`).join('\n') + '\n'
+      // The title span is DELIMITED (quoted, `title:`-prefixed) so the dedup instruction's
+      // exact-title match keys on the finding's own title — never the whole composite row, whose
+      // leading ordinal would make dedup order-dependent across a relaunch.
+      + minorsFiled.map((m, i) => pt`  ${i + 1}. title: "${m.title ?? '(untitled finding)'}" · task ${m.task ?? '<task>'} · why not absorbable: ${m.rationale ?? '(no rationale recorded)'}`).join('\n') + '\n'
       + pt`Return ONLY { filed: [{ n, issue }] } — n the row's 1-based ordinal above, issue the filed-or-reused issue number (null when unfiled). A partial/empty result is FAIL-OPEN: unmatched entries stay issue: null in the handoff and the Checkpoint floor catches them; never block.`,
       { agentType: NS + 'war-refiner', phase: 'Land', label: 'file-followups:phase-' + ph.id, dispatchKind: 'file-followups', schema: FOLLOWUP_FILING_RESULT, ...spawn('refiner') })
   } catch (err) {

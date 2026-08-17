@@ -4867,6 +4867,18 @@ test('file-followups on held:escalation (End state 3 companion): the dispatch fi
   assert.equal(out.landDecision, 'held:escalation', 'presence guard: the degraded handoff-emitting path')
   assert.ok(calls.some(c => c.opts.dispatchKind === 'file-followups'), 'the filing dispatch fires on held:escalation too')
   assert.equal(out.handoff.followUps[0].issue, 4321, 'the stamped issue number rides the degraded handoff as well')
+  // Prompt-content pins (the relaunch defect's regression guard): the emitted preflight line
+  // interpolates the gh-preflight path BARE — POSIX single quotes around it would suppress
+  // $CLAUDE_PLUGIN_ROOT expansion in the refiner's shell and 127 the ADR-0026 account guard
+  // before the gh-write batch (the round-1 audit Major this suite previously never read).
+  const fp = calls.find(c => c.opts.dispatchKind === 'file-followups').prompt
+  assert.ok(fp.includes('${CLAUDE_PLUGIN_ROOT}/skills/_shared/gh-preflight.sh "'),
+    'the preflight line emits the plugin-root path BARE, directly followed by the double-quoted ghUser arg')
+  assert.doesNotMatch(fp, /'\$\{CLAUDE_PLUGIN_ROOT\}[^']*gh-preflight\.sh'/,
+    'no POSIX-single-quoted preflight path survives — re-adding the quotes suppresses expansion (delete-the-feature proof)')
+  assert.match(fp, /war-followup/, 'the filing prompt names the war-followup label')
+  assert.match(fp, /gh issue list --label war-followup --state open/,
+    'the dedup-first instruction (D3) rides the prompt verbatim')
 })
 
 test('file-followups ordinal mismatch: out-of-range / non-integer n and non-numeric issue rows are ignored; in-range rows still stamp', async () => {

@@ -368,7 +368,8 @@ hyg_fixture() {
 # untracked files) rides the same reuse. The reuse must repair the submodule
 # (clean, HEAD still at the recorded gitlink SHA), emit a WORKTREE_HYGIENE
 # `repaired` marker on stderr, and leave the WIP byte-for-byte with nothing
-# staged. Die/marker text captured via the T2.3/T2.6 inline idiom.
+# staged. Streams captured SPLIT (stderr to a temp file, stdout separately) so
+# the marker greps and the stdout-is-the-path assertion are stream-accurate.
 # ---------------------------------------------------------------------------
 FXH_J="$(hyg_fixture)"; RH_J="${FXH_J%% *}"; WTH_J="${FXH_J##* }"
 TIPH_J="$(git -C "$RH_J" rev-parse war/myplan/p2-t3)"
@@ -386,7 +387,15 @@ printf 'tracked-wip\n' >> "$WTH_J/seed.txt"
 printf 'untracked-one\n' > "$WTH_J/wip1.txt"
 printf 'untracked-two\n' > "$WTH_J/wip2.txt"
 SEED_J="$(cat "$WTH_J/seed.txt")"
-OUT_HJ="$( ( cd "$RH_J" && bash "$SCRIPT" ensure-worktree "$WTH_J" war/myplan/p2-t3 "$TIPH_J" ) 2>&1 )"; C_HJ=$?
+# Split streams (stderr-only marker contract): the barrier parses stdout as the
+# worktree PATH, so markers MUST stay on stderr — dropping >&2 from
+# hygiene_marker would corrupt the path capture. OUT_HJ is stderr ONLY; the
+# marker greps below are therefore stream-discriminating.
+ERRF_J="$(mktemp 2>/dev/null || mktemp -t warhyg)"; REPOS="$REPOS $ERRF_J"
+OUT_HJ_STDOUT="$( ( cd "$RH_J" && bash "$SCRIPT" ensure-worktree "$WTH_J" war/myplan/p2-t3 "$TIPH_J" ) 2>"$ERRF_J" )"; C_HJ=$?
+OUT_HJ="$(cat "$ERRF_J")"
+expect "HYG.j: stdout is exactly the worktree path (markers stay on stderr)" \
+  "$WTH_J" "$OUT_HJ_STDOUT"
 expect "HYG.j: reuse over the corrupted submodule exits 0 (fail-open, no new die)" \
   "0" "$C_HJ"
 expect "HYG.j: a WORKTREE_HYGIENE repaired marker is emitted" \
@@ -2345,8 +2354,11 @@ expect "RWB.h: die RETAINS a known git-stderr fragment" \
   "yes" "$(printf '%s' "$OUT_H" | grep -Eiq 'cannot lock ref|exists; cannot create' && echo yes || echo no)"
 expect "RWB.h: die names the --working remedy" \
   "yes" "$(printf '%s' "$OUT_H" | grep -Fq -- '--working' && echo yes || echo no)"
-expect "RWB.h: die names the blocking ref by name" \
-  "yes" "$(printf '%s' "$OUT_H" | grep -Fq 'dev/2026-07-06-myplan/blocker' && echo yes || echo no)"
+# Discriminating needle: the WRAPPER's own diagnosis phrasing, which git's stderr
+# never emits — a bare grep for the ref name would pass on modern git's own
+# "'refs/heads/.../blocker' exists" text even with blocking_leaf_for deleted.
+expect "RWB.h: die names the blocking ref via the wrapper's own diagnosis phrasing" \
+  "yes" "$(printf '%s' "$OUT_H" | grep -Fq "the blocking ref is 'dev/2026-07-06-myplan/blocker'" && echo yes || echo no)"
 
 # --- Case (RWB.i / 1.2(h)) FALLBACK RESUME-REUSE (End state 19, #1380 A3): a
 # run that fell back to the flat name resumes — the second call with the same
