@@ -1127,6 +1127,12 @@ _Avoid_: conflating it with `resolveGate` itself (the canonical function this po
 expecting composition per dispatch site — it fires once, upstream of them all.
 
 **Spec-truth guard**:
+_Superseded 2026-08-16 by [ADR 0046](docs/adr/0046-specs-are-posterity-skills-cite-maintained-surfaces.md):
+emitted as rows D15–D17 (locking prose-drift-corrected spec sentences), then frozen — never
+extended. The posterity rule retires the growth premise: "only a guarded claim is drift-proof"
+inverts to "specs are frozen, so locked sentences cannot rot". The rows stay as historical locks;
+the entry below (its "defined-but-not-yet-emitted" claim now stale) is kept for archaeology._
+
 A per-claim, construct-anchored doc-contract row in `skill-doc-contracts.test.mjs` locking a
 `docs/specs/` (or SKILL.md) code-fact sentence to the mechanics it actually describes — the
 `docs/specs/` sibling of the file's existing SKILL.md rows (D10/D12 style: locate by construct, extract
@@ -1136,6 +1142,19 @@ its first rows are produced in Task 2.1 of the
 _Avoid_: a blanket markdown/AST parser over every `docs/specs/*.md` file (the ratified ceiling stays
 per-claim, not per-file); treating an unguarded spec claim as verified — only a guarded claim is
 drift-proof.
+
+**Posterity corpus**:
+The directory-scanned live-surface set the ADR 0046 citation rule sweeps — every `skills/*/SKILL.md`,
+every `skills/*/references/*.md`, every `agents/*.md`, plus `README.md` — derived from the tree,
+never from an editable in-file list.
+_Avoid_: conflating it with the verb-rule corpus (enumerated, deliberately narrower).
+
+**Verb-scan placement census**:
+The default-deny partition assert making every `skills/*/references/*.md` file either verb-scanned
+(`EVICTION_DESTINATIONS`) or reason-excluded (`VERB_SCAN_EXCLUSIONS`); a new references file is red
+until consciously placed.
+_Avoid_: "exclusion" as suppression — an excluded entry carries a stated reason and is still
+posterity-scanned.
 
 ### Run-scoped staged phase scripts (ADR 0037)
 
