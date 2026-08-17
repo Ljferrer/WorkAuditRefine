@@ -1581,6 +1581,15 @@ test("D9 — the refiner card's gitlink-bump invocation agrees in shape with the
 // through an interactive-style review to the approval gate while interactive runs get the
 // refusal, the other arm's trigger token sitting inside one key's gap). Shared by the live row
 // and both negative references below — the uses must never drift apart.
+// RESIDUAL, recorded rather than waived — one fragment has no both-ways proof: the AFK key's
+// negated gap is proven by the COLLIDED reference (deleting `(?!interactive)` reds it — the
+// measured `--afk` → `refuses dispatch` gap is 111 chars, inside the {0,120} bound), and the
+// interactive key's LIVE-TOKEN ANCHOR is proven by the same reference (deleting `\s+runs` reds
+// it at the `interactive-style` token) — but the interactive key's `(?!--afk)` gap is NOT:
+// SWAPPED's `interactive runs` → `approval gate` distance is 165 chars, already over the {0,80}
+// bound, and COLLIDED carries no `approval gate` after its `interactive runs` token, so deleting
+// that fragment reds nothing here — measured, not assumed. Closing it needs a third reference
+// (`interactive runs` … `--afk` … `approval gate` inside the 80-char bound).
 const D31_INTERACTIVE_ARM = /interactive\s+runs(?:(?!--afk)[\s\S]){0,80}approval\s+gate/i
 const D31_AFK_ARM = /--afk(?:(?!interactive)[\s\S]){0,120}refuses\s+dispatch/i
 // Unwired negative reference (both-ways proof, zero fixture files — D22/D9's idiom): a
