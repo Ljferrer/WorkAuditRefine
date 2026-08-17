@@ -1,5 +1,11 @@
 // Doc/CLI shell-out consistency drift-guard (plan D11, ADR 0025) + the
-// spec-posterity citation rule (F7 / ADR 0046) over the same doc corpus.
+// spec-posterity citation rule (F7 / ADR 0046) — two rules, two corpora,
+// decoupled (plan 2026-08-06-doc-cli-consistency-corpus D1): the verb rule
+// scans readdir-derived skills/*/SKILL.md plus the enumerated
+// EVICTION_DESTINATIONS; the spec-posterity rule sweeps the directory-scanned
+// posterity corpus (every SKILL.md, every skills/*/references/*.md, every
+// agents/*.md card, plus README.md). The placement census test binds the
+// references-file partition between the verb-side lists (D2).
 //
 // Every CLI verb a SKILL.md phrases for one of the named dispatch modules must
 // resolve to a REAL dispatch case in that module — extraction + equality, not
@@ -101,6 +107,55 @@ function claimedVerbs(skillText, moduleName) {
   return out
 }
 
+// --- the verb-side partition over skills/*/references/*.md -----------------
+// UNION scan (prompt-surface simplification, adjudication I): SKILL.md prose evicts tier-2+
+// blocks verbatim into per-skill references/ files, so the verb-claim scan follows the moved
+// text — a moved shell-out claim stays checked, never silently unscanned. Membership is a
+// conscious per-file decision (a blanket widening is impossible: contract/design references
+// legitimately name module EXPORTS beside module filenames — see VERB_SCAN_EXCLUSIONS); the
+// placement census test below (D2) default-denies every unplaced references file.
+const EVICTION_DESTINATIONS = [
+  'skills/war/references/setup.md',
+  'skills/war/references/docker-gate.md',
+  'skills/war/references/submodule-flows.md',
+  'skills/war/references/resume-and-recovery.md',
+  'skills/lessons-learned/references/tighten.md',
+  'skills/lessons-learned/references/migration.md',
+  'skills/lessons-learned/references/recovery.md',
+  'skills/red-team/references/backstop-legitimacy.md',
+  'skills/war-campaign/references/add-resolution.md',
+  'skills/war-machine/references/afk-conversion.md',
+  'skills/war-review/references/offer-issue.md',
+  'skills/war-review/references/scavenge.md',
+  // Spec-posterity corpus widening (plan 2026-08-05 Task 5.4, F7 / ADR 0046): the two
+  // retired-citation homes the hand-enumerated list could not previously see.
+  'skills/lessons-learned/references/seeding.md',
+  'skills/war/references/design.md',
+  // #1306: the interview doctrine's whole CLI exposure is its Stage-0 recon command
+  // (war-memory.mjs `query`, which resolves against the live VERBS dispatch) — verb-scanned
+  // so a future verb rename rots that command loudly, never silently.
+  'skills/war-strategy/references/plan-interview.md',
+]
+
+// Reason-excluded from the VERB scan only (D9/D10) — never from the posterity rule: every
+// entry below is still swept by the directory-scanned posterity corpus. An exclusion is a
+// conscious placement with a stated per-entry reason, not suppression.
+const VERB_SCAN_EXCLUSIONS = [
+  // schemas.md names war-config.mjs directly beside its EXPORT `resolveGate`; war-config.mjs
+  // is flag-based with an empty-by-design verb set (see MODULES), so verb-scanning this
+  // contract reference is a guaranteed false red (probe-verified).
+  'skills/war/references/schemas.md',
+  'skills/war/references/auditor-teach.md',         // no shell-out prose for the scanned modules
+  'skills/war/references/gastown-design-params.md', // no shell-out prose for the scanned modules
+  'skills/war/references/refiner-recovery.md',      // no shell-out prose for the scanned modules
+  'skills/war/references/worker-servitor-edges.md', // no shell-out prose for the scanned modules
+  'skills/red-team/references/lenses.md',           // no shell-out prose for the scanned modules
+  'skills/red-team/references/loop-budget.md',      // no shell-out prose for the scanned modules
+  // glossary-cold.md holds evicted CONTEXT.md glossary bodies (incident/recovery doctrine);
+  // no shell-out prose for the scanned modules (re-verified at the 2026-08-16 land base, D10).
+  'skills/war/references/glossary-cold.md',
+]
+
 function skillDocs() {
   const skillsDir = join(REPO, 'skills')
   const docs = []
@@ -109,32 +164,6 @@ function skillDocs() {
     const p = join(skillsDir, d.name, 'SKILL.md')
     if (existsSync(p)) docs.push({ path: `skills/${d.name}/SKILL.md`, text: readFileSync(p, 'utf8') })
   }
-  // UNION scan (prompt-surface simplification, adjudication I): SKILL.md prose evicts tier-2+
-  // blocks verbatim into per-skill references/ files, so the verb-claim scan follows the moved
-  // text — a moved shell-out claim stays checked, never silently unscanned. Enumerated eviction
-  // destinations only (a shrink task extends this list in the same commit as its move): the
-  // pre-existing contract/design references (e.g. skills/war/references/schemas.md) legitimately
-  // name module EXPORTS beside module filenames and are not shell-out prose — EXCEPT the
-  // spec-posterity additions below, which join this list for the ADR 0046 rule's corpus and
-  // are consequently verb-scanned as well.
-  const EVICTION_DESTINATIONS = [
-    'skills/war/references/setup.md',
-    'skills/war/references/docker-gate.md',
-    'skills/war/references/submodule-flows.md',
-    'skills/war/references/resume-and-recovery.md',
-    'skills/lessons-learned/references/tighten.md',
-    'skills/lessons-learned/references/migration.md',
-    'skills/lessons-learned/references/recovery.md',
-    'skills/red-team/references/backstop-legitimacy.md',
-    'skills/war-campaign/references/add-resolution.md',
-    'skills/war-machine/references/afk-conversion.md',
-    'skills/war-review/references/offer-issue.md',
-    'skills/war-review/references/scavenge.md',
-    // Spec-posterity corpus widening (plan 2026-08-05 Task 5.4, F7 / ADR 0046): the two
-    // retired-citation homes the hand-enumerated list could not previously see.
-    'skills/lessons-learned/references/seeding.md',
-    'skills/war/references/design.md',
-  ]
   // Unguarded read: an enumerated destination that vanishes (rename/delete) must throw,
   // never silently narrow the UNION scan (lesson: enumerated-destination-list-existssync-
   // guard-fail-open-vs-sibling-fail-closed).
@@ -142,6 +171,39 @@ function skillDocs() {
     docs.push({ path: rel, text: readFileSync(join(REPO, rel), 'utf8') })
   assert.ok(docs.length > 0, 'no skills/*/SKILL.md found — repo root misresolved?')
   return docs
+}
+
+// --- posterity corpus (D1) -------------------------------------------------
+// Directory-scanned, never an editable in-file list: membership is readdir-derived per
+// skills/<name>/ dir (its listed SKILL.md and references/*.md members — a skill dir without
+// SKILL.md or references/ is a normal state, skipped), plus every agents/*.md card, plus
+// README.md (ADR 0046's reach includes the README, for the spec-posterity rule only). All
+// reads are unguarded readFileSync: a scanned path that vanishes between scan and read throws.
+
+function referencesFiles() {
+  const skillsDir = join(REPO, 'skills')
+  const out = []
+  for (const d of readdirSync(skillsDir, { withFileTypes: true })) {
+    if (!d.isDirectory()) continue
+    const entries = readdirSync(join(skillsDir, d.name), { withFileTypes: true })
+    if (!entries.some(e => e.isDirectory() && e.name === 'references')) continue
+    for (const f of readdirSync(join(skillsDir, d.name, 'references')))
+      if (f.endsWith('.md')) out.push(`skills/${d.name}/references/${f}`)
+  }
+  return out.sort()
+}
+
+function posterityCorpus() {
+  const skillsDir = join(REPO, 'skills')
+  const paths = []
+  for (const d of readdirSync(skillsDir, { withFileTypes: true }))
+    if (d.isDirectory() && readdirSync(join(skillsDir, d.name)).includes('SKILL.md'))
+      paths.push(`skills/${d.name}/SKILL.md`)
+  paths.push(...referencesFiles())
+  for (const f of readdirSync(join(REPO, 'agents')))
+    if (f.endsWith('.md')) paths.push(`agents/${f}`)
+  paths.push('README.md')
+  return paths.map(rel => ({ path: rel, text: src(rel) }))
 }
 
 // --- spec-posterity rule (F7 / ADR 0046, plan 2026-08-05 Task 5.4) ---------
@@ -163,6 +225,13 @@ function specCitations(path, text) {
   const stripped = stripFences(text)
   for (const m of stripped.matchAll(/docs\/specs\/(\S*)/gi)) {
     let rest = m[1].replace(/[`"'\)\].,;:]+$/, '') // trim trailing punctuation/markdown
+    // D5 (#1358 finding 9): the PATH SEGMENT ends at the first backtick / ] / ) — beyond
+    // that delimiter the whitespace-free run is markdown plumbing (a closing code span, a
+    // link's text/target seam, or emphasis riding on those), not path bytes. Truncating
+    // BEFORE the carve-out tests keeps a composite wrapper from smuggling its markdown
+    // metacharacters into the glob/placeholder tests below.
+    const cut = rest.search(/[`\])]/)
+    if (cut >= 0) rest = rest.slice(0, cut)
     // A paired emphasis wrapper (**bold** / _italic_) is decoration, not a glob: strip the
     // trailing marker run only when the char before the match opens it — anchoring to the
     // paired leading marker keeps an unpaired trailing glob (docs/specs/2026-*) carved out.
@@ -175,10 +244,6 @@ function specCitations(path, text) {
   }
   return out
 }
-
-// The verb-rule corpus + README.md — ADR 0046's reach includes the README
-// (the README extension), for this rule only.
-const specRuleCorpus = () => [...skillDocs(), { path: 'README.md', text: src('README.md') }]
 
 function unresolved(docs, cases) {
   const bad = []
@@ -225,14 +290,52 @@ test('delete-and-trace: an injected fake verb fails resolution; real verbs do no
   assert.deepEqual(unresolved(good, cases), [], 'genuine verbs must resolve to their dispatch cases')
 })
 
+test('verb-scan placement census (D2): every skills/*/references/*.md file is consciously placed', () => {
+  // Default-deny partition: the directory scan is truth, and every references file must sit
+  // in exactly one of the two lists — census friction on every newcomer is the point.
+  // Deletion asymmetry (D13), stated as intent: a DELETED references file simply leaves the
+  // scan-derived posterity corpus (a deleted file is no live surface — by design), while an
+  // enumerated verb-list member still fails loud both ways — deleting the FILE throws via
+  // skillDocs()'s unguarded readFileSync, and deleting its in-file ROW reds this census as a
+  // stale row.
+  const overlap = EVICTION_DESTINATIONS.filter(p => VERB_SCAN_EXCLUSIONS.includes(p))
+  assert.deepEqual(overlap, [], `a references file is verb-scanned or reason-excluded, never both — remove it from one list: ${JSON.stringify(overlap)}`)
+  const scanned = referencesFiles()
+  const union = [...EVICTION_DESTINATIONS, ...VERB_SCAN_EXCLUSIONS].sort()
+  const unplaced = scanned.filter(p => !union.includes(p))
+  const stale = union.filter(p => !scanned.includes(p))
+  assert.deepEqual(scanned, union, 'references-file placement census failed (default-deny).'
+    + (unplaced.length ? ` UNPLACED: ${JSON.stringify(unplaced)} — a new references file is red until consciously placed: add it to EVICTION_DESTINATIONS if it phrases a scanned module's CLI commands, else to VERB_SCAN_EXCLUSIONS with a reason comment.` : '')
+    + (stale.length ? ` STALE ROW: ${JSON.stringify(stale)} — the listed file is gone from skills/*/references/; restore the file or delete its row (and the coverage it claimed).` : ''))
+  // #1306: the placement itself is load-bearing and the census alone cannot tell WHICH list
+  // a path landed in — plan-interview.md must be in the VERB-SCANNED list, so its Stage-0
+  // recon command stays checked against the live dispatch.
+  assert.ok(EVICTION_DESTINATIONS.includes('skills/war-strategy/references/plan-interview.md'),
+    'plan-interview.md must be verb-scanned (EVICTION_DESTINATIONS), not reason-excluded (#1306)')
+})
+
 test('spec-posterity (F7 / ADR 0046): no scanned doctrine surface — nor README.md — cites a docs/specs path', () => {
-  // Corpus MEMBERSHIP guard (End state 15): the unguarded readFileSync above fails closed
-  // on file DELETION, but an in-file list edit that drops README.md or a widened
-  // EVICTION_DESTINATIONS entry must go red here, never silently narrow the scan.
-  const corpusPaths = specRuleCorpus().map(d => d.path)
-  for (const rel of ['README.md', 'skills/lessons-learned/references/seeding.md', 'skills/war/references/design.md'])
-    assert.ok(corpusPaths.includes(rel), `spec-posterity corpus must include ${rel} (End state 15)`)
-  const bad = specRuleCorpus().flatMap(({ path, text }) => specCitations(path, text))
+  // D3 sentinel floors (replacing the retired membership loop over in-file list entries):
+  // the corpus is scan-derived, so no in-file edit can narrow it — one sentinel pins each
+  // family's presence, and the deepEquals below prove the scanned slices are DERIVED.
+  const corpus = posterityCorpus()
+  const corpusPaths = corpus.map(d => d.path)
+  for (const rel of ['skills/war/SKILL.md', 'agents/war-worker.md', 'skills/war-strategy/references/plan-interview.md', 'README.md'])
+    assert.ok(corpusPaths.includes(rel), `posterity corpus must include ${rel} (D3 sentinel)`)
+  // The SKILL.md and agent-card slices must each deepEqual a fresh readdirSync of their
+  // family (the census idiom applied here): four sentinels alone cannot tell a readdir-derived
+  // corpus from a hardcoded array that happens to contain those four paths.
+  assert.deepEqual(
+    corpusPaths.filter(p => p.endsWith('/SKILL.md')).sort(),
+    readdirSync(join(REPO, 'skills'), { withFileTypes: true })
+      .filter(d => d.isDirectory() && readdirSync(join(REPO, 'skills', d.name)).includes('SKILL.md'))
+      .map(d => `skills/${d.name}/SKILL.md`).sort(),
+    'the posterity corpus SKILL.md slice must be readdir-derived, not hand-kept')
+  assert.deepEqual(
+    corpusPaths.filter(p => p.startsWith('agents/')).sort(),
+    readdirSync(join(REPO, 'agents')).filter(f => f.endsWith('.md')).map(f => `agents/${f}`).sort(),
+    'the posterity corpus agent-card slice must be readdir-derived, not hand-kept')
+  const bad = corpus.flatMap(({ path, text }) => specCitations(path, text))
   assert.deepEqual(bad, [], `a live surface cites a docs/specs path (specs are posterity — repoint at the maintained home or delete the pointer):\n${JSON.stringify(bad, null, 2)}`)
 })
 
@@ -246,6 +349,10 @@ test('spec-posterity carve-outs: input-shape mechanics excluded by pattern; conc
   // unpaired trailing glob keeps its carve-out
   assert.equal(specCitations('FIXTURE', 'see **docs/specs/2026-01-01-x-design.md** §3').length, 1, 'a bold-wrapped citation must be flagged, not carved as a glob')
   assert.equal(specCitations('FIXTURE', 'see _docs/specs/2026-01-01-x-design.md_ §3').length, 1, 'an italic-underscore-wrapped citation must be flagged')
+  // composite emphasis (D5, #1358 finding 9): the wrapper's markdown metacharacters are not
+  // path bytes — the path-segment truncation keeps them out of the carve-out tests
+  assert.equal(specCitations('FIXTURE', 'see **`docs/specs/2026-01-01-x-design.md`** §3').length, 1, 'a bold-wrapped code-span citation must be flagged, not carved as a glob')
+  assert.ok(specCitations('FIXTURE', 'see **[`docs/specs/2026-01-01-x-design.md`](docs/specs/2026-01-01-x-design.md)** §3').length >= 1, 'a bold-link composite citation must be flagged')
   assert.deepEqual(specCitations('FIXTURE', 'sweep `docs/specs/2026-*` for that year'), [], 'a date-prefix glob keeps its carve-out (the emphasis trim needs a paired leading marker)')
   // carve-outs: bare output dir, globs, placeholders, ellipsis, date placeholder, fenced examples
   assert.deepEqual(specCitations('FIXTURE', 'synthesizes one spec per group into `docs/specs/` — then verifies.'), [], 'the bare output directory is input-shape mechanics')
