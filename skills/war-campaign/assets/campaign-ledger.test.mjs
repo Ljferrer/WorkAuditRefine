@@ -45,6 +45,13 @@ const PLAN_A = `# Plan A
 **Files:** \`src/a.js\`, \`src/b.js\`.
 `
 
+// PLAN_A after a regrill widened its footprint — the sweep-dedupe refresh
+// fixture (shares src/a.js with PLAN_A so a self-collision would be visible).
+const PLAN_A_REVISED = `# Plan A (revised)
+
+**Files:** \`src/a.js\`, \`src/d.js\`.
+`
+
 const PLAN_B_OVERLAP_A = `# Plan B
 
 **Files:** \`src/b.js\`, \`src/c.js\`.
@@ -604,6 +611,129 @@ test('sweep of a drop whose line-1 path does not exist throws ENOENT (fail-loud 
   assert.throws(() => sweep(campaignDir), /ENOENT|no such file/)
 })
 
+// ---- sweep idempotence guard (#1355 finding 3) -----------------------------
+// The halt/regrill/re-add loop must never mint an undrainable duplicate: a drop
+// whose resolved plan path already has ANY entry — in the ledger (a `landed`
+// entry ALSO blocks the append, D2) or accepted earlier in the SAME sweep —
+// refreshes that entry's `files` (every other field byte-intact) and is
+// reported under `skipped` with reason 'landed' for a landed ledger match,
+// 'refreshed' otherwise.
+
+test('sweep idempotence: a re-dropped plan with a non-landed (halt-state) entry refreshes files, appends nothing, reports skipped', () => {
+  const dir = tmpDir()
+  const planA = writePlan(dir, 'a.md', PLAN_A) // src/a.js, src/b.js
+  const campaignDir = path.join(dir, 'campaign')
+  init(campaignDir, { plans: [planA], mode: 'stack' })
+
+  // halt-state the entry: record a stopPoint; status stays 'queued'
+  record(campaignDir, { plan: path.resolve(planA), stopPoint: 'redteam-route-upstream' })
+
+  // the regrill changed the plan's footprint before the re-drop — proves the
+  // refresh re-stamps `files` from the FRESH extraction, not the stale copy
+  writePlan(dir, 'a.md', PLAN_A_REVISED) // src/a.js, src/d.js
+  addToInbox(campaignDir, planA)
+  const result = sweep(campaignDir)
+
+  const ledger = readLedger(campaignDir)
+  assert.equal(ledger.plans.length, 1, 'no duplicate entry appended')
+  assert.deepEqual(ledger.plans[0].files, ['src/a.js', 'src/d.js'], 'files re-stamped from the fresh extraction')
+  assert.equal(ledger.plans[0].status, 'queued', 'the entry itself is untouched beyond files')
+  assert.equal(ledger.plans[0].stopPoint, 'redteam-route-upstream')
+  assert.deepEqual(result.skipped, [{ plan: path.resolve(planA), reason: 'refreshed' }])
+  assert.deepEqual(result.added, [])
+  // the refreshed footprint is contention-checked against the ledger
+  // footprints MINUS its own prior copy (D5) — no sibling here, so no
+  // self-collision and no overlap
+  assert.deepEqual(result.overlaps, [])
+  assert.deepEqual(fs.readdirSync(path.join(campaignDir, 'inbox')), [], 'the duplicate drop is consumed like any swept drop')
+})
+
+test('sweep idempotence: a same-sweep double drop of one plan yields one entry (the earlier-accepted arm)', () => {
+  const dir = tmpDir()
+  const planA = writePlan(dir, 'a.md', PLAN_A)
+  const campaignDir = path.join(dir, 'campaign')
+  init(campaignDir, { plans: [], mode: 'stack' })
+
+  addToInbox(campaignDir, planA, { filename: '0001-a.plan' })
+  addToInbox(campaignDir, planA, { filename: '0002-a.plan' })
+  const result = sweep(campaignDir)
+
+  const ledger = readLedger(campaignDir)
+  assert.equal(ledger.plans.length, 1, 'two same-sweep drops of one plan yield one entry')
+  assert.equal(ledger.plans[0].plan, path.resolve(planA))
+  assert.deepEqual(result.added, [path.resolve(planA)])
+  assert.deepEqual(result.skipped, [{ plan: path.resolve(planA), reason: 'refreshed' }])
+  assert.deepEqual(fs.readdirSync(path.join(campaignDir, 'inbox')), [], 'both drops consumed')
+})
+
+test('sweep idempotence: a re-drop of a plan whose only entry is landed blocks the append — files refreshed, landed record untouched, reason landed', () => {
+  const dir = tmpDir()
+  const planA = writePlan(dir, 'a.md', PLAN_A)
+  const campaignDir = path.join(dir, 'campaign')
+  init(campaignDir, { plans: [planA], mode: 'stack' })
+  record(campaignDir, {
+    plan: path.resolve(planA),
+    status: 'landed',
+    branch: 'campaign/plan-a',
+    pr: 41,
+    sha: 'abc1234',
+    redteamRounds: 2,
+  })
+
+  writePlan(dir, 'a.md', PLAN_A_REVISED) // src/a.js, src/d.js — regrill before the re-drop
+  addToInbox(campaignDir, planA)
+  const result = sweep(campaignDir)
+
+  const ledger = readLedger(campaignDir)
+  // BOTH End-state-2 halves: no second entry appended, AND the landed run's
+  // record is untouched apart from the `files` re-stamp — an appended dup would
+  // let record()'s first-match lookup overwrite run 1 while the dup stays
+  // `queued` forever (the Context-1 undrainable-campaign defect).
+  assert.equal(ledger.plans.length, 1, 'a landed entry ALSO blocks the append')
+  assert.equal(ledger.plans[0].status, 'landed')
+  assert.equal(ledger.plans[0].branch, 'campaign/plan-a', 'landed branch unchanged')
+  assert.equal(ledger.plans[0].pr, 41, 'landed pr unchanged')
+  assert.equal(ledger.plans[0].sha, 'abc1234', 'landed sha unchanged')
+  assert.equal(ledger.plans[0].redteamRounds, 2, 'landed redteamRounds unchanged')
+  assert.deepEqual(ledger.plans[0].files, ['src/a.js', 'src/d.js'], 'files re-stamped from the fresh extraction')
+  assert.deepEqual(result.added, [])
+  assert.deepEqual(result.skipped, [{ plan: path.resolve(planA), reason: 'landed' }])
+  assert.deepEqual(fs.readdirSync(path.join(campaignDir, 'inbox')), [], 'the drop is consumed like any swept drop')
+})
+
+test('sweep contention (D5): a refreshed entry whose regrill widened its footprint into a queued sibling reports the overlap', () => {
+  const dir = tmpDir()
+  const planP = writePlan(dir, 'p.md', '# Plan P\n\n**Files:** `src/a.js`.\n')
+  const planQ = writePlan(dir, 'q.md', '# Plan Q\n\n**Files:** `src/b.js`.\n')
+  const campaignDir = path.join(dir, 'campaign')
+  init(campaignDir, { plans: [planP, planQ], mode: 'stack' })
+
+  // the regrill widened P's footprint into Q's before the re-drop — the check
+  // runs against the ledger footprints MINUS P's own prior copy, so the new
+  // collision with Q is reported while P never self-collides
+  writePlan(dir, 'p.md', PLAN_B_OVERLAP_A) // src/b.js, src/c.js
+  addToInbox(campaignDir, planP)
+  const result = sweep(campaignDir)
+
+  const ledger = readLedger(campaignDir)
+  assert.equal(ledger.plans.length, 2, 'refresh, never a fresh append')
+  assert.deepEqual(ledger.plans[0].files, ['src/b.js', 'src/c.js'], 'P re-stamped from the fresh extraction')
+  assert.deepEqual(
+    result.overlaps,
+    [{ paths: ['src/b.js'], plan: path.resolve(planP) }],
+    'the widened footprint collides with Q — reported like any other overlap'
+  )
+  assert.deepEqual(result.skipped, [{ plan: path.resolve(planP), reason: 'refreshed' }])
+  assert.deepEqual(result.added, [])
+})
+
+test('sweep with an empty inbox carries skipped: [] on the early-return site (shape consistency)', () => {
+  const dir = tmpDir()
+  const campaignDir = path.join(dir, 'campaign')
+  init(campaignDir, { plans: [], mode: 'stack' })
+  assert.deepEqual(sweep(campaignDir), { added: [], overlaps: [], skipped: [] })
+})
+
 // ---- next / record ------------------------------------------------------
 
 test('next returns the first queued plan', () => {
@@ -762,8 +892,8 @@ test('aggregateBackstops returns [] for a campaign where nothing was deferred', 
 
 // ---- redteamRounds (plan Task 5.1) ----------------------------------------
 // The plan's cumulative /red-team round count (the report's `**Rounds:**` header),
-// recorded by /war-campaign's step-3 proceed arm. Nullable + omit-preserving —
-// the backstops precedent.
+// recorded by every arm of /war-campaign's step-3 triage. Nullable +
+// omit-preserving — the backstops precedent.
 
 test('new plan entries default redteamRounds to null (pre-hardening tolerance)', () => {
   const dir = tmpDir()
@@ -887,6 +1017,47 @@ test('CLI record with omitted --redteamRounds leaves the existing value UNCHANGE
   assert.equal(entry.redteamRounds, 2)
   assert.equal(entry.status, 'landed')
 })
+
+// ---- CLI numeric-flag refusal: --redteamRounds + --pr (#1367, A3) ----------
+// A bare flag (parseArgs maps a valueless flag to boolean true — Number(true)
+// === 1 would fabricate a plausible-looking count) or a non-numeric token must
+// be refused LOUDLY: non-zero exit, one stderr line naming the flag and
+// rendering the offending token, BEFORE any record() call — so a refused
+// invocation leaves the ledger byte-identical. (Unguarded, the non-numeric
+// shape exits clean and stamps NaN, serialized as null by JSON.stringify.)
+
+function cliRefusal(...args) {
+  try {
+    execFileSync(process.execPath, [CLI, ...args], { encoding: 'utf8' })
+    return { status: 0, stderr: '' }
+  } catch (err) {
+    return { status: err.status, stderr: String(err.stderr || '') }
+  }
+}
+
+for (const flag of ['redteamRounds', 'pr']) {
+  for (const c of [
+    { label: 'bare-trailing', extra: [`--${flag}`], token: 'true' },
+    { label: 'bare-mid-argv', extra: [`--${flag}`, '--status', 'landed'], token: 'true' },
+    { label: 'non-numeric', extra: [`--${flag}`, 'abc'], token: 'abc' },
+  ]) {
+    test(`CLI record --${flag} ${c.label} is refused: non-zero exit, stderr names the flag + token, ledger byte-identical`, () => {
+      const dir = tmpDir()
+      const planA = writePlan(dir, 'a.md', PLAN_A)
+      const campaignDir = path.join(dir, 'campaign')
+      init(campaignDir, { plans: [planA], mode: 'stack' })
+      const before = fs.readFileSync(path.join(campaignDir, 'ledger.json'), 'utf8')
+
+      const { status, stderr } = cliRefusal('record', '--campaign', campaignDir, '--plan', planA, ...c.extra)
+
+      assert.notEqual(status, 0, 'must exit non-zero — never a silent stamp')
+      assert.match(stderr, new RegExp(`--${flag}`), 'stderr must name the offending flag')
+      assert.ok(stderr.includes(`'${c.token}'`), `stderr must render the offending token; got: ${stderr}`)
+      const after = fs.readFileSync(path.join(campaignDir, 'ledger.json'), 'utf8')
+      assert.equal(after, before, 'a refused invocation leaves the ledger byte-identical')
+    })
+  }
+}
 
 // ---- CLI --campaign anchoring + init dangling-symlink (plan Task 2, End states 4-5) --
 // A relative --campaign must anchor at the MAIN checkout (git rev-parse
@@ -1143,7 +1314,7 @@ test('SKILL.md step 3 is the three-arm triage: retired one-sentence wording abse
     !/unresolvable\s*(?:→|->)\s*halt-and-hold/i.test(text),
     'the retired step-3 wording ("Unresolvable → halt-and-hold") must be absent',
   )
-  // proceed arm: commit + record the round count
+  // round-count flag: stamped by every arm of the step-3 triage
   assert.match(text, /--redteamRounds/)
   // halt arm: routing trigger, stop-point token, and the regrill-agenda handoff block
   assert.match(text, /routeUpstream: true/)

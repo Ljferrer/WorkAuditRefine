@@ -445,6 +445,38 @@ test('redteamRoundLimit never lives inside agents.redteam (tier stays { model, e
   assert.match(r.errors.join('\n'), /agents\.redteam\.redteamRoundLimit/)
 })
 
+// Doc pin (Task 1.4, #1376): /war-room's step-2 whitelist bullet and step-1 economy blurb hand-copy
+// three redteamRoundLimit constants — the default (3) and the economy pin (2, stated in both places).
+// Extraction + equality binds each to the canonical DEFAULTS/PRESETS value so a future default change
+// reds here instead of rotting in prose. The bullet's routeUpstream() consequence clause is
+// deliberately NOT pinned — free-text arithmetic prose is the unguardable half.
+test('war-room SKILL.md redteamRoundLimit constants == canonical DEFAULTS/PRESETS (extraction + equality)', () => {
+  const text = readDoc('skills/war-room/SKILL.md')
+  // Step-2 run bullet: slice at the whitelist key and bound to its single physical line, so run.ace's
+  // own "default `true`" earlier on the line (and any later "default N" in the file) can't be misread.
+  const at = text.indexOf('run.redteamRoundLimit')
+  assert.ok(at >= 0, 'war-room step 2 must whitelist run.redteamRoundLimit (#1376)')
+  const lineEnd = text.indexOf('\n', at)
+  const bullet = text.slice(at, lineEnd === -1 ? text.length : lineEnd)
+  const dm = bullet.match(/default\s+`?(\d+)`?/i)
+  assert.ok(dm, 'the step-2 bullet must state the redteamRoundLimit default (e.g. "default `3`")')
+  assert.equal(Number(dm[1]), DEFAULTS.run.redteamRoundLimit,
+    `war-room's step-2 bullet states default ${dm[1]} but DEFAULTS.run.redteamRoundLimit is ` +
+    `${DEFAULTS.run.redteamRoundLimit} — bind the doc to the canonical value`)
+  const pm = bullet.match(/economy preset pins\s+`?(\d+)`?/i)
+  assert.ok(pm, 'the step-2 bullet must state the economy pin (e.g. "the economy preset pins `2`")')
+  assert.equal(Number(pm[1]), PRESETS.economy.run.redteamRoundLimit,
+    `war-room's step-2 bullet states an economy pin of ${pm[1]} but PRESETS.economy.run.redteamRoundLimit ` +
+    `is ${PRESETS.economy.run.redteamRoundLimit} — bind the doc to the canonical value`)
+  // Step-1 economy blurb: the sibling pin beside roundLimit: 2 (the colon form appears only there —
+  // the step-2 bullet writes the dotted run.redteamRoundLimit with no colon).
+  const bm = text.match(/redteamRoundLimit:\s*`?(\d+)/)
+  assert.ok(bm, 'the step-1 economy blurb must carry the redteamRoundLimit: 2 sibling pin (#1376)')
+  assert.equal(Number(bm[1]), PRESETS.economy.run.redteamRoundLimit,
+    `war-room's economy blurb states redteamRoundLimit: ${bm[1]} but PRESETS.economy.run.redteamRoundLimit ` +
+    `is ${PRESETS.economy.run.redteamRoundLimit} — bind the doc to the canonical value`)
+})
+
 // --- run.provision / provisionSource / provisionAuto (Part B) ----------------
 
 test('provision defaults: empty list, source none, auto true', () => {

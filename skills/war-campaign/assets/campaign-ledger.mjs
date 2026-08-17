@@ -9,8 +9,8 @@
 // `backstops` is each plan's handoff `backstops[]` (schemas.md) — the validations
 // that plan's /war run deferred; null until recorded (in-flight ledgers predate it).
 // `redteamRounds` is the plan's cumulative /red-team round count (the report's
-// `**Rounds:**` header, recorded by the step-3 proceed arm); null until recorded —
-// the same omit-preserving contract as `backstops`.
+// `**Rounds:**` header, recorded by every arm of /war-campaign's step-3 triage);
+// null until recorded — the same omit-preserving contract as `backstops`.
 // Inbox = <campaignDir>/inbox/ — one file per dropped plan (maildir-style), swept
 // into the ledger at plan boundaries. No git transport for the queue.
 
@@ -364,16 +364,18 @@ export function addToInbox(campaignDir, planPath, opts = {}) {
 
 // sweep(campaignDir) — move inbox entries into the queue in dependency-safe
 // (deterministic: inbox filename) order, contention-checking against the
-// existing queue + each other; deletes consumed inbox files. Returns
-// { added: [...plans], overlaps: [{ paths, plans }] } for reporting.
+// existing queue + each other; a drop whose resolved plan path already has an
+// entry is skipped (its `files` refreshed) instead of appended; deletes
+// consumed inbox files. Returns
+// { added: [...plans], overlaps: [{ paths, plan }], skipped: [{ plan, reason }] }
+// for reporting.
 export function sweep(campaignDir) {
   const inboxDir = path.join(campaignDir, 'inbox')
   fs.mkdirSync(inboxDir, { recursive: true })
   const inboxFiles = fs.readdirSync(inboxDir).sort() // deterministic serialization order
-  if (inboxFiles.length === 0) return { added: [], overlaps: [] }
+  if (inboxFiles.length === 0) return { added: [], overlaps: [], skipped: [] }
 
   const ledger = readLedgerFile(campaignDir)
-  const existingFiles = ledger.plans.flatMap((p) => p.files)
 
   const newEntries = inboxFiles.map((fname) => {
     // Drop line 1 is the plan path; an optional line 2 (`ref: <git-ref>`) is
@@ -390,20 +392,62 @@ export function sweep(campaignDir) {
   // time either — refuse the same way init does.
   assertOrderable(newEntries)
 
-  const overlaps = []
-  let seenFiles = [...existingFiles]
+  // Idempotence guard (the halt/regrill/re-add loop): partition newEntries
+  // SEQUENTIALLY. A drop whose resolved plan path matches ANY ledger entry —
+  // a `landed` entry ALSO blocks the append (D2): appending past one mints the
+  // undrainable duplicate record()'s first-match lookup then poisons — or a
+  // fresh entry accepted earlier in this same sweep (the double-drop arm) is a
+  // duplicate: never appended; its freshly-extracted `files` are re-stamped
+  // onto the matched entry (every other field left byte-intact); its drop file
+  // is consumed like any swept drop; reported under `skipped` (reason:
+  // 'landed' for a landed ledger match, 'refreshed' otherwise).
+  const accepted = []
+  const skipped = []
+  const refreshed = [] // ledger-matched duplicates, kept for the contention pass (D5)
   for (const e of newEntries) {
+    const resolved = path.resolve(e.plan)
+    const sameSweep = accepted.find((a) => path.resolve(a.plan) === resolved)
+    const existing = sameSweep ? null : ledger.plans.find((p) => p.plan === resolved)
+    const dup = sameSweep || existing
+    if (dup) {
+      dup.files = e.files // re-stamp from the fresh extraction
+      if (existing && !refreshed.some((r) => r.entry === existing)) {
+        refreshed.push({ entry: existing, files: e.files, plan: e.plan })
+      }
+      skipped.push({
+        plan: e.plan,
+        reason: existing && existing.status === 'landed' ? 'landed' : 'refreshed',
+      })
+    } else {
+      accepted.push(e)
+    }
+  }
+
+  // Contention (D5) runs over genuinely-new entries AND over refreshed
+  // entries: a refreshed entry is checked against the ledger footprints MINUS
+  // its own (already re-stamped) copy — excluding the entry's own prior copy
+  // kills the self-collision, excluding the whole check would kill the safety
+  // signal a regrill-widened footprint exists to trip. New entries seed from
+  // the POST-refresh ledger footprints, so they see refreshed footprints too.
+  const overlaps = []
+  for (const r of refreshed) {
+    const others = ledger.plans.filter((p) => p !== r.entry).flatMap((p) => p.files)
+    const overlap = intersectFootprints(r.files, others)
+    if (overlap.length) overlaps.push({ paths: overlap, plan: r.plan })
+  }
+  let seenFiles = ledger.plans.flatMap((p) => p.files)
+  for (const e of accepted) {
     const overlap = intersectFootprints(e.files, seenFiles)
     if (overlap.length) overlaps.push({ paths: overlap, plan: e.plan })
     seenFiles = seenFiles.concat(e.files)
   }
 
-  ledger.plans.push(...newEntries.map((e) => makePlanEntry(e.plan, e.files)))
+  ledger.plans.push(...accepted.map((e) => makePlanEntry(e.plan, e.files)))
   writeLedgerAtomic(campaignDir, ledger)
 
   for (const f of inboxFiles) fs.unlinkSync(path.join(inboxDir, f))
 
-  return { added: newEntries.map((e) => e.plan), overlaps }
+  return { added: accepted.map((e) => e.plan), overlaps, skipped }
 }
 
 // next(campaignDir) -> first queued plan entry, or null.
@@ -529,9 +573,21 @@ function main() {
       for (const key of ['status', 'branch', 'sha', 'stopPoint']) {
         if (Object.prototype.hasOwnProperty.call(args, key)) update[key] = args[key]
       }
-      if (Object.prototype.hasOwnProperty.call(args, 'pr')) update.pr = Number(args.pr)
-      // --redteamRounds is the plan's cumulative /red-team round count (integer).
-      if (Object.prototype.hasOwnProperty.call(args, 'redteamRounds')) update.redteamRounds = Number(args.redteamRounds)
+      // Numeric flags (--pr, --redteamRounds — the latter is the plan's
+      // cumulative /red-team round count) get the ratified typeof-gated refusal
+      // (war-memory.mjs's --top-k/--budget shape): a bare flag (parseArgs maps a
+      // valueless flag to boolean true, and Number(true) === 1 would fabricate a
+      // plausible-looking value) or a non-numeric token is refused LOUDLY — one
+      // stderr line naming the flag and the offending token, exit 1 BEFORE any
+      // record() call, so a refused invocation leaves the ledger byte-identical.
+      for (const numKey of ['pr', 'redteamRounds']) {
+        if (!Object.prototype.hasOwnProperty.call(args, numKey)) continue
+        if (typeof args[numKey] !== 'string' || !/^\d+$/.test(args[numKey])) {
+          console.error(`campaign-ledger record: --${numKey} requires a non-negative integer (got '${args[numKey]}')`)
+          process.exit(1)
+        }
+        update[numKey] = Number(args[numKey])
+      }
       // --backstops is the plan's handoff backstops[] as a JSON array string.
       if (Object.prototype.hasOwnProperty.call(args, 'backstops')) update.backstops = JSON.parse(args.backstops)
       console.log(JSON.stringify(record(campaignDir, update), null, 2))

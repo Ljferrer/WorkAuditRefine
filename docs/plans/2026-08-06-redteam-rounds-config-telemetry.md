@@ -187,8 +187,14 @@ discoverability gap in the sole sanctioned config interview. Every claim re-veri
    open finding, or from round 2 with an unadjudicated needs-decision finding; never while coverage
    is incomplete — never invent stronger behavior (Context 6).
 10. **`sweep()`'s return widening is additive.** Existing consumers destructure
-    `{ added, overlaps }`; the new `skipped` key must not alter either, and both return sites (the
-    empty-inbox early return and the main path) carry it for shape consistency (D3, Note 6).
+    `{ added, overlaps }`; the new `skipped` key must not alter either **in shape**, and both return
+    sites (the empty-inbox early return and the main path) carry it for shape consistency (D3, Note 6).
+    **`added` membership, pinned by the /red-team pass (2026-08-16) — the plan previously left this
+    ambiguous and the two statements pulled opposite ways:** `added` lists **only genuinely-new
+    entries**; a skipped/refreshed drop appears under `skipped` and **not** under `added`. (Today
+    `added` is `newEntries.map(e => e.plan)` — every swept drop.) The narrowing is of *membership*,
+    never of the key set, so constraint 10's additive-shape rule is satisfied. End state 1's test list
+    must assert it explicitly.
 11. **Zero engine changes.** `workflow-template.js`, the hooks' guard logic, and `war-config.mjs` are
     untouched. (The trailing release phase is batch doctrine, not an engine change — Note 3.)
 12. **Anchor by named construct, never line number** — every anchor here is an arm letter, row name,
@@ -202,17 +208,17 @@ discoverability gap in the sole sanctioned config interview. Every claim re-veri
 
 | # | Decision | Resolution | Source |
 |---|----------|------------|--------|
-| D1 | Duplicate-entry remedy: prose-only, `sweep()` guard, or both? | **Both.** Prose-only leaves the helper footgun for any future caller; guard-only leaves the SKILL.md mandating a pointless `add`. Qualify the re-entry sentence in arms (b)/(c) (a bare `/war-campaign resume` re-picks the still-queued entry; `add` re-drops the plan and `sweep` is idempotent for it) AND add the idempotence guard to `sweep()` | spec §3; (verified: issue #1355 (2026-08-06), finding 3) |
-| D2 | `sweep()` guard shape | Skip appending any drop whose resolved plan path already has a **non-landed** entry in `ledger.plans` **or** among the fresh entries accepted earlier in the same sweep (the double-drop arm, Context 1 — sequential dedupe); a landed entry does not block (a genuine re-run of a landed plan is a legitimate new queue item) | spec §3 + conversion extension (Note 6), logged for /red-team |
+| D1 | Duplicate-entry remedy: prose-only, `sweep()` guard, or both? | **Both.** Prose-only leaves the helper footgun for any future caller; guard-only leaves the SKILL.md mandating a pointless `add`. Qualify the re-entry sentence in arms (b)/(c) (a bare `/war-campaign` (its resume invocation — the file's own Invocation block lists exactly three forms and no `resume` subcommand) re-picks the still-queued entry; `add` re-drops the plan and `sweep` is idempotent for it) AND add the idempotence guard to `sweep()` | spec §3; (verified: issue #1355 (2026-08-06), finding 3) |
+| D2 | `sweep()` guard shape | Skip appending any drop whose resolved plan path already has a **non-landed** entry in `ledger.plans` **or** among the fresh entries accepted earlier in the same sweep (the double-drop arm, Context 1 — sequential dedupe); **a landed entry ALSO blocks the append** — skip + refresh `files`, reported under `skipped: [{ plan, reason: 'landed' }]`. *(Ratified by the /red-team pass, 2026-08-16, superseding the original carve-out "a landed entry does not block (a genuine re-run of a landed plan is a legitimate new queue item)", which was PROVEN to re-mint the exact defect this plan exists to close.* Executed proof: with a landed entry #1 and an appended queued entry #2 for the same path, `record()` — `ledger.plans.find(p => p.plan === target)`, first-match — hits **entry #1** and overwrites the landed run's `branch`/`pr`/`sha`/`redteamRounds`, while entry #2 stays `queued` forever, keeping `is_active` true and the campaign undrainable: verbatim the Context-1 symptom. Constraint 1 and the Non-goals forbid fixing it in `record()`/`next()`, so it cannot be closed downstream.* **Why skip rather than reset:** resetting the landed entry to `queued` would destroy run 1's landed record, so the landed entry is left byte-intact apart from `files` and the drop is reported, never silently dropped. A deliberate re-run of a landed plan is therefore an explicit operator act, not a sweep side effect.) | spec §3 + conversion extension (Note 6), logged for /red-team |
 | D3 | Skipped drop's inbox file + report | Consumed (deleted) like any swept drop, and reported under an **additive** `skipped: [{ plan, reason }]` key in `sweep()`'s return; both return sites carry the key (`skipped: []` when none) so the shape is consistent | spec §3 (carried [assumed] row → A1) |
 | D4 | Refresh the existing entry's `files` on a skipped re-add? | **Yes** — the regrill that precedes re-entry may have changed the plan's `Files:` footprints, and later contention checks read the ledger's copy; the skip arm re-stamps `files` from the fresh extraction and reports the entry under `skipped` with `reason: 'refreshed'` | spec §3 (carried [assumed] row → A2) |
-| D5 | Contention-check scope under the guard | `intersectFootprints` runs only over genuinely-new entries, seeded from the post-refresh ledger footprints — a refreshed footprint never self-collides with its own prior copy | spec §4 |
+| D5 | Contention-check scope under the guard | `intersectFootprints` runs over genuinely-new entries **and over refreshed entries**, each checked against the ledger footprints **minus that entry's own prior copy**. *(Corrected by the /red-team pass, 2026-08-16: the original 'only over genuinely-new entries' silently destroyed a live safety signal — a refreshed footprint's NEW paths were never contention-checked against anything, even though D4/A2 exist precisely because the regrill preceding re-entry may have changed the plan's `Files:`. Excluding the entry's own prior copy is what kills the self-collision; excluding the whole check is not.)* Refreshed-entry overlaps are reported like any other | spec §4 |
 | D6 | CLI validation shape for `--redteamRounds` | The ratified three-way `typeof` gate fused with the round-shape check: refuse unless `typeof args.redteamRounds === 'string'` **and** `/^\d+$/.test(args.redteamRounds)` — covering bare-flag `true`, non-numeric, and negative/decimal in one refusal; stderr names the flag and renders the offending token (the bare-flag `true` rendered explicitly); `process.exit(1)` before any `record()` call; happy path still stamps `Number(...)` | spec §3; #1059/#1145 precedent |
 | D7 | Harden the sibling `--pr` the same way? | **Yes**, same diff — same class, same file, already named by #1367; refuse a non-`/^\d+$/` `--pr` with the same guard shape | spec §3 (carried [assumed] row → A3) |
 | D8 | Shape comment + test banner + third comment wording | Shape comment and section banner: "recorded by the step-3 proceed arm" → "recorded by every arm of /war-campaign's step-3 triage" (the auditor's verbatim suggestion, matching step 5). The survey-derived third site (the structure test's presence-pin comment) rewords to name the every-arm contract without the retired phrase (sanctioned replacement, e.g. "round-count flag: stamped by every arm of the step-3 triage") | spec §3 + Context 3 |
 | D9 | Wrap-up hardening-row parenthetical | "(`n/a` when null" → "(`n/a` when null or absent", matching the aggregateBackstops paragraph's wording | spec §3 |
 | D10 | Arm (c) re-enumeration | Add the stamp explicitly: "…halt-and-hold, `stopPoint: redteam-route-upstream`, stamping `--redteamRounds <n>` in the same `record` call as `--stopPoint`, regrill command + agenda in CAMPAIGN-STATE.md…" — the "as `--stopPoint`" referent is the grill's N3 correction: arm (c)'s line names no `record` call of its own, so the spec's bare "in the same `record` call" dangled | spec §3, referent pinned |
-| D11 | State & resume ledger bullet | Extend to "…status/branch/PR/SHA/stop-point/backstops/red-team rounds" and point at the helper header as the shape's maintained home | spec §3 |
+| D11 | State & resume ledger bullet | **Cite `makePlanEntry` in `campaign-ledger.mjs` as the entry shape's maintained home (ADR 0046) and DROP the field enumeration entirely.** *(Corrected 2026-08-16 by the Lead's escalation-completion fix. The original — "Extend to '…status/branch/PR/SHA/stop-point/backstops/red-team rounds' and point at the helper header" — directly contradicted the /red-team pass's rewritten End state 7, which forbids the re-enumeration as an unguarded prose mirror (ADR 0025). **The contradiction was the Lead's**: End state 7 was rewritten without updating this row or End state 7's own `check:` literal, so the worker faithfully implemented this row and two independent gate-audit seats caught End state 7 provably unmet at the phase tip. Extending an unguarded mirror by two more fields is exactly what ADR 0025 forbids; citing the maintained home is the sanctioned escape that needs no guard.)* | spec §3; /red-team 2026-08-16; ADR 0025/0046 |
 | D12 | `/war-review` row-1 selection rule | Name it in the cell: the ledger under `$MAIN/.claude/campaigns/*/ledger.json` whose `plans[].slug` equals the manifest `planPath`'s basename sans extension — **never the newest campaign** (no manifest field records the campaign); no match → that source is absent (`n/a`). The row's existing report-header-wins and both-absent → `n/a` clauses stay | spec §3; (verified: issue #1356 (2026-08-06), findings 1+4) |
 | D13 | Multiple campaigns match the slug | Disambiguate by `plans[].plan` equal to the `$MAIN`-resolved manifest `planPath`; still ambiguous → `n/a` with the ambiguity stated | spec §3 (carried [assumed] row → A4) |
 | D14 | Row-2 sweep anchoring | Write the swept roots as `$MAIN/docs/red-team/` and `$MAIN/.claude/campaigns/*/ledger.json`, matching row 1's anchored siblings | spec §3; (verified: issue #1356 (2026-08-06), findings 2+3) |
@@ -289,9 +295,14 @@ recorded in the `cli-parseargs-valueless-flag-coerces-to-number-true-is-one` les
      new sweep-dedupe tests shown RED against the unguarded `sweep()` on a scratch copy
      (backstop: row) ·
      check: `node --test skills/war-campaign/assets/campaign-ledger.test.mjs`.
-  2. A drop swept for a plan whose only ledger entry is `landed` appends a fresh queued entry (the
-     guard blocks non-landed duplicates only) ·
-     check: the paired test in the same suite.
+  2. A drop swept for a plan whose only ledger entry is `landed` appends **no** second entry either:
+     the landed entry is left byte-intact apart from a `files` refresh, and the drop is reported under
+     `skipped: [{ plan, reason: 'landed' }]` — so `record()`'s first-match can never overwrite a landed
+     run and no permanently-`queued` sibling can keep `is_active` true
+     *(reversed by the /red-team pass, 2026-08-16 — the original "appends a fresh queued entry" arm was
+     executed and re-minted the Context-1 defect; see D2)* ·
+     check: the paired test in the same suite, which must assert BOTH halves — no second entry, and the
+     landed entry's `branch`/`pr`/`sha`/`redteamRounds` unchanged.
   3. `campaign-ledger.mjs record` refuses a bare `--redteamRounds` (trailing and mid-argv), a
      non-numeric `--redteamRounds`, and the same shapes on `--pr` — non-zero exit, stderr naming the
      flag and the offending token, ledger byte-identical — and reverting the guard on a scratch copy
@@ -299,62 +310,94 @@ recorded in the `cli-parseargs-valueless-flag-coerces-to-number-true-is-one` les
      cases via a clean exit and a `null` stamp (backstop: row); the existing happy-path
      tests (`'4'` → `4`; omitted flag preserves) stay green unmodified ·
      check: `node --test skills/war-campaign/assets/campaign-ledger.test.mjs`.
-  4. The retired sole-writer wording is gone from the maintained home: `grep -rn 'proceed arm'
+  4. The retired sole-writer wording is gone from the maintained home: `grep -rin 'proceed arm'
      skills/war-campaign/assets/` returns zero hits — all three sites (shape comment, section banner,
      the structure test's presence-pin comment) reworded to the every-arm contract ·
-     check: the grep. **Grep is the floor:** hand-scan `campaign-ledger.mjs`'s remaining comments and
+     check: `grep -rin 'proceed arm' skills/war-campaign/assets/` returns zero hits — **`-i` is load-bearing**: a sentence-initial `// Proceed arm: …` survivor evades the case-sensitive form entirely (the recorded `retirement-grep-for-prose-needle-must-be-case-insensitive-or-sentence-initial-capitalization-evades-it` lesson; reproduced by the /red-team pass). **Grep is the floor:** hand-scan `campaign-ledger.mjs`'s remaining comments and
      every `campaign-ledger.test.mjs` test title/banner in the redteamRounds and CLI sections for any
      other sole-writer or single-arm restatement; list each straggler as a survey-derived correction,
      recorded even when zero.
   5. Arm (c)'s re-enumeration carries the `--redteamRounds` stamp ·
-     check: `grep -n 'redteamRounds' skills/war-campaign/SKILL.md` shows an occurrence on the
-     arm-(c) line (three step-3 occurrences total: arms (a), (b), (c)).
+     check: `[ "$(grep -c '(c) Persistent.*redteamRounds' skills/war-campaign/SKILL.md)" -ge 1 ]`
+     — **anchored to the arm-(c) line, and a SINGLE command**. The plan's original
+     `grep -n 'redteamRounds' skills/war-campaign/SKILL.md` was non-discriminating: verified at the
+     base it already exits 0 with four hits and exits 0 with five after the edit, so the captured
+     artifact is indistinguishable landed vs skipped (the anchored form reads 0 at base, 1 after).
   6. The wrap-up hardening-row parenthetical reads "null or absent" and the null-only form is gone ·
-     check: `grep -n 'when null or absent' skills/war-campaign/SKILL.md` hits, and
-     `grep -nE 'when null [—-]' skills/war-campaign/SKILL.md` returns zero hits. **Grep is the
+     check (**ONE command — the land-barrier dispatch runs and artifacts exactly one command per
+     condition row, so a two-command pair silently captures only the first**; `-i` on the absence half
+     per the sentence-initial-capitalization lesson):
+     `[ "$(grep -ci 'when null or absent' skills/war-campaign/SKILL.md)" -ge 1 ] && [ "$(grep -ciE 'when null [—-]' skills/war-campaign/SKILL.md)" -eq 0 ]`. **Grep is the
      floor:** hand-scan the wrap-up and State & resume sections for any other null-only phrasing of
      an absent-tolerant field; list stragglers, recorded even when zero.
-  7. The State & resume ledger bullet enumerates the full entry shape and names the maintained home ·
-     check: `grep -n 'stop-point/backstops/red-team rounds' skills/war-campaign/SKILL.md`.
+  7. The State & resume ledger bullet **names `makePlanEntry` in `campaign-ledger.mjs` as the shape's
+     maintained home (ADR 0046) rather than re-enumerating its field set** — the enumeration is an
+     unguarded prose mirror that this plan would otherwise grow by two fields with nothing binding it
+     (/red-team pass, 2026-08-16; ADR 0025). Citing the maintained home is the escape that needs no guard ·
+     check: `[ "$(grep -c 'makePlanEntry' skills/war-campaign/SKILL.md)" -ge 1 ] && [ "$(grep -c 'stop-point/backstops/red-team rounds' skills/war-campaign/SKILL.md)" -eq 0 ]`
+     — **both halves**: the citation present AND the enumeration gone. *(The original check was
+     `grep -n 'stop-point/backstops/red-team rounds'`, which the enumeration form SATISFIES — it was
+     left stale when the condition was rewritten, so the check actively certified the wrong outcome.)*
   8. `/war-room` step 2 and the economy blurb both carry `run.redteamRoundLimit` ·
      check: `grep -c redteamRoundLimit skills/war-room/SKILL.md` ≥ 2 (0 at the `6fff2ee` base), one
      hit in the step-1 economy line and one in the step-2 run bullet.
   9. `/war-review`'s "red-team rounds — this plan" row carries the slug-match selection rule and the
      never-the-newest clause, with the report-header-wins and both-absent → `n/a` clauses intact ·
-     check: `grep -F 'never the newest' skills/war-review/SKILL.md` and
-     `grep -F 'plans[].slug' skills/war-review/SKILL.md` (`-F`: bracket-bearing pattern,
-     constraint 13).
+     check (**ONE fused command**, `-F` for the bracket-bearing pattern per constraint 13, `-i` on the
+     prose needle, plus the **OLD-absent half the plan lacked** — without it an append-only edit
+     satisfies the whole gate with the unresolvable source still live):
+     `grep -iF 'never the newest' skills/war-review/SKILL.md >/dev/null && grep -F 'plans[].slug' skills/war-review/SKILL.md >/dev/null && [ "$(grep -cF 'campaigns/<id>/ledger.json' skills/war-review/SKILL.md)" -eq 0 ]`.
   10. The trend row's swept roots are `$MAIN`-anchored ·
-      check: `grep -c 'MAIN/docs/red-team/' skills/war-review/SKILL.md` = 2 (rows 1 and 2) and the
-      trend row names `$MAIN/.claude/campaigns/*/ledger.json` (`grep -F` for the `$`-bearing
-      literal). **Grep is the floor:** hand-scan the full §3 telemetry tables for any remaining bare
+      check (**ONE fused command**, with the **OLD-absent half the plan lacked** — `prior campaign
+      ledgers` is the retired phrase and `skills/war-review/SKILL.md` is its only live carrier):
+      `[ "$(grep -c 'MAIN/docs/red-team/' skills/war-review/SKILL.md)" -eq 2 ] && grep -F '$MAIN/.claude/campaigns/*/ledger.json' skills/war-review/SKILL.md >/dev/null && [ "$(grep -ciF 'prior campaign ledgers' skills/war-review/SKILL.md)" -eq 0 ]`. **Grep is the floor:** hand-scan the full §3 telemetry tables for any remaining bare
       repo-relative source path; list each as a survey-derived correction, recorded even when zero.
   11. Plan 5's landed five-surface verdict-enumeration guard is green across the war-campaign
       SKILL.md edits — the arm-(a) segment untouched, the (b)/(c) partition lines keep their
       single-line code-span properties (constraint 8) — and the step-3 structure test's presence and
       absence pins hold ·
-      check: `node --test skills/red-team/assets/workflow-scaffold.test.mjs` and
-      `node --test skills/war-campaign/assets/campaign-ledger.test.mjs`.
+      check (**ONE fused command** — one command per condition row):
+      `node --test skills/red-team/assets/workflow-scaffold.test.mjs && node --test skills/war-campaign/assets/campaign-ledger.test.mjs`.
+      *(Re-verified by the /red-team pass at the real stacked base `879c62d`: plan 6's guard is green
+      before AND after Task 1.2's arm-(c) stamp edit — 77/77. The partition asserts `.includes()` on
+      the (b)/(c) lines, so extra code spans there are harmless; the exact-`deepEqual` risk lives only
+      on the arm-(a) segment before its first `(`, which Task 1.2 does not touch.)*
   12. Both companion lessons carry the RESOLVED stamp with bodies untouched ·
-      check: `grep -cF 'RESOLVED'
-      docs/learnings/archive/cli-parseargs-valueless-flag-coerces-to-number-true-is-one.md` ≥ 1 and
-      `grep -cF 'RESOLVED' docs/learnings/archive/new-run-config-knob-needs-war-room-whitelist-touch.md` ≥ 1.
+      check (**ONE fused command**):
+      `[ "$(grep -cF 'RESOLVED' docs/learnings/archive/cli-parseargs-valueless-flag-coerces-to-number-true-is-one.md)" -ge 1 ] && [ "$(grep -cF 'RESOLVED' docs/learnings/archive/new-run-config-knob-needs-war-room-whitelist-touch.md)" -ge 1 ]`
+      (both paths confirmed present under `archive/` at the stacked base).
   13. The full gates are green at the integrated tip — including `hooks/inject-campaign-state.test.sh`
       (the `is_active` gate's own suite: the sweep guard must not change its
       all-landed-stays-silent behavior) ·
       gate: the self-discovery gate (`resolveGate` in `war-config.mjs`) — `node --test
       'skills/**/*.test.mjs'`, the documented hooks/skills shell-test loop, and the redaction-lint
       wrapper all pass.
-  14. Each landing commit cites its issue(s) — #1355/#1367 for Task 1.1, #1355 for Task 1.2, #1356
-      for Task 1.3, #1376/#1348 for Task 1.4 ·
-      HARD at audit_sha (git log between the phase base and the tip; execution-evidence seat). The
-      issue-close comments — including `0f12ae2` cited for #1348 finding 1 — are Lead checkpoint
-      work at phase close ·
-      check: `gh issue view <N> --comments` for each of #1355, #1356, #1367, #1376, #1348.
+  14. **Every plan-tracked issue is cited by at least one commit in the phase range**
+      `<phase-base>..<tip>` — #1355/#1367 (Task 1.1), #1355 (Task 1.2), #1356 (Task 1.3),
+      #1376/#1348 (Task 1.4) ·
+      HARD at audit_sha, judged **range-level** by the execution-evidence seat via
+      `git log --grep=<issue> <phase-base>..<tip>` — **not per commit**.
+      **Deliberately not a per-commit mandate** (reworded 2026-08-16): the engine-authored
+      **phase-merge** commit and the **phase-close polish** commit cite no issue *by construction* and
+      are compliant, and the `<phase-base>..<tip>` range does not exist at any task's pre-merge gate,
+      so this can never be a `gate:` member. See the ratified lesson
+      `each-commit-cites-its-issue-endstates-are-judged-over-the-full-phase-range-not-gated-per-commit`.
+      The issue-close comments — including `0f12ae2` cited for #1348 finding 1 — are Lead checkpoint
+      work at phase close, a **separate** proposition from commit citation ·
+      check (mechanical floor, phase close — the old `gh issue view <N> --comments` was not a runnable
+      command at all: `<N>` is a shell **input redirection**, so it became `gh issue view --comments < N`
+      and died before `gh` started):
+      `for n in 1355 1356 1367 1376 1348; do git log --grep="#$n" --format=%h <phase-base>..<tip> | grep -q . || exit 1; done`.
   15. Release: all four version slots move lock-step to the next free patch above the live
       integration base at land time ·
       check: `node --test skills/war/assets/version-slots.test.mjs` (lock-step + monotonic floor; the
       bump's presence is judged at audit_sha — the suite cannot fail on a wholly absent release).
+  16. *(added by the /red-team pass, 2026-08-16)* **D1's prose half is covered.** D1's remedy is
+      explicitly "Both" — the `sweep()` guard AND the arms-(b)/(c) re-entry qualification — but no
+      End-state condition checked the prose half, so the plan could have been declared Done with the
+      guard landed and `war-campaign/SKILL.md` still mandating the pointless re-add loop ·
+      check: `[ "$(grep -ci 'refreshes it idempotently' skills/war-campaign/SKILL.md)" -ge 2 ]`
+      (arms (b) and (c); 0 at the base).
 
 ## Build order (for /war)
 
@@ -428,14 +471,19 @@ constraint 4, so no ordering is needed in either direction.
   **proceed either way** (plain re-verify; the coupling is guard-compat only, never a content
   dependency — preamble). **Arm (b) (D1)** — qualify the re-entry sentence: re-entry is
   `/war-campaign add <plan>` after the regrill (the entry is still queued; `sweep` refreshes it
-  idempotently, never duplicating — a bare `/war-campaign resume` equally re-picks it). **Arm (c)
+  idempotently, never duplicating — a bare `/war-campaign` — its resume invocation — equally re-picks it). **Arm (c)
   (D10)** — insert the explicit stamp into the re-enumeration: "…halt-and-hold,
   `stopPoint: redteam-route-upstream`, stamping `--redteamRounds <n>` in the same `record` call as
   `--stopPoint`, regrill command + agenda in CAMPAIGN-STATE.md…" (the "as `--stopPoint`" referent is
   binding — arm (c)'s line names no `record` call of its own, D10). **Wrap-up hardening row (D9)** — "(`n/a` when
-  null" → "(`n/a` when null or absent". **State & resume ledger bullet (D11)** — extend the
-  enumeration to "…status/branch/PR/SHA/stop-point/backstops/red-team rounds" and name the helper
-  header (`campaign-ledger.mjs` + its test, ADR 0046) as the shape's maintained home.
+  null" → "(`n/a` when null or absent". **State & resume ledger bullet (D11, corrected 2026-08-16)** — **DROP the
+  field enumeration entirely and cite the construct**: name `makePlanEntry` in
+  `campaign-ledger.mjs` as the entry shape's maintained home (ADR 0046), so the field set cannot rot
+  on this surface (ADR 0025). *(This bullet previously read "extend the enumeration to
+  '…status/branch/PR/SHA/stop-point/backstops/red-team rounds' and name the helper header" — the
+  wording End state 7 forbids. The worker implemented it faithfully and two gate-audit seats caught
+  End state 7 unmet; the contradiction was the Lead's, introduced when End state 7 was rewritten
+  without updating D11, this slice, or End state 7's own check literal.)*
   **Guard-compatibility duty (constraint 8, binding):** the arm-(a) line and its enumeration segment
   are byte-untouched; each arm edit stays on its arm's single physical line; the `**(b) Route
   upstream**` line keeps `` `BLOCKED` `` as a code span and the ``**(c) Persistent `INCOMPLETE`**``
@@ -451,6 +499,8 @@ constraint 4, so no ordering is needed in either direction.
 - requiresPackaging: false
 - deps: []
 - target repo: superproject
+  **Scope correction (/red-team pass, 2026-08-16):** D1 and the Method say arms **(b)/(c)**, but the issue→task mapping and this slice originally qualified arm (b) ALONE — a plan self-contradiction. Arm (c) therefore ALSO carries D1's re-entry qualification (the entry is still queued; `sweep` refreshes it idempotently and never duplicates — a bare `/war-campaign`, its resume invocation, equally re-picks it), kept on arm (c)'s single physical line so constraint 8's single-line/code-span duty and plan 6's landed five-surface guard both hold.
+  **Fifth edit (/red-team pass):** the step-1 **"Sweep + select."** bullet is made FALSE by the guard — it states sweep "contention-checks every dropped `inbox/` plan against the existing queue and against each other, inserts in dependency-safe order", which no longer describes a skipped/refreshed drop. Qualify it in the same task: a drop whose resolved path already has an entry is not inserted, its `files` are refreshed, and it is reported under `skipped`. Without this the plan leaves a fifth false sentence in the very file it exists to make true.
 
 ### Task 1.3: war-review telemetry rows — selection rule + $MAIN anchors (#1356)
 
@@ -478,7 +528,16 @@ constraint 4, so no ordering is needed in either direction.
 
 ### Task 1.4: war-room discoverability — step-2 whitelist + economy blurb (#1376, #1348 finding 2)
 
-- Files: `skills/war-room/SKILL.md`, `docs/learnings/archive/new-run-config-knob-needs-war-room-whitelist-touch.md`
+- Files: `skills/war-room/SKILL.md`, `docs/learnings/archive/new-run-config-knob-needs-war-room-whitelist-touch.md`, `skills/war/assets/war-config.test.mjs`
+
+  *(`war-config.test.mjs` added by the /red-team pass, 2026-08-16 — ADR 0025. This task ships THREE new
+  hand-copied constants into an unguarded doc surface (the default `3`, the economy pin `2` in the step-2
+  bullet, and `redteamRoundLimit: 2` in the step-1 blurb) plus a prose restatement of `routeUpstream()`'s
+  routing arithmetic — with no drift-guard row anywhere in the plan. A mirrored fact ships its guard in the
+  SAME task: add an extraction pin binding the war-room blurb's stated default and economy value to
+  `war-config.mjs`'s canonical `DEFAULTS`, so a future default change reds here instead of rotting. The
+  `routeUpstream()` arithmetic is stated in the blurb as a CONSEQUENCE clause only — it must not restate the
+  predicate, which is the unguardable half.)*
 - Plan slice: **Step-2 run bullet (D15)** — extend the existing bullet (`run.roundLimit` (integer
   ≥ 1); `run.afk` (bool); `run.ace` (bool …)) with: `run.redteamRoundLimit` (integer ≥ 1; default 3,
   the economy preset pins 2) — `/red-team`'s cumulative grill-round budget, read fail-open by
@@ -495,7 +554,9 @@ constraint 4, so no ordering is needed in either direction.
   `RESOLVED (redteam-rounds-config-telemetry Task 1.4, #1376): `, body/keywords untouched. Run End
   state 8's grep and record the per-surface hits. Commits cite #1376 and #1348 (finding 2; finding 1
   is citation-only — `0f12ae2` — at the checkpoint, D17).
-- Done when: None — prose-only interview-doc edit; the mechanical pins are End state 8's grep plus
+- Done when: `node --test skills/war/assets/war-config.test.mjs`
+- *(was `None — prose-only`; the /red-team pass gave this task a real test surface, so it now has a runnable
+  acceptance command. Remaining prose-only pins are End state 8's grep plus
   the discovered gate suites (the doc-claim sweep stays green).
 - requiresTest: false
 - requiresPackaging: false
