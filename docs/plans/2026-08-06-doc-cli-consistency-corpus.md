@@ -307,10 +307,10 @@ No new ADR — amend ADR 0046 per D7 (A3).
       gate: the self-discovery gate (`resolveGate` in `war-config.mjs`) — `node --test
       'skills/**/*.test.mjs'`, the documented hooks/skills shell-test loop, and the redaction-lint
       wrapper all pass.
-  13. Each landing commit cites its issue(s) — #1368 and #1306 for Task 1.1 (plus #1358 findings
+  13. Every plan-tracked issue is cited by at least one commit in the phase range `<phase-base>..<tip>` — #1368 and #1306 for Task 1.1 (plus #1358 findings
       1/7/9/10), #1358 for Tasks 1.2/1.3; the citation-only closures (#1358 findings 2/3/5/6/8 via
       `2ba7f0a`) are cited in the phase-close checkpoint notes, no code change ·
-      HARD at audit_sha (git log between the phase base and the tip; execution-evidence seat).
+      HARD at audit_sha (git log between the phase base and the tip; execution-evidence seat). **Range-level, not per commit** — judged by the execution-evidence seat via `git log --grep=<issue> <phase-base>..<tip>`; the engine-authored **phase-merge** commit and the **phase-close polish** commit cite no issue *by construction* and are compliant. The range does not exist at any task's pre-merge gate, so this can never be a `gate:` member. Ratified lesson: `each-commit-cites-its-issue-endstates-are-judged-over-the-full-phase-range-not-gated-per-commit`. *(Normalized 2026-08-16 by the campaign-wide sweep — the original per-commit phrasing caused a false escalation in plan 6 and was corrected again in plan 7.)*
   14. Release: all four version slots move lock-step to the next free patch above the live integration
       base at land time ·
       check: `node --test skills/war/assets/version-slots.test.mjs` (lock-step + monotonic floor; the

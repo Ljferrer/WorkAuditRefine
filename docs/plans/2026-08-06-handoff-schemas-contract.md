@@ -551,13 +551,13 @@ None (see Non-goals — the open Dispatch-kind list absorbs `file-followups`; no
       post-land ≥ 1) — then the mandatory manual same-scope survey of the file's other recovery entry
       points (the held-partial-phase runbook steps and the `env-blocked` bullet) for missing
       cross-references the grep cannot see. (AI-declared)
-  25. Each landing commit cites its issue(s) — #1331 for the filing/floor/signal/clock work, #1333 for
+  25. Every plan-tracked issue is cited by at least one commit in the phase range `<phase-base>..<tip>` — #1331 for the filing/floor/signal/clock work, #1333 for
       the contract-truth rows and comment alignments, #1289 for the landResult row, #1380 for the
       resolve-working-branch arms and the Setup step-2 sentence, #1381 for the hygiene
       assertion/ENV_OUTCOME widening/runbook bullet, #1395/#1411/#1413/#1408 for Task 2.1's items
       (a–b)/(c)/(d)/(e) and #1408 for Task 2.2 (the per-finding close conditions require the
       citation) ·
-      HARD at audit_sha (git log between the phase base and the tip; execution-evidence seat).
+      HARD at audit_sha (git log between the phase base and the tip; execution-evidence seat). **Range-level, not per commit** — judged by the execution-evidence seat via `git log --grep=<issue> <phase-base>..<tip>`; the engine-authored **phase-merge** commit and the **phase-close polish** commit cite no issue *by construction* and are compliant. The range does not exist at any task's pre-merge gate, so this can never be a `gate:` member. Ratified lesson: `each-commit-cites-its-issue-endstates-are-judged-over-the-full-phase-range-not-gated-per-commit`. *(Normalized 2026-08-16 by the campaign-wide sweep — the original per-commit phrasing caused a false escalation in plan 6 and was corrected again in plan 7.)*
   26. Release: all four version slots move lock-step to the next free patch above the live integration
       base at land time ·
       check: `node --test skills/war/assets/version-slots.test.mjs` (lock-step + monotonic floor; the

@@ -332,9 +332,9 @@ at conversion (Note 5).
       hand-scan; ADR 0030's ratified "six rules" bullet is append-only posterity, never a sweep
       target) · check: `! grep -rn 'seven-item' README.md CLAUDE.md CONTEXT.md skills/` + survey
       note. (AI-declared)
-  20. Every task's landing commit cites its mapped issues (#1363/#1305, #1266/#1398, #1290, #1291,
+  20. Every mapped issue is cited by at least one commit in the phase range `<phase-base>..<tip>` (#1363/#1305, #1266/#1398, #1290, #1291,
       #1292, #1253, #1330/#1317, #1399) · HARD at audit_sha (git log between the phase base and tip;
-      execution-evidence seat). (AI-declared)
+      execution-evidence seat). **Range-level, not per commit** — judged by the execution-evidence seat via `git log --grep=<issue> <phase-base>..<tip>`; the engine-authored **phase-merge** commit and the **phase-close polish** commit cite no issue *by construction* and are compliant. The range does not exist at any task's pre-merge gate, so this can never be a `gate:` member. Ratified lesson: `each-commit-cites-its-issue-endstates-are-judged-over-the-full-phase-range-not-gated-per-commit`. *(Normalized 2026-08-16 by the campaign-wide sweep — the original per-commit phrasing caused a false escalation in plan 6 and was corrected again in plan 7.)* (AI-declared)
   21. The full gates are green at the integrated tip (redaction lint included) · gate: the
       self-discovery gate (`resolveGate` in `war-config.mjs`) — `node --test 'skills/**/*.test.mjs'`
       and the documented hooks/skills shell-test loop both exit 0. (AI-declared)

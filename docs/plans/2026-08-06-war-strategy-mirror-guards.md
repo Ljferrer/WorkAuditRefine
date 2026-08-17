@@ -309,10 +309,10 @@ adds mechanisms under it, no triad-passing decision (spec §7).
      fragment-assembled retired-phrase absences ·
      check: `bash skills/war-machine/war-pipeline-structure.test.sh; echo $?` → `0`. (AI-declared)
   10. The mutation proofs for End states 2, 3, and 5 appear verbatim (command + failing line) in the
-      done reports, and the landing commits cite their issues (#1307/#1308 on Task 1.1, #1309 on
-      Task 1.2) with the Task 1.1 commit body carrying the Red-proof block ·
+      done reports, and each of #1307/#1308 (Task 1.1) and #1309 (Task 1.2) is cited by at least one
+      commit in the phase range `<phase-base>..<tip>` with the Task 1.1 commit body carrying the Red-proof block ·
       HARD at audit_sha (git log between the phase base and the tip; execution-evidence seat —
-      done-report review at gate-audit per the spec's criterion 10). (AI-declared)
+      done-report review at gate-audit per the spec's criterion 10). **Range-level, not per commit** — judged by the execution-evidence seat via `git log --grep=<issue> <phase-base>..<tip>`; the engine-authored **phase-merge** commit and the **phase-close polish** commit cite no issue *by construction* and are compliant. The range does not exist at any task's pre-merge gate, so this can never be a `gate:` member. Ratified lesson: `each-commit-cites-its-issue-endstates-are-judged-over-the-full-phase-range-not-gated-per-commit`. *(Normalized 2026-08-16 by the campaign-wide sweep — the original per-commit phrasing caused a false escalation in plan 6 and was corrected again in plan 7.)* (AI-declared)
   11. The full gates are green at the integrated tip ·
       gate: the self-discovery gate (`resolveGate` in `war-config.mjs`) — `node --test
       'skills/**/*.test.mjs'` and the documented hooks/skills shell-test loop (both edited/validated
