@@ -9136,6 +9136,17 @@ test('Task 2.1(a) #1395 — endstate-check dispatch instructs provision-before-c
     'the provision steps are instructed BEFORE the first check-command row (provision-before-checks ordering)')
   assert.match(p, /provision_red/, 'a red provision step is recorded into the artifact preamble (the provision_red line)')
   assert.match(p, /never fails this dispatch and never holds the land/i, 'fail-open — a provision red never fails the dispatch, never a new hold path')
+  // Cleanliness contract (relaunch fix): the steps run in the SHARED _refinery worktree the land
+  // dispatch later merges/checks-out in, so the clause requires tracked files restored BEFORE any
+  // check runs — resolving the contradiction with the do-NOT-edit-tracked-files sentence above it.
+  assert.match(p, /leave the worktree CLEAN before any check runs/,
+    'the clause carries the cleanliness contract — provision steps restore the shared worktree before any check')
+  assert.ok(p.includes(`git -C ${REFINERY} checkout -- .`),
+    'the restore recipe is concrete: git checkout -- . in _refinery after steps that mutate tracked files')
+  assert.match(p, /untracked build output is fine/, 'untracked build output is explicitly exempt (only tracked mutations are restored)')
+  const cleanIdx = p.indexOf('leave the worktree CLEAN')
+  assert.ok(cleanIdx !== -1 && cleanIdx < cmdIdx,
+    'the cleanliness contract is stated BEFORE the first check-command row (clean before any check runs)')
   const { calls: c2 } = await runPhase(ES_ROW_ARGS(), gateAuditImpl)
   assert.ok(!c2.find(isEndstateCheck).prompt.includes('provision-before-checks'),
     'a provision-less run dispatches a clause-free prompt (set-minus byte-compat)')
@@ -9198,6 +9209,29 @@ test('Task 2.1(c) #1411 — an env-died-only phase (nothing merged) reads held:n
   const { out } = await runPhase(args, impl)
   assert.equal(out.landDecision, 'held:nothing-merged', 'infra deaths are never a hard escalation — nothing merged reads held:nothing-merged')
   assert.ok((out.escalated || []).length > 0 && out.escalated.every(e => e.reason === 'env-died'), 'every escalation is env-died')
+})
+
+// (c) relaunch fix — STRUCTURAL dispatch-layer scoping (the both-ways proof, other direction): an
+// engine-authored HARD throw that EMBEDS worker-supplied text matching INFRA_DEATH_RE (here a
+// reported path containing "quota", thrown by normalizeReportedPaths OUTSIDE the agent() dispatch)
+// must stay HARD 'escalate' — a message-only classification would launder it into SOFT env-died and
+// flip a hard escalation into lands-minus-task. The dispatch-originated fixtures above are the
+// matching direction: a throw crossing the agent() boundary still classifies env-died.
+test('Task 2.1(c) #1411 relaunch — an engine throw whose message contains "quota" but originates OUTSIDE the dispatch stays HARD escalate, never env-died', async () => {
+  const impl = (prompt, opts) => (seatOf(opts) === 'war-worker' && opts.phase === 'Work')
+    // outside BOTH roots (worktreeRoot AND mainCheckout) → normalizeReportedPaths arm (d) throws an
+    // ENGINE error with the worker-supplied path — and its infra words — embedded in the message.
+    ? { task_id: 'tQ', status: 'implemented', head_sha: 'abc', tests: {}, files_changed: ['/opt/elsewhere/quota-overloaded.txt'] }
+    : defaultImpl(prompt, opts)
+  const args = PROVISION_ARGS({ tasks: [
+    { id: 'tQ', issue: 1, title: 'reports a path embedding infra words', planSlice: 's', roster: [{ lens: 'correctness' }] },
+  ] })
+  const { out } = await runPhase(args, impl)
+  const esc = (out.escalated || []).find(e => e && e.task === 'tQ')
+  assert.ok(esc, 'the task escalates (presence guard)')
+  assert.match(String(esc.blocked), /quota/, 'non-vacuity guard: the HARD message really carries an INFRA_DEATH_RE word')
+  assert.equal(esc.reason, 'escalate', 'the engine throw keeps its HARD class — message content alone never classifies env-died (structural scoping)')
+  assert.equal(out.landDecision, 'held:escalation', 'the phase HOLDS — the laundering path (env-died → lands-minus-task) is closed')
 })
 
 // (c)(ii) drift-guard extension: SOFT_ENV_REASONS is canonical in land-decision.mjs, hand-mirrored in

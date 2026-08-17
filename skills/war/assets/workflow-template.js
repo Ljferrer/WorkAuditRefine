@@ -742,15 +742,33 @@ const blockedReason = r => !r ? 'worker returned no result'
   : (r.status === 'blocked' ? (r.blocked_reason || 'worker returned no result') : null)
 // Infra-death classification (#1411): a POST-SPAWN harness death (API/quota/transport — the seat
 // spawned, then the harness died out from under it) is an environment event, not a code defect. The
-// wave-thunk catch classifies a caught error whose message matches this pattern set as the SOFT task
-// reason 'env-died' (a SOFT_ENV_REASONS member beside env-blocked — the mirror at the land decision),
-// propagating the harness cause verbatim into `blocked` ('worker died: <cause>'). Heuristic by
-// construction: an unmatched infra death keeps today's generic 'escalate' (fail-safe — a false
-// negative lands in the LOUDER class, never a lost task). A null agent() return with no throw stays
-// 'worker returned no result' — no cause is visible there to propagate.
+// classification is scoped STRUCTURALLY, never by message text alone (relaunch fix): dispatchAgent
+// wraps the wave thunk's direct agent() dispatches in their OWN try/catch and TAGS a throw that
+// crossed the dispatch boundary; infraDeathCause classifies 'env-died' (a SOFT_ENV_REASONS member
+// beside env-blocked — the mirror at the land decision) ONLY for a TAGGED throw whose message
+// matches this pattern set, propagating the harness cause verbatim into `blocked`
+// ('worker died: <cause>'). An error thrown anywhere ELSE in the thunk — a pt prompt build,
+// normalizeReportedPaths, the auditRound collection — keeps its HARD class REGARDLESS of message
+// content: an engine-authored throw that EMBEDS worker-supplied text (a task title, a reported path
+// containing e.g. "quota"/"rate limit"/"overloaded") must never be laundered into SOFT env-died,
+// which would flip a hard escalation into lands-minus-task. Heuristic by construction WITHIN the
+// dispatch layer: an unmatched dispatch-layer death keeps today's generic 'escalate' (fail-safe — a
+// false negative lands in the LOUDER class, never a lost task). A null agent() return with no throw
+// stays 'worker returned no result' — no cause is visible there to propagate. (The prompt arguments
+// are evaluated BEFORE dispatchAgent is entered, so a pt undefined-interpolation throw stays
+// untagged by construction.)
 const INFRA_DEATH_RE = /session limit|rate limit|quota|overloaded|529|econnreset|econnrefused|etimedout|socket hang up|api connection|transport error/i
+const dispatchAgent = async (prompt, opts) => {
+  try { return await agent(prompt, opts) }
+  catch (err) {
+    const e = err instanceof Error ? err : new Error(String(err))
+    e.warDispatchDeath = true   // structural provenance: the throw originated at the agent() dispatch layer
+    throw e
+  }
+}
 const infraDeathCause = err => {
-  const m = String((err && err.message) || err || '')
+  if (!err || err.warDispatchDeath !== true) return null   // structural scope: dispatch-layer throws only
+  const m = String(err.message || err || '')
   return INFRA_DEATH_RE.test(m) ? m : null
 }
 // Reported-path normalize-or-throw (this spec: launch-entry-validation; provenance: the former path
@@ -1312,7 +1330,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           + pt`Dep submodule task landed SHA: ${depSha}. Submodule path: ${submodPath}. `
           + pt`Run: git -C ${mainCheckout || '<superproject>'} add ${submodPath} — stage the submodule at the dep SHA, then commit the bump.`
       }
-      const impl = await agent(
+      const impl = await dispatchAgent(
         depClause(task)
         + pt`Implement WAR task ${task.id} in the ALREADY-PROVISIONED worktree at ${task.worktree} (branch ${task.branch}, cut from ${ph.integrationBranch}).\n`
         + pt`The refiner's Provision barrier already created this worktree and its .war-task marker — do NOT create it yourself and do NOT set any worktree env var. cd into ${task.worktree} and work only inside it; commit and push ${task.branch}.\n`
@@ -1358,7 +1376,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         }
 
         const b = blockingOf(seats)                                // batched FIX_NEEDED → fresh fix-worker
-        const fix = await agent(
+        const fix = await dispatchAgent(
           pt`FIX_NEEDED for WAR task ${task.id}. Work in the ALREADY-PROVISIONED worktree at ${task.worktree} (branch ${task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
           // Prompt truth (D6): keep-the-gate-green prompts carry the gate command + the task's
           // Done when: clause (absent ⇒ '' — legacy byte-identity, End state 9).
@@ -1377,9 +1395,12 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       return { task, verdict, seats, expected, round, blocked }
     } catch (err) {
       // The caught engine error is the ONLY evidence trail — carried verbatim, uncurated, in blocked.
-      // (#1411) A post-spawn API/quota/transport death classifies 'env-died' (SOFT — the env-blocked
-      // sibling), the harness cause propagated verbatim; every other engine error keeps today's HARD
-      // 'escalate'. (#1430 (iii), rescoped by /red-team 2026-08-16) A pt undefined-interpolation
+      // (#1411, structurally scoped — relaunch fix) A post-spawn API/quota/transport death classifies
+      // 'env-died' (SOFT — the env-blocked sibling) ONLY when the throw is TAGGED as originating at
+      // the agent() dispatch layer (dispatchAgent); the harness cause propagates verbatim. Every
+      // OTHER engine error keeps today's HARD 'escalate' regardless of message content — an
+      // engine-authored throw embedding worker-supplied infra words is never laundered SOFT.
+      // (#1430 (iii), rescoped by /red-team 2026-08-16) A pt undefined-interpolation
       // throw gets an APPENDED diagnostic hint only — classification byte-unchanged (criterion 3's
       // in-thunk contract; a rethrow would be NULLed by `parallel` and silently drop the task, the
       // #742 wave-loop invariant). Hint + cause strings are concatenation-built (census-safe).
@@ -1868,13 +1889,18 @@ if (endStateCheckRows.length > 0) {
   // never _refinery — so a check needing that environment (installed deps, a built venv) reds
   // ENVIRONMENTALLY at the land barrier and the seats then read a MET condition as red. The
   // dispatched refiner applies the same pinned list in _refinery FIRST, fail-open: a red step is
-  // recorded into each artifact's preamble and every check still runs — no new hold path. Empty
+  // recorded into each artifact's preamble and every check still runs — no new hold path. The steps
+  // run in the SHARED _refinery worktree, so the clause carries a cleanliness contract (relaunch
+  // fix): tracked files a step mutates are restored before any check runs — the land dispatch merges
+  // and checks out in this same worktree, and the do-NOT-edit-tracked-files rule above must hold at
+  // the end of provisioning too. Empty
   // provision list ⇒ '' (set-minus: the dispatched prompt is byte-identical to a provision-less run).
   const endstateProvisionClause = provisionList.length
     ? pt`provision-before-checks (#1395, fail-open): FIRST run the phase's provision steps IN ORDER inside ${refineryPath} (the same pinned list the task worktrees got; source: ${provisionSource}):\n`
       // pt-tagged prompt-feeding row builder: ${c ?? '<step>'} absence-tolerant (the provisionClause precedent).
       + provisionList.map((c, i) => pt`  ${i + 1}. ${c ?? '<step>'}`).join('\n') + pt`\n`
       + pt`A provision step exiting non-zero NEVER blocks: record it as a \`provision_red: <step> (exit <code>)\` line in each artifact's preamble (after the tip_sha line) and STILL run every check below — a provision failure never fails this dispatch and never holds the land.\n`
+      + pt`Provision steps must leave the worktree CLEAN before any check runs: restore tracked files via \`git -C ${refineryPath} checkout -- .\` after any step that mutates them (untracked build output is fine) — the land dispatch merges and checks out in this SAME shared _refinery worktree, so the do-NOT-edit-tracked-files rule above holds at the end of provisioning too.\n`
     : ''
   log(`endstate-check: dispatching the land-barrier check — ${endStateCheckRows.length} claimed check:-tagged End-state condition(s) execute ONCE at the integrated tip, before any gate-audit seat spawns (D2/F5).`)
   await agent(
