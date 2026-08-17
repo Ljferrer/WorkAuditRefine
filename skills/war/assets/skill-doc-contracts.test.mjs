@@ -1547,9 +1547,11 @@ test("D9 — the refiner card's gitlink-bump invocation agrees in shape with the
 //       next `- ` bullet or a blank line. The authoring template wraps its bullets, so a
 //       first-line-only parse truncates the staged command mid-token and the truncated command
 //       later red-fails as a spurious done-unmet at merge;
-//   (b) the intake-defect rule — a `requiresTest: true` task without a `Done when:` command is
-//       surfaced at the approval gate on interactive runs and refuses dispatch under --afk; the
-//       Lead never invents an acceptance command.
+//   (b) the intake-defect rule — a `requiresTest: true` task without a `Done when:` command:
+//       interactive runs surface it at the approval gate; under --afk the Lead refuses
+//       dispatch; the Lead never invents an acceptance command. The SKILL.md
+//       `Legacy arm (checked first)` clause gates the rule — a plan with no `Done when:`
+//       bullets anywhere stages unchanged and the intake-defect rule does not fire.
 // Also pinned: the template's no-command arm (`None — <basis>`) stages `doneWhen: null` — without
 // that arm the intake would stage the literal "None — <basis>" prose as an executable command —
 // and the legacy arm (no `Done when:` bullets anywhere ⇒ stages unchanged, byte-identical
@@ -1644,6 +1646,16 @@ test('D31 — SKILL.md Decompose done-when intake keeps the full-bullet parse cl
     // the legacy arm
     [/bullets\s+anywhere\s+stages\s+unchanged/i, 'the legacy no-bullets-anywhere unchanged arm'],
     [/byte-identical/i, 'the legacy byte-identity consequence'],
+    // the value boundary — the staged command is the bullet's value, never the key (#1332)
+    [
+      /text\s+AFTER\s+the\s+`?Done when:`?\s+key/i,
+      'the value-boundary clause — the text AFTER the `Done when:` key, never the key itself',
+    ],
+    // legacy precedence — the legacy arm gates the intake-defect rule off (#1332)
+    [
+      /intake-defect\s+rule\s+does\s+not\s+fire/i,
+      'the legacy-precedence clause — the intake-defect rule does not fire on a legacy plan',
+    ],
   ]) {
     assert.match(
       b,
