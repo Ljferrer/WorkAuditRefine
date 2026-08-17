@@ -391,32 +391,48 @@ export function sweep(campaignDir) {
   assertOrderable(newEntries)
 
   // Idempotence guard (the halt/regrill/re-add loop): partition newEntries
-  // SEQUENTIALLY. A drop whose resolved plan path matches a `status !== 'landed'`
-  // ledger entry — or a fresh entry accepted earlier in this same sweep (the
-  // double-drop arm) — is a duplicate: never appended; its freshly-extracted
-  // `files` are re-stamped onto the matched entry; its drop file is consumed
-  // like any swept drop; reported under `skipped` (reason: 'refreshed'). A
-  // `landed`-only match appends a fresh queued entry — the guard blocks
-  // non-landed duplicates only.
+  // SEQUENTIALLY. A drop whose resolved plan path matches ANY ledger entry —
+  // a `landed` entry ALSO blocks the append (D2): appending past one mints the
+  // undrainable duplicate record()'s first-match lookup then poisons — or a
+  // fresh entry accepted earlier in this same sweep (the double-drop arm) is a
+  // duplicate: never appended; its freshly-extracted `files` are re-stamped
+  // onto the matched entry (every other field left byte-intact); its drop file
+  // is consumed like any swept drop; reported under `skipped` (reason:
+  // 'landed' for a landed ledger match, 'refreshed' otherwise).
   const accepted = []
   const skipped = []
+  const refreshed = [] // ledger-matched duplicates, kept for the contention pass (D5)
   for (const e of newEntries) {
     const resolved = path.resolve(e.plan)
-    const dup =
-      accepted.find((a) => path.resolve(a.plan) === resolved) ||
-      ledger.plans.find((p) => p.plan === resolved && p.status !== 'landed')
+    const sameSweep = accepted.find((a) => path.resolve(a.plan) === resolved)
+    const existing = sameSweep ? null : ledger.plans.find((p) => p.plan === resolved)
+    const dup = sameSweep || existing
     if (dup) {
       dup.files = e.files // re-stamp from the fresh extraction
-      skipped.push({ plan: e.plan, reason: 'refreshed' })
+      if (existing && !refreshed.some((r) => r.entry === existing)) {
+        refreshed.push({ entry: existing, files: e.files, plan: e.plan })
+      }
+      skipped.push({
+        plan: e.plan,
+        reason: existing && existing.status === 'landed' ? 'landed' : 'refreshed',
+      })
     } else {
       accepted.push(e)
     }
   }
 
-  // Contention runs only over genuinely-new entries, seeded from the
-  // POST-refresh ledger footprints — a refreshed footprint never self-collides
-  // with its own prior copy.
+  // Contention (D5) runs over genuinely-new entries AND over refreshed
+  // entries: a refreshed entry is checked against the ledger footprints MINUS
+  // its own (already re-stamped) copy — excluding the entry's own prior copy
+  // kills the self-collision, excluding the whole check would kill the safety
+  // signal a regrill-widened footprint exists to trip. New entries seed from
+  // the POST-refresh ledger footprints, so they see refreshed footprints too.
   const overlaps = []
+  for (const r of refreshed) {
+    const others = ledger.plans.filter((p) => p !== r.entry).flatMap((p) => p.files)
+    const overlap = intersectFootprints(r.files, others)
+    if (overlap.length) overlaps.push({ paths: overlap, plan: r.plan })
+  }
   let seenFiles = ledger.plans.flatMap((p) => p.files)
   for (const e of accepted) {
     const overlap = intersectFootprints(e.files, seenFiles)

@@ -613,10 +613,11 @@ test('sweep of a drop whose line-1 path does not exist throws ENOENT (fail-loud 
 
 // ---- sweep idempotence guard (#1355 findings 1/2) --------------------------
 // The halt/regrill/re-add loop must never mint an undrainable duplicate: a drop
-// whose resolved plan path already has a non-`landed` entry — in the ledger or
-// accepted earlier in the SAME sweep — refreshes that entry's `files` and is
-// reported under `skipped: [{ plan, reason: 'refreshed' }]`; a `landed`-only
-// match appends a fresh queued entry.
+// whose resolved plan path already has ANY entry — in the ledger (a `landed`
+// entry ALSO blocks the append, D2) or accepted earlier in the SAME sweep —
+// refreshes that entry's `files` (every other field byte-intact) and is
+// reported under `skipped` with reason 'landed' for a landed ledger match,
+// 'refreshed' otherwise.
 
 test('sweep idempotence: a re-dropped plan with a non-landed (halt-state) entry refreshes files, appends nothing, reports skipped', () => {
   const dir = tmpDir()
@@ -640,8 +641,9 @@ test('sweep idempotence: a re-dropped plan with a non-landed (halt-state) entry 
   assert.equal(ledger.plans[0].stopPoint, 'redteam-route-upstream')
   assert.deepEqual(result.skipped, [{ plan: path.resolve(planA), reason: 'refreshed' }])
   assert.deepEqual(result.added, [])
-  // contention seeds from POST-refresh footprints: the refreshed footprint
-  // (still carrying src/a.js) never self-collides with its own prior copy
+  // the refreshed footprint is contention-checked against the ledger
+  // footprints MINUS its own prior copy (D5) — no sibling here, so no
+  // self-collision and no overlap
   assert.deepEqual(result.overlaps, [])
   assert.deepEqual(fs.readdirSync(path.join(campaignDir, 'inbox')), [], 'the duplicate drop is consumed like any swept drop')
 })
@@ -664,23 +666,65 @@ test('sweep idempotence: a same-sweep double drop of one plan yields one entry (
   assert.deepEqual(fs.readdirSync(path.join(campaignDir, 'inbox')), [], 'both drops consumed')
 })
 
-test('sweep idempotence: a re-drop of a plan whose only entry is landed appends a fresh queued entry (non-landed duplicates only)', () => {
+test('sweep idempotence: a re-drop of a plan whose only entry is landed blocks the append — files refreshed, landed record untouched, reason landed', () => {
   const dir = tmpDir()
   const planA = writePlan(dir, 'a.md', PLAN_A)
   const campaignDir = path.join(dir, 'campaign')
   init(campaignDir, { plans: [planA], mode: 'stack' })
-  record(campaignDir, { plan: path.resolve(planA), status: 'landed' })
+  record(campaignDir, {
+    plan: path.resolve(planA),
+    status: 'landed',
+    branch: 'campaign/plan-a',
+    pr: 41,
+    sha: 'abc1234',
+    redteamRounds: 2,
+  })
 
+  writePlan(dir, 'a.md', PLAN_A_REVISED) // src/a.js, src/d.js — regrill before the re-drop
   addToInbox(campaignDir, planA)
   const result = sweep(campaignDir)
 
   const ledger = readLedger(campaignDir)
-  assert.equal(ledger.plans.length, 2, 'a landed entry never blocks a fresh append')
+  // BOTH End-state-2 halves: no second entry appended, AND the landed run's
+  // record is untouched apart from the `files` re-stamp — an appended dup would
+  // let record()'s first-match lookup overwrite run 1 while the dup stays
+  // `queued` forever (the Context-1 undrainable-campaign defect).
+  assert.equal(ledger.plans.length, 1, 'a landed entry ALSO blocks the append')
   assert.equal(ledger.plans[0].status, 'landed')
-  assert.equal(ledger.plans[1].status, 'queued')
-  assert.equal(ledger.plans[1].plan, path.resolve(planA))
-  assert.deepEqual(result.added, [path.resolve(planA)])
-  assert.deepEqual(result.skipped, [])
+  assert.equal(ledger.plans[0].branch, 'campaign/plan-a', 'landed branch unchanged')
+  assert.equal(ledger.plans[0].pr, 41, 'landed pr unchanged')
+  assert.equal(ledger.plans[0].sha, 'abc1234', 'landed sha unchanged')
+  assert.equal(ledger.plans[0].redteamRounds, 2, 'landed redteamRounds unchanged')
+  assert.deepEqual(ledger.plans[0].files, ['src/a.js', 'src/d.js'], 'files re-stamped from the fresh extraction')
+  assert.deepEqual(result.added, [])
+  assert.deepEqual(result.skipped, [{ plan: path.resolve(planA), reason: 'landed' }])
+  assert.deepEqual(fs.readdirSync(path.join(campaignDir, 'inbox')), [], 'the drop is consumed like any swept drop')
+})
+
+test('sweep contention (D5): a refreshed entry whose regrill widened its footprint into a queued sibling reports the overlap', () => {
+  const dir = tmpDir()
+  const planP = writePlan(dir, 'p.md', '# Plan P\n\n**Files:** `src/a.js`.\n')
+  const planQ = writePlan(dir, 'q.md', '# Plan Q\n\n**Files:** `src/b.js`.\n')
+  const campaignDir = path.join(dir, 'campaign')
+  init(campaignDir, { plans: [planP, planQ], mode: 'stack' })
+
+  // the regrill widened P's footprint into Q's before the re-drop — the check
+  // runs against the ledger footprints MINUS P's own prior copy, so the new
+  // collision with Q is reported while P never self-collides
+  writePlan(dir, 'p.md', PLAN_B_OVERLAP_A) // src/b.js, src/c.js
+  addToInbox(campaignDir, planP)
+  const result = sweep(campaignDir)
+
+  const ledger = readLedger(campaignDir)
+  assert.equal(ledger.plans.length, 2, 'refresh, never a fresh append')
+  assert.deepEqual(ledger.plans[0].files, ['src/b.js', 'src/c.js'], 'P re-stamped from the fresh extraction')
+  assert.deepEqual(
+    result.overlaps,
+    [{ paths: ['src/b.js'], plan: path.resolve(planP) }],
+    'the widened footprint collides with Q — reported like any other overlap'
+  )
+  assert.deepEqual(result.skipped, [{ plan: path.resolve(planP), reason: 'refreshed' }])
+  assert.deepEqual(result.added, [])
 })
 
 test('sweep with an empty inbox carries skipped: [] on the early-return site (shape consistency)', () => {
