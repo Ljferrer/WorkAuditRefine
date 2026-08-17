@@ -1,6 +1,6 @@
 ---
 name: label-to-guard-region-extraction-must-bound-at-next-label-not-eof
-description: "A structural-test helper that extracts a per-arm region as 'from this dispatch label to the first matching guard-branch pattern found anywhere after it' is right-unbounded: an arm with no guard of its own, placed before a guarded sibling arm, silently borrows the sibling's guard and its assignment, reading as symmetric when it is not — bound the search at the NEXT label match (or end-of-text only for the last arm), never at end-of-file unconditionally"
+description: "RESOLVED (structural-pin-extractors, #1373/#1286, 2026-08-17): A structural-test helper that extracts a per-arm region as 'from this dispatch label to the first matching guard-branch pattern found anywhere after it' is right-unbounded: an arm with no guard of its own, placed before a guarded sibling arm, silently borrows the sibling's guard and its assignment, reading as symmetric when it is not — bound the search at the NEXT label match (or end-of-text only for the last arm), never at end-of-file unconditionally"
 metadata: 
   node_type: memory
   type: project
