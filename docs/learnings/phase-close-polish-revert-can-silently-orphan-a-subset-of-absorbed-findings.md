@@ -4,7 +4,7 @@ description: "A phase-close polish commit that absorbs N queued findings can be 
 metadata: 
   node_type: memory
   type: project
-  promoted: dev/2026-07-28-prompt-surface-simplification@phase-3
+  promoted: dev/2026-08-05-precision-chain-and-loop-breaker@phase-4
   provenance: code-verified
   slug: phase-close-polish-revert-can-silently-orphan-a-subset-of-absorbed-findings
   phase: prompt-surface-simplification/3.1
@@ -21,6 +21,9 @@ metadata:
     - duty 3
     - fix-set comparison
     - loop-breaker
+    - polish-rejected
+    - polish-discarded
+    - env-died schemas.md gap
   tags: 
     - war
     - phase-close
@@ -28,7 +31,7 @@ metadata:
     - audit-findings
   created: 2026-07-28
   originSessionId: 15ea107f-a540-466b-bb69-7ce45fb6e5a4
-  modified: 2026-08-06T21:22:19.725Z
+  modified: 2026-08-17T15:24:01.580Z
 ---
 
 # Phase-close polish revert can silently orphan a subset of absorbed findings
@@ -141,3 +144,51 @@ carries the flags" rule) and the `## Route upstream` template comment in
 **Related:** [[spliced-test-section-orphans-adjacent-explanatory-comment]] — a different #1034-class
 adjacency-rot pattern, unrelated mechanism but same "silent regression a diff-based check would
 catch and a content-only read misses" family.
+
+---
+
+## RECURRENCE — phase 2, plan `2026-08-06-handoff-schemas-contract`, revert caught by its own
+## redo's audit but the redo never landed (2026-08-17)
+
+**Fourth occurrence.** Grounded via direct `.git/refs` and `.git/logs/refs` reads (no live worktree
+at the exact landed tip was reachable — see the checkout-topology note below) plus the phase's
+gate-audit log, `auditSha`/`gateHeadSha` `71ddc088fb558add6d92aab1ec4ec773b9881cd8`
+(`gateEvidence: true`). Commit `f26e1eb` was an ace-absorb during task 2.1 adding `env-died` beside
+`env-blocked` to `skills/war/references/schemas.md`'s run-manifest task-status enumeration (line
+153). Commit `71ddc08` reverted it wholesale with git's bare auto-generated body — no rationale —
+and **71ddc08 is itself the confirmed phase-2 integration tip** (matches `gateHeadSha`/`auditSha`
+for both task 2.1 and 2.2's gate-audits).
+
+**What's new this time — the mitigation partially fired, then lost anyway.** The terminal
+phase-close task `p2-polish` (branch `war/2026-08-06-handoff-schemas-contract/p2-polish`, first
+attempt at SHA `2e9f24c6`) had its own diff audited, and that audit correctly re-derived the
+orphaned absorb as a **Major**, `disposition: absorb, phaseClose: true` finding — i.e. it *did*
+catch the gap the revert created, matching this lesson's "how to catch it" guidance almost exactly
+(grounded the claim in `git log -Senv-died` against the pinned blob, cited the revert SHA and its
+bare body, and named the redo-vs-revert fix-set comparison this lesson's duty 3 mandates). That
+audit's verdict was `polish-rejected` — the diff did not merge. The task's SECOND recorded outcome
+was `verdict: polish-discarded` with an **empty** findings array and `blocked: null`, i.e. no
+further redo commit landed. Per this repo's `phase-close coherence sweep (fail-open polish of
+absorb findings)` architecture, a discarded/rejected polish is fail-open: the phase proceeds to
+Land regardless, without those fixes. **Net effect:** the same env-died/schemas.md gap this
+lesson's core mechanism describes was re-orphaned a fourth time, despite one audit pass correctly
+diagnosing it using language that echoes this very lesson's guidance.
+
+**Checkout-topology note (why this section is `code-verified` on the commit-graph facts, not on
+the final file content):** the servitor's cwd at write time was a different plan's worktree
+(gitdir `.git/worktrees/survey-batch-roadmap-2026-358f8c`, unrelated slug). `.git/worktrees/*`
+entries matching this plan's slug (`p2-polish4`, `p2-2.112`, `p2-2.22`, `_refinery17`, …) all sit on
+task/integration branches (`war/2026-08-06-handoff-schemas-contract/p2-polish` at `2e9f24c6` — the
+*rejected* attempt; `integration/.../phase-2` at `71ddc088`), none checked out at the actual landed
+`dev/2026-08-06-handoff-schemas-contract` tip `43d757d3464d6f248a4c1e9f4a5f37de8fba37a7`, and no
+Bash capability exists to `git show` a blob from a ref with no live worktree. The reflog for the
+`dev` branch shows the tip advanced `87cb6dcd` (phase-1 close) → `43d757d3` in one recorded
+transition, which post-dates `71ddc088` — so **whether `schemas.md` actually carries `env-died` at
+the true landed tip was not independently re-confirmed here**; the finding is recorded on the
+strength of the `polish-discarded` verdict (empty findings, no merge) being the terminal state this
+run's audit log shows. A future servitor/Lead with a live worktree at `43d757d3` should `grep -c
+env-died skills/war/references/schemas.md` to close this out one way or the other.
+
+**Related:** [[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]] — the
+sibling lesson this recurrence also instantiates (a fresh absorb+phaseClose:true finding on the
+polish task's OWN diff, with no further round); read both together for this incident.

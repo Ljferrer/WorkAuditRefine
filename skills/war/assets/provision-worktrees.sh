@@ -40,10 +40,13 @@
 #   .claude/ does not show as untracked in the parent `git status` (probe E2).
 # - ensure-worktree is idempotent "ensure" with CONSERVATIVE heal (D4/D7): create
 #   fresh on the integration tip with a .war-task marker; reuse a present worktree
-#   untouched (never reset a branch that may carry un-merged commits); prune +
-#   recreate only when the registry is stale (dir gone) — recreation re-checks-out
-#   the existing branch, so its commits, which live in the ref, are never lost;
-#   and FAIL LOUD (never delete) on an unregistered dir that already holds files.
+#   untouched at the superproject level (never reset a branch that may carry
+#   un-merged commits) — declared submodules are examined on reuse and a
+#   corrupted checkout may be restored at its unchanged recorded SHA (#1381,
+#   reuse_hygiene); prune + recreate only when the registry is stale (dir gone)
+#   — recreation re-checks-out the existing branch, so its commits, which live
+#   in the ref, are never lost; and FAIL LOUD (never delete) on an unregistered
+#   dir that already holds files.
 # - teardown is STRICTLY RUN-SCOPED (D9): the refiner supplies the current run's
 #   ledger dir (<repo-root>/.claude/teams/<run-id>) via --run-dir, and teardown
 #   only ever removes a worktree whose path is INSIDE that dir. A sibling worktree
@@ -526,7 +529,11 @@ dir_is_empty() {
 # present worktree. The heal cases are:
 #   * Already a registered worktree, dir present  -> REUSE untouched (only make
 #     sure the .war-task marker is there). Never reset <branch>; un-merged
-#     commits survive because we never touch them.
+#     commits survive because we never touch them. Declared submodules are
+#     EXAMINED-BUT-UNTOUCHED at the superproject level (#1381, D19): reuse-path
+#     hygiene may restore a corrupted submodule checkout at its unchanged
+#     recorded gitlink SHA (see reuse_hygiene below) — never a superproject
+#     tracked file or untracked entry, and never a new die (fail-open).
 #   * Registered but the dir is gone (stale registry) -> prune + recreate on
 #     the existing <branch>. Commits live in the ref (never deleted by prune/
 #     remove), so nothing is lost. Only safe because the dir is gone — there is
@@ -579,6 +586,12 @@ cmd_ensure_worktree() {
       # Touch nothing but the marker (idempotent). Crucially we do NOT move/reset
       # <branch>, so un-merged commits survive.
       write_marker "$path" "$branch"
+      # Reuse-path hygiene (#1381, D19): declared submodules are examined-but-
+      # untouched at the superproject level — a corrupted submodule checkout may
+      # be restored at its unchanged recorded SHA; anything that could be real
+      # work is only ever reported. Fail-open: never changes this path's exit
+      # code or its stdout contract (markers go to stderr).
+      reuse_hygiene "$path" || true
       printf '%s\n' "$path"
       return 0
     fi
@@ -680,6 +693,128 @@ stale_remote_probe() {
   # die with the two-direction operator diagnostic + the restore command.
   printf 'STALE_REMOTE branch=%s remoteSha=%s frozenTip=%s\n' "$sr_branch" "$sr_remote_sha" "$sr_tip" >&2
   die "ensure-worktree: origin has '$sr_branch' at $sr_remote_sha, which is NOT an ancestor of the frozen integration tip $sr_tip — a STALE PRIOR ATTEMPT (an unmerged remote task branch left by a prior run whose local state was torn down). No ref or worktree was created. Reconcile one of two ways: (a) ADOPT the remote as the real work — 'git branch $sr_branch $sr_remote_sha' then relaunch (the existing-branch reuse path checks it out as-is); or (b) on a SANCTIONED recovery relaunch where the remote is a superseded attempt, pass --reclaim-stale-remote to delete it. Reversible until remote GC: git push origin $sr_remote_sha:refs/heads/$sr_branch" "$EX_STALE_REMOTE"
+}
+
+# hygiene_marker <sub-path> <action> <detail> : the machine-readable reuse-path
+# hygiene marker (#1381, the STALE_REMOTE precedent in this file: the provision
+# barrier keys on the token and the key=value payload, never an exit code).
+# action is "repaired" or "detected"; values stay space-free so the payload
+# splits cleanly on key=value boundaries.
+hygiene_marker() {
+  printf 'WORKTREE_HYGIENE path=%s action=%s detail=%s\n' "$1" "$2" "$3" >&2
+}
+
+# reuse_hygiene <worktree-path> : REUSE-path submodule hygiene (#1381, D19). A
+# worker killed mid-populate leaves a reused worktree's submodule with an
+# emptied index (every tracked file staged for deletion) and typically a stale
+# index.lock; handing that state silently to the next worker generation makes
+# the fresh worker inherit the corruption. On the reuse path only, examine each
+# DECLARED submodule (.gitmodules paths) and repair-or-report per
+# reuse_hygiene_one below. FAIL-OPEN throughout: never a die, never a non-zero
+# return — the reuse path's exit discipline is unchanged, and superproject
+# tracked files and untracked entries are never touched (the WIP-preservation
+# invariant).
+reuse_hygiene() {
+  rh_wt="$1"
+  [ -f "$rh_wt/.gitmodules" ] || return 0
+  rh_subs="$( { git config -f "$rh_wt/.gitmodules" --get-regexp '^submodule\..*\.path$' 2>/dev/null || true; } | awk '{ $1=""; sub(/^ /, ""); print }')"
+  [ -n "$rh_subs" ] || return 0
+  while IFS= read -r rh_sub; do
+    [ -n "$rh_sub" ] || continue
+    reuse_hygiene_one "$rh_wt" "$rh_sub" || true
+  done <<EOF
+$rh_subs
+EOF
+  return 0
+}
+
+# reuse_hygiene_one <worktree-path> <sub-path> : examine ONE declared submodule
+# on the reuse path. Detection rides superproject-side porcelain (`git status
+# --porcelain -- <sub>`) because `git submodule status` shows NO marker in the
+# corrupted state (the probe-verified signal). Classification:
+#   * clean -> silent (no marker line).
+#   * checked-out HEAD != the recorded gitlink SHA -> `detected` only; the tree
+#     is NEVER touched (could be real submodule work — the relaunching Lead
+#     adjudicates, never --force).
+#   * HEAD == gitlink SHA AND the dirt is the CORRUPTION SIGNATURE — porcelain
+#     is staged deletions only, allowing untracked entries that mirror those
+#     staged deletions (the emptied-index shape keeps files on disk; the
+#     reproduced killed-populate state leaves them absent — both classify the
+#     same because nothing here reads the worktree population, A10) — ->
+#     REPAIR: remove a stale submodule index.lock if present (the probe-
+#     verified repair blocker), then `git submodule update --init --force`.
+#     The SHA is unchanged, so no gitlink bump can result. A clean result emits
+#     `repaired`; a still-dirty or failed update emits `detected`
+#     (repair-failed) and still returns 0.
+#   * anything else (real edits, foreign untracked files — even beside a stale
+#     index.lock) -> `detected` only, tree untouched: dirt that mimics real
+#     work is handed to the Lead, never to --force (the red-team-narrowed
+#     detector, D19).
+reuse_hygiene_one() {
+  h_wt="$1"; h_sub="$2"
+  [ -d "$h_wt/$h_sub" ] || return 0
+  h_dirt="$(git -C "$h_wt" status --porcelain -- "$h_sub" 2>/dev/null || true)"
+  [ -n "$h_dirt" ] || return 0
+
+  h_gitlink="$( { git -C "$h_wt" ls-tree HEAD -- "$h_sub" 2>/dev/null || true; } | awk '{print $3}')"
+  h_head="$(git -C "$h_wt/$h_sub" rev-parse HEAD 2>/dev/null || true)"
+  if [ -z "$h_gitlink" ] || [ -z "$h_head" ]; then
+    hygiene_marker "$h_sub" detected unreadable-state
+    return 0
+  fi
+  if [ "$h_head" != "$h_gitlink" ]; then
+    hygiene_marker "$h_sub" detected sha-mismatch
+    return 0
+  fi
+
+  # SHA matched + dirty: classify against the corruption signature.
+  h_gd="$(git -C "$h_wt/$h_sub" rev-parse --git-dir 2>/dev/null || true)"
+  case "$h_gd" in ''|/*) ;; *) h_gd="$h_wt/$h_sub/$h_gd" ;; esac   # anchor relative
+  h_lock=""
+  if [ -n "$h_gd" ] && [ -f "$h_gd/index.lock" ]; then h_lock=1; fi
+  h_staged_del="$(git -C "$h_wt/$h_sub" diff --cached --name-only --diff-filter=D 2>/dev/null || true)"
+  h_subdirt="$(git -C "$h_wt/$h_sub" status --porcelain 2>/dev/null || true)"
+
+  h_shape=1
+  [ -n "$h_staged_del" ] || h_shape=0
+  if [ "$h_shape" -eq 1 ]; then
+    # Every porcelain line must be a staged deletion, or an untracked entry
+    # whose path is among the staged deletions (the files-on-disk variant of
+    # the emptied-index shape). Anything else is potentially real work.
+    while IFS= read -r h_line; do
+      [ -n "$h_line" ] || continue
+      case "$h_line" in
+        "D  "*) ;;
+        "?? "*)
+          printf '%s\n' "$h_staged_del" | grep -Fxq -- "${h_line:3}" || h_shape=0 ;;
+        *) h_shape=0 ;;
+      esac
+    done <<EOF
+$h_subdirt
+EOF
+  fi
+
+  if [ "$h_shape" -ne 1 ]; then
+    if [ -n "$h_lock" ]; then
+      hygiene_marker "$h_sub" detected unrecognized-dirt+stale-index.lock
+    else
+      hygiene_marker "$h_sub" detected unrecognized-dirt
+    fi
+    return 0
+  fi
+
+  h_detail="staged-deletions"
+  if [ -n "$h_lock" ]; then
+    rm -f "$h_gd/index.lock" 2>/dev/null || true
+    h_detail="staged-deletions+stale-index.lock"
+  fi
+  if git -C "$h_wt" submodule update --init --force -- "$h_sub" >/dev/null 2>&1 \
+     && [ -z "$(git -C "$h_wt" status --porcelain -- "$h_sub" 2>/dev/null)" ]; then
+    hygiene_marker "$h_sub" repaired "$h_detail"
+  else
+    hygiene_marker "$h_sub" detected "repair-failed:$h_detail"
+  fi
+  return 0
 }
 
 # --- run-scoping ------------------------------------------------------------
@@ -1262,10 +1397,11 @@ cmd_sync_follower() {
 # ensure-refinery-worktree <path> <integration-branch>
 #
 # Ensure+re-attach for the Refinery's run-scoped worktree (_refinery). This is
-# distinct from ensure-worktree's pure no-op reuse: when the worktree is present
-# but HEAD is detached or on a different branch, and the tree is CLEAN (no
-# tracked-file modifications), we re-attach via `git -C <path> switch`. A dirty
-# tree (tracked-file modifications) always FAIL LOUD — never reset, never destroy
+# distinct from ensure-worktree's reuse (marker + examine-but-untouched submodule
+# hygiene, see reuse_hygiene): when the worktree is present but HEAD is detached
+# or on a different branch, and the tree is CLEAN (no tracked-file
+# modifications), we re-attach via `git -C <path> switch`. A dirty tree
+# (tracked-file modifications) always FAIL LOUD — never reset, never destroy
 # work. Untracked files (e.g. the .war-task marker) do not count as dirty.
 #
 # Behaviors:
@@ -1462,6 +1598,27 @@ cmd_remove_publication_worktree() {
   git worktree prune >/dev/null 2>&1 || true
 }
 
+# blocking_leaf_for <ref> : best-effort diagnosis for a "cannot lock ref" cut
+# failure — echo the ref that blocks <ref> in the refs/heads namespace: the
+# first ancestor-segment prefix that exists as a leaf branch (blocks from
+# above), else the first child ref that makes <ref> a ref directory (blocks
+# from below). Echoes nothing when no blocker can be identified.
+blocking_leaf_for() {
+  bl_target="$1"
+  bl_prefix=""
+  bl_rest="$bl_target"
+  while [ "${bl_rest#*/}" != "$bl_rest" ]; do
+    bl_seg="${bl_rest%%/*}"
+    bl_rest="${bl_rest#*/}"
+    bl_prefix="${bl_prefix:+$bl_prefix/}$bl_seg"
+    if branch_exists "$bl_prefix"; then
+      printf '%s\n' "$bl_prefix"
+      return 0
+    fi
+  done
+  git for-each-ref --format='%(refname:short)' "refs/heads/$bl_target/" 2>/dev/null | head -n 1
+}
+
 # --- subcommand: resolve-working-branch -------------------------------------
 # resolve-working-branch <desired> <slug> <date> [--owned-file PATH] [--owned REF]...
 #
@@ -1469,12 +1626,32 @@ cmd_remove_publication_worktree() {
 # worktree, echo it unchanged (byte-identical to today's default — zero behavior
 # change for the common case). If <desired> IS checked out somewhere (the
 # launch-worktree collision), a push to it would be rejected as un-advanceable,
-# so instead resolve a DEDICATED working branch dev/<date>-<slug> created at
-# <desired>'s tip, checked out nowhere, and echo that.
+# so instead resolve a DEDICATED working branch created at <desired>'s tip,
+# checked out nowhere, and echo that. The derived name is dev/<date>-<slug>;
+# when a leaf branch `dev` blocks that namespace (a ref file/directory conflict
+# would make the nested cut die "cannot lock ref" mid-Setup), the derivation
+# falls back ONCE to the flat, slashless war-<date>-<slug> (#1380, D12) — no
+# segment of a slashless name can be blocked, and it is a sibling of (never
+# inside) the war/ task-branch ref directory. One fallback, then fail loud
+# (D13): a cut that still dies keeps git's own stderr and appends the
+# blocking-ref diagnosis plus the `--working <branch>` remedy.
 #
-# Ownership seam (ADR 0003), same inputs as the other subcommands:
+# planSlug cuttability (D14, #1380): before EITHER path echoes, probe leaf
+# branches at refs/heads/war and refs/heads/war/<slug> — task branches live
+# under war/<slug>/ and are cut regardless of which path echoes, so a leaf at
+# either ref would kill the first mid-phase task-branch cut, not Setup. The
+# probe validates the <slug> argument the Lead passes — the same slug that
+# seeds planSlug/runId by convention — and dies plain (exit 1, never
+# EX_FOREIGN: a namespace/argument problem, not a foreign-ownership one),
+# naming the blocking leaf and the remedy.
+#
+# Ownership seam (ADR 0003), same inputs as the other subcommands. The
+# absent/owned/foreign ladder runs on the SANITIZED (post-fallback) candidate,
+# and the REUSE arm is consciously widened (A3): it consults BOTH candidate
+# names — an owned nested or flat branch from a prior attempt is reused as-is,
+# so a mid-run leaf deletion cannot re-derive a different name on resume.
 #   - Absent dedicated branch -> create at <desired> tip, record as owned.
-#   - Present AND ours (resume) -> reuse as-is, never re-cut.
+#   - Present AND ours (resume, either candidate) -> reuse as-is, never re-cut.
 #   - Present but NOT ours (foreign pre-existing name) -> FAIL LOUD (exit 3).
 # Never checks out the dedicated branch anywhere; `git branch` only creates the ref.
 cmd_resolve_working_branch() {
@@ -1500,6 +1677,17 @@ cmd_resolve_working_branch() {
 
   git_dir >/dev/null
 
+  # D14 (#1380): planSlug cuttability — probed on BOTH paths, before either
+  # echo (task branches are cut under war/<slug>/ regardless of which path
+  # echoes). A leaf at refs/heads/war is impossible-by-convention, but one
+  # show-ref is cheap; either leaf would kill every later task-branch cut with
+  # "cannot lock ref" mid-phase, so fail at Setup instead.
+  for wleaf in war "war/$slug"; do
+    if branch_exists "$wleaf"; then
+      die "resolve-working-branch: a leaf branch '$wleaf' exists at refs/heads/$wleaf and blocks the war/$slug/... task-branch namespace — every task-branch cut this run makes would die ('cannot lock ref'). Remedy: pick a different plan slug, or delete/rename the leaf branch '$wleaf'."
+    fi
+  done
+
   # No collision -> the desired branch is landable as-is. Echo it unchanged.
   if ! branch_checked_out_anywhere "$desired"; then
     printf '%s\n' "$desired"
@@ -1508,22 +1696,54 @@ cmd_resolve_working_branch() {
 
   # Collision: resolve a dedicated working branch, created at the desired tip.
   load_owned_file "$owned_file"
-  resolved="dev/$date-$slug"
 
-  if branch_exists "$resolved"; then
-    if owned_has "$resolved"; then
-      # Legitimate resume: reuse as-is. NEVER re-cut or move it.
-      printf '%s\n' "$resolved"
+  # WIDENED REUSE (A3, #1380): consult BOTH candidate names — the nested
+  # derived name and its flat fallback — before any fresh cut. An owned
+  # candidate from a prior attempt is a legitimate resume: reuse as-is, NEVER
+  # re-cut or move it, so deleting the blocking leaf mid-run cannot make a
+  # resume re-derive a DIFFERENT name. Foreign is judged below on the derived
+  # candidate only (per-arm semantics unchanged).
+  for wcand in "dev/$date-$slug" "war-$date-$slug"; do
+    if branch_exists "$wcand" && owned_has "$wcand"; then
+      printf '%s\n' "$wcand"
       return 0
     fi
+  done
+
+  # D12 (#1380): probe the derived name's single ancestor segment. A leaf
+  # branch `dev` makes the nested cut die "cannot lock ref", so fall back ONCE
+  # to the flat, slashless name.
+  if branch_exists dev; then
+    # COUPLING: a downstream plan-witness grep pins the exact unbraced variable
+    # spelling of the assignment on the next line — keep it byte-identical.
+    # (This comment deliberately does not restate the token: a comment carrying
+    # it would satisfy the witness without the code.)
+    resolved="war-$date-$slug"
+  else
+    resolved="dev/$date-$slug"
+  fi
+
+  if branch_exists "$resolved"; then
     die "resolve-working-branch: dedicated branch '$resolved' already exists and is not owned by this run; refusing to reuse or overwrite it (see ADR 0003). Delete the stale ref or adopt it with record-as-owned." "$EX_FOREIGN"
   fi
 
   # Absent -> create at the desired branch's tip (checked out nowhere), then
   # record ownership. Capture git stderr so a bad <desired> surfaces its diagnostic.
   _tmp_err="$(mktemp 2>/dev/null || mktemp -t warwbranch)"
-  git branch "$resolved" "$desired" >/dev/null 2>"$_tmp_err" \
-    || { _git_branch_err="$(cat "$_tmp_err")"; rm -f "$_tmp_err"; die "resolve-working-branch: failed to create dedicated branch '$resolved' at '$desired' tip: $_git_branch_err"; }
+  if ! git branch "$resolved" "$desired" >/dev/null 2>"$_tmp_err"; then
+    _git_branch_err="$(cat "$_tmp_err")"; rm -f "$_tmp_err"
+    _lock_hint=""
+    case "$_git_branch_err" in
+      *"cannot lock ref"*)
+        # D13 (#1380): a namespace block survived the D12 fallback (a child ref
+        # below the derived name, or a leaf that raced in after the probe). ONE
+        # fallback was the budget — diagnose and fail loud, never a retry loop.
+        _wblock="$(blocking_leaf_for "$resolved" || true)"
+        _lock_hint=" DIAGNOSIS: a ref blocks '$resolved' in the refs/heads namespace${_wblock:+ — the blocking ref is '$_wblock'}. Remedy: pass an explicit --working <branch> to /war, or delete/rename the blocking ref."
+        ;;
+    esac
+    die "resolve-working-branch: failed to create dedicated branch '$resolved' at '$desired' tip: $_git_branch_err$_lock_hint"
+  fi
   rm -f "$_tmp_err"
   record_owned_file "$owned_file" "$resolved"
   printf '%s\n' "$resolved"

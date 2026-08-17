@@ -892,6 +892,35 @@ test('--queries: one process yields one labeled block per entry (Lead per-phase 
   rmSync(dir, { recursive: true, force: true });
 });
 
+test('--queries: a non-JSONL file dies with the single-line format message, no stack trace (#1408)', () => {
+  const dir = tmpDir();
+  lessonFile(dir, 'hookfact', { description: 'hook scope guard lesson', body: 'x' });
+  const qf = join(dir, 'queries.txt');
+  writeFileSync(qf, 'hook scope guard\nversion bump slots\n'); // the reproduced #1408 input shape
+  const r = spawnSync('node', [CLI, '--queries', qf, '--local', dir], { encoding: 'utf8' });
+  assert.equal(r.status, 1);
+  assert.ok(
+    r.stderr.includes('war-memory: --queries requires JSONL ({"label":…,"text":…} per line); line 1 is not JSON'),
+    r.stderr
+  );
+  assert.equal(r.stderr.trim().split('\n').length, 1); // single-line message
+  assert.doesNotMatch(r.stderr, /at JSON\.parse/); // no raw SyntaxError traceback
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('--queries: the die names the file-true line number — blank and valid lines before it still count (#1408)', () => {
+  const dir = tmpDir();
+  lessonFile(dir, 'hookfact', { description: 'hook scope guard lesson', body: 'x' });
+  const qf = join(dir, 'queries.jsonl');
+  // line 1 valid, line 2 blank (skipped, not renumbered), line 3 malformed
+  writeFileSync(qf, JSON.stringify({ label: 'ok', text: 'hook scope' }) + '\n\nnot json\n');
+  const r = spawnSync('node', [CLI, '--queries', qf, '--local', dir], { encoding: 'utf8' });
+  assert.equal(r.status, 1);
+  assert.ok(r.stderr.includes('line 3 is not JSON'), r.stderr);
+  assert.equal(r.stdout, ''); // dies before emitting any block
+  rmSync(dir, { recursive: true, force: true });
+});
+
 // ============================================================================
 // No-cwd-guess: an omitted --local (and no $CLAUDE_MEMORY_LOCAL) must never
 // invent <cwd>/memory — on 2026-07-06 a WAR run's un-flagged invocations created
