@@ -7569,15 +7569,20 @@ const DONE_WHEN_SITES = [
 ]
 
 test("Done when threading (Task 1.3) — all six worker-family sites carry the task's Done when: command beside the Gate: line; the worker card documents the input", async () => {
+  assert.equal(DONE_WHEN_SITES.length, 6,
+    'exactly six worker-family Done-when sites are enumerated (anti-vacuity floor — a site is ADDED, never skipped)')
+  // Adjacency (D7, #1334-5): the expected bytes are COMPOSED — the engine normalizes plan.gate
+  // through resolveGate at entry (ADR 0036), so the prompt's Gate: line carries the resolved gate
+  // and the Done when: clause must concatenate DIRECTLY after it (an index-precedence pair stayed
+  // green with bytes between the two lines; this includes-check does not).
+  const gateThenDoneWhen = 'Gate: ' + resolveGate(PROVISION_ARGS().plan.gate) + `\nDone when: ${DW_CMD}`
   for (const s of DONE_WHEN_SITES) {
     const { calls } = await s.run({ doneWhen: DW_CMD })
     const c = s.find(calls)
     assert.ok(c, `site "${s.site}" reached and captured (presence guard — six sites is the floor)`)
     assert.ok(c.prompt.includes(`\nDone when: ${DW_CMD}`),
       `site "${s.site}" carries the task's Done when: command VERBATIM on its own line`)
-    const gateIdx = c.prompt.indexOf('Gate: make gate')
-    assert.ok(gateIdx !== -1, `site "${s.site}" carries the gate command on a Gate: line`)
-    assert.ok(gateIdx < c.prompt.indexOf(`\nDone when: ${DW_CMD}`),
+    assert.ok(c.prompt.includes(gateThenDoneWhen),
       `site "${s.site}": the Done when: clause rides directly after the Gate: line`)
   }
   // Prompt-surface split (same task): the standing worker card documents the new input.
@@ -7606,15 +7611,17 @@ test("Done when threading — absent ⇒ '' (set-minus): each site's doneWhen-le
     assert.ok(!wo.prompt.includes('\nDone when:'),
       `site "${s.site}": the doneWhen-less prompt carries NO line-anchored Done when: token at all (absolute absence — the hardcoded-in-both-arms case parity cancels)`)
   }
-  // null, absent, and '' are the same legacy arm (the string|null contract; '' via the guard's
-  // truthiness half): byte-identical prompts. The '' arm pins the typeof/empty-string guard —
-  // Task 1.1's Decompose parser produces this field, and a bare `Done when:` bullet is the
-  // plausible way an empty string arrives.
+  // null, absent, '', and a non-string are the same legacy arm (the string|null contract):
+  // byte-identical prompts. The '' arm pins the guard's TRUTHINESS half and the non-string arm
+  // pins its TYPEOF half (D5, #1334-1) — Task 1.1's Decompose parser produces this field, and a
+  // bare `Done when:` bullet is the plausible way an empty string arrives.
   const nullP = DONE_WHEN_SITES[0].find((await DONE_WHEN_SITES[0].run({ doneWhen: null })).calls).prompt
   const absentP = DONE_WHEN_SITES[0].find((await DONE_WHEN_SITES[0].run({})).calls).prompt
   assert.equal(nullP, absentP, 'doneWhen:null and doneWhen-absent dispatch byte-identical worker prompts')
   assert.equal(DONE_WHEN_SITES[0].find((await DONE_WHEN_SITES[0].run({ doneWhen: '' })).calls).prompt, absentP,
-    "doneWhen:'' dispatches the byte-identical legacy prompt")
+    "doneWhen:'' dispatches the byte-identical legacy prompt (the guard's truthiness half)")
+  assert.equal(DONE_WHEN_SITES[0].find((await DONE_WHEN_SITES[0].run({ doneWhen: 5 })).calls).prompt, absentP,
+    "doneWhen:5 (non-string) dispatches the byte-identical legacy prompt (the guard's typeof half — D5, #1334-1)")
 })
 
 test('prompt truth (D6) — every dispatched prompt that says keep-the-gate-green carries the gate command', async () => {
@@ -7637,6 +7644,13 @@ test('prompt truth (D6) — every dispatched prompt that says keep-the-gate-gree
     assert.ok(c.prompt.includes('make gate'),
       `prompt "${c.opts.label}" says keep-the-gate-green AND carries the gate command`)
   }
+  // Default-deny census (D6, #1334-4): the sweep above only reaches prompts its fixtures drive, so a
+  // keep-green prompt added at a dispatch site no fixture reaches would silently evade it. Count the
+  // space-form phrase over the template SOURCE in OCCURRENCE semantics (case-insensitive; the three
+  // keep-the-gate-green comment mentions are hyphenated and deliberately non-hits). Pin re-measured
+  // at task time: 6 (matches the 6fff2ee measurement).
+  assert.equal((src.match(/keep the gate/gi) || []).length, 6,
+    'a new keep-the-gate-green prompt must join the D6 sweep above — the space-form census over the template source moved; re-pin this count ONLY alongside extending the sweep fixtures to reach the new site')
 })
 
 // A1 (D9) — the RETIRED plan-slice-criteria framing, asserted absent from the standing worker card
@@ -9022,9 +9036,13 @@ test('Task 5.1 — worker/servitor card evictions: destination carries the moved
 // could not see it and would read 2 === 2 forever no matter how many unmirrored arms
 // were added — structurally vacuous, with none of the non-vacuity this pin is sold on.
 // The discovery keys on the ':<flavor>-proceed' suffix, which by construction excludes
-// the initial land's suffix-less label. Patterns are fragment-built, so this file holds
-// no contiguous copy of a dispatch label or of the assignment it polices, and a future
-// sweep for either cannot self-match on the guard.
+// the initial land's suffix-less label. The guard's OWN patterns are fragment-built (the
+// stem + phase-id + flavor constants below), so a future sweep for a label or for the
+// policed assignment cannot self-match on the guard's patterns. The file's
+// known contiguous label copies live elsewhere — the #931 LITERAL_REGISTRY's dispatch-site
+// rows (the two re-land arm rows included) quote each site's label bytes as their literal
+// heads (named by construct; no label byte is quoted here) — and a sweep must account for
+// those rows, not for this guard.
 // ---------------------------------------------------------------------------
 const RELAND_LABEL_STEM = String.raw`land:phase-`
 const RELAND_LABEL_PHID = String.raw`\$\{ph\.id\}`
@@ -9049,13 +9067,17 @@ const braceSpan = (text, open) => {
   return -1
 }
 
-// Region boundary (explicit): each region runs from its matched dispatch label to the end
-// of that arm's 2B guard branch. `branch` is the guard branch alone — the body the
-// reassignment duty is measured on. Parameterized over `text` (default: the live template)
-// so the both-ways probe below runs the IDENTICAL extraction over a mutated copy.
+// Region boundary (explicit): each arm's search region is right-bounded — it runs from its
+// matched dispatch label to the next label match (end-of-text only for the last arm), so a
+// guardless arm can never borrow a later sibling's guard (#1373/#1286 — the EOF-slice borrow).
+// Within that bounded region, `region` ends at the arm's own 2B guard-branch close and
+// `branch` is the guard branch alone — the body the reassignment duty is measured on.
+// Parameterized over `text` (default: the live template) so the mutation probes below run
+// the IDENTICAL extraction over a mutated copy.
 const relandSubmodArms = (text = src) =>
-  [...text.matchAll(RELAND_LABEL_RE)].map((m) => {
-    const after = text.slice(m.index)
+  [...text.matchAll(RELAND_LABEL_RE)].map((m, i, all) => {
+    const next = all[i + 1]
+    const after = text.slice(m.index, next ? next.index : text.length)
     const g = after.match(SUBMOD_GUARD_RE)
     if (!g) return { label: m[0], guarded: false, region: null, branch: null, receiver: null, assigns: false }
     const open = g.index + g[0].length - 1
@@ -9081,7 +9103,7 @@ test('D6 (#1245) — re-land arm symmetry: every re-land 2B guard branch reassig
     `a re-land arm dispatches with no 2B PR-and-hold guard branch following it, so the hold it takes cannot carry the PR ref: ${unguarded.map(a => a.label).join(', ')}`)
   const unlocatable = arms.filter(a => a.guarded && a.branch === null)
   assert.equal(unlocatable.length, 0,
-    `a re-land 2B guard branch never closes — the extraction ran past the end of the template source and its reassignment duty is unmeasured: ${unlocatable.map(a => a.label).join(', ')}`)
+    `a re-land 2B guard branch never closes — the extraction ran past the end of the arm's bounded region and its reassignment duty is unmeasured: ${unlocatable.map(a => a.label).join(', ')}`)
   const missing = arms.filter(a => !a.assigns)
   assert.equal(missing.length, 0,
     `re-land arm symmetry broken — ${arms.length - missing.length} of ${arms.length} re-land 2B guard branches reassign the outer land result to their own dispatched re-land result; these do not: ${missing.map(a => a.label).join(', ')}. The initial land is the model: its dispatch result IS the outer land result, so its 2B hold leaves the PR ref readable on the phase return. An arm that records only the escalation returns the stale earlier attempt instead. Every re-land arm owes that reassignment beside its escalation record.`)
@@ -9112,6 +9134,43 @@ test('D6 (#1245) — both ways: a third re-land arm mirrored from a live one WIT
   const unsym = arms.filter(a => !a.assigns).map(a => a.label)
   assert.equal(unsym.join('|'), thirdLabel,
     `exactly the mirrored arm must be reported unsymmetric — expected [${thirdLabel}], got [${unsym.join(', ')}]; if it is empty the live assertion above is vacuous, and if it names a live arm the fixture perturbed a real one`)
+})
+
+// D2 (#1373/#1286) — guardless-arm negative reference for the region bound above: a guardless arm
+// placed BEFORE a guarded sibling is the exact shape the unbounded EOF slice mis-read as guarded
+// (the borrow). Demonstrated-RED (recorded 2026-08-17): reverting `after` to the unbounded
+// label-to-end-of-text slice in a scratch copy flipped this fixture arm to guarded:true — it
+// borrowed the first live arm's 2B guard and receiver — and this test went red on the
+// guarded:false assert; the bounded slice restored it green with every live arm byte-unchanged.
+test('D2 (#1373/#1286) — both ways: a guardless -proceed arm spliced BEFORE the first live arm reports guarded:false; the bounded region never borrows the sibling guard that follows it', () => {
+  const live = relandSubmodArms()
+  const donor = live[0]
+  assert.ok(donor && donor.label, 'a live re-land arm is available as the label donor')
+  // Fixture-flavor hygiene (Context 9): the label is DERIVED at runtime from the donor's matched
+  // bytes — no contiguous label literal enters this file — and its flavor is distinct from both
+  // live flavors and from the mirrored '-probe-proceed' fixture in the test above.
+  const guardlessLabel = donor.label.replace(/:[a-z][a-z-]*-proceed$/, ':guardless-proceed')
+  assert.notEqual(guardlessLabel, donor.label, 'the flavor replace actually produced a new label')
+  assert.ok(!live.some(a => a.label === guardlessLabel)
+    && guardlessLabel !== donor.label.replace(/-proceed$/, '-probe-proceed'),
+    'the guardless fixture flavor is distinct from both live arms and from the -probe-proceed fixture')
+  // Splice a dispatch-label line with NO guard branch immediately BEFORE the first live label —
+  // in-memory copy only, never wired into a live surface and never written to disk.
+  const firstIdx = [...src.matchAll(RELAND_LABEL_RE)][0].index
+  const fixture = '\n// D2 FIXTURE (never executed): a guardless re-land arm — no 2B guard branch in its region.\n'
+    + 'const guardlessProbe = { label: `' + guardlessLabel + '` }\n'
+  const mutated = src.slice(0, firstIdx) + fixture + src.slice(firstIdx)
+
+  const arms = relandSubmodArms(mutated)
+  assert.equal(arms.length, live.length + 1,
+    `the discovery must SEE the spliced guardless arm — expected ${live.length + 1} arms, found ${arms.length} (${arms.map(a => a.label).join(', ')})`)
+  assert.equal(arms[0].label, guardlessLabel,
+    'the spliced fixture is discovered as the FIRST arm (it precedes every live arm)')
+  const unguarded = arms.filter(a => !a.guarded).map(a => a.label)
+  assert.equal(unguarded.join('|'), guardlessLabel,
+    `exactly the guardless fixture arm reports guarded:false — got [${unguarded.join(', ')}]; a guarded:true read here is the EOF-slice borrow (#1373/#1286): the arm's region held no guard, so a guard match could only have come from PAST the next label`)
+  assert.deepEqual(arms.slice(1), live,
+    'every live arm is reported byte-unchanged — the fixture perturbed nothing outside its own region')
 })
 
 // ===========================================================================
