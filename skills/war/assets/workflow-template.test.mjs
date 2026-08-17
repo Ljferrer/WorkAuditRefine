@@ -7569,15 +7569,20 @@ const DONE_WHEN_SITES = [
 ]
 
 test("Done when threading (Task 1.3) — all six worker-family sites carry the task's Done when: command beside the Gate: line; the worker card documents the input", async () => {
+  assert.equal(DONE_WHEN_SITES.length, 6,
+    'exactly six worker-family Done-when sites are enumerated (anti-vacuity floor — a site is ADDED, never skipped)')
+  // Adjacency (D7, #1334-5): the expected bytes are COMPOSED — the engine normalizes plan.gate
+  // through resolveGate at entry (ADR 0036), so the prompt's Gate: line carries the resolved gate
+  // and the Done when: clause must concatenate DIRECTLY after it (an index-precedence pair stayed
+  // green with bytes between the two lines; this includes-check does not).
+  const gateThenDoneWhen = 'Gate: ' + resolveGate(PROVISION_ARGS().plan.gate) + `\nDone when: ${DW_CMD}`
   for (const s of DONE_WHEN_SITES) {
     const { calls } = await s.run({ doneWhen: DW_CMD })
     const c = s.find(calls)
     assert.ok(c, `site "${s.site}" reached and captured (presence guard — six sites is the floor)`)
     assert.ok(c.prompt.includes(`\nDone when: ${DW_CMD}`),
       `site "${s.site}" carries the task's Done when: command VERBATIM on its own line`)
-    const gateIdx = c.prompt.indexOf('Gate: make gate')
-    assert.ok(gateIdx !== -1, `site "${s.site}" carries the gate command on a Gate: line`)
-    assert.ok(gateIdx < c.prompt.indexOf(`\nDone when: ${DW_CMD}`),
+    assert.ok(c.prompt.includes(gateThenDoneWhen),
       `site "${s.site}": the Done when: clause rides directly after the Gate: line`)
   }
   // Prompt-surface split (same task): the standing worker card documents the new input.
@@ -7606,15 +7611,17 @@ test("Done when threading — absent ⇒ '' (set-minus): each site's doneWhen-le
     assert.ok(!wo.prompt.includes('\nDone when:'),
       `site "${s.site}": the doneWhen-less prompt carries NO line-anchored Done when: token at all (absolute absence — the hardcoded-in-both-arms case parity cancels)`)
   }
-  // null, absent, and '' are the same legacy arm (the string|null contract; '' via the guard's
-  // truthiness half): byte-identical prompts. The '' arm pins the typeof/empty-string guard —
-  // Task 1.1's Decompose parser produces this field, and a bare `Done when:` bullet is the
-  // plausible way an empty string arrives.
+  // null, absent, '', and a non-string are the same legacy arm (the string|null contract):
+  // byte-identical prompts. The '' arm pins the guard's TRUTHINESS half and the non-string arm
+  // pins its TYPEOF half (D5, #1334-1) — Task 1.1's Decompose parser produces this field, and a
+  // bare `Done when:` bullet is the plausible way an empty string arrives.
   const nullP = DONE_WHEN_SITES[0].find((await DONE_WHEN_SITES[0].run({ doneWhen: null })).calls).prompt
   const absentP = DONE_WHEN_SITES[0].find((await DONE_WHEN_SITES[0].run({})).calls).prompt
   assert.equal(nullP, absentP, 'doneWhen:null and doneWhen-absent dispatch byte-identical worker prompts')
   assert.equal(DONE_WHEN_SITES[0].find((await DONE_WHEN_SITES[0].run({ doneWhen: '' })).calls).prompt, absentP,
-    "doneWhen:'' dispatches the byte-identical legacy prompt")
+    "doneWhen:'' dispatches the byte-identical legacy prompt (the guard's truthiness half)")
+  assert.equal(DONE_WHEN_SITES[0].find((await DONE_WHEN_SITES[0].run({ doneWhen: 5 })).calls).prompt, absentP,
+    "doneWhen:5 (non-string) dispatches the byte-identical legacy prompt (the guard's typeof half — D5, #1334-1)")
 })
 
 test('prompt truth (D6) — every dispatched prompt that says keep-the-gate-green carries the gate command', async () => {
@@ -7637,6 +7644,13 @@ test('prompt truth (D6) — every dispatched prompt that says keep-the-gate-gree
     assert.ok(c.prompt.includes('make gate'),
       `prompt "${c.opts.label}" says keep-the-gate-green AND carries the gate command`)
   }
+  // Default-deny census (D6, #1334-4): the sweep above only reaches prompts its fixtures drive, so a
+  // keep-green prompt added at a dispatch site no fixture reaches would silently evade it. Count the
+  // space-form phrase over the template SOURCE in OCCURRENCE semantics (case-insensitive; the three
+  // keep-the-gate-green comment mentions are hyphenated and deliberately non-hits). Pin re-measured
+  // at task time: 6 (matches the 6fff2ee measurement).
+  assert.equal((src.match(/keep the gate/gi) || []).length, 6,
+    'a new keep-the-gate-green prompt must join the D6 sweep above — the space-form census over the template source moved; re-pin this count ONLY alongside extending the sweep fixtures to reach the new site')
 })
 
 // A1 (D9) — the RETIRED plan-slice-criteria framing, asserted absent from the standing worker card
@@ -9158,7 +9172,6 @@ test('D2 (#1373/#1286) — both ways: a guardless -proceed arm spliced BEFORE th
   assert.deepEqual(arms.slice(1), live,
     'every live arm is reported byte-unchanged — the fixture perturbed nothing outside its own region')
 })
-
 
 // ===========================================================================
 // Phase 2 Task 2.1 — engine truth hardening (#1395 a/b, #1411 c, #1413 d, #1430 f, #1410 g)
