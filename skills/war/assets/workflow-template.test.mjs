@@ -4589,7 +4589,7 @@ test('endStateAttestations requirement lands in the shared endStateBlock (End st
     assert.match(p, /lands 'unverified' in the handoff, never 'met'/, `${name}: states the no-attestation ⇒ unverified mapping`)
   }
   const sites = (src.match(/\+ endStateBlock \+ intentClause \+ adjudicationClause/g) || []).length
-  assert.equal(sites, 3, 'the shared endStateBlock const rides exactly the three gate-audit-family seats (per-task, integrated-tip, end-state-only) — the attestation requirement reaches all three from ONE const')
+  assert.equal(sites, 3, 'the shared endStateBlock const rides exactly the three gate-audit-family seats (per-task (post-merge), integrated-tip, end-state-only) — the attestation requirement reaches all three from ONE const')
 })
 
 test('mappedTests grep (End state 7, D7): a merge returning mappedTests threads the paths + the mechanical grep-the-captured-log instruction into the per-task seat; absent ⇒ no block (fail-open)', async () => {
@@ -4791,35 +4791,111 @@ test('design.md (Task 3.2): the handoff bullet names the land-barrier dispatch, 
 
 // --- Handoff block (criterion 6) ---
 
+// Shared criterion-6 fixture impl: one landed task with a follow-up-routed Minor + a note Nit.
+// filingResult drives the file-followups mock (keyed on the STABLE dispatchKind discriminator,
+// never the label prefix — spec criterion 8): a { filed } shape stamps; null simulates a DEAD
+// filing dispatch; the phase-'Land' fallback below answers it with a non-conforming MergeResult
+// when no filingResult branch is given (the D18 fail-open path generic fixtures ride).
+const handoffMinorF = { severity: 'Minor', title: 'needs new tests', rationale: 'thin wiring', file: 'x.js' }
+const handoffImpl = (filingResult) => (prompt, opts) => {
+  const seat = seatOf(opts)
+  if (seat === 'war-refiner' && opts.dispatchKind === 'file-followups') return filingResult
+  if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
+  if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'deadbeef' }
+  if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve',
+    findings: (opts.label || '').startsWith('gate-audit:') ? [] : [handoffMinorF, { severity: 'Nit', title: 'honest comment', rationale: 'covers invariant', file: 'y.js' }], confidence: 'high' }
+  if (seat === 'war-refiner') return opts.phase === 'Land'
+    ? { mode: 'land-phase', status: 'landed', working_sha: 'abc1234def' }
+    : { mode: 'merge-task', status: 'merged', integration_sha: 'beefcafe12' }
+  if (seat === 'war-servitor') return { phase: 3, target: 't', learnings: [] }
+  return {}
+}
+const HANDOFF_ARGS = () => PROVISION_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'T', planSlice: 's', roster: [{ lens: 'correctness' }] }] })
+
+// FLIPPED null-pin (End state 1, #1331): the Workflow now files follow-ups itself and stamps the
+// returned issue numbers — the old "issue is null until the Lead files it" framing is retired.
+// Delete-the-feature trace (recorded per the plan's check): with the stamping loop removed from
+// workflow-template.js's FILE-FOLLOWUPS DISPATCH block (the `minorsFiled[row.n - 1].issue = row.issue`
+// assignment), the filing mock's { filed: [{ n: 1, issue: 1234 }] } return is never applied, the
+// handoff mapping's `issue: m.issue ?? null` renders null, and the deepEqual below fails with
+// `issue: null !== 1234` — the flipped assertion cannot pass without the stamping.
 test('handoff block (criterion 6): a landed phase emits { tipSha, polish, absorbed, followUps, notes, endState, intentPresent }', async () => {
-  const minorF = { severity: 'Minor', title: 'needs new tests', rationale: 'thin wiring', file: 'x.js' }
-  const nitF = { severity: 'Nit', title: 'honest comment', rationale: 'covers invariant', file: 'y.js' }
-  const impl = (prompt, opts) => {
-    const seat = seatOf(opts)
-    if (seat === 'war-refiner' && opts.phase === 'Provision') return { ok: true }
-    if (seat === 'war-worker') return { task_id: 't1', status: 'implemented', head_sha: 'deadbeef' }
-    if (seat === 'war-auditor') return { seat: opts.label, lens: 'correctness', verdict: 'approve',
-      findings: (opts.label || '').startsWith('gate-audit:') ? [] : [minorF, nitF], confidence: 'high' }
-    if (seat === 'war-refiner') return opts.phase === 'Land'
-      ? { mode: 'land-phase', status: 'landed', working_sha: 'abc1234def' }
-      : { mode: 'merge-task', status: 'merged', integration_sha: 'beefcafe12' }
-    if (seat === 'war-servitor') return { phase: 3, target: 't', learnings: [] }
-    return {}
-  }
-  const args = PROVISION_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'T', planSlice: 's', roster: [{ lens: 'correctness' }] }] })
-  const { out } = await runPhase(args, impl)
+  const { out } = await runPhase(HANDOFF_ARGS(), handoffImpl({ filed: [{ n: 1, issue: 1234 }] }))
   assert.equal(out.landDecision, 'landed')
   const h = out.handoff
   assert.ok(h, 'handoff present on landed')
   assert.equal(h.tipSha, 'abc1234def', 'tipSha is the landed working sha')
   assert.equal(h.polish, 'skipped', 'no queue → polish skipped')
   assert.deepEqual(h.absorbed, [], 'nothing absorbed')
-  assert.deepEqual(h.followUps, [{ issue: null, reason: 'needs new tests — thin wiring' }],
-    'followUps carry { issue, reason } — issue is null until the Lead files it')
+  assert.deepEqual(h.followUps, [{ issue: 1234, reason: 'needs new tests — thin wiring' }],
+    'followUps carry { issue, reason } — the file-followups dispatch stamped the filed issue number (D2)')
   assert.deepEqual(h.notes, [{ task: 't1', title: 'honest comment' }], 'notes carry { task, title }')
   assert.deepEqual(h.endState, [], 'no claims → empty endState')
   assert.equal(h.intentPresent, false, 'intentPresent false without args.intent')
   assert.ok(Array.isArray(out.notes) && out.notes.length === 1, 'the notes array also rides the return top-level')
+})
+
+test('file-followups fail-open (End state 2): a DEAD filing dispatch leaves every followUps issue null, landDecision unchanged, ONE log line — never a hold', async () => {
+  const { out, logs } = await runPhase(HANDOFF_ARGS(), handoffImpl(null))
+  assert.equal(out.landDecision, 'landed', 'landDecision untouched by the dead filing dispatch')
+  assert.deepEqual(out.handoff.followUps, [{ issue: null, reason: 'needs new tests — thin wiring' }],
+    'every unmatched followUps entry stays issue: null (fail-open — the Checkpoint floor is the catch)')
+  assert.equal(logs.filter(l => typeof l === 'string' && l.startsWith('file-followups:')).length, 1,
+    'exactly ONE fail-open log line for the dead/non-conforming filing dispatch')
+})
+
+test('file-followups no-dispatch (End state 3): an empty minorsFiled dispatches no filing step', async () => {
+  const { calls, out } = await runPhase(PROVISION_ARGS(), defaultImpl)   // zero findings → minorsFiled empty
+  assert.equal(out.landDecision, 'landed', 'presence guard: the phase landed')
+  assert.ok(!calls.some(c => c.opts.dispatchKind === 'file-followups' || /^file-followups:/.test(c.opts.label || '')),
+    'no file-followups-labelled call when minorsFiled is empty')
+})
+
+test('file-followups on held:escalation (End state 3 companion): the dispatch fires on the degraded handoff path and stamps there too', async () => {
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.dispatchKind === 'file-followups') return { filed: [{ n: 1, issue: 4321 }] }
+    if (seat === 'war-auditor' && (opts.label || '').startsWith('audit:t2'))
+      return { seat: opts.label, lens: 'correctness', verdict: 'escalate', escalate_reason: 'plan ambiguity', findings: [], confidence: 'high' }
+    return handoffImpl(undefined)(prompt, opts)
+  }
+  const args = PROVISION_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 'T1', planSlice: 's', roster: [{ lens: 'correctness' }] },
+    { id: 't2', issue: 102, title: 'T2', planSlice: 's', roster: [{ lens: 'correctness' }] },
+  ] })
+  const { out, calls } = await runPhase(args, impl)
+  assert.equal(out.landDecision, 'held:escalation', 'presence guard: the degraded handoff-emitting path')
+  assert.ok(calls.some(c => c.opts.dispatchKind === 'file-followups'), 'the filing dispatch fires on held:escalation too')
+  assert.equal(out.handoff.followUps[0].issue, 4321, 'the stamped issue number rides the degraded handoff as well')
+  // Prompt-content pins (the relaunch defect's regression guard): the emitted preflight line
+  // interpolates the gh-preflight path BARE — POSIX single quotes around it would suppress
+  // $CLAUDE_PLUGIN_ROOT expansion in the refiner's shell and 127 the ADR-0026 account guard
+  // before the gh-write batch (the round-1 audit Major this suite previously never read).
+  const fp = calls.find(c => c.opts.dispatchKind === 'file-followups').prompt
+  assert.ok(fp.includes('${CLAUDE_PLUGIN_ROOT}/skills/_shared/gh-preflight.sh "'),
+    'the preflight line emits the plugin-root path BARE, directly followed by the double-quoted ghUser arg')
+  assert.doesNotMatch(fp, /'\$\{CLAUDE_PLUGIN_ROOT\}[^']*gh-preflight\.sh'/,
+    'no POSIX-single-quoted preflight path survives — re-adding the quotes suppresses expansion (delete-the-feature proof)')
+  assert.match(fp, /war-followup/, 'the filing prompt names the war-followup label')
+  assert.match(fp, /gh issue list --label war-followup --state open/,
+    'the dedup-first instruction (D3) rides the prompt verbatim')
+})
+
+test('file-followups ordinal mismatch: out-of-range / non-integer n and non-numeric issue rows are ignored; in-range rows still stamp', async () => {
+  const secondF = { severity: 'Minor', title: 'stale count', rationale: 'lagging comment', file: 'z.js' }
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-refiner' && opts.dispatchKind === 'file-followups')
+      return { filed: [{ n: 99, issue: 777 }, { n: 0, issue: 666 }, { n: 1.5, issue: 555 }, { n: 1, issue: 'not-a-number' }, { n: 2, issue: 888 }] }
+    if (seat === 'war-auditor' && !(opts.label || '').startsWith('gate-audit:'))
+      return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [handoffMinorF, secondF], confidence: 'high' }
+    return handoffImpl(undefined)(prompt, opts)
+  }
+  const { out } = await runPhase(HANDOFF_ARGS(), impl)
+  assert.equal(out.landDecision, 'landed', 'presence guard')
+  assert.equal(out.handoff.followUps.length, 2, 'both follow-up findings ride the handoff')
+  assert.equal(out.handoff.followUps[0].issue, null, 'the entry matched only by ignored rows (out-of-range/non-integer n, non-numeric issue) stays null')
+  assert.equal(out.handoff.followUps[1].issue, 888, 'the in-range row still stamps — partial conformance is honored row-by-row')
 })
 
 test('handoff OMITTED on held:workflow-error (infra death — no trustworthy return to render)', async () => {
@@ -7969,7 +8045,7 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
       anchors: [/environment-proceed/i, /exactly one re-run/i, /fully green/i, /never a proceed-over/i] },
     // audit-evidence-precedence Task 1.2 (ADR 0041): full four claim-shape ladders on the standing card,
     // identical token skeleton on ALL FOUR dispatched surfaces — auditPrompt() plus the three
-    // gate-audit-family seats (post-merge / integrated-tip / end-state), which sit outside auditPrompt()
+    // gate-audit-family seats (per-task (post-merge) / integrated-tip / end-state), which sit outside auditPrompt()
     // and inherit nothing from it. Anchor precondition (measured at the pre-change base): `content-at-pin`,
     // `never the top rung`, and `never evidence` were each verified ABSENT (0 occurrences) on BOTH
     // agents/war-auditor.md and workflow-template.js, so each alone discriminates a one-sided revert.
@@ -8697,6 +8773,27 @@ test('recovery staleRemote (end-state 22): a mocked barrier staleRemote entry �
   assert.ok(out.handoff, 'handoff emitted on held:escalation (the classification is handed off to the Lead)')
 })
 
+test('worktreeHygiene capture (D20, #1381): a mocked barrier worktreeHygiene array → ONE run-log summary line; visibility only — no auditLog entry, no routing change, workers dispatch, the phase lands', async () => {
+  const rows = [
+    { task: 't1', path: 'vendor/lib', action: 'repaired', detail: 'stale index.lock removed; submodule force-updated at the recorded gitlink SHA' },
+    { task: 't2', path: 'vendor/lib', action: 'detected', detail: 'dirty submodule at a non-matching SHA — not auto-repaired' },
+  ]
+  const { out, calls, logs } = await runPhase(PROVISION_ARGS(), barrierEnv({ ok: true, worktreeHygiene: rows }))
+  const hygieneLogs = logs.filter(l => typeof l === 'string' && l.startsWith('worktree hygiene (D20'))
+  assert.equal(hygieneLogs.length, 1, 'exactly ONE census-safe run-log summary line (the Lead-visibility carrier)')
+  assert.match(hygieneLogs[0], /repaired vendor\/lib \(task t1\)/, 'the line names the repaired path + task')
+  assert.match(hygieneLogs[0], /detected vendor\/lib \(task t2\)/, 'the line names the detected path + task')
+  // Fail-open, visibility only: no auditLog entry, no escalation, both workers dispatch, the phase lands.
+  assert.ok(!(out.auditLog || []).some(e => e && /hygiene/i.test(String(e.verdict || ''))), 'no auditLog entry for hygiene findings')
+  assert.ok(!(out.escalated || []).some(e => e && /hygiene/i.test(String(e.reason || ''))), 'no escalation — never a hold')
+  assert.ok(calls.some(c => (c.opts.label || '') === 'work:t1') && calls.some(c => (c.opts.label || '') === 'work:t2'),
+    'both workers dispatch — the capture never blocks or reorders tasks')
+  assert.equal(out.landDecision, 'landed', 'no routing change — the phase lands')
+  // Absent/empty array ⇒ no summary line (the non-empty gate).
+  const { logs: quietLogs } = await runPhase(PROVISION_ARGS(), barrierEnv({ ok: true }))
+  assert.ok(!quietLogs.some(l => typeof l === 'string' && l.startsWith('worktree hygiene (D20')), 'no line when the array is absent')
+})
+
 test('defectClass (criterion 12, wave-collector site): a worker blocked_reason prefixed PLAN-DEFECT: → escalation record defectClass:plan; sentinel kept inside blocked_reason; reason unchanged', async () => {
   const impl = (prompt, opts) =>
     (seatOf(opts) === 'war-worker' && opts.phase === 'Work')
@@ -8808,6 +8905,24 @@ test('both-surfaces (criterion/end-state 22): the STALE_REMOTE classify-and-cont
     // delete-the-feature: strip the carve-out's distinctive shared phrase (global) → the anchor reds.
     const mutated = text.replace(/marker token is the key, never the numeric/gi, 'REMOVED')
     assert.doesNotMatch(mutated, /marker token is the key, never the numeric/i, `${name}: removing the carve-out phrase reds the anchor (non-vacuous)`)
+  }
+})
+
+// D20 (#1381), modelled on the STALE_REMOTE row above: the WORKTREE_HYGIENE capture is a deliberate
+// cross-task literal coupling (the plan's D20 row is the canonical source of the marker token and the
+// "repaired"|"detected" value set) — a presence grep is not a drift guard (ADR 0025), so both surfaces
+// pin the token skeleton and a delete-the-feature per surface proves the anchors non-vacuous.
+test('both-surfaces (D20, #1381): the WORKTREE_HYGIENE capture is on agents/war-refiner.md AND the dispatched barrier prompt; delete-the-feature per surface', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const barrier = calls.find(isProvision)
+  assert.ok(barrier, 'the barrier was dispatched (presence guard)')
+  const ANCHORS = [/WORKTREE_HYGIENE/, /worktreeHygiene/, /"repaired"\|"detected"/, /markers ride a zero exit/i]
+  const surfaces = [['war-refiner.md', refinerMd], ['dispatched barrier prompt', barrier.prompt]]
+  for (const [name, text] of surfaces) {
+    for (const re of ANCHORS) assert.match(text, re, `${name} carries the WORKTREE_HYGIENE capture anchor ${re}`)
+    // delete-the-feature: strip the capture's distinctive shared phrase (global) → the anchor reds.
+    const mutated = text.replace(/markers ride a zero exit/gi, 'REMOVED')
+    assert.doesNotMatch(mutated, /markers ride a zero exit/i, `${name}: removing the capture phrase reds the anchor (non-vacuous)`)
   }
 })
 

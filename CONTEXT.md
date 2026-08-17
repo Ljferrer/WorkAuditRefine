@@ -130,7 +130,8 @@ _Avoid_: merge conflict (this is a checkout/topology collision, not a content co
 directory collision (directories are run-scoped and already safe).
 
 **dedicated working branch**:
-A Setup-resolved working branch (`dev/<date>-<slug>`) auto-created when the desired branch is under
+A Setup-resolved working branch (`dev/<date>-<slug>`, or the flat `war-<date>-<slug>` when a leaf
+branch `dev` blocks the nested namespace) auto-created when the desired branch is under
 a *launch-worktree collision*, guaranteeing the working ref is checked out nowhere so the refinery
 can advance it. Cut at the desired branch's tip, run-owned (reuse-if-ours on resume, ADR 0003), and
 bootstrapped on origin at Setup before Phase 1.

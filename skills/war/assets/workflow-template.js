@@ -52,6 +52,8 @@ export const meta = {
 //                                     // blocks (spec §4.5), threaded like intent; concatenated at the worker/
 //                                     // auditor/fix-worker/add-test/servitor sites. Empty/absent ⇒ byte-identical.
 //     agentPrefix,                    // optional namespace prefix for agent types (default: 'work-audit-refine:')
+//     ghUser,                         // optional expected gh account for the file-followups preflight (from
+//                                     // overrides.ghUser; string, default '' — gh-preflight.sh's documented no-op)
 //     agents: { worker|auditor|refiner|servitor: { model, effort } },  // from .claude/war/config.json (resolved by the Lead); defaults below.
 //                                     // worker may also carry { docs?, fix? } { model, effort } sub-tiers: docs = the all-*.md first-pass tier (sonnet default), fix = the fix-round + --ace tier (absent ⇒ inherit worker).
 //     audit:  { roster, rosterPolicy, autoEscalate },                  // rosterPolicy 'auto' = Lead composes each task.roster from the catalog (Lead-side); audit.roster is the widening FALLBACK roster (auditor-nominated-or-default, D4); autoEscalate used here
@@ -89,12 +91,13 @@ const AUDIT_VERDICT = { type: 'object', required: ['seat', 'lens', 'verdict', 'f
   // on the lone-seat trigger (resolveWidenSource validates whole-field), ignored elsewhere. Not required.
   widen: { type: 'array', items: { type: 'string' } },
   // endStateAttestations (D8, precision-chain Task 3.2): the POSITIVE End-state channel — returned by
-  // the three gate-audit-family seats ONLY (per-task, integrated-tip, end-state-only; the shared
-  // endStateBlock carries the requirement), one row per claimed condition: condition VERBATIM (the
+  // the three gate-audit-family seats ONLY (per-task (post-merge), integrated-tip, end-state-only;
+  // the shared endStateBlock carries the requirement), one row per claimed condition: condition VERBATIM (the
   // plan_ref key), status met|unmet|unverified, evidence citing what the seat actually READ (the teed
   // per-condition artifact for a check:-tagged condition, the captured gate log for a gate:-tagged one,
   // the named observable for a judged one) — never a bare verdict. Ordinary roster seats never carry
-  // it. Findings stay DEFECT-ONLY (the two-contract rule): attestation rides this channel, never a finding.
+  // it. Findings stay DEFECT-ONLY (findings carry defects; attestation rides endStateAttestations — two
+  // separate contracts): a status claim never rides a finding.
   endStateAttestations: { type: 'array', items: { type: 'object', properties: {
     condition: { type: 'string' }, status: { enum: ['met', 'unmet', 'unverified'] }, evidence: { type: 'string' } } } } },
   // ESCALATE-BOUNDARY intake contract (gate-audit-finding-routing Task 2.1, #1410 fix 1): a non-empty
@@ -185,6 +188,16 @@ const ENDSTATE_CHECK_RESULT = { type: 'object', properties: {
   artifacts: { type: 'array', items: { type: 'object', properties: {
     n: { type: 'number' }, path: { type: 'string' }, tip_sha: { type: 'string' }, exit_code: { type: 'number' } } } } } }
 
+// FOLLOWUP_FILING_RESULT (D1/D2, #1331): the file-followups dispatch's return — ADVISORY only. The
+// Workflow stamps minorsFiled[n-1].issue from each returned row carrying an in-range 1-based n AND a
+// numeric issue; out-of-range/non-numeric/absent rows are ignored. ALL fields optional (fail-open,
+// the ENDSTATE_CHECK_RESULT framing): a dead/absent dispatch, a failed preflight, or a non-conforming
+// return leaves every handoff.followUps[] issue null — one log() line, landDecision untouched, never
+// a hold; the Checkpoint floor (skills/war/SKILL.md § Checkpoint) is the catch (D2).
+const FOLLOWUP_FILING_RESULT = { type: 'object', properties: {
+  filed: { type: 'array', items: { type: 'object', properties: {
+    n: { type: 'number' }, issue: {} } } } } }
+
 // memory_index_updated retired (spec §4.6, D4 deleted): the servitor no longer maintains the index —
 // the Lead runs `render-index` post-servitor (Gate 2). The servitor only writes/updates lesson files.
 const SERVITOR_RESULT = { type: 'object', required: ['phase', 'target', 'learnings'], properties: {
@@ -195,17 +208,22 @@ const SERVITOR_RESULT = { type: 'object', required: ['phase', 'target', 'learnin
 // task worktree: ok:true when every step exits 0; otherwise the env-blocked task-outcome shape from
 // ../references/schemas.md ({ taskId, failedCommand, exitCode, stderrTail, provisionSource }) for the
 // FIRST failing step. NOT a WorkerResult — no worker ran. The barrier skips the worker on ok:false.
-// The provision-BARRIER return (dispatchKind 'provision-barrier') additionally carries two OPTIONAL
-// arrays (recovery mechanics, spec §4.2/§4.4): preMerged — task ids whose local branch is an ancestor
-// of the frozen integration tip (already-integrated on an adopted branch; the derive-and-skip step,
-// armed only under args.recovery.sanctioned); staleRemote — per-task stale-remote classifications
-// ({ task, remoteSha, frozenTip }) captured from an ensure-worktree exit carrying the STALE_REMOTE
-// marker (always-on classification, never recovery-gated). Both absent on a plain non-recovery barrier.
+// The provision-BARRIER return (dispatchKind 'provision-barrier') additionally carries three OPTIONAL
+// arrays: preMerged — task ids whose local branch is an ancestor of the frozen integration tip
+// (already-integrated on an adopted branch; the derive-and-skip step, armed only under
+// args.recovery.sanctioned — recovery mechanics, spec §4.2/§4.4); staleRemote — per-task stale-remote
+// classifications ({ task, remoteSha, frozenTip }) captured from an ensure-worktree exit carrying the
+// STALE_REMOTE marker (always-on classification, never recovery-gated); worktreeHygiene (D20, #1381) —
+// reuse-path hygiene findings ([{ task, path, action: "repaired"|"detected", detail }]) captured from
+// WORKTREE_HYGIENE marker lines an ensure-worktree REUSE emits (the STALE_REMOTE marker-capture idiom),
+// carried on an ok: true return beside staleRemote. worktreeHygiene is visibility only, fail-open: ONE
+// log() summary line when non-empty, no auditLog entry, no routing change, never a hold — the barrier
+// never halts on it. All three absent on a plain barrier with nothing to report.
 const ENV_OUTCOME = { type: 'object', required: ['ok'], properties: {
   ok: { type: 'boolean' },
   taskId: { type: 'string' }, failedCommand: { type: 'string' }, exitCode: { type: 'number' },
   stderrTail: { type: 'string' }, provisionSource: { type: 'string' },
-  preMerged: { type: 'array' }, staleRemote: { type: 'array' } } }
+  preMerged: { type: 'array' }, staleRemote: { type: 'array' }, worktreeHygiene: { type: 'array' } } }
 
 const done = new Set()
 const succeeded = new Set()
@@ -302,6 +320,10 @@ const { phase: ph, plan, tasks, learningsTarget, agents = {}, audit = {}, run = 
 // before ph is assigned — never a secondary TypeError dereferencing an unassigned ph.
 phaseId = ph?.id ?? null
 const NS = A.agentPrefix ?? 'work-audit-refine:'
+// ghUser (#1331, ADR 0026): the expected gh account the file-followups dispatch preflights against —
+// threaded by the Lead from overrides.ghUser. Default '' is gh-preflight.sh's documented no-op
+// (exit 0, gh never invoked), so an unconfigured run pays nothing and no handle rides committed prose.
+const ghUser = (typeof A.ghUser === 'string') ? A.ghUser : ''
 const roundLimit = run.roundLimit ?? 3
 // Commander's Intent (ADR 0013): extracted VERBATIM by the Lead from the plan's `## Commander's
 // Intent` or `## AI-Commander's Intent` section (either heading) and threaded as args.intent
@@ -358,7 +380,7 @@ const intentClause = intent
 // no-adjudication run (back-compat, spec constraint 4). The clause carries TWO rules — version
 // precedence (task instruction > red-team adjudication > plan body literal) and adjudication-match
 // (a matching finding is a confirmation note, never an escalation) — and is emitted at the roster-seat
-// auditPrompt AND at the three gate-audit-family seats (post-merge, integrated-tip, end-state-only).
+// auditPrompt AND at the three gate-audit-family seats (per-task (post-merge), integrated-tip, end-state-only).
 // Both sentence bodies are mirrored VERBATIM in agents/war-auditor.md (the both-surfaces drift test
 // asserts both surfaces).
 const adjudications = Array.isArray(A.adjudications)
@@ -792,7 +814,7 @@ const doneWhenFloorClause = (task, refineryPath) => (task && typeof task.doneWhe
 // section (standing surface; the both-surfaces registry test anchors the shared tokens — keep the
 // surfaces in sync in the same commit). Consumer: the post-merge gate-audit pass cross-checks the
 // reported ids (Task 3.2 — defined here, consumed there).
-const ACCEPTANCE_IDS_RULE = "Report acceptance_criteria_covered as the task's claimed End-state ids — the numbered End-state conditions from the plan's Commander's Intent that this task claims to satisfy (empty when the task claims none); the post-merge gate-audit pass cross-checks the field."
+const ACCEPTANCE_IDS_RULE = "Report acceptance_criteria_covered as the task's claimed End-state ids — the numbered End-state conditions from the plan's Commander's Intent that this task claims to satisfy (empty when the task claims none). Each id is the condition's 1-based ordinal in the intent's numbered End-state list, rendered as a string (\"7\"), resolving to that condition's verbatim text (the plan_ref / endStateAttestations.condition key); the post-merge gate-audit pass cross-checks the field."
 
 // ---- Gate-failure classification (spec §6 / ADR 0019) ----------------------
 // classOf reads the refiner-reported gate_failure_class off a gate_failed MergeResult; an ABSENT or
@@ -1057,9 +1079,14 @@ if (tasks.length) {
   // Always-on stale-remote classification (§4.4) — present regardless of args.recovery (the probe is
   // DEFAULT behavior, not recovery machinery — end states 10/22). The barrier keys on the STALE_REMOTE
   // marker TOKEN, never the numeric exit code (live-artifact rule; the script's dedicated exit code is
-  // its own direct-invocation contract, Task 1). This is the ONLY delta between a recovery-absent
-  // barrier prompt and today.
+  // its own direct-invocation contract, Task 1). This and the WORKTREE_HYGIENE capture clause below
+  // are the always-on deltas between a recovery-absent barrier prompt and today.
   const staleRemoteClause = pt`STALE-REMOTE CLASSIFICATION (per task, always-on): if a task's ensure-worktree exits NON-ZERO and its output carries the \`STALE_REMOTE\` marker line, do NOT halt the barrier — capture { task: "<that task's id>", remoteSha: "<the marker's remote SHA>", frozenTip: "$TIP" } into a \`staleRemote\` array on the env-outcome and CONTINUE provisioning the remaining tasks. The marker token is the key, never the numeric exit code. Any OTHER non-zero ensure-worktree exit — one WITHOUT the marker — remains a barrier failure exactly as the fail-loud rule above.\n`
+  // Reuse-path hygiene capture (D20, #1381) — always-on, visibility only. The barrier keys on the
+  // WORKTREE_HYGIENE marker TOKEN emitted by ensure-worktree's reuse path (the STALE_REMOTE
+  // marker-capture idiom); the captured array rides the ok: true return and NEVER halts the barrier,
+  // reorders tasks, or changes routing.
+  const worktreeHygieneClause = pt`WORKTREE-HYGIENE CAPTURE (per task, always-on): an ensure-worktree REUSE may emit \`WORKTREE_HYGIENE\` marker lines (a repaired or detected dirty-submodule state on a reused worktree). Capture each as { task: "<that task's id>", path: "<the marker's submodule path>", action: "repaired"|"detected", detail: "<the marker's detail>" } into a \`worktreeHygiene\` array on the ok: true env-outcome, beside \`staleRemote\` — the markers ride a zero exit: visibility only, never halt the barrier on them and never skip or reorder tasks.\n`
   // Recovery-gated derive-and-skip (§4.2) — DORMANT unless args.recovery.sanctioned. When armed, a task
   // whose local branch is already an ancestor of the frozen tip is reported preMerged and its
   // ensure-worktree is SKIPPED. Deriving before cutting means a fresh cut can never pollute the ancestry
@@ -1088,13 +1115,14 @@ if (tasks.length) {
   // dispatchKind: 'provision-barrier' (DISTINCT from the per-task 'provision-run' — mocks/isProvision key on it).
   const barrierOut = await agent(
     pt`Provision the worktree topology for WAR phase ${ph.id} "${ph.title}" by running ${SCRIPT}. `
-    + pt`Do NOT free-author git; only run these subcommands, fail loud on ANY non-zero exit — do NOT special-case a numeric code (a foreign integration branch exits 3; a diverged local/origin base halts with its own distinct non-zero exit) — with ONE marker-keyed carve-out: a per-task worktree-creation exit whose output carries the \`STALE_REMOTE\` marker line is CLASSIFIED per task (step 3's classify-and-continue clause) and does NOT halt the barrier; the marker token is the key, never the numeric code. Return the env-outcome JSON: \`{ ok: true }\` when every subcommand exited 0 (optionally carrying the step-3 \`preMerged\` / \`staleRemote\` arrays); on the FIRST non-zero exit WITHOUT the STALE_REMOTE marker return \`{ ok: false, failedCommand: "<the exact provision-worktrees.sh subcommand line>", exitCode: <code>, stderrTail: "<tail of its stderr — the script's die text>" }\`.\n`
+    + pt`Do NOT free-author git; only run these subcommands, fail loud on ANY non-zero exit — do NOT special-case a numeric code (a foreign integration branch exits 3; a diverged local/origin base halts with its own distinct non-zero exit) — with ONE marker-keyed carve-out: a per-task worktree-creation exit whose output carries the \`STALE_REMOTE\` marker line is CLASSIFIED per task (step 3's classify-and-continue clause) and does NOT halt the barrier; the marker token is the key, never the numeric code. Return the env-outcome JSON: \`{ ok: true }\` when every subcommand exited 0 (optionally carrying the step-3 \`preMerged\` / \`staleRemote\` / \`worktreeHygiene\` arrays); on the FIRST non-zero exit WITHOUT the STALE_REMOTE marker return \`{ ok: false, failedCommand: "<the exact provision-worktrees.sh subcommand line>", exitCode: <code>, stderrTail: "<tail of its stderr — the script's die text>" }\`.\n`
     + pt`1. FROM THE MAIN CHECKOUT (${mainCheckout || 'the main repo checkout — your current working directory'}, NOT a task worktree): `
     + pt`provision-worktrees.sh ensure-exclude ${mainCheckout || '<mainCheckout>'} — pass the main checkout EXPLICITLY as the target repo (the optional <repo-dir> positional); ensure-exclude then writes the exclude into that repo's git dir regardless of your cwd. This excludes \`.claude/\` in the parent checkout so the nested task worktrees do not surface as untracked there (probe E2).\n`
     + pt`2. provision-worktrees.sh ensure-integration ${planSlug || '<plan-slug>'} ${ph.id} ${ph.workingBranch}${owned} — reuse the plan-namespaced integration branch ${ph.integrationBranch} if it is already ours (the --owned-file ledger); else DERIVE the cut base against origin (ADR 0008): the script fetches origin/${ph.workingBranch} and reconciles the local ${ph.workingBranch} — equal or ahead → cut from local; behind → cut from the ORIGIN tip plus a guarded follower fast-forward (skipped with a warning when ${ph.workingBranch} is checked out in a worktree); a fetch failure or missing origin → cut from local with a stderr warning (today's offline behavior). DIVERGED (neither SHA an ancestor of the other) is a HALT: the script dies non-zero carrying BOTH SHAs and the two repair directions, and creates no branch. On that die — or ANY non-zero exit — return the \`{ ok: false, … }\` env-outcome carrying the die text in \`stderrTail\` and STOP: never pick a side, never retry with a different base. The phase never starts; I surface the die message like today's foreign-branch halt.\n`
     + pt`3. Capture the resulting integration tip (TIP="$(git rev-parse ${ph.integrationBranch})"), then for EACH task run ensure-worktree at the integration tip captured in step 3 (idempotent; reuse if present, conservative heal if the dir went missing):\n${ensures}\n`
     + deriveSkipClause
     + staleRemoteClause
+    + worktreeHygieneClause
     + pt`Each ensure-worktree creates the worktree on its plan-namespaced branch off the integration tip and drops a .war-task marker. After this barrier every task worktree exists and the workers can run.\n`
     + pt`4. provision-worktrees.sh ensure-refinery-worktree ${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/_refinery ${ph.integrationBranch} — create (or re-attach) the Refinery's dedicated worktree on the integration branch. The Refinery performs every merge in this run-scoped worktree, never the Lead's main checkout.`
     + submodNote,
@@ -1138,6 +1166,18 @@ if (tasks.length) {
     escalated.push({ task: sr.task, reason: 'env-blocked', staleRemote: true, remoteSha, frozenTip, diagnostic })
     auditLog.push({ task: sr.task, verdict: 'env-blocked:stale-remote', findings: [], requested: 0, returned: 0, blocked: diagnostic })
     log(`Task ${sr.task}: env-blocked — stale remote task branch ${br} (${remoteSha}) is not an ancestor of the frozen tip ${frozenTip}. Worker not spawned; siblings proceed. Recover by adopt-or-reclaim + relaunch.`)
+  }
+  // ---- D20 (#1381) Lead-visibility carrier: reuse-path worktree hygiene ----
+  // The barrier captured WORKTREE_HYGIENE marker lines into the optional worktreeHygiene array
+  // ([{ task, path, action: "repaired"|"detected", detail }]). Visibility only, fail-open by design:
+  // ONE census-safe (concatenation-built) run-log summary line when non-empty — no auditLog entry,
+  // no routing change, never a hold; schemas.md's ENV_OUTCOME bullet carries the Lead's phase-report duty.
+  const hygieneRows = Array.isArray(barrierOut.worktreeHygiene) ? barrierOut.worktreeHygiene : []
+  if (hygieneRows.length > 0) {
+    log('worktree hygiene (D20, #1381): ' + hygieneRows.map(h =>
+      ((h && h.action) || 'detected') + ' ' + ((h && h.path) || '<path>') + ' (task ' + ((h && h.task) || '<task>') + ')'
+      + ((h && h.detail) ? ' — ' + h.detail : '')).join('; ')
+      + ' — visibility only; no routing change, the barrier never halts on it.')
   }
 }
 
@@ -1748,7 +1788,7 @@ if (endStateCheckRows.length > 0) {
 // claimed condition (D8, Task 3.2): findings stay DEFECT-ONLY (the three cases below), and the seat
 // ALSO returns one POSITIVE endStateAttestations row per condition — artifact-first (the teed
 // per-condition artifacts for check:-tagged rows, the captured gate logs for gate:-tagged rows, named
-// observables for judged rows). Shared const: all three gate-audit-family seats (per-task,
+// observables for judged rows). Shared const: all three gate-audit-family seats (per-task (post-merge),
 // integrated-tip, end-state-only) concatenate it, so all three return rows. Empty when the phase
 // claims no conditions — the gate-audit prompt stays byte-identical to today (criterion 10).
 const endStateBlock = endStateClaims.length
@@ -2424,6 +2464,60 @@ if (landResult && landResult.status === 'landed' && memoryLocalRoot) {
     { agentType: NS + 'war-servitor', phase: 'Wrap-up', label: `wrap-up:phase-${ph.id}`, schema: SERVITOR_RESULT, ...spawn('servitor') })
 } else if (landResult && landResult.status === 'landed' && !memoryLocalRoot) {
   log(`Phase ${ph.id} landed but no memoryLocalRoot was threaded (memory disabled / legacy args) — Wrap-up skipped; no servitor dispatched.`)
+}
+
+// ---- FILE-FOLLOWUPS DISPATCH (D1/D2/D3, #1331) — the Workflow files its own follow-up-routed
+// findings. Fires on BOTH handoff-emitting paths (landed AND held:escalation), only when minorsFiled
+// is non-empty; placed AFTER the land decision resolves and BEFORE the handoff assembly so the
+// stamped issue numbers reach the assembly's `issue: m.issue ?? null` mapping (the assembly itself
+// is byte-unchanged). Refiner-executed — the Bash-capable seat that already performs gh writes; the
+// options mirror the endstate-check dispatch idiom (D18). FAIL-OPEN (D2): a dead/thrown dispatch, a
+// failed preflight, or a non-conforming return leaves unmatched entries issue: null with ONE log()
+// line — landDecision untouched, never a hold; the Checkpoint floor (skills/war/SKILL.md
+// § Checkpoint) is the catch. Dedup-first (D3) makes a resume/relaunch re-dispatch safe: an
+// exact-title match reuses the existing issue number, never a duplicate.
+if ((landDecision === 'landed' || landDecision === 'held:escalation') && minorsFiled.length > 0) {
+  // Agent-resolved '${CLAUDE_PLUGIN_ROOT}' literal idiom (the provision barrier's SCRIPT const
+  // precedent): the single quotes on this line are JS STRING DELIMITERS — they are what keep the
+  // ${...} literal out of the #931 untagged-backtick census, and they are never part of the string's
+  // value. The prompt line below interpolates the path BARE (the canonical SKILL.md form) so the
+  // dispatched refiner's shell expands $CLAUDE_PLUGIN_ROOT — emitting POSIX single quotes around the
+  // path would suppress that expansion and 127 the preflight on a literal filename.
+  const PREFLIGHT = '${CLAUDE_PLUGIN_ROOT}/skills/_shared/gh-preflight.sh'
+  let filingOut = null
+  try {
+    filingOut = await agent(
+      pt`FILE-FOLLOWUPS DISPATCH for WAR phase ${ph.id} (you are the refiner; this is a gh-write batch — no merge, no push, never touch git state). `
+      + pt`The follow-up-disposition audit findings below survived this phase unabsorbed; file each as a GitHub issue so nothing drops silently (ADR 0013).\n`
+      + pt`FIRST the account preflight (ADR 0026): run ${PREFLIGHT} "${ghUser}" — an empty-string arg is its documented no-op (exit 0). On exit 2 (tooling error) or exit 3 (account mismatch): return what you have and file NOTHING.\n`
+      + pt`THEN dedup (D3): run \`gh issue list --label war-followup --state open\` once; a row below whose title EXACTLY matches an open issue's title is already filed — reuse that existing issue number instead of filing a duplicate.\n`
+      + pt`THEN file one \`war-followup\`-labelled issue per row below, in order — title from the row's title; body carrying the why-not-absorbable reason and the task id${ph.epicIssue ? pt`, and a reference to the phase epic #${ph.epicIssue}` : ''}.\n`
+      // pt-tagged prompt-feeding row builder (file-followups dispatch): title/rationale are
+      // schema-optional and task is routing-stamped → ?? defaults (never a phase-killing throw here).
+      // The title span is DELIMITED (quoted, `title:`-prefixed) so the dedup instruction's
+      // exact-title match keys on the finding's own title — never the whole composite row, whose
+      // leading ordinal would make dedup order-dependent across a relaunch.
+      + minorsFiled.map((m, i) => pt`  ${i + 1}. title: "${m.title ?? '(untitled finding)'}" · task ${m.task ?? '<task>'} · why not absorbable: ${m.rationale ?? '(no rationale recorded)'}`).join('\n') + '\n'
+      + pt`Return ONLY { filed: [{ n, issue }] } — n the row's 1-based ordinal above, issue the filed-or-reused issue number (null when unfiled). A partial/empty result is FAIL-OPEN: unmatched entries stay issue: null in the handoff and the Checkpoint floor catches them; never block.`,
+      { agentType: NS + 'war-refiner', phase: 'Land', label: 'file-followups:phase-' + ph.id, dispatchKind: 'file-followups', schema: FOLLOWUP_FILING_RESULT, ...spawn('refiner') })
+  } catch (err) {
+    // Fail-open (D2): a THROWN filing dispatch must never convert a resolved land decision into
+    // held:workflow-error — fall to the same dead-dispatch path as a null return (one log() below).
+    filingOut = null
+  }
+  // Stamping (D2): each returned row with an in-range integer n AND a numeric issue stamps
+  // minorsFiled[n-1].issue; out-of-range/non-numeric/absent rows are ignored. The handoff assembly's
+  // `issue: m.issue ?? null` (byte-unchanged below) then renders the stamped values.
+  const filedRows = (filingOut && Array.isArray(filingOut.filed)) ? filingOut.filed : null
+  if (filedRows) {
+    for (const row of filedRows) {
+      if (!row || typeof row !== 'object' || !Number.isInteger(row.n)) continue
+      if (row.n < 1 || row.n > minorsFiled.length || typeof row.issue !== 'number') continue
+      minorsFiled[row.n - 1].issue = row.issue
+    }
+  } else {
+    log('file-followups: dead dispatch or non-conforming return — every unmatched handoff.followUps entry stays issue: null (fail-open, D2; the Checkpoint floor is the catch); landDecision untouched.')
+  }
 }
 
 // ---- HANDOFF BLOCK (ADR 0013) — the machine-readable debt map the next phase's decompose reads.

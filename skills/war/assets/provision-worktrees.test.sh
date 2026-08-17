@@ -10,6 +10,13 @@
 #
 # Subcommands exercised (Task 2): ensure-integration, ensure-exclude.
 # Subcommands exercised (Task 3): ensure-worktree.
+# Subcommands exercised (plan 2026-08-06 Task 1.2, #1380): resolve-working-branch
+# leaf-ref arms (RWB.f-RWB.k: leaf-dev flat fallback, planSlug validation,
+# actionable cut-failure die, fallback resume-reuse, no-collision control,
+# widened-reuse discriminator).
+# Subcommands exercised (plan 2026-08-06 Task 1.2, #1381): ensure-worktree
+# reuse-path submodule hygiene (HYG.j-HYG.n: corruption repair + WIP
+# preservation, SHA-mismatch control, clean control, real-edits control).
 # Ownership seam: the run tells the script which refs it owns via --owned-file
 # <path> (a newline-delimited ledger the script reads AND appends to when it
 # creates a branch) and/or repeatable --owned <ref>. Both are pure-bash
@@ -321,6 +328,150 @@ expect "branch-mismatch: .war-task marker still names branch A" \
   "yes" "$(grep -qx 'branch=war/myplan/p1-task1' "$WT6/.war-task" 2>/dev/null && echo yes || echo no)"
 
 # ===========================================================================
+# Plan 2026-08-06 Task 1.2 (#1381, D19): ensure-worktree REUSE-path submodule
+# hygiene. Each case builds its own throwaway superproject+submodule fixture
+# (never a shared one — the redteam-sandbox-residue lesson) via hyg_fixture.
+# protocol.file.allow=always is FIXTURE-BUILD-ONLY (the submodule clone from a
+# file-path source); the hygiene repair itself re-checks-out an already-cloned
+# submodule and needs no protocol override.
+# ===========================================================================
+
+# hyg_fixture -> echoes "REPO WT": a superproject repo with ONE declared
+# submodule `sub` (two tracked files), a task branch, and a POPULATED, clean
+# task worktree on that branch (provisioned via the script, so the next
+# ensure-worktree call takes the REUSE path).
+hyg_fixture() {
+  hs="$(mktemp -d 2>/dev/null || mktemp -d -t warhysub)"; REPOS="$REPOS $hs"
+  git -C "$hs" init -q
+  git -C "$hs" config user.email war@test.local
+  git -C "$hs" config user.name "WAR Test"
+  git -C "$hs" config commit.gpgsign false
+  printf 'one\n' > "$hs/a.txt"; printf 'two\n' > "$hs/b.txt"
+  git -C "$hs" add -A; git -C "$hs" commit -qm subseed
+  hr="$(new_repo)"
+  git -C "$hr" -c protocol.file.allow=always submodule add -q "$hs" sub >/dev/null 2>&1
+  git -C "$hr" commit -qm "declare submodule"
+  git -C "$hr" branch war/myplan/p2-t3 HEAD
+  hw="$(new_wt_path)"
+  ( cd "$hr" && bash "$SCRIPT" ensure-worktree "$hw" war/myplan/p2-t3 "$(git -C "$hr" rev-parse HEAD)" ) >/dev/null 2>&1
+  git -C "$hw" -c protocol.file.allow=always submodule update --init sub >/dev/null 2>&1
+  echo "$hr $hw"
+}
+
+# ---------------------------------------------------------------------------
+# Case (HYG.j / 1.2(j)) HYGIENE-REPAIR (End state 21) + (HYG.k / 1.2(k))
+# WIP-PRESERVATION (End state 22) — one fixture, per the plan: the submodule
+# index is emptied deterministically (`git read-tree --empty` + a dropped
+# index.lock — A10: state-equivalent to the reproduced killed-populate state on
+# every surface the hygiene arm reads; files stay on disk, a dimension nothing
+# consulted reads), and superproject WIP (a tracked modification + two
+# untracked files) rides the same reuse. The reuse must repair the submodule
+# (clean, HEAD still at the recorded gitlink SHA), emit a WORKTREE_HYGIENE
+# `repaired` marker on stderr, and leave the WIP byte-for-byte with nothing
+# staged. Streams captured SPLIT (stderr to a temp file, stdout separately) so
+# the marker greps and the stdout-is-the-path assertion are stream-accurate.
+# ---------------------------------------------------------------------------
+FXH_J="$(hyg_fixture)"; RH_J="${FXH_J%% *}"; WTH_J="${FXH_J##* }"
+TIPH_J="$(git -C "$RH_J" rev-parse war/myplan/p2-t3)"
+GITLINK_J="$(git -C "$WTH_J" ls-tree HEAD -- sub | awk '{print $3}')"
+expect "HYG.j setup: submodule populated and clean" \
+  "clean" "$([ -z "$(git -C "$WTH_J" status --porcelain -- sub 2>/dev/null)" ] && echo clean || echo dirty)"
+# Corrupt: empty the submodule index + drop a stale index.lock.
+git -C "$WTH_J/sub" read-tree --empty
+SUBGD_J="$(git -C "$WTH_J/sub" rev-parse --git-dir)"
+touch "$SUBGD_J/index.lock"
+expect "HYG.j setup: corruption visible in superproject porcelain" \
+  "dirty" "$([ -n "$(git -C "$WTH_J" status --porcelain -- sub 2>/dev/null)" ] && echo dirty || echo clean)"
+# WIP rides the same fixture (HYG.k): tracked modification + two untracked files.
+printf 'tracked-wip\n' >> "$WTH_J/seed.txt"
+printf 'untracked-one\n' > "$WTH_J/wip1.txt"
+printf 'untracked-two\n' > "$WTH_J/wip2.txt"
+SEED_J="$(cat "$WTH_J/seed.txt")"
+# Split streams (stderr-only marker contract): the barrier parses stdout as the
+# worktree PATH, so markers MUST stay on stderr — dropping >&2 from
+# hygiene_marker would corrupt the path capture. OUT_HJ is stderr ONLY; the
+# marker greps below are therefore stream-discriminating.
+ERRF_J="$(mktemp 2>/dev/null || mktemp -t warhyg)"; REPOS="$REPOS $ERRF_J"
+OUT_HJ_STDOUT="$( ( cd "$RH_J" && bash "$SCRIPT" ensure-worktree "$WTH_J" war/myplan/p2-t3 "$TIPH_J" ) 2>"$ERRF_J" )"; C_HJ=$?
+OUT_HJ="$(cat "$ERRF_J")"
+expect "HYG.j: stdout is exactly the worktree path (markers stay on stderr)" \
+  "$WTH_J" "$OUT_HJ_STDOUT"
+expect "HYG.j: reuse over the corrupted submodule exits 0 (fail-open, no new die)" \
+  "0" "$C_HJ"
+expect "HYG.j: a WORKTREE_HYGIENE repaired marker is emitted" \
+  "yes" "$(printf '%s' "$OUT_HJ" | grep -Fq 'WORKTREE_HYGIENE path=sub action=repaired' && echo yes || echo no)"
+expect "HYG.j: submodule ends clean in superproject porcelain" \
+  "clean" "$([ -z "$(git -C "$WTH_J" status --porcelain -- sub 2>/dev/null)" ] && echo clean || echo dirty)"
+expect "HYG.j: submodule porcelain itself is clean (index restored)" \
+  "clean" "$([ -z "$(git -C "$WTH_J/sub" status --porcelain 2>/dev/null)" ] && echo clean || echo dirty)"
+expect "HYG.j: submodule HEAD still at the recorded gitlink SHA (no bump possible)" \
+  "$GITLINK_J" "$(git -C "$WTH_J/sub" rev-parse HEAD 2>/dev/null)"
+expect "HYG.j: submodule tracked file restored" \
+  "one" "$(cat "$WTH_J/sub/a.txt" 2>/dev/null)"
+expect "HYG.k: superproject tracked modification survives byte-for-byte" \
+  "$SEED_J" "$(cat "$WTH_J/seed.txt" 2>/dev/null)"
+expect "HYG.k: untracked WIP file 1 survives byte-for-byte" \
+  "untracked-one" "$(cat "$WTH_J/wip1.txt" 2>/dev/null)"
+expect "HYG.k: untracked WIP file 2 survives byte-for-byte" \
+  "untracked-two" "$(cat "$WTH_J/wip2.txt" 2>/dev/null)"
+expect "HYG.k: nothing staged in the superproject (git diff --cached empty)" \
+  "" "$(git -C "$WTH_J" diff --cached --name-only 2>/dev/null)"
+
+# ---------------------------------------------------------------------------
+# Case (HYG.l / 1.2(l)) SHA-MISMATCH CONTROL (End state 22's control arm): a
+# submodule checked out at a DIFFERENT HEAD than the recorded gitlink SHA is
+# `detected` only — its tree untouched, never force-restored (could be real
+# submodule work; the relaunching Lead adjudicates).
+# ---------------------------------------------------------------------------
+FXH_L="$(hyg_fixture)"; RH_L="${FXH_L%% *}"; WTH_L="${FXH_L##* }"
+TIPH_L="$(git -C "$RH_L" rev-parse war/myplan/p2-t3)"
+git -C "$WTH_L/sub" config user.email war@test.local
+git -C "$WTH_L/sub" config user.name "WAR Test"
+git -C "$WTH_L/sub" config commit.gpgsign false
+printf 'advanced\n' >> "$WTH_L/sub/a.txt"
+git -C "$WTH_L/sub" add -A
+git -C "$WTH_L/sub" commit -qm "sub advanced past the gitlink"
+SUBHEAD_L="$(git -C "$WTH_L/sub" rev-parse HEAD)"
+OUT_HL="$( ( cd "$RH_L" && bash "$SCRIPT" ensure-worktree "$WTH_L" war/myplan/p2-t3 "$TIPH_L" ) 2>&1 )"; C_HL=$?
+expect "HYG.l: reuse over a SHA-mismatched submodule exits 0" "0" "$C_HL"
+expect "HYG.l: marker is detected (sha-mismatch), never repaired" \
+  "yes" "$(printf '%s' "$OUT_HL" | grep -Fq 'WORKTREE_HYGIENE path=sub action=detected detail=sha-mismatch' && echo yes || echo no)"
+expect "HYG.l: no repaired marker emitted" \
+  "no" "$(printf '%s' "$OUT_HL" | grep -Fq 'action=repaired' && echo yes || echo no)"
+expect "HYG.l: submodule HEAD untouched (still the advanced commit)" \
+  "$SUBHEAD_L" "$(git -C "$WTH_L/sub" rev-parse HEAD 2>/dev/null)"
+
+# ---------------------------------------------------------------------------
+# Case (HYG.m / 1.2(m)) CLEAN CONTROL: a clean reuse emits NO marker.
+# ---------------------------------------------------------------------------
+FXH_M="$(hyg_fixture)"; RH_M="${FXH_M%% *}"; WTH_M="${FXH_M##* }"
+TIPH_M="$(git -C "$RH_M" rev-parse war/myplan/p2-t3)"
+OUT_HM="$( ( cd "$RH_M" && bash "$SCRIPT" ensure-worktree "$WTH_M" war/myplan/p2-t3 "$TIPH_M" ) 2>&1 )"; C_HM=$?
+expect "HYG.m: clean reuse exits 0" "0" "$C_HM"
+expect "HYG.m: clean reuse emits no WORKTREE_HYGIENE marker" \
+  "no" "$(printf '%s' "$OUT_HM" | grep -Fq 'WORKTREE_HYGIENE' && echo yes || echo no)"
+
+# ---------------------------------------------------------------------------
+# Case (HYG.n) REAL-EDITS CONTROL (the red-team-narrowed detector, D19): an
+# UNSTAGED modification in the submodule at the MATCHED gitlink SHA is
+# indistinguishable from a submodule-content worker's legitimate uncommitted
+# work — the repair arm must NOT fire (--force would destroy it): `detected`
+# only, the edit survives byte-for-byte.
+# ---------------------------------------------------------------------------
+FXH_N="$(hyg_fixture)"; RH_N="${FXH_N%% *}"; WTH_N="${FXH_N##* }"
+TIPH_N="$(git -C "$RH_N" rev-parse war/myplan/p2-t3)"
+printf 'real-edit\n' >> "$WTH_N/sub/a.txt"
+EDIT_N="$(cat "$WTH_N/sub/a.txt")"
+OUT_HN="$( ( cd "$RH_N" && bash "$SCRIPT" ensure-worktree "$WTH_N" war/myplan/p2-t3 "$TIPH_N" ) 2>&1 )"; C_HN=$?
+expect "HYG.n: reuse over real submodule edits exits 0" "0" "$C_HN"
+expect "HYG.n: real edits are detected, never repaired" \
+  "yes" "$(printf '%s' "$OUT_HN" | grep -Fq 'WORKTREE_HYGIENE path=sub action=detected' && echo yes || echo no)"
+expect "HYG.n: no repaired marker emitted (the --force arm did not fire)" \
+  "no" "$(printf '%s' "$OUT_HN" | grep -Fq 'action=repaired' && echo yes || echo no)"
+expect "HYG.n: the unstaged edit survives byte-for-byte" \
+  "$EDIT_N" "$(cat "$WTH_N/sub/a.txt" 2>/dev/null)"
+
+# ===========================================================================
 # Task 4: teardown-task / teardown-phase / prune  (all strictly RUN-SCOPED).
 #
 # Run-scoping (D6/D9): task worktrees live under the run's ledger dir,
@@ -489,7 +640,8 @@ expect "teardown-phase (run-mine) does not touch the other run's worktree" \
 # ===========================================================================
 # Task 1 (clandiso): ensure-refinery-worktree <path> <integration-branch>
 #
-# Behavior (ensure + re-attach, distinct from ensure-worktree's pure no-op reuse):
+# Behavior (ensure + re-attach, distinct from ensure-worktree's reuse: marker +
+# examine-but-untouched submodule hygiene):
 #   (a) Not registered / empty dir -> `git worktree add <path> <integration-branch>` + .war-task
 #   (b) Registered + present + HEAD on the integration branch -> reuse untouched (marker only)
 #   (c) Registered + present + HEAD detached or on a different branch AND tree CLEAN ->
@@ -2138,6 +2290,128 @@ expect "RWB.e: ensure-origin failure die RETAINS the never-force guidance" \
   "1" "$(printf '%s' "$OUT_EO" | grep -c 'refusing to force')"
 expect "RWB.e: ensure-origin failure die APPENDS git's own stderr (a known family fragment)" \
   "yes" "$(printf '%s' "$OUT_EO" | grep -Eiq 'does not appear to be a git repository|could not read from remote repository' && echo yes || echo no)"
+
+# --- Case (RWB.f / 1.2(e)) LEAF-`dev` COLLISION (End state 16, #1380 D12): the
+# desired branch is checked out (collision path engaged) AND a leaf branch `dev`
+# exists, blocking the nested derived name's namespace. resolve-working-branch
+# must fall back ONCE to the flat fallback name: echoed, created at the desired
+# tip, checked out NOWHERE, ownership recorded (the RWB.a assertion set against
+# the fallback name). Throwaway temp repo, never a shared fixture (the
+# redteam-sandbox-residue lesson). ---
+RWB_F="$(new_repo)"
+DESIRED_F="$(git -C "$RWB_F" symbolic-ref --short HEAD)"    # checked out in main
+TIP_F="$(git -C "$RWB_F" rev-parse HEAD)"
+git -C "$RWB_F" branch dev                                  # the blocking leaf
+OWN_F="$RWB_F/owned.txt"; : > "$OWN_F"
+RESOLVED_F="$(run_out "$RWB_F" resolve-working-branch "$DESIRED_F" myplan 2026-07-06 --owned-file "$OWN_F")"
+expect "RWB.f: leaf-dev collision echoes the FLAT fallback" \
+  "war-2026-07-06-myplan" "$RESOLVED_F"
+expect "RWB.f: flat fallback created at the desired tip" \
+  "$TIP_F" "$(git -C "$RWB_F" rev-parse war-2026-07-06-myplan 2>/dev/null)"
+expect "RWB.f: flat fallback is checked out NOWHERE" \
+  "no" "$(checked_out_anywhere "$RWB_F" war-2026-07-06-myplan)"
+expect "RWB.f: flat-fallback ownership recorded in the ledger" \
+  "0" "$(grep -Fxq -- war-2026-07-06-myplan "$OWN_F"; echo $?)"
+expect "RWB.f: the nested derived name was NOT created" \
+  "1" "$(git -C "$RWB_F" rev-parse --verify -q dev/2026-07-06-myplan >/dev/null 2>&1; echo $?)"
+
+# --- Case (RWB.g / 1.2(f)) planSlug VALIDATION (End state 17, #1380 D14): a
+# fixture repo with a leaf branch `war/<slug>` blocks the task-branch namespace,
+# so resolve-working-branch must die at Setup — BEFORE any task dispatch could
+# hit the block mid-phase — naming the leaf in stderr. Die text captured via the
+# T2.3/T2.6 inline idiom (run_in echoes only the exit code). The probe precedes
+# the branch_checked_out_anywhere collision fork, so this one no-collision shape
+# suffices for both paths. Exit is pinned to 1 (the plain-die default): this is
+# a namespace/argument problem, deliberately NOT EX_FOREIGN(3).
+RWB_G="$(new_repo)"
+git -C "$RWB_G" branch war/myplan          # leaf at war/<slug>
+git -C "$RWB_G" branch landing HEAD
+git -C "$RWB_G" checkout -q --detach HEAD  # <desired> checked out nowhere
+OUT_G="$( ( cd "$RWB_G" && bash "$SCRIPT" resolve-working-branch landing myplan 2026-07-06 ) 2>&1 )"; C_G=$?
+expect "RWB.g: leaf war/<slug> dies with the plain-die exit 1 (never EX_FOREIGN)" \
+  "1" "$C_G"
+expect "RWB.g: the die names the blocking leaf" \
+  "match" "$(printf '%s' "$OUT_G" | grep -Fq 'war/myplan' && echo match || echo nomatch)"
+expect "RWB.g: the die names the remedy (a different plan slug)" \
+  "match" "$(printf '%s' "$OUT_G" | grep -qi 'different plan slug' && echo match || echo nomatch)"
+expect "RWB.g: no branch was echoed on stdout (died before either echo)" \
+  "" "$(run_out "$RWB_G" resolve-working-branch landing myplan 2026-07-06)"
+
+# --- Case (RWB.h / 1.2(g)) ACTIONABLE CUT-FAILURE DIE (End state 18, #1380
+# D13): block the NESTED derived name from BELOW — a child ref makes it a ref
+# DIRECTORY, which the D12 ancestor-segment probe (leaf `dev` only) cannot see —
+# so the cut itself dies "cannot lock ref", exercising the D13 arm. The die must
+# RETAIN a known git-stderr fragment AND name the `--working` remedy plus the
+# blocking ref. Fragment DISJUNCTION per the RWB.e precedent: on a future
+# git-wording miss EXTEND the fragment list, never weaken. ---
+RWB_H="$(new_repo)"
+DESIRED_H="$(git -C "$RWB_H" symbolic-ref --short HEAD)"   # collision engaged
+git -C "$RWB_H" branch dev/2026-07-06-myplan/blocker
+OUT_H="$( ( cd "$RWB_H" && bash "$SCRIPT" resolve-working-branch "$DESIRED_H" myplan 2026-07-06 ) 2>&1 )"; C_H=$?
+expect "RWB.h: blocked cut exits non-zero (one fallback, then fail loud)" \
+  "nonzero" "$([ "$C_H" -ne 0 ] && echo nonzero || echo zero)"
+expect "RWB.h: die RETAINS a known git-stderr fragment" \
+  "yes" "$(printf '%s' "$OUT_H" | grep -Eiq 'cannot lock ref|exists; cannot create' && echo yes || echo no)"
+expect "RWB.h: die names the --working remedy" \
+  "yes" "$(printf '%s' "$OUT_H" | grep -Fq -- '--working' && echo yes || echo no)"
+# Discriminating needle: the WRAPPER's own diagnosis phrasing, which git's stderr
+# never emits — a bare grep for the ref name would pass on modern git's own
+# "'refs/heads/.../blocker' exists" text even with blocking_leaf_for deleted.
+expect "RWB.h: die names the blocking ref via the wrapper's own diagnosis phrasing" \
+  "yes" "$(printf '%s' "$OUT_H" | grep -Fq "the blocking ref is 'dev/2026-07-06-myplan/blocker'" && echo yes || echo no)"
+
+# --- Case (RWB.i / 1.2(h)) FALLBACK RESUME-REUSE (End state 19, #1380 A3): a
+# run that fell back to the flat name resumes — the second call with the same
+# recorded owned-file returns the SAME flat branch and never re-cuts, even after
+# the desired tip advances (the RWB.d shape against the fallback name). ---
+RWB_I="$(new_repo)"
+DESIRED_I="$(git -C "$RWB_I" symbolic-ref --short HEAD)"
+git -C "$RWB_I" branch dev
+OWN_I="$RWB_I/owned.txt"; : > "$OWN_I"
+RESOLVED_I1="$(run_out "$RWB_I" resolve-working-branch "$DESIRED_I" myplan 2026-07-06 --owned-file "$OWN_I")"
+FLAT_TIP_I1="$(git -C "$RWB_I" rev-parse war-2026-07-06-myplan 2>/dev/null)"
+printf 'more\n' > "$RWB_I/more.txt"; git -C "$RWB_I" add -A; git -C "$RWB_I" commit -qm advance
+code_rwbi="$(run_in "$RWB_I" resolve-working-branch "$DESIRED_I" myplan 2026-07-06 --owned-file "$OWN_I")"
+expect "RWB.i: fallback resume call exits 0 (reuse, not error)" 0 "$code_rwbi"
+RESOLVED_I2="$(run_out "$RWB_I" resolve-working-branch "$DESIRED_I" myplan 2026-07-06 --owned-file "$OWN_I")"
+expect "RWB.i: resume returns the SAME flat branch" \
+  "$RESOLVED_I1" "$RESOLVED_I2"
+expect "RWB.i: flat branch did NOT move (never re-cut)" \
+  "$FLAT_TIP_I1" "$(git -C "$RWB_I" rev-parse war-2026-07-06-myplan 2>/dev/null)"
+
+# --- Case (RWB.j / 1.2(i)) CONTROL: leaf `dev` present but <desired> checked
+# out NOWHERE — the no-collision path still echoes <desired> unchanged and cuts
+# nothing. The `dev` probe fires only where a cut would happen. ---
+RWB_J="$(new_repo)"
+git -C "$RWB_J" branch dev
+git -C "$RWB_J" branch landing HEAD
+git -C "$RWB_J" checkout -q --detach HEAD
+RESOLVED_J="$(run_out "$RWB_J" resolve-working-branch landing myplan 2026-07-06)"
+expect "RWB.j: leaf dev + NO collision still echoes <desired> unchanged" \
+  "landing" "$RESOLVED_J"
+expect "RWB.j: no fallback branch created (probe fires only where a cut would happen)" \
+  "1" "$(git -C "$RWB_J" rev-parse --verify -q war-2026-07-06-myplan >/dev/null 2>&1; echo $?)"
+
+# --- Case (RWB.k / 1.2(h)) WIDENED-REUSE DISCRIMINATOR (End state 19, #1380
+# A3): the blocking leaf `dev` is DELETED mid-run after the fallback cut, so on
+# resume the freshly-derived candidate is the NESTED name again — only the
+# widened BOTH-candidate reuse arm can find the recorded flat branch. A
+# single-candidate reuse check (the pre-A3 shape) would re-cut
+# dev/<date>-<slug> here; RWB.i keeps the leaf in place and cannot see that
+# regression. ---
+RWB_K="$(new_repo)"
+DESIRED_K="$(git -C "$RWB_K" symbolic-ref --short HEAD)"
+git -C "$RWB_K" branch dev
+OWN_K="$RWB_K/owned.txt"; : > "$OWN_K"
+RESOLVED_K1="$(run_out "$RWB_K" resolve-working-branch "$DESIRED_K" myplan 2026-07-06 --owned-file "$OWN_K")"
+expect "RWB.k: first resolve fell back to the FLAT name (fixture precondition)" \
+  "war-2026-07-06-myplan" "$RESOLVED_K1"
+git -C "$RWB_K" branch -D dev >/dev/null 2>&1
+RESOLVED_K2="$(run_out "$RWB_K" resolve-working-branch "$DESIRED_K" myplan 2026-07-06 --owned-file "$OWN_K")"
+expect "RWB.k: leaf dev deleted mid-run — resume still returns the recorded FLAT name" \
+  "war-2026-07-06-myplan" "$RESOLVED_K2"
+expect "RWB.k: no nested dev/<date>-<slug> ref was cut on resume" \
+  "1" "$(git -C "$RWB_K" rev-parse --verify -q dev/2026-07-06-myplan >/dev/null 2>&1; echo $?)"
 
 # ===========================================================================
 # Task 2 (target-repo-agnostic): ensure-integration reconciles the local <base>

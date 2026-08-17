@@ -61,7 +61,7 @@ When your `blocked_reason` attributes an observed failure — a failing test, a 
 ## Return
 Return ONLY the `WorkerResult` JSON (see the skill's `references/schemas.md`): `{ task_id, branch, worktree, head_sha, status, tests, acceptance_criteria_covered, files_changed, notes, blocked_reason? }`.
 
-Report `acceptance_criteria_covered` as the task's **claimed End-state ids** — the numbered End-state conditions from the plan's Commander's Intent that this task claims to satisfy (empty when the task claims none); the post-merge gate-audit pass cross-checks the field.
+Report `acceptance_criteria_covered` as the task's **claimed End-state ids** — the numbered End-state conditions from the plan's Commander's Intent that this task claims to satisfy (empty when the task claims none). Each id is the condition's 1-based ordinal in the intent's numbered End-state list, rendered as a string (`"7"`), resolving to that condition's verbatim text (the `plan_ref` / `endStateAttestations.condition` key); the post-merge gate-audit pass cross-checks the field.
 
 Report every files_changed path as worktree-relative — never an absolute path and never one rooted in the main checkout — so no downstream consumer ever sees a path that escapes the isolated worktree.
 
