@@ -64,6 +64,13 @@ ledger's `extractFiles` all run unmodified against it).
 ## Commander's Intent              ← operator-authored; intent ceiling, plan floor
   - Purpose: <why — the operator's goal in one breath>
   - Method: <how — the approach and its judgment guardrails>
+  - Mechanism latitude: <optional-but-recommended — enumerate which mechanisms named in Method are
+    implementer's choice, closing with: "substituting any of these mechanisms while the End states
+    and binding guardrails hold is not a plan deviation and warrants no issue">
+  - Binding guardrails: <optional-but-recommended — the short list of what genuinely must not
+    change: contracts, repo boundaries, cost/safety invariants — the real floor. The latitude
+    clause never waives a check, gate, or backstop (ADR 0017) — End states pin outcomes, never
+    mechanisms, and each stays checkable via its D5 tag>
   - End state: <numbered list — each condition individually checkable, each tagged from the
     closed set: check: <command> | gate: <suite> | HARD at audit_sha (observable + judge seat)
     | backstop: row — the unified validation criteria (D18)>
@@ -153,6 +160,10 @@ None.
 
 - **Purpose:** a renamed widget is never served under its old title.
 - **Method:** invalidate at the rename write path; test the miss; no schema change.
+- **Mechanism latitude:** the drop-call's placement inside the transaction and the miss-test's
+  fixture shape are implementer's choice; substituting any of these mechanisms while the End
+  states and binding guardrails hold is not a plan deviation and warrants no issue.
+- **Binding guardrails:** cache schema untouched · the TTL default stays 300s.
 - **End state:**
   1. `renameWidget()` drops the old-slug row in the same transaction ·
      check: `node --test src/cache.test.mjs`.
@@ -234,6 +245,11 @@ None.
 
 - **Purpose:** imports never starve interactive traffic. (AI-declared)
 - **Method:** cap import bursts at the enqueue seam; keep the queue schema. (AI-declared)
+- **Mechanism latitude:** the window-counter data structure and the retry-after arithmetic are
+  implementer's choice; substituting any of these mechanisms while the End states and binding
+  guardrails hold is not a plan deviation and warrants no issue. (AI-declared)
+- **Binding guardrails:** queue schema untouched · the enqueue seam stays the only choke
+  point. (AI-declared)
 - **End state:**
   1. `enqueueImport()` rejects the 51st import inside a 60s window ·
      check: `node --test src/throttle.test.mjs`. (AI-declared)

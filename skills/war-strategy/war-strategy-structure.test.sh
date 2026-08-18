@@ -2,7 +2,11 @@
 # Structure test for skills/war-strategy/SKILL.md + references/plan-interview.md: locks all
 # five sections, the three inline templates (merged plan / spec input shape / roadmap), the
 # merged-template internals ratified by the 2026-08-04 interview-and-authoring-contract plan
-# (Task 1), the interview doctrine's ratified internals, the doctrine's Evidence + slot law
+# (Task 1), the #1431 latitude pins (the two optional intent sub-bullet slots — Mechanism
+# latitude / Binding guardrails — the warrants-no-issue closing sentence, the ADR 0017
+# never-waives bound, and the doctrine's latitude-beat label; the war-machine drafter-duty
+# twin lives in skills/war-machine/war-pipeline-structure.test.sh), the interview doctrine's
+# ratified internals, the doctrine's Evidence + slot law
 # section (presence pin + the five-atom mirror-equality block, #1307: the D4 / D5 / tag-set /
 # D12 / D14 law atoms extracted from both surfaces, whitespace-normalized, non-empty-asserted
 # per surface, then compared against the canonical SKILL.md §2 bytes — tag-set by keyword
@@ -120,6 +124,17 @@ check_f '  - Purpose: <why'
 check_f '  - Method: <how'
 check_f '  - End state: <numbered list'
 check_f 'HARD at audit_sha (observable + judge seat)'
+# Latitude sub-bullets (#1431, 2026-08-17): the intent block's two optional-but-recommended
+# sub-bullet slots, the closing warrants-no-issue sentence (also modeled in both Examples),
+# and the ADR 0017 bound stated in the template text itself. All four literals were
+# zero-at-base (Context 9's census, re-measured 2026-08-17). Three authoring surfaces,
+# three pins (lock-step): these cover the SKILL-side template; the interview-beat label pin
+# sits with the doctrine pins below; the war-machine drafter-duty twin lives in
+# skills/war-machine/war-pipeline-structure.test.sh.
+check_f '  - Mechanism latitude: <optional-but-recommended'
+check_f '  - Binding guardrails: <optional-but-recommended'
+check_f 'warrants no issue'
+check_f 'never waives a check, gate, or backstop'
 
 # Per-task field bullets — the SEPARATE `- ` bullet law (ratified template law AND an
 # extraction requirement: extractFiles ingests ONLY the separate-bullet form) + the Done-when
@@ -226,6 +241,10 @@ doc_f '## The decisive-slots table'
 doc_f '1:N → roadmap rule'
 doc_f 'docs/plans/YYYY-MM-DD-<slug>.md'
 doc_f 'A gap review is a shorter interview, not a different discipline'
+# Interview-beat label (#1431, 2026-08-17): the latitude beat is a decisive slot asked once
+# the End states are drafted; zero-at-base in the doctrine (Context 9's census). Third of the
+# three authoring-surface pins (template above, drafter-duty twin in the sibling suite).
+doc_f 'Mechanism latitude'
 # Doctrine-side presence pin (#1307, D7): the mirrored law section carried ZERO pins before
 # this — it could be deleted outright with the suite green. Deletion now reds twice: this
 # pin, and the mirror-equality block's per-surface non-empty asserts below.
