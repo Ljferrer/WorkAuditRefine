@@ -525,10 +525,11 @@ test('D21 — held:land-failed bullet names both environment arms, never one unc
 })
 
 // (D22) SKILL.md's Gate-2 post-servitor publication flow must carry the PRE-PUSH STAGED-FILE
-// CHECK — the unpushed-RANGE probe, the refusal, the undo that removes a condemned tip commit from
+// CHECK — the fail-closed `git fetch origin` boundary refresh, the unpushed-RANGE probe, the
+// refusal, the neutralized-pair exemption, the undo that removes a condemned tip commit from
 // the working branch, AND the revert routing for a condemned commit that is not the tip — between
-// the `docs(learnings): phase N` commit step and the `ensure-origin` push step
-// (#1083, #1136, #1192). Recorded incident: a Gate-2 promotion commit authored in a publication worktree whose
+// the `docs(learnings): phase N` commit step and the `provision-worktrees.sh ensure-origin` push
+// invocation (#1083, #1136, #1192, #1288, #1287). Recorded incident: a Gate-2 promotion commit authored in a publication worktree whose
 // tracked version-slot files were stale swept them into the docs commit and silently reverted a
 // landed release — the lock-step version guard stayed green throughout, because lock-step is not
 // monotonic ([[gate2-commit-from-stale-verify-worktree-can-revert-a-release-bump]]). The staged
@@ -546,15 +547,11 @@ test('D21 — held:land-failed bullet names both environment arms, never one unc
 // token at all — so it is not a load-bearing fragment with zero test signal (the recorded
 // [[structural-test-blind-spot-narrowing-needs-negative-reference-and-default-deny-census]] class:
 // a fragment with no both-ways proof is a blind spot, not a lock).
-// RESIDUAL, recorded rather than waived — TWO fragments have no both-ways proof, not one:
-// (1) the COMMAND-FORM fragment. (a) below lacks BOTH range-arm fragments, so deleting the
-// command form from this key alone reds nothing here — measured, not assumed. Closing it needs a
-// fourth reference (range token present, command form absent).
-// (2) the `git revert` routing arm. All THREE negatives below carry a `git revert` token, so
-// deleting the revert fragment from this key also reds nothing: (a) still fails at the range arm,
-// (b) at the undo arm, (c) at the range token — measured, not assumed. Closing it needs a fifth
-// reference (range probe and undo arm present, revert routing absent).
-// A future edit to this key should add those references rather than assume the arms are proven.
+// The two both-ways gaps this comment once recorded as RESIDUAL are closed at this shape (#1287):
+// reference (d) below (range token present / command form absent) proves the COMMAND-FORM
+// fragment, and reference (e) (revert routing absent, range probe and undo arm present) proves
+// the `git revert` routing arm — each asserted red through the live key, so neither fragment is
+// droppable with zero test signal any longer.
 //
 // The undo arm (#1136): detect-and-refuse alone left the condemned docs commit sitting on the
 // working branch inside the publication worktree — the remedy re-provisioned but never removed it,
@@ -566,67 +563,210 @@ test('D21 — held:land-failed bullet names both environment arms, never one unc
 // reason — a bare `revert` key is unusable because the incident sentence above already reads
 // "silently reverted a landed release".
 //
-// The key is ONE ORDERED match, never independent presence checks: commit step → range probe →
-// do-not-push clause → undo (`reset --hard HEAD~1`) → revert routing (`git revert`) →
-// `ensure-origin` push step. That single regex locks the pairing (probe + refusal + both undo
-// routes) AND the position (after the commit, before the push) at once — dropping any arm, or
-// relocating one outside that span, fails it RED.
+// The fetch arm (#1288): the probe's left boundary (`@{upstream}` / `origin/<working>`) is a
+// remote-tracking ref, only as fresh as the last fetch — an unrefreshed boundary condemns (and
+// reverts) commits origin already has, so the flow orders a fail-closed `git fetch origin
+// <working>` refresh immediately before the probe. The arm is keyed on the `git fetch origin`
+// ADJACENT form (markup-tolerant), deliberately NOT bare `fetch`: the freshness sentence-pair's
+// own explanatory words ("only as fresh as the last fetch", "non-zero fetch exit") would green a
+// bare key with the command stripped — negative reference (g) below is exactly that shape
+// (command dropped, prose retained in position), the analogue of (b)'s bare `reset --hard`
+// doctrine mention.
+//
+// The exemption arm (#1287): the neutralized-pair exemption (a condemned commit reverted by a
+// later commit in the same range, linked by git's own `This reverts commit <sha>.` body token)
+// landed with zero key coverage — deleting it left this row green. Keyed on the mid-sentence
+// `This reverts commit` adjacent form (markup-tolerant), ordered between the do-not-push refusal
+// and the `reset --hard HEAD~1` carve-out, mirroring live prose order. Reference (h) below
+// (exemption absent) is the arm's both-ways proof.
+//
+// The terminal arm (#1287): re-anchored on the push INVOCATION shape — `provision-worktrees.sh`
+// adjacent to `ensure-origin` — never the bare token. The same diff that added the exemption
+// prose added two in-region `ensure-origin` prose mentions ahead of the push step, and the bare
+// token key's ordered match ended inside the termination sentence's decoy mention — the push
+// invocation sat OUTSIDE the match (reproduced mechanically; the label-to-guard-region class).
+// The two prose mentions are sanctioned in-region survivors the invocation anchor is designed to
+// skip. Reference (f) below (invocation dropped, bare prose mention retained) is the arm's own
+// both-ways proof.
+//
+// The key is ONE ORDERED match, never independent presence checks — arm order mirrors live prose
+// order: commit step → fetch refresh (`git fetch origin`) → range probe (`git log --name-only`)
+// → range token (`..HEAD`) → do-not-push clause → exemption (`This reverts commit`) → undo
+// (`reset --hard HEAD~1`) → revert routing (`git revert`) → push invocation
+// (`provision-worktrees.sh` adjacent to `ensure-origin`). That single regex locks the pairing
+// (refresh + probe + refusal + exemption + both undo routes) AND the position (after the commit,
+// before the push) at once — dropping any arm, or relocating one outside that span, fails it RED.
+// Every arm anchors INSIDE the bounded extracted region — none relies on first-token-after
+// scanning (the label-to-guard-region class).
 //
 // Extraction is BY CONSTRUCT — the `**Post-servitor publication (Gate 2` marker to the next `##`
-// heading — never a whole-file scan: `ensure-origin` also appears in Setup step 2 (and, since the
-// prompt-surface eviction, ONE token each in the two reference files — references/setup.md's
-// crash-heal detail carries `remove-publication-worktree` only, and references/resume-and-recovery.md's
-// Checkpoint land recipes carry `ensure-origin` only), so a whole-file key
-// could be greened by prose outside the flow this row polices. Markup-tolerant on the emphasis
+// heading — never a whole-file scan. `ensure-origin` token census (a dated snapshot, re-measured
+// 2026-08-18 at this task's rebased base; mechanized as the default-deny D33 census row below, so
+// this sentence can never silently re-rot): `skills/war/SKILL.md` carries FOUR tokens — one in
+// Setup step 2 (outside the region) plus three in-region: the push invocation the terminal arm
+// anchors on, and the two sanctioned prose-survivor mentions ahead of it (the fallback sentence's
+// "fork point against the `ensure-origin` push target" and the termination sentence's "proceeds
+// to the `ensure-origin` push below") that the invocation anchor is designed to skip.
+// `references/resume-and-recovery.md` carries TWO tokens (both in its Checkpoint
+// absent-origin-baseline arm); `references/setup.md` carries ZERO — its crash-heal detail carries
+// `remove-publication-worktree` only. A whole-file key could therefore be greened by prose
+// outside the flow this row polices. Markup-tolerant on the emphasis
 // spans (D18/D21's idiom): a bold/backtick reshuffle inside a clause must not false-red.
 //
-// ONE ordered key, shared by the live row and its THREE negative references — all four must never
+// ONE ordered key, shared by the live row and its EIGHT negative references — all nine must never
 // drift apart.
 const D22_ORDERED_SPAN =
-  /docs\(learnings\): phase N[\s\S]*?git[\s*`]{0,4}log\s+--name-only[\s\S]*?\.\.HEAD[\s\S]*?do\s+\*{0,2}not\*{0,2}\s+push[\s\S]*?reset[\s*`]{0,4}--hard[\s*`]{0,4}HEAD~1[\s\S]*?git[\s*`]{0,4}revert[\s\S]*?ensure-origin/
+  /docs\(learnings\): phase N[\s\S]*?git[\s*`]{0,4}fetch\s+origin[\s\S]*?git[\s*`]{0,4}log\s+--name-only[\s\S]*?\.\.HEAD[\s\S]*?do\s+\*{0,2}not\*{0,2}\s+push[\s\S]*?This\s+reverts\s+commit[\s\S]*?reset[\s*`]{0,4}--hard[\s*`]{0,4}HEAD~1[\s\S]*?git[\s*`]{0,4}revert[\s\S]*?provision-worktrees\.sh[\s*`]{0,4}ensure-origin/
 // Unwired negative references (both-ways proof, zero fixture files — the structural-test
 // blind-spot idiom). Each is a hand-written region shape differing from the live one at exactly
 // ONE point, and each is run through the SAME live key and asserted red.
 //
-// (a) The retired pre-#1192 shape: tip-only probe, undo and revert prose intact. Red at the range
-// arm — it carries neither of that arm's two fragments.
+// (a) The retired pre-#1192 shape: tip-only probe, undo and revert prose intact — now carrying
+// the fetch step and the exemption sentence, so the range arm stays its ONLY designated gap. Red
+// at the range arm — it carries neither of that arm's two fragments.
 const D22_REGION_HEAD_ONLY_PROBE =
   '**Post-servitor publication (Gate 2, spec §4.6). ' +
   '- Commit `docs(learnings): phase N` in the publication worktree, plus the CLAUDE.md pointer duty. ' +
-  '- **Pre-push staged-file check (never skip).** Before pushing, list the docs commit staged file ' +
+  '- **Pre-push staged-file check (never skip).** **Refresh first:** `git fetch origin <working>` — ' +
+  'remote-tracking refs are only as fresh as the last fetch; a non-zero fetch exit escalates. ' +
+  'Before pushing, list the docs commit staged file ' +
   'set — `git show --name-only --format= HEAD` — and confirm every path is under the promotion ' +
   'destination or is `CLAUDE.md`: **ANY** other path means stale tracked files were staged — do ' +
-  '**not** push. **Undo the condemned commit first**: `git reset --hard HEAD~1`. On any re-entry ' +
+  '**not** push. **Neutralized-pair exemption:** a commit is *not* condemned when a later commit ' +
+  "in the same range reverts it — linked by git's own `This reverts commit <sha>.` body token. " +
+  '**Undo the condemned commit first**: `git reset --hard HEAD~1`. On any re-entry ' +
   'shape where `git log` shows the condemned docs commit is not the tip, never rewind — ' +
   '`git revert` that commit instead; a conflicted revert is `git revert --abort` + escalate. ' +
   '- Push via `provision-worktrees.sh ensure-origin <working>` (push-first CAS, never force).'
 // (b) The pre-#1136 shape carried forward onto the NEW probe and revert routing: undo clause
 // absent, a bare `reset --hard` doctrine mention present so the proof also covers the pinning
-// decision above (a bare key would green THIS string). Red at the undo arm.
+// decision above (a bare key would green THIS string) — now carrying the fetch step and the
+// exemption sentence, so the undo arm stays its ONLY designated gap. Red at the undo arm.
 const D22_REGION_WITHOUT_UNDO =
   '**Post-servitor publication (Gate 2, spec §4.6). ' +
   '- Commit `docs(learnings): phase N` in the publication worktree, plus the CLAUDE.md pointer duty. ' +
-  '- **Pre-push staged-file check (never skip).** Before pushing, enumerate every unpushed commit ' +
+  '- **Pre-push staged-file check (never skip).** **Refresh first:** `git fetch origin <working>` — ' +
+  'remote-tracking refs are only as fresh as the last fetch; a non-zero fetch exit escalates. ' +
+  'Before pushing, enumerate every unpushed commit ' +
   "and its file set — `git log --name-only --format='commit %H' '@{upstream}'..HEAD` — and confirm " +
   'every path is under the promotion destination: **ANY** other path means stale tracked files ' +
   'were staged — do **not** push; the refiner never runs `reset --hard` on a shared branch. ' +
+  '**Neutralized-pair exemption:** a commit is *not* condemned when a later commit in the same ' +
+  "range reverts it — linked by git's own `This reverts commit <sha>.` body token. " +
   '`git revert` each condemned commit, then re-probe. Run `remove-publication-worktree`, ' +
   're-provision, and re-commit. ' +
   '- Push via `provision-worktrees.sh ensure-origin <working>` (push-first CAS, never force).'
 // (c) The tip-only REGRESSION shape: the range arm's first fragment present, its range token gone,
-// everything else live. Without this reference that second fragment would be load-bearing in the
-// key yet droppable with zero test signal — (a) alone cannot prove it, because (a) is missing both.
+// everything else live — now carrying the fetch step and the exemption sentence, so the range
+// token stays its ONLY designated gap. Without this reference that second fragment would be
+// load-bearing in the key yet droppable with zero test signal — (a) alone cannot prove it,
+// because (a) is missing both.
 const D22_REGION_WITHOUT_RANGE =
   '**Post-servitor publication (Gate 2, spec §4.6). ' +
   '- Commit `docs(learnings): phase N` in the publication worktree, plus the CLAUDE.md pointer duty. ' +
-  '- **Pre-push staged-file check (never skip).** Before pushing, list the tip commit file set — ' +
+  '- **Pre-push staged-file check (never skip).** **Refresh first:** `git fetch origin <working>` — ' +
+  'remote-tracking refs are only as fresh as the last fetch; a non-zero fetch exit escalates. ' +
+  'Before pushing, list the tip commit file set — ' +
   "`git log --name-only --format='commit %H' -1 HEAD` — and confirm every path is under the " +
   'promotion destination: **ANY** other path means stale tracked files were staged — do **not** ' +
-  'push. **Undo the condemned commit first**: `git reset --hard HEAD~1`. When the condemned commit ' +
+  'push. **Neutralized-pair exemption:** a commit is *not* condemned when a later commit in the ' +
+  "same range reverts it — linked by git's own `This reverts commit <sha>.` body token. " +
+  '**Undo the condemned commit first**: `git reset --hard HEAD~1`. When the condemned commit ' +
   'is not the tip, never rewind — `git revert` that commit instead; a conflicted revert is ' +
   '`git revert --abort` + escalate. ' +
   '- Push via `provision-worktrees.sh ensure-origin <working>` (push-first CAS, never force).'
-test('D22 — SKILL.md Gate-2 flow orders the unpushed-range probe, its do-not-push clause, the tip-undo carve-out and the revert routing between commit and push (#1083, #1136, #1192)', () => {
+// (d) The COMMAND-FORM gap (closes the first recorded residual): the range token present, the
+// `git log --name-only` probe form absent — the file sets read per commit through a different
+// command. Red at the range arm's command-form fragment; without this reference that fragment
+// would be droppable with zero test signal ((a) is missing both range fragments).
+const D22_REGION_WITHOUT_COMMAND_FORM =
+  '**Post-servitor publication (Gate 2, spec §4.6). ' +
+  '- Commit `docs(learnings): phase N` in the publication worktree, plus the CLAUDE.md pointer duty. ' +
+  '- **Pre-push staged-file check (never skip).** **Refresh first:** `git fetch origin <working>` — ' +
+  'remote-tracking refs are only as fresh as the last fetch; a non-zero fetch exit escalates. ' +
+  "Before pushing, walk every unpushed commit in `'@{upstream}'..HEAD`, reading each commit's " +
+  'file set with `git show --name-only --format= <sha>`, and confirm every path is under the ' +
+  'promotion destination: **ANY** other path means stale tracked files were staged — do **not** ' +
+  'push. **Neutralized-pair exemption:** a commit is *not* condemned when a later commit in the ' +
+  "same range reverts it — linked by git's own `This reverts commit <sha>.` body token. " +
+  '**Undo the condemned commit first**: `git reset --hard HEAD~1`. When the condemned commit ' +
+  'is not the tip, never rewind — `git revert` that commit instead; a conflicted revert is ' +
+  '`git revert --abort` + escalate. ' +
+  '- Push via `provision-worktrees.sh ensure-origin <working>` (push-first CAS, never force).'
+// (e) The REVERT-ROUTING gap (closes the second recorded residual): range probe and undo arm
+// present and live-shaped, the `git revert` route for a non-tip condemned commit gone (the
+// exemption sentence's "git's own `This reverts" cannot satisfy the arm — the apostrophe breaks
+// the adjacency). Red at the revert arm.
+const D22_REGION_WITHOUT_REVERT_ROUTING =
+  '**Post-servitor publication (Gate 2, spec §4.6). ' +
+  '- Commit `docs(learnings): phase N` in the publication worktree, plus the CLAUDE.md pointer duty. ' +
+  '- **Pre-push staged-file check (never skip).** **Refresh first:** `git fetch origin <working>` — ' +
+  'remote-tracking refs are only as fresh as the last fetch; a non-zero fetch exit escalates. ' +
+  'Before pushing, enumerate every unpushed commit ' +
+  "and its file set — `git log --name-only --format='commit %H' '@{upstream}'..HEAD` — and confirm " +
+  'every path is under the promotion destination: **ANY** other path means stale tracked files ' +
+  'were staged — do **not** push. **Neutralized-pair exemption:** a commit is *not* condemned ' +
+  "when a later commit in the same range reverts it — linked by git's own `This reverts commit " +
+  '<sha>.` body token. ' +
+  '**Undo the condemned commit first**: `git reset --hard HEAD~1`. When the condemned commit ' +
+  'is not the tip, escalate — leave the worktree in place for inspection. ' +
+  '- Push via `provision-worktrees.sh ensure-origin <working>` (push-first CAS, never force).'
+// (f) The TERMINAL-ARM gap (the arm's own both-ways proof — /red-team round 1): the
+// `provision-worktrees.sh ensure-origin` push invocation dropped while a bare in-region
+// `ensure-origin` prose mention (the termination sentence's decoy) stays. The retired bare-token
+// terminal would GREEN this string — the invocation anchor is what reds it. Red at the terminal
+// arm.
+const D22_REGION_WITHOUT_PUSH_INVOCATION =
+  '**Post-servitor publication (Gate 2, spec §4.6). ' +
+  '- Commit `docs(learnings): phase N` in the publication worktree, plus the CLAUDE.md pointer duty. ' +
+  '- **Pre-push staged-file check (never skip).** **Refresh first:** `git fetch origin <working>` — ' +
+  'remote-tracking refs are only as fresh as the last fetch; a non-zero fetch exit escalates. ' +
+  'Before pushing, enumerate every unpushed commit ' +
+  "and its file set — `git log --name-only --format='commit %H' '@{upstream}'..HEAD` — and confirm " +
+  'every path is under the promotion destination: **ANY** other path means stale tracked files ' +
+  'were staged — do **not** push. **Neutralized-pair exemption:** a commit is *not* condemned ' +
+  "when a later commit in the same range reverts it — linked by git's own `This reverts commit " +
+  '<sha>.` body token. ' +
+  '**Undo the condemned commit first**: `git reset --hard HEAD~1`. When the condemned commit ' +
+  'is not the tip, never rewind — `git revert` that commit instead; a clean re-probe proceeds to ' +
+  'the `ensure-origin` push below. ' +
+  '- Push (push-first CAS, never force).'
+// (g) The FETCH gap (the G13 adjacency proof): the `git fetch origin` command dropped while the
+// freshness sentence's own bare-fetch explanatory prose stays in position — a bare `fetch` key
+// would GREEN this string; the `git fetch origin` adjacent form is what reds it (the analogue of
+// (b)'s bare `reset --hard` doctrine mention). Red at the fetch arm.
+const D22_REGION_WITHOUT_FETCH =
+  '**Post-servitor publication (Gate 2, spec §4.6). ' +
+  '- Commit `docs(learnings): phase N` in the publication worktree, plus the CLAUDE.md pointer duty. ' +
+  '- **Pre-push staged-file check (never skip).** Remote-tracking refs are only as fresh as the ' +
+  'last fetch, and an unrefreshed left boundary would condemn commits origin already has; on a ' +
+  'non-zero fetch exit: do not probe — escalate. ' +
+  'Before pushing, enumerate every unpushed commit ' +
+  "and its file set — `git log --name-only --format='commit %H' '@{upstream}'..HEAD` — and confirm " +
+  'every path is under the promotion destination: **ANY** other path means stale tracked files ' +
+  'were staged — do **not** push. **Neutralized-pair exemption:** a commit is *not* condemned ' +
+  "when a later commit in the same range reverts it — linked by git's own `This reverts commit " +
+  '<sha>.` body token. ' +
+  '**Undo the condemned commit first**: `git reset --hard HEAD~1`. When the condemned commit ' +
+  'is not the tip, never rewind — `git revert` that commit instead; a conflicted revert is ' +
+  '`git revert --abort` + escalate. ' +
+  '- Push via `provision-worktrees.sh ensure-origin <working>` (push-first CAS, never force).'
+// (h) The EXEMPTION gap: the neutralized-pair exemption sentence gone, everything else
+// live-shaped. Red at the exemption arm.
+const D22_REGION_WITHOUT_EXEMPTION =
+  '**Post-servitor publication (Gate 2, spec §4.6). ' +
+  '- Commit `docs(learnings): phase N` in the publication worktree, plus the CLAUDE.md pointer duty. ' +
+  '- **Pre-push staged-file check (never skip).** **Refresh first:** `git fetch origin <working>` — ' +
+  'remote-tracking refs are only as fresh as the last fetch; a non-zero fetch exit escalates. ' +
+  'Before pushing, enumerate every unpushed commit ' +
+  "and its file set — `git log --name-only --format='commit %H' '@{upstream}'..HEAD` — and confirm " +
+  'every path is under the promotion destination: **ANY** other path means stale tracked files ' +
+  'were staged — do **not** push. ' +
+  '**Undo the condemned commit first**: `git reset --hard HEAD~1`. When the condemned commit ' +
+  'is not the tip, never rewind — `git revert` that commit instead; a conflicted revert is ' +
+  '`git revert --abort` + escalate. ' +
+  '- Push via `provision-worktrees.sh ensure-origin <working>` (push-first CAS, never force).'
+test('D22 — SKILL.md Gate-2 flow orders the fail-closed fetch refresh, the unpushed-range probe, its do-not-push clause, the neutralized-pair exemption, the tip-undo carve-out and the revert routing between commit and push invocation (#1083, #1136, #1192, #1288, #1287)', () => {
   const region = skillMd.match(/\*\*Post-servitor publication \(Gate 2[\s\S]*?(?=\n## )/)
   assert.ok(
     region,
@@ -645,17 +785,20 @@ test('D22 — SKILL.md Gate-2 flow orders the unpushed-range probe, its do-not-p
     region[0],
     D22_ORDERED_SPAN,
     'the Gate-2 flow must carry the pre-push staged-file check as ONE ordered span — the docs ' +
-      'commit step, then the unpushed-RANGE probe (the whole range, never the tip alone), then ' +
-      'its do-not-push refusal, then the undo carve-out for a condemned tip commit, then the ' +
-      'revert routing for a condemned commit that is not the tip, then the push step (#1083, ' +
-      '#1136, #1192). Every arm is load-bearing: the probe without the refusal is advice, the ' +
-      'refusal without the probe has no trigger, refusal without the undo strands the poisoned ' +
-      'commit on the working branch one push from origin, and a tip-only probe never sees a ' +
-      'poisoned commit below the tip at all. The arm list and the pinning rationale for each are ' +
-      'in the block comment above this row — correct the row to a sanctioned rewording, never ' +
-      'drop an arm to make it pass',
+      'commit step, then the fail-closed `git fetch origin` boundary refresh, then the ' +
+      'unpushed-RANGE probe (the whole range, never the tip alone), then its do-not-push ' +
+      'refusal, then the neutralized-pair exemption, then the undo carve-out for a condemned ' +
+      'tip commit, then the revert routing for a condemned commit that is not the tip, then the ' +
+      '`provision-worktrees.sh ensure-origin` push invocation (#1083, #1136, #1192, #1288, ' +
+      '#1287). Every arm is load-bearing: the probe without the refresh condemns commits origin ' +
+      'already has, the probe without the refusal is advice, the refusal without the probe has ' +
+      'no trigger, refusal without the undo strands the poisoned commit on the working branch ' +
+      'one push from origin, a tip-only probe never sees a poisoned commit below the tip at ' +
+      'all, and without the exemption a neutralized pair re-enters the undo routing forever. ' +
+      'The arm list and the pinning rationale for each are in the block comment above this row ' +
+      '— correct the row to a sanctioned rewording, never drop an arm to make it pass',
   )
-  // Both-ways proof: the same key must REJECT all three near-miss shapes. Without these, a key
+  // Both-ways proof: the same key must REJECT all eight near-miss shapes. Without these, a key
   // that silently stopped discriminating on any one arm would still read green above.
   for (const [label, negative, why] of [
     [
@@ -674,6 +817,36 @@ test('D22 — SKILL.md Gate-2 flow orders the unpushed-range probe, its do-not-p
       "the range arm's second fragment no longer discriminates — a probe naming the right command " +
         'but scoped to the tip satisfies it',
     ],
+    [
+      '(d) command form absent',
+      D22_REGION_WITHOUT_COMMAND_FORM,
+      "the range arm's command-form fragment no longer discriminates — a region carrying the " +
+        'range token without the `git log --name-only` probe satisfies it',
+    ],
+    [
+      '(e) revert routing absent',
+      D22_REGION_WITHOUT_REVERT_ROUTING,
+      'the revert-routing arm no longer discriminates — a region with no `git revert` route for ' +
+        'a non-tip condemned commit satisfies it',
+    ],
+    [
+      '(f) push invocation absent',
+      D22_REGION_WITHOUT_PUSH_INVOCATION,
+      'the terminal arm no longer discriminates — a bare in-region `ensure-origin` prose mention ' +
+        'satisfies it without any push invocation',
+    ],
+    [
+      '(g) fetch command absent',
+      D22_REGION_WITHOUT_FETCH,
+      "the fetch arm no longer discriminates — the freshness sentence's own explanatory prose " +
+        'satisfies it with the `git fetch origin` command stripped',
+    ],
+    [
+      '(h) exemption absent',
+      D22_REGION_WITHOUT_EXEMPTION,
+      'the exemption arm no longer discriminates — a region that drops the neutralized-pair ' +
+        'exemption satisfies it',
+    ],
   ]) {
     assert.doesNotMatch(
       negative,
@@ -682,6 +855,75 @@ test('D22 — SKILL.md Gate-2 flow orders the unpushed-range probe, its do-not-p
         'relax a negative reference to make this pass',
     )
   }
+})
+
+// (D33) The D22 extraction rationale's `ensure-origin` token census, MECHANIZED (#1287, #1288).
+// That census was comment prose held by nothing, and it rotted silently twice — its in-region
+// accounting predated the two prose-survivor mentions entirely, and its reference-file sentence
+// undercounted references/resume-and-recovery.md (TWO tokens, not one). Default-deny in BOTH
+// directions (the D30 census shape, the recorded
+// [[structural-test-blind-spot-narrowing-needs-negative-reference-and-default-deny-census]]
+// class): a dropped token reds (the push invocation or a Checkpoint recipe lost its occurrence),
+// and a NEW token reds — designed friction: legitimate growth must update this map AND the D22
+// census comment in the SAME diff (the Gate-2 freshness insert was itself authored under a
+// no-new-`ensure-origin` constraint so these counts held). Population: skills/war/SKILL.md plus
+// EVERY file under skills/war/references/ — a new reference file carrying the token cannot appear
+// silently. Counts are occurrence counts (a dated snapshot, measured 2026-08-18), never line
+// counts.
+test('D33 — `ensure-origin` token census: SKILL.md and every references/ file carry exactly the recorded occurrence counts (#1287, #1288)', () => {
+  const count = (src) => src.split('ensure-origin').length - 1
+
+  // SKILL.md: one Setup-step-2 token outside the Gate-2 region, plus three in-region — the two
+  // sanctioned prose-survivor mentions and the push invocation the D22 terminal arm anchors on.
+  assert.equal(
+    count(skillMd),
+    4,
+    'SKILL.md `ensure-origin` census drifted (expected 4: Setup step 2, the two in-region prose ' +
+      'survivors, the push invocation). A dropped token means a guarded construct lost its ' +
+      'occurrence — restore it; a new token must update this census and the D22 census comment ' +
+      'in the SAME diff, never relax the count',
+  )
+  const region = skillMd.match(/\*\*Post-servitor publication \(Gate 2[\s\S]*?(?=\n## )/)
+  assert.ok(region, 'could not locate the `**Post-servitor publication (Gate 2` flow in SKILL.md')
+  assert.equal(
+    count(region[0]),
+    3,
+    'the Gate-2 region `ensure-origin` census drifted (expected 3: the two sanctioned prose ' +
+      'survivors + the push invocation). The D22 terminal arm is designed against exactly this ' +
+      'population — re-verify the invocation anchoring before touching either count',
+  )
+
+  // Every references/ file, default-deny: only resume-and-recovery.md carries the token (twice,
+  // both in its Checkpoint absent-origin-baseline arm); everything else — setup.md included — is
+  // ZERO.
+  const refDir = join(HERE, '..', 'references')
+  const expectedRefCounts = { 'resume-and-recovery.md': 2 }
+  const seen = readdirSync(refDir, { withFileTypes: true }).filter((e) => e.isFile())
+  assert.ok(seen.length > 0, 'non-vacuity: the references/ walk discovered no files at all')
+  for (const name of ['resume-and-recovery.md', 'setup.md']) {
+    assert.ok(
+      seen.some((e) => e.name === name),
+      `non-vacuity: references/${name} is gone — the census names it and must move with a rename`,
+    )
+  }
+  for (const entry of seen) {
+    const expected = expectedRefCounts[entry.name] ?? 0
+    assert.equal(
+      count(readFileSync(join(refDir, entry.name), 'utf8')),
+      expected,
+      `references/${entry.name} \`ensure-origin\` census drifted (expected ${expected}). A new ` +
+        'carrier surface must be added to this expected map and the D22 census comment in the ' +
+        'SAME diff; a dropped occurrence means a recipe rotted — restore it, never relax the count',
+    )
+  }
+  // The census comment's setup.md claim has a second half — its crash-heal detail carries
+  // `remove-publication-worktree` — pinned here so the ZERO row above cannot be satisfied by the
+  // file simply emptying out.
+  assert.ok(
+    setupRefMd.includes('remove-publication-worktree'),
+    'references/setup.md must still carry `remove-publication-worktree` in its crash-heal detail ' +
+      '— the D22 census comment records it as the file\'s publication-flow token',
+  )
 })
 
 // ---- Task 2.1 doc-cascade gates (plan 2026-07-26-dispatch-args-and-floor-coverage) ----
