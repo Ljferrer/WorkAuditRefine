@@ -5,7 +5,8 @@
 # (Task 1), the interview doctrine's ratified internals, the doctrine's Evidence + slot law
 # section (presence pin + the five-atom mirror-equality block, #1307: the D4 / D5 / tag-set /
 # D12 / D14 law atoms extracted from both surfaces, whitespace-normalized, non-empty-asserted
-# per surface, then compared against the canonical SKILL.md §2 bytes), the four both-ways
+# per surface, then compared against the canonical SKILL.md §2 bytes — tag-set by keyword
+# sequence, D14 by marker presence), the four both-ways
 # lacks_i positive controls (#1308: each retired-wording absence pattern proven ALIVE against
 # an independent re-cased fixture, and its -i proven load-bearing), and — case-insensitive —
 # the ABSENCE of the retired two-template/required-Grill-Me wording. grep is fence-blind, so
