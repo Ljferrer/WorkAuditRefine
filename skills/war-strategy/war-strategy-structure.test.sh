@@ -134,6 +134,10 @@ check_f 'HARD at audit_sha (observable + judge seat)'
 check_f '  - Mechanism latitude: <optional-but-recommended'
 check_f '  - Binding guardrails: <optional-but-recommended'
 check_f 'warrants no issue'
+# Template-localized twin of the pin above: the template slot closes with `">` (both Examples
+# close with `.`), so this pin binds the TEMPLATE's closing sentence specifically — rewording
+# the slot alone can no longer stay green via the two Example hits.
+check_f 'and warrants no issue">'
 check_f 'never waives a check, gate, or backstop'
 
 # Per-task field bullets — the SEPARATE `- ` bullet law (ratified template law AND an
@@ -244,7 +248,12 @@ doc_f 'A gap review is a shorter interview, not a different discipline'
 # Interview-beat label (#1431, 2026-08-17): the latitude beat is a decisive slot asked once
 # the End states are drafted; zero-at-base in the doctrine (Context 9's census). Third of the
 # three authoring-surface pins (template above, drafter-duty twin in the sibling suite).
+# The label pin is the surface-level floor; the decisive-slots table row added by the same
+# task also matches it, so the two beat-scoped pins below bind the Stage-2 beat itself —
+# deleting the beat reds them even while the table row keeps the label pin green.
 doc_f 'Mechanism latitude'
+doc_f '**the latitude beat** (decisive slot)'
+doc_f 'once the End states are drafted, ask'
 # Doctrine-side presence pin (#1307, D7): the mirrored law section carried ZERO pins before
 # this — it could be deleted outright with the suite green. Deletion now reds twice: this
 # pin, and the mirror-equality block's per-surface non-empty asserts below.

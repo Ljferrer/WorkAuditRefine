@@ -76,7 +76,7 @@ file footprints of the plans already authored (honest contention).
    codebase, per the `/war-strategy` §2 merged plan template and code-boundary decomposition
    rule; offers the intent's two optional sub-bullets — `Mechanism latitude:` enumerating which
    mechanisms named in Method are implementer's choice, `Binding guardrails:` the real floor —
-   with per-row `AI-declared` markers per ADR 0014) and an **adversarial grill** agent (**derives**
+   under `--afk`, with per-row `AI-declared` markers per ADR 0014) and an **adversarial grill** agent (**derives**
    [`plan-interview.md`](../war-strategy/references/plan-interview.md)'s falsifier probes +
    provenance scan from the spec + codebase at spawn, and
    **applies them against the draft in the step-2 exchange**;
