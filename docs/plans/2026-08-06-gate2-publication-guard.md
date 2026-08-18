@@ -31,9 +31,11 @@ construct-level collision census is Context 6 and Note 1; the witness protocol i
    bullet, read at conversion). Both left boundaries are remote-tracking refs, only as fresh as the
    last fetch. No fetch precedes the probe anywhere in the Gate-2 flow — the file's only
    `git fetch` is the retired-token sweep's conditional `git fetch origin <working>` (outside the
-   Gate-2 region; an incidental freshener, never a guarantee), and the region's own sole `fetch`
-   token is the post-push-failure "fetch and replay" sentence, which runs only *after* a failed
-   push (verified: grep of `skills/war/SKILL.md` for `fetch`, re-run at conversion). In a
+   Gate-2 region; an incidental freshener, never a guarantee), and the region's only
+   fetch-family tokens are the post-push-failure "fetch and replay"/"fetched tip" pair plus an
+   incidental downstream `prefetch` mention — all *after* the probe, none a pre-probe refresh
+   *(count corrected by /red-team 2026-08-18; the original "sole `fetch` token" undercounted)*.
+   In a
    publication worktree provisioned without a preceding fetch, `origin/<working>` can lag the real
    remote tip, the probed range then includes already-pushed commits, and any of them carrying a
    non-promotion path is condemned — routing the undo's revert arm onto published history, the
@@ -93,7 +95,10 @@ construct-level collision census is Context 6 and Note 1; the witness protocol i
    hits in `skill-doc-contracts.test.mjs`; `fetch origin` — 0 hits in the same file; `@{upstream}`
    — 0 hits in the lesson file — every new-token pin is non-vacuous by construction. OLD-absent
    pins, measured at base (non-vacuous): the retired `git show --name-only --format= HEAD`
-   literal in the lesson (1); `RESIDUAL, recorded rather than waived` (1) and `three near-miss`
+   literal in the lesson (1); `RESIDUAL, recorded rather than waived` (1 at `6fff2ee`; **2 at
+   the live base** — a second, out-of-scope D31 carrier landed 2026-08-17 #1487, which is why
+   End state 5 pins the D22-unique `— TWO fragments` lead sentence, 1 → 0, never the bare
+   file-wide literal) and `three near-miss`
    (1) in the test file; `THREE negative` — **2** in the test file (the banner AND the RESIDUAL
    paragraph's own "All THREE negatives below" sentence — the second carrier rides out with End
    state 5's RESIDUAL retirement, which is why End state 7's post-state 0 holds). Predecessor
@@ -125,9 +130,12 @@ construct-level collision census is Context 6 and Note 1; the witness protocol i
    regardless. Downstream: `docs/specs/2026-08-06-references-pointer-integrity-design.md`
    declares "this group lands after the sibling groups `structural-pin-extractors` and
    `gate2-publication-guard`" (verified: its § Open risks ordering bullet, read at conversion) —
-   a spine edge for the roadmap. No 2026-08-06 survey manifest exists in this worktree (latest
-   `.claude/aot/` entry is 2026-08-02) — the ordering source is the spec §8 declaration plus the
-   committed plans, the same resolution plan 10's A4 recorded. (AI-declared)
+   a spine edge for the roadmap. ~~No 2026-08-06 survey manifest exists in this worktree~~
+   *(stale — corrected by /red-team 2026-08-18: `.claude/aot/2026-08-06-survey.json` exists,
+   created 2026-08-13, one day after conversion; it names the same three groups and contradicts
+   nothing)* — the binding ordering source is the spec §8 declaration plus the committed plans
+   plus the campaign roadmap (which sequences plans 9 and 10 ahead of this plan), the same
+   resolution plan 10's A4 recorded. (AI-declared)
 
 ## Pivotal constraints
 
@@ -154,11 +162,18 @@ construct-level collision census is Context 6 and Note 1; the witness protocol i
   halt-on-miss witnesses (G12); Task 1.1 is authored against the post-predecessor shapes and runs
   the witnesses as its first post-rebase act; a missed witness ⇒ **halt and report the missing
   predecessor, never improvise**.
-- **ADR 0042 budget pressure:** `skills/war/SKILL.md` measures 63,197 B at conversion against a
-  64,512 B advisory / 73,728 B hard budget (~1.3 KB advisory headroom), and plans 9 and 10 both
-  add sentences to it first. The freshness step is one tight sentence-pair; re-measure `wc -c` at
-  the rebased base; if the advisory line trips, the commit body cites ADR 0042's justification
-  rule — never compensate by rewording guarded sentences.
+- **ADR 0042 budget pressure (restated live by /red-team 2026-08-18):** `skills/war/SKILL.md`
+  measured 63,197 B at conversion; at the live post-predecessor base it measures **65,229 B —
+  already 717 B ABOVE the 64,512 B advisory line** (hard 73,728 B, far away) before this plan
+  adds a byte, and `skills/war/assets/prompt-surface-budgets.test.mjs` (a gate member on every
+  `node --test` run) already WARNs on it. The freshness step is one tight sentence-pair; the
+  Task 1.1 commit body cites ADR 0042's justification rule **unconditionally** (the trip is a
+  certainty, not a contingency); the budget suite is the deterministic measurer — the worker's
+  `wc -c` at the rebased base is corroborating done-report evidence; never compensate by
+  rewording guarded sentences. Adjudicated (AFK round 1): additive prose on an
+  already-over-advisory surface is sanctioned — the advisory is warn-only by design and ADR
+  0042's justification rule is the designed valve; a SKILL.md shrink pass is out of this plan's
+  scope.
 - **Two-root discipline:** the lesson edit is maintenance of an already-published, committed repo
   doc — never framed as a servitor lesson write or a Gate-2 promotion (G10).
 - **Redaction lint:** the edited lesson keeps `node skills/_shared/war-memory.mjs lint
@@ -186,7 +201,7 @@ construct-level collision census is Context 6 and Note 1; the witness protocol i
 | G3 | Fetch-failure posture | Fail-closed: a non-zero fetch exit stops the pass — escalate, leave the worktree in place (the flow's standing posture) — never probe against a stale boundary | AI-declared [assumed: condemnation against a stale boundary is unsound and the revert arm makes unsoundness destructive — if wrong (operator prefers fail-open + warn), one sentence changes] (A2) |
 | G4 | Freshness guard (#1288 pair) | New D22 fetch arm — the `git fetch origin` **adjacent form** (markup-tolerant), ordered between the docs-commit arm and the range-probe command-form arm — plus a new negative reference (the command dropped, the freshness prose retained in position, G13) asserted red. Pinned on the adjacent form, never bare `fetch`: a mutation that strips the command but keeps the freshness sentence's own explanatory prose would green a bare key (G13) | (verified: issue #1288 (2026-08-06), "Worth pairing with a D22 arm so the refresh duty is guarded rather than prose-only"); adjacency pinning: G13 (verified: grill-pair both-ways execution (2026-08-12)) |
 | G5 | Exemption arm (#1287a) | New D22 arm keyed on the mid-sentence `This reverts commit` adjacent form (markup-tolerant), ordered between the do-not-push arm and the `reset --hard HEAD~1` arm — mirroring live prose order — plus a new negative reference (exemption absent) asserted red | (verified: issue #1287 (2026-08-06); the token occurs exactly once in the live region — conversion census) |
-| G6 | Terminal arm re-anchor (#1287b) | Anchor on the push **invocation** shape — `provision-worktrees.sh` adjacent to `ensure-origin` — never the bare token; the two in-region prose mentions become recorded sanctioned survivors in the D22 block comment's census | (verified: issue #1287 (2026-08-06); decoy reproduced mechanically at conversion — Context 2b) |
+| G6 | Terminal arm re-anchor (#1287b) | Anchor on the push **invocation** shape — `provision-worktrees.sh` adjacent to `ensure-origin` — never the bare token; the two in-region prose mentions become recorded sanctioned survivors in the D22 block comment's census; the re-anchored arm carries its own both-ways proof, reference (f) (G14 — invocation dropped / bare prose mention retained, asserted red) | (verified: issue #1287 (2026-08-06); decoy reproduced mechanically at conversion — Context 2b; re-reproduced live by /red-team 2026-08-18) |
 | G7 | Recorded-residual closure | Close the D22 comment's two recorded both-ways gaps in the same key edit: reference (d) range token present / command form absent, and reference (e) revert routing absent (range probe and undo arm present), both asserted red; the RESIDUAL paragraph is then retired | (verified: the D22 block comment's RESIDUAL note, re-read at conversion — it instructs exactly this) |
 | G8 | Census + banner currency | Update the D22 block comment's token census (Context 4's corrected counts, incl. the two-token resume-and-recovery correction and the two in-region sanctioned survivors), replace the "THREE negative references" / "three near-miss" count words with the new reference count, and append #1288/#1287 to the D22 test title's and header comment's issue lists, all in the same diff (the recorded banner-undercount class) | AI-declared [assumed: comment-currency duty follows the key it documents — if wrong: drop the census sentence, keep the count words] (A3); (verified: `three near-miss` greps 1 and `THREE negative` greps 2 at base — Context 5's coupling) |
 | G9 | Lesson wording (#1293) | Rewrite the `## Mitigation (#1083)` layer-2 bullet to describe the landed shape in present tense — a freshly-fetched range (`git fetch origin <working>` first), the range probe (`git log --name-only --format='commit %H' '@{upstream}'..HEAD`), the deterministic `origin/<working>..HEAD` fallback — dated as a snapshot ("as of" + this plan's slug/date), retaining the bullet's closing lock sentence updated to name the D22 ordered key; the retired `git show --name-only --format= HEAD` literal must not survive in the bullet; frontmatter, keywords, and every other body section byte-untouched | (verified: issue #1293 (2026-08-06), first fix option, sharpened to include the shape this plan lands) |
@@ -194,9 +209,9 @@ construct-level collision census is Context 6 and Note 1; the witness protocol i
 | G11 | Sequencing | Task 1.2 depends on Task 1.1 (`deps: [1.1]`, same phase, wave edge): the bullet's wording describes the landed probe shape including G1's fetch step — a **content** edge under decomposition rule 2; the files are disjoint, so this is never a collision dodge, and no drift guard is split from its fact (rule 7 not in play — every D22 arm travels with its prose inside Task 1.1) | (verified: decomposition rules 2 and 7, `skills/war-strategy/SKILL.md` §3) |
 | G12 | Predecessor witness protocol | Task 1.1's worker, first act after the standard rebase: `grep -c 'clock read' skills/war/SKILL.md` ≥ 1 (plan 9's Task 1.3, its End state 8 pin; 0 at base) AND `grep -c 'backticks' skills/war/SKILL.md` ≥ 1 (plan 10's Task 1.2, its End state 10; 0 at base) AND `grep -c 'D31_ARMS_COLLIDED' skills/war/assets/skill-doc-contracts.test.mjs` ≥ 1 (plan 10's Task 1.2, its End state 8; 0 at base) — the witnessed tasks are exactly the predecessor tasks that share this plan's files. Any miss ⇒ halt and report, never improvise. Task 1.2 needs no witness — no committed plan touches the lesson file (Context 6). (AI-declared) | conversion judgment (plan 9's D16 / plan 10's D12 witness shape), logged for /red-team |
 | G13 | Fetch-arm pinning refinement | The G4 arm is keyed on the `git fetch origin`-adjacent fragment, deliberately NOT bare `fetch` — but not because of the push-failure "fetch and replay" sentence: every replay fetch token sits **after** the probe arm's last token, so ordering alone kills a bare key against a fetch-pair-deleted region (executed both ways — red under both key forms). The live decoy is the freshness sentence-pair's **own explanatory words** ("only as fresh as the last fetch", "non-zero fetch exit"): stripping only the command while keeping that prose greens a bare key and reds the adjacent key. The fetch-absent negative reference is therefore command-dropped / prose-retained — the exact analogue of negative (b)'s bare `reset --hard` doctrine mention, the same pinning rationale the block comment records for `reset --hard HEAD~1` and `git revert` | (verified: grill-pair both-ways execution (2026-08-12); ordering fact re-confirmed at conversion — region fetch offsets all follow the probe offset), logged for /red-team (AI-declared) |
-| G14 | Reference-count arithmetic | Three updated + four new = seven negative references at this plan's shape (a dated derivation, never authoritative prose): (a) tip-only probe, (b) undo absent, (c) range token absent — each updated to carry the fetch step and the exemption sentence (their push lines are already invocation-shaped, verified at conversion) so each still differs from the live shape at exactly its designated point — plus fetch-absent (G4), exemption-absent (G5), (d) command-form gap, (e) revert-routing gap (G7). The banner count words equal the landed count (End state 7's check is count-equals-enumeration, not a literal) | conversion derivation from the live negatives, logged for /red-team (AI-declared) |
+| G14 | Reference-count arithmetic | Three updated + **five** new = **eight** negative references at this plan's shape (a dated derivation, never authoritative prose): (a) tip-only probe, (b) undo absent, (c) range token absent — each updated to carry the fetch step and the exemption sentence (their push lines are already invocation-shaped, verified at conversion) so each still differs from the live shape at exactly its designated point — plus fetch-absent (G4), exemption-absent (G5), (d) command-form gap, (e) revert-routing gap (G7), and **(f) terminal-arm gap (push invocation dropped, bare in-region `ensure-origin` prose mention retained — asserted red; the direct analogue of negative (b)'s bare `reset --hard` doctrine mention and G13's prose-retained design; added by /red-team 2026-08-18: without it the re-anchored terminal arm is the one load-bearing fragment with zero committed both-ways proof — the updated negatives all red earlier at their own designated arms)**. The banner count words equal the landed count (End state 7's check is count-equals-enumeration, not a literal) | conversion derivation from the live negatives + /red-team round-1 adjudication (AI-declared) |
 | G15 | Task decomposition | Two tasks in Phase 1 — Task 1.1 (both guard-coupled files: the SKILL.md fetch prose and every test-side change; #1288's arm and #1287's repairs collide in `skill-doc-contracts.test.mjs`, and key-vs-prose lockstep binds the two files into one task) and Task 1.2 (the lesson, file-disjoint, `deps: [1.1]` per G11) — plus the standard trailing release phase | spec §8 task-carving hint ("do not split #1287 from #1288") + war-strategy §3 rules 1/2/7 (AI-declared) |
-| G16 | Check sharpenings | OLD-absent/NEW-present mechanical pins replace hand-judged forms where possible: End state 3 pins `This reverts commit` nonzero in the test file (0 at base); End state 5 pins the RESIDUAL paragraph's retirement by its own lead token (1 at base → 0); End state 7 pins both count-word literals absent (`THREE negative` 2 at base — coupled to End state 5's retirement, Context 5 — and `three near-miss` 1 at base, → 0 each); End state 8 pins the lesson by retired-literal-absent (1 → 0) AND `@{upstream}`-present (0 → nonzero). Platform law (plan 10's refined wording): every committed check whose pattern is intended as a LITERAL — above all one carrying MID-pattern metacharacters — runs `grep -F`; anchors are not the trap: a deliberate regex stays a regex and cannot ride `-F`. The retired-lesson-literal grep and the `@{upstream}` grep carry metacharacters — both run `-F`. Execute-your-literals discipline: run each check as written before committing it | conversion judgment, logged for /red-team (AI-declared) |
+| G16 | Check sharpenings | OLD-absent/NEW-present mechanical pins replace hand-judged forms where possible: End state 3 pins `This reverts commit` nonzero in the test file (0 at base); End state 5 pins the D22 RESIDUAL paragraph's retirement by its D22-unique lead sentence (`… — TWO fragments`, 1 at live base → 0; the bare literal's second D31 carrier is out of scope and stays); End state 7 pins both count-word literals absent (`THREE negative` 2 at base — coupled to End state 5's retirement, Context 5 — and `three near-miss` 1 at base, → 0 each); End state 8 pins the lesson by retired-literal-absent (1 → 0) AND `@{upstream}`-present (0 → nonzero). Platform law (plan 10's refined wording): every committed check whose pattern is intended as a LITERAL — above all one carrying MID-pattern metacharacters — runs `grep -F`; anchors are not the trap: a deliberate regex stays a regex and cannot ride `-F`. **Retirement-pin law (added by /red-team 2026-08-18, two recorded classes): every OLD-absent retirement pin runs case-INSENSITIVELY (`-i` — a normal reword lowercases all-caps needles) and WRAP-TOLERANTLY (over a newline-collapsed stream, `tr '\n' ' ' < FILE | grep -io… | wc -l` — Task 1.1(d) is itself a comment re-wrap, and a wrap splits a two-word needle across lines, false-passing a line-scoped grep). NEW-present pins may stay plain `grep -F`/`grep -c` (a presence pin fails safe).** Execute-your-literals discipline: run each check as written before committing it | conversion judgment + /red-team round-1 hardening (AI-declared) |
 
 ## Assumptions ledger
 
@@ -208,7 +223,7 @@ construct-level collision census is Context 6 and Note 1; the witness protocol i
 | A4 | A /war worker may edit `docs/learnings/` as planned maintenance of a committed repo doc | spec §3 G10 (carried [assumed] row); the #1293 adjudication rejected an *unplanned in-flight* write, and worker writes are scope-hook-gated to the task worktree, not path-blocked from repo docs; precedent: committed plans 2, 6, and 10 each carry a `docs/learnings/` file in a worker task footprint (verified: their `- Files:` lines, re-checked at conversion) | Task 1.2 drops from the plan and the edit routes as a Lead/operator commit outside /war; Task 1.1 is unaffected | ratify in /red-team |
 | A5 | Predecessor plans 9 and 10 have LANDED before any Task 1.1 dispatch | the spec's §8 binding ordering + plan 9's committed Context 11/Note 5 and plan 10's committed Context 10/Note 5 (both name this group downstream); no 2026-08-06 survey manifest exists — the spec and committed plans are the ordering source; the roadmap sequences them ahead (ADR 0011) (AI-declared) | Task 1.1 edits collide with plan 10's edits in `skill-doc-contracts.test.mjs` (adjacent constructs) or land against stale SKILL.md bytes | G12 witnesses at the rebased base; miss ⇒ halt-and-report (backstop row) |
 | A6 | The dated censuses and offsets (four `ensure-origin` in SKILL.md, three in-region, the 2771/5557/6046/6069 offsets, the two-token resume-and-recovery count, 63,197 B) hold at the post-predecessor base | Context 6: plan 9's and plan 10's SKILL.md regions are Gate-2-region-disjoint and both carry explicit no-`ensure-origin` pin-safety clauses; plan 9's resume-and-recovery bullet carries none; plan 10's test-file regions are construct-disjoint from the D22 block (AI-declared) | a moved count/offset false-anchors an arm or the census — the fix is a re-measure, never a guard removal | re-measure census, offsets, and `wc -c` at the rebased base (Task 1.1's slice mandates it) |
-| A7 | The fetch sentence-pair fits without structural budget conflict (AI-declared) | ~1.3 KB advisory headroom at conversion minus plans 9/10's tight-kept additions; the budget is warning-only (advisory), hard 73,728 B not approachable | the commit body cites ADR 0042's justification rule; never reword guarded sentences to compensate | `wc -c skills/war/SKILL.md` re-measured at the rebased base, recorded in the done report |
+| A7 | ~~fits without budget conflict~~ **FALSIFIED at the live base (/red-team 2026-08-18): the advisory line is already tripped** — 65,229 B vs 64,512 B advisory before this plan's addition | live `wc -c` + `prompt-surface-budgets.test.mjs`'s standing WARN; the budget is warning-only (advisory), hard 73,728 B not approachable | none — the fallback IS the path: the commit body cites ADR 0042's justification rule unconditionally; never reword guarded sentences to compensate | `wc -c skills/war/SKILL.md` re-measured at the rebased base, recorded in the done report (the budget suite is the deterministic gate-side measurer) |
 
 ## Non-goals / deferred
 
@@ -294,13 +309,22 @@ None (see Non-goals).
      prose mention ·
      check: a one-shot `node -e` probe comparing the match's end offset against the region's
      push-invocation offset (the development drill; base state recorded at conversion: match end
-     5570 < invocation 6046 — the decoy). The standing lock is the invocation-anchored terminal
-     arm plus the updated negatives. (AI-declared)
-  5. References (d) (range token present / command form absent) and (e) (revert routing absent)
-     exist and are asserted red, and the RESIDUAL paragraph is retired — every load-bearing
-     fragment of the key has a both-ways proof ·
-     check: `grep -c 'RESIDUAL, recorded rather than waived'
-     skills/war/assets/skill-doc-contracts.test.mjs` returns 0 (1 at base); the suite green.
+     5570 < invocation 6046 — the decoy, re-reproduced live by /red-team 2026-08-18). The
+     standing committed lock is the invocation-anchored terminal arm **plus reference (f)** —
+     push invocation dropped, bare in-region `ensure-origin` prose retained, asserted red — the
+     terminal arm's own both-ways proof; the updated negatives red earlier at their designated
+     arms and cannot discriminate the terminal arm alone *(the /red-team-found blind spot this
+     reference closes)*. (AI-declared)
+  5. References (d) (range token present / command form absent), (e) (revert routing absent), and
+     (f) (push invocation dropped / bare in-region `ensure-origin` prose retained — the terminal
+     arm's own both-ways proof) exist and are asserted red, and the D22 RESIDUAL paragraph is
+     retired — every load-bearing fragment of the key has a both-ways proof ·
+     check: `tr '\n' ' ' < skills/war/assets/skill-doc-contracts.test.mjs | grep -ioF
+     'RESIDUAL, recorded rather than waived — TWO fragments' | wc -l` returns 0 (1 at the live
+     base — the D22-unique lead sentence; the bare file-wide literal has a SECOND, out-of-scope
+     carrier in the D31 block at the file tail, landed 2026-08-17 #1487, which STAYS — a
+     whole-file bare-literal grep can never reach 0 and is the wrong pin; *(re-scoped + made
+     case-insensitive and wrap-tolerant by /red-team 2026-08-18)*); the suite green.
      (AI-declared)
   6. The three pre-existing negative references each still differ from the live shape at exactly
      their designated point — each now carries the fetch step and the exemption sentence, and each
@@ -310,21 +334,30 @@ None (see Non-goals).
      (AI-declared)
   7. The D22 banner's reference count words equal the actual reference count, the census reflects
      Context 4's corrected token map (incl. the two-token `resume-and-recovery.md` correction and
-     the two sanctioned in-region survivors), and the test title and header comment carry
-     #1288/#1287 ·
-     check: `grep -c 'THREE negative' skills/war/assets/skill-doc-contracts.test.mjs` returns 0
-     (2 at base — the banner plus the RESIDUAL paragraph's "All THREE negatives below" carrier,
-     which End state 5's retirement removes) AND `grep -c 'three near-miss'
-     skills/war/assets/skill-doc-contracts.test.mjs` returns 0 (1 at base);
+     the two sanctioned in-region survivors) **and is additionally mechanized as a default-deny
+     census row** (the D30 shape: expected `ensure-origin` token counts per named file, red in
+     both directions — so the comment census can never silently re-rot, the exact rot this plan
+     repairs), and the test title and header comment carry #1288/#1287 ·
+     check: `tr '\n' ' ' < skills/war/assets/skill-doc-contracts.test.mjs | grep -io
+     'THREE negative' | wc -l` returns 0 (2 at base — the banner plus the RESIDUAL paragraph's
+     "All THREE negatives below" carrier, which End state 5's retirement removes) AND the same
+     collapsed-stream form with `grep -io 'three near-miss'` returns 0 (1 at base) — both
+     case-insensitive and wrap-tolerant: a comment re-wrap or a re-cased reword must not
+     false-pass the retirement *(hardened by /red-team 2026-08-18 — the recorded
+     `retirement-grep-…-case-insensitive` and wrap-split classes)*; the rewritten comment must
+     not reintroduce either phrase in any casing (the sanctioned-replacement-substring trap —
+     say "eight negative references", never "the three negative references were…");
      count-equals-enumeration judged against the landed reference list; census re-measured at the
      rebased base first. (AI-declared)
   8. The lesson's Mitigation layer-2 bullet describes the fetched range probe (fetch first, range
      probe, deterministic fallback) as a dated snapshot naming this plan, retains the closing lock
      sentence naming the D22 ordered key, and the retired HEAD-only literal is gone ·
-     check: `grep -Fc 'git show --name-only --format= HEAD'
-     docs/learnings/gate2-commit-from-stale-verify-worktree-can-revert-a-release-bump.md`
-     returns 0 (1 at base) AND `grep -Fc '@{upstream}'` on the same file returns nonzero (0 at
-     base) — then the mandatory hand-scan of the full lesson body for same-meaning
+     check: `tr '\n' ' ' <
+     docs/learnings/gate2-commit-from-stale-verify-worktree-can-revert-a-release-bump.md |
+     grep -ioF 'git show --name-only --format= HEAD' | wc -l` returns 0 (1 at base) AND
+     `grep -iFc '@{upstream}'` on the same file returns nonzero (0 at base) — both
+     case-insensitive, the retirement pin wrap-tolerant *(hardened by /red-team 2026-08-18)* —
+     then the mandatory hand-scan of the full lesson body for same-meaning
      tip-only-probe prose, stragglers listed as survey-derived corrections (the `Detection` and
      `Prevention` sections are incident-era narration — exempt, never rewritten). (AI-declared)
   9. Frontmatter, keywords, and every lesson section other than the Mitigation layer-2 bullet are
@@ -393,20 +426,28 @@ witnesses and the roadmap spine, not by intra-plan structure.
   exemption sentence (their push lines are already invocation-shaped) so each still differs from
   the live shape at exactly its designated point; re-prove each red at exactly its designated arm
   via the mutated-copy drill (End state 6 — the update hazard).
-  (c) **Add four new negative references, each asserted red through the same live key:** fetch
+  (c) **Add five new negative references, each asserted red through the same live key:** fetch
   absent — the `git fetch origin` command dropped while the freshness sentence's bare-fetch
   explanatory prose stays in position, proving the adjacency pinning (G13; the analogue of
   negative (b)'s bare `reset --hard` doctrine mention); exemption absent; (d) range token present
-  / command form absent; (e) revert routing absent (G7). Retire the RESIDUAL paragraph (End
-  state 5).
+  / command form absent; (e) revert routing absent (G7); **(f) terminal-arm gap — the
+  `provision-worktrees.sh ensure-origin` push invocation dropped while a bare in-region
+  `ensure-origin` prose mention stays, proving the invocation anchoring (G6/G14; the terminal
+  arm's own both-ways proof — /red-team round 1)**. Retire the D22 RESIDUAL paragraph (End
+  state 5 — the D31 block's RESIDUAL note at the file tail is out of scope and stays).
   (d) **Comment + title currency (G8):** rewrite the census sentence to Context 4's corrected
   map — `references/setup.md` zero `ensure-origin` / one `remove-publication-worktree`,
   `references/resume-and-recovery.md` **two** `ensure-origin` tokens (both in its Checkpoint
   absent-origin-baseline arm), Setup step 2 one, and the two in-region prose mentions recorded as
   sanctioned survivors the invocation-anchored terminal arm is designed to skip (re-measured at
-  the rebased base first; counts stated as dated snapshots) — replace the "THREE negative
-  references" / "three near-miss" count words with the landed count (seven references at this
-  plan's shape — G14; count-equals-enumeration, the banner-undercount class), and append
+  the rebased base first; counts stated as dated snapshots) — **and mechanize that census as a
+  default-deny D-row** (End state 7; the D30 shape: expected `ensure-origin` token counts per
+  named file — SKILL.md, `references/resume-and-recovery.md`, `references/setup.md` — red in
+  both directions, so the comment census can never silently re-rot again) — replace the "THREE
+  negative references" / "three near-miss" count words with the landed count (**eight** references
+  at this plan's shape — G14; count-equals-enumeration, the banner-undercount class; the
+  rewritten comment must not reintroduce either retired count phrase in any casing — the
+  sanctioned-replacement-substring trap), and append
   #1288/#1287 to the D22 test title and the header comment's issue list.
   (e) **Development drills, recorded verbatim in the done report:** the End state 4 offset probe
   (one-shot `node -e`: the live key's match end vs the region's push-invocation offset — after
@@ -487,7 +528,9 @@ witnesses and the roadmap spine, not by intra-plan structure.
   campaign pass · runner: the next campaign's phase reports / `/war-review`. (AI-declared)
 - The development drills of End states 2, 3, 4, and 6 (scratch region-mutations, the terminal-arm
   offset probe, the per-reference red drills) · why deferred: delete-and-trace mutation runs and
-  one-shot offset probes are uncommittable by design — the committed key, references, and the
+  one-shot offset probes are uncommittable by design — the committed key, the **eight** references
+  (incl. reference (f), the terminal arm's own committed both-ways proof — added by /red-team
+  round 1 precisely so this deferral is no longer load-bearing for the terminal arm), and the
   extraction's non-vacuity assert are the standing locks · runner: Task 1.1's worker runs each
   locally and records the reds/offsets verbatim in the done report; gate-audit reads them SOFT,
   never a hold. (AI-declared)
@@ -495,15 +538,21 @@ witnesses and the roadmap spine, not by intra-plan structure.
   discharges them by spine order; only a plain-`/war` run can encounter the missing-predecessor
   state · runner: Task 1.1 runs the three greps as its first post-rebase act and halt-and-reports
   on a miss — the standalone fallback is halt, never improvisation. (AI-declared)
-- The manual survey halves of End states 7 and 8 (the `ensure-origin` census hand-scan at the
-  rebased base; the lesson-body same-meaning-prose hand-scan) · why deferred: a hand-scan cannot
-  be a mechanical gate member; done-report-only evidence · runner: the owning task's worker (1.1
-  for the census, 1.2 for the lesson) records each outcome — mandatory statement even when zero
-  stragglers; the Lead re-runs the paired greps at phase close. (AI-declared)
-- The A7 budget valve (the fetch sentence-pair plus plans 9/10's additions tripping the 64,512 B
-  advisory line) · why deferred: measurable only at the rebased base · runner: Task 1.1's worker
-  re-measures `wc -c`, records it, and on a trip cites ADR 0042's justification rule in the
-  commit body — never rewords guarded sentences to compensate. (AI-declared)
+- The manual survey half of End state 8 (the lesson-body same-meaning-prose hand-scan) · why
+  deferred: prose-meaning judgment cannot be a mechanical gate member; done-report-only evidence ·
+  runner: Task 1.2's worker records the outcome — mandatory statement even when zero stragglers;
+  the Lead re-runs the paired greps at phase close. *(Narrowed by /red-team 2026-08-18: the End
+  state 7 `ensure-origin` census half was over-deferred — it is a pure per-file token count and is
+  now MECHANIZED as a default-deny census row in the same task (End state 7, the D30 shape), so it
+  leaves the backstop entirely; only the genuinely-unmechanizable prose scan remains deferred.)*
+  (AI-declared)
+- The A7 budget valve · ~~why deferred: measurable only at the rebased base~~ **premise falsified
+  by /red-team 2026-08-18: it is measurable now and already tripped** (65,229 B vs the 64,512 B
+  advisory at the live base; `prompt-surface-budgets.test.mjs` — a standing gate member — is the
+  deterministic measurer and already WARNs on every run) · what remains deferred: only the exact
+  post-insertion byte count at the rebased base · runner: Task 1.1's worker re-measures `wc -c`,
+  records it, and cites ADR 0042's justification rule in the commit body **unconditionally** —
+  never rewords guarded sentences to compensate. (AI-declared)
 
 ## Notes / conscious deviations
 
@@ -564,7 +613,9 @@ witnesses and the roadmap spine, not by intra-plan structure.
    beyond the ADR 0014 heading pair itself. Recorded here, never silently shipped.
 7. **Check sharpenings vs the spec (G16)** — knowing deviations, all tightenings: (a) End
    state 5 replaces the spec's prose-form "retire the RESIDUAL paragraph accordingly" with the
-   mechanical OLD-absent pin on the paragraph's own lead token (1 at base, non-vacuous); (b) End
+   mechanical OLD-absent pin on the paragraph's D22-unique lead sentence (`— TWO fragments`; 1 at
+   the live base, non-vacuous — re-scoped by /red-team round 1 off the bare literal, whose
+   second D31 carrier is out of scope); (b) End
    state 7 adds the two count-word OLD-absent pins (2 and 1 at base — Context 5) beside the spec's
    count-equals-enumeration form; (c) End state 8 runs both lesson greps `-F` (the retired
    literal and `@{upstream}` carry metacharacters — platform law); (d) the conversion re-ran the
