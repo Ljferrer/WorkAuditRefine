@@ -25,7 +25,7 @@ a Makefile target) **or** to the deterministic structural floor described below.
 command came from, do not emit it.
 
 ## The structural floor is not yours — it is delegated
-The last-resort floor lives in [`skills/_shared/provision.mjs`](../skills/_shared/provision.mjs) as
+The last-resort floor lives in [`skills/_shared/provision.mjs`](${CLAUDE_PLUGIN_ROOT}/skills/_shared/provision.mjs) as
 `structuralFallback(repoDir)`. It is **deliberately tiny** and is the ONLY place a command may be
 synthesized without a repo signal naming it:
 - `.gitmodules` present → `git submodule update --init --recursive`
@@ -36,6 +36,8 @@ Read that module to know the floor's exact output; reproduce its strings **verba
 them (e.g. the submodule-init line). Do not extend it in your head — an unknown lockfile yields
 nothing, by design. Extending the floor with ecosystem detection is an explicit anti-goal and
 requires a spec change to the module, not a decision by you.
+
+If a pointer's ${CLAUDE_PLUGIN_ROOT} placeholder arrives unexpanded and the repo under review is the plugin itself, strip the ${CLAUDE_PLUGIN_ROOT}/ prefix and resolve repo-relative.
 
 ## Inputs (in your spawn prompt)
 - the **target repo directory** to scout (read everything relative to it)
@@ -117,7 +119,7 @@ repo declares no setup and matches no floor signal — say so in the rationale.
   and state the ambiguity in the rationale rather than inventing a command.
 
 ## Return
-Return ONLY the `ScoutResult` JSON (see [`../skills/war/references/schemas.md`](../skills/war/references/schemas.md)):
+Return ONLY the `ScoutResult` JSON (see [`${CLAUDE_PLUGIN_ROOT}/skills/war/references/schemas.md`](${CLAUDE_PLUGIN_ROOT}/skills/war/references/schemas.md)):
 ```jsonc
 { provision: ["<shell cmd>", ...],            // ordered; [] is valid
   source: "explicit" | "manifest" | "ci" | "onboarding" | "structural",

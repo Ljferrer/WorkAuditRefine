@@ -1,6 +1,6 @@
 ---
 name: agent-card-reference-pointer-is-repo-relative-and-wont-resolve-against-a-foreign-target-repo
-description: "Prompt-surface-simplification's references/<file>.md eviction pattern replaces an agent card's inline instructions with a markdown link like [x](../skills/war/references/x.md); that link is relative to the CARD's own file location, but a dispatched seat's cwd is the TARGET repo's task worktree — the link only resolves when the plugin is installed inside the target repo (WAR-on-itself), and a dispatched auditor's Bash is fail-closed to read-only git so it cannot expand CLAUDE_PLUGIN_ROOT to find the real plugin install root"
+description: "RESOLVED (references-pointer-integrity, #1364, 2026-08-18): Prompt-surface-simplification's references/<file>.md eviction pattern replaces an agent card's inline instructions with a markdown link like [x](../skills/war/references/x.md); that link is relative to the CARD's own file location, but a dispatched seat's cwd is the TARGET repo's task worktree — the link only resolves when the plugin is installed inside the target repo (WAR-on-itself), and a dispatched auditor's Bash is fail-closed to read-only git so it cannot expand CLAUDE_PLUGIN_ROOT to find the real plugin install root"
 metadata: 
   node_type: memory
   type: project

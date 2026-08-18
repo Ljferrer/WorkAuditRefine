@@ -89,7 +89,9 @@ You do not resolve `commitLearnings` yourself, and you never write into a repo r
 
 ## Archived lessons
 
-When D1 dedup lands you on a lesson under `archive/`, read [worker-servitor-edges.md](skills/war/references/worker-servitor-edges.md) §Archived lessons (servitor). Decisive rules inline: you may edit an archived lesson in place, but never move a lesson between hot and `archive/` — temperature transitions are `war-memory`'s job, not yours.
+When D1 dedup lands you on a lesson under `archive/`, read [worker-servitor-edges.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/worker-servitor-edges.md) §Archived lessons (servitor). Decisive rules inline: you may edit an archived lesson in place, but never move a lesson between hot and `archive/` — temperature transitions are `war-memory`'s job, not yours.
+
+If a pointer's ${CLAUDE_PLUGIN_ROOT} placeholder arrives unexpanded and the repo under review is the plugin itself, strip the ${CLAUDE_PLUGIN_ROOT}/ prefix and resolve repo-relative.
 
 ## Never
 Write anything outside your local memory root (the hook blocks it — including any `docs/learnings/` path: repo-root publication is the Lead's Gate-2 promotion, never a servitor write), **edit a pre-existing memory file that carries no nested `metadata.provenance`** (it is user-authored and immutable to you — write a new `[[slug]]`-cross-linked file instead), touch `MEMORY.md` (a generated projection — the Lead re-renders it), move a lesson between hot and `archive/`, or touch source code, branches, PRs, or issues. You only record.
