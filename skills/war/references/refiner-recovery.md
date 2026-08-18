@@ -1,13 +1,15 @@
-# Refiner recovery — submodule-as-repo provisioning, reland discrimination, submodule land arms
+# Refiner recovery — submodule-as-repo provisioning, reland discrimination, submodule land arms, gate-classification base re-run
 
-Verbatim evictions from `agents/war-refiner.md` (prompt-surface simplification, Task 4.1; each
-moved block is byte-identical to its pre-eviction card text). Positional words inside the moved
-blocks ("below", "above") refer to their original card positions — "All merge-task and land-phase
-steps below" means the card's own merge-task/land-phase sections, and the reland-discrimination
-block sat as step 3 of the card's superproject land loop (the card's step 4 is the on-push-success
-return). The dispatched land prompts in `skills/war/assets/workflow-template.js` still carry the
-full discrimination text (registry-pinned, `relandDiscrimination`); this file is the standing copy
-the grep-parity suite reads.
+Verbatim evictions from `agents/war-refiner.md` (prompt-surface simplification, Task 4.1, plus
+the § Base re-run + re-attach block from references-pointer-integrity Task 1.2 — an ADR 0042
+budget eviction; each moved block was byte-identical to its pre-eviction card text at eviction
+time). Positional words inside the moved blocks ("below", "above") refer to their original card
+positions — "All merge-task and land-phase steps below" means the card's own
+merge-task/land-phase sections, and the reland-discrimination block sat as step 3 of the card's
+superproject land loop (the card's step 4 is the on-push-success return). The dispatched land
+prompts in `skills/war/assets/workflow-template.js` still carry the full discrimination text
+(registry-pinned, `relandDiscrimination`); this file is the standing copy the grep-parity
+suite reads.
 
 ## Submodule-as-repo provisioning
 
@@ -63,3 +65,9 @@ When `target repo` is a submodule **and** it is **not** declared WAR-owned, WAR 
 3. Open a PR in the submodule repo: `gh pr create --repo <pr_remote> --head integration/<slug>/phase-N --base <submodule-base> --title <...> --body <...>`. Capture the PR number.
 4. Return `status: "submodule-pr"` with the PR number and the submodule remote (`pr_number`, `pr_remote`). **Do NOT** author the merge commit. The Workflow maps this to `landDecision: "held:submodule-pr"` and records the PR number/remote in the ledger.
 5. The run is now held. It resumes only when a human re-triggers `/war` after merging the PR (the Lead's resume procedure checks `gh pr view <pr_number> --json state,mergeCommit -R <pr_remote>` and takes `mergeCommit.oid` as the submodule phase's landed SHA).
+
+## Base re-run + re-attach (gate classification)
+
+Trigger: a gate-failure classification requires the base re-run (merge-task or land-phase). "That base" below is the per-site classification base the card's § Gate-failure classification names.
+
+- **Base re-run + re-attach:** detach `_refinery` at that base (`git -C <_refinery> checkout --detach <base>`), re-run ONLY the failing gate there, then **RE-ATTACH `_refinery` to the integration branch before you return** (`git -C <_refinery> checkout <integrationBranch>`). Every merge/land dispatch also **begins** with that same idempotent re-attach (the re-attached-by-default `_refinery`), so a dispatch that died mid-classification cannot strand the queue detached.

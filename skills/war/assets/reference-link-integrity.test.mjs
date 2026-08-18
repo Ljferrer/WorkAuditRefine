@@ -1,8 +1,10 @@
 // reference-link-integrity.test.mjs — durable link-resolution + retired-citation +
-// header-truth + revert-doctrine sweep over the two prose roots that carry references/
-// pointers (plan 2026-08-02-references-pointer-link-truth Task 1.3; source spec
-// docs/specs/2026-08-02-references-pointer-link-truth-design.md §4.6, and the mechanical
-// homes for that plan's End states 4-6).
+// header-truth + revert-doctrine + step-4-citation sweep over the two prose roots that
+// carry references/ pointers (plan 2026-08-02-references-pointer-link-truth Task 1.3;
+// source spec docs/specs/2026-08-02-references-pointer-link-truth-design.md §4.6, and the
+// mechanical homes for that plan's End states 4-6; hardened by plan
+// 2026-08-06-references-pointer-integrity Task 1.1 — anchored-form resolution,
+// whitespace-tolerant retirement patterns, fail-closed headerRegion, #1277 presence arm).
 //
 // Why a NEW sibling file rather than a skill-doc-contracts.test.mjs block: the spec
 // sanctions either ("or sibling"); a separate file keeps this guard file-disjoint from the
@@ -53,10 +55,16 @@ const SCANNED = SCAN_DIRS.flatMap(scan);
 // Shared by the header-truth and revert-doctrine arms. Anchored on headings, never on line
 // numbers — line numbers rot across the serial merge queue.
 
-/** Text preceding the file's first `## ` heading (the whole file when it has none). */
+/**
+ * Text preceding the file's first `## ` heading. Returns null for a document with no `## `
+ * heading — fail CLOSED (#1275 secondary), so a heading-stripped file surfaces as a loud
+ * per-file assertion at the call site instead of silently widening the "header" to the
+ * entire document and letting body prose satisfy a header-scoped check. Every call site
+ * asserts non-null, naming the file it read.
+ */
 function headerRegion(text) {
   const m = /^## /m.exec(text);
-  return m ? text.slice(0, m.index) : text;
+  return m ? text.slice(0, m.index) : null;
 }
 
 /**
@@ -79,12 +87,55 @@ function sectionByHeading(text, headingRe) {
   return lines.slice(start, end).join('\n');
 }
 
+test('reference link integrity — headerRegion fails closed on a heading-less document (synthetic fixtures)', () => {
+  // Committed lock for the fail-closed flip (Task 1.1(c)): every file in the live scanned
+  // corpus carries a `## ` heading, so without these synthetic fixtures the null branch
+  // would be committed yet unobservable on the committed corpus — the wrapped-control
+  // discipline (D7), applied to the extraction axis.
+  assert.equal(
+    headerRegion('a document with a title line\nand prose, but no h2 heading anywhere\n'),
+    null,
+    'fail-closed lock — headerRegion must return null for a document with no "## " heading',
+  );
+  assert.equal(
+    headerRegion('preamble line\n## first heading\nbody\n'),
+    'preamble line\n',
+    'non-null control — headerRegion must return exactly the text before the first "## " heading',
+  );
+});
+
 // --- Arm 1: link resolution ---------------------------------------------------------
 // Inline links in the `](target)` form, with markdown's optional `"title"` suffix.
 // Reference-style links (`[text][label]`) are deliberately out of scope: none exist in the
 // scanned set, and the resolution question they raise belongs to the link DEFINITION.
 const LINK_TARGET = /\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
 const LINK_OPEN = /\]\(/g;
+
+// The ratified agent-card pointer FAMILY shape is plugin-root-anchored (the supersession
+// ADR, cited by slug — agent-card-pointer-skeleton-plugin-root-anchored — never by number:
+// the ADR lands in this same wave, so no number is knowable here). The prefix is spelled as
+// a plain single-quoted string, NEVER inside a JS template literal — there the placeholder
+// would interpolate; here it is data (D6).
+const PLUGIN_ROOT_PREFIX = '${CLAUDE_PLUGIN_ROOT}/';
+
+/**
+ * Permitted resolution roots for one link target — the resolver states TOLERANCE (D6),
+ * deliberately not shape: a file-relative target resolves from the carrying file's own
+ * directory; an agents/ target additionally resolves repo-root-relative; and a target
+ * beginning with the literal plugin-root placeholder resolves its remainder against
+ * REPO_ROOT (plugin root ≡ repo root in this repo), from either scan dir. Link SHAPE
+ * enforcement stays per-card in workflow-template.test.mjs — a scan-wide shape assert here
+ * is out of this sweep's scope.
+ */
+function resolutionRoots(file, target) {
+  if (target.startsWith(PLUGIN_ROOT_PREFIX)) {
+    return { roots: [REPO_ROOT], rel: target.slice(PLUGIN_ROOT_PREFIX.length) };
+  }
+  return {
+    roots: file.dir === AGENTS_DIR ? [dirname(file.abs), REPO_ROOT] : [dirname(file.abs)],
+    rel: target,
+  };
+}
 
 test('reference link integrity — every markdown link target under agents/ and skills/war/references/ resolves to a real file', () => {
   // Non-vacuity floor: an empty scan would satisfy every assert below without checking
@@ -95,6 +146,24 @@ test('reference link integrity — every markdown link target under agents/ and 
       `scan of ${dir}/ found no *.md files — every assert in this suite would pass vacuously`,
     );
   }
+
+  // Positive control (non-vacuity, the D7 control discipline): the anchored form must
+  // resolve here and now, BEFORE any scanned card carries it — a broken prefix literal
+  // would otherwise first surface as a confusing dead-link red at the card-flip task's
+  // merge. Probe target: this suite file itself, which always exists.
+  const anchoredProbe = resolutionRoots(
+    { dir: REFERENCES_DIR, abs: join(REPO_ROOT, REFERENCES_DIR, 'auditor-teach.md') },
+    PLUGIN_ROOT_PREFIX + 'skills/war/assets/reference-link-integrity.test.mjs',
+  );
+  assert.deepEqual(
+    anchoredProbe,
+    { roots: [REPO_ROOT], rel: 'skills/war/assets/reference-link-integrity.test.mjs' },
+    'anchored-form control failed — a plugin-root-anchored target must resolve its remainder against REPO_ROOT alone',
+  );
+  assert.ok(
+    existsSync(resolve(anchoredProbe.roots[0], anchoredProbe.rel)),
+    'anchored-form control failed — the probe remainder did not resolve to a real file under REPO_ROOT',
+  );
 
   const dead = [];
   const resolvedPerDir = new Map(SCAN_DIRS.map((d) => [d, 0]));
@@ -118,19 +187,15 @@ test('reference link integrity — every markdown link target under agents/ and 
       if (/^[a-z][a-z0-9+.-]*:/i.test(raw)) continue; // absolute URL, any scheme
       const target = raw.split('#')[0]; // strip the #fragment suffix
       if (!target) continue;
-      // RESOLUTION-ONLY, deliberately not a shape assert. references/ files resolve from
-      // their own directory; agents/ files resolve file-relative OR repo-root-relative,
-      // because the D4 agent-card pointer skeleton (`skills/war/references/<file>`) is
-      // deliberately repo-root-anchored and must not false-red (adjudication O(2)).
-      // Accepted looseness, recorded rather than engineered away: a dead agents/ link could
-      // coincidentally resolve under the other root. Both roots are inside the repo, so any
-      // resolution is a real file, and per-shape enumeration would reintroduce the
-      // enumerated-list fail-open hazard this scan exists to avoid.
-      // Link SHAPE stays per-card in workflow-template.test.mjs (worker/servitor/refiner +
-      // auditor): a scan-wide no-`../` assert here would RED on agents/war-setup-scout.md's
-      // two deliberately deferred `../` links (spec §9) and is out of this sweep's scope.
-      const roots = file.dir === AGENTS_DIR ? [dirname(file.abs), REPO_ROOT] : [dirname(file.abs)];
-      if (roots.some((r) => existsSync(resolve(r, target)))) {
+      // RESOLUTION-ONLY, deliberately not a shape assert — resolutionRoots() above states
+      // the resolver's tolerance: file-relative, repo-root-relative, and plugin-root-
+      // anchored targets ALL resolve. Accepted looseness, recorded rather than engineered
+      // away: a dead agents/ link could coincidentally resolve under another permitted
+      // root. Every permitted root is inside the repo, so any resolution is a real file,
+      // and per-shape enumeration would reintroduce the enumerated-list fail-open hazard
+      // this scan exists to avoid.
+      const { roots, rel } = resolutionRoots(file, target);
+      if (roots.some((r) => existsSync(resolve(r, rel)))) {
         resolvedPerDir.set(file.dir, resolvedPerDir.get(file.dir) + 1);
       } else {
         dead.push(`${file.rel} -> ${raw}`);
@@ -222,24 +287,35 @@ const QUALIFIED_HEADERS = [
   'glossary-cold.md',
 ];
 
-test('reference link integrity — the re-basing caveat is retired everywhere and every re-qualified header says "at eviction time"', () => {
+test('reference link integrity — the re-basing caveat and the no-path-form claim are retired everywhere, and every re-qualified header says "at eviction time"', () => {
   // OLD-absent half. A default flip is only landed when the retired wording is gone from
   // every surface, not merely replaced on the files this pass touched — so the sweep runs
   // over the whole scanned set (a superset of the mandated skills/war/references/ scope).
   //
-  // Keyed on a CASE-INSENSITIVE, mid-sentence-stable substring, never the sentence-initial
-  // capitalised form: the capitalised anchor is the recorded sentence-case false-negative
-  // class (red-team adjudication 1, 2026-08-03 — reproduced, a lowercase mid-sentence
+  // Keyed CASE-INSENSITIVE and WHITESPACE-TOLERANT (`\s+` between every word, #1275): the
+  // sentence-initial capitalised anchor is the recorded sentence-case false-negative class
+  // (red-team adjudication 1, 2026-08-03 — reproduced, a lowercase mid-sentence
   // reintroduction left an equivalent guard fully green while the retired doctrine was
-  // live). The hand grep floor for the same fact is `grep -rin`, never `grep -rn`.
-  const RETIRED_REBASING_CAVEAT = /link paths inside the moved blocks/i;
-  // Positive control (non-vacuity): the pattern must still FIRE against a synthetic
-  // literal of the retired caveat — same rationale and self-match safety as the citation
-  // arm's control (no /g/ here, so a direct assert.match is stateless).
+  // live), and a hard-wrapped reintroduction — the phrase broken across a line break — is
+  // the wrap false-negative class a single-line pattern misses. The hand grep floor for
+  // the same fact is `grep -rinF`, never `grep -rn` — and it is a COMPLETENESS FLOOR
+  // ONLY: grep is line-based and cannot see a wrapped reintroduction at all, so a clean
+  // hand grep never overrides this arm; the suite regex is the authority.
+  const RETIRED_REBASING_CAVEAT = /link\s+paths\s+inside\s+the\s+moved\s+blocks/i;
+  // Positive controls (non-vacuity), one per axis: the single-line form, and the wrapped
+  // form carrying an embedded newline INSIDE the phrase — so the pattern's literality and
+  // its whitespace tolerance are each observably load-bearing. Safe from self-match: these
+  // literals live in this .mjs and the sweeps read only *.md (see the self-match note atop
+  // this file); no /g/ here, so a direct assert.match is stateless.
   assert.match(
     'Relative link paths inside the moved blocks are likewise written relative to X',
     RETIRED_REBASING_CAVEAT,
-    'positive control failed — RETIRED_REBASING_CAVEAT no longer matches the retired caveat form',
+    'single-line positive control failed — RETIRED_REBASING_CAVEAT no longer matches the retired caveat form',
+  );
+  assert.match(
+    'Relative link paths\ninside the moved blocks are likewise written relative to X',
+    RETIRED_REBASING_CAVEAT,
+    'wrapped positive control failed — RETIRED_REBASING_CAVEAT no longer matches a line-wrapped reintroduction of the retired caveat',
   );
   const offenders = SCANNED.filter((f) => RETIRED_REBASING_CAVEAT.test(f.text)).map((f) => f.rel);
   assert.deepEqual(
@@ -253,15 +329,58 @@ test('reference link integrity — the re-basing caveat is retired everywhere an
   // 2026-08-03: a whole-file check is satisfiable by body prose anywhere in the file,
   // including sections appended long after the header's claim was written). Case-insensitive
   // so retitling the qualification to a sentence-initial `**At eviction time**,` cannot
-  // false-RED.
+  // false-RED, and whitespace-tolerant so a reflowed qualification cannot either — with
+  // the same one-control-per-axis discipline as the retirement patterns.
+  const EVICTION_TIME_QUALIFIER = /at\s+eviction\s+time/i;
+  assert.match(
+    'byte-identical to its pre-eviction card text at eviction time',
+    EVICTION_TIME_QUALIFIER,
+    'single-line positive control failed — EVICTION_TIME_QUALIFIER no longer matches the qualification',
+  );
+  assert.match(
+    'byte-identical to its pre-eviction card text at\neviction time',
+    EVICTION_TIME_QUALIFIER,
+    'wrapped positive control failed — EVICTION_TIME_QUALIFIER no longer matches a line-wrapped qualification',
+  );
+
+  // THIRD retirement pattern (End state 13's suite regex of record, added by /red-team
+  // round 1): the retired cross-repo header claim. Same axes, same controls; scanned over
+  // the same header regions the qualification check reads.
+  const RETIRED_NO_PATH_FORM_CLAIM = /no\s+path\s+form\s+resolves/i;
+  assert.match(
+    'On a foreign target repo no path form resolves this file at all',
+    RETIRED_NO_PATH_FORM_CLAIM,
+    'single-line positive control failed — RETIRED_NO_PATH_FORM_CLAIM no longer matches the retired claim',
+  );
+  assert.match(
+    'On a foreign target repo no path\nform resolves this file at all',
+    RETIRED_NO_PATH_FORM_CLAIM,
+    'wrapped positive control failed — RETIRED_NO_PATH_FORM_CLAIM no longer matches a line-wrapped reintroduction of the retired claim',
+  );
+
+  const noPathFormCarriers = [];
   for (const name of QUALIFIED_HEADERS) {
     const header = headerRegion(readFileSync(join(REPO_ROOT, REFERENCES_DIR, name), 'utf8'));
+    assert.ok(
+      header !== null,
+      `${REFERENCES_DIR}/${name}: no '## ' heading found — headerRegion fails closed, and a header-scoped check cannot run over a heading-less file`,
+    );
     assert.match(
       header,
-      /at eviction time/i,
+      EVICTION_TIME_QUALIFIER,
       `${REFERENCES_DIR}/${name}: the header's byte-identity claim is not qualified "at eviction time" (checked in the header region — the text before the file's first '## ' heading)`,
     );
+    if (RETIRED_NO_PATH_FORM_CLAIM.test(header)) noPathFormCarriers.push(name);
   }
+  // Exemption retired (Task 1.4's own edit, closing the C7 intermediate pin): the claim's
+  // last live carrier — worker-servitor-edges.md's header — was re-truthed to the
+  // plugin-root-anchored seat-capability matrix (ADR 0047), so the pattern holds at zero
+  // carriers across every scanned header.
+  assert.deepEqual(
+    noPathFormCarriers,
+    [],
+    `retired no-path-form claim reintroduced in a scanned header:\n  ${noPathFormCarriers.join('\n  ')}`,
+  );
 });
 
 // --- Arm 4: the phase-close revert doctrine ------------------------------------------
@@ -302,4 +421,77 @@ test('reference link integrity — resume-and-recovery.md carries the phase-clos
       `${REFERENCES_DIR}/resume-and-recovery.md revert-doctrine section is missing ${label}`,
     );
   }
+});
+
+// --- Arm 5: the step-4 citation (#1277) ----------------------------------------------
+// auditor-teach.md's Gitlink-bump pin-validity step 4 cites its doctrine's real home by
+// backticked filename + quoted section name. This arm re-derives that citation from the
+// live prose and proves each half, so a renamed cited file, a renamed cited section
+// heading, or a header that stops naming the file reds here instead of leaving the
+// citation dangling.
+
+test('reference link integrity — the step-4 citation in auditor-teach.md resolves: cited file, cited section heading, and header mention', () => {
+  const teachRel = `${REFERENCES_DIR}/auditor-teach.md`;
+  const teachText = readFileSync(join(REPO_ROOT, REFERENCES_DIR, 'auditor-teach.md'), 'utf8');
+
+  const section = sectionByHeading(teachText, /gitlink-bump.*pin-validity/i);
+  assert.ok(
+    section !== null,
+    `${teachRel}: no '## ' heading matching the Gitlink-bump pin-validity lens was found — the step-4 citation cannot be located`,
+  );
+
+  // Step 4 is the section's numbered list item beginning `4.` — located by construct,
+  // never by line number, and spanning to the next numbered item or the section's end so a
+  // hard-wrapped step body stays in scope.
+  const lines = section.split('\n');
+  const start = lines.findIndex((l) => /^4\.\s/.test(l));
+  assert.ok(
+    start !== -1,
+    `${teachRel}: the pin-validity lens has no step 4 — the step-4 citation cannot be extracted (fail closed, never a skip)`,
+  );
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i += 1) {
+    if (/^\d+\.\s/.test(lines[i])) {
+      end = i;
+      break;
+    }
+  }
+  const step4 = lines.slice(start, end).join('\n');
+
+  // The citation shape: (`<file>`, section "<name>") — backticked filename + quoted
+  // section name inside one parenthetical. FAIL CLOSED on a parse miss (the
+  // enumerated-destination existsSync fail-open lesson: an absent citation is an assertion
+  // failure, never a skip). `\s` tolerance between the tokens, so a hard wrap inside the
+  // citation cannot evade extraction.
+  const CITATION = /\(`([^`]+)`,\s*section\s+"([^"]+)"\)/;
+  const cited = CITATION.exec(step4);
+  assert.ok(
+    cited !== null,
+    `${teachRel}: the step-4 citation shape (\`file\`, section "name") parsed to nothing — the citation is absent or malformed (fail closed)`,
+  );
+  const [, citedFile, citedSection] = cited;
+
+  const citedAbs = join(REPO_ROOT, REFERENCES_DIR, citedFile);
+  assert.ok(
+    existsSync(citedAbs),
+    `${teachRel}: the step-4 citation names ${citedFile}, which does not exist under ${REFERENCES_DIR}/`,
+  );
+
+  const citedHeadings = readFileSync(citedAbs, 'utf8')
+    .split('\n')
+    .filter((l) => l.startsWith('## '));
+  assert.ok(
+    citedHeadings.some((h) => h.includes(citedSection)),
+    `${REFERENCES_DIR}/${citedFile}: no '## ' heading contains the step-4 citation's quoted section name "${citedSection}" — the citation dangles`,
+  );
+
+  const teachHeader = headerRegion(teachText);
+  assert.ok(
+    teachHeader !== null,
+    `${teachRel}: no '## ' heading found — headerRegion fails closed, and the header-mention half of the step-4 citation check cannot run`,
+  );
+  assert.ok(
+    teachHeader.includes(citedFile),
+    `${teachRel}: the header region no longer mentions ${citedFile} — the step-4 citation's repaired-home note went stale`,
+  );
 });

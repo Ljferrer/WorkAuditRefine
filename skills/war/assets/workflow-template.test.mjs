@@ -6309,13 +6309,24 @@ test('Task 1.2 — grep parity: the standing discrimination copy (references/ref
     'the discrimination command is present in BOTH the superproject and submodule-2A land variants')
   // never anchored on the lagging local follower.
   assert.match(refinerRecoveryMd, /NEVER the local follower/, 'refiner-recovery.md pins the discrimination to origin, never the lagging local follower')
-  // the card still ROUTES to the standing copy: all three trigger pointers (submodule
-  // provisioning, land step 3, 2A/2B land arms) must survive, each in the adjudication-O(2)
-  // owner-relative shape (bare skills/war/references/<file> — the refiner seat's cwd is the main
-  // checkout, so a ../-prefixed path walks OUT of the repo and never opens). Count-pinned:
+  // the card still ROUTES to the standing copy: all three markdown trigger pointers (submodule
+  // provisioning, land step 3, 2A/2B land arms) must survive, each in the ratified
+  // plugin-root-anchored family shape — a ](${CLAUDE_PLUGIN_ROOT}/skills/war/references/<file>)
+  // target resolving against the plugin install root regardless of the dispatched seat's cwd
+  // (ADR 0047, agent-card-pointer-skeleton-plugin-root-anchored; adjudication O(1) still
+  // stands: a pointer is best-effort enrichment, decisive rules stay inline). Count-pinned:
   // presence-only would stay green if two pointers were dropped, orphaning their evicted sections.
-  assert.equal((refinerMd.match(/\(skills\/war\/references\/refiner-recovery\.md\)/g) || []).length, 3, 'all three owner-relative trigger pointers to skills/war/references/refiner-recovery.md survive')
-  assert.ok(!/\((?:\.\.\/)+[^)]*refiner-recovery\.md\)/.test(refinerMd), 'no pointer uses a forbidden ../-prefixed path, at any depth (adjudication O(2))')
+  assert.equal((refinerMd.match(/\(\$\{CLAUDE_PLUGIN_ROOT\}\/skills\/war\/references\/refiner-recovery\.md\)/g) || []).length, 3, 'all three plugin-root-anchored trigger pointers to refiner-recovery.md survive')
+  assert.ok(!/\((?:\.\.\/)+[^)]*refiner-recovery\.md\)/.test(refinerMd), 'no pointer uses a forbidden ../-prefixed path, at any depth')
+  // Fourth, plain-text pointer — the fixed-shape ADR 0042 trigger line left by the
+  // references-pointer-integrity Task 1.2 (h2) budget eviction of the § Base re-run +
+  // re-attach recipe. Pinned together with the moved fragment at the destination, so neither
+  // half can be dropped without orphaning the other (the dispatched merge/land prompts still
+  // carry the re-attach procedure — asserted by the #598 prompt tests above).
+  assert.ok(refinerMd.includes('read ${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md (§ Base re-run + re-attach)'),
+    'the ADR 0042 trigger pointer for the evicted Base re-run + re-attach recipe survives on the card')
+  assert.ok(refinerRecoveryMd.includes('RE-ATTACH `_refinery` to the integration branch before you return'),
+    'refiner-recovery.md carries the evicted Base re-run + re-attach recipe (byte-identical move)')
 })
 
 test('Task 1.2 — a stale-then-resolved land (final status:landed) reaches the servitorResult dispatch (no new status/enum)', async () => {
@@ -8995,45 +9006,59 @@ test('Task 5.1 — worker/servitor card evictions: destination carries the moved
     'This allowlist is the **primary confinement**',                // worker §Servitor confinement
     'never move a lesson between hot and `archive/`',               // servitor §Archived lessons
   ]) assert.ok(edges.includes(frag), `worker-servitor-edges.md carries the moved fragment: ${frag}`)
-  // Trigger pointers route each card to the destination — owner-relative bare
-  // form (adjudication O(2)): `skills/war/references/<file>`, never `../`-prefixed
-  // (the seat's cwd is a task worktree or the main checkout, so ../ walks out of
-  // the repo — same defect fixed for war-refiner.md by commit 606b72b).
-  assert.equal((workerMd.match(/\(skills\/war\/references\/worker-servitor-edges\.md\)/g) || []).length, 3,
-    'war-worker.md carries all three owner-relative trigger pointers to worker-servitor-edges.md')
-  assert.match(servitorMd, /\(skills\/war\/references\/worker-servitor-edges\.md\)/,
-    'war-servitor.md carries an owner-relative trigger pointer to worker-servitor-edges.md')
+  // Trigger pointers route each card to the destination — the ratified plugin-root-anchored
+  // family shape (ADR 0047, agent-card-pointer-skeleton-plugin-root-anchored): a
+  // ](${CLAUDE_PLUGIN_ROOT}/skills/war/references/<file>) target resolving against the plugin
+  // install root regardless of the dispatched seat's cwd, never `../`-prefixed. Adjudication
+  // O(1) still stands: a pointer is best-effort enrichment, decisive rules stay inline.
+  assert.equal((workerMd.match(/\(\$\{CLAUDE_PLUGIN_ROOT\}\/skills\/war\/references\/worker-servitor-edges\.md\)/g) || []).length, 3,
+    'war-worker.md carries all three plugin-root-anchored trigger pointers to worker-servitor-edges.md')
+  assert.match(servitorMd, /\(\$\{CLAUDE_PLUGIN_ROOT\}\/skills\/war\/references\/worker-servitor-edges\.md\)/,
+    'war-servitor.md carries a plugin-root-anchored trigger pointer to worker-servitor-edges.md')
   // Shape-generic absence: NO references/ pointer on either card may be
-  // ../-prefixed, at any depth — closes the enumerated-scope gap that let the
-  // 606b72b defect recur on a second file.
+  // ../-prefixed, at any depth (the anchored family shape carries no ../).
   assert.ok(!/\((?:\.\.\/)+[^)]*skills\/war\/references\/[^)]+\)/.test(workerMd),
-    'war-worker.md: no references/ pointer uses a forbidden ../-prefixed path, at any depth (adjudication O(2))')
+    'war-worker.md: no references/ pointer uses a forbidden ../-prefixed path, at any depth')
   assert.ok(!/\((?:\.\.\/)+[^)]*skills\/war\/references\/[^)]+\)/.test(servitorMd),
-    'war-servitor.md: no references/ pointer uses a forbidden ../-prefixed path, at any depth (adjudication O(2))')
+    'war-servitor.md: no references/ pointer uses a forbidden ../-prefixed path, at any depth')
   // Guard-family extension to agents/war-auditor.md (references-pointer-link-truth Task 1.1;
-  // source spec docs/specs/2026-08-02-references-pointer-link-truth-design.md §4.1, adjudication
-  // O(2)): the owner-relative pointer skeleton binds EVERY agent card, not just the two Task 5.1
-  // touched, so the same shape-generic ../-absence pattern applies to the auditor card — its four
-  // auditor-teach.md pointers were ../-prefixed until this pass. Paired with a COUNT-pinned assert
-  // (the refiner-card idiom, not presence-only: a presence match stays green when pointers are
-  // silently dropped). Update duty: a future plan that legitimately adds an Nth auditor-teach.md
-  // pointer — or drops one — updates this count in the same diff as the pointer change.
+  // source spec docs/specs/2026-08-02-references-pointer-link-truth-design.md §4.1): the
+  // family pointer skeleton binds EVERY agent card, not just the two Task 5.1 touched, so the
+  // same shape-generic ../-absence pattern applies to the auditor card. Paired with a
+  // COUNT-pinned assert (the refiner-card idiom, not presence-only: a presence match stays
+  // green when pointers are silently dropped). Update duty: a future plan that legitimately
+  // adds an Nth auditor-teach.md pointer — or drops one — updates this count in the same diff
+  // as the pointer change.
   assert.ok(!/\((?:\.\.\/)+[^)]*skills\/war\/references\/[^)]+\)/.test(auditorMd),
-    'war-auditor.md: no references/ pointer uses a forbidden ../-prefixed path, at any depth (adjudication O(2))')
-  assert.equal((auditorMd.match(/\(skills\/war\/references\/auditor-teach\.md\)/g) || []).length, 4,
-    'war-auditor.md carries all four owner-relative trigger pointers to auditor-teach.md')
-  // …and to war-refiner.md, the ORIGINAL instance of this defect (606b72b, named above): the
-  // equivalence class is "agent cards carrying skills/war/references/ pointers", so the card
-  // whose fix started the family must be held by an assert too — otherwise 606b72b can silently
-  // regress. Its three refiner-recovery.md pointers are already owner-relative; its one
-  // ../-prefixed link is an ADR link (`../docs/adr/0001-…`), which correctly resolves from
-  // agents/ and carries no skills/war/references/ segment, so this pattern does not flag it.
-  // agents/war-setup-scout.md is DELIBERATELY excluded from this family (source spec
-  // docs/specs/2026-08-02-references-pointer-link-truth-design.md §9): its two ../-prefixed
-  // links — one of them `](../skills/war/references/schemas.md)` — are pre-identified as
-  // out of scope, so an assert over that card would RED today. Add it here once they are repaired.
+    'war-auditor.md: no references/ pointer uses a forbidden ../-prefixed path, at any depth')
+  assert.equal((auditorMd.match(/\(\$\{CLAUDE_PLUGIN_ROOT\}\/skills\/war\/references\/auditor-teach\.md\)/g) || []).length, 4,
+    'war-auditor.md carries all four plugin-root-anchored trigger pointers to auditor-teach.md')
+  // …and to war-refiner.md (family locality, ADR 0025/0031: the equivalence class is "agent
+  // cards carrying skills/war/references/ pointers", and every member is asserted where the
+  // family lives): this assert consolidates the pointer-shape family here, alongside the
+  // pre-existing Task 1.2 grep-parity count-pin + ../-absence pair — a deliberate duplicate
+  // for locality, not the sole hold. The refiner card's one ../-prefixed link is an ADR link
+  // (`../docs/adr/0001-…`), which correctly resolves from agents/ and carries no
+  // skills/war/references/ segment, so this pattern does not flag it.
   assert.ok(!/\((?:\.\.\/)+[^)]*skills\/war\/references\/[^)]+\)/.test(refinerMd),
-    'war-refiner.md: no references/ pointer uses a forbidden ../-prefixed path, at any depth (adjudication O(2))')
+    'war-refiner.md: no references/ pointer uses a forbidden ../-prefixed path, at any depth')
+  // agents/war-setup-scout.md joined the family with its two links repaired in the same diff
+  // (#1278; the deliberate exclusion is retired): both its skills/-targeting links carry the
+  // anchored form — count-pinned, with the ../-absence widened to ANY skills/ path because its
+  // provision.mjs link lives outside skills/war/references/.
+  const setupScoutMd = readFileSync(join(here, '../../../agents/war-setup-scout.md'), 'utf8')
+  assert.equal((setupScoutMd.match(/\]\(\$\{CLAUDE_PLUGIN_ROOT\}\/skills\/[^)]+\)/g) || []).length, 2,
+    'war-setup-scout.md carries both plugin-root-anchored links (provision.mjs + schemas.md)')
+  assert.ok(!/\((?:\.\.\/)+[^)]*skills\/[^)]+\)/.test(setupScoutMd),
+    'war-setup-scout.md: no skills/-targeting link uses a forbidden ../-prefixed path, at any depth')
+  // OLD-shape-absent gate (default-flip discipline, war-strategy authoring rule 6): a
+  // count-pin on the new form alone stays green when a stale bare pointer is ADDED beside the
+  // pinned ones, so every card is also scanned for the retired bare link-target shape.
+  for (const [cardName, cardText] of [['war-auditor.md', auditorMd], ['war-worker.md', workerMd],
+    ['war-refiner.md', refinerMd], ['war-servitor.md', servitorMd], ['war-setup-scout.md', setupScoutMd]]) {
+    assert.ok(!cardText.includes('](skills/'),
+      cardName + ': carries the retired OLD-shape bare link target "](skills/" — the ratified family shape is "](${CLAUDE_PLUGIN_ROOT}/skills/…" (ADR 0047)')
+  }
   // Decisive rules survive inline on the cards (pointer = enrichment, never sole carrier).
   assert.match(workerMd, /merge_sha/, 'war-worker.md keeps the ledger merge_sha authority rule inline')
   assert.match(workerMd, /gitlink-only/, 'war-worker.md keeps the gitlink-only diff rule inline')

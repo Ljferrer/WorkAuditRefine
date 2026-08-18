@@ -1420,6 +1420,16 @@ the skeleton.
 _Avoid_: pointers without triggers; rewriting while moving (the move is byte-identical; the pointer
 is new text).
 
+**Plugin-root-anchored pointer**:
+The `${CLAUDE_PLUGIN_ROOT}/`-prefixed agent-card link form that resolves against the plugin
+install root regardless of the dispatched seat's cwd (Bash-capable seats expand the placeholder in
+their own shell; the auditor falls back to the card's strip-the-prefix resolution line). Supersedes
+the owner-relative agent-card skeleton (ADR 0047); remains best-effort enrichment under
+adjudication O(1) — decisive rules stay inline.
+_Avoid_: treating the pointer as the sole carrier of a blocking rule; `skills/*/SKILL.md`'s own
+owner-relative `references/<file>` skeleton (skill surfaces are read in-plugin — the supersession
+is agent-cards only).
+
 ### State & resume
 
 **Run manifest**:
