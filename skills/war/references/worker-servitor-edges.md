@@ -6,12 +6,16 @@ at eviction time and until this pass, apart from the §Servitor confinement ADR 
 at eviction, then restored verbatim by the Task 5.1 polish, and re-rooted again here so it
 resolves from this file, this pass). Positional words inside the moved blocks ("below", "above")
 refer to their original card positions. The dispatched worker prompt in
-`skills/war/assets/workflow-template.js`
-threads the runtime submodule/gitlink-bump context (`TARGET REPO` / `GITLINK-BUMP` clauses) at the
-dispatch site — this file is the standing step-by-step those clauses assume. On a foreign target
-repo no path form resolves this file at all (the plugin is not installed inside it), so the
-standing cards' decisive-rules-inline digests and those dispatched clauses are the operative
-carriers there, and this file is best-effort enrichment (adjudication O).
+`skills/war/assets/workflow-template.js` threads the runtime submodule/gitlink-bump context
+(`TARGET REPO` / `GITLINK-BUMP` clauses) at the dispatch site — this file is the standing
+step-by-step those clauses assume. The cards' plugin-root-anchored pointer (the
+`${CLAUDE_PLUGIN_ROOT}/skills/…` target form; ADR 0047's seat-capability matrix) resolves this
+file even on a foreign target repo for Bash-capable seats, which expand the placeholder in
+their own shell; for seats that cannot expand it (the auditor's read-only git guard denies the
+expansion), resolution rests on harness substitution or the cards' D3 fallback line, and the
+standing cards' decisive-rules-inline digests plus those dispatched clauses remain the
+operative carriers there — this file is best-effort enrichment (adjudication O(1), still
+standing).
 
 ## Submodule task mechanics
 

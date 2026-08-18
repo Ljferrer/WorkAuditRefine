@@ -287,7 +287,7 @@ const QUALIFIED_HEADERS = [
   'glossary-cold.md',
 ];
 
-test('reference link integrity — the re-basing caveat is retired everywhere, the retired no-path-form claim is pinned to at most its single exempted carrier, and every re-qualified header says "at eviction time"', () => {
+test('reference link integrity — the re-basing caveat and the no-path-form claim are retired everywhere, and every re-qualified header says "at eviction time"', () => {
   // OLD-absent half. A default flip is only landed when the retired wording is gone from
   // every surface, not merely replaced on the files this pass touched — so the sweep runs
   // over the whole scanned set (a superset of the mandated skills/war/references/ scope).
@@ -372,19 +372,14 @@ test('reference link integrity — the re-basing caveat is retired everywhere, t
     );
     if (RETIRED_NO_PATH_FORM_CLAIM.test(header)) noPathFormCarriers.push(name);
   }
-  // Single-carrier exemption pin (the drift-guard-pin-for-task-split-intermediate-state
-  // lesson: pin the current-correct intermediate value and name the retiring owner). At
-  // this task's land the claim's sole live carrier is worker-servitor-edges.md's header;
-  // Task 1.4 owns its retirement and tightens this pin in its own edit.
-  // TODO(Task 1.4): retire the exemption — assert.deepEqual(noPathFormCarriers, []).
+  // Exemption retired (Task 1.4's own edit, closing the C7 intermediate pin): the claim's
+  // last live carrier — worker-servitor-edges.md's header — was re-truthed to the
+  // plugin-root-anchored seat-capability matrix (ADR 0047), so the pattern holds at zero
+  // carriers across every scanned header.
   assert.deepEqual(
-    noPathFormCarriers.filter((n) => n !== 'worker-servitor-edges.md'),
+    noPathFormCarriers,
     [],
-    `retired no-path-form claim reintroduced outside the single exempted carrier:\n  ${noPathFormCarriers.join('\n  ')}`,
-  );
-  assert.ok(
-    noPathFormCarriers.length <= 1,
-    `retired no-path-form claim carrier count ${noPathFormCarriers.length} exceeds the single-carrier exemption (worker-servitor-edges.md, retired by Task 1.4)`,
+    `retired no-path-form claim reintroduced in a scanned header:\n  ${noPathFormCarriers.join('\n  ')}`,
   );
 });
 
