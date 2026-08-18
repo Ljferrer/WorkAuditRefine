@@ -782,9 +782,9 @@ test('D22 — SKILL.md Gate-2 flow orders the fail-closed fetch refresh, the unp
   // (a distinguishable failure) instead of masquerading as a missing duty below.
   assert.match(
     region[0],
-    /ensure-origin/,
-    'the extracted Gate-2 region must span through the `ensure-origin` push step — extraction ' +
-      'truncated too early',
+    /provision-worktrees\.sh[\s*`]{0,4}ensure-origin/,
+    'the extracted Gate-2 region must span through the `provision-worktrees.sh ensure-origin` ' +
+      'push invocation — extraction truncated too early',
   )
   assert.match(
     region[0],
