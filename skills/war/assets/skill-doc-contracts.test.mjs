@@ -640,8 +640,12 @@ const D22_REGION_HEAD_ONLY_PROBE =
   '- Push via `provision-worktrees.sh ensure-origin <working>` (push-first CAS, never force).'
 // (b) The pre-#1136 shape carried forward onto the NEW probe and revert routing: undo clause
 // absent, a bare `reset --hard` doctrine mention present so the proof also covers the pinning
-// decision above (a bare key would green THIS string) — now carrying the fetch step and the
-// exemption sentence, so the undo arm stays its ONLY designated gap. Red at the undo arm.
+// decision above (a bare key would green THIS string — which holds ONLY while the mention sits
+// AFTER the exemption anchor and BEFORE the `git revert` route: the key's undo arm scans the
+// text between `This reverts commit` and `git revert`, so an arm inserted after the mention
+// strands it outside that scan and silently kills the pinning proof; re-run the weakened-key
+// drill after ANY arm insert) — now carrying the fetch step and the exemption sentence, so the
+// undo arm stays its ONLY designated gap. Red at the undo arm.
 const D22_REGION_WITHOUT_UNDO =
   '**Post-servitor publication (Gate 2, spec §4.6). ' +
   '- Commit `docs(learnings): phase N` in the publication worktree, plus the CLAUDE.md pointer duty. ' +
@@ -650,9 +654,10 @@ const D22_REGION_WITHOUT_UNDO =
   'Before pushing, enumerate every unpushed commit ' +
   "and its file set — `git log --name-only --format='commit %H' '@{upstream}'..HEAD` — and confirm " +
   'every path is under the promotion destination: **ANY** other path means stale tracked files ' +
-  'were staged — do **not** push; the refiner never runs `reset --hard` on a shared branch. ' +
+  'were staged — do **not** push. ' +
   '**Neutralized-pair exemption:** a commit is *not* condemned when a later commit in the same ' +
   "range reverts it — linked by git's own `This reverts commit <sha>.` body token. " +
+  'The refiner never runs `reset --hard` on a shared branch. ' +
   '`git revert` each condemned commit, then re-probe. Run `remove-publication-worktree`, ' +
   're-provision, and re-commit. ' +
   '- Push via `provision-worktrees.sh ensure-origin <working>` (push-first CAS, never force).'
