@@ -2,8 +2,13 @@
 # Structure test for skills/war-strategy/SKILL.md + references/plan-interview.md: locks all
 # five sections, the three inline templates (merged plan / spec input shape / roadmap), the
 # merged-template internals ratified by the 2026-08-04 interview-and-authoring-contract plan
-# (Task 1), the interview doctrine's ratified internals, and — case-insensitive — the ABSENCE
-# of the retired two-template/required-Grill-Me wording. grep is fence-blind, so
+# (Task 1), the interview doctrine's ratified internals, the doctrine's Evidence + slot law
+# section (presence pin + the five-atom mirror-equality block, #1307: the D4 / D5 / tag-set /
+# D12 / D14 law atoms extracted from both surfaces, whitespace-normalized, non-empty-asserted
+# per surface, then compared against the canonical SKILL.md §2 bytes), the four both-ways
+# lacks_i positive controls (#1308: each retired-wording absence pattern proven ALIVE against
+# an independent re-cased fixture, and its -i proven load-bearing), and — case-insensitive —
+# the ABSENCE of the retired two-template/required-Grill-Me wording. grep is fence-blind, so
 # template-internal headings are checked as verbatim full lines: an arrow annotation /
 # leading spaces make an annotated line unique to its fence; bare headings shared across the
 # template + example fences are pinned by exact-line occurrence COUNT (check_n), and
@@ -220,6 +225,151 @@ doc_f '## The decisive-slots table'
 doc_f '1:N → roadmap rule'
 doc_f 'docs/plans/YYYY-MM-DD-<slug>.md'
 doc_f 'A gap review is a shorter interview, not a different discipline'
+# Doctrine-side presence pin (#1307, D7): the mirrored law section carried ZERO pins before
+# this — it could be deleted outright with the suite green. Deletion now reds twice: this
+# pin, and the mirror-equality block's per-surface non-empty asserts below.
+doc_f '## Evidence + slot law (shared with the template)'
+
+# ---------------------------------------------------------------------------------------
+# Mirror-equality block (#1307, D3–D6). The plan-authoring law is stated on BOTH reading
+# surfaces — SKILL.md §2's law-statement bullets (canonical) and the doctrine's
+# `## Evidence + slot law (shared with the template)` section (mirror). Per atom: a
+# construct-anchored awk flag-range from each surface, whitespace-normalized (join wrapped
+# lines, squeeze spaces), sed-trimmed to the atom's span, asserted NON-EMPTY per surface
+# (default-deny — a deleted section or moved anchor reds here, never compares "" == ""),
+# then asserted byte-equal (a divergence prints both normalized extracts). The tag-set atom
+# is compared as its encounter-ordered keyword sequence (check: / gate: / HARD at audit_sha
+# / backstop:, word-boundary-safe on the left so prose like "checkable" — no colon — never
+# counts); fewer than four keywords on a surface is that surface's non-empty failure. The
+# D14 atom projects both surfaces onto the per-row marker fragment — the two non-empty arms
+# are the teeth, the equality arm is degenerate by design (A3/Note 5).
+extract_range() { # $1=file  $2=anchor (fixed substring)  $3=bound ERE — emits the first
+  # anchor line through the line BEFORE the first bound match, joined + space-squeezed.
+  # Every live range below terminates at an in-file bullet/heading/fence/blank, never EOF.
+  awk -v a="$2" -v b="$3" '
+    !f { if (index($0, a)) { f = 1; print }; next }
+    f  { if ($0 ~ b) exit; print }
+  ' "$1" | tr '\n' ' ' | tr -s ' '
+}
+# Generic bound: next column-0 bullet opener / heading (fence-internal ## lines included —
+# they bound the template End-state slot) / fence delimiter / blank line.
+MEQ_BOUND='^- |^#|^```|^[[:space:]]*$'
+mirror_eq() { # $1=atom name  $2=SKILL-side extract  $3=doctrine-side extract
+  local eq_ready=1
+  if [ -z "$2" ]; then
+    printf 'not ok - mirror atom %s: SKILL.md extract/projection is EMPTY (anchor or span missing)\n' "$1"
+    fails=$((fails + 1)); eq_ready=0
+  fi
+  if [ -z "$3" ]; then
+    printf 'not ok - mirror atom %s: doctrine extract/projection is EMPTY (anchor or span missing)\n' "$1"
+    fails=$((fails + 1)); eq_ready=0
+  fi
+  if [ "$eq_ready" -eq 1 ]; then
+    if [ "$2" = "$3" ]; then
+      printf 'ok - mirror atom %s: surfaces byte-equal after normalization\n' "$1"
+    else
+      printf 'not ok - mirror atom %s: surfaces DIVERGE\n' "$1"
+      printf '  SKILL.md : %s\n' "$2"
+      printf '  doctrine : %s\n' "$3"
+      fails=$((fails + 1))
+    fi
+  fi
+}
+
+# D4 atom — the evidence-tag triple + the D11 issue-derived source form; span: the
+# backticked (user) token through the (D11) close.
+meq_skill="$(extract_range "$SKILL" '- **Every End state carries one tag**' "$MEQ_BOUND" \
+  | sed -e 's/^.*`(user)`/`(user)`/' -e 's/(D11).*$/(D11)/')"
+meq_doc="$(extract_range "$DOCTRINE" '- **Evidence tags (D4):**' "$MEQ_BOUND" \
+  | sed -e 's/^.*`(user)`/`(user)`/' -e 's/(D11).*$/(D11)/')"
+mirror_eq 'D4' "$meq_skill" "$meq_doc"
+
+# D5 atom — the Done-when law sentence; span: the backticked Done-when slot through the
+# backticked None-with-basis close.
+meq_skill="$(extract_range "$SKILL" '- **Done-when law (D5):**' "$MEQ_BOUND" \
+  | sed -e 's/^.*`Done when: <command>`/`Done when: <command>`/' -e 's/`None — <basis>`.*$/`None — <basis>`/')"
+meq_doc="$(extract_range "$DOCTRINE" '- **Done-when law (D5):**' "$MEQ_BOUND" \
+  | sed -e 's/^.*`Done when: <command>`/`Done when: <command>`/' -e 's/`None — <basis>`.*$/`None — <basis>`/')"
+mirror_eq 'D5' "$meq_skill" "$meq_doc"
+
+# D12 atom — the staleness sentence (already convergent; guarded against future drift).
+meq_skill="$(extract_range "$SKILL" '- **Dated snapshots (D12 staleness rule)**' "$MEQ_BOUND" \
+  | sed -e 's/^.*literals are dated snapshots/literals are dated snapshots/' -e "s/rebased base.*\$/rebased base/")"
+meq_doc="$(extract_range "$DOCTRINE" '- **Staleness (D12):**' "$MEQ_BOUND" \
+  | sed -e 's/^.*literals are dated snapshots/literals are dated snapshots/' -e "s/rebased base.*\$/rebased base/")"
+mirror_eq 'D12' "$meq_skill" "$meq_doc"
+
+# Tag-set atom — the closed End-state tag set, compared as its encounter-ordered keyword
+# sequence (SKILL side: the merged-template fence's End-state slot; doctrine side: the
+# closed-set sentence inside the D5 bullet). Formatting differs by design (fence slot with
+# placeholder args vs backticked prose), so the projection, not the sentence, is the atom.
+project_tags() { # stdin: one normalized line -> encounter-ordered keyword sequence
+  awk '
+    function boundary_at(s, p) {
+      if (p == 1) return 1
+      return (substr(s, p - 1, 1) !~ /[A-Za-z0-9_]/)
+    }
+    function firstpos(s, tok, from,   off, idx, p) {
+      off = from
+      while (1) {
+        idx = index(substr(s, off), tok)
+        if (idx == 0) return 0
+        p = off + idx - 1
+        if (boundary_at(s, p)) return p
+        off = p + 1
+      }
+    }
+    {
+      s = $0
+      n = split("check:|gate:|HARD at audit_sha|backstop:", toks, "|")
+      pos = 1; out = ""
+      while (1) {
+        best = 0; bt = ""
+        for (i = 1; i <= n; i++) {
+          p = firstpos(s, toks[i], pos)
+          if (p > 0 && (best == 0 || p < best)) { best = p; bt = toks[i] }
+        }
+        if (best == 0) break
+        out = (out == "" ? bt : out " > " bt)
+        pos = best + length(bt)
+      }
+      print out
+    }
+  '
+}
+meq_skill="$(extract_range "$SKILL" '- End state: <numbered list' "$MEQ_BOUND" | project_tags)"
+meq_doc="$(extract_range "$DOCTRINE" '- **Done-when law (D5):**' "$MEQ_BOUND" | project_tags)"
+meq_skill_n="$(printf '%s\n' "$meq_skill" | awk -F' > ' '{ print ($0 == "" ? 0 : NF) }')"
+meq_doc_n="$(printf '%s\n' "$meq_doc" | awk -F' > ' '{ print ($0 == "" ? 0 : NF) }')"
+tag_eq_ready=1
+if [ "$meq_skill_n" -lt 4 ]; then
+  printf 'not ok - mirror atom tag-set: SKILL.md yields %s of 4 keywords (%s)\n' "$meq_skill_n" "$meq_skill"
+  fails=$((fails + 1)); tag_eq_ready=0
+fi
+if [ "$meq_doc_n" -lt 4 ]; then
+  printf 'not ok - mirror atom tag-set: doctrine yields %s of 4 keywords (%s)\n' "$meq_doc_n" "$meq_doc"
+  fails=$((fails + 1)); tag_eq_ready=0
+fi
+if [ "$tag_eq_ready" -eq 1 ]; then
+  if [ "$meq_skill" = "$meq_doc" ]; then
+    printf 'ok - mirror atom tag-set: keyword sequences equal (%s)\n' "$meq_skill"
+  else
+    printf 'not ok - mirror atom tag-set: keyword sequences DIVERGE\n'
+    printf '  SKILL.md : %s\n' "$meq_skill"
+    printf '  doctrine : %s\n' "$meq_doc"
+    fails=$((fails + 1))
+  fi
+fi
+
+# D14 atom — both surfaces projected onto the per-row AI-declared marker fragment (SKILL
+# side: Example B's intro prose, bounded at its fence open; doctrine side: the D14 bullet).
+meq_frag='per-row `AI-declared` marker'
+meq_skill="$(extract_range "$SKILL" '### Example B — AFK-form (merged plan)' '^```')"
+meq_doc="$(extract_range "$DOCTRINE" '- **AFK provenance (D14):**' "$MEQ_BOUND")"
+meq_skill_p=''; meq_doc_p=''
+if printf '%s\n' "$meq_skill" | grep -qF -e "$meq_frag" --; then meq_skill_p="$meq_frag"; fi
+if printf '%s\n' "$meq_doc" | grep -qF -e "$meq_frag" --; then meq_doc_p="$meq_frag"; fi
+mirror_eq 'D14' "$meq_skill_p" "$meq_doc_p"
 
 # Retired wording — case-insensitive OLD-absent (the self-sufficient-entry flip retired the
 # handoff/required-Grill-Me framing; a returning phrase in ANY casing is a regression).
@@ -236,6 +386,43 @@ lacks_i "$r3a$r3b"
 r4a='dependency '
 r4b='check'
 lacks_i "$r4a$r4b"
+
+# Positive controls for the four assembled absence patterns (#1308, D8/D11). The assembled
+# literals are unfindable by any grep, so a one-character fragment typo would leave a
+# pattern matching nothing and its pin silently green forever. Both ways per pattern: the
+# re-cased fixture must FIRE the case-insensitive composition (pattern alive), and the same
+# fixture must MISS the plain case-sensitive composition (the -i is load-bearing, not
+# decorative — the recorded lacks()-vs-has_i() asymmetry class). Fixtures are INDEPENDENT
+# re-cased restatements assembled from their OWN split fragments, never from the rN
+# variables — deriving a fixture from rN makes the control tautological; a fragment typo
+# must be able to desynchronize pattern and fixture. Fixture fragments stay split for the
+# same repo-sweep reason as the rN fragments above.
+ctl() { # $1=pattern number  $2=fixture (re-cased restatement)  $3=assembled rN pattern
+  if printf '%s\n' "$2" | grep -qiF -e "$3" --; then
+    printf 'ok - lacks_i pattern %s is alive (re-cased fixture fires under -i)\n' "$1"
+  else
+    printf 'not ok - pattern %s is dead\n' "$1"
+    fails=$((fails + 1))
+  fi
+  if printf '%s\n' "$2" | grep -qF -e "$3" --; then
+    printf 'not ok - pattern %s: -i is decorative (case-sensitive composition also fires)\n' "$1"
+    fails=$((fails + 1))
+  else
+    printf 'ok - lacks_i pattern %s: -i load-bearing (case-sensitive composition misses)\n' "$1"
+  fi
+}
+f1a='Never Authors'
+f1b=' A Spec From Scratch'
+ctl 1 "$f1a$f1b" "$r1a$r1b"
+f2a='Hands Off To The'
+f2b=' Installed Authoring Skills'
+ctl 2 "$f2a$f2b" "$r2a$r2b"
+f3a='Primer + '
+f3b='Handoff'
+ctl 3 "$f3a$f3b" "$r3a$r3b"
+f4a='Dependency '
+f4b='Check'
+ctl 4 "$f4a$f4b" "$r4a$r4b"
 
 # Commander's Intent sits BEFORE ## Build order inside the merged plan template.
 # Locators anchor to the verbatim arrow-bearing template lines (unique to the merged-template
