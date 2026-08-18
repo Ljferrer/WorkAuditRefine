@@ -39,7 +39,7 @@ Source spec: `docs/specs/2026-08-06-references-pointer-integrity-design.md` (con
    `assert.match` (a match, not a count-pin), and worker/servitor/auditor `../`-absence asserts —
    eight shape asserts plus the D5-sanctioned duplicated `refinerMd` `../`-absence, all keyed to
    the bare owner-relative form, with 8
-   `owner-relative` token hits and two "walks OUT of the repo" rationale sentences (verified:
+   `owner-relative` token hits and two "walks out of the repo" rationale sentences (one upper-, one lower-cased — case corrected by /red-team 2026-08-18) (verified:
    live tree at conversion, grep + read of both test regions).
 4. **skills/war/SKILL.md owes an ADR 0042 trigger pointer** (verified: issue #1279 (2026-08-06)).
    The phase-close-revert doctrine landed as `## Phase-close polish reverts — never
@@ -107,16 +107,19 @@ Source spec: `docs/specs/2026-08-06-references-pointer-integrity-design.md` (con
   cards) exist for exactly this.
 - **Platform law (plan 10's refined wording):** literals and mid-pattern metacharacters →
   `grep -F`; anchors are regex.
-- **Budget law (ADR 0042):** every agent card and `skills/war/SKILL.md`/`CONTEXT.md` are
-  budgeted surfaces (`prompt-surface-budgets.test.mjs`); over-hard is a red test. Measured at
-  conversion: `war-refiner.md` 32,368 B (advisory 30,720 — already over; hard 34,816 — ~2.4 KB
-  headroom, LESS after plans 3 and 9 add card prose); `war-auditor.md` 24,624 B (48 B over its
-  24,576 advisory; hard 28,672); `war-worker.md` 9,761 B (advisory 10,240 — plan 9's addition
-  plus this plan's may trip it); `skills/war/SKILL.md` 63,197 B (advisory 64,512 — plans 9, 10,
-  12 add before this plan); `CONTEXT.md` 114,449 B (already over its 111,616 advisory; hard
-  126,976 — a pre-plan-5-shrink snapshot: plan 5's D14 retargets it ≤ 111,616 B at its land, see
-  Task 1.5). Advisory trips are warning-class: cite ADR 0042's justification rule in the commit
-  body; never thin guarded prose to compensate.
+- **Budget law (ADR 0042) — restated LIVE by /red-team 2026-08-18 (the conversion snapshot was
+  stale in the load-bearing row):** every agent card and `skills/war/SKILL.md`/`CONTEXT.md` are
+  budgeted surfaces (`prompt-surface-budgets.test.mjs`); over-hard is a red test. Live at the
+  stacked base `f2eb0ff`: **`war-refiner.md` 34,760 B against its 34,816 B hard line — 56 B of
+  hard headroom**, less than the 66 B the three anchor prefixes alone cost; Task 1.2 therefore
+  carries a mandatory pre-flip ADR 0042 **eviction** sub-step (Task 1.2 (h2)) — a byte-identical
+  move, never prose-thinning, hard constants untouched. The other surfaces are advisory-class
+  and ALL already tripped at the live base: `war-auditor.md` 25,970 B (1,394 B over its 24,576
+  advisory; hard 28,672), `war-worker.md` 10,286 B (46 B over its 10,240 advisory),
+  `skills/war/SKILL.md` 65,597 B (over 64,512), `CONTEXT.md` 113,114 B (1,498 B over 111,616 —
+  plan 5's D14 retarget to ≤ 111,616 B was **never achieved**; hard 126,976 far). Advisory trips
+  are warning-class and, being pre-existing, the owning tasks cite ADR 0042's justification rule
+  in their commit bodies **unconditionally**; never thin guarded prose to compensate.
 - **Anchor by named construct, never line number** — every edit site below is named by test
   title, const name, function name, or heading.
 - **All touched prose stays redaction-lint clean** (no home paths, emails, handles, credentials).
@@ -165,10 +168,12 @@ Source spec: `docs/specs/2026-08-06-references-pointer-integrity-design.md` (con
   their committed `- Files:` slices at conversion) · blast radius: if wrong, the 4/3/3/1/2 census
   and the family count-pins move · check: Task 1.2 re-measures every count at the rebased base —
   a moved count is re-pinned, never guard-dropped.
-- **A5 — all four `QUALIFIED_HEADERS` files carry a `## ` heading at the dispatch base** ·
-  basis: verified at conversion (heading lists read for all four) · blast radius: if a
+- **A5 — all FIVE `QUALIFIED_HEADERS` files carry a `## ` heading at the dispatch base**
+  *(count corrected by /red-team 2026-08-18: the array holds five entries incl.
+  `glossary-cold.md`, which the conversion never read — verified live: 3/3/4/3/5 headings)* ·
+  basis: verified at the stacked base by /red-team round 1 · blast radius: if a
   predecessor removed one, the D8 fail-closed flip would red at land · check: Task 1.1 runs the
-  suite before and after its edits.
+  suite before and after its edits, over the full live array (never a hardcoded four).
 
 ## Non-goals / deferred
 
@@ -202,10 +207,16 @@ Source spec: `docs/specs/2026-08-06-references-pointer-integrity-design.md` (con
 
 ## AI-Commander's Intent
 
-- **Purpose:** a dispatched seat on ANY target repo can resolve every agent-card references/
-  pointer — the five cards carry one family shape, plugin-root-anchored, with the old shape
-  mechanically extinct and the whole family (setup-scout included) count-pinned and
-  OLD-shape-guarded; the reference sweep that polices those pointers can no longer be evaded by a
+- **Purpose:** every agent-card references/ pointer carries one family shape,
+  plugin-root-anchored, with the old shape mechanically extinct and the whole family
+  (setup-scout included) count-pinned and OLD-shape-guarded — **resolution is thereby
+  established for Bash-capable seats** (they expand the placeholder in their own shell, the
+  landed Provision-barrier precedent), **and recorded as a residual for the auditor seat**
+  (whose read-only git guard denies `$`/`{`/`}` expansion outright; its resolution rests on
+  harness substitution — A2, unverified-by-construction — or the D3 fallback line, per the
+  ADR's seat-capability matrix; *scoped by /red-team 2026-08-18 — the prior "ANY target repo /
+  every seat" absolute overstated what the End states deliver*); the reference sweep that
+  polices those pointers can no longer be evaded by a
   line wrap, a heading-less file, or a heading rename; the phase-close revert doctrine is
   discoverable from its operative surface; and every doc claim this change makes stale — the
   false unguarded-card comment, the no-path-form header sentence — is re-truthed in the same
@@ -261,13 +272,16 @@ Source spec: `docs/specs/2026-08-06-references-pointer-integrity-design.md` (con
      run the workflow-template suite, expect a failure naming the OLD shape; the red recorded
      verbatim in the done report. (AI-declared)
   6. The setup-scout family extension is live and the deliberate-exclusion comment is gone ·
-     check: `grep -Fc 'Add it here once they are repaired'
-     skills/war/assets/workflow-template.test.mjs` → 0 (1 at base) AND
+     check: `tr '\n' ' ' < skills/war/assets/workflow-template.test.mjs | grep -ioF 'Add it
+     here once they are repaired' | wc -l` → 0 (1 at base; case-insensitive + wrap-tolerant per
+     the retirement-pin law, plan 12 G16 — the rewritten comment must not reintroduce the
+     phrase in any casing) AND
      `grep -Fc 'setupScoutMd' skills/war/assets/workflow-template.test.mjs` ≥ 2 (0 at base — the
      read plus at least one assert). (AI-declared)
   7. The #1276 false comment is corrected · check:
-     `grep -Fc 'must be held by an assert too' skills/war/assets/workflow-template.test.mjs` → 0
-     (1 at base); `grep -Fc 'consolidat' skills/war/assets/workflow-template.test.mjs` ≥ 1 (0 at
+     `tr '\n' ' ' < skills/war/assets/workflow-template.test.mjs | grep -ioF 'must be held by
+     an assert too' | wc -l` → 0 (1 at base; retirement-pin law form); `grep -Fc 'consolidat'
+     skills/war/assets/workflow-template.test.mjs` ≥ 1 (0 at
      base), the hit inside the Task 5.1 family block. (AI-declared)
   8. A line-wrapped reintroduction of the retired caveat reds the header-truth arm — and the
      single-line variant still reds · check: mutation probes in a throwaway copy of
@@ -282,9 +296,12 @@ Source spec: `docs/specs/2026-08-06-references-pointer-integrity-design.md` (con
      headers and the suite's own comments for paraphrased reintroductions, stragglers listed as
      survey-derived corrections. (AI-declared)
   10. `headerRegion` fails closed · check:
-      `grep -Fc 'the whole file when it has none'
-      skills/war/assets/reference-link-integrity.test.mjs` → 0 (1 at base — the docstring's
-      fallback sentence); mutation probe — strip every `## ` heading from a throwaway copy of a
+      `tr '\n' ' ' < skills/war/assets/reference-link-integrity.test.mjs | grep -ioF 'the whole
+      file when it has none' | wc -l` → 0 (1 at base — the docstring's fallback sentence;
+      retirement-pin law form) AND the committed synthetic-fixture assert pair exists
+      (`grep -c 'headerRegion(' skills/war/assets/reference-link-integrity.test.mjs` grows by
+      ≥ 2 — the null fixture + the non-null control, Task 1.1(c)'s committed lock); mutation
+      probe — strip every `## ` heading from a throwaway copy of a
       `QUALIFIED_HEADERS` file, run the suite, expect an assertion naming the file; the red
       recorded in the done report. (AI-declared)
   11. Renaming `submodule-flows.md`'s co-source-of-truth heading reds the #1277 presence arm ·
@@ -296,9 +313,13 @@ Source spec: `docs/specs/2026-08-06-references-pointer-integrity-design.md` (con
       check: `grep -Fn 'Phase-close polish reverts' skills/war/SKILL.md` → ≥ 1 hit (0 at base)
       on a line that also routes to `references/resume-and-recovery.md`. (AI-declared)
   13. The stale cross-repo header claim is gone and the stranded path line is reflowed · check:
-      `grep -Fc 'no path form resolves' skills/war/references/worker-servitor-edges.md` → 0 (1
-      at base); the header region still matches `/at eviction time/i` (the Arm-3 NEW-present
-      lock);
+      `tr '\n' ' ' < skills/war/references/worker-servitor-edges.md | grep -io 'no path form
+      *resolves' | wc -l` → 0 (1 at base; **case-insensitive + wrap-tolerant per the
+      retirement-pin law — the earlier `grep -Fc` form was evadable by re-case and wrap,
+      /red-team round 1**); the **suite regex of record** is Task 1.1(b)'s third retirement
+      pattern `/no\s+path\s+form\s+resolves/i` (tightened to 0 matches by this task per the C7
+      intermediate pin); the header region still matches `/at eviction time/i` (the Arm-3
+      NEW-present lock);
       then the mandatory manual survey of the remaining `references/` headers for sibling copies
       of the retired claim, stragglers listed as survey-derived corrections. (AI-declared)
   14. The supersession ADR and the CONTEXT.md term are landed · check: a new
@@ -370,7 +391,20 @@ halt-on-miss witnesses, not by intra-plan structure.
   have).
   **(b) Arm 3 — whitespace-tolerant patterns (D7, #1275):** `RETIRED_REBASING_CAVEAT` →
   `/link\s+paths\s+inside\s+the\s+moved\s+blocks/i`; the NEW-present pattern →
-  `/at\s+eviction\s+time/i`; add one wrapped positive control per pattern — a literal carrying an
+  `/at\s+eviction\s+time/i`; **plus a THIRD retirement pattern (added by /red-team round 1 so
+  End state 13 has a suite regex of record): `/no\s+path\s+form\s+resolves/i`, scanned over the
+  same references/ headers** — before Task 1.4 lands this pattern is green vacuously (the
+  header still carries the claim? no: the arm scans for ABSENCE — order it as an OLD-absent arm
+  that activates like the rebasing caveat, red on any match; the phrase's sole live carrier is
+  the `worker-servitor-edges.md` header Task 1.4 retires, and 1.4's deps chain (1.4→1.2→1.1)
+  means this suite lands FIRST — so land the pattern with a `TODO(1.4)`-free design: the arm
+  reds on a match, and the one live match at 1.1's merge would red the gate. RESOLUTION (C7,
+  /red-team): Task 1.1 lands the pattern **wired but keyed to the post-1.4 state via the
+  existing single-carrier exemption idiom** — assert count ≤ 1 at 1.1's land with a comment
+  naming Task 1.4 as the retiring owner, tightened to 0 by Task 1.4's own edit (the
+  drift-guard-pin-for-task-split-intermediate-state lesson: pin the current-correct
+  intermediate value + TODO(TaskN))**; add one wrapped positive control per pattern — a literal
+  carrying an
   embedded newline inside the phrase — beside the existing single-line controls (both axes
   non-vacuous); extend the arm's grep-floor comment with the duty: the hand grep (`grep -rinF`)
   is line-based and cannot see wraps — it remains a completeness floor only, the suite regex is
@@ -378,8 +412,15 @@ halt-on-miss witnesses, not by intra-plan structure.
   **(c) `headerRegion` fail-closed (D8, #1275 secondary):** return `null` when the text has no
   `## ` heading; every call site asserts non-null naming the file; delete the docstring's
   fallback sentence ("the whole file when it has none" — End state 10's OLD-absent pin). All
-  four `QUALIFIED_HEADERS` files carry headings at the conversion base (A5), so the flip cannot
-  red at land.
+  **FIVE** `QUALIFIED_HEADERS` files (`resume-and-recovery.md`, `submodule-flows.md`,
+  `worker-servitor-edges.md`, `auditor-teach.md`, **and `glossary-cold.md`** — the array is
+  union-extending; count corrected by /red-team round 1) carry headings at the live base (A5),
+  so the flip cannot red at land. **Committed lock (mandated by /red-team round 1 — the ES10
+  drill's fail-closed axis is unobservable on the committed corpus since every scanned file has
+  headings): add a synthetic-fixture assert pair beside the flip —
+  `assert.equal(headerRegion('<string with no ## heading>'), null)` plus one non-null control —
+  mirroring D7's wrapped-control discipline, so the fail-closed behavior is non-vacuously
+  proven by a committed assert.**
   **(d) #1277 presence arm (D9):** a new test whose title names the **step-4 citation** —
   extract the backticked filename + quoted section name from `auditor-teach.md`'s step 4 (the
   live shape: `` `submodule-flows.md` ``, section "Resume — submodule remote as
@@ -422,7 +463,12 @@ halt-on-miss witnesses, not by intra-plan structure.
   conversion), the `owner-relative` token count (8 at conversion, all in the pointer family),
   and `wc -c` on all five cards — a moved count is re-pinned, never guard-dropped.
   **(a) Card normalization (D1/D2, #1364 + #1278):** rewrite every `skills/`-targeting markdown
-  link target on the five cards to the anchored form — link text unchanged, surrounding prose
+  link target on the five cards to the anchored form — link text unchanged **except where the
+  link TEXT is itself the path (the setup-scout `[`../skills/war/references/schemas.md`](...)`
+  shape): there the displayed text is rewritten together with the target, since a card
+  displaying the retired `../` path raw to a dispatched seat defeats the flip while the
+  target-only census reads 0 (adjudicated by /red-team round 1; ~22–44 B on
+  `war-setup-scout.md`, 8,989 B against its 10,240 B advisory — ample)**, surrounding prose
   unchanged except (b). Snapshot at conversion: auditor 4 (`auditor-teach.md`), worker 3
   (`worker-servitor-edges.md`), refiner 3 (`refiner-recovery.md`), servitor 1
   (`worker-servitor-edges.md`), setup-scout 2 (`../skills/_shared/provision.mjs` →
@@ -442,8 +488,7 @@ halt-on-miss witnesses, not by intra-plan structure.
   match it is — upgrading it to a count-pin is worker latitude, not a mandate; AI-declared), and
   the worker/servitor/auditor (plus D5-duplicated refiner) `../`-absence asserts. Every assert
   message and O(2)-citing comment is rewritten in the same edit — the `owner-relative` token (8
-  hits at conversion) and BOTH "walks OUT of the repo" rationale sentences (the token sweep's
-  known stragglers, one in each family block) become false bytes after the flip; the rewritten
+  hits at conversion) and BOTH "walks out of the repo" rationale sentences (case-insensitive AND wrap-tolerant pin — `tr '\n' ' ' < skills/war/assets/workflow-template.test.mjs | grep -ioE 'walks out of( *//)? *the repo' | wc -l` -> 2 at the live base (the alternation tolerates the JS comment leader the wrap-split copy carries after collapse — Lead-executed: the plain collapsed form still read 1): the Task 1.2 block's upper-cased single-line "walks OUT" and the Task 5.1 block's lower-cased WRAP-SPLIT copy ("walks out of / the repo" across a comment line break); the plan's earlier all-caps literal grepped 1 and even a case-insensitive line-based grep reads only 1 — corrected + Lead-executed by /red-team round 1, both recorded retirement-grep classes at once) become false bytes after the flip; the rewritten
   comments cite the new ADR and note adjudication O(1) still standing. The `../`-absence asserts
   stay (the anchored form carries no `../`).
   **(d) OLD-shape-absent assert (D4):** no card may carry a bare `](skills/` link target — scan
@@ -464,21 +509,34 @@ halt-on-miss witnesses, not by intra-plan structure.
   byte-untouched — the body's stale "hook error output" precedent attribution stays per the
   stamp convention; the ADR (Task 1.5) records the corrected precedent, so the correction is not
   lost. The redaction lint gates the edit (a discovered gate member).
-  **(h) Budget duty (ADR 0042):** re-measure `wc -c` on all five cards at the rebased base and
-  record each in the done report; run
+  **(h) Budget duty (ADR 0042) — live arithmetic (/red-team 2026-08-18):** re-measure `wc -c` on
+  all five cards at the rebased base and record each in the done report; run
   `node --test skills/war/assets/prompt-surface-budgets.test.mjs` (over-hard is red). The
-  arithmetic to watch: `war-refiner.md` 32,368 B at conversion + plans 3/9's additions against
-  its 34,816 B hard line — this task adds ~66 B of anchor prefixes + one D3 sentence there;
-  `war-auditor.md` is already 48 B over its advisory (warning-class); `war-worker.md` may trip
-  its 10,240 B advisory after plan 9's sentence plus this task's. Advisory trips cite ADR 0042's
-  justification rule in the commit body; never thin guarded prose to compensate.
+  binding fact: `war-refiner.md` is **34,760 B against its 34,816 B hard line (56 B headroom)**
+  while this task adds 66 B of anchor prefixes + one D3 sentence (~200 B) there — without (h2)
+  below this task reds the budget gate at its own merge. `war-auditor.md` (1,394 B over
+  advisory) and `war-worker.md` (46 B over advisory) are pre-existing warning-class trips: cite
+  ADR 0042's justification rule in the commit body unconditionally; never thin guarded prose to
+  compensate.
+  **(h2) Refiner-card eviction (ADR 0042's sanctioned shrink — mandated by /red-team round 1,
+  the Critical budget adjudication):** BEFORE the pointer flip, evict ONE self-contained
+  pure-reference block from `agents/war-refiner.md` into
+  `skills/war/references/refiner-recovery.md` — a **byte-identical move** (never a rewrite,
+  never a decisive blocking rule: O(1) keeps decisive rules inline; recovery recipes, tables,
+  or worked examples are the eligible class, worker's choice) of **≥ 400 B**, leaving in its
+  place the fixed-shape ADR 0042 trigger pointer (`when <trigger>, read
+  ${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md (§ <the moved block's
+  heading>)` — anchored form, this plan's own family shape). Net arithmetic recorded in the done
+  report: 56 B headroom + ≥ 400 B evicted − 66 B prefixes − ~200 B D3 line − ~130 B pointer
+  line > 0. The hard constant stays untouched (ratchet respected); the D3 line lands on ALL
+  FIVE cards (End state 3 unchanged).
   **(i) Mutation drill (End state 5):** throwaway copy of `agents/war-worker.md` + one bare
   `](skills/war/references/` pointer → workflow-template suite red naming the OLD shape;
   recorded verbatim in the done report.
   **(j) Sweep:** `grep -n 'owner-relative' skills/war/assets/workflow-template.test.mjs` → 0
   after the rewrite (8 at conversion, all family-descriptive) — then, mandatorily, hand-scan the
   family blocks' test titles, comments, and assert messages for shape descriptions the token
-  sweep misses (the two "walks OUT of the repo" sentences are the pre-identified stragglers) —
+  sweep misses (the two "walks out of the repo" sentences — one upper-cased, one lower-cased; hand-scan case-insensitively — are the pre-identified stragglers) —
   and the End-state-1 card survey: hand-scan each card's same-scope prose for non-link path
   citations (known finds at conversion: the backticked `references/schemas.md` Return-line
   citations, deferred per Non-goals) and list every other straggler as a survey-derived
@@ -625,16 +683,21 @@ halt-on-miss witnesses, not by intra-plan structure.
 
 ## Deferred validations (backstops — AI-declared)
 
-- The harness-substitution probe (A2): dispatch a throwaway auditor-type probe whose card text
-  carries the placeholder and observe whether it arrives substituted · why deferred: unprovable
-  from the tree — needs a live dispatch · runner: `/red-team`, before ratification (the spec
-  names it red-team-provable); the outcome is recorded in the red-team report and threaded into
-  the ADR's seat-capability matrix; a non-substituting harness downgrades nothing (A2's
-  fallback). (AI-declared)
+- ~~The harness-substitution probe (A2)~~ **DISCHARGED-AS-UNRUNNABLE by /red-team 2026-08-18:
+  no card-injection path exists** — agent dispatch is by registry type name only (`agent()`
+  takes a prompt, never a card body; cards come from the installed plugin), so A2 is recorded
+  **unverified-by-construction** and the ADR's seat-capability matrix words the auditor row
+  fallback-first: harness substitution unverified; the operative paths are seat-shell expansion
+  (A1, Bash-capable seats — the auditor's guard denies `$`/`{`/`}`, so NOT the auditor) and the
+  D3 resolution line. The live-observation path that remains is backstop row 6 (foreign-repo
+  field evidence). (AI-declared)
 - The mutation drills of End states 5, 8, 10, and 11 (bare-pointer reintroduction; wrapped +
   single-line caveat reintroduction; headings-stripped copy; heading rename) · why deferred:
   delete-and-trace mutation runs are uncommittable by design — the committed asserts, wrapped
-  positive controls, and fail-closed extractions are the standing locks · runner: the owning
+  positive controls, fail-closed extractions, **and (ES10, added by /red-team round 1) the
+  committed synthetic-fixture assert pair — the fail-closed axis is unobservable on the
+  committed corpus (all five scanned files carry headings), so the fixture pair is the
+  standing lock there, not the drill** — are the standing locks · runner: the owning
   tasks' workers (1.1 and 1.2) run each against throwaway copies and record the reds verbatim in
   the done reports; gate-audit reads them SOFT, never a hold. (AI-declared)
 - The manual survey halves of End states 1, 9, and 13 plus Task 1.2's family-block hand-scan ·
@@ -645,10 +708,14 @@ halt-on-miss witnesses, not by intra-plan structure.
   spine order; only a plain-`/war` run can encounter the missing-predecessor state · runner:
   Tasks 1.2 and 1.3 run their greps as the first post-rebase act and halt-and-report on a miss —
   the standalone fallback is halt, never improvisation. (AI-declared)
-- The budget valves (the refiner hard-headroom arithmetic; the SKILL.md / worker-card / CONTEXT.md
-  advisory trips) · why deferred: measurable only at the rebased base, after plans 3/6/9/10/12's
-  additions · runner: each owning worker re-measures `wc -c`, records it, and on an advisory trip
-  cites ADR 0042's justification rule in the commit body; over-hard is the red
+- The budget valves · ~~why deferred: measurable only at the rebased base~~ **premise falsified
+  by /red-team 2026-08-18: every named advisory is ALREADY tripped at the live base**
+  (war-auditor +1,394 B, war-worker +46 B, SKILL.md +1,085 B, CONTEXT.md +1,498 B over their
+  advisories — and plan 5's CONTEXT.md ≤ 111,616 B retarget was never achieved), and the
+  refiner HARD arithmetic is resolved in-plan (Task 1.2 (h2)'s eviction) · what remains
+  deferred: only each surface's exact post-edit byte count at the rebased base · runner: each
+  owning worker re-measures `wc -c`, records it, and cites ADR 0042's justification rule in the
+  commit body **unconditionally**; over-hard is the red
   `prompt-surface-budgets.test.mjs`. (AI-declared)
 - Field evidence that a dispatched seat on a foreign target repo actually resolves an anchored
   reference (the whole point of D1) · why deferred: needs a live cross-repo campaign · runner:
@@ -740,8 +807,17 @@ halt-on-miss witnesses, not by intra-plan structure.
 
 ## Open decisions
 
-- **D3 veto or ratification** — resolved by `/red-team` (A3; Note 4). A veto drops the line and
-  converts End state 3 into the accepted-residual record.
-- **A2 harness-substitution probe outcome** — resolved by `/red-team` (backstop row 1); the
-  result adjusts the ADR's seat-capability matrix wording (substituted vs shell-expanded vs
-  fallback-only), never the family shape.
+**None — both resolved by /red-team round 1 (2026-08-18):**
+
+- **D3 RATIFIED** (A3; Note 4): the resolution line lands on all five cards as specced —
+  its role is now central, since A2 resolved to unverified-by-construction and the auditor's
+  only deterministic resolution path on the plugin repo IS the D3 line.
+- **A2 = unverified-by-construction** (backstop row 1, discharged-as-unrunnable): no
+  card-injection path exists in the harness — `agent()` dispatches a prompt against a
+  registry-named card; the ADR's seat-capability matrix words the auditor row fallback-first
+  (harness substitution unverified; seat-shell expansion for Bash-capable seats per A1; the D3
+  line otherwise). Backstop row 6 (foreign-repo field evidence) remains the live-observation
+  path. Additionally adjudicated same round: the refiner-card hard-budget Critical resolves via
+  Task 1.2 (h2)'s ADR 0042 byte-identical eviction (never prose-thinning, hard constants
+  untouched); the Purpose is scoped to Bash-capable-seat resolution + the recorded auditor
+  residual.
