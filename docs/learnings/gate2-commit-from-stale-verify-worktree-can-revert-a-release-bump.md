@@ -100,12 +100,19 @@ tip, never one reused across the phase's own merge work.
    log that parses to zero versions is RED, never a vacuous pass. Ceiling: the load-bearing
    `--diff-merges=first-parent` flag requires git >= 2.31 — an older git exits non-zero and the
    floor fail-opens (disclosed via a `t.diagnostic`, not silent).
-2. **Gate-2 pre-push staged-file check (procedural).** The `skills/war/SKILL.md` publication flow
-   now lists the docs commit's staged file set (`git show --name-only --format= HEAD`) between the
-   commit step and the `ensure-origin` push, and refuses to push when any path falls outside the
-   promotion destination or `CLAUDE.md`. This is the **root-cause** probe, one level above the
-   version slots: the mechanism is stale *tracked files* being staged, so it catches a stale skill
-   or hook the same way it catches a stale slot. Locked by a paired-anchor row in
+2. **Gate-2 pre-push staged-file check (procedural).** As of plan `gate2-publication-guard`
+   (landed 2026-08-18), the `skills/war/SKILL.md` publication flow refreshes the range's left
+   boundary first — `git fetch origin <working>` in the publication worktree, fail-closed: a
+   non-zero fetch exit means do not probe, do not push, escalate — then, between the commit step
+   and the `ensure-origin` push, enumerates **every unpushed commit** and its file set over the
+   freshly-fetched range (`git log --name-only --format='commit %H' '@{upstream}'..HEAD`, with
+   the deterministic `origin/<working>..HEAD` fallback when the publication worktree has no
+   upstream configured), condemning any commit whose file set escapes the promotion destination
+   or `CLAUDE.md` — the whole range, never the tip alone; a commit neutralized by a later
+   in-range revert (git's own `This reverts commit` body token) is exempt, as is that reverting
+   commit. This is the **root-cause** probe, one level above the version slots: the mechanism is
+   stale *tracked files* being staged, so it catches a stale skill or hook the same way it
+   catches a stale slot. Locked by the `D22_ORDERED_SPAN` ordered key in
    `skills/war/assets/skill-doc-contracts.test.mjs`.
 3. **Publication-worktree dirty-reuse refusal (provisioning).** `cmd_ensure_publication_worktree`'s
    behavior (b) — registered, present, already on the working branch — now runs the same
