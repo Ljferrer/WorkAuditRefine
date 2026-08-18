@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # Structure test for the WAR pipeline skills trio (spec §10 criteria 2, 3, 4, 9, 10).
 # Pins the greppable tokens the three new skills + every amended doctrine surface must carry,
-# so a future edit can't silently drop the pipeline contract. grep-based, plain-bash, no mktemp
+# so a future edit can't silently drop the pipeline contract. Also pins (#1431, 2026-08-17)
+# the war-machine drafter charter's Mechanism-latitude duty — the machine-SKILL twin of
+# skills/war-strategy/war-strategy-structure.test.sh's latitude pins, region-scoped to §2
+# step 1. grep-based, plain-bash, no mktemp
 # — bash 3.2-safe. Exit 0 = all present; exit N = N failed assertions.
 #
 # Repo *.test.sh convention: self-discovered by the gate's `find … -name '*.test.sh'` sweep
@@ -504,6 +507,24 @@ has_i "$MACHINE_AFK" 'per-row `AI-declared` markers'
 # claim per D4/D11.
 has_i "$SURVEY" 'tag every synthesized claim'
 has   "$SURVEY" '(verified: issue #N (<date>))'
+
+printf '\n# Latitude drafter duty (#1431, 2026-08-17) — the machine-SKILL twin pin: the §2 step-1 drafter charter offers the Mechanism latitude sub-bullet duty\n'
+# Twin of war-strategy-structure.test.sh's latitude pins (three authoring surfaces, lock-step).
+# Region-scoped: extract §2 step 1 (the spawn-in-parallel step, column-0-bounded at the step-2
+# line) and require the label inside it — a hit elsewhere in the file must not satisfy the twin
+# pin. Default-deny: an empty extraction (moved anchor or bound) is its own failure, never a
+# vacuous pass. Case-insensitive match: the label is PROSE (the recorded sentence-case class).
+# Zero-at-base in this SKILL (Context 9's census, re-measured 2026-08-17).
+drafter_region="$(awk '/\*\*Spawn in parallel:\*\*/{f=1} f && /^2\. /{exit} f{print}' "$MACHINE")"
+if [ -z "$drafter_region" ]; then
+  printf 'not ok - %s drafter-charter region extraction is EMPTY (anchor or bound moved)\n' "$(basename "$MACHINE")"
+  fails=$((fails + 1))
+elif printf '%s\n' "$drafter_region" | grep -qiF -e 'Mechanism latitude' --; then
+  printf 'ok - %s :: drafter charter carries Mechanism latitude (region-scoped, case-insensitive)\n' "$(basename "$MACHINE")"
+else
+  printf 'not ok - %s drafter charter MISSING :: Mechanism latitude (region-scoped, case-insensitive)\n' "$(basename "$MACHINE")"
+  fails=$((fails + 1))
+fi
 
 printf '\n# Gospel pins (docs/plans/2026-08-04-interview-and-authoring-contract.md, Task 8; End state 5) — committed both-ways sweep of the five doc surfaces\n'
 # Named, not numbered: the original pipeline spec owns the numbered criteria. Adjudicated

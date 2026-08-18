@@ -853,9 +853,13 @@ const depClause = task => ((task.deps || []).length > 0 && task.taskType !== 'gi
     + FORCE_WITH_LEASE_RULE + ' ' + STALE_PRIOR_ATTEMPT_RULE + pt`\n`
   : ''
 // Worker-facing intent block (ADR 0013): the generic intent clause plus the worker's licensed-
-// judgment sentence. Empty when intent is absent (byte-compatible prompts, criterion 10).
+// judgment sentence and the latitude-clause arm (#1431, ADR 0013 Amendment 2026-08-17) — the arm is
+// unconditional prose whose BEHAVIOR fires only when the threaded intent carries an explicit
+// `Mechanism latitude:` clause; mirrored VERBATIM in agents/war-worker.md (same commit; the D3
+// latitude registry row anchors both surfaces from a latitude-bearing-intent fixture).
+// Empty when intent is absent (byte-compatible prompts, criterion 10).
 const workerIntentClause = intent
-  ? intentClause + pt`Use the intent to resolve ambiguity in your slice; intent-consistent deviation is in-band — note it in your result.\n`
+  ? intentClause + pt`Use the intent to resolve ambiguity in your slice; intent-consistent deviation is in-band — note it in your result. When the threaded intent carries an explicit \`Mechanism latitude:\` clause, a mechanism substitution that satisfies the binding guardrails and the End states is in-band work, not a deviation to note for adjudication and never a follow-up issue; note the substitution in your result like any other in-band call.\n`
   : ''
 // Worker self-query line (spec §4.5): workers alone gain a standing license to query the memory CLI
 // mid-task when they hit something unfamiliar (they have Bash; no other role gains anything). ONE
@@ -1022,8 +1026,10 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin) {
     + pt`Verify the mapped acceptance-criteria tests EXIST and are not weakened or skipped (anti-cheat: catch "green by deletion" and test-integrity erosion). You cannot execute the gate — the refiner runs the gate. Your job is to confirm tests exist in the diff and are uncompromised.`
     // Latitude + disposition + calibration + cost-claim rules (ADR 0013) — mirrored VERBATIM in
     // agents/war-auditor.md (standing surface, same commit); the both-surfaces unit tests assert the
-    // shared sentences on both.
-    + pt`\nLATITUDE RULE: the plan slice is the floor, the Commander's Intent is the ceiling — intent-consistent work beyond the literal slice is APPROVE (judge it on its own correctness), never a plan-faithfulness violation; only deviations that contradict the intent or the slice block. No intent threaded means judge against the plan slice alone, as before.`
+    // shared sentences on both. The latitude-clause arm (#1431, ADR 0013 Amendment 2026-08-17) is
+    // always-rendered prose whose BEHAVIOR fires only when the threaded intent carries an explicit
+    // `Mechanism latitude:` clause; the D3 latitude registry row anchors it on both auditor surfaces.
+    + pt`\nLATITUDE RULE: the plan slice is the floor, the Commander's Intent is the ceiling — intent-consistent work beyond the literal slice is APPROVE (judge it on its own correctness), never a plan-faithfulness violation; only deviations that contradict the intent or the slice block. No intent threaded means judge against the plan slice alone, as before. When the threaded intent carries an explicit \`Mechanism latitude:\` clause, read "contradicts the slice" against the binding guardrails, not against every pinned mechanism literal in the slice: a substitution inside the enumerated latitude that holds the guardrails and End states is APPROVE, never a plan-faithfulness finding; a substitution that breaches a guardrail or an End state blocks exactly as before.`
     + pt`\nDISPOSITION RULE: every Minor/Nit finding carries a disposition — absorb (mechanical, intent-consistent, safe to fix this phase; set phaseClose:true when the fix needs the integrated tip or touches a shared/slot-adjacent file), follow-up (substantive work beyond this phase — MUST state why it is not absorbable), or note (informational; phase report + servitor feed, never an issue). Omitted disposition defaults: Minor becomes follow-up, Nit becomes note; absorb is never a default.`
     // ESCALATE-BOUNDARY CONTRACT (gate-audit-finding-routing Task 2.1(a)+(b), #1410 fixes 1+2) —
     // mirrored on agents/war-auditor.md (the verdict list's escalate bullet + the Return shape line)

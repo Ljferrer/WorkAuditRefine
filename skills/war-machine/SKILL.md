@@ -74,9 +74,13 @@ file footprints of the plans already authored (honest contention).
 
 1. **Spawn in parallel:** a **drafter** agent (authors the merged-shape plan from the spec +
    codebase, per the `/war-strategy` §2 merged plan template and code-boundary decomposition
-   rule) and an **adversarial grill** agent (runs
+   rule; offers the intent's two optional sub-bullets — `Mechanism latitude:` enumerating which
+   mechanisms named in Method are implementer's choice, `Binding guardrails:` the real floor —
+   under `--afk`, with per-row `AI-declared` markers per ADR 0014) and an **adversarial grill** agent (**derives**
    [`plan-interview.md`](../war-strategy/references/plan-interview.md)'s falsifier probes +
-   provenance scan against the draft; any behavioral claim about the repo — what a function
+   provenance scan from the spec + codebase at spawn, and
+   **applies them against the draft in the step-2 exchange**;
+   any behavioral claim about the repo — what a function
    ingests, what a command emits — is proven by executing it in a throwaway sandbox, never by
    analysis alone). **Fresh context per spec** — ten specs never share one bloated window.
 2. The drafter answers the grill's questions from the spec + codebase. Questions that survive

@@ -660,6 +660,10 @@ The latitude rule a threaded intent licenses: the plan slice is the **floor** (m
 Commander's Intent is the **ceiling** (bounds judgment beyond the slice). Intent-consistent work beyond
 the literal slice is APPROVE, judged on its own correctness — never a plan-faithfulness violation; only
 deviations that contradict the intent or the slice block. No intent ⇒ judge against the slice alone.
+When the threaded intent carries an explicit `Mechanism latitude:` clause, "contradicts the slice" is
+read against its `Binding guardrails:` list, not against every pinned mechanism literal — a substitution
+inside the enumerated latitude that holds the guardrails and End states is in-band; the clause never
+waives a check, gate, or backstop (ADR 0017).
 _Avoid_: plan literalism as a virtue; latitude as unbounded scope.
 
 **Disposition** (`absorb` | `follow-up` | `note`):

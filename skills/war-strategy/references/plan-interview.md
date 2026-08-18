@@ -39,7 +39,10 @@ least two landmine falsifiers** from the WAR falsifier list:
 - **gate discoverability** — a test the gate's self-discovery sweep never finds;
 - **the delete-the-feature probe** — mentally delete the feature: any proposed check that
   still passes is vacuous. This is the box-ticking mitigation — a tagged End state whose
-  check cannot fail is worth less than no tag at all.
+  check cannot fail is worth less than no tag at all;
+- **the flush-ceiling smell** — an intent whose ceiling sits flush on the slice floor (no
+  mechanism latitude beyond the slices) routes every forced mechanism substitution out-of-band
+  as a follow-up issue; the interviewer names it as a plan smell and asks the latitude beat.
 
 **Stage 1b — private full-template draft.** Before Q1, draft the entire merged template
 privately, every slot filled and tagged (evidence tags, D4). Bin every unknown:
@@ -60,7 +63,12 @@ default-and-tagged: it is asked, or it is absent (ADR 0013).
 - bare assent ("yes", "ok", "sounds right") accepts the recommendation and records it
   `(user)`;
 - at least two falsifier questions land **early** — the stage-1 pre-mortem's landmines,
-  posed as questions.
+  posed as questions;
+- **the latitude beat** (decisive slot) — once the End states are drafted, ask: *"Which
+  mechanisms named in Method are implementer's choice? What is the actual floor?"* — landing
+  as the intent's optional `Mechanism latitude:` / `Binding guardrails:` sub-bullets
+  ([SKILL.md §2](../SKILL.md)). Default posture: mechanisms named in Method are reference
+  realizations unless promoted into the guardrails list.
 
 **Stage 3 — mid-budget checkpoint.** Once, near the budget's midpoint: surface the riskiest
 still-live assumption and ask it directly.
@@ -100,6 +108,7 @@ interview that leaves a row unfilled has not finished:
 | Interview extract | Lands in | Consumer |
 |---|---|---|
 | validation criteria + checks | tagged End states in `## Commander's Intent` (D18 — one numbered list, each tagged per D5) | `/red-team` grading · `/war` gate-audit |
+| mechanism latitude + the actual floor (the latitude beat — asked always; an explicit "none" is a complete answer) | optional `Mechanism latitude:` / `Binding guardrails:` sub-bullets in `## Commander's Intent` | `/war` execution seats — in-band mechanism-substitution reading |
 | constraints / landmines | `## Pivotal constraints` | `/red-team` probe derivation |
 | file footprints | per-task `Files:` | decomposition rule 1 + campaign contention |
 | deferred-validation candidates | `## Deferred validations (backstops)` | land-time surfacing (ADR 0017) |
@@ -112,12 +121,12 @@ interview that leaves a row unfilled has not finished:
 ## Evidence + slot law (shared with the template)
 
 - **Evidence tags (D4):** `(user)` · `(verified: <source> at <base>)` ·
-  `[assumed: <default> — if wrong: <consequence>]`; issue-derived claims use the source form
+  `[assumed: <default> — if wrong: <consequence>]`; issue-derived facts use
   `(verified: issue #N (<date>))` (D11).
 - **Staleness (D12):** literals are dated snapshots at a stated base; re-measure at the
   task's rebased base.
 - **Done-when law (D5):** `Done when: <command>` is required iff `requiresTest: true`, and
-  permitted (not required) elsewhere — otherwise `None — <basis>`. Every End state carries
+  permitted (not required) on any other task; otherwise `None — <basis>`. Every End state carries
   exactly one tag from the closed set `check:` | `gate:` | `HARD at audit_sha` (observable +
   judge seat) | `backstop:` row.
 - **AFK provenance (D14):** AI-authored rows/tags carry a per-row `AI-declared` marker
