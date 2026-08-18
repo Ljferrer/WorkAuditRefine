@@ -52,8 +52,9 @@ stands.**
      foreign repo an auditor that resolves nothing is never worse off than under the prior
      unresolvable owner-relative form — the decisive rules stay inline (O(1)).
    - **Seats with no shell at all** (the servitor's confinement denies Bash entirely —
-     [ADR 0002](0002-scope-by-agent-type.md)) share the auditor's fallback path: the D3
-     resolution line, then O(1)'s inline decisive rules.
+     [ADR 0002](0002-scope-by-agent-type.md); the setup-scout's card declares
+     `tools: Read, Grep, Glob`) share the auditor's fallback path: the D3 resolution line, then
+     O(1)'s inline decisive rules.
 
    The D3 line is the ratified default (assumption A3). Had /red-team vetoed it, the accepted
    residual would be recorded explicitly in the plan's backstops — never waived in prose
