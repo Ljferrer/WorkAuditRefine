@@ -4,7 +4,10 @@
 [ADR-0032](0032-red-team-grades-by-artifact-kind.md) + friction D7 refine the finding-severity model (Decision 4) and
 friction D8 adds the auditor-prompt adjudicationClause (Decision 3), noted inline below; amended
 2026-08-05 — artifact-first verification and the `unverified` status supersede Decision 6's
-judgment-path description for gate-audit End-state checks; see the amendment below)
+judgment-path description for gate-audit End-state checks; see the amendment below; amended
+2026-08-17 — the latitude-clause reading clarifies Decision 3: an explicit `Mechanism latitude:`
+clause licenses in-band mechanism substitution bounded by the `Binding guardrails:` list; see the
+amendment below)
 
 WAR's agents had exactly one yardstick: the plan's literal text. The auditor's plan-faithfulness lens judged
 work against the slice ("the plan did not authorize"), severity was the only routing signal (every Minor/Nit
@@ -169,3 +172,32 @@ are two channels, and the seat records both. Ratified by
 [the precision-chain & loop-breaker plan](../plans/2026-08-05-precision-chain-and-loop-breaker.md)
 (D2/D8, Tasks 1.2/3.1/3.2; red-team F5/F7, operator-ratified 2026-08-05). This amendment leaves the
 ratified body above — beyond the Status currency line — byte-unchanged.
+
+## Amendment (2026-08-17): the latitude-clause reading
+
+Decision 3 made the plan slice the floor and the intent the ceiling, but left the ceiling's shape
+implicit: every mechanism a plan slice named read as pinned, so a forced mechanism substitution —
+the named idiom cannot work as specced while an equivalent one can — routed as a deviation to
+adjudicate or a follow-up issue even when the operator never cared which idiom won. This amendment
+records the latitude-clause reading (#1431):
+
+- **Authored intent may enumerate implementer's-choice mechanisms.** The intent block's optional
+  `Mechanism latitude:` sub-bullet names the mechanisms that are reference realizations, and its
+  paired `Binding guardrails:` sub-bullet names the bounds that stay blocking. The clause is
+  authored intent — operator-confirmed per Decision 2, never Lead-invented — offered by the
+  authoring surfaces (the merged-plan template, the interview beat, the war-machine drafter duty).
+- **The guardrails list is the blocking floor.** Both runtime seats read a threaded intent carrying
+  an explicit `Mechanism latitude:` clause as licensing in-band mechanism substitution: the worker
+  treats a substitution that satisfies the binding guardrails and the End states as in-band work —
+  noted in its result, never a follow-up issue; the auditor reads "contradicts the slice" against
+  the binding guardrails, not against every pinned mechanism literal in the slice — a substitution
+  inside the enumerated latitude that holds the guardrails and End states is APPROVE, never a
+  plan-faithfulness finding, while one that breaches a guardrail or an End state blocks exactly as
+  before. Both standing cards and their dispatched twins carry the arm under the same
+  both-surfaces duty as Decision 3.
+- **The clause never waives a check, gate, or backstop**
+  ([ADR-0017](0017-packaging-floor-docker-gate-ratified-backstops.md)). End states pin outcomes and
+  each stays checkable as written; a clause-less intent produces the same adjudication outcome as
+  before this amendment, and an intent-absent run still dispatches byte-identical worker prompts.
+
+This amendment leaves the ratified body above — beyond the Status currency line — byte-unchanged.

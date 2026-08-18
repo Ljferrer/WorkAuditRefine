@@ -7972,6 +7972,17 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
   const mergeP = ((await runPhase(PROVISION_ARGS({ tasks: [dwTask({ doneWhen: DU_CMD })] }), defaultImpl)).calls
     .find(isMergeTask) || {}).prompt
   assert.ok(workerP && auditP && servitorP && mergeP, 'worker, regular auditor, servitor, and doneWhen-bearing merge-task prompts all dispatched (presence guard)')
+  // Task 2.2 (#1431, latitude clause): workerIntentClause renders ONLY on a threaded intent — the
+  // registry's default workerP above comes from an intent-LESS fixture where the clause is '' — so
+  // the latitude row's worker dispatched surface is captured from a latitude-bearing-intent fixture
+  // run (the mergeP/esSeatP dedicated-fixture precedent). The intent body deliberately AVOIDS the
+  // arm's own opener phrase ("explicit `Mechanism latitude:` clause"): the embedded intent bytes
+  // alone can never green that anchor, so stripping the arm from the prompt literal reds the row
+  // (delete-the-feature). The trailing plan token satisfies the #1413 own-token provenance floor.
+  const LAT_INTENT = 'Purpose: ship the wtprov contract.\nMechanism latitude: the extraction idiom is implementer choice.\nBinding guardrails: the End states hold as written.\nEnd state: 1. shipped. (plan wtprov-a)'
+  const latWorkerP = ((await runPhase(PROVISION_ARGS({ intent: LAT_INTENT }), defaultImpl)).calls
+    .find(isWorker) || {}).prompt
+  assert.ok(latWorkerP, 'latitude-bearing-intent worker prompt dispatched (presence guard, Task 2.2 row)')
   // Task 3.2 fixtures: a claims-bearing run (widened endState rows) whose merge returns mappedTests —
   // the per-task seat prompt then carries BOTH the shared endStateBlock attestation contract and the
   // mapped-tests grep block; the end-state-only seat (requiresTest:false fixture) carries the shared
@@ -8181,8 +8192,21 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     { name: 'escalate-boundary contract (Task 2.1): required-when-escalate reason + by-construction discriminator + Grep-tool search rule — standing card + auditPrompt()',
       surfaces: [['war-auditor.md', auditorMd], ['auditPrompt()', auditP]],
       anchors: [/required when/i, /however severe/i, /metacharacter/i] },
+    // Task 2.2 (#1431, ADR 0013 Amendment 2026-08-17): the latitude-clause reading on both runtime
+    // seats — worker card + workerIntentClause (intent-gated: the dispatched surface is the
+    // latitude-bearing fixture prompt above, never the intent-less workerP where the clause is ''),
+    // auditor card + the always-rendered LATITUDE RULE arm in auditPrompt(). /mechanism latitude/i
+    // and /binding guardrails/i were verified zero-at-base on all four surfaces; on the
+    // latitude-bearing worker prompt alone the threaded intent itself carries those two headings, so
+    // the third anchor pins the arm's own opener ("explicit `Mechanism latitude:` clause" — absent
+    // from the fixture intent body by construction), keeping every surface red-able by a one-sided
+    // strip of its arm (delete-the-feature; Red-proof 6).
+    { name: 'latitude clause (#1431): an explicit Mechanism latitude: clause licenses in-band mechanism substitution bounded by the binding guardrails — worker card + latitude-bearing worker prompt, auditor card + auditPrompt()',
+      surfaces: [['war-worker.md', workerMd], ['latitude-bearing worker prompt', latWorkerP],
+                 ['war-auditor.md', auditorMd], ['auditPrompt()', auditP]],
+      anchors: [/mechanism latitude/i, /binding guardrails/i, /explicit `Mechanism latitude:` clause/i] },
   ]
-  assert.ok(REGISTRY.length >= 21, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison), and the Task 2.1 escalate-boundary contract row (gate-audit-finding-routing Phase 2: required-when-escalate + discriminator + search-tooling) — floor equals the true row count, no slack (#693)')
+  assert.ok(REGISTRY.length >= 22, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison), the Task 2.1 escalate-boundary contract row (gate-audit-finding-routing Phase 2: required-when-escalate + discriminator + search-tooling), and the Task 2.2 latitude-clause row (#1431: Mechanism latitude / binding guardrails on both runtime seats, worker surface from the latitude-bearing-intent fixture) — floor equals the true row count, no slack (#693)')
   for (const row of REGISTRY) {
     for (const [sName, sText] of row.surfaces) {
       for (const re of row.anchors) {

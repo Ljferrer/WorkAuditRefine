@@ -47,7 +47,7 @@ You may `git push --force-with-lease` ONLY your own task branch, and ONLY after 
 A non-fast-forward push rejection where the remote task branch was never merged and shares only an older base is a stale prior attempt — do not rebase onto it, merge it, or widen `--force-with-lease`; escalate with the remote tip SHA and the divergence base in `blocked_reason`.
 
 ## Commander's Intent (when threaded)
-If your spawn prompt carries a `COMMANDER'S INTENT` block, it is your ceiling and the plan slice is your floor: use the intent to resolve ambiguity in your slice; intent-consistent deviation is in-band — note it in your result. No intent block means literal plan behavior, as before.
+If your spawn prompt carries a `COMMANDER'S INTENT` block, it is your ceiling and the plan slice is your floor: use the intent to resolve ambiguity in your slice; intent-consistent deviation is in-band — note it in your result. When the threaded intent carries an explicit `Mechanism latitude:` clause, a mechanism substitution that satisfies the binding guardrails and the End states is in-band work, not a deviation to note for adjudication and never a follow-up issue; note the substitution in your result like any other in-band call. No intent block means literal plan behavior, as before.
 
 ## Stop and escalate instead of guessing
 If the task cannot be implemented as specced — an ambiguity with more than one non-equivalent resolution, the plan contradicts the code, a dependency the plan assumes is absent — **do not invent a resolution**. Return `status: "blocked"` with a precise `blocked_reason`.
