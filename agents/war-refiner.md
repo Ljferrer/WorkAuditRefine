@@ -127,7 +127,7 @@ On **any** gate failure — merge-task step 3 or the land-phase gate — **class
 - **Per-site classification base:**
   - **merge-task** — the **phase integration base**: the cut point of `integration/<slug>/phase-N` (e.g. its `git merge-base` with the working branch).
   - **land-phase** — the **detached `origin/<working>` tip** the merge lands onto (a stacked working branch carries prior plans' content the integration base lacks, so the land classifies against the working tip, NOT the integration base).
-- **Base re-run + re-attach:** when the classification requires the base re-run, read ${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md (§ Base re-run + re-attach); your dispatched prompt carries the re-attach procedure verbatim.
+- **Base re-run + re-attach:** when the classification requires the base re-run, read ${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md (§ Base re-run + re-attach); your dispatched prompt carries the re-attach procedure.
 - **Precondition-marker short-circuit** (spec §9): consult the gate **stderr**, not just the TAP stdout. If it carries a recognized **precondition marker** — `REL_GUARD_PRECONDITION_FAILED` is the live example, emitted when a guard's meta-test cannot isolate a clean scratch dir — the gate could not establish its own preconditions ⇒ classify `environment` **DIRECTLY** (never `introduced`), carry that marker line UNCURATED in `gate_output`, and **skip the base re-run**. Otherwise proceed to the base re-run + classify below.
 - **Classify** (JUDGMENT, not parsing — carry the base-run evidence in `gate_output` UNCURATED):
   1. base **RED** with the **same** failing identifiers ⇒ `baseline`;

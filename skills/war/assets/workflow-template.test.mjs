@@ -6322,7 +6322,7 @@ test('Task 1.2 — grep parity: the standing discrimination copy (references/ref
   // references-pointer-integrity Task 1.2 (h2) budget eviction of the § Base re-run +
   // re-attach recipe. Pinned together with the moved fragment at the destination, so neither
   // half can be dropped without orphaning the other (the dispatched merge/land prompts still
-  // carry the re-attach procedure verbatim — asserted by the #598 prompt tests above).
+  // carry the re-attach procedure — asserted by the #598 prompt tests above).
   assert.ok(refinerMd.includes('read ${CLAUDE_PLUGIN_ROOT}/skills/war/references/refiner-recovery.md (§ Base re-run + re-attach)'),
     'the ADR 0042 trigger pointer for the evicted Base re-run + re-attach recipe survives on the card')
   assert.ok(refinerRecoveryMd.includes('RE-ATTACH `_refinery` to the integration branch before you return'),

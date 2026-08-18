@@ -1,14 +1,15 @@
-# Refiner recovery — submodule-as-repo provisioning, reland discrimination, submodule land arms
+# Refiner recovery — submodule-as-repo provisioning, reland discrimination, submodule land arms, gate-classification base re-run
 
 Verbatim evictions from `agents/war-refiner.md` (prompt-surface simplification, Task 4.1, plus
 the § Base re-run + re-attach block from references-pointer-integrity Task 1.2 — an ADR 0042
-budget eviction; each moved block is byte-identical to its pre-eviction card text). Positional words inside the moved
-blocks ("below", "above") refer to their original card positions — "All merge-task and land-phase
-steps below" means the card's own merge-task/land-phase sections, and the reland-discrimination
-block sat as step 3 of the card's superproject land loop (the card's step 4 is the on-push-success
-return). The dispatched land prompts in `skills/war/assets/workflow-template.js` still carry the
-full discrimination text (registry-pinned, `relandDiscrimination`); this file is the standing copy
-the grep-parity suite reads.
+budget eviction; each moved block was byte-identical to its pre-eviction card text at eviction
+time). Positional words inside the moved blocks ("below", "above") refer to their original card
+positions — "All merge-task and land-phase steps below" means the card's own
+merge-task/land-phase sections, and the reland-discrimination block sat as step 3 of the card's
+superproject land loop (the card's step 4 is the on-push-success return). The dispatched land
+prompts in `skills/war/assets/workflow-template.js` still carry the full discrimination text
+(registry-pinned, `relandDiscrimination`); this file is the standing copy the grep-parity
+suite reads.
 
 ## Submodule-as-repo provisioning
 
