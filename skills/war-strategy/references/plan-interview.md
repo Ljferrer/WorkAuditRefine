@@ -112,12 +112,12 @@ interview that leaves a row unfilled has not finished:
 ## Evidence + slot law (shared with the template)
 
 - **Evidence tags (D4):** `(user)` · `(verified: <source> at <base>)` ·
-  `[assumed: <default> — if wrong: <consequence>]`; issue-derived claims use the source form
+  `[assumed: <default> — if wrong: <consequence>]`; issue-derived facts use
   `(verified: issue #N (<date>))` (D11).
 - **Staleness (D12):** literals are dated snapshots at a stated base; re-measure at the
   task's rebased base.
 - **Done-when law (D5):** `Done when: <command>` is required iff `requiresTest: true`, and
-  permitted (not required) elsewhere — otherwise `None — <basis>`. Every End state carries
+  permitted (not required) on any other task; otherwise `None — <basis>`. Every End state carries
   exactly one tag from the closed set `check:` | `gate:` | `HARD at audit_sha` (observable +
   judge seat) | `backstop:` row.
 - **AFK provenance (D14):** AI-authored rows/tags carry a per-row `AI-declared` marker
