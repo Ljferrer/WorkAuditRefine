@@ -184,8 +184,10 @@ records the latitude-clause reading (#1431):
 - **Authored intent may enumerate implementer's-choice mechanisms.** The intent block's optional
   `Mechanism latitude:` sub-bullet names the mechanisms that are reference realizations, and its
   paired `Binding guardrails:` sub-bullet names the bounds that stay blocking. The clause is
-  authored intent — operator-confirmed per Decision 2, never Lead-invented — offered by the
-  authoring surfaces (the merged-plan template, the interview beat, the war-machine drafter duty).
+  authored intent — operator-confirmed per Decision 2, or AI-declared under
+  [ADR-0014](0014-ai-commanders-intent.md)'s `--afk` exception, never Lead-invented — offered by
+  the authoring surfaces (the merged-plan template, the interview beat, the war-machine drafter
+  duty).
 - **The guardrails list is the blocking floor.** Both runtime seats read a threaded intent carrying
   an explicit `Mechanism latitude:` clause as licensing in-band mechanism substitution: the worker
   treats a substitution that satisfies the binding guardrails and the End states as in-band work —
