@@ -439,9 +439,11 @@ lacks_i "$WAR_STRATEGY" "$retired_count_a rules"
 lacks_i "$WAR_STRATEGY" "$retired_count_b rules"
 lacks_i "$WAR_STRATEGY" "$retired_count_c rules"
 lacks_i "$WAR_STRATEGY" "$retired_count_d rules"
-# Positive twin for the retired-count arms above (a deleted/renamed surface would pass the
-# lacks_i vacuously): the drafter directive consumes §3's touched-doc rule 8 by reference, and
-# names its trichotomy. has_i: PROSE, sentence-case class.
+# Positive presence pins for this task's war-machine addition — nothing else guards it (the
+# retired-count arms above scan $WAR_STRATEGY only, whose non-vacuity is held by the has_i loop
+# above plus war-strategy-structure.test.sh, and lacks_i already fails loudly on a missing file):
+# the drafter directive consumes /war-strategy §3's touched-doc rule 8 by reference, and names
+# its trichotomy. has_i: PROSE, sentence-case class.
 has_i "$MACHINE" 'touched-doc'
 has_i "$MACHINE" 'authoring rule 8'
 
