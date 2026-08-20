@@ -202,7 +202,14 @@ const ENDSTATE_CHECK_RESULT = { type: 'object', properties: {
 // a hold; the Checkpoint floor (skills/war/SKILL.md § Checkpoint) is the catch (D2).
 const FOLLOWUP_FILING_RESULT = { type: 'object', properties: {
   filed: { type: 'array', items: { type: 'object', properties: {
-    n: { type: 'number' }, issue: {} } } } } }
+    n: { type: 'number' }, issue: {} } } },
+  // clusters[] manifest (Task 2.1, #1566): the agent's own clustering record — ordinals are the
+  // 1-based POST-COLLAPSE row numbers it grouped into one filed issue. Advisory like `filed`: the
+  // engine asserts partition (every ordinal in exactly one cluster — clustering only merges the
+  // engine's collapsed rows, never splits one), and distinct issues filed ≤ post-collapse rows;
+  // violations get ONE log() line (fail-open, the non-conforming-return arm's sibling), never a hold.
+  clusters: { type: 'array', items: { type: 'object', properties: {
+    ordinals: { type: 'array', items: { type: 'number' } }, issue: {} } } } } }
 
 // memory_index_updated retired (spec §4.6, D4 deleted): the servitor no longer maintains the index —
 // the Lead runs `render-index` post-servitor (Gate 2). The servitor only writes/updates lesson files.
@@ -330,7 +337,10 @@ const NS = A.agentPrefix ?? 'work-audit-refine:'
 // threaded by the Lead from overrides.ghUser. Default '' is gh-preflight.sh's documented no-op
 // (exit 0, gh never invoked), so an unconfigured run pays nothing and no handle rides committed prose.
 const ghUser = (typeof A.ghUser === 'string') ? A.ghUser : ''
-const roundLimit = run.roundLimit ?? 3
+// Hand-mirrored fallback of DEFAULTS.run.roundLimit (war-config.mjs) — the sandbox cannot import;
+// keep the two literals in lock-step. 6 is priced for the ace bisection ladder: one fix round +
+// the batch commit + a single-failing-branch descent through depth 2.
+const roundLimit = run.roundLimit ?? 6
 // Commander's Intent (ADR 0013): extracted VERBATIM by the Lead from the plan's `## Commander's
 // Intent` or `## AI-Commander's Intent` section (either heading) and threaded as args.intent
 // (string|null). null/absent ⇒ intentClause is '' and every prompt below is byte-identical to an
@@ -710,7 +720,10 @@ const provisionClause = provisionList.length
   : ''
 
 const blockingOf = seats => seats.flatMap(s => s.findings || []).filter(f => f.severity === 'Critical' || f.severity === 'Major')
-const minorsOf   = seats => seats.flatMap(s => s.findings || []).filter(f => f.severity === 'Minor' || f.severity === 'Nit')
+// minorsOf returns seat-stamped COPIES (never the seat's own finding objects): each Minor/Nit carries
+// the raising seat's id so the pre-filing follow-up consolidation (Task 2.1, #1566) can build merged
+// rows' seats[] corroboration list. An explicit finding-level `seat` (spread last) wins.
+const minorsOf   = seats => seats.flatMap(s => (s.findings || []).filter(f => f.severity === 'Minor' || f.severity === 'Nit').map(f => ({ seat: s.seat, ...f })))
 // Disposition classification (ADR 0013): auditor-owned routing, orthogonal to severity. Defaults
 // when omitted: Minor → 'follow-up', Nit → 'note'; 'absorb' is NEVER defaulted. Legacy
 // autoFixable:true reads as 'absorb' for one release (deprecated — removed next release).
@@ -719,10 +732,16 @@ const dispositionOf = f =>
   : f.autoFixable === true ? 'absorb'
   : f.severity === 'Minor' ? 'follow-up' : 'note'
 // Terminal-disposition demotion ladder (ADR 0013): demote one step toward durability, never drop
-// silently — EVERY demotion is log()ged. Arms: failed absorb → follow-up; non-approve-branch
-// findings → follow-up (filed with the escalation); held-phase phaseCloseQueue → follow-up;
-// fileless absorb → severity default; sweep-raised absorb at either terminal sweep arm →
-// follow-up (the sweep is the phase's terminal fix round).
+// silently — EVERY demotion is log()ged. Arms: failed absorb → follow-up (a fresh re-audit absorb
+// after the batch ace is spent / dead ace worker / ace unavailable / --ace off, plus the seven
+// aceBisect bisection arms: named
+// culprits of a re-audit regression, an all-culprit batch, an ambiguous-and-atomic batch
+// (unhalvable single file group — demotes whole), budget exhaustion mid-bisection, a subset worker
+// returning no usable head_sha abandoning the bisection, a re-audit round's own fresh absorb while
+// the budget is committed to the bisection in flight, and a finally-failing subset at the
+// depth/split floor); non-approve-branch findings → follow-up (filed with the escalation);
+// held-phase phaseCloseQueue → follow-up; fileless absorb → severity default; sweep-raised absorb
+// at either terminal sweep arm → follow-up (the sweep is the phase's terminal fix round).
 const demote = (f, to, why) => {
   log(`Disposition demotion: [${f.severity}] "${f.title}" (task ${f.task}) → ${to} — ${why}.`)
   ;(to === 'note' ? notes : minorsFiled).push(f)
@@ -1449,6 +1468,119 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     // pinOrSentinel hex test); a sentinel leaves it at the last REAL sha. requiresTest:false tasks update it too.
     if (isSha(mr.integration_sha)) lastLandedTip = mr.integration_sha
   }
+  // ---- ACE BISECTION (regression-recovery ladder on a failed --ace batch; D1–D4/D6) ----
+  // Order (D2, culprit-first): named culprits are excised (demoted) and the remainder re-applies as
+  // ONE subset; blind halving is reserved for AMBIGUOUS attribution. Subsets apply SERIALLY at the
+  // tip with a hard depth cap of 2 (batch=0 → halves=1 → quarters=2; no run.* knob), and same-file
+  // findings never split across subsets (D3). Budget (D4): the batch charged one fixRounds slot;
+  // each SUBSET COMMIT charges one more; reverts are uncharged; panels stay unmetered; exhaustion
+  // mid-bisection demotes the remaining subsets to follow-up (logged — by design). Only FINALLY-
+  // failing subsets demote (unsplittable, or a depth-2 regressor).
+  // THE LOOP OWNS IN-LOOP FORWARD-REVERTS: each failed commit is reverted at the tip before the next
+  // subset commits — the revert step rides the NEXT subset dispatch, conditional on HEAD still being
+  // the failed sha, so no sha is ever reverted twice. A FINAL failed tip has no successor dispatch:
+  // it alone rides r.aceReverted into the merge dispatch's revert clause. Every exit either absorbs
+  // or demotes-and-logs, and the merge always runs — the ladder never holds or escalates a mergeable
+  // task. Resume idempotency (D6): every subset commit carries a deterministic `Ace-Subset:` trailer
+  // and every subset dispatch preflights the bisection range (never the tip alone) for it.
+  // Same-file grouping: one group per f.file, insertion-ordered; halving splits the GROUP list.
+  const aceGroups = findings => {
+    const m = new Map()
+    for (const f of findings) { if (!m.has(f.file)) m.set(f.file, []); m.get(f.file).push(f) }
+    return [...m.values()]
+  }
+  const aceHalve = findings => {
+    const g = aceGroups(findings)
+    if (g.length < 2) return null                        // atomic — cannot split without breaking D3
+    const mid = Math.ceil(g.length / 2)
+    return [g.slice(0, mid).flat(), g.slice(mid).flat()]
+  }
+  const aceBisect = async (r, aceable, batchSha, regressionSeats) => {
+    // Culprit attribution: a regression blocking finding NAMES a culprit when its file matches an
+    // aceable finding's file (parsing-shape latitude). Empty attribution is ambiguous (blind
+    // halving); total attribution leaves nothing to salvage — the batch finally fails whole.
+    const culpritFiles = new Set(blockingOf(regressionSeats).map(f => f.file).filter(Boolean))
+    const culprits = aceable.filter(f => culpritFiles.has(f.file))
+    const rest = aceable.filter(f => !culpritFiles.has(f.file))
+    let queue
+    if (culprits.length && rest.length) {
+      for (const f of culprits) demote(f, 'follow-up', 'failed absorb — named culprit of the ace re-audit regression (culprit-first excision); the batch commit is forward-reverted')
+      queue = [{ findings: rest, depth: 1 }]
+    } else if (culprits.length) {
+      // every batch finding is a named culprit — nothing to salvage; the batch finally fails whole.
+      for (const f of aceable) demote(f, 'follow-up', 'failed absorb — ace re-audit regressed and named every batch finding as culprit; the ace commit is forward-reverted')
+      r.aceReverted = batchSha
+      return
+    } else {
+      const halves = aceHalve(aceable)
+      if (!halves) {
+        // ambiguous AND atomic (one file group): the batch is its own final subset — demote whole.
+        for (const f of aceable) demote(f, 'follow-up', 'failed absorb — ace re-audit regressed; the ace commit is forward-reverted')
+        r.aceReverted = batchSha
+        return
+      }
+      queue = halves.map(fs => ({ findings: fs, depth: 1 }))
+    }
+    let pendingRevert = batchSha                         // failed tip commit not yet reverted in-loop
+    while (queue.length) {
+      const sub = queue.shift()
+      if (r.task.fixRounds >= roundLimit) {
+        for (const q of [sub, ...queue.splice(0)])
+          for (const f of q.findings) demote(f, 'follow-up', 'failed absorb — fix budget exhausted mid-bisection; the remaining subsets demote by design')
+        break
+      }
+      // Deterministic trailer value (shape latitude): task id + the subset's sorted file set —
+      // concatenation-built (census-safe), stable across resume replays.
+      const trailer = r.task.id + ':' + [...new Set(sub.findings.map(f => f.file))].sort().join(',')
+      const revertStep = pendingRevert
+        ? pt`FIRST, only if \`git -C ${r.task.worktree} rev-parse HEAD\` is still ${pendingRevert}: forward-revert that failed prior ace commit — \`git -C ${r.task.worktree} revert --no-edit ${pendingRevert}\` (tip-only clean inverse); a moved HEAD is already reverted — SKIP (a sha is never reverted twice). Never reset --hard.\n`
+        : ''
+      const sw = await agent(
+        pt`ACE BISECTION SUBSET for WAR task ${r.task.id} (a regressed --ace batch re-applied in subsets). Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — never create it; cd there.\n`
+        + revertStep
+        + pt`PREFLIGHT (resume idempotency): scan the BISECTION RANGE (e.g. \`git -C ${r.task.worktree} log --format='%H %(trailers:key=Ace-Subset,valueonly)' ${batchSha}^..HEAD\`) — never the tip alone; on a commit already carrying \`Ace-Subset: ${trailer}\`, return its sha as head_sha WITHOUT committing.\n`
+        + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
+        + pt`Apply the smallest mechanical fix for EACH finding below, keep the gate green, and make EXACTLY ONE commit citing each finding's title + rationale, its message ENDING with the trailer line \`Ace-Subset: ${trailer}\` (the panel re-audits the new sha; a regression is forward-reverted):\n`
+        // pt-tagged prompt-feeding rows (subset prompt, top-level-catch): f.severity is construction-
+        // guaranteed (sub.findings ⊆ aceable); title/file/rationale schema-optional → ?? '' absence-tolerant.
+        + sub.findings.map((f, i) => pt`${i + 1}. [${f.severity}] ${f.title ?? ''} (${f.file ?? ''}${f.line ? ':' + f.line : ''}) — ${f.rationale ?? ''}${f.suggested_fix ? pt` → ${f.suggested_fix}` : ''}`).join('\n') + '\n'
+        + pt`Dead attempt: discard UNCOMMITTED changes in THIS worktree only (git checkout -- .) — never any shared ref or history rewrite. No version/release-slot edits. Commit and push ${r.task.branch}.`
+        + intentClause + provisionClause,
+        { agentType: NS + 'war-worker', phase: 'Audit', label: 'ace:' + r.task.id + ':r' + (r.task.fixRounds + 1), schema: WORKER_RESULT, ...spawnWorker('fix') })
+      const swWhy = blockedReason(sw)
+      if (swWhy || typeof sw.head_sha !== 'string' || !sw.head_sha) {
+        // No usable commit — uncharged; the tip state is unknowable, so the ladder abandons here
+        // (never holds): this subset and every queued one demote, and the conditional revert clauses
+        // (dispatch-side and merge-side) keep any already-performed revert from repeating.
+        for (const q of [sub, ...queue.splice(0)])
+          for (const f of q.findings) demote(f, 'follow-up', 'failed absorb — ' + (swWhy || 'subset worker returned no usable head_sha') + '; bisection abandoned, remaining subsets demote')
+        break
+      }
+      r.task.fixRounds++                                 // each subset COMMIT charges one slot (D4)
+      pendingRevert = null                               // the dispatched revert step cleared the failed predecessor
+      const subSha = sw.head_sha
+      const { seats: subSeats, expected: subExpected } = await auditRound(r.task, null, null, subSha)   // re-pin + re-audit (unmetered)
+      if (allApprove(subSeats, subExpected) && blockingOf(subSeats).length === 0) {
+        r.seats = subSeats                               // merge proceeds on this approved subset tip
+        r.aceSha = subSha
+        for (const f of sub.findings) aced.push({ task: f.task, finding: f, sha: subSha })
+        // Route the re-audit round's OWN Minor/Nits (never drop silently): a fresh absorb here takes
+        // the failed-absorb demotion — the ladder never re-enters for findings it did not start with.
+        for (const f of minorsOf(subSeats).map(x => ({ task: r.task.id, ...x }))) {
+          const d = dispositionOf(f)
+          if (d === 'follow-up') minorsFiled.push(f)
+          else if (d === 'note') notes.push(f)
+          else demote(f, 'follow-up', 'failed absorb — the ace budget is committed to the bisection in flight (re-audit round finding)')
+        }
+      } else {
+        pendingRevert = subSha                           // reverted by the NEXT dispatch, or the merge clause if final
+        const halves = sub.depth < 2 ? aceHalve(sub.findings) : null
+        if (halves) queue.unshift(...halves.map(fs => ({ findings: fs, depth: sub.depth + 1 })))
+        else for (const f of sub.findings) demote(f, 'follow-up', 'failed absorb — subset regressed on re-audit at the depth/split floor; the subset commit is forward-reverted')
+      }
+    }
+    if (pendingRevert) r.aceReverted = pendingRevert     // final failed tip not yet reverted in-loop
+  }
   for (const r of results.filter(Boolean)) {
     // Carry the audit-loop round counter onto the task object so the no-test sub-loop
     // continues the SHARED budget (not a fresh counter — that would double the allowance).
@@ -1473,10 +1605,12 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         else if (!f.phaseClose && aceEligible(f)) aceable.push(f)
         else phaseCloseQueue.push(f)
       }
-      // --ace: opt-in, fail-closed pre-merge polish of absorb-disposition findings. Single attempt (D1/D2/D5).
-      // Sits at the TOP of the approve branch, BEFORE the merge dispatch: the ace worker commits one fix,
-      // a fresh auditRound re-audits at the new sha; if re-approved the merge runs on the polished tip,
-      // else the merge dispatch forward-reverts the ace commit (D2 — NEVER escalate; the approved work still lands).
+      // --ace: opt-in, fail-closed pre-merge polish of absorb-disposition findings. The BATCH attempt is
+      // unchanged (one commit, one re-audit — the happy path is byte-identical): the ace worker commits one
+      // fix, a fresh auditRound re-audits at the new sha; if re-approved the merge runs on the polished tip.
+      // A re-audit REGRESSION now enters the bounded aceBisect ladder (culprit-first excision, then
+      // halving to depth 2) instead of demoting the whole batch — NEVER escalate; the approved work still lands.
+      // Sits at the TOP of the approve branch, BEFORE the merge dispatch.
       let aceSha = null
       if (blockingOf(r.seats).length === 0 && aceable.length && r.task.fixRounds < roundLimit) {
         const ace = await agent(
@@ -1498,7 +1632,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // never-blocks-a-land invariant. A blocked/head_sha-less ace falls through to the plain merge.
         if (!aceWhy && typeof ace.head_sha === 'string' && ace.head_sha) {
           r.task.fixRounds++
-          aceSha = ace.head_sha /* the single ace commit */
+          aceSha = ace.head_sha /* the batch ace commit */
           const { seats: reSeats, expected: reExpected } = await auditRound(r.task, null, null, aceSha)   // re-pin + re-audit at the new sha (D1/D2)
           if (allApprove(reSeats, reExpected) && blockingOf(reSeats).length === 0) {
             r.seats = reSeats                          // merge proceeds on the polished tip
@@ -1506,19 +1640,20 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             // aced provenance (D3): the findings this ace commit resolved. No splice needed —
             // classify-at-collection never eagerly filed them.
             for (const f of aceable) aced.push({ task: f.task, finding: f, sha: aceSha })
-            // Route the re-audit round's OWN Minor/Nits too (never drop silently): the single ace
-            // attempt is spent, so a fresh absorb here takes the failed-absorb demotion.
+            // Route the re-audit round's OWN Minor/Nits too (never drop silently): the batch ace is
+            // spent and the ladder never opens for new findings, so a fresh absorb here takes the
+            // failed-absorb demotion.
             for (const f of minorsOf(reSeats).map(x => ({ task: r.task.id, ...x }))) {
               const d = dispositionOf(f)
               if (d === 'follow-up') minorsFiled.push(f)
               else if (d === 'note') notes.push(f)
-              else demote(f, 'follow-up', 'failed absorb — the single ace attempt is already spent (re-audit round finding)')
+              else demote(f, 'follow-up', 'failed absorb — the ace batch is spent and the ladder never opens for fresh findings (re-audit round finding)')
             }
           } else {
-            r.aceReverted = aceSha                     // D2: merge dispatch prepends `git revert --no-edit <aceSha>`; never escalate
             aceSha = null
-            // Demotion arm: failed absorb (re-audit regression → forward-revert) → follow-up.
-            for (const f of aceable) demote(f, 'follow-up', 'failed absorb — ace re-audit regressed; the ace commit is forward-reverted')
+            // Regression (D1/D2): the bounded bisection ladder replaces the whole-batch demotion — it
+            // owns the in-loop forward-reverts and sets r.aceSha / r.aceReverted / r.seats as it resolves.
+            await aceBisect(r, aceable, ace.head_sha, reSeats)
           }
         } else {
           // aceWhy or falsy head_sha: fall through to the normal merge on the un-aced approved tip
@@ -1552,16 +1687,20 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           + pt`Submodule checkout (targetRepo): ${r.task.targetRepo}. Submodule base: ${r.task.targetBase || '<targetBase>'}. `
           + pt`Run rebase and gate cwd-scoped to ${r.task.targetRepo}; the _refinery merge fast-forwards the submodule integration branch.`
         : ''
-      // D2 forward-revert: on an ace re-audit regression the merge dispatch PREPENDS one clause — in the
-      // TASK worktree, `git -C <worktree> revert --no-edit <aceSha>` BEFORE the rebase. Emitted ONLY when
-      // r.aceReverted is a non-empty string (belt-and-suspenders, never unconditional). This CANNOT introduce
-      // a new escalate: aceSha is the single ace commit = the task-branch TIP at revert time, so its revert is
-      // the clean inverse of HEAD and cannot conflict; the tree returns to the originally-approved state and the
-      // rebase+gate+merge behaves exactly as it would have un-aced. Ace never turns a mergeable task into a hold.
+      // D2 forward-revert: r.aceReverted is set ONLY for a FINAL failed ace tip no later dispatch
+      // reverted in-loop (aceBisect reverts every non-final failed subset before the next commits), so
+      // the merge dispatch PREPENDS one clause — in the TASK worktree, `git -C <worktree> revert
+      // --no-edit <sha>` BEFORE the rebase. Emitted ONLY when r.aceReverted is a non-empty string
+      // (belt-and-suspenders, never unconditional). This CANNOT introduce a new escalate: the reverted
+      // sha is the task-branch TIP at revert time, so its revert is the clean inverse of HEAD and cannot
+      // conflict; the tree returns to the last approved state (the original tip, or the last approved
+      // subset tip) and the rebase+gate+merge behaves as it would have on that state. The HEAD guard
+      // keeps the clause idempotent across dispatch replays — no sha is ever reverted twice. Ace never
+      // turns a mergeable task into a hold.
       const aceRevertClause = (typeof r.aceReverted === 'string' && r.aceReverted)
-        ? pt`FORWARD-REVERT (--ace regression): the ace polish commit regressed on re-audit. In the TASK worktree, run `
+        ? pt`FORWARD-REVERT (--ace regression): the final ace commit regressed on re-audit. ONLY if \`git -C ${r.task.worktree} rev-parse HEAD\` is still ${r.aceReverted} (moved HEAD = already reverted; SKIP — a sha is never reverted twice), in the TASK worktree run `
           + pt`\`git -C ${r.task.worktree} revert --no-edit ${r.aceReverted}\` (forward-only, classifier-safe — it is the clean inverse of the task-branch tip, cannot conflict) `
-          + pt`BEFORE the rebase step (a), so the merge runs on the reverted-to-approved tip. Do NOT reset --hard. The originally-approved work still lands.\n`
+          + pt`BEFORE the rebase step (a), so the merge runs on the reverted-to-approved tip. Do NOT reset --hard. The approved work still lands.\n`
         : ''
       const mr = await agent(
         pt`Merge WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
@@ -2631,8 +2770,40 @@ if (landResult && landResult.status === 'landed' && memoryLocalRoot) {
 // failed preflight, or a non-conforming return leaves unmatched entries issue: null with ONE log()
 // line — landDecision untouched, never a hold; the Checkpoint floor (skills/war/SKILL.md
 // § Checkpoint) is the catch. Dedup-first (D3) makes a resume/relaunch re-dispatch safe: an
-// exact-title match reuses the existing issue number, never a duplicate.
+// open-issue match gets this batch's finding as a corroboration comment (the retired-token sweep's
+// dedup idiom) and reuses the existing issue number, never a duplicate. Consolidation-first
+// (Task 2.1, #1566): minorsFiled is deterministically collapsed above before the rows render, and
+// the agent clusters the survivors by file + root cause — one issue per cluster, so several rows
+// may share one issue number (ordinal→issue stamping semantics unchanged).
 if ((landDecision === 'landed' || landDecision === 'held:escalation') && minorsFiled.length > 0) {
+  // ---- FOLLOW-UP CONSOLIDATION (Task 2.1, #1566): deterministic pre-filing collapse of minorsFiled,
+  // in place (the handoff assembly below reads the collapsed rows — cross-seat duplicates become ONE
+  // followUps entry). Key: same `file` + `line` within ±FOLLOWUP_LINE_WINDOW; normalized-title
+  // fallback ONLY when `line` is absent on both rows (a lined row never collapses into a lineless
+  // one). Fileless rows never collapse. First occurrence is the representative; merged rows carry a
+  // seats[] corroboration list (the minorsOf seat stamp; task fallback) the filing prompt renders.
+  const FOLLOWUP_LINE_WINDOW = 10
+  const normTitle = t => String(t ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+  // Concatenation-built strings throughout this block (census-safe — #931).
+  const seatRef = f => f.seat ?? (f.task != null ? 'task ' + f.task : 'unattributed')
+  const collapsed = []
+  for (const f of minorsFiled) {
+    const hit = f.file ? collapsed.find(c => c.file === f.file
+      && (Number.isFinite(c.line) && Number.isFinite(f.line)
+        ? Math.abs(c.line - f.line) <= FOLLOWUP_LINE_WINDOW
+        : c.line == null && f.line == null && normTitle(c.title) === normTitle(f.title))) : null
+    if (hit) {
+      // Array.isArray guard (not truthiness): auditor-supplied JSON can carry a non-array `seats`
+      // key on the representative row — a string would survive `||` and throw on .push below,
+      // converting a LANDED phase into held:workflow-error (this block runs outside any try).
+      hit.seats = Array.isArray(hit.seats) ? hit.seats : [seatRef(hit)]
+      if (!hit.seats.includes(seatRef(f))) hit.seats.push(seatRef(f))
+    } else collapsed.push(f)
+  }
+  if (collapsed.length < minorsFiled.length) {
+    log('file-followups consolidation: ' + minorsFiled.length + ' follow-up rows collapsed to ' + collapsed.length + ' (file + ±' + FOLLOWUP_LINE_WINDOW + '-line window; title fallback when line absent).')
+    minorsFiled.splice(0, minorsFiled.length, ...collapsed)
+  }
   // Agent-resolved '${CLAUDE_PLUGIN_ROOT}' literal idiom (the provision barrier's SCRIPT const
   // precedent): the single quotes on this line are JS STRING DELIMITERS — they are what keep the
   // ${...} literal out of the #931 untagged-backtick census, and they are never part of the string's
@@ -2646,15 +2817,17 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation') && minorsF
       pt`FILE-FOLLOWUPS DISPATCH for WAR phase ${ph.id} (you are the refiner; this is a gh-write batch — no merge, no push, never touch git state). `
       + pt`The follow-up-disposition audit findings below survived this phase unabsorbed; file each as a GitHub issue so nothing drops silently (ADR 0013).\n`
       + pt`FIRST the account preflight (ADR 0026): run ${PREFLIGHT} "${ghUser}" — an empty-string arg is its documented no-op (exit 0). On exit 2 (tooling error) or exit 3 (account mismatch): return what you have and file NOTHING.\n`
-      + pt`THEN dedup (D3): run \`gh issue list --label war-followup --state open\` once; a row below whose title EXACTLY matches an open issue's title is already filed — reuse that existing issue number instead of filing a duplicate.\n`
-      + pt`THEN file one \`war-followup\`-labelled issue per row below, in order — title from the row's title; body carrying the why-not-absorbable reason and the task id${ph.epicIssue ? pt`, and a reference to the phase epic #${ph.epicIssue}` : ''}.\n`
+      + pt`THEN dedup (D3): run \`gh issue list --label war-followup --state open\` once; a row below matching an open issue (exact title, or same file + same root cause) is already filed — post this batch's finding as a corroboration comment on the existing issue, never a new issue, and reuse that existing issue number for the row.\n`
+      + pt`THEN cluster the remaining candidate rows by file + root cause (the engine already collapsed same-file line-window duplicates; each row carries its file, line, and any seats corroboration) and file ONE \`war-followup\`-labelled issue per cluster, in row order — title from the cluster's lead row; body carrying, per member row, the why-not-absorbable reason, the task id, and its seats as corroboration${ph.epicIssue ? pt`, and a reference to the phase epic #${ph.epicIssue}` : ''}.\n`
       // pt-tagged prompt-feeding row builder (file-followups dispatch): title/rationale are
       // schema-optional and task is routing-stamped → ?? defaults (never a phase-killing throw here).
       // The title span is DELIMITED (quoted, `title:`-prefixed) so the dedup instruction's
       // exact-title match keys on the finding's own title — never the whole composite row, whose
-      // leading ordinal would make dedup order-dependent across a relaunch.
-      + minorsFiled.map((m, i) => pt`  ${i + 1}. title: "${m.title ?? '(untitled finding)'}" · task ${m.task ?? '<task>'} · why not absorbable: ${m.rationale ?? '(no rationale recorded)'}`).join('\n') + '\n'
-      + pt`Return ONLY { filed: [{ n, issue }] } — n the row's 1-based ordinal above, issue the filed-or-reused issue number (null when unfiled). A partial/empty result is FAIL-OPEN: unmatched entries stay issue: null in the handoff and the Checkpoint floor catches them; never block.`,
+      // leading ordinal would make dedup order-dependent across a relaunch. file/line/seats render
+      // per row (Task 2.1) so the agent CAN cluster by file — title/task/rationale alone made
+      // file-clustering impossible.
+      + minorsFiled.map((m, i) => pt`  ${i + 1}. title: "${m.title ?? '(untitled finding)'}" · task ${m.task ?? '<task>'}${m.file ? pt` · file ${m.file}${m.line != null ? pt`:${m.line}` : ''}` : ''}${m.seats && m.seats.length ? pt` · seats: ${m.seats.join(', ')}` : ''} · why not absorbable: ${m.rationale ?? '(no rationale recorded)'}`).join('\n') + '\n'
+      + pt`Return ONLY { filed: [{ n, issue }], clusters: [{ ordinals, issue }] } — filed: n the row's 1-based ordinal above, issue the filed / commented-on / reused issue number (null when unfiled; every row of one cluster shares its issue number); clusters: your clustering manifest — every ordinal above in exactly ONE cluster's ordinals array (merge rows only, never split one). A partial/empty result is FAIL-OPEN: unmatched entries stay issue: null in the handoff and the Checkpoint floor catches them; never block.`,
       { agentType: NS + 'war-refiner', phase: 'Land', label: 'file-followups:phase-' + ph.id, dispatchKind: 'file-followups', schema: FOLLOWUP_FILING_RESULT, ...spawn('refiner') })
   } catch (err) {
     // Fail-open (D2): a THROWN filing dispatch must never convert a resolved land decision into
@@ -2671,6 +2844,24 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation') && minorsF
       if (row.n < 1 || row.n > minorsFiled.length || typeof row.issue !== 'number') continue
       minorsFiled[row.n - 1].issue = row.issue
     }
+    // clusters[] manifest asserts (Task 2.1, #1566) — FAIL-OPEN, the non-conforming-return arm's
+    // sibling: any violation gets ONE log() line; stamping above is already honored row-by-row,
+    // landDecision untouched, never a hold. Asserted: (1) every post-collapse ordinal appears in
+    // exactly one cluster (partition — the agent may only MERGE the engine's collapsed rows; an
+    // ordinal in two clusters IS a split, an uncovered ordinal a drop); (2) distinct issue numbers
+    // filed ≤ post-collapse rows (clustering can only shrink the issue count).
+    const problems = []
+    const clusters = Array.isArray(filingOut.clusters) ? filingOut.clusters : null
+    if (!clusters) problems.push('clusters[] manifest missing from the filing return')
+    else {
+      const seen = new Map()
+      for (const cl of clusters) for (const o of (cl && Array.isArray(cl.ordinals)) ? cl.ordinals : []) seen.set(o, (seen.get(o) || 0) + 1)
+      for (let n = 1; n <= minorsFiled.length; n++) if ((seen.get(n) || 0) !== 1) problems.push('ordinal ' + n + ' appears in ' + (seen.get(n) || 0) + ' clusters (must be exactly one)')
+      for (const o of seen.keys()) if (!Number.isInteger(o) || o < 1 || o > minorsFiled.length) problems.push('unknown ordinal ' + JSON.stringify(o))
+    }
+    const distinctIssues = new Set(filedRows.filter(r => r && typeof r.issue === 'number').map(r => r.issue)).size
+    if (distinctIssues > minorsFiled.length) problems.push(distinctIssues + ' distinct issues filed exceed the ' + minorsFiled.length + ' post-collapse rows')
+    if (problems.length) log('file-followups clusters manifest violation: ' + problems.join('; ') + ' — fail-open (stamped rows stand; landDecision untouched; the Checkpoint floor is the catch).')
   } else {
     log('file-followups: dead dispatch or non-conforming return — every unmatched handoff.followUps entry stays issue: null (fail-open, D2; the Checkpoint floor is the catch); landDecision untouched.')
   }

@@ -1,7 +1,8 @@
 ---
 name: merge-task-dispatch-forced-early-return-mid-gate-is-incomplete-not-gate-failed
-description: "Merge-task forced early return mid-gate is INCOMPLETE, not gate_failed; re-dispatch the same branch"
+description: "A merge-task dispatch forced to return before its spawned gate (node --test + the *.test.sh discovery loop) finishes is INCOMPLETE, not gate_failed/introduced — the rebase it already completed is idempotent and safe to leave alone; re-dispatch the same branch to let the gate run to completion, never treat the partial run as a real classification"
 metadata:
+  promoted: dev/2026-08-06-gate-audit-finding-routing@phase-1
   type: project
   provenance: agent-unverified
   slug: merge-task-dispatch-forced-early-return-mid-gate-is-incomplete-not-gate-failed
@@ -18,6 +19,11 @@ metadata:
     - refiner escalation
     - land-decision classification
     - shell-test discovery loop
+    - full gate over 10 minutes
+    - node --test skills/**/*.test.mjs
+    - GATE_EXIT marker
+    - run_in_background
+    - backgrounded gate dispatch
   tags:
     - refine
     - land
@@ -25,7 +31,7 @@ metadata:
     - gate
   created: 2026-08-15
   originSessionId: 8bae67aa-acfa-461e-acc9-278fc79ba6c1
-  modified: 2026-08-16T01:46:49.301Z
+  modified: 2026-08-20T13:49:35.199Z
 ---
 
 # A merge-task dispatch cut off mid-gate is INCOMPLETE, not a real gate_failed/introduced verdict
@@ -70,9 +76,50 @@ bash "$f" || exit 1; done`) is code-verified present in `skills/war/assets/war-c
 `<repo-root>/.claude/war-worktrees/2026-08-06-gate-audit-finding-routing-2026-08-15/_refinery/`).
 `hooks/validate-worktree-scope.test.sh` also exists at that tip.
 
+## Recurrence 1 (2026-08-17, plan `2026-08-06-war-strategy-mirror-guards`, phase 1, task 1.2
+merge-task escalation, `agent-unverified` — the refiner's own escalation `detail` payload)
+
+Same shape, same repo, a different task/branch (`war/2026-08-06-war-strategy-mirror-guards/p1-1.2`):
+hygiene re-attach, submodule-mutation check, and a clean single-commit rebase onto the integration
+tip all completed with no conflicts; `requiresTest:false`/`requiresPackaging:false` floors were
+correctly skipped; the gate (`node --test 'skills/**/*.test.mjs' && for f in $(find ... -name
+'*.test.sh' ...) do bash "$f" || exit 1; done`) was then launched in the task worktree with a fresh
+outside-worktree `TMPDIR` and ran **over 10 minutes** without reaching a `GATE_EXIT` marker — this
+repo's full gate is now 1000+ Node subtests plus ~150 shell suites, so a >10-minute wall time before
+completion is an expected size, not evidence of a hang. All observed `node --test` output up to the
+forced return was passing (zero red assertions seen), but no exit code was captured, so no
+`gate_failure_class` could be assigned and nothing was merged or pushed. The escalation's own
+recommendation matches the original rule exactly: re-dispatch the same branch — the rebase state can
+be re-verified (or harmlessly re-run as a no-op) and the gate re-run with a longer time budget before
+attempting the merge.
+
+**Reinforces the rule with a sizing data point:** as this repo's gate suite grows, a single
+merge-task dispatch's time budget will increasingly be shorter than one full gate run — this is now
+observed on two independent tasks across two plans, three weeks apart, so a forced-early-return
+`error` escalation with a clean-rebase + gate-still-running `detail` payload should be treated as the
+**expected**, not exceptional, outcome for a merge-task dispatch late in this repo's life, and
+handled purely by re-dispatch — never by demoting to a real `gate_failed`/`introduced` verdict or by
+re-running the (already-idempotent) rebase step.
+
+## Recurrence 2 (2026-08-20, plan `2026-08-19-realized-absorb-rate`, phase 2, merge-task
+escalation, `code-verified` — landed tip `7cacd59` on `dev/2026-08-19-realized-absorb-rate`):
+**confirms the rule via a clean recovery.** A merge-task dispatch self-reported the documented
+INCOMPLETE case — the full gate outlived its turn budget after 1600+ observed green lines, no
+`GATE_EXIT` marker reached. The Lead re-dispatched the *same* merge-task per this lesson, this time
+with explicit instruction to background the gate (`run_in_background`) and end the dispatch's own
+turn rather than block on it live, letting the harness re-invoke and read the backgrounded result.
+That re-dispatch merged clean on the next pass — no gate failure, no repeated rebase, exactly the
+predicted outcome. **Effective remedy for future recurrences:** when re-dispatching a merge-task
+after this exact INCOMPLETE shape, instruct it to launch the gate in the background and return
+immediately (rather than waiting synchronously inside one turn), so the harness's own re-invocation
+cadence — not the single dispatch's turn budget — is what has to outlast the full-suite runtime.
+
 ## Related
 
 [[never-follow-resumefromrunid-hint-after-a-land-failure]] — same family of "gate recovery choice
 must be driven by the specific failure/incompleteness reason, not a generic status label."
 [[wave-loop-thunk-catch-prevents-null-result-infinite-redispatch]] — a related dispatch-robustness
 concern in the same Refine/merge machinery.
+
+> archived 2026-08-17: resolved — moved to archive (still recurring and confirming as of 2026-08-20;
+> left in archive since war-memory temperature moves are its own job, not the servitor's)

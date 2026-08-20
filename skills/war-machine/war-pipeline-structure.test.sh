@@ -421,10 +421,11 @@ for f in "$MACHINE" "$WAR_STRATEGY"; do
   has_i "$f" 'guard-split deps-edge'
   has_i "$f" 'same wave is insufficient'
 done
-# Count-word flip: /war-strategy §3's rule count went from 2 to 3 when rule 7 landed, and §4's
-# gap-review parenthetical counts the same rules. That is a DEFAULT-FLIP, and §3 rule 6 — which lives
-# inside the very subsection being edited — requires the gate to assert the OLD value ABSENT: the
-# presence pins above cannot, and the only pre-existing guard over that subsection,
+# Count-word flip: /war-strategy §3's rule count went from 2 to 3 when rule 7 landed, then 3 to 4
+# when the touched-doc rule 8 landed (2026-08-19), and §4's gap-review parenthetical counts the same
+# rules. Each flip is a DEFAULT-FLIP, and §3 rule 6 — which lives inside the very subsection being
+# edited — requires the gate to assert every OLD value ABSENT: the presence pins above cannot, and
+# the only pre-existing guard over that subsection,
 # `check '^### Drift-guard coverage'` in war-strategy-structure.test.sh, is a prefix regex matching the
 # retired and current count words identically. Each pattern is assembled at runtime from split
 # fragments so this file is never itself a hit for a repo-wide sweep of the retired phrases
@@ -432,8 +433,19 @@ done
 # (#1374): retired PROSE — a sentence-cased revert of a count phrase must not resurrect unseen.
 retired_count_a='two authoring'
 retired_count_b='two drift-guard'
+retired_count_c='three authoring'
+retired_count_d='three drift-guard'
 lacks_i "$WAR_STRATEGY" "$retired_count_a rules"
 lacks_i "$WAR_STRATEGY" "$retired_count_b rules"
+lacks_i "$WAR_STRATEGY" "$retired_count_c rules"
+lacks_i "$WAR_STRATEGY" "$retired_count_d rules"
+# Positive presence pins for this task's war-machine addition — nothing else guards it (the
+# retired-count arms above scan $WAR_STRATEGY only, whose non-vacuity is held by the has_i loop
+# above plus war-strategy-structure.test.sh, and lacks_i already fails loudly on a missing file):
+# the drafter directive consumes /war-strategy §3's touched-doc rule 8 by reference, and names
+# its trichotomy. has_i: PROSE, sentence-case class.
+has_i "$MACHINE" 'touched-doc'
+has_i "$MACHINE" 'authoring rule 8'
 
 printf '\n# Authoring contract (docs/plans/2026-08-04-interview-and-authoring-contract.md, Task 3) — machine merged output + grill charter + AFK per-row provenance + survey-corps claim tagging\n'
 # Named, not numbered: the original pipeline spec owns the numbered criteria. has_i for PROSE

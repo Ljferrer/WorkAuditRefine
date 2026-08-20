@@ -50,7 +50,7 @@
     "autoEscalate": true
   },
   "run": {
-    "roundLimit": 3,
+    "roundLimit": 6,
     "afk": false,
     "ace": true,
     "provision": [],

@@ -69,8 +69,17 @@ const FILE_BUDGETS = {
 // 108 blocks / 50,648 B at fa3c838 — the spec §1 row's 164,234 B / 238 blocks / 74%
 // is unreproducible (~3× the file's total template-literal content) and is superseded.
 // post-shrink 49,864 B (113 blocks, file 225,911 B) @ c6a05fb → hard ×1.25 ceil-KB
-// = 62,464; advisory ×1.10 ceil-KB = 55,296
-const WORKFLOW_LITERAL_BUDGET = { hard: 62464, advisory: 55296 };
+// = 62,464; advisory ×1.10 ceil-KB = 55,296.
+// Re-derived for the ace-bisection engine rewrite (realized-absorb-rate Task 1.1) — the new
+// subset-dispatch prose is tier-1 operative dispatched content (it cannot move to references/ —
+// the Workflow sandbox reads no files — and further compression drops load-bearing revert/preflight
+// safety semantics), so the constant is raised per ADR 0042's justification rule (cited in the
+// commit body), after in-task compression of the new fragments:
+// post-shrink 63,308 B (139 blocks, post-bisection-rewrite tree) @ 291943e (the phase-1 landed
+// tip — the measuring tree's own base; the pre-rewrite base 521a312 measures 61,920 B / 134
+// blocks and never carried this figure) → hard ×1.25 ceil-KB = 79,872; advisory ×1.10 ceil-KB
+// = 70,656
+const WORKFLOW_LITERAL_BUDGET = { hard: 79872, advisory: 70656 };
 
 const WORKFLOW_TEMPLATE = 'skills/war/assets/workflow-template.js';
 const MIN_BLOCK_BYTES = 200;
