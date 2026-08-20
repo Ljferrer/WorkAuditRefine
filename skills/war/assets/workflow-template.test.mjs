@@ -5188,6 +5188,24 @@ test('follow-up consolidation (title fallback + no-collapse controls): lineless 
   assert.ok(['win a', 'win b'].every(t => out.minorsFiled.some(m => m.title === t)), 'out-of-window same-file rows survive')
 })
 
+test('follow-up consolidation (non-array seats guard): an auditor-supplied string `seats` key on a collapse-target row never throws — the guard normalizes it to seats[]; landDecision stays landed', async () => {
+  const findings = [
+    { severity: 'Minor', title: 'stale enum comment', rationale: 'r1', file: 'src/a.js', line: 100, seats: 'correctness' },
+    { severity: 'Minor', title: 'comment misses the arm', rationale: 'r2', file: 'src/a.js', line: 105 },
+  ]
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-auditor' && !(opts.label || '').startsWith('gate-audit:'))
+      return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings, confidence: 'high' }
+    if (seat === 'war-refiner' && opts.dispatchKind === 'file-followups') return null
+    return handoffImpl(undefined)(prompt, opts)
+  }
+  const { out } = await runPhase(HANDOFF_ARGS(), impl)
+  assert.equal(out.landDecision, 'landed', 'the collapse never converts a LANDED phase into held:workflow-error (the string-seats row would throw on .push without the Array.isArray guard)')
+  assert.equal(out.minorsFiled.length, 1, 'the line-window duplicates still collapse to one row')
+  assert.ok(Array.isArray(out.minorsFiled[0].seats), 'the representative row\'s non-array seats key is normalized to a seats[] array')
+})
+
 test('clusters manifest asserts (fail-open): a partition violation, a duplicate ordinal, and a missing manifest each get ONE violation log line; a conforming manifest logs none; landDecision untouched', async () => {
   const twoF = [handoffMinorF, { severity: 'Minor', title: 'stale count', rationale: 'lagging comment', file: 'z.js' }]
   const run = async (filingResult) => {
@@ -5220,6 +5238,18 @@ test('clusters manifest asserts (fail-open): a partition violation, a duplicate 
   const d = await run({ filed: [{ n: 1, issue: 7 }, { n: 2, issue: 7 }], clusters: [{ ordinals: [1, 2], issue: 7 }] })
   assert.equal(viol(d.logs).length, 0, 'a conforming manifest logs no violation')
   assert.deepEqual(d.out.handoff.followUps.map(f => f.issue), [7, 7], 'both rows share the cluster\'s one issue number')
+  // (e) distinct issues filed > post-collapse rows: an out-of-range n row skips stamping but its
+  // issue number still counts into distinctIssues — the filing floor (issues ≤ rows) must fire.
+  const e = await run({ filed: [{ n: 1, issue: 1 }, { n: 2, issue: 2 }, { n: 99, issue: 3 }], clusters: [{ ordinals: [1], issue: 1 }, { ordinals: [2], issue: 2 }] })
+  assert.equal(e.out.landDecision, 'landed', 'landDecision untouched (fail-open)')
+  assert.equal(viol(e.logs).length, 1, 'exactly ONE violation log line (distinct issues exceed post-collapse rows)')
+  assert.match(viol(e.logs)[0], /3 distinct issues filed exceed the 2 post-collapse rows/, 'the line carries both counts')
+  assert.deepEqual(e.out.handoff.followUps.map(f => f.issue), [1, 2], 'in-range stamping is still honored; the out-of-range row never stamps')
+  // (f) unknown ordinal: a cluster ordinal outside 1..rows (or non-integer) is named in the
+  // violation line — it is not a partition member the per-row loop can see.
+  const f = await run({ filed: [{ n: 1, issue: 1 }, { n: 2, issue: 1 }], clusters: [{ ordinals: [1, 2, 99], issue: 1 }] })
+  assert.equal(viol(f.logs).length, 1, 'exactly ONE violation log line (unknown ordinal)')
+  assert.match(viol(f.logs)[0], /unknown ordinal 99/, 'the line names the unknown ordinal')
 })
 
 test('handoff OMITTED on held:workflow-error (infra death — no trustworthy return to render)', async () => {

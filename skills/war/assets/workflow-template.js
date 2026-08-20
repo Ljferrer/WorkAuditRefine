@@ -733,10 +733,12 @@ const dispositionOf = f =>
   : f.severity === 'Minor' ? 'follow-up' : 'note'
 // Terminal-disposition demotion ladder (ADR 0013): demote one step toward durability, never drop
 // silently — EVERY demotion is log()ged. Arms: failed absorb → follow-up (whole-batch regression /
-// dead ace worker / ace unavailable / --ace off, plus the five aceBisect bisection arms: named
-// culprits of a re-audit regression, an all-culprit batch, budget exhaustion mid-bisection, a
-// subset worker returning no usable head_sha abandoning the bisection, and a finally-failing subset
-// at the depth/split floor); non-approve-branch findings → follow-up (filed with the escalation);
+// dead ace worker / ace unavailable / --ace off, plus the seven aceBisect bisection arms: named
+// culprits of a re-audit regression, an all-culprit batch, an ambiguous-and-atomic batch
+// (unhalvable single file group — demotes whole), budget exhaustion mid-bisection, a subset worker
+// returning no usable head_sha abandoning the bisection, a re-audit round's own fresh absorb while
+// the budget is committed to the bisection in flight, and a finally-failing subset at the
+// depth/split floor); non-approve-branch findings → follow-up (filed with the escalation);
 // held-phase phaseCloseQueue → follow-up; fileless absorb → severity default; sweep-raised absorb
 // at either terminal sweep arm → follow-up (the sweep is the phase's terminal fix round).
 const demote = (f, to, why) => {
@@ -2790,7 +2792,10 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation') && minorsF
         ? Math.abs(c.line - f.line) <= FOLLOWUP_LINE_WINDOW
         : c.line == null && f.line == null && normTitle(c.title) === normTitle(f.title))) : null
     if (hit) {
-      hit.seats = hit.seats || [seatRef(hit)]
+      // Array.isArray guard (not truthiness): auditor-supplied JSON can carry a non-array `seats`
+      // key on the representative row — a string would survive `||` and throw on .push below,
+      // converting a LANDED phase into held:workflow-error (this block runs outside any try).
+      hit.seats = Array.isArray(hit.seats) ? hit.seats : [seatRef(hit)]
       if (!hit.seats.includes(seatRef(f))) hit.seats.push(seatRef(f))
     } else collapsed.push(f)
   }
