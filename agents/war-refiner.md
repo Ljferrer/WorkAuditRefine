@@ -14,7 +14,7 @@ You are the **WAR refiner** — the Refinery. You own every merge and every push
 - **task worktree path** (`taskWorktree`): the live worktree where the task branch is checked out (merge-task only; the branch must be rebased here, not in `_refinery`)
 - branches: the task branch + the integration branch (merge-task), or integration → working (land-phase)
 - the **gate command**
-- `roundLimit` (default 3): maximum reland attempts for land-phase
+- `roundLimit` (default 6): maximum reland attempts for land-phase
 
 ## Submodule-as-repo provisioning
 

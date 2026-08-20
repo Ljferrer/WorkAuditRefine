@@ -1060,6 +1060,56 @@ test('drift-guard: ROLE_MODEL in workflow-template.js matches DEFAULTS agent mod
   })
 })
 
+// Drift-guard: workflow-template.js's hand-mirrored roundLimit fallback literal
+// (`run.roundLimit ?? <n>` — the Workflow sandbox cannot import war-config.mjs) must equal
+// DEFAULTS.run.roundLimit. Same extraction+equality shape as the ROLE_MODEL guard above.
+test('drift-guard: roundLimit fallback in workflow-template.js matches DEFAULTS.run.roundLimit', () => {
+  const match = templateText.match(/const\s+roundLimit\s*=\s*run\.roundLimit\s*\?\?\s*(\d+)/)
+  assert.ok(match, 'roundLimit fallback (`run.roundLimit ?? <n>`) not found in workflow-template.js')
+  assert.equal(Number(match[1]), DEFAULTS.run.roundLimit,
+    'workflow-template.js roundLimit fallback literal drifted from DEFAULTS.run.roundLimit')
+})
+
+// roundLimit default flip (3 → 6): pin the NEW value and assert the OLD literal is absent
+// across every enumerated doc surface. Every OLD-absent pattern is context-scoped with a
+// word boundary (`\b`) before `roundLimit` so the sibling knob `run.redteamRoundLimit`
+// (default 3 — deliberately out of scope, stays 3) can never satisfy or trip a match.
+test('roundLimit default is 6; old default literal absent across enumerated doc surfaces', () => {
+  assert.equal(DEFAULTS.run.roundLimit, 6)
+  assert.equal(DEFAULTS.run.redteamRoundLimit, 3,
+    'sibling knob redteamRoundLimit is out of the flip scope and must remain 3')
+  assert.equal(PRESETS.economy.run.roundLimit, 2, 'economy preset explicit 2 is untouched')
+
+  const surfaces = [
+    // [file, NEW-present pattern, OLD-absent pattern]
+    ['CLAUDE.md',
+      /share `run\.roundLimit`=6/,
+      /\broundLimit`?\s*=\s*3\b/],
+    ['agents/war-refiner.md',
+      /`roundLimit` \(default 6\)/,
+      /\broundLimit`?\s*\(default 3\)/],
+    ['CONTEXT.md',
+      /share `run\.roundLimit` \(default 6\)/,
+      /\broundLimit`?\s*\(default 3\)/],
+    ['skills/war/references/gastown-design-params.md',
+      /\*\*round_limit = 6:\*\* after 6 dissenting rounds/,
+      /\bround_limit\s*=\s*3\b|after 3 dissenting rounds/i],
+    // Straggler found by the base-time re-enumeration (D12): the Refines bullet's
+    // `round_limit=3` prose — outside the f22686b census but the same default literal.
+    ['skills/war/SKILL.md',
+      /`round_limit=6`/,
+      /\bround_limit\s*=\s*3\b/],
+  ]
+  for (const [rel, newPresent, oldAbsent] of surfaces) {
+    const text = readDoc(rel)
+    assert.match(text, newPresent, `${rel}: new roundLimit default (6) prose missing`)
+    // Strip the out-of-scope sibling knob's mentions before the OLD-absent scan so
+    // redteamRoundLimit's own default-3 prose never false-positives the assert.
+    const scoped = text.replace(/redteamRoundLimit[^\n]*/g, '')
+    assert.doesNotMatch(scoped, oldAbsent, `${rel}: old roundLimit default (3) literal still present`)
+  }
+})
+
 // Drift-guard: each agents/war-<role>.md frontmatter `model:` must equal the
 // corresponding DEFAULTS.agents.<role>.model, so an agent file's spawned model can
 // never silently disagree with the config authority (the doc-rot this fixes: worker

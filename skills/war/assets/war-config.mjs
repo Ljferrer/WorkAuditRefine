@@ -48,7 +48,7 @@ export const DEFAULTS = {
   // chronic under-specification upstream when the limit is reached with an unstamped root open. Consumed
   // by /red-team's fail-open config read, never the phase engine (run.roundLimit is the fix-round budget).
   // Lives HERE, never inside agents.redteam — that key is a validated { model, effort } tier.
-  run: { roundLimit: 3, redteamRoundLimit: 3, afk: false, ace: true, provision: [], provisionSource: 'none', provisionAuto: true },
+  run: { roundLimit: 6, redteamRoundLimit: 3, afk: false, ace: true, provision: [], provisionSource: 'none', provisionAuto: true },
   // Compounding-memory retrieval + publication (spec 2026-07-03). retrieval: Lead prefetches
   // per-seat lesson blocks; topK: max lessons per block; commitLearnings: write the repo-root
   // docs/learnings/ lessons (default OFF — a conscious opt-in via /war-room; when on, published

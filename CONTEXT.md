@@ -351,7 +351,7 @@ _Avoid_: crash, exception (each names one surface only).
 
 **Retry budget**:
 The single bound on every bounded-retry loop in WAR — fix-worker rounds, the land reland-CAS, and
-phase-resume all share `run.roundLimit` (default 3). One knob, one mental model.
+phase-resume all share `run.roundLimit` (default 6). One knob, one mental model.
 _Avoid_: separate per-loop limits, max-attempts.
 
 **gate-failure class** (`MergeResult.gate_failure_class`):
