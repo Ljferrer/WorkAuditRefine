@@ -327,7 +327,7 @@ The per-phase Workflow returns:
 { phase,                              // phase id
   landed: ["task_id"],                // tasks merged onto the integration branch
   escalated: [ { task, reason, defectClass?, ... } ],   // defectClass?: 'plan' iff the worker-authored blocked_reason was PLAN-DEFECT:-prefixed (metadata, never a reason)
-  minorsFiled: [ { task, ...finding } ],   // disposition:'follow-up' findings (incl. every logged demotion) filed as war-followup — the `file-followups` dispatch stamps each filed entry's `.issue`, which the handoff's followUps mapping reads
+  minorsFiled: [ { task, ...finding } ],   // disposition:'follow-up' findings (incl. every logged demotion) filed as war-followup — the `file-followups` dispatch stamps each filed entry's `.issue`, which the handoff's followUps mapping reads — deterministically COLLAPSED in place pre-filing (rows may carry a `seats[]` corroboration key and can be fewer than the raw seat findings; see § Filing result)
   notes: [ { task, ...finding } ],    // disposition:'note' findings — phase report + servitor feed (memory candidates), never issues
   aced: [ { task, finding, sha } ],   // absorbed findings, commit-cited (per-task ace — batch or bisection-subset shas — AND the phase-close sweep's queue at the polish sha; empty unless run.ace). NOT filed as war-followup
   landResult,                         // the dispatched land/re-land MergeResult — the initial land and both re-land arms assign it, so `pr_number`/`pr_remote` are readable on `held:submodule-pr` and `held:land-failed` carries the failing MergeResult; null only when no land was dispatched (a pre-land hold) or the land dispatch died returning nothing
@@ -338,7 +338,7 @@ The per-phase Workflow returns:
     tipSha,                           // landed working sha; degraded (held:escalation) → last confirmed merge tip, else null
     polish: "merged" | "discarded" | "skipped",   // phase-close sweep outcome (skipped = never dispatched)
     absorbed: [ { sha, findings: ["title"] } ],   // aced provenance grouped by commit sha
-    followUps: [ { issue, reason } ], // issue# stamped by the Workflow's `file-followups` dispatch (null only when the filing dispatch failed or was skipped — the Checkpoint floor then has the Lead file it before the DAG advances); reason = the finding title + why-not-absorbable rationale
+    followUps: [ { issue, reason } ], // issue# stamped by the Workflow's `file-followups` dispatch (null only when the filing dispatch failed or was skipped — the Checkpoint floor then has the Lead file it before the DAG advances); reason = the finding title + why-not-absorbable rationale; post-collapse rows mean several raw findings may share one issue number (§ Filing result)
     notes: [ { task, title } ],
     endState: [ { condition, status: "met" | "unmet" | "unverified" | "deferred" | "out-of-scope" } ],   // keyed on the verbatim condition text (the endStateAttestations / gate-audit plan_ref key); a condition with NO attestation row from any seat ⇒ 'unverified', never 'met' (D8; the mapping is produced by the precision-chain plan's Task 3.2, landed 0.17.0); no gate-audit ran at all ⇒ all 'deferred', never a silent 'met'
     intentPresent,
