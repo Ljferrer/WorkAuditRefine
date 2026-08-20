@@ -2,6 +2,7 @@
 name: polish-worktree-provisioning-death-drains-phase-close-queue-fail-open-lead-must-re-route-by-hand
 description: "When the phase-close polish worktree's PROVISION dispatch itself dies (not the polish worker), the fail-open coherence sweep demotes every queued absorb-disposition finding to follow-up with zero fixes applied — the Lead must manually re-triage the demoted set (drop stale-by-land-time, fold same-file findings into a later phase's task slice, cluster the rest into issues/comments) rather than treat the demotion as itself resolving anything"
 metadata: 
+  promoted: dev/2026-08-19-realized-absorb-rate@phase-1
   node_type: memory
   type: project
   provenance: code-verified
@@ -18,6 +19,9 @@ metadata:
     - fold-in next phase task slice
     - issue clustering
     - audit-finding-stale-by-land-time
+    - session usage limit
+    - polish worker dispatch death
+    - recurrence phase 2
   tags: 
     - war
     - phase-close
@@ -26,7 +30,7 @@ metadata:
     - land
   created: 2026-08-20
   originSessionId: d1c9bd01-e7da-46af-a12d-d59dbd7a69d1
-  modified: 2026-08-20T08:53:00.173Z
+  modified: 2026-08-20T13:50:01.360Z
 ---
 
 # A dead polish-worktree PROVISION dispatch fail-opens the whole phase-close queue — the Lead, not the engine, must re-route the orphaned findings
@@ -74,6 +78,19 @@ standing Lead duty whenever a polish/coherence-sweep pass empties without fixing
 **Locate-cue (verify still present before acting):** the phase-close coherence sweep description in
 `skills/war/SKILL.md`/`skills/war/references/` (fail-open polish of `absorb` findings); `provisionStep`
 in `skills/war/assets/workflow-template.js` (still unwrapped by `dispatchAgent` at time of writing).
+
+## Recurrence 2 (2026-08-20, plan `2026-08-19-realized-absorb-rate`, phase 2, `code-verified` —
+landed tip `7cacd59` on `dev/2026-08-19-realized-absorb-rate`)
+
+The phase-close polish sweep died on the session usage limit a **second** time in this same plan —
+phase 1's death was the polish-worktree PROVISION dispatch (documented above); phase 2's death hit
+the polish *worker* dispatches themselves, after the worktree had already been provisioned. Same
+class, different dispatch site within the same fail-open family: whenever the session usage limit
+is hit anywhere in the phase-close polish sequence (provision step or worker dispatch), the sweep
+drains fail-open and the Lead must re-triage the orphaned queue by hand exactly as described above.
+Two independent deaths across two consecutive phases of the same plan is enough to treat this as a
+standing operational risk for any phase-close pass running near a session's usage ceiling, not a
+one-off fluke — budget the phase-close sweep's dispatches with headroom, or expect to re-triage.
 
 ## Related
 
