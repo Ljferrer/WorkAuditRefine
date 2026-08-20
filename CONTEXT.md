@@ -351,7 +351,7 @@ _Avoid_: crash, exception (each names one surface only).
 
 **Retry budget**:
 The single bound on every bounded-retry loop in WAR — fix-worker rounds, the land reland-CAS, and
-phase-resume all share `run.roundLimit` (default 3). One knob, one mental model.
+phase-resume all share `run.roundLimit` (default 6). One knob, one mental model.
 _Avoid_: separate per-loop limits, max-attempts.
 
 **gate-failure class** (`MergeResult.gate_failure_class`):
@@ -671,9 +671,26 @@ The auditor-owned routing of a Minor/Nit finding, orthogonal to severity: fix it
 the per-task ace, or the phase-close sweep when `phaseClose:true`/release-slot-adjacent), file it as an
 affirmative issue (`follow-up` — must state why it is not absorbable), or record it without filing
 (`note` — phase report + servitor feed). Omitted → Minor becomes follow-up, Nit becomes note; `absorb`
-is never a default. A failed or ineligible route **demotes one step toward durability**, logged — never
-dropped silently.
+is never a default. A failed or ineligible route **demotes one step toward durability**, logged — per
+subset under the ace bisection ladder — never dropped silently; zero unrouted findings on every exit path.
 _Avoid_: autoFixable (deprecated legacy alias for absorb); severity as the routing signal.
+
+**Ace bisection**:
+The regression-recovery ladder on a failed `--ace` batch (canonical: `aceBisect` in
+`skills/war/assets/workflow-template.js`): named culprits are excised (demoted, logged) and the
+remainder re-applies as ONE subset; blind halving is reserved for ambiguous attribution; subsets apply
+serially at the tip, depth ≤ 2, same-file findings never split; each subset commit charges one
+`fixRounds` slot (reverts uncharged; exhaustion demotes the remainder). Failed subset tips are
+forward-reverted in-loop; only finally-failing subsets demote; the ladder never holds or escalates a
+mergeable task.
+_Avoid_: whole-batch demotion (retired); git-bisect (this is finding-subset re-application, not a
+history search).
+
+**Ace-Subset trailer**:
+The deterministic commit trailer (`Ace-Subset:` key) every bisection-subset commit carries; each subset
+dispatch preflights the **bisection range** (never the tip alone) for it and returns the existing sha
+without committing on a hit — the resume-idempotency contract.
+_Avoid_: tip-only preflight; pinning the value shape (latitude — the key is the contract).
 
 **Phase-close coherence sweep**:
 The fail-open polish pass at a would-land phase's **integrated tip**: one worker in a `p<N>-polish` worktree
