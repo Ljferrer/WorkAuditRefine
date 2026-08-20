@@ -202,7 +202,14 @@ const ENDSTATE_CHECK_RESULT = { type: 'object', properties: {
 // a hold; the Checkpoint floor (skills/war/SKILL.md § Checkpoint) is the catch (D2).
 const FOLLOWUP_FILING_RESULT = { type: 'object', properties: {
   filed: { type: 'array', items: { type: 'object', properties: {
-    n: { type: 'number' }, issue: {} } } } } }
+    n: { type: 'number' }, issue: {} } } },
+  // clusters[] manifest (Task 2.1, #1566): the agent's own clustering record — ordinals are the
+  // 1-based POST-COLLAPSE row numbers it grouped into one filed issue. Advisory like `filed`: the
+  // engine asserts partition (every ordinal in exactly one cluster — clustering only merges the
+  // engine's collapsed rows, never splits one), and distinct issues filed ≤ post-collapse rows;
+  // violations get ONE log() line (fail-open, the non-conforming-return arm's sibling), never a hold.
+  clusters: { type: 'array', items: { type: 'object', properties: {
+    ordinals: { type: 'array', items: { type: 'number' } }, issue: {} } } } } }
 
 // memory_index_updated retired (spec §4.6, D4 deleted): the servitor no longer maintains the index —
 // the Lead runs `render-index` post-servitor (Gate 2). The servitor only writes/updates lesson files.
@@ -713,7 +720,10 @@ const provisionClause = provisionList.length
   : ''
 
 const blockingOf = seats => seats.flatMap(s => s.findings || []).filter(f => f.severity === 'Critical' || f.severity === 'Major')
-const minorsOf   = seats => seats.flatMap(s => s.findings || []).filter(f => f.severity === 'Minor' || f.severity === 'Nit')
+// minorsOf returns seat-stamped COPIES (never the seat's own finding objects): each Minor/Nit carries
+// the raising seat's id so the pre-filing follow-up consolidation (Task 2.1, #1566) can build merged
+// rows' seats[] corroboration list. An explicit finding-level `seat` (spread last) wins.
+const minorsOf   = seats => seats.flatMap(s => (s.findings || []).filter(f => f.severity === 'Minor' || f.severity === 'Nit').map(f => ({ seat: s.seat, ...f })))
 // Disposition classification (ADR 0013): auditor-owned routing, orthogonal to severity. Defaults
 // when omitted: Minor → 'follow-up', Nit → 'note'; 'absorb' is NEVER defaulted. Legacy
 // autoFixable:true reads as 'absorb' for one release (deprecated — removed next release).
@@ -722,10 +732,13 @@ const dispositionOf = f =>
   : f.autoFixable === true ? 'absorb'
   : f.severity === 'Minor' ? 'follow-up' : 'note'
 // Terminal-disposition demotion ladder (ADR 0013): demote one step toward durability, never drop
-// silently — EVERY demotion is log()ged. Arms: failed absorb → follow-up; non-approve-branch
-// findings → follow-up (filed with the escalation); held-phase phaseCloseQueue → follow-up;
-// fileless absorb → severity default; sweep-raised absorb at either terminal sweep arm →
-// follow-up (the sweep is the phase's terminal fix round).
+// silently — EVERY demotion is log()ged. Arms: failed absorb → follow-up (whole-batch regression /
+// dead ace worker / ace unavailable / --ace off, plus the five aceBisect bisection arms: named
+// culprits of a re-audit regression, an all-culprit batch, budget exhaustion mid-bisection, a
+// subset worker returning no usable head_sha abandoning the bisection, and a finally-failing subset
+// at the depth/split floor); non-approve-branch findings → follow-up (filed with the escalation);
+// held-phase phaseCloseQueue → follow-up; fileless absorb → severity default; sweep-raised absorb
+// at either terminal sweep arm → follow-up (the sweep is the phase's terminal fix round).
 const demote = (f, to, why) => {
   log(`Disposition demotion: [${f.severity}] "${f.title}" (task ${f.task}) → ${to} — ${why}.`)
   ;(to === 'note' ? notes : minorsFiled).push(f)
@@ -2754,8 +2767,37 @@ if (landResult && landResult.status === 'landed' && memoryLocalRoot) {
 // failed preflight, or a non-conforming return leaves unmatched entries issue: null with ONE log()
 // line — landDecision untouched, never a hold; the Checkpoint floor (skills/war/SKILL.md
 // § Checkpoint) is the catch. Dedup-first (D3) makes a resume/relaunch re-dispatch safe: an
-// exact-title match reuses the existing issue number, never a duplicate.
+// open-issue match gets this batch's finding as a corroboration comment (the retired-token sweep's
+// dedup idiom) and reuses the existing issue number, never a duplicate. Consolidation-first
+// (Task 2.1, #1566): minorsFiled is deterministically collapsed above before the rows render, and
+// the agent clusters the survivors by file + root cause — one issue per cluster, so several rows
+// may share one issue number (ordinal→issue stamping semantics unchanged).
 if ((landDecision === 'landed' || landDecision === 'held:escalation') && minorsFiled.length > 0) {
+  // ---- FOLLOW-UP CONSOLIDATION (Task 2.1, #1566): deterministic pre-filing collapse of minorsFiled,
+  // in place (the handoff assembly below reads the collapsed rows — cross-seat duplicates become ONE
+  // followUps entry). Key: same `file` + `line` within ±FOLLOWUP_LINE_WINDOW; normalized-title
+  // fallback ONLY when `line` is absent on both rows (a lined row never collapses into a lineless
+  // one). Fileless rows never collapse. First occurrence is the representative; merged rows carry a
+  // seats[] corroboration list (the minorsOf seat stamp; task fallback) the filing prompt renders.
+  const FOLLOWUP_LINE_WINDOW = 10
+  const normTitle = t => String(t ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+  // Concatenation-built strings throughout this block (census-safe — #931).
+  const seatRef = f => f.seat ?? (f.task != null ? 'task ' + f.task : 'unattributed')
+  const collapsed = []
+  for (const f of minorsFiled) {
+    const hit = f.file ? collapsed.find(c => c.file === f.file
+      && (Number.isFinite(c.line) && Number.isFinite(f.line)
+        ? Math.abs(c.line - f.line) <= FOLLOWUP_LINE_WINDOW
+        : c.line == null && f.line == null && normTitle(c.title) === normTitle(f.title))) : null
+    if (hit) {
+      hit.seats = hit.seats || [seatRef(hit)]
+      if (!hit.seats.includes(seatRef(f))) hit.seats.push(seatRef(f))
+    } else collapsed.push(f)
+  }
+  if (collapsed.length < minorsFiled.length) {
+    log('file-followups consolidation: ' + minorsFiled.length + ' follow-up rows collapsed to ' + collapsed.length + ' (file + ±' + FOLLOWUP_LINE_WINDOW + '-line window; title fallback when line absent).')
+    minorsFiled.splice(0, minorsFiled.length, ...collapsed)
+  }
   // Agent-resolved '${CLAUDE_PLUGIN_ROOT}' literal idiom (the provision barrier's SCRIPT const
   // precedent): the single quotes on this line are JS STRING DELIMITERS — they are what keep the
   // ${...} literal out of the #931 untagged-backtick census, and they are never part of the string's
@@ -2769,15 +2811,17 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation') && minorsF
       pt`FILE-FOLLOWUPS DISPATCH for WAR phase ${ph.id} (you are the refiner; this is a gh-write batch — no merge, no push, never touch git state). `
       + pt`The follow-up-disposition audit findings below survived this phase unabsorbed; file each as a GitHub issue so nothing drops silently (ADR 0013).\n`
       + pt`FIRST the account preflight (ADR 0026): run ${PREFLIGHT} "${ghUser}" — an empty-string arg is its documented no-op (exit 0). On exit 2 (tooling error) or exit 3 (account mismatch): return what you have and file NOTHING.\n`
-      + pt`THEN dedup (D3): run \`gh issue list --label war-followup --state open\` once; a row below whose title EXACTLY matches an open issue's title is already filed — reuse that existing issue number instead of filing a duplicate.\n`
-      + pt`THEN file one \`war-followup\`-labelled issue per row below, in order — title from the row's title; body carrying the why-not-absorbable reason and the task id${ph.epicIssue ? pt`, and a reference to the phase epic #${ph.epicIssue}` : ''}.\n`
+      + pt`THEN dedup (D3): run \`gh issue list --label war-followup --state open\` once; a row below matching an open issue (exact title, or same file + same root cause) is already filed — post this batch's finding as a corroboration comment on the existing issue, never a new issue, and reuse that existing issue number for the row.\n`
+      + pt`THEN cluster the remaining candidate rows by file + root cause (the engine already collapsed same-file line-window duplicates; each row carries its file, line, and any seats corroboration) and file ONE \`war-followup\`-labelled issue per cluster, in row order — title from the cluster's lead row; body carrying, per member row, the why-not-absorbable reason, the task id, and its seats as corroboration${ph.epicIssue ? pt`, and a reference to the phase epic #${ph.epicIssue}` : ''}.\n`
       // pt-tagged prompt-feeding row builder (file-followups dispatch): title/rationale are
       // schema-optional and task is routing-stamped → ?? defaults (never a phase-killing throw here).
       // The title span is DELIMITED (quoted, `title:`-prefixed) so the dedup instruction's
       // exact-title match keys on the finding's own title — never the whole composite row, whose
-      // leading ordinal would make dedup order-dependent across a relaunch.
-      + minorsFiled.map((m, i) => pt`  ${i + 1}. title: "${m.title ?? '(untitled finding)'}" · task ${m.task ?? '<task>'} · why not absorbable: ${m.rationale ?? '(no rationale recorded)'}`).join('\n') + '\n'
-      + pt`Return ONLY { filed: [{ n, issue }] } — n the row's 1-based ordinal above, issue the filed-or-reused issue number (null when unfiled). A partial/empty result is FAIL-OPEN: unmatched entries stay issue: null in the handoff and the Checkpoint floor catches them; never block.`,
+      // leading ordinal would make dedup order-dependent across a relaunch. file/line/seats render
+      // per row (Task 2.1) so the agent CAN cluster by file — title/task/rationale alone made
+      // file-clustering impossible.
+      + minorsFiled.map((m, i) => pt`  ${i + 1}. title: "${m.title ?? '(untitled finding)'}" · task ${m.task ?? '<task>'}${m.file ? pt` · file ${m.file}${m.line != null ? pt`:${m.line}` : ''}` : ''}${m.seats && m.seats.length ? pt` · seats: ${m.seats.join(', ')}` : ''} · why not absorbable: ${m.rationale ?? '(no rationale recorded)'}`).join('\n') + '\n'
+      + pt`Return ONLY { filed: [{ n, issue }], clusters: [{ ordinals, issue }] } — filed: n the row's 1-based ordinal above, issue the filed / commented-on / reused issue number (null when unfiled; every row of one cluster shares its issue number); clusters: your clustering manifest — every ordinal above in exactly ONE cluster's ordinals array (merge rows only, never split one). A partial/empty result is FAIL-OPEN: unmatched entries stay issue: null in the handoff and the Checkpoint floor catches them; never block.`,
       { agentType: NS + 'war-refiner', phase: 'Land', label: 'file-followups:phase-' + ph.id, dispatchKind: 'file-followups', schema: FOLLOWUP_FILING_RESULT, ...spawn('refiner') })
   } catch (err) {
     // Fail-open (D2): a THROWN filing dispatch must never convert a resolved land decision into
@@ -2794,6 +2838,24 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation') && minorsF
       if (row.n < 1 || row.n > minorsFiled.length || typeof row.issue !== 'number') continue
       minorsFiled[row.n - 1].issue = row.issue
     }
+    // clusters[] manifest asserts (Task 2.1, #1566) — FAIL-OPEN, the non-conforming-return arm's
+    // sibling: any violation gets ONE log() line; stamping above is already honored row-by-row,
+    // landDecision untouched, never a hold. Asserted: (1) every post-collapse ordinal appears in
+    // exactly one cluster (partition — the agent may only MERGE the engine's collapsed rows; an
+    // ordinal in two clusters IS a split, an uncovered ordinal a drop); (2) distinct issue numbers
+    // filed ≤ post-collapse rows (clustering can only shrink the issue count).
+    const problems = []
+    const clusters = Array.isArray(filingOut.clusters) ? filingOut.clusters : null
+    if (!clusters) problems.push('clusters[] manifest missing from the filing return')
+    else {
+      const seen = new Map()
+      for (const cl of clusters) for (const o of (cl && Array.isArray(cl.ordinals)) ? cl.ordinals : []) seen.set(o, (seen.get(o) || 0) + 1)
+      for (let n = 1; n <= minorsFiled.length; n++) if ((seen.get(n) || 0) !== 1) problems.push('ordinal ' + n + ' appears in ' + (seen.get(n) || 0) + ' clusters (must be exactly one)')
+      for (const o of seen.keys()) if (!Number.isInteger(o) || o < 1 || o > minorsFiled.length) problems.push('unknown ordinal ' + JSON.stringify(o))
+    }
+    const distinctIssues = new Set(filedRows.filter(r => r && typeof r.issue === 'number').map(r => r.issue)).size
+    if (distinctIssues > minorsFiled.length) problems.push(distinctIssues + ' distinct issues filed exceed the ' + minorsFiled.length + ' post-collapse rows')
+    if (problems.length) log('file-followups clusters manifest violation: ' + problems.join('; ') + ' — fail-open (stamped rows stand; landDecision untouched; the Checkpoint floor is the catch).')
   } else {
     log('file-followups: dead dispatch or non-conforming return — every unmatched handoff.followUps entry stays issue: null (fail-open, D2; the Checkpoint floor is the catch); landDecision untouched.')
   }

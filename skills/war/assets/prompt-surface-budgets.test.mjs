@@ -35,8 +35,13 @@ const FILE_BUDGETS = {
   'skills/war/SKILL.md': { hard: 73728, advisory: 64512 },
   // post-shrink 22,216 B @ c6a05fb → hard ×1.25 ceil-KB = 28,672; advisory ×1.10 ceil-KB = 24,576
   'agents/war-auditor.md': { hard: 28672, advisory: 24576 },
-  // post-shrink 27,109 B @ c6a05fb → hard ×1.25 ceil-KB = 34,816; advisory ×1.10 ceil-KB = 30,720
-  'agents/war-refiner.md': { hard: 34816, advisory: 30720 },
+  // GREW to 99.9% of the old hard ceiling (successive dispatch-contract mirrors on the card);
+  // re-derived for the Task 2.1 (#1566) filing-consolidation mirror — the clusters-manifest return
+  // contract and corroboration-comment dedup are tier-1 standing-card content (the dispatched-prompt
+  // / standing-card same-commit rule; they cannot move to references/) — so the constant is raised
+  // per ADR 0042's justification rule (cited in the commit body):
+  // post-shrink 34,773 B @ c74055b → hard ×1.25 ceil-KB = 44,032; advisory ×1.10 ceil-KB = 38,912
+  'agents/war-refiner.md': { hard: 44032, advisory: 38912 },
   // post-shrink 15,531 B @ c6a05fb → hard ×1.25 ceil-KB = 19,456; advisory ×1.10 ceil-KB = 17,408
   'agents/war-servitor.md': { hard: 19456, advisory: 17408 },
   // No shrink task targeted this surface (adjudication M: unchanged is not failed) —
@@ -75,8 +80,10 @@ const FILE_BUDGETS = {
 // the Workflow sandbox reads no files — and further compression drops load-bearing revert/preflight
 // safety semantics), so the constant is raised per ADR 0042's justification rule (cited in the
 // commit body), after in-task compression of the new fragments:
-// post-shrink 63,308 B (139 blocks, post-bisection-rewrite tree at task base) @ 521a312 → hard
-// ×1.25 ceil-KB = 79,872; advisory ×1.10 ceil-KB = 70,656
+// post-shrink 63,308 B (139 blocks, post-bisection-rewrite tree) @ 291943e (the phase-1 landed
+// tip — the measuring tree's own base; the pre-rewrite base 521a312 measures 61,920 B / 134
+// blocks and never carried this figure) → hard ×1.25 ceil-KB = 79,872; advisory ×1.10 ceil-KB
+// = 70,656
 const WORKFLOW_LITERAL_BUDGET = { hard: 79872, advisory: 70656 };
 
 const WORKFLOW_TEMPLATE = 'skills/war/assets/workflow-template.js';

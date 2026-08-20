@@ -5126,6 +5126,102 @@ test('file-followups ordinal mismatch: out-of-range / non-integer n and non-nume
   assert.equal(out.handoff.followUps[1].issue, 888, 'the in-range row still stamps — partial conformance is honored row-by-row')
 })
 
+// --- Follow-up consolidation + clusters manifest (Task 2.1, #1566) ---
+
+test('follow-up consolidation (line-window hit): cross-seat same-file findings within the line window collapse to ONE row carrying seats[]; the filing rows render file, line, and seats; the prompt mandates corroboration comments and clustering', async () => {
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-auditor' && !(opts.label || '').startsWith('gate-audit:')) {
+      const f = (opts.label || '').endsWith(':correctness')
+        ? { severity: 'Minor', title: 'stale enum comment', rationale: 'lags the new arm', file: 'src/a.js', line: 100 }
+        : { severity: 'Minor', title: 'comment misses the arm', rationale: 'same stale block', file: 'src/a.js', line: 105 }
+      return { seat: opts.label, lens: 'x', verdict: 'approve', findings: [f], confidence: 'high' }
+    }
+    if (seat === 'war-refiner' && opts.dispatchKind === 'file-followups') return { filed: [{ n: 1, issue: 42 }], clusters: [{ ordinals: [1], issue: 42 }] }
+    return handoffImpl(undefined)(prompt, opts)
+  }
+  const args = PROVISION_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'T', planSlice: 's', roster: [{ lens: 'correctness' }, { lens: 'cascading-impact' }] }] })
+  const { out, calls, logs } = await runPhase(args, impl)
+  assert.equal(out.landDecision, 'landed', 'presence guard: the phase landed')
+  assert.equal(out.minorsFiled.length, 1, 'the two seats\' line-window duplicates (100 vs 105, same file) collapse to one row')
+  assert.deepEqual(out.minorsFiled[0].seats, ['audit:t1:correctness', 'audit:t1:cascading-impact'],
+    'the merged row carries a seats[] corroboration list naming both raising seats')
+  assert.equal(out.minorsFiled[0].issue, 42, 'ordinal→issue stamping keys on the POST-collapse row')
+  assert.equal(out.handoff.followUps.length, 1, 'the handoff renders the collapsed row set (one followUps entry)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.startsWith('file-followups consolidation:')),
+    'the collapse is log()ged (visibility, never a hold)')
+  // Prompt-content pins: rows carry file/line + seats (file-clustering is impossible without them),
+  // and the dedup arm routes open-issue matches as corroboration comments, never new issues.
+  const fp = calls.find(c => c.opts.dispatchKind === 'file-followups').prompt
+  assert.match(fp, /file src\/a\.js:100/, 'the candidate row renders the finding\'s file and line')
+  assert.match(fp, /seats: audit:t1:correctness, audit:t1:cascading-impact/, 'the candidate row renders the seats[] corroboration list')
+  assert.match(fp, /corroboration comment on the existing issue, never a new issue/,
+    'an open war-followup match gets a corroboration comment, never a new issue (the retired-token sweep dedup idiom)')
+  assert.match(fp, /cluster the remaining candidate rows by file \+ root cause/, 'the prompt mandates file + root-cause clustering')
+  assert.match(fp, /ONE `war-followup`-labelled issue per cluster/, 'one issue per cluster')
+  assert.match(fp, /clusters: \[\{ ordinals, issue \}\]/, 'the return shape names the clusters[] manifest')
+})
+
+test('follow-up consolidation (title fallback + no-collapse controls): lineless normalized-title twins collapse; a lined row never merges into a lineless one; different files and out-of-window lines never collapse', async () => {
+  const findings = [
+    { severity: 'Minor', title: 'Stale count.', rationale: 'r1', file: 'z.js' },              // 1 — representative
+    { severity: 'Minor', title: 'stale count', rationale: 'r2', file: 'z.js' },               // collapses into 1 (both lineless, normalized-equal titles)
+    { severity: 'Minor', title: 'stale count', rationale: 'r3', file: 'z.js', line: 5 },      // control: lined vs lineless — NO collapse
+    { severity: 'Minor', title: 'Stale count.', rationale: 'r4', file: 'other.js' },          // control: different file — NO collapse
+    { severity: 'Minor', title: 'win a', rationale: 'r5', file: 'w.js', line: 1 },            // control pair: same file but
+    { severity: 'Minor', title: 'win b', rationale: 'r6', file: 'w.js', line: 50 },           // lines beyond the ±10 window — NO collapse
+  ]
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-auditor' && !(opts.label || '').startsWith('gate-audit:'))
+      return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings, confidence: 'high' }
+    if (seat === 'war-refiner' && opts.dispatchKind === 'file-followups') return null
+    return handoffImpl(undefined)(prompt, opts)
+  }
+  const { out } = await runPhase(HANDOFF_ARGS(), impl)
+  assert.equal(out.landDecision, 'landed', 'presence guard')
+  assert.equal(out.minorsFiled.length, 5, 'six rows collapse to five: only the lineless normalized-title twins merge')
+  const merged = out.minorsFiled.find(m => m.title === 'Stale count.' && m.file === 'z.js')
+  assert.ok(merged && Array.isArray(merged.seats), 'the merged row carries seats[] (same seat deduped)')
+  assert.ok(out.minorsFiled.some(m => m.title === 'stale count' && m.line === 5), 'the lined z.js row survives un-merged (title fallback fires ONLY when line is absent)')
+  assert.ok(out.minorsFiled.some(m => m.file === 'other.js'), 'the different-file twin survives')
+  assert.ok(['win a', 'win b'].every(t => out.minorsFiled.some(m => m.title === t)), 'out-of-window same-file rows survive')
+})
+
+test('clusters manifest asserts (fail-open): a partition violation, a duplicate ordinal, and a missing manifest each get ONE violation log line; a conforming manifest logs none; landDecision untouched', async () => {
+  const twoF = [handoffMinorF, { severity: 'Minor', title: 'stale count', rationale: 'lagging comment', file: 'z.js' }]
+  const run = async (filingResult) => {
+    const impl = (prompt, opts) => {
+      const seat = seatOf(opts)
+      if (seat === 'war-refiner' && opts.dispatchKind === 'file-followups') return filingResult
+      if (seat === 'war-auditor' && !(opts.label || '').startsWith('gate-audit:'))
+        return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: twoF, confidence: 'high' }
+      return handoffImpl(undefined)(prompt, opts)
+    }
+    return runPhase(HANDOFF_ARGS(), impl)
+  }
+  const viol = (logs) => logs.filter(l => typeof l === 'string' && l.startsWith('file-followups clusters manifest violation:'))
+  // (a) uncovered ordinal (a dropped row IS a violation — every ordinal in exactly one cluster)
+  const a = await run({ filed: [{ n: 1, issue: 1 }, { n: 2, issue: 2 }], clusters: [{ ordinals: [1], issue: 1 }] })
+  assert.equal(a.out.landDecision, 'landed', 'landDecision untouched by the violation (fail-open)')
+  assert.equal(viol(a.logs).length, 1, 'exactly ONE violation log line (uncovered ordinal)')
+  assert.match(viol(a.logs)[0], /ordinal 2 appears in 0 clusters/, 'the line names the uncovered ordinal')
+  assert.equal(a.out.handoff.followUps[1].issue, 2, 'stamping is still honored row-by-row despite the violation')
+  // (b) duplicate ordinal (a split of an engine row — clustering may only merge)
+  const b = await run({ filed: [{ n: 1, issue: 1 }, { n: 2, issue: 1 }], clusters: [{ ordinals: [1, 2], issue: 1 }, { ordinals: [2], issue: 1 }] })
+  assert.equal(viol(b.logs).length, 1, 'exactly ONE violation log line (duplicate ordinal)')
+  assert.match(viol(b.logs)[0], /ordinal 2 appears in 2 clusters/, 'the line names the split ordinal')
+  // (c) missing manifest (legacy-shaped return)
+  const c = await run({ filed: [{ n: 1, issue: 9 }, { n: 2, issue: 9 }] })
+  assert.equal(viol(c.logs).length, 1, 'a missing clusters[] manifest is a logged violation')
+  assert.match(viol(c.logs)[0], /manifest missing/, 'the line says the manifest is missing')
+  // (d) conforming merge-only manifest: both rows in ONE cluster, one shared issue (several rows may
+  // share one issue number — stamping semantics unchanged) — no violation line.
+  const d = await run({ filed: [{ n: 1, issue: 7 }, { n: 2, issue: 7 }], clusters: [{ ordinals: [1, 2], issue: 7 }] })
+  assert.equal(viol(d.logs).length, 0, 'a conforming manifest logs no violation')
+  assert.deepEqual(d.out.handoff.followUps.map(f => f.issue), [7, 7], 'both rows share the cluster\'s one issue number')
+})
+
 test('handoff OMITTED on held:workflow-error (infra death — no trustworthy return to render)', async () => {
   const args = PROVISION_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'T', planSlice: 's' }] })   // no roster → phase-start throw
   const fn = build()
