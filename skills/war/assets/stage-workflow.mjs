@@ -36,10 +36,14 @@ export const DESCRIPTION_ANCHOR = 'WAR per-phase execution: Work, Audit, Refine,
 
 // The template's string-arm args fallback tail — the object arm of the D8-guarded `const A =` ternary
 // in workflow-template.js. Substituted ONLY under --args, so a staged copy falls back to its embedded
-// payload instead of an empty object. Same mirror discipline as the two meta anchors above: this is
-// the single authoritative copy, workflow-template.js carries the matching REFERENTIAL coupling
-// comment beside the ternary (naming this constant, never restating these bytes), and the
-// imported-constant anchor guard in stage-workflow.test.mjs is the arbiter of the pair.
+// payload instead of an empty object. Canonical source of the bytes: the `const A =` ternary's
+// args-fallback tail in workflow-template.js; this constant is the hand-maintained mirror site that
+// the imported-constant anchor guard in stage-workflow.test.mjs arbitrates (per ADR 0037's
+// Correction (2026-08-02, #1240) note). Same mirror discipline as the two meta anchors above: this
+// is the single authoritative copy ONLY in the in-suite sense — the one anchor constant the test
+// imports (never a second hardcoded set), not a claim of canonicality over the template's tail.
+// workflow-template.js carries the matching REFERENTIAL coupling comment beside the ternary (naming
+// this constant, never restating these bytes).
 export const ARGS_FALLBACK_ANCHOR = ': (args || {})'
 
 // war-[c<K>-]<planSlug>-p<N>. planSlug passes through VERBATIM (long dated basenames accepted — UI
