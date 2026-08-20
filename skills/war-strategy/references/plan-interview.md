@@ -31,6 +31,8 @@ least two landmine falsifiers** from the WAR falsifier list:
   carrying the old value and no OLD-absent assert;
 - **guard-split deps edges** — a drift guard carved into a different task than its fact,
   without a `deps` edge onto the fact-authoring task;
+- **touched-doc silence** — a task rewriting a doc that restates a machine-source-derivable
+  fact with neither a guard, a de-mirror, nor an explicit backstop defer;
 - **submodule/repo boundaries** — one task spanning two repos (content + gitlink bump are
   two tasks, two phases);
 - **release slots** — a version bump not in its own trailing phase, or slots bumped out of
@@ -113,7 +115,7 @@ interview that leaves a row unfilled has not finished:
 | file footprints | per-task `Files:` | decomposition rule 1 + campaign contention |
 | deferred-validation candidates | `## Deferred validations (backstops)` | land-time surfacing (ADR 0017) |
 | target repos | per-task `target repo:` | decomposition rule 3 |
-| mirrors / default-flips / guard-splits | task carve-outs per the drift-guard rules 5–7 | drift-guard floors · `/red-team` spine probes |
+| mirrors / default-flips / guard-splits / touched-doc facts | task carve-outs per the drift-guard rules 5–8 | drift-guard floors · `/red-team` spine probes |
 | assumptions | `## Assumptions ledger` | `/red-team`'s `[assumed]`-first probes |
 | new domain terms | `## New domain terms · Recommended ADRs` | CONTEXT.md glossary |
 | choices passing the ADR triad (hard to reverse · surprising without context · a genuine trade-off) | ADR recommendations | `docs/adr/` |

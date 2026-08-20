@@ -890,6 +890,16 @@ guard task is audited against a base that predates the fact it guards, through n
 _Avoid_: treating shared-phase or shared-wave placement as sufficient by itself — only the `deps` edge
 forces the guard task's rebase to include the fact-authoring task's landed content.
 
+**Touched-doc accuracy duty**:
+The authoring trichotomy (`/war-strategy` §3 authoring rule 8; ADR 0025's 2026-08-19 amendment): a task
+whose slice rewrites a doc owns the factual accuracy of what it renders authoritative — for every fact
+derivable from a machine-readable in-repo source (config/manifest/enum/version slot, never prose claims
+generally) the plan picks **guard** (a drift test binding doc value to source), **de-mirror** (the doc
+points at the source), or **explicitly defer** (a legitimacy-complete backstop row — named runner +
+timing), never silence. Reference text: `skills/war/references/touched-doc-accuracy.md`.
+_Avoid_: treating a silent restatement as a follow-up (it is a plan defect), and never stretch the duty
+to general prose claims — those stay governed by the evidence-tag discipline (D4).
+
 ### Red-team plan-vs-state grading (ADR 0032 / ADR 0033)
 
 **Artifact-kind**:

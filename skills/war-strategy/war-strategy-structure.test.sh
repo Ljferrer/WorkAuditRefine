@@ -203,6 +203,13 @@ check_f "re-measure at the task's rebased base"
 check '^### Drift-guard coverage'
 check_f 'unguarded mirror is a plan defect'   # rule (a): new mirror ⇒ registry row same task
 check_f 'OLD value absent'                     # rule (b): default-flip enumerates surfaces, asserts old absent
+# Rule 8 (touched-doc accuracy, 2026-08-19) — teeth pins, deliberately COUNT-BLIND: this suite pins the
+# rule's distinctive phrases, never the subsection's rule-count word; the retired-count OLD-absent guard
+# lives in skills/war-machine/war-pipeline-structure.test.sh (the existing convention for this subsection).
+check_f 'owns the factual accuracy'            # rule 8: the touched-doc ownership clause
+check_f 'machine-readable in-repo source'      # rule 8: the trichotomy's scope (never prose claims generally)
+check_f 'never prose claims generally'         # rule 8: the scope's explicit prose-claims carve-out
+check_f 'never silence'                        # rule 8: guard / de-mirror / explicitly defer — never silence
 
 # §4 — ADR 0042 pointer (trigger + read shape), bare-invoke-runs-the-interview, widened
 # HANDOFF DIRECTIVE, merged conversion target, the four merged-shape gap rows, D9 binding
@@ -231,6 +238,7 @@ doc_f 'Stage 0 — silent recon'
 doc_f "node skills/_shared/war-memory.mjs query '<slug> plan-authoring' --repo docs/learnings"
 doc_f 'Stage 1 — silent rehearsal + pre-mortem'
 doc_f 'delete-the-feature probe'
+doc_f 'touched-doc silence'
 doc_f 'Stage 1b — private full-template draft'
 doc_f 'Stage 2 — the interview'
 doc_f 'one question per turn'
