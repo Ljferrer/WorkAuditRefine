@@ -7,7 +7,8 @@ friction D8 adds the auditor-prompt adjudicationClause (Decision 3), noted inlin
 judgment-path description for gate-audit End-state checks; see the amendment below; amended
 2026-08-17 — the latitude-clause reading clarifies Decision 3: an explicit `Mechanism latitude:`
 clause licenses in-band mechanism substitution bounded by the `Binding guardrails:` list; see the
-amendment below)
+amendment below; amended 2026-08-20 — ace bisection on regression, source-derivable absorb
+eligibility, and the roundLimit 3→6 default flip; see the amendment below)
 
 WAR's agents had exactly one yardstick: the plan's literal text. The auditor's plan-faithfulness lens judged
 work against the slice ("the plan did not authorize"), severity was the only routing signal (every Minor/Nit
@@ -203,3 +204,31 @@ records the latitude-clause reading (#1431):
   before this amendment, and an intent-absent run still dispatches byte-identical worker prompts.
 
 This amendment leaves the ratified body above — beyond the Status currency line — byte-unchanged.
+
+## Amendment (2026-08-20): ace bisection on regression, source-derivable absorb eligibility, and the roundLimit 3→6 flip
+
+The realized-absorb-rate campaign (#1547 items 1–4) changed how the routing this ADR records plays
+out at the per-task ace path and on the standing auditor card. This amendment ratifies three
+already-landed mechanisms:
+
+- **Bisection on regression.** An ace batch that regresses the re-audit no longer discards
+  wholesale: the engine's bounded `aceBisect` ladder (`workflow-template.js`) excises named
+  culprits first and re-applies the remainder as ONE subset, reserving blind halving for ambiguous
+  attribution — applied serially at the tip, depth ≤ 2, same-file findings never split across
+  subsets. Only finally-failing subsets demote to `follow-up` (the remainder demotes on budget
+  exhaustion), every demotion logged per subset. The ace path still never turns a mergeable task
+  into a hold or escalation, and Critical/Major blocking is untouched.
+- **Source-derivable absorb eligibility (lens calibration).** The standing auditor card's
+  `disposition:'absorb'` block now clarifies: a doc fact deterministically re-derivable from a
+  machine-readable in-repo source is **mechanical regardless of value count**, and "single-file"
+  reads on the fix's **write footprint** (the doc being corrected), not the source it reads from —
+  only the accompanying policy question (mirror the value vs point at the source) routes as an
+  issue. This is a calibration of the auditor's judgment card only; the mirrored DISPOSITION RULE
+  sentences and `auditPrompt()` are unchanged.
+- **roundLimit 3→6.** The operator ratified flipping the fix-round budget default
+  `DEFAULTS.run.roundLimit` from 3 to 6 (`war-config.mjs`, with `workflow-template.js`'s fallback
+  literal drift-guarded to it) — the bisection ladder consumes slots from the same budget
+  (batch = 1 slot, +1 per subset commit, revert uncharged), so the old default starved recovery.
+
+This amendment leaves all pre-existing body text above — beyond the Status currency line —
+byte-unchanged.

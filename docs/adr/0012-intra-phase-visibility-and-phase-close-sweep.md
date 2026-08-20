@@ -86,3 +86,5 @@ frozen base or the resume guarantees. Full mechanics:
 - Memory `war-phase-up-front-provisioning-conflicts-same-file-serial-tasks` — the up-front-provision
   friction this dispatch-time mechanism sidesteps.
 - Reference run: epics #416/#417, follow-up litter #422 — the T1→T4 dangling-link case.
+
+*Cross-reference (2026-08-20): ace regression-recovery semantics amended — see [ADR-0013's ace bisection amendment](0013-commanders-intent-and-disposition-routing.md).*
