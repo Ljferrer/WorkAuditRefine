@@ -281,7 +281,7 @@ test('Part B seam is now FILLED — run.provision is consumed and env-blocked is
   // (/\/\*[\s\S]*?\*\//g) mis-reads the resolveGate discovery string's glob literals
   // ('*/node_modules/*' etc. carry /* and */) as block-comment delimiters and cascades over
   // executable code — deleting the refine/gate-audit/land core through the file's only real block
-  // comment (/* the single ace commit */). This site's tokens — run.provision / env-blocked /
+  // comment (/* the batch ace commit */). This site's tokens — run.provision / env-blocked /
   // setup-scout — live only in executable code and prose, never in a block comment, so line-only
   // is sufficient. NEW sensitivity of dropping the block pass: block-comment PROSE is now visible to
   // these asserts — in particular the negative `!setup-scout` assert would false-FAIL if a future
@@ -3037,8 +3037,9 @@ test('T4 #297 Test 4 — targetRepo/targetBase threaded into merge-task, land, w
 // Task 3 (Phase 2 — ace-nit-autofix): the pre-merge --ace sub-loop
 // STRICT TDD, CONTROL-FLOW-CRITICAL. One buildSeqImpl-driven case per criterion.
 // The ace sub-loop sits at the TOP of the `if (r.verdict === 'approve')` branch, BEFORE the merge
-// dispatch: a single ace-fix worker commits a nit fix, a fresh auditRound re-audits at the new sha,
-// and on regression the merge dispatch forward-reverts (never escalates). `aced` is a return
+// dispatch: the BATCH ace worker commits one fix, a fresh auditRound re-audits at the new sha (the
+// happy path is byte-identical to the single-attempt era), and a re-audit regression enters the
+// bounded aceBisect ladder (its own test section below) — never an escalation. `aced` is a return
 // ATTRIBUTE — NO new MERGE_RESULT.status / HARD_ESCALATION_REASONS member (D6).
 // ---------------------------------------------------------------------------
 
@@ -3115,8 +3116,8 @@ test('Task 3 — re-audit at the new sha: after a successful ace-fix a fresh aud
   const mergeIdx = calls.findIndex(isMergeTask)
   assert.ok(postAceAudit !== -1, 'a fresh audit round runs after the ace-fix')
   assert.ok(postAceAudit < mergeIdx, 'the merge dispatch follows the re-audit (runs on the post-fix tip)')
-  // Exactly one ace worker per task (single attempt).
-  assert.equal(calls.filter(isAce).length, 1, 'exactly one ace worker dispatched (single attempt)')
+  // Exactly one ace worker on the happy path (one commit, one re-audit — byte-identical to today).
+  assert.equal(calls.filter(isAce).length, 1, 'exactly one ace worker dispatched on the happy path (bisection never opens without a regression)')
 })
 
 test('Task 3 — never blocks a land via forward-revert: a regressing ace re-audit ⇒ merge prompt carries git revert, task lands, NOT escalated', async () => {
@@ -3181,14 +3182,15 @@ test('Task 3 — ponytail / no-flag refusal: a Nit without autoFixable/dispositi
   assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'no flag'), 'the no-flag Nit does NOT default into an issue')
 })
 
-test('Task 3 — budget single-attempt: ace dispatches at most once per task; a second attempt is not made (shares fixRounds)', async () => {
-  // Even if the ace re-audit surfaces another autoFixable nit, ace runs ONCE — no re-ace loop.
+test('Task 3 — no re-ace for fresh findings: a NEW absorb nit on an approving re-audit never re-opens ace (shares fixRounds)', async () => {
+  // The ace re-audit APPROVES but surfaces another autoFixable nit: ace ran once and the ladder
+  // never opens for findings it did not start with — the fresh absorb takes the demotion instead.
   const impl = buildSeqImpl(
     { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [nit({ title: 'first' })]),
                                approveWith('audit:t1:correctness', [nit({ title: 'second' })])] },
     aceBase([nit({ title: 'first' })]))
   const { calls } = await runPhase(ACE_ARGS(), impl)
-  assert.equal(calls.filter(isAce).length, 1, 'ace is dispatched at most once per task (single attempt, no re-ace)')
+  assert.equal(calls.filter(isAce).length, 1, 'an approving re-audit never re-opens ace — no re-ace loop for fresh findings')
 })
 
 test('Task 3 — provenance aced list: an aced nit appears on return.aced with { task, finding, sha }, and is NOT in minorsFiled', async () => {
@@ -3223,6 +3225,229 @@ test('Task 3 — no-enum-leak: no new MERGE_RESULT.status member and no new HARD
   assert.deepEqual(hard.sort(),
     ['audit-blocked', 'conflict', 'dep-failed', 'escalate', 'gate-evidence', 'land_stale', 'no-test', 'unpackaged', 'done-unmet', 'unrunnable-deps'].sort(),
     'HARD_ESCALATION_REASONS is the expected set — aced is a return attribute, not an escalation reason (unpackaged/done-unmet are merge-task floor hard reasons)')
+})
+
+// ---------------------------------------------------------------------------
+// Ace bisection (realized-absorb-rate Task 1.1, D1–D4/D6): the regression-recovery
+// ladder on a failed --ace batch. Culprit-first excision → blind halving only on
+// ambiguous attribution → serial subsets at the tip, depth cap 2, same-file findings
+// never split; batch = 1 fixRounds slot, +1 per subset commit, reverts uncharged,
+// exhaustion demotes the remainder by design; the loop owns in-loop forward-reverts
+// and only a FINAL failed tip rides the merge dispatch's revert clause.
+// ---------------------------------------------------------------------------
+
+const bWorker = (sha) => ({ task_id: 't1', status: 'implemented', head_sha: sha, tests: { unit: 1 } })
+// A regressing re-audit verdict whose Major names the given file (culprit attribution input).
+const bRegress = (file) => ({ seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'request_changes',
+  confidence: 'high', findings: [{ severity: 'Major', title: 'regressed', file, rationale: 'broke' }] })
+const bApprove = (findings = []) => approveWith('audit:t1:correctness', findings)
+
+test('bisection — culprit-first excision: a named culprit demotes, the remainder re-applies as ONE subset (no blind halving), and the subset dispatch owns the in-loop revert of the failed batch', async () => {
+  const fa = nit({ title: 'culprit nit', file: 'skills/a.js' })
+  const fb = nit({ title: 'salvaged nit', file: 'skills/b.js' })
+  const impl = buildSeqImpl({
+    'audit:t1:correctness': [bApprove([fa, fb]), bRegress('skills/a.js'), bApprove()],
+    'ace:t1:r1': [bWorker('ace00001')],
+    'ace:t1:r2': [bWorker('sub00001')],
+  }, aceBase([fa, fb]))
+  const { out, calls, logs } = await runPhase(ACE_ARGS(), impl)
+  const aces = calls.filter(isAce)
+  assert.equal(aces.length, 2, 'batch + exactly ONE remainder subset — culprit-first, blind halving reserved for ambiguous attribution')
+  assert.ok(aces[1].prompt.includes('salvaged nit') && !aces[1].prompt.includes('culprit nit'),
+    'the remainder subset re-applies ONLY the non-culprit findings')
+  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'culprit nit'), 'the named culprit demotes to follow-up')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('culprit-first excision')), 'the culprit demotion is logged with the excision reason')
+  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'salvaged nit' && a.sha === 'sub00001'),
+    'the salvaged remainder aces at its subset sha')
+  assert.match(aces[1].prompt, /revert --no-edit ace00001/, 'the subset dispatch forward-reverts the failed batch commit at the tip (in-loop)')
+  const merge = calls.find(isMergeTask)
+  assert.ok(!merge.prompt.includes('FORWARD-REVERT'), 'the merge carries NO revert clause — the failed batch was already reverted in-loop (no sha reverted twice)')
+  assert.ok(out.landed.includes('t1'), 't1 lands')
+  assert.ok(!(out.escalated || []).some(e => e && e.task === 't1'), 'the ladder never escalates a mergeable task')
+})
+
+test('bisection — all findings named culprits: nothing to salvage, the whole batch finally fails (no subset dispatch), merge reverts the batch', async () => {
+  const fa = nit({ title: 'a nit', file: 'skills/a.js' })
+  const impl = buildSeqImpl({
+    'audit:t1:correctness': [bApprove([fa]), bRegress('skills/a.js')],
+    'ace:t1:r1': [bWorker('ace00001')],
+  }, aceBase([fa]))
+  const { out, calls } = await runPhase(ACE_ARGS(), impl)
+  assert.equal(calls.filter(isAce).length, 1, 'no subset dispatch — total culprit attribution leaves nothing to salvage')
+  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'a nit'), 'the culprit batch demotes to follow-up')
+  assert.match(calls.find(isMergeTask).prompt, /revert\s+--no-edit\s+ace00001/, 'the merge reverts the final failed batch tip')
+})
+
+test('bisection — ambiguous attribution blind-halves: serial subsets at the tip, round-encoded distinct ace labels, Ace-Subset trailer + bisection-range preflight + worktree-local dirt clause on every subset dispatch (End state 2)', async () => {
+  const fa = nit({ title: 'fa nit', file: 'skills/fa.js' })
+  const fb = nit({ title: 'fb nit', file: 'skills/fb.js' })
+  const impl = buildSeqImpl({
+    // regression names a file NO aceable finding touches ⇒ ambiguous ⇒ blind halving
+    'audit:t1:correctness': [bApprove([fa, fb]), bRegress('zz-unrelated.js'), bApprove(), bApprove()],
+    'ace:t1:r1': [bWorker('ace00001')],
+    'ace:t1:r2': [bWorker('sub00001')],
+    'ace:t1:r3': [bWorker('sub00002')],
+  }, aceBase([fa, fb]))
+  const { out, calls } = await runPhase(ACE_ARGS(), impl)
+  const aces = calls.filter(isAce)
+  assert.equal(aces.length, 3, 'batch + two blind halves, applied serially')
+  const labels = aces.map(c => c.opts.label)
+  assert.deepEqual(labels, ['ace:t1:r1', 'ace:t1:r2', 'ace:t1:r3'],
+    'ace labels stay distinct and round-encoded (the ace:<task>:r<n> scheme extends to subsets)')
+  for (const c of aces.slice(1)) {
+    assert.match(c.prompt, /Ace-Subset: t1:/, 'every subset dispatch mandates the Ace-Subset:-keyed deterministic trailer')
+    assert.match(c.prompt, /ace00001\^\.\.HEAD/, 'the preflight scans the bisection range since the pre-batch base')
+    assert.ok(c.prompt.includes('never the tip alone'), 'the preflight is range-scoped, never tip-only')
+    assert.ok(c.prompt.includes('WITHOUT committing'), 'a preflight hit returns the existing sha without committing')
+    assert.ok(c.prompt.includes('in THIS worktree only') && c.prompt.includes('never any shared ref'),
+      'the dead-attempt dirt clause is worktree-local only — never any shared ref')
+    assert.ok(c.prompt.includes('keep the gate green') && c.prompt.includes('make gate'),
+      'the subset prompt keeps the gate green and carries the gate command (prompt truth, D6)')
+  }
+  // subset ordering: each half lists exactly its own findings (same-file grouping preserved)
+  assert.ok(aces[1].prompt.includes('fa nit') && !aces[1].prompt.includes('fb nit'), 'half 1 carries only its findings')
+  assert.ok(aces[2].prompt.includes('fb nit') && !aces[2].prompt.includes('fa nit'), 'half 2 carries only its findings')
+  // both halves approved ⇒ both aced at their own shas (handoff grouping by sha still works)
+  assert.ok((out.aced || []).some(a => a.finding.title === 'fa nit' && a.sha === 'sub00001'), 'half 1 aced at its sha')
+  assert.ok((out.aced || []).some(a => a.finding.title === 'fb nit' && a.sha === 'sub00002'), 'half 2 aced at its sha')
+  // half 2's dispatch carries NO revert step (half 1 approved — nothing pending)
+  assert.ok(!/revert --no-edit sub00001/.test(aces[2].prompt), 'an approved subset is never reverted')
+  assert.ok(!calls.find(isMergeTask).prompt.includes('FORWARD-REVERT'), 'no merge revert clause — the final tip is approved')
+})
+
+test('bisection — depth cap 2 and only finally-failing subsets demote: a regressing MULTI-GROUP depth-2 subset demotes WHOLE (no third split — the cap, not singleton atomicity, stops it) and the NEXT dispatch reverts it', async () => {
+  // FIVE distinct file groups: halves [f1,f2,f3] / [f4,f5]; depth-2 halves of the first are
+  // [f1,f2] / [f3]. [f1,f2] is deliberately MULTI-group at depth 2 — without the depth cap,
+  // aceHalve would happily split it again (two more ace:t1:r* dispatches); with the cap it
+  // demotes whole. Four distinct-file findings can never exercise the cap: every depth-2
+  // subset is a singleton aceHalve refuses to split anyway.
+  const f1 = nit({ title: 'f1 nit', file: 'skills/f1.js' })
+  const f2 = nit({ title: 'f2 nit', file: 'skills/f2.js' })
+  const f3 = nit({ title: 'f3 nit', file: 'skills/f3.js' })
+  const f4 = nit({ title: 'f4 nit', file: 'skills/f4.js' })
+  const f5 = nit({ title: 'f5 nit', file: 'skills/f5.js' })
+  const impl = buildSeqImpl({
+    'audit:t1:correctness': [
+      bApprove([f1, f2, f3, f4, f5]),
+      bRegress('zz-unrelated.js'),   // batch regresses, ambiguous ⇒ halves [f1,f2,f3] [f4,f5]
+      bRegress('zz-unrelated.js'),   // [f1,f2,f3] regresses at depth 1 ⇒ splits to [f1,f2] [f3] (depth 2)
+      bRegress('zz-unrelated.js'),   // [f1,f2] regresses at depth 2 ⇒ FINAL demote WHOLE (depth cap — still splittable)
+      bApprove(),                    // [f3] approves
+      bApprove(),                    // [f4,f5] approves
+    ],
+    'ace:t1:r1': [bWorker('ace00001')],
+    'ace:t1:r2': [bWorker('sub00001')],   // [f1,f2,f3]
+    'ace:t1:r3': [bWorker('sub00002')],   // [f1,f2]
+    'ace:t1:r4': [bWorker('sub00003')],   // [f3]
+    'ace:t1:r5': [bWorker('sub00004')],   // [f4,f5]
+  }, aceBase([f1, f2, f3, f4, f5]))
+  // roundLimit 9: the ladder is budget-unconstrained here so the depth mechanics alone are under test.
+  const { out, calls, logs } = await runPhase(ACE_ARGS({ run: { ace: true, roundLimit: 9 } }), impl)
+  const aces = calls.filter(isAce)
+  // dispatches: batch, [f1,f2,f3], [f1,f2], [f3], [f4,f5] — and NOTHING after the depth-2
+  // regression: without the cap, [f1] and [f2] would each get their own dispatch (7 total).
+  assert.equal(aces.length, 5, 'batch + 4 subset dispatches — the depth-2 multi-group regressor demotes whole, no third split')
+  assert.ok(aces[2].prompt.includes('f1 nit') && aces[2].prompt.includes('f2 nit') && !aces[2].prompt.includes('f3 nit'),
+    'the regressing depth-1 subset split into [f1,f2] and [f3]')
+  // in-loop reverts: [f1,f2]'s dispatch reverts the failed [f1,f2,f3] commit; [f3]'s dispatch reverts the failed [f1,f2] commit
+  assert.match(aces[2].prompt, /revert --no-edit sub00001/, 'the next dispatch reverts the failed depth-1 subset at the tip')
+  assert.match(aces[3].prompt, /revert --no-edit sub00002/, 'the next dispatch reverts the failed depth-2 subset at the tip')
+  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'f1 nit'), 'the finally-failing depth-2 subset demotes (f1)')
+  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'f2 nit'), 'the finally-failing depth-2 subset demotes (f2)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('f1 nit') && l.includes('depth/split floor')),
+    'f1\'s demotion is logged with the depth/split-floor reason')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('f2 nit') && l.includes('depth/split floor')),
+    'f2\'s demotion is logged with the depth/split-floor reason')
+  assert.ok((out.aced || []).some(a => a.finding.title === 'f3 nit' && a.sha === 'sub00003'), 'the sibling subset still aces — only finally-failing subsets demote')
+  assert.ok((out.aced || []).some(a => a.finding.title === 'f4 nit' && a.sha === 'sub00004'), 'the untouched depth-1 half still aces')
+  assert.ok(out.landed.includes('t1'), 't1 lands')
+})
+
+test('bisection — a final failed tip not yet reverted in-loop rides the merge revert clause, exactly once, HEAD-guarded', async () => {
+  const fa = nit({ title: 'fa nit', file: 'skills/fa.js' })
+  const fb = nit({ title: 'fb nit', file: 'skills/fb.js' })
+  const impl = buildSeqImpl({
+    'audit:t1:correctness': [bApprove([fa, fb]), bRegress('zz.js'), bApprove(), bRegress('zz.js')],
+    'ace:t1:r1': [bWorker('ace00001')],
+    'ace:t1:r2': [bWorker('sub00001')],   // half 1 approves
+    'ace:t1:r3': [bWorker('sub00002')],   // half 2 (a singleton — atomic) regresses: FINAL failed tip
+  }, aceBase([fa, fb]))
+  const { out, calls } = await runPhase(ACE_ARGS(), impl)
+  const merge = calls.find(isMergeTask)
+  assert.match(merge.prompt, /revert\s+--no-edit\s+sub00002/, 'the merge revert clause names the final failed subset tip')
+  assert.ok(merge.prompt.includes('rev-parse HEAD'), 'the merge revert is HEAD-guarded (idempotent — a sha is never reverted twice)')
+  assert.ok(!merge.prompt.includes('revert --no-edit ace00001') && !merge.prompt.includes('revert --no-edit sub00001'),
+    'no other sha rides the merge revert clause (in-loop reverts already handled the batch; the approved half is never reverted)')
+  assert.ok((out.aced || []).some(a => a.finding.title === 'fa nit' && a.sha === 'sub00001'), 'the approved half stays aced — the merge runs on a tip whose failed subsets are reverted')
+  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'fb nit'), 'the finally-failing half demotes')
+  assert.ok(out.landed.includes('t1'), 't1 lands')
+})
+
+test('bisection — budget: each subset COMMIT charges one fixRounds slot; exhaustion mid-bisection demotes the remaining subsets to follow-up (logged, by design) and the task still lands', async () => {
+  const fa = nit({ title: 'fa nit', file: 'skills/fa.js' })
+  const fb = nit({ title: 'fb nit', file: 'skills/fb.js' })
+  const impl = buildSeqImpl({
+    'audit:t1:correctness': [bApprove([fa, fb]), bRegress('zz.js'), bApprove()],
+    'ace:t1:r1': [bWorker('ace00001')],
+    'ace:t1:r2': [bWorker('sub00001')],
+  }, aceBase([fa, fb]))
+  // roundLimit 2: batch charges slot 1, subset 1 charges slot 2 — subset 2 finds the budget spent.
+  const { out, calls, logs } = await runPhase(ACE_ARGS({ run: { ace: true, roundLimit: 2 } }), impl)
+  assert.equal(calls.filter(isAce).length, 2, 'batch + one subset — the second subset is never dispatched (budget exhausted)')
+  assert.ok((out.aced || []).some(a => a.finding.title === 'fa nit' && a.sha === 'sub00001'), 'the committed subset aces')
+  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'fb nit'), 'the un-dispatched remainder demotes to follow-up')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('exhausted mid-bisection')), 'the exhaustion demotion is logged, by design')
+  assert.ok(out.landed.includes('t1'), 't1 lands')
+  const audEntry = out.auditLog.find(e => e && e.task === 't1' && e.verdict === 'approve')
+  assert.ok(audEntry, 'presence guard: the t1 approve entry exists')
+})
+
+test('bisection — same-file findings never split across subsets (D3): two findings in one file regress as an ATOMIC batch (no subset dispatch); grouped halving keeps a file whole', async () => {
+  // Atomic arm: two absorbs in the SAME file, ambiguous regression ⇒ no lawful split ⇒ whole batch demotes.
+  const s1 = nit({ title: 'same one', file: 'skills/same.js' })
+  const s2 = nit({ title: 'same two', file: 'skills/same.js' })
+  const atomicImpl = buildSeqImpl({
+    'audit:t1:correctness': [bApprove([s1, s2]), bRegress('zz.js')],
+    'ace:t1:r1': [bWorker('ace00001')],
+  }, aceBase([s1, s2]))
+  const atomic = await runPhase(ACE_ARGS(), atomicImpl)
+  assert.equal(atomic.calls.filter(isAce).length, 1, 'no subset dispatch — a single file group cannot split (D3)')
+  assert.ok(['same one', 'same two'].every(t => (atomic.out.minorsFiled || []).some(m => m && m.title === t)),
+    'the atomic batch demotes whole')
+  assert.match(atomic.calls.find(isMergeTask).prompt, /revert\s+--no-edit\s+ace00001/, 'the merge reverts the atomic failed batch')
+  // Grouped arm: two same-file findings + one other file ⇒ halves are [same,same] and [other].
+  const o1 = nit({ title: 'other one', file: 'skills/other.js' })
+  const groupedImpl = buildSeqImpl({
+    'audit:t1:correctness': [bApprove([s1, s2, o1]), bRegress('zz.js'), bApprove(), bApprove()],
+    'ace:t1:r1': [bWorker('ace00001')],
+    'ace:t1:r2': [bWorker('sub00001')],
+    'ace:t1:r3': [bWorker('sub00002')],
+  }, aceBase([s1, s2, o1]))
+  const grouped = await runPhase(ACE_ARGS(), groupedImpl)
+  const gAces = grouped.calls.filter(isAce)
+  assert.equal(gAces.length, 3, 'batch + two halves')
+  assert.ok(gAces[1].prompt.includes('same one') && gAces[1].prompt.includes('same two') && !gAces[1].prompt.includes('other one'),
+    'the same-file findings travel together in one subset')
+  assert.ok(gAces[2].prompt.includes('other one'), 'the other file forms the second half')
+})
+
+test('bisection — a blocked/sha-less subset worker abandons the ladder: this and every queued subset demote (logged), the pending failed tip rides the merge revert clause, the task still lands', async () => {
+  const fa = nit({ title: 'fa nit', file: 'skills/fa.js' })
+  const fb = nit({ title: 'fb nit', file: 'skills/fb.js' })
+  const impl = buildSeqImpl({
+    'audit:t1:correctness': [bApprove([fa, fb]), bRegress('zz.js')],
+    'ace:t1:r1': [bWorker('ace00001')],
+    'ace:t1:r2': [{ task_id: 't1', status: 'blocked', blocked_reason: 'boom' }],
+  }, aceBase([fa, fb]))
+  const { out, calls, logs } = await runPhase(ACE_ARGS(), impl)
+  assert.equal(calls.filter(isAce).length, 2, 'the ladder abandons after the blocked subset — no further subset dispatch')
+  assert.ok(['fa nit', 'fb nit'].every(t => (out.minorsFiled || []).some(m => m && m.title === t)),
+    'the blocked subset AND the queued remainder demote to follow-up')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('bisection abandoned')), 'the abandonment demotion is logged')
+  assert.match(calls.find(isMergeTask).prompt, /revert\s+--no-edit\s+ace00001/,
+    'the failed batch tip (never reverted in-loop — the blocked dispatch proves nothing) rides the HEAD-guarded merge revert clause')
+  assert.ok(out.landed.includes('t1'), 't1 lands — the ladder never blocks a land')
+  assert.ok(!(out.escalated || []).some(e => e && e.task === 't1'), 't1 is not escalated')
 })
 
 // ---------------------------------------------------------------------------
@@ -4899,6 +5124,132 @@ test('file-followups ordinal mismatch: out-of-range / non-integer n and non-nume
   assert.equal(out.handoff.followUps.length, 2, 'both follow-up findings ride the handoff')
   assert.equal(out.handoff.followUps[0].issue, null, 'the entry matched only by ignored rows (out-of-range/non-integer n, non-numeric issue) stays null')
   assert.equal(out.handoff.followUps[1].issue, 888, 'the in-range row still stamps — partial conformance is honored row-by-row')
+})
+
+// --- Follow-up consolidation + clusters manifest (Task 2.1, #1566) ---
+
+test('follow-up consolidation (line-window hit): cross-seat same-file findings within the line window collapse to ONE row carrying seats[]; the filing rows render file, line, and seats; the prompt mandates corroboration comments and clustering', async () => {
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-auditor' && !(opts.label || '').startsWith('gate-audit:')) {
+      const f = (opts.label || '').endsWith(':correctness')
+        ? { severity: 'Minor', title: 'stale enum comment', rationale: 'lags the new arm', file: 'src/a.js', line: 100 }
+        : { severity: 'Minor', title: 'comment misses the arm', rationale: 'same stale block', file: 'src/a.js', line: 105 }
+      return { seat: opts.label, lens: 'x', verdict: 'approve', findings: [f], confidence: 'high' }
+    }
+    if (seat === 'war-refiner' && opts.dispatchKind === 'file-followups') return { filed: [{ n: 1, issue: 42 }], clusters: [{ ordinals: [1], issue: 42 }] }
+    return handoffImpl(undefined)(prompt, opts)
+  }
+  const args = PROVISION_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'T', planSlice: 's', roster: [{ lens: 'correctness' }, { lens: 'cascading-impact' }] }] })
+  const { out, calls, logs } = await runPhase(args, impl)
+  assert.equal(out.landDecision, 'landed', 'presence guard: the phase landed')
+  assert.equal(out.minorsFiled.length, 1, 'the two seats\' line-window duplicates (100 vs 105, same file) collapse to one row')
+  assert.deepEqual(out.minorsFiled[0].seats, ['audit:t1:correctness', 'audit:t1:cascading-impact'],
+    'the merged row carries a seats[] corroboration list naming both raising seats')
+  assert.equal(out.minorsFiled[0].issue, 42, 'ordinal→issue stamping keys on the POST-collapse row')
+  assert.equal(out.handoff.followUps.length, 1, 'the handoff renders the collapsed row set (one followUps entry)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.startsWith('file-followups consolidation:')),
+    'the collapse is log()ged (visibility, never a hold)')
+  // Prompt-content pins: rows carry file/line + seats (file-clustering is impossible without them),
+  // and the dedup arm routes open-issue matches as corroboration comments, never new issues.
+  const fp = calls.find(c => c.opts.dispatchKind === 'file-followups').prompt
+  assert.match(fp, /file src\/a\.js:100/, 'the candidate row renders the finding\'s file and line')
+  assert.match(fp, /seats: audit:t1:correctness, audit:t1:cascading-impact/, 'the candidate row renders the seats[] corroboration list')
+  assert.match(fp, /corroboration comment on the existing issue, never a new issue/,
+    'an open war-followup match gets a corroboration comment, never a new issue (the retired-token sweep dedup idiom)')
+  assert.match(fp, /cluster the remaining candidate rows by file \+ root cause/, 'the prompt mandates file + root-cause clustering')
+  assert.match(fp, /ONE `war-followup`-labelled issue per cluster/, 'one issue per cluster')
+  assert.match(fp, /clusters: \[\{ ordinals, issue \}\]/, 'the return shape names the clusters[] manifest')
+})
+
+test('follow-up consolidation (title fallback + no-collapse controls): lineless normalized-title twins collapse; a lined row never merges into a lineless one; different files and out-of-window lines never collapse', async () => {
+  const findings = [
+    { severity: 'Minor', title: 'Stale count.', rationale: 'r1', file: 'z.js' },              // 1 — representative
+    { severity: 'Minor', title: 'stale count', rationale: 'r2', file: 'z.js' },               // collapses into 1 (both lineless, normalized-equal titles)
+    { severity: 'Minor', title: 'stale count', rationale: 'r3', file: 'z.js', line: 5 },      // control: lined vs lineless — NO collapse
+    { severity: 'Minor', title: 'Stale count.', rationale: 'r4', file: 'other.js' },          // control: different file — NO collapse
+    { severity: 'Minor', title: 'win a', rationale: 'r5', file: 'w.js', line: 1 },            // control pair: same file but
+    { severity: 'Minor', title: 'win b', rationale: 'r6', file: 'w.js', line: 50 },           // lines beyond the ±10 window — NO collapse
+  ]
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-auditor' && !(opts.label || '').startsWith('gate-audit:'))
+      return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings, confidence: 'high' }
+    if (seat === 'war-refiner' && opts.dispatchKind === 'file-followups') return null
+    return handoffImpl(undefined)(prompt, opts)
+  }
+  const { out } = await runPhase(HANDOFF_ARGS(), impl)
+  assert.equal(out.landDecision, 'landed', 'presence guard')
+  assert.equal(out.minorsFiled.length, 5, 'six rows collapse to five: only the lineless normalized-title twins merge')
+  const merged = out.minorsFiled.find(m => m.title === 'Stale count.' && m.file === 'z.js')
+  assert.ok(merged && Array.isArray(merged.seats), 'the merged row carries seats[] (same seat deduped)')
+  assert.ok(out.minorsFiled.some(m => m.title === 'stale count' && m.line === 5), 'the lined z.js row survives un-merged (title fallback fires ONLY when line is absent)')
+  assert.ok(out.minorsFiled.some(m => m.file === 'other.js'), 'the different-file twin survives')
+  assert.ok(['win a', 'win b'].every(t => out.minorsFiled.some(m => m.title === t)), 'out-of-window same-file rows survive')
+})
+
+test('follow-up consolidation (non-array seats guard): an auditor-supplied string `seats` key on a collapse-target row never throws — the guard normalizes it to seats[]; landDecision stays landed', async () => {
+  const findings = [
+    { severity: 'Minor', title: 'stale enum comment', rationale: 'r1', file: 'src/a.js', line: 100, seats: 'correctness' },
+    { severity: 'Minor', title: 'comment misses the arm', rationale: 'r2', file: 'src/a.js', line: 105 },
+  ]
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-auditor' && !(opts.label || '').startsWith('gate-audit:'))
+      return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings, confidence: 'high' }
+    if (seat === 'war-refiner' && opts.dispatchKind === 'file-followups') return null
+    return handoffImpl(undefined)(prompt, opts)
+  }
+  const { out } = await runPhase(HANDOFF_ARGS(), impl)
+  assert.equal(out.landDecision, 'landed', 'the collapse never converts a LANDED phase into held:workflow-error (the string-seats row would throw on .push without the Array.isArray guard)')
+  assert.equal(out.minorsFiled.length, 1, 'the line-window duplicates still collapse to one row')
+  assert.ok(Array.isArray(out.minorsFiled[0].seats), 'the representative row\'s non-array seats key is normalized to a seats[] array')
+})
+
+test('clusters manifest asserts (fail-open): a partition violation, a duplicate ordinal, and a missing manifest each get ONE violation log line; a conforming manifest logs none; landDecision untouched', async () => {
+  const twoF = [handoffMinorF, { severity: 'Minor', title: 'stale count', rationale: 'lagging comment', file: 'z.js' }]
+  const run = async (filingResult) => {
+    const impl = (prompt, opts) => {
+      const seat = seatOf(opts)
+      if (seat === 'war-refiner' && opts.dispatchKind === 'file-followups') return filingResult
+      if (seat === 'war-auditor' && !(opts.label || '').startsWith('gate-audit:'))
+        return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: twoF, confidence: 'high' }
+      return handoffImpl(undefined)(prompt, opts)
+    }
+    return runPhase(HANDOFF_ARGS(), impl)
+  }
+  const viol = (logs) => logs.filter(l => typeof l === 'string' && l.startsWith('file-followups clusters manifest violation:'))
+  // (a) uncovered ordinal (a dropped row IS a violation — every ordinal in exactly one cluster)
+  const a = await run({ filed: [{ n: 1, issue: 1 }, { n: 2, issue: 2 }], clusters: [{ ordinals: [1], issue: 1 }] })
+  assert.equal(a.out.landDecision, 'landed', 'landDecision untouched by the violation (fail-open)')
+  assert.equal(viol(a.logs).length, 1, 'exactly ONE violation log line (uncovered ordinal)')
+  assert.match(viol(a.logs)[0], /ordinal 2 appears in 0 clusters/, 'the line names the uncovered ordinal')
+  assert.equal(a.out.handoff.followUps[1].issue, 2, 'stamping is still honored row-by-row despite the violation')
+  // (b) duplicate ordinal (a split of an engine row — clustering may only merge)
+  const b = await run({ filed: [{ n: 1, issue: 1 }, { n: 2, issue: 1 }], clusters: [{ ordinals: [1, 2], issue: 1 }, { ordinals: [2], issue: 1 }] })
+  assert.equal(viol(b.logs).length, 1, 'exactly ONE violation log line (duplicate ordinal)')
+  assert.match(viol(b.logs)[0], /ordinal 2 appears in 2 clusters/, 'the line names the split ordinal')
+  // (c) missing manifest (legacy-shaped return)
+  const c = await run({ filed: [{ n: 1, issue: 9 }, { n: 2, issue: 9 }] })
+  assert.equal(viol(c.logs).length, 1, 'a missing clusters[] manifest is a logged violation')
+  assert.match(viol(c.logs)[0], /manifest missing/, 'the line says the manifest is missing')
+  // (d) conforming merge-only manifest: both rows in ONE cluster, one shared issue (several rows may
+  // share one issue number — stamping semantics unchanged) — no violation line.
+  const d = await run({ filed: [{ n: 1, issue: 7 }, { n: 2, issue: 7 }], clusters: [{ ordinals: [1, 2], issue: 7 }] })
+  assert.equal(viol(d.logs).length, 0, 'a conforming manifest logs no violation')
+  assert.deepEqual(d.out.handoff.followUps.map(f => f.issue), [7, 7], 'both rows share the cluster\'s one issue number')
+  // (e) distinct issues filed > post-collapse rows: an out-of-range n row skips stamping but its
+  // issue number still counts into distinctIssues — the filing floor (issues ≤ rows) must fire.
+  const e = await run({ filed: [{ n: 1, issue: 1 }, { n: 2, issue: 2 }, { n: 99, issue: 3 }], clusters: [{ ordinals: [1], issue: 1 }, { ordinals: [2], issue: 2 }] })
+  assert.equal(e.out.landDecision, 'landed', 'landDecision untouched (fail-open)')
+  assert.equal(viol(e.logs).length, 1, 'exactly ONE violation log line (distinct issues exceed post-collapse rows)')
+  assert.match(viol(e.logs)[0], /3 distinct issues filed exceed the 2 post-collapse rows/, 'the line carries both counts')
+  assert.deepEqual(e.out.handoff.followUps.map(f => f.issue), [1, 2], 'in-range stamping is still honored; the out-of-range row never stamps')
+  // (f) unknown ordinal: a cluster ordinal outside 1..rows (or non-integer) is named in the
+  // violation line — it is not a partition member the per-row loop can see.
+  const f = await run({ filed: [{ n: 1, issue: 1 }, { n: 2, issue: 1 }], clusters: [{ ordinals: [1, 2, 99], issue: 1 }] })
+  assert.equal(viol(f.logs).length, 1, 'exactly ONE violation log line (unknown ordinal)')
+  assert.match(viol(f.logs)[0], /unknown ordinal 99/, 'the line names the unknown ordinal')
 })
 
 test('handoff OMITTED on held:workflow-error (infra death — no trustworthy return to render)', async () => {
@@ -7317,12 +7668,12 @@ const blockCommentSpans = (text = src) =>
 const naiveTwoStepStrip = (text) => text.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
 // Re-derived at THIS dispatch base (the live naive idiom yields exactly three spans: two byte-identical
 // 18-byte fake spans from the discovery glob literals + one giant span ending at the file's only real
-// block comment, /* the single ace commit */). {head, tail} substring pairs, ORDERED. A fourth
+// block comment, /* the batch ace commit */). {head, tail} substring pairs, ORDERED. A fourth
 // find-exclusion glob would re-shuffle the pairing → red → conscious re-derivation.
 const EXPECTED_BLOCK_SPANS = [
   { head: "/*' -not -path '*/", tail: "/*' -not -path '*/" },
   { head: "/*' -not -path '*/", tail: "/*' -not -path '*/" },
-  { head: "/*' | sort);", tail: "/* the single ace commit */" },
+  { head: "/*' | sort);", tail: "/* the batch ace commit */" },
 ]
 
 test('#929 block-comment census — the naive block-strip idiom yields exactly the enumerated ordered spans (live source)', () => {
@@ -7345,7 +7696,7 @@ test('#929 block-comment census — RED both ways: a new /* */ comment, a new /*
   assert.equal(blockCommentSpans(src + "\nconst censusDecoy = '/* not a comment */'\n").length, live + 1,
     'adding a /*-bearing string literal is a red test (the naive idiom is string-blind — that is the census subject)')
   // (remove) the file's only real block comment → the giant span loses its terminator → one fewer span
-  assert.equal(blockCommentSpans(src.replace('/* the single ace commit */', '// ace commit')).length, live - 1,
+  assert.equal(blockCommentSpans(src.replace('/* the batch ace commit */', '// ace commit')).length, live - 1,
     'removing/merging a span is a red test (the delete direction) — its own fixture')
 })
 
@@ -7366,7 +7717,7 @@ test('#929 subset-row blindness closed — extractLandDecisionLiterals surfaces 
   // Inject a landDecision = 'held:bogus' immediately before the ace marker — i.e. INSIDE the giant fake
   // span the naive block strip deletes. Under the narrowed line-only extractor it surfaces (and would then
   // fail the landDecision-known-set membership assert in MIRROR_REGISTRY); under the old prep it vanishes.
-  const mutated = src.replace('/* the single ace commit */', "landDecision = 'held:bogus' /* the single ace commit */")
+  const mutated = src.replace('/* the batch ace commit */', "landDecision = 'held:bogus' /* the batch ace commit */")
   assert.ok(extractLandDecisionLiterals(mutated).includes('held:bogus'),
     'the narrowed line-only extractor surfaces held:bogus (it would fail the known-set membership assert — the guard now fires)')
   const oldLiterals = [...new Set([...naiveTwoStepStrip(mutated).matchAll(/'(landed|held:[a-z0-9-]+)'/g)].map(m => m[1]))]
@@ -7381,8 +7732,8 @@ test('#929 subset-row blindness closed — extractLandDecisionLiterals surfaces 
 // GATE COMPOSITION POINT (ADR 0036) — enumerated exactly-once prompt evidence
 // ---------------------------------------------------------------------------
 // The engine normalizes plan.gate ONCE (`if (plan) plan.gate = resolveGate(plan.gate)`, immediately after
-// entry validation), so every one of the SIXTEEN gate-bearing dispatch sites interpolates the SAME composed
-// gate. This enumerates all sixteen captures by label/dispatchKind — the count IS the anti-vacuity floor: a
+// entry validation), so every one of the SEVENTEEN gate-bearing dispatch sites interpolates the SAME composed
+// gate. This enumerates all seventeen captures by label/dispatchKind — the count IS the anti-vacuity floor: a
 // site an existing fixture cannot reach is added, never skipped, so deleting the composition line reds every
 // arm. Anchors ONLY on the discovery-clause token; no assertion enumerates shell suites or states a count.
 const GATE_TOKEN = `-name '*.test.sh'`   // a substring of resolveGate's find clause; absent from every fixed prompt prose
@@ -7443,7 +7794,13 @@ const fixNeededImpl = () => {
   }
 }
 const SINGLE_TASK = [{ id: 't1', issue: 101, title: 'T', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] }]
-// The sixteen gate-bearing dispatch captures, enumerated by label/dispatchKind. Each drives the fixture that
+// Reaches ONE ace bisection subset dispatch (ace:t1:r2): batch ace → culprit regression (names ka) →
+// the remainder [kb] re-applies as ONE subset. Fresh closure per run (buildSeqImpl queues pop).
+const bisectSubsetImpl = () => buildSeqImpl({
+  'audit:t1:correctness': [bApprove([nit({ title: 'ka', file: 'skills/ka.js' }), nit({ title: 'kb', file: 'skills/kb.js' })]),
+                           bRegress('skills/ka.js'), bApprove()],
+}, aceBase())
+// The seventeen gate-bearing dispatch captures, enumerated by label/dispatchKind. Each drives the fixture that
 // reaches its site with the given fixture gate and returns the captured prompt.
 const GATE_SITE_CAPTURES = [
   { site: 'worker Gate: line (work:<task>)', find: (c) => c.find(isWorker),
@@ -7482,6 +7839,11 @@ const GATE_SITE_CAPTURES = [
     run: (gate) => runPhase(PROVISION_ARGS({ plan: planWith(gate), tasks: SINGLE_TASK }), pkgFloorRetryImpl()) },
   { site: 'ace Gate: line (ace:<task>:r<n>)', find: (c) => c.find(isAce),
     run: (gate) => runPhase(ACE_ARGS({ plan: planWith(gate) }), aceBase()) },
+  // The ace bisection SUBSET dispatch (realized-absorb-rate Task 1.1) is the seventeenth gate-bearing
+  // site — it interpolates the same plan.gate Gate: line as its fix-family siblings — so it is ADDED
+  // here, never skipped (this array's own doctrine). bisectSubsetImpl (below) reaches it.
+  { site: 'ace bisection subset Gate: line (ace:<task>:r<n>, n>=2)', find: (c) => c.find(x => /^ace:t1:r2$/.test(x.opts.label || '')),
+    run: (gate) => runPhase(ACE_ARGS({ plan: planWith(gate) }), bisectSubsetImpl()) },
   // MAKE_DONE_PASS (precision-chain Task 2.3) is the fifth fix-family prompt and equally gate-bearing —
   // it interpolates the same plan.gate Gate: line as its floor-fix siblings — so it is ADDED here,
   // never skipped (this array's own doctrine). runDoneUnmetLoop is the fixture that reaches it.
@@ -7489,9 +7851,9 @@ const GATE_SITE_CAPTURES = [
     run: (gate) => runDoneUnmetLoop({ plan: planWith(gate) }) },
 ]
 
-test('gate composition point (ADR 0036) — the SIXTEEN enumerated gate-bearing captures render the discovery token EXACTLY ONCE (plain), idempotently once (pre-composed), and the discovery-only clause (null)', async () => {
-  assert.equal(GATE_SITE_CAPTURES.length, 16,
-    'exactly sixteen gate-bearing dispatch sites are enumerated (anti-vacuity floor — a site an existing fixture cannot reach is ADDED, never skipped; the four fix-family sites joined via precision-chain Task 1.3, MAKE_DONE_PASS via Task 2.3)')
+test('gate composition point (ADR 0036) — the SEVENTEEN enumerated gate-bearing captures render the discovery token EXACTLY ONCE (plain), idempotently once (pre-composed), and the discovery-only clause (null)', async () => {
+  assert.equal(GATE_SITE_CAPTURES.length, 17,
+    'exactly seventeen gate-bearing dispatch sites are enumerated (anti-vacuity floor — a site an existing fixture cannot reach is ADDED, never skipped; the four fix-family sites joined via precision-chain Task 1.3, MAKE_DONE_PASS via Task 2.3, the ace bisection subset via realized-absorb-rate Task 1.1)')
 
   // Arm 1 — plain JS-only fixture gate ⇒ the discovery token appears EXACTLY ONCE per captured prompt.
   for (const cap of GATE_SITE_CAPTURES) {
@@ -7550,8 +7912,9 @@ test('gate composition point (ADR 0036) — plan-less / zero-task phase: the GUA
 // ===========================================================================
 // DONE-WHEN THREADING (precision-chain Task 1.3) — prompt-registry rows
 // ---------------------------------------------------------------------------
-// task.doneWhen (the plan's per-task `Done when:` acceptance command) rides the six worker-family
-// prompt sites (MAKE_DONE_PASS joined via Task 2.3) as a `Done when:` line beside Gate:. The rows pin
+// task.doneWhen (the plan's per-task `Done when:` acceptance command) rides the seven worker-family
+// prompt sites (MAKE_DONE_PASS joined via Task 2.3; the ace bisection subset via realized-absorb-rate
+// Task 1.1) as a `Done when:` line beside Gate:. The rows pin
 // the two contract halves the plan
 // names: (1) any prompt that says keep-the-gate-green carries the gate command (the D6 prompt-truth
 // sweep), and (2) the absent ⇒ '' set-minus identity — a doneWhen-less run's prompts are
@@ -7571,6 +7934,10 @@ const DONE_WHEN_SITES = [
     run: (taskOver) => runPhase(PROVISION_ARGS({ tasks: [dwTask(taskOver)] }), pkgFloorRetryImpl()) },
   { site: 'ace advisory-polish prompt (ace:<task>:r<n>)', find: (c) => c.find(isAce),
     run: (taskOver) => runPhase(ACE_ARGS({ tasks: [dwTask(taskOver)] }), aceBase()) },
+  // The ace bisection SUBSET dispatch (realized-absorb-rate Task 1.1) is the seventh worker-family
+  // site — doneWhenClause rides it beside its Gate: line like its siblings — ADDED, never skipped.
+  { site: 'ace bisection subset prompt (ace:<task>:r<n>, n>=2)', find: (c) => c.find(x => /^ace:t1:r2$/.test(x.opts.label || '')),
+    run: (taskOver) => runPhase(ACE_ARGS({ tasks: [dwTask(taskOver)] }), bisectSubsetImpl()) },
   // MAKE_DONE_PASS (Task 2.3) is the fifth fix-family prompt — doneWhenClause rides it like its
   // siblings, so its row is ADDED, never skipped. (Production only reaches it for a doneWhen-bearing
   // task — the floor never runs otherwise — but the mock drives the doneWhen-less arm too, proving
@@ -7579,9 +7946,9 @@ const DONE_WHEN_SITES = [
     run: (taskOver) => runDoneUnmetLoop({ taskOver }) },
 ]
 
-test("Done when threading (Task 1.3) — all six worker-family sites carry the task's Done when: command beside the Gate: line; the worker card documents the input", async () => {
-  assert.equal(DONE_WHEN_SITES.length, 6,
-    'exactly six worker-family Done-when sites are enumerated (anti-vacuity floor — a site is ADDED, never skipped)')
+test("Done when threading (Task 1.3) — all seven worker-family sites carry the task's Done when: command beside the Gate: line; the worker card documents the input", async () => {
+  assert.equal(DONE_WHEN_SITES.length, 7,
+    'exactly seven worker-family Done-when sites are enumerated (anti-vacuity floor — a site is ADDED, never skipped)')
   // Adjacency (D7, #1334-5): the expected bytes are COMPOSED — the engine normalizes plan.gate
   // through resolveGate at entry (ADR 0036), so the prompt's Gate: line carries the resolved gate
   // and the Done when: clause must concatenate DIRECTLY after it (an index-precedence pair stayed
@@ -7590,7 +7957,7 @@ test("Done when threading (Task 1.3) — all six worker-family sites carry the t
   for (const s of DONE_WHEN_SITES) {
     const { calls } = await s.run({ doneWhen: DW_CMD })
     const c = s.find(calls)
-    assert.ok(c, `site "${s.site}" reached and captured (presence guard — six sites is the floor)`)
+    assert.ok(c, `site "${s.site}" reached and captured (presence guard — seven sites is the floor)`)
     assert.ok(c.prompt.includes(`\nDone when: ${DW_CMD}`),
       `site "${s.site}" carries the task's Done when: command VERBATIM on its own line`)
     assert.ok(c.prompt.includes(gateThenDoneWhen),
@@ -7636,14 +8003,16 @@ test("Done when threading — absent ⇒ '' (set-minus): each site's doneWhen-le
 })
 
 test('prompt truth (D6) — every dispatched prompt that says keep-the-gate-green carries the gate command', async () => {
-  // Reach all six keep-green prompt classes (the five fix-family prompts + the phase-close sweep);
-  // the sweep filter keys on the literal "keep the gate" fragment, parenthetical-gate form included.
+  // Reach all keep-green prompt classes (the five fix-family prompts — the ace bisection subset rides
+  // the ace class — + the phase-close sweep); the sweep filter keys on the literal "keep the gate"
+  // fragment, parenthetical-gate form included.
   const runs = [
     await runPhase(PROVISION_ARGS({ tasks: [dwTask()] }), fixNeededImpl()),
     await runPhase(PROVISION_ARGS({ tasks: [dwTask()] }), floorRetryImpl()),
     await runPhase(PROVISION_ARGS({ tasks: [dwTask()] }), pkgFloorRetryImpl()),
     await runDoneUnmetLoop(),
     await runPhase(ACE_ARGS({ tasks: [dwTask()] }), aceBase()),
+    await runPhase(ACE_ARGS({ tasks: [dwTask()] }), bisectSubsetImpl()),
     await runPhase(SWEEP_ARGS(), sweepBase([queuedAbsorb()])),
   ]
   const keepGreen = runs.flatMap(r => r.calls).filter(c => /keep the gate\b/i.test(c.prompt || ''))
@@ -7657,10 +8026,10 @@ test('prompt truth (D6) — every dispatched prompt that says keep-the-gate-gree
   }
   // Default-deny census (D6, #1334-4): the sweep above only reaches prompts its fixtures drive, so a
   // keep-green prompt added at a dispatch site no fixture reaches would silently evade it. Count the
-  // space-form phrase over the template SOURCE in OCCURRENCE semantics (case-insensitive; the three
+  // space-form phrase over the template SOURCE in OCCURRENCE semantics (case-insensitive; the
   // keep-the-gate-green comment mentions are hyphenated and deliberately non-hits). Pin re-measured
-  // at task time: 6 (matches the 6fff2ee measurement).
-  assert.equal((src.match(/keep the gate/gi) || []).length, 6,
+  // at task time: 7 (the ace bisection subset prompt joined via realized-absorb-rate Task 1.1).
+  assert.equal((src.match(/keep the gate/gi) || []).length, 7,
     'a new keep-the-gate-green prompt must join the D6 sweep above — the space-form census over the template source moved; re-pin this count ONLY alongside extending the sweep fixtures to reach the new site')
 })
 
@@ -8712,8 +9081,8 @@ test('#931 template-literal census — RED paths (a)-(f): bare / var / operand /
   // (e) an unterminated literal / unclosed quoted string → the scanner THROWS (fail-closed, never a silent narrowing)
   assert.throws(() => scanTemplateLiterals(src + "\nconst bad = 'unclosed at end of line\n"), /unclosed .-string|EOF/, '(e) an unclosed quoted string THROWS (fail-closed)')
   assert.throws(() => scanTemplateLiterals(src + '\nconst bad = `unterminated ${x}'), /EOF/, '(e) an unterminated template literal THROWS (fail-closed)')
-  // (f) a backtick edited into the /* the single ace commit */ block comment → red via the backtick-free assertion (the designed coupling)
-  const mutated = scanTemplateLiterals(src.replace('/* the single ace commit */', '/* the single ace `commit` */'))
+  // (f) a backtick edited into the /* the batch ace commit */ block comment → red via the backtick-free assertion (the designed coupling)
+  const mutated = scanTemplateLiterals(src.replace('/* the batch ace commit */', '/* the batch ace `commit` */'))
   assert.ok(mutated.blockComments.some(b => b.includes('`')), '(f) a backtick in a true block comment is detected — breaks the coupling the block census leans on')
 })
 

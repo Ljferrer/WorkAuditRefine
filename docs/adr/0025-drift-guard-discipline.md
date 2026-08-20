@@ -137,6 +137,32 @@ or converted outside `/war-machine` gets the same forcing function. See
 [[guard-task-split-from-mirror-task-needs-deps-edge-same-wave-insufficient]] for the full
 recurrence record this amendment closes.
 
+## Amendment (2026-08-19): the touched-doc scope widening — every touched-doc fact takes guard, de-mirror, or an explicit defer
+
+The Decision above binds facts WAR *duplicates across surfaces* or *asserts in prose about a canonical
+code construct*. This amendment widens the authoring duty to **every doc a plan task rewrites**: a task
+whose slice rewrites a doc owns the factual accuracy of what it renders authoritative. For every fact in
+that doc derivable from a **machine-readable in-repo source** (a config default, a manifest field, an
+enum member, a version slot — never prose claims generally), the plan picks exactly one of three —
+**guard** (a drift test binding the doc value to its source by extraction + equality; exemplars:
+`version-slots.test.mjs`, `war-config.test.mjs`'s frontmatter guard), **de-mirror** (the doc points at
+the canonical source instead of restating its value), or **explicitly defer** (a legitimacy-complete
+`## Deferred validations (backstops)` row naming the runner and the timing — ADR 0017's vehicle) —
+never silence. Restating such a fact with none of the three is a plan defect, never a follow-up.
+
+This is the **fourth authoring duty** in `/war-strategy` §3's Drift-guard coverage subsection
+(authoring rule 8, `skills/war-strategy/SKILL.md`), joining the unguarded-mirror, default-flip
+OLD-absent, and guard-split deps-edge rules ratified above. Its forcing functions mirror theirs:
+(1) the `/red-team` drift-guard spine probe `touched-doc-fact-coverage` (Lead-run prose like its three
+siblings, never a `SPINE` array member) flags a silent restatement as a plan defect (`needsDecision`)
+at every conversion and every red-team; (2) `/war-machine`'s drafter consumes rule 8 by reference;
+(3) `/war`'s decompose step carries an ADR 0042-shaped pointer to
+`skills/war/references/touched-doc-accuracy.md` (the trichotomy's reference text) as the execution-time
+backstop; (4) `CONTEXT.md`'s Drift-guard discipline glossary gains the **Touched-doc accuracy duty**
+term. The scope boundary is deliberate: only facts a machine-readable in-repo source can re-derive are
+in scope — general prose claims stay governed by the evidence-tag discipline (D4) and the existing
+escape rules above, not by this duty.
+
 ## References
 
 - Design spec:
