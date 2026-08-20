@@ -1099,6 +1099,11 @@ test('roundLimit default is 6; old default literal absent across enumerated doc 
     ['skills/war/SKILL.md',
       /`round_limit=6`/,
       /\bround_limit\s*=\s*3\b/],
+    // Audit-absorb straggler: design.md §4 step 4 carries the same `round_limit=<n>`
+    // prose shape the SKILL.md Refines bullet does — keep the spec of record watched.
+    ['skills/war/references/design.md',
+      /`round_limit=6`/,
+      /\bround_limit\s*=\s*3\b/],
   ]
   for (const [rel, newPresent, oldAbsent] of surfaces) {
     const text = readDoc(rel)
