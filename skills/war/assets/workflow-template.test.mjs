@@ -281,7 +281,7 @@ test('Part B seam is now FILLED — run.provision is consumed and env-blocked is
   // (/\/\*[\s\S]*?\*\//g) mis-reads the resolveGate discovery string's glob literals
   // ('*/node_modules/*' etc. carry /* and */) as block-comment delimiters and cascades over
   // executable code — deleting the refine/gate-audit/land core through the file's only real block
-  // comment (/* the single ace commit */). This site's tokens — run.provision / env-blocked /
+  // comment (/* the batch ace commit */). This site's tokens — run.provision / env-blocked /
   // setup-scout — live only in executable code and prose, never in a block comment, so line-only
   // is sufficient. NEW sensitivity of dropping the block pass: block-comment PROSE is now visible to
   // these asserts — in particular the negative `!setup-scout` assert would false-FAIL if a future
@@ -3315,42 +3315,51 @@ test('bisection — ambiguous attribution blind-halves: serial subsets at the ti
   assert.ok(!calls.find(isMergeTask).prompt.includes('FORWARD-REVERT'), 'no merge revert clause — the final tip is approved')
 })
 
-test('bisection — depth cap 2 and only finally-failing subsets demote: a regressing half splits once more; a depth-2 regressor demotes and the NEXT dispatch reverts it; a final failed tip rides the merge revert clause exactly once', async () => {
+test('bisection — depth cap 2 and only finally-failing subsets demote: a regressing MULTI-GROUP depth-2 subset demotes WHOLE (no third split — the cap, not singleton atomicity, stops it) and the NEXT dispatch reverts it', async () => {
+  // FIVE distinct file groups: halves [f1,f2,f3] / [f4,f5]; depth-2 halves of the first are
+  // [f1,f2] / [f3]. [f1,f2] is deliberately MULTI-group at depth 2 — without the depth cap,
+  // aceHalve would happily split it again (two more ace:t1:r* dispatches); with the cap it
+  // demotes whole. Four distinct-file findings can never exercise the cap: every depth-2
+  // subset is a singleton aceHalve refuses to split anyway.
   const f1 = nit({ title: 'f1 nit', file: 'skills/f1.js' })
   const f2 = nit({ title: 'f2 nit', file: 'skills/f2.js' })
   const f3 = nit({ title: 'f3 nit', file: 'skills/f3.js' })
   const f4 = nit({ title: 'f4 nit', file: 'skills/f4.js' })
+  const f5 = nit({ title: 'f5 nit', file: 'skills/f5.js' })
   const impl = buildSeqImpl({
     'audit:t1:correctness': [
-      bApprove([f1, f2, f3, f4]),
-      bRegress('zz-unrelated.js'),   // batch regresses, ambiguous ⇒ halves [f1,f2] [f3,f4]
-      bRegress('zz-unrelated.js'),   // half [f1,f2] regresses at depth 1 ⇒ splits to [f1] [f2] (depth 2)
-      bRegress('zz-unrelated.js'),   // [f1] regresses at depth 2 ⇒ FINAL demote (atomic, depth floor)
-      bApprove(),                    // [f2] approves
-      bRegress('zz-unrelated.js'),   // [f3,f4] regresses at depth 1 ⇒ splits to [f3] [f4] (depth 2)
+      bApprove([f1, f2, f3, f4, f5]),
+      bRegress('zz-unrelated.js'),   // batch regresses, ambiguous ⇒ halves [f1,f2,f3] [f4,f5]
+      bRegress('zz-unrelated.js'),   // [f1,f2,f3] regresses at depth 1 ⇒ splits to [f1,f2] [f3] (depth 2)
+      bRegress('zz-unrelated.js'),   // [f1,f2] regresses at depth 2 ⇒ FINAL demote WHOLE (depth cap — still splittable)
       bApprove(),                    // [f3] approves
-      bApprove(),                    // [f4] approves
+      bApprove(),                    // [f4,f5] approves
     ],
     'ace:t1:r1': [bWorker('ace00001')],
-    'ace:t1:r2': [bWorker('sub00001')],   // [f1,f2]
-    'ace:t1:r3': [bWorker('sub00002')],   // [f1]
-    'ace:t1:r4': [bWorker('sub00003')],   // [f2]
-    'ace:t1:r5': [bWorker('sub00004')],   // [f3,f4]
-    'ace:t1:r6': [bWorker('sub00005')],   // [f3]
-    'ace:t1:r7': [bWorker('sub00006')],   // [f4]
-  }, aceBase([f1, f2, f3, f4]))
+    'ace:t1:r2': [bWorker('sub00001')],   // [f1,f2,f3]
+    'ace:t1:r3': [bWorker('sub00002')],   // [f1,f2]
+    'ace:t1:r4': [bWorker('sub00003')],   // [f3]
+    'ace:t1:r5': [bWorker('sub00004')],   // [f4,f5]
+  }, aceBase([f1, f2, f3, f4, f5]))
   // roundLimit 9: the ladder is budget-unconstrained here so the depth mechanics alone are under test.
   const { out, calls, logs } = await runPhase(ACE_ARGS({ run: { ace: true, roundLimit: 9 } }), impl)
   const aces = calls.filter(isAce)
-  // dispatches: batch, [f1,f2], [f1], [f2], [f3,f4], [f3], [f4]
-  assert.equal(aces.length, 7, 'batch + 6 subset dispatches (two depth-1 halves each split once — depth never exceeds 2)')
-  assert.ok(aces[2].prompt.includes('f1 nit') && !aces[2].prompt.includes('f2 nit'), 'the regressing half split into singletons')
-  // in-loop reverts: [f1]'s dispatch reverts the failed [f1,f2] commit; [f2]'s dispatch reverts the failed [f1] commit
-  assert.match(aces[2].prompt, /revert --no-edit sub00001/, 'the next dispatch reverts the failed depth-1 half at the tip')
-  assert.match(aces[3].prompt, /revert --no-edit sub00002/, 'the next dispatch reverts the failed depth-2 singleton at the tip')
-  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'f1 nit'), 'the finally-failing depth-2 singleton demotes')
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('depth/split floor')), 'the final demotion is logged with the depth/split-floor reason')
-  assert.ok((out.aced || []).some(a => a.finding.title === 'f2 nit' && a.sha === 'sub00003'), 'the sibling singleton still aces — only finally-failing subsets demote')
+  // dispatches: batch, [f1,f2,f3], [f1,f2], [f3], [f4,f5] — and NOTHING after the depth-2
+  // regression: without the cap, [f1] and [f2] would each get their own dispatch (7 total).
+  assert.equal(aces.length, 5, 'batch + 4 subset dispatches — the depth-2 multi-group regressor demotes whole, no third split')
+  assert.ok(aces[2].prompt.includes('f1 nit') && aces[2].prompt.includes('f2 nit') && !aces[2].prompt.includes('f3 nit'),
+    'the regressing depth-1 subset split into [f1,f2] and [f3]')
+  // in-loop reverts: [f1,f2]'s dispatch reverts the failed [f1,f2,f3] commit; [f3]'s dispatch reverts the failed [f1,f2] commit
+  assert.match(aces[2].prompt, /revert --no-edit sub00001/, 'the next dispatch reverts the failed depth-1 subset at the tip')
+  assert.match(aces[3].prompt, /revert --no-edit sub00002/, 'the next dispatch reverts the failed depth-2 subset at the tip')
+  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'f1 nit'), 'the finally-failing depth-2 subset demotes (f1)')
+  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'f2 nit'), 'the finally-failing depth-2 subset demotes (f2)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('f1 nit') && l.includes('depth/split floor')),
+    'f1\'s demotion is logged with the depth/split-floor reason')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('f2 nit') && l.includes('depth/split floor')),
+    'f2\'s demotion is logged with the depth/split-floor reason')
+  assert.ok((out.aced || []).some(a => a.finding.title === 'f3 nit' && a.sha === 'sub00003'), 'the sibling subset still aces — only finally-failing subsets demote')
+  assert.ok((out.aced || []).some(a => a.finding.title === 'f4 nit' && a.sha === 'sub00004'), 'the untouched depth-1 half still aces')
   assert.ok(out.landed.includes('t1'), 't1 lands')
 })
 
@@ -7533,12 +7542,12 @@ const blockCommentSpans = (text = src) =>
 const naiveTwoStepStrip = (text) => text.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
 // Re-derived at THIS dispatch base (the live naive idiom yields exactly three spans: two byte-identical
 // 18-byte fake spans from the discovery glob literals + one giant span ending at the file's only real
-// block comment, /* the single ace commit */). {head, tail} substring pairs, ORDERED. A fourth
+// block comment, /* the batch ace commit */). {head, tail} substring pairs, ORDERED. A fourth
 // find-exclusion glob would re-shuffle the pairing → red → conscious re-derivation.
 const EXPECTED_BLOCK_SPANS = [
   { head: "/*' -not -path '*/", tail: "/*' -not -path '*/" },
   { head: "/*' -not -path '*/", tail: "/*' -not -path '*/" },
-  { head: "/*' | sort);", tail: "/* the single ace commit */" },
+  { head: "/*' | sort);", tail: "/* the batch ace commit */" },
 ]
 
 test('#929 block-comment census — the naive block-strip idiom yields exactly the enumerated ordered spans (live source)', () => {
@@ -7561,7 +7570,7 @@ test('#929 block-comment census — RED both ways: a new /* */ comment, a new /*
   assert.equal(blockCommentSpans(src + "\nconst censusDecoy = '/* not a comment */'\n").length, live + 1,
     'adding a /*-bearing string literal is a red test (the naive idiom is string-blind — that is the census subject)')
   // (remove) the file's only real block comment → the giant span loses its terminator → one fewer span
-  assert.equal(blockCommentSpans(src.replace('/* the single ace commit */', '// ace commit')).length, live - 1,
+  assert.equal(blockCommentSpans(src.replace('/* the batch ace commit */', '// ace commit')).length, live - 1,
     'removing/merging a span is a red test (the delete direction) — its own fixture')
 })
 
@@ -7582,7 +7591,7 @@ test('#929 subset-row blindness closed — extractLandDecisionLiterals surfaces 
   // Inject a landDecision = 'held:bogus' immediately before the ace marker — i.e. INSIDE the giant fake
   // span the naive block strip deletes. Under the narrowed line-only extractor it surfaces (and would then
   // fail the landDecision-known-set membership assert in MIRROR_REGISTRY); under the old prep it vanishes.
-  const mutated = src.replace('/* the single ace commit */', "landDecision = 'held:bogus' /* the single ace commit */")
+  const mutated = src.replace('/* the batch ace commit */', "landDecision = 'held:bogus' /* the batch ace commit */")
   assert.ok(extractLandDecisionLiterals(mutated).includes('held:bogus'),
     'the narrowed line-only extractor surfaces held:bogus (it would fail the known-set membership assert — the guard now fires)')
   const oldLiterals = [...new Set([...naiveTwoStepStrip(mutated).matchAll(/'(landed|held:[a-z0-9-]+)'/g)].map(m => m[1]))]
@@ -8946,8 +8955,8 @@ test('#931 template-literal census — RED paths (a)-(f): bare / var / operand /
   // (e) an unterminated literal / unclosed quoted string → the scanner THROWS (fail-closed, never a silent narrowing)
   assert.throws(() => scanTemplateLiterals(src + "\nconst bad = 'unclosed at end of line\n"), /unclosed .-string|EOF/, '(e) an unclosed quoted string THROWS (fail-closed)')
   assert.throws(() => scanTemplateLiterals(src + '\nconst bad = `unterminated ${x}'), /EOF/, '(e) an unterminated template literal THROWS (fail-closed)')
-  // (f) a backtick edited into the /* the single ace commit */ block comment → red via the backtick-free assertion (the designed coupling)
-  const mutated = scanTemplateLiterals(src.replace('/* the single ace commit */', '/* the single ace `commit` */'))
+  // (f) a backtick edited into the /* the batch ace commit */ block comment → red via the backtick-free assertion (the designed coupling)
+  const mutated = scanTemplateLiterals(src.replace('/* the batch ace commit */', '/* the batch ace `commit` */'))
   assert.ok(mutated.blockComments.some(b => b.includes('`')), '(f) a backtick in a true block comment is detected — breaks the coupling the block census leans on')
 })
 

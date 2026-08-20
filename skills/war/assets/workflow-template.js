@@ -1481,7 +1481,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   }
   const aceBisect = async (r, aceable, batchSha, regressionSeats) => {
     // Culprit attribution: a regression blocking finding NAMES a culprit when its file matches an
-    // aceable finding's file (parsing-shape latitude). Empty or total attribution is ambiguous.
+    // aceable finding's file (parsing-shape latitude). Empty attribution is ambiguous (blind
+    // halving); total attribution leaves nothing to salvage — the batch finally fails whole.
     const culpritFiles = new Set(blockingOf(regressionSeats).map(f => f.file).filter(Boolean))
     const culprits = aceable.filter(f => culpritFiles.has(f.file))
     const rest = aceable.filter(f => !culpritFiles.has(f.file))
@@ -1615,7 +1616,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // never-blocks-a-land invariant. A blocked/head_sha-less ace falls through to the plain merge.
         if (!aceWhy && typeof ace.head_sha === 'string' && ace.head_sha) {
           r.task.fixRounds++
-          aceSha = ace.head_sha /* the single ace commit */
+          aceSha = ace.head_sha /* the batch ace commit */
           const { seats: reSeats, expected: reExpected } = await auditRound(r.task, null, null, aceSha)   // re-pin + re-audit at the new sha (D1/D2)
           if (allApprove(reSeats, reExpected) && blockingOf(reSeats).length === 0) {
             r.seats = reSeats                          // merge proceeds on the polished tip
