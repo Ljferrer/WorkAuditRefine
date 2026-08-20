@@ -2,11 +2,12 @@
 name: ace-bisection-ladder-shipped-with-four-known-residual-fragilities-filed-not-fixed
 description: "The new aceBisect ladder (workflow-template.js, phase 1.1 of realized-absorb-rate) landed with four known-and-filed-not-fixed residual fragilities: (1) the Ace-Subset trailer value <taskId>:<sorted-files> is prefix-ambiguous across parent/child subsets and can be invisible to git %(trailers:) when not its own final paragraph; (2) culprit attribution keys on exact file-string equality, so path-form drift silently falls back to blind halving; (3) aceBisect's dispatches sit outside dispatchAgent/try-catch, so a harness death converts an approved mergeable task into held:workflow-error; (4) the ladder can starve the merge-floor retry loop's shared fixRounds budget — treat all four as known live gaps in this construct, not resolved, until their filed issues land"
 metadata: 
+  promoted: dev/2026-08-19-realized-absorb-rate@phase-1
   node_type: memory
   type: project
   provenance: code-verified
   slug: ace-bisection-ladder-shipped-with-four-known-residual-fragilities-filed-not-fixed
-  phase: "realized-absorb-rate/phase-1 task 1.1 (landed dev/2026-08-19-realized-absorb-rate, tip 291943e)"
+  phase: "realized-absorb-rate/phase-1 task 1.1 (landed dev/2026-08-19-realized-absorb-rate, tip 291943e); addendum realized-absorb-rate/phase-4 task 4.1 (landed tip 5cbf08d)"
   keywords: 
     - aceBisect
     - Ace-Subset trailer
@@ -18,6 +19,9 @@ metadata:
     - bisection ladder
     - trailer prefix ambiguity
     - git trailers valueonly
+    - prompt-mandated vs code-enforced
+    - resume idempotency contract unverified
+    - no engine-side trailer assert
   tags: 
     - war
     - engine
@@ -26,7 +30,7 @@ metadata:
     - known-gap
   created: 2026-08-20
   originSessionId: d1c9bd01-e7da-46af-a12d-d59dbd7a69d1
-  modified: 2026-08-20T08:54:33.496Z
+  modified: 2026-08-20T19:08:52.706Z
 ---
 
 # The new `aceBisect` ladder landed with four known, filed-but-unfixed fragilities
@@ -78,8 +82,25 @@ for current status before re-diagnosing from scratch.
 split, the bare `agent()` dispatch inside the `while (queue.length)` loop, and the
 `r.task.fixRounds >= roundLimit` check.
 
+**Addendum (phase 4 "Release", task 4.1, 2026-08-20) — the trailer/preflight resume-idempotency
+contract itself has zero engine-side verification, distinct from fragility 1's trailer-*value*
+ambiguity above.** `code-verified` at the landed tip `5cbf08d1aede44412f0a4d3a6cce1179010cce18`
+(`_refinery22` worktree, `HEAD` byte-equal to that tip; gitdir physical path containing this plan's
+slug: `<repo-root>/.claude/worktrees/realized-absorb-rate-2026-08-19-r2/_refinery/`). Both halves of
+the contract — "commit ends with the `Ace-Subset:` trailer" and "preflight scans the bisection range
+for it" — are dispatched as **prompt text** to the fix-worker agent inside `aceBisect`'s `pt\`...\``
+template (`skills/war/assets/workflow-template.js`); the engine never re-reads `git log`/
+`%(trailers:)` on the worker's returned `head_sha` to confirm the accepted commit actually carries the
+trailer. A worker that emits a gate-green commit but omits or malforms the trailer line would be
+silently accepted — the next resume's preflight would simply fail to recognize it and could
+double-apply. This is a mandate to an LLM worker, not an engine-enforced invariant — see
+[[release-blurb-overstates-guard-semantics]] Recurrence 23 (the README `## Status` blurb stating this
+mandate as a commit-level guarantee, a Nit, `disposition: note`, not fixed before land).
+
 ## Related
 
 [[env-died-classification-wraps-only-impl-and-fix-dispatch-not-provision-or-audit-or-null-return]]
 [[committed-repo-config-can-shadow-a-flipped-engine-default]] — same phase, sibling task 1.2's
 independent `roundLimit` shadowing issue on the budget this ladder also draws from.
+[[release-blurb-overstates-guard-semantics]] — Recurrence 23 records the blurb-level symptom of this
+addendum's root gap (a prompt-mandated property described as a commit-level guarantee).
