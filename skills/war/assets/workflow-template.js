@@ -732,8 +732,9 @@ const dispositionOf = f =>
   : f.autoFixable === true ? 'absorb'
   : f.severity === 'Minor' ? 'follow-up' : 'note'
 // Terminal-disposition demotion ladder (ADR 0013): demote one step toward durability, never drop
-// silently — EVERY demotion is log()ged. Arms: failed absorb → follow-up (whole-batch regression /
-// dead ace worker / ace unavailable / --ace off, plus the seven aceBisect bisection arms: named
+// silently — EVERY demotion is log()ged. Arms: failed absorb → follow-up (a fresh re-audit absorb
+// after the batch ace is spent / dead ace worker / ace unavailable / --ace off, plus the seven
+// aceBisect bisection arms: named
 // culprits of a re-audit regression, an all-culprit batch, an ambiguous-and-atomic batch
 // (unhalvable single file group — demotes whole), budget exhaustion mid-bisection, a subset worker
 // returning no usable head_sha abandoning the bisection, a re-audit round's own fresh absorb while
