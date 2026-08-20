@@ -49,8 +49,9 @@ plan — the batch's terminal sink — lags the drafting base by up to thirteen 
    edits widen only the zero-byte/exit-2 sentences and leave both cited phrases byte-intact — its plan
    text pins the ponytail ceiling paragraph byte-identical). (b) ADR 0025's Consequences bullet freezes
    the `CONTEXT.md` `### Drift-guard discipline` glossary at "five terms"; the live subsection defines
-   **six** bold terms, the sixth (**Guard-split deps edge**) forced by ADR 0025's own Amendment
-   (2026-08-02) (conversion count). Predecessor plan 5's CONTEXT.md eviction moves only the
+   **seven** bold terms — the sixth (**Guard-split deps edge**) forced by ADR 0025's own Amendment
+   (2026-08-02), the seventh (**Touched-doc accuracy duty**) by its Amendment (2026-08-19) (red-team
+   re-measure 2026-08-20 at `26b40d7`). Predecessor plan 5's CONTEXT.md eviction moves only the
    Dead-agent/Stale-prior-attempt/provision-base-divergence entries (reserve: Near-miss diagnostic) —
    the Drift-guard discipline subsection is not in its eviction set (verified: plan 5 Task 1.1 slice).
 3. **ADR 0008 carries a form-forbidden line-anchored citation and a mis-named construct pointer**
@@ -85,9 +86,12 @@ plan — the batch's terminal sink — lags the drafting base by up to thirteen 
    The issue is deliberately the work-list for the standing tour-narrative sweep, not an absorbed
    one-liner.
 6. **C11/H5 rationale comments state the opposite of the code trace** (verified: issue #1253
-   (2026-08-06); re-confirmed at conversion — `VACUOUS` at exactly two sites, lines ≈283 and ≈502,
-   dated snapshot). Both comment blocks claim a printf-corrupted payload would make "the deny …
-   VACUOUS" via the non-auditor `*) exit 0` pass-through; both cases use `expect_deny`, whose
+   (2026-08-06); re-measured by red-team 2026-08-20 — `VACUOUS` at three sites, lines ≈285, ≈504, and
+   ≈702, dated snapshot at `26b40d7`; the third landed with #1412's L1/L2 denial-diagnostics block
+   header, which inherits the same claim for an `expect_deny_teach` case — whose helper requires
+   exit 2, a `WAR:` stderr marker, **and** a message substring, so it fails loud a fortiori). The
+   comment blocks claim a printf-corrupted payload would make "the deny …
+   VACUOUS" via the non-auditor `*) exit 0` pass-through; the C11/H5 cases use `expect_deny`, whose
    definition requires exit 2 **and** a `WAR:` stderr marker (definition re-read at conversion) — a
    pass-through exit 0 with empty stderr fails loud at authoring time. C11 inherited the wording from
    H5 (donor-prompt-latent-omission class); both cite the archived memory
@@ -118,10 +122,14 @@ plan — the batch's terminal sink — lags the drafting base by up to thirteen 
    has no item distinguishing work-scope from release-scope claims (re-read at conversion). The
    retro-located 0.16.0 `CHANGELOG.md` entry is the natural place to correct the historical record —
    visibly a dated, issue-cited correction, never a silent rewrite.
-9. **Count-word sweep floor is zero at base** (conversion grep): `seven-item` / `seven item` /
-   `seven checks` / `all seven` have **0** hits across `README.md`, `CLAUDE.md`, `CONTEXT.md`,
-   `skills/`, and `docs/adr/` — the checklist body is numbered but nowhere counted in prose. The sweep
-   stays as a confirm-zero floor + paraphrase hand-scan at the rebased base.
+9. **Count-word sweep floor is zero at base for the checklist-shaped tokens** (red-team re-grep
+   2026-08-20): `seven-item` / `seven item` / `seven checks` have **0** hits across `README.md`,
+   `CLAUDE.md`, `CONTEXT.md`, `skills/`, and `docs/adr/` — the checklist body is numbered but nowhere
+   counted in prose. `all seven` carries two known-benign, checklist-unrelated hits in
+   `skills/war/assets/workflow-template.test.mjs` ("all seventeen captures", "all seven worker-family
+   sites") — pre-recorded so the confirm-zero floor does not stop-and-report on them; any *new* hit
+   beyond those two is a straggler. The sweep stays as a confirm-zero floor + paraphrase hand-scan at
+   the rebased base.
 
 ## Pivotal constraints
 
@@ -183,18 +191,18 @@ plan — the batch's terminal sink — lags the drafting base by up to thirteen 
 | D5 | ADR 0008 push-first-CAS pointer | Re-name to the construct that exists: § "Invariants (never violate)"'s never-`--force`/`reset --hard`-on-shared-branches clause; the push-first-CAS *mechanism* citation points at `design.md` § "6. State & resume" | spec D5 |
 | D6 | `ARGS_FALLBACK_ANCHOR` comment | Add the canonical-source sentence mirroring the meta-anchor sibling's shape (canonical: the `const A =` ternary's args-fallback tail in `workflow-template.js`; this constant: the hand-maintained mirror the imported-constant anchor guard arbitrates); scope "single authoritative copy" to what it means (the single in-suite anchor constant the test imports); cite ADR 0037's Correction (2026-08-02, #1240) | spec D6 |
 | D7 | Tour step 14 | Re-derive the advisory number at the task's rebased base (≈51 at `6fff2ee`); keep `≈` and construct-name primacy; then the tour-narrative sweep over all 18 steps | spec D7 |
-| D8 | C11/H5 comments | Both sites in one task: replace the VACUOUS claim with the true trace — pass-through exit 0 + empty stderr makes `expect_deny` (exit 2 + `WAR:` marker required) fail loud at authoring time; comments carry the literal phrase "fails loud" | spec D8, phrase pinned at conversion for End state 10's check |
+| D8 | C11/H5/L-block comments | All three sites in one task (C11, H5, and the #1412 L1/L2 block header): replace the VACUOUS claim with the true trace — pass-through exit 0 + empty stderr makes `expect_deny` (exit 2 + `WAR:` marker required) — and `expect_deny_teach` (exit 2 + `WAR:` marker + message substring) a fortiori — fail loud at authoring time; comments carry the literal phrase "fails loud" | spec D8, phrase pinned at conversion for End state 10's check; third site added by red-team (2026-08-20) |
 | D9 | Archived memory | Append a dated scope note bounding the vacuity claim to assertions the bail-out outcome satisfies (exit-0-asserting allow cases); deny-asserting cases fail loud. Body otherwise untouched (notes append, bodies stay) | spec D9 |
 | D10 | CHANGELOG.md shape | New top-level `CHANGELOG.md`: H1 + reverse-chronological `## <semver> — <date>` sections; **bounded at 0.15.0-forward** (issue #1330's own scope line: "0.15.x, 0.16.0, and whatever has landed by then" — the full README history holds ~113 recoverable releases back to 0.5.0, 28× the in-scope set, so an unbounded rule defeats the issue's scope): one section per release from 0.15.0 through the rebased-base head (the drafting-base set of four is a dated snapshot; predecessor releases extend it), each release's blurb taken **as last edited before its supersession** (0.17.0's includes its post-release blurb fixes), pre-0.17.0 long blurbs lightly compressed to the short shape, 0.17.0+ short blurbs relocated near-verbatim; no `docs/specs/` citations (A1) | spec D10, enumeration rule bounded + sharpened at conversion per the grill (AI-declared) |
 | D11 | 0.16.0 entry truth | The relocated 0.16.0 entry carries the scope correction: the zero-engine-change claim scoped to the plan's work, plus a dated, issue-cited note that the release window shipped engine-path files from unbumped PRs #1280/#1294 | spec D11; (verified: issue #1317 (2026-08-06)) |
-| D12 | `## Status` ↔ CHANGELOG link | `## Status` keeps the short current-release blurb and gains one trailing link line to `CHANGELOG.md` (no bold token — the semver stays the section's first bold token); the line sits after the blurb so a future replace-in-place blurb rewrite can keep it | spec D12, placement sharpened at conversion (AI-declared) |
+| D12 | `## Status` ↔ CHANGELOG link | `## Status` keeps the short current-release blurb and gains one trailing link line to `CHANGELOG.md` (no bold token — the semver stays the section's first bold token); the line is the last line of the `## Status` section — after the final release bullet, separated by a blank line — outside the region a replace-in-place blurb rewrite replaces | spec D12, placement pinned by red-team grill (operator-ratified 2026-08-20) |
 | D13 | CHANGELOG as a version slot? | **No** — not a fifth slot; `version-slots.test.mjs` gains no CHANGELOG assertion [carried A2: keeping release friction flat — if wrong: a stale head entry ships silently until the next doc sweep] | spec D13 |
 | D14 | Checklist re-evaluation | **Keep all seven items**, **insert one new item** distinguishing work-scope from release-scope claims (the #1317 durable ask) immediately before the Provenance item, renumbering so the Provenance bullet stays last with "Every item above" still true and its anchor slug byte-verbatim | spec D14 |
 | D15 | strip_prose × CHANGELOG.md | **No guard change.** Record the resolution in one sentence beside `strip_prose()` — the absence scans read an explicitly enumerated file list that excludes `CHANGELOG.md` by design; a future guard that enumerates it must decide its own strip rule — worded without the composition literal (Pivotal constraints) | spec D15 |
 | D16 | Version bump | **Release phase appended** — the spec's "no bump" row is retired via its own if-wrong arm: this plan lands as its own consumer-visible PR (new `CHANGELOG.md`, README structure), the batch ships every sibling with a release phase, and shipping *this* plan unbumped would re-enact the exact unbumped-landing defect its own 0.16.0 correction records (#1317). Next free patch above the live base at land time | conversion judgment (deviation from spec D-row, reason here; logged for /red-team) |
 | D17 | Release-phase CHANGELOG duty | Task 2.1 appends its own release's `CHANGELOG.md` entry (introducing the file already stale at its own release would be self-refuting); future releases stay unguarded — accepted residual per D13 | conversion judgment (AI-declared), logged for /red-team |
 | D18 | Lesson stamp | `docs/learnings/archive/adr-consequences-member-count-goes-stale-when-a-same-plan-task-adds-a-rule-to-the-block-it-counts.md` `description:` gains a `RESOLVED (adr-doc-truth-sweep/1.1, #1363): ` prefix (batch stamp shape: fixing task + issue, no land-date token); body/keywords untouched. Stamp travels in the fixing task (stamp honesty). #1266's sibling lesson stays unstamped (Non-goals) | conversion judgment per batch precedent (AI-declared), logged for /red-team |
-| D19 | Task decomposition | Six file-disjoint parallel tasks in Phase 1 (one wave, no deps edges — no task consumes another's output; no mechanical guard is authored anywhere, so rule 7 never triggers) + the trailing release phase | conversion judgment; war-strategy §3 |
+| D19 | Task decomposition | Seven file-disjoint parallel tasks in Phase 1 (one wave, no deps edges — no task consumes another's output; no mechanical guard is authored anywhere, so rule 7 never triggers) + the trailing release phase | conversion judgment; war-strategy §3 |
 
 ## Assumptions ledger
 
@@ -255,7 +263,7 @@ at conversion (Note 5).
   corrected 0.16.0 entry, `## Status` links it, and the authoring checklist gains the
   work-scope/release-scope item that makes the 0.16.0 class checkable — all without changing any
   guard's behavior, weakening any pin, or editing a ratified ADR byte. (AI-declared)
-- **Method:** one sweep phase of six file-disjoint parallel tasks — append-only ADR notes written as
+- **Method:** one sweep phase of seven file-disjoint parallel tasks — append-only ADR notes written as
   dated snapshots naming the live surface as owner; in-place pointer repairs with a whole-file hand
   survey; comment-only code edits arbitrated by the existing discovered suites; JSON-validated tour
   edits plus the standing tour-narrative sweep; a paired comment+memory truth fix; and the
@@ -269,27 +277,35 @@ at conversion (Note 5).
   2. ADR 0030's amendment restates the member count as an invariant owned by the live
      `skills/war-strategy/SKILL.md` §2 block, and every pre-existing body byte — including the
      ratified "six rules" Consequences bullet — is unchanged except the sanctioned Status currency
-     line · check: `grep -qF 'Amendment (2026-08' docs/adr/0030-live-artifacts-over-stack-fragile-literals.md`
-     (`-F` per the platform law — the pattern carries parentheses); the byte-unchanged claim is
-     hand-verified in the diff (survey note, SOFT). (AI-declared)
+     line · check: `grep -qiE '^#+ *(Amendment|Correction) \(20' docs/adr/0030-live-artifacts-over-stack-fragile-literals.md && grep -qF '#1363' docs/adr/0030-live-artifacts-over-stack-fragile-literals.md`
+     (a deliberate regex — the heading word and the land month must not be hard-pinned); the
+     byte-unchanged claim is hand-verified in the diff — the same survey covers all three amended
+     ADRs (0030/0033/0025) (survey note, SOFT). (AI-declared)
   3. ADR 0033's correction note records the `--baseline` ref-diff as built and the porcelain half as
      exact only for tracked and untracked-but-not-ignored paths, per the guard's own header — and
      *(amendment 2026-08-15, #1398)* corrects Decision 2's two under-descriptions: the exit-2
      parenthetical widened to the full set (git / usage / containment / unreadable / zero-byte
      baseline) and check (c) added to the a/b enumeration · check:
-     `grep -q 'baseline' docs/adr/0033-executed-probes-behind-escape-guard.md && grep -qi 'zero-byte' docs/adr/0033-executed-probes-behind-escape-guard.md`. (AI-declared)
-  4. ADR 0025's correction note records the six-term `CONTEXT.md` subsection and names its forcing
-     2026-08-02 amendment, count restated as owned by the live subsection · check:
-     `grep -qi 'six term' docs/adr/0025-drift-guard-discipline.md`. (AI-declared)
+     `grep -qi 'baseline' docs/adr/0033-executed-probes-behind-escape-guard.md && grep -qi 'zero-byte' docs/adr/0033-executed-probes-behind-escape-guard.md && grep -qF '`ponytail:` a full ref-diff' docs/adr/0033-executed-probes-behind-escape-guard.md`
+     (the third conjunct pins the ratified ponytail bullet byte-intact). (AI-declared)
+  4. ADR 0025's correction note records the re-measured `CONTEXT.md` subsection term count (seven at
+     the red-team base) and names both forcing amendments (2026-08-02 → Guard-split deps edge;
+     2026-08-19 → Touched-doc accuracy duty), count restated as owned by the live subsection with the
+     literal phrase "owned by the live subsection", the ratified "five terms" bullet byte-intact ·
+     check: `grep -qi 'owned by the live subsection' docs/adr/0025-drift-guard-discipline.md && grep -qF 'defining five terms' docs/adr/0025-drift-guard-discipline.md`. (AI-declared)
   5. ADR 0008 carries zero line-anchored citations · check:
      `! grep -qE '#L[0-9]+|\.md:[0-9]+-[0-9]+' docs/adr/0008-git-is-the-resume-source-of-truth.md` ·
      mandatory same-scope survey (grep is a floor): hand-read every link and section citation in the
      file end-to-end; list each remaining rotted or mis-named pointer as a survey-derived correction. (AI-declared)
-  6. Every construct ADR 0008 cites exists verbatim in the cited file · check:
-     `grep -qF 'State & resume' skills/war/references/design.md && grep -qF -- '--force' skills/war/SKILL.md`. (AI-declared)
+  6. Every construct ADR 0008 cites exists verbatim in the cited file, and the repaired pointers land
+     in ADR 0008 itself — the re-anchored § "6. State & resume" citation and the Invariants clause's
+     own wording present, the mis-named construct pointer gone · check:
+     `grep -qF 'State & resume' skills/war/references/design.md && grep -qF -- '--force' skills/war/SKILL.md && grep -qF '6. State & resume' docs/adr/0008-git-is-the-resume-source-of-truth.md && grep -qF -- 'reset --hard' docs/adr/0008-git-is-the-resume-source-of-truth.md && ! grep -qF 'the push-first-CAS clause' docs/adr/0008-git-is-the-resume-source-of-truth.md`. (AI-declared)
   7. The `ARGS_FALLBACK_ANCHOR` comment carries the canonical-source sentence and the ADR 0037
      citation · check:
-     `grep -B10 'export const ARGS_FALLBACK_ANCHOR' skills/war/assets/stage-workflow.mjs | grep -qi 'canonical source' && grep -B10 'export const ARGS_FALLBACK_ANCHOR' skills/war/assets/stage-workflow.mjs | grep -q '0037'`. (AI-declared)
+     `grep -qi 'hand-maintained mirror' skills/war/assets/stage-workflow.mjs && grep -qF '#1240' skills/war/assets/stage-workflow.mjs`
+     (construct-anchored on Task 1.3's mandated wording — no fixed context window, which undercaptures
+     once the comment grows; both literals are absent at base and unique to this edit). (AI-declared)
   8. The stager's comment edit changed zero behavior — its discovered suite is green · check:
      `node --test skills/war/assets/stage-workflow.test.mjs`. (AI-declared)
   9. The tour parses as JSON with step 14's rotted advisory number gone · check:
@@ -297,12 +313,13 @@ at conversion (Note 5).
      mandatory same-scope survey (grep is a floor): hand-check every step's `file`/`line` field and
      description narrative against the live target files at the rebased base; list each rotted anchor
      or false code-fact as a survey-derived correction. (AI-declared)
-  10. The VACUOUS claim is replaced by the fail-loud trace at both sites · check:
+  10. The VACUOUS claim is replaced by the fail-loud trace at all three sites (C11, H5, the #1412
+      L1/L2 block header) · check:
       `! grep -q 'VACUOUS' hooks/validate-auditor-git.test.sh && grep -qiE 'fails? loud' hooks/validate-auditor-git.test.sh`
       (the spec's `grep -qi 'fail loud'` form sharpened to cover the mandated "fails loud" wording —
-      Note 6) · mandatory same-scope survey: hand-scan the C-block and H-block case titles and
-      rationale comments for any sibling repeating the inherited claim in other words; list
-      stragglers. (AI-declared)
+      Note 6) · mandatory same-scope survey: hand-scan every case-group's case titles and rationale
+      comments (C, H, and L families alike) for any sibling repeating the inherited claim in other
+      words; list stragglers. (AI-declared)
   11. The auditor-guard suite stays green · check: `bash hooks/validate-auditor-git.test.sh`. (AI-declared)
   12. The archived memory's scope note bounds the vacuity claim to bail-out-satisfying assertions ·
       check: `grep -qi 'deny-asserting' docs/learnings/archive/printf-json-escaping-vacuous-test-case.md`. (AI-declared)
@@ -314,14 +331,14 @@ at conversion (Note 5).
   15. `CHANGELOG.md` exists with reverse-chronological per-release sections covering every release
       in the D10-bounded window (0.15.0 through the rebased-base head — never the deeper history),
       including the corrected 0.16.0 entry naming the release window and PRs #1280/#1294 · check:
-      `grep -qF -- '## 0.17.0' CHANGELOG.md && grep -qF -- '## 0.16.0' CHANGELOG.md && grep -qi 'release window' CHANGELOG.md`
+      `grep -qF -- '## 0.17.0' CHANGELOG.md && grep -qF -- '## 0.16.0' CHANGELOG.md && grep -qiE 'release[- ]window' CHANGELOG.md`
       (a floor — the bounded enumeration is the worker's history census, recorded in the done
       report; A5, SOFT). (AI-declared)
   16. README `## Status` links `CHANGELOG.md` with the bold semver still the section's first bold
       token · check: `grep -qF 'CHANGELOG.md' README.md && node --test skills/war/assets/version-slots.test.mjs`. (AI-declared)
   17. The checklist carries the work-scope vs release-scope item immediately before the Provenance
       item, renumbered, with the provenance anchor bullet last and verbatim · check:
-      `grep -qi 'release scope' README.md && node --test skills/war/assets/version-slots.test.mjs`. (AI-declared)
+      `grep -qiE 'release[- ]scope' README.md && node --test skills/war/assets/version-slots.test.mjs`. (AI-declared)
   18. The `strip_prose()` resolution comment is present without restating the stripped-scan
       composition, and the pipeline-structure suite is green · check:
       `grep -qF 'CHANGELOG.md' skills/war-machine/war-pipeline-structure.test.sh && bash skills/war-machine/war-pipeline-structure.test.sh`;
@@ -330,8 +347,9 @@ at conversion (Note 5).
   19. The count-word sweep is clean: `seven-item`/`seven item` and paraphrased count claims over the
       checklist have zero live-surface hits (0 at conversion — confirm-zero floor + paraphrase
       hand-scan; ADR 0030's ratified "six rules" bullet is append-only posterity, never a sweep
-      target) · check: `! grep -rn 'seven-item' README.md CLAUDE.md CONTEXT.md skills/` + survey
-      note. (AI-declared)
+      target) · check: `! grep -rinE 'seven[- ]item' README.md CLAUDE.md CONTEXT.md skills/ docs/adr/`
+      (case-insensitive — sentence-initial casing must not slip the guard; the `[- ]` class covers
+      both variants; surfaces match Context claim 9's census) + survey note. (AI-declared)
   20. Every mapped issue is cited by at least one commit in the phase range `<phase-base>..<tip>` (#1363/#1305, #1266/#1398, #1290, #1291,
       #1292, #1253, #1330/#1317, #1399) · HARD at audit_sha (git log between the phase base and tip;
       execution-evidence seat). **Range-level, not per commit** — judged by the execution-evidence seat via `git log --grep=<issue> <phase-base>..<tip>`; the engine-authored **phase-merge** commit and the **phase-close polish** commit cite no issue *by construction* and are compliant. The range does not exist at any task's pre-merge gate, so this can never be a `gate:` member. Ratified lesson: `each-commit-cites-its-issue-endstates-are-judged-over-the-full-phase-range-not-gated-per-commit`. *(Normalized 2026-08-16 by the campaign-wide sweep — the original per-commit phrasing caused a false escalation in plan 6 and was corrected again in plan 7.)* (AI-declared)
@@ -346,8 +364,9 @@ at conversion (Note 5).
   23. *(amendment 2026-08-15, #1399)* The awk-degeneracy lesson carries the appended dated
       correction section stating the true mechanism (`base[]` fills from the live dump; `live[]`
       stays empty), pre-existing body bytes unchanged above it, redaction lint green ·
-      check: `grep -qi 'live dump' docs/learnings/archive/awk-empty-baseline-nr-fnr-degeneracy.md && grep -qF 'Correction (2026-08-15' docs/learnings/archive/awk-empty-baseline-nr-fnr-degeneracy.md`
-      (byte-unchanged-above claim hand-verified in the diff, SOFT).
+      check: `grep -qF 'stays empty' docs/learnings/archive/awk-empty-baseline-nr-fnr-degeneracy.md && grep -qF 'Correction (2026-08-15' docs/learnings/archive/awk-empty-baseline-nr-fnr-degeneracy.md`
+      (the first literal is unique to the corrected mechanism sentence — "live dump" pre-exists in
+      the body and discriminates nothing; byte-unchanged-above claim hand-verified in the diff, SOFT).
 
 ## Build order (for /war)
 
@@ -366,10 +385,11 @@ exists at the frozen phase base.
 - Plan slice: **Witness census (record, never halt)** — at the rebased dispatch base, re-count and
   record in the done report: the `skills/war-strategy/SKILL.md` §2 "Reference the live artifact"
   block's bullet count (8 at `6fff2ee`; plan 11 declares the file byte-unchanged) and the
-  `CONTEXT.md` `### Drift-guard discipline` bold-term count (6 at `6fff2ee`; plan 5's eviction set
-  excludes it). The notes state whatever the re-measured values are, as dated snapshots naming the
-  live surface as owner. **ADR 0030** — append a dated amendment note (ADR 0037 Correction-note
-  shape): the live convention block gained the **Dated snapshots (D12 staleness rule)** form
+  `CONTEXT.md` `### Drift-guard discipline` bold-term count (7 at `26b40d7`, red-team re-measure
+  2026-08-20 — the seventh, **Touched-doc accuracy duty**, forced by ADR 0025's Amendment
+  (2026-08-19); plan 5's eviction set excludes it). The notes state whatever the re-measured values are, as dated snapshots naming the
+  live surface as owner. **ADR 0030** — append a dated `## Amendment (<land-date>, #1363)`
+  note (body in the ADR 0037 correction shape): the live convention block gained the **Dated snapshots (D12 staleness rule)** form
   (enumerate it by name so a name-grep lands); the Decision list and the Consequences "six rules"
   figure are dated snapshots at their ratification base — membership is owned by the live SKILL.md §2
   block, and counts here must never be read as current (D2). **ADR 0033** — append a dated correction
@@ -378,22 +398,27 @@ exists at the frozen phase base.
   and untracked-but-not-ignored paths, per the guard's own header (re-verify both header phrases at
   the rebased base — plan 2's landed edits widen adjacent sentences). *(amendment 2026-08-15,
   #1398)* The same ADR 0033 note also corrects Decision 2's two under-descriptions: the
-  exit-contract parenthetical's "2 = git error" is widened to the full exit-2 set (git / usage /
-  containment `..` / unreadable baseline / zero-byte baseline — the last landed by plan 2), and
+  exit-contract parenthetical's "2 = git error" is widened to the full exit-2 set (the enumeration
+  here — git / usage / containment `..` / unreadable baseline / zero-byte baseline — is a drafting
+  floor, not the full set; the guard's own header at the rebased base is the truth source and the
+  note restates *its* live set), and
   check (c) is added to Decision 2's a/b enumeration (verify the live set against the guard's own
   header at the rebased base — the guard is the truth source, the note restates it). One note, one
   Correction heading — the three ADR 0033 corrections (#1266's ponytail + #1398's two) travel
   together, per the ADR 0037 Correction-note shape with pre-existing body bytes unchanged.
   **ADR 0025** — append a dated
-  correction note: the `CONTEXT.md` `### Drift-guard discipline` subsection now defines **six**
-  terms, the sixth (**Guard-split deps edge**) forced by this ADR's own Amendment (2026-08-02);
-  count restated as owned by the live subsection. All three: pre-existing body bytes byte-unchanged
+  correction note: the `CONTEXT.md` `### Drift-guard discipline` subsection now defines the
+  re-measured count of terms (**seven** at the red-team base `26b40d7`) — the sixth
+  (**Guard-split deps edge**) forced by this ADR's own Amendment (2026-08-02), the seventh
+  (**Touched-doc accuracy duty**) by its Amendment (2026-08-19); count restated as owned by the
+  live subsection, and the note carries the literal phrase "owned by the live subsection" (End
+  state 4's pin). All three: pre-existing body bytes byte-unchanged
   (the ratified stale bullets stay, notes beside them); the Status currency header line may be
   updated (the sanctioned exemption); ADR 0044 is read-only reference (retired assumption 1).
   **Lesson stamp (D18)** — prefix the mined lesson's `description:` frontmatter value with
   `RESOLVED (adr-doc-truth-sweep/1.1, #1363): `; body, `metadata.keywords`, every other key
   byte-untouched; redaction lint stays green. Commits cite #1363, #1305, #1266, #1398.
-- Done when: `grep -qi 'dated snapshot' docs/adr/0030-live-artifacts-over-stack-fragile-literals.md && grep -q 'baseline' docs/adr/0033-executed-probes-behind-escape-guard.md && grep -qi 'zero-byte' docs/adr/0033-executed-probes-behind-escape-guard.md && grep -qi 'six term' docs/adr/0025-drift-guard-discipline.md`
+- Done when: `grep -qi 'dated snapshot' docs/adr/0030-live-artifacts-over-stack-fragile-literals.md && grep -qi 'baseline' docs/adr/0033-executed-probes-behind-escape-guard.md && grep -qi 'zero-byte' docs/adr/0033-executed-probes-behind-escape-guard.md && grep -qi 'owned by the live subsection' docs/adr/0025-drift-guard-discipline.md`
 - requiresTest: false
 - requiresPackaging: false
 - deps: []
@@ -467,16 +492,20 @@ exists at the frozen phase base.
 ### Task 1.5: C11/H5 comment truth + archived-memory scope note (#1253)
 
 - Files: `hooks/validate-auditor-git.test.sh`, `docs/learnings/archive/printf-json-escaping-vacuous-test-case.md`
-- Plan slice: **Both suite sites in one edit** — replace the C11 rationale comment (the block above
-  the `expect_deny "C11: …"` call) and the H5 comment (above `expect_deny "H5: …"`) VACUOUS claims
+- Plan slice: **All three suite sites in one edit** — replace the VACUOUS claims in the C11
+  rationale comment (the block above the `expect_deny "C11: …"` call), the H5 comment (above
+  `expect_deny "H5: …"`), and the #1412 L1/L2 denial-diagnostics block header comment (above
+  `expect_deny_teach "L1: …"`, ≈702 at `26b40d7` — it inherits C11's rationale verbatim)
   with the true trace: a printf-corrupted payload takes the non-auditor `*) exit 0` pass-through,
   and a pass-through exit 0 with empty stderr makes `expect_deny` — which requires exit 2 **and**
   a `WAR:` stderr marker — **fail loud at authoring time**, never land vacuous (carry the literal
-  "fails loud" phrase for End state 10's check). Comment bytes only; the suite must stay green.
-  **Sweep (grep is a floor)** — grep the suite for `VACUOUS`; then hand-scan the C-block and
-  H-block families' case titles and rationale comments for any sibling repeating the inherited
-  claim in other words (donor-prompt-latent-omission class); list stragglers as survey-derived
-  corrections. **Archived memory (D9)** — append a dated scope note to
+  "fails loud" phrase for End state 10's check); `expect_deny_teach` additionally requires a
+  message substring, so its case fails loud a fortiori. Comment bytes only; the suite must stay
+  green.
+  **Sweep (grep is a floor)** — grep the suite for `VACUOUS`; then hand-scan every case-group's
+  case titles and rationale comments (C, H, and L families alike) for any sibling repeating the
+  inherited claim in other words (donor-prompt-latent-omission class); list stragglers as
+  survey-derived corrections. **Archived memory (D9)** — append a dated scope note to
   `docs/learnings/archive/printf-json-escaping-vacuous-test-case.md`: the vacuity claim holds only
   where the assertion is satisfied by the bail-out outcome (exit-0-asserting allow cases);
   deny-asserting cases (exit 2 + `WAR:` marker required) fail loud at authoring time. Additive note
@@ -515,7 +544,8 @@ exists at the frozen phase base.
   claim scoped to the plan's work, with a dated, issue-cited (#1317) note that the release window
   shipped engine-path files from unbumped PRs #1280/#1294 — visibly a correction, never a silent
   rewrite. **`README.md`** — `## Status` keeps the current blurb (whatever release heads the rebased
-  base), bold semver first, and gains one trailing no-bold link line to `CHANGELOG.md` (D12);
+  base), bold semver first, and gains one no-bold link line to `CHANGELOG.md` as the last line of
+  the `## Status` section — after the final release bullet, separated by a blank line (D12);
   insert the new checklist item before the Provenance item, renumbering so the Provenance bullet
   stays last (keeping "Every item above" true) with its anchor slug byte-verbatim (D14) — item
   text: **"Work scope is not release scope."** A claim about what *this plan's work* touched must
@@ -525,8 +555,11 @@ exists at the frozen phase base.
   absence-scan file lists, so relocated release prose trips nothing; a future guard that enumerates
   it must decide its own strip rule. Worded WITHOUT the composition literal — never `strip_prose`
   followed by a pipe or redirect character (the coupling-comment class; plan 4's census is the
-  arbiter). **Count-word sweep (grep is a floor)** — confirm-zero for `seven-item`/`seven item`
-  across `README.md`, `CLAUDE.md`, `CONTEXT.md`, `skills/` (0 at conversion), then hand-scan the
+  arbiter). **Count-word sweep (grep is a floor)** — confirm-zero via
+  `grep -rinE 'seven[- ]item'` across `README.md`, `CLAUDE.md`, `CONTEXT.md`, `skills/`,
+  `docs/adr/` (0 at the red-team base; case-insensitive by design), tolerating the two pre-recorded
+  benign `all seven*` hits in `skills/war/assets/workflow-template.test.mjs` (Context claim 9) —
+  any new hit is a straggler — then hand-scan the
   checklist's own headings/intro and Releasing-adjacent prose for paraphrased count claims ("the
   seven checks", "all seven"); list stragglers as survey-derived corrections. ADR 0030's ratified
   "six rules" bullet is append-only posterity — never a sweep target. Run
@@ -555,7 +588,7 @@ exists at the frozen phase base.
   exact channel (state the corrected direction plainly; do not re-describe the wrong one beyond
   naming the inverted sentence). Pre-existing bytes above the appended section unchanged; the
   ADR 0043/0016 dated-note convention. Redaction lint stays green. Commit cites #1399.
-- Done when: `grep -qi 'live dump' docs/learnings/archive/awk-empty-baseline-nr-fnr-degeneracy.md && grep -qF 'Correction (2026-08-15' docs/learnings/archive/awk-empty-baseline-nr-fnr-degeneracy.md`
+- Done when: `grep -qF 'stays empty' docs/learnings/archive/awk-empty-baseline-nr-fnr-degeneracy.md && grep -qF 'Correction (2026-08-15' docs/learnings/archive/awk-empty-baseline-nr-fnr-degeneracy.md`
 - requiresTest: false
 - requiresPackaging: false
 - deps: []
@@ -576,7 +609,8 @@ exists at the frozen phase base.
   next free patch from the four live slots themselves, never from any plan's arithmetic.
   **Standalone fallback:** run through plain `/war` off the master tip; same resolution rule, and
   Task 1.6's history census simply finds fewer entries. **Blurb duties:** the new `## Status` blurb
-  replaces only the blurb paragraph and **keeps the trailing CHANGELOG link line** (A6, End state
+  replaces only the blurb paragraph and **keeps the CHANGELOG link line as the section's last line,
+  after the final release bullet, blank-line separated** (A6, End state
   22); it passes the newly extended authoring checklist — including its own new work-scope vs
   release-scope item: this release's window is the batch-terminal window, so any absolute claim
   names its scope (release-blurb lesson family: count words match the enumeration; quoted literals
@@ -599,9 +633,9 @@ exists at the frozen phase base.
   why deferred: hand-scans cannot be mechanical gate members; done-report-only evidence, which
   gate-audit reads as SOFT and never a hold · runner: each task's worker records the outcome
   (mandatory statement even at zero stragglers); auditors re-run the same-scope scan at the pinned
-  `audit_sha`; the Lead re-runs End states 1–19's greps at phase close.
+  `audit_sha`; the Lead re-runs End states 1–19's and 23's greps at phase close.
 - Every dated snapshot in this plan re-measured at the task's rebased dispatch base (the
-  eight-bullet block count, the six-term count, the two guard-header phrases, tour line values, the
+  eight-bullet block count, the glossary term count, the two guard-header phrases, tour line values, the
   VACUOUS site count, the strip_prose composition census, the D10-bounded release-history window,
   the seven-item zero count) · why deferred: this plan trails up to thirteen landed predecessors — every
   conversion figure is a `6fff2ee` snapshot · runner: the witness/census steps in Tasks 1.1, 1.2,
@@ -635,8 +669,9 @@ exists at the frozen phase base.
    every plan's release task owns `README.md`'s Status blurb (Note 3); and *(re-census 2026-08-15)*
    the gate-audit-finding-routing plan's own 2026-08-15 amendment (its Task 2.2, #1412) now adds a
    message-content case to `hooks/validate-auditor-git.test.sh` — it lands spine-earlier, so Task
-   1.5 edits comment truth on top of the landed suite (additive, construct-disjoint: Task 1.5
-   touches C11/H5 rationale comments, not the new denial-diagnostics case). Read-side couplings verified
+   1.5 edits comment truth on top of the landed suite (additive at case level — but the new L1/L2
+   block's header comment inherits C11's VACUOUS claim verbatim, so Task 1.5 edits that comment
+   too: comment-only, behavior-neutral, still file-disjoint from every sibling task). Read-side couplings verified
    against the committed plan texts: plan 11 pins the war-strategy SKILL §2 block byte-unchanged
    (my ADR 0030 note's subject); plan 12 edits war SKILL.md's Gate-2 bullet, and plan 13's pointer
    work lands a trigger-pointer bullet **inside** the Invariants section itself — but at clause
