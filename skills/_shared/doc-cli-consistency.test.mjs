@@ -150,6 +150,7 @@ const VERB_SCAN_EXCLUSIONS = [
   'skills/war/references/auditor-teach.md',         // no shell-out prose for the scanned modules
   'skills/war/references/gastown-design-params.md', // no shell-out prose for the scanned modules
   'skills/war/references/refiner-recovery.md',      // no shell-out prose for the scanned modules
+  'skills/war/references/file-followups.md',        // no shell-out prose for the scanned modules (gh + gh-preflight.sh only)
   'skills/war/references/worker-servitor-edges.md', // no shell-out prose for the scanned modules
   'skills/red-team/references/lenses.md',           // no shell-out prose for the scanned modules
   'skills/red-team/references/loop-budget.md',      // no shell-out prose for the scanned modules
