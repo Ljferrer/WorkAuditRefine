@@ -157,6 +157,9 @@ const VERB_SCAN_EXCLUSIONS = [
   // glossary-cold.md holds evicted CONTEXT.md glossary bodies (incident/recovery doctrine);
   // no shell-out prose for the scanned modules (re-verified at the 2026-08-16 land base, D10).
   'skills/war/references/glossary-cold.md',
+  // no shell-out prose for the scanned modules (names war-config.mjs only as a de-mirror
+  // target, with no verb after it)
+  'skills/war/references/touched-doc-accuracy.md',
 ]
 
 function skillDocs() {

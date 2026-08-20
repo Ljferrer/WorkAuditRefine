@@ -41,6 +41,11 @@ raised via the **ADR triad**, never silently shipped. Canonical record: the 2026
 authoring rule 7 (consumed here by reference, like the templates). Downstream, `/red-team`'s
 `guard-split-deps-edge` spine probe flags an unedged split as a plan defect (`needsDecision`) and
 grills it — adding the edge at drafting time is what keeps that off the campaign's critical path.
+The same by-reference consumption covers `/war-strategy` §3's **touched-doc** authoring rule 8: a
+drafted task whose slice rewrites a doc must show the **guard / de-mirror / explicitly-defer**
+choice for every machine-source-derivable fact it renders authoritative — the grill agent asks
+that of every drafted phase too, and `/red-team`'s `touched-doc-fact-coverage` spine probe flags a
+silent restatement as a plan defect (`needsDecision`) downstream.
 
 ## Invocation
 

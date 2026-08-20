@@ -1175,13 +1175,15 @@ const mdNormalize = (text) => text.replace(/\*\*/g, '').replace(/\s+/g, ' ')
 // bare-word OLD-absent assert would be permanently red rather than a guard.
 const countPhrase = (word) =>
   new RegExp(word + '\\s+(?:universal\\s+)?(?:doctrine|drift-guard\\s+spine)\\s+probes', 'i')
-const OLD_ARM_COUNT = countPhrase('two')
-const NEW_ARM_COUNT = countPhrase('three')
+// Every retired count word stays asserted absent — the touched-doc flip (three→four) retires
+// 'three' without un-retiring 'two'.
+const OLD_ARM_COUNTS = ['two', 'three'].map(countPhrase)
+const NEW_ARM_COUNT = countPhrase('four')
 
-const ARM_NAMES = ['unguarded-new-' + 'mirror', 'default-flip-old-' + 'absent', 'guard-split-deps-' + 'edge']
+const ARM_NAMES = ['unguarded-new-' + 'mirror', 'default-flip-old-' + 'absent', 'guard-split-deps-' + 'edge', 'touched-doc-fact-' + 'coverage']
 const PROSE_SURFACES = [['SKILL.md', SKILL_PATH], ['references/lenses.md', LENSES_PATH]]
 
-test('drift-guard probe arms: both prose surfaces name all three arms in-section with their clauses, and the stale arm-count phrase is absent file-wide (End state 8)', () => {
+test('drift-guard probe arms: both prose surfaces name all four arms in-section with their clauses, and every stale arm-count phrase is absent file-wide (End state 8)', () => {
   for (const [name, path] of PROSE_SURFACES) {
     const text = surface(path)
     const region = headingSection(text, PROBE_HEADING)
@@ -1195,11 +1197,13 @@ test('drift-guard probe arms: both prose surfaces name all three arms in-section
     assert.match(region, /vacuous/i, `${name} probe section must state the vacuity condition`)
     assert.match(region, /--fast/, `${name} probe section must state the arms survive --fast`)
     // (b) NEW-count half — the section's own arm count, region-scoped.
-    assert.match(mdNormalize(region), NEW_ARM_COUNT, `${name} probe section must count three arms`)
+    assert.match(mdNormalize(region), NEW_ARM_COUNT, `${name} probe section must count four arms`)
     // (c) OLD-count-ABSENT half — FILE-WIDE. This is the default-flip assert: NEW-present alone
     //     leaves a revert green, and SKILL.md's Step-2 instance lies far outside the section.
-    assert.doesNotMatch(mdNormalize(text), OLD_ARM_COUNT,
-      `${name} still carries a stale arm-count phrase for the drift-guard probes (file-wide, markdown-normalized)`)
+    for (const oldCount of OLD_ARM_COUNTS) {
+      assert.doesNotMatch(mdNormalize(text), oldCount,
+        `${name} still carries a stale arm-count phrase for the drift-guard probes (file-wide, markdown-normalized)`)
+    }
   }
 })
 

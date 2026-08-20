@@ -373,7 +373,7 @@ dep-wave worker rebases onto the integration tip and sees the merged dep's code;
 same-file collision (same file → same task, waved or not). The same rule scales up: phases within a plan,
 and plans within a roadmap (the shared-file-contention table is this rule applied across plans).
 
-### Drift-guard coverage — three authoring rules
+### Drift-guard coverage — four authoring rules
 
 > **Mechanics (why):** a fact WAR duplicates across surfaces, or asserts in prose about a canonical code
 > construct, rots silently unless a mechanical guard binds it to its canonical source by **extraction +
@@ -403,6 +403,21 @@ and plans within a roadmap (the shared-file-contention table is this rule applie
    [ADR 0025](../../docs/adr/0025-drift-guard-discipline.md); downstream, `/red-team`'s
    `guard-split-deps-edge` spine probe flags an unedged split as a plan defect (`needsDecision`). Binds every
    plan authored or converted here, and `/war-machine`'s drafter consumes this subsection by reference.
+8. **Touched-doc fact ⇒ guard, de-mirror, or explicitly defer — never silence.** A task whose slice
+   rewrites a doc **owns the factual accuracy** of what it renders authoritative: for every fact in that
+   doc derivable from a **machine-readable in-repo source** (a config default, a manifest field, an enum
+   member, a version slot — never prose claims generally), the plan picks exactly one of three —
+   **guard** (a drift test binding the doc value to its source by extraction + equality; exemplars:
+   `version-slots.test.mjs`, `war-config.test.mjs`'s frontmatter guard), **de-mirror** (rewrite the doc to
+   point at the canonical source instead of restating its value), or **explicitly defer** (a
+   legitimacy-complete row in `## Deferred validations (backstops)` naming the runner and the timing —
+   ADR 0017's vehicle, never a prose waiver). Restating such a fact with none of the three is a plan
+   defect, never a follow-up. Canonical record: the 2026-08-19 touched-doc amendment to
+   [ADR 0025](../../docs/adr/0025-drift-guard-discipline.md); downstream, `/red-team`'s
+   `touched-doc-fact-coverage` spine probe flags a silent restatement as a plan defect (`needsDecision`),
+   and `/war`'s decompose step carries the pointer to `skills/war/references/touched-doc-accuracy.md`.
+   Binds every plan authored or converted here, and `/war-machine`'s drafter consumes this rule by
+   reference like the rest of the subsection.
 
 ## 4. Interview, handoff & convert
 
@@ -433,8 +448,9 @@ upgrades on request, never retroactively).
 
 1. **Gap review** against the templates + the rule (§2, §3): missing sections, same-file collisions,
    phase-edge violations, one-task-one-repo violations, release placement, **unguarded new mirrors,
-   default-flips lacking an OLD-absent gate, and drift guards split from their fact without a `deps` edge**
-   (the three drift-guard rules in §3); the merged-shape rows — **untagged factual claims (D4), a missing
+   default-flips lacking an OLD-absent gate, drift guards split from their fact without a `deps` edge,
+   and touched-doc facts left silent (no guard, no de-mirror, no explicit defer)**
+   (the four drift-guard rules in §3); the merged-shape rows — **untagged factual claims (D4), a missing
    or implicit `## Assumptions ledger`, untagged End states (D5's closed tag set), and `requiresTest: true`
    without `Done when:`** — and, at roadmap scale, plan count and landing order.
 2. **Gap-driven interview** — bound by the same question contract as the from-scratch interview (D9;
