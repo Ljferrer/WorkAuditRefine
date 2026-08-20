@@ -4,19 +4,19 @@
   "agents": {
     "worker": {
       "model": "fable",
-      "effort": "xhigh",
+      "effort": "default",
       "docs": {
         "model": "fable",
-        "effort": "xhigh"
+        "effort": "default"
       },
       "fix": {
         "model": "fable",
-        "effort": "xhigh"
+        "effort": "default"
       }
     },
     "auditor": {
       "model": "opus",
-      "effort": "xhigh"
+      "effort": "high"
     },
     "refiner": {
       "model": "sonnet",
