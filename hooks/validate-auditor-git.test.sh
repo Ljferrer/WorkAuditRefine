@@ -281,9 +281,14 @@ expect_deny "C10: git log HEAD@{1} → denied (braces / reflog form)" \
 # CRITICAL: build with `jq -nc --arg`, NOT auditor_cmd — H5's rationale exactly.
 # auditor_cmd's printf '{..."command":"%s"...}' would emit a raw backslash right
 # before the closing quote, i.e. INVALID JSON; the guard's jq read of
-# .agent_type then returns empty, the non-auditor `*) exit 0` pass-through
-# fires, and the deny is VACUOUS (there is no JSON-parse deny to catch it —
-# get() swallows the jq failure). Memory: printf-json-escaping-vacuous-test-case.
+# .agent_type then returns empty (there is no JSON-parse deny — get() swallows
+# the jq failure) and the non-auditor `*) exit 0` pass-through fires. A
+# pass-through exit 0 with empty stderr makes expect_deny — which requires
+# exit 2 AND a `WAR:` stderr marker — FAIL at authoring time: the corrupted
+# case fails loud, it never lands vacuous. jq --arg takes the bytes verbatim so
+# the case asserts against the payload actually written. Memory:
+# printf-json-escaping-vacuous-test-case (scope-bounded: the vacuity claim
+# holds only for exit-0-asserting allow cases, which the bail-out satisfies).
 # The trailing backslash is the payload's ONLY out-of-allowlist byte, and there
 # is deliberately NO embedded newline: a newline is itself outside the allowlist
 # and would keep this case red through a backslash-only widening, faking the
@@ -500,9 +505,12 @@ expect_deny "H4: git -C → denied (global -C with no path/subcommand)" \
 # Proves the Phase-2 reword does NOT relax injection defense (C5 parity).
 # CRITICAL: build with `jq -nc --arg`, NOT auditor_cmd — the bracket form
 # contains double-quotes; auditor_cmd's printf '{..."command":"%s"...}' would
-# emit INVALID JSON, the guard's jq read of .agent_type returns empty, the
-# non-auditor `*) exit 0` pass-through fires, and the deny is VACUOUS
-# (memory printf-json-escaping-vacuous-test-case).
+# emit INVALID JSON, the guard's jq read of .agent_type returns empty, and the
+# non-auditor `*) exit 0` pass-through fires — a pass-through exit 0 with empty
+# stderr, on which expect_deny (exit 2 + `WAR:` stderr marker required) fails
+# loud at authoring time rather than landing vacuous (memory
+# printf-json-escaping-vacuous-test-case, scope-bounded to exit-0-asserting
+# allow cases).
 expect_deny "H5: [ \"\$(git -C <path> rev-parse HEAD)\" = \"<sha>\" ] → denied (C5 subst parity)" \
   "$(jq -nc --arg c '[ "$(git -C /abs/path rev-parse HEAD)" = "abc123" ]' \
      '{agent_type:"war-auditor",tool_input:{command:$c}}')"
@@ -699,7 +707,10 @@ expect_deny_teach "K8: git diff HEAD && git log → denied + split-the-chain tea
 # quotes deny before the verb is ever parsed). Built with jq -nc --arg (C11's
 # rationale: \| is an invalid JSON escape, so auditor_cmd's printf would emit
 # unparseable JSON, the guard's jq read of .agent_type would return empty, and
-# the deny would be VACUOUS via the non-auditor pass-through).
+# the non-auditor `*) exit 0` pass-through would exit 0 with empty stderr —
+# on which expect_deny_teach, requiring exit 2 + the `WAR:` marker + a message
+# substring, fails loud at authoring time a fortiori; the corrupted case never
+# lands vacuous).
 # ---------------------------------------------------------------------------
 
 # L1: the rule that fired is NAMED on stderr (message-content assert, not just

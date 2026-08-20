@@ -95,3 +95,14 @@ the harness (not printf). The gap is test-only: C5's false-positive guarantee is
 asserted but not actually exercised by the current test infrastructure.
 
 > archived 2026-07-21: resolved — moved to archive
+
+## Scope note (2026-08-20, #1253)
+
+The vacuity claim holds only where the assertion is satisfied by the bail-out
+outcome — i.e. exit-0-asserting **allow** cases, where the parse-failure
+pass-through (`exit 0`) and the asserted result coincide. **Deny-asserting**
+cases are outside the claim's scope: `expect_deny` in
+`hooks/validate-auditor-git.test.sh` requires exit 2 **and** a `WAR:` stderr
+marker, so a printf-corrupted payload's pass-through (exit 0, empty stderr)
+fails loud at authoring time and never lands vacuous; `expect_deny_teach`
+additionally requires a message substring, so its cases fail loud a fortiori.
