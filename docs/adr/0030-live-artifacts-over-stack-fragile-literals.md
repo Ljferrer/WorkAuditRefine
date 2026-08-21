@@ -149,7 +149,7 @@ The Decision section's bullet list above and the Consequences bullet's "six rule
 themselves **dated snapshots at this ADR's ratification base (2026-07-08)** — exactly the class the
 D12 form names. Membership of the convention block is **owned by the live `skills/war-strategy/SKILL.md`
 §2 block** (verbatim-locked by `war-strategy-structure.test.sh`), and the list and count recorded in
-this ADR must never be read as current (D2). Re-measured 2026-08-20 at this note's dispatch base:
+this ADR must never be read as current (D2). Re-measured 2026-08-20 at this note's dispatch base `067b7b5`:
 the live block carries **eight** bullets — itself a dated snapshot; recount at the live surface.
 
 ## References
