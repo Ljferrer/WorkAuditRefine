@@ -1,6 +1,8 @@
 # Plans reference live artifacts, never stack-fragile literals; auditors calibrate the inert-slice patterns
 
-**Status:** accepted (design ratified 2026-07-08; implemented by the spec and plan below)
+**Status:** accepted (design ratified 2026-07-08; implemented by the spec and plan below; amended
+2026-08-20 — the convention block's membership is owned by the live SKILL.md §2 block; see the
+amendment below)
 
 A WAR plan is drafted against a base that keeps moving as earlier stacked tasks land into the integration
 tip (the stack-and-plow branch model, [ADR 0011](0011-campaign-stack-and-plow-branch-model.md)). Any
@@ -130,6 +132,25 @@ this spec dropped its duplicate `version-consistency.test.mjs` to avoid two test
   matrix row-count completeness, and grep-sweep sibling survival — each with a named runner (a `/war` run,
   `/war-strategy` conversion reports, `/red-team`, the auditor's `test-fidelity` lens), never waived in
   prose ([ADR 0017](0017-packaging-floor-docker-gate-ratified-backstops.md)).
+
+## Amendment (2026-08-20, #1363): the convention block gained the Dated-snapshots form; membership is owned by the live SKILL.md §2 block
+
+Append-only, per this repo's ADR correction-note shape ([ADR 0037](0037-run-scoped-staged-phase-scripts.md)
+precedent): every pre-existing body byte above stays intact and this note is the correction channel.
+
+Plan `2026-08-04-interview-and-authoring-contract` (Task 1) added a new member to the
+`skills/war-strategy/SKILL.md` §2 "Reference the live artifact, never a stack-fragile literal"
+convention block this ADR introduced: the **Dated snapshots (D12 staleness rule)** form — for the
+measured literal a plan cannot avoid (a count, a pairing figure, a census), literals are dated
+snapshots at a stated base, re-measured at the task's rebased base. It is enumerated here by name so
+a name-grep for the form lands on this ADR as well as the operative surface.
+
+The Decision section's bullet list above and the Consequences bullet's "six rules" figure are
+themselves **dated snapshots at this ADR's ratification base (2026-07-08)** — exactly the class the
+D12 form names. Membership of the convention block is **owned by the live `skills/war-strategy/SKILL.md`
+§2 block** (verbatim-locked by `war-strategy-structure.test.sh`), and the list and count recorded in
+this ADR must never be read as current (D2). Re-measured 2026-08-20 at this note's dispatch base:
+the live block carries **eight** bullets — itself a dated snapshot; recount at the live surface.
 
 ## References
 
