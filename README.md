@@ -352,7 +352,10 @@ so the checklist is the guard:
 6. **Appositives restate their subject.** A trailing "…, itself unchanged" binds by proximity to
    the nearest noun. Name the subject outright whenever the sentence lists both something this
    release changed and something it did not.
-7. **Provenance.** Every item above is a distilled recurrence of
+7. **Work scope is not release scope.** A claim about what *this plan's work* touched must not
+   read as a claim about the *release window* — the two differ whenever unbumped landings rode
+   along; a window that absorbed unbumped landings names them or scopes the sentence.
+8. **Provenance.** Every item above is a distilled recurrence of
    `docs/learnings/release-blurb-overstates-guard-semantics.md` — read it when a blurb claim feels
    stronger than the evidence you have.
 
@@ -363,6 +366,8 @@ so the checklist is the guard:
 - **Ace bisection ladder (#1557, #1558, #1559)** — when the ace batch's re-audit regresses, the engine no longer demotes the whole batch: named culprits (batch findings whose file matches a regression blocking finding's) are excised to follow-up and the remainder re-applies as ONE subset; blind halving is reserved for ambiguous attribution. Subsets apply serially at the tip with depth capped at 2, same-file findings are never split across subsets, only a finally-failing subset demotes, and budget exhaustion (batch = 1 slot, +1 per subset commit, reverts uncharged) demotes the remainder. Every subset commit ends with an `Ace-Subset:`-keyed trailer, and every subset dispatch preflights the bisection range — never the tip alone — for that trailer before committing, so a resumed dispatch returns the existing sha instead of double-applying. `DEFAULTS.run.roundLimit` flips 3→6 (a run config's own `run.roundLimit` still overrides the default), with a drift-guard row binding `workflow-template.js`'s fallback literal to the canonical default by extraction + equality and the old default literal pinned absent across the enumerated doc surfaces. Home: [`workflow-template.js`](skills/war/assets/workflow-template.js), [`war-config.mjs`](skills/war/assets/war-config.mjs).
 - **Follow-up consolidation engine (#1566, #1567)** — `minorsFiled` rows collapse pre-filing on a file + line-window key (title-normalization fallback only when `line` is absent) into rows carrying `seats[]` corroboration, so cross-seat duplicates of one root cause file once; the filing agent returns a `clusters[]` manifest the engine asserts fail-open — every ordinal in exactly one cluster, clustering merges rows only, issues filed ≤ post-collapse rows — and a row matching an open `war-followup` issue routes as a corroboration comment on that issue, never a new issue. Home: [`workflow-template.js`](skills/war/assets/workflow-template.js), mirrored in [`schemas.md`](skills/war/references/schemas.md) and `skills/war/SKILL.md`'s filing-floor clause.
 - **Touched-doc accuracy doctrine (#1598, #1599, #1600)** — a task whose slice changes a machine-readable-source fact that a touched doc restates must guard, de-mirror, or explicitly defer it, never silence it: war-strategy §3 gains authoring rule 8 (plus `plan-interview.md`'s falsifier bullet and decisive-slots row, and the three→four authoring-rule count flip's OLD-absent arms in `war-pipeline-structure.test.sh`); /red-team gains the 4th drift-guard spine probe (touched-doc-fact-coverage — Lead-run, never a `SPINE` array member) on both prose surfaces with the scaffold test's three→four count-pin flip; /war's decompose step carries the ADR 0042-shaped pointer to the new trichotomy reference [`touched-doc-accuracy.md`](skills/war/references/touched-doc-accuracy.md); `agents/war-auditor.md`'s absorb block gains the source-derivable clarification with its write-footprint clause, presence-guarded in `skill-doc-contracts.test.mjs`; and ADR 0013 carries the appended amendment ratifying bisection + absorb eligibility and naming the roundLimit 3→6 flip, ADR 0012 the one-line regression-recovery cross-reference, ADR 0025 the touched-doc scope-widening amendment.
+
+Earlier release notes live in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

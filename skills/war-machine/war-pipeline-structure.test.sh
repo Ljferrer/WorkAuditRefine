@@ -70,6 +70,9 @@ has_i() { # file  literal
 # the next heading (a line starting with `#`) or EOF. A *structural* reintroduction (a skill dir
 # path, frontmatter `name:`, or slash-command token) lives OUTSIDE these prose sections and still
 # trips the scan. bash-3.2 awk-safe: no interval expressions ({n,m}); `##*` = one-or-more `#`.
+# CHANGELOG.md is deliberately outside the enumerated absence-scan file lists, so release prose
+# relocated there trips nothing; a future guard that enumerates CHANGELOG.md must decide its own
+# strip rule (#1330).
 strip_prose() {
   awk '
     /^##* *Status/       { inp = 1; next }
