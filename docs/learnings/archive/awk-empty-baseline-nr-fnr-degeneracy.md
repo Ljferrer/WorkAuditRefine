@@ -78,6 +78,5 @@ The "Concrete instance" section's mechanism sentence ("the awk pass loads nothin
 states the degeneracy backwards. Corrected mechanism: with a zero-byte first operand, `NR` never
 diverges from `FNR`, so every stdin record takes the loader branch — `base[]` fills from the live
 dump and `live[]` stays empty — and the `END` block walks a fully populated `base[]`, reporting
-every live ref as `removed:` (#1399's reproduction: `base=2, live=0`). This is what produces the
-exit 1 the section correctly concludes; an empty `base[]` would have exited 0. The durable rule
+every live ref as `removed:` (#1399's reproduction: `base=2, live=0`). The durable rule
 above — including its `FNR == NR && FILENAME == ARGV[1]` alternative — is correct and unchanged.
