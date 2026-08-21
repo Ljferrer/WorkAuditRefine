@@ -1,101 +1,118 @@
 ---
 name: absorb-fix-for-attribution-finding-can-itself-invert-mirror-direction
-description: "A phase-close absorb-fix for a doc finding can itself carry a fresh defect the fail-open sweep lands uncorrected"
+description: "A phase-close absorb-fix for a doc finding can itself carry a fresh defect the fail-open sweep lands uncorrected — now confirmed a third time, including for a 'note'-dispositioned defect (equally terminal, no absorb needed to trigger it)"
 metadata: 
   node_type: memory
   type: project
   keywords: 
-    - ADR 0025
-    - canonical source vs mirror site
-    - mirror direction
-    - absorb finding
     - phase-close polish
+    - absorb finding
+    - fail-open coherence sweep
+    - note disposition terminal
+    - mirror direction
+    - CHANGELOG.md
+    - README Status blurb
+    - ADR 0008
+    - construct-anchored
     - doc-truth
-    - fail-open audit
-    - attribution inversion
-    - coherence sweep
-    - over-narrowing
-    - CLAUDE.md
-    - Known traps
     - p2-polish
-  provenance: code-verified
+    - dropped mechanism detail
+  provenance: agent-unverified
   slug: absorb-fix-for-attribution-finding-can-itself-invert-mirror-direction
-  phase: dispatch-args-and-floor-coverage/2.1+p2-polish; recurred at 2026-08-04-interview-and-authoring-contract/2 p2-polish
+  phase: dispatch-args-and-floor-coverage/2.1+p2-polish; recurred interview-and-authoring-contract/2 p2-polish; recurred adr-doc-truth-sweep/phase-2 (Release) p2-polish
   tags: 
     - doc-honesty
     - adr
     - mirror-registry
     - phase-close
-  created: 2026-07-27
-  originSessionId: 0ad881e1-4bbc-43c6-8e45-8597d9cec1cf
-  modified: 2026-08-05T15:28:07.235Z
+  created: 2026-08-21
+  supersedes_repo_copy: docs/learnings/absorb-fix-for-attribution-finding-can-itself-invert-mirror-direction.md
+  originSessionId: 7ca1efff-82f4-4b12-a4e0-5ec1e43ee937
+  modified: 2026-08-21T23:19:26.715Z
 ---
 
 # An absorb-fix for a mirror-direction under-attribution can itself get the direction backwards — and land anyway
 
+Local recurrence-update of the repo lesson at the same slug (that file has no nested
+`metadata.provenance` mutation guard issue — it DOES carry one, `code-verified` — so per the
+memory admission checklist's D1 recurrence rule this full copy is the canonical edit target for
+future recurrences; the Lead's Gate-2 promotion overwrites the repo file at this slug on next
+promote).
+
 ## The rule
 
-When a task 2.1 audit finding flags an ADR Consequences bullet as *under-attributing* a
-canonical-source/mirror-site pair (naming the wrong side, or omitting a newly-added member of
-the pair), the phase-close (`p<N>-polish`) fix that adds a corrective note is itself new prose
-subject to the exact same `docs/adr/0025-drift-guard-discipline.md` canonical-source-vs-mirror-site
-direction discipline — and there is no guarantee a second audit round enforces it. The phase-close
-coherence sweep is **fail-open** (a discard leaves the pre-polish tip; even on a passing polish
-merge, the polish SHA's own audit is not iterated to convergence) — so a *new* finding raised
-against the polish diff itself (as opposed to the original queued finding) can land uncorrected.
+When a task audit finding flags a doc passage as under-describing, mis-attributing, or
+mis-punctuating something, the phase-close (`p<N>-polish`) fix that lands the correction is itself
+new prose subject to the same scrutiny the original finding applied — and there is **no
+guarantee any further round enforces it**. The phase-close coherence sweep is fail-open (a
+discard leaves the pre-polish tip; even on a passing polish merge, the polish SHA's own audit is
+not iterated to convergence), so a *new* defect raised against the polish diff itself can land
+uncorrected. **Confirmed a third time in phase 2 ("Release") of plan `adr-doc-truth-sweep`, and
+this occurrence generalizes the mechanism further**: the newly-introduced defect does not need to
+be dispositioned `absorb` to ship unfixed — a `note`-dispositioned defect against a phase-close
+fix is *equally* terminal, because there is no round after the terminal phase-close audit
+regardless of disposition.
 
-## What happened here
+## Occurrence 1 — mirror direction inverted (dispatch-args-and-floor-coverage, 2026-07-27)
 
 Task 2.1's audit flagged `docs/adr/0037-run-scoped-staged-phase-scripts.md`'s Consequences bullet
-"A second anchor-literal mirror joins the repo's existing mirror registry" for under-describing a
-third exported anchor added by the same task (disposition `absorb`, `phaseClose: true`). The
-`p2-polish` task appended a dated Amendment note to fix it — but that note itself says the third
-anchor's "mirror site is the `const A =` ternary's args-fallback tail in `workflow-template.js`,
-**not** an `export const meta` literal." That casts `workflow-template.js` (the live code) as the
-*mirror* and the stager's exported constant as the *canonical source* — backwards. The load-bearing
-coupling comment at `workflow-template.js`'s own `const A =` ternary states the opposite
-direction explicitly: `stage-workflow.mjs` **mirrors** the ternary tail, i.e. the live template code
-is canonical and the stager's export is the hand-maintained copy (matching the existing
-`export const meta` ↔ stager-export pair's direction, stated the same way in `stage-workflow.mjs`'s
-own header comment). The `p2-polish` task's own audit caught this reversal (Minor, disposition
-`absorb`, `autoFixable: true`) — but no further round is threaded to me; verified at the landed tip
-(776ceec) that the note's backwards wording is still there.
+for under-describing a third exported anchor (disposition `absorb`, `phaseClose: true`). The
+`p2-polish` fix's own Amendment note got the canonical-source/mirror-site direction backwards
+(cast the live template code as the mirror, the stager's export as canonical — the opposite of
+the load-bearing coupling comment at the mirror site). `p2-polish`'s own audit caught the reversal
+(Minor, `absorb`, `autoFixable: true`) but no further round was threaded — verified at the landed
+tip (`776ceeca2aee726565dc7816b0294eaa9091b494` on `dev/2026-07-26-dispatch-args-and-floor-coverage`)
+that the backwards wording was still there.
 
-Verify still present before acting — found in the "Amendment (2026-07-27, plan
-`2026-07-26-dispatch-args-and-floor-coverage` Task 2.1, #1134)" note under the Consequences
-bullet in `docs/adr/0037-run-scoped-staged-phase-scripts.md`, at phase
-`dispatch-args-and-floor-coverage`/2.1+p2-polish (landed tip `776ceeca2aee726565dc7816b0294eaa9091b494`
-on `dev/2026-07-26-dispatch-args-and-floor-coverage`).
+## Occurrence 2 — CLAUDE.md Known-traps over-narrowing (interview-and-authoring-contract, 2026-08-05)
+
+Task 6's queue flagged CLAUDE.md's `## Known traps` bullet for presenting a now-legacy-only rule
+as the general one. The `p2-polish` rewrite itself over-narrowed the slug-sharing clause to
+legacy pairs only, when a merged-plan-from-spec conversion still shares a slug. `p2-polish`'s own
+audit flagged the rewrite (`absorb`, `autoFixable: true`) but verified at the landed tip
+(`955e7c10d98e4c4c4e30d22f0ab7c29209f8ab23` on `dev/2026-08-05-2026-08-04-interview-and-authoring-contract`)
+that the over-narrowed wording shipped unfixed.
+
+## Occurrence 3 — dropped mechanism detail, `note` disposition, no `absorb` involved (adr-doc-truth-sweep phase 2 "Release", 2026-08-21)
+
+Task 2.1's audit flagged a punctuation mis-binding in the README `## Status` blurb's ADR 0008
+sentence (a colon mis-binding the per-ADR enumeration to the ADR-0008 clause; `Nit`, `absorb`,
+`phaseClose: true`). The `p2-polish` fix re-punctuated it correctly but also **deleted** the
+trailing clause "ADR 0008's line-anchored citation and mis-named construct pointer are
+re-anchored by construct" as "now-redundant" — except that clause was the *only* place the blurb
+named the construct-anchoring mechanism (the ADR 0030 D12 discipline that motivated End states 5–6
+of this phase's Commander's Intent). `p2-polish`'s own re-audit (multiple auditor seats,
+independently) caught the loss — but this time disposed it `note`, not `absorb` ("nothing false is
+asserted... completeness, not correctness"). Because `p2-polish` is the terminal phase-close round,
+a `note` disposition here has the **identical shipping outcome** as occurrence 1/2's `absorb`
+disposition with no further round: the detail is gone from both the README bullet and its
+byte-identical CHANGELOG.md mirror (the durable historical record) at land, and nothing downstream
+re-drains it.
+
+Could not verify this specific occurrence against the landed tip this run: cwd HEAD
+(`067b7b538350044c283f2f7e14f5b85c6677d882` on branch `claude/work-audit-refine-red-team-4de4e6`)
+is an unrelated plan/session, not the threaded landed tip
+(`3f7b5eabade79d82380a3011e5e2e592409601d8` on `dev/2026-08-20-adr-doc-truth-sweep`); no
+`.git/worktrees/*` entry was found whose `gitdir` names the `adr-doc-truth-sweep` slug (the task
+worktree the audit log names, `adr-doc-truth-sweep-2026-08-20-r6`, was already reaped — its `HEAD`
+file is absent); the landed branch ref has no live worktree, a dead end for Read with no Bash
+available. Recorded per the gate-audit fallback rung — the fact of the finding and its `note`
+disposition is drawn directly from this phase's audit-log input (multiple independent auditor
+seats concur), not from a live Read of the shipped file. Verify still present before treating as a
+live instance: `README.md`'s `## Status` section's ADR 0008 sentence, and `CHANGELOG.md`'s `##
+0.18.1` entry's mirrored bullet.
 
 ## How to apply
 
-When absorbing (or auditing) an under-attribution finding about a canonical-source/mirror-site
-pair: re-derive the direction from the **load-bearing coupling comment at the mirror site itself**
-(never from the prior ADR sentence being amended, and never by symmetry/pattern-matching the
-donor pair) before writing the correction. An append-only ADR amendment note is a one-shot write —
-there is no cheap second pass to catch a backwards direction once it lands, since ADRs are
-append-only and the ratified sentence being amended must stay byte-intact.
-
-## Second occurrence (different error class, same mechanism): CLAUDE.md Known-traps over-narrowing
-
-Confirmed the broader mechanism again — a *different* kind of defect this time, not a direction
-inversion — in plan `2026-08-04-interview-and-authoring-contract` phase 2. Task 6's queue flagged
-CLAUDE.md's `## Known traps` bullet ("Plans and specs share a slug but different suffixes;
-`/red-team` greps the plan's source-spec line — keep it") as presenting a now-legacy-only rule as
-the general one. The `p2-polish` fix rewrote it to
-`"LEGACY spec + plan pairs share a slug but different suffixes; ... keep it there. A merged plan's
-Part 1 is its own source of truth."` — but `p2-polish`'s own audit immediately flagged that rewrite
-as over-narrowing the **slug-sharing clause itself** to legacy pairs, when a merged plan converted
-from a spec (this run's own artifacts: `docs/plans/2026-08-04-interview-and-authoring-contract.md`
-↔ its source spec) still shares a slug and still carries a source-spec citation. Disposition
-`absorb`, `autoFixable: true` — but verified at the landed tip
-(`955e7c10d98e4c4c4e30d22f0ab7c29209f8ab23` on `dev/2026-08-05-2026-08-04-interview-and-authoring-contract`,
-read via the `_refinery` worktree) that CLAUDE.md line 82 still carries the over-narrowed wording,
-unfixed. `disposition: absorb` on a finding raised against the polish diff itself is **not** a
-guarantee of a further round — confirming this lesson's rule holds beyond mirror-direction specifically:
-any fresh, correctly-flagged defect in a phase-close fix's own new prose can ride the fail-open
-coherence sweep to land, because there is no threaded mechanism that re-audits an absorb fix's own
-absorb fix.
+When absorbing (or auditing) a phase-close fix for a prior finding: re-read the fix's *own* diff
+for (a) whether it preserves every substantive fact the original passage carried, not just whether
+it fixes the flagged defect, and (b) whether removing a clause labeled "redundant" in the fix's own
+commit message actually is redundant, or is the sole carrier of a fact nothing else states. Do not
+rely on a `note` disposition to mean "no consequence" — for a phase-close-introduced defect, `note`
+and `absorb`-with-no-further-round ship identically. If the mechanism/detail matters at the
+End-state level, request an `absorb` (or push it to a following phase's doc sweep) rather than
+accepting `note`.
 
 [[mirrored-prose-row-parenthetical-inversion]], [[adr-policy-table-entry-vs-mechanism-attribution]],
-[[claude-md-adr-range-literal-recurs-stale-with-no-drift-guard]]
+[[claude-md-adr-range-literal-recurs-stale-with-no-drift-guard]],
+[[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it]]
