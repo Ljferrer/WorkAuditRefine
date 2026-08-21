@@ -82,7 +82,7 @@
     },
     {
       "file": "hooks/validate-worktree-scope.sh",
-      "line": 55,
+      "line": 81,
       "title": "14 · The confinement hook — scope writes by agent_type",
       "description": "**Situation:** This PreToolUse hook (on Write/Edit/NotebookEdit) is the defense-in-depth layer beneath the capability allowlists.\n\n**Mechanism:** It branches on `agent_type` from the payload: **auditor** → deny every write; **worker** → allow only if some ancestor dir holds a `.war-task` marker (planted at provisioning); **servitor** → allow only paths under the current user's local project memory root; **refiner / main session / non-WAR** → fail-open. A `..`-traversal guard fires *before* the `case` (line ≈51) so it covers **all** roles, closing the path-escape hole in every branch.\n\n**Implication:** note the honesty — worker confinement is to *a* worktree, not *its own* (sibling-write residual accepted; ADR 0002). And it only covers Write/Edit — the Bash write-path is gated by a separate `warn-bash-write-scope.sh`, while `validate-auditor-git.sh` fail-closed-allowlists the auditor's git to a read-only subcommand set (write verbs and `git grep` deny). Confinement here is layered, not absolute."
     },
