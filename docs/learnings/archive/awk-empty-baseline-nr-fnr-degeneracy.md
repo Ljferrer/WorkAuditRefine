@@ -71,3 +71,12 @@ result (everything looks new/removed), not a crash, so it is easy to miss in rev
 truncated-write infra fault (a failed snapshot write, a `mktemp` never populated) to trigger silently.
 
 > archived 2026-08-15: resolved — moved to archive
+
+## Correction (2026-08-15, #1399)
+
+The "Concrete instance" section's mechanism sentence ("the awk pass loads nothing into `base[]`")
+states the degeneracy backwards. Corrected mechanism: with a zero-byte first operand, `NR` never
+diverges from `FNR`, so every stdin record takes the loader branch — `base[]` fills from the live
+dump and `live[]` stays empty — and the `END` block walks a fully populated `base[]`, reporting
+every live ref as `removed:` (#1399's reproduction: `base=2, live=0`). The durable rule
+above — including its `FNR == NR && FILENAME == ARGV[1]` alternative — is correct and unchanged.

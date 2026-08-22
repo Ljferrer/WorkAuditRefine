@@ -1,8 +1,9 @@
 # Every duplicated or asserted fact carries a mechanical drift-guard to its canonical source
 
 **Status:** accepted (design ratified 2026-07-08; implemented by the spec and plan below; amended
-2026-08-02 — a file-disjoint guard/mirror split takes a `deps` edge, not shared-wave placement; see
-the amendment below)
+2026-08-02 — a file-disjoint guard/mirror split takes a `deps` edge, not shared-wave placement — and
+2026-08-19 — the touched-doc scope widening; corrected 2026-08-20 — the glossary term count is owned
+by the live subsection; see the amendments and the correction below)
 
 WAR is riddled with facts stated in one surface that live canonically in another and rot silently
 against ground truth because **nothing binds the copy to its source**. The failure is uniform: a green
@@ -162,6 +163,20 @@ backstop; (4) `CONTEXT.md`'s Drift-guard discipline glossary gains the **Touched
 term. The scope boundary is deliberate: only facts a machine-readable in-repo source can re-derive are
 in scope — general prose claims stay governed by the evidence-tag discipline (D4) and the existing
 escape rules above, not by this duty.
+
+## Correction (2026-08-20, #1266): the glossary term count is owned by the live CONTEXT.md subsection
+
+Append-only, per this repo's ADR correction-note shape ([ADR 0037](0037-run-scoped-staged-phase-scripts.md)
+precedent): every pre-existing body byte above stays intact — including the ratified Consequences
+bullet "defining five terms" — and this note is the correction channel.
+
+The Consequences bullet's "defining five terms" figure is a dated snapshot at this ADR's ratification
+base (2026-07-08). The `CONTEXT.md` `### Drift-guard discipline` subsection now defines **seven**
+terms (re-measured 2026-08-20 at the red-team base `26b40d7`): the sixth, **Guard-split deps edge**,
+was forced by this ADR's own Amendment (2026-08-02); the seventh, **Touched-doc accuracy duty**, by
+its Amendment (2026-08-19). The term count and membership are **owned by the live subsection** in
+`CONTEXT.md` — the count restated here is itself a dated snapshot and must never be read as current;
+recount at the live surface.
 
 ## References
 

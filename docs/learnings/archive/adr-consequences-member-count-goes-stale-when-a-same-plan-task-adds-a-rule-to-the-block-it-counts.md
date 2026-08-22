@@ -1,6 +1,6 @@
 ---
 name: adr-consequences-member-count-goes-stale-when-a-same-plan-task-adds-a-rule-to-the-block-it-counts
-description: "An ADR's Consequences bullet can enumerate/count the members of a convention block it introduced, and a later task in the SAME plan can add a new member to that block on the operative surface (e.g. SKILL.md) without any task being assigned to update the ADR's own list/count — invisible to a name-grep because the new member's own pins live on the operative surface, not the ADR"
+description: "RESOLVED (adr-doc-truth-sweep/1.1, #1363): An ADR's Consequences bullet can enumerate/count the members of a convention block it introduced, and a later task in the SAME plan can add a new member to that block on the operative surface (e.g. SKILL.md) without any task being assigned to update the ADR's own list/count — invisible to a name-grep because the new member's own pins live on the operative surface, not the ADR"
 metadata: 
   node_type: memory
   type: project
