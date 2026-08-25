@@ -6,7 +6,8 @@
 # skills/war-strategy/war-strategy-structure.test.sh's latitude pins, region-scoped to §2
 # step 1. Also pins (2026-08-24, authoring-side verification) the cross-surface consumer
 # family: the war-machine verifier-charter pointer + drafter evidence instruction + the
-# #1510/#1605 re-scopes, and the deps-edged lenses.md / survey-corps / war-review pins.
+# #1510/#1605 re-scopes, the deps-edged lenses.md / survey-corps / war-review pins, and the
+# ADR 0044 amendment / ADR 0014 cross-ref decision-record pair (Task 3.1).
 # grep-based, plain-bash, no mktemp
 # — bash 3.2-safe. Exit 0 = all present; exit N = N failed assertions.
 #
@@ -40,6 +41,8 @@ WAR_HELP="$ROOT/skills/war-help/SKILL.md"
 WAR_STRATEGY="$ROOT/skills/war-strategy/SKILL.md"
 WAR_CAMPAIGN="$ROOT/skills/war-campaign/SKILL.md"
 WAR_REVIEW="$ROOT/skills/war-review/SKILL.md"
+ADR0044="$ROOT/docs/adr/0044-authoring-contract-and-merged-artifact.md"
+ADR0014="$ROOT/docs/adr/0014-ai-commanders-intent.md"
 
 fails=0
 
@@ -167,6 +170,18 @@ has_re() { # file  regex
     printf 'ok - %s :: /%s/\n' "$(basename "$1")" "$2"
   else
     printf 'not ok - %s MISSING :: /%s/\n' "$(basename "$1")" "$2"
+    fails=$((fails + 1))
+  fi
+}
+
+# grep -iE case-INSENSITIVE regex presence — for pins whose anchor is structural (e.g. a
+# `^#+` heading match) but whose prose tail must tolerate the sentence-case class, same
+# rationale as has_i() vs has().
+has_re_i() { # file  regex
+  if grep -qiE -e "$2" -- "$1"; then
+    printf 'ok - %s :: /%s/ (case-insensitive)\n' "$(basename "$1")" "$2"
+  else
+    printf 'not ok - %s MISSING :: /%s/ (case-insensitive)\n' "$(basename "$1")" "$2"
     fails=$((fails + 1))
   fi
 }
@@ -564,10 +579,12 @@ printf '\n# Gospel pins (docs/plans/2026-08-04-interview-and-authoring-contract.
 # ([[release-blurb-describing-a-rename-trips-the-renames-own-absence-guard]]); comment-leader
 # stripping belongs to End state 5's hand-run land-time sweep, not these pins. war-help
 # carried nothing to retire (Task 6), so its old-absent pins are keep-green by construction —
-# reintroduction guards only. Pin scope is EXACTLY these five doc surfaces: the suite never
-# greps its own source, docs/plans/, docs/red-team/, or docs/adr/, which legitimately quote
-# the anchors. Patterns assembled at runtime from split fragments so this file is never
-# itself a hit for a repo-wide sweep of the retired phrases
+# reintroduction guards only. Absence-pin scope is EXACTLY these five doc surfaces: these
+# retired-phrase pins never grep the suite's own source, docs/plans/, docs/red-team/, or
+# docs/adr/, which legitimately quote the anchors (Task 3.1's ADR presence pins below are a
+# different family and assert nothing about the retired phrases). Patterns assembled at
+# runtime from split fragments so this file is never itself a hit for a repo-wide sweep of
+# the retired phrases
 # ([[coupling-comment-restating-grep-pattern-bytes-self-matches-the-sweep]]). Deliberate
 # NON-anchor per Task 6's table: the spec-stays-non-executable clause (fragments: 'cannot
 # execute' + ' one') stays TRUE of input-shape specs — never add it here blindly.
@@ -656,6 +673,17 @@ has   "$SURVEY" '`## Evidence artifacts`'
 # from doctrine-authored plans' WAIVE-<n> rows, n/a when none in scope.
 has_i "$WAR_REVIEW" 'waive-rate per arming arm'
 has   "$WAR_REVIEW" '`WAIVE-<n>`'
+
+printf '\n# Authoring-side verification (Task 3.1) — ADR decision-record pins (End state 10 decisive pair)\n'
+# Never a bare token grep (the plan's own rule for this pair). The 0044 half is
+# heading-anchored: it proves the DATED AMENDMENT HEADING itself carries the
+# `authoring-side verification` token — a body mention elsewhere in the ADR cannot
+# self-satisfy it ([[structure-test-check-f-locks-presence-anywhere-not-intended-location]]).
+# The 0014 half is the mid-sentence cross-ref literal, discriminating a real "see ADR 0044
+# Amendment (2026-08-24)" sentence from any bare "ADR 0044" mention. Both case-insensitive
+# (prose, sentence-case class).
+has_re_i "$ADR0044" '^#+ Amendment \(2026-08-24\).*authoring-side verification'
+has_i    "$ADR0014" 'see ADR 0044 Amendment (2026-08-24)'
 
 printf '\n== war-pipeline-structure: %s failure(s) ==\n' "$fails"
 exit $fails
