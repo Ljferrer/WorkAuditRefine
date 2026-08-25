@@ -23,17 +23,17 @@ export const DEFAULTS = {
   version: 1,
   profile: 'balanced',
   agents: {
-    // worker.docs: the tier that dispatches all-*.md tasks (defaults sonnet everywhere). worker.fix
-    // (fix-round + --ace tier) defaults to a fast, cheap follow-up tier (fable/high) — the balanced
-    // profile's value, which thorough/economy override; a config may still override it per-run.
-    worker:   { model: 'opus',   effort: 'max', docs: { model: 'sonnet', effort: 'default' }, fix: { model: 'fable', effort: 'high' } },
-    auditor:  { model: 'opus',   effort: 'xhigh' },
+    // worker.docs: the tier that dispatches all-*.md tasks (defaults fable/default). worker.fix
+    // (fix-round + --ace tier) defaults to fable/default — the balanced profile's value, which
+    // thorough/economy override; a config may still override it per-run.
+    worker:   { model: 'fable',  effort: 'default', docs: { model: 'fable', effort: 'default' }, fix: { model: 'fable', effort: 'default' } },
+    auditor:  { model: 'opus',   effort: 'high' },
     refiner:  { model: 'sonnet', effort: 'default' },
     servitor: { model: 'sonnet', effort: 'high' },
     // redteam: the model/effort /red-team threads (fail-open) into its probe + adversarial-confirm
-    // sub-agents. NOT a phase role (never in ROLES/agentMatrix); the balanced default is opus/max,
+    // sub-agents. NOT a phase role (never in ROLES/agentMatrix); the balanced default is opus/high,
     // overridden by thorough/economy. Consumed only when /red-team runs against this repo.
-    redteam:  { model: 'opus',   effort: 'max' },
+    redteam:  { model: 'opus',   effort: 'high' },
   },
   audit: {
     roster: [

@@ -223,9 +223,9 @@ Produced by `/war-room`, consumed by `/war`'s Setup. The schema, defaults, prese
     auditor:  { model, effort },
     refiner:  { model, effort },
     servitor: { model, effort },
-    redteam?: { model, effort } },           // not a phase role — /red-team reads it fail-open; every preset populates it (balanced opus/max); only a MISSING config file → red-team inherits the session
-  //   agents.worker.docs { model, effort }  — the all-*.md dispatch tier (default { model: "sonnet", effort: "default" }; balanced inherits, thorough → opus/high, economy → haiku/high)
-  //   agents.worker.fix  { model, effort }  — the fix-round AND --ace tier; every preset populates it (balanced fable/high); an omitted block inherits the base worker config
+    redteam?: { model, effort } },           // not a phase role — /red-team reads it fail-open; every preset populates it (balanced opus/high); only a MISSING config file → red-team inherits the session
+  //   agents.worker.docs { model, effort }  — the all-*.md dispatch tier (default { model: "fable", effort: "default" }; balanced inherits, thorough → opus/high, economy → haiku/high)
+  //   agents.worker.fix  { model, effort }  — the fix-round AND --ace tier; every preset populates it (balanced fable/default); an omitted block inherits the base worker config
   audit: {
     roster: [ { lens: "correctness", depth: "deep" },        // 1–5 seats; lenses distinct; depth "neighbors"|"deep", omitted → "deep"
               { lens: "cascading-impact", depth: "deep" },   // this default roster is also the union-widening FALLBACK for autoEscalate (used when a lone seat's widen nomination is absent/invalid)
