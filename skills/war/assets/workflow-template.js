@@ -2781,7 +2781,9 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation') && minorsF
   // followUps entry). Key: same `file` + `line` within ±FOLLOWUP_LINE_WINDOW; normalized-title
   // fallback ONLY when `line` is absent on both rows (a lined row never collapses into a lineless
   // one). Fileless rows never collapse. First occurrence is the representative; merged rows carry a
-  // seats[] corroboration list (the minorsOf seat stamp; task fallback) the filing prompt renders.
+  // seats[] corroboration list (the minorsOf seat stamp; task fallback) the filing prompt renders;
+  // a non-collapsed row renders its single raising seat via seatRef (End state 9 — the lens is in
+  // hand on every row).
   const FOLLOWUP_LINE_WINDOW = 10
   const normTitle = t => String(t ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
   // Concatenation-built strings throughout this block (census-safe — #931).
@@ -2835,7 +2837,7 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation') && minorsF
       // Evidence-artifacts emission clause (Task 3.2, PIN-14, #1658): the filed issues' evidence
       // duty — values are COPIED from the candidate rows below (the engine renders them per row from
       // the auditLog via auditEvidenceOf above), never reconstructed by the filing agent.
-      + pt`EACH filed issue's body additionally ends with an \`## Evidence artifacts\` section carrying, per member row: the pinned sha (the integration tip the row's task was gate-audited at), the file path with its line when present, the raising seat lenses (from the row's seats list when present — each entry's trailing \`:<lens>\` segment; a bare \`task <id>\`/'unattributed' corroboration verbatim; no seats rendered ⇒ the row's single raising seat is unrecorded), and the audit round — every value copied verbatim from the candidate rows below (\`unrecorded\` stays \`unrecorded\`, never invented). On the dedup arm, carry the same evidence lines inside the corroboration comment instead.\n`
+      + pt`EACH filed issue's body additionally ends with an \`## Evidence artifacts\` section carrying, per member row: the pinned sha (the integration tip the row's task was gate-audited at), the file path with its line when present, the raising seat lenses (from the row's seats list — every row renders one, the corroboration list on a merged row or the single raising seat otherwise; each entry's trailing \`:<lens>\` segment; a bare \`task <id>\`/'unattributed' entry verbatim), and the audit round — every value copied verbatim from the candidate rows below (\`unrecorded\` stays \`unrecorded\`, never invented). On the dedup arm, carry the same evidence lines inside the corroboration comment instead.\n`
       // pt-tagged prompt-feeding row builder (file-followups dispatch): title/rationale are
       // schema-optional and task is routing-stamped → ?? defaults (never a phase-killing throw here).
       // The title span is DELIMITED (quoted, `title:`-prefixed) so the dedup instruction's
@@ -2843,7 +2845,7 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation') && minorsF
       // leading ordinal would make dedup order-dependent across a relaunch. file/line/seats render
       // per row (Task 2.1) so the agent CAN cluster by file — title/task/rationale alone made
       // file-clustering impossible.
-      + minorsFiled.map((m, i) => { const ev = auditEvidenceOf(m.task); return pt`  ${i + 1}. title: "${m.title ?? '(untitled finding)'}" · task ${m.task ?? '<task>'}${m.file ? pt` · file ${m.file}${m.line != null ? pt`:${m.line}` : ''}` : ''}${m.seats && m.seats.length ? pt` · seats: ${m.seats.join(', ')}` : ''} · why not absorbable: ${m.rationale ?? '(no rationale recorded)'} · audit round ${ev.round} · pinned sha ${ev.sha}` }).join('\n') + '\n'
+      + minorsFiled.map((m, i) => { const ev = auditEvidenceOf(m.task); return pt`  ${i + 1}. title: "${m.title ?? '(untitled finding)'}" · task ${m.task ?? '<task>'}${m.file ? pt` · file ${m.file}${m.line != null ? pt`:${m.line}` : ''}` : ''}${m.seats && m.seats.length ? pt` · seats: ${m.seats.join(', ')}` : pt` · seats: ${seatRef(m)}`} · why not absorbable: ${m.rationale ?? '(no rationale recorded)'} · audit round ${ev.round} · pinned sha ${ev.sha}` }).join('\n') + '\n'
       + pt`Return ONLY { filed: [{ n, issue }], clusters: [{ ordinals, issue }] } — filed: n the row's 1-based ordinal above, issue the filed / commented-on / reused issue number (null when unfiled; every row of one cluster shares its issue number); clusters: your clustering manifest — every ordinal above in exactly ONE cluster's ordinals array (merge rows only, never split one). A partial/empty result is FAIL-OPEN: unmatched entries stay issue: null in the handoff and the Checkpoint floor catches them; never block.`,
       { agentType: NS + 'war-refiner', phase: 'Land', label: 'file-followups:phase-' + ph.id, dispatchKind: 'file-followups', schema: FOLLOWUP_FILING_RESULT, ...spawn('refiner') })
   } catch (err) {
