@@ -151,16 +151,19 @@ Cache schema untouched · the TTL default stays 300s.
 
 ## Resolved design tree
 
-| # | Decision | Resolution | Source |
-|---|----------|------------|--------|
-| D1 | Invalidation point | on the rename write path, not on read | (user) |
-| D2 | Key shape | keep slug keys; drop-and-refill on rename | [assumed: cheapest — if wrong: dual-key window] |
+| # | Decision | Resolution | Source | Landing class |
+|---|----------|------------|--------|---------------|
+| D1 | Invalidation point | on the rename write path, not on read | (user) · PIN-1 | end-state |
+| D2 | Key shape | keep slug keys; drop-and-refill on rename | [assumed: cheapest — if wrong: dual-key window] · PIN-2 | context |
 
 ## Assumptions ledger
 
 | ID | Assumption | Basis | Blast radius if wrong | Check |
 |----|-----------|-------|----------------------|-------|
 | A1 | every rename passes through `renameWidget()` | grep at `abc1234` | a missed invalidation path | End state 2's test |
+
+**Evidence consumed**
+- `src/cache.js` `cacheKey()` at `abc1234` — read
 
 ## Non-goals / deferred
 
@@ -179,7 +182,7 @@ None.
   states and binding guardrails hold is not a plan deviation and warrants no issue.
 - **Binding guardrails:** cache schema untouched · the TTL default stays 300s.
 - **End state:**
-  1. `renameWidget()` drops the old-slug row in the same transaction ·
+  1. `renameWidget()` drops the old-slug row in the same transaction (PIN-1) ·
      check: `node --test src/cache.test.mjs`.
   2. A rename followed by a read misses the cache exactly once ·
      check: `node --test src/cache.test.mjs`.
@@ -236,10 +239,10 @@ Queue schema untouched · the enqueue seam is the only choke point.
 
 ## Resolved design tree
 
-| # | Decision | Resolution | Source |
-|---|----------|------------|--------|
-| D1 | Mechanism | fixed burst cap of 50 per 60s window | (verified: spec §3 at `def5678`) |
-| D2 | Overflow behavior | reject with retry-after, never queue-jump | AI-declared [assumed: simplest — if wrong: token bucket] |
+| # | Decision | Resolution | Source | Landing class |
+|---|----------|------------|--------|---------------|
+| D1 | Mechanism | fixed burst cap of 50 per 60s window | (verified: spec §3 at `def5678`) · PIN-1 | end-state |
+| D2 | Overflow behavior | reject with retry-after, never queue-jump | AI-declared [assumed: simplest — if wrong: token bucket] · PIN-2 | context |
 
 ## Assumptions ledger
 
@@ -265,7 +268,7 @@ None.
 - **Binding guardrails:** queue schema untouched · the enqueue seam stays the only choke
   point. (AI-declared)
 - **End state:**
-  1. `enqueueImport()` rejects the 51st import inside a 60s window ·
+  1. `enqueueImport()` rejects the 51st import inside a 60s window (PIN-1) ·
      check: `node --test src/throttle.test.mjs`. (AI-declared)
 
 ## Build order (for /war)
