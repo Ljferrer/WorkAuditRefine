@@ -271,17 +271,28 @@ test('ask fence: ask tokens are absent from the inline HARD_ESCALATION_REASONS m
   }
 })
 
+// The two whole-file sweep patterns, hoisted so each positive control below and its sweep
+// provably share ONE pattern (the sweeps read workflow-template.js, never this .mjs, so the
+// in-test control literals can never self-trip the fence).
+const STATUS_ASK_RE = /status:\s*['"](?:held:)?ask['"]/
+const LANDDECISION_ASK_RE = /landDecision\s*(?:===?|:|=(?!=))\s*['"](?:held:)?ask['"]/
+
 test("ask fence (literal-class): no land-phase prompt emits a status:'ask' literal, and no landDecision-shaped ask literal exists anywhere in workflow-template.js", () => {
   // Non-vacuity: the extraction still yields the known land statuses (the anchor has not rotted).
   const emitted = landPhaseEmittedStatuses()
   assert.ok(emitted.includes('landed'), 'land-dispatch status extraction is live (non-vacuous guard)')
   assert.ok(!emitted.includes('ask'), "a land-phase prompt emits status:'ask' — the land-dispatch literal-class fence is breached (#1550)")
+  // Positive controls (non-vacuity): each sweep pattern must fire on a synthetic in-test literal —
+  // a typo or escape slip in either regex would otherwise leave its absence assert permanently,
+  // silently green while the fence is wide open.
+  assert.match("status: 'ask'", STATUS_ASK_RE, 'STATUS_ASK_RE positive control — the sweep pattern no longer matches its own literal class (pattern rotted)')
+  assert.match("landDecision = 'held:ask'", LANDDECISION_ASK_RE, 'LANDDECISION_ASK_RE positive control — the sweep pattern no longer matches its own literal class (pattern rotted)')
   // Whole-file literal-class sweep: the ask channel adds NO status:'ask' literal to any merge/land
   // dispatch and NO landDecision ask assignment — the scrape slices above would otherwise pick a
   // new member up silently on their next re-derivation.
   const wf = readAsset('workflow-template.js')
-  assert.ok(!/status:\s*['"](?:held:)?ask['"]/.test(wf), "workflow-template.js carries a status:'ask'/'held:ask' literal — the literal-class fence is breached (#1550)")
-  assert.ok(!/landDecision\s*(?:===?|:|=(?!=))\s*['"](?:held:)?ask['"]/.test(wf), 'workflow-template.js carries a landDecision ask literal — the literal-class fence is breached (#1550)')
+  assert.ok(!STATUS_ASK_RE.test(wf), "workflow-template.js carries a status:'ask'/'held:ask' literal — the literal-class fence is breached (#1550)")
+  assert.ok(!LANDDECISION_ASK_RE.test(wf), 'workflow-template.js carries a landDecision ask literal — the literal-class fence is breached (#1550)')
 })
 
 // ---- D8: per-mode HARD_ESCALATION_REASONS reachability drift-guard (#639) ----

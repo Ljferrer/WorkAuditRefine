@@ -4019,6 +4019,12 @@ test('#1550 — demote() refuses an ask loudly: log + exactly-once asks[] member
   // Control (delete-and-trace): a non-ask demotion still routes through the ladder normally.
   demote({ severity: 'Nit', title: 'plain', task: 't9', disposition: 'absorb' }, 'note', 'control')
   assert.ok(notes.some(n => n.title === 'plain'), 'a non-ask demotion still routes (the refusal is ask-scoped)')
+  // Absence-tolerant fallback (fail-open, never a throw): a fork-less finding missing the
+  // schema-mandatory `ask` field still parks intact — question falls back to the title, fork to [].
+  parkAsk({ severity: 'Minor', title: 'no ask field', task: 't9' })
+  const parked = asks.find(a => a.question === 'no ask field')
+  assert.ok(parked, 'a finding without an `ask` field parks with question falling back to f.title (fail-open, never dropped)')
+  assert.deepEqual(parked.fork, [], 'a finding without an `ask` field parks with fork falling back to []')
 })
 
 // Default-deny order-census (End states 1+2, D7 — the floored domain): exactly six dispositionOf
