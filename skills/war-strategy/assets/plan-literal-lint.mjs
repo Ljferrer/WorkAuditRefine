@@ -380,7 +380,7 @@ export const SHAPE_RULES = [
     slot: 'Evidence consumed block (every linked artifact row read / unread-with-reason — D8)',
     scan: (doc) => {
       const hits = [];
-      const MARKER = /\*\*Evidence[- ]consumed\*\*|^\s*Evidence[- ]consumed\s*:?\s*$/i;
+      const MARKER = /^\s*(?:[-*]\s+)?\*\*Evidence[- ]consumed\*\*|^\s*Evidence[- ]consumed\s*:?\s*$/i;
       for (let i = 0; i < doc.lines.length; i += 1) {
         if (!MARKER.test(doc.lines[i]) || /^\s*\|/.test(doc.lines[i])) continue;
         let j = i + 1;
