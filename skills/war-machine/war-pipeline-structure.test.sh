@@ -645,6 +645,9 @@ lacks_i "$MACHINE" "$retired_afk_a $retired_afk_b"
 # absence arms — section-absent vacuous, issue-unreachable a named unverified note.
 has_i "$LENSES" 'Per-issue Evidence join'
 has_i "$LENSES" 'named unverified note'
+# Pins the second of D9's split absence arms (section-absent ⇒ vacuous); 'named unverified
+# note' above discriminates only the unreachable arm.
+has_i "$LENSES" 'section is absent ⇒ the join is'
 has   "$LENSES" '`## Evidence artifacts`'
 # Task 2.2 (survey-corps Step 0.3 issue template, D10 · PIN-11): the memory-mined issue body
 # must carry the `## Evidence artifacts` section.
