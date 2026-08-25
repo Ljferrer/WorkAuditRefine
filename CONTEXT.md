@@ -130,7 +130,8 @@ filing surfaces (the `/survey-corps` memory-mined issue template, `/war`'s clust
 prompt); the ADR 0044 amendment records the decision. Consumption-side, a consumed issue lacking
 the section is a named gap the recon lane records — never a blocker.
 _Avoid_: the **Evidence consumed block** (the plan-side record of what the lane read — not the
-issue-side section this duty places); the per-claim **Evidence tag**.
+issue-side section this duty places); the per-claim **Evidence tag** (a single claim's provenance
+marker in a plan — not the issue-side evidence section this duty places).
 
 **Evidence consumed block**:
 The plan Part-1 artifact-borne record of the **Run-history recon lane**'s reads: one row per linked
