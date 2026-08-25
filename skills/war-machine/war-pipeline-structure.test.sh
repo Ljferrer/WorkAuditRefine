@@ -4,7 +4,10 @@
 # so a future edit can't silently drop the pipeline contract. Also pins (#1431, 2026-08-17)
 # the war-machine drafter charter's Mechanism-latitude duty — the machine-SKILL twin of
 # skills/war-strategy/war-strategy-structure.test.sh's latitude pins, region-scoped to §2
-# step 1. grep-based, plain-bash, no mktemp
+# step 1. Also pins (2026-08-24, authoring-side verification) the cross-surface consumer
+# family: the war-machine verifier-charter pointer + drafter evidence instruction + the
+# #1510/#1605 re-scopes, and the deps-edged lenses.md / survey-corps / war-review pins.
+# grep-based, plain-bash, no mktemp
 # — bash 3.2-safe. Exit 0 = all present; exit N = N failed assertions.
 #
 # Repo *.test.sh convention: self-discovered by the gate's `find … -name '*.test.sh'` sweep
@@ -631,9 +634,13 @@ has_i "$MACHINE" 'armed-by-rule and unwaived under `--afk`'
 has_i "$MACHINE" "reads each cited issue's"
 has   "$MACHINE" '`## Evidence artifacts`'
 # #1510 re-scope (wrapped, PIN-2): the latitude offer is unconditional; only the per-row
-# AI-declared markers are --afk-scoped. Pin the corrected scoping clause so the qualifier
-# cannot silently migrate back onto the offer verb.
+# AI-declared markers are --afk-scoped. Both ways (per /war-strategy §3 authoring rule 6):
+# the presence pin holds the corrected scoping clause; the split-fragment absence twin holds
+# the retired offer-verb-scoped phrasing out.
 has_i "$MACHINE" 'the offer is unconditional; only the per-row `AI-declared` markers are `--afk`-scoped'
+retired_afk_a='under `--afk`, with'
+retired_afk_b='per-row `AI-declared` markers'
+lacks_i "$MACHINE" "$retired_afk_a $retired_afk_b"
 # Task 2.1 (lenses.md merged-arm Evidence join, D9 · PIN-26): the per-issue join with split
 # absence arms — section-absent vacuous, issue-unreachable a named unverified note.
 has_i "$LENSES" 'Per-issue Evidence join'
