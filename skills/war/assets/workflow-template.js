@@ -1393,7 +1393,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         if (audit.autoEscalate !== false && task.roster.length === 1 &&   // lone-seat widening (D4/D5; config can disable)
             (seats[0].confidence === 'low' || (seats[0].findings || []).some(f => f.severity === 'Critical'))) {
           // Widening source (D4): the lone seat may nominate catalog lenses via `widen`; a valid
-          // nomination widens toward those seats @ deep, else the trio-union default roster. Never silent.
+          // nomination widens toward those seats @ deep, else the quartet-union default roster. Never silent.
           const widen = resolveWidenSource(seats[0].widen, defaultRoster)
           task.roster = widenRoster(task.roster, widen.seats)
           const src = widen.source === 'nominated' ? 'nominated' : 'default fallback'

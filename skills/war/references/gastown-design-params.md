@@ -13,7 +13,7 @@ WAR re-implements Steve Yegge's [Gas Town](https://github.com/gastownhall/gastow
 | bd remember | war-servitor | write-scoped `Agent` (sonnet); records per-phase learnings |
 
 ## Nun audit gate → `war-auditor`
-- **Seats:** a per-task **roster** of 1–5 distinct-lens seats; default: the trio at `deep`; a solo `neighbors` seat for low-risk tasks. Seat count *is* the roster's length. **[TUNE]**
+- **Seats:** a per-task **roster** of 1–5 distinct-lens seats; default: the quartet at `deep`; a solo `neighbors` seat for low-risk tasks. Seat count *is* the roster's length. **[TUNE]**
 - **Unanimity, fail-closed:** all live seats must `approve` against the current SHA; any `request_changes`/missing/hung seat = no merge. A missing verdict never auto-passes and never auto-rejects. **[HARD]**
 - **Convergent unanimity (SHA-pinned):** approval is provisional and pinned to `audit_sha`; when HEAD moves, every seat (incl. prior approvers) re-confirms against the new SHA. **[HARD]**
 - **Read-only — structural:** in WAR this is tool-level — auditors have Read/Grep/Glob plus Bash confined by a fail-closed PreToolUse guard (`hooks/validate-auditor-git.sh`) to an allowlist of read-only git subcommands (no Write/Edit), so they physically cannot modify, commit, or push. (Gas Town used a detached checkout + push-unset; WAR's tool restriction is the simpler portable equivalent and avoids the headless-permission-hang trap.) **[HARD]**

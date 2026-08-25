@@ -40,6 +40,7 @@ export const DEFAULTS = {
       { lens: 'correctness', depth: 'deep' },
       { lens: 'cascading-impact', depth: 'deep' },
       { lens: 'plan-faithfulness', depth: 'deep' },
+      { lens: 'security', depth: 'deep' },
     ],
     rosterPolicy: 'auto',
     autoEscalate: true,
@@ -331,7 +332,7 @@ export function widenRoster(roster, defaultRoster) {
 // nomination is a non-empty array of DISTINCT, non-empty strings, NONE reserved — strict whole-field
 // (any bad entry rejects the whole nomination, no per-entry salvage). Valid → seats from the nominated
 // lenses @ deep, source 'nominated'; anything else → defaultRoster verbatim, source 'default' (the
-// byte-identical trio-union fallback). The returned seats feed widenRoster (which keeps the lone seat,
+// byte-identical quartet-union fallback). The returned seats feed widenRoster (which keeps the lone seat,
 // dedupes, caps 5), so a nomination naming the seat's own lens is legal. MIRRORED inline in
 // workflow-template.js. Keep in sync.
 export function resolveWidenSource(nominated, defaultRoster) {

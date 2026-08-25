@@ -916,7 +916,7 @@ test('validateRoster: accepts 1–5 distinct-lens entries, depth present or abse
   assert.deepEqual(validateRoster(five), { valid: true, errors: [] })
 })
 
-test('validateRoster: DEFAULTS.audit.roster is valid (trio at deep)', () => {
+test('validateRoster: DEFAULTS.audit.roster is valid (quartet at deep)', () => {
   assert.deepEqual(validateRoster(DEFAULTS.audit.roster), { valid: true, errors: [] })
 })
 
@@ -946,16 +946,16 @@ test('validateRoster: rejects non-object entries', () => {
   assert.equal(validateRoster([null]).valid, false)
 })
 
-test('widenRoster: solo security seat + default trio → 4 seats, security first, appended seats carry default depths', () => {
+test('widenRoster: solo security seat + default quartet → 4 seats, security first (deduped), appended seats carry default depths', () => {
   const out = widenRoster([{ lens: 'security', depth: 'deep' }], DEFAULTS.audit.roster)
   assert.deepEqual(out.map(s => s.lens), ['security', 'correctness', 'cascading-impact', 'plan-faithfulness'])
   assert.equal(out[0].depth, 'deep')
   assert.ok(out.slice(1).every(s => s.depth === 'deep'), 'appended default seats keep their configured depths')
 })
 
-test('widenRoster: union dedupes — solo correctness@neighbors + trio → 3 seats, kept seat keeps its depth', () => {
+test('widenRoster: union dedupes — solo correctness@neighbors + quartet → 4 seats, kept seat keeps its depth', () => {
   const out = widenRoster([{ lens: 'correctness', depth: 'neighbors' }], DEFAULTS.audit.roster)
-  assert.deepEqual(out.map(s => s.lens), ['correctness', 'cascading-impact', 'plan-faithfulness'])
+  assert.deepEqual(out.map(s => s.lens), ['correctness', 'cascading-impact', 'plan-faithfulness', 'security'])
   assert.equal(out[0].depth, 'neighbors', 'the kept seat keeps its own depth (union, not replacement)')
 })
 

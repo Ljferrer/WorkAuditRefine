@@ -44,6 +44,10 @@
       {
         "lens": "plan-faithfulness",
         "depth": "deep"
+      },
+      {
+        "lens": "security",
+        "depth": "deep"
       }
     ],
     "rosterPolicy": "auto",

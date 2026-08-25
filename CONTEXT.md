@@ -505,10 +505,10 @@ The runtime widening of a **lone** seat that returns a Critical or low-confidenc
 becomes the **union** of the existing seat and a **widening source** (capped at 5), then the full widened
 roster re-audits on the pinned SHA. The source is the seat's own **`widen` nomination** when it supplies
 a valid one (a non-empty list of distinct, non-reserved lens names → those lenses at `deep`), else the
-**default roster's lenses** (the byte-identical trio-union fallback). Fires only on 1-seat rosters — a
+**default roster's lenses** (the byte-identical quartet-union fallback). Fires only on 1-seat rosters — a
 multi-seat roster the human approved is never second-guessed.
 _Avoid_: replacing (rather than unioning away from) the lone seat's lens; widening covens further;
-treating the trio union as the only source (nomination comes first).
+treating the quartet union as the only source (nomination comes first).
 
 **Gate-audit pass**:
 The post-merge, pre-land review of each merged task's **executed gate output** through the reserved
