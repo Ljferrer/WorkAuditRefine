@@ -416,6 +416,12 @@ test('evidence-consumed-form: a mid-prose mention or a table-cell bold label ope
   // Plain prose naming the block (the doctrine does this constantly) — not a block.
   const prose = ['The Evidence-consumed block inherits placement latitude.', '- some bullet after it'].join('\n');
   assert.equal(countOf(lint(prose), 'evidence-consumed-form'), 0);
+  // A BOLD label mid-sentence (not line-initial) — still not a block; the marker is line-anchored.
+  const boldProse = [
+    '- The **Evidence consumed** block is artifact-borne.',
+    '- sibling bullet with no status',
+  ].join('\n');
+  assert.equal(countOf(lint(boldProse), 'evidence-consumed-form'), 0);
   // The bold label inside a design-tree table row (D8's own cell) — not a block either.
   const cell = ['| D8 | Evidence recon | artifact-borne **Evidence consumed** block | (user) | guardrail |', '| D9 | x | y | (user) | slice |'].join('\n');
   assert.equal(countOf(lint(cell), 'evidence-consumed-form'), 0);
