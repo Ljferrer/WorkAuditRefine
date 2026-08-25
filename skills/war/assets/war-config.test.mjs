@@ -70,10 +70,10 @@ test('DEFAULTS validate', () => {
 
 test('empty input fills to balanced defaults and validates', () => {
   const c = fillDefaults({})
-  assert.equal(c.agents.worker.model, 'opus')
-  assert.equal(c.agents.worker.effort, 'max')
+  assert.equal(c.agents.worker.model, 'fable')
+  assert.equal(c.agents.worker.effort, 'default')
   assert.equal(c.agents.auditor.model, 'opus')
-  assert.equal(c.agents.auditor.effort, 'xhigh')
+  assert.equal(c.agents.auditor.effort, 'high')
   assert.equal(c.agents.servitor.effort, 'high')
   assert.equal(c.audit.rosterPolicy, 'auto')
   assert.equal(validate({}).valid, true)
@@ -186,12 +186,12 @@ test('matrix stays four roles: ROLES is exactly the four phase roles and exclude
     'agentMatrix must have exactly |PRESETS| × 4 rows (four roles, redteam excluded)')
 })
 
-test('agents.redteam is preset-populated: balanced opus/max in DEFAULTS, thorough/economy override (fix + red-team asks)', () => {
+test('agents.redteam is preset-populated: balanced opus/high in DEFAULTS, thorough/economy override (fix + red-team asks)', () => {
   // /war-room now asks for the red-team model/effort and never leaves it blank — the values live in
   // DEFAULTS (balanced) + the two overriding presets. Delete-the-feature: drop the redteam blocks and
   // the deepEquals below go red.
-  assert.deepEqual(DEFAULTS.agents.redteam, { model: 'opus', effort: 'max' }, 'DEFAULTS (balanced) red-team must be opus/max')
-  const REDTEAM = { balanced: { model: 'opus', effort: 'max' }, thorough: { model: 'fable', effort: 'xhigh' }, economy: { model: 'sonnet', effort: 'max' } }
+  assert.deepEqual(DEFAULTS.agents.redteam, { model: 'opus', effort: 'high' }, 'DEFAULTS (balanced) red-team must be opus/high')
+  const REDTEAM = { balanced: { model: 'opus', effort: 'high' }, thorough: { model: 'fable', effort: 'xhigh' }, economy: { model: 'sonnet', effort: 'max' } }
   for (const [preset, expected] of Object.entries(REDTEAM)) {
     assert.deepEqual(presetConfig(preset).agents.redteam, expected, `${preset} preset red-team must be ${JSON.stringify(expected)}`)
   }
@@ -247,10 +247,10 @@ test('agents.redteam is tolerated by the unknown-agent-key loop; a genuine unkno
   assert.match(msg, /\/war-room/)
 })
 
-test('agents.worker.docs defaults to { sonnet, default }; balanced inherits, thorough → opus/high, economy → haiku/high (T1.1)', () => {
+test('agents.worker.docs defaults to { fable, default }; balanced inherits, thorough → opus/high, economy → haiku/high (T1.1)', () => {
   // Delete-the-feature: remove docs from DEFAULTS.agents.worker → the DEFAULTS deepEqual fails.
-  assert.deepEqual(DEFAULTS.agents.worker.docs, { model: 'sonnet', effort: 'default' })
-  const DOCS = { balanced: { model: 'sonnet', effort: 'default' }, thorough: { model: 'opus', effort: 'high' }, economy: { model: 'haiku', effort: 'high' } }
+  assert.deepEqual(DEFAULTS.agents.worker.docs, { model: 'fable', effort: 'default' })
+  const DOCS = { balanced: { model: 'fable', effort: 'default' }, thorough: { model: 'opus', effort: 'high' }, economy: { model: 'haiku', effort: 'high' } }
   for (const [preset, expected] of Object.entries(DOCS)) {
     assert.deepEqual(presetConfig(preset).agents.worker.docs, expected, `${preset} preset docs tier must be ${JSON.stringify(expected)}`)
   }
@@ -259,7 +259,7 @@ test('agents.worker.docs defaults to { sonnet, default }; balanced inherits, tho
 test('legacy worker block without a docs tier fills it from DEFAULTS and validates (criterion-12 style) (T1.1)', () => {
   const legacy = { version: 1, agents: { worker: { model: 'opus', effort: 'max' } } } // no docs key
   const c = fillDefaults(legacy)
-  assert.deepEqual(c.agents.worker.docs, { model: 'sonnet', effort: 'default' })
+  assert.deepEqual(c.agents.worker.docs, { model: 'fable', effort: 'default' })
   assert.equal(validate(legacy).valid, true, validate(legacy).errors.join('\n'))
 })
 
@@ -277,11 +277,11 @@ test('agents.worker.docs rejects bad model / bad effort / unknown sub-key (valid
   assert.match(msg, /\/war-room/)
 })
 
-test('agents.worker.fix is preset-populated (balanced fable/high in DEFAULTS) and validated when present (fix + red-team asks)', () => {
+test('agents.worker.fix is preset-populated (balanced fable/default in DEFAULTS) and validated when present (fix + red-team asks)', () => {
   // /war-room now asks for the fix-worker model/effort and never leaves it blank — balanced's value
   // lives in DEFAULTS, thorough/economy override. Delete-the-feature: drop the fix blocks → these fail.
-  assert.deepEqual(DEFAULTS.agents.worker.fix, { model: 'fable', effort: 'high' }, 'DEFAULTS (balanced) fix tier must be fable/high')
-  const FIX = { balanced: { model: 'fable', effort: 'high' }, thorough: { model: 'fable', effort: 'max' }, economy: { model: 'opus', effort: 'default' } }
+  assert.deepEqual(DEFAULTS.agents.worker.fix, { model: 'fable', effort: 'default' }, 'DEFAULTS (balanced) fix tier must be fable/default')
+  const FIX = { balanced: { model: 'fable', effort: 'default' }, thorough: { model: 'fable', effort: 'max' }, economy: { model: 'opus', effort: 'default' } }
   for (const [preset, expected] of Object.entries(FIX)) {
     assert.deepEqual(presetConfig(preset).agents.worker.fix, expected, `${preset} preset fix tier must be ${JSON.stringify(expected)}`)
   }
@@ -901,7 +901,7 @@ test('spawnOpts omits effort when default', () => {
 })
 
 test('spawnOpts includes non-default effort', () => {
-  assert.deepEqual(spawnOpts(DEFAULTS, 'worker'), { model: 'opus', effort: 'max' })
+  assert.deepEqual(spawnOpts(DEFAULTS, 'auditor'), { model: 'opus', effort: 'high' })
   assert.deepEqual(spawnOpts(presetConfig('thorough'), 'worker'), { model: 'fable', effort: 'max' })
 })
 
@@ -916,7 +916,7 @@ test('validateRoster: accepts 1–5 distinct-lens entries, depth present or abse
   assert.deepEqual(validateRoster(five), { valid: true, errors: [] })
 })
 
-test('validateRoster: DEFAULTS.audit.roster is valid (trio at deep)', () => {
+test('validateRoster: DEFAULTS.audit.roster is valid (quartet at deep)', () => {
   assert.deepEqual(validateRoster(DEFAULTS.audit.roster), { valid: true, errors: [] })
 })
 
@@ -946,16 +946,16 @@ test('validateRoster: rejects non-object entries', () => {
   assert.equal(validateRoster([null]).valid, false)
 })
 
-test('widenRoster: solo security seat + default trio → 4 seats, security first, appended seats carry default depths', () => {
+test('widenRoster: solo security seat + default quartet → 4 seats, security first (deduped), appended seats carry default depths', () => {
   const out = widenRoster([{ lens: 'security', depth: 'deep' }], DEFAULTS.audit.roster)
   assert.deepEqual(out.map(s => s.lens), ['security', 'correctness', 'cascading-impact', 'plan-faithfulness'])
   assert.equal(out[0].depth, 'deep')
   assert.ok(out.slice(1).every(s => s.depth === 'deep'), 'appended default seats keep their configured depths')
 })
 
-test('widenRoster: union dedupes — solo correctness@neighbors + trio → 3 seats, kept seat keeps its depth', () => {
+test('widenRoster: union dedupes — solo correctness@neighbors + quartet → 4 seats, kept seat keeps its depth', () => {
   const out = widenRoster([{ lens: 'correctness', depth: 'neighbors' }], DEFAULTS.audit.roster)
-  assert.deepEqual(out.map(s => s.lens), ['correctness', 'cascading-impact', 'plan-faithfulness'])
+  assert.deepEqual(out.map(s => s.lens), ['correctness', 'cascading-impact', 'plan-faithfulness', 'security'])
   assert.equal(out[0].depth, 'neighbors', 'the kept seat keeps its own depth (union, not replacement)')
 })
 
