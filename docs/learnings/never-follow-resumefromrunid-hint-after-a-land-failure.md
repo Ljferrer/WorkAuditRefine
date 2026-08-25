@@ -1,10 +1,11 @@
 ---
 name: never-follow-resumefromrunid-hint-after-a-land-failure
-description: "After held:land-failed the resumeFromRunId hint is wrong: replay re-runs the green gate and CAS push live"
+description: "The Workflow harness's generic resumeFromRunId hint is exactly wrong after a held:land-failed phase — it replays the journal and re-runs the already-green gate + push-first CAS live"
 metadata: 
   node_type: memory
   type: project
   provenance: code-verified
+  promoted: dev/2026-07-16-land-failure-recovery@phase-1
   slug: never-follow-resumefromrunid-hint-after-a-land-failure
   phase: land-failure-recovery/phase-1 task 1.2 (landed dev/2026-07-16-land-failure-recovery)
   keywords: 
@@ -24,13 +25,13 @@ metadata:
     - skill-prose
   created: 2026-07-16
   originSessionId: 655475be-a01b-4702-b846-b2c53bbde3d3
+  modified: 2026-08-25T08:17:54.886Z
 ---
 
 # The harness's generic `resumeFromRunId` hint is the wrong recovery for a land failure — it replays merges + CAS live
 
-**What happened (code-verified — found in the "Resume vs. recovery relaunch" paragraph and the
-§4.3 `held:land-failed` root-cause-(c) bullet, then at `skills/war/SKILL.md` and since evicted
-verbatim into `skills/war/references/resume-and-recovery.md`, their current home; verified via the
+**What happened (code-verified — found at `skills/war/SKILL.md`, the "Resume vs. recovery
+relaunch" paragraph and the §4.3 `held:land-failed` root-cause-(c) bullet; verified via the
 phase's own `_refinery` worktree since the main checkout lagged this phase — see
 [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]]):** the Workflow harness prints an
 unconditional `resumeFromRunId` hint on any interrupted/incomplete run, regardless of *why* the
@@ -62,9 +63,29 @@ needs manual follow-up). The fix is never to suppress or edit the harness's hint
 harness-owned) — it's to counter it in the standing skill/runbook prose exactly at the decision
 point where an operator or `--afk` Lead would otherwise reach for it.
 
+## Recurrence 1 (2026-08-24, plan `authoring-side-verification`, phase 3, `agent-unverified` —
+the Lead's own recovery narrative; the probe mechanism it invoked is `code-verified` present at
+landed tip `783bd136ea6a9d8da9b73b5dcbf01d1d475a0cef`): **confirms the rule end-to-end via a clean
+manual recovery**, not merely the routing half. A land dispatch died mid-gate (see
+[[merge-task-dispatch-forced-early-return-mid-gate-is-incomplete-not-gate-failed]] Recurrence 3 for
+the dispatch-side shape) and the engine routed the phase to `held:land-failed`; the in-flow
+wrap-up never ran. The Lead did **not** follow any generic resume hint — it applied this lesson's
+root-cause-(c) recipe by hand: verified the merge commit already sitting in `_refinery` had the
+expected parents (origin tip + integration tip, i.e. the land had already progressed correctly
+before the dispatch died), re-ran the already-resolved gate to green in `_refinery`, then did
+**one** `land-advance` + follower sync to finish the land — no re-merge, no journal replay. Phase
+then completed via manual Lead completion, and the servitor pass (this file) ran after the fact
+per the standing WAR wrap-up contract. This is the recipe's first fully-manual (no `--afk` Workflow
+re-invocation) confirmation on record.
+
 ## Related
 
 [[null-or-unrouted-land-result-routes-held-land-failed-via-terminal-else]] — the companion routing
 fix in the same phase that makes `held:land-failed` reachable at all for this failure class.
 [[reland-loop-contender-less-transient-vs-real-divergence]] — a related land-retry discrimination
 lesson (transient CAS contention vs. real divergence) in the same subsystem.
+[[merge-task-dispatch-forced-early-return-mid-gate-is-incomplete-not-gate-failed]] — Recurrence 3
+records the land-side dispatch-death shape that triggered this recurrence's recovery.
+
+> archived 2026-08-17: resolved — moved to archive (confirmed again 2026-08-24 via a manual Lead
+> recovery; left in archive since war-memory temperature moves are its own job, not the servitor's)

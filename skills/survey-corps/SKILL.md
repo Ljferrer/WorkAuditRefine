@@ -51,7 +51,16 @@ Workflow authorization as the reader fan-out below.
    `Lesson: <slug>` alone, never a path. Resolving `<local-root>` to a real filesystem path
    anywhere in drafted text is forbidden — a resolved home path trips the `home-path` entry in
    `LINT_PATTERNS` and withholds the whole otherwise-clean issue. Quote lesson bodies
-   **minimally** — titles can leak too.
+   **minimally** — titles can leak too. The body MUST also carry a required
+   **`## Evidence artifacts`** section: the concrete, resolvable paths/URLs a downstream
+   run-history recon lane will read — the lesson referent's repo-relative file path(s), the
+   repo-root citation path when one exists, and any issues/PRs the lesson names, cited as bare
+   `#N` references — never a `github.com/…` (or gitlab/bitbucket) URL, which trips the
+   `github-account-url` entry in `LINT_PATTERNS` and withholds the whole otherwise-clean issue.
+   Entries are repo-relative paths or lint-clean references only, and
+   the section is never empty — no readable evidence means the draft states why in one line.
+   (Extern-authored issues from the sweep arm are not held to this template: a consumed issue
+   lacking the section is a named gap the recon lane records — never a blocker.)
 4. **Dedup (open AND closed).** Search issues in **both** states for the slug (cite it verbatim so
    the substring-fragile `gh` search has a stable token). Open hit → **skip** (the normal sweep
    already covers it). Closed hit → **skip** and report `previously adjudicated (#N)` — a human

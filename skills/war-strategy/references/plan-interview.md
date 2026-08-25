@@ -10,15 +10,29 @@ falsifier probes + provenance scan against a drafted conversion).
 
 ## The stages
 
-**Stage 0 — silent recon.** Before any question: read the repo tree, `CONTEXT.md`,
-`docs/adr/`, and the related plans under `docs/plans/`; then query prior lessons, fail-open:
+**Stage 0 — silent recon.** Before any question, three recon lanes, all fail-open:
+
+1. **Static recon** — read the repo tree, `CONTEXT.md`, `docs/adr/`, and the related plans
+   under `docs/plans/`.
+2. **The run-history recon lane** — read the four run-history corpus classes:
+   run manifests (`.claude/war/runs/`) · epic phase reports · the war-followup corpus · `docs/learnings/`
+   — plus the issue-linked evidence artifacts (each cited source issue's
+   `## Evidence artifacts` section). What this lane read (or could not) lands in the plan's
+   **Evidence consumed** block: one row per linked artifact, read or unread-with-reason —
+   placement latitude anywhere in Part 1, never a new required H2.
+3. **Batched memory prefetch** — one batched call, one query per interview area (scope,
+   decomposition, guards, release), mirroring the /war Lead's flag discipline — `--local`
+   always, `--repo` when a repo root resolved, fail-open:
 
 ```sh
-node skills/_shared/war-memory.mjs query '<slug> plan-authoring' --repo docs/learnings
+node skills/_shared/war-memory.mjs query --queries <file> --local <local root> --repo docs/learnings
 ```
 
-Fail-open means a missing CLI, Node < 24, or an absent `docs/learnings/` never blocks the
-interview — proceed without the rows (and without a `--local` root the query writes nothing).
+(the `--queries <file>` format is JSONL — one `{"label":…,"text":…}` object per line.)
+
+Fail-open means a missing CLI, Node < 24, an absent `docs/learnings/`, or an empty run
+corpus never blocks the interview — proceed without the rows (and without a `--local` root
+the query writes nothing).
 
 **Stage 1 — silent rehearsal + pre-mortem.** Mentally execute the plan-to-be, then name **at
 least two landmine falsifiers** from the WAR falsifier list:
@@ -42,6 +56,12 @@ least two landmine falsifiers** from the WAR falsifier list:
 - **the delete-the-feature probe** — mentally delete the feature: any proposed check that
   still passes is vacuous. This is the box-ticking mitigation — a tagged End state whose
   check cannot fail is worth less than no tag at all;
+- **the omittability probe** — the delete-the-feature probe's dual, run over the End-state
+  enumeration: for each required outcome ask, "if this had no numbered End state of its own,
+  could the run omit it silently with every other check still green?" — a yes means the
+  outcome needs its own row, an explicit backstop row, or an explicit non-goal.
+  Delete-the-feature catches a check that cannot fail;
+  omittability catches an outcome with no check at all;
 - **the flush-ceiling smell** — an intent whose ceiling sits flush on the slice floor (no
   mechanism latitude beyond the slices) routes every forced mechanism substitution out-of-band
   as a follow-up issue; the interviewer names it as a plan smell and asks the latitude beat.
@@ -70,19 +90,37 @@ default-and-tagged: it is asked, or it is absent (ADR 0013).
   mechanisms named in Method are implementer's choice? What is the actual floor?"* — landing
   as the intent's optional `Mechanism latitude:` / `Binding guardrails:` sub-bullets
   ([SKILL.md §2](../SKILL.md)). Default posture: mechanisms named in Method are reference
-  realizations unless promoted into the guardrails list.
+  realizations unless promoted into the guardrails list;
+- **the strategy-verifier** — the arming principle:
+  **arm any beat whose wrong branch surfaces only at run time** (four arms, enumerated in
+  the charter's arming checklist); arming is by rule, dispatch-without-asking — skips flow
+  the other way, as operator-uttered `WAIVE-<n>` rows (the pin-ledger law below).
+  When a beat arms per the checklist, read
+  [references/strategy-verifier.md](strategy-verifier.md).
 
 **Stage 3 — mid-budget checkpoint.** Once, near the budget's midpoint: surface the riskiest
 still-live assumption and ask it directly.
 
 **Stage 4 — coverage sweep + two echo-backs.** Sweep the decisive slots (table below) for
-unfilled rows, then close with **two echo-backs**, each requiring an explicit confirm:
+unfilled rows, run the omittability probe over the drafted End-state enumeration (an
+outcome no row covers gets a row, a backstop, or a non-goal — never silence), and
+enumerate the Evidence consumed block aloud (every linked artifact read or
+unread-with-reason), then close with **two echo-backs**, each requiring an explicit
+confirm:
 
 1. the **decision record** (Part 1) — including the Defaulted-decisions recap: every
    `[assumed:]` row read back aloud, so silence never ratifies a default;
 2. the **decomposed phases** (Part 2) — drafted silently under the code-boundary
    decomposition rules ([SKILL.md §3](../SKILL.md)), echoed as the phase → task → `Files:`
    skeleton.
+
+Echo-back 1 is **gate 1** — the confirm gate carrying the inseparable pair: the advisory
+lint stays exit-0 report-only ↔ gate 1 carries the hard **enumerate-aloud** duty over its
+findings. Every pin-rule gap and Evidence-consumed gap the lint reports, and every
+`WAIVE-<n>` row — one-shot and standing alike — is enumerated aloud and resolved
+fix-or-waive on the record before the confirm counts. Pins whose landing class is a duty
+or fence (marked ‡ in the design tree) are read **twice** at echo-back reconciliation —
+once in the echo-back's own sweep, once against the floor list.
 
 **Stage 5 — two silent gates.** Before writing the file:
 
@@ -91,6 +129,31 @@ unfilled rows, then close with **two echo-backs**, each requiring an explicit co
 - the **executor gate**: "could `/war` decompose-dispatch this, and `/red-team` attack it,
   with zero operator questions?" — a "no" reopens the interview while budget remains;
   otherwise default-and-tag the residue and record it in the ledger.
+
+## The ratified-pin ledger + the WAIVE channel
+
+Ratified interview state is **artifact-borne** — the principle, verbatim:
+state that must survive to a gate lands in the artifact, not the transcript.
+Every mechanism below serves it.
+
+- **`PIN-<n>` token grammar:** digits-only id, matched as a whole right-delimited token —
+  `PIN-1` never matches inside `PIN-13`; amendment pins mint fresh numbers, letter suffixes
+  are illegal. The `PIN-` prefix carries reconciliation join keys only — it is never a
+  skip token.
+- **Landing class per pin:** design-tree rows carry their ratified pin ids and a
+  landing-class cell (pin→class pairs; a single-class cell covers all row pins). The
+  class→section map: guardrail → `Binding guardrails:` · slice → the named task's
+  `Plan slice:` · end-state → the End state list · backstop →
+  `## Deferred validations (backstops)` · context / non-goal → the definition row
+  suffices. Class-less pins fall back to anywhere-citation. The advisory
+  `plan-literal-lint.mjs` checks the map mechanically — report-only, exit 0; the hard half
+  of the pair is gate 1's enumerate-aloud duty (Stage 4).
+- **The `WAIVE-<n>` channel:** `WAIVE-<n>` is the skip token (verifier skips are operator
+  utterances — the charter owns the semantics). Waive rows are artifact-borne in the plan:
+  id · beat · fired arm · scope · reason, right-delimited id, inheriting the Evidence
+  consumed block's placement latitude and its never-a-new-required-H2 law by name.
+  Canonical standing-skip example: a class-scoped standing skip records
+  the class scope in the scope field and the utterance point in beat.
 
 ## Terminal state
 

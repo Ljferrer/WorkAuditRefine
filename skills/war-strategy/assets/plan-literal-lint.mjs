@@ -14,6 +14,14 @@
 // `## Context`, and vague-trigger vocabulary in End states. Each rule's `slot` text names the
 // merged-template slot it checks (war-strategy SKILL.md §2), and the CLI prints it beside the hit.
 //
+// Third family (plan 2026-08-24-authoring-side-verification T1.3): four advisory
+// authoring-verification rules, also in SHAPE_RULES — (a) section-scoped `PIN-<n>` citation over
+// the D1 class→section map (whole right-delimited token; anywhere fallback for class-less pins;
+// definition-without-citation reported), (b) Evidence-consumed block form (each linked artifact
+// row read / unread-with-reason, D8), (c) single-signal oracle heuristic (bare `grep -q` /
+// `test -f` on a `check:`/`Done when:` line — pair it with a decisive token, #1628 · PIN-12),
+// and (d) `WAIVE-<n>` row form (five fields: id · beat · fired arm · scope · reason, D7).
+//
 // FAIL-OPEN BY DECISION (ADR 0030): report-and-exit-0. This is NEVER a CI gate — the only CI job is
 // war-memory's redaction lint. `--strict` is opt-in (exit non-zero on any hit) for local authoring.
 // The version pattern is advisory precisely because a legitimately-cited baseline version can
@@ -107,6 +115,21 @@ const CLAIM_TAG = /\((?:user\b|verified:)|\[assumed\b|\bAI-declared\b/i;
 // don't match — bare digits alone are NOT a claim shape, precision over recall.
 const CLAIM_SHAPE = /~?\d+(?:\.\d+)?\s?%|\b\d+\s+of\s+\d+\b|\b\d+-[a-z]+\b/i;
 
+// ---- Third-family anchors (plan 2026-08-24-authoring-side-verification, D1/D7/D8/#1628) ----
+// The ratified `PIN-<n>` token grammar (PIN-3): digits-only id, matched as a whole
+// right-delimited token — `PIN-1` never matches inside `PIN-13` (or `PIN-1a`; letter
+// suffixes are illegal under the grammar, so a suffixed token is never a citation).
+const PIN_TOKEN = /\bPIN-(\d+)(?!\w)/g;
+const pinRe = (n) => new RegExp(`\\bPIN-${n}(?!\\w)`);
+const DESIGN_TREE_H2 = /^##\s+.*\bdesign\s+tree\b/i;
+const BACKSTOPS_H2 = /^##\s+Deferred\s+validations?\b/i;
+// Bold-only markers: the plain phrases legitimately occur mid-prose (and inside the design
+// tree's own D1 row), so only the merged-template bold label opens a region.
+const GUARDRAILS_MARK = /\*\*Binding guardrails:?\*\*/i;
+const END_STATE_MARK = /\*\*End state:?\*\*/i;
+// D1's landing-class vocabulary; the class→section map lives in the pin-citation rule.
+const CLASS_TOKEN = /^(guardrail|slice|end-state|backstop|context|non-goal)s?\b/i;
+
 // First line of a logical bullet, truncated — the reportable head of a multi-line item.
 const bulletHead = (b) => b.split('\n')[0].trim().slice(0, 80);
 
@@ -158,12 +181,86 @@ function proseBlocks(sectionLines) {
   return out;
 }
 
+// A `+`-combined class expression from one landing-class cell part, e.g.
+// `guardrail + slice (T1.1, T1.3)` → [{cls:'guardrail'}, {cls:'slice', tasks:['1.1','1.3']}].
+// Unknown class tokens are skipped (fail-open); a part yielding nothing leaves the pin class-less.
+function parseClasses(expr) {
+  const out = [];
+  for (const c of expr.split('+')) {
+    const t = c.trim();
+    const m = t.match(CLASS_TOKEN);
+    if (!m) continue;
+    const entry = { cls: m[1].toLowerCase() };
+    if (entry.cls === 'slice') entry.tasks = [...t.matchAll(/\bT(\d+(?:\.\d+)*)/g)].map((x) => x[1]);
+    out.push(entry);
+  }
+  return out;
+}
+
+// D1's per-pin landing-class cell grammar: `·`-separated parts, each either a pin-scoped
+// `PIN-<n>→<classes>` pair or a bare class expression — a single-class (arrow-less) cell
+// covers all row pins.
+function parseLandingCell(cell) {
+  const map = new Map();
+  const bare = [];
+  for (const part of cell.split('·')) {
+    const arrow = part.match(/\bPIN-(\d+)(?!\w)\s*(?:→|->)\s*(.+)/);
+    if (arrow) map.set(arrow[1], parseClasses(arrow[2]));
+    else bare.push(...parseClasses(part));
+  }
+  return { map, bare };
+}
+
+// Design-tree table rows → [{ pin, classes }]. A header row naming the Landing-class column
+// fixes the column indexes; headerless tables fall back to last cell = landing class,
+// second-to-last = source. Defined pins are the Source-cell tokens plus any arrow-mapped
+// pins (a Resolution-cell cross-reference to another row's pin is NOT a definition).
+// classes === null marks a class-less pin (anywhere-citation fallback).
+function parseDesignTree(sectionLines) {
+  const pins = [];
+  let srcIdx = -1;
+  let landIdx = -1;
+  for (const line of sectionLines) {
+    if (!/^\s*\|/.test(line)) continue;
+    const cells = line.split('|').slice(1, -1).map((c) => c.trim());
+    if (cells.length < 2 || cells.every((c) => /^[:\s-]*$/.test(c))) continue; // separator
+    if (landIdx === -1) {
+      landIdx = cells.findIndex((c) => /landing\s*class/i.test(c));
+      srcIdx = cells.findIndex((c) => /^source$/i.test(c));
+      if (landIdx !== -1) continue; // header row consumed
+      landIdx = cells.length - 1; // headerless fallback
+    }
+    const source = cells[srcIdx >= 0 ? srcIdx : cells.length - 2] ?? '';
+    const { map, bare } = parseLandingCell(cells[landIdx] ?? '');
+    const ids = new Set([...[...source.matchAll(PIN_TOKEN)].map((m) => m[1]), ...map.keys()]);
+    for (const id of ids) pins.push({ pin: id, classes: map.get(id) ?? (bare.length ? bare : null) });
+  }
+  return pins;
+}
+
+// The intent bullet opened at lines[start] (a bold-label marker line), through the line before
+// the next sibling `- **…**` bullet or markdown heading.
+function bulletRegion(lines, start) {
+  let end = lines.length;
+  for (let j = start + 1; j < lines.length; j += 1) {
+    if (/^\s*-\s+\*\*/.test(lines[j]) || MD_HEADING.test(lines[j])) { end = j; break; }
+  }
+  return lines.slice(start, end).join('\n');
+}
+
 // One pass over the document into the view SHAPE_RULES scan. `planShaped` (an intent heading
 // or `## Build order` present) gates the document-level ledger rule: a fragment that never
 // claims to be a merged plan is not held to the template's required sections.
-function parsePlanShape(text) {
+export function parsePlanShape(text) {
   const lines = text.split('\n');
-  const doc = { endStateBullets: [], contextBlocks: [], taskBlocks: [], planShaped: false, hasLedger: false };
+  const doc = {
+    endStateBullets: [], contextBlocks: [], taskBlocks: [], planShaped: false, hasLedger: false,
+    // Third-family view: raw lines, design-tree pins, task-id → body, and the D1
+    // class→section citation targets (null = section not found → anywhere fallback).
+    lines, designPins: [], taskMap: new Map(),
+    guardrailText: null, endStateText: null, backstopText: null, outsideDesignTree: text,
+  };
+  let designSpan = null;
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
     if (INTENT_H2.test(line)) {
@@ -175,18 +272,32 @@ function parsePlanShape(text) {
       doc.hasLedger = true;
     } else if (CONTEXT_H2.test(line)) {
       doc.contextBlocks.push(...proseBlocks(lines.slice(i + 1, sectionEnd(lines, i, H2))));
+    } else if (DESIGN_TREE_H2.test(line) && designSpan === null) {
+      const end = sectionEnd(lines, i, H2);
+      doc.designPins.push(...parseDesignTree(lines.slice(i + 1, end)));
+      designSpan = [i, end];
     } else if (TASK_H3.test(line)) {
-      doc.taskBlocks.push({
-        heading: line.trim(),
-        body: lines.slice(i + 1, sectionEnd(lines, i, MD_HEADING)).join('\n'),
-      });
+      const body = lines.slice(i + 1, sectionEnd(lines, i, MD_HEADING)).join('\n');
+      doc.taskBlocks.push({ heading: line.trim(), body });
+      const id = line.match(/^###\s+Task\s+([\d.]+)/i);
+      if (id) doc.taskMap.set(id[1].replace(/\.$/, ''), body);
     }
+  }
+  const gi = lines.findIndex((l) => GUARDRAILS_MARK.test(l));
+  if (gi !== -1) doc.guardrailText = bulletRegion(lines, gi);
+  const ei = lines.findIndex((l) => END_STATE_MARK.test(l));
+  if (ei !== -1) doc.endStateText = bulletRegion(lines, ei);
+  const bi = lines.findIndex((l) => BACKSTOPS_H2.test(l));
+  if (bi !== -1) doc.backstopText = lines.slice(bi, sectionEnd(lines, bi, H2)).join('\n');
+  if (designSpan) {
+    doc.outsideDesignTree = [...lines.slice(0, designSpan[0]), ...lines.slice(designSpan[1])].join('\n');
   }
   return doc;
 }
 
-// The five §4f advisory rules. Each scan(doc) returns match strings; slot names the
-// merged-template slot the rule checks.
+// The five §4f advisory rules plus the four third-family authoring-verification rules
+// (plan 2026-08-24-authoring-side-verification T1.3). Each scan(doc) returns match strings;
+// slot names the merged-template slot the rule checks.
 export const SHAPE_RULES = [
   {
     // D5/D18: every numbered End-state bullet carries one tag from the closed set.
@@ -221,6 +332,104 @@ export const SHAPE_RULES = [
     name: 'vague-end-state',
     slot: "`## Commander's Intent` End state list (observable outcomes — no vague-trigger vocabulary)",
     scan: (doc) => doc.endStateBullets.flatMap((b) => [...b.matchAll(VAGUE_TRIGGER)].map((m) => m[0])),
+  },
+  {
+    // (a) D1 · PIN-3: every pin defined in the design tree is cited — inside its declared
+    // landing-class section per the class→section map (guardrail → Binding guardrails;
+    // slice → each named task's slice; end-state → End state list; backstop → Deferred
+    // validations; context/non-goal → the definition row suffices). Class-less pins fall back
+    // to anywhere-citation outside the tree; an unlocatable section falls back the same way
+    // (fail-open). Definition-without-citation is reported either way.
+    name: 'pin-citation',
+    slot: '`## Resolved design tree` pin rows (`PIN-<n>` cited inside its landing-class section — D1 class→section map)',
+    scan: (doc) => {
+      const hits = [];
+      for (const { pin, classes } of doc.designPins) {
+        const re = pinRe(pin);
+        if (classes === null) {
+          if (!re.test(doc.outsideDesignTree)) hits.push(`PIN-${pin} defined but never cited`);
+          continue;
+        }
+        for (const c of classes) {
+          if (c.cls === 'context' || c.cls === 'non-goal') continue; // definition row suffices
+          let targets;
+          if (c.cls === 'guardrail') targets = [{ text: doc.guardrailText, desc: 'Binding guardrails' }];
+          else if (c.cls === 'end-state') targets = [{ text: doc.endStateText, desc: 'the End state list' }];
+          else if (c.cls === 'backstop') targets = [{ text: doc.backstopText, desc: 'Deferred validations' }];
+          else {
+            const ids = c.tasks?.length ? c.tasks : [...doc.taskMap.keys()];
+            targets = ids.map((id) => ({ text: doc.taskMap.get(id) ?? null, desc: `Task ${id}'s slice` }));
+          }
+          for (const t of targets) {
+            if (t.text === null) {
+              if (!re.test(doc.outsideDesignTree)) hits.push(`PIN-${pin} uncited (${t.desc} not found; anywhere fallback failed)`);
+            } else if (!re.test(t.text)) {
+              hits.push(`PIN-${pin} uncited in ${t.desc}`);
+            }
+          }
+        }
+      }
+      return hits;
+    },
+  },
+  {
+    // (b) D8: every row of an Evidence-consumed block is `read` or `unread` with a reason.
+    // A block opens at the bold `**Evidence consumed**` label (or a bare label line) — never at
+    // a mid-prose mention or a design-tree table cell — and runs over the list/table rows below.
+    name: 'evidence-consumed-form',
+    slot: 'Evidence consumed block (every linked artifact row read / unread-with-reason — D8)',
+    scan: (doc) => {
+      const hits = [];
+      const MARKER = /^\s*(?:[-*]\s+)?\*\*Evidence[- ]consumed\*\*|^\s*Evidence[- ]consumed\s*:?\s*$/i;
+      for (let i = 0; i < doc.lines.length; i += 1) {
+        if (!MARKER.test(doc.lines[i]) || /^\s*\|/.test(doc.lines[i])) continue;
+        let j = i + 1;
+        while (j < doc.lines.length && doc.lines[j].trim() === '') j += 1;
+        for (; j < doc.lines.length && /^\s*(?:[-*]\s|\|)/.test(doc.lines[j]); j += 1) {
+          const row = doc.lines[j];
+          if (/^\s*\|[\s:|-]*$/.test(row)) continue; // table separator
+          if (/\bunread\b/i.test(row)) {
+            if (!/\bunread\b\s*[—–:(-]?\s*\S/i.test(row)) hits.push(`unread without reason: ${bulletHead(row)}`);
+          } else if (!/\bread\b/i.test(row)) {
+            hits.push(`row lacks read / unread-with-reason: ${bulletHead(row)}`);
+          }
+        }
+        i = j - 1;
+      }
+      return hits;
+    },
+  },
+  {
+    // (c) #1628 · PIN-12 oracle duality: a `check:` / `Done when:` line whose oracle is a bare
+    // single-signal `grep -q` or `test -f`/`-e` proves presence only — pair it with a decisive
+    // token (e.g. NEW-present && OLD-absent). A line already carrying `&&`/`||` is a pair.
+    name: 'single-signal-oracle',
+    slot: '`check:` / `Done when:` oracle lines (single-signal `grep -q` / `test -f` — pair it with a decisive token, #1628)',
+    scan: (doc) => {
+      const hits = [];
+      for (const line of doc.lines) {
+        if (!/\b(?:check|done\s+when)\s*:/i.test(line)) continue;
+        if (/&&|\|\|/.test(line)) continue;
+        const m = line.match(/\bgrep\s+-\w*q\w*\b|\btest\s+-[ef]\b/);
+        if (m) hits.push(m[0].trim());
+      }
+      return hits;
+    },
+  },
+  {
+    // (d) D7: a `WAIVE-<n>` row (a row-initial right-delimited id — a mid-prose mention or the
+    // doctrine's `WAIVE-<n>` placeholder is not a row) carries all five `·`-separated fields.
+    name: 'waive-row-form',
+    slot: '`WAIVE-<n>` rows (five fields: id · beat · fired arm · scope · reason — right-delimited id, D7)',
+    scan: (doc) => {
+      const hits = [];
+      for (const line of doc.lines) {
+        if (!/^\s*(?:[-*]\s+|\|\s*)?[`*]*WAIVE-\d+(?!\d)/.test(line)) continue;
+        const fields = line.replace(/^\s*(?:[-*]\s+|\|\s*)/, '').split('·').map((s) => s.trim()).filter(Boolean);
+        if (fields.length < 5) hits.push(`${bulletHead(line)} — ${fields.length} of 5 fields (id · beat · fired arm · scope · reason)`);
+      }
+      return hits;
+    },
   },
 ];
 

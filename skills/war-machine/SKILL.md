@@ -79,15 +79,21 @@ file footprints of the plans already authored (honest contention).
 
 1. **Spawn in parallel:** a **drafter** agent (authors the merged-shape plan from the spec +
    codebase, per the `/war-strategy` §2 merged plan template and code-boundary decomposition
-   rule; offers the intent's two optional sub-bullets — `Mechanism latitude:` enumerating which
+   rule; when the spec cites source issues, reads each cited issue's `## Evidence artifacts`
+   section — the recon inputs the issue author staged — before drafting; offers the intent's
+   two optional sub-bullets on every conversion — `Mechanism latitude:` enumerating which
    mechanisms named in Method are implementer's choice, `Binding guardrails:` the real floor —
-   under `--afk`, with per-row `AI-declared` markers per ADR 0014) and an **adversarial grill** agent (**derives**
+   the offer is unconditional; only the per-row `AI-declared` markers are `--afk`-scoped, per
+   ADR 0014) and an **adversarial grill** agent (**derives**
    [`plan-interview.md`](../war-strategy/references/plan-interview.md)'s falsifier probes +
    provenance scan from the spec + codebase at spawn, and
    **applies them against the draft in the step-2 exchange**;
    any behavioral claim about the repo — what a function
    ingests, what a command emits — is proven by executing it in a throwaway sandbox, never by
-   analysis alone). **Fresh context per spec** — ten specs never share one bloated window.
+   analysis alone; consumes the strategy-verifier charter,
+   [`strategy-verifier.md`](../war-strategy/references/strategy-verifier.md) — the AFK
+   authoring path reads the same arming rule and counterweight duties the live interview
+   does, armed-by-rule and unwaived under `--afk`). **Fresh context per spec** — ten specs never share one bloated window.
 2. The drafter answers the grill's questions from the spec + codebase. Questions that survive
    unresolved are classified by the **ADR triad** — raised to the operator only if **hard to
    reverse**, **surprising without context**, or a **genuine trade-off**. Everything else is

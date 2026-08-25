@@ -1011,6 +1011,34 @@ test('coverage-vs-source merged arm: emitted SPINE prompt + lenses.md spine entr
   assert.match(r, /Part-1→Part-2/, 'the lenses.md coverage-vs-source region reads Part-1→Part-2 coverage')
 })
 
+// --- D9 (authoring-side-verification, 2026-08-24): per-issue Evidence join, both homes ----------
+// The merged arm's Evidence join (Evidence-consumed block ⋈ each cited issue's `## Evidence
+// artifacts` section) lives in the SAME two homes as the merged arm itself: the dispatched SPINE
+// `coverage-vs-source` prompt (the only instruction surface the probe agent ever receives — the
+// scope-lock bars it from reading lenses.md on a foreign-`--repo` run) and the lenses.md doctrine
+// mirror. A doc-only landing leaves the join with no executor (the #1644 finding); this pin keeps
+// the pair from drifting apart again.
+test('coverage-vs-source Evidence join: dispatched SPINE prompt + lenses.md both carry the per-issue join with split absence arms (D9)', async () => {
+  const byLabel = await promptsByLabel({})
+  const cvs = byLabel['probe:coverage-vs-source']
+  // lenses.md half: scope to a region around each coverage-vs-source mention (the sibling
+  // region idiom), so an unrelated occurrence elsewhere (e.g. 'vacuous' in the ff-topology
+  // lens) can never satisfy a clause anchor. The join prose rides the same bullet line as the
+  // lens name and runs past a ±320-char window, so the region here is the enclosing line.
+  const lenses = readFileSync(join(__dirname, '..', 'references', 'lenses.md'), 'utf8')
+  const regions = lenses.split('\n').filter(line => line.toLowerCase().includes('coverage-vs-source'))
+  assert.ok(regions.length > 0, 'lenses.md must name the coverage-vs-source lens')
+  const lensesRegion = regions.join('\n---\n')
+  for (const [surface, text] of [['SPINE prompt', cvs], ['lenses.md', lensesRegion]]) {
+    assert.match(text, /Evidence-consumed block/, `${surface} triggers the join on the plan's Evidence-consumed block`)
+    assert.match(text, /Evidence artifacts/, `${surface} joins against each cited issue's Evidence artifacts section`)
+    assert.match(text, /merged arm only/i, `${surface} scopes the join to the merged arm`)
+    assert.match(text, /unread-with-reason/, `${surface} accepts read or unread-with-reason as coverage`)
+    assert.match(text, /vacuous/i, `${surface} makes an absent Evidence-artifacts section vacuous (a pass, not a finding)`)
+    assert.match(text, /never silent, never vacuous/, `${surface} makes an unreachable issue a named unverified note`)
+  }
+})
+
 // SKILL.md Step-1 pins encode End state 6's committed check: new-present `its own source of truth`
 // (case-insensitive) and the retired always-a-separate-spec default arm absent. The retired phrase
 // is split-fragment assembled so this file never carries it contiguously (self-exclusion by

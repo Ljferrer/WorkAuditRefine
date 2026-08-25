@@ -24,6 +24,9 @@ metadata:
     - GATE_EXIT marker
     - run_in_background
     - backgrounded gate dispatch
+    - land dispatch tool timeout
+    - self-misclassifying error MergeResult
+    - verify merge commit parents not re-merge
   tags:
     - refine
     - land
@@ -31,7 +34,7 @@ metadata:
     - gate
   created: 2026-08-15
   originSessionId: 8bae67aa-acfa-461e-acc9-278fc79ba6c1
-  modified: 2026-08-20T13:49:35.199Z
+  modified: 2026-08-25T08:17:39.476Z
 ---
 
 # A merge-task dispatch cut off mid-gate is INCOMPLETE, not a real gate_failed/introduced verdict
@@ -114,12 +117,47 @@ after this exact INCOMPLETE shape, instruct it to launch the gate in the backgro
 immediately (rather than waiting synchronously inside one turn), so the harness's own re-invocation
 cadence — not the single dispatch's turn budget — is what has to outlast the full-suite runtime.
 
+## Recurrence 3 (2026-08-24, plan `authoring-side-verification`, phase 3, LAND-side twin —
+`code-verified` the routing mechanism at landed tip `783bd136ea6a9d8da9b73b5dcbf01d1d475a0cef`,
+`agent-unverified` the incident narrative itself — the Lead's own recovery account, no separate
+audit-log record of the dead dispatch):
+
+Same shape one stage later in the pipeline — a **land** dispatch (not `merge-task`) hit the same
+tool-timeout wall. Its foreground gate exceeded the ~2-minute dispatch tool timeout, so it
+backgrounded the gate and was forced to emit `StructuredOutput` before any `GATE_EXIT`/exit-code
+line existed. Because a land dispatch's schema has no "still running" verdict, it emitted
+`MergeResult` `status: "error"` carrying a **self-describing narrative** ("incomplete/interrupted,
+not a genuine error") — the engine's routing has no narrative-parsing step, so the bare `status`
+value alone drove it to `held:land-failed`.
+
+**New sub-lesson this recurrence adds (the LAND-side twin of the original merge-task rule):** (a) a
+land-stage gate that outlives the dispatch's own tool timeout produces a **self-misclassifying**
+`error` `MergeResult` — the `status` field is not trustworthy in isolation; the narrative text in
+the same payload is the actual signal, and a Lead (or automated router) must read `gate_output`/the
+escalation detail before treating `status: "error"` as a real failure. (b) The **merge commit a dead
+land dispatch leaves behind in `_refinery` can be exactly correct and reusable** — the dispatch had
+already created the merge commit before being cut off. Recovery is [[resume-and-recovery.md]]'s
+already-landed-probe idiom applied one level in: verify the existing merge commit's **parents**
+(origin tip + integration tip) match expectation, **re-run the already-resolved gate green** in
+`_refinery`, then do **one** `land-advance` + follower sync — never re-run `--no-ff merge` on top of
+a dead dispatch's commit, which would mint a phantom duplicate merge (same failure shape as
+re-merging after a `held:land-failed` probe holds, see
+[[never-follow-resumefromrunid-hint-after-a-land-failure]]).
+
+**Locate cue:** the already-landed-probe idiom (`git merge-base --is-ancestor <merge_sha>
+<integration_branch>`) is code-verified present in `skills/war/references/resume-and-recovery.md`
+(row A, "ledger ahead") at the same landed tip. The land dispatch's own tool-timeout/backgrounding
+shape is not itself a named code construct — it is a harness/tool-runtime behavior, not a
+repo-owned mechanism, so this half stays `agent-unverified` (the Lead's recovery narrative).
+
 ## Related
 
 [[never-follow-resumefromrunid-hint-after-a-land-failure]] — same family of "gate recovery choice
-must be driven by the specific failure/incompleteness reason, not a generic status label."
+must be driven by the specific failure/incompleteness reason, not a generic status label"; this
+phase (2026-08-24) is also a confirming recurrence of that lesson via the same incident.
 [[wave-loop-thunk-catch-prevents-null-result-infinite-redispatch]] — a related dispatch-robustness
 concern in the same Refine/merge machinery.
 
-> archived 2026-08-17: resolved — moved to archive (still recurring and confirming as of 2026-08-20;
-> left in archive since war-memory temperature moves are its own job, not the servitor's)
+> archived 2026-08-17: resolved — moved to archive (still recurring and confirming as of 2026-08-20
+> and 2026-08-24 (land-side twin); left in archive since war-memory temperature moves are its own
+> job, not the servitor's)

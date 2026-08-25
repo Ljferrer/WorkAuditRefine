@@ -38,7 +38,7 @@ request, never retroactively.
 **Evidence tag**:
 The per-claim provenance marker every claim of fact in a merged plan (or input-shape spec) carries —
 `(user)` · `(verified: <source> at <base>)` · `[assumed: <default> — if wrong: <consequence>]`;
-issue-derived claims use the source form `(verified: issue #N (<date>))`. Maps onto the
+issue-derived facts use `(verified: issue #N (<date>))`. Maps onto the
 memory-provenance ladder ([ADR 0007](docs/adr/0007-memory-provenance.md)) — `(user)` ≈ user-confirmed,
 `(verified:)` ≈ code-verified, `[assumed:]` ≈ agent-unverified — with deliberately distinct syntax: the
 tag grades a plan claim, the tier a memory lesson.
@@ -55,7 +55,7 @@ it.
 
 **Done-when**:
 The per-task `Done when: <command>` slot — required iff `requiresTest: true`, and permitted (not
-required) elsewhere — otherwise `None — <basis>`. Its End-state sibling rule: every End state carries
+required) on any other task; otherwise `None — <basis>`. Its End-state sibling rule: every End state carries
 exactly one tag from the closed set `check:` | `gate:` | `HARD at audit_sha` (observable + judge seat) |
 `backstop:` row.
 _Avoid_: a prose promise where a command belongs; a check that still passes with the feature deleted
@@ -77,6 +77,84 @@ budget remains; otherwise the residue is default-and-tagged and recorded in the 
 provenance gate (the untagged-claim scan — an untagged claim of fact is a bug).
 _Avoid_: the run-time **gate command** / gate-audit (those gate merges and lands; this gates
 authoring completeness).
+
+**Run-history recon lane**:
+The Stage-0 interview recon lane (`skills/war-strategy/references/plan-interview.md`) that reads the
+four run-history corpus classes — run manifests (`.claude/war/runs/`) · epic phase reports · the
+war-followup corpus · `docs/learnings/` — plus each cited source issue's `## Evidence artifacts`
+section. Fail-open: an empty or partial corpus never blocks the interview. What it read (or could
+not) lands in the plan's **Evidence consumed block**.
+_Avoid_: static recon and the batched memory prefetch (sibling Stage-0 lanes — the repo-tree/ADR
+read and the ranked-lesson query; not the run-history lane); treating an empty corpus as a blocker.
+
+**Strategy-verifier seat**:
+The adversarial counterweight for the `/war-strategy` interviewer's `Recommended:` beats: one
+read-only verifier agent per armed beat, loaded with the run-history corpus, dispatched before the
+beat is shown, chartered to refute (`skills/war-strategy/references/strategy-verifier.md`). Arming
+is by rule — arm any beat whose wrong branch surfaces only at run time (four arms, enumerated in
+the charter) — dispatch-without-asking; skips flow the other way, as **WAIVE channel** rows.
+Surviving output rides the beat as one line (`if wrong: <consequence> · caught by: <layer or
+NOTHING>`); refute flow is bounded (amend + re-arm once; unresolved = live fork); degradation is
+one of three inline stamps (`corpus-empty` · `corpus-partial — missing: <classes>` ·
+`unavailable (<reason>)`), never silent and never blocking.
+_Avoid_: the audit **Seat** (a roster lens over a task diff — not the interview-beat verifier);
+letting the verifier auto-accept, block, or convert a beat on its own.
+
+**Ratified-pin ledger** (`PIN-<n>`):
+The artifact-borne record of ratified interview state — the principle, verbatim: state that must
+survive to a gate lands in the artifact, not the transcript. Design-tree rows carry ratified
+`PIN-<n>` ids (digits-only, matched as a whole right-delimited token — `PIN-1` never matches inside
+`PIN-13`; amendment pins mint fresh numbers, letter suffixes are illegal) plus a landing-class cell
+(pin→class pairs; a single-class cell covers all row pins), mapped class→section. The advisory
+`plan-literal-lint.mjs` checks the map report-only (exit 0); the hard half of the inseparable pair
+is gate 1's enumerate-aloud duty.
+_Avoid_: the `PIN-` prefix as a skip token (it carries reconciliation join keys only — not the
+skip token; that is the **WAIVE channel**'s `WAIVE-<n>`); a fail-closed authoring lint (the lint
+stays exit-0; gate 1 carries the hard duty).
+
+**WAIVE channel**:
+The skip channel for **Strategy-verifier seat** dispatches: skips are operator utterances, never
+interviewer inferences, recorded as artifact-borne `WAIVE-<n>` rows — id · beat · fired arming arm ·
+scope · reason — enumerated aloud at gate 1 before the confirm counts, standing class-scoped skips
+included. `--afk` runs are armed-by-rule unwaived (no operator can utter a skip), so a `WAIVE-<n>`
+row in an AFK-authored plan is a defect. The fired-arm field feeds `/war-review`'s
+waive-rate-per-arm telemetry.
+_Avoid_: `PIN-<n>` as the skip token (that prefix is the **Ratified-pin ledger**'s join key — not
+the skip channel); an interviewer-inferred skip.
+
+**Evidence-artifacts duty**:
+The filing-side duty that an issue a WAR surface files carries a `## Evidence artifacts` section —
+concrete paths/URLs (for run-filed issues: the pinned SHA, seat lenses, audit round) — so a later
+interview's **Run-history recon lane** reads the evidence instead of re-deriving it. Homes on the
+filing surfaces (the `/survey-corps` memory-mined issue template, `/war`'s clustered filing
+prompt); the ADR 0044 amendment records the decision. Consumption-side, a consumed issue lacking
+the section is a named gap the recon lane records — never a blocker.
+_Avoid_: the **Evidence consumed block** (the plan-side record of what the lane read — not the
+issue-side section this duty places); the per-claim **Evidence tag** (a single claim's provenance
+marker in a plan — not the issue-side evidence section this duty places).
+
+**Evidence consumed block**:
+The plan Part-1 artifact-borne record of the **Run-history recon lane**'s reads: one row per linked
+artifact, read or unread-with-reason. Placement latitude anywhere in Part 1 — never a new required
+H2 (extraction surfaces untouched); enumerated aloud at gate 1 before the confirm counts.
+_Avoid_: a new required H2 or extraction heading; the issue-side `## Evidence artifacts` section
+(that is the **Evidence-artifacts duty**'s surface — not the plan-side block).
+
+**Omittability probe**:
+The delete-the-feature probe's dual, run over the End-state enumeration (the Stage-1 falsifier list
+and the Stage-4 sweep): for each required outcome ask, "if this had no numbered End state of its
+own, could the run omit it silently with every other check still green?" — a yes means the outcome
+needs its own row, an explicit backstop row, or an explicit non-goal, never silence.
+_Avoid_: the delete-the-feature probe (that catches a check that cannot fail — not the missing-check
+dual; omittability catches an outcome with no check at all).
+
+**Oracle duality**:
+The authoring rule for vacuously-greenable checks: a `check:` / `Done when:` command whose exit
+code can go green vacuously (a bare `grep -q`, a `test -f`) proves success by a decisive printed
+token in addition to exit status; the advisory lint's single-signal-oracle rule flags the bare
+form.
+_Avoid_: exit status alone as the oracle on a vacuously-greenable command; the delete-the-feature
+probe (that judges whether the check can fail at all — not the form of its success signal).
 
 ### Worktree provisioning
 
