@@ -1,11 +1,23 @@
 #!/usr/bin/env bash
-# Structure test for skills/war-strategy/SKILL.md + references/plan-interview.md: locks all
+# Structure test for skills/war-strategy/SKILL.md + references/plan-interview.md +
+# references/strategy-verifier.md: locks all
 # five sections, the three inline templates (merged plan / spec input shape / roadmap), the
 # merged-template internals ratified by the 2026-08-04 interview-and-authoring-contract plan
 # (Task 1), the #1431 latitude pins (the two optional intent sub-bullet slots — Mechanism
-# latitude / Binding guardrails — the warrants-no-issue closing sentence, the ADR 0017
-# never-waives bound, and the doctrine's latitude-beat label; the war-machine drafter-duty
-# twin lives in skills/war-machine/war-pipeline-structure.test.sh), the interview doctrine's
+# latitude / Binding guardrails — the warrants-no-issue closing sentence plus its
+# template-localized `">` twin, the ADR 0017
+# never-waives bound, the doctrine's latitude-beat label, and the two beat-scoped doctrine
+# pins binding the Stage-2 beat itself; the war-machine drafter-duty
+# twin lives in skills/war-machine/war-pipeline-structure.test.sh), the 2026-08-24
+# authoring-side-verification pins (the Stage-0 run-history recon lane + batched prefetch —
+# with an OLD-absent assert on the retired single-query literal via the doctrine-side
+# lacks_doc_i helper, which also hosts the #1601 retired rules-range guard — the Stage-1
+# omittability probe, the Stage-2 verifier trigger pointer + arming principle, the
+# ratified-pin ledger / WAIVE-channel / gate-1 pair-duty doctrine, the strategy-verifier
+# charter content pins via $CHARTER, the SKILL-side pin-column / Evidence-consumed /
+# oracle-duality template law, the #1494 fence Done-when connective convergence, the #1505
+# HANDOFF latitude clause, the #1602 trichotomy-token pins, and the #1604 gap-review-clause
+# pin), the interview doctrine's
 # ratified internals, the doctrine's Evidence + slot law
 # section (presence pin + the five-atom mirror-equality block, #1307: the D4 / D5 / tag-set /
 # D12 / D14 law atoms extracted from both surfaces, whitespace-normalized, non-empty-asserted
@@ -25,6 +37,7 @@ set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 SKILL="$HERE/SKILL.md"
 DOCTRINE="$HERE/references/plan-interview.md"
+CHARTER="$HERE/references/strategy-verifier.md"
 
 fails=0
 # All helpers pass the pattern via `-e` + `--` so anchors that START with `-` (the separate
@@ -72,6 +85,28 @@ doc_f() { # fixed string (vs references/plan-interview.md)
     fails=$((fails + 1))
   fi
 }
+char_f() { # fixed string (vs references/strategy-verifier.md)
+  if grep -qF -e "$1" -- "$CHARTER"; then
+    printf 'ok - charter :: %s\n' "$1"
+  else
+    printf 'not ok - charter missing: %s\n' "$1"
+    fails=$((fails + 1))
+  fi
+}
+# Case-INSENSITIVE fixed-string ABSENCE in the DOCTRINE — the doctrine-side twin of
+# lacks_i() below (#1601: the SKILL-scoped helper left plan-interview.md's retired literals
+# guarded by neither suite). Same conventions: patterns assembled at call sites from split
+# fragments; positive controls via ctl() prove each assembled pattern alive and its -i
+# load-bearing. Vacuous-pass-on-missing-file is excluded by the doctrine file-exists check
+# and the doc_f presence pins on the same surface (the paired-positive rule).
+lacks_doc_i() { # fixed string (vs references/plan-interview.md)
+  if grep -qiF -e "$1" -- "$DOCTRINE"; then
+    printf 'not ok - doctrine UNEXPECTEDLY has :: %s (case-insensitive)\n' "$1"
+    fails=$((fails + 1))
+  else
+    printf 'ok - doctrine lacks :: %s (correct, case-insensitive)\n' "$1"
+  fi
+}
 # Case-INSENSITIVE fixed-string ABSENCE in SKILL.md — the retired-wording guard. Insensitive
 # because a benign re-case of retired prose must not slip past a case-sensitive absence arm
 # (the recorded lacks()-vs-has_i() asymmetry class). Patterns are assembled at the call site
@@ -112,7 +147,7 @@ check_f 'a recommended front door, never a requirement'
 # — and deleting any one occurrence goes red)
 check_f '## Context — the gap / problem            ← Part 1'
 check_n '## Pivotal constraints' 3
-check_f '## Resolved design tree                   ← table: decision → resolution → source'
+check_f '## Resolved design tree                   ← table: decision → resolution → source · pin ids (PIN-<n>) · landing class'
 check_f '## Assumptions ledger                     ← required; assumption · basis · blast radius · check   (or exactly: None)'
 check_n '## Non-goals / deferred' 3
 check_n '## New domain terms · Recommended ADRs' 3
@@ -154,6 +189,21 @@ check_f 'is required iff `requiresTest: true`'
 # Template-law item 4 (D4/D5): the End-state tag law + the Part-1 evidence-tag law
 check_f 'Every End state carries one tag'
 check_f 'carries an evidence tag'
+# 2026-08-24 template-law additions (authoring-side verification): the oracle-duality
+# bullet (#1628 · PIN-12), the design-tree pin columns (the ratified-pin ledger, D1), and
+# the Evidence consumed block with its placement latitude (D8).
+check_f '**Oracle duality (#1628):**'
+check_f 'decisive printed token in addition to exit status'
+check_f '**Design-tree pin columns (the ratified-pin ledger):**'
+check_f 'landing-class column is floored; where the id sits within a row is latitude'
+check_f 'letter suffixes are illegal'
+check_f '**Evidence consumed block:**'
+check_f 'read or unread-with-reason'
+check_f 'never a new required H2'
+# #1494 fence convergence: the merged-template Done-when slot annotation now carries the
+# canonical D5 connective (the retired `permitted`+`elsewhere` form is OLD-absent below);
+# the `(else:` suffix binds this pin to the fence line specifically, never the law bullet.
+check_f 'permitted (not required) on any other task (else: None — <basis>)'
 
 # The Part-2 tail: TWO separate H2s (adjudicated 2026-08-05, Q2) — template lines + the law
 check_f '## Notes / conscious deviations   (ratify in /red-team)'
@@ -210,6 +260,12 @@ check_f 'owns the factual accuracy'            # rule 8: the touched-doc ownersh
 check_f 'machine-readable in-repo source'      # rule 8: the trichotomy's scope (never prose claims generally)
 check_f 'never prose claims generally'         # rule 8: the scope's explicit prose-claims carve-out
 check_f 'never silence'                        # rule 8: guard / de-mirror / explicitly defer — never silence
+# #1602 trichotomy-token pins: the three lawful-treatment option NAMES on the canonical
+# surface (rule 8's own text) — mental-delete of any one arm (e.g. de-mirror) previously
+# left every rule-8 pin above green; each option name now reds on its own.
+check_f '**guard** (a drift test binding'      # rule 8 trichotomy arm 1: guard
+check_f '**de-mirror** (rewrite the doc'       # rule 8 trichotomy arm 2: de-mirror
+check_f 'or **explicitly defer** (a'           # rule 8 trichotomy arm 3: explicitly defer
 
 # §4 — ADR 0042 pointer (trigger + read shape), bare-invoke-runs-the-interview, widened
 # HANDOFF DIRECTIVE, merged conversion target, the four merged-shape gap rows, D9 binding
@@ -224,7 +280,13 @@ check_f 'untagged factual claims (D4)'
 check_f 'implicit `## Assumptions ledger`'
 check_f "untagged End states (D5's closed tag set)"
 check_f 'without `Done when:`'
+# #1604: the gap-review row's touched-doc clause — previously the only unpinned clause in a
+# row whose siblings are all pinned above/below (lock-step convention).
+check_f 'touched-doc facts left silent (no guard, no de-mirror, no explicit defer)'
 check_f 'bound by the same question contract'
+# #1505: the HANDOFF DIRECTIVE carries the latitude beat, so the Grill-Me front door lands
+# the same optional sub-bullets as the in-skill interview.
+check_f 'so the optional `Mechanism latitude:` / `Binding guardrails:` sub-bullets land'
 
 # Interview doctrine file — presence + its ratified internals (structure-test lock-step:
 # every ratified sentence lands with its pin in the same task)
@@ -235,7 +297,19 @@ else
   fails=$((fails + 1))
 fi
 doc_f 'Stage 0 — silent recon'
-doc_f "node skills/_shared/war-memory.mjs query '<slug> plan-authoring' --repo docs/learnings"
+# Batched prefetch (D16, 2026-08-24) — the single-query literal is RETIRED (OLD-absent
+# guard below); the Stage-0 prefetch is one batched --queries call, /war-Lead flag
+# discipline (--local always, --repo when resolved).
+doc_f 'node skills/_shared/war-memory.mjs query --queries <file> --local <local root> --repo docs/learnings'
+doc_f 'one batched call, one query per interview area'
+# Run-history recon lane (D8, 2026-08-24) — the four corpus classes + issue-linked
+# artifacts, and the artifact-borne Evidence consumed duty.
+doc_f '**The run-history recon lane**'
+doc_f 'run manifests (`.claude/war/runs/`) · epic phase reports · the war-followup corpus · `docs/learnings/`'
+doc_f 'issue-linked evidence artifacts'
+doc_f '`## Evidence artifacts` section'
+doc_f '**Evidence consumed** block: one row per linked artifact, read or unread-with-reason'
+doc_f 'placement latitude anywhere in Part 1, never a new required H2'
 doc_f 'Stage 1 — silent rehearsal + pre-mortem'
 doc_f 'delete-the-feature probe'
 doc_f 'touched-doc silence'
@@ -263,10 +337,83 @@ doc_f 'A gap review is a shorter interview, not a different discipline'
 doc_f 'Mechanism latitude'
 doc_f '**the latitude beat** (decisive slot)'
 doc_f 'once the End states are drafted, ask'
+
+# --- 2026-08-24 authoring-side-verification doctrine pins (each duty sentence lands
+# lock-step with its pin — the duty-pin law this same plan floors). ---
+# Stage-1 omittability probe (#1628) — the delete-the-feature dual.
+doc_f '**the omittability probe**'
+doc_f 'could the run omit it silently with every other check still green'
+doc_f 'omittability catches an outcome with no check at all'
+# Stage-2 verifier trigger pointer (ADR 0042 shape) + the arming principle sentence.
+doc_f '**arm any beat whose wrong branch surfaces only at run time**'
+doc_f 'dispatch-without-asking'
+doc_f 'When a beat arms per the checklist, read'
+doc_f '[references/strategy-verifier.md](strategy-verifier.md)'
+# Stage-4 sweep duties: the omittability sweep sentence + the Evidence-consumed
+# enumeration duty.
+doc_f 'run the omittability probe over the drafted End-state enumeration'
+doc_f 'enumerate the Evidence consumed block aloud'
+# Gate-1 pair duty (D2) + the duty-class twice-read rule (PIN-25).
+doc_f 'Echo-back 1 is **gate 1**'
+doc_f 'lint stays exit-0 report-only ↔ gate 1 carries the hard **enumerate-aloud** duty'
+doc_f 'fix-or-waive on the record before the confirm counts'
+doc_f 'read **twice** at echo-back reconciliation'
+# The ratified-pin ledger + WAIVE channel (D1 · D7) + the verbatim artifact-borne principle
+# sentence (D8 · PIN-13).
+doc_f '## The ratified-pin ledger + the WAIVE channel'
+doc_f 'state that must survive to a gate lands in the artifact, not the transcript'
+doc_f '`PIN-1` never matches inside `PIN-13`'
+doc_f 'amendment pins mint fresh numbers, letter suffixes'
+doc_f 'a single-class cell covers all row pins'
+doc_f 'guardrail → `Binding guardrails:`'
+doc_f 'anywhere-citation'
+doc_f '`WAIVE-<n>` is the skip token'
+doc_f 'id · beat · fired arm · scope · reason'
+doc_f 'reconciliation join keys only'
+doc_f 'never-a-new-required-H2 law by name'
+doc_f 'the class scope in the scope field and the utterance point in beat'
 # Doctrine-side presence pin (#1307, D7): the mirrored law section carried ZERO pins before
 # this — it could be deleted outright with the suite green. Deletion now reds twice: this
 # pin, and the mirror-equality block's per-surface non-empty asserts below.
 doc_f '## Evidence + slot law (shared with the template)'
+
+# ---------------------------------------------------------------------------------------
+# Strategy-verifier charter (references/strategy-verifier.md, End state 2) — presence +
+# content pins: the arming principle and its four arms, the refute output contract and
+# flow bounds, the three inline degraded-mode stamps, WAIVE semantics with arm recording,
+# the explicit AFK-unwaived statement, the three leak shapes + the duty-class twice-read
+# rule, and the six-beat worked-example calibration table.
+if [ -f "$CHARTER" ]; then
+  printf 'ok - references/strategy-verifier.md exists\n'
+else
+  printf 'not ok - references/strategy-verifier.md is MISSING\n'
+  fails=$((fails + 1))
+fi
+char_f 'Arm any beat whose wrong branch surfaces only at run time'
+char_f '**Engine-semantics change**'
+char_f '**Mechanism floored into guardrails**'
+char_f '**Decomposition/skeleton beat**'
+char_f '**Placing or explicitly declining an enforcement layer**'
+char_f 'dispatch-without-asking'
+char_f 'if wrong: <consequence> · caught by: <layer or NOTHING>'
+char_f 'is a legal and load-bearing answer'
+char_f '**re-arms once**'
+char_f '**live fork in the beat**'
+char_f 'dispatch → amend → re-arm → fork'
+char_f '`verifier: corpus-empty — doctrine-only refutation`'
+char_f '`verifier: corpus-partial — missing: <classes>`'
+char_f '`verifier: unavailable (<reason>)`'
+char_f 'recorded as a `WAIVE-<n>` row'
+char_f '**the arming arm that fired**'
+char_f 'carry a **scope** (which beat class) and a **reason**'
+char_f 'is enumerated aloud before the confirm counts'
+char_f 'AFK runs armed-by-rule unwaived'
+char_f 'A `WAIVE-<n>` row in an AFK-authored plan is a defect'
+char_f '**Half-floored pair**'
+char_f '**Ratified-but-homeless deliverable**'
+char_f '**Unvalidated join-executor claim**'
+char_f 'read **twice** at echo-back reconciliation'
+char_f 'six-beat incident table'
 
 # ---------------------------------------------------------------------------------------
 # Mirror-equality block (#1307, D3–D6). The plan-authoring law is stated on BOTH reading
@@ -424,6 +571,22 @@ lacks_i "$r3a$r3b"
 r4a='dependency '
 r4b='check'
 lacks_i "$r4a$r4b"
+# 2026-08-24 retirements. r5 (#1494): the fence Done-when annotation's retired connective —
+# the fence now carries the canonical D5 form (presence pin above). SKILL-scoped.
+r5a='permitted '
+r5b='elsewhere'
+lacks_i "$r5a$r5b"
+# r6 (D16): the retired Stage-0 single-query prefetch literal — doctrine-scoped (lacks_doc_i);
+# the batched --queries form is pinned present above (paired positive).
+r6a="query '<slug> "
+r6b="plan-authoring'"
+lacks_doc_i "$r6a$r6b"
+# r7 (#1601): the doctrine decisive-slots table's retired drift-guard rules range — the live
+# value (rules 5–8) is pinned present below; a revert while rule 8 is live now reds here.
+r7a='rules 5'
+r7b='–7'
+lacks_doc_i "$r7a$r7b"
+doc_f 'rules 5–8'
 
 # Positive controls for the four assembled absence patterns (#1308, D8/D11). The assembled
 # literals are unfindable by any grep, so a one-character fragment typo would leave a
@@ -461,6 +624,15 @@ ctl 3 "$f3a$f3b" "$r3a$r3b"
 f4a='Dependency '
 f4b='Check'
 ctl 4 "$f4a$f4b" "$r4a$r4b"
+f5a='Permitted '
+f5b='Elsewhere'
+ctl 5 "$f5a$f5b" "$r5a$r5b"
+f6a="Query '<Slug> "
+f6b="Plan-Authoring'"
+ctl 6 "$f6a$f6b" "$r6a$r6b"
+f7a='Rules 5'
+f7b='–7'
+ctl 7 "$f7a$f7b" "$r7a$r7b"
 
 # Commander's Intent sits BEFORE ## Build order inside the merged plan template.
 # Locators anchor to the verbatim arrow-bearing template lines (unique to the merged-template
