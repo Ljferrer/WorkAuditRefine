@@ -1991,9 +1991,11 @@ test('auditor card absorb block carries the source-derivable eligibility clarifi
 
 // (D34) RETIRED D4/D5 CONNECTIVES (#1498) — CONTEXT.md was the third live surface of the two
 // authoring laws the war-strategy convergence retired the old wording of: the D4 issue-derived
-// source-form clause ("issue-derived claims use the source form …" → "issue-derived facts use …")
-// and the D5 done-when connective ("permitted (not required) elsewhere — otherwise" → "permitted
-// (not required) on any other task; otherwise"). Both directions are committed assertions, per the
+// source-form clause (the retired claims/source-form phrasing → "issue-derived facts use …") and
+// the D5 done-when connective (the retired elsewhere-connective → "permitted (not required) on
+// any other task; otherwise"). (Retired forms paraphrased rather than quoted here, per D9's and
+// D29's precedent: a comment restating retired wording is what false-reds a later retirement
+// sweep.) Both directions are committed assertions, per the
 // recorded [[old-absent-gate-half-relies-on-unrecorded-hand-grep-fails-silently]] lesson: the
 // NEW-present half is extracted BY CONSTRUCT from the owning glossary entry (D19/D26's idiom), and
 // the OLD-absent half sweeps all THREE converged surfaces (CONTEXT.md + the two canonical
@@ -2099,7 +2101,10 @@ test('D35 — CONTEXT.md **Touched-doc accuracy duty** entry mirrors war-strateg
 
 // (D36) THE EIGHT AUTHORING-SIDE-VERIFICATION GLOSSARY TERMS (plan 2026-08-24, Task 2.3) — each
 // new CONTEXT.md entry restates doctrine whose canonical home is a war-strategy authoring
-// surface (the interview doctrine, the strategy-verifier charter, or SKILL.md §2), and per the
+// surface (the interview doctrine, the strategy-verifier charter, or SKILL.md §2) — except the
+// Evidence-artifacts-duty row, deliberately bound to the CONSUMPTION surface (plan-interview.md)
+// because its normative homes (the survey-corps issue template, the clustered filing prompt)
+// land in Task 2.2 / Task 3.2 and cannot be bound from this task's frozen base — and per the
 // recorded [[context-md-doctrine-mirror-can-land-without-a-skill-doc-contracts-drift-guard-row]]
 // lesson a glossary mirror is guarded ONLY when its row is authored deliberately — these are
 // those rows, landing in the commit that creates the mirrors. Extraction is BY CONSTRUCT per
