@@ -57,7 +57,7 @@ ledger's `extractFiles` all run unmodified against it).
 # <Title — the change in one line>
 ## Context — the gap / problem            ← Part 1 · every claim of fact tagged (evidence tags, D4)
 ## Pivotal constraints
-## Resolved design tree                   ← table: decision → resolution → source
+## Resolved design tree                   ← table: decision → resolution → source · pin ids (PIN-<n>) · landing class
 ## Assumptions ledger                     ← required; assumption · basis · blast radius · check   (or exactly: None)
 ## Non-goals / deferred
 ## New domain terms · Recommended ADRs
@@ -79,7 +79,7 @@ ledger's `extractFiles` all run unmodified against it).
 ### Task 1: <name>
 - Files: `<path/one>`, `<path/two>`   ← every path backticked & comma-separated; the campaign ledger's `extractFiles` reads backticked tokens
 - Plan slice: <what to implement>
-- Done when: <command>   ← required iff requiresTest: true; permitted elsewhere (else: None — <basis>)
+- Done when: <command>   ← required iff requiresTest: true; permitted (not required) on any other task (else: None — <basis>)
 - requiresTest: true|false
 - requiresPackaging: true|false  ← default true; Lead may set false at decompose to skip the packaging floor
 - deps: [<task ids>]             ← wave edge: the worker rebases onto the merged dep (see the rule)
@@ -112,6 +112,20 @@ ledger's `extractFiles` all run unmodified against it).
   (D11). Memory/training is never a `(verified:)` source.
 - **Done-when law (D5):** `Done when: <command>` is required iff `requiresTest: true`, and permitted (not
   required) on any other task; otherwise `None — <basis>`.
+- **Oracle duality (#1628):** a `check:` / `Done when:` command whose exit code can go green vacuously
+  (a bare `grep -q`, a `test -f`) proves success by a
+  **decisive printed token in addition to exit status**; the advisory lint's
+  single-signal-oracle rule flags the bare form.
+- **Design-tree pin columns (the ratified-pin ledger):** rows carry the interview's ratified `PIN-<n>`
+  ids and a per-pin landing class (pin→class pairs; a single-class cell covers all row pins) — token
+  grammar digits-only and right-delimited (`PIN-1` never matches inside `PIN-13`); amendment pins mint
+  fresh numbers, letter suffixes are illegal. The
+  landing-class column is floored; where the id sits within a row is latitude. The class→section map,
+  the gate-1 pair duty, and the `WAIVE-<n>` channel live in the pin-ledger law
+  (`references/plan-interview.md`).
+- **Evidence consumed block:** a plan authored under the interview carries an **Evidence consumed**
+  block — one row per linked evidence artifact, read or unread-with-reason — with placement latitude
+  anywhere in Part 1 and **never a new required H2** (the extraction surfaces stay untouched).
 
 **Backstop heading:** the operator-ratified form is `## Deferred validations (backstops)`. A plan authored
 by `/war-machine --afk` has no operator to ratify, so its drafter uses the AI-declared variant
@@ -435,7 +449,10 @@ finds the Grill Me family installed and the operator prefers that front door, ro
 it and ship this **HANDOFF DIRECTIVE** with the route — the authoring skill executes it:
 
 > **Intent interview:** draft the plan's `## Commander's Intent` block **only from the operator's answers**
-> (Purpose / Method / numbered checkable End state — never invented), echo the drafted block back, and get an
+> (Purpose / Method / numbered checkable End state — never invented), ask **the latitude beat** — which
+> mechanisms named in Method are implementer's choice, and what is the actual floor —
+> so the optional `Mechanism latitude:` / `Binding guardrails:` sub-bullets land from answers, not
+> inference, then echo the drafted block back, and get an
 > **explicit confirm** before moving on. **Author into the merged template:** the deliverable is one merged
 > plan per war-strategy §2 — Part 1 decision record (every claim evidence-tagged, one `## Assumptions
 > ledger`) + Part 2 decomposed phases — at `docs/plans/YYYY-MM-DD-<slug>.md`, never a spec + plan pair.

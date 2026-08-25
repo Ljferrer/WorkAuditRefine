@@ -1,12 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
-import { lint, LINT_PATTERNS, SHAPE_RULES } from './plan-literal-lint.mjs';
+import { lint, LINT_PATTERNS, SHAPE_RULES, parsePlanShape } from './plan-literal-lint.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CLI = join(HERE, 'plan-literal-lint.mjs');
@@ -142,11 +142,15 @@ test('combined fixture reports exactly one hit per pattern; compliant rewrite re
 // ===========================================================================
 
 // Every declared shape rule has a name AND slot text naming the merged-template slot it checks.
-test('SHAPE_RULES: five named rules; each rule text names the merged-template slot it checks', () => {
-  assert.equal(SHAPE_RULES.length, 5);
+test('SHAPE_RULES: nine named rules; each rule text names the merged-template slot it checks', () => {
+  assert.equal(SHAPE_RULES.length, 9);
   assert.deepEqual(
     SHAPE_RULES.map((r) => r.name).sort(),
-    ['missing-assumptions-ledger', 'requires-test-without-done-when', 'untagged-context-claim', 'untagged-end-state', 'vague-end-state']
+    [
+      'evidence-consumed-form', 'missing-assumptions-ledger', 'pin-citation',
+      'requires-test-without-done-when', 'single-signal-oracle', 'untagged-context-claim',
+      'untagged-end-state', 'vague-end-state', 'waive-row-form',
+    ]
   );
   const slotAnchor = {
     'untagged-end-state': "## Commander's Intent",
@@ -154,6 +158,10 @@ test('SHAPE_RULES: five named rules; each rule text names the merged-template sl
     'requires-test-without-done-when': 'Done when:',
     'missing-assumptions-ledger': '## Assumptions ledger',
     'untagged-context-claim': '## Context',
+    'pin-citation': '## Resolved design tree',
+    'evidence-consumed-form': 'Evidence consumed',
+    'single-signal-oracle': 'check:',
+    'waive-row-form': 'WAIVE-<n>',
   };
   for (const r of SHAPE_RULES) {
     assert.ok(r.slot.includes(slotAnchor[r.name]), `${r.name} slot text must name its merged-template slot`);
@@ -278,6 +286,173 @@ test('vague-end-state: flags properly/correctly/coherent inside an End state; cl
   assert.equal(countOf(lint(observable), 'vague-end-state'), 0);
 });
 
+// ===========================================================================
+// Third family (plan docs/plans/2026-08-24-authoring-side-verification.md, Task 1.3) —
+// section-scoped pin citation, Evidence-consumed form, single-signal oracle, WAIVE row form.
+// ===========================================================================
+
+// Design-tree fixture builder: header + separator + the given rows, D1 cell grammar.
+const tree = (...rows) => [
+  '## Resolved design tree',
+  '| # | Decision | Resolution | Source | Landing class |',
+  '|---|----------|------------|--------|---------------|',
+  ...rows,
+];
+
+// ---- pin-citation: the D1 class→section map, one section per class ----
+test('pin-citation: every landing class maps to its section; removing any one citation yields exactly that hit', () => {
+  const doc = (omit) => [
+    ...tree(
+      '| D1 | a | r | (user) · PIN-1 | guardrail |',
+      '| D2 | b | r | (user) · PIN-2 | end-state |',
+      '| D3 | c | r | (user) · PIN-3 | backstop |',
+      '| D4 | d | r | (user) · PIN-4 | slice (T1.1) |',
+      '| D5 | e | r | (user) · PIN-5 | context |',
+      '| D6 | f | r | (user) · PIN-6, PIN-7 | PIN-6→guardrail · PIN-7→slice (T1.1) |',
+    ),
+    "## Commander's Intent",
+    `- **Binding guardrails:** the fence holds${omit === '1' ? '' : ' (PIN-1)'}${omit === '6' ? '' : ' · one engine surface (PIN-6)'}`,
+    `- **End state:**`,
+    `  1. It lands${omit === '2' ? '' : ' (PIN-2)'} · check: \`bash t.sh\``,
+    '## Phase 1',
+    '### Task 1.1: Do a thing',
+    `- Plan slice: land the duty${omit === '4' ? '' : ' (PIN-4)'}${omit === '7' ? '' : ' with its pin (PIN-7)'}`,
+    '## Deferred validations (backstops)',
+    `- telemetry row${omit === '3' ? '' : ' (PIN-3)'} · runner: /war-review`,
+  ].join('\n');
+  // Fully cited (PIN-5 is context class — the definition row suffices, D1): zero hits.
+  assert.equal(countOf(lint(doc(null)), 'pin-citation'), 0);
+  for (const pin of ['1', '2', '3', '4', '6', '7']) {
+    const hits = lint(doc(pin)).filter((h) => h.pattern === 'pin-citation');
+    assert.equal(hits.length, 1, `omitting PIN-${pin}'s citation`);
+    assert.match(hits[0].match, new RegExp(`^PIN-${pin} uncited`));
+  }
+});
+
+test('pin-citation: section-scoped — a citation elsewhere in the doc does not satisfy a guardrail-class pin', () => {
+  const doc = [
+    ...tree('| D1 | a | r | (user) · PIN-7 | guardrail |'),
+    "## Commander's Intent",
+    '- **Binding guardrails:** nothing pinned here',
+    '## Notes',
+    '- PIN-7 is mentioned here, outside its landing-class section',
+  ].join('\n');
+  const hits = lint(doc).filter((h) => h.pattern === 'pin-citation');
+  assert.equal(hits.length, 1);
+  assert.equal(hits[0].match, 'PIN-7 uncited in Binding guardrails');
+});
+
+test('pin-citation: whole right-delimited token — PIN-1 never matches inside PIN-13 or PIN-1a (PIN-3 grammar)', () => {
+  const doc = (cite) => [
+    ...tree('| D1 | a | r | (user) · PIN-1 | guardrail |'),
+    "## Commander's Intent",
+    `- **Binding guardrails:** the fence holds (${cite})`,
+  ].join('\n');
+  assert.equal(countOf(lint(doc('PIN-13')), 'pin-citation'), 1, 'PIN-13 is not a PIN-1 citation');
+  assert.equal(countOf(lint(doc('PIN-1a')), 'pin-citation'), 1, 'letter suffixes are illegal — not a citation');
+  assert.equal(countOf(lint(doc('PIN-1')), 'pin-citation'), 0);
+});
+
+test('pin-citation: slice class requires the citation in EACH named task slice', () => {
+  const doc = (t12cited) => [
+    ...tree('| D1 | a | r | (user) · PIN-9 | slice (T1.1, T1.2) |'),
+    '### Task 1.1: One',
+    '- Plan slice: carries PIN-9',
+    '### Task 1.2: Two',
+    `- Plan slice: ${t12cited ? 'also carries PIN-9' : 'no pin here'}`,
+  ].join('\n');
+  assert.equal(countOf(lint(doc(true)), 'pin-citation'), 0);
+  const hits = lint(doc(false)).filter((h) => h.pattern === 'pin-citation');
+  assert.equal(hits.length, 1);
+  assert.equal(hits[0].match, "PIN-9 uncited in Task 1.2's slice");
+});
+
+test('pin-citation: class-less pin falls back to anywhere-citation; definition-without-citation reported', () => {
+  const mk = (cited) => [
+    ...tree('| D1 | a | r | (user) · PIN-8 | tbd |'),
+    '## Notes', // closes the design-tree section — anywhere-citation looks outside the tree
+    cited ? 'The mechanism rides PIN-8 in prose.' : 'No citation anywhere.',
+  ].join('\n');
+  assert.equal(countOf(lint(mk(true)), 'pin-citation'), 0);
+  const hits = lint(mk(false)).filter((h) => h.pattern === 'pin-citation');
+  assert.equal(hits.length, 1);
+  assert.equal(hits[0].match, 'PIN-8 defined but never cited');
+});
+
+test('pin-citation: silent on a doc with no design tree', () => {
+  assert.equal(countOf(lint("## Commander's Intent\n- **Binding guardrails:** none"), 'pin-citation'), 0);
+});
+
+// The dogfood anchor (Task 1.3): the lint↔doctrine pair shares the plan as its common anchor —
+// the tests cite the floored `PIN-<n>` literal from the plan's Binding guardrails (PIN-3), and
+// the plan's own 26-pin ledger parses under the D1 cell grammar with zero rule-(a) violations
+// (the plan's Notes section claims exactly that conformance).
+test('pin-citation ↔ doctrine anchor: the plan\'s Binding guardrails floor the PIN-<n> grammar; its own ledger is clean', () => {
+  const plan = readFileSync(join(HERE, '..', '..', '..', 'docs', 'plans', '2026-08-24-authoring-side-verification.md'), 'utf8');
+  // The floored PIN-3 literal, verbatim from the plan's Binding guardrails.
+  assert.ok(plan.includes('`PIN-<n>` token grammar (digits-only, right-delimited'), 'floored grammar literal present');
+  assert.ok(plan.includes('**Binding guardrails:**'), 'guardrails bullet present');
+  assert.equal(parsePlanShape(plan).designPins.length, 26, 'the ratified ledger parses to its 26 pins');
+  assert.equal(countOf(lint(plan), 'pin-citation'), 0, 'dogfood: zero section-scope violations');
+});
+
+// ---- evidence-consumed-form: read / unread-with-reason per linked artifact row ----
+test('evidence-consumed-form: flags a status-less row and a bare unread; read and unread-with-reason are clean', () => {
+  const block = (...rows) => ['**Evidence consumed** (interview of 2026-08-24)', ...rows].join('\n');
+  const good = block(
+    '- `docs/red-team/x.md` — read',
+    '- issue #1331 artifact — unread — gh unreachable at interview time',
+  );
+  assert.equal(countOf(lint(good), 'evidence-consumed-form'), 0);
+  const noStatus = lint(block('- `docs/red-team/x.md`')).filter((h) => h.pattern === 'evidence-consumed-form');
+  assert.equal(noStatus.length, 1);
+  assert.match(noStatus[0].match, /lacks read \/ unread-with-reason/);
+  const bareUnread = lint(block('- issue #1331 artifact — unread')).filter((h) => h.pattern === 'evidence-consumed-form');
+  assert.equal(bareUnread.length, 1);
+  assert.match(bareUnread[0].match, /unread without reason/);
+});
+
+test('evidence-consumed-form: a mid-prose mention or a table-cell bold label opens no block', () => {
+  // Plain prose naming the block (the doctrine does this constantly) — not a block.
+  const prose = ['The Evidence-consumed block inherits placement latitude.', '- some bullet after it'].join('\n');
+  assert.equal(countOf(lint(prose), 'evidence-consumed-form'), 0);
+  // A BOLD label mid-sentence (not line-initial) — still not a block; the marker is line-anchored.
+  const boldProse = [
+    '- The **Evidence consumed** block is artifact-borne.',
+    '- sibling bullet with no status',
+  ].join('\n');
+  assert.equal(countOf(lint(boldProse), 'evidence-consumed-form'), 0);
+  // The bold label inside a design-tree table row (D8's own cell) — not a block either.
+  const cell = ['| D8 | Evidence recon | artifact-borne **Evidence consumed** block | (user) | guardrail |', '| D9 | x | y | (user) | slice |'].join('\n');
+  assert.equal(countOf(lint(cell), 'evidence-consumed-form'), 0);
+});
+
+// ---- single-signal-oracle: bare grep -q / test -f on a check:/Done when: line (#1628) ----
+test('single-signal-oracle: flags a bare grep -q or test -f oracle; a &&-paired oracle is clean', () => {
+  assert.equal(countOf(lint('   check: `grep -qiE "^# Amendment" docs/adr/0044.md`'), 'single-signal-oracle'), 1);
+  assert.equal(countOf(lint('- Done when: `test -f docs/specs/out.md`'), 'single-signal-oracle'), 1);
+  // The decisive-token pair — NEW-present && OLD-absent — is the compliant form.
+  assert.equal(countOf(lint('   check: `grep -q NEW f && ! grep -q OLD f`'), 'single-signal-oracle'), 0);
+  // A suite oracle is not single-signal.
+  assert.equal(countOf(lint('- Done when: `node --test skills/war-strategy/assets/plan-literal-lint.test.mjs`'), 'single-signal-oracle'), 0);
+  // Same command outside a check:/Done when: line is not an oracle (scope guard).
+  assert.equal(countOf(lint('run grep -q foo bar to probe by hand'), 'single-signal-oracle'), 0);
+});
+
+// ---- waive-row-form: five fields, row-initial right-delimited id (D7) ----
+test('waive-row-form: a five-field row is clean; a short row is flagged with its field count', () => {
+  const good = '- WAIVE-1 · beat 3 · arm: enforcement-layer · scope: this beat · reason: operator call';
+  assert.equal(countOf(lint(good), 'waive-row-form'), 0);
+  const hits = lint('- WAIVE-1 · beat 3 · reason: operator call').filter((h) => h.pattern === 'waive-row-form');
+  assert.equal(hits.length, 1);
+  assert.match(hits[0].match, /3 of 5 fields/);
+});
+
+test('waive-row-form: a mid-prose mention or the doctrine\'s `WAIVE-<n>` placeholder is not a row', () => {
+  assert.equal(countOf(lint('skips are recorded as WAIVE-1 in the fix-or-waive channel'), 'waive-row-form'), 0);
+  assert.equal(countOf(lint('- `WAIVE-<n>` is the skip token; five fields: id · beat · arm'), 'waive-row-form'), 0);
+});
+
 // ---- combined merged-shape fixture: one hit per shape rule; compliant merged plan clean ----
 test('merged-shape combined fixture reports exactly one hit per shape rule; compliant merged plan reports zero', () => {
   const badPlan = [
@@ -285,9 +460,13 @@ test('merged-shape combined fixture reports exactly one hit per shape rule; comp
     '## Context — the gap / problem',
     'The stub is a 7-line shim routing elsewhere.',
     '',
+    ...tree('| D1 | a | r | (user) · PIN-7 | guardrail |'),
+    '',
     "## Commander's Intent",
+    '- **Binding guardrails:** nothing pinned here',
     '- **End state:**',
     '  1. The doctrine file exists and reads properly',
+    '  2. The sweep holds · check: `grep -q foo SKILL.md`',
     '',
     '## Build order',
     '## Phase 1 — Work',
@@ -295,22 +474,31 @@ test('merged-shape combined fixture reports exactly one hit per shape rule; comp
     '- Files: `a.mjs`',
     '- requiresTest: true',
     '- deps: []',
+    '',
+    '**Evidence consumed**',
+    '- `docs/red-team/x.md`',
+    '',
+    '- WAIVE-1 · beat 3 · reason: operator call',
   ].join('\n');
   const hits = lint(badPlan);
   for (const name of SHAPE_RULES.map((r) => r.name)) assert.equal(countOf(hits, name), 1, name);
-  assert.equal(hits.length, 5, 'no line-rule noise in this fixture');
+  assert.equal(hits.length, 9, 'no line-rule noise in this fixture');
 
   const goodPlan = [
     '# T — one line',
     '## Context — the gap / problem',
     'The stub is a 7-line shim routing elsewhere (verified: `README.md`, read 2026-08-04).',
     '',
+    ...tree('| D1 | a | r | (user) · PIN-7 | guardrail |'),
+    '',
     '## Assumptions ledger',
     'None.',
     '',
     "## Commander's Intent",
+    '- **Binding guardrails:** exactly one engine surface moves (PIN-7)',
     '- **End state:**',
     '  1. The doctrine file exists · check: `bash t.sh`',
+    '  2. The sweep holds · check: `grep -q NEW f && ! grep -q OLD f`',
     '',
     '## Build order',
     '## Phase 1 — Work',
@@ -319,6 +507,12 @@ test('merged-shape combined fixture reports exactly one hit per shape rule; comp
     '- requiresTest: true',
     '- Done when: `node --test a.test.mjs`',
     '- deps: []',
+    '',
+    '**Evidence consumed**',
+    '- `docs/red-team/x.md` — read',
+    '- issue #1331 artifact — unread — gh unreachable',
+    '',
+    '- WAIVE-1 · beat 3 · arm: enforcement-layer · scope: this beat · reason: operator call',
   ].join('\n');
   assert.deepEqual(lint(goodPlan), []);
 });
