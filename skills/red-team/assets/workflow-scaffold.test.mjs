@@ -1021,8 +1021,15 @@ test('coverage-vs-source merged arm: emitted SPINE prompt + lenses.md spine entr
 test('coverage-vs-source Evidence join: dispatched SPINE prompt + lenses.md both carry the per-issue join with split absence arms (D9)', async () => {
   const byLabel = await promptsByLabel({})
   const cvs = byLabel['probe:coverage-vs-source']
+  // lenses.md half: scope to a region around each coverage-vs-source mention (the sibling
+  // region idiom), so an unrelated occurrence elsewhere (e.g. 'vacuous' in the ff-topology
+  // lens) can never satisfy a clause anchor. The join prose rides the same bullet line as the
+  // lens name and runs past a ±320-char window, so the region here is the enclosing line.
   const lenses = readFileSync(join(__dirname, '..', 'references', 'lenses.md'), 'utf8')
-  for (const [surface, text] of [['SPINE prompt', cvs], ['lenses.md', lenses]]) {
+  const regions = lenses.split('\n').filter(line => line.toLowerCase().includes('coverage-vs-source'))
+  assert.ok(regions.length > 0, 'lenses.md must name the coverage-vs-source lens')
+  const lensesRegion = regions.join('\n---\n')
+  for (const [surface, text] of [['SPINE prompt', cvs], ['lenses.md', lensesRegion]]) {
     assert.match(text, /Evidence-consumed block/, `${surface} triggers the join on the plan's Evidence-consumed block`)
     assert.match(text, /Evidence artifacts/, `${surface} joins against each cited issue's Evidence artifacts section`)
     assert.match(text, /merged arm only/i, `${surface} scopes the join to the merged arm`)
