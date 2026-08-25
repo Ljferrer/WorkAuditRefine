@@ -4,7 +4,10 @@
 # so a future edit can't silently drop the pipeline contract. Also pins (#1431, 2026-08-17)
 # the war-machine drafter charter's Mechanism-latitude duty — the machine-SKILL twin of
 # skills/war-strategy/war-strategy-structure.test.sh's latitude pins, region-scoped to §2
-# step 1. grep-based, plain-bash, no mktemp
+# step 1. Also pins (2026-08-24, authoring-side verification) the cross-surface consumer
+# family: the war-machine verifier-charter pointer + drafter evidence instruction + the
+# #1510/#1605 re-scopes, and the deps-edged lenses.md / survey-corps / war-review pins.
+# grep-based, plain-bash, no mktemp
 # — bash 3.2-safe. Exit 0 = all present; exit N = N failed assertions.
 #
 # Repo *.test.sh convention: self-discovered by the gate's `find … -name '*.test.sh'` sweep
@@ -36,6 +39,7 @@ CLAUDE_MD="$ROOT/CLAUDE.md"
 WAR_HELP="$ROOT/skills/war-help/SKILL.md"
 WAR_STRATEGY="$ROOT/skills/war-strategy/SKILL.md"
 WAR_CAMPAIGN="$ROOT/skills/war-campaign/SKILL.md"
+WAR_REVIEW="$ROOT/skills/war-review/SKILL.md"
 
 fails=0
 
@@ -446,9 +450,13 @@ lacks_i "$WAR_STRATEGY" "$retired_count_d rules"
 # retired-count arms above scan $WAR_STRATEGY only, whose non-vacuity is held by the has_i loop
 # above plus war-strategy-structure.test.sh, and lacks_i already fails loudly on a missing file):
 # the drafter directive consumes /war-strategy §3's touched-doc rule 8 by reference, and names
-# its trichotomy. has_i: PROSE, sentence-case class.
+# its trichotomy — pinned as the joined option-name triplet, so deleting the
+# guard/de-mirror/explicitly-defer sentence alone goes red (#1605: the previous comment
+# claimed trichotomy coverage the two by-reference pins below never carried). has_i: PROSE,
+# sentence-case class.
 has_i "$MACHINE" 'touched-doc'
 has_i "$MACHINE" 'authoring rule 8'
+has_i "$MACHINE" 'guard / de-mirror / explicitly-defer'
 
 printf '\n# Authoring contract (docs/plans/2026-08-04-interview-and-authoring-contract.md, Task 3) — machine merged output + grill charter + AFK per-row provenance + survey-corps claim tagging\n'
 # Named, not numbered: the original pipeline spec owns the numbered criteria. has_i for PROSE
@@ -606,6 +614,48 @@ has_i_stripped "$README"    'recommended auxiliary plugin'
 has_i_stripped "$CLAUDE_MD" 'one interview, one merged artifact'
 has_i_stripped "$WAR_HELP"  'one merged plan, decision record + phases in a single artifact'
 has_i_stripped "$CONTEXT"   'input shape'
+
+printf '\n# Authoring-side verification (docs/plans/2026-08-24-authoring-side-verification.md, Task 2.4) — cross-surface consumer pins\n'
+# Named, not numbered (the original pipeline spec owns the numbered criteria). Each pin below
+# guards a duty sentence another surface's task landed (ADR 0025 guard-split: deps-edged onto
+# Tasks 2.1, 2.2, 2.5) or this task's own war-machine additions. has_i for PROSE
+# (the sentence-case class); has() only for token/path literals that never re-case.
+#
+# war-machine grill charter consumes the strategy-verifier charter (D4 · PIN-6 · PIN-17): the
+# AFK authoring path's adversarial counterweight — the pointer is the consumption deliverable,
+# and the armed-by-rule/unwaived posture rides it (PIN-23's machine-side echo).
+has   "$MACHINE" 'strategy-verifier.md'
+has_i "$MACHINE" 'armed-by-rule and unwaived under `--afk`'
+# war-machine drafter evidence instruction (D10/D11 consumption-side): when the spec cites
+# source issues, the drafter reads each cited issue's `## Evidence artifacts` section
+# (verified absent at 9b5a80c — the charter carried the D11 tag-form rule but no read
+# instruction). Backticked heading literal per
+# [[check-command-grep-literal-must-include-markdown-code-span-backticks]].
+has_i "$MACHINE" "reads each cited issue's"
+has   "$MACHINE" '`## Evidence artifacts`'
+# #1510 re-scope (wrapped, PIN-2): the latitude offer is unconditional; only the per-row
+# AI-declared markers are --afk-scoped. Both ways (per /war-strategy §3 authoring rule 6):
+# the presence pin holds the corrected scoping clause; the split-fragment absence twin holds
+# the retired offer-verb-scoped phrasing out.
+has_i "$MACHINE" 'the offer is unconditional; only the per-row `AI-declared` markers are `--afk`-scoped'
+retired_afk_a='under `--afk`, with'
+retired_afk_b='per-row `AI-declared` markers'
+lacks_i "$MACHINE" "$retired_afk_a $retired_afk_b"
+# Task 2.1 (lenses.md merged-arm Evidence join, D9 · PIN-26): the per-issue join with split
+# absence arms — section-absent vacuous, issue-unreachable a named unverified note.
+has_i "$LENSES" 'Per-issue Evidence join'
+has_i "$LENSES" 'named unverified note'
+# Pins the second of D9's split absence arms (section-absent ⇒ vacuous); 'named unverified
+# note' above discriminates only the unreachable arm.
+has_i "$LENSES" 'section is absent ⇒ the join is'
+has   "$LENSES" '`## Evidence artifacts`'
+# Task 2.2 (survey-corps Step 0.3 issue template, D10 · PIN-11): the memory-mined issue body
+# must carry the `## Evidence artifacts` section.
+has   "$SURVEY" '`## Evidence artifacts`'
+# Task 2.5 (war-review telemetry, D7 · PIN-24's reader): the waive-rate-per-arm row sourced
+# from doctrine-authored plans' WAIVE-<n> rows, n/a when none in scope.
+has_i "$WAR_REVIEW" 'waive-rate per arming arm'
+has   "$WAR_REVIEW" '`WAIVE-<n>`'
 
 printf '\n== war-pipeline-structure: %s failure(s) ==\n' "$fails"
 exit $fails
