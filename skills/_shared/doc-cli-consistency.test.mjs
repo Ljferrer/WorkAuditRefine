@@ -160,6 +160,9 @@ const VERB_SCAN_EXCLUSIONS = [
   // no shell-out prose for the scanned modules (names war-config.mjs only as a de-mirror
   // target, with no verb after it)
   'skills/war/references/touched-doc-accuracy.md',
+  // no shell-out prose for the scanned modules (arming/refute/waive doctrine only; names
+  // the recon corpus classes by prose, never a CLI command)
+  'skills/war-strategy/references/strategy-verifier.md',
 ]
 
 function skillDocs() {
