@@ -7394,17 +7394,21 @@ test('T2.1 (D1/D8) — the escalate reservation ("NEVER escalate" on a cannot-co
 
 // Run a single-task happy-path phase and return the first-pass worker's captured spawn opts.
 // files === undefined ⇒ NO files field on the task (the absent-list fail-safe case).
+// Threads an EXPLICIT agents config with distinct base/docs models (opus/sonnet) so the tier
+// predicate stays observable by model — the DEFAULTS tiers are both fable, which would make the
+// docs-vs-base distinction vacuous here (the D2 registry row pins the defaults mirror itself).
 const firstPassWorkOpts = async (files) => {
   const task = { id: 't1', issue: 101, title: 'T', planSlice: 's', roster: [{ lens: 'correctness' }],
     ...(files !== undefined ? { files } : {}) }
-  const { calls } = await runPhase(PROVISION_ARGS({ tasks: [task] }), defaultImpl)
+  const agents = { worker: { model: 'opus', docs: { model: 'sonnet', effort: 'default' } } }
+  const { calls } = await runPhase(PROVISION_ARGS({ tasks: [task], agents }), defaultImpl)
   return (calls.find(c => c.opts.label === 'work:t1') || {}).opts || {}
 }
 
 test('Task 1.2 — docs tier: an all-*.md task dispatches its first-pass worker on the docs tier (sonnet); a non-*.md entry or an absent/empty files list stays base (opus, the fail-safe)', async () => {
   const allMd = await firstPassWorkOpts(['docs/a.md', 'skills/war/SKILL.md'])
-  assert.equal(allMd.model, 'sonnet', 'all-*.md task → docs tier model (sonnet, the mirrored DEFAULTS.agents.worker.docs)')
-  assert.equal(allMd.effort, undefined, "docs default effort is 'default' ⇒ omitted from spawn opts")
+  assert.equal(allMd.model, 'sonnet', 'all-*.md task → docs tier model (the configured agents.worker.docs)')
+  assert.equal(allMd.effort, undefined, "docs effort is 'default' ⇒ omitted from spawn opts")
 
   const mixed = await firstPassWorkOpts(['docs/a.md', 'skills/war/assets/x.js'])
   assert.equal(mixed.model, 'opus', 'a single non-*.md entry keeps the base worker tier (opus)')
