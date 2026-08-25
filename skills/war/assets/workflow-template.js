@@ -81,11 +81,22 @@ const AUDIT_VERDICT = { type: 'object', required: ['seat', 'lens', 'verdict', 'f
     severity: { enum: ['Critical', 'Major', 'Minor', 'Nit'] }, title: { type: 'string' }, file: { type: 'string' },
     line: { type: 'number' }, rationale: { type: 'string' }, suggested_fix: { type: 'string' }, plan_ref: { type: 'string' },
     // Disposition routing (ADR 0013): auditor-owned, orthogonal to severity. Omitted → severity default
-    // (Minor → follow-up, Nit → note; 'absorb' is never defaulted). phaseClose:true routes an absorb to
-    // the phase-close queue. autoFixable is DEPRECATED — legacy alias for disposition:'absorb', honored
-    // one release, removed next release.
-    disposition: { enum: ['absorb', 'follow-up', 'note'] }, phaseClose: { type: 'boolean' },
-    autoFixable: { type: 'boolean' } } } },
+    // (Minor → follow-up, Nit → note; 'absorb' and 'ask' are never defaulted). phaseClose:true routes an
+    // absorb to the phase-close queue. autoFixable is DEPRECATED — legacy alias for disposition:'absorb',
+    // honored one release, removed next release.
+    disposition: { enum: ['absorb', 'follow-up', 'note', 'ask'] }, phaseClose: { type: 'boolean' },
+    autoFixable: { type: 'boolean' },
+    // ask (#1550, ADR 0013 amendment 2026-08-25): the question+fork field — MANDATORY on a
+    // disposition:'ask' finding (the items-level if/then below, mirroring the top-level
+    // escalate-boundary conditional): question is the decision needed, fork the two branches the
+    // operator rules between at the Checkpoint strike-list gate. Minor/Nit-only by construction:
+    // dispositionOf is reachable only through the severity filter — Critical/Major findings route
+    // via blockingOf and never carry a disposition.
+    ask: { type: 'object', required: ['question', 'fork'], properties: {
+      question: { type: 'string', minLength: 1 },
+      fork: { type: 'array', items: { type: 'string' }, minItems: 2 } } } },
+    if: { properties: { disposition: { const: 'ask' } }, required: ['disposition'] },
+    then: { required: ['ask'] } } },
   tests_verified: { type: 'object' }, confidence: { enum: ['high', 'medium', 'low'] }, escalate_reason: { type: 'string' },
   // widen (D4): optional catalog lenses a lone seat nominates for auto-escalate widening; honored only
   // on the lone-seat trigger (resolveWidenSource validates whole-field), ignored elsewhere. Not required.
@@ -247,6 +258,11 @@ const landed = [], escalated = [], minorsFiled = [], auditLog = []
 // notes receives disposition:'note' findings (phase report + servitor feed — memory candidates,
 // never issues).
 const notes = []
+// asks (#1550, ADR 0013 amendment 2026-08-25): parked disposition:'ask' records — decision-shaped
+// Minor/Nit questions awaiting the operator's ruling at the Checkpoint strike-list gate. Rides the
+// top-level return beside minorsFiled and the handoff's ninth (lossy) `asks` key; NEVER consumed by
+// the follow-up consolidation or the file-followups dispatch below (an unruled ask is never filed).
+const asks = []
 // --ace provenance (D3): aced findings recorded as { task, finding, sha } — a return ATTRIBUTE, not a
 // status/escalation (D6). Under disposition routing (ADR 0013) `aced` also records the phase-close
 // sweep's absorbed findings at the polish sha.
@@ -386,10 +402,13 @@ const recovery = (A.recovery && typeof A.recovery === 'object' && !Array.isArray
 const intentClause = intent
   ? pt`\nCOMMANDER'S INTENT (the operator's purpose — your ceiling; the plan slice is your floor):\n${intent}\n`
   : ''
-// Adjudications (Task 1.5, ADR 0032; producers widened by audit-adjudication-threading Task 1.1).
-// TWO producers feed this arg, never one: the Lead assembles rows from the red-team report's
-// `## Adjudications` block for this plan (docs/red-team/<plan-slug>.md) AND from its own scope
-// adjudications made at the decompose gate or at an escalation, per `skills/war/SKILL.md`, then
+// Adjudications (Task 1.5, ADR 0032; producers widened by audit-adjudication-threading Task 1.1,
+// widened again — Checkpoint ask rulings — by ask-disposition Task 1.1, ADR 0013 amendment
+// 2026-08-25). THREE producers feed this arg, never one or two: the Lead assembles rows from the
+// red-team report's `## Adjudications` block for this plan (docs/red-team/<plan-slug>.md) AND from
+// its own scope adjudications made at the decompose gate or at an escalation AND from the
+// Checkpoint ask rulings — each ruled ask minted as an adjudication row at the strike-list gate —
+// both per `skills/war/SKILL.md`, then
 // threads the accumulated set here as args.adjudications (array|null of { adjudicated, supersedes }
 // objects or preformatted strings) — a Lead-read arg, like intent. FOLLOWS the intentClause threading
 // pattern: empty/absent ⇒ adjudicationClause is '' ⇒ every prompt below is byte-identical to a
@@ -722,15 +741,35 @@ const provisionClause = provisionList.length
 const blockingOf = seats => seats.flatMap(s => s.findings || []).filter(f => f.severity === 'Critical' || f.severity === 'Major')
 // minorsOf returns seat-stamped COPIES (never the seat's own finding objects): each Minor/Nit carries
 // the raising seat's id so the pre-filing follow-up consolidation (Task 2.1, #1566) can build merged
-// rows' seats[] corroboration list. An explicit finding-level `seat` (spread last) wins.
-const minorsOf   = seats => seats.flatMap(s => (s.findings || []).filter(f => f.severity === 'Minor' || f.severity === 'Nit').map(f => ({ seat: s.seat, ...f })))
-// Disposition classification (ADR 0013): auditor-owned routing, orthogonal to severity. Defaults
-// when omitted: Minor → 'follow-up', Nit → 'note'; 'absorb' is NEVER defaulted. Legacy
-// autoFixable:true reads as 'absorb' for one release (deprecated — removed next release).
+// rows' seats[] corroboration list, plus the seat's echoed audit_sha as `sha` so a parked ask carries
+// its provenance pin (#1550). Explicit finding-level `seat`/`sha` (spread last) win.
+const minorsOf   = seats => seats.flatMap(s => (s.findings || []).filter(f => f.severity === 'Minor' || f.severity === 'Nit').map(f => ({ seat: s.seat, sha: s.audit_sha, ...f })))
+// Disposition classification (ADR 0013; ask member #1550): auditor-owned routing, orthogonal to
+// severity. The ask arm precedes the absorb chain (D7 order-census). Defaults when omitted:
+// Minor → 'follow-up', Nit → 'note'; 'absorb' and 'ask' are NEVER defaulted — an ask exists only
+// when the seat set disposition:'ask' explicitly. Legacy autoFixable:true reads as 'absorb' for
+// one release (deprecated — removed next release).
 const dispositionOf = f =>
-  (f.disposition === 'absorb' || f.disposition === 'follow-up' || f.disposition === 'note') ? f.disposition
+  f.disposition === 'ask' ? 'ask'
+  : (f.disposition === 'absorb' || f.disposition === 'follow-up' || f.disposition === 'note') ? f.disposition
   : f.autoFixable === true ? 'absorb'
   : f.severity === 'Minor' ? 'follow-up' : 'note'
+// asks[] parking (#1550, D1 — the ask channel): a disposition:'ask' Minor/Nit parks in the run
+// artifact and is ruled by the operator at the Checkpoint strike-list gate — NEVER filed unruled
+// (the follow-up consolidation and the file-followups dispatch read minorsFiled only), never
+// dropped. Exactly-once membership by finding identity: every route into asks[] — the six
+// dispositionOf-site ask arms AND the demote() ask refusal — funnels through here, so one finding
+// can never park twice. Record floor: question + fork (the decision needed + the two branches,
+// from the finding's schema-mandatory `ask` field; absence-tolerant fallbacks — fail-open, never
+// a throw) plus task/seat/sha provenance; `finding` keeps the full row (the handoff block
+// projects a lossy subset without it).
+const parkAsk = f => {
+  if (asks.some(a => a.finding === f)) return
+  asks.push({ task: f.task ?? null, seat: f.seat ?? null, sha: f.sha ?? null,
+    question: (f.ask && f.ask.question) || f.title || '(question unrecorded)',
+    fork: (f.ask && Array.isArray(f.ask.fork)) ? f.ask.fork : [],
+    finding: f })
+}
 // Terminal-disposition demotion ladder (ADR 0013): demote one step toward durability, never drop
 // silently — EVERY demotion is log()ged. Arms: failed absorb → follow-up (a fresh re-audit absorb
 // after the batch ace is spent / dead ace worker / ace unavailable / --ace off, plus the seven
@@ -742,7 +781,19 @@ const dispositionOf = f =>
 // depth/split floor); non-approve-branch findings → follow-up (filed with the escalation);
 // held-phase phaseCloseQueue → follow-up; fileless absorb → severity default; sweep-raised absorb
 // at either terminal sweep arm → follow-up (the sweep is the phase's terminal fix round).
+// ASK REFUSAL (#1550, D1): demote() refuses an ask unconditionally and LOUDLY — an ask is ruled by
+// the operator at the Checkpoint strike-list gate, never demoted into debt (minorsFiled) or an
+// observation (notes) by machinery. log() + re-route onto asks[] (exactly-once by finding identity
+// via parkAsk), NEVER a throw: held:workflow-error omits the handoff, so a throw here would destroy
+// the very parked records the refusal exists to protect (this sentence is the standing guard
+// against a future "harden it to a throw" cleanup). The sole lawful ask→follow-up conversion is the
+// Checkpoint --afk no-match arm (Lead-side, question preserved) — never a demote() bypass flag.
 const demote = (f, to, why) => {
+  if (f.disposition === 'ask') {
+    log('Disposition demotion REFUSED (ask): [' + f.severity + '] "' + f.title + '" (task ' + f.task + ') — an ask is ruled at the Checkpoint, never demoted (' + why + '); re-routed onto asks[].')
+    parkAsk(f)
+    return
+  }
   log(`Disposition demotion: [${f.severity}] "${f.title}" (task ${f.task}) → ${to} — ${why}.`)
   ;(to === 'note' ? notes : minorsFiled).push(f)
 }
@@ -1049,7 +1100,7 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin) {
     // always-rendered prose whose BEHAVIOR fires only when the threaded intent carries an explicit
     // `Mechanism latitude:` clause; the D3 latitude registry row anchors it on both auditor surfaces.
     + pt`\nLATITUDE RULE: the plan slice is the floor, the Commander's Intent is the ceiling — intent-consistent work beyond the literal slice is APPROVE (judge it on its own correctness), never a plan-faithfulness violation; only deviations that contradict the intent or the slice block. No intent threaded means judge against the plan slice alone, as before. When the threaded intent carries an explicit \`Mechanism latitude:\` clause, read "contradicts the slice" against the binding guardrails, not against every pinned mechanism literal in the slice: a substitution inside the enumerated latitude that holds the guardrails and End states is APPROVE, never a plan-faithfulness finding; a substitution that breaches a guardrail or an End state blocks exactly as before.`
-    + pt`\nDISPOSITION RULE: every Minor/Nit finding carries a disposition — absorb (mechanical, intent-consistent, safe to fix this phase; set phaseClose:true when the fix needs the integrated tip or touches a shared/slot-adjacent file), follow-up (substantive work beyond this phase — MUST state why it is not absorbable), or note (informational; phase report + servitor feed, never an issue). Omitted disposition defaults: Minor becomes follow-up, Nit becomes note; absorb is never a default.`
+    + pt`\nDISPOSITION RULE: every Minor/Nit finding carries a disposition — absorb (mechanical, intent-consistent, safe to fix this phase; set phaseClose:true when the fix needs the integrated tip or touches a shared/slot-adjacent file), follow-up (substantive work beyond this phase — MUST state why it is not absorbable), note (informational; phase report + servitor feed, never an issue), or ask (a decision-shaped Minor/Nit only the operator can rule — MUST carry the \`ask\` field: \`question\` naming the decision needed plus \`fork\` naming the two branches; parked unruled and ruled at the Checkpoint, never filed unruled). Omitted disposition defaults: Minor becomes follow-up, Nit becomes note; absorb and ask are never defaults.`
     // ESCALATE-BOUNDARY CONTRACT (gate-audit-finding-routing Task 2.1(a)+(b), #1410 fixes 1+2) —
     // mirrored on agents/war-auditor.md (the verdict list's escalate bullet + the Return shape line)
     // and in the schemas.md AuditVerdict row (same commit); the D3 both-surfaces registry row anchors
@@ -1148,8 +1199,12 @@ async function auditRound(task, peers, workerTests, pin) {
   // escalate check: a seat whose well-formed audit_sha differs from its well-formed dispatched pin reviewed
   // a DIFFERENT tree than the worker's committed tip — its findings cannot be trusted for the HARD path.
   // Tag pin-mismatch, drop each finding to a non-blocking Nit (SOFT; original severity preserved so nothing
-  // is silently lost) AND STRIP its routing metadata (disposition + legacy autoFixable) so the demoted
-  // finding falls to the Nit default disposition (note) and can NEVER enter aceable / ride --ace (#805),
+  // is silently lost) AND STRIP its routing metadata (disposition — the ask member included — + legacy
+  // autoFixable) so the demoted finding falls to the Nit default disposition (note) and can NEVER enter
+  // aceable / ride --ace (#805). The pinMismatch strip is a NON-dispositionOf disposition sink (#1550, D7
+  // — its own order-census row): a pin-mismatched seat's disposition:'ask' never parks on asks[] — a
+  // question raised against a different tree than the worker's committed tip is not a ruling-worthy fork,
+  // so it falls to note with the rest of the stripped routing metadata. Also,
   // neutralize the verdict to a non-blocking 'approve' so it can neither escalate nor block a merge, and push
   // a SOFT absence-note (task, seat, both SHAs) to auditLog. Fail-open: absent or malformed pin OR audit_sha
   // ⇒ no demotion (today's behavior). The strip is at this single collection site — NO new filter at the
@@ -1568,7 +1623,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         // the failed-absorb demotion — the ladder never re-enters for findings it did not start with.
         for (const f of minorsOf(subSeats).map(x => ({ task: r.task.id, ...x }))) {
           const d = dispositionOf(f)
-          if (d === 'follow-up') minorsFiled.push(f)
+          if (d === 'ask') parkAsk(f)               // ask precedes the absorb chain (#1550, D7)
+          else if (d === 'follow-up') minorsFiled.push(f)
           else if (d === 'note') notes.push(f)
           else demote(f, 'follow-up', 'failed absorb — the ace budget is committed to the bisection in flight (re-audit round finding)')
         }
@@ -1591,14 +1647,16 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     auditLog.push({ task: r.task.id, verdict: r.verdict, findings: (r.seats || []).flatMap(s => s.findings || []), blocked: r.blocked, requested: r.expected, returned: (r.seats || []).length, fixRounds: r.task.fixRounds })
     done.add(r.task.id)
     if (r.verdict === 'approve') {
-      // Disposition routing (ADR 0013). absorb splits further: fileless → severity default
+      // Disposition routing (ADR 0013; ask arm #1550 — parked for the Checkpoint ruling gate,
+      // never aced, never filed). absorb splits further: fileless → severity default
       // (demotion); --ace off → follow-up (demotion — absorb execution rides run.ace, per-task ace
       // AND phase-close sweep alike); eligible → per-task ace exactly as today; phaseClose:true or
       // a release-slot filename → phaseCloseQueue (the sweep's feed).
       const aceable = []
       for (const f of taskMinors) {
         const d = dispositionOf(f)
-        if (d === 'follow-up') minorsFiled.push(f)
+        if (d === 'ask') parkAsk(f)                 // ask precedes the absorb chain (#1550, D7)
+        else if (d === 'follow-up') minorsFiled.push(f)
         else if (d === 'note') notes.push(f)
         else if (!f.file) demote(f, f.severity === 'Minor' ? 'follow-up' : 'note', 'fileless absorb takes the severity default (never ace-eligible)')
         else if (!run.ace) demote(f, 'follow-up', 'absorb requires --ace (off this run)')
@@ -1645,7 +1703,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             // failed-absorb demotion.
             for (const f of minorsOf(reSeats).map(x => ({ task: r.task.id, ...x }))) {
               const d = dispositionOf(f)
-              if (d === 'follow-up') minorsFiled.push(f)
+              if (d === 'ask') parkAsk(f)           // ask precedes the absorb chain (#1550, D7)
+              else if (d === 'follow-up') minorsFiled.push(f)
               else if (d === 'note') notes.push(f)
               else demote(f, 'follow-up', 'failed absorb — the ace batch is spent and the ladder never opens for fresh findings (re-audit round finding)')
             }
@@ -1972,9 +2031,13 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       else escalated.push({ task: r.task.id, reason: mr ? mr.status : 'merge_failed', detail: mr })
     } else {
       // Demotion arm (ADR 0013): findings on a task that never reaches the approve branch demote to
-      // follow-up and are filed WITH the escalation — the old eager-push behavior, now stated.
+      // follow-up and are filed WITH the escalation — the old eager-push behavior, now stated. An
+      // ask still parks (#1550): the question survives the escalation for the Checkpoint gate,
+      // never filed unruled with it.
       for (const f of taskMinors) {
-        if (dispositionOf(f) === 'follow-up') minorsFiled.push(f)
+        const d = dispositionOf(f)
+        if (d === 'ask') parkAsk(f)                 // ask precedes the absorb chain (#1550, D7)
+        else if (d === 'follow-up') minorsFiled.push(f)
         else demote(f, 'follow-up', `task never reached the approve branch (verdict: ${r.verdict}) — filed with the escalation`)
       }
       if (r.verdict === 'env-blocked') {
@@ -2498,10 +2561,12 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
       log(`phase-close sweep MERGED at ${polishSha} — the land proceeds on the polished tip; ${phaseCloseQueue.length} queued finding(s) absorbed.`)
       for (const f of phaseCloseQueue.splice(0)) aced.push({ task: f.task, finding: f, sha: polishSha })
       // Merged-arm routing (#1377): sweep-raised Minor/Nits route by disposition — an absorb (incl.
-      // fileless) demotes because the sweep is the phase's terminal fix round; absorb has no later round.
+      // fileless) demotes because the sweep is the phase's terminal fix round; absorb has no later
+      // round. A sweep-raised ask still parks (#1550) — the Checkpoint gate has no terminal round.
       for (const f of sweepMinors) {
         const d = dispositionOf(f)
-        if (d === 'follow-up') minorsFiled.push(f)
+        if (d === 'ask') parkAsk(f)                 // ask precedes the absorb chain (#1550, D7)
+        else if (d === 'follow-up') minorsFiled.push(f)
         else if (d === 'note') notes.push(f)
         else demote(f, 'follow-up', "sweep-raised absorb — the phase-close sweep is the phase's terminal fix round; absorb has no later round to land")
       }
@@ -2516,9 +2581,11 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
       // Discard-arm routing (#1377): sweep-raised Minor/Nits route through the same ladder — an
       // absorb demotes because the polish branch never merged (nothing to absorb into). A blocked
       // sweep (sweepWhy) reaches here with NO panel convened, so sweepMinors is empty — vacuous.
+      // A sweep-raised ask still parks (#1550): the ruling gate is Lead-side, not branch-bound.
       for (const f of sweepMinors) {
         const d = dispositionOf(f)
-        if (d === 'follow-up') minorsFiled.push(f)
+        if (d === 'ask') parkAsk(f)                 // ask precedes the absorb chain (#1550, D7)
+        else if (d === 'follow-up') minorsFiled.push(f)
         else if (d === 'note') notes.push(f)
         else demote(f, 'follow-up', 'sweep-raised absorb — the phase-close sweep was discarded; the polish branch never merged')
       }
@@ -2762,8 +2829,10 @@ if (landResult && landResult.status === 'landed' && memoryLocalRoot) {
 }
 
 // ---- FILE-FOLLOWUPS DISPATCH (D1/D2/D3, #1331) — the Workflow files its own follow-up-routed
-// findings. Fires on BOTH handoff-emitting paths (landed AND held:escalation), only when minorsFiled
-// is non-empty; placed AFTER the land decision resolves and BEFORE the handoff assembly so the
+// findings. Consumes minorsFiled ONLY — parked asks[] records are structurally excluded from this
+// consolidation and this filing dispatch (#1550: an unruled ask is NEVER filed; ruled asks file
+// Lead-side at the Checkpoint with filing parity). Fires on BOTH handoff-emitting paths (landed AND
+// held:escalation), only when minorsFiled is non-empty; placed AFTER the land decision resolves and BEFORE the handoff assembly so the
 // stamped issue numbers reach the assembly's `issue: m.issue ?? null` mapping (the assembly itself
 // is byte-unchanged). Refiner-executed — the Bash-capable seat that already performs gh writes; the
 // options mirror the endstate-check dispatch idiom (D18). FAIL-OPEN (D2): a dead/thrown dispatch, a
@@ -2920,6 +2989,12 @@ if (landDecision === 'landed' || landDecision === 'held:escalation') {
     polish: polishStatus,
     absorbed: Object.entries(bySha).map(([sha, findings]) => ({ sha, findings })),
     followUps: minorsFiled.map(m => ({ issue: m.issue ?? null, reason: [m.title, m.rationale].filter(Boolean).join(' — ') || '(untitled finding)' })),
+    // asks (#1550 — the NINTH handoff key, ADDITIVE beside the follow-ups row; no exact-key
+    // validator exists or is introduced): the LOSSY projection of the parked unruled ask records —
+    // question + fork + task/seat/sha provenance, minus the full finding row (the top-level
+    // return's asks[] keeps it). This key is the Checkpoint strike-list ruling gate's input; the
+    // absolute advance floor reads it (skills/war/SKILL.md § Checkpoint).
+    asks: asks.map(a => ({ task: a.task, seat: a.seat, sha: a.sha, question: a.question, fork: a.fork })),
     notes: notes.map(n => ({ task: n.task, title: n.title })),
     endState: endStateClaims.map(condition => {
       if (!gateAuditRan) return { condition, status: 'deferred' }
@@ -2947,12 +3022,12 @@ if (landDecision === 'landed' || landDecision === 'held:escalation') {
   }
 }
 
-return { phase: phaseId, landed, escalated, minorsFiled, aced, notes, landResult, servitorResult, auditLog, landDecision, ...(handoff ? { handoff } : {}) }
+return { phase: phaseId, landed, escalated, minorsFiled, asks, aced, notes, landResult, servitorResult, auditLog, landDecision, ...(handoff ? { handoff } : {}) }
 } catch (err) {
   // A dead phase that self-reports. landed/escalated are whatever accumulated before the throw;
   // teardown is NOT run (git state kept for resume/inspection). NO handoff block here (ADR 0013):
   // infra death has no trustworthy return to render — the ledger + issues are the record.
-  return { phase: phaseId, landed, escalated, minorsFiled, aced, notes, landResult: null,
+  return { phase: phaseId, landed, escalated, minorsFiled, asks, aced, notes, landResult: null,
            servitorResult: null, auditLog,
            landDecision: 'held:workflow-error',
            // recovery (D9, spec §9): an ADDITIVE field naming the sanctioned retry — held:workflow-error is

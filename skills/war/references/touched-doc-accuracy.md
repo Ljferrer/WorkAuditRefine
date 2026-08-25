@@ -32,7 +32,9 @@ re-derive; prose claims stay governed by the evidence-tag discipline (D4).
 - **Execution backstop:** `/war`'s decompose step carries the pointer to this file, so a Lead staging a
   doc-rewriting task can check the choice was made before dispatch.
 - **Audit:** a doc fact deterministically re-derivable from a machine-readable in-repo source is
-  mechanical for absorb-eligibility purposes (the auditor's standing card carries the clarification).
+  mechanical for absorb-eligibility purposes (the clarification lives in
+  `skills/war/references/disposition-eligibility.md`, the eviction destination the auditor's
+  standing card points at).
 
 Canonical record: the 2026-08-19 touched-doc scope-widening amendment to
 [ADR 0025](../../../docs/adr/0025-drift-guard-discipline.md).
