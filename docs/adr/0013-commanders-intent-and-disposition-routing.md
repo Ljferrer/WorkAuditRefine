@@ -8,7 +8,9 @@ judgment-path description for gate-audit End-state checks; see the amendment bel
 2026-08-17 — the latitude-clause reading clarifies Decision 3: an explicit `Mechanism latitude:`
 clause licenses in-band mechanism substitution bounded by the `Binding guardrails:` list; see the
 amendment below; amended 2026-08-20 — ace bisection on regression, source-derivable absorb
-eligibility, and the roundLimit 3→6 default flip; see the amendment below)
+eligibility, and the roundLimit 3→6 default flip; see the amendment below; amended 2026-08-25 —
+the `ask` disposition: a fourth Minor/Nit-only member, the Checkpoint strike-list ruling gate, and
+the third adjudication producer; see the amendment below)
 
 WAR's agents had exactly one yardstick: the plan's literal text. The auditor's plan-faithfulness lens judged
 work against the slice ("the plan did not authorize"), severity was the only routing signal (every Minor/Nit
@@ -229,6 +231,45 @@ already-landed mechanisms:
   `DEFAULTS.run.roundLimit` from 3 to 6 (`war-config.mjs`, with `workflow-template.js`'s fallback
   literal drift-guarded to it) — the bisection ladder consumes slots from the same budget
   (batch = 1 slot, +1 per subset commit, revert uncharged), so the old default starved recovery.
+
+This amendment leaves all pre-existing body text above — beyond the Status currency line —
+byte-unchanged.
+
+## Amendment (2026-08-25): the `ask` disposition — park the finding, rule at the Checkpoint
+
+The ask-disposition plan (#1550; `docs/plans/2026-08-25-ask-disposition.md`) widens the routing
+Decision 4 records by one member and adds a Checkpoint ruling gate. Decision-shaped Minor/Nit
+findings previously had no lawful channel — a policy question filed as a `follow-up` issue is a
+decision made by whoever closes the backlog, not by the operator while the context is live. This
+amendment records the contract:
+
+- **A fourth disposition member: `ask` — Minor/Nit-only, in plain sight.** The disposition set is
+  now `absorb` · `follow-up` · `note` · `ask`. An `ask` carries a mandatory question + fork (the
+  decision needed and its two branches) and delivers a decision-shaped Minor/Nit finding to the
+  operator with its fork intact. The Minor/Nit-only scope holds **by construction**:
+  `dispositionOf` is reachable only through the severity filter — Critical/Major findings route
+  via `blockingOf` and never carry a disposition. `demote()` refuses an ask loudly and
+  unconditionally: log() + re-route onto the `asks[]` record — never into `minorsFiled`/`notes`,
+  never a throw (a throw would destroy the parked records the refusal exists to protect).
+- **Never filed unruled.** Unruled asks park in the artifact — the top-level return's `asks[]`
+  beside `minorsFiled`, plus a lossy ninth handoff key — and are excluded from in-phase
+  consolidation and issue filing. Ruling happens at ONE Checkpoint strike-list gate: a single
+  pass rules all parked asks, behind an **absolute advance floor** — the DAG never advances over
+  an unruled ask. The floor binds interactively; under `--afk` a standing-adjudication match
+  resolves by citation, a no-match demotes to follow-up with the question preserved (visibly not
+  loss-free), and a suppression row is minted only from an operator ruling, provenance-marked.
+  Ruled asks then file Lead-side with filing parity (Evidence-artifacts duty + dedup against
+  engine-filed rows).
+- **The adjudication producer set widens two → three.** Checkpoint ask rulings join the two
+  producers the 2026-07-22 addendum records — the red-team report's `## Adjudications` block and
+  the Lead's own scope rulings — as `args.adjudications` rows, so a ruling made at the
+  strike-list gate reaches every later audit seat instead of being re-asked.
+- **Channel 2 — the blocking-class round-grinding valve — is deferred to #1664, not enacted
+  here.** The premise that framed the 2026-08-20 amendment's `roundLimit` 3→6 flip as a
+  stuck-decision valve was falsified in mechanical form: `escalate` already exits the fix loop at
+  round 1, and the rounds that grind are `request_changes` rounds by construction. The boundary
+  move waits on the measured grind backstop, so the `roundLimit`=6 ceiling's justification is
+  **backstop-dependent** until #1664's measurement lands.
 
 This amendment leaves all pre-existing body text above — beyond the Status currency line —
 byte-unchanged.
