@@ -1011,6 +1011,27 @@ test('coverage-vs-source merged arm: emitted SPINE prompt + lenses.md spine entr
   assert.match(r, /Part-1→Part-2/, 'the lenses.md coverage-vs-source region reads Part-1→Part-2 coverage')
 })
 
+// --- D9 (authoring-side-verification, 2026-08-24): per-issue Evidence join, both homes ----------
+// The merged arm's Evidence join (Evidence-consumed block ⋈ each cited issue's `## Evidence
+// artifacts` section) lives in the SAME two homes as the merged arm itself: the dispatched SPINE
+// `coverage-vs-source` prompt (the only instruction surface the probe agent ever receives — the
+// scope-lock bars it from reading lenses.md on a foreign-`--repo` run) and the lenses.md doctrine
+// mirror. A doc-only landing leaves the join with no executor (the #1644 finding); this pin keeps
+// the pair from drifting apart again.
+test('coverage-vs-source Evidence join: dispatched SPINE prompt + lenses.md both carry the per-issue join with split absence arms (D9)', async () => {
+  const byLabel = await promptsByLabel({})
+  const cvs = byLabel['probe:coverage-vs-source']
+  const lenses = readFileSync(join(__dirname, '..', 'references', 'lenses.md'), 'utf8')
+  for (const [surface, text] of [['SPINE prompt', cvs], ['lenses.md', lenses]]) {
+    assert.match(text, /Evidence-consumed block/, `${surface} triggers the join on the plan's Evidence-consumed block`)
+    assert.match(text, /Evidence artifacts/, `${surface} joins against each cited issue's Evidence artifacts section`)
+    assert.match(text, /merged arm only/i, `${surface} scopes the join to the merged arm`)
+    assert.match(text, /unread-with-reason/, `${surface} accepts read or unread-with-reason as coverage`)
+    assert.match(text, /vacuous/i, `${surface} makes an absent Evidence-artifacts section vacuous (a pass, not a finding)`)
+    assert.match(text, /never silent, never vacuous/, `${surface} makes an unreachable issue a named unverified note`)
+  }
+})
+
 // SKILL.md Step-1 pins encode End state 6's committed check: new-present `its own source of truth`
 // (case-insensitive) and the retired always-a-separate-spec default arm absent. The retired phrase
 // is split-fragment assembled so this file never carries it contiguously (self-exclusion by
