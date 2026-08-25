@@ -4,7 +4,8 @@
 
 Decision-shaped Minor/Nit findings have no lawful channel: the disposition ladder routes work
 (`absorb`), debt (`follow-up`), or observations (`note`), and the auditor card's own eligibility
-clause ends "Only the accompanying policy question routes as an issue" — a question filed as an
+clause ends "Only the accompanying policy question (mirror the value vs point at the source)
+routes as an issue" — a question filed as an
 issue is a decision made by whoever closes the backlog, not by the operator at the moment the
 context is live (verified: `agents/war-auditor.md` eligibility blockquote at `a60221a`). The class
 is real and current: the authoring-side-verification campaign filed #1650 self-described as "a
@@ -36,6 +37,12 @@ war-strategy-mirror-guards run's transcriptDir (2026-08-17 manifest)).
 **Evidence consumed** (the recon lane's record — read / unread-with-reason):
 - issue #1550 body — read (no `## Evidence artifacts` section: pre-duty issue, named gap).
 - issue #1547 item 5 + the 2026-08-19 ratification comment — read.
+- issue #1547 `## Evidence artifacts` (four listed): `.claude/war/runs/recseg-serving-uptime-2026-08-15.json`
+  — unread (private target-repo campaign manifest, unreachable from this checkout); the target-repo
+  epic #321/#322 phase-report comments — unread (target-repo artifacts; the substance arrived via
+  item 5 + the ratification comment); the target repo's open war-followup duplicate clusters —
+  unread (target-repo state, outside this recon lane); `~/Documents/WAR/1547-war-strategy-interview-2026-08-19/`
+  — unread (operator-local archive outside the repo).
 - Run manifests: `authoring-side-verification-2026-08-24.json` — read;
   `realized-absorb-rate-2026-08-19{,-r2}.json` — read (phase-1 demotion incident);
   `adr-doc-truth-sweep-2026-08-20{,-r5}.json` — unread (predates the 0.19.0 machinery; the asv
@@ -51,6 +58,12 @@ war-strategy-mirror-guards run's transcriptDir (2026-08-17 manifest)).
 - The Workflow is a background process: no in-process ask primitive exists (no fs, no operator
   channel beyond the return, `log()`, and delegated dispatches) — asks park in the artifact and
   are ruled at the Checkpoint, never mid-run.
+- `demote()` refuses an ask loudly and unconditionally: log() + re-route onto `asks[]` — never
+  `minorsFiled`/`notes`, never a throw (`held:workflow-error` omits the handoff, so a throw would
+  destroy the parked records the refusal exists to protect — this sentence is the standing guard
+  against a future "harden it to a throw" cleanup). The sole lawful ask→follow-up conversion is
+  the Checkpoint `--afk` no-match arm (question preserved), a separate named site — never a
+  `demote()` bypass flag.
 - Engine fence: `workflow-template.js` + `workflow-template.test.mjs` are the only engine files,
   with `land-decision.test.mjs` as read-only-collateral guard owner; **literal-class fence** — no
   new `landDecision`-shaped literal inside the scrape slice (the `// landDecision mirrors` block
@@ -69,18 +82,18 @@ Duty/fence-class rows marked ‡ (read twice at echo-back reconciliation).
 
 | # | Decision | Resolution | Source | Landing class |
 |---|----------|------------|--------|---------------|
-| D1 ‡ | The ask channel | fourth Minor/Nit disposition member; mandatory question+fork field (the decision needed + the two branches); explicit arm at every `dispositionOf` site with the ask arm preceding the absorb chain; `demote()` refuses ask; asks[] rides the top-level return + a ninth (lossy) handoff key; unruled asks are excluded from in-phase consolidation/filing — **never filed unruled**; ruled asks file Lead-side with filing parity (Evidence-artifacts + dedup against engine-filed rows) | (user) · PIN-1 | guardrail + slice (T1.1, T2.1) |
+| D1 ‡ | The ask channel | fourth Minor/Nit disposition member; mandatory question+fork field (the decision needed + the two branches); explicit arm at every `dispositionOf` site with the ask arm preceding the absorb chain; `demote()` refuses ask unconditionally — log() + re-route onto asks[], never `minorsFiled`/`notes`, never a throw (the pivotal-constraint bullet carries the full semantics); asks[] rides the top-level return + a ninth (lossy) handoff key; unruled asks are excluded from in-phase consolidation/filing — **never filed unruled**; ruled asks file Lead-side with filing parity (Evidence-artifacts + dedup against engine-filed rows) | (user) · PIN-1 | guardrail + slice (T1.1, T2.1) |
 | D2 | The valve is not this plan | channel 2 (blocking-class round-grinding valve) dropped: `escalate` exits at round 1, the grinding rounds are `request_changes` by construction, and the real lever is that boundary — deferred to #1664 with the measured trigger | (user) · PIN-2, PIN-3 | non-goal + backstop |
 | D3 ‡ | Grind measurement sources | terminal `fixRounds` (manifest `phases[].dispatches.fixRounds`), the filing site's audit-round field, and `minorsFiled` rationales — round-level attribution does not exist and the coarseness is named; the **failure-routing asymmetry is the load-bearing property**: ambiguity routes to #1664's instrumentation-first refinement, never to silent "no grinding" | (user) · PIN-4, PIN-11 | backstop + slice (T2.5) |
 | D4 ‡ | Checkpoint ruling | ONE strike-list gate rules all parked asks in a single pass (the tighten/red-team one-gate precedent); the advance floor is **absolute** — never advance the DAG over an unruled ask — and binds interactively (stated; under `--afk`: a standing-adjudication match resolves by citation, a no-match demotes to follow-up with the question preserved — visibly not loss-free — and a suppression row is minted only from an operator ruling, provenance-marked) | (user) · PIN-14, PIN-1 | guardrail + slice (T2.1) |
-| D5 | Decision record | dated ADR 0013 amendment (byte-discipline) + the ADR 0012 one-line cross-ref (its line-90 style); producer set widens two → three (Checkpoint ask rulings) on all five prose homes, both edit sites where two exist, plus the auditor consumer bullet; OLD-absent on the existing two-producer literals | (user) · PIN-6 | slice (T2.4, T2.1, T2.2, T2.3, T1.1) |
-| D6 ‡ | The sweep law | CLASS-1 enum widening (schema enum, `dispositionOf`, DISPOSITION RULE + byte mirror, the two pins) · CLASS-2 closed-shape widening keyed on enumerated order-bearing mirrors that exist (schemas.md handoff rows, the SKILL.md render list, the return line) — count-word absence asserts banned by name; the disposition-home census is discovered at task base (grep surface paths across `**/*.test.mjs`, `**/*.test.sh`, `.tours/`), four-sentence floor, never a ceiling | (user) · PIN-6, PIN-8 | guardrail + slice (T1.1, T2.2, T2.3) |
+| D5 | Decision record | dated ADR 0013 amendment (byte-discipline) + the ADR 0012 one-line cross-ref (its line-90 style); producer set widens two → three (Checkpoint ask rulings) on all five prose homes, both edit sites where two exist (SKILL.md's Decompose-gate bullet AND CONTEXT.md's **Adjudication** entry each carry two), plus the auditor consumer bullet; OLD-absent on the existing two-producer literals, scoped to the four literal-bearing homes (SKILL.md, schemas.md, the workflow-template.js producer-count comment, CONTEXT.md's `_Avoid_` line) — the ADR 0013 home carries no two-producer literal and is satisfied additively by the dated amendment, no absence assert there | (user) · PIN-6 | slice (T2.4, T2.1, T2.2, T2.3, T1.1) |
+| D6 ‡ | The sweep law | CLASS-1 enum widening (schema enum, `dispositionOf`, DISPOSITION RULE + byte mirror, the two pins) · CLASS-2 closed-shape widening keyed on enumerated order-bearing mirrors that exist (schemas.md handoff rows, the SKILL.md Checkpoint handoff-block render — owned by T2.1, its ninth `asks` entry in the operator-action cluster adjacent to the follow-ups row — and the return line) — count-word absence asserts banned by name; the disposition-home census is discovered at task base (grep surface paths across `**/*.test.mjs`, `**/*.test.sh`, `.tours/`), four-sentence floor, never a ceiling; CONTEXT.md's prose disposition sites (its **Disposition** entry, exhaustiveness sentence, and handoff key list) sit outside that grep surface and are therefore named explicitly in T2.3's slice | (user) · PIN-6, PIN-8 | guardrail + slice (T1.1, T2.1, T2.2, T2.3) |
 | D7 ‡ | Census domains | order-census domain = the six `dispositionOf` sites PLUS the `pinMismatch` strip (a non-dispositionOf sink, named in its comment + its own census row); discovered-guard census domain = guards anchored on each touched passage at task base | (user) · PIN-13 | guardrail + slice (T1.1) |
-| D8 | Guard homes own their tripwires | T1.1 carries every lock-step guard home it trips: the contracts suite's absorb-block guard (evict-and-re-anchor to the destination file), `QUALIFIED_HEADERS` join, the D2 references census placement (`VERB_SCAN_EXCLUSIONS` + stated reason), the land-path negative rows | (user) · PIN-6, PIN-13 | slice (T1.1) |
-| D9 ‡ | Done-when law | a task's Done-when enumerates ALL its touched guard suites — T1.1's names five; a touched suite outside the Done-when is a red discovered at the refiner gate after the worker is spent | (user) · PIN-9 | guardrail + slice (T1.1) |
-| D10 ‡ | Tour re-anchor base | T2.5 re-anchors the tour's raw line anchors and adds pattern keys, computed against the integration base already carrying T1.1's insertions — anchoring from any earlier reference reproduces the rot being closed | (user) · PIN-10 | slice (T2.5) |
+| D8 | Guard homes own their tripwires | T1.1 carries every lock-step guard home it trips: the contracts suite's absorb-block guard (evict-and-re-anchor to the destination file), `QUALIFIED_HEADERS` join, doc-cli-consistency's D2 references census placement (`VERB_SCAN_EXCLUSIONS` + stated reason — that suite's own D-numbering, not this plan's), the land-path negative rows | (user) · PIN-6, PIN-13 | slice (T1.1) |
+| D9 ‡ | Done-when law | a task's Done-when enumerates ALL its touched guard suites — T1.1's names six (prompt-surface-budgets included: its card arithmetic trips that suite); a touched suite outside the Done-when is a red discovered at the refiner gate after the worker is spent | (user) · PIN-9 | guardrail + slice (T1.1) |
+| D10 ‡ | Tour anchor law | every tour step T2.5 touches drops its raw `line` key and carries a `pattern` key alone — the installed player (CodeTour 0.0.61) resolves `line` first and consults `pattern` only when `line` is absent (verified this run), so a pattern beside a kept line is decorative; a raw line anchor is lawful only into a file whose frozen base is sound for the anchoring task, and files under same-phase sibling edit (CONTEXT.md — T2.3; skills/war/SKILL.md — T2.1) are unsatisfiable at any base, pattern-only by construction | (user) · PIN-10 | slice (T2.5) |
 | D11 | Filing-parity owners | `skills/war/references/file-followups.md` carries the canonical parity text; the refiner card's closed-set predicate widens within its 194 B hard headroom or takes a named #1475-style eviction — never silence | (user) · PIN-7 | slice (T2.2) |
-| D12 | Budget oracle | every touched budgeted surface stays within its hard ceiling (both the auditor card and SKILL.md are already over advisory — acknowledged, warn-only); the card arithmetic: additions net of the 1,540 B eligibility eviction against 1,682 B headroom; SKILL.md's Checkpoint block against 6,359 B | (user) · PIN-13 | end-state + slice (T1.1, T2.1) |
+| D12 | Budget oracle | every touched budgeted surface stays within its hard ceiling (four touched surfaces are already over advisory — the auditor card, SKILL.md, the refiner card, CONTEXT.md — acknowledged, warn-only; CLAUDE.md's 490 B advisory headroom may be crossed by its widened trap bullet, likewise warn-only); the card arithmetic: additions net of the 1,540 B eligibility eviction against 1,682 B headroom; SKILL.md's Checkpoint block against 6,359 B; CONTEXT.md: T2.3's total net growth ≤ 4,600 B against 5,419 B hard headroom (measured at `a60221a`) — a whole-task budget, never per-term, binding below the prior eight-term commit's 702 B/term average by design, suite-arbitrated via T2.3's Done-when; ordered fallback if breached: in-file compression of cold glossary bodies FIRST, eviction-to-references second — and if the eviction arm is taken the slice co-owns the three guard homes it trips (doc-cli-consistency's D2 census placement, `QUALIFIED_HEADERS`, link-integrity); post-land residual ~1 kB accepted BECAUSE #1651 stays open as the tracked home for a deliberate #1586-style restoration pass | (user) · PIN-13 | end-state + slice (T1.1, T2.1, T2.3) |
 | D13 | Servitor directive | capture the vacuous-OLD-absent lesson (five specimens, the fifth advisor-ratified — the leak class doesn't respect authority; only the homeless-pin sweep forced verification) and the unvalidated-join-executor pattern; the authoring-doctrine one-liner is out of scope — the next survey promotes it | (user) · PIN-8, PIN-12 | non-goal |
 | D14 | Interview provenance | bare-invoke `/war-strategy` in-skill (2026-08-25); 9 verifier dispatches, 7 refutations; zero WAIVE rows; backstop row 2 of the asv plan discharged (first armed beat fired, corpus full) | (user) | context |
 
@@ -91,7 +104,7 @@ Duty/fence-class rows marked ‡ (read twice at echo-back reconciliation).
 | A1 | Asks per phase stay strike-list-tractable | the asv campaign's decision-shaped rate: 3 of ~14 follow-ups | Checkpoint friction; the one-gate stays one gate either way | backstop row 2 |
 | A2 | The coarse grind proxy is decision-sensitive enough | terminal findings + rationales carry the fork language | #1664 activates late — routed by the named asymmetry, never silent | backstop row 1 |
 | A3 | 194 B suffices for the refiner predicate widening | measured at `a60221a` | the named #1475-style eviction (D11) | End state 13's budget gate |
-| A4 | The filing-parity text names no scanned-module CLI | D2's exclusion reason for `file-followups.md` stays valid | `doc-cli-consistency` reds on rotted-reason with the suite unowned in phase 2 | T2.2 slice constraint + End state 4 |
+| A4 | The filing-parity text names no scanned-module CLI | doc-cli-consistency's D2 exclusion reason for `file-followups.md` stays valid | `doc-cli-consistency` reds on rotted-reason with the suite unowned in phase 2 | T2.2 slice constraint + End state 4 |
 
 ## Non-goals / deferred
 
@@ -140,7 +153,9 @@ ADR 0012 cross-ref (D5).
   question+fork field (PIN-1) · producer widening on all five homes, both edit sites where two
   exist (PIN-6) · the 0012↔0013 cross-ref (PIN-6) · the OLD-absent-cites-existing-literal law
   (PIN-8) · the discovered-guard census at task base with the four-sentence floor (PIN-6) ·
-  T1.1's five-suite Done-when (PIN-9) · T2.5's re-anchor base (PIN-10) · the grind backstop's
+  T1.1's six-suite Done-when (PIN-9) · T2.5's pattern-only anchor law — a raw line anchor is
+  lawful only into a file whose frozen base is sound for the anchoring task; same-phase-sibling-
+  edited files carry pattern keys only (PIN-10) · the grind backstop's
   named coarseness + failure-routing asymmetry (PIN-11) · the ninth handoff key stays additive —
   no exact-key validator introduced (PIN-13) · the engine fence: `workflow-template.js` +
   `workflow-template.test.mjs` + `land-decision.test.mjs` (collateral guard only) (PIN-13) ·
@@ -148,7 +163,9 @@ ADR 0012 cross-ref (D5).
 - **End state:**
   1. `AUDIT_VERDICT` disposition enum is `['absorb','follow-up','note','ask']`; every
      `dispositionOf` site carries an explicit ask arm preceding the absorb chain, default-deny
-     order-census over the floored domain; `demote()` refuses ask loudly ·
+     order-census over the floored domain; `demote()` refuses ask loudly — log() + re-route onto
+     `asks[]` with exactly-once membership asserted (dedup by finding identity; a refused ask never
+     lands in `minorsFiled`/`notes` and never throws) ·
      check: `node --test skills/war/assets/workflow-template.test.mjs`
   2. asks[] rides the top-level return beside `minorsFiled`; the handoff carries the ninth (lossy)
      key; unruled asks are excluded from consolidation and the file-followups dispatch; the
@@ -164,7 +181,10 @@ ADR 0012 cross-ref (D5).
      check: `node --test skills/war/assets/reference-link-integrity.test.mjs && node --test skills/_shared/doc-cli-consistency.test.mjs`
   5. The SKILL.md Checkpoint carries the strike-list ruling gate (one gate, all parked asks), the
      absolute advance floor with its interactive binding stated, ruled-ask filing parity, the
-     `--afk` posture, and its producer + disposition-triple sentences ·
+     `--afk` posture, and the Checkpoint handoff render's ninth `asks` entry (operator-action
+     cluster, adjacent to the follow-ups row); the Decompose-gate producer sentence (both edit
+     sites) and the Per-phase disposition-triple sentence carry the widened forms — neither lives
+     in the Checkpoint ·
      check: `node --test skills/war/assets/skill-doc-contracts.test.mjs`
   6. The references mirrors carry the widened shapes — schemas.md's enum lines and handoff rows,
      design.md and the exhaustiveness sentences gaining ask clauses with the closed phrasing
@@ -172,15 +192,18 @@ ADR 0012 cross-ref (D5).
      check: `node --test skills/war/assets/skill-doc-contracts.test.mjs`
   7. Producer widening lands on all five homes, both edit sites where two exist, the consumer
      bullet updated; verified by the adjudications second-producer scoped-absence test (construct
-     locator) and contracts rows ·
+     locator) and contracts rows; OLD-absent scoped to the four literal-bearing homes — the
+     ADR 0013 home is additive-only (D5) ·
      check: `node --test skills/war/assets/workflow-template.test.mjs && node --test skills/war/assets/skill-doc-contracts.test.mjs`
   8. The ADR 0013 dated amendment and the ADR 0012 cross-ref are present, D23-style pinned ·
      check: `node --test skills/war/assets/skill-doc-contracts.test.mjs`
-  9. The seven glossary terms are present and guarded in CONTEXT.md; the CLAUDE.md gospel line is
-     current ·
+  9. The seven glossary terms are present and guarded in CONTEXT.md, within D12's whole-task
+     growth budget; CONTEXT.md's **Disposition** entry, exhaustiveness sentence, and handoff key
+     list carry the widened shapes with the closed phrasing retired; the CLAUDE.md Known-traps
+     disposition bullet carries the four-member set (the pipeline-gospel section needs no edit) ·
      check: `node --test skills/war/assets/skill-doc-contracts.test.mjs`
-  10. Tour step 8 is retyped to the disposition world; the raw line anchors are re-based per D10
-      with pattern keys; the tour arm is pinned ·
+  10. Tour step 8 is retyped to the disposition world; every touched step carries a pattern-only
+      anchor per D10 (raw `line` keys dropped); the tour arm is pinned ·
       check: `node --test skills/war/assets/skill-doc-contracts.test.mjs`
   11. war-review carries both rows — the asks tally and the grind-measurement row naming its
       terminal-fixRounds sources — pinned in the pipeline suite ·
@@ -204,7 +227,7 @@ Phase 3 (release).
 ## Phase 1 — Engine, auditor surface, lock-step guards
 
 ### Task 1.1: The ask channel and its guard homes
-- Files: `skills/war/assets/workflow-template.js`, `skills/war/assets/workflow-template.test.mjs`, `agents/war-auditor.md`, `skills/war/references/disposition-eligibility.md`, `skills/war/assets/skill-doc-contracts.test.mjs`, `skills/war/assets/reference-link-integrity.test.mjs`, `skills/_shared/doc-cli-consistency.test.mjs`, `skills/war/assets/land-decision.test.mjs`
+- Files: `skills/war/assets/workflow-template.js`, `skills/war/assets/workflow-template.test.mjs`, `agents/war-auditor.md`, `skills/war/references/disposition-eligibility.md`, `skills/war/references/touched-doc-accuracy.md`, `skills/war/assets/skill-doc-contracts.test.mjs`, `skills/war/assets/reference-link-integrity.test.mjs`, `skills/_shared/doc-cli-consistency.test.mjs`, `skills/war/assets/land-decision.test.mjs`
 - Plan slice: land End states 1–4, 12, and the engine halves of 7 (D1 · PIN-1 · D6 · PIN-6 · D7 ·
   PIN-13 · D8 · PIN-8 · D9 · PIN-9 · D12).
   Enum + DISPOSITION RULE byte-mirror + deepEqual pin update; ask arms at the six `dispositionOf`
@@ -213,10 +236,12 @@ Phase 3 (release).
   key + unruled exclusion from consolidation/filing; the question+fork schema field; the
   producer-count comment + the adjudications second-producer scoped-absence test updated; the
   eligibility eviction (new file with at-eviction-time header) with the contracts-suite guard
-  re-anchored to the destination in the same commit; `QUALIFIED_HEADERS` join; D2 census placement
+  re-anchored to the destination in the same commit, and `touched-doc-accuracy.md`'s
+  absorb-eligibility parenthetical re-pointed at the destination file in that same commit;
+  `QUALIFIED_HEADERS` join; doc-cli-consistency's D2 census placement
   with stated reason; land-path negative rows; the literal-class fence honored (no new
   `landDecision`-shaped or land-dispatch `status:` literal). Card arithmetic per D12.
-- Done when: `node --test skills/war/assets/workflow-template.test.mjs && node --test skills/war/assets/skill-doc-contracts.test.mjs && node --test skills/war/assets/reference-link-integrity.test.mjs && node --test skills/_shared/doc-cli-consistency.test.mjs && node --test skills/war/assets/land-decision.test.mjs`
+- Done when: `node --test skills/war/assets/workflow-template.test.mjs && node --test skills/war/assets/skill-doc-contracts.test.mjs && node --test skills/war/assets/reference-link-integrity.test.mjs && node --test skills/_shared/doc-cli-consistency.test.mjs && node --test skills/war/assets/land-decision.test.mjs && node --test skills/war/assets/prompt-surface-budgets.test.mjs`
 - requiresTest: true
 - requiresPackaging: false
 - deps: []
@@ -228,11 +253,14 @@ Phase 3 (release).
 - Files: `skills/war/SKILL.md`
 - Plan slice: the Checkpoint gains the strike-list ruling gate — one gate rules all parked asks in
   a single pass (D4 · PIN-14 · PIN-1), behind the absolute advance floor with its interactive
-  binding stated; the producer sentence per D5 (PIN-6); the
+  binding stated; the
   ruled-ask filing parity duties (Evidence-artifacts section + dedup against engine-filed rows);
   the `--afk` posture (match-cites · no-match-demotes-with-question · suppression rows minted only
-  from operator rulings, provenance-marked); its producer sentence (both edit sites) and its
-  disposition-triple sentence gain the widened forms; the Checkpoint block sized against D12's
+  from operator rulings, provenance-marked); the Checkpoint handoff-block render gains the ninth
+  `asks` entry in the operator-action cluster, adjacent to the follow-ups row (D6); the
+  Decompose-gate producer sentence widens two → three at both edit sites (D5 · PIN-6) and the
+  Per-phase disposition-triple sentence gains the widened form — neither lives in the Checkpoint;
+  the Checkpoint block sized against D12's
   6,359 B hard headroom (PIN-13; the advisory breach is acknowledged, warn-only).
 - Done when: None — prose pins ride Task 2.3 (deps-edged, rule 7)
 - requiresTest: false
@@ -248,7 +276,7 @@ Phase 3 (release).
   phrasing retired (OLD-absent citing the existing literals); `file-followups.md` gains the
   canonical ruled-ask parity text; the refiner card's closed-set predicate widens within 194 B or
   takes the named #1475-style eviction (D11). Constraint (A4): the parity text names no
-  scanned-module CLI command, keeping D2's exclusion reason valid.
+  scanned-module CLI command, keeping doc-cli-consistency's D2 exclusion reason valid.
 - Done when: None — pins ride Task 2.3 (deps-edged, rule 7)
 - requiresTest: false
 - requiresPackaging: false
@@ -270,9 +298,10 @@ Phase 3 (release).
 
 ### Task 2.5: Tour + war-review telemetry
 - Files: `.tours/architect-war-system.tour`, `skills/war-review/SKILL.md`
-- Plan slice: retype tour step 8 to the disposition world (asks included); re-anchor the raw line
-  anchors and add pattern keys, computed against the integration base already carrying Task 1.1's
-  insertions (D10 · PIN-10 — anchoring from any earlier reference reproduces the rot being closed);
+- Plan slice: retype tour step 8 to the disposition world (asks included); every touched step
+  drops its raw `line` key and carries a `pattern` key alone (D10 · PIN-10 — the installed player
+  resolves `line` before `pattern`, so pattern-only is the only protecting form; files under
+  same-phase sibling edit are unsatisfiable at any base);
   war-review gains both rows — the asks tally, and the grind-measurement row naming its sources
   (manifest `phases[].dispatches.fixRounds` + the filing site's audit-round field + `minorsFiled`
   rationales) with the coarseness and failure-routing asymmetry stated (D3 · PIN-4 · PIN-11).
@@ -284,12 +313,20 @@ Phase 3 (release).
 
 ### Task 2.3: Glossary + the contracts suite
 - Files: `CONTEXT.md`, `CLAUDE.md`, `skills/war/assets/skill-doc-contracts.test.mjs`
-- Plan slice: the seven glossary terms with guard rows; the CLAUDE.md gospel line; its producer
-  sentence; the D23-style ADR 0013 amendment pin; the tour arm; schemas.md enum-line pins; prose
+- Plan slice: the seven glossary terms with guard rows, under D12's ≤ 4,600 B whole-task net
+  CONTEXT.md growth budget (ordered fallback per D12: in-file compression first, guard-home-
+  co-owned eviction second); both CONTEXT.md **Adjudication** edit sites widen two → three — the
+  definition-body producer enumeration and the `_Avoid_` "two named producers" count line — with
+  the widened-count assertion added beside the D19 contracts row; CONTEXT.md's **Disposition**
+  entry, exhaustiveness sentence, and handoff key list gain the widened shapes with the closed
+  phrasing retired (named here per D6 — outside the census grep surface); the CLAUDE.md
+  Known-traps disposition bullet widens to the four-member set (the pipeline-gospel section needs
+  no edit); the D23-style ADR 0013 amendment pin; the tour arm; schemas.md enum-line pins; the
+  SKILL.md Checkpoint handoff-render pin covering the 9-key order, not membership alone; prose
   pins over Task 2.1's Checkpoint duties and Task 2.2's references sentences (rule-7 edges); the
   discovered-guard census run at this task's base (D6 · PIN-6 · PIN-8) with survey-derived
   stragglers listed.
-- Done when: `node --test skills/war/assets/skill-doc-contracts.test.mjs`
+- Done when: `node --test skills/war/assets/skill-doc-contracts.test.mjs && node --test skills/war/assets/prompt-surface-budgets.test.mjs`
 - requiresTest: true
 - requiresPackaging: false
 - deps: [2.1, 2.2, 2.4, 2.5]
@@ -340,7 +377,19 @@ Phase 3 (release).
   vacuous by construction — five specimens this interview pair, the fifth **advisor-ratified**
   (PIN-4's fictional per-round source): the leak class doesn't respect authority, and only the
   homeless-pin sweep forced verification. The authoring-doctrine one-liner is deliberately out of
-  scope; the next survey promotes it.
+  scope; the next survey promotes it. Two further specimens ride the same capture (red-team run,
+  2026-08-25): the **unsatisfiable-base** specimen — a re-anchor pin is only as valid as the
+  edit-concurrency of its targets, verified at pin time (PIN-10's correction; second
+  advisor-sourced pin corrected this pair) — and the **homeless-ratified-fact** specimen — the
+  Checkpoint handoff-render row was ratified in the design tree yet owned by no task slice until
+  the red-team sweep (third of the class with PIN-4 and PIN-10).
+- Rejections recorded on the plan's own law: dropping the Checkpoint handoff-render mirror from
+  D6 was rejected because it would manufacture a CLASS-2 closed-shape drift (9-key handoff vs
+  8-key closed render) inside the plan that defines and bans that class, and would leave parked
+  asks report-invisible — collapsing the advance floor's ruling surface. A throwing `demote()`
+  was rejected because `held:workflow-error` omits the handoff: the throw would destroy the
+  parked records the refusal exists to protect (the vanish-on-hold class executed by the safety
+  mechanism itself).
 - Zero `WAIVE-<n>` rows: every armed beat dispatched (9 dispatches, 7 refutations, two beats
   resolved under the fork rule).
 - The 0.20.0 literal is an expected resolution, never authoritative — the directive form governs;
