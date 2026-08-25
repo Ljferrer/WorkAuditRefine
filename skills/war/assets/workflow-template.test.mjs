@@ -5252,6 +5252,53 @@ test('clusters manifest asserts (fail-open): a partition violation, a duplicate 
   assert.match(viol(f.logs)[0], /unknown ordinal 99/, 'the line names the unknown ordinal')
 })
 
+// --- Evidence-artifacts emission (Task 3.2, PIN-14, #1658) ---
+
+// Drift row binding the filing prompt's Evidence-artifacts emission clause (End state 9): the
+// clustered filing prompt instructs each filed issue to end with an `## Evidence artifacts`
+// section (pinned sha, seat lenses, audit round), the candidate rows render the engine-known
+// values — fixRounds from the task's audit-verdict auditLog entry, gateHeadSha from its
+// post-merge gate-audit entry, both in hand at filing time — and the never-invented /
+// 'unrecorded' fail-open rides the prompt verbatim.
+test('filing-prompt Evidence-artifacts emission (Task 3.2, PIN-14): the clustered filing prompt mandates the `## Evidence artifacts` section and the candidate rows render the pinned sha + audit round', async () => {
+  const { out, calls } = await runPhase(HANDOFF_ARGS(),
+    handoffImpl({ filed: [{ n: 1, issue: 77 }], clusters: [{ ordinals: [1], issue: 77 }] }))
+  assert.equal(out.landDecision, 'landed', 'presence guard: the phase landed')
+  const fp = calls.find(c => c.opts.dispatchKind === 'file-followups').prompt
+  // The emission clause (the drift-guarded instruction text).
+  assert.match(fp, /ends with an `## Evidence artifacts` section/, 'the clause mandates the section on each filed issue body')
+  assert.match(fp, /pinned sha \(the integration tip the row's task was gate-audited at\)/, 'the clause names the pinned sha and states what it is')
+  assert.match(fp, /raising seat lenses/, 'the clause names the seat lenses')
+  assert.match(fp, /the audit round/, 'the clause names the audit round')
+  assert.match(fp, /`unrecorded` stays `unrecorded`, never invented/, 'the copied-verbatim / never-invented fail-open rides the clause')
+  assert.match(fp, /inside the corroboration comment instead/, 'the dedup arm carries the same evidence lines in the corroboration comment')
+  // The candidate rows render the engine-known values the clause tells the agent to copy: the
+  // harness's merge result integration_sha ('beefcafe12') is the task's gateHeadSha, and the
+  // zero-fix-round approve path stamps fixRounds 0. Delete-the-feature proof: with the row
+  // rendering removed, the clause's values have no source and these two pins fail.
+  assert.match(fp, /audit round 0 · pinned sha beefcafe12/, 'the candidate row renders the auditLog-sourced audit round and pinned gateHeadSha')
+})
+
+test('filing-prompt Evidence-artifacts emission (fail-open): a never-merged task\'s row renders pinned sha unrecorded — never invented, never a throw', async () => {
+  // A never-approved task files its demoted findings on the held:escalation path: its audit-verdict
+  // auditLog entry stamps fixRounds (the audit round IS recorded), but no post-merge gate-audit
+  // entry exists — the pinned-sha lookup takes the 'unrecorded' arm, exactly the vocabulary the
+  // emission clause pins ('`unrecorded` stays `unrecorded`, never invented').
+  const impl = (prompt, opts) => {
+    if (seatOf(opts) === 'war-auditor') {
+      return { seat: opts.label, lens: 'correctness', verdict: 'escalate', escalate_reason: 'plan wrong', confidence: 'high',
+        findings: [{ severity: 'Nit', title: 'nit on escalated task', rationale: 'r' }] }
+    }
+    return aceBase([])(prompt, opts)
+  }
+  const { out, calls } = await runPhase(ACE_ARGS(), impl)
+  assert.ok((out.escalated || []).some(e => e && e.task === 't1'), 't1 escalated, never merged (presence guard)')
+  const filing = calls.find(c => c.opts.dispatchKind === 'file-followups')
+  assert.ok(filing, 'the filing dispatch fires on the held:escalation path (presence guard)')
+  assert.match(filing.prompt, /audit round 0 · pinned sha unrecorded/,
+    'the never-merged task\'s row keeps its recorded audit round but renders pinned sha unrecorded (fail-open, never invented)')
+})
+
 test('handoff OMITTED on held:workflow-error (infra death — no trustworthy return to render)', async () => {
   const args = PROVISION_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'T', planSlice: 's' }] })   // no roster → phase-start throw
   const fn = build()

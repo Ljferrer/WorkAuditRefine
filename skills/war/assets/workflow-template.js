@@ -2811,6 +2811,19 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation') && minorsF
   // dispatched refiner's shell expands $CLAUDE_PLUGIN_ROOT — emitting POSIX single quotes around the
   // path would suppress that expansion and 127 the preflight on a literal filename.
   const PREFLIGHT = '${CLAUDE_PLUGIN_ROOT}/skills/_shared/gh-preflight.sh'
+  // ---- EVIDENCE ARTIFACTS (Task 3.2, PIN-14, #1658): per-task audit evidence rendered into the
+  // candidate rows so each filed issue can carry its `## Evidence artifacts` section (the issue-side
+  // evidence duty, ADR 0044 amendment) — all read from the auditLog already in hand at filing time:
+  // the audit round from the task's audit-verdict entry's fixRounds, the pinned sha from its
+  // post-merge gate-audit entry's gateHeadSha (the engine-stamped integration tip the task's gate
+  // ran at — the landed tree that still carries the unabsorbed finding). Fail-open: a task with no
+  // matching entry (e.g. a never-merged task filing on the held:escalation path) renders
+  // 'unrecorded' — never invented, never a throw.
+  const auditEvidenceOf = t => {
+    const v = auditLog.find(e => e && e.task === t && typeof e.fixRounds === 'number')
+    const g = auditLog.find(e => e && e.task === t && e.gateEvidence && typeof e.gateHeadSha === 'string' && e.gateHeadSha)
+    return { round: v ? String(v.fixRounds) : 'unrecorded', sha: g ? g.gateHeadSha : 'unrecorded' }
+  }
   let filingOut = null
   try {
     filingOut = await agent(
@@ -2819,6 +2832,10 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation') && minorsF
       + pt`FIRST the account preflight (ADR 0026): run ${PREFLIGHT} "${ghUser}" — an empty-string arg is its documented no-op (exit 0). On exit 2 (tooling error) or exit 3 (account mismatch): return what you have and file NOTHING.\n`
       + pt`THEN dedup (D3): run \`gh issue list --label war-followup --state open\` once; a row below matching an open issue (exact title, or same file + same root cause) is already filed — post this batch's finding as a corroboration comment on the existing issue, never a new issue, and reuse that existing issue number for the row.\n`
       + pt`THEN cluster the remaining candidate rows by file + root cause (the engine already collapsed same-file line-window duplicates; each row carries its file, line, and any seats corroboration) and file ONE \`war-followup\`-labelled issue per cluster, in row order — title from the cluster's lead row; body carrying, per member row, the why-not-absorbable reason, the task id, and its seats as corroboration${ph.epicIssue ? pt`, and a reference to the phase epic #${ph.epicIssue}` : ''}.\n`
+      // Evidence-artifacts emission clause (Task 3.2, PIN-14, #1658): the filed issues' evidence
+      // duty — values are COPIED from the candidate rows below (the engine renders them per row from
+      // the auditLog via auditEvidenceOf above), never reconstructed by the filing agent.
+      + pt`EACH filed issue's body additionally ends with an \`## Evidence artifacts\` section carrying, per member row: the pinned sha (the integration tip the row's task was gate-audited at), the file path with its line when present, the raising seat lenses (from the row's seats list when present — each entry's trailing \`:<lens>\` segment; a bare \`task <id>\`/'unattributed' corroboration verbatim; no seats rendered ⇒ the row's single raising seat is unrecorded), and the audit round — every value copied verbatim from the candidate rows below (\`unrecorded\` stays \`unrecorded\`, never invented). On the dedup arm, carry the same evidence lines inside the corroboration comment instead.\n`
       // pt-tagged prompt-feeding row builder (file-followups dispatch): title/rationale are
       // schema-optional and task is routing-stamped → ?? defaults (never a phase-killing throw here).
       // The title span is DELIMITED (quoted, `title:`-prefixed) so the dedup instruction's
@@ -2826,7 +2843,7 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation') && minorsF
       // leading ordinal would make dedup order-dependent across a relaunch. file/line/seats render
       // per row (Task 2.1) so the agent CAN cluster by file — title/task/rationale alone made
       // file-clustering impossible.
-      + minorsFiled.map((m, i) => pt`  ${i + 1}. title: "${m.title ?? '(untitled finding)'}" · task ${m.task ?? '<task>'}${m.file ? pt` · file ${m.file}${m.line != null ? pt`:${m.line}` : ''}` : ''}${m.seats && m.seats.length ? pt` · seats: ${m.seats.join(', ')}` : ''} · why not absorbable: ${m.rationale ?? '(no rationale recorded)'}`).join('\n') + '\n'
+      + minorsFiled.map((m, i) => { const ev = auditEvidenceOf(m.task); return pt`  ${i + 1}. title: "${m.title ?? '(untitled finding)'}" · task ${m.task ?? '<task>'}${m.file ? pt` · file ${m.file}${m.line != null ? pt`:${m.line}` : ''}` : ''}${m.seats && m.seats.length ? pt` · seats: ${m.seats.join(', ')}` : ''} · why not absorbable: ${m.rationale ?? '(no rationale recorded)'} · audit round ${ev.round} · pinned sha ${ev.sha}` }).join('\n') + '\n'
       + pt`Return ONLY { filed: [{ n, issue }], clusters: [{ ordinals, issue }] } — filed: n the row's 1-based ordinal above, issue the filed / commented-on / reused issue number (null when unfiled; every row of one cluster shares its issue number); clusters: your clustering manifest — every ordinal above in exactly ONE cluster's ordinals array (merge rows only, never split one). A partial/empty result is FAIL-OPEN: unmatched entries stay issue: null in the handoff and the Checkpoint floor catches them; never block.`,
       { agentType: NS + 'war-refiner', phase: 'Land', label: 'file-followups:phase-' + ph.id, dispatchKind: 'file-followups', schema: FOLLOWUP_FILING_RESULT, ...spawn('refiner') })
   } catch (err) {
