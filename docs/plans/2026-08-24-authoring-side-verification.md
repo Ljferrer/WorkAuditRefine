@@ -136,7 +136,8 @@ Recommended ADRs: no new number — a dated amendment to ADR 0044 with the stabl
      check: `bash skills/war-strategy/war-strategy-structure.test.sh`
   3. `skills/war-strategy/SKILL.md`: #1494 fence fix, #1503 banner currency, #1505 HANDOFF latitude beat,
      #1602 trichotomy pins, #1604 gap-review pin, #1628 oracle-duality bullet, template-law additions
-     (pin-id + landing-class in the design-tree slot), and the #1601 doctrine-side OLD-absent guard ·
+     (pin-id + landing-class in the design-tree slot), and the #1601 doctrine-side OLD-absent guard
+     (hosted per A2's resolution) ·
      check: `bash skills/war-strategy/war-strategy-structure.test.sh`
   4. `plan-literal-lint.mjs` gains three advisory rules (section-scoped pin citation with anywhere
      fallback, Evidence-consumed form, single-signal oracle), exit 0 by default; its tests cite the floored
@@ -153,12 +154,13 @@ Recommended ADRs: no new number — a dated amendment to ADR 0044 with the stabl
      round) with a drift row · check: `node --test skills/war/assets/workflow-template.test.mjs`
   10. ADR 0044 amendment present under the `authoring-side verification` token with the narrowed residual
       and the evidence-duty home note; ADR 0014 carries the cross-ref ·
-      check: `grep -l 'authoring-side verification' docs/adr/0044-authoring-contract-and-merged-artifact.md docs/adr/0014-ai-commanders-intent.md | wc -l` prints `2`
+      check: `grep -q 'authoring-side verification' docs/adr/0044-authoring-contract-and-merged-artifact.md && grep -q 'authoring-side verification' docs/adr/0014-ai-commanders-intent.md`
   11. Release: all four slots + CHANGELOG bumped to the next free **minor** above the live base (expected
       0.19.0 at base `9b5a80c` — dated snapshot per D12, re-resolved at land) ·
       check: `node --test skills/war/assets/version-slots.test.mjs`
   12. At land, #1408 and each wrapped issue are closed, commits citing their issues range-level ·
-      check: `gh issue view <n> --json state` per wrapped issue after land
+      gate: the issue-lifecycle floor at land (Lead land-time bookkeeping — not runnable pre-land at
+      the integrated tip, where wrapped issues are necessarily open)
 
 ## Build order (for /war)
 
@@ -327,6 +329,9 @@ Phase 1 (war-strategy core) → Phase 2 (cross-surface consumers) → Phase 3 (A
 - Echo-back incident record: echo-back 1 leaked four duty/fence-class pins (caught by operator
   reconciliation — the PIN-25 motivating instance); echo-back 2 shipped zero leaks under the ledger
   machinery.
+- Release-grade flip (patch → minor) between echo-back 2 and this artifact: operator-ratified
+  (2026-08-24) at the version confirm — expected 0.19.0. Recorded on the record because post-gate
+  drift is the leak class this plan exists to kill.
 
 ## Open decisions
 
