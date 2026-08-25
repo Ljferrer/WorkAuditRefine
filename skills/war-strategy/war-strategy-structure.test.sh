@@ -22,8 +22,8 @@
 # section (presence pin + the five-atom mirror-equality block, #1307: the D4 / D5 / tag-set /
 # D12 / D14 law atoms extracted from both surfaces, whitespace-normalized, non-empty-asserted
 # per surface, then compared against the canonical SKILL.md §2 bytes — tag-set by keyword
-# sequence, D14 by marker presence), the four both-ways
-# lacks_i positive controls (#1308: each retired-wording absence pattern proven ALIVE against
+# sequence, D14 by marker presence), the both-ways lacks_i / lacks_doc_i
+# positive controls — one per assembled absence pattern (#1308: each proven ALIVE against
 # an independent re-cased fixture, and its -i proven load-bearing), and — case-insensitive —
 # the ABSENCE of the retired two-template/required-Grill-Me wording. grep is fence-blind, so
 # template-internal headings are checked as verbatim full lines: an arrow annotation /
@@ -366,6 +366,9 @@ doc_f '`PIN-1` never matches inside `PIN-13`'
 doc_f 'amendment pins mint fresh numbers, letter suffixes'
 doc_f 'a single-class cell covers all row pins'
 doc_f 'guardrail → `Binding guardrails:`'
+doc_f "slice → the named task's"
+doc_f 'end-state → the End state list · backstop →'
+doc_f 'context / non-goal → the definition row'
 doc_f 'anywhere-citation'
 doc_f '`WAIVE-<n>` is the skip token'
 doc_f 'id · beat · fired arm · scope · reason'
@@ -588,7 +591,7 @@ r7b='–7'
 lacks_doc_i "$r7a$r7b"
 doc_f 'rules 5–8'
 
-# Positive controls for the four assembled absence patterns (#1308, D8/D11). The assembled
+# Positive controls for each assembled absence pattern (#1308, D8/D11). The assembled
 # literals are unfindable by any grep, so a one-character fragment typo would leave a
 # pattern matching nothing and its pin silently green forever. Both ways per pattern: the
 # re-cased fixture must FIRE the case-insensitive composition (pattern alive), and the same
