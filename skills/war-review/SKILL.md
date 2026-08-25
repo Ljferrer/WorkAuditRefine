@@ -98,7 +98,7 @@ mixed-source rule — a mixed envelope/mined total renders `n/a (mixed-source)`,
 | lessons written | manifest `phases[].lessonsWritten` |
 | issues filed | manifest `phases[].issuesFiled` |
 
-**Plan-scoped telemetry** — three ratified rows keyed to the run's *plan* (and any campaign it
+**Plan-scoped telemetry** — four ratified rows keyed to the run's *plan* (and any campaign it
 rode), not the manifest; render them once per run, after the table above. The same honesty
 invariant binds every cell: a row whose source is absent, unparseable, or predates its field
 renders **`n/a`**, never a reconstruction.
@@ -108,6 +108,7 @@ renders **`n/a`**, never a reconstruction.
 | red-team rounds — this plan | the newest (by filename date) `$MAIN/docs/red-team/*-<plan-slug>.md` report's strict-form `**Rounds:** <integer>` line (directly under the Verdict line); on a campaign run, also the campaign ledger's per-plan `redteamRounds` field — read from the campaign ledger under `$MAIN/.claude/campaigns/*/ledger.json` whose `plans[].slug` equals the manifest `planPath`'s basename sans extension, never the newest campaign (no manifest field records the campaign); multiple slug matches disambiguate by `plans[].plan` equal to the `$MAIN`-resolved manifest `planPath`, still ambiguous → `n/a` with the ambiguity stated; no match → that source is absent — either source alone suffices; when both are present and disagree, the report header wins (it is the newer read) and the delta is stated — both absent → `n/a` |
 | red-team rounds per plan — trend across campaigns | the same two sources swept across `$MAIN/docs/red-team/` reports and the campaign ledgers under `$MAIN/.claude/campaigns/*/ledger.json`, rendered as a per-plan series; state a trend reading only with at least one full campaign of field data behind it — until then the series stands alone, and an empty sweep renders `n/a` |
 | interview length — questions per merged plan | the authoring interview's final status-line question count (`Qk/<budget>` — budget default 14, operator-raisable per D8; the question contract in [`../war-strategy/references/plan-interview.md`](../war-strategy/references/plan-interview.md)); no artifact persists it today — `n/a` unless the operator supplies the count |
+| waive-rate per arming arm | the `WAIVE-<n>` rows carried in plans authored under the authoring-side verification doctrine (each row records the arming arm that fired — the artifact-borne fix-or-waive channel in [`../war-strategy/references/plan-interview.md`](../war-strategy/references/plan-interview.md)); tally waives per arm across the doctrine-authored plans in scope (this run's plan, plus the campaign's plans on a campaign run); a plan with no `WAIVE-<n>` rows contributes zero waives, but when **no doctrine-authored plan is in scope** the row renders `n/a` — never fabricated (this skill's standing `n/a` rule) |
 
 Lead with the run header: `runId`, `planPath`, `configProfile`, run wall-clock (`n/a` when the
 degenerate-timestamp guard above fires), and the best-effort-harness-read caveat.
