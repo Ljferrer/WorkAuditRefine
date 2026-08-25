@@ -278,10 +278,18 @@ test("ask fence (literal-class): no land-phase prompt emits a status:'ask' liter
   assert.ok(!emitted.includes('ask'), "a land-phase prompt emits status:'ask' — the land-dispatch literal-class fence is breached (#1550)")
   // Whole-file literal-class sweep: the ask channel adds NO status:'ask' literal to any merge/land
   // dispatch and NO landDecision ask assignment — the scrape slices above would otherwise pick a
-  // new member up silently on their next re-derivation.
+  // new member up silently on their next re-derivation. Each sweep pattern is hoisted to a named
+  // const shared by a positive control (non-vacuity: a synthetic in-test literal must fire the
+  // pattern) and the absence sweep — a negative-only assert would stay permanently, silently green
+  // after a stray escape or refactored literal shape broke the pattern. Safe from self-match: the
+  // sweeps read workflow-template.js, never this .mjs.
+  const STATUS_ASK_RE = /status:\s*['"](?:held:)?ask['"]/
+  const LANDDECISION_ASK_RE = /landDecision\s*(?:===?|:|=(?!=))\s*['"](?:held:)?ask['"]/
+  assert.match("status: 'ask'", STATUS_ASK_RE, 'positive control: the status-literal sweep pattern fires on a synthetic ask literal (non-vacuous guard)')
+  assert.match("landDecision = 'held:ask'", LANDDECISION_ASK_RE, 'positive control: the landDecision sweep pattern fires on a synthetic ask assignment (non-vacuous guard)')
   const wf = readAsset('workflow-template.js')
-  assert.ok(!/status:\s*['"](?:held:)?ask['"]/.test(wf), "workflow-template.js carries a status:'ask'/'held:ask' literal — the literal-class fence is breached (#1550)")
-  assert.ok(!/landDecision\s*(?:===?|:|=(?!=))\s*['"](?:held:)?ask['"]/.test(wf), 'workflow-template.js carries a landDecision ask literal — the literal-class fence is breached (#1550)')
+  assert.ok(!STATUS_ASK_RE.test(wf), "workflow-template.js carries a status:'ask'/'held:ask' literal — the literal-class fence is breached (#1550)")
+  assert.ok(!LANDDECISION_ASK_RE.test(wf), 'workflow-template.js carries a landDecision ask literal — the literal-class fence is breached (#1550)')
 })
 
 // ---- D8: per-mode HARD_ESCALATION_REASONS reachability drift-guard (#639) ----

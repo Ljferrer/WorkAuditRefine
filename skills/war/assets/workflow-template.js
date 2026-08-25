@@ -408,7 +408,7 @@ const intentClause = intent
 // red-team report's `## Adjudications` block for this plan (docs/red-team/<plan-slug>.md) AND from
 // its own scope adjudications made at the decompose gate or at an escalation AND from the
 // Checkpoint ask rulings — each ruled ask minted as an adjudication row at the strike-list gate —
-// both per `skills/war/SKILL.md`, then
+// the latter two per `skills/war/SKILL.md`, then
 // threads the accumulated set here as args.adjudications (array|null of { adjudicated, supersedes }
 // objects or preformatted strings) — a Lead-read arg, like intent. FOLLOWS the intentClause threading
 // pattern: empty/absent ⇒ adjudicationClause is '' ⇒ every prompt below is byte-identical to a

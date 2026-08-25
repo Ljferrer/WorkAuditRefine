@@ -3973,6 +3973,22 @@ test('#1550 ask parking (approve path): an ask parks on asks[] with question+for
   assert.ok(!h.followUps.some(f => /mirror or point/.test(f.reason || '')), 'handoff.followUps excludes the ask')
 })
 
+// Positive sha provenance (delete-and-trace closure): the null-sha asserts above pass vacuously if
+// the `sha: s.audit_sha` stamp regresses to a non-existent field (`undefined ?? null` collapses to
+// null) — so one seat here ECHOES an audit_sha and both projections must carry it.
+test('#1550 ask parking (sha provenance): a seat-echoed audit_sha rides the parked record AND the handoff projection', async () => {
+  const base = aceBase([])
+  const impl = (prompt, opts) => seatOf(opts) === 'war-auditor'
+    ? { ...approveWith(opts.label, [askFinding()]), audit_sha: 'deadbeef' }   // echoes the worker's pinned head_sha
+    : base(prompt, opts)
+  const { out } = await runPhase(ACE_ARGS(), impl)
+  const a = (out.asks || [])[0]
+  assert.ok(a, 'the ask parked (presence guard)')
+  assert.equal(a.sha, 'deadbeef', "the parked record's sha carries the seat's echoed audit_sha (the minorsOf stamp, positively asserted)")
+  assert.deepEqual((out.handoff.asks || []).map(x => x.sha), ['deadbeef'],
+    "the handoff projection's sha carries the echoed audit_sha (never collapsed to null)")
+})
+
 test('#1550 ask parking (non-approve path): an ask on an escalated task parks — never demoted into minorsFiled with the escalation', async () => {
   const impl = (prompt, opts) => {
     if (seatOf(opts) === 'war-auditor') {
@@ -4011,6 +4027,13 @@ test('#1550 — demote() refuses an ask loudly: log + exactly-once asks[] member
   demote(f, 'note', 'a second would-be demotion')
   parkAsk(f)
   assert.equal(asks.length, 1, 'exactly-once membership by finding identity — refusal and parkAsk dedup to ONE record')
+  // Absence-tolerant fallback (fail-open, deliberate): a fork-less ask — the schema-mandatory
+  // `ask` field missing — still parks intact, question falling back to f.title and fork to [],
+  // never a throw (a throw here would destroy the parked records on held:workflow-error).
+  parkAsk({ severity: 'Minor', title: 'no ask field', task: 't9' })
+  assert.equal(asks.length, 2, 'a fork-less ask still parks (fail-open — never dropped, never a throw)')
+  assert.equal(asks[1].question, 'no ask field', 'question falls back to f.title when the ask field is missing')
+  assert.deepEqual(asks[1].fork, [], 'fork falls back to [] when the ask field is missing')
   assert.deepEqual(minorsFiled, [], 'a refused ask NEVER lands in minorsFiled')
   assert.deepEqual(notes, [], 'a refused ask NEVER lands in notes')
   const refusal = logs.find(l => typeof l === 'string' && l.includes('REFUSED (ask)'))
@@ -4057,6 +4080,8 @@ test('#1550 (D7) — ask order-census: six dispositionOf sites with ask precedin
   assert.ok(/the ask member included/.test(stripComment) && /never parks/.test(stripComment),
     "the pinMismatch strip comment NAMES the ask member and states a pin-mismatched ask never parks (the census's seventh row)")
 })
+
+// --- Dep-wave visibility (criterion 4) + force-with-lease carve-out ---
 
 test('dep-wave visibility (criterion 4): rebase-first clause is PREPENDED iff deps non-empty (same-repo)', async () => {
   const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)   // t1 dep-less, t2 deps:['t1']
