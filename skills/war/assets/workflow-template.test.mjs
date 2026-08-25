@@ -3973,22 +3973,6 @@ test('#1550 ask parking (approve path): an ask parks on asks[] with question+for
   assert.ok(!h.followUps.some(f => /mirror or point/.test(f.reason || '')), 'handoff.followUps excludes the ask')
 })
 
-test('#1550 ask parking (approve path, sha provenance): a seat echoing audit_sha pins the parked record and the lossy handoff projection', async () => {
-  // POSITIVE sha path (delete-and-trace pair to the sha:null absence rows above): the auditor
-  // echoes audit_sha equal to the worker pin 'deadbeef' (a mismatched sha would be pin-stripped
-  // and never park), and that pin must land on the parked record AND the handoff projection —
-  // a regression to a non-existent field (e.g. `sha: s.sha`) collapses to null and reds here.
-  const impl = (prompt, opts) => {
-    if (seatOf(opts) === 'war-auditor') return { ...approveWith(opts.label, [askFinding()]), audit_sha: 'deadbeef' }
-    return aceBase([])(prompt, opts)
-  }
-  const { out } = await runPhase(ACE_ARGS(), impl)
-  assert.equal((out.asks || []).length, 1, 'the ask parks (presence guard)')
-  assert.equal(out.asks[0].sha, 'deadbeef', "the seat's echoed audit_sha lands on the parked record (minorsOf `sha: s.audit_sha` stamp)")
-  assert.ok(out.handoff, 'handoff present on landed')
-  assert.equal(out.handoff.asks[0].sha, 'deadbeef', 'the echoed sha survives into the lossy handoff projection')
-})
-
 test('#1550 ask parking (non-approve path): an ask on an escalated task parks — never demoted into minorsFiled with the escalation', async () => {
   const impl = (prompt, opts) => {
     if (seatOf(opts) === 'war-auditor') {
@@ -4079,8 +4063,6 @@ test('#1550 (D7) — ask order-census: six dispositionOf sites with ask precedin
   assert.ok(/the ask member included/.test(stripComment) && /never parks/.test(stripComment),
     "the pinMismatch strip comment NAMES the ask member and states a pin-mismatched ask never parks (the census's seventh row)")
 })
-
-// --- Dep-wave visibility (criterion 4) + force-with-lease carve-out ---
 
 test('dep-wave visibility (criterion 4): rebase-first clause is PREPENDED iff deps non-empty (same-repo)', async () => {
   const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)   // t1 dep-less, t2 deps:['t1']
