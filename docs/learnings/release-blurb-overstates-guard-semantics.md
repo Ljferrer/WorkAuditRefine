@@ -4,11 +4,11 @@ description: "Guard blurb: say 'refuse diffs touching X' not repos"
 metadata:
   node_type: memory
   type: project
-  keywords: [Status section wording, trigger surface, diff vs repo, fail-closed phrasing, submodule refuse, prose nit, operator misinformation, absolute claim vs residual exception, ADR carve-out, fresh-env re-run, unconditional vs conditional emission, near-miss diagnostic, assert-test-in-diff.sh, stderr guard clause, umbrella clause, heterogeneous guard shapes, realpathSync, campaign-ledger, fileURLToPath, No behavior change label, bolded lead-in, colon-scoped enumeration, release headline contradiction, anti-overclaim device, appositive antecedent ambiguity, dangling modifier, itself unchanged, nearest-noun misattachment, D6 verbatim-capture contract, on every error path, seed-pack die try region, mkdtemp scratch leak scope, TOKEN-scoped absence lock, prose-only reintroduction, verifyTier cap exceeded, unconditional prose append, gating-premise mismatch, non-submodule byte identity claim, submodule floor gain, polish merge prompt, floor-retry prompt, submodLandNote, submodMergeNote, every existing non-submodule prompt, issue citation convention, origin issue vs task issue, ADR body vs header qualifier, byte-unchanged body qualifier dropped, ADR Status line amendment, expect_deny_teach pinning granularity, K5 combined substring stated as separate pins, test assertion granularity overclaim, authoring checklist self-violation, checklist item dropped in its own introducing paragraph, D25 cross-ADR mirror, two-site characterization, either-alone overclaim, guard scope word omission, bound every absolute, universal quantifier enumeration gap, version-manifest omitted from outside-dir enumeration, doctrine count vs guard count mismatch, engine untouched claim, task diff vs release window scope, unbumped stacked PR, zero engine change, named above enumeration gap, skills touch outside families, previously-valid vs currently-valid, boilerplate closing sentence drift, stock release phrase word swap, headline vs body scope mismatch, malformed argv every mode, file mode bare token carve-out, worktree name collision resolved via numeric suffix, unbounded absolute inherited from source comment, namespace-scoped ref-diff refs/heads refs/tags, every live ref vs every live heads/tags ref, escape-worthy fixture misattribution, wrong case cited as the escaping fixture, faithful mirror of suite banner still overstates scope, watchdog group kill fd survivor, unbounded claim repaired two sentences later same bullet, discrimination ceiling banner dropped, quoted test case number without its own scope caveat, done-when floor wiring, TERM-ignoring descendant residual, hand-duplicated guard not shared, lacks_i lacks has_i_stripped, existence guard controls #1362, pin the guard both ways, shell-pin-helpers, character allowlist residue check, forbidden character deny message, metacharacter rule fired, guard-message-overclaim-inherited-into-blurb, static-guard-deny-message, verdict enumeration drift guard, scoped SHORT of its whole line, byte-identical eviction requalified, same-phase artifact correction not propagated, glossary-cold header qualifier, Homes link list omission, drift on any of those five lines, distributive plural over two rows, headline attributes one-row gain to both rows, sole writer wording quoted safely scoped, retired token quoted in blurb, per-family deepEqual proof, posterity corpus sentinel, hardcoded literal cannot deepEqual a scan, D3 sentinel family count, three seats one clause]
+  keywords: [Status section wording, trigger surface, diff vs repo, fail-closed phrasing, submodule refuse, prose nit, operator misinformation, absolute claim vs residual exception, ADR carve-out, fresh-env re-run, unconditional vs conditional emission, near-miss diagnostic, assert-test-in-diff.sh, stderr guard clause, umbrella clause, heterogeneous guard shapes, realpathSync, campaign-ledger, fileURLToPath, No behavior change label, bolded lead-in, colon-scoped enumeration, release headline contradiction, anti-overclaim device, appositive antecedent ambiguity, dangling modifier, itself unchanged, nearest-noun misattachment, D6 verbatim-capture contract, on every error path, seed-pack die try region, mkdtemp scratch leak scope, TOKEN-scoped absence lock, prose-only reintroduction, verifyTier cap exceeded, unconditional prose append, gating-premise mismatch, non-submodule byte identity claim, submodule floor gain, polish merge prompt, floor-retry prompt, submodLandNote, submodMergeNote, every existing non-submodule prompt, issue citation convention, origin issue vs task issue, ADR body vs header qualifier, byte-unchanged body qualifier dropped, ADR Status line amendment, expect_deny_teach pinning granularity, K5 combined substring stated as separate pins, test assertion granularity overclaim, authoring checklist self-violation, checklist item dropped in its own introducing paragraph, D25 cross-ADR mirror, two-site characterization, either-alone overclaim, guard scope word omission, bound every absolute, universal quantifier enumeration gap, version-manifest omitted from outside-dir enumeration, doctrine count vs guard count mismatch, engine untouched claim, task diff vs release window scope, unbumped stacked PR, zero engine change, named above enumeration gap, skills touch outside families, previously-valid vs currently-valid, boilerplate closing sentence drift, stock release phrase word swap, headline vs body scope mismatch, malformed argv every mode, file mode bare token carve-out, worktree name collision resolved via numeric suffix, unbounded absolute inherited from source comment, namespace-scoped ref-diff refs/heads refs/tags, every live ref vs every live heads/tags ref, escape-worthy fixture misattribution, wrong case cited as the escaping fixture, faithful mirror of suite banner still overstates scope, watchdog group kill fd survivor, unbounded claim repaired two sentences later same bullet, discrimination ceiling banner dropped, quoted test case number without its own scope caveat, done-when floor wiring, TERM-ignoring descendant residual, hand-duplicated guard not shared, lacks_i lacks has_i_stripped, existence guard controls #1362, pin the guard both ways, shell-pin-helpers, character allowlist residue check, forbidden character deny message, metacharacter rule fired, guard-message-overclaim-inherited-into-blurb, static-guard-deny-message, verdict enumeration drift guard, scoped SHORT of its whole line, byte-identical eviction requalified, same-phase artifact correction not propagated, glossary-cold header qualifier, Homes link list omission, drift on any of those five lines, distributive plural over two rows, headline attributes one-row gain to both rows, sole writer wording quoted safely scoped, retired token quoted in blurb, per-family deepEqual proof, posterity corpus sentinel, hardcoded literal cannot deepEqual a scan, D3 sentinel family count, three seats one clause, known-residual honesty subclause, assemble-time condition threading, plan-slice literal predates discovered residual, both-ways proof overclaim, D22 unproven arms, honesty against known residuals, prompt-mandated vs code-enforced, Ace-Subset trailer, aceBisect, dispatch prompt instruction, engine assert vs worker compliance, resume idempotency contract, commit-level guarantee overclaim, mirror-pair misattribution, standing doctrine vs dispatched prompt mirror, engine scope enumeration, dispatched-prompt string change, SPINE lens prompt, coverage-vs-source lens, workflow-scaffold.js, lenses.md mirror pair, executable asset vs doctrine prose bucket]
   provenance: code-verified
-  promoted: dev/2026-08-06-verdict-adjudication-integrity@phase-2
+  promoted: dev/2026-08-06-doc-cli-consistency-corpus@phase-2
   slug: release-blurb-overstates-guard-semantics
-  phase: "submodule-inc1/T4 +20 recurrences (war-campaign-resilience-roadmap/phase-2 Release task 2.1, 2026-07-22; test-floor-target-repo/phase-2 Release task 2.1, 2026-07-22; cli-main-guard-normalization/phase-2 Release task 2.1, 2026-07-23; runbook-and-standing-record-coherence/phase-2 Release task 2.1, 2026-07-24; recovery-re-merge-dispatch-coherence/phase-2 Release task 2.1, 2026-07-24; drift-guard-and-floor-diagnostic-hardening/phase-2 Release task 2.1, 2026-07-24/25; 2026-07-24-memory-tooling-hardening/phase-2 Release task 2.1, 2026-07-26; 2026-07-26-dispatch-args-and-floor-coverage/phase-3 Release task 3.1, 2026-07-26/27; 2026-07-26-auditor-guard-policy-and-mirror-truth/phase-2 Release task 2.1, 2026-07-27; 2026-07-26-standing-doc-and-remedy-truth-sweep/phase-2 Release task 2.1, 2026-07-27; 2026-07-28-audit-evidence-precedence/phase-2 Release task 2.1, 2026-07-28; 2026-08-02-redteam-doctrine-and-guards/phase-2 Release task 2.1, 2026-08-02; 2026-08-04-interview-and-authoring-contract/phase-3 Release task 10, 2026-08-05; 2026-08-06-red-team-gate-cli/phase-2 Release task 2.1, 2026-08-06/14; 2026-08-06-escape-guard-exit-contract/phase-2 Release task 2.1, 2026-08-15; 2026-08-06-done-when-floor-wiring/phase-2 Release task 2.1, 2026-08-15; 2026-08-06-shell-pin-helpers/phase-2 Release task 2.1, 2026-08-15; 2026-08-06-gate-audit-finding-routing/phase-3 Release task 3.1, 2026-08-15; 2026-08-06-verdict-adjudication-integrity/phase-2 Release task 2.1, 2026-08-16; 2026-08-06-redteam-rounds-config-telemetry/phase-2 Release task 2.1, 2026-08-16; 2026-08-06-doc-cli-consistency-corpus/phase-2 Release task 2.1, 2026-08-16)"
+  phase: "submodule-inc1/T4 +21 recurrences (war-campaign-resilience-roadmap/phase-2 Release task 2.1, 2026-07-22; test-floor-target-repo/phase-2 Release task 2.1, 2026-07-22; cli-main-guard-normalization/phase-2 Release task 2.1, 2026-07-23; runbook-and-standing-record-coherence/phase-2 Release task 2.1, 2026-07-24; recovery-re-merge-dispatch-coherence/phase-2 Release task 2.1, 2026-07-24; drift-guard-and-floor-diagnostic-hardening/phase-2 Release task 2.1, 2026-07-24/25; 2026-07-24-memory-tooling-hardening/phase-2 Release task 2.1, 2026-07-26; 2026-07-26-dispatch-args-and-floor-coverage/phase-3 Release task 3.1, 2026-07-26/27; 2026-07-26-auditor-guard-policy-and-mirror-truth/phase-2 Release task 2.1, 2026-07-27; 2026-07-26-standing-doc-and-remedy-truth-sweep/phase-2 Release task 2.1, 2026-07-27; 2026-07-28-audit-evidence-precedence/phase-2 Release task 2.1, 2026-07-28; 2026-08-02-redteam-doctrine-and-guards/phase-2 Release task 2.1, 2026-08-02; 2026-08-04-interview-and-authoring-contract/phase-3 Release task 10, 2026-08-05; 2026-08-06-red-team-gate-cli/phase-2 Release task 2.1, 2026-08-06/14; 2026-08-06-escape-guard-exit-contract/phase-2 Release task 2.1, 2026-08-15; 2026-08-06-done-when-floor-wiring/phase-2 Release task 2.1, 2026-08-15; 2026-08-06-shell-pin-helpers/phase-2 Release task 2.1, 2026-08-15; 2026-08-06-gate-audit-finding-routing/phase-3 Release task 3.1, 2026-08-15; 2026-08-06-verdict-adjudication-integrity/phase-2 Release task 2.1, 2026-08-16; 2026-08-06-redteam-rounds-config-telemetry/phase-2 Release task 2.1, 2026-08-16; 2026-08-06-doc-cli-consistency-corpus/phase-2 Release task 2.1, 2026-08-16; 2026-08-06-gate2-publication-guard/phase-2 Release task 2.1, 2026-08-18; realized-absorb-rate/phase-4 Release task 4.1, 2026-08-19/20; authoring-side-verification/phase-4 Release task 4.1, 2026-08-24/25 — mirror-pair misattribution: an engine-scope enumeration folded a dispatched-prompt mirror edit into the doctrine-prose bucket)"
   tags:
     - war
     - release
@@ -23,9 +23,10 @@ metadata:
     - "[[release-bump-slots-canonical-no-badge]]"
     - "[[gitmodules-working-tree-read-vs-ref-snapshot]]"
     - "[[static-guard-deny-message-misnames-which-rule-fired-for-shared-char-class]]"
+    - "[[standing-instruction-vs-dispatched-prompt-coverage-split]]"
   created: 2026-06-30
   originSessionId: 0e364ee5-f0b3-47f6-a9e4-9bf2dd555733
-  modified: 2026-08-17T00:00:00.000Z
+  modified: 2026-08-25T00:00:00.000Z
 ---
 
 # Release blurb prose overstates guard semantics
@@ -1132,3 +1133,205 @@ headline-count arithmetic rather than per-item proof-mechanism claims);
 [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]] (worktree-lookup path used to ground
 this recurrence's D3 read — `_refinery16`'s logged `HEAD` matched the threaded landed-tip anchor
 exactly, the strongest grounding rung, no gate-audit fallback needed).
+
+## Recurrence 22 (2026-08-18, plan `2026-08-06-gate2-publication-guard`, phase 2 "Release", task
+2.1) — a plan-slice literal predates a discovered residual; the gate-audit end-state seat catches it
+only because the Lead threaded the newer knowledge into the dispatch-time HARD condition
+
+A thirty-fifth instantiation, and a new sub-mechanism distinct from Recurrences 1-21: not a clause
+whose *scope* or *attachment* is wrong relative to the code, but a clause whose *truth value changed
+between plan-authoring time and land time* because a **sibling fact discovered later in the same
+phase** (not this task's own diff) falsified it. `agent-unverified` for this recurrence's own D3 read
+— **landed-tip grounding exhausted all four rungs**: this servitor's cwd HEAD is `master` on the main
+checkout (not the threaded landed tip); no worktree entry under `.claude/worktrees/` or
+`.claude/war-worktrees/` matches the plan slug `gate2-publication-guard`; the landed branch
+`dev/2026-08-06-gate2-publication-guard` has both a local loose ref and an `origin/` ref but **no live
+worktree** checking either out — a dead end for Read per doctrine, no Bash available to check one out.
+The facts below are relayed by the Lead as verified directly against git (outside this servitor's own
+tool ceiling) and are recorded here as the Lead's own re-derivable claim, not independently
+re-confirmed by this servitor.
+
+**The instance.** The 0.17.12 `## Status` blurb claimed "every load-bearing fragment of the key now
+has a both-ways proof" for a key/guard construct this same phase's own phase-1 base commit (`c33eb39`,
+the phase-1 learnings commit) had recorded **two pre-existing unproven arms** for, tracked in issue
+`#1521`. The plan's own Purpose phrasing (pre-fix) reproduced the blanket "every fragment" claim
+verbatim; the release worker, drafting from that plan-slice literal, reproduced the same over-claim.
+What caught it: the threaded End-state condition for this task's gate-audit dispatch carried an
+**explicit honesty sub-clause** — "honestly against the two known unproven arms tracked in #1521" —
+that the **Lead added at assemble time**, after #1521 was filed, layering newer knowledge on top of a
+plan-slice literal drafted before that knowledge existed. Without that dispatch-time addition, the
+gate-audit seat's mapped-condition text would have matched the blurb's own (false) claim and had
+nothing textual to catch it against.
+
+**Why this differs from every prior recurrence in the family.** Recurrences 1-21 are all about a
+blurb clause's wording being imprecise *relative to the code or a design doc that already existed at
+plan-authoring time* — the fix is always "read the artifact's own scope word more carefully."
+Here the code/design-doc scope was not the gap: the plan's own Purpose text was accurate **when
+written**, and became false only because a *later, phase-internal discovery* (the #1521 residual)
+was never back-threaded into the plan-slice literal the worker drafted from. The catch mechanism is
+also new: not an auditor tracing the blurb against a guard's code, but the **Lead's own assemble-time
+practice** of layering freshly-discovered residual knowledge into the HARD End-state condition text
+dispatched to the gate-audit seat, independent of whatever the plan slice itself still says.
+
+**Sharper form of the Rule for this instance, a new axis:** a plan-slice literal (Purpose phrasing,
+End-state wording) is a snapshot taken at plan-authoring time. When a phase discovers a residual,
+gap, or known-unproven set **after** that snapshot (its own issue, its own audit finding), the
+snapshot does not self-update — a worker drafting a release blurb from the stale literal will
+faithfully reproduce the now-outdated over-claim. The mitigation is not "read the plan slice more
+carefully" (Recurrences 1-21's usual prescription); it is **the Lead's duty at dispatch-assemble time**
+to fold newly-discovered, phase-scoped residual knowledge into the End-state condition text before it
+is threaded to a gate-audit seat — otherwise the seat has no textual anchor to catch a claim the plan
+itself still states unqualified. This generalizes the "task instruction > plan literal" precedence
+[[redteam-adjudication-is-authoritative-version-source]] already establishes for red-team/version
+literals to a second pipeline stage: the Lead's own assemble-time condition threading, not just a
+red-team adjudication row, can and should out-rank a stale plan-slice literal.
+
+Not corrected in the plan slice itself (out of scope for a release-slot fix); the finding did its
+job — it was caught, not shipped, because of the threaded honesty clause, and the fix worker then
+corrected the blurb text before land (see [[reproduce-a-gate-blocker-before-patching-or-escalating]]
+for the fix-worker's own reproduce-before-patching step on this same finding).
+
+**Now 35 recurrences across five overlapping sub-families**, plus this recurrence's new "stale
+plan-slice literal vs. phase-discovered residual" sub-mechanism — the first in the family where the
+catch depends on the Lead's own dispatch-time practice rather than an auditor's code trace.
+
+Related: [[full-gates-green-end-state-soft-without-threaded-gate-log-artifact]] (this same phase's
+other gate-evidence-hygiene improvement, tip_sha/exit_code stamping);
+[[reproduce-a-gate-blocker-before-patching-or-escalating]] (the fix-worker's reproduce-before-patching
+step on this exact finding); [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]] (why this
+recurrence's own D3 read stayed `agent-unverified` — all four landed-tip-grounding rungs exhausted,
+no live worktree for this plan slug).
+
+## Recurrence 23 (2026-08-19/20, plan `realized-absorb-rate`, phase 4 "Release", task 4.1) — a
+mechanism enforced only by dispatched PROMPT TEXT to a worker agent, never by an engine-side assert,
+is stated as a commit-level guarantee — a new sub-mechanism: "prompt-mandated" vs "code-enforced"
+
+A thirty-sixth instantiation, `disposition: note`, Nit, non-blocking. `code-verified` — read directly
+at the `_refinery22` worktree whose `HEAD` (`5cbf08d1aede44412f0a4d3a6cce1179010cce18`) is byte-equal
+to the separately-threaded landed-tip anchor exactly (the strongest grounding rung; gitdir physical
+path containing this plan's slug: `<repo-root>/.claude/worktrees/realized-absorb-rate-2026-08-19-r2/_refinery/`),
+`README.md` line 363.
+
+**The bullet reads:** "Every subset commit ends with an `Ace-Subset:`-keyed trailer, and every subset
+dispatch preflights the bisection range ... for that trailer before committing, so a resumed dispatch
+returns the existing sha instead of double-applying." At the pin, `aceBisect` in
+`skills/war/assets/workflow-template.js` implements **both halves as prompt text dispatched to the fix
+worker** — the commit-message-ending instruction (`its message ENDING with the trailer line
+\`Ace-Subset: ${trailer}\``) and the preflight instruction (`PREFLIGHT (resume idempotency): scan the
+BISECTION RANGE ...`) are both inside the `pt\`...\`` template string built for the `agent()` call; the
+engine never re-reads `git log`/`%(trailers:)` on the worker's returned `head_sha` to confirm the
+commit it accepted actually carries the trailer. The property is **mandated to an LLM worker by
+prompt instruction**, not **verified by engine code** — a materially different guarantee strength than
+the blurb's declarative phrasing implies. The plan's own End state 2 uses the tighter, correct form
+("Every subset-commit dispatch **prompt mandates** the `Ace-Subset:`-keyed trailer"), and this repo's
+own Status-blurb authoring checklist item 2 ("repeat the guard's own scope word") plus this very
+lesson's Rule text name exactly this promotion of a narrow true claim (a prompt instruction was issued)
+to a broad one (the property holds in the emitted commit).
+
+**New sub-mechanism for the family, orthogonal to every prior recurrence.** Recurrences 1-22 are all
+about a *code-enforced* guard/test/doc-derived property whose blurb description has the wrong scope,
+attachment, or window. This one is different in kind: there is no engine-side code check at all for
+the property being described — the entire guarantee rests on an LLM sub-agent following its dispatch
+prompt faithfully. A blurb (or any doc) describing a WAR mechanism should distinguish "the engine
+asserts X" from "the engine instructs a worker to do X" — the latter is a mandate, not an invariant,
+and can silently fail if the dispatched agent doesn't comply (no retry, no validation, no red test
+would catch a worker that emits a correctly-gated commit but a malformed or missing trailer — the next
+resume's preflight would simply fail to recognize it and double-apply).
+
+Not fixed before land (`## Status` is a release slot outside task 4.1's `Files:` list to touch
+incidentally, and the disposition rule refuses `absorb` for anything touching a version/release slot).
+Suggested fix on record: "Every subset-commit dispatch mandates an `Ace-Subset:`-keyed trailer and
+preflights the bisection range — never the tip alone — for it before committing, so a resumed dispatch
+returns the existing sha instead of double-applying."
+
+**Applies-to checklist addendum:** before writing that a WAR mechanism "always"/"ends with"/"carries" a
+property, check whether the code that produces the property is engine code (an assert, a computed
+value) or a **dispatched prompt instruction to an LLM worker** — if the latter, the correct verb is
+"mandates"/"instructs", not a bare declarative, and the guarantee is only as strong as worker
+compliance, which no test in this repo currently verifies for the ace-bisection resume trailer
+specifically (see [[ace-bisection-ladder-shipped-with-four-known-residual-fragilities-filed-not-fixed]]
+for this same construct's other known-live gaps, now joined by this one: the trailer/preflight contract
+itself has zero engine-side verification, not just the trailer-value shape ambiguity already recorded
+there).
+
+**Now 36 recurrences across five overlapping sub-families**, plus this recurrence's new
+"prompt-mandated vs code-enforced" sub-mechanism.
+
+Related: [[ace-bisection-ladder-shipped-with-four-known-residual-fragilities-filed-not-fixed]] (the
+sibling lesson on this same `aceBisect` construct's other known-live gaps — trailer-value ambiguity,
+culprit attribution, bare dispatch, budget starvation — now cross-linked with this recurrence's
+"no engine-side trailer verification at all" fact); [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]]
+(worktree-lookup path used to ground this recurrence's D3 read — `_refinery22`'s `HEAD` matched the
+threaded landed-tip anchor exactly, the strongest grounding rung, no gate-audit fallback needed).
+
+## Recurrence 24 (2026-08-24/25, plan `authoring-side-verification`, phase 4 "Release", task 4.1) —
+an "engine scope" enumeration's closing absolute omits the one other executable-file touch in the
+window because it is a standing-doctrine/dispatched-prompt mirror pair, attributed only to the
+doctrine (prose) side
+
+A thirty-seventh instantiation of the "outside X, the diff is..." enumeration-gap sub-family
+(Recurrences 12(a), 13(b)), with a new twist: the omitted item is not simply unnamed, it is
+misclassified. `code-verified` — the landed-tip worktree itself was unreachable (cwd HEAD
+`d29d06e`, detached, stale; no live worktree anywhere under `.git/worktrees/*` had `HEAD` equal to
+the threaded landed tip `746c9fe574c7eefff8cfbdbf09e2629f9c0b1110` on branch
+`claude/authoring-side-verification-600a79`), so this recurrence grounds one rung short of the
+strongest: the live task worktree `p4-4.1` (git's own auto-suffixed entry name `p4-4.13`, physical
+`gitdir` path `.claude/war-worktrees/authoring-side-verification-2026-08-24/p4-4.1/.git`) has `HEAD`
+resolving to `ac966853a08defcd6fdd44808055fc9c9b233fc4` — the exact `gateHeadSha`/`auditSha` the
+post-merge gate-audit stamped with `gateEvidence: true`, i.e. the gate-audit fallback rung's own
+pinned SHA, read directly rather than merely trusted secondhand.
+
+**The instance.** `README.md`'s `## Status` blurb (line 364) closes: "Engine scope: the run-time
+engine's only change is the clustered filing prompt's `## Evidence artifacts` emission in
+`workflow-template.js` ...; every other change in the window is doctrine prose, advisory lint,
+glossary, ADR record, or test-side pins." The window (`9b5a80c...p4-4.1`) also touches
+`skills/red-team/assets/workflow-scaffold.js` — the "coverage-vs-source" SPINE lens's *dispatched*
+prompt gains a per-issue Evidence-join clause with split absence arms, mirroring the same-window
+doctrine addition to `skills/red-team/references/lenses.md`. That is an executable asset whose
+runtime dispatched-prompt text changed — by the blurb's own accounting standard it is engine-class
+(the blurb classifies `workflow-template.js`'s prompt-string edit as *the* engine change), yet
+bullet 3 of the same blurb paragraph attributes the whole lenses.md/workflow-scaffold.js pair to
+"red-team's `lenses.md`" alone, i.e. only the standing-doctrine half of a
+standing-instruction/dispatched-prompt mirror pair (this repo's own doctrine — CLAUDE.md's "Prompt
+surfaces are split" paragraph — requires such pairs to change together in the same commit, which
+they did here; the blurb's gap is in *naming*, not in the underlying mechanism).
+
+**Two auditor seats flagged it independently in the same paragraph**, at different severities: a
+correctness-lens Nit (`disposition: note` — demoted from Minor because the scaffold change is "a
+pure prompt string with zero control-flow movement," plausibly covered by "doctrine prose") and a
+separate Minor (`disposition: follow-up`) holding the stricter line that a dispatched-prompt string
+is by the blurb's own logic engine-class. Both left unfixed at land: `## Status` is a release slot
+outside task 4.1's `Files:` list, and the disposition rule refuses `absorb` for anything touching a
+version/release slot — the Minor rides as a `follow-up` issue instead.
+
+**New sub-mechanism for the family.** Recurrences 1-23 misdescribe scope, attachment, window, or
+guarantee-strength of a property already fully owned by one artifact. This one is about
+**attribution across a mirror pair**: when a release window touches both halves of a
+standing-doctrine/dispatched-prompt mirror (a `.md` doctrine file and its executable prompt-string
+counterpart, which this repo's own architecture requires to move together), a blurb enumerating
+change *categories* can silently fold the executable half into the doctrine-file category it names,
+because the two changes landed in the same commit for the same reason and read, in the diff, as one
+logical edit. The blurb's own five-category enumeration ("doctrine prose, advisory lint, glossary,
+ADR record, or test-side pins") has no category for "a dispatched prompt string mirroring a doctrine
+edit" — it either goes unnamed or gets silently absorbed into "doctrine prose."
+
+**Sharper form of the Rule for this instance:** when a release blurb's "engine scope" (or any
+similar) absolute is scoped to one file (here, `workflow-template.js`) and the closing clause
+claims every *other* window change falls into an enumerated set of non-engine categories, explicitly
+check every touched executable asset that pairs with a touched doctrine file — a mirror pair's
+executable half belongs in its own named bucket ("prose and its dispatched-prompt mirror in
+`<file>`"), not silently inside the doctrine-prose bucket, even when the prompt-string edit itself
+is behaviorally inert (zero control-flow change) at land.
+
+**Now 37 recurrences across five overlapping sub-families**, plus this recurrence's new
+"mirror-pair misattribution" sub-mechanism.
+
+Related: [[standing-instruction-vs-dispatched-prompt-coverage-split]] (the underlying repo doctrine
+this recurrence's gap sits against — standing `.md` prose and its dispatched-prompt mirror must
+change together, and this instance shows a release blurb's category enumeration can still misname
+which half did the work); [[stacked-per-branch-releases-make-main-lag-cumulative]] (this same
+task's sibling Nit on the same paragraph — the `0.18.1 → 0.19.0` window phrase will lag master's
+independently-landed `0.18.2` at merge time — an *expected* instance of that lesson's already-
+documented mechanism, not recorded separately here).
+
+> archived 2026-08-17: resolved — moved to archive
