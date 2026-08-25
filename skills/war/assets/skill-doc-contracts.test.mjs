@@ -81,6 +81,23 @@ const refinerCard = readFileSync(join(HERE, '..', '..', '..', 'agents', 'war-ref
 // never mirrored into auditPrompt() or the DISPOSITION RULE sentences.
 const auditorCard = readFileSync(join(HERE, '..', '..', '..', 'agents', 'war-auditor.md'), 'utf8')
 const floorScriptSrc = readFileSync(join(HERE, FLOOR_SCRIPT), 'utf8')
+// (D34–D36) The authoring-side-verification glossary mirrors (plan 2026-08-24, Task 2.3): the
+// war-strategy authoring surfaces are the canonical homes the new/converged CONTEXT.md glossary
+// entries restate — SKILL.md §3's rule 8 + §2's oracle-duality bullet, the interview doctrine's
+// pin-ledger/recon-lane/probe law, and the strategy-verifier charter. Read here so each mirror
+// row can assert BOTH surfaces (ADR 0025: a one-sided edit reds).
+const warStrategySkillMd = readFileSync(
+  join(HERE, '..', '..', 'war-strategy', 'SKILL.md'),
+  'utf8',
+)
+const planInterviewMd = readFileSync(
+  join(HERE, '..', '..', 'war-strategy', 'references', 'plan-interview.md'),
+  'utf8',
+)
+const verifierCharterMd = readFileSync(
+  join(HERE, '..', '..', 'war-strategy', 'references', 'strategy-verifier.md'),
+  'utf8',
+)
 
 // Strip comment leaders BEFORE whitespace-normalizing, then collapse every whitespace run to one
 // space — the recorded doc-cascade sweep trap ([[repo-doc-sweep-needs-leader-strip-before-whitespace-normalize-before-grep]]):
@@ -1970,4 +1987,250 @@ test('auditor card absorb block carries the source-derivable eligibility clarifi
       '"write footprint" — the single-file test reads on the doc being corrected, not the ' +
       'machine-readable source it derives from)',
   )
+})
+
+// (D34) RETIRED D4/D5 CONNECTIVES (#1498) — CONTEXT.md was the third live surface of the two
+// authoring laws the war-strategy convergence retired the old wording of: the D4 issue-derived
+// source-form clause ("issue-derived claims use the source form …" → "issue-derived facts use …")
+// and the D5 done-when connective ("permitted (not required) elsewhere — otherwise" → "permitted
+// (not required) on any other task; otherwise"). Both directions are committed assertions, per the
+// recorded [[old-absent-gate-half-relies-on-unrecorded-hand-grep-fails-silently]] lesson: the
+// NEW-present half is extracted BY CONSTRUCT from the owning glossary entry (D19/D26's idiom), and
+// the OLD-absent half sweeps all THREE converged surfaces (CONTEXT.md + the two canonical
+// war-strategy homes) so a revert on any one reds. Keys are `\s+`-wrapped so the retired literal
+// never appears contiguously in this file and a wrapped line still matches (D18's idiom).
+// Deliberately OUT of the OLD-absent sweep: ADR 0044 §Decision item 4 (a historical decision
+// record, outside the pin sweep), skills/war-machine/SKILL.md's conversion directive, and
+// skills/survey-corps/SKILL.md's already-converged "carries" phrasing — per #1498's own survey.
+test('D34 — CONTEXT.md carries the converged D4/D5 connectives; the retired forms are absent on all three converged surfaces (#1498)', () => {
+  // NEW-present, by construct: the **Evidence tag** entry carries the converged D4 clause.
+  const evTag = contextMd.match(/^\*\*Evidence tag\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:|\n### )/m)
+  assert.ok(evTag, 'could not locate the `**Evidence tag**:` glossary entry in CONTEXT.md')
+  assert.match(
+    norm(evTag[0]),
+    /issue-derived\s+facts\s+use\s+`?\(verified:\s+issue\s+#N/i,
+    'the CONTEXT.md **Evidence tag** entry must carry the converged D4 clause ' +
+      '("issue-derived facts use `(verified: issue #N (<date>))`") — correct this row to a ' +
+      'sanctioned rewording, never revert to the retired connective',
+  )
+  // NEW-present, by construct: the **Done-when** entry carries the converged D5 connective.
+  const doneWhen = contextMd.match(/^\*\*Done-when\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:|\n### )/m)
+  assert.ok(doneWhen, 'could not locate the `**Done-when**:` glossary entry in CONTEXT.md')
+  assert.match(
+    norm(doneWhen[0]),
+    /permitted\s+\(not\s+required\)\s+on\s+any\s+other\s+task;\s+otherwise/i,
+    'the CONTEXT.md **Done-when** entry must carry the converged D5 connective ' +
+      '("permitted (not required) on any other task; otherwise `None — <basis>`")',
+  )
+  // OLD-absent, all three converged surfaces — the committed half of the both-directions gate.
+  for (const [name, text] of [
+    ['CONTEXT.md', contextMd],
+    ['skills/war-strategy/SKILL.md', warStrategySkillMd],
+    ['skills/war-strategy/references/plan-interview.md', planInterviewMd],
+  ]) {
+    assert.doesNotMatch(
+      norm(text),
+      /issue-derived\s+claims\s+use\s+the\s+source\s+form/i,
+      `${name} still carries the retired D4 connective ("issue-derived claims use the source ` +
+        'form") — the converged wording is "issue-derived facts use `(verified: …)`" (#1498)',
+    )
+    assert.doesNotMatch(
+      norm(text),
+      /permitted\s+\(not\s+required\)\s+elsewhere\s+—\s+otherwise/i,
+      `${name} still carries the retired D5 connective ("permitted (not required) elsewhere — ` +
+        'otherwise") — the converged wording is "on any other task; otherwise" (#1498)',
+    )
+  }
+})
+
+// (D35) TOUCHED-DOC ACCURACY DUTY MIRROR (#1603) — the CONTEXT.md **Touched-doc accuracy duty**
+// glossary entry restates doctrine whose canonical operative home is `/war-strategy` §3 authoring
+// rule 8 (with ADR 0025's 2026-08-19 amendment as the decision record). The entry landed with
+// zero mechanical coverage — this row is the same-commit-family guard the file's own D26/D29
+// precedent mandates (ADR 0025: a new mirror ships its drift guard). Extraction is BY CONSTRUCT
+// on both surfaces — the bolded glossary term → next bolded term or `###` heading, and rule 8's
+// numbered bullet → the next numbered rule or `##` heading — never a whole-file scan (the
+// trichotomy tokens also live in ADR 0025 and references/touched-doc-accuracy.md, which End
+// states 3/10 pin elsewhere). Keys are token-anchored `\s+`-wrapped forms, never sentence bytes —
+// sanctioned rewording latitude on either surface must not false-red; a one-sided edit reds.
+test('D35 — CONTEXT.md **Touched-doc accuracy duty** entry mirrors war-strategy rule 8 on both surfaces (#1603)', () => {
+  const entry = contextMd.match(
+    /^\*\*Touched-doc accuracy duty\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:|\n### )/m,
+  )
+  assert.ok(
+    entry,
+    'could not locate the `**Touched-doc accuracy duty**:` glossary entry in CONTEXT.md ' +
+      '(bolded term → next bolded term or `###` heading) — the extraction construct rotted',
+  )
+  assert.match(
+    norm(entry[0]),
+    /_Avoid_/,
+    'the extracted **Touched-doc accuracy duty** entry must span its `_Avoid_` line — ' +
+      'extraction truncated',
+  )
+  const rule8 = warStrategySkillMd.match(/^8\. \*\*Touched-doc fact[\s\S]*?(?=\n\d+\. \*\*|\n## )/m)
+  assert.ok(
+    rule8,
+    'could not locate §3 authoring rule 8 (`8. **Touched-doc fact`) in ' +
+      'skills/war-strategy/SKILL.md — the canonical home rotted; re-anchor BOTH surfaces together',
+  )
+  for (const [key, what] of [
+    [/machine-readable\s+in-repo\s+source/i, 'the machine-readable-source scope clause'],
+    [/never\s+prose\s+claims\s+generally/i, 'the never-prose-claims-generally scope limit'],
+    [/de-mirror/i, 'the de-mirror arm of the trichotomy'],
+    [/explicitly\s+defer/i, 'the explicitly-defer arm of the trichotomy'],
+    [/plan\s+defect/i, 'the silent-restatement-is-a-plan-defect consequence'],
+    [/touched-doc-accuracy\.md/, 'the pointer to the reference text'],
+    [/2026-08-19/, "the ADR 0025 amendment date (the doctrine's decision record)"],
+  ]) {
+    for (const [surface, text] of [
+      ['CONTEXT.md **Touched-doc accuracy duty** entry (mirror)', norm(entry[0])],
+      ['war-strategy SKILL.md rule 8 (canonical home)', norm(rule8[0])],
+    ]) {
+      assert.match(
+        text,
+        key,
+        `${surface} must carry ${what} (ADR 0025 mirror registry, #1603). Correct this row to ` +
+          'a sanctioned rewording, never drop the clause on one surface to make it pass',
+      )
+    }
+  }
+})
+
+// (D36) THE EIGHT AUTHORING-SIDE-VERIFICATION GLOSSARY TERMS (plan 2026-08-24, Task 2.3) — each
+// new CONTEXT.md entry restates doctrine whose canonical home is a war-strategy authoring
+// surface (the interview doctrine, the strategy-verifier charter, or SKILL.md §2), and per the
+// recorded [[context-md-doctrine-mirror-can-land-without-a-skill-doc-contracts-drift-guard-row]]
+// lesson a glossary mirror is guarded ONLY when its row is authored deliberately — these are
+// those rows, landing in the commit that creates the mirrors. Extraction is BY CONSTRUCT per
+// term (D26's idiom, term escaped, colon not required after the bold marker — two headers carry
+// a parenthesized token before it); every entry must span its own `_Avoid_` line (non-vacuity).
+// Keys are token-anchored `\s+`-wrapped `/…/i` forms asserted on BOTH surfaces — sanctioned
+// rewording latitude must not false-red; a one-sided edit (glossary reworded away from the
+// doctrine, or the canonical clause dropped) reds.
+test('D36 — the eight authoring-side-verification CONTEXT.md glossary terms mirror their canonical war-strategy surfaces', () => {
+  for (const [term, canonicalName, canonicalText, keys] of [
+    [
+      'Run-history recon lane',
+      'references/plan-interview.md',
+      planInterviewMd,
+      [
+        [/run\s+manifests/i, 'the run-manifests corpus class'],
+        [/epic\s+phase\s+reports/i, 'the epic-phase-reports corpus class'],
+        [/war-followup\s+corpus/i, 'the war-followup corpus class'],
+        [/Evidence\s+artifacts[`*_]{0,2}\s+section/i, 'the issue-linked evidence-artifacts read'],
+        [/fail-open/i, 'the fail-open posture'],
+      ],
+    ],
+    [
+      'Strategy-verifier seat',
+      'references/strategy-verifier.md',
+      verifierCharterMd,
+      [
+        [/wrong\s+branch\s+surfaces\s+only\s+at\s+run\s+time/i, 'the arming principle sentence'],
+        [/caught\s+by:/i, 'the `caught by:` half of the output contract'],
+        [/NOTHING/, 'the `caught by: NOTHING` legal answer'],
+        [/re-arms?\s+once/i, 'the amend-and-re-arm-once refute bound'],
+        [/live\s+fork/i, 'the unresolved-refute = live-fork terminal'],
+        [/corpus-empty/, 'the corpus-empty degraded stamp'],
+        [/corpus-partial/, 'the corpus-partial degraded stamp'],
+        [/unavailable/i, 'the unavailable degraded stamp'],
+      ],
+    ],
+    [
+      'Ratified-pin ledger',
+      'references/plan-interview.md',
+      planInterviewMd,
+      [
+        [
+          /lands\s+in\s+the\s+artifact,\s+not\s+the\s+transcript/i,
+          'the artifact-borne-state principle sentence (verbatim on both surfaces)',
+        ],
+        [/digits-only/i, 'the digits-only token grammar'],
+        [/right-delimited/i, 'the right-delimited match rule'],
+        [/letter\s+suffixes/i, 'the no-letter-suffixes rule'],
+        [/landing-class\s+cell/i, 'the per-pin landing-class cell'],
+        [/single-class\s+cell\s+covers\s+all\s+row\s+pins/i, 'the single-class-cell coverage rule'],
+        [/enumerate-aloud/i, "gate 1's enumerate-aloud hard half of the inseparable pair"],
+      ],
+    ],
+    [
+      'WAIVE channel',
+      'references/strategy-verifier.md',
+      verifierCharterMd,
+      [
+        [/operator\s+utterances/i, 'the skips-are-operator-utterances rule'],
+        [/fired\s+arm/i, 'the fired-arming-arm row field'],
+        [/armed-by-rule\s+unwaived/i, 'the AFK armed-by-rule-unwaived statement'],
+        [/defect/i, 'the WAIVE-row-in-an-AFK-plan-is-a-defect consequence'],
+        [/waive-rate-per-arm/i, 'the /war-review telemetry consumer'],
+      ],
+    ],
+    [
+      'Evidence-artifacts duty',
+      'references/plan-interview.md',
+      planInterviewMd,
+      [
+        [/Evidence\s+artifacts[`*_]{0,2}\s+section/i, 'the `## Evidence artifacts` section name'],
+      ],
+    ],
+    [
+      'Evidence consumed block',
+      'references/plan-interview.md',
+      planInterviewMd,
+      [
+        [/one\s+row\s+per\s+linked\s+artifact/i, 'the one-row-per-artifact form'],
+        [/unread-with-reason/i, 'the read-or-unread-with-reason arm'],
+        [/never\s+a\s+new\s+required\s+H2/i, 'the never-a-new-required-H2 law'],
+      ],
+    ],
+    [
+      'Omittability probe',
+      'references/plan-interview.md',
+      planInterviewMd,
+      [
+        [/omit\s+it\s+silently/i, 'the could-the-run-omit-it-silently question'],
+        [/no\s+check\s+at\s+all/i, 'the outcome-with-no-check-at-all contrast'],
+        [/delete-the-feature/i, "the delete-the-feature probe (the probe's dual)"],
+      ],
+    ],
+    [
+      'Oracle duality',
+      'SKILL.md §2 (oracle-duality bullet)',
+      warStrategySkillMd,
+      [
+        [/decisive\s+printed\s+token/i, 'the decisive-printed-token requirement'],
+        [/exit\s+status/i, 'the in-addition-to-exit-status clause'],
+        [/single-signal-oracle/i, "the advisory lint's single-signal-oracle rule name"],
+      ],
+    ],
+  ]) {
+    const t = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const block = contextMd.match(
+      new RegExp(`^\\*\\*${t}\\*\\*[\\s\\S]*?(?=\\n\\*\\*[^\\n*]+\\*\\*|\\n### )`, 'm'),
+    )
+    assert.ok(
+      block,
+      `could not locate the \`**${term}**\` glossary entry in CONTEXT.md (bolded term → next ` +
+        'bolded term or `###` heading) — the extraction construct rotted',
+    )
+    assert.match(
+      norm(block[0]),
+      /_Avoid_/,
+      `the extracted **${term}** entry must span its \`_Avoid_\` line — extraction truncated`,
+    )
+    for (const [key, what] of keys) {
+      for (const [surface, text] of [
+        [`CONTEXT.md **${term}** entry (mirror)`, norm(block[0])],
+        [`skills/war-strategy/${canonicalName} (canonical home)`, norm(canonicalText)],
+      ]) {
+        assert.match(
+          text,
+          key,
+          `${surface} must carry ${what} (ADR 0025 mirror registry). Correct this row to a ` +
+            'sanctioned rewording, never drop the clause on one surface to make it pass',
+        )
+      }
+    }
+  }
 })
