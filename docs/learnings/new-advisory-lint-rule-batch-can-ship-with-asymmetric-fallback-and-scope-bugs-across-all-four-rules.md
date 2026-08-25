@@ -1,6 +1,6 @@
 ---
 name: new-advisory-lint-rule-batch-can-ship-with-asymmetric-fallback-and-scope-bugs-across-all-four-rules
-description: "A freshly-landed batch of advisory (exit-0, report-only) lint rules can carry known, cross-seat-confirmed grammar/scope bugs in every rule of the batch at land time -- WAIVE-row id delimiter weaker than its own PIN sibling, a task-less landing-class cell fanning citation-required out to every task instead of falling back fail-open, and guardrails/end-state citation targets resolving to the document's first bold-label match instead of the intent section"
+description: "A freshly-landed batch of advisory (exit-0, report-only) lint rules can carry known"
 metadata: 
   node_type: memory
   type: project

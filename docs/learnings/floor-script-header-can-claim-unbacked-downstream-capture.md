@@ -1,6 +1,6 @@
 ---
 name: floor-script-header-can-claim-unbacked-downstream-capture
-description: "RESOLVED (#1370): a floor script's header can claim a downstream capture no wiring task implements — verify the consumer exists"
+description: "RESOLVED (#1370): a floor script's header can claim a downstream capture no wiring task…"
 metadata:
   node_type: memory
   type: project

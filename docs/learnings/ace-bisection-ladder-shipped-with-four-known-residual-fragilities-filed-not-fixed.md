@@ -1,6 +1,6 @@
 ---
 name: ace-bisection-ladder-shipped-with-four-known-residual-fragilities-filed-not-fixed
-description: "The new aceBisect ladder (workflow-template.js, phase 1.1 of realized-absorb-rate) landed with four known-and-filed-not-fixed residual fragilities: (1) the Ace-Subset trailer value <taskId>:<sorted-files> is prefix-ambiguous across parent/child subsets and can be invisible to git %(trailers:) when not its own final paragraph; (2) culprit attribution keys on exact file-string equality, so path-form drift silently falls back to blind halving; (3) aceBisect's dispatches sit outside dispatchAgent/try-catch, so a harness death converts an approved mergeable task into held:workflow-error; (4) the ladder can starve the merge-floor retry loop's shared fixRounds budget — treat all four as known live gaps in this construct, not resolved, until their filed issues land"
+description: "The new aceBisect ladder (workflow-template.js, phase 1.1 of realized-absorb-rate) landed with…"
 metadata: 
   promoted: dev/2026-08-19-realized-absorb-rate@phase-1
   node_type: memory

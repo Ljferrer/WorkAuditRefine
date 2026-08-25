@@ -1,6 +1,6 @@
 ---
 name: count-mirror-guard-duty-split-across-tasks-can-leave-a-third-doc-surface-permanently-unguarded
-description: "When a plan flips a rule-count literal that is mirrored across THREE doc surfaces, but assigns the count-blind pin to one task and the OLD-absent (retired-count) guard to a different task's slice, the guard task's file-scoping can cover only two of the three mirrors — leaving the third's stale-range literal permanently unguarded, invisible because every named End state/check still passes"
+description: "When a plan flips a rule-count literal that is mirrored across THREE doc surfaces"
 metadata: 
   node_type: memory
   type: project

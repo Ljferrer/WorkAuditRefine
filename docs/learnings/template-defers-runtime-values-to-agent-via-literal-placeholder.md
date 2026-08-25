@@ -1,6 +1,6 @@
 ---
 name: template-defers-runtime-values-to-agent-via-literal-placeholder
-description: "workflow-template.js has no shell — emit agent-resolved $VAR placeholders, never bare angle-bracket tokens"
+description: "workflow-template.js has no shell — emit agent-resolved $VAR placeholders"
 metadata: 
   node_type: memory
   type: project

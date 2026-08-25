@@ -69,3 +69,5 @@ failure mode — a retirement grep false-*reds* on a sanctioned substring, the m
 false-*negative* class); [[old-absent-gate-half-relies-on-unrecorded-hand-grep-fails-silently]]
 (the OLD-absent half of a doc-consistency gate is generally the weaker, easier-to-silently-fail
 half).
+
+> archived 2026-08-25: resolved — moved to archive

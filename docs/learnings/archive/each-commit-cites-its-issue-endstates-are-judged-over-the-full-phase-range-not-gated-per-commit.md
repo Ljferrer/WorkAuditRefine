@@ -65,3 +65,5 @@ not a defect.
 
 Related: [[verify-stacked-plan-facts-at-campaign-base-not-lead-worktree]] (a different range/base
 mismatch class — verifying facts at the wrong base rather than the wrong grain).
+
+> archived 2026-08-25: resolved — moved to archive

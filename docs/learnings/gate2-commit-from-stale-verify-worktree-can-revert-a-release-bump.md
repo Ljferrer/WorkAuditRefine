@@ -1,6 +1,6 @@
 ---
 name: gate2-commit-from-stale-verify-worktree-can-revert-a-release-bump
-description: "MITIGATED (#1083): a Gate-2 commit from a stale verify worktree can silently revert a release bump; lock-step is not monotonic"
+description: "MITIGATED (#1083): a Gate-2 commit from a stale verify worktree can silently revert a release…"
 metadata:
   node_type: memory
   type: project

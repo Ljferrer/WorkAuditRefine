@@ -78,3 +78,5 @@ present before acting.
 [[full-gates-green-end-state-soft-without-threaded-gate-log-artifact]] — same family of "an
 auditor's evidence/instruction ceiling doesn't itself make the underlying claim false." Both
 findings originate from the same `2026-08-06-gate-audit-finding-routing` phase 1 task 1.1.
+
+> archived 2026-08-25: resolved — moved to archive

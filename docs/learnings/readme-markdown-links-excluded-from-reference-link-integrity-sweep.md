@@ -1,6 +1,6 @@
 ---
 name: readme-markdown-links-excluded-from-reference-link-integrity-sweep
-description: "reference-link-integrity.test.mjs scans only agents/ and skills/war/references/ (SCAN_DIRS) — README.md's own relative markdown links are outside every mechanical link-integrity sweep and must be hand-verified each release"
+description: "reference-link-integrity.test.mjs scans only agents/ and skills/war/references/ (SCAN_DIRS)"
 metadata: 
   node_type: memory
   type: project

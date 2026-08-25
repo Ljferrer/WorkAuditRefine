@@ -80,3 +80,5 @@ truly bare" check operate on the same, correctly-scoped span.
 No prior lesson in this store covers carve-out step ordering specifically; if a future plan
 revisits `specCitations`, re-scan the tail after the delimiter or make the capture regex
 non-swallowing across `](` seams rather than treating a zero-length prefix as conclusive.
+
+> archived 2026-08-25: resolved — moved to archive

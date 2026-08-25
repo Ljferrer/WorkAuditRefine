@@ -1,6 +1,6 @@
 ---
 name: polish-worktree-provisioning-death-drains-phase-close-queue-fail-open-lead-must-re-route-by-hand
-description: "When the phase-close polish worktree's PROVISION dispatch itself dies (not the polish worker), the fail-open coherence sweep demotes every queued absorb-disposition finding to follow-up with zero fixes applied — the Lead must manually re-triage the demoted set (drop stale-by-land-time, fold same-file findings into a later phase's task slice, cluster the rest into issues/comments) rather than treat the demotion as itself resolving anything"
+description: "When the phase-close polish worktree's PROVISION dispatch itself dies (not the polish worker)"
 metadata: 
   promoted: dev/2026-08-19-realized-absorb-rate@phase-1
   node_type: memory

@@ -1,6 +1,6 @@
 ---
 name: redteam-adjudication-is-authoritative-version-source
-description: "Version precedence: task instruction > red-team adjudication > plan literal; check the red-team report first"
+description: "Version precedence: task instruction > red-team adjudication > plan literal"
 metadata:
   node_type: memory
   type: project

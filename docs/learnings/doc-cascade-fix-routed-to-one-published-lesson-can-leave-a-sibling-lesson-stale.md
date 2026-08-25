@@ -1,6 +1,6 @@
 ---
 name: doc-cascade-fix-routed-to-one-published-lesson-can-leave-a-sibling-lesson-stale
-description: "When a plan changes a landed mechanism and updates the ONE published lesson its `deps` content edge names, a second published lesson describing the SAME retired mechanism can go unrouted and stay stale — grep docs/learnings/ for other describers of the old mechanism before finalizing the task's file footprint, not just the one the plan already names"
+description: "When a plan changes a landed mechanism and updates the ONE published lesson its `deps` content…"
 metadata:
   node_type: memory
   type: project

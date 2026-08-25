@@ -1,6 +1,6 @@
 ---
 name: committed-repo-config-can-shadow-a-flipped-engine-default
-description: "A war-config.mjs DEFAULTS flip (e.g. run.roundLimit 3→6) lands correctly with its drift guard, but is inert for any run in a repo whose own committed .claude/war/config.json explicitly pins the old value — the committed config always wins over DEFAULTS, and the flip's practical effect starts at zero until the pin is also bumped"
+description: "A war-config.mjs DEFAULTS flip (e.g. run.roundLimit 3→6) lands correctly with its drift guard"
 metadata: 
   node_type: memory
   type: project

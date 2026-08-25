@@ -65,3 +65,5 @@ OUTPUT (not the source file), so a per-surface revert still reds that test.
 `skills/war/assets/workflow-template.js` :902-921 (SEARCH-TOOLING RULE / ESCALATE-BOUNDARY
 CONTRACT comments + emitted `pt` clauses, both carrying the pinned literals) — verify still
 present before acting.
+
+> archived 2026-08-25: resolved — moved to archive

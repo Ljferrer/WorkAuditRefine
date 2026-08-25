@@ -1,6 +1,6 @@
 ---
 name: release-status-is-replace-slot-not-empty-field
-description: "README ## Status = replace-in-place, never empty — and the discipline scopes the whole section (paragraph + bullets), not the paragraph alone"
+description: "README ## Status = replace-in-place, never empty — and the discipline scopes the whole…"
 metadata: 
   node_type: memory
   slug: release-status-is-replace-slot-not-empty-field

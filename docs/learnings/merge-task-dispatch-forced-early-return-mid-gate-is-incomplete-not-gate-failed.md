@@ -1,6 +1,6 @@
 ---
 name: merge-task-dispatch-forced-early-return-mid-gate-is-incomplete-not-gate-failed
-description: "A merge-task dispatch forced to return before its spawned gate (node --test + the *.test.sh discovery loop) finishes is INCOMPLETE, not gate_failed/introduced — the rebase it already completed is idempotent and safe to leave alone; re-dispatch the same branch to let the gate run to completion, never treat the partial run as a real classification"
+description: "A merge-task dispatch forced to return before its spawned gate (node --test + the *.test.sh…"
 metadata:
   promoted: dev/2026-08-06-gate-audit-finding-routing@phase-1
   type: project

@@ -1,6 +1,6 @@
 ---
 name: two-part-negated-scan-regex-key-can-have-one-unproven-fragment-despite-suite-green
-description: "A regex key combining a live-token trigger anchor with a negated-scan gap (e.g. /trigger(?:(?!other)[\\s\\S]){0,N}target/i) can pass every wired negative-reference fixture while only the anchor half is load-bearing — mentally scratch-delete EACH fragment separately against ALL negative references, not just the pair-level assert, to find an unproven half"
+description: "A regex key combining a live-token trigger anchor with a negated-scan gap (e.g"
 metadata: 
   node_type: memory
   type: project

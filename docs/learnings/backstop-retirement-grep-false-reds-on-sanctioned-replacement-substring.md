@@ -1,6 +1,6 @@
 ---
 name: backstop-retirement-grep-false-reds-on-sanctioned-replacement-substring
-description: "Zero-hit retirement grep false-reds when sanctioned replacement text retains a substring of the retired phrase"
+description: "Zero-hit retirement grep false-reds when sanctioned replacement text retains a substring of…"
 metadata: 
   node_type: memory
   type: project

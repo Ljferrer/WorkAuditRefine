@@ -1,6 +1,6 @@
 ---
 name: adr-0042-eviction-replacement-pointer-bytes-outrun-plan-arithmetic
-description: "A plan's byte arithmetic for an ADR-0042 byte-identical references/ eviction (evicted bytes minus the new trigger-pointer line) is routinely optimistic — the replacement pointer's actual landed size can run ~2x the plan's estimate once it carries the anchor prefix plus a parenthetical heading citation, so the post-eviction hard-budget headroom lands much thinner than projected even though the hard line itself is never crossed; measure the landed bytes, don't trust the plan's ~N B projection, and treat the resulting headroom as consumed for the rest of the campaign"
+description: "A plan's byte arithmetic for an ADR-0042 byte-identical references/ eviction (evicted bytes…"
 metadata: 
   node_type: memory
   type: project

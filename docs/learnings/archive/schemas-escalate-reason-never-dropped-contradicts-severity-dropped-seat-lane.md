@@ -75,3 +75,5 @@ absolutes: `skills/war/assets/workflow-template.js` `AUDIT_VERDICT` comment (~li
 `skills/war/assets/workflow-template.test.mjs` test header comment (~line 3594). The live
 dropped-seat lane itself: `workflow-template.js` sets `verdict = 'audit-blocked'` on
 `seats.length < expected` after `auditRound`'s two retry passes (~lines 1222, 1228).
+
+> archived 2026-08-25: resolved — moved to archive

@@ -1,6 +1,6 @@
 ---
 name: static-guard-deny-message-misnames-which-rule-fired-for-shared-char-class
-description: "A static deny message naming one rule fires for every denial sharing its check — over-attributes the cause."
+description: "A static deny message naming one rule fires for every denial sharing its check"
 metadata: 
   node_type: memory
   type: project
