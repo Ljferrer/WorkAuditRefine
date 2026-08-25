@@ -155,6 +155,49 @@ test('checklist lock is non-vacuous: a subsection-absent reference fails the sam
   )
 })
 
+// Release-commit shape guards — the two prose halves of a bump that the four-slot
+// lock-step cannot see. A release commit does three things (bump the slots, replace
+// the `## Status` blurb IN PLACE, append the CHANGELOG entry newest-first); the two
+// tests below make the second and third mechanical instead of review-caught.
+
+// The Status blurb is REPLACED, never stacked: exactly one paragraph-leading bold
+// semver token lives under `## Status`, and it is the canonical version. A stale
+// blurb left above or below the new one yields a second line-start `**x.y.z**`
+// token and reds here — inline semvers in blurb prose (e.g. "0.18.1 → 0.19.0
+// window") are not line-start-bold and never match.
+test('README ## Status carries exactly one blurb, for the canonical version (replace-in-place)', () => {
+  const readme = readFileSync(join(repoRoot, 'README.md'), 'utf8')
+  const statusIdx = readme.indexOf('\n## Status')
+  assert.notEqual(statusIdx, -1, 'README.md has no `## Status` heading')
+  const rest = readme.slice(statusIdx + '\n## Status'.length)
+  const nextHeading = rest.indexOf('\n## ')
+  const section = nextHeading === -1 ? rest : rest.slice(0, nextHeading)
+
+  const leadTokens = [...section.matchAll(/^\*\*(\d+\.\d+\.\d+)\*\*/gm)].map((m) => m[1])
+  assert.equal(
+    leadTokens.length, 1,
+    `## Status must carry exactly ONE paragraph-leading bold semver blurb token; found ${leadTokens.length} (${leadTokens.join(', ') || 'none'}) — a bump replaces the blurb in place, never stacks a new one beside the old`,
+  )
+  assert.equal(
+    leadTokens[0], readSlots()['plugin.json#version'],
+    'the ## Status blurb token is not the canonical plugin.json version — the blurb was not replaced as part of the bump',
+  )
+})
+
+// The CHANGELOG is append-only newest-first: its FIRST `## ` entry heading must be
+// the canonical version's, shaped `## x.y.z — YYYY-MM-DD`. Bumping the slots
+// without relocating the superseded blurb into CHANGELOG.md (or appending the
+// entry below an older one) reds here.
+test('CHANGELOG.md leads with the canonical version entry (newest-first append)', () => {
+  const changelog = readFileSync(join(repoRoot, 'CHANGELOG.md'), 'utf8')
+  const first = changelog.match(/^## (\S+) — (\d{4}-\d{2}-\d{2})$/m)
+  assert.ok(first, 'CHANGELOG.md has no `## <version> — <date>` entry heading at all — extraction is fail-closed')
+  assert.equal(
+    first[1], readSlots()['plugin.json#version'],
+    `CHANGELOG.md's newest entry is ${first[1]}, not the canonical plugin.json version — a release bump appends its entry newest-first`,
+  )
+})
+
 // Monotonic floor — lock-step is NOT monotonic. A coherent all-four-slots DOWNGRADE moves
 // every slot together, so the lock-step test above passes it: that is exactly how a Gate-2
 // `docs(learnings)` commit staged from a stale publication worktree silently reverted a
