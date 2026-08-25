@@ -231,6 +231,9 @@ Evidence-consumed block, verifier arming, the `## Evidence artifacts` section on
 are normative where their authors actually work: `plan-interview.md`, `strategy-verifier.md`,
 the `/war-machine` grill charter, `/survey-corps` Step 0.3's issue template, and the
 war-followup filing dispatch. An ADR-only duty would be invisible to every producer it binds.
+This narrows Decision 3's engine-untouched clause and the Consequences' zero-engine-change
+bullet by exactly one surface: the clustered filing prompt's `## Evidence artifacts` emission
+(PIN-14) — extraction, hooks, floors, schemas, and intake stay untouched.
 
 ### Relationship to ADR 0014
 
