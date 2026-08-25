@@ -1,6 +1,8 @@
 # The authoring contract and the merged plan artifact — one interview, one artifact
 
-**Status:** accepted (design ratified 2026-08-04; implemented by the spec and plan below)
+**Status:** accepted (design ratified 2026-08-04; implemented by the spec and plan below;
+amended 2026-08-24 — authoring-side verification: the interviewer gains its adversarial
+counterweight; see the amendment below)
 
 The WAR pipeline's front door was its only stage with no ratified discipline. The README named
 Grill Me a "Required Auxiliary Plugin" and attributed to `/grill-with-docs` a design-tree walk
@@ -167,27 +169,6 @@ doctrine in-repo.**
   into the template as ratified law — the separate-bullet task fields extraction-proven by the
   executed `extractFiles` probe, the two-H2 tail operator-ratified (2026-08-05, Q2).
 
-## References
-
-- Design spec:
-  [`docs/specs/2026-08-04-interview-and-authoring-contract-design.md`](../specs/2026-08-04-interview-and-authoring-contract-design.md)
-  — §1 (measured context), §3 (the D1–D19 design tree), §4 (mechanics), §10 (validation
-  criteria). Its own shape is the legacy input shape — it predates the merged template it
-  ratifies, and deliberately retains the superseded 99/116 pre-landing literal.
-- Implementation plan:
-  [`docs/plans/2026-08-04-interview-and-authoring-contract.md`](../plans/2026-08-04-interview-and-authoring-contract.md)
-  — the first merged-shape plan (self-hosting field trial); Task 9 is this ADR.
-- Red-team record:
-  [`docs/red-team/2026-08-05-interview-and-authoring-contract.md`](../red-team/2026-08-05-interview-and-authoring-contract.md)
-  — ADJUDICATED per [ADR 0043](0043-adjudicated-clear-distinct-terminal-verdict.md); the
-  superseding 100/116-at-`94ee5b3` row; the `extractFiles` separate-bullet executed proof.
-- Live constructs:
-  [`skills/war-strategy/references/plan-interview.md`](../../skills/war-strategy/references/plan-interview.md)
-  (the doctrine), `skills/war-strategy/SKILL.md` §2 (the merged plan template and its two example
-  documents), `skills/war-machine/SKILL.md` (merged-output directive + grill charter),
-  `skills/red-team/SKILL.md` Step 1 (the merged arm).
-- Originating task issue: #1314.
-
 ## Amendment (2026-08-24): authoring-side verification — the interviewer gains its adversarial counterweight
 
 **Status:** accepted (2026-08-24 — ratified in the authoring-side-verification interview; plan:
@@ -257,3 +238,24 @@ Authoring-side verification extends to the AFK drafter+grill path:
 [ADR 0014](0014-ai-commanders-intent.md)'s synthetic-intent authoring surface
 (`/war-machine --afk`) consumes the verifier charter through the grill charter's pointer and
 runs armed-by-rule, unwaived — the counterweight is not an interactive-only property.
+
+## References
+
+- Design spec:
+  [`docs/specs/2026-08-04-interview-and-authoring-contract-design.md`](../specs/2026-08-04-interview-and-authoring-contract-design.md)
+  — §1 (measured context), §3 (the D1–D19 design tree), §4 (mechanics), §10 (validation
+  criteria). Its own shape is the legacy input shape — it predates the merged template it
+  ratifies, and deliberately retains the superseded 99/116 pre-landing literal.
+- Implementation plan:
+  [`docs/plans/2026-08-04-interview-and-authoring-contract.md`](../plans/2026-08-04-interview-and-authoring-contract.md)
+  — the first merged-shape plan (self-hosting field trial); Task 9 is this ADR.
+- Red-team record:
+  [`docs/red-team/2026-08-05-interview-and-authoring-contract.md`](../red-team/2026-08-05-interview-and-authoring-contract.md)
+  — ADJUDICATED per [ADR 0043](0043-adjudicated-clear-distinct-terminal-verdict.md); the
+  superseding 100/116-at-`94ee5b3` row; the `extractFiles` separate-bullet executed proof.
+- Live constructs:
+  [`skills/war-strategy/references/plan-interview.md`](../../skills/war-strategy/references/plan-interview.md)
+  (the doctrine), `skills/war-strategy/SKILL.md` §2 (the merged plan template and its two example
+  documents), `skills/war-machine/SKILL.md` (merged-output directive + grill charter),
+  `skills/red-team/SKILL.md` Step 1 (the merged arm).
+- Originating task issue: #1314.

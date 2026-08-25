@@ -582,8 +582,9 @@ printf '\n# Gospel pins (docs/plans/2026-08-04-interview-and-authoring-contract.
 # reintroduction guards only. Absence-pin scope is EXACTLY these five doc surfaces: these
 # retired-phrase pins never grep the suite's own source, docs/plans/, docs/red-team/, or
 # docs/adr/, which legitimately quote the anchors (Task 3.1's ADR presence pins below are a
-# different family and assert nothing about the retired phrases). Patterns assembled at runtime from split fragments so this file is never
-# itself a hit for a repo-wide sweep of the retired phrases
+# different family and assert nothing about the retired phrases). Patterns assembled at
+# runtime from split fragments so this file is never itself a hit for a repo-wide sweep of
+# the retired phrases
 # ([[coupling-comment-restating-grep-pattern-bytes-self-matches-the-sweep]]). Deliberate
 # NON-anchor per Task 6's table: the spec-stays-non-executable clause (fragments: 'cannot
 # execute' + ' one') stays TRUE of input-shape specs — never add it here blindly.
