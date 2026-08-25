@@ -187,3 +187,73 @@ doctrine in-repo.**
   documents), `skills/war-machine/SKILL.md` (merged-output directive + grill charter),
   `skills/red-team/SKILL.md` Step 1 (the merged arm).
 - Originating task issue: #1314.
+
+## Amendment (2026-08-24): authoring-side verification — the interviewer gains its adversarial counterweight
+
+**Status:** accepted (2026-08-24 — ratified in the authoring-side-verification interview; plan:
+[`docs/plans/2026-08-24-authoring-side-verification.md`](../plans/2026-08-24-authoring-side-verification.md);
+incident record: issue #1548).
+
+The #1547 interview exposed the gap this contract left open: the `/war-strategy` interviewer was
+the one seat in the pipeline with no adversarial counterweight. An external reviewer session
+falsified subtle-but-load-bearing errors in six consecutive `Recommended:` beats, the interview's
+two recon subagents made zero reads outside the plugin worktree, and three operator-ratified pins
+leaked between beats of the single interview — the bare-assent rule this contract ratified makes
+the operator's cheapest action "accept," so an unverified recommendation ships by default. This
+amendment records the ratified counterweight contract. It is doctrinal: the amendment records the
+decision; the operative duties live on the skill surfaces both authoring paths consume —
+interactive (`plan-interview.md`) and AFK (the `/war-machine` grill charter).
+
+### The four mechanisms
+
+1. **Run-history recon + memory prefetch (Stage 0).** A mandatory recon lane over the run-history
+   corpus (run manifests · epic phase reports · the war-followup corpus · `docs/learnings/` ·
+   issue-linked artifacts) plus a batched memory prefetch per interview area — the interviewer
+   reads real history before recommending, replacing the zero-outside-reads failure mode.
+2. **Artifact-borne ratified state.** Ratified interview state lands in the artifact, not the
+   transcript: design-tree rows carry `PIN-<n>` ids (digits-only, right-delimited; amendment pins
+   mint fresh numbers) with per-pin landing classes, and the **Evidence consumed** block — never a
+   new required H2; the extraction-compatibility hard bound above is untouched — records read /
+   unread-with-reason per linked artifact. The doctrine carries the principle verbatim: "state
+   that must survive to a gate lands in the artifact, not the transcript."
+3. **The chartered strategy-verifier.** A beat that arms under the four-arm checklist
+   (engine-semantics change · mechanism floored into guardrails · decomposition/skeleton beat on
+   engine-target plans · placing or explicitly declining an enforcement layer) dispatches a
+   chartered verifier
+   ([`skills/war-strategy/references/strategy-verifier.md`](../../skills/war-strategy/references/strategy-verifier.md))
+   with bounded refute flow (successful refutation ⇒ amend + re-arm once; unresolved ⇒ a live
+   fork in the beat) and three inline degraded-mode stamps (`corpus-empty` · corpus-partial
+   naming the missing classes inline · `unavailable (<reason>)`). Skips are operator utterances
+   recorded as `WAIVE-<n>` rows naming the fired arm; AFK runs armed-by-rule, unwaived.
+4. **Gate reconciliation backed by advisory lint.** Everything reconciles at the two echo-back
+   gates: `plan-literal-lint.mjs` stays exit-0 report-only (the ratified posture above),
+   inseparably paired with gate 1's hard enumerate-aloud duty over pin-rule and
+   Evidence-consumed gaps — fix-or-waive on the record before the confirm counts.
+
+### Accepted residual, narrowed
+
+The counterweight narrows the residual; it does not close it. **Read-without-comprehension**
+survives every mechanism above — the gates force enumeration, never understanding — and the
+verifier is a **partial net on armed beats only**: unarmed beats keep no counterweight beyond the
+gates. **Non-dispatch** — the doctrine landed but never armed — is a named accepted residual with
+a closing event: doc-track interviews may pass through with the counterweight undischarged, and
+this clause says so; it stays accepted until the first ARMED beat under a carrying release
+records a non-`unavailable` verifier stamp (the plan's second deferred backstop, the residual's
+closing event). The wider compliance residual — ratified state leaking between beats and gates —
+is not accepted: it is closed by the artifact-borne mechanisms (2 and 4).
+
+### Evidence-duty home
+
+The amendment records the decision; the skill surfaces carry the duty — issue authors and
+interviewers do not read ADRs. The evidence duties (the recon lane, the pin-ledger law, the
+Evidence-consumed block, verifier arming, the `## Evidence artifacts` section on filed issues)
+are normative where their authors actually work: `plan-interview.md`, `strategy-verifier.md`,
+the `/war-machine` grill charter, `/survey-corps` Step 0.3's issue template, and the
+war-followup filing dispatch. An ADR-only duty would be invisible to every producer it binds.
+
+### Relationship to ADR 0014
+
+Authoring-side verification extends to the AFK drafter+grill path:
+[ADR 0014](0014-ai-commanders-intent.md)'s synthetic-intent authoring surface
+(`/war-machine --afk`) consumes the verifier charter through the grill charter's pointer and
+runs armed-by-rule, unwaived — the counterweight is not an interactive-only property.
