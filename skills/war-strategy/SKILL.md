@@ -151,10 +151,14 @@ Cache schema untouched · the TTL default stays 300s.
 
 ## Resolved design tree
 
-| # | Decision | Resolution | Source |
-|---|----------|------------|--------|
-| D1 | Invalidation point | on the rename write path, not on read | (user) |
-| D2 | Key shape | keep slug keys; drop-and-refill on rename | [assumed: cheapest — if wrong: dual-key window] |
+| # | Decision | Resolution | Source | Landing class |
+|---|----------|------------|--------|---------------|
+| D1 | Invalidation point | on the rename write path, not on read | (user) · PIN-1 | end-state |
+| D2 | Key shape | keep slug keys; drop-and-refill on rename | [assumed: cheapest — if wrong: dual-key window] · PIN-2 | slice |
+
+**Evidence consumed**
+
+- `src/cache.js` `cacheKey()` at `abc1234` — read
 
 ## Assumptions ledger
 
@@ -236,10 +240,10 @@ Queue schema untouched · the enqueue seam is the only choke point.
 
 ## Resolved design tree
 
-| # | Decision | Resolution | Source |
-|---|----------|------------|--------|
-| D1 | Mechanism | fixed burst cap of 50 per 60s window | (verified: spec §3 at `def5678`) |
-| D2 | Overflow behavior | reject with retry-after, never queue-jump | AI-declared [assumed: simplest — if wrong: token bucket] |
+| # | Decision | Resolution | Source | Landing class |
+|---|----------|------------|--------|---------------|
+| D1 | Mechanism | fixed burst cap of 50 per 60s window | (verified: spec §3 at `def5678`) · PIN-1 | end-state |
+| D2 | Overflow behavior | reject with retry-after, never queue-jump | AI-declared [assumed: simplest — if wrong: token bucket] · PIN-2 | slice |
 
 ## Assumptions ledger
 
