@@ -242,6 +242,59 @@ test('ADR 0005: defectClass tokens are absent from the Workflow-emitted landDeci
   }
 })
 
+// ---- ask-disposition land-path fence (#1550; ADR 0013 amendment 2026-08-25) ----
+// The ask disposition is an AUDIT-side Minor/Nit channel: parked on the Workflow return/handoff
+// (asks[]), ruled by the operator at the Checkpoint strike-list gate. It must NEVER surface as a
+// land-path enum member, an escalation reason, or a land-dispatch status — the negative rows below
+// are modeled on the ADR 0005 defectClass fence above (the literal-class fence precedent): neither
+// 'ask' nor 'held:ask' may appear in any canonical export, the inline mirror, the Workflow-emitted
+// landDecision set, or the land-dispatch status literals. This file is the fence's collateral
+// guard owner only — it reads/parses workflow-template.js, never edits it.
+const ASK_TOKENS = ['ask', 'held:ask']
+
+test('ask fence: ask tokens are absent from every canonical land-path export (HARD_ESCALATION_REASONS / KNOWN_LAND_DECISIONS / SOFT_ENV_REASONS)', () => {
+  for (const t of ASK_TOKENS) {
+    assert.ok(!HARD_ESCALATION_REASONS.includes(t), `${t} must never be a HARD_ESCALATION_REASONS member — an ask is parked and ruled, never an escalation reason (#1550)`)
+    assert.ok(!KNOWN_LAND_DECISIONS.includes(t), `${t} must never be a KNOWN_LAND_DECISIONS member — an ask never holds or shapes a land (#1550)`)
+    assert.ok(!SOFT_ENV_REASONS.includes(t), `${t} must never be a SOFT_ENV_REASONS member — an ask is not an environment event (#1550)`)
+  }
+})
+
+test('ask fence: ask tokens are absent from the inline HARD_ESCALATION_REASONS mirror and the Workflow-emitted landDecision set', () => {
+  const wf = readAsset('workflow-template.js')
+  const match = wf.match(/const\s+HARD_ESCALATION_REASONS\s*=\s*(\[[^\]]+\])/)
+  assert.ok(match, 'inline HARD_ESCALATION_REASONS not found in workflow-template.js (anchor rotted — non-vacuous guard)')
+  const inlineMembers = JSON.parse(match[1].replace(/'/g, '"'))
+  for (const t of ASK_TOKENS) {
+    assert.ok(!inlineMembers.includes(t), `${t} leaked into the inline HARD_ESCALATION_REASONS mirror — the ask channel was "completed" into the escalation enum (#1550)`)
+    assert.ok(!workflowEmitted().includes(t), `${t} is emitted as a landDecision in workflow-template.js — an ask must never become a landDecision (#1550)`)
+  }
+})
+
+// The two whole-file sweep patterns, hoisted so each positive control below and its sweep
+// provably share ONE pattern (the sweeps read workflow-template.js, never this .mjs, so the
+// in-test control literals can never self-trip the fence).
+const STATUS_ASK_RE = /status:\s*['"](?:held:)?ask['"]/
+const LANDDECISION_ASK_RE = /landDecision\s*(?:===?|:|=(?!=))\s*['"](?:held:)?ask['"]/
+
+test("ask fence (literal-class): no land-phase prompt emits a status:'ask' literal, and no landDecision-shaped ask literal exists anywhere in workflow-template.js", () => {
+  // Non-vacuity: the extraction still yields the known land statuses (the anchor has not rotted).
+  const emitted = landPhaseEmittedStatuses()
+  assert.ok(emitted.includes('landed'), 'land-dispatch status extraction is live (non-vacuous guard)')
+  assert.ok(!emitted.includes('ask'), "a land-phase prompt emits status:'ask' — the land-dispatch literal-class fence is breached (#1550)")
+  // Positive controls (non-vacuity): each sweep pattern must fire on a synthetic in-test literal —
+  // a typo or escape slip in either regex would otherwise leave its absence assert permanently,
+  // silently green while the fence is wide open.
+  assert.match("status: 'ask'", STATUS_ASK_RE, 'STATUS_ASK_RE positive control — the sweep pattern no longer matches its own literal class (pattern rotted)')
+  assert.match("landDecision = 'held:ask'", LANDDECISION_ASK_RE, 'LANDDECISION_ASK_RE positive control — the sweep pattern no longer matches its own literal class (pattern rotted)')
+  // Whole-file literal-class sweep: the ask channel adds NO status:'ask' literal to any merge/land
+  // dispatch and NO landDecision ask assignment — the scrape slices above would otherwise pick a
+  // new member up silently on their next re-derivation.
+  const wf = readAsset('workflow-template.js')
+  assert.ok(!STATUS_ASK_RE.test(wf), "workflow-template.js carries a status:'ask'/'held:ask' literal — the literal-class fence is breached (#1550)")
+  assert.ok(!LANDDECISION_ASK_RE.test(wf), 'workflow-template.js carries a landDecision ask literal — the literal-class fence is breached (#1550)')
+})
+
 // ---- D8: per-mode HARD_ESCALATION_REASONS reachability drift-guard (#639) ----
 // HARD_ESCALATION_REASONS is ONE array shared by the merge-task AND land-phase modes — canonical in
 // land-decision.mjs, hand-mirrored in workflow-template.js (ADR 0005; never split/narrow — the

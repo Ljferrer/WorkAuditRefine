@@ -3767,7 +3767,7 @@ test('disposition defaults (criterion 3): omitted+Minor → minorsFiled, omitted
   const minor = bare({ severity: 'Minor', title: 'minor default' })
   const nitF = bare({ severity: 'Nit', title: 'nit default' })
   const { out, calls } = await runPhase(ACE_ARGS(), aceBase([minor, nitF]))
-  // run.ace is ON in ACE_ARGS — yet neither dispositionless finding aces (absorb is never a default).
+  // run.ace is ON in ACE_ARGS — yet neither dispositionless finding aces (absorb and ask are never defaults).
   assert.ok(!calls.some(isAce), 'no ace dispatch for dispositionless findings even under run.ace (absorb never defaulted)')
   assert.ok((out.minorsFiled || []).some(m => m && m.title === 'minor default'), 'omitted+Minor → minorsFiled (follow-up default)')
   assert.ok(!(out.notes || []).some(n => n && n.title === 'minor default'), 'the Minor is not in notes')
@@ -3802,10 +3802,32 @@ test('AUDIT_VERDICT tightening: finding items require severity; disposition/phas
   assert.match(m[1], /'severity'/, "finding items required includes 'severity'")
   const dm = src.match(/disposition:\s*\{\s*enum:\s*(\[[^\]]*\])/)
   assert.ok(dm, 'disposition enum is declared on finding items')
-  assert.deepEqual(JSON.parse(dm[1].replace(/'/g, '"')).sort(), ['absorb', 'follow-up', 'note'], 'disposition enum is absorb|follow-up|note')
+  // The four-member enum, ORDER PINNED (End state 1, #1550): ask joins as the fourth member —
+  // the deepEqual is on the literal array, not a sorted copy, so a reorder reds too.
+  assert.deepEqual(JSON.parse(dm[1].replace(/'/g, '"')), ['absorb', 'follow-up', 'note', 'ask'], "disposition enum is exactly ['absorb','follow-up','note','ask']")
   assert.match(src, /phaseClose:\s*\{\s*type:\s*'boolean'\s*\}/, 'phaseClose declared boolean')
   assert.match(src, /autoFixable:\s*\{\s*type:\s*'boolean'\s*\}/, 'autoFixable declared boolean')
   assert.match(src, /autoFixable is DEPRECATED/, 'the deprecation is documented at the schema literal')
+})
+
+// The question+fork field (End state 1, #1550 — PIN-1's mandatory-field guardrail): the finding
+// items schema declares `ask` { question, fork } and makes it REQUIRED exactly when
+// disposition:'ask' via an items-level if/then (the top-level escalate-boundary conditional's
+// idiom — same Ajv layer, same bounded conform-or-retry enforcement arm).
+test('#1550 — the AUDIT_VERDICT finding items carry the mandatory question+fork `ask` field with the required-when-ask if/then conditional', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const aud = calls.find(c => isAuditor(c) && (c.opts.label || '').startsWith('audit:'))
+  assert.ok(aud && aud.opts.schema, 'a roster audit dispatch carries a schema (presence guard)')
+  const items = aud.opts.schema.properties.findings.items
+  const askField = items.properties.ask
+  assert.ok(askField, 'finding items declare the ask field')
+  assert.equal(askField.type, 'object', 'ask is an object')
+  assert.deepEqual(askField.required, ['question', 'fork'], 'the ask object requires question AND fork')
+  assert.equal(askField.properties.question.minLength, 1, 'question is non-empty (minLength 1)')
+  assert.equal(askField.properties.fork.minItems, 2, 'fork carries the two branches (minItems 2)')
+  assert.equal(items.if && items.if.properties.disposition.const, 'ask', "the items-level if arm triggers exactly on disposition 'ask'")
+  assert.deepEqual(items.if.required, ['disposition'], 'the if arm requires disposition present (no vacuous trigger)')
+  assert.deepEqual(items.then && items.then.required, ['ask'], "the then arm makes the ask field required on a disposition:'ask' finding")
 })
 
 // ---------------------------------------------------------------------------
@@ -3904,7 +3926,143 @@ test('demotion ladder: findings on a never-approved task demote to follow-up and
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('never reached the approve branch')), 'the demotion is log()ged')
 })
 
-// --- Dep-wave visibility (criterion 4) + force-with-lease carve-out ---
+// ---------------------------------------------------------------------------
+// The ask channel (#1550, ADR 0013 amendment 2026-08-25 — End states 1+2):
+// disposition:'ask' parks on asks[] at every dispositionOf site (ask arm preceding the absorb
+// chain, default-deny order-census), demote() refuses an ask loudly, unruled asks are excluded
+// from consolidation/filing, and the handoff carries the ninth (lossy) asks key.
+// ---------------------------------------------------------------------------
+
+// A well-formed ask finding (the schema-mandatory question+fork field present).
+const askFinding = (over = {}) => ({ severity: 'Minor', title: 'mirror or point', file: 'docs/x.md',
+  rationale: 'a policy call only the operator can make', disposition: 'ask',
+  ask: { question: 'mirror the value or point at the source?', fork: ['mirror the value', 'point at the source'] }, ...over })
+
+test('#1550 ask parking (approve path): an ask parks on asks[] with question+fork+provenance — never aced, never filed, never noted; the task still lands', async () => {
+  const fu = bare({ severity: 'Minor', title: 'real follow-up', rationale: 'needs new tests — beyond phase scope' })
+  const { out, calls } = await runPhase(ACE_ARGS(), aceBase([askFinding(), fu]))
+  assert.ok(!calls.some(isAce), 'an ask never dispatches the ace worker, even under run.ace')
+  assert.equal((out.asks || []).length, 1, 'exactly one parked ask rides the top-level return (beside minorsFiled)')
+  const a = out.asks[0]
+  assert.equal(a.task, 't1', 'the parked ask carries its task')
+  assert.equal(a.seat, 'audit:t1:correctness', 'the parked ask carries its raising seat (minorsOf stamp)')
+  assert.equal(a.sha, null, 'no echoed audit_sha ⇒ sha null (absence-tolerant, never a throw)')
+  assert.equal(a.question, 'mirror the value or point at the source?', 'the parked ask carries the question (the decision needed)')
+  assert.deepEqual(a.fork, ['mirror the value', 'point at the source'], 'the parked ask carries the fork (the two branches)')
+  assert.ok(a.finding && a.finding.title === 'mirror or point', 'the full finding row rides the return-side record')
+  assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'mirror or point'), 'the ask is NOT in minorsFiled (never filed unruled)')
+  assert.ok(!(out.notes || []).some(n => n && n.title === 'mirror or point'), 'the ask is NOT in notes')
+  assert.ok(out.landed.includes('t1'), 'an open ask never blocks the land (parked, not held)')
+  // Exclusion from the file-followups dispatch (End state 2): the filing prompt renders the
+  // follow-up row and NOT the parked ask.
+  const filing = calls.find(c => c.opts.dispatchKind === 'file-followups')
+  assert.ok(filing, 'the filing dispatch fired (minorsFiled non-empty — presence guard, non-vacuous exclusion)')
+  assert.ok(filing.prompt.includes('real follow-up'), 'the follow-up row IS in the filing prompt')
+  assert.ok(!filing.prompt.includes('mirror or point') && !filing.prompt.includes('mirror the value or point at the source?'),
+    'the parked ask is EXCLUDED from the file-followups dispatch (never filed unruled)')
+  // The ninth handoff key (lossy projection, ADDITIVE — adjacent to the follow-ups row).
+  const h = out.handoff
+  assert.ok(h, 'handoff present on landed')
+  assert.deepEqual(h.asks, [{ task: 't1', seat: 'audit:t1:correctness', sha: null,
+    question: 'mirror the value or point at the source?', fork: ['mirror the value', 'point at the source'] }],
+    'handoff.asks is the LOSSY projection — question + fork + task/seat/sha, no finding row')
+  assert.ok(!('finding' in h.asks[0]), 'the handoff projection drops the full finding (lossy by design)')
+  const keys = Object.keys(h)
+  assert.equal(keys.indexOf('asks'), keys.indexOf('followUps') + 1,
+    'the asks key sits adjacent to the followUps row (additive ninth key — no exact-key validator)')
+  assert.ok(!h.followUps.some(f => /mirror or point/.test(f.reason || '')), 'handoff.followUps excludes the ask')
+})
+
+test('#1550 ask parking (non-approve path): an ask on an escalated task parks — never demoted into minorsFiled with the escalation', async () => {
+  const impl = (prompt, opts) => {
+    if (seatOf(opts) === 'war-auditor') {
+      return { seat: opts.label, lens: 'correctness', verdict: 'escalate', escalate_reason: 'plan wrong', confidence: 'high',
+        findings: [askFinding({ title: 'ask on escalated task' })] }
+    }
+    return aceBase([])(prompt, opts)
+  }
+  const { out } = await runPhase(ACE_ARGS(), impl)
+  assert.ok((out.escalated || []).some(e => e && e.task === 't1'), 't1 escalated (presence guard)')
+  assert.ok((out.asks || []).some(a => a && a.finding && a.finding.title === 'ask on escalated task'),
+    'the ask parks on asks[] even on the never-approved path (the question survives the escalation)')
+  assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'ask on escalated task'),
+    'the ask is NOT filed with the escalation (never filed unruled)')
+  assert.ok(!(out.notes || []).some(n => n && n.title === 'ask on escalated task'), 'the ask is NOT in notes')
+})
+
+// demote() ask refusal (End state 1) — unit-tested on the EXTRACTED engine functions (the
+// dispositionOf → parkAsk → demote slice evaluated with harness accumulators), because with the
+// ask arm first at every routing site no runPhase flow can reach demote() with an ask: the
+// refusal is the defense-in-depth backstop, exercised here directly.
+test('#1550 — demote() refuses an ask loudly: log + exactly-once asks[] membership by finding identity, never minorsFiled/notes, never a throw', () => {
+  const sliceStart = src.indexOf('const dispositionOf')
+  const sliceEnd = src.indexOf('const aceEligible')
+  assert.ok(sliceStart !== -1 && sliceEnd > sliceStart, 'the dispositionOf→demote engine slice is locatable')
+  const harness = new Function('log', 'notes', 'minorsFiled', 'asks',
+    src.slice(sliceStart, sliceEnd) + '\nreturn { dispositionOf, parkAsk, demote }')
+  const logs = [], notes = [], minorsFiled = [], asks = []
+  const { dispositionOf, parkAsk, demote } = harness(m => logs.push(m), notes, minorsFiled, asks)
+  assert.equal(dispositionOf(askFinding()), 'ask', "dispositionOf classifies an explicit disposition:'ask' as ask")
+  assert.equal(dispositionOf({ severity: 'Minor', title: 'no explicit' }), 'follow-up', 'ask is NEVER defaulted (Minor keeps its follow-up default)')
+  const f = askFinding({ task: 't9' })
+  assert.doesNotThrow(() => demote(f, 'follow-up', 'a would-be demotion'), 'the refusal NEVER throws (a throw would destroy the parked records on held:workflow-error)')
+  assert.equal(asks.length, 1, 'the refused ask re-routes onto asks[]')
+  assert.equal(asks[0].question, f.ask.question, 'the re-routed record carries the question')
+  demote(f, 'note', 'a second would-be demotion')
+  parkAsk(f)
+  assert.equal(asks.length, 1, 'exactly-once membership by finding identity — refusal and parkAsk dedup to ONE record')
+  assert.deepEqual(minorsFiled, [], 'a refused ask NEVER lands in minorsFiled')
+  assert.deepEqual(notes, [], 'a refused ask NEVER lands in notes')
+  const refusal = logs.find(l => typeof l === 'string' && l.includes('REFUSED (ask)'))
+  assert.ok(refusal, 'the refusal is log()ged loudly')
+  assert.ok(refusal.includes('a would-be demotion'), 'the refusal log carries the demotion reason (why)')
+  // Control (delete-and-trace): a non-ask demotion still routes through the ladder normally.
+  demote({ severity: 'Nit', title: 'plain', task: 't9', disposition: 'absorb' }, 'note', 'control')
+  assert.ok(notes.some(n => n.title === 'plain'), 'a non-ask demotion still routes (the refusal is ask-scoped)')
+  // Absence-tolerant fallback (fail-open, never a throw): a fork-less finding missing the
+  // schema-mandatory `ask` field still parks intact — question falls back to the title, fork to [].
+  parkAsk({ severity: 'Minor', title: 'no ask field', task: 't9' })
+  const parked = asks.find(a => a.question === 'no ask field')
+  assert.ok(parked, 'a finding without an `ask` field parks with question falling back to f.title (fail-open, never dropped)')
+  assert.deepEqual(parked.fork, [], 'a finding without an `ask` field parks with fork falling back to []')
+})
+
+// Default-deny order-census (End states 1+2, D7 — the floored domain): exactly six dispositionOf
+// call sites, each carrying an explicit ask arm that PRECEDES its absorb chain, plus the
+// pinMismatch strip as the seventh row (a non-dispositionOf disposition sink, comment-named).
+// A NEW dispositionOf call site reds the count until it joins this census with its own ask arm.
+test('#1550 (D7) — ask order-census: six dispositionOf sites with ask preceding the absorb chain, default-deny, plus the comment-named pinMismatch strip row', () => {
+  // The classifier itself: the ask arm precedes the absorb chain inside dispositionOf.
+  const defStart = src.indexOf('const dispositionOf')
+  const def = src.slice(defStart, src.indexOf('const parkAsk', defStart))
+  assert.ok(def.indexOf("'ask'") !== -1, 'dispositionOf carries the ask member')
+  assert.ok(def.indexOf("=== 'ask'") < def.indexOf("'absorb'"), 'the classifier checks ask before the absorb chain')
+  // Call-site domain discovery (default-deny): every dispositionOf( occurrence in the source.
+  const sites = []
+  for (let i = src.indexOf('dispositionOf('); i !== -1; i = src.indexOf('dispositionOf(', i + 1)) sites.push(i)
+  assert.equal(sites.length, 6,
+    `the floored order-census domain is exactly SIX dispositionOf call sites (found ${sites.length}) — a new site must join this census with its own ask arm preceding its absorb chain`)
+  const ABSORB_CHAIN = /demote\(|aceable\.push|phaseCloseQueue\.push/
+  for (const i of sites) {
+    const slice = src.slice(i, i + 700)
+    const askIdx = slice.indexOf("=== 'ask'")
+    assert.ok(askIdx !== -1, `dispositionOf site @${i}: carries an explicit ask arm`)
+    const parkIdx = slice.indexOf('parkAsk(')
+    assert.ok(parkIdx !== -1, `dispositionOf site @${i}: the ask arm parks via parkAsk (exactly-once funnel)`)
+    const chain = slice.search(ABSORB_CHAIN)
+    assert.ok(chain !== -1, `dispositionOf site @${i}: the absorb chain is locatable (demote/aceable/phaseCloseQueue)`)
+    assert.ok(askIdx < chain && parkIdx < chain, `dispositionOf site @${i}: the ask arm PRECEDES the absorb chain (D7 order)`)
+  }
+  // The pinMismatch strip row: a NON-dispositionOf disposition sink — the destructure that drops
+  // routing metadata must exist exactly once and its comment must name the ask member (a
+  // pin-mismatched seat's ask never parks; it falls to the Nit note default with the strip).
+  const strips = src.split("({ disposition, autoFixable, ...f })").length - 1
+  assert.equal(strips, 1, 'exactly ONE pinMismatch strip site (the single collection-site enforcement)')
+  const stripIdx = src.indexOf("({ disposition, autoFixable, ...f })")
+  const stripComment = src.slice(Math.max(0, stripIdx - 2000), stripIdx)
+  assert.ok(/the ask member included/.test(stripComment) && /never parks/.test(stripComment),
+    "the pinMismatch strip comment NAMES the ask member and states a pin-mismatched ask never parks (the census's seventh row)")
+})
 
 test('dep-wave visibility (criterion 4): rebase-first clause is PREPENDED iff deps non-empty (same-repo)', async () => {
   const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)   // t1 dep-less, t2 deps:['t1']
@@ -3955,7 +4113,7 @@ test('files_changed contract (end state 8): IDENTICAL wording in agents/war-work
 
 test('latitude + disposition rules (criterion 8): war-auditor.md AND auditPrompt carry the same rule sentences', async () => {
   const LATITUDE = "the plan slice is the floor, the Commander's Intent is the ceiling — intent-consistent work beyond the literal slice is APPROVE (judge it on its own correctness), never a plan-faithfulness violation; only deviations that contradict the intent or the slice block. No intent threaded means judge against the plan slice alone, as before."
-  const DISPO = 'every Minor/Nit finding carries a disposition — absorb (mechanical, intent-consistent, safe to fix this phase; set phaseClose:true when the fix needs the integrated tip or touches a shared/slot-adjacent file), follow-up (substantive work beyond this phase — MUST state why it is not absorbable), or note (informational; phase report + servitor feed, never an issue). Omitted disposition defaults: Minor becomes follow-up, Nit becomes note; absorb is never a default.'
+  const DISPO = 'every Minor/Nit finding carries a disposition — absorb (mechanical, intent-consistent, safe to fix this phase; set phaseClose:true when the fix needs the integrated tip or touches a shared/slot-adjacent file), follow-up (substantive work beyond this phase — MUST state why it is not absorbable), note (informational; phase report + servitor feed, never an issue), or ask (a decision-shaped Minor/Nit only the operator can rule — MUST carry the `ask` field: `question` naming the decision needed plus `fork` naming the two branches; parked unruled and ruled at the Checkpoint, never filed unruled). Omitted disposition defaults: Minor becomes follow-up, Nit becomes note; absorb and ask are never defaults.'
   assert.ok(auditorMd.includes(LATITUDE), 'war-auditor.md carries the latitude rule (standing surface)')
   assert.ok(auditorMd.includes(DISPO), 'war-auditor.md carries the disposition rule (standing surface)')
   const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
@@ -7184,15 +7342,17 @@ test('Task 1.1 — a threaded gate-audit-family prompt carries the adjudication 
     'an unthreaded gate-audit seat carries none of the new adjudication anchors (back-compat)')
 })
 
-// Task 1.1 (e) — scoped single-producer absence test (End state 7, ADR 0025). Scope ONLY the two
+// Task 1.1 (e) — scoped single-producer absence test (End state 7, ADR 0025; widened two → three
+// by ask-disposition Task 1.1, ADR 0013 amendment 2026-08-25). Scope ONLY the two
 // surfaces present at this task's tip: the workflow-template.js adjudications header comment block and
 // the war-auditor.md version-precedence bullet. Every sentence naming "red-team report" MUST also carry
-// a second-producer fragment (a `skills/war/SKILL.md` reference and/or an `and/or` conjunction). Matcher
+// a second-producer fragment (a `skills/war/SKILL.md` reference and/or an `and/or` conjunction) AND the
+// third-producer fragment (the Checkpoint ask rulings). Matcher
 // discipline (the obvious `only`/`sole` spelling is PROVABLY VACUOUS — neither surface ever carried such
 // a token, so an only-matcher passes on the very single-producer text it must reject): key on a
-// red-team-report sentence MISSING its second-producer clause. Red-first proof: temp-reverting the
+// red-team-report sentence MISSING its second/third-producer clause. Red-first proof: temp-reverting the
 // header-comment rewrite drops `skills/war/SKILL.md` from that sentence → this test goes RED.
-test('Task 1.1 (e) — no surviving single-producer phrasing on the two Task 1.1 surfaces (scoped, red-team-report sentences name the second producer)', () => {
+test('Task 1.1 (e) — no surviving single- or two-producer phrasing on the two Task 1.1 surfaces (scoped, red-team-report sentences name the second AND third producers)', () => {
   const between = (text, startTok, endTok) => {
     const s = text.indexOf(startTok)
     assert.ok(s !== -1, `scope start "${startTok}" is locatable`)
@@ -7205,6 +7365,7 @@ test('Task 1.1 (e) — no surviving single-producer phrasing on the two Task 1.1
   // followed by whitespace, so none of them splits mid-sentence.
   const sentences = (block) => block.replace(/\/\//g, ' ').replace(/\s+/g, ' ').split(/\.\s+/)
   const secondProducer = (s) => /skills\/war\/SKILL\.md/.test(s) || /and\/or/.test(s)
+  const thirdProducer = (s) => /Checkpoint ask ruling/i.test(s)
   const surfaces = [
     ['workflow-template.js adjudications header', between(src, 'Adjudications (Task 1.5', '\nconst adjudications =')],
     ['war-auditor.md version-precedence bullet', between(auditorMd, '**Version-precedence rule:**', '**Adjudication-match rule:**')],
@@ -7217,8 +7378,16 @@ test('Task 1.1 (e) — no surviving single-producer phrasing on the two Task 1.1
     for (const s of hits) {
       assert.ok(secondProducer(s),
         `${name}: a red-team-report sentence must also name the second producer (skills/war/SKILL.md and/or an and/or conjunction) — surviving single-producer phrasing: "${s.trim()}"`)
+      assert.ok(thirdProducer(s),
+        `${name}: a red-team-report sentence must also name the third producer (the Checkpoint ask rulings, #1550) — surviving two-producer phrasing: "${s.trim()}"`)
     }
   }
+  // Producer-count comment lock-step (PIN-8's OLD-absent law: the retired literal was verified
+  // present at this task's base a60221a; the widened literal is presence-pinned beside it).
+  assert.ok(!src.includes('TWO producers feed this arg, never one'),
+    'the retired two-producer count literal ("TWO producers feed this arg, never one") must be absent from workflow-template.js (OLD-absent)')
+  assert.ok(src.includes('THREE producers feed this arg, never one or two'),
+    'the widened producer-count literal ("THREE producers feed this arg, never one or two") is present (NEW-present, lock-step with the OLD-absent half)')
 })
 
 test('T2.1 criterion 5 (D4) — an INTRA-PHASE-DEP phase: the evidence dispatch re-runs the integrated tip AND one authoritative execution-evidence seat consumes it', async () => {

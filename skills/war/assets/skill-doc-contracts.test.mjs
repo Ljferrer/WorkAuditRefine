@@ -76,10 +76,15 @@ const budgetSuiteSrc = readFileSync(join(HERE, 'prompt-surface-budgets.test.mjs'
 // never spell the retired flag-first byte-run — see the D9 block at the end of this file.
 const FLOOR_SCRIPT = 'assert-no-submodule-mutation.sh'
 const refinerCard = readFileSync(join(HERE, '..', '..', '..', 'agents', 'war-refiner.md'), 'utf8')
-// The standing auditor card — read for the source-derivable absorb-eligibility presence guard
-// (realized-absorb-rate Task 3.3): the clarification lives on this card ONLY (lens calibration),
+// The disposition-eligibility reference — read for the source-derivable absorb-eligibility
+// presence guard (realized-absorb-rate Task 3.3, re-anchored by ask-disposition Task 1.1): the
+// clarification lives in the evicted eligibility blockquotes, whose home is now
+// skills/war/references/disposition-eligibility.md (the card keeps a trigger pointer); it is
 // never mirrored into auditPrompt() or the DISPOSITION RULE sentences.
-const auditorCard = readFileSync(join(HERE, '..', '..', '..', 'agents', 'war-auditor.md'), 'utf8')
+const eligibilityRef = readFileSync(
+  join(HERE, '..', 'references', 'disposition-eligibility.md'),
+  'utf8',
+)
 const floorScriptSrc = readFileSync(join(HERE, FLOOR_SCRIPT), 'utf8')
 // (D34–D36) The authoring-side-verification glossary mirrors (plan 2026-08-24, Task 2.3): the
 // war-strategy authoring surfaces are the canonical homes the new/converged CONTEXT.md glossary
@@ -1971,15 +1976,17 @@ test('D31 — SKILL.md Decompose done-when intake keeps the full-bullet parse cl
 })
 
 // Source-derivable absorb eligibility (realized-absorb-rate Task 3.3; ADR 0013's 2026-08-20
-// amendment). The auditor card's `disposition:'absorb'` block carries the clarification that a
+// amendment; re-anchored to the eviction destination by ask-disposition Task 1.1 in the same
+// commit as the eviction). The evicted `disposition:'absorb'` block — now in
+// skills/war/references/disposition-eligibility.md — carries the clarification that a
 // doc fact deterministically re-derivable from a machine-readable in-repo source is mechanical
 // regardless of value count, with "single-file" read on the fix's WRITE FOOTPRINT (the doc), not
-// the source it reads from. Presence-guarded by a stable mid-sentence token so a card rewrite
+// the source it reads from. Presence-guarded by a stable mid-sentence token so a rewrite
 // that drops the clarification reds here — correct this row to a sanctioned rewording, never
 // delete it to make a reword pass.
-test('auditor card absorb block carries the source-derivable eligibility clarification (write-footprint token)', () => {
-  const block = auditorCard.match(/`disposition:'absorb'`[\s\S]*?(?=\n\n|\n- )/)
-  assert.ok(block, "could not locate the `disposition:'absorb'` block in agents/war-auditor.md")
+test('disposition-eligibility.md absorb block carries the source-derivable eligibility clarification (write-footprint token)', () => {
+  const block = eligibilityRef.match(/`disposition:'absorb'`[\s\S]*?(?=\n\n|\n- )/)
+  assert.ok(block, "could not locate the `disposition:'absorb'` block in skills/war/references/disposition-eligibility.md")
   assert.match(
     norm(block[0]),
     /write footprint/i,
