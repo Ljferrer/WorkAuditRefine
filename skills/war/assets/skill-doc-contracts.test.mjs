@@ -2329,8 +2329,18 @@ test('D36 — the eight authoring-side-verification CONTEXT.md glossary terms mi
 // rows, landing beside the mirrors' own task wave. D36's extraction idiom (term escaped, colon not
 // required — several headers carry a parenthesized token before it); every entry must span its own
 // `_Avoid_` line (non-vacuity); keys are token-anchored `\s+`-wrapped `/…/i` forms asserted on
-// BOTH surfaces so sanctioned rewording latitude never false-reds and a one-sided edit reds.
+// BOTH surfaces so sanctioned rewording latitude never false-reds and a one-sided edit reds. The
+// two SKILL.md-homed terms assert their canonical half against the `## Checkpoint` region (the
+// same construct extraction D41 uses), not the whole file — whole-file keys like /absolute/i or
+// /consolidation/i match unrelated SKILL.md prose (Gate-2's absolute `memoryLocalRoot`, the
+// follow-up filing floor) and would pass with the ask-ruling-gate bullet deleted.
 test('D37 — the seven ask-disposition CONTEXT.md glossary terms mirror their canonical homes (#1550)', () => {
+  const checkpoint = skillMd.match(/^## Checkpoint[\s\S]*?(?=\n## )/m)
+  assert.ok(
+    checkpoint,
+    'could not locate the `## Checkpoint` section in SKILL.md — construct rotted (D41 shares ' +
+      'this extraction)',
+  )
   for (const [term, canonicalName, canonicalText, keys] of [
     [
       'Ask disposition',
@@ -2369,8 +2379,8 @@ test('D37 — the seven ask-disposition CONTEXT.md glossary terms mirror their c
     ],
     [
       'Never-filed-unruled',
-      'skills/war/SKILL.md (Checkpoint ask ruling gate)',
-      skillMd,
+      'skills/war/SKILL.md (## Checkpoint region — the ask ruling gate)',
+      checkpoint[0],
       [
         [/unruled\s+ask/i, 'the unruled-ask subject'],
         [/consolidation/i, 'the consolidation exclusion'],
@@ -2380,8 +2390,8 @@ test('D37 — the seven ask-disposition CONTEXT.md glossary terms mirror their c
     ],
     [
       'Strike-list ruling gate',
-      'skills/war/SKILL.md (Checkpoint ask ruling gate)',
-      skillMd,
+      'skills/war/SKILL.md (## Checkpoint region — the ask ruling gate)',
+      checkpoint[0],
       [
         [/parked\s+asks\s+in\s+a\s+single\s+pass/i, 'the one-gate-single-pass form'],
         [/absolute/i, 'the absolute advance floor'],
@@ -2536,6 +2546,13 @@ test('D37a — the widened **Disposition**/**Clean handoff** entries and the CLA
     !/\(`absorb` \| `follow-up` \| `note`\):/.test(contextMd),
     'the retired three-member **Disposition** header `(`absorb` | `follow-up` | `note`):` must ' +
       'be gone from CONTEXT.md (OLD-absent; PIN-8)',
+  )
+  assert.ok(
+    !/`absorb` is never a default/.test(norm(contextMd)),
+    'the retired singular `absorb` is never a default literal must be gone from CONTEXT.md — ' +
+      'the widened pair reads `absorb` and `ask` are never defaults, which shares no substring ' +
+      'with the retired form (OLD-absent, norm()-surface: the base literal wrapped across ' +
+      'lines; PIN-8)',
   )
   assert.ok(
     !/followUps, notes/.test(norm(contextMd)),
