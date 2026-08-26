@@ -101,7 +101,14 @@ deny() {
 # ---------------------------------------------------------------------------
 residue="$(printf '%s' "$cmd" | LC_ALL=C tr -d 'A-Za-z0-9 ./_=:,@^~%+-')"
 if [ -n "$residue" ]; then
-  residue_echo="$(printf '%s' "$residue" | LC_ALL=C tr -d $'\n' | head -c 20)"
+  # Truncated residue echo via pure parameter expansion (bash-3.2-safe): a
+  # pipeline assignment here would run in errexit context — `head -c 20`
+  # exiting early can SIGPIPE `tr` (141), and set -e/pipefail would exit the
+  # guard non-2 (fail-open: a non-2 PreToolUse exit does NOT block the tool
+  # call). Parameter expansion has no exit status, so deny's exit 2 is the
+  # only reachable exit on this path.
+  residue_echo="${residue//$'\n'/}"
+  residue_echo="${residue_echo:0:20}"
   # Classify: delete the chain/control operator bytes from the residue; anything
   # left is a non-chain metacharacter. tr's '\n' escape is bash-3.2-safe (no
   # $'\n' literal needed, cf. the header's command-substitution-newline note).
