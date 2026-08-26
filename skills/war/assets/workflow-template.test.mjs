@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { HARD_ESCALATION_REASONS, KNOWN_LAND_DECISIONS, SOFT_ENV_REASONS } from './land-decision.mjs'
 import { spawnOpts, validateRoster, widenRoster, resolveWidenSource, resolveGate, ROLES, DEFAULTS } from './war-config.mjs'
+import { extractInterpolations, extractArgsFields, EXEMPT_FIELDS } from './assert-args-complete.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const auditorMd = readFileSync(join(here, '../../../agents/war-auditor.md'), 'utf8')
@@ -8220,17 +8221,24 @@ test("Done when threading — absent ⇒ '' (set-minus): each site's doneWhen-le
     assert.ok(!wo.prompt.includes('\nDone when:'),
       `site "${s.site}": the doneWhen-less prompt carries NO line-anchored Done when: token at all (absolute absence — the hardcoded-in-both-arms case parity cancels)`)
   }
-  // null, absent, '', and a non-string are the same legacy arm (the string|null contract):
-  // byte-identical prompts. The '' arm pins the guard's TRUTHINESS half and the non-string arm
-  // pins its TYPEOF half (D5, #1334-1) — Task 1.1's Decompose parser produces this field, and a
-  // bare `Done when:` bullet is the plausible way an empty string arrives.
+  // null, absent, and '' are the same legacy arm (the string|null contract): byte-identical
+  // prompts. The '' arm pins the guard's TRUTHINESS half — Task 1.1's Decompose parser produces
+  // this field, and a bare `Done when:` bullet is the plausible way an empty string arrives.
+  // A NON-STRING doneWhen no longer reaches the clause's typeof guard: the entry-validation
+  // TASK-FIELD class (D5, engine-reliability — superseding the #1334-1 silent-legacy tolerance for
+  // this shape) refuses it at intake naming the task and field, before any dispatch.
   const nullP = DONE_WHEN_SITES[0].find((await DONE_WHEN_SITES[0].run({ doneWhen: null })).calls).prompt
   const absentP = DONE_WHEN_SITES[0].find((await DONE_WHEN_SITES[0].run({})).calls).prompt
   assert.equal(nullP, absentP, 'doneWhen:null and doneWhen-absent dispatch byte-identical worker prompts')
   assert.equal(DONE_WHEN_SITES[0].find((await DONE_WHEN_SITES[0].run({ doneWhen: '' })).calls).prompt, absentP,
     "doneWhen:'' dispatches the byte-identical legacy prompt (the guard's truthiness half)")
-  assert.equal(DONE_WHEN_SITES[0].find((await DONE_WHEN_SITES[0].run({ doneWhen: 5 })).calls).prompt, absentP,
-    "doneWhen:5 (non-string) dispatches the byte-identical legacy prompt (the guard's typeof half — D5, #1334-1)")
+  const nonStringRun = await DONE_WHEN_SITES[0].run({ doneWhen: 5 })
+  assert.equal(nonStringRun.out.landDecision, 'held:workflow-error',
+    'doneWhen:5 (non-string) is refused at entry by the TASK-FIELD class (D5) — never silently coerced to the legacy arm')
+  assert.match(nonStringRun.out.workflowError.message, /non-string doneWhen \(number\)/,
+    'the refusal names the field and the offending type')
+  assert.ok(!DONE_WHEN_SITES[0].find(nonStringRun.calls),
+    'zero dispatches reach the worker site on the refused launch (the floor is at entry)')
 })
 
 test('prompt truth (D6) — every dispatched prompt that says keep-the-gate-green carries the gate command', async () => {
@@ -10153,4 +10161,298 @@ test('maxParallel-absent: the absent-knob path takes no batching branch — one 
     assert.strictEqual(record[0], thunks, `n=${String(n)}: the untouched input array itself is delegated (no slice)`)
     assert.deepEqual(out, [1, 2, 3], `n=${String(n)}: results pass through unchanged`)
   }
+})
+
+// ---------------------------------------------------------------------------
+// Phase 3 Task 2 (engine-reliability, #1747): bare-interpolation census + entry-belt,
+// provenance-floor, vacuous-endstate, and preMerged-dialect fixtures.
+// ---------------------------------------------------------------------------
+
+// Default-deny census (D5): the EXACT set of fallback-free pure-member-chain interpolations inside
+// the template's pt-tagged prompt spans, extracted by the same mechanics the assert-args-complete
+// Lead preflight floor runs. Any NEW bare interpolation reds this census and forces an explicit
+// classification: give the site a fallback/guard, or extend the floor's required/exempt sets (and
+// this pin) in the same commit. Names only, not counts — a count pin would churn on every
+// duplicate-site edit without changing the completeness contract.
+//
+// Hand-scan record (the census grep is a FLOOR, plan-mandated survey): the template's prompt-build
+// regions were re-scanned case-insensitively for interpolations the purity pattern misses. Result:
+// every rejected args-touching site carries an explicit ??/||/ternary fallback or rides the
+// ternary-gated doneWhenClause helper — zero missed fallback-free sites, no survey-derived
+// corrections. Known structural false-negative classes of the mechanical pattern (recorded, not
+// silently absorbed): (a) bracket-indexed roots (`${tasks[0].id}`) are not admitted by the dotted
+// chain regex — none exist in the template today; (b) an interpolation nested inside another
+// expression's braces is seen only via the flat re-scan of the outer span text; (c) a task/phase
+// object bound to a local outside the root whitelist (ph/plan/task/t/r.task) — e.g.
+// `submodLandTask.targetRepo` — is censused but not mapped to an args field; harmless today
+// (targetRepo is exempt and the site is ternary-gated), red-flagged here so a future non-exempt
+// case is not silently unrequired. Escaped `\${…}`
+// pairs are prompt PROSE (agent-resolved placeholders) and are dropped by the tokenizer — e.g. the
+// release-baseline rule's `\${integrationBranch}...\${task.branch}` mirror text is not a live site.
+const BARE_INTERPOLATION_CENSUS = [
+  'PLAN_DEFECT_SENTINEL', 'PREFLIGHT', 'SCRIPT', 'artifactLine', 'authArtifactLine', 'authCriteria',
+  'baseDesc', 'batchSha', 'block', 'depSha', 'depth', 'doneWhenLog', 'e.preMergeTip', 'e.taskId',
+  'ensures', 'ev.round', 'ev.sha', 'f.file', 'f.severity', 'f.suggested_fix', 'gateHeadSha',
+  'ghUser', 'guardEvidence', 'guardSpecificity', 'integratedTip.gate_output',
+  'intent', 'landedTipAnchor', 'lens', 'm.file', 'm.line', 'm.taskId', 'memoryLocalRoot',
+  'nearMissDiag', 'owned', 'pendingRevert', 'ph.epicIssue', 'ph.id', 'ph.integrationBranch',
+  'ph.title', 'ph.workingBranch', 'pin', 'pinEvidence', 'pinStatus', 'pinStatusLine', 'plan.gate',
+  'polishBranch', 'polishWorktree', 'provisionSource', 'r.aceReverted', 'r.check', 'r.condition',
+  'r.n', 'r.supersedes', 'r.tag', 'r.task.branch', 'r.task.id', 'r.task.targetRepo',
+  'r.task.worktree', 'refineryLandPath', 'refineryP', 'refineryPath', 'roundLimit', 's.lens',
+  's.seat', 's.verdict', 'submodLandTask.targetRepo', 'submodPath', 't.id', 'task.branch',
+  'task.doneWhen', 'task.id', 'task.title', 'task.worktree', 'taskId', 'testPatternArg', 'trailer',
+  'workerIntentClause', 'workerSelfQueryRepoFlag', 'working',
+]
+
+test('bare-interpolation census: the exact fallback-free pt-span interpolation set is pinned (default-deny)', () => {
+  const actual = [...extractInterpolations(src).keys()].sort()
+  const added = actual.filter(e => !BARE_INTERPOLATION_CENSUS.includes(e))
+  const removed = BARE_INTERPOLATION_CENSUS.filter(e => !actual.includes(e))
+  assert.deepEqual(actual, [...BARE_INTERPOLATION_CENSUS].sort(),
+    `bare-interpolation census drifted — added: ${JSON.stringify(added)}; removed: ${JSON.stringify(removed)}. ` +
+    'A NEW fallback-free interpolation must be classified: guard the site, or extend assert-args-complete.mjs and this pin together.')
+})
+
+test('bare-interpolation census: the args-field mapping matches the assert-args-complete floor exactly', () => {
+  const fields = extractArgsFields(src)
+  const expected = ['phase.epicIssue', 'phase.id', 'phase.integrationBranch', 'phase.title',
+    'phase.workingBranch', 'plan.gate', 'tasks[].branch', 'tasks[].doneWhen', 'tasks[].id',
+    'tasks[].targetRepo', 'tasks[].title', 'tasks[].worktree']
+  const added = fields.filter(f => !expected.includes(f))
+  const removed = expected.filter(f => !fields.includes(f))
+  assert.deepEqual(fields, expected,
+    `args-field set drifted — added: ${JSON.stringify(added)}; removed: ${JSON.stringify(removed)}`)
+  // Every exemption the floor documents names a field this mapping actually yields (no dead rows).
+  for (const f of EXEMPT_FIELDS.keys()) {
+    assert.ok(fields.includes(f), `EXEMPT_FIELDS row ${f} is live in the extracted mapping`)
+  }
+})
+
+// ---- Entry-validation fixtures (D5 TASK-FIELD class) --------------------------------------
+
+test('entry validation: a task missing planSlice is refused at entry naming the task and field (zero spawns)', async () => {
+  const args = PROVISION_ARGS()
+  delete args.tasks[0].planSlice
+  const { out, calls } = await runPhase(args, defaultImpl)
+  assert.equal(out.landDecision, 'held:workflow-error', 'missing planSlice refuses at entry')
+  assert.match(out.workflowError.message, /task t1 is missing planSlice/, 'the message names the task and the field')
+  assert.equal(calls.length, 0, `zero agents spawned on an entry refusal — got ${calls.length}`)
+})
+
+test('entry validation: an empty-string planSlice is refused exactly like an absent one', async () => {
+  const args = PROVISION_ARGS()
+  args.tasks[1].planSlice = '   '
+  const { out, calls } = await runPhase(args, defaultImpl)
+  assert.equal(out.landDecision, 'held:workflow-error', 'blank planSlice refuses at entry')
+  assert.match(out.workflowError.message, /task t2 is missing planSlice/, 'the message names the blank-slice task')
+  assert.equal(calls.length, 0, 'zero agents spawned')
+})
+
+test('entry validation: a non-string doneWhen is refused naming the field, never coerced', async () => {
+  const args = PROVISION_ARGS()
+  args.tasks[0].doneWhen = 42
+  const { out, calls } = await runPhase(args, defaultImpl)
+  assert.equal(out.landDecision, 'held:workflow-error', 'non-string doneWhen refuses at entry')
+  assert.match(out.workflowError.message, /task t1 has a non-string doneWhen \(number\)/, 'the message names the task, field, and offending type')
+  assert.equal(calls.length, 0, 'zero agents spawned')
+})
+
+// ---- #1413 provenance-floor fixtures (D6 recalibration) -----------------------------------
+// PROVISION_ARGS carries planSlug 'wtprov-a' + plan.file 'docs/plans/wtprov-A.md', so the derived
+// ownTokens are ['wtprov'] ('a' is sub-length, dates are numeric-only).
+
+test('provenance floor: an intent naming a foreign docs/plans identifier is refused at entry (zero spawns)', async () => {
+  const args = PROVISION_ARGS({ intent: 'Deliver the throttle per docs/plans/other-plan.md end state 3.' })
+  const { out, calls } = await runPhase(args, defaultImpl)
+  assert.equal(out.landDecision, 'held:workflow-error', 'foreign plan id in intent refuses at entry')
+  assert.match(out.workflowError.message, /args\.intent names a foreign docs\/plans identifier \(docs\/plans\/other-plan\.md\)/,
+    'the refusal names the arg and the foreign identifier')
+  assert.equal(calls.length, 0, 'zero agents spawned')
+})
+
+test('provenance floor: own-token matching is word-boundary — a substring hit inside a larger word proves nothing', async () => {
+  // 'wtprovision' CONTAINS 'wtprov' but not at a word boundary — the recalibrated floor refuses.
+  const args = PROVISION_ARGS({ intent: 'Improve the wtprovisioning subsystem throughput.' })
+  const { out } = await runPhase(args, defaultImpl)
+  assert.equal(out.landDecision, 'held:workflow-error', 'substring-only token evidence is refused')
+  assert.match(out.workflowError.message, /contains none of the run's own plan-slug tokens \[wtprov\]/,
+    'the refusal lists the own tokens that failed to match')
+})
+
+test('provenance floor: a word-boundary own-token hit passes (case-insensitive)', async () => {
+  const args = PROVISION_ARGS({ intent: 'Deliver the WTPROV throttle end states without regressions.' })
+  const { out } = await runPhase(args, defaultImpl)
+  assert.equal(out.landDecision, 'landed', `word-boundary token hit passes the floor — got ${out.landDecision}`)
+})
+
+test('provenance floor: stoplist — a slug of generic tokens derives no ownTokens, so the floor is skipped (fail-open)', async () => {
+  // Every slug word is stoplisted or sub-length: ownTokens is empty ⇒ no refusal is ever guessed.
+  const args = PROVISION_ARGS({
+    planSlug: 'test-and-fix',
+    plan: { file: 'docs/plans/test-and-fix.md', gate: 'make gate' },
+    phase: { id: 3, title: 'P3', integrationBranch: 'integration/test-and-fix/phase-3', workingBranch: 'dev/test-and-fix' },
+    intent: 'Ship the improvements without breaking anything.',
+  })
+  const { out } = await runPhase(args, defaultImpl)
+  assert.equal(out.landDecision, 'landed', `generic-slug run is not falsely refused — got ${out.landDecision}`)
+})
+
+// Recorded blast radius (audit, r3): the source:'auto' exemption makes auto-stamped backstop text a
+// TRUSTED, unscanned channel — a poisoned auto row would pass the provenance floor by construction.
+// Accepted residual: auto rows are Setup-recorded and ride the Lead-assembled args channel, so the
+// exemption trusts a Lead-supplied flag — bounded because intent is never exempt and a foreign
+// planFile stamp still refuses.
+test("provenance floor: a source:'auto' row is exempt from the scan — its foreign-looking text never refuses", async () => {
+  const args = PROVISION_ARGS({
+    backstops: [{ check: 'grep -F pattern docs/plans/foreign-thing.md', why: 'setup-recorded', runner: 'operator', source: 'auto' }],
+  })
+  const { out } = await runPhase(args, defaultImpl)
+  assert.equal(out.landDecision, 'landed', `auto-row foreign id is exempt — got ${out.landDecision}`)
+})
+
+test("provenance floor: an exempt row's text still vouches for a generic sibling row (the #1666 false-refusal direction)", async () => {
+  const args = PROVISION_ARGS({
+    backstops: [
+      { check: 'run the smoke suite nightly', why: 'generic Lead-normalized row', runner: 'ci', source: 'plan' },
+      { check: 'verify wtprov worktree layout', why: 'setup-recorded', runner: 'operator', source: 'auto' },
+    ],
+  })
+  const { out } = await runPhase(args, defaultImpl)
+  assert.equal(out.landDecision, 'landed',
+    `the auto row's own-token evidence covers the token-less plan row — got ${out.landDecision}`)
+})
+
+test('provenance floor: a predecessor citation (supersedes) is excluded from the scan', async () => {
+  const args = PROVISION_ARGS({
+    adjudications: [{ adjudicated: 'version 0.9.1 adjudicated for the wtprov release slot', supersedes: 'docs/plans/older-foreign-plan.md' }],
+  })
+  const { out } = await runPhase(args, defaultImpl)
+  assert.equal(out.landDecision, 'landed', `supersedes citation never refuses — got ${out.landDecision}`)
+})
+
+test('provenance floor: a Lead-stamped planFile row naming THIS plan is exempt', async () => {
+  const args = PROVISION_ARGS({
+    adjudications: [{ adjudicated: 'ruled: keep the legacy arm', planFile: 'docs/plans/wtprov-A.md' }],
+  })
+  const { out } = await runPhase(args, defaultImpl)
+  assert.equal(out.landDecision, 'landed', `own-plan planFile stamp is exempt — got ${out.landDecision}`)
+})
+
+test('provenance floor: a planFile stamp naming a FOREIGN plan is the leak itself and refuses directly', async () => {
+  const args = PROVISION_ARGS({
+    adjudications: [{ adjudicated: 'ruled: keep the wtprov legacy arm', planFile: 'docs/plans/some-other-plan.md' }],
+  })
+  const { out, calls } = await runPhase(args, defaultImpl)
+  assert.equal(out.landDecision, 'held:workflow-error', 'foreign planFile stamp refuses at entry')
+  assert.match(out.workflowError.message, /planFile provenance stamp naming a foreign plan \(docs\/plans\/some-other-plan\.md\)/,
+    'the refusal names the stamp and the foreign plan')
+  assert.equal(calls.length, 0, 'zero agents spawned')
+})
+
+test('provenance floor: a foreign docs/plans id inside a NON-exempt backstop row is still refused', async () => {
+  const args = PROVISION_ARGS({
+    backstops: [{ check: 'grep -F pattern docs/plans/foreign-thing.md', why: 'plan-declared', runner: 'ci', source: 'plan' }],
+  })
+  const { out } = await runPhase(args, defaultImpl)
+  assert.equal(out.landDecision, 'held:workflow-error', 'non-exempt foreign id still refuses (exemptions are narrow)')
+  assert.match(out.workflowError.message, /args\.backstops names a foreign docs\/plans identifier/,
+    'the refusal names args.backstops')
+})
+
+// ---- vacuous-endstate fixture (D5, End state 10) ------------------------------------------
+
+test('vacuous-endstate: zero tasks landed with declared tasks — every claimed condition lands unverified, never green', async () => {
+  const args = PROVISION_ARGS({
+    intent: 'Deliver the wtprov end states.',
+    phase: { id: 3, title: 'P3', integrationBranch: 'integration/wtprov-a/phase-3', workingBranch: 'dev/wtprov-a',
+      endState: ['Condition A holds at the tip', 'Condition B holds at the tip'] },
+    tasks: [{ id: 't1', issue: 101, title: 'Task one', planSlice: 'slice 1', roster: [{ lens: 'correctness' }] }],
+  })
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-worker') return { task_id: 't1', status: 'blocked', blocked_reason: 'forced block — vacuous-endstate fixture' }
+    return defaultImpl(prompt, opts)
+  }
+  const { out, logs } = await runPhase(args, impl)
+  assert.equal(out.landDecision, 'held:escalation', 'the blocked task holds the phase (handoff still renders, degraded)')
+  assert.deepEqual(out.landed, [], 'zero tasks landed')
+  assert.ok(out.handoff, 'the degraded handoff block is present on held:escalation')
+  assert.equal(out.handoff.endState.length, 2, 'every claimed condition gets a status row')
+  for (const row of out.handoff.endState) {
+    assert.equal(row.status, 'unverified', `vacuous phase clamps ${JSON.stringify(row.condition)} to unverified — got ${row.status}`)
+    assert.match(row.note, /zero tasks ran this phase \(vacuous phase\)/, 'the row carries the zero-tasks-ran note')
+  }
+  assert.ok(logs.some(l => /vacuous phase — 1 task\(s\) declared, zero landed/.test(l)),
+    'the vacuous-phase clamp logs loudly')
+})
+
+test('vacuous-endstate contrast: a phase whose tasks land is NOT clamped (no zero-tasks-ran note)', async () => {
+  const args = PROVISION_ARGS({
+    intent: 'Deliver the wtprov end states.',
+    phase: { id: 3, title: 'P3', integrationBranch: 'integration/wtprov-a/phase-3', workingBranch: 'dev/wtprov-a',
+      endState: ['Condition A holds at the tip'] },
+  })
+  // A gate-audit seat attests the condition met — a status the vacuous clamp could NEVER produce.
+  const impl = (prompt, opts) => {
+    if ((opts.label || '').startsWith('gate-audit:')) {
+      return { seat: opts.label, lens: 'execution-evidence', verdict: 'approve', confidence: 'high', findings: [],
+        gateEvidence: 'gate log read', endStateAttestations: [{ condition: 'Condition A holds at the tip', status: 'met', evidence: 'artifact read at tip' }] }
+    }
+    return defaultImpl(prompt, opts)
+  }
+  const { out } = await runPhase(args, impl)
+  assert.equal(out.landDecision, 'landed', 'happy path lands')
+  assert.ok(out.landed.length > 0, 'tasks landed')
+  const row = out.handoff.endState[0]
+  assert.equal(row.status, 'met', `a landed phase's attested condition lands met (the clamp did not fire) — got ${row.status}`)
+  assert.ok(!row.note, `a landed phase's row carries no zero-tasks-ran note — got ${JSON.stringify(row.note)}`)
+})
+
+// ---- preMerged-dialect fixtures (fold #1704, End state 24) --------------------------------
+
+const PRE_MERGED_ARGS = () => PROVISION_ARGS({
+  phase: { id: 2, title: 'P2', integrationBranch: 'integration/wtprov-a/phase-2', workingBranch: 'dev/wtprov-a' },
+  tasks: [
+    { id: '2.1', issue: 201, title: 'Task 2.1', planSlice: 's1', roster: [{ lens: 'correctness' }] },
+    { id: '2.2', issue: 202, title: 'Task 2.2', planSlice: 's2', roster: [{ lens: 'correctness' }] },
+    { id: '2.3', issue: 203, title: 'Task 2.3', planSlice: 's3', roster: [{ lens: 'correctness' }] },
+    { id: '2.4', issue: 204, title: 'Task 2.4', planSlice: 's4', roster: [{ lens: 'correctness' }] },
+  ],
+})
+
+const preMergedImpl = (preMerged) => (prompt, opts) => {
+  if (seatOf(opts) === 'war-refiner' && opts.dispatchKind === 'provision-barrier') return { ok: true, preMerged }
+  return defaultImpl(prompt, opts)
+}
+
+test('preMerged-dialect: worktree-name-shaped ids (p2-2.1) skip the four merged tasks exactly as bare ids do', async () => {
+  const dialect = await runPhase(PRE_MERGED_ARGS(), preMergedImpl(['p2-2.1', 'p2-2.2', 'p2-2.3', 'p2-2.4']))
+  const bare = await runPhase(PRE_MERGED_ARGS(), preMergedImpl(['2.1', '2.2', '2.3', '2.4']))
+  for (const [label, run] of [['worktree-name dialect', dialect], ['bare-id dialect', bare]]) {
+    assert.deepEqual(run.out.landed, ['2.1', '2.2', '2.3', '2.4'],
+      `${label}: all four tasks recorded in the TASK-ID dialect — got ${JSON.stringify(run.out.landed)}`)
+    assert.equal(run.calls.filter(isWorker).length, 0, `${label}: no worker dispatched for a pre-merged task`)
+    assert.equal(run.out.landDecision, 'landed', `${label}: the fully-pre-merged phase lands`)
+  }
+})
+
+test('preMerged-dialect: a garbage id is logged loudly and dropped — never a silent skip-disable', async () => {
+  const { out, calls, logs } = await runPhase(PRE_MERGED_ARGS(), preMergedImpl(['p2-2.1', 'p9-zzz']))
+  const loud = logs.find(l => /preMerged id "p9-zzz" matches NO task/.test(l))
+  assert.ok(loud, `the unmatched id is logged loudly — logs: ${JSON.stringify(logs.filter(l => /preMerged/.test(l)))}`)
+  assert.match(loud, /#1704/, 'the log cites the incident issue')
+  assert.match(loud, /"zzz"/, 'the log shows the normalized form it failed to match')
+  // 2.1 skipped; the other three tasks still run workers (the garbage id disabled nothing).
+  assert.equal(calls.filter(isWorker).length, 3, 'exactly the three non-pre-merged tasks dispatch workers')
+  assert.ok(out.landed.includes('2.1'), 'the dialect-matched id is recorded merged')
+})
+
+test('preMerged-dialect: a fully-pre-merged recovery phase is not vacuous — endstate rows are not clamped', async () => {
+  const args = PRE_MERGED_ARGS()
+  args.phase.endState = ['Condition A holds at the tip']
+  args.intent = 'Deliver the wtprov end states.'
+  const { out } = await runPhase(args, preMergedImpl(['p2-2.1', 'p2-2.2', 'p2-2.3', 'p2-2.4']))
+  assert.equal(out.landDecision, 'landed', 'fully-pre-merged phase lands')
+  assert.ok(!out.handoff.endState[0].note, 'barrier-recovered landings count — no zero-tasks-ran clamp')
 })

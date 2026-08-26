@@ -283,7 +283,7 @@ Optional `memory` (spec §4.5) — the Lead's per-phase prior-lesson prefetch, s
 
 Optional `adjudications` (array|null) — preformatted strings or `{ adjudicated|value, supersedes }` objects (row shapes unchanged by this widening). **Three producers** feed the set: the plan's red-team report `## Adjudications` block (`docs/red-team/<plan-slug>.md`), the Lead's own decompose-gate / escalation-time scope adjudications, and the Checkpoint ask rulings (#1550 — each ruled ask minted as an adjudication row at the strike-list gate), assembled and recorded per [SKILL.md](../SKILL.md). The set **accumulates run-long** and is **re-threaded in full** — from the run-ledger record (the `ledger.json` top-level `adjudications` key above), alongside `args.recovery` — on a sanctioned recovery relaunch, so a relaunched seat is never adjudication-blind. Threaded like `intent`: the template concatenates an `adjudicationClause` at the roster-seat `auditPrompt` and the three gate-audit-family seats (per-task (post-merge), integrated-tip, end-state-only). Empty/absent ⇒ every prompt is **byte-identical** to an adjudication-less run.
 
-**Args provenance floor (#1413):** entry validation refuses — before any agent spawns, `held:workflow-error` — an assembled `intent`, `backstops`, or `adjudications` that names a `docs/plans/<slug>.md` identifier differing from `plan.file`, or that contains none of the run's own plan-slug tokens (the slug's non-date words, derived from `planSlug` + the `plan.file` basename); each floor applies only when its arg is present and non-empty, so an intent-less launch stays legal.
+**Args provenance floor (#1413; recalibrated per D6 of the 2026-08-25 engine-reliability-and-filing-fidelity plan):** entry validation refuses — before any agent spawns, `held:workflow-error` — an assembled `intent`, `backstops`, or `adjudications` arg the floor classifies as a cross-plan leak. *This row is an informal summary — the refusal contract is canonical in the template's `ownTokens`/`foreignIds` region ([`../assets/workflow-template.js`](../assets/workflow-template.js)); consult that region for the exact token derivation, stoplist membership, and exemption predicates.* In outline: a foreign `docs/plans/<slug>.md` identifier differing from `plan.file` refuses; the own-token check refuses an arg carrying **none** of the run's own plan-slug tokens, scanning **intent-bearing arg text only** (never a whole-surface stringify-substring match) with **word-boundary** matching behind a generic-token stoplist; and `source:'auto'` rows, predecessor citations, and Lead-stamped `planFile` provenance rows are **exempt**. Each floor applies only when its arg is present and non-empty, so an intent-less launch stays legal.
 
 Auditors receive the **absolute `task.worktree` path** so they can `Read` candidate files directly in the task's isolated checkout rather than the main repo tree.
 
@@ -322,7 +322,12 @@ The refiner's **Provision** barrier ([ADR 0001](../../../docs/adr/0001-explicitl
 > zero agent spawns); the ratified plan-less zero-task launch shapes stay legal. The `(or supply explicit
 > branch/worktree per task)` suffix rides a derivation-class problem only, never the other classes.
 > Zero tasks / all-explicit ⇒ the derivation category vacuously adds nothing; the phase-field class
-> still applies.
+> still applies. Beside those launch-input categories, a **per-task args-intake belt** (D5 of the
+> 2026-08-25 engine-reliability-and-filing-fidelity plan) validates each staged task at the same entry
+> point: `planSlice` present as a non-empty string, and `doneWhen` a string when present — refused at
+> entry with a message naming the field. Informal summary only — the per-field shapes and refusal
+> messages are canonical in the template's entry-validation region
+> ([`../assets/workflow-template.js`](../assets/workflow-template.js)), never here.
 
 ## Workflow per-phase return
 

@@ -36,9 +36,12 @@ export const meta = {
 //                                     // merge-task floor invocation site; null ⇒ bare, byte-identical to today.
 //     tasks: [ { id, issue, title, branch, worktree, deps:[id],
 //                roster:[{ lens, depth? }], planSlice, doneWhen?, files:[<repo-relative plan paths>], requiresTest?, requiresPackaging? } ],  // roster: 1–5 distinct-lens audit seats; depth omitted → 'deep'.
+//                                     // planSlice = the task charter (REQUIRED non-empty string — the entry-validation
+//                                     // TASK-FIELD class (D5) refuses a missing/empty slice at intake naming the field).
 //                                     // doneWhen = the task's `Done when:` acceptance command (string|null; absent/null ⇒ legacy —
 //                                     // doneWhenClause AND doneWhenFloorClause render '' — every prompt is byte-identical to a
-//                                     // doneWhen-less run and the assert-done-when.sh floor never runs, End state 9).
+//                                     // doneWhen-less run and the assert-done-when.sh floor never runs, End state 9; any
+//                                     // OTHER present type is refused at intake by the same TASK-FIELD class, never coerced).
 //                                     // requiresTest/requiresPackaging default true; false (Lead-set) skips that pre-merge floor with a logged, never-silent skip.
 //                                     // files = the plan's `Files:` list (plan paths, NOT the worker's diff — the diff doesn't exist at dispatch); an all-*.md task runs its first-pass worker on the docs tier. Absent/empty ⇒ base worker tier (fail-safe).
 //     learningsTarget,                // read-path resolved repo root — the worker self-query `--repo` flag AND
@@ -650,39 +653,100 @@ if (missingPhaseFields.length) problems.push(`workflow-template: requires phase 
 if ((tasks || []).length > 0 && !(plan && typeof plan.file === 'string' && plan.file)) {
   problems.push('workflow-template: requires plan.file — the launch carries tasks but no plan.file (every worker/fix prompt interpolates it); thread plan: { file: "docs/plans/<slug>.md" } (#1430)')
 }
+//   (4) TASK-FIELD class (D5, engine-reliability) — per-task shape validation at args intake.
+//       task.planSlice is the task's charter, interpolated into every worker/auditor/fix prompt: a
+//       missing/empty slice dispatches a charter-less worker (the vacuous-phase family of silent
+//       degradations), so refuse at entry naming the task and field. task.doneWhen is string|null by
+//       contract (the Done when: acceptance command; null/absent = legacy) — any other present type
+//       is a malformed launch, refused naming the field, never coerced. Messages are
+//       concatenation-built (census-safe — the #931 LITERAL_REGISTRY stays byte-unchanged); the
+//       prompt-site `?? '<unset>'` fallbacks below stay as defense-in-depth behind this belt.
+for (const t of (tasks || [])) {
+  const tid = (t && t.id !== undefined && t.id !== null && t.id !== '') ? String(t.id) : '<missing-id>'
+  if (!t || typeof t.planSlice !== 'string' || !t.planSlice.trim()) {
+    problems.push('workflow-template: task ' + tid + ' is missing planSlice — a present non-empty string is required (every worker/auditor prompt interpolates it as the task charter) (D5)')
+  }
+  if (t && t.doneWhen !== undefined && t.doneWhen !== null && typeof t.doneWhen !== 'string') {
+    problems.push('workflow-template: task ' + tid + ' has a non-string doneWhen (' + typeof t.doneWhen + ') — doneWhen is the Done when: acceptance command: a string when present, null/absent for legacy (D5)')
+  }
+}
 if (problems.length) throw new Error(`${problems.join('; ')}${derivationProblem ? ' (or supply explicit branch/worktree per task)' : ''}`)
 
-// ---- Args provenance floor (#1413) — fail-closed, at entry, before any agent spawns ----
+// ---- Args provenance floor (#1413, recalibrated D6 / #1666 signal 1) — fail-closed, at entry ----
 // A dispatched seat can recover from a wrong plan slice by reading the plan file; the assembled
 // intent/backstops/adjudications have NO seat-side recovery path — a cross-plan leak (the plan-3
 // incident: a plan-A launch carrying plan-B's intent, 13 × escape / 0 × done-when) starts clean and
 // stays green. So refuse at entry (held:workflow-error via the catch): (1) an arg naming a
 // docs/plans/<slug>.md identifier differing from plan.file is foreign; (2) an arg containing NONE of
 // the run's own plan-slug tokens (the slug's non-date words, from planSlug + the plan.file basename)
-// fails the own-token floor. Each floor applies ONLY when its arg is present and non-empty (an
-// intent-less launch stays legal — the ratified absent-⇒-byte-identical contract), the foreign check
-// only when plan.file is present, and the own-token floor is skipped when no distinctive token is
-// derivable (fail-open, never a guessed refusal). Messages are concatenation-built (census-safe —
-// the #931 LITERAL_REGISTRY stays byte-unchanged).
+// fails the own-token floor. D6 recalibration (the #1666 both-directions miscalibration):
+//   - the scan is scoped to INTENT-BEARING text only — the intent string, and per-row check/why
+//     (backstops) / adjudicated/value (adjudications) fields — never a whole-surface JSON.stringify,
+//     whose schema KEY names ("check","why","source":"plan") let a foreign row vacuously satisfy the
+//     own-token floor;
+//   - own-token matching is WORD-BOUNDARY (\b), behind a stoplist of generic tokens — a slug word
+//     like 'and' or 'test' proves nothing, and a substring hit inside a larger word proves nothing;
+//   - EXEMPT rows: source:'auto' rows (Workflow/Setup-authored, never a Lead-assembled cross-plan
+//     surface), predecessor citations (the `supersedes` field is the citation channel — excluded
+//     from the scan), and Lead-stamped `planFile` provenance rows naming THIS plan (a planFile
+//     stamp naming a FOREIGN plan is the leak itself and refuses directly).
+// Each floor applies ONLY when its arg has scannable intent-bearing text (an intent-less launch —
+// and a surface whose rows are all exempt — stays legal; the ratified absent-⇒-byte-identical
+// contract), the foreign check only when plan.file is present, and the own-token floor is skipped
+// when no distinctive token is derivable (fail-open, never a guessed refusal). Messages are
+// concatenation-built (census-safe — the #931 LITERAL_REGISTRY stays byte-unchanged).
 {
   const provenanceProblems = []
+  // Generic-token stoplist (D6): English glue + WAR-universal vocabulary that appears in virtually
+  // any run's intent/backstops regardless of plan — a match on one proves no provenance.
+  const PROVENANCE_TOKEN_STOPLIST = new Set(['and', 'the', 'for', 'with', 'from', 'into', 'over', 'not', 'all',
+    'war', 'plan', 'plans', 'phase', 'phases', 'task', 'tasks', 'test', 'tests', 'fix', 'fixes', 'docs',
+    'run', 'runs', 'gate', 'gates', 'audit', 'merge', 'land', 'issue', 'issues', 'release', 'follow'])
   const ownTokens = [...new Set([planSlug, (plan && typeof plan.file === 'string') ? plan.file.replace(/^.*\//, '').replace(/\.md$/i, '') : null]
     .filter(Boolean)
     .flatMap(s => String(s).toLowerCase().split(/[^a-z0-9]+/))
-    .filter(w => w.length >= 3 && !/^\d+$/.test(w)))]
+    .filter(w => w.length >= 3 && !/^\d+$/.test(w) && !PROVENANCE_TOKEN_STOPLIST.has(w)))]
   const ownPlanBase = (plan && typeof plan.file === 'string' && plan.file) ? plan.file.replace(/^.*\//, '').toLowerCase() : null
+  const baseOf = p => String(p).replace(/^.*\//, '').toLowerCase()
+  // Per-row intent-bearing extraction: { text, exempt } | { foreignStamp } (see the exemption
+  // enumeration above). A string row is its own text (the preformatted adjudication shape). An
+  // EXEMPT row is never scanned for refusal, but its intent-bearing text still COUNTS as own-token
+  // evidence for the surface — exemption means "never causes a refusal", not "cannot prove
+  // provenance" (a source:'auto' row stamped with the run's own slug token vouches for a generic
+  // Lead-normalized sibling row, the #1666 false-refusal direction).
+  const rowText = row => {
+    if (typeof row === 'string') return { text: row, exempt: false }
+    if (!row || typeof row !== 'object') return { text: '', exempt: true }
+    const text = ['check', 'why', 'adjudicated', 'value']
+      .map(k => (typeof row[k] === 'string') ? row[k] : '').filter(Boolean).join('\n')
+    if (row.source === 'auto') return { text, exempt: true }
+    if (typeof row.planFile === 'string' && row.planFile) {
+      if (ownPlanBase && baseOf(row.planFile) !== ownPlanBase) return { foreignStamp: row.planFile }
+      return { text, exempt: true }
+    }
+    return { text, exempt: false }
+  }
   const provenanceSurfaces = [
-    ['intent', intent],
-    ['backstops', (Array.isArray(backstops) && backstops.length) ? JSON.stringify(backstops) : null],
-    ['adjudications', adjudications.length ? JSON.stringify(adjudications) : null],
+    ['intent', intent ? [{ text: intent, exempt: false }] : []],
+    ['backstops', Array.isArray(backstops) ? backstops.map(rowText) : []],
+    ['adjudications', adjudications.map(rowText)],
   ]
-  for (const [argName, argText] of provenanceSurfaces) {
-    if (typeof argText !== 'string' || !argText) continue
-    const planIds = argText.match(/docs\/plans\/[A-Za-z0-9._/-]+\.md/g) || []
-    const foreignIds = ownPlanBase ? planIds.filter(id => id.replace(/^.*\//, '').toLowerCase() !== ownPlanBase) : []
+  for (const [argName, rows] of provenanceSurfaces) {
+    const stamped = rows.find(r => r.foreignStamp)
+    if (stamped) {
+      provenanceProblems.push('workflow-template: args.' + argName + ' carries a planFile provenance stamp naming a foreign plan (' + stamped.foreignStamp + ') differing from plan.file — a cross-plan args leak; refused at entry (#1413)')
+      continue
+    }
+    // scanText: non-exempt rows only (the refusal surface). evidenceText: every row's intent-bearing
+    // text (own-token satisfaction may come from an exempt row).
+    const scanText = rows.filter(r => !r.exempt && r.text).map(r => r.text).join('\n')
+    const evidenceText = rows.filter(r => r.text).map(r => r.text).join('\n')
+    if (!scanText) continue
+    const planIds = scanText.match(/docs\/plans\/[A-Za-z0-9._/-]+\.md/g) || []
+    const foreignIds = ownPlanBase ? planIds.filter(id => baseOf(id) !== ownPlanBase) : []
     if (foreignIds.length) {
       provenanceProblems.push('workflow-template: args.' + argName + ' names a foreign docs/plans identifier (' + foreignIds[0] + ') differing from plan.file — a cross-plan args leak; refused at entry (#1413)')
-    } else if (ownTokens.length && !ownTokens.some(t => argText.toLowerCase().includes(t))) {
+    } else if (ownTokens.length && !ownTokens.some(t => new RegExp('\\b' + t + '\\b', 'i').test(evidenceText))) {
       provenanceProblems.push('workflow-template: args.' + argName + " contains none of the run's own plan-slug tokens [" + ownTokens.join(', ') + '] — a cross-plan args leak; refused at entry (#1413)')
     }
   }
@@ -1110,7 +1174,10 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin) {
     // ${(plan && plan.file) ?? '<unset>'} (#1430 defense-in-depth): the entry-validation plan.file
     // class makes an undefined here unreachable on a tasks-bearing launch; the guard matches the
     // gate-audit site's form so a bare ${plan.file} pt-throw can never recur at this site.
-    + pt`Sub-issue #${task.issue ?? '<unset>'}. Plan slice: ${task.planSlice}. Plan file: ${(plan && plan.file) ?? '<unset>'}.\n`
+    // ${task.planSlice ?? '<unset>'} (D5 defense-in-depth): the entry-validation TASK-FIELD class
+    // refuses a missing/empty planSlice at intake, so '<unset>' is unreachable on a validated
+    // launch — the fallback exists so no prompt-build site interpolates bare.
+    + pt`Sub-issue #${task.issue ?? '<unset>'}. Plan slice: ${task.planSlice ?? '<unset>'}. Plan file: ${(plan && plan.file) ?? '<unset>'}.\n`
     + pt`Run \`git diff ${ph.integrationBranch}...${task.branch}\` (three-dot = merge-base..head = exactly what this task added) for the authoritative change set; re-run it each round (a fix-worker may have pushed). `
     // READ-ONLY GIT GUARD CONTRACT (D5, spec §5) — mirrored as the "## Read-only git guard contract"
     // section in agents/war-auditor.md (same commit); the D3 both-surfaces registry row anchors the
@@ -1350,9 +1417,22 @@ if (tasks.length) {
   // re-dispatched task passes — no spurious dep-failed) and the bare-id landed list; one auditLog entry;
   // NO worker dispatch. Deliberately NOT pushed to mergedTasksForGateAudit — no gate ran for it this run,
   // and the handoff tipSha fallback reads that list, which must stay truthful. Only ids matching a real
-  // task are honored (git > any Lead-assembled arg). Labels/ledger are Lead-reconciled toward git (ADR 0008).
-  for (const id of (Array.isArray(barrierOut.preMerged) ? barrierOut.preMerged : [])) {
-    if (done.has(id) || !tasks.some(t => t.id === id)) continue
+  // task are honored (git > any Lead-assembled arg) — but the match normalizes BOTH id dialects first
+  // (#1704): the barrier may report the WORKTREE-NAME dialect (`p<phase>-<id>`, e.g. `p2-2.1`) while
+  // tasks carry bare ids (`2.1`) — strip the prefix on both sides before comparing. An id matching no
+  // task even after normalization is LOGGED loudly and dropped — never a silent skip-disable (a silent
+  // drop re-dispatches a merged task next resume). Records key on the MATCHED task's own id, so
+  // done/succeeded/landed stay in the task-id dialect. Labels/ledger are Lead-reconciled toward git (ADR 0008).
+  const preMergedIdOf = id => { const m = String(id).match(/^p\d+-(.+)$/); return m ? m[1] : String(id) }
+  for (const raw of (Array.isArray(barrierOut.preMerged) ? barrierOut.preMerged : [])) {
+    const norm = preMergedIdOf(raw)
+    const t = tasks.find(t => preMergedIdOf(t.id) === norm)
+    if (!t) {
+      log('recovery: barrier preMerged id ' + JSON.stringify(raw) + ' matches NO task in this phase even after dialect normalization (→ ' + JSON.stringify(norm) + ') — entry dropped LOUDLY, no skip-disable applied (#1704).')
+      continue
+    }
+    const id = t.id
+    if (done.has(id)) continue
     done.add(id); succeeded.add(id); landed.push(id)
     auditLog.push({ task: id, verdict: 'recovered:pre-merged', findings: [], note: 'recovered: pre-merged on adopted integration branch' })
     log(`recovery: task ${id} is pre-merged on the adopted integration branch (ancestor of the frozen tip) — recorded merged, no worker dispatched.`)
@@ -1453,7 +1533,11 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + pt`The refiner's Provision barrier already created this worktree and its .war-task marker — do NOT create it yourself and do NOT set any worktree env var. cd into ${task.worktree} and work only inside it; commit and push ${task.branch}.\n`
         // ${(plan && plan.file) ?? '<unset>'} (#1430 defense-in-depth — the second of the two
         // formerly-undefended sites; see the auditPrompt site's comment for the rationale).
-        + pt`Sub-issue #${task.issue ?? '<unset>'} — ${task.title}\nPlan slice: ${task.planSlice}\nPlan file: ${(plan && plan.file) ?? '<unset>'}\nGate: ${plan.gate}${doneWhenClause(task)}${workerIntentClause}`
+        // ${task.planSlice ?? '<unset>'} (D5 defense-in-depth): planSlice is entry-validated
+        // (TASK-FIELD class), so '<unset>' is unreachable on a validated launch. ${task.title} stays
+        // deliberately BARE — it is the pinned in-thunk pt-throw trigger (criterion 3's fixture) and a
+        // registered member of the remaining-bare-interpolation census.
+        + pt`Sub-issue #${task.issue ?? '<unset>'} — ${task.title}\nPlan slice: ${task.planSlice ?? '<unset>'}\nPlan file: ${(plan && plan.file) ?? '<unset>'}\nGate: ${plan.gate}${doneWhenClause(task)}${workerIntentClause}`
         + WORKER_MEMORY_SELF_QUERY_LINE + workerMemClause(task.id) + provisionClause + workerExtraCtx
         + '\n' + COMMENT_LAG_RULE + '\n' + PLAN_DEFECT_RULE + '\n' + FILES_CHANGED_RULE + '\n' + ACCEPTANCE_IDS_RULE,
         { agentType: NS + 'war-worker', phase: 'Work', label: `work:${task.id}`, schema: WORKER_RESULT, ...spawnWorker(isDocsTask(task) ? 'docs' : null) })
@@ -1878,23 +1962,23 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             ? pt`ADD_TEST for WAR task ${r.task.id}. The refiner's merge-task check (assert-test-in-diff.sh) found no test file in the diff. `
               + pt`Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
               + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
-              + pt`Add a mapped test for this task (the test must exercise the slice described in: ${r.task.planSlice}), keep the gate green, commit and push.`
+              + pt`Add a mapped test for this task (the test must exercise the slice described in: ${r.task.planSlice ?? '<unset>'}), keep the gate green, commit and push.`
               + nearMissClause
             : isDoneUnmet
             ? pt`MAKE_DONE_PASS for WAR task ${r.task.id}. The refiner's merge-task check (assert-done-when.sh) ran the task's own Done when: acceptance command and it exited red (or timed out). `
               + pt`Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
               + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
-              + pt`Make this command pass: fix the implementation for the slice described in: ${r.task.planSlice} until the Done when: command above exits 0 — never weaken, skip, or delete a test to force it green. Keep the gate green, commit and push.`
+              + pt`Make this command pass: fix the implementation for the slice described in: ${r.task.planSlice ?? '<unset>'} until the Done when: command above exits 0 — never weaken, skip, or delete a test to force it green. Keep the gate green, commit and push.`
               + doneWhenLogClause
             : isBudgetUncited
             ? pt`CITE_BUDGET for WAR task ${r.task.id}. The refiner's merge-task check (assert-budget-raise-cited.sh) found a hard:/advisory: ceiling RAISE in skills/war/assets/prompt-surface-budgets.test.mjs with no Budget-Raise trailer in the range (the budget-uncited route). `
               + pt`Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
               + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
-              + pt`Resolve it for the slice described in: ${r.task.planSlice}. PREFER un-raising the ceiling and funding the growth under it (ADR 0042 — evict cold prose to references/ behind a trigger pointer); a ceiling change is an operator act via the re-baseline pass (skills/war/references/budget-rebaseline.md), and a sanctioned raise must carry a commit trailer of the exact form \`Budget-Raise: ADR-0042 <surface> +<bytes>\` — never raise a ceiling silently. Commit and push, keeping the gate green.`
+              + pt`Resolve it for the slice described in: ${r.task.planSlice ?? '<unset>'}. PREFER un-raising the ceiling and funding the growth under it (ADR 0042 — evict cold prose to references/ behind a trigger pointer); a ceiling change is an operator act via the re-baseline pass (skills/war/references/budget-rebaseline.md), and a sanctioned raise must carry a commit trailer of the exact form \`Budget-Raise: ADR-0042 <surface> +<bytes>\` — never raise a ceiling silently. Commit and push, keeping the gate green.`
             : pt`PACKAGE_IT for WAR task ${r.task.id}. The refiner's merge-task check (assert-packaging-in-diff.sh) flagged an added/renamed file a Dockerfile's enumerated COPYs miss. `
               + pt`Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
               + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
-              + pt`Resolve it for the slice described in: ${r.task.planSlice}. add the COPY or dockerignore it — never delete the file to satisfy the floor. Keep the gate green, commit and push.`
+              + pt`Resolve it for the slice described in: ${r.task.planSlice ?? '<unset>'}. add the COPY or dockerignore it — never delete the file to satisfy the floor. Keep the gate green, commit and push.`
           const floorFix = await agent(
             fixPrompt + workerMemClause(r.task.id) + provisionClause,
             // #817: spawnWorker('fix') makes the add-test/package-it/make-pass floor retry tier-aware, uniform with
@@ -2573,7 +2657,8 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
     } else {
     // 2. ONE war-worker dispatch: the queued findings VERBATIM + the intent + the merged tasks' plan slices.
     // pt-tagged prompt-feeding row builder (sweep prompt, top-level-catch, fail-open polish): t.id entry-validated
-    // (bare); ${t.planSlice ?? …} absence-tolerant — a cosmetic missing slice must never phase-kill (Q17/ADR 0034).
+    // (bare); ${t.planSlice ?? …} absence-tolerant (Q17/ADR 0034) — since D5's entry-validation
+    // TASK-FIELD class refuses a missing planSlice at intake, this fallback is defense-in-depth only.
     const mergedSlices = tasks.filter(t => succeeded.has(t.id)).map(t => pt`- ${t.id}: ${t.planSlice ?? '(no slice)'}`).join('\n')
     const sweep = await agent(
       pt`PHASE-CLOSE COHERENCE SWEEP for WAR phase ${ph.id} "${ph.title}". Work in the ALREADY-PROVISIONED polish worktree at ${polishWorktree} (branch ${polishBranch}, cut at the post-merge integrated tip of ${ph.integrationBranch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
@@ -3054,6 +3139,18 @@ if (landDecision === 'landed' || landDecision === 'held:escalation') {
   const gateAttestations = gateEntries.filter(e => !e.pinMismatch)
     .flatMap(e => Array.isArray(e.endStateAttestations) ? e.endStateAttestations : [])
   const gateAuditRan = gateEntries.length > 0
+  // Vacuous-phase clamp (D5, End state 10): this phase DECLARED tasks but ZERO landed — the tip
+  // carries no work from this phase, so the land-barrier endstate must NEVER attest green: checks
+  // executed at the unchanged tip (and any seat 'met' attestation read from them) prove nothing
+  // about work the phase did not do. Every claimed condition lands 'unverified' with the
+  // zero-tasks-ran note — clamped BEFORE both derivation channels. A deliberate zero-task
+  // claims-bearing launch (tasks.length === 0, the ratified endStateBlock shape) is NOT vacuous
+  // and keeps the two-channel derivation; landed includes barrier-recovered preMerged tasks, so a
+  // fully-pre-merged recovery phase is not vacuous either.
+  const vacuousPhase = (tasks || []).length > 0 && landed.length === 0
+  if (vacuousPhase && endStateClaims.length) {
+    log('endstate: vacuous phase — ' + (tasks || []).length + ' task(s) declared, zero landed: every claimed End-state condition lands unverified with the zero-tasks-ran note; the land-barrier endstate never attests green on a vacuous phase (D5).')
+  }
   // Binding is whitespace/case-insensitive (#452): seats are told VERBATIM, but a plan_ref that
   // drifts only in whitespace/case must still bind its condition — never a silent 'met'.
   const normRef = s => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase()
@@ -3070,6 +3167,9 @@ if (landDecision === 'landed' || landDecision === 'held:escalation') {
     asks: asks.map(a => ({ task: a.task, seat: a.seat, sha: a.sha, question: a.question, fork: a.fork })),
     notes: notes.map(n => ({ task: n.task, title: n.title })),
     endState: endStateClaims.map(condition => {
+      // Vacuous-phase clamp first (D5, End state 10): 'unverified' + note, never green — evaluated
+      // BEFORE gateAuditRan so an end-state-only seat's 'met' attestation on a vacuous tip cannot land.
+      if (vacuousPhase) return { condition, status: 'unverified', note: 'zero tasks ran this phase (vacuous phase) — attestation withheld (D5)' }
       if (!gateAuditRan) return { condition, status: 'deferred' }
       const rel = gateFindings.filter(f => f && normRef(f.plan_ref) === normRef(condition))
       const att = gateAttestations.filter(a => a && normRef(a.condition) === normRef(condition))
