@@ -5600,6 +5600,265 @@ test('filing-prompt Evidence-artifacts emission (fail-open): a never-merged task
     'the never-merged task\'s row keeps its recorded audit round but renders pinned sha unrecorded (fail-open, never invented)')
 })
 
+// ---------------------------------------------------------------------------
+// Phase 5 Task 2 (#1785) — consolidation fixtures: collapse fidelity (End state 7),
+// string seats (End state 8), :rebut lens carve-out (End state 21), requiresTest:false
+// evidence sha (End state 22), and the ask channel's sha provenance + gate-audit-family
+// routing + audit-sha validator (End state 23; #1691/#1692/#1693).
+// ---------------------------------------------------------------------------
+
+// Cross-task consolidation impl: t1 and t2 each raise ONE Minor on the same file, lines 100/105
+// (in the ±10 window) — a CROSS-seat, CROSS-task collapse. Gate-audit seats stay finding-less.
+const crossTaskImpl = (prompt, opts) => {
+  const seat = seatOf(opts)
+  if (seat === 'war-auditor') {
+    if ((opts.label || '').startsWith('gate-audit:'))
+      return { seat: opts.label, lens: 'execution-evidence', verdict: 'approve', findings: [], confidence: 'high' }
+    const f = (opts.label || '').startsWith('audit:t1')
+      ? { severity: 'Minor', title: 'stale enum comment', rationale: 'lags the new arm', file: 'src/a.js', line: 100 }
+      : { severity: 'Minor', title: 'comment misses the arm', rationale: 'same stale block', file: 'src/a.js', line: 105 }
+    return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [f], confidence: 'high' }
+  }
+  if (seat === 'war-refiner' && opts.dispatchKind === 'file-followups')
+    return { filed: [{ n: 1, issue: 42 }], clusters: [{ ordinals: [1], issue: 42 }] }
+  return handoffImpl(undefined)(prompt, opts)
+}
+
+test('collapse-fidelity (End state 7): a cross-task cross-seat collapse carries the merged-away title+rationale through the filing prompt, the issue-body instruction, handoff followUps, and the consolidation log; seats[] renders seat+task per row', async () => {
+  const { out, calls, logs } = await runPhase(PROVISION_ARGS(), crossTaskImpl)
+  assert.equal(out.landDecision, 'landed', 'presence guard: the phase landed')
+  assert.equal(out.minorsFiled.length, 1, 'the cross-task line-window duplicates (t1@100, t2@105, same file) collapse to one row')
+  // seats[] carries seat+task attribution on the CROSS-TASK collapse (D8 — both entries name their own task).
+  assert.deepEqual(out.minorsFiled[0].seats,
+    ['audit:t1:correctness (task t1)', 'audit:t2:correctness (task t2)'],
+    'seats[] carries seat+task for BOTH tasks on a cross-task collapse')
+  // merged[] fidelity: the merged-away row's title and rationale survive on the representative.
+  assert.deepEqual(out.minorsFiled[0].merged,
+    [{ seat: 'audit:t2:correctness (task t2)', title: 'comment misses the arm', rationale: 'same stale block' }],
+    'the merged-away row\'s title and rationale ride the survivor\'s merged[] sub-list')
+  const fp = calls.find(c => c.opts.dispatchKind === 'file-followups').prompt
+  // (1) the filing PROMPT renders the merged-away title+rationale on the candidate row…
+  assert.ok(fp.includes('merged corroborations: [audit:t2:correctness (task t2)] "comment misses the arm" — same stale block'),
+    'the candidate row renders the merged-away title and rationale (filing-prompt leg)')
+  // (2) …and the ISSUE-BODY instruction mandates carrying them into the filed issue.
+  assert.match(fp, /each merged-away finding's title and rationale \(the engine preserved them on the surviving row; they must reach the issue body, never drop\)/,
+    'the issue-body instruction mandates the merged-away title+rationale reach the issue body')
+  // (3) the HANDOFF followUps entry carries the merged[] projection.
+  const rep = out.handoff.followUps.find(f => f.reason.startsWith('stale enum comment'))
+  assert.ok(rep, 'the surviving row rides handoff.followUps')
+  assert.deepEqual(rep.merged,
+    [{ seat: 'audit:t2:correctness (task t2)', title: 'comment misses the arm', rationale: 'same stale block' }],
+    'handoff.followUps carries the merged-away title and rationale (handoff leg)')
+  // (4) the consolidation LOG line names the merged-away row verbatim.
+  const cons = logs.find(l => typeof l === 'string' && l.startsWith('file-followups consolidation:'))
+  assert.ok(cons && cons.includes('[audit:t2:correctness (task t2)] "comment misses the arm" — same stale block'),
+    'the consolidation log line carries the merged-away title and rationale (log leg)')
+})
+
+test('collapse-fidelity (End state 7, same-seat control): two rows from the SAME seat on the same file within the line window never collapse', async () => {
+  // Delete-the-feature: without the D8 cross-seat term in the collapse predicate, these two
+  // same-seat rows are a textbook file + line-window hit and would collapse — the length-2
+  // assertion goes red.
+  const findings = [
+    { severity: 'Minor', title: 'stale enum comment', rationale: 'r1', file: 'src/a.js', line: 100 },
+    { severity: 'Minor', title: 'comment misses the arm', rationale: 'r2', file: 'src/a.js', line: 105 },
+  ]
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-auditor' && !(opts.label || '').startsWith('gate-audit:'))
+      return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings, confidence: 'high' }
+    if (seat === 'war-refiner' && opts.dispatchKind === 'file-followups') return null
+    return handoffImpl(undefined)(prompt, opts)
+  }
+  const { out, logs } = await runPhase(HANDOFF_ARGS(), impl)
+  assert.equal(out.landDecision, 'landed', 'presence guard')
+  assert.equal(out.minorsFiled.length, 2, 'same-seat same-file rows within the window do NOT collapse (a seat repeating itself is not corroboration, D8)')
+  assert.ok(out.minorsFiled.every(m => !('seats' in m) && !('merged' in m)),
+    'neither surviving row gained a seats[]/merged[] corroboration list — no collapse happened at all')
+  assert.ok(!logs.some(l => typeof l === 'string' && l.startsWith('file-followups consolidation:')),
+    'no consolidation log line — the row count never shrank')
+})
+
+test('collapse-fidelity (End state 7, terminal arm): a seatless, taskless row still renders \'unattributed\' in the filing row', async () => {
+  // Findings are auditor-controlled JSON: an explicit seat:null overrides the minorsOf seat stamp
+  // and task:null overrides the routing task stamp (spread-last wins) — the seatRef terminal arm
+  // is the live contract the Evidence-artifacts clause names verbatim.
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-auditor')
+      return { seat: opts.label, lens: 'correctness', verdict: 'approve', confidence: 'high',
+        findings: (opts.label || '').startsWith('gate-audit:') ? []
+          : [{ severity: 'Minor', title: 'orphan row', rationale: 'r', file: 'q.js', seat: null, task: null }] }
+    if (seat === 'war-refiner' && opts.dispatchKind === 'file-followups') return null
+    return handoffImpl(undefined)(prompt, opts)
+  }
+  const { out, calls } = await runPhase(HANDOFF_ARGS(), impl)
+  assert.equal(out.landDecision, 'landed', 'presence guard: the seatless row never threw the filing block')
+  const fp = calls.find(c => c.opts.dispatchKind === 'file-followups').prompt
+  assert.match(fp, /"orphan row"[^\n]* · seats: unattributed/,
+    'the seatless, taskless row renders the \'unattributed\' terminal arm in row position')
+})
+
+test('string-seats-fixture (End state 8): an auditor-supplied string `seats` on a NON-collapsing row renders via the Array.isArray fallback without throwing — landDecision stays landed', async () => {
+  // Delete-the-feature: a truthiness gate on m.seats would take the seats-join branch for this
+  // truthy, lengthful STRING — String.prototype.join does not exist, the row builder throws inside
+  // the filing block, and the batch dies. Array.isArray sends the row down the seatRef fallback.
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-auditor')
+      return { seat: opts.label, lens: 'correctness', verdict: 'approve', confidence: 'high',
+        findings: (opts.label || '').startsWith('gate-audit:') ? []
+          : [{ severity: 'Minor', title: 'string seats row', rationale: 'r', file: 'p.js', line: 3, seats: 'audit:bogus' }] }
+    if (seat === 'war-refiner' && opts.dispatchKind === 'file-followups') return null
+    return handoffImpl(undefined)(prompt, opts)
+  }
+  const { out, calls } = await runPhase(HANDOFF_ARGS(), impl)
+  assert.equal(out.landDecision, 'landed', 'the string-seats row never converts a LANDED phase into held:workflow-error')
+  const fp = calls.find(c => c.opts.dispatchKind === 'file-followups').prompt
+  assert.match(fp, /"string seats row"[^\n]* · seats: audit:t1:correctness \(task t1\)/,
+    'the row renders via the seatRef fallback (Array.isArray gate) — never the raw string, never a throw')
+  assert.equal(out.handoff.followUps.length, 1, 'the row still rides the handoff (the batch survived)')
+})
+
+test('rebut-lens (End state 21): a `:rebut`-suffixed seat label rides the filing row and the Evidence-artifacts clause carves the suffix out of lens extraction — prompt and file-followups.md mirror both carry the carve-out (drift row)', async () => {
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-auditor')
+      // Auditor-supplied seat label with the rebuttal-round dispatch suffix — minorsOf stamps it
+      // onto the row verbatim, so the filing agent sees 'audit:t1:correctness:rebut (task t1)'.
+      return { seat: 'audit:t1:correctness:rebut', lens: 'correctness', verdict: 'approve', confidence: 'high',
+        findings: (opts.label || '').startsWith('gate-audit:') ? []
+          : [{ severity: 'Minor', title: 'rebut-raised row', rationale: 'r', file: 'r.js' }] }
+    if (seat === 'war-refiner' && opts.dispatchKind === 'file-followups') return null
+    return handoffImpl(undefined)(prompt, opts)
+  }
+  const { out, calls } = await runPhase(HANDOFF_ARGS(), impl)
+  assert.equal(out.landDecision, 'landed', 'presence guard')
+  const fp = calls.find(c => c.opts.dispatchKind === 'file-followups').prompt
+  assert.match(fp, /"rebut-raised row"[^\n]* · seats: audit:t1:correctness:rebut \(task t1\)/,
+    'the :rebut-suffixed seat label rides the candidate row (the carve-out has a live subject)')
+  // The Evidence-artifacts clause instructs extracting the TRUE lens: the suffix is a dispatch
+  // label, never the lens — the segment BEFORE it is the lens ('correctness' here, not 'rebut').
+  assert.ok(fp.includes('a trailing `:rebut` is a dispatch label, never the lens: take the segment before it'),
+    'the emitted Evidence-artifacts clause carries the :rebut lens carve-out verbatim')
+  // Mirror drift row (standing/dispatched split): the standing file-followups.md carries the same
+  // carve-out — em-dash variant of the same instruction.
+  const ffMd = readFileSync(join(here, '../references/file-followups.md'), 'utf8')
+  assert.ok(ffMd.includes('a trailing `:rebut` is a dispatch label, never the lens — take the segment before it'),
+    'file-followups.md mirrors the :rebut lens carve-out (standing-surface leg of the split rule)')
+})
+
+test('evidence-sha (End state 22): auditEvidenceOf renders a REAL landed sha (never unrecorded) for a merged requiresTest:false task via the landedShaByTask retention', async () => {
+  // The D7 skip means a requiresTest:false task has NO post-merge gate-audit auditLog entry —
+  // before the retention, its pinned sha fell to 'unrecorded'. Delete-the-feature: remove the
+  // landedShaByTask fallback from auditEvidenceOf and the pinned-sha pin below goes red.
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-auditor')
+      return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [handoffMinorF], confidence: 'high' }
+    if (seat === 'war-refiner' && opts.dispatchKind === 'file-followups')
+      return { filed: [{ n: 1, issue: 9 }], clusters: [{ ordinals: [1], issue: 9 }] }
+    return handoffImpl(undefined)(prompt, opts)
+  }
+  const args = PROVISION_ARGS({ tasks: [
+    { id: 't1', issue: 101, title: 'Docs task', planSlice: 's', roster: [{ lens: 'correctness' }], requiresTest: false },
+  ] })
+  const { out, calls } = await runPhase(args, impl)
+  assert.equal(out.landDecision, 'landed', 'presence guard: the phase landed')
+  assert.ok(!calls.some(c => (c.opts.label || '').startsWith('gate-audit:t1')),
+    'the D7 skip held — no gate-audit seat for the requiresTest:false task (the fallback, not a gate-audit entry, must source the sha)')
+  const fp = calls.find(c => c.opts.dispatchKind === 'file-followups').prompt
+  assert.match(fp, /pinned sha beefcafe12/,
+    'the requiresTest:false task\'s row renders its REAL landed integration tip (landedShaByTask retention)')
+  assert.doesNotMatch(fp, /pinned sha unrecorded/,
+    'no row falls to the unrecorded arm — the merged task\'s sha is in hand')
+})
+
+test('ask-routing (End state 23, #1691): a parked ask from a seat echoing a REAL audit_sha carries that sha into asks[] and handoff.asks[].sha — the positive-value leg of the sha provenance pin', async () => {
+  // The seat echoes the dispatched pin (the worker's committed tip 'deadbeef') as audit_sha, so
+  // the pin-mismatch strip stays unhit and minorsOf stamps the validated sha onto the parked ask.
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-auditor')
+      return { seat: opts.label, lens: 'correctness', verdict: 'approve', confidence: 'high', audit_sha: 'deadbeef',
+        findings: (opts.label || '').startsWith('gate-audit:') ? [] : [askFinding()] }
+    if (seat === 'war-refiner' && opts.dispatchKind === 'file-followups') return null
+    return handoffImpl(undefined)(prompt, opts)
+  }
+  const { out } = await runPhase(HANDOFF_ARGS(), impl)
+  assert.equal(out.landDecision, 'landed', 'presence guard: an open ask never blocks the land')
+  assert.equal((out.asks || []).length, 1, 'exactly one parked ask')
+  assert.equal(out.asks[0].sha, 'deadbeef', 'asks[].sha carries the seat\'s real audit_sha verbatim (positive value, not null)')
+  assert.equal(out.handoff.asks[0].sha, 'deadbeef', 'handoff.asks[].sha carries the same validated sha (the lossy projection preserves provenance)')
+})
+
+test('ask-routing (End state 23, #1692): a gate-audit-family seat\'s disposition:\'ask\' Minor reaches asks[] — the comment-named lane parks, never sinks', async () => {
+  // The gate-audit seat echoes the pin (gateHeadSha = the merge result's integration_sha) as
+  // audit_sha, so the pin-mismatch exclusion stays unhit and the ask parks with that sha.
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-auditor') {
+      if ((opts.label || '').startsWith('gate-audit:'))
+        return { seat: opts.label, lens: 'execution-evidence', verdict: 'approve', confidence: 'high',
+          audit_sha: 'beefcafe12', findings: [askFinding({ title: 'gate-audit ask' })] }
+      return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [], confidence: 'high' }
+    }
+    if (seat === 'war-refiner' && opts.dispatchKind === 'file-followups') return null
+    return handoffImpl(undefined)(prompt, opts)
+  }
+  const { out } = await runPhase(HANDOFF_ARGS(), impl)
+  assert.equal(out.landDecision, 'landed', 'presence guard: a gate-audit Minor is SOFT — never a hold')
+  const a = (out.asks || []).find(x => x && x.seat === 'gate-audit:t1:execution-evidence')
+  assert.ok(a, 'the gate-audit-family ask parked on asks[] with the family\'s synthetic seat label')
+  assert.equal(a.task, 't1', 'the parked ask carries the audited task')
+  assert.equal(a.sha, 'beefcafe12', 'the parked ask carries the seat\'s pin-equal audit_sha')
+  assert.equal(a.question, 'mirror the value or point at the source?', 'the question rides the record')
+  assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'gate-audit ask'),
+    'the ask never enters minorsFiled (parked, not filed unruled)')
+})
+
+test('ask-routing (End state 23, #1693): a ref-expression/free-text audit_sha never reaches asks[].sha verbatim — the audit-sha sentinel renders; and the validator\'s regex cannot drift from isSha (sibling-copy drift row)', async () => {
+  // pinMismatch fails open on a non-sha audit_sha (no strip), but auditShaOrSentinel refuses it:
+  // the operator-facing asks[].sha gets the sentinel, never the raw ref expression.
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-auditor')
+      return { seat: opts.label, lens: 'correctness', verdict: 'approve', confidence: 'high', audit_sha: 'HEAD~2',
+        findings: (opts.label || '').startsWith('gate-audit:') ? [] : [askFinding()] }
+    if (seat === 'war-refiner' && opts.dispatchKind === 'file-followups') return null
+    return handoffImpl(undefined)(prompt, opts)
+  }
+  const { out } = await runPhase(HANDOFF_ARGS(), impl)
+  assert.equal(out.landDecision, 'landed', 'presence guard')
+  assert.equal((out.asks || []).length, 1, 'the ask still parks (the sentinel is a value fix, never a drop)')
+  assert.equal(out.asks[0].sha, '(audit_sha unrecorded/malformed)',
+    'a free-text audit_sha renders the sentinel on asks[].sha')
+  assert.equal(out.handoff.asks[0].sha, '(audit_sha unrecorded/malformed)',
+    'the handoff projection carries the sentinel too — HEAD~2 never reaches an operator-facing sha field')
+  assert.ok(!JSON.stringify(out.asks).includes('HEAD~2') && !JSON.stringify(out.handoff.asks).includes('HEAD~2'),
+    'the raw ref expression appears NOWHERE in the ask records (verbatim leak proof)')
+  // Sibling-copy drift row: auditShaOrSentinel is a sanctioned self-contained copy of the isSha
+  // hex test (#393 extract-and-eval convention) — extract both regex literals from the source and
+  // pin them equal, so the copy can never silently drift from the canonical shape.
+  const arrowLine = src.split('\n').find(l => l.startsWith('const auditShaOrSentinel'))
+  const isShaLine = src.split('\n').find(l => l.startsWith('const isSha'))
+  assert.ok(arrowLine, 'the auditShaOrSentinel validator arrow exists at module scope (declared above minorsOf)')
+  assert.ok(isShaLine, 'the canonical isSha arrow exists')
+  const rxOf = (line, name) => {
+    const m = line.match(/\/([^/]+)\/\.test\(/)
+    assert.ok(m, `${name} carries an inline regex-literal hex test`)
+    return m[1]
+  }
+  assert.equal(rxOf(arrowLine, 'auditShaOrSentinel'), rxOf(isShaLine, 'isSha'),
+    'the sanctioned sibling copy\'s regex source equals isSha\'s — the copy cannot drift')
+  // Extract-and-eval unit cases on the validator itself (the #393 convention).
+  const auditShaOrSentinel = new Function('return ' + arrowLine.replace(/^const auditShaOrSentinel = /, ''))()
+  assert.equal(auditShaOrSentinel(null), null, 'null stays null (absence-tolerant)')
+  assert.equal(auditShaOrSentinel('deadbeef'), 'deadbeef', 'a real hex sha passes verbatim')
+  assert.equal(auditShaOrSentinel('HEAD~2'), '(audit_sha unrecorded/malformed)', 'a ref expression collapses to the sentinel')
+  assert.equal(auditShaOrSentinel('origin/main'), '(audit_sha unrecorded/malformed)', 'a branch ref collapses to the sentinel')
+})
+
 test('handoff OMITTED on held:workflow-error (infra death — no trustworthy return to render)', async () => {
   const args = PROVISION_ARGS({ tasks: [{ id: 't1', issue: 101, title: 'T', planSlice: 's' }] })   // no roster → phase-start throw
   const fn = build()
