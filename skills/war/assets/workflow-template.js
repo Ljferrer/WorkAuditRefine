@@ -387,8 +387,9 @@ const NS = A.agentPrefix ?? 'work-audit-refine:'
 // (exit 0, gh never invoked), so an unconfigured run pays nothing and no handle rides committed prose.
 const ghUser = (typeof A.ghUser === 'string') ? A.ghUser : ''
 // Hand-mirrored fallback of DEFAULTS.run.roundLimit (war-config.mjs) — the sandbox cannot import;
-// keep the two literals in lock-step. 6 is priced for the ace bisection ladder: one fix round +
-// the batch commit + a single-failing-branch descent through depth 2.
+// keep the two literals in lock-step. 6 is the fix-round budget; the ace bisection ladder draws
+// only up to roundLimit − 2 of it (2 slots stay reserved for the merge-floor retry loop), so the
+// priced depth-2 descent is bounded accordingly.
 const roundLimit = run.roundLimit ?? 6
 // maxParallel (#1722): per-group fan-out throttle for rate-limited accounts — threaded exactly like
 // roundLimit from run.maxParallel, but with NO numeric fallback: absent/null/malformed ⇒ null ⇒
@@ -880,7 +881,7 @@ const dispositionOf = f =>
 // asks[] parking (#1550, D1 — the ask channel): a disposition:'ask' Minor/Nit parks in the run
 // artifact and is ruled by the operator at the Checkpoint strike-list gate — NEVER filed unruled
 // (the follow-up consolidation and the file-followups dispatch read minorsFiled only), never
-// dropped. Exactly-once membership by finding identity: every route into asks[] — the six
+// dropped. Exactly-once membership by finding identity: every route into asks[] — the eight
 // dispositionOf-site ask arms, the three gate-audit-family comment-named ask arms (#1692 — lanes
 // with no absorb chain, so no dispositionOf call site in the census; their identity check IS the classifier's
 // never-defaulted ask arm), AND the demote() ask refusal — funnels through here, so one finding
@@ -897,10 +898,12 @@ const parkAsk = f => {
 }
 // Terminal-disposition demotion ladder (ADR 0013): demote one step toward durability, never drop
 // silently — EVERY demotion is log()ged. Arms: failed absorb → follow-up (a fresh re-audit absorb
-// after the batch ace is spent / dead ace worker / ace unavailable / --ace off, plus the seven
+// after the batch ace is spent OR after the batch regressed into the ladder / dead ace worker /
+// ace unavailable / --ace off, plus the seven
 // aceBisect bisection arms: named
 // culprits of a re-audit regression, an all-culprit batch, an ambiguous-and-atomic batch
-// (unhalvable single file group — demotes whole), budget exhaustion mid-bisection, a subset worker
+// (unhalvable single file group — demotes whole), the fix budget reaching the floor-retry reserve
+// (roundLimit − 2) mid-bisection, a subset worker
 // returning no usable head_sha abandoning the bisection, a re-audit round's own fresh absorb while
 // the budget is committed to the bisection in flight, and a finally-failing subset at the
 // depth/split floor); non-approve-branch findings → follow-up (filed with the escalation);
@@ -1241,6 +1244,10 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin) {
     // `Mechanism latitude:` clause; the D3 latitude registry row anchors it on both auditor surfaces.
     + pt`\nLATITUDE RULE: the plan slice is the floor, the Commander's Intent is the ceiling — intent-consistent work beyond the literal slice is APPROVE (judge it on its own correctness), never a plan-faithfulness violation; only deviations that contradict the intent or the slice block. No intent threaded means judge against the plan slice alone, as before. When the threaded intent carries an explicit \`Mechanism latitude:\` clause, read "contradicts the slice" against the binding guardrails, not against every pinned mechanism literal in the slice: a substitution inside the enumerated latitude that holds the guardrails and End states is APPROVE, never a plan-faithfulness finding; a substitution that breaches a guardrail or an End state blocks exactly as before.`
     + pt`\nDISPOSITION RULE: every Minor/Nit finding carries a disposition — absorb (mechanical, intent-consistent, safe to fix this phase; set phaseClose:true when the fix needs the integrated tip or touches a shared/slot-adjacent file), follow-up (substantive work beyond this phase — MUST state why it is not absorbable), note (informational; phase report + servitor feed, never an issue), or ask (a decision-shaped Minor/Nit only the operator can rule — MUST carry the \`ask\` field: \`question\` naming the decision needed plus \`fork\` naming the two branches; parked unruled and ruled at the Checkpoint, never filed unruled). Omitted disposition defaults: Minor becomes follow-up, Nit becomes note; absorb and ask are never defaults.`
+    // FINDING-PATH FORM (D12) — dispatched-prompt only, no standing-card behavior change: finding
+    // `file` values feed exact-string routing compares (ace culprit attribution normalizes only a
+    // leading `./` run), so the re-audit prompt mandates the repo-relative form at the source.
+    + pt`\nFINDING-PATH FORM: report every finding's \`file\` as a repo-relative path — never absolute, never \`./\`-prefixed; these values feed exact-string routing compares downstream.`
     // ESCALATE-BOUNDARY CONTRACT (gate-audit-finding-routing Task 2.1(a)+(b), #1410 fixes 1+2) —
     // mirrored on agents/war-auditor.md (the verdict list's escalate bullet + the Return shape line)
     // and in the schemas.md AuditVerdict row (same commit); the D3 both-surfaces registry row anchors
@@ -1705,9 +1712,11 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // Order (D2, culprit-first): named culprits are excised (demoted) and the remainder re-applies as
   // ONE subset; blind halving is reserved for AMBIGUOUS attribution. Subsets apply SERIALLY at the
   // tip with a hard depth cap of 2 (batch=0 → halves=1 → quarters=2; no run.* knob), and same-file
-  // findings never split across subsets (D3). Budget (D4): the batch charged one fixRounds slot;
-  // each SUBSET COMMIT charges one more; reverts are uncharged; panels stay unmetered; exhaustion
-  // mid-bisection demotes the remaining subsets to follow-up (logged — by design). Only FINALLY-
+  // findings never split across subsets (D3). Budget (D4 + Open decision 4): the batch charged one
+  // fixRounds slot; each SUBSET COMMIT charges one more; reverts are uncharged; panels stay
+  // unmetered; subset commits dispatch only while fixRounds < roundLimit − 2 (2 slots reserved for
+  // the merge-floor retry loop), and hitting the reserve mid-bisection demotes the remaining
+  // subsets to follow-up (logged — by design). Only FINALLY-
   // failing subsets demote (unsplittable, or a depth-2 regressor).
   // THE LOOP OWNS IN-LOOP FORWARD-REVERTS: each failed commit is reverted at the tip before the next
   // subset commits — the revert step rides the NEXT subset dispatch, conditional on HEAD still being
@@ -1728,13 +1737,18 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     const mid = Math.ceil(g.length / 2)
     return [g.slice(0, mid).flat(), g.slice(mid).flat()]
   }
+  // Culprit-path form (D12): BOTH sides of the culprit `has()` compare are normalized to
+  // repo-relative form with any leading `./` run stripped, so a `./`-prefixed report and a bare
+  // plan path attribute identically. Non-strings pass through untouched (filtered as falsy below).
+  const aceRelPath = p => typeof p === 'string' ? p.replace(/^(?:\.\/)+/, '') : p
   const aceBisect = async (r, aceable, batchSha, regressionSeats) => {
     // Culprit attribution: a regression blocking finding NAMES a culprit when its file matches an
-    // aceable finding's file (parsing-shape latitude). Empty attribution is ambiguous (blind
-    // halving); total attribution leaves nothing to salvage — the batch finally fails whole.
-    const culpritFiles = new Set(blockingOf(regressionSeats).map(f => f.file).filter(Boolean))
-    const culprits = aceable.filter(f => culpritFiles.has(f.file))
-    const rest = aceable.filter(f => !culpritFiles.has(f.file))
+    // aceable finding's file (parsing-shape latitude; both sides aceRelPath-normalized). Empty
+    // attribution is ambiguous (blind halving); total attribution leaves nothing to salvage — the
+    // batch finally fails whole.
+    const culpritFiles = new Set(blockingOf(regressionSeats).map(f => aceRelPath(f.file)).filter(Boolean))
+    const culprits = aceable.filter(f => culpritFiles.has(aceRelPath(f.file)))
+    const rest = aceable.filter(f => !culpritFiles.has(aceRelPath(f.file)))
     let queue
     if (culprits.length && rest.length) {
       for (const f of culprits) demote(f, 'follow-up', 'failed absorb — named culprit of the ace re-audit regression (culprit-first excision); the batch commit is forward-reverted')
@@ -1757,9 +1771,15 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     let pendingRevert = batchSha                         // failed tip commit not yet reverted in-loop
     while (queue.length) {
       const sub = queue.shift()
-      if (r.task.fixRounds >= roundLimit) {
+      // Floor-retry reserve (Open decision 4): subset commits dispatch only while
+      // fixRounds < roundLimit − 2 — so bisection SUBSET commits never pre-drain the last 2
+      // slots ahead of the merge-floor retry loop, which shares run.roundLimit. The reserve is a
+      // bisection-ladder bound only, not a whole-ace-path guarantee: the batch ace keeps its own
+      // `< roundLimit` gate (Open decision 4 scopes the reserve to subset commits).
+      if (r.task.fixRounds >= roundLimit - 2) {
+        log(`ace-bisect ${r.task.id}: ladder stopped — fixRounds ${r.task.fixRounds} reached roundLimit−2 (${roundLimit - 2}); 2 slots stay reserved for the merge-floor retry loop, remaining subsets demote to follow-up`)
         for (const q of [sub, ...queue.splice(0)])
-          for (const f of q.findings) demote(f, 'follow-up', 'failed absorb — fix budget exhausted mid-bisection; the remaining subsets demote by design')
+          for (const f of q.findings) demote(f, 'follow-up', 'failed absorb — fix budget reached the floor-retry reserve mid-bisection (subset commits dispatch only while fixRounds < roundLimit − 2); the remaining subsets demote by design')
         break
       }
       // Deterministic trailer value (shape latitude): task id + the subset's sorted file set —
@@ -1771,9 +1791,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       const sw = await agent(
         pt`ACE BISECTION SUBSET for WAR task ${r.task.id} (a regressed --ace batch re-applied in subsets). Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — never create it; cd there.\n`
         + revertStep
-        + pt`PREFLIGHT (resume idempotency): scan the BISECTION RANGE (e.g. \`git -C ${r.task.worktree} log --format='%H %(trailers:key=Ace-Subset,valueonly)' ${batchSha}^..HEAD\`) — never the tip alone; on a commit already carrying \`Ace-Subset: ${trailer}\`, return its sha as head_sha WITHOUT committing.\n`
+        + pt`PREFLIGHT (resume idempotency): scan the BISECTION RANGE (e.g. \`git -C ${r.task.worktree} log --format='%H %(trailers:key=Ace-Subset,valueonly)' ${batchSha}^..HEAD\`) — never the tip alone; compare each extracted trailer value (whitespace-trimmed) to \`${trailer}\` by EXACT whole-string equality — never a prefix or substring match (a subset's trailer value can be a strict prefix of a later, wider sibling's); on an exact-equal match, return that commit's sha as head_sha WITHOUT committing.\n`
         + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
-        + pt`Apply the smallest mechanical fix for EACH finding below, keep the gate green, and make EXACTLY ONE commit citing each finding's title + rationale, its message ENDING with the trailer line \`Ace-Subset: ${trailer}\` (the panel re-audits the new sha; a regression is forward-reverted):\n`
+        + pt`Apply the smallest mechanical fix for EACH finding below, keep the gate green, and make EXACTLY ONE commit citing each finding's title + rationale, its message ENDING with the trailer line \`Ace-Subset: ${trailer}\` as its OWN final paragraph, separated from the body by a blank line — git parses trailers only in a distinct final block (the panel re-audits the new sha; a regression is forward-reverted):\n`
         // pt-tagged prompt-feeding rows (subset prompt, top-level-catch): f.severity is construction-
         // guaranteed (sub.findings ⊆ aceable); title/file/rationale schema-optional → ?? '' absence-tolerant.
         + sub.findings.map((f, i) => pt`${i + 1}. [${f.severity}] ${f.title ?? ''} (${f.file ?? ''}${f.line ? ':' + f.line : ''}) — ${f.rationale ?? ''}${f.suggested_fix ? pt` → ${f.suggested_fix}` : ''}`).join('\n') + '\n'
@@ -1808,6 +1828,17 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         }
       } else {
         pendingRevert = subSha                           // reverted by the NEXT dispatch, or the merge clause if final
+        // Fold (#1694): the FAILING subset's re-audit round's OWN Minor/Nits route by disposition
+        // too, mirroring the approved arm — an ask parks, never drops; a fresh absorb takes the
+        // failed-absorb demotion (the ladder never re-enters for findings it did not start with).
+        // Blocking findings stay untouched — they are this arm's regression signal, not routable.
+        for (const f of minorsOf(subSeats).map(x => ({ task: r.task.id, ...x }))) {
+          const d = dispositionOf(f)
+          if (d === 'ask') parkAsk(f)               // ask precedes the absorb chain (#1550, D7)
+          else if (d === 'follow-up') minorsFiled.push(f)
+          else if (d === 'note') notes.push(f)
+          else demote(f, 'follow-up', 'failed absorb — the ace budget is committed to the bisection in flight (re-audit round finding)')
+        }
         const halves = sub.depth < 2 ? aceHalve(sub.findings) : null
         if (halves) queue.unshift(...halves.map(fs => ({ findings: fs, depth: sub.depth + 1 })))
         else for (const f of sub.findings) demote(f, 'follow-up', 'failed absorb — subset regressed on re-audit at the depth/split floor; the subset commit is forward-reverted')
@@ -1888,6 +1919,16 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             }
           } else {
             aceSha = null
+            // Fold (#1694): the REGRESSED re-audit round's OWN Minor/Nits route by disposition too,
+            // mirroring the approved arm — an ask parks, never drops. Blocking findings stay
+            // untouched: they are the ladder's culprit-attribution input below.
+            for (const f of minorsOf(reSeats).map(x => ({ task: r.task.id, ...x }))) {
+              const d = dispositionOf(f)
+              if (d === 'ask') parkAsk(f)           // ask precedes the absorb chain (#1550, D7)
+              else if (d === 'follow-up') minorsFiled.push(f)
+              else if (d === 'note') notes.push(f)
+              else demote(f, 'follow-up', 'failed absorb — the ace batch regressed and the ladder never opens for fresh findings (re-audit round finding)')
+            }
             // Regression (D1/D2): the bounded bisection ladder replaces the whole-batch demotion — it
             // owns the in-loop forward-reverts and sets r.aceSha / r.aceReverted / r.seats as it resolves.
             await aceBisect(r, aceable, ace.head_sha, reSeats)

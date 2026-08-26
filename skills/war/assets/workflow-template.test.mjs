@@ -3384,7 +3384,7 @@ test('bisection — a final failed tip not yet reverted in-loop rides the merge 
   assert.ok(out.landed.includes('t1'), 't1 lands')
 })
 
-test('bisection — budget: each subset COMMIT charges one fixRounds slot; exhaustion mid-bisection demotes the remaining subsets to follow-up (logged, by design) and the task still lands', async () => {
+test('bisection — budget: each subset COMMIT charges one fixRounds slot; the floor-retry reserve (roundLimit − 2) demotes the remaining subsets to follow-up (logged, by design) and the task still lands', async () => {
   const fa = nit({ title: 'fa nit', file: 'skills/fa.js' })
   const fb = nit({ title: 'fb nit', file: 'skills/fb.js' })
   const impl = buildSeqImpl({
@@ -3392,12 +3392,14 @@ test('bisection — budget: each subset COMMIT charges one fixRounds slot; exhau
     'ace:t1:r1': [bWorker('ace00001')],
     'ace:t1:r2': [bWorker('sub00001')],
   }, aceBase([fa, fb]))
-  // roundLimit 2: batch charges slot 1, subset 1 charges slot 2 — subset 2 finds the budget spent.
-  const { out, calls, logs } = await runPhase(ACE_ARGS({ run: { ace: true, roundLimit: 2 } }), impl)
-  assert.equal(calls.filter(isAce).length, 2, 'batch + one subset — the second subset is never dispatched (budget exhausted)')
+  // roundLimit 4 ⇒ subset boundary roundLimit − 2 = 2 (Open decision 4): batch charges slot 1,
+  // subset 1 charges slot 2 — subset 2 finds the reserve line reached (2 slots kept for the
+  // merge-floor retry loop).
+  const { out, calls, logs } = await runPhase(ACE_ARGS({ run: { ace: true, roundLimit: 4 } }), impl)
+  assert.equal(calls.filter(isAce).length, 2, 'batch + one subset — the second subset is never dispatched (floor-retry reserve reached)')
   assert.ok((out.aced || []).some(a => a.finding.title === 'fa nit' && a.sha === 'sub00001'), 'the committed subset aces')
   assert.ok((out.minorsFiled || []).some(m => m && m.title === 'fb nit'), 'the un-dispatched remainder demotes to follow-up')
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('exhausted mid-bisection')), 'the exhaustion demotion is logged, by design')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('reserved for the merge-floor retry loop')), 'the reserve-exhausted branch logs why the ladder stopped')
   assert.ok(out.landed.includes('t1'), 't1 lands')
   const audEntry = out.auditLog.find(e => e && e.task === 't1' && e.verdict === 'approve')
   assert.ok(audEntry, 'presence guard: the t1 approve entry exists')
@@ -3449,6 +3451,167 @@ test('bisection — a blocked/sha-less subset worker abandons the ladder: this a
     'the failed batch tip (never reverted in-loop — the blocked dispatch proves nothing) rides the HEAD-guarded merge revert clause')
   assert.ok(out.landed.includes('t1'), 't1 lands — the ladder never blocks a land')
   assert.ok(!(out.escalated || []).some(e => e && e.task === 't1'), 't1 is not escalated')
+})
+
+// ---------------------------------------------------------------------------
+// ace-trailer regression rows (Phase 7 Task 2, End state 11 — D12 trailer equality,
+// culprit-path normalization, Open decision 4 floor-retry reserve, #1694 fold):
+// the PREFLIGHT/commit mandates are prompt-enforced (the subset worker performs the
+// compare), so the exact-equality and final-paragraph rows pin the dispatched prompt
+// literals against a fixture whose sibling trailers ARE in strict-prefix relation;
+// path attribution and the reserve boundary are engine behavior and get functional rows.
+// ---------------------------------------------------------------------------
+
+test('bisection ace-trailer — a sibling strict-prefix trailer pair never matches under exact-value comparison: every subset dispatch mandates EXACT whole-string equality (never prefix/substring) and the final-paragraph trailer block', async () => {
+  // Files chosen so the two halves' deterministic trailer values are in STRICT-PREFIX relation
+  // ('t1:skills/aa.js' vs 't1:skills/aa.js.bak') — the exact collision class a prefix/substring
+  // preflight compare would false-hit on resume.
+  const f1 = nit({ title: 'aa nit', file: 'skills/aa.js' })
+  const f2 = nit({ title: 'bak nit', file: 'skills/aa.js.bak' })
+  const impl = buildSeqImpl({
+    'audit:t1:correctness': [bApprove([f1, f2]), bRegress('zz-unrelated.js'), bApprove(), bApprove()],
+    'ace:t1:r1': [bWorker('ace00001')],
+    'ace:t1:r2': [bWorker('sub00001')],
+    'ace:t1:r3': [bWorker('sub00002')],
+  }, aceBase([f1, f2]))
+  const { out, calls } = await runPhase(ACE_ARGS(), impl)
+  const aces = calls.filter(isAce)
+  assert.equal(aces.length, 3, 'batch + two blind halves (presence guard for the two subset prompts under test)')
+  // Fixture negative control: the sibling trailer values really are a strict-prefix pair — the
+  // exact-equality mandate is the ONLY thing keeping them distinguishable.
+  const trailerOf = c => { const m = c.prompt.match(/`Ace-Subset: ([^`]+)`/); return m && m[1] }
+  const [ta, tb] = [trailerOf(aces[1]), trailerOf(aces[2])]
+  assert.equal(ta, 't1:skills/aa.js', 'half 1 carries its own full deterministic trailer value')
+  assert.equal(tb, 't1:skills/aa.js.bak', 'half 2 carries its own full deterministic trailer value')
+  assert.ok(tb.startsWith(ta) && tb !== ta, 'fixture control: the pair IS a strict prefix — exact-value comparison is load-bearing')
+  for (const c of aces.slice(1)) {
+    assert.ok(c.prompt.includes('EXACT whole-string equality'),
+      'the PREFLIGHT mandates exact whole-string trailer-value equality (D12)')
+    assert.ok(c.prompt.includes('never a prefix or substring match'),
+      'the PREFLIGHT forbids prefix/substring trailer matching — a strict-prefix sibling never matches')
+    assert.ok(c.prompt.includes('OWN final paragraph, separated from the body by a blank line'),
+      'the commit instruction mandates the Ace-Subset trailer as its own blank-line-separated final paragraph (git parses trailers only in a distinct final block)')
+  }
+  // Both halves ace at their own shas — the strict-prefix pair resolved to distinct commits.
+  assert.ok((out.aced || []).some(a => a.finding.title === 'aa nit' && a.sha === 'sub00001'), 'half 1 aced at its sha')
+  assert.ok((out.aced || []).some(a => a.finding.title === 'bak nit' && a.sha === 'sub00002'), 'half 2 aced at its sha')
+})
+
+test('bisection ace-trailer — culprit-path form (D12): a `./`-prefixed regression path and a bare aceable path attribute identically, in BOTH directions, and the audit prompt mandates repo-relative finding paths', async () => {
+  // Direction 1: the REGRESSION finding is ./-prefixed, the aceable finding is bare.
+  const mkImpl = (aceFile, regressFile) => {
+    const fa = nit({ title: 'culprit nit', file: aceFile })
+    const fb = nit({ title: 'salvaged nit', file: 'skills/b.js' })
+    return buildSeqImpl({
+      'audit:t1:correctness': [bApprove([fa, fb]), bRegress(regressFile), bApprove()],
+      'ace:t1:r1': [bWorker('ace00001')],
+      'ace:t1:r2': [bWorker('sub00001')],
+    }, aceBase([fa, fb]))
+  }
+  for (const [aceFile, regressFile, dir] of [
+    ['skills/a.js', './skills/a.js', './-prefixed regression vs bare aceable'],
+    ['./skills/a.js', 'skills/a.js', 'bare regression vs ./-prefixed aceable'],
+  ]) {
+    const { out, calls } = await runPhase(ACE_ARGS(), mkImpl(aceFile, regressFile))
+    // Without aceRelPath normalization the compare misses ⇒ ambiguous blind halving (3 ace calls,
+    // no culprit demotion) — this count is the discriminating assertion.
+    assert.equal(calls.filter(isAce).length, 2,
+      `${dir}: culprit-first excision fires (batch + ONE remainder subset — never blind halving)`)
+    assert.ok((out.minorsFiled || []).some(m => m && m.title === 'culprit nit'),
+      `${dir}: the path-form-drifted culprit still demotes to follow-up`)
+    assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'salvaged nit' && a.sha === 'sub00001'),
+      `${dir}: the non-culprit remainder still aces`)
+    // The re-audit dispatches carry the source-side mandate closing the drift class at origin
+    // (auditPrompt seats only — the gate-audit family builds its own prompt, out of scope here).
+    const audits = calls.filter(c => isAuditor(c) && !(c.opts.label || '').startsWith('gate-audit:'))
+    assert.ok(audits.length && audits.every(c => c.prompt.includes('FINDING-PATH FORM')
+      && c.prompt.includes('never `./`-prefixed')),
+      `${dir}: every audit dispatch (re-audits included) mandates repo-relative, never ./-prefixed finding paths`)
+  }
+})
+
+test('bisection ace-trailer — floor-retry reserve (Open decision 4): the subset ladder stops at roundLimit − 2 mid-queue, leaving the merge-floor retry loop its 2 reserved slots; the stop is logged and the remainder demotes', async () => {
+  // roundLimit 5 ⇒ subset boundary 3. Charges: batch (1) → half [f1,f2] (2) regresses and splits
+  // → depth-2 [f1] (3) approves → [f2] and the untouched half [f3,f4] find the reserve line
+  // reached: exactly 2 of 5 slots remain for the merge-floor retry loop.
+  const f1 = nit({ title: 'f1 nit', file: 'skills/f1.js' })
+  const f2 = nit({ title: 'f2 nit', file: 'skills/f2.js' })
+  const f3 = nit({ title: 'f3 nit', file: 'skills/f3.js' })
+  const f4 = nit({ title: 'f4 nit', file: 'skills/f4.js' })
+  const impl = buildSeqImpl({
+    'audit:t1:correctness': [
+      bApprove([f1, f2, f3, f4]),
+      bRegress('zz-unrelated.js'),   // batch regresses, ambiguous ⇒ halves [f1,f2] [f3,f4]
+      bRegress('zz-unrelated.js'),   // [f1,f2] regresses ⇒ splits to [f1] [f2] ahead of [f3,f4]
+      bApprove(),                    // [f1] approves — the third and final charged slot
+    ],
+    'ace:t1:r1': [bWorker('ace00001')],
+    'ace:t1:r2': [bWorker('sub00001')],   // [f1,f2]
+    'ace:t1:r3': [bWorker('sub00002')],   // [f1]
+  }, aceBase([f1, f2, f3, f4]))
+  const { out, calls, logs } = await runPhase(ACE_ARGS({ run: { ace: true, roundLimit: 5 } }), impl)
+  // Without the reserve (a bare < roundLimit gate) [f2] would dispatch a 4th ace call.
+  assert.equal(calls.filter(isAce).length, 3, 'batch + two subsets — the ladder stops AT roundLimit − 2, never draws the reserved slots')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('reached roundLimit−2 (3)')
+    && l.includes('2 slots stay reserved for the merge-floor retry loop')),
+    'the reserve-exhausted branch logs the boundary value and why the ladder stopped')
+  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'f1 nit' && a.sha === 'sub00002'),
+    'the subset committed inside the budget still aces')
+  assert.ok(['f2 nit', 'f3 nit', 'f4 nit'].every(t => (out.minorsFiled || []).some(m => m && m.title === t)),
+    'the mid-queue remainder — the split sibling AND the untouched half — demotes to follow-up')
+  assert.ok(out.landed.includes('t1'), 't1 still lands')
+})
+
+test('bisection ace-trailer — fold (#1694): an ask raised by the ace-regression re-audit round parks on asks[], never drops', async () => {
+  const fa = nit({ title: 'a nit', file: 'skills/a.js' })
+  const askMinor = { severity: 'Minor', title: 'regress-round ask', file: 'skills/q.js',
+    rationale: 'decision needed', disposition: 'ask', ask: { question: 'keep or revert?', fork: ['keep', 'revert'] } }
+  const regressWithAsk = { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'request_changes',
+    confidence: 'high', findings: [{ severity: 'Major', title: 'regressed', file: 'skills/a.js', rationale: 'broke' }, askMinor] }
+  const impl = buildSeqImpl({
+    'audit:t1:correctness': [bApprove([fa]), regressWithAsk],
+    'ace:t1:r1': [bWorker('ace00001')],
+  }, aceBase([fa]))
+  const { out } = await runPhase(ACE_ARGS(), impl)
+  const parked = (out.asks || []).find(a => a && a.question === 'keep or revert?')
+  assert.ok(parked, 'the ace-regression round\'s ask parks on asks[]')
+  assert.equal(parked.task, 't1', 'the parked ask carries task attribution')
+  assert.deepEqual(parked.fork, ['keep', 'revert'], 'the parked ask carries the fork verbatim')
+  assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'regress-round ask')
+    && !(out.notes || []).some(n => n && n.title === 'regress-round ask'),
+    'the ask is neither demoted into minorsFiled nor dropped into notes')
+  // The regression signal itself is untouched: the all-culprit batch still fails whole.
+  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'a nit'), 'the culprit batch finding still demotes (the ask routing never eats the ladder input)')
+  assert.ok(out.landed.includes('t1'), 't1 still lands')
+})
+
+test('bisection ace-trailer — fold (#1694): an ask raised by a FAILING bisection subset\'s re-audit parks on asks[], never drops', async () => {
+  const f1 = nit({ title: 'f1 nit', file: 'skills/f1.js' })
+  const f2 = nit({ title: 'f2 nit', file: 'skills/f2.js' })
+  const subRegressWithAsk = { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'request_changes',
+    confidence: 'high', findings: [
+      { severity: 'Major', title: 'sub regressed', file: 'zz-unrelated.js', rationale: 'broke' },
+      { severity: 'Nit', title: 'subset ask', file: 'skills/w.js', rationale: 'decision needed',
+        disposition: 'ask', ask: { question: 'split further?', fork: ['yes', 'no'] } },
+    ] }
+  const impl = buildSeqImpl({
+    'audit:t1:correctness': [bApprove([f1, f2]), bRegress('zz-unrelated.js'), subRegressWithAsk, bApprove()],
+    'ace:t1:r1': [bWorker('ace00001')],
+    'ace:t1:r2': [bWorker('sub00001')],   // [f1] — regresses with the ask riding the re-audit
+    'ace:t1:r3': [bWorker('sub00002')],   // [f2] — approves
+  }, aceBase([f1, f2]))
+  const { out } = await runPhase(ACE_ARGS(), impl)
+  const parked = (out.asks || []).find(a => a && a.question === 'split further?')
+  assert.ok(parked, 'the failing subset\'s re-audit ask parks on asks[]')
+  assert.equal(parked.task, 't1', 'the parked ask carries task attribution')
+  assert.deepEqual(parked.fork, ['yes', 'no'], 'the parked ask carries the fork verbatim')
+  assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'subset ask')
+    && !(out.notes || []).some(n => n && n.title === 'subset ask'),
+    'the ask is neither demoted into minorsFiled nor dropped into notes')
+  // The failing-subset arm's own mechanics are untouched by the routing.
+  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'f1 nit'), 'the finally-failing singleton subset still demotes at the depth/split floor')
+  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'f2 nit' && a.sha === 'sub00002'), 'the sibling subset still aces')
+  assert.ok(out.landed.includes('t1'), 't1 still lands')
 })
 
 // ---------------------------------------------------------------------------
@@ -4028,11 +4191,11 @@ test('#1550 — demote() refuses an ask loudly: log + exactly-once asks[] member
   assert.deepEqual(parked.fork, [], 'a finding without an `ask` field parks with fork falling back to []')
 })
 
-// Default-deny order-census (End states 1+2, D7 — the floored domain): exactly six dispositionOf
+// Default-deny order-census (End states 1+2, D7 — the floored domain): exactly eight dispositionOf
 // call sites, each carrying an explicit ask arm that PRECEDES its absorb chain, plus the
-// pinMismatch strip as the seventh row (a non-dispositionOf disposition sink, comment-named).
+// pinMismatch strip as the ninth row (a non-dispositionOf disposition sink, comment-named).
 // A NEW dispositionOf call site reds the count until it joins this census with its own ask arm.
-test('#1550 (D7) — ask order-census: six dispositionOf sites with ask preceding the absorb chain, default-deny, plus the comment-named pinMismatch strip row', () => {
+test('#1550 (D7) — ask order-census: eight dispositionOf sites with ask preceding the absorb chain, default-deny, plus the comment-named pinMismatch strip row', () => {
   // The classifier itself: the ask arm precedes the absorb chain inside dispositionOf.
   const defStart = src.indexOf('const dispositionOf')
   const def = src.slice(defStart, src.indexOf('const parkAsk', defStart))
@@ -4041,8 +4204,10 @@ test('#1550 (D7) — ask order-census: six dispositionOf sites with ask precedin
   // Call-site domain discovery (default-deny): every dispositionOf( occurrence in the source.
   const sites = []
   for (let i = src.indexOf('dispositionOf('); i !== -1; i = src.indexOf('dispositionOf(', i + 1)) sites.push(i)
-  assert.equal(sites.length, 6,
-    `the floored order-census domain is exactly SIX dispositionOf call sites (found ${sites.length}) — a new site must join this census with its own ask arm preceding its absorb chain`)
+  // 6 → 8 (#1694 fold, Phase 7 Task 1): the ace-regression branch and the failing-subset arm each
+  // gained their own disposition ladder — an ask raised on either arm parks, never drops.
+  assert.equal(sites.length, 8,
+    `the floored order-census domain is exactly EIGHT dispositionOf call sites (found ${sites.length}) — a new site must join this census with its own ask arm preceding its absorb chain`)
   const ABSORB_CHAIN = /demote\(|aceable\.push|phaseCloseQueue\.push/
   for (const i of sites) {
     const slice = src.slice(i, i + 700)
@@ -4062,7 +4227,7 @@ test('#1550 (D7) — ask order-census: six dispositionOf sites with ask precedin
   const stripIdx = src.indexOf("({ disposition, autoFixable, ...f })")
   const stripComment = src.slice(Math.max(0, stripIdx - 2000), stripIdx)
   assert.ok(/the ask member included/.test(stripComment) && /never parks/.test(stripComment),
-    "the pinMismatch strip comment NAMES the ask member and states a pin-mismatched ask never parks (the census's seventh row)")
+    "the pinMismatch strip comment NAMES the ask member and states a pin-mismatched ask never parks (the census's ninth row)")
 })
 
 // --- Dep-wave visibility (criterion 4) + force-with-lease carve-out ---
@@ -9642,6 +9807,7 @@ const LITERAL_REGISTRY = [
   ["fix:${task.id}:r${round + 1}`, schema: WORKE"],
   ["engine error during work/audit: ${err.messag"],
   ["gate-audit: skipping ${task.id} (requiresTes"],
+  ["ace-bisect ${r.task.id}: ladder stopped — fi"],
   ["ace:${r.task.id}:r${r.task.fixRounds + 1}`, "],
   ["failed absorb — ${aceWhy || 'ace worker retu"],
   ["${worktreeRoot || '<worktreeRoot>'}/${runId ", 4],
