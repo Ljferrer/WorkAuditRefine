@@ -938,11 +938,11 @@ const blockedReason = r => !r ? 'worker returned no result'
 // Infra-death classification (#1411): a POST-SPAWN harness death (API/quota/transport — the seat
 // spawned, then the harness died out from under it) is an environment event, not a code defect. The
 // classification is scoped STRUCTURALLY, never by message text alone (relaunch fix): dispatchAgent
-// wraps the wave thunk's direct agent() dispatches — plus provisionStep's provision-run, the
-// polish-worktree provision, and the sweep dispatch (Phase 6 Task 1 (c)); the provision-BARRIER also
-// routes through it for the TAG alone, with no local catch (its death stays held:workflow-error) —
-// in their OWN try/catch and TAGS a throw that
-// crossed the dispatch boundary; infraDeathCause classifies 'env-died' (a SOFT_ENV_REASONS member
+// wraps every routed agent() dispatch — the wave thunk's worker/fix dispatches, provisionStep's
+// provision-run, the polish-worktree provision, and the sweep dispatch (Phase 6 Task 1 (c)) — in
+// its OWN try/catch and TAGS a throw that crossed the dispatch boundary. The provision-BARRIER
+// routes through it for the TAG alone: it has no local catch, so its death still rethrows into the
+// top-level catch (held:workflow-error). infraDeathCause classifies 'env-died' (a SOFT_ENV_REASONS member
 // beside env-blocked — the mirror at the land decision) ONLY for a TAGGED throw whose message
 // matches this pattern set, propagating the harness cause verbatim into `blocked`
 // ('worker died: <cause>'). An error thrown anywhere ELSE in the thunk — a pt prompt build,
@@ -2746,8 +2746,8 @@ const refineryLandPath = `${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId
 // Drain-cause stamp (Phase 6 Task 1 (d)): when a phase-close DISPATCH DIES (polish-worktree
 // provision or the sweep worker — a tagged env-died throw, or a dead dispatch returning nothing),
 // every finding the resulting drain demotes carries WHICH dispatch died and WHY it was demoted — an
-// in-band field on the finding row (rides minorsFiled and the escalation records; the field name is
-// mechanism latitude), replacing the flat untriaged dump. Ordinary non-death drains (held phase,
+// in-band field on the finding row (rides minorsFiled — the phase return's follow-up debt; the
+// field name is mechanism latitude), replacing the flat untriaged dump. Ordinary non-death drains (held phase,
 // invalid roster, panel non-approval) stay unstamped — they were never "a dispatch died".
 const stampDrainCause = (f, dispatch, why) => { f.drainCause = { dispatch, why }; return f }
 let polishStatus = 'skipped'
@@ -2902,7 +2902,7 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
       auditLog.push({ task: polishTask.id, verdict: 'polish-discarded', branch: polishBranch, findings: [], blocked: sweepWhy || null })
       // Dispatch-death drains stamp the drain cause (d): the env-died throw (sweepDeath) or a dead
       // dispatch that returned nothing; a live sweep discarded on panel/merge grounds stays unstamped.
-      const sweepDrainCause = sweepDeath || (sweep === null ? 'polish:phase-' + ph.id + ' sweep dispatch died (returned no result)' : null)
+      const sweepDrainCause = sweepDeath || (!sweep ? 'polish:phase-' + ph.id + ' sweep dispatch died (returned no result)' : null)
       for (const f of phaseCloseQueue.splice(0)) {
         if (sweepDrainCause) stampDrainCause(f, 'polish:phase-' + ph.id, sweepDrainCause)
         demote(f, 'follow-up', sweepDrainCause ? sweepDrainCause + ' — the polish branch never merged; the pre-polish tip lands' : 'phase-close sweep discarded — the polish branch never merged; the pre-polish tip lands')
