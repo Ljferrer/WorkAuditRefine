@@ -881,10 +881,10 @@ death has no trustworthy return to render).
 **Drain cause**:
 The stamped reason a demoted absorb finding was fail-open-routed to follow-up — recorded per
 finding when a phase-close polish dispatch dies, so the drain is attributable instead of a bare
-follow-up dump. Defined but not yet emitted — the stamp lands in the engine-reliability plan's
-Phase 6 (land/phase-close robustness); the field name is engine-owned.
+follow-up dump. Emitted by `workflow-template.js`'s phase-close polish-dispatch drain path; the
+field name is engine-owned.
 _Avoid_: disposition (the stamp records *why demoted*, never the route chosen); reading a missing
-stamp as a clean route before the stamp ships.
+stamp as a clean route.
 
 ### Test discipline
 
@@ -1579,8 +1579,7 @@ budgeting `references/` (cold storage is unbudgeted, like `archive/`); not the i
 The machine-checkable citation a merge diff must carry when it *raises* any `hard:`/`advisory:`
 ceiling constant in `prompt-surface-budgets.test.mjs` — a `Budget-Raise:` commit trailer citing
 ADR 0042, the surface, and the byte delta (exact form: `assert-budget-raise-cited.sh`, which
-refuses an uncited raise). Ratchet-downs need no trailer. Defined but not yet emitted — the
-citation floor lands in the engine-reliability plan's Phase 2.
+refuses an uncited raise, a landed merge-path floor). Ratchet-downs need no trailer.
 _Avoid_: prose justification alone (the floor greps the trailer, not the commit body's argument).
 
 **Prose temperature**:
