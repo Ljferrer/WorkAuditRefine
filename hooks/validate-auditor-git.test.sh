@@ -670,7 +670,7 @@ expect_deny "K4: git blame -L 1,+5; rm -rf . → denied (semicolon composition s
 # after the empty-command guard, so "git diff HEAD && git log" can only exit at the
 # forbidden-char deny site — a future teach-vocabulary overlap at another deny site
 # cannot make any of these assertions pass vacuously.
-# K5 pins the prefix tail "forbidden character(s):" plus the head -c 20 residue echo at
+# K5 pins the prefix tail "forbidden character(s):" plus the 20-char residue echo at
 # the front (the leading "command contains" fragment rides along, unpinned by itself).
 expect_deny_teach "K5: git diff HEAD && git log → denied + byte-preserved prefix and residue echo" \
   "$(auditor_cmd "git diff HEAD && git log")" "forbidden character(s): &&"
@@ -776,6 +776,19 @@ expect_deny_teach "M4: git grep 'a\\|b' (mixed residue) → denied + metacharact
 # reaches the residue classifier's deny branches (chain-operator or otherwise).
 expect_allow "M5: git diff main...feature → still allowed (chain-operator classification leaves the allow path untouched)" \
   "$(auditor_cmd "git diff main...feature")"
+
+# M6: OVERSIZED forbidden-char payload still exits exactly 2 (fail-closed).
+# A pipeline-assignment residue echo (residue | tr | head -c 20) under
+# set -euo pipefail would SIGPIPE tr (141) once the residue exceeds the pipe
+# buffer (~16KB macOS / 64KB Linux), and a non-2 PreToolUse exit is
+# NON-BLOCKING — the denied command would proceed. expect_deny asserts rc=2
+# exactly (not merely non-zero), so a 141 crash reds this case, by design.
+# 70,000 '*' bytes clear both platforms' pipe capacities.
+_oversized_pad="$(printf '%*s' 70000 '' | LC_ALL=C tr ' ' '*')"
+expect_deny "M6: >64KB all-forbidden-char payload → still exit 2 (no SIGPIPE fail-open)" \
+  "$(jq -nc --arg c "git log $_oversized_pad" \
+     '{agent_type:"war-auditor",tool_input:{command:$c}}')"
+unset _oversized_pad
 
 # ---------------------------------------------------------------------------
 # Summary
