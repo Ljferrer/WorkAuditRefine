@@ -570,8 +570,19 @@ function main() {
       // JSON.stringify drops undefined, so an unconditional key would silently
       // DELETE an existing value when its flag is omitted (#422 items 4+6).
       const update = { plan: args.plan }
+      // String flags get the same typeof-gated refusal the numeric flags below
+      // carry: parseArgs maps a bare/valueless flag to boolean true, which would
+      // otherwise be stamped verbatim into the ledger as a plausible-looking
+      // value. Refuse LOUDLY — one stderr line naming the flag and the offending
+      // token, exit 1 BEFORE any record() call — so a refused invocation leaves
+      // the ledger byte-identical.
       for (const key of ['status', 'branch', 'sha', 'stopPoint']) {
-        if (Object.prototype.hasOwnProperty.call(args, key)) update[key] = args[key]
+        if (!Object.prototype.hasOwnProperty.call(args, key)) continue
+        if (typeof args[key] !== 'string') {
+          console.error(`campaign-ledger record: --${key} requires a string value (got '${args[key]}')`)
+          process.exit(1)
+        }
+        update[key] = args[key]
       }
       // Numeric flags (--pr, --redteamRounds — the latter is the plan's
       // cumulative /red-team round count) get the ratified typeof-gated refusal
