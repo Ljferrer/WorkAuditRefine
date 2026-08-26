@@ -5005,6 +5005,34 @@ test('endstate-transport loud-failure row (End state 6): declared literal != wri
   assert.match(p, /fails LOUDLY via its artifact, never silently/i, 'the failure mode is loud by contract')
 })
 
+test('endstate-transport intake-lint: a whitespace-only check literal is INTAKE-LINTED UNSUPPORTED at dispatch — record-only row, log()ged, never a fenced execution row', async () => {
+  // Runs the same single-check-row phase as esTransportPrompt, but inline: this fixture also needs
+  // the workflow's log() lines (the lint must be LOUD at dispatch, never a silent row divergence).
+  const linted = async (check) => {
+    const { calls, logs } = await runPhase(ES_ROW_ARGS({
+      phase: { id: 3, title: 'P3', integrationBranch: 'integration/wtprov-a/phase-3', workingBranch: 'dev/wtprov-a',
+        endState: [{ condition: 'condition U: unsupported literal', tag: 'check:', check }] },
+    }), gateAuditImpl)
+    const es = calls.find(isEndstateCheck)
+    assert.ok(es, 'endstate-check dispatch present (presence guard)')
+    return { p: es.prompt, logs }
+  }
+  // The '(' suffix targets the ROW arm's verdict rendering — the shared boilerplate's own
+  // 'A row marked INTAKE-LINTED UNSUPPORTED below…' sentence (paren-less) never matches it.
+  const ws = await linted('   ')
+  assert.ok(ws.p.includes('INTAKE-LINTED UNSUPPORTED (empty/whitespace-only check literal)'), 'a whitespace-only literal renders the record-only row arm, naming its lint verdict')
+  assert.ok(ws.p.includes('exit_code: unsupported'), "the record-only row directs the artifact's terminal `exit_code: unsupported` line")
+  assert.ok(!ws.p.includes('fenced below:'), 'NEGATIVE: the linted row never renders an executable fenced block — record-only, never a half-run')
+  assert.ok(ws.logs.some(l => typeof l === 'string' && l.includes('endstate-check intake-lint:')), 'the lint is log()ged at dispatch — loud, never silent')
+  const cb = await linted('echo hi\r')   // bare \r — a control byte other than newline/tab
+  assert.ok(cb.p.includes('INTAKE-LINTED UNSUPPORTED (control bytes (other than newline/tab) in the check literal)'), 'a control-byte literal takes the SAME record-only arm')
+  // Anti-vacuous pair: a clean literal must NOT take the lint arm — deleting the control-byte
+  // regex (or inverting the trim() test) reds here, not just on the positive halves above.
+  const clean = await esTransportPrompt(ES_CHECK_CMD)
+  assert.ok(!clean.includes('INTAKE-LINTED UNSUPPORTED ('), 'anti-vacuous: a clean literal never takes the lint arm')
+  assert.ok(clean.includes('fenced below:'), 'anti-vacuous: a clean literal rides a fenced execution row')
+})
+
 // Recovery Blocker 1 (Pivotal constraint: prompt-surface split — standing card + dispatched prompt,
 // same task): the refiner card must LEARN the endstate-check dispatch flavor it is handed, the way
 // the structurally identical evidence dispatch got its own card section. The dispatch is fail-open,
