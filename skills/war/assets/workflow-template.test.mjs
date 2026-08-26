@@ -3384,7 +3384,7 @@ test('bisection — a final failed tip not yet reverted in-loop rides the merge 
   assert.ok(out.landed.includes('t1'), 't1 lands')
 })
 
-test('bisection — budget: each subset COMMIT charges one fixRounds slot; exhaustion mid-bisection demotes the remaining subsets to follow-up (logged, by design) and the task still lands', async () => {
+test('bisection — budget: each subset COMMIT charges one fixRounds slot; the floor-retry reserve (roundLimit − 2) demotes the remaining subsets to follow-up (logged, by design) and the task still lands', async () => {
   const fa = nit({ title: 'fa nit', file: 'skills/fa.js' })
   const fb = nit({ title: 'fb nit', file: 'skills/fb.js' })
   const impl = buildSeqImpl({
@@ -3392,12 +3392,14 @@ test('bisection — budget: each subset COMMIT charges one fixRounds slot; exhau
     'ace:t1:r1': [bWorker('ace00001')],
     'ace:t1:r2': [bWorker('sub00001')],
   }, aceBase([fa, fb]))
-  // roundLimit 2: batch charges slot 1, subset 1 charges slot 2 — subset 2 finds the budget spent.
-  const { out, calls, logs } = await runPhase(ACE_ARGS({ run: { ace: true, roundLimit: 2 } }), impl)
-  assert.equal(calls.filter(isAce).length, 2, 'batch + one subset — the second subset is never dispatched (budget exhausted)')
+  // roundLimit 4 ⇒ subset boundary roundLimit − 2 = 2 (Open decision 4): batch charges slot 1,
+  // subset 1 charges slot 2 — subset 2 finds the reserve line reached (2 slots kept for the
+  // merge-floor retry loop).
+  const { out, calls, logs } = await runPhase(ACE_ARGS({ run: { ace: true, roundLimit: 4 } }), impl)
+  assert.equal(calls.filter(isAce).length, 2, 'batch + one subset — the second subset is never dispatched (floor-retry reserve reached)')
   assert.ok((out.aced || []).some(a => a.finding.title === 'fa nit' && a.sha === 'sub00001'), 'the committed subset aces')
   assert.ok((out.minorsFiled || []).some(m => m && m.title === 'fb nit'), 'the un-dispatched remainder demotes to follow-up')
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('exhausted mid-bisection')), 'the exhaustion demotion is logged, by design')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('reserved for the merge-floor retry loop')), 'the reserve-exhausted branch logs why the ladder stopped')
   assert.ok(out.landed.includes('t1'), 't1 lands')
   const audEntry = out.auditLog.find(e => e && e.task === 't1' && e.verdict === 'approve')
   assert.ok(audEntry, 'presence guard: the t1 approve entry exists')
@@ -4028,11 +4030,11 @@ test('#1550 — demote() refuses an ask loudly: log + exactly-once asks[] member
   assert.deepEqual(parked.fork, [], 'a finding without an `ask` field parks with fork falling back to []')
 })
 
-// Default-deny order-census (End states 1+2, D7 — the floored domain): exactly six dispositionOf
+// Default-deny order-census (End states 1+2, D7 — the floored domain): exactly eight dispositionOf
 // call sites, each carrying an explicit ask arm that PRECEDES its absorb chain, plus the
 // pinMismatch strip as the seventh row (a non-dispositionOf disposition sink, comment-named).
 // A NEW dispositionOf call site reds the count until it joins this census with its own ask arm.
-test('#1550 (D7) — ask order-census: six dispositionOf sites with ask preceding the absorb chain, default-deny, plus the comment-named pinMismatch strip row', () => {
+test('#1550 (D7) — ask order-census: eight dispositionOf sites with ask preceding the absorb chain, default-deny, plus the comment-named pinMismatch strip row', () => {
   // The classifier itself: the ask arm precedes the absorb chain inside dispositionOf.
   const defStart = src.indexOf('const dispositionOf')
   const def = src.slice(defStart, src.indexOf('const parkAsk', defStart))
@@ -4041,8 +4043,10 @@ test('#1550 (D7) — ask order-census: six dispositionOf sites with ask precedin
   // Call-site domain discovery (default-deny): every dispositionOf( occurrence in the source.
   const sites = []
   for (let i = src.indexOf('dispositionOf('); i !== -1; i = src.indexOf('dispositionOf(', i + 1)) sites.push(i)
-  assert.equal(sites.length, 6,
-    `the floored order-census domain is exactly SIX dispositionOf call sites (found ${sites.length}) — a new site must join this census with its own ask arm preceding its absorb chain`)
+  // 6 → 8 (#1694 fold, Phase 7 Task 1): the ace-regression branch and the failing-subset arm each
+  // gained their own disposition ladder — an ask raised on either arm parks, never drops.
+  assert.equal(sites.length, 8,
+    `the floored order-census domain is exactly EIGHT dispositionOf call sites (found ${sites.length}) — a new site must join this census with its own ask arm preceding its absorb chain`)
   const ABSORB_CHAIN = /demote\(|aceable\.push|phaseCloseQueue\.push/
   for (const i of sites) {
     const slice = src.slice(i, i + 700)
@@ -9642,6 +9646,7 @@ const LITERAL_REGISTRY = [
   ["fix:${task.id}:r${round + 1}`, schema: WORKE"],
   ["engine error during work/audit: ${err.messag"],
   ["gate-audit: skipping ${task.id} (requiresTes"],
+  ["ace-bisect ${r.task.id}: ladder stopped — fi"],
   ["ace:${r.task.id}:r${r.task.fixRounds + 1}`, "],
   ["failed absorb — ${aceWhy || 'ace worker retu"],
   ["${worktreeRoot || '<worktreeRoot>'}/${runId ", 4],
