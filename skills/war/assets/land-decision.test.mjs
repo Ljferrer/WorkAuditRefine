@@ -170,7 +170,7 @@ test('doc-parity (d): schemas.md per-value bullet headers == KNOWN_LAND_DECISION
 // the bullet by its REAL 2-space-indented `- **`held:land-failed`` header (a TOKEN-ONLY prefix, trailing
 // bullet text variable — NOT the compact `**`held:land-failed`**` wrap, which is *schemas.md*'s header
 // form and does not occur in the bullet's home file), terminating at the next SAME-INDENT 2-space `- **` sibling
-// (`- **Escalation-completion land`) — NOT "the next `- **`", which would truncate at the nested
+// (`- **Segmented land`) — NOT "the next `- **`", which would truncate at the nested
 // `    - **(a)` sub-bullet and leave the pin vacuously red forever. The region spans the nested
 // (a)/(b)/(c)/green-gate/every-other-cause sub-bullets where root cause (c) and the anti-hint clause live.
 // Provably red pre-fix: the bullet carried NO resumeFromRunId token before this task (the file's six

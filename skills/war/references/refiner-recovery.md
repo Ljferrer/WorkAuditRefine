@@ -27,6 +27,10 @@ Before invoking any toolchain steps for a submodule phase:
 
 All merge-task and land-phase steps below run with `<taskWorktree>` and `<_refinery>` rooted in the submodule checkout. The submodule's own `.git`, remote, and branches are the authority — the superproject is not consulted.
 
+Evicted verbatim from the `agents/war-refiner.md` § Submodule-as-repo provisioning paragraph (ADR 0042; the card keeps the trigger pointer):
+
+> All merge-task and land-phase steps below then run with `<taskWorktree>` and `<_refinery>` rooted in the submodule checkout; the submodule's own `.git`, remote, and branches are the authority. Your dispatched provision-barrier prompt's `submodNote` (built in `workflow-template.js`) is the carrier of the submodule targetRepo/targetBase and the `git submodule update --init --recursive` step.
+
 ## Reland discrimination — superproject land-phase step 3
 
 Trigger: the final failed CAS attempt of a land (after `roundLimit` rejected pushes), before returning `land_stale`. Identical discrimination, scoped to the submodule checkout/remote, applies at 2A step 3 below.

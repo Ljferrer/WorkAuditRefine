@@ -183,6 +183,16 @@ const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties:
   // widening outside the pre-authorization; the segmented-land precedent: an in-band field, never a
   // status member). Absent ⇒ every consumer is byte-identical to a budget-floor-less run (set-minus).
   floor_route: { enum: ['budget-uncited'] },
+  // land_segment (Phase 6 Task 1 (a), A6 REVISED): the in-band segmented-land marker — the literal
+  // 'incomplete' riding status:'error' when the land dispatch is FORCED to return before the land
+  // completes (the gate outran the tool timeout). land-phase only, OPTIONAL. Orthogonal to status
+  // exactly like floor_route — NO status enum value, HARD_ESCALATION_REASONS member, or
+  // KNOWN_LAND_DECISIONS member is added or changed (land-decision.mjs untouched, ADR 0005). The
+  // Workflow re-dispatches the land while the marker persists (FLOOR_STATUSES retry-loop idiom,
+  // bounded by roundLimit); exhaustion routes the ridden status ('error' → held:land-failed).
+  // segment_note: free-text progress note — rendered into the continuation log line only, never routed on.
+  land_segment: { enum: ['incomplete'] },
+  segment_note: { type: 'string' },
   pr_number: { type: 'number' }, pr_remote: { type: 'string' } } }
 
 // EVIDENCE_RESULT (D1/D4/D6): the shape of the ONE consolidated post-merge refiner "evidence dispatch"
@@ -799,7 +809,9 @@ async function provisionStep(task) {
   if (!provisionList.length) return { ok: true }
   // provision mode (agents/war-refiner.md ## provision): per-task provision-run — env-outcome return.
   // dispatchKind: 'provision-run' (stable discriminator — mocks/handlers/audits key on it, not the label prefix).
-  const out = await agent(
+  // dispatchAgent (Phase 6 Task 1 (c)): a post-spawn harness death of THIS dispatch is TAGGED at the
+  // dispatch layer, so the wave thunk's catch classifies it env-died SOFT (#1411) — not HARD escalate.
+  const out = await dispatchAgent(
     pt`PROVISION the worktree for WAR task ${task.id} before its worker runs. cd into ${task.worktree} `
     + pt`(the refiner's Provision barrier already created it) and run these provisioning commands IN ORDER, `
     + pt`inside that worktree:\n`
@@ -926,8 +938,11 @@ const blockedReason = r => !r ? 'worker returned no result'
 // Infra-death classification (#1411): a POST-SPAWN harness death (API/quota/transport — the seat
 // spawned, then the harness died out from under it) is an environment event, not a code defect. The
 // classification is scoped STRUCTURALLY, never by message text alone (relaunch fix): dispatchAgent
-// wraps the wave thunk's direct agent() dispatches in their OWN try/catch and TAGS a throw that
-// crossed the dispatch boundary; infraDeathCause classifies 'env-died' (a SOFT_ENV_REASONS member
+// TAGS a throw that crossed the dispatch boundary at the wave thunk's direct agent() dispatches,
+// provisionStep's provision-run (classified by the wave-thunk catch), the polish-worktree provision
+// and the sweep dispatch (each with its own local catch), and the provision-barrier (tag only — no
+// local catch, so its death stays held:workflow-error) (Phase 6 Task 1 (c));
+// infraDeathCause classifies 'env-died' (a SOFT_ENV_REASONS member
 // beside env-blocked — the mirror at the land decision) ONLY for a TAGGED throw whose message
 // matches this pattern set, propagating the harness cause verbatim into `blocked`
 // ('worker died: <cause>'). An error thrown anywhere ELSE in the thunk — a pt prompt build,
@@ -1393,6 +1408,16 @@ if (tasks.length) {
   const deriveSkipClause = recovery
     ? pt`SANCTIONED RECOVERY RELAUNCH — derive-then-cut: the step-3 ensure-worktree list above is conditional under this relaunch. For EACH task, FIRST check whether its local branch exists AND \`git merge-base --is-ancestor <that task's branch> "$TIP"\` holds (already-integrated on the adopted integration branch). On TRUE, report the task id in a \`preMerged\` array on the env-outcome and SKIP that task's ensure-worktree entirely — no worktree is needed for a task that will not run, and deriving before cutting means a fresh cut can never pollute the ancestry check. On FALSE or an absent local branch, run that task's ensure-worktree as listed${reclaimFlag ? ' (each carries the --reclaim-stale-remote flag under this sanctioned relaunch)' : ''}. A local branch that exists but is NOT an ancestor takes the ordinary existing-branch reuse path (prior commits kept, no reset).\n`
     : ''
+  // Recovery holder auto-free (#1712 fix 3, Phase 6 Task 1 (e)) — DORMANT unless args.recovery.sanctioned,
+  // like deriveSkipClause. Plain git verbs only, no new script flag: a CLEAN prior-generation holder of
+  // THIS plan's refs is auto-freed (detach for _refinery, worktree remove for a workless task worktree);
+  // a dirty holder still dies loud with the holder path named; a foreign plan's holder is never freed.
+  // Ordering: this clause runs BEFORE steps 2–4, so step 3's TIP binding does not exist yet — unlike
+  // deriveSkipClause (a step-3 sub-clause where "$TIP" is live), the workless-worktree ancestor check
+  // resolves the integration branch itself, guarded on the branch existing (a fresh cut has none).
+  const holderFreeClause = recovery
+    ? pt`SANCTIONED RECOVERY RELAUNCH — pre-checkout ref-holder auto-free (#1712 fix 3): BEFORE steps 2–4, run \`git worktree list --porcelain\` ONCE and, for EVERY ref this relaunch checks out (${ph.integrationBranch} for _refinery, each task branch in step 3), check whether a prior-generation worktree still holds it. Auto-free ONLY a CLEAN prior-generation holder of THIS plan's own refs (its held branch carries the plan slug ${planSlug || '<plan-slug>'}): for a stale _refinery holding ${ph.integrationBranch}, run \`git -C <holder-path> checkout --detach\` (detach — the worktree survives); for a WORKLESS task worktree (empty \`git -C <holder-path> status --porcelain\` AND \`git merge-base --is-ancestor <that holder's branch> ${ph.integrationBranch}\` holds — no unmerged work), run \`git worktree remove <holder-path>\`. This clause runs BEFORE step 3, so step 3's TIP is NOT yet bound here — resolve the ancestor check against ${ph.integrationBranch} directly (never "$TIP"), and when ${ph.integrationBranch} does not yet exist SKIP the removal arm entirely: a fresh cut has no prior-generation holder of it, and an unverified worktree is never removed. Plain git verbs only — never a new script flag. NEVER free a DIRTY holder (non-empty status --porcelain): die loud — return the \`{ ok: false, … }\` env-outcome with the HOLDER PATH named in stderrTail. NEVER free a holder of a FOREIGN plan's refs: leave it in place, and if it blocks a checkout, die loud the same way naming its path.\n`
+    : ''
   // Submodule tasks: thread the target repo + base into the Provision prompt so the refiner knows
   // to initialize the submodule checkout (git submodule update --init) before running ensure-integration
   // against the submodule's base (not the superproject working branch). DP3: no script change.
@@ -1410,7 +1435,13 @@ if (tasks.length) {
     : ''
   // provision mode (agents/war-refiner.md ## provision): git-topology barrier — env-outcome return.
   // dispatchKind: 'provision-barrier' (DISTINCT from the per-task 'provision-run' — mocks/isProvision key on it).
-  const barrierOut = await agent(
+  // dispatchAgent, tagging ONLY (Phase 6 Task 1 (c) enumerates the routed sites; the barrier is not one):
+  // there is NO local catch here, so ANY barrier-dispatch death — infra-tagged or not — rethrows into the
+  // top-level catch → held:workflow-error with the workflowError { message, stack, recovery } payload,
+  // exactly the documented terminal class (resume-and-recovery.md § Checkpoint outcome handling: no git
+  // topology ⇒ nothing in the phase can run). The tag still rides the error so the surfaced message
+  // carries dispatch-layer provenance.
+  const barrierOut = await dispatchAgent(
     pt`Provision the worktree topology for WAR phase ${ph.id} "${ph.title}" by running ${SCRIPT}. `
     + pt`Do NOT free-author git; only run these subcommands, fail loud on ANY non-zero exit — do NOT special-case a numeric code (a foreign integration branch exits 3; a diverged local/origin base halts with its own distinct non-zero exit) — with ONE marker-keyed carve-out: a per-task worktree-creation exit whose output carries the \`STALE_REMOTE\` marker line is CLASSIFIED per task (step 3's classify-and-continue clause) and does NOT halt the barrier; the marker token is the key, never the numeric code. Return the env-outcome JSON: \`{ ok: true }\` when every subcommand exited 0 (optionally carrying the step-3 \`preMerged\` / \`staleRemote\` / \`worktreeHygiene\` arrays); on the FIRST non-zero exit WITHOUT the STALE_REMOTE marker return \`{ ok: false, failedCommand: "<the exact provision-worktrees.sh subcommand line>", exitCode: <code>, stderrTail: "<tail of its stderr — the script's die text>" }\`.\n`
     + pt`1. FROM THE MAIN CHECKOUT (${mainCheckout || 'the main repo checkout — your current working directory'}, NOT a task worktree): `
@@ -1418,6 +1449,7 @@ if (tasks.length) {
     + pt`2. provision-worktrees.sh ensure-integration ${planSlug || '<plan-slug>'} ${ph.id} ${ph.workingBranch}${owned} — reuse the plan-namespaced integration branch ${ph.integrationBranch} if it is already ours (the --owned-file ledger); else DERIVE the cut base against origin (ADR 0008): the script fetches origin/${ph.workingBranch} and reconciles the local ${ph.workingBranch} — equal or ahead → cut from local; behind → cut from the ORIGIN tip plus a guarded follower fast-forward (skipped with a warning when ${ph.workingBranch} is checked out in a worktree); a fetch failure or missing origin → cut from local with a stderr warning (today's offline behavior). DIVERGED (neither SHA an ancestor of the other) is a HALT: the script dies non-zero carrying BOTH SHAs and the two repair directions, and creates no branch. On that die — or ANY non-zero exit — return the \`{ ok: false, … }\` env-outcome carrying the die text in \`stderrTail\` and STOP: never pick a side, never retry with a different base. The phase never starts; I surface the die message like today's foreign-branch halt.\n`
     + pt`3. Capture the resulting integration tip (TIP="$(git rev-parse ${ph.integrationBranch})"), then for EACH task run ensure-worktree at the integration tip captured in step 3 (idempotent; reuse if present, conservative heal if the dir went missing):\n${ensures}\n`
     + deriveSkipClause
+    + holderFreeClause
     + staleRemoteClause
     + worktreeHygieneClause
     + pt`Each ensure-worktree creates the worktree on its plan-namespaced branch off the integration tip and drops a .war-task marker. After this barrier every task worktree exists and the workers can run.\n`
@@ -1516,7 +1548,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     // The live `parallel` NULLS a rejected thunk, so results.filter(Boolean) drops it → done.add never
     // runs → nextWave() re-dispatches a COMPLETED, pushed, gate-green task every iteration (~660k
     // tokens/round) until the post-loop ghost-dep sweep mislabels it unrunnable-deps. So catch EVERY
-    // engine error across the WHOLE thunk body (provisionStep + the pt-tagged worker/fix prompt builds +
+    // engine error across the WHOLE thunk body (provisionStep — whose dispatch-layer infra deaths
+    // classify env-died SOFT, Phase 6 Task 1 (c) — + the pt-tagged worker/fix prompt builds +
     // normalizeReportedPaths + auditRound) and return a HARD 'escalate' (already in
     // HARD_ESCALATION_REASONS): the collection loop threads blocked verbatim, so the phase holds
     // :escalation with the true diagnostic instead of silently looping.
@@ -2710,6 +2743,13 @@ const refineryLandPath = `${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId
 // DISCARDS and the pre-polish tip lands exactly as it would have (a discarded sweep recomputes
 // NOTHING). Gated on a would-land phase with a non-empty phaseCloseQueue. NO owned-refs
 // registration (Open decision 4) — bookkeeping is a Lead-side ledger entry + the handoff block.
+// Drain-cause stamp (Phase 6 Task 1 (d)): when a phase-close DISPATCH DIES (polish-worktree
+// provision or the sweep worker — a tagged env-died throw, or a dead dispatch returning nothing),
+// every finding the resulting drain demotes carries WHICH dispatch died and WHY it was demoted — an
+// in-band field on the finding row (rides minorsFiled and the escalation records; the field name is
+// mechanism latitude), replacing the flat untriaged dump. Ordinary non-death drains (held phase,
+// invalid roster, panel non-approval) stay unstamped — they were never "a dispatch died".
+const stampDrainCause = (f, dispatch, why) => { f.drainCause = { dispatch, why }; return f }
 let polishStatus = 'skipped'
 if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
   // Demotion arm (ADR 0013): a held phase never dispatches the sweep — drain the queue.
@@ -2736,24 +2776,50 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
     // 1. Provision the polish worktree at the POST-MERGE integrated tip via the existing ensure-worktree.
     // provision mode (agents/war-refiner.md ## provision): phase-close polish worktree — env-outcome return.
     // dispatchKind: 'polish-worktree' (stable discriminator — keyed by mocks/handlers, not the label prefix).
-    const polishProv = await agent(
+    // dispatchAgent + catch (Phase 6 Task 1 (c)): a POST-SPAWN harness death of this dispatch classifies
+    // env-died SOFT — the sweep is fail-open, so the death falls into the existing not-ok skip-and-drain
+    // arm below (polishProv null), with the drain cause stamped on each demoted finding (d). A non-infra
+    // throw rethrows into the top-level catch → held:workflow-error, exactly as before.
+    let polishProv = null
+    let polishProvDeath = null
+    try {
+    polishProv = await dispatchAgent(
       pt`Provision the phase-close POLISH worktree for WAR phase ${ph.id} by running provision-worktrees.sh. Do NOT free-author git; run exactly:\n`
       + pt`  provision-worktrees.sh ensure-worktree ${polishWorktree} ${polishBranch} "$(git -C ${refineryLandPath} rev-parse ${ph.integrationBranch})"\n`
       + pt`— the polish worktree is cut at the POST-MERGE integrated tip (idempotent; reuse if present). Return the env-outcome JSON: \`{ ok: true }\` when the ensure-worktree subcommand exits 0; on a non-zero exit return \`{ ok: false, failedCommand: "<the exact subcommand line>", exitCode: <code>, stderrTail: "<tail of its stderr>" }\`.`,
       { agentType: NS + 'war-refiner', phase: 'Refine', label: `polish-worktree:phase-${ph.id}`, dispatchKind: 'polish-worktree', schema: ENV_OUTCOME, ...spawn('refiner') })
+    } catch (err) {
+      const c = infraDeathCause(err)
+      if (!c) throw err
+      polishProvDeath = 'polish-worktree:phase-' + ph.id + ' provision dispatch died post-spawn (env-died): ' + c
+      log('phase-close sweep: ' + polishProvDeath + ' — an environment event; fail-open, the not-ok drain arm below handles it.')
+    }
     if (!polishProv || polishProv.ok !== true) {
       // Fail-open, never a hold (B/C): the polish worktree provisioning failed — skip the sweep
       // worker/panel/merge entirely and drain the queue to follow-up, exactly mirroring the
       // invalid-roster arm above. polishStatus stays 'skipped'; the pre-polish tip lands unchanged.
-      log(`phase-close sweep: the polish worktree provisioning returned no env-outcome ok (${(polishProv && polishProv.stderrTail) || 'no result'}) — sweep skipped; draining the queue to follow-up.`)
-      for (const f of phaseCloseQueue.splice(0)) demote(f, 'follow-up', 'sweep skipped — the polish worktree provisioning did not return { ok: true }')
+      // Dispatch-death drains (env-died throw OR a dead dispatch returning nothing) stamp the drain
+      // cause on each demoted finding (d); a returned-but-not-ok env-outcome stays unstamped.
+      const provDrainCause = polishProvDeath || (!polishProv ? 'polish-worktree:phase-' + ph.id + ' provision dispatch died (returned no result)' : null)
+      log(`phase-close sweep: the polish worktree provisioning returned no env-outcome ok (${(polishProv && polishProv.stderrTail) || polishProvDeath || 'no result'}) — sweep skipped; draining the queue to follow-up.`)
+      for (const f of phaseCloseQueue.splice(0)) {
+        if (provDrainCause) stampDrainCause(f, 'polish-worktree:phase-' + ph.id, provDrainCause)
+        demote(f, 'follow-up', provDrainCause || 'sweep skipped — the polish worktree provisioning did not return { ok: true }')
+      }
     } else {
     // 2. ONE war-worker dispatch: the queued findings VERBATIM + the intent + the merged tasks' plan slices.
     // pt-tagged prompt-feeding row builder (sweep prompt, top-level-catch, fail-open polish): t.id entry-validated
     // (bare); ${t.planSlice ?? …} absence-tolerant (Q17/ADR 0034) — since D5's entry-validation
     // TASK-FIELD class refuses a missing planSlice at intake, this fallback is defense-in-depth only.
     const mergedSlices = tasks.filter(t => succeeded.has(t.id)).map(t => pt`- ${t.id}: ${t.planSlice ?? '(no slice)'}`).join('\n')
-    const sweep = await agent(
+    // dispatchAgent + catch (Phase 6 Task 1 (c)): a POST-SPAWN harness death of the sweep dispatch
+    // classifies env-died SOFT — sweep stays null, so blockedReason() routes the existing fail-open
+    // DISCARD arm (sweepWhy), with the drain cause stamped on each demoted finding (d). A non-infra
+    // throw rethrows into the top-level catch → held:workflow-error, exactly as before.
+    let sweep = null
+    let sweepDeath = null
+    try {
+    sweep = await dispatchAgent(
       pt`PHASE-CLOSE COHERENCE SWEEP for WAR phase ${ph.id} "${ph.title}". Work in the ALREADY-PROVISIONED polish worktree at ${polishWorktree} (branch ${polishBranch}, cut at the post-merge integrated tip of ${ph.integrationBranch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
       + intentClause
       + pt`Fix ONLY the queued findings below — NO ad-hoc seam hunting (the bounded, enumerated scope is what makes discard-on-reject a sufficient guard), NEVER touch version/release-slot literals, make EXACTLY ONE commit whose message cites each finding's title, keep the gate (${plan.gate}) green, and push ${polishBranch}.\n`
@@ -2769,8 +2835,14 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
       // tier-aware via spawnWorker('fix'); this one intentionally is not. The only other non-tiered base
       // spawn is the fallback inside spawnWorker itself — the tier resolver, definitionally correct.)
       { agentType: NS + 'war-worker', phase: 'Work', label: `polish:phase-${ph.id}`, schema: WORKER_RESULT, ...spawn('worker') })
+    } catch (err) {
+      const c = infraDeathCause(err)
+      if (!c) throw err
+      sweepDeath = 'polish:phase-' + ph.id + ' sweep dispatch died post-spawn (env-died): ' + c
+      log('phase-close sweep: ' + sweepDeath + ' — an environment event; fail-open, the DISCARD arm below handles it.')
+    }
     // 3. Full auditRound panel re-audit at the polish SHA — same unanimity rules as any task.
-    const sweepWhy = blockedReason(sweep)
+    const sweepWhy = sweepDeath || blockedReason(sweep)
     let sweepApproved = false
     // Sweep-raised finding routing (D1/D2, #1377): the re-audit panel's Minor/Nit findings, hoisted
     // out of the `if (!sweepWhy)` block (pSeats is block-scoped there) so BOTH terminal arms below
@@ -2828,7 +2900,13 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
       polishStatus = 'discarded'
       log(`phase-close sweep DISCARDED (${sweepWhy || (sweepApproved ? `polish merge returned ${pmr && pmr.status || 'no result'}` : 'the panel did not re-approve')}) — polish branch ${polishBranch} and worktree ${polishWorktree} left in place; queue demotes to follow-up.`)
       auditLog.push({ task: polishTask.id, verdict: 'polish-discarded', branch: polishBranch, findings: [], blocked: sweepWhy || null })
-      for (const f of phaseCloseQueue.splice(0)) demote(f, 'follow-up', 'phase-close sweep discarded — the polish branch never merged; the pre-polish tip lands')
+      // Dispatch-death drains stamp the drain cause (d): the env-died throw (sweepDeath) or a dead
+      // dispatch that returned nothing; a live sweep discarded on panel/merge grounds stays unstamped.
+      const sweepDrainCause = sweepDeath || (!sweep ? 'polish:phase-' + ph.id + ' sweep dispatch died (returned no result)' : null)
+      for (const f of phaseCloseQueue.splice(0)) {
+        if (sweepDrainCause) stampDrainCause(f, 'polish:phase-' + ph.id, sweepDrainCause)
+        demote(f, 'follow-up', sweepDrainCause ? sweepDrainCause + ' — the polish branch never merged; the pre-polish tip lands' : 'phase-close sweep discarded — the polish branch never merged; the pre-polish tip lands')
+      }
       // Discard-arm routing (#1377): sweep-raised Minor/Nits route through the same ladder — an
       // absorb demotes because the polish branch never merged (nothing to absorb into). A blocked
       // sweep (sweepWhy) reaches here with NO panel convened, so sweepMinors is empty — vacuous.
@@ -2865,7 +2943,13 @@ if (landDecision === 'landed') {
       + pt`For the submodule land: attempt 2A — push-first CAS land-advance INSIDE ${submodLandTask.targetRepo} against ${submodLandTask.targetBase || '<targetBase>'}. `
       + pt`If the submodule is not WAR-owned or 2A is unavailable, open a PR on the submodule remote and return { mode: "land-phase", status: "submodule-pr", pr_number: <n>, pr_remote: "<remote>" } (2B PR-and-hold).`
     : ''
-  landResult = await agent(
+  // Segmented-land marker instruction (Phase 6 Task 1 (a), A6 REVISED): an IN-BAND field riding the
+  // existing 'error' status (the floor_route precedent) — never a new MERGE_RESULT status member or
+  // KNOWN_LAND_DECISIONS member (land-decision.mjs untouched, ADR 0005). The bounded re-dispatch loop
+  // below follows the FLOOR_STATUSES retry-loop idiom (the merge-task floor sub-loop's shape).
+  const segmentedLandClause =
+    pt`\nSEGMENTED LAND (tool-timeout survival): if you are FORCED to return before the land completes — e.g. the gate run outruns your tool timeout mid-step — do NOT classify the partial run (an interrupted gate is INCOMPLETE, not gate_failed): return { mode: 'land-phase', status: 'error', land_segment: 'incomplete', segment_note: '<the step you reached>' }. The land_segment marker rides the existing 'error' status — never a new status member — and the Workflow re-dispatches this land to run to completion; every step above is idempotent (re-detach, re-merge, re-gate), so a continuation is always safe.`
+  const landPrompt =
     pt`Land WAR phase ${ph.id}: merge ${ph.integrationBranch} into ${ph.workingBranch} with --no-ff (one phase commit). mode=land-phase.\n`
     + pt`Perform the land entirely inside the _refinery worktree at ${refineryLandPath} (spec §5.3, push-first CAS):\n`
     + reattachClause(refineryLandPath)
@@ -2882,8 +2966,30 @@ if (landDecision === 'landed') {
     + relandDiscrimination(ph.workingBranch)
     + pt`     - On escalate exit code from land-advance (any non-rejection push error): return { mode: 'land-phase', status: 'error' }.\n`
     + pt`Never use --force push. Never merge or push from the Lead's main checkout.`
-    + submodLandNote,
+    + submodLandNote
+    + segmentedLandClause
+  landResult = await agent(landPrompt,
     { agentType: NS + 'war-refiner', phase: 'Land', label: `land:phase-${ph.id}`, schema: MERGE_RESULT, ...spawn('refiner') })
+  // ---- SEGMENTED-LAND BOUNDED RE-DISPATCH (Phase 6 Task 1 (a), A6 REVISED) ----
+  // The land dispatch survives a gate outrunning the tool timeout via the in-band
+  // land_segment:'incomplete' marker on the land-phase result. Re-dispatch while the marker persists,
+  // bounded by roundLimit (the FLOOR_STATUSES retry-loop idiom — the land dispatch had no retry loop
+  // before this; new wiring following that existing shape). Exhaustion falls through to the routing
+  // chain below, where the final still-incomplete result routes by its RIDDEN status ('error' →
+  // held:land-failed — the Lead re-runs the land per SKILL.md §4.3). Log lines are
+  // concatenation-built (census-safe).
+  let landSegments = 0
+  while (landResult && landResult.land_segment === 'incomplete' && landSegments < roundLimit) {
+    landSegments++
+    log('Phase ' + ph.id + ': segmented land — the land dispatch returned the in-band land_segment:\'incomplete\' marker (' + (typeof landResult.segment_note === 'string' && landResult.segment_note ? landResult.segment_note : 'no segment note') + '); re-dispatching the land to run to completion (segment ' + (landSegments + 1) + ', bounded by roundLimit ' + roundLimit + ').')
+    landResult = await agent(
+      pt`SEGMENTED-LAND CONTINUATION for WAR phase ${ph.id}: a prior land dispatch returned mid-land with land_segment: 'incomplete' (its gate outran the tool timeout). Every step below is idempotent — a merge already performed re-resolves clean, a green gate re-runs green — so run the FULL sequence to completion.\n` + landPrompt,
+      // label is concatenation-built (census-safe — #931): the registry lives in Task 2's file.
+      { agentType: NS + 'war-refiner', phase: 'Land', label: 'land:phase-' + ph.id + ':segment-' + (landSegments + 1), schema: MERGE_RESULT, ...spawn('refiner') })
+  }
+  if (landResult && landResult.land_segment === 'incomplete') {
+    log('Phase ' + ph.id + ': segmented-land budget exhausted after ' + roundLimit + ' re-dispatch(es) — the final still-incomplete result routes by its ridden status below (error → held:land-failed; the Lead re-runs the land).')
+  }
   // 2B submodule PR-and-hold: the refiner opened a PR on the submodule remote and returned
   // status:'submodule-pr'. Return held:submodule-pr DIRECTLY — like held:workflow-error, this
   // bypasses decideLand/HARD_ESCALATION_REASONS. The PR ref is captured for the Lead's gh-resume.
@@ -3083,7 +3189,10 @@ if (landResult && landResult.status === 'landed' && memoryLocalRoot) {
 // findings. Consumes minorsFiled ONLY — parked asks[] records are structurally excluded from this
 // consolidation and this filing dispatch (#1550: an unruled ask is NEVER filed; ruled asks file
 // Lead-side at the Checkpoint with filing parity). Fires on BOTH handoff-emitting paths (landed AND
-// held:escalation), only when minorsFiled is non-empty; placed AFTER the land decision resolves and BEFORE the handoff assembly so the
+// held:escalation) AND on held:land-failed (Phase 6 Task 1 (b): a failed land must never silently
+// un-run the filing — merged tasks' follow-up debt exists regardless of the land outcome; no handoff
+// emits there, so the stamped issue numbers ride the top-level return's minorsFiled instead),
+// only when minorsFiled is non-empty; placed AFTER the land decision resolves and BEFORE the handoff assembly so the
 // stamped issue numbers reach the assembly's `issue: m.issue ?? null` mapping (the assembly itself
 // is byte-unchanged). Refiner-executed — the Bash-capable seat that already performs gh writes; the
 // options mirror the endstate-check dispatch idiom (D18). FAIL-OPEN (D2): a dead/thrown dispatch, a
@@ -3104,7 +3213,7 @@ if (landResult && landResult.status === 'landed' && memoryLocalRoot) {
 // element shape at every read: array-normalize the container, drop non-object elements. Hoisted
 // above BOTH consumer blocks (the filing block's braces close before the handoff assembly opens).
 const mergedRowsOf = m => (Array.isArray(m.merged) ? m.merged : []).filter(x => x && typeof x === 'object')
-if ((landDecision === 'landed' || landDecision === 'held:escalation') && minorsFiled.length > 0) {
+if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDecision === 'held:land-failed') && minorsFiled.length > 0) {
   // ---- FOLLOW-UP CONSOLIDATION (Task 2.1, #1566; D8 seat discrimination + merged[] fidelity, Phase 5
   // Task 1): deterministic pre-filing collapse of minorsFiled, in place (the handoff assembly below
   // reads the collapsed rows — cross-seat duplicates become ONE followUps entry). Key: same `file` +
