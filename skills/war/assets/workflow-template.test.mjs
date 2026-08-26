@@ -5397,8 +5397,8 @@ test('follow-up consolidation (line-window hit): cross-seat same-file findings w
   const { out, calls, logs } = await runPhase(args, impl)
   assert.equal(out.landDecision, 'landed', 'presence guard: the phase landed')
   assert.equal(out.minorsFiled.length, 1, 'the two seats\' line-window duplicates (100 vs 105, same file) collapse to one row')
-  assert.deepEqual(out.minorsFiled[0].seats, ['audit:t1:correctness', 'audit:t1:cascading-impact'],
-    'the merged row carries a seats[] corroboration list naming both raising seats')
+  assert.deepEqual(out.minorsFiled[0].seats, ['audit:t1:correctness (task t1)', 'audit:t1:cascading-impact (task t1)'],
+    'the merged row carries a seats[] corroboration list naming both raising seats (seatRef renders seat+task, D8)')
   assert.equal(out.minorsFiled[0].issue, 42, 'ordinal→issue stamping keys on the POST-collapse row')
   assert.equal(out.handoff.followUps.length, 1, 'the handoff renders the collapsed row set (one followUps entry)')
   assert.ok(logs.some(l => typeof l === 'string' && l.startsWith('file-followups consolidation:')),
@@ -5407,7 +5407,7 @@ test('follow-up consolidation (line-window hit): cross-seat same-file findings w
   // and the dedup arm routes open-issue matches as corroboration comments, never new issues.
   const fp = calls.find(c => c.opts.dispatchKind === 'file-followups').prompt
   assert.match(fp, /file src\/a\.js:100/, 'the candidate row renders the finding\'s file and line')
-  assert.match(fp, /seats: audit:t1:correctness, audit:t1:cascading-impact/, 'the candidate row renders the seats[] corroboration list')
+  assert.match(fp, /seats: audit:t1:correctness \(task t1\), audit:t1:cascading-impact \(task t1\)/, 'the candidate row renders the seats[] corroboration list (seat+task, D8)')
   assert.match(fp, /corroboration comment on the existing issue, never a new issue/,
     'an open war-followup match gets a corroboration comment, never a new issue (the retired-token sweep dedup idiom)')
   assert.match(fp, /cluster the remaining candidate rows by file \+ root cause/, 'the prompt mandates file + root-cause clustering')
@@ -5418,7 +5418,7 @@ test('follow-up consolidation (line-window hit): cross-seat same-file findings w
 test('follow-up consolidation (title fallback + no-collapse controls): lineless normalized-title twins collapse; a lined row never merges into a lineless one; different files and out-of-window lines never collapse', async () => {
   const findings = [
     { severity: 'Minor', title: 'Stale count.', rationale: 'r1', file: 'z.js' },              // 1 — representative
-    { severity: 'Minor', title: 'stale count', rationale: 'r2', file: 'z.js' },               // collapses into 1 (both lineless, normalized-equal titles)
+    { severity: 'Minor', title: 'stale count', rationale: 'r2', file: 'z.js', seat: 'audit:t1:second-lens' },   // collapses into 1 (both lineless, normalized-equal titles, CROSS-seat — same-seat rows never collapse, D8)
     { severity: 'Minor', title: 'stale count', rationale: 'r3', file: 'z.js', line: 5 },      // control: lined vs lineless — NO collapse
     { severity: 'Minor', title: 'Stale count.', rationale: 'r4', file: 'other.js' },          // control: different file — NO collapse
     { severity: 'Minor', title: 'win a', rationale: 'r5', file: 'w.js', line: 1 },            // control pair: same file but
@@ -5435,7 +5435,7 @@ test('follow-up consolidation (title fallback + no-collapse controls): lineless 
   assert.equal(out.landDecision, 'landed', 'presence guard')
   assert.equal(out.minorsFiled.length, 5, 'six rows collapse to five: only the lineless normalized-title twins merge')
   const merged = out.minorsFiled.find(m => m.title === 'Stale count.' && m.file === 'z.js')
-  assert.ok(merged && Array.isArray(merged.seats), 'the merged row carries seats[] (same seat deduped)')
+  assert.ok(merged && Array.isArray(merged.seats), 'the merged row carries seats[] (cross-seat corroboration, D8)')
   assert.ok(out.minorsFiled.some(m => m.title === 'stale count' && m.line === 5), 'the lined z.js row survives un-merged (title fallback fires ONLY when line is absent)')
   assert.ok(out.minorsFiled.some(m => m.file === 'other.js'), 'the different-file twin survives')
   assert.ok(['win a', 'win b'].every(t => out.minorsFiled.some(m => m.title === t)), 'out-of-window same-file rows survive')
@@ -5444,7 +5444,7 @@ test('follow-up consolidation (title fallback + no-collapse controls): lineless 
 test('follow-up consolidation (non-array seats guard): an auditor-supplied string `seats` key on a collapse-target row never throws — the guard normalizes it to seats[]; landDecision stays landed', async () => {
   const findings = [
     { severity: 'Minor', title: 'stale enum comment', rationale: 'r1', file: 'src/a.js', line: 100, seats: 'correctness' },
-    { severity: 'Minor', title: 'comment misses the arm', rationale: 'r2', file: 'src/a.js', line: 105 },
+    { severity: 'Minor', title: 'comment misses the arm', rationale: 'r2', file: 'src/a.js', line: 105, seat: 'audit:t1:second-lens' },  // cross-seat (same-seat rows never collapse, D8)
   ]
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
@@ -5535,8 +5535,8 @@ test('filing-prompt Evidence-artifacts emission (Task 3.2, PIN-14): the clustere
   // the raising seat renders via the seatRef fallback, so End state 9's seat-lenses value is
   // emitted, never documented-around. The merged-row corroboration-list pin lives in the
   // Task-2.1 consolidation test above (seats: audit:t1:correctness, audit:t1:cascading-impact).
-  assert.match(fp, /· seats: audit:t1:correctness · why not absorbable/,
-    'a non-collapsed row renders its single raising seat (seatRef fallback) in row position')
+  assert.match(fp, /· seats: audit:t1:correctness \(task t1\) · why not absorbable/,
+    'a non-collapsed row renders its single raising seat (seatRef fallback, seat+task — D8) in row position')
   assert.doesNotMatch(fp, /single raising seat is unrecorded/,
     "the retired 'no seats rendered ⇒ unrecorded' carve-out is gone — every row renders its seat")
 })
