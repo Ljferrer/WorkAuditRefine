@@ -8619,13 +8619,19 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
   const gateAuditEndStateSrc = sliceSrc('END-STATE-ONLY GATE-AUDIT', 'gate-audit:phase-${ph.id}:end-state')
 
   // engine-reliability Phase 2 Task 4 (End state 18; red-team round 1 — the standing card half was
-  // unguarded): the budget-raise row's trailer-form anchor is EXTRACTED from the floor script's own
-  // stderr guidance line, so card, prompt, and script cannot drift apart — a script-side form change
-  // either fails this extraction assert or reds whichever prose surface still carries the old form.
+  // unguarded): the budget-raise row's trailer-form anchor is EXTRACTED from the floor script's
+  // human-readable trailer-form lines — ALL occurrences (the header-comment usage line and the stderr
+  // guidance line), collected and asserted byte-identical so neither script copy can silently diverge
+  // from the anchor. The property held: a form change that breaks the skeleton fails the extraction
+  // assert (or, moving only one copy, the identical-copies assert), and an ADR-number or token change
+  // reds whichever prose surface still carries the old form. An EXTENSION that prefix-preserves the
+  // skeleton is out of this row's reach — the machine-enforced TRAILER_RE inside the script is a
+  // separate literal this row deliberately does not read.
   const budgetFloorSh = readFileSync(join(here, 'assert-budget-raise-cited.sh'), 'utf8')
-  const trailerForm = (budgetFloorSh.match(/Budget-Raise: ADR-\d+ <surface> \+<bytes>/) || [])[0]
-  assert.ok(trailerForm, 'assert-budget-raise-cited.sh carries the human-readable Budget-Raise trailer form (the budget-raise row extraction source)')
-  const trailerFormRe = new RegExp(trailerForm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  const trailerForms = budgetFloorSh.match(/Budget-Raise: ADR-\d+ <surface> \+<bytes>/g) || []
+  assert.ok(trailerForms.length >= 2, 'assert-budget-raise-cited.sh carries the human-readable Budget-Raise trailer form in BOTH prose homes (header usage comment + stderr guidance — the budget-raise row extraction sources)')
+  assert.strictEqual(new Set(trailerForms).size, 1, 'every human-readable trailer-form occurrence in assert-budget-raise-cited.sh is byte-identical (header-comment vs stderr-guidance drift)')
+  const trailerFormRe = new RegExp(trailerForms[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
 
   const REGISTRY = [
     { name: 'servitor memory discipline (mutation-guard + recurrence-flow + absolute files_written)',
