@@ -10,7 +10,9 @@ clause licenses in-band mechanism substitution bounded by the `Binding guardrail
 amendment below; amended 2026-08-20 — ace bisection on regression, source-derivable absorb
 eligibility, and the roundLimit 3→6 default flip; see the amendment below; amended 2026-08-25 —
 the `ask` disposition: a fourth Minor/Nit-only member, the Checkpoint strike-list ruling gate, and
-the third adjudication producer; see the amendment below)
+the third adjudication producer; see the amendment below; amended 2026-08-26 — N:1 clustered
+filing and dedup-as-corroboration-comment supersede Decision 4's per-finding "files the issue"
+description; see the amendment below)
 
 WAR's agents had exactly one yardstick: the plan's literal text. The auditor's plan-faithfulness lens judged
 work against the slice ("the plan did not authorize"), severity was the only routing signal (every Minor/Nit
@@ -270,6 +272,43 @@ amendment records the contract:
   round 1, and the rounds that grind are `request_changes` rounds by construction. The boundary
   move waits on the measured grind backstop, so the `roundLimit`=6 ceiling's justification is
   **backstop-dependent** until #1664's measurement lands.
+
+This amendment leaves all pre-existing body text above — beyond the Status currency line —
+byte-unchanged.
+
+## Amendment (2026-08-26): N:1 clustered filing and dedup-as-corroboration-comment
+
+Decision 4 describes the `follow-up` disposition per-finding — "`follow-up` (substantive work
+beyond the phase — must state why it is not absorbable; files the issue)" — a 1:1 finding→issue
+reading. The landed filing shape is N:1 (drift recorded as issue #1577; ratified by the
+engine-reliability-and-filing-fidelity plan, Phase 5 Task 4). This amendment supersedes the
+per-finding "files the issue" description with the filing shape as it actually runs:
+
+- **Engine-side consolidation precedes filing.** Before the filing dispatch sees anything, the
+  engine collapses `follow-up` rows keyed on same file + line within a bounded window
+  (`FOLLOWUP_LINE_WINDOW` in `workflow-template.js`; normalized-title fallback when line is
+  absent): merged-away rows survive on the surviving row as `seats[]` corroboration, and the
+  consolidation is logged (N rows → M candidates).
+- **Dedup is a corroboration comment, never a duplicate issue.** The filing dispatch lists open
+  `war-followup` issues once; a candidate row matching an open issue (exact title, or same file +
+  same root cause) posts this batch's finding as a **corroboration comment** on the existing
+  issue — carrying the same evidence lines a filed body would — and reuses that issue number for
+  the row. No new issue is created on the dedup arm.
+- **Filing is one issue per cluster.** Remaining candidate rows are clustered by file + root
+  cause, and ONE `war-followup` issue is filed per cluster: title from the cluster's lead row;
+  body carrying, per member row, the why-not-absorbable reason, the task id, its seats as
+  corroboration, and the `## Evidence artifacts` section (values copied verbatim; `unrecorded`
+  stays `unrecorded`). Members share one issue number.
+
+Decision 4's routing semantics are otherwise untouched: `follow-up` still means substantive work
+beyond the phase, still must state why it is not absorbable, and still becomes issue-tracked —
+what this amendment changes is the recorded issue *cardinality* (N findings : 1 issue) and the
+dedup arm's comment channel, not who owns a finding or how it routes. The Consequences bullet
+"Issues become affirmative acts" holds a fortiori: clustering and dedup further suppress
+issue-litter without dropping any finding's record. This amendment is about **filing shape
+only** — the 2026-08-25 ask amendment above (the fourth `disposition` member and its Checkpoint
+ruling gate) is left byte-untouched, and ruled-ask Lead-side filing keeps parity with this shape
+per `skills/war/references/file-followups.md`.
 
 This amendment leaves all pre-existing body text above — beyond the Status currency line —
 byte-unchanged.
