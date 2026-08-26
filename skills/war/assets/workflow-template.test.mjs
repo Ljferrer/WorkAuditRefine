@@ -4064,6 +4064,8 @@ test('#1550 (D7) — ask order-census: six dispositionOf sites with ask precedin
     "the pinMismatch strip comment NAMES the ask member and states a pin-mismatched ask never parks (the census's seventh row)")
 })
 
+// --- Dep-wave visibility (criterion 4) + force-with-lease carve-out ---
+
 test('dep-wave visibility (criterion 4): rebase-first clause is PREPENDED iff deps non-empty (same-repo)', async () => {
   const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)   // t1 dep-less, t2 deps:['t1']
   const w1 = calls.find(c => isWorker(c) && (c.opts.label || '') === 'work:t1')
@@ -10032,4 +10034,95 @@ test('Task 2.1(g) #1410 — `never a dropped seat` retired from both surfaces; t
   assert.ok((schemasMd.match(/dropped-seat → audit-blocked lane/g) || []).length >= 2,
     'schemas.md: the escalate_reason bullet joins the severity bullet on the existing dropped-seat → audit-blocked lane (NEW-present)')
   assert.match(schemasMd, /no NEW hold path/, 'schemas.md: the no-NEW-hold-path claim is present')
+})
+
+// ---------------------------------------------------------------------------
+// Task 1.1 (#1722) — batched(thunks, n) fan-out throttle + run.maxParallel threading (End states 1–2)
+// ---------------------------------------------------------------------------
+
+// Extract the batched helper from src and bind it to a stub `parallel` that mimics the live sandbox
+// semantics: run the group concurrently, NULL a rejected thunk (the #742 invariant's mechanism).
+const batchedBlock = (() => {
+  const m = src.match(/async function batched\(thunks, n\) \{[\s\S]*?\n\}/)
+  return m ? m[0] : null
+})()
+const makeBatched = (parallel) => new Function('parallel', `${batchedBlock}\nreturn batched`)(parallel)
+const liveishParallel = (record) => async (thunks) => {
+  if (record) record.push(thunks)
+  return Promise.all(thunks.map((t) => Promise.resolve().then(t).catch(() => null)))
+}
+
+test('batched: deterministic batching — at most N in flight, group k+1 starts only after group k settles, input order preserved', async () => {
+  assert.ok(batchedBlock, 'the batched(thunks, n) helper is locatable in workflow-template.js (feature-presence guard)')
+  const batched = makeBatched(liveishParallel(null))
+  let active = 0, maxActive = 0, settled = 0
+  const startedAtSettled = []           // per thunk: how many thunks had SETTLED when this one started
+  const thunks = Array.from({ length: 7 }, (_, i) => async () => {
+    active++; maxActive = Math.max(maxActive, active)
+    startedAtSettled[i] = settled
+    await new Promise((r) => setTimeout(r, 1))   // hold the whole group in flight together
+    active--; settled++
+    return i
+  })
+  const out = await batched(thunks, 3)
+  assert.deepEqual(out, [0, 1, 2, 3, 4, 5, 6], 'results return in input order (7 thunks, n=3 → groups 3/3/1)')
+  assert.equal(maxActive, 3, 'at most N=3 thunks are ever concurrently in flight')
+  // Group boundaries: a thunk in group k+1 starts only after ALL of group k settled.
+  assert.deepEqual(startedAtSettled.slice(0, 3), [0, 0, 0], 'group 1 starts with nothing settled')
+  assert.deepEqual(startedAtSettled.slice(3, 6), [3, 3, 3], 'group 2 starts only after all 3 of group 1 settled')
+  assert.deepEqual(startedAtSettled.slice(6), [6], 'group 3 starts only after all 6 prior thunks settled')
+})
+
+test('batched: a rejecting thunk inside a throttled group yields a NULL slot, never a group-wide rejection (#742 invariant)', async () => {
+  const batched = makeBatched(liveishParallel(null))
+  const thunks = [async () => 'a', async () => { throw new Error('boom') }, async () => 'c', async () => 'd']
+  const out = await batched(thunks, 2)   // the rejection lands mid-group-1
+  assert.deepEqual(out, ['a', null, 'c', 'd'],
+    'rejected slot is null IN PLACE; its group sibling AND the later group both survive (no Promise.all group-wide rejection)')
+})
+
+test('batched: source NEVER awaits groups via Promise.all — only the live sandbox parallel()', () => {
+  assert.ok(batchedBlock, 'helper present (presence guard)')
+  assert.ok(!/Promise\.all/.test(batchedBlock), 'batched body contains no Promise.all (the live parallel NULLs rejections; Promise.all would reject group-wide)')
+  assert.match(batchedBlock, /await parallel\(thunks\.slice\(/, 'each group is awaited via the sandbox parallel()')
+})
+
+test('batched call-site census: all four fan-out sites dispatch through batched(..., maxParallel) and no bare parallel() call site remains', () => {
+  // The four sites (End state 1): seat-roster fan-out, its dropped-seat retry, the per-wave
+  // work+audit fan-out, and the post-merge gate-audit pass.
+  assert.ok(src.includes('await batched(roster.map(seat => () => runSeat(seat)), maxParallel)'),
+    'site 1: the seat-roster fan-out dispatches through batched')
+  assert.ok(src.includes('await batched(dropped.map(seat => () => runSeat(seat)), maxParallel)'),
+    'site 2: the dropped-seat retry dispatches through batched')
+  assert.ok(src.includes('await batched(wave.map(task => async () => {'),
+    'site 3: the per-wave work+audit fan-out dispatches through batched')
+  assert.ok(src.includes('await batched(mergedTasksForGateAudit.map('),
+    'site 4: the gate-audit pass dispatches through batched')
+  // Default-deny half: with line comments stripped, the ONLY code-level parallel() calls left are the
+  // two inside the batched helper body itself — no fan-out site bypasses the throttle. (Line-comment
+  // strip only, mirroring the Task 4 gate-audit structural test: the resolveGate glob literals break a
+  // naive block-comment strip, and these tokens live only in executable code.)
+  const code = src.replace(/\/\/[^\n]*/g, '')
+  const parallelCalls = (code.match(/\bparallel\s*\(/g) || []).length
+  assert.equal(parallelCalls, 2, 'exactly the two batched-internal parallel() calls remain (delegate path + group loop)')
+  const batchedCalls = (code.match(/\bawait batched\(/g) || []).length
+  assert.equal(batchedCalls, 4, 'exactly four batched() call sites (default-deny census)')
+  assert.equal((code.match(/, maxParallel\)/g) || []).length, 4, 'every batched call site threads maxParallel')
+})
+
+test('maxParallel-absent: the absent-knob path takes no batching branch — one parallel() call with the untouched thunk array (End state 2)', async () => {
+  // run.maxParallel absent ⇒ the threading const resolves null (no hand-mirrored numeric fallback,
+  // unlike roundLimit) ⇒ batched delegates the VERY SAME thunks array to a single parallel() call:
+  // byte-identical fan-out, no slicing, no batching branch.
+  assert.ok(src.includes('const maxParallel = (Number.isInteger(run.maxParallel) && run.maxParallel > 0) ? run.maxParallel : null'),
+    'run.maxParallel threads to null when absent/malformed — never a numeric default')
+  for (const n of [null, undefined, 0, -1, 2.5, '3']) {
+    const record = []
+    const batched = makeBatched(liveishParallel(record))
+    const thunks = [async () => 1, async () => 2, async () => 3]
+    const out = await batched(thunks, n)
+    assert.equal(record.length, 1, `n=${String(n)}: exactly ONE parallel() call (no batching branch)`)
+    assert.strictEqual(record[0], thunks, `n=${String(n)}: the untouched input array itself is delegated (no slice)`)
+    assert.deepEqual(out, [1, 2, 3], `n=${String(n)}: results pass through unchanged`)
+  }
 })
