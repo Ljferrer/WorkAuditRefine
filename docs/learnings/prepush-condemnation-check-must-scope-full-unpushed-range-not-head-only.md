@@ -1,6 +1,6 @@
 ---
 name: prepush-condemnation-check-must-scope-full-unpushed-range-not-head-only
-description: "Pre-push condemnation must scan the full unpushed range, not HEAD only — poisoned HEAD~1 reaches origin"
+description: "Pre-push condemnation must scan the full unpushed range, not HEAD only"
 metadata: 
   node_type: memory
   type: project

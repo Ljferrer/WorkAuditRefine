@@ -1,6 +1,6 @@
 ---
 name: cp-r-and-bare-worktree-add-do-not-isolate-a-sandbox-from-a-linked-worktree-target
-description: "`cp -R` and bare `git worktree add` don't isolate a sandbox from a linked worktree — only `git clone --no-hardlinks` does"
+description: "`cp -R` and bare `git worktree add` don't isolate a sandbox from a linked worktree"
 metadata: 
   node_type: memory
   type: project

@@ -1,6 +1,6 @@
 ---
 name: column-0-bound-regex-does-not-terminate-inside-an-indented-fenced-bullet-block
-description: "A construct-anchored extraction bound written as column-0-only (^- |^#|^```|^blank) does not terminate at an indented sibling bullet inside a fenced block — an anchor placed inside such a fence extracts through to the next column-0 heading, silently widening if later additive edits insert more indented bullets in that window"
+description: "A construct-anchored extraction bound written as column-0-only (^- |^#|^```|^blank) does not…"
 metadata: 
   node_type: memory
   type: project

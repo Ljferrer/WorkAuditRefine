@@ -72,3 +72,5 @@ asserts **both halves** (new form present AND old form absent) so the superseded
 Related: [[plan-array-literal-lags-canonical-export]],
 [[absorb-fix-for-attribution-finding-can-itself-invert-mirror-direction]],
 [[end-state-file-level-grep-floor-satisfied-by-explanatory-comment-alone]]
+
+> archived 2026-08-25: resolved — moved to archive

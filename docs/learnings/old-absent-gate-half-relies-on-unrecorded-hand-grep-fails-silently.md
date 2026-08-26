@@ -1,6 +1,6 @@
 ---
 name: old-absent-gate-half-relies-on-unrecorded-hand-grep-fails-silently
-description: "An OLD-absent gate half certified by an uncommitted hand grep silently false-passes; commit the assertion"
+description: "An OLD-absent gate half certified by an uncommitted hand grep silently false-passes"
 metadata: 
   node_type: memory
   type: project

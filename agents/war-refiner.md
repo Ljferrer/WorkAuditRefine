@@ -92,7 +92,7 @@ Return the `ENDSTATE_CHECK_RESULT` JSON: `{ artifacts: [{ n, path, tip_sha, exit
 
 ## File-followups dispatch
 
-After the land decision resolves (`landed`/`held:escalation`), unabsorbed `follow-up`-routed findings get ONE **`file-followups:phase-<id>`** run (`dispatchKind: file-followups`) — a gh-write batch, **never out-of-mode: do not decline it** (fail-open — a decline is silent non-filing). When dispatched a file-followups run, read [file-followups.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/file-followups.md) — the preflight / dedup-as-corroboration-comment / cluster-per-root-cause filing procedure and the return contract; your dispatched prompt carries the same instructions verbatim (this pointer is enrichment, never the sole carrier).
+After the land decision resolves (`landed`/`held:escalation`), unabsorbed `follow-up`-routed findings — consolidated `minorsFiled` rows only; a parked ask is never in the batch (ruled asks file Lead-side, per the pointer) — get ONE **`file-followups:phase-<id>`** run (`dispatchKind: file-followups`) — a gh-write batch, **never out-of-mode: do not decline it** (fail-open — a decline is silent non-filing). When dispatched a file-followups run, read [file-followups.md](${CLAUDE_PLUGIN_ROOT}/skills/war/references/file-followups.md) — the preflight / dedup-as-corroboration-comment / cluster-per-root-cause filing procedure and the return contract; your dispatched prompt carries the same instructions verbatim (this pointer is enrichment, never the sole carrier).
 
 ## land-phase
 

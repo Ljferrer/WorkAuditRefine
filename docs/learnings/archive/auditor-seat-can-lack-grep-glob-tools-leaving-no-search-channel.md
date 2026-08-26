@@ -65,3 +65,5 @@ point to was unavailable, forcing whole-file Reads.
 `agents/war-auditor.md` frontmatter `tools:` line and the "Search with the Grep/Glob tools" bullet
 (~line 27) — verify still present before acting. `hooks/validate-auditor-git.sh` forbidden-char
 deny message (~line 91) names the same remedy.
+
+> archived 2026-08-25: resolved — moved to archive

@@ -1,6 +1,6 @@
 ---
 name: analyzed-scope-lock-forbids-the-external-read-a-new-lens-instruction-requires
-description: "Adding a new dispatched-prompt instruction that requires a red-team lens probe to read something OUTSIDE its confined repo (a cited GitHub issue via gh, a network resource) is silently capped when that probe's technique is 'analyzed' — the analyzed scopeLock arm ('Restrict every Read/Grep/Glob to paths under ${repo}...; open nothing else on the machine', stamped 'OVERRIDES ANY AMBIENT PROJECT CONTEXT') carves out no exception for it, so a conservative probe declines the new read and the mechanism degrades to its fallback arm every time"
+description: "Adding a new dispatched-prompt instruction that requires a red-team lens probe to read…"
 metadata: 
   node_type: memory
   type: project

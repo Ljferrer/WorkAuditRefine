@@ -7,7 +7,9 @@
 # step 1. Also pins (2026-08-24, authoring-side verification) the cross-surface consumer
 # family: the war-machine verifier-charter pointer + drafter evidence instruction + the
 # #1510/#1605 re-scopes, the deps-edged lenses.md / survey-corps / war-review pins, and the
-# ADR 0044 amendment / ADR 0014 cross-ref decision-record pair (Task 3.1).
+# ADR 0044 amendment / ADR 0014 cross-ref decision-record pair (Task 3.1). Also pins
+# (2026-08-25, ask-disposition Task 2.6) the two war-review telemetry rows — the asks tally
+# and the grind-measurement row.
 # grep-based, plain-bash, no mktemp
 # — bash 3.2-safe. Exit 0 = all present; exit N = N failed assertions.
 #
@@ -673,6 +675,26 @@ has   "$SURVEY" '`## Evidence artifacts`'
 # from doctrine-authored plans' WAIVE-<n> rows, n/a when none in scope.
 has_i "$WAR_REVIEW" 'waive-rate per arming arm'
 has   "$WAR_REVIEW" '`WAIVE-<n>`'
+
+printf '\n# Ask-disposition (Task 2.6) — war-review telemetry row pins\n'
+# ask-disposition Task 2.6 (D3 · PIN-4 · PIN-11) — pins over Task 2.5's two war-review
+# telemetry rows, per the PIN-24-reader precedent just above. Row 1: the asks tally (#1550),
+# sourced from the handoff's ninth (`asks`) entry.
+has_i "$WAR_REVIEW" 'asks — parked ask-disposition findings'
+has   "$WAR_REVIEW" "the handoff's \`asks\` entry"
+# Row 2: the grind-measurement row (the #1664 backstop's reader) naming all three terminal
+# sources — the terminal `fixRounds` distribution, the filing site's audit-round field, and
+# decision-shaped language in `minorsFiled` rationales.
+has_i "$WAR_REVIEW" 'grind measurement'
+has   "$WAR_REVIEW" 'terminal `fixRounds` distribution'
+has   "$WAR_REVIEW" "the filing site's audit-round field"
+has   "$WAR_REVIEW" 'decision-shaped language in `minorsFiled` rationales'
+# Row 2's load-bearing pair (PIN-11): the coarseness is NAMED (no round-level attribution
+# exists) and the failure-routing asymmetry holds — ambiguity routes to #1664's
+# instrumentation-first refinement, never to a silent "no grinding".
+has_i "$WAR_REVIEW" 'round-level attribution does not exist'
+has_i "$WAR_REVIEW" "routes to #1664's instrumentation-first refinement"
+has_i "$WAR_REVIEW" 'never to a silent "no grinding"'
 
 printf '\n# Authoring-side verification (Task 3.1) — ADR decision-record pins (End state 10 decisive pair)\n'
 # Never a bare token grep (the plan's own rule for this pair). The 0044 half is

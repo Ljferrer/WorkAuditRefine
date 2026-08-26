@@ -1,6 +1,6 @@
 ---
 name: guard-duty-authored-in-an-earlier-phase-cannot-bind-a-normative-home-landing-in-a-later-phase
-description: "A drift-guard row for a glossary/duty entry whose real normative home spans MULTIPLE phases (not just multiple same-phase tasks) can only ever bind a proxy/consumption surface from the earlier phase's task — a deps edge, the fix for a same-phase guard/mirror split, cannot reach across a phase boundary (this repo's own decomposition rule scopes deps edges to the same phase), so the guard stays structurally thin until a later phase explicitly schedules a re-bind task, which a plan can silently omit"
+description: "A drift-guard row for a glossary/duty entry whose real normative home spans MULTIPLE phases…"
 metadata: 
   node_type: memory
   type: project

@@ -1,6 +1,6 @@
 ---
 name: provision-barrier-refiner-owned-not-worker-self-create
-description: "Worktree provisioning is a refiner-owned Provision barrier before worker fan-out; workers never self-create"
+description: "Worktree provisioning is a refiner-owned Provision barrier before worker fan-out"
 metadata: 
   node_type: memory
   type: project

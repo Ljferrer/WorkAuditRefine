@@ -1,6 +1,6 @@
 ---
 name: guard-rationale-comment-can-cite-a-different-scanned-surface-than-the-pin-it-justifies
-description: "A drift-guard test's justifying comment for a new positive/presence pin can claim it is the 'non-vacuity twin' for a set of absence (lacks_i) arms defined just above it, while the new pin actually scans a DIFFERENT target file than those arms — the pins themselves are correct and load-bearing, only the stated rationale is false, and nothing in a shell/node test suite asserts comment content"
+description: "A drift-guard test's justifying comment for a new positive/presence pin can claim it is the…"
 metadata: 
   node_type: memory
   type: project

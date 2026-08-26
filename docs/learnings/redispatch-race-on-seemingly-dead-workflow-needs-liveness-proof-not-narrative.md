@@ -1,6 +1,6 @@
 ---
 name: redispatch-race-on-seemingly-dead-workflow-needs-liveness-proof-not-narrative
-description: "SETTLED (Lead adjudication, same day): a /war workflow diagnosed dead from remote-branch absence was in fact live across a session compaction and completed all 10 agents itself; the Lead's re-dispatched seats raced it, kept benign only by read-only seats + land-advance's push-first CAS. Prove liveness with a hard signal (live-task status/notification, advancing journal mtime) before re-dispatching seats on an apparently-interrupted run"
+description: "SETTLED (Lead adjudication, same day): a /war workflow diagnosed dead from remote-branch…"
 metadata: 
   node_type: memory
   type: project

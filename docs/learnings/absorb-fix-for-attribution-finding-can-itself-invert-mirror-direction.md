@@ -1,6 +1,6 @@
 ---
 name: absorb-fix-for-attribution-finding-can-itself-invert-mirror-direction
-description: "A phase-close absorb-fix for a doc finding can itself carry a fresh defect the fail-open sweep lands uncorrected — now confirmed a third time, including for a 'note'-dispositioned defect (equally terminal, no absorb needed to trigger it)"
+description: "A phase-close absorb-fix for a doc finding can itself carry a fresh defect the fail-open sweep…"
 metadata: 
   node_type: memory
   type: project

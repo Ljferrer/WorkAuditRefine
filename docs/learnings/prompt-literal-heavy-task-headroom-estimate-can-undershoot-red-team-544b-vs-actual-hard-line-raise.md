@@ -1,6 +1,6 @@
 ---
 name: prompt-literal-heavy-task-headroom-estimate-can-undershoot-red-team-544b-vs-actual-hard-line-raise
-description: "A red-team headroom estimate for a prompt-literal-heavy task (e.g. new bisection dispatch prose) can be far more optimistic than the actual growth once landed — this phase's task needed a full WORKFLOW_LITERAL_BUDGET hard/advisory raise (62464→79872 hard, →70656 advisory) against a red-team estimate of only ~544 B headroom; the plan's compression-first-then-raise-as-fallback duty still worked (raise was lawful per ADR 0042's justification rule), but budget-headroom estimates for prompt-literal-heavy work should be treated as lower bounds, not plans"
+description: "A red-team headroom estimate for a prompt-literal-heavy task (e.g"
 metadata: 
   node_type: memory
   type: project

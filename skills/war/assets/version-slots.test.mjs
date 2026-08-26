@@ -198,6 +198,24 @@ test('CHANGELOG.md leads with the canonical version entry (newest-first append)'
   )
 })
 
+// The lead-entry test above sees only the FIRST heading — a release entry duplicated
+// or inserted out of order below the lead passes it. Newest-first is a property of the
+// whole ladder: every `## x.y.z — date` heading must be strictly below its predecessor
+// (numeric compare via cmpSemver — a lexical sort ranks 0.14.9 above 0.14.10), which
+// also forbids duplicate version entries. Dates are deliberately not ordered: same-day
+// releases are legitimate and the version ladder alone carries the invariant.
+test('CHANGELOG.md entries are strictly descending by version (no dupes, no out-of-order insert)', () => {
+  const changelog = readFileSync(join(repoRoot, 'CHANGELOG.md'), 'utf8')
+  const versions = [...changelog.matchAll(/^## (\d+\.\d+\.\d+) — \d{4}-\d{2}-\d{2}$/gm)].map((m) => m[1])
+  assert.ok(versions.length >= 2, 'CHANGELOG.md has fewer than two entry headings — the ordering check is fail-closed')
+  for (let i = 1; i < versions.length; i++) {
+    assert.ok(
+      cmpSemver(versions[i], versions[i - 1]) < 0,
+      `CHANGELOG.md entry ${versions[i]} is not strictly below its predecessor ${versions[i - 1]} — entries append newest-first, one entry per version`,
+    )
+  }
+})
+
 // Monotonic floor — lock-step is NOT monotonic. A coherent all-four-slots DOWNGRADE moves
 // every slot together, so the lock-step test above passes it: that is exactly how a Gate-2
 // `docs(learnings)` commit staged from a stale publication worktree silently reverted a

@@ -88,3 +88,5 @@ frozen base or the resume guarantees. Full mechanics:
 - Reference run: epics #416/#417, follow-up litter #422 — the T1→T4 dangling-link case.
 
 *Cross-reference (2026-08-20): ace regression-recovery semantics amended — see [ADR-0013's ace bisection amendment](0013-commanders-intent-and-disposition-routing.md).*
+
+*Cross-reference (2026-08-25): the routing taxonomy gains a fourth Minor/Nit-only member, `ask` — parked in the artifact and ruled at the Checkpoint strike-list gate, never consumed by the sweep — see [ADR-0013's ask-disposition amendment](0013-commanders-intent-and-disposition-routing.md).*

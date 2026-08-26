@@ -285,6 +285,9 @@ const QUALIFIED_HEADERS = [
   'worker-servitor-edges.md',
   'auditor-teach.md',
   'glossary-cold.md',
+  // ask-disposition Task 1.1: the war-auditor.md eligibility-blockquote eviction destination
+  // (joined on creation per the UNION-extension precedent above).
+  'disposition-eligibility.md',
 ];
 
 test('reference link integrity — the re-basing caveat and the no-path-form claim are retired everywhere, and every re-qualified header says "at eviction time"', () => {
