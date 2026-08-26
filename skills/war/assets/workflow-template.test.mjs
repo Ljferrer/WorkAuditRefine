@@ -8220,17 +8220,24 @@ test("Done when threading — absent ⇒ '' (set-minus): each site's doneWhen-le
     assert.ok(!wo.prompt.includes('\nDone when:'),
       `site "${s.site}": the doneWhen-less prompt carries NO line-anchored Done when: token at all (absolute absence — the hardcoded-in-both-arms case parity cancels)`)
   }
-  // null, absent, '', and a non-string are the same legacy arm (the string|null contract):
-  // byte-identical prompts. The '' arm pins the guard's TRUTHINESS half and the non-string arm
-  // pins its TYPEOF half (D5, #1334-1) — Task 1.1's Decompose parser produces this field, and a
-  // bare `Done when:` bullet is the plausible way an empty string arrives.
+  // null, absent, and '' are the same legacy arm (the string|null contract): byte-identical
+  // prompts. The '' arm pins the guard's TRUTHINESS half — Task 1.1's Decompose parser produces
+  // this field, and a bare `Done when:` bullet is the plausible way an empty string arrives.
+  // A NON-STRING doneWhen no longer reaches the clause's typeof guard: the entry-validation
+  // TASK-FIELD class (D5, engine-reliability — superseding the #1334-1 silent-legacy tolerance for
+  // this shape) refuses it at intake naming the task and field, before any dispatch.
   const nullP = DONE_WHEN_SITES[0].find((await DONE_WHEN_SITES[0].run({ doneWhen: null })).calls).prompt
   const absentP = DONE_WHEN_SITES[0].find((await DONE_WHEN_SITES[0].run({})).calls).prompt
   assert.equal(nullP, absentP, 'doneWhen:null and doneWhen-absent dispatch byte-identical worker prompts')
   assert.equal(DONE_WHEN_SITES[0].find((await DONE_WHEN_SITES[0].run({ doneWhen: '' })).calls).prompt, absentP,
     "doneWhen:'' dispatches the byte-identical legacy prompt (the guard's truthiness half)")
-  assert.equal(DONE_WHEN_SITES[0].find((await DONE_WHEN_SITES[0].run({ doneWhen: 5 })).calls).prompt, absentP,
-    "doneWhen:5 (non-string) dispatches the byte-identical legacy prompt (the guard's typeof half — D5, #1334-1)")
+  const nonStringRun = await DONE_WHEN_SITES[0].run({ doneWhen: 5 })
+  assert.equal(nonStringRun.out.landDecision, 'held:workflow-error',
+    'doneWhen:5 (non-string) is refused at entry by the TASK-FIELD class (D5) — never silently coerced to the legacy arm')
+  assert.match(nonStringRun.out.workflowError.message, /non-string doneWhen \(number\)/,
+    'the refusal names the field and the offending type')
+  assert.ok(!DONE_WHEN_SITES[0].find(nonStringRun.calls),
+    'zero dispatches reach the worker site on the refused launch (the floor is at entry)')
 })
 
 test('prompt truth (D6) — every dispatched prompt that says keep-the-gate-green carries the gate command', async () => {
