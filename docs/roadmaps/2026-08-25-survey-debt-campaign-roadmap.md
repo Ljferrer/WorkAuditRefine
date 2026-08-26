@@ -3,9 +3,10 @@
 Converted by `/war-machine` from the 2026-08-25 survey manifest (`.claude/aot/2026-08-25-survey.json`;
 specs `docs/specs/2026-08-25-*-design.md`). Landing order is **strictly serial** — all three plans
 carry a trailing directive-form release phase over the same four version slots plus the CHANGELOG
-head entry, so no two plans may be in flight at once. The whole campaign additionally waits on the
-**in-flight ask-disposition campaign** (epics #1667–#1669), which owns `skills/war/assets/workflow-template.js`
-until it lands (plan 1's Assumptions ledger row A8).
+head entry, so no two plans may be in flight at once. The ask-disposition campaign this spine
+originally waited on **landed 2026-08-25** (PR #1711, master `40afddb`, release 0.20.0) — the
+campaign is launchable; all three plans were refreshed against that tree, and its 12 follow-up
+issues (#1691–#1696, #1704–#1709) were folded into plans 1 and 3 (operator-ratified 2026-08-25).
 
 | # | Plan | Files owned | Ver | Depends on |
 |---|------|-------------|-----|------------|
@@ -16,8 +17,7 @@ until it lands (plan 1's Assumptions ledger row A8).
 ## Dependency spine (strict landing order)
 
 ```
-ask-disposition campaign (in flight, #1667–#1669)
-        │ lands
+ask-disposition campaign — LANDED 2026-08-25 (0.20.0, master 40afddb)
         ▼
   1  engine-reliability-and-filing-fidelity
         │ lands (advances the four slots + CHANGELOG head)
@@ -46,11 +46,12 @@ early are non-authoritative by house rule.
 | `skills/red-team/SKILL.md` | 1, 2 | Plan 1's maxParallel prose instruction; plan 2's escape-semantics doc hits. Disjoint sections; serial order resolves. |
 | `CONTEXT.md` | 1, 3 | Plan 1 adds three glossary rows (batching helper, Budget-Raise trailer, drain cause); plan 3 evicts to `glossary-cold.md` (#1651) and must re-measure headroom AFTER plan 1's additions land — plan 3's eviction arithmetic is stated re-measure-at-base for exactly this reason. |
 | `skills/war/references/schemas.md`, `agents/war-refiner.md` | 1, 3 | Plan 1's contract rows / refiner wiring; plan 3's doneWhen parenthetical and card pins. Disjoint rows; serial order resolves. |
+| `skills/war/SKILL.md` | 1, 3 | Plan 1's P3 launch-wiring edits; plan 3's new Phase 1 Task 8 (#1708 ruled-ask bullet rewrite with lock-step D37/D41 pin moves). Different regions; serial order 1 → 3 resolves, and plan 3's task names the cross-plan caution explicitly. |
 
 ## Issue → spec → plan chain
 
 | Spec | Plan | Issues |
 |------|------|--------|
-| `docs/specs/2026-08-25-engine-reliability-and-filing-fidelity-design.md` | `docs/plans/2026-08-25-engine-reliability-and-filing-fidelity.md` | #1552, #1586, #1671, #1430, #1666, #1480, #1679, #1680, #1681, #1672, #1476, #1456, #1560, #1561, #1562, #1597, #1592, #1589, #1575, #1574, #1571, #1659, #1660, #1577, #1435, #1421, #1688 |
+| `docs/specs/2026-08-25-engine-reliability-and-filing-fidelity-design.md` | `docs/plans/2026-08-25-engine-reliability-and-filing-fidelity.md` | #1552, #1586, #1671, #1430, #1666, #1480, #1679, #1680, #1681, #1672, #1476, #1456, #1560, #1561, #1562, #1597, #1592, #1589, #1575, #1574, #1571, #1659, #1660, #1577, #1435, #1421, #1688 + folded ask-campaign follow-ups #1691, #1692, #1693, #1694, #1696, #1704 |
 | `docs/specs/2026-08-25-authoring-doctrine-and-lint-coherence-design.md` | `docs/plans/2026-08-25-authoring-doctrine-and-lint-coherence.md` | #1641, #1637, #1640, #1642, #1638, #1639, #1643, #1682, #1655, #1684, #1685, #1650, #1674, #1397, #1396 |
-| `docs/specs/2026-08-25-doc-truth-and-drift-guard-debt-design.md` | `docs/plans/2026-08-25-doc-truth-and-drift-guard-debt.md` | #1662, #1625, #1622, #1621, #1620, #1618, #1292, #1565, #1545, #1537, #1536, #1651, #1522, #1399, #1477, #1474, #1678, #1652, #1653, #1654, #1656, #1521, #1525, #1488, #1513, #1587, #1539, #1538, #1535, #1446, #1542, #1673, #1675, #1676, #1677, #1683, #1686, #1687, #1689 |
+| `docs/specs/2026-08-25-doc-truth-and-drift-guard-debt-design.md` | `docs/plans/2026-08-25-doc-truth-and-drift-guard-debt.md` | #1662, #1625, #1622, #1621, #1620, #1618, #1292, #1565, #1545, #1537, #1536, #1651, #1522, #1399, #1477, #1474, #1678, #1652, #1653, #1654, #1656, #1521, #1525, #1488, #1513, #1587, #1539, #1538, #1535, #1446, #1542, #1673, #1675, #1676, #1677, #1683, #1686, #1687, #1689 + folded ask-campaign follow-ups #1695, #1705, #1706, #1707, #1708, #1709 |

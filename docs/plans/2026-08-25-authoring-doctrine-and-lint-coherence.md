@@ -166,7 +166,7 @@ negative whose flip is "the deliberate FIRST ACT" of the widening (verified:
 | A3 | No `agents/*.md` standing surface mirrors the scope-lock wording | drafting-time grep of `skills/` + `agents/` at HEAD found only the scaffold hit | a standing/dispatched drift lands silently | Task 3.1 re-greps at its rebased base before closing |
 | A4 | The D13 sibling surfaces (survey-corps SKILL.md, red-team lenses.md) are already correct and are read as reference shapes only | issue #1655's own three-surface comparison; lenses.md arm re-verified at HEAD | the drafter arm normalizes against a wrong shape | Task 2.4 reads both siblings; if divergent, widens to normalize all three in one commit (spec consequence) |
 | A5 | D1's ‡-is-not-a-class resolution is charter-level wording repair, not a new binding decision — no ADR required | spec §7 `[assumed:]` row carried forward (D19) | an undocumented architectural selector; a short ADR ("‡ twice-read selection is marker-keyed, not class-keyed") ratifies it later | operator may promote at the conversion volley; OD-2's ADR-stub fallback pattern applies |
-| A6 | This plan stacks on the landed tip of `docs/plans/2026-08-25-engine-reliability-and-filing-fidelity.md` (its Phase 9 release lands ≥ one patch above 0.19.0), so the live integration base at launch already carries that plan's `skills/red-team/SKILL.md` and release-slot edits | campaign stacking directive (operator-directed, ADR 0011) | rebase churn in Phase 3/4; re-verify named constructs at the rebased base | Phase 1 Task 1 worker's first rebase; the release phase's next-free-patch resolution |
+| A6 | This plan stacks on the landed tip of `docs/plans/2026-08-25-engine-reliability-and-filing-fidelity.md` (which itself stacks on master at 0.20.0 — the ask-disposition release — so its Phase 9 release lands ≥ one patch above 0.20.0), so the live integration base at launch already carries that plan's `skills/red-team/SKILL.md` and release-slot edits | campaign stacking directive (operator-directed, ADR 0011) | rebase churn in Phase 3/4; re-verify named constructs at the rebased base | Phase 1 Task 1 worker's first rebase; the release phase's next-free-patch resolution |
 | A7 | The five `war-strategy-structure.test.sh` doc_f/char_f pins that quote the current twice-read wording survive the D1 rewording because they anchor on `read **twice** at echo-back reconciliation`, which both reworded clauses retain | pin inventory read at HEAD (drafting) | Phase 1 tasks red the structure suite; the worker updates the pins lock-step in the same commit — never loosens them | each Phase-1 task's gate run |
 
 ## Non-goals / deferred
@@ -583,7 +583,8 @@ deps-dodged).
   `CHANGELOG.md` head entry for that same version (`version-slots.test.mjs` asserts the
   head equals the bumped `plugin.json` version). Expected integration base (A6): the
   landed tip of `docs/plans/2026-08-25-engine-reliability-and-filing-fidelity.md`'s
-  campaign branch, which already carries that plan's own trailing release — resolve from
+  campaign branch, which stacks on master at 0.20.0 (the ask-disposition release) and
+  already carries that plan's own trailing release — resolve from
   the slots at land time, never from this paragraph. Standalone-fallback
   rule: a run of this plan through plain `/war` (outside the campaign stack) resolves the
   next free patch from the four slots themselves. Before landing, assert the resolved

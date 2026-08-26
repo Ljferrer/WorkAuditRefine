@@ -4,7 +4,8 @@ Converted by `/war-machine` from `docs/specs/2026-08-25-engine-reliability-and-f
 (Part 1 is its decision digest; every spec `[assumed:]` row is carried forward or retired with a stated
 reason in the Assumptions ledger). Issues addressed (all claimed): #1552, #1586, #1671, #1430, #1666,
 #1480, #1679, #1680, #1681, #1672, #1476, #1456, #1560, #1561, #1562, #1597, #1592, #1589, #1575, #1574,
-#1571, #1659, #1660, #1577, #1435, #1421, #1688.
+#1571, #1659, #1660, #1577, #1435, #1421, #1688; fold batch (operator-ratified 2026-08-25 volley):
+#1691, #1692, #1693, #1694, #1696, #1704.
 
 **Evidence consumed:** source spec (read in full); issue evidence consumed via the spec's per-claim
 `(verified: issue #N (2026-08-25))` tags — the spec was synthesized from per-issue reader summaries the
@@ -14,7 +15,14 @@ same day, so each tag is treated as a read of that issue's Evidence artifacts; a
 `seatRef` + `FOLLOWUP_LINE_WINDOW`, the `m.seats && m.seats.length` render, the endstate `cmd-file:` row
 builder, `landMerged`, `culpritFiles`, the `Ace-Subset:` trailer build, `fixRounds`/`roundLimit`,
 `FILE_BUDGETS`, `reuse_hygiene`, campaign-ledger `case 'record'` copy loop, the single `residue` deny,
-`extract_msg`, and the `--close-epic` labels-then-`gh issue close --reason` order.
+`extract_msg`, and the `--close-epic` labels-then-`gh issue close --reason` order. **0.20.0 refresh
+(2026-08-25, post ask-disposition land):** every construct above re-verified against master 40afddb
+(v0.20.0) — the ask-disposition diff (asks channel: `dispositionOf` four-member enum, `parkAsk`,
+`demote()` ask refusal, ninth handoff key `asks`) touches none of them; the four `parallel()` sites,
+both bare `${task.planSlice}` worker-prompt interpolations, the `seatRef`/`FOLLOWUP_LINE_WINDOW`
+collapse (still appending only `seatRef(f)`), the `m.seats && m.seats.length` truthiness render, the
+"runs outside any try" comment, `auditEvidenceOf`'s `'unrecorded'` sha fallback, `provisionStep`'s
+bare `agent(...)`, and the endstate `cmd-file:` row builder are all byte-unchanged in those regions.
 
 ## Context — the gap / problem
 
@@ -52,7 +60,11 @@ source, wired into `skills/war/SKILL.md` launch, plus a default-deny census of b
 directions — substring `includes()` over `JSON.stringify` per surface, foreign-id check with no
 predecessor-citation exemption, no word-boundary/stoplist (verified: issue #1480 (2026-08-25)) — and it
 false-refuses plan-agnostic backstops carrying Lead-stamped `planFile` provenance (verified: issue #1666
-signal 1 (2026-08-25)).
+signal 1 (2026-08-25)). Fold batch: on a sanctioned recovery relaunch the barrier's `preMerged`
+consumption loop guards with `!tasks.some(t => t.id === id)` and drops without logging — a refiner
+reporting worktree-name-shaped ids (`p2-2.1` vs `2.1`) silently disables the merged-set skip, and four
+phantom workers were dispatched for already-landed tasks into worktrees the barrier never created; the
+guard cannot distinguish garbage from truth in the wrong dialect (verified: issue #1704 (2026-08-25)).
 
 **Endstate-check artifact fidelity.** Three mined defects in the land-barrier endstate-check dispatch's
 `.cmd` generation/capture: (1) a correctly single-quoted plan `check:` literal containing a `${...}` run
@@ -69,8 +81,10 @@ exit 0 with empty stdout, forcing unrecorded hand-re-grounding by gate-audit sea
 (`FOLLOWUP_LINE_WINDOW`): same-seat same-file rows within the window also collapse, and every
 merged-away row survives only as a `seats[]` ref — title and rationale dropped from `minorsFiled`, the
 handoff, and the filing prompt (verified: issues #1571, #1575 (2026-08-25); the collapse appending only
-`seatRef(f)` confirmed at HEAD (2026-08-25)). `seatRef` is seat-only, so a cross-task collapse loses
-corroborating-task attribution (verified: issue #1574 (2026-08-25)). The filing-prompt row renderer
+`seatRef(f)` confirmed at HEAD (2026-08-25)). `seatRef` renders seat OR a `'task <id>'` fallback when seat is
+absent — never seat+task together — so a cross-task collapse of seat-attributed rows loses
+corroborating-task attribution (verified: issue #1574 (2026-08-25); the `f.seat ?? 'task ' + f.task`
+fallback shape confirmed at 0.20.0 HEAD). The filing-prompt row renderer
 calls `m.seats.join` behind a truthiness (not `Array.isArray`) gate — an auditor-supplied string `seats`
 kills the whole filing batch (verified: issues #1592, #1597 (2026-08-25)); #1597 additionally wants
 `schemas.md`'s `minorsFiled` collapse qualified as conditional on handoff-emitting decisions (verified:
@@ -79,7 +93,16 @@ false (verified: issue #1589 (2026-08-25)). The Evidence-artifacts extraction cl
 `:rebut` seat suffix as the lens (verified: issue #1659 (2026-08-25)); `auditEvidenceOf`'s sha fallback
 renders "unrecorded" for every `requiresTest:false` task (verified: issue #1660 (2026-08-25)). ADR 0013
 Decision 4 still describes 1:1 finding→issue filing; the landed behavior is N:1 clustered filing with
-dedup-as-corroboration-comment (verified: issue #1577 (2026-08-25)).
+dedup-as-corroboration-comment (verified: issue #1577 (2026-08-25)). Fold batch (0.20.0 asks channel):
+the gate-audit-family seats (per-task post-merge, integrated-tip, end-state-only) and the polish panel
+route findings only into `auditLog`/`escalated` — never through `dispositionOf` — so an honest
+`disposition:'ask'` there never reaches `asks[]`, the ninth handoff key, or the Checkpoint ruling gate;
+the lane is an unrowed, uncommented disposition sink (contrast the pinMismatch strip's comment + census
+row) (verified: issue #1692 (2026-08-25)). And `minorsOf` stamps agent-controlled `s.audit_sha`
+verbatim onto every Minor/Nit copy — `parkAsk` carries it into the operator-facing `asks[].sha`
+provenance pin with none of the repo's validate-at-the-copy-site guard (`isSha`/`pinOrSentinel`,
+applied at `landMerged` and the `tipSha` re-read), a third copy site that skips it (verified: issue
+#1693 (2026-08-25) — distinct root cause from #1480's own-token launch-args floor).
 
 **Land-path and phase-close robustness.** The land dispatch dies when the gate outruns the ~2 min tool
 timeout (needs a segmented/incomplete status, not a death), and a `held:land-failed` phase leaves the
@@ -95,6 +118,11 @@ nor a blank-line-separated final trailer block (verified: issue #1560 (2026-08-2
 is exact `culpritFiles.has(f.file)` string equality, so path-form drift silently forgoes culprit-first
 (verified: issue #1561 (2026-08-25)); subset commits and merge-floor retries draw one undifferentiated
 `fixRounds` pool, so the ladder can starve the floor-retry loop (verified: issue #1562 (2026-08-25)).
+Fold batch: two reachable panels' Minor/Nits are routed nowhere — the ace-regression branch consumes
+`reSeats` only via `blockingOf` (never `minorsOf`, contrast the approved arm), and aceBisect's
+failing-subset arm demotes `sub.findings` but never routes `subSeats`' own Minor/Nits — so an ask
+raised on either arm silently drops, contradicting `parkAsk`'s never-dropped header (verified: issue
+#1694 (2026-08-25)).
 
 **File-disjoint peripheral hardening.** (a) `provision-worktrees.sh`'s reuse-hygiene arm has four
 fail-open gaps: no `--untracked-files=all` porcelain read, deliberate git-rm ambiguity, SIGPIPE
@@ -125,9 +153,10 @@ message with an unexpandable `$var` tail can never be honestly covered — six r
   into the floor status.
 - Standing/dispatched prompt split: any auditor/refiner behavior change updates `agents/*.md` and the
   `workflow-template.js` prompt build in the same commit.
-- `workflow-template.js` is under active edit by the in-flight ask-disposition campaign — this plan
-  launches only after that campaign lands; every template phase rebases on its landed tip (verified:
-  issue #1430 reader summary (2026-08-25)).
+- The ask-disposition campaign has LANDED (2026-08-25, PR #1711, master 40afddb, release 0.20.0) —
+  the launch-ordering constraint is satisfied (A8 resolved); template phases build on that landed
+  tip, and the asks channel it added (`parkAsk`, `demote()`'s ask refusal, the ninth handoff key)
+  stays byte-untouched by this plan's edits.
 - Guard changes in #1435 / #1421(b) are message-only: allowlist, exit codes, and routing byte-unchanged
   (verified: issue #1435 (2026-08-25)).
 - No change to #1395 attestation semantics: environmentally-red still attests unverified, never unmet —
@@ -157,7 +186,8 @@ decision-shaped items the spec deferred are settled: D11/#1560/#1562 operator-ra
 
 ## Assumptions ledger
 
-Spec rows A1–A7 carried forward verbatim (none retired); A8–A10 minted at conversion.
+Spec rows A1–A7 carried forward verbatim (none retired); A8–A10 minted at conversion; A8 resolved
+at the 2026-08-25 refresh (ask-disposition landed).
 
 | ID | Assumption | Basis | Blast radius if wrong | Check |
 |----|-----------|-------|----------------------|-------|
@@ -168,7 +198,7 @@ Spec rows A1–A7 carried forward verbatim (none retired); A8–A10 minted at co
 | A5 | Budget-maintenance authority rule justifies a one-page ADR | spec §7 [assumed] | fold the rule into ADR 0042's surface | Phase 2 Task 3 review |
 | A6 | D11's incomplete-status marker can ride the existing merge-task INCOMPLETE re-dispatch shape (no enum widening) | spec §8 [assumed] | both enum copies + drift guard change together inside Phase 6 Task 1 | Phase 6 Task 2's test |
 | A7 | `assert-guard-specificity-in-diff.test.sh` sits beside its script under that name | verified against `skills/war/assets/` listing at HEAD (2026-08-25) — upgraded from assumed to verified | none | resolved |
-| A8 | The ask-disposition campaign lands before this plan launches; the integration base at launch is its landed tip (≥ v0.19.0 slots) | spec §8 open risk + operator directive | template-phase rebase churn; re-verify the named constructs at the new tip | Phase 1 Task 1 worker's first rebase |
+| A8 | RESOLVED (2026-08-25): the ask-disposition campaign landed — PR #1711, master 40afddb, release 0.20.0; the integration base at launch is at/above the 0.20.0 slots. Named constructs re-verified at that tip (Evidence-consumed refresh note) — the 0.19.0→0.20.0 diff touches none of this plan's anchored regions | landed master 40afddb, `plugin.json` 0.20.0 at HEAD (2026-08-25) | none — resolved | resolved |
 | A9 | ADR 0013's real path is `docs/adr/0013-commanders-intent-and-disposition-routing.md` (the spec's `0013-finding-disposition-and-followup-filing.md` does not exist) | `ls docs/adr/` at HEAD (2026-08-25) | none — corrected here | Phase 5 Task 4 Files |
 | A10 | The Budget-Raise floor script lives at `skills/war/assets/assert-budget-raise-cited.sh` beside the sibling merge floors (the spec's "hooks/-style" describes shape, not directory — every merge-path floor lives in `skills/war/assets/`) | asset listing at HEAD (2026-08-25) | rename/move at Phase 2 Task 1, one-file blast radius | Phase 2 Task 1's test |
 
@@ -283,6 +313,15 @@ Spec rows A1–A7 carried forward verbatim (none retired); A8–A10 minted at co
   22. `auditEvidenceOf` returns a real landed sha (never "unrecorded") for a merged
      `requiresTest:false` task — fixture ·
      check: `node --test skills/war/assets/workflow-template.test.mjs`
+  23. A `disposition:'ask'` Minor raised by a gate-audit-family or polish-panel seat parks on
+     `asks[]` (or its lane carries an explicit comment + census row like the pinMismatch strip) —
+     never an unrowed sink; and a parked ask's `sha` carries a validated real `audit_sha`
+     (sentinel on malformed input, positive-value fixture included) ·
+     check: `node --test skills/war/assets/workflow-template.test.mjs`
+  24. On a sanctioned recovery relaunch, worktree-name-shaped `preMerged` ids (`p2-2.1`) skip the
+     merged set exactly as bare ids do, and an unmatched id is logged, never silently dropped —
+     dialect + garbage fixtures ·
+     check: `node --test skills/war/assets/workflow-template.test.mjs`
 
 ## Build order (for /war)
 
@@ -303,7 +342,10 @@ parallel, disjoint from the template) → Phase 9 (release, trailing).
   `roundLimit` (the hand-mirrored-fallback comment region near `const roundLimit`), updating the
   args-contract header comment in the same commit. In `workflow-template.test.mjs`: a deterministic
   batching unit test (at most N concurrent, group k+1 after group k settles) and a default-path census
-  row asserting the absent-knob path takes no batching branch.
+  row asserting the absent-knob path takes no batching branch. Fold (#1696): while in the suite,
+  restore the deleted `// --- Dep-wave visibility (criterion 4) + force-with-lease carve-out ---`
+  section banner above its tests — the ask-channel block replaced it instead of inserting above it
+  (verified: issue #1696 (2026-08-25)).
 - Done when: `node --test skills/war/assets/workflow-template.test.mjs`
 - requiresTest: true
 - requiresPackaging: false
@@ -416,6 +458,10 @@ parallel, disjoint from the template) → Phase 9 (release, trailing).
   the scan to intent-bearing args (never whole-surface `JSON.stringify` substring `includes()`),
   word-boundary token matching with a stoplist for generic tokens, and exemptions for `source:'auto'`
   rows, predecessor citations, and Lead-stamped `planFile` provenance rows (#1666 signal 1).
+  Fold (#1704): in the recovery-relaunch `preMerged` consumption loop, normalize both id dialects
+  before the `tasks.some(t => t.id === id)` match (strip a `p<phase>-` worktree-name prefix), and LOG
+  every dropped entry — a `preMerged` id matching no task after normalization is loud, never a silent
+  skip-disable (verified: issue #1704 (2026-08-25)).
 - Done when: None — mapped tests land in Task 2 (deps-edged); the gate covers regressions
 - requiresTest: false
 - requiresPackaging: false
@@ -433,7 +479,9 @@ parallel, disjoint from the template) → Phase 9 (release, trailing).
   bare interpolations (any new one is a red test), entry-validation fixtures (missing `planSlice`
   refused naming the field), provenance-floor fixtures (word-boundary hit, stoplist pass,
   `source:'auto'` / predecessor-citation / Lead-stamped `planFile` exemptions, foreign-id still
-  refused), and the vacuous-endstate fixture (zero tasks ran ⇒ never green). Census grep is a floor:
+  refused), the vacuous-endstate fixture (zero tasks ran ⇒ never green), and the fold (#1704)
+  preMerged-dialect fixtures: `p2-2.1`-shaped ids skip the four merged tasks exactly as bare `2.1`
+  ids do, and a garbage id is logged, never silently dropped. Census grep is a floor:
   after it, hand-scan the template's prompt-build regions case-insensitively for interpolations the
   pattern misses and list each as a survey-derived correction.
 - Done when: `node --test skills/war/assets/assert-args-complete.test.mjs skills/war/assets/workflow-template.test.mjs`
@@ -494,12 +542,23 @@ parallel, disjoint from the template) → Phase 9 (release, trailing).
   collapse key with seat discrimination — two rows from the same seat never collapse as corroboration;
   `seatRef` renders seat+task (both when present); a merged-away row's title and rationale are
   preserved onto the surviving row (a `merged[]` sub-list or equivalent) and rendered through the
-  filing prompt, the issue-body instruction, handoff `followUps`, and the consolidation log line. (D9)
+  filing prompt, the issue-body instruction, handoff `followUps`, and the consolidation log line.
+  0.20.0 adjacency caution: the ask channel (#1550) parks `disposition:'ask'` rows on `asks[]`
+  upstream — the collapse and the file-followups dispatch consume `minorsFiled` only; `demote()`'s
+  ask refusal, `parkAsk`'s exactly-once contract, and the `asks` handoff key semantics stay intact —
+  the two fold items below feed that channel, never rework it. (D9)
   replace the truthiness gate on `m.seats.join` with `Array.isArray(m.seats)` (string `seats` renders
   via the fallback, batch never throws); correct the "runs outside any try" comment to state the real
   try scope; carve `:rebut` out of the Evidence-artifacts lens-extraction clause (the suffix is a
   dispatch label, never the lens); retain the per-task landed sha at `landMerged` for
   `requiresTest:false` tasks so `auditEvidenceOf` never renders "unrecorded" for them.
+  Fold (#1692): route the gate-audit-family (per-task post-merge, integrated-tip, end-state-only) and
+  polish-panel Minor/Nit findings through `dispositionOf` so a `disposition:'ask'` parks via
+  `parkAsk` — or, where routing is deliberately withheld, comment + census the sink exactly as the
+  pinMismatch strip is (verified: issue #1692 (2026-08-25)). Fold (#1693): apply the established
+  validate-at-the-copy-site guard (`isSha`/`pinOrSentinel`, per `landMerged` and the `tipSha`
+  re-read) to `minorsOf`'s `sha: s.audit_sha` stamp — a malformed/free-text `audit_sha` becomes the
+  sentinel, never an operator-facing `asks[].sha` pin (verified: issue #1693 (2026-08-25)).
 - Done when: None — fixtures land in Task 2 (deps-edged)
 - requiresTest: false
 - requiresPackaging: false
@@ -512,7 +571,12 @@ parallel, disjoint from the template) → Phase 9 (release, trailing).
   prompt/handoff/log; same-seat same-file rows within the window do NOT collapse; `seats[]` carries
   seat+task on a cross-task collapse; string-`seats` row renders without throwing (`Array.isArray`
   fixture); a `:rebut`-suffixed seat label extracts the true lens (drift-row fixture);
-  `auditEvidenceOf` returns a real sha for a `requiresTest:false` merged task.
+  `auditEvidenceOf` returns a real sha for a `requiresTest:false` merged task. Fold fixtures:
+  (#1691) a parked ask from a seat with a real `audit_sha` carries that sha into `asks[]` and
+  `handoff.asks[].sha` — a positive-value assertion closing the delete-and-trace gap on the one
+  floored field previously asserted only in its null case (verified: issue #1691 (2026-08-25));
+  (#1692) a gate-audit-family seat's `disposition:'ask'` Minor reaches `asks[]`; (#1693) a
+  ref-expression/free-text `audit_sha` never reaches `asks[].sha` verbatim (sentinel rendered).
 - Done when: `node --test skills/war/assets/workflow-template.test.mjs`
 - requiresTest: true
 - requiresPackaging: false
@@ -521,8 +585,11 @@ parallel, disjoint from the template) → Phase 9 (release, trailing).
 
 ### Task 3: schemas.md minorsFiled qualifier
 - Files: `skills/war/references/schemas.md`
-- Plan slice: qualify the `minorsFiled` collapse description as conditional on handoff-emitting
-  decisions (#1597), pointing at the canonical collapse block in the template (de-mirror).
+- Plan slice: qualify the `minorsFiled` collapse description — both the "**Consolidation precedes
+  filing.**" bullet and the `minorsFiled` field-comment row (the file was reworked by the landed
+  ask-disposition campaign; anchor by those constructs) — as conditional on handoff-emitting
+  decisions (`landed` / `held:escalation`) (#1597), pointing at the canonical collapse block in the
+  template (de-mirror).
 - Done when: None — doc-only
 - requiresTest: false
 - requiresPackaging: false
@@ -532,8 +599,10 @@ parallel, disjoint from the template) → Phase 9 (release, trailing).
 ### Task 4: ADR 0013 amendment
 - Files: `docs/adr/0013-commanders-intent-and-disposition-routing.md`
 - Plan slice: append an amendment section ratifying the landed N:1 clustered filing +
-  dedup-as-corroboration-comment behavior, superseding Decision 4's 1:1 finding→issue description
-  (A9 — filename corrected from the spec).
+  dedup-as-corroboration-comment behavior, superseding Decision 4's per-finding "`follow-up` (files
+  the issue)" description (A9 — filename corrected from the spec). The ADR already carries a
+  2026-08-25 ask-disposition amendment (fourth `disposition` member) — append after it; this
+  amendment is about filing shape only and leaves the ask amendment byte-untouched.
 - Done when: None — ADR-only
 - requiresTest: false
 - requiresPackaging: false
@@ -594,7 +663,11 @@ parallel, disjoint from the template) → Phase 9 (release, trailing).
   (`culpritFiles.has(f.file)`) to repo-relative form with any leading `./` stripped, and mandate
   repo-relative paths in the re-audit prompt. Reserve 2 `fixRounds` slots for the merge-floor retry
   loop: subset commits dispatch only while `fixRounds < roundLimit − 2` (Open decision 4), the
-  reserve-exhausted branch logging why the ladder stopped.
+  reserve-exhausted branch logging why the ladder stopped. Fold (#1694): route `minorsOf(reSeats)`
+  on the ace-regression branch and `subSeats`' own Minor/Nits on the failing-subset arm through the
+  disposition ladder (ask → `parkAsk`, follow-up → `minorsFiled`, note → `notes`), mirroring the
+  approved arms — an ask raised on either arm parks, never drops (verified: issue #1694
+  (2026-08-25)).
 - Done when: None — regression tests land in Task 2 (deps-edged)
 - requiresTest: false
 - requiresPackaging: false
@@ -606,7 +679,9 @@ parallel, disjoint from the template) → Phase 9 (release, trailing).
 - Plan slice: regression rows — a parent/child trailer pair (strict prefix) never matches under
   exact-value comparison; `./`-prefixed vs bare culprit paths attribute identically; the subset ladder
   stops at `roundLimit − 2` leaving the floor-retry loop its 2 reserved slots; prompt-literal
-  assertions for the exact-equality and final-paragraph mandates.
+  assertions for the exact-equality and final-paragraph mandates. Fold fixtures (#1694): an ask
+  raised by the ace-regression round parks on `asks[]`, and an ask raised by a failing bisection
+  subset's re-audit parks on `asks[]` — neither drops.
 - Done when: `node --test skills/war/assets/workflow-template.test.mjs`
 - requiresTest: true
 - requiresPackaging: false
@@ -645,9 +720,10 @@ parallel, disjoint from the template) → Phase 9 (release, trailing).
 - Files: `hooks/validate-auditor-git.sh`, `hooks/validate-auditor-git.test.sh`
 - Plan slice: classify the `residue` BEFORE composing the deny message — chain/control operators
   (`&&`, `;`, `|`, newline continuations) name the one-command-per-call rule; glob/expansion
-  metacharacters name the metacharacter rule; the composed message also carries the #1421(b) ergonomics
-  guidance (split chains into separate calls; use Read/Grep/Glob instead of shell/git grep) on the
-  chain-operator branch where the 186-denial churn actually occurred. Message-only: allowlist, decision,
+  metacharacters name the metacharacter rule; the #1421(b) ergonomics guidance (split chains into
+  separate calls; use Read/Grep/Glob instead of shell/git grep) — ALREADY present in today's single
+  unconditional deny message (#1412 fix 1) — is retained on the chain-operator branch where the
+  186-denial churn actually occurred. Message-only: allowlist, decision,
   and exit codes byte-unchanged (binding guardrail). Test rows: chain-operator denial names its rule,
   glob denial names its rule, allow path untouched.
 - Done when: `bash hooks/validate-auditor-git.test.sh`
@@ -692,7 +768,8 @@ parallel, disjoint from the template) → Phase 9 (release, trailing).
   to `CHANGELOG.md` **newest-first** (its first version heading must equal the bumped `plugin.json`
   version — `version-slots.test.mjs` asserts this) and relocate the superseded README Status blurb
   content into that CHANGELOG entry per release doctrine. Expected integration base: the tip this
-  campaign's phases landed on (itself above the ask-disposition campaign's release — A8).
+  campaign's phases landed on, which stacks on the live master at/above the landed 0.20.0
+  ask-disposition release (master 40afddb — A8 resolved).
   Standalone-fallback rule: a plan run through plain `/war` resolves the next free patch from the four
   slots themselves. `version-slots.test.mjs` (lock-step + monotonic floor + CHANGELOG head) is the
   arbiter. Land-time assertion (wholesale-omission catch — the suite alone is green at untouched
@@ -748,7 +825,16 @@ parallel, disjoint from the template) → Phase 9 (release, trailing).
   volley): after word-boundary + stoplist + the three exemptions, NO further provenance false-refusal
   class is ratified as accepted — any residual false refusal files as a follow-up issue, never a
   prose waiver.
-- Every retirement/absence grep any task emits (e.g. the old 1:1 filing prose in ADR 0013, the
+- Fold batch (operator-ratified scope additions, 2026-08-25 volley): six war-followup issues from
+  the landed ask-disposition run folded in per the refresh assessment — #1691 (P5 Task 2
+  positive-value sha fixture), #1692 (P5 Tasks 1–2 + End state 23: gate-audit-family/polish-panel
+  dispositions route through `dispositionOf`, ask parks via `parkAsk`), #1693 (P5 Task 1
+  validate-at-the-copy-site sha guard on `minorsOf` + fixture — additive to, not the same root cause
+  as, #1480's own-token floor), #1694 (P7 Tasks 1–2: ace-regression + failing-subset arms route
+  through the disposition ladder), #1696 (P1 Task 1 test-section banner restoration), #1704 (P3
+  Tasks 1–2 + End state 24: `preMerged` id-dialect normalization + loud drop-logging). End-state
+  numbering is append-only (23–24); #1708 was assessed and deliberately NOT folded (doc-truth /
+  contracts-pin work, out of this plan's charter). (e.g. the old 1:1 filing prose in ADR 0013, the
   "outside any try" comment) is a completeness floor only: after the grep, hand-scan the target file's
   same-scope tests and comments case-insensitively and list each straggler as a survey-derived
   correction (spec §8).
