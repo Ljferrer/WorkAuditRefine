@@ -23,6 +23,10 @@
 #      AND gh close(--reason completed, comment carries the sha) both recorded
 #   8. bad ledger JSON -> exit 2 (parse error, not 1)
 #   9. gh-preflight tooling failure (WAR_GH_USER mismatch, no switch) -> exit 2
+#  10. gh-degraded: older gh rejects `close --reason` -> flagless retry closes
+#      the epic (exit 0), degradation noted on stderr, labels-first preserved
+#  11. gh-degraded: the flagless retry itself fails -> die exit 2
+#  12. non-flag close failure -> die exit 2, NO degraded retry attempted
 #
 # macOS bash 3.2.57 compatible (no globstar, no associative arrays, no ${,,}).
 # Exit 0 = all cases passed; non-zero = at least one failed.
@@ -54,6 +58,12 @@ trap cleanup EXIT
 #   $D/argv         append-only argv log (one gh invocation per line)
 #   GH_NET_FAIL=1   `gh issue view` emits a NON-not-found network error (exit 1)
 #                   -> the floor must classify this as tooling (exit 2), not 1.
+#   GH_OLD_CLOSE=1  `gh issue close` with a `--reason` arg rejects it with
+#                   `unknown flag: --reason` (exit 1), emulating an older gh
+#                   -> the floor must degrade to a flagless close (gh-degraded).
+#   GH_CLOSE_FAIL=1 `gh issue close` WITHOUT `--reason` (or with it, when
+#                   GH_OLD_CLOSE is unset) fails with a non-flag error (exit 1)
+#                   -> the floor must die (exit 2), never silently pass.
 #   $D/login        contents = the login `gh api user --jq .login` returns
 #                   (used only by the embedded gh-preflight; defaults to a value
 #                   equal to WAR_GH_USER so preflight is a clean pass).
@@ -89,7 +99,25 @@ case "$1 $2" in
     echo "GraphQL: Could not resolve to an Issue with the number $_n. (repository.issue)" >&2
     exit 1
     ;;
-  "issue edit"|"issue close")
+  "issue edit")
+    exit 0
+    ;;
+  "issue close")
+    # Older-gh emulation FIRST: a --reason arg is rejected before any generic
+    # failure knob, so GH_OLD_CLOSE=1 + GH_CLOSE_FAIL=1 exercises "degraded
+    # retry itself fails" (first attempt: unknown flag; flagless retry: fail).
+    if [ "${GH_OLD_CLOSE:-0}" = "1" ]; then
+      case " $* " in
+        *" --reason "*)
+          echo "unknown flag: --reason" >&2
+          exit 1
+          ;;
+      esac
+    fi
+    if [ "${GH_CLOSE_FAIL:-0}" = "1" ]; then
+      echo "HTTP 500: server error (api.github.com)" >&2
+      exit 1
+    fi
     exit 0
     ;;
   *)
@@ -253,6 +281,57 @@ if [ "$rc" = "2" ]; then
   pass "gh-preflight account mismatch -> exit 2"
 else
   fail "preflight-fail (expected 2, got rc=$rc)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 10: gh-degraded — older gh rejects `close --reason` -> the floor retries
+# a FLAGLESS close (epic still closed, exit 0), notes `gh-degraded` on stderr,
+# and the labels-first ordering is preserved (edit recorded before any close).
+# Break trace: drop the degradation branch -> the unknown-flag failure dies
+# (exit 2) and the epic never closes; drop the stderr note -> silent degrade.
+# ---------------------------------------------------------------------------
+D="$(make_env)"
+rc=0
+err="$(D="$D" GH_OLD_CLOSE=1 PATH="$D/bin:$PATH" bash "$SCRIPT" --close-epic 7 --sha abc123 --phase "phase 1" 2>&1 >/dev/null)" || rc=$?
+edit_ln="$(grep -n 'issue edit 7 ' "$D/argv" | head -1 | cut -d: -f1)"
+close_ln="$(grep -n 'issue close 7 ' "$D/argv" | head -1 | cut -d: -f1)"
+if [ "$rc" = "0" ] \
+   && grep -q 'issue close 7 --reason completed' "$D/argv" \
+   && grep 'issue close 7 ' "$D/argv" | grep -v -- '--reason' | grep -q 'abc123' \
+   && printf '%s' "$err" | grep -q 'gh-degraded' \
+   && [ -n "$edit_ln" ] && [ -n "$close_ln" ] && [ "$edit_ln" -lt "$close_ln" ]; then
+  pass "gh-degraded: old gh rejects --reason -> flagless close, exit 0, loud stderr, labels-first"
+else
+  fail "gh-degraded old-gh (expected 0 + flagless retry + gh-degraded stderr + edit-before-close, got rc=$rc err=|$err| argv=|$(cat "$D/argv")|)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 11: gh-degraded — the flagless retry ITSELF fails -> die exit 2.
+# GH_OLD_CLOSE rejects the --reason attempt, GH_CLOSE_FAIL fails the retry.
+# Break trace: swallow the retry failure -> a never-closed epic exits 0.
+# ---------------------------------------------------------------------------
+D="$(make_env)"
+rc=0
+err="$(D="$D" GH_OLD_CLOSE=1 GH_CLOSE_FAIL=1 PATH="$D/bin:$PATH" bash "$SCRIPT" --close-epic 7 --sha abc123 2>&1 >/dev/null)" || rc=$?
+if [ "$rc" = "2" ] && printf '%s' "$err" | grep -q 'degraded flagless retry'; then
+  pass "gh-degraded: flagless retry failure -> die exit 2"
+else
+  fail "gh-degraded retry-fail (expected 2 + degraded-retry die, got rc=$rc err=|$err|)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 12: non-flag close failure -> die exit 2, NO degraded retry attempted.
+# Break trace: classify every close failure as gh-degraded -> a network error
+# would trigger a pointless flagless retry instead of the immediate die.
+# ---------------------------------------------------------------------------
+D="$(make_env)"
+rc=0
+err="$(D="$D" GH_CLOSE_FAIL=1 PATH="$D/bin:$PATH" bash "$SCRIPT" --close-epic 7 --sha abc123 2>&1 >/dev/null)" || rc=$?
+close_count="$(grep -c 'issue close 7 ' "$D/argv")"
+if [ "$rc" = "2" ] && ! printf '%s' "$err" | grep -q 'gh-degraded' && [ "$close_count" = "1" ]; then
+  pass "non-flag close failure -> die exit 2, single close attempt (no gh-degraded retry)"
+else
+  fail "close-fail (expected 2 + one close + no gh-degraded, got rc=$rc closes=$close_count err=|$err|)"
 fi
 
 # ---------------------------------------------------------------------------
