@@ -93,6 +93,8 @@ mixed-source rule — a mixed envelope/mined total renders `n/a (mixed-source)`,
 | wall-clock — total and per phase | manifest `startedAt`/`endedAt` (run) + `phases[].startedAt`/`endedAt`; an all-identical `startedAt`/`endedAt` set is degenerate — render wall-clock **`n/a`** with a note, never a plausible-looking duration |
 | audit rounds used vs limit | manifest `phases[].dispatches.fixRounds` vs `run.roundLimit` (from `$MAIN/.claude/war/config.json`; `n/a` if absent) |
 | findings by severity and disposition | manifest / handoff if present, else `n/a` |
+| asks — parked ask-disposition findings, tallied per phase and as a run total (#1550) | the handoff's `asks` entry, via the mined workflow-return record in the transcripts, else the run ledger's phase `handoff` field when discoverable; unsourceable ⇒ `n/a`, never fabricated |
+| grind measurement — the #1664 backstop read, decision-shaped grinding in the terminal record | three sources, all terminal: the terminal `fixRounds` distribution (manifest `phases[].dispatches.fixRounds`), the filing site's audit-round field (the `## Evidence artifacts` audit-round line each filed follow-up issue carries), and decision-shaped language in `minorsFiled` rationales. **Coarseness named:** round-level attribution does not exist — `fixRounds` is a per-phase dispatch count, the other two are per-task terminal reads. **Failure-routing asymmetry:** an ambiguous reading routes to #1664's instrumentation-first refinement task (a per-round `auditLog` row), never to a silent "no grinding" |
 | tasks by terminal status | manifest `phases[].tasks` |
 | reland / CAS-reject count | manifest `phases[].land` + any reland count, else `n/a` |
 | lessons written | manifest `phases[].lessonsWritten` |

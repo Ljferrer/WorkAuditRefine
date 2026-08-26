@@ -160,6 +160,11 @@ const VERB_SCAN_EXCLUSIONS = [
   // no shell-out prose for the scanned modules (names war-config.mjs only as a de-mirror
   // target, with no verb after it)
   'skills/war/references/touched-doc-accuracy.md',
+  // disposition-eligibility.md holds the evicted war-auditor.md absorb/ask eligibility
+  // blockquotes; no shell-out prose for the scanned modules — it names workflow-template.js
+  // constructs (aceBisect, asks[]) which is NOT a scanned module, and never phrases a CLI
+  // verb, so the rotted-reason loop below keeps this exclusion honest (ask-disposition T1.1).
+  'skills/war/references/disposition-eligibility.md',
   // no shell-out prose for the scanned modules (arming/refute/waive doctrine only; names
   // the recon corpus classes by prose, never a CLI command)
   'skills/war-strategy/references/strategy-verifier.md',

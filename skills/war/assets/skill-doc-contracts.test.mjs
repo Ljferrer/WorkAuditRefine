@@ -76,10 +76,15 @@ const budgetSuiteSrc = readFileSync(join(HERE, 'prompt-surface-budgets.test.mjs'
 // never spell the retired flag-first byte-run — see the D9 block at the end of this file.
 const FLOOR_SCRIPT = 'assert-no-submodule-mutation.sh'
 const refinerCard = readFileSync(join(HERE, '..', '..', '..', 'agents', 'war-refiner.md'), 'utf8')
-// The standing auditor card — read for the source-derivable absorb-eligibility presence guard
-// (realized-absorb-rate Task 3.3): the clarification lives on this card ONLY (lens calibration),
+// The disposition-eligibility reference — read for the source-derivable absorb-eligibility
+// presence guard (realized-absorb-rate Task 3.3, re-anchored by ask-disposition Task 1.1): the
+// clarification lives in the evicted eligibility blockquotes, whose home is now
+// skills/war/references/disposition-eligibility.md (the card keeps a trigger pointer); it is
 // never mirrored into auditPrompt() or the DISPOSITION RULE sentences.
-const auditorCard = readFileSync(join(HERE, '..', '..', '..', 'agents', 'war-auditor.md'), 'utf8')
+const eligibilityRef = readFileSync(
+  join(HERE, '..', 'references', 'disposition-eligibility.md'),
+  'utf8',
+)
 const floorScriptSrc = readFileSync(join(HERE, FLOOR_SCRIPT), 'utf8')
 // (D34–D36) The authoring-side-verification glossary mirrors (plan 2026-08-24, Task 2.3): the
 // war-strategy authoring surfaces are the canonical homes the new/converged CONTEXT.md glossary
@@ -96,6 +101,25 @@ const planInterviewMd = readFileSync(
 )
 const verifierCharterMd = readFileSync(
   join(HERE, '..', '..', 'war-strategy', 'references', 'strategy-verifier.md'),
+  'utf8',
+)
+// (D37–D42) The ask-disposition surfaces (#1550; plan 2026-08-25-ask-disposition, Task 2.3):
+// ADR 0013's dated amendment is the canonical decision record the new CONTEXT.md glossary terms
+// restate; ADR 0012 carries the one-line cross-ref; design.md + file-followups.md carry the
+// Task 2.2 reference mirrors; war-review's SKILL.md is the canonical home of the grind-measurement
+// doctrine. Read here so every mirror row asserts BOTH surfaces (ADR 0025: a one-sided edit reds).
+const adr0013 = readFileSync(
+  join(HERE, '..', '..', '..', 'docs', 'adr', '0013-commanders-intent-and-disposition-routing.md'),
+  'utf8',
+)
+const adr0012 = readFileSync(
+  join(HERE, '..', '..', '..', 'docs', 'adr', '0012-intra-phase-visibility-and-phase-close-sweep.md'),
+  'utf8',
+)
+const designRefMd = readFileSync(join(HERE, '..', 'references', 'design.md'), 'utf8')
+const fileFollowupsMd = readFileSync(join(HERE, '..', 'references', 'file-followups.md'), 'utf8')
+const warReviewSkillMd = readFileSync(
+  join(HERE, '..', '..', 'war-review', 'SKILL.md'),
   'utf8',
 )
 
@@ -435,7 +459,7 @@ test('D18 — gate_failed environment arm documents bounded environment-proceed,
 // ---- Task 1.3 locks (a)/(b)/(c) — plan 2026-07-24-runbook-and-standing-record-coherence ----
 
 // (D19) The CONTEXT.md `**Adjudication**:` glossary term must keep the provenance-discipline clause
-// on its `_Avoid_` line — the doctrine that a row comes only from the two named producers and is
+// on its `_Avoid_` line — the doctrine that a row comes only from the named producers (two at this row's authoring; three since the #1550 ask-ruling widening — D19a below guards the count) and is
 // never sourced from surrounding prose (#1087). Recorded regression: the 2026-07-22
 // audit-adjudication-threading spec justified overwriting that clause by citing a duplicate home at
 // `skills/red-team/references/lenses.md` which never carried it, so the plan-faithful rewrite left
@@ -464,6 +488,40 @@ test('D19 — CONTEXT.md **Adjudication** term keeps its provenance-discipline d
     "the CONTEXT.md **Adjudication** term's `_Avoid_` line must keep the provenance-discipline " +
       'doctrine clause — it is the doctrine\'s original and standing anchor (#1087); correct this ' +
       'row to a sanctioned rewording, never drop the clause to make a reword pass',
+  )
+})
+
+// (D19a) The Adjudication producer enumeration widened two → three (#1550; ADR 0013 amendment
+// 2026-08-25, ask-disposition Task 2.3) — the CONTEXT.md **Adjudication** entry carries BOTH edit
+// sites: the definition-body producer enumeration (which now names the Checkpoint's ask rulings as
+// the third producer, minted at the strike-list gate) and the `_Avoid_` count line D19 guards
+// (now "the three named producers"). OLD-absent per PIN-8's law: the retired literal "two named
+// producers" was verified present at this task's base (it is the very literal D19's block comment
+// quotes) — never a count word on a never-present value. Same extraction construct as D19.
+test('D19a — CONTEXT.md **Adjudication** producer enumeration is widened two → three, old count literal retired (#1550)', () => {
+  const block = contextMd.match(/^\*\*Adjudication\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*:)/m)
+  assert.ok(
+    block,
+    'could not locate the `**Adjudication**:` glossary term in CONTEXT.md (bolded term → next ' +
+      'bolded glossary term) — the extraction construct rotted',
+  )
+  const b = norm(block[0])
+  for (const [re, what] of [
+    [/Checkpoint['’]s\s+ask\s+rulings/i, "the third producer (the Checkpoint's ask rulings) in the definition body"],
+    [/strike-list\s+gate/i, 'the strike-list gate as the minting site'],
+    [/three\s+named\s+producers/i, 'the widened `_Avoid_` count line ("the three named producers")'],
+  ]) {
+    assert.match(
+      b,
+      re,
+      `the CONTEXT.md **Adjudication** entry must carry ${what} (#1550). Correct this row to a ` +
+        'sanctioned rewording, never drop the widening to make a reword pass',
+    )
+  }
+  assert.ok(
+    !/two\s+named\s+producers/i.test(b),
+    'the retired "two named producers" count literal must be gone from the **Adjudication** entry ' +
+      '(OLD-absent — the literal was present at the ask-disposition task base; #1550)',
   )
 })
 
@@ -1971,15 +2029,17 @@ test('D31 — SKILL.md Decompose done-when intake keeps the full-bullet parse cl
 })
 
 // Source-derivable absorb eligibility (realized-absorb-rate Task 3.3; ADR 0013's 2026-08-20
-// amendment). The auditor card's `disposition:'absorb'` block carries the clarification that a
+// amendment; re-anchored to the eviction destination by ask-disposition Task 1.1 in the same
+// commit as the eviction). The evicted `disposition:'absorb'` block — now in
+// skills/war/references/disposition-eligibility.md — carries the clarification that a
 // doc fact deterministically re-derivable from a machine-readable in-repo source is mechanical
 // regardless of value count, with "single-file" read on the fix's WRITE FOOTPRINT (the doc), not
-// the source it reads from. Presence-guarded by a stable mid-sentence token so a card rewrite
+// the source it reads from. Presence-guarded by a stable mid-sentence token so a rewrite
 // that drops the clarification reds here — correct this row to a sanctioned rewording, never
 // delete it to make a reword pass.
-test('auditor card absorb block carries the source-derivable eligibility clarification (write-footprint token)', () => {
-  const block = auditorCard.match(/`disposition:'absorb'`[\s\S]*?(?=\n\n|\n- )/)
-  assert.ok(block, "could not locate the `disposition:'absorb'` block in agents/war-auditor.md")
+test('disposition-eligibility.md absorb block carries the source-derivable eligibility clarification (write-footprint token)', () => {
+  const block = eligibilityRef.match(/`disposition:'absorb'`[\s\S]*?(?=\n\n|\n- )/)
+  assert.ok(block, "could not locate the `disposition:'absorb'` block in skills/war/references/disposition-eligibility.md")
   assert.match(
     norm(block[0]),
     /write footprint/i,
@@ -2238,4 +2298,491 @@ test('D36 — the eight authoring-side-verification CONTEXT.md glossary terms mi
       }
     }
   }
+})
+
+// ── Ask-disposition rows (#1550; plan 2026-08-25-ask-disposition, Task 2.3) ──────────────────────
+//
+// DISCOVERED-GUARD CENSUS (D6 · PIN-6 · PIN-8), run at this task's base (the phase-2 integration
+// tip) over the grep surface `**/*.test.mjs` + `**/*.test.sh` + `.tours/`, domain = guards
+// anchored on the passages this task edits (CONTEXT.md **Disposition** / **Adjudication** /
+// **Clean handoff** + the new glossary region; the CLAUDE.md Known-traps disposition bullet).
+// Found (four-sentence floor): (1) D19 in this suite anchors the **Adjudication** `_Avoid_`
+// provenance clause — extended in place by D19a above, same commit as the widening. (2)
+// prompt-surface-budgets.test.mjs carries the CONTEXT.md (126,976 B) and CLAUDE.md (16,384 B)
+// hard ceilings — D12's budget arbiter, exercised by this task's Done-when. (3) Tour step 2
+// anchors CONTEXT.md at the Container/Contents heading — outside the edited region, retyped
+// pattern-only by Task 2.5 and pinned in D39 below. (4) No `.test.sh` surface anchors any touched
+// passage (refinery-surface, war-pipeline-structure, and lessons-learned-doc-contract read other
+// regions — verified by token grep at base); the doc-cli-consistency and war-config `.test.mjs`
+// suites were also read and likewise anchor other regions. Survey-derived
+// straggler, listed per the slice: workflow-template.test.mjs's 'handoff block (criterion 6)'
+// test TITLE still enumerates the pre-widening seven-key handoff literal `{ tipSha, polish,
+// absorbed, followUps, notes, endState, intentPresent }` — title prose only (its assertions are
+// per-key and the ninth key is additive by guardrail: no exact-key validator exists), and its
+// home is the engine suite outside this task's Files list.
+
+// (D37) THE SEVEN ASK-DISPOSITION GLOSSARY TERMS — each new CONTEXT.md entry restates doctrine
+// whose canonical home is the ADR 0013 dated amendment (the decision record), the SKILL.md
+// Checkpoint (the ruling-gate duties), or war-review's SKILL.md (the grind-measurement rows).
+// Per the recorded [[context-md-doctrine-mirror-can-land-without-a-skill-doc-contracts-drift-guard-row]]
+// lesson a glossary mirror is guarded ONLY when its row is authored deliberately — these are those
+// rows, landing beside the mirrors' own task wave. D36's extraction idiom (term escaped, colon not
+// required — several headers carry a parenthesized token before it); every entry must span its own
+// `_Avoid_` line (non-vacuity); keys are token-anchored `\s+`-wrapped `/…/i` forms asserted on
+// BOTH surfaces so sanctioned rewording latitude never false-reds and a one-sided edit reds. The
+// two SKILL.md-homed terms assert their canonical half against the `## Checkpoint` region (the
+// same construct extraction D41 uses), not the whole file — whole-file keys like /absolute/i or
+// /consolidation/i match unrelated SKILL.md prose (Gate-2's absolute `memoryLocalRoot`, the
+// follow-up filing floor) and would pass with the ask-ruling-gate bullet deleted.
+test('D37 — the seven ask-disposition CONTEXT.md glossary terms mirror their canonical homes (#1550)', () => {
+  const checkpoint = skillMd.match(/^## Checkpoint[\s\S]*?(?=\n## )/m)
+  assert.ok(
+    checkpoint,
+    'could not locate the `## Checkpoint` section in SKILL.md — construct rotted (D41 shares ' +
+      'this extraction)',
+  )
+  for (const [term, canonicalName, canonicalText, keys] of [
+    [
+      'Ask disposition',
+      'docs/adr/0013 (2026-08-25 amendment)',
+      adr0013,
+      [
+        [/Minor\/Nit-only/i, 'the Minor/Nit-only scope'],
+        [/by\s+construction/i, 'the by-construction basis of that scope'],
+        [/severity\s+filter/i, 'the severity-filter reachability argument'],
+        [/blockingOf/, 'the Critical/Major `blockingOf` contrast'],
+        [/question\s+\+\s+fork/i, 'the mandatory question + fork field'],
+      ],
+    ],
+    [
+      'asks[] channel',
+      'docs/adr/0013 (2026-08-25 amendment)',
+      adr0013,
+      [
+        [/asks\[\]/, 'the `asks[]` record itself'],
+        [/beside\s+`?minorsFiled`?/i, 'the beside-`minorsFiled` return placement'],
+        [/lossy\s+ninth/i, 'the lossy ninth handoff key'],
+        [/never\s+a\s+throw/i, "the demote() refusal's never-a-throw arm"],
+        [/destroy\s+the\s+parked\s+records/i, 'the throw-would-destroy-the-parked-records rationale'],
+      ],
+    ],
+    [
+      'Ruled / unruled ask',
+      'docs/adr/0013 (2026-08-25 amendment)',
+      adr0013,
+      [
+        [/Lead-side/i, 'the ruled-ask Lead-side filing site'],
+        [/filing\s+parity/i, 'the filing-parity duty'],
+        [/dedup\s+against\s+engine-filed\s+rows/i, 'the dedup-against-engine-filed-rows half of parity'],
+        [/adjudications?`?\s+rows?/i, 'the ruling-minted-as-adjudication-row contract'],
+      ],
+    ],
+    [
+      'Never-filed-unruled',
+      'skills/war/SKILL.md (## Checkpoint region — the ask ruling gate)',
+      checkpoint[0],
+      [
+        [/unruled\s+ask/i, 'the unruled-ask subject'],
+        [/consolidation/i, 'the consolidation exclusion'],
+        [/file-followups`?\s+dispatch/i, 'the file-followups-dispatch exclusion'],
+        [/never\s+re-adds\s+one/i, 'the Lead-never-re-adds-one clause'],
+      ],
+    ],
+    [
+      'Strike-list ruling gate',
+      'skills/war/SKILL.md (## Checkpoint region — the ask ruling gate)',
+      checkpoint[0],
+      [
+        [/parked\s+asks\s+in\s+a\s+single\s+pass/i, 'the one-gate-single-pass form'],
+        [/absolute/i, 'the absolute advance floor'],
+        [/over\s+an\s+unruled\s+ask/i, 'the never-advance-over-an-unruled-ask floor statement'],
+        [/hard\s+wait/i, "the floor's interactive binding (a hard wait)"],
+        [/demotes?\s+to\s+follow-up\s+with\s+the\s+question\s+preserved/i, 'the `--afk` no-match demotion arm'],
+        [/suppression\s+rows?\s+(?:is|are)\s+minted/i, 'the suppression-row minting rule'],
+        [/operator\s+ruling/i, "the suppression rule's operator-ruling-only provenance"],
+      ],
+    ],
+    [
+      'Grind measurement',
+      'skills/war-review/SKILL.md (grind-measurement row)',
+      warReviewSkillMd,
+      [
+        [/phases\[\]\.dispatches\.fixRounds/, 'the terminal fixRounds source'],
+        [/audit-round/i, "the filing site's audit-round field source"],
+        [/`?minorsFiled`?\s+rationales/i, 'the `minorsFiled` rationales source'],
+        [/round-level\s+attribution\s+does\s+not\s+exist/i, 'the named coarseness'],
+      ],
+    ],
+    [
+      'Failure-routing asymmetry',
+      'skills/war-review/SKILL.md (grind-measurement row)',
+      warReviewSkillMd,
+      [
+        [/#1664/, 'the tracked refinement issue'],
+        [/instrumentation-first/i, 'the instrumentation-first routing arm'],
+        [/per-round\s+`?auditLog`?\s+row/i, 'the per-round auditLog refinement shape'],
+        [/no\s+grinding/i, 'the never-a-silent-"no grinding" contrast'],
+      ],
+    ],
+  ]) {
+    const t = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const block = contextMd.match(
+      new RegExp(`^\\*\\*${t}\\*\\*[\\s\\S]*?(?=\\n\\*\\*[^\\n*]+\\*\\*|\\n### )`, 'm'),
+    )
+    assert.ok(
+      block,
+      `could not locate the \`**${term}**\` glossary entry in CONTEXT.md (bolded term → next ` +
+        'bolded term or `###` heading) — the extraction construct rotted',
+    )
+    assert.match(
+      norm(block[0]),
+      /_Avoid_/,
+      `the extracted **${term}** entry must span its \`_Avoid_\` line — extraction truncated`,
+    )
+    for (const [key, what] of keys) {
+      for (const [surface, text] of [
+        [`CONTEXT.md **${term}** entry (mirror)`, norm(block[0])],
+        [`${canonicalName} (canonical home)`, norm(canonicalText)],
+      ]) {
+        assert.match(
+          text,
+          key,
+          `${surface} must carry ${what} (ADR 0025 mirror registry, #1550). Correct this row to ` +
+            'a sanctioned rewording, never drop the clause on one surface to make it pass',
+        )
+      }
+    }
+  }
+})
+
+// (D37a) THE WIDENED PRE-EXISTING ENTRIES (D6 discovery sites) — CONTEXT.md's **Disposition** and
+// **Clean handoff** entries and the CLAUDE.md Known-traps disposition bullet predate #1550 and were
+// widened in place by this task; the D6 census records them as sitting OUTSIDE every discovered
+// guard surface, so without this row End state 9's named check is green whether the widenings are
+// present or reverted. Same idiom as D19a/D37: extraction BY CONSTRUCT with a tail non-vacuity
+// assert, widened-form keys, and OLD-absent closed-phrasing keys (each closed literal verified
+// present at the plan's implementation base `a60221a` and retired by this task — the absence
+// asserts guard against a revert, never a never-present value; PIN-8).
+test('D37a — the widened **Disposition**/**Clean handoff** entries and the CLAUDE.md Known-traps bullet carry the four-member shapes, closed phrasings retired (#1550)', () => {
+  // CONTEXT.md **Disposition** — four-member header, never-defaults pair, demote() ask refusal.
+  const disposition = contextMd.match(/^\*\*Disposition\*\*[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  assert.ok(
+    disposition,
+    'could not locate the `**Disposition**` glossary entry in CONTEXT.md (bolded term → next ' +
+      'bolded term or `###` heading) — the extraction construct rotted',
+  )
+  const d = norm(disposition[0])
+  assert.match(
+    d,
+    /_Avoid_/,
+    'the extracted **Disposition** entry must span its `_Avoid_` line — extraction truncated',
+  )
+  for (const [re, what] of [
+    [/\(`absorb` \| `follow-up` \| `note` \| `ask`\)/, 'the four-member header'],
+    [/`absorb` and `ask` are never defaults/, 'the widened never-defaults pair'],
+    [/`demote\(\)`\s+refuses\s+an\s+ask/i, "the demote() ask refusal"],
+    [/re-route\s+onto\s+`asks\[\]`/i, "the refusal's re-route-onto-`asks[]` arm"],
+  ]) {
+    assert.match(
+      d,
+      re,
+      `the CONTEXT.md **Disposition** entry must carry ${what} (#1550). Correct this row to a ` +
+        'sanctioned rewording, never drop the widening to make it pass',
+    )
+  }
+  // CONTEXT.md **Clean handoff** — the ninth `asks` key inside the 9-key handoff list, and the
+  // parked-ask disposal arm.
+  const handoff = contextMd.match(/^\*\*Clean handoff\*\*[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  assert.ok(
+    handoff,
+    'could not locate the `**Clean handoff**` glossary entry in CONTEXT.md — the extraction ' +
+      'construct rotted',
+  )
+  const h = norm(handoff[0])
+  assert.match(
+    h,
+    /_Avoid_/,
+    'the extracted **Clean handoff** entry must span its `_Avoid_` line — extraction truncated',
+  )
+  assert.match(
+    h,
+    /\{ tipSha, polish, absorbed, followUps, asks, notes, endState, intentPresent, backstops \}/,
+    'the **Clean handoff** entry must render the 9-key handoff list with `asks` fifth (#1550)',
+  )
+  assert.match(
+    h,
+    /parked\s+as\s+an\s+ask\s+\(question\s+\+\s+fork/i,
+    'the **Clean handoff** entry must carry the parked-ask (question + fork) disposal arm (#1550)',
+  )
+  // CLAUDE.md Known-traps disposition bullet — the four-member set + never-filed-unruled.
+  const bullet = claudeMd.match(/^- Findings route by auditor-owned `disposition`.*$/m)
+  assert.ok(
+    bullet,
+    'could not locate the Known-traps disposition bullet in CLAUDE.md (the `- Findings route by ' +
+      'auditor-owned `disposition`` construct) — the extraction construct rotted',
+  )
+  const b = norm(bullet[0])
+  assert.match(
+    b,
+    /ADR 0017/,
+    'the extracted Known-traps bullet must span through its ADR 0017 tail — extraction truncated',
+  )
+  for (const [re, what] of [
+    [/`absorb`\/`follow-up`\/`note`\/`ask`/, 'the four-member set'],
+    [/`absorb` and `ask` are never defaults/, 'the widened never-defaults pair'],
+    [/unruled `ask` is never filed/i, 'the never-filed-unruled law'],
+    [/Checkpoint strike-list gate/i, 'the strike-list ruling site'],
+  ]) {
+    assert.match(
+      b,
+      re,
+      `the CLAUDE.md Known-traps disposition bullet must carry ${what} (#1550). Correct this ` +
+        'row to a sanctioned rewording, never drop the widening to make it pass',
+    )
+  }
+  // OLD-absent closed phrasings (verified present at the plan base `a60221a`, retired by this
+  // task; the asserts guard against a revert — PIN-8).
+  assert.ok(
+    !/\(`absorb` \| `follow-up` \| `note`\):/.test(contextMd),
+    'the retired three-member **Disposition** header `(`absorb` | `follow-up` | `note`):` must ' +
+      'be gone from CONTEXT.md (OLD-absent; PIN-8)',
+  )
+  assert.ok(
+    !/`absorb` is never a default/.test(norm(contextMd)),
+    'the retired singular `absorb` is never a default literal must be gone from CONTEXT.md — ' +
+      'the widened pair reads `absorb` and `ask` are never defaults, which shares no substring ' +
+      'with the retired form (OLD-absent, norm()-surface: the base literal wrapped across ' +
+      'lines; PIN-8)',
+  )
+  assert.ok(
+    !/followUps, notes/.test(norm(contextMd)),
+    'the retired 8-key handoff-list fragment `followUps, notes` must be gone from CONTEXT.md — ' +
+      'the ninth `asks` key sits between them (OLD-absent; PIN-8)',
+  )
+  assert.ok(
+    !/`absorb`\/`follow-up`\/`note`\)/.test(claudeMd),
+    'the retired three-member set `(`absorb`/`follow-up`/`note`)` must be gone from CLAUDE.md ' +
+      '(OLD-absent; PIN-8)',
+  )
+})
+
+// (D38) THE ADR 0013 DATED AMENDMENT + THE ADR 0012 CROSS-REF (D5 · PIN-6), D23's idiom: the
+// correction channel is one dated append-only amendment, never a retro-edit of ratified body text.
+// Extraction is BY CONSTRUCT — the 2026-08-25 amendment heading to end-of-file (it is the last
+// amendment; an earlier amendment carries the same byte-discipline sentence, so a whole-file key
+// could not tell a deleted amendment apart). The Status currency line is asserted separately.
+test('D38 — ADR 0013 carries the dated 2026-08-25 ask-disposition amendment and ADR 0012 the cross-ref (#1550)', () => {
+  const block = adr0013.match(/^## Amendment \(2026-08-25\)[\s\S]*$/m)
+  assert.ok(
+    block,
+    'could not locate the `## Amendment (2026-08-25)` heading in ADR 0013 — the extraction ' +
+      'construct rotted (or the amendment was removed: it is append-only, restore it)',
+  )
+  const b = norm(block[0])
+  for (const [re, what] of [
+    [/fourth\s+disposition\s+member/i, 'the fourth-member widening'],
+    [/Minor\/Nit-only/i, 'the Minor/Nit-only scope in plain sight (PIN-5)'],
+    [/Never\s+filed\s+unruled/i, 'the never-filed-unruled law'],
+    [/absolute\s+advance\s+floor/i, 'the absolute advance floor'],
+    [/strike-list\s+gate/i, 'the one Checkpoint strike-list gate'],
+    [/two\s+→\s+three/, 'the adjudication producer widening two → three'],
+    [/#1664/, 'the channel-2 deferral tracker'],
+    [/backstop-dependent/i, "the roundLimit=6 justification's backstop dependence"],
+    [/pre-existing body text above/i, 'the byte-discipline closing sentence (append-only law)'],
+  ]) {
+    assert.match(
+      b,
+      re,
+      `the ADR 0013 2026-08-25 amendment must record ${what}. Correct this row to a sanctioned ` +
+        'rewording of the amendment, never delete it to make a reword pass',
+    )
+  }
+  assert.match(
+    norm(adr0013.slice(0, adr0013.indexOf('## Amendment'))),
+    /amended\s+2026-08-25/i,
+    "ADR 0013's Status currency line must name the 2026-08-25 amendment (the D23 precedent: the " +
+      'status line and the amendment land together)',
+  )
+  const xref = adr0012.match(/^\*Cross-reference \(2026-08-25\):[^\n]*$/m)
+  assert.ok(
+    xref,
+    'ADR 0012 must carry the one-line 2026-08-25 cross-reference (its line-90 style) — the ' +
+      'extraction construct rotted or the line was dropped',
+  )
+  assert.match(
+    xref[0],
+    /0013-commanders-intent-and-disposition-routing\.md/,
+    "the ADR 0012 cross-ref must link ADR 0013's file (the 0012↔0013 cross-ref guardrail, PIN-6)",
+  )
+})
+
+// (D39) THE TOUR ARM (D10 · PIN-10) — tour step 8 is retyped to the disposition world, and every
+// step Task 2.5 touched (steps 2, 4, 8 — located by title construct, never index) carries a
+// pattern-only anchor: the installed player resolves `line` before `pattern`, so a raw `line` key
+// beside a pattern is not decorative but actively re-rots the anchor; files under same-phase
+// sibling edit are unsatisfiable at any base and are pattern-only by construction.
+test('D39 — tour step 8 is retyped to the disposition ladder; touched steps carry pattern-only anchors (#1550, D10)', () => {
+  const touched = [
+    [/^2 ·/, 'CONTEXT.md'],
+    [/^4 ·/, 'skills/war/SKILL.md'],
+    [/^8 ·/, 'skills/war/assets/workflow-template.js'],
+  ]
+  for (const [titleRe, file] of touched) {
+    const step = tour.steps.find((s) => titleRe.test(s.title || ''))
+    assert.ok(step, `could not find the tour step titled ${titleRe} — the title construct rotted`)
+    assert.equal(step.file, file, `the ${titleRe} step must anchor into ${file}`)
+    assert.equal(
+      typeof step.pattern,
+      'string',
+      `the ${titleRe} step must carry a \`pattern\` anchor (D10 — pattern-only is the only protecting form)`,
+    )
+    assert.ok(
+      !('line' in step),
+      `the ${titleRe} step must NOT carry a raw \`line\` key — the player resolves line before pattern (D10)`,
+    )
+  }
+  const step8 = tour.steps.find((s) => /^8 ·/.test(s.title || ''))
+  assert.match(step8.pattern, /dispositionOf/, "step 8's pattern must anchor on `dispositionOf`")
+  for (const [re, what] of [
+    [/four-member/i, 'the four-member ladder'],
+    [/precedes\s+the\s+absorb\s+chain/i, 'the ask-arm-precedes-absorb-chain order'],
+    [/parkAsk/, 'the parkAsk parking mechanism'],
+    [/question\s+\+\s+fork/i, 'the question + fork record'],
+    [/strike-list/i, 'the Checkpoint strike-list gate'],
+    [/never\s+filed\s+unruled/i, 'the never-filed-unruled law'],
+    [/refuses?\W{1,3}an\s+ask/i, "demote()'s ask refusal"],
+  ]) {
+    assert.match(
+      norm(step8.description),
+      re,
+      `tour step 8 must narrate ${what} (the disposition-world retype, #1550)`,
+    )
+  }
+})
+
+// (D40) SCHEMAS.MD ENUM-LINE PINS (D6 CLASS-1/CLASS-2) — the audit-outcome disposition enum line,
+// the mandatory `ask` field row, the top-level `asks` return row, the ninth handoff `asks` row
+// (ADDITIVE — no exact-key validator exists or is introduced, PIN-13), the widened
+// GitHub-conventions routing sentence, and the Three-producers adjudications paragraph. OLD-absent
+// keys cite literals verified present at the plan's implementation base `a60221a` and retired at
+// this task's base by merged dep Task 2.2 — each absence assert guards against a revert of that
+// widening, never a never-present value (PIN-8): the pre-widening enum tail
+// `"note" — auditor-owned` and the `**Two producers**` count literal.
+test('D40 — schemas.md carries the widened enum/field/return/handoff/producer shapes, old literals retired (#1550)', () => {
+  for (const [re, what] of [
+    [/"absorb"\|"follow-up"\|"note"\|"ask"/, 'the four-member disposition enum comment'],
+    [/ask\?,\s+\/\/ \{ question, fork \} — MANDATORY on a disposition:'ask' finding/, 'the mandatory ask field row (question+fork)'],
+    [/asks: \[ \{ task, seat, sha, question, fork, finding \} \]/, 'the top-level return `asks` row (full finding kept)'],
+    [/asks: \[ \{ task, seat, sha, question, fork \} \]/, 'the handoff ninth `asks` row (lossy projection)'],
+    [/NINTH handoff key, ADDITIVE/, "the ninth key's additive law (no exact-key validator)"],
+    [/never filed unruled/i, 'the never-filed-unruled GitHub-conventions clause'],
+    [/refuses an ask/i, "demote()'s ask refusal in the routing sentence"],
+    [/Three producers/i, 'the widened Three-producers adjudications paragraph'],
+  ]) {
+    assert.match(
+      schemasMd,
+      re,
+      `references/schemas.md must carry ${what} (#1550). Correct this row to a sanctioned ` +
+        'rewording, never drop the shape on this surface to make it pass',
+    )
+  }
+  for (const [re, what] of [
+    [/"note" — auditor-owned/, 'the pre-widening three-member enum tail'],
+    [/\*\*Two producers\*\*/, 'the pre-widening producer count literal'],
+  ]) {
+    assert.ok(
+      !re.test(schemasMd),
+      `the retired literal ${re} (${what}) must be gone from references/schemas.md — OLD-absent, ` +
+        'cited from the ask-disposition task base (PIN-8)',
+    )
+  }
+})
+
+// (D41) SKILL.MD CHECKPOINT + DECOMPOSE PINS (Task 2.1's duties, rule-7 deps edge) — the
+// handoff-render pin covers the NINE-entry ORDER, not membership alone (D6: the `asks` entry sits
+// in the operator-action cluster, adjacent to the follow-ups row; `Unexecuted backstops` renders
+// as the mandatory ninth line after the parenthesized block); the ask ruling gate carries the
+// absolute floor with its interactive binding, filing parity, and the `--afk` posture; the
+// Decompose step-5 producer sentence is widened at BOTH edit sites (D5). OLD-absent keys cite
+// literals verified present at the plan's implementation base `a60221a` and retired at this task's
+// base by merged dep Task 2.1 — the absence asserts guard against a revert of that widening, never
+// a never-present value (PIN-8): `the two producers above` and `` `absorb` is never defaulted ``.
+test('D41 — SKILL.md Checkpoint renders the 9-key handoff order and the ask ruling gate; Decompose producers widened at both sites (#1550)', () => {
+  const checkpoint = skillMd.match(/^## Checkpoint[\s\S]*?(?=\n## )/m)
+  assert.ok(checkpoint, 'could not locate the `## Checkpoint` section in SKILL.md — construct rotted')
+  const cp = norm(checkpoint[0])
+  // The 9-entry render ORDER — strictly monotonic positions, so a membership-only reshuffle reds.
+  const ORDER = [
+    'tipSha',
+    'polish',
+    'absorbed',
+    'follow-ups filed',
+    'asks parked',
+    'notes',
+    'End-state condition statuses',
+    'intentPresent',
+    'Unexecuted backstops',
+  ]
+  let last = -1
+  for (const entry of ORDER) {
+    const at = cp.indexOf(entry)
+    assert.ok(at > last, `the Checkpoint handoff render must carry \`${entry}\` AFTER its predecessor — the 9-entry order is pinned (asks in the operator-action cluster, adjacent to the follow-ups row; D6)`)
+    last = at
+  }
+  for (const [re, what] of [
+    [/Ask ruling gate/i, 'the ask ruling gate bullet'],
+    [/one gate rules all parked asks in a single pass/i, 'the one-gate single-pass form'],
+    [/absolute/i, 'the absolute advance floor'],
+    [/hard wait/i, 'the interactive binding (a hard wait)'],
+    [/no severity, count, or staleness exception/i, 'the no-exception clause'],
+    [/Ruled-ask filing parity/i, 'the filing-parity duty'],
+    [/Evidence artifacts/i, "parity's Evidence-artifacts section"],
+    [/third producer/i, 'the ruling-minted-as-third-producer clause'],
+    [/never re-adds one/i, 'the Lead-never-re-adds-one clause'],
+    [/demotes to follow-up with the question preserved/i, 'the `--afk` no-match demotion arm'],
+    [/provenance-marked/i, "the suppression row's provenance marking"],
+  ]) {
+    assert.match(cp, re, `the SKILL.md Checkpoint must carry ${what} (#1550, Task 2.1's duty pinned here per rule 7)`)
+  }
+  // Decompose step-5 producer widening — both edit sites of the one bullet (D5 · PIN-6).
+  const s = norm(skillMd)
+  assert.match(s, /the Checkpoint['’]s ask rulings/i, 'Decompose step 5 must enumerate the third producer (edit site 1)')
+  assert.match(s, /three producers above/i, 'Decompose step 5 provenance discipline must count three producers (edit site 2)')
+  assert.ok(!/two producers above/i.test(s), 'the retired `two producers above` literal must be gone from SKILL.md (OLD-absent, base-verified; PIN-8)')
+  // The per-phase disposition sentence (the Audits bullet) — widened form, old default literal retired.
+  assert.match(s, /decision-shaped Minor\/Nit only the operator can rule/i, 'the Audits bullet must carry the ask arm')
+  assert.match(s, /`absorb` and `ask` are never defaulted/, 'the Audits bullet must carry the widened never-defaulted pair')
+  assert.ok(!/`absorb` is never defaulted/.test(s), 'the retired single-member `absorb` is never defaulted literal must be gone from SKILL.md (OLD-absent, base-verified; PIN-8)')
+})
+
+// (D42) TASK 2.2's REFERENCES SENTENCES (rule-7 deps edge) — design.md's row-7 enum and §18 ask
+// clause, file-followups.md's ruled-ask parity text, the refiner card's parked-ask exclusion, and
+// schemas.md's consolidation exclusion. OLD-absent cites the row-7 literal
+// `absorb/follow-up/note — ADR 0013`, verified present at the plan's implementation base
+// `a60221a` and retired at this task's base by merged dep Task 2.2 — the absence assert guards
+// against a revert of that widening, never a never-present value (PIN-8).
+test('D42 — the references mirrors carry the widened ask shapes; the closed row-7 literal is retired (#1550)', () => {
+  for (const [name, text, re, what] of [
+    ['references/design.md', designRefMd, /absorb\/follow-up\/note\/ask — ADR 0013, amended 2026-08-25/, 'the widened row-7 disposition enum with the amendment date'],
+    ['references/design.md', designRefMd, /`ask` \(#1550, ADR 0013 amendment 2026-08-25/, "§18's ask clause with its provenance"],
+    ['references/design.md', designRefMd, /refuses an ask/i, "§18's demote() ask-refusal clause"],
+    ['references/design.md', designRefMd, /never filed unruled/i, "§18's never-filed-unruled law"],
+    ['references/file-followups.md', fileFollowupsMd, /Ruled-ask filing parity/i, 'the canonical ruled-ask parity heading'],
+    ['references/file-followups.md', fileFollowupsMd, /unruled ask is never filed/i, 'the never-filed-unruled statement'],
+    ['references/file-followups.md', fileFollowupsMd, /Lead-side/, 'the ruled-ask Lead-side filing site'],
+    ['agents/war-refiner.md', refinerCard, /a parked ask is never in the batch/i, "the file-followups dispatch's parked-ask exclusion"],
+    ['references/schemas.md', schemasMd, /structurally excluded/i, "consolidation's structural asks exclusion"],
+  ]) {
+    assert.match(
+      norm(text),
+      re,
+      `${name} must carry ${what} (#1550, Task 2.2's sentence pinned here per rule 7). Correct ` +
+        'this row to a sanctioned rewording, never drop the clause to make it pass',
+    )
+  }
+  assert.ok(
+    !/absorb\/follow-up\/note — ADR 0013\)/.test(designRefMd),
+    'the retired closed row-7 literal `absorb/follow-up/note — ADR 0013)` must be gone from ' +
+      'references/design.md (OLD-absent, base-verified; PIN-8)',
+  )
 })

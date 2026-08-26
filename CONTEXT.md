@@ -744,14 +744,60 @@ inside the enumerated latitude that holds the guardrails and End states is in-ba
 waives a check, gate, or backstop (ADR 0017).
 _Avoid_: plan literalism as a virtue; latitude as unbounded scope.
 
-**Disposition** (`absorb` | `follow-up` | `note`):
+**Disposition** (`absorb` | `follow-up` | `note` | `ask`):
 The auditor-owned routing of a Minor/Nit finding, orthogonal to severity: fix it this phase (`absorb` —
 the per-task ace, or the phase-close sweep when `phaseClose:true`/release-slot-adjacent), file it as an
-affirmative issue (`follow-up` — must state why it is not absorbable), or record it without filing
-(`note` — phase report + servitor feed). Omitted → Minor becomes follow-up, Nit becomes note; `absorb`
-is never a default. A failed or ineligible route **demotes one step toward durability**, logged — per
-subset under the ace bisection ladder — never dropped silently; zero unrouted findings on every exit path.
+affirmative issue (`follow-up` — must state why it is not absorbable), record it without filing
+(`note` — phase report + servitor feed), or park it as a question (`ask` — see **Ask disposition**).
+Omitted → Minor becomes follow-up, Nit becomes note; `absorb` and `ask` are never defaults. A failed or
+ineligible route **demotes one step toward durability**, logged — per subset under the ace bisection
+ladder — never dropped silently, while `demote()` refuses an ask (log + re-route onto `asks[]`); zero
+unrouted findings on every exit path.
 _Avoid_: autoFixable (deprecated legacy alias for absorb); severity as the routing signal.
+
+**Ask disposition** (`ask`):
+The fourth, Minor/Nit-only disposition member (#1550; ADR 0013 amendment 2026-08-25): a decision-shaped
+finding only the operator can rule, carrying a mandatory question + fork (the decision needed and its
+two branches). Minor/Nit-only holds by construction — `dispositionOf` sits behind the severity filter;
+Critical/Major findings route via `blockingOf` and never carry a disposition.
+_Avoid_: treating an ask as an escalation (it never blocks); machinery defaulting a finding to ask.
+
+**asks[] channel**:
+The parked-ask artifact path: the top-level return's `asks[]` beside `minorsFiled` (full finding rows,
+exactly-once by finding identity) plus the lossy ninth `handoff.asks` key (question + fork +
+task/seat/sha). `demote()` refuses an ask loudly — log() + re-route onto `asks[]`, never
+`minorsFiled`/`notes`, never a throw.
+_Avoid_: filing from this channel; hardening the refusal to a throw (`held:workflow-error` omits the
+handoff — the throw would destroy the parked records the refusal protects).
+
+**Ruled / unruled ask**:
+An ask is **unruled** until the operator rules its fork at the Checkpoint; a **ruled** ask carries the
+operator's ruling, is minted as an adjudication row (the third producer), and files Lead-side with
+filing parity (`## Evidence artifacts` section + dedup against engine-filed rows).
+_Avoid_: treating the `--afk` no-match demotion (follow-up, question preserved) as a ruling.
+
+**Never-filed-unruled**:
+The filing law: an unruled ask is excluded from in-phase consolidation and the `file-followups`
+dispatch, and the Lead never re-adds one — filing happens only after a ruling.
+_Avoid_: "park it as a follow-up for now" (the decision-free filing the channel exists to prevent).
+
+**Strike-list ruling gate**:
+The ONE Checkpoint gate that rules all parked asks in a single pass — one row per ask (question + fork +
+task/seat/sha) — behind the **absolute advance floor**: the DAG never advances over an unruled ask.
+Interactively a hard wait; under `--afk` an adjudication match resolves by citation, a no-match demotes
+to follow-up with the question preserved, and suppression rows are minted only from operator rulings.
+_Avoid_: per-ask mini-gates; any severity, count, or staleness exception to the floor.
+
+**Grind measurement**:
+The #1664 backstop's read of decision-shaped round-grinding from three terminal sources — manifest
+`phases[].dispatches.fixRounds`, the filing site's audit-round field, and `minorsFiled` rationales —
+coarseness named: round-level attribution does not exist.
+_Avoid_: inventing per-round attribution the record does not carry.
+
+**Failure-routing asymmetry**:
+The grind backstop's load-bearing property: an ambiguous reading routes to #1664's
+instrumentation-first refinement (a per-round `auditLog` row), never to a silent "no grinding".
+_Avoid_: reading ambiguity as absence of grinding.
 
 **Ace bisection**:
 The regression-recovery ladder on a failed `--ace` batch (canonical: `aceBisect` in
@@ -816,9 +862,10 @@ _Avoid_: repin/reset scripts (never-reset-on-reuse stands); dependency ⇒ phase
 
 **Clean handoff**:
 The end-state a phase owes the next: a tip whose quality debt is **zero or enumerated and intentional**
-— every finding absorbed (commit-cited), filed (issue + why-not-absorbable), or noted (report) — plus a
-machine-readable `handoff` block (`{ tipSha, polish, absorbed, followUps, notes, endState,
-intentPresent }`) emitted on `landed` and `held:escalation` for the next phase's decompose.
+— every finding absorbed (commit-cited), filed (issue + why-not-absorbable), noted (report), or parked
+as an ask (question + fork — ruled at the Checkpoint strike-list gate, never filed unruled) — plus a
+machine-readable `handoff` block (`{ tipSha, polish, absorbed, followUps, asks, notes, endState,
+intentPresent, backstops }`) emitted on `landed` and `held:escalation` for the next phase's decompose.
 _Avoid_: follow-up issues as the default disposal; a handoff block on `held:workflow-error` (infra
 death has no trustworthy return to render).
 
@@ -1026,13 +1073,14 @@ file is the separate artifact the post-run diff compares against.
 
 **Adjudication**:
 An authoritative resolved ruling threaded to audit seats as an `args.adjudications` row — produced by
-the red-team report's `## Adjudications` block (version literals and grill decisions) **or** by the
-Lead at the decompose gate / an escalation adjudication (scope deltas routed to follow-ups). Auditor
+the red-team report's `## Adjudications` block (version literals and grill decisions), by the
+Lead at the decompose gate / an escalation adjudication (scope deltas routed to follow-ups), **or** by
+the Checkpoint's ask rulings (each ruled ask minted as a row at the strike-list gate). Auditor
 scoring keys on it: version precedence (task instruction > red-team adjudication > plan body literal)
 and the adjudication-match confirmation-note rule.
 _Avoid_: "override", "waiver" — a row records a ruling already made and routed; it never waives a gate,
 floor, or backstop (ADR 0017), and a row is **never mined from arbitrary prose** — rows come only from
-the two named producers.
+the three named producers.
 
 **ADJUDICATED (verdict)**:
 The gate's fifth, distinct, gate-emitted terminal verdict: every blocker/`needsDecision` is patched and

@@ -11,7 +11,7 @@
     },
     {
       "file": "CONTEXT.md",
-      "line": 106,
+      "pattern": "\\*\\*Container\\*\\* / \\*\\*Contents\\*\\*",
       "title": "2 · The core seam: container vs contents",
       "description": "**Situation:** This glossary is the ubiquitous language — read it before the code. The load-bearing distinction is **container vs contents**.\n\n**Mechanism:** The *container* (the branch + the worktree directory) is owned by the **refiner**; the *contents* (files and commits inside a worktree) are owned by the **worker**. A worker never runs `git worktree add/remove` or touches a shared branch; the refiner never edits task code.\n\n**Implication:** every role boundary, hook, and ADR in this tour is an enforcement of this one ownership split. Keep it in mind — when you see a guard deny something, it is defending this line. **Gotcha:** 'provisioning' here is a precise term (the owned lifecycle of git topology), not generic 'setup' — the glossary's `_Avoid_` notes exist because the wrong word invites the wrong design."
     },
@@ -22,7 +22,7 @@
     },
     {
       "file": "skills/war/SKILL.md",
-      "line": 122,
+      "pattern": "## Invariants \\(never violate\\)",
       "title": "4 · The Lead and the invariants",
       "description": "**Situation:** The human-driving half is the **Lead** (the Mayor): it decomposes, gates at phase boundaries, surfaces escalations, and talks to you — and *never edits code itself*.\n\n**Mechanism:** These Invariants are the system's safety contract. Note the strongest ones: the auditor is read-only; the servitor is the *only* reviewer-side role that writes, and only under the local memory root (repo-root publication is the Lead's Gate-2 promotion, never a servitor write); the refiner owns **all** merges, one at a time, never `--force`/`reset --hard` on shared branches; never merge un-audited, without a green gate, or before unanimous approval.\n\n**Implication:** an architect should read this block as the spec the rest of the code must not violate. Everything downstream is mechanism in service of these invariants."
     },
@@ -46,9 +46,9 @@
     },
     {
       "file": "skills/war/assets/workflow-template.js",
-      "line": 722,
-      "title": "8 · The gate predicates",
-      "description": "**Situation:** These five one-liners encode WAR's entire audit-gating policy. Tiny surface, large consequence.\n\n**Mechanism:** `blockingOf` = Critical/Major findings (these block); `minorsOf` = Minor/Nit (these become follow-up issues, never block); `allApprove` requires **every** expected seat — the task's full roster — to approve (unanimous on one SHA; even seat counts are legal, nothing votes by majority); `isSplit` detects approve-vs-request_changes disagreement → one rebuttal round; `nextWave` is the DAG scheduler.\n\n**Implication:** severity, not seat-count, is the lever — and unanimity means a single dissenting seat holds the task. The rebuttal-then-escalate loop (≈1385–1391) is the deadlock breaker: split → one peer-aware re-judge → still split → human tiebreak. **Gotcha:** `autoEscalate` (≈1393) **union-widens** a *lone* seat's roster on a Critical or low-confidence finding — toward the seat's own `widen` **nomination** when it supplies a valid one (those catalog lenses at `deep`), falling back to the default roster's lenses (the byte-identical trio-union) when it names none or names an invalid one; `resolveWidenSource` picks the source and the narrator log records it (`nominated` vs `default fallback`). Never duplicates, capped at 5, and a multi-seat roster the human approved is never second-guessed."
+      "pattern": "const dispositionOf = f =>",
+      "title": "8 · Gate predicates + the disposition ladder",
+      "description": "**Situation:** This block encodes WAR's audit-gating policy along **two orthogonal axes**: severity decides what *blocks*, and the auditor-owned **disposition** decides where a non-blocking finding *routes* (ADR 0013).\n\n**Mechanism:** `blockingOf` = Critical/Major findings (these block; they never carry a disposition); `minorsOf` = seat-stamped copies of every Minor/Nit; `dispositionOf` then routes each through the four-member ladder **`absorb` / `follow-up` / `note` / `ask`** — the ask arm precedes the absorb chain, and `absorb`/`ask` are *never* defaulted (an ask exists only when a seat sets it explicitly). A `disposition:'ask'` finding is a **decision-shaped** Minor/Nit: `parkAsk` parks it on `asks[]` (exactly-once by finding identity) carrying its floored record — the **question + fork** — and it is ruled by the operator at the Checkpoint strike-list gate, **never filed unruled**. `demote()` — the terminal-demotion ladder — *refuses* an ask loudly: log() + re-route onto `asks[]`, never a throw (`held:workflow-error` omits the handoff, so a throw would destroy the very parked records the refusal protects). `allApprove` still requires **every** expected seat unanimous on one SHA; `isSplit` → one rebuttal round; `nextWave` is the DAG scheduler.\n\n**Implication:** severity is the blocking lever; disposition is the routing lever — an operator's fork-intact question survives the machinery instead of dying as a decision-free follow-up issue. **Gotcha:** `autoEscalate` still union-widens a *lone* seat's roster on a Critical or low-confidence finding (nomination-first, default-trio fallback, capped at 5) — unchanged by the disposition widening."
     },
     {
       "file": "agents/war-auditor.md",
