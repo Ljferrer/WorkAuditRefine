@@ -939,7 +939,8 @@ const blockedReason = r => !r ? 'worker returned no result'
 // spawned, then the harness died out from under it) is an environment event, not a code defect. The
 // classification is scoped STRUCTURALLY, never by message text alone (relaunch fix): dispatchAgent
 // wraps the wave thunk's direct agent() dispatches — plus provisionStep's provision-run, the
-// provision-barrier, the polish-worktree provision, and the sweep dispatch (Phase 6 Task 1 (c)) —
+// polish-worktree provision, and the sweep dispatch (Phase 6 Task 1 (c)); the provision-BARRIER also
+// routes through it for the TAG alone, with no local catch (its death stays held:workflow-error) —
 // in their OWN try/catch and TAGS a throw that
 // crossed the dispatch boundary; infraDeathCause classifies 'env-died' (a SOFT_ENV_REASONS member
 // beside env-blocked — the mirror at the land decision) ONLY for a TAGGED throw whose message
@@ -1411,8 +1412,11 @@ if (tasks.length) {
   // like deriveSkipClause. Plain git verbs only, no new script flag: a CLEAN prior-generation holder of
   // THIS plan's refs is auto-freed (detach for _refinery, worktree remove for a workless task worktree);
   // a dirty holder still dies loud with the holder path named; a foreign plan's holder is never freed.
+  // Ordering: this clause runs BEFORE steps 2–4, so step 3's TIP binding does not exist yet — unlike
+  // deriveSkipClause (a step-3 sub-clause where "$TIP" is live), the workless-worktree ancestor check
+  // resolves the integration branch itself, guarded on the branch existing (a fresh cut has none).
   const holderFreeClause = recovery
-    ? pt`SANCTIONED RECOVERY RELAUNCH — pre-checkout ref-holder auto-free (#1712 fix 3): BEFORE steps 2–4, run \`git worktree list --porcelain\` ONCE and, for EVERY ref this relaunch checks out (${ph.integrationBranch} for _refinery, each task branch in step 3), check whether a prior-generation worktree still holds it. Auto-free ONLY a CLEAN prior-generation holder of THIS plan's own refs (its held branch carries the plan slug ${planSlug || '<plan-slug>'}): for a stale _refinery holding ${ph.integrationBranch}, run \`git -C <holder-path> checkout --detach\` (detach — the worktree survives); for a WORKLESS task worktree (empty \`git -C <holder-path> status --porcelain\` AND its branch tip already an ancestor of "$TIP" — no unmerged work), run \`git worktree remove <holder-path>\`. Plain git verbs only — never a new script flag. NEVER free a DIRTY holder (non-empty status --porcelain): die loud — return the \`{ ok: false, … }\` env-outcome with the HOLDER PATH named in stderrTail. NEVER free a holder of a FOREIGN plan's refs: leave it in place, and if it blocks a checkout, die loud the same way naming its path.\n`
+    ? pt`SANCTIONED RECOVERY RELAUNCH — pre-checkout ref-holder auto-free (#1712 fix 3): BEFORE steps 2–4, run \`git worktree list --porcelain\` ONCE and, for EVERY ref this relaunch checks out (${ph.integrationBranch} for _refinery, each task branch in step 3), check whether a prior-generation worktree still holds it. Auto-free ONLY a CLEAN prior-generation holder of THIS plan's own refs (its held branch carries the plan slug ${planSlug || '<plan-slug>'}): for a stale _refinery holding ${ph.integrationBranch}, run \`git -C <holder-path> checkout --detach\` (detach — the worktree survives); for a WORKLESS task worktree (empty \`git -C <holder-path> status --porcelain\` AND \`git merge-base --is-ancestor <that holder's branch> ${ph.integrationBranch}\` holds — no unmerged work), run \`git worktree remove <holder-path>\`. This clause runs BEFORE step 3, so step 3's TIP is NOT yet bound here — resolve the ancestor check against ${ph.integrationBranch} directly (never "$TIP"), and when ${ph.integrationBranch} does not yet exist SKIP the removal arm entirely: a fresh cut has no prior-generation holder of it, and an unverified worktree is never removed. Plain git verbs only — never a new script flag. NEVER free a DIRTY holder (non-empty status --porcelain): die loud — return the \`{ ok: false, … }\` env-outcome with the HOLDER PATH named in stderrTail. NEVER free a holder of a FOREIGN plan's refs: leave it in place, and if it blocks a checkout, die loud the same way naming its path.\n`
     : ''
   // Submodule tasks: thread the target repo + base into the Provision prompt so the refiner knows
   // to initialize the submodule checkout (git submodule update --init) before running ensure-integration
@@ -1431,15 +1435,13 @@ if (tasks.length) {
     : ''
   // provision mode (agents/war-refiner.md ## provision): git-topology barrier — env-outcome return.
   // dispatchKind: 'provision-barrier' (DISTINCT from the per-task 'provision-run' — mocks/isProvision key on it).
-  // dispatchAgent + catch (Phase 6 Task 1 (c)): a POST-SPAWN harness death of the barrier dispatch is an
-  // environment event, not a workflow error — no topology exists, so NOTHING in the phase can run: every
-  // task classifies env-died SOFT (#1411's retryable-interruption class) and the phase returns
-  // held:nothing-merged DIRECTLY (an existing decision member — no enum change; every downstream block is
-  // vacuous with zero tasks run, and held:nothing-merged emits no handoff by policy). An UNTAGGED or
-  // non-infra throw rethrows into the top-level catch → held:workflow-error, exactly as before.
-  let barrierOut = null
-  try {
-  barrierOut = await dispatchAgent(
+  // dispatchAgent, tagging ONLY (Phase 6 Task 1 (c) enumerates the routed sites; the barrier is not one):
+  // there is NO local catch here, so ANY barrier-dispatch death — infra-tagged or not — rethrows into the
+  // top-level catch → held:workflow-error with the workflowError { message, stack, recovery } payload,
+  // exactly the documented terminal class (resume-and-recovery.md § Checkpoint outcome handling: no git
+  // topology ⇒ nothing in the phase can run). The tag still rides the error so the surfaced message
+  // carries dispatch-layer provenance.
+  const barrierOut = await dispatchAgent(
     pt`Provision the worktree topology for WAR phase ${ph.id} "${ph.title}" by running ${SCRIPT}. `
     + pt`Do NOT free-author git; only run these subcommands, fail loud on ANY non-zero exit — do NOT special-case a numeric code (a foreign integration branch exits 3; a diverged local/origin base halts with its own distinct non-zero exit) — with ONE marker-keyed carve-out: a per-task worktree-creation exit whose output carries the \`STALE_REMOTE\` marker line is CLASSIFIED per task (step 3's classify-and-continue clause) and does NOT halt the barrier; the marker token is the key, never the numeric code. Return the env-outcome JSON: \`{ ok: true }\` when every subcommand exited 0 (optionally carrying the step-3 \`preMerged\` / \`staleRemote\` / \`worktreeHygiene\` arrays); on the FIRST non-zero exit WITHOUT the STALE_REMOTE marker return \`{ ok: false, failedCommand: "<the exact provision-worktrees.sh subcommand line>", exitCode: <code>, stderrTail: "<tail of its stderr — the script's die text>" }\`.\n`
     + pt`1. FROM THE MAIN CHECKOUT (${mainCheckout || 'the main repo checkout — your current working directory'}, NOT a task worktree): `
@@ -1454,17 +1456,6 @@ if (tasks.length) {
     + pt`4. provision-worktrees.sh ensure-refinery-worktree ${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId>'}/_refinery ${ph.integrationBranch} — create (or re-attach) the Refinery's dedicated worktree on the integration branch. The Refinery performs every merge in this run-scoped worktree, never the Lead's main checkout.`
     + submodNote,
     { agentType: NS + 'war-refiner', phase: 'Provision', label: `provision:phase-${ph.id}`, dispatchKind: 'provision-barrier', schema: ENV_OUTCOME, ...spawn('refiner') })
-  } catch (err) {
-    const barrierCause = infraDeathCause(err)
-    if (!barrierCause) throw err
-    for (const t of (tasks || [])) {
-      done.add(t.id)
-      escalated.push({ task: t.id, reason: 'env-died', blocked: 'provision barrier died: ' + barrierCause })
-    }
-    log('Phase ' + ph.id + ': the provision:phase-' + ph.id + ' barrier dispatch died post-spawn (' + barrierCause + ') — an environment event, not a workflow error: no topology exists, every task classifies env-died SOFT (retryable interruption, #1411); held:nothing-merged — re-run via the Recovery-relaunch runbook after the environment resets.')
-    return { phase: phaseId, landed, escalated, minorsFiled, asks, aced, notes, landResult: null,
-             servitorResult: null, auditLog, landDecision: 'held:nothing-merged' }
-  }
   // No topology ⇒ nothing in the phase can run — a hard stop is correct here, evidence or not (B/C).
   // !ok or a missing result throws with the stderrTail (which carries the script's die text — incl. a
   // foreign-branch exit 3 or a diverged exit 7) → held:workflow-error via the catch.
