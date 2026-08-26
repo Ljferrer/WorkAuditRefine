@@ -5416,13 +5416,19 @@ test('follow-up consolidation (line-window hit): cross-seat same-file findings w
 })
 
 test('follow-up consolidation (title fallback + no-collapse controls): lineless normalized-title twins collapse; a lined row never merges into a lineless one; different files and out-of-window lines never collapse', async () => {
+  // EVERY control row carries its OWN distinct seat: the collapse predicate short-circuits on the
+  // D8 cross-seat term FIRST, so same-seat controls would be blocked by the seat check alone and
+  // the file/line-window/title key would have ZERO delete-and-trace coverage (a vacuous pass —
+  // deleting the `c.file === f.file && (...)` term from the predicate would leave this test green).
+  // With distinct seats throughout, file/line/title is the SOLE discriminator for rows 3-6: delete
+  // that term and all six rows collapse into one, and the length-5 assertion below goes red.
   const findings = [
     { severity: 'Minor', title: 'Stale count.', rationale: 'r1', file: 'z.js' },              // 1 — representative
     { severity: 'Minor', title: 'stale count', rationale: 'r2', file: 'z.js', seat: 'audit:t1:second-lens' },   // collapses into 1 (both lineless, normalized-equal titles, CROSS-seat — same-seat rows never collapse, D8)
-    { severity: 'Minor', title: 'stale count', rationale: 'r3', file: 'z.js', line: 5 },      // control: lined vs lineless — NO collapse
-    { severity: 'Minor', title: 'Stale count.', rationale: 'r4', file: 'other.js' },          // control: different file — NO collapse
-    { severity: 'Minor', title: 'win a', rationale: 'r5', file: 'w.js', line: 1 },            // control pair: same file but
-    { severity: 'Minor', title: 'win b', rationale: 'r6', file: 'w.js', line: 50 },           // lines beyond the ±10 window — NO collapse
+    { severity: 'Minor', title: 'stale count', rationale: 'r3', file: 'z.js', line: 5, seat: 'audit:t1:third-lens' },      // control: lined vs lineless — NO collapse
+    { severity: 'Minor', title: 'Stale count.', rationale: 'r4', file: 'other.js', seat: 'audit:t1:fourth-lens' },         // control: different file — NO collapse
+    { severity: 'Minor', title: 'win a', rationale: 'r5', file: 'w.js', line: 1, seat: 'audit:t1:fifth-lens' },            // control pair: same file but
+    { severity: 'Minor', title: 'win b', rationale: 'r6', file: 'w.js', line: 50, seat: 'audit:t1:sixth-lens' },           // lines beyond the ±10 window — NO collapse
   ]
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
@@ -5457,6 +5463,39 @@ test('follow-up consolidation (non-array seats guard): an auditor-supplied strin
   assert.equal(out.landDecision, 'landed', 'the collapse never converts a LANDED phase into held:workflow-error (the string-seats row would throw on .push without the Array.isArray guard)')
   assert.equal(out.minorsFiled.length, 1, 'the line-window duplicates still collapse to one row')
   assert.ok(Array.isArray(out.minorsFiled[0].seats), 'the representative row\'s non-array seats key is normalized to a seats[] array')
+})
+
+test('follow-up consolidation (malformed merged elements guard): auditor-supplied `merged: [null, ...]` elements never throw at the consolidation log line or the handoff followUps projection — landDecision stays landed, elements are filtered/defaulted', async () => {
+  const findings = [
+    // Collapse-target representative carrying auditor junk in merged[]: null and a bare string are
+    // dropped; the field-less object gets absence-tolerant defaults in the handoff projection.
+    { severity: 'Minor', title: 'stale enum comment', rationale: 'r1', file: 'src/a.js', line: 100, merged: [null, 'junk', { title: 'pre-existing' }] },
+    { severity: 'Minor', title: 'comment misses the arm', rationale: 'r2', file: 'src/a.js', line: 105, seat: 'audit:t1:second-lens' },  // cross-seat, in-window → merges into row 1
+    // Never a collapse target (different file): its merged[] is never write-point-normalized, so it
+    // reaches the unconditional handoff followUps projection raw — the read-site guard alone must hold.
+    { severity: 'Minor', title: 'lone row', rationale: 'r3', file: 'src/b.js', line: 1, seat: 'audit:t1:third-lens', merged: [null] },
+  ]
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-auditor' && !(opts.label || '').startsWith('gate-audit:'))
+      return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings, confidence: 'high' }
+    if (seat === 'war-refiner' && opts.dispatchKind === 'file-followups') return null
+    return handoffImpl(undefined)(prompt, opts)
+  }
+  const { out, logs } = await runPhase(HANDOFF_ARGS(), impl)
+  assert.equal(out.landDecision, 'landed', 'malformed merged elements never convert a LANDED phase into held:workflow-error (both deref sites sit outside the local filing try — a bare x.seat on null would reach the top-level catch)')
+  assert.equal(out.minorsFiled.length, 2, 'the in-window cross-seat pair still collapses; the other-file row survives')
+  const rep = out.handoff.followUps.find(f => f.reason.startsWith('stale enum comment'))
+  assert.ok(rep && Array.isArray(rep.merged), 'the collapse-target row carries a merged[] on its handoff entry')
+  assert.deepEqual(rep.merged, [
+    { seat: '(seat unrecorded)', title: 'pre-existing', rationale: '(no rationale recorded)' },
+    { seat: 'audit:t1:second-lens (task t1)', title: 'comment misses the arm', rationale: 'r2' },
+  ], 'null/string junk is dropped; the field-less object gets absence-tolerant defaults; the real merged-away row keeps full fidelity')
+  const lone = out.handoff.followUps.find(f => f.reason.startsWith('lone row'))
+  assert.ok(lone && !('merged' in lone), 'the never-collapsed row\'s all-junk merged[] filters to empty — the additive key is omitted, and the projection never threw')
+  const cons = logs.find(l => typeof l === 'string' && l.startsWith('file-followups consolidation:'))
+  assert.ok(cons && cons.includes('[(seat unrecorded)] "pre-existing" — (no rationale recorded)'),
+    'the consolidation log line renders the surviving junk-adjacent element through the same defaults instead of throwing')
 })
 
 test('clusters manifest asserts (fail-open): a partition violation, a duplicate ordinal, and a missing manifest each get ONE violation log line; a conforming manifest logs none; landDecision untouched', async () => {

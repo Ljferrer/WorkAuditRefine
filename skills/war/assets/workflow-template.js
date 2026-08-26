@@ -3095,6 +3095,15 @@ if (landResult && landResult.status === 'landed' && memoryLocalRoot) {
 // (Task 2.1, #1566): minorsFiled is deterministically collapsed above before the rows render, and
 // the agent clusters the survivors by file + root cause — one issue per cluster, so several rows
 // may share one issue number (ordinal→issue stamping semantics unchanged).
+// mergedRowsOf (D9's class, Phase 5 Task 1 fix round): `merged` rides minorsOf's wholesale spread
+// like any other auditor key (the finding items schema is non-strict — the AUDIT_VERDICT comment
+// records the deriver fallback), so ELEMENTS are auditor-controlled too, not just the container. An
+// element-level deref (`x.seat`) on an auditor-supplied `merged: [null]` at the consolidation log
+// line or the handoff followUps projection sits OUTSIDE the local filing try — caught only by the
+// top-level held:workflow-error catch, converting a LANDED phase and destroying the handoff. Guard
+// element shape at every read: array-normalize the container, drop non-object elements. Hoisted
+// above BOTH consumer blocks (the filing block's braces close before the handoff assembly opens).
+const mergedRowsOf = m => (Array.isArray(m.merged) ? m.merged : []).filter(x => x && typeof x === 'object')
 if ((landDecision === 'landed' || landDecision === 'held:escalation') && minorsFiled.length > 0) {
   // ---- FOLLOW-UP CONSOLIDATION (Task 2.1, #1566; D8 seat discrimination + merged[] fidelity, Phase 5
   // Task 1): deterministic pre-filing collapse of minorsFiled, in place (the handoff assembly below
@@ -3133,14 +3142,15 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation') && minorsF
       hit.seats = seatsOf(hit)
       hit.seats.push(seatRef(f))
       // merged[] (D8): the merged-away row's title and rationale survive on the representative —
-      // absence-tolerant defaults (schema-optional fields), never a throw.
-      hit.merged = Array.isArray(hit.merged) ? hit.merged : []
+      // absence-tolerant defaults (schema-optional fields), never a throw. mergedRowsOf normalizes
+      // the container AND drops auditor-supplied non-object elements at the single write point.
+      hit.merged = mergedRowsOf(hit)
       hit.merged.push({ seat: seatRef(f), title: f.title ?? '(untitled finding)', rationale: f.rationale ?? '(no rationale recorded)' })
     } else collapsed.push(f)
   }
   if (collapsed.length < minorsFiled.length) {
-    const mergedAway = collapsed.filter(c => Array.isArray(c.merged) && c.merged.length)
-      .map(c => c.merged.map(x => '[' + x.seat + '] "' + x.title + '" — ' + x.rationale).join('; ') + ' (into "' + (c.title ?? '(untitled finding)') + '")').join(' | ')
+    const mergedAway = collapsed.filter(c => mergedRowsOf(c).length)
+      .map(c => mergedRowsOf(c).map(x => '[' + (x.seat ?? '(seat unrecorded)') + '] "' + (x.title ?? '(untitled finding)') + '" — ' + (x.rationale ?? '(no rationale recorded)')).join('; ') + ' (into "' + (c.title ?? '(untitled finding)') + '")').join(' | ')
     log('file-followups consolidation: ' + minorsFiled.length + ' follow-up rows collapsed to ' + collapsed.length + ' (file + ±' + FOLLOWUP_LINE_WINDOW + '-line window; title fallback when line absent; same-seat rows never collapse). Merged-away rows preserved on their survivors: ' + mergedAway)
     minorsFiled.splice(0, minorsFiled.length, ...collapsed)
   }
@@ -3189,7 +3199,7 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation') && minorsF
       // not exist — a truthiness gate would throw here and kill the whole batch; Array.isArray sends
       // the row down the seatRef fallback instead. merged[] (D8) renders per row so the filing agent
       // carries each merged-away title+rationale into the issue body.
-      + minorsFiled.map((m, i) => { const ev = auditEvidenceOf(m.task); return pt`  ${i + 1}. title: "${m.title ?? '(untitled finding)'}" · task ${m.task ?? '<task>'}${m.file ? pt` · file ${m.file}${m.line != null ? pt`:${m.line}` : ''}` : ''}${Array.isArray(m.seats) && m.seats.length ? pt` · seats: ${m.seats.join(', ')}` : pt` · seats: ${seatRef(m)}`}${Array.isArray(m.merged) && m.merged.length ? pt` · merged corroborations: ${m.merged.map(x => '[' + x.seat + '] "' + x.title + '" — ' + x.rationale).join('; ')}` : ''} · why not absorbable: ${m.rationale ?? '(no rationale recorded)'} · audit round ${ev.round} · pinned sha ${ev.sha}` }).join('\n') + '\n'
+      + minorsFiled.map((m, i) => { const ev = auditEvidenceOf(m.task); return pt`  ${i + 1}. title: "${m.title ?? '(untitled finding)'}" · task ${m.task ?? '<task>'}${m.file ? pt` · file ${m.file}${m.line != null ? pt`:${m.line}` : ''}` : ''}${Array.isArray(m.seats) && m.seats.length ? pt` · seats: ${m.seats.join(', ')}` : pt` · seats: ${seatRef(m)}`}${mergedRowsOf(m).length ? pt` · merged corroborations: ${mergedRowsOf(m).map(x => '[' + (x.seat ?? '(seat unrecorded)') + '] "' + (x.title ?? '(untitled finding)') + '" — ' + (x.rationale ?? '(no rationale recorded)')).join('; ')}` : ''} · why not absorbable: ${m.rationale ?? '(no rationale recorded)'} · audit round ${ev.round} · pinned sha ${ev.sha}` }).join('\n') + '\n'
       + pt`Return ONLY { filed: [{ n, issue }], clusters: [{ ordinals, issue }] } — filed: n the row's 1-based ordinal above, issue the filed / commented-on / reused issue number (null when unfiled; every row of one cluster shares its issue number); clusters: your clustering manifest — every ordinal above in exactly ONE cluster's ordinals array (merge rows only, never split one). A partial/empty result is FAIL-OPEN: unmatched entries stay issue: null in the handoff and the Checkpoint floor catches them; never block.`,
       { agentType: NS + 'war-refiner', phase: 'Land', label: 'file-followups:phase-' + ph.id, dispatchKind: 'file-followups', schema: FOLLOWUP_FILING_RESULT, ...spawn('refiner') })
   } catch (err) {
@@ -3277,9 +3287,12 @@ if (landDecision === 'landed' || landDecision === 'held:escalation') {
     absorbed: Object.entries(bySha).map(([sha, findings]) => ({ sha, findings })),
     // merged (D8, Phase 5 Task 1): a consolidated row's merged-away titles+rationales ride the
     // handoff entry too (ADDITIVE key, present only on rows the collapse merged into) — the debt
-    // map carries full fidelity, nothing merges away silently.
+    // map carries full fidelity, nothing merges away silently. Read through mergedRowsOf (element
+    // shape guard): this projection maps EVERY minorsFiled row and sits outside any local try — an
+    // auditor-supplied `merged: [null]` deref here would convert a LANDED phase into
+    // held:workflow-error and destroy this very handoff.
     followUps: minorsFiled.map(m => ({ issue: m.issue ?? null, reason: [m.title, m.rationale].filter(Boolean).join(' — ') || '(untitled finding)',
-      ...(Array.isArray(m.merged) && m.merged.length ? { merged: m.merged.map(x => ({ seat: x.seat, title: x.title, rationale: x.rationale })) } : {}) })),
+      ...(mergedRowsOf(m).length ? { merged: mergedRowsOf(m).map(x => ({ seat: x.seat ?? '(seat unrecorded)', title: x.title ?? '(untitled finding)', rationale: x.rationale ?? '(no rationale recorded)' })) } : {}) })),
     // asks (#1550 — the NINTH handoff key, ADDITIVE beside the follow-ups row; no exact-key
     // validator exists or is introduced): the LOSSY projection of the parked unruled ask records —
     // question + fork + task/seat/sha provenance, minus the full finding row (the top-level
