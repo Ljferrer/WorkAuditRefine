@@ -8618,6 +8618,21 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
   const gateAuditIntegratedTipSrc = sliceSrc('INTEGRATED-TIP GATE-AUDIT', 'gate-audit:phase-${ph.id}:integrated-tip')
   const gateAuditEndStateSrc = sliceSrc('END-STATE-ONLY GATE-AUDIT', 'gate-audit:phase-${ph.id}:end-state')
 
+  // engine-reliability Phase 2 Task 4 (End state 18; red-team round 1 — the standing card half was
+  // unguarded): the budget-raise row's trailer-form anchor is EXTRACTED from the floor script's
+  // human-readable trailer-form lines — ALL occurrences (the header-comment usage line and the stderr
+  // guidance line), collected and asserted byte-identical so neither script copy can silently diverge
+  // from the anchor. The property held: a form change that breaks the skeleton fails the extraction
+  // assert (or, moving only one copy, the identical-copies assert), and an ADR-number or token change
+  // reds whichever prose surface still carries the old form. An EXTENSION that prefix-preserves the
+  // skeleton is out of this row's reach — the machine-enforced TRAILER_RE inside the script is a
+  // separate literal this row deliberately does not read.
+  const budgetFloorSh = readFileSync(join(here, 'assert-budget-raise-cited.sh'), 'utf8')
+  const trailerForms = budgetFloorSh.match(/Budget-Raise: ADR-\d+ <surface> \+<bytes>/g) || []
+  assert.ok(trailerForms.length >= 2, 'assert-budget-raise-cited.sh carries the human-readable Budget-Raise trailer form in BOTH prose homes (header usage comment + stderr guidance — the budget-raise row extraction sources)')
+  assert.strictEqual(new Set(trailerForms).size, 1, 'every human-readable trailer-form occurrence in assert-budget-raise-cited.sh is byte-identical (header-comment vs stderr-guidance drift)')
+  const trailerFormRe = new RegExp(trailerForms[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+
   const REGISTRY = [
     { name: 'servitor memory discipline (mutation-guard + recurrence-flow + absolute files_written)',
       surfaces: [['war-servitor.md', servitorMd], ['servitor Wrap-up prompt', servitorP]],
@@ -8816,8 +8831,21 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
       surfaces: [['war-worker.md', workerMd], ['latitude-bearing worker prompt', latWorkerP],
                  ['war-auditor.md', auditorMd], ['auditPrompt()', auditP]],
       anchors: [/mechanism latitude/i, /binding guardrails/i, /explicit `Mechanism latitude:` clause/i] },
+    // engine-reliability Phase 2 Task 4 (End state 18; red-team round 1 — the standing card half of
+    // Task 2's wiring was unguarded): the budget-raise floor directive on war-refiner.md step 7 AND
+    // the dispatched merge-task prompt (the floor is unconditional, so the dwTask-fixture mergeP
+    // carries it — the done-when-floor row precedent). The trailer-form anchor is the literal
+    // extracted from assert-budget-raise-cited.sh above (never a hand-copied form); the script name
+    // appears on the card only inside step 7, so a card-side revert of the step reds this row even
+    // though the MergeResult field-comment line also mentions the budget-uncited route.
+    { name: "budget-raise floor (engine-reliability Phase 2 Task 4, End state 18): assert-budget-raise-cited.sh always runs pre-merge; trailer form extracted from the floor script; exit 1 ⇒ the budget-uncited fix-worker route, exit 2 ⇒ error, never the budget-uncited route",
+      surfaces: [['war-refiner.md', refinerMd], ['merge-task dispatch prompt', mergeP]],
+      anchors: [/assert-budget-raise-cited\.sh/, trailerFormRe,
+                /exit 1[\s\S]{0,400}budget-uncited/i,
+                /floor_route: ['"]budget-uncited['"]/,
+                /exit 2[\s\S]{0,240}never the budget-uncited route/i] },
   ]
-  assert.ok(REGISTRY.length >= 22, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison), the Task 2.1 escalate-boundary contract row (gate-audit-finding-routing Phase 2: required-when-escalate + discriminator + search-tooling), and the Task 2.2 latitude-clause row (#1431: Mechanism latitude / binding guardrails on both runtime seats, worker surface from the latitude-bearing-intent fixture) — floor equals the true row count, no slack (#693)')
+  assert.ok(REGISTRY.length >= 23, 'the registry lists the servitor memory-discipline row, the servitor path-hygiene row, the D8/D9(auditor)/D12/D6 auditor duties, the gate-audit seat row, the worker comment-lag row, the two Task 1.4 capture-grounding rows (servitor finding-match + auditor committed-tree), the Task 1.2 read-only git guard contract row, the #990 servitor landed-tip grounding ladder row, the bounded environment-proceed recovery row, the evidence-precedence five-surface row (ADR 0041), the A1 claimed-End-state-ids row (precision-chain Task 1.3), the done-when floor row (precision-chain Task 2.3), the two Task 3.2 rows (artifact-first attestation + mechanical mapped-tests grep), the two Task 3.2 recovery rows (endstate-check card twin + stale-artifact tip_sha comparison), the Task 2.1 escalate-boundary contract row (gate-audit-finding-routing Phase 2: required-when-escalate + discriminator + search-tooling), the Task 2.2 latitude-clause row (#1431: Mechanism latitude / binding guardrails on both runtime seats, worker surface from the latitude-bearing-intent fixture), and the budget-raise floor row (engine-reliability Phase 2 Task 4, End state 18: assert-budget-raise-cited.sh + script-extracted trailer form + exit-1 budget-uncited route + exit-2 error route, refiner card + merge-task dispatch prompt) — floor equals the true row count, no slack (#693)')
   for (const row of REGISTRY) {
     for (const [sName, sText] of row.surfaces) {
       for (const re of row.anchors) {

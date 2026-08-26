@@ -736,6 +736,7 @@ fi
 # `<name> exempt: <actual discovery mechanism>`. Survey-derived (directory listing
 # + manual header-comment survey of every script), never a name-prefix grep.
 CLASSIFICATION="$(cat <<'EOF'
+assert-budget-raise-cited.sh exempt: fixed-target budget-file value-line diff + commit-trailer inspection, no file discovery
 assert-done-when.sh exempt: executes the file-threaded done-when command, no file discovery
 assert-guard-specificity-in-diff.sh parity
 assert-issues-filed.sh exempt: gh/ledger reconciliation, no file discovery

@@ -6,7 +6,8 @@ budget eviction; each moved block was byte-identical to its pre-eviction card te
 time). Positional words inside the moved blocks ("below", "above") refer to their original card
 positions — "All merge-task and land-phase steps below" means the card's own
 merge-task/land-phase sections, and the reland-discrimination block sat as step 3 of the card's
-superproject land loop (the card's step 4 is the on-push-success return). The dispatched land
+superproject land loop (the card's on-push-success return — the old step 4 — was evicted to
+budget-raise-floor.md § Evicted: § land-phase / Superproject phase, alongside the CAS loop). The dispatched land
 prompts in `skills/war/assets/workflow-template.js` still carry the full discrimination text
 (registry-pinned, `relandDiscrimination`); this file is the standing copy the grep-parity
 suite reads.

@@ -148,6 +148,10 @@ const VERB_SCAN_EXCLUSIONS = [
   // contract reference is a guaranteed false red (probe-verified).
   'skills/war/references/schemas.md',
   'skills/war/references/auditor-teach.md',         // no shell-out prose for the scanned modules
+  // budget-rebaseline.md is the operator budget re-baseline pass; its only command prose
+  // targets prompt-surface-budgets.test.mjs and assert-budget-raise-cited.sh — neither is a
+  // scanned module, and it phrases no verb for any scanned module.
+  'skills/war/references/budget-rebaseline.md',
   'skills/war/references/gastown-design-params.md', // no shell-out prose for the scanned modules
   'skills/war/references/refiner-recovery.md',      // no shell-out prose for the scanned modules
   'skills/war/references/file-followups.md',        // no shell-out prose for the scanned modules (gh + gh-preflight.sh only)
@@ -168,6 +172,13 @@ const VERB_SCAN_EXCLUSIONS = [
   // no shell-out prose for the scanned modules (arming/refute/waive doctrine only; names
   // the recon corpus classes by prose, never a CLI command)
   'skills/war-strategy/references/strategy-verifier.md',
+  // budget-raise-floor.md carries the Budget-Raise merge floor's branch prose plus blocks
+  // evicted verbatim from agents/war-refiner.md (byte-funding, engine-reliability Phase 2
+  // Task 2); its only command prose targets assert-budget-raise-cited.sh, git, and
+  // provision-worktrees.sh — none a scanned module. It does name war-config.mjs (in the
+  // evicted Gate-contract block, `war-config.mjs --resolve-gate`), but the following token
+  // is a flag, so no verb is claimed for any scanned module.
+  'skills/war/references/budget-raise-floor.md',
 ]
 
 function skillDocs() {
