@@ -58,9 +58,27 @@
 #      the spurious %% truncation is safe — the prefix is a true substring of emitted text).
 #  15. shape-2 guard `die "$msg"`, uncovered -> exit 0 (bare-var message dropped, NO
 #      uncovered line at all). RED pre-change: the base records `$msg` and flags it.
-#  16. partially-interpolated literal `die "error: $x missing"` still records:
-#      16a uncovered -> exit 1 + the full literal on stdout (not dropped as bare-var);
-#      16b same guard + a test asserting the literal -> exit 0 (matched).
+#  16. partially-interpolated literal `die "error: $x missing"` still records — as its
+#      static distinguishing prefix `error:` (extract_msg $-truncation, #1688; record_guard's
+#      trim then drops the prefix's trailing space):
+#      16a uncovered -> exit 1 + the prefix on stdout, `$x` absent (not dropped as bare-var);
+#      16b same guard + a test asserting the full literal -> exit 0 (the prefix is a
+#      substring of the full-literal assertion, so full-literal coverage still credits).
+#   -- $var-tail prefix coverage (#1688, End state 15: prefix-covered) --
+#  17. `$var`-tail truncation family (case names carry the token `prefix-covered`):
+#      17a `die "missing snapshot: $file"` + a test asserting ONLY the distinguishing
+#          prefix -> exit 0 (prefix-covered; delete the $-truncation and this flips to 1:
+#          the whole literal is not a corpus substring).
+#      17b same guard, test asserts an unrelated string -> exit 1, stdout carries the
+#          prefix and NOT `$file` (truncation is not a free pass; coverage still enforced).
+#      17c all-interpolation `die "${a}${b}"` (empty prefix) -> falls back to the whole
+#          literal: exit 1 + `${a}${b}` on stdout (record_guard's bare-var drop does not
+#          fire — two references are not ENTIRELY one variable).
+#      17d fully-static `die` guard behavior unchanged -> exit 1 + the FULL literal on
+#          stdout (no spurious truncation without a `$`).
+#      17e single-quoted `die 'literal $cost sign'` -> whole literal recorded (a
+#          single-quoted `$` is literal text, never interpolation; delete the
+#          double-quote-only scoping and this flips).
 set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -615,9 +633,13 @@ fi
 
 # ---------------------------------------------------------------------------
 # Case 16: partially-interpolated literal `die "error: $x missing"` STILL records (only an
-# ENTIRELY-variable message is dropped). 16a: uncovered -> exit 1 + the full literal on stdout
-# (isolates over-broad bare-var skip — a wrong drop flips to exit 0). 16b: same guard + a test
-# asserting the literal -> exit 0 (matched).
+# ENTIRELY-variable message is dropped) — recorded as its static distinguishing prefix
+# `error:` (extract_msg $-truncation, #1688; record_guard's trim drops the prefix's
+# trailing space). 16a: uncovered -> exit 1 + the prefix on
+# stdout with the `$x` tail ABSENT (isolates over-broad bare-var skip — a wrong drop flips
+# to exit 0). 16b: same guard + a test asserting the FULL literal -> exit 0 (the recorded
+# prefix is a substring of the full-literal assertion, so existing full-literal tests keep
+# crediting).
 # ---------------------------------------------------------------------------
 R16="$(setup_repo)"
 BASE16="$(git -C "$R16" rev-parse HEAD)"
@@ -633,15 +655,17 @@ git -C "$R16" checkout -q - 2>/dev/null
 cwd16a="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"; TMPFILES="$TMPFILES $cwd16a"
 rc16a=0
 out16a="$( ( cd "$cwd16a" && bash "$SCRIPT" "$BASE16" "$TASK16a" --repo "$R16" ) 2>/dev/null )" || rc16a=$?
-if [ "$rc16a" -eq 1 ] && printf '%s' "$out16a" | grep -qF 'error: $x missing'; then
-  pass "case 16a: partially-interpolated literal, uncovered -> exit 1 + full literal on stdout (still records)"
+if [ "$rc16a" -eq 1 ] && printf '%s' "$out16a" | grep -qF 'error:' \
+   && ! printf '%s' "$out16a" | grep -qF '$x'; then
+  pass "case 16a: partially-interpolated literal, uncovered -> exit 1 + 'error:' prefix on stdout, \$x tail absent (still records, prefix-truncated)"
 elif [ "$rc16a" -ne 1 ]; then
   fail "case 16a: partial literal -> expected exit 1, got $rc16a (over-broad bare-var skip dropped it?)"
 else
-  fail "case 16a: partial literal -> exit 1 but full literal absent on stdout (got: $out16a)"
+  fail "case 16a: partial literal -> exit 1 but stdout is not the 'error:' prefix without the \$x tail (got: $out16a)"
 fi
 
-# 16b: add a covering test asserting the exact literal -> exit 0 (recorded AND matched).
+# 16b: add a covering test asserting the FULL literal -> exit 0 (the recorded 'error:'
+# prefix is a substring of the assertion, so full-literal coverage still credits).
 R16b="$(setup_repo)"
 BASE16b="$(git -C "$R16b" rev-parse HEAD)"
 git -C "$R16b" checkout -qb task/partial-literal-covered 2>/dev/null
@@ -663,6 +687,145 @@ if [ "$rc16b" -eq 0 ]; then
   pass "case 16b: partially-interpolated literal covered by a same-diff test -> exit 0 (matched)"
 else
   fail "case 16b: partial literal covered -> expected exit 0, got $rc16b (coverage matching broken?)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 17: $var-tail prefix coverage (#1688, End state 15 — the `prefix-covered` family).
+# extract_msg truncates a double-quoted message at the first `$`-interpolation, recording
+# the static distinguishing prefix, so a distinguishing-prefix stderr assertion honestly
+# covers a `$var`-tail guard (precedent: assert-no-repo-escape.test.sh case 28's
+# `grep -qF -- 'zero bytes (a truncated or failed snapshot write'` against a die message
+# with a `$baseline_file` tail).
+# ---------------------------------------------------------------------------
+
+# 17a: `die "missing snapshot: $file"` + a test asserting ONLY the prefix -> exit 0.
+# Delete-and-trace: remove the $-truncation and the stored whole literal
+# `missing snapshot: $file` is not a corpus substring -> this flips to exit 1.
+R17a="$(setup_repo)"
+BASE17a="$(git -C "$R17a" rev-parse HEAD)"
+git -C "$R17a" checkout -qb task/vartail-prefix-covered 2>/dev/null
+add_file "$R17a" lib/g7.sh <<'BODY'
+#!/usr/bin/env bash
+[ -f "$file" ] || die "missing snapshot: $file"
+BODY
+add_file "$R17a" helpers/g7.test.sh <<'BODY'
+grep -qF -- 'missing snapshot: ' err.txt
+BODY
+git -C "$R17a" commit -qm "add \$var-tail guard + distinguishing-prefix test"
+TASK17a="$(git -C "$R17a" rev-parse HEAD)"
+git -C "$R17a" checkout -q - 2>/dev/null
+
+cwd17a="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"; TMPFILES="$TMPFILES $cwd17a"
+rc17a=0
+( cd "$cwd17a" && bash "$SCRIPT" "$BASE17a" "$TASK17a" --repo "$R17a" ) >/dev/null 2>&1 || rc17a=$?
+if [ "$rc17a" -eq 0 ]; then
+  pass "case 17a: \$var-tail die guard + distinguishing-prefix assertion -> exit 0 (prefix-covered)"
+else
+  fail "case 17a: prefix-covered \$var-tail guard -> expected exit 0, got $rc17a (\$-truncation missing: whole-literal rule unsatisfiable, #1688)"
+fi
+
+# 17b: SAME guard shape, test asserts an UNRELATED string -> exit 1, stdout carries the
+# prefix and NOT `$file` (truncation is not a free pass — coverage is still enforced,
+# keyed on the recorded prefix).
+R17b="$(setup_repo)"
+BASE17b="$(git -C "$R17b" rev-parse HEAD)"
+git -C "$R17b" checkout -qb task/vartail-uncovered 2>/dev/null
+add_file "$R17b" lib/g7.sh <<'BODY'
+#!/usr/bin/env bash
+[ -f "$file" ] || die "missing snapshot: $file"
+BODY
+add_file "$R17b" helpers/g7.test.sh <<'BODY'
+grep -qF -- 'something else entirely' err.txt
+BODY
+git -C "$R17b" commit -qm "add \$var-tail guard + unrelated test"
+TASK17b="$(git -C "$R17b" rev-parse HEAD)"
+git -C "$R17b" checkout -q - 2>/dev/null
+
+cwd17b="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"; TMPFILES="$TMPFILES $cwd17b"
+rc17b=0
+out17b="$( ( cd "$cwd17b" && bash "$SCRIPT" "$BASE17b" "$TASK17b" --repo "$R17b" ) 2>/dev/null )" || rc17b=$?
+if [ "$rc17b" -eq 1 ] && printf '%s' "$out17b" | grep -qF 'missing snapshot:' \
+   && ! printf '%s' "$out17b" | grep -qF '$file'; then
+  pass "case 17b: \$var-tail guard NOT prefix-covered -> exit 1 + prefix on stdout, \$file tail absent (coverage still enforced)"
+elif [ "$rc17b" -ne 1 ]; then
+  fail "case 17b: uncovered \$var-tail guard -> expected exit 1, got $rc17b (truncation must not become a free pass)"
+else
+  fail "case 17b: exit 1 but stdout is not the prefix without the \$file tail (got: $out17b)"
+fi
+
+# 17c: ALL-interpolation `die "${a}${b}"` (empty prefix) -> falls back to today's
+# whole-literal behavior: recorded whole, record_guard's bare-var drop does NOT fire
+# (two references are not ENTIRELY one variable) -> exit 1 + `${a}${b}` on stdout.
+R17c="$(setup_repo)"
+BASE17c="$(git -C "$R17c" rev-parse HEAD)"
+git -C "$R17c" checkout -qb task/all-interpolation-fallback 2>/dev/null
+add_file "$R17c" lib/g8.sh <<'BODY'
+#!/usr/bin/env bash
+[ -n "$a" ] || die "${a}${b}"
+BODY
+git -C "$R17c" commit -qm "add all-interpolation guard, no test"
+TASK17c="$(git -C "$R17c" rev-parse HEAD)"
+git -C "$R17c" checkout -q - 2>/dev/null
+
+cwd17c="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"; TMPFILES="$TMPFILES $cwd17c"
+rc17c=0
+out17c="$( ( cd "$cwd17c" && bash "$SCRIPT" "$BASE17c" "$TASK17c" --repo "$R17c" ) 2>/dev/null )" || rc17c=$?
+if [ "$rc17c" -eq 1 ] && printf '%s' "$out17c" | grep -qF '${a}${b}'; then
+  pass "case 17c: all-interpolation message (empty prefix) falls back to whole-literal -> exit 1 + full literal on stdout (prefix-covered fallback arm)"
+elif [ "$rc17c" -ne 1 ]; then
+  fail "case 17c: all-interpolation guard -> expected exit 1, got $rc17c (empty-prefix fallback broken — dropped or mis-recorded)"
+else
+  fail "case 17c: exit 1 but the whole literal \${a}\${b} absent on stdout (got: $out17c)"
+fi
+
+# 17d: FULLY-STATIC guard behavior unchanged — no `$` anywhere, recorded whole ->
+# exit 1 + the FULL literal on stdout (no spurious truncation).
+R17d="$(setup_repo)"
+BASE17d="$(git -C "$R17d" rev-parse HEAD)"
+git -C "$R17d" checkout -qb task/static-unchanged 2>/dev/null
+add_file "$R17d" lib/g9.sh <<'BODY'
+#!/usr/bin/env bash
+[ -n "$ok" ] || die "wholly static guard message"
+BODY
+git -C "$R17d" commit -qm "add fully-static guard, no test"
+TASK17d="$(git -C "$R17d" rev-parse HEAD)"
+git -C "$R17d" checkout -q - 2>/dev/null
+
+cwd17d="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"; TMPFILES="$TMPFILES $cwd17d"
+rc17d=0
+out17d="$( ( cd "$cwd17d" && bash "$SCRIPT" "$BASE17d" "$TASK17d" --repo "$R17d" ) 2>/dev/null )" || rc17d=$?
+if [ "$rc17d" -eq 1 ] && printf '%s' "$out17d" | grep -qF 'wholly static guard message'; then
+  pass "case 17d: fully-static guard unchanged -> exit 1 + FULL literal on stdout (prefix-covered change touches only \$-bearing messages)"
+elif [ "$rc17d" -ne 1 ]; then
+  fail "case 17d: fully-static guard -> expected exit 1, got $rc17d (static behavior regressed)"
+else
+  fail "case 17d: exit 1 but the full static literal absent on stdout (got: $out17d)"
+fi
+
+# 17e: SINGLE-quoted `die 'literal $cost sign'` -> a single-quoted `$` is literal text,
+# never interpolation: recorded WHOLE -> exit 1 + the full literal (incl. $cost) on stdout.
+# Delete-and-trace for the double-quote-only scoping: truncate single-quoted messages too
+# and the stored `literal ` prefix replaces the full literal, flipping the $cost assert.
+R17e="$(setup_repo)"
+BASE17e="$(git -C "$R17e" rev-parse HEAD)"
+git -C "$R17e" checkout -qb task/single-quote-literal-dollar 2>/dev/null
+add_file "$R17e" lib/g10.sh <<'BODY'
+#!/usr/bin/env bash
+[ -n "$ok" ] || die 'literal $cost sign'
+BODY
+git -C "$R17e" commit -qm "add single-quoted literal-dollar guard, no test"
+TASK17e="$(git -C "$R17e" rev-parse HEAD)"
+git -C "$R17e" checkout -q - 2>/dev/null
+
+cwd17e="$(mktemp -d 2>/dev/null || mktemp -d -t wartest)"; TMPFILES="$TMPFILES $cwd17e"
+rc17e=0
+out17e="$( ( cd "$cwd17e" && bash "$SCRIPT" "$BASE17e" "$TASK17e" --repo "$R17e" ) 2>/dev/null )" || rc17e=$?
+if [ "$rc17e" -eq 1 ] && printf '%s' "$out17e" | grep -qF 'literal $cost sign'; then
+  pass "case 17e: single-quoted literal-\$ message recorded whole -> exit 1 + full literal on stdout (prefix-covered truncation is double-quote-only)"
+elif [ "$rc17e" -ne 1 ]; then
+  fail "case 17e: single-quoted literal-\$ guard -> expected exit 1, got $rc17e"
+else
+  fail "case 17e: exit 1 but full single-quoted literal absent on stdout — was it \$-truncated? (got: $out17e)"
 fi
 
 # ---------------------------------------------------------------------------
