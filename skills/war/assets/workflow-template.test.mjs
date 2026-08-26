@@ -11059,7 +11059,7 @@ test('recovery-holder (End state 27): a sanctioned relaunch instructs clean same
   assert.match(p, /git worktree list --porcelain/, 'holders are enumerated via git worktree list --porcelain')
   assert.match(p, /checkout --detach/, 'a stale _refinery holder is DETACHED (the worktree survives)')
   assert.match(p, /git worktree remove/, 'a WORKLESS task worktree holder is removed')
-  assert.ok(p.includes('wtprov-a'), "same-plan discrimination: the clause names THIS plan's slug")
+  assert.match(p, /its held branch carries the plan slug wtprov-a/, "same-plan discrimination: the clause names THIS plan's slug")
   assert.match(p, /Plain git verbs only/, 'plain git verbs — never a new script flag')
   // #1794 fix: the ancestor check resolves against the integration branch itself, never "$TIP".
   assert.ok(p.includes('git merge-base --is-ancestor') && p.includes('never "$TIP"'), 'the workless predicate resolves against the integration branch, never step-3\'s unbound $TIP')
