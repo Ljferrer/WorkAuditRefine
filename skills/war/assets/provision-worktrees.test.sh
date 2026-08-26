@@ -593,7 +593,7 @@ expect "reuse-gap(sigpipe): never misclassified as unrecognized-dirt" \
 # signal classifies as env error, never a hygiene finding) has no reachable
 # in-fixture trigger — pin its presence in the script.
 expect "reuse-gap(sigpipe): env-error classification arm exists (never a hygiene finding on a failed read)" \
-  "yes" "$(grep -Fq 'env-error:' "$SCRIPT" && echo yes || echo no)"
+  "yes" "$(grep -Fq 'detected "env-error:' "$SCRIPT" && echo yes || echo no)"
 
 # ---------------------------------------------------------------------------
 # Case (RG.4 / #1476 gap 4) refinery-worktree hygiene arm: the SAME corrupted
@@ -837,9 +837,11 @@ expect "teardown-phase (run-mine) does not touch the other run's worktree" \
 # examined-but-untouched submodule hygiene arm as ensure-worktree's reuse —
 # #1476 gap 4, case RG.4 above):
 #   (a) Not registered / empty dir -> `git worktree add <path> <integration-branch>` + .war-task
-#   (b) Registered + present + HEAD on the integration branch -> reuse untouched (marker only)
+#   (b) Registered + present + HEAD on the integration branch -> reuse (marker
+#         + reuse_hygiene submodule arm)
 #   (c) Registered + present + HEAD detached or on a different branch AND tree CLEAN ->
 #         `git -C <path> switch <integration-branch>` (re-attach), then reuse
+#         + reuse_hygiene
 #   (d) Registered + present + HEAD detached/different + tree DIRTY -> FAIL LOUD (never reset)
 #   (e) Stale registry (dir gone) -> prune + recreate on the integration branch
 #   (f) Non-empty unregistered dir -> fail loud (D7 discipline)

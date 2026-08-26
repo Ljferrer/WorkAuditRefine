@@ -803,7 +803,8 @@ reuse_hygiene_one() {
   fi
 
   # SHA matched + dirty: classify against the corruption signature. Every read
-  # feeding the classification captures its rc SEPARATELY (#1476 gap 3): a
+  # below this point feeding the classification captures its rc SEPARATELY
+  # (#1476 gap 3): a
   # failed or signal-killed read classifies as `env-error:*`, never as a
   # hygiene finding.
   h_gd="$(git -C "$h_wt/$h_sub" rev-parse --git-dir 2>/dev/null || true)"
@@ -1490,9 +1491,11 @@ cmd_sync_follower() {
 # Behaviors:
 #   (a) Not registered / empty dir  -> git worktree add <path> <integration-branch>
 #                                       + .war-task marker.
-#   (b) Registered + present + HEAD on integration branch  -> reuse (marker only).
+#   (b) Registered + present + HEAD on integration branch  -> reuse (marker
+#                                       + reuse_hygiene submodule arm).
 #   (c) Registered + present + HEAD detached/different + CLEAN  -> switch to
-#                                       integration branch (re-attach) + marker.
+#                                       integration branch (re-attach) + marker
+#                                       + reuse_hygiene.
 #   (d) Registered + present + HEAD detached/different + DIRTY  -> FAIL LOUD.
 #   (e) Stale registry (dir gone)   -> prune + recreate on integration branch.
 #   (f) Non-empty unregistered dir  -> FAIL LOUD (D7).
