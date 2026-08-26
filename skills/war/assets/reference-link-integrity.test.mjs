@@ -288,6 +288,12 @@ const QUALIFIED_HEADERS = [
   // ask-disposition Task 1.1: the war-auditor.md eligibility-blockquote eviction destination
   // (joined on creation per the UNION-extension precedent above).
   'disposition-eligibility.md',
+  // engine-reliability Phase 2 Task 2 polish: the agents/war-refiner.md Budget-Raise
+  // byte-funding eviction destination (joined per the UNION-extension precedent above),
+  // plus refiner-recovery.md — a pre-existing eviction destination whose header already
+  // carried the qualifier but was unlisted (sibling gap closed in the same touch).
+  'budget-raise-floor.md',
+  'refiner-recovery.md',
 ];
 
 test('reference link integrity — the re-basing caveat and the no-path-form claim are retired everywhere, and every re-qualified header says "at eviction time"', () => {

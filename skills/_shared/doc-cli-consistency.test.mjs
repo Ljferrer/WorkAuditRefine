@@ -175,8 +175,9 @@ const VERB_SCAN_EXCLUSIONS = [
   // budget-raise-floor.md carries the Budget-Raise merge floor's branch prose plus blocks
   // evicted verbatim from agents/war-refiner.md (byte-funding, engine-reliability Phase 2
   // Task 2); its only command prose targets assert-budget-raise-cited.sh, git, and
-  // provision-worktrees.sh — none is a scanned module, and it phrases no verb for any
-  // scanned module.
+  // provision-worktrees.sh — none a scanned module. It does name war-config.mjs (in the
+  // evicted Gate-contract block, `war-config.mjs --resolve-gate`), but the following token
+  // is a flag, so no verb is claimed for any scanned module.
   'skills/war/references/budget-raise-floor.md',
 ]
 
