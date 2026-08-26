@@ -4032,7 +4032,7 @@ test('#1550 — demote() refuses an ask loudly: log + exactly-once asks[] member
 
 // Default-deny order-census (End states 1+2, D7 — the floored domain): exactly eight dispositionOf
 // call sites, each carrying an explicit ask arm that PRECEDES its absorb chain, plus the
-// pinMismatch strip as the seventh row (a non-dispositionOf disposition sink, comment-named).
+// pinMismatch strip as the ninth row (a non-dispositionOf disposition sink, comment-named).
 // A NEW dispositionOf call site reds the count until it joins this census with its own ask arm.
 test('#1550 (D7) — ask order-census: eight dispositionOf sites with ask preceding the absorb chain, default-deny, plus the comment-named pinMismatch strip row', () => {
   // The classifier itself: the ask arm precedes the absorb chain inside dispositionOf.
@@ -4066,7 +4066,7 @@ test('#1550 (D7) — ask order-census: eight dispositionOf sites with ask preced
   const stripIdx = src.indexOf("({ disposition, autoFixable, ...f })")
   const stripComment = src.slice(Math.max(0, stripIdx - 2000), stripIdx)
   assert.ok(/the ask member included/.test(stripComment) && /never parks/.test(stripComment),
-    "the pinMismatch strip comment NAMES the ask member and states a pin-mismatched ask never parks (the census's seventh row)")
+    "the pinMismatch strip comment NAMES the ask member and states a pin-mismatched ask never parks (the census's ninth row)")
 })
 
 // --- Dep-wave visibility (criterion 4) + force-with-lease carve-out ---

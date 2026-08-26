@@ -387,8 +387,9 @@ const NS = A.agentPrefix ?? 'work-audit-refine:'
 // (exit 0, gh never invoked), so an unconfigured run pays nothing and no handle rides committed prose.
 const ghUser = (typeof A.ghUser === 'string') ? A.ghUser : ''
 // Hand-mirrored fallback of DEFAULTS.run.roundLimit (war-config.mjs) — the sandbox cannot import;
-// keep the two literals in lock-step. 6 is priced for the ace bisection ladder: one fix round +
-// the batch commit + a single-failing-branch descent through depth 2.
+// keep the two literals in lock-step. 6 is the fix-round budget; the ace bisection ladder draws
+// only up to roundLimit − 2 of it (2 slots stay reserved for the merge-floor retry loop), so the
+// priced depth-2 descent is bounded accordingly.
 const roundLimit = run.roundLimit ?? 6
 // maxParallel (#1722): per-group fan-out throttle for rate-limited accounts — threaded exactly like
 // roundLimit from run.maxParallel, but with NO numeric fallback: absent/null/malformed ⇒ null ⇒
@@ -880,7 +881,7 @@ const dispositionOf = f =>
 // asks[] parking (#1550, D1 — the ask channel): a disposition:'ask' Minor/Nit parks in the run
 // artifact and is ruled by the operator at the Checkpoint strike-list gate — NEVER filed unruled
 // (the follow-up consolidation and the file-followups dispatch read minorsFiled only), never
-// dropped. Exactly-once membership by finding identity: every route into asks[] — the six
+// dropped. Exactly-once membership by finding identity: every route into asks[] — the eight
 // dispositionOf-site ask arms, the three gate-audit-family comment-named ask arms (#1692 — lanes
 // with no absorb chain, so no dispositionOf call site in the census; their identity check IS the classifier's
 // never-defaulted ask arm), AND the demote() ask refusal — funnels through here, so one finding
@@ -897,7 +898,8 @@ const parkAsk = f => {
 }
 // Terminal-disposition demotion ladder (ADR 0013): demote one step toward durability, never drop
 // silently — EVERY demotion is log()ged. Arms: failed absorb → follow-up (a fresh re-audit absorb
-// after the batch ace is spent / dead ace worker / ace unavailable / --ace off, plus the seven
+// after the batch ace is spent OR after the batch regressed into the ladder / dead ace worker /
+// ace unavailable / --ace off, plus the seven
 // aceBisect bisection arms: named
 // culprits of a re-audit regression, an all-culprit batch, an ambiguous-and-atomic batch
 // (unhalvable single file group — demotes whole), the fix budget reaching the floor-retry reserve
@@ -1770,8 +1772,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     while (queue.length) {
       const sub = queue.shift()
       // Floor-retry reserve (Open decision 4): subset commits dispatch only while
-      // fixRounds < roundLimit − 2 — the last 2 slots stay reserved for the merge-floor retry
-      // loop, which shares run.roundLimit and must never find the budget pre-drained by polish.
+      // fixRounds < roundLimit − 2 — so bisection SUBSET commits never pre-drain the last 2
+      // slots ahead of the merge-floor retry loop, which shares run.roundLimit. The reserve is a
+      // bisection-ladder bound only, not a whole-ace-path guarantee: the batch ace keeps its own
+      // `< roundLimit` gate (Open decision 4 scopes the reserve to subset commits).
       if (r.task.fixRounds >= roundLimit - 2) {
         log(`ace-bisect ${r.task.id}: ladder stopped — fixRounds ${r.task.fixRounds} reached roundLimit−2 (${roundLimit - 2}); 2 slots stay reserved for the merge-floor retry loop, remaining subsets demote to follow-up`)
         for (const q of [sub, ...queue.splice(0)])
@@ -1787,7 +1791,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       const sw = await agent(
         pt`ACE BISECTION SUBSET for WAR task ${r.task.id} (a regressed --ace batch re-applied in subsets). Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — never create it; cd there.\n`
         + revertStep
-        + pt`PREFLIGHT (resume idempotency): scan the BISECTION RANGE (e.g. \`git -C ${r.task.worktree} log --format='%H %(trailers:key=Ace-Subset,valueonly)' ${batchSha}^..HEAD\`) — never the tip alone; compare each extracted trailer value to \`${trailer}\` by EXACT whole-string equality — never a prefix or substring match (a subset's trailer value can be a strict prefix of a sibling's or its parent batch's); on an exact-equal match, return that commit's sha as head_sha WITHOUT committing.\n`
+        + pt`PREFLIGHT (resume idempotency): scan the BISECTION RANGE (e.g. \`git -C ${r.task.worktree} log --format='%H %(trailers:key=Ace-Subset,valueonly)' ${batchSha}^..HEAD\`) — never the tip alone; compare each extracted trailer value (whitespace-trimmed) to \`${trailer}\` by EXACT whole-string equality — never a prefix or substring match (a subset's trailer value can be a strict prefix of a later, wider sibling's); on an exact-equal match, return that commit's sha as head_sha WITHOUT committing.\n`
         + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
         + pt`Apply the smallest mechanical fix for EACH finding below, keep the gate green, and make EXACTLY ONE commit citing each finding's title + rationale, its message ENDING with the trailer line \`Ace-Subset: ${trailer}\` as its OWN final paragraph, separated from the body by a blank line — git parses trailers only in a distinct final block (the panel re-audits the new sha; a regression is forward-reverted):\n`
         // pt-tagged prompt-feeding rows (subset prompt, top-level-catch): f.severity is construction-
