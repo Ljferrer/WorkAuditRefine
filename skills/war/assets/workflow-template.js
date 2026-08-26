@@ -57,7 +57,9 @@ export const meta = {
 //     agents: { worker|auditor|refiner|servitor: { model, effort } },  // from .claude/war/config.json (resolved by the Lead); defaults below.
 //                                     // worker may also carry { docs?, fix? } { model, effort } sub-tiers: docs = the all-*.md first-pass tier (fable default), fix = the fix-round + --ace tier (absent ⇒ inherit worker).
 //     audit:  { roster, rosterPolicy, autoEscalate },                  // rosterPolicy 'auto' = Lead composes each task.roster from the catalog (Lead-side); audit.roster is the widening FALLBACK roster (auditor-nominated-or-default, D4); autoEscalate used here
-//     run:    { roundLimit, afk },                                     // afk is Lead-side; roundLimit used here
+//     run:    { roundLimit, maxParallel, afk },                        // afk is Lead-side; roundLimit used here;
+//                                     // maxParallel (optional positive integer) throttles every fan-out site into
+//                                     // groups of n via batched(); absent/null ⇒ one parallel() call, byte-identical fan-out
 //     backstops }                     // array|null of { check, why, runner, source:'plan'|'auto', aiDeclared? } — every
 //                                     // validation this phase deferred (Lead is the single normalization point: plan-declared
 //                                     // + Setup auto-recorded merged here). Passed through UNTOUCHED into handoff.backstops[].
@@ -357,6 +359,24 @@ const ghUser = (typeof A.ghUser === 'string') ? A.ghUser : ''
 // keep the two literals in lock-step. 6 is priced for the ace bisection ladder: one fix round +
 // the batch commit + a single-failing-branch descent through depth 2.
 const roundLimit = run.roundLimit ?? 6
+// maxParallel (#1722): per-group fan-out throttle for rate-limited accounts — threaded exactly like
+// roundLimit from run.maxParallel, but with NO numeric fallback: absent/null/malformed ⇒ null ⇒
+// batched() below delegates straight to ONE parallel(thunks) call, a byte-identical fan-out
+// (binding guardrail — an unconfigured run pays nothing).
+const maxParallel = (Number.isInteger(run.maxParallel) && run.maxParallel > 0) ? run.maxParallel : null
+// batched(thunks, n): slice the thunk list into groups of n, awaiting EACH GROUP via the live sandbox
+// `parallel(group)` — NEVER Promise.all: the live parallel NULLS a rejected thunk (the #742 invariant's
+// mechanism), so a rejection inside a throttled group yields a null slot in that group's result, never
+// a group-wide rejection that would drop completed siblings and re-dispatch them every wave. Results
+// return in input order with rejected slots null, exactly like an unthrottled parallel(thunks).
+// n absent/null ⇒ delegate to one parallel(thunks) call (the byte-identical path). Group k+1 starts
+// only after group k settles, so at most n dispatches are ever in flight.
+async function batched(thunks, n) {
+  if (!(Number.isInteger(n) && n > 0)) return parallel(thunks)
+  const out = []
+  for (let i = 0; i < thunks.length; i += n) out.push(...await parallel(thunks.slice(i, i + n)))
+  return out
+}
 // Commander's Intent (ADR 0013): extracted VERBATIM by the Lead from the plan's `## Commander's
 // Intent` or `## AI-Commander's Intent` section (either heading) and threaded as args.intent
 // (string|null). null/absent ⇒ intentClause is '' and every prompt below is byte-identical to an
@@ -1184,13 +1204,13 @@ async function auditRound(task, peers, workerTests, pin) {
   const runSeat = seat => agent(auditPrompt(task, seat.lens, seat.depth, peers, workerTests, pin), {
     agentType: NS + 'war-auditor', phase: 'Audit',
     label: `audit:${task.id}:${seat.lens}${peers ? ':rebut' : ''}`, schema: AUDIT_VERDICT, ...spawn('auditor') })
-  // Initial parallel run
-  let results = await parallel(roster.map(seat => () => runSeat(seat)))
+  // Initial fan-out (throttled into groups of maxParallel when set; one parallel() call otherwise)
+  let results = await batched(roster.map(seat => () => runSeat(seat)), maxParallel)
   // Re-run only the dropped (null) seats — re-keyed on roster entries (lens+depth) — up to 2 retry passes
   for (let retry = 0; retry < 2; retry++) {
     const dropped = roster.filter((_, i) => results[i] == null)
     if (!dropped.length) break
-    const retried = await parallel(dropped.map(seat => () => runSeat(seat)))
+    const retried = await batched(dropped.map(seat => () => runSeat(seat)), maxParallel)
     let ri = 0
     results = results.map(r => r != null ? r : retried[ri++])
   }
@@ -1371,8 +1391,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   const wave = nextWave()
   if (!wave.length) { log(`No runnable tasks remain — the rest are blocked behind escalations.`); break }
 
-  // ---- WORK + AUDIT each task in the wave concurrently ----
-  const results = await parallel(wave.map(task => async () => {
+  // ---- WORK + AUDIT each task in the wave concurrently (at most maxParallel at once when set) ----
+  const results = await batched(wave.map(task => async () => {
     // Wave-loop invariant (spec constraint 4, #742): a task dispatched into a work wave MUST terminate
     // in exactly ONE collected result — it may never re-enter the wave because of an engine-side throw.
     // The live `parallel` NULLS a rejected thunk, so results.filter(Boolean) drops it → done.add never
@@ -1491,7 +1511,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         : ''
       return { task, verdict: 'escalate', seats: [], expected: 0, blocked: `engine error during work/audit: ${err.message}` + ptHint }
     }
-  }))
+  }), maxParallel)
 
   // ---- REFINE — serial merge of approved tasks (THE merge queue) ----
   // ponytail: guard the agent-emitted pin at the copy site, not via a schema `pattern` —
@@ -2209,7 +2229,7 @@ if (mergedTasksForGateAudit.length > 0) {
   // under BENIGN-ADVANCE the observed tip legitimately differs from gateHeadSha, so checking
   // seat-vs-gateHeadSha would demote exactly the benign case. Absent (evidence dispatch failed/produced no
   // token) ⇒ fall back to gateHeadSha (fail-open — today's behavior).
-  await parallel(mergedTasksForGateAudit.map(({ taskId, gateOutput, acceptanceCriteria, gateHeadSha, observedHead, gateLogPath, pinStatus, pinEvidence, guardSpecificity, guardEvidence, mappedTests, claimedEndStateIds, baselineDebt: taskDebt }) => async () => {
+  await batched(mergedTasksForGateAudit.map(({ taskId, gateOutput, acceptanceCriteria, gateHeadSha, observedHead, gateLogPath, pinStatus, pinEvidence, guardSpecificity, guardEvidence, mappedTests, claimedEndStateIds, baselineDebt: taskDebt }) => async () => {
     // Baseline-debt line (spec §6 / ADR 0019): a baseline-merged task carries its classified failing
     // identifiers so a pre-existing base failure in the gate output is NOT read as a provably-unrun
     // mapped test (which would fake a HARD hold). Empty/absent debt ⇒ '' ⇒ byte-identical prompt.
@@ -2313,7 +2333,7 @@ if (mergedTasksForGateAudit.length > 0) {
         escalated.push({ task: taskId, reason: 'gate-evidence', detail: gateAuditVerdict })
       }
     }
-  }))
+  }), maxParallel)
   // ---- D4 — authoritative integrated-tip seat (intra-phase same-repo dep phase only) ----
   // On an intra-dep phase the evidence dispatch re-ran the FULL gate at the final integration tip; that
   // captured output is LAND-AUTHORITATIVE over the per-branch gates for the dep-crossing tasks (their
