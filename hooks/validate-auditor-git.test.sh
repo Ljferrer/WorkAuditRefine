@@ -81,8 +81,10 @@ expect_deny() {
 # must name the sanctioned alternative (Read/Grep/Glob, the Grep tool, the
 # =-attached branch read-flag form, since the 2026-07-26 spec's D3 the
 # one-bare-git-command-per-Bash-call form at the forbidden-char deny, or — since
-# #1412 fix 1 — the metacharacter-rule naming + Grep-tool-filters remedy at that
-# same deny). Substr
+# #1412 fix 1, classified per residue since #1435 — the chain-operator-rule
+# naming + split-the-chain remedy on a chain-only residue, and the
+# metacharacter-rule naming + Grep-tool-filters remedy on any other residue, at
+# that same deny site). Substr
 # matched literally via a quoted case pattern: "$3" is quoted, so even a substr
 # carrying glob-special chars (e.g. the parens in "character(s)") matches
 # literally, and the payloads themselves are never used as patterns.
@@ -694,9 +696,10 @@ expect_deny_teach "K8: git diff HEAD && git log → denied + split-the-chain tea
 # CASE GROUP L: forbidden-char deny NAMES THE RULE THAT FIRED (#1412 fix 1)
 # The 191-denial run behind #1412 was seats typing real searches (git grep
 # 'a\|b', --include=*.py), for which the split-the-chain framing K8 pins does
-# not describe what was typed. The message now also names the metacharacter
-# rule — glob/alternation/expansion metacharacters are refused outright — with
-# the Grep-tool (glob:/type: filters) remedy. Message text ONLY: the deny
+# not describe what was typed. The message names the metacharacter rule —
+# glob/alternation/expansion metacharacters are refused outright — with the
+# Grep-tool (glob:/type: filters) remedy (since #1435 that clause lives on the
+# non-chain residue branch; group M pins the classification). Message text ONLY: the deny
 # DECISION is byte-unchanged (exit 2, char check still fires first, verb set
 # untouched — #1412 fix 2's grep-verb widening is deliberately NOT taken, cf.
 # G6), and K5–K8 stay green on their frozen substrings.
@@ -728,6 +731,51 @@ expect_deny_teach "L2: git grep 'a\\|b' → denied + Grep-tool filters remedy" \
   "$(jq -nc --arg c "git grep 'a\\|b'" \
      '{agent_type:"war-auditor",tool_input:{command:$c}}')" \
   "Grep tool (glob:/type: filters) instead of shell grep/git grep"
+
+# ---------------------------------------------------------------------------
+# CASE GROUP M: residue-classified deny — chain-operator vs metacharacter (#1435)
+# The forbidden-char deny now classifies the residue BEFORE composing the
+# message: a residue of ONLY chain/control operators (& ; | newline) names the
+# chain-operator rule (one bare git command per Bash call, with the #1421(b)
+# split-the-chain + Read/Grep/Glob ergonomics retained on that branch — K6/K7/K8
+# keep their frozen substrings there); any other residue byte names the
+# metacharacter rule (L1/L2's branch). Message-only: allowlist, decision, and
+# exit codes byte-unchanged — every group C/E/H5/K case above stays green
+# unmodified, and M5 pins the allow path untouched.
+# ---------------------------------------------------------------------------
+
+# M1: chain-operator denial names the chain-operator rule (End state 13). The &&
+# payload's residue is chain-only, so it must NOT be attributed to the glob rule.
+expect_deny_teach "M1: git diff HEAD && git log → denied + chain-operator rule named" \
+  "$(auditor_cmd "git diff HEAD && git log")" \
+  "the chain-operator rule fired"
+
+# M2: pipe composition is a chain-operator denial too — | alone (no quotes, no
+# backslash) is composition, not a search shape (contrast L1's quoted 'a\|b').
+expect_deny_teach "M2: git log | wc -l → denied + chain-operator rule named" \
+  "$(auditor_cmd "git log | wc -l")" \
+  "the chain-operator rule fired"
+
+# M3: glob denial names the metacharacter rule, not the chain-operator rule —
+# the * residue carries no chain byte, so the chain framing would misdescribe it
+# (the #1435 over-attribution, direction reversed).
+expect_deny_teach "M3: git ls-files *.mjs → denied + metacharacter rule named" \
+  "$(auditor_cmd "git ls-files *.mjs")" \
+  "the metacharacter rule fired"
+
+# M4: mixed residue (quotes + backslash + |, the exact #1412 search shape L1/L2
+# assert) classifies METACHARACTER — the non-chain bytes prove a search/expansion
+# shape, so the chain-operator rule must not fire. jq -nc --arg per C11/L1's
+# escaping rationale.
+expect_deny_teach "M4: git grep 'a\\|b' (mixed residue) → denied + metacharacter (not chain-operator) rule" \
+  "$(jq -nc --arg c "git grep 'a\\|b'" \
+     '{agent_type:"war-auditor",tool_input:{command:$c}}')" \
+  "the metacharacter rule fired"
+
+# M5: allow path untouched by the classification — a clean read command never
+# reaches the residue classifier's deny branches (chain-operator or otherwise).
+expect_allow "M5: git diff main...feature → still allowed (chain-operator classification leaves the allow path untouched)" \
+  "$(auditor_cmd "git diff main...feature")"
 
 # ---------------------------------------------------------------------------
 # Summary

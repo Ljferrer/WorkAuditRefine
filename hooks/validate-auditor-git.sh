@@ -81,14 +81,37 @@ deny() {
 # strips trailing newlines from $(...) so the pattern would be empty.
 # Instead, newline is implicitly denied because it is NOT in the allowlist.
 #
-# The deny message NAMES the metacharacter rule that fired (#1412 fix 1): the
-# dominant real denial shape is a seat typing a genuine search (git grep 'a\|b',
-# --include=*.py), not a && / ; chain, so the split-the-chain remedy alone
-# misdescribes what happened. Message text only — the decision, exit code, and
-# routing (char check first, before any verb parsing) are byte-unchanged.
+# The deny message NAMES the rule that fired, classified from the residue
+# BEFORE the message is composed (#1435, refining #1412 fix 1's single
+# unconditional message that over-attributed chain denials to the
+# metacharacter rule):
+#   - residue of ONLY chain/control operators (& ; | newline) → the
+#     chain-operator rule: one bare git command per Bash call, with the
+#     #1421(b) ergonomics guidance (split && / ; chains into separate calls;
+#     filter/search with Read/Grep/Glob) retained on THIS branch, where the
+#     186-denial composed-command churn actually occurred;
+#   - any other residue byte present (quotes, glob *, $, parens, backtick,
+#     braces, backslash, …) → the metacharacter rule: a genuine search shape
+#     (git grep 'a\|b', --include=*.py), remedied by the Grep tool's
+#     glob:/type: filters. A mixed residue (e.g. 'a\|b': quotes + \ + |)
+#     classifies metacharacter — the non-chain byte proves a search/expansion
+#     shape, not mere composition.
+# Message text only — the decision, exit code, and routing (char check first,
+# before any verb parsing) are byte-unchanged.
 # ---------------------------------------------------------------------------
 residue="$(printf '%s' "$cmd" | LC_ALL=C tr -d 'A-Za-z0-9 ./_=:,@^~%+-')"
-[ -n "$residue" ] && deny "command contains forbidden character(s): $(printf '%s' "$residue" | LC_ALL=C tr -d $'\n' | head -c 20) — the metacharacter rule fired: glob/alternation/expansion metacharacters are refused outright; search with the Grep tool (glob:/type: filters) instead of shell grep/git grep — the guard admits one bare git command per Bash call: split && / ; chains and continuations into separate calls; filter and search output with the Read/Grep/Glob tools"
+if [ -n "$residue" ]; then
+  residue_echo="$(printf '%s' "$residue" | LC_ALL=C tr -d $'\n' | head -c 20)"
+  # Classify: delete the chain/control operator bytes from the residue; anything
+  # left is a non-chain metacharacter. tr's '\n' escape is bash-3.2-safe (no
+  # $'\n' literal needed, cf. the header's command-substitution-newline note).
+  nonchain_residue="$(printf '%s' "$residue" | LC_ALL=C tr -d '&;|\n')"
+  if [ -n "$nonchain_residue" ]; then
+    deny "command contains forbidden character(s): $residue_echo — the metacharacter rule fired: glob/alternation/expansion metacharacters are refused outright; search with the Grep tool (glob:/type: filters) instead of shell grep/git grep"
+  else
+    deny "command contains forbidden character(s): $residue_echo — the chain-operator rule fired: the guard admits one bare git command per Bash call: split && / ; chains and continuations into separate calls; filter and search output with the Read/Grep/Glob tools"
+  fi
+fi
 
 # ---------------------------------------------------------------------------
 # At this point, the command contains only [A-Za-z0-9 ./_=:,@^~%+-].
