@@ -19,7 +19,12 @@
 #       Atomic landed-phase close: `gh issue edit <n> --add-label status:done
 #       --remove-label status:in-progress` THEN `gh issue close <n> --reason
 #       completed --comment "<phase> landed @ <sha>"` in one call, so
-#       `status:done` can never outlive an open epic.
+#       `status:done` can never outlive an open epic. On an older `gh` whose
+#       `issue close` lacks the `--reason` flag (stderr: `unknown flag:
+#       --reason`), the close DEGRADES to `gh issue close <n> --comment ...`
+#       without the flag — the epic still closes, and the degradation is noted
+#       loudly on stderr (`gh-degraded`). Any other close failure, including a
+#       failed degraded retry, remains a die (exit 2).
 #
 # Both modes run `skills/_shared/gh-preflight.sh` FIRST (path resolved relative
 # to this script's own dir, cwd-independent) so a mid-run active-account flip
@@ -116,9 +121,34 @@ case "$mode" in
     # status:done and the CLOSED state land together (never one without other).
     gh issue edit "$_n" --add-label status:done --remove-label status:in-progress \
       || die "gh issue edit (labels) failed for epic #$_n" 2
-    gh issue close "$_n" --reason completed \
-      --comment "${_phase_label:+$_phase_label }landed @ $_sha" \
-      || die "gh issue close failed for epic #$_n" 2
+    # Modern path first: close with an explicit --reason. Older `gh` binaries
+    # predate `issue close --reason`; they reject the flag with `unknown flag:
+    # --reason` on stderr. We classify THAT stderr text (retry-on-failure, no
+    # separate probe call) and degrade to a flagless close — still closing the
+    # epic, loudly noting the degradation. Any OTHER close failure, and any
+    # failure of the degraded retry itself, remains a die (exit 2) — the close
+    # never silently no-ops.
+    _close_comment="${_phase_label:+$_phase_label }landed @ $_sha"
+    _errf="$(mktemp 2>/dev/null || mktemp -t aif)"
+    if gh issue close "$_n" --reason completed --comment "$_close_comment" 2>"$_errf"; then
+      cat "$_errf" >&2
+      rm -f "$_errf"
+    else
+      _err="$(cat "$_errf" 2>/dev/null)"
+      rm -f "$_errf"
+      case "$_err" in
+        *"unknown flag: --reason"*)
+          printf '%s: gh-degraded: active gh lacks `issue close --reason`; closing epic #%s without a close reason (upgrade gh to restore the reason)\n' \
+            "$PROG" "$_n" >&2
+          gh issue close "$_n" --comment "$_close_comment" \
+            || die "gh issue close failed for epic #$_n (degraded flagless retry)" 2
+          ;;
+        *)
+          [ -z "$_err" ] || printf '%s\n' "$_err" >&2
+          die "gh issue close failed for epic #$_n" 2
+          ;;
+      esac
+    fi
     exit 0
     ;;
 
