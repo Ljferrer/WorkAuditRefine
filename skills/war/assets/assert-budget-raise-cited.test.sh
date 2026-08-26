@@ -32,6 +32,12 @@
 #      "refusing to use potentially unsafe ref" message (fires before git)
 #   9. new constant added (0): a brand-new sibling const lands with initial
 #      values, no trailer -> exit 0 (nothing existing was raised)
+#  10. inline-comment decoy (1/1/0): a raise whose value line carries a
+#      same-line trailing `// was hard: <old>` comment naming the OLD value,
+#      no trailer -> exit 1 on BOTH the WORKFLOW_LITERAL_BUDGET const arm and
+#      the FILE_BUDGETS row arm (the greedy-extraction bypass must stay
+#      closed); and a comment-only tail added to an UNKEYED value line with
+#      the code unchanged -> exit 0 (comment-insensitive, no false suspect)
 set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -312,6 +318,88 @@ if [ "$rc9" -eq 0 ]; then
   pass "case 9: new sibling constant added (nothing raised) -> exit 0"
 else
   fail "case 9: new sibling constant added -> expected exit 0, got $rc9"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 10: inline-comment decoy. The extraction sed is greedy/leftmost-longest,
+# so before the comment-strip a trailing `// was hard: <old>` note on the value
+# line made the NEW side extract the OLD value — a silent exit-0 bypass of the
+# floor's primary detection path. These arms pin the strip:
+#   10a. WORKFLOW_LITERAL_BUDGET hard raise + `// was hard: <old>` tail,
+#        no trailer -> exit 1
+#   10b. FILE_BUDGETS row hard raise + `// prev hard: <old>` tail,
+#        no trailer -> exit 1
+#   10c. UNKEYED value line gains a trailing comment, code unchanged
+#        -> exit 0 (comment-insensitive: no false raise-suspect)
+# ---------------------------------------------------------------------------
+R10="$(setup_repo)"
+BASE10="$(git -C "$R10" rev-parse HEAD)"
+git -C "$R10" checkout -qb task/comment-decoy-const 2>/dev/null
+cat > "$R10/$BUDGET_REL" <<'EOF'
+// miniature budget fixture — comment mentions hard ×1.25 and advisory ×1.10
+const FILE_BUDGETS = {
+  // post-shrink derivation comment
+  'skills/war/SKILL.md': { hard: 1000, advisory: 900 },
+};
+// post-shrink derivation comment
+const WORKFLOW_LITERAL_BUDGET = { hard: 2500, advisory: 1800 }; // was hard: 2000
+EOF
+git -C "$R10" add "$BUDGET_REL"
+git -C "$R10" commit -qm "raise workflow hard ceiling with inline decoy comment (no trailer)"
+TASK10a="$(git -C "$R10" rev-parse HEAD)"
+git -C "$R10" checkout -q - 2>/dev/null
+
+cwd10="$(fresh_cwd)"
+rc10a=0
+( cd "$cwd10" && bash "$SCRIPT" "$BASE10" "$TASK10a" --repo "$R10" ) >/dev/null 2>&1 || rc10a=$?
+if [ "$rc10a" -eq 1 ]; then
+  pass "case 10a: const raise with trailing '// was hard: <old>' decoy -> exit 1"
+else
+  fail "case 10a: const raise with inline decoy comment -> expected exit 1, got $rc10a"
+fi
+
+git -C "$R10" checkout -qb task/comment-decoy-row "$BASE10" 2>/dev/null
+cat > "$R10/$BUDGET_REL" <<'EOF'
+// miniature budget fixture — comment mentions hard ×1.25 and advisory ×1.10
+const FILE_BUDGETS = {
+  // post-shrink derivation comment
+  'skills/war/SKILL.md': { hard: 1300, advisory: 900 }, // prev hard: 1000
+};
+// post-shrink derivation comment
+const WORKFLOW_LITERAL_BUDGET = { hard: 2000, advisory: 1800 };
+EOF
+git -C "$R10" add "$BUDGET_REL"
+git -C "$R10" commit -qm "raise row hard ceiling with inline decoy comment (no trailer)"
+TASK10b="$(git -C "$R10" rev-parse HEAD)"
+git -C "$R10" checkout -q - 2>/dev/null
+
+rc10b=0
+( cd "$cwd10" && bash "$SCRIPT" "$BASE10" "$TASK10b" --repo "$R10" ) >/dev/null 2>&1 || rc10b=$?
+if [ "$rc10b" -eq 1 ]; then
+  pass "case 10b: row raise with trailing '// prev hard: <old>' decoy -> exit 1"
+else
+  fail "case 10b: row raise with inline decoy comment -> expected exit 1, got $rc10b"
+fi
+
+R10c="$(setup_repo)"
+printf 'let FUTURE_SHAPE = { hard: 500, advisory: 400 };\n' >> "$R10c/$BUDGET_REL"
+git -C "$R10c" add "$BUDGET_REL"
+git -C "$R10c" commit -qm "seed unkeyed ceiling line"
+BASE10c="$(git -C "$R10c" rev-parse HEAD)"
+git -C "$R10c" checkout -qb task/unkeyed-comment-tail 2>/dev/null
+sed 's/let FUTURE_SHAPE = { hard: 500, advisory: 400 };/let FUTURE_SHAPE = { hard: 500, advisory: 400 }; \/\/ note: hard unchanged/' \
+  "$R10c/$BUDGET_REL" > "$R10c/$BUDGET_REL.tmp" && mv "$R10c/$BUDGET_REL.tmp" "$R10c/$BUDGET_REL"
+git -C "$R10c" add "$BUDGET_REL"
+git -C "$R10c" commit -qm "add trailing comment to unkeyed ceiling line (code unchanged)"
+TASK10c="$(git -C "$R10c" rev-parse HEAD)"
+git -C "$R10c" checkout -q - 2>/dev/null
+
+rc10c=0
+( cd "$cwd10" && bash "$SCRIPT" "$BASE10c" "$TASK10c" --repo "$R10c" ) >/dev/null 2>&1 || rc10c=$?
+if [ "$rc10c" -eq 0 ]; then
+  pass "case 10c: comment-only tail on unkeyed value line -> exit 0"
+else
+  fail "case 10c: comment-only tail on unkeyed value line -> expected exit 0, got $rc10c"
 fi
 
 # ---------------------------------------------------------------------------

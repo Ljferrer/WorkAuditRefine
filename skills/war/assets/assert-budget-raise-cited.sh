@@ -22,10 +22,14 @@
 # line carrying `hard:`/`advisory:` followed by a number is a ceiling line —
 # a FILE_BUDGETS row (`'<path>': { hard: N, advisory: M }`), the
 # WORKFLOW_LITERAL_BUDGET const, or any FUTURE sibling constant, with no floor
-# edit needed to cover it. Keyed lines (quoted-path rows and `const NAME` decls)
-# are paired old-vs-new and compared numerically; a value line whose key cannot
-# be extracted is classified by set-difference — any change to the unkeyed value
-# lines is treated as a raise-suspect requiring the trailer (deny, never guess).
+# edit needed to cover it. A same-line trailing `//` comment is STRIPPED before
+# any key/value extraction — an inline note like `// was hard: 79872` can
+# neither mask a raise nor fabricate one — and only then are keyed lines
+# (quoted-path rows and `const NAME` decls) paired old-vs-new and compared
+# numerically; a value line whose key cannot be extracted is classified by
+# set-difference over the comment-stripped text — any change to the unkeyed
+# value lines is treated as a raise-suspect requiring the trailer (deny, never
+# guess).
 #
 # Exit codes (load-bearing contract, ADR 0006 — 2 NEVER collapses into 1):
 #   0 — no ceiling touch, a pure ratchet-down (lowering needs no trailer), a
@@ -121,10 +125,17 @@ value_lines() {
 # classify_lines: read value lines on stdin; write keyed records
 #   <key>\t<field>\t<value>
 # for every extractable (key, field) pair, and
-#   UNKEYED\t<verbatim line>
+#   UNKEYED\t<comment-stripped line>
 # for any value line with no recognizable key shape. Key shapes:
 #   'path': { hard: N, advisory: M }   -> key = path   (FILE_BUDGETS rows)
 #   const NAME = { hard: N, ... }      -> key = NAME   (sibling constants)
+# A same-line trailing `//` comment is stripped BEFORE extraction: the sed
+# below is POSIX leftmost-longest with a greedy `.*` prefix, so it would bind
+# the LAST `hard:`/`advisory:` occurrence on the line — an inline
+# `// was hard: <old>` note would otherwise extract the OLD value and silently
+# defeat raise detection. Stripping also keeps the UNKEYED set-difference
+# comment-insensitive in both directions (a comment can neither mask a raise
+# nor fabricate one).
 classify_lines() {
   while IFS= read -r line; do
     [ -n "$line" ] || continue
@@ -136,21 +147,33 @@ classify_lines() {
         *) break ;;
       esac
     done
+    # Drop any same-line trailing // comment, then trailing whitespace.
+    code="${trimmed%%//*}"
+    while :; do
+      case "$code" in
+        *' ')  code="${code% }" ;;
+        *'	') code="${code%	}" ;;
+        *) break ;;
+      esac
+    done
+    # A line whose hard:/advisory: numeric lived ONLY in the stripped comment
+    # carries no ceiling — skip it (it is comment text, not a value line).
+    printf '%s\n' "$code" | grep -Eq '(hard|advisory):[[:space:]]*[0-9]' || continue
     key=""
-    case "$trimmed" in
+    case "$code" in
       "'"*"'":*)
-        key="${trimmed#\'}"
+        key="${code#\'}"
         key="${key%%\'*}" ;;
       const\ *)
-        key="${trimmed#const }"
+        key="${code#const }"
         key="${key%%[ =]*}" ;;
     esac
     if [ -z "$key" ]; then
-      printf 'UNKEYED\t%s\n' "$line"
+      printf 'UNKEYED\t%s\n' "$code"
       continue
     fi
     for field in hard advisory; do
-      val="$(printf '%s\n' "$trimmed" | sed -nE "s/.*${field}:[[:space:]]*([0-9]+).*/\1/p")"
+      val="$(printf '%s\n' "$code" | sed -nE "s/.*${field}:[[:space:]]*([0-9]+).*/\1/p")"
       if [ -n "$val" ]; then
         printf '%s\t%s\t%s\n' "$key" "$field" "$val"
       fi
