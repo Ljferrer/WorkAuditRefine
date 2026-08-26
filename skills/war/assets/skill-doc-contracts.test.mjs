@@ -2312,8 +2312,9 @@ test('D36 — the eight authoring-side-verification CONTEXT.md glossary terms mi
 // hard ceilings — D12's budget arbiter, exercised by this task's Done-when. (3) Tour step 2
 // anchors CONTEXT.md at the Container/Contents heading — outside the edited region, retyped
 // pattern-only by Task 2.5 and pinned in D39 below. (4) No `.test.sh` surface anchors any touched
-// passage (doc-cli-consistency, lessons-learned-doc-contract, war-config, refinery-surface, and
-// war-pipeline-structure read other regions — verified by token grep at base). Survey-derived
+// passage (refinery-surface, war-pipeline-structure, and lessons-learned-doc-contract read other
+// regions — verified by token grep at base); the doc-cli-consistency and war-config `.test.mjs`
+// suites were also read and likewise anchor other regions. Survey-derived
 // straggler, listed per the slice: workflow-template.test.mjs's 'handoff block (criterion 6)'
 // test TITLE still enumerates the pre-widening seven-key handoff literal `{ tipSha, polish,
 // absorbed, followUps, notes, endState, intentPresent }` — title prose only (its assertions are
@@ -2444,6 +2445,110 @@ test('D37 — the seven ask-disposition CONTEXT.md glossary terms mirror their c
   }
 })
 
+// (D37a) THE WIDENED PRE-EXISTING ENTRIES (D6 discovery sites) — CONTEXT.md's **Disposition** and
+// **Clean handoff** entries and the CLAUDE.md Known-traps disposition bullet predate #1550 and were
+// widened in place by this task; the D6 census records them as sitting OUTSIDE every discovered
+// guard surface, so without this row End state 9's named check is green whether the widenings are
+// present or reverted. Same idiom as D19a/D37: extraction BY CONSTRUCT with a tail non-vacuity
+// assert, widened-form keys, and OLD-absent closed-phrasing keys (each closed literal verified
+// present at the plan's implementation base `a60221a` and retired by this task — the absence
+// asserts guard against a revert, never a never-present value; PIN-8).
+test('D37a — the widened **Disposition**/**Clean handoff** entries and the CLAUDE.md Known-traps bullet carry the four-member shapes, closed phrasings retired (#1550)', () => {
+  // CONTEXT.md **Disposition** — four-member header, never-defaults pair, demote() ask refusal.
+  const disposition = contextMd.match(/^\*\*Disposition\*\*[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  assert.ok(
+    disposition,
+    'could not locate the `**Disposition**` glossary entry in CONTEXT.md (bolded term → next ' +
+      'bolded term or `###` heading) — the extraction construct rotted',
+  )
+  const d = norm(disposition[0])
+  assert.match(
+    d,
+    /_Avoid_/,
+    'the extracted **Disposition** entry must span its `_Avoid_` line — extraction truncated',
+  )
+  for (const [re, what] of [
+    [/\(`absorb` \| `follow-up` \| `note` \| `ask`\)/, 'the four-member header'],
+    [/`absorb` and `ask` are never defaults/, 'the widened never-defaults pair'],
+    [/`demote\(\)`\s+refuses\s+an\s+ask/i, "the demote() ask refusal"],
+    [/re-route\s+onto\s+`asks\[\]`/i, "the refusal's re-route-onto-`asks[]` arm"],
+  ]) {
+    assert.match(
+      d,
+      re,
+      `the CONTEXT.md **Disposition** entry must carry ${what} (#1550). Correct this row to a ` +
+        'sanctioned rewording, never drop the widening to make it pass',
+    )
+  }
+  // CONTEXT.md **Clean handoff** — the ninth `asks` key inside the 9-key handoff list, and the
+  // parked-ask disposal arm.
+  const handoff = contextMd.match(/^\*\*Clean handoff\*\*[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m)
+  assert.ok(
+    handoff,
+    'could not locate the `**Clean handoff**` glossary entry in CONTEXT.md — the extraction ' +
+      'construct rotted',
+  )
+  const h = norm(handoff[0])
+  assert.match(
+    h,
+    /_Avoid_/,
+    'the extracted **Clean handoff** entry must span its `_Avoid_` line — extraction truncated',
+  )
+  assert.match(
+    h,
+    /\{ tipSha, polish, absorbed, followUps, asks, notes, endState, intentPresent, backstops \}/,
+    'the **Clean handoff** entry must render the 9-key handoff list with `asks` fifth (#1550)',
+  )
+  assert.match(
+    h,
+    /parked\s+as\s+an\s+ask\s+\(question\s+\+\s+fork/i,
+    'the **Clean handoff** entry must carry the parked-ask (question + fork) disposal arm (#1550)',
+  )
+  // CLAUDE.md Known-traps disposition bullet — the four-member set + never-filed-unruled.
+  const bullet = claudeMd.match(/^- Findings route by auditor-owned `disposition`.*$/m)
+  assert.ok(
+    bullet,
+    'could not locate the Known-traps disposition bullet in CLAUDE.md (the `- Findings route by ' +
+      'auditor-owned `disposition`` construct) — the extraction construct rotted',
+  )
+  const b = norm(bullet[0])
+  assert.match(
+    b,
+    /ADR 0017/,
+    'the extracted Known-traps bullet must span through its ADR 0017 tail — extraction truncated',
+  )
+  for (const [re, what] of [
+    [/`absorb`\/`follow-up`\/`note`\/`ask`/, 'the four-member set'],
+    [/`absorb` and `ask` are never defaults/, 'the widened never-defaults pair'],
+    [/unruled `ask` is never filed/i, 'the never-filed-unruled law'],
+    [/Checkpoint strike-list gate/i, 'the strike-list ruling site'],
+  ]) {
+    assert.match(
+      b,
+      re,
+      `the CLAUDE.md Known-traps disposition bullet must carry ${what} (#1550). Correct this ` +
+        'row to a sanctioned rewording, never drop the widening to make it pass',
+    )
+  }
+  // OLD-absent closed phrasings (verified present at the plan base `a60221a`, retired by this
+  // task; the asserts guard against a revert — PIN-8).
+  assert.ok(
+    !/\(`absorb` \| `follow-up` \| `note`\):/.test(contextMd),
+    'the retired three-member **Disposition** header `(`absorb` | `follow-up` | `note`):` must ' +
+      'be gone from CONTEXT.md (OLD-absent; PIN-8)',
+  )
+  assert.ok(
+    !/followUps, notes/.test(norm(contextMd)),
+    'the retired 8-key handoff-list fragment `followUps, notes` must be gone from CONTEXT.md — ' +
+      'the ninth `asks` key sits between them (OLD-absent; PIN-8)',
+  )
+  assert.ok(
+    !/`absorb`\/`follow-up`\/`note`\)/.test(claudeMd),
+    'the retired three-member set `(`absorb`/`follow-up`/`note`)` must be gone from CLAUDE.md ' +
+      '(OLD-absent; PIN-8)',
+  )
+})
+
 // (D38) THE ADR 0013 DATED AMENDMENT + THE ADR 0012 CROSS-REF (D5 · PIN-6), D23's idiom: the
 // correction channel is one dated append-only amendment, never a retro-edit of ratified body text.
 // Extraction is BY CONSTRUCT — the 2026-08-25 amendment heading to end-of-file (it is the last
@@ -2542,7 +2647,9 @@ test('D39 — tour step 8 is retyped to the disposition ladder; touched steps ca
 // the mandatory `ask` field row, the top-level `asks` return row, the ninth handoff `asks` row
 // (ADDITIVE — no exact-key validator exists or is introduced, PIN-13), the widened
 // GitHub-conventions routing sentence, and the Three-producers adjudications paragraph. OLD-absent
-// keys cite literals verified present at this task's base (PIN-8): the pre-widening enum tail
+// keys cite literals verified present at the plan's implementation base `a60221a` and retired at
+// this task's base by merged dep Task 2.2 — each absence assert guards against a revert of that
+// widening, never a never-present value (PIN-8): the pre-widening enum tail
 // `"note" — auditor-owned` and the `**Two producers**` count literal.
 test('D40 — schemas.md carries the widened enum/field/return/handoff/producer shapes, old literals retired (#1550)', () => {
   for (const [re, what] of [
@@ -2580,7 +2687,9 @@ test('D40 — schemas.md carries the widened enum/field/return/handoff/producer 
 // as the mandatory ninth line after the parenthesized block); the ask ruling gate carries the
 // absolute floor with its interactive binding, filing parity, and the `--afk` posture; the
 // Decompose step-5 producer sentence is widened at BOTH edit sites (D5). OLD-absent keys cite
-// base-verified literals: `the two producers above` and `` `absorb` is never defaulted `` (PIN-8).
+// literals verified present at the plan's implementation base `a60221a` and retired at this task's
+// base by merged dep Task 2.1 — the absence asserts guard against a revert of that widening, never
+// a never-present value (PIN-8): `the two producers above` and `` `absorb` is never defaulted ``.
 test('D41 — SKILL.md Checkpoint renders the 9-key handoff order and the ask ruling gate; Decompose producers widened at both sites (#1550)', () => {
   const checkpoint = skillMd.match(/^## Checkpoint[\s\S]*?(?=\n## )/m)
   assert.ok(checkpoint, 'could not locate the `## Checkpoint` section in SKILL.md — construct rotted')
@@ -2631,8 +2740,10 @@ test('D41 — SKILL.md Checkpoint renders the 9-key handoff order and the ask ru
 
 // (D42) TASK 2.2's REFERENCES SENTENCES (rule-7 deps edge) — design.md's row-7 enum and §18 ask
 // clause, file-followups.md's ruled-ask parity text, the refiner card's parked-ask exclusion, and
-// schemas.md's consolidation exclusion. OLD-absent cites the base-verified row-7 literal
-// `absorb/follow-up/note — ADR 0013` (PIN-8).
+// schemas.md's consolidation exclusion. OLD-absent cites the row-7 literal
+// `absorb/follow-up/note — ADR 0013`, verified present at the plan's implementation base
+// `a60221a` and retired at this task's base by merged dep Task 2.2 — the absence assert guards
+// against a revert of that widening, never a never-present value (PIN-8).
 test('D42 — the references mirrors carry the widened ask shapes; the closed row-7 literal is retired (#1550)', () => {
   for (const [name, text, re, what] of [
     ['references/design.md', designRefMd, /absorb\/follow-up\/note\/ask — ADR 0013, amended 2026-08-25/, 'the widened row-7 disposition enum with the amendment date'],

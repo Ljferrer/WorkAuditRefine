@@ -782,8 +782,8 @@ dispatch, and the Lead never re-adds one — filing happens only after a ruling.
 _Avoid_: "park it as a follow-up for now" (the decision-free filing the channel exists to prevent).
 
 **Strike-list ruling gate**:
-The ONE Checkpoint gate that rules all parked asks in a single pass — one row per ask (question + fork
-+ task/seat/sha) — behind the **absolute advance floor**: the DAG never advances over an unruled ask.
+The ONE Checkpoint gate that rules all parked asks in a single pass — one row per ask (question + fork +
+task/seat/sha) — behind the **absolute advance floor**: the DAG never advances over an unruled ask.
 Interactively a hard wait; under `--afk` an adjudication match resolves by citation, a no-match demotes
 to follow-up with the question preserved, and suppression rows are minted only from operator rulings.
 _Avoid_: per-ask mini-gates; any severity, count, or staleness exception to the floor.
