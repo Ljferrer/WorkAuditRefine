@@ -148,6 +148,10 @@ const VERB_SCAN_EXCLUSIONS = [
   // contract reference is a guaranteed false red (probe-verified).
   'skills/war/references/schemas.md',
   'skills/war/references/auditor-teach.md',         // no shell-out prose for the scanned modules
+  // budget-rebaseline.md is the operator budget re-baseline pass; its only command prose
+  // targets prompt-surface-budgets.test.mjs and assert-budget-raise-cited.sh — neither is a
+  // scanned module, and it phrases no verb for any scanned module.
+  'skills/war/references/budget-rebaseline.md',
   'skills/war/references/gastown-design-params.md', // no shell-out prose for the scanned modules
   'skills/war/references/refiner-recovery.md',      // no shell-out prose for the scanned modules
   'skills/war/references/file-followups.md',        // no shell-out prose for the scanned modules (gh + gh-preflight.sh only)
