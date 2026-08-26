@@ -10182,7 +10182,11 @@ test('maxParallel-absent: the absent-knob path takes no batching branch — one 
 // corrections. Known structural false-negative classes of the mechanical pattern (recorded, not
 // silently absorbed): (a) bracket-indexed roots (`${tasks[0].id}`) are not admitted by the dotted
 // chain regex — none exist in the template today; (b) an interpolation nested inside another
-// expression's braces is seen only via the flat re-scan of the outer span text. Escaped `\${…}`
+// expression's braces is seen only via the flat re-scan of the outer span text; (c) a task/phase
+// object bound to a local outside the root whitelist (ph/plan/task/t/r.task) — e.g.
+// `submodLandTask.targetRepo` — is censused but not mapped to an args field; harmless today
+// (targetRepo is exempt and the site is ternary-gated), red-flagged here so a future non-exempt
+// case is not silently unrequired. Escaped `\${…}`
 // pairs are prompt PROSE (agent-resolved placeholders) and are dropped by the tokenizer — e.g. the
 // release-baseline rule's `\${integrationBranch}...\${task.branch}` mirror text is not a live site.
 const BARE_INTERPOLATION_CENSUS = [
@@ -10296,7 +10300,9 @@ test('provenance floor: stoplist — a slug of generic tokens derives no ownToke
 
 // Recorded blast radius (audit, r3): the source:'auto' exemption makes auto-stamped backstop text a
 // TRUSTED, unscanned channel — a poisoned auto row would pass the provenance floor by construction.
-// Accepted residual: auto rows are engine-authored (setup/land sites), never Lead-assembled text.
+// Accepted residual: auto rows are Setup-recorded and ride the Lead-assembled args channel, so the
+// exemption trusts a Lead-supplied flag — bounded because intent is never exempt and a foreign
+// planFile stamp still refuses.
 test("provenance floor: a source:'auto' row is exempt from the scan — its foreign-looking text never refuses", async () => {
   const args = PROVISION_ARGS({
     backstops: [{ check: 'grep -F pattern docs/plans/foreign-thing.md', why: 'setup-recorded', runner: 'operator', source: 'auto' }],
