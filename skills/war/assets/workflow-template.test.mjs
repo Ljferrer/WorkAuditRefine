@@ -10860,3 +10860,234 @@ test('preMerged-dialect: a fully-pre-merged recovery phase is not vacuous — en
   assert.equal(out.landDecision, 'landed', 'fully-pre-merged phase lands')
   assert.ok(!out.handoff.endState[0].note, 'barrier-recovered landings count — no zero-tasks-ran clamp')
 })
+
+// ---------------------------------------------------------------------------
+// Phase 6 Task 2 (#1795) — classification + drain-cause + segmented-land +
+// filing-on-held + recovery-holder fixtures over the Task 6.1 mechanisms.
+// Tokens: drain-cause (End state 9), filing-on-held (End state 20),
+// segmented-land (End state 19), recovery-holder (End state 27).
+// ---------------------------------------------------------------------------
+
+// --- drain-cause (End state 9, Phase 6 Task 1 (c)+(d)) --------------------------------------
+
+// (c) provisionStep: a POST-SPAWN infra death of the per-task provision-run dispatch crosses the
+// dispatchAgent boundary TAGGED, so the wave thunk's catch classifies it env-died SOFT (#1411's
+// class) — never the generic HARD escalate, and the worker for that task is never spawned.
+test('drain-cause (End state 9): a provision-run dispatch death classifies env-died SOFT — worker never spawned, siblings land, never a hard escalation', async () => {
+  const impl = (prompt, opts) => {
+    if ((opts.label || '') === 'provision-run:tDead') throw new Error('fetch failed: 529 overloaded (transport error)')
+    return defaultImpl(prompt, opts)
+  }
+  const args = withProvision({ tasks: [
+    { id: 'tDead', issue: 1, title: 'provision-run dies', planSlice: 's', roster: [{ lens: 'correctness' }] },
+    { id: 'tLive', issue: 2, title: 'merges', planSlice: 's', roster: [{ lens: 'correctness' }] },
+  ] })
+  const { out, calls } = await runPhase(args, impl)
+  const esc = (out.escalated || []).find(e => e && e.task === 'tDead')
+  assert.ok(esc, 'the dead task escalates (presence guard)')
+  assert.equal(esc.reason, 'env-died', 'a provision-run dispatch death classifies env-died (SOFT), not escalate')
+  assert.match(String(esc.blocked), /529 overloaded/, 'the harness cause propagates verbatim')
+  assert.ok(!calls.some(c => (c.opts.label || '') === 'work:tDead'), 'the worker for the dead-provision task is never spawned')
+  assert.equal(out.landDecision, 'landed', 'env-died is SOFT — the phase lands minus the dead task')
+  assert.ok(out.landed.includes('tLive') && !out.landed.includes('tDead'), 'the sibling lands; the dead task does not')
+})
+
+// (c) provision-BARRIER: routed through dispatchAgent for the structural TAG alone — NO local catch,
+// so a barrier dispatch death rethrows into the top-level catch → held:workflow-error (no git
+// topology ⇒ nothing in the phase can run). Adjudicated at Task 6.1's fix round (#1794): the plan
+// slice's literal "barrier death classifies env-died soft" was superseded — env-died's
+// lands-minus-task semantics are incoherent for a phase-wide no-topology failure, and
+// held:workflow-error is the documented terminal class with a Recovery-relaunch entry point.
+test('drain-cause (End state 9, adjudicated #1794): a provision-BARRIER dispatch death rethrows held:workflow-error with the dispatch-layer cause — nothing in the phase runs', async () => {
+  const impl = (prompt, opts) => {
+    if (opts.dispatchKind === 'provision-barrier') throw new Error('API error: rate limit reached (resets 6pm)')
+    return defaultImpl(prompt, opts)
+  }
+  const { out, calls } = await runPhase(PROVISION_ARGS(), impl)
+  assert.equal(out.landDecision, 'held:workflow-error', 'a barrier death is the terminal no-topology class — never env-died lands-minus-task')
+  assert.ok(out.workflowError && /rate limit/.test(String(out.workflowError.message)), 'the harness cause surfaces verbatim in workflowError.message')
+  assert.ok(!calls.some(isWorker), 'no worker ever dispatches — no topology, nothing can run')
+  assert.ok(!(out.escalated || []).some(e => e && e.reason === 'env-died'), 'the barrier death never launders into a per-task env-died record')
+})
+
+// (c)+(d) polish-worktree provision death: env-died SOFT (fail-open — the sweep is skipped, the
+// pre-polish tip lands), and every finding the drain demotes carries the drain-cause stamp naming
+// WHICH dispatch died and WHY.
+test('drain-cause (End state 9): a polish-worktree provision dispatch death fail-opens (sweep skipped, phase lands) and stamps the drain cause on each demoted finding', async () => {
+  const impl = (prompt, opts) => {
+    if (/^polish-worktree:/.test(opts.label || '')) throw new Error('socket hang up (api connection lost)')
+    return sweepBase([queuedAbsorb()])(prompt, opts)
+  }
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS(), impl)
+  assert.ok(!calls.some(c => (c.opts.label || '') === 'polish:phase-3'), 'the sweep worker never dispatches (provisioning died)')
+  assert.equal(out.landDecision, 'landed', 'env-died is SOFT and the sweep is fail-open — the pre-polish tip lands')
+  assert.equal(out.handoff.polish, 'skipped', 'polishStatus degrades to skipped, never a hold')
+  const row = (out.minorsFiled || []).find(m => m && m.title === 'dangling link')
+  assert.ok(row, 'the queued finding demotes to follow-up (never dropped)')
+  assert.ok(row.drainCause && typeof row.drainCause === 'object', 'the demoted finding carries the drain-cause stamp (in-band field)')
+  assert.equal(row.drainCause.dispatch, 'polish-worktree:phase-3', 'the stamp names WHICH dispatch died')
+  assert.match(String(row.drainCause.why), /env-died/, 'the stamp names WHY (env-died classification)')
+  assert.match(String(row.drainCause.why), /socket hang up/, 'the harness cause rides the stamp verbatim')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('env-died') && l.includes('polish-worktree:phase-3')), 'the death is log()ged with the dispatch label (never silent)')
+})
+
+// (c)+(d) sweep dispatch death: env-died SOFT into the existing fail-open DISCARD arm, with the
+// drain cause stamped on each demoted finding.
+test('drain-cause (End state 9): a sweep dispatch death fail-opens into the DISCARD arm and stamps the drain cause on each demoted finding', async () => {
+  const impl = (prompt, opts) => {
+    if ((opts.label || '') === 'polish:phase-3') throw new Error('529 Overloaded')
+    return sweepBase([queuedAbsorb()])(prompt, opts)
+  }
+  const { out, calls } = await runPhase(SWEEP_ARGS(), impl)
+  assert.ok(calls.some(c => /^polish-worktree:/.test(c.opts.label || '')), 'the polish worktree provisioned (presence guard — the death is the SWEEP dispatch)')
+  assert.ok(!calls.some(c => (c.opts.label || '') === 'merge:p3-polish'), 'a dead sweep is never merged')
+  assert.equal(out.landDecision, 'landed', 'env-died is SOFT and the sweep is fail-open — the pre-polish tip lands')
+  assert.equal(out.handoff.polish, 'discarded', 'the dead sweep takes the DISCARD arm')
+  const row = (out.minorsFiled || []).find(m => m && m.title === 'dangling link')
+  assert.ok(row, 'the queued finding demotes to follow-up (never dropped)')
+  assert.equal(row.drainCause && row.drainCause.dispatch, 'polish:phase-3', 'the stamp names the sweep dispatch')
+  assert.match(String(row.drainCause && row.drainCause.why), /env-died.*529 Overloaded/, 'the stamp carries the env-died class + the verbatim harness cause')
+})
+
+// (d) boundary discipline, both directions: a dead dispatch RETURNING NOTHING still stamps (it is a
+// dispatch death, just a non-throwing one); an ordinary panel-reject discard — no dispatch died —
+// stays UNSTAMPED (delete-the-feature control: the stamp is death-scoped, not a discard default).
+test('drain-cause (End state 9): a sweep dispatch returning no result stamps; an ordinary panel-reject discard stays unstamped (death-scoped, never a discard default)', async () => {
+  // Arm 1: sweep returns null (dead dispatch, no throw) → stamped.
+  const dead = (prompt, opts) => (opts.label || '') === 'polish:phase-3' ? null : sweepBase([queuedAbsorb()])(prompt, opts)
+  const { out: outDead } = await runPhase(SWEEP_ARGS(), dead)
+  const rowDead = (outDead.minorsFiled || []).find(m => m && m.title === 'dangling link')
+  assert.ok(rowDead && rowDead.drainCause && rowDead.drainCause.dispatch === 'polish:phase-3', 'a no-result sweep dispatch death stamps the drain cause')
+  assert.match(String(rowDead.drainCause.why), /returned no result/, 'the stamp says the dispatch returned no result')
+  // Arm 2: live sweep, panel rejects → ordinary discard, NO stamp.
+  const reject = buildSeqImpl(
+    { 'audit:p3-polish:correctness': [{ seat: 'p', lens: 'correctness', verdict: 'request_changes', confidence: 'high',
+        findings: [{ severity: 'Major', title: 'sweep broke it', file: 'docs/x.md', rationale: 'r' }] }] },
+    sweepBase([queuedAbsorb()]))
+  const { out: outReject } = await runPhase(SWEEP_ARGS(), reject)
+  const rowReject = (outReject.minorsFiled || []).find(m => m && m.title === 'dangling link')
+  assert.ok(rowReject, 'the queued finding still demotes on an ordinary discard (presence guard)')
+  assert.equal(rowReject.drainCause, undefined, 'an ordinary non-death drain is NEVER stamped — no dispatch died')
+})
+
+// --- filing-on-held (End state 20, Phase 6 Task 1 (b)) --------------------------------------
+
+// held:land-failed still produces the file-followups dispatch — merged tasks' follow-up debt exists
+// regardless of the land outcome. No handoff emits on held:land-failed, so the stamped issue
+// numbers ride the top-level return's minorsFiled instead.
+test('filing-on-held (End state 20): a held:land-failed phase still runs the file-followups dispatch — stamped issues ride the top-level minorsFiled (no handoff there)', async () => {
+  const impl = (prompt, opts) => {
+    if (opts.dispatchKind === 'file-followups') return { filed: [{ n: 1, issue: 777 }], clusters: [{ ordinals: [1], issue: 777 }] }
+    if (seatOf(opts) === 'war-refiner' && opts.phase === 'Land') return { mode: 'land-phase', status: 'error' }
+    return handoffImpl(null)(prompt, opts)
+  }
+  const { out, calls } = await runPhase(HANDOFF_ARGS(), impl)
+  assert.equal(out.landDecision, 'held:land-failed', 'presence guard: the land error holds the phase')
+  assert.ok(calls.some(c => c.opts.dispatchKind === 'file-followups'), 'the filing dispatch STILL fires on held:land-failed — never silently unrun')
+  const row = (out.minorsFiled || []).find(m => m && m.title === 'needs new tests')
+  assert.ok(row, 'the follow-up row survives on the top-level return')
+  assert.equal(row.issue, 777, 'the stamped issue number rides minorsFiled (no handoff emits on held:land-failed)')
+  assert.equal(out.handoff, undefined, 'held:land-failed emits NO handoff block — the top-level return is the record')
+})
+
+// --- segmented-land (End state 19, Phase 6 Task 1 (a), A6 REVISED) --------------------------
+
+// The in-band land_segment:'incomplete' marker (riding the existing 'error' status) round-trips its
+// bounded re-dispatch: the Workflow re-dispatches the SAME land prompt under a continuation header,
+// following the FLOOR_STATUSES retry-loop idiom — never a dispatch death, never a new status member.
+test('segmented-land (End state 19): the in-band land_segment marker round-trips ONE bounded re-dispatch to completion — the continuation lands and wrap-up fires', async () => {
+  let landN = 0
+  const impl = (prompt, opts) => {
+    if (/^land:phase-3(:|$)/.test(opts.label || '')) {
+      landN++
+      return landN === 1
+        ? { mode: 'land-phase', status: 'error', land_segment: 'incomplete', segment_note: 'gate mid-run at step 2' }
+        : { mode: 'land-phase', status: 'landed', working_sha: 'abc1234def' }
+    }
+    return defaultImpl(prompt, opts)
+  }
+  const { out, calls, logs } = await runPhase(PROVISION_ARGS(), impl)
+  const lands = calls.filter(c => /^land:phase-3(:|$)/.test(c.opts.label || ''))
+  assert.equal(lands.length, 2, 'exactly one re-dispatch: initial land + one continuation')
+  assert.equal(lands[1].opts.label, 'land:phase-3:segment-2', 'the continuation is labelled with its segment ordinal')
+  assert.ok(lands[1].prompt.startsWith('SEGMENTED-LAND CONTINUATION'), 'the continuation prompt leads with the continuation header')
+  assert.ok(lands[1].prompt.includes('idempotent'), 'the continuation states the idempotence contract (safe full re-run)')
+  assert.ok(lands[1].prompt.includes('land-advance'), 'the FULL land prompt rides the continuation (run to completion, not a partial resume)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('segmented land') && l.includes('gate mid-run at step 2')), 'the segment_note is log()ged on the re-dispatch')
+  assert.equal(out.landDecision, 'landed', 'the completed continuation lands the phase — the marker is survival wiring, never a dispatch death')
+  assert.equal(out.handoff.tipSha, 'abc1234def', 'the handoff reads the continuation result')
+  assert.ok(calls.some(isServitor), 'wrap-up (servitor) fires on the continuation-landed phase')
+})
+
+test('segmented-land (End state 19): a persisting marker is BOUNDED by roundLimit — exhaustion routes the ridden error status to held:land-failed, logged', async () => {
+  const impl = (prompt, opts) =>
+    /^land:phase-3(:|$)/.test(opts.label || '')
+      ? { mode: 'land-phase', status: 'error', land_segment: 'incomplete', segment_note: 'still mid-gate' }
+      : defaultImpl(prompt, opts)
+  const { out, calls, logs } = await runPhase(PROVISION_ARGS({ run: { roundLimit: 2 } }), impl)
+  const lands = calls.filter(c => /^land:phase-3(:|$)/.test(c.opts.label || ''))
+  assert.equal(lands.length, 3, 'initial land + exactly roundLimit (2) re-dispatches — the FLOOR_STATUSES-idiom bound holds')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('segmented-land budget exhausted')), 'exhaustion is log()ged')
+  assert.equal(out.landDecision, 'held:land-failed', 'the final still-incomplete result routes by its RIDDEN status (error → held:land-failed)')
+  assert.ok((out.escalated || []).some(e => e && e.task === 'phase-3-land' && e.reason === 'error'), 'the escalation record carries the ridden status, never a segment enum member')
+})
+
+test('segmented-land (End state 19): NO enum widening — land_segment is an orthogonal optional field; KNOWN_LAND_DECISIONS and the MERGE_RESULT status enum carry no segment member', () => {
+  // Verbatim membership pin: the pre-existing 'held:phase-incomplete' member legitimately contains
+  // the substring 'incomplete' — so the widening check is exact-set, never substring-over-members.
+  assert.deepEqual(KNOWN_LAND_DECISIONS, ['landed', 'held:escalation', 'held:nothing-merged',
+    'held:land-failed', 'held:phase-incomplete', 'held:workflow-error', 'held:submodule-pr'],
+    'KNOWN_LAND_DECISIONS is unwidened (land-decision.mjs untouched, ADR 0005) — no segment member')
+  const enumMatch = src.match(/MERGE_RESULT[\s\S]*?status\s*:\s*\{\s*enum\s*:\s*(\[[^\]]+\])/)
+  assert.ok(enumMatch, 'MERGE_RESULT status enum found')
+  assert.ok(!enumMatch[1].includes('incomplete') && !enumMatch[1].includes('segment'), "the MERGE_RESULT status enum carries NO 'incomplete'/segment member — the marker rides status:'error'")
+  const mr = src.match(/const\s+MERGE_RESULT\s*=[^]*?(?=\n\nconst )/)
+  assert.ok(mr && /land_segment:\s*\{\s*enum:\s*\['incomplete'\]\s*\}/.test(mr[0]), "land_segment is declared as the orthogonal in-band field (enum ['incomplete'])")
+  assert.ok(!/required[^\]]*land_segment/.test(mr[0]), 'land_segment is OPTIONAL — never required')
+})
+
+// --- recovery-holder (End state 27, #1712 fix 3, Phase 6 Task 1 (e)) ------------------------
+
+// Sanctioned relaunch: the barrier prompt carries the pre-checkout ref-holder auto-free clause —
+// clean SAME-plan prior-generation holders only (detach for _refinery, worktree-remove for a
+// workless task worktree), ancestor check resolved against the integration branch itself (never
+// step-3's unbound $TIP, #1794) — and a clean-holder run provisions without Lead intervention.
+test('recovery-holder (End state 27): a sanctioned relaunch instructs clean same-plan holder auto-free (detach _refinery / remove workless task worktree) and provisions without Lead intervention', async () => {
+  const { out, calls } = await runPhase(PROVISION_ARGS({ recovery: { sanctioned: true } }), defaultImpl)
+  const p = calls.find(isProvision).prompt
+  assert.match(p, /pre-checkout ref-holder auto-free/, 'the holder auto-free clause rides the sanctioned barrier prompt')
+  assert.match(p, /git worktree list --porcelain/, 'holders are enumerated via git worktree list --porcelain')
+  assert.match(p, /checkout --detach/, 'a stale _refinery holder is DETACHED (the worktree survives)')
+  assert.match(p, /git worktree remove/, 'a WORKLESS task worktree holder is removed')
+  assert.ok(p.includes('wtprov-a'), "same-plan discrimination: the clause names THIS plan's slug")
+  assert.match(p, /Plain git verbs only/, 'plain git verbs — never a new script flag')
+  // #1794 fix: the ancestor check resolves against the integration branch itself, never "$TIP".
+  assert.ok(p.includes('git merge-base --is-ancestor') && p.includes('never "$TIP"'), 'the workless predicate resolves against the integration branch, never step-3\'s unbound $TIP')
+  assert.match(p, /SKIP the removal arm/, 'a not-yet-existing integration branch SKIPs the removal arm (an unverified worktree is never removed)')
+  // Behavioral: a clean-holder barrier returns ok:true and the phase runs end-to-end unassisted.
+  assert.ok(calls.some(isWorker), 'workers dispatch — the relaunch provisions without Lead intervention')
+  assert.equal(out.landDecision, 'landed', 'the sanctioned relaunch completes the phase')
+})
+
+test('recovery-holder (End state 27): a DIRTY holder dies loud with the holder path named; a FOREIGN plan\'s holder is never freed', async () => {
+  const args = PROVISION_ARGS({ recovery: { sanctioned: true } })
+  const { calls } = await runPhase(args, defaultImpl)
+  const p = calls.find(isProvision).prompt
+  assert.match(p, /NEVER free a DIRTY holder/, 'the dirty-holder refusal is explicit')
+  assert.match(p, /HOLDER PATH named in stderrTail/, 'a dirty holder dies loud with the holder path in stderrTail')
+  assert.match(p, /NEVER free a holder of a FOREIGN plan's refs/, "a foreign plan's holder is never freed — left in place, die loud if it blocks")
+  // Behavioral: the barrier's dirty-holder die (ok:false naming the holder path) halts the phase
+  // with the path surfaced — never a silent free, never a silent continue.
+  const dirtyPath = '/abs/repo/.claude/worktrees/old-run/p3-t1'
+  const { out } = await runPhase(args, barrierEnv({ ok: false, failedCommand: 'ensure-worktree …', exitCode: 128,
+    stderrTail: `dirty prior-generation holder at ${dirtyPath} — refusing to free (unmerged work)` }))
+  assert.equal(out.landDecision, 'held:workflow-error', 'a dirty-holder die is a hard barrier stop (no topology)')
+  assert.ok(String(out.workflowError && out.workflowError.message).includes(dirtyPath), 'the holder path surfaces verbatim in the workflow error')
+})
+
+test('recovery-holder (End state 27): the holder auto-free clause is DORMANT without args.recovery.sanctioned', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const p = calls.find(isProvision).prompt
+  assert.doesNotMatch(p, /ref-holder auto-free/, 'no holder auto-free clause on an unsanctioned run')
+  assert.doesNotMatch(p, /git worktree remove/, 'no removal instruction on an unsanctioned run (byte-identical dormancy)')
+})
