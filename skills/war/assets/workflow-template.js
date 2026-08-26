@@ -213,10 +213,14 @@ const EVIDENCE_RESULT = { type: 'object', properties: {
 // is present, readable, and correctly tip-stamped but whose red is ENVIRONMENTAL (#1395 — a
 // setup/collection/import failure: ModuleNotFoundError, pytest setup ERROR, usage/collection exit
 // codes — rather than an evaluated-false condition): it attests 'unverified', NEVER 'unmet' — a met
-// condition is never attested unmet for want of environment prep.
+// condition is never attested unmet for want of environment prep. Two record-only artifact states
+// (A3 intake lint / byte-verify) also map to 'unverified': an `intake_lint:`-stamped artifact (the
+// check literal was UNSUPPORTED by the .cmd transport — the row was never executed, its exit_code
+// line reads `unsupported`, hence exit_code below admits a string) and a `cmd_bytes_mismatch:`-stamped
+// artifact (the written .cmd failed the byte-for-byte verify — the row was not executed as declared).
 const ENDSTATE_CHECK_RESULT = { type: 'object', properties: {
   artifacts: { type: 'array', items: { type: 'object', properties: {
-    n: { type: 'number' }, path: { type: 'string' }, tip_sha: { type: 'string' }, exit_code: { type: 'number' } } } } } }
+    n: { type: 'number' }, path: { type: 'string' }, tip_sha: { type: 'string' }, exit_code: {} } } } } }
 
 // FOLLOWUP_FILING_RESULT (D1/D2, #1331): the file-followups dispatch's return — ADVISORY only. The
 // Workflow stamps minorsFiled[n-1].issue from each returned row carrying an in-range 1-based n AND a
@@ -2259,7 +2263,7 @@ if (endStateCheckRows.length > 0) {
   // bare \r) — is marked unsupported AT DISPATCH: log()ged here, and its prompt row directs an
   // artifact recording the lint verdict INSTEAD of execution. Everything bash-runnable (compound,
   // pipeline, multi-command, multi-line) is supported: the .cmd file executes as a whole.
-  // BACKTICK is built via charCode 96 — a raw backtick in a regex/'-string here desyncs the #931
+  // BACKTICK is built via charCode 96 — a raw backtick in a regex literal here desyncs the #931
   // census scanner and the budget suite's pinned extraction (neither models regex literals).
   const BACKTICK = String.fromCharCode(96)
   for (const r of endStateCheckRows) {
