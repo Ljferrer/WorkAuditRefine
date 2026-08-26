@@ -3462,7 +3462,7 @@ test('bisection — a blocked/sha-less subset worker abandons the ladder: this a
 // path attribution and the reserve boundary are engine behavior and get functional rows.
 // ---------------------------------------------------------------------------
 
-test('bisection ace-trailer — a parent/child strict-prefix trailer pair never matches under exact-value comparison: every subset dispatch mandates EXACT whole-string equality (never prefix/substring) and the final-paragraph trailer block', async () => {
+test('bisection ace-trailer — a sibling strict-prefix trailer pair never matches under exact-value comparison: every subset dispatch mandates EXACT whole-string equality (never prefix/substring) and the final-paragraph trailer block', async () => {
   // Files chosen so the two halves' deterministic trailer values are in STRICT-PREFIX relation
   // ('t1:skills/aa.js' vs 't1:skills/aa.js.bak') — the exact collision class a prefix/substring
   // preflight compare would false-hit on resume.
