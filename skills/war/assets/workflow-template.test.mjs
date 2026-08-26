@@ -8890,7 +8890,14 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     { name: 'endstate-check dispatch card twin (recovery Blocker 1): file-threaded .cmd execution, load-bearing tip_sha stamp + exit_code line, red-check isolation, fail-open return — standing card + dispatched prompt',
       surfaces: [['war-refiner.md', refinerMd], ['endstate-check dispatch prompt', esCheckP]],
       anchors: [/endstate-check/i, /file-threaded/i, /byte-verbatim/i, /tip_sha/, /exit_code/,
-                /load-bearing/i, /never fails this dispatch/i, /red, hung, or timed-out/i, /fail-open/i, /never block/i] },
+                /load-bearing/i, /never fails this dispatch/i, /red, hung, or timed-out/i, /fail-open/i, /never block/i,
+                // Phase 4 Task 4.1 mirrored transport directives (phase-close absorb): the fenced byte
+                // transport, the byte-for-byte .cmd verify's loud-failure token, the intake-lint
+                // record-only arm, and the whole-command-line end-to-end tee — all four land on the
+                // card ("fenced block" / "cmd_bytes_mismatch" / "intake-linted"+"`intake_lint`" /
+                // "runs end-to-end") and the dispatched prompt ("FENCED block" / "cmd_bytes_mismatch"
+                // / "INTAKE-LINTED" / "END-TO-END"), so a per-surface reword or revert reds this row.
+                /fenced/i, /cmd_bytes_mismatch/, /intake[_ -]lint/i, /end-to-end/i] },
     // Task 3.2 recovery Blocker 2 (stale-but-readable artifact): .war/ is git-excluded and
     // ensure-worktree reuses a present worktree untouched, so a resumeFromRunId replay lands on
     // prior-run artifact residue — READABLE but stamped with a prior tip. The seat MUST compare the
