@@ -1,6 +1,6 @@
 ---
 name: never-follow-resumefromrunid-hint-after-a-land-failure
-description: "The Workflow harness's generic resumeFromRunId hint is exactly wrong after a held:land-failed phase — it replays the journal and re-runs the already-green gate + push-first CAS live"
+description: "The Workflow harness's generic resumeFromRunId hint is exactly wrong after a held:land-failed phase"
 metadata: 
   node_type: memory
   type: project

@@ -1,6 +1,6 @@
 ---
 name: resolved-lesson-stamp-freezes-body-so-it-can-contradict-the-new-description
-description: "The RESOLVED description-stamp convention freezes the lesson body, which can contradict the new description"
+description: "The RESOLVED description-stamp convention freezes the lesson body"
 metadata: 
   promoted: dev/2026-07-24-memory-tooling-hardening@phase-1
   node_type: memory

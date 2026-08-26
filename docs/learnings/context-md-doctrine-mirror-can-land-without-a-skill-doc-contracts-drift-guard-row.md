@@ -1,6 +1,6 @@
 ---
 name: context-md-doctrine-mirror-can-land-without-a-skill-doc-contracts-drift-guard-row
-description: "CONTEXT.md glossary prose that restates canonical ADR doctrine is guarded by a skill-doc-contracts.test.mjs drift-guard row (the D19/D24/D26/D28/D29 construct-anchored idiom) only when a task deliberately authors that row in the same commit — no existing mirror-registry mechanism in this repo binds glossary prose automatically, so a new or amended ADR-restating sentence in CONTEXT.md can land invisible to every guard"
+description: "CONTEXT.md glossary prose that restates canonical ADR doctrine is guarded by a…"
 metadata: 
   node_type: memory
   type: project

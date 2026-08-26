@@ -86,3 +86,5 @@ staged-deletion-only shape with no lock and no marker stays `detected`, not `rep
 
 Related: [[floor-script-header-can-claim-unbacked-downstream-capture]] (same phase, same
 mechanism's test-fixture comment separately overclaimed an unrelated downstream consumer).
+
+> archived 2026-08-25: resolved — moved to archive

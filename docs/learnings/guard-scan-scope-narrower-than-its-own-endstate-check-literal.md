@@ -1,6 +1,6 @@
 ---
 name: guard-scan-scope-narrower-than-its-own-endstate-check-literal
-description: "A standing regression guard added to satisfy a plan End-state can legitimately scan a NARROWER surface (e.g. a file's header region only) than that same End-state's own one-shot check literal (e.g. a whole-file grep) — the guard is plan-faithful (it matches the slice's literal wording) but a reintroduction relocated outside its scan scope passes the guard while the End-state's own check would still catch it; verify a guard's actual scan scope against its check literal's scope, not just against the slice's prose"
+description: "A standing regression guard added to satisfy a plan End-state can legitimately scan a NARROWER…"
 metadata: 
   node_type: memory
   type: project

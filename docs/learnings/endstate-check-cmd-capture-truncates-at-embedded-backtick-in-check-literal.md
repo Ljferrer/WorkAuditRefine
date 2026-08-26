@@ -1,6 +1,6 @@
 ---
 name: endstate-check-cmd-capture-truncates-at-embedded-backtick-in-check-literal
-description: "An End-state `check:` literal that itself embeds a backtick-delimited Markdown code span (e.g. a grep -qF pin on a `` `ponytail:` `` bullet) truncates the endstate-check dispatch's captured .cmd at that inner backtick, producing a bash syntax error at execution — SOFT/cannot-confirm, never unmet."
+description: "An End-state `check:` literal that itself embeds a backtick-delimited Markdown code span (e.g"
 metadata: 
   node_type: memory
   type: project

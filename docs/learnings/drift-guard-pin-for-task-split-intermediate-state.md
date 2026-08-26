@@ -1,6 +1,6 @@
 ---
 name: drift-guard-pin-for-task-split-intermediate-state
-description: "Sanctioned task-split diverging a mirror: pin drift-guard to current-correct intermediate value + TODO(TaskN)"
+description: "Sanctioned task-split diverging a mirror: pin drift-guard to current-correct intermediate…"
 metadata: 
   node_type: memory
   type: project

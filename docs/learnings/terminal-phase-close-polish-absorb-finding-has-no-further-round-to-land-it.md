@@ -1,6 +1,6 @@
 ---
 name: terminal-phase-close-polish-absorb-finding-has-no-further-round-to-land-it
-description: "A last-round polish gate-audit absorb finding has no further pass to drain it; it ships unfixed at land."
+description: "A last-round polish gate-audit absorb finding has no further pass to drain it"
 metadata: 
   node_type: memory
   type: project

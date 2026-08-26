@@ -1,6 +1,6 @@
 ---
 name: resolved-section-fix-append-can-itself-misstate-which-mode-a-rule-applies-to
-description: "An appended ## RESOLVED fix section is not self-verifying; it can misstate which mode a rule applies to"
+description: "An appended ## RESOLVED fix section is not self-verifying; it can misstate which mode a rule…"
 metadata:
   node_type: memory
   type: project

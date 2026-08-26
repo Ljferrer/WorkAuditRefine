@@ -1,6 +1,6 @@
 ---
 name: count-only-source-census-pin-is-blind-to-relocation-not-just-addition
-description: "A default-deny census that pins the total OCCURRENCE COUNT of a phrase across a whole source file catches an ADDED occurrence but is invariant to an existing occurrence being MOVED from a fixture-reachable dispatch site to one no fixture reaches — the count stays the same, the sweep never captures the relocated instance"
+description: "A default-deny census that pins the total OCCURRENCE COUNT of a phrase across a whole source…"
 metadata: 
   node_type: memory
   type: project

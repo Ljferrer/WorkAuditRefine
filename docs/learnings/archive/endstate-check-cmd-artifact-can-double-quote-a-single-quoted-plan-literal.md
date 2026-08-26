@@ -77,3 +77,5 @@ different mechanism); [[template-defers-runtime-values-to-agent-via-literal-plac
 **Disposition at land:** filed `follow-up` (not absorbable — fixing the `.cmd`-generation quoting
 is outside a single task's file scope and needs a decision on how the dispatch preserves
 shell-literal quoting byte-verbatim), so this defect was still live at phase-2 land.
+
+> archived 2026-08-25: resolved — moved to archive

@@ -1,6 +1,6 @@
 ---
 name: byte-convergence-plan-can-mandate-per-file-import-style-variant
-description: "A byte-convergence plan can direct a different import style per file (named vs qualified); not a rogue variant"
+description: "A byte-convergence plan can direct a different import style per file (named vs qualified)"
 metadata: 
   node_type: memory
   type: project

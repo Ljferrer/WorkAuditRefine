@@ -83,3 +83,5 @@ foreign-`docs/plans`-identifier check on all three args.
 **Related:** [[dispatched-seat-intent-can-leak-from-a-different-concurrent-plan]] (the incident
 class #1413 exists to catch); [[reproduce-a-gate-blocker-before-patching-or-escalating]] (same
 discipline of measuring before changing a floor).
+
+> archived 2026-08-25: resolved — moved to archive

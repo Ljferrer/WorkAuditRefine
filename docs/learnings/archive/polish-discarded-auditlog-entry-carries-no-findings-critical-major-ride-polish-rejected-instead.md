@@ -77,3 +77,5 @@ which is a routing/visibility marker only, with `findings: []` by construction.
 call; the panel's real findings push is `auditLog.push({ ..., verdict: sweepApproved ? 'approve' :
 'polish-rejected', findings: pSeats.flatMap(...) })` inside the preceding `if (!sweepWhy)` block —
 verify still present before acting.
+
+> archived 2026-08-25: resolved — moved to archive

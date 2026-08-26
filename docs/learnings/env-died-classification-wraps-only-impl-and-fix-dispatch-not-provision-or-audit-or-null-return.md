@@ -1,6 +1,6 @@
 ---
 name: env-died-classification-wraps-only-impl-and-fix-dispatch-not-provision-or-audit-or-null-return
-description: "env-died soft class (#1411) wraps only thrown impl/fix dispatches; provision, audit-seat, null return stay HARD"
+description: "env-died soft class (#1411) wraps only thrown impl/fix dispatches; provision, audit-seat"
 metadata: 
   node_type: memory
   type: project

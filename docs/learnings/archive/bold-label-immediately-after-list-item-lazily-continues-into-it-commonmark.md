@@ -73,3 +73,5 @@ similarly-shaped list-item + bold-label template in this repo — see also
 [[multi-token-presence-loop-needs-paired-first-following-match-to-catch-a-swap]] for a related
 caution: a whole-file presence-anywhere blank-line guard (as landed here) is non-vacuous only
 while each file carries exactly one `**Re-entry:**` occurrence — verified true at this tip.
+
+> archived 2026-08-25: resolved — moved to archive

@@ -1,6 +1,6 @@
 ---
 name: new-drift-guard-pin-skips-established-region-scoping-idiom-in-same-file
-description: "A new presence/mirror pin authored alongside sibling pins that already use a ±N-char/window scoping idiom over the SAME target document (to keep a multi-clause assertion from being satisfied by an unrelated occurrence elsewhere in the file) tends to be authored as a whole-file or bare line-filter match instead — non-vacuous today because the pinned tokens happen to be unique in-file, but measurably weaker than its siblings at catching a clause relocation or an outcome-inverting rewrite that keeps the antecedent tokens intact; check the file for an established region()-style helper before adding a new pin over a document it already scopes"
+description: "A new presence/mirror pin authored alongside sibling pins that already use a ±N-char/window…"
 metadata: 
   node_type: memory
   type: project

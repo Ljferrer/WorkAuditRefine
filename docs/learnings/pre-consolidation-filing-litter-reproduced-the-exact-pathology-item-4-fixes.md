@@ -1,6 +1,6 @@
 ---
 name: pre-consolidation-filing-litter-reproduced-the-exact-pathology-item-4-fixes
-description: "This phase's own PRE-consolidation filing engine — running twice on holds, exact-title dedup only — filed 28 issues (#1568-#1585, #1587-#1596) that the Lead had to hand-collapse to ~8 canonicals (3x/3x/3x/2x duplicate clusters plus a second attempt re-filing the first attempt's roots under new wording); the exact same pathology plan item 4 fixes, reproduced live inside the phase implementing item 4 — a dated data point for #1492's realized-vs-intended absorb-rate rubric"
+description: "This phase's own PRE-consolidation filing engine — running twice on holds"
 metadata: 
   node_type: memory
   type: project

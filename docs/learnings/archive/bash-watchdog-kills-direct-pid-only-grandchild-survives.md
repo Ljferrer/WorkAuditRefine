@@ -92,3 +92,5 @@ Killing a monitor early is not equivalent to letting it finish; if the monitor's
 matters (a final containment KILL, a log flush, a lock release), either let it run to
 completion before tearing it down, or have the *parent* itself perform the tail action
 before/instead of killing the monitor.
+
+> archived 2026-08-25: resolved — moved to archive

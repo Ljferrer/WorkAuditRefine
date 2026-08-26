@@ -107,3 +107,5 @@ Related: [[terminal-phase-close-polish-absorb-finding-has-no-further-round-to-la
 disposition-routing mechanics that applied to these three findings);
 [[release-blurb-overstates-guard-semantics]] (the sibling family of Status-blurb calibration rules
 the same checklist's item 7 cites by name).
+
+> archived 2026-08-25: resolved — moved to archive

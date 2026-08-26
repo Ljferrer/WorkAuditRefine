@@ -1,6 +1,6 @@
 ---
 name: evidence-artifacts-emission-clause-shipped-with-two-known-residual-gaps-filed-not-fixed
-description: "workflow-template.js's new auditEvidenceOf/`## Evidence artifacts` filing-prompt emission (Task 3.2, PIN-14, ADR 0044) landed with two known, filed-but-unfixed gaps: (1) the seat-lens extraction clause's trailing `:<lens>` parse mis-reads a rebuttal-round seat label's `:rebut` suffix (#1659); (2) auditEvidenceOf's pinned-sha arm has no producer for requiresTest:false tasks, so a whole task class renders 'pinned sha unrecorded' (#1660) — treat both as known live gaps until their filed issues land"
+description: "workflow-template.js's new auditEvidenceOf/`## Evidence artifacts` filing-prompt emission…"
 metadata:
   type: project
   provenance: code-verified

@@ -1,6 +1,6 @@
 ---
 name: doctrine-landing-class-token-can-name-a-marker-outside-its-own-ratified-enum
-description: "A doctrine sentence can gate on 'landing class is X' for a value X that the same doctrine's own ratified class->section enum never defines — self-rescued only by a parenthetical naming the real (row-level, not column-level) marker"
+description: "A doctrine sentence can gate on 'landing class is X' for a value X that the same doctrine's…"
 metadata: 
   node_type: memory
   type: project
