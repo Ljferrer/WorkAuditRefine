@@ -10174,11 +10174,22 @@ test('maxParallel-absent: the absent-knob path takes no batching branch — one 
 // classification: give the site a fallback/guard, or extend the floor's required/exempt sets (and
 // this pin) in the same commit. Names only, not counts — a count pin would churn on every
 // duplicate-site edit without changing the completeness contract.
+//
+// Hand-scan record (the census grep is a FLOOR, plan-mandated survey): the template's prompt-build
+// regions were re-scanned case-insensitively for interpolations the purity pattern misses. Result:
+// every rejected args-touching site carries an explicit ??/||/ternary fallback or rides the
+// ternary-gated doneWhenClause helper — zero missed fallback-free sites, no survey-derived
+// corrections. Known structural false-negative classes of the mechanical pattern (recorded, not
+// silently absorbed): (a) bracket-indexed roots (`${tasks[0].id}`) are not admitted by the dotted
+// chain regex — none exist in the template today; (b) an interpolation nested inside another
+// expression's braces is seen only via the flat re-scan of the outer span text. Escaped `\${…}`
+// pairs are prompt PROSE (agent-resolved placeholders) and are dropped by the tokenizer — e.g. the
+// release-baseline rule's `\${integrationBranch}...\${task.branch}` mirror text is not a live site.
 const BARE_INTERPOLATION_CENSUS = [
   'PLAN_DEFECT_SENTINEL', 'PREFLIGHT', 'SCRIPT', 'artifactLine', 'authArtifactLine', 'authCriteria',
   'baseDesc', 'batchSha', 'block', 'depSha', 'depth', 'doneWhenLog', 'e.preMergeTip', 'e.taskId',
   'ensures', 'ev.round', 'ev.sha', 'f.file', 'f.severity', 'f.suggested_fix', 'gateHeadSha',
-  'ghUser', 'guardEvidence', 'guardSpecificity', 'integratedTip.gate_output', 'integrationBranch',
+  'ghUser', 'guardEvidence', 'guardSpecificity', 'integratedTip.gate_output',
   'intent', 'landedTipAnchor', 'lens', 'm.file', 'm.line', 'm.taskId', 'memoryLocalRoot',
   'nearMissDiag', 'owned', 'pendingRevert', 'ph.epicIssue', 'ph.id', 'ph.integrationBranch',
   'ph.title', 'ph.workingBranch', 'pin', 'pinEvidence', 'pinStatus', 'pinStatusLine', 'plan.gate',
@@ -10283,6 +10294,9 @@ test('provenance floor: stoplist — a slug of generic tokens derives no ownToke
   assert.equal(out.landDecision, 'landed', `generic-slug run is not falsely refused — got ${out.landDecision}`)
 })
 
+// Recorded blast radius (audit, r3): the source:'auto' exemption makes auto-stamped backstop text a
+// TRUSTED, unscanned channel — a poisoned auto row would pass the provenance floor by construction.
+// Accepted residual: auto rows are engine-authored (setup/land sites), never Lead-assembled text.
 test("provenance floor: a source:'auto' row is exempt from the scan — its foreign-looking text never refuses", async () => {
   const args = PROVISION_ARGS({
     backstops: [{ check: 'grep -F pattern docs/plans/foreign-thing.md', why: 'setup-recorded', runner: 'operator', source: 'auto' }],

@@ -18,8 +18,10 @@
 // Exit contract (floor scripts exit 0/1/2; 2 never collapses into the floor status):
 //   0 — every required field is present; the launch is dispatch-complete.
 //   1 — a required field is missing: stderr names each missing field. Fix the assembled args.
-//   2 — read error: unreadable template, unreadable args file/stdin, or unparseable args JSON —
-//       never reported as "missing field".
+//   2 — tooling error: unreadable template, unreadable args file/stdin, unparseable args JSON, or
+//       a readable template that yields ZERO fallback-free interpolations (wrong template source —
+//       certifying against zero requirements would be a silent pass) — never reported as
+//       "missing field" and never a floor pass.
 //
 // Extraction mechanics (A2 — mechanism latitude granted by the plan's Commander's Intent):
 //   - Only pt-tagged template literals are scanned (the dispatched-prompt surface). Comments, error
@@ -29,7 +31,9 @@
 //     not fallback-free.
 //   - Chains map to args fields by root: `ph.X` → phase.X; `plan.X` → plan.X; `task.X` / `t.X` /
 //     `r.task.X` → tasks[].X; a bare identifier maps to a top-level args key only when the template
-//     binds it as an unguarded `const <name> = A.<name>` read (mechanically parsed from the source).
+//     binds it as an unguarded `const <local> = A.<key>` read or a no-default destructure off `A`
+//     (mechanically parsed from the source) — detection keys on the LOCAL name, but the emitted
+//     field is the ARGS key (an aliased `{ phase: ph }` binding emits `phase`, never `ph`).
 //     Locals and loop variables have no such binding and drop out.
 //   - EXEMPT fields (documented below) are extracted but not required: each is either derived at
 //     entry from other args, composed with a default at the template's own composition point, or
@@ -47,7 +51,7 @@
 // module's exports: any NEW fallback-free interpolation reds the census and forces an explicit
 // classification (required here, or exempt with a reason).
 
-import { readFileSync } from 'node:fs'
+import { readFileSync, realpathSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
@@ -79,7 +83,10 @@ export function ptSpans (source) {
     while (i < source.length && stack.length) {
       const c = source[i]
       const top = stack[stack.length - 1]
-      if (c === '\\' && top === 'tpl') { out += source.slice(i, i + 2); i += 2; continue }
+      // Escaped pairs are DROPPED, not copied: an escaped `\${…}` is prompt PROSE (an
+      // agent-resolved placeholder), and copying it would make the flat re-scan count it as a
+      // real interpolation. Dropping still consumes both chars, so `\`` never terminates a span.
+      if (c === '\\' && top === 'tpl') { i += 2; continue }
       if (top === 'tpl') {
         if (c === '`') { stack.pop(); if (!stack.length) break; out += c; i++; continue }
         if (c === '$' && source[i + 1] === '{') { stack.push('expr'); out += '${'; i += 2; continue }
@@ -111,20 +118,24 @@ export function extractInterpolations (source) {
   return chains
 }
 
-// Top-level args keys the template binds WITHOUT a guard/fallback: `const <name> = A.<name>` (the
+// Top-level args keys the template binds WITHOUT a guard/fallback: `const <name> = A.<key>` (the
 // trailing comment tolerated), plus destructure bindings without defaults on the `= A` line.
+// Returns a Map LOCAL binding name → ARGS key: detection of a bare `${…}` identifier keys on the
+// local name, but the field the floor requires (and the missing-field message names) must be the
+// args key — an aliased binding (`const { phase: ph } = A`) reads `A.phase`, not `A.ph`.
 export function unguardedTopLevelKeys (source) {
-  const keys = new Set()
+  const keys = new Map()
   const re = /^const ([A-Za-z_$][\w$]*) = A\.([A-Za-z_$][\w$]*)\s*(?:\/\/.*)?$/gm
   let m
-  while ((m = re.exec(source))) keys.add(m[1])
+  while ((m = re.exec(source))) keys.set(m[1], m[2])
   const destructure = source.match(/^const \{ (.*) \} = A$/m)
   if (destructure) {
     for (const part of destructure[1].split(',')) {
       const p = part.trim()
       if (p.includes('=')) continue // has a default — guarded
       const alias = p.match(/^([\w$]+): ([\w$]+)$/)
-      keys.add(alias ? alias[2] : p)
+      if (alias) keys.set(alias[2], alias[1]) // local → args key
+      else keys.set(p, p)
     }
   }
   return keys
@@ -141,7 +152,7 @@ export function extractArgsFields (source) {
     else if (root === 'plan' && parts.length === 2) fields.add(`plan.${parts[1]}`)
     else if ((root === 'task' || root === 't') && parts.length === 2) fields.add(`tasks[].${parts[1]}`)
     else if (root === 'r' && parts[1] === 'task' && parts.length === 3) fields.add(`tasks[].${parts[2]}`)
-    else if (parts.length === 1 && topLevel.has(root)) fields.add(root)
+    else if (parts.length === 1 && topLevel.has(root)) fields.add(topLevel.get(root)) // emit the ARGS key, not the local alias
   }
   return [...fields].sort()
 }
@@ -186,7 +197,10 @@ export function checkArgs (fields, args) {
       }
     } else if (!present(a[field])) {
       // Top-level derivation inputs (planSlug/runId/worktreeRoot) are only consumed when a task
-      // lacks the explicit path — mirror the template's derivation-class gating.
+      // lacks the explicit path — mirror the template's derivation-class gating. DEFENSIVE for the
+      // shipped template: it never interpolates the trio bare into a pt span today, so this gate
+      // fires only if a future template edit adds such a site (covered by a synthetic-template
+      // fixture in assert-args-complete.test.mjs, not by the real-template census).
       if ((field === 'planSlug' || field === 'runId' || field === 'worktreeRoot') &&
           !tasks.some(t => !present(t && t.branch) || !present(t && t.worktree))) continue
       missing.push(`${field} is missing`)
@@ -196,7 +210,10 @@ export function checkArgs (fields, args) {
 }
 
 // ---- CLI -----------------------------------------------------------------------------------
-const invokedDirectly = process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href
+// Repo-canonical main-guard idiom (war-config.mjs / stage-workflow.mjs / war-memory.mjs): realpath
+// the argv entry so a symlinked invocation still RUNS the floor — the retired file:// string-build
+// made a symlinked invocation silently exit 0 having checked nothing (a fail-open floor).
+const invokedDirectly = process.argv[1] && fileURLToPath(import.meta.url) === realpathSync(process.argv[1])
 if (invokedDirectly) {
   const here = dirname(fileURLToPath(import.meta.url))
   let templatePath = join(here, 'workflow-template.js')
@@ -237,12 +254,23 @@ if (invokedDirectly) {
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
     process.stderr.write(`assert-args-complete: args must be a JSON object, got ${parsed === null ? 'null' : Array.isArray(parsed) ? 'array' : typeof parsed}\n`); process.exit(2)
   }
-  const missing = checkArgs(extractArgsFields(src), parsed)
+  const fields = extractArgsFields(src)
+  if (fields.length === 0) {
+    // Vacuous-pass guard: a READABLE but wrong template source (empty file, non-template JS)
+    // extracts zero fields, and certifying against zero requirements would be a silent floor
+    // pass. That is a tooling error (exit 2), never a floor status.
+    process.stderr.write(`assert-args-complete: template ${templatePath} yielded ZERO fallback-free interpolations — wrong template source? refusing to certify\n`)
+    process.exit(2)
+  }
+  const missing = checkArgs(fields, parsed)
   if (missing.length) {
     process.stderr.write(`assert-args-complete: launch args are dispatch-INCOMPLETE (${missing.length} missing field(s)):\n`)
     for (const line of missing) process.stderr.write(`  - ${line}\n`)
     process.exit(1)
   }
-  process.stdout.write('assert-args-complete: launch args are dispatch-complete\n')
+  // Scope the claim to what was proven: the fallback-free prompt-interpolation surface only —
+  // the template's own entry validation (fallback-guarded required fields like plan.file /
+  // tasks[].planSlice) still applies at dispatch.
+  process.stdout.write('assert-args-complete: launch args are dispatch-complete — every fallback-free prompt interpolation is supplied (template entry validation still applies)\n')
   process.exit(0)
 }

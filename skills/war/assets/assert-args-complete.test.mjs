@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -35,7 +35,8 @@ test('ptSpans: collects only pt-tagged template literals, never plain ones or co
 test('ptSpans: a nested pt literal inside a ternary expression stays inside the outer span', () => {
   const src = 'const a = pt`outer ${cond ? pt`inner ${a.b} text` : \'\'} tail ${c.d}`'
   const spans = ptSpans(src)
-  // The outer walk collects the outer span (including the nested one) and then re-finds the inner.
+  // The outer walk collects one span whose text INCLUDES the nested literal; the flat ${…} re-scan
+  // over that text sees both interpolations (the inner span is never matched separately).
   const chains = extractInterpolations(src)
   assert.ok(chains.has('a.b'), 'nested-span interpolation extracted')
   assert.ok(chains.has('c.d'), 'outer-span tail interpolation extracted — the span did not terminate early')
@@ -56,7 +57,7 @@ test('extractInterpolations: fallback-bearing and guarded expressions are exclud
     `only the pure member chain qualifies — got ${JSON.stringify([...chains.keys()])}`)
 })
 
-test('unguardedTopLevelKeys: finds unguarded const X = A.X reads and no-default destructure bindings', () => {
+test('unguardedTopLevelKeys: finds unguarded const X = A.X reads and no-default destructure bindings, mapping local → args key', () => {
   const src = [
     'const { phase: ph, plan, tasks, learningsTarget, agents = {}, audit = {}, run = {} } = A',
     'const planSlug = A.planSlug',
@@ -65,10 +66,29 @@ test('unguardedTopLevelKeys: finds unguarded const X = A.X reads and no-default 
   ].join('\n')
   const keys = unguardedTopLevelKeys(src)
   for (const k of ['planSlug', 'runId', 'plan', 'tasks', 'learningsTarget', 'ph']) {
-    assert.ok(keys.has(k), `unguarded binding ${k} is found`)
+    assert.ok(keys.has(k), `unguarded binding ${k} is found (detection keys on the LOCAL name)`)
   }
+  assert.equal(keys.get('ph'), 'phase', 'an aliased destructure binding maps to the ARGS key it reads')
+  assert.equal(keys.get('planSlug'), 'planSlug', 'an unaliased binding maps to itself')
   assert.ok(!keys.has('ghUser'), 'a guarded (intake-defaulted) binding is NOT an unguarded key')
   assert.ok(!keys.has('agents'), 'a destructure binding with a default is NOT an unguarded key')
+})
+
+test('extractArgsFields: a bare aliased binding emits the ARGS key, never the local alias', () => {
+  const src = [
+    'const { phase: ph } = A',
+    'const a = pt`phase object dump: ${ph}`',
+  ].join('\n')
+  const fields = extractArgsFields(src)
+  assert.ok(fields.includes('phase'), `emits the args key phase — got ${JSON.stringify(fields)}`)
+  assert.ok(!fields.includes('ph'), 'the local alias ph is never emitted as a field')
+})
+
+test('extractInterpolations: an escaped \\${…} in prompt prose is NOT extracted (it is prose, not an interpolation)', () => {
+  const src = 'const a = pt`resolve \\${MAIN} yourself, then ${real.chain}`'
+  const chains = extractInterpolations(src)
+  assert.ok(!chains.has('MAIN'), `escaped prose placeholder is not extracted — got ${JSON.stringify([...chains.keys()])}`)
+  assert.ok(chains.has('real.chain'), 'the genuine interpolation after the escaped pair is still extracted')
 })
 
 test('extractArgsFields: maps roots to args surfaces (ph→phase, r.task→tasks[]) and drops locals', () => {
@@ -126,7 +146,26 @@ test('checkArgs: missing derivation inputs surface on tasks[].branch/worktree na
   const missing = checkArgs(extractArgsFields(templateSrc), a)
   const row = missing.find(m => m.includes('tasks[t1].worktree'))
   assert.ok(row, `tasks[t1].worktree flagged when runId is absent — got ${JSON.stringify(missing)}`)
-  assert.ok(/explicitly|runId/.test(row), 'the message names the explicit-path and derivation remedies')
+  // Both remedies, asserted separately — an alternation would pass with either half missing.
+  assert.match(row, /supply it explicitly/, 'the message names the explicit-path remedy')
+  assert.match(row, /worktreeRoot \+ runId \+ phase\.id/, 'the message names the full derivation-input remedy')
+})
+
+test('checkArgs: a bare top-level derivation input is required only while some task still needs derivation', () => {
+  // The shipped template never interpolates the trio bare into a pt span, so this gate is
+  // exercised against a SYNTHETIC template that does (the defensive branch stays covered).
+  const src = [
+    'const runId = A.runId',
+    'const a = pt`run ${runId} / task ${task.id} at ${task.worktree} on ${task.branch}`',
+  ].join('\n')
+  const fields = extractArgsFields(src)
+  assert.ok(fields.includes('runId'), `synthetic template requires bare runId — got ${JSON.stringify(fields)}`)
+  const base = () => ({ phase: { id: 3 }, tasks: [{ id: 't1', branch: 'war/x/t1', worktree: '/abs/t1' }] })
+  assert.deepEqual(checkArgs(fields, base()), [],
+    'all tasks explicit ⇒ the absent derivation input is not demanded')
+  const a = base(); delete a.tasks[0].worktree
+  const missing = checkArgs(fields, a)
+  assert.ok(missing.some(m => m === 'runId is missing'), `a task needing derivation demands the input — got ${JSON.stringify(missing)}`)
 })
 
 test('checkArgs: explicit per-task branch+worktree satisfy without the derivation trio', () => {
@@ -163,10 +202,41 @@ test('checkArgs: exempt fields (plan.gate, tasks[].doneWhen, phase.epicIssue) ar
 
 const runCli = (argv, input) => spawnSync(process.execPath, [CLI, ...argv], { input, encoding: 'utf8' })
 
-test('CLI: complete args on stdin exit 0', () => {
+test('CLI: complete args on stdin exit 0, claiming only the interpolation surface', () => {
   const r = runCli([], JSON.stringify(COMPLETE()))
   assert.equal(r.status, 0, `exit 0 on complete args — stderr: ${r.stderr}`)
   assert.match(r.stdout, /dispatch-complete/, 'stdout confirms completeness')
+  assert.match(r.stdout, /entry validation still applies/,
+    'the success line scopes the claim — the preflight never vouches for the fallback-guarded entry fields')
+})
+
+test('CLI: a symlinked invocation still RUNS the floor (repo-canonical realpath main guard)', () => {
+  // The retired file:// string-build main guard made a symlinked invocation exit 0 having checked
+  // NOTHING — the worst failure mode for a floor. Spawn through a symlink and prove the floor ran.
+  const dir = mkdtempSync(join(tmpdir(), 'aac-link-'))
+  try {
+    const link = join(dir, 'aac-link.mjs')
+    symlinkSync(CLI, link)
+    const ok = spawnSync(process.execPath, [link], { input: JSON.stringify(COMPLETE()), encoding: 'utf8' })
+    assert.equal(ok.status, 0, `symlinked run with complete args exits 0 — stderr: ${ok.stderr}`)
+    assert.match(ok.stdout, /dispatch-complete/, 'the floor actually ran and certified (not a silent no-op exit 0)')
+    const a = COMPLETE(); delete a.phase.workingBranch
+    const bad = spawnSync(process.execPath, [link], { input: JSON.stringify(a), encoding: 'utf8' })
+    assert.equal(bad.status, 1, `symlinked run with incomplete args exits 1 — stderr: ${bad.stderr}`)
+    assert.match(bad.stderr, /phase\.workingBranch/, 'the symlinked floor names the missing field')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('CLI: a readable template yielding ZERO interpolations is refused as a tooling error (exit 2), never certified', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'aac-empty-'))
+  try {
+    const empty = join(dir, 'not-the-template.js')
+    writeFileSync(empty, '// readable, but not a workflow template\n')
+    const r = runCli(['--template', empty], JSON.stringify(COMPLETE()))
+    assert.equal(r.status, 2, `exit 2 on a zero-field template — stdout: ${r.stdout}; stderr: ${r.stderr}`)
+    assert.match(r.stderr, /ZERO fallback-free interpolations/, 'stderr names the vacuous extraction')
+    assert.match(r.stderr, /refusing to certify/, 'the refusal is explicit — never a silent floor pass')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
 })
 
 test('CLI: a launch omitting a fallback-free field exits 1 naming the field, before any dispatch', () => {
