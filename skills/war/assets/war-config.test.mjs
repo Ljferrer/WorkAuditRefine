@@ -402,6 +402,39 @@ test('roundLimit below 1 rejected', () => {
   assert.equal(validate({ run: { roundLimit: 0 } }).valid, false)
 })
 
+// --- run.maxParallel (optional fan-out throttle) ------------------------------
+// No DEFAULTS.run entry: absence IS the default (unthrottled fan-out). When present,
+// integer >= 1; anything else is rejected with an error naming the key.
+
+test('maxParallel valid integer accepted', () => {
+  assert.equal(validate({ run: { maxParallel: 3 } }).valid, true)
+})
+
+test('maxParallel of 0 rejected with an error naming the key', () => {
+  const r = validate({ run: { maxParallel: 0 } })
+  assert.equal(r.valid, false)
+  assert.match(r.errors.join('\n'), /run\.maxParallel/)
+})
+
+test('maxParallel negative rejected', () => {
+  assert.equal(validate({ run: { maxParallel: -2 } }).valid, false)
+})
+
+test('maxParallel non-integer rejected', () => {
+  assert.equal(validate({ run: { maxParallel: 2.5 } }).valid, false)
+})
+
+test('maxParallel string rejected', () => {
+  assert.equal(validate({ run: { maxParallel: '4' } }).valid, false)
+})
+
+test('maxParallel absent passes and has no DEFAULTS.run entry', () => {
+  assert.equal(validate({}).valid, true)
+  assert.equal(Object.prototype.hasOwnProperty.call(DEFAULTS.run, 'maxParallel'), false,
+    'run.maxParallel must NOT be defaulted — absence is the unthrottled default')
+  assert.equal(fillDefaults({}).run.maxParallel, undefined)
+})
+
 // --- run.redteamRoundLimit (/red-team cumulative grill-round budget, D3) ------
 // A run-block sibling of roundLimit consumed by /red-team's fail-open config read,
 // never the phase engine. Never inside agents.redteam (a { model, effort } tier).

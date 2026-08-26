@@ -212,6 +212,9 @@ export function validate(input) {
   if (typeof au.autoEscalate !== 'boolean') errors.push('audit.autoEscalate must be a boolean')
 
   if (!Number.isInteger(c.run.roundLimit) || c.run.roundLimit < 1) errors.push(`run.roundLimit must be an integer >= 1 (got ${JSON.stringify(c.run.roundLimit)})`)
+  // run.maxParallel is optional with NO DEFAULTS.run entry: absence IS the default (unthrottled
+  // fan-out, byte-identical to pre-knob behavior). When present it must be an integer >= 1.
+  if (c.run.maxParallel !== undefined && (!Number.isInteger(c.run.maxParallel) || c.run.maxParallel < 1)) errors.push(`run.maxParallel must be an integer >= 1 when present (got ${JSON.stringify(c.run.maxParallel)})`)
   if (!Number.isInteger(c.run.redteamRoundLimit) || c.run.redteamRoundLimit < 1) errors.push(`run.redteamRoundLimit must be an integer >= 1 (got ${JSON.stringify(c.run.redteamRoundLimit)})`)
   if (typeof c.run.afk !== 'boolean') errors.push('run.afk must be a boolean')
   if (typeof c.run.ace !== 'boolean') errors.push('run.ace must be a boolean')
