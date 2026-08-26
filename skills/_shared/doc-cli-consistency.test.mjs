@@ -172,6 +172,12 @@ const VERB_SCAN_EXCLUSIONS = [
   // no shell-out prose for the scanned modules (arming/refute/waive doctrine only; names
   // the recon corpus classes by prose, never a CLI command)
   'skills/war-strategy/references/strategy-verifier.md',
+  // budget-raise-floor.md carries the Budget-Raise merge floor's branch prose plus blocks
+  // evicted verbatim from agents/war-refiner.md (byte-funding, engine-reliability Phase 2
+  // Task 2); its only command prose targets assert-budget-raise-cited.sh, git, and
+  // provision-worktrees.sh — none is a scanned module, and it phrases no verb for any
+  // scanned module.
+  'skills/war/references/budget-raise-floor.md',
 ]
 
 function skillDocs() {

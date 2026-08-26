@@ -172,6 +172,14 @@ const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties:
   // NO status enum value, HARD_ESCALATION_REASONS member, or KNOWN_LAND_DECISIONS member is added or
   // changed (land-decision.mjs and both hand-mirrored enum blocks byte-untouched, ADR 0005).
   done_when_log_path: { type: 'string' },
+  // floor_route (Budget-Raise floor, engine-reliability Phase 2 Task 2): the in-band budget-uncited
+  // route marker — the literal 'budget-uncited' riding status:'no-test' when assert-budget-raise-cited.sh
+  // exits 1 (an uncited prompt-surface ceiling raise). merge-task only, OPTIONAL. Orthogonal to status
+  // exactly like gate_failure_class — NO status enum value, HARD_ESCALATION_REASONS member, or
+  // KNOWN_LAND_DECISIONS member is added or changed (the red-team adjudication rules MERGE_RESULT status
+  // widening outside the pre-authorization; the segmented-land precedent: an in-band field, never a
+  // status member). Absent ⇒ every consumer is byte-identical to a budget-floor-less run (set-minus).
+  floor_route: { enum: ['budget-uncited'] },
   pr_number: { type: 'number' }, pr_remote: { type: 'string' } } }
 
 // EVIDENCE_RESULT (D1/D4/D6): the shape of the ONE consolidated post-merge refiner "evidence dispatch"
@@ -1017,6 +1025,15 @@ const floorDiagOf = mr => (mr && typeof mr.floor_diagnostic === 'string' && mr.f
 // content — the fix-worker reads the file) and the done-unmet exhaustion detail, and null ⇒ both are
 // byte-/shape-identical to an artifact-less run. Never routed on, never a status.
 const doneWhenLogOf = mr => (mr && typeof mr.done_when_log_path === 'string' && mr.done_when_log_path) ? mr.done_when_log_path : null
+// routedMr (Budget-Raise floor, engine-reliability Phase 2 Task 2): the WIRE carries the Budget-Raise
+// floor's exit-1 route as status:'no-test' + floor_route:'budget-uncited' (the in-band marker — the
+// MERGE_RESULT status enum is never widened; red-team pre-authorization). The Workflow routes on a
+// NORMALIZED internal status 'budget-uncited' so the floor sub-loop's verdict/log/prompt surfaces name
+// the real tripped floor without touching the wire schema. floor_route absent ⇒ identity (set-minus:
+// every budget-floor-less result flows through byte-identical). Workflow-internal only — the routed
+// status is never returned to a refiner and never re-enters a MERGE_RESULT.
+const routedMr = mr => (mr && mr.status === 'no-test' && mr.floor_route === 'budget-uncited')
+  ? { ...mr, status: 'budget-uncited' } : mr
 const debtIds = ids => (Array.isArray(ids) ? ids : (ids ? [ids] : [])).map(String)
 // recordBaselineDebt: dedup by SUBSET-CONTAINMENT with an EMPTY-set carve-out (#798). A NON-EMPTY
 // id-set that is a subset (⊆) of some existing entry's ids at the SAME base sha is a no-op — already
@@ -1781,7 +1798,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           + pt`\`git -C ${r.task.worktree} revert --no-edit ${r.aceReverted}\` (forward-only, classifier-safe — it is the clean inverse of the task-branch tip, cannot conflict) `
           + pt`BEFORE the rebase step (a), so the merge runs on the reverted-to-approved tip. Do NOT reset --hard. The approved work still lands.\n`
         : ''
-      const mr = await agent(
+      const mr = routedMr(await agent(
         pt`Merge WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
         + aceRevertClause
         + reattachClause(refineryPath)
@@ -1796,6 +1813,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + gateCaptureClause(refineryPath, r.task.id)
         + pt`Also populate integration_sha with the rebased integration tip the gate ran against, so the gate-audit pass can confirm the gate ran at the integration tip.`
         + pt` Before the _refinery merge step (b), run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${r.task.branch}${r.task.taskType === 'gitlink-bump' && r.task.declared ? ' --declared' : ''} (REGARDLESS of requiresTest — a submodule touch is refused whether or not the task needs a test; the relax-flag is only threaded for a declared gitlink-bump task). Exit 1 → return { mode: 'merge-task', status: 'submodule-blocked' } — do NOT merge. Exit 2 → return { mode: 'merge-task', status: 'error' }.`
+        + pt` Also before step (b), run assert-budget-raise-cited.sh ${ph.integrationBranch} ${r.task.branch} (ALWAYS — it exits 0 on its own when the diff touches no prompt-surface budget ceiling). Exit 1 (a hard:/advisory: ceiling raise in prompt-surface-budgets.test.mjs with no Budget-Raise trailer on any commit in the range) → return { mode: 'merge-task', status: 'no-test', floor_route: 'budget-uncited' } — the in-band budget-uncited route (the status enum is never widened) — do NOT merge; the required commit trailer form is \`Budget-Raise: ADR-0042 <surface> +<bytes>\`, and a legitimate ceiling change routes through the operator re-baseline pass (skills/war/references/budget-rebaseline.md) — a worker instead funds growth UNDER the ceiling. Exit 2 (a git/ref error) → return { mode: 'merge-task', status: 'error' }, never the budget-uncited route — the exit-1-vs-2 split mirrors the test floor.`
         + (requiresTest
           ? pt` Also before step (b), run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${testPatternArg} to verify the task diff contains at least one test file. Branch on the exit code: exit 1 (no test in the diff) → return { mode: 'merge-task', status: 'no-test' } — do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'no-test' — a transient bad-ref must not spin a pointless add-test loop. On that exit 1 path ONLY, ALSO capture the script's stderr VERBATIM (the near-miss diagnostic) into floor_diagnostic alongside status:'no-test' — never edited, never summarised; empty/absent stderr ⇒ omit floor_diagnostic. It is fail-open advisory context, never a routing input. On exit 0, capture the script's stdout — ALL matched test paths, one per line — into mappedTests (an array of those paths) on the returned MergeResult; the gate-audit pass greps them against the captured gate log (D7).`
           : pt` requiresTest:false — skip the assert-test-in-diff.sh check and proceed directly to the rebase+merge.`)
@@ -1804,7 +1822,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           : pt` requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`)
         + doneWhenFloorClause(r.task, refineryPath)
         + submodMergeNote,
-        { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}`, schema: MERGE_RESULT, ...spawn('refiner') })
+        { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}`, schema: MERGE_RESULT, ...spawn('refiner') }))
 
       // submodule-blocked: immediate hard escalate, 0 fix rounds (refuse-all, like env-blocked).
       // ponytail: reuses existing 'escalate' reason (DP3 — no new HARD_ESCALATION_REASONS member, no land-decision.mjs cascade)
@@ -1815,16 +1833,21 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       }
 
       // Combined floor-retry sub-loop: bounded fix-worker + full re-audit on ANY floor status
-      // (no-test, unpackaged, OR done-unmet). NOT a blind copy of the old no-test-only loop — a retry
+      // (no-test, unpackaged, done-unmet — or the budget-uncited route, which rides status:'no-test'
+      // as the in-band floor_route marker). NOT a blind copy of the old no-test-only loop — a retry
       // merge here hard-escalated any unexpected status verbatim, so a task tripping SEVERAL floors
       // (adds a source file with no test AND no COPY) would clear one and hard-escalate on the other,
       // never getting its bounded fix (spec §4.2). One loop, all floors, shared budget, until all pass
       // or exhaust. done-unmet (precision-chain D1, Task 2.3) routes the make-this-command-pass fix —
       // the no-test pattern; exhaustion escalates reason 'done-unmet' via the generic tail below.
       // Every dispatched retry-merge re-instructs ALL floor invocations (test + packaging + submodule
-      // + done-when), keeping the dispatched prompts in sync with the standing war-refiner.md steps.
-      // ponytail: requiresTest:false / requiresPackaging:false / doneWhen-less tasks never enter (that floor's status is never returned)
-      const FLOOR_STATUSES = ['no-test', 'unpackaged', 'done-unmet']
+      // + budget-raise + done-when), keeping the dispatched prompts in sync with the standing war-refiner.md steps.
+      // ponytail: requiresTest:false / requiresPackaging:false / doneWhen-less tasks never enter (that floor's status is never returned);
+      // a diff touching no prompt-surface budget ceiling never returns the budget-uncited route either.
+      // 'budget-uncited' here is the routedMr-NORMALIZED internal status (wire: status:'no-test' +
+      // floor_route:'budget-uncited' — no MERGE_RESULT enum widening), so the budget route shares this
+      // sub-loop exactly like the sibling floors.
+      const FLOOR_STATUSES = ['no-test', 'unpackaged', 'done-unmet', 'budget-uncited']
       if (mr && FLOOR_STATUSES.includes(mr.status)) {
         let floorMr = mr
         let reAuditFailed = false
@@ -1832,6 +1855,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           // Dispatch a fix-worker keyed to the CURRENT tripped floor, in the SAME worktree.
           const isNoTest = floorMr.status === 'no-test'
           const isDoneUnmet = floorMr.status === 'done-unmet'
+          // budget-uncited: the routedMr-normalized internal status for the Budget-Raise floor's exit-1
+          // route (wire: status:'no-test' + floor_route marker — no enum widening).
+          const isBudgetUncited = floorMr.status === 'budget-uncited'
           // Near-miss diagnostic (D6): present ⇒ one appended pt-tagged paragraph quoting it VERBATIM;
           // absent ⇒ '' so the ADD_TEST prompt is byte-identical to a diagnostic-less run (set-minus).
           const nearMissDiag = floorDiagOf(floorMr)
@@ -1860,6 +1886,11 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
               + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
               + pt`Make this command pass: fix the implementation for the slice described in: ${r.task.planSlice} until the Done when: command above exits 0 — never weaken, skip, or delete a test to force it green. Keep the gate green, commit and push.`
               + doneWhenLogClause
+            : isBudgetUncited
+            ? pt`CITE_BUDGET for WAR task ${r.task.id}. The refiner's merge-task check (assert-budget-raise-cited.sh) found a hard:/advisory: ceiling RAISE in skills/war/assets/prompt-surface-budgets.test.mjs with no Budget-Raise trailer in the range (the budget-uncited route). `
+              + pt`Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
+              + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
+              + pt`Resolve it for the slice described in: ${r.task.planSlice}. PREFER un-raising the ceiling and funding the growth under it (ADR 0042 — evict cold prose to references/ behind a trigger pointer); a ceiling change is an operator act via the re-baseline pass (skills/war/references/budget-rebaseline.md), and a sanctioned raise must carry a commit trailer of the exact form \`Budget-Raise: ADR-0042 <surface> +<bytes>\` — never raise a ceiling silently. Commit and push, keeping the gate green.`
             : pt`PACKAGE_IT for WAR task ${r.task.id}. The refiner's merge-task check (assert-packaging-in-diff.sh) flagged an added/renamed file a Dockerfile's enumerated COPYs miss. `
               + pt`Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
               + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
@@ -1868,10 +1899,11 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             fixPrompt + workerMemClause(r.task.id) + provisionClause,
             // #817: spawnWorker('fix') makes the add-test/package-it/make-pass floor retry tier-aware, uniform with
             // the fix:/ace: fix-follow-up classes (absent agents.worker.fix ⇒ inherit-base — byte-identical).
-            { agentType: NS + 'war-worker', phase: 'Audit', label: `${isNoTest ? 'add-test' : isDoneUnmet ? 'make-pass' : 'package-it'}:${r.task.id}:r${r.task.fixRounds + 1}`, schema: WORKER_RESULT, ...spawnWorker('fix') })
+            { agentType: NS + 'war-worker', phase: 'Audit', label: `${isNoTest ? 'add-test' : isDoneUnmet ? 'make-pass' : isBudgetUncited ? 'cite-budget' : 'package-it'}:${r.task.id}:r${r.task.fixRounds + 1}`, schema: WORKER_RESULT, ...spawnWorker('fix') })
           // Floor-specific verdict tokens: no-test keeps its historical strings (regression guard #268);
-          // unpackaged/done-unmet use the parallel forms. status ('no-test'|'unpackaged'|'done-unmet') prefixes all three.
-          const blockedVerdict = isNoTest ? 'no-test:add-test-blocked' : isDoneUnmet ? 'done-unmet:make-pass-blocked' : 'unpackaged:package-it-blocked'
+          // unpackaged/done-unmet/budget-uncited use the parallel forms — the budget-uncited ROUTE name
+          // (not the wire status) prefixes its tokens, so the audit log names the real tripped floor.
+          const blockedVerdict = isNoTest ? 'no-test:add-test-blocked' : isDoneUnmet ? 'done-unmet:make-pass-blocked' : isBudgetUncited ? 'budget-uncited:cite-budget-blocked' : 'unpackaged:package-it-blocked'
           const floorFixWhy = blockedReason(floorFix)
           if (floorFixWhy) {
             // Blocked floor fix-worker (worker-authored blocked text) — escalate and break the
@@ -1902,8 +1934,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             break
           }
 
-          // Re-attempt the serial merge — re-instructs ALL floor invocations (test + packaging + submodule + done-when).
-          floorMr = await agent(
+          // Re-attempt the serial merge — re-instructs ALL floor invocations (test + packaging + submodule + budget-raise + done-when).
+          floorMr = routedMr(await agent(
             pt`Merge WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
             + reattachClause(refineryPath)
             + pt`IMPORTANT — merge-task is split across two worktrees (spec §5.2, red-team-verified):\n`
@@ -1917,6 +1949,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             + classificationClause(refineryPath, pt`the phase integration base — the cut point of ${ph.integrationBranch}, i.e. \`git -C ${refineryPath} merge-base ${ph.integrationBranch} ${ph.workingBranch}\``)
             + baselineDebtClause()
             + pt`Before the _refinery merge step (b), re-run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${r.task.branch}${r.task.taskType === 'gitlink-bump' && r.task.declared ? ' --declared' : ''} — the floor fix-worker pushed new commits, so the check runs afresh REGARDLESS of requiresTest (the relax-flag is only threaded for a declared gitlink-bump task). Exit 1 → return { mode: 'merge-task', status: 'submodule-blocked' }, do NOT merge; exit 2 → return { mode: 'merge-task', status: 'error' }. `
+            + pt`Also before step (b), re-run assert-budget-raise-cited.sh ${ph.integrationBranch} ${r.task.branch} (ALWAYS — a fresh Budget-Raise trailer or an un-raised ceiling on the new commits now counts). Exit 1 → return { mode: 'merge-task', status: 'no-test', floor_route: 'budget-uncited' } — the in-band budget-uncited route; do NOT merge; the trailer form is \`Budget-Raise: ADR-0042 <surface> +<bytes>\` (operator re-baseline pass: skills/war/references/budget-rebaseline.md). Exit 2 → return { mode: 'merge-task', status: 'error' }, never the budget-uncited route. `
             + (requiresTest
               ? pt`Before the _refinery merge step (b), run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${testPatternArg} to verify the task diff now contains at least one test file. Branch on the exit code: exit 1 (no test in the diff) → return { mode: 'merge-task', status: 'no-test' }, do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'no-test' — a transient bad-ref must not spin a pointless add-test loop. On that exit 1 path ONLY, ALSO capture the script's stderr VERBATIM (the near-miss diagnostic) into floor_diagnostic alongside status:'no-test' — never edited, never summarised; empty/absent stderr ⇒ omit floor_diagnostic. It is fail-open advisory context, never a routing input. On exit 0, capture the script's stdout — ALL matched test paths, one per line — into mappedTests (an array of those paths) on the returned MergeResult; the gate-audit pass greps them against the captured gate log (D7). `
               : pt`requiresTest:false — skip the assert-test-in-diff.sh check. `)
@@ -1925,11 +1958,13 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
               : pt`requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`)
             + doneWhenFloorClause(r.task, refineryPath)
             + submodMergeNote,
-            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:floor-retry:r${r.task.fixRounds}`, schema: MERGE_RESULT, ...spawn('refiner') })
+            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:floor-retry:r${r.task.fixRounds}`, schema: MERGE_RESULT, ...spawn('refiner') }))
         }
 
         if (!reAuditFailed && floorMr && FLOOR_STATUSES.includes(floorMr.status)) {
-          // Budget exhausted — hard escalation with reason = whichever floor is still tripping (all HARD).
+          // Budget exhausted — hard escalation with reason = whichever floor is still tripping (all
+          // HARD: no-test/unpackaged/done-unmet are HARD_ESCALATION_REASONS members; the routed
+          // budget-uncited status maps to the existing hard reason 'escalate' below, never a new member).
           // The LAST result's near-miss diagnostic rides both entries as `detail` when present (a
           // string-valued detail is legal — this key is already shape-heterogeneous per route: the
           // merge-failure route below pushes the whole MergeResult object). Absent ⇒ no `detail` key at
@@ -1938,8 +1973,15 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           // done-when-floor-wiring D6): present ⇒ a done_when_log_path key, absent ⇒ none.
           const exhaustedDiag = floorDiagOf(floorMr)
           const exhaustedDoneWhenLog = doneWhenLogOf(floorMr)
-          escalated.push({ task: r.task.id, reason: floorMr.status, fixRounds: r.task.fixRounds, ...(exhaustedDiag ? { detail: exhaustedDiag } : {}), ...(exhaustedDoneWhenLog ? { done_when_log_path: exhaustedDoneWhenLog } : {}) })
-          auditLog.push({ task: r.task.id, verdict: `${floorMr.status}:exhausted`, fixRounds: r.task.fixRounds, findings: [], ...(exhaustedDiag ? { detail: exhaustedDiag } : {}), ...(exhaustedDoneWhenLog ? { done_when_log_path: exhaustedDoneWhenLog } : {}) })
+          // budget-uncited exhaustion: 'budget-uncited' is a Workflow-internal routed status, NOT a
+          // HARD_ESCALATION_REASONS member (no enum widening) — it escalates via the existing hard
+          // reason 'escalate' (the submodule-blocked DP3 precedent) with the route named in detail,
+          // so an uncited ceiling raise can never soft-land a phase minus the task.
+          const isBudgetExhaustion = floorMr.status === 'budget-uncited'
+          const exhaustedBudgetDetail = !exhaustedDiag && isBudgetExhaustion
+            ? { detail: 'budget-uncited: a prompt-surface budget ceiling raise still lacks its Budget-Raise trailer after ' + r.task.fixRounds + ' fix round(s)' } : {}
+          escalated.push({ task: r.task.id, reason: isBudgetExhaustion ? 'escalate' : floorMr.status, fixRounds: r.task.fixRounds, ...(exhaustedDiag ? { detail: exhaustedDiag } : exhaustedBudgetDetail), ...(exhaustedDoneWhenLog ? { done_when_log_path: exhaustedDoneWhenLog } : {}) })
+          auditLog.push({ task: r.task.id, verdict: `${floorMr.status}:exhausted`, fixRounds: r.task.fixRounds, findings: [], ...(exhaustedDiag ? { detail: exhaustedDiag } : exhaustedBudgetDetail), ...(exhaustedDoneWhenLog ? { done_when_log_path: exhaustedDoneWhenLog } : {}) })
           continue
         }
 
@@ -1997,6 +2039,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             + gateCaptureClause(refineryPath, r.task.id)
             + pt`  (c) On a fully green gate, MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), git merge ${r.task.branch}, push, return { mode: 'merge-task', status: 'merged', integration_sha: <tip> } — populate integration_sha with the rebased integration tip the gate ran against, so the gate-audit pass can confirm the gate ran at the integration tip.`
             + pt` Before the merge, run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${r.task.branch}${r.task.taskType === 'gitlink-bump' && r.task.declared ? ' --declared' : ''} (exit 1 → submodule-blocked; exit 2 → error).`
+            + pt` Also run assert-budget-raise-cited.sh ${ph.integrationBranch} ${r.task.branch} (ALWAYS; exit 1 → return { mode: 'merge-task', status: 'no-test', floor_route: 'budget-uncited' } — the in-band budget-uncited route, trailer form \`Budget-Raise: ADR-0042 <surface> +<bytes>\`; exit 2 → status: 'error', never the budget-uncited route).`
             + (requiresTest
               ? pt` Also run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${testPatternArg} (exit 1 → no-test; exit 2 → error; exit 0 → capture the script's stdout — ALL matched test paths, one per line — into mappedTests on the returned MergeResult). On that exit 1 path ONLY, ALSO capture the script's stderr VERBATIM (the near-miss diagnostic) into floor_diagnostic alongside status:'no-test' — never edited, never summarised; empty/absent stderr ⇒ omit floor_diagnostic. It is fail-open advisory context, never a routing input.`
               : pt` requiresTest:false — skip the assert-test-in-diff.sh check.`)
@@ -2026,6 +2069,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             + pt`  (b) Run the gate (${plan.gate}) with a fresh TMPDIR (TMPDIR=$(cd / && mktemp -d)); PROCEED over EXACTLY those pre-existing baseline failures and populate gate_output UNCURATED. A NEW failure whose identifiers are NOT in that pre-existing set is a real regression → return { mode: 'merge-task', status: 'gate_failed' } classifying the NEW failure, and do NOT merge.\n`
             + pt`  (c) If the ONLY failures are the pre-existing baseline set, MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), git merge ${r.task.branch}, push, return { mode: 'merge-task', status: 'merged', integration_sha: <tip> }.`
             + pt` Before the merge, run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${r.task.branch}${r.task.taskType === 'gitlink-bump' && r.task.declared ? ' --declared' : ''} (exit 1 → submodule-blocked; exit 2 → error).`
+            + pt` Also run assert-budget-raise-cited.sh ${ph.integrationBranch} ${r.task.branch} (ALWAYS; exit 1 → return { mode: 'merge-task', status: 'no-test', floor_route: 'budget-uncited' } — the in-band budget-uncited route, trailer form \`Budget-Raise: ADR-0042 <surface> +<bytes>\`; exit 2 → status: 'error', never the budget-uncited route).`
             + (requiresTest
               ? pt` Also run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${testPatternArg} (exit 1 → no-test; exit 2 → error; exit 0 → capture the script's stdout — ALL matched test paths, one per line — into mappedTests on the returned MergeResult). On that exit 1 path ONLY, ALSO capture the script's stderr VERBATIM (the near-miss diagnostic) into floor_diagnostic alongside status:'no-test' — never edited, never summarised; empty/absent stderr ⇒ omit floor_diagnostic. It is fail-open advisory context, never a routing input.`
               : pt` requiresTest:false — skip the assert-test-in-diff.sh check.`)
