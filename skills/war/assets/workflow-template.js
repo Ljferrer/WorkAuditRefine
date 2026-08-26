@@ -296,6 +296,12 @@ const mergedTasksForGateAudit = []   // collect {taskId, gateOutput, acceptanceC
 // successor's `git diff <preMergeTip> <gateHeadSha>` into a guaranteed exit-2 ERROR — the [i-1].gateHeadSha
 // chain this replaces had exactly that defect). Null until the first real land ⇒ evItems falls back to phaseBaseCmd.
 let lastLandedTip = null
+// Per-task landed sha (Phase 5 Task 1): the REAL integration_sha each landMerged() call recorded, keyed
+// by task id — retained for EVERY landed task, because a requiresTest:false task never enters
+// mergedTasksForGateAudit (the D7 skip) and so never gets a gate-audit auditLog entry: without this map
+// auditEvidenceOf's pinned-sha lookup renders 'unrecorded' for such a task's filed follow-ups. Real hex
+// shas only (the isSha test) — a sentinel integration_sha is never retained here.
+const landedShaByTask = new Map()
 // Baseline gate debt (spec §6 / ADR 0019): the in-run record of pre-existing gate failures this phase
 // consciously proceeds over. `baselineDebt` is keyed on (failing-identifier set, base sha) — a later
 // failure whose identifiers are COVERED by a recorded entry classifies 'baseline' directly (no repeated
@@ -835,11 +841,20 @@ const provisionClause = provisionList.length
   : ''
 
 const blockingOf = seats => seats.flatMap(s => s.findings || []).filter(f => f.severity === 'Critical' || f.severity === 'Major')
+// auditShaOrSentinel (#1693, Phase 5 Task 1): validates the seat-echoed audit_sha before it is stamped
+// as a finding's `sha` — a malformed/free-text value (a ref expression, prose, an empty string) becomes
+// the sentinel, never an operator-facing asks[].sha pin; an ABSENT sha stays null (the absence-tolerant
+// contract parkAsk's `?? null` and the handoff projection already pin). Deliberately a SELF-CONTAINED
+// sibling copy of the isSha/pinOrSentinel hex test (the #393 extract-and-eval convention keeps each such
+// arrow self-contained; pinOrSentinel is wave-loop-scoped and its sentinel is integration_sha-specific,
+// so it is NOT reusable here) — the sibling-copy drift guard lands deps-edged in the fixtures task.
+const auditShaOrSentinel = s => s == null ? null : (typeof s === 'string' && /^[0-9a-f]{7,40}$/.test(s) ? s : '(audit_sha unrecorded/malformed)')
 // minorsOf returns seat-stamped COPIES (never the seat's own finding objects): each Minor/Nit carries
 // the raising seat's id so the pre-filing follow-up consolidation (Task 2.1, #1566) can build merged
-// rows' seats[] corroboration list, plus the seat's echoed audit_sha as `sha` so a parked ask carries
-// its provenance pin (#1550). Explicit finding-level `seat`/`sha` (spread last) win.
-const minorsOf   = seats => seats.flatMap(s => (s.findings || []).filter(f => f.severity === 'Minor' || f.severity === 'Nit').map(f => ({ seat: s.seat, sha: s.audit_sha, ...f })))
+// rows' seats[] corroboration list, plus the seat's echoed audit_sha — validated through
+// auditShaOrSentinel (#1693) — as `sha` so a parked ask carries its provenance pin (#1550).
+// Explicit finding-level `seat`/`sha` (spread last) win.
+const minorsOf   = seats => seats.flatMap(s => (s.findings || []).filter(f => f.severity === 'Minor' || f.severity === 'Nit').map(f => ({ seat: s.seat, sha: auditShaOrSentinel(s.audit_sha), ...f })))
 // Disposition classification (ADR 0013; ask member #1550): auditor-owned routing, orthogonal to
 // severity. The ask arm precedes the absorb chain (D7 order-census). Defaults when omitted:
 // Minor → 'follow-up', Nit → 'note'; 'absorb' and 'ask' are NEVER defaulted — an ask exists only
@@ -854,7 +869,9 @@ const dispositionOf = f =>
 // artifact and is ruled by the operator at the Checkpoint strike-list gate — NEVER filed unruled
 // (the follow-up consolidation and the file-followups dispatch read minorsFiled only), never
 // dropped. Exactly-once membership by finding identity: every route into asks[] — the six
-// dispositionOf-site ask arms AND the demote() ask refusal — funnels through here, so one finding
+// dispositionOf-site ask arms, the three gate-audit-family comment-named ask arms (#1692 — lanes
+// with no absorb chain, so no dispositionOf call site in the census; their identity check IS the classifier's
+// never-defaulted ask arm), AND the demote() ask refusal — funnels through here, so one finding
 // can never park twice. Record floor: question + fork (the decision needed + the two branches,
 // from the finding's schema-mandatory `ask` field; absence-tolerant fallbacks — fail-open, never
 // a throw) plus task/seat/sha provenance; `finding` keeps the full row (the handoff block
@@ -1645,8 +1662,11 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         ...(Array.isArray(taskDebt) && taskDebt.length ? { baselineDebt: taskDebt } : {}) })
     }
     // Update the tracker AFTER capturing predTip, and ONLY on a real integration_sha (isSha === the
-    // pinOrSentinel hex test); a sentinel leaves it at the last REAL sha. requiresTest:false tasks update it too.
-    if (isSha(mr.integration_sha)) lastLandedTip = mr.integration_sha
+    // pinOrSentinel hex test); a sentinel leaves it at the last REAL sha. requiresTest:false tasks update
+    // it too. The per-task landedShaByTask retention (Phase 5 Task 1) rides the same guard: it is
+    // auditEvidenceOf's fallback so a merged requiresTest:false task (no gate-audit entry — the D7 skip
+    // above) never renders 'unrecorded' as its filed follow-ups' pinned sha.
+    if (isSha(mr.integration_sha)) { lastLandedTip = mr.integration_sha; landedShaByTask.set(task.id, mr.integration_sha) }
   }
   // ---- ACE BISECTION (regression-recovery ladder on a failed --ace batch; D1–D4/D6) ----
   // Order (D2, culprit-first): named culprits are excised (demoted) and the remainder re-applies as
@@ -2497,6 +2517,26 @@ if (mergedTasksForGateAudit.length > 0) {
         // the handoff derivation consumes them (a pin-mismatched entry's rows are EXCLUDED there: the
         // seat judged a different tree, so its conditions fall to 'unverified', never a silent 'met').
         ...(Array.isArray(gateAuditVerdict.endStateAttestations) ? { endStateAttestations: gateAuditVerdict.endStateAttestations } : {}) })
+      // #1692 (gate-audit-family ask routing, Phase 5 Task 1): this lane's Minor/Nit findings are a
+      // DELIBERATE non-filing sink — SOFT auditLog-only observations (comment-named, the pinMismatch
+      // strip's census idiom; they never enter minorsFiled or the filing dispatch) — EXCEPT a
+      // disposition:'ask', which is an operator question and must park on asks[] (#1550, exactly-once
+      // via parkAsk), never sink. The identity check IS dispositionOf's ask arm verbatim ('ask' is
+      // NEVER defaulted, so the classifier returns 'ask' iff f.disposition === 'ask'); the literal
+      // dispositionOf call is withheld on purpose — this lane has no absorb chain, so it cannot take
+      // the six-site order-census shape and census-registers as a comment-named sink instead. A
+      // pin-mismatched seat's ask never parks (same doctrine as the pinMismatch strip: a question
+      // raised against a different tree than the judged tip is not a ruling-worthy fork). Cross-lane
+      // content dedup is ARM-LOCAL (parkAsk's identity contract untouched): a gate-audit seat
+      // re-raising a question a roster seat already parked on the same task is one operator ruling,
+      // not two records — the dedup key mirrors parkAsk's own question derivation.
+      if (!mismatch) for (const f of findings) {
+        if ((f.severity === 'Minor' || f.severity === 'Nit') && f.disposition === 'ask') {
+          const q = (f.ask && f.ask.question) || f.title || '(question unrecorded)'
+          if (!asks.some(a => a.task === taskId && a.question === q))
+            parkAsk({ task: taskId, seat: 'gate-audit:' + taskId + ':execution-evidence', sha: auditShaOrSentinel(gateAuditVerdict.audit_sha), ...f })
+        }
+      }
       if (isHardGateEvidence) {
         // HARD: a provably-unrun mapped test OR a finding-less escalate → push gate-evidence to escalated so the land is held.
         escalated.push({ task: taskId, reason: 'gate-evidence', detail: gateAuditVerdict })
@@ -2563,6 +2603,16 @@ if (mergedTasksForGateAudit.length > 0) {
       auditLog.push({ task: `phase-${ph.id}-integrated-tip`, verdict: `gate-audit:${authVerdict.verdict}`, findings, gateEvidence: true, hard: isHard, authoritative: true, auditSha: authVerdict.audit_sha,
         // endStateAttestations (D8, Task 3.2) — no pin demotion on this seat (it judges the CONFIRMED final tip).
         ...(Array.isArray(authVerdict.endStateAttestations) ? { endStateAttestations: authVerdict.endStateAttestations } : {}) })
+      // #1692 (gate-audit-family ask routing): same comment-named sink as the per-task seat above —
+      // Minor/Nit stay auditLog-only EXCEPT a disposition:'ask', which parks (never-defaulted identity
+      // check = dispositionOf's ask arm; no absorb chain here, so no dispositionOf call site in the census).
+      for (const f of findings) {
+        if ((f.severity === 'Minor' || f.severity === 'Nit') && f.disposition === 'ask') {
+          const q = (f.ask && f.ask.question) || f.title || '(question unrecorded)'
+          if (!asks.some(a => a.task === 'phase-' + ph.id + '-integrated-tip' && a.question === q))
+            parkAsk({ task: 'phase-' + ph.id + '-integrated-tip', seat: 'gate-audit:phase-' + ph.id + ':integrated-tip', sha: auditShaOrSentinel(authVerdict.audit_sha), ...f })
+        }
+      }
       if (isHard) escalated.push({ task: `phase-${ph.id}-integrated-tip`, reason: 'gate-evidence', detail: authVerdict })
     }
   }
@@ -2596,6 +2646,16 @@ if (mergedTasksForGateAudit.length > 0) {
       // endStateAttestations (D8, Task 3.2) — this seat consumes the land-barrier artifacts too (the
       // requiresTest:false-only arm); no pin demotion (its prompt already SOFT-downgrades an unconfirmed tip).
       ...(Array.isArray(esVerdict.endStateAttestations) ? { endStateAttestations: esVerdict.endStateAttestations } : {}) })
+    // #1692 (gate-audit-family ask routing): same comment-named sink as the two seats above — Minor/Nit
+    // stay auditLog-only EXCEPT a disposition:'ask', which parks (never-defaulted identity check =
+    // dispositionOf's ask arm; no absorb chain here, so no dispositionOf call site in the census).
+    for (const f of findings) {
+      if ((f.severity === 'Minor' || f.severity === 'Nit') && f.disposition === 'ask') {
+        const q = (f.ask && f.ask.question) || f.title || '(question unrecorded)'
+        if (!asks.some(a => a.task === 'phase-' + ph.id + '-end-state' && a.question === q))
+          parkAsk({ task: 'phase-' + ph.id + '-end-state', seat: 'gate-audit:phase-' + ph.id + ':end-state', sha: auditShaOrSentinel(esVerdict.audit_sha), ...f })
+      }
+    }
     if (isHard) escalated.push({ task: `phase-${ph.id}-end-state`, reason: 'gate-evidence', detail: esVerdict })
   }
 }
@@ -3035,35 +3095,63 @@ if (landResult && landResult.status === 'landed' && memoryLocalRoot) {
 // (Task 2.1, #1566): minorsFiled is deterministically collapsed above before the rows render, and
 // the agent clusters the survivors by file + root cause — one issue per cluster, so several rows
 // may share one issue number (ordinal→issue stamping semantics unchanged).
+// mergedRowsOf (D9's class, Phase 5 Task 1 fix round): `merged` rides minorsOf's wholesale spread
+// like any other auditor key (the finding items schema is non-strict — the AUDIT_VERDICT comment
+// records the deriver fallback), so ELEMENTS are auditor-controlled too, not just the container. An
+// element-level deref (`x.seat`) on an auditor-supplied `merged: [null]` at the consolidation log
+// line or the handoff followUps projection sits OUTSIDE the local filing try — caught only by the
+// top-level held:workflow-error catch, converting a LANDED phase and destroying the handoff. Guard
+// element shape at every read: array-normalize the container, drop non-object elements. Hoisted
+// above BOTH consumer blocks (the filing block's braces close before the handoff assembly opens).
+const mergedRowsOf = m => (Array.isArray(m.merged) ? m.merged : []).filter(x => x && typeof x === 'object')
 if ((landDecision === 'landed' || landDecision === 'held:escalation') && minorsFiled.length > 0) {
-  // ---- FOLLOW-UP CONSOLIDATION (Task 2.1, #1566): deterministic pre-filing collapse of minorsFiled,
-  // in place (the handoff assembly below reads the collapsed rows — cross-seat duplicates become ONE
-  // followUps entry). Key: same `file` + `line` within ±FOLLOWUP_LINE_WINDOW; normalized-title
-  // fallback ONLY when `line` is absent on both rows (a lined row never collapses into a lineless
-  // one). Fileless rows never collapse. First occurrence is the representative; merged rows carry a
-  // seats[] corroboration list (the minorsOf seat stamp; task fallback) the filing prompt renders;
-  // a non-collapsed row renders its single raising seat via seatRef (End state 9 — the lens is in
-  // hand on every row).
+  // ---- FOLLOW-UP CONSOLIDATION (Task 2.1, #1566; D8 seat discrimination + merged[] fidelity, Phase 5
+  // Task 1): deterministic pre-filing collapse of minorsFiled, in place (the handoff assembly below
+  // reads the collapsed rows — cross-seat duplicates become ONE followUps entry). Key: same `file` +
+  // `line` within ±FOLLOWUP_LINE_WINDOW; normalized-title fallback ONLY when `line` is absent on both
+  // rows (a lined row never collapses into a lineless one). Fileless rows never collapse, and TWO ROWS
+  // FROM THE SAME SEAT never collapse (D8 — a collapse is cross-seat corroboration; a seat repeating
+  // itself is not corroboration, so the survivor's seats[] entries are distinct by construction).
+  // First occurrence is the representative; merged rows carry a seats[] corroboration list (seatRef —
+  // seat+task, both when present) AND a merged[] sub-list preserving each merged-away row's title and
+  // rationale (rendered through the filing prompt, the issue-body instruction, handoff followUps, and
+  // the consolidation log line — nothing merges away silently); a non-collapsed row renders its single
+  // raising seat via seatRef (End state 9 — the lens is in hand on every row).
   const FOLLOWUP_LINE_WINDOW = 10
   const normTitle = t => String(t ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
   // Concatenation-built strings throughout this block (census-safe — #931).
-  const seatRef = f => f.seat ?? (f.task != null ? 'task ' + f.task : 'unattributed')
+  // seatRef (D8): seat+task when both are present; seat alone; 'task <id>' fallback; the
+  // 'unattributed' terminal arm for seatless, taskless rows is a LIVE contract the filing prompt's
+  // Evidence-artifacts clause names verbatim — any change to this arm changes that clause (and its
+  // file-followups.md mirror) in the same commit.
+  const seatRef = f => f.seat != null
+    ? (f.task != null ? f.seat + ' (task ' + f.task + ')' : f.seat)
+    : (f.task != null ? 'task ' + f.task : 'unattributed')
+  // Array.isArray (not truthiness): auditor-supplied JSON can carry a non-array `seats` key — a
+  // string would throw on .push/.includes below, and a throw here is caught only by the TOP-LEVEL
+  // held:workflow-error catch (the sole try enclosing this block), converting a LANDED phase into
+  // held:workflow-error.
+  const seatsOf = c => Array.isArray(c.seats) ? c.seats : [seatRef(c)]
   const collapsed = []
   for (const f of minorsFiled) {
-    const hit = f.file ? collapsed.find(c => c.file === f.file
+    const hit = f.file ? collapsed.find(c => !seatsOf(c).includes(seatRef(f)) && c.file === f.file
       && (Number.isFinite(c.line) && Number.isFinite(f.line)
         ? Math.abs(c.line - f.line) <= FOLLOWUP_LINE_WINDOW
         : c.line == null && f.line == null && normTitle(c.title) === normTitle(f.title))) : null
     if (hit) {
-      // Array.isArray guard (not truthiness): auditor-supplied JSON can carry a non-array `seats`
-      // key on the representative row — a string would survive `||` and throw on .push below,
-      // converting a LANDED phase into held:workflow-error (this block runs outside any try).
-      hit.seats = Array.isArray(hit.seats) ? hit.seats : [seatRef(hit)]
-      if (!hit.seats.includes(seatRef(f))) hit.seats.push(seatRef(f))
+      hit.seats = seatsOf(hit)
+      hit.seats.push(seatRef(f))
+      // merged[] (D8): the merged-away row's title and rationale survive on the representative —
+      // absence-tolerant defaults (schema-optional fields), never a throw. mergedRowsOf normalizes
+      // the container AND drops auditor-supplied non-object elements at the single write point.
+      hit.merged = mergedRowsOf(hit)
+      hit.merged.push({ seat: seatRef(f), title: f.title ?? '(untitled finding)', rationale: f.rationale ?? '(no rationale recorded)' })
     } else collapsed.push(f)
   }
   if (collapsed.length < minorsFiled.length) {
-    log('file-followups consolidation: ' + minorsFiled.length + ' follow-up rows collapsed to ' + collapsed.length + ' (file + ±' + FOLLOWUP_LINE_WINDOW + '-line window; title fallback when line absent).')
+    const mergedAway = collapsed.filter(c => mergedRowsOf(c).length)
+      .map(c => mergedRowsOf(c).map(x => '[' + (x.seat ?? '(seat unrecorded)') + '] "' + (x.title ?? '(untitled finding)') + '" — ' + (x.rationale ?? '(no rationale recorded)')).join('; ') + ' (into "' + (c.title ?? '(untitled finding)') + '")').join(' | ')
+    log('file-followups consolidation: ' + minorsFiled.length + ' follow-up rows collapsed to ' + collapsed.length + ' (file + ±' + FOLLOWUP_LINE_WINDOW + '-line window; title fallback when line absent; same-seat rows never collapse). Merged-away rows preserved on their survivors: ' + mergedAway)
     minorsFiled.splice(0, minorsFiled.length, ...collapsed)
   }
   // Agent-resolved '${CLAUDE_PLUGIN_ROOT}' literal idiom (the provision barrier's SCRIPT const
@@ -3078,13 +3166,15 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation') && minorsF
   // evidence duty, ADR 0044 amendment) — all read from the auditLog already in hand at filing time:
   // the audit round from the task's audit-verdict entry's fixRounds, the pinned sha from its
   // post-merge gate-audit entry's gateHeadSha (the engine-stamped integration tip the task's gate
-  // ran at — the landed tree that still carries the unabsorbed finding). Fail-open: a task with no
-  // matching entry (e.g. a never-merged task filing on the held:escalation path) renders
-  // 'unrecorded' — never invented, never a throw.
+  // ran at — the landed tree that still carries the unabsorbed finding). A merged requiresTest:false
+  // task has NO gate-audit entry (the D7 skip) — its pinned sha falls back to the landedShaByTask
+  // retention landMerged stamped (its real landed integration tip), so a merged task never renders
+  // 'unrecorded' (Phase 5 Task 1). Fail-open: a task with neither (e.g. a never-merged task filing
+  // on the held:escalation path) renders 'unrecorded' — never invented, never a throw.
   const auditEvidenceOf = t => {
     const v = auditLog.find(e => e && e.task === t && typeof e.fixRounds === 'number')
     const g = auditLog.find(e => e && e.task === t && e.gateEvidence && typeof e.gateHeadSha === 'string' && e.gateHeadSha)
-    return { round: v ? String(v.fixRounds) : 'unrecorded', sha: g ? g.gateHeadSha : 'unrecorded' }
+    return { round: v ? String(v.fixRounds) : 'unrecorded', sha: g ? g.gateHeadSha : (landedShaByTask.get(t) ?? 'unrecorded') }
   }
   let filingOut = null
   try {
@@ -3093,19 +3183,23 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation') && minorsF
       + pt`The follow-up-disposition audit findings below survived this phase unabsorbed; file each as a GitHub issue so nothing drops silently (ADR 0013).\n`
       + pt`FIRST the account preflight (ADR 0026): run ${PREFLIGHT} "${ghUser}" — an empty-string arg is its documented no-op (exit 0). On exit 2 (tooling error) or exit 3 (account mismatch): return what you have and file NOTHING.\n`
       + pt`THEN dedup (D3): run \`gh issue list --label war-followup --state open\` once; a row below matching an open issue (exact title, or same file + same root cause) is already filed — post this batch's finding as a corroboration comment on the existing issue, never a new issue, and reuse that existing issue number for the row.\n`
-      + pt`THEN cluster the remaining candidate rows by file + root cause (the engine already collapsed same-file line-window duplicates; each row carries its file, line, and any seats corroboration) and file ONE \`war-followup\`-labelled issue per cluster, in row order — title from the cluster's lead row; body carrying, per member row, the why-not-absorbable reason, the task id, and its seats as corroboration${ph.epicIssue ? pt`, and a reference to the phase epic #${ph.epicIssue}` : ''}.\n`
+      + pt`THEN cluster the remaining candidate rows by file + root cause (the engine already collapsed same-file line-window duplicates; each row carries its file, line, and any seats corroboration) and file ONE \`war-followup\`-labelled issue per cluster, in row order — title from the cluster's lead row; body carrying, per member row, the why-not-absorbable reason, the task id, its seats as corroboration, and — when the row carries merged corroborations — each merged-away finding's title and rationale (the engine preserved them on the surviving row; they must reach the issue body, never drop)${ph.epicIssue ? pt`, and a reference to the phase epic #${ph.epicIssue}` : ''}.\n`
       // Evidence-artifacts emission clause (Task 3.2, PIN-14, #1658): the filed issues' evidence
       // duty — values are COPIED from the candidate rows below (the engine renders them per row from
       // the auditLog via auditEvidenceOf above), never reconstructed by the filing agent.
-      + pt`EACH filed issue's body additionally ends with an \`## Evidence artifacts\` section carrying, per member row: the pinned sha (the integration tip the row's task was gate-audited at), the file path with its line when present, the raising seat lenses (from the row's seats list — every row renders one, the corroboration list on a merged row or the single raising seat otherwise; each entry's trailing \`:<lens>\` segment; a bare \`task <id>\`/'unattributed' entry verbatim), and the audit round — every value copied verbatim from the candidate rows below (\`unrecorded\` stays \`unrecorded\`, never invented). On the dedup arm, carry the same evidence lines inside the corroboration comment instead.\n`
+      + pt`EACH filed issue's body additionally ends with an \`## Evidence artifacts\` section carrying, per member row: the pinned sha (the integration tip the row's task was gate-audited at) — for a \`requiresTest:false\` task this is its landed integration tip (never gate-audited, the D7 skip) — the file path with its line when present, the raising seat lenses (from the row's seats list — every row renders one, the corroboration list on a merged row or the single raising seat otherwise; each seat entry's lens is its trailing \`:<lens>\` segment, read before any \` (task <id>)\` attribution suffix — and a trailing \`:rebut\` is a dispatch label, never the lens: take the segment before it; a bare \`task <id>\`/'unattributed' entry verbatim), and the audit round — every value copied verbatim from the candidate rows below (\`unrecorded\` stays \`unrecorded\`, never invented). On the dedup arm, carry the same evidence lines inside the corroboration comment instead.\n`
       // pt-tagged prompt-feeding row builder (file-followups dispatch): title/rationale are
       // schema-optional and task is routing-stamped → ?? defaults (never a phase-killing throw here).
       // The title span is DELIMITED (quoted, `title:`-prefixed) so the dedup instruction's
       // exact-title match keys on the finding's own title — never the whole composite row, whose
       // leading ordinal would make dedup order-dependent across a relaunch. file/line/seats render
       // per row (Task 2.1) so the agent CAN cluster by file — title/task/rationale alone made
-      // file-clustering impossible.
-      + minorsFiled.map((m, i) => { const ev = auditEvidenceOf(m.task); return pt`  ${i + 1}. title: "${m.title ?? '(untitled finding)'}" · task ${m.task ?? '<task>'}${m.file ? pt` · file ${m.file}${m.line != null ? pt`:${m.line}` : ''}` : ''}${m.seats && m.seats.length ? pt` · seats: ${m.seats.join(', ')}` : pt` · seats: ${seatRef(m)}`} · why not absorbable: ${m.rationale ?? '(no rationale recorded)'} · audit round ${ev.round} · pinned sha ${ev.sha}` }).join('\n') + '\n'
+      // file-clustering impossible. seats gate is Array.isArray, NOT truthiness (D9, Phase 5 Task 1):
+      // an auditor-supplied STRING seats key is truthy with a length, and String.prototype.join does
+      // not exist — a truthiness gate would throw here and kill the whole batch; Array.isArray sends
+      // the row down the seatRef fallback instead. merged[] (D8) renders per row so the filing agent
+      // carries each merged-away title+rationale into the issue body.
+      + minorsFiled.map((m, i) => { const ev = auditEvidenceOf(m.task); return pt`  ${i + 1}. title: "${m.title ?? '(untitled finding)'}" · task ${m.task ?? '<task>'}${m.file ? pt` · file ${m.file}${m.line != null ? pt`:${m.line}` : ''}` : ''}${Array.isArray(m.seats) && m.seats.length ? pt` · seats: ${m.seats.join(', ')}` : pt` · seats: ${seatRef(m)}`}${mergedRowsOf(m).length ? pt` · merged corroborations: ${mergedRowsOf(m).map(x => '[' + (x.seat ?? '(seat unrecorded)') + '] "' + (x.title ?? '(untitled finding)') + '" — ' + (x.rationale ?? '(no rationale recorded)')).join('; ')}` : ''} · why not absorbable: ${m.rationale ?? '(no rationale recorded)'} · audit round ${ev.round} · pinned sha ${ev.sha}` }).join('\n') + '\n'
       + pt`Return ONLY { filed: [{ n, issue }], clusters: [{ ordinals, issue }] } — filed: n the row's 1-based ordinal above, issue the filed / commented-on / reused issue number (null when unfiled; every row of one cluster shares its issue number); clusters: your clustering manifest — every ordinal above in exactly ONE cluster's ordinals array (merge rows only, never split one). A partial/empty result is FAIL-OPEN: unmatched entries stay issue: null in the handoff and the Checkpoint floor catches them; never block.`,
       { agentType: NS + 'war-refiner', phase: 'Land', label: 'file-followups:phase-' + ph.id, dispatchKind: 'file-followups', schema: FOLLOWUP_FILING_RESULT, ...spawn('refiner') })
   } catch (err) {
@@ -3191,7 +3285,14 @@ if (landDecision === 'landed' || landDecision === 'held:escalation') {
     tipSha,
     polish: polishStatus,
     absorbed: Object.entries(bySha).map(([sha, findings]) => ({ sha, findings })),
-    followUps: minorsFiled.map(m => ({ issue: m.issue ?? null, reason: [m.title, m.rationale].filter(Boolean).join(' — ') || '(untitled finding)' })),
+    // merged (D8, Phase 5 Task 1): a consolidated row's merged-away titles+rationales ride the
+    // handoff entry too (ADDITIVE key, present only on rows the collapse merged into) — the debt
+    // map carries full fidelity, nothing merges away silently. Read through mergedRowsOf (element
+    // shape guard): this projection maps EVERY minorsFiled row and sits outside any local try — an
+    // auditor-supplied `merged: [null]` deref here would convert a LANDED phase into
+    // held:workflow-error and destroy this very handoff.
+    followUps: minorsFiled.map(m => ({ issue: m.issue ?? null, reason: [m.title, m.rationale].filter(Boolean).join(' — ') || '(untitled finding)',
+      ...(mergedRowsOf(m).length ? { merged: mergedRowsOf(m).map(x => ({ seat: x.seat ?? '(seat unrecorded)', title: x.title ?? '(untitled finding)', rationale: x.rationale ?? '(no rationale recorded)' })) } : {}) })),
     // asks (#1550 — the NINTH handoff key, ADDITIVE beside the follow-ups row; no exact-key
     // validator exists or is introduced): the LOSSY projection of the parked unruled ask records —
     // question + fork + task/seat/sha provenance, minus the full finding row (the top-level
