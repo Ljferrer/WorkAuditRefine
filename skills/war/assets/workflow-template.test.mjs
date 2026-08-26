@@ -4941,6 +4941,98 @@ test('endstate-check dispatch: NOT dispatched for bare-string (judgment-path) cl
   assert.ok(!c2.some(isEndstateCheck), 'a claims-less phase dispatches nothing')
 })
 
+// ===========================================================================
+// QUOTING-AGNOSTIC .CMD TRANSPORT (endstate-artifact-fidelity Task 4.2 — A3, End state 6)
+// ---------------------------------------------------------------------------
+// The three mined shapes ride the dispatched prompt inside FENCED blocks the refiner copies
+// byte-verbatim into the row's .cmd file — never re-quoted (the 'bad substitution' bug: a
+// single-quoted ${...} plan literal re-emitted double-quoted dies in bash parameter expansion),
+// never truncated at an inner backtick run (the fence length always exceeds the longest run inside
+// the literal), and a multi-command check executes end-to-end with FULL stdout+stderr teed — plus
+// the loud-failure contract: written .cmd bytes != the declared literal ⇒ a recorded
+// cmd_bytes_mismatch contradiction on the artifact, never a silently "corrected" execution.
+const ES_BT = '`'
+// One check:-tagged row carrying the shape under test; the transport prompt is shape-driven, so each
+// fixture threads its own literal through the same single-row phase.
+const esTransportPrompt = async (check) => {
+  const { calls } = await runPhase(ES_ROW_ARGS({
+    phase: { id: 3, title: 'P3', integrationBranch: 'integration/wtprov-a/phase-3', workingBranch: 'dev/wtprov-a',
+      endState: [{ condition: 'condition T: the transport shape survives', tag: 'check:', check }] },
+  }), gateAuditImpl)
+  const es = calls.find(isEndstateCheck)
+  assert.ok(es, 'endstate-check dispatch present (presence guard)')
+  return es.prompt
+}
+// The row builder's exact fenced rendering: fence line, literal bytes, fence line.
+const esFenced = (fence, check) => `fenced below:\n${fence}\n${check}\n${fence}`
+
+test('endstate-transport shape 1 (End state 6, A3): a single-quoted literal containing a ${...} run rides the fenced block byte-verbatim — copy-bytes contract, never re-quoted', async () => {
+  // Double-quoted JS string: the ${plan.file} bytes below are LITERAL, exactly as a plan's check: row
+  // carries them (the historical 'bad substitution' shape — see the endstate-check-cmd-artifact lesson).
+  const check = "grep -F 'Plan file: ${plan.file}' docs/plans/wtprov-A.md"
+  const p = await esTransportPrompt(check)
+  assert.ok(p.includes(esFenced(ES_BT.repeat(3), check)), 'the literal rides the fenced block byte-verbatim — single quotes and the ${...} run intact, min-3 fence')
+  assert.ok(p.includes('never re-quote'), 'the copy-bytes instruction forbids re-quoting (the bad-substitution bug)')
+  assert.ok(p.includes('a single-quoted ${...} run is literal bytes and must survive exactly'), 'the ${...} survival clause is explicit — the refiner never substitutes')
+})
+
+test('endstate-transport shape 2 (End state 6, A3): an embedded-backtick literal is fenced LONGER than its longest inner run — no truncation at the inner backticks', async () => {
+  // Inner run of THREE backticks (a fenced-code-span mention inside the literal) ⇒ the transport must
+  // pick a 4-backtick fence; a content run can then never read as the fence and the tail after the
+  // run survives (the .cmd-capture-truncates-at-embedded-backtick lesson).
+  const check = `grep -F '${ES_BT.repeat(3)}mermaid' docs/specs/wtprov-A-design.md`
+  const p = await esTransportPrompt(check)
+  assert.ok(p.includes(esFenced(ES_BT.repeat(4), check)), 'the fence is FOUR backticks — exceeding the inner 3-run — and the literal (inner backticks + the bytes after them) rides untruncated')
+  assert.ok(!p.includes(esFenced(ES_BT.repeat(3), check)), 'the inner run is never treated as the fence (a 3-fence around this literal would truncate at the content run)')
+  assert.ok(p.includes('a backtick run INSIDE the content is NEVER the fence'), 'the prompt states the fence rule — only the exact fence line opens and closes the block')
+})
+
+test('endstate-transport shape 3 (End state 6, A3/D11): a two-command check rides whole — both halves in the fenced block, executed as one file end-to-end, FULL stdout+stderr teed', async () => {
+  const twoCmd = "node --test skills/war/assets/wibble.acceptance.test.mjs && grep -c 'wobble' skills/war/assets/wibble.log"
+  const p = await esTransportPrompt(twoCmd)
+  assert.ok(p.includes(esFenced(ES_BT.repeat(3), twoCmd)), 'BOTH halves of the compound check ride the fenced block — the literal is never split or half-carried')
+  assert.match(p, /execute the file AS A WHOLE, FROM THE FILE/i, 'the .cmd executes as one file — every command of a multi-command check runs')
+  assert.match(p, /FULL stdout\+stderr of the ENTIRE command line/i, 'the artifact tees the full stdout+stderr of the whole command line')
+  assert.match(p, /END-TO-END/, 'compound/pipeline checks are captured end-to-end')
+  assert.match(p, /never a half-run/i, 'the half-run failure mode is named and forbidden')
+})
+
+test('endstate-transport loud-failure row (End state 6): declared literal != written .cmd bytes ⇒ the artifact records the cmd_bytes_mismatch contradiction — never a corrected execution, never silent', async () => {
+  const p = await esTransportPrompt(ES_CHECK_CMD)
+  assert.match(p, /VERIFY before executing/i, 'the refiner re-reads the written .cmd and compares byte-for-byte before executing')
+  assert.ok(p.includes('cmd_bytes_mismatch: written .cmd bytes != declared check literal'), 'a mismatch is RECORDED on the artifact as the named contradiction line')
+  assert.match(p, /do NOT execute any re-quoted\/corrected variant/i, 'a mismatched row is never repaired-and-run — the contradiction stands')
+  assert.match(p, /fails LOUDLY via its artifact, never silently/i, 'the failure mode is loud by contract')
+})
+
+test('endstate-transport intake-lint: a whitespace-only check literal is INTAKE-LINTED UNSUPPORTED at dispatch — record-only row, log()ged, never a fenced execution row', async () => {
+  // Runs the same single-check-row phase as esTransportPrompt, but inline: this fixture also needs
+  // the workflow's log() lines (the lint must be LOUD at dispatch, never a silent row divergence).
+  const linted = async (check) => {
+    const { calls, logs } = await runPhase(ES_ROW_ARGS({
+      phase: { id: 3, title: 'P3', integrationBranch: 'integration/wtprov-a/phase-3', workingBranch: 'dev/wtprov-a',
+        endState: [{ condition: 'condition U: unsupported literal', tag: 'check:', check }] },
+    }), gateAuditImpl)
+    const es = calls.find(isEndstateCheck)
+    assert.ok(es, 'endstate-check dispatch present (presence guard)')
+    return { p: es.prompt, logs }
+  }
+  // The '(' suffix targets the ROW arm's verdict rendering — the shared boilerplate's own
+  // 'A row marked INTAKE-LINTED UNSUPPORTED below…' sentence (paren-less) never matches it.
+  const ws = await linted('   ')
+  assert.ok(ws.p.includes('INTAKE-LINTED UNSUPPORTED (empty/whitespace-only check literal)'), 'a whitespace-only literal renders the record-only row arm, naming its lint verdict')
+  assert.ok(ws.p.includes('exit_code: unsupported'), "the record-only row directs the artifact's terminal `exit_code: unsupported` line")
+  assert.ok(!ws.p.includes('fenced below:'), 'NEGATIVE: the linted row never renders an executable fenced block — record-only, never a half-run')
+  assert.ok(ws.logs.some(l => typeof l === 'string' && l.includes('endstate-check intake-lint:')), 'the lint is log()ged at dispatch — loud, never silent')
+  const cb = await linted('echo hi\r')   // bare \r — a control byte other than newline/tab
+  assert.ok(cb.p.includes('INTAKE-LINTED UNSUPPORTED (control bytes (other than newline/tab) in the check literal)'), 'a control-byte literal takes the SAME record-only arm')
+  // Anti-vacuous pair: a clean literal must NOT take the lint arm — deleting the control-byte
+  // regex (or inverting the trim() test) reds here, not just on the positive halves above.
+  const clean = await esTransportPrompt(ES_CHECK_CMD)
+  assert.ok(!clean.includes('INTAKE-LINTED UNSUPPORTED ('), 'anti-vacuous: a clean literal never takes the lint arm')
+  assert.ok(clean.includes('fenced below:'), 'anti-vacuous: a clean literal rides a fenced execution row')
+})
+
 // Recovery Blocker 1 (Pivotal constraint: prompt-surface split — standing card + dispatched prompt,
 // same task): the refiner card must LEARN the endstate-check dispatch flavor it is handed, the way
 // the structurally identical evidence dispatch got its own card section. The dispatch is fail-open,
@@ -8798,7 +8890,14 @@ test('D3 — both-surfaces directive registry: every correctness-critical direct
     { name: 'endstate-check dispatch card twin (recovery Blocker 1): file-threaded .cmd execution, load-bearing tip_sha stamp + exit_code line, red-check isolation, fail-open return — standing card + dispatched prompt',
       surfaces: [['war-refiner.md', refinerMd], ['endstate-check dispatch prompt', esCheckP]],
       anchors: [/endstate-check/i, /file-threaded/i, /byte-verbatim/i, /tip_sha/, /exit_code/,
-                /load-bearing/i, /never fails this dispatch/i, /red, hung, or timed-out/i, /fail-open/i, /never block/i] },
+                /load-bearing/i, /never fails this dispatch/i, /red, hung, or timed-out/i, /fail-open/i, /never block/i,
+                // Phase 4 Task 4.1 mirrored transport directives (phase-close absorb): the fenced byte
+                // transport, the byte-for-byte .cmd verify's loud-failure token, the intake-lint
+                // record-only arm, and the whole-command-line end-to-end tee — all four land on the
+                // card ("fenced block" / "cmd_bytes_mismatch" / "intake-linted"+"`intake_lint`" /
+                // "runs end-to-end") and the dispatched prompt ("FENCED block" / "cmd_bytes_mismatch"
+                // / "INTAKE-LINTED" / "END-TO-END"), so a per-surface reword or revert reds this row.
+                /fenced/i, /cmd_bytes_mismatch/, /intake[_ -]lint/i, /end-to-end/i] },
     // Task 3.2 recovery Blocker 2 (stale-but-readable artifact): .war/ is git-excluded and
     // ensure-worktree reuses a present worktree untouched, so a resumeFromRunId replay lands on
     // prior-run artifact residue — READABLE but stamped with a prior tip. The seat MUST compare the
@@ -9255,6 +9354,7 @@ const LITERAL_REGISTRY = [
   ["${r.task.id} touches a submodule (surfaced o", 3],
   ["task never reached the approve branch (verdi"],
   ["Task ${r.task.id}: env-blocked — provision s"],
+  ["endstate-check intake-lint: condition ${r.n}"],
   ["endstate-check: dispatching the land-barrier"],
   ["endstate-check:phase-${ph.id}`, dispatchKind"],
   ["$(git -C ${refineryPath} merge-base ${ph.int"],
@@ -10198,8 +10298,8 @@ const BARE_INTERPOLATION_CENSUS = [
   'nearMissDiag', 'owned', 'pendingRevert', 'ph.epicIssue', 'ph.id', 'ph.integrationBranch',
   'ph.title', 'ph.workingBranch', 'pin', 'pinEvidence', 'pinStatus', 'pinStatusLine', 'plan.gate',
   'polishBranch', 'polishWorktree', 'provisionSource', 'r.aceReverted', 'r.check', 'r.condition',
-  'r.n', 'r.supersedes', 'r.tag', 'r.task.branch', 'r.task.id', 'r.task.targetRepo',
-  'r.task.worktree', 'refineryLandPath', 'refineryP', 'refineryPath', 'roundLimit', 's.lens',
+  'r.fence', 'r.n', 'r.supersedes', 'r.tag', 'r.task.branch', 'r.task.id', 'r.task.targetRepo',
+  'r.task.worktree', 'r.unsupported', 'refineryLandPath', 'refineryP', 'refineryPath', 'roundLimit', 's.lens',
   's.seat', 's.verdict', 'submodLandTask.targetRepo', 'submodPath', 't.id', 'task.branch',
   'task.doneWhen', 'task.id', 'task.title', 'task.worktree', 'taskId', 'testPatternArg', 'trailer',
   'workerIntentClause', 'workerSelfQueryRepoFlag', 'working',

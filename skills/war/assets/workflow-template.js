@@ -213,10 +213,14 @@ const EVIDENCE_RESULT = { type: 'object', properties: {
 // is present, readable, and correctly tip-stamped but whose red is ENVIRONMENTAL (#1395 — a
 // setup/collection/import failure: ModuleNotFoundError, pytest setup ERROR, usage/collection exit
 // codes — rather than an evaluated-false condition): it attests 'unverified', NEVER 'unmet' — a met
-// condition is never attested unmet for want of environment prep.
+// condition is never attested unmet for want of environment prep. Two record-only artifact states
+// (A3 intake lint / byte-verify) also map to 'unverified': an `intake_lint:`-stamped artifact (the
+// check literal was UNSUPPORTED by the .cmd transport — the row was never executed, its exit_code
+// line reads `unsupported`, hence exit_code below admits a string) and a `cmd_bytes_mismatch:`-stamped
+// artifact (the written .cmd failed the byte-for-byte verify — the row was not executed as declared).
 const ENDSTATE_CHECK_RESULT = { type: 'object', properties: {
   artifacts: { type: 'array', items: { type: 'object', properties: {
-    n: { type: 'number' }, path: { type: 'string' }, tip_sha: { type: 'string' }, exit_code: { type: 'number' } } } } } }
+    n: { type: 'number' }, path: { type: 'string' }, tip_sha: { type: 'string' }, exit_code: {} } } } } }
 
 // FOLLOWUP_FILING_RESULT (D1/D2, #1331): the file-followups dispatch's return — ADVISORY only. The
 // Workflow stamps minorsFiled[n-1].issue from each returned row carrying an in-range 1-based n AND a
@@ -2249,6 +2253,31 @@ const endStateCheckRows = endStateRows
   .map((r, i) => ({ n: i + 1, check: r.check }))
   .filter(r => r.check)
 if (endStateCheckRows.length > 0) {
+  // Quoting-agnostic .cmd transport (A3, endstate-artifact-fidelity Task 4.1): each check literal is
+  // threaded to the refiner inside a FENCED block whose fence length EXCEEDS the longest backtick run
+  // inside the literal (min 3) — content backticks can never read as the fence, and the refiner COPIES
+  // bytes between the fences instead of re-quoting (re-quoting was the 'bad substitution' bug: a
+  // single-quoted ${...} plan literal re-emitted double-quoted dies in bash parameter expansion).
+  // Intake lint (loud, never a silent half-run): a literal the fenced byte transport cannot carry
+  // faithfully — empty/whitespace-only, or containing control bytes other than newline/tab (e.g. a
+  // bare \r) — is marked unsupported AT DISPATCH: log()ged here, and its prompt row directs an
+  // artifact recording the lint verdict INSTEAD of execution. Everything bash-runnable (compound,
+  // pipeline, multi-command, multi-line) is supported: the .cmd file executes as a whole.
+  // BACKTICK is built via charCode 96 — a raw backtick in a regex literal here desyncs the #931
+  // census scanner and the budget suite's pinned extraction (neither models regex literals).
+  const BACKTICK = String.fromCharCode(96)
+  for (const r of endStateCheckRows) {
+    let longestRun = 0
+    for (let run = 0, i = 0; i < r.check.length; i++) {
+      run = r.check[i] === BACKTICK ? run + 1 : 0
+      if (run > longestRun) longestRun = run
+    }
+    r.fence = BACKTICK.repeat(Math.max(3, longestRun + 1))
+    r.unsupported = !r.check.trim() ? 'empty/whitespace-only check literal'
+      : /[\u0000-\u0008\u000B-\u001F\u007F]/.test(r.check) ? 'control bytes (other than newline/tab) in the check literal'
+      : null
+    if (r.unsupported) log(`endstate-check intake-lint: condition ${r.n}'s check literal is UNSUPPORTED by the .cmd transport (${r.unsupported}) — the row is dispatched as record-only: its artifact records the lint verdict, the command is never half-run.`)
+  }
   // provision-before-checks (#1395 fix 2): the run.provision steps provisioned the TASK worktrees,
   // never _refinery — so a check needing that environment (installed deps, a built venv) reds
   // ENVIRONMENTALLY at the land barrier and the seats then read a MET condition as red. The
@@ -2273,10 +2302,14 @@ if (endStateCheckRows.length > 0) {
     + pt`Execute EVERY claimed check:-tagged End-state condition's command below ONCE at this tip. Do NOT merge, push, rebase, or edit tracked files — the gate-audit seats verify from the artifacts you tee (they are read-only and never run commands, ADR 0002).\n`
     + pt`First ensure .war/ is git-excluded inside _refinery — append the line \`.war/\` (once) to the path printed by \`git -C ${refineryPath} rev-parse --git-path info/exclude\`.\n`
     + endstateProvisionClause
-    + pt`For EACH condition row below: write the command BYTE-VERBATIM to its .cmd file and execute it FROM THE FILE (file-threaded — never interpolate it into another script; A3/D11 hygiene), under a timeout, teeing its FULL stdout+stderr to its .log artifact. STAMP each artifact with the tip SHA it ran at: the FIRST line is \`tip_sha: <output of git -C ${refineryPath} rev-parse HEAD>\`, then the command's captured output, then a final \`exit_code: <code>\` line. The tip_sha stamp is LOAD-BEARING: the seats compare it against the confirmed tip and attest a stale (mismatched) artifact 'unverified'. A red, hung, or timed-out command still gets its artifact (whatever it produced, plus its exit/timeout note) — record it and MOVE ON to the next condition; a failing check NEVER fails this dispatch.\n`
+    + pt`For EACH condition row below, its check literal rides in a FENCED block: the fence is the row's own line of backticks, whose length was chosen to EXCEED every backtick run inside the literal — a backtick run INSIDE the content is NEVER the fence; only the exact fence line opens and closes the block. Write the bytes BETWEEN the fence lines BYTE-VERBATIM to the row's .cmd file: copy bytes — never re-quote, never re-escape, never substitute (a single-quoted \${...} run is literal bytes and must survive exactly). VERIFY before executing: re-read the written .cmd and compare it byte-for-byte against the fenced literal; on ANY mismatch record a \`cmd_bytes_mismatch: written .cmd bytes != declared check literal\` line in the artifact (after the tip_sha line), do NOT execute any re-quoted/corrected variant, and MOVE ON — the row fails LOUDLY via its artifact, never silently. Then execute the file AS A WHOLE, FROM THE FILE (file-threaded — e.g. \`bash <cmd-file>\`; never interpolate its content into another script; A3/D11 hygiene), under a timeout, teeing the FULL stdout+stderr of the ENTIRE command line to its .log artifact — a compound/pipeline/multi-command check runs END-TO-END with every command's output captured, never a half-run. STAMP each artifact with the tip SHA it ran at: the FIRST line is \`tip_sha: <output of git -C ${refineryPath} rev-parse HEAD>\`, then the command's captured output, then a final \`exit_code: <code>\` line. The tip_sha stamp is LOAD-BEARING: the seats compare it against the confirmed tip and attest a stale (mismatched) artifact 'unverified'. A red, hung, or timed-out command still gets its artifact (whatever it produced, plus its exit/timeout note) — record it and MOVE ON to the next condition; a failing check NEVER fails this dispatch. A row marked INTAKE-LINTED UNSUPPORTED below is record-only: do NOT execute it — write its artifact exactly as its row directs (the lint verdict recorded, never a half-run).\n`
     // pt-tagged prompt-feeding row builder (endstate-check dispatch, top-level-catch): r.n is a derived
-    // map index (always defined), r.check is filter-guaranteed non-empty.
-    + endStateCheckRows.map(r => pt`  - ${r.n} · cmd-file: ${refineryPath}/.war/endstate-${ph.id}-${r.n}.cmd · artifact: ${refineryPath}/.war/endstate-${ph.id}-${r.n}.log · command: ${r.check}`).join('\n') + '\n'
+    // map index (always defined), r.check is filter-guaranteed non-empty, r.fence/r.unsupported are
+    // stamped by the intake-lint loop above (fence always defined; unsupported null when clean).
+    + endStateCheckRows.map(r => r.unsupported
+      ? pt`  - ${r.n} · cmd-file: ${refineryPath}/.war/endstate-${ph.id}-${r.n}.cmd · artifact: ${refineryPath}/.war/endstate-${ph.id}-${r.n}.log · INTAKE-LINTED UNSUPPORTED (${r.unsupported}): record-only — write the artifact with its tip_sha first line, then \`intake_lint: unsupported check literal (${r.unsupported}) — row not executed\`, then \`exit_code: unsupported\`; never execute or repair the literal.`
+      : pt`  - ${r.n} · cmd-file: ${refineryPath}/.war/endstate-${ph.id}-${r.n}.cmd · artifact: ${refineryPath}/.war/endstate-${ph.id}-${r.n}.log · check literal (the .cmd bytes) fenced below:\n${r.fence}\n${r.check}\n${r.fence}`
+    ).join('\n') + '\n'
     + pt`Return { artifacts: [{ n, path, tip_sha, exit_code }] } — one row per condition. On any failure return what you have — a partial/empty result is FAIL-OPEN (the seats read the teed artifacts at the enumerated paths and attest anything unreadable — or stale, its stamped tip_sha mismatching the confirmed tip — 'unverified', never 'met'); never block.`,
     { agentType: NS + 'war-refiner', phase: 'Refine', label: `endstate-check:phase-${ph.id}`, dispatchKind: 'endstate-check', schema: ENDSTATE_CHECK_RESULT, ...spawn('refiner') })
 }
