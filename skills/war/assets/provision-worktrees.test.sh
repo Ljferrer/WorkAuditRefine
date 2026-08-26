@@ -17,6 +17,11 @@
 # Subcommands exercised (plan 2026-08-06 Task 1.2, #1381): ensure-worktree
 # reuse-path submodule hygiene (HYG.j-HYG.n: corruption repair + WIP
 # preservation, SHA-mismatch control, clean control, real-edits control).
+# Subcommands exercised (plan 2026-08-25 Phase 8 Task 1, #1476 + #1712 fix 1):
+# reuse-gap rows RG.1-RG.4 (untracked-files=all, deliberate-git-rm
+# disambiguation + accepted-residual header pin, SIGPIPE regression + env-error
+# arm pin, refinery hygiene arm) and holder-die rows RG.5-RG.6 (`checked out
+# at <path>` in both worktree-add failure dies).
 # Ownership seam: the run tells the script which refs it owns via --owned-file
 # <path> (a newline-delimited ledger the script reads AND appends to when it
 # creates a branch) and/or repeatable --owned <ref>. Both are pure-bash
@@ -472,6 +477,194 @@ expect "HYG.n: the unstaged edit survives byte-for-byte" \
   "$EDIT_N" "$(cat "$WTH_N/sub/a.txt" 2>/dev/null)"
 
 # ===========================================================================
+# Plan 2026-08-25 Phase 8 Task 1 (#1476, End state 16): the four reuse-hygiene
+# gaps, each with its own `reuse-gap`-titled row; plus fold #1712 fix 1 (End
+# state 26): the worktree-add failure die names the holding worktree
+# (`checked out at <path>`) for BOTH ensure-worktree and
+# ensure-refinery-worktree.
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# Case (RG.1 / #1476 gap 1) --untracked-files=all: a submodule with a tracked
+# file in a SUBDIRECTORY, index emptied with files kept on disk. The porcelain
+# default collapses the wholly-untracked dir to one `?? d/` entry that can
+# never match the `d/x.txt` staged-deletion path, degrading the repairable
+# state to unrecognized-dirt; with --untracked-files=all it must REPAIR.
+# ---------------------------------------------------------------------------
+hyg_fixture_deep() {
+  hs="$(mktemp -d 2>/dev/null || mktemp -d -t warhydeep)"; REPOS="$REPOS $hs"
+  git -C "$hs" init -q
+  git -C "$hs" config user.email war@test.local
+  git -C "$hs" config user.name "WAR Test"
+  git -C "$hs" config commit.gpgsign false
+  printf 'one\n' > "$hs/a.txt"
+  mkdir -p "$hs/d"
+  printf 'deep\n' > "$hs/d/x.txt"
+  git -C "$hs" add -A; git -C "$hs" commit -qm subseed
+  hr="$(new_repo)"
+  git -C "$hr" -c protocol.file.allow=always submodule add -q "$hs" sub >/dev/null 2>&1
+  git -C "$hr" commit -qm "declare submodule"
+  git -C "$hr" branch war/myplan/p8-t1 HEAD
+  hw="$(new_wt_path)"
+  ( cd "$hr" && bash "$SCRIPT" ensure-worktree "$hw" war/myplan/p8-t1 "$(git -C "$hr" rev-parse HEAD)" ) >/dev/null 2>&1
+  git -C "$hw" -c protocol.file.allow=always submodule update --init sub >/dev/null 2>&1
+  echo "$hr $hw"
+}
+FXRG1="$(hyg_fixture_deep)"; RRG1="${FXRG1%% *}"; WTRG1="${FXRG1##* }"
+TIPRG1="$(git -C "$RRG1" rev-parse war/myplan/p8-t1)"
+git -C "$WTRG1/sub" read-tree --empty
+expect "reuse-gap(untracked-files) setup: subdir collapses under default porcelain" \
+  "yes" "$(git -C "$WTRG1/sub" status --porcelain 2>/dev/null | grep -Fxq '?? d/' && echo yes || echo no)"
+OUT_RG1="$( ( cd "$RRG1" && bash "$SCRIPT" ensure-worktree "$WTRG1" war/myplan/p8-t1 "$TIPRG1" ) 2>&1 )"; C_RG1=$?
+expect "reuse-gap(untracked-files): reuse exits 0 (fail-open)" "0" "$C_RG1"
+expect "reuse-gap(untracked-files): subdir emptied-index state is REPAIRED, not unrecognized-dirt" \
+  "yes" "$(printf '%s' "$OUT_RG1" | grep -Fq 'WORKTREE_HYGIENE path=sub action=repaired' && echo yes || echo no)"
+expect "reuse-gap(untracked-files): no unrecognized-dirt marker emitted" \
+  "no" "$(printf '%s' "$OUT_RG1" | grep -Fq 'unrecognized-dirt' && echo yes || echo no)"
+expect "reuse-gap(untracked-files): submodule ends clean (subdir file restored to the index)" \
+  "clean" "$([ -z "$(git -C "$WTRG1/sub" status --porcelain 2>/dev/null)" ] && echo clean || echo dirty)"
+
+# ---------------------------------------------------------------------------
+# Case (RG.2 / #1476 gap 2) deliberate-git-rm disambiguation: a worker's own
+# uncommitted `git rm a.txt` (b.txt stays in the index) yields the
+# staged-deletions-only porcelain at the matched gitlink SHA — the OLD arm
+# force-restored it, destroying the intentional deletion. The non-empty
+# remaining index must now classify `detected possible-deliberate-git-rm`,
+# never repaired; the staged deletion survives byte-for-byte.
+# ---------------------------------------------------------------------------
+FXRG2="$(hyg_fixture)"; RRG2="${FXRG2%% *}"; WTRG2="${FXRG2##* }"
+TIPRG2="$(git -C "$RRG2" rev-parse war/myplan/p2-t3)"
+git -C "$WTRG2/sub" rm -q a.txt
+expect "reuse-gap(git-rm) setup: deletion staged, b.txt still in the index" \
+  "b.txt" "$(git -C "$WTRG2/sub" ls-files 2>/dev/null)"
+OUT_RG2="$( ( cd "$RRG2" && bash "$SCRIPT" ensure-worktree "$WTRG2" war/myplan/p2-t3 "$TIPRG2" ) 2>&1 )"; C_RG2=$?
+expect "reuse-gap(git-rm): reuse exits 0 (fail-open)" "0" "$C_RG2"
+expect "reuse-gap(git-rm): partial staged deletion is detected as possible-deliberate-git-rm" \
+  "yes" "$(printf '%s' "$OUT_RG2" | grep -Fq 'WORKTREE_HYGIENE path=sub action=detected detail=possible-deliberate-git-rm' && echo yes || echo no)"
+expect "reuse-gap(git-rm): never repaired (the --force arm did not fire)" \
+  "no" "$(printf '%s' "$OUT_RG2" | grep -Fq 'action=repaired' && echo yes || echo no)"
+expect "reuse-gap(git-rm): the staged deletion survives" \
+  "a.txt" "$(git -C "$WTRG2/sub" diff --cached --name-only --diff-filter=D 2>/dev/null)"
+expect "reuse-gap(git-rm): the deleted file stays deleted on disk" \
+  "absent" "$([ -e "$WTRG2/sub/a.txt" ] && echo present || echo absent)"
+# The one indistinguishable shape (`git rm` of EVERY tracked file == emptied
+# index) is an ACCEPTED RESIDUAL taken only because no readable surface can
+# split it — the plan requires the header-documentation text itself asserted,
+# never a prose-only waiver.
+expect "reuse-gap(git-rm): accepted-residual header documentation is present in the script" \
+  "yes" "$(grep -Fq 'indistinguishable from the emptied-index corruption' "$SCRIPT" && echo yes || echo no)"
+
+# ---------------------------------------------------------------------------
+# Case (RG.3 / #1476 gap 3) SIGPIPE regression: a LARGE emptied-index
+# submodule whose staged-deletion list exceeds the pipe buffer. The old
+# per-line `printf | grep -Fxq` mirror check let grep exit on first match,
+# SIGPIPE-killing printf, and pipefail then misread the 141 as a shape
+# mismatch (unrecognized-dirt). The single draining awk pass must REPAIR.
+# ---------------------------------------------------------------------------
+RGBIGSUB="$(mktemp -d 2>/dev/null || mktemp -d -t warhybig)"; REPOS="$REPOS $RGBIGSUB"
+git -C "$RGBIGSUB" init -q
+git -C "$RGBIGSUB" config user.email war@test.local
+git -C "$RGBIGSUB" config user.name "WAR Test"
+git -C "$RGBIGSUB" config commit.gpgsign false
+i=0
+while [ "$i" -lt 2600 ]; do
+  : > "$RGBIGSUB/payload-sigpipe-regression-file-number-$(printf '%05d' "$i").txt"
+  i=$((i + 1))
+done
+git -C "$RGBIGSUB" add -A; git -C "$RGBIGSUB" commit -qm bigseed
+RRG3="$(new_repo)"
+git -C "$RRG3" -c protocol.file.allow=always submodule add -q "$RGBIGSUB" sub >/dev/null 2>&1
+git -C "$RRG3" commit -qm "declare submodule"
+git -C "$RRG3" branch war/myplan/p8-t1 HEAD
+WTRG3="$(new_wt_path)"
+( cd "$RRG3" && bash "$SCRIPT" ensure-worktree "$WTRG3" war/myplan/p8-t1 "$(git -C "$RRG3" rev-parse HEAD)" ) >/dev/null 2>&1
+git -C "$WTRG3" -c protocol.file.allow=always submodule update --init sub >/dev/null 2>&1
+TIPRG3="$(git -C "$RRG3" rev-parse war/myplan/p8-t1)"
+git -C "$WTRG3/sub" read-tree --empty
+expect "reuse-gap(sigpipe) setup: staged-deletion list exceeds the 64KB pipe buffer" \
+  "big" "$([ "$(git -C "$WTRG3/sub" diff --cached --name-only --diff-filter=D 2>/dev/null | wc -c)" -gt 65536 ] && echo big || echo small)"
+OUT_RG3="$( ( cd "$RRG3" && bash "$SCRIPT" ensure-worktree "$WTRG3" war/myplan/p8-t1 "$TIPRG3" ) 2>&1 )"; C_RG3=$?
+expect "reuse-gap(sigpipe): reuse exits 0 (fail-open)" "0" "$C_RG3"
+expect "reuse-gap(sigpipe): the large emptied-index submodule is REPAIRED" \
+  "yes" "$(printf '%s' "$OUT_RG3" | grep -Fq 'WORKTREE_HYGIENE path=sub action=repaired' && echo yes || echo no)"
+expect "reuse-gap(sigpipe): never misclassified as unrecognized-dirt" \
+  "no" "$(printf '%s' "$OUT_RG3" | grep -Fq 'unrecognized-dirt' && echo yes || echo no)"
+# The defensive env-error route (a classification read failing or dying of a
+# signal classifies as env error, never a hygiene finding) has no reachable
+# in-fixture trigger — pin its presence in the script.
+expect "reuse-gap(sigpipe): env-error classification arm exists (never a hygiene finding on a failed read)" \
+  "yes" "$(grep -Fq 'env-error:' "$SCRIPT" && echo yes || echo no)"
+
+# ---------------------------------------------------------------------------
+# Case (RG.4 / #1476 gap 4) refinery-worktree hygiene arm: the SAME corrupted
+# emptied-index submodule state on ensure-refinery-worktree's reuse path must
+# now be repaired (previously the refinery reuse carried no hygiene arm).
+# Streams captured SPLIT: stdout stays exactly the worktree path.
+# ---------------------------------------------------------------------------
+RGRSUB="$(mktemp -d 2>/dev/null || mktemp -d -t warhyref)"; REPOS="$REPOS $RGRSUB"
+git -C "$RGRSUB" init -q
+git -C "$RGRSUB" config user.email war@test.local
+git -C "$RGRSUB" config user.name "WAR Test"
+git -C "$RGRSUB" config commit.gpgsign false
+printf 'one\n' > "$RGRSUB/a.txt"; printf 'two\n' > "$RGRSUB/b.txt"
+git -C "$RGRSUB" add -A; git -C "$RGRSUB" commit -qm subseed
+RRG4="$(new_repo)"
+git -C "$RRG4" -c protocol.file.allow=always submodule add -q "$RGRSUB" sub >/dev/null 2>&1
+git -C "$RRG4" commit -qm "declare submodule"
+git -C "$RRG4" branch integration/myplan/phase-8 HEAD
+WTRG4="$(new_wt_path)"
+( cd "$RRG4" && bash "$SCRIPT" ensure-refinery-worktree "$WTRG4" integration/myplan/phase-8 ) >/dev/null 2>&1
+git -C "$WTRG4" -c protocol.file.allow=always submodule update --init sub >/dev/null 2>&1
+git -C "$WTRG4/sub" read-tree --empty
+touch "$(cd "$WTRG4/sub" && git rev-parse --git-dir)/index.lock" 2>/dev/null || true
+ERRF_RG4="$(mktemp 2>/dev/null || mktemp -t warhyg4)"; REPOS="$REPOS $ERRF_RG4"
+OUT_RG4_STDOUT="$( ( cd "$RRG4" && bash "$SCRIPT" ensure-refinery-worktree "$WTRG4" integration/myplan/phase-8 ) 2>"$ERRF_RG4" )"; C_RG4=$?
+OUT_RG4="$(cat "$ERRF_RG4")"
+expect "reuse-gap(refinery): reuse exits 0 (fail-open, exit discipline unchanged)" "0" "$C_RG4"
+expect "reuse-gap(refinery): stdout is exactly the worktree path (markers stay on stderr)" \
+  "$WTRG4" "$OUT_RG4_STDOUT"
+expect "reuse-gap(refinery): refinery reuse repairs the corrupted submodule" \
+  "yes" "$(printf '%s' "$OUT_RG4" | grep -Fq 'WORKTREE_HYGIENE path=sub action=repaired' && echo yes || echo no)"
+expect "reuse-gap(refinery): submodule ends clean in superproject porcelain" \
+  "clean" "$([ -z "$(git -C "$WTRG4" status --porcelain -- sub 2>/dev/null)" ] && echo clean || echo dirty)"
+
+# ---------------------------------------------------------------------------
+# Case (RG.5 / #1712 fix 1, End state 26) holder-naming die, ensure-worktree:
+# the branch is already checked out at worktree A; provisioning worktree B on
+# the same branch must die naming A's path (`checked out at <path>`), not just
+# ask "is the branch checked out elsewhere?".
+# ---------------------------------------------------------------------------
+RRG5="$(new_repo)"
+WTRG5A="$(new_wt_path)"
+( cd "$RRG5" && bash "$SCRIPT" ensure-worktree "$WTRG5A" war/myplan/p8-t9 "$(git -C "$RRG5" rev-parse HEAD)" ) >/dev/null 2>&1
+WTRG5A_PHYS="$(cd "$WTRG5A" && pwd -P)"
+WTRG5B="$(new_wt_path)"
+code="$(run_in "$RRG5" ensure-worktree "$WTRG5B" war/myplan/p8-t9 "$(git -C "$RRG5" rev-parse HEAD)")"
+expect "holder-die(ensure-worktree): second worktree on a held branch fails loud" \
+  "nonzero" "$([ "$code" -ne 0 ] && echo nonzero || echo zero)"
+MSG_RG5="$(run_in_msg "$RRG5" ensure-worktree "$WTRG5B" war/myplan/p8-t9 "$(git -C "$RRG5" rev-parse HEAD)")"
+expect "holder-die(ensure-worktree): die names the holder path (checked out at <path>)" \
+  "yes" "$(printf '%s' "$MSG_RG5" | grep -Fq "checked out at $WTRG5A_PHYS" && echo yes || echo no)"
+
+# ---------------------------------------------------------------------------
+# Case (RG.6 / #1712 fix 1, End state 26) holder-naming die,
+# ensure-refinery-worktree: the integration branch is held by worktree A; a
+# second refinery worktree at B must die naming A's path.
+# ---------------------------------------------------------------------------
+RRG6="$(new_repo)"
+git -C "$RRG6" branch integration/myplan/phase-8 HEAD
+WTRG6A="$(new_wt_path)"
+( cd "$RRG6" && bash "$SCRIPT" ensure-refinery-worktree "$WTRG6A" integration/myplan/phase-8 ) >/dev/null 2>&1
+WTRG6A_PHYS="$(cd "$WTRG6A" && pwd -P)"
+WTRG6B="$(new_wt_path)"
+code="$(run_in "$RRG6" ensure-refinery-worktree "$WTRG6B" integration/myplan/phase-8)"
+expect "holder-die(ensure-refinery-worktree): second refinery worktree on the held branch fails loud" \
+  "nonzero" "$([ "$code" -ne 0 ] && echo nonzero || echo zero)"
+MSG_RG6="$(run_in_msg "$RRG6" ensure-refinery-worktree "$WTRG6B" integration/myplan/phase-8)"
+expect "holder-die(ensure-refinery-worktree): die names the holder path (checked out at <path>)" \
+  "yes" "$(printf '%s' "$MSG_RG6" | grep -Fq "checked out at $WTRG6A_PHYS" && echo yes || echo no)"
+
+# ===========================================================================
 # Task 4: teardown-task / teardown-phase / prune  (all strictly RUN-SCOPED).
 #
 # Run-scoping (D6/D9): task worktrees live under the run's ledger dir,
@@ -640,8 +833,9 @@ expect "teardown-phase (run-mine) does not touch the other run's worktree" \
 # ===========================================================================
 # Task 1 (clandiso): ensure-refinery-worktree <path> <integration-branch>
 #
-# Behavior (ensure + re-attach, distinct from ensure-worktree's reuse: marker +
-# examine-but-untouched submodule hygiene):
+# Behavior (ensure + re-attach; the reuse paths (b)/(c) run the same
+# examined-but-untouched submodule hygiene arm as ensure-worktree's reuse —
+# #1476 gap 4, case RG.4 above):
 #   (a) Not registered / empty dir -> `git worktree add <path> <integration-branch>` + .war-task
 #   (b) Registered + present + HEAD on the integration branch -> reuse untouched (marker only)
 #   (c) Registered + present + HEAD detached or on a different branch AND tree CLEAN ->
