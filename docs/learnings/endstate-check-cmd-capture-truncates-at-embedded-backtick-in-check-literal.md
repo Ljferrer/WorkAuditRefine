@@ -1,6 +1,6 @@
 ---
 name: endstate-check-cmd-capture-truncates-at-embedded-backtick-in-check-literal
-description: "An End-state `check:` literal that itself embeds a backtick-delimited Markdown code span (e.g"
+description: "RESOLVED (phase 2026-08-25-engine-reliability-and-filing-fidelity/4.1): An End-state `check:` literal that itself embeds a backtick-delimited Markdown code span (e.g"
 metadata: 
   node_type: memory
   type: project
@@ -17,7 +17,11 @@ metadata:
     - gate-audit
     - workflow-template
     - endstate cmd artifact
+    - fenced byte transport
+    - cmd_bytes_mismatch
+    - quoting-agnostic transport
   provenance: code-verified
+  promoted: dev/2026-08-20-adr-doc-truth-sweep@phase-1
   slug: endstate-check-cmd-capture-truncates-at-embedded-backtick-in-check-literal
   phase: adr-doc-truth-sweep/phase-1
   tags: 
@@ -27,7 +31,7 @@ metadata:
     - workflow-template
   created: 2026-08-21
   originSessionId: 7ca1efff-82f4-4b12-a4e0-5ec1e43ee937
-  modified: 2026-08-21T20:04:13.326Z
+  modified: 2026-08-26T15:24:40.701Z
 ---
 
 # End-state `check:` capture truncates at an embedded backtick
@@ -81,3 +85,29 @@ Verify still present before acting: the generator lives in `skills/war/assets/wo
 backtick-delimited Markdown code span — such an artifact is transient (written into a task/refinery
 worktree, reaped after phase close), so do not expect it to persist; re-derive from a live run if
 re-verifying.
+
+## RESOLVED — quoting-agnostic fenced byte transport (phase 4, 2026-08-25-engine-reliability-and-filing-fidelity, Task 4.1)
+
+**Code-verified at landed tip `c5458da04dc533da3c531ae96c3cd01e45072814` on
+`dev/2026-08-25-engine-reliability-and-filing-fidelity`** (read directly in the live worktree whose
+`.git` gitdir is `<repo-root>/.claude/war-worktrees/2026-08-25-engine-reliability-and-filing-fidelity-2026-08-26/_refinery`,
+HEAD confirmed == the landed tip). `skills/war/assets/workflow-template.js`'s endstate-check dispatch
+now threads each `check:` literal inside a **fenced block whose fence length exceeds the longest
+backtick run inside the literal itself** (min 3 backticks) — a content backtick run can therefore
+never be misread as the closing fence, closing this lesson's truncation mechanism. The refiner is
+directed to **copy bytes between the fence lines byte-verbatim** (never re-quote/re-escape/substitute)
+and then **verify the written `.cmd` file byte-for-byte** against the fenced literal before executing;
+a mismatch records a `cmd_bytes_mismatch: written .cmd bytes != declared check literal` line in the
+artifact and the row is never executed — loud failure, never a silent truncation. This same mechanism
+also resolves the sibling
+[[endstate-check-cmd-artifact-can-double-quote-a-single-quoted-plan-literal]] double-quote/`bad
+substitution` defect (same root cause: the dispatch previously re-rendered/re-parsed the literal
+instead of copying its bytes).
+
+**Residual gap this fix introduces (see [[endstate-check-record-only-artifact-states-lack-directed-unverified-mapping-on-seat-surfaces]]):**
+the new `cmd_bytes_mismatch:`/`intake_lint:` record-only artifact states are not yet mapped to
+`unverified` on the seat-facing prompt or `agents/war-auditor.md` — only in a source comment.
+
+Locate-cue: `skills/war/assets/workflow-template.js`, the `if (endStateCheckRows.length > 0)` block
+building `r.fence`/`r.unsupported` (search `Quoting-agnostic .cmd transport`), and the
+`ENDSTATE_CHECK_RESULT` header comment a few lines above it.

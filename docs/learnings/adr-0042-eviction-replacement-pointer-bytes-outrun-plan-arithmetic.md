@@ -2,6 +2,7 @@
 name: adr-0042-eviction-replacement-pointer-bytes-outrun-plan-arithmetic
 description: "A plan's byte arithmetic for an ADR-0042 byte-identical references/ eviction (evicted bytes…"
 metadata: 
+  promoted: dev/2026-08-06-references-pointer-integrity@phase-1
   node_type: memory
   type: project
   provenance: code-verified
@@ -25,7 +26,7 @@ metadata:
     - plan-design
   created: 2026-08-18
   originSessionId: db0604c4-3009-475d-8db8-5d92ff291ce2
-  modified: 2026-08-18T16:33:21.435Z
+  modified: 2026-08-26T15:24:59.578Z
 ---
 
 # An ADR-0042 eviction's plan-projected headroom is routinely optimistic — measure, don't trust the arithmetic
@@ -71,3 +72,16 @@ subsequent planning.
 **Locate-cue (verify still present before acting):**
 `skills/war/assets/prompt-surface-budgets.test.mjs`'s `FILE_BUDGETS` hard-line entry for
 `agents/war-refiner.md` (34,816 B); the card's landed size via `git cat-file -s <tip>:agents/war-refiner.md`.
+
+## Confirming instance — Phase 4 of `2026-08-25-engine-reliability-and-filing-fidelity` (2026-08-26)
+
+The "budget-frozen for the rest of the campaign" consequence predicted above materialized exactly as
+described, on the SAME `agents/war-refiner.md` surface this lesson already names. Phase 2 Task 2 of
+this plan sized an eviction "WITH margin for the Phase 4 AND Phase 6 card edits" — Phase 4 Task 1's
+endstate-check transport rework then consumed 735 of that ~899 B margin (gate-audit-measured,
+`gateEvidence: true`, `auditSha 609820f443bdc92da65a7bce0c53bdb2b4c53ef1`), landing the card at 164 B
+under its 34,816 B hard ceiling — green, but a thin remainder for Phase 6 Task 1's still-owed edit to
+the SAME card. Independently confirms the rule: **a shared eviction margin funding two later card
+edits should be treated as consumable by the FIRST edit to land, not a stable pool** — the second
+task should re-measure and budget its own eviction rather than assume the plan's original margin
+survives intact.
