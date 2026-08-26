@@ -4941,6 +4941,70 @@ test('endstate-check dispatch: NOT dispatched for bare-string (judgment-path) cl
   assert.ok(!c2.some(isEndstateCheck), 'a claims-less phase dispatches nothing')
 })
 
+// ===========================================================================
+// QUOTING-AGNOSTIC .CMD TRANSPORT (endstate-artifact-fidelity Task 4.2 — A3, End state 6)
+// ---------------------------------------------------------------------------
+// The three mined shapes ride the dispatched prompt inside FENCED blocks the refiner copies
+// byte-verbatim into the row's .cmd file — never re-quoted (the 'bad substitution' bug: a
+// single-quoted ${...} plan literal re-emitted double-quoted dies in bash parameter expansion),
+// never truncated at an inner backtick run (the fence length always exceeds the longest run inside
+// the literal), and a multi-command check executes end-to-end with FULL stdout+stderr teed — plus
+// the loud-failure contract: written .cmd bytes != the declared literal ⇒ a recorded
+// cmd_bytes_mismatch contradiction on the artifact, never a silently "corrected" execution.
+const ES_BT = '`'
+// One check:-tagged row carrying the shape under test; the transport prompt is shape-driven, so each
+// fixture threads its own literal through the same single-row phase.
+const esTransportPrompt = async (check) => {
+  const { calls } = await runPhase(ES_ROW_ARGS({
+    phase: { id: 3, title: 'P3', integrationBranch: 'integration/wtprov-a/phase-3', workingBranch: 'dev/wtprov-a',
+      endState: [{ condition: 'condition T: the transport shape survives', tag: 'check:', check }] },
+  }), gateAuditImpl)
+  const es = calls.find(isEndstateCheck)
+  assert.ok(es, 'endstate-check dispatch present (presence guard)')
+  return es.prompt
+}
+// The row builder's exact fenced rendering: fence line, literal bytes, fence line.
+const esFenced = (fence, check) => `fenced below:\n${fence}\n${check}\n${fence}`
+
+test('endstate-transport shape 1 (End state 6, A3): a single-quoted literal containing a ${...} run rides the fenced block byte-verbatim — copy-bytes contract, never re-quoted', async () => {
+  // Double-quoted JS string: the ${plan.file} bytes below are LITERAL, exactly as a plan's check: row
+  // carries them (the historical 'bad substitution' shape — see the endstate-check-cmd-artifact lesson).
+  const check = "grep -F 'Plan file: ${plan.file}' docs/plans/wtprov-A.md"
+  const p = await esTransportPrompt(check)
+  assert.ok(p.includes(esFenced(ES_BT.repeat(3), check)), 'the literal rides the fenced block byte-verbatim — single quotes and the ${...} run intact, min-3 fence')
+  assert.ok(p.includes('never re-quote'), 'the copy-bytes instruction forbids re-quoting (the bad-substitution bug)')
+  assert.ok(p.includes('a single-quoted ${...} run is literal bytes and must survive exactly'), 'the ${...} survival clause is explicit — the refiner never substitutes')
+})
+
+test('endstate-transport shape 2 (End state 6, A3): an embedded-backtick literal is fenced LONGER than its longest inner run — no truncation at the inner backticks', async () => {
+  // Inner run of THREE backticks (a fenced-code-span mention inside the literal) ⇒ the transport must
+  // pick a 4-backtick fence; a content run can then never read as the fence and the tail after the
+  // run survives (the .cmd-capture-truncates-at-embedded-backtick lesson).
+  const check = `grep -F '${ES_BT.repeat(3)}mermaid' docs/specs/wtprov-A-design.md`
+  const p = await esTransportPrompt(check)
+  assert.ok(p.includes(esFenced(ES_BT.repeat(4), check)), 'the fence is FOUR backticks — exceeding the inner 3-run — and the literal (inner backticks + the bytes after them) rides untruncated')
+  assert.ok(!p.includes(esFenced(ES_BT.repeat(3), check)), 'the inner run is never treated as the fence (a 3-fence around this literal would truncate at the content run)')
+  assert.ok(p.includes('a backtick run INSIDE the content is NEVER the fence'), 'the prompt states the fence rule — only the exact fence line opens and closes the block')
+})
+
+test('endstate-transport shape 3 (End state 6, A3/D11): a two-command check rides whole — both halves in the fenced block, executed as one file end-to-end, FULL stdout+stderr teed', async () => {
+  const twoCmd = "node --test skills/war/assets/wibble.acceptance.test.mjs && grep -c 'wobble' skills/war/assets/wibble.log"
+  const p = await esTransportPrompt(twoCmd)
+  assert.ok(p.includes(esFenced(ES_BT.repeat(3), twoCmd)), 'BOTH halves of the compound check ride the fenced block — the literal is never split or half-carried')
+  assert.match(p, /execute the file AS A WHOLE, FROM THE FILE/i, 'the .cmd executes as one file — every command of a multi-command check runs')
+  assert.match(p, /FULL stdout\+stderr of the ENTIRE command line/i, 'the artifact tees the full stdout+stderr of the whole command line')
+  assert.match(p, /END-TO-END/, 'compound/pipeline checks are captured end-to-end')
+  assert.match(p, /never a half-run/i, 'the half-run failure mode is named and forbidden')
+})
+
+test('endstate-transport loud-failure row (End state 6): declared literal != written .cmd bytes ⇒ the artifact records the cmd_bytes_mismatch contradiction — never a corrected execution, never silent', async () => {
+  const p = await esTransportPrompt(ES_CHECK_CMD)
+  assert.match(p, /VERIFY before executing/i, 'the refiner re-reads the written .cmd and compares byte-for-byte before executing')
+  assert.ok(p.includes('cmd_bytes_mismatch: written .cmd bytes != declared check literal'), 'a mismatch is RECORDED on the artifact as the named contradiction line')
+  assert.match(p, /do NOT execute any re-quoted\/corrected variant/i, 'a mismatched row is never repaired-and-run — the contradiction stands')
+  assert.match(p, /fails LOUDLY via its artifact, never silently/i, 'the failure mode is loud by contract')
+})
+
 // Recovery Blocker 1 (Pivotal constraint: prompt-surface split — standing card + dispatched prompt,
 // same task): the refiner card must LEARN the endstate-check dispatch flavor it is handed, the way
 // the structurally identical evidence dispatch got its own card section. The dispatch is fail-open,
