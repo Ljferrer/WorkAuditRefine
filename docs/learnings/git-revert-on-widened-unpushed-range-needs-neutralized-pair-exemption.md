@@ -1,6 +1,6 @@
 ---
 name: git-revert-on-widened-unpushed-range-needs-neutralized-pair-exemption
-description: "Range-scoped condemnation + naive git revert loops forever; exempt revert/reverted pairs via the 'This reverts commit' body token"
+description: "Range-scoped condemnation + naive git revert loops forever; exempt revert/reverted pairs via…"
 metadata: 
   node_type: memory
   type: project

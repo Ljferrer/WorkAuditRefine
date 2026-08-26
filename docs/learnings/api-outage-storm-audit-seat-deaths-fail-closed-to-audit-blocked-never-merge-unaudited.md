@@ -1,6 +1,6 @@
 ---
 name: api-outage-storm-audit-seat-deaths-fail-closed-to-audit-blocked-never-merge-unaudited
-description: "A sustained provider-API outage (14 dispatches lost to 529 Overloaded) exercised the engine's fail-closed paths correctly: a pre-commit worker death was a clean relaunch (nothing to resume), and audit-seat + gate-audit deaths returned audit-blocked with the release commit pushed but UNMERGED — no incorrect state was ever produced"
+description: "A sustained provider-API outage (14 dispatches lost to 529 Overloaded) exercised the engine's…"
 metadata: 
   node_type: memory
   type: project

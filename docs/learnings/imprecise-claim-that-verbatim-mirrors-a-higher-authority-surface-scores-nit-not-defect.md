@@ -1,6 +1,6 @@
 ---
 name: imprecise-claim-that-verbatim-mirrors-a-higher-authority-surface-scores-nit-not-defect
-description: "A doc claim that looks imprecise can be a verbatim mirror of a higher-authority landed surface (Commander's Intent Purpose, a doctrine header) — grade Nit/note, not a defect of the mirroring artifact, and fix upstream"
+description: "A doc claim that looks imprecise can be a verbatim mirror of a higher-authority landed surface…"
 metadata: 
   node_type: memory
   type: project

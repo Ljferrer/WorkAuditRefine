@@ -1,6 +1,6 @@
 ---
 name: deliberately-uncommitted-worker-probe-evidence-is-soft-never-hold
-description: "Worker-probe (done-report-only) End-state evidence: gate-audit treats cannot-confirm as SOFT, never a hold"
+description: "Worker-probe (done-report-only) End-state evidence: gate-audit treats cannot-confirm as SOFT"
 metadata: 
   node_type: memory
   type: project

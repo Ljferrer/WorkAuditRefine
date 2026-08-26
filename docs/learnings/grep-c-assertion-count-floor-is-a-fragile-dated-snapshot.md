@@ -1,6 +1,6 @@
 ---
 name: grep-c-assertion-count-floor-is-a-fragile-dated-snapshot
-description: "A grep -c End-state count floor is a dated snapshot — base can be miscounted both ways, and comments match too"
+description: "A grep -c End-state count floor is a dated snapshot — base can be miscounted both ways"
 metadata: 
   node_type: memory
   type: project

@@ -1,6 +1,6 @@
 ---
 name: uncited-budget-ceiling-raise-caught-only-by-audit-luck-now-a-floor
-description: "A worker needing headroom on a budgeted prompt surface can quietly raise the surface's ADR-0042 byte ceilings instead of compression/eviction-funding the growth — the raise carries no ADR-0042 citation and is caught only by an auditor's attention, not by any mechanized gate; issue #1586 part 3 promotes this from audit-luck to a citation floor on ceiling diffs plus an operator-gated re-baseline pass"
+description: "A worker needing headroom on a budgeted prompt surface can quietly raise the surface's…"
 metadata: 
   node_type: memory
   type: project

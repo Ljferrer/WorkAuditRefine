@@ -1,6 +1,6 @@
 ---
 name: plan-slice-shape-word-ambiguous-against-files-own-sibling-entry-convention
-description: "A plan slice's shape word ('in the short shape') for a new CHANGELOG/release entry can be genuinely ambiguous against the same file's own established sibling-entry convention, producing a Minor finding that needs phase-close backfill — and even the backfill leaves the shape question formally unresolved"
+description: "A plan slice's shape word ('in the short shape') for a new CHANGELOG/release entry can be…"
 metadata: 
   node_type: memory
   type: project

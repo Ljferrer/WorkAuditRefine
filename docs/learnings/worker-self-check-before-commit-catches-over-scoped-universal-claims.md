@@ -1,6 +1,6 @@
 ---
 name: worker-self-check-before-commit-catches-over-scoped-universal-claims
-description: "A fix worker caught three of its own over-scoped universal claims during self-check before committing — one flatly false ('every file in the scanned corpus carries a ## heading', disproven by docker-gate.md, which is in the scan corpus but never passed to headerRegion since it's absent from the hand-enumerated QUALIFIED_HEADERS allowlist)"
+description: "A fix worker caught three of its own over-scoped universal claims during self-check before…"
 metadata: 
   node_type: memory
   type: project

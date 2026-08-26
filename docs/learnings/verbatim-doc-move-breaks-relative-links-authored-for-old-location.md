@@ -1,6 +1,6 @@
 ---
 name: verbatim-doc-move-breaks-relative-links-authored-for-old-location
-description: "Verbatim doc moves break relative links authored for the old location; fix with a header caveat, not a rewrite"
+description: "Verbatim doc moves break relative links authored for the old location; fix with a header caveat"
 metadata: 
   node_type: memory
   type: project

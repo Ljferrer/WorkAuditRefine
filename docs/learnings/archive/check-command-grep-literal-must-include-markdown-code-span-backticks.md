@@ -78,3 +78,5 @@ landed text actually carries.
 `` `/red-team` Step 5's ≤ 2 re-verify attempts ``); the broken check lives in
 `docs/plans/2026-08-06-verdict-adjudication-integrity.md`'s End state 8 (the two `grep -oiF` lines
 quoted above) — filed as a Minor follow-up finding at land, not fixed in-phase.
+
+> archived 2026-08-25: resolved — moved to archive

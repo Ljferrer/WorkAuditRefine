@@ -68,3 +68,5 @@ condition — the array position *is* the id at dispatch time, full stop.
 **Locate-cue (verify still present before acting):** `skills/war/assets/workflow-template.js` —
 `const endStateRows = Array.isArray(ph && ph.endState)` (~line 395, no id field kept) and
 `+ endStateRows.map((r, i) => pt`  ${i + 1}. ${r.condition}` (~line 1768, positional render).
+
+> archived 2026-08-25: resolved — moved to archive

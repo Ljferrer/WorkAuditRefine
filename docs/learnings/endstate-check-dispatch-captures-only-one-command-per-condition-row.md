@@ -1,6 +1,6 @@
 ---
 name: endstate-check-dispatch-captures-only-one-command-per-condition-row
-description: "Endstate-check dispatch artifacts one command per condition row — a two-command `check:`'s second half goes unrecorded"
+description: "Endstate-check dispatch artifacts one command per condition row"
 metadata: 
   node_type: memory
   type: project

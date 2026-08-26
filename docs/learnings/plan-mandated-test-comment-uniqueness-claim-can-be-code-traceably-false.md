@@ -1,6 +1,6 @@
 ---
 name: plan-mandated-test-comment-uniqueness-claim-can-be-code-traceably-false
-description: "RESOLVED: plan-mandated uniqueness prose can be code-traceably false; disposition is note, not absorb"
+description: "RESOLVED: plan-mandated uniqueness prose can be code-traceably false; disposition is note"
 metadata: 
   node_type: memory
   type: project

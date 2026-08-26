@@ -1,6 +1,6 @@
 ---
 name: whole-suite-check-command-non-discriminating-when-its-own-tests-ship-unmerged
-description: "An End-state check: command that runs a whole pre-existing test suite is non-discriminating when the condition's own new tests ship in the same unmerged commit as the feature — the suite reads green whether or not the feature landed, because the untouched tip lacks the new tests entirely; pair the suite invocation with a presence pin (grep for the new test name/file) so the check fails at an untouched tip instead of vacuously passing"
+description: "An End-state check: command that runs a whole pre-existing test suite is non-discriminating…"
 metadata: 
   node_type: memory
   type: project

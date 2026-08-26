@@ -1,6 +1,6 @@
 ---
 name: afk-scope-qualifier-placement-can-relocate-not-close-a-doc-scoping-bug
-description: "An --afk conditional-scope qualifier's syntactic attachment point in a multi-verb parenthetical can accidentally scope the wrong duty; a fix for one scoping bug can relocate rather than close it, and the relocation can survive to land as an unresolved follow-up"
+description: "An --afk conditional-scope qualifier's syntactic attachment point in a multi-verb…"
 metadata: 
   node_type: memory
   type: project

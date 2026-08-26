@@ -1,6 +1,6 @@
 ---
 name: red-team-scope-word-mandate-satisfied-by-substance-not-literal-phrase-removal
-description: "A red-team adjudication row that names a specific proscribed phrase ('never an unscoped X') can be substantively honored by a different fix (widening the enumeration) while the literal proscribed phrase still ships verbatim — judge by re-deriving falsifiability against the diff, not by grepping for the banned string"
+description: "A red-team adjudication row that names a specific proscribed phrase ('never an unscoped X')…"
 metadata: 
   node_type: memory
   type: project
