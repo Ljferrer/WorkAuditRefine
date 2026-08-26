@@ -5573,7 +5573,8 @@ test('filing-prompt Evidence-artifacts emission (Task 3.2, PIN-14): the clustere
   // Single-seat row (the dominant, non-collapsed shape — this fixture's one seat, one Minor):
   // the raising seat renders via the seatRef fallback, so End state 9's seat-lenses value is
   // emitted, never documented-around. The merged-row corroboration-list pin lives in the
-  // Task-2.1 consolidation test above (seats: audit:t1:correctness, audit:t1:cascading-impact).
+  // Task-2.1 consolidation test above (seats: audit:t1:correctness (task t1),
+  // audit:t1:cascading-impact (task t1)).
   assert.match(fp, /· seats: audit:t1:correctness \(task t1\) · why not absorbable/,
     'a non-collapsed row renders its single raising seat (seatRef fallback, seat+task — D8) in row position')
   assert.doesNotMatch(fp, /single raising seat is unrecorded/,
@@ -5701,8 +5702,13 @@ test('collapse-fidelity (End state 7, terminal arm): a seatless, taskless row st
 
 test('string-seats-fixture (End state 8): an auditor-supplied string `seats` on a NON-collapsing row renders via the Array.isArray fallback without throwing — landDecision stays landed', async () => {
   // Delete-the-feature: a truthiness gate on m.seats would take the seats-join branch for this
-  // truthy, lengthful STRING — String.prototype.join does not exist, the row builder throws inside
-  // the filing block, and the batch dies. Array.isArray sends the row down the seatRef fallback.
+  // truthy, lengthful STRING — String.prototype.join does not exist and the row builder throws.
+  // But the row builder is evaluated as an ARGUMENT to the filing `agent(...)` call inside the
+  // filing block's own fail-open try, so the throw is caught locally (`filingOut = null`), the
+  // dispatch never fires, and the phase still lands — landDecision is non-discriminating here.
+  // The load-bearing pin is therefore the `calls.find(...).prompt` read below: with a truthiness
+  // gate no file-followups dispatch exists and `.prompt` throws. Array.isArray sends the row down
+  // the seatRef fallback so the dispatch fires and the row renders.
   const impl = (prompt, opts) => {
     const seat = seatOf(opts)
     if (seat === 'war-auditor')
@@ -5713,11 +5719,11 @@ test('string-seats-fixture (End state 8): an auditor-supplied string `seats` on 
     return handoffImpl(undefined)(prompt, opts)
   }
   const { out, calls } = await runPhase(HANDOFF_ARGS(), impl)
-  assert.equal(out.landDecision, 'landed', 'the string-seats row never converts a LANDED phase into held:workflow-error')
+  assert.equal(out.landDecision, 'landed', 'presence guard: the phase lands (the filing dispatch fails open by design — the load-bearing pin is the row render below)')
   const fp = calls.find(c => c.opts.dispatchKind === 'file-followups').prompt
   assert.match(fp, /"string seats row"[^\n]* · seats: audit:t1:correctness \(task t1\)/,
     'the row renders via the seatRef fallback (Array.isArray gate) — never the raw string, never a throw')
-  assert.equal(out.handoff.followUps.length, 1, 'the row still rides the handoff (the batch survived)')
+  assert.equal(out.handoff.followUps.length, 1, 'the row rides the handoff (projected from minorsFiled independently of the filing dispatch)')
 })
 
 test('rebut-lens (End state 21): a `:rebut`-suffixed seat label rides the filing row and the Evidence-artifacts clause carves the suffix out of lens extraction — prompt and file-followups.md mirror both carry the carve-out (drift row)', async () => {

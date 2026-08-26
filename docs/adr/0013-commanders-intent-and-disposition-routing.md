@@ -287,7 +287,9 @@ per-finding "files the issue" description with the filing shape as it actually r
 - **Engine-side consolidation precedes filing.** Before the filing dispatch sees anything, the
   engine collapses `follow-up` rows keyed on same file + line within a bounded window
   (`FOLLOWUP_LINE_WINDOW` in `workflow-template.js`; normalized-title fallback when line is
-  absent): merged-away rows survive on the surviving row as `seats[]` corroboration, and the
+  absent) and a distinct raising seat — two rows from one seat never collapse (a collapse is
+  cross-seat corroboration): merged-away rows survive on the surviving row with their title,
+  rationale, and seat+task corroboration (`seats[]` plus a `merged[]` sub-list), and the
   consolidation is logged (N rows → M candidates).
 - **Dedup is a corroboration comment, never a duplicate issue.** The filing dispatch lists open
   `war-followup` issues once; a candidate row matching an open issue (exact title, or same file +
@@ -297,7 +299,8 @@ per-finding "files the issue" description with the filing shape as it actually r
 - **Filing is one issue per cluster.** Remaining candidate rows are clustered by file + root
   cause, and ONE `war-followup` issue is filed per cluster: title from the cluster's lead row;
   body carrying, per member row, the why-not-absorbable reason, the task id, its seats as
-  corroboration, and the `## Evidence artifacts` section (values copied verbatim; `unrecorded`
+  corroboration, each merged-away finding's title and rationale when the row carries merged
+  corroborations, and the `## Evidence artifacts` section (values copied verbatim; `unrecorded`
   stays `unrecorded`). Members share one issue number.
 
 Decision 4's routing semantics are otherwise untouched: `follow-up` still means substantive work

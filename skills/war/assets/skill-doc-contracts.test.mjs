@@ -2568,11 +2568,12 @@ test('D37a — the widened **Disposition**/**Clean handoff** entries and the CLA
 
 // (D38) THE ADR 0013 DATED AMENDMENT + THE ADR 0012 CROSS-REF (D5 · PIN-6), D23's idiom: the
 // correction channel is one dated append-only amendment, never a retro-edit of ratified body text.
-// Extraction is BY CONSTRUCT — the 2026-08-25 amendment heading to end-of-file (it is the last
-// amendment; an earlier amendment carries the same byte-discipline sentence, so a whole-file key
+// Extraction is BY CONSTRUCT — the 2026-08-25 amendment heading to the NEXT H2 (or EOF), so a
+// later appended amendment cannot satisfy a key on the guarded amendment's behalf (sibling
+// amendments carry the same byte-discipline closing sentence, so an EOF-bound or whole-file key
 // could not tell a deleted amendment apart). The Status currency line is asserted separately.
 test('D38 — ADR 0013 carries the dated 2026-08-25 ask-disposition amendment and ADR 0012 the cross-ref (#1550)', () => {
-  const block = adr0013.match(/^## Amendment \(2026-08-25\)[\s\S]*$/m)
+  const block = adr0013.match(/^## Amendment \(2026-08-25\)(?:(?!\n## )[\s\S])*/m)
   assert.ok(
     block,
     'could not locate the `## Amendment (2026-08-25)` heading in ADR 0013 — the extraction ' +
