@@ -93,10 +93,14 @@ fi
 # ---------------------------------------------------------------------------
 # Fast path: did the range touch the budget file at all?
 # Three-dot diff scoped to the budget file — exactly what the task branch
-# changed relative to the merge-base of <base>. A git failure here is the HARD
-# exit-2 path (refs unresolvable / not a repo), never the floor status.
+# changed relative to the merge-base of <base>. The pathspec is `:(top)`
+# anchored: git resolves plain pathspecs against the CURRENT directory prefix,
+# while the `git show "$rev:$BUDGET_FILE"` blob reads below are always
+# top-of-tree relative — without the anchor a subdirectory invocation would
+# match nothing and silently exit 0 (floor bypassed). A git failure here is the
+# HARD exit-2 path (refs unresolvable / not a repo), never the floor status.
 # ---------------------------------------------------------------------------
-touched="$($git_cmd diff --name-only "$base...$branch" -- "$BUDGET_FILE" 2>/dev/null)" || \
+touched="$($git_cmd diff --name-only "$base...$branch" -- ":(top)$BUDGET_FILE" 2>/dev/null)" || \
   die "git diff failed for '$base...$branch'" 2
 
 if [ -z "$touched" ]; then

@@ -4,7 +4,9 @@
 # Plain-bash over throwaway mktemp git repos; one fresh fixture per case, each
 # seeding a miniature skills/war/assets/prompt-surface-budgets.test.mjs with a
 # FILE_BUDGETS row and a WORKFLOW_LITERAL_BUDGET const, then branching a change.
-# cwd-independent: every invocation runs from an unrelated mktemp cwd via --repo.
+# cwd-independent: invocations run from an unrelated mktemp cwd via --repo,
+# except case 11, which deliberately runs from a fixture-repo subdirectory
+# without --repo to pin the `:(top)` pathspec anchor.
 # macOS bash 3.2.57 compatible (no globstar, no associative arrays, no ${,,}).
 #
 # Exit 0 = all cases passed; non-zero = at least one failed.
@@ -38,6 +40,17 @@
 #      the FILE_BUDGETS row arm (the greedy-extraction bypass must stay
 #      closed); and a comment-only tail added to an UNKEYED value line with
 #      the code unchanged -> exit 0 (comment-insensitive, no false suspect)
+#  11. subdirectory cwd (1): the case-1 raise, invoked WITHOUT --repo from a
+#      subdirectory of the fixture repo -> exit 1 — the fast-path pathspec is
+#      `:(top)` anchored, so a subdirectory invocation cannot silently exit 0
+#  12. merge-base failure (2): a PATH-shim git fails only `merge-base` (a
+#      three-dot diff shares the merge-base computation, so unrelated
+#      histories die at the diff step and cannot reach this guard) -> exit 2
+#      with the `git merge-base failed` die message — NEVER collapsing into
+#      the floor's exit-1 route (ADR 0006)
+#  13. malformed trailer (1): the case-1 raise with a PARTIAL citation in the
+#      commit body (`Budget-Raise:` lines missing the `+<bytes>` delta or the
+#      ADR-0042 token) -> exit 1 — pins TRAILER_RE's required form
 set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -297,6 +310,16 @@ else
   fail "case 8: .. traversal in ref arg -> expected guard rejection, got exit $rc8 (stderr: $err8)"
 fi
 
+# BRANCH arm of the same guard: the traversal token in the second positional
+# must fire the identical rejection (the base arm alone does not prove it).
+rc8b=0
+err8b="$( ( cd "$cwd8" && bash "$SCRIPT" "$BASE7" "../$BASE7" --repo "$R7" ) 2>&1 >/dev/null )" || rc8b=$?
+if [ "$rc8b" -ne 0 ] && printf '%s' "$err8b" | grep -qF 'refusing to use potentially unsafe ref'; then
+  pass "case 8b: .. traversal in BRANCH arg -> guard fires (non-zero + guard message)"
+else
+  fail "case 8b: .. traversal in BRANCH arg -> expected guard rejection, got exit $rc8b (stderr: $err8b)"
+fi
+
 # ---------------------------------------------------------------------------
 # Case 9: brand-new sibling constant with initial values, no trailer -> exit 0.
 # A NEW keyed const introduces a ceiling; nothing existing was raised, so no
@@ -400,6 +423,81 @@ if [ "$rc10c" -eq 0 ]; then
   pass "case 10c: comment-only tail on unkeyed value line -> exit 0"
 else
   fail "case 10c: comment-only tail on unkeyed value line -> expected exit 0, got $rc10c"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 11: subdirectory cwd -> exit 1. The case-1 raise, invoked WITHOUT
+# --repo from a subdirectory of the fixture repo itself. Git resolves a plain
+# pathspec against the current directory prefix, so without the `:(top)`
+# anchor the fast-path diff would match nothing and the floor would silently
+# exit 0 — the exact fail-open class it exists to close. The --repo cases
+# never reach this path (git -C always lands at the repo root).
+# ---------------------------------------------------------------------------
+rc11=0
+( cd "$R1/skills/war/assets" && bash "$SCRIPT" "$BASE1" "$TASK1" ) >/dev/null 2>&1 || rc11=$?
+if [ "$rc11" -eq 1 ]; then
+  pass "case 11: uncited raise judged from a repo subdirectory -> exit 1 (no pathspec bypass)"
+else
+  fail "case 11: uncited raise from repo subdirectory -> expected exit 1, got $rc11"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 12: merge-base failure -> exit 2, NEVER the floor's exit-1 route
+# (ADR 0006). A three-dot diff computes the same merge-base internally, so an
+# unrelated-histories fixture dies at the diff step (case 7's path) and can
+# never reach this guard; a PATH shim that fails ONLY `git merge-base` (and
+# execs the real git for every other verb) is the one way to exercise it.
+# ---------------------------------------------------------------------------
+REAL_GIT="$(command -v git)"
+shim12="$(fresh_cwd)"
+cat > "$shim12/git" <<EOF
+#!/usr/bin/env bash
+for a in "\$@"; do
+  if [ "\$a" = "merge-base" ]; then
+    echo "fatal: shimmed merge-base failure" >&2
+    exit 1
+  fi
+done
+exec "$REAL_GIT" "\$@"
+EOF
+chmod +x "$shim12/git"
+
+cwd12="$(fresh_cwd)"
+rc12=0
+err12="$( ( cd "$cwd12" && PATH="$shim12:$PATH" bash "$SCRIPT" "$BASE1" "$TASK1" --repo "$R1" ) 2>&1 >/dev/null )" || rc12=$?
+if [ "$rc12" -eq 2 ] && printf '%s' "$err12" | grep -qF 'git merge-base failed'; then
+  pass "case 12: merge-base failure -> exit 2 with die message (never collapses into exit 1)"
+else
+  fail "case 12: merge-base failure -> expected exit 2 + 'git merge-base failed', got exit $rc12 (stderr: $err12)"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 13: malformed trailer -> exit 1. Same raise as case 1, but the commit
+# body carries only PARTIAL citations — one missing the `+<bytes>` delta, one
+# missing the ADR-0042 token entirely. Pins TRAILER_RE's required form: every
+# other exit-1 case has NO Budget-Raise line at all and the only exit-0
+# citation (case 4) is well-formed, so without this arm the regex could be
+# loosened to a bare `^Budget-Raise:` and all asserts would still pass.
+# ---------------------------------------------------------------------------
+R13="$(setup_repo)"
+BASE13="$(git -C "$R13" rev-parse HEAD)"
+git -C "$R13" checkout -qb task/malformed-trailer 2>/dev/null
+write_budget "$R13" 1200 900 2000 1800
+git -C "$R13" add "$BUDGET_REL"
+git -C "$R13" commit -qm "raise SKILL.md hard ceiling
+
+Budget-Raise: ADR-0042 skills/war/SKILL.md
+Budget-Raise: see ADR 0042"
+TASK13="$(git -C "$R13" rev-parse HEAD)"
+git -C "$R13" checkout -q - 2>/dev/null
+
+cwd13="$(fresh_cwd)"
+rc13=0
+( cd "$cwd13" && bash "$SCRIPT" "$BASE13" "$TASK13" --repo "$R13" ) >/dev/null 2>&1 || rc13=$?
+if [ "$rc13" -eq 1 ]; then
+  pass "case 13: partial Budget-Raise citation (no +<bytes> / no ADR token) -> exit 1"
+else
+  fail "case 13: partial Budget-Raise citation -> expected exit 1, got $rc13"
 fi
 
 # ---------------------------------------------------------------------------
