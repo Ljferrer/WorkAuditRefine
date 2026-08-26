@@ -938,11 +938,11 @@ const blockedReason = r => !r ? 'worker returned no result'
 // Infra-death classification (#1411): a POST-SPAWN harness death (API/quota/transport — the seat
 // spawned, then the harness died out from under it) is an environment event, not a code defect. The
 // classification is scoped STRUCTURALLY, never by message text alone (relaunch fix): dispatchAgent
-// wraps the wave thunk's direct agent() dispatches — plus provisionStep's provision-run, the
-// polish-worktree provision, and the sweep dispatch (Phase 6 Task 1 (c)); the provision-BARRIER also
-// routes through it for the TAG alone, with no local catch (its death stays held:workflow-error) —
-// in their OWN try/catch and TAGS a throw that
-// crossed the dispatch boundary; infraDeathCause classifies 'env-died' (a SOFT_ENV_REASONS member
+// TAGS a throw that crossed the dispatch boundary at the wave thunk's direct agent() dispatches,
+// provisionStep's provision-run (classified by the wave-thunk catch), the polish-worktree provision
+// and the sweep dispatch (each with its own local catch), and the provision-barrier (tag only — no
+// local catch, so its death stays held:workflow-error) (Phase 6 Task 1 (c));
+// infraDeathCause classifies 'env-died' (a SOFT_ENV_REASONS member
 // beside env-blocked — the mirror at the land decision) ONLY for a TAGGED throw whose message
 // matches this pattern set, propagating the harness cause verbatim into `blocked`
 // ('worker died: <cause>'). An error thrown anywhere ELSE in the thunk — a pt prompt build,
@@ -2902,7 +2902,7 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
       auditLog.push({ task: polishTask.id, verdict: 'polish-discarded', branch: polishBranch, findings: [], blocked: sweepWhy || null })
       // Dispatch-death drains stamp the drain cause (d): the env-died throw (sweepDeath) or a dead
       // dispatch that returned nothing; a live sweep discarded on panel/merge grounds stays unstamped.
-      const sweepDrainCause = sweepDeath || (sweep === null ? 'polish:phase-' + ph.id + ' sweep dispatch died (returned no result)' : null)
+      const sweepDrainCause = sweepDeath || (!sweep ? 'polish:phase-' + ph.id + ' sweep dispatch died (returned no result)' : null)
       for (const f of phaseCloseQueue.splice(0)) {
         if (sweepDrainCause) stampDrainCause(f, 'polish:phase-' + ph.id, sweepDrainCause)
         demote(f, 'follow-up', sweepDrainCause ? sweepDrainCause + ' — the polish branch never merged; the pre-polish tip lands' : 'phase-close sweep discarded — the polish branch never merged; the pre-polish tip lands')

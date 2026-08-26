@@ -1578,8 +1578,8 @@ budgeting `references/` (cold storage is unbudgeted, like `archive/`); not the i
 **Budget-Raise trailer**:
 The machine-checkable citation a merge diff must carry when it *raises* any `hard:`/`advisory:`
 ceiling constant in `prompt-surface-budgets.test.mjs` — a `Budget-Raise:` commit trailer citing
-ADR 0042, the surface, and the byte delta (exact form: `assert-budget-raise-cited.sh`, which
-refuses an uncited raise, a landed merge-path floor). Ratchet-downs need no trailer.
+ADR 0042, the surface, and the byte delta (exact form: `assert-budget-raise-cited.sh`, a landed
+merge-path floor that refuses an uncited raise). Ratchet-downs need no trailer.
 _Avoid_: prose justification alone (the floor greps the trailer, not the commit body's argument).
 
 **Prose temperature**:
