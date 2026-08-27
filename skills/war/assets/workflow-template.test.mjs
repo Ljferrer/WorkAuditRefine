@@ -3272,6 +3272,32 @@ test('ace-reentry (End state 1, forward-revert posture): a REGRESSING re-entry b
   assert.ok(out.landed.includes('t1'), 't1 still lands its approved work')
 })
 
+test('ace-reentry (End state 1 + 6, batch-regressed arm): a batch finding re-raised as an absorb AT the regressing batch re-audit never re-enters — the drain-time remintBlock re-check catches the route-before-revert ordering', async () => {
+  // The batch-regressed arm queues re-audit-born absorbs BEFORE aceBisect's { reverted: true }
+  // demotes land (routeReauditMinors runs first, then await aceBisect): a content-identical
+  // re-mint of a batch finding is already on r.reentryQueue when its key enters revertedKeys, so
+  // queue-time remintBlock alone cannot refuse it. aceReentry's DRAIN-time re-check must — or the
+  // finding oscillates: a second ace dispatch, then recordAced landing it in BOTH aced and
+  // minorsFiled (End states 1 + 6). Single-file batch ⇒ aceHalve returns null ⇒ whole-batch
+  // demote, no subset dispatches — the only ace call is the batch itself.
+  const first = () => nit({ title: 'first', file: 'skills/first.js' })
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [first()]),
+                               { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'request_changes',
+                                 confidence: 'high', findings: [{ severity: 'Major', title: 'batch broke it', file: 'zz-unrelated.js', rationale: 'regressed' },
+                                                                first()] }] },
+    aceBase([first()]))
+  const { out, calls, logs } = await runPhase(ACE_ARGS(), impl)
+  assert.equal(calls.filter(isAce).length, 1, 'ONLY the batch ace dispatched — the re-raised batch finding never re-enters despite being queued before the forward-revert registration')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('re-entry REFUSED at drain') && l.includes('first')),
+    'the drain-time re-check refuses the queued re-mint, logged (never silent)')
+  assert.equal((out.minorsFiled || []).filter(m => m && m.title === 'first').length, 1,
+    'the reverted batch finding demotes to follow-up exactly ONCE')
+  assert.ok(!(out.aced || []).some(x => x && x.finding && x.finding.title === 'first'),
+    'the reverted finding never lands in aced — aced ∩ minorsFiled = ∅ (End state 6)')
+  assert.ok(out.landed.includes('t1'), 't1 still lands its approved work')
+})
+
 test('ace-reentry (End state 1, reserve gate): re-entry dispatches only while fixRounds < roundLimit − 2 — at the reserve the fresh absorb routes phaseClose:true instead (logged)', async () => {
   // roundLimit 3 ⇒ reserve boundary 1. The batch ace charges the only slot; the re-audit-born
   // absorb finds the reserve line and routes to the sweep queue (no second ace dispatch). Without
@@ -11649,6 +11675,33 @@ test('ask-content-key (End state 6, aced ∩ minorsFiled = ∅): a later-round r
     'no finding lands in BOTH aced and minorsFiled (#1810 double-file arm)')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('corroboration of the aced record')),
     'the skipped re-mint is logged as corroboration (never silent)')
+})
+
+test('ask-content-key (End state 6, aced ∩ minorsFiled = ∅, REVERSE direction): a finding FILED as follow-up in round 1 and re-raised as an absorb at the re-audit is never aced — the filed record stands, the suppression is logged', async () => {
+  // The other direction of the disjointness conjunct: round 1 files X as follow-up (minorsFiled)
+  // alongside a separate absorb (so the batch ace and its re-audit run at all). The re-audit
+  // re-mints X's content as an ABSORB — exactly the flip the DISPOSITION WIDENINGS doctrine
+  // ('born at a re-audit DEFAULTS to absorb') produces. filedKeys must refuse the re-queue, or X
+  // re-enters, aces, and lands in BOTH aced and minorsFiled — an issue filed for work the run
+  // just executed.
+  const filed = { severity: 'Minor', title: 'filed once', file: 'skills/filed.js', rationale: 'needs a real design pass', disposition: 'follow-up' }
+  const absorbed = nit({ title: 'absorbed nit', file: 'skills/a.js' })
+  const remintAsAbsorb = nit({ title: 'filed once', file: 'skills/filed.js', rationale: 'mechanical after all' })
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [filed, absorbed]),
+                               approveWith('audit:t1:correctness', [remintAsAbsorb]),
+                               approveWith('audit:t1:correctness', [])] },
+    quietGate(aceBase([filed, absorbed])))
+  const { out, calls, logs } = await runPhase(ACE_ARGS(), impl)
+  assert.equal(calls.filter(isAce).length, 1, 'only the round-1 batch ace dispatched — the filed finding\'s absorb re-mint never re-enters the ladder')
+  assert.equal((out.minorsFiled || []).filter(m => m && m.title === 'filed once').length, 1,
+    'the follow-up stays filed exactly ONCE (the durable record stands)')
+  assert.ok(!(out.aced || []).some(x => x && x.finding && x.finding.title === 'filed once'),
+    'the re-minted absorb is never aced — the finding lands in exactly ONE of aced/minorsFiled (End state 6)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('re-entry REFUSED') && l.includes('filed once') && l.includes('already filed as a follow-up')),
+    'the suppression is logged naming the filed record (never silent)')
+  assert.ok((out.aced || []).some(x => x && x.finding && x.finding.title === 'absorbed nit'),
+    'fixture control: the genuine absorb still aced (the refusal is key-scoped, not a blanket stop)')
 })
 
 test('ask-collision (End state 7): every measured ask-drop sink merges a content collision as corroboration or logs it — one parametrized check over the THREE gate-audit sites plus a no-silent-discard negative control', async () => {

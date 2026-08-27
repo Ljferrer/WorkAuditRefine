@@ -979,6 +979,7 @@ const demote = (f, to, why, opts) => {
   }
   log(`Disposition demotion: [${f.severity}] "${f.title}" (task ${f.task}) → ${to} — ${why}.`)
   ;(to === 'note' ? notes : minorsFiled).push(f)
+  if (to !== 'note') filedKeys.add(askContentKey(f))   // the filed funnel (End state 6) — a demoted follow-up is a filed record
   if (opts && opts.reverted) revertedKeys.add(askContentKey(f))
 }
 // --ace release-slot STRING backstop only (D4). The sandbox can't read files, so the ORCHESTRATOR's
@@ -1001,6 +1002,18 @@ const acedKeys = new Set()
 // refuse a content-identical re-mint — a forward-reverted finding never re-enters; its demoted
 // follow-up record in minorsFiled is the durable home (no second file, no aced∩minorsFiled overlap).
 const revertedKeys = new Set()
+// filed funnel (End state 6, the OTHER direction): every follow-up that lands in minorsFiled on a
+// path with a later re-audit window records its content key here, so a re-mint of an ALREADY-FILED
+// finding — re-raised as absorb (the D3 widening's re-audit default) or as follow-up again — never
+// re-enters the ladder and never files a second record: the filed record is the durable home; the
+// re-mint is corroboration (logged). Stamped at the three sites a later same-task re-audit can see:
+// the round-1 approve-branch follow-up arm, routeReauditMinors' follow-up arm, and demote()'s
+// minorsFiled push. The escalation-arm and phase-close-sweep DIRECT pushes are NOT stamped — no
+// later re-audit runs for that task/phase, so no re-mint window exists there (their demote()-routed
+// siblings stamp anyway; a superfluous key is harmless — the registry is only consulted at re-audit
+// routing and re-entry drain).
+const filedKeys = new Set()
+const fileFollowUp = f => { minorsFiled.push(f); filedKeys.add(askContentKey(f)) }
 const recordAced = (f, sha, extra) => {
   const key = askContentKey(f)
   acedKeys.add(key)
@@ -1038,13 +1051,15 @@ const routeToSweep = (f, why) => {
 // (#1810 + the oscillation bound, A1): a re-mint of an already-aced finding is corroboration,
 // never a second (filed) record and never a re-queue; a re-mint of a FORWARD-REVERTED finding
 // never re-enters (its demoted follow-up record in minorsFiled stands) and never files twice.
-// Content-key re-mint suppression (shared by BOTH arms below): returns the reason string when the
-// finding's key is already aced or forward-reverted — the caller logs the suppression and skips
-// (corroboration / the oscillation bound), never files a second record and never re-queues.
+// Content-key re-mint suppression (shared by BOTH arms below AND re-checked at aceReentry's drain):
+// returns the reason string when the finding's key is already aced, forward-reverted, or filed as a
+// follow-up in an earlier round — the caller logs the suppression and skips (corroboration / the
+// oscillation bound / the filed record stands), never files a second record and never re-queues.
 const remintBlock = f => {
   const k = askContentKey(f)
   if (acedKeys.has(k)) return 'corroboration of the aced record (content-key identity, #1810)'
   if (revertedKeys.has(k)) return 'a forward-reverted finding never re-enters (the oscillation bound, A1); its demoted follow-up record stands'
+  if (filedKeys.has(k)) return 'already filed as a follow-up in an earlier round (content-key identity); the filed record stands — a re-mint never also aces (End state 6)'
   return null
 }
 const routeReauditMinors = (r, seats) => {
@@ -1055,7 +1070,7 @@ const routeReauditMinors = (r, seats) => {
     if (d === 'ask') parkAsk(f)                     // ask precedes the absorb chain (#1550, D7)
     else if (d === 'follow-up') {
       if (b) log('re-audit re-mint of "' + (f.title ?? '') + '" (task ' + r.task.id + ') — ' + b + '; not filed (logged, never silent).')
-      else minorsFiled.push(f)
+      else fileFollowUp(f)
     }
     else if (d === 'note') notes.push(f)
     else if (b) log('re-entry REFUSED: re-audit re-mint of "' + (f.title ?? '') + '" (task ' + r.task.id + ') — ' + b + '; never re-queued (logged, never silent).')
@@ -2062,7 +2077,20 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         for (const f of r.reentryQueue.splice(0)) routeToSweep(f, 'reserve-blocked re-entry (fixRounds reached roundLimit − 2)')
         break
       }
-      const batch = r.reentryQueue.splice(0)
+      // Drain-time registry re-check (the oscillation bound, A1 + End state 6): the registries
+      // mutate BETWEEN queue time and drain time — on the batch-regressed arm routeReauditMinors
+      // runs before aceBisect's { reverted: true } demotes land, and on the failing-subset arm the
+      // route precedes the depth/split-floor demote — so a content-identical re-mint can already be
+      // sitting on the queue when its key enters revertedKeys (or acedKeys/filedKeys). Queue-time
+      // remintBlock alone cannot see that; re-filter every entry through the SAME helper here so a
+      // forward-reverted (or already-aced/already-filed) finding never re-enters regardless of arm
+      // ordering. Each refusal is logged (never silent); an emptied batch skips the dispatch.
+      const batch = r.reentryQueue.splice(0).filter(f => {
+        const b = remintBlock(f)
+        if (b) { log('re-entry REFUSED at drain: "' + (f.title ?? '') + '" (task ' + r.task.id + ') — ' + b + '; never dispatched (logged, never silent).'); return false }
+        return true
+      })
+      if (!batch.length) continue
       // Same trailer discipline as a bisection subset, with the existing round index folded in so
       // successive re-entry rounds over the same file set stay distinct across resume replays.
       const trailer = r.task.id + ':reentry:r' + (r.task.fixRounds + 1) + ':' + [...new Set(batch.map(f => aceRelPath(f.file)))].sort().join(',')
@@ -2129,7 +2157,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       for (const f of taskMinors) {
         const d = dispositionOf(f)
         if (d === 'ask') parkAsk(f)                 // ask precedes the absorb chain (#1550, D7)
-        else if (d === 'follow-up') minorsFiled.push(f)
+        else if (d === 'follow-up') fileFollowUp(f) // stamps filedKeys (End state 6) — a later re-audit re-mint never also aces
         else if (d === 'note') notes.push(f)
         else if (!f.file) demote(f, f.severity === 'Minor' ? 'follow-up' : 'note', 'fileless absorb takes the severity default (never ace-eligible)')
         else if (!run.ace) demote(f, 'follow-up', 'absorb requires --ace (off this run)')
