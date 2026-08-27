@@ -493,24 +493,7 @@ _Avoid_: a content conflict or a rejected CAS (nothing conflicted — the merge 
 commit); trusting a `landed` self-report as proof the ref moved.
 
 **Land-truth guard**:
-The `land-advance` (**Land primitive**) assertion set that makes a `landed` result **provable against
-git** rather than self-reported. Immediately before the push it captures the **pre-push origin tip**
-(`git ls-remote origin refs/heads/<working>`; a failed readback exits non-zero and never collapses
-into the first-land carve-out), and it refuses a **phantom land** (exit 3) when `<merge-sha>` equals
-that pre-push origin tip **and** the local follower already sits at it; the post-push readback still
-confirms origin advanced to `<merge-sha>`. Immediately before that push — and deliberately *after* the
-early-return arms, so already-landed reconciliation stays cwd-independent — it also asserts
-`HEAD == <merge-sha>`: the push source is `HEAD:`, so a wrong-cwd invocation dies with the catalogued
-`EX_WRONG_BRANCH` (6) naming both SHAs and the expected cwd (normally the detached `_refinery`) rather
-than surfacing as a misleading `[rejected]` exit 2 — which is what makes exit 2 mean **only** a real
-concurrent advance ([ADR 0023 amendment](docs/adr/0023-land-asserts-git-ground-truth.md)). Where the
-pre-push origin-tip capture proves *where* the ref is going, the precheck proves *what* is going there.
-Anchored on the **origin tip, never the local follower** (which lags). A `landDecision:'landed'` is
-trustworthy only downstream of it — extends
-[ADR 0008](docs/adr/0008-git-is-the-resume-source-of-truth.md) onto the land path
-([ADR 0023](docs/adr/0023-land-asserts-git-ground-truth.md)).
-_Avoid_: anchoring the advance check on the local follower ref (it lags); treating the post-push
-readback alone as sufficient (it passes on a phantom, which never advanced origin).
+when diagnosing a `land-advance` exit code (2 `[rejected]` / 3 phantom / 6 wrong-HEAD), read skills/war/references/glossary-cold.md
 
 **Contender-less transient CAS**:
 A push rejection with **no** competing run behind it, told apart from a real divergence by
@@ -781,9 +764,13 @@ handoff — the throw would destroy the parked records the refusal protects).
 
 **Ruled / unruled ask**:
 An ask is **unruled** until the operator rules its fork at the Checkpoint; a **ruled** ask carries the
-operator's ruling, is minted as an adjudication row (the third producer), and files Lead-side with
-filing parity (`## Evidence artifacts` section + dedup against engine-filed rows).
-_Avoid_: treating the `--afk` no-match demotion (follow-up, question preserved) as a ruling.
+operator's ruling and is minted as an adjudication row (the third producer) in standing-row format.
+Its fully-specified fix **executes in-run** (next-phase decompose injection, or the final phase's
+polish-style dispatch); it files Lead-side with filing parity (`## Evidence artifacts` + dedup against
+engine-filed rows) **only** on cannot-execute or execution-failure, the ruling recorded either way
+(ADR 0013 amendment 2026-08-27).
+_Avoid_: treating the `--afk` no-match demotion (follow-up, question preserved) as a ruling; reading
+filing as a ruled ask's default outcome (it is filing-on-non-execution).
 
 **Never-filed-unruled**:
 The filing law: an unruled ask is excluded from in-phase consolidation and the `file-followups`
@@ -813,11 +800,42 @@ The regression-recovery ladder on a failed `--ace` batch (canonical: `aceBisect`
 `skills/war/assets/workflow-template.js`): named culprits are excised (demoted, logged) and the
 remainder re-applies as ONE subset; blind halving is reserved for ambiguous attribution; subsets apply
 serially at the tip, depth ≤ 2, same-file findings never split; each subset commit charges one
-`fixRounds` slot (reverts uncharged; exhaustion demotes the remainder). Failed subset tips are
-forward-reverted in-loop; only finally-failing subsets demote; the ladder never holds or escalates a
-mergeable task.
-_Avoid_: whole-batch demotion (retired); git-bisect (this is finding-subset re-application, not a
-history search).
+`fixRounds` slot (reverts uncharged). The ladder's stop condition is the **floor-retry reserve**
+(`fixRounds < roundLimit − 2`), not budget exhaustion: at the reserve the remainder routes
+`phaseClose: true` to the phase-close sweep rather than demoting outright (see **Re-entry**). Failed
+subset tips are forward-reverted in-loop; only finally-failing subsets demote; the ladder never holds
+or escalates a mergeable task.
+_Avoid_: whole-batch demotion (retired); the pre-2026-08-27 reading that the remainder demotes when
+the budget runs out (retired — the reserve routes it to the sweep); git-bisect (this is
+finding-subset re-application, not a history search).
+
+**Re-entry**:
+The budget-bounded return of the ace ladder for a fresh `absorb`-dispositioned finding born at ANY
+re-audit (plain, bisection-subset, or a re-entry batch's own), dispatched as another ace-style batch
+on the same machinery (canonical: `aceReentry` in `skills/war/assets/workflow-template.js`), **never
+a new round type or status member**. The **floor-retry reserve** (`fixRounds < roundLimit − 2`,
+#1562's merge-floor retry slots) is the SOLE bound — no echo cap, no shrinking rule, no second
+budget. Reserve-blocked or spent ⇒ the finding routes `phaseClose: true` to the sweep ⇒
+sweep-discard ⇒ `follow-up`; a
+forward-reverted finding never re-enters (the oscillation bound); every demotion is logged. Re-entry
+rounds inherit the **Ace-Subset trailer** discipline and the tip-preflight idempotency verbatim
+([ADR 0013](docs/adr/0013-commanders-intent-and-disposition-routing.md) amendment 2026-08-27).
+_Avoid_: a new round type or a second budget; treating the reserve as a soft target (it is the stop
+condition); re-entering a forward-reverted finding.
+
+**Absorb-by-citation**:
+An `--afk` ask resolution whose ruling is a quoted standing operator-ratified adjudication row and
+whose outcome is an **executed absorb**, run through the **Re-entry** vehicle. **Match strictness**:
+the row must cover the finding's NAMED trade-off, never merely its topic — ambiguity is NO-match and
+demotes (the demotion is the consequence of the rule, never a substitute for it). **Soundness duty**:
+the re-audit panel verifies the cited row covers the trade-off; an unsound citation is a **blocking**
+finding — the batch forward-reverts and the finding demotes naming the mismatch. **Record**: the
+durable record (the ace commit message and the `aced` row) carries the row-id plus a one-line match
+rationale — presence is the floor, format is latitude — and feeds `/war-review`'s citation-resolution
+telemetry. Matching is panel judgment charged in the prompt, never engine-side matching; `--afk` still
+never mints a standing row (ADR 0013 amendment 2026-08-27).
+_Avoid_: topic-level matching; an engine-side matcher; a citation recorded without its row-id or
+rationale; minting a standing row under `--afk`.
 
 **Ace-Subset trailer**:
 The deterministic commit trailer (`Ace-Subset:` key) every bisection-subset commit carries; each subset
@@ -1160,18 +1178,7 @@ _Avoid_: NLP-mining a count from report prose; treating a legacy variant (`**Rou
 unbolded `Rounds:` line) as a seed — the strict form is the only one read.
 
 **Route-upstream**:
-The loop-breaker exit: a plan that cannot stop churning in verification is routed back to the
-`/war-strategy` interview instead of ground forever. Carried as the typed gate output field
-`routeUpstream: boolean` — pure arithmetic over the unstamped subset (the round limit reached with
-an unstamped root open, or an unstamped `needsDecision` at rounds ≥ 2) — with the pinned invariant
-`routeUpstream: true` ⇒ verdict `BLOCKED` (a stamped-out `ADJUDICATED` run never routes upstream;
-an `INCOMPLETE` run re-runs its probes instead of routing). On a route-upstream terminal the report
-gains the `## Route upstream` block — the residual questions as the regrill agenda plus the exact
-re-entry command — and `/war-campaign`'s step-3 triage halts with `stopPoint:
-redteam-route-upstream`, never skip-and-continue (ADR 0011).
-_Avoid_: a sixth verdict, a `KNOWN_LAND_DECISIONS` member, or Lead-invented prose (ADR 0043
-precedence untouched — the field rides beside the verdict); emitting the field with no rounds
-inputs (absent inputs ⇒ absent outputs).
+when a red-team gate returns `routeUpstream: true` or a campaign halts `redteam-route-upstream`, read skills/war/references/glossary-cold.md
 
 ### Guard coverage by equivalence class (ADR 0031)
 
@@ -1670,16 +1677,7 @@ _Avoid_: re-deriving them as fresh needs-human rows every run; treating an allow
 license.
 
 **patch-equivalence probe**:
-The `git cherry <landing-ref> <sha>` check (landing ref first) that tests whether a gate-failing
-candidate's patches already landed under a rewritten SHA. Zero `+` lines among ≥1 `-` lines ⇒ every
-patch is already in the landing branch by patch-id — **proven equivalent**, the evidence a
-tip-reachability gate cannot produce, and grounds for a `known-stranded.tsv` row in the
-**acknowledged-stranded** bucket. Any `+` line ⇒ patch-equivalence is **not proven** (squashes and
-conflict-resolved rebases legitimately change patch-ids) ⇒ needs-human, no row — never read as
-proof of unmerged work. Never a deletion license (ADR 0027 C3).
-_Avoid_: treating a zero-`+` result as permission to delete; reading a `+` line as proof of unmerged
-work; probing against a stale local landing ref; trusting an empty result (suspect — check argument
-order).
+when an `/aftermath` candidate fails the tip-reachability gate, read skills/war/references/glossary-cold.md
 
 **stranded upstream**:
 A local WAR branch's tracking ref pinned at the worker's pre-rebase remote SHA — the refiner

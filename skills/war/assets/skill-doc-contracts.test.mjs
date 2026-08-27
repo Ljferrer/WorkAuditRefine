@@ -1574,7 +1574,8 @@ test('D29 — ADR 0042 doctrine mirrors (CONTEXT.md glossary terms, CLAUDE.md ho
 // (#1265, #1357; its decision tree labels this guard "D30", a label this file had already spent on
 // the dispatch-args census below, so the row lands as D32) moved five cold recovery-entry bodies
 // out of CONTEXT.md into the unbudgeted cold home references/glossary-cold.md, leaving per-term
-// `when <trigger>, read …` pointers. Modelled on D28: each residue is a hand-copied cross-file
+// `when <trigger>, read …` pointers; a second wave (2026-08-27, marked inline below) moved three
+// more the same way, so the row now covers every evicted term, not one plan's five. Modelled on D28: each residue is a hand-copied cross-file
 // fact (the destination path plus the per-term heading it must resolve to) with no other guard —
 // a renamed or dropped destination heading must red here while CONTEXT.md still promises it, and
 // a residue that loses its trigger clause or destination path must red too (a pointer without a
@@ -1594,6 +1595,15 @@ test('D32 — evicted CONTEXT.md glossary entries keep trigger pointers, and glo
     ['Stale prior attempt', '## Stale prior attempt'],
     ['Dead-agent land failure', '## Dead-agent land failure'],
     ['Near-miss diagnostic', '## Near-miss diagnostic'],
+    // Wave 2 — the 2026-08-27 in-run-finding-resolution plan's Task 3 funded CONTEXT.md's two new
+    // re-entry/citation glossary terms by a byte-identical eviction of three more cold entries
+    // (coldness criterion, stated in glossary-cold.md's header: incident-only / one-command terms
+    // fully narrated in their own operative home — ADR 0023 + resume-and-recovery.md, ADR 0045 +
+    // red-team/references/loop-budget.md, ADR 0027 + aftermath/SKILL.md respectively). Never a
+    // ceiling raise; these rows are the lock-step re-anchor the eviction owes.
+    ['Land-truth guard', '## Land-truth guard'],
+    ['Route-upstream', '## Route-upstream'],
+    ['patch-equivalence probe', '## patch-equivalence probe'],
   ]) {
     // Mirror D26's idiom: escape the term before building the pattern.
     const t = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -2785,5 +2795,106 @@ test('D42 — the references mirrors carry the widened ask shapes; the closed ro
     !/absorb\/follow-up\/note — ADR 0013\)/.test(designRefMd),
     'the retired closed row-7 literal `absorb/follow-up/note — ADR 0013)` must be gone from ' +
       'references/design.md (OLD-absent, base-verified; PIN-8)',
+  )
+})
+
+// (D43) THE RE-ENTRY / FLOOR-RETRY-RESERVE BOUNDARY IN ITS THREE LIVING-DOC HOMES (#1812; plan
+// 2026-08-27-in-run-finding-resolution, D10 · Task 3). The 2026-08-27 ADR 0013 amendment retired
+// the ace ladder's budget-exhaustion stop condition in favour of budget-bounded re-entry bounded
+// by the floor-retry reserve. #1812's drift was silent precisely because NO row carried the token,
+// so the flip ships the guard: this row binds the NEW boundary prose on every LIVING doc home —
+// SKILL.md's `--ace` bullet, CONTEXT.md's **Ace bisection** glossary row, and design.md §18's
+// disposition-routing bullet — plus the retired literals' absence on those same surfaces.
+//
+// THE ADR 0013 HOME IS DELIBERATELY EXEMPT, and the exemption is APPEND-ONLY-LAW-DERIVED, never
+// oversight: the 2026-08-20 amendment's ratified clause ("the remainder demotes on budget
+// exhaustion") is historical law that survives byte-untouched by design, superseded in *currency*
+// by a dated note rather than edited (#1850's living-ADR direction is ratified but deferred until
+// after this plan lands). A blanket absence assert over the ADR would demand the very edit the
+// append-only law forbids. So the exemption is not a hole: the final block below asserts BOTH
+// sides of it — the historical clause still present AND the dated supersession note present — so
+// deleting the history, or dropping the note that makes it readable as history, reds here.
+//
+// Extraction is BY CONSTRUCT on all three surfaces (the D35 idiom — never line numbers, which rot
+// across the serial merge queue): the `--ace` bullet → next top-level `- **` bullet; the bolded
+// glossary term → next bolded term or `###` heading; §18's disposition-routing bullet → next
+// `- **` or `##` heading. Each extraction must span its own tail marker (D26's non-vacuity floor —
+// a truncated extraction reds instead of trivially passing). Keys are token-anchored `/…/i` forms,
+// not sentence bytes: sanctioned rewording latitude on any home must not false-red; a one-sided
+// edit (one home re-authored, another left on the retired boundary) reds.
+test('D43 — the re-entry / floor-retry-reserve boundary is present in all three living-doc homes and the retired budget-exhaustion literals are gone (#1812)', () => {
+  const HOMES = [
+    [
+      'skills/war/SKILL.md `--ace` bullet',
+      skillMd.match(/^ {2}- \*\*`--ace`[\s\S]*?(?=\n- \*\*)/m),
+      '`  - **`--ace`` → next top-level `- **` bullet',
+      [/Residual rule/, 'its `Residual rule:` tail'],
+    ],
+    [
+      'CONTEXT.md **Ace bisection** glossary row',
+      contextMd.match(/^\*\*Ace bisection\*\*:[\s\S]*?(?=\n\*\*[^\n*]+\*\*|\n### )/m),
+      'bolded term → next bolded term or `###` heading',
+      [/_Avoid_/, 'its `_Avoid_` line'],
+    ],
+    [
+      'skills/war/references/design.md §18 disposition-routing bullet',
+      designRefMd.match(/^- \*\*Disposition routing \(ADR 0013\)[\s\S]*?(?=\n- \*\*|\n## )/m),
+      '`- **Disposition routing (ADR 0013)` → next `- **` or `##` heading',
+      [/orchestrator backstop/, 'its orchestrator-backstop tail'],
+    ],
+  ]
+  for (const [name, m, construct, [tail, tailWhat]] of HOMES) {
+    assert.ok(m, `could not locate the ${name} (${construct}) — the extraction construct rotted`)
+    const text = norm(m[0])
+    assert.match(
+      text,
+      tail,
+      `the extracted ${name} must span ${tailWhat} — extraction truncated (a short read would ` +
+        'satisfy the keys below vacuously)',
+    )
+    for (const [key, what] of [
+      [/floor-retry reserve/i, 'the floor-retry-reserve stop condition'],
+      [/re-entry/i, 'the budget-bounded re-entry token'],
+      [/roundLimit\s*[−-]\s*2/, 'the reserve arithmetic (`fixRounds < roundLimit − 2`)'],
+    ]) {
+      assert.match(
+        text,
+        key,
+        `${name} must carry ${what} (#1812, ADR 0013 amendment 2026-08-27). Correct this row to a ` +
+          'sanctioned rewording, never drop the clause on one home to make it pass',
+      )
+    }
+  }
+  // OLD-absent, whole-surface (End state 9's own form). Both literals were verified present at
+  // this task's cut base — SKILL.md and CONTEXT.md each carried `exhaustion demotes the remainder`
+  // once, design.md `budget-exhausted remainder` once — so these guard a revert of the flip, never
+  // a never-present value (PIN-8). Deliberately NOT applied to docs/adr/0013 — see the
+  // append-only-law exemption in the header comment and its two-sided proof below.
+  for (const [name, text, literal] of [
+    ['skills/war/SKILL.md', skillMd, 'exhaustion demotes the remainder'],
+    ['CONTEXT.md', contextMd, 'exhaustion demotes the remainder'],
+    ['skills/war/references/design.md', designRefMd, 'budget-exhausted remainder'],
+  ]) {
+    assert.ok(
+      !norm(text).includes(literal),
+      `the retired budget-exhaustion literal "${literal}" must be gone from ${name} ` +
+        '(OLD-absent, base-verified; #1812, PIN-8) — the living docs carry the reserve boundary now',
+    )
+  }
+  // The ADR home's exemption, proven from BOTH sides so the carve-out cannot hollow the row.
+  const adr = norm(adr0013)
+  assert.match(
+    adr,
+    /the remainder demotes on budget exhaustion/,
+    "ADR 0013's 2026-08-20 clause is ratified append-only law and must survive byte-untouched — " +
+      'this row exempts the ADR from the living-doc absence asserts precisely because of that law; ' +
+      'restore the historical clause rather than editing it out',
+  )
+  assert.match(
+    adr,
+    /floor-retry reserve/,
+    "ADR 0013 must carry the dated supersession note naming the floor-retry reserve — it is what " +
+      'makes the surviving 2026-08-20 clause readable as history rather than current doctrine ' +
+      '(the exemption above is only sound while this note stands)',
   )
 })
