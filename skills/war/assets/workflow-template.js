@@ -60,7 +60,8 @@ export const meta = {
 //     agents: { worker|auditor|refiner|servitor: { model, effort } },  // from .claude/war/config.json (resolved by the Lead); defaults below.
 //                                     // worker may also carry { docs?, fix? } { model, effort } sub-tiers: docs = the all-*.md first-pass tier (fable default), fix = the fix-round + --ace tier (absent ⇒ inherit worker).
 //     audit:  { roster, rosterPolicy, autoEscalate },                  // rosterPolicy 'auto' = Lead composes each task.roster from the catalog (Lead-side); audit.roster is the widening FALLBACK roster (auditor-nominated-or-default, D4); autoEscalate used here
-//     run:    { roundLimit, maxParallel, afk },                        // afk is Lead-side; roundLimit used here;
+//     run:    { roundLimit, maxParallel, afk },                        // roundLimit used here; afk gates recordAced's
+//                                     // citation unpark (#1879 RULING 1 — otherwise Lead-side)
 //                                     // maxParallel (optional positive integer) throttles every fan-out site into
 //                                     // groups of n via batched(); absent/null ⇒ one parallel() call, byte-identical fan-out
 //     backstops }                     // array|null of { check, why, runner, source:'plan'|'auto', aiDeclared? } — every
@@ -108,7 +109,8 @@ const AUDIT_VERDICT = { type: 'object', required: ['seat', 'lens', 'verdict', 'f
     // park the ask instead (match strictness, PIN-6). CONTRACT (both prompt layers mirror it): a
     // citation-carrying absorb KEEPS the parked ask's `ask` field verbatim (question + fork) — the
     // schema mandates `ask` only on disposition:'ask', so the echo is what lets recordAced's
-    // content-key match resolve the parked record (a miss is logged, never a silent no-op).
+    // content-key match resolve the parked record under `--afk`, or attach the Checkpoint prefill
+    // interactively (a miss is logged in either mode, never a silent no-op).
     citation: { type: 'object', required: ['row'], properties: {
       row: { type: 'string', minLength: 1 }, rationale: { type: 'string' } } },
     // citationUnsound (D6 soundness duty): set true on a BLOCKING re-audit finding whose rationale
@@ -466,27 +468,6 @@ const testPatternArg = testPattern ? ` --pattern '${testPattern}'` : ''
 const recovery = (A.recovery && typeof A.recovery === 'object' && !Array.isArray(A.recovery) && A.recovery.sanctioned === true)
   ? { sanctioned: true, reclaimStaleRemote: A.recovery.reclaimStaleRemote === true }
   : null
-// Ruled-ask execution (D15(b), PIN-17/PIN-18 — the final-phase polish-style vehicle): the Lead
-// threads interactively-ruled asks whose fixes are FULLY SPECIFIED as args.ruledAsks
-// ([{ task?, title?, file?, line?, suggested_fix, ruling }] — suggested_fix and ruling required;
-// malformed entries are inert, fail-open). Each rides the phase-close sweep — exactly the
-// polish-style dispatch D15 names: fresh worktree at the working tip, one ace-eligibility commit,
-// full panel re-audit, the existing merge/land primitives, bounded at ONE round by construction.
-// Filing-on-non-execution (PIN-17): a sweep discard/skip/drain demotes the entry to follow-up with
-// the ruling in its rationale, so the filed issue records the ruling — an issue is filed ONLY on
-// cannot-execute or execution-failure, never silently, never as default litter. The
-// decompose-injection arm (a next phase exists) is Lead doctrine (skills/war/SKILL.md
-// § Checkpoint), not engine machinery.
-const ruledAsks = Array.isArray(A.ruledAsks)
-  ? A.ruledAsks.filter(x => x && typeof x === 'object' && typeof x.suggested_fix === 'string' && x.suggested_fix && typeof x.ruling === 'string' && x.ruling)
-  : []
-for (const ra of ruledAsks) {
-  log('ruled-ask execution (D15): "' + (ra.title ?? '(untitled ruled ask)') + '" queued for the phase-close polish dispatch — operator ruling: ' + ra.ruling)
-  phaseCloseQueue.push({ severity: 'Minor', disposition: 'absorb', phaseClose: true, ruledAsk: true,
-    task: ra.task ?? 'ruled-ask', title: ra.title ?? '(untitled ruled ask)', file: ra.file ?? null,
-    ...(ra.line != null ? { line: ra.line } : {}),
-    rationale: 'ruled ask (operator ruling: ' + ra.ruling + ')', suggested_fix: ra.suggested_fix })
-}
 const intentClause = intent
   ? pt`\nCOMMANDER'S INTENT (the operator's purpose — your ceiling; the plan slice is your floor):\n${intent}\n`
   : ''
@@ -738,7 +719,8 @@ if (problems.length) throw new Error(`${problems.join('; ')}${derivationProblem 
 // the run's own plan-slug tokens (the slug's non-date words, from planSlug + the plan.file basename)
 // fails the own-token floor. D6 recalibration (the #1666 both-directions miscalibration):
 //   - the scan is scoped to INTENT-BEARING text only — the intent string, and per-row check/why
-//     (backstops) / adjudicated/value (adjudications) fields — never a whole-surface JSON.stringify,
+//     (backstops) / adjudicated/value (adjudications) / ruling+suggested_fix+findingTitle
+//     (ruledAsks, #1879 RULING 2) fields — never a whole-surface JSON.stringify,
 //     whose schema KEY names ("check","why","source":"plan") let a foreign row vacuously satisfy the
 //     own-token floor;
 //   - own-token matching is WORD-BOUNDARY (\b), behind a stoplist of generic tokens — a slug word
@@ -783,15 +765,43 @@ if (problems.length) throw new Error(`${problems.join('; ')}${derivationProblem 
     }
     return { text, exempt: false }
   }
+  // Ruled-ask rows (#1879 RULING 2 — args.ruledAsks JOINS the floor): per-row intent-bearing text
+  // is the ruling + suggested_fix + finding-title fields (the same rowText discipline as
+  // backstops/adjudications), and the record shape's REQUIRED planSlug coordinate is the
+  // planFile-stamp analog read as a FIELD, never prose — a slug naming a foreign plan refuses
+  // directly; the run's own slug exempts the row (so a token-less short ruling still LAUNCHES —
+  // fail-open preserved — and the own-token fail-open arm stays rare because the shape requires
+  // the coordinate). Scans the RAW arg, not the intake-filtered ruledAsks, so a foreign record
+  // the intake would drop as malformed is still refused at entry.
+  // ANCHOR (#1879 recovery seed S1): NEVER the OPTIONAL top-level planSlug alone — an
+  // explicit-branch/worktree launch omits it, and the compare must not silently switch off. The
+  // fallback is the sibling rowText floor's guaranteed-present anchor, ownPlanBase (plan.file's
+  // basename), baseOf()-normalized on BOTH sides with the .md suffix stripped. When NO anchor is
+  // derivable (planSlug-less AND plan-less launch) the row is NOT exempted — it still scans under
+  // the own-token floor.
+  const slugAnchorOf = s => baseOf(s).replace(/\.md$/i, '')
+  const ruledAskAnchor = planSlug ? slugAnchorOf(planSlug) : (ownPlanBase ? slugAnchorOf(ownPlanBase) : null)
+  const ruledAskRowText = row => {
+    if (typeof row === 'string') return { text: row, exempt: false }  // a string row is its own scannable text (the sibling rowText discipline)
+    if (!row || typeof row !== 'object') return { text: '', exempt: true }
+    const text = ['ruling', 'suggested_fix', 'findingTitle', 'title']
+      .map(k => (typeof row[k] === 'string') ? row[k] : '').filter(Boolean).join('\n')
+    if (typeof row.planSlug === 'string' && row.planSlug && ruledAskAnchor) {
+      if (slugAnchorOf(row.planSlug) !== ruledAskAnchor) return { foreignStamp: row.planSlug, stampNoun: 'planSlug', stampAnchor: planSlug ? 'the run planSlug' : 'the plan.file basename' }
+      return { text, exempt: true }
+    }
+    return { text, exempt: false }
+  }
   const provenanceSurfaces = [
     ['intent', intent ? [{ text: intent, exempt: false }] : []],
     ['backstops', Array.isArray(backstops) ? backstops.map(rowText) : []],
     ['adjudications', adjudications.map(rowText)],
+    ['ruledAsks', Array.isArray(A.ruledAsks) ? A.ruledAsks.map(ruledAskRowText) : []],
   ]
   for (const [argName, rows] of provenanceSurfaces) {
     const stamped = rows.find(r => r.foreignStamp)
     if (stamped) {
-      provenanceProblems.push('workflow-template: args.' + argName + ' carries a planFile provenance stamp naming a foreign plan (' + stamped.foreignStamp + ') differing from plan.file — a cross-plan args leak; refused at entry (#1413)')
+      provenanceProblems.push('workflow-template: args.' + argName + ' carries a ' + (stamped.stampNoun || 'planFile') + ' provenance stamp naming a foreign plan (' + stamped.foreignStamp + ') differing from ' + (stamped.stampAnchor || 'plan.file') + ' — a cross-plan args leak; refused at entry (#1413)')
       continue
     }
     // scanText: non-exempt rows only (the refusal surface). evidenceText: every row's intent-bearing
@@ -808,6 +818,61 @@ if (problems.length) throw new Error(`${problems.join('; ')}${derivationProblem 
     }
   }
   if (provenanceProblems.length) throw new Error(provenanceProblems.join('; '))
+}
+
+// Ruled-ask execution (D15(b), PIN-17/PIN-18 — the final-phase polish-style vehicle): the Lead
+// threads interactively-ruled asks whose fixes are FULLY SPECIFIED as args.ruledAsks
+// ([{ task?, file?, line?, suggested_fix, ruling, planSlug, phase, findingTitle }] — suggested_fix
+// and ruling required, plus the REQUIRED provenance coordinates (#1879 RULING 2): planSlug (source
+// plan slug), phase, findingTitle — the #1413 args-provenance floor ABOVE reads these FIELDS, not
+// prose, so a channel record is floor-compatible by construction). Intake ordering + the floor's
+// precedence: the floor screens the RAW args.ruledAsks FIRST (and this block deliberately sits
+// AFTER it, so no foreign record's prose is journaled before the refusal) — a coordinate-less
+// record whose intent-bearing text carries none of the run's own plan-slug tokens is REFUSED at
+// entry before this intake filter ever sees it; the drop-and-log fail-open arm below covers only
+// records that clear the floor: such a non-conforming entry is DROPPED and LOGGED with its
+// findingTitle-or-'(malformed)' and the failed conjunct — inert to the queue, fail-open, never
+// silent: an operator ruling never vanishes silently (#1879 S3). Each conforming record
+// rides the phase-close sweep — exactly the
+// polish-style dispatch D15 names: fresh worktree at the working tip, one ace-eligibility commit,
+// full panel re-audit, the existing merge/land primitives, bounded at ONE round by construction.
+// Filing-on-non-execution (PIN-17): a sweep discard/skip/drain demotes the entry to follow-up with
+// the ruling in its rationale, so the filed issue records the ruling — an issue is filed ONLY on
+// cannot-execute or execution-failure, never silently, never as default litter. The
+// decompose-injection arm (a next phase exists) is Lead doctrine (skills/war/SKILL.md
+// § Checkpoint), not engine machinery.
+// Per-record intake gate: returns null on a conforming record, else the NAME of the first failed
+// conjunct — the drop log names it so the operator can repair the record shape (#1879 S3).
+const ruledAskIntakeReject = x => {
+  if (!x || typeof x !== 'object') return 'not an object'
+  if (!(typeof x.suggested_fix === 'string' && x.suggested_fix)) return 'suggested_fix (required non-empty string)'
+  if (!(typeof x.ruling === 'string' && x.ruling)) return 'ruling (required non-empty string)'
+  if (!(typeof x.planSlug === 'string' && x.planSlug)) return 'planSlug (required provenance coordinate, #1879 RULING 2)'
+  if (!((typeof x.phase === 'string' && x.phase) || typeof x.phase === 'number')) return 'phase (required provenance coordinate, #1879 RULING 2)'
+  if (!(typeof x.findingTitle === 'string' && x.findingTitle)) return 'findingTitle (required provenance coordinate, #1879 RULING 2)'
+  return null
+}
+const ruledAsks = []
+for (const x of (Array.isArray(A.ruledAsks) ? A.ruledAsks : [])) {
+  const failedConjunct = ruledAskIntakeReject(x)
+  if (failedConjunct) {
+    log('ruled-ask intake DROPPED a non-conforming record ("' + ((x && typeof x === 'object' && typeof x.findingTitle === 'string' && x.findingTitle) ? x.findingTitle : '(malformed)') + '") — failed conjunct: ' + failedConjunct + ' — an operator ruling never vanishes silently; repair the record shape and re-thread (#1879 S3).')
+    continue
+  }
+  ruledAsks.push(x)
+}
+// Container-level loudness (the same 'never vanishes silently' invariant, one level up): a
+// present-but-non-array args.ruledAsks (a single record threaded unwrapped, or a {records:[...]}
+// container) would otherwise degrade to zero rows with no log line at either consumer.
+if (!Array.isArray(A.ruledAsks) && A.ruledAsks != null) {
+  log('ruled-ask intake IGNORED a non-array args.ruledAsks (' + typeof A.ruledAsks + ') — the channel takes an array of records; an operator ruling never vanishes silently (#1879 S3).')
+}
+for (const ra of ruledAsks) {
+  log('ruled-ask execution (D15): "' + ra.findingTitle + '" queued for the phase-close polish dispatch — operator ruling: ' + ra.ruling)
+  phaseCloseQueue.push({ severity: 'Minor', disposition: 'absorb', phaseClose: true, ruledAsk: true,
+    task: ra.task ?? 'ruled-ask', title: ra.findingTitle, file: ra.file ?? null,
+    ...(ra.line != null ? { line: ra.line } : {}),
+    rationale: 'ruled ask (operator ruling: ' + ra.ruling + ')', suggested_fix: ra.suggested_fix })
 }
 
 // GATE COMPOSITION POINT (engine-owned, ADR 0036): normalize plan.gate ONCE here, immediately after entry
@@ -1003,9 +1068,15 @@ const aceEligible = f => f.file && !/(?:plugin\.json|marketplace\.json)$/.test(f
 // aced-record funnel (#1810 double-file arm, D8): every aced push records the finding's content key
 // so a later-round re-mint of an ALREADY-ABSORBED finding can never also file (no finding lands in
 // both `aced` and `minorsFiled`). A citation-resolved absorb (D6) additionally stamps the citation
-// (row-id + match rationale) onto the durable `aced` record and RESOLVES the matching parked ask —
-// logged, never a silent unpark (the ask's question was answered by execution, not demotion); a
-// citation absorb whose content keys match NO parked record logs the miss too (never a silent no-op).
+// (row-id + match rationale) onto the durable `aced` record and — ONLY when run.afk === true
+// (#1879 RULING 1, the one-condition gate) — RESOLVES the matching parked ask: logged, never a
+// silent unpark (the ask's question was answered by execution, not demotion). INTERACTIVE runs
+// never auto-unpark past a present operator: the matched ask STAYS PARKED and gains a
+// `citationPrefill` (matched row + match rationale + executed sha + recommended ruling) that the
+// handoff's asks projection carries onto the Checkpoint strike list — one-confirm ergonomics; a
+// confirm-via-prefill records as a citation-informed ruling in the SAME telemetry channel as an
+// --afk resolution (the aced record's citation stamp, which both modes write). A citation absorb
+// whose content keys match NO parked record logs the miss too (never a silent no-op).
 const acedKeys = new Set()
 // forward-revert funnel (the oscillation bound, A1): every finding demoted on a forward-revert arm
 // (aceReentry's regressed batch; aceBisect's culprit, whole-batch, and depth/split-floor demotions)
@@ -1046,8 +1117,20 @@ const recordAced = (f, sha, extra) => {
     if (f.ask && f.ask.question) keys.add(askContentKey({ task: f.task, ask: { question: f.ask.question } }))
     const i = asks.findIndex(a => keys.has(a.key))
     if (i !== -1) {
-      asks.splice(i, 1)
-      log('parked ask resolved by citation (row "' + extra.citation.row + '"): "' + (f.title ?? '(untitled)') + '" (task ' + (f.task ?? '?') + ') executed as an absorb at ' + sha + ' — the aced record carries row-id + match rationale.')
+      if (run.afk === true) {
+        asks.splice(i, 1)
+        log('parked ask resolved by citation (row "' + extra.citation.row + '"): "' + (f.title ?? '(untitled)') + '" (task ' + (f.task ?? '?') + ') executed as an absorb at ' + sha + ' — the aced record carries row-id + match rationale.')
+      } else {
+        // Interactive (#1879 RULING 1): surface, never auto-unpark past a present operator. The
+        // prefill's `row` is the MATCHED THREADED standing row's bytes (citationOf.threadedRow,
+        // #1879 recovery seed S2) — what the operator confirms from is the row itself, never the
+        // seat's citation string (a paraphrase would make the one-keystroke confirm ratify a
+        // description of a row rather than the row).
+        const threaded = (typeof extra.citation.threadedRow === 'string' && extra.citation.threadedRow) ? extra.citation.threadedRow : extra.citation.row
+        asks[i].citationPrefill = { row: threaded, rationale: extra.citation.rationale, sha,
+          recommendedRuling: 'standing row "' + threaded + '" covers this trade-off; confirm?' }
+        log('parked ask citation-matched (row "' + extra.citation.row + '"): "' + (f.title ?? '(untitled)') + '" (task ' + (f.task ?? '?') + ') executed as an absorb at ' + sha + ' — INTERACTIVE run: the ask STAYS PARKED and surfaces on the Checkpoint strike list with the matched row + a prefilled recommended ruling (one-confirm; never auto-unparked past a present operator). A confirm-via-prefill records as a citation-informed ruling in the same telemetry channel: the aced record already carries row-id + match rationale.')
+      }
     } else {
       log('citation absorb executed with NO matching parked ask (row "' + extra.citation.row + '"): "' + (f.title ?? '(untitled)') + '" (task ' + (f.task ?? '?') + ') aced at ' + sha + ' but no asks[] record matched its content key — if the trade-off question is parked under other wording, the operator still rules it at the Checkpoint (logged, never a silent no-op).')
     }
@@ -1436,7 +1519,7 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin) {
     // skills/war/references/disposition-eligibility.md carries the same three rules (same commit;
     // the auditor card's live trigger pointer covers the standing leg). The dispatched block is
     // pinned by the `disposition-prompt-widened` fixture in workflow-template.test.mjs.
-    + pt`\nDISPOSITION WIDENINGS: (1) a mechanical, fully-specified finding born at a re-audit DEFAULTS to absorb — it re-enters the ace ladder while budget remains, and the phase-close sweep is its vehicle when re-entry is reserve-blocked (set phaseClose:true when the fix wants the integrated tip); follow-up stays correct for unspecified, decision-shaped, or sweep-excluded (release-slot/cross-task) findings. (2) a fully-specified NEW-test (or test-harness) addition in a task-owned test file is a legitimate absorb — "needs a new test" is not by itself a why-not-absorbable reason (adding only; never delete or weaken tests). (3) a finding whose fix is fully specified but entails a behavior change with a nameable trade-off routes ask (the trade-off IS the fork), not follow-up — and when a threaded adjudication row covers that NAMED trade-off (never merely its topic), set disposition:'absorb' with the \`citation\` field (\`row\` + one-line match \`rationale\`) AND KEEP the parked ask's \`ask\` field verbatim (question + fork) on the citation-carrying finding — the engine resolves the parked record by that content key; ambiguity is NO-match: park the ask.`
+    + pt`\nDISPOSITION WIDENINGS: (1) a mechanical, fully-specified finding born at a re-audit DEFAULTS to absorb — it re-enters the ace ladder while budget remains, and the phase-close sweep is its vehicle when re-entry is reserve-blocked (set phaseClose:true when the fix wants the integrated tip); follow-up stays correct for unspecified, decision-shaped, or sweep-excluded (release-slot/cross-task) findings. (2) a fully-specified NEW-test (or test-harness) addition in a task-owned test file is a legitimate absorb — "needs a new test" is not by itself a why-not-absorbable reason (adding only; never delete or weaken tests). (3) a finding whose fix is fully specified but entails a behavior change with a nameable trade-off routes ask (the trade-off IS the fork), not follow-up — and when a threaded adjudication row covers that NAMED trade-off (never merely its topic), set disposition:'absorb' with the \`citation\` field (\`row\` + one-line match \`rationale\`) AND KEEP the parked ask's \`ask\` field verbatim (question + fork) on the citation-carrying finding — the engine matches the parked record by that content key (resolved under --afk; interactively it stays parked and surfaces at the Checkpoint with a prefilled recommended ruling); ambiguity is NO-match: park the ask.`
     // FINDING-PATH FORM (D12) — dispatched-prompt only, no standing-card behavior change: finding
     // `file` values feed exact-string routing compares (ace culprit attribution normalizes only a
     // leading `./` run), so the re-audit prompt mandates the repo-relative form at the source.
@@ -1954,7 +2037,11 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   const citationOf = f => {
     if (!(f && f.citation && typeof f.citation === 'object' && typeof f.citation.row === 'string' && f.citation.row)) return null
     const row = f.citation.row
-    const member = adjudications.some(r => { const t = adjRow(r); return typeof t === 'string' && t.length > 0 && (t === row || t.includes(row) || row.includes(t)) })
+    // threadedRow (#1879 recovery seed S2): the MATCHED threaded standing row's own bytes — the
+    // strike-list prefill renders THIS, never the seat's citation string (a paraphrase would turn
+    // the operator's one-keystroke confirm into ratifying a description of a row, not the row).
+    let threadedRow = null
+    const member = adjudications.some(r => { const t = adjRow(r); if (typeof t === 'string' && t.length > 0 && (t === row || t.includes(row) || row.includes(t))) { threadedRow = t; return true } return false })
     if (!member) {
       if (!refusedCitationRows.has(row)) {
         refusedCitationRows.add(row)
@@ -1962,7 +2049,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       }
       return null
     }
-    return { row, rationale: (typeof f.citation.rationale === 'string' && f.citation.rationale) || '(no match rationale recorded)' }
+    return { row, threadedRow, rationale: (typeof f.citation.rationale === 'string' && f.citation.rationale) || '(no match rationale recorded)' }
   }
   // Shared unsound-citation lookup (D6 naming duty, PIN-7): pairs a batch finding's citation with a
   // blocking re-audit finding flagged citationUnsound so EVERY demote path fed by a regressed
@@ -3781,8 +3868,12 @@ if (landDecision === 'landed' || landDecision === 'held:escalation') {
     // validator exists or is introduced): the LOSSY projection of the parked unruled ask records —
     // question + fork + task/seat/sha provenance, minus the full finding row (the top-level
     // return's asks[] keeps it). This key is the Checkpoint strike-list ruling gate's input; the
-    // absolute advance floor reads it (skills/war/SKILL.md § Checkpoint).
-    asks: asks.map(a => ({ task: a.task, seat: a.seat, sha: a.sha, question: a.question, fork: a.fork })),
+    // absolute advance floor reads it (skills/war/SKILL.md § Checkpoint). A citation-matched ask
+    // in an INTERACTIVE run additionally carries its `citationPrefill` (matched row + rationale +
+    // executed sha + recommended ruling, #1879 RULING 1) so the strike list renders the
+    // one-confirm prefill row.
+    asks: asks.map(a => ({ task: a.task, seat: a.seat, sha: a.sha, question: a.question, fork: a.fork,
+      ...(a.citationPrefill ? { citationPrefill: a.citationPrefill } : {}) })),
     notes: notes.map(n => ({ task: n.task, title: n.title })),
     endState: endStateClaims.map(condition => {
       // Vacuous-phase clamp first (D5, End state 10): 'unverified' + note, never green — evaluated
