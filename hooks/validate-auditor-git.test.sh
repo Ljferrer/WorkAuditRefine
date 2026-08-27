@@ -109,6 +109,33 @@ expect_deny_teach() {
   fi
 }
 
+# expect_deny_lacks <description> <payload-json> <substr>
+# Asserts: exit 2 AND "WAR:" marker AND <substr> ABSENT from stderr.
+# Mirror of expect_deny_teach with the substring arm inverted — the rc=2 +
+# WAR: conjunct is kept deliberately so a crashed hook (empty stderr) cannot
+# pass vacuously. Used by group M to pin that the residue classifier names
+# ONLY the branch that fired: the other branch's rule name must be absent.
+expect_deny_lacks() {
+  n=$((n + 1))
+  _rc="$(rc_of "$2")"
+  _err="$(stderr_of "$2")"
+  _has_war_deny=0
+  _has_substr=0
+  case "$_err" in
+    *WAR:*) _has_war_deny=1 ;;
+  esac
+  case "$_err" in
+    *"$3"*) _has_substr=1 ;;
+  esac
+  if [ "$_rc" = "2" ] && [ "$_has_war_deny" = "1" ] && [ "$_has_substr" = "0" ]; then
+    printf 'ok %d - %s (exit 2, WAR: deny, lacks |%s|)\n' "$n" "$1" "$3"
+  else
+    printf 'FAIL %d - %s (expected exit 2 + WAR: + ABSENT |%s|, got rc=%s stderr=|%s|)\n' \
+      "$n" "$1" "$3" "$_rc" "$_err"
+    fails=$((fails + 1))
+  fi
+}
+
 # Payload builders
 auditor_cmd() { printf '{"agent_type":"war-auditor","tool_input":{"command":"%s"}}' "$1"; }
 typed_cmd()   { printf '{"agent_type":"%s","tool_input":{"command":"%s"}}' "$1" "$2"; }
@@ -771,6 +798,27 @@ expect_deny_teach "M4: git grep 'a\\|b' (mixed residue) → denied + metacharact
   "$(jq -nc --arg c "git grep 'a\\|b'" \
      '{agent_type:"war-auditor",tool_input:{command:$c}}')" \
   "the metacharacter rule fired"
+
+# M1b/M2b: the chain branch must NOT also emit the metacharacter clause — the
+# absence half of End state 13 ('names the chain-operator rule class, NOT the
+# glob rule'). Without these, an edit emitting BOTH clauses on the chain branch
+# (the exact #1412 over-attribution shape) keeps M1/M2 green.
+expect_deny_lacks "M1b: git diff HEAD && git log → metacharacter rule NOT named" \
+  "$(auditor_cmd "git diff HEAD && git log")" \
+  "the metacharacter rule fired"
+expect_deny_lacks "M2b: git log | wc -l → metacharacter rule NOT named" \
+  "$(auditor_cmd "git log | wc -l")" \
+  "the metacharacter rule fired"
+
+# M3b/M4b: the metacharacter branch must NOT also name the chain-operator rule
+# — same absence pin, direction reversed.
+expect_deny_lacks "M3b: git ls-files *.mjs → chain-operator rule NOT named" \
+  "$(auditor_cmd "git ls-files *.mjs")" \
+  "the chain-operator rule fired"
+expect_deny_lacks "M4b: git grep 'a\\|b' (mixed residue) → chain-operator rule NOT named" \
+  "$(jq -nc --arg c "git grep 'a\\|b'" \
+     '{agent_type:"war-auditor",tool_input:{command:$c}}')" \
+  "the chain-operator rule fired"
 
 # M5: allow path untouched by the classification — a clean read command never
 # reaches the residue classifier's deny branches (chain-operator or otherwise).
