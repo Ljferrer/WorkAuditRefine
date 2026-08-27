@@ -472,8 +472,10 @@ const recovery = (A.recovery && typeof A.recovery === 'object' && !Array.isArray
 // ([{ task?, file?, line?, suggested_fix, ruling, planSlug, phase, findingTitle }] — suggested_fix
 // and ruling required, plus the REQUIRED provenance coordinates (#1879 RULING 2): planSlug (source
 // plan slug), phase, findingTitle — the #1413 args-provenance floor below reads these FIELDS, not
-// prose, so a channel record is floor-compatible by construction; malformed entries are inert,
-// fail-open). Each rides the phase-close sweep — exactly the
+// prose, so a channel record is floor-compatible by construction; a non-conforming entry is
+// DROPPED and LOGGED with its findingTitle-or-'(malformed)' and the failed conjunct — inert to the
+// queue, fail-open, never silent: an operator ruling never vanishes silently (#1879 S3)). Each
+// rides the phase-close sweep — exactly the
 // polish-style dispatch D15 names: fresh worktree at the working tip, one ace-eligibility commit,
 // full panel re-audit, the existing merge/land primitives, bounded at ONE round by construction.
 // Filing-on-non-execution (PIN-17): a sweep discard/skip/drain demotes the entry to follow-up with
@@ -481,13 +483,26 @@ const recovery = (A.recovery && typeof A.recovery === 'object' && !Array.isArray
 // cannot-execute or execution-failure, never silently, never as default litter. The
 // decompose-injection arm (a next phase exists) is Lead doctrine (skills/war/SKILL.md
 // § Checkpoint), not engine machinery.
-const ruledAsks = Array.isArray(A.ruledAsks)
-  ? A.ruledAsks.filter(x => x && typeof x === 'object'
-      && typeof x.suggested_fix === 'string' && x.suggested_fix && typeof x.ruling === 'string' && x.ruling
-      && typeof x.planSlug === 'string' && x.planSlug
-      && ((typeof x.phase === 'string' && x.phase) || typeof x.phase === 'number')
-      && typeof x.findingTitle === 'string' && x.findingTitle)
-  : []
+// Per-record intake gate: returns null on a conforming record, else the NAME of the first failed
+// conjunct — the drop log names it so the operator can repair the record shape (#1879 S3).
+const ruledAskIntakeReject = x => {
+  if (!x || typeof x !== 'object') return 'not an object'
+  if (!(typeof x.suggested_fix === 'string' && x.suggested_fix)) return 'suggested_fix (required non-empty string)'
+  if (!(typeof x.ruling === 'string' && x.ruling)) return 'ruling (required non-empty string)'
+  if (!(typeof x.planSlug === 'string' && x.planSlug)) return 'planSlug (required provenance coordinate, #1879 RULING 2)'
+  if (!((typeof x.phase === 'string' && x.phase) || typeof x.phase === 'number')) return 'phase (required provenance coordinate, #1879 RULING 2)'
+  if (!(typeof x.findingTitle === 'string' && x.findingTitle)) return 'findingTitle (required provenance coordinate, #1879 RULING 2)'
+  return null
+}
+const ruledAsks = []
+for (const x of (Array.isArray(A.ruledAsks) ? A.ruledAsks : [])) {
+  const failedConjunct = ruledAskIntakeReject(x)
+  if (failedConjunct) {
+    log('ruled-ask intake DROPPED a non-conforming record ("' + ((x && typeof x === 'object' && typeof x.findingTitle === 'string' && x.findingTitle) ? x.findingTitle : '(malformed)') + '") — failed conjunct: ' + failedConjunct + ' — an operator ruling never vanishes silently; repair the record shape and re-thread (#1879 S3).')
+    continue
+  }
+  ruledAsks.push(x)
+}
 for (const ra of ruledAsks) {
   log('ruled-ask execution (D15): "' + ra.findingTitle + '" queued for the phase-close polish dispatch — operator ruling: ' + ra.ruling)
   phaseCloseQueue.push({ severity: 'Minor', disposition: 'absorb', phaseClose: true, ruledAsk: true,
@@ -800,12 +815,20 @@ if (problems.length) throw new Error(`${problems.join('; ')}${derivationProblem 
   // fail-open preserved — and the own-token fail-open arm stays rare because the shape requires
   // the coordinate). Scans the RAW arg, not the intake-filtered ruledAsks, so a foreign record
   // the intake would drop as malformed is still refused at entry.
+  // ANCHOR (#1879 recovery seed S1): NEVER the OPTIONAL top-level planSlug alone — an
+  // explicit-branch/worktree launch omits it, and the compare must not silently switch off. The
+  // fallback is the sibling rowText floor's guaranteed-present anchor, ownPlanBase (plan.file's
+  // basename), baseOf()-normalized on BOTH sides with the .md suffix stripped. When NO anchor is
+  // derivable (planSlug-less AND plan-less launch) the row is NOT exempted — it still scans under
+  // the own-token floor.
+  const slugAnchorOf = s => baseOf(s).replace(/\.md$/i, '')
+  const ruledAskAnchor = planSlug ? slugAnchorOf(planSlug) : (ownPlanBase ? slugAnchorOf(ownPlanBase) : null)
   const ruledAskRowText = row => {
     if (!row || typeof row !== 'object') return { text: '', exempt: true }
     const text = ['ruling', 'suggested_fix', 'findingTitle', 'title']
       .map(k => (typeof row[k] === 'string') ? row[k] : '').filter(Boolean).join('\n')
-    if (typeof row.planSlug === 'string' && row.planSlug) {
-      if (planSlug && row.planSlug.toLowerCase() !== String(planSlug).toLowerCase()) return { foreignStamp: row.planSlug, stampNoun: 'planSlug', stampAnchor: 'the run planSlug' }
+    if (typeof row.planSlug === 'string' && row.planSlug && ruledAskAnchor) {
+      if (slugAnchorOf(row.planSlug) !== ruledAskAnchor) return { foreignStamp: row.planSlug, stampNoun: 'planSlug', stampAnchor: planSlug ? 'the run planSlug' : 'the plan.file basename' }
       return { text, exempt: true }
     }
     return { text, exempt: false }
@@ -1084,9 +1107,14 @@ const recordAced = (f, sha, extra) => {
         asks.splice(i, 1)
         log('parked ask resolved by citation (row "' + extra.citation.row + '"): "' + (f.title ?? '(untitled)') + '" (task ' + (f.task ?? '?') + ') executed as an absorb at ' + sha + ' — the aced record carries row-id + match rationale.')
       } else {
-        // Interactive (#1879 RULING 1): surface, never auto-unpark past a present operator.
-        asks[i].citationPrefill = { row: extra.citation.row, rationale: extra.citation.rationale, sha,
-          recommendedRuling: 'standing row "' + extra.citation.row + '" covers this trade-off; confirm?' }
+        // Interactive (#1879 RULING 1): surface, never auto-unpark past a present operator. The
+        // prefill's `row` is the MATCHED THREADED standing row's bytes (citationOf.threadedRow,
+        // #1879 recovery seed S2) — what the operator confirms from is the row itself, never the
+        // seat's citation string (a paraphrase would make the one-keystroke confirm ratify a
+        // description of a row rather than the row).
+        const threaded = (typeof extra.citation.threadedRow === 'string' && extra.citation.threadedRow) ? extra.citation.threadedRow : extra.citation.row
+        asks[i].citationPrefill = { row: threaded, rationale: extra.citation.rationale, sha,
+          recommendedRuling: 'standing row "' + threaded + '" covers this trade-off; confirm?' }
         log('parked ask citation-matched (row "' + extra.citation.row + '"): "' + (f.title ?? '(untitled)') + '" (task ' + (f.task ?? '?') + ') executed as an absorb at ' + sha + ' — INTERACTIVE run: the ask STAYS PARKED and surfaces on the Checkpoint strike list with the matched row + a prefilled recommended ruling (one-confirm; never auto-unparked past a present operator). A confirm-via-prefill records as a citation-informed ruling in the same telemetry channel: the aced record already carries row-id + match rationale.')
       }
     } else {
@@ -1995,7 +2023,11 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   const citationOf = f => {
     if (!(f && f.citation && typeof f.citation === 'object' && typeof f.citation.row === 'string' && f.citation.row)) return null
     const row = f.citation.row
-    const member = adjudications.some(r => { const t = adjRow(r); return typeof t === 'string' && t.length > 0 && (t === row || t.includes(row) || row.includes(t)) })
+    // threadedRow (#1879 recovery seed S2): the MATCHED threaded standing row's own bytes — the
+    // strike-list prefill renders THIS, never the seat's citation string (a paraphrase would turn
+    // the operator's one-keystroke confirm into ratifying a description of a row, not the row).
+    let threadedRow = null
+    const member = adjudications.some(r => { const t = adjRow(r); if (typeof t === 'string' && t.length > 0 && (t === row || t.includes(row) || row.includes(t))) { threadedRow = t; return true } return false })
     if (!member) {
       if (!refusedCitationRows.has(row)) {
         refusedCitationRows.add(row)
@@ -2003,7 +2035,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       }
       return null
     }
-    return { row, rationale: (typeof f.citation.rationale === 'string' && f.citation.rationale) || '(no match rationale recorded)' }
+    return { row, threadedRow, rationale: (typeof f.citation.rationale === 'string' && f.citation.rationale) || '(no match rationale recorded)' }
   }
   // Shared unsound-citation lookup (D6 naming duty, PIN-7): pairs a batch finding's citation with a
   // blocking re-audit finding flagged citationUnsound so EVERY demote path fed by a regressed

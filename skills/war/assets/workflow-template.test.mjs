@@ -11532,9 +11532,15 @@ test('citation-resolve (interactive+match arm, negative control — #1879 RULING
   assert.equal((out.asks || []).length, 1, 'the citation-matched ask STAYS PARKED interactively — surfaced, never auto-unparked (one-confirm ergonomics)')
   const parked = out.asks[0]
   assert.ok(parked.citationPrefill, 'the parked ask carries the citationPrefill the strike list renders')
-  assert.equal(parked.citationPrefill.row, 'ADJ-7: doc facts point at the source, never mirror', 'the prefill carries the matched standing row')
+  // S2 (#1879 recovery seed): the prefill renders the MATCHED THREADED STANDING ROW's own bytes
+  // (args.adjudications — the row citationOf matched), never the seat's citation string. The seat
+  // string here is a strict PREFIX of the threaded row, so byte-equality against CITED_ADJ[0]
+  // discriminates: rendering the seat's paraphrase would fail this assert.
+  assert.equal(parked.citationPrefill.row, CITED_ADJ[0], "the prefill's row text equals the threaded standing row's bytes (never the seat's citation string)")
+  assert.notEqual(parked.citationPrefill.row, citationF().citation.row, 'the seat citation string (a truncation of the row) is NOT what the operator confirms from')
   assert.ok(parked.citationPrefill.rationale.includes('mirror-vs-point'), 'the prefill carries the match rationale')
   assert.ok(/covers this trade-off; confirm\?$/.test(parked.citationPrefill.recommendedRuling), 'the prefill carries the pre-filled recommended ruling (one-confirm)')
+  assert.ok(parked.citationPrefill.recommendedRuling.includes(CITED_ADJ[0]), 'the recommended ruling quotes the threaded row bytes too')
   assert.ok(parked.citationPrefill.sha, 'the prefill pins the executed absorb sha')
   const hAsk = out.handoff.asks.find(x => x.question === parked.question)
   assert.ok(hAsk && hAsk.citationPrefill && hAsk.citationPrefill.row === parked.citationPrefill.row,
@@ -11550,38 +11556,54 @@ test('citation-resolve (interactive+match arm, negative control — #1879 RULING
     'the afk resolution log never fires interactively')
 })
 
-test('citation-resolve (production shape, ask-less citation): a citation absorb WITHOUT the echoed ask field cannot silently no-op — the miss is LOGGED, the parked ask survives for the operator, the aced record still carries the citation', async () => {
-  const a = nit({ title: 'plain nit', file: 'skills/a.js' })
-  const askless = citationF()
-  delete askless.ask                                     // schema-minimal shape: `ask` is mandatory only on disposition:'ask'
-  const impl = buildSeqImpl(
-    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [askFinding(), a]),
-                               approveWith('audit:t1:correctness', [askless]),
-                               approveWith('audit:t1:correctness', [])] },
-    quietGate(aceBase([askFinding(), a])))
-  const { out, logs } = await runPhase(CITE_ARGS(), impl)
-  assert.ok((out.aced || []).some(x => x && x.citation && x.citation.row === 'ADJ-7: doc facts point at the source, never mirror'),
-    'the ask-less citation absorb still aces with its citation stamp')
-  assert.equal((out.asks || []).length, 1, 'the parked ask SURVIVES — with no echoed ask field and a differing title, no content key matches (never a coincidence-shaped unpark)')
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('citation absorb executed with NO matching parked ask')),
-    'the no-match case is LOGGED (never a silent no-op) — the operator still rules the parked question at the Checkpoint')
+test('citation-resolve (production shape, ask-less citation — mode-split pair, #1879 addition 2): a citation absorb WITHOUT the echoed ask field cannot silently no-op in EITHER mode — the miss is LOGGED, the parked ask survives, the aced record still carries the citation', async () => {
+  // Mode-split repair (#1879 operator addition 2): under the run.afk gate an interactive run never
+  // unparks, so an interactive-only 'parked ask survives' assertion is VACUOUS. The afk arm is the
+  // decisive oracle — unpark is LIVE there, and the key miss must still block it; the interactive
+  // arm additionally pins that a key-missed citation attaches NO prefill (nothing matched to
+  // prefill). Never deleted — this pair is the mode-gate's regression net (oracle-duality law).
+  for (const [mode, runOver] of [['interactive', {}], ['afk', { afk: true }]]) {
+    const a = nit({ title: 'plain nit', file: 'skills/a.js' })
+    const askless = citationF()
+    delete askless.ask                                   // schema-minimal shape: `ask` is mandatory only on disposition:'ask'
+    const impl = buildSeqImpl(
+      { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [askFinding(), a]),
+                                 approveWith('audit:t1:correctness', [askless]),
+                                 approveWith('audit:t1:correctness', [])] },
+      quietGate(aceBase([askFinding(), a])))
+    const { out, logs } = await runPhase(CITE_ARGS({ run: { ace: true, ...runOver } }), impl)
+    assert.ok((out.aced || []).some(x => x && x.citation && x.citation.row === 'ADJ-7: doc facts point at the source, never mirror'),
+      `[${mode}] the ask-less citation absorb still aces with its citation stamp`)
+    assert.equal((out.asks || []).length, 1, `[${mode}] the parked ask SURVIVES — with no echoed ask field and a differing title, no content key matches (never a coincidence-shaped unpark${mode === 'afk' ? '; decisive: afk unpark is live and the key miss blocks it' : ''})`)
+    assert.ok(logs.some(l => typeof l === 'string' && l.includes('citation absorb executed with NO matching parked ask')),
+      `[${mode}] the no-match case is LOGGED (never a silent no-op) — the operator still rules the parked question at the Checkpoint`)
+    if (mode === 'interactive') assert.ok(!out.asks[0].citationPrefill,
+      'a key-missed citation attaches NO prefill — the surviving ask surfaces plain (nothing was matched to confirm from)')
+  }
 })
 
-test('citation row-existence floor: a FABRICATED row (no threaded adjudication membership) is refused — plain absorb, no stamp, no unpark, refusal logged', async () => {
-  const fabricated = citationF()
-  fabricated.citation = { row: 'ADJ-99: an adjudication row nobody threaded', rationale: 'fabricated' }
-  const impl = buildSeqImpl(
-    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [askFinding(), fabricated]),
-                               approveWith('audit:t1:correctness', [])] },
-    quietGate(aceBase([askFinding(), fabricated])))
-  const { out, calls, logs } = await runPhase(CITE_ARGS(), impl)
-  assert.ok(logs.some(l => typeof l === 'string' && l.includes('citation REFUSED (row-existence floor)') && l.includes('ADJ-99')),
-    'the fabricated row is refused by the mechanical set-membership floor, logged with the row text')
-  const ace = calls.find(isAce)
-  assert.ok(ace && !ace.prompt.includes('absorb-by-citation'), 'the refused citation renders NO stamp in the dispatch row (plain absorb)')
-  const entry = (out.aced || []).find(x => x && x.finding && x.finding.title === 'mirrored value rides docs/x.md')
-  assert.ok(entry && !entry.citation, 'the aced record carries no citation for a fabricated row (fail-open to a plain absorb)')
-  assert.equal((out.asks || []).length, 1, 'the parked ask is NEVER unparked by a fabricated citation — the operator keeps the question')
+test('citation row-existence floor (mode-split pair, #1879 addition 2): a FABRICATED row (no threaded adjudication membership) is refused in EITHER mode — plain absorb, no stamp, no unpark, no prefill, refusal logged', async () => {
+  // Mode-split repair (#1879 operator addition 2): the interactive-only 'NEVER unparked' assertion
+  // went vacuous under the run.afk gate (interactive never unparks, floor or no floor). The afk
+  // arm is the decisive oracle — unpark is live and the row-existence floor must still block it.
+  for (const [mode, runOver] of [['interactive', {}], ['afk', { afk: true }]]) {
+    const fabricated = citationF()
+    fabricated.citation = { row: 'ADJ-99: an adjudication row nobody threaded', rationale: 'fabricated' }
+    const impl = buildSeqImpl(
+      { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [askFinding(), fabricated]),
+                                 approveWith('audit:t1:correctness', [])] },
+      quietGate(aceBase([askFinding(), fabricated])))
+    const { out, calls, logs } = await runPhase(CITE_ARGS({ run: { ace: true, ...runOver } }), impl)
+    assert.ok(logs.some(l => typeof l === 'string' && l.includes('citation REFUSED (row-existence floor)') && l.includes('ADJ-99')),
+      `[${mode}] the fabricated row is refused by the mechanical set-membership floor, logged with the row text`)
+    const ace = calls.find(isAce)
+    assert.ok(ace && !ace.prompt.includes('absorb-by-citation'), `[${mode}] the refused citation renders NO stamp in the dispatch row (plain absorb)`)
+    const entry = (out.aced || []).find(x => x && x.finding && x.finding.title === 'mirrored value rides docs/x.md')
+    assert.ok(entry && !entry.citation, `[${mode}] the aced record carries no citation for a fabricated row (fail-open to a plain absorb)`)
+    assert.equal((out.asks || []).length, 1, `[${mode}] the parked ask is NEVER unparked by a fabricated citation — the operator keeps the question${mode === 'afk' ? ' (decisive: afk unpark is live and the floor blocks it)' : ''}`)
+    if (mode === 'interactive') assert.ok(!out.asks[0].citationPrefill,
+      'a floor-refused citation attaches NO prefill — a fabricated row must never render as a one-confirm prefill')
+  }
 })
 
 test('citation-resolve (End state 4, ambiguity ⇒ no-match): an ask without a citation stays parked — never aced, never filed; a MALFORMED citation never stamps a row', async () => {
@@ -11604,28 +11626,36 @@ test('citation-resolve (End state 4, ambiguity ⇒ no-match): an ask without a c
   assert.ok(entry2 && !entry2.citation, 'the aced record carries no citation for a malformed citation object (fail-open, never an invented row)')
 })
 
-test('citation-unsound (End state 5): the re-audit panel catches an unsound citation — the batch forward-reverts and the finding demotes NAMING the mismatch', async () => {
-  const a = nit({ title: 'plain nit', file: 'skills/a.js' })
-  const unsoundVerdict = { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'request_changes',
-    confidence: 'high', findings: [{ severity: 'Major', title: 'citation mismatch', file: 'docs/x.md',
-      citationUnsound: true, rationale: 'the cited row covers log retention, not the mirror-vs-point call' }] }
-  const impl = buildSeqImpl(
-    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [askFinding(), a]),
-                               approveWith('audit:t1:correctness', [citationF()]),
-                               unsoundVerdict] },
-    quietGate(aceBase([askFinding(), a])))
-  const { out, calls, logs } = await runPhase(CITE_ARGS(), impl)
-  assert.equal(calls.filter(isAce).length, 2, 'batch + the one re-entry attempt (bounded — no retry after the unsound verdict)')
-  const demoteLog = logs.find(l => typeof l === 'string' && l.includes('UNSOUND'))
-  assert.ok(demoteLog, 'the unsound-citation demotion is logged')
-  assert.ok(demoteLog.includes('ADJ-7: doc facts point at the source, never mirror'), 'the demotion names the cited row')
-  assert.ok(demoteLog.includes('log retention, not the mirror-vs-point call'), 'the demotion NAMES the mismatch (the panel finding rationale)')
-  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'mirrored value rides docs/x.md'),
-    'the unsound citation finding demotes to follow-up (never a silent drop)')
-  const merge = calls.find(isMergeTask)
-  assert.match(merge.prompt, /revert\s+--no-edit\s+deadbeef/, 'the unsound batch is forward-reverted at the merge (blocking ⇒ revert)')
-  assert.equal((out.asks || []).length, 1, 'the parked ask SURVIVES an unsound execution — the question returns to the operator, never silently resolved')
-  assert.ok(out.landed.includes('t1'), 't1 still lands its approved work')
+test('citation-unsound (End state 5, mode-split pair — #1879 addition 2): the re-audit panel catches an unsound citation in EITHER mode — the batch forward-reverts and the finding demotes NAMING the mismatch; the parked ask survives', async () => {
+  // Mode-split repair (#1879 operator addition 2): the interactive-only 'parked ask SURVIVES'
+  // assertion went vacuous under the run.afk gate. The afk arm is the decisive oracle — unpark is
+  // live there, and the unsound verdict's revert must still keep the question with the operator
+  // (recordAced never fires on a reverted batch).
+  for (const [mode, runOver] of [['interactive', {}], ['afk', { afk: true }]]) {
+    const a = nit({ title: 'plain nit', file: 'skills/a.js' })
+    const unsoundVerdict = { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'request_changes',
+      confidence: 'high', findings: [{ severity: 'Major', title: 'citation mismatch', file: 'docs/x.md',
+        citationUnsound: true, rationale: 'the cited row covers log retention, not the mirror-vs-point call' }] }
+    const impl = buildSeqImpl(
+      { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [askFinding(), a]),
+                                 approveWith('audit:t1:correctness', [citationF()]),
+                                 unsoundVerdict] },
+      quietGate(aceBase([askFinding(), a])))
+    const { out, calls, logs } = await runPhase(CITE_ARGS({ run: { ace: true, ...runOver } }), impl)
+    assert.equal(calls.filter(isAce).length, 2, `[${mode}] batch + the one re-entry attempt (bounded — no retry after the unsound verdict)`)
+    const demoteLog = logs.find(l => typeof l === 'string' && l.includes('UNSOUND'))
+    assert.ok(demoteLog, `[${mode}] the unsound-citation demotion is logged`)
+    assert.ok(demoteLog.includes('ADJ-7: doc facts point at the source, never mirror'), `[${mode}] the demotion names the cited row`)
+    assert.ok(demoteLog.includes('log retention, not the mirror-vs-point call'), `[${mode}] the demotion NAMES the mismatch (the panel finding rationale)`)
+    assert.ok((out.minorsFiled || []).some(m => m && m.title === 'mirrored value rides docs/x.md'),
+      `[${mode}] the unsound citation finding demotes to follow-up (never a silent drop)`)
+    const merge = calls.find(isMergeTask)
+    assert.match(merge.prompt, /revert\s+--no-edit\s+deadbeef/, `[${mode}] the unsound batch is forward-reverted at the merge (blocking ⇒ revert)`)
+    assert.equal((out.asks || []).length, 1, `[${mode}] the parked ask SURVIVES an unsound execution — the question returns to the operator, never silently resolved${mode === 'afk' ? ' (decisive: afk unpark is live and the revert pre-empts it)' : ''}`)
+    if (mode === 'interactive') assert.ok(!out.asks[0].citationPrefill,
+      'an unsound (reverted) execution attaches NO prefill — recordAced never fired for the reverted batch')
+    assert.ok(out.landed.includes('t1'), `[${mode}] t1 still lands its approved work`)
+  }
 })
 
 test('citation-unsound (End state 5, round-1-batch path): a citation absorb riding the ROUND-1 batch ace that regresses with citationUnsound demotes NAMING the mismatch — the naming duty holds on every path, not only re-entry', async () => {
@@ -12016,4 +12046,58 @@ test('provenance floor (ruledAsks, #1879 RULING 2): a token-less short ruling st
   assert.ok(calls.length > 0, 'the phase actually runs (agents spawned)')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('ruled-ask execution (D15)') && l.includes('short ruled ask')),
     'the record passes the intake (the required coordinates are present) and queues loudly')
+})
+
+test('provenance floor (ruledAsks, S1 third arm — #1879 recovery seed): an EXPLICIT-branch/worktree launch (NO planSlug derivation) with a foreign ruled-ask record is STILL refused at entry — the anchor falls back to plan.file\'s basename', async () => {
+  // The exact silent-off configuration the S1 defect fired on (the recovery-relaunch shape): the
+  // launch supplies explicit per-task branch/worktree, so top-level planSlug is legitimately
+  // absent — an anchor derived from the OPTIONAL planSlug alone would switch the compare off and
+  // admit the foreign record. The fallback anchor (plan.file basename, baseOf()-normalized,
+  // .md-stripped: 'wtprov-a') must refuse it. The derivation-path arms alone verify the fix where
+  // the defect never fired.
+  const ledgerCargo = {
+    planSlug: '2026-08-27-in-run-finding-resolution',
+    phase: '1',
+    findingTitle: 'Absorb-by-citation can unpark an operator-gated ask in an interactive run, while the standing doc scopes the arm to --afk',
+    ruling: 'Gate on run.afk === true; interactive citation-matches surface with prefilled recommended ruling; citation-informed rulings share the telemetry channel.',
+    suggested_fix: 'One-condition gate at the recordAced unpark path (run.afk === true); strike-list prefill rendering; two-sided fixture (interactive surfaces-never-unparks / afk resolves-with-citation); telemetry symmetry.',
+  }
+  const args = PROVISION_ARGS({ ruledAsks: [ledgerCargo] })
+  delete args.planSlug
+  args.tasks = args.tasks.map(t => ({ ...t,
+    branch: `war/wtprov-a/p3-${t.id}`, worktree: `/abs/repo/.claude/worktrees/run-2026/p3-${t.id}` }))
+  const { out, calls } = await runPhase(args, defaultImpl)
+  assert.equal(out.landDecision, 'held:workflow-error', 'the foreign ruled-ask record refuses the explicit-branch launch at entry — the compare never silently switches off')
+  assert.match(out.workflowError.message,
+    /args\.ruledAsks carries a planSlug provenance stamp naming a foreign plan \(2026-08-27-in-run-finding-resolution\) differing from the plan\.file basename/,
+    'the refusal names the fallback anchor (the plan.file basename) it compared against')
+  assert.equal(calls.length, 0, 'zero agents spawned')
+})
+
+test('ruled-ask intake (S3 — #1879 recovery seed): every dropped non-conforming record is LOGGED with its findingTitle-or-(malformed) and the FAILED CONJUNCT — an operator ruling never vanishes silently, and conforming records still queue', async () => {
+  // One record per REQUIRED-coordinate conjunct (plus a not-an-object control): deleting any of
+  // the intake conjuncts un-drops its record AND silences its drop log — both red this fixture
+  // (the prior audit's 'REQUIRED-coordinates intake conjuncts unguarded' finding). Each record's
+  // text carries the run's own 'wtprov' token so the #1413 own-token floor never masks the intake
+  // behavior under test.
+  const slugless = { findingTitle: 'coordinate-less ruling', ruling: 'do it per the wtprov-a call', suggested_fix: 'one line', phase: '3' }
+  const phaseless = { planSlug: 'wtprov-a', findingTitle: 'phase-less ruling', ruling: 'do it', suggested_fix: 'one line' }
+  const titleless = { planSlug: 'wtprov-a', phase: 3, ruling: 'do it', suggested_fix: 'one line' }
+  const notObject = 'a bare string (plan wtprov-a)'
+  const conforming = { planSlug: 'wtprov-a', phase: '3', findingTitle: 'conforming ruled ask', ruling: 'do it', suggested_fix: 'one line' }
+  const { out, logs } = await runPhase(PROVISION_ARGS({ ruledAsks: [slugless, phaseless, titleless, notObject, conforming] }), defaultImpl)
+  assert.notEqual(out.landDecision, 'held:workflow-error', 'dropped records stay fail-open — the launch proceeds (inert to the queue, never a refusal)')
+  const drops = logs.filter(l => typeof l === 'string' && l.includes('ruled-ask intake DROPPED'))
+  assert.equal(drops.length, 4, 'every non-conforming record gets its own drop log line')
+  assert.ok(drops.some(l => l.includes('"coordinate-less ruling"') && l.includes('planSlug (required provenance coordinate')),
+    'a planSlug-less record is dropped LOUDLY, named by its findingTitle, with the failed conjunct')
+  assert.ok(drops.some(l => l.includes('"phase-less ruling"') && l.includes('phase (required provenance coordinate')),
+    'a phase-less record is dropped LOUDLY with the failed conjunct')
+  assert.ok(drops.some(l => l.includes('"(malformed)"') && l.includes('findingTitle (required provenance coordinate')),
+    'a findingTitle-less record is dropped LOUDLY under the (malformed) placeholder with the failed conjunct')
+  assert.ok(drops.some(l => l.includes('"(malformed)"') && l.includes('not an object')),
+    'a non-object entry is dropped LOUDLY under the (malformed) placeholder')
+  const queued = logs.filter(l => typeof l === 'string' && l.includes('ruled-ask execution (D15)'))
+  assert.equal(queued.length, 1, 'exactly the conforming record queues')
+  assert.ok(queued[0].includes('conforming ruled ask'), 'the conforming record rides the queue untouched (positive control)')
 })
