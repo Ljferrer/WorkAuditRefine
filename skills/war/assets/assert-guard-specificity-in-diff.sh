@@ -212,10 +212,15 @@ is_scan_excluded() {
 # $-interpolation truncation (DOUBLE-quoted literals only — inside single quotes a `$` is
 # literal text, never interpolation): a message with a `$var` tail is truncated to the static
 # distinguishing prefix before the FIRST `$`, so a `die "...: $var"` guard is honestly
-# coverable by a distinguishing-prefix stderr assertion (the assert-no-repo-escape.test.sh
-# case-28 precedent). An all-interpolation message (empty/whitespace-only prefix) keeps the
-# whole literal — falling back to today's behavior (record_guard's bare-variable drop still
-# applies downstream) — and a `\$` escaped dollar is literal text, not interpolation, so a
+# coverable by a distinguishing-prefix stderr assertion. assert-no-repo-escape.test.sh case 28
+# is the AUTHORING precedent for asserting a static distinguishing prefix instead of the whole
+# literal — but coverage here still requires the test line to contain the ENTIRE recorded
+# static prefix, so case 28's own shorter mid-substring assertion would itself still stamp
+# uncovered. An empty static prefix (an all-interpolation OR leading-interpolation message,
+# empty/whitespace-only prefix) keeps the whole literal — falling back to today's behavior
+# (record_guard's bare-variable drop still applies downstream); a leading-interpolation
+# message like `die "$file not found"` therefore stays permanently uncoverable (the whole
+# literal is never emitted text) — and a `\$` escaped dollar is literal text, not interpolation, so a
 # prefix ending in `\` also keeps the whole literal (the backslash is not emitted, so the
 # prefix would not be a true substring of the emitted text). record_guard's downstream trim
 # strips the truncated prefix's trailing whitespace (`"error: $x"` records as `error:`) —
@@ -243,7 +248,13 @@ extract_msg() {
     em_after="${em_s#*\'}"; em_msg="${em_after%%\'*}"
   fi
   # $-interpolation truncation (see header above): double-quoted only; keep whole literal
-  # when the prefix is empty/whitespace-only (all-interpolation) or ends in `\` (escaped $).
+  # when the static prefix is empty/whitespace-only (an all-interpolation OR
+  # leading-interpolation message) or ends in `\` (escaped $).
+  # # ponytail: naive first-$ split — a short prefix (`die "x: $y"` records as `x:`) can be
+  # # near-vacuous: any test file containing `x:` credits the guard. Upgrade to a
+  # # conversion-aware parse or a minimum-prefix-length floor only if gate-audit evidence
+  # # shows near-vacuous prefix matches; the floor is advisory-evidence-only, so the trade
+  # # stands (same upgrade path as record_guard's %-truncation ponytail below).
   if [ "$em_from_dq" = 1 ]; then
     case "$em_msg" in
       *'$'*)

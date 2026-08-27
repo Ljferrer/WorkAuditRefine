@@ -71,9 +71,11 @@
 #          the whole literal is not a corpus substring).
 #      17b same guard, test asserts an unrelated string -> exit 1, stdout carries the
 #          prefix and NOT `$file` (truncation is not a free pass; coverage still enforced).
-#      17c all-interpolation `die "${a}${b}"` (empty prefix) -> falls back to the whole
+#      17c empty static prefix (an all-interpolation OR leading-interpolation message) —
+#          fixtured as all-interpolation `die "${a}${b}"` -> falls back to the whole
 #          literal: exit 1 + `${a}${b}` on stdout (record_guard's bare-var drop does not
-#          fire — two references are not ENTIRELY one variable).
+#          fire — two references are not ENTIRELY one variable). A leading-interpolation
+#          message (`die "$file not found"`) takes the same arm and stays uncoverable.
 #      17d fully-static `die` guard behavior unchanged -> exit 1 + the FULL literal on
 #          stdout (no spurious truncation without a `$`).
 #      17e single-quoted `die 'literal $cost sign'` -> whole literal recorded (a
@@ -693,9 +695,12 @@ fi
 # Case 17: $var-tail prefix coverage (#1688, End state 15 — the `prefix-covered` family).
 # extract_msg truncates a double-quoted message at the first `$`-interpolation, recording
 # the static distinguishing prefix, so a distinguishing-prefix stderr assertion honestly
-# covers a `$var`-tail guard (precedent: assert-no-repo-escape.test.sh case 28's
+# covers a `$var`-tail guard. assert-no-repo-escape.test.sh case 28 (its
 # `grep -qF -- 'zero bytes (a truncated or failed snapshot write'` against a die message
-# with a `$baseline_file` tail).
+# with a `$baseline_file` tail) is the AUTHORING precedent for asserting a static
+# distinguishing prefix instead of the whole literal — but coverage still requires the test
+# line to contain the ENTIRE recorded static prefix, so a shorter mid-substring assertion
+# (case 28's own shape) would itself still stamp uncovered under this rule.
 # ---------------------------------------------------------------------------
 
 # 17a: `die "missing snapshot: $file"` + a test asserting ONLY the prefix -> exit 0.
@@ -753,8 +758,11 @@ else
   fail "case 17b: exit 1 but stdout is not the prefix without the \$file tail (got: $out17b)"
 fi
 
-# 17c: ALL-interpolation `die "${a}${b}"` (empty prefix) -> falls back to today's
-# whole-literal behavior: recorded whole, record_guard's bare-var drop does NOT fire
+# 17c: empty static prefix (an all-interpolation OR leading-interpolation message),
+# fixtured as ALL-interpolation `die "${a}${b}"` -> falls back to today's
+# whole-literal behavior: recorded whole, record_guard's bare-var drop does NOT fire.
+# A leading-interpolation shape (`die "$file not found"`) takes this same arm and stays
+# uncoverable (the whole literal is never emitted text).
 # (two references are not ENTIRELY one variable) -> exit 1 + `${a}${b}` on stdout.
 R17c="$(setup_repo)"
 BASE17c="$(git -C "$R17c" rev-parse HEAD)"
