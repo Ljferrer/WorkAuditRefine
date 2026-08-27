@@ -2,11 +2,12 @@
 name: release-blurb-categorical-scope-enumeration-omits-a-window-class-despite-a-dedicated-checklist-item
 description: "A release blurb's closing categorical claim ('every other change in the window is Checkpoint prose, references mirrors, ADR record, glossary, tour, telemetry rows, or test-side pins') can omit real landed classes (agent cards, CLAUDE.md, servitor-learnings docs) even though README's own Status-blurb authoring checklist item 1 ('bound every absolute') exists specifically to catch this — checklist presence is mechanically pinned, its content is not"
 metadata: 
+  promoted: dev/2026-08-25-ask-disposition@phase-3
   node_type: memory
   type: project
   provenance: code-verified
   slug: release-blurb-categorical-scope-enumeration-omits-a-window-class-despite-a-dedicated-checklist-item
-  phase: "ask-disposition/phase-3 (Release), task 3.1, 2026-08-25"
+  phase: "ask-disposition/phase-3 (Release), task 3.1, 2026-08-25; recurred engine-reliability-and-filing-fidelity/phase-9 task 9.1, 2026-08-26"
   keywords: 
     - release blurb
     - Status-blurb authoring checklist
@@ -19,6 +20,10 @@ metadata:
     - version-slots.test.mjs checklist test
     - README Status
     - checklist presence vs content
+    - docs-only ride-alongs
+    - design spec omitted
+    - catch-all clause dropped
+    - ADR unmentioned in blurb
   tags: 
     - war
     - release
@@ -27,7 +32,7 @@ metadata:
     - prose-precision
   created: 2026-08-25
   originSessionId: 351f8fc5-4d48-4ee9-8beb-5d257d9bcf6f
-  modified: 2026-08-26T04:04:41.795Z
+  modified: 2026-08-27T03:25:00.408Z
 ---
 
 # A release blurb's own categorical-scope claim can violate the exact checklist item written to catch it
@@ -70,6 +75,30 @@ sentence "feeling" complete because the paragraph's other bullets happen to name
 surfaces elsewhere. If a broader scope word covered the omitted classes in a prior release (as
 "doctrine prose" did here), prefer restoring it over narrowing, unless the narrower wording is
 independently verified against the actual window.
+
+**Recurrence (engine-reliability-and-filing-fidelity/phase-9 task 9.1, 2026-08-26, 0.20.0 →
+0.20.1):** code-verified live at the pinned gate-audit SHA `16200fd71cd41423b79bb351ad4a6ae9530eaa28`
+(read at task worktree `p9-9.1`, gitdir physical path
+`<repo-root>/.claude/war-worktrees/2026-08-25-engine-reliability-and-filing-fidelity-2026-08-26/p9-9.1/`
+— this SHA is the pinned `auditSha`/`gate-audit` tip with `gateEvidence: true`, one commit behind the
+threaded landed tip `98c0104`; no live worktree existed at the landed tip itself, so this is the
+gate-audit-fallback rung, not a direct landed-tip read). The byte-identical README `## Status` /
+CHANGELOG `## 0.20.1` blurb again closes with a closed enumeration — "its docs-only ride-alongs are
+the campaign's plan, red-team report, per-phase `docs(learnings)` commits, and one operator-ratified
+plan amendment" — that omits the window's `docs/specs/2026-08-25-engine-reliability-and-filing-
+fidelity-design.md` (+118 lines), landed in the same materialization commit as the plan itself. A
+second, related sub-instance in the same blurb: the bullets cite only 17 of the window's 24 task
+issues and drop the 0.20.0 blurb's closing catch-all clause ("every other change in the window is
+Checkpoint prose, references mirrors, ADR record, ...") without widening the bullets — so the new
+`docs/adr/0048-budget-maintenance-authority.md` (a binding decision record) lands with no mention in
+the release notes at all. Both were audited as Nit/`note` (never `absorb`) for the same reason as
+before: the fix is a two-release-slot lock-step edit, out of the mechanical/non-load-bearing bar for
+absorb-eligibility, and touching release-slot files post-bump from a separate worktree risks
+[[gate2-commit-from-stale-verify-worktree-can-revert-a-release-bump]]. Three straight recurrences
+(0.20.0 categorical-scope gap; two related 0.20.1 gaps in the same sentence) confirm the checklist-
+presence-vs-content gap described above is a standing authoring cost, not a one-off — the `### Status-
+blurb authoring checklist` item 1 is not, and cannot easily be, mechanically checked against the real
+diff window.
 
 Related: [[release-task-requirestest-true-with-test-free-files-list-routes-precedented-no-test-floor]]
 (same task/phase, a different release-shape recurring cost). This is the same underlying family as
