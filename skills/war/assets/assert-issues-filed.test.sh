@@ -328,7 +328,8 @@ D="$(make_env)"
 rc=0
 err="$(D="$D" GH_CLOSE_FAIL=1 PATH="$D/bin:$PATH" bash "$SCRIPT" --close-epic 7 --sha abc123 2>&1 >/dev/null)" || rc=$?
 close_count="$(grep -c 'issue close 7 ' "$D/argv")"
-if [ "$rc" = "2" ] && ! printf '%s' "$err" | grep -q 'gh-degraded' && [ "$close_count" = "1" ]; then
+if [ "$rc" = "2" ] && ! printf '%s' "$err" | grep -q 'gh-degraded' && [ "$close_count" = "1" ] \
+   && printf '%s' "$err" | grep -q 'gh issue close failed for epic #7'; then
   pass "non-flag close failure -> die exit 2, single close attempt (no gh-degraded retry)"
 else
   fail "close-fail (expected 2 + one close + no gh-degraded, got rc=$rc closes=$close_count err=|$err|)"
