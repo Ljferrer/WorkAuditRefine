@@ -12101,3 +12101,17 @@ test('ruled-ask intake (S3 — #1879 recovery seed): every dropped non-conformin
   assert.equal(queued.length, 1, 'exactly the conforming record queues')
   assert.ok(queued[0].includes('conforming ruled ask'), 'the conforming record rides the queue untouched (positive control)')
 })
+
+test('ruled-ask intake (S3, container level): a present-but-non-array args.ruledAsks — a single record threaded unwrapped — is IGNORED with one loud log line and zero records queue', async () => {
+  // The plausible one-ruling typo: the record itself is conforming, but threaded unwrapped. The
+  // whole channel is ignored — loudly, never silently (the container-level half of the S3
+  // 'an operator ruling never vanishes silently' invariant). The wtprov-a slug keeps the #1413
+  // floor out of the picture (a non-array surface maps to zero rows there anyway).
+  const unwrapped = { planSlug: 'wtprov-a', phase: '3', findingTitle: 'x', ruling: 'y', suggested_fix: 'z' }
+  const { out, logs } = await runPhase(PROVISION_ARGS({ ruledAsks: unwrapped }), defaultImpl)
+  assert.notEqual(out.landDecision, 'held:workflow-error', 'a non-array container stays fail-open — the launch proceeds')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('ruled-ask intake IGNORED a non-array args.ruledAsks (object)')),
+    'the ignored container gets one log line naming the received type')
+  assert.equal(logs.filter(l => typeof l === 'string' && l.includes('ruled-ask execution (D15)')).length, 0,
+    'zero records queue from a non-array container')
+})

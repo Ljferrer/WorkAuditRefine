@@ -109,7 +109,8 @@ const AUDIT_VERDICT = { type: 'object', required: ['seat', 'lens', 'verdict', 'f
     // park the ask instead (match strictness, PIN-6). CONTRACT (both prompt layers mirror it): a
     // citation-carrying absorb KEEPS the parked ask's `ask` field verbatim (question + fork) — the
     // schema mandates `ask` only on disposition:'ask', so the echo is what lets recordAced's
-    // content-key match resolve the parked record (a miss is logged, never a silent no-op).
+    // content-key match resolve the parked record under `--afk`, or attach the Checkpoint prefill
+    // interactively (a miss is logged in either mode, never a silent no-op).
     citation: { type: 'object', required: ['row'], properties: {
       row: { type: 'string', minLength: 1 }, rationale: { type: 'string' } } },
     // citationUnsound (D6 soundness duty): set true on a BLOCKING re-audit finding whose rationale
@@ -467,49 +468,6 @@ const testPatternArg = testPattern ? ` --pattern '${testPattern}'` : ''
 const recovery = (A.recovery && typeof A.recovery === 'object' && !Array.isArray(A.recovery) && A.recovery.sanctioned === true)
   ? { sanctioned: true, reclaimStaleRemote: A.recovery.reclaimStaleRemote === true }
   : null
-// Ruled-ask execution (D15(b), PIN-17/PIN-18 — the final-phase polish-style vehicle): the Lead
-// threads interactively-ruled asks whose fixes are FULLY SPECIFIED as args.ruledAsks
-// ([{ task?, file?, line?, suggested_fix, ruling, planSlug, phase, findingTitle }] — suggested_fix
-// and ruling required, plus the REQUIRED provenance coordinates (#1879 RULING 2): planSlug (source
-// plan slug), phase, findingTitle — the #1413 args-provenance floor below reads these FIELDS, not
-// prose, so a channel record is floor-compatible by construction; a non-conforming entry is
-// DROPPED and LOGGED with its findingTitle-or-'(malformed)' and the failed conjunct — inert to the
-// queue, fail-open, never silent: an operator ruling never vanishes silently (#1879 S3)). Each
-// rides the phase-close sweep — exactly the
-// polish-style dispatch D15 names: fresh worktree at the working tip, one ace-eligibility commit,
-// full panel re-audit, the existing merge/land primitives, bounded at ONE round by construction.
-// Filing-on-non-execution (PIN-17): a sweep discard/skip/drain demotes the entry to follow-up with
-// the ruling in its rationale, so the filed issue records the ruling — an issue is filed ONLY on
-// cannot-execute or execution-failure, never silently, never as default litter. The
-// decompose-injection arm (a next phase exists) is Lead doctrine (skills/war/SKILL.md
-// § Checkpoint), not engine machinery.
-// Per-record intake gate: returns null on a conforming record, else the NAME of the first failed
-// conjunct — the drop log names it so the operator can repair the record shape (#1879 S3).
-const ruledAskIntakeReject = x => {
-  if (!x || typeof x !== 'object') return 'not an object'
-  if (!(typeof x.suggested_fix === 'string' && x.suggested_fix)) return 'suggested_fix (required non-empty string)'
-  if (!(typeof x.ruling === 'string' && x.ruling)) return 'ruling (required non-empty string)'
-  if (!(typeof x.planSlug === 'string' && x.planSlug)) return 'planSlug (required provenance coordinate, #1879 RULING 2)'
-  if (!((typeof x.phase === 'string' && x.phase) || typeof x.phase === 'number')) return 'phase (required provenance coordinate, #1879 RULING 2)'
-  if (!(typeof x.findingTitle === 'string' && x.findingTitle)) return 'findingTitle (required provenance coordinate, #1879 RULING 2)'
-  return null
-}
-const ruledAsks = []
-for (const x of (Array.isArray(A.ruledAsks) ? A.ruledAsks : [])) {
-  const failedConjunct = ruledAskIntakeReject(x)
-  if (failedConjunct) {
-    log('ruled-ask intake DROPPED a non-conforming record ("' + ((x && typeof x === 'object' && typeof x.findingTitle === 'string' && x.findingTitle) ? x.findingTitle : '(malformed)') + '") — failed conjunct: ' + failedConjunct + ' — an operator ruling never vanishes silently; repair the record shape and re-thread (#1879 S3).')
-    continue
-  }
-  ruledAsks.push(x)
-}
-for (const ra of ruledAsks) {
-  log('ruled-ask execution (D15): "' + ra.findingTitle + '" queued for the phase-close polish dispatch — operator ruling: ' + ra.ruling)
-  phaseCloseQueue.push({ severity: 'Minor', disposition: 'absorb', phaseClose: true, ruledAsk: true,
-    task: ra.task ?? 'ruled-ask', title: ra.findingTitle, file: ra.file ?? null,
-    ...(ra.line != null ? { line: ra.line } : {}),
-    rationale: 'ruled ask (operator ruling: ' + ra.ruling + ')', suggested_fix: ra.suggested_fix })
-}
 const intentClause = intent
   ? pt`\nCOMMANDER'S INTENT (the operator's purpose — your ceiling; the plan slice is your floor):\n${intent}\n`
   : ''
@@ -824,6 +782,7 @@ if (problems.length) throw new Error(`${problems.join('; ')}${derivationProblem 
   const slugAnchorOf = s => baseOf(s).replace(/\.md$/i, '')
   const ruledAskAnchor = planSlug ? slugAnchorOf(planSlug) : (ownPlanBase ? slugAnchorOf(ownPlanBase) : null)
   const ruledAskRowText = row => {
+    if (typeof row === 'string') return { text: row, exempt: false }  // a string row is its own scannable text (the sibling rowText discipline)
     if (!row || typeof row !== 'object') return { text: '', exempt: true }
     const text = ['ruling', 'suggested_fix', 'findingTitle', 'title']
       .map(k => (typeof row[k] === 'string') ? row[k] : '').filter(Boolean).join('\n')
@@ -859,6 +818,61 @@ if (problems.length) throw new Error(`${problems.join('; ')}${derivationProblem 
     }
   }
   if (provenanceProblems.length) throw new Error(provenanceProblems.join('; '))
+}
+
+// Ruled-ask execution (D15(b), PIN-17/PIN-18 — the final-phase polish-style vehicle): the Lead
+// threads interactively-ruled asks whose fixes are FULLY SPECIFIED as args.ruledAsks
+// ([{ task?, file?, line?, suggested_fix, ruling, planSlug, phase, findingTitle }] — suggested_fix
+// and ruling required, plus the REQUIRED provenance coordinates (#1879 RULING 2): planSlug (source
+// plan slug), phase, findingTitle — the #1413 args-provenance floor ABOVE reads these FIELDS, not
+// prose, so a channel record is floor-compatible by construction). Intake ordering + the floor's
+// precedence: the floor screens the RAW args.ruledAsks FIRST (and this block deliberately sits
+// AFTER it, so no foreign record's prose is journaled before the refusal) — a coordinate-less
+// record whose intent-bearing text carries none of the run's own plan-slug tokens is REFUSED at
+// entry before this intake filter ever sees it; the drop-and-log fail-open arm below covers only
+// records that clear the floor: such a non-conforming entry is DROPPED and LOGGED with its
+// findingTitle-or-'(malformed)' and the failed conjunct — inert to the queue, fail-open, never
+// silent: an operator ruling never vanishes silently (#1879 S3). Each conforming record
+// rides the phase-close sweep — exactly the
+// polish-style dispatch D15 names: fresh worktree at the working tip, one ace-eligibility commit,
+// full panel re-audit, the existing merge/land primitives, bounded at ONE round by construction.
+// Filing-on-non-execution (PIN-17): a sweep discard/skip/drain demotes the entry to follow-up with
+// the ruling in its rationale, so the filed issue records the ruling — an issue is filed ONLY on
+// cannot-execute or execution-failure, never silently, never as default litter. The
+// decompose-injection arm (a next phase exists) is Lead doctrine (skills/war/SKILL.md
+// § Checkpoint), not engine machinery.
+// Per-record intake gate: returns null on a conforming record, else the NAME of the first failed
+// conjunct — the drop log names it so the operator can repair the record shape (#1879 S3).
+const ruledAskIntakeReject = x => {
+  if (!x || typeof x !== 'object') return 'not an object'
+  if (!(typeof x.suggested_fix === 'string' && x.suggested_fix)) return 'suggested_fix (required non-empty string)'
+  if (!(typeof x.ruling === 'string' && x.ruling)) return 'ruling (required non-empty string)'
+  if (!(typeof x.planSlug === 'string' && x.planSlug)) return 'planSlug (required provenance coordinate, #1879 RULING 2)'
+  if (!((typeof x.phase === 'string' && x.phase) || typeof x.phase === 'number')) return 'phase (required provenance coordinate, #1879 RULING 2)'
+  if (!(typeof x.findingTitle === 'string' && x.findingTitle)) return 'findingTitle (required provenance coordinate, #1879 RULING 2)'
+  return null
+}
+const ruledAsks = []
+for (const x of (Array.isArray(A.ruledAsks) ? A.ruledAsks : [])) {
+  const failedConjunct = ruledAskIntakeReject(x)
+  if (failedConjunct) {
+    log('ruled-ask intake DROPPED a non-conforming record ("' + ((x && typeof x === 'object' && typeof x.findingTitle === 'string' && x.findingTitle) ? x.findingTitle : '(malformed)') + '") — failed conjunct: ' + failedConjunct + ' — an operator ruling never vanishes silently; repair the record shape and re-thread (#1879 S3).')
+    continue
+  }
+  ruledAsks.push(x)
+}
+// Container-level loudness (the same 'never vanishes silently' invariant, one level up): a
+// present-but-non-array args.ruledAsks (a single record threaded unwrapped, or a {records:[...]}
+// container) would otherwise degrade to zero rows with no log line at either consumer.
+if (!Array.isArray(A.ruledAsks) && A.ruledAsks != null) {
+  log('ruled-ask intake IGNORED a non-array args.ruledAsks (' + typeof A.ruledAsks + ') — the channel takes an array of records; an operator ruling never vanishes silently (#1879 S3).')
+}
+for (const ra of ruledAsks) {
+  log('ruled-ask execution (D15): "' + ra.findingTitle + '" queued for the phase-close polish dispatch — operator ruling: ' + ra.ruling)
+  phaseCloseQueue.push({ severity: 'Minor', disposition: 'absorb', phaseClose: true, ruledAsk: true,
+    task: ra.task ?? 'ruled-ask', title: ra.findingTitle, file: ra.file ?? null,
+    ...(ra.line != null ? { line: ra.line } : {}),
+    rationale: 'ruled ask (operator ruling: ' + ra.ruling + ')', suggested_fix: ra.suggested_fix })
 }
 
 // GATE COMPOSITION POINT (engine-owned, ADR 0036): normalize plan.gate ONCE here, immediately after entry
