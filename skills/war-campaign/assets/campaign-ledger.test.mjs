@@ -1059,6 +1059,57 @@ for (const flag of ['redteamRounds', 'pr']) {
   }
 }
 
+// ---- CLI string-flag bare-flag refusal: --status/--branch/--sha/--stopPoint --
+// (engine-reliability plan phase 8 Task 2, End state 12.) parseArgs maps a bare
+// flag to boolean true; unguarded, the copy loop would stamp `true` verbatim
+// into the ledger as a plausible-looking value. Same contract as the numeric
+// refusal above: non-zero exit, one stderr line naming the flag + token, BEFORE
+// any record() call — ledger byte-identical.
+
+for (const flag of ['status', 'branch', 'sha', 'stopPoint']) {
+  for (const c of [
+    // trailing bare flag — parseArgs maps it to boolean true
+    { label: 'bare-trailing', extra: (planA) => [`--${flag}`] },
+    // mid-argv bare flag — the next token starts with `--`, so parseArgs still
+    // maps it to boolean true (the repeated `--plan planA` is last-write-wins
+    // with the same value, so the invocation stays otherwise well-formed)
+    { label: 'bare-mid-argv', extra: (planA) => [`--${flag}`, '--plan', planA] },
+  ]) {
+    test(`CLI record --${flag} bare-flag ${c.label} is refused: non-zero exit, stderr names the flag + token, ledger byte-identical`, () => {
+      const dir = tmpDir()
+      const planA = writePlan(dir, 'a.md', PLAN_A)
+      const campaignDir = path.join(dir, 'campaign')
+      init(campaignDir, { plans: [planA], mode: 'stack' })
+      const before = fs.readFileSync(path.join(campaignDir, 'ledger.json'), 'utf8')
+
+      const { status, stderr } = cliRefusal('record', '--campaign', campaignDir, '--plan', planA, ...c.extra(planA))
+
+      assert.notEqual(status, 0, 'must exit non-zero — never a silent stamp')
+      assert.match(stderr, new RegExp(`--${flag}`), 'stderr must name the offending flag')
+      assert.ok(stderr.includes(`'true'`), `stderr must render the offending token; got: ${stderr}`)
+      const after = fs.readFileSync(path.join(campaignDir, 'ledger.json'), 'utf8')
+      assert.equal(after, before, 'a refused invocation leaves the ledger byte-identical')
+    })
+  }
+}
+
+test('CLI record with valid string values for every guarded flag still records them (bare-flag guard passes strings through)', () => {
+  const dir = tmpDir()
+  const planA = writePlan(dir, 'a.md', PLAN_A)
+  const campaignDir = path.join(dir, 'campaign')
+  init(campaignDir, { plans: [planA], mode: 'stack' })
+
+  cli('record', '--campaign', campaignDir, '--plan', planA,
+    '--status', 'landed-guard-4c1d', '--branch', 'dev/guard-branch-4c1d',
+    '--sha', 'abc4c1d', '--stopPoint', 'sp-guard-4c1d')
+
+  const entry = readLedger(campaignDir).plans[0]
+  assert.equal(entry.status, 'landed-guard-4c1d')
+  assert.equal(entry.branch, 'dev/guard-branch-4c1d')
+  assert.equal(entry.sha, 'abc4c1d')
+  assert.equal(entry.stopPoint, 'sp-guard-4c1d')
+})
+
 // ---- CLI --campaign anchoring + init dangling-symlink (plan Task 2, End states 4-5) --
 // A relative --campaign must anchor at the MAIN checkout (git rev-parse
 // --path-format=absolute --git-common-dir), never the invoking worktree's cwd, so
