@@ -1980,8 +1980,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   const aceFindingRow = (f, i) => pt`${i + 1}. [${f.severity}] ${f.title ?? ''} (${f.file ?? ''}${f.line ? ':' + f.line : ''}) — ${f.rationale ?? ''}${f.suggested_fix ? pt` → ${f.suggested_fix}` : ''}${citationOf(f) ? pt` [absorb-by-citation: row "${citationOf(f).row}" — ${citationOf(f).rationale}]` : ''}`
   // Shared conditional forward-revert step (bisection subsets + re-entry batches): emitted only
   // while a failed predecessor commit is still unreverted at the tip.
-  const aceRevertStep = (worktree, sha) => sha
-    ? pt`FIRST, only if \`git -C ${worktree} rev-parse HEAD\` is still ${sha}: forward-revert that failed prior ace commit — \`git -C ${worktree} revert --no-edit ${sha}\` (tip-only clean inverse); a moved HEAD is already reverted — SKIP (a sha is never reverted twice). Never reset --hard.\n`
+  const aceRevertStep = (revertWorktree, revertSha) => revertSha
+    ? pt`FIRST, only if \`git -C ${revertWorktree} rev-parse HEAD\` is still ${revertSha}: forward-revert that failed prior ace commit — \`git -C ${revertWorktree} revert --no-edit ${revertSha}\` (tip-only clean inverse); a moved HEAD is already reverted — SKIP (a sha is never reverted twice). Never reset --hard.\n`
     : ''
   // Citation-soundness re-audit charge (D6, PIN-7): appended to the panel prompt whenever the batch
   // under re-audit contains citation-resolved findings — the panel, not the engine, judges the match
