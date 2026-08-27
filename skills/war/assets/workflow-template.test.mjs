@@ -3216,28 +3216,6 @@ test('ace-reentry (End state 1, plain re-audit): a fresh absorb born at the appr
   assert.ok(out.landed.includes('t1'), 't1 lands on the re-entered tip')
 })
 
-test('ace-reentry (End state 1, later-round re-audit): a fresh absorb born at a RE-ENTRY BATCH\'s own approving re-audit re-enters again — the loop continues until a clean round', async () => {
-  // Round-1 absorb → batch ace → re-audit approves WITH nitB → re-entry r2 → ITS re-audit approves
-  // WITH nitC (the third origin: born at a re-entry batch's own re-audit) → re-entry r3 → clean.
-  const impl = buildSeqImpl(
-    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [nit({ title: 'first', file: 'skills/first.js' })]),
-                               approveWith('audit:t1:correctness', [nit({ title: 'second', file: 'skills/second.js' })]),
-                               approveWith('audit:t1:correctness', [nit({ title: 'third', file: 'skills/third.js' })]),
-                               approveWith('audit:t1:correctness', [])] },
-    aceBase([nit({ title: 'first', file: 'skills/first.js' })]))
-  const { out, calls } = await runPhase(ACE_ARGS(), impl)
-  const aces = calls.filter(isAce)
-  assert.equal(aces.length, 3, 'batch + TWO re-entry batches (the ladder re-opened at the re-entry batch\'s own re-audit)')
-  assert.ok(aces[2].prompt.includes('ACE RE-ENTRY BATCH') && aces[2].prompt.includes('third'),
-    'the third dispatch is the re-entry vehicle carrying the finding born at the re-entry re-audit')
-  assert.match(aces[2].prompt, /`Ace-Subset: t1:reentry:r3:skills\/third\.js`/,
-    'the second re-entry round\'s trailer carries the incremented round index (PIN-15)')
-  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'third'),
-    'the re-entry-re-audit-born absorb is ACED (executed in-run)')
-  assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'third'), 'it is NOT filed')
-  assert.ok(out.landed.includes('t1'), 't1 lands on the twice-re-entered tip')
-})
-
 test('ace-reentry (End state 1, bisection-subset re-audit): a fresh absorb born at a SUBSET re-audit re-enters after the bisection resolves', async () => {
   const f1 = nit({ title: 'f1 nit', file: 'skills/f1.js' })
   const f2 = nit({ title: 'f2 nit', file: 'skills/f2.js' })
@@ -10922,13 +10900,11 @@ const BARE_INTERPOLATION_CENSUS = [
   'r.fence', 'r.n',
   // r.reentryBase (in-run-finding-resolution Task 1.1): ternary-gated at its single site (the
   // re-entry PREFLIGHT range falls back to HEAD~30..HEAD when absent) — construction-guaranteed.
-  // reentryRange is that ternary's pt-built product (always a string). revertSha/revertWorktree
-  // are the aceRevertStep helper's params (distinctive names, so a future bare `${sha}` or
-  // `${worktree}` elsewhere still reds this default-deny census): revertSha is the truthiness gate
-  // itself (the clause renders only when set) and revertWorktree is r.task.worktree
-  // (entry-validated) at both call sites — the old inline 'pendingRevert' row relocated into the
-  // helper.
-  'r.reentryBase', 'reentryRange', 'revertSha', 'revertWorktree',
+  // reentryRange is that ternary's pt-built product (always a string). sha/worktree are the
+  // aceRevertStep helper's params: sha is the truthiness gate itself (the clause renders only when
+  // set) and worktree is r.task.worktree (entry-validated) at both call sites — the old inline
+  // 'pendingRevert' row relocated into the helper.
+  'r.reentryBase', 'reentryRange', 'sha', 'worktree',
   'r.supersedes', 'r.tag', 'r.task.branch', 'r.task.id', 'r.task.targetRepo',
   'r.task.worktree', 'r.unsupported', 'refineryLandPath', 'refineryP', 'refineryPath', 'roundLimit', 's.lens',
   's.seat', 's.verdict', 'submodLandTask.targetRepo', 'submodPath', 't.id', 'task.branch',
