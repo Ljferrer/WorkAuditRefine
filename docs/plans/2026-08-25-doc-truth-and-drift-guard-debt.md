@@ -22,11 +22,16 @@ below is authored against the integration tip **after both land** — pins copy 
 that merged tree, never from issue text or from this plan's own literals. Concurrent
 execution is forbidden (serial merge queue would rebase-conflict on every shared file).
 
-Issues addressed (all 45): #1662, #1625, #1622, #1621, #1620, #1618, #1292, #1565, #1545,
+Issues addressed (all 72): #1662, #1625, #1622, #1621, #1620, #1618, #1292, #1565, #1545,
 #1537, #1536, #1651, #1522, #1399, #1477, #1474, #1678, #1652, #1653, #1654, #1656, #1521,
 #1525, #1488, #1513, #1587, #1539, #1538, #1535, #1446, #1542, #1673, #1675, #1676, #1677,
 #1683, #1686, #1687, #1689; plus the operator-ratified 2026-08-25 fold batch (see Notes):
-#1695, #1705, #1706, #1707, #1708, #1709.
+#1695, #1705, #1706, #1707, #1708, #1709; plus the operator-ratified 2026-08-27 fold
+batch 2 (see Notes — 27 doc-truth/comment-lag `war-followup` issues from the
+engine-reliability campaign, prose/comment-only, no behavior change): #1737, #1738,
+#1740, #1741, #1742, #1743, #1744, #1752, #1764, #1765, #1766, #1769, #1771, #1772,
+#1791, #1793, #1800, #1801, #1802, #1804, #1812, #1814, #1817, #1832, #1841, #1842,
+#1843.
 
 ## Context — the gap / problem
 
@@ -446,10 +451,29 @@ None proposed (spec §6/§7). Existing ADRs amended in place: 0018 (amendment ro
       the absorb-eligibility-block attribution to
       `references/disposition-eligibility.md`, ratified text untouched ·
       check: grep -c 'Correction (2026-08-25)' docs/adr/0013-commanders-intent-and-disposition-routing.md prints at least 1 (zero hits at 5aeb8b3 — the file's 2026-08-25 heading is an Amendment, not a Correction — so the grep is decisive; skill-doc-contracts stays green per End state 12's suite run).
+  23. The schemas.md fold sweep retires the two decisive stale literals (fold batch 2:
+      the `run.maxParallel` "absent = unthrottled fan-out" phrase and the two
+      "rows stay raw" absolutes falsified by the landed filing-on-held behavior), and
+      the manifest suite stays green ·
+      check: ! grep -F 'absent = unthrottled fan-out' skills/war/references/schemas.md && ! grep -F 'rows stay raw' skills/war/references/schemas.md && echo SCHEMAS-FOLD-CLEAN prints SCHEMAS-FOLD-CLEAN (1 and 2 hits respectively at the plan-1 landed tip, so both zeros are decisive; the seven remaining fold rows are non-literal requalifications proven by the Task 7 done report's per-issue before/after list plus bash skills/war/references/schemas-manifest.test.sh green).
+  24. The retired ace-budget boundary ("remainder demotes on budget exhaustion") is
+      absent from all four prose homes — the floor-retry reserve (roundLimit − 2) is
+      the stated stop condition (#1812) ·
+      check: ! grep -F 'demotes on budget' docs/adr/0013-commanders-intent-and-disposition-routing.md && ! grep -F 'exhaustion demotes the remainder' skills/war/SKILL.md CONTEXT.md && ! grep -F 'budget-exhausted remainder' skills/war/references/design.md && echo ACE-BOUNDARY-RETIRED prints ACE-BOUNDARY-RETIRED (each needle ≥ 1 hit in its home at the plan-1 landed tip — re-measure at the rebased base; ADR 0013's fix is a dated qualification note, ratified text untouched, so its needle retires via the note's superseding restatement adjacent to a strikethrough-free original ONLY if the amendment-append convention permits; where it does not, the worker records the reachable form and the End state is satisfied by the three non-ADR homes plus the ADR note present — the done report states which arm ran).
+  25. The three decisive engine-comment staleness literals are retired from
+      `workflow-template.js` (fold batch 2: the "THREE problem classes" header
+      miscount, the "six-site" order-census remnant, the "plus the seven" ragged
+      fragment) ·
+      check: ! grep -i 'THREE problem classes' skills/war/assets/workflow-template.js && ! grep -F 'six-site' skills/war/assets/workflow-template.js && ! grep -F 'plus the seven' skills/war/assets/workflow-template.js && echo ENGINE-COMMENT-TRUTH prints ENGINE-COMMENT-TRUTH (1 hit each at the plan-1 landed tip; #1769/#1800 are qualification rewrites without a decisive retirement literal — proven by the Task 4 done report's before/after quotes; comment-only, full JS suite green).
+  26. The provision-worktrees divergence-claim literals are retired — the `.sh`
+      Behaviors header's "(b) diverges" solo claim and the test-suite banner's
+      "EXCEPT behavior (b)" understatement both name the full divergence set (#1841,
+      #1843) ·
+      check: ! grep -F '(b) diverges' skills/war/assets/provision-worktrees.sh && ! grep -F 'EXCEPT behavior (b)' skills/war/assets/provision-worktrees.test.sh && echo PROVISION-BANNER-TRUE prints PROVISION-BANNER-TRUE (1 hit each at the plan-1 landed tip; comment/banner-only, bash skills/war/assets/provision-worktrees.test.sh green).
 
 ## Build order (for /war)
 
-Phase 1 (prose truth — eight file-disjoint tasks, fully parallel except Task 2's deps
+Phase 1 (prose truth — ten file-disjoint tasks, fully parallel except Task 2's deps
 edge) → Phase 2
 (pins and drift guards — five file-disjoint suite tasks, fully parallel, no deps; every
 pin copies bytes from the Phase-1-landed tree; phase edge, not deps, is the rule-7
@@ -458,7 +482,7 @@ stacking preamble).
 
 ## Phase 1 — Prose truth (movement 1)
 
-Eight file-disjoint tasks. Each runs `node --test 'skills/**/*.test.mjs'` and the shell
+Ten file-disjoint tasks. Each runs `node --test 'skills/**/*.test.mjs'` and the shell
 suites locally before pushing; any red pin is a coupling updated lock-step in the same
 commit, never loosened.
 
@@ -583,11 +607,13 @@ commit, never loosened.
 - deps: []
 - target repo: superproject
 
-### Task 4: ADR 0018 + 0026 amendments + the ADR 0013 correction note + the recovery comment
+### Task 4: ADR 0018 + 0026 amendments + the ADR 0013 correction notes + the recovery comment + fold-batch-2 comment truth
 - Files: `docs/adr/0018-war-working-branch-checkout-guard.md`,
   `docs/adr/0026-github-side-effects-mechanically-gated.md`,
   `docs/adr/0013-commanders-intent-and-disposition-routing.md`,
-  `skills/war/assets/workflow-template.js` (comment only)
+  `skills/war/assets/workflow-template.js` (comment only),
+  `skills/war/references/resume-and-recovery.md`,
+  `skills/war/references/design.md`
 - Plan slice: (#1477) add an amendment row to ADR 0018's Decision section covering the
   landed conditional branch derivation/refusal arms and the preMerged relaunch prompt
   delta (date-stamped, appended — ratified text untouched); widen the `const recovery`
@@ -613,6 +639,36 @@ commit, never loosened.
   machine-derivable — the executable arms are already covered by
   `workflow-template.test.mjs`'s recovery tests (guard exists; this task restores
   comment truth beside it); ADR prose — explicitly-defer as in Task 3.
+  Fold batch 2 (operator-ratified 2026-08-27, engine-reliability `war-followup`s —
+  all comment/prose-only, re-measure every quoted literal at the rebased base per D12):
+  (#1772) append a dated qualification note to ADR 0013's 2026-08-05 amendment — the
+  "Whole-pass absence stays all-`deferred`" absolute now carries the landed vacuous-
+  phase carve-out (zero-tasks-landed note channel); addendum form, ratified text
+  untouched, same convention as the #1695 correction note above (verified: issue
+  #1772 (2026-08-26)). (#1812, this task's two homes) retire the pre-reserve ace-budget
+  boundary narration: ADR 0013's 2026-08-20 amendment rows ("the remainder demotes on
+  budget exhaustion"; "consumes slots from the same budget") gain a dated
+  qualification note stating the landed floor-retry-reserve stop condition
+  (roundLimit − 2), and `design.md` §18's "(or a budget-exhausted remainder) demote"
+  clause is rewritten in place to the reserve boundary — End state 24's needles
+  (verified: issue #1812 (2026-08-26); the CONTEXT.md and SKILL.md homes ride Tasks 5
+  and 8). (#1804) extend `resume-and-recovery.md`'s pre-launch ref-holder enumeration
+  bullet with the foreign-plan never-free guardrail its engine twin (`holderFreeClause`)
+  carries — scope the free to "this plan's own refs", never a foreign plan's holder
+  (verified: issue #1804 (2026-08-26)). Engine comment-lag trio + two qualifications
+  (`workflow-template.js`, comment-only, no executable line moves): (#1765) the entry-
+  validation header's "THREE problem classes" miscount → the true count; (#1814) the
+  surviving "six-site" order-census remnant → the current census count (locate by the
+  `six-site` literal); (#1817) re-flow the demote() ladder comment's ragged "plus the
+  seven" / mid-phrase fragments left by the phase-7 reserve edit; all three are End
+  state 25's needles (verified: issues #1765/#1814/#1817 (2026-08-26)). (#1769) qualify
+  the endState header's "Whole-pass absence stays all-'deferred'" absolute with the
+  vacuous-clamp arm (the comment twin of #1772's ADR note — fix both in this one task,
+  same wording direction); (#1800) verify the #1411 classification comment's grammar at
+  the rebased base — the phase-6/7 polish may already have corrected it (the issue's
+  quoted fragment no longer greps at the plan-1 landed tip): if broken, re-flow the
+  sentence; if already correct, record verified-fixed in the done report and make no
+  edit (the issue closes on that record) (verified: issues #1769/#1800 (2026-08-26)).
 - Done when: node --test skills/war/assets/workflow-template.test.mjs
 - requiresTest: false
 - requiresPackaging: false
@@ -650,6 +706,20 @@ commit, never loosened.
   (guard exists — advisory is warn-only, hard is red; the End state adds the measured
   floor); moved glossary entries keep whatever guard keys already bind them (none, by
   selection); the _Avoid_ marker is glossary prose — explicitly-defer.
+  Fold batch 2 (operator-ratified 2026-08-27): (#1801) correct CONTEXT.md's
+  **Clean handoff** glossary row — the landed filing-on-held behavior (plan-1 phase 6:
+  on `held:land-failed` the follow-up filing dispatch still runs, or the handoff
+  carries an explicit unfiled-followups block) falsifies the row's stricter claim; the
+  `resume-and-recovery.md` sentence is the TRUE side and stays byte-untouched here
+  (verified: issue #1801 (2026-08-26)). (#1812, CONTEXT home) rewrite the
+  **Ace bisection** glossary row's "exhaustion demotes the remainder" boundary to the
+  landed floor-retry reserve (roundLimit − 2) — End state 24's CONTEXT needle; check
+  the D37-pinned spans first and keep every pinned byte-run untouched (the row is
+  glossary prose adjacent to pinned ask terms — if the boundary phrase itself proves
+  pinned by any live key, stop and route the pin move to Phase 2 Task 2 instead of
+  rewording under a red pin) (verified: issue #1812 (2026-08-26)). Both edits are
+  byte-additive-neutral or negative — they must not undo this task's eviction
+  arithmetic (re-run wc -c after them).
 - Done when: node --test skills/war/assets/prompt-surface-budgets.test.mjs
 - requiresTest: false
 - requiresPackaging: false
@@ -679,7 +749,7 @@ commit, never loosened.
 - deps: []
 - target repo: superproject
 
-### Task 7: schemas.md doneWhen parenthetical (#1675)
+### Task 7: schemas.md truth sweep — doneWhen parenthetical (#1675) + the fold-batch-2 contract rows
 - Files: `skills/war/references/schemas.md`
 - Plan slice: extend the ledger `doneWhen` field-comment row's parenthetical to state
   the value-vs-key parse boundary and the backtick-stripping that
@@ -689,6 +759,33 @@ commit, never loosened.
   registration. Touched-doc treatment (rule 8): the parse rule is machine-derivable
   from SKILL.md — de-mirror posture (the row explicitly defers to the canonical intake
   bullet; no new pin — the sibling spec owns mirror-registry policy, deferred).
+  Fold batch 2 (operator-ratified 2026-08-27) — nine schemas.md rows the
+  engine-reliability campaign's gate-audits proved stale or lagging; every quoted
+  literal is a dated snapshot at the plan-1 landed tip, re-measure at the rebased base
+  (D12); each fix is a row requalification or additive field note, never a contract
+  change: (#1738) document the optional `MERGE_RESULT.floor_route` field on the
+  MergeResult contract (`enum: ['budget-uncited']`, in-band route riding `no-test`)
+  (verified: issue #1738 (2026-08-26)); (#1744) widen the `no-test` bullet's routing
+  sentence to the three landed downstream arms — fix-worker sub-loop at
+  primary/floor-retry sites, hard escalation at the two `*-proceed` sites, fail-open
+  discard at the polish-sweep site (verified: issue #1744 (2026-08-26)); (#1752)
+  replace the provenance-floor row's retired "applies only when its arg is present and
+  non-empty" precondition with the D6-recalibrated scannable-intent-bearing-text gate
+  (verified: issue #1752 (2026-08-26)); (#1764/#1771) correct the `handoff.endState`
+  row for the landed vacuous-clamp shape — the optional third `note` key and the
+  zero-tasks-landed derivation (verified: issues #1764/#1771 (2026-08-26)); (#1766)
+  reword the entry-belt sentence so "`doneWhen` a string when present" no longer reads
+  as refusing the ratified `doneWhen: null` the same file documents as legal
+  (verified: issue #1766 (2026-08-26)); (#1791) requalify the two "rows stay raw"
+  absolutes against the landed filing-on-held behavior — End state 23's second needle
+  (verified: issue #1791 (2026-08-26)); (#1793) add the post-collapse `merged[]` key to
+  the top-level `minorsFiled` row, matching the handoff row two lines below (verified:
+  issue #1793 (2026-08-26)); (#1802) retire "absent = unthrottled fan-out" on the
+  `run.maxParallel` row in favor of the ratified "absent = no engine-side cap beyond
+  the Workflow default" form (#1726's design.md wording — keep the two byte-consistent)
+  — End state 23's first needle (verified: issue #1802 (2026-08-26)). Cross-plan
+  caution: plan A landed schemas.md edits in several phases — anchor every row by its
+  field name/construct, never by line; run the manifest suite before push.
 - Done when: bash skills/war/references/schemas-manifest.test.sh
 - requiresTest: false
 - requiresPackaging: false
@@ -720,7 +817,85 @@ commit, never loosened.
   section at the task base before editing. Touched-doc treatment (rule 8): the
   routing fact is pinned by the moved D37/D41 keys (guard exists, moved lock-step);
   End state 20's OLD-absent grep is the retirement floor.
+  Fold batch 2 (operator-ratified 2026-08-27): (#1812, SKILL home) rewrite the `--ace`
+  bullet's "each subset commit charges one `fixRounds` slot … (exhaustion demotes the
+  remainder — logged, by design)" boundary to the landed floor-retry reserve
+  (roundLimit − 2) — End state 24's SKILL needle; same budget discipline as the main
+  slice (the file carries a `prompt-surface-budgets.test.mjs` row), and the same
+  lock-step rule: if any contracts-suite key reads the rewritten phrase, move it in the
+  same commit (verified: issue #1812 (2026-08-26)).
 - Done when: node --test skills/war/assets/skill-doc-contracts.test.mjs
+- requiresTest: false
+- requiresPackaging: false
+- deps: []
+- target repo: superproject
+
+### Task 9: Budget-floor doc coherence (fold batch 2)
+- Files: `agents/war-refiner.md`, `skills/war/references/budget-raise-floor.md`,
+  `skills/war/references/budget-rebaseline.md`, `CLAUDE.md`
+- Plan slice: five engine-reliability `war-followup`s on the freshly-landed
+  Budget-Raise floor's doc surfaces, all prose-only. (#1737) requalify the refiner
+  card's Superproject-land pointer claim "Your dispatched land prompt carries the same
+  steps verbatim" — the land-phase block was evicted, so the dispatched prompt carries
+  the operative steps via the same reference, not verbatim card bytes; reword to the
+  true relationship (the sibling pointer's "carries the operative rules" form is the
+  house precedent, one line up at the `*-proceed` bullet) (verified: issue #1737
+  (2026-08-26)). (#1740) give the Gate-contract line's trigger-less pointer its
+  trigger — the fixed ADR 0042 shape is `when <trigger>, read references/<file>`; the
+  two sibling pointers on the same card already carry triggers, mirror their form
+  (verified: issue #1740 (2026-08-26)). BUDGET DISCIPLINE (binding): `agents/war-refiner.md`
+  sits at ~14 B under its `prompt-surface-budgets.test.mjs` hard ceiling (#1798,
+  measured at the plan-1 landed tip) — both card edits together must land at or under
+  the ceiling (rewording, not addition; #1737's fix shortens); if a net byte increase
+  proves unavoidable, evict per ADR 0042 first — an uncited ceiling raise is refused
+  by the floor itself (`assert-budget-raise-cited.sh`), and a cited raise here is NOT
+  pre-authorized: escalate instead. (#1741) fix `budget-raise-floor.md`'s header
+  caveat, falsified by its own Gate-contract block (the byte-identity + in-page-anchor
+  claim does not hold for that block) — requalify the header per the QUALIFIED_HEADERS
+  "at eviction time" convention, naming the true provenance of each block (verified:
+  issue #1741 (2026-08-26)). (#1743) resolve `budget-rebaseline.md`'s number-less
+  "the budget-maintenance-authority ADR" citation to ADR 0048 now that the number
+  exists (verified: issue #1743 (2026-08-26)). (#1742) append
+  `assert-budget-raise-cited.sh` to CLAUDE.md's merge-path floor enumeration (§ Guard
+  architecture — currently four floors named; the phase landed a fifth) and re-verify
+  the sentence's floor descriptions still hold at the rebased base (verified: issue
+  #1742 (2026-08-26); zero `assert-budget-raise-cited` hits in CLAUDE.md at the plan-1
+  landed tip, so the presence grep is decisive). Touched-doc treatment (rule 8): the
+  floor enumeration and pointer facts are narrative over shell scripts with their own
+  suites — explicitly-defer (no CLAUDE.md drift guard exists; recorded as accepted
+  residual, same posture as the tour backstop).
+- Done when: node --test skills/war/assets/prompt-surface-budgets.test.mjs
+- requiresTest: false
+- requiresPackaging: false
+- deps: []
+- target repo: superproject
+
+### Task 10: provision-worktrees comment truth (fold batch 2)
+- Files: `skills/war/assets/provision-worktrees.sh`,
+  `skills/war/assets/provision-worktrees.test.sh`
+- Plan slice: four engine-reliability `war-followup`s on the phase-8 reuse-hygiene
+  landing, ALL comment/banner-only — no executable line moves, the full suite stays
+  green (the behavioral siblings #1823/#1839/#1840 and the marker-payload contract
+  #1826 are deliberately NOT folded — they change behavior and stay on the follow-up
+  ladder). (#1841) update `cmd_ensure_publication_worktree`'s header mirror claim
+  ("byte-for-byte EXCEPT behavior (b)") and the test-suite banner's matching carve-out
+  to name the full landed divergence set (the refinery twin now also runs
+  `reuse_hygiene` on both reuse arms and emits WORKTREE_HYGIENE markers) — retire the
+  literal "EXCEPT behavior (b)" understatement, End state 26's second needle
+  (verified: issue #1841 (2026-08-27)). (#1843) correct the in-function Behaviors
+  block header's "(b) diverges" solo claim to the true divergence pair and re-flow the
+  ragged mid-clause wrap the phase-8 edit left — End state 26's first needle
+  (verified: issue #1843 (2026-08-27)). (#1842) requalify the two new carve-out
+  clauses' unearned "deliberately" — either cite a recorded basis (as the
+  pre-existing carve-out does) or downgrade the wording to a described-not-ratified
+  scope statement; never harden a scope gap into documented intent without a record
+  (verified: issue #1842 (2026-08-27)). (#1832) replace the classifier comment's
+  "cf. the header's command-substitution-newline note" citation with the real reason
+  (tr interprets its own `\n` escape — the cited header note concerns the tr PATTERN
+  built via command substitution, a different hazard) (verified: issue #1832
+  (2026-08-27)). Touched-doc treatment (rule 8): all four are comment truth over
+  behavior the suite already pins — the suite run IS the guard; nothing new to pin.
+- Done when: bash skills/war/assets/provision-worktrees.test.sh
 - requiresTest: false
 - requiresPackaging: false
 - deps: []
@@ -979,6 +1154,30 @@ pin ships with a both-ways proof (fixture or scratch-deletion trace in the done 
   whole-tour pattern-only-anchor pass + roster de-snapshot (End state 21). End-state
   numbering stayed append-only (20–22 new; 12 widened, none renumbered); the
   addressed-issues enumeration grew 39 → 45.
+
+- **Fold batch 2 — operator-ratified scope additions (2026-08-27):** 27 `war-followup`
+  issues from the engine-reliability campaign (plan 1 of this same campaign, landed as
+  0.20.1 / PR #1847) folded in on operator approval of the Lead's categorization —
+  the doc-truth/comment-lag class only, every item prose/comment-only, routed to the
+  file-owning task: #1765/#1769/#1772/#1800/#1804/#1812(two homes)/#1814/#1817 →
+  Phase 1 Task 4 (which gains `resume-and-recovery.md` + `design.md` in Files);
+  #1801/#1812(CONTEXT home) → Phase 1 Task 5; #1738/#1744/#1752/#1764/#1766/#1771/
+  #1791/#1793/#1802 → Phase 1 Task 7 (retitled to the schemas.md truth sweep);
+  #1812(SKILL home) → Phase 1 Task 8; #1737/#1740/#1741/#1742/#1743 → NEW Phase 1
+  Task 9; #1832/#1841/#1842/#1843 → NEW Phase 1 Task 10. End-state numbering stayed
+  append-only (23–26 new, none renumbered); the addressed-issues enumeration grew
+  45 → 72. #1812 is a cross-task fold (four prose homes, four owning tasks) — it
+  closes only when all four homes land; End state 24 is its aggregate needle.
+  **Deliberate exclusions from the fold** (recorded so red-team does not re-litigate):
+  #1816 and #1803 — verified ALREADY FIXED at the plan-1 landed tip (the phase-7
+  absorb commit corrected the census comment; the CONTEXT Budget-Raise appositive was
+  reworded in the phase-6 fold) — close-candidates at the PR #1847 merge, no plan
+  work; #1826/#1828/#1829/#1830/#1823/#1839/#1840 and the whole args-preflight/
+  provenance-floor/endstate-transport/test-fixture families — behavior or coverage
+  changes outside this plan's doc-truth intent ceiling, left on the follow-up ladder
+  (#1828 flagged separately as urgent, a confinement gap); #1811 — a standing-card
+  prompt-behavior addition needing its own byte accounting on the hard-budgeted
+  auditor card, surfaced to the operator rather than folded.
 
 ## Open decisions — all RATIFIED (operator, interactive volley, 2026-08-25)
 
