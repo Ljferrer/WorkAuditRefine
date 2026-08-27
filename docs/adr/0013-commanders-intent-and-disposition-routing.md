@@ -356,9 +356,9 @@ amendment records the widened contract.
   never-delete-or-weaken-tests law is untouched: this widening is *adding only*. (3) a finding whose
   fix is fully specified but entails a behavior change with a **nameable trade-off** routes `ask`
   (the trade-off IS the fork), not `follow-up`.
-- **Absorb-by-citation — a parked ask whose ruling is a quoted standing row.** A parked `ask`
-  matching a threaded standing operator-ratified adjudication row may resolve to an **actionable
-  absorb**, executed through the re-entry vehicle. **Match strictness:** the row must cover the
+- **Absorb-by-citation — a parked ask whose ruling is a quoted standing row.** **Under `--afk`**, a
+  parked `ask` matching a threaded standing operator-ratified adjudication row may resolve to an
+  **actionable absorb**, executed through the re-entry vehicle. **Match strictness:** the row must cover the
   finding's **NAMED trade-off**, never merely its topic; ambiguity is NO-match and demotes — the
   demotion is the consequence of the rule, never a substitute for it. **Soundness duty:** the
   re-audit panel is explicitly charged with verifying that the cited row covers the trade-off; an
