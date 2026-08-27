@@ -1568,7 +1568,10 @@ cmd_ensure_refinery_worktree() {
 #
 # Ensure+re-attach for the Gate-2 learnings-publication worktree (p<N>-publication).
 # Structurally mirrors cmd_ensure_refinery_worktree's six behaviors byte-for-byte
-# EXCEPT behavior (b), which here also refuses a DIRTY reuse (#1083; the refinery
+# EXCEPT that the refinery's reuse paths (b)/(c) additionally run the
+# reuse_hygiene submodule arm (#1476 gap 4), which this publication verb
+# deliberately does not, and EXCEPT behavior (b), which here also refuses a
+# DIRTY reuse (#1083; the refinery
 # counterpart deliberately keeps today's six behaviors — extending the refusal
 # there interacts with the serial merge queue's legitimate in-flight state and is
 # a recorded non-goal), with the WORKING branch in place of the integration
