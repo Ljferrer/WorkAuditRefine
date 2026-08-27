@@ -11486,14 +11486,15 @@ const citationF = () => ({ severity: 'Minor', title: 'mirrored value rides docs/
 const CITED_ADJ = ['ADJ-7: doc facts point at the source, never mirror — ruled at the wtprov decompose gate']
 const CITE_ARGS = (over = {}) => ACE_ARGS({ adjudications: CITED_ADJ, ...over })
 
-test('citation-resolve (End state 4): an absorb-by-citation finding executes via the re-entry vehicle — commit stamp + aced citation record + the parked ask resolves; the re-audit panel is charged with soundness', async () => {
+test('citation-resolve (End state 4, afk+match arm — #1879 RULING 1): under run.afk an absorb-by-citation finding executes via the re-entry vehicle — commit stamp + aced citation record + the parked ask resolves; the re-audit panel is charged with soundness', async () => {
   const a = nit({ title: 'plain nit', file: 'skills/a.js' })
   const impl = buildSeqImpl(
     { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [askFinding(), a]),
                                approveWith('audit:t1:correctness', [citationF()]),
                                approveWith('audit:t1:correctness', [])] },
     quietGate(aceBase([askFinding(), a])))
-  const { out, calls, logs } = await runPhase(CITE_ARGS(), impl)
+  // run.afk === true is the ONE condition that lets the executed citation UNPARK the ask (#1879).
+  const { out, calls, logs } = await runPhase(CITE_ARGS({ run: { ace: true, afk: true } }), impl)
   const aces = calls.filter(isAce)
   assert.equal(aces.length, 2, 'batch + the citation-resolved re-entry batch')
   assert.ok(aces[1].prompt.includes('ACE RE-ENTRY BATCH'), 'the citation absorb executes via the re-entry vehicle (D6)')
@@ -11516,6 +11517,37 @@ test('citation-resolve (End state 4): an absorb-by-citation finding executes via
   assert.ok(t1Audits[2].prompt.includes('"mirrored value rides docs/x.md" cites row "ADJ-7: doc facts point at the source, never mirror" — match rationale: the row rules the mirror-vs-point trade-off this ask names'),
     'the soundness charge enumerates the citation payload (finding title + row-id + match rationale) into the panel prompt')
   assert.ok(!t1Audits[0].prompt.includes('CITATION SOUNDNESS'), 'a citation-less round carries no soundness clause (byte-identity preserved)')
+})
+
+test('citation-resolve (interactive+match arm, negative control — #1879 RULING 1): a citation-matched ask SURFACES with the matched row + prefilled recommended ruling and is NEVER auto-unparked past a present operator; telemetry symmetry holds (the aced record still carries the citation)', async () => {
+  // Identical drive to the afk arm EXCEPT run.afk is absent (interactive) — the drift this
+  // negative control would have caught: an unconditional unpark resolving the ask past the operator.
+  const a = nit({ title: 'plain nit', file: 'skills/a.js' })
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [askFinding(), a]),
+                               approveWith('audit:t1:correctness', [citationF()]),
+                               approveWith('audit:t1:correctness', [])] },
+    quietGate(aceBase([askFinding(), a])))
+  const { out, logs } = await runPhase(CITE_ARGS(), impl)
+  assert.equal((out.asks || []).length, 1, 'the citation-matched ask STAYS PARKED interactively — surfaced, never auto-unparked (one-confirm ergonomics)')
+  const parked = out.asks[0]
+  assert.ok(parked.citationPrefill, 'the parked ask carries the citationPrefill the strike list renders')
+  assert.equal(parked.citationPrefill.row, 'ADJ-7: doc facts point at the source, never mirror', 'the prefill carries the matched standing row')
+  assert.ok(parked.citationPrefill.rationale.includes('mirror-vs-point'), 'the prefill carries the match rationale')
+  assert.ok(/covers this trade-off; confirm\?$/.test(parked.citationPrefill.recommendedRuling), 'the prefill carries the pre-filled recommended ruling (one-confirm)')
+  assert.ok(parked.citationPrefill.sha, 'the prefill pins the executed absorb sha')
+  const hAsk = out.handoff.asks.find(x => x.question === parked.question)
+  assert.ok(hAsk && hAsk.citationPrefill && hAsk.citationPrefill.row === parked.citationPrefill.row,
+    'the handoff asks projection carries the prefill onto the Checkpoint strike list (the ask record the handoff carries)')
+  // Telemetry symmetry (#1879 RULING 1(4)): the aced/citation record — the /war-review
+  // over-broad-row narrowing signal's source — is written in the interactive mode too.
+  const acedEntry = (out.aced || []).find(x => x && x.citation)
+  assert.ok(acedEntry && acedEntry.citation.row === 'ADJ-7: doc facts point at the source, never mirror',
+    'the interactive execution records in the SAME telemetry channel (aced record with row-id + rationale)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('parked ask citation-matched') && l.includes('STAYS PARKED')),
+    'the surface-instead-of-unpark path is logged')
+  assert.ok(!logs.some(l => typeof l === 'string' && l.includes('parked ask resolved by citation')),
+    'the afk resolution log never fires interactively')
 })
 
 test('citation-resolve (production shape, ask-less citation): a citation absorb WITHOUT the echoed ask field cannot silently no-op — the miss is LOGGED, the parked ask survives for the operator, the aced record still carries the citation', async () => {
@@ -11920,7 +11952,10 @@ test('ace-group-path (End state 8): aceGroups and the Ace-Subset trailer key on 
 })
 
 test('ruled-ask-absorb (End state 12): a threaded ruled ask executes via the phase-close polish dispatch — aced on merge; on non-execution it files WITH the ruling recorded (PIN-17)', async () => {
-  const ruled = { task: 't9', title: 'flip the retention default', file: 'docs/retention.md',
+  // The record carries the REQUIRED provenance coordinates (#1879 RULING 2): planSlug (the run's
+  // own), phase, findingTitle — the #1413 floor reads the fields, not the ruling prose.
+  const ruled = { task: 't9', findingTitle: 'flip the retention default', file: 'docs/retention.md',
+    planSlug: 'wtprov-a', phase: '2',
     suggested_fix: 'set the documented default to 30d and note the trade-off',
     ruling: 'adopt the 30d default (operator, 2026-08-27, strike-list gate)' }
   // Execution arm: valid default roster ⇒ the sweep vehicle runs — fresh worktree at the working
@@ -11943,4 +11978,42 @@ test('ruled-ask-absorb (End state 12): a threaded ruled ask executes via the pha
   assert.ok(filed.rationale.includes('adopt the 30d default'), 'the filed row records the ruling verbatim (PIN-17)')
   assert.ok(logs2.some(l => typeof l === 'string' && l.includes('Disposition demotion') && l.includes('flip the retention default')),
     'the non-execution demotion is logged')
+})
+
+// ---- #1879 RULING 2 — args.ruledAsks joins the #1413 args-provenance floor ---------------
+// Two-sided per the floor's incident class: a foreign (plan-B) ruled-ask record in a plan-A
+// launch is REFUSED at entry; a token-less short ruling stamped with the run's own planSlug
+// LAUNCHES (fail-open preserved — the floor reads the FIELD, not the prose).
+
+test('provenance floor (ruledAsks, #1879 RULING 2): a foreign ruled-ask record — this run\'s real phase-1 ledger cargo — is REFUSED at entry in a plan-A launch (zero spawns)', async () => {
+  // DOGFOOD test vector: the first ruled-ask record from THIS plan's own run ledger
+  // (.claude/teams/2026-08-27-in-run-finding-resolution-2026-08-27/ledger.json ruledAsks[0]),
+  // verbatim — the channel's first cargo validates the channel. Its planSlug names a plan
+  // foreign to the fixture launch's 'wtprov-a', so the field-read refusal fires.
+  const ledgerCargo = {
+    planSlug: '2026-08-27-in-run-finding-resolution',
+    phase: '1',
+    findingTitle: 'Absorb-by-citation can unpark an operator-gated ask in an interactive run, while the standing doc scopes the arm to --afk',
+    ruling: 'Gate on run.afk === true; interactive citation-matches surface with prefilled recommended ruling; citation-informed rulings share the telemetry channel.',
+    suggested_fix: 'One-condition gate at the recordAced unpark path (run.afk === true); strike-list prefill rendering; two-sided fixture (interactive surfaces-never-unparks / afk resolves-with-citation); telemetry symmetry.',
+    vehicle: 'decompose-injection: phase 2 task 2.0',
+  }
+  const { out, calls } = await runPhase(PROVISION_ARGS({ ruledAsks: [ledgerCargo] }), defaultImpl)
+  assert.equal(out.landDecision, 'held:workflow-error', 'a foreign ruled-ask record refuses the launch at entry')
+  assert.match(out.workflowError.message,
+    /args\.ruledAsks carries a planSlug provenance stamp naming a foreign plan \(2026-08-27-in-run-finding-resolution\) differing from the run planSlug/,
+    'the refusal names the surface, the stamp kind (planSlug — a field, not prose), and the foreign slug')
+  assert.equal(calls.length, 0, 'zero agents spawned')
+})
+
+test('provenance floor (ruledAsks, #1879 RULING 2): a token-less short ruling stamped with the run\'s OWN planSlug LAUNCHES — fail-open preserved, the field exempts the row', async () => {
+  // The ruling/suggested_fix/findingTitle text carries NO 'wtprov' token — under prose scanning
+  // this row would false-refuse; the REQUIRED own-planSlug coordinate exempts it (field-read).
+  const short = { planSlug: 'wtprov-a', phase: '3', findingTitle: 'short ruled ask',
+    ruling: 'do it', suggested_fix: 'one line' }
+  const { out, calls, logs } = await runPhase(PROVISION_ARGS({ ruledAsks: [short] }), defaultImpl)
+  assert.notEqual(out.landDecision, 'held:workflow-error', 'the token-less own-slug record never refuses the launch')
+  assert.ok(calls.length > 0, 'the phase actually runs (agents spawned)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('ruled-ask execution (D15)') && l.includes('short ruled ask')),
+    'the record passes the intake (the required coordinates are present) and queues loudly')
 })
