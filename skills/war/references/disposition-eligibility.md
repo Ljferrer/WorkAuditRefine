@@ -32,7 +32,10 @@ Three widenings, mirrored in the dispatched `auditPrompt` DISPOSITION WIDENINGS 
    specified but entails a behavior change with a nameable **trade-off** routes `ask` (the
    trade-off IS the fork), not `follow-up`. When a threaded standing adjudication row covers that
    **named** trade-off — never merely its topic — set `disposition:'absorb'` with the `citation`
-   field (`row` + a one-line match `rationale`); the re-audit panel verifies citation soundness.
+   field (`row` + a one-line match `rationale`) **and keep the parked ask's `ask` field verbatim**
+   (question + fork) on the citation-carrying finding: the engine resolves the parked record by
+   that content key, and a citation without the echoed `ask` cannot reliably unpark the question
+   (the miss is logged, never silent). The re-audit panel verifies citation soundness.
    Ambiguity is NO-match: park the ask (match strictness, PIN-6).
 
 ## Ask eligibility (`disposition:'ask'` — the operator's question channel)

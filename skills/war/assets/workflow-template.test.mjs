@@ -3244,18 +3244,28 @@ test('ace-reentry (End state 1, bisection-subset re-audit): a fresh absorb born 
   assert.ok(out.landed.includes('t1'), 't1 lands')
 })
 
-test('ace-reentry (End state 1, forward-revert posture): a REGRESSING re-entry batch is forward-reverted, its finding demotes and NEVER re-enters (no further ace dispatch for it)', async () => {
+test('ace-reentry (End state 1, forward-revert posture): a REGRESSING re-entry batch is forward-reverted, its finding demotes and NEVER re-enters (no further ace dispatch for it) — even when the regressed round RE-RAISES it as an absorb', async () => {
+  // The regressed re-entry re-audit ALSO re-raises the just-reverted finding as a fresh absorb
+  // (content-identical re-mint — minorsOf mints fresh objects, so object identity cannot catch
+  // it): the revertedKeys registry must refuse the re-queue, or the finding oscillates — a third
+  // ace dispatch, then recordAced landing it in BOTH aced and minorsFiled (End states 1 + 6).
   const impl = buildSeqImpl(
     { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [nit({ title: 'first', file: 'skills/first.js' })]),
                                approveWith('audit:t1:correctness', [nit({ title: 'second', file: 'skills/second.js' })]),
                                { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'request_changes',
-                                 confidence: 'high', findings: [{ severity: 'Major', title: 'reentry broke it', file: 'zz.js', rationale: 'regressed' }] }] },
+                                 confidence: 'high', findings: [{ severity: 'Major', title: 'reentry broke it', file: 'zz.js', rationale: 'regressed' },
+                                                                nit({ title: 'second', file: 'skills/second.js' })] }] },
     aceBase([nit({ title: 'first', file: 'skills/first.js' })]))
   const { out, calls, logs } = await runPhase(ACE_ARGS(), impl)
-  assert.equal(calls.filter(isAce).length, 2, 'batch + ONE re-entry — the reverted finding never re-dispatches (the oscillation bound)')
+  assert.equal(calls.filter(isAce).length, 2, 'batch + ONE re-entry — the reverted finding never re-dispatches despite the re-raise (the oscillation bound, enforced by content key)')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('forward-reverted finding never re-enters')),
     'the demotion names the forward-revert posture (logged, never silent)')
-  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'second'), 'the reverted re-entry finding demotes to follow-up')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('re-entry REFUSED') && l.includes('second')),
+    'the content-identical re-mint of the reverted finding is REFUSED re-entry, logged (never silent)')
+  assert.equal((out.minorsFiled || []).filter(m => m && m.title === 'second').length, 1,
+    'the reverted re-entry finding demotes to follow-up exactly ONCE (the re-mint never files a second record)')
+  assert.ok(!(out.aced || []).some(x => x && x.finding && x.finding.title === 'second'),
+    'the reverted finding never lands in aced — aced and minorsFiled stay disjoint (End state 6)')
   const merge = calls.find(isMergeTask)
   assert.match(merge.prompt, /revert\s+--no-edit\s+deadbeef/,
     'the final failed re-entry tip rides the merge dispatch revert clause (forward-revert posture verbatim)')
@@ -11435,12 +11445,20 @@ test('disposition-prompt-widened (End state 10): the dispatched auditPrompt DISP
 })
 
 // A citation-resolved finding: the seat matched the parked ask's NAMED trade-off to a threaded
-// standing adjudication row and returns disposition:'absorb' + citation (A2 — panel judgment).
-const citationF = () => ({ severity: 'Minor', title: 'mirror the value or point at the source?',
-  file: 'docs/x.md', rationale: 'ruled by standing row', disposition: 'absorb',
+// standing adjudication row and returns disposition:'absorb' + citation (A2 — panel judgment),
+// KEEPING the parked ask's `ask` field verbatim (the resolve contract, both prompt layers). The
+// TITLE deliberately DIFFERS from ask.question so the fixture discriminates: a resolve keyed on
+// the title alone would miss the parked record (whose key derives from the round-1 question).
+const citationF = () => ({ severity: 'Minor', title: 'mirrored value rides docs/x.md', file: 'docs/x.md',
+  rationale: 'ruled by standing row', disposition: 'absorb',
   ask: { question: 'mirror the value or point at the source?', fork: ['mirror the value', 'point at the source'] },
   citation: { row: 'ADJ-7: doc facts point at the source, never mirror', rationale: 'the row rules the mirror-vs-point trade-off this ask names' },
   suggested_fix: 'replace the mirrored value with a source pointer' })
+// Args for the citation family: the row-existence floor admits only citations whose `row` matches
+// a THREADED adjudication row (exact/containment against adjRow), so these fixtures thread the
+// standing set (the row text carries the run's own 'wtprov' slug token for the provenance floor).
+const CITED_ADJ = ['ADJ-7: doc facts point at the source, never mirror — ruled at the wtprov decompose gate']
+const CITE_ARGS = (over = {}) => ACE_ARGS({ adjudications: CITED_ADJ, ...over })
 
 test('citation-resolve (End state 4): an absorb-by-citation finding executes via the re-entry vehicle — commit stamp + aced citation record + the parked ask resolves; the re-audit panel is charged with soundness', async () => {
   const a = nit({ title: 'plain nit', file: 'skills/a.js' })
@@ -11449,7 +11467,7 @@ test('citation-resolve (End state 4): an absorb-by-citation finding executes via
                                approveWith('audit:t1:correctness', [citationF()]),
                                approveWith('audit:t1:correctness', [])] },
     quietGate(aceBase([askFinding(), a])))
-  const { out, calls, logs } = await runPhase(ACE_ARGS(), impl)
+  const { out, calls, logs } = await runPhase(CITE_ARGS(), impl)
   const aces = calls.filter(isAce)
   assert.equal(aces.length, 2, 'batch + the citation-resolved re-entry batch')
   assert.ok(aces[1].prompt.includes('ACE RE-ENTRY BATCH'), 'the citation absorb executes via the re-entry vehicle (D6)')
@@ -11459,14 +11477,53 @@ test('citation-resolve (End state 4): an absorb-by-citation finding executes via
   assert.ok(acedEntry && acedEntry.citation.row === 'ADJ-7: doc facts point at the source, never mirror',
     'the durable aced record carries the row-id')
   assert.ok(acedEntry.citation.rationale.includes('mirror-vs-point'), 'the aced record carries the one-line match rationale')
-  // The parked round-1 ask RESOLVES (same content key): executed, never demoted, never left parked.
-  assert.equal((out.asks || []).length, 0, 'the parked ask is resolved by the executed citation absorb')
+  // The parked round-1 ask RESOLVES on the ECHOED ask.question key — the citation finding's title
+  // deliberately differs from the question, so a title-keyed resolve would false-miss here.
+  assert.equal((out.asks || []).length, 0, 'the parked ask is resolved by the executed citation absorb (echoed-ask content key, not title coincidence)')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('parked ask resolved by citation')), 'the resolution is logged')
-  // Soundness duty (PIN-7): the citation-resolved batch re-audit is explicitly charged.
+  // Soundness duty (PIN-7): the citation-resolved batch re-audit is explicitly charged, and the
+  // charge ENUMERATES its subjects (title + cited row + match rationale) so the panel judges from
+  // its own prompt, never from a commit message it is not directed to read.
   const t1Audits = calls.filter(c => (c.opts.label || '') === 'audit:t1:correctness')
   assert.ok(t1Audits[2] && t1Audits[2].prompt.includes('CITATION SOUNDNESS'),
     'the re-audit prompt for the citation-resolved batch carries the CITATION SOUNDNESS charge')
+  assert.ok(t1Audits[2].prompt.includes('"mirrored value rides docs/x.md" cites row "ADJ-7: doc facts point at the source, never mirror" — match rationale: the row rules the mirror-vs-point trade-off this ask names'),
+    'the soundness charge enumerates the citation payload (finding title + row-id + match rationale) into the panel prompt')
   assert.ok(!t1Audits[0].prompt.includes('CITATION SOUNDNESS'), 'a citation-less round carries no soundness clause (byte-identity preserved)')
+})
+
+test('citation-resolve (production shape, ask-less citation): a citation absorb WITHOUT the echoed ask field cannot silently no-op — the miss is LOGGED, the parked ask survives for the operator, the aced record still carries the citation', async () => {
+  const a = nit({ title: 'plain nit', file: 'skills/a.js' })
+  const askless = citationF()
+  delete askless.ask                                     // schema-minimal shape: `ask` is mandatory only on disposition:'ask'
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [askFinding(), a]),
+                               approveWith('audit:t1:correctness', [askless]),
+                               approveWith('audit:t1:correctness', [])] },
+    quietGate(aceBase([askFinding(), a])))
+  const { out, logs } = await runPhase(CITE_ARGS(), impl)
+  assert.ok((out.aced || []).some(x => x && x.citation && x.citation.row === 'ADJ-7: doc facts point at the source, never mirror'),
+    'the ask-less citation absorb still aces with its citation stamp')
+  assert.equal((out.asks || []).length, 1, 'the parked ask SURVIVES — with no echoed ask field and a differing title, no content key matches (never a coincidence-shaped unpark)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('citation absorb executed with NO matching parked ask')),
+    'the no-match case is LOGGED (never a silent no-op) — the operator still rules the parked question at the Checkpoint')
+})
+
+test('citation row-existence floor: a FABRICATED row (no threaded adjudication membership) is refused — plain absorb, no stamp, no unpark, refusal logged', async () => {
+  const fabricated = citationF()
+  fabricated.citation = { row: 'ADJ-99: an adjudication row nobody threaded', rationale: 'fabricated' }
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [askFinding(), fabricated]),
+                               approveWith('audit:t1:correctness', [])] },
+    quietGate(aceBase([askFinding(), fabricated])))
+  const { out, calls, logs } = await runPhase(CITE_ARGS(), impl)
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('citation REFUSED (row-existence floor)') && l.includes('ADJ-99')),
+    'the fabricated row is refused by the mechanical set-membership floor, logged with the row text')
+  const ace = calls.find(isAce)
+  assert.ok(ace && !ace.prompt.includes('absorb-by-citation'), 'the refused citation renders NO stamp in the dispatch row (plain absorb)')
+  const entry = (out.aced || []).find(x => x && x.finding && x.finding.title === 'mirrored value rides docs/x.md')
+  assert.ok(entry && !entry.citation, 'the aced record carries no citation for a fabricated row (fail-open to a plain absorb)')
+  assert.equal((out.asks || []).length, 1, 'the parked ask is NEVER unparked by a fabricated citation — the operator keeps the question')
 })
 
 test('citation-resolve (End state 4, ambiguity ⇒ no-match): an ask without a citation stays parked — never aced, never filed; a MALFORMED citation never stamps a row', async () => {
@@ -11499,17 +11556,42 @@ test('citation-unsound (End state 5): the re-audit panel catches an unsound cita
                                approveWith('audit:t1:correctness', [citationF()]),
                                unsoundVerdict] },
     quietGate(aceBase([askFinding(), a])))
-  const { out, calls, logs } = await runPhase(ACE_ARGS(), impl)
+  const { out, calls, logs } = await runPhase(CITE_ARGS(), impl)
   assert.equal(calls.filter(isAce).length, 2, 'batch + the one re-entry attempt (bounded — no retry after the unsound verdict)')
   const demoteLog = logs.find(l => typeof l === 'string' && l.includes('UNSOUND'))
   assert.ok(demoteLog, 'the unsound-citation demotion is logged')
   assert.ok(demoteLog.includes('ADJ-7: doc facts point at the source, never mirror'), 'the demotion names the cited row')
   assert.ok(demoteLog.includes('log retention, not the mirror-vs-point call'), 'the demotion NAMES the mismatch (the panel finding rationale)')
-  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'mirror the value or point at the source?'),
+  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'mirrored value rides docs/x.md'),
     'the unsound citation finding demotes to follow-up (never a silent drop)')
   const merge = calls.find(isMergeTask)
   assert.match(merge.prompt, /revert\s+--no-edit\s+deadbeef/, 'the unsound batch is forward-reverted at the merge (blocking ⇒ revert)')
   assert.equal((out.asks || []).length, 1, 'the parked ask SURVIVES an unsound execution — the question returns to the operator, never silently resolved')
+  assert.ok(out.landed.includes('t1'), 't1 still lands its approved work')
+})
+
+test('citation-unsound (End state 5, round-1-batch path): a citation absorb riding the ROUND-1 batch ace that regresses with citationUnsound demotes NAMING the mismatch — the naming duty holds on every path, not only re-entry', async () => {
+  // The citation-carrying absorb enters the round-1 aceable batch directly (it is a plain
+  // disposition:'absorb' finding) — the FIRST path it meets. The regressed re-audit flags
+  // citationUnsound; the single-file batch is ambiguous-and-atomic, so aceBisect demotes whole —
+  // and the demote reason must carry the mismatch (the shared unsoundReason helper), not only the
+  // generic bisection string.
+  const unsoundVerdict = { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'request_changes',
+    confidence: 'high', findings: [{ severity: 'Major', title: 'citation mismatch', file: 'zz-unrelated.js',
+      citationUnsound: true, rationale: 'the cited row covers log retention, not the mirror-vs-point call' }] }
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [citationF()]),
+                               unsoundVerdict] },
+    quietGate(aceBase([citationF()])))
+  const { out, calls, logs } = await runPhase(CITE_ARGS(), impl)
+  assert.equal(calls.filter(isAce).length, 1, 'the round-1 batch ace only (single file group — ambiguous-and-atomic, no subsets)')
+  const demoteLog = logs.find(l => typeof l === 'string' && l.includes('UNSOUND'))
+  assert.ok(demoteLog, 'the round-1-batch unsound-citation demotion is logged with the mismatch')
+  assert.ok(demoteLog.includes('ADJ-7: doc facts point at the source, never mirror'), 'the batch-path demotion names the cited row')
+  assert.ok(demoteLog.includes('log retention, not the mirror-vs-point call'), 'the batch-path demotion NAMES the mismatch (the panel finding rationale)')
+  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'mirrored value rides docs/x.md'),
+    'the citation finding demotes to follow-up on the batch path (never a silent drop)')
+  assert.ok(!(out.aced || []).some(x => x && x.citation), 'nothing aced with a citation after the unsound batch revert')
   assert.ok(out.landed.includes('t1'), 't1 still lands its approved work')
 })
 
