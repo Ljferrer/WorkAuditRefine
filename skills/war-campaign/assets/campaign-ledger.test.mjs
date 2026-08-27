@@ -1067,22 +1067,30 @@ for (const flag of ['redteamRounds', 'pr']) {
 // any record() call — ledger byte-identical.
 
 for (const flag of ['status', 'branch', 'sha', 'stopPoint']) {
-  test(`CLI record --${flag} bare-flag is refused: non-zero exit, stderr names the flag + token, ledger byte-identical`, () => {
-    const dir = tmpDir()
-    const planA = writePlan(dir, 'a.md', PLAN_A)
-    const campaignDir = path.join(dir, 'campaign')
-    init(campaignDir, { plans: [planA], mode: 'stack' })
-    const before = fs.readFileSync(path.join(campaignDir, 'ledger.json'), 'utf8')
-
+  for (const c of [
     // trailing bare flag — parseArgs maps it to boolean true
-    const { status, stderr } = cliRefusal('record', '--campaign', campaignDir, '--plan', planA, `--${flag}`)
+    { label: 'bare-trailing', extra: (planA) => [`--${flag}`] },
+    // mid-argv bare flag — the next token starts with `--`, so parseArgs still
+    // maps it to boolean true (the repeated `--plan planA` is last-write-wins
+    // with the same value, so the invocation stays otherwise well-formed)
+    { label: 'bare-mid-argv', extra: (planA) => [`--${flag}`, '--plan', planA] },
+  ]) {
+    test(`CLI record --${flag} bare-flag ${c.label} is refused: non-zero exit, stderr names the flag + token, ledger byte-identical`, () => {
+      const dir = tmpDir()
+      const planA = writePlan(dir, 'a.md', PLAN_A)
+      const campaignDir = path.join(dir, 'campaign')
+      init(campaignDir, { plans: [planA], mode: 'stack' })
+      const before = fs.readFileSync(path.join(campaignDir, 'ledger.json'), 'utf8')
 
-    assert.notEqual(status, 0, 'must exit non-zero — never a silent stamp')
-    assert.match(stderr, new RegExp(`--${flag}`), 'stderr must name the offending flag')
-    assert.ok(stderr.includes(`'true'`), `stderr must render the offending token; got: ${stderr}`)
-    const after = fs.readFileSync(path.join(campaignDir, 'ledger.json'), 'utf8')
-    assert.equal(after, before, 'a refused invocation leaves the ledger byte-identical')
-  })
+      const { status, stderr } = cliRefusal('record', '--campaign', campaignDir, '--plan', planA, ...c.extra(planA))
+
+      assert.notEqual(status, 0, 'must exit non-zero — never a silent stamp')
+      assert.match(stderr, new RegExp(`--${flag}`), 'stderr must name the offending flag')
+      assert.ok(stderr.includes(`'true'`), `stderr must render the offending token; got: ${stderr}`)
+      const after = fs.readFileSync(path.join(campaignDir, 'ledger.json'), 'utf8')
+      assert.equal(after, before, 'a refused invocation leaves the ledger byte-identical')
+    })
+  }
 }
 
 test('CLI record with valid string values for every guarded flag still records them (bare-flag guard passes strings through)', () => {
