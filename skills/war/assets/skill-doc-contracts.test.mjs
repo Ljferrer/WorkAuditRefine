@@ -2856,6 +2856,19 @@ test('D43 — the re-entry / floor-retry-reserve boundary is present in all thre
       [/floor-retry reserve/i, 'the floor-retry-reserve stop condition'],
       [/re-entry/i, 'the budget-bounded re-entry token'],
       [/roundLimit\s*[−-]\s*2/, 'the reserve arithmetic (`fixRounds < roundLimit − 2`)'],
+      // The three token keys above are all satisfied by a re-entry sentence ALONE, so a home can
+      // carry them while stating the ladder's OPPOSITE semantics (design.md §18 shipped exactly
+      // that at this task's cut base: the bare universal "only finally-failing subsets demote",
+      // with the reserve's sweep rung mis-attributed to the bisection remainder). The engine's
+      // arm (`aceBisect`: `if (r.task.fixRounds >= roundLimit - 2) … demote(f, 'follow-up', …)`
+      // over `[sub, ...queue.splice(0)]`) is the second demote arm, and it routes to `follow-up`
+      // directly — never `phaseClose: true`. This key binds that arm's presence: the reserve stop
+      // must be stated as demoting the still-queued/remaining subsets, in either clause order.
+      [
+        /(subsets still queued|remaining subsets)[\s\S]{0,160}?demote|demote[\s\S]{0,160}?(subsets still queued|remaining subsets)/i,
+        "the bisection reserve-stop demote arm (reaching the reserve mid-bisection demotes the " +
+          'still-queued subsets too — not only the finally-failing ones)',
+      ],
     ]) {
       assert.match(
         text,
