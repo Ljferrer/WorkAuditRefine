@@ -914,12 +914,23 @@ const dispositionOf = f =>
   : (f.disposition === 'absorb' || f.disposition === 'follow-up' || f.disposition === 'note') ? f.disposition
   : f.autoFixable === true ? 'absorb'
   : f.severity === 'Minor' ? 'follow-up' : 'note'
-// Cross-round ask/finding content identity (#1810, D8 property floor): the key is STABLE across
-// rounds for the SAME finding (minorsOf re-mints a fresh copy of every Minor/Nit per round, and
-// seat/sha churn never changes the key) AND DISTINGUISHES distinct findings on the same task
-// (distinct questions/titles → distinct keys). Tuple choice is implementer latitude (D8 floors the
-// property, not the tuple): task + the parkAsk question derivation.
-const askContentKey = f => (f.task ?? '') + ' ' + ((f.ask && f.ask.question) || f.title || '(question unrecorded)')
+// Cross-round ASK content identity (#1810, D8 property floor): the key is STABLE across
+// rounds for the SAME ask (minorsOf re-mints a fresh copy of every Minor/Nit per round, and
+// seat/sha churn never changes the key) AND DISTINGUISHES distinct asks on the same task
+// (distinct questions → distinct keys). Tuple choice is implementer latitude (D8 floors the
+// property, not the tuple): task + the parkAsk question derivation. parkAsk-ONLY — the FINDING
+// registries key on the richer remintKey tuple below (registry-coverage fix: a question-derived
+// key under-distinguishes same-question findings on different files).
+const askContentKey = f => (f.task ?? '') + '\u0000' + ((f.ask && f.ask.question) || f.title || '(question unrecorded)')
+// Cross-round FINDING re-mint identity (registry-coverage fix, D8 property floor): the FINDING
+// registries (acedKeys / revertedKeys / filedKeys / queuedKeys) key on the richer tuple
+// task + aceRelPath-normalized file + title — stable across rounds for the same finding
+// (seat/sha churn and `./`-form path drift never change the key, the #1813 normalization inlined
+// — aceRelPath itself is scoped inside the bisection block) while distinguishing distinct
+// same-task findings by file AND title. The question-derived askContentKey stays parkAsk-only.
+const remintKey = f => (f.task ?? '') + '\u0000'
+  + (typeof f.file === 'string' ? f.file.replace(/^(?:\.\/)+/, '') : '') + '\u0000'
+  + (f.title ?? '')
 // asks[] parking (#1550, D1 — the ask channel): a disposition:'ask' Minor/Nit parks in the run
 // artifact and is ruled by the operator at the Checkpoint strike-list gate — NEVER filed unruled
 // (the follow-up consolidation and the file-followups dispatch read minorsFiled only), never
@@ -979,8 +990,8 @@ const demote = (f, to, why, opts) => {
   }
   log(`Disposition demotion: [${f.severity}] "${f.title}" (task ${f.task}) → ${to} — ${why}.`)
   ;(to === 'note' ? notes : minorsFiled).push(f)
-  if (to !== 'note') filedKeys.add(askContentKey(f))   // the filed funnel (End state 6) — a demoted follow-up is a filed record
-  if (opts && opts.reverted) revertedKeys.add(askContentKey(f))
+  if (to !== 'note') filedKeys.add(remintKey(f))   // the filed funnel (End state 6) — a demoted follow-up is a filed record
+  if (opts && opts.reverted) revertedKeys.add(remintKey(f))
 }
 // --ace release-slot STRING backstop only (D4). The sandbox can't read files, so the ORCHESTRATOR's
 // one enforceable refusal is the release-slot filename check; the AUDITOR (which reads code) owns the
@@ -1013,19 +1024,26 @@ const revertedKeys = new Set()
 // siblings stamp anyway; a superfluous key is harmless — the registry is only consulted at re-audit
 // routing and re-entry drain).
 const filedKeys = new Set()
-const fileFollowUp = f => { minorsFiled.push(f); filedKeys.add(askContentKey(f)) }
+// queued funnel (registry-coverage fix): every finding queued for the phase-close sweep (BOTH
+// phaseCloseQueue entry points — routeToSweep and the round-1 approve arm's direct push) or for
+// budget-bounded re-entry (r.reentryQueue) records its remintKey here, so a content-identical
+// re-mint at a later re-audit never queues a SECOND record — the queued record stands (logged,
+// never silent). Consulted LAST in remintBlock (aced/reverted/filed reasons are more specific);
+// aceReentry's drain deletes the drained entries' keys before its re-check (a drained finding is
+// no longer queued — the drain-time re-filter must judge it on the OTHER registries alone).
+const queuedKeys = new Set()
+const fileFollowUp = f => { minorsFiled.push(f); filedKeys.add(remintKey(f)) }
 const recordAced = (f, sha, extra) => {
-  const key = askContentKey(f)
-  acedKeys.add(key)
+  acedKeys.add(remintKey(f))
   if (extra && extra.citation) {
     // Widened unpark match (both derivations): the parked record's key came from the round-1 ask's
     // `question`; the citation-carrying absorb's key derives from its own `ask.question` OR `title`
     // (the prompt contract asks the seat to echo the parked `ask` field verbatim, but the schema
     // makes `ask` mandatory only on disposition:'ask' — so match against every derivation the
     // citation shape can carry, and LOG a miss: an executed-but-still-parked ask is never silent).
-    const keys = new Set([key])
-    if (typeof f.title === 'string' && f.title) keys.add((f.task ?? '') + ' ' + f.title)
-    if (f.ask && f.ask.question) keys.add((f.task ?? '') + ' ' + f.ask.question)
+    const keys = new Set([askContentKey(f)])
+    if (typeof f.title === 'string' && f.title) keys.add(askContentKey({ task: f.task, title: f.title }))
+    if (f.ask && f.ask.question) keys.add(askContentKey({ task: f.task, ask: { question: f.ask.question } }))
     const i = asks.findIndex(a => keys.has(a.key))
     if (i !== -1) {
       asks.splice(i, 1)
@@ -1040,6 +1058,7 @@ const recordAced = (f, sha, extra) => {
 // re-entry cannot dispatch — logged, never silent; sweep-discard demotes to follow-up downstream.
 const routeToSweep = (f, why) => {
   log('Re-entry routing: [' + f.severity + '] "' + (f.title ?? '') + '" (task ' + (f.task ?? '?') + ') → phaseClose sweep — ' + why + '.')
+  queuedKeys.add(remintKey(f))
   phaseCloseQueue.push({ ...f, phaseClose: true })
 }
 // Re-audit-born finding routing (D1/D2/D3, #1731 — replaces the retired "the ladder never opens
@@ -1052,15 +1071,36 @@ const routeToSweep = (f, why) => {
 // never a second (filed) record and never a re-queue; a re-mint of a FORWARD-REVERTED finding
 // never re-enters (its demoted follow-up record in minorsFiled stands) and never files twice.
 // Content-key re-mint suppression (shared by BOTH arms below AND re-checked at aceReentry's drain):
-// returns the reason string when the finding's key is already aced, forward-reverted, or filed as a
-// follow-up in an earlier round — the caller logs the suppression and skips (corroboration / the
-// oscillation bound / the filed record stands), never files a second record and never re-queues.
+// returns the reason string when the finding's remintKey is already aced, forward-reverted, filed as
+// a follow-up in an earlier round, or queued for the sweep / re-entry — the caller logs the
+// suppression, merges the raising seat onto the surviving row (corroborateSurvivor), and skips
+// (corroboration / the oscillation bound / the filed or queued record stands), never files a second
+// record and never re-queues. queuedKeys is consulted LAST — the terminal-outcome reasons win.
 const remintBlock = f => {
-  const k = askContentKey(f)
+  const k = remintKey(f)
   if (acedKeys.has(k)) return 'corroboration of the aced record (content-key identity, #1810)'
   if (revertedKeys.has(k)) return 'a forward-reverted finding never re-enters (the oscillation bound, A1); its demoted follow-up record stands'
   if (filedKeys.has(k)) return 'already filed as a follow-up in an earlier round (content-key identity); the filed record stands — a re-mint never also aces (End state 6)'
+  if (queuedKeys.has(k)) return 'already queued for the phase-close sweep / re-entry this phase — the queued record stands'
   return null
+}
+// Cross-seat corroboration (registry-coverage fix): a re-mint remintBlock refuses whose surviving
+// record lives in minorsFiled (or on an aced record's finding) merges the SECOND seat onto the
+// surviving row's seats list — never dropped, never double-filed. Entry shape mirrors the filing
+// consolidation's seatRef contract (seat+task, both when present; that block is scoped below, so
+// the shape is inlined here — change both together). The survivor's own ref seeds the list so the
+// handoff's seats rendering never loses the first raiser.
+const seatRefOf = f => f.seat != null
+  ? (f.task != null ? f.seat + ' (task ' + f.task + ')' : f.seat)
+  : (f.task != null ? 'task ' + f.task : 'unattributed')
+const corroborateSurvivor = f => {
+  const k = remintKey(f)
+  const hit = minorsFiled.find(m => remintKey(m) === k)
+    || (aced.find(a => a && a.finding && remintKey(a.finding) === k) || {}).finding
+  if (!hit) return
+  if (!Array.isArray(hit.seats)) hit.seats = [seatRefOf(hit)]
+  const ref = seatRefOf(f)
+  if (!hit.seats.includes(ref)) hit.seats.push(ref)
 }
 const routeReauditMinors = (r, seats) => {
   r.reentryQueue = r.reentryQueue || []
@@ -1069,14 +1109,14 @@ const routeReauditMinors = (r, seats) => {
     const b = (d === 'follow-up' || d === 'absorb') ? remintBlock(f) : null
     if (d === 'ask') parkAsk(f)                     // ask precedes the absorb chain (#1550, D7)
     else if (d === 'follow-up') {
-      if (b) log('re-audit re-mint of "' + (f.title ?? '') + '" (task ' + r.task.id + ') — ' + b + '; not filed (logged, never silent).')
+      if (b) { log('re-audit re-mint of "' + (f.title ?? '') + '" (task ' + r.task.id + ') — ' + b + '; not filed (logged, never silent).'); corroborateSurvivor(f) }
       else fileFollowUp(f)
     }
     else if (d === 'note') notes.push(f)
-    else if (b) log('re-entry REFUSED: re-audit re-mint of "' + (f.title ?? '') + '" (task ' + r.task.id + ') — ' + b + '; never re-queued (logged, never silent).')
+    else if (b) { log('re-entry REFUSED: re-audit re-mint of "' + (f.title ?? '') + '" (task ' + r.task.id + ') — ' + b + '; never re-queued (logged, never silent).'); corroborateSurvivor(f) }
     else if (!f.file) demote(f, f.severity === 'Minor' ? 'follow-up' : 'note', 'fileless absorb takes the severity default (never ace-eligible)')
     else if (!run.ace) demote(f, 'follow-up', 'absorb requires --ace (off this run)')
-    else if (!f.phaseClose && aceEligible(f)) r.reentryQueue.push(f)   // born at a re-audit — re-enters (D1)
+    else if (!f.phaseClose && aceEligible(f)) { queuedKeys.add(remintKey(f)); r.reentryQueue.push(f) }   // born at a re-audit — re-enters (D1)
     else routeToSweep(f, 'phaseClose/release-slot absorb born at a re-audit — the sweep is its vehicle')
   }
 }
@@ -2074,7 +2114,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     while ((r.reentryQueue || []).length) {
       if (r.task.fixRounds >= roundLimit - 2) {
         log('ace-reentry ' + r.task.id + ': reserve-blocked — fixRounds ' + r.task.fixRounds + ' reached roundLimit−2 (' + (roundLimit - 2) + '); 2 slots stay reserved for the merge-floor retry loop, the fresh absorb(s) route phaseClose:true (the sweep is the fallback rung).')
-        for (const f of r.reentryQueue.splice(0)) routeToSweep(f, 'reserve-blocked re-entry (fixRounds reached roundLimit − 2)')
+        for (const f of r.reentryQueue.splice(0)) routeToSweep(f, 'reserve-blocked re-entry (fixRounds reached roundLimit − 2)')   // still queued (sweep queue now) — routeToSweep re-stamps queuedKeys
         break
       }
       // Drain-time registry re-check (the oscillation bound, A1 + End state 6): the registries
@@ -2085,9 +2125,11 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       // remintBlock alone cannot see that; re-filter every entry through the SAME helper here so a
       // forward-reverted (or already-aced/already-filed) finding never re-enters regardless of arm
       // ordering. Each refusal is logged (never silent); an emptied batch skips the dispatch.
-      const batch = r.reentryQueue.splice(0).filter(f => {
+      const drained = r.reentryQueue.splice(0)
+      for (const f of drained) queuedKeys.delete(remintKey(f))
+      const batch = drained.filter(f => {
         const b = remintBlock(f)
-        if (b) { log('re-entry REFUSED at drain: "' + (f.title ?? '') + '" (task ' + r.task.id + ') — ' + b + '; never dispatched (logged, never silent).'); return false }
+        if (b) { log('re-entry REFUSED at drain: "' + (f.title ?? '') + '" (task ' + r.task.id + ') — ' + b + '; never dispatched (logged, never silent).'); corroborateSurvivor(f); return false }
         return true
       })
       if (!batch.length) continue
@@ -2108,8 +2150,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       const rwWhy = blockedReason(rw)
       if (rwWhy || typeof rw.head_sha !== 'string' || !rw.head_sha) {
         // No usable commit — uncharged; abandon (never hold): this batch and the queue demote.
-        for (const f of [...batch, ...r.reentryQueue.splice(0)])
+        for (const f of [...batch, ...r.reentryQueue.splice(0)]) {
+          queuedKeys.delete(remintKey(f))                // no longer queued — the demote's filedKeys stamp takes over
           demote(f, 'follow-up', 'failed absorb — ' + (rwWhy || 're-entry worker returned no usable head_sha') + '; re-entry abandoned')
+        }
         break
       }
       r.task.fixRounds++                                 // each re-entry COMMIT charges one slot (the shared budget)
@@ -2162,7 +2206,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         else if (!f.file) demote(f, f.severity === 'Minor' ? 'follow-up' : 'note', 'fileless absorb takes the severity default (never ace-eligible)')
         else if (!run.ace) demote(f, 'follow-up', 'absorb requires --ace (off this run)')
         else if (!f.phaseClose && aceEligible(f)) aceable.push(f)
-        else phaseCloseQueue.push(f)
+        else { queuedKeys.add(remintKey(f)); phaseCloseQueue.push(f) }   // stamps queuedKeys — a later re-audit re-mint never queues twice
       }
       // --ace: opt-in, fail-closed pre-merge polish of absorb-disposition findings. The BATCH attempt is
       // unchanged (one commit, one re-audit — the happy path is byte-identical): the ace worker commits one

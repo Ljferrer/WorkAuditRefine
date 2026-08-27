@@ -11704,6 +11704,112 @@ test('ask-content-key (End state 6, aced ∩ minorsFiled = ∅, REVERSE directio
     'fixture control: the genuine absorb still aced (the refusal is key-scoped, not a blanket stop)')
 })
 
+// --- Registry-coverage fixes (attempt-1 audit Majors): remintKey re-key, queuedKeys, cross-seat merge ---
+// Shared slice harness: dispositionOf → allApprove covers parkAsk/demote/the four registries/
+// remintKey/remintBlock/corroborateSurvivor/routeToSweep/routeReauditMinors. minorsOf is defined
+// ABOVE the slice, so a shape-faithful stub is injected (seat-stamped copies, Minor/Nit only).
+const registrySlice = () => {
+  const sliceStart = src.indexOf('const dispositionOf')
+  const sliceEnd = src.indexOf('const allApprove')
+  assert.ok(sliceStart !== -1 && sliceEnd > sliceStart, 'the dispositionOf→allApprove registry slice is locatable')
+  const harness = new Function('log', 'notes', 'minorsFiled', 'asks', 'aced', 'phaseCloseQueue', 'minorsOf', 'run',
+    src.slice(sliceStart, sliceEnd)
+    + '\nreturn { askContentKey, remintKey, remintBlock, parkAsk, fileFollowUp, recordAced, routeToSweep, routeReauditMinors, corroborateSurvivor, queuedKeys }')
+  const state = { logs: [], notes: [], minorsFiled: [], asks: [], aced: [], phaseCloseQueue: [] }
+  const minorsOf = seats => seats.flatMap(s => (s.findings || []).filter(f => f.severity === 'Minor' || f.severity === 'Nit').map(f => ({ seat: s.seat, sha: s.audit_sha ?? null, ...f })))
+  const api = harness(m => state.logs.push(m), state.notes, state.minorsFiled, state.asks, state.aced, state.phaseCloseQueue, minorsOf, { ace: true })
+  return { ...state, ...api }
+}
+
+test('ask-content-key (registry re-key, D8 both directions on the FINDING tuple): remintKey is stable across seat/sha churn and ./-path drift, and distinguishes same-task findings by file AND title — askContentKey stays parkAsk-only', () => {
+  const h = registrySlice()
+  const mint = (over = {}) => ({ severity: 'Minor', task: 't1', title: 'stale mirror', file: 'skills/a.js', disposition: 'absorb', ...over })
+  // Direction 1 — stability: seat/sha churn and a `./`-form path never change the key.
+  assert.equal(h.remintKey(mint({ seat: 'audit:t1:correctness', sha: 'aaa1111' })),
+               h.remintKey(mint({ seat: 'audit:t1:style:rebut', sha: 'bbb2222' })),
+               'seat/sha churn never changes the finding key')
+  assert.equal(h.remintKey(mint({ file: './skills/a.js' })), h.remintKey(mint()),
+               'a ./-form re-mint of the same file shares the key (the #1813 normalization)')
+  // Direction 2 — distinctness: file and title are both in the tuple (the attempt-1 Major:
+  // a question/title-only key collapsed same-title findings on DIFFERENT files).
+  assert.notEqual(h.remintKey(mint()), h.remintKey(mint({ file: 'skills/b.js' })),
+    'same title on a DIFFERENT file is a different finding (never collapsed)')
+  assert.notEqual(h.remintKey(mint()), h.remintKey(mint({ title: 'other defect' })),
+    'a different title on the same file is a different finding')
+  assert.notEqual(h.remintKey(mint()), h.remintKey(mint({ task: 't2' })),
+    'the same finding shape on another task is a different finding')
+  // askContentKey stays the ASK channel's identity: same question on two files parks ONCE
+  // (question identity), while the FINDING registries would distinguish the pair by file.
+  const ask = f => ({ severity: 'Minor', task: 't1', title: 'mirror or point', disposition: 'ask',
+    ask: { question: 'mirror the value or point at the source?', fork: ['mirror', 'point'] }, ...f })
+  h.parkAsk(ask({ file: 'skills/a.js', seat: 's1' })); h.parkAsk(ask({ file: 'skills/b.js', seat: 's2' }))
+  assert.equal(h.asks.length, 1, 'parkAsk keys on the question (askContentKey) — one parked record, the re-raise corroborates')
+  assert.notEqual(h.remintKey(ask({ file: 'skills/a.js' })), h.remintKey(ask({ file: 'skills/b.js' })),
+    'fixture control: the FINDING tuple distinguishes the same pair by file')
+  // Engine pins: every FINDING registry stamp reads remintKey; parkAsk keeps askContentKey.
+  assert.ok(src.includes('filedKeys.add(remintKey(f))'), 'filedKeys keys on remintKey')
+  assert.ok(src.includes('revertedKeys.add(remintKey(f))'), 'revertedKeys keys on remintKey')
+  assert.ok(src.includes('acedKeys.add(remintKey(f))'), 'acedKeys keys on remintKey')
+  assert.ok(!src.includes('filedKeys.add(askContentKey'), 'no FINDING registry still keys on the ask tuple')
+  const parkBody = src.slice(src.indexOf('const parkAsk'), src.indexOf('const parkAsk') + 400)
+  assert.ok(parkBody.includes('askContentKey(f)'), 'parkAsk keeps the question-derived askContentKey')
+})
+
+test('reaudit-sweep (queued registry): a finding already queued for the sweep or re-entry never queues a SECOND record — the re-mint is refused with the queued reason, logged, and a distinct finding still queues', () => {
+  const h = registrySlice()
+  const f = { severity: 'Minor', task: 't1', title: 'stale count', file: 'skills/a.js', disposition: 'absorb', phaseClose: true, seat: 'audit:t1:correctness' }
+  // Entry point 1 — routeToSweep stamps queuedKeys.
+  h.routeToSweep({ ...f }, 'reserve-blocked re-entry (fixture)')
+  assert.equal(h.phaseCloseQueue.length, 1, 'the finding queues for the sweep once')
+  assert.ok(h.queuedKeys.has(h.remintKey(f)), 'routeToSweep stamps the queued registry')
+  // A later re-audit re-mints the same content (fresh copy, drifted seat): never a second record.
+  const r = { task: { id: 't1' } }
+  h.routeReauditMinors(r, [{ seat: 'audit:t1:style', findings: [{ ...f, seat: undefined }] }])
+  assert.equal(h.phaseCloseQueue.length, 1, 'the re-mint never queues a second sweep record')
+  assert.equal((r.reentryQueue || []).length, 0, 'the re-mint never re-queues for re-entry either')
+  assert.ok(h.logs.some(l => typeof l === 'string' && l.includes('already queued for the phase-close sweep / re-entry this phase — the queued record stands')),
+    'the refusal is logged with the queued-registry reason (never silent)')
+  // Entry point 2 — the re-entry queue arm stamps too: a fresh eligible absorb queues once.
+  const g = { severity: 'Nit', task: 't1', title: 'lagging comment', file: 'skills/b.js', disposition: 'absorb' }
+  h.routeReauditMinors(r, [{ seat: 'audit:t1:correctness', findings: [{ ...g }] }])
+  assert.equal(r.reentryQueue.length, 1, 'the distinct finding still queues (the refusal is key-scoped)')
+  assert.ok(h.queuedKeys.has(h.remintKey({ task: 't1', ...g })), 'the re-entry push stamps the queued registry')
+  h.routeReauditMinors(r, [{ seat: 'audit:t1:style', findings: [{ ...g }] }])
+  assert.equal(r.reentryQueue.length, 1, 'a re-mint of the queued re-entry finding never double-queues')
+  // Engine pin: the round-1 approve arm's direct phaseCloseQueue push stamps queuedKeys too.
+  assert.ok(src.includes('else { queuedKeys.add(remintKey(f)); phaseCloseQueue.push(f) }'),
+    'the round-1 approve arm stamps queuedKeys at its direct sweep push')
+  // Engine pin: the drain deletes drained keys BEFORE the re-check (a drained finding is no
+  // longer queued — its own stamp must never refuse its own dispatch).
+  assert.ok(src.includes('for (const f of drained) queuedKeys.delete(remintKey(f))'),
+    'aceReentry drains delete the drained entries\' queued stamps before the registry re-check')
+})
+
+test('ask-content-key (cross-seat corroboration): a second seat re-minting a filed or aced finding merges onto the surviving row\'s seats list — never dropped, never double-filed', () => {
+  const h = registrySlice()
+  const r = { task: { id: 't1' } }
+  // Filed direction: seat A files round 1; seat B re-mints at the re-audit.
+  const fA = { severity: 'Minor', task: 't1', title: 'needs design pass', file: 'skills/a.js', seat: 'audit:t1:correctness', rationale: 'non-mechanical' }
+  h.fileFollowUp(fA)
+  h.routeReauditMinors(r, [{ seat: 'audit:t1:style', findings: [{ severity: 'Minor', title: 'needs design pass', file: 'skills/a.js', disposition: 'follow-up', rationale: 'still there' }] }])
+  assert.equal(h.minorsFiled.length, 1, 'never double-filed — one surviving row')
+  assert.deepEqual(h.minorsFiled[0].seats, ['audit:t1:correctness (task t1)', 'audit:t1:style (task t1)'],
+    'the second seat merges onto the surviving row\'s seats list, seeded with the first raiser (seatRef shape)')
+  // Aced direction: a re-mint of an aced finding lands its seat on the aced record's finding.
+  const gA = { severity: 'Nit', task: 't1', title: 'stale comment', file: 'skills/b.js', seat: 'audit:t1:correctness' }
+  h.recordAced(gA, 'abc1234')
+  h.routeReauditMinors(r, [{ seat: 'audit:t1:evidence', findings: [{ severity: 'Nit', title: 'stale comment', file: 'skills/b.js', disposition: 'absorb' }] }])
+  assert.equal((r.reentryQueue || []).length, 0, 'the aced re-mint never re-enters')
+  assert.ok(!h.minorsFiled.some(m => m.title === 'stale comment'), 'the aced re-mint never files (aced ∩ minorsFiled = ∅ holds)')
+  assert.ok(h.aced[0].finding.seats.includes('audit:t1:evidence (task t1)'),
+    'the corroborating seat lands on the aced record\'s finding seats list')
+  assert.ok(h.aced[0].finding.seats.includes('audit:t1:correctness (task t1)'), 'the original raiser survives on the list')
+  // A same-round SAME-seat duplicate never fabricates corroboration (seats stay distinct).
+  h.routeReauditMinors(r, [{ seat: 'audit:t1:evidence', findings: [{ severity: 'Nit', title: 'stale comment', file: 'skills/b.js', disposition: 'absorb' }] }])
+  assert.equal(h.aced[0].finding.seats.filter(x => x === 'audit:t1:evidence (task t1)').length, 1,
+    'a repeat by the SAME seat never duplicates its entry (corroboration is cross-seat)')
+})
+
 test('ask-collision (End state 7): every measured ask-drop sink merges a content collision as corroboration or logs it — one parametrized check over the THREE gate-audit sites plus a no-silent-discard negative control', async () => {
   // Parametrized source leg — the three structurally identical sites (per-task execution-evidence,
   // integrated-tip, end-state): each parks UNCONDITIONALLY through parkAsk (the collision handling
