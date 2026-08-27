@@ -109,6 +109,33 @@ expect_deny_teach() {
   fi
 }
 
+# expect_deny_lacks <description> <payload-json> <substr>
+# Asserts: exit 2 AND "WAR:" marker AND <substr> ABSENT from stderr.
+# Mirror of expect_deny_teach with the substring arm inverted — pins the
+# NEGATIVE half of a classified deny (the other branch's rule name must not
+# appear). The rc=2 + WAR: conjuncts are kept so a crashed hook (empty stderr)
+# cannot pass vacuously.
+expect_deny_lacks() {
+  n=$((n + 1))
+  _rc="$(rc_of "$2")"
+  _err="$(stderr_of "$2")"
+  _has_war_deny=0
+  _has_substr=0
+  case "$_err" in
+    *WAR:*) _has_war_deny=1 ;;
+  esac
+  case "$_err" in
+    *"$3"*) _has_substr=1 ;;
+  esac
+  if [ "$_rc" = "2" ] && [ "$_has_war_deny" = "1" ] && [ "$_has_substr" = "0" ]; then
+    printf 'ok %d - %s (exit 2, WAR: deny, lacks |%s|)\n' "$n" "$1" "$3"
+  else
+    printf 'FAIL %d - %s (expected exit 2 + WAR: + ABSENT |%s|, got rc=%s stderr=|%s|)\n' \
+      "$n" "$1" "$3" "$_rc" "$_err"
+    fails=$((fails + 1))
+  fi
+}
+
 # Payload builders
 auditor_cmd() { printf '{"agent_type":"war-auditor","tool_input":{"command":"%s"}}' "$1"; }
 typed_cmd()   { printf '{"agent_type":"%s","tool_input":{"command":"%s"}}' "$1" "$2"; }
@@ -750,11 +777,24 @@ expect_deny_teach "M1: git diff HEAD && git log → denied + chain-operator rule
   "$(auditor_cmd "git diff HEAD && git log")" \
   "the chain-operator rule fired"
 
+# M1a: the negative half of End state 13 — the chain-only residue must NOT be
+# attributed to the glob/metacharacter rule. Without this absence pin, an edit
+# emitting BOTH rule names on the chain branch (the #1412 over-attribution
+# shape) would keep M1 green.
+expect_deny_lacks "M1a: git diff HEAD && git log → metacharacter rule NOT named" \
+  "$(auditor_cmd "git diff HEAD && git log")" \
+  "the metacharacter rule fired"
+
 # M2: pipe composition is a chain-operator denial too — | alone (no quotes, no
 # backslash) is composition, not a search shape (contrast L1's quoted 'a\|b').
 expect_deny_teach "M2: git log | wc -l → denied + chain-operator rule named" \
   "$(auditor_cmd "git log | wc -l")" \
   "the chain-operator rule fired"
+
+# M2a: absence pin, per M1a's rationale, for the pipe-composition payload.
+expect_deny_lacks "M2a: git log | wc -l → metacharacter rule NOT named" \
+  "$(auditor_cmd "git log | wc -l")" \
+  "the metacharacter rule fired"
 
 # M3: glob denial names the metacharacter rule, not the chain-operator rule —
 # the * residue carries no chain byte, so the chain framing would misdescribe it
@@ -762,6 +802,14 @@ expect_deny_teach "M2: git log | wc -l → denied + chain-operator rule named" \
 expect_deny_teach "M3: git ls-files *.mjs → denied + metacharacter rule named" \
   "$(auditor_cmd "git ls-files *.mjs")" \
   "the metacharacter rule fired"
+
+# M3a: the reversed direction's absence pin — the chain-free glob residue must
+# NOT name the chain-operator rule. This (with M1a) is what actually
+# discriminates the classifier: the pre-#1435 single unconditional message
+# contained "the metacharacter rule fired", so M3 alone survives a full revert.
+expect_deny_lacks "M3a: git ls-files *.mjs → chain-operator rule NOT named" \
+  "$(auditor_cmd "git ls-files *.mjs")" \
+  "the chain-operator rule fired"
 
 # M4: mixed residue (quotes + backslash + |, the exact #1412 search shape L1/L2
 # assert) classifies METACHARACTER — the non-chain bytes prove a search/expansion
@@ -771,6 +819,13 @@ expect_deny_teach "M4: git grep 'a\\|b' (mixed residue) → denied + metacharact
   "$(jq -nc --arg c "git grep 'a\\|b'" \
      '{agent_type:"war-auditor",tool_input:{command:$c}}')" \
   "the metacharacter rule fired"
+
+# M4a: absence pin for the mixed residue — the chain-operator rule must not
+# fire even though the residue carries a | chain byte (per M3a's rationale).
+expect_deny_lacks "M4a: git grep 'a\\|b' (mixed residue) → chain-operator rule NOT named" \
+  "$(jq -nc --arg c "git grep 'a\\|b'" \
+     '{agent_type:"war-auditor",tool_input:{command:$c}}')" \
+  "the chain-operator rule fired"
 
 # M5: allow path untouched by the classification — a clean read command never
 # reaches the residue classifier's deny branches (chain-operator or otherwise).

@@ -85,8 +85,12 @@ deny() {
 # BEFORE the message is composed (#1435, refining #1412 fix 1's single
 # unconditional message that over-attributed chain denials to the
 # metacharacter rule):
-#   - residue of ONLY chain/control operators (& ; | newline) → the
-#     chain-operator rule: one bare git command per Bash call, with the
+#   - residue of ONLY chain/control operators (& ; | — a newline-ONLY residue
+#     never reaches this classifier: the $(...) at the residue assignment
+#     strips it to empty, per the note above; a newline only survives into the
+#     residue alongside a following non-chain byte, and the \n member of the
+#     classifier's delete set keeps such a mixed residue correctly routed) →
+#     the chain-operator rule: one bare git command per Bash call, with the
 #     #1421(b) ergonomics guidance (split && / ; chains into separate calls;
 #     filter/search with Read/Grep/Glob) retained on THIS branch, where the
 #     186-denial composed-command churn actually occurred;
@@ -110,8 +114,11 @@ if [ -n "$residue" ]; then
   residue_echo="${residue//$'\n'/}"
   residue_echo="${residue_echo:0:20}"
   # Classify: delete the chain/control operator bytes from the residue; anything
-  # left is a non-chain metacharacter. tr's '\n' escape is bash-3.2-safe (no
-  # $'\n' literal needed, cf. the header's command-substitution-newline note).
+  # left is a non-chain metacharacter. tr interprets its own '\n' escape, so
+  # the tr ARGUMENT needs no shell-level $'\n' literal (the parameter expansion
+  # above does use one). The \n member is load-bearing: a trailing-mixed
+  # residue like "\n&&" (from `git diff<newline>&& git log`) would otherwise
+  # leave a newline in nonchain_residue and misclassify as metacharacter.
   nonchain_residue="$(printf '%s' "$residue" | LC_ALL=C tr -d '&;|\n')"
   if [ -n "$nonchain_residue" ]; then
     deny "command contains forbidden character(s): $residue_echo — the metacharacter rule fired: glob/alternation/expansion metacharacters are refused outright; search with the Grep tool (glob:/type: filters) instead of shell grep/git grep"
