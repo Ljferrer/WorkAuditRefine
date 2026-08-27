@@ -1,6 +1,6 @@
 ---
 name: floor-script-header-can-claim-unbacked-downstream-capture
-description: "RESOLVED (#1370): a floor script's header can claim a downstream capture no wiring task…"
+description: "A floor script's own header can assert a downstream integration behavior ('the refiner captures my stdout as an evidence artifact') that the wiring task never implements — verify the claimed consumer actually exists, don't trust the header prose. RESOLVED (2026-08-06-done-when-floor-wiring/1.1, #1370/#1340): the wiring now exists — see appended section."
 metadata:
   node_type: memory
   type: project
@@ -21,7 +21,13 @@ metadata:
     - ensure-worktree stdout contract
     - hygiene_marker
     - test comment unbacked claim
+    - worktreeHygieneClause
+    - ensure-refinery-worktree
+    - new emitter old capture prose
+    - war-refiner.md provision bullet
+    - schemas.md worktreeHygiene
   provenance: code-verified
+  promoted: dev/2026-08-06-handoff-schemas-contract@phase-1
   slug: floor-script-header-can-claim-unbacked-downstream-capture
   phase: "2026-08-05-precision-chain-and-loop-breaker/2 + 2026-08-06-handoff-schemas-contract/p1-polish (recurrence 2, 2026-08-17)"
   tags:
@@ -30,7 +36,7 @@ metadata:
     - contract-drift
   created: 2026-08-05
   originSessionId: 428f1fab-f385-493a-952d-9509fdac5e10
-  modified: 2026-08-17T12:07:04.462Z
+  modified: 2026-08-27T02:41:24.725Z
 ---
 
 A floor script authored in one task can document a downstream integration contract that a
@@ -112,3 +118,40 @@ floor-script header's forward reference — grep the claimed consumer's actual c
 trusting the comment's own rationale, even when the comment sits inside the test file itself
 and even when the test's underlying assertion is correct for an unrelated, real reason (here:
 the producer's own documented stdout contract).
+
+## RECURRENCE 3 (2026-08-25-engine-reliability-and-filing-fidelity/phase-8, task 8.1, #1476
+gap 4) — a *second emission site* for the same marker mechanism ships with zero widened
+capture prose
+
+Same underlying mechanism (D20/#1381 `WORKTREE_HYGIENE`), a third surface. Phase 8 Task 1
+extended `reuse_hygiene` to run on `cmd_ensure_refinery_worktree`'s reuse arms (b) and (c) in
+`skills/war/assets/provision-worktrees.sh` (gap 4), so the run-scoped `_refinery` worktree —
+which has **no owning task id** — can now itself emit `WORKTREE_HYGIENE` marker lines. Every
+downstream capture surface was left describing the original, single emitter only, confirmed
+live at the landed tip (31ac70a72b09231cbfab3a106d28afdc29442a4f, read via the `_refinery`
+worktree whose `gitdir` physical path names this plan's slug, HEAD == the confirmed tip):
+- `skills/war/assets/workflow-template.js`'s `worktreeHygieneClause` (~line 1408): "an
+  ensure-worktree REUSE may emit `WORKTREE_HYGIENE` marker lines ... Capture each as
+  `{ task: "<that task's id>", ... }`" — no task id exists for the refinery worktree.
+- `agents/war-refiner.md` provision flavor 1 (`## provision`, bullet 1): "capture
+  `WORKTREE_HYGIENE` marker lines an `ensure-worktree` reuse emits into an optional
+  `worktreeHygiene` array" — same ensure-worktree-only attribution.
+- `skills/war/references/schemas.md`'s `worktreeHygiene` bullet: "captured from the
+  `WORKTREE_HYGIENE` marker lines an `ensure-worktree` **reuse** emits" — same.
+
+Net effect: a refinery-worktree hygiene repair/detection is either dropped by the capturing
+refiner or captured with a fabricated `task` field — fail-open (markers ride exit 0, no
+routing/halt impact), but the Lead-visible phase-report line this mechanism exists to deliver
+is silently missing for this emitter. Filed as a `follow-up` (Minor) at gate-audit, not
+absorbed this phase (the fix needs `workflow-template.js` + `agents/war-refiner.md` in ONE
+commit per the standing/dispatched split, plus the `schemas.md` contract line, and the byte
+surface for `workflow-template.js`'s prompt literals was already at a funded ceiling this
+plan). **Widened pattern, again:** adding a new emitter to an existing marker/event mechanism
+is not complete until EVERY documented capture surface (dispatched prompt clause + its
+standing-card mirror + the schema contract) is re-grepped and widened in the same commit —
+producer-side "same hygiene arm" work reliably outruns consumer-side capture prose, and this
+is now the third distinct instance of exactly that gap on this same codebase.
+
+> archived 2026-08-17: resolved — moved to archive (RECURRENCE 3 appended 2026-08-26; still
+> archived — this is an edit-in-place of an already-archived, provenance-tagged lesson, not a
+> hot/cold move)

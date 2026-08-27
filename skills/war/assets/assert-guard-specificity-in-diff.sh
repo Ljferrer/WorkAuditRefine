@@ -28,9 +28,12 @@
 #                condition (`[ -f "$path" ]`) is NOT mis-read as the message. A `>&2` line with
 #                no recognized emit keyword falls back to the first quoted literal on the whole
 #                line (documented ceiling). A trailing `\n` and surrounding whitespace are
-#                stripped. record_guard then drops a message that is a bare variable reference
-#                ($name/${name} and nothing else) and truncates a message containing `%` to its
-#                literal prefix before the first `%` (see record_guard below).
+#                stripped. A double-quoted message with a `$`-interpolation tail is truncated
+#                by extract_msg to the static distinguishing prefix before the first `$` (an
+#                all-interpolation message — empty prefix — keeps the whole literal; see
+#                extract_msg below). record_guard then drops a message that is a bare variable
+#                reference ($name/${name} and nothing else) and truncates a message containing
+#                `%` to its literal prefix before the first `%` (see record_guard below).
 # Function-definition openers (`name() { ... }`, matched after a whitespace strip as `*(){*`)
 # and `#`-comment lines are skipped — the ubiquitous `die() { printf ... >&2; exit; }` helper
 # is a definition, not a guard, and must never self-flag.
@@ -60,7 +63,11 @@
 # #   - only single-line message literals; a message split across lines, or whose `>&2`/`exit`
 # #     are >1 added line apart, escapes detection. A message that is ENTIRELY a bare variable
 # #     ($name/${name}) is intentionally DROPPED by record_guard (no assertable literal — a
-# #     `die "$msg"` guard used to self-flag forever); a `%`-bearing message is truncated to
+# #     `die "$msg"` guard used to self-flag forever); a double-quoted message with a
+# #     `$var` TAIL is truncated by extract_msg to its static distinguishing prefix (so a
+# #     prefix stderr assertion honestly covers it — the assert-no-repo-escape case-28
+# #     precedent; six recorded recurrences of the old unsatisfiable whole-literal rule,
+# #     #1688); a `%`-bearing message is truncated to
 # #     its literal prefix before the FIRST `%` (a `%%` literal-percent truncates too — spurious
 # #     but safe: the prefix stays a true substring of the emitted text);
 # #   - the stderr emit-segment scan recognizes only `echo`/`printf` keywords; a multi-command
@@ -201,10 +208,28 @@ is_scan_excluded() {
 # ---------------------------------------------------------------------------
 # extract_msg <string> -> the FIRST quoted string literal (single or double) in <string>,
 # whichever quote opens earlier. Empty if none.
+#
+# $-interpolation truncation (DOUBLE-quoted literals only — inside single quotes a `$` is
+# literal text, never interpolation): a message with a `$var` tail is truncated to the static
+# distinguishing prefix before the FIRST `$`, so a `die "...: $var"` guard is honestly
+# coverable by a distinguishing-prefix stderr assertion. assert-no-repo-escape.test.sh case 28
+# is the AUTHORING precedent for asserting a static distinguishing prefix instead of the whole
+# literal — but coverage here still requires the test line to contain the ENTIRE recorded
+# static prefix, so case 28's own shorter mid-substring assertion would itself still stamp
+# uncovered. An empty static prefix (an all-interpolation OR leading-interpolation message,
+# empty/whitespace-only prefix) keeps the whole literal — falling back to today's behavior
+# (record_guard's bare-variable drop still applies downstream); a leading-interpolation
+# message like `die "$file not found"` therefore stays permanently uncoverable (the whole
+# literal is never emitted text) — and a `\$` escaped dollar is literal text, not interpolation, so a
+# prefix ending in `\` also keeps the whole literal (the backslash is not emitted, so the
+# prefix would not be a true substring of the emitted text). record_guard's downstream trim
+# strips the truncated prefix's trailing whitespace (`"error: $x"` records as `error:`) —
+# still a true substring of the emitted text, so coverage stays honest.
 # ---------------------------------------------------------------------------
 extract_msg() {
   em_s="$1"
   em_msg=""
+  em_from_dq=0
   em_pre_dq="${em_s%%\"*}"
   em_pre_sq="${em_s%%\'*}"
   em_has_dq=0
@@ -213,14 +238,35 @@ extract_msg() {
   if [ "$em_pre_sq" != "$em_s" ]; then em_has_sq=1; fi
   if [ "$em_has_dq" = 1 ] && [ "$em_has_sq" = 1 ]; then
     if [ "${#em_pre_dq}" -le "${#em_pre_sq}" ]; then
-      em_after="${em_s#*\"}"; em_msg="${em_after%%\"*}"
+      em_after="${em_s#*\"}"; em_msg="${em_after%%\"*}"; em_from_dq=1
     else
       em_after="${em_s#*\'}"; em_msg="${em_after%%\'*}"
     fi
   elif [ "$em_has_dq" = 1 ]; then
-    em_after="${em_s#*\"}"; em_msg="${em_after%%\"*}"
+    em_after="${em_s#*\"}"; em_msg="${em_after%%\"*}"; em_from_dq=1
   elif [ "$em_has_sq" = 1 ]; then
     em_after="${em_s#*\'}"; em_msg="${em_after%%\'*}"
+  fi
+  # $-interpolation truncation (see header above): double-quoted only; keep whole literal
+  # when the static prefix is empty/whitespace-only (an all-interpolation OR
+  # leading-interpolation message) or ends in `\` (escaped $).
+  # # ponytail: naive first-$ split — a short prefix (`die "x: $y"` records as `x:`) can be
+  # # near-vacuous: any test file containing `x:` credits the guard. Upgrade to a
+  # # conversion-aware parse or a minimum-prefix-length floor only if gate-audit evidence
+  # # shows near-vacuous prefix matches; the floor is advisory-evidence-only, so the trade
+  # # stands (same upgrade path as record_guard's %-truncation ponytail below).
+  if [ "$em_from_dq" = 1 ]; then
+    case "$em_msg" in
+      *'$'*)
+        em_pfx="${em_msg%%\$*}"
+        case "$em_pfx" in
+          *\\) : ;;                                    # `\$` escaped dollar -> keep whole
+          *)
+            em_chk="${em_pfx#"${em_pfx%%[![:space:]]*}"}"   # ltrim a COPY to test emptiness
+            if [ -n "$em_chk" ]; then em_msg="$em_pfx"; fi  # non-empty prefix -> truncate
+            ;;
+        esac ;;
+    esac
   fi
   printf '%s' "$em_msg"
 }
@@ -247,8 +293,10 @@ TAB="$(printf '\t')"
 #   - message containing `%`                                       -> truncate to the literal
 #     prefix before the FIRST `%` (empty/whitespace prefix drops), so coverage keys on the
 #     emitted literal text, not the printf conversion spec.
-# Partially-interpolated literals ("error: $x missing") still record — only a message that is
-# ENTIRELY a variable reference is dropped.
+# Partially-interpolated literals still record — only a message that is ENTIRELY a variable
+# reference is dropped. (A double-quoted partial like "error: $x missing" now arrives here
+# already truncated to its "error: " prefix by extract_msg; the bare-variable drop below
+# still catches the all-interpolation fallbacks extract_msg passes through whole.)
 record_guard() {
   rg_msg="$1"; rg_file="$2"
   rg_msg="${rg_msg%\\n}"                                    # drop one trailing literal \n

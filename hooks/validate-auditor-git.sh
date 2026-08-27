@@ -81,14 +81,51 @@ deny() {
 # strips trailing newlines from $(...) so the pattern would be empty.
 # Instead, newline is implicitly denied because it is NOT in the allowlist.
 #
-# The deny message NAMES the metacharacter rule that fired (#1412 fix 1): the
-# dominant real denial shape is a seat typing a genuine search (git grep 'a\|b',
-# --include=*.py), not a && / ; chain, so the split-the-chain remedy alone
-# misdescribes what happened. Message text only — the decision, exit code, and
-# routing (char check first, before any verb parsing) are byte-unchanged.
+# The deny message NAMES the rule that fired, classified from the residue
+# BEFORE the message is composed (#1435, refining #1412 fix 1's single
+# unconditional message that over-attributed chain denials to the
+# metacharacter rule):
+#   - residue of ONLY chain/control operators (& ; | — a newline-ONLY residue
+#     never reaches this classifier: the $(...) at the residue assignment
+#     strips it to empty, per the note above; a newline only survives into the
+#     residue alongside a following non-chain byte, and the \n member of the
+#     classifier's delete set keeps such a mixed residue correctly routed) →
+#     the chain-operator rule: one bare git command per Bash call, with the
+#     #1421(b) ergonomics guidance (split && / ; chains into separate calls;
+#     filter/search with Read/Grep/Glob) retained on THIS branch, where the
+#     186-denial composed-command churn actually occurred;
+#   - any other residue byte present (quotes, glob *, $, parens, backtick,
+#     braces, backslash, …) → the metacharacter rule: a genuine search shape
+#     (git grep 'a\|b', --include=*.py), remedied by the Grep tool's
+#     glob:/type: filters. A mixed residue (e.g. 'a\|b': quotes + \ + |)
+#     classifies metacharacter — the non-chain byte proves a search/expansion
+#     shape, not mere composition.
+# Message text only — the decision, exit code, and routing (char check first,
+# before any verb parsing) are byte-unchanged.
 # ---------------------------------------------------------------------------
 residue="$(printf '%s' "$cmd" | LC_ALL=C tr -d 'A-Za-z0-9 ./_=:,@^~%+-')"
-[ -n "$residue" ] && deny "command contains forbidden character(s): $(printf '%s' "$residue" | LC_ALL=C tr -d $'\n' | head -c 20) — the metacharacter rule fired: glob/alternation/expansion metacharacters are refused outright; search with the Grep tool (glob:/type: filters) instead of shell grep/git grep — the guard admits one bare git command per Bash call: split && / ; chains and continuations into separate calls; filter and search output with the Read/Grep/Glob tools"
+if [ -n "$residue" ]; then
+  # Truncated residue echo via pure parameter expansion (bash-3.2-safe): a
+  # pipeline assignment here would run in errexit context — `head -c 20`
+  # exiting early can SIGPIPE `tr` (141), and set -e/pipefail would exit the
+  # guard non-2 (fail-open: a non-2 PreToolUse exit does NOT block the tool
+  # call). Parameter expansion has no exit status, so deny's exit 2 is the
+  # only reachable exit on this path.
+  residue_echo="${residue//$'\n'/}"
+  residue_echo="${residue_echo:0:20}"
+  # Classify: delete the chain/control operator bytes from the residue; anything
+  # left is a non-chain metacharacter. tr interprets its own '\n' escape, so
+  # the tr ARGUMENT needs no shell-level $'\n' literal (the parameter expansion
+  # above does use one). The \n member is load-bearing: a trailing-mixed
+  # residue like "\n&&" (from `git diff<newline>&& git log`) would otherwise
+  # leave a newline in nonchain_residue and misclassify as metacharacter.
+  nonchain_residue="$(printf '%s' "$residue" | LC_ALL=C tr -d '&;|\n')"
+  if [ -n "$nonchain_residue" ]; then
+    deny "command contains forbidden character(s): $residue_echo — the metacharacter rule fired: glob/alternation/expansion metacharacters are refused outright; search with the Grep tool (glob:/type: filters) instead of shell grep/git grep"
+  else
+    deny "command contains forbidden character(s): $residue_echo — the chain-operator rule fired: the guard admits one bare git command per Bash call: split && / ; chains and continuations into separate calls; filter and search output with the Read/Grep/Glob tools"
+  fi
+fi
 
 # ---------------------------------------------------------------------------
 # At this point, the command contains only [A-Za-z0-9 ./_=:,@^~%+-].

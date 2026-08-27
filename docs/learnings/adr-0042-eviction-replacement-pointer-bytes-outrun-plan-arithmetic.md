@@ -2,6 +2,7 @@
 name: adr-0042-eviction-replacement-pointer-bytes-outrun-plan-arithmetic
 description: "A plan's byte arithmetic for an ADR-0042 byte-identical references/ eviction (evicted bytes…"
 metadata: 
+  promoted: dev/2026-08-06-references-pointer-integrity@phase-1
   node_type: memory
   type: project
   provenance: code-verified
@@ -25,7 +26,7 @@ metadata:
     - plan-design
   created: 2026-08-18
   originSessionId: db0604c4-3009-475d-8db8-5d92ff291ce2
-  modified: 2026-08-18T16:33:21.435Z
+  modified: 2026-08-26T20:32:01.983Z
 ---
 
 # An ADR-0042 eviction's plan-projected headroom is routinely optimistic — measure, don't trust the arithmetic
@@ -71,3 +72,33 @@ subsequent planning.
 **Locate-cue (verify still present before acting):**
 `skills/war/assets/prompt-surface-budgets.test.mjs`'s `FILE_BUDGETS` hard-line entry for
 `agents/war-refiner.md` (34,816 B); the card's landed size via `git cat-file -s <tip>:agents/war-refiner.md`.
+
+## Confirming instance — Phase 4 of `2026-08-25-engine-reliability-and-filing-fidelity` (2026-08-26)
+
+The "budget-frozen for the rest of the campaign" consequence predicted above materialized exactly as
+described, on the SAME `agents/war-refiner.md` surface this lesson already names. Phase 2 Task 2 of
+this plan sized an eviction "WITH margin for the Phase 4 AND Phase 6 card edits" — Phase 4 Task 1's
+endstate-check transport rework then consumed 735 of that ~899 B margin (gate-audit-measured,
+`gateEvidence: true`, `auditSha 609820f443bdc92da65a7bce0c53bdb2b4c53ef1`), landing the card at 164 B
+under its 34,816 B hard ceiling — green, but a thin remainder for Phase 6 Task 1's still-owed edit to
+the SAME card. Independently confirms the rule: **a shared eviction margin funding two later card
+edits should be treated as consumable by the FIRST edit to land, not a stable pool** — the second
+task should re-measure and budget its own eviction rather than assume the plan's original margin
+survives intact.
+
+## Second confirming instance — Phase 6 of the SAME plan, margin fully spent (2026-08-26)
+
+Phase 6 Task 1 was the predicted "still-owed edit" named above. Code-verified via landed-tip
+grounding rung 2 (the `_refinery28` worktree's `HEAD` equals the threaded landed tip
+`513161f8083c18f4b582f139ec4162c0e95d1116`; gate-audit fallback also confirms this measurement
+independently — `auditSha 166b6ae9d1c602ece8b402606f6dec8f5b2dcee2`, `gateEvidence: true`, End
+state 4 attestation): the task consumed 150 of the remaining 164 B, funding itself with **two of
+its own unplanned ADR-0042 evictions** into `skills/war/references/refiner-recovery.md` (not in
+the task's `Files:` list — the plan's assumed byte funding was insufficient even after the eviction).
+Final landed measurement at `skills/war/assets/prompt-surface-budgets.test.mjs`'s hard line
+(34,816 B): `agents/war-refiner.md` = 34,802 B — **14 B of headroom**, gate-audit-confirmed and
+unchanged through the phase's terminal `p6-polish` pass (which never touches this file). Third
+independent confirmation of the same rule on the same card, now down to single-digit-percent
+headroom (0.04%): **the campaign-wide eviction margin this card was originally over-provisioned
+with is now exhausted** — any future phase touching `agents/war-refiner.md` (including a
+phase-close absorb-fix) needs a fresh eviction, not an assumption of remaining slack.

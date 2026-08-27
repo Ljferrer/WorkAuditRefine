@@ -6,7 +6,8 @@ budget eviction; each moved block was byte-identical to its pre-eviction card te
 time). Positional words inside the moved blocks ("below", "above") refer to their original card
 positions — "All merge-task and land-phase steps below" means the card's own
 merge-task/land-phase sections, and the reland-discrimination block sat as step 3 of the card's
-superproject land loop (the card's step 4 is the on-push-success return). The dispatched land
+superproject land loop (the card's on-push-success return — the old step 4 — was evicted to
+budget-raise-floor.md § Evicted: § land-phase / Superproject phase, alongside the CAS loop). The dispatched land
 prompts in `skills/war/assets/workflow-template.js` still carry the full discrimination text
 (registry-pinned, `relandDiscrimination`); this file is the standing copy the grep-parity
 suite reads.
@@ -25,6 +26,10 @@ Before invoking any toolchain steps for a submodule phase:
 4. **Create task worktrees under `<worktreeRoot>/<runId>/`** using `git -C <submoduleCheckout> worktree add <worktreeRoot>/<runId>/p<phase>-<taskId> <taskBranch>` (the worktree path is phase-scoped — `p<phase>-<taskId>` mirrors the task branch shape). All task and `_refinery` worktrees for a submodule phase live under the same `<worktreeRoot>/<runId>/` root, with cwd resolved relative to the submodule checkout.
 
 All merge-task and land-phase steps below run with `<taskWorktree>` and `<_refinery>` rooted in the submodule checkout. The submodule's own `.git`, remote, and branches are the authority — the superproject is not consulted.
+
+Evicted verbatim from the `agents/war-refiner.md` § Submodule-as-repo provisioning paragraph (ADR 0042; the card keeps the trigger pointer):
+
+> All merge-task and land-phase steps below then run with `<taskWorktree>` and `<_refinery>` rooted in the submodule checkout; the submodule's own `.git`, remote, and branches are the authority. Your dispatched provision-barrier prompt's `submodNote` (built in `workflow-template.js`) is the carrier of the submodule targetRepo/targetBase and the `git submodule update --init --recursive` step.
 
 ## Reland discrimination — superproject land-phase step 3
 

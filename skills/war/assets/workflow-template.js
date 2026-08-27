@@ -36,9 +36,12 @@ export const meta = {
 //                                     // merge-task floor invocation site; null ⇒ bare, byte-identical to today.
 //     tasks: [ { id, issue, title, branch, worktree, deps:[id],
 //                roster:[{ lens, depth? }], planSlice, doneWhen?, files:[<repo-relative plan paths>], requiresTest?, requiresPackaging? } ],  // roster: 1–5 distinct-lens audit seats; depth omitted → 'deep'.
+//                                     // planSlice = the task charter (REQUIRED non-empty string — the entry-validation
+//                                     // TASK-FIELD class (D5) refuses a missing/empty slice at intake naming the field).
 //                                     // doneWhen = the task's `Done when:` acceptance command (string|null; absent/null ⇒ legacy —
 //                                     // doneWhenClause AND doneWhenFloorClause render '' — every prompt is byte-identical to a
-//                                     // doneWhen-less run and the assert-done-when.sh floor never runs, End state 9).
+//                                     // doneWhen-less run and the assert-done-when.sh floor never runs, End state 9; any
+//                                     // OTHER present type is refused at intake by the same TASK-FIELD class, never coerced).
 //                                     // requiresTest/requiresPackaging default true; false (Lead-set) skips that pre-merge floor with a logged, never-silent skip.
 //                                     // files = the plan's `Files:` list (plan paths, NOT the worker's diff — the diff doesn't exist at dispatch); an all-*.md task runs its first-pass worker on the docs tier. Absent/empty ⇒ base worker tier (fail-safe).
 //     learningsTarget,                // read-path resolved repo root — the worker self-query `--repo` flag AND
@@ -57,7 +60,9 @@ export const meta = {
 //     agents: { worker|auditor|refiner|servitor: { model, effort } },  // from .claude/war/config.json (resolved by the Lead); defaults below.
 //                                     // worker may also carry { docs?, fix? } { model, effort } sub-tiers: docs = the all-*.md first-pass tier (fable default), fix = the fix-round + --ace tier (absent ⇒ inherit worker).
 //     audit:  { roster, rosterPolicy, autoEscalate },                  // rosterPolicy 'auto' = Lead composes each task.roster from the catalog (Lead-side); audit.roster is the widening FALLBACK roster (auditor-nominated-or-default, D4); autoEscalate used here
-//     run:    { roundLimit, afk },                                     // afk is Lead-side; roundLimit used here
+//     run:    { roundLimit, maxParallel, afk },                        // afk is Lead-side; roundLimit used here;
+//                                     // maxParallel (optional positive integer) throttles every fan-out site into
+//                                     // groups of n via batched(); absent/null ⇒ one parallel() call, byte-identical fan-out
 //     backstops }                     // array|null of { check, why, runner, source:'plan'|'auto', aiDeclared? } — every
 //                                     // validation this phase deferred (Lead is the single normalization point: plan-declared
 //                                     // + Setup auto-recorded merged here). Passed through UNTOUCHED into handoff.backstops[].
@@ -170,6 +175,24 @@ const MERGE_RESULT = { type: 'object', required: ['mode', 'status'], properties:
   // NO status enum value, HARD_ESCALATION_REASONS member, or KNOWN_LAND_DECISIONS member is added or
   // changed (land-decision.mjs and both hand-mirrored enum blocks byte-untouched, ADR 0005).
   done_when_log_path: { type: 'string' },
+  // floor_route (Budget-Raise floor, engine-reliability Phase 2 Task 2): the in-band budget-uncited
+  // route marker — the literal 'budget-uncited' riding status:'no-test' when assert-budget-raise-cited.sh
+  // exits 1 (an uncited prompt-surface ceiling raise). merge-task only, OPTIONAL. Orthogonal to status
+  // exactly like gate_failure_class — NO status enum value, HARD_ESCALATION_REASONS member, or
+  // KNOWN_LAND_DECISIONS member is added or changed (the red-team adjudication rules MERGE_RESULT status
+  // widening outside the pre-authorization; the segmented-land precedent: an in-band field, never a
+  // status member). Absent ⇒ every consumer is byte-identical to a budget-floor-less run (set-minus).
+  floor_route: { enum: ['budget-uncited'] },
+  // land_segment (Phase 6 Task 1 (a), A6 REVISED): the in-band segmented-land marker — the literal
+  // 'incomplete' riding status:'error' when the land dispatch is FORCED to return before the land
+  // completes (the gate outran the tool timeout). land-phase only, OPTIONAL. Orthogonal to status
+  // exactly like floor_route — NO status enum value, HARD_ESCALATION_REASONS member, or
+  // KNOWN_LAND_DECISIONS member is added or changed (land-decision.mjs untouched, ADR 0005). The
+  // Workflow re-dispatches the land while the marker persists (FLOOR_STATUSES retry-loop idiom,
+  // bounded by roundLimit); exhaustion routes the ridden status ('error' → held:land-failed).
+  // segment_note: free-text progress note — rendered into the continuation log line only, never routed on.
+  land_segment: { enum: ['incomplete'] },
+  segment_note: { type: 'string' },
   pr_number: { type: 'number' }, pr_remote: { type: 'string' } } }
 
 // EVIDENCE_RESULT (D1/D4/D6): the shape of the ONE consolidated post-merge refiner "evidence dispatch"
@@ -200,10 +223,14 @@ const EVIDENCE_RESULT = { type: 'object', properties: {
 // is present, readable, and correctly tip-stamped but whose red is ENVIRONMENTAL (#1395 — a
 // setup/collection/import failure: ModuleNotFoundError, pytest setup ERROR, usage/collection exit
 // codes — rather than an evaluated-false condition): it attests 'unverified', NEVER 'unmet' — a met
-// condition is never attested unmet for want of environment prep.
+// condition is never attested unmet for want of environment prep. Two record-only artifact states
+// (A3 intake lint / byte-verify) also map to 'unverified': an `intake_lint:`-stamped artifact (the
+// check literal was UNSUPPORTED by the .cmd transport — the row was never executed, its exit_code
+// line reads `unsupported`, hence exit_code below admits a string) and a `cmd_bytes_mismatch:`-stamped
+// artifact (the written .cmd failed the byte-for-byte verify — the row was not executed as declared).
 const ENDSTATE_CHECK_RESULT = { type: 'object', properties: {
   artifacts: { type: 'array', items: { type: 'object', properties: {
-    n: { type: 'number' }, path: { type: 'string' }, tip_sha: { type: 'string' }, exit_code: { type: 'number' } } } } } }
+    n: { type: 'number' }, path: { type: 'string' }, tip_sha: { type: 'string' }, exit_code: {} } } } } }
 
 // FOLLOWUP_FILING_RESULT (D1/D2, #1331): the file-followups dispatch's return — ADVISORY only. The
 // Workflow stamps minorsFiled[n-1].issue from each returned row carrying an in-range 1-based n AND a
@@ -279,6 +306,12 @@ const mergedTasksForGateAudit = []   // collect {taskId, gateOutput, acceptanceC
 // successor's `git diff <preMergeTip> <gateHeadSha>` into a guaranteed exit-2 ERROR — the [i-1].gateHeadSha
 // chain this replaces had exactly that defect). Null until the first real land ⇒ evItems falls back to phaseBaseCmd.
 let lastLandedTip = null
+// Per-task landed sha (Phase 5 Task 1): the REAL integration_sha each landMerged() call recorded, keyed
+// by task id — retained for EVERY landed task, because a requiresTest:false task never enters
+// mergedTasksForGateAudit (the D7 skip) and so never gets a gate-audit auditLog entry: without this map
+// auditEvidenceOf's pinned-sha lookup renders 'unrecorded' for such a task's filed follow-ups. Real hex
+// shas only (the isSha test) — a sentinel integration_sha is never retained here.
+const landedShaByTask = new Map()
 // Baseline gate debt (spec §6 / ADR 0019): the in-run record of pre-existing gate failures this phase
 // consciously proceeds over. `baselineDebt` is keyed on (failing-identifier set, base sha) — a later
 // failure whose identifiers are COVERED by a recorded entry classifies 'baseline' directly (no repeated
@@ -354,9 +387,28 @@ const NS = A.agentPrefix ?? 'work-audit-refine:'
 // (exit 0, gh never invoked), so an unconfigured run pays nothing and no handle rides committed prose.
 const ghUser = (typeof A.ghUser === 'string') ? A.ghUser : ''
 // Hand-mirrored fallback of DEFAULTS.run.roundLimit (war-config.mjs) — the sandbox cannot import;
-// keep the two literals in lock-step. 6 is priced for the ace bisection ladder: one fix round +
-// the batch commit + a single-failing-branch descent through depth 2.
+// keep the two literals in lock-step. 6 is the fix-round budget; the ace bisection ladder draws
+// only up to roundLimit − 2 of it (2 slots stay reserved for the merge-floor retry loop), so the
+// priced depth-2 descent is bounded accordingly.
 const roundLimit = run.roundLimit ?? 6
+// maxParallel (#1722): per-group fan-out throttle for rate-limited accounts — threaded exactly like
+// roundLimit from run.maxParallel, but with NO numeric fallback: absent/null/malformed ⇒ null ⇒
+// batched() below delegates straight to ONE parallel(thunks) call, a byte-identical fan-out
+// (binding guardrail — an unconfigured run pays nothing).
+const maxParallel = (Number.isInteger(run.maxParallel) && run.maxParallel > 0) ? run.maxParallel : null
+// batched(thunks, n): slice the thunk list into groups of n, awaiting EACH GROUP via the live sandbox
+// `parallel(group)` — NEVER Promise.all: the live parallel NULLS a rejected thunk (the #742 invariant's
+// mechanism), so a rejection inside a throttled group yields a null slot in that group's result, never
+// a group-wide rejection that would drop completed siblings and re-dispatch them every wave. Results
+// return in input order with rejected slots null, exactly like an unthrottled parallel(thunks).
+// n absent/null ⇒ delegate to one parallel(thunks) call (the byte-identical path). Group k+1 starts
+// only after group k settles, so at most n dispatches are ever in flight.
+async function batched(thunks, n) {
+  if (!(Number.isInteger(n) && n > 0)) return parallel(thunks)
+  const out = []
+  for (let i = 0; i < thunks.length; i += n) out.push(...await parallel(thunks.slice(i, i + n)))
+  return out
+}
 // Commander's Intent (ADR 0013): extracted VERBATIM by the Lead from the plan's `## Commander's
 // Intent` or `## AI-Commander's Intent` section (either heading) and threaded as args.intent
 // (string|null). null/absent ⇒ intentClause is '' and every prompt below is byte-identical to an
@@ -622,39 +674,100 @@ if (missingPhaseFields.length) problems.push(`workflow-template: requires phase 
 if ((tasks || []).length > 0 && !(plan && typeof plan.file === 'string' && plan.file)) {
   problems.push('workflow-template: requires plan.file — the launch carries tasks but no plan.file (every worker/fix prompt interpolates it); thread plan: { file: "docs/plans/<slug>.md" } (#1430)')
 }
+//   (4) TASK-FIELD class (D5, engine-reliability) — per-task shape validation at args intake.
+//       task.planSlice is the task's charter, interpolated into every worker/auditor/fix prompt: a
+//       missing/empty slice dispatches a charter-less worker (the vacuous-phase family of silent
+//       degradations), so refuse at entry naming the task and field. task.doneWhen is string|null by
+//       contract (the Done when: acceptance command; null/absent = legacy) — any other present type
+//       is a malformed launch, refused naming the field, never coerced. Messages are
+//       concatenation-built (census-safe — the #931 LITERAL_REGISTRY stays byte-unchanged); the
+//       prompt-site `?? '<unset>'` fallbacks below stay as defense-in-depth behind this belt.
+for (const t of (tasks || [])) {
+  const tid = (t && t.id !== undefined && t.id !== null && t.id !== '') ? String(t.id) : '<missing-id>'
+  if (!t || typeof t.planSlice !== 'string' || !t.planSlice.trim()) {
+    problems.push('workflow-template: task ' + tid + ' is missing planSlice — a present non-empty string is required (every worker/auditor prompt interpolates it as the task charter) (D5)')
+  }
+  if (t && t.doneWhen !== undefined && t.doneWhen !== null && typeof t.doneWhen !== 'string') {
+    problems.push('workflow-template: task ' + tid + ' has a non-string doneWhen (' + typeof t.doneWhen + ') — doneWhen is the Done when: acceptance command: a string when present, null/absent for legacy (D5)')
+  }
+}
 if (problems.length) throw new Error(`${problems.join('; ')}${derivationProblem ? ' (or supply explicit branch/worktree per task)' : ''}`)
 
-// ---- Args provenance floor (#1413) — fail-closed, at entry, before any agent spawns ----
+// ---- Args provenance floor (#1413, recalibrated D6 / #1666 signal 1) — fail-closed, at entry ----
 // A dispatched seat can recover from a wrong plan slice by reading the plan file; the assembled
 // intent/backstops/adjudications have NO seat-side recovery path — a cross-plan leak (the plan-3
 // incident: a plan-A launch carrying plan-B's intent, 13 × escape / 0 × done-when) starts clean and
 // stays green. So refuse at entry (held:workflow-error via the catch): (1) an arg naming a
 // docs/plans/<slug>.md identifier differing from plan.file is foreign; (2) an arg containing NONE of
 // the run's own plan-slug tokens (the slug's non-date words, from planSlug + the plan.file basename)
-// fails the own-token floor. Each floor applies ONLY when its arg is present and non-empty (an
-// intent-less launch stays legal — the ratified absent-⇒-byte-identical contract), the foreign check
-// only when plan.file is present, and the own-token floor is skipped when no distinctive token is
-// derivable (fail-open, never a guessed refusal). Messages are concatenation-built (census-safe —
-// the #931 LITERAL_REGISTRY stays byte-unchanged).
+// fails the own-token floor. D6 recalibration (the #1666 both-directions miscalibration):
+//   - the scan is scoped to INTENT-BEARING text only — the intent string, and per-row check/why
+//     (backstops) / adjudicated/value (adjudications) fields — never a whole-surface JSON.stringify,
+//     whose schema KEY names ("check","why","source":"plan") let a foreign row vacuously satisfy the
+//     own-token floor;
+//   - own-token matching is WORD-BOUNDARY (\b), behind a stoplist of generic tokens — a slug word
+//     like 'and' or 'test' proves nothing, and a substring hit inside a larger word proves nothing;
+//   - EXEMPT rows: source:'auto' rows (Workflow/Setup-authored, never a Lead-assembled cross-plan
+//     surface), predecessor citations (the `supersedes` field is the citation channel — excluded
+//     from the scan), and Lead-stamped `planFile` provenance rows naming THIS plan (a planFile
+//     stamp naming a FOREIGN plan is the leak itself and refuses directly).
+// Each floor applies ONLY when its arg has scannable intent-bearing text (an intent-less launch —
+// and a surface whose rows are all exempt — stays legal; the ratified absent-⇒-byte-identical
+// contract), the foreign check only when plan.file is present, and the own-token floor is skipped
+// when no distinctive token is derivable (fail-open, never a guessed refusal). Messages are
+// concatenation-built (census-safe — the #931 LITERAL_REGISTRY stays byte-unchanged).
 {
   const provenanceProblems = []
+  // Generic-token stoplist (D6): English glue + WAR-universal vocabulary that appears in virtually
+  // any run's intent/backstops regardless of plan — a match on one proves no provenance.
+  const PROVENANCE_TOKEN_STOPLIST = new Set(['and', 'the', 'for', 'with', 'from', 'into', 'over', 'not', 'all',
+    'war', 'plan', 'plans', 'phase', 'phases', 'task', 'tasks', 'test', 'tests', 'fix', 'fixes', 'docs',
+    'run', 'runs', 'gate', 'gates', 'audit', 'merge', 'land', 'issue', 'issues', 'release', 'follow'])
   const ownTokens = [...new Set([planSlug, (plan && typeof plan.file === 'string') ? plan.file.replace(/^.*\//, '').replace(/\.md$/i, '') : null]
     .filter(Boolean)
     .flatMap(s => String(s).toLowerCase().split(/[^a-z0-9]+/))
-    .filter(w => w.length >= 3 && !/^\d+$/.test(w)))]
+    .filter(w => w.length >= 3 && !/^\d+$/.test(w) && !PROVENANCE_TOKEN_STOPLIST.has(w)))]
   const ownPlanBase = (plan && typeof plan.file === 'string' && plan.file) ? plan.file.replace(/^.*\//, '').toLowerCase() : null
+  const baseOf = p => String(p).replace(/^.*\//, '').toLowerCase()
+  // Per-row intent-bearing extraction: { text, exempt } | { foreignStamp } (see the exemption
+  // enumeration above). A string row is its own text (the preformatted adjudication shape). An
+  // EXEMPT row is never scanned for refusal, but its intent-bearing text still COUNTS as own-token
+  // evidence for the surface — exemption means "never causes a refusal", not "cannot prove
+  // provenance" (a source:'auto' row stamped with the run's own slug token vouches for a generic
+  // Lead-normalized sibling row, the #1666 false-refusal direction).
+  const rowText = row => {
+    if (typeof row === 'string') return { text: row, exempt: false }
+    if (!row || typeof row !== 'object') return { text: '', exempt: true }
+    const text = ['check', 'why', 'adjudicated', 'value']
+      .map(k => (typeof row[k] === 'string') ? row[k] : '').filter(Boolean).join('\n')
+    if (row.source === 'auto') return { text, exempt: true }
+    if (typeof row.planFile === 'string' && row.planFile) {
+      if (ownPlanBase && baseOf(row.planFile) !== ownPlanBase) return { foreignStamp: row.planFile }
+      return { text, exempt: true }
+    }
+    return { text, exempt: false }
+  }
   const provenanceSurfaces = [
-    ['intent', intent],
-    ['backstops', (Array.isArray(backstops) && backstops.length) ? JSON.stringify(backstops) : null],
-    ['adjudications', adjudications.length ? JSON.stringify(adjudications) : null],
+    ['intent', intent ? [{ text: intent, exempt: false }] : []],
+    ['backstops', Array.isArray(backstops) ? backstops.map(rowText) : []],
+    ['adjudications', adjudications.map(rowText)],
   ]
-  for (const [argName, argText] of provenanceSurfaces) {
-    if (typeof argText !== 'string' || !argText) continue
-    const planIds = argText.match(/docs\/plans\/[A-Za-z0-9._/-]+\.md/g) || []
-    const foreignIds = ownPlanBase ? planIds.filter(id => id.replace(/^.*\//, '').toLowerCase() !== ownPlanBase) : []
+  for (const [argName, rows] of provenanceSurfaces) {
+    const stamped = rows.find(r => r.foreignStamp)
+    if (stamped) {
+      provenanceProblems.push('workflow-template: args.' + argName + ' carries a planFile provenance stamp naming a foreign plan (' + stamped.foreignStamp + ') differing from plan.file — a cross-plan args leak; refused at entry (#1413)')
+      continue
+    }
+    // scanText: non-exempt rows only (the refusal surface). evidenceText: every row's intent-bearing
+    // text (own-token satisfaction may come from an exempt row).
+    const scanText = rows.filter(r => !r.exempt && r.text).map(r => r.text).join('\n')
+    const evidenceText = rows.filter(r => r.text).map(r => r.text).join('\n')
+    if (!scanText) continue
+    const planIds = scanText.match(/docs\/plans\/[A-Za-z0-9._/-]+\.md/g) || []
+    const foreignIds = ownPlanBase ? planIds.filter(id => baseOf(id) !== ownPlanBase) : []
     if (foreignIds.length) {
       provenanceProblems.push('workflow-template: args.' + argName + ' names a foreign docs/plans identifier (' + foreignIds[0] + ') differing from plan.file — a cross-plan args leak; refused at entry (#1413)')
-    } else if (ownTokens.length && !ownTokens.some(t => argText.toLowerCase().includes(t))) {
+    } else if (ownTokens.length && !ownTokens.some(t => new RegExp('\\b' + t + '\\b', 'i').test(evidenceText))) {
       provenanceProblems.push('workflow-template: args.' + argName + " contains none of the run's own plan-slug tokens [" + ownTokens.join(', ') + '] — a cross-plan args leak; refused at entry (#1413)')
     }
   }
@@ -697,7 +810,9 @@ async function provisionStep(task) {
   if (!provisionList.length) return { ok: true }
   // provision mode (agents/war-refiner.md ## provision): per-task provision-run — env-outcome return.
   // dispatchKind: 'provision-run' (stable discriminator — mocks/handlers/audits key on it, not the label prefix).
-  const out = await agent(
+  // dispatchAgent (Phase 6 Task 1 (c)): a post-spawn harness death of THIS dispatch is TAGGED at the
+  // dispatch layer, so the wave thunk's catch classifies it env-died SOFT (#1411) — not HARD escalate.
+  const out = await dispatchAgent(
     pt`PROVISION the worktree for WAR task ${task.id} before its worker runs. cd into ${task.worktree} `
     + pt`(the refiner's Provision barrier already created it) and run these provisioning commands IN ORDER, `
     + pt`inside that worktree:\n`
@@ -739,11 +854,20 @@ const provisionClause = provisionList.length
   : ''
 
 const blockingOf = seats => seats.flatMap(s => s.findings || []).filter(f => f.severity === 'Critical' || f.severity === 'Major')
+// auditShaOrSentinel (#1693, Phase 5 Task 1): validates the seat-echoed audit_sha before it is stamped
+// as a finding's `sha` — a malformed/free-text value (a ref expression, prose, an empty string) becomes
+// the sentinel, never an operator-facing asks[].sha pin; an ABSENT sha stays null (the absence-tolerant
+// contract parkAsk's `?? null` and the handoff projection already pin). Deliberately a SELF-CONTAINED
+// sibling copy of the isSha/pinOrSentinel hex test (the #393 extract-and-eval convention keeps each such
+// arrow self-contained; pinOrSentinel is wave-loop-scoped and its sentinel is integration_sha-specific,
+// so it is NOT reusable here) — the sibling-copy drift guard lands deps-edged in the fixtures task.
+const auditShaOrSentinel = s => s == null ? null : (typeof s === 'string' && /^[0-9a-f]{7,40}$/.test(s) ? s : '(audit_sha unrecorded/malformed)')
 // minorsOf returns seat-stamped COPIES (never the seat's own finding objects): each Minor/Nit carries
 // the raising seat's id so the pre-filing follow-up consolidation (Task 2.1, #1566) can build merged
-// rows' seats[] corroboration list, plus the seat's echoed audit_sha as `sha` so a parked ask carries
-// its provenance pin (#1550). Explicit finding-level `seat`/`sha` (spread last) win.
-const minorsOf   = seats => seats.flatMap(s => (s.findings || []).filter(f => f.severity === 'Minor' || f.severity === 'Nit').map(f => ({ seat: s.seat, sha: s.audit_sha, ...f })))
+// rows' seats[] corroboration list, plus the seat's echoed audit_sha — validated through
+// auditShaOrSentinel (#1693) — as `sha` so a parked ask carries its provenance pin (#1550).
+// Explicit finding-level `seat`/`sha` (spread last) win.
+const minorsOf   = seats => seats.flatMap(s => (s.findings || []).filter(f => f.severity === 'Minor' || f.severity === 'Nit').map(f => ({ seat: s.seat, sha: auditShaOrSentinel(s.audit_sha), ...f })))
 // Disposition classification (ADR 0013; ask member #1550): auditor-owned routing, orthogonal to
 // severity. The ask arm precedes the absorb chain (D7 order-census). Defaults when omitted:
 // Minor → 'follow-up', Nit → 'note'; 'absorb' and 'ask' are NEVER defaulted — an ask exists only
@@ -757,8 +881,10 @@ const dispositionOf = f =>
 // asks[] parking (#1550, D1 — the ask channel): a disposition:'ask' Minor/Nit parks in the run
 // artifact and is ruled by the operator at the Checkpoint strike-list gate — NEVER filed unruled
 // (the follow-up consolidation and the file-followups dispatch read minorsFiled only), never
-// dropped. Exactly-once membership by finding identity: every route into asks[] — the six
-// dispositionOf-site ask arms AND the demote() ask refusal — funnels through here, so one finding
+// dropped. Exactly-once membership by finding identity: every route into asks[] — the eight
+// dispositionOf-site ask arms, the three gate-audit-family comment-named ask arms (#1692 — lanes
+// with no absorb chain, so no dispositionOf call site in the census; their identity check IS the classifier's
+// never-defaulted ask arm), AND the demote() ask refusal — funnels through here, so one finding
 // can never park twice. Record floor: question + fork (the decision needed + the two branches,
 // from the finding's schema-mandatory `ask` field; absence-tolerant fallbacks — fail-open, never
 // a throw) plus task/seat/sha provenance; `finding` keeps the full row (the handoff block
@@ -772,10 +898,12 @@ const parkAsk = f => {
 }
 // Terminal-disposition demotion ladder (ADR 0013): demote one step toward durability, never drop
 // silently — EVERY demotion is log()ged. Arms: failed absorb → follow-up (a fresh re-audit absorb
-// after the batch ace is spent / dead ace worker / ace unavailable / --ace off, plus the seven
+// after the batch ace is spent OR after the batch regressed into the ladder / dead ace worker /
+// ace unavailable / --ace off, plus the seven
 // aceBisect bisection arms: named
 // culprits of a re-audit regression, an all-culprit batch, an ambiguous-and-atomic batch
-// (unhalvable single file group — demotes whole), budget exhaustion mid-bisection, a subset worker
+// (unhalvable single file group — demotes whole), the fix budget reaching the floor-retry reserve
+// (roundLimit − 2) mid-bisection, a subset worker
 // returning no usable head_sha abandoning the bisection, a re-audit round's own fresh absorb while
 // the budget is committed to the bisection in flight, and a finally-failing subset at the
 // depth/split floor); non-approve-branch findings → follow-up (filed with the escalation);
@@ -813,8 +941,11 @@ const blockedReason = r => !r ? 'worker returned no result'
 // Infra-death classification (#1411): a POST-SPAWN harness death (API/quota/transport — the seat
 // spawned, then the harness died out from under it) is an environment event, not a code defect. The
 // classification is scoped STRUCTURALLY, never by message text alone (relaunch fix): dispatchAgent
-// wraps the wave thunk's direct agent() dispatches in their OWN try/catch and TAGS a throw that
-// crossed the dispatch boundary; infraDeathCause classifies 'env-died' (a SOFT_ENV_REASONS member
+// TAGS a throw that crossed the dispatch boundary at the wave thunk's direct agent() dispatches,
+// provisionStep's provision-run (classified by the wave-thunk catch), the polish-worktree provision
+// and the sweep dispatch (each with its own local catch), and the provision-barrier (tag only — no
+// local catch, so its death stays held:workflow-error) (Phase 6 Task 1 (c));
+// infraDeathCause classifies 'env-died' (a SOFT_ENV_REASONS member
 // beside env-blocked — the mirror at the land decision) ONLY for a TAGGED throw whose message
 // matches this pattern set, propagating the harness cause verbatim into `blocked`
 // ('worker died: <cause>'). An error thrown anywhere ELSE in the thunk — a pt prompt build,
@@ -997,6 +1128,15 @@ const floorDiagOf = mr => (mr && typeof mr.floor_diagnostic === 'string' && mr.f
 // content — the fix-worker reads the file) and the done-unmet exhaustion detail, and null ⇒ both are
 // byte-/shape-identical to an artifact-less run. Never routed on, never a status.
 const doneWhenLogOf = mr => (mr && typeof mr.done_when_log_path === 'string' && mr.done_when_log_path) ? mr.done_when_log_path : null
+// routedMr (Budget-Raise floor, engine-reliability Phase 2 Task 2): the WIRE carries the Budget-Raise
+// floor's exit-1 route as status:'no-test' + floor_route:'budget-uncited' (the in-band marker — the
+// MERGE_RESULT status enum is never widened; red-team pre-authorization). The Workflow routes on a
+// NORMALIZED internal status 'budget-uncited' so the floor sub-loop's verdict/log/prompt surfaces name
+// the real tripped floor without touching the wire schema. floor_route absent ⇒ identity (set-minus:
+// every budget-floor-less result flows through byte-identical). Workflow-internal only — the routed
+// status is never returned to a refiner and never re-enters a MERGE_RESULT.
+const routedMr = mr => (mr && mr.status === 'no-test' && mr.floor_route === 'budget-uncited')
+  ? { ...mr, status: 'budget-uncited' } : mr
 const debtIds = ids => (Array.isArray(ids) ? ids : (ids ? [ids] : [])).map(String)
 // recordBaselineDebt: dedup by SUBSET-CONTAINMENT with an EMPTY-set carve-out (#798). A NON-EMPTY
 // id-set that is a subset (⊆) of some existing entry's ids at the SAME base sha is a no-op — already
@@ -1073,7 +1213,10 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin) {
     // ${(plan && plan.file) ?? '<unset>'} (#1430 defense-in-depth): the entry-validation plan.file
     // class makes an undefined here unreachable on a tasks-bearing launch; the guard matches the
     // gate-audit site's form so a bare ${plan.file} pt-throw can never recur at this site.
-    + pt`Sub-issue #${task.issue ?? '<unset>'}. Plan slice: ${task.planSlice}. Plan file: ${(plan && plan.file) ?? '<unset>'}.\n`
+    // ${task.planSlice ?? '<unset>'} (D5 defense-in-depth): the entry-validation TASK-FIELD class
+    // refuses a missing/empty planSlice at intake, so '<unset>' is unreachable on a validated
+    // launch — the fallback exists so no prompt-build site interpolates bare.
+    + pt`Sub-issue #${task.issue ?? '<unset>'}. Plan slice: ${task.planSlice ?? '<unset>'}. Plan file: ${(plan && plan.file) ?? '<unset>'}.\n`
     + pt`Run \`git diff ${ph.integrationBranch}...${task.branch}\` (three-dot = merge-base..head = exactly what this task added) for the authoritative change set; re-run it each round (a fix-worker may have pushed). `
     // READ-ONLY GIT GUARD CONTRACT (D5, spec §5) — mirrored as the "## Read-only git guard contract"
     // section in agents/war-auditor.md (same commit); the D3 both-surfaces registry row anchors the
@@ -1101,6 +1244,10 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin) {
     // `Mechanism latitude:` clause; the D3 latitude registry row anchors it on both auditor surfaces.
     + pt`\nLATITUDE RULE: the plan slice is the floor, the Commander's Intent is the ceiling — intent-consistent work beyond the literal slice is APPROVE (judge it on its own correctness), never a plan-faithfulness violation; only deviations that contradict the intent or the slice block. No intent threaded means judge against the plan slice alone, as before. When the threaded intent carries an explicit \`Mechanism latitude:\` clause, read "contradicts the slice" against the binding guardrails, not against every pinned mechanism literal in the slice: a substitution inside the enumerated latitude that holds the guardrails and End states is APPROVE, never a plan-faithfulness finding; a substitution that breaches a guardrail or an End state blocks exactly as before.`
     + pt`\nDISPOSITION RULE: every Minor/Nit finding carries a disposition — absorb (mechanical, intent-consistent, safe to fix this phase; set phaseClose:true when the fix needs the integrated tip or touches a shared/slot-adjacent file), follow-up (substantive work beyond this phase — MUST state why it is not absorbable), note (informational; phase report + servitor feed, never an issue), or ask (a decision-shaped Minor/Nit only the operator can rule — MUST carry the \`ask\` field: \`question\` naming the decision needed plus \`fork\` naming the two branches; parked unruled and ruled at the Checkpoint, never filed unruled). Omitted disposition defaults: Minor becomes follow-up, Nit becomes note; absorb and ask are never defaults.`
+    // FINDING-PATH FORM (D12) — dispatched-prompt only, no standing-card behavior change: finding
+    // `file` values feed exact-string routing compares (ace culprit attribution normalizes only a
+    // leading `./` run), so the re-audit prompt mandates the repo-relative form at the source.
+    + pt`\nFINDING-PATH FORM: report every finding's \`file\` as a repo-relative path — never absolute, never \`./\`-prefixed; these values feed exact-string routing compares downstream.`
     // ESCALATE-BOUNDARY CONTRACT (gate-audit-finding-routing Task 2.1(a)+(b), #1410 fixes 1+2) —
     // mirrored on agents/war-auditor.md (the verdict list's escalate bullet + the Return shape line)
     // and in the schemas.md AuditVerdict row (same commit); the D3 both-surfaces registry row anchors
@@ -1184,13 +1331,13 @@ async function auditRound(task, peers, workerTests, pin) {
   const runSeat = seat => agent(auditPrompt(task, seat.lens, seat.depth, peers, workerTests, pin), {
     agentType: NS + 'war-auditor', phase: 'Audit',
     label: `audit:${task.id}:${seat.lens}${peers ? ':rebut' : ''}`, schema: AUDIT_VERDICT, ...spawn('auditor') })
-  // Initial parallel run
-  let results = await parallel(roster.map(seat => () => runSeat(seat)))
+  // Initial fan-out (throttled into groups of maxParallel when set; one parallel() call otherwise)
+  let results = await batched(roster.map(seat => () => runSeat(seat)), maxParallel)
   // Re-run only the dropped (null) seats — re-keyed on roster entries (lens+depth) — up to 2 retry passes
   for (let retry = 0; retry < 2; retry++) {
     const dropped = roster.filter((_, i) => results[i] == null)
     if (!dropped.length) break
-    const retried = await parallel(dropped.map(seat => () => runSeat(seat)))
+    const retried = await batched(dropped.map(seat => () => runSeat(seat)), maxParallel)
     let ri = 0
     results = results.map(r => r != null ? r : retried[ri++])
   }
@@ -1268,6 +1415,16 @@ if (tasks.length) {
   const deriveSkipClause = recovery
     ? pt`SANCTIONED RECOVERY RELAUNCH — derive-then-cut: the step-3 ensure-worktree list above is conditional under this relaunch. For EACH task, FIRST check whether its local branch exists AND \`git merge-base --is-ancestor <that task's branch> "$TIP"\` holds (already-integrated on the adopted integration branch). On TRUE, report the task id in a \`preMerged\` array on the env-outcome and SKIP that task's ensure-worktree entirely — no worktree is needed for a task that will not run, and deriving before cutting means a fresh cut can never pollute the ancestry check. On FALSE or an absent local branch, run that task's ensure-worktree as listed${reclaimFlag ? ' (each carries the --reclaim-stale-remote flag under this sanctioned relaunch)' : ''}. A local branch that exists but is NOT an ancestor takes the ordinary existing-branch reuse path (prior commits kept, no reset).\n`
     : ''
+  // Recovery holder auto-free (#1712 fix 3, Phase 6 Task 1 (e)) — DORMANT unless args.recovery.sanctioned,
+  // like deriveSkipClause. Plain git verbs only, no new script flag: a CLEAN prior-generation holder of
+  // THIS plan's refs is auto-freed (detach for _refinery, worktree remove for a workless task worktree);
+  // a dirty holder still dies loud with the holder path named; a foreign plan's holder is never freed.
+  // Ordering: this clause runs BEFORE steps 2–4, so step 3's TIP binding does not exist yet — unlike
+  // deriveSkipClause (a step-3 sub-clause where "$TIP" is live), the workless-worktree ancestor check
+  // resolves the integration branch itself, guarded on the branch existing (a fresh cut has none).
+  const holderFreeClause = recovery
+    ? pt`SANCTIONED RECOVERY RELAUNCH — pre-checkout ref-holder auto-free (#1712 fix 3): BEFORE steps 2–4, run \`git worktree list --porcelain\` ONCE and, for EVERY ref this relaunch checks out (${ph.integrationBranch} for _refinery, each task branch in step 3), check whether a prior-generation worktree still holds it. Auto-free ONLY a CLEAN prior-generation holder of THIS plan's own refs (its held branch carries the plan slug ${planSlug || '<plan-slug>'}): for a stale _refinery holding ${ph.integrationBranch}, run \`git -C <holder-path> checkout --detach\` (detach — the worktree survives); for a WORKLESS task worktree (empty \`git -C <holder-path> status --porcelain\` AND \`git merge-base --is-ancestor <that holder's branch> ${ph.integrationBranch}\` holds — no unmerged work), run \`git worktree remove <holder-path>\`. This clause runs BEFORE step 3, so step 3's TIP is NOT yet bound here — resolve the ancestor check against ${ph.integrationBranch} directly (never "$TIP"), and when ${ph.integrationBranch} does not yet exist SKIP the removal arm entirely: a fresh cut has no prior-generation holder of it, and an unverified worktree is never removed. Plain git verbs only — never a new script flag. NEVER free a DIRTY holder (non-empty status --porcelain): die loud — return the \`{ ok: false, … }\` env-outcome with the HOLDER PATH named in stderrTail. NEVER free a holder of a FOREIGN plan's refs: leave it in place, and if it blocks a checkout, die loud the same way naming its path.\n`
+    : ''
   // Submodule tasks: thread the target repo + base into the Provision prompt so the refiner knows
   // to initialize the submodule checkout (git submodule update --init) before running ensure-integration
   // against the submodule's base (not the superproject working branch). DP3: no script change.
@@ -1285,7 +1442,13 @@ if (tasks.length) {
     : ''
   // provision mode (agents/war-refiner.md ## provision): git-topology barrier — env-outcome return.
   // dispatchKind: 'provision-barrier' (DISTINCT from the per-task 'provision-run' — mocks/isProvision key on it).
-  const barrierOut = await agent(
+  // dispatchAgent, tagging ONLY (Phase 6 Task 1 (c) enumerates the routed sites; the barrier is not one):
+  // there is NO local catch here, so ANY barrier-dispatch death — infra-tagged or not — rethrows into the
+  // top-level catch → held:workflow-error with the workflowError { message, stack, recovery } payload,
+  // exactly the documented terminal class (resume-and-recovery.md § Checkpoint outcome handling: no git
+  // topology ⇒ nothing in the phase can run). The tag still rides the error so the surfaced message
+  // carries dispatch-layer provenance.
+  const barrierOut = await dispatchAgent(
     pt`Provision the worktree topology for WAR phase ${ph.id} "${ph.title}" by running ${SCRIPT}. `
     + pt`Do NOT free-author git; only run these subcommands, fail loud on ANY non-zero exit — do NOT special-case a numeric code (a foreign integration branch exits 3; a diverged local/origin base halts with its own distinct non-zero exit) — with ONE marker-keyed carve-out: a per-task worktree-creation exit whose output carries the \`STALE_REMOTE\` marker line is CLASSIFIED per task (step 3's classify-and-continue clause) and does NOT halt the barrier; the marker token is the key, never the numeric code. Return the env-outcome JSON: \`{ ok: true }\` when every subcommand exited 0 (optionally carrying the step-3 \`preMerged\` / \`staleRemote\` / \`worktreeHygiene\` arrays); on the FIRST non-zero exit WITHOUT the STALE_REMOTE marker return \`{ ok: false, failedCommand: "<the exact provision-worktrees.sh subcommand line>", exitCode: <code>, stderrTail: "<tail of its stderr — the script's die text>" }\`.\n`
     + pt`1. FROM THE MAIN CHECKOUT (${mainCheckout || 'the main repo checkout — your current working directory'}, NOT a task worktree): `
@@ -1293,6 +1456,7 @@ if (tasks.length) {
     + pt`2. provision-worktrees.sh ensure-integration ${planSlug || '<plan-slug>'} ${ph.id} ${ph.workingBranch}${owned} — reuse the plan-namespaced integration branch ${ph.integrationBranch} if it is already ours (the --owned-file ledger); else DERIVE the cut base against origin (ADR 0008): the script fetches origin/${ph.workingBranch} and reconciles the local ${ph.workingBranch} — equal or ahead → cut from local; behind → cut from the ORIGIN tip plus a guarded follower fast-forward (skipped with a warning when ${ph.workingBranch} is checked out in a worktree); a fetch failure or missing origin → cut from local with a stderr warning (today's offline behavior). DIVERGED (neither SHA an ancestor of the other) is a HALT: the script dies non-zero carrying BOTH SHAs and the two repair directions, and creates no branch. On that die — or ANY non-zero exit — return the \`{ ok: false, … }\` env-outcome carrying the die text in \`stderrTail\` and STOP: never pick a side, never retry with a different base. The phase never starts; I surface the die message like today's foreign-branch halt.\n`
     + pt`3. Capture the resulting integration tip (TIP="$(git rev-parse ${ph.integrationBranch})"), then for EACH task run ensure-worktree at the integration tip captured in step 3 (idempotent; reuse if present, conservative heal if the dir went missing):\n${ensures}\n`
     + deriveSkipClause
+    + holderFreeClause
     + staleRemoteClause
     + worktreeHygieneClause
     + pt`Each ensure-worktree creates the worktree on its plan-namespaced branch off the integration tip and drops a .war-task marker. After this barrier every task worktree exists and the workers can run.\n`
@@ -1313,9 +1477,22 @@ if (tasks.length) {
   // re-dispatched task passes — no spurious dep-failed) and the bare-id landed list; one auditLog entry;
   // NO worker dispatch. Deliberately NOT pushed to mergedTasksForGateAudit — no gate ran for it this run,
   // and the handoff tipSha fallback reads that list, which must stay truthful. Only ids matching a real
-  // task are honored (git > any Lead-assembled arg). Labels/ledger are Lead-reconciled toward git (ADR 0008).
-  for (const id of (Array.isArray(barrierOut.preMerged) ? barrierOut.preMerged : [])) {
-    if (done.has(id) || !tasks.some(t => t.id === id)) continue
+  // task are honored (git > any Lead-assembled arg) — but the match normalizes BOTH id dialects first
+  // (#1704): the barrier may report the WORKTREE-NAME dialect (`p<phase>-<id>`, e.g. `p2-2.1`) while
+  // tasks carry bare ids (`2.1`) — strip the prefix on both sides before comparing. An id matching no
+  // task even after normalization is LOGGED loudly and dropped — never a silent skip-disable (a silent
+  // drop re-dispatches a merged task next resume). Records key on the MATCHED task's own id, so
+  // done/succeeded/landed stay in the task-id dialect. Labels/ledger are Lead-reconciled toward git (ADR 0008).
+  const preMergedIdOf = id => { const m = String(id).match(/^p\d+-(.+)$/); return m ? m[1] : String(id) }
+  for (const raw of (Array.isArray(barrierOut.preMerged) ? barrierOut.preMerged : [])) {
+    const norm = preMergedIdOf(raw)
+    const t = tasks.find(t => preMergedIdOf(t.id) === norm)
+    if (!t) {
+      log('recovery: barrier preMerged id ' + JSON.stringify(raw) + ' matches NO task in this phase even after dialect normalization (→ ' + JSON.stringify(norm) + ') — entry dropped LOUDLY, no skip-disable applied (#1704).')
+      continue
+    }
+    const id = t.id
+    if (done.has(id)) continue
     done.add(id); succeeded.add(id); landed.push(id)
     auditLog.push({ task: id, verdict: 'recovered:pre-merged', findings: [], note: 'recovered: pre-merged on adopted integration branch' })
     log(`recovery: task ${id} is pre-merged on the adopted integration branch (ancestor of the frozen tip) — recorded merged, no worker dispatched.`)
@@ -1371,14 +1548,15 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   const wave = nextWave()
   if (!wave.length) { log(`No runnable tasks remain — the rest are blocked behind escalations.`); break }
 
-  // ---- WORK + AUDIT each task in the wave concurrently ----
-  const results = await parallel(wave.map(task => async () => {
+  // ---- WORK + AUDIT each task in the wave concurrently (at most maxParallel at once when set) ----
+  const results = await batched(wave.map(task => async () => {
     // Wave-loop invariant (spec constraint 4, #742): a task dispatched into a work wave MUST terminate
     // in exactly ONE collected result — it may never re-enter the wave because of an engine-side throw.
     // The live `parallel` NULLS a rejected thunk, so results.filter(Boolean) drops it → done.add never
     // runs → nextWave() re-dispatches a COMPLETED, pushed, gate-green task every iteration (~660k
     // tokens/round) until the post-loop ghost-dep sweep mislabels it unrunnable-deps. So catch EVERY
-    // engine error across the WHOLE thunk body (provisionStep + the pt-tagged worker/fix prompt builds +
+    // engine error across the WHOLE thunk body (provisionStep — whose dispatch-layer infra deaths
+    // classify env-died SOFT, Phase 6 Task 1 (c) — + the pt-tagged worker/fix prompt builds +
     // normalizeReportedPaths + auditRound) and return a HARD 'escalate' (already in
     // HARD_ESCALATION_REASONS): the collection loop threads blocked verbatim, so the phase holds
     // :escalation with the true diagnostic instead of silently looping.
@@ -1416,7 +1594,11 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + pt`The refiner's Provision barrier already created this worktree and its .war-task marker — do NOT create it yourself and do NOT set any worktree env var. cd into ${task.worktree} and work only inside it; commit and push ${task.branch}.\n`
         // ${(plan && plan.file) ?? '<unset>'} (#1430 defense-in-depth — the second of the two
         // formerly-undefended sites; see the auditPrompt site's comment for the rationale).
-        + pt`Sub-issue #${task.issue ?? '<unset>'} — ${task.title}\nPlan slice: ${task.planSlice}\nPlan file: ${(plan && plan.file) ?? '<unset>'}\nGate: ${plan.gate}${doneWhenClause(task)}${workerIntentClause}`
+        // ${task.planSlice ?? '<unset>'} (D5 defense-in-depth): planSlice is entry-validated
+        // (TASK-FIELD class), so '<unset>' is unreachable on a validated launch. ${task.title} stays
+        // deliberately BARE — it is the pinned in-thunk pt-throw trigger (criterion 3's fixture) and a
+        // registered member of the remaining-bare-interpolation census.
+        + pt`Sub-issue #${task.issue ?? '<unset>'} — ${task.title}\nPlan slice: ${task.planSlice ?? '<unset>'}\nPlan file: ${(plan && plan.file) ?? '<unset>'}\nGate: ${plan.gate}${doneWhenClause(task)}${workerIntentClause}`
         + WORKER_MEMORY_SELF_QUERY_LINE + workerMemClause(task.id) + provisionClause + workerExtraCtx
         + '\n' + COMMENT_LAG_RULE + '\n' + PLAN_DEFECT_RULE + '\n' + FILES_CHANGED_RULE + '\n' + ACCEPTANCE_IDS_RULE,
         { agentType: NS + 'war-worker', phase: 'Work', label: `work:${task.id}`, schema: WORKER_RESULT, ...spawnWorker(isDocsTask(task) ? 'docs' : null) })
@@ -1491,7 +1673,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         : ''
       return { task, verdict: 'escalate', seats: [], expected: 0, blocked: `engine error during work/audit: ${err.message}` + ptHint }
     }
-  }))
+  }), maxParallel)
 
   // ---- REFINE — serial merge of approved tasks (THE merge queue) ----
   // ponytail: guard the agent-emitted pin at the copy site, not via a schema `pattern` —
@@ -1520,16 +1702,21 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         ...(Array.isArray(taskDebt) && taskDebt.length ? { baselineDebt: taskDebt } : {}) })
     }
     // Update the tracker AFTER capturing predTip, and ONLY on a real integration_sha (isSha === the
-    // pinOrSentinel hex test); a sentinel leaves it at the last REAL sha. requiresTest:false tasks update it too.
-    if (isSha(mr.integration_sha)) lastLandedTip = mr.integration_sha
+    // pinOrSentinel hex test); a sentinel leaves it at the last REAL sha. requiresTest:false tasks update
+    // it too. The per-task landedShaByTask retention (Phase 5 Task 1) rides the same guard: it is
+    // auditEvidenceOf's fallback so a merged requiresTest:false task (no gate-audit entry — the D7 skip
+    // above) never renders 'unrecorded' as its filed follow-ups' pinned sha.
+    if (isSha(mr.integration_sha)) { lastLandedTip = mr.integration_sha; landedShaByTask.set(task.id, mr.integration_sha) }
   }
   // ---- ACE BISECTION (regression-recovery ladder on a failed --ace batch; D1–D4/D6) ----
   // Order (D2, culprit-first): named culprits are excised (demoted) and the remainder re-applies as
   // ONE subset; blind halving is reserved for AMBIGUOUS attribution. Subsets apply SERIALLY at the
   // tip with a hard depth cap of 2 (batch=0 → halves=1 → quarters=2; no run.* knob), and same-file
-  // findings never split across subsets (D3). Budget (D4): the batch charged one fixRounds slot;
-  // each SUBSET COMMIT charges one more; reverts are uncharged; panels stay unmetered; exhaustion
-  // mid-bisection demotes the remaining subsets to follow-up (logged — by design). Only FINALLY-
+  // findings never split across subsets (D3). Budget (D4 + Open decision 4): the batch charged one
+  // fixRounds slot; each SUBSET COMMIT charges one more; reverts are uncharged; panels stay
+  // unmetered; subset commits dispatch only while fixRounds < roundLimit − 2 (2 slots reserved for
+  // the merge-floor retry loop), and hitting the reserve mid-bisection demotes the remaining
+  // subsets to follow-up (logged — by design). Only FINALLY-
   // failing subsets demote (unsplittable, or a depth-2 regressor).
   // THE LOOP OWNS IN-LOOP FORWARD-REVERTS: each failed commit is reverted at the tip before the next
   // subset commits — the revert step rides the NEXT subset dispatch, conditional on HEAD still being
@@ -1550,13 +1737,18 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     const mid = Math.ceil(g.length / 2)
     return [g.slice(0, mid).flat(), g.slice(mid).flat()]
   }
+  // Culprit-path form (D12): BOTH sides of the culprit `has()` compare are normalized to
+  // repo-relative form with any leading `./` run stripped, so a `./`-prefixed report and a bare
+  // plan path attribute identically. Non-strings pass through untouched (filtered as falsy below).
+  const aceRelPath = p => typeof p === 'string' ? p.replace(/^(?:\.\/)+/, '') : p
   const aceBisect = async (r, aceable, batchSha, regressionSeats) => {
     // Culprit attribution: a regression blocking finding NAMES a culprit when its file matches an
-    // aceable finding's file (parsing-shape latitude). Empty attribution is ambiguous (blind
-    // halving); total attribution leaves nothing to salvage — the batch finally fails whole.
-    const culpritFiles = new Set(blockingOf(regressionSeats).map(f => f.file).filter(Boolean))
-    const culprits = aceable.filter(f => culpritFiles.has(f.file))
-    const rest = aceable.filter(f => !culpritFiles.has(f.file))
+    // aceable finding's file (parsing-shape latitude; both sides aceRelPath-normalized). Empty
+    // attribution is ambiguous (blind halving); total attribution leaves nothing to salvage — the
+    // batch finally fails whole.
+    const culpritFiles = new Set(blockingOf(regressionSeats).map(f => aceRelPath(f.file)).filter(Boolean))
+    const culprits = aceable.filter(f => culpritFiles.has(aceRelPath(f.file)))
+    const rest = aceable.filter(f => !culpritFiles.has(aceRelPath(f.file)))
     let queue
     if (culprits.length && rest.length) {
       for (const f of culprits) demote(f, 'follow-up', 'failed absorb — named culprit of the ace re-audit regression (culprit-first excision); the batch commit is forward-reverted')
@@ -1579,9 +1771,15 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     let pendingRevert = batchSha                         // failed tip commit not yet reverted in-loop
     while (queue.length) {
       const sub = queue.shift()
-      if (r.task.fixRounds >= roundLimit) {
+      // Floor-retry reserve (Open decision 4): subset commits dispatch only while
+      // fixRounds < roundLimit − 2 — so bisection SUBSET commits never pre-drain the last 2
+      // slots ahead of the merge-floor retry loop, which shares run.roundLimit. The reserve is a
+      // bisection-ladder bound only, not a whole-ace-path guarantee: the batch ace keeps its own
+      // `< roundLimit` gate (Open decision 4 scopes the reserve to subset commits).
+      if (r.task.fixRounds >= roundLimit - 2) {
+        log(`ace-bisect ${r.task.id}: ladder stopped — fixRounds ${r.task.fixRounds} reached roundLimit−2 (${roundLimit - 2}); 2 slots stay reserved for the merge-floor retry loop, remaining subsets demote to follow-up`)
         for (const q of [sub, ...queue.splice(0)])
-          for (const f of q.findings) demote(f, 'follow-up', 'failed absorb — fix budget exhausted mid-bisection; the remaining subsets demote by design')
+          for (const f of q.findings) demote(f, 'follow-up', 'failed absorb — fix budget reached the floor-retry reserve mid-bisection (subset commits dispatch only while fixRounds < roundLimit − 2); the remaining subsets demote by design')
         break
       }
       // Deterministic trailer value (shape latitude): task id + the subset's sorted file set —
@@ -1593,9 +1791,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       const sw = await agent(
         pt`ACE BISECTION SUBSET for WAR task ${r.task.id} (a regressed --ace batch re-applied in subsets). Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — never create it; cd there.\n`
         + revertStep
-        + pt`PREFLIGHT (resume idempotency): scan the BISECTION RANGE (e.g. \`git -C ${r.task.worktree} log --format='%H %(trailers:key=Ace-Subset,valueonly)' ${batchSha}^..HEAD\`) — never the tip alone; on a commit already carrying \`Ace-Subset: ${trailer}\`, return its sha as head_sha WITHOUT committing.\n`
+        + pt`PREFLIGHT (resume idempotency): scan the BISECTION RANGE (e.g. \`git -C ${r.task.worktree} log --format='%H %(trailers:key=Ace-Subset,valueonly)' ${batchSha}^..HEAD\`) — never the tip alone; compare each extracted trailer value (whitespace-trimmed) to \`${trailer}\` by EXACT whole-string equality — never a prefix or substring match (a subset's trailer value can be a strict prefix of a later, wider sibling's); on an exact-equal match, return that commit's sha as head_sha WITHOUT committing.\n`
         + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
-        + pt`Apply the smallest mechanical fix for EACH finding below, keep the gate green, and make EXACTLY ONE commit citing each finding's title + rationale, its message ENDING with the trailer line \`Ace-Subset: ${trailer}\` (the panel re-audits the new sha; a regression is forward-reverted):\n`
+        + pt`Apply the smallest mechanical fix for EACH finding below, keep the gate green, and make EXACTLY ONE commit citing each finding's title + rationale, its message ENDING with the trailer line \`Ace-Subset: ${trailer}\` as its OWN final paragraph, separated from the body by a blank line — git parses trailers only in a distinct final block (the panel re-audits the new sha; a regression is forward-reverted):\n`
         // pt-tagged prompt-feeding rows (subset prompt, top-level-catch): f.severity is construction-
         // guaranteed (sub.findings ⊆ aceable); title/file/rationale schema-optional → ?? '' absence-tolerant.
         + sub.findings.map((f, i) => pt`${i + 1}. [${f.severity}] ${f.title ?? ''} (${f.file ?? ''}${f.line ? ':' + f.line : ''}) — ${f.rationale ?? ''}${f.suggested_fix ? pt` → ${f.suggested_fix}` : ''}`).join('\n') + '\n'
@@ -1630,6 +1828,17 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         }
       } else {
         pendingRevert = subSha                           // reverted by the NEXT dispatch, or the merge clause if final
+        // Fold (#1694): the FAILING subset's re-audit round's OWN Minor/Nits route by disposition
+        // too, mirroring the approved arm — an ask parks, never drops; a fresh absorb takes the
+        // failed-absorb demotion (the ladder never re-enters for findings it did not start with).
+        // Blocking findings stay untouched — they are this arm's regression signal, not routable.
+        for (const f of minorsOf(subSeats).map(x => ({ task: r.task.id, ...x }))) {
+          const d = dispositionOf(f)
+          if (d === 'ask') parkAsk(f)               // ask precedes the absorb chain (#1550, D7)
+          else if (d === 'follow-up') minorsFiled.push(f)
+          else if (d === 'note') notes.push(f)
+          else demote(f, 'follow-up', 'failed absorb — the ace budget is committed to the bisection in flight (re-audit round finding)')
+        }
         const halves = sub.depth < 2 ? aceHalve(sub.findings) : null
         if (halves) queue.unshift(...halves.map(fs => ({ findings: fs, depth: sub.depth + 1 })))
         else for (const f of sub.findings) demote(f, 'follow-up', 'failed absorb — subset regressed on re-audit at the depth/split floor; the subset commit is forward-reverted')
@@ -1710,6 +1919,16 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             }
           } else {
             aceSha = null
+            // Fold (#1694): the REGRESSED re-audit round's OWN Minor/Nits route by disposition too,
+            // mirroring the approved arm — an ask parks, never drops. Blocking findings stay
+            // untouched: they are the ladder's culprit-attribution input below.
+            for (const f of minorsOf(reSeats).map(x => ({ task: r.task.id, ...x }))) {
+              const d = dispositionOf(f)
+              if (d === 'ask') parkAsk(f)           // ask precedes the absorb chain (#1550, D7)
+              else if (d === 'follow-up') minorsFiled.push(f)
+              else if (d === 'note') notes.push(f)
+              else demote(f, 'follow-up', 'failed absorb — the ace batch regressed and the ladder never opens for fresh findings (re-audit round finding)')
+            }
             // Regression (D1/D2): the bounded bisection ladder replaces the whole-batch demotion — it
             // owns the in-loop forward-reverts and sets r.aceSha / r.aceReverted / r.seats as it resolves.
             await aceBisect(r, aceable, ace.head_sha, reSeats)
@@ -1761,7 +1980,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           + pt`\`git -C ${r.task.worktree} revert --no-edit ${r.aceReverted}\` (forward-only, classifier-safe — it is the clean inverse of the task-branch tip, cannot conflict) `
           + pt`BEFORE the rebase step (a), so the merge runs on the reverted-to-approved tip. Do NOT reset --hard. The approved work still lands.\n`
         : ''
-      const mr = await agent(
+      const mr = routedMr(await agent(
         pt`Merge WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
         + aceRevertClause
         + reattachClause(refineryPath)
@@ -1776,6 +1995,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + gateCaptureClause(refineryPath, r.task.id)
         + pt`Also populate integration_sha with the rebased integration tip the gate ran against, so the gate-audit pass can confirm the gate ran at the integration tip.`
         + pt` Before the _refinery merge step (b), run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${r.task.branch}${r.task.taskType === 'gitlink-bump' && r.task.declared ? ' --declared' : ''} (REGARDLESS of requiresTest — a submodule touch is refused whether or not the task needs a test; the relax-flag is only threaded for a declared gitlink-bump task). Exit 1 → return { mode: 'merge-task', status: 'submodule-blocked' } — do NOT merge. Exit 2 → return { mode: 'merge-task', status: 'error' }.`
+        + pt` Also before step (b), run assert-budget-raise-cited.sh ${ph.integrationBranch} ${r.task.branch} (ALWAYS — it exits 0 on its own when the diff touches no prompt-surface budget ceiling). Exit 1 (a hard:/advisory: ceiling raise in prompt-surface-budgets.test.mjs with no Budget-Raise trailer on any commit in the range) → return { mode: 'merge-task', status: 'no-test', floor_route: 'budget-uncited' } — the in-band budget-uncited route (the status enum is never widened) — do NOT merge; the required commit trailer form is \`Budget-Raise: ADR-0042 <surface> +<bytes>\`, and a legitimate ceiling change routes through the operator re-baseline pass (skills/war/references/budget-rebaseline.md) — a worker instead funds growth UNDER the ceiling. Exit 2 (a git/ref error) → return { mode: 'merge-task', status: 'error' }, never the budget-uncited route — the exit-1-vs-2 split mirrors the test floor.`
         + (requiresTest
           ? pt` Also before step (b), run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${testPatternArg} to verify the task diff contains at least one test file. Branch on the exit code: exit 1 (no test in the diff) → return { mode: 'merge-task', status: 'no-test' } — do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'no-test' — a transient bad-ref must not spin a pointless add-test loop. On that exit 1 path ONLY, ALSO capture the script's stderr VERBATIM (the near-miss diagnostic) into floor_diagnostic alongside status:'no-test' — never edited, never summarised; empty/absent stderr ⇒ omit floor_diagnostic. It is fail-open advisory context, never a routing input. On exit 0, capture the script's stdout — ALL matched test paths, one per line — into mappedTests (an array of those paths) on the returned MergeResult; the gate-audit pass greps them against the captured gate log (D7).`
           : pt` requiresTest:false — skip the assert-test-in-diff.sh check and proceed directly to the rebase+merge.`)
@@ -1784,7 +2004,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           : pt` requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`)
         + doneWhenFloorClause(r.task, refineryPath)
         + submodMergeNote,
-        { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}`, schema: MERGE_RESULT, ...spawn('refiner') })
+        { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}`, schema: MERGE_RESULT, ...spawn('refiner') }))
 
       // submodule-blocked: immediate hard escalate, 0 fix rounds (refuse-all, like env-blocked).
       // ponytail: reuses existing 'escalate' reason (DP3 — no new HARD_ESCALATION_REASONS member, no land-decision.mjs cascade)
@@ -1795,16 +2015,21 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       }
 
       // Combined floor-retry sub-loop: bounded fix-worker + full re-audit on ANY floor status
-      // (no-test, unpackaged, OR done-unmet). NOT a blind copy of the old no-test-only loop — a retry
+      // (no-test, unpackaged, done-unmet — or the budget-uncited route, which rides status:'no-test'
+      // as the in-band floor_route marker). NOT a blind copy of the old no-test-only loop — a retry
       // merge here hard-escalated any unexpected status verbatim, so a task tripping SEVERAL floors
       // (adds a source file with no test AND no COPY) would clear one and hard-escalate on the other,
       // never getting its bounded fix (spec §4.2). One loop, all floors, shared budget, until all pass
       // or exhaust. done-unmet (precision-chain D1, Task 2.3) routes the make-this-command-pass fix —
       // the no-test pattern; exhaustion escalates reason 'done-unmet' via the generic tail below.
       // Every dispatched retry-merge re-instructs ALL floor invocations (test + packaging + submodule
-      // + done-when), keeping the dispatched prompts in sync with the standing war-refiner.md steps.
-      // ponytail: requiresTest:false / requiresPackaging:false / doneWhen-less tasks never enter (that floor's status is never returned)
-      const FLOOR_STATUSES = ['no-test', 'unpackaged', 'done-unmet']
+      // + budget-raise + done-when), keeping the dispatched prompts in sync with the standing war-refiner.md steps.
+      // ponytail: requiresTest:false / requiresPackaging:false / doneWhen-less tasks never enter (that floor's status is never returned);
+      // a diff touching no prompt-surface budget ceiling never returns the budget-uncited route either.
+      // 'budget-uncited' here is the routedMr-NORMALIZED internal status (wire: status:'no-test' +
+      // floor_route:'budget-uncited' — no MERGE_RESULT enum widening), so the budget route shares this
+      // sub-loop exactly like the sibling floors.
+      const FLOOR_STATUSES = ['no-test', 'unpackaged', 'done-unmet', 'budget-uncited']
       if (mr && FLOOR_STATUSES.includes(mr.status)) {
         let floorMr = mr
         let reAuditFailed = false
@@ -1812,6 +2037,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           // Dispatch a fix-worker keyed to the CURRENT tripped floor, in the SAME worktree.
           const isNoTest = floorMr.status === 'no-test'
           const isDoneUnmet = floorMr.status === 'done-unmet'
+          // budget-uncited: the routedMr-normalized internal status for the Budget-Raise floor's exit-1
+          // route (wire: status:'no-test' + floor_route marker — no enum widening).
+          const isBudgetUncited = floorMr.status === 'budget-uncited'
           // Near-miss diagnostic (D6): present ⇒ one appended pt-tagged paragraph quoting it VERBATIM;
           // absent ⇒ '' so the ADD_TEST prompt is byte-identical to a diagnostic-less run (set-minus).
           const nearMissDiag = floorDiagOf(floorMr)
@@ -1832,26 +2060,32 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             ? pt`ADD_TEST for WAR task ${r.task.id}. The refiner's merge-task check (assert-test-in-diff.sh) found no test file in the diff. `
               + pt`Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
               + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
-              + pt`Add a mapped test for this task (the test must exercise the slice described in: ${r.task.planSlice}), keep the gate green, commit and push.`
+              + pt`Add a mapped test for this task (the test must exercise the slice described in: ${r.task.planSlice ?? '<unset>'}), keep the gate green, commit and push.`
               + nearMissClause
             : isDoneUnmet
             ? pt`MAKE_DONE_PASS for WAR task ${r.task.id}. The refiner's merge-task check (assert-done-when.sh) ran the task's own Done when: acceptance command and it exited red (or timed out). `
               + pt`Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
               + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
-              + pt`Make this command pass: fix the implementation for the slice described in: ${r.task.planSlice} until the Done when: command above exits 0 — never weaken, skip, or delete a test to force it green. Keep the gate green, commit and push.`
+              + pt`Make this command pass: fix the implementation for the slice described in: ${r.task.planSlice ?? '<unset>'} until the Done when: command above exits 0 — never weaken, skip, or delete a test to force it green. Keep the gate green, commit and push.`
               + doneWhenLogClause
+            : isBudgetUncited
+            ? pt`CITE_BUDGET for WAR task ${r.task.id}. The refiner's merge-task check (assert-budget-raise-cited.sh) found a hard:/advisory: ceiling RAISE in skills/war/assets/prompt-surface-budgets.test.mjs with no Budget-Raise trailer in the range (the budget-uncited route). `
+              + pt`Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
+              + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
+              + pt`Resolve it for the slice described in: ${r.task.planSlice ?? '<unset>'}. PREFER un-raising the ceiling and funding the growth under it (ADR 0042 — evict cold prose to references/ behind a trigger pointer); a ceiling change is an operator act via the re-baseline pass (skills/war/references/budget-rebaseline.md), and a sanctioned raise must carry a commit trailer of the exact form \`Budget-Raise: ADR-0042 <surface> +<bytes>\` — never raise a ceiling silently. Commit and push, keeping the gate green.`
             : pt`PACKAGE_IT for WAR task ${r.task.id}. The refiner's merge-task check (assert-packaging-in-diff.sh) flagged an added/renamed file a Dockerfile's enumerated COPYs miss. `
               + pt`Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
               + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
-              + pt`Resolve it for the slice described in: ${r.task.planSlice}. add the COPY or dockerignore it — never delete the file to satisfy the floor. Keep the gate green, commit and push.`
+              + pt`Resolve it for the slice described in: ${r.task.planSlice ?? '<unset>'}. add the COPY or dockerignore it — never delete the file to satisfy the floor. Keep the gate green, commit and push.`
           const floorFix = await agent(
             fixPrompt + workerMemClause(r.task.id) + provisionClause,
             // #817: spawnWorker('fix') makes the add-test/package-it/make-pass floor retry tier-aware, uniform with
             // the fix:/ace: fix-follow-up classes (absent agents.worker.fix ⇒ inherit-base — byte-identical).
-            { agentType: NS + 'war-worker', phase: 'Audit', label: `${isNoTest ? 'add-test' : isDoneUnmet ? 'make-pass' : 'package-it'}:${r.task.id}:r${r.task.fixRounds + 1}`, schema: WORKER_RESULT, ...spawnWorker('fix') })
+            { agentType: NS + 'war-worker', phase: 'Audit', label: `${isNoTest ? 'add-test' : isDoneUnmet ? 'make-pass' : isBudgetUncited ? 'cite-budget' : 'package-it'}:${r.task.id}:r${r.task.fixRounds + 1}`, schema: WORKER_RESULT, ...spawnWorker('fix') })
           // Floor-specific verdict tokens: no-test keeps its historical strings (regression guard #268);
-          // unpackaged/done-unmet use the parallel forms. status ('no-test'|'unpackaged'|'done-unmet') prefixes all three.
-          const blockedVerdict = isNoTest ? 'no-test:add-test-blocked' : isDoneUnmet ? 'done-unmet:make-pass-blocked' : 'unpackaged:package-it-blocked'
+          // unpackaged/done-unmet/budget-uncited use the parallel forms — the budget-uncited ROUTE name
+          // (not the wire status) prefixes its tokens, so the audit log names the real tripped floor.
+          const blockedVerdict = isNoTest ? 'no-test:add-test-blocked' : isDoneUnmet ? 'done-unmet:make-pass-blocked' : isBudgetUncited ? 'budget-uncited:cite-budget-blocked' : 'unpackaged:package-it-blocked'
           const floorFixWhy = blockedReason(floorFix)
           if (floorFixWhy) {
             // Blocked floor fix-worker (worker-authored blocked text) — escalate and break the
@@ -1882,8 +2116,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             break
           }
 
-          // Re-attempt the serial merge — re-instructs ALL floor invocations (test + packaging + submodule + done-when).
-          floorMr = await agent(
+          // Re-attempt the serial merge — re-instructs ALL floor invocations (test + packaging + submodule + budget-raise + done-when).
+          floorMr = routedMr(await agent(
             pt`Merge WAR task ${r.task.id} (branch ${r.task.branch}) into ${ph.integrationBranch}. mode=merge-task.\n`
             + reattachClause(refineryPath)
             + pt`IMPORTANT — merge-task is split across two worktrees (spec §5.2, red-team-verified):\n`
@@ -1897,6 +2131,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             + classificationClause(refineryPath, pt`the phase integration base — the cut point of ${ph.integrationBranch}, i.e. \`git -C ${refineryPath} merge-base ${ph.integrationBranch} ${ph.workingBranch}\``)
             + baselineDebtClause()
             + pt`Before the _refinery merge step (b), re-run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${r.task.branch}${r.task.taskType === 'gitlink-bump' && r.task.declared ? ' --declared' : ''} — the floor fix-worker pushed new commits, so the check runs afresh REGARDLESS of requiresTest (the relax-flag is only threaded for a declared gitlink-bump task). Exit 1 → return { mode: 'merge-task', status: 'submodule-blocked' }, do NOT merge; exit 2 → return { mode: 'merge-task', status: 'error' }. `
+            + pt`Also before step (b), re-run assert-budget-raise-cited.sh ${ph.integrationBranch} ${r.task.branch} (ALWAYS — a fresh Budget-Raise trailer or an un-raised ceiling on the new commits now counts). Exit 1 → return { mode: 'merge-task', status: 'no-test', floor_route: 'budget-uncited' } — the in-band budget-uncited route; do NOT merge; the trailer form is \`Budget-Raise: ADR-0042 <surface> +<bytes>\` (operator re-baseline pass: skills/war/references/budget-rebaseline.md). Exit 2 → return { mode: 'merge-task', status: 'error' }, never the budget-uncited route. `
             + (requiresTest
               ? pt`Before the _refinery merge step (b), run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${testPatternArg} to verify the task diff now contains at least one test file. Branch on the exit code: exit 1 (no test in the diff) → return { mode: 'merge-task', status: 'no-test' }, do NOT merge; exit 2 (a git/ref error — bad ref, fatal git failure) → return { mode: 'merge-task', status: 'error' }, never 'no-test' — a transient bad-ref must not spin a pointless add-test loop. On that exit 1 path ONLY, ALSO capture the script's stderr VERBATIM (the near-miss diagnostic) into floor_diagnostic alongside status:'no-test' — never edited, never summarised; empty/absent stderr ⇒ omit floor_diagnostic. It is fail-open advisory context, never a routing input. On exit 0, capture the script's stdout — ALL matched test paths, one per line — into mappedTests (an array of those paths) on the returned MergeResult; the gate-audit pass greps them against the captured gate log (D7). `
               : pt`requiresTest:false — skip the assert-test-in-diff.sh check. `)
@@ -1905,11 +2140,13 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
               : pt`requiresPackaging:false — skip the assert-packaging-in-diff.sh check.`)
             + doneWhenFloorClause(r.task, refineryPath)
             + submodMergeNote,
-            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:floor-retry:r${r.task.fixRounds}`, schema: MERGE_RESULT, ...spawn('refiner') })
+            { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:${r.task.id}:floor-retry:r${r.task.fixRounds}`, schema: MERGE_RESULT, ...spawn('refiner') }))
         }
 
         if (!reAuditFailed && floorMr && FLOOR_STATUSES.includes(floorMr.status)) {
-          // Budget exhausted — hard escalation with reason = whichever floor is still tripping (all HARD).
+          // Budget exhausted — hard escalation with reason = whichever floor is still tripping (all
+          // HARD: no-test/unpackaged/done-unmet are HARD_ESCALATION_REASONS members; the routed
+          // budget-uncited status maps to the existing hard reason 'escalate' below, never a new member).
           // The LAST result's near-miss diagnostic rides both entries as `detail` when present (a
           // string-valued detail is legal — this key is already shape-heterogeneous per route: the
           // merge-failure route below pushes the whole MergeResult object). Absent ⇒ no `detail` key at
@@ -1918,8 +2155,15 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           // done-when-floor-wiring D6): present ⇒ a done_when_log_path key, absent ⇒ none.
           const exhaustedDiag = floorDiagOf(floorMr)
           const exhaustedDoneWhenLog = doneWhenLogOf(floorMr)
-          escalated.push({ task: r.task.id, reason: floorMr.status, fixRounds: r.task.fixRounds, ...(exhaustedDiag ? { detail: exhaustedDiag } : {}), ...(exhaustedDoneWhenLog ? { done_when_log_path: exhaustedDoneWhenLog } : {}) })
-          auditLog.push({ task: r.task.id, verdict: `${floorMr.status}:exhausted`, fixRounds: r.task.fixRounds, findings: [], ...(exhaustedDiag ? { detail: exhaustedDiag } : {}), ...(exhaustedDoneWhenLog ? { done_when_log_path: exhaustedDoneWhenLog } : {}) })
+          // budget-uncited exhaustion: 'budget-uncited' is a Workflow-internal routed status, NOT a
+          // HARD_ESCALATION_REASONS member (no enum widening) — it escalates via the existing hard
+          // reason 'escalate' (the submodule-blocked DP3 precedent) with the route named in detail,
+          // so an uncited ceiling raise can never soft-land a phase minus the task.
+          const isBudgetExhaustion = floorMr.status === 'budget-uncited'
+          const exhaustedBudgetDetail = !exhaustedDiag && isBudgetExhaustion
+            ? { detail: 'budget-uncited: a prompt-surface budget ceiling raise still lacks its Budget-Raise trailer after ' + r.task.fixRounds + ' fix round(s)' } : {}
+          escalated.push({ task: r.task.id, reason: isBudgetExhaustion ? 'escalate' : floorMr.status, fixRounds: r.task.fixRounds, ...(exhaustedDiag ? { detail: exhaustedDiag } : exhaustedBudgetDetail), ...(exhaustedDoneWhenLog ? { done_when_log_path: exhaustedDoneWhenLog } : {}) })
+          auditLog.push({ task: r.task.id, verdict: `${floorMr.status}:exhausted`, fixRounds: r.task.fixRounds, findings: [], ...(exhaustedDiag ? { detail: exhaustedDiag } : exhaustedBudgetDetail), ...(exhaustedDoneWhenLog ? { done_when_log_path: exhaustedDoneWhenLog } : {}) })
           continue
         }
 
@@ -1977,6 +2221,11 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             + gateCaptureClause(refineryPath, r.task.id)
             + pt`  (c) On a fully green gate, MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), git merge ${r.task.branch}, push, return { mode: 'merge-task', status: 'merged', integration_sha: <tip> } — populate integration_sha with the rebased integration tip the gate ran against, so the gate-audit pass can confirm the gate ran at the integration tip.`
             + pt` Before the merge, run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${r.task.branch}${r.task.taskType === 'gitlink-bump' && r.task.declared ? ' --declared' : ''} (exit 1 → submodule-blocked; exit 2 → error).`
+            // ponytail: routedMr is deliberately NOT applied to ep — the un-normalized 'no-test' IS a
+            // HARD_ESCALATION_REASONS member here, while the normalized 'budget-uncited' is not;
+            // normalizing would flip this hold from HARD to SOFT (the submodule-blocked explicit-arm
+            // precedent above).
+            + pt` Also run assert-budget-raise-cited.sh ${ph.integrationBranch} ${r.task.branch} (ALWAYS; exit 1 → return { mode: 'merge-task', status: 'no-test', floor_route: 'budget-uncited' } — the in-band budget-uncited route, trailer form \`Budget-Raise: ADR-0042 <surface> +<bytes>\`; exit 2 → status: 'error', never the budget-uncited route).`
             + (requiresTest
               ? pt` Also run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${testPatternArg} (exit 1 → no-test; exit 2 → error; exit 0 → capture the script's stdout — ALL matched test paths, one per line — into mappedTests on the returned MergeResult). On that exit 1 path ONLY, ALSO capture the script's stderr VERBATIM (the near-miss diagnostic) into floor_diagnostic alongside status:'no-test' — never edited, never summarised; empty/absent stderr ⇒ omit floor_diagnostic. It is fail-open advisory context, never a routing input.`
               : pt` requiresTest:false — skip the assert-test-in-diff.sh check.`)
@@ -2006,6 +2255,11 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
             + pt`  (b) Run the gate (${plan.gate}) with a fresh TMPDIR (TMPDIR=$(cd / && mktemp -d)); PROCEED over EXACTLY those pre-existing baseline failures and populate gate_output UNCURATED. A NEW failure whose identifiers are NOT in that pre-existing set is a real regression → return { mode: 'merge-task', status: 'gate_failed' } classifying the NEW failure, and do NOT merge.\n`
             + pt`  (c) If the ONLY failures are the pre-existing baseline set, MERGE in _refinery: cd ${refineryPath} (on ${ph.integrationBranch}), git merge ${r.task.branch}, push, return { mode: 'merge-task', status: 'merged', integration_sha: <tip> }.`
             + pt` Before the merge, run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${r.task.branch}${r.task.taskType === 'gitlink-bump' && r.task.declared ? ' --declared' : ''} (exit 1 → submodule-blocked; exit 2 → error).`
+            // ponytail: routedMr is deliberately NOT applied to bp — the un-normalized 'no-test' IS a
+            // HARD_ESCALATION_REASONS member here, while the normalized 'budget-uncited' is not;
+            // normalizing would flip this hold from HARD to SOFT (the submodule-blocked explicit-arm
+            // precedent above).
+            + pt` Also run assert-budget-raise-cited.sh ${ph.integrationBranch} ${r.task.branch} (ALWAYS; exit 1 → return { mode: 'merge-task', status: 'no-test', floor_route: 'budget-uncited' } — the in-band budget-uncited route, trailer form \`Budget-Raise: ADR-0042 <surface> +<bytes>\`; exit 2 → status: 'error', never the budget-uncited route).`
             + (requiresTest
               ? pt` Also run assert-test-in-diff.sh ${ph.integrationBranch} ${r.task.branch}${testPatternArg} (exit 1 → no-test; exit 2 → error; exit 0 → capture the script's stdout — ALL matched test paths, one per line — into mappedTests on the returned MergeResult). On that exit 1 path ONLY, ALSO capture the script's stderr VERBATIM (the near-miss diagnostic) into floor_diagnostic alongside status:'no-test' — never edited, never summarised; empty/absent stderr ⇒ omit floor_diagnostic. It is fail-open advisory context, never a routing input.`
               : pt` requiresTest:false — skip the assert-test-in-diff.sh check.`)
@@ -2093,6 +2347,31 @@ const endStateCheckRows = endStateRows
   .map((r, i) => ({ n: i + 1, check: r.check }))
   .filter(r => r.check)
 if (endStateCheckRows.length > 0) {
+  // Quoting-agnostic .cmd transport (A3, endstate-artifact-fidelity Task 4.1): each check literal is
+  // threaded to the refiner inside a FENCED block whose fence length EXCEEDS the longest backtick run
+  // inside the literal (min 3) — content backticks can never read as the fence, and the refiner COPIES
+  // bytes between the fences instead of re-quoting (re-quoting was the 'bad substitution' bug: a
+  // single-quoted ${...} plan literal re-emitted double-quoted dies in bash parameter expansion).
+  // Intake lint (loud, never a silent half-run): a literal the fenced byte transport cannot carry
+  // faithfully — empty/whitespace-only, or containing control bytes other than newline/tab (e.g. a
+  // bare \r) — is marked unsupported AT DISPATCH: log()ged here, and its prompt row directs an
+  // artifact recording the lint verdict INSTEAD of execution. Everything bash-runnable (compound,
+  // pipeline, multi-command, multi-line) is supported: the .cmd file executes as a whole.
+  // BACKTICK is built via charCode 96 — a raw backtick in a regex literal here desyncs the #931
+  // census scanner and the budget suite's pinned extraction (neither models regex literals).
+  const BACKTICK = String.fromCharCode(96)
+  for (const r of endStateCheckRows) {
+    let longestRun = 0
+    for (let run = 0, i = 0; i < r.check.length; i++) {
+      run = r.check[i] === BACKTICK ? run + 1 : 0
+      if (run > longestRun) longestRun = run
+    }
+    r.fence = BACKTICK.repeat(Math.max(3, longestRun + 1))
+    r.unsupported = !r.check.trim() ? 'empty/whitespace-only check literal'
+      : /[\u0000-\u0008\u000B-\u001F\u007F]/.test(r.check) ? 'control bytes (other than newline/tab) in the check literal'
+      : null
+    if (r.unsupported) log(`endstate-check intake-lint: condition ${r.n}'s check literal is UNSUPPORTED by the .cmd transport (${r.unsupported}) — the row is dispatched as record-only: its artifact records the lint verdict, the command is never half-run.`)
+  }
   // provision-before-checks (#1395 fix 2): the run.provision steps provisioned the TASK worktrees,
   // never _refinery — so a check needing that environment (installed deps, a built venv) reds
   // ENVIRONMENTALLY at the land barrier and the seats then read a MET condition as red. The
@@ -2117,10 +2396,14 @@ if (endStateCheckRows.length > 0) {
     + pt`Execute EVERY claimed check:-tagged End-state condition's command below ONCE at this tip. Do NOT merge, push, rebase, or edit tracked files — the gate-audit seats verify from the artifacts you tee (they are read-only and never run commands, ADR 0002).\n`
     + pt`First ensure .war/ is git-excluded inside _refinery — append the line \`.war/\` (once) to the path printed by \`git -C ${refineryPath} rev-parse --git-path info/exclude\`.\n`
     + endstateProvisionClause
-    + pt`For EACH condition row below: write the command BYTE-VERBATIM to its .cmd file and execute it FROM THE FILE (file-threaded — never interpolate it into another script; A3/D11 hygiene), under a timeout, teeing its FULL stdout+stderr to its .log artifact. STAMP each artifact with the tip SHA it ran at: the FIRST line is \`tip_sha: <output of git -C ${refineryPath} rev-parse HEAD>\`, then the command's captured output, then a final \`exit_code: <code>\` line. The tip_sha stamp is LOAD-BEARING: the seats compare it against the confirmed tip and attest a stale (mismatched) artifact 'unverified'. A red, hung, or timed-out command still gets its artifact (whatever it produced, plus its exit/timeout note) — record it and MOVE ON to the next condition; a failing check NEVER fails this dispatch.\n`
+    + pt`For EACH condition row below, its check literal rides in a FENCED block: the fence is the row's own line of backticks, whose length was chosen to EXCEED every backtick run inside the literal — a backtick run INSIDE the content is NEVER the fence; only the exact fence line opens and closes the block. Write the bytes BETWEEN the fence lines BYTE-VERBATIM to the row's .cmd file: copy bytes — never re-quote, never re-escape, never substitute (a single-quoted \${...} run is literal bytes and must survive exactly). VERIFY before executing: re-read the written .cmd and compare it byte-for-byte against the fenced literal; on ANY mismatch record a \`cmd_bytes_mismatch: written .cmd bytes != declared check literal\` line in the artifact (after the tip_sha line), do NOT execute any re-quoted/corrected variant, and MOVE ON — the row fails LOUDLY via its artifact, never silently. Then execute the file AS A WHOLE, FROM THE FILE (file-threaded — e.g. \`bash <cmd-file>\`; never interpolate its content into another script; A3/D11 hygiene), under a timeout, teeing the FULL stdout+stderr of the ENTIRE command line to its .log artifact — a compound/pipeline/multi-command check runs END-TO-END with every command's output captured, never a half-run. STAMP each artifact with the tip SHA it ran at: the FIRST line is \`tip_sha: <output of git -C ${refineryPath} rev-parse HEAD>\`, then the command's captured output, then a final \`exit_code: <code>\` line. The tip_sha stamp is LOAD-BEARING: the seats compare it against the confirmed tip and attest a stale (mismatched) artifact 'unverified'. A red, hung, or timed-out command still gets its artifact (whatever it produced, plus its exit/timeout note) — record it and MOVE ON to the next condition; a failing check NEVER fails this dispatch. A row marked INTAKE-LINTED UNSUPPORTED below is record-only: do NOT execute it — write its artifact exactly as its row directs (the lint verdict recorded, never a half-run).\n`
     // pt-tagged prompt-feeding row builder (endstate-check dispatch, top-level-catch): r.n is a derived
-    // map index (always defined), r.check is filter-guaranteed non-empty.
-    + endStateCheckRows.map(r => pt`  - ${r.n} · cmd-file: ${refineryPath}/.war/endstate-${ph.id}-${r.n}.cmd · artifact: ${refineryPath}/.war/endstate-${ph.id}-${r.n}.log · command: ${r.check}`).join('\n') + '\n'
+    // map index (always defined), r.check is filter-guaranteed non-empty, r.fence/r.unsupported are
+    // stamped by the intake-lint loop above (fence always defined; unsupported null when clean).
+    + endStateCheckRows.map(r => r.unsupported
+      ? pt`  - ${r.n} · cmd-file: ${refineryPath}/.war/endstate-${ph.id}-${r.n}.cmd · artifact: ${refineryPath}/.war/endstate-${ph.id}-${r.n}.log · INTAKE-LINTED UNSUPPORTED (${r.unsupported}): record-only — write the artifact with its tip_sha first line, then \`intake_lint: unsupported check literal (${r.unsupported}) — row not executed\`, then \`exit_code: unsupported\`; never execute or repair the literal.`
+      : pt`  - ${r.n} · cmd-file: ${refineryPath}/.war/endstate-${ph.id}-${r.n}.cmd · artifact: ${refineryPath}/.war/endstate-${ph.id}-${r.n}.log · check literal (the .cmd bytes) fenced below:\n${r.fence}\n${r.check}\n${r.fence}`
+    ).join('\n') + '\n'
     + pt`Return { artifacts: [{ n, path, tip_sha, exit_code }] } — one row per condition. On any failure return what you have — a partial/empty result is FAIL-OPEN (the seats read the teed artifacts at the enumerated paths and attest anything unreadable — or stale, its stamped tip_sha mismatching the confirmed tip — 'unverified', never 'met'); never block.`,
     { agentType: NS + 'war-refiner', phase: 'Refine', label: `endstate-check:phase-${ph.id}`, dispatchKind: 'endstate-check', schema: ENDSTATE_CHECK_RESULT, ...spawn('refiner') })
 }
@@ -2209,7 +2492,7 @@ if (mergedTasksForGateAudit.length > 0) {
   // under BENIGN-ADVANCE the observed tip legitimately differs from gateHeadSha, so checking
   // seat-vs-gateHeadSha would demote exactly the benign case. Absent (evidence dispatch failed/produced no
   // token) ⇒ fall back to gateHeadSha (fail-open — today's behavior).
-  await parallel(mergedTasksForGateAudit.map(({ taskId, gateOutput, acceptanceCriteria, gateHeadSha, observedHead, gateLogPath, pinStatus, pinEvidence, guardSpecificity, guardEvidence, mappedTests, claimedEndStateIds, baselineDebt: taskDebt }) => async () => {
+  await batched(mergedTasksForGateAudit.map(({ taskId, gateOutput, acceptanceCriteria, gateHeadSha, observedHead, gateLogPath, pinStatus, pinEvidence, guardSpecificity, guardEvidence, mappedTests, claimedEndStateIds, baselineDebt: taskDebt }) => async () => {
     // Baseline-debt line (spec §6 / ADR 0019): a baseline-merged task carries its classified failing
     // identifiers so a pre-existing base failure in the gate output is NOT read as a provably-unrun
     // mapped test (which would fake a HARD hold). Empty/absent debt ⇒ '' ⇒ byte-identical prompt.
@@ -2308,12 +2591,32 @@ if (mergedTasksForGateAudit.length > 0) {
         // the handoff derivation consumes them (a pin-mismatched entry's rows are EXCLUDED there: the
         // seat judged a different tree, so its conditions fall to 'unverified', never a silent 'met').
         ...(Array.isArray(gateAuditVerdict.endStateAttestations) ? { endStateAttestations: gateAuditVerdict.endStateAttestations } : {}) })
+      // #1692 (gate-audit-family ask routing, Phase 5 Task 1): this lane's Minor/Nit findings are a
+      // DELIBERATE non-filing sink — SOFT auditLog-only observations (comment-named, the pinMismatch
+      // strip's census idiom; they never enter minorsFiled or the filing dispatch) — EXCEPT a
+      // disposition:'ask', which is an operator question and must park on asks[] (#1550, exactly-once
+      // via parkAsk), never sink. The identity check IS dispositionOf's ask arm verbatim ('ask' is
+      // NEVER defaulted, so the classifier returns 'ask' iff f.disposition === 'ask'); the literal
+      // dispositionOf call is withheld on purpose — this lane has no absorb chain, so it cannot take
+      // the six-site order-census shape and census-registers as a comment-named sink instead. A
+      // pin-mismatched seat's ask never parks (same doctrine as the pinMismatch strip: a question
+      // raised against a different tree than the judged tip is not a ruling-worthy fork). Cross-lane
+      // content dedup is ARM-LOCAL (parkAsk's identity contract untouched): a gate-audit seat
+      // re-raising a question a roster seat already parked on the same task is one operator ruling,
+      // not two records — the dedup key mirrors parkAsk's own question derivation.
+      if (!mismatch) for (const f of findings) {
+        if ((f.severity === 'Minor' || f.severity === 'Nit') && f.disposition === 'ask') {
+          const q = (f.ask && f.ask.question) || f.title || '(question unrecorded)'
+          if (!asks.some(a => a.task === taskId && a.question === q))
+            parkAsk({ task: taskId, seat: 'gate-audit:' + taskId + ':execution-evidence', sha: auditShaOrSentinel(gateAuditVerdict.audit_sha), ...f })
+        }
+      }
       if (isHardGateEvidence) {
         // HARD: a provably-unrun mapped test OR a finding-less escalate → push gate-evidence to escalated so the land is held.
         escalated.push({ task: taskId, reason: 'gate-evidence', detail: gateAuditVerdict })
       }
     }
-  }))
+  }), maxParallel)
   // ---- D4 — authoritative integrated-tip seat (intra-phase same-repo dep phase only) ----
   // On an intra-dep phase the evidence dispatch re-ran the FULL gate at the final integration tip; that
   // captured output is LAND-AUTHORITATIVE over the per-branch gates for the dep-crossing tasks (their
@@ -2374,6 +2677,16 @@ if (mergedTasksForGateAudit.length > 0) {
       auditLog.push({ task: `phase-${ph.id}-integrated-tip`, verdict: `gate-audit:${authVerdict.verdict}`, findings, gateEvidence: true, hard: isHard, authoritative: true, auditSha: authVerdict.audit_sha,
         // endStateAttestations (D8, Task 3.2) — no pin demotion on this seat (it judges the CONFIRMED final tip).
         ...(Array.isArray(authVerdict.endStateAttestations) ? { endStateAttestations: authVerdict.endStateAttestations } : {}) })
+      // #1692 (gate-audit-family ask routing): same comment-named sink as the per-task seat above —
+      // Minor/Nit stay auditLog-only EXCEPT a disposition:'ask', which parks (never-defaulted identity
+      // check = dispositionOf's ask arm; no absorb chain here, so no dispositionOf call site in the census).
+      for (const f of findings) {
+        if ((f.severity === 'Minor' || f.severity === 'Nit') && f.disposition === 'ask') {
+          const q = (f.ask && f.ask.question) || f.title || '(question unrecorded)'
+          if (!asks.some(a => a.task === 'phase-' + ph.id + '-integrated-tip' && a.question === q))
+            parkAsk({ task: 'phase-' + ph.id + '-integrated-tip', seat: 'gate-audit:phase-' + ph.id + ':integrated-tip', sha: auditShaOrSentinel(authVerdict.audit_sha), ...f })
+        }
+      }
       if (isHard) escalated.push({ task: `phase-${ph.id}-integrated-tip`, reason: 'gate-evidence', detail: authVerdict })
     }
   }
@@ -2407,6 +2720,16 @@ if (mergedTasksForGateAudit.length > 0) {
       // endStateAttestations (D8, Task 3.2) — this seat consumes the land-barrier artifacts too (the
       // requiresTest:false-only arm); no pin demotion (its prompt already SOFT-downgrades an unconfirmed tip).
       ...(Array.isArray(esVerdict.endStateAttestations) ? { endStateAttestations: esVerdict.endStateAttestations } : {}) })
+    // #1692 (gate-audit-family ask routing): same comment-named sink as the two seats above — Minor/Nit
+    // stay auditLog-only EXCEPT a disposition:'ask', which parks (never-defaulted identity check =
+    // dispositionOf's ask arm; no absorb chain here, so no dispositionOf call site in the census).
+    for (const f of findings) {
+      if ((f.severity === 'Minor' || f.severity === 'Nit') && f.disposition === 'ask') {
+        const q = (f.ask && f.ask.question) || f.title || '(question unrecorded)'
+        if (!asks.some(a => a.task === 'phase-' + ph.id + '-end-state' && a.question === q))
+          parkAsk({ task: 'phase-' + ph.id + '-end-state', seat: 'gate-audit:phase-' + ph.id + ':end-state', sha: auditShaOrSentinel(esVerdict.audit_sha), ...f })
+      }
+    }
     if (isHard) escalated.push({ task: `phase-${ph.id}-end-state`, reason: 'gate-evidence', detail: esVerdict })
   }
 }
@@ -2461,6 +2784,13 @@ const refineryLandPath = `${worktreeRoot || '<worktreeRoot>'}/${runId || '<runId
 // DISCARDS and the pre-polish tip lands exactly as it would have (a discarded sweep recomputes
 // NOTHING). Gated on a would-land phase with a non-empty phaseCloseQueue. NO owned-refs
 // registration (Open decision 4) — bookkeeping is a Lead-side ledger entry + the handoff block.
+// Drain-cause stamp (Phase 6 Task 1 (d)): when a phase-close DISPATCH DIES (polish-worktree
+// provision or the sweep worker — a tagged env-died throw, or a dead dispatch returning nothing),
+// every finding the resulting drain demotes carries WHICH dispatch died and WHY it was demoted — an
+// in-band field on the finding row (rides minorsFiled and the escalation records; the field name is
+// mechanism latitude), replacing the flat untriaged dump. Ordinary non-death drains (held phase,
+// invalid roster, panel non-approval) stay unstamped — they were never "a dispatch died".
+const stampDrainCause = (f, dispatch, why) => { f.drainCause = { dispatch, why }; return f }
 let polishStatus = 'skipped'
 if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
   // Demotion arm (ADR 0013): a held phase never dispatches the sweep — drain the queue.
@@ -2487,23 +2817,50 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
     // 1. Provision the polish worktree at the POST-MERGE integrated tip via the existing ensure-worktree.
     // provision mode (agents/war-refiner.md ## provision): phase-close polish worktree — env-outcome return.
     // dispatchKind: 'polish-worktree' (stable discriminator — keyed by mocks/handlers, not the label prefix).
-    const polishProv = await agent(
+    // dispatchAgent + catch (Phase 6 Task 1 (c)): a POST-SPAWN harness death of this dispatch classifies
+    // env-died SOFT — the sweep is fail-open, so the death falls into the existing not-ok skip-and-drain
+    // arm below (polishProv null), with the drain cause stamped on each demoted finding (d). A non-infra
+    // throw rethrows into the top-level catch → held:workflow-error, exactly as before.
+    let polishProv = null
+    let polishProvDeath = null
+    try {
+    polishProv = await dispatchAgent(
       pt`Provision the phase-close POLISH worktree for WAR phase ${ph.id} by running provision-worktrees.sh. Do NOT free-author git; run exactly:\n`
       + pt`  provision-worktrees.sh ensure-worktree ${polishWorktree} ${polishBranch} "$(git -C ${refineryLandPath} rev-parse ${ph.integrationBranch})"\n`
       + pt`— the polish worktree is cut at the POST-MERGE integrated tip (idempotent; reuse if present). Return the env-outcome JSON: \`{ ok: true }\` when the ensure-worktree subcommand exits 0; on a non-zero exit return \`{ ok: false, failedCommand: "<the exact subcommand line>", exitCode: <code>, stderrTail: "<tail of its stderr>" }\`.`,
       { agentType: NS + 'war-refiner', phase: 'Refine', label: `polish-worktree:phase-${ph.id}`, dispatchKind: 'polish-worktree', schema: ENV_OUTCOME, ...spawn('refiner') })
+    } catch (err) {
+      const c = infraDeathCause(err)
+      if (!c) throw err
+      polishProvDeath = 'polish-worktree:phase-' + ph.id + ' provision dispatch died post-spawn (env-died): ' + c
+      log('phase-close sweep: ' + polishProvDeath + ' — an environment event; fail-open, the not-ok drain arm below handles it.')
+    }
     if (!polishProv || polishProv.ok !== true) {
       // Fail-open, never a hold (B/C): the polish worktree provisioning failed — skip the sweep
       // worker/panel/merge entirely and drain the queue to follow-up, exactly mirroring the
       // invalid-roster arm above. polishStatus stays 'skipped'; the pre-polish tip lands unchanged.
-      log(`phase-close sweep: the polish worktree provisioning returned no env-outcome ok (${(polishProv && polishProv.stderrTail) || 'no result'}) — sweep skipped; draining the queue to follow-up.`)
-      for (const f of phaseCloseQueue.splice(0)) demote(f, 'follow-up', 'sweep skipped — the polish worktree provisioning did not return { ok: true }')
+      // Dispatch-death drains (env-died throw OR a dead dispatch returning nothing) stamp the drain
+      // cause on each demoted finding (d); a returned-but-not-ok env-outcome stays unstamped.
+      const provDrainCause = polishProvDeath || (!polishProv ? 'polish-worktree:phase-' + ph.id + ' provision dispatch died (returned no result)' : null)
+      log(`phase-close sweep: the polish worktree provisioning returned no env-outcome ok (${(polishProv && polishProv.stderrTail) || polishProvDeath || 'no result'}) — sweep skipped; draining the queue to follow-up.`)
+      for (const f of phaseCloseQueue.splice(0)) {
+        if (provDrainCause) stampDrainCause(f, 'polish-worktree:phase-' + ph.id, provDrainCause)
+        demote(f, 'follow-up', provDrainCause || 'sweep skipped — the polish worktree provisioning did not return { ok: true }')
+      }
     } else {
     // 2. ONE war-worker dispatch: the queued findings VERBATIM + the intent + the merged tasks' plan slices.
     // pt-tagged prompt-feeding row builder (sweep prompt, top-level-catch, fail-open polish): t.id entry-validated
-    // (bare); ${t.planSlice ?? …} absence-tolerant — a cosmetic missing slice must never phase-kill (Q17/ADR 0034).
+    // (bare); ${t.planSlice ?? …} absence-tolerant (Q17/ADR 0034) — since D5's entry-validation
+    // TASK-FIELD class refuses a missing planSlice at intake, this fallback is defense-in-depth only.
     const mergedSlices = tasks.filter(t => succeeded.has(t.id)).map(t => pt`- ${t.id}: ${t.planSlice ?? '(no slice)'}`).join('\n')
-    const sweep = await agent(
+    // dispatchAgent + catch (Phase 6 Task 1 (c)): a POST-SPAWN harness death of the sweep dispatch
+    // classifies env-died SOFT — sweep stays null, so blockedReason() routes the existing fail-open
+    // DISCARD arm (sweepWhy), with the drain cause stamped on each demoted finding (d). A non-infra
+    // throw rethrows into the top-level catch → held:workflow-error, exactly as before.
+    let sweep = null
+    let sweepDeath = null
+    try {
+    sweep = await dispatchAgent(
       pt`PHASE-CLOSE COHERENCE SWEEP for WAR phase ${ph.id} "${ph.title}". Work in the ALREADY-PROVISIONED polish worktree at ${polishWorktree} (branch ${polishBranch}, cut at the post-merge integrated tip of ${ph.integrationBranch}) — do NOT create it yourself and do NOT set any worktree env var; cd there.\n`
       + intentClause
       + pt`Fix ONLY the queued findings below — NO ad-hoc seam hunting (the bounded, enumerated scope is what makes discard-on-reject a sufficient guard), NEVER touch version/release-slot literals, make EXACTLY ONE commit whose message cites each finding's title, keep the gate (${plan.gate}) green, and push ${polishBranch}.\n`
@@ -2519,8 +2876,14 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
       // tier-aware via spawnWorker('fix'); this one intentionally is not. The only other non-tiered base
       // spawn is the fallback inside spawnWorker itself — the tier resolver, definitionally correct.)
       { agentType: NS + 'war-worker', phase: 'Work', label: `polish:phase-${ph.id}`, schema: WORKER_RESULT, ...spawn('worker') })
+    } catch (err) {
+      const c = infraDeathCause(err)
+      if (!c) throw err
+      sweepDeath = 'polish:phase-' + ph.id + ' sweep dispatch died post-spawn (env-died): ' + c
+      log('phase-close sweep: ' + sweepDeath + ' — an environment event; fail-open, the DISCARD arm below handles it.')
+    }
     // 3. Full auditRound panel re-audit at the polish SHA — same unanimity rules as any task.
-    const sweepWhy = blockedReason(sweep)
+    const sweepWhy = sweepDeath || blockedReason(sweep)
     let sweepApproved = false
     // Sweep-raised finding routing (D1/D2, #1377): the re-audit panel's Minor/Nit findings, hoisted
     // out of the `if (!sweepWhy)` block (pSeats is block-scoped there) so BOTH terminal arms below
@@ -2551,8 +2914,9 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
         + reattachClause(refineryLandPath)
         + pt`  (a) REBASE in the POLISH worktree: git -C ${polishWorktree} rebase ${ph.integrationBranch} (the branch was cut at the integrated tip, so this is normally a no-op).\n`
         + pt`  (b) MERGE in _refinery: cd ${refineryLandPath} (on ${ph.integrationBranch}), then git merge ${polishBranch} (fast-forward merge). Push.\n`
-        + pt`Run the gate (${plan.gate}) after the rebase in the polish worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)). The polish commit is a coherence sweep, not a mapped-test task — skip assert-test-in-diff.sh AND skip the packaging floor assert-packaging-in-diff.sh AND skip the done-when floor assert-done-when.sh: those three are task-field-gated and a coherence sweep has no task fields to consult. The submodule floor is NOT among the skips — it is unconditional, consults no task fields, and still runs (invocation below). This sweep is class-exempt — on gate failure return gate_failed (no classification); the Workflow fail-open DISCARDS. On conflict return conflict; never force.`
-        + pt` Before the _refinery merge step (b), run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${polishBranch} — always BARE: a coherence sweep is never a declared gitlink bump, so the relax-flag is never threaded here. Exit 1 → return { mode: 'merge-task', status: 'submodule-blocked' }, do NOT merge; exit 2 → return { mode: 'merge-task', status: 'error' }.`,
+        + pt`Run the gate (${plan.gate}) after the rebase in the polish worktree; run the gate with TMPDIR set to a freshly-created, .war-task-free directory (created outside any worktree — e.g. TMPDIR=$(cd / && mktemp -d)). The polish commit is a coherence sweep, not a mapped-test task — skip assert-test-in-diff.sh AND skip the packaging floor assert-packaging-in-diff.sh AND skip the done-when floor assert-done-when.sh: those three are task-field-gated and a coherence sweep has no task fields to consult. The submodule floor and the Budget-Raise floor are NOT among the skips — both are unconditional, consult no task fields, and still run (invocations below). This sweep is class-exempt — on gate failure return gate_failed (no classification); the Workflow fail-open DISCARDS. On conflict return conflict; never force.`
+        + pt` Before the _refinery merge step (b), run assert-no-submodule-mutation.sh ${ph.integrationBranch} ${polishBranch} — always BARE: a coherence sweep is never a declared gitlink bump, so the relax-flag is never threaded here. Exit 1 → return { mode: 'merge-task', status: 'submodule-blocked' }, do NOT merge; exit 2 → return { mode: 'merge-task', status: 'error' }.`
+        + pt` Also run assert-budget-raise-cited.sh ${ph.integrationBranch} ${polishBranch} (ALWAYS — it is unconditional and consults no task fields; exit 1 → return { mode: 'merge-task', status: 'no-test', floor_route: 'budget-uncited' }, do NOT merge — the Workflow fail-open DISCARDS the sweep; exit 2 → return { mode: 'merge-task', status: 'error' }).`,
         { agentType: NS + 'war-refiner', phase: 'Refine', label: `merge:p${ph.id}-polish`, schema: MERGE_RESULT, ...spawn('refiner') })
     }
     if (sweepApproved && pmr && pmr.status === 'merged') {
@@ -2577,7 +2941,13 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
       polishStatus = 'discarded'
       log(`phase-close sweep DISCARDED (${sweepWhy || (sweepApproved ? `polish merge returned ${pmr && pmr.status || 'no result'}` : 'the panel did not re-approve')}) — polish branch ${polishBranch} and worktree ${polishWorktree} left in place; queue demotes to follow-up.`)
       auditLog.push({ task: polishTask.id, verdict: 'polish-discarded', branch: polishBranch, findings: [], blocked: sweepWhy || null })
-      for (const f of phaseCloseQueue.splice(0)) demote(f, 'follow-up', 'phase-close sweep discarded — the polish branch never merged; the pre-polish tip lands')
+      // Dispatch-death drains stamp the drain cause (d): the env-died throw (sweepDeath) or a dead
+      // dispatch that returned nothing; a live sweep discarded on panel/merge grounds stays unstamped.
+      const sweepDrainCause = sweepDeath || (!sweep ? 'polish:phase-' + ph.id + ' sweep dispatch died (returned no result)' : null)
+      for (const f of phaseCloseQueue.splice(0)) {
+        if (sweepDrainCause) stampDrainCause(f, 'polish:phase-' + ph.id, sweepDrainCause)
+        demote(f, 'follow-up', sweepDrainCause ? sweepDrainCause + ' — the polish branch never merged; the pre-polish tip lands' : 'phase-close sweep discarded — the polish branch never merged; the pre-polish tip lands')
+      }
       // Discard-arm routing (#1377): sweep-raised Minor/Nits route through the same ladder — an
       // absorb demotes because the polish branch never merged (nothing to absorb into). A blocked
       // sweep (sweepWhy) reaches here with NO panel convened, so sweepMinors is empty — vacuous.
@@ -2614,7 +2984,13 @@ if (landDecision === 'landed') {
       + pt`For the submodule land: attempt 2A — push-first CAS land-advance INSIDE ${submodLandTask.targetRepo} against ${submodLandTask.targetBase || '<targetBase>'}. `
       + pt`If the submodule is not WAR-owned or 2A is unavailable, open a PR on the submodule remote and return { mode: "land-phase", status: "submodule-pr", pr_number: <n>, pr_remote: "<remote>" } (2B PR-and-hold).`
     : ''
-  landResult = await agent(
+  // Segmented-land marker instruction (Phase 6 Task 1 (a), A6 REVISED): an IN-BAND field riding the
+  // existing 'error' status (the floor_route precedent) — never a new MERGE_RESULT status member or
+  // KNOWN_LAND_DECISIONS member (land-decision.mjs untouched, ADR 0005). The bounded re-dispatch loop
+  // below follows the FLOOR_STATUSES retry-loop idiom (the merge-task floor sub-loop's shape).
+  const segmentedLandClause =
+    pt`\nSEGMENTED LAND (tool-timeout survival): if you are FORCED to return before the land completes — e.g. the gate run outruns your tool timeout mid-step — do NOT classify the partial run (an interrupted gate is INCOMPLETE, not gate_failed): return { mode: 'land-phase', status: 'error', land_segment: 'incomplete', segment_note: '<the step you reached>' }. The land_segment marker rides the existing 'error' status — never a new status member — and the Workflow re-dispatches this land to run to completion; every step above is idempotent (re-detach, re-merge, re-gate), so a continuation is always safe.`
+  const landPrompt =
     pt`Land WAR phase ${ph.id}: merge ${ph.integrationBranch} into ${ph.workingBranch} with --no-ff (one phase commit). mode=land-phase.\n`
     + pt`Perform the land entirely inside the _refinery worktree at ${refineryLandPath} (spec §5.3, push-first CAS):\n`
     + reattachClause(refineryLandPath)
@@ -2631,8 +3007,30 @@ if (landDecision === 'landed') {
     + relandDiscrimination(ph.workingBranch)
     + pt`     - On escalate exit code from land-advance (any non-rejection push error): return { mode: 'land-phase', status: 'error' }.\n`
     + pt`Never use --force push. Never merge or push from the Lead's main checkout.`
-    + submodLandNote,
+    + submodLandNote
+    + segmentedLandClause
+  landResult = await agent(landPrompt,
     { agentType: NS + 'war-refiner', phase: 'Land', label: `land:phase-${ph.id}`, schema: MERGE_RESULT, ...spawn('refiner') })
+  // ---- SEGMENTED-LAND BOUNDED RE-DISPATCH (Phase 6 Task 1 (a), A6 REVISED) ----
+  // The land dispatch survives a gate outrunning the tool timeout via the in-band
+  // land_segment:'incomplete' marker on the land-phase result. Re-dispatch while the marker persists,
+  // bounded by roundLimit (the FLOOR_STATUSES retry-loop idiom — the land dispatch had no retry loop
+  // before this; new wiring following that existing shape). Exhaustion falls through to the routing
+  // chain below, where the final still-incomplete result routes by its RIDDEN status ('error' →
+  // held:land-failed — the Lead re-runs the land per SKILL.md §4.3). Log lines are
+  // concatenation-built (census-safe).
+  let landSegments = 0
+  while (landResult && landResult.land_segment === 'incomplete' && landSegments < roundLimit) {
+    landSegments++
+    log('Phase ' + ph.id + ': segmented land — the land dispatch returned the in-band land_segment:\'incomplete\' marker (' + (typeof landResult.segment_note === 'string' && landResult.segment_note ? landResult.segment_note : 'no segment note') + '); re-dispatching the land to run to completion (segment ' + (landSegments + 1) + ', bounded by roundLimit ' + roundLimit + ').')
+    landResult = await agent(
+      pt`SEGMENTED-LAND CONTINUATION for WAR phase ${ph.id}: a prior land dispatch returned mid-land with land_segment: 'incomplete' (its gate outran the tool timeout). Every step below is idempotent — a merge already performed re-resolves clean, a green gate re-runs green — so run the FULL sequence to completion.\n` + landPrompt,
+      // label is concatenation-built (census-safe — #931): the registry lives in Task 2's file.
+      { agentType: NS + 'war-refiner', phase: 'Land', label: 'land:phase-' + ph.id + ':segment-' + (landSegments + 1), schema: MERGE_RESULT, ...spawn('refiner') })
+  }
+  if (landResult && landResult.land_segment === 'incomplete') {
+    log('Phase ' + ph.id + ': segmented-land budget exhausted after ' + roundLimit + ' re-dispatch(es) — the final still-incomplete result routes by its ridden status below (error → held:land-failed; the Lead re-runs the land).')
+  }
   // 2B submodule PR-and-hold: the refiner opened a PR on the submodule remote and returned
   // status:'submodule-pr'. Return held:submodule-pr DIRECTLY — like held:workflow-error, this
   // bypasses decideLand/HARD_ESCALATION_REASONS. The PR ref is captured for the Lead's gh-resume.
@@ -2832,7 +3230,10 @@ if (landResult && landResult.status === 'landed' && memoryLocalRoot) {
 // findings. Consumes minorsFiled ONLY — parked asks[] records are structurally excluded from this
 // consolidation and this filing dispatch (#1550: an unruled ask is NEVER filed; ruled asks file
 // Lead-side at the Checkpoint with filing parity). Fires on BOTH handoff-emitting paths (landed AND
-// held:escalation), only when minorsFiled is non-empty; placed AFTER the land decision resolves and BEFORE the handoff assembly so the
+// held:escalation) AND on held:land-failed (Phase 6 Task 1 (b): a failed land must never silently
+// un-run the filing — merged tasks' follow-up debt exists regardless of the land outcome; no handoff
+// emits there, so the stamped issue numbers ride the top-level return's minorsFiled instead),
+// only when minorsFiled is non-empty; placed AFTER the land decision resolves and BEFORE the handoff assembly so the
 // stamped issue numbers reach the assembly's `issue: m.issue ?? null` mapping (the assembly itself
 // is byte-unchanged). Refiner-executed — the Bash-capable seat that already performs gh writes; the
 // options mirror the endstate-check dispatch idiom (D18). FAIL-OPEN (D2): a dead/thrown dispatch, a
@@ -2844,35 +3245,63 @@ if (landResult && landResult.status === 'landed' && memoryLocalRoot) {
 // (Task 2.1, #1566): minorsFiled is deterministically collapsed above before the rows render, and
 // the agent clusters the survivors by file + root cause — one issue per cluster, so several rows
 // may share one issue number (ordinal→issue stamping semantics unchanged).
-if ((landDecision === 'landed' || landDecision === 'held:escalation') && minorsFiled.length > 0) {
-  // ---- FOLLOW-UP CONSOLIDATION (Task 2.1, #1566): deterministic pre-filing collapse of minorsFiled,
-  // in place (the handoff assembly below reads the collapsed rows — cross-seat duplicates become ONE
-  // followUps entry). Key: same `file` + `line` within ±FOLLOWUP_LINE_WINDOW; normalized-title
-  // fallback ONLY when `line` is absent on both rows (a lined row never collapses into a lineless
-  // one). Fileless rows never collapse. First occurrence is the representative; merged rows carry a
-  // seats[] corroboration list (the minorsOf seat stamp; task fallback) the filing prompt renders;
-  // a non-collapsed row renders its single raising seat via seatRef (End state 9 — the lens is in
-  // hand on every row).
+// mergedRowsOf (D9's class, Phase 5 Task 1 fix round): `merged` rides minorsOf's wholesale spread
+// like any other auditor key (the finding items schema is non-strict — the AUDIT_VERDICT comment
+// records the deriver fallback), so ELEMENTS are auditor-controlled too, not just the container. An
+// element-level deref (`x.seat`) on an auditor-supplied `merged: [null]` at the consolidation log
+// line or the handoff followUps projection sits OUTSIDE the local filing try — caught only by the
+// top-level held:workflow-error catch, converting a LANDED phase and destroying the handoff. Guard
+// element shape at every read: array-normalize the container, drop non-object elements. Hoisted
+// above BOTH consumer blocks (the filing block's braces close before the handoff assembly opens).
+const mergedRowsOf = m => (Array.isArray(m.merged) ? m.merged : []).filter(x => x && typeof x === 'object')
+if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDecision === 'held:land-failed') && minorsFiled.length > 0) {
+  // ---- FOLLOW-UP CONSOLIDATION (Task 2.1, #1566; D8 seat discrimination + merged[] fidelity, Phase 5
+  // Task 1): deterministic pre-filing collapse of minorsFiled, in place (the handoff assembly below
+  // reads the collapsed rows — cross-seat duplicates become ONE followUps entry). Key: same `file` +
+  // `line` within ±FOLLOWUP_LINE_WINDOW; normalized-title fallback ONLY when `line` is absent on both
+  // rows (a lined row never collapses into a lineless one). Fileless rows never collapse, and TWO ROWS
+  // FROM THE SAME SEAT never collapse (D8 — a collapse is cross-seat corroboration; a seat repeating
+  // itself is not corroboration, so the survivor's seats[] entries are distinct by construction).
+  // First occurrence is the representative; merged rows carry a seats[] corroboration list (seatRef —
+  // seat+task, both when present) AND a merged[] sub-list preserving each merged-away row's title and
+  // rationale (rendered through the filing prompt, the issue-body instruction, handoff followUps, and
+  // the consolidation log line — nothing merges away silently); a non-collapsed row renders its single
+  // raising seat via seatRef (End state 9 — the lens is in hand on every row).
   const FOLLOWUP_LINE_WINDOW = 10
   const normTitle = t => String(t ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
   // Concatenation-built strings throughout this block (census-safe — #931).
-  const seatRef = f => f.seat ?? (f.task != null ? 'task ' + f.task : 'unattributed')
+  // seatRef (D8): seat+task when both are present; seat alone; 'task <id>' fallback; the
+  // 'unattributed' terminal arm for seatless, taskless rows is a LIVE contract the filing prompt's
+  // Evidence-artifacts clause names verbatim — any change to this arm changes that clause (and its
+  // file-followups.md mirror) in the same commit.
+  const seatRef = f => f.seat != null
+    ? (f.task != null ? f.seat + ' (task ' + f.task + ')' : f.seat)
+    : (f.task != null ? 'task ' + f.task : 'unattributed')
+  // Array.isArray (not truthiness): auditor-supplied JSON can carry a non-array `seats` key — a
+  // string would throw on .push/.includes below, and a throw here is caught only by the TOP-LEVEL
+  // held:workflow-error catch (the sole try enclosing this block), converting a LANDED phase into
+  // held:workflow-error.
+  const seatsOf = c => Array.isArray(c.seats) ? c.seats : [seatRef(c)]
   const collapsed = []
   for (const f of minorsFiled) {
-    const hit = f.file ? collapsed.find(c => c.file === f.file
+    const hit = f.file ? collapsed.find(c => !seatsOf(c).includes(seatRef(f)) && c.file === f.file
       && (Number.isFinite(c.line) && Number.isFinite(f.line)
         ? Math.abs(c.line - f.line) <= FOLLOWUP_LINE_WINDOW
         : c.line == null && f.line == null && normTitle(c.title) === normTitle(f.title))) : null
     if (hit) {
-      // Array.isArray guard (not truthiness): auditor-supplied JSON can carry a non-array `seats`
-      // key on the representative row — a string would survive `||` and throw on .push below,
-      // converting a LANDED phase into held:workflow-error (this block runs outside any try).
-      hit.seats = Array.isArray(hit.seats) ? hit.seats : [seatRef(hit)]
-      if (!hit.seats.includes(seatRef(f))) hit.seats.push(seatRef(f))
+      hit.seats = seatsOf(hit)
+      hit.seats.push(seatRef(f))
+      // merged[] (D8): the merged-away row's title and rationale survive on the representative —
+      // absence-tolerant defaults (schema-optional fields), never a throw. mergedRowsOf normalizes
+      // the container AND drops auditor-supplied non-object elements at the single write point.
+      hit.merged = mergedRowsOf(hit)
+      hit.merged.push({ seat: seatRef(f), title: f.title ?? '(untitled finding)', rationale: f.rationale ?? '(no rationale recorded)' })
     } else collapsed.push(f)
   }
   if (collapsed.length < minorsFiled.length) {
-    log('file-followups consolidation: ' + minorsFiled.length + ' follow-up rows collapsed to ' + collapsed.length + ' (file + ±' + FOLLOWUP_LINE_WINDOW + '-line window; title fallback when line absent).')
+    const mergedAway = collapsed.filter(c => mergedRowsOf(c).length)
+      .map(c => mergedRowsOf(c).map(x => '[' + (x.seat ?? '(seat unrecorded)') + '] "' + (x.title ?? '(untitled finding)') + '" — ' + (x.rationale ?? '(no rationale recorded)')).join('; ') + ' (into "' + (c.title ?? '(untitled finding)') + '")').join(' | ')
+    log('file-followups consolidation: ' + minorsFiled.length + ' follow-up rows collapsed to ' + collapsed.length + ' (file + ±' + FOLLOWUP_LINE_WINDOW + '-line window; title fallback when line absent; same-seat rows never collapse). Merged-away rows preserved on their survivors: ' + mergedAway)
     minorsFiled.splice(0, minorsFiled.length, ...collapsed)
   }
   // Agent-resolved '${CLAUDE_PLUGIN_ROOT}' literal idiom (the provision barrier's SCRIPT const
@@ -2887,13 +3316,15 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation') && minorsF
   // evidence duty, ADR 0044 amendment) — all read from the auditLog already in hand at filing time:
   // the audit round from the task's audit-verdict entry's fixRounds, the pinned sha from its
   // post-merge gate-audit entry's gateHeadSha (the engine-stamped integration tip the task's gate
-  // ran at — the landed tree that still carries the unabsorbed finding). Fail-open: a task with no
-  // matching entry (e.g. a never-merged task filing on the held:escalation path) renders
-  // 'unrecorded' — never invented, never a throw.
+  // ran at — the landed tree that still carries the unabsorbed finding). A merged requiresTest:false
+  // task has NO gate-audit entry (the D7 skip) — its pinned sha falls back to the landedShaByTask
+  // retention landMerged stamped (its real landed integration tip), so a merged task never renders
+  // 'unrecorded' (Phase 5 Task 1). Fail-open: a task with neither (e.g. a never-merged task filing
+  // on the held:escalation path) renders 'unrecorded' — never invented, never a throw.
   const auditEvidenceOf = t => {
     const v = auditLog.find(e => e && e.task === t && typeof e.fixRounds === 'number')
     const g = auditLog.find(e => e && e.task === t && e.gateEvidence && typeof e.gateHeadSha === 'string' && e.gateHeadSha)
-    return { round: v ? String(v.fixRounds) : 'unrecorded', sha: g ? g.gateHeadSha : 'unrecorded' }
+    return { round: v ? String(v.fixRounds) : 'unrecorded', sha: g ? g.gateHeadSha : (landedShaByTask.get(t) ?? 'unrecorded') }
   }
   let filingOut = null
   try {
@@ -2902,19 +3333,23 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation') && minorsF
       + pt`The follow-up-disposition audit findings below survived this phase unabsorbed; file each as a GitHub issue so nothing drops silently (ADR 0013).\n`
       + pt`FIRST the account preflight (ADR 0026): run ${PREFLIGHT} "${ghUser}" — an empty-string arg is its documented no-op (exit 0). On exit 2 (tooling error) or exit 3 (account mismatch): return what you have and file NOTHING.\n`
       + pt`THEN dedup (D3): run \`gh issue list --label war-followup --state open\` once; a row below matching an open issue (exact title, or same file + same root cause) is already filed — post this batch's finding as a corroboration comment on the existing issue, never a new issue, and reuse that existing issue number for the row.\n`
-      + pt`THEN cluster the remaining candidate rows by file + root cause (the engine already collapsed same-file line-window duplicates; each row carries its file, line, and any seats corroboration) and file ONE \`war-followup\`-labelled issue per cluster, in row order — title from the cluster's lead row; body carrying, per member row, the why-not-absorbable reason, the task id, and its seats as corroboration${ph.epicIssue ? pt`, and a reference to the phase epic #${ph.epicIssue}` : ''}.\n`
+      + pt`THEN cluster the remaining candidate rows by file + root cause (the engine already collapsed same-file line-window duplicates; each row carries its file, line, and any seats corroboration) and file ONE \`war-followup\`-labelled issue per cluster, in row order — title from the cluster's lead row; body carrying, per member row, the why-not-absorbable reason, the task id, its seats as corroboration, and — when the row carries merged corroborations — each merged-away finding's title and rationale (the engine preserved them on the surviving row; they must reach the issue body, never drop)${ph.epicIssue ? pt`, and a reference to the phase epic #${ph.epicIssue}` : ''}.\n`
       // Evidence-artifacts emission clause (Task 3.2, PIN-14, #1658): the filed issues' evidence
       // duty — values are COPIED from the candidate rows below (the engine renders them per row from
       // the auditLog via auditEvidenceOf above), never reconstructed by the filing agent.
-      + pt`EACH filed issue's body additionally ends with an \`## Evidence artifacts\` section carrying, per member row: the pinned sha (the integration tip the row's task was gate-audited at), the file path with its line when present, the raising seat lenses (from the row's seats list — every row renders one, the corroboration list on a merged row or the single raising seat otherwise; each entry's trailing \`:<lens>\` segment; a bare \`task <id>\`/'unattributed' entry verbatim), and the audit round — every value copied verbatim from the candidate rows below (\`unrecorded\` stays \`unrecorded\`, never invented). On the dedup arm, carry the same evidence lines inside the corroboration comment instead.\n`
+      + pt`EACH filed issue's body additionally ends with an \`## Evidence artifacts\` section carrying, per member row: the pinned sha (the integration tip the row's task was gate-audited at) — for a \`requiresTest:false\` task this is its landed integration tip (never gate-audited, the D7 skip) — the file path with its line when present, the raising seat lenses (from the row's seats list — every row renders one, the corroboration list on a merged row or the single raising seat otherwise; each seat entry's lens is its trailing \`:<lens>\` segment, read before any \` (task <id>)\` attribution suffix — and a trailing \`:rebut\` is a dispatch label, never the lens: take the segment before it; a bare \`task <id>\`/'unattributed' entry verbatim), and the audit round — every value copied verbatim from the candidate rows below (\`unrecorded\` stays \`unrecorded\`, never invented). On the dedup arm, carry the same evidence lines inside the corroboration comment instead.\n`
       // pt-tagged prompt-feeding row builder (file-followups dispatch): title/rationale are
       // schema-optional and task is routing-stamped → ?? defaults (never a phase-killing throw here).
       // The title span is DELIMITED (quoted, `title:`-prefixed) so the dedup instruction's
       // exact-title match keys on the finding's own title — never the whole composite row, whose
       // leading ordinal would make dedup order-dependent across a relaunch. file/line/seats render
       // per row (Task 2.1) so the agent CAN cluster by file — title/task/rationale alone made
-      // file-clustering impossible.
-      + minorsFiled.map((m, i) => { const ev = auditEvidenceOf(m.task); return pt`  ${i + 1}. title: "${m.title ?? '(untitled finding)'}" · task ${m.task ?? '<task>'}${m.file ? pt` · file ${m.file}${m.line != null ? pt`:${m.line}` : ''}` : ''}${m.seats && m.seats.length ? pt` · seats: ${m.seats.join(', ')}` : pt` · seats: ${seatRef(m)}`} · why not absorbable: ${m.rationale ?? '(no rationale recorded)'} · audit round ${ev.round} · pinned sha ${ev.sha}` }).join('\n') + '\n'
+      // file-clustering impossible. seats gate is Array.isArray, NOT truthiness (D9, Phase 5 Task 1):
+      // an auditor-supplied STRING seats key is truthy with a length, and String.prototype.join does
+      // not exist — a truthiness gate would throw here and kill the whole batch; Array.isArray sends
+      // the row down the seatRef fallback instead. merged[] (D8) renders per row so the filing agent
+      // carries each merged-away title+rationale into the issue body.
+      + minorsFiled.map((m, i) => { const ev = auditEvidenceOf(m.task); return pt`  ${i + 1}. title: "${m.title ?? '(untitled finding)'}" · task ${m.task ?? '<task>'}${m.file ? pt` · file ${m.file}${m.line != null ? pt`:${m.line}` : ''}` : ''}${Array.isArray(m.seats) && m.seats.length ? pt` · seats: ${m.seats.join(', ')}` : pt` · seats: ${seatRef(m)}`}${mergedRowsOf(m).length ? pt` · merged corroborations: ${mergedRowsOf(m).map(x => '[' + (x.seat ?? '(seat unrecorded)') + '] "' + (x.title ?? '(untitled finding)') + '" — ' + (x.rationale ?? '(no rationale recorded)')).join('; ')}` : ''} · why not absorbable: ${m.rationale ?? '(no rationale recorded)'} · audit round ${ev.round} · pinned sha ${ev.sha}` }).join('\n') + '\n'
       + pt`Return ONLY { filed: [{ n, issue }], clusters: [{ ordinals, issue }] } — filed: n the row's 1-based ordinal above, issue the filed / commented-on / reused issue number (null when unfiled; every row of one cluster shares its issue number); clusters: your clustering manifest — every ordinal above in exactly ONE cluster's ordinals array (merge rows only, never split one). A partial/empty result is FAIL-OPEN: unmatched entries stay issue: null in the handoff and the Checkpoint floor catches them; never block.`,
       { agentType: NS + 'war-refiner', phase: 'Land', label: 'file-followups:phase-' + ph.id, dispatchKind: 'file-followups', schema: FOLLOWUP_FILING_RESULT, ...spawn('refiner') })
   } catch (err) {
@@ -2981,6 +3416,18 @@ if (landDecision === 'landed' || landDecision === 'held:escalation') {
   const gateAttestations = gateEntries.filter(e => !e.pinMismatch)
     .flatMap(e => Array.isArray(e.endStateAttestations) ? e.endStateAttestations : [])
   const gateAuditRan = gateEntries.length > 0
+  // Vacuous-phase clamp (D5, End state 10): this phase DECLARED tasks but ZERO landed — the tip
+  // carries no work from this phase, so the land-barrier endstate must NEVER attest green: checks
+  // executed at the unchanged tip (and any seat 'met' attestation read from them) prove nothing
+  // about work the phase did not do. Every claimed condition lands 'unverified' with the
+  // zero-tasks-ran note — clamped BEFORE both derivation channels. A deliberate zero-task
+  // claims-bearing launch (tasks.length === 0, the ratified endStateBlock shape) is NOT vacuous
+  // and keeps the two-channel derivation; landed includes barrier-recovered preMerged tasks, so a
+  // fully-pre-merged recovery phase is not vacuous either.
+  const vacuousPhase = (tasks || []).length > 0 && landed.length === 0
+  if (vacuousPhase && endStateClaims.length) {
+    log('endstate: vacuous phase — ' + (tasks || []).length + ' task(s) declared, zero landed: every claimed End-state condition lands unverified with the zero-tasks-ran note; the land-barrier endstate never attests green on a vacuous phase (D5).')
+  }
   // Binding is whitespace/case-insensitive (#452): seats are told VERBATIM, but a plan_ref that
   // drifts only in whitespace/case must still bind its condition — never a silent 'met'.
   const normRef = s => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase()
@@ -2988,7 +3435,14 @@ if (landDecision === 'landed' || landDecision === 'held:escalation') {
     tipSha,
     polish: polishStatus,
     absorbed: Object.entries(bySha).map(([sha, findings]) => ({ sha, findings })),
-    followUps: minorsFiled.map(m => ({ issue: m.issue ?? null, reason: [m.title, m.rationale].filter(Boolean).join(' — ') || '(untitled finding)' })),
+    // merged (D8, Phase 5 Task 1): a consolidated row's merged-away titles+rationales ride the
+    // handoff entry too (ADDITIVE key, present only on rows the collapse merged into) — the debt
+    // map carries full fidelity, nothing merges away silently. Read through mergedRowsOf (element
+    // shape guard): this projection maps EVERY minorsFiled row and sits outside any local try — an
+    // auditor-supplied `merged: [null]` deref here would convert a LANDED phase into
+    // held:workflow-error and destroy this very handoff.
+    followUps: minorsFiled.map(m => ({ issue: m.issue ?? null, reason: [m.title, m.rationale].filter(Boolean).join(' — ') || '(untitled finding)',
+      ...(mergedRowsOf(m).length ? { merged: mergedRowsOf(m).map(x => ({ seat: x.seat ?? '(seat unrecorded)', title: x.title ?? '(untitled finding)', rationale: x.rationale ?? '(no rationale recorded)' })) } : {}) })),
     // asks (#1550 — the NINTH handoff key, ADDITIVE beside the follow-ups row; no exact-key
     // validator exists or is introduced): the LOSSY projection of the parked unruled ask records —
     // question + fork + task/seat/sha provenance, minus the full finding row (the top-level
@@ -2997,6 +3451,9 @@ if (landDecision === 'landed' || landDecision === 'held:escalation') {
     asks: asks.map(a => ({ task: a.task, seat: a.seat, sha: a.sha, question: a.question, fork: a.fork })),
     notes: notes.map(n => ({ task: n.task, title: n.title })),
     endState: endStateClaims.map(condition => {
+      // Vacuous-phase clamp first (D5, End state 10): 'unverified' + note, never green — evaluated
+      // BEFORE gateAuditRan so an end-state-only seat's 'met' attestation on a vacuous tip cannot land.
+      if (vacuousPhase) return { condition, status: 'unverified', note: 'zero tasks ran this phase (vacuous phase) — attestation withheld (D5)' }
       if (!gateAuditRan) return { condition, status: 'deferred' }
       const rel = gateFindings.filter(f => f && normRef(f.plan_ref) === normRef(condition))
       const att = gateAttestations.filter(a => a && normRef(a.condition) === normRef(condition))

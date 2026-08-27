@@ -695,6 +695,15 @@ spawns — e.g. sonnet first pass, opus fixer. Absent = fix work inherits the ba
 _Avoid_: fix model (it's an optional override, not a standing role); splitting ace from fix (one
 knob covers both).
 
+**Batching helper**:
+The engine's group-serial fan-out throttle: with `run.maxParallel` set, `batched()` in
+`workflow-template.js` slices each fan-out (wave, roster, dropped-seat retry, gate-audit) into
+groups of that size, awaiting each group via the sandbox `parallel()`; group k+1 starts after
+group k settles. Knob absent ⇒ the single-`parallel()` path, byte-identical. Shape/default:
+`war-config.mjs` `validate()`.
+_Avoid_: `Promise.all` (the live `parallel` NULLS a rejected thunk — the #742 invariant); a
+wall-clock pacing guarantee (batching orders groups, nothing more).
+
 ### Diagnosis discipline
 
 **self-confound gate**:
@@ -868,6 +877,14 @@ machine-readable `handoff` block (`{ tipSha, polish, absorbed, followUps, asks, 
 intentPresent, backstops }`) emitted on `landed` and `held:escalation` for the next phase's decompose.
 _Avoid_: follow-up issues as the default disposal; a handoff block on `held:workflow-error` (infra
 death has no trustworthy return to render).
+
+**Drain cause**:
+The stamped reason a demoted absorb finding was fail-open-routed to follow-up — recorded per
+finding when a phase-close polish dispatch dies, so the drain is attributable instead of a bare
+follow-up dump. Emitted by `workflow-template.js`'s phase-close polish-dispatch drain path; the
+field name is engine-owned.
+_Avoid_: disposition (the stamp records *why demoted*, never the route chosen); reading a missing
+stamp as a clean route.
 
 ### Test discipline
 
@@ -1557,6 +1574,13 @@ one requires ADR 0042's named justification in the commit body.
 _Avoid_: treating advisory as blocking; raising a hard line without the ADR's justification rule;
 budgeting `references/` (cold storage is unbudgeted, like `archive/`); not the index projection's
 **Advisory line** (a different mechanism, different caps).
+
+**Budget-Raise trailer**:
+The machine-checkable citation a merge diff must carry when it *raises* any `hard:`/`advisory:`
+ceiling constant in `prompt-surface-budgets.test.mjs` — a `Budget-Raise:` commit trailer citing
+ADR 0042, the surface, and the byte delta (exact form: `assert-budget-raise-cited.sh`, a landed
+merge-path floor that refuses an uncited raise). Ratchet-downs need no trailer.
+_Avoid_: prose justification alone (the floor greps the trailer, not the commit body's argument).
 
 **Prose temperature**:
 A block's branch-frequency tier — every-phase / once-per-run / branch-gated / incident-only — i.e.

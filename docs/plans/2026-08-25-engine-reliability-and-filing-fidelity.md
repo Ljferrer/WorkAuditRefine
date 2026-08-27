@@ -794,7 +794,7 @@ parallel, disjoint from the template) → Phase 9 (release, trailing).
 - target repo: superproject
 
 ### Task 3: Recovery docs
-- Files: `skills/war/references/resume-and-recovery.md`
+- Files: `skills/war/references/resume-and-recovery.md`, `CONTEXT.md`, `skills/war/references/design.md`
 - Plan slice: document the in-band segmented-land marker and the filing-on-held behavior in the
   recovery doctrine — pointing at the template's land-decision arms for the authoritative status set
   (de-mirror; never restating the enum members as a list). Fold (#1712 fix 2): the Recovery-relaunch
@@ -809,6 +809,15 @@ parallel, disjoint from the template) → Phase 9 (release, trailing).
 - requiresPackaging: false
 - deps: []
 - target repo: superproject
+
+- Fold (operator-ratified 2026-08-26, phase-1 audit follow-ups): retire CONTEXT.md's two "Defined
+  but not yet emitted" caveat sentences — the Budget-Raise trailer entry repoints at the landed
+  `assert-budget-raise-cited.sh` floor and the Drain cause entry at the landed polish-dispatch
+  drain-cause stamp, dropping the transient plan-name pointers (frees bytes; 491 B headroom measured
+  at phase 1) (verified: issue #1725 (2026-08-26)); and in `skills/war/references/design.md` §8
+  replace the phrase "absent = unthrottled" with "absent = no engine-side cap beyond the Workflow
+  default", leaving the rest of the sentence byte-unchanged (verified: issue #1726 (2026-08-26)).
+  Both issues close at this phase's land.
 
 ## Phase 7 — aceBisect robustness
 

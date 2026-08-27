@@ -158,6 +158,20 @@ branch_checked_out_anywhere() {
   git worktree list --porcelain 2>/dev/null | grep -Fxq -- "branch refs/heads/$1"
 }
 
+# branch_holder_path <ref> -> echo the (physical) path of the worktree that has
+# <ref> checked out, empty if none. #1712 fix 1: a worktree-add failure over a
+# held branch must NAME the holder in its die text (`checked out at <path>`) —
+# recovery relaunches otherwise die discovering holders one at a time. The awk
+# drains its whole input (flag + END print, no early exit) so git never takes a
+# SIGPIPE under pipefail.
+branch_holder_path() {
+  git worktree list --porcelain 2>/dev/null | awk -v want="branch refs/heads/$1" '
+    /^worktree / { wt = substr($0, 10) }
+    $0 == want && found == "" { found = wt }
+    END { if (found != "") print found }
+  '
+}
+
 # exclude_line <exclude-file> <pattern> : append <pattern> to <exclude-file>
 # exactly once (idempotent), creating the file and its dir as needed and keeping
 # a clean line boundary if the file lacked a trailing newline.
@@ -614,8 +628,14 @@ cmd_ensure_worktree() {
   # Create (or re-create after prune). If the branch already exists, check it out
   # as-is (preserves its commits); otherwise cut it at the integration tip.
   if branch_exists "$branch"; then
-    git worktree add "$path" "$branch" >/dev/null 2>&1 \
-      || die "failed to add worktree at '$path' on existing branch '$branch' (is the branch checked out elsewhere?)"
+    if ! git worktree add "$path" "$branch" >/dev/null 2>&1; then
+      # #1712 fix 1: name the holder so the operator/Lead does not discover
+      # holders one at a time across recovery relaunches.
+      wa_holder="$(branch_holder_path "$branch" || true)"
+      wa_msg="failed to add worktree at '$path' on existing branch '$branch' (is the branch checked out elsewhere?)"
+      [ -z "$wa_holder" ] || wa_msg="failed to add worktree at '$path' on existing branch '$branch' — the branch is checked out at $wa_holder; tear down or remove that worktree first."
+      die "$wa_msg"
+    fi
   else
     # FRESH CUT (local <branch> absent — the exact torn-down-locally-but-not-
     # remotely restart shape). Before cutting, probe origin for a STALE PRIOR
@@ -740,16 +760,31 @@ EOF
 #     is staged deletions only, allowing untracked entries that mirror those
 #     staged deletions (the emptied-index shape keeps files on disk; the
 #     reproduced killed-populate state leaves them absent — both classify the
-#     same because nothing here reads the worktree population, A10) — ->
+#     same because nothing here reads the worktree population, A10), read with
+#     --untracked-files=all so a wholly-untracked directory never collapses to
+#     one unmatched `?? <dir>/` entry (#1476 gap 1) — AND the remaining
+#     submodule index is EMPTY (#1476 gap 2: a worker's own deliberate
+#     `git rm <file>` also yields staged-deletions-only porcelain but leaves
+#     the REST of the tracked tree in the index; a non-empty remaining index
+#     is possibly-deliberate work -> `detected` possible-deliberate-git-rm,
+#     never force-restored) ->
 #     REPAIR: remove a stale submodule index.lock if present (the probe-
 #     verified repair blocker), then `git submodule update --init --force`.
 #     The SHA is unchanged, so no gitlink bump can result. A clean result emits
 #     `repaired`; a still-dirty or failed update emits `detected`
 #     (repair-failed) and still returns 0.
+#   * a classification read that FAILS or dies of a signal (e.g. SIGPIPE under
+#     pipefail) -> `detected` env-error:* (#1476 gap 3): an environment failure
+#     is never read as a hygiene finding — it must not masquerade as
+#     unrecognized-dirt (which implies possibly-real work).
 #   * anything else (real edits, foreign untracked files — even beside a stale
 #     index.lock) -> `detected` only, tree untouched: dirt that mimics real
 #     work is handed to the Lead, never to --force (the red-team-narrowed
 #     detector, D19).
+# ACCEPTED RESIDUAL (#1476 gap 2): a deliberate `git rm` of EVERY tracked file
+# is indistinguishable from the emptied-index corruption on every surface this
+# arm reads (both leave an empty index with only staged deletions), so that one
+# shape is still repaired as corruption.
 reuse_hygiene_one() {
   h_wt="$1"; h_sub="$2"
   [ -d "$h_wt/$h_sub" ] || return 0
@@ -767,31 +802,60 @@ reuse_hygiene_one() {
     return 0
   fi
 
-  # SHA matched + dirty: classify against the corruption signature.
+  # SHA matched + dirty: classify against the corruption signature. Every read
+  # below this point feeding the classification captures its rc SEPARATELY
+  # (#1476 gap 3): a
+  # failed or signal-killed read classifies as `env-error:*`, never as a
+  # hygiene finding.
   h_gd="$(git -C "$h_wt/$h_sub" rev-parse --git-dir 2>/dev/null || true)"
   case "$h_gd" in ''|/*) ;; *) h_gd="$h_wt/$h_sub/$h_gd" ;; esac   # anchor relative
   h_lock=""
   if [ -n "$h_gd" ] && [ -f "$h_gd/index.lock" ]; then h_lock=1; fi
-  h_staged_del="$(git -C "$h_wt/$h_sub" diff --cached --name-only --diff-filter=D 2>/dev/null || true)"
-  h_subdirt="$(git -C "$h_wt/$h_sub" status --porcelain 2>/dev/null || true)"
+  h_rc=0
+  h_staged_del="$(git -C "$h_wt/$h_sub" diff --cached --name-only --diff-filter=D 2>/dev/null)" || h_rc=$?
+  if [ "$h_rc" -ne 0 ]; then
+    hygiene_marker "$h_sub" detected "env-error:staged-del-read-rc=$h_rc"
+    return 0
+  fi
+  # --untracked-files=all (#1476 gap 1): the porcelain default collapses a
+  # wholly-untracked directory to one `?? <dir>/` entry, which can never match
+  # the file paths in the staged-deletion list, silently degrading a repairable
+  # emptied-index state to unrecognized-dirt.
+  h_rc=0
+  h_subdirt="$(git -C "$h_wt/$h_sub" status --porcelain --untracked-files=all 2>/dev/null)" || h_rc=$?
+  if [ "$h_rc" -ne 0 ]; then
+    hygiene_marker "$h_sub" detected "env-error:status-read-rc=$h_rc"
+    return 0
+  fi
 
   h_shape=1
   [ -n "$h_staged_del" ] || h_shape=0
   if [ "$h_shape" -eq 1 ]; then
     # Every porcelain line must be a staged deletion, or an untracked entry
     # whose path is among the staged deletions (the files-on-disk variant of
-    # the emptied-index shape). Anything else is potentially real work.
-    while IFS= read -r h_line; do
-      [ -n "$h_line" ] || continue
-      case "$h_line" in
-        "D  "*) ;;
-        "?? "*)
-          printf '%s\n' "$h_staged_del" | grep -Fxq -- "${h_line:3}" || h_shape=0 ;;
-        *) h_shape=0 ;;
-      esac
-    done <<EOF
-$h_subdirt
-EOF
+    # the emptied-index shape). Anything else is potentially real work. One
+    # awk pass that DRAINS its whole input (#1476 gap 3): the old per-line
+    # `printf | grep -Fxq` pipeline let grep exit on first match, SIGPIPE-
+    # killing printf on a large emptied-index submodule, and pipefail then
+    # misread the signal death as a shape mismatch (unrecognized-dirt).
+    # Both lists ride ONE stdin stream split by a \034 (FS char) sentinel line —
+    # macOS awk rejects literal newlines in a -v value, and no porcelain path is
+    # a lone 0x1C byte.
+    h_rc=0
+    h_bad="$(printf '%s\n\034\n%s\n' "$h_staged_del" "$h_subdirt" | awk '
+      sep == 0 && $0 == "\034" { sep = 1; next }
+      sep == 0 { if ($0 != "") del[$0] = 1; next }
+      $0 == "" { next }
+      substr($0, 1, 3) == "D  " { next }
+      substr($0, 1, 3) == "?? " && substr($0, 4) in del { next }
+      bad == "" { bad = $0 }
+      END { if (bad != "") print bad }
+    ')" || h_rc=$?
+    if [ "$h_rc" -ne 0 ]; then
+      hygiene_marker "$h_sub" detected "env-error:shape-scan-rc=$h_rc"
+      return 0
+    fi
+    [ -z "$h_bad" ] || h_shape=0
   fi
 
   if [ "$h_shape" -ne 1 ]; then
@@ -800,6 +864,24 @@ EOF
     else
       hygiene_marker "$h_sub" detected unrecognized-dirt
     fi
+    return 0
+  fi
+
+  # Deliberate-git-rm disambiguation (#1476 gap 2): the killed-populate
+  # corruption EMPTIES the submodule index, while a worker's own uncommitted
+  # `git rm <file>` leaves the rest of the tracked tree in it. A non-empty
+  # remaining index is therefore possibly-deliberate work -> `detected` only,
+  # never force-restored. (The one indistinguishable shape — a deliberate
+  # `git rm` of EVERY tracked file — is the ACCEPTED RESIDUAL documented in
+  # the header above.)
+  h_rc=0
+  h_index="$(git -C "$h_wt/$h_sub" ls-files 2>/dev/null)" || h_rc=$?
+  if [ "$h_rc" -ne 0 ]; then
+    hygiene_marker "$h_sub" detected "env-error:index-read-rc=$h_rc"
+    return 0
+  fi
+  if [ -n "$h_index" ]; then
+    hygiene_marker "$h_sub" detected possible-deliberate-git-rm
     return 0
   fi
 
@@ -1397,19 +1479,23 @@ cmd_sync_follower() {
 # ensure-refinery-worktree <path> <integration-branch>
 #
 # Ensure+re-attach for the Refinery's run-scoped worktree (_refinery). This is
-# distinct from ensure-worktree's reuse (marker + examine-but-untouched submodule
-# hygiene, see reuse_hygiene): when the worktree is present but HEAD is detached
-# or on a different branch, and the tree is CLEAN (no tracked-file
-# modifications), we re-attach via `git -C <path> switch`. A dirty tree
-# (tracked-file modifications) always FAIL LOUD — never reset, never destroy
-# work. Untracked files (e.g. the .war-task marker) do not count as dirty.
+# distinct from ensure-worktree's reuse in its re-attach arm: when the worktree
+# is present but HEAD is detached or on a different branch, and the tree is
+# CLEAN (no tracked-file modifications), we re-attach via `git -C <path>
+# switch`. A dirty tree (tracked-file modifications) always FAIL LOUD — never
+# reset, never destroy work. Untracked files (e.g. the .war-task marker) do not
+# count as dirty. The reuse paths (b)/(c) run the SAME examined-but-untouched
+# submodule hygiene arm as ensure-worktree's reuse (#1476 gap 4, see
+# reuse_hygiene) — fail-open, never a die, exit discipline unchanged.
 #
 # Behaviors:
 #   (a) Not registered / empty dir  -> git worktree add <path> <integration-branch>
 #                                       + .war-task marker.
-#   (b) Registered + present + HEAD on integration branch  -> reuse (marker only).
+#   (b) Registered + present + HEAD on integration branch  -> reuse (marker
+#                                       + reuse_hygiene submodule arm).
 #   (c) Registered + present + HEAD detached/different + CLEAN  -> switch to
-#                                       integration branch (re-attach) + marker.
+#                                       integration branch (re-attach) + marker
+#                                       + reuse_hygiene.
 #   (d) Registered + present + HEAD detached/different + DIRTY  -> FAIL LOUD.
 #   (e) Stale registry (dir gone)   -> prune + recreate on integration branch.
 #   (f) Non-empty unregistered dir  -> FAIL LOUD (D7).
@@ -1426,8 +1512,11 @@ cmd_ensure_refinery_worktree() {
       # Worktree is present and registered. Check what HEAD is on.
       cur_branch="$(git -C "$wt_path" symbolic-ref --short HEAD 2>/dev/null || true)"
       if [ "$cur_branch" = "$int_branch" ]; then
-        # (b) Already on the integration branch -> reuse untouched.
+        # (b) Already on the integration branch -> reuse untouched. Same
+        # reuse-path submodule hygiene arm as ensure-worktree (#1476 gap 4);
+        # fail-open, markers on stderr, stdout stays the path.
         write_marker "$wt_path" "$int_branch"
+        reuse_hygiene "$wt_path" || true
         printf '%s\n' "$wt_path"
         return 0
       fi
@@ -1441,6 +1530,8 @@ cmd_ensure_refinery_worktree() {
       git -C "$wt_path" switch "$int_branch" >/dev/null 2>&1 \
         || die "ensure-refinery-worktree: failed to switch '$wt_path' to integration branch '$int_branch'"
       write_marker "$wt_path" "$int_branch"
+      # Re-attach is still a reuse: same hygiene arm (#1476 gap 4), fail-open.
+      reuse_hygiene "$wt_path" || true
       printf '%s\n' "$wt_path"
       return 0
     fi
@@ -1460,8 +1551,13 @@ cmd_ensure_refinery_worktree() {
 
   # (a) or (e): Create (or recreate after prune) the refinery worktree, checking
   # out the integration branch directly (no new branch created).
-  git worktree add "$wt_path" "$int_branch" >/dev/null 2>&1 \
-    || die "ensure-refinery-worktree: failed to add worktree at '$wt_path' on branch '$int_branch'"
+  if ! git worktree add "$wt_path" "$int_branch" >/dev/null 2>&1; then
+    # #1712 fix 1: name the holder (see ensure-worktree's twin die).
+    rw_holder="$(branch_holder_path "$int_branch" || true)"
+    rw_msg="ensure-refinery-worktree: failed to add worktree at '$wt_path' on branch '$int_branch'"
+    [ -z "$rw_holder" ] || rw_msg="ensure-refinery-worktree: failed to add worktree at '$wt_path' on branch '$int_branch' — the branch is checked out at $rw_holder; free or tear down that worktree first."
+    die "$rw_msg"
+  fi
 
   write_marker "$wt_path" "$int_branch"
   printf '%s\n' "$wt_path"
@@ -1472,7 +1568,10 @@ cmd_ensure_refinery_worktree() {
 #
 # Ensure+re-attach for the Gate-2 learnings-publication worktree (p<N>-publication).
 # Structurally mirrors cmd_ensure_refinery_worktree's six behaviors byte-for-byte
-# EXCEPT behavior (b), which here also refuses a DIRTY reuse (#1083; the refinery
+# EXCEPT that the refinery's reuse paths (b)/(c) additionally run the
+# reuse_hygiene submodule arm (#1476 gap 4), which this publication verb
+# deliberately does not, and EXCEPT behavior (b), which here also refuses a
+# DIRTY reuse (#1083; the refinery
 # counterpart deliberately keeps today's six behaviors — extending the refusal
 # there interacts with the serial merge queue's legitimate in-flight state and is
 # a recorded non-goal), with the WORKING branch in place of the integration

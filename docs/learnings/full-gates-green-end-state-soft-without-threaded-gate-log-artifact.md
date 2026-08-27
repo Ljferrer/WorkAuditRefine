@@ -1,13 +1,13 @@
 ---
 name: full-gates-green-end-state-soft-without-threaded-gate-log-artifact
-description: "Full-gates-green End state is SOFT without a threaded gate-log/pin_status artifact"
+description: "A full-gates-green-at-land End state is SOFT at audit time without a threaded gate-log artifact/pin_status token — gate evidence capture is the refiner's job"
 metadata:
   node_type: memory
   type: project
   provenance: code-verified
   promoted: dev/2026-08-06-verdict-adjudication-integrity@phase-2
   slug: full-gates-green-end-state-soft-without-threaded-gate-log-artifact
-  phase: "red-team-fallback-and-anchor-hygiene/phase-2 (Release, task 2.1) +14 recurrences (latest 2026-08-06-handoff-schemas-contract/phase-3 Release task 3.1 phase-3-end-state gate-audit, 2026-08-17 — fast-forward/linear-range tip-identity sub-shape)"
+  phase: "red-team-fallback-and-anchor-hygiene/phase-2 (Release, task 2.1) +18 recurrences (latest 2026-08-25-engine-reliability-and-filing-fidelity/phase-7 task 7.2)"
   keywords:
     - full gates green
     - gate-log artifact
@@ -47,6 +47,15 @@ metadata:
     - fast-forward range
     - linear range no merge commit
     - git branch --contains
+    - tip_sha first-line stamp
+    - exit_code last-line stamp
+    - fix-round gate log
+    - done-when-fix log
+    - land-gate log
+    - ERROR pin_status
+    - sentinel integration_sha unrecorded malformed
+    - evidence threading gap
+    - gate_log_path unthreaded
   tags:
     - audit-pipeline
     - gate-audit
@@ -56,7 +65,7 @@ metadata:
   created: 2026-07-15
   updated: 2026-08-05
   originSessionId: e11422bd-1b49-4d13-9840-37a67306b3f5
-  modified: 2026-08-17T17:06:36.854Z
+  modified: 2026-08-26T22:43:52.305Z
 ---
 
 **Local recurrence copy** of the repo-root lesson at `docs/learnings/full-gates-green-end-state-soft-without-threaded-gate-log-artifact.md`
@@ -435,6 +444,26 @@ one inference step.
 present-but-uncapped-artifact sub-shape (Recurrence 12) are siblings, not the same shape — track
 both when searching this lesson for "is a gate-log artifact actually sufficient evidence" questions.
 
+## Recurrence 17 (2026-08-25, plan `2026-08-25-ask-disposition`, phase 3 "Release", task 3.1
+`phase-3-end-state`/gate-audit) — seventeenth occurrence, back to the Recurrence 4/10/14 spot-verify
+shape: no `pin_status` token, observed HEAD equals expected gate-HEAD exactly
+
+Seventeenth occurrence, the same per-task/version-slot `phase-N-end-state` gate-audit shape as
+Recurrences 1/3/5/6/9/14: no `pin_status` token was stamped (no CONFIRMED/BENIGN-ADVANCE/
+STALE-MISMATCH/ERROR from `gate-pin-status.sh`), so the HARD provably-unrun path stayed unavailable
+this pass. The seat ran the optional read-only spot-verify — observed HEAD equal to the expected
+gate-HEAD exactly (`a3f7b8b282bd1a993e5a3c56bdf4347395d89ee7` both sides) — and recorded the result
+as a Nit/`note`, SOFT-cannot-confirm, never a hold, per the standing rule (a SHA match does not earn
+a shortcut to HARD absent the token itself). Verdict `gate-audit:approve`, `hard:false`,
+`gateEvidence:true`. `code-verified`: the `p3-3.17` task worktree (gitdir physical path
+`<repo-root>/.claude/war-worktrees/ask-disposition-2026-08-25/p3-3.1/`) has its branch
+`war/ask-disposition/p3-3.1` resolving to that exact SHA, matching the audited `auditSha`/
+`gateHeadSha` in the run's audit log.
+
+**Confirms:** the SOFT-never-hold disposition and the "SHA-equality alone doesn't earn a shortcut"
+rule (Recurrence 7) continue to hold at a seventeenth occurrence, tenth-plus campaign; no new
+nuance, recorded for occurrence-count/date freshness only.
+
 Related: [[deliberately-uncommitted-worker-probe-evidence-is-soft-never-hold]] (same family: an
 evidence-ceiling cannot-confirm is SOFT, not a hold). [[servitor-verify-on-write-worktree-can-lag-just-landed-phase]]
 (how the four release slots were independently re-verified after this servitor's own cwd proved
@@ -523,3 +552,124 @@ residual as Recurrences 12-13.
 without a threaded stamp" path (Recurrence 13) both continue to hold at a fourteenth occurrence;
 fast-forward/no-merge-commit range linearity is now a recorded, valid alternative to
 branch-rev-parse-equality for leg (1) of that checklist.
+
+## Recurrence 15 (2026-08-18, plan `2026-08-06-war-strategy-mirror-guards`, phase 3 "Release",
+task 3.1 `phase-3-end-state` gate-audit) — first captured instance of a manually-stamped land-gate
+artifact, distinct from the endstate-check log's standard `tip_sha:` stamp
+
+Fifteenth occurrence, and the first recorded instance where the **land-gate log itself** (not the
+endstate-check log) carries a manual tip-correspondence stamp. `code-verified` at the landed tip
+(merge `4c624ee9037522f34d9c39337e262833303d7c26`, release commit
+`8fc4b1744fa7fb9e3bc970c1a486002cec1485e9`), read directly from the `_refinery` worktree
+(`.claude/war-worktrees/2026-08-06-war-strategy-mirror-guards-2026-08-17/_refinery/.war/`):
+
+- `gate-3.1.log` (the per-task, pre-merge gate) carries **no** tip/SHA stamp of any kind — its first
+  line is a bare test-suite `✔` line, matching the standard unstamped shape of Recurrences 1-12.
+- `endstate-3-1.log` carries the **standard** `tip_sha: 8fc4b1744fa7fb9e3bc970c1a486002cec1485e9`
+  stamp on its first line (the release commit, per the endstate-check dispatch's own convention —
+  see [[endstate-check-dispatch-captures-only-one-command-per-condition-row]]).
+- `land-gate-3.log` — the post-merge/pre-land full-gate artifact, a distinct file from both of the
+  above — carries a **manually-added** `merge_sha: 4c624ee9037522f34d9c39337e262833303d7c26` stamp
+  as its literal first line, ahead of the test-suite output. This is not the standard
+  endstate-check `tip_sha:` format (different key name, different artifact class) and does not
+  exist in any of Recurrences 1-14's file inventories — it reads as an ad hoc mitigation applied
+  specifically to this land-gate artifact this phase, not a generalized engine change.
+
+**New nuance over Recurrences 1-14:** the recurring "recommended fix, still unactioned" wish named
+in Recurrences 10/12 (stamp the tip/exit code into every gate artifact) has now been **partially and
+manually** applied to one specific artifact class (the land-gate log) in one phase, without becoming
+a standing engine behavior — the per-task `gate-3.1.log` in the very same phase stayed unstamped.
+This confirms the fix is cheap enough to apply by hand when someone remembers, and that the gap is
+still open as a systemic default: a future refiner/engine change stamping the SHA into **every**
+gate artifact class (per-task gate, land-gate, and any future integrated-tip gate) uniformly, not
+just the endstate-check family, would retire this entire recurring-Nit lineage at once.
+
+**Confirms:** the SOFT-never-hold family (Recurrences 1-11) and the tip-correspondence-without-a-
+threaded-stamp checklist (Recurrences 13-14) continue to hold; the land-gate log's manual stamp
+here did not need to be leaned on for a `met` verdict (the standard two-leg checklist evidence was
+independently available), but it is recorded as the first observed instance of the "stamp every
+gate artifact" fix appearing anywhere, even partially and by hand.
+
+## Recurrence 16 (2026-08-18, plan `2026-08-06-gate2-publication-guard`, phase 2 "Release", task
+2.1 gate-audit fix round) — the "stamp every gate artifact" wish (Recurrences 10/12) now applied to
+three gate artifacts in one fix round: `tip_sha` first-line + `exit_code` last-line, not just the
+single hand-stamped land-gate log of Recurrence 15
+
+Sixteenth occurrence, and the broadest instance yet of the manual-stamping mitigation Recurrence 15
+first recorded. Three gate artifacts produced during this phase's gate-audit fix round —
+`gate-2.1-fix.log`, `done-when-2.1-fix.log`, and `land-gate-2.log` — each carry a `tip_sha` stamp on
+their **first** line and an `exit_code` stamp on their **last** line, closing the exact gap
+Recurrence 12 named ("no terminal exit-code stamp") in addition to the tip-correspondence gap
+Recurrences 1-11 named. `agent-unverified` for this recurrence's own D3 read — landed-tip grounding
+exhausted all four rungs for plan `2026-08-06-gate2-publication-guard` (this servitor's cwd HEAD is
+`master` on the main checkout; no worktree under `.claude/worktrees/` or `.claude/war-worktrees/`
+matches this plan's slug; the landed branch `dev/2026-08-06-gate2-publication-guard` has a local
+loose ref and an `origin/` ref but no live worktree checking either out — a dead end for Read, no
+Bash available to check one out) — relayed by the Lead as verified directly against git, not
+independently re-confirmed by this servitor's own Read/Grep.
+
+**New nuance over Recurrence 15:** Recurrence 15 was a single artifact (the land-gate log),
+single-key (`merge_sha` only, no exit-code close), applied once by hand. This occurrence covers
+**three** artifact classes across a fix round — a per-task fix-round gate log, a done-when-fix log,
+and a land-gate log — each with **both** ends stamped (tip identity at the top, terminal exit code
+at the bottom), the two gaps Recurrences 1-11 and 12 named as separate residuals. This is still
+**operational practice, not a committed engine change** — no test or refiner-side code change is
+implicated by this fact alone, so it does not retire the recurring-Nit lineage the way a genuine
+engine change (stamping every gate artifact unconditionally, as a refiner behavior) would; it is
+one more data point that the fix is cheap enough to apply by hand when the operator/Lead remembers,
+now covering more of the artifact surface than any prior recorded instance.
+
+**Confirms:** the SOFT-never-hold family (Recurrences 1-11) is unaffected — this is not a gate-audit
+seat's disposition, it is evidence-hygiene practice observed during a fix round. The "stamp every
+gate artifact" wish named across Recurrences 10/12/15 continues to be applied incrementally and by
+hand rather than as a standing engine default; a future refiner/engine change that stamps
+`tip_sha`/`exit_code` into **every** gate artifact class unconditionally (per-task gate, fix-round
+gate, done-when, land-gate, and any future integrated-tip gate) would retire this entire recurring
+observation at once — the manual precedent now spans four artifact instances across two separate
+phases (Recurrence 15's one, this recurrence's three), suggesting the fix is well past the point of
+being merely "recommended, still unactioned" and closer to informal convention.
+
+## Recurrence 18 (2026-08-26, plan `2026-08-25-engine-reliability-and-filing-fidelity`, phase 7
+"aceBisect robustness", task 7.2 `gate-audit:approve` for task 7.2) — first captured `ERROR`/sentinel
+`pin_status` instance (distinct from missing-token, `STALE-MISMATCH`, and `BENIGN-ADVANCE`), paired
+with a concrete evidence-threading gap despite fresh, green artifacts sitting on disk
+
+Eighteenth occurrence, and the first recorded instance where the stamped `pin_status` token was the
+fourth enum value, `ERROR` — surfacing as the literal sentinel string `(integration_sha
+unrecorded/malformed)` for both `gateHeadSha` and the expected-gate-HEAD field. The seat correctly
+downgraded to SOFT/`note`/Minor per the standing rule (`gate-audit:approve`, `hard:false`,
+`gateEvidence:true`) rather than treating the sentinel as a hold, and went further than a bare
+downgrade: it independently corroborated that the captured `gate-7.2.log` genuinely ran at the
+observed tip by matching a content string unique to a specific commit's polish rewording ("a sibling
+strict-prefix trailer pair") against the observed HEAD — the same content-at-pin corroboration
+technique Recurrences 13/14 use for tip-correspondence, applied here to the ERROR/sentinel case
+rather than the missing-token case.
+
+**New nuance over Recurrences 1-17:** a second finding from the same audit round, filed
+`disposition: follow-up` (not absorbed — outside this task's file scope), named the root cause
+directly: `gate_log_path` and `integration_sha` were never threaded onto the gate-audit seat's spawn,
+**even though** complete, fresh, tip-stamped artifacts existed on disk at the conventional paths
+(`_refinery/.war/gate-7.2.log`, 3038 lines, full green run; `_refinery/.war/endstate-7-1.log`,
+`tip_sha` byte-equal to the observed tip, `exit_code: 0`). This is a **D3 cross-rung
+contradiction**: the AUTHORITY rung (the dispatched task instruction) asserted "no gate-log artifact
+path recorded" / "(integration_sha unrecorded/malformed)", while the CONTENT-AT-PIN rung (direct
+reads in the `_refinery` worktree) showed the opposite — evidence existed and was green, only its
+**path was never threaded to the seat**, forcing an entirely avoidable SOFT downgrade of the whole
+gate-audit. This sharpens Recurrences 10/12/15/16's long-running "stamp every gate artifact, thread
+it to the seat" recommendation: the artifacts here didn't even need fresh stamping — they already
+existed, stamped, at the exact paths the refiner should default to — the gap is purely a
+threading/wiring omission in the evidence-dispatch return path, not an artifact-production gap.
+
+**Recommended fix (still unactioned at this phase's land):** have the evidence dispatch fall back to
+the conventional `_refinery/.war/gate-<taskId>.log` path when `gate_log_path` is absent, and surface
+a sentinel `integration_sha` as an explicit unthreaded-evidence marker distinct from a genuine
+absence, rather than silently degrading the seat to SOFT when usable evidence was one default-path
+lookup away.
+
+**Confirms:** the SOFT-never-hold family (Recurrences 1-17) is unaffected; the `ERROR`/sentinel
+`pin_status` value now has its own documented, corroborated instance (previously only named in the
+enum, not observed live); and the "threading, not production, is the recurring gap" framing
+(Recurrences 10/12/15/16) gains its sharpest instance yet — fresh, green, correctly-tip-stamped
+evidence sitting unused for want of a threaded path.
+
+> archived 2026-08-17: resolved — moved to archive

@@ -5,7 +5,8 @@
 #
 # ABSENCE assertions (the forbidden pattern):
 #   The live surface (agents/ + skills/war/assets/workflow-template.js + the
-#   skills/war/references/refiner-recovery.md eviction destination — UNION scan,
+#   skills/war/references/refiner-recovery.md and
+#   skills/war/references/budget-raise-floor.md eviction destinations — UNION scan,
 #   prompt-surface simplification adjudication I — excluding
 #   *.test.* files) must NOT contain a direct instruction for the Refinery to
 #   re-base onto the working branch (non-detached) in a land context via either
@@ -94,7 +95,8 @@ fi
 
 # ---------------------------------------------------------------------------
 # ABSENCE CHECK: the live surface (agents/ + workflow-template.js +
-# skills/war/references/refiner-recovery.md — UNION scan, excluding *.test.*)
+# skills/war/references/refiner-recovery.md +
+# skills/war/references/budget-raise-floor.md — UNION scan, excluding *.test.*)
 # must NOT instruct the Refinery to operate via the Lead's main
 # checkout. The forbidden pattern: "from the Lead" appearing as a POSITIVE
 # instruction (i.e. NOT on a line that starts with "Never" / "never" / "-"
@@ -106,9 +108,12 @@ fi
 # would be a bare "merge ... from the Lead" without a prohibition prefix.
 # ---------------------------------------------------------------------------
 # UNION scan (adjudication I): Task 4.1 evicted branch-gated card blocks (submodule provisioning,
-# reland discrimination, 2A/2B land arms) into refiner-recovery.md — the whole-file absence checks
-# scan the eviction destination too, never a narrowed origin-only surface.
+# reland discrimination, 2A/2B land arms) into refiner-recovery.md, and the Budget-Raise floor
+# wiring (2026-08-25-engine-reliability-and-filing-fidelity, Phase 2 Task 2) evicted the land-phase
+# CAS-loop block into budget-raise-floor.md — the whole-file absence checks scan BOTH eviction
+# destinations too, never a narrowed origin-only surface.
 RECOVERY_FILE="skills/war/references/refiner-recovery.md"
+BUDGET_FLOOR_FILE="skills/war/references/budget-raise-floor.md"
 # PRESENCE CHECK 5: the UNION member must exist, or all three whole-file absence
 # scans silently narrow back to the pre-eviction surface (the loops' [ -f ] guard
 # skips a missing file with zero signal).
@@ -117,7 +122,16 @@ if [ ! -f "$RECOVERY_FILE" ]; then
 else
   pass "PRESENCE CHECK 5 — UNION member $RECOVERY_FILE exists (absence scans cover the eviction destination)"
 fi
-LIVE_SURFACE_FILES="$REFINER_FILE $WORKFLOW_FILE $RECOVERY_FILE"
+# PRESENCE CHECK 6: mirrors PRESENCE CHECK 5 for the second eviction destination —
+# budget-raise-floor.md carries the evicted land-phase CAS-loop block (the live
+# `switch --detach origin/` subject of ABSENCE CHECK 3), so a rename/removal must
+# fail loud, never silently narrow the scans.
+if [ ! -f "$BUDGET_FLOOR_FILE" ]; then
+  fail "PRESENCE CHECK 6 — UNION member $BUDGET_FLOOR_FILE not found — the eviction destination must exist or the absence scans silently narrow"
+else
+  pass "PRESENCE CHECK 6 — UNION member $BUDGET_FLOOR_FILE exists (absence scans cover the eviction destination)"
+fi
+LIVE_SURFACE_FILES="$REFINER_FILE $WORKFLOW_FILE $RECOVERY_FILE $BUDGET_FLOOR_FILE"
 
 # Collect all lines containing "from the Lead" in the live surface
 # (excluding *.test.* paths — load-bearing exclusion)
