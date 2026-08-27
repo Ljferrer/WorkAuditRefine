@@ -800,13 +800,16 @@ The regression-recovery ladder on a failed `--ace` batch (canonical: `aceBisect`
 `skills/war/assets/workflow-template.js`): named culprits are excised (demoted, logged) and the
 remainder re-applies as ONE subset; blind halving is reserved for ambiguous attribution; subsets apply
 serially at the tip, depth ≤ 2, same-file findings never split; each subset commit charges one
-`fixRounds` slot (reverts uncharged). The ladder's stop condition is the **floor-retry reserve**
-(`fixRounds < roundLimit − 2`), not budget exhaustion: at the reserve the remainder routes
-`phaseClose: true` to the phase-close sweep rather than demoting outright (see **Re-entry**). Failed
-subset tips are forward-reverted in-loop; only finally-failing subsets demote; the ladder never holds
-or escalates a mergeable task.
-_Avoid_: whole-batch demotion (retired); the pre-2026-08-27 reading that the remainder demotes when
-the budget runs out (retired — the reserve routes it to the sweep); git-bisect (this is
+`fixRounds` slot (reverts uncharged) and dispatches only while `fixRounds < roundLimit − 2`, the **floor-retry
+reserve** that holds two slots back for the merge-floor retry loop. Reaching it mid-bisection stops
+the ladder and the remaining subsets demote to `follow-up`, logged and by design;
+the reserve bounds subset commits only, not the whole ace path (the batch ace keeps its own
+`< roundLimit` gate). The reserve's `phaseClose: true` → sweep rung belongs to **Re-entry** (a fresh
+absorb born at a re-audit), never to a queued bisection subset. Failed subset tips are
+forward-reverted in-loop; only finally-failing subsets demote; the ladder never holds or escalates a
+mergeable task.
+_Avoid_: whole-batch demotion (retired); conflating this ladder's reserve stop (the remaining subsets
+demote) with **Re-entry**'s reserve rung (routes `phaseClose: true` to the sweep); git-bisect (this is
 finding-subset re-application, not a history search).
 
 **Re-entry**:
