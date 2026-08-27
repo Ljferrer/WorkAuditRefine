@@ -3183,15 +3183,134 @@ test('Task 3 — ponytail / no-flag refusal: a Nit without autoFixable/dispositi
   assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'no flag'), 'the no-flag Nit does NOT default into an issue')
 })
 
-test('Task 3 — no re-ace for fresh findings: a NEW absorb nit on an approving re-audit never re-opens ace (shares fixRounds)', async () => {
-  // The ace re-audit APPROVES but surfaces another autoFixable nit: ace ran once and the ladder
-  // never opens for findings it did not start with — the fresh absorb takes the demotion instead.
+// ---------------------------------------------------------------------------
+// Ace RE-ENTRY (in-run-finding-resolution Task 1.1, D1/D2/#1731): the ladder RE-OPENS for fresh
+// absorbs born at a re-audit — budget-bounded (fixRounds < roundLimit − 2, the floor-retry
+// reserve is the SOLE bound), same machinery (Ace-Subset trailer + tip-preflight idempotency,
+// PIN-15), forward-revert posture preserved (a reverted finding never re-enters).
+// ---------------------------------------------------------------------------
+
+// Drives: round-1 absorb → batch ace → re-audit approves WITH a fresh absorb → ONE re-entry batch
+// → its re-audit approves clean. (Also reused by the D6 gate-command sweep and Done-when sites.)
+const reentryImpl = () => buildSeqImpl(
+  { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [nit({ title: 'first', file: 'skills/first.js' })]),
+                             approveWith('audit:t1:correctness', [nit({ title: 'second', file: 'skills/second.js' })]),
+                             approveWith('audit:t1:correctness', [])] },
+  aceBase([nit({ title: 'first', file: 'skills/first.js' })]))
+
+test('ace-reentry (End state 1, plain re-audit): a fresh absorb born at the approving batch re-audit re-enters as an ace-style batch — aced, not demoted; trailer + preflight discipline ride the dispatch', async () => {
+  const { out, calls, logs } = await runPhase(ACE_ARGS(), reentryImpl())
+  const aces = calls.filter(isAce)
+  assert.equal(aces.length, 2, 'batch + exactly ONE re-entry batch dispatched (the ladder re-opened once)')
+  const re = aces[1]
+  assert.ok(re.prompt.includes('ACE RE-ENTRY BATCH'), 'the second dispatch is the re-entry vehicle')
+  assert.ok(re.prompt.includes('second') && !re.prompt.includes('first,'), 'the re-entry batch carries the fresh finding')
+  // PIN-15: the re-entry dispatch inherits the Ace-Subset trailer discipline (round index folded
+  // into the deterministic value) and the tip-preflight idempotency (range scan, exact equality).
+  assert.match(re.prompt, /`Ace-Subset: t1:reentry:r2:skills\/second\.js`/, 'the trailer value carries task id + round index + sorted file set')
+  assert.ok(re.prompt.includes('EXACT whole-string equality') && re.prompt.includes('never the tip alone'),
+    'the re-entry PREFLIGHT mandates the range scan with exact whole-string trailer equality (PIN-15)')
+  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'second'), 'the re-audit-born absorb is ACED (executed in-run)')
+  assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'second'), 'the re-audit-born absorb is NOT filed (the retired demotion is gone)')
+  assert.ok(!logs.some(l => typeof l === 'string' && l.includes('never opens')), 'no retired-boundary demotion log remains')
+  assert.ok(out.landed.includes('t1'), 't1 lands on the re-entered tip')
+})
+
+test('ace-reentry (End state 1, bisection-subset re-audit): a fresh absorb born at a SUBSET re-audit re-enters after the bisection resolves', async () => {
+  const f1 = nit({ title: 'f1 nit', file: 'skills/f1.js' })
+  const f2 = nit({ title: 'f2 nit', file: 'skills/f2.js' })
+  const fresh = nit({ title: 'subset-born nit', file: 'skills/fresh.js' })
+  const impl = buildSeqImpl({
+    'audit:t1:correctness': [
+      bApprove([f1, f2]),
+      bRegress('zz-unrelated.js'),          // batch regresses, ambiguous ⇒ halves [f1] [f2]
+      bApprove([fresh]),                    // subset [f1] approves WITH a fresh absorb
+      bApprove(),                           // subset [f2] approves clean
+      bApprove(),                           // the re-entry batch's own re-audit approves clean
+    ],
+    'ace:t1:r1': [bWorker('ace00001')],
+    'ace:t1:r2': [bWorker('sub00001')],
+    'ace:t1:r3': [bWorker('sub00002')],
+    'ace:t1:r4': [bWorker('reen0001')],
+  }, aceBase([f1, f2]))
+  const { out, calls } = await runPhase(ACE_ARGS(), impl)
+  const aces = calls.filter(isAce)
+  assert.equal(aces.length, 4, 'batch + two subsets + ONE re-entry batch (the subset-born absorb re-entered)')
+  assert.ok(aces[3].prompt.includes('ACE RE-ENTRY BATCH') && aces[3].prompt.includes('subset-born nit'),
+    'the fourth dispatch is the re-entry vehicle carrying the subset-born finding')
+  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'subset-born nit' && a.sha === 'reen0001'),
+    'the subset-born absorb aced at the re-entry sha')
+  assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'subset-born nit'), 'the subset-born absorb is NOT filed')
+  assert.ok(out.landed.includes('t1'), 't1 lands')
+})
+
+test('ace-reentry (End state 1, forward-revert posture): a REGRESSING re-entry batch is forward-reverted, its finding demotes and NEVER re-enters (no further ace dispatch for it) — even when the regressed round RE-RAISES it as an absorb', async () => {
+  // The regressed re-entry re-audit ALSO re-raises the just-reverted finding as a fresh absorb
+  // (content-identical re-mint — minorsOf mints fresh objects, so object identity cannot catch
+  // it): the revertedKeys registry must refuse the re-queue, or the finding oscillates — a third
+  // ace dispatch, then recordAced landing it in BOTH aced and minorsFiled (End states 1 + 6).
   const impl = buildSeqImpl(
-    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [nit({ title: 'first' })]),
-                               approveWith('audit:t1:correctness', [nit({ title: 'second' })])] },
-    aceBase([nit({ title: 'first' })]))
-  const { calls } = await runPhase(ACE_ARGS(), impl)
-  assert.equal(calls.filter(isAce).length, 1, 'an approving re-audit never re-opens ace — no re-ace loop for fresh findings')
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [nit({ title: 'first', file: 'skills/first.js' })]),
+                               approveWith('audit:t1:correctness', [nit({ title: 'second', file: 'skills/second.js' })]),
+                               { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'request_changes',
+                                 confidence: 'high', findings: [{ severity: 'Major', title: 'reentry broke it', file: 'zz.js', rationale: 'regressed' },
+                                                                nit({ title: 'second', file: 'skills/second.js' })] }] },
+    aceBase([nit({ title: 'first', file: 'skills/first.js' })]))
+  const { out, calls, logs } = await runPhase(ACE_ARGS(), impl)
+  assert.equal(calls.filter(isAce).length, 2, 'batch + ONE re-entry — the reverted finding never re-dispatches despite the re-raise (the oscillation bound, enforced by content key)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('forward-reverted finding never re-enters')),
+    'the demotion names the forward-revert posture (logged, never silent)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('re-entry REFUSED') && l.includes('second')),
+    'the content-identical re-mint of the reverted finding is REFUSED re-entry, logged (never silent)')
+  assert.equal((out.minorsFiled || []).filter(m => m && m.title === 'second').length, 1,
+    'the reverted re-entry finding demotes to follow-up exactly ONCE (the re-mint never files a second record)')
+  assert.ok(!(out.aced || []).some(x => x && x.finding && x.finding.title === 'second'),
+    'the reverted finding never lands in aced — aced and minorsFiled stay disjoint (End state 6)')
+  const merge = calls.find(isMergeTask)
+  assert.match(merge.prompt, /revert\s+--no-edit\s+deadbeef/,
+    'the final failed re-entry tip rides the merge dispatch revert clause (forward-revert posture verbatim)')
+  assert.ok(out.landed.includes('t1'), 't1 still lands its approved work')
+})
+
+test('ace-reentry (End state 1 + 6, batch-regressed arm): a batch finding re-raised as an absorb AT the regressing batch re-audit never re-enters — the drain-time remintBlock re-check catches the route-before-revert ordering', async () => {
+  // The batch-regressed arm queues re-audit-born absorbs BEFORE aceBisect's { reverted: true }
+  // demotes land (routeReauditMinors runs first, then await aceBisect): a content-identical
+  // re-mint of a batch finding is already on r.reentryQueue when its key enters revertedKeys, so
+  // queue-time remintBlock alone cannot refuse it. aceReentry's DRAIN-time re-check must — or the
+  // finding oscillates: a second ace dispatch, then recordAced landing it in BOTH aced and
+  // minorsFiled (End states 1 + 6). Single-file batch ⇒ aceHalve returns null ⇒ whole-batch
+  // demote, no subset dispatches — the only ace call is the batch itself.
+  const first = () => nit({ title: 'first', file: 'skills/first.js' })
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [first()]),
+                               { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'request_changes',
+                                 confidence: 'high', findings: [{ severity: 'Major', title: 'batch broke it', file: 'zz-unrelated.js', rationale: 'regressed' },
+                                                                first()] }] },
+    aceBase([first()]))
+  const { out, calls, logs } = await runPhase(ACE_ARGS(), impl)
+  assert.equal(calls.filter(isAce).length, 1, 'ONLY the batch ace dispatched — the re-raised batch finding never re-enters despite being queued before the forward-revert registration')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('re-entry REFUSED at drain') && l.includes('first')),
+    'the drain-time re-check refuses the queued re-mint, logged (never silent)')
+  assert.equal((out.minorsFiled || []).filter(m => m && m.title === 'first').length, 1,
+    'the reverted batch finding demotes to follow-up exactly ONCE')
+  assert.ok(!(out.aced || []).some(x => x && x.finding && x.finding.title === 'first'),
+    'the reverted finding never lands in aced — aced ∩ minorsFiled = ∅ (End state 6)')
+  assert.ok(out.landed.includes('t1'), 't1 still lands its approved work')
+})
+
+test('ace-reentry (End state 1, reserve gate): re-entry dispatches only while fixRounds < roundLimit − 2 — at the reserve the fresh absorb routes phaseClose:true instead (logged)', async () => {
+  // roundLimit 3 ⇒ reserve boundary 1. The batch ace charges the only slot; the re-audit-born
+  // absorb finds the reserve line and routes to the sweep queue (no second ace dispatch). Without
+  // a default audit.roster the sweep skips fail-open and drains — the finding surfaces via the
+  // logged demotion, proving the sweep queue (not minorsFiled directly) was its route.
+  const { out, calls, logs } = await runPhase(ACE_ARGS({ run: { ace: true, roundLimit: 3 } }), reentryImpl())
+  assert.equal(calls.filter(isAce).length, 1, 'only the batch ace dispatched — the reserve blocks re-entry (the NEW < roundLimit − 2 gate)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('reserve-blocked') && l.includes('roundLimit−2 (1)')),
+    'the reserve stop is logged with the boundary value')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('Re-entry routing') && l.includes('second')),
+    'the reserve-blocked absorb routes phaseClose:true toward the sweep (logged, never silent)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('sweep skipped')), 'the finding reached the phase-close queue (drained fail-open without a roster)')
+  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'second'), 'the drained finding demotes to follow-up (nothing dropped)')
 })
 
 test('Task 3 — provenance aced list: an aced nit appears on return.aced with { task, finding, sha }, and is NOT in minorsFiled', async () => {
@@ -4191,11 +4310,11 @@ test('#1550 — demote() refuses an ask loudly: log + exactly-once asks[] member
   assert.deepEqual(parked.fork, [], 'a finding without an `ask` field parks with fork falling back to []')
 })
 
-// Default-deny order-census (End states 1+2, D7 — the floored domain): exactly eight dispositionOf
+// Default-deny order-census (End states 1+2, D7 — the floored domain): exactly five dispositionOf
 // call sites, each carrying an explicit ask arm that PRECEDES its absorb chain, plus the
-// pinMismatch strip as the ninth row (a non-dispositionOf disposition sink, comment-named).
+// pinMismatch strip as the extra row (a non-dispositionOf disposition sink, comment-named).
 // A NEW dispositionOf call site reds the count until it joins this census with its own ask arm.
-test('#1550 (D7) — ask order-census: eight dispositionOf sites with ask preceding the absorb chain, default-deny, plus the comment-named pinMismatch strip row', () => {
+test('#1550 (D7) — ask order-census: five dispositionOf sites with ask preceding the absorb chain, default-deny, plus the comment-named pinMismatch strip row', () => {
   // The classifier itself: the ask arm precedes the absorb chain inside dispositionOf.
   const defStart = src.indexOf('const dispositionOf')
   const def = src.slice(defStart, src.indexOf('const parkAsk', defStart))
@@ -4204,10 +4323,12 @@ test('#1550 (D7) — ask order-census: eight dispositionOf sites with ask preced
   // Call-site domain discovery (default-deny): every dispositionOf( occurrence in the source.
   const sites = []
   for (let i = src.indexOf('dispositionOf('); i !== -1; i = src.indexOf('dispositionOf(', i + 1)) sites.push(i)
-  // 6 → 8 (#1694 fold, Phase 7 Task 1): the ace-regression branch and the failing-subset arm each
-  // gained their own disposition ladder — an ask raised on either arm parks, never drops.
-  assert.equal(sites.length, 8,
-    `the floored order-census domain is exactly EIGHT dispositionOf call sites (found ${sites.length}) — a new site must join this census with its own ask arm preceding its absorb chain`)
+  // 8 → 5 (in-run-finding-resolution Task 1.1, D1): the four re-audit-round routing loops (batch
+  // approved/regressed + the two bisection-subset arms) consolidated into the ONE shared
+  // routeReauditMinors helper (its dispositionOf site carries the ask arm first, then the re-entry
+  // queue as its absorb chain) — an ask raised at any re-audit still parks, never drops.
+  assert.equal(sites.length, 5,
+    `the floored order-census domain is exactly FIVE dispositionOf call sites (found ${sites.length}) — a new site must join this census with its own ask arm preceding its absorb chain`)
   const ABSORB_CHAIN = /demote\(|aceable\.push|phaseCloseQueue\.push/
   for (const i of sites) {
     const slice = src.slice(i, i + 700)
@@ -8737,11 +8858,16 @@ const DONE_WHEN_SITES = [
   // the set-minus identity holds even there.)
   { site: 'MAKE_DONE_PASS floor-fix prompt (make-pass:<task>:r<n>)', find: (c) => c.find(isMakePassWorker),
     run: (taskOver) => runDoneUnmetLoop({ taskOver }) },
+  // The ace RE-ENTRY batch dispatch (in-run-finding-resolution Task 1.1) is the eighth
+  // worker-family site — doneWhenClause rides it beside its Gate: line — ADDED, never skipped.
+  { site: 'ace re-entry batch prompt (ace:<task>:r<n>, fresh re-audit absorb)',
+    find: (c) => c.find(x => /^ace:t1:r2$/.test(x.opts.label || '') && (x.prompt || '').includes('ACE RE-ENTRY BATCH')),
+    run: (taskOver) => runPhase(ACE_ARGS({ tasks: [dwTask(taskOver)] }), reentryImpl()) },
 ]
 
-test("Done when threading (Task 1.3) — all seven worker-family sites carry the task's Done when: command beside the Gate: line; the worker card documents the input", async () => {
-  assert.equal(DONE_WHEN_SITES.length, 7,
-    'exactly seven worker-family Done-when sites are enumerated (anti-vacuity floor — a site is ADDED, never skipped)')
+test("Done when threading (Task 1.3) — all eight worker-family sites carry the task's Done when: command beside the Gate: line; the worker card documents the input", async () => {
+  assert.equal(DONE_WHEN_SITES.length, 8,
+    'exactly eight worker-family Done-when sites are enumerated (anti-vacuity floor — a site is ADDED, never skipped)')
   // Adjacency (D7, #1334-5): the expected bytes are COMPOSED — the engine normalizes plan.gate
   // through resolveGate at entry (ADR 0036), so the prompt's Gate: line carries the resolved gate
   // and the Done when: clause must concatenate DIRECTLY after it (an index-precedence pair stayed
@@ -8813,6 +8939,7 @@ test('prompt truth (D6) — every dispatched prompt that says keep-the-gate-gree
     await runDoneUnmetLoop(),
     await runPhase(ACE_ARGS({ tasks: [dwTask()] }), aceBase()),
     await runPhase(ACE_ARGS({ tasks: [dwTask()] }), bisectSubsetImpl()),
+    await runPhase(ACE_ARGS({ tasks: [dwTask()] }), reentryImpl()),
     await runPhase(SWEEP_ARGS(), sweepBase([queuedAbsorb()])),
   ]
   const keepGreen = runs.flatMap(r => r.calls).filter(c => /keep the gate\b/i.test(c.prompt || ''))
@@ -8828,8 +8955,10 @@ test('prompt truth (D6) — every dispatched prompt that says keep-the-gate-gree
   // keep-green prompt added at a dispatch site no fixture reaches would silently evade it. Count the
   // space-form phrase over the template SOURCE in OCCURRENCE semantics (case-insensitive; the
   // keep-the-gate-green comment mentions are hyphenated and deliberately non-hits). Pin re-measured
-  // at task time: 7 (the ace bisection subset prompt joined via realized-absorb-rate Task 1.1).
-  assert.equal((src.match(/keep the gate/gi) || []).length, 7,
+  // at task time: 8 (the ace bisection subset prompt joined via realized-absorb-rate Task 1.1; the
+  // ace RE-ENTRY batch prompt joined via in-run-finding-resolution Task 1.1 — its fixture rides
+  // the sweep above).
+  assert.equal((src.match(/keep the gate/gi) || []).length, 8,
     'a new keep-the-gate-green prompt must join the D6 sweep above — the space-form census over the template source moved; re-pin this count ONLY alongside extending the sweep fixtures to reach the new site')
 })
 
@@ -10765,10 +10894,18 @@ const BARE_INTERPOLATION_CENSUS = [
   'ensures', 'ev.round', 'ev.sha', 'f.file', 'f.severity', 'f.suggested_fix', 'gateHeadSha',
   'ghUser', 'guardEvidence', 'guardSpecificity', 'integratedTip.gate_output',
   'intent', 'landedTipAnchor', 'lens', 'm.file', 'm.line', 'm.taskId', 'memoryLocalRoot',
-  'nearMissDiag', 'owned', 'pendingRevert', 'ph.epicIssue', 'ph.id', 'ph.integrationBranch',
+  'nearMissDiag', 'owned', 'ph.epicIssue', 'ph.id', 'ph.integrationBranch',
   'ph.title', 'ph.workingBranch', 'pin', 'pinEvidence', 'pinStatus', 'pinStatusLine', 'plan.gate',
   'polishBranch', 'polishWorktree', 'provisionSource', 'r.aceReverted', 'r.check', 'r.condition',
-  'r.fence', 'r.n', 'r.supersedes', 'r.tag', 'r.task.branch', 'r.task.id', 'r.task.targetRepo',
+  'r.fence', 'r.n',
+  // r.reentryBase (in-run-finding-resolution Task 1.1): ternary-gated at its single site (the
+  // re-entry PREFLIGHT range falls back to HEAD~30..HEAD when absent) — construction-guaranteed.
+  // reentryRange is that ternary's pt-built product (always a string). sha/worktree are the
+  // aceRevertStep helper's params: sha is the truthiness gate itself (the clause renders only when
+  // set) and worktree is r.task.worktree (entry-validated) at both call sites — the old inline
+  // 'pendingRevert' row relocated into the helper.
+  'r.reentryBase', 'reentryRange', 'sha', 'worktree',
+  'r.supersedes', 'r.tag', 'r.task.branch', 'r.task.id', 'r.task.targetRepo',
   'r.task.worktree', 'r.unsupported', 'refineryLandPath', 'refineryP', 'refineryPath', 'roundLimit', 's.lens',
   's.seat', 's.verdict', 'submodLandTask.targetRepo', 'submodPath', 't.id', 'task.branch',
   'task.doneWhen', 'task.id', 'task.title', 'task.worktree', 'taskId', 'testPatternArg', 'trailer',
@@ -11256,4 +11393,554 @@ test('recovery-holder (End state 27): the holder auto-free clause is DORMANT wit
   const p = calls.find(isProvision).prompt
   assert.doesNotMatch(p, /ref-holder auto-free/, 'no holder auto-free clause on an unsanctioned run')
   assert.doesNotMatch(p, /git worktree remove/, 'no removal instruction on an unsanctioned run (byte-identical dormancy)')
+})
+
+// ---------------------------------------------------------------------------
+// in-run-finding-resolution Task 1.1 — the remaining End-state fixture families:
+// reaudit-sweep (2), new-test-absorb (3), citation-resolve (4), citation-unsound (5),
+// ask-content-key (6), ask-collision + lens-suffix (7), ace-group-path (8),
+// disposition-prompt-widened (10), ruled-ask-absorb (12).
+// ---------------------------------------------------------------------------
+
+// Quiet gate-audit fallback: the gate-audit-family lanes return clean approvals so their sink
+// lane never re-raises the roster findings under test (ask-resolution fixtures need asks[] exact).
+const quietGate = (base) => (prompt, opts) => {
+  if (seatOf(opts) === 'war-auditor' && (opts.label || '').startsWith('gate-audit:'))
+    return { seat: opts.label, lens: 'execution-evidence', verdict: 'approve', findings: [], confidence: 'high' }
+  return base(prompt, opts)
+}
+
+test('reaudit-sweep (End state 2): a re-audit-born mechanical absorb, reserve-blocked, lands in the phase-close sweep — aced at the polish sha, NOT minorsFiled', async () => {
+  // roundLimit 3 ⇒ reserve boundary 1: the batch ace spends the only slot, so the re-audit-born
+  // absorb is reserve-blocked and routes phaseClose:true — the sweep is its vehicle (D2/D3).
+  const first = nit({ title: 'first nit', file: 'skills/first.js' })
+  const fresh = nit({ title: 'reaudit-born nit', file: 'skills/fresh.js' })
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [first]),
+                               approveWith('audit:t1:correctness', [fresh])] },
+    sweepBase([]))
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS({ run: { ace: true, roundLimit: 3 } }), impl)
+  assert.equal(calls.filter(isAce).length, 1, 'only the batch ace dispatched (the reserve blocks re-entry)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('reserve-blocked')), 'the reserve stop is logged')
+  const pw = calls.find(c => (c.opts.label || '') === 'polish:phase-3')
+  assert.ok(pw && pw.prompt.includes('reaudit-born nit'), 'the reserve-blocked absorb reaches the phase-close sweep dispatch')
+  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'reaudit-born nit' && a.sha === 'polishsha'),
+    'the re-audit-born absorb is ACED at the polish sha (executed in-run via the sweep)')
+  assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'reaudit-born nit'),
+    'the re-audit-born absorb never lands in minorsFiled (the sweep, not the issue tracker, is its vehicle)')
+  assert.ok(out.landed.includes('t1'), 't1 lands on the polished tip')
+})
+
+test('new-test-absorb (End state 3): a new-test addition in a task-owned test file is ace-eligible — it rides the ace batch and both prompt layers say so', async () => {
+  const testNit = { severity: 'Minor', title: 'add missing negative test', file: 'skills/war/assets/war-config.test.mjs',
+    rationale: 'the guard has no negative-control coverage', disposition: 'absorb',
+    suggested_fix: 'add one negative-control test beside the positive fixture' }
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [testNit]),
+                               approveWith('audit:t1:correctness', [])] },
+    quietGate(aceBase([testNit])))
+  const { out, calls } = await runPhase(ACE_ARGS(), impl)
+  const ace = calls.find(isAce)
+  assert.ok(ace && ace.prompt.includes('add missing negative test'), 'the new-test absorb rides the ace batch (never refused for being a test addition)')
+  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'add missing negative test'), 'the new-test absorb is aced')
+  assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'add missing negative test'), 'the new-test absorb is NOT filed')
+  // Both prompt layers carry the eligibility widening (D4): dispatched DISPOSITION WIDENINGS block +
+  // the standing disposition-eligibility.md home (End state 3's standing needle: 'new test').
+  const auditPromptText = calls.find(c => (c.opts.label || '') === 'audit:t1:correctness').prompt
+  assert.ok(/task-owned test file/.test(auditPromptText) && /not by itself a why-not-absorbable reason/.test(auditPromptText),
+    'the dispatched auditor prompt carries the new-test eligibility rule')
+  const eligMd = readFileSync(join(here, '../references/disposition-eligibility.md'), 'utf8')
+  assert.ok(/new test/i.test(eligMd) && /task-owned test file/.test(eligMd),
+    'the standing disposition-eligibility.md home carries the new-test eligibility rule')
+})
+
+test('disposition-prompt-widened (End state 10): the dispatched auditPrompt DISPOSITION block names re-audit-born default-absorb, new-test eligibility, and trade-off-ask routing; the standing home mirrors all three', async () => {
+  const { calls } = await runPhase(PROVISION_ARGS(), defaultImpl)
+  const p = calls.find(isAuditor).prompt
+  assert.ok(p.includes('DISPOSITION WIDENINGS:'), 'the dispatched DISPOSITION WIDENINGS block is emitted on every roster seat')
+  assert.ok(p.includes('born at a re-audit'), 'widening (1): re-audit-born default-absorb (D3)')
+  assert.ok(p.includes('task-owned test file'), 'widening (2): new-test eligibility (D4)')
+  assert.ok(p.includes('trade-off') && p.includes('routes ask'), 'widening (3): trade-off-ask routing (D5)')
+  assert.ok(p.includes('citation') && p.includes('NO-match'), 'the citation arm and its ambiguity-is-no-match floor ride the dispatched block (D6, PIN-6)')
+  // The DISPOSITION RULE sentence itself stays byte-untouched (the card byte-mirror) — the
+  // widenings are a separate appended block.
+  assert.ok(p.includes('absorb and ask are never defaults.'), 'the original DISPOSITION RULE sentence survives byte-untouched')
+  const eligMd = readFileSync(join(here, '../references/disposition-eligibility.md'), 'utf8')
+  assert.ok(/born at a re-audit/i.test(eligMd), "standing home carries the literal 'born at a re-audit' (End state 10 needle)")
+  assert.ok(/trade-off/i.test(eligMd), 'standing home carries the trade-off routing rule')
+})
+
+// A citation-resolved finding: the seat matched the parked ask's NAMED trade-off to a threaded
+// standing adjudication row and returns disposition:'absorb' + citation (A2 — panel judgment),
+// KEEPING the parked ask's `ask` field verbatim (the resolve contract, both prompt layers). The
+// TITLE deliberately DIFFERS from ask.question so the fixture discriminates: a resolve keyed on
+// the title alone would miss the parked record (whose key derives from the round-1 question).
+const citationF = () => ({ severity: 'Minor', title: 'mirrored value rides docs/x.md', file: 'docs/x.md',
+  rationale: 'ruled by standing row', disposition: 'absorb',
+  ask: { question: 'mirror the value or point at the source?', fork: ['mirror the value', 'point at the source'] },
+  citation: { row: 'ADJ-7: doc facts point at the source, never mirror', rationale: 'the row rules the mirror-vs-point trade-off this ask names' },
+  suggested_fix: 'replace the mirrored value with a source pointer' })
+// Args for the citation family: the row-existence floor admits only citations whose `row` matches
+// a THREADED adjudication row (exact/containment against adjRow), so these fixtures thread the
+// standing set (the row text carries the run's own 'wtprov' slug token for the provenance floor).
+const CITED_ADJ = ['ADJ-7: doc facts point at the source, never mirror — ruled at the wtprov decompose gate']
+const CITE_ARGS = (over = {}) => ACE_ARGS({ adjudications: CITED_ADJ, ...over })
+
+test('citation-resolve (End state 4): an absorb-by-citation finding executes via the re-entry vehicle — commit stamp + aced citation record + the parked ask resolves; the re-audit panel is charged with soundness', async () => {
+  const a = nit({ title: 'plain nit', file: 'skills/a.js' })
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [askFinding(), a]),
+                               approveWith('audit:t1:correctness', [citationF()]),
+                               approveWith('audit:t1:correctness', [])] },
+    quietGate(aceBase([askFinding(), a])))
+  const { out, calls, logs } = await runPhase(CITE_ARGS(), impl)
+  const aces = calls.filter(isAce)
+  assert.equal(aces.length, 2, 'batch + the citation-resolved re-entry batch')
+  assert.ok(aces[1].prompt.includes('ACE RE-ENTRY BATCH'), 'the citation absorb executes via the re-entry vehicle (D6)')
+  assert.ok(aces[1].prompt.includes('[absorb-by-citation: row "ADJ-7: doc facts point at the source, never mirror" — the row rules the mirror-vs-point trade-off this ask names]'),
+    'the dispatch row stamps row-id + match rationale so the ace commit message carries the citation (PIN-7 record floor)')
+  const acedEntry = (out.aced || []).find(x => x && x.citation)
+  assert.ok(acedEntry && acedEntry.citation.row === 'ADJ-7: doc facts point at the source, never mirror',
+    'the durable aced record carries the row-id')
+  assert.ok(acedEntry.citation.rationale.includes('mirror-vs-point'), 'the aced record carries the one-line match rationale')
+  // The parked round-1 ask RESOLVES on the ECHOED ask.question key — the citation finding's title
+  // deliberately differs from the question, so a title-keyed resolve would false-miss here.
+  assert.equal((out.asks || []).length, 0, 'the parked ask is resolved by the executed citation absorb (echoed-ask content key, not title coincidence)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('parked ask resolved by citation')), 'the resolution is logged')
+  // Soundness duty (PIN-7): the citation-resolved batch re-audit is explicitly charged, and the
+  // charge ENUMERATES its subjects (title + cited row + match rationale) so the panel judges from
+  // its own prompt, never from a commit message it is not directed to read.
+  const t1Audits = calls.filter(c => (c.opts.label || '') === 'audit:t1:correctness')
+  assert.ok(t1Audits[2] && t1Audits[2].prompt.includes('CITATION SOUNDNESS'),
+    'the re-audit prompt for the citation-resolved batch carries the CITATION SOUNDNESS charge')
+  assert.ok(t1Audits[2].prompt.includes('"mirrored value rides docs/x.md" cites row "ADJ-7: doc facts point at the source, never mirror" — match rationale: the row rules the mirror-vs-point trade-off this ask names'),
+    'the soundness charge enumerates the citation payload (finding title + row-id + match rationale) into the panel prompt')
+  assert.ok(!t1Audits[0].prompt.includes('CITATION SOUNDNESS'), 'a citation-less round carries no soundness clause (byte-identity preserved)')
+})
+
+test('citation-resolve (production shape, ask-less citation): a citation absorb WITHOUT the echoed ask field cannot silently no-op — the miss is LOGGED, the parked ask survives for the operator, the aced record still carries the citation', async () => {
+  const a = nit({ title: 'plain nit', file: 'skills/a.js' })
+  const askless = citationF()
+  delete askless.ask                                     // schema-minimal shape: `ask` is mandatory only on disposition:'ask'
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [askFinding(), a]),
+                               approveWith('audit:t1:correctness', [askless]),
+                               approveWith('audit:t1:correctness', [])] },
+    quietGate(aceBase([askFinding(), a])))
+  const { out, logs } = await runPhase(CITE_ARGS(), impl)
+  assert.ok((out.aced || []).some(x => x && x.citation && x.citation.row === 'ADJ-7: doc facts point at the source, never mirror'),
+    'the ask-less citation absorb still aces with its citation stamp')
+  assert.equal((out.asks || []).length, 1, 'the parked ask SURVIVES — with no echoed ask field and a differing title, no content key matches (never a coincidence-shaped unpark)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('citation absorb executed with NO matching parked ask')),
+    'the no-match case is LOGGED (never a silent no-op) — the operator still rules the parked question at the Checkpoint')
+})
+
+test('citation row-existence floor: a FABRICATED row (no threaded adjudication membership) is refused — plain absorb, no stamp, no unpark, refusal logged', async () => {
+  const fabricated = citationF()
+  fabricated.citation = { row: 'ADJ-99: an adjudication row nobody threaded', rationale: 'fabricated' }
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [askFinding(), fabricated]),
+                               approveWith('audit:t1:correctness', [])] },
+    quietGate(aceBase([askFinding(), fabricated])))
+  const { out, calls, logs } = await runPhase(CITE_ARGS(), impl)
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('citation REFUSED (row-existence floor)') && l.includes('ADJ-99')),
+    'the fabricated row is refused by the mechanical set-membership floor, logged with the row text')
+  const ace = calls.find(isAce)
+  assert.ok(ace && !ace.prompt.includes('absorb-by-citation'), 'the refused citation renders NO stamp in the dispatch row (plain absorb)')
+  const entry = (out.aced || []).find(x => x && x.finding && x.finding.title === 'mirrored value rides docs/x.md')
+  assert.ok(entry && !entry.citation, 'the aced record carries no citation for a fabricated row (fail-open to a plain absorb)')
+  assert.equal((out.asks || []).length, 1, 'the parked ask is NEVER unparked by a fabricated citation — the operator keeps the question')
+})
+
+test('citation-resolve (End state 4, ambiguity ⇒ no-match): an ask without a citation stays parked — never aced, never filed; a MALFORMED citation never stamps a row', async () => {
+  // Ambiguity resolves to NO-match (PIN-6): the seat keeps disposition:'ask' — today's park path.
+  const { out } = await runPhase(ACE_ARGS(), quietGate(aceBase([askFinding()])))
+  assert.equal((out.asks || []).length, 1, 'the ambiguous-match ask parks exactly once')
+  assert.ok(!(out.aced || []).some(x => x && x.citation), 'nothing aced with a citation')
+  assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'mirror or point'), 'the parked ask is never filed unruled')
+  // Malformed-citation floor: a row-less citation object is inert (citationOf → null) — the finding
+  // rides as a plain absorb with NO citation stamp on its aced record.
+  const malformed = nit({ title: 'malformed citation nit', file: 'skills/m.js' })
+  malformed.citation = { rationale: 'row missing' }
+  const impl2 = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [malformed]),
+                               approveWith('audit:t1:correctness', [])] },
+    quietGate(aceBase([malformed])))
+  const { out: out2, calls: calls2 } = await runPhase(ACE_ARGS(), impl2)
+  assert.ok(!calls2.filter(isAce)[0].prompt.includes('absorb-by-citation'), 'a malformed citation renders NO stamp in the dispatch row')
+  const entry2 = (out2.aced || []).find(x => x && x.finding && x.finding.title === 'malformed citation nit')
+  assert.ok(entry2 && !entry2.citation, 'the aced record carries no citation for a malformed citation object (fail-open, never an invented row)')
+})
+
+test('citation-unsound (End state 5): the re-audit panel catches an unsound citation — the batch forward-reverts and the finding demotes NAMING the mismatch', async () => {
+  const a = nit({ title: 'plain nit', file: 'skills/a.js' })
+  const unsoundVerdict = { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'request_changes',
+    confidence: 'high', findings: [{ severity: 'Major', title: 'citation mismatch', file: 'docs/x.md',
+      citationUnsound: true, rationale: 'the cited row covers log retention, not the mirror-vs-point call' }] }
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [askFinding(), a]),
+                               approveWith('audit:t1:correctness', [citationF()]),
+                               unsoundVerdict] },
+    quietGate(aceBase([askFinding(), a])))
+  const { out, calls, logs } = await runPhase(CITE_ARGS(), impl)
+  assert.equal(calls.filter(isAce).length, 2, 'batch + the one re-entry attempt (bounded — no retry after the unsound verdict)')
+  const demoteLog = logs.find(l => typeof l === 'string' && l.includes('UNSOUND'))
+  assert.ok(demoteLog, 'the unsound-citation demotion is logged')
+  assert.ok(demoteLog.includes('ADJ-7: doc facts point at the source, never mirror'), 'the demotion names the cited row')
+  assert.ok(demoteLog.includes('log retention, not the mirror-vs-point call'), 'the demotion NAMES the mismatch (the panel finding rationale)')
+  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'mirrored value rides docs/x.md'),
+    'the unsound citation finding demotes to follow-up (never a silent drop)')
+  const merge = calls.find(isMergeTask)
+  assert.match(merge.prompt, /revert\s+--no-edit\s+deadbeef/, 'the unsound batch is forward-reverted at the merge (blocking ⇒ revert)')
+  assert.equal((out.asks || []).length, 1, 'the parked ask SURVIVES an unsound execution — the question returns to the operator, never silently resolved')
+  assert.ok(out.landed.includes('t1'), 't1 still lands its approved work')
+})
+
+test('citation-unsound (End state 5, round-1-batch path): a citation absorb riding the ROUND-1 batch ace that regresses with citationUnsound demotes NAMING the mismatch — the naming duty holds on every path, not only re-entry', async () => {
+  // The citation-carrying absorb enters the round-1 aceable batch directly (it is a plain
+  // disposition:'absorb' finding) — the FIRST path it meets. The regressed re-audit flags
+  // citationUnsound; the single-file batch is ambiguous-and-atomic, so aceBisect demotes whole —
+  // and the demote reason must carry the mismatch (the shared unsoundReason helper), not only the
+  // generic bisection string.
+  const unsoundVerdict = { seat: 'audit:t1:correctness', lens: 'correctness', verdict: 'request_changes',
+    confidence: 'high', findings: [{ severity: 'Major', title: 'citation mismatch', file: 'zz-unrelated.js',
+      citationUnsound: true, rationale: 'the cited row covers log retention, not the mirror-vs-point call' }] }
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [citationF()]),
+                               unsoundVerdict] },
+    quietGate(aceBase([citationF()])))
+  const { out, calls, logs } = await runPhase(CITE_ARGS(), impl)
+  assert.equal(calls.filter(isAce).length, 1, 'the round-1 batch ace only (single file group — ambiguous-and-atomic, no subsets)')
+  const demoteLog = logs.find(l => typeof l === 'string' && l.includes('UNSOUND'))
+  assert.ok(demoteLog, 'the round-1-batch unsound-citation demotion is logged with the mismatch')
+  assert.ok(demoteLog.includes('ADJ-7: doc facts point at the source, never mirror'), 'the batch-path demotion names the cited row')
+  assert.ok(demoteLog.includes('log retention, not the mirror-vs-point call'), 'the batch-path demotion NAMES the mismatch (the panel finding rationale)')
+  assert.ok((out.minorsFiled || []).some(m => m && m.title === 'mirrored value rides docs/x.md'),
+    'the citation finding demotes to follow-up on the batch path (never a silent drop)')
+  assert.ok(!(out.aced || []).some(x => x && x.citation), 'nothing aced with a citation after the unsound batch revert')
+  assert.ok(out.landed.includes('t1'), 't1 still lands its approved work')
+})
+
+test('ask-content-key (End state 6, cross-round stability): a persisting ask re-minted at the re-audit parks ONCE — the re-raise merges as corroboration, logged', async () => {
+  const a = nit({ title: 'plain nit', file: 'skills/a.js' })
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [askFinding(), a]),
+                               approveWith('audit:t1:correctness', [askFinding()])] },
+    quietGate(aceBase([askFinding(), a])))
+  const { out, logs } = await runPhase(ACE_ARGS(), impl)
+  assert.equal((out.asks || []).length, 1, 'ONE parked record for the persisting ask across two rounds (content-key identity beats minorsOf\'s fresh copies, #1810)')
+  assert.equal((out.asks[0].corroborators || []).length, 1, 'the round-2 re-mint lands on the surviving record\'s corroborators list')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('merged as corroboration')), 'the collision is logged (never a silent drop, #1790)')
+})
+
+test('ask-content-key (End state 6, D8 property floor both directions): the key is stable across re-mints of the SAME finding AND distinguishes distinct findings on the same task', () => {
+  const sliceStart = src.indexOf('const dispositionOf')
+  const sliceEnd = src.indexOf('const aceEligible')
+  const harness = new Function('log', 'notes', 'minorsFiled', 'asks',
+    src.slice(sliceStart, sliceEnd) + '\nreturn { parkAsk, askContentKey }')
+  const logs = [], asks = []
+  const { parkAsk, askContentKey } = harness(m => logs.push(m), [], [], asks)
+  const mint = (over = {}) => ({ severity: 'Minor', task: 't1', title: 'mirror or point', disposition: 'ask',
+    ask: { question: 'mirror the value or point at the source?', fork: ['mirror', 'point'] }, ...over })
+  // Direction 1 — stability: two FRESH COPIES (distinct objects, drifted seat/sha) share one key
+  // and park once. Delete-the-feature: the old object-identity check parks both.
+  const r1 = mint({ seat: 'audit:t1:correctness', sha: 'aaa1111' })
+  const r2 = mint({ seat: 'audit:t1:correctness:rebut', sha: 'bbb2222' })
+  assert.notEqual(r1, r2, 'fixture control: the two mints are distinct objects (object identity would false-miss)')
+  assert.equal(askContentKey(r1), askContentKey(r2), 'the content key is STABLE across rounds for the same finding')
+  parkAsk(r1); parkAsk(r2)
+  assert.equal(asks.length, 1, 'one park per persisting finding across rounds')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('merged as corroboration')), 'the second mint merges as corroboration, logged')
+  // Direction 2 — distinctness: a DIFFERENT finding on the SAME task never collapses.
+  const other = mint({ title: 'keep or retire the contract?', ask: { question: 'keep or retire the contract?', fork: ['keep', 'retire'] } })
+  assert.notEqual(askContentKey(r1), askContentKey(other), 'distinct findings on the same task get distinct keys')
+  parkAsk(other)
+  assert.equal(asks.length, 2, 'the distinct same-task finding parks as its own record (never collapsed)')
+  // Same question on a DIFFERENT task is a different finding too (task is in the tuple).
+  parkAsk(mint({ task: 't2' }))
+  assert.equal(asks.length, 3, 'the same question on another task is its own record')
+})
+
+test('ask-content-key (End state 6, aced ∩ minorsFiled = ∅): a later-round re-mint of an ALREADY-ACED finding never also files — corroboration, logged', async () => {
+  const a = nit({ title: 'absorbed once', file: 'skills/a.js' })
+  // Round 2 re-mints the SAME finding content as a Minor follow-up (no disposition ⇒ Minor default).
+  const remint = { severity: 'Minor', title: 'absorbed once', file: 'skills/a.js', rationale: 'still visible in a stale view' }
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [a]),
+                               approveWith('audit:t1:correctness', [remint])] },
+    quietGate(aceBase([a])))
+  const { out, logs } = await runPhase(ACE_ARGS(), impl)
+  assert.ok((out.aced || []).some(x => x && x.finding && x.finding.title === 'absorbed once'), 'the finding is aced (round-1 batch)')
+  assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'absorbed once'),
+    'no finding lands in BOTH aced and minorsFiled (#1810 double-file arm)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('corroboration of the aced record')),
+    'the skipped re-mint is logged as corroboration (never silent)')
+})
+
+test('ask-content-key (End state 6, aced ∩ minorsFiled = ∅, REVERSE direction): a finding FILED as follow-up in round 1 and re-raised as an absorb at the re-audit is never aced — the filed record stands, the suppression is logged', async () => {
+  // The other direction of the disjointness conjunct: round 1 files X as follow-up (minorsFiled)
+  // alongside a separate absorb (so the batch ace and its re-audit run at all). The re-audit
+  // re-mints X's content as an ABSORB — exactly the flip the DISPOSITION WIDENINGS doctrine
+  // ('born at a re-audit DEFAULTS to absorb') produces. filedKeys must refuse the re-queue, or X
+  // re-enters, aces, and lands in BOTH aced and minorsFiled — an issue filed for work the run
+  // just executed.
+  const filed = { severity: 'Minor', title: 'filed once', file: 'skills/filed.js', rationale: 'needs a real design pass', disposition: 'follow-up' }
+  const absorbed = nit({ title: 'absorbed nit', file: 'skills/a.js' })
+  const remintAsAbsorb = nit({ title: 'filed once', file: 'skills/filed.js', rationale: 'mechanical after all' })
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [filed, absorbed]),
+                               approveWith('audit:t1:correctness', [remintAsAbsorb]),
+                               approveWith('audit:t1:correctness', [])] },
+    quietGate(aceBase([filed, absorbed])))
+  const { out, calls, logs } = await runPhase(ACE_ARGS(), impl)
+  assert.equal(calls.filter(isAce).length, 1, 'only the round-1 batch ace dispatched — the filed finding\'s absorb re-mint never re-enters the ladder')
+  assert.equal((out.minorsFiled || []).filter(m => m && m.title === 'filed once').length, 1,
+    'the follow-up stays filed exactly ONCE (the durable record stands)')
+  assert.ok(!(out.aced || []).some(x => x && x.finding && x.finding.title === 'filed once'),
+    'the re-minted absorb is never aced — the finding lands in exactly ONE of aced/minorsFiled (End state 6)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('re-entry REFUSED') && l.includes('filed once') && l.includes('already filed as a follow-up')),
+    'the suppression is logged naming the filed record (never silent)')
+  assert.ok((out.aced || []).some(x => x && x.finding && x.finding.title === 'absorbed nit'),
+    'fixture control: the genuine absorb still aced (the refusal is key-scoped, not a blanket stop)')
+})
+
+// --- Registry-coverage fixes (attempt-1 audit Majors): remintKey re-key, queuedKeys, cross-seat merge ---
+// Shared slice harness: dispositionOf → allApprove covers parkAsk/demote/the four registries/
+// remintKey/remintBlock/corroborateSurvivor/routeToSweep/routeReauditMinors. minorsOf is defined
+// ABOVE the slice, so a shape-faithful stub is injected (seat-stamped copies, Minor/Nit only).
+const registrySlice = () => {
+  const sliceStart = src.indexOf('const dispositionOf')
+  const sliceEnd = src.indexOf('const allApprove')
+  assert.ok(sliceStart !== -1 && sliceEnd > sliceStart, 'the dispositionOf→allApprove registry slice is locatable')
+  const harness = new Function('log', 'notes', 'minorsFiled', 'asks', 'aced', 'phaseCloseQueue', 'minorsOf', 'run',
+    src.slice(sliceStart, sliceEnd)
+    + '\nreturn { askContentKey, remintKey, remintBlock, parkAsk, fileFollowUp, recordAced, routeToSweep, routeReauditMinors, corroborateSurvivor, queuedKeys }')
+  const state = { logs: [], notes: [], minorsFiled: [], asks: [], aced: [], phaseCloseQueue: [] }
+  const minorsOf = seats => seats.flatMap(s => (s.findings || []).filter(f => f.severity === 'Minor' || f.severity === 'Nit').map(f => ({ seat: s.seat, sha: s.audit_sha ?? null, ...f })))
+  const api = harness(m => state.logs.push(m), state.notes, state.minorsFiled, state.asks, state.aced, state.phaseCloseQueue, minorsOf, { ace: true })
+  return { ...state, ...api }
+}
+
+test('ask-content-key (registry re-key, D8 both directions on the FINDING tuple): remintKey is stable across seat/sha churn and ./-path drift, and distinguishes same-task findings by file AND title — askContentKey stays parkAsk-only', () => {
+  const h = registrySlice()
+  const mint = (over = {}) => ({ severity: 'Minor', task: 't1', title: 'stale mirror', file: 'skills/a.js', disposition: 'absorb', ...over })
+  // Direction 1 — stability: seat/sha churn and a `./`-form path never change the key.
+  assert.equal(h.remintKey(mint({ seat: 'audit:t1:correctness', sha: 'aaa1111' })),
+               h.remintKey(mint({ seat: 'audit:t1:style:rebut', sha: 'bbb2222' })),
+               'seat/sha churn never changes the finding key')
+  assert.equal(h.remintKey(mint({ file: './skills/a.js' })), h.remintKey(mint()),
+               'a ./-form re-mint of the same file shares the key (the #1813 normalization)')
+  // Direction 2 — distinctness: file and title are both in the tuple (the attempt-1 Major:
+  // a question/title-only key collapsed same-title findings on DIFFERENT files).
+  assert.notEqual(h.remintKey(mint()), h.remintKey(mint({ file: 'skills/b.js' })),
+    'same title on a DIFFERENT file is a different finding (never collapsed)')
+  assert.notEqual(h.remintKey(mint()), h.remintKey(mint({ title: 'other defect' })),
+    'a different title on the same file is a different finding')
+  assert.notEqual(h.remintKey(mint()), h.remintKey(mint({ task: 't2' })),
+    'the same finding shape on another task is a different finding')
+  // askContentKey stays the ASK channel's identity: same question on two files parks ONCE
+  // (question identity), while the FINDING registries would distinguish the pair by file.
+  const ask = f => ({ severity: 'Minor', task: 't1', title: 'mirror or point', disposition: 'ask',
+    ask: { question: 'mirror the value or point at the source?', fork: ['mirror', 'point'] }, ...f })
+  h.parkAsk(ask({ file: 'skills/a.js', seat: 's1' })); h.parkAsk(ask({ file: 'skills/b.js', seat: 's2' }))
+  assert.equal(h.asks.length, 1, 'parkAsk keys on the question (askContentKey) — one parked record, the re-raise corroborates')
+  assert.notEqual(h.remintKey(ask({ file: 'skills/a.js' })), h.remintKey(ask({ file: 'skills/b.js' })),
+    'fixture control: the FINDING tuple distinguishes the same pair by file')
+  // Engine pins: every FINDING registry stamp reads remintKey; parkAsk keeps askContentKey.
+  assert.ok(src.includes('filedKeys.add(remintKey(f))'), 'filedKeys keys on remintKey')
+  assert.ok(src.includes('revertedKeys.add(remintKey(f))'), 'revertedKeys keys on remintKey')
+  assert.ok(src.includes('acedKeys.add(remintKey(f))'), 'acedKeys keys on remintKey')
+  assert.ok(!src.includes('filedKeys.add(askContentKey'), 'no FINDING registry still keys on the ask tuple')
+  const parkBody = src.slice(src.indexOf('const parkAsk'), src.indexOf('const parkAsk') + 400)
+  assert.ok(parkBody.includes('askContentKey(f)'), 'parkAsk keeps the question-derived askContentKey')
+})
+
+test('reaudit-sweep (queued registry): a finding already queued for the sweep or re-entry never queues a SECOND record — the re-mint is refused with the queued reason, logged, and a distinct finding still queues', () => {
+  const h = registrySlice()
+  const f = { severity: 'Minor', task: 't1', title: 'stale count', file: 'skills/a.js', disposition: 'absorb', phaseClose: true, seat: 'audit:t1:correctness' }
+  // Entry point 1 — routeToSweep stamps queuedKeys.
+  h.routeToSweep({ ...f }, 'reserve-blocked re-entry (fixture)')
+  assert.equal(h.phaseCloseQueue.length, 1, 'the finding queues for the sweep once')
+  assert.ok(h.queuedKeys.has(h.remintKey(f)), 'routeToSweep stamps the queued registry')
+  // A later re-audit re-mints the same content (fresh copy, drifted seat): never a second record.
+  const r = { task: { id: 't1' } }
+  h.routeReauditMinors(r, [{ seat: 'audit:t1:style', findings: [{ ...f, seat: undefined }] }])
+  assert.equal(h.phaseCloseQueue.length, 1, 'the re-mint never queues a second sweep record')
+  assert.equal((r.reentryQueue || []).length, 0, 'the re-mint never re-queues for re-entry either')
+  assert.ok(h.logs.some(l => typeof l === 'string' && l.includes('already queued for the phase-close sweep / re-entry this phase — the queued record stands')),
+    'the refusal is logged with the queued-registry reason (never silent)')
+  // Entry point 2 — the re-entry queue arm stamps too: a fresh eligible absorb queues once.
+  const g = { severity: 'Nit', task: 't1', title: 'lagging comment', file: 'skills/b.js', disposition: 'absorb' }
+  h.routeReauditMinors(r, [{ seat: 'audit:t1:correctness', findings: [{ ...g }] }])
+  assert.equal(r.reentryQueue.length, 1, 'the distinct finding still queues (the refusal is key-scoped)')
+  assert.ok(h.queuedKeys.has(h.remintKey({ task: 't1', ...g })), 'the re-entry push stamps the queued registry')
+  h.routeReauditMinors(r, [{ seat: 'audit:t1:style', findings: [{ ...g }] }])
+  assert.equal(r.reentryQueue.length, 1, 'a re-mint of the queued re-entry finding never double-queues')
+  // Engine pin: the round-1 approve arm's direct phaseCloseQueue push stamps queuedKeys too.
+  assert.ok(src.includes('else { queuedKeys.add(remintKey(f)); phaseCloseQueue.push(f) }'),
+    'the round-1 approve arm stamps queuedKeys at its direct sweep push')
+  // Engine pin: the drain deletes drained keys BEFORE the re-check (a drained finding is no
+  // longer queued — its own stamp must never refuse its own dispatch).
+  assert.ok(src.includes('for (const f of drained) queuedKeys.delete(remintKey(f))'),
+    'aceReentry drains delete the drained entries\' queued stamps before the registry re-check')
+})
+
+test('ask-content-key (cross-seat corroboration): a second seat re-minting a filed or aced finding merges onto the surviving row\'s seats list — never dropped, never double-filed', () => {
+  const h = registrySlice()
+  const r = { task: { id: 't1' } }
+  // Filed direction: seat A files round 1; seat B re-mints at the re-audit.
+  const fA = { severity: 'Minor', task: 't1', title: 'needs design pass', file: 'skills/a.js', seat: 'audit:t1:correctness', rationale: 'non-mechanical' }
+  h.fileFollowUp(fA)
+  h.routeReauditMinors(r, [{ seat: 'audit:t1:style', findings: [{ severity: 'Minor', title: 'needs design pass', file: 'skills/a.js', disposition: 'follow-up', rationale: 'still there' }] }])
+  assert.equal(h.minorsFiled.length, 1, 'never double-filed — one surviving row')
+  assert.deepEqual(h.minorsFiled[0].seats, ['audit:t1:correctness (task t1)', 'audit:t1:style (task t1)'],
+    'the second seat merges onto the surviving row\'s seats list, seeded with the first raiser (seatRef shape)')
+  // Aced direction: a re-mint of an aced finding lands its seat on the aced record's finding.
+  const gA = { severity: 'Nit', task: 't1', title: 'stale comment', file: 'skills/b.js', seat: 'audit:t1:correctness' }
+  h.recordAced(gA, 'abc1234')
+  h.routeReauditMinors(r, [{ seat: 'audit:t1:evidence', findings: [{ severity: 'Nit', title: 'stale comment', file: 'skills/b.js', disposition: 'absorb' }] }])
+  assert.equal((r.reentryQueue || []).length, 0, 'the aced re-mint never re-enters')
+  assert.ok(!h.minorsFiled.some(m => m.title === 'stale comment'), 'the aced re-mint never files (aced ∩ minorsFiled = ∅ holds)')
+  assert.ok(h.aced[0].finding.seats.includes('audit:t1:evidence (task t1)'),
+    'the corroborating seat lands on the aced record\'s finding seats list')
+  assert.ok(h.aced[0].finding.seats.includes('audit:t1:correctness (task t1)'), 'the original raiser survives on the list')
+  // A same-round SAME-seat duplicate never fabricates corroboration (seats stay distinct).
+  h.routeReauditMinors(r, [{ seat: 'audit:t1:evidence', findings: [{ severity: 'Nit', title: 'stale comment', file: 'skills/b.js', disposition: 'absorb' }] }])
+  assert.equal(h.aced[0].finding.seats.filter(x => x === 'audit:t1:evidence (task t1)').length, 1,
+    'a repeat by the SAME seat never duplicates its entry (corroboration is cross-seat)')
+})
+
+test('ask-collision (End state 7): every measured ask-drop sink merges a content collision as corroboration or logs it — one parametrized check over the THREE gate-audit sites plus a no-silent-discard negative control', async () => {
+  // Parametrized source leg — the three structurally identical sites (per-task execution-evidence,
+  // integrated-tip, end-state): each parks UNCONDITIONALLY through parkAsk (the collision handling
+  // lives in the funnel); the retired `asks.some(` guard — the unlogged silent sink #1790 measured —
+  // is absent from every site window.
+  const SITES = [
+    "':execution-evidence', sha: auditShaOrSentinel(gateAuditVerdict.audit_sha)",
+    "':integrated-tip', sha: auditShaOrSentinel(authVerdict.audit_sha)",
+    "':end-state', sha: auditShaOrSentinel(esVerdict.audit_sha)",
+  ]
+  for (const anchor of SITES) {
+    const i = src.indexOf(anchor)
+    assert.ok(i !== -1, `gate-audit ask site locatable: ${anchor}`)
+    const window = src.slice(Math.max(0, i - 400), i)
+    assert.ok(window.includes('parkAsk('), `site ${anchor}: parks through the parkAsk funnel`)
+    assert.ok(!window.includes('asks.some('), `site ${anchor}: the arm-local silent-discard guard is retired (#1790)`)
+  }
+  // Lookbehind excludes `tasks.some(` (a different construct sharing the substring).
+  assert.ok(!/(?<![A-Za-z])asks\.some\(/.test(src), 'NO asks.some( silent-discard guard survives anywhere in the template')
+  // Behavioral leg (the reachable per-task site): a gate-audit re-raise of a roster-parked ask
+  // MERGES as corroboration + log; a DISTINCT gate-audit ask still parks (no silent discard).
+  const distinctAsk = askFinding({ title: 'gate-only question',
+    ask: { question: 'capture or recompute the artifact?', fork: ['capture', 'recompute'] } })
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-auditor') {
+      if ((opts.label || '').startsWith('gate-audit:'))
+        return { seat: opts.label, lens: 'execution-evidence', verdict: 'approve', confidence: 'high',
+          audit_sha: 'beefcafe12', findings: [askFinding(), distinctAsk] }
+      return { seat: opts.label, lens: 'correctness', verdict: 'approve', findings: [askFinding()], confidence: 'high' }
+    }
+    if (seat === 'war-refiner' && opts.dispatchKind === 'file-followups') return null
+    return handoffImpl(undefined)(prompt, opts)
+  }
+  const { out, logs } = await runPhase(HANDOFF_ARGS(), impl)
+  assert.equal(out.landDecision, 'landed', 'presence guard')
+  assert.equal((out.asks || []).length, 2, 'two parked records: the merged collision + the distinct gate-audit ask')
+  const merged = out.asks.find(x => x && x.question === 'mirror the value or point at the source?')
+  assert.ok(merged && (merged.corroborators || []).some(c => c && c.seat === 'gate-audit:t1:execution-evidence'),
+    'the gate-audit re-raise MERGED as corroboration on the roster-parked record (never dropped)')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('merged as corroboration')), 'the collision is logged')
+  // No-silent-discard negative control: the non-colliding gate-audit ask parks as its own record.
+  assert.ok(out.asks.some(x => x && x.question === 'capture or recompute the artifact?'),
+    'a NON-colliding gate-audit ask parks — the lane never silently discards')
+})
+
+test('lens-suffix (End state 7): lens extraction keys on the FAMILY PREFIX — gate-audit-family labels yield execution-evidence (never a phase segment); trailing-segment + :rebut strip otherwise — on BOTH mirror surfaces', async () => {
+  const impl = (prompt, opts) => {
+    const seat = seatOf(opts)
+    if (seat === 'war-auditor')
+      // A phase-level gate-audit-family seat label rides the filing row (the family-prefix rule's
+      // live subject: trailing-segment extraction would wrongly yield 'integrated-tip').
+      return { seat: 'gate-audit:phase-1:integrated-tip', lens: 'execution-evidence', verdict: 'approve', confidence: 'high',
+        findings: (opts.label || '').startsWith('gate-audit:') ? []
+          : [{ severity: 'Minor', title: 'family-prefix row', rationale: 'r', file: 'r.js' }] }
+    if (seat === 'war-refiner' && opts.dispatchKind === 'file-followups') return null
+    return handoffImpl(undefined)(prompt, opts)
+  }
+  const { out, calls } = await runPhase(HANDOFF_ARGS(), impl)
+  assert.equal(out.landDecision, 'landed', 'presence guard')
+  const fp = calls.find(c => c.opts.dispatchKind === 'file-followups').prompt
+  assert.match(fp, /"family-prefix row"[^\n]* · seats: gate-audit:phase-1:integrated-tip \(task t1\)/,
+    'the gate-audit-family seat label rides the candidate row (the rule has a live subject)')
+  assert.ok(fp.includes('FAMILY-PREFIX rule') && fp.includes('yields the lens `execution-evidence`'),
+    'the dispatched Evidence-artifacts clause carries the family-prefix rule (#1789)')
+  assert.ok(fp.includes('a trailing `:rebut` is a dispatch label, never the lens: take the segment before it'),
+    'the :rebut carve-out survives on the non-gate-audit arm')
+  const ffMd = readFileSync(join(here, '../references/file-followups.md'), 'utf8')
+  assert.ok(ffMd.includes('FAMILY-PREFIX rule') && ffMd.includes('yields the lens `execution-evidence`'),
+    'file-followups.md mirrors the family-prefix rule (standing-surface leg, same commit)')
+  assert.ok(ffMd.includes('a trailing `:rebut` is a dispatch label, never the lens — take the segment before it'),
+    'file-followups.md keeps the :rebut carve-out on the otherwise-arm')
+  // Reference implementation of the documented rule + the WRONG-YIELD negative control.
+  const lensOf = entry => {
+    const label = entry.split(' (task ')[0]
+    const segs = label.split(':')
+    if (segs[0] === 'gate-audit') return 'execution-evidence'
+    const last = segs[segs.length - 1]
+    return last === 'rebut' ? segs[segs.length - 2] : last
+  }
+  assert.equal(lensOf('gate-audit:phase-1:integrated-tip'), 'execution-evidence', 'family prefix wins for the phase-level label')
+  assert.notEqual(lensOf('gate-audit:phase-1:integrated-tip'), 'phase-1', 'wrong-yield negative control: phase-1 is NEVER produced as a lens')
+  assert.equal(lensOf('gate-audit:t1:execution-evidence'), 'execution-evidence', 'the per-task family label yields the same lens')
+  assert.equal(lensOf('gate-audit:phase-2:end-state'), 'execution-evidence', 'the end-state family label yields the same lens')
+  assert.equal(lensOf('audit:t1:correctness:rebut (task t1)'), 'correctness', 'the :rebut dispatch-label strip holds on the otherwise-arm')
+  assert.equal(lensOf('audit:t1:correctness (task t1)'), 'correctness', 'plain trailing-segment extraction holds on the otherwise-arm')
+})
+
+test('ace-group-path (End state 8): aceGroups and the Ace-Subset trailer key on aceRelPath-normalized paths — a ./-form and bare-form pair of the same file lands in ONE subset', () => {
+  const sliceStart = src.indexOf('const aceRelPath')
+  const sliceEnd = src.indexOf('const citationOf')
+  assert.ok(sliceStart !== -1 && sliceEnd > sliceStart, 'the aceRelPath→aceHalve engine slice is locatable')
+  const { aceRelPath, aceGroups, aceHalve } = new Function(
+    src.slice(sliceStart, sliceEnd) + '\nreturn { aceRelPath, aceGroups, aceHalve }')()
+  const pair = [{ file: './skills/x.js', title: 'dot form' }, { file: 'skills/x.js', title: 'bare form' }]
+  const groups = aceGroups(pair)
+  assert.equal(groups.length, 1, 'the ./-form and bare-form pair groups as ONE file (never split across subsets, D3)')
+  assert.equal(groups[0].length, 2, 'both findings ride the single group')
+  assert.equal(aceHalve(pair), null, 'the normalized single-file group is ATOMIC — halving refuses to split it')
+  assert.equal(aceRelPath('././skills/x.js'), 'skills/x.js', 'a repeated ./ run strips fully')
+  // Delete-the-feature control: raw-file grouping splits the pair (the pre-#1813 defect shape).
+  const rawGroups = new Map(); for (const f of pair) { if (!rawGroups.has(f.file)) rawGroups.set(f.file, []); rawGroups.get(f.file).push(f) }
+  assert.equal(rawGroups.size, 2, 'fixture control: WITHOUT normalization the pair splits — the aceRelPath key is load-bearing')
+  // Both trailer builds key on the normalized path too (#1813): the bisection-subset trailer and
+  // the re-entry trailer.
+  assert.ok(src.includes('sub.findings.map(f => aceRelPath(f.file))'), 'the bisection-subset Ace-Subset trailer normalizes through aceRelPath')
+  assert.ok(src.includes('batch.map(f => aceRelPath(f.file))'), 'the re-entry Ace-Subset trailer normalizes through aceRelPath')
+})
+
+test('ruled-ask-absorb (End state 12): a threaded ruled ask executes via the phase-close polish dispatch — aced on merge; on non-execution it files WITH the ruling recorded (PIN-17)', async () => {
+  const ruled = { task: 't9', title: 'flip the retention default', file: 'docs/retention.md',
+    suggested_fix: 'set the documented default to 30d and note the trade-off',
+    ruling: 'adopt the 30d default (operator, 2026-08-27, strike-list gate)' }
+  // Execution arm: valid default roster ⇒ the sweep vehicle runs — fresh worktree at the working
+  // tip, one commit, full panel, existing merge primitives, bounded one round by construction.
+  const { out, calls, logs } = await runPhase(SWEEP_ARGS({ ruledAsks: [ruled] }), sweepBase([]))
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('ruled-ask execution (D15)') && l.includes('adopt the 30d default')),
+    'the ruled ask is queued loudly with its ruling')
+  const pw = calls.find(c => (c.opts.label || '') === 'polish:phase-3')
+  assert.ok(pw && pw.prompt.includes('flip the retention default') && pw.prompt.includes('operator ruling: adopt the 30d default'),
+    'the polish dispatch carries the ruled fix AND the ruling verbatim')
+  assert.ok(calls.some(c => (c.opts.label || '') === 'audit:p3-polish:correctness'), 'the full panel re-audits the ruled-ask commit')
+  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.ruledAsk === true && a.sha === 'polishsha'),
+    'the executed ruled ask is ACED at the polish sha (in-run execution, no issue filed)')
+  assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'flip the retention default'), 'nothing files on successful execution')
+  // Filing-on-non-execution arm: no default audit.roster ⇒ the sweep cannot convene ⇒ the ruled ask
+  // demotes to follow-up WITH the ruling in its rationale — the filed issue records the ruling.
+  const { out: out2, logs: logs2 } = await runPhase(ACE_ARGS({ ruledAsks: [ruled], run: {} }), quietGate(aceBase([])))
+  const filed = (out2.minorsFiled || []).find(m => m && m.title === 'flip the retention default')
+  assert.ok(filed, 'a non-executed ruled ask files (cannot-execute — never silently dropped)')
+  assert.ok(filed.rationale.includes('adopt the 30d default'), 'the filed row records the ruling verbatim (PIN-17)')
+  assert.ok(logs2.some(l => typeof l === 'string' && l.includes('Disposition demotion') && l.includes('flip the retention default')),
+    'the non-execution demotion is logged')
 })
