@@ -466,27 +466,6 @@ const testPatternArg = testPattern ? ` --pattern '${testPattern}'` : ''
 const recovery = (A.recovery && typeof A.recovery === 'object' && !Array.isArray(A.recovery) && A.recovery.sanctioned === true)
   ? { sanctioned: true, reclaimStaleRemote: A.recovery.reclaimStaleRemote === true }
   : null
-// Ruled-ask execution (D15(b), PIN-17/PIN-18 — the final-phase polish-style vehicle): the Lead
-// threads interactively-ruled asks whose fixes are FULLY SPECIFIED as args.ruledAsks
-// ([{ task?, title?, file?, line?, suggested_fix, ruling }] — suggested_fix and ruling required;
-// malformed entries are inert, fail-open). Each rides the phase-close sweep — exactly the
-// polish-style dispatch D15 names: fresh worktree at the working tip, one ace-eligibility commit,
-// full panel re-audit, the existing merge/land primitives, bounded at ONE round by construction.
-// Filing-on-non-execution (PIN-17): a sweep discard/skip/drain demotes the entry to follow-up with
-// the ruling in its rationale, so the filed issue records the ruling — an issue is filed ONLY on
-// cannot-execute or execution-failure, never silently, never as default litter. The
-// decompose-injection arm (a next phase exists) is Lead doctrine (skills/war/SKILL.md
-// § Checkpoint), not engine machinery.
-const ruledAsks = Array.isArray(A.ruledAsks)
-  ? A.ruledAsks.filter(x => x && typeof x === 'object' && typeof x.suggested_fix === 'string' && x.suggested_fix && typeof x.ruling === 'string' && x.ruling)
-  : []
-for (const ra of ruledAsks) {
-  log('ruled-ask execution (D15): "' + (ra.title ?? '(untitled ruled ask)') + '" queued for the phase-close polish dispatch — operator ruling: ' + ra.ruling)
-  phaseCloseQueue.push({ severity: 'Minor', disposition: 'absorb', phaseClose: true, ruledAsk: true,
-    task: ra.task ?? 'ruled-ask', title: ra.title ?? '(untitled ruled ask)', file: ra.file ?? null,
-    ...(ra.line != null ? { line: ra.line } : {}),
-    rationale: 'ruled ask (operator ruling: ' + ra.ruling + ')', suggested_fix: ra.suggested_fix })
-}
 const intentClause = intent
   ? pt`\nCOMMANDER'S INTENT (the operator's purpose — your ceiling; the plan slice is your floor):\n${intent}\n`
   : ''
@@ -1024,8 +1003,9 @@ const revertedKeys = new Set()
 // siblings stamp anyway; a superfluous key is harmless — the registry is only consulted at re-audit
 // routing and re-entry drain).
 const filedKeys = new Set()
-// queued funnel (registry-coverage fix): every finding queued for the phase-close sweep (BOTH
-// phaseCloseQueue entry points — routeToSweep and the round-1 approve arm's direct push) or for
+// queued funnel (registry-coverage fix): every finding queued for the phase-close sweep (ALL THREE
+// phaseCloseQueue entry points — routeToSweep, the round-1 approve arm's direct push, and the
+// ruledAsks intake loop below the registry declarations) or for
 // budget-bounded re-entry (r.reentryQueue) records its remintKey here, so a content-identical
 // re-mint at a later re-audit never queues a SECOND record — the queued record stands (logged,
 // never silent). Consulted LAST in remintBlock (aced/reverted/filed reasons are more specific);
@@ -1073,9 +1053,11 @@ const routeToSweep = (f, why) => {
 // Content-key re-mint suppression (shared by BOTH arms below AND re-checked at aceReentry's drain):
 // returns the reason string when the finding's remintKey is already aced, forward-reverted, filed as
 // a follow-up in an earlier round, or queued for the sweep / re-entry — the caller logs the
-// suppression, merges the raising seat onto the surviving row (corroborateSurvivor), and skips
-// (corroboration / the oscillation bound / the filed or queued record stands), never files a second
-// record and never re-queues. queuedKeys is consulted LAST — the terminal-outcome reasons win.
+// suppression, merges the raising seat onto the surviving row (corroborateSurvivor searches
+// minorsFiled, phaseCloseQueue, any caller-threaded re-entry queue, and the aced records — so the
+// queued arm merges too, never drops), and skips (corroboration / the oscillation bound / the
+// filed or queued record stands), never files a second record and never re-queues. queuedKeys is
+// consulted LAST — the terminal-outcome reasons win.
 const remintBlock = f => {
   const k = remintKey(f)
   if (acedKeys.has(k)) return 'corroboration of the aced record (content-key identity, #1810)'
@@ -1085,17 +1067,21 @@ const remintBlock = f => {
   return null
 }
 // Cross-seat corroboration (registry-coverage fix): a re-mint remintBlock refuses whose surviving
-// record lives in minorsFiled (or on an aced record's finding) merges the SECOND seat onto the
-// surviving row's seats list — never dropped, never double-filed. Entry shape mirrors the filing
-// consolidation's seatRef contract (seat+task, both when present; that block is scoped below, so
-// the shape is inlined here — change both together). The survivor's own ref seeds the list so the
-// handoff's seats rendering never loses the first raiser.
+// record lives in minorsFiled, on an aced record's finding, OR in a queue (phaseCloseQueue, or a
+// caller-threaded per-result re-entry queue — remintBlock's queuedKeys reason fires exactly when
+// the survivor is queue-resident) merges the SECOND seat onto the surviving row's seats list —
+// never dropped, never double-filed. Entry shape mirrors the filing consolidation's seatRef
+// contract (seat+task, both when present; that block is scoped below, so the shape is inlined
+// here — change both together). The survivor's own ref seeds the list so the handoff's seats
+// rendering never loses the first raiser.
 const seatRefOf = f => f.seat != null
   ? (f.task != null ? f.seat + ' (task ' + f.task + ')' : f.seat)
   : (f.task != null ? 'task ' + f.task : 'unattributed')
-const corroborateSurvivor = f => {
+const corroborateSurvivor = (f, queues) => {
   const k = remintKey(f)
   const hit = minorsFiled.find(m => remintKey(m) === k)
+    || phaseCloseQueue.find(m => remintKey(m) === k)
+    || (Array.isArray(queues) ? queues.flat().find(m => m && remintKey(m) === k) : undefined)
     || (aced.find(a => a && a.finding && remintKey(a.finding) === k) || {}).finding
   if (!hit) return
   if (!Array.isArray(hit.seats)) hit.seats = [seatRefOf(hit)]
@@ -1109,11 +1095,11 @@ const routeReauditMinors = (r, seats) => {
     const b = (d === 'follow-up' || d === 'absorb') ? remintBlock(f) : null
     if (d === 'ask') parkAsk(f)                     // ask precedes the absorb chain (#1550, D7)
     else if (d === 'follow-up') {
-      if (b) { log('re-audit re-mint of "' + (f.title ?? '') + '" (task ' + r.task.id + ') — ' + b + '; not filed (logged, never silent).'); corroborateSurvivor(f) }
+      if (b) { log('re-audit re-mint of "' + (f.title ?? '') + '" (task ' + r.task.id + ') — ' + b + '; not filed (logged, never silent).'); corroborateSurvivor(f, [r.reentryQueue]) }
       else fileFollowUp(f)
     }
     else if (d === 'note') notes.push(f)
-    else if (b) { log('re-entry REFUSED: re-audit re-mint of "' + (f.title ?? '') + '" (task ' + r.task.id + ') — ' + b + '; never re-queued (logged, never silent).'); corroborateSurvivor(f) }
+    else if (b) { log('re-entry REFUSED: re-audit re-mint of "' + (f.title ?? '') + '" (task ' + r.task.id + ') — ' + b + '; never re-queued (logged, never silent).'); corroborateSurvivor(f, [r.reentryQueue]) }
     else if (!f.file) demote(f, f.severity === 'Minor' ? 'follow-up' : 'note', 'fileless absorb takes the severity default (never ace-eligible)')
     else if (!run.ace) demote(f, 'follow-up', 'absorb requires --ace (off this run)')
     else if (!f.phaseClose && aceEligible(f)) { queuedKeys.add(remintKey(f)); r.reentryQueue.push(f) }   // born at a re-audit — re-enters (D1)
@@ -1122,6 +1108,32 @@ const routeReauditMinors = (r, seats) => {
 }
 const allApprove = (seats, expected) => seats.length === expected && seats.every(s => s.verdict === 'approve')
 const isSplit    = seats => seats.some(s => s.verdict === 'approve') && seats.some(s => s.verdict === 'request_changes')
+// Ruled-ask execution (D15(b), PIN-17/PIN-18 — the final-phase polish-style vehicle): the Lead
+// threads interactively-ruled asks whose fixes are FULLY SPECIFIED as args.ruledAsks
+// ([{ task?, title?, file?, line?, suggested_fix, ruling }] — suggested_fix and ruling required;
+// malformed entries are inert, fail-open). Each rides the phase-close sweep — exactly the
+// polish-style dispatch D15 names: fresh worktree at the working tip, one ace-eligibility commit,
+// full panel re-audit, the existing merge/land primitives, bounded at ONE round by construction.
+// This intake is the THIRD phaseCloseQueue entry point (sitting below the registry declarations so
+// it can stamp): each push stamps queuedKeys, so a re-audit re-mint of the same (task, file, title)
+// never queues a second record — the ruled entry stands.
+// Filing-on-non-execution (PIN-17): a sweep discard/skip/drain demotes the entry to follow-up with
+// the ruling in its rationale, so the filed issue records the ruling — an issue is filed ONLY on
+// cannot-execute or execution-failure, never silently, never as default litter. The
+// decompose-injection arm (a next phase exists) is Lead doctrine (skills/war/SKILL.md
+// § Checkpoint), not engine machinery.
+const ruledAsks = Array.isArray(A.ruledAsks)
+  ? A.ruledAsks.filter(x => x && typeof x === 'object' && typeof x.suggested_fix === 'string' && x.suggested_fix && typeof x.ruling === 'string' && x.ruling)
+  : []
+for (const ra of ruledAsks) {
+  log('ruled-ask execution (D15): "' + (ra.title ?? '(untitled ruled ask)') + '" queued for the phase-close polish dispatch — operator ruling: ' + ra.ruling)
+  const row = { severity: 'Minor', disposition: 'absorb', phaseClose: true, ruledAsk: true,
+    task: ra.task ?? 'ruled-ask', title: ra.title ?? '(untitled ruled ask)', file: ra.file ?? null,
+    ...(ra.line != null ? { line: ra.line } : {}),
+    rationale: 'ruled ask (operator ruling: ' + ra.ruling + ')', suggested_fix: ra.suggested_fix }
+  queuedKeys.add(remintKey(row))
+  phaseCloseQueue.push(row)
+}
 // → reason string if the worker did not deliver (null/dead or self-reported blocked), else null
 // ponytail: applied at the worker-dispatch sites in T2 (not dead code — defined-but-not-yet-emitted-plan-slice-pattern)
 const blockedReason = r => !r ? 'worker returned no result'
@@ -1946,23 +1958,34 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // Malformed/absent ⇒ null (fail-open — the finding rides as a plain absorb, no stamp).
   // ROW-EXISTENCE FLOOR (trust boundary): a seat-asserted `citation` is the only thing standing
   // between a claim and the removal of an operator-gated ask from the Checkpoint channel, so the
-  // cited row must be a MEMBER of the threaded adjudications set the engine already holds — exact
-  // or containment match against adjRow(r). Existence is mechanical set-membership, not the A2
+  // cited row must be a MEMBER of the threaded adjudications set the engine already holds —
+  // whitespace-normalized exact equality, or a DIRECTIONAL containment (the cited text is a
+  // substantive fragment, >= 12 significant chars, of a threaded row; the reverse direction —
+  // a seat string that merely CONTAINS a threaded row — proves nothing about membership and is
+  // refused, as is a degenerate short fragment). The matched CANONICAL adjRow text (not the
+  // seat's transcription) is what propagates into the stamp, the panel's soundness charge, and
+  // the durable aced record's row-id. Existence is mechanical set-membership, not the A2
   // matching judgment (which stays with the re-audit panel); a fabricated/mis-transcribed row
   // fails open to a PLAIN absorb (no stamp, no unpark) and the refusal is logged once per row.
   const refusedCitationRows = new Set()
+  const citationNorm = s => s.trim().replace(/\s+/g, ' ')
   const citationOf = f => {
     if (!(f && f.citation && typeof f.citation === 'object' && typeof f.citation.row === 'string' && f.citation.row)) return null
     const row = f.citation.row
-    const member = adjudications.some(r => { const t = adjRow(r); return typeof t === 'string' && t.length > 0 && (t === row || t.includes(row) || row.includes(t)) })
-    if (!member) {
+    const nr = citationNorm(row)
+    const hit = adjudications.map(adjRow).find(t => {
+      if (typeof t !== 'string' || t.length === 0) return false
+      const nt = citationNorm(t)
+      return nt === nr || (nr.length >= 12 && nt.includes(nr))
+    })
+    if (hit === undefined) {
       if (!refusedCitationRows.has(row)) {
         refusedCitationRows.add(row)
-        log('citation REFUSED (row-existence floor): cited row "' + row + '" matches no threaded standing adjudication row — the finding rides as a PLAIN absorb (no stamp, no ask unpark). Existence is mechanical set-membership; the soundness judgment stays with the re-audit panel (A2).')
+        log('citation REFUSED (row-existence floor): cited row "' + row + '" matches no threaded standing adjudication row (exact, or a substantive >= 12-char fragment of one) — the finding rides as a PLAIN absorb (no stamp, no ask unpark). Existence is mechanical set-membership; the soundness judgment stays with the re-audit panel (A2).')
       }
       return null
     }
-    return { row, rationale: (typeof f.citation.rationale === 'string' && f.citation.rationale) || '(no match rationale recorded)' }
+    return { row: hit, rationale: (typeof f.citation.rationale === 'string' && f.citation.rationale) || '(no match rationale recorded)' }
   }
   // Shared unsound-citation lookup (D6 naming duty, PIN-7): pairs a batch finding's citation with a
   // blocking re-audit finding flagged citationUnsound so EVERY demote path fed by a regressed
@@ -1980,8 +2003,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   const aceFindingRow = (f, i) => pt`${i + 1}. [${f.severity}] ${f.title ?? ''} (${f.file ?? ''}${f.line ? ':' + f.line : ''}) — ${f.rationale ?? ''}${f.suggested_fix ? pt` → ${f.suggested_fix}` : ''}${citationOf(f) ? pt` [absorb-by-citation: row "${citationOf(f).row}" — ${citationOf(f).rationale}]` : ''}`
   // Shared conditional forward-revert step (bisection subsets + re-entry batches): emitted only
   // while a failed predecessor commit is still unreverted at the tip.
-  const aceRevertStep = (worktree, sha) => sha
-    ? pt`FIRST, only if \`git -C ${worktree} rev-parse HEAD\` is still ${sha}: forward-revert that failed prior ace commit — \`git -C ${worktree} revert --no-edit ${sha}\` (tip-only clean inverse); a moved HEAD is already reverted — SKIP (a sha is never reverted twice). Never reset --hard.\n`
+  const aceRevertStep = (revertWorktree, revertSha) => revertSha
+    ? pt`FIRST, only if \`git -C ${revertWorktree} rev-parse HEAD\` is still ${revertSha}: forward-revert that failed prior ace commit — \`git -C ${revertWorktree} revert --no-edit ${revertSha}\` (tip-only clean inverse); a moved HEAD is already reverted — SKIP (a sha is never reverted twice). Never reset --hard.\n`
     : ''
   // Citation-soundness re-audit charge (D6, PIN-7): appended to the panel prompt whenever the batch
   // under re-audit contains citation-resolved findings — the panel, not the engine, judges the match
@@ -2129,7 +2152,7 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       for (const f of drained) queuedKeys.delete(remintKey(f))
       const batch = drained.filter(f => {
         const b = remintBlock(f)
-        if (b) { log('re-entry REFUSED at drain: "' + (f.title ?? '') + '" (task ' + r.task.id + ') — ' + b + '; never dispatched (logged, never silent).'); corroborateSurvivor(f); return false }
+        if (b) { log('re-entry REFUSED at drain: "' + (f.title ?? '') + '" (task ' + r.task.id + ') — ' + b + '; never dispatched (logged, never silent).'); corroborateSurvivor(f, [r.reentryQueue]); return false }
         return true
       })
       if (!batch.length) continue

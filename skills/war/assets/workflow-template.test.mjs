@@ -3216,6 +3216,28 @@ test('ace-reentry (End state 1, plain re-audit): a fresh absorb born at the appr
   assert.ok(out.landed.includes('t1'), 't1 lands on the re-entered tip')
 })
 
+test('ace-reentry (End state 1, later-round re-audit): a fresh absorb born at a RE-ENTRY BATCH\'s own approving re-audit re-enters again — the loop continues until a clean round', async () => {
+  // Round-1 absorb → batch ace → re-audit approves WITH nitB → re-entry r2 → ITS re-audit approves
+  // WITH nitC (the third origin: born at a re-entry batch's own re-audit) → re-entry r3 → clean.
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [nit({ title: 'first', file: 'skills/first.js' })]),
+                               approveWith('audit:t1:correctness', [nit({ title: 'second', file: 'skills/second.js' })]),
+                               approveWith('audit:t1:correctness', [nit({ title: 'third', file: 'skills/third.js' })]),
+                               approveWith('audit:t1:correctness', [])] },
+    aceBase([nit({ title: 'first', file: 'skills/first.js' })]))
+  const { out, calls } = await runPhase(ACE_ARGS(), impl)
+  const aces = calls.filter(isAce)
+  assert.equal(aces.length, 3, 'batch + TWO re-entry batches (the ladder re-opened at the re-entry batch\'s own re-audit)')
+  assert.ok(aces[2].prompt.includes('ACE RE-ENTRY BATCH') && aces[2].prompt.includes('third'),
+    'the third dispatch is the re-entry vehicle carrying the finding born at the re-entry re-audit')
+  assert.match(aces[2].prompt, /`Ace-Subset: t1:reentry:r3:skills\/third\.js`/,
+    'the second re-entry round\'s trailer carries the incremented round index (PIN-15)')
+  assert.ok((out.aced || []).some(a => a && a.finding && a.finding.title === 'third'),
+    'the re-entry-re-audit-born absorb is ACED (executed in-run)')
+  assert.ok(!(out.minorsFiled || []).some(m => m && m.title === 'third'), 'it is NOT filed')
+  assert.ok(out.landed.includes('t1'), 't1 lands on the twice-re-entered tip')
+})
+
 test('ace-reentry (End state 1, bisection-subset re-audit): a fresh absorb born at a SUBSET re-audit re-enters after the bisection resolves', async () => {
   const f1 = nit({ title: 'f1 nit', file: 'skills/f1.js' })
   const f2 = nit({ title: 'f2 nit', file: 'skills/f2.js' })
@@ -4331,7 +4353,9 @@ test('#1550 (D7) — ask order-census: five dispositionOf sites with ask precedi
     `the floored order-census domain is exactly FIVE dispositionOf call sites (found ${sites.length}) — a new site must join this census with its own ask arm preceding its absorb chain`)
   const ABSORB_CHAIN = /demote\(|aceable\.push|phaseCloseQueue\.push/
   for (const i of sites) {
-    const slice = src.slice(i, i + 700)
+    // 700 → 800 (window reach only, not the contract): the corroborateSurvivor call sites now
+    // thread [r.reentryQueue], lengthening routeReauditMinors' refusal arms past the old window.
+    const slice = src.slice(i, i + 800)
     const askIdx = slice.indexOf("=== 'ask'")
     assert.ok(askIdx !== -1, `dispositionOf site @${i}: carries an explicit ask arm`)
     const parkIdx = slice.indexOf('parkAsk(')
@@ -10900,11 +10924,13 @@ const BARE_INTERPOLATION_CENSUS = [
   'r.fence', 'r.n',
   // r.reentryBase (in-run-finding-resolution Task 1.1): ternary-gated at its single site (the
   // re-entry PREFLIGHT range falls back to HEAD~30..HEAD when absent) — construction-guaranteed.
-  // reentryRange is that ternary's pt-built product (always a string). sha/worktree are the
-  // aceRevertStep helper's params: sha is the truthiness gate itself (the clause renders only when
-  // set) and worktree is r.task.worktree (entry-validated) at both call sites — the old inline
-  // 'pendingRevert' row relocated into the helper.
-  'r.reentryBase', 'reentryRange', 'sha', 'worktree',
+  // reentryRange is that ternary's pt-built product (always a string). revertSha/revertWorktree
+  // are the aceRevertStep helper's params (distinctive names, so a future bare `${sha}` or
+  // `${worktree}` elsewhere still reds this default-deny census): revertSha is the truthiness gate
+  // itself (the clause renders only when set) and revertWorktree is r.task.worktree
+  // (entry-validated) at both call sites — the old inline 'pendingRevert' row relocated into the
+  // helper.
+  'r.reentryBase', 'reentryRange', 'revertSha', 'revertWorktree',
   'r.supersedes', 'r.tag', 'r.task.branch', 'r.task.id', 'r.task.targetRepo',
   'r.task.worktree', 'r.unsupported', 'refineryLandPath', 'refineryP', 'refineryPath', 'roundLimit', 's.lens',
   's.seat', 's.verdict', 'submodLandTask.targetRepo', 'submodPath', 't.id', 'task.branch',
@@ -11481,9 +11507,13 @@ const citationF = () => ({ severity: 'Minor', title: 'mirrored value rides docs/
   citation: { row: 'ADJ-7: doc facts point at the source, never mirror', rationale: 'the row rules the mirror-vs-point trade-off this ask names' },
   suggested_fix: 'replace the mirrored value with a source pointer' })
 // Args for the citation family: the row-existence floor admits only citations whose `row` matches
-// a THREADED adjudication row (exact/containment against adjRow), so these fixtures thread the
+// a THREADED adjudication row (whitespace-normalized exact, or a substantive >= 12-char fragment
+// contained IN a threaded row — never the reverse direction), so these fixtures thread the
 // standing set (the row text carries the run's own 'wtprov' slug token for the provenance floor).
+// The seat cites a strict prefix; the floor resolves it to the CANONICAL threaded row, which is
+// what the stamp, the soundness charge, and the durable aced record carry.
 const CITED_ADJ = ['ADJ-7: doc facts point at the source, never mirror — ruled at the wtprov decompose gate']
+const CANON_ROW = CITED_ADJ[0]
 const CITE_ARGS = (over = {}) => ACE_ARGS({ adjudications: CITED_ADJ, ...over })
 
 test('citation-resolve (End state 4): an absorb-by-citation finding executes via the re-entry vehicle — commit stamp + aced citation record + the parked ask resolves; the re-audit panel is charged with soundness', async () => {
@@ -11497,11 +11527,11 @@ test('citation-resolve (End state 4): an absorb-by-citation finding executes via
   const aces = calls.filter(isAce)
   assert.equal(aces.length, 2, 'batch + the citation-resolved re-entry batch')
   assert.ok(aces[1].prompt.includes('ACE RE-ENTRY BATCH'), 'the citation absorb executes via the re-entry vehicle (D6)')
-  assert.ok(aces[1].prompt.includes('[absorb-by-citation: row "ADJ-7: doc facts point at the source, never mirror" — the row rules the mirror-vs-point trade-off this ask names]'),
-    'the dispatch row stamps row-id + match rationale so the ace commit message carries the citation (PIN-7 record floor)')
+  assert.ok(aces[1].prompt.includes('[absorb-by-citation: row "' + CANON_ROW + '" — the row rules the mirror-vs-point trade-off this ask names]'),
+    'the dispatch row stamps the CANONICAL row-id + match rationale so the ace commit message carries the citation (PIN-7 record floor)')
   const acedEntry = (out.aced || []).find(x => x && x.citation)
-  assert.ok(acedEntry && acedEntry.citation.row === 'ADJ-7: doc facts point at the source, never mirror',
-    'the durable aced record carries the row-id')
+  assert.ok(acedEntry && acedEntry.citation.row === CANON_ROW,
+    'the durable aced record carries the CANONICAL threaded row-id, not the seat\'s transcription')
   assert.ok(acedEntry.citation.rationale.includes('mirror-vs-point'), 'the aced record carries the one-line match rationale')
   // The parked round-1 ask RESOLVES on the ECHOED ask.question key — the citation finding's title
   // deliberately differs from the question, so a title-keyed resolve would false-miss here.
@@ -11513,8 +11543,8 @@ test('citation-resolve (End state 4): an absorb-by-citation finding executes via
   const t1Audits = calls.filter(c => (c.opts.label || '') === 'audit:t1:correctness')
   assert.ok(t1Audits[2] && t1Audits[2].prompt.includes('CITATION SOUNDNESS'),
     'the re-audit prompt for the citation-resolved batch carries the CITATION SOUNDNESS charge')
-  assert.ok(t1Audits[2].prompt.includes('"mirrored value rides docs/x.md" cites row "ADJ-7: doc facts point at the source, never mirror" — match rationale: the row rules the mirror-vs-point trade-off this ask names'),
-    'the soundness charge enumerates the citation payload (finding title + row-id + match rationale) into the panel prompt')
+  assert.ok(t1Audits[2].prompt.includes('"mirrored value rides docs/x.md" cites row "' + CANON_ROW + '" — match rationale: the row rules the mirror-vs-point trade-off this ask names'),
+    'the soundness charge enumerates the citation payload (finding title + CANONICAL row-id + match rationale) into the panel prompt')
   assert.ok(!t1Audits[0].prompt.includes('CITATION SOUNDNESS'), 'a citation-less round carries no soundness clause (byte-identity preserved)')
 })
 
@@ -11528,8 +11558,8 @@ test('citation-resolve (production shape, ask-less citation): a citation absorb 
                                approveWith('audit:t1:correctness', [])] },
     quietGate(aceBase([askFinding(), a])))
   const { out, logs } = await runPhase(CITE_ARGS(), impl)
-  assert.ok((out.aced || []).some(x => x && x.citation && x.citation.row === 'ADJ-7: doc facts point at the source, never mirror'),
-    'the ask-less citation absorb still aces with its citation stamp')
+  assert.ok((out.aced || []).some(x => x && x.citation && x.citation.row === CANON_ROW),
+    'the ask-less citation absorb still aces with its citation stamp (canonical row)')
   assert.equal((out.asks || []).length, 1, 'the parked ask SURVIVES — with no echoed ask field and a differing title, no content key matches (never a coincidence-shaped unpark)')
   assert.ok(logs.some(l => typeof l === 'string' && l.includes('citation absorb executed with NO matching parked ask')),
     'the no-match case is LOGGED (never a silent no-op) — the operator still rules the parked question at the Checkpoint')
@@ -11550,6 +11580,33 @@ test('citation row-existence floor: a FABRICATED row (no threaded adjudication m
   const entry = (out.aced || []).find(x => x && x.finding && x.finding.title === 'mirrored value rides docs/x.md')
   assert.ok(entry && !entry.citation, 'the aced record carries no citation for a fabricated row (fail-open to a plain absorb)')
   assert.equal((out.asks || []).length, 1, 'the parked ask is NEVER unparked by a fabricated citation — the operator keeps the question')
+})
+
+test('citation row-existence floor (short-row control): a degenerate SHORT cited fragment (contained in every row) is refused — the containment arm requires a substantive >= 12-char fragment, and the reverse direction (a seat string CONTAINING a threaded row) never matches', async () => {
+  const short = citationF()
+  short.citation = { row: 'the source', rationale: 'degenerate fragment' }   // < 12 chars, contained in the threaded row
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [askFinding(), short]),
+                               approveWith('audit:t1:correctness', [])] },
+    quietGate(aceBase([askFinding(), short])))
+  const { out, calls, logs } = await runPhase(CITE_ARGS(), impl)
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('citation REFUSED (row-existence floor)') && l.includes('the source')),
+    'the degenerate short fragment is refused with the row-existence refusal log (length floor)')
+  const ace = calls.find(isAce)
+  assert.ok(ace && !ace.prompt.includes('absorb-by-citation'), 'no citation stamp for the short fragment (plain absorb)')
+  assert.equal((out.asks || []).length, 1, 'the parked ask survives — a trivial substring never unparks an operator-gated question')
+  // Reverse-direction control: a seat string that merely CONTAINS the whole threaded row is not
+  // membership either (the old bidirectional test admitted it).
+  const superset = citationF()
+  superset.citation = { row: 'per our notes, ' + CANON_ROW + ' — plus my own gloss', rationale: 'contains the row' }
+  const impl2 = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [superset]),
+                               approveWith('audit:t1:correctness', [])] },
+    quietGate(aceBase([superset])))
+  const { calls: calls2, logs: logs2 } = await runPhase(CITE_ARGS(), impl2)
+  assert.ok(logs2.some(l => typeof l === 'string' && l.includes('citation REFUSED (row-existence floor)')),
+    'a superset string containing a threaded row is refused (directional containment only)')
+  assert.ok(!calls2.filter(isAce).some(c => c.prompt.includes('absorb-by-citation')), 'no stamp for the superset string')
 })
 
 test('citation-resolve (End state 4, ambiguity ⇒ no-match): an ask without a citation stays parked — never aced, never filed; a MALFORMED citation never stamps a row', async () => {
@@ -11769,6 +11826,14 @@ test('reaudit-sweep (queued registry): a finding already queued for the sweep or
   assert.equal((r.reentryQueue || []).length, 0, 'the re-mint never re-queues for re-entry either')
   assert.ok(h.logs.some(l => typeof l === 'string' && l.includes('already queued for the phase-close sweep / re-entry this phase — the queued record stands')),
     'the refusal is logged with the queued-registry reason (never silent)')
+  // Cross-seat merge on the queued arm: the refusal is not a drop — the re-raising seat lands on
+  // the QUEUED row's seats list (corroborateSurvivor searches phaseCloseQueue too).
+  h.routeReauditMinors(r, [{ seat: 'audit:t1:evidence', findings: [{ severity: 'Minor', title: 'stale count', file: 'skills/a.js', disposition: 'absorb', phaseClose: true }] }])
+  assert.equal(h.phaseCloseQueue.length, 1, 'the cross-seat re-mint still never queues a second record')
+  assert.equal(h.phaseCloseQueue[0].seats[0], 'audit:t1:correctness (task t1)',
+    'the queued row\'s seats list is seeded with the first raiser')
+  assert.ok(h.phaseCloseQueue[0].seats.includes('audit:t1:evidence (task t1)'),
+    'the re-raising seat merges onto the QUEUED row\'s seats list (corroborateSurvivor searches phaseCloseQueue) — never dropped')
   // Entry point 2 — the re-entry queue arm stamps too: a fresh eligible absorb queues once.
   const g = { severity: 'Nit', task: 't1', title: 'lagging comment', file: 'skills/b.js', disposition: 'absorb' }
   h.routeReauditMinors(r, [{ seat: 'audit:t1:correctness', findings: [{ ...g }] }])
@@ -11783,6 +11848,30 @@ test('reaudit-sweep (queued registry): a finding already queued for the sweep or
   // longer queued — its own stamp must never refuse its own dispatch).
   assert.ok(src.includes('for (const f of drained) queuedKeys.delete(remintKey(f))'),
     'aceReentry drains delete the drained entries\' queued stamps before the registry re-check')
+  // Engine pin: the THIRD phaseCloseQueue entry point — the ruledAsks intake loop — stamps
+  // queuedKeys too (it sits below the registry declarations so it can).
+  const ruledBlock = src.slice(src.indexOf('for (const ra of ruledAsks)'), src.indexOf('for (const ra of ruledAsks)') + 700)
+  assert.ok(ruledBlock.includes('queuedKeys.add(remintKey(row))'),
+    'the ruledAsks intake (third entry point) stamps the queued registry before its phaseCloseQueue push')
+})
+
+test('reaudit-sweep (queued registry, ruledAsks intake): a threaded ruled ask whose (task,file,title) matches a re-audit-born absorb never queues twice — the re-mint is refused with the queued reason', async () => {
+  const ruled = { task: 't1', title: 'flip the retention default', file: 'docs/retention.md',
+    suggested_fix: 'set the documented default to 30d', ruling: 'adopt the 30d default (operator)' }
+  // Round-1 audit approves with a plain aceable nit (batch ace), then the re-audit re-raises the
+  // SAME underlying finding the operator already ruled (content-identical remintKey to the ruled
+  // entry) — it must be refused, never a second queue and never a re-entry dispatch.
+  const remint = nit({ title: 'flip the retention default', file: 'docs/retention.md' })
+  const impl = buildSeqImpl(
+    { 'audit:t1:correctness': [approveWith('audit:t1:correctness', [nit()]),
+                               approveWith('audit:t1:correctness', [remint]),
+                               approveWith('audit:t1:correctness', [])] },
+    quietGate(aceBase([nit()])))
+  const { calls, logs } = await runPhase(ACE_ARGS({ ruledAsks: [ruled] }), impl)
+  assert.equal(calls.filter(isAce).length, 1, 'only the round-1 batch ace runs — the ruled-ask re-mint never re-enters')
+  assert.ok(!calls.some(c => (c.prompt || '').includes('ACE RE-ENTRY BATCH')), 'no re-entry batch dispatches for the ruled-ask re-mint')
+  assert.ok(logs.some(l => typeof l === 'string' && l.includes('re-entry REFUSED') && l.includes('flip the retention default') && l.includes('already queued')),
+    'the re-mint is refused with the queued-registry reason (the ruled entry stands, logged never silent)')
 })
 
 test('ask-content-key (cross-seat corroboration): a second seat re-minting a filed or aced finding merges onto the surviving row\'s seats list — never dropped, never double-filed', () => {
@@ -11808,6 +11897,24 @@ test('ask-content-key (cross-seat corroboration): a second seat re-minting a fil
   h.routeReauditMinors(r, [{ seat: 'audit:t1:evidence', findings: [{ severity: 'Nit', title: 'stale comment', file: 'skills/b.js', disposition: 'absorb' }] }])
   assert.equal(h.aced[0].finding.seats.filter(x => x === 'audit:t1:evidence (task t1)').length, 1,
     'a repeat by the SAME seat never duplicates its entry (corroboration is cross-seat)')
+  // QUEUED direction (sweep queue): the survivor lives in phaseCloseQueue — the queuedKeys refusal
+  // must still merge the second seat onto the queued row (never dropped even when the sweep is
+  // later discarded and the row demotes into minorsFiled).
+  const qA = { severity: 'Minor', task: 't1', title: 'queued sweep row', file: 'skills/q.js', seat: 'audit:t1:correctness' }
+  h.routeToSweep({ ...qA }, 'reserve-blocked re-entry (fixture)')
+  h.routeReauditMinors(r, [{ seat: 'audit:t1:style', findings: [{ severity: 'Minor', title: 'queued sweep row', file: 'skills/q.js', disposition: 'absorb' }] }])
+  const queuedRow = h.phaseCloseQueue.find(m => m.title === 'queued sweep row')
+  assert.deepEqual(queuedRow.seats, ['audit:t1:correctness (task t1)', 'audit:t1:style (task t1)'],
+    'a re-mint of a sweep-QUEUED finding merges the second seat onto the queued row\'s seats list')
+  // QUEUED direction (re-entry queue): the survivor lives on r.reentryQueue — the caller threads
+  // the live queue into corroborateSurvivor, so the second seat lands on the queued record.
+  const eA = { severity: 'Nit', title: 'reentry-queued nit', file: 'skills/e.js', disposition: 'absorb' }
+  h.routeReauditMinors(r, [{ seat: 'audit:t1:correctness', findings: [{ ...eA }] }])
+  h.routeReauditMinors(r, [{ seat: 'audit:t1:style', findings: [{ ...eA }] }])
+  assert.equal(r.reentryQueue.filter(m => m.title === 'reentry-queued nit').length, 1, 'the re-mint never double-queues for re-entry')
+  const reRow = r.reentryQueue.find(m => m.title === 'reentry-queued nit')
+  assert.deepEqual(reRow.seats, ['audit:t1:correctness (task t1)', 'audit:t1:style (task t1)'],
+    'a re-mint of a RE-ENTRY-queued finding merges the second seat onto the queued record\'s seats list')
 })
 
 test('ask-collision (End state 7): every measured ask-drop sink merges a content collision as corroboration or logs it — one parametrized check over the THREE gate-audit sites plus a no-silent-discard negative control', async () => {
