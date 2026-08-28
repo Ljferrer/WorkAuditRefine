@@ -294,6 +294,10 @@ const QUALIFIED_HEADERS = [
   // carried the qualifier but was unlisted (sibling gap closed in the same touch).
   'budget-raise-floor.md',
   'refiner-recovery.md',
+  // in-run-finding-resolution Phase 3 Task 2 completion: the skills/war/SKILL.md
+  // Run-manifest per-stamp field-detail eviction destination, byte-funding the card's
+  // 56 B of remaining headroom (joined on creation per the UNION-extension precedent above).
+  'run-manifest.md',
 ];
 
 test('reference link integrity — the re-basing caveat and the no-path-form claim are retired everywhere, and every re-qualified header says "at eviction time"', () => {

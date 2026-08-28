@@ -3,7 +3,7 @@
 Authored by `/war-strategy` (compressed operator interview, 2026-08-27 — see Notes).
 Core issues: #1731, #1838, #1845, #1846 (the disposition-routing enhancement family);
 folded ask-machinery defects: #1810, #1789, #1790, #1813; folded doc cascade: #1812.
-One landed run of this plan retires nine open `war-followup` issues and all four
+One landed run of this plan retires five open `war-followup` issues and all four
 enhancement issues, and every subsequent run files structurally fewer issues — the
 realized-absorb-rate program's core.
 
@@ -24,6 +24,14 @@ realized-absorb-rate program's core.
 - `skills/war/SKILL.md` Checkpoint `--afk` citation-arm sentence · (verified: grep at
   origin/master 0.20.1, 2026-08-27) · read
 - issue #1788 · read; deliberately excluded (see Notes) · read
+- #1731-cited artifacts (red-team round 1 completion): issue #1563 (loud demotion
+  routing — the arm this plan's re-entry replaces) · read; issue #1547 (roundLimit 3→6
+  rationale D1's reserve arithmetic leans on) · read; issue #1726 (the live folded
+  instance) · read; issues #1562/#1549/#1664/#1550 · read (each already cited in
+  Context/Non-goals); the phase-1 workflow-journal demotion log (run
+  `2026-08-25-engine-reliability-and-filing-fidelity-2026-08-26`) · unread — the
+  demotion text is quoted verbatim in #1731's body and re-verified against the live
+  engine's routing branch, so the journal adds no decision-relevant signal · unread-with-reason
 
 ## Context — the gap / problem
 
@@ -65,15 +73,25 @@ timing-stranded litter (verified: the 2026-08-27 categorization pass over the op
 
 ## Pivotal constraints
 
-- The floor-retry reserve is landed law: subset/absorb commits dispatch only while
-  `fixRounds < roundLimit − 2` (plan-1 phase 7, D12/Open-decision-4; the roundLimit=6
-  default was re-ratified at the plan-1 Checkpoint — adjudication row, 2026-08-26).
+- The floor-retry reserve is landed law for bisection SUBSET commits only: they dispatch
+  while `fixRounds < roundLimit − 2` (plan-1 phase 7, D12/Open-decision-4); the batch ace
+  keeps its own `< roundLimit` gate (workflow-template.js ~:1774-1779, :1882 at 0.20.1 —
+  re-measure at the cut base). Task 1's re-entry dispatch adds a NEW `< roundLimit − 2`
+  gate for re-entry batches; the existing batch-ace gate is deliberately left at
+  `< roundLimit` (red-team round 1, operator-ratified). The roundLimit=6 default was
+  re-ratified at the plan-1 Checkpoint (adjudication row, 2026-08-26).
 - Standing/dispatched prompt split: auditor-behavior guidance must change on BOTH layers
   (standing card/references home + the dispatched `auditPrompt` blocks) in the same
   commit (CLAUDE.md law; the recorded drift trap).
 - Byte budgets: `agents/war-auditor.md` hard 28,672 B (2,385 B headroom measured at
-  0.20.1); `skills/war/SKILL.md` carries a budgets row; the Budget-Raise floor refuses
-  uncited ceiling raises. `disposition-eligibility.md` is un-budgeted (verified: 0.20.1).
+  0.20.1); `skills/war/SKILL.md` carries a budgets row; **`CONTEXT.md` hard 126,976 B
+  with only 632 B of headroom at 0.20.1 — the tightest surface in this footprint,
+  ratchet-down-only per its budgets-row comment** (Task 3 funds its additions by
+  in-task eviction, never a raise); the `workflow-template.js` prompt-literal share
+  measures 74,513 B against 79,872 B hard (5,359 B headroom) — Task 1's new prompt
+  blocks fit within it or evict. The Budget-Raise floor refuses uncited ceiling raises.
+  `disposition-eligibility.md` is un-budgeted (verified: red-team round 1 probe
+  measurements at 20407a0).
 - Pin lock-step: `skill-doc-contracts.test.mjs` D37/D38/D41/D42 read sentences this plan
   rewrites — keys move in the same commit, never loosened.
 - Campaign contention: this plan's footprint collides with plan 3
@@ -94,12 +112,13 @@ timing-stranded litter (verified: the 2026-08-27 categorization pass over the op
 | D6 | Absorb-by-citation under `--afk` (#1845 part 2) | A parked ask matching a standing operator-ratified adjudication row resolves to an actionable `absorb` (executed via the ace/re-entry vehicle), citing the row. **Match strictness**: the row must cover the finding's NAMED trade-off, not its topic; ambiguity resolves to no-match ⇒ today's demote (the floor). **Soundness duty**: the re-audit panel is explicitly charged with verifying the cited row covers the trade-off — unsound ⇒ blocking, batch reverts, finding demotes with the mismatch named. **Record**: row-id + one-line match rationale in the durable record (commit + `aced` row); rationale format is latitude, presence is floor. `--afk` never mints a standing row (existing invariant). | (user) | PIN-6, PIN-7 · guardrail; PIN-8 · end-state |
 | D7 | Citation telemetry | Citation-resolutions ride `/war-review` — which standing rows fire, how often; an over-broad row firing constantly is the measured narrowing signal. Counting is free (the `aced` record carries the citation). | (user) | PIN-9 · slice |
 | D8 | Content-key property floor (#1810) | Floor the PROPERTY, not the tuple: the cross-round finding/ask identity key is stable across rounds for the same finding (survives re-minting and SHA changes) AND distinguishes distinct findings on the same task — fixtures asserting BOTH directions. Tuple choice is implementer's latitude. Under D1's multiplied rounds and D6's actionable asks, #1810 is double-EXECUTION prevention, not just double-parking. | (user) | PIN-10 · guardrail+end-state |
-| D9 | Fold enumeration fence | The four machinery folds (#1810, #1789, #1790, #1813) land as named slice members with their fix sites cited, and the engine-fence clause enumerates them — folded fixes never ride unnamed. #1790's fix merges a content-dedup collision as corroboration (or at minimum logs it) — the unlogged sink closes. | (user) | PIN-11 · guardrail |
+| D9 | Fold enumeration fence | The four machinery folds (#1810, #1789, #1790, #1813) land as named slice members with their fix sites cited, and the engine-fence clause enumerates them — folded fixes never ride unnamed. #1790's fix covers all THREE structurally identical unlogged ask-drop guards (red-team round 1 measured three, not one — ~:2610, :2686, :2729 at 20407a0): each merges a content-dedup collision as corroboration (or at minimum logs it), proven by ONE parametrized fixture over the three sites plus a no-silent-discard negative control — never three hand-copied tests. | (user; red-team round 1) | PIN-11 · guardrail |
 | D10 | #1812 homes owned here | The four boundary-prose homes (ADR 0013 amendment · `skills/war/SKILL.md` `--ace` bullet · CONTEXT.md **Ace bisection** glossary row · `design.md` §18) are re-authored to the NEW re-entry/reserve semantics in this plan, and `skill-doc-contracts.test.mjs` gains guard rows binding the new boundary prose — the flip ships the guard (the old drift was silent precisely because no row carried the token). | (user; verified: issue #1812 (2026-08-26)) | PIN-12 · slice |
 | D11 | Campaign placement | Next in the paused 2026-08-25-survey-debt queue, cut from post-merge 0.20.1 master, BEFORE plans 2 and 3. **Plan-2 deferral ruling (recorded)**: plan 2 (authoring-doctrine) is file-disjoint and deliberately waits one run — core-fix-first per operator. Plan 3 re-amended after this lands. | (user) | PIN-13 · context |
 | D12 | Cut-base re-verification duty | Every folded fix-site line citation (#1810/#1789/#1790/#1813) and each #1812 prose home was verified at the 2026-08-27 tip; the worker re-enumerates each at the actual cut base before editing (D12 staleness law). | (user) | PIN-14 · slice |
 | D13 | Re-entry dispatch hygiene | Re-entry rounds inherit the existing `Ace-Subset` trailer discipline and tip-preflight idempotency verbatim — new dispatch sites, existing law, stated so a resume never duplicates a batch. | (user) | PIN-15 · guardrail |
 | D14 | Release grade | MINOR — behavior-visible routing changes; the bump directive is "next free MINOR above the live integration base at land time", never a resolved literal (the patch→minor silent-flip lesson). | (user) | PIN-16 · slice |
+| D15 | Interactive ruled-ask execution (red-team round 1, operator-ratified) | An interactively-ruled ask whose fix is fully specified executes in-run — but NOT via the intra-task re-entry ladder (asks are ruled at the post-land Checkpoint, after the ladder closes). Vehicles: **(a) next phase exists** ⇒ the Lead injects the ruled ask into that phase's decompose as a small first-class task carrying the ruling, the finding, and the `suggested_fix` as its slice (all existing machinery — worker, floors, panel, that phase's budget; the proven fold-forward pattern); **(b) final phase** ⇒ one polish-style post-land dispatch (fresh worktree at the working tip, one ace-eligibility commit, full panel, existing merge/land primitives), bounded at one round by construction. Filing parity becomes filing-on-non-execution: an issue is filed ONLY on cannot-execute (no vehicle, cross-task, budget) or execution-failure (regression ⇒ revert), the ruling recorded in the issue either way — nothing silent. The ruled-ask adjudication row is written in **standing-row format**, so today's interactive ruling becomes tomorrow's `--afk` citation source (#1845's two arms feeding each other). | (user) | PIN-17 · guardrail; PIN-18 · end-state |
 
 ## Assumptions ledger
 
@@ -107,7 +126,7 @@ timing-stranded litter (verified: the 2026-08-27 categorization pass over the op
 |----|-----------|-------|----------------------|-------|
 | A1 | Re-entry convergence needs no new bound beyond the reserve: a forward-reverted finding demotes and never re-enters, so oscillation cannot recur within the budget | landed forward-revert demotion semantics (plan 1 phase 7) | an oscillating batch burns budget until the reserve — bounded, logged, ugly but safe | End state 1's convergence fixture; the reserve hard-stop |
 | A2 | Standing-row matching is panel judgment (prompt-charged), never engine-side NLP — the engine records and routes, the re-audit panel judges soundness | the citation arm is already prompt-side (SKILL.md Checkpoint, verified 0.20.1) | a code-side matcher would be new machinery — out of scope, re-plan | End states 4–5's fixtures exercise record/route only |
-| A3 | The `war-review` telemetry row and the `skills/war/SKILL.md` edits keep `war-pipeline-structure.test.sh` and the budgets/D37/D41/D42 pins green via lock-step moves | pin inventory read at 0.20.1 | red pins at merge — coupling updates in the same commit, never loosened | each task's Done-when suite |
+| A3 | The `war-review` telemetry row and the `skills/war/SKILL.md` edits keep `war-pipeline-structure.test.sh` and the budgets/D37/D41/D42 pins green via lock-step moves | pin inventory read at 0.20.1 | red pins at merge — coupling updates in the same commit, never loosened | Task 3's widened Done-when runs `war-pipeline-structure.test.sh` directly; Task 1's runs `reference-link-integrity.test.mjs` (red-team round 1 closed the discharge gap) |
 
 ## Non-goals / deferred
 
@@ -144,7 +163,9 @@ timing-stranded litter (verified: the 2026-08-27 categorization pass over the op
   new-test additions in task-owned test files become ace-eligible (D4); fully-specified
   trade-off fixes route `ask` (D5) and, under `--afk`, an ask matching a strict standing
   adjudication row resolves to absorb-by-citation with panel-verified soundness (D6) and
-  `/war-review` telemetry (D7); harden the ask channel the new arms lean on — the four
+  `/war-review` telemetry (D7); interactively, a ruled ask with a fully-specified fix
+  executes in-run via decompose-injection or a bounded post-land polish dispatch, filing
+  only on non-execution (D15); harden the ask channel the new arms lean on — the four
   named folds (D8/D9). Both prompt layers move together; the four #1812 prose homes are
   re-authored to the new boundary with guard rows shipping in the same plan (D10).
 - **Mechanism latitude:** the content-key's exact field tuple (D8 floors the property,
@@ -175,10 +196,13 @@ timing-stranded litter (verified: the 2026-08-27 categorization pass over the op
     ratified widenings (new-test-in-owned-file, citation-resolved); release-slot files
     stay refused from ace and sweep; never delete or weaken tests;
   - `--afk` never mints a standing adjudication row;
+  - a ruled ask files an issue ONLY on cannot-execute or execution-failure, with the
+    ruling recorded in it — never silently, never as default litter (PIN-17);
   - standing and dispatched prompt surfaces change in the same commit;
   - the engine-fence clause enumerates the four folds (#1810, #1789, #1790, #1813) —
-    no unnamed rider edits (PIN-11).
-- **End state:** (11 rows, exact)
+    no unnamed rider edits (PIN-11), and #1790's treatment covers all three measured
+    sink sites with one parametrized fixture.
+- **End state:** (12 rows, exact)
   1. Budget-bounded re-entry: a fresh absorb born at a plain re-audit, a bisection-subset
      re-audit, and a later-round re-audit each re-enters as an ace-style batch while
      `fixRounds < roundLimit − 2`; at the reserve the finding routes `phaseClose: true`;
@@ -201,25 +225,36 @@ timing-stranded litter (verified: the 2026-08-27 categorization pass over the op
      N rounds, distinct same-task findings never collapse, and no finding lands in both
      `aced` and `minorsFiled` — fixtures titled `ask-content-key` ·
      check: grep -c 'ask-content-key' skills/war/assets/workflow-template.test.mjs prints at least 2.
-  7. A cross-lane ask content collision merges as corroboration or logs — never a silent
-     drop — and a seat label carrying the `:integrated-tip` or `:end-state` suffix
-     yields the `execution-evidence` lens, never the suffix token, in every consuming
-     record — fixtures titled `ask-collision` and `lens-suffix` ·
+  7. Every measured ask-drop sink (the three structurally identical guards) merges a
+     content collision as corroboration or logs it — one parametrized fixture over the
+     three sites plus a no-silent-discard negative control — and the lens-extraction
+     rule keys on the FAMILY PREFIX: any seat label whose first segment is `gate-audit`
+     yields the `execution-evidence` lens (otherwise trailing-segment extraction with
+     the `:rebut` dispatch-label strip), with the wrong-yield negative control asserting
+     `phase-1` is never produced as a lens from a phase-level label — fixtures titled
+     `ask-collision` and `lens-suffix` ·
      check: grep -c 'ask-collision' skills/war/assets/workflow-template.test.mjs prints at least 1 && grep -c 'lens-suffix' skills/war/assets/workflow-template.test.mjs prints at least 1.
   8. `aceGroups()` and the `Ace-Subset` trailer key on normalized paths — a `./`-form
      and bare-form pair of the same file lands in one subset — fixture titled
      `ace-group-path` ·
      check: grep -c 'ace-group-path' skills/war/assets/workflow-template.test.mjs prints at least 1.
-  9. The retired budget-exhaustion boundary is absent from all four #1812 homes and the
-     new boundary prose is guard-bound ·
-     check: ! grep -F 'demotes on budget' docs/adr/0013-commanders-intent-and-disposition-routing.md && ! grep -F 'exhaustion demotes the remainder' skills/war/SKILL.md CONTEXT.md && ! grep -F 'budget-exhausted remainder' skills/war/references/design.md && node --test skills/war/assets/skill-doc-contracts.test.mjs exits 0 && echo BOUNDARY-RETIRED prints BOUNDARY-RETIRED (each OLD needle ≥ 1 hit at 0.20.1 — re-measure at the cut base).
+  9. The retired budget-exhaustion boundary is absent from the three LIVING-DOC #1812
+     homes, the ADR home carries the dated supersession note (append-only law — the
+     historical 2026-08-20 clause deliberately survives; red-team round 1, operator
+     pin), and the new boundary prose is guard-bound ·
+     check: ! grep -F 'exhaustion demotes the remainder' skills/war/SKILL.md CONTEXT.md && ! grep -F 'budget-exhausted remainder' skills/war/references/design.md && grep -F 'floor-retry reserve' docs/adr/0013-commanders-intent-and-disposition-routing.md && node --test skills/war/assets/skill-doc-contracts.test.mjs exits 0 && echo BOUNDARY-RETIRED prints BOUNDARY-RETIRED (living-doc OLD needles ≥ 1 hit and the ADR NEW needle 'floor-retry reserve' ZERO hits at 20407a0, so all conjuncts are decisive — re-measure at the cut base).
   10. Both prompt layers carry the widened disposition guidance — the dispatched
      `auditPrompt` DISPOSITION block and the standing `disposition-eligibility.md` home
      name re-audit-born default-absorb, new-test eligibility, and trade-off-ask routing ·
-     check: grep -qi 're-audit' skills/war/references/disposition-eligibility.md && grep -qi 'trade-off' skills/war/references/disposition-eligibility.md && echo BOTH-LAYERS && node --test skills/war/assets/workflow-template.test.mjs exits 0 printing BOTH-LAYERS (the dispatched-layer half is pinned by the Task 1 prompt-literal fixtures; the worker's done report names the auditPrompt block edit).
+     check: grep -qi 'born at a re-audit' skills/war/references/disposition-eligibility.md && grep -qi 'trade-off' skills/war/references/disposition-eligibility.md && grep -c 'disposition-prompt-widened' skills/war/assets/workflow-template.test.mjs && node --test skills/war/assets/workflow-template.test.mjs exits 0 && echo BOTH-LAYERS prints BOTH-LAYERS ('born at a re-audit' and 'disposition-prompt-widened' are ZERO-hit at 20407a0 — red-team round 1 proved the prior 're-audit' needle vacuous (a pre-existing hit) — so both conjuncts are decisive; the dispatched-layer half is the named prompt-literal fixture, not the generic suite run).
   11. All four version slots and the CHANGELOG head carry the next free MINOR above the
      live integration base ·
      check: node --test skills/war/assets/version-slots.test.mjs exits 0 (plus the land-time differs-from-launch-base assertion; MINOR grade per D14).
+  12. An interactively-ruled ask with a fully-specified fix executes in-run: the
+     final-phase polish-style dispatch arm is fixture-proven, and the Checkpoint
+     doctrine names both vehicles and the filing-on-non-execution rule — fixture titled
+     `ruled-ask-absorb`; the decompose-injection arm is Lead doctrine, pinned by grep ·
+     check: grep -c 'ruled-ask-absorb' skills/war/assets/workflow-template.test.mjs prints at least 1 && grep -qi 'cannot-execute' skills/war/SKILL.md && echo RULED-ASK-EXECUTES prints RULED-ASK-EXECUTES (both needles ZERO-hit at 20407a0 — decisive).
 
 ## Build order (for /war)
 
@@ -233,7 +268,7 @@ at its rebased base before editing (PIN-14; all line citations date from the 202
 tip at 0.20.1).
 
 ### Task 1: Engine + tests + both prompt layers
-- Files: `skills/war/assets/workflow-template.js`, `skills/war/assets/workflow-template.test.mjs`, `agents/war-auditor.md`, `skills/war/references/disposition-eligibility.md`
+- Files: `skills/war/assets/workflow-template.js`, `skills/war/assets/workflow-template.test.mjs`, `agents/war-auditor.md`, `skills/war/references/disposition-eligibility.md`, `skills/war/references/file-followups.md`
 - Plan slice: (D1/D2, PIN-1/PIN-2) replace the "the ladder never opens for fresh
   findings" routing branch with budget-bounded re-entry: a fresh `absorb`-dispositioned
   finding born at ANY re-audit (plain approve-branch, bisection-subset, or a re-entry
@@ -248,27 +283,49 @@ tip at 0.20.1).
   commit message and the `aced` record, and the re-audit prompt for a citation-resolved
   batch explicitly charges the panel with citation soundness (unsound ⇒ blocking ⇒
   revert ⇒ demote naming the mismatch). (D4) admit new-test additions in task-owned
-  test files to the ace batch scope. Folds (D9, named fence members — re-verify each
-  site at the cut base, PIN-14): (#1810) replace `parkAsk`'s object-identity dedup and
-  the double-file arm with a content-keyed cross-round identity satisfying the D8
-  property floor (verified: issue #1810 (2026-08-26); site `asks.some(a => a.finding === f)`,
-  workflow-template.js ~:1831 at 0.20.1); (#1790) the cross-lane ask content dedup
-  merges the collision as corroboration or logs it — never silent (verified: issue
-  #1790 (2026-08-26); site the per-task gate-audit `parkAsk` guard ~:2536); (#1789)
-  carve the `:integrated-tip`/`:end-state` suffixes out of the lens-extraction rule
-  alongside `:rebut` (verified: issue #1789 (2026-08-26); site ~:2613); (#1813) apply
+  test files to the ace batch scope. Re-entry gating (red-team round 1): the re-entry
+  dispatch adds a NEW `< roundLimit − 2` gate; the existing batch-ace `< roundLimit`
+  gate (~:1774-1779, :1882) is deliberately untouched. (D15, both halves this task can
+  reach) the final-phase polish-style ruled-ask dispatch arm — fresh worktree at the
+  working tip, one ace-eligibility commit, full panel, existing merge/land primitives,
+  bounded one round — with its `ruled-ask-absorb` fixture (End state 12); the
+  decompose-injection arm is Lead doctrine and rides Task 3's SKILL.md edit. Folds
+  (D9, named fence members — re-verify each site at the cut base, PIN-14; line cites
+  corrected by red-team round 1 at 20407a0): (#1810) replace `parkAsk`'s
+  object-identity dedup and the double-file arm with a content-keyed cross-round
+  identity satisfying the D8 property floor (verified: issue #1810 (2026-08-26); site
+  `asks.some(a => a.finding === f)` at workflow-template.js:893 inside `const parkAsk`
+  at :892 — the ~:1824/:1837 lines are call sites, not the dedup); (#1790) ALL THREE
+  structurally identical unlogged ask-drop guards (~:2610, :2686, :2729) merge the
+  collision as corroboration or log it — never silent — proven by one parametrized
+  fixture over the three sites plus a no-silent-discard negative control (verified:
+  issue #1790 (2026-08-26); red-team round 1 measured three sinks, not one); (#1789)
+  replace the suffix enumeration with the FAMILY-PREFIX rule — any seat label whose
+  first segment is `gate-audit` extracts lens `execution-evidence`; otherwise
+  trailing-segment extraction with the `:rebut` dispatch-label strip — on BOTH mirror
+  surfaces in the same commit: the dispatched filing clause (workflow-template.js
+  ~:3340, NOT ~:2613 — that is #1790's code) and its standing mirror
+  `skills/war/references/file-followups.md` (~:9), whose existing
+  workflow-template.test.mjs ~:5918 pin moves lock-step; fixture includes the
+  wrong-yield negative control (`phase-1` never produced as a lens) (verified: issue
+  #1789 (2026-08-26); red-team round 1 re-anchored the site); (#1813) apply
   `aceRelPath` at `aceGroups()` and the `Ace-Subset` trailer build so same-file findings
   never split across subsets (verified: issue #1813 (2026-08-26); site ~:1731). Prompt
   layers, same commit: the dispatched `auditPrompt` DISPOSITION block gains the
   re-audit-born default-absorb rule (D3), the new-test eligibility (D4), and the
-  trade-off-ask routing (D5); the standing home `disposition-eligibility.md` gains the
-  same three rules (it is un-budgeted; the auditor card's trigger pointer is verified
-  live and its 2,385 B headroom is touched only if a pointer wording change proves
-  necessary — no ceiling raise, the Budget-Raise floor refuses uncited raises). Tests
-  in the same diff: the fixture families of End states 1–8 and 10, including the D8
-  both-directions property fixtures. Byte discipline: run
-  `prompt-surface-budgets.test.mjs` before push.
-- Done when: node --test skills/war/assets/workflow-template.test.mjs
+  trade-off-ask routing (D5) — the dispatched block's edit pinned by a fixture titled
+  `disposition-prompt-widened` (End state 10's dispatched-layer predicate); the
+  standing home `disposition-eligibility.md` gains the same three rules, the
+  re-audit-born rule carrying the literal phrase 'born at a re-audit' (End state 10's
+  standing needle — the file's pre-existing 're-audit' mention makes any looser needle
+  vacuous, red-team round 1) (it is un-budgeted; the auditor card's trigger pointer is
+  verified live and its 2,385 B headroom is touched only if a pointer wording change
+  proves necessary — no ceiling raise, the Budget-Raise floor refuses uncited raises).
+  Tests in the same diff: the fixture families of End states 1–8, 10, and 12, including
+  the D8 both-directions property fixtures. Byte discipline: run
+  `prompt-surface-budgets.test.mjs` before push (the workflow-template.js
+  prompt-literal share has 5,359 B headroom — new prompt blocks fit within it or evict).
+- Done when: node --test skills/war/assets/workflow-template.test.mjs && node --test skills/war/assets/reference-link-integrity.test.mjs
 - requiresTest: true
 - requiresPackaging: false
 - deps: []
@@ -281,12 +338,18 @@ tip at 0.20.1).
   the sole bound and the #1731 operator comments as provenance); the three disposition
   widenings (D3/D4/D5); the absorb-by-citation arm with the match-strictness rule, the
   panel soundness duty, and the record shape (D6); the telemetry ride (D7). In the same
-  amendment, requalify the 2026-08-20 amendment's now-retired "the remainder demotes on
-  budget exhaustion" narration to the reserve/re-entry boundary (#1812's ADR home —
-  dated qualification note, ratified text untouched) (verified: issue #1812
-  (2026-08-26)). Ratified prior text stays byte-untouched; keep
-  `skill-doc-contracts.test.mjs` green (D38/D19a read this file — an additive dated
-  amendment outside the pinned spans).
+  amendment, supersede the 2026-08-20 amendment's now-retired "the remainder demotes on
+  budget exhaustion" narration (#1812's ADR home — dated note, ratified text untouched,
+  append-only law; #1850's living-ADR direction is ratified but explicitly deferred
+  until after this plan lands) with EXPLICIT supersession language so the dual-literal
+  state self-disambiguates for a cold reader — the note names its predecessor, in the
+  shape: "As of <date>: the ladder's stop condition is the floor-retry reserve
+  (fixRounds < roundLimit − 2) with budget-bounded re-entry; the 2026-08-20 clause
+  above describes the pre-#1562 boundary and is historical." (red-team round 1,
+  operator pins; the note's 'floor-retry reserve' literal is End state 9's ADR
+  NEW-present needle) (verified: issue #1812 (2026-08-26)). Ratified prior text stays
+  byte-untouched; keep `skill-doc-contracts.test.mjs` green (D38/D19a read this file —
+  an additive dated amendment outside the pinned spans).
 - Done when: None — prose amendment; Task 3's suite run guards it (its guard rows land
   there, deps-edged)
 - requiresTest: false
@@ -301,24 +364,47 @@ tip at 0.20.1).
   `skills/war/SKILL.md` `--ace` bullet ("exhaustion demotes the remainder" → the
   re-entry + reserve ladder, End state 9's OLD-absent needle), CONTEXT.md's
   **Ace bisection** glossary row (same retirement) plus the two new glossary terms
-  (**Re-entry**, **Absorb-by-citation** — D14's New-domain-terms rows), and
-  `design.md` §18's "(or a budget-exhausted remainder) demote" clause. Extend the
-  `skills/war/SKILL.md` Checkpoint `--afk` posture sentence: a citation-match may carry
-  an actionable absorb outcome with row-id + rationale recorded (D6) — lock-step move of
-  any D37/D41 keys reading that sentence, budget suite green (the file carries a
-  budgets row). schemas.md: document the citation-resolution record on the `aced` row
-  and the ask-channel arms' new routing (content-key identity, corroboration-merge) —
-  additive field notes, no contract fork. (D7) add the citation-resolution count to
-  `skills/war-review/SKILL.md`'s telemetry enumeration (one row: citation-resolutions
-  per standing row, sourced from `aced` records; `n/a` when unsourceable) — keep
-  `war-pipeline-structure.test.sh` green (A3; lock-step if a key reads the block).
-  (D10's guard half — the flip ships the guard) add `skill-doc-contracts.test.mjs`
-  rows binding the NEW boundary prose across its homes: a next-free-D-number row with
-  construct-scoped extraction (the D35 idiom) pinning the reserve/re-entry token in the
-  ADR 0013 amendment (Task 2's fact — hence the deps edge), the SKILL.md `--ace`
-  bullet, and CONTEXT.md's row; both-ways proof per house convention (scratch-flip one
-  home, observe red, restore — trace in the done report).
-- Done when: node --test skills/war/assets/skill-doc-contracts.test.mjs
+  (**Re-entry**, **Absorb-by-citation** — the `## New domain terms` section's rows), and
+  `design.md` §18's "(or a budget-exhausted remainder) demote" clause. CONTEXT.md BYTE
+  FUNDING (red-team round 1, operator pins — the file has 632 B of hard headroom, the
+  tightest surface in this footprint): fund the two new terms + the Ace-bisection
+  re-authoring by an in-task ADR-0042 byte-identical eviction of cold CONTEXT.md
+  entries to `skills/war/references/glossary-cold.md`, coldness criterion stated
+  (retired-mechanism terms, or terms fully narrated in their own reference file where
+  a pointer suffices), each evicted entry leaving the hot trigger-pointer line and its
+  `skill-doc-contracts` guard rows RE-ANCHORED to the cold file in the same commit
+  (lock-step — a guard still grepping CONTEXT.md for an evicted entry is an instant
+  red or a vacuous pin); size the eviction to leave ~1 KB of slack beyond the
+  additions, measured by `wc -c` iteration (the plan-4 pattern); never a ceiling
+  raise. Extend the `skills/war/SKILL.md` Checkpoint doctrine (both D6 and D15):
+  a citation-match may carry an actionable absorb outcome with row-id + rationale
+  recorded; an interactively-ruled ask with a fully-specified fix executes in-run —
+  next-phase decompose-injection as a first-class task, or the final-phase
+  polish-style dispatch — with filing ONLY on cannot-execute or execution-failure
+  (the ruling recorded in the filed issue either way), and ruled-ask adjudication
+  rows written in standing-row format (the literal 'cannot-execute' is End state 12's
+  SKILL needle) — lock-step move of any D37/D41 keys reading these sentences, budget
+  suite green (the file carries a budgets row), and the dispatched-prompt mirror of
+  the Checkpoint filing change rides Task 1's same-commit law. schemas.md: document
+  the citation-resolution record on the `aced` row and the ask-channel arms' new
+  routing (content-key identity, corroboration-merge) — additive field notes, no
+  contract fork (de-mirror posture: each row cites the engine construct as canonical,
+  never restating values a guard would have to pin). (D7) add the citation-resolution
+  count to `skills/war-review/SKILL.md`'s telemetry enumeration (one row:
+  citation-resolutions per standing row, sourced from `aced` records; `n/a` when
+  unsourceable) — keep `war-pipeline-structure.test.sh` green (A3; lock-step if a key
+  reads the block). (D10's guard half — the flip ships the guard) add
+  `skill-doc-contracts.test.mjs` rows binding the NEW boundary prose: a
+  next-free-D-number row with construct-scoped extraction (the D35 idiom) pinning the
+  reserve/re-entry token in the THREE living-doc homes — the SKILL.md `--ace` bullet,
+  CONTEXT.md's row, and design.md §18 — with the ADR 0013 home DELIBERATELY EXEMPT,
+  the exemption stated in the row comment as append-only-law-derived (the historical
+  2026-08-20 literal survives by design, #1850 deferred; never oversight), and the
+  guard demonstrably firing on a living-doc regression so the carve-out cannot hollow
+  it (both-ways proof: scratch-flip one living-doc home, observe red, restore — trace
+  in the done report). The ADR note's presence is End state 9's separate NEW-present
+  conjunct (Task 2's fact — hence the deps edge).
+- Done when: node --test skills/war/assets/skill-doc-contracts.test.mjs && bash skills/war-machine/war-pipeline-structure.test.sh
 - requiresTest: true
 - requiresPackaging: false
 - deps: [Phase 1 Task 1, Phase 1 Task 2]
@@ -380,6 +466,17 @@ tip at 0.20.1).
   it; house precedent is the realized-absorb-rate plan's Task 1.1. The single worker
   sequences by construct (re-entry branch → ask arms → folds → prompts → fixtures).
 - **WAIVE rows:** none.
+- **Red-team round 1 (2026-08-27, interactive):** 8/8 probes on-target; the grill ruled
+  four decisions (ADR append-only wins with supersession language — #1850's living-ADR
+  direction deferred until after this plan; the lens fix is the family-prefix rule, not
+  a suffix enumeration; interactively-ruled asks execute in-run via decompose-injection
+  or the final-phase polish dispatch, filing only on non-execution; the CONTEXT.md
+  additions are eviction-funded and #1790's fix covers all three measured sinks) and
+  seven mechanical patch families (fold line cites re-anchored — :893, :3340,
+  :2607-2611; vacuous End-state needles replaced; the file-followups.md standing leg
+  added; byte-budget rows completed; Done-whens widened; Evidence-consumed rows
+  completed; the reserve law rescoped to subset-commits-only with re-entry's new gate
+  stated).
 
 ## Open decisions
 

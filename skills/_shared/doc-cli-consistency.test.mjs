@@ -156,6 +156,11 @@ const VERB_SCAN_EXCLUSIONS = [
   'skills/war/references/refiner-recovery.md',      // no shell-out prose for the scanned modules
   'skills/war/references/file-followups.md',        // no shell-out prose for the scanned modules (gh + gh-preflight.sh only)
   'skills/war/references/worker-servitor-edges.md', // no shell-out prose for the scanned modules
+  // run-manifest.md holds the SKILL.md Run-manifest per-stamp field detail (evicted to byte-fund
+  // the card's 56 B of headroom, #1855 completion); its only command prose is the
+  // `git rev-parse --path-format=absolute --git-common-dir` anchor idiom and a `date -u`
+  // clock read — neither is a scanned module.
+  'skills/war/references/run-manifest.md',
   'skills/red-team/references/lenses.md',           // no shell-out prose for the scanned modules
   'skills/red-team/references/loop-budget.md',      // no shell-out prose for the scanned modules
   // glossary-cold.md holds evicted CONTEXT.md glossary bodies (incident/recovery doctrine);

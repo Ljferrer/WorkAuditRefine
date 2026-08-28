@@ -5,9 +5,18 @@ The unbudgeted cold home (ADR 0042: `references/` files carry no byte budget) fo
 text **at eviction time** (only repo-root-relative links were re-anchored for this file's depth),
 moved under an additive per-term heading — and the glossary keeps the `**Term**:` heading plus
 one fixed-shape trigger pointer (`when <trigger>, read skills/war/references/glossary-cold.md`). Prose temperature is branch
-frequency (ADR 0042): these are incident-only recovery entries, cold but still authoritative —
-never delete a body; evict more the same way. Bold glossary cross-references inside the moved
-bodies (**Empty-orphan reclaim**, **Dead phase**) resolve in `CONTEXT.md`, their original home.
+frequency (ADR 0042): these are cold but still authoritative — never delete a body; evict more the
+same way. **Coldness criterion** (one standing criterion; per-wave selections are recorded in the D32 row's
+comments in `skills/war/assets/skill-doc-contracts.test.mjs`, which pins each CONTEXT.md pointer to
+its body here): a term qualifies when it names a
+retired mechanism, or when it is fully narrated in its own operative home (a `references/` file, an
+owning skill's SKILL.md, or its ADR) so the glossary needs only a pointer — incident-only recovery
+and one-command forensics entries are the standing example. Bold glossary cross-references inside
+the moved bodies resolve in `CONTEXT.md`, their original home — stated as the rule rather than a
+dated enumeration, which rots as bodies are added (#1908). A reference may be a shortened or
+differently-cased form of its CONTEXT.md heading (**phantom land** → `**Phantom land**`,
+**Land primitive** → `**Land primitive (single land chokepoint)**`); resolve by term, not by
+byte-match.
 
 ## provision base divergence
 
@@ -74,3 +83,71 @@ code; carried to the add-test worker and the exhaustion escalation as `MergeResu
 _Avoid_: routing on it (fail-open advisory — absent ⇒ every consumer byte-identical); calling it a
 floor failure reason (`no-test` is the reason; this is context on it); conflating the near-miss set
 with the active pattern set (the scan is a fixed documented shape list, not the matcher).
+
+## Land-truth guard
+
+The `land-advance` (**Land primitive**) assertion set that makes a `landed` result **provable against
+git** rather than self-reported. Immediately before the push it captures the **pre-push origin tip**
+(`git ls-remote origin refs/heads/<working>`; a failed readback exits non-zero and never collapses
+into the first-land carve-out), and it refuses a **phantom land** (exit 3) when `<merge-sha>` equals
+that pre-push origin tip **and** the local follower already sits at it; the post-push readback still
+confirms origin advanced to `<merge-sha>`. Immediately before that push — and deliberately *after* the
+early-return arms, so already-landed reconciliation stays cwd-independent — it also asserts
+`HEAD == <merge-sha>`: the push source is `HEAD:`, so a wrong-cwd invocation dies with the catalogued
+`EX_WRONG_BRANCH` (6) naming both SHAs and the expected cwd (normally the detached `_refinery`) rather
+than surfacing as a misleading `[rejected]` exit 2 — which is what makes exit 2 mean **only** a real
+concurrent advance ([ADR 0023 amendment](../../../docs/adr/0023-land-asserts-git-ground-truth.md)). Where the
+pre-push origin-tip capture proves *where* the ref is going, the precheck proves *what* is going there.
+Anchored on the **origin tip, never the local follower** (which lags). A `landDecision:'landed'` is
+trustworthy only downstream of it — extends
+[ADR 0008](../../../docs/adr/0008-git-is-the-resume-source-of-truth.md) onto the land path
+([ADR 0023](../../../docs/adr/0023-land-asserts-git-ground-truth.md)).
+_Avoid_: anchoring the advance check on the local follower ref (it lags); treating the post-push
+readback alone as sufficient (it passes on a phantom, which never advanced origin).
+
+## Route-upstream
+
+The loop-breaker exit: a plan that cannot stop churning in verification is routed back to the
+`/war-strategy` interview instead of ground forever. Carried as the typed gate output field
+`routeUpstream: boolean` — pure arithmetic over the unstamped subset (the round limit reached with
+an unstamped root open, or an unstamped `needsDecision` at rounds ≥ 2) — with the pinned invariant
+`routeUpstream: true` ⇒ verdict `BLOCKED` (a stamped-out `ADJUDICATED` run never routes upstream;
+an `INCOMPLETE` run re-runs its probes instead of routing). On a route-upstream terminal the report
+gains the `## Route upstream` block — the residual questions as the regrill agenda plus the exact
+re-entry command — and `/war-campaign`'s step-3 triage halts with `stopPoint:
+redteam-route-upstream`, never skip-and-continue (ADR 0011).
+_Avoid_: a sixth verdict, a `KNOWN_LAND_DECISIONS` member, or Lead-invented prose (ADR 0043
+precedence untouched — the field rides beside the verdict); emitting the field with no rounds
+inputs (absent inputs ⇒ absent outputs).
+
+## patch-equivalence probe
+
+The `git cherry <landing-ref> <sha>` check (landing ref first) that tests whether a gate-failing
+candidate's patches already landed under a rewritten SHA. Zero `+` lines among ≥1 `-` lines ⇒ every
+patch is already in the landing branch by patch-id — **proven equivalent**, the evidence a
+tip-reachability gate cannot produce, and grounds for a `known-stranded.tsv` row in the
+**acknowledged-stranded** bucket. Any `+` line ⇒ patch-equivalence is **not proven** (squashes and
+conflict-resolved rebases legitimately change patch-ids) ⇒ needs-human, no row — never read as
+proof of unmerged work. Never a deletion license (ADR 0027 C3).
+_Avoid_: treating a zero-`+` result as permission to delete; reading a `+` line as proof of unmerged
+work; probing against a stale local landing ref; trusting an empty result (suspect — check argument
+order).
+
+## residual-set verification
+
+The mandatory post-batch Class-1 check: after a batched `git push origin --delete`, re-list
+remote heads and two-sided-diff the survivors against the pre-batch snapshot's hold set (the
+exact-name complement of the delete list). A missing hold-set ref is a data-loss row reported
+with its snapshot SHA and restore command; a surviving delete-list ref is a failed-delete row;
+the run is not clean until the diff is empty or fully reported.
+_Avoid_: trusting the delete loop's own exclusion filter; declaring a sweep clean on push success
+alone; auto-retrying a failed delete into a second unverified batch.
+
+## churny shared docs
+
+The pathspec (`docs/plans docs/specs docs/roadmaps`) whose files a stacked branch predictably conflicts
+on against master; snapped to master's canonical copy by `snap-shared-docs.sh` (merge master,
+`checkout --theirs` under the pathspec, byte-identity guard outside it, fast-forward push, never
+`--force`). ADR 0011 stack-and-plow is the primary recurrence reducer; the snap is the residual fallback.
+_Avoid_: rebasing or force-pushing a docs-only conflict; `--theirs`-ing a code-touching doc outside the
+pathspec.

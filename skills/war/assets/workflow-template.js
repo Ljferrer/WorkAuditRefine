@@ -60,7 +60,8 @@ export const meta = {
 //     agents: { worker|auditor|refiner|servitor: { model, effort } },  // from .claude/war/config.json (resolved by the Lead); defaults below.
 //                                     // worker may also carry { docs?, fix? } { model, effort } sub-tiers: docs = the all-*.md first-pass tier (opus default), fix = the fix-round + --ace tier (absent ⇒ inherit worker).
 //     audit:  { roster, rosterPolicy, autoEscalate },                  // rosterPolicy 'auto' = Lead composes each task.roster from the catalog (Lead-side); audit.roster is the widening FALLBACK roster (auditor-nominated-or-default, D4); autoEscalate used here
-//     run:    { roundLimit, maxParallel, afk },                        // afk is Lead-side; roundLimit used here;
+//     run:    { roundLimit, maxParallel, afk },                        // roundLimit used here; afk gates recordAced's
+//                                     // citation unpark (#1879 RULING 1 — otherwise Lead-side)
 //                                     // maxParallel (optional positive integer) throttles every fan-out site into
 //                                     // groups of n via batched(); absent/null ⇒ one parallel() call, byte-identical fan-out
 //     backstops }                     // array|null of { check, why, runner, source:'plan'|'auto', aiDeclared? } — every
@@ -99,7 +100,23 @@ const AUDIT_VERDICT = { type: 'object', required: ['seat', 'lens', 'verdict', 'f
     // via blockingOf and never carry a disposition.
     ask: { type: 'object', required: ['question', 'fork'], properties: {
       question: { type: 'string', minLength: 1 },
-      fork: { type: 'array', items: { type: 'string' }, minItems: 2 } } } },
+      fork: { type: 'array', items: { type: 'string' }, minItems: 2 } } },
+    // citation (in-run-finding-resolution D6, absorb-by-citation): OPTIONAL on a disposition:'absorb'
+    // finding whose NAMED trade-off is covered by a threaded standing adjudication row — `row` is the
+    // row's identifying text, `rationale` the one-line match rationale. The engine stamps both into
+    // the ace/re-entry commit message and the `aced` record, and the re-audit panel for a
+    // citation-resolved batch is explicitly charged with citation soundness. Ambiguity is NO-match:
+    // park the ask instead (match strictness, PIN-6). CONTRACT (both prompt layers mirror it): a
+    // citation-carrying absorb KEEPS the parked ask's `ask` field verbatim (question + fork) — the
+    // schema mandates `ask` only on disposition:'ask', so the echo is what lets recordAced's
+    // content-key match resolve the parked record under `--afk`, or attach the Checkpoint prefill
+    // interactively (a miss is logged in either mode, never a silent no-op).
+    citation: { type: 'object', required: ['row'], properties: {
+      row: { type: 'string', minLength: 1 }, rationale: { type: 'string' } } },
+    // citationUnsound (D6 soundness duty): set true on a BLOCKING re-audit finding whose rationale
+    // names why a cited standing row does NOT cover the batch finding's named trade-off — the batch
+    // is forward-reverted and the citation-carrying finding demotes naming the mismatch.
+    citationUnsound: { type: 'boolean' } },
     if: { properties: { disposition: { const: 'ask' } }, required: ['disposition'] },
     then: { required: ['ask'] } } },
   tests_verified: { type: 'object' }, confidence: { enum: ['high', 'medium', 'low'] }, escalate_reason: { type: 'string' },
@@ -702,7 +719,8 @@ if (problems.length) throw new Error(`${problems.join('; ')}${derivationProblem 
 // the run's own plan-slug tokens (the slug's non-date words, from planSlug + the plan.file basename)
 // fails the own-token floor. D6 recalibration (the #1666 both-directions miscalibration):
 //   - the scan is scoped to INTENT-BEARING text only — the intent string, and per-row check/why
-//     (backstops) / adjudicated/value (adjudications) fields — never a whole-surface JSON.stringify,
+//     (backstops) / adjudicated/value (adjudications) / ruling+suggested_fix+findingTitle
+//     (ruledAsks, #1879 RULING 2) fields — never a whole-surface JSON.stringify,
 //     whose schema KEY names ("check","why","source":"plan") let a foreign row vacuously satisfy the
 //     own-token floor;
 //   - own-token matching is WORD-BOUNDARY (\b), behind a stoplist of generic tokens — a slug word
@@ -747,15 +765,46 @@ if (problems.length) throw new Error(`${problems.join('; ')}${derivationProblem 
     }
     return { text, exempt: false }
   }
+  // Ruled-ask rows (#1879 RULING 2 — args.ruledAsks JOINS the floor): per-row intent-bearing text
+  // is the ruling + suggested_fix + finding-title fields (the same rowText discipline as
+  // backstops/adjudications), and the record shape's REQUIRED planSlug coordinate is the
+  // planFile-stamp analog read as a FIELD, never prose — a slug naming a foreign plan refuses
+  // directly; the run's own slug exempts the row (so a token-less short ruling still LAUNCHES —
+  // fail-open preserved — and the own-token fail-open arm stays rare because the shape requires
+  // the coordinate). Scans the RAW arg, not the intake-filtered ruledAsks, so a foreign record
+  // the intake would drop as malformed is still refused at entry.
+  // ANCHOR (#1879 recovery seed S1): NEVER the OPTIONAL top-level planSlug alone — an
+  // explicit-branch/worktree launch omits it, and the compare must not silently switch off. The
+  // fallback is the sibling rowText floor's guaranteed-present anchor, ownPlanBase (plan.file's
+  // basename), baseOf()-normalized on BOTH sides with the .md suffix stripped. When NO anchor is
+  // derivable (planSlug-less AND plan-less launch) the row is NOT exempted — but that arm is
+  // OPERATIONALLY EMPTY, not a second line of defense: ownTokens derives from those same two
+  // values, so it is [] in exactly that configuration and the own-token floor short-circuits
+  // fail-open (#1893). The anchor IS the guard here; a launch with neither planSlug nor plan.file
+  // is already refused for a tasks-bearing DAG by the entry belt (#1430).
+  const slugAnchorOf = s => baseOf(s).replace(/\.md$/i, '')
+  const ruledAskAnchor = planSlug ? slugAnchorOf(planSlug) : (ownPlanBase ? slugAnchorOf(ownPlanBase) : null)
+  const ruledAskRowText = row => {
+    if (typeof row === 'string') return { text: row, exempt: false }  // a string row is its own scannable text (the sibling rowText discipline)
+    if (!row || typeof row !== 'object') return { text: '', exempt: true }
+    const text = ['ruling', 'suggested_fix', 'findingTitle', 'title']
+      .map(k => (typeof row[k] === 'string') ? row[k] : '').filter(Boolean).join('\n')
+    if (typeof row.planSlug === 'string' && row.planSlug && ruledAskAnchor) {
+      if (slugAnchorOf(row.planSlug) !== ruledAskAnchor) return { foreignStamp: row.planSlug, stampNoun: 'planSlug', stampAnchor: planSlug ? 'the run planSlug' : 'the plan.file basename' }
+      return { text, exempt: true }
+    }
+    return { text, exempt: false }
+  }
   const provenanceSurfaces = [
     ['intent', intent ? [{ text: intent, exempt: false }] : []],
     ['backstops', Array.isArray(backstops) ? backstops.map(rowText) : []],
     ['adjudications', adjudications.map(rowText)],
+    ['ruledAsks', Array.isArray(A.ruledAsks) ? A.ruledAsks.map(ruledAskRowText) : []],
   ]
   for (const [argName, rows] of provenanceSurfaces) {
     const stamped = rows.find(r => r.foreignStamp)
     if (stamped) {
-      provenanceProblems.push('workflow-template: args.' + argName + ' carries a planFile provenance stamp naming a foreign plan (' + stamped.foreignStamp + ') differing from plan.file — a cross-plan args leak; refused at entry (#1413)')
+      provenanceProblems.push('workflow-template: args.' + argName + ' carries a ' + (stamped.stampNoun || 'planFile') + ' provenance stamp naming a foreign plan (' + stamped.foreignStamp + ') differing from ' + (stamped.stampAnchor || 'plan.file') + ' — a cross-plan args leak; refused at entry (#1413)')
       continue
     }
     // scanText: non-exempt rows only (the refusal surface). evidenceText: every row's intent-bearing
@@ -772,6 +821,61 @@ if (problems.length) throw new Error(`${problems.join('; ')}${derivationProblem 
     }
   }
   if (provenanceProblems.length) throw new Error(provenanceProblems.join('; '))
+}
+
+// Ruled-ask execution (D15(b), PIN-17/PIN-18 — the final-phase polish-style vehicle): the Lead
+// threads interactively-ruled asks whose fixes are FULLY SPECIFIED as args.ruledAsks
+// ([{ task?, file?, line?, suggested_fix, ruling, planSlug, phase, findingTitle }] — suggested_fix
+// and ruling required, plus the REQUIRED provenance coordinates (#1879 RULING 2): planSlug (source
+// plan slug), phase, findingTitle — the #1413 args-provenance floor ABOVE reads these FIELDS, not
+// prose, so a channel record is floor-compatible by construction). Intake ordering + the floor's
+// precedence: the floor screens the RAW args.ruledAsks FIRST (and this block deliberately sits
+// AFTER it, so no foreign record's prose is journaled before the refusal) — a coordinate-less
+// record whose intent-bearing text carries none of the run's own plan-slug tokens is REFUSED at
+// entry before this intake filter ever sees it; the drop-and-log fail-open arm below covers only
+// records that clear the floor: such a non-conforming entry is DROPPED and LOGGED with its
+// findingTitle-or-'(malformed)' and the failed conjunct — inert to the queue, fail-open, never
+// silent: an operator ruling never vanishes silently (#1879 S3). Each conforming record
+// rides the phase-close sweep — exactly the
+// polish-style dispatch D15 names: fresh worktree at the working tip, one ace-eligibility commit,
+// full panel re-audit, the existing merge/land primitives, bounded at ONE round by construction.
+// Filing-on-non-execution (PIN-17): a sweep discard/skip/drain demotes the entry to follow-up with
+// the ruling in its rationale, so the filed issue records the ruling — an issue is filed ONLY on
+// cannot-execute or execution-failure, never silently, never as default litter. The
+// decompose-injection arm (a next phase exists) is Lead doctrine (skills/war/SKILL.md
+// § Checkpoint), not engine machinery.
+// Per-record intake gate: returns null on a conforming record, else the NAME of the first failed
+// conjunct — the drop log names it so the operator can repair the record shape (#1879 S3).
+const ruledAskIntakeReject = x => {
+  if (!x || typeof x !== 'object') return 'not an object'
+  if (!(typeof x.suggested_fix === 'string' && x.suggested_fix)) return 'suggested_fix (required non-empty string)'
+  if (!(typeof x.ruling === 'string' && x.ruling)) return 'ruling (required non-empty string)'
+  if (!(typeof x.planSlug === 'string' && x.planSlug)) return 'planSlug (required provenance coordinate, #1879 RULING 2)'
+  if (!((typeof x.phase === 'string' && x.phase) || typeof x.phase === 'number')) return 'phase (required provenance coordinate, #1879 RULING 2)'
+  if (!(typeof x.findingTitle === 'string' && x.findingTitle)) return 'findingTitle (required provenance coordinate, #1879 RULING 2)'
+  return null
+}
+const ruledAsks = []
+for (const x of (Array.isArray(A.ruledAsks) ? A.ruledAsks : [])) {
+  const failedConjunct = ruledAskIntakeReject(x)
+  if (failedConjunct) {
+    log('ruled-ask intake DROPPED a non-conforming record ("' + ((x && typeof x === 'object' && typeof x.findingTitle === 'string' && x.findingTitle) ? x.findingTitle : '(malformed)') + '") — failed conjunct: ' + failedConjunct + ' — an operator ruling never vanishes silently; repair the record shape and re-thread (#1879 S3).')
+    continue
+  }
+  ruledAsks.push(x)
+}
+// Container-level loudness (the same 'never vanishes silently' invariant, one level up): a
+// present-but-non-array args.ruledAsks (a single record threaded unwrapped, or a {records:[...]}
+// container) would otherwise degrade to zero rows with no log line at either consumer.
+if (!Array.isArray(A.ruledAsks) && A.ruledAsks != null) {
+  log('ruled-ask intake IGNORED a non-array args.ruledAsks (' + typeof A.ruledAsks + ') — the channel takes an array of records; an operator ruling never vanishes silently (#1879 S3).')
+}
+for (const ra of ruledAsks) {
+  log('ruled-ask execution (D15): "' + ra.findingTitle + '" queued for the phase-close polish dispatch — operator ruling: ' + ra.ruling)
+  phaseCloseQueue.push({ severity: 'Minor', disposition: 'absorb', phaseClose: true, ruledAsk: true,
+    task: ra.task ?? 'ruled-ask', title: ra.findingTitle, file: ra.file ?? null,
+    ...(ra.line != null ? { line: ra.line } : {}),
+    rationale: 'ruled ask (operator ruling: ' + ra.ruling + ')', suggested_fix: ra.suggested_fix })
 }
 
 // GATE COMPOSITION POINT (engine-owned, ADR 0036): normalize plan.gate ONCE here, immediately after entry
@@ -878,45 +982,75 @@ const dispositionOf = f =>
   : (f.disposition === 'absorb' || f.disposition === 'follow-up' || f.disposition === 'note') ? f.disposition
   : f.autoFixable === true ? 'absorb'
   : f.severity === 'Minor' ? 'follow-up' : 'note'
+// Cross-round ASK content identity (#1810, D8 property floor): the key is STABLE across
+// rounds for the SAME ask (minorsOf re-mints a fresh copy of every Minor/Nit per round, and
+// seat/sha churn never changes the key) AND DISTINGUISHES distinct asks on the same task
+// (distinct questions → distinct keys). Tuple choice is implementer latitude (D8 floors the
+// property, not the tuple): task + the parkAsk question derivation. parkAsk-ONLY — the FINDING
+// registries key on the richer remintKey tuple below (registry-coverage fix: a question-derived
+// key under-distinguishes same-question findings on different files).
+const askContentKey = f => (f.task ?? '') + '\u0000' + ((f.ask && f.ask.question) || f.title || '(question unrecorded)')
+// Cross-round FINDING re-mint identity (registry-coverage fix, D8 property floor): the FINDING
+// registries (acedKeys / revertedKeys / filedKeys / queuedKeys) key on the richer tuple
+// task + aceRelPath-normalized file + title — stable across rounds for the same finding
+// (seat/sha churn and `./`-form path drift never change the key, the #1813 normalization inlined
+// — aceRelPath itself is scoped inside the bisection block) while distinguishing distinct
+// same-task findings by file AND title. The question-derived askContentKey stays parkAsk-only.
+const remintKey = f => (f.task ?? '') + '\u0000'
+  + (typeof f.file === 'string' ? f.file.replace(/^(?:\.\/)+/, '') : '') + '\u0000'
+  + (f.title ?? '')
 // asks[] parking (#1550, D1 — the ask channel): a disposition:'ask' Minor/Nit parks in the run
 // artifact and is ruled by the operator at the Checkpoint strike-list gate — NEVER filed unruled
 // (the follow-up consolidation and the file-followups dispatch read minorsFiled only), never
-// dropped. Exactly-once membership by finding identity: every route into asks[] — the eight
-// dispositionOf-site ask arms, the three gate-audit-family comment-named ask arms (#1692 — lanes
-// with no absorb chain, so no dispositionOf call site in the census; their identity check IS the classifier's
-// never-defaulted ask arm), AND the demote() ask refusal — funnels through here, so one finding
-// can never park twice. Record floor: question + fork (the decision needed + the two branches,
-// from the finding's schema-mandatory `ask` field; absence-tolerant fallbacks — fail-open, never
-// a throw) plus task/seat/sha provenance; `finding` keeps the full row (the handoff block
-// projects a lossy subset without it).
+// dropped. Exactly-once membership by CONTENT identity (#1810 — the old object-identity check
+// false-missed minorsOf's per-round fresh copies, parking a persisting ask once per round): every
+// route into asks[] — the five dispositionOf-site ask arms, the three gate-audit-family
+// comment-named ask arms (#1692 — lanes with no absorb chain, so no dispositionOf call site in the
+// census), AND the demote() ask refusal — funnels through here, so one finding can never park
+// twice. A content collision MERGES as corroboration and is log()ged (#1790 — never a silent
+// drop): the colliding raiser lands on the surviving record's `corroborators` list. Record floor:
+// question + fork (the decision needed + the two branches, from the finding's schema-mandatory
+// `ask` field; absence-tolerant fallbacks — fail-open, never a throw) plus task/seat/sha
+// provenance; `finding` keeps the full row (the handoff block projects a lossy subset without it).
 const parkAsk = f => {
-  if (asks.some(a => a.finding === f)) return
-  asks.push({ task: f.task ?? null, seat: f.seat ?? null, sha: f.sha ?? null,
+  const key = askContentKey(f)
+  const dup = asks.find(a => a.key === key)
+  if (dup) {
+    dup.corroborators = Array.isArray(dup.corroborators) ? dup.corroborators : []
+    dup.corroborators.push({ seat: f.seat ?? null, sha: f.sha ?? null })
+    log('ask collision merged as corroboration: "' + dup.question + '" (task ' + (f.task ?? '?') + ') re-raised by ' + (f.seat ?? 'an unattributed seat') + ' — one parked record survives, the re-raise recorded on its corroborators list (never a silent drop, #1790).')
+    return
+  }
+  asks.push({ key, task: f.task ?? null, seat: f.seat ?? null, sha: f.sha ?? null,
     question: (f.ask && f.ask.question) || f.title || '(question unrecorded)',
     fork: (f.ask && Array.isArray(f.ask.fork)) ? f.ask.fork : [],
     finding: f })
 }
 // Terminal-disposition demotion ladder (ADR 0013): demote one step toward durability, never drop
-// silently — EVERY demotion is log()ged. Arms: failed absorb → follow-up (a fresh re-audit absorb
-// after the batch ace is spent OR after the batch regressed into the ladder / dead ace worker /
-// ace unavailable / --ace off, plus the seven
+// silently — EVERY demotion is log()ged. Arms: failed absorb → follow-up (dead ace worker /
+// ace unavailable / --ace off; a forward-reverted re-entry batch's findings — a reverted finding
+// never re-enters, the oscillation bound; plus the six
 // aceBisect bisection arms: named
 // culprits of a re-audit regression, an all-culprit batch, an ambiguous-and-atomic batch
 // (unhalvable single file group — demotes whole), the fix budget reaching the floor-retry reserve
 // (roundLimit − 2) mid-bisection, a subset worker
-// returning no usable head_sha abandoning the bisection, a re-audit round's own fresh absorb while
-// the budget is committed to the bisection in flight, and a finally-failing subset at the
-// depth/split floor); non-approve-branch findings → follow-up (filed with the escalation);
+// returning no usable head_sha abandoning the bisection, and a finally-failing subset at the
+// depth/split floor). A FRESH absorb born at a re-audit no longer demotes here — it re-enters the
+// ladder (routeReauditMinors → aceReentry, budget-bounded) or routes phaseClose:true to the sweep
+// when the reserve blocks re-entry (D1/D2, #1731); non-approve-branch findings → follow-up (filed with the escalation);
 // held-phase phaseCloseQueue → follow-up; fileless absorb → severity default; sweep-raised absorb
 // at either terminal sweep arm → follow-up (the sweep is the phase's terminal fix round).
 // ASK REFUSAL (#1550, D1): demote() refuses an ask unconditionally and LOUDLY — an ask is ruled by
 // the operator at the Checkpoint strike-list gate, never demoted into debt (minorsFiled) or an
-// observation (notes) by machinery. log() + re-route onto asks[] (exactly-once by finding identity
+// observation (notes) by machinery. log() + re-route onto asks[] (exactly-once by content identity
 // via parkAsk), NEVER a throw: held:workflow-error omits the handoff, so a throw here would destroy
 // the very parked records the refusal exists to protect (this sentence is the standing guard
 // against a future "harden it to a throw" cleanup). The sole lawful ask→follow-up conversion is the
 // Checkpoint --afk no-match arm (Lead-side, question preserved) — never a demote() bypass flag.
-const demote = (f, to, why) => {
+// FORWARD-REVERT REGISTRATION: a demote on a forward-revert arm passes { reverted: true } so the
+// finding's content key lands in revertedKeys — the oscillation bound's enforcement registry (a
+// forward-reverted finding never re-enters; routeReauditMinors consults the set).
+const demote = (f, to, why, opts) => {
   if (f.disposition === 'ask') {
     log('Disposition demotion REFUSED (ask): [' + f.severity + '] "' + f.title + '" (task ' + f.task + ') — an ask is ruled at the Checkpoint, never demoted (' + why + '); re-routed onto asks[].')
     parkAsk(f)
@@ -924,6 +1058,8 @@ const demote = (f, to, why) => {
   }
   log(`Disposition demotion: [${f.severity}] "${f.title}" (task ${f.task}) → ${to} — ${why}.`)
   ;(to === 'note' ? notes : minorsFiled).push(f)
+  if (to !== 'note') filedKeys.add(remintKey(f))   // the filed funnel (End state 6) — a demoted follow-up is a filed record
+  if (opts && opts.reverted) revertedKeys.add(remintKey(f))
 }
 // --ace release-slot STRING backstop only (D4). The sandbox can't read files, so the ORCHESTRATOR's
 // one enforceable refusal is the release-slot filename check; the AUDITOR (which reads code) owns the
@@ -932,6 +1068,144 @@ const demote = (f, to, why) => {
 // they route to phaseCloseQueue. Requires a file — a fileless finding is never ace-eligible (it takes
 // the severity-default demotion instead).
 const aceEligible = f => f.file && !/(?:plugin\.json|marketplace\.json)$/.test(f.file)
+// aced-record funnel (#1810 double-file arm, D8): every aced push records the finding's content key
+// so a later-round re-mint of an ALREADY-ABSORBED finding can never also file (no finding lands in
+// both `aced` and `minorsFiled`). A citation-resolved absorb (D6) additionally stamps the citation
+// (row-id + match rationale) onto the durable `aced` record and — ONLY when run.afk === true
+// (#1879 RULING 1, the one-condition gate) — RESOLVES the matching parked ask: logged, never a
+// silent unpark (the ask's question was answered by execution, not demotion). INTERACTIVE runs
+// never auto-unpark past a present operator: the matched ask STAYS PARKED and gains a
+// `citationPrefill` (matched row + match rationale + executed sha + recommended ruling) that the
+// handoff's asks projection carries onto the Checkpoint strike list — one-confirm ergonomics; a
+// confirm-via-prefill records as a citation-informed ruling in the SAME telemetry channel as an
+// --afk resolution (the aced record's citation stamp, which both modes write). A citation absorb
+// whose content keys match NO parked record logs the miss too (never a silent no-op).
+const acedKeys = new Set()
+// forward-revert funnel (the oscillation bound, A1): every finding demoted on a forward-revert arm
+// (aceReentry's regressed batch; aceBisect's culprit, whole-batch, and depth/split-floor demotions)
+// records its content key here (via demote's { reverted: true } opt) so routeReauditMinors can
+// refuse a content-identical re-mint — a forward-reverted finding never re-enters; its demoted
+// follow-up record in minorsFiled is the durable home (no second file, no aced∩minorsFiled overlap).
+const revertedKeys = new Set()
+// filed funnel (End state 6, the OTHER direction): every follow-up that lands in minorsFiled on a
+// path with a later re-audit window records its content key here, so a re-mint of an ALREADY-FILED
+// finding — re-raised as absorb (the D3 widening's re-audit default) or as follow-up again — never
+// re-enters the ladder and never files a second record: the filed record is the durable home; the
+// re-mint is corroboration (logged). Stamped at the three sites a later same-task re-audit can see:
+// the round-1 approve-branch follow-up arm, routeReauditMinors' follow-up arm, and demote()'s
+// minorsFiled push. The escalation-arm and phase-close-sweep DIRECT pushes are NOT stamped — no
+// later re-audit runs for that task/phase, so no re-mint window exists there (their demote()-routed
+// siblings stamp anyway; a superfluous key is harmless — the registry is only consulted at re-audit
+// routing and re-entry drain).
+const filedKeys = new Set()
+// queued funnel (registry-coverage fix): every finding queued for the phase-close sweep (BOTH
+// phaseCloseQueue entry points — routeToSweep and the round-1 approve arm's direct push) or for
+// budget-bounded re-entry (r.reentryQueue) records its remintKey here, so a content-identical
+// re-mint at a later re-audit never queues a SECOND record — the queued record stands (logged,
+// never silent). Consulted LAST in remintBlock (aced/reverted/filed reasons are more specific);
+// aceReentry's drain deletes the drained entries' keys before its re-check (a drained finding is
+// no longer queued — the drain-time re-filter must judge it on the OTHER registries alone).
+const queuedKeys = new Set()
+const fileFollowUp = f => { minorsFiled.push(f); filedKeys.add(remintKey(f)) }
+const recordAced = (f, sha, extra) => {
+  acedKeys.add(remintKey(f))
+  if (extra && extra.citation) {
+    // Widened unpark match (both derivations): the parked record's key came from the round-1 ask's
+    // `question`; the citation-carrying absorb's key derives from its own `ask.question` OR `title`
+    // (the prompt contract asks the seat to echo the parked `ask` field verbatim, but the schema
+    // makes `ask` mandatory only on disposition:'ask' — so match against every derivation the
+    // citation shape can carry, and LOG a miss: an executed-but-still-parked ask is never silent).
+    const keys = new Set([askContentKey(f)])
+    if (typeof f.title === 'string' && f.title) keys.add(askContentKey({ task: f.task, title: f.title }))
+    if (f.ask && f.ask.question) keys.add(askContentKey({ task: f.task, ask: { question: f.ask.question } }))
+    const i = asks.findIndex(a => keys.has(a.key))
+    if (i !== -1) {
+      if (run.afk === true) {
+        asks.splice(i, 1)
+        log('parked ask resolved by citation (row "' + extra.citation.row + '"): "' + (f.title ?? '(untitled)') + '" (task ' + (f.task ?? '?') + ') executed as an absorb at ' + sha + ' — the aced record carries row-id + match rationale.')
+      } else {
+        // Interactive (#1879 RULING 1): surface, never auto-unpark past a present operator. The
+        // prefill's `row` is the MATCHED THREADED standing row's bytes (citationOf.threadedRow,
+        // #1879 recovery seed S2) — what the operator confirms from is the row itself, never the
+        // seat's citation string (a paraphrase would make the one-keystroke confirm ratify a
+        // description of a row rather than the row).
+        const threaded = (typeof extra.citation.threadedRow === 'string' && extra.citation.threadedRow) ? extra.citation.threadedRow : extra.citation.row
+        asks[i].citationPrefill = { row: threaded, rationale: extra.citation.rationale, sha,
+          recommendedRuling: 'standing row "' + threaded + '" covers this trade-off; confirm?' }
+        log('parked ask citation-matched (row "' + extra.citation.row + '"): "' + (f.title ?? '(untitled)') + '" (task ' + (f.task ?? '?') + ') executed as an absorb at ' + sha + ' — INTERACTIVE run: the ask STAYS PARKED and surfaces on the Checkpoint strike list with the matched row + a prefilled recommended ruling (one-confirm; never auto-unparked past a present operator). A confirm-via-prefill records as a citation-informed ruling in the same telemetry channel: the aced record already carries row-id + match rationale.')
+      }
+    } else {
+      log('citation absorb executed with NO matching parked ask (row "' + extra.citation.row + '"): "' + (f.title ?? '(untitled)') + '" (task ' + (f.task ?? '?') + ') aced at ' + sha + ' but no asks[] record matched its content key — if the trade-off question is parked under other wording, the operator still rules it at the Checkpoint (logged, never a silent no-op).')
+    }
+  }
+  aced.push({ task: f.task, finding: f, sha, ...(extra || {}) })
+}
+// Reserve-blocked/spent absorb routing (D2 ladder rung): the phase-close sweep is the vehicle when
+// re-entry cannot dispatch — logged, never silent; sweep-discard demotes to follow-up downstream.
+const routeToSweep = (f, why) => {
+  log('Re-entry routing: [' + f.severity + '] "' + (f.title ?? '') + '" (task ' + (f.task ?? '?') + ') → phaseClose sweep — ' + why + '.')
+  queuedKeys.add(remintKey(f))
+  phaseCloseQueue.push({ ...f, phaseClose: true })
+}
+// Re-audit-born finding routing (D1/D2/D3, #1731 — replaces the retired "the ladder never opens
+// for fresh findings" demotions): fresh Minor/Nits raised at ANY re-audit (the plain batch
+// re-audit, a bisection subset's re-audit, or a re-entry batch's own re-audit) route by
+// disposition; a fresh ELIGIBLE absorb queues on r.reentryQueue for budget-bounded RE-ENTRY
+// (aceReentry dispatches it while fixRounds < roundLimit − 2). phaseClose/release-slot absorbs
+// route to the sweep. BOTH the follow-up and absorb arms consult the content-key registries
+// (#1810 + the oscillation bound, A1): a re-mint of an already-aced finding is corroboration,
+// never a second (filed) record and never a re-queue; a re-mint of a FORWARD-REVERTED finding
+// never re-enters (its demoted follow-up record in minorsFiled stands) and never files twice.
+// Content-key re-mint suppression (shared by BOTH arms below AND re-checked at aceReentry's drain):
+// returns the reason string when the finding's remintKey is already aced, forward-reverted, filed as
+// a follow-up in an earlier round, or queued for the sweep / re-entry — the caller logs the
+// suppression, merges the raising seat onto the surviving row (corroborateSurvivor), and skips
+// (corroboration / the oscillation bound / the filed or queued record stands), never files a second
+// record and never re-queues. queuedKeys is consulted LAST — the terminal-outcome reasons win.
+const remintBlock = f => {
+  const k = remintKey(f)
+  if (acedKeys.has(k)) return 'corroboration of the aced record (content-key identity, #1810)'
+  if (revertedKeys.has(k)) return 'a forward-reverted finding never re-enters (the oscillation bound, A1); its demoted follow-up record stands'
+  if (filedKeys.has(k)) return 'already filed as a follow-up in an earlier round (content-key identity); the filed record stands — a re-mint never also aces (End state 6)'
+  if (queuedKeys.has(k)) return 'already queued for the phase-close sweep / re-entry this phase — the queued record stands'
+  return null
+}
+// Cross-seat corroboration (registry-coverage fix): a re-mint remintBlock refuses whose surviving
+// record lives in minorsFiled (or on an aced record's finding) merges the SECOND seat onto the
+// surviving row's seats list — never dropped, never double-filed. Entry shape mirrors the filing
+// consolidation's seatRef contract (seat+task, both when present; that block is scoped below, so
+// the shape is inlined here — change both together). The survivor's own ref seeds the list so the
+// handoff's seats rendering never loses the first raiser.
+const seatRefOf = f => f.seat != null
+  ? (f.task != null ? f.seat + ' (task ' + f.task + ')' : f.seat)
+  : (f.task != null ? 'task ' + f.task : 'unattributed')
+const corroborateSurvivor = f => {
+  const k = remintKey(f)
+  const hit = minorsFiled.find(m => remintKey(m) === k)
+    || (aced.find(a => a && a.finding && remintKey(a.finding) === k) || {}).finding
+  if (!hit) return
+  if (!Array.isArray(hit.seats)) hit.seats = [seatRefOf(hit)]
+  const ref = seatRefOf(f)
+  if (!hit.seats.includes(ref)) hit.seats.push(ref)
+}
+const routeReauditMinors = (r, seats) => {
+  r.reentryQueue = r.reentryQueue || []
+  for (const f of minorsOf(seats).map(x => ({ task: r.task.id, ...x }))) {
+    const d = dispositionOf(f)
+    const b = (d === 'follow-up' || d === 'absorb') ? remintBlock(f) : null
+    if (d === 'ask') parkAsk(f)                     // ask precedes the absorb chain (#1550, D7)
+    else if (d === 'follow-up') {
+      if (b) { log('re-audit re-mint of "' + (f.title ?? '') + '" (task ' + r.task.id + ') — ' + b + '; not filed (logged, never silent).'); corroborateSurvivor(f) }
+      else fileFollowUp(f)
+    }
+    else if (d === 'note') notes.push(f)
+    else if (b) { log('re-entry REFUSED: re-audit re-mint of "' + (f.title ?? '') + '" (task ' + r.task.id + ') — ' + b + '; never re-queued (logged, never silent).'); corroborateSurvivor(f) }
+    else if (!f.file) demote(f, f.severity === 'Minor' ? 'follow-up' : 'note', 'fileless absorb takes the severity default (never ace-eligible)')
+    else if (!run.ace) demote(f, 'follow-up', 'absorb requires --ace (off this run)')
+    else if (!f.phaseClose && aceEligible(f)) { queuedKeys.add(remintKey(f)); r.reentryQueue.push(f) }   // born at a re-audit — re-enters (D1)
+    else routeToSweep(f, 'phaseClose/release-slot absorb born at a re-audit — the sweep is its vehicle')
+  }
+}
 const allApprove = (seats, expected) => seats.length === expected && seats.every(s => s.verdict === 'approve')
 const isSplit    = seats => seats.some(s => s.verdict === 'approve') && seats.some(s => s.verdict === 'request_changes')
 // → reason string if the worker did not deliver (null/dead or self-reported blocked), else null
@@ -1244,6 +1518,11 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin) {
     // `Mechanism latitude:` clause; the D3 latitude registry row anchors it on both auditor surfaces.
     + pt`\nLATITUDE RULE: the plan slice is the floor, the Commander's Intent is the ceiling — intent-consistent work beyond the literal slice is APPROVE (judge it on its own correctness), never a plan-faithfulness violation; only deviations that contradict the intent or the slice block. No intent threaded means judge against the plan slice alone, as before. When the threaded intent carries an explicit \`Mechanism latitude:\` clause, read "contradicts the slice" against the binding guardrails, not against every pinned mechanism literal in the slice: a substitution inside the enumerated latitude that holds the guardrails and End states is APPROVE, never a plan-faithfulness finding; a substitution that breaches a guardrail or an End state blocks exactly as before.`
     + pt`\nDISPOSITION RULE: every Minor/Nit finding carries a disposition — absorb (mechanical, intent-consistent, safe to fix this phase; set phaseClose:true when the fix needs the integrated tip or touches a shared/slot-adjacent file), follow-up (substantive work beyond this phase — MUST state why it is not absorbable), note (informational; phase report + servitor feed, never an issue), or ask (a decision-shaped Minor/Nit only the operator can rule — MUST carry the \`ask\` field: \`question\` naming the decision needed plus \`fork\` naming the two branches; parked unruled and ruled at the Checkpoint, never filed unruled). Omitted disposition defaults: Minor becomes follow-up, Nit becomes note; absorb and ask are never defaults.`
+    // DISPOSITION WIDENINGS (in-run-finding-resolution D3/D4/D5) — standing home:
+    // skills/war/references/disposition-eligibility.md carries the same three rules (same commit;
+    // the auditor card's live trigger pointer covers the standing leg). The dispatched block is
+    // pinned by the `disposition-prompt-widened` fixture in workflow-template.test.mjs.
+    + pt`\nDISPOSITION WIDENINGS: (1) a mechanical, fully-specified finding born at a re-audit DEFAULTS to absorb — it re-enters the ace ladder while budget remains, and the phase-close sweep is its vehicle when re-entry is reserve-blocked (set phaseClose:true when the fix wants the integrated tip); follow-up stays correct for unspecified, decision-shaped, or sweep-excluded (release-slot/cross-task) findings. (2) a fully-specified NEW-test (or test-harness) addition in a task-owned test file is a legitimate absorb — "needs a new test" is not by itself a why-not-absorbable reason (adding only; never delete or weaken tests). (3) a finding whose fix is fully specified but entails a behavior change with a nameable trade-off routes ask (the trade-off IS the fork), not follow-up — and when a threaded adjudication row covers that NAMED trade-off (never merely its topic), set disposition:'absorb' with the \`citation\` field (\`row\` + one-line match \`rationale\`) AND KEEP the parked ask's \`ask\` field verbatim (question + fork) on the citation-carrying finding — the engine matches the parked record by that content key (resolved under --afk; interactively it stays parked and surfaces at the Checkpoint with a prefilled recommended ruling); ambiguity is NO-match: park the ask.`
     // FINDING-PATH FORM (D12) — dispatched-prompt only, no standing-card behavior change: finding
     // `file` values feed exact-string routing compares (ace culprit attribution normalizes only a
     // leading `./` run), so the re-audit prompt mandates the repo-relative form at the source.
@@ -1323,12 +1602,15 @@ function auditPrompt(task, lens, depth, peers, workerTests, pin) {
   return p
 }
 
-async function auditRound(task, peers, workerTests, pin) {
+// `extra` (D6): an optional pre-built prompt clause appended to every seat's prompt this round —
+// today's sole producer is citationSoundnessClause (a citation-resolved batch's re-audit charge).
+// Absent ⇒ '' ⇒ every prompt is byte-identical to a clause-less round (the intentClause pattern).
+async function auditRound(task, peers, workerTests, pin, extra) {
   // Seats come straight from task.roster (validated at phase start: 1–5 distinct lenses, per-seat
   // depth already normalized). Labels audit:<task>:<lens> are distinct because lenses are distinct.
   const roster = task.roster
   const expected = roster.length
-  const runSeat = seat => agent(auditPrompt(task, seat.lens, seat.depth, peers, workerTests, pin), {
+  const runSeat = seat => agent(auditPrompt(task, seat.lens, seat.depth, peers, workerTests, pin) + (extra || ''), {
     agentType: NS + 'war-auditor', phase: 'Audit',
     label: `audit:${task.id}:${seat.lens}${peers ? ':rebut' : ''}`, schema: AUDIT_VERDICT, ...spawn('auditor') })
   // Initial fan-out (throttled into groups of maxParallel when set; one parallel() call otherwise)
@@ -1725,10 +2007,18 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
   // or demotes-and-logs, and the merge always runs — the ladder never holds or escalates a mergeable
   // task. Resume idempotency (D6): every subset commit carries a deterministic `Ace-Subset:` trailer
   // and every subset dispatch preflights the bisection range (never the tip alone) for it.
-  // Same-file grouping: one group per f.file, insertion-ordered; halving splits the GROUP list.
+  // Culprit-path form (D12): BOTH sides of the culprit `has()` compare are normalized to
+  // repo-relative form with any leading `./` run stripped, so a `./`-prefixed report and a bare
+  // plan path attribute identically. Non-strings pass through untouched (filtered as falsy below).
+  // Hoisted above aceGroups (#1813): the grouping key and the `Ace-Subset` trailer build normalize
+  // through it too.
+  const aceRelPath = p => typeof p === 'string' ? p.replace(/^(?:\.\/)+/, '') : p
+  // Same-file grouping: one group per aceRelPath-normalized f.file (#1813 — a `./`-form and a
+  // bare-form report of the same file land in ONE group, so same-file findings never split across
+  // subsets, the D3 invariant), insertion-ordered; halving splits the GROUP list.
   const aceGroups = findings => {
     const m = new Map()
-    for (const f of findings) { if (!m.has(f.file)) m.set(f.file, []); m.get(f.file).push(f) }
+    for (const f of findings) { const k = aceRelPath(f.file); if (!m.has(k)) m.set(k, []); m.get(k).push(f) }
     return [...m.values()]
   }
   const aceHalve = findings => {
@@ -1737,10 +2027,65 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     const mid = Math.ceil(g.length / 2)
     return [g.slice(0, mid).flat(), g.slice(mid).flat()]
   }
-  // Culprit-path form (D12): BOTH sides of the culprit `has()` compare are normalized to
-  // repo-relative form with any leading `./` run stripped, so a `./`-prefixed report and a bare
-  // plan path attribute identically. Non-strings pass through untouched (filtered as falsy below).
-  const aceRelPath = p => typeof p === 'string' ? p.replace(/^(?:\.\/)+/, '') : p
+  // Citation extraction (D6, absorb-by-citation): a well-formed `citation` on a finding — `row`
+  // (the standing adjudication row's identifying text) + optional one-line match `rationale`.
+  // Malformed/absent ⇒ null (fail-open — the finding rides as a plain absorb, no stamp).
+  // ROW-EXISTENCE FLOOR (trust boundary): a seat-asserted `citation` is the only thing standing
+  // between a claim and the removal of an operator-gated ask from the Checkpoint channel, so the
+  // cited row must be a MEMBER of the threaded adjudications set the engine already holds — exact
+  // or containment match against adjRow(r). Existence is mechanical set-membership, not the A2
+  // matching judgment (which stays with the re-audit panel); a fabricated/mis-transcribed row
+  // fails open to a PLAIN absorb (no stamp, no unpark) and the refusal is logged once per row.
+  const refusedCitationRows = new Set()
+  const citationOf = f => {
+    if (!(f && f.citation && typeof f.citation === 'object' && typeof f.citation.row === 'string' && f.citation.row)) return null
+    const row = f.citation.row
+    // threadedRow (#1879 recovery seed S2): the MATCHED threaded standing row's own bytes — the
+    // strike-list prefill renders THIS, never the seat's citation string (a paraphrase would turn
+    // the operator's one-keystroke confirm into ratifying a description of a row, not the row).
+    let threadedRow = null
+    const member = adjudications.some(r => { const t = adjRow(r); if (typeof t === 'string' && t.length > 0 && (t === row || t.includes(row) || row.includes(t))) { threadedRow = t; return true } return false })
+    if (!member) {
+      if (!refusedCitationRows.has(row)) {
+        refusedCitationRows.add(row)
+        log('citation REFUSED (row-existence floor): cited row "' + row + '" matches no threaded standing adjudication row — the finding rides as a PLAIN absorb (no stamp, no ask unpark). Existence is mechanical set-membership; the soundness judgment stays with the re-audit panel (A2).')
+      }
+      return null
+    }
+    return { row, threadedRow, rationale: (typeof f.citation.rationale === 'string' && f.citation.rationale) || '(no match rationale recorded)' }
+  }
+  // Shared unsound-citation lookup (D6 naming duty, PIN-7): pairs a batch finding's citation with a
+  // blocking re-audit finding flagged citationUnsound so EVERY demote path fed by a regressed
+  // re-audit — the round-1 batch regression (aceBisect's culprit / whole-batch arms), a failing
+  // bisection subset at the depth/split floor, and a regressed re-entry batch — names the mismatch.
+  const unsoundReason = (seats, f) => {
+    const c = citationOf(f)
+    if (!c) return null
+    const u = blockingOf(seats || []).find(b => b && b.citationUnsound === true)
+    return u ? 'citation (row "' + c.row + '") judged UNSOUND by the re-audit panel: ' + (u.rationale || u.title || '(mismatch unnamed)') : null
+  }
+  // Shared ace-finding prompt row (batch / bisection-subset / re-entry dispatches): title/file/
+  // rationale are schema-optional → absence-tolerant; a citation-resolved finding (D6) renders its
+  // row-id + match rationale so the ace commit message carries the durable citation stamp.
+  const aceFindingRow = (f, i) => pt`${i + 1}. [${f.severity}] ${f.title ?? ''} (${f.file ?? ''}${f.line ? ':' + f.line : ''}) — ${f.rationale ?? ''}${f.suggested_fix ? pt` → ${f.suggested_fix}` : ''}${citationOf(f) ? pt` [absorb-by-citation: row "${citationOf(f).row}" — ${citationOf(f).rationale}]` : ''}`
+  // Shared conditional forward-revert step (bisection subsets + re-entry batches): emitted only
+  // while a failed predecessor commit is still unreverted at the tip.
+  const aceRevertStep = (worktree, sha) => sha
+    ? pt`FIRST, only if \`git -C ${worktree} rev-parse HEAD\` is still ${sha}: forward-revert that failed prior ace commit — \`git -C ${worktree} revert --no-edit ${sha}\` (tip-only clean inverse); a moved HEAD is already reverted — SKIP (a sha is never reverted twice). Never reset --hard.\n`
+    : ''
+  // Citation-soundness re-audit charge (D6, PIN-7): appended to the panel prompt whenever the batch
+  // under re-audit contains citation-resolved findings — the panel, not the engine, judges the match
+  // (A2: standing-row matching is panel judgment, never engine-side NLP).
+  // The clause ENUMERATES its subjects (finding title + cited row + match rationale — the same
+  // values aceFindingRow renders into the worker prompt/commit message) so the panel judges from
+  // its own prompt, never from a commit message it is not directed to read.
+  const citationSoundnessClause = batch => {
+    const cited = batch.filter(f => citationOf(f))
+    return cited.length
+      ? pt`\nCITATION SOUNDNESS (absorb-by-citation): this batch contains citation-resolved findings — verify each cited standing adjudication row covers the finding's NAMED trade-off, not merely its topic; ambiguity is NO-match. An unsound citation is a BLOCKING finding: set \`citationUnsound: true\` and name the mismatch in the rationale — the batch is forward-reverted and the finding demotes naming the mismatch. The citation-resolved findings under judgment:\n`
+        + cited.map((f, i) => pt`${i + 1}. "${f.title ?? '(untitled)'}" cites row "${citationOf(f).row}" — match rationale: ${citationOf(f).rationale}`).join('\n')
+      : ''
+  }
   const aceBisect = async (r, aceable, batchSha, regressionSeats) => {
     // Culprit attribution: a regression blocking finding NAMES a culprit when its file matches an
     // aceable finding's file (parsing-shape latitude; both sides aceRelPath-normalized). Empty
@@ -1750,19 +2095,23 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
     const culprits = aceable.filter(f => culpritFiles.has(aceRelPath(f.file)))
     const rest = aceable.filter(f => !culpritFiles.has(aceRelPath(f.file)))
     let queue
+    // Every demote below sits on a forward-revert arm ({ reverted: true } — the oscillation-bound
+    // registry) and, when the regressed panel flagged citationUnsound, a citation-carrying
+    // finding's reason NAMES the mismatch (unsoundReason — the D6 naming duty holds on the
+    // round-1-batch path, not only the re-entry path).
     if (culprits.length && rest.length) {
-      for (const f of culprits) demote(f, 'follow-up', 'failed absorb — named culprit of the ace re-audit regression (culprit-first excision); the batch commit is forward-reverted')
+      for (const f of culprits) { const ur = unsoundReason(regressionSeats, f); demote(f, 'follow-up', 'failed absorb — named culprit of the ace re-audit regression (culprit-first excision); the batch commit is forward-reverted' + (ur ? '; ' + ur : ''), { reverted: true }) }
       queue = [{ findings: rest, depth: 1 }]
     } else if (culprits.length) {
       // every batch finding is a named culprit — nothing to salvage; the batch finally fails whole.
-      for (const f of aceable) demote(f, 'follow-up', 'failed absorb — ace re-audit regressed and named every batch finding as culprit; the ace commit is forward-reverted')
+      for (const f of aceable) { const ur = unsoundReason(regressionSeats, f); demote(f, 'follow-up', 'failed absorb — ace re-audit regressed and named every batch finding as culprit; the ace commit is forward-reverted' + (ur ? '; ' + ur : ''), { reverted: true }) }
       r.aceReverted = batchSha
       return
     } else {
       const halves = aceHalve(aceable)
       if (!halves) {
         // ambiguous AND atomic (one file group): the batch is its own final subset — demote whole.
-        for (const f of aceable) demote(f, 'follow-up', 'failed absorb — ace re-audit regressed; the ace commit is forward-reverted')
+        for (const f of aceable) { const ur = unsoundReason(regressionSeats, f); demote(f, 'follow-up', 'failed absorb — ace re-audit regressed; the ace commit is forward-reverted' + (ur ? '; ' + ur : ''), { reverted: true }) }
         r.aceReverted = batchSha
         return
       }
@@ -1783,11 +2132,10 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         break
       }
       // Deterministic trailer value (shape latitude): task id + the subset's sorted file set —
-      // concatenation-built (census-safe), stable across resume replays.
-      const trailer = r.task.id + ':' + [...new Set(sub.findings.map(f => f.file))].sort().join(',')
-      const revertStep = pendingRevert
-        ? pt`FIRST, only if \`git -C ${r.task.worktree} rev-parse HEAD\` is still ${pendingRevert}: forward-revert that failed prior ace commit — \`git -C ${r.task.worktree} revert --no-edit ${pendingRevert}\` (tip-only clean inverse); a moved HEAD is already reverted — SKIP (a sha is never reverted twice). Never reset --hard.\n`
-        : ''
+      // concatenation-built (census-safe), stable across resume replays. Files are aceRelPath-
+      // normalized (#1813) so a `./`-form report never mints a trailer diverging from its bare twin.
+      const trailer = r.task.id + ':' + [...new Set(sub.findings.map(f => aceRelPath(f.file)))].sort().join(',')
+      const revertStep = aceRevertStep(r.task.worktree, pendingRevert)
       const sw = await agent(
         pt`ACE BISECTION SUBSET for WAR task ${r.task.id} (a regressed --ace batch re-applied in subsets). Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — never create it; cd there.\n`
         + revertStep
@@ -1795,8 +2143,8 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
         + pt`Apply the smallest mechanical fix for EACH finding below, keep the gate green, and make EXACTLY ONE commit citing each finding's title + rationale, its message ENDING with the trailer line \`Ace-Subset: ${trailer}\` as its OWN final paragraph, separated from the body by a blank line — git parses trailers only in a distinct final block (the panel re-audits the new sha; a regression is forward-reverted):\n`
         // pt-tagged prompt-feeding rows (subset prompt, top-level-catch): f.severity is construction-
-        // guaranteed (sub.findings ⊆ aceable); title/file/rationale schema-optional → ?? '' absence-tolerant.
-        + sub.findings.map((f, i) => pt`${i + 1}. [${f.severity}] ${f.title ?? ''} (${f.file ?? ''}${f.line ? ':' + f.line : ''}) — ${f.rationale ?? ''}${f.suggested_fix ? pt` → ${f.suggested_fix}` : ''}`).join('\n') + '\n'
+        // guaranteed (sub.findings ⊆ aceable); the shared aceFindingRow builder is absence-tolerant.
+        + sub.findings.map(aceFindingRow).join('\n') + '\n'
         + pt`Dead attempt: discard UNCOMMITTED changes in THIS worktree only (git checkout -- .) — never any shared ref or history rewrite. No version/release-slot edits. Commit and push ${r.task.branch}.`
         + intentClause + provisionClause,
         { agentType: NS + 'war-worker', phase: 'Audit', label: 'ace:' + r.task.id + ':r' + (r.task.fixRounds + 1), schema: WORKER_RESULT, ...spawnWorker('fix') })
@@ -1812,39 +2160,117 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       r.task.fixRounds++                                 // each subset COMMIT charges one slot (D4)
       pendingRevert = null                               // the dispatched revert step cleared the failed predecessor
       const subSha = sw.head_sha
-      const { seats: subSeats, expected: subExpected } = await auditRound(r.task, null, null, subSha)   // re-pin + re-audit (unmetered)
+      const { seats: subSeats, expected: subExpected } = await auditRound(r.task, null, null, subSha, citationSoundnessClause(sub.findings))   // re-pin + re-audit (unmetered)
       if (allApprove(subSeats, subExpected) && blockingOf(subSeats).length === 0) {
         r.seats = subSeats                               // merge proceeds on this approved subset tip
         r.aceSha = subSha
-        for (const f of sub.findings) aced.push({ task: f.task, finding: f, sha: subSha })
-        // Route the re-audit round's OWN Minor/Nits (never drop silently): a fresh absorb here takes
-        // the failed-absorb demotion — the ladder never re-enters for findings it did not start with.
-        for (const f of minorsOf(subSeats).map(x => ({ task: r.task.id, ...x }))) {
-          const d = dispositionOf(f)
-          if (d === 'ask') parkAsk(f)               // ask precedes the absorb chain (#1550, D7)
-          else if (d === 'follow-up') minorsFiled.push(f)
-          else if (d === 'note') notes.push(f)
-          else demote(f, 'follow-up', 'failed absorb — the ace budget is committed to the bisection in flight (re-audit round finding)')
-        }
+        for (const f of sub.findings) recordAced(f, subSha, citationOf(f) ? { citation: citationOf(f) } : null)
+        // Route the re-audit round's OWN Minor/Nits (never drop silently): a fresh absorb born at
+        // this subset re-audit queues for budget-bounded RE-ENTRY (aceReentry runs after the
+        // bisection resolves — D1, #1731).
+        routeReauditMinors(r, subSeats)
       } else {
         pendingRevert = subSha                           // reverted by the NEXT dispatch, or the merge clause if final
         // Fold (#1694): the FAILING subset's re-audit round's OWN Minor/Nits route by disposition
-        // too, mirroring the approved arm — an ask parks, never drops; a fresh absorb takes the
-        // failed-absorb demotion (the ladder never re-enters for findings it did not start with).
+        // too, mirroring the approved arm — an ask parks, never drops; a fresh absorb queues for
+        // budget-bounded re-entry (D1, #1731 — born at a re-audit, it re-enters after the bisection).
         // Blocking findings stay untouched — they are this arm's regression signal, not routable.
-        for (const f of minorsOf(subSeats).map(x => ({ task: r.task.id, ...x }))) {
-          const d = dispositionOf(f)
-          if (d === 'ask') parkAsk(f)               // ask precedes the absorb chain (#1550, D7)
-          else if (d === 'follow-up') minorsFiled.push(f)
-          else if (d === 'note') notes.push(f)
-          else demote(f, 'follow-up', 'failed absorb — the ace budget is committed to the bisection in flight (re-audit round finding)')
-        }
+        routeReauditMinors(r, subSeats)
         const halves = sub.depth < 2 ? aceHalve(sub.findings) : null
         if (halves) queue.unshift(...halves.map(fs => ({ findings: fs, depth: sub.depth + 1 })))
-        else for (const f of sub.findings) demote(f, 'follow-up', 'failed absorb — subset regressed on re-audit at the depth/split floor; the subset commit is forward-reverted')
+        else for (const f of sub.findings) { const ur = unsoundReason(subSeats, f); demote(f, 'follow-up', 'failed absorb — subset regressed on re-audit at the depth/split floor; the subset commit is forward-reverted' + (ur ? '; ' + ur : ''), { reverted: true }) }
       }
     }
     if (pendingRevert) r.aceReverted = pendingRevert     // final failed tip not yet reverted in-loop
+  }
+  // ---- ACE RE-ENTRY (D1/D2, #1731 — the ladder RE-OPENS for fresh absorbs born at a re-audit) ----
+  // Budget-bounded, NO new round type and NO new status member: each re-entry round is another
+  // ace-style batch on the same machinery — same eligibility, the same `Ace-Subset` trailer
+  // discipline (deterministic value carrying the existing round index), the same tip-preflight
+  // idempotency (PIN-15: range scan, EXACT whole-string equality, never the tip alone), the same
+  // forward-revert posture. The floor-retry reserve is the SOLE bound (PIN-1 — no echo cap, no
+  // shrinking rule): re-entry batches dispatch only while fixRounds < roundLimit − 2 — a NEW gate;
+  // the batch ace deliberately keeps its own `< roundLimit` gate (red-team round 1). Reserve-blocked
+  // or spent findings route phaseClose:true (the sweep rung, logged); a regressed re-entry batch is
+  // forward-reverted and its findings demote — a forward-reverted finding NEVER re-enters (the
+  // oscillation bound, A1) — while the regressed re-audit's own fresh absorbs may still re-enter
+  // (born at a re-audit) until the reserve stops the loop. Every demotion logged, nothing silent
+  // (PIN-2). A citation-resolved finding (D6) is executed through this vehicle: its prompt row and
+  // commit message carry the row-id + match rationale, the re-audit panel is charged with citation
+  // soundness, and on approval the aced record carries the citation.
+  const aceReentry = async (r) => {
+    let pendingRevert = r.aceReverted || null            // take over any not-yet-reverted failed tip
+    if (pendingRevert) r.aceReverted = null
+    while ((r.reentryQueue || []).length) {
+      if (r.task.fixRounds >= roundLimit - 2) {
+        log('ace-reentry ' + r.task.id + ': reserve-blocked — fixRounds ' + r.task.fixRounds + ' reached roundLimit−2 (' + (roundLimit - 2) + '); 2 slots stay reserved for the merge-floor retry loop, the fresh absorb(s) route phaseClose:true (the sweep is the fallback rung).')
+        for (const f of r.reentryQueue.splice(0)) routeToSweep(f, 'reserve-blocked re-entry (fixRounds reached roundLimit − 2)')   // still queued (sweep queue now) — routeToSweep re-stamps queuedKeys
+        break
+      }
+      // Drain-time registry re-check (the oscillation bound, A1 + End state 6): the registries
+      // mutate BETWEEN queue time and drain time — on the batch-regressed arm routeReauditMinors
+      // runs before aceBisect's { reverted: true } demotes land, and on the failing-subset arm the
+      // route precedes the depth/split-floor demote — so a content-identical re-mint can already be
+      // sitting on the queue when its key enters revertedKeys (or acedKeys/filedKeys). Queue-time
+      // remintBlock alone cannot see that; re-filter every entry through the SAME helper here so a
+      // forward-reverted (or already-aced/already-filed) finding never re-enters regardless of arm
+      // ordering. Each refusal is logged (never silent); an emptied batch skips the dispatch.
+      const drained = r.reentryQueue.splice(0)
+      for (const f of drained) queuedKeys.delete(remintKey(f))
+      const batch = drained.filter(f => {
+        const b = remintBlock(f)
+        if (b) { log('re-entry REFUSED at drain: "' + (f.title ?? '') + '" (task ' + r.task.id + ') — ' + b + '; never dispatched (logged, never silent).'); corroborateSurvivor(f); return false }
+        return true
+      })
+      if (!batch.length) continue
+      // Same trailer discipline as a bisection subset, with the existing round index folded in so
+      // successive re-entry rounds over the same file set stay distinct across resume replays.
+      const trailer = r.task.id + ':reentry:r' + (r.task.fixRounds + 1) + ':' + [...new Set(batch.map(f => aceRelPath(f.file)))].sort().join(',')
+      const reentryRange = r.reentryBase ? pt`${r.reentryBase}^..HEAD` : pt`HEAD~30..HEAD`
+      const rw = await agent(
+        pt`ACE RE-ENTRY BATCH for WAR task ${r.task.id} (fresh absorb findings born at a re-audit — the ladder re-opens, budget-bounded). Work in the ALREADY-PROVISIONED worktree at ${r.task.worktree} (branch ${r.task.branch}) — never create it; cd there.\n`
+        + aceRevertStep(r.task.worktree, pendingRevert)
+        + pt`PREFLIGHT (resume idempotency): scan the range (e.g. \`git -C ${r.task.worktree} log --format='%H %(trailers:key=Ace-Subset,valueonly)' ${reentryRange}\`) — never the tip alone; compare each extracted trailer value (whitespace-trimmed) to \`${trailer}\` by EXACT whole-string equality — never a prefix or substring match; on an exact-equal match, return that commit's sha as head_sha WITHOUT committing.\n`
+        + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
+        + pt`Apply the smallest mechanical fix for EACH finding below, keep the gate green, and make EXACTLY ONE commit citing each finding's title + rationale (an absorb-by-citation row's cited row-id + match rationale included), its message ENDING with the trailer line \`Ace-Subset: ${trailer}\` as its OWN final paragraph, separated from the body by a blank line (the panel re-audits the new sha; a regression is forward-reverted):\n`
+        + batch.map(aceFindingRow).join('\n') + '\n'
+        + pt`Dead attempt: discard UNCOMMITTED changes in THIS worktree only (git checkout -- .) — never any shared ref or history rewrite. No version/release-slot edits. Commit and push ${r.task.branch}.`
+        + intentClause + provisionClause,
+        { agentType: NS + 'war-worker', phase: 'Audit', label: 'ace:' + r.task.id + ':r' + (r.task.fixRounds + 1), schema: WORKER_RESULT, ...spawnWorker('fix') })
+      const rwWhy = blockedReason(rw)
+      if (rwWhy || typeof rw.head_sha !== 'string' || !rw.head_sha) {
+        // No usable commit — uncharged; abandon (never hold): this batch and the queue demote.
+        for (const f of [...batch, ...r.reentryQueue.splice(0)]) {
+          queuedKeys.delete(remintKey(f))                // no longer queued — the demote's filedKeys stamp takes over
+          demote(f, 'follow-up', 'failed absorb — ' + (rwWhy || 're-entry worker returned no usable head_sha') + '; re-entry abandoned')
+        }
+        break
+      }
+      r.task.fixRounds++                                 // each re-entry COMMIT charges one slot (the shared budget)
+      pendingRevert = null                               // the dispatched revert step cleared the failed predecessor
+      const reSha = rw.head_sha
+      const { seats: reS, expected: reE } = await auditRound(r.task, null, null, reSha, citationSoundnessClause(batch))
+      if (allApprove(reS, reE) && blockingOf(reS).length === 0) {
+        r.seats = reS                                    // merge proceeds on this approved re-entry tip
+        r.aceSha = reSha
+        for (const f of batch) recordAced(f, reSha, citationOf(f) ? { citation: citationOf(f) } : null)
+        routeReauditMinors(r, reS)                       // fresh absorbs born HERE re-enter (loop continues)
+      } else {
+        pendingRevert = reSha                            // reverted by the NEXT dispatch, or the merge clause if final
+        // Unsound-citation naming (D6): a blocking re-audit finding flagged citationUnsound names
+        // the mismatch — the shared unsoundReason helper carries it into the demote reason so the
+        // durable record explains the revert (same duty as aceBisect's regression arms). Each
+        // demote registers on revertedKeys ({ reverted: true }) — the oscillation bound's registry.
+        for (const f of batch) {
+          const ur = unsoundReason(reS, f)
+          demote(f, 'follow-up', ur
+            ? 'failed absorb — ' + ur + '; the re-entry commit is forward-reverted'
+            : 'failed absorb — re-entry batch regressed on re-audit; the re-entry commit is forward-reverted (a forward-reverted finding never re-enters)', { reverted: true })
+        }
+        routeReauditMinors(r, reS)                       // the regressed round's own fresh absorbs may still re-enter
+      }
+    }
+    if (pendingRevert) r.aceReverted = pendingRevert     // final failed tip rides the merge dispatch's revert clause
   }
   for (const r of results.filter(Boolean)) {
     // Carry the audit-loop round counter onto the task object so the no-test sub-loop
@@ -1865,12 +2291,12 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
       for (const f of taskMinors) {
         const d = dispositionOf(f)
         if (d === 'ask') parkAsk(f)                 // ask precedes the absorb chain (#1550, D7)
-        else if (d === 'follow-up') minorsFiled.push(f)
+        else if (d === 'follow-up') fileFollowUp(f) // stamps filedKeys (End state 6) — a later re-audit re-mint never also aces
         else if (d === 'note') notes.push(f)
         else if (!f.file) demote(f, f.severity === 'Minor' ? 'follow-up' : 'note', 'fileless absorb takes the severity default (never ace-eligible)')
         else if (!run.ace) demote(f, 'follow-up', 'absorb requires --ace (off this run)')
         else if (!f.phaseClose && aceEligible(f)) aceable.push(f)
-        else phaseCloseQueue.push(f)
+        else { queuedKeys.add(remintKey(f)); phaseCloseQueue.push(f) }   // stamps queuedKeys — a later re-audit re-mint never queues twice
       }
       // --ace: opt-in, fail-closed pre-merge polish of absorb-disposition findings. The BATCH attempt is
       // unchanged (one commit, one re-audit — the happy path is byte-identical): the ace worker commits one
@@ -1887,8 +2313,9 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
           + pt`Gate: ${plan.gate}${doneWhenClause(r.task)}\n`
           + pt`This task is ALREADY APPROVED. These are auditor-flagged absorb-disposition Minor/Nit findings — apply the smallest mechanical fix for EACH, keep the gate green, and make EXACTLY ONE commit whose message cites each finding's title + rationale:\n`
           // pt-tagged prompt-feeding rows (ace prompt, top-level-catch): f.severity is construction-guaranteed (aceable =
-          // minorsOf/absorb → Minor/Nit only, bare); title/file/rationale schema-optional → ?? '' (never a phase-killing throw).
-          + aceable.map((f, i) => pt`${i + 1}. [${f.severity}] ${f.title ?? ''} (${f.file ?? ''}${f.line ? ':' + f.line : ''}) — ${f.rationale ?? ''}${f.suggested_fix ? pt` → ${f.suggested_fix}` : ''}`).join('\n') + '\n'
+          // minorsOf/absorb → Minor/Nit only, bare); the shared aceFindingRow builder is absence-tolerant
+          // (and renders a citation-resolved row's row-id + match rationale, D6).
+          + aceable.map(aceFindingRow).join('\n') + '\n'
           + pt`Make ONE commit only (the panel re-audits it at the new sha; on regression it is forward-reverted). Do NOT touch version/release slots. Commit and push ${r.task.branch}.`
           + intentClause + provisionClause,
           { agentType: NS + 'war-worker', phase: 'Audit', label: `ace:${r.task.id}:r${r.task.fixRounds + 1}`, schema: WORKER_RESULT, ...spawnWorker('fix') })
@@ -1900,39 +2327,35 @@ while (done.size < tasks.length && guard++ < tasks.length + 2) {
         if (!aceWhy && typeof ace.head_sha === 'string' && ace.head_sha) {
           r.task.fixRounds++
           aceSha = ace.head_sha /* the batch ace commit */
-          const { seats: reSeats, expected: reExpected } = await auditRound(r.task, null, null, aceSha)   // re-pin + re-audit at the new sha (D1/D2)
+          r.reentryBase = ace.head_sha                 // re-entry preflight range anchor (PIN-15)
+          const { seats: reSeats, expected: reExpected } = await auditRound(r.task, null, null, aceSha, citationSoundnessClause(aceable))   // re-pin + re-audit at the new sha (D1/D2)
           if (allApprove(reSeats, reExpected) && blockingOf(reSeats).length === 0) {
             r.seats = reSeats                          // merge proceeds on the polished tip
             r.aceSha = aceSha
             // aced provenance (D3): the findings this ace commit resolved. No splice needed —
-            // classify-at-collection never eagerly filed them.
-            for (const f of aceable) aced.push({ task: f.task, finding: f, sha: aceSha })
-            // Route the re-audit round's OWN Minor/Nits too (never drop silently): the batch ace is
-            // spent and the ladder never opens for new findings, so a fresh absorb here takes the
-            // failed-absorb demotion.
-            for (const f of minorsOf(reSeats).map(x => ({ task: r.task.id, ...x }))) {
-              const d = dispositionOf(f)
-              if (d === 'ask') parkAsk(f)           // ask precedes the absorb chain (#1550, D7)
-              else if (d === 'follow-up') minorsFiled.push(f)
-              else if (d === 'note') notes.push(f)
-              else demote(f, 'follow-up', 'failed absorb — the ace batch is spent and the ladder never opens for fresh findings (re-audit round finding)')
-            }
+            // classify-at-collection never eagerly filed them. A citation-resolved finding's aced
+            // record carries the citation (D6).
+            for (const f of aceable) recordAced(f, aceSha, citationOf(f) ? { citation: citationOf(f) } : null)
+            // Route the re-audit round's OWN Minor/Nits too (never drop silently): a fresh absorb
+            // born at this re-audit queues for budget-bounded RE-ENTRY (D1, #1731 — the ladder
+            // re-opens; aceReentry dispatches it below).
+            routeReauditMinors(r, reSeats)
           } else {
             aceSha = null
             // Fold (#1694): the REGRESSED re-audit round's OWN Minor/Nits route by disposition too,
-            // mirroring the approved arm — an ask parks, never drops. Blocking findings stay
+            // mirroring the approved arm — an ask parks, never drops; a fresh absorb queues for
+            // budget-bounded re-entry (D1, #1731). Blocking findings stay
             // untouched: they are the ladder's culprit-attribution input below.
-            for (const f of minorsOf(reSeats).map(x => ({ task: r.task.id, ...x }))) {
-              const d = dispositionOf(f)
-              if (d === 'ask') parkAsk(f)           // ask precedes the absorb chain (#1550, D7)
-              else if (d === 'follow-up') minorsFiled.push(f)
-              else if (d === 'note') notes.push(f)
-              else demote(f, 'follow-up', 'failed absorb — the ace batch regressed and the ladder never opens for fresh findings (re-audit round finding)')
-            }
+            routeReauditMinors(r, reSeats)
             // Regression (D1/D2): the bounded bisection ladder replaces the whole-batch demotion — it
             // owns the in-loop forward-reverts and sets r.aceSha / r.aceReverted / r.seats as it resolves.
             await aceBisect(r, aceable, ace.head_sha, reSeats)
           }
+          // Budget-bounded RE-ENTRY (D1/D2, #1731): fresh absorbs born at any of this task's
+          // re-audits (batch, bisection subsets, or a re-entry round's own) queued on
+          // r.reentryQueue — the ladder re-opens for them here, after the batch/bisection resolved,
+          // while fixRounds < roundLimit − 2 (the floor-retry reserve is the sole bound).
+          if (r.reentryQueue && r.reentryQueue.length) await aceReentry(r)
         } else {
           // aceWhy or falsy head_sha: fall through to the normal merge on the un-aced approved tip
           // (never hold). Demotion arm: failed absorb (ace blocked / no usable head_sha) → follow-up.
@@ -2598,17 +3021,17 @@ if (mergedTasksForGateAudit.length > 0) {
       // via parkAsk), never sink. The identity check IS dispositionOf's ask arm verbatim ('ask' is
       // NEVER defaulted, so the classifier returns 'ask' iff f.disposition === 'ask'); the literal
       // dispositionOf call is withheld on purpose — this lane has no absorb chain, so it cannot take
-      // the six-site order-census shape and census-registers as a comment-named sink instead. A
+      // the dispositionOf order-census shape (five sites at this pin — the count is the census's,
+      // never restated here) and census-registers as a comment-named sink instead. A
       // pin-mismatched seat's ask never parks (same doctrine as the pinMismatch strip: a question
       // raised against a different tree than the judged tip is not a ruling-worthy fork). Cross-lane
-      // content dedup is ARM-LOCAL (parkAsk's identity contract untouched): a gate-audit seat
-      // re-raising a question a roster seat already parked on the same task is one operator ruling,
-      // not two records — the dedup key mirrors parkAsk's own question derivation.
+      // content dedup lives IN parkAsk (#1790 — the old arm-local `asks.some` guard was an unlogged
+      // silent sink): a gate-audit seat re-raising a question a roster seat already parked on the
+      // same task MERGES as corroboration on the surviving record, log()ged — one operator ruling,
+      // never a silent drop.
       if (!mismatch) for (const f of findings) {
         if ((f.severity === 'Minor' || f.severity === 'Nit') && f.disposition === 'ask') {
-          const q = (f.ask && f.ask.question) || f.title || '(question unrecorded)'
-          if (!asks.some(a => a.task === taskId && a.question === q))
-            parkAsk({ task: taskId, seat: 'gate-audit:' + taskId + ':execution-evidence', sha: auditShaOrSentinel(gateAuditVerdict.audit_sha), ...f })
+          parkAsk({ task: taskId, seat: 'gate-audit:' + taskId + ':execution-evidence', sha: auditShaOrSentinel(gateAuditVerdict.audit_sha), ...f })
         }
       }
       if (isHardGateEvidence) {
@@ -2679,12 +3102,12 @@ if (mergedTasksForGateAudit.length > 0) {
         ...(Array.isArray(authVerdict.endStateAttestations) ? { endStateAttestations: authVerdict.endStateAttestations } : {}) })
       // #1692 (gate-audit-family ask routing): same comment-named sink as the per-task seat above —
       // Minor/Nit stay auditLog-only EXCEPT a disposition:'ask', which parks (never-defaulted identity
-      // check = dispositionOf's ask arm; no absorb chain here, so no dispositionOf call site in the census).
+      // check = dispositionOf's ask arm; no absorb chain here, so no dispositionOf call site in the
+      // census). A content collision merges as corroboration inside parkAsk, log()ged (#1790 — the
+      // old arm-local guard was an unlogged silent sink).
       for (const f of findings) {
         if ((f.severity === 'Minor' || f.severity === 'Nit') && f.disposition === 'ask') {
-          const q = (f.ask && f.ask.question) || f.title || '(question unrecorded)'
-          if (!asks.some(a => a.task === 'phase-' + ph.id + '-integrated-tip' && a.question === q))
-            parkAsk({ task: 'phase-' + ph.id + '-integrated-tip', seat: 'gate-audit:phase-' + ph.id + ':integrated-tip', sha: auditShaOrSentinel(authVerdict.audit_sha), ...f })
+          parkAsk({ task: 'phase-' + ph.id + '-integrated-tip', seat: 'gate-audit:phase-' + ph.id + ':integrated-tip', sha: auditShaOrSentinel(authVerdict.audit_sha), ...f })
         }
       }
       if (isHard) escalated.push({ task: `phase-${ph.id}-integrated-tip`, reason: 'gate-evidence', detail: authVerdict })
@@ -2723,11 +3146,11 @@ if (mergedTasksForGateAudit.length > 0) {
     // #1692 (gate-audit-family ask routing): same comment-named sink as the two seats above — Minor/Nit
     // stay auditLog-only EXCEPT a disposition:'ask', which parks (never-defaulted identity check =
     // dispositionOf's ask arm; no absorb chain here, so no dispositionOf call site in the census).
+    // A content collision merges as corroboration inside parkAsk, log()ged (#1790 — the old
+    // arm-local guard was an unlogged silent sink).
     for (const f of findings) {
       if ((f.severity === 'Minor' || f.severity === 'Nit') && f.disposition === 'ask') {
-        const q = (f.ask && f.ask.question) || f.title || '(question unrecorded)'
-        if (!asks.some(a => a.task === 'phase-' + ph.id + '-end-state' && a.question === q))
-          parkAsk({ task: 'phase-' + ph.id + '-end-state', seat: 'gate-audit:phase-' + ph.id + ':end-state', sha: auditShaOrSentinel(esVerdict.audit_sha), ...f })
+        parkAsk({ task: 'phase-' + ph.id + '-end-state', seat: 'gate-audit:phase-' + ph.id + ':end-state', sha: auditShaOrSentinel(esVerdict.audit_sha), ...f })
       }
     }
     if (isHard) escalated.push({ task: `phase-${ph.id}-end-state`, reason: 'gate-evidence', detail: esVerdict })
@@ -2923,7 +3346,7 @@ if (phaseCloseQueue.length > 0 && landDecision !== 'landed') {
       polishStatus = 'merged'
       const polishSha = (typeof sweep.head_sha === 'string' && sweep.head_sha) ? sweep.head_sha : '(polish sha unrecorded)'
       log(`phase-close sweep MERGED at ${polishSha} — the land proceeds on the polished tip; ${phaseCloseQueue.length} queued finding(s) absorbed.`)
-      for (const f of phaseCloseQueue.splice(0)) aced.push({ task: f.task, finding: f, sha: polishSha })
+      for (const f of phaseCloseQueue.splice(0)) recordAced(f, polishSha)
       // Merged-arm routing (#1377): sweep-raised Minor/Nits route by disposition — an absorb (incl.
       // fileless) demotes because the sweep is the phase's terminal fix round; absorb has no later
       // round. A sweep-raised ask still parks (#1550) — the Checkpoint gate has no terminal round.
@@ -3337,7 +3760,9 @@ if ((landDecision === 'landed' || landDecision === 'held:escalation' || landDeci
       // Evidence-artifacts emission clause (Task 3.2, PIN-14, #1658): the filed issues' evidence
       // duty — values are COPIED from the candidate rows below (the engine renders them per row from
       // the auditLog via auditEvidenceOf above), never reconstructed by the filing agent.
-      + pt`EACH filed issue's body additionally ends with an \`## Evidence artifacts\` section carrying, per member row: the pinned sha (the integration tip the row's task was gate-audited at) — for a \`requiresTest:false\` task this is its landed integration tip (never gate-audited, the D7 skip) — the file path with its line when present, the raising seat lenses (from the row's seats list — every row renders one, the corroboration list on a merged row or the single raising seat otherwise; each seat entry's lens is its trailing \`:<lens>\` segment, read before any \` (task <id>)\` attribution suffix — and a trailing \`:rebut\` is a dispatch label, never the lens: take the segment before it; a bare \`task <id>\`/'unattributed' entry verbatim), and the audit round — every value copied verbatim from the candidate rows below (\`unrecorded\` stays \`unrecorded\`, never invented). On the dedup arm, carry the same evidence lines inside the corroboration comment instead.\n`
+      // Lens extraction is the FAMILY-PREFIX rule (#1789) — standing mirror:
+      // skills/war/references/file-followups.md (same commit; the lens-suffix fixture pins both legs).
+      + pt`EACH filed issue's body additionally ends with an \`## Evidence artifacts\` section carrying, per member row: the pinned sha (the integration tip the row's task was gate-audited at) — for a \`requiresTest:false\` task this is its landed integration tip (never gate-audited, the D7 skip) — the file path with its line when present, the raising seat lenses (from the row's seats list — every row renders one, the corroboration list on a merged row or the single raising seat otherwise; each seat entry's lens follows the FAMILY-PREFIX rule: a seat label whose FIRST \`:\`-segment is \`gate-audit\` yields the lens \`execution-evidence\` whatever its trailing segments (a phase-level segment like \`phase-1\` or a dispatch suffix like \`integrated-tip\`/\`end-state\` is never a lens); otherwise the lens is the trailing \`:<lens>\` segment, read before any \` (task <id>)\` attribution suffix — and a trailing \`:rebut\` is a dispatch label, never the lens: take the segment before it; a bare \`task <id>\`/'unattributed' entry verbatim), and the audit round — every value copied verbatim from the candidate rows below (\`unrecorded\` stays \`unrecorded\`, never invented). On the dedup arm, carry the same evidence lines inside the corroboration comment instead.\n`
       // pt-tagged prompt-feeding row builder (file-followups dispatch): title/rationale are
       // schema-optional and task is routing-stamped → ?? defaults (never a phase-killing throw here).
       // The title span is DELIMITED (quoted, `title:`-prefixed) so the dedup instruction's
@@ -3447,8 +3872,12 @@ if (landDecision === 'landed' || landDecision === 'held:escalation') {
     // validator exists or is introduced): the LOSSY projection of the parked unruled ask records —
     // question + fork + task/seat/sha provenance, minus the full finding row (the top-level
     // return's asks[] keeps it). This key is the Checkpoint strike-list ruling gate's input; the
-    // absolute advance floor reads it (skills/war/SKILL.md § Checkpoint).
-    asks: asks.map(a => ({ task: a.task, seat: a.seat, sha: a.sha, question: a.question, fork: a.fork })),
+    // absolute advance floor reads it (skills/war/SKILL.md § Checkpoint). A citation-matched ask
+    // in an INTERACTIVE run additionally carries its `citationPrefill` (matched row + rationale +
+    // executed sha + recommended ruling, #1879 RULING 1) so the strike list renders the
+    // one-confirm prefill row.
+    asks: asks.map(a => ({ task: a.task, seat: a.seat, sha: a.sha, question: a.question, fork: a.fork,
+      ...(a.citationPrefill ? { citationPrefill: a.citationPrefill } : {}) })),
     notes: notes.map(n => ({ task: n.task, title: n.title })),
     endState: endStateClaims.map(condition => {
       // Vacuous-phase clamp first (D5, End state 10): 'unverified' + note, never green — evaluated
