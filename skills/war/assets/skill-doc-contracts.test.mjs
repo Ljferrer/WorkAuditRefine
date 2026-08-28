@@ -1603,6 +1603,10 @@ test('D32 — evicted CONTEXT.md glossary entries keep trigger pointers, and glo
     // ceiling raise; these rows are the lock-step re-anchor the eviction owes.
     ['Land-truth guard', '## Land-truth guard'],
     ['Route-upstream', '## Route-upstream'],
+    // in-run-finding-resolution Phase 3 Task 2 completion (#1902): two more cold bodies evicted
+    // to fund the pinned ~1 KB of CONTEXT.md slack.
+    ['residual-set verification', '## residual-set verification'],
+    ['churny shared docs', '## churny shared docs'],
     ['patch-equivalence probe', '## patch-equivalence probe'],
   ]) {
     // Mirror D26's idiom: escape the term before building the pattern.
@@ -2896,8 +2900,21 @@ test('D43 — the re-entry / floor-retry-reserve boundary is present in all thre
   }
   // The ADR home's exemption, proven from BOTH sides so the carve-out cannot hollow the row.
   const adr = norm(adr0013)
+  // Construct-scoped (the D35 idiom): the 2026-08-27 supersession note QUOTES the historical
+  // literal verbatim, so a whole-surface match is satisfied by the quotation alone — deleting the
+  // 2026-08-20 clause (the exact append-only-law violation this assert exists to catch) leaves a
+  // whole-file assert green (proven: the scratch deletion passed before this scoping). Extract the
+  // amendment section and assert inside THAT span.
+  // Extract from the RAW text (norm() joins every line and strips '#', so headings do not survive
+  // it), then normalize the extracted span for the literal match.
+  const adr0820 = norm((adr0013.match(/## Amendment \(2026-08-20\)[\s\S]*?(?=\n## |$)/) || [''])[0])
+  assert.ok(
+    adr0820.length > 200,
+    'ADR 0013: the `## Amendment (2026-08-20)` section did not extract (non-vacuity guard) — a ' +
+      'heading rename or removal reds here before the scoped assert below can pass vacuously',
+  )
   assert.match(
-    adr,
+    adr0820,
     /the remainder demotes on budget exhaustion/,
     "ADR 0013's 2026-08-20 clause is ratified append-only law and must survive byte-untouched — " +
       'this row exempts the ADR from the living-doc absence asserts precisely because of that law; ' +

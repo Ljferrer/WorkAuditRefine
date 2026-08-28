@@ -1694,21 +1694,10 @@ _Avoid_: reading the `-d` refusal as an unmerged-work signal; escalating to `-D`
 sweep.
 
 **residual-set verification**:
-The mandatory post-batch Class-1 check: after a batched `git push origin --delete`, re-list
-remote heads and two-sided-diff the survivors against the pre-batch snapshot's hold set (the
-exact-name complement of the delete list). A missing hold-set ref is a data-loss row reported
-with its snapshot SHA and restore command; a surviving delete-list ref is a failed-delete row;
-the run is not clean until the diff is empty or fully reported.
-_Avoid_: trusting the delete loop's own exclusion filter; declaring a sweep clean on push success
-alone; auto-retrying a failed delete into a second unverified batch.
+when verifying an `/aftermath` Class-1 delete batch, read skills/war/references/glossary-cold.md
 
 **churny shared docs**:
-The pathspec (`docs/plans docs/specs docs/roadmaps`) whose files a stacked branch predictably conflicts
-on against master; snapped to master's canonical copy by `snap-shared-docs.sh` (merge master,
-`checkout --theirs` under the pathspec, byte-identity guard outside it, fast-forward push, never
-`--force`). ADR 0011 stack-and-plow is the primary recurrence reducer; the snap is the residual fallback.
-_Avoid_: rebasing or force-pushing a docs-only conflict; `--theirs`-ing a code-touching doc outside the
-pathspec.
+when a stacked branch conflicts on `docs/plans` / `docs/specs` / `docs/roadmaps`, read skills/war/references/glossary-cold.md
 
 ### Campaigns (multi-plan orchestration)
 

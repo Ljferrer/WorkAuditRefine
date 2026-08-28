@@ -15,7 +15,8 @@ filing and dedup-as-corroboration-comment supersede Decision 4's per-finding "fi
 description; see the amendment below; amended 2026-08-27 — budget-bounded ace re-entry (the
 floor-retry reserve is the ladder's sole stop condition, superseding the 2026-08-20 amendment's
 budget-exhaustion narration), three disposition widenings, the absorb-by-citation arm, and
-in-run execution of a ruled ask; see the amendment below)
+in-run execution of a ruled ask (superseding the 2026-08-25 amendment's Lead-side filing
+trigger — filing parity itself untouched); see the amendment below)
 
 WAR's agents had exactly one yardstick: the plan's literal text. The auditor's plan-faithfulness lens judged
 work against the slice ("the plan did not authorize"), severity was the only routing signal (every Minor/Nit
@@ -365,8 +366,9 @@ amendment records the widened contract.
   unsound citation is a **blocking** finding — the batch forward-reverts and the finding demotes
   **naming the mismatch**. **Record:** the durable record (the ace commit message and the `aced`
   row) carries the **row-id plus a one-line match rationale** — presence is the floor, format is
-  latitude. Matching is panel judgment charged in the prompt, never engine-side matching: the engine
-  records and routes. `--afk` still **never mints** a standing adjudication row; interactively the
+  latitude. Row-to-trade-off matching is panel judgment charged in the prompt, never engine-side
+  semantic matching: the engine matches the parked record by content key, records the citation,
+  and routes. `--afk` still **never mints** a standing adjudication row; interactively the
   ask stays parked and surfaces at the Checkpoint with a prefilled recommended ruling.
 - **Citation telemetry.** Citation-resolutions ride `/war-review` — which standing rows fire and how
   often. Counting is free (the `aced` record already carries the citation), and an over-broad row
