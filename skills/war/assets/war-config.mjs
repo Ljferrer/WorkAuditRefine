@@ -77,9 +77,9 @@ export const PRESETS = {
     agents: {
       worker:   { model: 'fable', effort: 'max', docs: { model: 'opus', effort: 'high' }, fix: { model: 'fable', effort: 'max' } },
       auditor:  { model: 'opus',  effort: 'max' },
-      // Pinned when DEFAULTS.refiner moved to sonnet/high, so thorough's effective refiner stays
-      // what it always was (same discipline as the economy block below).
-      refiner:  { model: 'sonnet', effort: 'default' },
+      // Pinned ABOVE the DEFAULTS refiner (sonnet/high): thorough must never be weaker than
+      // balanced on any axis, so its refiner takes the top effort tier.
+      refiner:  { model: 'sonnet', effort: 'xhigh' },
       servitor: { model: 'opus',  effort: 'default' },
       redteam:  { model: 'fable', effort: 'xhigh' },
     },

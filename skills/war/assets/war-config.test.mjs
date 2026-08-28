@@ -101,7 +101,7 @@ test('thorough preset', () => {
   assert.equal(c.agents.auditor.effort, 'max')
   assert.equal(c.agents.servitor.model, 'opus')
   assert.equal(c.agents.servitor.effort, 'default')
-  assert.equal(c.agents.refiner.effort, 'default') // pinned — DEFAULTS moved to high
+  assert.equal(c.agents.refiner.effort, 'xhigh')   // pinned ABOVE the DEFAULTS refiner (high)
   assert.equal(c.audit.rosterPolicy, 'auto')       // inherited: Lead seeds 1-5 seats per task
   assert.equal(c.audit.roster.length, 5)
   assert.deepEqual(c.audit.roster.map(s => s.lens),
@@ -939,7 +939,7 @@ test('unknown role rejected', () => {
 test('spawnOpts omits effort when default', () => {
   // worker is the DEFAULTS role carrying effort 'default' (refiner moved to 'high').
   assert.deepEqual(spawnOpts(DEFAULTS, 'worker'), { model: 'opus' })
-  assert.deepEqual(spawnOpts(presetConfig('thorough'), 'refiner'), { model: 'sonnet' })
+  assert.deepEqual(spawnOpts(presetConfig('economy'), 'refiner'), { model: 'sonnet' })
 })
 
 test('spawnOpts includes non-default effort', () => {
