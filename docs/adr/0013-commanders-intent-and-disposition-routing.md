@@ -12,7 +12,11 @@ eligibility, and the roundLimit 3→6 default flip; see the amendment below; ame
 the `ask` disposition: a fourth Minor/Nit-only member, the Checkpoint strike-list ruling gate, and
 the third adjudication producer; see the amendment below; amended 2026-08-26 — N:1 clustered
 filing and dedup-as-corroboration-comment supersede Decision 4's per-finding "files the issue"
-description; see the amendment below)
+description; see the amendment below; amended 2026-08-27 — budget-bounded ace re-entry (the
+floor-retry reserve is the ladder's sole stop condition, superseding the 2026-08-20 amendment's
+budget-exhaustion narration), three disposition widenings, the absorb-by-citation arm, and
+in-run execution of a ruled ask (superseding the 2026-08-25 amendment's Lead-side filing
+trigger — filing parity itself untouched); see the amendment below)
 
 WAR's agents had exactly one yardstick: the plan's literal text. The auditor's plan-faithfulness lens judged
 work against the slice ("the plan did not authorize"), severity was the only routing signal (every Minor/Nit
@@ -312,6 +316,86 @@ issue-litter without dropping any finding's record. This amendment is about **fi
 only** — the 2026-08-25 ask amendment above (the fourth `disposition` member and its Checkpoint
 ruling gate) is left byte-untouched, and ruled-ask Lead-side filing keeps parity with this shape
 per `skills/war/references/file-followups.md`.
+
+This amendment leaves all pre-existing body text above — beyond the Status currency line —
+byte-unchanged.
+
+## Amendment (2026-08-27): budget-bounded ace re-entry, three disposition widenings, absorb-by-citation, and in-run ruled-ask execution
+
+The in-run-finding-resolution plan (`docs/plans/2026-08-27-in-run-finding-resolution.md`) widens
+the in-run vehicles this ADR's routing can reach. The measured pathology was issue litter: a
+mechanical, fully-specified finding *born at a re-audit* had no in-run vehicle at all — the ace
+ladder never re-opened for it — so it demoted to `follow-up` and outlived the run as a filed issue.
+The operator's ruling is the standing one: **fix what is broken when it is identified.** This
+amendment records the widened contract.
+
+- **Budget-bounded re-entry — the ladder re-opens for fresh absorbs.** A fresh
+  `absorb`-dispositioned finding born at ANY re-audit (a plain approve-branch re-audit, a bisection
+  subset's re-audit, or a re-entry batch's own re-audit) dispatches **another ace-style batch on the
+  same machinery** — same eligibility, the same `Ace-Subset` trailer discipline carrying the
+  existing round index, the same tip-preflight idempotency, the same forward-revert posture. It is
+  **not a new round type and not a new status member** (canonical: `aceReentry` in
+  `skills/war/assets/workflow-template.js`). Shape ratified by the operator on issue #1731's
+  comments, superseding that issue body's one-echo sketch.
+- **The floor-retry reserve is the SOLE bound.** Re-entry batches dispatch only while
+  `fixRounds < roundLimit − 2` — the two slots #1562 reserved for the merge-floor retry loop. No
+  echo cap, no shrinking rule, no second budget: the reserve converges arithmetically, and a
+  forward-reverted finding demotes and never re-enters (the oscillation bound). The batch-ace path
+  deliberately keeps its own separate `< roundLimit` gate; re-entry adds a new gate rather than
+  moving that one.
+- **The fallback ladder, in order.** Re-enter while `fixRounds < roundLimit − 2` ⇒ reserve-blocked
+  or spent routes the finding `phaseClose: true` (the phase-close sweep is its vehicle) ⇒
+  sweep-discard demotes to `follow-up`. Every demotion is logged; nothing is silent. This is the
+  terminal-disposition ladder Decision 4 records, with a rung added at the top — not a new ladder.
+- **Three disposition widenings** (dispatched `auditPrompt` DISPOSITION block **and** the standing
+  home `skills/war/references/disposition-eligibility.md`, in lock-step): (1) a mechanical,
+  fully-specified finding **born at a re-audit** defaults to `absorb` — it re-enters while budget
+  remains and takes `phaseClose: true` when the fix wants the integrated tip; `follow-up` stays
+  correct for unspecified, decision-shaped, or sweep-excluded (release-slot / cross-task) findings.
+  (2) a fully-specified **new-test (or test-harness) addition in a task-owned test file** is a
+  legitimate absorb — "needs a new test" is not by itself a why-not-absorbable reason. The
+  never-delete-or-weaken-tests law is untouched: this widening is *adding only*. (3) a finding whose
+  fix is fully specified but entails a behavior change with a **nameable trade-off** routes `ask`
+  (the trade-off IS the fork), not `follow-up`.
+- **Absorb-by-citation — a parked ask whose ruling is a quoted standing row.** **Under `--afk`**, a
+  parked `ask` matching a threaded standing operator-ratified adjudication row may resolve to an
+  **actionable absorb**, executed through the re-entry vehicle. **Match strictness:** the row must cover the
+  finding's **NAMED trade-off**, never merely its topic; ambiguity is NO-match and demotes — the
+  demotion is the consequence of the rule, never a substitute for it. **Soundness duty:** the
+  re-audit panel is explicitly charged with verifying that the cited row covers the trade-off; an
+  unsound citation is a **blocking** finding — the batch forward-reverts and the finding demotes
+  **naming the mismatch**. **Record:** the durable record (the ace commit message and the `aced`
+  row) carries the **row-id plus a one-line match rationale** — presence is the floor, format is
+  latitude. Row-to-trade-off matching is panel judgment charged in the prompt, never engine-side
+  semantic matching: the engine matches the parked record by content key, records the citation,
+  and routes. `--afk` still **never mints** a standing adjudication row; interactively the
+  ask stays parked and surfaces at the Checkpoint with a prefilled recommended ruling.
+- **Citation telemetry.** Citation-resolutions ride `/war-review` — which standing rows fire and how
+  often. Counting is free (the `aced` record already carries the citation), and an over-broad row
+  firing constantly is the measured signal to narrow it.
+- **A ruled ask executes in-run; filing becomes filing-on-non-execution.** The 2026-08-25
+  amendment's "ruled asks then file Lead-side with filing parity" is superseded on the *filing
+  trigger*, not on parity: an interactively-ruled ask whose fix is fully specified **executes in
+  this run** — injected into the next phase's decompose as a small first-class task carrying the
+  ruling, or, in the final phase, run as one bounded polish-style post-land dispatch. An issue is
+  filed **only** on cannot-execute (no vehicle, cross-task, budget) or execution-failure (regression
+  ⇒ revert), with the ruling recorded in the filed issue either way — never silently, never as
+  default litter. Ruled-ask adjudication rows are written in standing-row format, so today's
+  interactive ruling becomes tomorrow's `--afk` citation source.
+- **Supersession of the 2026-08-20 boundary narration (append-only law).** The 2026-08-20 amendment
+  above narrates bisection demotion as "the remainder demotes on budget exhaustion". That clause is
+  ratified text and stays byte-untouched; this note supersedes its *currency*:
+  **As of 2026-08-27: the ladder's stop condition is the floor-retry reserve
+  (`fixRounds < roundLimit − 2`) with budget-bounded re-entry; the 2026-08-20 clause above describes
+  the pre-#1562 boundary and is historical.** The three living-doc homes of that boundary
+  (`skills/war/SKILL.md`'s `--ace` bullet, CONTEXT.md's **Ace bisection** row, `design.md` §18) are
+  re-authored to the new semantics and guard-bound; this ADR home is deliberately exempt from that
+  guard because the historical clause survives by design.
+
+Decision 4's routing semantics are otherwise untouched: the disposition set is still
+`absorb` · `follow-up` · `note` · `ask`, `absorb` and `ask` are still never defaulted, and the
+Consequences bullet "Issues become affirmative acts" holds a fortiori — every widening here moves
+work *out* of the issue backlog and into the run that found it.
 
 This amendment leaves all pre-existing body text above — beyond the Status currency line —
 byte-unchanged.
