@@ -70,11 +70,11 @@ test('DEFAULTS validate', () => {
 
 test('empty input fills to balanced defaults and validates', () => {
   const c = fillDefaults({})
-  assert.equal(c.agents.worker.model, 'fable')
+  assert.equal(c.agents.worker.model, 'opus')
   assert.equal(c.agents.worker.effort, 'default')
-  assert.equal(c.agents.auditor.model, 'opus')
-  assert.equal(c.agents.auditor.effort, 'high')
-  assert.equal(c.agents.servitor.effort, 'high')
+  assert.equal(c.agents.auditor.model, 'sonnet')
+  assert.equal(c.agents.auditor.effort, 'max')
+  assert.equal(c.agents.servitor.effort, 'xhigh')
   assert.equal(c.audit.rosterPolicy, 'auto')
   assert.equal(validate({}).valid, true)
 })
@@ -89,7 +89,7 @@ test('partial override merges over defaults', () => {
   const c = fillDefaults({ agents: { worker: { model: 'haiku', effort: 'low' } } })
   assert.equal(c.agents.worker.model, 'haiku')
   assert.equal(c.agents.worker.effort, 'low')
-  assert.equal(c.agents.auditor.model, 'opus')   // untouched default
+  assert.equal(c.agents.auditor.model, 'sonnet') // untouched default
   assert.equal(c.agents.refiner.model, 'sonnet') // untouched default
 })
 
@@ -101,6 +101,7 @@ test('thorough preset', () => {
   assert.equal(c.agents.auditor.effort, 'max')
   assert.equal(c.agents.servitor.model, 'opus')
   assert.equal(c.agents.servitor.effort, 'default')
+  assert.equal(c.agents.refiner.effort, 'xhigh')   // pinned ABOVE the DEFAULTS refiner (high)
   assert.equal(c.audit.rosterPolicy, 'auto')       // inherited: Lead seeds 1-5 seats per task
   assert.equal(c.audit.roster.length, 5)
   assert.deepEqual(c.audit.roster.map(s => s.lens),
@@ -114,7 +115,12 @@ test('economy preset (pinned to its historical effective config)', () => {
   assert.equal(c.agents.worker.effort, 'default')
   assert.equal(c.agents.auditor.model, 'sonnet')
   assert.equal(c.agents.servitor.model, 'sonnet')
-  assert.equal(c.agents.servitor.effort, 'default') // pinned — DEFAULTS moved to high
+  assert.equal(c.agents.servitor.effort, 'default') // pinned — DEFAULTS moved to xhigh
+  assert.equal(c.agents.refiner.effort, 'default')  // pinned — DEFAULTS moved to high
+  // pinned — DEFAULTS moved to a 5-seat roster; economy keeps the historical quartet, which is also
+  // what its lone-seat autoEscalate widening unions toward.
+  assert.deepEqual(c.audit.roster.map(s => s.lens),
+    ['correctness', 'cascading-impact', 'plan-faithfulness', 'security'])
   assert.equal(c.audit.rosterPolicy, 'solo')
   assert.equal(c.run.roundLimit, 2)
   assert.equal(c.run.ace, false)                    // pinned — DEFAULTS moved to true
@@ -247,10 +253,10 @@ test('agents.redteam is tolerated by the unknown-agent-key loop; a genuine unkno
   assert.match(msg, /\/war-room/)
 })
 
-test('agents.worker.docs defaults to { fable, default }; balanced inherits, thorough → opus/high, economy → haiku/high (T1.1)', () => {
+test('agents.worker.docs defaults to { opus, default }; balanced inherits, thorough → opus/high, economy → haiku/high (T1.1)', () => {
   // Delete-the-feature: remove docs from DEFAULTS.agents.worker → the DEFAULTS deepEqual fails.
-  assert.deepEqual(DEFAULTS.agents.worker.docs, { model: 'fable', effort: 'default' })
-  const DOCS = { balanced: { model: 'fable', effort: 'default' }, thorough: { model: 'opus', effort: 'high' }, economy: { model: 'haiku', effort: 'high' } }
+  assert.deepEqual(DEFAULTS.agents.worker.docs, { model: 'opus', effort: 'default' })
+  const DOCS = { balanced: { model: 'opus', effort: 'default' }, thorough: { model: 'opus', effort: 'high' }, economy: { model: 'haiku', effort: 'high' } }
   for (const [preset, expected] of Object.entries(DOCS)) {
     assert.deepEqual(presetConfig(preset).agents.worker.docs, expected, `${preset} preset docs tier must be ${JSON.stringify(expected)}`)
   }
@@ -259,7 +265,7 @@ test('agents.worker.docs defaults to { fable, default }; balanced inherits, thor
 test('legacy worker block without a docs tier fills it from DEFAULTS and validates (criterion-12 style) (T1.1)', () => {
   const legacy = { version: 1, agents: { worker: { model: 'opus', effort: 'max' } } } // no docs key
   const c = fillDefaults(legacy)
-  assert.deepEqual(c.agents.worker.docs, { model: 'fable', effort: 'default' })
+  assert.deepEqual(c.agents.worker.docs, { model: 'opus', effort: 'default' })
   assert.equal(validate(legacy).valid, true, validate(legacy).errors.join('\n'))
 })
 
@@ -277,11 +283,11 @@ test('agents.worker.docs rejects bad model / bad effort / unknown sub-key (valid
   assert.match(msg, /\/war-room/)
 })
 
-test('agents.worker.fix is preset-populated (balanced fable/default in DEFAULTS) and validated when present (fix + red-team asks)', () => {
+test('agents.worker.fix is preset-populated (balanced fable/low in DEFAULTS) and validated when present (fix + red-team asks)', () => {
   // /war-room now asks for the fix-worker model/effort and never leaves it blank — balanced's value
   // lives in DEFAULTS, thorough/economy override. Delete-the-feature: drop the fix blocks → these fail.
-  assert.deepEqual(DEFAULTS.agents.worker.fix, { model: 'fable', effort: 'default' }, 'DEFAULTS (balanced) fix tier must be fable/default')
-  const FIX = { balanced: { model: 'fable', effort: 'default' }, thorough: { model: 'fable', effort: 'max' }, economy: { model: 'opus', effort: 'default' } }
+  assert.deepEqual(DEFAULTS.agents.worker.fix, { model: 'fable', effort: 'low' }, 'DEFAULTS (balanced) fix tier must be fable/low')
+  const FIX = { balanced: { model: 'fable', effort: 'low' }, thorough: { model: 'fable', effort: 'max' }, economy: { model: 'opus', effort: 'default' } }
   for (const [preset, expected] of Object.entries(FIX)) {
     assert.deepEqual(presetConfig(preset).agents.worker.fix, expected, `${preset} preset fix tier must be ${JSON.stringify(expected)}`)
   }
@@ -313,7 +319,8 @@ test('workerTierMatrix: base + docs + fix row per preset; fix now defaulted; exa
     assert.equal(docs.length, 1, `workerTierMatrix must carry exactly one docs row for ${preset}`)
     assert.equal(fix.length, 1, `workerTierMatrix must carry exactly one fix row for ${preset} (fix is now defaulted)`)
     // Exact per-preset docs/fix values live in the dedicated docs + fix tests and the
-    // "each row equals presetConfig() merge" delegation test below (thorough docs = opus/high, not sonnet).
+    // "each row equals presetConfig() merge" delegation test below (thorough docs = opus/high, which
+    // differs from balanced's opus/default in effort, not model).
   }
   // fix is now defaulted in DEFAULTS → every preset emits a fix row. Delete-the-feature: drop the fix
   // block from DEFAULTS and every preset, and the per-preset fix.length===1 check above goes red (the
@@ -930,11 +937,14 @@ test('unknown role rejected', () => {
 })
 
 test('spawnOpts omits effort when default', () => {
-  assert.deepEqual(spawnOpts(DEFAULTS, 'refiner'), { model: 'sonnet' })
+  // worker is the DEFAULTS role carrying effort 'default' (refiner moved to 'high').
+  assert.deepEqual(spawnOpts(DEFAULTS, 'worker'), { model: 'opus' })
+  assert.deepEqual(spawnOpts(presetConfig('economy'), 'refiner'), { model: 'sonnet' })
 })
 
 test('spawnOpts includes non-default effort', () => {
-  assert.deepEqual(spawnOpts(DEFAULTS, 'auditor'), { model: 'opus', effort: 'high' })
+  assert.deepEqual(spawnOpts(DEFAULTS, 'auditor'), { model: 'sonnet', effort: 'max' })
+  assert.deepEqual(spawnOpts(DEFAULTS, 'refiner'), { model: 'sonnet', effort: 'high' })
   assert.deepEqual(spawnOpts(presetConfig('thorough'), 'worker'), { model: 'fable', effort: 'max' })
 })
 
@@ -949,8 +959,10 @@ test('validateRoster: accepts 1–5 distinct-lens entries, depth present or abse
   assert.deepEqual(validateRoster(five), { valid: true, errors: [] })
 })
 
-test('validateRoster: DEFAULTS.audit.roster is valid (quartet at deep)', () => {
+test('validateRoster: DEFAULTS.audit.roster is valid (5 seats at deep)', () => {
   assert.deepEqual(validateRoster(DEFAULTS.audit.roster), { valid: true, errors: [] })
+  assert.deepEqual(DEFAULTS.audit.roster.map(s => s.lens),
+    ['correctness', 'cascading-impact', 'plan-faithfulness', 'simplicity', 'performance'])
 })
 
 test('validateRoster: rejects an empty roster and a 6-entry roster (1–5 bound)', () => {
@@ -979,16 +991,20 @@ test('validateRoster: rejects non-object entries', () => {
   assert.equal(validateRoster([null]).valid, false)
 })
 
-test('widenRoster: solo security seat + default quartet → 4 seats, security first (deduped), appended seats carry default depths', () => {
+// 'security' is NOT in the 5-seat DEFAULTS roster, so a lone security seat exercises the
+// out-of-roster + cap path: the kept seat leads and the 5-cap drops the default roster's tail.
+test('widenRoster: solo out-of-roster security seat + 5-seat default → capped at 5, security first, appended seats carry default depths', () => {
   const out = widenRoster([{ lens: 'security', depth: 'deep' }], DEFAULTS.audit.roster)
-  assert.deepEqual(out.map(s => s.lens), ['security', 'correctness', 'cascading-impact', 'plan-faithfulness'])
+  assert.deepEqual(out.map(s => s.lens),
+    ['security', 'correctness', 'cascading-impact', 'plan-faithfulness', 'simplicity'])
   assert.equal(out[0].depth, 'deep')
   assert.ok(out.slice(1).every(s => s.depth === 'deep'), 'appended default seats keep their configured depths')
 })
 
-test('widenRoster: union dedupes — solo correctness@neighbors + quartet → 4 seats, kept seat keeps its depth', () => {
+test('widenRoster: union dedupes — solo correctness@neighbors + 5-seat default → 5 seats, kept seat keeps its depth', () => {
   const out = widenRoster([{ lens: 'correctness', depth: 'neighbors' }], DEFAULTS.audit.roster)
-  assert.deepEqual(out.map(s => s.lens), ['correctness', 'cascading-impact', 'plan-faithfulness', 'security'])
+  assert.deepEqual(out.map(s => s.lens),
+    ['correctness', 'cascading-impact', 'plan-faithfulness', 'simplicity', 'performance'])
   assert.equal(out[0].depth, 'neighbors', 'the kept seat keeps its own depth (union, not replacement)')
 })
 
@@ -1077,7 +1093,7 @@ test('resolveWidenSource: own-lens nomination is legal — widenRoster dedupes i
 
 test('drift-guard: ROLE_MODEL in workflow-template.js matches DEFAULTS agent models (#10 Nit)', () => {
   // Extract the ROLE_MODEL literal from the template text.
-  // It looks like: const ROLE_MODEL = { worker: 'sonnet', auditor: 'opus', ... }
+  // It looks like: const ROLE_MODEL = { worker: 'opus', auditor: 'sonnet', ... }
   const match = templateText.match(/const\s+ROLE_MODEL\s*=\s*\{([^}]+)\}/)
   assert.ok(match, 'ROLE_MODEL not found in workflow-template.js')
   // Normalize single-quoted keys/values to double-quoted so JSON.parse can handle it.
