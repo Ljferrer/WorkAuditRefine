@@ -6,12 +6,17 @@ text **at eviction time** (only repo-root-relative links were re-anchored for th
 moved under an additive per-term heading — and the glossary keeps the `**Term**:` heading plus
 one fixed-shape trigger pointer (`when <trigger>, read skills/war/references/glossary-cold.md`). Prose temperature is branch
 frequency (ADR 0042): these are cold but still authoritative — never delete a body; evict more the
-same way. **Coldness criterion** (stated per eviction wave): a term qualifies when it names a
+same way. **Coldness criterion** (one standing criterion; per-wave selections are recorded in the D32 row's
+comments in `skills/war/assets/skill-doc-contracts.test.mjs`, which pins each CONTEXT.md pointer to
+its body here): a term qualifies when it names a
 retired mechanism, or when it is fully narrated in its own operative home (a `references/` file, an
 owning skill's SKILL.md, or its ADR) so the glossary needs only a pointer — incident-only recovery
 and one-command forensics entries are the standing example. Bold glossary cross-references inside
-the moved bodies (**Empty-orphan reclaim**, **Dead phase**, **Land primitive**) resolve in
-`CONTEXT.md`, their original home.
+the moved bodies resolve in `CONTEXT.md`, their original home — stated as the rule rather than a
+dated enumeration, which rots as bodies are added (#1908). A reference may be a shortened or
+differently-cased form of its CONTEXT.md heading (**phantom land** → `**Phantom land**`,
+**Land primitive** → `**Land primitive (single land chokepoint)**`); resolve by term, not by
+byte-match.
 
 ## provision base divergence
 

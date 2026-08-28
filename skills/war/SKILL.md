@@ -13,7 +13,7 @@ Full architecture: [references/design.md](references/design.md). Data contracts:
 ```
 /war <plan-file> [--working <branch>] [--landing <branch>] [--campaign-ordinal <K>] [--afk] [--ace] [--config <path>]
 ```
-`--ace` sets `run.ace = true` for this run (Lead-side, one-off override, same shape as `--working`/`--landing` — no code parser; `/war` is skill-driven). See the ace behavior in **Per phase → Audits/Refines** below.
+`--ace` sets `run.ace = true` for this run (Lead-side, one-off override, same shape as `--working`/`--landing` — no code parser; `/war` is skill-driven). See the ace behavior in **Per phase → Audits/Refines** below. `--afk` likewise sets `run.afk = true` for this run (same Lead-side one-off-override shape) — the engine READS it at the absorb-by-citation unpark gate (#1879), so an `--afk` launch whose resolved config leaves `run.afk` false would otherwise take the interactive surface-never-unpark branch for the whole unattended run.
 `--afk` sets `run.afk = true` for this run (Lead-side, one-off override over the config default, same shape as `--ace`/`--working`) — the engine reads it as the operator-presence gate on the absorb-by-citation unpark (#1879 RULING 1).
 Example: `/war docs/implement/implementation_plan_A.md --working dev/planA --landing master`
 

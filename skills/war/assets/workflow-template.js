@@ -777,8 +777,11 @@ if (problems.length) throw new Error(`${problems.join('; ')}${derivationProblem 
   // explicit-branch/worktree launch omits it, and the compare must not silently switch off. The
   // fallback is the sibling rowText floor's guaranteed-present anchor, ownPlanBase (plan.file's
   // basename), baseOf()-normalized on BOTH sides with the .md suffix stripped. When NO anchor is
-  // derivable (planSlug-less AND plan-less launch) the row is NOT exempted — it still scans under
-  // the own-token floor.
+  // derivable (planSlug-less AND plan-less launch) the row is NOT exempted — but that arm is
+  // OPERATIONALLY EMPTY, not a second line of defense: ownTokens derives from those same two
+  // values, so it is [] in exactly that configuration and the own-token floor short-circuits
+  // fail-open (#1893). The anchor IS the guard here; a launch with neither planSlug nor plan.file
+  // is already refused for a tasks-bearing DAG by the entry belt (#1430).
   const slugAnchorOf = s => baseOf(s).replace(/\.md$/i, '')
   const ruledAskAnchor = planSlug ? slugAnchorOf(planSlug) : (ownPlanBase ? slugAnchorOf(ownPlanBase) : null)
   const ruledAskRowText = row => {
@@ -3018,7 +3021,8 @@ if (mergedTasksForGateAudit.length > 0) {
       // via parkAsk), never sink. The identity check IS dispositionOf's ask arm verbatim ('ask' is
       // NEVER defaulted, so the classifier returns 'ask' iff f.disposition === 'ask'); the literal
       // dispositionOf call is withheld on purpose — this lane has no absorb chain, so it cannot take
-      // the six-site order-census shape and census-registers as a comment-named sink instead. A
+      // the dispositionOf order-census shape (five sites at this pin — the count is the census's,
+      // never restated here) and census-registers as a comment-named sink instead. A
       // pin-mismatched seat's ask never parks (same doctrine as the pinMismatch strip: a question
       // raised against a different tree than the judged tip is not a ruling-worthy fork). Cross-lane
       // content dedup lives IN parkAsk (#1790 — the old arm-local `asks.some` guard was an unlogged
