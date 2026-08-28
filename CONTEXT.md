@@ -583,10 +583,10 @@ The runtime widening of a **lone** seat that returns a Critical or low-confidenc
 becomes the **union** of the existing seat and a **widening source** (capped at 5), then the full widened
 roster re-audits on the pinned SHA. The source is the seat's own **`widen` nomination** when it supplies
 a valid one (a non-empty list of distinct, non-reserved lens names → those lenses at `deep`), else the
-**default roster's lenses** (the byte-identical quartet-union fallback). Fires only on 1-seat rosters — a
+**default roster's lenses** (the byte-identical default-roster-union fallback). Fires only on 1-seat rosters — a
 multi-seat roster the human approved is never second-guessed.
 _Avoid_: replacing (rather than unioning away from) the lone seat's lens; widening covens further;
-treating the quartet union as the only source (nomination comes first).
+treating the default-roster union as the only source (nomination comes first).
 
 **Gate-audit pass**:
 The post-merge, pre-land review of each merged task's **executed gate output** through the reserved
@@ -683,14 +683,15 @@ contradiction.
 
 **Docs tier**:
 The worker spawn tier for a task whose `Files:` list is entirely `*.md` — mechanically classified
-at dispatch (never a plan field), configured at `agents.worker.docs`, default sonnet. Mixed
+at dispatch (never a plan field), configured at `agents.worker.docs`, default opus. Mixed
 docs+code tasks stay on the base worker tier; auditors review docs-tier work at full strength.
 _Avoid_: low-complexity flag (nothing is authored); re-tiering mid-flight (the predicate reads the
 plan's file list, not the diff).
 
 **Fix bump**:
-The optional stronger model/effort (`agents.worker.fix`) applied to fix-round and `--ace` worker
-spawns — e.g. sonnet first pass, opus fixer. Absent = fix work inherits the base worker config
+The optional distinct model/effort (`agents.worker.fix`) applied to fix-round and `--ace` worker
+spawns — either direction: a stronger fixer than the first pass, or (the balanced default) an opus
+first pass with a faster fable/`low` fixer. Absent = fix work inherits the base worker config
 (today's behavior).
 _Avoid_: fix model (it's an optional override, not a standing role); splitting ace from fix (one
 knob covers both).

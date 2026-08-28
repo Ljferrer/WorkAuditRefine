@@ -6,19 +6,19 @@ WAR re-implements Steve Yegge's [Gas Town](https://github.com/gastownhall/gastow
 | Gas Town | WAR | Built on |
 |---|---|---|
 | Mayor | Lead | the main Claude Code session (your chat) |
-| Polecat | `war-worker` | `Agent` (sonnet) in a git worktree |
-| Nun (Refinery audit gate) | `war-auditor` | read-only `Agent` (opus): Read/Grep/Glob + Bash confined to read-only git by a fail-closed guard |
+| Polecat | `war-worker` | `Agent` (opus) in a git worktree |
+| Nun (Refinery audit gate) | `war-auditor` | read-only `Agent` (sonnet): Read/Grep/Glob + Bash confined to read-only git by a fail-closed guard |
 | Refinery | `war-refiner` + the Workflow's serial merge loop | `Agent` (sonnet) + Workflow control flow |
 | Witness | (dissolved) | Workflow control flow + lifecycle hooks |
 | bd remember | war-servitor | write-scoped `Agent` (sonnet); records per-phase learnings |
 
 ## Nun audit gate → `war-auditor`
-- **Seats:** a per-task **roster** of 1–5 distinct-lens seats; default: the quartet at `deep`; a solo `neighbors` seat for low-risk tasks. Seat count *is* the roster's length. **[TUNE]**
+- **Seats:** a per-task **roster** of 1–5 distinct-lens seats; default: the 5-seat roster at `deep`; a solo `neighbors` seat for low-risk tasks. Seat count *is* the roster's length. **[TUNE]**
 - **Unanimity, fail-closed:** all live seats must `approve` against the current SHA; any `request_changes`/missing/hung seat = no merge. A missing verdict never auto-passes and never auto-rejects. **[HARD]**
 - **Convergent unanimity (SHA-pinned):** approval is provisional and pinned to `audit_sha`; when HEAD moves, every seat (incl. prior approvers) re-confirms against the new SHA. **[HARD]**
 - **Read-only — structural:** in WAR this is tool-level — auditors have Read/Grep/Glob plus Bash confined by a fail-closed PreToolUse guard (`hooks/validate-auditor-git.sh`) to an allowlist of read-only git subcommands (no Write/Edit), so they physically cannot modify, commit, or push. (Gas Town used a detached checkout + push-unset; WAR's tool restriction is the simpler portable equivalent and avoids the headless-permission-hang trap.) **[HARD]**
 - **Tiered depth:** `neighbors` (diff + one hop of what changed lines reference) or `deep` (trace impact wherever changed symbols are used) — carried **per seat** on each roster entry (omitted → `deep`). **[TUNE default]**
-- **Perspective diversity (roster):** each seat gets a distinct lens (duplicates fail validation) — correctness / cascading-impact / plan-faithfulness, swapping or adding a domain lens (healthcare-safety, security) on flagged code. **[HARD for multi-seat value]**
+- **Perspective diversity (roster):** each seat gets a distinct lens (duplicates fail validation) — correctness / cascading-impact / plan-faithfulness / simplicity / performance, swapping or adding a domain lens (security, healthcare-safety) on flagged code. **[HARD for multi-seat value]**
 - **Plan faithfulness:** check the change against the plan **slice** the task owns (one plan file → many tasks; never 1:1). Degrade to code-only if no slice is discoverable. **[HARD]**
 - **round_limit = 6:** after 6 dissenting rounds, escalate `audit-blocked` + halt. Only a genuine `request_changes` advances the counter — infra faults don't. **[TUNE value, HARD mechanism]**
 - **Severity + disposition:** findings tagged Critical/Major/Minor/Nit; **Critical/Major block**; every Minor/Nit routes by auditor-owned **disposition** — `absorb` (fixed in-phase: per-task ace or the phase-close sweep; a regressed ace batch recovers via the bounded ace bisection ladder — `aceBisect` in `workflow-template.js` — only finally-failing subsets demoting, every demotion logged per subset), `follow-up` (files an issue, with why-not-absorbable), `note` (phase report + servitor feed, never an issue), or `ask` (#1550 — decision-shaped, question+fork mandatory; parks on `asks[]` and is ruled by the operator at the Checkpoint strike-list gate, never filed unruled); omitted → Minor becomes follow-up, Nit becomes note, `absorb` and `ask` never defaulted (ADR 0013, amended 2026-08-25). (Gas Town's gate was binary; WAR keeps the binary block, tags severity for triage, and routes the non-blocking tail by disposition.) **[HARD]**

@@ -8184,7 +8184,7 @@ test('T2.1 (D1/D8) — the escalate reservation ("NEVER escalate" on a cannot-co
 // Run a single-task happy-path phase and return the first-pass worker's captured spawn opts.
 // files === undefined ⇒ NO files field on the task (the absent-list fail-safe case).
 // Threads an EXPLICIT agents config with distinct base/docs models (opus/sonnet) so the tier
-// predicate stays observable by model — the DEFAULTS tiers are both fable, which would make the
+// predicate stays observable by model — the DEFAULTS tiers are both opus, which would make the
 // docs-vs-base distinction vacuous here (the D2 registry row pins the defaults mirror itself).
 const firstPassWorkOpts = async (files) => {
   const task = { id: 't1', issue: 101, title: 'T', planSlice: 's', roster: [{ lens: 'correctness' }],

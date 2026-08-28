@@ -23,13 +23,13 @@ export const DEFAULTS = {
   version: 1,
   profile: 'balanced',
   agents: {
-    // worker.docs: the tier that dispatches all-*.md tasks (defaults fable/default). worker.fix
-    // (fix-round + --ace tier) defaults to fable/default — the balanced profile's value, which
+    // worker.docs: the tier that dispatches all-*.md tasks (defaults opus/default). worker.fix
+    // (fix-round + --ace tier) defaults to fable/low — the balanced profile's value, which
     // thorough/economy override; a config may still override it per-run.
-    worker:   { model: 'fable',  effort: 'default', docs: { model: 'fable', effort: 'default' }, fix: { model: 'fable', effort: 'default' } },
-    auditor:  { model: 'opus',   effort: 'high' },
-    refiner:  { model: 'sonnet', effort: 'default' },
-    servitor: { model: 'sonnet', effort: 'high' },
+    worker:   { model: 'opus',   effort: 'default', docs: { model: 'opus', effort: 'default' }, fix: { model: 'fable', effort: 'low' } },
+    auditor:  { model: 'sonnet', effort: 'max' },
+    refiner:  { model: 'sonnet', effort: 'high' },
+    servitor: { model: 'sonnet', effort: 'xhigh' },
     // redteam: the model/effort /red-team threads (fail-open) into its probe + adversarial-confirm
     // sub-agents. NOT a phase role (never in ROLES/agentMatrix); the balanced default is opus/high,
     // overridden by thorough/economy. Consumed only when /red-team runs against this repo.
@@ -40,7 +40,8 @@ export const DEFAULTS = {
       { lens: 'correctness', depth: 'deep' },
       { lens: 'cascading-impact', depth: 'deep' },
       { lens: 'plan-faithfulness', depth: 'deep' },
-      { lens: 'security', depth: 'deep' },
+      { lens: 'simplicity', depth: 'deep' },
+      { lens: 'performance', depth: 'deep' },
     ],
     rosterPolicy: 'auto',
     autoEscalate: true,
@@ -76,6 +77,9 @@ export const PRESETS = {
     agents: {
       worker:   { model: 'fable', effort: 'max', docs: { model: 'opus', effort: 'high' }, fix: { model: 'fable', effort: 'max' } },
       auditor:  { model: 'opus',  effort: 'max' },
+      // Pinned when DEFAULTS.refiner moved to sonnet/high, so thorough's effective refiner stays
+      // what it always was (same discipline as the economy block below).
+      refiner:  { model: 'sonnet', effort: 'default' },
       servitor: { model: 'opus',  effort: 'default' },
       redteam:  { model: 'fable', effort: 'xhigh' },
     },
@@ -96,10 +100,22 @@ export const PRESETS = {
     agents: {
       worker:   { model: 'sonnet', effort: 'default', docs: { model: 'haiku', effort: 'high' }, fix: { model: 'opus', effort: 'default' } },
       auditor:  { model: 'sonnet', effort: 'default' },
+      refiner:  { model: 'sonnet', effort: 'default' },
       servitor: { model: 'sonnet', effort: 'default' },
       redteam:  { model: 'sonnet', effort: 'max' },
     },
-    audit: { rosterPolicy: 'solo' },
+    // roster pinned to the historical quartet: DEFAULTS moved to a 5-seat roster, and economy's
+    // lone-seat widening (autoEscalate, inherited true) unions toward THIS list — leaving it
+    // unpinned would have widened economy from 4 seats to 5.
+    audit: {
+      roster: [
+        { lens: 'correctness', depth: 'deep' },
+        { lens: 'cascading-impact', depth: 'deep' },
+        { lens: 'plan-faithfulness', depth: 'deep' },
+        { lens: 'security', depth: 'deep' },
+      ],
+      rosterPolicy: 'solo',
+    },
     run: { roundLimit: 2, redteamRoundLimit: 2, ace: false },
     // (memory.commitLearnings is no longer pinned — DEFAULTS is now false, so economy inherits off.)
   },
@@ -144,7 +160,7 @@ export function agentMatrix() {
 // and 'fix' (the fix-round + --ace tier — now defaulted in DEFAULTS too, so every preset emits a fix
 // row). Reuses presetConfig()'s merge and iterates the live PRESETS, so a new preset or tier is
 // enumerated automatically. The doc-honesty lens consults it to prove documented tier defaults (e.g.
-// docs=sonnet default with per-preset overrides (thorough opus/high, economy haiku/high), fix=fable/high
+// docs=opus/default with per-preset overrides (thorough opus/high, economy haiku/high), fix=fable/low
 // on balanced) match this canonical source, not a hand-copied literal.
 export function workerTierMatrix() {
   return Object.keys(PRESETS).flatMap(preset => {
@@ -193,7 +209,7 @@ export function validate(input) {
   }
   // agents.redteam — a { model, effort } tier validated like a role when present, but NOT a phase ROLE:
   // it joins validation only (/red-team consumes it fail-open; the per-phase spawn path never does, and
-  // agentMatrix stays four roles). Defaulted in DEFAULTS (balanced opus/max, preset-overridden); a config
+  // agentMatrix stays four roles). Defaulted in DEFAULTS (balanced opus/high, preset-overridden); a config
   // that omits it still validates and red-team then inherits the session.
   if (Object.prototype.hasOwnProperty.call(c.agents, 'redteam')) validateAgentTier(c.agents.redteam, 'agents.redteam', errors)
   const KNOWN_AGENT_KEYS = [...ROLES, 'redteam']
@@ -335,7 +351,7 @@ export function widenRoster(roster, defaultRoster) {
 // nomination is a non-empty array of DISTINCT, non-empty strings, NONE reserved — strict whole-field
 // (any bad entry rejects the whole nomination, no per-entry salvage). Valid → seats from the nominated
 // lenses @ deep, source 'nominated'; anything else → defaultRoster verbatim, source 'default' (the
-// byte-identical quartet-union fallback). The returned seats feed widenRoster (which keeps the lone seat,
+// byte-identical default-roster-union fallback). The returned seats feed widenRoster (which keeps the lone seat,
 // dedupes, caps 5), so a nomination naming the seat's own lens is legal. MIRRORED inline in
 // workflow-template.js. Keep in sync.
 export function resolveWidenSource(nominated, defaultRoster) {
