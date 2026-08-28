@@ -3,28 +3,28 @@
   "profile": "balanced",
   "agents": {
     "worker": {
-      "model": "fable",
+      "model": "opus",
       "effort": "default",
       "docs": {
-        "model": "fable",
+        "model": "opus",
         "effort": "default"
       },
       "fix": {
         "model": "fable",
-        "effort": "default"
+        "effort": "low"
       }
     },
     "auditor": {
-      "model": "opus",
-      "effort": "high"
+      "model": "sonnet",
+      "effort": "max"
     },
     "refiner": {
       "model": "sonnet",
-      "effort": "default"
+      "effort": "high"
     },
     "servitor": {
       "model": "sonnet",
-      "effort": "high"
+      "effort": "xhigh"
     },
     "redteam": {
       "model": "opus",
@@ -46,7 +46,11 @@
         "depth": "deep"
       },
       {
-        "lens": "security",
+        "lens": "simplicity",
+        "depth": "deep"
+      },
+      {
+        "lens": "performance",
         "depth": "deep"
       }
     ],
