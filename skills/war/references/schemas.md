@@ -230,7 +230,8 @@ Produced by `/war-room`, consumed by `/war`'s Setup. The schema, defaults, prese
     auditor:  { model, effort },
     refiner:  { model, effort },
     servitor: { model, effort },
-    redteam?: { model, effort } },           // not a phase role — /red-team reads it fail-open; every preset populates it (balanced opus/high); only a MISSING config file → red-team inherits the session
+    redteam?: { model, effort },             // not a phase role — /red-team reads it fail-open; every preset populates it (balanced opus/high); only a MISSING config file → red-team inherits the session
+    snipe?: { model, effort } },             // not a phase role — /snipe's one-shot seat tier (#1920), default opus/high; explicit null = unset (falls back to the auditor tier); validated like redteam
   //   agents.worker.docs { model, effort }  — the all-*.md dispatch tier (default { model: "opus", effort: "default" }; balanced inherits, thorough → opus/high, economy → haiku/high)
   //   agents.worker.fix  { model, effort }  — the fix-round AND --ace tier; every preset populates it (balanced fable/low); an omitted block inherits the base worker config
   audit: {

@@ -673,6 +673,19 @@ test('hooks.valeMarkdown defaults ON, explicit false validates, null is unset, n
   assert.match(r.errors.join('\n'), /hooks\.valeMarkdown must be a boolean/)
 })
 
+// agents.snipe — /snipe's one-shot seat tier (#1920): defaulted opus/high, validated like
+// redteam when present, explicit null accepted as unset (snipeTier's auditor fallback).
+test('agents.snipe defaults opus/high, validates as a tier, null accepted as unset', () => {
+  assert.deepEqual(DEFAULTS.agents.snipe, { model: 'opus', effort: 'high' }, 'operator-set /snipe default tier')
+  assert.equal(validate({ agents: { snipe: { model: 'haiku', effort: 'low' } } }).valid, true)
+  assert.equal(validate({ agents: { snipe: null } }).valid, true, 'explicit null = unset')
+  const bad = validate({ agents: { snipe: { model: 'gpt', effort: 'high' } } })
+  assert.equal(bad.valid, false)
+  assert.match(bad.errors.join('\n'), /agents\.snipe\.model/)
+  const extra = validate({ agents: { snipe: { model: 'opus', effort: 'high', depth: 'deep' } } })
+  assert.equal(extra.valid, false, 'unknown sub-keys rejected like any tier')
+})
+
 test('hooks: non-object and unknown keys rejected (memory.* precedent)', () => {
   const rNull = validate({ hooks: null })
   assert.equal(rNull.valid, false)

@@ -34,6 +34,11 @@ export const DEFAULTS = {
     // sub-agents. NOT a phase role (never in ROLES/agentMatrix); the balanced default is opus/high,
     // overridden by thorough/economy. Consumed only when /red-team runs against this repo.
     redteam:  { model: 'opus',   effort: 'high' },
+    // snipe: the model/effort /snipe spawns its one-shot auditor seats at (#1920). NOT a phase
+    // role (never in ROLES/agentMatrix). Ladder at consumption (snipe-args.mjs snipeTier):
+    // agents.snipe, else agents.auditor on an explicit null, else these DEFAULTS. Operator-set
+    // default: opus/high.
+    snipe:    { model: 'opus',   effort: 'high' },
   },
   audit: {
     roster: [
@@ -223,7 +228,10 @@ export function validate(input) {
   // agentMatrix stays four roles). Defaulted in DEFAULTS (balanced opus/high, preset-overridden); a config
   // that omits it still validates and red-team then inherits the session.
   if (Object.prototype.hasOwnProperty.call(c.agents, 'redteam')) validateAgentTier(c.agents.redteam, 'agents.redteam', errors)
-  const KNOWN_AGENT_KEYS = [...ROLES, 'redteam']
+  // agents.snipe — /snipe's one-shot seat tier (#1920), validated like redteam when present and
+  // non-null (explicit null = unset: snipeTier falls back to agents.auditor).
+  if (c.agents.snipe != null) validateAgentTier(c.agents.snipe, 'agents.snipe', errors)
+  const KNOWN_AGENT_KEYS = [...ROLES, 'redteam', 'snipe']
   for (const key of Object.keys(c.agents)) {
     if (!KNOWN_AGENT_KEYS.includes(key)) errors.push(`agents.${key} is not a known agent key (${KNOWN_AGENT_KEYS.join('|')}) — run /war-room to regenerate the config`)
   }
