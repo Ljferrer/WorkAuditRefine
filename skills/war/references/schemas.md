@@ -255,6 +255,7 @@ Produced by `/war-room`, consumed by `/war`'s Setup. The schema, defaults, prese
                                              // provision = ordered worktree-prep commands ([] = none); provisionSource ∈ explicit|manifest|ci|onboarding|structural|none;
                                              // provisionAuto = let /war-room scout provisioning when no explicit list (default true)
   memory: { retrieval, topK, commitLearnings },  // retrieval: Lead prefetches per-seat prior-lesson blocks (bool, default true); topK: max lessons/block (int >= 1, default 10); commitLearnings: write the repo-root docs/learnings lessons (bool, default false — a conscious opt-in via /war-room; when on, lint-scrubbed and PR-reviewed; all presets inherit off)
+  hooks: { replyStandard },                    // toggles the plugin's Reply Standard hook pair (bool, default true) — read fail-open by hooks/reply-standard/gate.py in the project the session runs in, never by the phase engine; only an explicit false disables
   overrides: { gate, workingBranch, landingBranch, learningsTarget, testPattern, ghUser } }  // null = let /war auto-detect
 // overrides.gate is the *declared base* command (string|null); the *resolved* gate run by agents
 // is a self-discovering string produced by war-config.mjs resolveGate(declaredGate): it appends
