@@ -2,12 +2,11 @@
 name: release-blurb-categorical-scope-enumeration-omits-a-window-class-despite-a-dedicated-checklist-item
 description: "A release blurb's closing categorical claim ('every other change in the window is Checkpoint prose, references mirrors, ADR record, glossary, tour, telemetry rows, or test-side pins') can omit real landed classes (agent cards, CLAUDE.md, servitor-learnings docs) even though README's own Status-blurb authoring checklist item 1 ('bound every absolute') exists specifically to catch this — checklist presence is mechanically pinned, its content is not"
 metadata: 
-  promoted: dev/2026-08-25-ask-disposition@phase-3
   node_type: memory
   type: project
   provenance: code-verified
   slug: release-blurb-categorical-scope-enumeration-omits-a-window-class-despite-a-dedicated-checklist-item
-  phase: "ask-disposition/phase-3 (Release), task 3.1, 2026-08-25; recurred engine-reliability-and-filing-fidelity/phase-9 task 9.1, 2026-08-26"
+  phase: "ask-disposition/phase-3 (Release), task 3.1, 2026-08-25; recurred engine-reliability-and-filing-fidelity/phase-9 task 9.1, 2026-08-26 (omission); clean-pass confirmation 2026-08-30-engine-concurrency-and-pin-transfer/phase-3 task 3.1, 2026-08-30"
   keywords: 
     - release blurb
     - Status-blurb authoring checklist
@@ -24,6 +23,9 @@ metadata:
     - design spec omitted
     - catch-all clause dropped
     - ADR unmentioned in blurb
+    - full window diff enumeration
+    - clean pass
+    - mitigation confirmed
   tags: 
     - war
     - release
@@ -32,7 +34,7 @@ metadata:
     - prose-precision
   created: 2026-08-25
   originSessionId: 351f8fc5-4d48-4ee9-8beb-5d257d9bcf6f
-  modified: 2026-08-27T03:25:00.408Z
+  modified: 2026-08-30T15:52:38.237Z
 ---
 
 # A release blurb's own categorical-scope claim can violate the exact checklist item written to catch it
@@ -99,6 +101,28 @@ absorb-eligibility, and touching release-slot files post-bump from a separate wo
 presence-vs-content gap described above is a standing authoring cost, not a one-off — the `### Status-
 blurb authoring checklist` item 1 is not, and cannot easily be, mechanically checked against the real
 diff window.
+
+**Recurrence (clean pass) — 2026-08-30-engine-concurrency-and-pin-transfer/phase-3 task 3.1,
+2026-08-30, 0.21.6 → 0.21.7:** the first recorded instance where the gate-audit's correctness seat
+explicitly re-checked this same closing categorical-scope sentence ("no guard, hook, or run-config
+surface changed in this window") against the **full plan window**
+(`git diff --name-only df24d47...war/2026-08-30-engine-concurrency-and-pin-transfer/p3-3.1`, 20
+files) and found it **accurate** — every file in the window bucketed into a named category (agent
+cards, the ADR, `docs/learnings/*`, `war-room/SKILL.md`, test files, `workflow-template.js`,
+`references/*.md`), none omitted. `code-verified` at the landed tip
+`f994cb0c9a3079a8d577848768d6c45b0842e222` (read via the `_refinery` worktree matching that SHA,
+gitdir physical path
+`<repo-root>/.claude/war-worktrees/engine-concurrency-and-pin-transfer-2026-08-30/_refinery/`):
+`CHANGELOG.md`'s `## 0.21.7` entry and `README.md`'s `## Status` line both carry the categorical
+closing sentence, and it holds against the diff.
+
+**Confirms the "how to apply" mitigation, not the defect:** unlike the two prior recurrences (both
+genuine omissions), this seat literally enumerated the actual file classes in the diff window before
+trusting the sentence — exactly this lesson's prescribed check — and the sentence passed. This is
+the first evidence that doing the full-window enumeration (rather than eyeballing the blurb for
+plausibility) reliably catches the defect class this lesson describes; a future auditor should treat
+"I bucketed every file in `git diff --name-only <full-window>` into a named category" as the bar for
+trusting a release blurb's categorical closing claim, not a lighter read.
 
 Related: [[release-task-requirestest-true-with-test-free-files-list-routes-precedented-no-test-floor]]
 (same task/phase, a different release-shape recurring cost). This is the same underlying family as
