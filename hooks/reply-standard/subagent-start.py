@@ -22,8 +22,8 @@ try:
         extra = HERE / ("subagent-card." + role + ".md")
         if role and extra.is_file():
             card = card + "\n" + extra.read_text(encoding="utf-8")
-    except (ValueError, AttributeError):
-        pass
+    except (OSError, ValueError, AttributeError):
+        pass  # any addendum failure degrades to the blanket card, never to no card
     print(json.dumps({"hookSpecificOutput": {"hookEventName": "SubagentStart", "additionalContext": card}}))
 except Exception:
     pass
