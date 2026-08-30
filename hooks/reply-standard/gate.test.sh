@@ -12,14 +12,18 @@ n=0
 pass() { n=$((n + 1)); printf 'ok %d - %s\n' "$n" "$1"; }
 fail() { n=$((n + 1)); fails=$((fails + 1)); printf 'FAIL %d - %s\n' "$n" "$1"; }
 
+# The whole pair is python3-gated by gate.sh; without the interpreter the hooks (and this
+# suite) are deliberate no-ops, so skip rather than red on a python-less host.
+command -v python3 >/dev/null 2>&1 || { echo 'SKIP gate.test.sh (no python3 — gate.sh no-ops the pair)'; exit 0; }
+
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
-cp "$HERE/gate.py" "$HERE/card.py" "$HERE/card.md" "$HERE/meter.py" "$TMP/"
+cp "$HERE/gate.sh" "$HERE/gate.py" "$HERE/card.py" "$HERE/card.md" "$HERE/meter.py" "$TMP/"
 PROJ="$TMP/proj"
 mkdir -p "$PROJ/.claude/war"
 export CLAUDE_PROJECT_DIR="$PROJ"
 
-run_card() { printf '{"prompt":"why does this fail?"}' | python3 "$TMP/gate.py" card.py; }
+run_card() { printf '{"prompt":"why does this fail?"}' | sh "$TMP/gate.sh" card.py; }
 
 # Case 1: no config file — hook runs (default on).
 rm -f "$PROJ/.claude/war/config.json"
@@ -43,17 +47,17 @@ case "$out" in *"REPLY STANDARD"*) pass 'case4 malformed config: fail-open, card
 
 # Case 5: meter path gated off — no meter.log written.
 printf '{"hooks":{"replyStandard":false}}' > "$PROJ/.claude/war/config.json"
-printf '{"last_assistant_message":"This should be scored.","session_id":"t"}' | python3 "$TMP/gate.py" meter.py
+printf '{"last_assistant_message":"This should be scored.","session_id":"t"}' | sh "$TMP/gate.sh" meter.py
 if [ ! -e "$TMP/meter.log" ]; then pass 'case5 false: meter writes nothing'; else fail 'case5 false: meter writes nothing'; fi
 
 # Case 6: meter path on — one meter.log row.
 rm -f "$PROJ/.claude/war/config.json"
-printf '{"last_assistant_message":"This should be scored.","session_id":"t"}' | python3 "$TMP/gate.py" meter.py
+printf '{"last_assistant_message":"This should be scored.","session_id":"t"}' | sh "$TMP/gate.sh" meter.py
 if [ -s "$TMP/meter.log" ]; then pass 'case6 default on: meter writes a row'; else fail 'case6 default on: meter writes a row'; fi
 
 # Case 7: the wrapped script raising must be contained — gate still exits 0, silently.
 printf 'raise RuntimeError("boom")\n' > "$TMP/boom.py"
-out="$(printf '{}' | python3 "$TMP/gate.py" boom.py 2>&1)"; rc=$?
+out="$(printf '{}' | sh "$TMP/gate.sh" boom.py 2>&1)"; rc=$?
 if [ "$rc" -eq 0 ] && [ -z "$out" ]; then pass 'case7 wrapped raise: contained, exit 0'; else fail "case7 wrapped raise: contained, exit 0 (rc=$rc out=$out)"; fi
 
 if [ "$fails" -eq 0 ]; then printf 'PASS gate.test.sh (%d cases)\n' "$n"; exit 0; else printf 'FAIL gate.test.sh (%d/%d failed)\n' "$fails" "$n"; exit 1; fi
