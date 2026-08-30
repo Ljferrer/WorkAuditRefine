@@ -833,17 +833,24 @@ finding-subset re-application, not a history search).
 
 **Re-entry**:
 The budget-bounded return of the ace ladder for a fresh `absorb`-dispositioned finding born at ANY
-re-audit (plain, bisection-subset, or a re-entry batch's own), dispatched as another ace-style batch
-on the same machinery (canonical: `aceReentry` in `skills/war/assets/workflow-template.js`), **never
-a new round type or status member**. The **floor-retry reserve** (`fixRounds < roundLimit − 2`,
-#1562's merge-floor retry slots) is the SOLE bound — no echo cap, no shrinking rule, no second
+WAVE-SIDE re-audit (plain, bisection-subset, or a re-entry batch's own), dispatched as another
+ace-style batch on the same machinery (canonical: `aceReentry` in
+`skills/war/assets/workflow-template.js`), **never
+a new round type or status member**. For those three sources the **floor-retry reserve**
+(`fixRounds < roundLimit − 2`, #1562's merge-floor retry slots) is the SOLE bound — no echo cap, no
+shrinking rule, no second
 budget. Reserve-blocked or spent ⇒ the finding routes `phaseClose: true` to the sweep ⇒
 sweep-discard ⇒ `follow-up`; a
 forward-reverted finding never re-enters (the oscillation bound); every demotion is logged. Re-entry
 rounds inherit the **Ace-Subset trailer** discipline and the tip-preflight idempotency verbatim
 ([ADR 0013](docs/adr/0013-commanders-intent-and-disposition-routing.md) amendment 2026-08-27).
+**Merge-slot exception (#1931)**: a 4th source, the merge-slot pin-transfer MISMATCH re-audit, runs
+past the wave side, where `aceReentry` can never dispatch. Its absorb-eligible findings bypass
+re-entry entirely — never budget-gated, never queued on `r.reentryQueue` — and route straight to the
+sweep via `routeReauditMinors`' `noReentry` opt; every other arm of that ladder is unchanged.
 _Avoid_: a new round type or a second budget; treating the reserve as a soft target (it is the stop
-condition); re-entering a forward-reverted finding.
+condition); re-entering a forward-reverted finding; reading the reserve as a bound on the merge-slot
+mismatch re-audit's absorbs.
 
 **Absorb-by-citation**:
 An `--afk` ask resolution whose ruling is a quoted standing operator-ratified adjudication row and

@@ -58,7 +58,14 @@ const FILE_BUDGETS = {
   // 100,984 B @ 762a7e4 → 126,976/111,616). Ratchet-down only: placeholder retained,
   // blocking done-report flag raised for Lead adjudication (accept with an ADR-
   // justification note, or a re-shrink follow-up).
-  'CONTEXT.md': { hard: 126976, advisory: 111616 },
+  // RAISED (#1931 phase-close sweep, PIN-17): the surface sat at exactly the 126,976 B
+  // placeholder, so the Re-entry entry's merge-slot doc-cascade clause had zero headroom.
+  // Eviction first, per PIN-17: compressing the touched entry recovered 236 B of the 742 B,
+  // and the pre-ratified raise covers the 506 B remainder. post-shrink 127,482 B @ deb37b5
+  // → hard ×1.25 ceil-KB = 128,000 B — the computed value this row's placeholder had been
+  // held below, now adopted. Raise is +1,024 B, inside PIN-17's ≤ +2,048 B ceiling; the
+  // advisory arm is unchanged (ratchet-down still holds there).
+  'CONTEXT.md': { hard: 128000, advisory: 111616 },
   // Budgeted per adjudication F: CLAUDE.md loads every session, prompt-bearing.
   // post-shrink 12,987 B @ c6a05fb → hard ×1.25 ceil-KB = 16,384; advisory ×1.10 ceil-KB
   // = 14,336 (grew 12,400 B @ 762a7e4 → 12,987 B, but ceil-KB rounding lands both on the
