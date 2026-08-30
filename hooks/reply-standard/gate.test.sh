@@ -121,6 +121,13 @@ rm -f "$TMP/subagent-meter.log"
 printf '{"agent_type":"work-audit-refine:war-worker","agent_id":"a3","session_id":"t","last_assistant_message":"{\\"status\\":\\"merged\\",\\"note\\":\\"The gate ran green at the tip.\\"}"}' | sh "$TMP/gate.sh" subagent-stop.py
 if grep -q '"violations_total": 0' "$TMP/subagent-meter.log"; then pass 'case22 clean JSON message: zero violations, syntax never counted'; else fail 'case22 clean JSON message: zero violations, syntax never counted'; fi
 
+# Every shipped role addendum appends — a missing or misnamed addendum file goes red here.
+for role in war-worker war-auditor war-refiner war-servitor; do
+  MARK="$(printf '%s' "$role" | sed 's/^war-//' | tr '[:lower:]' '[:upper:]') ADDENDUM"
+  out="$(printf '{"agent_type":"work-audit-refine:%s","agent_id":"r1"}' "$role" | sh "$TMP/gate.sh" subagent-start.py)"
+  case "$out" in *'SEAT EDITION'*"$MARK"*) pass "role $role: blanket + $MARK" ;; *) fail "role $role: blanket + $MARK" ;; esac
+done
+
 # Fenced JSON verdict — scored as JSON, not deleted by strip_code's fence rule.
 rm -f "$TMP/subagent-meter.log"
 printf '{"agent_type":"work-audit-refine:war-auditor","agent_id":"a4","session_id":"t","last_assistant_message":"```json\\n{\\"evidence\\":\\"We should simply leverage this pattern.\\"}\\n```"}' | sh "$TMP/gate.sh" subagent-stop.py
