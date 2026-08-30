@@ -516,13 +516,17 @@ test('archive: cross-root dupe slug moves the LOCAL copy; committed repo copy un
 });
 
 // ============================================================================
-// (7a) #1924 — archive FAILS CLOSED on an occupied archive/ destination.
+// (7a) #1924 — the archive mover FAILS CLOSED on an occupied archive/ destination.
 //      Regression: `fs.renameSync` REPLACES its destination, and the repo arm's
 //      `git mv` (no `-f`) refuses and falls through to that same rename, so a slug
 //      already present in archive/ silently lost its archived copy while the ordinary
-//      `archived <slug> → <dst>` success line still printed. Delete the guard mentally
-//      and every assertion below fails: the archived copy is clobbered, the hot file is
-//      gone, and the exit status is 0.
+//      `archived <slug> → <dst>` success line still printed.
+//      Every test below goes red with the `fs.existsSync(dst)` check removed from
+//      `archiveRecord`. Individual assertions do NOT each carry that property (a clobber
+//      REPLACES rather than ADDS, so a file COUNT is unchanged either way) — the
+//      discriminating assertions are the byte-identity ones, `r.status`, and the stdout
+//      absence pin. `archiveRecord` serves BOTH `archive` and `migrate --apply`, so the
+//      class is covered at its single mover, not per caller (ADR 0031).
 // ============================================================================
 
 test('archive: refuses a slug whose basename already sits in archive/, archived copy byte-intact (#1924)', () => {
@@ -530,16 +534,19 @@ test('archive: refuses a slug whose basename already sits in archive/, archived 
   lessonFile(join(local, 'archive'), 'clash', { description: 'the OLDER archived copy' });
   lessonFile(local, 'clash', { description: 'the newer hot copy' });
   const archivedBytes = readFileSync(join(local, 'archive', 'clash.md'), 'utf8');
-  const before = readdirSync(join(local, 'archive')).length;
   const r = spawnSync('node', [CLI, 'archive', 'clash', '--local', local], { encoding: 'utf8' });
+  assert.equal(r.status, 1, 'a refusal must fail the batch');
   assert.equal(
     readFileSync(join(local, 'archive', 'clash.md'), 'utf8'),
     archivedBytes,
     'pre-existing archived copy must be byte-identical, never overwritten'
   );
-  assert.equal(readdirSync(join(local, 'archive')).length, before, 'archived-file count unchanged');
+  // the diagnostic names BOTH paths: the occupied destination AND the hot copy that survived
   assert.match(r.stderr, /REFUSED 'clash'/);
-  assert.match(r.stderr, /clash\.md already exists/); // the diagnostic names the destination
+  assert.match(r.stderr, new RegExp(`${join(local, 'archive', 'clash.md')} already exists`));
+  assert.match(r.stderr, new RegExp(`hot copy at ${join(local, 'clash.md')} was left in place`));
+  // the headline symptom of the bug: success reported for a slug that did not move
+  assert.doesNotMatch(r.stdout, /archived clash/, 'no success line for a refused slug');
   rmSync(local, { recursive: true, force: true });
 });
 
@@ -548,23 +555,28 @@ test('archive: a refused slug keeps its hot file untouched — no archive note a
   lessonFile(join(local, 'archive'), 'clash', { description: 'older archived copy' });
   const hot = lessonFile(local, 'clash', { description: 'newer hot copy' });
   const hotBytes = readFileSync(hot, 'utf8');
-  spawnSync('node', [CLI, 'archive', 'clash', '--local', local], { encoding: 'utf8' });
+  const r = spawnSync('node', [CLI, 'archive', 'clash', '--local', local], { encoding: 'utf8' });
+  // pin that the guard actually RAN, so a CLI that dies before the loop cannot green-pass this
+  assert.match(r.stderr, /REFUSED 'clash'/);
   assert.ok(existsSync(hot), 'hot file left in place for the operator to reconcile');
   assert.equal(readFileSync(hot, 'utf8'), hotBytes, 'no archive note appended to a refused slug');
   rmSync(local, { recursive: true, force: true });
 });
 
-test('archive: batch exits non-zero on a collision yet still moves + projects its clean siblings (#1924)', () => {
+test('archive: batch exits non-zero, counts EVERY collision, and still moves + projects clean siblings (#1924)', () => {
   const local = tmpDir();
-  lessonFile(join(local, 'archive'), 'clash', { description: 'older archived copy' });
-  lessonFile(local, 'clash', { description: 'newer hot copy' });
+  for (const slug of ['clash', 'clash2']) {
+    lessonFile(join(local, 'archive'), slug, { description: 'older archived copy' });
+    lessonFile(local, slug, { description: 'newer hot copy' });
+  }
   lessonFile(local, 'clean', { description: 'no collision here' });
   lessonFile(local, 'stays', { description: 'not archived at all' });
-  const r = spawnSync('node', [CLI, 'archive', 'clash', 'clean', '--local', local], { encoding: 'utf8' });
+  const r = spawnSync('node', [CLI, 'archive', 'clash', 'clash2', 'clean', '--local', local], { encoding: 'utf8' });
   assert.equal(r.status, 1, 'a refused slug must fail the batch loud, not exit 0');
-  assert.match(r.stderr, /1 slug\(s\) refused on an occupied archive\/ destination/);
+  // the COUNT is what a batch caller reads: pins accumulation, not a hardcoded 1
+  assert.match(r.stderr, /2 slug\(s\) refused/);
   assert.ok(existsSync(join(local, 'archive', 'clean.md')), 'clean sibling still archived');
-  assert.ok(existsSync(join(local, 'clash.md')), 'collided slug still hot');
+  assert.ok(existsSync(join(local, 'clash.md')) && existsSync(join(local, 'clash2.md')), 'both collided slugs still hot');
   // the exit is taken AFTER the re-render, so the projection reflects the moves that landed
   const proj = readFileSync(join(local, 'MEMORY.md'), 'utf8');
   assert.doesNotMatch(proj, /\[\[clean\]\]/);
@@ -572,13 +584,79 @@ test('archive: batch exits non-zero on a collision yet still moves + projects it
   rmSync(local, { recursive: true, force: true });
 });
 
-test('archive: repo-root arm refuses too — the git mv fallback never reaches renameSync (#1924)', () => {
-  // The repo arm is the one that LOOKS safe: `git mv` without `-f` refuses an existing
-  // destination. It then falls through to `fs.renameSync`, which does not. Cover it with
-  // a real git repo so the fallthrough is genuinely exercised.
+test('archive: the collision summary survives a budget-REFUSING re-render (#1924)', () => {
+  // cmdRenderIndex takes its own process.exit(1) above a hard axis. The summary is written
+  // BEFORE that call for exactly this case: the over-budget corpus is the one that motivates
+  // archiving, so swallowing the count there would lose it when it matters most.
+  const local = tmpDir();
+  lessonFile(join(local, 'archive'), 'clash', { description: 'older archived copy' });
+  lessonFile(local, 'clash', { description: 'newer hot copy' });
+  for (let i = 0; i < 210; i += 1) lessonFile(local, `filler-${i}`, { description: `filler lesson ${i}` });
+  const r = spawnSync('node', [CLI, 'archive', 'clash', '--local', local], { encoding: 'utf8' });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /REFUSED — projection/, 'the render really did refuse on budget');
+  assert.match(r.stderr, /1 slug\(s\) refused/, 'the collision summary is NOT swallowed by that exit');
+  rmSync(local, { recursive: true, force: true });
+});
+
+test('archive: cross-root hot/cold split is NOT a collision — the destination is root-scoped (#1924)', () => {
+  // The sanctioned `supersedes_repo_copy` shape: hot in one root, cold in the other. It must
+  // still archive at exit 0. A guard that refused on "slug is cold anywhere" would break the
+  // shape the release blurb calls normal, with nothing else in the suite going red.
+  const local = tmpDir();
+  const repo = tmpDir();
+  lessonFile(local, 'split', { description: 'hot local copy' });
+  lessonFile(join(repo, 'archive'), 'split', { description: 'cold repo copy' });
+  const coldBytes = readFileSync(join(repo, 'archive', 'split.md'), 'utf8');
+  const r = spawnSync('node', [CLI, 'archive', 'split', '--local', local, '--repo', repo], { encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(existsSync(join(local, 'archive', 'split.md')), 'hot local copy archived into its OWN root');
+  assert.equal(readFileSync(join(repo, 'archive', 'split.md'), 'utf8'), coldBytes, 'cold repo copy untouched');
+  rmSync(local, { recursive: true, force: true });
+  rmSync(repo, { recursive: true, force: true });
+});
+
+test('archive --candidates --apply: a collision inside the whole-set arm refuses that slug only (#1924)', () => {
+  // The candidate arm derives `slugs` from buildProjection and falls into the same loop. It is
+  // the arm where a caller cannot hand-audit which slug collided, so the count matters most.
+  const local = tmpDir();
+  lessonFile(join(local, 'archive'), 'clash', { description: 'older archived copy' });
+  lessonFile(local, 'clash', { description: 'newer hot copy' });
+  for (let i = 0; i < 210; i += 1) lessonFile(local, `filler-${i}`, { description: `filler lesson ${i}` });
+  const r = spawnSync('node', [CLI, 'archive', '--candidates', '--apply', '--local', local], { encoding: 'utf8' });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /REFUSED 'clash'/);
+  assert.ok(existsSync(join(local, 'clash.md')), 'collided slug still hot');
+  assert.ok(!existsSync(join(local, 'filler-0.md')), 'the rest of the candidate set still archived');
+  rmSync(local, { recursive: true, force: true });
+});
+
+test('archive: repeating a slug in one batch does not refuse against its own first move (#1924)', () => {
+  // records/bySlug are a pre-loop snapshot while existsSync is live, so a repeated slug used to
+  // be refused on its second turn with a message naming a hot path it had just vacated.
+  const local = tmpDir();
+  lessonFile(local, 'once', { description: 'archived exactly once' });
+  const r = spawnSync('node', [CLI, 'archive', 'once', 'once', '--local', local], { encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.doesNotMatch(r.stderr, /REFUSED/);
+  assert.ok(existsSync(join(local, 'archive', 'once.md')));
+  rmSync(local, { recursive: true, force: true });
+});
+
+test('archive: repo-root arm refuses BEFORE git runs, committed archived copy intact (#1924)', () => {
+  // What this proves: the guard sits ABOVE the repo arm's `git mv`, so on the shipped path no
+  // git command runs at all and the `if (res.status !== 0) fs.renameSync(...)` fallthrough is
+  // never reached. Delete the guard and git mv refuses the occupied destination, the
+  // fallthrough clobbers, and the committed copy is destroyed — which is what the byte-identity
+  // assertion catches. The git repo is real so the fallthrough is genuinely the code under
+  // test rather than a "not a git repository" accident.
   const local = tmpDir();
   const repo = tmpDir('war-memory-git-');
-  const git = (...a) => spawnSync('git', ['-C', repo, ...a], { encoding: 'utf8' });
+  const git = (...a) => {
+    const r = spawnSync('git', ['-C', repo, ...a], { encoding: 'utf8' });
+    if (r.status !== 0) throw new Error(`git ${a.join(' ')}: ${r.stderr}`); // fail closed
+    return r.stdout;
+  };
   git('init', '-q');
   git('config', 'user.email', 'test@example.invalid');
   git('config', 'user.name', 'Test');
@@ -595,8 +673,31 @@ test('archive: repo-root arm refuses too — the git mv fallback never reaches r
     'committed archived copy must survive the git mv fallthrough'
   );
   assert.ok(existsSync(join(repo, 'clash.md')), 'repo hot copy left in place');
+  assert.equal(git('status', '--porcelain').trim(), '', 'the repo working tree is untouched');
   rmSync(local, { recursive: true, force: true });
   rmSync(repo, { recursive: true, force: true });
+});
+
+test('migrate --apply: the SAME guard covers the second mover — live-store clobber refused (#1924)', () => {
+  // ADR 0031: the guard covers the equivalence class. `migrate --apply` edits the live store
+  // with no safe-swap staging copy behind it, so an unguarded clobber here is the less
+  // recoverable of the two. Reachable through the documented playbook: a lesson archived in an
+  // earlier pass, re-captured hot under the same slug, later stamped [RESOLVED].
+  const local = tmpDir();
+  lessonFile(join(local, 'archive'), 'clash', { description: 'older archived copy' });
+  lessonFile(local, 'clash', { description: 'newer hot copy', body: 'this was [RESOLVED] later' });
+  const archivedBytes = readFileSync(join(local, 'archive', 'clash.md'), 'utf8');
+  const r = spawnSync('node', [CLI, 'migrate', '--apply', '--local', local], { encoding: 'utf8' });
+  assert.equal(r.status, 1, 'migrate must fail closed on a collision, not exit 0');
+  assert.equal(
+    readFileSync(join(local, 'archive', 'clash.md'), 'utf8'),
+    archivedBytes,
+    'pre-existing archived copy byte-identical after migrate --apply'
+  );
+  assert.ok(existsSync(join(local, 'clash.md')), 'hot copy left in place');
+  assert.match(r.stderr, /migrate: REFUSED 'clash'/, 'the diagnostic names the verb that refused');
+  assert.match(r.stderr, /1 slug\(s\) refused/);
+  rmSync(local, { recursive: true, force: true });
 });
 
 // ============================================================================

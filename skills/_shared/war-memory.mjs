@@ -850,6 +850,54 @@ function cmdLint(argv) {
   process.stdout.write('lint: clean\n');
 }
 
+// Move ONE hot lesson record into its own root's archive/. The single mover for BOTH archiving
+// verbs, `archive` and `migrate --apply` (#1924, ADR 0031: a guard covers the whole equivalence
+// class, not the one instance that bit us).
+//
+// FAILS CLOSED on an occupied destination. `fs.renameSync` REPLACES its destination, and the repo
+// arm's `git mv` (no `-f`) refuses and falls through to that same rename, so without this check a
+// slug already present in `archive/` loses its archived copy and the caller prints its ordinary
+// success line. Archiving is the pipeline's stated safe operation (ADR 0015: a file move plus a
+// dated note, never a deletion), so a clobber is never an outcome. The check precedes the note
+// append, so a refused record keeps its hot file byte-intact and needs no repair.
+//
+// The collision is SAME-ROOT by construction: `rootBase` is the record's own root, so a slug hot
+// in one root and cold in the other (the cross-root `supersedes_repo_copy` shape) targets its own
+// root's `archive/` and never collides. The reachable shape is a slug re-captured hot in the SAME
+// root it was archived from.
+//
+// Returns { moved: true, dst } or { moved: false, dst } on a refusal.
+function archiveRecord(r, roots, note) {
+  const rootBase = r.root === 'repo' ? roots.repo : roots.local;
+  const dst = path.join(rootBase, ARCHIVE_DIR, path.basename(r.file));
+  if (fs.existsSync(dst)) return { moved: false, dst };
+  fs.mkdirSync(path.dirname(dst), { recursive: true });
+  fs.appendFileSync(r.file, note, 'utf8'); // append archive note before moving
+  if (r.root === 'repo') {
+    // git mv in the repo root (a git repo); fall back to rename if git unavailable
+    const res = spawnSync('git', ['-C', rootBase, 'mv', r.file, dst], { encoding: 'utf8' });
+    if (res.status !== 0) fs.renameSync(r.file, dst);
+  } else {
+    fs.renameSync(r.file, dst); // plain mv in the local root (not a git repo)
+  }
+  return { moved: true, dst };
+}
+
+// One batch summary, shared by both verbs: a count, so a caller running dozens of slugs is not
+// left reconciling file counts by hand.
+function archiveCollisionSummary(verb, collisions) {
+  return `${verb}: ${collisions} slug(s) refused on an occupied archive/ destination — nothing was overwritten\n`;
+}
+
+// One refusal diagnostic, shared by both verbs: name the occupied destination AND the hot copy
+// that survived, so the operator can reconcile the pair without hunting for either path.
+function archiveRefusedLine(verb, slug, dst, hotFile) {
+  return (
+    `${verb}: REFUSED '${slug}' — ${dst} already exists; the hot copy at ${hotFile} was left in ` +
+    `place. Reconcile the two by hand (keep one, or rename the archived copy), then re-run.\n`
+  );
+}
+
 function cmdArchive(argv) {
   const roots = resolveRoots(argv);
   requireLocal(roots, 'archive'); // ends in a re-render into the local root
@@ -879,7 +927,10 @@ function cmdArchive(argv) {
   }
   const note = `\n> archived ${new Date().toISOString().slice(0, 10)}: resolved — moved to archive\n`;
   let collisions = 0;
-  for (const slug of slugs) {
+  // Set: a slug repeated in one argv list would otherwise be re-resolved from the pre-loop
+  // `records` snapshot on its second turn and refused against the archive/ entry its own first
+  // turn just created, naming a hot copy that no longer exists (#1924).
+  for (const slug of new Set(slugs)) {
     const r = bySlug.get(slug);
     if (!r) {
       process.stderr.write(`archive: no hot lesson '${slug}'\n`);
@@ -897,45 +948,22 @@ function cmdArchive(argv) {
           `its index row disappears; consider keep-compress stub\n`
       );
     }
-    const rootBase = r.root === 'repo' ? roots.repo : roots.local;
-    const dst = path.join(rootBase, ARCHIVE_DIR, path.basename(r.file));
-    // FAIL CLOSED on an occupied destination (#1924). `fs.renameSync` REPLACES its
-    // destination, and the repo arm's `git mv` (no `-f`) refuses and falls through to that
-    // same rename, so without this guard archiving a slug already present in `archive/`
-    // deletes the archived copy and prints the ordinary success line. Archiving is the
-    // pipeline's stated safe operation ("knowledge is archived, never deleted"), so a
-    // clobber is never a silent outcome: skip the slug, name BOTH paths, leave the hot file
-    // untouched (the note is appended only after this guard), and exit non-zero at the end
-    // so a batch caller is not left reconciling file counts by hand.
-    if (fs.existsSync(dst)) {
+    const { moved, dst } = archiveRecord(r, roots, note);
+    if (!moved) {
       collisions += 1;
-      process.stderr.write(
-        `archive: REFUSED '${slug}' — ${dst} already exists; the hot copy at ${r.file} was ` +
-          `left in place. Reconcile the two by hand (keep one, or rename the archived copy), ` +
-          `then re-run.\n`
-      );
-      continue;
-    }
-    fs.mkdirSync(path.dirname(dst), { recursive: true });
-    fs.appendFileSync(r.file, note, 'utf8'); // append archive note before moving
-    if (r.root === 'repo') {
-      // git mv in the repo root (a git repo); fall back to rename if git unavailable
-      const res = spawnSync('git', ['-C', rootBase, 'mv', r.file, dst], { encoding: 'utf8' });
-      if (res.status !== 0) fs.renameSync(r.file, dst);
-    } else {
-      fs.renameSync(r.file, dst); // plain mv in the local root (not a git repo)
+      process.stderr.write(archiveRefusedLine('archive', slug, dst, r.file));
+      continue; // no success line for a slug that did not move
     }
     process.stdout.write(`archived ${slug} → ${dst}\n`);
   }
+  // Summary BEFORE the re-render: `cmdRenderIndex` takes its own process.exit(1) when the
+  // projection is over a hard axis, which would otherwise swallow this line on exactly the
+  // over-budget corpus that motivates archiving in the first place (#1924).
+  if (collisions > 0) process.stderr.write(archiveCollisionSummary('archive', collisions));
   // re-render
   cmdRenderIndex(argv);
-  // Non-zero AFTER the re-render, so the slugs that did move are still projected (#1924).
-  if (collisions > 0) {
-    process.stderr.write(
-      `archive: ${collisions} slug(s) refused on an occupied archive/ destination — nothing was overwritten\n`
-    );
-    process.exit(1);
-  }
+  // Non-zero AFTER the re-render, so the slugs that DID move are still projected.
+  if (collisions > 0) process.exit(1);
 }
 
 function cmdConsolidate(argv) {
@@ -980,21 +1008,23 @@ function cmdMigrate(argv) {
       if (!bySlug.has(r.slug) || r.root === 'local') bySlug.set(r.slug, r);
     }
     // Set: migrationPlan pushes a dupe slug once per holding root — move it once.
+    // Same fail-closed mover as `archive` (#1924). migrate --apply edits the LIVE store with no
+    // safe-swap staging copy behind it, so an unguarded clobber here is the less recoverable of
+    // the two — only the playbook's hand-taken tarball stands behind it.
+    const note = `\n> archived ${new Date().toISOString().slice(0, 10)}: resolved — moved to archive\n`;
+    let collisions = 0;
     for (const slug of new Set(plan.toArchive)) {
       const r = bySlug.get(slug);
       if (!r) continue;
-      const base = r.root === 'repo' ? roots.repo : roots.local;
-      const dst = path.join(base, ARCHIVE_DIR, path.basename(r.file));
-      fs.mkdirSync(path.dirname(dst), { recursive: true });
-      if (r.root === 'repo') {
-        // git mv in the repo root (a git repo); fall back to rename if git unavailable
-        const res = spawnSync('git', ['-C', base, 'mv', r.file, dst], { encoding: 'utf8' });
-        if (res.status !== 0) fs.renameSync(r.file, dst);
-      } else {
-        fs.renameSync(r.file, dst); // plain mv in the local root (not a git repo)
+      const { moved, dst } = archiveRecord(r, roots, note);
+      if (!moved) {
+        collisions += 1;
+        process.stderr.write(archiveRefusedLine('migrate', slug, dst, r.file));
       }
     }
+    if (collisions > 0) process.stderr.write(archiveCollisionSummary('migrate', collisions));
     cmdRenderIndex(argv);
+    if (collisions > 0) process.exit(1);
   }
 }
 
