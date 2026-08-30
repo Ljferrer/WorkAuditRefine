@@ -51,4 +51,9 @@ rm -f "$PROJ/.claude/war/config.json"
 printf '{"last_assistant_message":"This should be scored.","session_id":"t"}' | python3 "$TMP/gate.py" meter.py
 if [ -s "$TMP/meter.log" ]; then pass 'case6 default on: meter writes a row'; else fail 'case6 default on: meter writes a row'; fi
 
+# Case 7: the wrapped script raising must be contained — gate still exits 0, silently.
+printf 'raise RuntimeError("boom")\n' > "$TMP/boom.py"
+out="$(printf '{}' | python3 "$TMP/gate.py" boom.py 2>&1)"; rc=$?
+if [ "$rc" -eq 0 ] && [ -z "$out" ]; then pass 'case7 wrapped raise: contained, exit 0'; else fail "case7 wrapped raise: contained, exit 0 (rc=$rc out=$out)"; fi
+
 if [ "$fails" -eq 0 ]; then printf 'PASS gate.test.sh (%d cases)\n' "$n"; exit 0; else printf 'FAIL gate.test.sh (%d/%d failed)\n' "$fails" "$n"; exit 1; fi
