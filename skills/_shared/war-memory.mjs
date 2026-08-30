@@ -878,6 +878,7 @@ function cmdArchive(argv) {
     if (!bySlug.has(r.slug) || r.root === 'local') bySlug.set(r.slug, r);
   }
   const note = `\n> archived ${new Date().toISOString().slice(0, 10)}: resolved — moved to archive\n`;
+  let collisions = 0;
   for (const slug of slugs) {
     const r = bySlug.get(slug);
     if (!r) {
@@ -898,6 +899,23 @@ function cmdArchive(argv) {
     }
     const rootBase = r.root === 'repo' ? roots.repo : roots.local;
     const dst = path.join(rootBase, ARCHIVE_DIR, path.basename(r.file));
+    // FAIL CLOSED on an occupied destination (#1924). `fs.renameSync` REPLACES its
+    // destination, and the repo arm's `git mv` (no `-f`) refuses and falls through to that
+    // same rename, so without this guard archiving a slug already present in `archive/`
+    // deletes the archived copy and prints the ordinary success line. Archiving is the
+    // pipeline's stated safe operation ("knowledge is archived, never deleted"), so a
+    // clobber is never a silent outcome: skip the slug, name BOTH paths, leave the hot file
+    // untouched (the note is appended only after this guard), and exit non-zero at the end
+    // so a batch caller is not left reconciling file counts by hand.
+    if (fs.existsSync(dst)) {
+      collisions += 1;
+      process.stderr.write(
+        `archive: REFUSED '${slug}' — ${dst} already exists; the hot copy at ${r.file} was ` +
+          `left in place. Reconcile the two by hand (keep one, or rename the archived copy), ` +
+          `then re-run.\n`
+      );
+      continue;
+    }
     fs.mkdirSync(path.dirname(dst), { recursive: true });
     fs.appendFileSync(r.file, note, 'utf8'); // append archive note before moving
     if (r.root === 'repo') {
@@ -911,6 +929,13 @@ function cmdArchive(argv) {
   }
   // re-render
   cmdRenderIndex(argv);
+  // Non-zero AFTER the re-render, so the slugs that did move are still projected (#1924).
+  if (collisions > 0) {
+    process.stderr.write(
+      `archive: ${collisions} slug(s) refused on an occupied archive/ destination — nothing was overwritten\n`
+    );
+    process.exit(1);
+  }
 }
 
 function cmdConsolidate(argv) {
