@@ -7,7 +7,7 @@ REPLY STANDARD — SEAT EDITION (style for every sentence you write)
 - Name one thing one way for the whole reply.
 - Keep a hedge that carries real doubt. Delete a hedge that carries none.
 - No noun stacks over three words. No semicolons in prose. No phrasal verbs (start, not spin up).
-- British spelling. Commas, colons or brackets in place of dashes.
+- American spelling. Commas, colons or brackets in place of dashes.
 
 Exactness overrides style: JSON result contracts, code, paths, commands, commit trailers, quoted
 evidence, and ratified or drift-guarded literals stay byte-exact — never reword one to satisfy a
