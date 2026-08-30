@@ -645,6 +645,29 @@ test('memory.commitLearnings non-boolean rejected', () => {
   assert.match(r.errors.join('\n'), /memory\.commitLearnings must be a boolean/)
 })
 
+// hooks.replyStandard — the Reply Standard hook-pair toggle, consumed by hooks/reply-standard/gate.py
+// (fail-open), never the phase engine. Delete-the-feature: drop the DEFAULTS.hooks block and the
+// default-ON assertion fails; drop the validate() block and the rejection cases fail.
+test('hooks.replyStandard defaults ON, explicit false validates, non-boolean rejected', () => {
+  assert.equal(DEFAULTS.hooks.replyStandard, true, 'Reply Standard hooks are on by default')
+  assert.equal(fillDefaults({}).hooks.replyStandard, true)
+  assert.equal(validate({ hooks: { replyStandard: false } }).valid, true)
+  assert.equal(validate({ hooks: { replyStandard: null } }).valid, true,
+    'null = unset (the overrides.* convention) — the gate reads null as ON, and the validator must not disagree')
+  const r = validate({ hooks: { replyStandard: 'off' } })
+  assert.equal(r.valid, false)
+  assert.match(r.errors.join('\n'), /hooks\.replyStandard must be a boolean/)
+})
+
+test('hooks: non-object and unknown keys rejected (memory.* precedent)', () => {
+  const rNull = validate({ hooks: null })
+  assert.equal(rNull.valid, false)
+  assert.match(rNull.errors.join('\n'), /hooks must be an object/)
+  const rTypo = validate({ hooks: { replyStandart: true } })
+  assert.equal(rTypo.valid, false)
+  assert.match(rTypo.errors.join('\n'), /hooks\.replyStandart is not a known key/)
+})
+
 // --- Doc-claim drift guard (Task 3.1 / End-state 6): no surface reasserts the retired ------------
 // commitLearnings default-`true` claim, and every documented default stays bound to the canonical
 // DEFAULTS value. Two extraction+equality clauses pin the STRUCTURED "default <value>" surfaces

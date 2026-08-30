@@ -56,6 +56,12 @@ export const DEFAULTS = {
   // docs/learnings/ lessons (default OFF — a conscious opt-in via /war-room; when on, published
   // lessons are lint-scrubbed and ride each phase PR, human-reviewed like code; all presets inherit off).
   memory: { retrieval: true, topK: 10, commitLearnings: false },
+  // hooks.replyStandard: the plugin-shipped Reply Standard hook pair (hooks/reply-standard/ —
+  // card.py on UserPromptSubmit, meter.py on Stop). Default ON. Consumed fail-open by the
+  // hooks/reply-standard/gate.py wrapper in the project the hook fires in — never by the phase
+  // engine, so no workflow-template.js mirror. Only an explicit `false` disables; absent, null
+  // hooks block, or an unreadable config all mean on.
+  hooks: { replyStandard: true },
   // overrides.testPattern: the run's declared test-floor glob set (space-separated glob tokens) | null.
   // null ⇒ today's hardcoded gate-mirror floor defaults, byte-identical. Floor ⊆ gate is ONE Setup
   // decision (ADR 0006): testPattern is pinned TOGETHER with the gate — though that confirmation is not
@@ -248,6 +254,21 @@ export function validate(input) {
     // No accepted-but-ignored keys: an unknown memory key is a config error, not silently kept.
     for (const k of Object.keys(mem)) {
       if (!['retrieval', 'topK', 'commitLearnings'].includes(k)) errors.push(`memory.${k} is not a known key (retrieval|topK|commitLearnings) — run /war-room to regenerate the config`)
+    }
+  }
+
+  // hooks.* — session-level plugin-hook toggles, defaulted in DEFAULTS. Consumed fail-open by
+  // hooks/reply-standard/gate.py (the Reply Standard UserPromptSubmit/Stop pair), never by the
+  // phase engine — no workflow-template.js mirror. Unknown keys are courtesy errors (the memory.*
+  // precedent, so a typo never silently runs the default).
+  const hk = c.hooks
+  if (!isObj(hk)) { errors.push('hooks must be an object') }
+  else {
+    // null = unset (the overrides.* convention): the gate reads null as ON — the DEFAULTS value —
+    // so the validator accepts it rather than disagreeing with the key's other consumer.
+    if (hk.replyStandard !== null && typeof hk.replyStandard !== 'boolean') errors.push('hooks.replyStandard must be a boolean or null')
+    for (const k of Object.keys(hk)) {
+      if (!['replyStandard'].includes(k)) errors.push(`hooks.${k} is not a known key (replyStandard) — run /war-room to regenerate the config`)
     }
   }
 
