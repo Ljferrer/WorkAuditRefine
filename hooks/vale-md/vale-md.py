@@ -13,10 +13,11 @@ Unlike the Reply Standard card/meter pair (main-conversation events only),
 PostToolUse fires inside subagents too, so WAR workers editing plans, docs, or
 skills see the same advisory line.
 
-Toggle: `hooks.valeMarkdown` in the project's `.claude/war/config.json`
-(default on). The read is fail-open, mirroring hooks/reply-standard/gate.py:
-no config, unreadable JSON, a malformed `hooks` block, or `null` all mean ON;
-only an explicit `false` disables. A missing `vale` binary, a non-Markdown
+Toggles in the project's `.claude/war/config.json`, both fail-open (no config,
+unreadable JSON, a malformed `hooks` block, or `null` all mean the default):
+`hooks.valeMarkdown` (default on — only an explicit `false` disables) and
+`hooks.valeGoogle` (default off — only an explicit `true` swaps the profile to
+`.vale-google.ini`, the house rules plus the vendored, tuned Google style). A missing `vale` binary, a non-Markdown
 path, unreadable stdin, or a Vale failure each mean a silent exit 0.
 """
 import json
@@ -29,15 +30,27 @@ import sys
 HERE = pathlib.Path(__file__).resolve().parent
 
 
-def enabled():
+def profile():
+    """The Vale config for this run, or None when the hook is toggled off.
+
+    hooks.valeMarkdown (default ON): only an explicit false disables.
+    hooks.valeGoogle (default OFF): only an explicit true selects the
+    house + vendored-Google profile (.vale-google.ini) over the house-only
+    default (.vale.ini). Both reads are fail-open.
+    """
+    hooks = {}
     try:
         cfg = pathlib.Path(os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()) / ".claude" / "war" / "config.json"
-        hooks = json.loads(cfg.read_text(encoding="utf-8")).get("hooks")
-        if isinstance(hooks, dict) and hooks.get("valeMarkdown") is False:
-            return False
+        parsed = json.loads(cfg.read_text(encoding="utf-8")).get("hooks")
+        if isinstance(parsed, dict):
+            hooks = parsed
     except (OSError, ValueError, AttributeError):
         pass
-    return True
+    if hooks.get("valeMarkdown") is False:
+        return None
+    if hooks.get("valeGoogle") is True:
+        return HERE / ".vale-google.ini"
+    return HERE / ".vale.ini"
 
 
 def main():
@@ -45,7 +58,10 @@ def main():
         data = json.loads(sys.stdin.buffer.read().decode("utf-8", "replace"))
     except ValueError:
         return
-    if not isinstance(data, dict) or not enabled():
+    if not isinstance(data, dict):
+        return
+    config = profile()
+    if config is None:
         return
     tool_input = data.get("tool_input")
     path = (tool_input or {}).get("file_path") or ""
@@ -56,7 +72,7 @@ def main():
         return
     try:
         run = subprocess.run(
-            [vale, "--output=JSON", "--config=" + str(HERE / ".vale.ini"), path],
+            [vale, "--output=JSON", "--config=" + str(config), path],
             capture_output=True, text=True, timeout=8)
         alerts = [a for file_alerts in json.loads(run.stdout or "{}").values() for a in file_alerts]
     except (OSError, ValueError, subprocess.TimeoutExpired):

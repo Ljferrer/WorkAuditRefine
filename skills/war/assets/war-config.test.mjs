@@ -673,6 +673,20 @@ test('hooks.valeMarkdown defaults ON, explicit false validates, null is unset, n
   assert.match(r.errors.join('\n'), /hooks\.valeMarkdown must be a boolean/)
 })
 
+// hooks.valeGoogle — the vale-md profile selector, consumed by hooks/vale-md/vale-md.py
+// (fail-open; subordinate to valeMarkdown). Delete-the-feature: drop the DEFAULTS entry and
+// the default-OFF assertion fails; drop the validate() line and the rejection case fails.
+test('hooks.valeGoogle defaults OFF, explicit true validates, null is unset, non-boolean rejected', () => {
+  assert.equal(DEFAULTS.hooks.valeGoogle, false, 'the Google profile is opt-in')
+  assert.equal(fillDefaults({}).hooks.valeGoogle, false)
+  assert.equal(validate({ hooks: { valeGoogle: true } }).valid, true)
+  assert.equal(validate({ hooks: { valeGoogle: null } }).valid, true,
+    'null = unset (the overrides.* convention) — vale-md.py reads null as the default (off), and the validator must not disagree')
+  const r = validate({ hooks: { valeGoogle: 'on' } })
+  assert.equal(r.valid, false)
+  assert.match(r.errors.join('\n'), /hooks\.valeGoogle must be a boolean/)
+})
+
 // agents.snipe — /snipe's one-shot seat tier (#1920): defaulted opus/high, validated like
 // redteam when present, explicit null accepted as unset (snipeTier's auditor fallback).
 test('agents.snipe defaults opus/high, validates as a tier, null accepted as unset', () => {
